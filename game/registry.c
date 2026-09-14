@@ -223,6 +223,17 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC03E5C, event_cmd_party_routine_6_7),
     EVENT_CMD(0xC03E6E, event_cmd_party_routine_6),
     EVENT_CMD(0xC03E75, event_cmd_party_routine_7),
+    /* locations */
+    EVENT_CMD(0xC03A68, event_cmd_party_routine_0a),
+    EVENT_CMD(0xC03A07, event_cmd_remove_from_party),
+    EVENT_CMD(0xC03A83, event_cmd_request_mode_switch),
+    EVENT_CMD(0xC03AB7, event_cmd_change_location),
+    EVENT_CMD(0xC03AF1, event_cmd_set_location_0a),
+    EVENT_CMD(0xC03B1B, event_cmd_set_location_00),
+    EVENT_CMD(0xC03B45, event_cmd_set_location_00_with_1e),
+    EVENT_CMD(0xC03B4B, event_cmd_change_location_now),
+    EVENT_CMD(0xC03B98, event_cmd_change_location_now_with_1e),
+    EVENT_CMD(0xC03B9E, event_cmd_change_location_from_variables),
 #undef EVENT_CMD
 
     /* field */
