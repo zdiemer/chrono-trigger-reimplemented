@@ -217,10 +217,10 @@ void event_cmd_party_routine_6_7(Snes *s);  /* $F8 */
 void event_cmd_party_routine_6(Snes *s);  /* $F9 */
 void event_cmd_party_routine_7(Snes *s);  /* $FA */
 
-/* event/locations.c: location changes, party and mode requests */
+/* event/locations.c: location changes, battles and party requests */
 void event_cmd_party_routine_0a(Snes *s);  /* $D5 */
 void event_cmd_remove_from_party(Snes *s);  /* $D6 */
-void event_cmd_request_mode_switch(Snes *s);  /* $D8 */
+void event_cmd_start_battle(Snes *s);  /* $D8 */
 void event_cmd_change_location(Snes *s);  /* $E0 */
 void event_cmd_set_location_0a(Snes *s);  /* $DC */
 void event_cmd_set_location_00(Snes *s);  /* $DD */

@@ -226,7 +226,7 @@ const NativeEntry game_natives[] = {
     /* locations */
     EVENT_CMD(0xC03A68, event_cmd_party_routine_0a),
     EVENT_CMD(0xC03A07, event_cmd_remove_from_party),
-    EVENT_CMD(0xC03A83, event_cmd_request_mode_switch),
+    EVENT_CMD(0xC03A83, event_cmd_start_battle),
     EVENT_CMD(0xC03AB7, event_cmd_change_location),
     EVENT_CMD(0xC03AF1, event_cmd_set_location_0a),
     EVENT_CMD(0xC03B1B, event_cmd_set_location_00),

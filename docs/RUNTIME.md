@@ -138,6 +138,7 @@ the same scenes on Snes9x:
 | `menu.ctm` | from the starting room, opens the main menu, enters and leaves five submenus, closes it | 8900 |
 | `fair.ctm` | `field.ctm`'s route, then across the world map into the fair and north through it | 12450 |
 | `fair-companion.ctm` | `fair.ctm`'s route (without its last walk), then up to the plaza, the meeting event with the story character, picking up and returning the item they drop, and the character joining the party | 17900 |
+| `gato-battle.ctm` | `fair-companion.ctm`, then out of the plaza's west edge to the singing robot's stage, the conversation that starts the fight, and the first battle, won (results at 21200 here, 21600 on Snes9x: battles run on real time, so they diverge in detail) | 21600 |
 
 Non-blank frames pixel-identical to Snes9x at the same frame / within 16 frames:
 
@@ -173,6 +174,13 @@ screenshot on both systems and looked identical: a vertical seam in the fair's
 east side (part of the map) and a spot at the north stairs where the player
 is blocked.
 
+The battle movie found a DMA bug: the address step direction was taken from
+bit 1 of `$43x0` (part of the transfer mode) instead of bit 4, so mode 2
+transfers ran backwards. The battle transition copies the palette from
+`$7E:2200` with mode 2, and got zeros instead of the field colors, showing 70
+frames of garbled graphics where Snes9x keeps the field image. Fixed; the
+transition now matches Snes9x frame for frame.
+
 ## Validation strategy
 
 External emulators check that the hardware model is right. They aren't
@@ -187,14 +195,21 @@ WRAM bytes the game has written: `ct_dev` traces carry a `WRAMW` region, and
 
 ## Next
 
-1. **Movie coverage.** Reach the first battle. `fair-companion.ctm` gets the
-   companion into the party, but no battle yet: the two people standing on the
-   fair's north stairs still block the way afterwards, and the east part of the
-   fair explored so far is a dead end. Next candidates are the optional fight
-   somewhere in the fair, or whatever story step clears the north stairs.
-   `ct_dev --save-state/--load-state` from the end of `fair-companion.ctm`
-   makes those experiments fast. Realign positions against walls so field
-   frames compare exactly.
+1. **Battle.** `gato-battle.ctm` reaches and wins the first battle. The battle
+   system (banks `$C1`, `$CC`, `$CD`) runs entirely on the interpreter so far;
+   it's the next large area to port, now that a movie exercises it.
 2. **Porting.** Continue replacing routines with native code; shadow mode over
-   `new-game`, `field`, `menu`, `fair` and `fair-companion` is the regression
-   check (docs/PORTING.md).
+   `new-game`, `field`, `menu`, `fair`, `fair-companion` and `gato-battle` is
+   the regression check (docs/PORTING.md).
+
+## Finding routes
+
+Movies are extended from a save state at their last frame
+(`ct_dev --save-state`), trying input from there and checking screenshots. When
+the way isn't obvious, read the map instead of guessing: `$7E:7040` holds each
+tile's walkability ($01 walkable, $81 blocked; index `(Y << 8 | X) & $1D1E`),
+object slots hold tile positions in `$1801`/`$1881`, and the party leader's
+slot is `$97` (direct page `$0100` in field mode). The west exit to the robot's
+stage was found that way, after the north stairs turned out to be blocked by
+two people standing on the only walkable tiles. Walking takes 16 frames per
+tile.

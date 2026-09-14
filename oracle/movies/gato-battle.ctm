@@ -1,0 +1,230 @@
+# Power on, start a new game, cross the world map into the fair, meet the story
+# character in the plaza, have them join, then walk west to the singing robot and win
+# the first battle.
+# Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2400 4 A
+3000 4 START
+3200 4 START
+# Advance opening dialog with periodic A presses.
+5400 3 A
+5490 3 A
+5580 3 A
+5670 3 A
+5760 3 A
+5850 3 A
+5940 3 A
+6030 3 A
+6120 3 A
+6210 3 A
+6300 3 A
+6390 3 A
+6480 3 A
+6570 3 A
+6660 3 A
+6750 3 A
+6840 3 A
+6930 3 A
+7020 3 A
+7110 3 A
+# Starting room: walk to the stairs.
+7400 90 LEFT
+7490 110 DOWN
+7600 16 UP
+7616 120 RIGHT
+# Downstairs: walk toward the front door.
+8700 40 LEFT
+8740 150 DOWN
+# Downstairs dialog: advance with A, then accept the default name for the
+# second character.
+9000 3 A
+9090 3 A
+9200 4 START
+9400 4 START
+10000 3 A
+10090 3 A
+10180 3 A
+10270 3 A
+10360 3 A
+# Downstairs: walk out the front door into town.
+10500 160 DOWN
+# World map: walk to the fair.
+11250 28 LEFT
+11278 90 UP
+11368 30 UP
+11420 14 RIGHT
+11434 40 UP
+11560 4 A
+# 12200-12900 Fair: go around the fountain and up the stairs to the plaza.
+12200 40 LEFT
+12240 150 UP
+12390 60 LEFT
+12450 400 UP
+12650 24 RIGHT
+12674 250 UP
+# 12900-13900 Plaza: wait for the story character, then walk into them (event).
+12900 70 UP
+13780 40 UP
+# 13900-14500 Event dialog.
+13900 3 A
+13950 3 A
+14000 3 A
+14050 3 A
+14100 3 A
+14150 3 A
+14200 3 A
+14250 3 A
+14300 3 A
+14350 3 A
+14400 3 A
+14450 3 A
+14500 3 A
+# 14600-15050 Walk to the dropped item and pick it up.
+14600 60 UP
+14660 100 RIGHT
+14760 30 UP
+14790 20 RIGHT
+14810 6 UP
+14830 3 A
+14880 3 A
+14930 3 A
+14980 3 A
+15030 3 A
+# 15050-15900 Walk back, hand it over, advance the dialog.
+15050 40 DOWN
+15090 25 LEFT
+15115 10 DOWN
+15130 3 A
+15200 3 A
+15270 3 A
+15340 3 A
+15410 3 A
+15480 3 A
+15550 3 A
+15620 3 A
+15690 3 A
+15760 3 A
+15830 3 A
+# 15900-16600 Walk north; the event continues. START past the naming step.
+15900 30 LEFT
+15930 300 UP
+16230 3 A
+16400 4 START
+16600 4 START
+# 17150-17850 Finish the dialog; the character joins (free movement by 17850).
+17150 3 A
+17250 3 A
+17350 3 A
+17450 3 A
+# 17900-18720 Walk west out of the plaza (left, down the side path, west, up, out the
+# left edge) to the robot's stage.
+17910 176 LEFT
+18090 96 DOWN
+18190 176 LEFT
+18370 176 UP
+18550 160 LEFT
+# 18730-19260 Walk up to the robot and talk; the battle starts.
+18730 100 UP
+18840 3 A
+18900 3 A
+18960 3 A
+19020 3 A
+19080 3 A
+19140 3 A
+19200 3 A
+19260 3 A
+# 19400-21240 Attack until the battle is won (results by 21200).
+19400 3 A
+19420 3 A
+19440 3 A
+19460 3 A
+19480 3 A
+19500 3 A
+19520 3 A
+19540 3 A
+19560 3 A
+19580 3 A
+19600 3 A
+19620 3 A
+19640 3 A
+19660 3 A
+19680 3 A
+19700 3 A
+19720 3 A
+19740 3 A
+19760 3 A
+19780 3 A
+19800 3 A
+19820 3 A
+19840 3 A
+19860 3 A
+19880 3 A
+19900 3 A
+19920 3 A
+19940 3 A
+19960 3 A
+19980 3 A
+20000 3 A
+20020 3 A
+20040 3 A
+20060 3 A
+20080 3 A
+20100 3 A
+20120 3 A
+20140 3 A
+20160 3 A
+20180 3 A
+20200 3 A
+20220 3 A
+20240 3 A
+20260 3 A
+20280 3 A
+20300 3 A
+20320 3 A
+20340 3 A
+20360 3 A
+20380 3 A
+20400 3 A
+20420 3 A
+20440 3 A
+20460 3 A
+20480 3 A
+20500 3 A
+20520 3 A
+20540 3 A
+20560 3 A
+20580 3 A
+20600 3 A
+20620 3 A
+20640 3 A
+20660 3 A
+20680 3 A
+20700 3 A
+20720 3 A
+20740 3 A
+20760 3 A
+20780 3 A
+20800 3 A
+20820 3 A
+20840 3 A
+20860 3 A
+20880 3 A
+20900 3 A
+20920 3 A
+20940 3 A
+20960 3 A
+20980 3 A
+21000 3 A
+21020 3 A
+21040 3 A
+21060 3 A
+21080 3 A
+21100 3 A
+21120 3 A
+21140 3 A
+21160 3 A
+21180 3 A
+21200 3 A
+21220 3 A
+21240 3 A

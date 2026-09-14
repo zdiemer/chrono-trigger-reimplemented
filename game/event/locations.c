@@ -1,4 +1,4 @@
-/* Event commands: changing location, and a few party and mode requests.
+/* Event commands: changing location, starting battles, and a few party requests.
  *
  * A location is stored as a triple: a 16-bit value whose low 9 bits are the
  * location number (base+0), a 16-bit value (base+2), and a byte (base+4)
@@ -158,12 +158,12 @@ void event_cmd_change_location_now_with_1e(Snes *s)
 }
 
 // $C0:3A83
-/* $D8: request a mode switch (believed to start a battle; not yet confirmed):
- * operands 1 and 2 go to $7E:2989 and $7E:2A1F, bits 0 and 5 of $17 are set
- * and $1F cleared, and the command waits. It continues (skipping its operands)
- * once bit 0 of $18 is set, which it clears. Nothing happens while bit 0 of
- * $17 is still set. */
-void event_cmd_request_mode_switch(Snes *s)
+/* $D8: start a battle (seen in gato-battle.ctm: the first run starts the
+ * fight, the second continues after it). Operands 1 and 2 go to $7E:2989 and
+ * $7E:2A1F, bits 0 and 5 of $17 are set and $1F cleared, and the command
+ * waits. It continues (skipping its operands) once bit 0 of $18 is set, which
+ * it clears. Nothing happens while bit 0 of $17 is still set. */
+void event_cmd_start_battle(Snes *s)
 {
     m_lda8(s, dp8(s, 0x17));
     m_bit_imm8(s, 0x01);

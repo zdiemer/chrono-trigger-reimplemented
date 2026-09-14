@@ -219,8 +219,9 @@ static void run_dma(SnesBus *bus, uint8_t channels)
         uint8_t ctrl = r[0];
         uint8_t mode = ctrl & 7;
         bool to_a = ctrl & 0x80;
+        /* DMAP bit 3: fixed address; bit 4: decrement (bits 0-2 are the mode). */
         bool fixed = ctrl & 0x08;
-        int step = (ctrl & 0x02) ? -1 : 1;
+        int step = (ctrl & 0x10) ? -1 : 1;
         uint32_t bank = (uint32_t)r[4] << 16;
         uint16_t addr = (uint16_t)(r[2] | r[3] << 8);
         uint32_t count = (uint32_t)(r[5] | r[6] << 8);
