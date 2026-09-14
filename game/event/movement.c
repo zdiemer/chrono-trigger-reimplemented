@@ -394,9 +394,8 @@ void event_cmd_move_toward_party_member_counted(Snes *s)
 
 // $C0:5429
 /* $8F: move toward party member (operand 1). Arrives when next to them, or
- * when not next to them but the object's tile is at least 2 tiles inside the
- * screen's left/top edge ($1D0A/$1D0E, halved) and within 14 columns and 13
- * rows of it. */
+ * when the object's tile is 2 to 13 columns right of and 2 to 12 rows below
+ * the screen origin ($1D0A/$1D0E, halved). */
 void event_cmd_move_toward_party_member_until_on_screen(Snes *s)
 {
     if (still_moving(s))

@@ -27,6 +27,47 @@ void event_cmd_if_mem_const(Snes *s);        /* $16 */
 void event_cmd_wait(Snes *s);                /* $AD */
 void event_cmd_yield(Snes *s);               /* $B1 */
 void event_cmd_halt(Snes *s);                /* $B2 */
+void event_cmd_if_mem0_below(Snes *s);       /* $18 */
+void event_cmd_if_object_value(Snes *s);     /* $1A */
+void event_cmd_if_object_in_view(Snes *s);   /* $27 */
+void event_cmd_if_object_on_screen(Snes *s); /* $28 */
+
+/* event/input.c: conditions on controller input */
+void event_cmd_if_any_input(Snes *s);        /* $2D */
+void event_cmd_if_input_f8_bit1(Snes *s);    /* $30 */
+void event_cmd_if_input_f8_a(Snes *s);       /* $31 */
+void event_cmd_if_input_f2_a(Snes *s);       /* $34 */
+void event_cmd_if_input_f2_bit3(Snes *s);    /* $35 */
+void event_cmd_if_input_f2_bit6(Snes *s);    /* $36 */
+void event_cmd_if_input_f2_bit2(Snes *s);    /* $37 */
+void event_cmd_if_input_f2_bit5(Snes *s);    /* $38 */
+void event_cmd_if_input_f2_bit4(Snes *s);    /* $39 */
+void event_cmd_if_latched_50_bit1(Snes *s);  /* $3B */
+void event_cmd_if_latched_50_bit7(Snes *s);  /* $3C */
+void event_cmd_if_latched_51_bit7(Snes *s);  /* $3F */
+
+/* event/facing.c: which way objects face */
+void event_cmd_face_0(Snes *s);              /* $0F */
+void event_cmd_face_1(Snes *s);              /* $17 */
+void event_cmd_face_2(Snes *s);              /* $1B */
+void event_cmd_face_3(Snes *s);              /* $1D */
+void event_cmd_object_face_0(Snes *s);       /* $1E */
+void event_cmd_object_face_1(Snes *s);       /* $1F */
+void event_cmd_object_face_2(Snes *s);       /* $25 */
+void event_cmd_object_face_3(Snes *s);       /* $26 */
+void event_cmd_face_operand(Snes *s);        /* $A6 */
+void event_cmd_face_variable(Snes *s);       /* $A7 */
+void event_cmd_face_object(Snes *s);         /* $A8 */
+void event_cmd_face_party_member(Snes *s);   /* $A9 */
+
+/* event/variables.c: copying values */
+void event_cmd_set_object_value_from_var(Snes *s);     /* $19 */
+void event_cmd_set_object_value_from_memory(Snes *s);  /* $1C */
+void event_cmd_set_var_from_2980(Snes *s);             /* $20 */
+void event_cmd_get_object_tile(Snes *s);               /* $21 */
+void event_cmd_get_party_member_tile(Snes *s);         /* $22 */
+void event_cmd_get_object_facing(Snes *s);             /* $23 */
+void event_cmd_get_party_member_facing(Snes *s);       /* $24 */
 
 /* event/movement.c: moving objects */
 void event_cmd_move_toward_party_member_until_on_screen(Snes *s);  /* $8F */

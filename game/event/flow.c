@@ -231,6 +231,131 @@ void event_cmd_if_mem_const(Snes *s)
     finish_conditional(s, 0xC06433, false);
 }
 
+/* X is at a jump distance byte: X += that byte, the jump commands' way
+ * (LDA script,X then jump_by). */
+static void jump_from_here(Snes *s)
+{
+    m_lda8(s, script_byte(s, s->cpu.x));
+    jump_by(s, false);
+}
+
+// $C0:6442
+/* $18: if the byte at $7F:0000 is less than operand 1, continue after
+ * operand 2; otherwise jump forward by operand 2. */
+void event_cmd_if_mem0_below(Snes *s)
+{
+    m_iny(s);
+    m_tyx(s);
+    uint8_t value = m_lda8(s, m_read8(s, MEMORY));
+    uint8_t limit = script_byte(s, s->cpu.x);
+    m_cmp8(s, value, limit);
+    if (value < limit) {
+        m_inx(s);
+        m_inx(s);
+        m_set_flag(s, CPU_FLAG_C, true);
+        m_rts(s);
+        return;
+    }
+    m_inx(s);
+    jump_from_here(s);
+}
+
+// $C0:6568
+/* $1A: if the object's $7F:0A80 byte equals operand 1, continue after
+ * operand 2; otherwise jump forward by operand 2. */
+void event_cmd_if_object_value(Snes *s)
+{
+    ldx_current_object(s);
+    uint8_t value = m_lda8(s, m_read8(s, 0x7F0A80u + s->cpu.x));
+    m_iny(s);
+    m_tyx(s);
+    uint8_t expected = script_byte(s, s->cpu.x);
+    m_cmp8(s, value, expected);
+    if (value == expected) {
+        m_inx(s);
+        m_inx(s);
+        m_set_flag(s, CPU_FLAG_C, true);
+        m_rts(s);
+        return;
+    }
+    m_inx(s);
+    jump_from_here(s);
+}
+
+// $C0:662C
+/* $27: if the object in operand 1 is in view ($0F00,X nonzero; see
+ * field_update_object_visibility), continue after operand 2; otherwise jump
+ * forward by operand 2. */
+void event_cmd_if_object_in_view(Snes *s)
+{
+    m_iny(s);
+    m_tyx(s);
+    m_tdc(s);
+    m_xba(s);
+    m_lda8(s, script_byte(s, s->cpu.x));
+    m_tax(s);
+    if (m_lda8(s, m_read8(s, m_abs(s, 0x0F00) + s->cpu.x)) != 0) {
+        m_tyx(s);
+        m_inx(s);
+        m_inx(s);
+        m_set_flag(s, CPU_FLAG_C, true);
+        m_rts(s);
+        return;
+    }
+    m_tyx(s);
+    m_inx(s);
+    jump_from_here(s);
+}
+
+/* LDA v : SEC : SBC $cell : BEQ out : CMP #$01 : BEQ out : CMP #limit : BCS out
+ * True if v - $cell is from 2 to limit-1. */
+static bool in_band(Snes *s, uint8_t v, uint8_t cell, uint8_t limit)
+{
+    m_lda8(s, v);
+    m_set_flag(s, CPU_FLAG_C, true);
+    uint8_t d = m_sbc8(s, v, m_read8(s, m_dp(s, cell)));
+    m_set_a8(s, d);
+    if (d == 0)
+        return false;
+    m_cmp8(s, d, 0x01);
+    if (d == 0x01)
+        return false;
+    m_cmp8(s, d, limit);
+    return d < limit;
+}
+
+// $C0:6655
+/* $28: if the object in operand 1 is well inside the screen -- its tile 2 to
+ * 13 columns right of and 2 to 12 rows below the screen origin ($1D0A/$1D0E,
+ * halved) -- continue after operand 2; otherwise jump forward by operand 2. */
+void event_cmd_if_object_on_screen(Snes *s)
+{
+    m_iny(s);
+    m_tyx(s);
+    m_tdc(s);
+    m_xba(s);
+    m_lda8(s, script_byte(s, s->cpu.x));
+    m_tax(s);
+    uint8_t v = m_read8(s, m_abs(s, 0x1D0A));
+    m_set_flag(s, CPU_FLAG_C, v & 1);
+    m_write8(s, m_dp(s, 0xDB), m_lda8(s, v >> 1));
+    v = m_read8(s, m_abs(s, 0x1D0E));
+    m_set_flag(s, CPU_FLAG_C, v & 1);
+    m_write8(s, m_dp(s, 0xDD), m_lda8(s, v >> 1));
+    if (in_band(s, m_read8(s, m_abs(s, 0x1801) + s->cpu.x), 0xDB, 0x0E) &&
+        in_band(s, m_read8(s, m_abs(s, 0x1881) + s->cpu.x), 0xDD, 0x0D)) {
+        m_tyx(s);
+        m_inx(s);
+        m_inx(s);
+        m_set_flag(s, CPU_FLAG_C, true);
+        m_rts(s);
+        return;
+    }
+    m_tyx(s);
+    m_inx(s);
+    jump_from_here(s);
+}
+
 // $C0:2F96
 /* Wait: end the object's turn for operand frames, counting in $7F:0A01,X
  * (X = the object's slot). When the count is reached, reset it and continue
