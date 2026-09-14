@@ -50,6 +50,7 @@ add_library(ct_game STATIC
   game/event/variables.c
   game/field/frame.c
   game/field/interrupts.c
+  game/field/motion.c
   game/field/nmi.c
   game/field/objects.c
   game/menu/frame.c
