@@ -198,6 +198,14 @@ static inline uint16_t m_txa(Snes *s)
     return m_lda16(s, s->cpu.x);
 }
 
+/* TDC (16-bit transfer) and XBA (N and Z from the new low byte). */
+static inline void m_tdc(Snes *s) { m_lda16(s, s->cpu.d); }
+static inline void m_xba(Snes *s)
+{
+    s->cpu.a = (uint16_t)(s->cpu.a >> 8 | s->cpu.a << 8);
+    m_set_nz8(s, (uint8_t)s->cpu.a);
+}
+
 /* For a JSR the port inlines rather than calls: write the return address the
  * JSR would push (the address of its last byte) into the stack bytes below S,
  * leaving S unchanged, so memory matches the original after the callee returns. */

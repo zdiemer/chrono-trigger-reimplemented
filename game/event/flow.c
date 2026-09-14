@@ -1,13 +1,9 @@
 /* Event commands: control flow within a script. */
 #include "event/event.h"
 
-#include "port/machine.h"
+#include "event/script.h"
 
-#define SCRIPT 0x7F2001u     /* script buffer */
-#define VARS 0x7F0200u       /* 2-byte script variables, addressed by index * 2 */
 #define MEMORY 0x7F0000u     /* byte-addressed memory tested by command $16 */
-
-static uint8_t script_byte(Snes *s, uint16_t offset) { return m_read8(s, SCRIPT + offset); }
 
 /* Scratch direct-page cells the commands use. */
 enum { LHS = 0xD9, RHS = 0xDB, OPERATOR = 0xDD, RESUME = 0xC3 };
@@ -245,7 +241,7 @@ void event_cmd_wait(Snes *s)
     m_tyx(s);
     m_inx(s);
     uint8_t frames = m_lda8(s, script_byte(s, s->cpu.x));
-    m_ldx(s, m_read16(s, m_dp(s, 0x6D)));
+    ldx_current_object(s);
     uint32_t counter = 0x7F0A01u + s->cpu.x;
     uint8_t count = m_read8(s, counter);
     m_cmp8(s, frames, count);

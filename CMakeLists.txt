@@ -36,6 +36,7 @@ add_library(ct_game STATIC
   game/data/decompress.c
   game/event/engine.c
   game/event/flow.c
+  game/event/movement.c
   game/field/frame.c
   game/field/interrupts.c
   game/field/nmi.c

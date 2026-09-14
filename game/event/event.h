@@ -28,4 +28,18 @@ void event_cmd_wait(Snes *s);                /* $AD */
 void event_cmd_yield(Snes *s);               /* $B1 */
 void event_cmd_halt(Snes *s);                /* $B2 */
 
+/* event/movement.c: moving objects */
+void event_cmd_move_toward_party_member_until_on_screen(Snes *s);  /* $8F */
+void event_cmd_move_toward_object(Snes *s);                   /* $94 */
+void event_cmd_move_toward_party_member(Snes *s);             /* $95 */
+void event_cmd_move_to_tile(Snes *s);                         /* $96 */
+void event_cmd_move_toward_object_counted(Snes *s);           /* $98 */
+void event_cmd_move_toward_party_member_counted(Snes *s);     /* $99 */
+void event_cmd_move_by_variables(Snes *s);                    /* $9D */
+void event_cmd_move_toward_object_keep_facing(Snes *s);       /* $9E */
+void event_cmd_move_toward_party_member_keep_facing(Snes *s); /* $9F */
+void event_cmd_run_state_routine(Snes *s);                    /* $B0 */
+void event_cmd_follow_object(Snes *s);                        /* $B5 */
+void event_cmd_follow_party_member(Snes *s);                  /* $B6 */
+
 #endif

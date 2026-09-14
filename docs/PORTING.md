@@ -16,7 +16,7 @@ by what it does; move routines when their purpose becomes clearer.
 |---|---|
 | `game/core/` | System code shared by every mode (display and interrupt control) |
 | `game/data/` | Data handling (the decompressor) |
-| `game/event/` | Event scripts: the engine loops and command handlers, grouped by kind (`flow.c`: jumps, conditionals, waits) |
+| `game/event/` | Event scripts: the engine loops and command handlers, grouped by kind (`flow.c`: jumps, conditionals, waits; `movement.c`: moving objects) |
 | `game/field/` | Field mode: interrupt handlers, frame sync, objects |
 | `game/menu/` | Menu mode: frame sync |
 | `game/attract/` | Attract sequence and title screen code the game runs from RAM |
@@ -155,8 +155,13 @@ set it and native code doesn't, so those reads differ in ways real game data
 never exercises. `--range` limits a register (script offsets, for example), and
 `--keep` leaves a WRAM range as it is in the base state.
 
+Event commands index object tables by the current object's slot in `$6D`; a
+random slot reaches I/O space the same way, so fuzz them with
+`--keep 7E006D-7E006E` as well.
+
 Passing so far: the event control flow commands (50000 states each, two
-seeds, `--range Y=0000-7FFF`), `display_blank_and_stop_interrupts`,
+seeds, `--range Y=0000-7FFF`), the event movement commands (10000 each, also
+keeping `$6D`), `display_blank_and_stop_interrupts`,
 `field_install_nmi`, `field_install_irq` and `field_update_object_visibility`
 (20000 each). The three 16-bit and variable-vs-variable conditionals
 (`$13`-`$15`), which no movie reaches yet, are validated only this way. Not
@@ -174,6 +179,7 @@ overwrite its own stack and variables (it needs generated streams), and
 | `event_run_init_scripts` | `$C0:58DE` → `$C0:9DC3` | runs at map load; all calls match in every movie (7-10 per movie). Event command handlers, some waiting for frames, run as call-outs |
 | `event_run_object_script` | `$C0:5A93` | the per-frame, per-object event script executor: 21719 calls in new-game, 59580 in fair-companion, all match; X, N, Z, C don't-care. One call per movie is abandoned: a handler unwinds the executor's frame, as the original does. The scheduler that calls it (`$C0:5A46`) stops when the beam passes a scanline limit, so which objects run in a frame depends on timing; it stays on the interpreter |
 | Event control flow: `event_cmd_jump_forward` `$10`, `jump_back` `$11`, `if_var_const` `$12`, `if_var_const16` `$13`, `if_var_var` `$14`, `if_var_var16` `$15`, `if_mem_const` `$16`, `wait` `$AD`, `yield` `$B1`, `halt` `$B2` | `$C0:62B5` … `$C0:3543` | all calls match in every movie (fair-companion: `halt` 33101, `jump_back` 7789, `if_mem_const` 5288, `if_var_const` 3837, `yield` 2382, `wait` 1148). `$13`-`$15` aren't reached by any movie; all ten pass 50000 fuzzed states on two seeds. Conditionals with an operator outside the tables hand back to the original at the operator call |
+| Event movement: `event_cmd_move_toward_party_member_until_on_screen` `$8F`, `move_toward_object` `$94`, `move_toward_party_member` `$95`, `move_to_tile` `$96`, `move_toward_object_counted` `$98`, `move_toward_party_member_counted` `$99`, `move_by_variables` `$9D`, `move_toward_object_keep_facing` `$9E`, `move_toward_party_member_keep_facing` `$9F`, `run_state_routine` `$B0`, `follow_object` `$B5`, `follow_party_member` `$B6` | `$C0:3002` … `$C0:5429` | all calls match in every movie (fair-companion: `follow_party_member` 14239, `run_state_routine` 9784, `move_to_tile` 3382, `follow_object` 2503). The movement primitives they call stay in the original as call-outs. `$8F`, `$98`, `$99`, `$9D`-`$9F` aren't reached by any movie; all twelve pass 10000 fuzzed states |
 | `field_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
 | `field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
 | `decompress` | `$C3:0002` → `$C3:0557` | 54, all match |

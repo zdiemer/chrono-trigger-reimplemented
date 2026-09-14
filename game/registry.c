@@ -33,7 +33,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC05A93, .name = "event_run_object_script", .fn = event_run_object_script,
       NEEDS_M8_X8, .cost_milli = 4500, .dont_care = DC_X | DC_N | DC_Z | DC_C },
 
-    /* event commands: control flow. Entered through the command table with
+    /* event commands. Entered through the command table with
      * 8-bit A and 16-bit X and Y; N and Z are dead after return. */
 #define EVENT_CMD(address, function) \
     { .addr = address, .name = #function, .fn = function, NEEDS_M8_X16_BINARY, .cost_milli = 5000, \
@@ -48,6 +48,19 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC02F96, event_cmd_wait),
     EVENT_CMD(0xC0353F, event_cmd_yield),
     EVENT_CMD(0xC03543, event_cmd_halt),
+    /* moving objects */
+    EVENT_CMD(0xC05429, event_cmd_move_toward_party_member_until_on_screen),
+    EVENT_CMD(0xC05215, event_cmd_move_toward_object),
+    EVENT_CMD(0xC05410, event_cmd_move_toward_party_member),
+    EVENT_CMD(0xC04F61, event_cmd_move_to_tile),
+    EVENT_CMD(0xC0534A, event_cmd_move_toward_object_counted),
+    EVENT_CMD(0xC0550E, event_cmd_move_toward_party_member_counted),
+    EVENT_CMD(0xC04F0A, event_cmd_move_by_variables),
+    EVENT_CMD(0xC052C0, event_cmd_move_toward_object_keep_facing),
+    EVENT_CMD(0xC054F5, event_cmd_move_toward_party_member_keep_facing),
+    EVENT_CMD(0xC03002, event_cmd_run_state_routine),
+    EVENT_CMD(0xC03546, event_cmd_follow_object),
+    EVENT_CMD(0xC0354F, event_cmd_follow_party_member),
 #undef EVENT_CMD
 
     /* field */
