@@ -100,6 +100,14 @@ static int find_entry(const NativeRuntime *rt, uint32_t pc)
     return -1;
 }
 
+/* Entry preconditions: register widths/modes on P, native mode, and the guard. */
+static bool entry_applies(const NativeEntry *e, Snes *s)
+{
+    if ((s->cpu.p & e->p_mask) != e->p_value || s->cpu.e)
+        return false;
+    return !e->guard || e->guard(s);
+}
+
 /* ---- comparison --------------------------------------------------------------- */
 
 static void detail(NativeRuntime *rt, const char *fmt_prefix, const NativeEntry *e, const char *what)
@@ -313,7 +321,7 @@ static int32_t intercept(void *ctx, Snes *s)
     const NativeEntry *e = &rt->table[idx];
     NativeStats *st = &rt->stats[idx];
     st->calls++;
-    if ((s->cpu.p & e->p_mask) != e->p_value || s->cpu.e) {
+    if (!entry_applies(e, s)) {
         st->skipped++;
         return -1;
     }
@@ -380,7 +388,8 @@ void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
     while (!(cpu_pc24(&s->cpu) == ret && s->cpu.s == s_after)) {
         const NativeRuntime *rt = active_runtime;
         int idx = rt ? find_entry(rt, cpu_pc24(&s->cpu)) : -1;
-        if (idx >= 0 && (s->cpu.p & rt->table[idx].p_mask) == rt->table[idx].p_value && !s->cpu.e)
+        /* Idle entries need time to pass, which doesn't happen inside a call-out. */
+        if (idx >= 0 && !rt->table[idx].idle && entry_applies(&rt->table[idx], s))
             rt->table[idx].fn(s);
         else
             cpu_step(&s->cpu);

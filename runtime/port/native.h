@@ -42,6 +42,10 @@ typedef struct NativeEntry {
      * (still waiting) or sets it to the loop's exit. In ON mode a waiting pass
      * fast-forwards to the end of the scanline; SHADOW mode skips idle entries. */
     bool idle;
+    /* Optional extra precondition, for code the game places in RAM: return
+     * false unless the bytes at the entry are the code the port was written
+     * for (see m_code_matches). */
+    bool (*guard)(Snes *s);
 } NativeEntry;
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;

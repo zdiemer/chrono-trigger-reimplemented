@@ -37,6 +37,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   the loop body and either leaves PC at the loop head or sets it to the loop's
   exit. In `on` mode a waiting pass skips to the end of the scanline, so
   interrupts still land. `shadow` mode skips idle entries.
+- **Guards** cover code the game decompresses or copies into RAM, where the
+  same address holds different code and data at different times. An entry's
+  `guard` checks, with `m_code_matches`, that the bytes at the entry hash to
+  the code the port was written for. Only the 64-bit hash is kept, never the
+  code. If the guard fails, the interpreter runs whatever is there.
 - **`on`:** registered routines run natively in place of the original. A native
   routine finishes instantly, so the time the original would have taken is
   charged afterwards, one scanline at a time, so frame boundaries and line
@@ -85,6 +90,7 @@ new parts of the game, before relaxing a routine further.
 | `c0_field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
 | `c3_decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
 | `c0_wait_frame_loop`, `c2_wait_frame_loop`, `c2_wait_ready_loop` | `$C0:EC71`, `$C2:0348`, `$C2:81CA` | idle entries: the wait-for-next-frame loops, about 64% of all instructions executed |
+| `ram_attract_wait_loop`, `ram_attract_vblank_end_loop`, `ram_attract_vblank_start_loop` | `$7E:3023`, `$7E:31B0`, `$7E:31B7` | idle entries in RAM code, guarded by hash. The "hottest routine" by call count, `$7E:3176`, is an empty routine this loop calls |
 
 The validator catches injected bugs: a wrong flag and a missing stack write
 were each reported with the exact field. The first decompressor draft failed

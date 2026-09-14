@@ -2,6 +2,7 @@
 
 /* Entry preconditions on P. */
 #define NEEDS_M8 .p_mask = CPU_FLAG_M, .p_value = CPU_FLAG_M
+#define NEEDS_M16 .p_mask = CPU_FLAG_M, .p_value = 0
 #define NEEDS_M8_X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M
 #define NEEDS_M8_X8_BINARY .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M | CPU_FLAG_X
 
@@ -21,6 +22,12 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0EC71, .name = "c0_wait_frame_loop", .fn = c0_wait_frame_loop, NEEDS_M8, .idle = true },
     { .addr = 0xC20348, .name = "c2_wait_frame_loop", .fn = c2_wait_frame_loop, NEEDS_M8, .idle = true },
     { .addr = 0xC281CA, .name = "c2_wait_ready_loop", .fn = c2_wait_ready_loop, NEEDS_M8, .idle = true },
+    { .addr = 0x7E3023, .name = "ram_attract_wait_loop", .fn = ram_attract_wait_loop, NEEDS_M16, .idle = true,
+      .guard = ram_attract_wait_loop_present },
+    { .addr = 0x7E31B0, .name = "ram_attract_vblank_end_loop", .fn = ram_attract_vblank_end_loop, NEEDS_M8,
+      .idle = true, .guard = ram_attract_vblank_wait_present },
+    { .addr = 0x7E31B7, .name = "ram_attract_vblank_start_loop", .fn = ram_attract_vblank_start_loop, NEEDS_M8,
+      .idle = true, .guard = ram_attract_vblank_wait_present },
     { .addr = 0xC30002, .name = "c3_decompress", .fn = c3_decompress, .cost_milli = 3953 },
 };
 

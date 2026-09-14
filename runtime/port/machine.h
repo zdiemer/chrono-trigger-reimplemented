@@ -165,6 +165,19 @@ static inline void m_rti(Snes *s)
     s->cpu.pb = m_pull8(s);
 }
 
+/* True if the `len` bytes at `addr` hash (64-bit FNV-1a) to `hash`. For guards
+ * on routines the game copies or decompresses into RAM: the hash identifies the
+ * code a port was written for without keeping any of its bytes. No side effects. */
+static inline bool m_code_matches(Snes *s, uint32_t addr, uint16_t len, uint64_t hash)
+{
+    uint64_t h = 0xcbf29ce484222325ull;
+    for (uint16_t i = 0; i < len; i++) {
+        h ^= snes_bus_peek(&s->bus, (addr + i) & 0xFFFFFF);
+        h *= 0x100000001b3ull;
+    }
+    return h == hash;
+}
+
 /* Call another routine from a native one, as the JSR (3-byte) or JSL (4-byte)
  * instruction at `site` would. */
 static inline void m_jsr(Snes *s, uint32_t site, uint32_t target) { native_call(s, site, target, false); }

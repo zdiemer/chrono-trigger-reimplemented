@@ -21,6 +21,13 @@ void c0_field_nmi(Snes *s);
 /* game/c0_objects.c */
 void c0_update_object_visibility(Snes *s);
 
+/* game/ram_attract.c */
+bool ram_attract_wait_loop_present(Snes *s);
+void ram_attract_wait_loop(Snes *s);
+bool ram_attract_vblank_wait_present(Snes *s);
+void ram_attract_vblank_end_loop(Snes *s);
+void ram_attract_vblank_start_loop(Snes *s);
+
 /* game/c3_decompress.c */
 void c3_decompress(Snes *s);
 

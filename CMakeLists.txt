@@ -35,7 +35,8 @@ add_library(ct_game STATIC
   game/c0_nmi.c
   game/c0_objects.c
   game/c2_system.c
-  game/c3_decompress.c)
+  game/c3_decompress.c
+  game/ram_attract.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 
