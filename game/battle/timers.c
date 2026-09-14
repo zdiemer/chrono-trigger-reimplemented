@@ -184,7 +184,7 @@ void battle_dispatch_expired_timers(Snes *s)
                 m_tax(s);
                 m_tdc(s);
                 m_sep(s, CPU_FLAG_M);
-                m_jsr(s, 0xC18333, 0xC10000 | m_read16(s, 0xC1B92D + c->x));
+                m_jsr(s, 0xC18333, 0xC10000 | m_jump_table(s, 0xC1, 0xB92D, c->x));
                 if (c->e || (c->p & CPU_FLAG_X))
                     return;   /* PLX below needs 16-bit X */
                 m_rep(s, CPU_FLAG_M);
@@ -275,7 +275,7 @@ static bool run_effect_slots(Snes *s, uint16_t last, uint16_t active, uint16_t d
                 uint8_t t = m_asl8(s, m_lda8(s, absx8(s, type)));
                 m_set_a8(s, t);
                 m_tax(s);
-                if (!call(s, site, 0xCF0000 | m_read16(s, 0xCF0000 + table + c->x)))
+                if (!call(s, site, 0xCF0000 | m_jump_table(s, 0xCF, table, c->x)))
                     return false;
             }
         }

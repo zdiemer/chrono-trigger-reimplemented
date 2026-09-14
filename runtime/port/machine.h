@@ -230,6 +230,14 @@ static inline void m_jsr_stack_bytes(Snes *s, uint16_t last_byte)
     m_write8(s, (uint16_t)(s->cpu.s - 1), last_byte & 0xFF);
 }
 
+/* The target of JMP (abs,X) or JSR (abs,X): a word in the program bank at
+ * table + index, both bytes wrapping within the bank. */
+static inline uint16_t m_jump_table(Snes *s, uint8_t bank, uint16_t table, uint16_t index)
+{
+    uint16_t p = (uint16_t)(table + index);
+    return (uint16_t)(m_read8(s, (uint32_t)bank << 16 | p) | m_read8(s, (uint32_t)bank << 16 | (uint16_t)(p + 1)) << 8);
+}
+
 /* BIT #imm (8-bit): only Z changes. */
 static inline void m_bit_imm8(Snes *s, uint8_t imm) { m_set_flag(s, CPU_FLAG_Z, ((uint8_t)s->cpu.a & imm) == 0); }
 

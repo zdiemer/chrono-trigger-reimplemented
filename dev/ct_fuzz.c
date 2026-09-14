@@ -88,10 +88,10 @@ static void abandon_native(void)
  * original gets four times the call-outs' budget: it also runs the
  * instructions the native routine did itself, so on a state where the
  * call-outs came close to the limit, the original alone can pass it. */
-static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s)
+static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step)
 {
     for (unsigned long steps = 0; steps < 4 * step_limit; steps++) {
-        if (cpu_pc24(&s->cpu) == ret_pc && s->cpu.s == ret_s)
+        if (cpu_pc24(&s->cpu) == ret_pc && s->cpu.s == ret_s && (steps > 0 || !must_step))
             return true;
         s->cpu.nmi_pending = false;
         s->cpu.irq_line = false;
@@ -236,6 +236,7 @@ int main(int argc, char **argv)
         }
         m->cpu.pb = (uint8_t)(e->addr >> 16);
         m->cpu.pc = (uint16_t)e->addr;
+        uint16_t entry_s = m->cpu.s;
         snes_clone(&native, &orig);
 
         /* The native routine either returns or stops early at an instruction
@@ -256,7 +257,10 @@ int main(int argc, char **argv)
         }
         uint32_t stop_pc = cpu_pc24(&native.cpu);
         uint16_t stop_s = native.cpu.s;
-        if (!run_until(&orig, stop_pc, stop_s)) {
+        /* A routine that jumps back to its own entry stops where it started,
+         * so the original has to run at least one instruction to get there. */
+        bool back_at_entry = stop_pc == e->addr && stop_s == entry_s && native.bus.clocks != orig.bus.clocks;
+        if (!run_until(&orig, stop_pc, stop_s, back_at_entry)) {
             if (stop_pc == ret_pc && stop_s == ret_s) {
                 no_return++;
             } else {

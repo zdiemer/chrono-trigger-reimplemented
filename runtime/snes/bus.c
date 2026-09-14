@@ -199,10 +199,20 @@ static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
     case 0x4208: bus->htime = (uint16_t)((bus->htime & 0xFF) | (v & 1) << 8); break;
     case 0x4209: bus->vtime = (bus->vtime & 0x100) | v; break;
     case 0x420A: bus->vtime = (uint16_t)((bus->vtime & 0xFF) | (v & 1) << 8); break;
-    case 0x420B:
+    case 0x420B: {
+        /* A DMA transfer can write to $420B itself; transfers don't nest (the
+         * value is latched but doesn't start another one). DMA runs to
+         * completion inside this call, so the flag is never part of a saved
+         * state. */
+        static bool in_dma;
         bus->mdmaen = v;
-        run_dma(bus, v);
+        if (!in_dma) {
+            in_dma = true;
+            run_dma(bus, v);
+            in_dma = false;
+        }
         break;
+    }
     case 0x420C: bus->hdmaen = v; break;
     case 0x420D: bus->fastrom = v & 1; break;
     }

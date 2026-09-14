@@ -181,6 +181,11 @@ transfers ran backwards. The battle transition copies the palette from
 frames of garbled graphics where Snes9x keeps the field image. Fixed; the
 transition now matches Snes9x frame for frame.
 
+Fuzzing found another: a DMA transfer whose destination covers `$420B` wrote
+to it, which started a transfer inside the transfer, and so on until the host
+stack overflowed. The game never does this; random register values did.
+Transfers no longer nest.
+
 ## Validation strategy
 
 External emulators check that the hardware model is right. They aren't

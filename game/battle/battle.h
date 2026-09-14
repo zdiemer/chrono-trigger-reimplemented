@@ -35,6 +35,14 @@ void battle_update_object_bounds(Snes *s);
 void battle_update_all_object_bounds(Snes *s);
 void battle_find_due_animation(Snes *s);
 
+/* battle/frame.c */
+void battle_frame_dispatch(Snes *s);
+void battle_flush_vram_transfer(Snes *s);
+void battle_step_window_slide(Snes *s);
+void battle_update_scroll_dispatch(Snes *s);
+void battle_step_cdc9(Snes *s);
+void battle_frame_work(Snes *s);
+
 /* battle/nmi.c */
 void battle_nmi(Snes *s);
 void battle_restore_math_operands(Snes *s);
