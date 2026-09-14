@@ -50,9 +50,10 @@ Build the conformance runners with the same CMake project (`sst_runner`,
 - **Exact CPU timing.** Each instruction costs its bus accesses at their real
   speeds plus its internal cycles (6 master clocks each), both verified per
   opcode against SingleStepTests.
-- **Oracle conventions.** WRAM powers on filled with `$55` to match Snes9x.
-  Snes9x also fills SRAM with `$60` and preloads CGRAM; those aren't mirrored
-  yet, so ignore those regions until the game writes them.
+- **Oracle conventions.** Power-on RAM contents follow Snes9x so unwritten
+  bytes compare equal: WRAM `$55`, SRAM `$60` (no save file), and a gradient
+  preloaded into CGRAM. SRAM then matches Snes9x throughout the attract
+  sequence, and CGRAM matches until the game loads its palette.
 
 ## Renderer
 

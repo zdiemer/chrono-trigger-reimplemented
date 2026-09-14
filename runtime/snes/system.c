@@ -68,9 +68,18 @@ void snes_clone(Snes *dst, const Snes *src)
 
 void snes_power_on(Snes *s)
 {
-    /* Power-on WRAM contents are undefined on hardware; match the trace oracle
-     * (Snes9x fills with $55) so uninitialized bytes compare equal. */
+    /* Power-on RAM contents are undefined on hardware. Match the trace oracle's
+     * conventions so bytes the game hasn't written yet compare equal: Snes9x
+     * fills WRAM with $55 and SRAM (with no save file) with $60, and preloads
+     * CGRAM with a gradient of 3-bit red, 3-bit green and 1-bit blue steps. */
     memset(s->bus.wram, 0x55, sizeof s->bus.wram);
+    memset(s->bus.sram, 0x60, sizeof s->bus.sram);
+    for (int i = 0; i < 256; i++) {
+        uint16_t red = (uint16_t)((i & 7) << 2);
+        uint16_t green = (uint16_t)(((i >> 3) & 7) << 2);
+        uint16_t blue = (uint16_t)(((i >> 6) & 2) << 3);
+        s->ppu.cgram[i] = (uint16_t)(red | green << 5 | blue << 10);
+    }
     cpu_reset(&s->cpu);
     s->hclock = 0;
     s->vline = 0;
