@@ -191,8 +191,11 @@ static void advance(Snes *s, uint32_t clocks)
         }
         if (!s->hdma_done_this_line && before <= HDMA_HCLOCK && HDMA_HCLOCK < end) {
             s->hdma_done_this_line = true;
-            if (s->vline < SNES_VBLANK_LINE)
+            if (s->vline < SNES_VBLANK_LINE) {
+                if (s->on_line)
+                    s->on_line(s->on_line_ctx, s, s->vline);
                 hdma_line(s);
+            }
         }
         s->bus.in_hblank = end >= HBLANK_START_HCLOCK || end < HBLANK_END_HCLOCK;
 

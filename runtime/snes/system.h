@@ -40,6 +40,11 @@ typedef struct Snes {
     HdmaChannel hdma[8];
     bool hdma_done_this_line;
     bool htimer_done_this_line;
+
+    /* Optional: called for lines 0-224 at the start of hblank, before that
+     * line's HDMA writes, with PPU state as it stood while the line was drawn. */
+    void (*on_line)(void *ctx, struct Snes *snes, uint16_t line);
+    void *on_line_ctx;
 } Snes;
 
 /* rom must stay valid for the lifetime of the system. */
