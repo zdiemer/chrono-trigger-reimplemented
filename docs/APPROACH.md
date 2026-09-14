@@ -97,7 +97,8 @@ the disassembler.
    community documentation of event commands and data tables as reference.
    *(in progress: [DISASSEMBLY.md](DISASSEMBLY.md))*
 2. **Oracle harness.** libretro frontend, input-movie format, per-frame state
-   dumps, divergence tool. *(in progress)*
+   dumps, divergence tool. *(done: [ORACLE.md](ORACLE.md); Snes9x is the
+   trace oracle)*
 3. **Host runtime.** SDL window, input, audio, PPU-level renderer, SPC700/DSP
    core, SRAM, and an explicit frame loop with defined NMI/IRQ points.
 4. **Port.** Boot → title → name entry → Millennial Fair, then field, menu,

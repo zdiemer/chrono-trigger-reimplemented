@@ -17,6 +17,12 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (gitignored). Knowledge goes in `re/hints.toml`. See docs/DISASSEMBLY.md.
 - `python3 -m tools.disasm.linear BB:AAAA -n N --m 8 --x 16`: quick look at code.
 - `python3 -m unittest discover tests`
+- Oracle: `cmake -S oracle -B build/oracle -G Ninja && cmake --build build/oracle`, cores via
+  `python3 tools/fetch_core.py`, then `build/oracle/ct_oracle --core cores/snes9x_libretro.<ext>
+  --rom roms/ct-usa.sfc --frames N --movie <.ctm> --trace traces/<name>.cttr`. Inspect and diff with
+  `python3 tools/trace.py`. Snes9x is the trace oracle. See docs/ORACLE.md.
+- CPU tests: `python3 tests/cpu/fetch_sst.py` once, then build `runtime/cpu/cpu65816.c` +
+  `tests/cpu/sst_runner.c` and run it on `tests/cpu/data/*.bin` (must be 0 failures).
 
 ## Rules
 
