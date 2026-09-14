@@ -84,6 +84,11 @@ void event_cmd_if_input_f2_bit4(Snes *s);    /* $39 */
 void event_cmd_if_latched_50_bit1(Snes *s);  /* $3B */
 void event_cmd_if_latched_50_bit7(Snes *s);  /* $3C */
 void event_cmd_if_latched_51_bit7(Snes *s);  /* $3F */
+void event_cmd_if_latched_51_bit3(Snes *s);  /* $40 */
+void event_cmd_if_latched_51_bit6(Snes *s);  /* $41 */
+void event_cmd_if_latched_51_bit2(Snes *s);  /* $42 */
+void event_cmd_if_latched_51_bit5(Snes *s);  /* $43 */
+void event_cmd_if_latched_51_bit4(Snes *s);  /* $44 */
 
 /* event/facing.c: which way objects face */
 void event_cmd_face_0(Snes *s);              /* $0F */
@@ -142,5 +147,49 @@ void event_cmd_set_position(Snes *s);        /* $8D */
 void event_cmd_set_sprite_priority(Snes *s); /* $8E */
 void event_cmd_show_sprite(Snes *s);         /* $90 */
 void event_cmd_hide_sprite(Snes *s);         /* $91 */
+
+/* event/arithmetic.c: variables */
+void event_cmd_set_6b(Snes *s);  /* $47 */
+void event_cmd_var_set(Snes *s);  /* $4F */
+void event_cmd_var_set16(Snes *s);  /* $50 */
+void event_cmd_var_copy(Snes *s);  /* $51 */
+void event_cmd_var_copy16(Snes *s);  /* $52 */
+void event_cmd_var_add(Snes *s);  /* $5B */
+void event_cmd_var_add_var(Snes *s);  /* $5D */
+void event_cmd_var_add_var16(Snes *s);  /* $5E */
+void event_cmd_var_subtract(Snes *s);  /* $5F */
+void event_cmd_var_subtract16(Snes *s);  /* $60 */
+void event_cmd_var_subtract_var(Snes *s);  /* $61 */
+void event_cmd_var_set_bit(Snes *s);  /* $63 */
+void event_cmd_var_clear_bit(Snes *s);  /* $64 */
+void event_cmd_var_and(Snes *s);  /* $67 */
+void event_cmd_var_or(Snes *s);  /* $69 */
+void event_cmd_var_xor(Snes *s);  /* $6B */
+void event_cmd_var_shift_right(Snes *s);  /* $6F */
+void event_cmd_var_increment(Snes *s);  /* $71 */
+void event_cmd_var_increment16(Snes *s);  /* $72 */
+void event_cmd_var_decrement(Snes *s);  /* $73 */
+void event_cmd_var_set_1(Snes *s);  /* $75 */
+void event_cmd_var_set16_1(Snes *s);  /* $76 */
+void event_cmd_var_clear(Snes *s);  /* $77 */
+void event_cmd_var_random(Snes *s);  /* $7F */
+
+/* event/memory.c: memory and pointers */
+void event_cmd_var_from_pointer(Snes *s);  /* $48 */
+void event_cmd_var_from_pointer16(Snes *s);  /* $49 */
+void event_cmd_poke(Snes *s);  /* $4A */
+void event_cmd_poke16(Snes *s);  /* $4B */
+void event_cmd_poke_variable(Snes *s);  /* $4C */
+void event_cmd_poke_variable16(Snes *s);  /* $4D */
+void event_cmd_copy_data(Snes *s);  /* $4E */
+void event_cmd_var_from_memory(Snes *s);  /* $53 */
+void event_cmd_var_from_memory16(Snes *s);  /* $54 */
+void event_cmd_var_from_memory0(Snes *s);  /* $55 */
+void event_cmd_memory_set(Snes *s);  /* $56 */
+void event_cmd_memory_set_from_var(Snes *s);  /* $58 */
+void event_cmd_memory_set_from_var16(Snes *s);  /* $59 */
+void event_cmd_memory0_set(Snes *s);  /* $5A */
+void event_cmd_memory_set_bit(Snes *s);  /* $65 */
+void event_cmd_memory_clear_bit(Snes *s);  /* $66 */
 
 #endif

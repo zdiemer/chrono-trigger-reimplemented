@@ -19,6 +19,8 @@
  * limits a register's random value, for example to keep script offsets inside
  * the script buffer: indexing past the end of a data area reaches I/O space,
  * whose open bus reads depend on instruction fetches native code doesn't do.
+ * --fill BBAAAA-BBAAAA=lo-hi gives a WRAM range random bytes from lo to hi
+ * instead, for example to make a pointer in script operands point into WRAM.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,6 +84,8 @@ int main(int argc, char **argv)
     uint32_t keep_lo[MAX_KEEP], keep_hi[MAX_KEEP];
     unsigned range_lo[3] = { 0, 0, 0 }, range_hi[3] = { 0xFFFF, 0xFFFF, 0xFFFF };   /* A, X, Y */
     int nkeep = 0;
+    unsigned fill_lo[MAX_KEEP], fill_hi[MAX_KEEP], fill_min[MAX_KEEP], fill_max[MAX_KEEP];
+    int nfill = 0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--long")) {
@@ -101,6 +105,9 @@ int main(int argc, char **argv)
                  sscanf(v + 2, "%x-%x", &range_lo[strchr("AXY", v[0]) - "AXY"],
                         &range_hi[strchr("AXY", v[0]) - "AXY"]) == 2)
             ;
+        else if (!strcmp(a, "--fill") && nfill < MAX_KEEP &&
+                 sscanf(v, "%x-%x=%x-%x", &fill_lo[nfill], &fill_hi[nfill], &fill_min[nfill], &fill_max[nfill]) == 4)
+            nfill++;
         else if (!strcmp(a, "--keep") && nkeep < MAX_KEEP &&
                  sscanf(v, "%x-%x", &keep_lo[nkeep], &keep_hi[nkeep]) == 2)
             nkeep++;
@@ -153,6 +160,12 @@ int main(int argc, char **argv)
             uint32_t lo = keep_lo[k] - 0x7E0000, hi = keep_hi[k] - 0x7E0000;
             if (lo <= hi && hi < SNES_WRAM_SIZE)
                 memcpy(m->bus.wram + lo, base.bus.wram + lo, hi - lo + 1);
+        }
+        for (int k = 0; k < nfill; k++) {
+            unsigned span = fill_max[k] >= fill_min[k] ? fill_max[k] - fill_min[k] + 1 : 1;
+            for (uint32_t addr = fill_lo[k]; addr <= fill_hi[k]; addr++)
+                if (addr - 0x7E0000u < SNES_WRAM_SIZE)
+                    m->bus.wram[addr - 0x7E0000u] = (uint8_t)(fill_min[k] + rng() % span);
         }
         uint64_t r = rng();
         const uint8_t arith = CPU_FLAG_N | CPU_FLAG_V | CPU_FLAG_Z | CPU_FLAG_C;

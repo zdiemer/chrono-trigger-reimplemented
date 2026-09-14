@@ -117,6 +117,26 @@ void event_cmd_if_latched_50_bit1(Snes *s) { if_latched_bit(s, 0x50, 0x02); }
 /* $3C: if latched bit 7 of $50 is set; clears it. */
 void event_cmd_if_latched_50_bit7(Snes *s) { if_latched_bit(s, 0x50, 0x80); }
 
+// $C0:6740
+/* $40: if latched bit 3 of $51 is set; clears it. */
+void event_cmd_if_latched_51_bit3(Snes *s) { if_latched_bit(s, 0x51, 0x08); }
+
+// $C0:674E
+/* $41: if latched bit 6 of $51 is set; clears it. */
+void event_cmd_if_latched_51_bit6(Snes *s) { if_latched_bit(s, 0x51, 0x40); }
+
+// $C0:675C
+/* $42: if latched bit 2 of $51 is set; clears it. */
+void event_cmd_if_latched_51_bit2(Snes *s) { if_latched_bit(s, 0x51, 0x04); }
+
+// $C0:676A
+/* $43: if latched bit 5 of $51 is set; clears it. */
+void event_cmd_if_latched_51_bit5(Snes *s) { if_latched_bit(s, 0x51, 0x20); }
+
+// $C0:6778
+/* $44: if latched bit 4 of $51 is set; clears it. */
+void event_cmd_if_latched_51_bit4(Snes *s) { if_latched_bit(s, 0x51, 0x10); }
+
 // $C0:6732
 /* $3F: if latched bit 7 of $51 is set; clears it. */
 void event_cmd_if_latched_51_bit7(Snes *s) { if_latched_bit(s, 0x51, 0x80); }

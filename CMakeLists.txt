@@ -35,12 +35,14 @@ add_library(ct_game STATIC
   game/core/display.c
   game/data/decompress.c
   game/event/animation.c
+  game/event/arithmetic.c
   game/event/calls.c
   game/event/dialog.c
   game/event/engine.c
   game/event/facing.c
   game/event/flow.c
   game/event/input.c
+  game/event/memory.c
   game/event/movement.c
   game/event/properties.c
   game/event/variables.c
