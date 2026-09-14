@@ -44,9 +44,11 @@ typedef struct NativeEntry {
      * skips ahead to the next point where $4212's blanking bits can change
      * (hblank end or start, or the line's end); SHADOW mode skips idle entries. */
     bool idle;
-    /* Optional extra precondition, for code the game places in RAM: return
-     * false unless the bytes at the entry are the code the port was written
-     * for (see m_code_matches). */
+    /* Optional extra precondition, for example for code the game places in
+     * RAM: return false unless the bytes at the entry are the code the port was
+     * written for (see m_code_matches). It runs on the real machine in every
+     * mode, so it must only peek (snes_bus_peek): a bus read costs time and
+     * sets open bus, which would make shadow runs differ from plain ones. */
     bool (*guard)(Snes *s);
 } NativeEntry;
 

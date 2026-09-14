@@ -10,6 +10,15 @@ void battle_wait_for_frame_loop(Snes *s);
 void battle_wait_vblank_end_loop(Snes *s);
 void battle_wait_hblank_loop(Snes *s);
 void battle_wait_line_loop(Snes *s);
+void battle_wait_for_nmi_loop(Snes *s);
+void battle_wait_ca1f_loop(Snes *s);
+void battle_irq_wait_hblank_loop(Snes *s);
+
+/* battle/buffers.c */
+void battle_clear_oam_buffer(Snes *s);
+void battle_mark_object_grid(Snes *s);
+void battle_reset_0b40_table(Snes *s);
+void battle_clear_b328_table(Snes *s);
 
 /* battle/nmi.c */
 void battle_nmi(Snes *s);

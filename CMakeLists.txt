@@ -56,6 +56,7 @@ add_library(ct_game STATIC
   game/field/objects.c
   game/menu/frame.c
   game/attract/main_loop.c
+  game/battle/buffers.c
   game/battle/nmi.c
   game/battle/sprites.c
   game/battle/wait.c)

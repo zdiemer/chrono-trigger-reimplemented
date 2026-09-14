@@ -7,7 +7,7 @@
  * $CD02 is clear (otherwise $CD:3E44 talks to the sound driver). */
 bool battle_frame_wait_is_idle(Snes *s)
 {
-    return m_read8(s, m_abs(s, 0xCD02)) == 0;
+    return snes_bus_peek(&s->bus, m_abs(s, 0xCD02)) == 0;
 }
 
 // $C1:0080
@@ -31,6 +31,40 @@ void battle_wait_for_frame_loop(Snes *s)
         s->cpu.pc = 0x0088;
 }
 
+// $CD:3E81
+/* The loop in $CD:3E7D, which waits for the NMI handler to clear $CA20: calls
+ * $CD:3E44 (which returns at once with $CD02 clear) until it has. Idle entry,
+ * guarded like battle_wait_for_frame_loop; exits to $CD:3E89. */
+void battle_wait_for_nmi_loop(Snes *s)
+{
+    /* JSR $3E44 : LDA $CD02 : BEQ : RTS */
+    uint16_t s0 = s->cpu.s;
+    m_push16(s, 0x3E83);
+    m_lda8(s, m_read8(s, m_abs(s, 0xCD02)));
+    s->cpu.s = s0;
+    /* LDA $CA20 : BNE loop */
+    if (m_lda8(s, m_read8(s, m_abs(s, 0xCA20))) == 0)
+        s->cpu.pc = 0x3E89;
+}
+
+// $C1:003C
+/* A loop that calls $CD:0012 (a jump to $CD:0534, which returns $CA1F clamped
+ * to 0 or 1) until $CA1F is clear, which interrupt code does. Idle entry, 8-bit
+ * A; exits to $C1:0042. */
+void battle_wait_ca1f_loop(Snes *s)
+{
+    /* JSL $CD0012 ... LDA $CA1F : BEQ : LDA #$01 : RTL */
+    uint16_t s0 = s->cpu.s;
+    m_push8(s, 0xC1);
+    m_push16(s, 0x003F);
+    uint8_t v = m_lda8(s, m_read8(s, m_abs(s, 0xCA1F)));
+    s->cpu.s = s0;
+    if (v != 0)
+        m_lda8(s, 0x01);   /* BNE loop */
+    else
+        s->cpu.pc = 0x0042;
+}
+
 /* LDA $004212 */
 static uint8_t read_hvbjoy(Snes *s) { return m_lda8(s, m_read8(s, 0x004212)); }
 
@@ -50,6 +84,16 @@ void battle_wait_hblank_loop(Snes *s)
     uint8_t v = read_hvbjoy(s);
     if (m_lda8(s, v & 0x40) != 0)
         s->cpu.pc = 0x3B92;
+}
+
+// $D1:FEB8
+/* In the battle IRQ handler: wait for hblank. Idle entry, 8-bit A; continues
+ * at $D1:FEBF. */
+void battle_irq_wait_hblank_loop(Snes *s)
+{
+    uint8_t v = m_lda8(s, m_read8(s, m_abs(s, 0x4212)));
+    if (m_lda8(s, v & 0x40) != 0)
+        s->cpu.pc = 0xFEBF;
 }
 
 // $CD:3B92
