@@ -35,6 +35,7 @@ add_library(ct_game STATIC
   game/core/display.c
   game/core/input.c
   game/core/palette.c
+  game/core/tile_animation.c
   game/data/decompress.c
   game/event/animation.c
   game/event/arithmetic.c
@@ -61,6 +62,7 @@ add_library(ct_game STATIC
   game/battle/buffers.c
   game/battle/display.c
   game/battle/frame.c
+  game/battle/gauges.c
   game/battle/math.c
   game/battle/nmi.c
   game/battle/objects.c

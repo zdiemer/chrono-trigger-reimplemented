@@ -5,6 +5,7 @@
 #include "core/display.h"
 #include "core/input.h"
 #include "core/palette.h"
+#include "core/tile_animation.h"
 #include "data/decompress.h"
 #include "event/event.h"
 #include "field/field.h"
@@ -100,6 +101,13 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC14C9E, .name = "battle_run_script_channel", .fn = battle_run_script_channel, NEEDS_M8_X16,
       .cost_milli = 3560, .dont_care = DC_N | DC_Z },
     { .addr = 0xC14BBE, .name = "battle_run_scripts", .fn = battle_run_scripts, NEEDS_M8_X16, .cost_milli = 5834, .dont_care = DC_N | DC_Z },
+    { .addr = 0xCD3E8E, .name = "battle_vram_transfer", .fn = battle_vram_transfer, NEEDS_M8_X16, .cost_milli = 1026 },
+    { .addr = 0xCD0607, .name = "battle_upload_alternating_vram", .fn = battle_upload_alternating_vram,
+      NEEDS_M8_X16, .cost_milli = 1083 },
+    { .addr = 0xCD0B51, .name = "battle_update_screen_shake", .fn = battle_update_screen_shake,
+      NEEDS_M8_X16_BINARY, .cost_milli = 3250 },
+    { .addr = 0xC106F0, .name = "battle_draw_gauge", .fn = battle_draw_gauge, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3891, .dont_care = DC_N | DC_Z | DC_C },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
       .cost_milli = 4344, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,
@@ -126,6 +134,8 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16_BINARY, .cost_milli = 5612, .dont_care = DC_N | DC_Z },
 
     /* core */
+    { .addr = 0xFDE022, .name = "tile_animation_upload", .fn = tile_animation_upload, NEEDS_M8_X16_BINARY,
+      .cost_milli = 1200 },
     { .addr = 0xC284EC, .name = "input_read_joypad", .fn = input_read_joypad, .p_mask = CPU_FLAG_X, .p_value = 0,
       .cost_milli = 2889, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC28545, .name = "input_map_buttons", .fn = input_map_buttons, .cost_milli = 3767,

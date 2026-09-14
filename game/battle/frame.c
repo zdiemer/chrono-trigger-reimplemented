@@ -609,3 +609,208 @@ void battle_frame_update(Snes *s)
     m_write8(s, m_dp(s, 0xA1), a1);
     m_rtl(s);
 }
+
+// $CD:3E8E
+/* VRAM transfer over DMA channel 7: $45 bytes from A:X to VRAM address Y. */
+void battle_vram_transfer(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_push8(s, c->db);
+    m_push8(s, (uint8_t)c->a);
+    m_push8(s, m_lda8(s, 0x00));
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    uint8_t bank = m_pull8(s);
+    m_lda8(s, bank);
+    m_write16(s, 0x2116, c->y);
+    m_write16(s, 0x4372, c->x);
+    m_write8(s, 0x4374, bank);
+    put8(s, 0x4370, 0x01);
+    put8(s, 0x4371, 0x18);
+    m_ldx16(s, m_read16(s, m_dp(s, 0x45)));
+    m_write16(s, 0x4375, c->x);
+    start_dma7(s);
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    m_rts(s);
+}
+
+// $CD:0607
+/* Per-frame VRAM work: a requested block upload ($CA17: sixteen 32-byte rows
+ * from $7E:$CA18 through $D1:E8D9, to the VRAM address for block $CA16 from
+ * $CD:0601), skipped when block and source match the last upload
+ * ($CD1F/$CD20); then $200 bytes of VRAM at $5800 or $5980 on
+ * alternating frames ($CE14): cleared from the zero word at $CD:06B2, or, when
+ * $CCEC is $10, copied from $7E:B400 or $7E:B600 through $CD:3E8E. */
+void battle_upload_alternating_vram(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    if (m_lda8(s, abs8(s, 0xCA17)) != 0) {
+        set_abs8(s, 0xCA17, 0x00);
+        uint8_t row = m_asl8(s, m_lda8(s, abs8(s, 0xCA16)));
+        m_set_a8(s, row);
+        m_push8(s, row);
+        set_abs8(s, 0xCA16, 0x00);
+        m_tax(s);
+        m_rep(s, CPU_FLAG_M);
+        m_write16(s, m_dp(s, 0x45), m_lda16(s, m_read16(s, 0xCD05FF + c->x)));
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+        row = m_pull8(s);
+        m_lda8(s, row);
+        uint8_t last = abs8(s, 0xCD1F);
+        m_cmp8(s, row, last);
+        bool upload = true;
+        if (row == last) {
+            uint16_t src = m_ldx16(s, m_read16(s, m_abs(s, 0xCA18)));
+            uint16_t last_src = m_read16(s, m_abs(s, 0xCD20));
+            m_cmp16(s, src, last_src);
+            if (src == last_src)
+                upload = false;
+            else
+                m_write16(s, m_abs(s, 0xCD20), src);
+        } else {
+            set_abs8(s, 0xCD1F, row);
+            m_write16(s, m_abs(s, 0xCD20), m_ldx16(s, m_read16(s, m_abs(s, 0xCA18))));
+        }
+        if (upload) {
+            m_ldx16(s, m_read16(s, m_abs(s, 0xCA18)));
+            m_lda8(s, 0x7E);
+            if (!jsl(s, 0xCD0644, 0xD1E8D9))
+                return;
+            step_abs8(s, 0xA01F, +1);
+        }
+    }
+
+    /* $CD:064B */
+    m_write16(s, m_dp(s, 0x45), m_ldx16(s, 0x0200));
+    step_abs8(s, 0xCE14, +1);
+    uint8_t mode = m_lda8(s, abs8(s, 0xCCEC));
+    m_cmp8(s, mode, 0x10);
+    if (mode == 0x10) {
+        bool odd = m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, 0x7ECE14)) & 0x01)) != 0;
+        m_ldx16(s, odd ? 0xB400 : 0xB600);
+        m_set_index(s, &c->y, odd ? 0x5800 : 0x5980);
+        m_lda8(s, 0x7E);
+        c->pc = 0x3E8E;
+        return;
+    }
+    m_push8(s, c->db);
+    set_data_bank(s, m_lda8(s, 0x00));
+    bool odd = m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, 0x7ECE14)) & 0x01)) != 0;
+    m_write16(s, m_abs(s, 0x2116), m_ldx16(s, odd ? 0x5800 : 0x5980));
+    set_abs8(s, 0x4370, m_lda8(s, 0x09));
+    set_abs8(s, 0x4371, m_lda8(s, 0x18));
+    m_write16(s, m_abs(s, 0x4372), m_ldx16(s, 0x06B2));
+    set_abs8(s, 0x4374, m_lda8(s, 0xCD));
+    m_write16(s, m_abs(s, 0x4375), m_ldx16(s, 0x0200));
+    set_abs8(s, 0x420B, m_lda8(s, 0x80));
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    m_rts(s);
+}
+
+/* JSR $0B16: ADC $7C : TAX : LDA $C0:FE00,X -- a pseudo-random byte from
+ * the table at $C0:FE00, indexed by A plus the frame counter (and carry). */
+static uint8_t shake_random(Snes *s, uint16_t site)
+{
+    m_push16(s, (uint16_t)(site + 2));
+    uint8_t v = m_adc8(s, (uint8_t)s->cpu.a, dp8(s, 0x7C));
+    m_set_a8(s, v);
+    m_tax(s);
+    v = m_lda8(s, m_read8(s, 0xC0FE00 + s->cpu.x));
+    m_pull16(s);
+    return v;
+}
+
+/* One axis of $CD:0B51: while enabled (`on`), pick a new random magnitude every
+ * `period` frames and step the amplitude toward its target every `rate`
+ * frames (disabling the axis when it decays to 0); the offset for this frame
+ * is the high byte of magnitude * amplitude, stored in `out`. Disabled, the
+ * three layers' offsets `offsets` are cleared instead. */
+static void shake_axis(Snes *s, uint16_t base, const uint16_t offsets[3], uint8_t random_base, uint16_t site, uint8_t out)
+{
+    Cpu *c = &s->cpu;
+    uint16_t on = base, magnitude = (uint16_t)(base + 1), count = (uint16_t)(base + 2),
+             period = (uint16_t)(base + 3), rate_count = (uint16_t)(base + 4), rate = (uint16_t)(base + 5),
+             amplitude = (uint16_t)(base + 6), target = (uint16_t)(base + 7);
+    if (m_lda8(s, abs8(s, on)) == 0) {
+        m_tax(s);
+        for (int i = 0; i < 3; i++)
+            m_write16(s, m_abs(s, offsets[i]), c->x);
+        m_write8(s, m_dp(s, out), (uint8_t)c->a);
+        return;
+    }
+    step_abs8(s, count, +1);
+    uint8_t n = m_lda8(s, abs8(s, count));
+    m_cmp8(s, n, abs8(s, period));
+    if (m_flag(s, CPU_FLAG_C)) {
+        set_abs8(s, count, 0x00);
+        if (random_base != 0)
+            m_lda8(s, random_base);
+        set_abs8(s, magnitude, shake_random(s, site));
+    }
+    m_write8(s, 0x004202, m_lda8(s, abs8(s, magnitude)));
+    step_abs8(s, rate_count, +1);
+    n = m_lda8(s, abs8(s, rate_count));
+    m_cmp8(s, n, abs8(s, rate));
+    if (m_flag(s, CPU_FLAG_C)) {
+        set_abs8(s, rate_count, 0x00);
+        uint8_t amp = m_lda8(s, abs8(s, amplitude));
+        uint8_t goal = abs8(s, target);
+        m_cmp8(s, amp, goal);
+        if (amp > goal) {
+            if (step_abs8(s, amplitude, -1) == 0)
+                set_abs8(s, on, 0x00);
+        } else if (amp < goal) {
+            step_abs8(s, amplitude, +1);
+        }
+    }
+    m_write8(s, 0x004203, m_lda8(s, abs8(s, amplitude)));
+    m_write8(s, m_dp(s, out), m_lda8(s, m_read8(s, 0x004217)));
+}
+
+// $CD:0B51
+/* Battle screen shake: compute this frame's horizontal ($CCB0) and vertical
+ * ($CCB8) shake offsets, apply them to the layers selected by $CCC0 (bits 7-2:
+ * BG1 X/Y, BG2 X/Y, BG3 X/Y at $CCA4-$CCAE), then, when $CCE5 is set, copy
+ * $7E:CCD9 (12 bytes, to $0598; bit 7) or $7E:CCC1 (24 bytes, to $0580) and
+ * clear that request bit. */
+void battle_update_screen_shake(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    static const uint16_t x_offsets[3] = { 0xCCA4, 0xCCA8, 0xCCAC }, y_offsets[3] = { 0xCCA6, 0xCCAA, 0xCCAE };
+    shake_axis(s, 0xCCB0, x_offsets, 0x00, 0x0B72, 0x45);
+    shake_axis(s, 0xCCB8, y_offsets, 0x40, 0x0BD7, 0x47);
+
+    /* $CD:0C19 */
+    m_lda8(s, dp8(s, 0x45));
+    m_set_index(s, &c->y, c->a);
+    m_lda8(s, dp8(s, 0x47));
+    m_tax(s);
+    uint8_t layers = m_lda8(s, abs8(s, 0xCCC0));
+    if (layers != 0) {
+        for (int i = 0; i < 6; i++) {
+            layers = m_asl8(s, layers);
+            if (m_flag(s, CPU_FLAG_C))
+                m_write16(s, m_abs(s, (uint16_t)(0xCCA4 + 2 * i)), (i & 1) ? c->x : c->y);
+        }
+        m_set_a8(s, layers);
+    }
+
+    /* $CD:0C48 */
+    uint8_t preset = m_lda8(s, abs8(s, 0xCCE5));
+    if (preset != 0) {
+        m_rep(s, CPU_FLAG_M);
+        bool vertical = preset & 0x80;
+        m_ldx16(s, vertical ? 0xCCD9 : 0xCCC1);
+        m_set_index(s, &c->y, vertical ? 0x0598 : 0x0580);
+        m_lda16(s, vertical ? 0x000B : 0x0017);
+        m_mvn(s, 0x7E, 0x7E);
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+        uint8_t v = m_lda8(s, abs8(s, 0xCCE5));
+        set_abs8(s, 0xCCE5, m_lda8(s, (uint8_t)(v & (vertical ? 0x7F : 0xFE))));
+    }
+    m_rts(s);
+}

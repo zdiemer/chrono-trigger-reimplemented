@@ -52,6 +52,9 @@ void battle_step_cdc9(Snes *s);
 void battle_frame_work(Snes *s);
 void battle_upload_vram(Snes *s);
 void battle_frame_update(Snes *s);
+void battle_vram_transfer(Snes *s);
+void battle_upload_alternating_vram(Snes *s);
+void battle_update_screen_shake(Snes *s);
 
 /* battle/nmi.c */
 void battle_nmi(Snes *s);
@@ -79,6 +82,9 @@ void battle_record_object_trails(Snes *s);
 void battle_cycle_party_palettes(Snes *s);
 void battle_build_object_graphics(Snes *s);
 void battle_build_object_graphics_checked(Snes *s);
+
+/* battle/gauges.c */
+void battle_draw_gauge(Snes *s);
 
 /* battle/math.c */
 void battle_multiply_8x8(Snes *s);
