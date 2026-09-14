@@ -12,6 +12,7 @@ extracted/
 disasm/out/
 traces/
 captures/
+*.cttr
 *.wram
 *.state
 
@@ -36,3 +37,6 @@ __pycache__/
 .vscode/
 .idea/
 *.user
+
+# Downloaded test suites
+tests/cpu/data/
