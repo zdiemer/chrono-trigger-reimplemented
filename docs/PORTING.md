@@ -82,6 +82,7 @@ new parts of the game, before relaxing a routine further.
 | `c0_install_field_nmi` | `$C0:0B64` | 10, all match |
 | `c0_install_field_irq` | `$C0:0B75` | 10, all match |
 | `c0_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
+| `c0_field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
 | `c3_decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
 | `c0_wait_frame_loop`, `c2_wait_frame_loop`, `c2_wait_ready_loop` | `$C0:EC71`, `$C2:0348`, `$C2:81CA` | idle entries: the wait-for-next-frame loops, about 64% of all instructions executed |
 

@@ -108,6 +108,63 @@ static inline uint8_t m_asl8(Snes *s, uint8_t v)
     return (uint8_t)(v << 1);
 }
 
+/* REP/SEP, including their effect on register widths. */
+static inline void m_rep(Snes *s, uint8_t bits) { s->cpu.p &= (uint8_t)~bits; }
+static inline void m_sep(Snes *s, uint8_t bits)
+{
+    s->cpu.p |= bits;
+    if (s->cpu.p & CPU_FLAG_X) {
+        s->cpu.x &= 0xFF;
+        s->cpu.y &= 0xFF;
+    }
+}
+
+/* Loads that set N and Z the way LDA/LDX/LDY do at the given width. */
+static inline uint8_t m_lda8(Snes *s, uint8_t v)
+{
+    m_set_a8(s, v);
+    m_set_nz8(s, v);
+    return v;
+}
+
+static inline uint16_t m_lda16(Snes *s, uint16_t v)
+{
+    s->cpu.a = v;
+    m_set_nz16(s, v);
+    return v;
+}
+
+static inline uint16_t m_ldx16(Snes *s, uint16_t v)
+{
+    s->cpu.x = v;
+    m_set_nz16(s, v);
+    return v;
+}
+
+/* BIT #imm (8-bit): only Z changes. */
+static inline void m_bit_imm8(Snes *s, uint8_t imm) { m_set_flag(s, CPU_FLAG_Z, ((uint8_t)s->cpu.a & imm) == 0); }
+
+/* TRB on an 8-bit memory byte with the 8-bit accumulator. */
+static inline void m_trb8(Snes *s, uint32_t addr)
+{
+    uint8_t v = m_read8(s, addr);
+    uint8_t a = (uint8_t)s->cpu.a;
+    m_set_flag(s, CPU_FLAG_Z, (v & a) == 0);
+    m_write8(s, addr, (uint8_t)(v & ~a));
+}
+
+/* Returns from an interrupt, native mode: P, PC, program bank. */
+static inline void m_rti(Snes *s)
+{
+    s->cpu.p = m_pull8(s);
+    if (s->cpu.p & CPU_FLAG_X) {
+        s->cpu.x &= 0xFF;
+        s->cpu.y &= 0xFF;
+    }
+    s->cpu.pc = m_pull16(s);
+    s->cpu.pb = m_pull8(s);
+}
+
 /* Call another routine from a native one, as the JSR (3-byte) or JSL (4-byte)
  * instruction at `site` would. */
 static inline void m_jsr(Snes *s, uint32_t site, uint32_t target) { native_call(s, site, target, false); }
