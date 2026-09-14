@@ -265,3 +265,347 @@ void battle_frame_work(Snes *s)
         return;
     m_rts(s);
 }
+
+/* LDA #v (or a table value) : STA $00xxxx */
+static void put8(Snes *s, uint16_t reg, uint8_t v) { m_write8(s, reg, m_lda8(s, v)); }
+
+/* TDC : STA $00xxxx -- the direct page's low byte, 0 in battle. */
+static void put_d8(Snes *s, uint16_t reg)
+{
+    m_tdc(s);
+    m_write8(s, reg, (uint8_t)s->cpu.a);
+}
+
+/* LDA #$80 : STA $00420B -- run DMA channel 7. */
+static void start_dma7(Snes *s) { put8(s, 0x420B, 0x80); }
+
+/* One of the queued VRAM uploads from the tables at $CC:F957 (`slot` a
+ * multiple of 2; X, or 0 through long addresses): two transfers from $7E, the
+ * second only when its size is nonzero. */
+static void upload_queued_vram(Snes *s, uint16_t slot)
+{
+    put8(s, 0x4370, 0x01);
+    put8(s, 0x4371, 0x18);
+    put8(s, 0x4372, m_read8(s, 0xCCF957 + slot));
+    put8(s, 0x4373, m_read8(s, 0xCCF958 + slot));
+    put8(s, 0x4374, 0x7E);
+    m_rep(s, CPU_FLAG_M);
+    m_write16(s, 0x4375, m_lda16(s, m_read16(s, 0xCCF977 + slot)));
+    m_write16(s, 0x2116, m_lda16(s, m_read16(s, 0xCCF967 + slot)));
+    m_tdc(s);
+    m_sep(s, CPU_FLAG_M);
+    start_dma7(s);
+    put8(s, 0x4372, m_read8(s, 0xCCF95F + slot));
+    put8(s, 0x4373, m_read8(s, 0xCCF960 + slot));
+    m_rep(s, CPU_FLAG_M);
+    uint16_t size = m_lda16(s, m_read16(s, 0xCCF97F + slot));
+    if (size != 0) {
+        m_write16(s, 0x4375, size);
+        m_write16(s, 0x2116, m_lda16(s, m_read16(s, 0xCCF96F + slot)));
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+        start_dma7(s);
+    } else {
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+    }
+}
+
+// $CF:E300
+/* The battle's vblank uploads over DMA channel 7: the OAM buffer ($0700, 544
+ * bytes); a pending transfer described at $9EEA ($A0 set); the $0B40 tile
+ * block to VRAM $7A00 when $99E2 is set; the palette ($7E:2200); one of four
+ * rotating queued VRAM uploads ($A4) while $E5 is set and $A013 clear; the
+ * current object's two graphics uploads when $A012 is 1 (objects of graphics
+ * kind below 3); and upload slot 0 again when the $A118 countdown ends.
+ * Returns with RTL. */
+void battle_upload_vram(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    put_d8(s, 0x4370);
+    put8(s, 0x4371, 0x04);
+    put8(s, 0x4372, 0x00);
+    put8(s, 0x4373, 0x07);
+    put8(s, 0x4374, 0x00);
+    put8(s, 0x4375, 0x20);
+    put8(s, 0x4376, 0x02);
+    put_d8(s, 0x2102);
+    start_dma7(s);
+
+    if (m_lda8(s, dp8(s, 0xA0)) != 0) {
+        static const uint16_t regs[9] = { 0x4370, 0x4371, 0x4372, 0x4373, 0x4374, 0x4375, 0x4376, 0x2116, 0x2117 };
+        for (int i = 0; i < 9; i++)
+            m_write8(s, regs[i], m_lda8(s, abs8(s, (uint16_t)(0x9EEA + 6 * i))));
+        start_dma7(s);
+        m_write8(s, m_dp(s, 0xA0), 0x00);
+    }
+    if (m_lda8(s, abs8(s, 0x99E2)) != 0) {
+        static const uint8_t v[9] = { 0x01, 0x18, 0x40, 0x0B, 0x00, 0x80, 0x01, 0x00, 0x7A };
+        static const uint16_t regs[9] = { 0x4370, 0x4371, 0x4372, 0x4373, 0x4374, 0x4375, 0x4376, 0x2116, 0x2117 };
+        for (int i = 0; i < 9; i++)
+            put8(s, regs[i], v[i]);
+        start_dma7(s);
+        set_abs8(s, 0x99E2, 0x00);
+    }
+    {
+        static const uint8_t v[7] = { 0x00, 0x22, 0x00, 0x22, 0x7E, 0x00, 0x02 };
+        for (int i = 0; i < 7; i++)
+            put8(s, (uint16_t)(0x4370 + i), v[i]);
+        put_d8(s, 0x2121);
+        start_dma7(s);
+    }
+
+    /* $CF:E3F8 */
+    if (m_lda8(s, abs8(s, 0xA013)) == 0 && m_lda8(s, dp8(s, 0xE5)) != 0) {
+        m_set_a8(s, m_asl8(s, m_lda8(s, dp8(s, 0xA4))));
+        m_tax(s);
+        upload_queued_vram(s, c->x);
+        uint8_t slot = (uint8_t)(dp8(s, 0xA4) + 1);
+        m_write8(s, m_dp(s, 0xA4), slot);
+        m_set_nz8(s, slot);
+        slot = m_lda8(s, dp8(s, 0xA4));
+        m_cmp8(s, slot, 0x04);
+        if (slot == 0x04)
+            m_write8(s, m_dp(s, 0xA4), 0x00);
+    }
+
+    /* $CF:E481 */
+    uint8_t request = m_lda8(s, abs8(s, 0xA012));
+    if (request != 0) {
+        m_cmp8(s, request, 0x01);
+        if (request == 0x01) {
+            set_abs8(s, 0xA012, 0x00);
+            m_lda8(s, abs8(s, 0x9679));
+            m_tax(s);
+            uint8_t kind = m_lda8(s, m_read8(s, m_abs(s, 0x967C) + c->x));
+            m_cmp8(s, kind, 0x03);
+            if (kind < 0x03) {
+                m_txa(s);
+                m_set_a8(s, m_asl8(s, (uint8_t)c->a));
+                m_tax(s);
+                /* source $A654/$A66A, size $A6AC/$A6C2, VRAM address $A680/$A696 */
+                static const uint16_t regs[6] = { 0x4372, 0x4373, 0x4375, 0x4376, 0x2116, 0x2117 };
+                static const uint16_t tables[2][6] = {
+                    { 0xA654, 0xA655, 0xA6AC, 0xA6AD, 0xA680, 0xA681 },
+                    { 0xA66A, 0xA66B, 0xA6C2, 0xA6C3, 0xA696, 0xA697 },
+                };
+                put8(s, 0x4370, 0x01);
+                put8(s, 0x4371, 0x18);
+                for (int t = 0; t < 2; t++) {
+                    for (int i = 0; i < 6; i++) {
+                        if (t == 0 && i == 2)
+                            put8(s, 0x4374, 0x7E);
+                        put8(s, regs[i], m_read8(s, m_abs(s, tables[t][i]) + c->x));
+                    }
+                    start_dma7(s);
+                }
+            }
+        }
+    }
+
+    /* $CF:E510 */
+    if (m_lda8(s, abs8(s, 0xA118)) != 0 && step_abs8(s, 0xA118, -1) == 0)
+        upload_queued_vram(s, 0);
+    m_rtl(s);
+}
+
+/* INC on a 16-bit absolute word, setting N and Z. */
+static void inc_abs16(Snes *s, uint16_t addr)
+{
+    uint16_t v = (uint16_t)(m_read16(s, m_abs(s, addr)) + 1);
+    m_write16(s, m_abs(s, addr), v);
+    m_set_nz16(s, v);
+}
+
+/* DEC on the 16-bit direct-page word $C8; returns the new value. */
+static uint16_t dec_c8(Snes *s)
+{
+    uint16_t v = (uint16_t)(m_read16(s, m_dp(s, 0xC8)) - 1);
+    m_write16(s, m_dp(s, 0xC8), v);
+    m_set_nz16(s, v);
+    return v;
+}
+
+/* $CF:E653/$CF:E682: rotate colors of the working palette up one slot, from
+ * X down, for $C8 + 1 colors (16-bit A). */
+static void rotate_colors(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_write16(s, m_dp(s, 0xC6), m_lda16(s, m_read16(s, m_abs(s, 0x2200) + c->x)));
+    m_ldx16(s, (uint16_t)(c->x - 2));
+    do {
+        m_write16(s, m_abs(s, 0x2202) + c->x, m_lda16(s, m_read16(s, m_abs(s, 0x2200) + c->x)));
+        m_ldx16(s, (uint16_t)(c->x - 2));
+    } while (dec_c8(s) != 0);
+    m_write16(s, m_abs(s, 0x2202) + c->x, m_lda16(s, m_read16(s, m_dp(s, 0xC6))));
+}
+
+// $CF:E58A
+/* The battle's per-frame update, run from the main loop's frame wait: the
+ * blink timer ($A110 toggling every 12 frames), the party palette cycle, the
+ * animated color at $233C or $23BC (by $9F46 bit 3, flipped by $A101), the
+ * 32-bit frame counter $96F1, the twelve-color rotation at $2382 and the
+ * background color rotation ($A08B, rows from $99D3), priority bits of the
+ * first four OAM entries from $9F46, a demo exit on any button (resetting to
+ * $C0:FF00 once $BB00 counts down), the L+R hold counter ($99CF), the effect
+ * slots, object paths, anchors, trails and prepared sprites, $CF:F9D3 when
+ * $AA63 is set, and the object sprites. Clears $9E, restores $A1 and returns
+ * with RTL. */
+void battle_frame_update(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    if (step_abs8(s, 0xA112, -1) == 0) {
+        set_abs8(s, 0xA112, m_lda8(s, 0x0C));
+        set_abs8(s, 0xA110, m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0xA110)) ^ 0x01)));
+    }
+    if (m_lda8(s, abs8(s, 0xA113)) != 0)
+        set_abs8(s, 0x9945, m_lda8(s, abs8(s, 0x993F)));
+    if (!jsr(s, 0xCFE5A7, 0xCFE7D7))
+        return;
+    step_abs8(s, 0xA4EF, +1);
+    uint8_t phase = m_lda8(s, abs8(s, 0xA4EF));
+    m_cmp8(s, phase, 0x3E);
+    if (phase == 0x3E) {
+        m_tdc(s);
+        set_abs8(s, 0xA4EF, (uint8_t)c->a);
+    }
+    m_set_a8(s, m_asl8(s, (uint8_t)c->a));
+    m_tax(s);
+    uint8_t layer;
+    if (m_lda8(s, abs8(s, 0xA101)) != 0)
+        layer = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x9F46)) ^ 0x08));
+    else
+        layer = m_lda8(s, abs8(s, 0x9F46));
+    uint16_t color = m_lda8(s, layer & 0x08) ? 0x23BC : 0x233C;
+    set_abs8(s, color, m_lda8(s, m_read8(s, 0xD15980 + c->x)));
+    set_abs8(s, (uint16_t)(color + 1), m_lda8(s, m_read8(s, 0xD15981 + c->x)));
+
+    /* $CF:E5EB */
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
+    uint16_t low = m_adc16(s, m_lda16(s, m_read16(s, m_abs(s, 0x96F1))), 0x0001);
+    m_write16(s, m_abs(s, 0x96F1), low);
+    uint16_t high = m_adc16(s, m_lda16(s, m_read16(s, m_abs(s, 0x96F3))), 0x0000);
+    m_write16(s, m_abs(s, 0x96F3), high);
+    m_tdc(s);
+    m_sep(s, CPU_FLAG_M);
+
+    if (m_lda8(s, abs8(s, 0xAB4E)) != 0 && step_abs8(s, 0xAB4A, -1) == 0) {
+        set_abs8(s, 0xAB4A, m_lda8(s, abs8(s, 0xAB4B)));
+        m_ldx16(s, 0x0016);
+        m_rep(s, CPU_FLAG_M);
+        m_write16(s, m_dp(s, 0xC6), m_lda16(s, m_read16(s, m_abs(s, 0x2398))));
+        do {
+            m_write16(s, m_abs(s, 0x2382) + c->x, m_lda16(s, m_read16(s, m_abs(s, 0x2380) + c->x)));
+            m_ldx16(s, (uint16_t)(c->x - 2));
+        } while (!(c->x & 0x8000));
+        m_write16(s, m_abs(s, 0x2382), m_lda16(s, m_read16(s, m_dp(s, 0xC6))));
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+
+        if (m_lda8(s, abs8(s, 0xA08B)) != 0) {
+            uint8_t row = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x99D3)) & 0x0F));
+            m_write8(s, m_dp(s, 0xC6), row);
+            m_set_flag(s, CPU_FLAG_C, true);
+            m_set_a8(s, m_sbc8(s, m_lda8(s, 0x0F), m_read8(s, m_dp(s, 0xC6))));
+            m_tax(s);
+            m_write16(s, m_dp(s, 0xC8), c->x);
+            m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x99D3)) | 0x0F));
+            m_rep(s, CPU_FLAG_M);
+            c->a = m_asl16(s, c->a);
+            m_tax(s);
+            m_write16(s, m_dp(s, 0xCA), c->x);
+            rotate_colors(s);
+            m_tdc(s);
+            m_sep(s, CPU_FLAG_M);
+
+            m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x99D3)) | 0x0F));
+            m_set_flag(s, CPU_FLAG_C, false);
+            m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0x10));
+            m_rep(s, CPU_FLAG_M);
+            c->a = m_asl16(s, c->a);
+            m_write16(s, m_dp(s, 0xCA), c->a);
+            do {
+                m_write16(s, m_dp(s, 0xC8), m_lda16(s, 0x000E));
+                m_ldx16(s, m_read16(s, m_dp(s, 0xCA)));
+                rotate_colors(s);
+                m_set_flag(s, CPU_FLAG_C, false);
+                uint16_t next = m_adc16(s, m_lda16(s, m_read16(s, m_dp(s, 0xCA))), 0x0020);
+                m_write16(s, m_dp(s, 0xCA), next);
+                c->a = next;
+            } while (m_lda16(s, c->a & 0xFF00) == 0);
+            m_tdc(s);
+            m_sep(s, CPU_FLAG_M);
+        }
+    }
+
+    /* $CF:E6AA */
+    for (uint16_t attr = 0x0703; attr <= 0x070F; attr += 4) {
+        uint8_t v = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, attr)) & 0xF1));
+        set_abs8(s, attr, m_lda8(s, (uint8_t)(v | abs8(s, 0x9F46))));
+    }
+    m_push8(s, m_lda8(s, dp8(s, 0xA1)));
+    if (m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x2989)) & 0x20)) != 0) {
+        uint8_t pad = m_lda8(s, m_read8(s, 0x004218));
+        if (m_lda8(s, (uint8_t)(pad | m_read8(s, 0x004219))) != 0)
+            set_abs8(s, 0xA097, m_lda8(s, 0x01));
+        if (m_lda8(s, abs8(s, 0xA097)) != 0) {
+            uint8_t fade = m_lda8(s, (uint8_t)(abs8(s, 0xBB00) - 1));
+            set_abs8(s, 0xBB00, fade);
+            if (fade == 0) {
+                set_abs8(s, 0xBB80, m_lda8(s, 0x80));
+                c->pb = 0xC0;
+                c->pc = 0xFF00;
+                return;
+            }
+        }
+    }
+
+    /* $CF:E706 */
+    if (m_lda8(s, abs8(s, 0xA013)) == 0) {
+        uint8_t lr = m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, 0x004218)) & 0x30));
+        m_cmp8(s, lr, 0x30);
+        if (lr == 0x30) {
+            m_rep(s, CPU_FLAG_M);
+            inc_abs16(s, 0x99CF);
+            uint16_t held = m_lda16(s, m_read16(s, m_abs(s, 0x99CF)));
+            m_cmp16(s, held, 0x0078);
+            if (held >= 0x0078 &&
+                m_lda16(s, (uint16_t)(m_lda16(s, m_read16(s, m_abs(s, 0x2989))) & 0x0080)) == 0)
+                inc_abs16(s, 0x99CD);
+            m_tdc(s);
+            m_sep(s, CPU_FLAG_M);
+        } else {
+            set_abs8(s, 0x99D1, 0x00);
+            set_abs8(s, 0x99CF, 0x00);
+            set_abs8(s, 0x99D0, 0x00);
+        }
+    }
+
+    /* $CF:E73B */
+    step_abs8(s, 0x9931, +1);
+    if (m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x9931)) & 0x03)) == 0)
+        step_abs8(s, 0x993A, +1);
+    if (!jsr(s, 0xCFE748, 0xCFEFAF))
+        return;
+    if (m_lda8(s, abs8(s, 0xA013)) != 0 &&
+        (!jsr(s, 0xCFE750, 0xCFEC78) || !jsr(s, 0xCFE753, 0xCFECC2) || !jsr(s, 0xCFE756, 0xCFED18) ||
+         !jsr(s, 0xCFE759, 0xCFE781)))
+        return;
+    if (m_lda8(s, abs8(s, 0xAA63)) != 0 && !jsr(s, 0xCFE761, 0xCFF9D3))
+        return;
+    if (m_lda8(s, abs8(s, 0xA028)) == 0) {
+        if (m_lda8(s, abs8(s, 0xA013)) != 0) {
+            uint8_t request = m_lda8(s, abs8(s, 0xA012));
+            m_cmp8(s, request, 0x02);
+            if (request == 0x02)
+                step_abs8(s, 0xA012, -1);
+        }
+        if (!jsr(s, 0xCFE778, 0xCFE83A))
+            return;
+    }
+    m_write8(s, m_dp(s, 0x9E), 0x00);
+    uint8_t a1 = m_pull8(s);
+    m_lda8(s, a1);
+    m_write8(s, m_dp(s, 0xA1), a1);
+    m_rtl(s);
+}

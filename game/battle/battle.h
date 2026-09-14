@@ -24,6 +24,11 @@ void battle_clear_b328_table(Snes *s);
 void battle_update_scroll_tables(Snes *s);
 void battle_update_scroll_tables_bg3_moving(Snes *s);
 
+/* battle/stats.c */
+void battle_update_low_hp_flag(Snes *s);
+void battle_update_status_flags(Snes *s);
+void battle_update_all_combatants(Snes *s);
+
 /* battle/timers.c */
 void battle_tick_timers(Snes *s);
 void battle_dispatch_expired_timers(Snes *s);
@@ -42,6 +47,8 @@ void battle_step_window_slide(Snes *s);
 void battle_update_scroll_dispatch(Snes *s);
 void battle_step_cdc9(Snes *s);
 void battle_frame_work(Snes *s);
+void battle_upload_vram(Snes *s);
+void battle_frame_update(Snes *s);
 
 /* battle/nmi.c */
 void battle_nmi(Snes *s);
