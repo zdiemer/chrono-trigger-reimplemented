@@ -615,3 +615,202 @@ void battle_step_prepared_sprites(Snes *s)
     } while (c->y != 0x000B);
     m_rts(s);
 }
+
+// $CF:EC78
+/* Move objects along their scripted paths: for each of the 11 objects with
+ * $A15B set and steps left ($A500 counting down from 7), add the path's
+ * X/Y deltas ($CC:F494/$CC:F594, path $A517 * 8 + step) to its position
+ * ($1D0C/$1D23). */
+void battle_step_object_paths(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_tdc(s);
+    m_set_index(s, &c->y, c->a);
+    do {
+        if (m_lda8(s, absy8(s, 0xA15B)) != 0 && !(m_lda8(s, absy8(s, 0xA500)) & 0x80)) {
+            m_set_flag(s, CPU_FLAG_C, true);
+            uint8_t step = m_sbc8(s, m_lda8(s, 0x07), absy8(s, 0xA500));
+            m_set_a8(s, step);
+            m_tax(s);
+            set_dp16(s, 0xC6, c->x);
+            m_lda8(s, absy8(s, 0xA517));
+            m_rep(s, CPU_FLAG_M);
+            for (int i = 0; i < 3; i++)
+                c->a = m_asl16(s, c->a);
+            m_set_flag(s, CPU_FLAG_C, false);
+            c->a = m_adc16(s, c->a, dp16(s, 0xC6));
+            m_tax(s);
+            m_tdc(s);
+            m_sep(s, CPU_FLAG_M);
+            m_set_flag(s, CPU_FLAG_C, false);
+            uint8_t v = m_adc8(s, m_lda8(s, m_read8(s, 0xCCF494 + c->x)), absy8(s, 0x1D0C));
+            m_set_a8(s, v);
+            set_absy8(s, 0x1D0C, v);
+            m_set_flag(s, CPU_FLAG_C, false);
+            v = m_adc8(s, m_lda8(s, m_read8(s, 0xCCF594 + c->x)), absy8(s, 0x1D23));
+            m_set_a8(s, v);
+            set_absy8(s, 0x1D23, v);
+            m_set_flag(s, CPU_FLAG_C, true);
+            v = m_sbc8(s, m_lda8(s, absy8(s, 0xA500)), 0x01);
+            m_set_a8(s, v);
+            set_absy8(s, 0xA500, v);
+        }
+        m_iny(s);
+        m_cmp16(s, c->y, 0x000B);
+    } while (c->y != 0x000B);
+    m_rts(s);
+}
+
+// $CF:ECC2
+/* Set the 8 anchor points ($A240/$A250, 16-bit X/Y): for each slot from 7
+ * down to 0 whose $A437 is positive, either take the position of the object
+ * it names ($1D0C/$1D23) or, with bit 6 set, copy another anchor (low three
+ * bits). */
+void battle_update_anchor_points(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_ldx16(s, 0x0007);
+    set_dp16(s, 0xC6, c->x);
+    m_sep(s, CPU_FLAG_X);
+    do {
+        m_set_index(s, &c->x, dp8(s, 0xC6));
+        uint8_t v = m_lda8(s, absx8(s, 0xA437));
+        if (!(v & 0x80)) {
+            if (m_lda8(s, v & 0x40) == 0) {
+                m_lda8(s, absx8(s, 0xA437));
+                m_set_index(s, &c->y, c->a);
+                m_txa(s);
+                m_set_a8(s, m_asl8(s, (uint8_t)c->a));
+                m_tax(s);
+                set_absx8(s, 0xA240, m_lda8(s, absy8(s, 0x1D0C)));
+                set_absx8(s, 0xA241, 0x00);
+                set_absx8(s, 0xA250, m_lda8(s, absy8(s, 0x1D23)));
+                set_absx8(s, 0xA251, 0x00);
+            } else {
+                uint8_t src = m_lda8(s, (uint8_t)(m_lda8(s, absx8(s, 0xA437)) & 0x07));
+                m_set_a8(s, m_asl8(s, src));
+                m_set_index(s, &c->y, c->a);
+                m_txa(s);
+                m_set_a8(s, m_asl8(s, (uint8_t)c->a));
+                m_tax(s);
+                static const uint16_t cells[4] = { 0xA240, 0xA241, 0xA250, 0xA251 };
+                for (int i = 0; i < 4; i++)
+                    set_absx8(s, cells[i], m_lda8(s, absy8(s, cells[i])));
+            }
+        }
+    } while (!(dec_dp8(s, 0xC6) & 0x80));
+    m_rep(s, CPU_FLAG_X);
+    m_rts(s);
+}
+
+/* $CF:ED18, one axis: shift the object's position history down one frame and
+ * record its position plus the signed offset (`offset`) as a 16-bit value
+ * (low bytes `low0`..`low3`, high bytes `high0`..`high3`). */
+static void record_axis(Snes *s, const uint16_t low[4], const uint16_t high[4], uint16_t offset, uint16_t pos)
+{
+    for (int i = 3; i > 0; i--)
+        set_absx8(s, low[i], m_lda8(s, absx8(s, low[i - 1])));
+    for (int i = 3; i > 0; i--)
+        set_absx8(s, high[i], m_lda8(s, absx8(s, high[i - 1])));
+    set_absx8(s, high[0], 0x00);
+    uint8_t off = m_lda8(s, absx8(s, offset));
+    if (off & 0x80) {
+        uint8_t h = (uint8_t)(absx8(s, high[0]) - 1);
+        set_absx8(s, high[0], h);
+        m_set_nz8(s, h);
+    }
+    m_set_flag(s, CPU_FLAG_C, false);
+    uint8_t v = m_adc8(s, off, absx8(s, pos));
+    m_set_a8(s, v);
+    set_absx8(s, low[0], v);
+    v = m_adc8(s, m_lda8(s, absx8(s, high[0])), 0x00);
+    m_set_a8(s, v);
+    set_absx8(s, high[0], v);
+}
+
+// $CF:ED18
+/* Record the trail of the 11 objects with trails ($A192): every $AB67 frames
+ * ($AB72 counting down), shift their last four positions and store the
+ * current one, offset by $A4A4/$A4AF, as 16-bit X ($AB93.., $AC64..) and Y
+ * ($AB9E.., $AC6F..). */
+void battle_record_object_trails(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    static const uint16_t x_low[4] = { 0xAB93, 0xABA9, 0xABBF, 0xABD5 };
+    static const uint16_t x_high[4] = { 0xAC64, 0xAC7A, 0xAC90, 0xACA6 };
+    static const uint16_t y_low[4] = { 0xAB9E, 0xABB4, 0xABCA, 0xABE0 };
+    static const uint16_t y_high[4] = { 0xAC6F, 0xAC85, 0xAC9B, 0xACB1 };
+    m_ldx16(s, 0x000A);
+    m_sep(s, CPU_FLAG_X);
+    do {
+        if (m_lda8(s, absx8(s, 0xA192)) != 0) {
+            uint8_t count = (uint8_t)(absx8(s, 0xAB72) - 1);
+            set_absx8(s, 0xAB72, count);
+            m_set_nz8(s, count);
+            if (count == 0) {
+                set_absx8(s, 0xAB72, m_lda8(s, absx8(s, 0xAB67)));
+                record_axis(s, x_low, x_high, 0xA4A4, 0x1D0C);
+                record_axis(s, y_low, y_high, 0xA4AF, 0x1D23);
+            }
+        }
+        m_set_index(s, &c->x, (uint16_t)(c->x - 1));
+    } while (!(c->x & 0x80));
+    m_rep(s, CPU_FLAG_X);
+    m_rts(s);
+}
+
+// $CF:E7D7
+/* Animate the palettes of the three party members' effects: for each of
+ * slots 2-0 with $A46D set (and $A101 clear), copy the next color of its
+ * palette cycle ($CE:0100 through $CC:F754 by $A441, position $A499 stepping by
+ * 2 up to $7C) into both copies of color 1 of its sprite palette ($2302/$2318
+ * + palette $993C * 16), unless the palette is 8. */
+void battle_cycle_party_palettes(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_set_index(s, &c->y, 0x0002);
+    set_dp16(s, 0xC6, c->y);
+    m_sep(s, CPU_FLAG_X);
+    do {
+        m_set_index(s, &c->y, m_x8(s) ? dp8(s, 0xC6) : dp16(s, 0xC6));
+        if (m_lda8(s, absy8(s, 0xA46D)) == 0 || m_lda8(s, abs8(s, 0xA101)) != 0)
+            continue;
+        m_rep(s, CPU_FLAG_X);
+        m_set_a8(s, m_asl8(s, m_lda8(s, absy8(s, 0xA441))));
+        m_tax(s);
+        m_set_flag(s, CPU_FLAG_C, false);
+        m_lda8(s, absy8(s, 0xA499));
+        m_rep(s, CPU_FLAG_M);
+        c->a = m_adc16(s, c->a, m_read16(s, 0xCCF754 + c->x));
+        m_tax(s);
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+        uint8_t palette = m_lda8(s, absy8(s, 0x993C));
+        m_cmp8(s, palette, 0x08);
+        if (palette == 0x08)
+            continue;
+        for (int i = 0; i < 4; i++)
+            palette = m_asl8(s, palette);
+        m_set_a8(s, palette);
+        m_set_index(s, &c->y, c->a);
+        uint8_t lo = m_lda8(s, m_read8(s, 0xCE0100 + c->x));
+        set_absy8(s, 0x2302, lo);
+        set_absy8(s, 0x2318, lo);
+        uint8_t hi = m_lda8(s, m_read8(s, 0xCE0101 + c->x));
+        set_absy8(s, 0x2303, hi);
+        set_absy8(s, 0x2319, hi);
+        m_ldx16(s, dp16(s, 0xC6));
+        for (int i = 0; i < 2; i++) {
+            uint8_t pos = (uint8_t)(absx8(s, 0xA499) + 1);
+            set_absx8(s, 0xA499, pos);
+            m_set_nz8(s, pos);
+        }
+        uint8_t pos = m_lda8(s, absx8(s, 0xA499));
+        m_cmp8(s, pos, 0x7C);
+        if (pos == 0x7C)
+            set_absx8(s, 0xA499, 0x00);
+        m_sep(s, CPU_FLAG_X);
+    } while (!(dec_dp8(s, 0xC6) & 0x80));
+    m_rep(s, CPU_FLAG_X);
+    m_rts(s);
+}

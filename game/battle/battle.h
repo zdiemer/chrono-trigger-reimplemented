@@ -37,6 +37,10 @@ void battle_find_due_animation(Snes *s);
 
 /* battle/nmi.c */
 void battle_nmi(Snes *s);
+void battle_restore_math_operands(Snes *s);
+void battle_irq_update_ca22(Snes *s);
+void battle_irq(Snes *s);
+void battle_irq_after_hblank(Snes *s);
 
 /* battle/sprites.c */
 void battle_draw_objects(Snes *s);
@@ -47,5 +51,9 @@ void battle_copy_sprite_tiles(Snes *s);
 void battle_draw_object_underlays(Snes *s);
 void battle_draw_object_overlays(Snes *s);
 void battle_step_prepared_sprites(Snes *s);
+void battle_step_object_paths(Snes *s);
+void battle_update_anchor_points(Snes *s);
+void battle_record_object_trails(Snes *s);
+void battle_cycle_party_palettes(Snes *s);
 
 #endif

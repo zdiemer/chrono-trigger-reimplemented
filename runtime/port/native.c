@@ -421,7 +421,9 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
                 finish(rt);
                 return true;
             }
-            if (s->cpu.s > a->ret_s) {
+            /* Above both the stop point and the entry: an early stop can be
+             * below the entry (after pushes), where the original starts. */
+            if (s->cpu.s > a->ret_s && s->cpu.s > a->entry_s) {
                 a->mismatched = true;
                 detail(rt, "mismatch", a->entry, "original left the routine without returning where the native one did");
                 finish(rt);

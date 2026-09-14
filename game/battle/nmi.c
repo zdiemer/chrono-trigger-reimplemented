@@ -1,4 +1,4 @@
-/* Battle: the NMI handler. */
+/* Battle: the NMI and IRQ handlers. */
 #include "battle/battle.h"
 
 #include "port/machine.h"
@@ -167,5 +167,118 @@ void battle_nmi(Snes *s)
     m_sep(s, CPU_FLAG_M);
     m_write8(s, m_dp(s, 0x7F), (uint8_t)c->a);
     m_write8(s, 0x7ECA20, (uint8_t)c->a);
+    leave(s);
+}
+
+// $D1:FE71
+/* Restore the hardware multiplier's or divider's operands from $77/$78 or
+ * $79-$7B (the divider when $7E:A029 is set), redoing the operation an
+ * interrupt handler's own arithmetic clobbered. Returns with RTL. */
+void battle_restore_math_operands(Snes *s)
+{
+    if (m_lda8(s, m_read8(s, 0x7EA029)) != 0) {
+        m_write8(s, 0x004204, m_lda8(s, m_read8(s, m_dp(s, 0x79))));
+        m_write8(s, 0x004205, m_lda8(s, m_read8(s, m_dp(s, 0x7A))));
+        m_write8(s, 0x004206, m_lda8(s, m_read8(s, m_dp(s, 0x7B))));
+    } else {
+        m_write8(s, 0x004202, m_lda8(s, m_read8(s, m_dp(s, 0x77))));
+        m_write8(s, 0x004203, m_lda8(s, m_read8(s, m_dp(s, 0x78))));
+    }
+    m_rtl(s);
+}
+
+// $D1:FE4C
+/* On the IRQ's even frames: when the requested value $CA21 changed (latched
+ * into $CA22) or $CA24 asks for it, run $CE:EE6E with $CA25 + $CA22 + $CCEC and
+ * clear $CA24. */
+void battle_irq_update_ca22(Snes *s)
+{
+    uint8_t v = m_lda8(s, abs8(s, 0xCA21));
+    uint8_t latched = abs8(s, 0xCA22);
+    m_cmp8(s, v, latched);
+    if (v != latched)
+        set_abs8(s, 0xCA22, v);
+    else if (m_lda8(s, abs8(s, 0xCA24)) == 0) {
+        m_rts(s);
+        return;
+    }
+    uint8_t a = m_lda8(s, abs8(s, 0xCA25));
+    m_set_flag(s, CPU_FLAG_C, false);
+    a = m_adc8(s, a, abs8(s, 0xCA22));
+    m_set_flag(s, CPU_FLAG_C, false);
+    a = m_adc8(s, a, abs8(s, 0xCCEC));
+    m_set_a8(s, a);
+    if (!jsl(s, 0xD1FE69, 0xCEEE6E))
+        return;
+    set_abs8(s, 0xCA24, 0x00);
+    m_rts(s);
+}
+
+// $D1:FE97
+/* The battle IRQ handler, up to its wait for hblank: save the registers,
+ * direct page 0, mark the handler busy ($7F), acknowledge the IRQ, re-enable
+ * NMI and auto-joypad ($4200 = $81), data bank 0 and HDMA off. Continues at
+ * the wait, $D1:FEB8. */
+void battle_irq(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_push16(s, c->a);
+    m_push16(s, c->x);
+    m_push16(s, c->y);
+    m_push8(s, c->db);
+    m_push16(s, c->d);
+    c->d = m_lda16(s, 0x0000);
+    m_sep(s, CPU_FLAG_M);
+    uint8_t busy = (uint8_t)(m_read8(s, m_dp(s, 0x7F)) + 1);
+    m_write8(s, m_dp(s, 0x7F), busy);
+    m_set_nz8(s, busy);
+    m_rep(s, CPU_FLAG_X);
+    m_lda8(s, m_read8(s, 0x004211));
+    m_write8(s, 0x004200, m_lda8(s, 0x81));
+    m_tdc(s);
+    m_push8(s, (uint8_t)c->a);
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    set_abs8(s, 0x420C, (uint8_t)c->a);
+    c->pc = 0xFEB8;
+}
+
+// $D1:FEBF
+/* The rest of the battle IRQ handler, from hblank: forced blank, then on even
+ * frames ($7C bit 0 clear) $D1:FE4C with data bank $7E, and on odd frames,
+ * unless paused ($CD02), the VRAM transfers at $FD:FFFD. Restores the
+ * multiplier operands, clears $7F and returns from the interrupt. */
+void battle_irq_after_hblank(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    set_abs8(s, 0x2100, m_lda8(s, 0x80));
+    uint8_t frame = m_lda8(s, m_read8(s, m_dp(s, 0x7C)));
+    if (m_lda8(s, frame & 0x01) == 0) {
+        m_lda8(s, 0x7E);
+        m_push8(s, (uint8_t)c->a);
+        c->db = m_pull8(s);
+        m_set_nz8(s, c->db);
+        m_jsr(s, 0xD1FECE, 0xD1FE4C);
+        if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+            return;
+    } else if (m_lda8(s, m_read8(s, 0x7ECD02)) == 0) {
+        m_push8(s, c->p);
+        if (!jsl(s, 0xD1FEDA, 0xFDFFFD))
+            return;
+        c->p = m_pull8(s);
+        if (c->p & CPU_FLAG_X) {
+            c->x &= 0xFF;
+            c->y &= 0xFF;
+        }
+    }
+    m_ldx16(s, 0x0000);
+    m_push16(s, c->x);
+    c->d = m_pull16(s);
+    m_set_nz16(s, c->d);
+    m_sep(s, CPU_FLAG_M);
+    if (!jsl(s, 0xD1FEE6, 0xD1FE71))
+        return;
+    m_write8(s, m_dp(s, 0x7F), 0x00);
     leave(s);
 }
