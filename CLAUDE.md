@@ -21,8 +21,11 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `python3 tools/fetch_core.py`, then `build/oracle/ct_oracle --core cores/snes9x_libretro.<ext>
   --rom roms/ct-usa.sfc --frames N --movie <.ctm> --trace traces/<name>.cttr`. Inspect and diff with
   `python3 tools/trace.py`. Snes9x is the trace oracle. See docs/ORACLE.md.
-- CPU tests: `python3 tests/cpu/fetch_sst.py` once, then build `runtime/cpu/cpu65816.c` +
-  `tests/cpu/sst_runner.c` and run it on `tests/cpu/data/*.bin` (must be 0 failures).
+- Main build: `cmake -S . -B build/main -G Ninja && cmake --build build/main` builds `ct_dev` (ROM on
+  our runtime, writes `.cttr` traces; see docs/RUNTIME.md) and the conformance runners.
+- CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
+  `build/main/sst_runner tests/cpu/data/*.bin` and `build/main/spc700_runner tests/apu/data/*.bin`
+  (both must report 0 failures).
 
 ## Rules
 

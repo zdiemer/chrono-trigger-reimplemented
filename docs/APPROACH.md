@@ -101,6 +101,8 @@ the disassembler.
    trace oracle)*
 3. **Host runtime.** SDL window, input, audio, PPU-level renderer, SPC700/DSP
    core, SRAM, and an explicit frame loop with defined NMI/IRQ points.
+   *(in progress: [RUNTIME.md](RUNTIME.md); the headless development system
+   runs the ROM and matches Snes9x WRAM through frame 21)*
 4. **Port.** Boot → title → name entry → Millennial Fair, then field, menu,
    battle, world map and special scenes, each diffed to zero.
 5. **Full-game equivalence.** Zero divergences and zero interpreter entries

@@ -1,0 +1,67 @@
+/* S-SMP audio subsystem: SPC700, 64 KiB sound RAM, control registers, timers,
+ * DSP register storage, and the four I/O ports shared with the main CPU.
+ *
+ * The console's IPL boot ROM is not included. Its documented upload protocol
+ * (announce $BBAA, accept blocks, jump to the uploaded driver) is implemented
+ * directly in C; after the jump, the uploaded driver runs on the SPC700 core.
+ * DSP sample generation is not implemented yet; registers are stored only.
+ */
+#ifndef CT_APU_H
+#define CT_APU_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "spc700.h"
+
+typedef enum {
+    APU_IPL_WAIT_KICK,   /* announcing $BBAA, waiting for $CC */
+    APU_IPL_TRANSFER,    /* receiving a block */
+    APU_DRIVER,          /* uploaded code is running on the SPC700 */
+} ApuPhase;
+
+typedef struct ApuTimer {
+    bool enabled;
+    uint8_t target;      /* $FA-$FC; 0 means 256 */
+    uint8_t stage;       /* internal up-counter compared with target */
+    uint8_t output;      /* 4-bit $FD-$FF, cleared on read */
+    uint32_t divider;    /* SPC700 cycles until the next stage tick */
+} ApuTimer;
+
+typedef struct Apu {
+    uint8_t ram[0x10000];
+    uint8_t cpu_in[4];   /* written by the main CPU ($2140-$2143), read at $F4-$F7 */
+    uint8_t cpu_out[4];  /* written at $F4-$F7, read by the main CPU */
+
+    ApuPhase phase;
+    uint16_t write_ptr;  /* next sound-RAM address in the current block */
+    uint8_t expected;    /* next byte index (8-bit, wraps) in the current block */
+    uint8_t last_port0;  /* port 0 value the upload protocol last acted on */
+    int32_t ipl_busy;    /* SPC700 cycles until the upload protocol polls again */
+    uint32_t ipl_poll_cycles;   /* cost of a poll that finds nothing new */
+    uint32_t ipl_byte_cycles;   /* cost of accepting one byte or command */
+
+    Spc700 spc;
+    uint8_t control;     /* $F1 */
+    uint8_t dsp_addr;    /* $F2 */
+    uint8_t dsp[128];
+    ApuTimer timer[3];
+
+    int64_t budget;      /* time owed to the SPC700 in master clocks x SPC700 Hz; negative is debt */
+    uint64_t spc_cycles; /* total SPC700 cycles run */
+
+    /* Optional: called before each SPC700 instruction. */
+    void (*on_insn)(void *ctx, const struct Apu *apu);
+    void *on_insn_ctx;
+} Apu;
+
+void apu_init(Apu *apu);
+
+/* Main-CPU side of the ports (SnesIo-compatible; ctx is the Apu). */
+uint8_t apu_read_port(void *ctx, uint8_t port);
+void apu_write_port(void *ctx, uint8_t port, uint8_t value);
+
+/* Run the APU for the given number of main-CPU master clocks. */
+void apu_advance(Apu *apu, uint32_t master_clocks);
+
+#endif
