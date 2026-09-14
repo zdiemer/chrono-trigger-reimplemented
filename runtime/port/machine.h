@@ -9,6 +9,7 @@
 #ifndef CT_PORT_MACHINE_H
 #define CT_PORT_MACHINE_H
 
+#include "port/native.h"
 #include "snes/system.h"
 
 static inline uint8_t m_read8(Snes *s, uint32_t addr) { return snes_bus_read(&s->bus, addr & 0xFFFFFF); }
@@ -80,5 +81,36 @@ static inline void m_set_nz16(Snes *s, uint16_t v)
 
 /* 8-bit accumulator writes leave the high byte (B) alone. */
 static inline void m_set_a8(Snes *s, uint8_t v) { s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | v); }
+
+/* 8-bit binary arithmetic with the CPU's flag effects. Decimal mode isn't
+ * supported: register such routines with a precondition of D clear. */
+static inline uint8_t m_adc8(Snes *s, uint8_t a, uint8_t b)
+{
+    unsigned r = (unsigned)a + b + (m_flag(s, CPU_FLAG_C) ? 1u : 0u);
+    m_set_flag(s, CPU_FLAG_V, ~(a ^ b) & (a ^ r) & 0x80);
+    m_set_flag(s, CPU_FLAG_C, r > 0xFF);
+    m_set_nz8(s, (uint8_t)r);
+    return (uint8_t)r;
+}
+
+static inline uint8_t m_sbc8(Snes *s, uint8_t a, uint8_t b) { return m_adc8(s, a, (uint8_t)~b); }
+
+static inline void m_cmp8(Snes *s, uint8_t reg, uint8_t v)
+{
+    m_set_flag(s, CPU_FLAG_C, reg >= v);
+    m_set_nz8(s, (uint8_t)(reg - v));
+}
+
+static inline uint8_t m_asl8(Snes *s, uint8_t v)
+{
+    m_set_flag(s, CPU_FLAG_C, v & 0x80);
+    m_set_nz8(s, (uint8_t)(v << 1));
+    return (uint8_t)(v << 1);
+}
+
+/* Call another routine from a native one, as the JSR (3-byte) or JSL (4-byte)
+ * instruction at `site` would. */
+static inline void m_jsr(Snes *s, uint32_t site, uint32_t target) { native_call(s, site, target, false); }
+static inline void m_jsl(Snes *s, uint32_t site, uint32_t target) { native_call(s, site, target, true); }
 
 #endif

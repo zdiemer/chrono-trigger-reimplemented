@@ -10,6 +10,9 @@ void c0_disable_display_and_interrupts(Snes *s);
 void c0_install_field_nmi(Snes *s);
 void c0_install_field_irq(Snes *s);
 
+/* game/c0_objects.c */
+void c0_update_object_visibility(Snes *s);
+
 /* game/c3_decompress.c */
 void c3_decompress(Snes *s);
 

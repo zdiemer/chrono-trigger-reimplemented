@@ -40,6 +40,7 @@ Coverage is used three ways:
 | `listing/bank_XX.asm` | Code in ROM order per bank, labels, widths where ambiguous, gaps summarized |
 | `functions.json` | Every entry point with entry/return widths, callers and size |
 | `report.md` | Coverage per bank and the work list: everything the analysis couldn't resolve |
+| `liveness.json` | Per function: registers and flags read on entry, and those live/dead after it returns |
 
 ## How tracing works
 
@@ -58,6 +59,18 @@ Coverage is used three ways:
   tables' starts and targets, or a target that doesn't decode as plausible code.
   The heuristic runs after everything else is traced and iterates to a fixpoint.
 - Tracing stops at `BRK`, `COP`, `WDM` and `STP`, which almost always mean data.
+
+## Liveness
+
+`tools/disasm/liveness.py` computes, for every function, which of A, X, Y, the
+N/V/Z/C flags, DB and D any caller may read after it returns. It's an
+interprocedural backward dataflow over the traced code: calls contribute the
+callee's inputs, returns take the union of what's live at every call site, and
+unknown control flow keeps everything live. Functions entered as vectors,
+hints, coverage seeds or indirect targets, and functions that `--calls` shows
+being called from sites static analysis doesn't know, keep everything live
+after return. Ported routines use the dead set to skip reproducing values
+nobody reads (docs/PORTING.md).
 
 ## Hints (`re/hints.toml`)
 

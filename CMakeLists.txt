@@ -32,6 +32,7 @@ target_include_directories(ct_runtime PUBLIC runtime)
 add_library(ct_game STATIC
   game/natives.c
   game/c0_system.c
+  game/c0_objects.c
   game/c3_decompress.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)

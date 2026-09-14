@@ -26,8 +26,12 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   clone. When the original returns, the two machines must match exactly:
   registers and flags, WRAM (including stack bytes), SRAM, VRAM, CGRAM, OAM,
   PPU and CPU I/O register state, and the CPU-to-APU ports. Timing isn't
-  compared. Calls interrupted by NMI/IRQ are counted but not compared. Any
-  mismatch prints the first differing field and makes `ct_dev` exit nonzero.
+  compared, and neither is state that changes with time on its own: HDMA's
+  per-channel line counters and table addresses, and the PPU registers enabled
+  HDMA channels write. Calls interrupted by NMI/IRQ are counted but not
+  compared. Registers and flags in the routine's don't-care set (below) aren't
+  compared. Any mismatch prints the first differing field and makes `ct_dev`
+  exit nonzero.
 - **`on`:** registered routines run natively in place of the original. A native
   routine finishes instantly, so the time the original would have taken is
   charged afterwards, one scanline at a time, so frame boundaries and line
@@ -36,24 +40,34 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
 
 ## Writing a port
 
-1. Read the original with `python3 -m tools.disasm.linear BB:AAAA` and the
-   listing. Check its callers in `disasm/out/functions.json` for the M/X widths
-   it's entered with.
-2. Write readable C that has the same observable effects. Keep all of them,
-   including incidental ones: registers left behind, flags from the last
-   instruction that set them, stack bytes written by push/pull, and I/O
-   register writes in the same order. Use the data bank and direct page as the
-   original does (`m_abs`, `m_dp`), not hard-coded banks.
-3. Register it in `game/natives.c` with its entry precondition (for example
-   8-bit A), so calls under other widths fall back to the interpreter.
-4. Run `--native shadow` over the movie library. Every call must match. Then
-   run `--native on` and compare frames with the interpreter-only run.
-5. Set `cost_milli` from the `original/native-bus` ratio `shadow` reports.
+1. Refresh the analysis with runtime call edges, so liveness knows every caller:
 
-As more of a subsystem is ported, incidental effects no caller depends on can
-be dropped. Record that decision in the routine's comment, with the callers
-checked, and give the comparison a mask for it rather than loosening it for
-everyone.
+   ```sh
+   build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-game.ctm        --coverage traces/coverage.txt --calls traces/calls.txt
+   python3 -m tools.disasm --coverage traces/coverage.txt --calls traces/calls.txt
+   ```
+
+2. Read the original with `python3 -m tools.disasm.linear BB:AAAA` and the
+   listing. Check `disasm/out/functions.json` for the M/X widths it's entered
+   with, and `disasm/out/liveness.json` for `dead_after_return`: the registers
+   and flags no caller reads after it returns.
+3. Write readable C with the same observable effects: memory writes (including
+   stack bytes from push/pull), I/O writes, and every register and flag that
+   isn't dead after return. Use the data bank and direct page as the original
+   does (`m_abs`, `m_dp`), not hard-coded banks. Call routines that aren't
+   ported yet with `m_jsr`/`m_jsl`, giving the original call site, and make sure
+   registers and flags are exactly what the callee expects at that point.
+4. Register it in `game/natives.c` with its entry precondition (for example
+   8-bit A and binary mode) and its don't-care set, so calls under other
+   conditions fall back to the interpreter.
+5. Run `--native shadow` over the movie library. Every call must match. Then
+   run `--native on` and compare frames with the interpreter-only run.
+6. Set `cost_milli` from the `original/native-bus` ratio `shadow` reports.
+
+Liveness is only as good as the call graph. Functions called from code the
+analysis can't see (RAM code, unresolved indirect jumps) keep everything live,
+which is why step 1 feeds in the runtime call log. Rerun it when movies reach
+new parts of the game, before relaxing a routine further.
 
 ## Status
 
@@ -62,6 +76,7 @@ everyone.
 | `c0_disable_display_and_interrupts` | `$C0:0B4E` | 17, all match |
 | `c0_install_field_nmi` | `$C0:0B64` | 10, all match |
 | `c0_install_field_irq` | `$C0:0B75` | 10, all match |
+| `c0_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
 | `c3_decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
 
 The validator catches injected bugs: a wrong flag and a missing stack write
@@ -69,7 +84,12 @@ were each reported with the exact field. The first decompressor draft failed
 all 54 calls on one detail, flags set by the final `PLD`/`PLB`, and the report
 pointed straight at it.
 
-With all four running natively over the new-game movie, 5108 of 7200 frames
+With all five running natively over the new-game movie, 5108 of 7200 frames
 are identical to the interpreter-only run at the same frame. Almost all of the
 rest (2088) are the same frames one frame earlier, from approximating the
 decompressor's time cost.
+
+The object visibility port first failed 7108 of its calls on HDMA's line
+counter and then 41 on HDMA-written PPU registers: state that moves with time
+while the original runs. Both are now excluded from comparison for all
+routines.

@@ -3,6 +3,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void push8_raw(Snes *s, uint8_t v)
+{
+    snes_bus_write(&s->bus, s->cpu.s, v);
+    s->cpu.s--;
+}
+
+static void push16_raw(Snes *s, uint16_t v)
+{
+    push8_raw(s, v >> 8);
+    push8_raw(s, v & 0xFF);
+}
+
 #define MAX_PENDING 32
 #define MAX_DETAILS 16
 
@@ -29,6 +41,8 @@ struct NativeRuntime {
     int ndetails;
 };
 
+static const NativeRuntime *active_runtime;   /* for native_call */
+
 /* ---- registry --------------------------------------------------------------- */
 
 static int entry_cmp(const void *a, const void *b)
@@ -51,6 +65,7 @@ NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mod
         uint16_t a = sorted[i].addr & 0xFFFF;
         rt->filter[a >> 3] |= (uint8_t)(1 << (a & 7));
     }
+    active_runtime = rt;
     return rt;
 }
 
@@ -58,6 +73,8 @@ void native_destroy(NativeRuntime *rt)
 {
     if (!rt)
         return;
+    if (active_runtime == rt)
+        active_runtime = NULL;
     for (int i = 0; i < rt->npending; i++)
         free(rt->pending[i].clone);
     free((void *)rt->table);
@@ -112,17 +129,25 @@ static bool diff_bytes(char *out, size_t n, const char *name, const uint8_t *a, 
 
 /* Returns true and describes the first difference if the machines differ in
  * anything CPU-side code can observe or change. */
-static bool machines_differ(const Snes *o, const Snes *c, char *out, size_t n)
+static bool machines_differ(const Snes *o, const Snes *c, uint16_t dont_care, char *out, size_t n)
 {
-    CHECK_FIELD("A", o->cpu.a, c->cpu.a)
-    CHECK_FIELD("X", o->cpu.x, c->cpu.x)
-    CHECK_FIELD("Y", o->cpu.y, c->cpu.y)
+    uint8_t ignored_flags = (uint8_t)((dont_care & DC_N ? CPU_FLAG_N : 0) | (dont_care & DC_V ? CPU_FLAG_V : 0) |
+                                      (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
+    uint8_t p_mask = (uint8_t)~ignored_flags;
+    if (!(dont_care & DC_A))
+        CHECK_FIELD("A", o->cpu.a, c->cpu.a)
+    if (!(dont_care & DC_X))
+        CHECK_FIELD("X", o->cpu.x, c->cpu.x)
+    if (!(dont_care & DC_Y))
+        CHECK_FIELD("Y", o->cpu.y, c->cpu.y)
     CHECK_FIELD("S", o->cpu.s, c->cpu.s)
-    CHECK_FIELD("D", o->cpu.d, c->cpu.d)
-    CHECK_FIELD("DB", o->cpu.db, c->cpu.db)
+    if (!(dont_care & DC_D))
+        CHECK_FIELD("D", o->cpu.d, c->cpu.d)
+    if (!(dont_care & DC_DB))
+        CHECK_FIELD("DB", o->cpu.db, c->cpu.db)
     CHECK_FIELD("PB", o->cpu.pb, c->cpu.pb)
     CHECK_FIELD("PC", o->cpu.pc, c->cpu.pc)
-    CHECK_FIELD("P", o->cpu.p, c->cpu.p)
+    CHECK_FIELD("P", o->cpu.p & p_mask, c->cpu.p & p_mask)
     CHECK_FIELD("E", o->cpu.e, c->cpu.e)
 
     if (diff_bytes(out, n, "WRAM", o->bus.wram, c->bus.wram, sizeof o->bus.wram) ||
@@ -130,22 +155,55 @@ static bool machines_differ(const Snes *o, const Snes *c, char *out, size_t n)
         diff_bytes(out, n, "VRAM", o->ppu.vram, c->ppu.vram, sizeof o->ppu.vram) ||
         diff_bytes(out, n, "CGRAM", (const uint8_t *)o->ppu.cgram, (const uint8_t *)c->ppu.cgram,
                    sizeof o->ppu.cgram) ||
-        diff_bytes(out, n, "OAM", o->ppu.oam, c->ppu.oam, sizeof o->ppu.oam) ||
-        diff_bytes(out, n, "PPU reg", o->ppu.reg, c->ppu.reg, sizeof o->ppu.reg))
+        diff_bytes(out, n, "OAM", o->ppu.oam, c->ppu.oam, sizeof o->ppu.oam))
         return true;
 
+    /* PPU registers that enabled HDMA channels write each scanline change with
+     * time, not with the code under test, so skip them and the state they feed. */
+    static const uint8_t unit[8][4] = {
+        { 0, 0, 0, 0 }, { 0, 1, 0, 1 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 },
+        { 0, 1, 2, 3 }, { 0, 1, 0, 1 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 },
+    };
+    uint64_t hdma_regs = 0;
+    for (int ch = 0; ch < 8; ch++) {
+        if (!(o->bus.hdmaen & (1 << ch)))
+            continue;
+        const uint8_t *r = o->bus.dma[ch].reg;
+        for (int i = 0; i < 4; i++) {
+            uint8_t reg = (uint8_t)(r[1] + unit[r[0] & 7][i]);
+            if (reg < 0x40)
+                hdma_regs |= 1ull << reg;
+        }
+    }
     const Ppu *po = &o->ppu, *pc = &c->ppu;
-    CHECK_FIELD("VMADD", po->vram_addr, pc->vram_addr)
-    CHECK_FIELD("VRAM prefetch", po->vram_prefetch, pc->vram_prefetch)
-    CHECK_FIELD("CGADD", po->cg_addr, pc->cg_addr)
-    CHECK_FIELD("CGRAM flip-flop", po->cg_second, pc->cg_second)
-    CHECK_FIELD("CGRAM latch", po->cg_latch, pc->cg_latch)
-    CHECK_FIELD("OAM reload", po->oam_reload, pc->oam_reload)
-    CHECK_FIELD("OAMADD", po->oam_addr, pc->oam_addr)
-    CHECK_FIELD("OAM latch", po->oam_latch, pc->oam_latch)
-    CHECK_FIELD("BGnOFS latch", po->bgofs_latch, pc->bgofs_latch)
-    CHECK_FIELD("BGnHOFS latch", po->bghofs_latch, pc->bghofs_latch)
-    CHECK_FIELD("Mode 7 latch", po->m7_latch, pc->m7_latch)
+    for (int reg = 0; reg < 0x40; reg++) {
+        if (!(hdma_regs >> reg & 1) && po->reg[reg] != pc->reg[reg]) {
+            snprintf(out, n, "PPU $21%02X original %02X native %02X", reg, po->reg[reg], pc->reg[reg]);
+            return true;
+        }
+    }
+    #define HDMA_TOUCHES(lo, hi) ((hdma_regs >> (lo)) & ((2ull << ((hi) - (lo))) - 1))
+    if (!HDMA_TOUCHES(0x16, 0x19)) {
+        CHECK_FIELD("VMADD", po->vram_addr, pc->vram_addr)
+        CHECK_FIELD("VRAM prefetch", po->vram_prefetch, pc->vram_prefetch)
+    }
+    if (!HDMA_TOUCHES(0x21, 0x22)) {
+        CHECK_FIELD("CGADD", po->cg_addr, pc->cg_addr)
+        CHECK_FIELD("CGRAM flip-flop", po->cg_second, pc->cg_second)
+        CHECK_FIELD("CGRAM latch", po->cg_latch, pc->cg_latch)
+    }
+    if (!HDMA_TOUCHES(0x02, 0x04)) {
+        CHECK_FIELD("OAM reload", po->oam_reload, pc->oam_reload)
+        CHECK_FIELD("OAMADD", po->oam_addr, pc->oam_addr)
+        CHECK_FIELD("OAM latch", po->oam_latch, pc->oam_latch)
+    }
+    if (!HDMA_TOUCHES(0x0D, 0x14)) {
+        CHECK_FIELD("BGnOFS latch", po->bgofs_latch, pc->bgofs_latch)
+        CHECK_FIELD("BGnHOFS latch", po->bghofs_latch, pc->bghofs_latch)
+    }
+    if (!HDMA_TOUCHES(0x0D, 0x0E) && !HDMA_TOUCHES(0x1B, 0x20))
+        CHECK_FIELD("Mode 7 latch", po->m7_latch, pc->m7_latch)
+    #undef HDMA_TOUCHES
 
     const SnesBus *bo = &o->bus, *bc = &c->bus;
     CHECK_FIELD("NMITIMEN", bo->nmitimen, bc->nmitimen)
@@ -162,9 +220,20 @@ static bool machines_differ(const Snes *o, const Snes *c, char *out, size_t n)
     CHECK_FIELD("MDMAEN", bo->mdmaen, bc->mdmaen)
     CHECK_FIELD("WRAM port address", bo->wram_port_addr, bc->wram_port_addr)
     CHECK_FIELD("joypad latch", bo->latch, bc->latch)
-    for (int i = 0; i < 8; i++) {
-        if (diff_bytes(out, n, "DMA reg", bo->dma[i].reg, bc->dma[i].reg, sizeof bo->dma[i].reg))
-            return true;
+    /* HDMA advances each channel's table address ($43x8-9), line counter ($43xA)
+     * and indirect address ($43x5-6) every scanline, whatever the CPU is doing,
+     * so those change with time and aren't compared. */
+    const uint16_t hdma_timed = (1u << 5) | (1u << 6) | (1u << 8) | (1u << 9) | (1u << 10);
+    for (int ch = 0; ch < 8; ch++) {
+        for (int r = 0; r < 16; r++) {
+            if (hdma_timed & (1u << r))
+                continue;
+            if (bo->dma[ch].reg[r] != bc->dma[ch].reg[r]) {
+                snprintf(out, n, "DMA $43%X%X original %02X native %02X", ch, r, bo->dma[ch].reg[r],
+                         bc->dma[ch].reg[r]);
+                return true;
+            }
+        }
     }
     if (diff_bytes(out, n, "APU port (CPU to APU)", o->apu.cpu_in, c->apu.cpu_in, sizeof o->apu.cpu_in))
         return true;
@@ -189,7 +258,7 @@ static void finish_pending(NativeRuntime *rt, Snes *s, bool returned_normally)
         detail(rt, "mismatch", p->entry, "original left the routine without returning where the native one did");
     } else {
         char why[200];
-        if (machines_differ(s, p->clone, why, sizeof why)) {
+        if (machines_differ(s, p->clone, p->entry->dont_care, why, sizeof why)) {
             st->mismatched++;
             detail(rt, "mismatch", p->entry, why);
         } else {
@@ -274,6 +343,43 @@ static int32_t intercept(void *ctx, Snes *s)
     p->master_at_entry = s->master;
     p->interrupted = false;
     return -1;
+}
+
+#define CALL_STEP_LIMIT 50000000u
+
+void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
+{
+    uint16_t s_after = s->cpu.s;
+    uint32_t ret;
+    if (long_call) {
+        push8_raw(s, site >> 16);
+        push16_raw(s, (uint16_t)(site + 3));
+        ret = (site & 0xFF0000) | (uint16_t)(site + 4);
+    } else {
+        push16_raw(s, (uint16_t)(site + 2));
+        ret = (site & 0xFF0000) | (uint16_t)(site + 3);
+    }
+    s->cpu.pb = target >> 16;
+    s->cpu.pc = target & 0xFFFF;
+
+    bool nmi = s->cpu.nmi_pending, irq = s->cpu.irq_line;
+    s->cpu.nmi_pending = false;
+    s->cpu.irq_line = false;
+    unsigned steps = 0;
+    while (!(cpu_pc24(&s->cpu) == ret && s->cpu.s == s_after)) {
+        const NativeRuntime *rt = active_runtime;
+        int idx = rt ? find_entry(rt, cpu_pc24(&s->cpu)) : -1;
+        if (idx >= 0 && (s->cpu.p & rt->table[idx].p_mask) == rt->table[idx].p_value && !s->cpu.e)
+            rt->table[idx].fn(s);
+        else
+            cpu_step(&s->cpu);
+        if (++steps == CALL_STEP_LIMIT) {
+            fprintf(stderr, "native_call: %06X called from %06X did not return\n", target, site);
+            break;
+        }
+    }
+    s->cpu.nmi_pending = nmi;
+    s->cpu.irq_line = irq;
 }
 
 void native_attach(NativeRuntime *rt, Snes *snes)

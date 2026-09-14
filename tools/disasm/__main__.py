@@ -7,6 +7,7 @@ from pathlib import Path
 from . import coverage as coverage_mod
 from . import hints as hints_mod
 from .analyze import Analyzer, describe_widths
+from .liveness import ALL, Liveness, describe as describe_live
 from .memmap import Rom, bus_to_offset, fmt, offset_to_bus
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -136,6 +137,22 @@ def write_report(an: Analyzer, out: Path) -> str:
     return summary
 
 
+def write_liveness(an: Analyzer, lv: Liveness, out: Path) -> str:
+    entries = sorted({k[0] for k in an.contexts})
+    rows = {}
+    for e in entries:
+        rows[fmt(e)] = {
+            "name": an.label(e),
+            "live_in": describe_live(lv.func_live_in[e]),
+            "live_after_return": describe_live(lv.ret_live[e]),
+            "dead_after_return": describe_live(ALL & ~lv.ret_live[e]),
+            "all_live_reason": lv.reasons.get(e),
+        }
+    (out / "liveness.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    relaxed = sum(1 for e in entries if lv.ret_live[e] != ALL)
+    return f"- liveness: {relaxed} of {len(entries)} functions have registers or flags dead after return"
+
+
 def main():
     ap = argparse.ArgumentParser(prog="python3 -m tools.disasm")
     ap.add_argument("--rom", type=Path, default=REPO_ROOT / "roms" / "ct-usa.sfc")
@@ -143,6 +160,8 @@ def main():
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "disasm" / "out")
     ap.add_argument("--coverage", type=Path, action="append", default=[],
                     help="executed-instruction coverage from ct_dev --coverage (repeatable)")
+    ap.add_argument("--calls", type=Path, action="append", default=[],
+                    help="executed call edges from ct_dev --calls (repeatable); needed for sound liveness")
     ap.add_argument("--no-assume-returns", action="store_true",
                     help="don't continue after calls whose callee was never seen to return")
     args = ap.parse_args()
@@ -158,6 +177,11 @@ def main():
     write_listing(an, args.out)
     write_functions(an, args.out)
     print(write_report(an, args.out))
+    lv = Liveness(an, coverage_mod.load_calls(args.calls))
+    lv.solve()
+    print(write_liveness(an, lv, args.out))
+    if not args.calls:
+        print("  (no --calls given: functions called from code static analysis can't see may be misjudged)")
     print(f"wrote {args.out}")
 
 

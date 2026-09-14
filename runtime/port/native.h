@@ -18,6 +18,15 @@
 
 typedef void (*NativeFn)(Snes *s);
 
+/* Registers and flags no caller reads after a routine returns, from
+ * `python3 -m tools.disasm --calls ...` (disasm/out/liveness.json). Shadow
+ * validation doesn't compare them. Bit order matches tools/disasm/liveness.py. */
+enum {
+    DC_A = 1 << 0, DC_X = 1 << 1, DC_Y = 1 << 2,
+    DC_N = 1 << 3, DC_V = 1 << 4, DC_Z = 1 << 5, DC_C = 1 << 6,
+    DC_DB = 1 << 7, DC_D = 1 << 8,
+};
+
 typedef struct NativeEntry {
     uint32_t addr;          /* 24-bit entry address */
     const char *name;
@@ -27,6 +36,7 @@ typedef struct NativeEntry {
     /* ON-mode time cost: the native routine's own bus-access clocks times
      * cost_milli/1000. Shadow mode reports the original/native-bus ratio to set it. */
     uint32_t cost_milli;
+    uint16_t dont_care;     /* DC_* bits */
 } NativeEntry;
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
@@ -51,5 +61,11 @@ void native_report(const NativeRuntime *rt, FILE *out);
 
 /* Nonzero if any shadow comparison failed. */
 int native_failed(const NativeRuntime *rt);
+
+/* For native routines: call the routine at `target` the way the JSR (3-byte)
+ * or JSL (4-byte) instruction at `site` would, pushing the same return
+ * address, and return once it has returned. A ported routine runs natively;
+ * anything else runs on the interpreter (interrupts held off, no time passes). */
+void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call);
 
 #endif

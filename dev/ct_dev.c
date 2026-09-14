@@ -4,10 +4,12 @@
  *
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
- *          [--native off|shadow|on]
+ *          [--native off|shadow|on] [--calls out.txt]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
+ * --calls writes every executed JSR/JSL/JSR(abs,X) call site and target, so the
+ * disassembler's liveness analysis knows about callers it can't see statically.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,16 +38,68 @@ static void on_line(void *ctx, Snes *snes, uint16_t line)
 /* Executed (address, M, X) triples, for seeding the disassembler. */
 #define COVERAGE_BITS 26   /* 24-bit address + M + X */
 
+#define CALL_SET_BITS 20
+
 typedef struct {
-    uint8_t *seen;   /* bitmap over COVERAGE_BITS */
+    uint8_t *seen;       /* bitmap over COVERAGE_BITS, or NULL */
+    uint64_t *calls;     /* open-addressed set of site << 24 | target, or NULL */
+    Snes *snes;
 } Coverage;
+
+static void record_call(Coverage *cov, uint32_t site, uint32_t target)
+{
+    uint64_t key = (uint64_t)site << 24 | target | (uint64_t)1 << 63;
+    size_t mask = ((size_t)1 << CALL_SET_BITS) - 1;
+    for (size_t i = (size_t)(key * 0x9E3779B97F4A7C15ull >> 40) & mask;; i = (i + 1) & mask) {
+        if (cov->calls[i] == key)
+            return;
+        if (cov->calls[i] == 0) {
+            cov->calls[i] = key;
+            return;
+        }
+    }
+}
 
 static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
 {
     Coverage *cov = ctx;
     bool m = e || (p & CPU_FLAG_M), x = e || (p & CPU_FLAG_X);
-    uint32_t key = pc << 2 | (uint32_t)m << 1 | (uint32_t)x;
-    cov->seen[key >> 3] |= (uint8_t)(1 << (key & 7));
+    if (cov->seen) {
+        uint32_t key = pc << 2 | (uint32_t)m << 1 | (uint32_t)x;
+        cov->seen[key >> 3] |= (uint8_t)(1 << (key & 7));
+    }
+    if (cov->calls) {
+        const SnesBus *bus = &cov->snes->bus;
+        uint8_t op = snes_bus_peek(bus, pc);
+        if (op == 0x20) {
+            record_call(cov, pc, (pc & 0xFF0000) | snes_bus_peek(bus, pc + 1) | snes_bus_peek(bus, pc + 2) << 8);
+        } else if (op == 0x22) {
+            record_call(cov, pc, snes_bus_peek(bus, pc + 1) | snes_bus_peek(bus, pc + 2) << 8 |
+                                     (uint32_t)snes_bus_peek(bus, pc + 3) << 16);
+        } else if (op == 0xFC) {
+            uint16_t ptr = (uint16_t)((snes_bus_peek(bus, pc + 1) | snes_bus_peek(bus, pc + 2) << 8) +
+                                      cov->snes->cpu.x);
+            uint32_t bank = pc & 0xFF0000;
+            record_call(cov, pc, bank | snes_bus_peek(bus, bank | ptr) |
+                                     snes_bus_peek(bus, bank | (uint16_t)(ptr + 1)) << 8);
+        }
+    }
+}
+
+static int write_calls(const Coverage *cov, const char *path)
+{
+    FILE *f = fopen(path, "w");
+    if (!f)
+        return -1;
+    fprintf(f, "# executed calls: <site BB:AAAA> <target BB:AAAA>\n");
+    for (size_t i = 0; i < (size_t)1 << CALL_SET_BITS; i++) {
+        uint64_t k = cov->calls[i];
+        if (!k)
+            continue;
+        uint32_t site = (uint32_t)(k >> 24) & 0xFFFFFF, target = (uint32_t)k & 0xFFFFFF;
+        fprintf(f, "%02X:%04X %02X:%04X\n", site >> 16, site & 0xFFFF, target >> 16, target & 0xFFFF);
+    }
+    return fclose(f);
 }
 
 static int write_coverage(const Coverage *cov, const char *path)
@@ -91,6 +145,7 @@ static uint8_t *read_file(const char *path, size_t *len)
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
+    const char *calls_path = NULL;
     const char *shot_dir = NULL;
     NativeMode native_mode = NATIVE_OFF;
     long frames = -1, status_every = 0, shot_every = 0;
@@ -105,6 +160,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--movie")) movie_path = v;
         else if (!strcmp(a, "--trace")) trace_path = v;
         else if (!strcmp(a, "--coverage")) coverage_path = v;
+        else if (!strcmp(a, "--calls")) calls_path = v;
         else if (!strcmp(a, "--status-every")) status_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
@@ -126,7 +182,7 @@ int main(int argc, char **argv)
     if (!rom_path || frames < 0 || (shot_every > 0 && !shot_dir)) {
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
-                        "[--native off|shadow|on]\n");
+                        "[--native off|shadow|on] [--calls out.txt]\n");
         return 2;
     }
 
@@ -156,9 +212,12 @@ int main(int argc, char **argv)
     if (shot_dir)
         make_dir(shot_dir);
 
-    Coverage cov = { 0 };
-    if (coverage_path) {
+    Coverage cov = { .snes = &snes };
+    if (coverage_path)
         cov.seen = calloc((size_t)1 << (COVERAGE_BITS - 3), 1);
+    if (calls_path)
+        cov.calls = calloc((size_t)1 << CALL_SET_BITS, sizeof *cov.calls);
+    if (coverage_path || calls_path) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -227,6 +286,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "cannot write %s\n", coverage_path);
         rc = 1;
     }
+    if (calls_path && write_calls(&cov, calls_path) != 0) {
+        fprintf(stderr, "cannot write %s\n", calls_path);
+        rc = 1;
+    }
+    free(cov.calls);
     ct_movie_free(&movie);
     free(cov.seen);
     free(rom);

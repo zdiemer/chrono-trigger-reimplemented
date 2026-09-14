@@ -151,6 +151,49 @@ class Analysis(unittest.TestCase):
         self.assertEqual(guided.coverage_pruned, {(0xC08003, (False, True))})
         self.assertFalse(guided.width_conflicts())
 
+    def test_liveness_return_sets(self):
+        from tools.disasm.liveness import A, C, D, N, X, Z, Liveness
+        # C0:8000 JSR $8010 ; BCC +2 ; LDX $10 ; RTS     caller reads C, then X is written
+        # C0:8010 LDA #$01 ; CMP #$02 ; RTS               callee: sets A (8-bit, not a full def), N Z C
+        code = {
+            0xC08000: bytes.fromhex("20108090 02A61060".replace(" ", "")),
+            0xC08010: bytes.fromhex("A901C90260"),
+        }
+        an = self.run_an(code, 0xC08000)
+        lv = Liveness(an)
+        lv.solve()
+        ret = lv.ret_live[0xC08010]
+        self.assertTrue(ret & C, "carry is read by the caller's BCC")
+        self.assertTrue(ret & D, "direct page is read by LDX $10")
+        self.assertFalse(ret & (X | N | Z), "X, N and Z are overwritten before any read")
+        self.assertFalse(lv.func_live_in[0xC08010] & C)
+
+        # Entry points whose callers are unknown (hints, vectors, coverage seeds)
+        # keep everything live at return.
+        h = Hints()
+        h.entries.append(type("E", (), {"addr": 0xC08000, "m": True, "x": True, "kind": "hint"})())
+        an2 = Analyzer(FakeRom(code), h)
+        an2.run()
+        lv2 = Liveness(an2)
+        lv2.solve()
+        self.assertIn(0xC08000, lv2.all_live_returns)
+
+    def test_liveness_callee_inputs_flow_to_callers(self):
+        from tools.disasm.liveness import A, X, Liveness
+        # C0:8000 JSR $8010 ; JSR $8020 ; RTS
+        # C0:8010 RTS
+        # C0:8020 TXA ; RTS                    reads X
+        code = {
+            0xC08000: bytes.fromhex("20108020208060"),
+            0xC08010: bytes.fromhex("60"),
+            0xC08020: bytes.fromhex("8A60"),
+        }
+        an = self.run_an(code, 0xC08000)
+        lv = Liveness(an)
+        lv.solve()
+        self.assertTrue(lv.ret_live[0xC08010] & X, "X is read by the next callee")
+        self.assertTrue(lv.func_live_in[0xC08020] & X)
+
     def test_jump_table_bounded_by_following_code(self):
         # C0:8000 ASL ; TAX ; JMP ($8005,X)
         # C0:8005 table: $8009, $800A
