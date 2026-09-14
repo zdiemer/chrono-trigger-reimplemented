@@ -1,0 +1,38 @@
+# ROM images and anything derived from them. Never commit copyrighted data.
+roms/
+*.sfc
+*.smc
+*.swc
+*.fig
+*.srm
+*.spc
+
+# Extracted assets, disassembly output, traces and captures
+extracted/
+disasm/out/
+traces/
+captures/
+*.wram
+*.state
+
+# Reference emulator cores are supplied locally, never vendored
+cores/
+*_libretro.dll
+*_libretro.so
+*_libretro.dylib
+
+# Build output
+build/
+build-*/
+out/
+cmake-build-*/
+target/
+
+# Tooling
+__pycache__/
+*.pyc
+.venv/
+.vs/
+.vscode/
+.idea/
+*.user
