@@ -447,46 +447,271 @@ void event_cmd_move_toward_party_member_until_on_screen(Snes *s)
     arrive(s, 0xC054A8, 2);
 }
 
-// $C0:4F61
-/* $96: move to the tile at operands (X, Y). */
-void event_cmd_move_to_tile(Snes *s)
+/* Where a move-to-tile command's code copy has its calls. */
+typedef struct TileMove {
+    bool from_variables;    /* target tile from variables rather than operands */
+    bool turns;             /* faces the way it moves and runs the move/arrival hooks */
+    uint32_t line_up;       /* JSR $305D */
+    uint32_t keep_moving;   /* JSR $5614 (turns) */
+    uint32_t arrive;        /* JSR $568B (turns) */
+    uint32_t far;           /* face_target, or JSR $ABA2 : JSR $5B95 when not turning */
+    uint32_t start;         /* start_move */
+} TileMove;
+
+/* TYX : INX [: INX] : LDA script,X : REP #$20 : AND #$00FF : ASL A : TAX :
+ * SEP #$20 : LDA $7F0200,X */
+static uint8_t variable_at(Snes *s, int extra)
 {
-    if (still_moving(s))
-        return;
     m_tyx(s);
     m_inx(s);
-    set_dp8(s, DP_TARGET_X, m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    set_dp8(s, DP_TARGET_Y, m_lda8(s, script_byte(s, s->cpu.x)));
+    while (extra--)
+        m_inx(s);
+    m_lda8(s, script_byte(s, s->cpu.x));
+    m_rep(s, CPU_FLAG_M);
+    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
+    m_tax(s);
+    m_sep(s, CPU_FLAG_M);
+    return m_lda8(s, m_read8(s, VARS + s->cpu.x));
+}
+
+/* JSR $ABA2 : JSR $5B95 : BCC + : LDA $EE : CLC : ADC #$30 : STA $EE -- the
+ * direction work of the commands that keep their facing. */
+static bool turn_keeping_facing(Snes *s, uint32_t at)
+{
+    if (!call(s, at, 0xC0ABA2, false) || !call(s, at + 3, 0xC05B95, false))
+        return false;
+    if (m_flag(s, CPU_FLAG_C)) {
+        m_lda8(s, dp8(s, DP_DIRECTION));
+        m_set_flag(s, CPU_FLAG_C, false);
+        uint8_t turned = m_adc8(s, (uint8_t)s->cpu.a, 0x30);
+        m_set_a8(s, turned);
+        set_dp8(s, DP_DIRECTION, turned);
+    }
+    return true;
+}
+
+/* Load the target tile ($F2/$F3) and this object's tile ($F0/$F1) and compare:
+ * true if the object stands on the target tile. */
+static bool on_target_tile(Snes *s, bool from_variables)
+{
+    if (from_variables) {
+        set_dp8(s, DP_TARGET_X, variable_at(s, 0));
+        set_dp8(s, DP_TARGET_Y, variable_at(s, 1));
+    } else {
+        m_tyx(s);
+        m_inx(s);
+        set_dp8(s, DP_TARGET_X, m_lda8(s, script_byte(s, s->cpu.x)));
+        m_inx(s);
+        set_dp8(s, DP_TARGET_Y, m_lda8(s, script_byte(s, s->cpu.x)));
+    }
     ldx_current_object(s);
     set_dp8(s, DP_OWN_X, m_lda8(s, object_byte(s, TILE_X)));
     uint8_t y = m_lda8(s, object_byte(s, TILE_Y));
     set_dp8(s, DP_OWN_Y, y);
     uint8_t ty = dp8(s, DP_TARGET_Y);
     m_cmp8(s, y, ty);
-    bool there = false;
-    if (y == ty) {
-        uint8_t x = m_lda8(s, dp8(s, DP_OWN_X));
-        uint8_t tx = dp8(s, DP_TARGET_X);
-        m_cmp8(s, x, tx);
-        there = x == tx;
-    }
-    if (!there) {
-        if (face_target(s, 0xC04FAB))
-            start_move(s, 0xC04FD2, true);
+    if (y != ty)
+        return false;
+    uint8_t x = m_lda8(s, dp8(s, DP_OWN_X));
+    uint8_t tx = dp8(s, DP_TARGET_X);
+    m_cmp8(s, x, tx);
+    return x == tx;
+}
+
+/* Move to a tile, one step at a time, until standing on it. */
+static void move_to_tile(Snes *s, const TileMove *m)
+{
+    if (still_moving(s))
+        return;
+    if (!on_target_tile(s, m->from_variables)) {
+        if (m->turns) {
+            if (face_target(s, m->far))
+                start_move(s, m->start, true);
+        } else if (turn_keeping_facing(s, m->far)) {
+            start_move(s, m->start, false);
+        }
         return;
     }
     m_lda8(s, object_byte(s, ARRIVAL_FLAGS));
     m_bit_imm8(s, 0x01);
     if ((uint8_t)s->cpu.a & 0x01) {
-        if (!call(s, 0xC04F97, 0xC0305D, false))
+        if (!call(s, m->line_up, 0xC0305D, false))
             return;
         if (m_flag(s, CPU_FLAG_C)) {
-            keep_moving(s, 0xC04FA5);
+            if (m->turns)
+                keep_moving(s, m->keep_moving);
+            else
+                stay(s);
             return;
         }
     }
-    arrive(s, 0xC04F9C, 3);
+    if (m->turns)
+        arrive(s, m->arrive, 3);
+    else
+        advance(s, 3);
+}
+
+// $C0:4F61
+/* $96: move to the tile at operands (X, Y). */
+void event_cmd_move_to_tile(Snes *s)
+{
+    static const TileMove m = { false, true, 0xC04F97, 0xC04FA5, 0xC04F9C, 0xC04FAB, 0xC04FD2 };
+    move_to_tile(s, &m);
+}
+
+// $C0:5084
+/* $97: move to the tile held in variables (operands 1 and 2). */
+void event_cmd_move_to_tile_from_variables(Snes *s)
+{
+    static const TileMove m = { true, true, 0xC050D6, 0xC050E4, 0xC050DB, 0xC050EA, 0xC05111 };
+    move_to_tile(s, &m);
+}
+
+// $C0:5129
+/* $A0: as $96, keeping the object's facing and without the move and arrival hooks. */
+void event_cmd_move_to_tile_keep_facing(Snes *s)
+{
+    static const TileMove m = { false, false, 0xC0515F, 0, 0, 0xC0516D, 0xC0517C };
+    move_to_tile(s, &m);
+}
+
+// $C0:5191
+/* $A1: as $97, keeping the object's facing and without the move and arrival hooks. */
+void event_cmd_move_to_tile_from_variables_keep_facing(Snes *s)
+{
+    static const TileMove m = { true, false, 0xC051E3, 0, 0, 0xC051F1, 0xC05200 };
+    move_to_tile(s, &m);
+}
+
+/* INC $1A80,X : STY $C7 : JSR $ACFD [: JSR $5614] : LDX $C7 : CLC : RTS */
+static void begin_counted_move(Snes *s, uint32_t acfd_site, uint32_t hook_site)
+{
+    uint32_t flag = m_abs(s, COUNTED_MOVE) + s->cpu.x;
+    uint8_t v = (uint8_t)(m_read8(s, flag) + 1);
+    m_write8(s, flag, v);
+    m_set_nz8(s, v);
+    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
+    if (!call(s, acfd_site, 0xC0ACFD, false))
+        return;
+    if (hook_site && !call(s, hook_site, 0xC05614, false))
+        return;
+    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_rts(s);
+}
+
+// $C0:4FEA
+/* $9A: move toward the tile at operands (X, Y) for up to operand 3 steps. */
+void event_cmd_move_to_tile_counted(Snes *s)
+{
+    ldx_current_object(s);
+    bool fresh = m_lda8(s, object_byte(s, COUNTED_MOVE)) == 0;
+    if (!fresh && m_lda8(s, object_byte(s, STEPS_LEFT)) != 0) {
+        stay(s);
+        return;
+    }
+    if (fresh) {
+        if (!on_target_tile(s, false)) {
+            if (!face_target(s, 0xC0503D))
+                return;
+            /* $C0:5064 */
+            m_tyx(s);
+            m_inx(s);
+            m_inx(s);
+            m_inx(s);
+            uint8_t steps = m_lda8(s, script_byte(s, s->cpu.x));
+            ldx_current_object(s);
+            m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
+            m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, steps);
+            begin_counted_move(s, 0xC0507A, 0xC0507D);
+            return;
+        }
+        m_lda8(s, object_byte(s, ARRIVAL_FLAGS));
+        m_bit_imm8(s, 0x01);
+        if ((uint8_t)s->cpu.a & 0x01) {
+            if (!call(s, 0xC05025, 0xC0305D, false))
+                return;
+            if (m_flag(s, CPU_FLAG_C)) {
+                keep_moving(s, 0xC05037);
+                return;
+            }
+        }
+    }
+    /* $C0:502A */
+    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x00);
+    arrive(s, 0xC0502D, 4);
+}
+
+/* LDX $6D : LDA $1A80,X : BEQ fresh : LDA $1A01,X : BEQ done : TYX : CLC : RTS
+ * done: STZ $1A80,X. Returns -1 still moving (turn ended), 0 fresh, 1 done. */
+static int counted_move_state(Snes *s)
+{
+    ldx_current_object(s);
+    if (m_lda8(s, object_byte(s, COUNTED_MOVE)) == 0)
+        return 0;
+    if (m_lda8(s, object_byte(s, STEPS_LEFT)) != 0) {
+        stay(s);
+        return -1;
+    }
+    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x00);
+    return 1;
+}
+
+// $C0:4E73
+/* $92: move in direction (operand 1, facing from the $F700 table) for operand
+ * 2 steps. */
+void event_cmd_move_in_direction(Snes *s)
+{
+    int state = counted_move_state(s);
+    if (state < 0)
+        return;
+    if (state > 0) {
+        arrive(s, 0xC04E85, 3);
+        return;
+    }
+    m_tyx(s);
+    m_inx(s);
+    m_lda8(s, script_byte(s, s->cpu.x));
+    m_rep(s, CPU_FLAG_M);
+    uint16_t direction = m_lda16(s, s->cpu.a & 0x00FF);
+    m_write16(s, m_dp(s, DP_DIRECTION), direction);
+    m_tax(s);
+    m_sep(s, CPU_FLAG_M);
+    set_facing_from_direction(s);
+    m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, m_lda8(s, 0x80));
+    m_tyx(s);
+    m_inx(s);
+    m_inx(s);
+    uint8_t steps = m_lda8(s, script_byte(s, s->cpu.x));
+    ldx_current_object(s);
+    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
+    begin_counted_move(s, 0xC04EBD, 0xC04EC0);
+}
+
+// $C0:4EC7
+/* $9C: move in direction (operand 1) for operand 2 steps, keeping the
+ * object's facing and without the move and arrival hooks. */
+void event_cmd_move_in_direction_keep_facing(Snes *s)
+{
+    int state = counted_move_state(s);
+    if (state < 0)
+        return;
+    if (state > 0) {
+        advance(s, 3);
+        return;
+    }
+    m_tyx(s);
+    m_inx(s);
+    m_lda8(s, script_byte(s, s->cpu.x));
+    m_rep(s, CPU_FLAG_M);
+    m_write16(s, m_dp(s, DP_DIRECTION), m_lda16(s, s->cpu.a & 0x00FF));
+    m_sep(s, CPU_FLAG_M);
+    m_inx(s);
+    uint8_t steps = m_lda8(s, script_byte(s, s->cpu.x));
+    ldx_current_object(s);
+    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
+    m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, m_lda8(s, 0x80));
+    begin_counted_move(s, 0xC04F03, 0);
 }
 
 // $C0:4F0A
@@ -599,3 +824,161 @@ void event_cmd_follow_object(Snes *s) { repeat_command(s, 0xC03548, 0xC05215, tr
 /* $B6: keep following party member (operand 1) (runs $95 every turn; the
  * turn continues when $95 would continue). */
 void event_cmd_follow_party_member(Snes *s) { repeat_command(s, 0xC03551, 0xC05410, false); }
+
+/* LDX $6D : LDA $1A80,X : BEQ fresh : LDA $1A01,X : BEQ done : TYX : CLC : RTS
+ * done: STZ $1A80,X : STZ $1B80,X : TYX : INX x n : SEC : RTS.
+ * True if the command has been dealt with. */
+static bool velocity_move_in_progress(Snes *s, int command_length)
+{
+    ldx_current_object(s);
+    if (m_lda8(s, object_byte(s, COUNTED_MOVE)) == 0)
+        return false;
+    if (m_lda8(s, object_byte(s, STEPS_LEFT)) != 0) {
+        stay(s);
+        return true;
+    }
+    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x00);
+    m_write8(s, m_abs(s, 0x1B80) + s->cpu.x, 0x00);
+    advance(s, command_length);
+    return true;
+}
+
+/* $C0:4E19: LDA #$01 : STA $1A80,X : STA $1B80,X : LDX $C7 : CLC : RTS */
+static void begin_velocity_move(Snes *s)
+{
+    m_lda8(s, 0x01);
+    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x01);
+    m_write8(s, m_abs(s, 0x1B80) + s->cpu.x, 0x01);
+    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_rts(s);
+}
+
+/* EOR #$FF : INC A (8-bit) */
+static uint8_t negate8(Snes *s, uint8_t v)
+{
+    v = m_lda8(s, (uint8_t)~v);
+    return m_lda8(s, (uint8_t)(v + 1));
+}
+
+/* A = steps: STA $1A01,X : STA $4202 : LDA $C1 : STA $4203 : STA $1B81,X :
+ * NOP : NOP : REP #$20 : LDA $4216 : LSR A : EOR #$FFFF : INC A : CLC :
+ * ADC $1980,X : STA $1980,X : SEP #$20 -- start with $1980,X lowered by half of
+ * steps * operand 3. */
+static void set_steps_and_rise(Snes *s)
+{
+    uint8_t steps = (uint8_t)s->cpu.a;
+    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
+    m_write8(s, m_abs(s, 0x4202), steps);
+    uint8_t height = m_lda8(s, dp8(s, 0xC1));
+    m_write8(s, m_abs(s, 0x4203), height);
+    m_write8(s, m_abs(s, 0x1B81) + s->cpu.x, height);
+    m_rep(s, CPU_FLAG_M);
+    uint16_t v = m_lda16(s, m_read16(s, m_abs(s, 0x4216)));
+    v = m_lsr16(s, v);
+    v = m_lda16(s, (uint16_t)~v);
+    v = m_lda16(s, (uint16_t)(v + 1));
+    m_set_flag(s, CPU_FLAG_C, false);
+    uint32_t vy = m_abs(s, 0x1980) + s->cpu.x;
+    v = m_adc16(s, v, m_read16(s, vy));
+    s->cpu.a = v;
+    m_write16(s, vy, v);
+    m_sep(s, CPU_FLAG_M);
+}
+
+/* A = distance along an axis (target - own, from SBC): make it positive, then
+ * steps = (distance << 8) / |velocity| using the hardware divider. Returns
+ * false if the velocity byte `velocity_table`,X is zero (try the other axis). */
+static bool steps_for_axis(Snes *s, uint16_t velocity_table)
+{
+    uint8_t d = (uint8_t)s->cpu.a;
+    if (!m_flag(s, CPU_FLAG_C))
+        d = negate8(s, d);
+    m_xba(s);
+    m_lda8(s, 0x00);
+    m_rep(s, CPU_FLAG_M);
+    m_write16(s, m_abs(s, 0x4204), s->cpu.a);
+    m_sep(s, CPU_FLAG_M);
+    uint8_t velocity = m_lda8(s, object_byte(s, velocity_table));
+    if (velocity == 0)
+        return false;
+    if (velocity & 0x80)
+        velocity = negate8(s, velocity);
+    m_write8(s, m_abs(s, 0x4206), velocity);
+    m_lda8(s, m_read8(s, m_abs(s, 0x4214)));
+    set_steps_and_rise(s);
+    return true;
+}
+
+// $C0:4D06
+/* $7A: move toward the tile at operands (X, Y) with the object's velocity
+ * ($1900,X/$1980,X), taking as many steps as the X distance (or, failing that,
+ * the Y distance) needs at that velocity; operand 3 goes to $1B81,X and, times
+ * the step count, halved, is taken off $1980-$1981,X. $C0:ABA2 and $C0:AC69
+ * are called out first. */
+void event_cmd_move_to_tile_with_velocity(Snes *s)
+{
+    if (velocity_move_in_progress(s, 4))
+        return;
+    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
+    m_tyx(s);
+    m_inx(s);
+    set_dp8(s, DP_TARGET_X, m_lda8(s, script_byte(s, s->cpu.x)));
+    m_inx(s);
+    set_dp8(s, DP_TARGET_Y, m_lda8(s, script_byte(s, s->cpu.x)));
+    m_inx(s);
+    set_dp8(s, 0xC1, m_lda8(s, script_byte(s, s->cpu.x)));
+    ldx_current_object(s);
+    set_dp8(s, DP_OWN_X, m_lda8(s, object_byte(s, TILE_X)));
+    set_dp8(s, DP_OWN_Y, m_lda8(s, object_byte(s, TILE_Y)));
+    if (!call(s, 0xC04D46, 0xC0ABA2, false))
+        return;
+    ldx_current_object(s);
+    if (!call(s, 0xC04D4B, 0xC0AC69, false))
+        return;
+
+    /* $C0:4D4E: X distance, then $C0:4DA1: Y distance. */
+    uint8_t axes[2][3] = { { DP_TARGET_X, DP_OWN_X, 0 }, { DP_TARGET_Y, DP_OWN_Y, 0 } };
+    uint16_t velocity_tables[2] = { 0x1900, 0x1980 };
+    for (int axis = 0; axis < 2; axis++) {
+        uint8_t target = m_lda8(s, dp8(s, axes[axis][0]));
+        m_set_flag(s, CPU_FLAG_C, true);
+        uint8_t d = m_sbc8(s, target, dp8(s, axes[axis][1]));
+        m_set_a8(s, d);
+        if (d != 0 && steps_for_axis(s, velocity_tables[axis])) {
+            begin_velocity_move(s);
+            return;
+        }
+    }
+
+    /* $C0:4DF4: no usable distance: operand 3 steps. */
+    m_lda8(s, dp8(s, 0xC1));
+    set_steps_and_rise(s);
+    begin_velocity_move(s);
+}
+
+// $C0:4E25
+/* $7B: set this object's velocity ($1900,X and $1980,X from operands 1 and
+ * 2), $1B81,X (operand 3) and step count (operand 4), and start moving. Leaves
+ * Y holding the object's slot. */
+void event_cmd_move_with_velocity(Snes *s)
+{
+    if (velocity_move_in_progress(s, 5))
+        return;
+    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
+    m_tyx(s);
+    static const uint16_t tables[4] = { 0x1900, 0x1980, 0x1B81, STEPS_LEFT };
+    for (int i = 0; i < 4; i++) {
+        m_inx(s);
+        uint8_t v = m_lda8(s, script_byte(s, s->cpu.x));
+        if (i == 0)
+            m_ldy(s, m_read16(s, m_dp(s, DP_OBJECT)));
+        m_write8(s, m_abs(s, tables[i]) + s->cpu.y, v);
+    }
+    m_lda8(s, 0x01);
+    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.y, 0x01);
+    m_write8(s, m_abs(s, 0x1B80) + s->cpu.y, 0x01);
+    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_rts(s);
+}

@@ -135,6 +135,26 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC03002, event_cmd_run_state_routine),
     EVENT_CMD(0xC03546, event_cmd_follow_object),
     EVENT_CMD(0xC0354F, event_cmd_follow_party_member),
+    EVENT_CMD(0xC04E73, event_cmd_move_in_direction),
+    EVENT_CMD(0xC05084, event_cmd_move_to_tile_from_variables),
+    EVENT_CMD(0xC04FEA, event_cmd_move_to_tile_counted),
+    EVENT_CMD(0xC04EC7, event_cmd_move_in_direction_keep_facing),
+    EVENT_CMD(0xC05129, event_cmd_move_to_tile_keep_facing),
+    EVENT_CMD(0xC05191, event_cmd_move_to_tile_from_variables_keep_facing),
+    EVENT_CMD(0xC04D06, event_cmd_move_to_tile_with_velocity),
+    EVENT_CMD(0xC04E25, event_cmd_move_with_velocity),
+    /* object properties */
+    EVENT_CMD(0xC04CEC, event_cmd_show_object_sprite),
+    EVENT_CMD(0xC04CF9, event_cmd_hide_object_sprite),
+    EVENT_CMD(0xC04CE6, event_cmd_set_sprite_flag_80),
+    EVENT_CMD(0xC04B49, event_cmd_set_1a00),
+    EVENT_CMD(0xC04B58, event_cmd_set_1a00_from_variable),
+    EVENT_CMD(0xC04B74, event_cmd_set_tile_position),
+    EVENT_CMD(0xC04BC3, event_cmd_set_tile_position_from_variables),
+    EVENT_CMD(0xC04C27, event_cmd_set_position),
+    EVENT_CMD(0xC04C74, event_cmd_set_sprite_priority),
+    EVENT_CMD(0xC04CD5, event_cmd_show_sprite),
+    EVENT_CMD(0xC04CE0, event_cmd_hide_sprite),
 #undef EVENT_CMD
 
     /* field */

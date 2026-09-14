@@ -42,6 +42,7 @@ add_library(ct_game STATIC
   game/event/flow.c
   game/event/input.c
   game/event/movement.c
+  game/event/properties.c
   game/event/variables.c
   game/field/frame.c
   game/field/interrupts.c

@@ -139,6 +139,13 @@ static inline uint8_t m_lsr8(Snes *s, uint8_t v)
     return (uint8_t)(v >> 1);
 }
 
+static inline uint16_t m_lsr16(Snes *s, uint16_t v)
+{
+    m_set_flag(s, CPU_FLAG_C, v & 0x0001);
+    m_set_nz16(s, (uint16_t)(v >> 1));
+    return (uint16_t)(v >> 1);
+}
+
 /* REP/SEP, including their effect on register widths. */
 static inline void m_rep(Snes *s, uint8_t bits) { s->cpu.p &= (uint8_t)~bits; }
 static inline void m_sep(Snes *s, uint8_t bits)
@@ -190,6 +197,7 @@ static inline uint16_t m_set_index(Snes *s, uint16_t *reg, uint16_t v)
 }
 
 static inline uint16_t m_ldx(Snes *s, uint16_t v) { return m_set_index(s, &s->cpu.x, v); }
+static inline uint16_t m_ldy(Snes *s, uint16_t v) { return m_set_index(s, &s->cpu.y, v); }
 static inline uint16_t m_tax(Snes *s) { return m_set_index(s, &s->cpu.x, s->cpu.a); }
 static inline uint16_t m_tyx(Snes *s) { return m_set_index(s, &s->cpu.x, s->cpu.y); }
 static inline uint16_t m_txy(Snes *s) { return m_set_index(s, &s->cpu.y, s->cpu.x); }

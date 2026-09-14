@@ -121,5 +121,26 @@ void event_cmd_move_toward_party_member_keep_facing(Snes *s); /* $9F */
 void event_cmd_run_state_routine(Snes *s);                    /* $B0 */
 void event_cmd_follow_object(Snes *s);                        /* $B5 */
 void event_cmd_follow_party_member(Snes *s);                  /* $B6 */
+void event_cmd_move_in_direction(Snes *s);                    /* $92 */
+void event_cmd_move_to_tile_from_variables(Snes *s);          /* $97 */
+void event_cmd_move_to_tile_counted(Snes *s);                 /* $9A */
+void event_cmd_move_in_direction_keep_facing(Snes *s);        /* $9C */
+void event_cmd_move_to_tile_keep_facing(Snes *s);             /* $A0 */
+void event_cmd_move_to_tile_from_variables_keep_facing(Snes *s);  /* $A1 */
+void event_cmd_move_to_tile_with_velocity(Snes *s);           /* $7A */
+void event_cmd_move_with_velocity(Snes *s);                   /* $7B */
+
+/* event/properties.c: sprite display, position and priority */
+void event_cmd_show_object_sprite(Snes *s);  /* $7C */
+void event_cmd_hide_object_sprite(Snes *s);  /* $7D */
+void event_cmd_set_sprite_flag_80(Snes *s);  /* $7E */
+void event_cmd_set_1a00(Snes *s);            /* $89 */
+void event_cmd_set_1a00_from_variable(Snes *s);  /* $8A */
+void event_cmd_set_tile_position(Snes *s);   /* $8B */
+void event_cmd_set_tile_position_from_variables(Snes *s);  /* $8C */
+void event_cmd_set_position(Snes *s);        /* $8D */
+void event_cmd_set_sprite_priority(Snes *s); /* $8E */
+void event_cmd_show_sprite(Snes *s);         /* $90 */
+void event_cmd_hide_sprite(Snes *s);         /* $91 */
 
 #endif
