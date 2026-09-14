@@ -34,7 +34,9 @@ add_library(ct_game STATIC
   game/registry.c
   game/core/display.c
   game/data/decompress.c
+  game/event/animation.c
   game/event/calls.c
+  game/event/dialog.c
   game/event/engine.c
   game/event/facing.c
   game/event/flow.c

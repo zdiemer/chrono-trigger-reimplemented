@@ -27,6 +27,11 @@ void event_cmd_if_mem_const(Snes *s);        /* $16 */
 void event_cmd_wait(Snes *s);                /* $AD */
 void event_cmd_yield(Snes *s);               /* $B1 */
 void event_cmd_halt(Snes *s);                /* $B2 */
+void event_cmd_wait_4(Snes *s);              /* $B9 */
+void event_cmd_wait_8(Snes *s);              /* $BA */
+void event_cmd_wait_16(Snes *s);             /* $BC */
+void event_cmd_wait_32(Snes *s);             /* $BD */
+void event_cmd_run_state_routine_once(Snes *s);  /* $AF */
 void event_cmd_if_mem0_below(Snes *s);       /* $18 */
 void event_cmd_if_object_value(Snes *s);     /* $1A */
 void event_cmd_if_object_in_view(Snes *s);   /* $27 */
@@ -47,6 +52,24 @@ void event_cmd_set_object_flag(Snes *s);                    /* $0B */
 void event_cmd_clear_object_flag(Snes *s);                  /* $0C */
 void event_cmd_set_1c80(Snes *s);                           /* $0D */
 void event_cmd_set_arrival_flags(Snes *s);                  /* $0E */
+
+/* event/dialog.c: dialog boxes */
+void event_cmd_set_dialog_table(Snes *s);    /* $B8 */
+void event_cmd_dialog(Snes *s);              /* $BB */
+void event_cmd_dialog_top(Snes *s);   /* $C1 */
+void event_cmd_dialog_bottom(Snes *s);   /* $C2 */
+void event_cmd_choice(Snes *s);              /* $C0 */
+void event_cmd_choice_top(Snes *s);   /* $C3 */
+void event_cmd_choice_bottom(Snes *s);   /* $C4 */
+
+/* event/animation.c: object animation */
+void event_cmd_loop_animation(Snes *s);      /* $AA */
+void event_cmd_play_animation(Snes *s);      /* $AB */
+void event_cmd_static_frame(Snes *s);        /* $AC */
+void event_cmd_reset_animation(Snes *s);     /* $AE */
+void event_cmd_loop_animation_0(Snes *s);    /* $B3 */
+void event_cmd_loop_animation_1(Snes *s);    /* $B4 */
+void event_cmd_play_animation_for(Snes *s);  /* $B7 */
 
 /* event/input.c: conditions on controller input */
 void event_cmd_if_any_input(Snes *s);        /* $2D */

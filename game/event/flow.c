@@ -394,6 +394,61 @@ void event_cmd_wait(Snes *s)
     m_rts(s);
 }
 
+/* $C0:2FD4, A = frames: the fixed-length waits, as $AD without an operand. */
+static void wait_frames(Snes *s, uint8_t frames)
+{
+    m_lda8(s, frames);
+    ldx_current_object(s);
+    uint32_t counter = 0x7F0A01u + s->cpu.x;
+    uint8_t count = m_read8(s, counter);
+    m_cmp8(s, frames, count);
+    if (frames == count) {
+        m_lda8(s, 0x00);
+        m_write8(s, counter, 0x00);
+        m_tyx(s);
+        m_inx(s);
+        m_set_flag(s, CPU_FLAG_C, true);
+    } else if (frames > count) {
+        uint8_t next = m_lda8(s, (uint8_t)(count + 1));
+        m_write8(s, counter, next);
+        m_tyx(s);
+        m_set_flag(s, CPU_FLAG_C, false);
+    } else {
+        m_lda8(s, 0x00);
+        m_write8(s, counter, 0x00);
+        m_tyx(s);
+        m_set_flag(s, CPU_FLAG_C, true);
+    }
+    m_rts(s);
+}
+
+// $C0:2FC6
+/* $B9: wait 4 frames. */
+void event_cmd_wait_4(Snes *s) { wait_frames(s, 0x04); }
+
+// $C0:2FCA
+/* $BA: wait 8 frames. */
+void event_cmd_wait_8(Snes *s) { wait_frames(s, 0x08); }
+
+// $C0:2FD2
+/* $BC: wait 16 frames. */
+void event_cmd_wait_16(Snes *s) { wait_frames(s, 0x10); }
+
+// $C0:2FCE
+/* $BD: wait 32 frames. */
+void event_cmd_wait_32(Snes *s) { wait_frames(s, 0x20); }
+
+// $C0:2FFD
+/* $AF: run $B0 (the state routine command) and continue after this command. */
+void event_cmd_run_state_routine_once(Snes *s)
+{
+    m_jsr(s, 0xC02FFD, 0xC03002);
+    if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+        return;
+    m_inx(s);
+    m_rts(s);
+}
+
 // $C0:353F
 /* Yield: end the object's turn; continue after the command next frame. */
 void event_cmd_yield(Snes *s)
