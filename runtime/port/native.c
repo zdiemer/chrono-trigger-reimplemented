@@ -525,7 +525,7 @@ static int32_t intercept(void *ctx, Snes *s)
         }
         e->fn(s);
         if (cpu_pc24(&s->cpu) == pc)
-            return (int32_t)(SNES_CLOCKS_PER_LINE - s->hclock);
+            return (int32_t)snes_clocks_to_next_poll_change(s);
         return 0;
     }
 

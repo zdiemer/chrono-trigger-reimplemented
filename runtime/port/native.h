@@ -41,7 +41,8 @@ typedef struct NativeEntry {
     /* Idle entries replace one pass of a busy-wait loop rather than a routine:
      * the function runs the loop body and either leaves PC at the loop head
      * (still waiting) or sets it to the loop's exit. In ON mode a waiting pass
-     * fast-forwards to the end of the scanline; SHADOW mode skips idle entries. */
+     * skips ahead to the next point where $4212's blanking bits can change
+     * (hblank end or start, or the line's end); SHADOW mode skips idle entries. */
     bool idle;
     /* Optional extra precondition, for code the game places in RAM: return
      * false unless the bytes at the entry are the code the port was written

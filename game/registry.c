@@ -1,6 +1,7 @@
 #include "registry.h"
 
 #include "attract/attract.h"
+#include "battle/battle.h"
 #include "core/display.h"
 #include "data/decompress.h"
 #include "event/event.h"
@@ -20,6 +21,13 @@
  * original/native-bus ratio shadow mode reports. dont_care comes from
  * disasm/out/liveness.json ("dead_after_return"). */
 const NativeEntry game_natives[] = {
+    /* battle */
+    { .addr = 0xC10080, .name = "battle_wait_for_frame_loop", .fn = battle_wait_for_frame_loop, NEEDS_M8,
+      .idle = true, .guard = battle_frame_wait_is_idle },
+    { .addr = 0xCD3B84, .name = "battle_wait_vblank_end_loop", .fn = battle_wait_vblank_end_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xCD3B8A, .name = "battle_wait_hblank_loop", .fn = battle_wait_hblank_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xCD3B92, .name = "battle_wait_line_loop", .fn = battle_wait_line_loop, NEEDS_M8, .idle = true },
+
     /* core */
     { .addr = 0xC00B4E, .name = "display_blank_and_stop_interrupts", .fn = display_blank_and_stop_interrupts,
       NEEDS_M8, .cost_milli = 4107, .dont_care = DC_N | DC_Z },

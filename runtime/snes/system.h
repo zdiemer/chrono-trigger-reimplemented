@@ -69,4 +69,9 @@ int snes_state_load(Snes *snes, const char *path);
 /* Run until the start of the next vblank. pad1 is in JOY1 bit order. */
 void snes_run_frame(Snes *snes, uint16_t pad1);
 
+/* Master clocks from now until the next point in the line where $4212's
+ * hblank/vblank bits can change (hblank end, hblank start, or the line's end).
+ * For skipping ahead in busy-wait loops that poll them. */
+uint32_t snes_clocks_to_next_poll_change(const Snes *snes);
+
 #endif

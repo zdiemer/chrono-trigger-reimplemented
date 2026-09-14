@@ -282,6 +282,15 @@ static void advance(Snes *s, uint32_t clocks)
     }
 }
 
+uint32_t snes_clocks_to_next_poll_change(const Snes *s)
+{
+    if (s->hclock < HBLANK_END_HCLOCK)
+        return HBLANK_END_HCLOCK - s->hclock;
+    if (s->hclock < HBLANK_START_HCLOCK)
+        return HBLANK_START_HCLOCK - s->hclock;
+    return SNES_CLOCKS_PER_LINE - s->hclock;
+}
+
 void snes_run_frame(Snes *s, uint16_t pad1)
 {
     s->bus.pad[0] = pad1;
