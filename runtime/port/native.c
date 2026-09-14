@@ -225,7 +225,7 @@ static bool diff_bytes(char *out, size_t n, const char *name, const uint8_t *a, 
 
 /* Returns true and describes the first difference if the machines differ in
  * anything CPU-side code can observe or change. */
-static bool machines_differ(const Snes *o, const Snes *c, uint16_t dont_care, char *out, size_t n)
+bool native_compare(const Snes *o, const Snes *c, uint16_t dont_care, char *out, size_t n)
 {
     uint8_t ignored_flags = (uint8_t)((dont_care & DC_N ? CPU_FLAG_N : 0) | (dont_care & DC_V ? CPU_FLAG_V : 0) |
                                       (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
@@ -360,7 +360,7 @@ static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, c
         return;
     }
     char why[200], msg[256];
-    if (machines_differ(s, a->clone, dont_care, why, sizeof why)) {
+    if (native_compare(s, a->clone, dont_care, why, sizeof why)) {
         a->mismatched = true;
         snprintf(msg, sizeof msg, "%s: %s", where, why);
         detail(rt, "mismatch", a->entry, msg);
@@ -553,7 +553,8 @@ static int32_t intercept(void *ctx, Snes *s)
     return rt->mode == NATIVE_ON ? 0 : -1;
 }
 
-#define CALL_STEP_LIMIT 50000000u
+unsigned long native_call_step_limit = 50000000ul;
+unsigned long native_call_timeouts;
 
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
 {
@@ -586,7 +587,7 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
     bool nmi = s->cpu.nmi_pending, irq = s->cpu.irq_line;
     s->cpu.nmi_pending = false;
     s->cpu.irq_line = false;
-    unsigned steps = 0;
+    unsigned long steps = 0;
     while (!(cpu_pc24(&s->cpu) == ret && s->cpu.s == s_after)) {
         const NativeRuntime *rt = active_runtime;
         int idx = rt ? find_entry(rt, cpu_pc24(&s->cpu)) : -1;
@@ -594,8 +595,9 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
             rt->table[idx].fn(s);
         else
             cpu_step(&s->cpu);
-        if (++steps == CALL_STEP_LIMIT) {
-            fprintf(stderr, "native_call: %06X called from %06X did not return\n", target, site);
+        if (++steps == native_call_step_limit) {
+            if (native_call_timeouts++ == 0)
+                fprintf(stderr, "native_call: %06X called from %06X did not return\n", target, site);
             break;
         }
     }

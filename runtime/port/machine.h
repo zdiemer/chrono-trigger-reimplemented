@@ -95,6 +95,17 @@ static inline uint8_t m_adc8(Snes *s, uint8_t a, uint8_t b)
 
 static inline uint8_t m_sbc8(Snes *s, uint8_t a, uint8_t b) { return m_adc8(s, a, (uint8_t)~b); }
 
+static inline uint16_t m_adc16(Snes *s, uint16_t a, uint16_t b)
+{
+    unsigned r = (unsigned)a + b + (m_flag(s, CPU_FLAG_C) ? 1u : 0u);
+    m_set_flag(s, CPU_FLAG_V, ~(a ^ b) & (a ^ r) & 0x8000);
+    m_set_flag(s, CPU_FLAG_C, r > 0xFFFF);
+    m_set_nz16(s, (uint16_t)r);
+    return (uint16_t)r;
+}
+
+static inline uint16_t m_sbc16(Snes *s, uint16_t a, uint16_t b) { return m_adc16(s, a, (uint16_t)~b); }
+
 static inline void m_cmp8(Snes *s, uint8_t reg, uint8_t v)
 {
     m_set_flag(s, CPU_FLAG_C, reg >= v);
@@ -152,6 +163,48 @@ static inline uint16_t m_ldx16(Snes *s, uint16_t v)
     s->cpu.x = v;
     m_set_nz16(s, v);
     return v;
+}
+
+/* Index register loads, transfers and increments at the current X width, and
+ * transfers into A at the current M width, with LDX/TAX/INX-style N and Z. */
+static inline bool m_x8(const Snes *s) { return s->cpu.p & CPU_FLAG_X; }
+static inline bool m_m8(const Snes *s) { return s->cpu.p & CPU_FLAG_M; }
+
+static inline uint16_t m_set_index(Snes *s, uint16_t *reg, uint16_t v)
+{
+    if (m_x8(s)) {
+        *reg = v & 0xFF;
+        m_set_nz8(s, (uint8_t)v);
+    } else {
+        *reg = v;
+        m_set_nz16(s, v);
+    }
+    return *reg;
+}
+
+static inline uint16_t m_ldx(Snes *s, uint16_t v) { return m_set_index(s, &s->cpu.x, v); }
+static inline uint16_t m_tax(Snes *s) { return m_set_index(s, &s->cpu.x, s->cpu.a); }
+static inline uint16_t m_tyx(Snes *s) { return m_set_index(s, &s->cpu.x, s->cpu.y); }
+static inline uint16_t m_txy(Snes *s) { return m_set_index(s, &s->cpu.y, s->cpu.x); }
+static inline uint16_t m_inx(Snes *s) { return m_set_index(s, &s->cpu.x, (uint16_t)(s->cpu.x + 1)); }
+static inline uint16_t m_iny(Snes *s) { return m_set_index(s, &s->cpu.y, (uint16_t)(s->cpu.y + 1)); }
+
+static inline uint16_t m_txa(Snes *s)
+{
+    if (m_m8(s)) {
+        m_lda8(s, (uint8_t)s->cpu.x);
+        return s->cpu.a;
+    }
+    return m_lda16(s, s->cpu.x);
+}
+
+/* For a JSR the port inlines rather than calls: write the return address the
+ * JSR would push (the address of its last byte) into the stack bytes below S,
+ * leaving S unchanged, so memory matches the original after the callee returns. */
+static inline void m_jsr_stack_bytes(Snes *s, uint16_t last_byte)
+{
+    m_write8(s, s->cpu.s, last_byte >> 8);
+    m_write8(s, (uint16_t)(s->cpu.s - 1), last_byte & 0xFF);
 }
 
 /* BIT #imm (8-bit): only Z changes. */

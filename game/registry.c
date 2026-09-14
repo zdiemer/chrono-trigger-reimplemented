@@ -3,6 +3,7 @@
 #include "attract/attract.h"
 #include "core/display.h"
 #include "data/decompress.h"
+#include "event/event.h"
 #include "field/field.h"
 #include "menu/menu.h"
 
@@ -11,6 +12,7 @@
 #define NEEDS_M16 .p_mask = CPU_FLAG_M, .p_value = 0
 #define NEEDS_M8_X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M
 #define NEEDS_M8_X8 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M | CPU_FLAG_X
+#define NEEDS_M8_X16_BINARY .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M
 #define NEEDS_M8_X8_BINARY .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M | CPU_FLAG_X
 
 /* Entries are keyed by the original entry address. cost_milli is the
@@ -25,6 +27,29 @@ const NativeEntry game_natives[] = {
     /* data */
     { .addr = 0xC30002, .name = "decompress", .fn = decompress, .cost_milli = 3953 },
 
+    /* event engine */
+    { .addr = 0xC058DE, .name = "event_run_init_scripts", .fn = event_run_init_scripts,
+      NEEDS_M8_X16, .cost_milli = 4500 },
+    { .addr = 0xC05A93, .name = "event_run_object_script", .fn = event_run_object_script,
+      NEEDS_M8_X8, .cost_milli = 4500, .dont_care = DC_X | DC_N | DC_Z | DC_C },
+
+    /* event commands: control flow. Entered through the command table with
+     * 8-bit A and 16-bit X and Y; N and Z are dead after return. */
+#define EVENT_CMD(address, function) \
+    { .addr = address, .name = #function, .fn = function, NEEDS_M8_X16_BINARY, .cost_milli = 5000, \
+      .dont_care = DC_N | DC_Z }
+    EVENT_CMD(0xC062B5, event_cmd_jump_forward),
+    EVENT_CMD(0xC062CB, event_cmd_jump_back),
+    EVENT_CMD(0xC062DE, event_cmd_if_var_const),
+    EVENT_CMD(0xC06313, event_cmd_if_var_const16),
+    EVENT_CMD(0xC06361, event_cmd_if_var_var),
+    EVENT_CMD(0xC063A4, event_cmd_if_var_var16),
+    EVENT_CMD(0xC063E6, event_cmd_if_mem_const),
+    EVENT_CMD(0xC02F96, event_cmd_wait),
+    EVENT_CMD(0xC0353F, event_cmd_yield),
+    EVENT_CMD(0xC03543, event_cmd_halt),
+#undef EVENT_CMD
+
     /* field */
     { .addr = 0xC00B64, .name = "field_install_nmi", .fn = field_install_nmi,
       NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_N | DC_Z | DC_D },
@@ -32,10 +57,6 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_N | DC_Z | DC_D },
     { .addr = 0xC0EA63, .name = "field_nmi", .fn = field_nmi, .cost_milli = 1120 },
     { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true },
-    { .addr = 0xC058DE, .name = "field_run_object_init_scripts", .fn = field_run_object_init_scripts,
-      NEEDS_M8_X16, .cost_milli = 4500 },
-    { .addr = 0xC05A93, .name = "field_run_object_script", .fn = field_run_object_script,
-      NEEDS_M8_X8, .cost_milli = 4500, .dont_care = DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
       NEEDS_M8_X8_BINARY, .cost_milli = 4657, .dont_care = DC_X | DC_N | DC_Z },
 

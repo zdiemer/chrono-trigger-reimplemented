@@ -16,7 +16,8 @@ by what it does; move routines when their purpose becomes clearer.
 |---|---|
 | `game/core/` | System code shared by every mode (display and interrupt control) |
 | `game/data/` | Data handling (the decompressor) |
-| `game/field/` | Field mode: interrupt handlers, frame sync, objects, event scripts |
+| `game/event/` | Event scripts: the engine loops and command handlers, grouped by kind (`flow.c`: jumps, conditionals, waits) |
+| `game/field/` | Field mode: interrupt handlers, frame sync, objects |
 | `game/menu/` | Menu mode: frame sync |
 | `game/attract/` | Attract sequence and title screen code the game runs from RAM |
 | `game/registry.c` | Table registering each routine: address, name, entry precondition on P, don't-care set, and time cost in ON mode |
@@ -119,12 +120,49 @@ when `--save-state` is used while one is.
    conditions fall back to the interpreter.
 5. Run `--native shadow` over the movie library. Every call must match. Then
    run `--native on` and compare frames with the interpreter-only run.
-6. Set `cost_milli` from the `original/native-bus` ratio `shadow` reports.
+6. Fuzz it with `ct_fuzz` (below), especially paths the movies don't reach.
+7. Set `cost_milli` from the `original/native-bus` ratio `shadow` reports.
 
 Liveness is only as good as the call graph. Functions called from code the
 analysis can't see (RAM code, unresolved indirect jumps) keep everything live,
 which is why step 1 feeds in the runtime call log. Rerun it when movies reach
 new parts of the game, before relaxing a routine further.
+
+## Fuzzing
+
+Shadow mode only checks the states the movies reach. `ct_fuzz` checks a
+registered routine against the original on random states:
+
+```sh
+build/main/ct_dev --rom roms/ct-usa.sfc --frames 11400 --movie oracle/movies/field.ctm --save-state traces/field.state
+build/main/ct_fuzz --rom roms/ct-usa.sfc --load-state traces/field.state --routine event_cmd_if_var_const \
+  --iterations 50000 --range Y=0000-7FFF
+```
+
+Each iteration randomizes A, X, Y, the arithmetic flags and all of work RAM
+except the stack page, applies the entry precondition, and calls the routine
+as a JSR would (`--long` for JSL). The original runs on the interpreter, and the
+native routine on a copy with call-outs interpreted in place. The machines are
+compared where the native routine stopped: normally the return, or the
+instruction where it handed back to the interpreter. States where the original,
+or a callee, doesn't finish within `--step-limit` instructions are skipped:
+random RAM sends some callees into endless loops.
+
+Keep random values inside what the game can produce when the difference
+matters. Past the end of a data area, indexed reads reach I/O space, where open
+bus holds the last byte on the data bus. The interpreter's instruction fetches
+set it and native code doesn't, so those reads differ in ways real game data
+never exercises. `--range` limits a register (script offsets, for example), and
+`--keep` leaves a WRAM range as it is in the base state.
+
+Passing so far: the event control flow commands (50000 states each, two
+seeds, `--range Y=0000-7FFF`), `display_blank_and_stop_interrupts`,
+`field_install_nmi`, `field_install_irq` and `field_update_object_visibility`
+(20000 each). The three 16-bit and variable-vs-variable conditionals
+(`$13`-`$15`), which no movie reaches yet, are validated only this way. Not
+fuzzed: `decompress`, whose random source and destination pointers make it
+overwrite its own stack and variables (it needs generated streams), and
+`field_nmi`, which returns with RTI.
 
 ## Status
 
@@ -133,8 +171,9 @@ new parts of the game, before relaxing a routine further.
 | `display_blank_and_stop_interrupts` | `$C0:0B4E` | 17, all match |
 | `field_install_nmi` | `$C0:0B64` | 10, all match |
 | `field_install_irq` | `$C0:0B75` | 10, all match |
-| `field_run_object_init_scripts` | `$C0:58DE` → `$C0:9DC3` | runs at map load; all calls match in every movie (7-10 per movie). Event command handlers, some waiting for frames, run as call-outs |
-| `field_run_object_script` | `$C0:5A93` | the per-frame, per-object event script executor: 21719 calls in new-game, 59580 in fair-companion, all match; X, N, Z, C don't-care. One call per movie is abandoned: a handler unwinds the executor's frame, as the original does. The scheduler that calls it (`$C0:5A46`) stops when the beam passes a scanline limit, so which objects run in a frame depends on timing; it stays on the interpreter |
+| `event_run_init_scripts` | `$C0:58DE` → `$C0:9DC3` | runs at map load; all calls match in every movie (7-10 per movie). Event command handlers, some waiting for frames, run as call-outs |
+| `event_run_object_script` | `$C0:5A93` | the per-frame, per-object event script executor: 21719 calls in new-game, 59580 in fair-companion, all match; X, N, Z, C don't-care. One call per movie is abandoned: a handler unwinds the executor's frame, as the original does. The scheduler that calls it (`$C0:5A46`) stops when the beam passes a scanline limit, so which objects run in a frame depends on timing; it stays on the interpreter |
+| Event control flow: `event_cmd_jump_forward` `$10`, `jump_back` `$11`, `if_var_const` `$12`, `if_var_const16` `$13`, `if_var_var` `$14`, `if_var_var16` `$15`, `if_mem_const` `$16`, `wait` `$AD`, `yield` `$B1`, `halt` `$B2` | `$C0:62B5` … `$C0:3543` | all calls match in every movie (fair-companion: `halt` 33101, `jump_back` 7789, `if_mem_const` 5288, `if_var_const` 3837, `yield` 2382, `wait` 1148). `$13`-`$15` aren't reached by any movie; all ten pass 50000 fuzzed states on two seeds. Conditionals with an operator outside the tables hand back to the original at the operator call |
 | `field_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
 | `field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
 | `decompress` | `$C3:0002` → `$C3:0557` | 54, all match |

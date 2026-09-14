@@ -1,5 +1,5 @@
-/* Field mode: the event script engine. */
-#include "field/field.h"
+/* Event script engine: running objects' scripts. */
+#include "event/event.h"
 
 #include "port/machine.h"
 
@@ -20,7 +20,7 @@ static bool engine_widths(const Snes *s)
  *
  * Entry: 8-bit A and X; returns with both 8-bit. X, N, Z and C are dead after
  * return (liveness). */
-void field_run_object_script(Snes *s)
+void event_run_object_script(Snes *s)
 {
     m_lda8(s, m_read8(s, m_dp(s, 0x68)));
     m_write8(s, m_dp(s, 0x67), (uint8_t)s->cpu.a);
@@ -76,12 +76,12 @@ void field_run_object_script(Snes *s)
  * handler table at $C0:5D6E. Handlers get the command's offset in Y (X holds
  * the doubled command byte) and return the next command's offset in X. The
  * offset just past the terminating zero is stored back to $1180,X, so the
- * per-frame executor (field_run_object_script) carries on from there. The
+ * per-frame executor (event_run_object_script) carries on from there. The
  * current slot is kept in $6D and the end slot in $BD.
  *
  * Handlers can take several frames (fades, waits); they run as call-outs.
  * Continues at $C0:9DC3 rather than returning. Entry: 8-bit A, 16-bit X. */
-void field_run_object_init_scripts(Snes *s)
+void event_run_init_scripts(Snes *s)
 {
     m_lda8(s, m_read8(s, 0x7F2000));
     m_rep(s, CPU_FLAG_M);

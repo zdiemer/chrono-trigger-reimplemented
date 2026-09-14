@@ -30,7 +30,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - Porting: add routines under `game/<subsystem>/` (named by what they do, not by ROM bank), register in
   `game/registry.c`, validate with
   `build/main/ct_dev ... --movie oracle/movies/new-game.ctm --native shadow` (must report 0
-  mismatches), then `--native on`. See docs/PORTING.md.
+  mismatches), then `--native on`, and fuzz with `build/main/ct_fuzz --load-state <state> --routine <name>`.
+  See docs/PORTING.md.
 
 ## Rules
 

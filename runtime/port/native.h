@@ -71,6 +71,11 @@ void native_attach(NativeRuntime *rt, Snes *snes);
 /* Per-routine results, and details of the first mismatches, to out. */
 void native_report(const NativeRuntime *rt, FILE *out);
 
+/* The comparison shadow mode uses: true, with the first difference described
+ * in out, if the machines differ in anything CPU-side code can observe
+ * (ignoring dont_care registers and flags, and state HDMA changes with time). */
+bool native_compare(const Snes *original, const Snes *native, uint16_t dont_care, char *out, size_t n);
+
 /* Nonzero if any shadow comparison failed. */
 int native_failed(const NativeRuntime *rt);
 
@@ -96,5 +101,10 @@ int native_suspended(const NativeRuntime *rt);
  * held off and no time passing. */
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call);
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care);
+
+/* Synchronous call-outs: instructions a callee may run before the call gives
+ * up (leaving the machine mid-callee), and how many calls have. */
+extern unsigned long native_call_step_limit;
+extern unsigned long native_call_timeouts;
 
 #endif

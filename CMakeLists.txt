@@ -34,7 +34,8 @@ add_library(ct_game STATIC
   game/registry.c
   game/core/display.c
   game/data/decompress.c
-  game/field/events.c
+  game/event/engine.c
+  game/event/flow.c
   game/field/frame.c
   game/field/interrupts.c
   game/field/nmi.c
@@ -50,6 +51,9 @@ target_include_directories(ct_trace PUBLIC oracle/src)
 
 add_executable(ct_dev dev/ct_dev.c)
 target_link_libraries(ct_dev PRIVATE ct_game ct_runtime ct_trace)
+
+add_executable(ct_fuzz dev/ct_fuzz.c)
+target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
 
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c)
