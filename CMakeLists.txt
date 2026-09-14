@@ -23,11 +23,12 @@ add_library(ct_runtime STATIC
   runtime/apu/apu.c
   runtime/snes/bus.c
   runtime/snes/ppu.c
+  runtime/snes/render.c
   runtime/snes/system.c)
 target_include_directories(ct_runtime PUBLIC runtime)
 
-# Trace and movie formats, shared with the oracle harness.
-add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c)
+# Trace and movie formats and PNG/WAV capture, shared with the oracle harness.
+add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
 add_executable(ct_dev dev/ct_dev.c)

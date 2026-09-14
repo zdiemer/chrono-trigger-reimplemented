@@ -70,6 +70,8 @@ void ppu_vblank(Ppu *p)
         p->oam_addr = p->oam_reload;
 }
 
+static int16_t sext13(uint16_t v) { return (int16_t)((v & 0x1FFF) ^ 0x1000) - 0x1000; }
+
 /* ---- registers ---------------------------------------------------------------- */
 
 void ppu_latch_counters(Ppu *p)
@@ -96,9 +98,34 @@ void ppu_write(void *ctx, uint8_t reg, uint8_t v)
     case 0x04:
         oam_write(p, v);
         break;
-    case 0x0D: case 0x0E: case 0x0F: case 0x10: case 0x11: case 0x12:
-    case 0x13: case 0x14: case 0x1F: case 0x20:
-        p->m7_latch = v;   /* scroll and M7X/M7Y writes share the Mode 7 latch */
+    case 0x0D: case 0x0F: case 0x11: case 0x13: {   /* BGnHOFS */
+        int bg = (reg - 0x0D) / 2;
+        if (bg == 0) {
+            p->m7hofs = sext13((uint16_t)(v << 8 | p->m7_latch));
+            p->m7_latch = v;
+        }
+        p->bg_hofs[bg] = (uint16_t)((v << 8 | (p->bgofs_latch & ~7) | (p->bghofs_latch & 7)) & 0x3FF);
+        p->bgofs_latch = v;
+        p->bghofs_latch = v;
+        break;
+    }
+    case 0x0E: case 0x10: case 0x12: case 0x14: {   /* BGnVOFS */
+        int bg = (reg - 0x0E) / 2;
+        if (bg == 0) {
+            p->m7vofs = sext13((uint16_t)(v << 8 | p->m7_latch));
+            p->m7_latch = v;
+        }
+        p->bg_vofs[bg] = (uint16_t)((v << 8 | p->bgofs_latch) & 0x3FF);
+        p->bgofs_latch = v;
+        break;
+    }
+    case 0x1F:
+        p->m7x = sext13((uint16_t)(v << 8 | p->m7_latch));
+        p->m7_latch = v;
+        break;
+    case 0x20:
+        p->m7y = sext13((uint16_t)(v << 8 | p->m7_latch));
+        p->m7_latch = v;
         break;
     case 0x16:
         p->vram_addr = (p->vram_addr & 0xFF00) | v;
@@ -118,9 +145,21 @@ void ppu_write(void *ctx, uint8_t reg, uint8_t v)
         p->m7b = (int16_t)(v << 8 | p->m7_latch);
         p->m7_latch = v;
         break;
-    case 0x1D: case 0x1E:
+    case 0x1D:
+        p->m7c = (int16_t)(v << 8 | p->m7_latch);
         p->m7_latch = v;
         break;
+    case 0x1E:
+        p->m7d = (int16_t)(v << 8 | p->m7_latch);
+        p->m7_latch = v;
+        break;
+    case 0x32: {
+        uint16_t c = v & 31;
+        if (v & 0x20) p->fixed_color = (uint16_t)((p->fixed_color & ~0x001F) | c);
+        if (v & 0x40) p->fixed_color = (uint16_t)((p->fixed_color & ~0x03E0) | c << 5);
+        if (v & 0x80) p->fixed_color = (uint16_t)((p->fixed_color & ~0x7C00) | c << 10);
+        break;
+    }
     case 0x21:
         p->cg_addr = v;
         p->cg_second = false;
@@ -195,7 +234,8 @@ uint8_t ppu_read(void *ctx, uint8_t reg, uint8_t open_bus)
         return p->ppu2_open_bus = v;
     }
     case 0x3E:
-        return p->ppu1_open_bus = (uint8_t)((p->ppu1_open_bus & 0x10) | 0x01);
+        return p->ppu1_open_bus = (uint8_t)((p->time_over ? 0x80 : 0) | (p->range_over ? 0x40 : 0) |
+                                            (p->ppu1_open_bus & 0x10) | 0x01);
     case 0x3F: {
         uint8_t v = (uint8_t)((p->counters_latched ? 0x80 : 0) | (p->ppu2_open_bus & 0x20) | 0x03);
         p->h_second = p->v_second = false;

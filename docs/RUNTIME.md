@@ -24,7 +24,8 @@ seeding the disassembler.
 | `runtime/apu/spc700.c` | SPC700 interpreter with cycle counts | SingleStepTests, 256K cases, 0 failures |
 | `runtime/apu/apu.c` | Sound RAM, `$F0-$FF` registers, timers, boot upload protocol | Oracle traces |
 | `runtime/snes/bus.c` | HiROM map, `$4200` registers, joypads, DMA | Oracle traces |
-| `runtime/snes/ppu.c` | VRAM/CGRAM/OAM access, Mode 7 multiply, counters; no rendering | Oracle traces |
+| `runtime/snes/ppu.c` | VRAM/CGRAM/OAM access, decoded scroll/Mode 7/color registers, multiply, counters | Oracle traces |
+| `runtime/snes/render.c` | Scanline renderer with Snes9x-compatible output colors | Snes9x framebuffers (see Renderer) |
 | `runtime/snes/system.c` | Scanline timing, NMI/IRQ, HDMA, auto-joypad | Oracle traces |
 
 Build the conformance runners with the same CMake project (`sst_runner`,
@@ -44,6 +45,51 @@ Build the conformance runners with the same CMake project (`sst_runner`,
 - **Oracle conventions.** WRAM powers on filled with `$55` to match Snes9x.
   Snes9x also fills SRAM with `$60` and preloads CGRAM; those aren't mirrored
   yet, so ignore those regions until the game writes them.
+
+## Renderer
+
+`runtime/snes/render.c` draws each scanline from the PPU register layer's
+state when the system's `on_line` hook fires (start of hblank, before that
+line's HDMA writes). Lines 1-224 become framebuffer rows 0-223 of a 256x224
+XRGB8888 image. `ct_dev` hooks it up, writes its hash into traces, and saves
+PNGs with `--shot-every N --shot-dir <dir>`. It's a low-level reference
+renderer, kept separate from `ppu.c` so a native renderer can replace it.
+
+Supported:
+- BG modes 0-7 with per-mode priorities, including the mode 1 BG3 priority
+  bit; 2/4/8bpp tiles, flips, and 32/64-tile maps laid out as 32x32 quadrants
+- offset-per-tile in modes 2, 4 and 6
+- Mode 7 with flips, wrap, transparent or tile-0 fill, and EXTBG
+- sprites with every OBSEL size, the 32-sprite and 34-tile limits with
+  range/time-over flags, and priority rotation
+- mosaic, windows with all four logic ops, main/sub screen window masks
+- color math: add/subtract, half, sub screen or fixed color, clip to black,
+  math windows, and direct color
+
+Framebuffer colors follow the Snes9x libretro core so hashes can match
+`ct_oracle` (`render_snes9x_color`, `render_rgb565_to_xrgb8888`). Snes9x scales
+each palette color by master brightness first (`(c * brightness + 7) / 15`
+per 5-bit channel), packs it as RGB565 with green's low bit copied from its top
+bit, and does color math on those packed values. Full add saturates each
+channel at the brightness-scaled maximum, half add averages the packed words,
+and subtract and half subtract floor each channel at zero, with green
+subtracted at 6 bits.
+
+Checked against Snes9x by rendering the PPU state from its savestates and
+comparing with its framebuffer for the same frame. The attract sequence (Mode 7
+pendulum with sub screen math, mode 2 logo with offset-per-tile) matches
+pixel for pixel, as does the new-game opening (mode 1, half-add sub screen).
+Scenes that change PPU state mid-frame, such as split-screen dialog boxes and
+HDMA menus, can't be checked that way. They need the development system to
+run the game correctly first.
+
+Gaps:
+- Hi-res modes 5 and 6 and pseudo-hires are drawn 256 wide (every other hi-res
+  pixel, main screen only); Snes9x outputs 512 wide, so those frames can't hash-match.
+- Interlace and overscan (240-line) output aren't modeled.
+- Which sprites lose tiles past the 34-tile limit follows OAM order from the
+  first sprite; unverified against hardware.
+- The ignored 16x16 tile-size bits of `$2105` have no effect, as on hardware.
 
 ## Status
 

@@ -3,15 +3,30 @@
  * the two can be diffed with tools/trace.py.
  *
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
- *          [--coverage out.txt] [--status-every N]
+ *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "media.h"
 #include "movie.h"
+#include "snes/render.h"
 #include "snes/system.h"
 #include "trace.h"
+
+#ifdef _WIN32
+#include <direct.h>
+#define make_dir(p) _mkdir(p)
+#else
+#include <sys/stat.h>
+#define make_dir(p) mkdir(p, 0755)
+#endif
+
+static void on_line(void *ctx, Snes *snes, uint16_t line)
+{
+    render_line(ctx, &snes->ppu, line);
+}
 
 /* Executed (address, M, X) triples, for seeding the disassembler. */
 #define COVERAGE_BITS 26   /* 24-bit address + M + X */
@@ -71,7 +86,8 @@ static uint8_t *read_file(const char *path, size_t *len)
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
-    long frames = -1, status_every = 0;
+    const char *shot_dir = NULL;
+    long frames = -1, status_every = 0, shot_every = 0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!v) {
@@ -84,15 +100,17 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--trace")) trace_path = v;
         else if (!strcmp(a, "--coverage")) coverage_path = v;
         else if (!strcmp(a, "--status-every")) status_every = strtol(v, NULL, 10);
+        else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
+        else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else {
             fprintf(stderr, "unknown argument %s\n", a);
             return 2;
         }
         i++;
     }
-    if (!rom_path || frames < 0) {
+    if (!rom_path || frames < 0 || (shot_every > 0 && !shot_dir)) {
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
-                        "[--coverage out.txt] [--status-every N]\n");
+                        "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]\n");
         return 2;
     }
 
@@ -111,8 +129,14 @@ int main(int argc, char **argv)
         return 1;
 
     static Snes snes;   /* large; keep it off the stack */
+    static Renderer renderer;
     snes_init(&snes, image, image_len);
+    render_init(&renderer);
+    snes.on_line = on_line;
+    snes.on_line_ctx = &renderer;
     snes_power_on(&snes);
+    if (shot_dir)
+        make_dir(shot_dir);
 
     Coverage cov = { 0 };
     if (coverage_path) {
@@ -148,10 +172,17 @@ int main(int argc, char **argv)
                 cgram[i * 2 + 1] = snes.ppu.cgram[i] >> 8;
             }
             const uint8_t *data[] = { snes.bus.wram, snes.ppu.vram, snes.bus.sram, cgram, snes.ppu.oam };
-            if (ct_trace_write_frame(trace, (uint32_t)frame, pad, data, 0, 0, 0) != 0) {
+            uint64_t fb_hash = ct_framebuffer_hash(renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT);
+            if (ct_trace_write_frame(trace, (uint32_t)frame, pad, data, RENDER_WIDTH, RENDER_HEIGHT, fb_hash) != 0) {
                 fprintf(stderr, "error writing trace\n");
                 return 1;
             }
+        }
+        if (shot_every > 0 && frame % shot_every == 0) {
+            char path[1024];
+            snprintf(path, sizeof path, "%s/frame_%06ld.png", shot_dir, frame);
+            if (ct_png_write(path, renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT) != 0)
+                fprintf(stderr, "warning: cannot write %s\n", path);
         }
         if (status_every > 0 && frame % status_every == 0) {
             fprintf(stderr, "frame %6ld  pc %02X:%04X  apu %s pc %04X  spc cycles %llu\n", frame, snes.cpu.pb,

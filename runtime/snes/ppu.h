@@ -29,8 +29,17 @@ typedef struct Ppu {
     uint16_t oam_addr;
     uint8_t oam_latch;
 
+    /* Scroll registers ($210D-$2114) share two write latches; Mode 7 values
+     * ($210D/$210E, $211B-$2120) share a third. Values are decoded on write. */
+    uint8_t bgofs_latch, bghofs_latch;
+    uint16_t bg_hofs[4], bg_vofs[4];   /* 10-bit */
     uint8_t m7_latch;
-    int16_t m7a, m7b;
+    int16_t m7a, m7b, m7c, m7d;
+    int16_t m7x, m7y, m7hofs, m7vofs;  /* 13-bit, sign-extended */
+
+    uint16_t fixed_color;              /* COLDATA ($2132) as BGR555 */
+
+    bool range_over, time_over;        /* $213E, set by the renderer */
 
     uint16_t h_latch, v_latch;
     bool h_second, v_second;
@@ -56,5 +65,11 @@ void ppu_latch_counters(Ppu *ppu);
 void ppu_vblank(Ppu *ppu);
 
 static inline bool ppu_force_blank(const Ppu *ppu) { return ppu->reg[0x00] & 0x80; }
+
+/* OAM priority rotation: first sprite index, or 0 when rotation is off. */
+static inline uint8_t ppu_first_sprite(const Ppu *ppu)
+{
+    return (ppu->reg[0x03] & 0x80) ? (uint8_t)((ppu->oam_reload >> 2) & 0x7F) : 0;
+}
 
 #endif
