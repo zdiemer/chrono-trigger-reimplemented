@@ -1019,3 +1019,90 @@ void battle_build_object_graphics_checked(Snes *s)
     }
     s->cpu.pc = 0x1C55;
 }
+
+// $CC:F1E7
+/* Step the four object palette animations: when slot k is active ($A3B9)
+ * and its delay ($A3C1, reload $A3C5) runs out, advance its frame ($A3BD,
+ * from $A3C9 up to $A3CD, wrapping) and copy that frame's colors into sprite
+ * palette row ($CD:0000 table through $9882: color set, then row and flags) at
+ * $2302 + row * 8: 6 bytes from $D1:4100 + set * 6, or with the flag's bit 7
+ * 14 bytes from $D1:4400 + set * 14 (via the multiply at $CC:F365). */
+void battle_step_object_palettes(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_tdc(s);
+    m_tax(s);
+    m_write16(s, m_dp(s, 0x80), c->x);
+    uint8_t slot;
+    do {
+        m_ldx16(s, m_read16(s, m_dp(s, 0x80)));
+        if (m_lda8(s, absx8(s, 0xA3B9)) != 0) {
+            uint8_t delay = (uint8_t)(absx8(s, 0xA3C1) - 1);
+            set_absx8(s, 0xA3C1, delay);
+            m_set_nz8(s, delay);
+            if (delay == 0) {
+                set_absx8(s, 0xA3C1, m_lda8(s, absx8(s, 0xA3C5)));
+                uint8_t step = (uint8_t)(absx8(s, 0xA3BD) + 1);
+                set_absx8(s, 0xA3BD, step);
+                m_set_nz8(s, step);
+                m_set_flag(s, CPU_FLAG_C, false);
+                uint8_t frame = m_adc8(s, m_lda8(s, absx8(s, 0xA3C9)), absx8(s, 0xA3BD));
+                m_set_a8(s, frame);
+                uint8_t last = absx8(s, 0xA3CD);
+                m_cmp8(s, frame, last);
+                if (frame > last) {
+                    set_absx8(s, 0xA3BD, 0x00);
+                    frame = m_lda8(s, absx8(s, 0xA3C9));
+                }
+                m_set_a8(s, m_asl8(s, frame));
+                m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
+                c->a = m_adc16(s, c->a, m_read16(s, m_abs(s, 0x9882)));
+                m_tax(s);
+                m_tdc(s);
+                m_write16(s, m_dp(s, 0x82), c->a);
+                m_sep(s, CPU_FLAG_M);
+                set_dp8(s, 0x82, m_lda8(s, m_read8(s, 0xCD0000 + c->x)));
+                uint8_t row = m_lda8(s, m_read8(s, 0xCD0001 + c->x));
+                set_dp8(s, 0x84, row);
+                uint8_t r = m_lda8(s, row & 0x03);
+                for (int i = 0; i < 3; i++)
+                    r = m_asl8(s, r);
+                m_set_a8(s, r);
+                m_set_index(s, &c->y, c->a);
+                bool wide = m_lda8(s, dp8(s, 0x84)) & 0x80;
+                set_dp8(s, 0xAD, m_lda8(s, wide ? 0x0E : 0x06));
+                set_dp8(s, 0xAE, m_lda8(s, dp8(s, 0x82)));
+                /* JSR $F365: $AF = $AD * $AE */
+                m_push16(s, wide ? 0xF25C : 0xF240);
+                uint8_t a = m_lda8(s, dp8(s, 0xAD));
+                set_dp8(s, 0x77, a);
+                m_write8(s, 0x004202, a);
+                uint8_t b = m_lda8(s, dp8(s, 0xAE));
+                set_dp8(s, 0x78, b);
+                m_write8(s, 0x004203, b);
+                m_rep(s, CPU_FLAG_M);
+                m_write16(s, m_dp(s, 0xAF), m_lda16(s, m_read16(s, 0x004216)));
+                m_tdc(s);
+                m_sep(s, CPU_FLAG_M);
+                m_pull16(s);
+                m_ldx16(s, m_read16(s, m_dp(s, 0xAF)));
+                uint32_t colors = wide ? 0xD14400 : 0xD14100;
+                uint8_t n;
+                do {
+                    set_absy8(s, 0x2302, m_lda8(s, m_read8(s, colors + c->x)));
+                    m_inx(s);
+                    m_iny(s);
+                    n = (uint8_t)(dp8(s, 0xAD) - 1);
+                    set_dp8(s, 0xAD, n);
+                    m_set_nz8(s, n);
+                } while (n != 0);
+            }
+        }
+        slot = (uint8_t)(dp8(s, 0x80) + 1);
+        set_dp8(s, 0x80, slot);
+        m_set_nz8(s, slot);
+        slot = m_lda8(s, dp8(s, 0x80));
+        m_cmp8(s, slot, 0x04);
+    } while (slot != 0x04);
+    m_rtl(s);
+}

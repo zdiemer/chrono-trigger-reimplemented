@@ -131,3 +131,84 @@ void input_map_buttons(Snes *s)
     map_button_byte(s);
     m_rts(s);
 }
+
+// $C2:85AE
+/* Advance the play time clock at $0400-$0405 (frames, seconds, minutes, ten
+ * minutes, hours, ten hours; limits from $C2:85D0) unless it's stopped ($0407);
+ * set $0406 when it overflows. Leaves the direct page at $0400. */
+void play_time_tick(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_push16(s, 0x0400);
+    c->d = m_pull16(s);
+    m_set_nz16(s, c->d);
+    if (m_lda8(s, dp8(s, 0x07)) != 0) {
+        m_rts(s);
+        return;
+    }
+    m_set_index(s, &c->x, 0x00);
+    do {
+        uint8_t v = (uint8_t)(dp8(s, (uint8_t)c->x) + 1);
+        set_dp8(s, (uint8_t)c->x, v);
+        m_set_nz8(s, v);
+        v = m_lda8(s, dp8(s, (uint8_t)c->x));
+        uint8_t limit = m_read8(s, 0xC285D0 + c->x);
+        m_cmp8(s, v, limit);
+        if (v < limit) {
+            m_rts(s);
+            return;
+        }
+        set_dp8(s, (uint8_t)c->x, 0x00);
+        m_set_index(s, &c->x, (uint16_t)(c->x + 1));
+        m_cmp8(s, (uint8_t)c->x, 0x06);
+    } while (c->x < 0x06);
+    set_dp8(s, 0x06, m_lda8(s, 0x01));
+    m_rts(s);
+}
+
+// $C2:84D2
+/* The per-frame input work: read the controller ($C2:84EC), map the buttons
+ * ($C2:8545) and advance the play time ($C2:85AE), preserving every register. */
+void input_update(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_push8(s, c->db);
+    m_push16(s, c->d);
+    if (m_x8(s)) {
+        m_push8(s, (uint8_t)c->x);
+        m_push8(s, (uint8_t)c->y);
+    } else {
+        m_push16(s, c->x);
+        m_push16(s, c->y);
+    }
+    m_push8(s, c->p);
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_push16(s, c->a);
+    m_push8(s, c->p);
+    m_jsr(s, 0xC284DB, 0xC284EC);
+    m_jsr(s, 0xC284DE, 0xC28545);
+    m_jsr(s, 0xC284E1, 0xC285AE);
+    c->p = m_pull8(s);
+    c->a = m_pull16(s);   /* PLA with the 16-bit width the PLP just restored */
+    m_set_nz16(s, c->a);
+    c->p = m_pull8(s);
+    if (m_x8(s)) {
+        c->y = m_pull8(s);
+        m_set_nz8(s, (uint8_t)c->y);
+        c->x = m_pull8(s);
+        m_set_nz8(s, (uint8_t)c->x);
+        c->y &= 0xFF;
+        c->x &= 0xFF;
+    } else {
+        c->y = m_pull16(s);
+        m_set_nz16(s, c->y);
+        c->x = m_pull16(s);
+        m_set_nz16(s, c->x);
+    }
+    c->d = m_pull16(s);
+    m_set_nz16(s, c->d);
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    m_rts(s);
+}

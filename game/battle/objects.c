@@ -117,3 +117,49 @@ void battle_find_due_animation(Snes *s)
     } while (c->y != 0x000B);
     m_rts(s);
 }
+
+// $C1:4212
+/* For each of the six animation slots with a position mode ($A4E8 + slot,
+ * mode = value - 1), compute the slot's position through the handler for the
+ * mode ($C1:762E, table $C1:79D3; result in $A2B0/$A2B2) and store it at
+ * $5DA0 + slot * 2. */
+void battle_update_animation_positions(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_tdc(s);
+    m_tax(s);
+    m_write16(s, m_dp(s, 0x90), c->x);
+    uint8_t slot;
+    do {
+        m_ldx16(s, m_read16(s, m_dp(s, 0x90)));
+        uint8_t mode = m_lda8(s, absx8(s, 0xA4E8));
+        if (mode != 0) {
+            m_lda8(s, (uint8_t)(mode - 1));
+            /* JSR $762E: PHY : PHX : TAY : ASL : TAX : JSR ($79D3,X) : PLX : PLY : RTS */
+            m_push16(s, 0x4220);
+            m_push16(s, c->y);
+            m_push16(s, c->x);
+            m_set_index(s, &c->y, c->a);
+            m_set_a8(s, m_asl8(s, (uint8_t)c->a));
+            m_tax(s);
+            m_jsr(s, 0xC17633, 0xC10000 | m_jump_table(s, 0xC1, 0x79D3, c->x));
+            if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+                return;
+            c->x = m_pull16(s);
+            m_set_nz16(s, c->x);
+            c->y = m_pull16(s);
+            m_set_nz16(s, c->y);
+            m_pull16(s);
+            m_set_a8(s, m_asl8(s, m_lda8(s, m_read8(s, m_dp(s, 0x90)))));
+            m_tax(s);
+            set_absx8(s, 0x5DA0, m_lda8(s, m_read8(s, m_abs(s, 0xA2B0))));
+            set_absx8(s, 0x5DA1, m_lda8(s, m_read8(s, m_abs(s, 0xA2B2))));
+        }
+        slot = (uint8_t)(m_read8(s, m_dp(s, 0x90)) + 1);
+        m_write8(s, m_dp(s, 0x90), slot);
+        m_set_nz8(s, slot);
+        slot = m_lda8(s, m_read8(s, m_dp(s, 0x90)));
+        m_cmp8(s, slot, 0x06);
+    } while (slot != 0x06);
+    m_rts(s);
+}

@@ -6,5 +6,7 @@
 
 void input_read_joypad(Snes *s);
 void input_map_buttons(Snes *s);
+void play_time_tick(Snes *s);
+void input_update(Snes *s);
 
 #endif

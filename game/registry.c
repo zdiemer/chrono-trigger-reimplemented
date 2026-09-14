@@ -108,6 +108,13 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16_BINARY, .cost_milli = 3250 },
     { .addr = 0xC106F0, .name = "battle_draw_gauge", .fn = battle_draw_gauge, NEEDS_M8_X16_BINARY,
       .cost_milli = 3891, .dont_care = DC_N | DC_Z | DC_C },
+    { .addr = 0xC14212, .name = "battle_update_animation_positions", .fn = battle_update_animation_positions,
+      NEEDS_M8_X16, .cost_milli = 3312, .dont_care = DC_N | DC_Z },
+    { .addr = 0xCCF1E7, .name = "battle_step_object_palettes", .fn = battle_step_object_palettes,
+      NEEDS_M8_X16_BINARY, .cost_milli = 3353, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC1C92A, .name = "battle_divide", .fn = battle_divide, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 3299 },
+    { .addr = 0xCD0340, .name = "battle_update_button_repeat", .fn = battle_update_button_repeat, .cost_milli = 2717 },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
       .cost_milli = 4344, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,
@@ -134,6 +141,8 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16_BINARY, .cost_milli = 5612, .dont_care = DC_N | DC_Z },
 
     /* core */
+    { .addr = 0xC285AE, .name = "play_time_tick", .fn = play_time_tick, .cost_milli = 3312 },
+    { .addr = 0xC284D2, .name = "input_update", .fn = input_update, .cost_milli = 2350 },
     { .addr = 0xFDE022, .name = "tile_animation_upload", .fn = tile_animation_upload, NEEDS_M8_X16_BINARY,
       .cost_milli = 1200 },
     { .addr = 0xC284EC, .name = "input_read_joypad", .fn = input_read_joypad, .p_mask = CPU_FLAG_X, .p_value = 0,

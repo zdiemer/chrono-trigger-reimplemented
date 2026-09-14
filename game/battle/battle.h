@@ -42,6 +42,7 @@ void battle_step_effect_slots(Snes *s);
 void battle_update_object_bounds(Snes *s);
 void battle_update_all_object_bounds(Snes *s);
 void battle_find_due_animation(Snes *s);
+void battle_update_animation_positions(Snes *s);
 
 /* battle/frame.c */
 void battle_frame_dispatch(Snes *s);
@@ -82,6 +83,7 @@ void battle_record_object_trails(Snes *s);
 void battle_cycle_party_palettes(Snes *s);
 void battle_build_object_graphics(Snes *s);
 void battle_build_object_graphics_checked(Snes *s);
+void battle_step_object_palettes(Snes *s);
 
 /* battle/gauges.c */
 void battle_draw_gauge(Snes *s);
@@ -89,5 +91,7 @@ void battle_draw_gauge(Snes *s);
 /* battle/math.c */
 void battle_multiply_8x8(Snes *s);
 void battle_multiply_8x16(Snes *s);
+void battle_divide(Snes *s);
+void battle_update_button_repeat(Snes *s);
 
 #endif
