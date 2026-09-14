@@ -4,12 +4,14 @@
  *
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
- *          [--native off|shadow|on] [--calls out.txt]
+ *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
  * --calls writes every executed JSR/JSL/JSR(abs,X) call site and target, so the
  * disassembler's liveness analysis knows about callers it can't see statically.
+ * --load-state resumes from a state saved by --save-state (same build only);
+ * frame numbers, and so movie input, continue from the saved frame.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,7 +147,7 @@ static uint8_t *read_file(const char *path, size_t *len)
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
-    const char *calls_path = NULL;
+    const char *calls_path = NULL, *load_state = NULL, *save_state = NULL;
     const char *shot_dir = NULL;
     NativeMode native_mode = NATIVE_OFF;
     long frames = -1, status_every = 0, shot_every = 0;
@@ -161,6 +163,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--trace")) trace_path = v;
         else if (!strcmp(a, "--coverage")) coverage_path = v;
         else if (!strcmp(a, "--calls")) calls_path = v;
+        else if (!strcmp(a, "--load-state")) load_state = v;
+        else if (!strcmp(a, "--save-state")) save_state = v;
         else if (!strcmp(a, "--status-every")) status_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
@@ -182,7 +186,7 @@ int main(int argc, char **argv)
     if (!rom_path || frames < 0 || (shot_every > 0 && !shot_dir)) {
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
-                        "[--native off|shadow|on] [--calls out.txt]\n");
+                        "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f]\n");
         return 2;
     }
 
@@ -207,6 +211,10 @@ int main(int argc, char **argv)
     snes.on_line = on_line;
     snes.on_line_ctx = &renderer;
     snes_power_on(&snes);
+    if (load_state && snes_state_load(&snes, load_state) != 0) {
+        fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", load_state);
+        return 1;
+    }
     NativeRuntime *natives = native_create(game_natives, game_native_count, native_mode);
     native_attach(natives, &snes);
     if (shot_dir)
@@ -243,7 +251,7 @@ int main(int argc, char **argv)
     }
 
     uint8_t cgram[0x200];
-    for (long frame = 0; frame < frames; frame++) {
+    for (long frame = (long)snes.frame; frame < frames; frame++) {
         uint16_t pad = ct_movie_buttons(&movie, (uint32_t)frame);
         snes_run_frame(&snes, pad);
 
@@ -274,6 +282,10 @@ int main(int argc, char **argv)
     }
 
     int rc = 0;
+    if (save_state && snes_state_save(&snes, save_state) != 0) {
+        fprintf(stderr, "cannot save state %s\n", save_state);
+        rc = 1;
+    }
     if (native_mode != NATIVE_OFF) {
         native_report(natives, stderr);
         if (native_failed(natives))

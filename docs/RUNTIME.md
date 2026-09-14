@@ -14,7 +14,11 @@ python3 tools/trace.py diff traces/oracle.cttr traces/dev.cttr --region WRAM
 ```
 
 `--coverage` writes every executed instruction address with its M/X widths, for
-seeding the disassembler.
+seeding the disassembler. `--calls` writes executed call edges for liveness
+analysis. `--save-state` writes the machine at the end of a run and
+`--load-state` resumes from it (same build only), which makes iterating on the
+end of a long movie fast. Frame numbers and movie input continue from the
+saved frame, and resumed runs are identical to straight runs.
 
 ## Components
 

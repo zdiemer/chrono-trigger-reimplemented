@@ -263,7 +263,7 @@ def cmd_diff(args) -> int:
         if ta.regions[ia].size != tb.regions[ib].size:
             print(f"warning: {name} size differs; comparing the common prefix", file=sys.stderr)
         pairs.append((name, ia, ib))
-    missing = [r.name for r in ta.regions if r.name not in names] + [r.name for r in tb.regions if r.name not in names]
+    missing = [r.name for r in ta.regions + tb.regions if r.name not in names and r.name != "WRAMW"]
     if missing and not args.region:
         print(f"note: regions not in both traces, not compared: {', '.join(sorted(set(missing)))}")
 

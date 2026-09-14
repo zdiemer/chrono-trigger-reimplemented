@@ -61,6 +61,11 @@ void snes_power_on(Snes *snes);
  * Hooks and the WRAM write mask are not carried over. */
 void snes_clone(Snes *dst, const Snes *src);
 
+/* Save states: the raw machine image, valid only for the build that wrote it.
+ * Loading keeps the destination's ROM, hooks and write mask. Return 0 on success. */
+int snes_state_save(const Snes *snes, const char *path);
+int snes_state_load(Snes *snes, const char *path);
+
 /* Run until the start of the next vblank. pad1 is in JOY1 bit order. */
 void snes_run_frame(Snes *snes, uint16_t pad1);
 
