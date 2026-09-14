@@ -55,10 +55,12 @@ class JumpTable:
 
 
 class Analyzer:
-    def __init__(self, rom: Rom, hints: Hints, assume_returns: bool = True):
+    def __init__(self, rom: Rom, hints: Hints, assume_returns: bool = True, coverage: dict | None = None):
         self.rom = rom
         self.hints = hints
         self.assume_returns = assume_returns
+        self.coverage = coverage or {}                   # executed addr -> {(m, x)}
+        self.coverage_seeded: set = set()                # executed addrs static tracing missed
         self.contexts: dict[tuple, Context] = {}
         self.code: dict[int, dict[Widths, Insn]] = defaultdict(dict)
         self.labels: dict[int, set] = defaultdict(set)   # bus addr -> {"sub","loc","jt"}
@@ -123,6 +125,18 @@ class Analyzer:
     def run(self):
         for e in self.hints.entries:
             self.ctx(e.addr, (e.m, e.x), e.kind)
+        self._fixpoint()
+        # Executed code that static tracing didn't reach seeds new contexts, in
+        # address order so each seed can absorb the code that follows it.
+        for addr in sorted(self.coverage):
+            if addr in self.code:
+                continue
+            self.coverage_seeded.add(addr)
+            for widths in sorted(self.coverage[addr], key=str):
+                self.ctx(addr, widths, "coverage")
+            self._fixpoint()
+
+    def _fixpoint(self):
         while True:
             while self.work:
                 key, pc, st = self.work.pop()
@@ -402,6 +416,24 @@ class Analyzer:
             size = max(i.size for i in variants.values())
             cov.update(range(off, off + size))
         return cov
+
+    def coverage_conflicts(self) -> dict:
+        """Executed addresses where static tracing decoded an instruction length
+        that differs from the length under the widths actually observed."""
+        out = {}
+        for addr, observed in self.coverage.items():
+            variants = self.code.get(addr)
+            if not variants:
+                continue
+            sizes = set()
+            for m, x in observed:
+                insn = decode(self.read, addr, m, x)
+                if insn:
+                    sizes.add(insn.size)
+            wrong = {w: i for w, i in variants.items() if i.size not in sizes}
+            if wrong:
+                out[addr] = (observed, wrong)
+        return out
 
     def width_conflicts(self) -> dict:
         return {pc: v for pc, v in self.code.items()

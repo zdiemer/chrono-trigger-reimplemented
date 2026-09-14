@@ -4,6 +4,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+from . import coverage as coverage_mod
 from . import hints as hints_mod
 from .analyze import Analyzer, describe_widths
 from .memmap import Rom, bus_to_offset, fmt, offset_to_bus
@@ -82,8 +83,15 @@ def write_report(an: Analyzer, out: Path) -> str:
         f"- suspicious opcodes: {len(an.suspicious)}",
         f"- calls continued on assumed widths: {len(an.assumed)}",
         f"- width conflicts: {len(an.width_conflicts())}",
-        "",
     ]
+    if an.coverage:
+        executed = len(an.coverage)
+        lines += [
+            f"- executed addresses (coverage): {executed}, "
+            f"{executed - len(an.coverage_seeded)} found statically, {len(an.coverage_seeded)} seeded",
+            f"- static decodes contradicted by coverage: {len(an.coverage_conflicts())}",
+        ]
+    lines.append("")
     summary = "\n".join(lines)
 
     lines += ["## Code bytes per bank", "", "| bank | code bytes | % |", "|---|---|---|"]
@@ -114,6 +122,13 @@ def write_report(an: Analyzer, out: Path) -> str:
             [f"- {fmt(pc)}: " + ", ".join(f"[{describe_widths(w)}] {i.text()}" for w, i in v.items())
              for pc, v in sorted(an.width_conflicts().items())])
     section("Control flow into non-ROM addresses", [f"- {fmt(pc)}" for pc in sorted(an.unmapped)])
+    if an.coverage:
+        section("Coverage seeds (executed, not reached statically)", [
+            f"- {fmt(a)}" for a in sorted(an.coverage_seeded)])
+        section("Static decodes contradicted by coverage", [
+            f"- {fmt(a)}: ran as " + ", ".join(describe_widths(w) for w in sorted(obs, key=str)) + "; decoded as "
+            + ", ".join(f"[{describe_widths(w)}] {i.text()}" for w, i in wrong.items())
+            for a, (obs, wrong) in sorted(an.coverage_conflicts().items())])
     (out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return summary
 
@@ -123,6 +138,8 @@ def main():
     ap.add_argument("--rom", type=Path, default=REPO_ROOT / "roms" / "ct-usa.sfc")
     ap.add_argument("--hints", type=Path, default=REPO_ROOT / "re" / "hints.toml")
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "disasm" / "out")
+    ap.add_argument("--coverage", type=Path, action="append", default=[],
+                    help="executed-instruction coverage from ct_dev --coverage (repeatable)")
     ap.add_argument("--no-assume-returns", action="store_true",
                     help="don't continue after calls whose callee was never seen to return")
     args = ap.parse_args()
@@ -130,7 +147,8 @@ def main():
     if not args.rom.exists():
         sys.exit(f"{args.rom} not found; stage the ROM with tools/rom.py first")
     rom = Rom(args.rom.read_bytes())
-    an = Analyzer(rom, hints_mod.load(args.hints), assume_returns=not args.no_assume_returns)
+    an = Analyzer(rom, hints_mod.load(args.hints), assume_returns=not args.no_assume_returns,
+                  coverage=coverage_mod.load(args.coverage))
     an.run()
 
     args.out.mkdir(parents=True, exist_ok=True)

@@ -13,6 +13,19 @@ python3 -m unittest discover tests
 
 `disasm/out/` is gitignored: it contains ROM bytes and must never be committed.
 
+Executed-instruction coverage from the development system improves both
+coverage and correctness:
+
+```sh
+build/main/ct_dev --rom roms/ct-usa.sfc --frames 3000 --movie oracle/movies/title-start.ctm \
+    --coverage traces/coverage-title.txt
+python3 -m tools.disasm --coverage traces/coverage-title.txt   # repeatable
+```
+
+Executed addresses that static tracing didn't reach seed new contexts with
+their observed widths. Executed addresses that static tracing decoded with
+different widths are listed in the report as errors to fix with hints.
+
 | Output | Contents |
 |---|---|
 | `listing/bank_XX.asm` | Code in ROM order per bank, labels, widths where ambiguous, gaps summarized |
@@ -61,9 +74,7 @@ it was established. Typical workflow:
 
 Static tracing can't see code reached only through RAM pointers, data-driven
 dispatch it hasn't been told about, or stack tricks. Banks C0 and C1 are mostly
-covered. C2, C3, FD and the smaller code banks are not, yet. The plan is to
-close that gap with **dynamic coverage**: log executed addresses and their
-M/X widths from an instrumented run of the ROM, import them as entries, and
-let the static tracer fill in around them. The development interpreter
-(roadmap phase 3) can produce exactly this. Until then, an emulator's
-code/data log can seed it.
+covered. C2, C3, FD and the smaller code banks are not, yet. Coverage from
+`ct_dev --coverage` closes that gap as input movies reach more of the game.
+Movies through the attract sequence and title screen execute about 4,000
+distinct instructions, all of which static tracing already finds.

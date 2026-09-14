@@ -111,6 +111,26 @@ class Analysis(unittest.TestCase):
         self.assertEqual(list(an.code[0xC08004].values())[0].size, 2)
         self.assertIn(0xC08006, an.code)
 
+    def test_coverage_seeds_unreachable_code_and_flags_conflicts(self):
+        # C0:8000 JMP ($0000)            unresolved: static tracing stops here
+        # C0:8010 LDA #$1234 ; RTS       only known from coverage, which says m16
+        code = {0xC08000: bytes.fromhex("6C0000"), 0xC08010: bytes.fromhex("A9341260")}
+        h = Hints()
+        h.entries.append(type("E", (), {"addr": 0xC08000, "m": True, "x": True, "kind": "test"})())
+        an = Analyzer(FakeRom(code), h, coverage={0xC08010: {(False, True)}})
+        an.run()
+        self.assertEqual(an.coverage_seeded, {0xC08010})
+        self.assertEqual(list(an.code[0xC08010].values())[0].size, 3)
+        self.assertIn(0xC08013, an.code)
+        self.assertFalse(an.coverage_conflicts())
+
+        # The same bytes reached statically with the wrong width are reported.
+        h2 = Hints()
+        h2.entries.append(type("E", (), {"addr": 0xC08010, "m": True, "x": True, "kind": "test"})())
+        an2 = Analyzer(FakeRom(code), h2, coverage={0xC08010: {(False, True)}})
+        an2.run()
+        self.assertIn(0xC08010, an2.coverage_conflicts())
+
     def test_jump_table_bounded_by_following_code(self):
         # C0:8000 ASL ; TAX ; JMP ($8005,X)
         # C0:8005 table: $8009, $800A
