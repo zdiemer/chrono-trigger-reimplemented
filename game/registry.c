@@ -14,6 +14,8 @@
 #define NEEDS_M8_X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M
 #define NEEDS_M8_X8 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M | CPU_FLAG_X
 #define NEEDS_M8_X16_BINARY .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M
+#define NEEDS_M16_X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = 0
+#define NEEDS_M16_X16_BINARY .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = 0
 #define NEEDS_M8_X8_BINARY .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M | CPU_FLAG_X
 
 /* Entries are keyed by the original entry address. cost_milli is the
@@ -28,6 +30,22 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCD3B84, .name = "battle_wait_vblank_end_loop", .fn = battle_wait_vblank_end_loop, NEEDS_M8, .idle = true },
     { .addr = 0xCD3B8A, .name = "battle_wait_hblank_loop", .fn = battle_wait_hblank_loop, NEEDS_M8, .idle = true },
     { .addr = 0xCD3B92, .name = "battle_wait_line_loop", .fn = battle_wait_line_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xCFE83A, .name = "battle_draw_objects", .fn = battle_draw_objects, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3845, .dont_care = DC_N | DC_Z },
+    { .addr = 0xCFEA8A, .name = "battle_draw_shadow", .fn = battle_draw_shadow, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3767, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xCFE92C, .name = "battle_step_object_effect", .fn = battle_step_object_effect, NEEDS_M8_X16,
+      .cost_milli = 4000, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xCFEAC5, .name = "battle_draw_sprite_parts", .fn = battle_draw_sprite_parts, NEEDS_M16_X16_BINARY,
+      .cost_milli = 2987, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xCFEB94, .name = "battle_copy_sprite_tiles", .fn = battle_copy_sprite_tiles, NEEDS_M16_X16,
+      .cost_milli = 2408, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xCFEDB8, .name = "battle_draw_object_underlays", .fn = battle_draw_object_underlays,
+      NEEDS_M8_X16_BINARY, .cost_milli = 4735, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xCFEDF7, .name = "battle_draw_object_overlays", .fn = battle_draw_object_overlays,
+      NEEDS_M8_X16_BINARY, .cost_milli = 4727, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xCFE781, .name = "battle_step_prepared_sprites", .fn = battle_step_prepared_sprites,
+      NEEDS_M8_X16_BINARY, .cost_milli = 5612, .dont_care = DC_N | DC_Z },
 
     /* core */
     { .addr = 0xC00B4E, .name = "display_blank_and_stop_interrupts", .fn = display_blank_and_stop_interrupts,

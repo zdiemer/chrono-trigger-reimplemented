@@ -103,9 +103,14 @@ int native_suspended(const NativeRuntime *rt);
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call);
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care);
 
-/* Synchronous call-outs: instructions a callee may run before the call gives
- * up (leaving the machine mid-callee), and how many calls have. */
+/* Synchronous call-outs: the instructions callees may run in total
+ * (native_call_steps counts them; a tool resets it) before a call gives up,
+ * leaving the machine mid-callee; how many calls have given up; and a hook run
+ * when one does, where a tool can abandon the native routine (a routine may
+ * otherwise loop forever on what an unfinished callee left behind). */
 extern unsigned long native_call_step_limit;
+extern unsigned long native_call_steps;
 extern unsigned long native_call_timeouts;
+extern void (*native_call_timeout_hook)(void);
 
 #endif

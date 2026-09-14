@@ -57,6 +57,7 @@ add_library(ct_game STATIC
   game/menu/frame.c
   game/attract/main_loop.c
   game/battle/nmi.c
+  game/battle/sprites.c
   game/battle/wait.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)

@@ -554,7 +554,9 @@ static int32_t intercept(void *ctx, Snes *s)
 }
 
 unsigned long native_call_step_limit = 50000000ul;
+unsigned long native_call_steps;
 unsigned long native_call_timeouts;
+void (*native_call_timeout_hook)(void);
 
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
 {
@@ -587,19 +589,22 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
     bool nmi = s->cpu.nmi_pending, irq = s->cpu.irq_line;
     s->cpu.nmi_pending = false;
     s->cpu.irq_line = false;
-    unsigned long steps = 0;
     while (!(cpu_pc24(&s->cpu) == ret && s->cpu.s == s_after)) {
+        if (native_call_steps >= native_call_step_limit) {
+            native_call_timeouts++;
+            if (native_call_timeout_hook)
+                native_call_timeout_hook();
+            else if (native_call_timeouts == 1)
+                fprintf(stderr, "native_call: %06X called from %06X did not return\n", target, site);
+            break;
+        }
         const NativeRuntime *rt = active_runtime;
         int idx = rt ? find_entry(rt, cpu_pc24(&s->cpu)) : -1;
         if (idx >= 0 && !rt->table[idx].idle && entry_applies(&rt->table[idx], s))
             rt->table[idx].fn(s);
         else
             cpu_step(&s->cpu);
-        if (++steps == native_call_step_limit) {
-            if (native_call_timeouts++ == 0)
-                fprintf(stderr, "native_call: %06X called from %06X did not return\n", target, site);
-            break;
-        }
+        native_call_steps++;
     }
     s->cpu.nmi_pending = nmi;
     s->cpu.irq_line = irq;

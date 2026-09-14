@@ -12,7 +12,8 @@
  * machines are compared where the native routine left off, normally the
  * return, as in shadow mode and ignoring the routine's don't-care set. Nothing
  * advances time, and interrupts don't happen. States where the original doesn't
- * return within --step-limit instructions (default 100000) are skipped.
+ * return within --step-limit instructions (default 100000), or the native
+ * routine's call-outs together run more than that, are skipped.
  *
  * --keep leaves a WRAM range (bus addresses in $7E/$7F) as it is in the base
  * state, for routines that need some structure intact. --range A|X|Y=lo-hi
@@ -26,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "port/fiber.h"
 #include "registry.h"
 #include "snes/system.h"
 
@@ -61,6 +63,26 @@ static uint8_t *read_file(const char *path, size_t *len)
 }
 
 static unsigned long step_limit = 100000;
+
+/* The native routine runs on its own fiber, so that when its call-outs run out
+ * of steps it can be abandoned wherever it is. */
+static const NativeEntry *native_entry;
+static Snes *native_machine;
+static Fiber *native_fiber;
+
+static void native_fiber_main(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        native_entry->fn(native_machine);
+        fiber_switch(fiber_main());
+    }
+}
+
+static void abandon_native(void)
+{
+    fiber_switch(fiber_main());
+}
 
 /* Run the interpreter until PC and S are back at the return sentinel. */
 static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s)
@@ -148,6 +170,9 @@ int main(int argc, char **argv)
     }
     base.cpu.e = false;
     native_call_step_limit = step_limit;
+    native_call_timeout_hook = abandon_native;
+    native_entry = e;
+    native_machine = &native;
 
     rng_state = seed * 0x9E3779B97F4A7C15ull | 1;
     unsigned long matched = 0, mismatched = 0, no_return = 0;
@@ -214,9 +239,16 @@ int main(int argc, char **argv)
          * boundary of the original; either way the original must get to the
          * same place. */
         unsigned long timeouts = native_call_timeouts;
-        e->fn(&native);
+        native_call_steps = 0;
+        if (!native_fiber)
+            native_fiber = fiber_create(native_fiber_main, NULL);
+        fiber_switch(native_fiber);
         if (native_call_timeouts != timeouts) {
-            no_return++;   /* a callee didn't return on this random state */
+            /* A callee didn't return on this random state (or they all ran too
+             * long); the fiber may be stuck inside the routine. */
+            fiber_destroy(native_fiber);
+            native_fiber = NULL;
+            no_return++;
             continue;
         }
         uint32_t stop_pc = cpu_pc24(&native.cpu);
