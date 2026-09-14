@@ -11,6 +11,13 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - Addresses are written in SNES bus form, `$C0:1234`. HiROM file offset =
   `(bank & 0x3F) << 16 | addr` for banks `$C0-$FF` (and `$40-$7D`).
 
+## Commands
+
+- `python3 -m tools.disasm`: static code discovery. Writes `disasm/out/`
+  (gitignored). Knowledge goes in `re/hints.toml`. See docs/DISASSEMBLY.md.
+- `python3 -m tools.disasm.linear BB:AAAA -n N --m 8 --x 16`: quick look at code.
+- `python3 -m unittest discover tests`
+
 ## Rules
 
 - Keep the repo machine-independent: no local paths, drive letters, or

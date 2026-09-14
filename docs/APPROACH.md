@@ -72,7 +72,7 @@ the port against the original, frame by frame:
 
 Once the port matches, the WRAM layout can be dropped subsystem by subsystem.
 
-## Open decision: incremental porting scaffold
+## Decision: incremental porting scaffold
 
 A game can't run until every routine on its path exists. There are two ways to
 handle that:
@@ -85,7 +85,9 @@ handle that:
 - **B. Pure top-down.** Port the boot path by hand until it reaches a frame.
   There's nothing to show until then, and bugs pile up before the first diff.
 
-A is scaffolding with a burndown chart, not the architecture. It never ships.
+**Chosen: A.** It's scaffolding with a burndown chart, not the architecture,
+and it never ships. It also doubles as the dynamic code-coverage source for
+the disassembler.
 
 ## Roadmap
 
@@ -93,8 +95,9 @@ A is scaffolding with a burndown chart, not the architecture. It never ships.
 1. **Disassembly and knowledge base.** 65816 disassembler with M/X width
    tracking, a code/data map, and a symbol and RAM-map database. Pull in
    community documentation of event commands and data tables as reference.
+   *(in progress: [DISASSEMBLY.md](DISASSEMBLY.md))*
 2. **Oracle harness.** libretro frontend, input-movie format, per-frame state
-   dumps, divergence tool.
+   dumps, divergence tool. *(in progress)*
 3. **Host runtime.** SDL window, input, audio, PPU-level renderer, SPC700/DSP
    core, SRAM, and an explicit frame loop with defined NMI/IRQ points.
 4. **Port.** Boot → title → name entry → Millennial Fair, then field, menu,

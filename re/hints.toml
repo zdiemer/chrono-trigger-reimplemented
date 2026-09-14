@@ -1,0 +1,106 @@
+# Analysis hints for tools/disasm: facts static analysis can't infer by itself.
+# Addresses are SNES bus addresses (BB:AAAA). Widths: m/x = 8 or 16.
+#
+#   [[entry]]        addr, m, x, [name], [kind]     code entry point
+#   [[name]]         addr, name                     label only
+#   [[jumptable]]    at, count, [kind=abs|long], [table]
+#                                                   JMP/JSR (abs,X) at `at`
+#   [[returns]]      addr, m, x                     widths after the function returns
+#   [[state]]        addr, m, x                     force widths at an address
+#   [noreturn]       addrs = [...]                  calls that never come back
+#   [[inline_args]]  addr, size                     bytes after JSR/JSL to skip
+#   [[indirect]]     at, targets = [...]            JMP (abs) / JML [abs] targets
+#   [[data]]         start, end                     never decode as code
+
+# Hardware vector: SEI; CLC; XCE; JML $FD:C000
+[[entry]]
+addr = "00:FF00"
+m = 8
+x = 8
+name = "vec_reset"
+kind = "vector"
+
+[[name]]
+addr = "00:FF10"
+name = "vec_nmi"
+
+[[name]]
+addr = "00:FF14"
+name = "vec_irq"
+
+# Event script interpreter: fetches a command byte from $7F:2001,X and dispatches
+# through a 256-entry table of command handlers; loops at C0:5900.
+[[jumptable]]
+at = "C0:5910"
+count = 256
+
+[[name]]
+addr = "C0:5D6E"
+name = "event_command_table"
+
+[[name]]
+addr = "C0:5900"
+name = "event_fetch_loop"
+
+# NMI/IRQ vectors jump through JML stubs in RAM at $00:0500 and $00:0504, which
+# each mode installs. All handlers start with REP #$30, so entry widths are moot.
+
+# Installed by C0:0B64 / C0:0B75
+[[entry]]
+addr = "C0:EA63"
+m = 8
+x = 16
+name = "nmi_field"
+kind = "vector"
+
+[[entry]]
+addr = "C0:ECCC"
+m = 8
+x = 16
+name = "irq_field"
+kind = "vector"
+
+# Installed by C2:0110
+[[entry]]
+addr = "C2:015E"
+m = 8
+x = 16
+name = "nmi_c2"
+kind = "vector"
+
+[[entry]]
+addr = "C2:0345"
+m = 8
+x = 16
+name = "irq_c2"
+kind = "vector"
+
+# Installed by C3:0016
+[[entry]]
+addr = "C3:0548"
+m = 8
+x = 16
+name = "nmi_c3"
+kind = "vector"
+
+[[entry]]
+addr = "C3:0529"
+m = 8
+x = 16
+name = "irq_c3"
+kind = "vector"
+
+# Installed by FD:EAF4
+[[entry]]
+addr = "FD:DE15"
+m = 8
+x = 16
+name = "nmi_fd"
+kind = "vector"
+
+[[entry]]
+addr = "FD:DE87"
+m = 8
+x = 16
+name = "irq_fd"
+kind = "vector"
