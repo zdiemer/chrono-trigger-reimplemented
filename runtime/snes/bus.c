@@ -151,7 +151,10 @@ static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
     }
     if (a >= 0x2180 && a <= 0x2183) {
         if (a == 0x2180) {
-            *wram_port_byte(bus) = v;
+            uint8_t *b = wram_port_byte(bus);
+            *b = v;
+            if (bus->wram_written)
+                bus->wram_written[b - bus->wram] = 1;
             bus->wram_port_addr = (bus->wram_port_addr + 1) & 0xFFFFFF;
         } else {
             unsigned shift = 8 * (unsigned)(a - 0x2181);
@@ -265,7 +268,11 @@ void snes_bus_write(void *ctx, uint32_t addr, uint8_t value)
     bus->clocks += access_clocks(bus, addr);
     bus->open_bus = value;
     switch (decode(bus, addr, &i)) {
-    case REGION_WRAM: bus->wram[i] = value; break;
+    case REGION_WRAM:
+        bus->wram[i] = value;
+        if (bus->wram_written)
+            bus->wram_written[i] = 1;
+        break;
     case REGION_SRAM: bus->sram[i] = value; break;
     case REGION_IO: write_io(bus, (uint16_t)i, value); break;
     default: break;

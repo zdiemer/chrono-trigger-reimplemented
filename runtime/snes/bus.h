@@ -64,6 +64,10 @@ typedef struct SnesBus {
 
     uint32_t wram_port_addr;   /* $2181-$2183: address for the $2180 WRAM data port */
 
+    /* Optional, SNES_WRAM_SIZE bytes: set to 1 for every WRAM byte the game
+     * writes. Lets traces be compared against emulators with random power-on RAM. */
+    uint8_t *wram_written;
+
     DmaChannel dma[8];
     uint8_t mdmaen;    /* last $420B write; the system runs the transfers */
 } SnesBus;

@@ -15,6 +15,7 @@ enum ct_region_id {
     CT_REGION_SRAM = 2,
     CT_REGION_CGRAM = 3,
     CT_REGION_OAM = 4,
+    CT_REGION_WRAMW = 5,   /* 1 per WRAM byte the game has written so far */
 };
 
 typedef struct {

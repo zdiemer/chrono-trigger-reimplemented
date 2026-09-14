@@ -125,13 +125,12 @@ checked against this development system running the original code, which is
 deterministic and must match exactly.
 
 To compare against bsnes, whose power-on RAM is randomized, compare only the
-WRAM bytes the game has written. The development system can report those.
+WRAM bytes the game has written: `ct_dev` traces carry a `WRAMW` region, and
+`tools/trace.py diff --written-only [--offset N]` uses it.
 
 ## Next
 
 1. **Movie coverage.** Record input movies past the title screen (new game,
    first map, a battle, the menu) and check them against the references.
 2. **Snes9x conventions.** Mirror or ignore its SRAM and CGRAM power-on fill.
-3. **Write-mask tooling.** Add a written-byte mask to `ct_dev` and
-   `tools/trace.py diff`, so masked bsnes comparisons are a supported workflow.
-4. **Start porting.** Begin replacing routines with native code (roadmap phase 4).
+3. **Start porting.** Begin replacing routines with native code (roadmap phase 4).

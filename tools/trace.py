@@ -244,7 +244,19 @@ def cmd_diff(args) -> int:
     if ta.rom_crc32 != tb.rom_crc32:
         print(f"warning: ROM CRC32 differs ({ta.rom_crc32:08X} vs {tb.rom_crc32:08X})", file=sys.stderr)
 
-    names = args.region or [r.name for r in ta.regions if any(r.name == q.name for q in tb.regions)]
+    names = args.region or [r.name for r in ta.regions
+                            if r.name != "WRAMW" and any(r.name == q.name for q in tb.regions)]
+
+    # --written-only: compare WRAM only where the game has written, using the
+    # WRAMW region (ct_dev) of whichever trace has one.
+    mask_side = None
+    if args.written_only:
+        for side, t in (("a", ta), ("b", tb)):
+            if any(r.name == "WRAMW" for r in t.regions):
+                mask_side = side
+                break
+        if mask_side is None:
+            raise SystemExit("--written-only needs a trace with a WRAMW region (ct_dev writes one)")
     pairs = []
     for name in names:
         ia, ib = ta.region_index(name), tb.region_index(name)
@@ -272,10 +284,10 @@ def cmd_diff(args) -> int:
     input_warned = False
 
     while fa is not None and fb_ is not None:
-        if fa.frame < fb_.frame:
+        if fa.frame + args.offset < fb_.frame:
             fa, ma = next(sa, (None, None))
             continue
-        if fb_.frame < fa.frame:
+        if fb_.frame < fa.frame + args.offset:
             fb_, mb = next(sb, (None, None))
             continue
         frame = fa.frame
@@ -295,6 +307,10 @@ def cmd_diff(args) -> int:
                 if fa.hashes[ia] == fb_.hashes[ib]:
                     continue
                 offs = list(diff_bytes(ma[ia], mb[ib], ignore.get(name, [])))
+                if mask_side and name == "WRAM":
+                    t, m = (ta, ma) if mask_side == "a" else (tb, mb)
+                    written = m[t.region_index("WRAMW")]
+                    offs = [o for o in offs if written[o]]
                 if offs:
                     region_diffs.append((name, ia, ib, offs))
             fb_differs = (fa.fb_width, fa.fb_height, fa.fb_hash) != (fb_.fb_width, fb_.fb_height, fb_.fb_hash)
@@ -304,7 +320,8 @@ def cmd_diff(args) -> int:
                 divergent_frames += 1
                 if not reported:
                     reported = True
-                    print(f"first divergence at frame {frame}")
+                    print(f"first divergence at frame {frame}" +
+                          (f" (b frame {frame + args.offset})" if args.offset else ""))
                     if fb_differs:
                         print(f"  framebuffer: {fa.fb_width}x{fa.fb_height} {fa.fb_hash:016x} vs "
                               f"{fb_.fb_width}x{fb_.fb_height} {fb_.fb_hash:016x}")
@@ -386,10 +403,14 @@ def main() -> int:
     p.add_argument("--region", action="append", help="region to compare (repeatable; default: all shared)")
     p.add_argument("--ignore", action="append", default=[],
                    help="address ranges to ignore, e.g. '$7E:0000-00FF' or 'VRAM:0000-01FF' (repeatable)")
-    p.add_argument("--frames", default=":", help="a:b inclusive frame range")
+    p.add_argument("--frames", default=":", help="a:b inclusive frame range (frames of trace a)")
+    p.add_argument("--offset", type=int, default=0, help="compare frame F of a with frame F+OFFSET of b")
     p.add_argument("--framebuffer", action="store_true", help="count framebuffer hash mismatches as divergence")
     p.add_argument("--max", type=int, default=32, help="differing addresses to list per region")
     p.add_argument("--keep-going", action="store_true", help="count all divergent frames")
+    p.add_argument("--written-only", action="store_true",
+                   help="compare WRAM only where the game has written (needs a ct_dev trace with WRAMW); "
+                        "use against cores that randomize power-on RAM")
     p.set_defaults(func=cmd_diff)
 
     p = sub.add_parser("dump", help="write one region at one frame as raw bytes")

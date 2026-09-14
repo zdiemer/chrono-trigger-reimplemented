@@ -145,6 +145,7 @@ Region descriptor, 16 bytes: `u8 id`, `u8 flags` (0), `u16 reserved`,
 | 2 | `SRAM` | 0x2000 | cartridge battery RAM (`$30:6000-7FFF` in HiROM) |
 | 3 | `CGRAM` | 0x200 | 256 BGR555 colors, little-endian: color *n* is bytes `2n`, `2n+1` |
 | 4 | `OAM` | 0x220 | 128 × 4-byte low table, then the 32-byte high table |
+| 5 | `WRAMW` | 0x20000 | `ct_dev` only: 1 for each WRAM byte the game has written so far |
 
 A producer only includes the regions it can read. `trace.py diff` compares the
 regions both traces have.
@@ -194,6 +195,7 @@ python3 tools/trace.py peek run.cttr '$7E:0003' --frames 1600:1700     # value w
 python3 tools/trace.py peek run.cttr CGRAM:0002 --len 2 --all          # every frame
 python3 tools/trace.py peek run.cttr 0x21 --region OAM
 python3 tools/trace.py diff a.cttr b.cttr --region WRAM --ignore '$7E:0000-00FF' --max 32
+python3 tools/trace.py diff bsnes.cttr dev.cttr --region WRAM --written-only --offset 1
 python3 tools/trace.py dump run.cttr --frame 1700 --region CGRAM -o traces/cgram.bin
 ```
 
@@ -205,6 +207,11 @@ python3 tools/trace.py dump run.cttr --frame 1700 --region CGRAM -o traces/cgram
   overlaps. It prints the first divergent frame and up to `--max` differing
   addresses per region. `--keep-going` counts every divergent frame. Frames
   whose region hashes match are skipped without comparing bytes.
+- **`--offset N`:** compares frame F of the first trace with frame F+N of the
+  second, for runs that settle a frame or more apart.
+- **`--written-only`:** compares WRAM only where the game has written, using
+  the `WRAMW` region of whichever trace has one. Use it against cores that
+  randomize power-on RAM, like bsnes.
 - **`dump`:** refuses to write inside the repository unless the path is gitignored.
 
 ## CGRAM and OAM

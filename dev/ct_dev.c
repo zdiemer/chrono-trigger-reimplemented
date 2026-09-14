@@ -151,10 +151,14 @@ int main(int argc, char **argv)
         { CT_REGION_SRAM, "SRAM", SNES_SRAM_SIZE },
         { CT_REGION_CGRAM, "CGRAM", 0x200 },
         { CT_REGION_OAM, "OAM", 0x220 },
+        { CT_REGION_WRAMW, "WRAMW", SNES_WRAM_SIZE },
     };
+    static uint8_t wram_written[SNES_WRAM_SIZE];
+    snes.bus.wram_written = wram_written;
     ct_trace_writer *trace = NULL;
     if (trace_path) {
-        trace = ct_trace_open(trace_path, ct_crc32(image, image_len), "ct_dev; interpreter", regions, 5);
+        trace = ct_trace_open(trace_path, ct_crc32(image, image_len), "ct_dev; interpreter", regions,
+                              (int)(sizeof regions / sizeof regions[0]));
         if (!trace) {
             fprintf(stderr, "cannot open %s\n", trace_path);
             return 1;
@@ -171,7 +175,8 @@ int main(int argc, char **argv)
                 cgram[i * 2] = snes.ppu.cgram[i] & 0xFF;
                 cgram[i * 2 + 1] = snes.ppu.cgram[i] >> 8;
             }
-            const uint8_t *data[] = { snes.bus.wram, snes.ppu.vram, snes.bus.sram, cgram, snes.ppu.oam };
+            const uint8_t *data[] = { snes.bus.wram, snes.ppu.vram, snes.bus.sram, cgram, snes.ppu.oam,
+                                      wram_written };
             uint64_t fb_hash = ct_framebuffer_hash(renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT);
             if (ct_trace_write_frame(trace, (uint32_t)frame, pad, data, RENDER_WIDTH, RENDER_HEIGHT, fb_hash) != 0) {
                 fprintf(stderr, "error writing trace\n");
