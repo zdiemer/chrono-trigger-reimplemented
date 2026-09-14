@@ -1,0 +1,28 @@
+# Power on, wait through the attract sequence, start a new game.
+# Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2400 4 A
+3000 4 START
+3200 4 START
+# Advance opening dialog with periodic A presses.
+5400 3 A
+5490 3 A
+5580 3 A
+5670 3 A
+5760 3 A
+5850 3 A
+5940 3 A
+6030 3 A
+6120 3 A
+6210 3 A
+6300 3 A
+6390 3 A
+6480 3 A
+6570 3 A
+6660 3 A
+6750 3 A
+6840 3 A
+6930 3 A
+7020 3 A
+7110 3 A

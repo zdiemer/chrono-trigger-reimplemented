@@ -116,6 +116,14 @@ handshake races that emulators resolve differently:
   that race Snes9x is the outlier, and the attract sequence ends up about 16
   frames behind ours.
 
+With `oracle/movies/new-game.ctm` (title, battle mode, name entry, the opening
+and the first dialog), the input resynchronizes both systems: after START,
+frames match Snes9x with no offset. Over frames 1800-5400, 3212 of 3233
+non-blank frames are pixel-identical to the same Snes9x frame. In the dialog
+section (5400-7200), 1354 of 1550 match, most of the rest within a frame or
+three. WRAM there differs only in frame-count and animation-timer bytes left
+over from the earlier timing offset.
+
 ## Validation strategy
 
 External emulators check that the hardware model is right. They aren't
@@ -130,7 +138,6 @@ WRAM bytes the game has written: `ct_dev` traces carry a `WRAMW` region, and
 
 ## Next
 
-1. **Movie coverage.** Record input movies past the title screen (new game,
-   first map, a battle, the menu) and check them against the references.
+1. **Movie coverage.** Extend movies to a battle, the menu and the world map.
 2. **Snes9x conventions.** Mirror or ignore its SRAM and CGRAM power-on fill.
 3. **Start porting.** Begin replacing routines with native code (roadmap phase 4).
