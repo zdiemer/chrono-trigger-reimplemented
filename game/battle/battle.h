@@ -29,6 +29,9 @@ void battle_update_low_hp_flag(Snes *s);
 void battle_update_status_flags(Snes *s);
 void battle_update_all_combatants(Snes *s);
 
+/* battle/tiles.c */
+void battle_decode_tile_row(Snes *s);
+
 /* battle/timers.c */
 void battle_tick_timers(Snes *s);
 void battle_dispatch_expired_timers(Snes *s);
@@ -56,6 +59,10 @@ void battle_restore_math_operands(Snes *s);
 void battle_irq_update_ca22(Snes *s);
 void battle_irq(Snes *s);
 void battle_irq_after_hblank(Snes *s);
+
+/* battle/scripts.c */
+void battle_run_script_channel(Snes *s);
+void battle_run_scripts(Snes *s);
 
 /* battle/sprites.c */
 void battle_draw_objects(Snes *s);

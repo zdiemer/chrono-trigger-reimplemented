@@ -475,6 +475,12 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         /* The callee unwound past its own return (discarding the caller's frame);
          * the rest of the routine never runs, natively or originally. */
         st->abandoned++;
+        if (st->abandoned == 1) {
+            char msg[128];
+            snprintf(msg, sizeof msg, "callee %06X unwound past its return: at %06X with S %04X above %04X",
+                     j->call_target, pc, s->cpu.s, j->call_s_after);
+            detail(rt, "abandoned", a->entry, msg);
+        }
         finish(rt);
         return true;
     }

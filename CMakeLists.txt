@@ -64,8 +64,10 @@ add_library(ct_game STATIC
   game/battle/math.c
   game/battle/nmi.c
   game/battle/objects.c
+  game/battle/scripts.c
   game/battle/sprites.c
   game/battle/stats.c
+  game/battle/tiles.c
   game/battle/timers.c
   game/battle/wait.c)
 target_include_directories(ct_game PUBLIC game)
