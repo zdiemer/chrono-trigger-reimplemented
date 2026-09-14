@@ -20,6 +20,13 @@ void battle_mark_object_grid(Snes *s);
 void battle_reset_0b40_table(Snes *s);
 void battle_clear_b328_table(Snes *s);
 
+/* battle/display.c */
+void battle_update_scroll_tables(Snes *s);
+void battle_update_scroll_tables_bg3_moving(Snes *s);
+
+/* battle/timers.c */
+void battle_tick_timers(Snes *s);
+
 /* battle/nmi.c */
 void battle_nmi(Snes *s);
 

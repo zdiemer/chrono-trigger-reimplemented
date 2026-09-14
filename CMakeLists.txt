@@ -33,6 +33,7 @@ target_include_directories(ct_runtime PUBLIC runtime)
 add_library(ct_game STATIC
   game/registry.c
   game/core/display.c
+  game/core/palette.c
   game/data/decompress.c
   game/event/animation.c
   game/event/arithmetic.c
@@ -57,8 +58,10 @@ add_library(ct_game STATIC
   game/menu/frame.c
   game/attract/main_loop.c
   game/battle/buffers.c
+  game/battle/display.c
   game/battle/nmi.c
   game/battle/sprites.c
+  game/battle/timers.c
   game/battle/wait.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)

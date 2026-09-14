@@ -3,6 +3,7 @@
 #include "attract/attract.h"
 #include "battle/battle.h"
 #include "core/display.h"
+#include "core/palette.h"
 #include "data/decompress.h"
 #include "event/event.h"
 #include "field/field.h"
@@ -35,6 +36,12 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC1003C, .name = "battle_wait_ca1f_loop", .fn = battle_wait_ca1f_loop, NEEDS_M8, .idle = true },
     { .addr = 0xD1FEB8, .name = "battle_irq_wait_hblank_loop", .fn = battle_irq_wait_hblank_loop, NEEDS_M8,
       .idle = true },
+    { .addr = 0xCD06C4, .name = "battle_update_scroll_tables", .fn = battle_update_scroll_tables,
+      .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 2530 },
+    { .addr = 0xCD076C, .name = "battle_update_scroll_tables_bg3_moving", .fn = battle_update_scroll_tables_bg3_moving,
+      .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 2530 },
+    { .addr = 0xC18231, .name = "battle_tick_timers", .fn = battle_tick_timers, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 3709 },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
       .cost_milli = 4344, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,
@@ -63,6 +70,12 @@ const NativeEntry game_natives[] = {
     /* core */
     { .addr = 0xC00B4E, .name = "display_blank_and_stop_interrupts", .fn = display_blank_and_stop_interrupts,
       NEEDS_M8, .cost_milli = 4107, .dont_care = DC_N | DC_Z },
+    { .addr = 0xFDE39C, .name = "palette_animate", .fn = palette_animate, NEEDS_M8_X16_BINARY,
+      .cost_milli = 8185 },
+    { .addr = 0xFDE82C, .name = "palette_animate_fade", .fn = palette_animate_fade, NEEDS_M8_X16_BINARY,
+      .cost_milli = 4118 },
+    { .addr = 0xFDE8D7, .name = "palette_fade_toward_white", .fn = palette_fade_toward_white,
+      NEEDS_M8_X16_BINARY, .cost_milli = 4874 },
 
     /* data */
     { .addr = 0xC30002, .name = "decompress", .fn = decompress, .cost_milli = 3953 },
