@@ -28,8 +28,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   PPU and CPU I/O register state, and the CPU-to-APU ports. Timing isn't
   compared. Calls interrupted by NMI/IRQ are counted but not compared. Any
   mismatch prints the first differing field and makes `ct_dev` exit nonzero.
-- **`on`:** registered routines run natively in place of the original, charged
-  the clock cost from the table.
+- **`on`:** registered routines run natively in place of the original. A native
+  routine finishes instantly, so the time the original would have taken is
+  charged afterwards, one scanline at a time, so frame boundaries and line
+  events still happen. Each call's cost is its own bus-access clocks times the
+  routine's `cost_milli`/1000, so cost tracks data size.
 
 ## Writing a port
 
@@ -45,7 +48,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
    8-bit A), so calls under other widths fall back to the interpreter.
 4. Run `--native shadow` over the movie library. Every call must match. Then
    run `--native on` and compare frames with the interpreter-only run.
-5. Set the table's clock cost from the average `shadow` reports.
+5. Set `cost_milli` from the `original/native-bus` ratio `shadow` reports.
 
 As more of a subsystem is ported, incidental effects no caller depends on can
 be dropped. Record that decision in the routine's comment, with the callers
@@ -59,7 +62,14 @@ everyone.
 | `c0_disable_display_and_interrupts` | `$C0:0B4E` | 17, all match |
 | `c0_install_field_nmi` | `$C0:0B64` | 10, all match |
 | `c0_install_field_irq` | `$C0:0B75` | 10, all match |
+| `c3_decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
 
-With all three running natively, all 7200 frames of the new-game movie are
-identical to the interpreter-only run. The validator catches injected bugs: a
-wrong flag and a missing stack write were each reported with the exact field.
+The validator catches injected bugs: a wrong flag and a missing stack write
+were each reported with the exact field. The first decompressor draft failed
+all 54 calls on one detail, flags set by the final `PLD`/`PLB`, and the report
+pointed straight at it.
+
+With all four running natively over the new-game movie, 5108 of 7200 frames
+are identical to the interpreter-only run at the same frame. Almost all of the
+rest (2088) are the same frames one frame earlier, from approximating the
+decompressor's time cost.

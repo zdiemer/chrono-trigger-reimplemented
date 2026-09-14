@@ -24,7 +24,9 @@ typedef struct NativeEntry {
     NativeFn fn;
     uint8_t p_mask;         /* entry precondition on P: (p & p_mask) == p_value */
     uint8_t p_value;
-    uint32_t clocks;        /* master clocks charged in ON mode (typical cost of the original) */
+    /* ON-mode time cost: the native routine's own bus-access clocks times
+     * cost_milli/1000. Shadow mode reports the original/native-bus ratio to set it. */
+    uint32_t cost_milli;
 } NativeEntry;
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
@@ -32,6 +34,8 @@ typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
 typedef struct NativeStats {
     unsigned calls, matched, mismatched, interrupted, skipped;
     uint64_t original_clocks;   /* summed over matched shadow calls */
+    uint64_t native_bus_clocks; /* bus-access clocks the native routine spent on those calls */
+    double min_ratio, max_ratio; /* per call: original clocks / native bus clocks */
 } NativeStats;
 
 typedef struct NativeRuntime NativeRuntime;

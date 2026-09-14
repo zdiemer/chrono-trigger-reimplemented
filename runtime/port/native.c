@@ -12,6 +12,7 @@ typedef struct Pending {
     uint16_t ret_s;        /* S and PC the original must return with */
     uint32_t ret_pc;
     uint64_t master_at_entry;
+    uint32_t native_bus_clocks;
     bool interrupted;
 } Pending;
 
@@ -23,6 +24,7 @@ struct NativeRuntime {
     uint8_t filter[0x2000];      /* bit per 16-bit address: some entry might be here */
     Pending pending[MAX_PENDING];
     int npending;
+    uint32_t debt;               /* ON mode: master clocks a native routine still owes */
     char details[MAX_DETAILS][256];
     int ndetails;
 };
@@ -192,7 +194,14 @@ static void finish_pending(NativeRuntime *rt, Snes *s, bool returned_normally)
             detail(rt, "mismatch", p->entry, why);
         } else {
             st->matched++;
-            st->original_clocks += s->master - p->master_at_entry;
+            uint64_t original = s->master - p->master_at_entry;
+            st->original_clocks += original;
+            st->native_bus_clocks += p->native_bus_clocks;
+            if (p->native_bus_clocks) {
+                double r = (double)original / p->native_bus_clocks;
+                if (st->matched == 1 || r < st->min_ratio) st->min_ratio = r;
+                if (st->matched == 1 || r > st->max_ratio) st->max_ratio = r;
+            }
         }
     }
     free(p->clone);
@@ -202,6 +211,15 @@ static int32_t intercept(void *ctx, Snes *s)
 {
     NativeRuntime *rt = ctx;
     uint32_t pc = cpu_pc24(&s->cpu);
+
+    /* A native routine finishes instantly but the original took time. Pay that
+     * time off a scanline at a time so frame boundaries and line events still
+     * happen while the routine "runs". */
+    if (rt->debt > 0) {
+        uint32_t spend = rt->debt < SNES_CLOCKS_PER_LINE ? rt->debt : SNES_CLOCKS_PER_LINE;
+        rt->debt -= spend;
+        return (int32_t)spend;
+    }
 
     /* Returns from routines under shadow validation. */
     while (rt->npending > 0) {
@@ -232,8 +250,12 @@ static int32_t intercept(void *ctx, Snes *s)
     }
 
     if (rt->mode == NATIVE_ON) {
+        uint32_t before = s->bus.clocks;
         e->fn(s);
-        return (int32_t)e->clocks;
+        uint64_t bus = s->bus.clocks - before;
+        s->bus.clocks = before;
+        rt->debt = (uint32_t)(bus * e->cost_milli / 1000);
+        return 0;
     }
 
     if (rt->npending == MAX_PENDING) {
@@ -244,7 +266,9 @@ static int32_t intercept(void *ctx, Snes *s)
     p->entry = e;
     p->clone = malloc(sizeof *p->clone);
     snes_clone(p->clone, s);
+    p->clone->bus.clocks = 0;
     e->fn(p->clone);
+    p->native_bus_clocks = p->clone->bus.clocks;
     p->ret_s = p->clone->cpu.s;
     p->ret_pc = cpu_pc24(&p->clone->cpu);
     p->master_at_entry = s->master;
@@ -275,6 +299,9 @@ void native_report(const NativeRuntime *rt, FILE *out)
             if (st->matched)
                 fprintf(out, "  avg original clocks %llu",
                         (unsigned long long)(st->original_clocks / st->matched));
+            if (st->native_bus_clocks)
+                fprintf(out, "  original/native-bus %.3f (%.3f-%.3f)",
+                        (double)st->original_clocks / st->native_bus_clocks, st->min_ratio, st->max_ratio);
         }
         if (st->skipped)
             fprintf(out, "  skipped %u", st->skipped);

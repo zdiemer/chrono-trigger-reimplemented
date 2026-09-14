@@ -10,6 +10,9 @@ void c0_disable_display_and_interrupts(Snes *s);
 void c0_install_field_nmi(Snes *s);
 void c0_install_field_irq(Snes *s);
 
+/* game/c3_decompress.c */
+void c3_decompress(Snes *s);
+
 extern const NativeEntry game_natives[];
 extern const int game_native_count;
 
