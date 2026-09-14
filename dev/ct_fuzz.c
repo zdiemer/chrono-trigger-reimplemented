@@ -11,9 +11,9 @@
  * native routine runs on a copy (call-outs interpreted synchronously). The
  * machines are compared where the native routine left off, normally the
  * return, as in shadow mode and ignoring the routine's don't-care set. Nothing
- * advances time, and interrupts don't happen. States where the original doesn't
- * return within --step-limit instructions (default 100000), or the native
- * routine's call-outs together run more than that, are skipped.
+ * advances time, and interrupts don't happen. States where the native
+ * routine's call-outs together run more than --step-limit instructions (default
+ * 100000), or the original doesn't get back within four times that, are skipped.
  *
  * --keep leaves a WRAM range (bus addresses in $7E/$7F) as it is in the base
  * state, for routines that need some structure intact. --range A|X|Y=lo-hi
@@ -84,10 +84,13 @@ static void abandon_native(void)
     fiber_switch(fiber_main());
 }
 
-/* Run the interpreter until PC and S are back at the return sentinel. */
+/* Run the interpreter until PC and S are back at the return sentinel. The
+ * original gets four times the call-outs' budget: it also runs the
+ * instructions the native routine did itself, so on a state where the
+ * call-outs came close to the limit, the original alone can pass it. */
 static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s)
 {
-    for (unsigned long steps = 0; steps < step_limit; steps++) {
+    for (unsigned long steps = 0; steps < 4 * step_limit; steps++) {
         if (cpu_pc24(&s->cpu) == ret_pc && s->cpu.s == ret_s)
             return true;
         s->cpu.nmi_pending = false;

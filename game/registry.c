@@ -42,6 +42,8 @@ const NativeEntry game_natives[] = {
       .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 2530 },
     { .addr = 0xC18231, .name = "battle_tick_timers", .fn = battle_tick_timers, .p_mask = CPU_FLAG_X,
       .p_value = 0, .cost_milli = 3709 },
+    { .addr = 0xC18290, .name = "battle_dispatch_expired_timers", .fn = battle_dispatch_expired_timers,
+      NEEDS_M8_X16_BINARY, .cost_milli = 3779 },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
       .cost_milli = 4344, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,

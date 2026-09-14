@@ -26,6 +26,7 @@ void battle_update_scroll_tables_bg3_moving(Snes *s);
 
 /* battle/timers.c */
 void battle_tick_timers(Snes *s);
+void battle_dispatch_expired_timers(Snes *s);
 
 /* battle/nmi.c */
 void battle_nmi(Snes *s);
