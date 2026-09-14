@@ -139,6 +139,8 @@ void event_cmd_move_with_velocity(Snes *s);                   /* $7B */
 void event_cmd_show_object_sprite(Snes *s);  /* $7C */
 void event_cmd_hide_object_sprite(Snes *s);  /* $7D */
 void event_cmd_set_sprite_flag_80(Snes *s);  /* $7E */
+void event_cmd_set_1b01(Snes *s);            /* $84 */
+void event_cmd_set_step_count(Snes *s);      /* $87 */
 void event_cmd_set_1a00(Snes *s);            /* $89 */
 void event_cmd_set_1a00_from_variable(Snes *s);  /* $8A */
 void event_cmd_set_tile_position(Snes *s);   /* $8B */

@@ -147,6 +147,8 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC04CEC, event_cmd_show_object_sprite),
     EVENT_CMD(0xC04CF9, event_cmd_hide_object_sprite),
     EVENT_CMD(0xC04CE6, event_cmd_set_sprite_flag_80),
+    EVENT_CMD(0xC04867, event_cmd_set_1b01),
+    EVENT_CMD(0xC04876, event_cmd_set_step_count),
     EVENT_CMD(0xC04B49, event_cmd_set_1a00),
     EVENT_CMD(0xC04B58, event_cmd_set_1a00_from_variable),
     EVENT_CMD(0xC04B74, event_cmd_set_tile_position),

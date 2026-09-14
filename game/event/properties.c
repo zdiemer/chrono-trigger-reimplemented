@@ -58,6 +58,33 @@ void event_cmd_set_1a00_from_variable(Snes *s)
     next1(s);
 }
 
+// $C0:4867
+/* $84: set this object's $1B01 byte to operand 1. */
+void event_cmd_set_1b01(Snes *s)
+{
+    uint8_t v = load_operand(s);
+    ldx_current_object(s);
+    set8(s, 0x1B01, v);
+    iny_tyx_sec_rts(s);
+}
+
+// $C0:4876
+/* $87: set this object's $1000 and $1001 bytes to operand 1 + 1, keeping bit
+ * 7 of $1000 (the flag calls check). $1000 is also the step count moves start
+ * with. */
+void event_cmd_set_step_count(Snes *s)
+{
+    uint8_t v = load_operand(s);
+    ldx_current_object(s);
+    v = m_lda8(s, (uint8_t)(v + 1));
+    m_write8(s, m_dp(s, 0xD9), v);
+    uint8_t flag = m_lda8(s, get8(s, 0x1000) & 0x80);
+    v = m_lda8(s, (uint8_t)(flag | m_read8(s, m_dp(s, 0xD9))));
+    set8(s, 0x1000, v);
+    set8(s, 0x1001, v);
+    next1(s);
+}
+
 /* With X = tile index (Y << 8 | X) into the map attribute tables at $7E:7000
  * and $7E:7040: bit 6 of each picks sprite priority $30 over $20, for $0C00,X
  * (from $7E:7040) and $0C01,X (from $7E:7000) of this object. */
