@@ -61,6 +61,7 @@ class Analyzer:
         self.assume_returns = assume_returns
         self.coverage = coverage or {}                   # executed addr -> {(m, x)}
         self.coverage_seeded: set = set()                # executed addrs static tracing missed
+        self.coverage_pruned: set = set()                # (return addr, widths) contradicted by coverage
         self.contexts: dict[tuple, Context] = {}
         self.code: dict[int, dict[Widths, Insn]] = defaultdict(dict)
         self.labels: dict[int, set] = defaultdict(set)   # bus addr -> {"sub","loc","jt"}
@@ -103,6 +104,12 @@ class Analyzer:
             _, caller_key, resume_pc, st = waiter
             m = st.m if widths[0] is None else widths[0]
             x = st.x if widths[1] is None else widths[1]
+            observed = self.coverage.get(resume_pc)
+            if observed is not None and (m, x) not in observed:
+                # The return address ran, but never with these widths: this
+                # return path is a static over-approximation for this call site.
+                self.coverage_pruned.add((resume_pc, (m, x)))
+                return
             self.work.append((caller_key, resume_pc, State(m, x, None, st.ps)))
         else:
             _, caller_key = waiter

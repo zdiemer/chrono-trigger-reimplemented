@@ -22,9 +22,18 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 3000 --movie oracle/movies/titl
 python3 -m tools.disasm --coverage traces/coverage-title.txt   # repeatable
 ```
 
-Executed addresses that static tracing didn't reach seed new contexts with
-their observed widths. Executed addresses that static tracing decoded with
-different widths are listed in the report as errors to fix with hints.
+Coverage is used three ways:
+
+- **Seeds.** Executed addresses that static tracing didn't reach start new
+  contexts with their observed widths.
+- **Return pruning.** When a callee statically returns with widths that its
+  return address never ran with, that continuation is dropped for that call
+  site and listed in the report. These entries point at the root of width
+  over-approximation (a callee with a path that leaves M or X changed only
+  under conditions the run never hit, or never at all), which is worth
+  confirming and pinning with a `returns` hint.
+- **Conflicts.** Executed addresses still decoded statically with different
+  widths are listed as errors to fix with hints.
 
 | Output | Contents |
 |---|---|

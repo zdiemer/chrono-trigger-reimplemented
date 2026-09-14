@@ -131,6 +131,26 @@ class Analysis(unittest.TestCase):
         an2.run()
         self.assertIn(0xC08010, an2.coverage_conflicts())
 
+    def test_coverage_prunes_return_widths_that_never_ran(self):
+        # C0:8000 JSR $8010 ; LDA #$12 ; RTS
+        # C0:8010 BEQ +2 ; RTS ; REP #$20 ; RTS    returns m8 or m16 statically
+        code = {
+            0xC08000: bytes.fromhex("201080A91260"),
+            0xC08010: bytes.fromhex("F00160C22060"),
+        }
+        h = Hints()
+        h.entries.append(type("E", (), {"addr": 0xC08000, "m": True, "x": True, "kind": "test"})())
+        static = Analyzer(FakeRom(code), h)
+        static.run()
+        self.assertIn(0xC08003, static.width_conflicts())
+
+        h = Hints()
+        h.entries.append(type("E", (), {"addr": 0xC08000, "m": True, "x": True, "kind": "test"})())
+        guided = Analyzer(FakeRom(code), h, coverage={0xC08003: {(True, True)}})
+        guided.run()
+        self.assertEqual(guided.coverage_pruned, {(0xC08003, (False, True))})
+        self.assertFalse(guided.width_conflicts())
+
     def test_jump_table_bounded_by_following_code(self):
         # C0:8000 ASL ; TAX ; JMP ($8005,X)
         # C0:8005 table: $8009, $800A

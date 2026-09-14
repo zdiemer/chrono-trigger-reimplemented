@@ -90,6 +90,7 @@ def write_report(an: Analyzer, out: Path) -> str:
             f"- executed addresses (coverage): {executed}, "
             f"{executed - len(an.coverage_seeded)} found statically, {len(an.coverage_seeded)} seeded",
             f"- static decodes contradicted by coverage: {len(an.coverage_conflicts())}",
+            f"- call returns pruned by coverage: {len(an.coverage_pruned)}",
         ]
     lines.append("")
     summary = "\n".join(lines)
@@ -125,6 +126,8 @@ def write_report(an: Analyzer, out: Path) -> str:
     if an.coverage:
         section("Coverage seeds (executed, not reached statically)", [
             f"- {fmt(a)}" for a in sorted(an.coverage_seeded)])
+        section("Call returns pruned by coverage (return address never ran with these widths)", [
+            f"- return to {fmt(a)} with {describe_widths(w)}" for a, w in sorted(an.coverage_pruned)])
         section("Static decodes contradicted by coverage", [
             f"- {fmt(a)}: ran as " + ", ".join(describe_widths(w) for w in sorted(obs, key=str)) + "; decoded as "
             + ", ".join(f"[{describe_widths(w)}] {i.text()}" for w, i in wrong.items())
