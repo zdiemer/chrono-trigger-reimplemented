@@ -15,6 +15,9 @@ void field_nmi(Snes *s);
 /* field/frame.c */
 void field_wait_for_frame_loop(Snes *s);
 
+/* field/events.c */
+void field_run_object_init_scripts(Snes *s);
+
 /* field/objects.c */
 void field_update_object_visibility(Snes *s);
 

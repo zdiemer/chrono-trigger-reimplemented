@@ -16,12 +16,13 @@ by what it does; move routines when their purpose becomes clearer.
 |---|---|
 | `game/core/` | System code shared by every mode (display and interrupt control) |
 | `game/data/` | Data handling (the decompressor) |
-| `game/field/` | Field mode: interrupt handlers, frame sync, objects |
+| `game/field/` | Field mode: interrupt handlers, frame sync, objects, event scripts |
 | `game/menu/` | Menu mode: frame sync |
 | `game/attract/` | Attract sequence and title screen code the game runs from RAM |
 | `game/registry.c` | Table registering each routine: address, name, entry precondition on P, don't-care set, and time cost in ON mode |
 | `runtime/port/machine.h` | Helpers for touching the machine the way the original does: bus reads and writes, stack, returns, flags |
-| `runtime/port/native.c` | Registry, interception, shadow validation, reporting |
+| `runtime/port/native.c` | Registry, interception, call-outs, shadow validation, reporting |
+| `runtime/port/fiber.c` | Coroutines native routines run on, so call-outs can suspend them |
 
 ## Modes
 
@@ -58,6 +59,41 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   events still happen. Each call's cost is its own bus-access clocks times the
   routine's `cost_milli`/1000, so cost tracks data size.
 
+## Call-outs
+
+A port calls code that isn't ported yet with `m_jsr`/`m_jsl`, giving the
+original call site. The call doesn't run inside the native routine. The
+routine runs on its own coroutine (`runtime/port/fiber.c`); a call-out pushes
+the same return address the JSR/JSL would, points PC at the callee, and
+suspends. The system loop then runs the callee like any other code: time
+passes, interrupts and frames happen, and a ported callee runs natively. When
+the callee returns to the call's return address with the stack as it was, the
+routine resumes. So a port may call code that waits for frames (event command
+handlers, fades), and ports can nest.
+
+In `shadow` mode the native routine runs on the clone up to its first
+call-out. The machines are compared when the original reaches the same call
+(same target and stack pointer), as well as at the return. While the callee
+runs, only the original machine moves. When it returns, the clone is reloaded
+from it, and the native routine continues to the next call or its return. A
+port is thus checked at every call it makes, not just at the end. That makes
+`shadow` strict about registers passed to callees; `m_jsr_dc`/`m_jsl_dc` name
+registers and flags a callee doesn't read. An interrupt in the stretch before a
+checkpoint skips that one comparison, and later stretches are still checked.
+
+If a callee unwinds past its return address (discarding its caller's frame),
+the native routine is abandoned, since the original's continuation never runs
+either. The report counts these.
+
+A port doesn't have to run to the end. It can stop at any instruction boundary
+in the original by setting PC (and PB) there and returning. The interpreter
+carries on from there, and `shadow` checks that the original reaches that
+point with the same stack pointer. That covers routines that end by jumping
+rather than returning, and states a port doesn't handle yet.
+
+Save states can't capture a routine suspended in a call-out; `ct_dev` warns
+when `--save-state` is used while one is.
+
 ## Writing a port
 
 1. Refresh the analysis with runtime call edges, so liveness knows every caller:
@@ -75,8 +111,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
    stack bytes from push/pull), I/O writes, and every register and flag that
    isn't dead after return. Use the data bank and direct page as the original
    does (`m_abs`, `m_dp`), not hard-coded banks. Call routines that aren't
-   ported yet with `m_jsr`/`m_jsl`, giving the original call site, and make sure
-   registers and flags are exactly what the callee expects at that point.
+   ported yet with `m_jsr`/`m_jsl`, giving the original call site. Registers
+   and flags must be exactly what the original has at that point (see
+   Call-outs).
 4. Register it in `game/registry.c` with its entry precondition (for example
    8-bit A and binary mode) and its don't-care set, so calls under other
    conditions fall back to the interpreter.
@@ -96,6 +133,7 @@ new parts of the game, before relaxing a routine further.
 | `display_blank_and_stop_interrupts` | `$C0:0B4E` | 17, all match |
 | `field_install_nmi` | `$C0:0B64` | 10, all match |
 | `field_install_irq` | `$C0:0B75` | 10, all match |
+| `field_run_object_init_scripts` | `$C0:58DE` → `$C0:9DC3` | runs at map load; all calls match in every movie (7-10 per movie). Event command handlers, some waiting for frames, run as call-outs |
 | `field_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
 | `field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
 | `decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
@@ -118,12 +156,12 @@ identically. In the field movie, where walking is sensitive to that, 8658 of
 11400 frames also appear in the interpreter-only run. Use shadow mode, not
 `on` mode, to judge correctness.
 
-A first attempt at the event script loop that runs each object's
-initialization block (`$C0:58DE`) didn't work as a run-to-completion port.
-Some event command handlers wait for frames to pass, and inside a call-out no
-time passes, so the handler at `$C0:3C11` spun until the call-out step limit.
-Ports that contain frame waits need a way to yield back to the system loop
-and resume. That comes before porting the event engine.
+A first attempt at the event script loop that runs each object's init script
+(`$C0:58DE`) predated suspending call-outs. Back then a call-out interpreted
+its callee on the spot with no time passing, so a handler waiting for a frame
+spun forever. With call-outs running in the system loop, the same port matches
+on every call. Shadow mode caught its one bug at the first call-out: `ASL A`'s
+result wasn't stored back into A before calling a handler.
 
 The object visibility port first failed 7108 of its calls on HDMA's line
 counter and then 41 on HDMA-written PPU registers: state that moves with time

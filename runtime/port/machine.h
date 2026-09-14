@@ -108,6 +108,19 @@ static inline uint8_t m_asl8(Snes *s, uint8_t v)
     return (uint8_t)(v << 1);
 }
 
+static inline void m_cmp16(Snes *s, uint16_t reg, uint16_t v)
+{
+    m_set_flag(s, CPU_FLAG_C, reg >= v);
+    m_set_nz16(s, (uint16_t)(reg - v));
+}
+
+static inline uint16_t m_asl16(Snes *s, uint16_t v)
+{
+    m_set_flag(s, CPU_FLAG_C, v & 0x8000);
+    m_set_nz16(s, (uint16_t)(v << 1));
+    return (uint16_t)(v << 1);
+}
+
 /* REP/SEP, including their effect on register widths. */
 static inline void m_rep(Snes *s, uint8_t bits) { s->cpu.p &= (uint8_t)~bits; }
 static inline void m_sep(Snes *s, uint8_t bits)
@@ -179,8 +192,18 @@ static inline bool m_code_matches(Snes *s, uint32_t addr, uint16_t len, uint64_t
 }
 
 /* Call another routine from a native one, as the JSR (3-byte) or JSL (4-byte)
- * instruction at `site` would. */
+ * instruction at `site` would. The callee may take any number of frames (see
+ * native_call). The _dc forms name registers and flags the callee doesn't read,
+ * which shadow validation then doesn't compare at the call. */
 static inline void m_jsr(Snes *s, uint32_t site, uint32_t target) { native_call(s, site, target, false); }
 static inline void m_jsl(Snes *s, uint32_t site, uint32_t target) { native_call(s, site, target, true); }
+static inline void m_jsr_dc(Snes *s, uint32_t site, uint32_t target, uint16_t dont_care)
+{
+    native_call_dc(s, site, target, false, dont_care);
+}
+static inline void m_jsl_dc(Snes *s, uint32_t site, uint32_t target, uint16_t dont_care)
+{
+    native_call_dc(s, site, target, true, dont_care);
+}
 
 #endif

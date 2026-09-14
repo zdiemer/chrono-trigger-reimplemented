@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fiber.h"
+
 static void push8_raw(Snes *s, uint8_t v)
 {
     snes_bus_write(&s->bus, s->cpu.s, v);
@@ -15,18 +17,94 @@ static void push16_raw(Snes *s, uint16_t v)
     push8_raw(s, v & 0xFF);
 }
 
-#define MAX_PENDING 32
+#define MAX_ACTIVE 32
 #define MAX_DETAILS 16
 
-typedef struct Pending {
+/* ---- jobs: native routines running on their own stacks ------------------------ */
+
+typedef enum { JOB_RUNNING, JOB_CALLING, JOB_DONE } JobState;
+
+/* A native routine in progress. It runs on a fiber so that calling code that
+ * isn't ported (m_jsr/m_jsl) can suspend it: the call is set up on the machine,
+ * control goes back to the system loop, the interpreter runs the callee with
+ * time passing as usual, and the routine resumes once the callee returns. */
+typedef struct Job {
+    Fiber *fiber;
     const NativeEntry *entry;
-    Snes *clone;           /* machine after the native routine ran */
-    uint16_t ret_s;        /* S and PC the original must return with */
+    Snes *m;               /* machine the routine runs on */
+    JobState state;
+    uint32_t call_target;  /* JOB_CALLING: the call it made */
+    uint32_t call_ret;     /* where the callee returns to, and S after it has */
+    uint16_t call_s_after;
+    uint16_t call_dont_care;
+    struct Job *next_free;
+} Job;
+
+static Job *current_job;
+static Job *free_jobs;
+
+static void job_body(void *arg)
+{
+    Job *j = arg;
+    for (;;) {
+        j->entry->fn(j->m);
+        j->state = JOB_DONE;
+        fiber_switch(fiber_main());
+    }
+}
+
+static Job *job_get(void)
+{
+    Job *j = free_jobs;
+    if (j) {
+        free_jobs = j->next_free;
+        return j;
+    }
+    j = calloc(1, sizeof *j);
+    j->fiber = fiber_create(job_body, j);
+    return j;
+}
+
+static void job_put(Job *j) { j->next_free = free_jobs, free_jobs = j; }
+
+/* A suspended job whose continuation will never run: its stack can't be
+ * unwound, so retire the fiber. */
+static void job_abandon(Job *j)
+{
+    fiber_destroy(j->fiber);
+    free(j);
+}
+
+/* Run a job until it finishes or makes a call-out. */
+static void job_run(Job *j)
+{
+    Job *outer = current_job;
+    current_job = j;
+    j->state = JOB_RUNNING;
+    fiber_switch(j->fiber);
+    current_job = outer;
+}
+
+/* ---- runtime ------------------------------------------------------------------ */
+
+typedef enum {
+    PH_SEGMENT,   /* native code ran up to a call or return; the original is catching up */
+    PH_CALLOUT,   /* both are inside a callee the native routine called */
+} Phase;
+
+/* A registered routine that has been entered and not yet left. */
+typedef struct Active {
+    const NativeEntry *entry;
+    Job *job;              /* NULL once the native routine has returned */
+    Phase phase;
+    Snes *clone;           /* SHADOW: the machine the native routine runs on */
+    uint16_t entry_s;
+    uint16_t ret_s;        /* after the native routine returned: S and PC the original must match */
     uint32_t ret_pc;
-    uint64_t master_at_entry;
-    uint32_t native_bus_clocks;
-    bool interrupted;
-} Pending;
+    uint64_t segment_start;
+    uint32_t segment_bus_clocks;
+    bool segment_interrupted, interrupted, mismatched;
+} Active;
 
 struct NativeRuntime {
     const NativeEntry *table;
@@ -34,16 +112,14 @@ struct NativeRuntime {
     NativeMode mode;
     NativeStats *stats;
     uint8_t filter[0x2000];      /* bit per 16-bit address: some entry might be here */
-    Pending pending[MAX_PENDING];
-    int npending;
-    uint32_t debt;               /* ON mode: master clocks a native routine still owes */
-    char details[MAX_DETAILS][256];
+    Active active[MAX_ACTIVE];
+    int nactive;
+    uint32_t debt;               /* ON mode: master clocks native code still owes */
+    char details[MAX_DETAILS][400];
     int ndetails;
 };
 
-static const NativeRuntime *active_runtime;   /* for native_call */
-
-/* ---- registry --------------------------------------------------------------- */
+static const NativeRuntime *active_runtime;   /* for synchronous native_call */
 
 static int entry_cmp(const void *a, const void *b)
 {
@@ -69,18 +145,31 @@ NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mod
     return rt;
 }
 
+static void active_pop(NativeRuntime *rt)
+{
+    Active *a = &rt->active[--rt->nactive];
+    if (a->job) {
+        job_abandon(a->job);
+        a->job = NULL;
+    }
+    free(a->clone);
+    a->clone = NULL;
+}
+
 void native_destroy(NativeRuntime *rt)
 {
     if (!rt)
         return;
     if (active_runtime == rt)
         active_runtime = NULL;
-    for (int i = 0; i < rt->npending; i++)
-        free(rt->pending[i].clone);
+    while (rt->nactive > 0)
+        active_pop(rt);
     free((void *)rt->table);
     free(rt->stats);
     free(rt);
 }
+
+int native_suspended(const NativeRuntime *rt) { return rt->nactive; }
 
 static int find_entry(const NativeRuntime *rt, uint32_t pc)
 {
@@ -110,12 +199,11 @@ static bool entry_applies(const NativeEntry *e, Snes *s)
 
 /* ---- comparison --------------------------------------------------------------- */
 
-static void detail(NativeRuntime *rt, const char *fmt_prefix, const NativeEntry *e, const char *what)
+static void detail(NativeRuntime *rt, const char *prefix, const NativeEntry *e, const char *what)
 {
     if (rt->ndetails >= MAX_DETAILS)
         return;
-    snprintf(rt->details[rt->ndetails++], sizeof rt->details[0], "%s %06X %s: %s", fmt_prefix, e->addr, e->name,
-             what);
+    snprintf(rt->details[rt->ndetails++], sizeof rt->details[0], "%s %06X %s: %s", prefix, e->addr, e->name, what);
 }
 
 static bool diff_bytes(char *out, size_t n, const char *name, const uint8_t *a, const uint8_t *b, size_t size)
@@ -255,33 +343,140 @@ static bool interrupt_deliverable(const Snes *s)
     return s->cpu.nmi_pending || (s->cpu.irq_line && !(s->cpu.p & CPU_FLAG_I));
 }
 
-static void finish_pending(NativeRuntime *rt, Snes *s, bool returned_normally)
+static NativeStats *stats_of(NativeRuntime *rt, const Active *a) { return &rt->stats[a->entry - rt->table]; }
+
+/* Close a segment of original execution that native code stood in for. */
+static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
 {
-    Pending *p = &rt->pending[--rt->npending];
-    NativeStats *st = &rt->stats[p->entry - rt->table];
-    if (p->interrupted) {
-        st->interrupted++;
-    } else if (!returned_normally) {
-        st->mismatched++;
-        detail(rt, "mismatch", p->entry, "original left the routine without returning where the native one did");
-    } else {
-        char why[200];
-        if (machines_differ(s, p->clone, p->entry->dont_care, why, sizeof why)) {
-            st->mismatched++;
-            detail(rt, "mismatch", p->entry, why);
-        } else {
-            st->matched++;
-            uint64_t original = s->master - p->master_at_entry;
-            st->original_clocks += original;
-            st->native_bus_clocks += p->native_bus_clocks;
-            if (p->native_bus_clocks) {
-                double r = (double)original / p->native_bus_clocks;
-                if (st->matched == 1 || r < st->min_ratio) st->min_ratio = r;
-                if (st->matched == 1 || r > st->max_ratio) st->max_ratio = r;
-            }
-        }
+    NativeStats *st = stats_of(rt, a);
+    st->original_clocks += s->master - a->segment_start;
+    st->native_bus_clocks += a->segment_bus_clocks;
+}
+
+static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, const char *where)
+{
+    if (a->segment_interrupted) {
+        a->interrupted = true;
+        return;
     }
-    free(p->clone);
+    char why[200], msg[256];
+    if (machines_differ(s, a->clone, dont_care, why, sizeof why)) {
+        a->mismatched = true;
+        snprintf(msg, sizeof msg, "%s: %s", where, why);
+        detail(rt, "mismatch", a->entry, msg);
+    }
+}
+
+static void finish(NativeRuntime *rt)
+{
+    Active *a = &rt->active[rt->nactive - 1];
+    NativeStats *st = stats_of(rt, a);
+    if (rt->mode == NATIVE_SHADOW) {
+        if (a->mismatched)
+            st->mismatched++;
+        else if (a->interrupted)
+            st->interrupted++;
+        else
+            st->matched++;
+    }
+    active_pop(rt);
+}
+
+/* After running native code for `a`: account for it and record where it stopped. */
+static void after_run(NativeRuntime *rt, Active *a, Snes *s)
+{
+    Job *j = a->job;
+    Snes *m = j->m;
+    if (rt->mode == NATIVE_ON) {
+        rt->debt += (uint32_t)((uint64_t)m->bus.clocks * a->entry->cost_milli / 1000);
+        m->bus.clocks = 0;
+    } else {
+        a->segment_bus_clocks = m->bus.clocks;
+        a->segment_start = s->master;
+        a->segment_interrupted = false;
+    }
+    if (j->state == JOB_DONE) {
+        job_put(j);
+        a->job = NULL;
+        a->ret_s = m->cpu.s;
+        a->ret_pc = cpu_pc24(&m->cpu);
+    }
+    a->phase = rt->mode == NATIVE_ON ? PH_CALLOUT : PH_SEGMENT;
+    if (rt->mode == NATIVE_ON && !a->job)
+        finish(rt);
+}
+
+/* Check the innermost active routine against where the machine is now.
+ * Returns true if it changed (so the next one may need checking). */
+static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
+{
+    Active *a = &rt->active[rt->nactive - 1];
+    NativeStats *st = stats_of(rt, a);
+
+    if (a->phase == PH_SEGMENT) {   /* SHADOW only */
+        if (!a->job) {
+            if (s->cpu.s == a->ret_s && pc == a->ret_pc) {
+                end_segment(rt, a, s);
+                compare(rt, a, s, a->entry->dont_care, "at return");
+                finish(rt);
+                return true;
+            }
+            if (s->cpu.s > a->ret_s) {
+                a->mismatched = true;
+                detail(rt, "mismatch", a->entry, "original left the routine without returning where the native one did");
+                finish(rt);
+                return true;
+            }
+            return false;
+        }
+        const Job *j = a->job;
+        if (pc == j->call_target && s->cpu.s == a->clone->cpu.s) {
+            char where[48];
+            snprintf(where, sizeof where, "at call to %06X", j->call_target);
+            end_segment(rt, a, s);
+            compare(rt, a, s, j->call_dont_care, where);
+            a->phase = PH_CALLOUT;
+            return false;
+        }
+        if (s->cpu.s > a->entry_s + 1) {
+            char msg[96];
+            snprintf(msg, sizeof msg, "original returned without the call to %06X the native routine made",
+                     j->call_target);
+            a->mismatched = true;
+            detail(rt, "mismatch", a->entry, msg);
+            finish(rt);
+            return true;
+        }
+        return false;
+    }
+
+    /* PH_CALLOUT: waiting for the callee to return. */
+    const Job *j = a->job;
+    if (s->cpu.s == j->call_s_after && pc == j->call_ret) {
+        if (interrupt_deliverable(s))
+            return false;   /* resume after the interrupt returns here */
+        if (rt->mode == NATIVE_SHADOW) {
+            Snes *clone = a->clone;
+            snes_clone(clone, s);
+            clone->bus.clocks = 0;
+            a->job->m = clone;
+        } else {
+            s->bus.clocks = 0;
+        }
+        job_run(a->job);
+        after_run(rt, a, s);
+        if (rt->mode == NATIVE_ON)
+            *result = 0;   /* the machine moved; look again before interpreting */
+        return true;
+    }
+    if (s->cpu.s > j->call_s_after) {
+        /* The callee unwound past its own return (discarding the caller's frame);
+         * the rest of the routine never runs, natively or originally. */
+        st->abandoned++;
+        finish(rt);
+        return true;
+    }
+    return false;
 }
 
 static int32_t intercept(void *ctx, Snes *s)
@@ -289,29 +484,26 @@ static int32_t intercept(void *ctx, Snes *s)
     NativeRuntime *rt = ctx;
     uint32_t pc = cpu_pc24(&s->cpu);
 
-    /* A native routine finishes instantly but the original took time. Pay that
-     * time off a scanline at a time so frame boundaries and line events still
-     * happen while the routine "runs". */
+    /* Native code finishes instantly but the original took time. Pay that time
+     * off a scanline at a time so frame boundaries and line events still happen
+     * while the routine "runs". */
     if (rt->debt > 0) {
         uint32_t spend = rt->debt < SNES_CLOCKS_PER_LINE ? rt->debt : SNES_CLOCKS_PER_LINE;
         rt->debt -= spend;
         return (int32_t)spend;
     }
 
-    /* Returns from routines under shadow validation. */
-    while (rt->npending > 0) {
-        Pending *top = &rt->pending[rt->npending - 1];
-        if (s->cpu.s == top->ret_s && pc == top->ret_pc)
-            finish_pending(rt, s, true);
-        else if (s->cpu.s > top->ret_s)
-            finish_pending(rt, s, false);
-        else
-            break;
+    int32_t result = -1;
+    while (rt->nactive > 0 && check_top(rt, s, pc, &result)) {
+        if (result >= 0)
+            return result;
     }
 
     if (interrupt_deliverable(s)) {
-        for (int i = 0; i < rt->npending; i++)
-            rt->pending[i].interrupted = true;
+        for (int i = 0; i < rt->nactive; i++) {
+            if (rt->active[i].phase == PH_SEGMENT)
+                rt->active[i].segment_interrupted = true;
+        }
         return -1;
     }
 
@@ -337,36 +529,33 @@ static int32_t intercept(void *ctx, Snes *s)
         return 0;
     }
 
-    if (rt->mode == NATIVE_ON) {
-        uint32_t before = s->bus.clocks;
-        e->fn(s);
-        uint64_t bus = s->bus.clocks - before;
-        s->bus.clocks = before;
-        rt->debt = (uint32_t)(bus * e->cost_milli / 1000);
-        return 0;
-    }
-
-    if (rt->npending == MAX_PENDING) {
+    if (rt->nactive == MAX_ACTIVE) {
         st->skipped++;
         return -1;
     }
-    Pending *p = &rt->pending[rt->npending++];
-    p->entry = e;
-    p->clone = malloc(sizeof *p->clone);
-    snes_clone(p->clone, s);
-    p->clone->bus.clocks = 0;
-    e->fn(p->clone);
-    p->native_bus_clocks = p->clone->bus.clocks;
-    p->ret_s = p->clone->cpu.s;
-    p->ret_pc = cpu_pc24(&p->clone->cpu);
-    p->master_at_entry = s->master;
-    p->interrupted = false;
-    return -1;
+    Active *a = &rt->active[rt->nactive++];
+    memset(a, 0, sizeof *a);
+    a->entry = e;
+    a->entry_s = s->cpu.s;
+    a->job = job_get();
+    a->job->entry = e;
+    if (rt->mode == NATIVE_SHADOW) {
+        a->clone = malloc(sizeof *a->clone);
+        snes_clone(a->clone, s);
+        a->clone->bus.clocks = 0;
+        a->job->m = a->clone;
+    } else {
+        s->bus.clocks = 0;
+        a->job->m = s;
+    }
+    job_run(a->job);
+    after_run(rt, a, s);
+    return rt->mode == NATIVE_ON ? 0 : -1;
 }
 
 #define CALL_STEP_LIMIT 50000000u
 
-void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
+void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
 {
     uint16_t s_after = s->cpu.s;
     uint32_t ret;
@@ -381,6 +570,19 @@ void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
     s->cpu.pb = target >> 16;
     s->cpu.pc = target & 0xFFFF;
 
+    Job *j = current_job;
+    if (j && j->m == s) {
+        j->state = JOB_CALLING;
+        j->call_target = target;
+        j->call_ret = ret;
+        j->call_s_after = s_after;
+        j->call_dont_care = dont_care;
+        fiber_switch(fiber_main());
+        return;
+    }
+
+    /* Not inside the runtime (tests, tools): interpret the callee right here,
+     * interrupts held off and no time passing. */
     bool nmi = s->cpu.nmi_pending, irq = s->cpu.irq_line;
     s->cpu.nmi_pending = false;
     s->cpu.irq_line = false;
@@ -388,7 +590,6 @@ void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
     while (!(cpu_pc24(&s->cpu) == ret && s->cpu.s == s_after)) {
         const NativeRuntime *rt = active_runtime;
         int idx = rt ? find_entry(rt, cpu_pc24(&s->cpu)) : -1;
-        /* Idle entries need time to pass, which doesn't happen inside a call-out. */
         if (idx >= 0 && !rt->table[idx].idle && entry_applies(&rt->table[idx], s))
             rt->table[idx].fn(s);
         else
@@ -400,6 +601,11 @@ void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
     }
     s->cpu.nmi_pending = nmi;
     s->cpu.irq_line = irq;
+}
+
+void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
+{
+    native_call_dc(s, site, target, long_call, 0);
 }
 
 void native_attach(NativeRuntime *rt, Snes *snes)
@@ -422,17 +628,17 @@ void native_report(const NativeRuntime *rt, FILE *out)
         fprintf(out, "  %06X %-40s calls %u", e->addr, e->name, st->calls);
         if (rt->mode == NATIVE_SHADOW) {
             fprintf(out, "  matched %u  mismatched %u  interrupted %u", st->matched, st->mismatched, st->interrupted);
-            if (st->matched)
-                fprintf(out, "  avg original clocks %llu",
-                        (unsigned long long)(st->original_clocks / st->matched));
             if (st->native_bus_clocks)
-                fprintf(out, "  original/native-bus %.3f (%.3f-%.3f)",
-                        (double)st->original_clocks / st->native_bus_clocks, st->min_ratio, st->max_ratio);
+                fprintf(out, "  original/native-bus %.3f", (double)st->original_clocks / st->native_bus_clocks);
         }
+        if (st->abandoned)
+            fprintf(out, "  abandoned %u", st->abandoned);
         if (st->skipped)
             fprintf(out, "  skipped %u", st->skipped);
         fprintf(out, "\n");
     }
+    if (rt->nactive)
+        fprintf(out, "  %d routine(s) still in progress\n", rt->nactive);
     for (int i = 0; i < rt->ndetails; i++)
         fprintf(out, "  %s\n", rt->details[i]);
 }

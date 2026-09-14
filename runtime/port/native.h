@@ -4,9 +4,10 @@
  *   OFF     the interpreter runs everything.
  *   SHADOW  the interpreter runs everything; on each entry to a registered
  *           routine the machine is cloned, the native routine runs on the
- *           clone, and when the original returns the two machines must match
- *           exactly (registers, WRAM, SRAM, VRAM, CGRAM, OAM, PPU and CPU I/O
- *           registers, APU ports). Timing isn't compared.
+ *           clone, and at each call it makes and when the original returns the
+ *           two machines must match exactly (registers, WRAM, SRAM, VRAM,
+ *           CGRAM, OAM, PPU and CPU I/O registers, APU ports). Timing isn't
+ *           compared. See native_call.
  *   ON      registered routines run natively in place of the original.
  */
 #ifndef CT_PORT_NATIVE_H
@@ -52,9 +53,11 @@ typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
 
 typedef struct NativeStats {
     unsigned calls, matched, mismatched, interrupted, skipped;
-    uint64_t original_clocks;   /* summed over matched shadow calls */
-    uint64_t native_bus_clocks; /* bus-access clocks the native routine spent on those calls */
-    double min_ratio, max_ratio; /* per call: original clocks / native bus clocks */
+    unsigned abandoned;         /* a callee unwound the routine's frame, so it never finished */
+    /* SHADOW: time the original spent in the stretches native code replaces
+     * (excluding call-outs), and the native routine's bus-access clocks for them. */
+    uint64_t original_clocks;
+    uint64_t native_bus_clocks;
 } NativeStats;
 
 typedef struct NativeRuntime NativeRuntime;
@@ -71,10 +74,27 @@ void native_report(const NativeRuntime *rt, FILE *out);
 /* Nonzero if any shadow comparison failed. */
 int native_failed(const NativeRuntime *rt);
 
+/* Number of registered routines entered and not yet left (suspended in
+ * call-outs, or awaiting shadow comparison). Save states taken while this is
+ * nonzero can't restore those routines. */
+int native_suspended(const NativeRuntime *rt);
+
 /* For native routines: call the routine at `target` the way the JSR (3-byte)
  * or JSL (4-byte) instruction at `site` would, pushing the same return
- * address, and return once it has returned. A ported routine runs natively;
- * anything else runs on the interpreter (interrupts held off, no time passes). */
+ * address, and return once it has returned.
+ *
+ * Under the runtime, the native routine is suspended: the system loop runs the
+ * callee as it would the original's (time passes, interrupts and frames happen,
+ * a ported callee runs natively) and the routine resumes when the callee
+ * returns to the call's return address with the stack as it was before the
+ * call. SHADOW mode compares the machines when the original reaches the same
+ * call, ignoring `dont_care` (DC_* bits: what the callee doesn't read), then
+ * again at each later call and at return. If the callee unwinds past its return
+ * instead, the routine is abandoned, as the original would be.
+ *
+ * Outside the runtime the callee is interpreted synchronously, with interrupts
+ * held off and no time passing. */
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call);
+void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care);
 
 #endif

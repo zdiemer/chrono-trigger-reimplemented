@@ -25,6 +25,7 @@ add_library(ct_runtime STATIC
   runtime/snes/ppu.c
   runtime/snes/render.c
   runtime/snes/system.c
+  runtime/port/fiber.c
   runtime/port/native.c)
 target_include_directories(ct_runtime PUBLIC runtime)
 
@@ -33,6 +34,7 @@ add_library(ct_game STATIC
   game/registry.c
   game/core/display.c
   game/data/decompress.c
+  game/field/events.c
   game/field/frame.c
   game/field/interrupts.c
   game/field/nmi.c

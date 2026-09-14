@@ -31,6 +31,8 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_N | DC_Z | DC_D },
     { .addr = 0xC0EA63, .name = "field_nmi", .fn = field_nmi, .cost_milli = 1120 },
     { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xC058DE, .name = "field_run_object_init_scripts", .fn = field_run_object_init_scripts,
+      NEEDS_M8_X16, .cost_milli = 4500 },
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
       NEEDS_M8_X8_BINARY, .cost_milli = 4657, .dont_care = DC_X | DC_N | DC_Z },
 
