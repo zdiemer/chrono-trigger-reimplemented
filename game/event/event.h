@@ -32,6 +32,22 @@ void event_cmd_if_object_value(Snes *s);     /* $1A */
 void event_cmd_if_object_in_view(Snes *s);   /* $27 */
 void event_cmd_if_object_on_screen(Snes *s); /* $28 */
 
+/* event/calls.c: calling functions in other objects' scripts */
+void event_cmd_return(Snes *s);                             /* $00 */
+void event_cmd_call(Snes *s);                               /* $02 */
+void event_cmd_call_when_accepted(Snes *s);                 /* $03 */
+void event_cmd_call_and_wait(Snes *s);                      /* $04 */
+void event_cmd_call_party_member(Snes *s);                  /* $05 */
+void event_cmd_call_party_member_when_accepted(Snes *s);    /* $06 */
+void event_cmd_call_party_member_and_wait(Snes *s);         /* $07 */
+void event_cmd_refuse_calls(Snes *s);                       /* $08 */
+void event_cmd_accept_calls(Snes *s);                       /* $09 */
+void event_cmd_disable_object(Snes *s);                     /* $0A */
+void event_cmd_set_object_flag(Snes *s);                    /* $0B */
+void event_cmd_clear_object_flag(Snes *s);                  /* $0C */
+void event_cmd_set_1c80(Snes *s);                           /* $0D */
+void event_cmd_set_arrival_flags(Snes *s);                  /* $0E */
+
 /* event/input.c: conditions on controller input */
 void event_cmd_if_any_input(Snes *s);        /* $2D */
 void event_cmd_if_input_f8_bit1(Snes *s);    /* $30 */

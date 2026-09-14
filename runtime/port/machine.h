@@ -132,6 +132,13 @@ static inline uint16_t m_asl16(Snes *s, uint16_t v)
     return (uint16_t)(v << 1);
 }
 
+static inline uint8_t m_lsr8(Snes *s, uint8_t v)
+{
+    m_set_flag(s, CPU_FLAG_C, v & 0x01);
+    m_set_nz8(s, (uint8_t)(v >> 1));
+    return (uint8_t)(v >> 1);
+}
+
 /* REP/SEP, including their effect on register widths. */
 static inline void m_rep(Snes *s, uint8_t bits) { s->cpu.p &= (uint8_t)~bits; }
 static inline void m_sep(Snes *s, uint8_t bits)
