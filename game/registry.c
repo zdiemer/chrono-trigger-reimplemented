@@ -10,6 +10,7 @@
 #define NEEDS_M8 .p_mask = CPU_FLAG_M, .p_value = CPU_FLAG_M
 #define NEEDS_M16 .p_mask = CPU_FLAG_M, .p_value = 0
 #define NEEDS_M8_X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M
+#define NEEDS_M8_X8 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M | CPU_FLAG_X
 #define NEEDS_M8_X8_BINARY .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M | CPU_FLAG_X
 
 /* Entries are keyed by the original entry address. cost_milli is the
@@ -33,6 +34,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true },
     { .addr = 0xC058DE, .name = "field_run_object_init_scripts", .fn = field_run_object_init_scripts,
       NEEDS_M8_X16, .cost_milli = 4500 },
+    { .addr = 0xC05A93, .name = "field_run_object_script", .fn = field_run_object_script,
+      NEEDS_M8_X8, .cost_milli = 4500, .dont_care = DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
       NEEDS_M8_X8_BINARY, .cost_milli = 4657, .dont_care = DC_X | DC_N | DC_Z },
 

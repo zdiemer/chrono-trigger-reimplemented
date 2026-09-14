@@ -17,6 +17,7 @@ void field_wait_for_frame_loop(Snes *s);
 
 /* field/events.c */
 void field_run_object_init_scripts(Snes *s);
+void field_run_object_script(Snes *s);
 
 /* field/objects.c */
 void field_update_object_visibility(Snes *s);

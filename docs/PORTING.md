@@ -134,6 +134,7 @@ new parts of the game, before relaxing a routine further.
 | `field_install_nmi` | `$C0:0B64` | 10, all match |
 | `field_install_irq` | `$C0:0B75` | 10, all match |
 | `field_run_object_init_scripts` | `$C0:58DE` → `$C0:9DC3` | runs at map load; all calls match in every movie (7-10 per movie). Event command handlers, some waiting for frames, run as call-outs |
+| `field_run_object_script` | `$C0:5A93` | the per-frame, per-object event script executor: 21719 calls in new-game, 59580 in fair-companion, all match; X, N, Z, C don't-care. One call per movie is abandoned: a handler unwinds the executor's frame, as the original does. The scheduler that calls it (`$C0:5A46`) stops when the beam passes a scanline limit, so which objects run in a frame depends on timing; it stays on the interpreter |
 | `field_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
 | `field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
 | `decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
