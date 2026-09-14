@@ -40,3 +40,4 @@ __pycache__/
 
 # Downloaded test suites
 tests/cpu/data/
+tests/apu/data/
