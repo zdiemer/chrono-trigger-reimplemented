@@ -62,6 +62,8 @@ typedef struct SnesBus {
     uint8_t latch;
     uint16_t serial[2];
 
+    uint32_t wram_port_addr;   /* $2181-$2183: address for the $2180 WRAM data port */
+
     DmaChannel dma[8];
     uint8_t mdmaen;    /* last $420B write; the system runs the transfers */
 } SnesBus;

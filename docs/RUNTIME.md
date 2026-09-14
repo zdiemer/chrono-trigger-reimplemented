@@ -42,6 +42,14 @@ Build the conformance runners with the same CMake project (`sst_runner`,
   calibrated so upload blocks land on the same frames as in Snes9x.
 - **Frame boundary.** A frame ends at the start of vblank (scanline 225), after
   the NMI flag is set and before the handler runs.
+- **Work RAM port.** `$2181-$2183` set an address and each read or write of
+  `$2180` accesses that WRAM byte and advances the address. Only the low 17
+  bits select the byte, so `$00:3000` and `$7E:3000` are the same. Chrono
+  Trigger's decompressor writes all of its output through this port, including
+  code it then runs from `$7E:3000`.
+- **Exact CPU timing.** Each instruction costs its bus accesses at their real
+  speeds plus its internal cycles (6 master clocks each), both verified per
+  opcode against SingleStepTests.
 - **Oracle conventions.** WRAM powers on filled with `$55` to match Snes9x.
   Snes9x also fills SRAM with `$60` and preloads CGRAM; those aren't mirrored
   yet, so ignore those regions until the game writes them.
@@ -93,19 +101,37 @@ Gaps:
 
 ## Status
 
-With no input, WRAM matches Snes9x exactly through frame 21. The first
-divergence is at frame 22, in the first command handshake with the sound
-driver. The driver checks the ports once per 62.5 Hz timer tick, and the main
-CPU only waits about a third of a frame for an echo before resending. Whether
-the echo lands in that window depends on sub-frame timing between the two
-CPUs. Ours misses it, so the game starts about 5 frames late.
+With no input, the development system runs boot, the sound driver upload, and
+the attract sequence. Over the first 1800 frames, every non-blank frame it
+renders is pixel-identical to a Snes9x frame.
+
+Frames line up with an offset, not one to one, because of sound-driver
+handshake races that emulators resolve differently:
+
+- WRAM matches Snes9x exactly through frame 21.
+- After the first driver command, we run one frame behind Snes9x and bsnes.
+  Comparing only bytes the game has written, WRAM matches bsnes exactly for
+  frames 23-26.
+- The next transfer starts at frame 27 in bsnes, 28 here, and 41 in Snes9x. On
+  that race Snes9x is the outlier, and the attract sequence ends up about 16
+  frames behind ours.
+
+## Validation strategy
+
+External emulators check that the hardware model is right. They aren't
+required to match frame for frame, because sub-frame races with the sound
+driver resolve differently even between Snes9x and bsnes. Ported routines are
+checked against this development system running the original code, which is
+deterministic and must match exactly.
+
+To compare against bsnes, whose power-on RAM is randomized, compare only the
+WRAM bytes the game has written. The development system can report those.
 
 ## Next
 
-1. **Cycle-accurate CPU timing.** Internal cycles are currently a flat 6 master
-   clocks per instruction. Count real internal operations per opcode and check
-   them against SingleStepTests cycle counts, as the SPC700 core already is.
-2. Revisit the driver handshake and IPL latency with exact timing.
-3. Mirror or ignore Snes9x's SRAM and CGRAM power-on fill.
-4. Import `--coverage` output into `tools/disasm` as width-annotated entries.
-5. PPU renderer, to compare framebuffers and see the game.
+1. **Movie coverage.** Record input movies past the title screen (new game,
+   first map, a battle, the menu) and check them against the references.
+2. **Snes9x conventions.** Mirror or ignore its SRAM and CGRAM power-on fill.
+3. **Write-mask tooling.** Add a written-byte mask to `ct_dev` and
+   `tools/trace.py diff`, so masked bsnes comparisons are a supported workflow.
+4. **Start porting.** Begin replacing routines with native code (roadmap phase 4).

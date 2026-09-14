@@ -67,6 +67,15 @@ static uint32_t access_clocks(const SnesBus *bus, uint32_t addr)
     return 6;
 }
 
+/* $2180-$2183: work RAM data port. The address written to $2181-$2183 selects
+ * a WRAM byte by its low 17 bits (bit 16 picks $7E or $7F, so $00:3000 and
+ * $7E:3000 are the same byte); each read or write of $2180 accesses it and
+ * advances the address. Chrono Trigger's decompressor writes through it. */
+static uint8_t *wram_port_byte(SnesBus *bus)
+{
+    return &bus->wram[bus->wram_port_addr & (SNES_WRAM_SIZE - 1)];
+}
+
 /* ---- CPU I/O registers ------------------------------------------------------- */
 
 static uint8_t read_io(SnesBus *bus, uint16_t a)
@@ -78,6 +87,11 @@ static uint8_t read_io(SnesBus *bus, uint16_t a)
         return bus->io.apu_read ? bus->io.apu_read(bus->io.ctx, a & 3) : ob;
     if (a >= 0x4300 && a <= 0x437F)
         return bus->dma[(a >> 4) & 7].reg[a & 0xF];
+    if (a == 0x2180) {
+        uint8_t v = *wram_port_byte(bus);
+        bus->wram_port_addr = (bus->wram_port_addr + 1) & 0xFFFFFF;
+        return v;
+    }
 
     switch (a) {
     case 0x4016: {
@@ -133,6 +147,16 @@ static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
     }
     if (a >= 0x4300 && a <= 0x437F) {
         bus->dma[(a >> 4) & 7].reg[a & 0xF] = v;
+        return;
+    }
+    if (a >= 0x2180 && a <= 0x2183) {
+        if (a == 0x2180) {
+            *wram_port_byte(bus) = v;
+            bus->wram_port_addr = (bus->wram_port_addr + 1) & 0xFFFFFF;
+        } else {
+            unsigned shift = 8 * (unsigned)(a - 0x2181);
+            bus->wram_port_addr = (bus->wram_port_addr & ~((uint32_t)0xFF << shift)) | (uint32_t)v << shift;
+        }
         return;
     }
 
