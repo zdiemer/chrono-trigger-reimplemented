@@ -2,8 +2,7 @@
 
 #include <string.h>
 
-/* Average internal (non-bus) CPU cycles per instruction, in master clocks. */
-#define INTERNAL_CLOCKS_PER_INSN 6
+#define CLOCKS_PER_IO_CYCLE 6   /* internal CPU cycles are fast cycles */
 #define HDMA_HCLOCK 1104       /* ~dot 276 */
 #define HBLANK_START_HCLOCK 1096
 #define HBLANK_END_HCLOCK 16
@@ -214,13 +213,15 @@ void snes_run_frame(Snes *s, uint16_t pad1)
     s->frame_done = false;
     while (!s->frame_done) {
         s->bus.clocks = 0;
+        s->cpu.io_cycles = 0;
         s->cpu.irq_line = s->bus.irq_flag;
         cpu_step(&s->cpu);
         if (s->bus.nmi_request) {
             s->bus.nmi_request = false;
             s->cpu.nmi_pending = true;
         }
-        advance(s, s->bus.clocks + INTERNAL_CLOCKS_PER_INSN);
+        uint32_t clocks = s->bus.clocks + s->cpu.io_cycles * CLOCKS_PER_IO_CYCLE;
+        advance(s, clocks ? clocks : CLOCKS_PER_IO_CYCLE);   /* WAI/STP idle */
     }
     s->frame++;
 }

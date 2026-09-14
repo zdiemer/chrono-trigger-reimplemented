@@ -5,6 +5,8 @@
 static inline uint8_t rd(Cpu *c, uint32_t addr) { return c->bus.read(c->bus.ctx, addr & 0xFFFFFF); }
 static inline void wr(Cpu *c, uint32_t addr, uint8_t v) { c->bus.write(c->bus.ctx, addr & 0xFFFFFF, v); }
 
+static inline void io(Cpu *c) { c->io_cycles++; }
+
 static inline bool m8(const Cpu *c) { return c->e || (c->p & CPU_FLAG_M); }
 static inline bool x8(const Cpu *c) { return c->e || (c->p & CPU_FLAG_X); }
 
@@ -129,9 +131,18 @@ static uint32_t read_long_bank0(Cpu *c, uint16_t addr)
  * emulation mode with D's low byte zero, where operand + index wraps within the
  * page like 6502 zero page. Established empirically from SingleStepTests
  * (every disagreeing case has D low = $00 and a carry out of operand + index). */
-static inline uint16_t dp_addr(const Cpu *c, uint16_t operand) { return (uint16_t)(c->d + operand); }
-static inline uint16_t dp_indexed(const Cpu *c, uint8_t operand, uint16_t index)
+/* Direct-page addressing takes an extra internal cycle when D's low byte is
+ * nonzero (verified against SingleStepTests). */
+static inline uint16_t dp_addr(Cpu *c, uint16_t operand)
 {
+    if (c->d & 0xFF)
+        io(c);
+    return (uint16_t)(c->d + operand);
+}
+static inline uint16_t dp_indexed(Cpu *c, uint8_t operand, uint16_t index)
+{
+    if (c->d & 0xFF)
+        io(c);
     if (c->e && (c->d & 0xFF) == 0)
         return (uint16_t)((c->d & 0xFF00) | (uint8_t)(operand + index));
     return (uint16_t)(c->d + operand + index);
@@ -141,11 +152,13 @@ static Ea ea_dp(Cpu *c) { return (Ea){ dp_addr(c, fetch8(c)), 0xFFFF }; }
 static Ea ea_dpx(Cpu *c)
 {
     uint8_t op = fetch8(c);
+    io(c);
     return (Ea){ dp_indexed(c, op, c->x), 0xFFFF };
 }
 static Ea ea_dpy(Cpu *c)
 {
     uint8_t op = fetch8(c);
+    io(c);
     return (Ea){ dp_indexed(c, op, c->y), 0xFFFF };
 }
 static Ea ea_dpind(Cpu *c)
@@ -156,13 +169,24 @@ static Ea ea_dpind(Cpu *c)
 static Ea ea_dpxind(Cpu *c)
 {
     uint8_t op = fetch8(c);
+    io(c);
     uint16_t p = dp_indexed(c, op, c->x);
     return (Ea){ dbr(c) | read_word_bank0(c, p), 0xFFFFFF };
 }
-static Ea ea_dpindy(Cpu *c)
+/* Indexed absolute-style addressing takes an extra cycle for writes, 16-bit
+ * index registers, or when indexing crosses a page. */
+static uint32_t indexed(Cpu *c, uint32_t base, uint16_t index, bool write)
+{
+    uint32_t addr = (base + index) & 0xFFFFFF;
+    if (write || !x8(c) || (base >> 8) != (addr >> 8))
+        io(c);
+    return addr;
+}
+
+static Ea ea_dpindy(Cpu *c, bool write)
 {
     uint16_t p = dp_addr(c, fetch8(c));
-    return (Ea){ ((dbr(c) | read_word_bank0(c, p)) + c->y) & 0xFFFFFF, 0xFFFFFF };
+    return (Ea){ indexed(c, dbr(c) | read_word_bank0(c, p), c->y, write), 0xFFFFFF };
 }
 static Ea ea_dplind(Cpu *c)
 {
@@ -175,14 +199,22 @@ static Ea ea_dplindy(Cpu *c)
     return (Ea){ (read_long_bank0(c, p) + c->y) & 0xFFFFFF, 0xFFFFFF };
 }
 static Ea ea_abs(Cpu *c) { return (Ea){ dbr(c) | fetch16(c), 0xFFFFFF }; }
-static Ea ea_absx(Cpu *c) { return (Ea){ ((dbr(c) | fetch16(c)) + c->x) & 0xFFFFFF, 0xFFFFFF }; }
-static Ea ea_absy(Cpu *c) { return (Ea){ ((dbr(c) | fetch16(c)) + c->y) & 0xFFFFFF, 0xFFFFFF }; }
+static Ea ea_absx(Cpu *c, bool write) { return (Ea){ indexed(c, dbr(c) | fetch16(c), c->x, write), 0xFFFFFF }; }
+static Ea ea_absy(Cpu *c, bool write) { return (Ea){ indexed(c, dbr(c) | fetch16(c), c->y, write), 0xFFFFFF }; }
 static Ea ea_long(Cpu *c) { return (Ea){ fetch24(c), 0xFFFFFF }; }
 static Ea ea_longx(Cpu *c) { return (Ea){ (fetch24(c) + c->x) & 0xFFFFFF, 0xFFFFFF }; }
-static Ea ea_sr(Cpu *c) { return (Ea){ (uint16_t)(c->s + fetch8(c)), 0xFFFF }; }
+static Ea ea_sr(Cpu *c)
+{
+    uint8_t op = fetch8(c);
+    io(c);
+    return (Ea){ (uint16_t)(c->s + op), 0xFFFF };
+}
 static Ea ea_srindy(Cpu *c)
 {
-    uint16_t p = (uint16_t)(c->s + fetch8(c));
+    uint8_t op = fetch8(c);
+    io(c);
+    uint16_t p = (uint16_t)(c->s + op);
+    io(c);
     return (Ea){ ((dbr(c) | read_word_bank0(c, p)) + c->y) & 0xFFFFFF, 0xFFFFFF };
 }
 
@@ -349,6 +381,7 @@ static void modify_mem(Cpu *c, ModOp op, Ea ea)
 {
     bool w8 = m8(c);
     uint16_t v = read_w(c, ea, w8);
+    io(c);
     write_w_modify(c, ea, modify(c, op, v, w8), w8);
 }
 
@@ -357,12 +390,21 @@ static void modify_mem(Cpu *c, ModOp op, Ea ea)
 static void branch(Cpu *c, bool cond)
 {
     int8_t off = (int8_t)fetch8(c);
-    if (cond)
-        c->pc = (uint16_t)(c->pc + off);
+    if (!cond)
+        return;
+    uint16_t target = (uint16_t)(c->pc + off);
+    io(c);
+    if (c->e && (target >> 8) != (c->pc >> 8))
+        io(c);
+    c->pc = target;
 }
 
 static void interrupt(Cpu *c, uint16_t native_vec, uint16_t emu_vec, bool software)
 {
+    if (!software) {
+        io(c);
+        io(c);
+    }
     if (!c->e) {
         push8(c, c->pb);
         push16(c, c->pc);
@@ -437,13 +479,13 @@ void cpu_step(Cpu *c)
     case base + 0x07: ea = ea_dplind(c); goto name##_mem;                                   \
     case base + 0x0D: ea = ea_abs(c); goto name##_mem;                                      \
     case base + 0x0F: ea = ea_long(c); goto name##_mem;                                     \
-    case base + 0x11: ea = ea_dpindy(c); goto name##_mem;                                   \
+    case base + 0x11: ea = ea_dpindy(c, false); goto name##_mem;                                   \
     case base + 0x12: ea = ea_dpind(c); goto name##_mem;                                    \
     case base + 0x13: ea = ea_srindy(c); goto name##_mem;                                   \
     case base + 0x15: ea = ea_dpx(c); goto name##_mem;                                      \
     case base + 0x17: ea = ea_dplindy(c); goto name##_mem;                                  \
-    case base + 0x19: ea = ea_absy(c); goto name##_mem;                                     \
-    case base + 0x1D: ea = ea_absx(c); goto name##_mem;                                     \
+    case base + 0x19: ea = ea_absy(c, false); goto name##_mem;                                     \
+    case base + 0x1D: ea = ea_absx(c, false); goto name##_mem;                                     \
     case base + 0x1F: ea = ea_longx(c); goto name##_mem;                                    \
     name##_mem : {                                                                           \
         uint16_t data = read_w(c, ea, wm);                                                   \
@@ -472,13 +514,13 @@ void cpu_step(Cpu *c)
     case 0x87: ea = ea_dplind(c); goto sta;
     case 0x8D: ea = ea_abs(c); goto sta;
     case 0x8F: ea = ea_long(c); goto sta;
-    case 0x91: ea = ea_dpindy(c); goto sta;
+    case 0x91: ea = ea_dpindy(c, true); goto sta;
     case 0x92: ea = ea_dpind(c); goto sta;
     case 0x93: ea = ea_srindy(c); goto sta;
     case 0x95: ea = ea_dpx(c); goto sta;
     case 0x97: ea = ea_dplindy(c); goto sta;
-    case 0x99: ea = ea_absy(c); goto sta;
-    case 0x9D: ea = ea_absx(c); goto sta;
+    case 0x99: ea = ea_absy(c, true); goto sta;
+    case 0x9D: ea = ea_absx(c, true); goto sta;
     case 0x9F: ea = ea_longx(c); goto sta;
     sta:
         write_w(c, ea, c->a, wm);
@@ -488,7 +530,7 @@ void cpu_step(Cpu *c)
     case 0x64: ea = ea_dp(c); write_w(c, ea, 0, wm); break;
     case 0x74: ea = ea_dpx(c); write_w(c, ea, 0, wm); break;
     case 0x9C: ea = ea_abs(c); write_w(c, ea, 0, wm); break;
-    case 0x9E: ea = ea_absx(c); write_w(c, ea, 0, wm); break;
+    case 0x9E: ea = ea_absx(c, true); write_w(c, ea, 0, wm); break;
     case 0x86: ea = ea_dp(c); write_w(c, ea, c->x, wx); break;
     case 0x96: ea = ea_dpy(c); write_w(c, ea, c->x, wx); break;
     case 0x8E: ea = ea_abs(c); write_w(c, ea, c->x, wx); break;
@@ -501,7 +543,7 @@ void cpu_step(Cpu *c)
     case 0xA6: ea = ea_dp(c); goto ldx;
     case 0xB6: ea = ea_dpy(c); goto ldx;
     case 0xAE: ea = ea_abs(c); goto ldx;
-    case 0xBE: ea = ea_absy(c); goto ldx;
+    case 0xBE: ea = ea_absy(c, false); goto ldx;
     ldx:
         c->x = read_w(c, ea, wx);
         set_nz(c, c->x, wx);
@@ -510,7 +552,7 @@ void cpu_step(Cpu *c)
     case 0xA4: ea = ea_dp(c); goto ldy;
     case 0xB4: ea = ea_dpx(c); goto ldy;
     case 0xAC: ea = ea_abs(c); goto ldy;
-    case 0xBC: ea = ea_absx(c); goto ldy;
+    case 0xBC: ea = ea_absx(c, false); goto ldy;
     ldy:
         c->y = read_w(c, ea, wx);
         set_nz(c, c->y, wx);
@@ -527,49 +569,49 @@ void cpu_step(Cpu *c)
     case 0x24: ea = ea_dp(c); op_bit(c, read_w(c, ea, wm), false); break;
     case 0x34: ea = ea_dpx(c); op_bit(c, read_w(c, ea, wm), false); break;
     case 0x2C: ea = ea_abs(c); op_bit(c, read_w(c, ea, wm), false); break;
-    case 0x3C: ea = ea_absx(c); op_bit(c, read_w(c, ea, wm), false); break;
+    case 0x3C: ea = ea_absx(c, false); op_bit(c, read_w(c, ea, wm), false); break;
 
     /* Shifts, rotates, INC/DEC, TSB/TRB */
-    case 0x0A: set_a(c, modify(c, MOD_ASL, c->a, wm)); break;
-    case 0x4A: set_a(c, modify(c, MOD_LSR, c->a, wm)); break;
-    case 0x2A: set_a(c, modify(c, MOD_ROL, c->a, wm)); break;
-    case 0x6A: set_a(c, modify(c, MOD_ROR, c->a, wm)); break;
-    case 0x1A: set_a(c, modify(c, MOD_INC, c->a, wm)); break;
-    case 0x3A: set_a(c, modify(c, MOD_DEC, c->a, wm)); break;
+    case 0x0A: io(c); set_a(c, modify(c, MOD_ASL, c->a, wm)); break;
+    case 0x4A: io(c); set_a(c, modify(c, MOD_LSR, c->a, wm)); break;
+    case 0x2A: io(c); set_a(c, modify(c, MOD_ROL, c->a, wm)); break;
+    case 0x6A: io(c); set_a(c, modify(c, MOD_ROR, c->a, wm)); break;
+    case 0x1A: io(c); set_a(c, modify(c, MOD_INC, c->a, wm)); break;
+    case 0x3A: io(c); set_a(c, modify(c, MOD_DEC, c->a, wm)); break;
     case 0x06: modify_mem(c, MOD_ASL, ea_dp(c)); break;
     case 0x16: modify_mem(c, MOD_ASL, ea_dpx(c)); break;
     case 0x0E: modify_mem(c, MOD_ASL, ea_abs(c)); break;
-    case 0x1E: modify_mem(c, MOD_ASL, ea_absx(c)); break;
+    case 0x1E: modify_mem(c, MOD_ASL, ea_absx(c, true)); break;
     case 0x46: modify_mem(c, MOD_LSR, ea_dp(c)); break;
     case 0x56: modify_mem(c, MOD_LSR, ea_dpx(c)); break;
     case 0x4E: modify_mem(c, MOD_LSR, ea_abs(c)); break;
-    case 0x5E: modify_mem(c, MOD_LSR, ea_absx(c)); break;
+    case 0x5E: modify_mem(c, MOD_LSR, ea_absx(c, true)); break;
     case 0x26: modify_mem(c, MOD_ROL, ea_dp(c)); break;
     case 0x36: modify_mem(c, MOD_ROL, ea_dpx(c)); break;
     case 0x2E: modify_mem(c, MOD_ROL, ea_abs(c)); break;
-    case 0x3E: modify_mem(c, MOD_ROL, ea_absx(c)); break;
+    case 0x3E: modify_mem(c, MOD_ROL, ea_absx(c, true)); break;
     case 0x66: modify_mem(c, MOD_ROR, ea_dp(c)); break;
     case 0x76: modify_mem(c, MOD_ROR, ea_dpx(c)); break;
     case 0x6E: modify_mem(c, MOD_ROR, ea_abs(c)); break;
-    case 0x7E: modify_mem(c, MOD_ROR, ea_absx(c)); break;
+    case 0x7E: modify_mem(c, MOD_ROR, ea_absx(c, true)); break;
     case 0xE6: modify_mem(c, MOD_INC, ea_dp(c)); break;
     case 0xF6: modify_mem(c, MOD_INC, ea_dpx(c)); break;
     case 0xEE: modify_mem(c, MOD_INC, ea_abs(c)); break;
-    case 0xFE: modify_mem(c, MOD_INC, ea_absx(c)); break;
+    case 0xFE: modify_mem(c, MOD_INC, ea_absx(c, true)); break;
     case 0xC6: modify_mem(c, MOD_DEC, ea_dp(c)); break;
     case 0xD6: modify_mem(c, MOD_DEC, ea_dpx(c)); break;
     case 0xCE: modify_mem(c, MOD_DEC, ea_abs(c)); break;
-    case 0xDE: modify_mem(c, MOD_DEC, ea_absx(c)); break;
+    case 0xDE: modify_mem(c, MOD_DEC, ea_absx(c, true)); break;
     case 0x04: modify_mem(c, MOD_TSB, ea_dp(c)); break;
     case 0x0C: modify_mem(c, MOD_TSB, ea_abs(c)); break;
     case 0x14: modify_mem(c, MOD_TRB, ea_dp(c)); break;
     case 0x1C: modify_mem(c, MOD_TRB, ea_abs(c)); break;
 
     /* Index register increments */
-    case 0xE8: c->x = mask_x(c, c->x + 1); set_nz(c, c->x, wx); break;
-    case 0xC8: c->y = mask_x(c, c->y + 1); set_nz(c, c->y, wx); break;
-    case 0xCA: c->x = mask_x(c, c->x - 1); set_nz(c, c->x, wx); break;
-    case 0x88: c->y = mask_x(c, c->y - 1); set_nz(c, c->y, wx); break;
+    case 0xE8: io(c); c->x = mask_x(c, c->x + 1); set_nz(c, c->x, wx); break;
+    case 0xC8: io(c); c->y = mask_x(c, c->y + 1); set_nz(c, c->y, wx); break;
+    case 0xCA: io(c); c->x = mask_x(c, c->x - 1); set_nz(c, c->x, wx); break;
+    case 0x88: io(c); c->y = mask_x(c, c->y - 1); set_nz(c, c->y, wx); break;
 
     /* Branches */
     case 0x10: branch(c, !(c->p & CPU_FLAG_N)); break;
@@ -583,6 +625,7 @@ void cpu_step(Cpu *c)
     case 0x80: branch(c, true); break;
     case 0x82: {
         uint16_t off = fetch16(c);
+        io(c);
         c->pc = (uint16_t)(c->pc + off);
         break;
     }
@@ -598,6 +641,7 @@ void cpu_step(Cpu *c)
     case 0x6C: c->pc = read_word_bank0(c, fetch16(c)); break;
     case 0x7C: {
         uint16_t p = (uint16_t)(fetch16(c) + c->x);
+        io(c);
         uint32_t bank = (uint32_t)c->pb << 16;
         c->pc = rd(c, bank | p) | (uint16_t)rd(c, bank | (uint16_t)(p + 1)) << 8;
         break;
@@ -610,6 +654,7 @@ void cpu_step(Cpu *c)
     }
     case 0x20: {
         uint16_t t = fetch16(c);
+        io(c);
         push16(c, (uint16_t)(c->pc - 1));
         c->pc = t;
         break;
@@ -617,6 +662,7 @@ void cpu_step(Cpu *c)
     case 0x22: {
         uint16_t t = fetch16(c);
         push8n(c, c->pb);
+        io(c);
         uint8_t bank = fetch8(c);
         push16n(c, (uint16_t)(c->pc - 1));
         c->pb = bank;
@@ -628,17 +674,27 @@ void cpu_step(Cpu *c)
         uint16_t lo = fetch8(c);
         push16(c, c->pc);   /* PC now points at the operand's high byte */
         uint16_t p = (uint16_t)((lo | (uint16_t)fetch8(c) << 8) + c->x);
+        io(c);
         uint32_t bank = (uint32_t)c->pb << 16;
         c->pc = rd(c, bank | p) | (uint16_t)rd(c, bank | (uint16_t)(p + 1)) << 8;
         break;
     }
-    case 0x60: c->pc = (uint16_t)(pull16(c) + 1); break;
+    case 0x60:
+        io(c);
+        io(c);
+        c->pc = (uint16_t)(pull16(c) + 1);
+        io(c);
+        break;
     case 0x6B:
+        io(c);
+        io(c);
         c->pc = (uint16_t)(pull16n(c) + 1);
         c->pb = pull8n(c);
         fix_emulation_stack(c);
         break;
     case 0x40:
+        io(c);
+        io(c);
         c->p = pull8(c);
         normalize_p(c);
         c->pc = pull16(c);
@@ -651,22 +707,24 @@ void cpu_step(Cpu *c)
     case 0x02: fetch8(c); interrupt(c, 0xFFE4, 0xFFF4, true); break;
 
     /* Stack */
-    case 0x48: if (wm) push8(c, c->a & 0xFF); else push16(c, c->a); break;
-    case 0xDA: if (wx) push8(c, c->x & 0xFF); else push16(c, c->x); break;
-    case 0x5A: if (wx) push8(c, c->y & 0xFF); else push16(c, c->y); break;
+    case 0x48: io(c); if (wm) push8(c, c->a & 0xFF); else push16(c, c->a); break;
+    case 0xDA: io(c); if (wx) push8(c, c->x & 0xFF); else push16(c, c->x); break;
+    case 0x5A: io(c); if (wx) push8(c, c->y & 0xFF); else push16(c, c->y); break;
     case 0x68:
+        io(c);
+        io(c);
         set_a(c, wm ? pull8(c) : pull16(c));
         set_nz(c, c->a, wm);
         break;
-    case 0xFA: c->x = wx ? pull8(c) : pull16(c); set_nz(c, c->x, wx); break;
-    case 0x7A: c->y = wx ? pull8(c) : pull16(c); set_nz(c, c->y, wx); break;
-    case 0x8B: push8(c, c->db); break;
-    case 0xAB: c->db = pull8n(c); set_nz(c, c->db, true); fix_emulation_stack(c); break;
-    case 0x4B: push8(c, c->pb); break;
-    case 0x0B: push16n(c, c->d); fix_emulation_stack(c); break;
-    case 0x2B: c->d = pull16n(c); set_nz(c, c->d, false); fix_emulation_stack(c); break;
-    case 0x08: push8(c, c->p); break;
-    case 0x28: c->p = pull8(c); normalize_p(c); break;
+    case 0xFA: io(c); io(c); c->x = wx ? pull8(c) : pull16(c); set_nz(c, c->x, wx); break;
+    case 0x7A: io(c); io(c); c->y = wx ? pull8(c) : pull16(c); set_nz(c, c->y, wx); break;
+    case 0x8B: io(c); push8(c, c->db); break;
+    case 0xAB: io(c); io(c); c->db = pull8n(c); set_nz(c, c->db, true); fix_emulation_stack(c); break;
+    case 0x4B: io(c); push8(c, c->pb); break;
+    case 0x0B: io(c); push16n(c, c->d); fix_emulation_stack(c); break;
+    case 0x2B: io(c); io(c); c->d = pull16n(c); set_nz(c, c->d, false); fix_emulation_stack(c); break;
+    case 0x08: io(c); push8(c, c->p); break;
+    case 0x28: io(c); io(c); c->p = pull8(c); normalize_p(c); break;
     case 0xF4: push16n(c, fetch16(c)); fix_emulation_stack(c); break;
     case 0xD4: {
         uint16_t p = dp_addr(c, fetch8(c));
@@ -676,37 +734,39 @@ void cpu_step(Cpu *c)
     }
     case 0x62: {
         uint16_t off = fetch16(c);
+        io(c);
         push16n(c, (uint16_t)(c->pc + off));
         fix_emulation_stack(c);
         break;
     }
 
     /* Transfers */
-    case 0xAA: c->x = mask_x(c, c->a); set_nz(c, c->x, wx); break;
-    case 0xA8: c->y = mask_x(c, c->a); set_nz(c, c->y, wx); break;
-    case 0x8A: set_a(c, c->x); set_nz(c, c->a, wm); break;
-    case 0x98: set_a(c, c->y); set_nz(c, c->a, wm); break;
-    case 0x9A: c->s = c->e ? (0x0100 | (c->x & 0xFF)) : c->x; break;
-    case 0xBA: c->x = mask_x(c, c->s); set_nz(c, c->x, wx); break;
-    case 0x9B: c->y = mask_x(c, c->x); set_nz(c, c->y, wx); break;
-    case 0xBB: c->x = mask_x(c, c->y); set_nz(c, c->x, wx); break;
-    case 0x5B: c->d = c->a; set_nz(c, c->d, false); break;
-    case 0x7B: c->a = c->d; set_nz(c, c->a, false); break;
-    case 0x1B: c->s = c->e ? (0x0100 | (c->a & 0xFF)) : c->a; break;
-    case 0x3B: c->a = c->s; set_nz(c, c->a, false); break;
-    case 0xEB: c->a = (uint16_t)(c->a >> 8 | c->a << 8); set_nz(c, c->a, true); break;
+    case 0xAA: io(c); c->x = mask_x(c, c->a); set_nz(c, c->x, wx); break;
+    case 0xA8: io(c); c->y = mask_x(c, c->a); set_nz(c, c->y, wx); break;
+    case 0x8A: io(c); set_a(c, c->x); set_nz(c, c->a, wm); break;
+    case 0x98: io(c); set_a(c, c->y); set_nz(c, c->a, wm); break;
+    case 0x9A: io(c); c->s = c->e ? (0x0100 | (c->x & 0xFF)) : c->x; break;
+    case 0xBA: io(c); c->x = mask_x(c, c->s); set_nz(c, c->x, wx); break;
+    case 0x9B: io(c); c->y = mask_x(c, c->x); set_nz(c, c->y, wx); break;
+    case 0xBB: io(c); c->x = mask_x(c, c->y); set_nz(c, c->x, wx); break;
+    case 0x5B: io(c); c->d = c->a; set_nz(c, c->d, false); break;
+    case 0x7B: io(c); c->a = c->d; set_nz(c, c->a, false); break;
+    case 0x1B: io(c); c->s = c->e ? (0x0100 | (c->a & 0xFF)) : c->a; break;
+    case 0x3B: io(c); c->a = c->s; set_nz(c, c->a, false); break;
+    case 0xEB: io(c); io(c); c->a = (uint16_t)(c->a >> 8 | c->a << 8); set_nz(c, c->a, true); break;
 
     /* Flags and mode */
-    case 0x18: c->p &= ~CPU_FLAG_C; break;
-    case 0x38: c->p |= CPU_FLAG_C; break;
-    case 0x58: c->p &= ~CPU_FLAG_I; break;
-    case 0x78: c->p |= CPU_FLAG_I; break;
-    case 0xD8: c->p &= ~CPU_FLAG_D; break;
-    case 0xF8: c->p |= CPU_FLAG_D; break;
-    case 0xB8: c->p &= ~CPU_FLAG_V; break;
-    case 0xC2: c->p &= ~fetch8(c); normalize_p(c); break;
-    case 0xE2: c->p |= fetch8(c); normalize_p(c); break;
+    case 0x18: io(c); c->p &= ~CPU_FLAG_C; break;
+    case 0x38: io(c); c->p |= CPU_FLAG_C; break;
+    case 0x58: io(c); c->p &= ~CPU_FLAG_I; break;
+    case 0x78: io(c); c->p |= CPU_FLAG_I; break;
+    case 0xD8: io(c); c->p &= ~CPU_FLAG_D; break;
+    case 0xF8: io(c); c->p |= CPU_FLAG_D; break;
+    case 0xB8: io(c); c->p &= ~CPU_FLAG_V; break;
+    case 0xC2: c->p &= ~fetch8(c); io(c); normalize_p(c); break;
+    case 0xE2: c->p |= fetch8(c); io(c); normalize_p(c); break;
     case 0xFB: {
+        io(c);
         bool carry = c->p & CPU_FLAG_C;
         set_flag(c, CPU_FLAG_C, c->e);
         c->e = carry;
@@ -724,6 +784,8 @@ void cpu_step(Cpu *c)
         uint8_t src = fetch8(c);
         c->db = dst;
         wr(c, (uint32_t)dst << 16 | c->y, rd(c, (uint32_t)src << 16 | c->x));
+        io(c);
+        io(c);
         int adj = op == 0x54 ? 1 : -1;
         c->x = mask_x(c, c->x + adj);
         c->y = mask_x(c, c->y + adj);
@@ -733,9 +795,9 @@ void cpu_step(Cpu *c)
     }
 
     /* Misc */
-    case 0xEA: break;
+    case 0xEA: io(c); break;
     case 0x42: fetch8(c); break;
-    case 0xCB: c->waiting = true; break;
-    case 0xDB: c->stopped = true; break;
+    case 0xCB: io(c); io(c); c->waiting = true; break;
+    case 0xDB: io(c); io(c); c->stopped = true; break;
     }
 }

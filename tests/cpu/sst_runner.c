@@ -5,6 +5,7 @@
  *
  * Prints one line per file and a summary; exits non-zero on any failure.
  */
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,9 +21,10 @@ typedef struct {
 } State;
 
 static uint8_t *mem;
+static unsigned bus_cycles;
 
-static uint8_t bus_read(void *ctx, uint32_t addr) { (void)ctx; return mem[addr]; }
-static void bus_write(void *ctx, uint32_t addr, uint8_t v) { (void)ctx; mem[addr] = v; }
+static uint8_t bus_read(void *ctx, uint32_t addr) { (void)ctx; bus_cycles++; return mem[addr]; }
+static void bus_write(void *ctx, uint32_t addr, uint8_t v) { (void)ctx; bus_cycles++; mem[addr] = v; }
 
 static const uint8_t *rd_state(const uint8_t *p, State *s)
 {
@@ -44,7 +46,7 @@ static const uint8_t *rd_state(const uint8_t *p, State *s)
 
 static void free_state(State *s) { free(s->addr); free(s->val); }
 
-static int run_file(const char *path, int verbose, long *tests_out)
+static int run_file(const char *path, int verbose, long *tests_out, long *cycle_fail_out)
 {
     FILE *f = fopen(path, "rb");
     if (!f) { perror(path); return -1; }
@@ -56,9 +58,13 @@ static int run_file(const char *path, int verbose, long *tests_out)
     fclose(f);
 
     const uint8_t *p = buf;
+    bool has_cycles = size >= 4 && memcmp(p, "SST2", 4) == 0;   /* older files lack cycle counts */
+    if (has_cycles)
+        p += 4;
     uint32_t count = p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24;
     p += 4;
     int failures = 0;
+    long cycle_failures = 0;
     Cpu cpu;
     cpu_init(&cpu, (CpuBus){ NULL, bus_read, bus_write });
 
@@ -66,6 +72,11 @@ static int run_file(const char *path, int verbose, long *tests_out)
         State in, out;
         p = rd_state(p, &in);
         p = rd_state(p, &out);
+        unsigned want_cycles = 0;
+        if (has_cycles) {
+            want_cycles = p[0] | p[1] << 8;
+            p += 2;
+        }
         for (int i = 0; i < in.ram_count; i++) mem[in.addr[i]] = in.val[i];
 
         cpu.pc = in.pc; cpu.s = in.s; cpu.p = in.p; cpu.a = in.a; cpu.x = in.x; cpu.y = in.y;
@@ -74,6 +85,8 @@ static int run_file(const char *path, int verbose, long *tests_out)
         if (cpu.e)   /* S is confined to page 1 in emulation mode */
             cpu.s = 0x0100 | (cpu.s & 0xFF);
         uint8_t opcode = mem[(uint32_t)in.pbr << 16 | in.pc];
+        bus_cycles = 0;
+        cpu.io_cycles = 0;
         if (opcode == 0x44 || opcode == 0x54) {
             /* The suite captures block moves partway through, after a fixed number of
              * cycles, with PC mid-instruction. Run the same number of iterations and
@@ -100,6 +113,15 @@ static int run_file(const char *path, int verbose, long *tests_out)
                 n += snprintf(why + n, sizeof why - n, " [%06X]=%02X(want %02X)",
                               out.addr[i], mem[out.addr[i]], out.val[i]);
         }
+        /* Cycle counts aren't comparable for block moves (captured mid-instruction) or
+         * WAI/STP (the suite adds one cycle of harness idle after the halt). */
+        unsigned got_cycles = bus_cycles + cpu.io_cycles;
+        bool cycles_comparable = opcode != 0x44 && opcode != 0x54 && opcode != 0xCB && opcode != 0xDB;
+        if (has_cycles && cycles_comparable && got_cycles != want_cycles) {
+            if (n < (int)sizeof why - 40)
+                n += snprintf(why + n, sizeof why - n, " cycles=%u(want %u)", got_cycles, want_cycles);
+            cycle_failures++;
+        }
         if (n) {
             if (failures < verbose)
                 printf("  test %u:%s\n", t, why);
@@ -112,29 +134,32 @@ static int run_file(const char *path, int verbose, long *tests_out)
     }
     free(buf);
     *tests_out = count;
+    *cycle_fail_out = cycle_failures;
     return failures;
 }
 
 int main(int argc, char **argv)
 {
     int verbose = 0, files = 0, bad_files = 0;
-    long total = 0, total_fail = 0;
+    long total = 0, total_fail = 0, total_cycle_fail = 0;
     mem = calloc(1 << 24, 1);
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-v")) { verbose = 3; continue; }
-        long n = 0;
+        long n = 0, cycle_fails = 0;
         const char *name = strrchr(argv[i], '/');
         name = name ? name + 1 : argv[i];
-        int fails = run_file(argv[i], verbose, &n);
+        int fails = run_file(argv[i], verbose, &n, &cycle_fails);
         if (fails < 0) { bad_files++; continue; }
         files++;
         total += n;
         total_fail += fails;
+        total_cycle_fail += cycle_fails;
         if (fails) {
             bad_files++;
-            printf("FAIL %s: %d/%ld\n", name, fails, n);
+            printf("FAIL %s: %d/%ld (%ld on cycle count)\n", name, fails, n, cycle_fails);
         }
     }
-    printf("%d files, %ld tests, %ld failures, %d failing files\n", files, total, total_fail, bad_files);
+    printf("%d files, %ld tests, %ld failures (%ld on cycle count), %d failing files\n", files, total, total_fail,
+           total_cycle_fail, bad_files);
     return total_fail || bad_files;
 }

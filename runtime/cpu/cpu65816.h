@@ -40,6 +40,11 @@ typedef struct Cpu {
 
     CpuBus bus;
 
+    /* Internal (non-bus) cycles executed; the caller clears it. Each costs 6
+     * master clocks. Together with bus accesses this gives exact per-instruction
+     * cycle counts (verified against SingleStepTests). */
+    uint32_t io_cycles;
+
     /* Optional: called before each instruction with its 24-bit address. */
     void (*on_insn)(void *ctx, uint32_t pc, uint8_t p, bool e);
     void *on_insn_ctx;

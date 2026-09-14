@@ -1,9 +1,9 @@
 /* The development system: interpreter CPU, bus, PPU registers and APU, driven
  * by an NTSC scanline timing model.
  *
- * Timing is instruction-granular. Each instruction costs its bus accesses at
- * their real speeds plus an estimate for internal CPU cycles; interrupts and
- * HDMA land on the first instruction boundary after their scheduled time.
+ * Timing is instruction-granular. Each instruction costs its exact bus accesses
+ * at their real speeds plus its exact internal cycles; interrupts and HDMA land
+ * on the first instruction boundary after their scheduled time.
  *
  * A frame ends at the start of vblank (scanline 225), after the NMI flag is set
  * and before the NMI handler runs.

@@ -6,13 +6,14 @@
 
 Source: https://github.com/SingleStepTests/65816 (per-opcode JSON captured from
 real hardware). Converted files go to tests/cpu/data/ (gitignored); the JSON is
-not kept. Cycle-level bus activity is dropped: only register and memory state
-before and after each instruction is checked.
+not kept. Per-cycle bus activity is reduced to a cycle count; register and
+memory state before and after each instruction are kept in full.
 
-Binary format, little-endian, per file: u32 test count, then per test the
-initial and final state, each as
+Binary format, little-endian, per file: magic "SST2", u32 test count, then per
+test the initial and final state, each as
     u16 pc, u16 s, u8 p, u16 a, u16 x, u16 y, u8 dbr, u16 d, u8 pbr, u8 e,
     u16 ram_count, ram_count x (u32 addr, u8 value)
+followed by u16 cycle count (bus and internal cycles for the instruction).
 """
 
 import argparse
@@ -26,6 +27,7 @@ from pathlib import Path
 
 URL = "https://raw.githubusercontent.com/SingleStepTests/65816/main/v1/{op}.{mode}.json"
 OUT = Path(__file__).resolve().parent / "data"
+MAGIC = b"SST2"
 
 
 def pack_state(s: dict) -> bytes:
@@ -36,7 +38,7 @@ def pack_state(s: dict) -> bytes:
 
 def fetch(op: str, mode: str) -> str:
     dest = OUT / f"{op}.{mode}.bin"
-    if dest.exists():
+    if dest.exists() and dest.read_bytes()[:4] == MAGIC:
         return f"{dest.name} (cached)"
     req = urllib.request.Request(URL.format(op=op, mode=mode), headers={"Accept-Encoding": "gzip"})
     with urllib.request.urlopen(req, timeout=120) as r:
@@ -44,8 +46,9 @@ def fetch(op: str, mode: str) -> str:
         if r.headers.get("Content-Encoding") == "gzip":
             body = gzip.decompress(body)
     tests = json.loads(body)
-    blob = struct.pack("<I", len(tests)) + b"".join(
-        pack_state(t["initial"]) + pack_state(t["final"]) for t in tests)
+    blob = MAGIC + struct.pack("<I", len(tests)) + b"".join(
+        pack_state(t["initial"]) + pack_state(t["final"]) + struct.pack("<H", len(t["cycles"]))
+        for t in tests)
     tmp = dest.with_suffix(".tmp")
     tmp.write_bytes(blob)
     tmp.replace(dest)
