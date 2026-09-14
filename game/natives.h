@@ -9,6 +9,11 @@
 void c0_disable_display_and_interrupts(Snes *s);
 void c0_install_field_nmi(Snes *s);
 void c0_install_field_irq(Snes *s);
+void c0_wait_frame_loop(Snes *s);
+
+/* game/c2_system.c */
+void c2_wait_frame_loop(Snes *s);
+void c2_wait_ready_loop(Snes *s);
 
 /* game/c0_objects.c */
 void c0_update_object_visibility(Snes *s);

@@ -1,18 +1,26 @@
 #include "natives.h"
 
-#define M8 CPU_FLAG_M, CPU_FLAG_M                       /* entry needs 8-bit A */
-#define M8_X16 CPU_FLAG_M | CPU_FLAG_X, CPU_FLAG_M      /* 8-bit A, 16-bit X */
-#define M8_X8_BIN CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, CPU_FLAG_M | CPU_FLAG_X   /* 8-bit A and X, binary */
+/* Entry preconditions on P. */
+#define NEEDS_M8 .p_mask = CPU_FLAG_M, .p_value = CPU_FLAG_M
+#define NEEDS_M8_X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X, .p_value = CPU_FLAG_M
+#define NEEDS_M8_X8_BINARY .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M | CPU_FLAG_X
 
-/* Cost is the original's time per native bus-access clock, x1000, from the
- * original/native-bus ratio shadow mode reports. Don't-care sets come from
+/* cost_milli is the original's time per native bus-access clock, x1000, from
+ * the original/native-bus ratio shadow mode reports. dont_care comes from
  * disasm/out/liveness.json ("dead_after_return"). */
 const NativeEntry game_natives[] = {
-    { 0xC00B4E, "c0_disable_display_and_interrupts", c0_disable_display_and_interrupts, M8, 4107, DC_N | DC_Z },
-    { 0xC00B64, "c0_install_field_nmi", c0_install_field_nmi, M8_X16, 3500, DC_N | DC_Z | DC_D },
-    { 0xC00B75, "c0_install_field_irq", c0_install_field_irq, M8_X16, 3500, DC_N | DC_Z | DC_D },
-    { 0xC0A88D, "c0_update_object_visibility", c0_update_object_visibility, M8_X8_BIN, 4657, DC_X | DC_N | DC_Z },
-    { 0xC30002, "c3_decompress", c3_decompress, 0, 0, 3953, 0 },
+    { .addr = 0xC00B4E, .name = "c0_disable_display_and_interrupts", .fn = c0_disable_display_and_interrupts,
+      NEEDS_M8, .cost_milli = 4107, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC00B64, .name = "c0_install_field_nmi", .fn = c0_install_field_nmi,
+      NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_N | DC_Z | DC_D },
+    { .addr = 0xC00B75, .name = "c0_install_field_irq", .fn = c0_install_field_irq,
+      NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_N | DC_Z | DC_D },
+    { .addr = 0xC0A88D, .name = "c0_update_object_visibility", .fn = c0_update_object_visibility,
+      NEEDS_M8_X8_BINARY, .cost_milli = 4657, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0EC71, .name = "c0_wait_frame_loop", .fn = c0_wait_frame_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xC20348, .name = "c2_wait_frame_loop", .fn = c2_wait_frame_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xC281CA, .name = "c2_wait_ready_loop", .fn = c2_wait_ready_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xC30002, .name = "c3_decompress", .fn = c3_decompress, .cost_milli = 3953 },
 };
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);

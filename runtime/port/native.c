@@ -318,6 +318,17 @@ static int32_t intercept(void *ctx, Snes *s)
         return -1;
     }
 
+    if (e->idle) {
+        if (rt->mode != NATIVE_ON) {
+            st->skipped++;
+            return -1;
+        }
+        e->fn(s);
+        if (cpu_pc24(&s->cpu) == pc)
+            return (int32_t)(SNES_CLOCKS_PER_LINE - s->hclock);
+        return 0;
+    }
+
     if (rt->mode == NATIVE_ON) {
         uint32_t before = s->bus.clocks;
         e->fn(s);

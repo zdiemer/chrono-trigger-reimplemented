@@ -32,6 +32,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   compared. Registers and flags in the routine's don't-care set (below) aren't
   compared. Any mismatch prints the first differing field and makes `ct_dev`
   exit nonzero.
+- **Idle entries** stand in for one pass of a busy-wait loop (the game's
+  wait-for-next-frame loops) instead of a routine. The native function runs
+  the loop body and either leaves PC at the loop head or sets it to the loop's
+  exit. In `on` mode a waiting pass skips to the end of the scanline, so
+  interrupts still land. `shadow` mode skips idle entries.
 - **`on`:** registered routines run natively in place of the original. A native
   routine finishes instantly, so the time the original would have taken is
   charged afterwards, one scanline at a time, so frame boundaries and line
@@ -78,6 +83,7 @@ new parts of the game, before relaxing a routine further.
 | `c0_install_field_irq` | `$C0:0B75` | 10, all match |
 | `c0_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
 | `c3_decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
+| `c0_wait_frame_loop`, `c2_wait_frame_loop`, `c2_wait_ready_loop` | `$C0:EC71`, `$C2:0348`, `$C2:81CA` | idle entries: the wait-for-next-frame loops, about 64% of all instructions executed |
 
 The validator catches injected bugs: a wrong flag and a missing stack write
 were each reported with the exact field. The first decompressor draft failed
@@ -88,6 +94,12 @@ With all five running natively over the new-game movie, 5108 of 7200 frames
 are identical to the interpreter-only run at the same frame. Almost all of the
 rest (2088) are the same frames one frame earlier, from approximating the
 decompressor's time cost.
+
+`on` mode's time accounting is approximate, so input can land on different
+frames than in an interpreter-only run. The new-game movie still plays
+identically. In the field movie, where walking is sensitive to that, 8658 of
+11400 frames also appear in the interpreter-only run. Use shadow mode, not
+`on` mode, to judge correctness.
 
 The object visibility port first failed 7108 of its calls on HDMA's line
 counter and then 41 on HDMA-written PPU registers: state that moves with time

@@ -37,6 +37,11 @@ typedef struct NativeEntry {
      * cost_milli/1000. Shadow mode reports the original/native-bus ratio to set it. */
     uint32_t cost_milli;
     uint16_t dont_care;     /* DC_* bits */
+    /* Idle entries replace one pass of a busy-wait loop rather than a routine:
+     * the function runs the loop body and either leaves PC at the loop head
+     * (still waiting) or sets it to the loop's exit. In ON mode a waiting pass
+     * fast-forwards to the end of the scanline; SHADOW mode skips idle entries. */
+    bool idle;
 } NativeEntry;
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
