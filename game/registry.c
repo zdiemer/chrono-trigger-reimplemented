@@ -3,6 +3,7 @@
 #include "attract/attract.h"
 #include "battle/battle.h"
 #include "core/display.h"
+#include "core/input.h"
 #include "core/palette.h"
 #include "data/decompress.h"
 #include "event/event.h"
@@ -44,6 +45,16 @@ const NativeEntry game_natives[] = {
       .p_value = 0, .cost_milli = 3709 },
     { .addr = 0xC18290, .name = "battle_dispatch_expired_timers", .fn = battle_dispatch_expired_timers,
       NEEDS_M8_X16_BINARY, .cost_milli = 3779 },
+    { .addr = 0xC1285A, .name = "battle_update_object_bounds", .fn = battle_update_object_bounds,
+      NEEDS_M8_X16_BINARY, .cost_milli = 5804 },
+    { .addr = 0xC1283D, .name = "battle_update_all_object_bounds", .fn = battle_update_all_object_bounds,
+      NEEDS_M8_X16_BINARY, .cost_milli = 6867 },
+    { .addr = 0xC1423A, .name = "battle_find_due_animation", .fn = battle_find_due_animation, NEEDS_M8_X16,
+      .cost_milli = 13580 },
+    { .addr = 0xCCF278, .name = "battle_step_slot_delays", .fn = battle_step_slot_delays, NEEDS_M8_X16,
+      .cost_milli = 5040, .dont_care = DC_N | DC_Z },
+    { .addr = 0xCFEFAF, .name = "battle_step_effect_slots", .fn = battle_step_effect_slots, NEEDS_M8_X16,
+      .cost_milli = 3255, .dont_care = DC_N | DC_Z },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
       .cost_milli = 4344, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,
@@ -70,6 +81,10 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16_BINARY, .cost_milli = 5612, .dont_care = DC_N | DC_Z },
 
     /* core */
+    { .addr = 0xC284EC, .name = "input_read_joypad", .fn = input_read_joypad, .p_mask = CPU_FLAG_X, .p_value = 0,
+      .cost_milli = 2889, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC28545, .name = "input_map_buttons", .fn = input_map_buttons, .cost_milli = 3767,
+      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC00B4E, .name = "display_blank_and_stop_interrupts", .fn = display_blank_and_stop_interrupts,
       NEEDS_M8, .cost_milli = 4107, .dont_care = DC_N | DC_Z },
     { .addr = 0xFDE39C, .name = "palette_animate", .fn = palette_animate, NEEDS_M8_X16_BINARY,
