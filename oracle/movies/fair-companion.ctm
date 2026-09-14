@@ -1,0 +1,118 @@
+# Power on, start a new game, cross the world map into the fair, meet the story
+# character in the plaza, return the item they drop, and have them join the party.
+# Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2400 4 A
+3000 4 START
+3200 4 START
+# Advance opening dialog with periodic A presses.
+5400 3 A
+5490 3 A
+5580 3 A
+5670 3 A
+5760 3 A
+5850 3 A
+5940 3 A
+6030 3 A
+6120 3 A
+6210 3 A
+6300 3 A
+6390 3 A
+6480 3 A
+6570 3 A
+6660 3 A
+6750 3 A
+6840 3 A
+6930 3 A
+7020 3 A
+7110 3 A
+# Starting room: walk to the stairs.
+7400 90 LEFT
+7490 110 DOWN
+7600 16 UP
+7616 120 RIGHT
+# Downstairs: walk toward the front door.
+8700 40 LEFT
+8740 150 DOWN
+# Downstairs dialog: advance with A, then accept the default name for the
+# second character.
+9000 3 A
+9090 3 A
+9200 4 START
+9400 4 START
+10000 3 A
+10090 3 A
+10180 3 A
+10270 3 A
+10360 3 A
+# Downstairs: walk out the front door into town.
+10500 160 DOWN
+# World map: walk to the fair.
+11250 28 LEFT
+11278 90 UP
+11368 30 UP
+11420 14 RIGHT
+11434 40 UP
+11560 4 A
+# 12200-12900 Fair: go around the fountain and up the stairs to the plaza.
+12200 40 LEFT
+12240 150 UP
+12390 60 LEFT
+12450 400 UP
+12650 24 RIGHT
+12674 250 UP
+# 12900-13900 Plaza: wait for the story character, then walk into them (event).
+12900 70 UP
+13780 40 UP
+# 13900-14500 Event dialog.
+13900 3 A
+13950 3 A
+14000 3 A
+14050 3 A
+14100 3 A
+14150 3 A
+14200 3 A
+14250 3 A
+14300 3 A
+14350 3 A
+14400 3 A
+14450 3 A
+14500 3 A
+# 14600-15050 Walk to the dropped item and pick it up.
+14600 60 UP
+14660 100 RIGHT
+14760 30 UP
+14790 20 RIGHT
+14810 6 UP
+14830 3 A
+14880 3 A
+14930 3 A
+14980 3 A
+15030 3 A
+# 15050-15900 Walk back, hand it over, advance the dialog.
+15050 40 DOWN
+15090 25 LEFT
+15115 10 DOWN
+15130 3 A
+15200 3 A
+15270 3 A
+15340 3 A
+15410 3 A
+15480 3 A
+15550 3 A
+15620 3 A
+15690 3 A
+15760 3 A
+15830 3 A
+# 15900-16600 Walk north; the event continues. START past the naming step.
+15900 30 LEFT
+15930 300 UP
+16230 3 A
+16400 4 START
+16600 4 START
+# 17150-17850 Finish the dialog; the character joins (free movement by 17850).
+17150 3 A
+17250 3 A
+17350 3 A
+17450 3 A

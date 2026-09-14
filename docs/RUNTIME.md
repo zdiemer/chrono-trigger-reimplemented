@@ -137,6 +137,7 @@ the same scenes on Snes9x:
 | `field.ctm` | walks out of the starting room, down the stairs (map change), through a dialog and a second name entry, out the door onto the world map | 11400 |
 | `menu.ctm` | from the starting room, opens the main menu, enters and leaves five submenus, closes it | 8900 |
 | `fair.ctm` | `field.ctm`'s route, then across the world map into the fair and north through it | 12450 |
+| `fair-companion.ctm` | `fair.ctm`'s route (without its last walk), then up to the plaza, the meeting event with the story character, picking up and returning the item they drop, and the character joining the party | 17900 |
 
 Non-blank frames pixel-identical to Snes9x at the same frame / within 16 frames:
 
@@ -157,6 +158,21 @@ so positions drift by a pixel. The world map lines up again at a wall. This
 looks like input phase, not a hardware-model bug. Movies meant for exact
 comparison should walk into obstacles to realign positions.
 
+`fair-companion.ctm`, same metric:
+
+| Section | Result |
+|---|---|
+| 12200-13899, fair and plaza (walking, waiting) | 137 / 146 of 1656 |
+| 13900-15899, meeting event, item pickup and return | 426 / 1302 of 2000 |
+| 15900-17899, dialog and joining | 835 / 1696 of 1940 |
+
+Most event frames match within a few frames, so both systems run the same
+events; the low same-frame rate while walking looks like the position drift
+above but wasn't investigated separately. Two spots were checked by
+screenshot on both systems and looked identical: a vertical seam in the fair's
+east side (part of the map) and a spot at the north stairs where the player
+is blocked.
+
 ## Validation strategy
 
 External emulators check that the hardware model is right. They aren't
@@ -171,10 +187,14 @@ WRAM bytes the game has written: `ct_dev` traces carry a `WRAMW` region, and
 
 ## Next
 
-1. **Movie coverage.** Reach the first battle. The fair route works, but walking
-   north through the fair runs into a story character and a crowd of NPCs
-   that block the way. Realign positions against walls so field frames compare
-   exactly.
+1. **Movie coverage.** Reach the first battle. `fair-companion.ctm` gets the
+   companion into the party, but no battle yet: the two people standing on the
+   fair's north stairs still block the way afterwards, and the east part of the
+   fair explored so far is a dead end. Next candidates are the optional fight
+   somewhere in the fair, or whatever story step clears the north stairs.
+   `ct_dev --save-state/--load-state` from the end of `fair-companion.ctm`
+   makes those experiments fast. Realign positions against walls so field
+   frames compare exactly.
 2. **Porting.** Continue replacing routines with native code; shadow mode over
-   `new-game`, `field`, `menu` and `fair` is the regression check
-   (docs/PORTING.md).
+   `new-game`, `field`, `menu`, `fair` and `fair-companion` is the regression
+   check (docs/PORTING.md).

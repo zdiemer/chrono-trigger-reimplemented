@@ -1,6 +1,6 @@
-/* Bank C3: the general-purpose decompressor used for scripts, graphics, maps
- * and the code blocks the game runs from RAM. */
-#include "natives.h"
+/* The general-purpose decompressor used for scripts, graphics, maps and the
+ * code blocks the game runs from RAM. */
+#include "data/decompress.h"
 
 #include "port/machine.h"
 
@@ -58,7 +58,7 @@ static void emit_literal(Snes *s, uint8_t value) { m_write8(s, 0x002180, value);
  * are preserved; the direct-page scratch variables, stack bytes below the
  * saved registers, and the work RAM port address are left as the original
  * leaves them. */
-void c3_decompress(Snes *s)
+void decompress(Snes *s)
 {
     Cpu *c = &s->cpu;
 

@@ -19,7 +19,7 @@
 
 #include "media.h"
 #include "movie.h"
-#include "natives.h"
+#include "registry.h"
 #include "snes/render.h"
 #include "snes/system.h"
 #include "trace.h"

@@ -1,5 +1,5 @@
-/* Bank C0 field-mode NMI handler. */
-#include "natives.h"
+/* Field mode: the vertical blank interrupt handler. */
+#include "field/field.h"
 
 #include "port/machine.h"
 
@@ -131,7 +131,7 @@ static void run_video_uploads(Snes *s)
     m_sep(s, CPU_FLAG_M);
 }
 
-/* $C0:EA63 (installed at the $0500 NMI stub by $C0:0B64)
+/* $C0:EA63 (installed at the $0500 NMI stub by field_install_nmi)
  * Field-mode NMI. Acknowledges the interrupt and, if the main loop has
  * finished a frame ($0152 nonzero), runs that frame's vblank work: one
  * pending screen or map transition, the per-frame object/OAM/sound jobs, the
@@ -139,7 +139,7 @@ static void run_video_uploads(Snes *s)
  * frame it also runs the C2 per-frame routine and copies the window and color
  * math shadows, HDMA enable and brightness to the hardware. All registers are
  * restored before RTI. */
-void c0_field_nmi(Snes *s)
+void field_nmi(Snes *s)
 {
     Cpu *c = &s->cpu;
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);

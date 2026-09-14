@@ -28,15 +28,17 @@ add_library(ct_runtime STATIC
   runtime/port/native.c)
 target_include_directories(ct_runtime PUBLIC runtime)
 
-# Ported game code.
+# Ported game code, organized by subsystem.
 add_library(ct_game STATIC
-  game/natives.c
-  game/c0_system.c
-  game/c0_nmi.c
-  game/c0_objects.c
-  game/c2_system.c
-  game/c3_decompress.c
-  game/ram_attract.c)
+  game/registry.c
+  game/core/display.c
+  game/data/decompress.c
+  game/field/frame.c
+  game/field/interrupts.c
+  game/field/nmi.c
+  game/field/objects.c
+  game/menu/frame.c
+  game/attract/main_loop.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 

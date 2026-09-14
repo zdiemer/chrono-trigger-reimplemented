@@ -6,10 +6,20 @@ the original, independent of timing.
 
 ## Layout
 
+Game code is organized by subsystem, the way the game's own programmers would
+have split it, not by where the routines ended up in the ROM. The ROM address
+is recorded in each routine's comment. Names use the subsystem as a prefix
+(`field_nmi`, `menu_wait_for_frame_loop`). When porting a routine, place it
+by what it does; move routines when their purpose becomes clearer.
+
 | Path | What |
 |---|---|
-| `game/*.c` | Ported routines, grouped by subsystem. Every routine carries its original address in a `// $BB:AAAA` comment. |
-| `game/natives.c` | Table registering each routine: address, name, entry precondition on P, and time cost in ON mode |
+| `game/core/` | System code shared by every mode (display and interrupt control) |
+| `game/data/` | Data handling (the decompressor) |
+| `game/field/` | Field mode: interrupt handlers, frame sync, objects |
+| `game/menu/` | Menu mode: frame sync |
+| `game/attract/` | Attract sequence and title screen code the game runs from RAM |
+| `game/registry.c` | Table registering each routine: address, name, entry precondition on P, don't-care set, and time cost in ON mode |
 | `runtime/port/machine.h` | Helpers for touching the machine the way the original does: bus reads and writes, stack, returns, flags |
 | `runtime/port/native.c` | Registry, interception, shadow validation, reporting |
 
@@ -67,7 +77,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
    does (`m_abs`, `m_dp`), not hard-coded banks. Call routines that aren't
    ported yet with `m_jsr`/`m_jsl`, giving the original call site, and make sure
    registers and flags are exactly what the callee expects at that point.
-4. Register it in `game/natives.c` with its entry precondition (for example
+4. Register it in `game/registry.c` with its entry precondition (for example
    8-bit A and binary mode) and its don't-care set, so calls under other
    conditions fall back to the interpreter.
 5. Run `--native shadow` over the movie library. Every call must match. Then
@@ -83,14 +93,14 @@ new parts of the game, before relaxing a routine further.
 
 | Routine | Address | Calls in new-game movie |
 |---|---|---|
-| `c0_disable_display_and_interrupts` | `$C0:0B4E` | 17, all match |
-| `c0_install_field_nmi` | `$C0:0B64` | 10, all match |
-| `c0_install_field_irq` | `$C0:0B75` | 10, all match |
-| `c0_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
-| `c0_field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
-| `c3_decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
-| `c0_wait_frame_loop`, `c2_wait_frame_loop`, `c2_wait_ready_loop` | `$C0:EC71`, `$C2:0348`, `$C2:81CA` | idle entries: the wait-for-next-frame loops, about 64% of all instructions executed |
-| `ram_attract_wait_loop`, `ram_attract_vblank_end_loop`, `ram_attract_vblank_start_loop` | `$7E:3023`, `$7E:31B0`, `$7E:31B7` | idle entries in RAM code, guarded by hash. The "hottest routine" by call count, `$7E:3176`, is an empty routine this loop calls |
+| `display_blank_and_stop_interrupts` | `$C0:0B4E` | 17, all match |
+| `field_install_nmi` | `$C0:0B64` | 10, all match |
+| `field_install_irq` | `$C0:0B75` | 10, all match |
+| `field_update_object_visibility` | `$C0:A88D` | 31378, all match; calls 7 unported routines; X, N, Z don't-care |
+| `field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
+| `decompress` | `$C3:0002` → `$C3:0557` | 54, all match |
+| `field_wait_for_frame_loop`, `menu_wait_for_frame_loop`, `menu_wait_ready_loop` | `$C0:EC71`, `$C2:0348`, `$C2:81CA` | idle entries: the wait-for-next-frame loops, about 64% of all instructions executed |
+| `attract_wait_loop`, `attract_vblank_end_loop`, `attract_vblank_start_loop` | `$7E:3023`, `$7E:31B0`, `$7E:31B7` | idle entries in RAM code, guarded by hash. The "hottest routine" by call count, `$7E:3176`, is an empty routine this loop calls |
 
 The validator catches injected bugs: a wrong flag and a missing stack write
 were each reported with the exact field. The first decompressor draft failed
@@ -107,6 +117,13 @@ frames than in an interpreter-only run. The new-game movie still plays
 identically. In the field movie, where walking is sensitive to that, 8658 of
 11400 frames also appear in the interpreter-only run. Use shadow mode, not
 `on` mode, to judge correctness.
+
+A first attempt at the event script loop that runs each object's
+initialization block (`$C0:58DE`) didn't work as a run-to-completion port.
+Some event command handlers wait for frames to pass, and inside a call-out no
+time passes, so the handler at `$C0:3C11` spun until the call-out step limit.
+Ports that contain frame waits need a way to yield back to the system loop
+and resume. That comes before porting the event engine.
 
 The object visibility port first failed 7108 of its calls on HDMA's line
 counter and then 41 on HDMA-written PPU registers: state that moves with time

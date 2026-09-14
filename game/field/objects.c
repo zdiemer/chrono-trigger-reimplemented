@@ -1,5 +1,5 @@
-/* Bank C0 field object management. */
-#include "natives.h"
+/* Field mode: object management. */
+#include "field/field.h"
 
 #include "port/machine.h"
 
@@ -36,7 +36,7 @@ static uint8_t ldx8(Snes *s, uint8_t v)
  * Returns with carry set if the object is inside the window. Entry: 8-bit A
  * and X, binary mode. X, N and Z are dead after return (liveness), so they
  * aren't reproduced at the final RTS; registers passed to callees are. */
-void c0_update_object_visibility(Snes *s)
+void field_update_object_visibility(Snes *s)
 {
     const uint8_t index = m_read8(s, m_dp(s, 0x6D));
     ldx8(s, index);
