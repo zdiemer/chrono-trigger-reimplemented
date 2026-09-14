@@ -251,6 +251,20 @@ static inline void m_tsb8(Snes *s, uint32_t addr)
     m_write8(s, addr, (uint8_t)(v | a));
 }
 
+/* MVN: copy A+1 bytes from src_bank:X to dst_bank:Y, X and Y counting up,
+ * leaving A = $FFFF and the data bank = dst_bank. Native mode, 16-bit X/Y as
+ * the game uses it. */
+static inline void m_mvn(Snes *s, uint8_t dst_bank, uint8_t src_bank)
+{
+    s->cpu.db = dst_bank;
+    do {
+        m_write8(s, (uint32_t)dst_bank << 16 | s->cpu.y, m_read8(s, (uint32_t)src_bank << 16 | s->cpu.x));
+        s->cpu.x++;
+        s->cpu.y++;
+        s->cpu.a--;
+    } while (s->cpu.a != 0xFFFF);
+}
+
 /* Returns from an interrupt, native mode: P, PC, program bank. */
 static inline void m_rti(Snes *s)
 {

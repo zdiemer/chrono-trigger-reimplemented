@@ -22,6 +22,7 @@
  * disasm/out/liveness.json ("dead_after_return"). */
 const NativeEntry game_natives[] = {
     /* battle */
+    { .addr = 0xD1E77C, .name = "battle_nmi", .fn = battle_nmi, .cost_milli = 4000 },
     { .addr = 0xC10080, .name = "battle_wait_for_frame_loop", .fn = battle_wait_for_frame_loop, NEEDS_M8,
       .idle = true, .guard = battle_frame_wait_is_idle },
     { .addr = 0xCD3B84, .name = "battle_wait_vblank_end_loop", .fn = battle_wait_vblank_end_loop, NEEDS_M8, .idle = true },

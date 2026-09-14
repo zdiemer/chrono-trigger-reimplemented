@@ -2,12 +2,12 @@
  * random machine states rather than states a movie happens to reach.
  *
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
- *           [--iterations N] [--seed S] [--long] [--keep BBAAAA-BBAAAA]... [--step-limit N]
+ *           [--iterations N] [--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--step-limit N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
  * routine's entry precondition on P, and calls the routine as a JSR (JSL with
- * --long) would. The original runs on the interpreter until it returns; the
+ * --long) would, or as an interrupt (--interrupt). The original runs on the interpreter until it returns; the
  * native routine runs on a copy (call-outs interpreted synchronously). The
  * machines are compared where the native routine left off, normally the
  * return, as in shadow mode and ignoring the routine's don't-care set. Nothing
@@ -80,7 +80,7 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
     unsigned long iterations = 100000;
     uint64_t seed = 1;
-    bool long_call = false;
+    bool long_call = false, interrupt = false;
     uint32_t keep_lo[MAX_KEEP], keep_hi[MAX_KEEP];
     unsigned range_lo[3] = { 0, 0, 0 }, range_hi[3] = { 0xFFFF, 0xFFFF, 0xFFFF };   /* A, X, Y */
     int nkeep = 0;
@@ -90,6 +90,10 @@ int main(int argc, char **argv)
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--long")) {
             long_call = true;
+            continue;
+        }
+        if (!strcmp(a, "--interrupt")) {
+            interrupt = true;
             continue;
         }
         if (!v)
@@ -188,11 +192,20 @@ int main(int argc, char **argv)
         /* Call it: return to address $0000 in the routine's bank. */
         uint16_t ret_s = m->cpu.s;
         uint32_t ret_pc = e->addr & 0xFF0000;
-        if (long_call) {
+        if (interrupt) {
+            /* As an interrupt: PB, PC ($0000), P pushed; I set, D cleared. RTI
+             * returns to exactly that address. */
             snes_bus_write(&m->bus, m->cpu.s--, (uint8_t)(e->addr >> 16));
+            snes_bus_write(&m->bus, m->cpu.s--, 0x00);
+            snes_bus_write(&m->bus, m->cpu.s--, 0x00);
+            snes_bus_write(&m->bus, m->cpu.s--, m->cpu.p);
+            m->cpu.p = (uint8_t)((m->cpu.p | CPU_FLAG_I) & ~CPU_FLAG_D);
+        } else {
+            if (long_call)
+                snes_bus_write(&m->bus, m->cpu.s--, (uint8_t)(e->addr >> 16));
+            snes_bus_write(&m->bus, m->cpu.s--, 0xFF);
+            snes_bus_write(&m->bus, m->cpu.s--, 0xFF);
         }
-        snes_bus_write(&m->bus, m->cpu.s--, 0xFF);
-        snes_bus_write(&m->bus, m->cpu.s--, 0xFF);
         m->cpu.pb = (uint8_t)(e->addr >> 16);
         m->cpu.pc = (uint16_t)e->addr;
         snes_clone(&native, &orig);
@@ -232,6 +245,6 @@ int main(int argc, char **argv)
 
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
-                    "[--seed S] [--long] [--keep BBAAAA-BBAAAA]... [--range A|X|Y=lo-hi]... [--step-limit N]\n");
+                    "[--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--range A|X|Y=lo-hi]... [--step-limit N]\n");
     return 2;
 }

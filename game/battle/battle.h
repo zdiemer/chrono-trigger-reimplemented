@@ -11,4 +11,7 @@ void battle_wait_vblank_end_loop(Snes *s);
 void battle_wait_hblank_loop(Snes *s);
 void battle_wait_line_loop(Snes *s);
 
+/* battle/nmi.c */
+void battle_nmi(Snes *s);
+
 #endif
