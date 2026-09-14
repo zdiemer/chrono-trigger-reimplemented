@@ -61,6 +61,7 @@ add_library(ct_game STATIC
   game/battle/buffers.c
   game/battle/display.c
   game/battle/frame.c
+  game/battle/math.c
   game/battle/nmi.c
   game/battle/objects.c
   game/battle/sprites.c

@@ -814,3 +814,208 @@ void battle_cycle_party_palettes(Snes *s)
     m_rep(s, CPU_FLAG_X);
     m_rts(s);
 }
+
+/* The 24-bit address a long pointer on the direct page holds. */
+static uint32_t long_ptr(Snes *s, uint8_t cell)
+{
+    return m_read16(s, m_dp(s, cell)) | (uint32_t)m_read8(s, m_dp(s, (uint8_t)(cell + 2))) << 16;
+}
+
+// $C1:1C55
+/* Assemble the sprite graphics of object $9679 for its animation frame $967B,
+ * unless it's already showing that frame ($9907 + object): the frame's tile
+ * list (through $CC:F40A by the object's graphics kind $967C, and the per-
+ * object table at $CC:F92D) is walked row by row ($85 rows of $80 tiles, from
+ * $CC:F3C2 by kind) into the object's tile buffer in $7E (base from $CC:F941):
+ * each 32-byte tile is cleared (descriptor $0000), copied from the graphics
+ * set, or, with descriptor bit 14, copied through the flip table at
+ * $C0:FD00. Then the frame's part offsets are copied into $9F47 (sign-extended
+ * to 16 bits) and $9912 is incremented. */
+void battle_build_object_graphics(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_ldx16(s, m_read16(s, m_abs(s, 0x9679)));
+    set_dp16(s, 0x88, c->x);
+    set_absx8(s, 0x9922, 0x00);
+    uint8_t frame = m_lda8(s, abs8(s, 0x967B));
+    uint8_t shown = absx8(s, 0x9907);
+    m_cmp8(s, frame, shown);
+    if (frame == shown) {
+        m_rts(s);
+        return;
+    }
+    set_absx8(s, 0x9907, frame);
+    m_set_a8(s, m_asl8(s, m_lda8(s, absx8(s, 0x967C))));
+    m_tax(s);
+    set_dp8(s, 0xA7, m_lda8(s, m_read8(s, 0xCCF40A + c->x)));
+    set_dp8(s, 0xA8, m_lda8(s, m_read8(s, 0xCCF40B + c->x)));
+    set_dp8(s, 0xA5, m_lda8(s, abs8(s, 0x967B)));
+    if (!call(s, 0xC11C7F, 0xC100A7))
+        return;
+    m_ldx16(s, dp16(s, 0x88));
+    m_lda8(s, m_read8(s, 0xCCF92D + c->x));
+    m_tax(s);
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
+    m_lda16(s, m_read16(s, m_abs(s, 0x1C78) + c->x));
+    set_dp16(s, 0xBA, c->a = m_adc16(s, c->a, dp16(s, 0xA9)));
+    set_dp16(s, 0xBD, m_lda16(s, m_read16(s, m_abs(s, 0x1C57) + c->x)));
+    m_tdc(s);
+    m_sep(s, CPU_FLAG_M);
+    m_push8(s, c->db);
+    set_dp8(s, 0xBC, m_lda8(s, absx8(s, 0x1C7A)));
+    m_push8(s, m_lda8(s, absx8(s, 0x1C59)));
+    m_ldx16(s, dp16(s, 0x88));
+    uint8_t kind = m_lda8(s, absx8(s, 0x967C));
+    set_dp8(s, 0xAD, kind);
+    m_cmp8(s, kind, 0x02);
+    if (kind == 0x02) {
+        uint8_t object = m_lda8(s, abs8(s, 0x9679));
+        m_cmp8(s, object, 0x03);
+        if (object != 0x03)
+            set_dp8(s, 0xAD, m_lda8(s, 0x05));
+    }
+    set_dp8(s, 0xAE, m_lda8(s, 0x0E));
+    if (!call(s, 0xC11CBE, 0xC10089))
+        return;
+    m_ldx16(s, dp16(s, 0xAF));
+    uint8_t per_row = m_lda8(s, m_read8(s, 0xCCF3C2 + c->x));
+    set_dp8(s, 0x80, per_row);
+    set_dp8(s, 0x81, per_row);
+    set_dp8(s, 0x85, m_lda8(s, m_read8(s, 0xCCF3C3 + c->x)));
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
+    m_txa(s);
+    set_dp16(s, 0x82, c->a = m_adc16(s, c->a, 0xF3B6));
+    uint32_t p88 = m_dp(s, 0x88);
+    m_write16(s, p88, m_asl16(s, m_read16(s, p88)));
+    m_tdc(s);
+    m_sep(s, CPU_FLAG_M);
+    set_dp8(s, 0x84, m_lda8(s, 0xCC));
+    set_dp8(s, 0xAF, m_lda8(s, 0x7E));
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+
+    for (;;) {
+        /* $C1:1CE7: next row */
+        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
+        m_ldx16(s, dp16(s, 0x88));
+        m_lda16(s, m_read16(s, 0xCCF941 + c->x));
+        c->a = m_adc16(s, c->a, m_read16(s, long_ptr(s, 0x82)));
+        m_tax(s);
+        for (int i = 0; i < 2; i++) {
+            uint16_t v = (uint16_t)(dp16(s, 0x82) + 1);
+            set_dp16(s, 0x82, v);
+            m_set_nz16(s, v);
+        }
+        for (;;) {
+            /* $C1:1CF6: next tile */
+            m_rep(s, CPU_FLAG_M);
+            uint16_t tile = m_lda16(s, m_read16(s, long_ptr(s, 0xBA)));
+            set_dp16(s, 0x8C, tile);
+            uint16_t number = m_lda16(s, tile & 0x07FF);
+            if (number == 0) {
+                for (uint32_t k = 0; k < 32; k += 2)
+                    m_write16(s, 0x7E0000 + c->x + k, number);
+                m_txa(s);
+                m_set_flag(s, CPU_FLAG_C, false);
+                c->a = m_adc16(s, c->a, 0x0020);
+                m_tax(s);
+            } else {
+                for (int i = 0; i < 5; i++)
+                    number = m_asl16(s, number);
+                m_set_flag(s, CPU_FLAG_C, false);
+                c->a = m_adc16(s, number, dp16(s, 0xBD));
+                m_set_index(s, &c->y, c->a);
+                if (m_lda16(s, (uint16_t)(dp16(s, 0x8C) & 0x4000)) == 0) {
+                    for (uint32_t k = 0; k < 32; k += 2) {
+                        uint16_t w = m_lda16(s, m_read16(s, m_abs(s, 0x0000) + c->y + k));
+                        m_write16(s, 0x7E0000 + c->x + k, w);
+                    }
+                    m_txa(s);
+                    m_set_flag(s, CPU_FLAG_C, false);
+                    c->a = m_adc16(s, c->a, 0x0020);
+                    m_tax(s);
+                } else {
+                    /* $C1:1DD3: flipped */
+                    set_dp16(s, 0x8C, c->y);
+                    set_dp16(s, 0xAD, c->x);
+                    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
+                    m_set_index(s, &c->y, 0x00);
+                    uint32_t src = ((uint32_t)c->db << 16) + dp16(s, 0x8C);
+                    uint32_t dst = long_ptr(s, 0xAD);
+                    for (int k = 0; k < 32; k++) {
+                        m_lda8(s, m_read8(s, src + c->y));
+                        m_tax(s);
+                        uint8_t v = m_lda8(s, m_read8(s, 0xC0FD00 + c->x));
+                        m_write8(s, dst + c->y, v);
+                        m_iny(s);
+                    }
+                    m_rep(s, CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_C);
+                    m_lda16(s, dp16(s, 0xAD));
+                    c->a = m_adc16(s, c->a, 0x0020);
+                    m_tax(s);
+                }
+            }
+            /* $C1:1F23 */
+            for (int i = 0; i < 2; i++) {
+                uint16_t v = (uint16_t)(dp16(s, 0xBA) + 1);
+                set_dp16(s, 0xBA, v);
+                m_set_nz16(s, v);
+            }
+            m_tdc(s);
+            m_sep(s, CPU_FLAG_M);
+            if (dec_dp8(s, 0x80) == 0)
+                break;
+        }
+        if (dec_dp8(s, 0x85) == 0)
+            break;
+        set_dp8(s, 0x80, m_lda8(s, dp8(s, 0x81)));
+    }
+
+    /* $C1:1F3C: part offsets */
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    m_lda8(s, abs8(s, 0x9679));
+    m_tax(s);
+    m_lda8(s, absx8(s, 0x967C));
+    m_tax(s);
+    m_lda8(s, m_read8(s, 0xCCF4FC + c->x));
+    m_tax(s);
+    set_dp16(s, 0x80, c->x);
+    m_ldx16(s, dp16(s, 0x88));
+    set_dp8(s, 0x82, m_lda8(s, m_read8(s, 0xCCF917 + c->x)));
+    set_dp8(s, 0x83, m_lda8(s, m_read8(s, 0xCCF918 + c->x)));
+    m_ldx16(s, dp16(s, 0x82));
+    m_set_index(s, &c->y, 0x0000);
+    do {
+        uint8_t v = m_lda8(s, m_read8(s, long_ptr(s, 0xBA) + c->y));
+        set_absx8(s, 0x9F47, v);
+        if (v & 0x80)
+            m_lda8(s, 0xFF);
+        else
+            m_tdc(s);
+        set_absx8(s, 0x9F48, (uint8_t)c->a);
+        m_inx(s);
+        m_inx(s);
+        m_iny(s);
+        m_cmp16(s, c->y, dp16(s, 0x80));
+    } while (c->y != dp16(s, 0x80));
+    uint8_t count = (uint8_t)(abs8(s, 0x9912) + 1);
+    m_write8(s, m_abs(s, 0x9912), count);
+    m_set_nz8(s, count);
+    m_rts(s);
+}
+
+// $C1:1C4A
+/* battle_build_object_graphics, except for objects of graphics kind 3. Stops
+ * where it falls through into $C1:1C55, which has its own entry. */
+void battle_build_object_graphics_checked(Snes *s)
+{
+    m_ldx16(s, m_read16(s, m_abs(s, 0x9679)));
+    uint8_t kind = m_lda8(s, absx8(s, 0x967C));
+    m_cmp8(s, kind, 0x03);
+    if (kind == 0x03) {
+        m_rts(s);
+        return;
+    }
+    s->cpu.pc = 0x1C55;
+}

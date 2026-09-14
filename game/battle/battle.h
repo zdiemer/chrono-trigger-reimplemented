@@ -63,5 +63,11 @@ void battle_step_object_paths(Snes *s);
 void battle_update_anchor_points(Snes *s);
 void battle_record_object_trails(Snes *s);
 void battle_cycle_party_palettes(Snes *s);
+void battle_build_object_graphics(Snes *s);
+void battle_build_object_graphics_checked(Snes *s);
+
+/* battle/math.c */
+void battle_multiply_8x8(Snes *s);
+void battle_multiply_8x16(Snes *s);
 
 #endif
