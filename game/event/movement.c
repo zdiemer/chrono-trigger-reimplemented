@@ -6,13 +6,14 @@
  * nonzero), $1A80 set while a counted move runs, $1C81 flags choosing an extra
  * routine on arrival.
  *
- * The routines these commands call aren't ported yet and are called out, not
- * yet analyzed: $C0:ABA2 leaves a value in $EE that indexes the facing table at
- * $F700; $C0:5B95 returns a carry that makes the command add $30 to $EE;
- * $C0:ACFD runs after a move is set up; $C0:5614 runs when the command stays
- * on the move and $C0:568B when it finishes; $C0:30B3 and $C0:305D run on
- * arrival when the object's $1C81 flags ask for them, and carry set from them
- * keeps the command going. */
+ * The motion routines these commands call are in field/motion.c and are
+ * reached through call-outs: $C0:ABA2 (field_direction_to_target) sets $EE,
+ * which indexes the facing table at $F700; $C0:5B95 (field_object_in_the_way)
+ * returns carry set when another object blocks the way, and the command then
+ * turns by $30; $C0:ACFD (field_start_step) sets the velocity; $C0:5614 and
+ * $C0:568B pick the walking and standing animations; $C0:30B3 and $C0:305D
+ * line the object up on arrival when its $1C81 flags ask for it, carry set
+ * meaning a step is still needed. */
 #include "event/event.h"
 
 #include "event/script.h"
