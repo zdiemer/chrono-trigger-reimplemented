@@ -1,0 +1,53 @@
+# Power on, wait through the attract sequence, start a new game.
+# Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2400 4 A
+3000 4 START
+3200 4 START
+# Advance opening dialog with periodic A presses.
+5400 3 A
+5490 3 A
+5580 3 A
+5670 3 A
+5760 3 A
+5850 3 A
+5940 3 A
+6030 3 A
+6120 3 A
+6210 3 A
+6300 3 A
+6390 3 A
+6480 3 A
+6570 3 A
+6660 3 A
+6750 3 A
+6840 3 A
+6930 3 A
+7020 3 A
+7110 3 A
+# Starting room: walk to the stairs.
+7400 90 LEFT
+7490 110 DOWN
+7600 16 UP
+7616 120 RIGHT
+# Downstairs: walk toward the front door.
+8700 40 LEFT
+8740 150 DOWN
+# Downstairs dialog: advance with A, then accept the default name for the
+# second character.
+9000 3 A
+9090 3 A
+9200 4 START
+9400 4 START
+10000 3 A
+10090 3 A
+10180 3 A
+10270 3 A
+10360 3 A
+# Downstairs: walk out the front door into town.
+10500 160 DOWN
+# World map outside the house: walk around.
+11100 60 RIGHT
+11160 60 DOWN
+11220 60 LEFT

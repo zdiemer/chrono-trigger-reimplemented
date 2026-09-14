@@ -125,6 +125,34 @@ section (5400-7200), 1354 of 1550 match, most of the rest within a frame or
 three. WRAM there differs only in frame-count and animation-timer bytes left
 over from the earlier timing offset.
 
+Longer movies build on it. All were timed on the development system and reach
+the same scenes on Snes9x:
+
+| Movie | Reaches | Frames |
+|---|---|---|
+| `field.ctm` | walks out of the starting room, down the stairs (map change), through a dialog and a second name entry, out the door onto the world map | 11400 |
+| `menu.ctm` | from the starting room, opens the main menu, enters and leaves five submenus, closes it | 8900 |
+| `fair.ctm` | `field.ctm`'s route, then across the world map into the fair and north through it | 12450 |
+
+Non-blank frames pixel-identical to Snes9x at the same frame / within 16 frames:
+
+| Section | `menu` | `field` | `fair` |
+|---|---|---|---|
+| 7200-8899, menu | 1264 / 1453 of 1640 | | |
+| 7200-8999, walking the house | | 166 / 482 of 1752 | same as `field` |
+| 9000-10799, dialog and name entry | | 48 / 185 of 1692 | same as `field` |
+| 10800-11399, world map | | 216 / 600 of 600 | |
+| 10800-12449, world map and fair | | | 381 / 984 of 1558 |
+
+The house frames that match no Snes9x frame look the same but differ in a few
+hundred pixels around the characters (for example 87 pixels in rows 97-112 at
+frame 8700). WRAM there differs in about 160 bytes, including a coordinate
+byte off by one (`$7E:01AB`), and no frame offset lines it up. Direction holds
+land one frame apart relative to the game's frame counter on the two systems,
+so positions drift by a pixel. The world map lines up again at a wall. This
+looks like input phase, not a hardware-model bug. Movies meant for exact
+comparison should walk into obstacles to realign positions.
+
 ## Validation strategy
 
 External emulators check that the hardware model is right. They aren't
@@ -139,6 +167,10 @@ WRAM bytes the game has written: `ct_dev` traces carry a `WRAMW` region, and
 
 ## Next
 
-1. **Movie coverage.** Extend movies to a battle, the menu and the world map.
-2. **Snes9x conventions.** Mirror or ignore its SRAM and CGRAM power-on fill.
-3. **Start porting.** Begin replacing routines with native code (roadmap phase 4).
+1. **Movie coverage.** Reach the first battle. The fair route works, but walking
+   north through the fair runs into a story character and a crowd of NPCs
+   that block the way. Realign positions against walls so field frames compare
+   exactly.
+2. **Porting.** Continue replacing routines with native code; shadow mode over
+   `new-game`, `field`, `menu` and `fair` is the regression check
+   (docs/PORTING.md).
