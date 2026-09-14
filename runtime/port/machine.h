@@ -242,6 +242,15 @@ static inline void m_trb8(Snes *s, uint32_t addr)
     m_write8(s, addr, (uint8_t)(v & ~a));
 }
 
+/* TSB on an 8-bit memory byte with the 8-bit accumulator. */
+static inline void m_tsb8(Snes *s, uint32_t addr)
+{
+    uint8_t v = m_read8(s, addr);
+    uint8_t a = (uint8_t)s->cpu.a;
+    m_set_flag(s, CPU_FLAG_Z, (v & a) == 0);
+    m_write8(s, addr, (uint8_t)(v | a));
+}
+
 /* Returns from an interrupt, native mode: P, PC, program bank. */
 static inline void m_rti(Snes *s)
 {

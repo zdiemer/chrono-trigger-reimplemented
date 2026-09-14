@@ -192,4 +192,27 @@ void event_cmd_memory0_set(Snes *s);  /* $5A */
 void event_cmd_memory_set_bit(Snes *s);  /* $65 */
 void event_cmd_memory_clear_bit(Snes *s);  /* $66 */
 
+/* event/sound.c: sound driver commands */
+void event_cmd_play_sound(Snes *s);  /* $E8 */
+void event_cmd_play_song(Snes *s);  /* $EA */
+void event_cmd_sound_81_83(Snes *s);  /* $EB */
+void event_cmd_sound_command(Snes *s);  /* $EC */
+void event_cmd_wait_apu_port1(Snes *s);  /* $ED */
+void event_cmd_wait_apu_port3(Snes *s);  /* $EE */
+
+/* event/screen.c: screen effects */
+void event_cmd_set_1f(Snes *s);  /* $E3 */
+void event_cmd_brightness(Snes *s);  /* $F0 */
+void event_cmd_wait_brightness(Snes *s);  /* $F2 */
+void event_cmd_wait_color(Snes *s);  /* $F3 */
+void event_cmd_fixed_color(Snes *s);  /* $F1 */
+void event_cmd_set_bc(Snes *s);  /* $F4 */
+void event_cmd_copy_tiles(Snes *s);  /* $E4 */
+void event_cmd_queue_tile_copy(Snes *s);  /* $E5 */
+void event_cmd_set_layer_scroll(Snes *s);  /* $E6 */
+void event_cmd_scroll_screen(Snes *s);  /* $E7 */
+void event_cmd_party_routine_6_7(Snes *s);  /* $F8 */
+void event_cmd_party_routine_6(Snes *s);  /* $F9 */
+void event_cmd_party_routine_7(Snes *s);  /* $FA */
+
 #endif

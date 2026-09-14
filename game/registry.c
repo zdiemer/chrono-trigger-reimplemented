@@ -201,6 +201,26 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC06A12, event_cmd_memory0_set),
     EVENT_CMD(0xC06B76, event_cmd_memory_set_bit),
     EVENT_CMD(0xC06BA4, event_cmd_memory_clear_bit),
+    /* sound and screen */
+    EVENT_CMD(0xC03C11, event_cmd_play_sound),
+    EVENT_CMD(0xC03C2F, event_cmd_play_song),
+    EVENT_CMD(0xC03C4C, event_cmd_sound_81_83),
+    EVENT_CMD(0xC03C98, event_cmd_sound_command),
+    EVENT_CMD(0xC03CBC, event_cmd_wait_apu_port1),
+    EVENT_CMD(0xC03CC5, event_cmd_wait_apu_port3),
+    EVENT_CMD(0xC03C05, event_cmd_set_1f),
+    EVENT_CMD(0xC03CD0, event_cmd_brightness),
+    EVENT_CMD(0xC03CFD, event_cmd_wait_brightness),
+    EVENT_CMD(0xC03D7A, event_cmd_wait_color),
+    EVENT_CMD(0xC03D07, event_cmd_fixed_color),
+    EVENT_CMD(0xC03D84, event_cmd_set_bc),
+    EVENT_CMD(0xC03D97, event_cmd_copy_tiles),
+    EVENT_CMD(0xC03DC5, event_cmd_queue_tile_copy),
+    EVENT_CMD(0xC03DF4, event_cmd_set_layer_scroll),
+    EVENT_CMD(0xC03E30, event_cmd_scroll_screen),
+    EVENT_CMD(0xC03E5C, event_cmd_party_routine_6_7),
+    EVENT_CMD(0xC03E6E, event_cmd_party_routine_6),
+    EVENT_CMD(0xC03E75, event_cmd_party_routine_7),
 #undef EVENT_CMD
 
     /* field */
