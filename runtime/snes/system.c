@@ -53,6 +53,19 @@ void snes_init(Snes *s, const uint8_t *rom, size_t rom_size)
     cpu_init(&s->cpu, (CpuBus){ &s->bus, snes_bus_read, snes_bus_write });
 }
 
+void snes_clone(Snes *dst, const Snes *src)
+{
+    memcpy(dst, src, sizeof *dst);
+    dst->bus.io.ctx = dst;
+    dst->cpu.bus.ctx = &dst->bus;
+    dst->apu.spc.bus.ctx = &dst->apu;
+    dst->bus.wram_written = NULL;
+    dst->cpu.on_insn = NULL;
+    dst->apu.on_insn = NULL;
+    dst->on_line = NULL;
+    dst->intercept = NULL;
+}
+
 void snes_power_on(Snes *s)
 {
     /* Power-on WRAM contents are undefined on hardware; match the trace oracle
@@ -215,6 +228,13 @@ void snes_run_frame(Snes *s, uint16_t pad1)
         s->bus.clocks = 0;
         s->cpu.io_cycles = 0;
         s->cpu.irq_line = s->bus.irq_flag;
+        if (s->intercept) {
+            int32_t spent = s->intercept(s->intercept_ctx, s);
+            if (spent >= 0) {
+                advance(s, spent ? (uint32_t)spent : CLOCKS_PER_IO_CYCLE);
+                continue;
+            }
+        }
         cpu_step(&s->cpu);
         if (s->bus.nmi_request) {
             s->bus.nmi_request = false;

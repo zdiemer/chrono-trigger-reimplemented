@@ -24,15 +24,23 @@ add_library(ct_runtime STATIC
   runtime/snes/bus.c
   runtime/snes/ppu.c
   runtime/snes/render.c
-  runtime/snes/system.c)
+  runtime/snes/system.c
+  runtime/port/native.c)
 target_include_directories(ct_runtime PUBLIC runtime)
+
+# Ported game code.
+add_library(ct_game STATIC
+  game/natives.c
+  game/c0_system.c)
+target_include_directories(ct_game PUBLIC game)
+target_link_libraries(ct_game PUBLIC ct_runtime)
 
 # Trace and movie formats and PNG/WAV capture, shared with the oracle harness.
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
 add_executable(ct_dev dev/ct_dev.c)
-target_link_libraries(ct_dev PRIVATE ct_runtime ct_trace)
+target_link_libraries(ct_dev PRIVATE ct_game ct_runtime ct_trace)
 
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c)

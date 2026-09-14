@@ -4,6 +4,10 @@
  *
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
+ *          [--native off|shadow|on]
+ *
+ * --native shadow runs the original code and checks each call of a ported
+ * routine against its native version; --native on runs the ported routines.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +15,7 @@
 
 #include "media.h"
 #include "movie.h"
+#include "natives.h"
 #include "snes/render.h"
 #include "snes/system.h"
 #include "trace.h"
@@ -87,6 +92,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *shot_dir = NULL;
+    NativeMode native_mode = NATIVE_OFF;
     long frames = -1, status_every = 0, shot_every = 0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
@@ -102,6 +108,15 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--status-every")) status_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
+        else if (!strcmp(a, "--native")) {
+            if (!strcmp(v, "off")) native_mode = NATIVE_OFF;
+            else if (!strcmp(v, "shadow")) native_mode = NATIVE_SHADOW;
+            else if (!strcmp(v, "on")) native_mode = NATIVE_ON;
+            else {
+                fprintf(stderr, "--native must be off, shadow or on\n");
+                return 2;
+            }
+        }
         else {
             fprintf(stderr, "unknown argument %s\n", a);
             return 2;
@@ -110,7 +125,8 @@ int main(int argc, char **argv)
     }
     if (!rom_path || frames < 0 || (shot_every > 0 && !shot_dir)) {
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
-                        "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]\n");
+                        "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
+                        "[--native off|shadow|on]\n");
         return 2;
     }
 
@@ -135,6 +151,8 @@ int main(int argc, char **argv)
     snes.on_line = on_line;
     snes.on_line_ctx = &renderer;
     snes_power_on(&snes);
+    NativeRuntime *natives = native_create(game_natives, game_native_count, native_mode);
+    native_attach(natives, &snes);
     if (shot_dir)
         make_dir(shot_dir);
 
@@ -197,6 +215,12 @@ int main(int argc, char **argv)
     }
 
     int rc = 0;
+    if (native_mode != NATIVE_OFF) {
+        native_report(natives, stderr);
+        if (native_failed(natives))
+            rc = 1;
+    }
+    native_destroy(natives);
     if (ct_trace_close(trace) != 0)
         rc = 1;
     if (coverage_path && write_coverage(&cov, coverage_path) != 0) {
