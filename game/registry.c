@@ -2,6 +2,7 @@
 
 #include "attract/attract.h"
 #include "battle/battle.h"
+#include "battle/windows.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "core/palette.h"
@@ -155,6 +156,12 @@ const NativeEntry game_natives[] = {
       .p_mask = CPU_FLAG_X, .p_value = 0, .cost_milli = 3208, .dont_care = DC_N | DC_Z },
     { .addr = 0xC11C3A, .name = "battle_reset_0b40_table", .fn = battle_reset_0b40_table, NEEDS_M8_X16,
       .cost_milli = 8089, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC10C2D, .name = "battle_draw_menu_window", .fn = battle_draw_menu_window, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3341, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC117DD, .name = "battle_place_menu_cursors", .fn = battle_place_menu_cursors, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3745, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC15ADB, .name = "battle_script_build_number_sprites", .fn = battle_script_build_number_sprites,
+      NEEDS_M8_X16_BINARY, .cost_milli = 4581, .dont_care = DC_N | DC_Z },
     { .addr = 0xFDACFD, .name = "battle_clear_b328_table", .fn = battle_clear_b328_table, NEEDS_M8_X16,
       .cost_milli = 9833, .dont_care = DC_N | DC_Z },
     { .addr = 0xCFE83A, .name = "battle_draw_objects", .fn = battle_draw_objects, NEEDS_M8_X16_BINARY,
