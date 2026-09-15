@@ -107,3 +107,19 @@ void battle_clear_b328_table(Snes *s)
     } while (c->x < 0x0084);
     m_rtl(s);
 }
+
+// $FD:ACEE
+/* Clear $AD9B and the 176-byte table at $AD9C. Returns with RTL. */
+void battle_clear_ad9c_table(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_tdc(s);
+    m_tax(s);
+    m_write8(s, m_abs(s, 0xAD9B), (uint8_t)c->a);
+    do {
+        m_write8(s, m_abs(s, 0xAD9C) + c->x, (uint8_t)c->a);
+        m_inx(s);
+        m_cmp16(s, c->x, 0x00B0);
+    } while (c->x < 0x00B0);
+    m_rtl(s);
+}

@@ -159,3 +159,41 @@ void battle_update_button_repeat(Snes *s)
         m_write8(s, m_abs(s, 0xCC9B), m_lda8(s, 0x18));
     m_rts(s);
 }
+
+/* ROR on a 16-bit direct-page word; returns the bit shifted out. */
+static bool ror_dp16(Snes *s, uint8_t cell)
+{
+    uint32_t addr = m_dp(s, cell);
+    uint16_t v = m_read16(s, addr);
+    bool out = v & 1;
+    v = (uint16_t)(v >> 1 | (m_flag(s, CPU_FLAG_C) ? 0x8000 : 0));
+    m_write16(s, addr, v);
+    m_set_flag(s, CPU_FLAG_C, out);
+    m_set_nz16(s, v);
+    return out;
+}
+
+// $C1:C90B
+/* 16-bit shift-and-add multiply: $2C-$2F (32-bit) = $28 * $2A, shifting $2A
+ * out as it goes. */
+void battle_multiply_16x16(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_rep(s, CPU_FLAG_M);
+    m_ldx16(s, 0x0010);
+    m_write16(s, m_dp(s, 0x2C), 0x0000);
+    m_write16(s, m_dp(s, 0x2E), 0x0000);
+    do {
+        if (ror_dp16(s, 0x2A)) {
+            m_set_flag(s, CPU_FLAG_C, false);
+            uint16_t sum = m_adc16(s, m_lda16(s, m_read16(s, m_dp(s, 0x28))), m_read16(s, m_dp(s, 0x2E)));
+            m_write16(s, m_dp(s, 0x2E), sum);
+        }
+        ror_dp16(s, 0x2E);
+        ror_dp16(s, 0x2C);
+        m_ldx16(s, (uint16_t)(c->x - 1));
+    } while (c->x != 0);
+    m_tdc(s);
+    m_sep(s, CPU_FLAG_M);
+    m_rts(s);
+}

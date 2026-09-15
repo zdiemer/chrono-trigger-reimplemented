@@ -119,3 +119,50 @@ void battle_draw_gauge(Snes *s)
     }
     m_rts(s);
 }
+
+/* SEC : LDA $9499 : SBC #step : STA $9499 : INX : BCS, then add the last step
+ * back (16-bit), DEX : PHX -- how many times the step goes into $9499. */
+static void count_digit(Snes *s, uint16_t step, bool store_rest)
+{
+    Cpu *c = &s->cpu;
+    m_tdc(s);
+    m_tax(s);
+    do {
+        m_set_flag(s, CPU_FLAG_C, true);
+        uint16_t v = m_sbc16(s, m_lda16(s, m_read16(s, m_abs(s, 0x9499))), step);
+        m_write16(s, m_abs(s, 0x9499), v);
+        m_inx(s);
+    } while (m_flag(s, CPU_FLAG_C));
+    m_set_flag(s, CPU_FLAG_C, false);
+    c->a = m_adc16(s, m_lda16(s, m_read16(s, m_abs(s, 0x9499))), step);
+    if (store_rest)
+        m_write16(s, m_abs(s, 0x9499), c->a);
+    m_ldx16(s, (uint16_t)(c->x - 1));
+    m_push16(s, c->x);
+}
+
+// $C1:011F
+/* Write the 16-bit number at $9499 (below 1000) as three digit tiles from
+ * $CC:F903 into $949D-$949F, followed by $FF at $949C; $9499 is left holding
+ * the number modulo 100. Entered with 16-bit A. */
+void battle_number_to_digits(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_push16(s, c->x);
+    count_digit(s, 100, true);
+    count_digit(s, 10, false);
+    m_sep(s, CPU_FLAG_M);
+    m_tax(s);
+    static const uint16_t cells[3] = { 0x949F, 0x949E, 0x949D };
+    for (int i = 0; i < 3; i++) {
+        if (i > 0) {
+            c->x = m_pull16(s);
+            m_set_nz16(s, c->x);
+        }
+        m_write8(s, m_abs(s, cells[i]), m_lda8(s, m_read8(s, 0xCCF903 + c->x)));
+    }
+    m_write8(s, m_abs(s, 0x949C), m_lda8(s, 0xFF));
+    c->x = m_pull16(s);
+    m_set_nz16(s, c->x);
+    m_rts(s);
+}

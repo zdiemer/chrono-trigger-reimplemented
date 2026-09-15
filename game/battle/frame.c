@@ -814,3 +814,143 @@ void battle_update_screen_shake(Snes *s)
     }
     m_rts(s);
 }
+
+// $CD:0AEE
+/* Set up HDMA channel 7 for the window: indirect mode 4 to $2126 ($4370 = $44,
+ * $4371 = $26), tables in $7E, from $C9CF on odd frames ($7C bit 0) and $C9A2
+ * on even ones. */
+void battle_setup_window_hdma(Snes *s)
+{
+    set_abs8(s, 0x4370, m_lda8(s, 0x44));
+    set_abs8(s, 0x4371, m_lda8(s, 0x26));
+    set_abs8(s, 0x4377, m_lda8(s, 0x7E));
+    set_abs8(s, 0x4374, m_lda8(s, 0x7E));
+    uint8_t frame = m_lda8(s, dp8(s, 0x7C));
+    uint16_t table = m_lda8(s, frame & 0x01) ? 0xC9CF : 0xC9A2;
+    m_write16(s, m_abs(s, 0x4372), m_ldx16(s, table));
+    m_rts(s);
+}
+
+// $CD:0C89
+/* Call $C0:0002 preserving the data bank, direct page and flags; returns with
+ * A = the direct page. */
+void battle_call_c00002(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_push8(s, c->db);
+    m_push16(s, c->d);
+    m_push8(s, c->p);
+    m_jsl(s, 0xCD0C8C, 0xC00002);
+    c->p = m_pull8(s);
+    if (c->p & CPU_FLAG_X) {
+        c->x &= 0xFF;
+        c->y &= 0xFF;
+    }
+    c->d = m_pull16(s);
+    m_set_nz16(s, c->d);
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    m_tdc(s);
+    m_rtl(s);
+}
+
+/* TXA : CLC : ADC #$0C : TAX -- next palette animation slot. */
+static void next_palette_slot(Snes *s)
+{
+    m_txa(s);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_set_a8(s, m_adc8(s, (uint8_t)s->cpu.a, 0x0C));
+    m_tax(s);
+}
+
+/* $D1:F411: save the type bytes of palette animation slots 0-7 to $CD2F. */
+static void save_palette_slot_types(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_tdc(s);
+    m_tax(s);
+    m_set_index(s, &c->y, c->a);
+    do {
+        m_write8(s, m_abs(s, 0xCD2F) + c->y, m_lda8(s, m_read8(s, m_abs(s, 0x0520) + c->x)));
+        next_palette_slot(s);
+        m_iny(s);
+        m_cmp16(s, c->y, 0x0008);
+    } while (c->y != 0x0008);
+}
+
+// $D1:F426
+/* While $CFFF is set, pause palette animation once ($CE12): save the slot
+ * types and stop the slots of type 1 or with bit 7 set; once $CFFF is clear
+ * again, restore the saved types. Returns with RTL. */
+void battle_pause_palette_animation(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    if (m_lda8(s, abs8(s, 0xCFFF)) != 0) {
+        if (m_lda8(s, abs8(s, 0xCE12)) != 0) {
+            m_rtl(s);
+            return;
+        }
+        step_abs8(s, 0xCE12, +1);
+        m_push16(s, 0xF43B);
+        save_palette_slot_types(s);
+        m_pull16(s);
+        m_tdc(s);
+        m_tax(s);
+        do {
+            uint8_t type = m_lda8(s, m_read8(s, m_abs(s, 0x0520) + c->x));
+            bool stop = type & 0x80;
+            if (!stop) {
+                type = m_lda8(s, type & 0xF0);
+                m_cmp8(s, type, 0x10);
+                stop = type == 0x10;
+            }
+            if (stop)
+                m_write8(s, m_abs(s, 0x0520) + c->x, 0x00);
+            next_palette_slot(s);
+            m_cmp16(s, c->x, 0x0060);
+        } while (c->x != 0x0060);
+        m_rtl(s);
+        return;
+    }
+    if (m_lda8(s, abs8(s, 0xCE12)) == 0) {
+        m_rtl(s);
+        return;
+    }
+    set_abs8(s, 0xCE12, 0x00);
+    m_tdc(s);
+    m_tax(s);
+    m_set_index(s, &c->y, c->a);
+    do {
+        m_write8(s, m_abs(s, 0x0520) + c->x, m_lda8(s, m_read8(s, m_abs(s, 0xCD2F) + c->y)));
+        next_palette_slot(s);
+        m_iny(s);
+        m_cmp16(s, c->y, 0x0008);
+    } while (c->y != 0x0008);
+    m_rtl(s);
+}
+
+// $CD:04AA
+/* The tail of the battle frame wait: unless paused, $CD:3B5F; the sound
+ * driver poll ($CD:3E44); then, unless $CE11 is set, $CD:0453 (with $CCEA set
+ * and $A013 clear) and a pending $D1:ECF3 request ($CD44 set, $CD43 clear,
+ * value $CD45); and finally $CD:04DF. Returns with RTL. */
+void battle_frame_wait_tail(Snes *s)
+{
+    if (m_lda8(s, abs8(s, 0xCD02)) == 0 && !jsr(s, 0xCD04AF, 0xCD3B5F))
+        return;
+    if (!jsr(s, 0xCD04B2, 0xCD3E44))
+        return;
+    if (m_lda8(s, abs8(s, 0xCE11)) == 0) {
+        if (m_lda8(s, abs8(s, 0xCCEA)) != 0 && m_lda8(s, abs8(s, 0xA013)) == 0 && !jsr(s, 0xCD04C4, 0xCD0453))
+            return;
+        if (m_lda8(s, abs8(s, 0xCD44)) != 0 && m_lda8(s, abs8(s, 0xCD43)) == 0) {
+            m_lda8(s, abs8(s, 0xCD45));
+            if (!jsl(s, 0xCD04D4, 0xD1ECF3))
+                return;
+            set_abs8(s, 0xCD44, 0x00);
+        }
+    }
+    if (!jsr(s, 0xCD04DB, 0xCD04DF))
+        return;
+    m_rtl(s);
+}

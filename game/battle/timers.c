@@ -307,3 +307,65 @@ void battle_step_effect_slots(Snes *s)
         return;
     m_rts(s);
 }
+
+/* $C1:373B: run slot $9C's effect: when the object is present ($96F8 +
+ * slot), track its $5E15 in $9752, and unless $974A is negative, call the
+ * handler for its kind ($CC:FBAB, table $C1:3760) with the kind in $A2B5. */
+static bool run_slot_effect(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_ldx16(s, m_read16(s, m_dp(s, 0x9C)));
+    if (m_lda8(s, absx8(s, 0x96F8)) == 0)
+        return true;
+    uint8_t v = m_lda8(s, absx8(s, 0x5E15));
+    uint8_t seen = absx8(s, 0x9752);
+    m_cmp8(s, v, seen);
+    if (v != seen)
+        set_absx8(s, 0x9752, v);
+    uint8_t kind = m_lda8(s, absx8(s, 0x974A));
+    if (kind & 0x80)
+        return true;
+    m_write8(s, m_abs(s, 0xA2B5), kind);
+    m_tax(s);
+    m_set_a8(s, m_asl8(s, m_lda8(s, m_read8(s, 0xCCFBAB + c->x))));
+    m_tax(s);
+    return call(s, 0xC1375C, 0xC10000 | m_jump_table(s, 0xC1, 0x3760, c->x));
+}
+
+// $C1:3714
+/* Unless $99E0 is set, count down the effect delays of the 8 slots with an
+ * effect ($974A; delay $9897, reload $989F) and run each whose delay ran
+ * out. */
+void battle_step_slot_effects(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    if (m_lda8(s, m_read8(s, m_abs(s, 0x99E0))) != 0) {
+        m_rts(s);
+        return;
+    }
+    m_tdc(s);
+    m_tax(s);
+    m_write16(s, m_dp(s, 0x9C), c->x);
+    uint8_t slot;
+    do {
+        m_ldx16(s, m_read16(s, m_dp(s, 0x9C)));
+        if (m_lda8(s, absx8(s, 0x974A)) != 0) {
+            uint8_t d = (uint8_t)(absx8(s, 0x9897) - 1);
+            set_absx8(s, 0x9897, d);
+            m_set_nz8(s, d);
+            if (d == 0) {
+                set_absx8(s, 0x9897, m_lda8(s, absx8(s, 0x989F)));
+                m_push16(s, 0x3731);
+                if (!run_slot_effect(s))
+                    return;
+                m_pull16(s);
+            }
+        }
+        slot = (uint8_t)(m_read8(s, m_dp(s, 0x9C)) + 1);
+        m_write8(s, m_dp(s, 0x9C), slot);
+        m_set_nz8(s, slot);
+        slot = m_lda8(s, m_read8(s, m_dp(s, 0x9C)));
+        m_cmp8(s, slot, 0x08);
+    } while (slot != 0x08);
+    m_rts(s);
+}
