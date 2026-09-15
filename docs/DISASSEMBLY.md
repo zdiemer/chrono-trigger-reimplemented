@@ -107,3 +107,13 @@ covered. C2, C3, FD and the smaller code banks are not, yet. Coverage from
 `ct_dev --coverage` closes that gap as input movies reach more of the game.
 Movies through the attract sequence and title screen execute about 4,000
 distinct instructions, all of which static tracing already finds.
+
+## Census and the matching disassembly
+
+`python3 -m tools.disasm.census [--coverage ...]` classifies every ROM byte:
+code and jump tables from the analysis, and in the rest padding, streams in the
+decompressor's format, BRR-like samples and pointer-table-like runs, by
+heuristics. It prints counts per bank only. It measures the remaining work for
+a byte-identical, reassemblable disassembly, scoped in
+[MATCHING.md](MATCHING.md): every byte classified, every address symbolic, and
+closure checks that make the recompiler's code set provably complete.
