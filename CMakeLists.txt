@@ -122,7 +122,7 @@ target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 
 # Trace and movie formats and PNG/WAV capture, shared with the oracle harness.
-add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c)
+add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
 add_executable(ct_dev dev/ct_dev.c dev/io_log.c dev/misses.c)

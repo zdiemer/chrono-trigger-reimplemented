@@ -28,6 +28,7 @@
 
 #include "media.h"
 #include "movie.h"
+#include "sram_find.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/recomp_table.h"
@@ -1206,6 +1207,14 @@ int main(int argc, char **argv)
     pl.snes.on_line = on_line;
     pl.snes.on_line_ctx = &pl.renderer;
     snes_power_on(&pl.snes);
+    /* A movie from a cartridge save: find the save by its CRC-32 when --sram
+     * isn't given (the vendored saves next to the movies, or below the ROM). */
+    static char found_sram[1024];
+    if (movie_sram && !sram_file &&
+        ct_sram_find(movie_sram_crc, movie_path, rom_path, found_sram, sizeof found_sram) == 0) {
+        sram_file = found_sram;
+        fprintf(stderr, "using save %s (CRC-32 %08X)\n", sram_file, (unsigned)movie_sram_crc);
+    }
     /* --sram and recordings start from a fixed save and never write one back. */
     pl.persist_sram = !t->record_path && !sram_file && !zst_path;
     if (sram_file) {

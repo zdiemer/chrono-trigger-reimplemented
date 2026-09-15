@@ -396,13 +396,12 @@ saves are the "SRM" set at fantasyanime.com/squaresoft/ctsaves-srm.htm (headers
 emuWorks state archives at games.technoplaza.net/snes/chronotrigger/savestates.php
 (headers `# Save: technoplaza ct-stateNN`; only the `.srm` is used). Each
 movie's header names the archive and slot and carries the save's CRC-32, and
-the frame count to run. They were timed on the development system. Put a save
-at `roms/saves/<archive name>/chrono_trigger.srm` (or
-`roms/saves-technoplaza/ct-stateNN/Chrono Trigger (U).srm`) and run, for example:
+the frame count to run. They were timed on the development system. The saves
+are committed in `oracle/saves/` (the fantasyanime, technoplaza and zophar sets;
+see its README), and `ct_dev` finds the one a movie needs by its CRC-32:
 
 ```sh
-build/main/ct_dev --rom roms/ct-usa.sfc --sram roms/saves/ctsave07-azala/chrono_trigger.srm \
-    --movie oracle/movies/saves/battle-magus.ctm --frames 18000 --native shadow
+build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus.ctm --frames 18000 --native shadow
 ```
 
 | Movie | Save, slot | Covers | Frames |

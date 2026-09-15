@@ -51,6 +51,7 @@
 #include "misses.h"
 #include "media.h"
 #include "movie.h"
+#include "sram_find.h"
 #include "platform/audio.h"
 #include "port/machine.h"
 #include "port/recomp_table.h"
@@ -340,6 +341,13 @@ int main(int argc, char **argv)
     snes.on_line = on_line;
     snes.on_line_ctx = &renderer;
     snes_power_on(&snes);
+    static char found_sram[1024];
+    if (movie.has_sram && !sram_path) {
+        if (ct_sram_find(movie.sram_crc, movie_path, rom_path, found_sram, sizeof found_sram) == 0) {
+            sram_path = found_sram;
+            fprintf(stderr, "using save %s (CRC-32 %08X)\n", sram_path, (unsigned)movie.sram_crc);
+        }
+    }
     if (sram_path) {
         size_t sram_len;
         uint8_t *sram = read_file(sram_path, &sram_len);

@@ -112,9 +112,11 @@ Text, one event per line; `#` starts a comment.
 - Movies recorded with `ct_play --record` (docs/PLAYING.md) have one event per
   run of unchanged buttons and a `# frames N` comment giving the recorded length.
 - A `# sram crc32 XXXXXXXX` comment means the movie starts from power-on with a
-  cartridge save in SRAM instead of blank SRAM. `ct_dev` and `ct_oracle` refuse
-  to replay it unless `--sram` gives a save with that CRC-32. Saves aren't committed; the
-  movie's comments say where the save comes from.
+  cartridge save in SRAM instead of blank SRAM. The saves are committed in
+  `oracle/saves/` (see its README). `ct_dev` and `ct_play` find the save by
+  that CRC-32 when `--sram` isn't given (in `oracle/saves` next to the movie's
+  directory, or below the ROM's directory; `oracle/src/sram_find.c`);
+  `ct_oracle` needs `--sram`. A save with a different CRC-32 is refused.
 
 Buttons are stored in SNES JOY1 (`$4218/$4219`) bit order, so the port can load
 the value straight into its joypad register:

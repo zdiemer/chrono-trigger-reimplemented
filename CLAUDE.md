@@ -54,6 +54,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   toolchain install locations in code, docs, or build files.
 - Never commit ROM bytes or anything derived from them: extracted assets, SPC
   dumps, traces, disassembly listings with data bytes, save states.
+  Cartridge saves (`.srm` battery saves: game progress, not assets) are fine and
+  live in `oracle/saves/`; emulator save states are not.
 - Reference emulator cores are supplied locally under `cores/` and never
   vendored.
 - Every ported routine carries its original address in a `// $BB:AAAA` comment.

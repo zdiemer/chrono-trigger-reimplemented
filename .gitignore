@@ -5,6 +5,7 @@ roms/
 *.swc
 *.fig
 *.srm
+!oracle/saves/**/*.srm
 *.spc
 
 # Extracted assets, disassembly output, traces and captures

@@ -218,12 +218,12 @@ speed with sound (hold Tab to fast-forward):
 
 ```sh
 dist/ct_play --rom path/to/ct.sfc --movie oracle/movies/gato-battle.ctm --watch
-dist/ct_play --rom path/to/ct.sfc --movie oracle/movies/saves/battle-magus.ctm \
-    --sram roms/saves/ctsave07-azala/chrono_trigger.srm --watch
+dist/ct_play --rom path/to/ct.sfc --movie oracle/movies/saves/battle-magus.ctm --watch
 ```
 
-A movie started from a cartridge save needs that save with `--sram` (the
-header names it). The window replays exactly what `ct_dev` validates only in
+A movie started from a cartridge save finds that save by its CRC-32 among the
+committed ones in `oracle/saves/` (or below the ROM's directory); `--sram`
+picks one explicitly. The window replays exactly what `ct_dev` validates only in
 the default mode (`--recomp only`) or `--native off`; with `--recomp on` or
 `--audio direct`, timing differs and the replay drifts from the recording.
 
