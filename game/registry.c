@@ -9,6 +9,7 @@
 #include "battle/setup.h"
 #include "core/display.h"
 #include "core/input.h"
+#include "core/memory.h"
 #include "core/palette.h"
 #include "core/sound_driver.h"
 #include "core/tile_animation.h"
@@ -16,6 +17,7 @@
 #include "event/event.h"
 #include "field/field.h"
 #include "menu/menu.h"
+#include "scene/scene.h"
 
 /* Entry preconditions on P. */
 #define NEEDS_M8 .p_mask = CPU_FLAG_M, .p_value = CPU_FLAG_M
@@ -253,8 +255,14 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC70A8B, .name = "sound_driver_wait_port0_change_loop", .fn = sound_driver_wait_port0_change_loop,
       NEEDS_M8, .idle = true, .idle_clocks = 42 },
 
+    /* core: a block move stub written to RAM (guarded) */
+    { .addr = 0x7E9690, .name = "memory_move_stub", .fn = memory_move_stub, .p_mask = CPU_FLAG_X, .p_value = 0,
+      .cost_milli = 3100, .guard = memory_move_stub_present },
+
     /* data */
     { .addr = 0xC30002, .name = "decompress", .fn = decompress, .cost_milli = 3953 },
+    /* the same routine, called directly (JSL $C30557 from the scene boot and scene code) */
+    { .addr = 0xC30557, .name = "decompress_direct", .fn = decompress, .cost_milli = 4029 },
 
     /* event engine */
     { .addr = 0xC058DE, .name = "event_run_init_scripts", .fn = event_run_init_scripts,
@@ -489,6 +497,8 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16_BINARY, .cost_milli = 4000, .dont_care = DC_X | DC_N | DC_Z },
     { .addr = 0xC0305D, .name = "field_line_up_with_tile", .fn = field_line_up_with_tile,
       NEEDS_M8_X16_BINARY, .cost_milli = 4000, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC30011, .name = "field_rasterize_quad", .fn = field_rasterize_quad,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3194 },
     { .addr = 0xC02C41, .name = "field_scroll_layers", .fn = field_scroll_layers, NEEDS_M8_X16_BINARY,
       .cost_milli = 4058, .dont_care = DC_N | DC_Z },
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
@@ -501,6 +511,37 @@ const NativeEntry game_natives[] = {
       .guard = menu_glyph_mode_is_valid, .cost_milli = 3159 },
     { .addr = 0xC20348, .name = "menu_wait_for_frame_loop", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true },
     { .addr = 0xC281CA, .name = "menu_wait_ready_loop", .fn = menu_wait_ready_loop, NEEDS_M8, .idle = true },
+
+    /* scenes run from RAM: the bank C3 routines they call */
+    { .addr = 0xC30D0E, .name = "scene_load_sprite_list", .fn = scene_load_sprite_list, NEEDS_M16_X16_BINARY,
+      .cost_milli = 4650 },
+    { .addr = 0xC30D5E, .name = "scene_load_sprite_list_clipped", .fn = scene_load_sprite_list_clipped,
+      NEEDS_M16_X16_BINARY, .cost_milli = 4950 },
+    { .addr = 0xC30DBC, .name = "scene_add_sprite", .fn = scene_add_sprite, NEEDS_M16_X16_BINARY, .cost_milli = 3292 },
+    { .addr = 0xC30309, .name = "scene_scale_bitmap_row", .fn = scene_scale_bitmap_row, NEEDS_M16_X16_BINARY,
+      .cost_milli = 4456 },
+    { .addr = 0xC3094C, .name = "scene_multiply_signed", .fn = scene_multiply_signed,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3162 },
+    { .addr = 0xC308B3, .name = "scene_nmi", .fn = scene_nmi, .cost_milli = 3060 },
+
+    /* scenes run from RAM: the program's routines (guarded) */
+    { .addr = 0x7E339F, .name = "scene_divide", .fn = scene_divide, NEEDS_M16_X16_BINARY, .cost_milli = 2053,
+      .guard = scene_divide_present },
+    { .addr = 0x7E32E2, .name = "scene_divide_8_8", .fn = scene_divide_8_8, NEEDS_M16_X16_BINARY,
+      .cost_milli = 2372, .guard = scene_divide_8_8_present },
+    { .addr = 0x7E31BF, .name = "scene_multiply", .fn = scene_multiply, NEEDS_M16_X16_BINARY, .cost_milli = 2866,
+      .guard = scene_multiply_present },
+    { .addr = 0x7E5FFE, .name = "scene_shift_c00_words", .fn = scene_shift_c00_words, NEEDS_M16_X16,
+      .cost_milli = 5206, .guard = scene_shift_c00_words_present },
+    { .addr = 0x7E398A, .name = "scene_run_tasks_950", .fn = scene_run_tasks_950, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 3700, .guard = scene_run_tasks_950_present },
+    { .addr = 0x7E39BE, .name = "scene_run_tasks_940", .fn = scene_run_tasks_940, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 3586, .guard = scene_run_tasks_940_present },
+    /* per pass: LDA $2143 (30 master clocks from WRAM), AND #$0F (16), BEQ taken (22) */
+    { .addr = 0x7E5AAA, .name = "scene_wait_apu_port3_loop", .fn = scene_wait_apu_port3_loop, NEEDS_M8,
+      .idle = true, .idle_clocks = 68, .guard = scene_wait_apu_port3_present },
+    { .addr = 0x7E5211, .name = "scene_wait_39_clear_loop", .fn = scene_wait_39_clear_loop, NEEDS_M16,
+      .idle = true, .guard = scene_wait_39_clear_present },
 
     /* attract (runs from RAM; guarded) */
     { .addr = 0x7E3023, .name = "attract_wait_loop", .fn = attract_wait_loop, NEEDS_M16, .idle = true,
