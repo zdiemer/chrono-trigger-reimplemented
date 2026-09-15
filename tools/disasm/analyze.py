@@ -88,6 +88,8 @@ class Analyzer:
         self.derived: dict[int, set] = defaultdict(set)
         self.site_states: dict[int, list] = defaultdict(list)
         self.derivations: dict = {}                      # deriver name -> its result (reports, checks)
+        self.last_derived: dict = {}                     # the targets the last derivation gave
+        self.derive_unstable = False                     # rounds didn't reach a fixpoint
         # Diagnostics
         self.unresolved: dict[int, Insn] = {}
         self.width_unknown: set = set()
@@ -162,15 +164,27 @@ class Analyzer:
             return self.ram.read(addr, n)
         return self.rom.read(addr, n)
 
+    MAX_DERIVE_ROUNDS = 8
+
     def run(self):
-        for e in self.hints.entries:
-            self.ctx(e.addr, (e.m, e.x), e.kind)
-        self._hardware_vectors()
-        self._fixpoint()
-        self._derive()
-        while self._patch_entries():
-            self._fixpoint()
-            self._derive()
+        # Derivations read the code found so far, which a partial code set can
+        # mislead (a script command whose pointer effect is in code not traced
+        # yet). So the analysis runs in rounds: each starts from nothing with the
+        # targets the previous round derived last, until a round derives exactly
+        # the targets it started from.
+        seed = {}
+        for rnd in range(self.MAX_DERIVE_ROUNDS):
+            if rnd:
+                self.__init__(self.rom, self.hints, self.assume_returns, self.coverage, self.prune_returns, self.ram)
+            self.derived = defaultdict(set, {k: set(v) for k, v in seed.items()})
+            self._run_static()
+            self.derive_rounds = rnd + 1
+            final = {k: set(v) for k, v in self.last_derived.items() if v}
+            if final == {k: v for k, v in seed.items() if v}:
+                break
+            seed = final
+        else:
+            self.derive_unstable = True
         # Executed code that static tracing didn't reach seeds new contexts, in
         # address order so each seed can absorb the code that follows it.
         for addr in sorted(self.coverage):
@@ -180,6 +194,16 @@ class Analyzer:
             for widths in sorted(self.coverage[addr], key=str):
                 self.ctx(addr, widths, "coverage")
             self._fixpoint()
+
+    def _run_static(self):
+        for e in self.hints.entries:
+            self.ctx(e.addr, (e.m, e.x), e.kind)
+        self._hardware_vectors()
+        self._fixpoint()
+        self._derive()
+        while self._patch_entries():
+            self._fixpoint()
+            self._derive()
 
     # Vectors in the header ($00:FFE4-FFFF): native NMI and IRQ are entered from
     # any code with any widths, reset in emulation mode (8-bit). COP, BRK and
@@ -243,7 +267,8 @@ class Analyzer:
         from .derive import derive_all
         while True:
             added = False
-            for site, targets in derive_all(self).items():
+            self.last_derived = derive_all(self)
+            for site, targets in self.last_derived.items():
                 new = set(targets) - self.derived[site]
                 if not new:
                     continue

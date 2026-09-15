@@ -194,6 +194,38 @@ def _dp_unchanged(an, fl, pc, entries, limit=256):
     return True
 
 
+def _always(an, fl, pc, entry, limit=64) -> bool:
+    """Whether the instruction at pc runs on every path from `entry` to its
+    return: the instructions from the entry to it fall through one to the next
+    with nothing branching in or out (calls in between return), and so do those
+    from it to an RTS or RTL."""
+    cur = pc
+    for _ in range(limit):
+        if cur == entry:
+            break
+        if fl.branches.get(cur) or cur in fl.joins or cur not in fl.pred:
+            return False
+        cur = fl.pred[cur]
+        if next(iter(an.code[cur].values())).name in CONDITIONAL:
+            return False
+    else:
+        return False
+    cur = pc
+    for _ in range(limit):
+        insn = next(iter(an.code[cur].values()))
+        if insn.name in ("RTS", "RTL"):
+            return True
+        if insn.name in CONDITIONAL or insn.name in ("JMP", "JML", "BRA", "BRL", "RTI"):
+            return False
+        cur = insn.next_pc
+        if cur not in an.code or fl.branches.get(cur):
+            return False
+    return False
+
+
+CONDITIONAL = {"BEQ", "BNE", "BCC", "BCS", "BPL", "BMI", "BVC", "BVS"}
+
+
 def _pointer_stores(an, fl, pcs, problems, entries=frozenset()):
     """[(pc, pointer, values)] of the stores to a channel pointer among pcs:
     absolute $0A20/$0B20, or $20 in the direct page (pointer None: the running
@@ -241,7 +273,7 @@ def derive_seqscript(an, fl) -> Derivation:
             for entry in callees(an, [target]):
                 pcs |= by_entry.get(entry, set())
             inside |= pcs
-            effects[target] = [(ptr, vals) for _, ptr, vals in
+            effects[target] = [(ptr, vals, _always(an, fl, pc, target)) for pc, ptr, vals in
                                _pointer_stores(an, fl, sorted(pcs), problems, frozenset([target]))]
         roots = []
         for pc, ptr, vals in _pointer_stores(an, fl, [p for p in program if p not in inside], problems):
@@ -354,10 +386,68 @@ def derive_operands(an, fl) -> Derivation:
         # the operand the image holds runs until the first store
         insn = next(iter(an.code[site].values())) if site in an.code else None
         d.targets.setdefault(f"{site:06X}", set())
-        if insn is not None and insn.name in ("JSR", "JMP") and insn.mode is Mode.ABS:
-            d.targets[f"{site:06X}"].add((site & 0xFF0000) | insn.operand)
+        sec = an.ram.section_at(site)
+        image_target = (site & 0xFF0000) | insn.operand if insn is not None else None
+        # (an operand outside the program, like a JSR $0000 placeholder, can't be code it runs)
+        if (insn is not None and insn.name in ("JSR", "JMP") and insn.mode is Mode.ABS and sec is not None
+                and sec.base <= image_target < sec.end):
+            d.targets[f"{site:06X}"].add(image_target)
     d.notes.append(f"{len(stores)} transfers in RAM code with operands written at run time, "
                    f"{sum(len(v) for v in stores.values())} stores")
+    return d
+
+
+# ---- window command lists ($C2:ED31) ---------------------------------------------
+
+# $C2:ED31 runs the list at X in bank $FF (DB = $FF): a byte with bit 7 set ends
+# it; otherwise the byte is both the index into the handler table at $C2:ED59
+# (`TAY : ... : TYX : JSR ($ED59,X)`, so it must be even) and into the operand
+# lengths at $FF:BD18, whose value plus one bytes `MVN` copies to $7E:005B,
+# leaving X after them.
+WIN_RUNNER = 0xC2ED31
+WIN_TABLE, WIN_COUNT = 0xC2ED59, 11
+WIN_LENGTHS = 0xFFBD18
+# Call sites whose X isn't a constant load, and the word table it comes from.
+WIN_TABLES = {
+    0xC2DFBA: (0xC2DFC5, 5),     # X = the word at $C2:DFC5 + $04CC * 2; the table has 5 words (to $C2:DFCE)
+}
+
+
+def derive_winlist(an, fl) -> Derivation:
+    d = Derivation()
+    roots = set()
+    for site in call_sites(an, WIN_RUNNER):
+        if site in WIN_TABLES:
+            table, n = WIN_TABLES[site]
+            roots |= {0xFF0000 | an.rom.u16(table + 2 * i) for i in range(n)}
+            continue
+        xs = register_values(an, site, "X", fl)
+        if not xs:
+            d.problems.append(f"{fmt(site)}: a window command list whose address isn't a constant and isn't listed")
+            continue
+        roots |= {0xFF0000 | x for x in xs}
+    used, lists, commands = set(), 0, 0
+    for r in sorted(roots):
+        p = r
+        lists += 1
+        for _ in range(512):
+            b = an.rom.read(p, 1)
+            if b is None:
+                d.problems.append(f"{fmt(r)}: the window list runs outside bank $FF")
+                break
+            b = b[0]
+            if b & 0x80:
+                break
+            commands += 1
+            if b & 1 or b // 2 >= WIN_COUNT:
+                d.problems.append(f"{fmt(p)}: window command {b:02X} isn't an entry of the {WIN_COUNT}-word table")
+                break
+            used.add(b // 2)
+            p += 2 + an.rom.read(WIN_LENGTHS + b, 1)[0]
+        else:
+            d.problems.append(f"{fmt(r)}: the window list doesn't end")
+    d.targets["handlers"] = {0xC20000 | an.rom.u16(WIN_TABLE + 2 * i) for i in sorted(used)}
+    d.notes.append(f"{lists} lists, {commands} commands, handler entries used {sorted(used)} of {WIN_COUNT}")
     return d
 
 
@@ -365,6 +455,7 @@ DERIVERS = {
     "objscript": derive_objscript,
     "seqscript": derive_seqscript,
     "operands": derive_operands,
+    "winlist": derive_winlist,
 }
 
 

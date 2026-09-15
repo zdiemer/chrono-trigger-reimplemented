@@ -73,8 +73,9 @@ def _word(read, a):
 def parse(read, roots: list, effects: dict | None = None) -> SeqParse:
     """read(bus address, n) reads the program image; roots: [(address, pointer,
     why)], pointer $0A20 or $0B20 naming the channel; effects: code address ->
-    [(pointer or None for the running channel's, values)] for the pointer stores
-    of code that command 0 calls."""
+    [(pointer or None for the running channel's, values, always)] for the
+    pointer stores of code that command 0 calls (`always`: on every path through
+    it, so the command doesn't continue after itself on the running channel)."""
     effects = effects or {}
     res = SeqParse()
     work = []
@@ -118,11 +119,11 @@ def parse(read, roots: list, effects: dict | None = None) -> SeqParse:
                 w = _word(read, p + 1) if length >= 3 else None
                 if n == 0:
                     res.calls.setdefault(BANK | w, set()).add(p)
-                    for ptr, values in effects.get(BANK | w, ()):
+                    for ptr, values, always in effects.get(BANK | w, ()):
                         ptr = ch if ptr is None else ptr
                         for v in sorted(values):
                             goto(v + 2 if ptr == ch else v, ptr, f"code {fmt(BANK | w)} called at {fmt(p)}")
-                        stop = stop or ptr == ch
+                        stop = stop or (ptr == ch and always)
                 elif n == 2 and w in POINTERS:
                     v = _word(read, p + 3)
                     goto(v + 2 if w == ch else v, w, where)

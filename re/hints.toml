@@ -246,9 +246,13 @@ count = 4
 # calls files are among them). The bytes after them are code (a short block
 # move ending in RTS, like C2:ED47), not addresses: read as entries they point
 # into a byte table, where decoding hit BRK.
+# MD4: parsing every window command list the code passes to C2:ED31 (the
+# `winlist` deriver) gives only even command bytes below 22, so entries 0-10
+# are all the list can reach (entries 0-4, 6 and 7 are used).
 [[jumptable]]
 at = "C2:ED50"
 count = 11
+derive = "winlist.handlers"
 
 # ---- Indirect jumps -----------------------------------------------------------
 
@@ -1079,6 +1083,12 @@ x = 8
 [[returns]]
 addr = "C3:0011"
 
+# MD4: the attract program also calls C3:0EFA directly (JSL at $7E:9A4F, in a
+# task a sequence script adds); it returns the same way, through the RTL of
+# C3:10BA with the P it pushed at C3:0EFC.
+[[returns]]
+addr = "C3:0EFA"
+
 # Calls that never return. Each resets the stack or loops forever:
 # C0:5F6E loads a colour into X and branches to C0:2E1E, which blanks the
 # screen, points both RAM vectors at RTI and ends in BRA to itself (C0:2E65).
@@ -1781,59 +1791,7 @@ kind = "unreached"
 
 # C2:2273-232C.
 [[entry]]
-addr = "C2:2273"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:2291"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:2295"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:2299"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:229D"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:2315"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:2318"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:2323"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
 addr = "C2:232A"
-m = 16
-x = 16
-kind = "unreached"
-
-# C2:48E8-4916.
-[[entry]]
-addr = "C2:48E8"
-m = 16
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:4915"
 m = 16
 x = 16
 kind = "unreached"
@@ -1903,13 +1861,6 @@ kind = "unreached"
 [[entry]]
 addr = "C3:0DF3"
 m = 16
-x = 16
-kind = "unreached"
-
-# C6:E77F-E796: a routine ending in RTL, like the object script JSL target C6:E237.
-[[entry]]
-addr = "C6:E77F"
-m = 8
 x = 16
 kind = "unreached"
 
@@ -2009,162 +1960,16 @@ addr = "CD:001E"
 m = 8
 x = 16
 kind = "unreached"
-# C2:77F2: an object handler (the slot in X from $4E, fields at $0002,X on)
-# ending in CLC/RTS like the known handlers; nothing found spawns it (object
-# script command $35 names handlers in script data).
-[[entry]]
-addr = "C2:77F2"
-m = 8
-x = 16
-kind = "unreached"
-
-# C6:E241: sets up an HDMA channel ($4310-$4317 writes) and returns with RTL,
-# like the object script JSL target C6:E237 just before it.
-[[entry]]
-addr = "C6:E241"
-m = 8
-x = 16
-kind = "unreached"
-
-# C2:78E3-7B59 and C6:E2AF-E4A6: runs of routines, each ending in RTS or RTL,
-# that call known code (object handler helpers and HDMA setup in the style of
-# C6:E237/C6:E241) and that nothing found reaches. An entry at each routine
-# start that follows a return; the tracer finds the rest.
+# C2:78E3: a routine ending in RTS, in a run of routines the scene scripts call
+# with command $34 (MD4: the other entries MD1 had here are reached through
+# them); nothing found reaches this one.
 [[entry]]
 addr = "C2:78E3"
 m = 8
 x = 16
 kind = "unreached"
-[[entry]]
-addr = "C2:7957"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7981"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:79C8"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:79E0"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7A0C"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7A31"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7A56"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7AAF"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7ADA"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7AEB"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7AFC"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7B20"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7B44"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C2:7B4F"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E2AF"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E2B5"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E318"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E340"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E368"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E448"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E470"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E498"
-m = 8
-x = 16
-kind = "unreached"
-# C6:E391, C6:E4BE, C6:E568: more routines of the same run (each starts with
-# a REP making A 16-bit and uses the slot in $4E or the HDMA tables at $7E:8A21), after a
-# BRA or an RTL; nothing found reaches them.
-[[entry]]
-addr = "C6:E391"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E4BE"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E568"
-m = 8
-x = 16
-kind = "unreached"
-# C6:E583, C6:E590, C6:E595, C6:E5C5: the next routines of that run, each after
-# a return.
+# C6:E583, C6:E590: routines of that run after a return, that nothing found
+# reaches.
 [[entry]]
 addr = "C6:E583"
 m = 8
@@ -2175,56 +1980,16 @@ addr = "C6:E590"
 m = 8
 x = 16
 kind = "unreached"
-[[entry]]
-addr = "C6:E595"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E5C5"
-m = 8
-x = 16
-kind = "unreached"
-# C6:E63D-E74D: short routines ending in RTL after that run, each after a return.
-[[entry]]
-addr = "C6:E63D"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E644"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E64A"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E66F"
-m = 8
-x = 16
-kind = "unreached"
-[[entry]]
-addr = "C6:E694"
-m = 8
-x = 16
-kind = "unreached"
+# C6:E6D0: a short routine ending in RTL after that run, after a return.
 [[entry]]
 addr = "C6:E6D0"
 m = 8
 x = 16
 kind = "unreached"
 
-# C6:E90F, FF:FF3E: routines after a return (an HDMA setup like C6:E241, and a
-# routine with a jump table that sends sound commands) inside bytes the census
-# scan found code-shaped; nothing found reaches them.
-[[entry]]
-addr = "C6:E90F"
-m = 8
-x = 16
-kind = "unreached"
+# FF:FF3E: a routine after a return (with a jump table that sends sound
+# commands) inside bytes the census scan found code-shaped; nothing found
+# reaches it.
 [[entry]]
 addr = "FF:FF3E"
 m = 8
@@ -2585,26 +2350,10 @@ end = "C2:754C"
 type = "script"
 format = "object"
 
-# C2:7849-785F: an object handler shape (slot from $4E) after the C2:77F2
-# handler; nothing found reaches it. Kept as code.
-[[entry]]
-addr = "C2:7849"
-m = 8
-x = 16
-kind = "unreached"
-
 # C2:7860: a routine ending in RTS that saves or restores $7E:2980-2982, before
 # the $34 target C2:78A1; nothing found reaches it. Kept as code.
 [[entry]]
 addr = "C2:7860"
-m = 8
-x = 16
-kind = "unreached"
-
-# C2:786F: a routine ending in RTS that saves or restores $7E:2980-2982, before
-# the $34 target C2:78A1; nothing found reaches it. Kept as code.
-[[entry]]
-addr = "C2:786F"
 m = 8
 x = 16
 kind = "unreached"
