@@ -22,3 +22,5 @@ python3 tools/rom.py stage  path/to/ct.zip   # copies to roms/ct-usa.sfc
 ```
 
 `.sfc`, `.smc` (copier header is stripped) and `.zip` are accepted.
+
+To play in a window with the keyboard, see [docs/PLAYING.md](docs/PLAYING.md).
