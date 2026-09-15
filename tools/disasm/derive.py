@@ -1,0 +1,391 @@
+"""Derivations: targets of indirect transfers taken from the data the code
+interprets, for the `derive` field of [[indirect]] and [[jumptable]] hints
+(docs/MATCHING.md, MD4, C3).
+
+A deriver gets an Analyzer that has traced what it could so far and returns a
+Derivation: target sets by name (the part after the dot in the hint's `derive`)
+and problems. Analyzer._derive traces the targets and calls the derivers again
+until nothing new appears, so arguments found in newly traced code count too.
+Each deriver enumerates where its data comes from; a source it can't resolve
+that isn't on its list of known dynamic sources, with the reason its values are
+covered, is a problem, reported by the analysis and failing the matching
+build's closure check.
+"""
+
+from dataclasses import dataclass, field
+
+from .codeargs import call_sites, callees, flow, register_values
+from .cpu import Mode
+from .memmap import bus_to_offset, fmt
+
+
+@dataclass
+class Derivation:
+    targets: dict = field(default_factory=dict)      # part -> set of addresses
+    problems: list = field(default_factory=list)
+    notes: list = field(default_factory=list)         # counts for reports
+    detail: object = None
+
+
+def _stores(an, bank: int | None, names, modes, operands):
+    """(pc, insn) of every instruction in the code set storing to one of the operands."""
+    for pc, variants in an.code.items():
+        if bank is not None and pc >> 16 != bank:
+            continue
+        insn = next(iter(variants.values()))
+        if insn.name in names and insn.mode in modes and insn.operand in operands:
+            yield pc, insn
+
+
+# ---- object scripts (tools/disasm/objscript.py) --------------------------------
+
+OBJ_SCRIPT_STARTERS = (0xC204D9, 0xC204FB)           # A = bank, X = address
+OBJ_SPAWNERS = (0xC2048A, 0xC204CD)                  # X = handler word
+# Call sites whose arguments aren't constants, and why their values are covered.
+OBJ_DYNAMIC = {
+    0xC21203: "command $09: its operands are parsed",
+    0xC21A3A: "command $43: its operands are parsed",
+    0xC2242E: "a scene's $7E:8480 word: every word of every scene is a root",
+    0xC233B2: "a scene's $7E:8480 word",
+    0xC233DF: "a scene's $7E:8480 word",
+    0xC2183F: "command $35: its operands are parsed",
+    0xC21A49: "command $42: its operands are parsed",
+}
+# Every store to slot +$07 in bank C2 (STA $0007,X) whose value isn't a constant, and why.
+OBJ_POINTER_STORES = {
+    0xC204ED: "sub_C204D9's argument (its call sites are enumerated)",
+    0xC2050F: "sub_C204FB's argument",
+    0xC20F86: "the interpreter's own position",
+    0xC21E64: "the palette handler $C2:1E38 reuses +$07 for a colour index; it never runs a script",
+    0xC2377B: "$1B3B, which command $08 writes (its operands are parsed) and $C2:2434/$33B8/$33E5 clear",
+    0xC23DAA: "$1B3B,Y: the same cells",
+    0xC20B88: "the sprite node list at $7E:B000 (X from $B504), not a slot",
+    0xC2B513: "a menu record at $6F, not a slot",
+    0xC2EC5C: "a tile map run from $61, not a slot",
+}
+
+
+def _near_store(an, fl, pc, operand, span=8):
+    """The instruction storing A to `operand`,X within `span` instructions of pc."""
+    for step in (1, -1):
+        cur = pc
+        for _ in range(span):
+            nxt = cur + next(iter(an.code[cur].values())).size if step > 0 else fl.pred.get(cur)
+            if nxt is None or nxt not in an.code:
+                break
+            i2 = next(iter(an.code[nxt].values()))
+            if i2.name == "STA" and i2.mode is Mode.ABSX and i2.operand == operand:
+                return nxt
+            cur = nxt
+    return None
+
+
+def derive_objscript(an, fl) -> Derivation:
+    from .objscript import ObjectScripts
+    d = Derivation()
+    roots = []
+    for target in OBJ_SCRIPT_STARTERS:
+        for site in call_sites(an, target):
+            xs, as_ = register_values(an, site, "X", fl), register_values(an, site, "A", fl)
+            if xs and as_:
+                roots += [((a & 0xFF) << 16 | x, f"call at {fmt(site)}") for a in sorted(as_) for x in sorted(xs)]
+            elif site not in OBJ_DYNAMIC:
+                d.problems.append(f"{fmt(site)}: a script start whose arguments aren't constants and isn't listed")
+    for pc, _ in _stores(an, 0xC2, ("STA",), (Mode.ABSX,), (0x0007,)):
+        if pc in OBJ_POINTER_STORES:
+            continue
+        words = register_values(an, pc, "A", fl)
+        bank_at = _near_store(an, fl, pc, 0x0009)
+        banks = register_values(an, bank_at, "A", fl) if bank_at is not None else None
+        if not words or not banks:
+            d.problems.append(f"{fmt(pc)}: a store to slot +$07 whose address isn't a constant and isn't listed")
+            continue
+        roots += [((b & 0xFF) << 16 | w & 0xFFFF, f"slot +$07 store at {fmt(pc)}") for b in banks for w in words]
+    static_handlers = set()
+    for target in OBJ_SPAWNERS:
+        for site in call_sites(an, target):
+            xs = register_values(an, site, "X", fl)
+            if xs:
+                static_handlers |= {0xC20000 | x for x in xs}
+            elif site not in OBJ_DYNAMIC:
+                d.problems.append(f"{fmt(site)}: an object spawn whose handler isn't a constant and isn't listed")
+    parse = ObjectScripts(an.rom).parse(roots)
+    d.problems += parse.problems
+    d.targets["jsr"] = set(parse.jsr)
+    d.targets["jsl"] = set(parse.jsl)
+    d.targets["handler"] = set(parse.handlers) | static_handlers
+    if any(i >= 3 for i in parse.subs):
+        d.problems.append(f"commands $44/$45 index the 3-entry table at C2:1A70 with {sorted(parse.subs)}")
+    d.notes.append(f"{len(parse.roots)} roots, {len(parse.commands)} commands "
+                   f"({sum(1 for s, _ in parse.commands if s == 'rom')} in ROM, the rest in {len(parse.scenes)} "
+                   f"scenes in bank $7F); $44/$45 indices {sorted(parse.subs)}; {len(static_handlers)} handler "
+                   "words loaded by code")
+    d.detail = parse
+    return d
+
+
+# ---- sequence scripts of the attract program (tools/disasm/seqscript.py) ------
+
+SEQ_POINTERS = (0x0A20, 0x0B20)                      # the two channels' script pointers
+SEQ_TASK_ADDERS = {                                  # routine -> task list (X = handler)
+    0x7E395E: "0920", 0xC30CE2: "0920",
+    0x7E3974: "0940", 0xC30CF8: "0940",
+    # the $0920 runner's exit 7E:39B1, which handlers jump to: TXA, then the
+    # pulls, then STA $0920,X replaces the running task with the X they loaded
+    0x7E39B1: "0920",
+}
+# Calls to the adders whose X isn't a constant, and why they are covered.
+SEQ_DYNAMIC_ADDS = {
+    0xC30BAE: "sequence command $AA: its operands are parsed",
+    0xC30BC7: "sequence command $A8: its operands are parsed",
+}
+# Stores to a channel pointer in code whose value isn't a constant load: the
+# word table the store reads, and its entry count.
+SEQ_POINTER_TABLES = {
+    # 7E:3F59: LDA $3F66,X with X = (A & 2) (7E:3F5C-3F5F); DB = $7E (the channel
+    # runners set it: 7E:374D-374E, 7E:3758-3759)
+    0x7E3F63: (0x7E3F66, 2),
+    # 7E:7286: LDA $729C,X with X = (A & 6) (7E:7291-7294)
+    0x7E7298: (0x7E729C, 4),
+}
+
+
+def program_reader(an, name: str = "attract_program"):
+    """Reads a RAM section's own image (not the sections written over it)."""
+    sec = next((s for s in an.ram.sections if s.name == name), None)
+
+    def read(addr, n):
+        i = addr - sec.base if sec else -1
+        return sec.image[i:i + n] if sec and 0 <= i and i + n <= len(sec.image) else None
+    return read
+
+
+def _dp_unchanged(an, fl, pc, entries, limit=256):
+    """Whether every path to pc from an entry in `entries` (through branches,
+    fall-through and the call sites of intermediate routines) leaves the direct
+    page as it was at that entry: no TCD or PLD on the way."""
+    seen, work = set(), [pc]
+    while work:
+        cur = work.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        if len(seen) > limit:
+            return False
+        kinds = an.labels.get(cur, set())
+        if cur in entries:
+            continue
+        if "sub" in kinds:
+            sites = set()
+            for (e, _), c in an.contexts.items():
+                if e == cur:
+                    sites |= c.callers
+            if not sites:
+                return False
+            work += [s for s in sites]
+            continue
+        srcs = ([fl.pred[cur]] if cur in fl.pred else []) + sorted(fl.branches.get(cur, ()))
+        if not srcs or cur in fl.joins:
+            return False
+        for s in srcs:
+            if next(iter(an.code[s].values())).name in ("TCD", "PLD"):
+                return False
+            work.append(s)
+    return True
+
+
+def _pointer_stores(an, fl, pcs, problems, entries=frozenset()):
+    """[(pc, pointer, values)] of the stores to a channel pointer among pcs:
+    absolute $0A20/$0B20, or $20 in the direct page (pointer None: the running
+    channel, when called from a sequence)."""
+    out = []
+    for pc in pcs:
+        insn = next(iter(an.code[pc].values()))
+        if insn.name not in ("STA", "STX", "STY", "STZ"):
+            continue
+        if insn.mode is Mode.ABS and insn.operand in SEQ_POINTERS:
+            ptr = insn.operand
+        elif insn.mode is Mode.DP and insn.operand in (0x20, 0x21) and entries and _dp_unchanged(an, fl, pc, entries):
+            ptr = None
+        else:
+            continue
+        if pc in SEQ_POINTER_TABLES:
+            table, n = SEQ_POINTER_TABLES[pc]
+            vals = {an.u16(table + 2 * i) for i in range(n)} - {None}
+        elif insn.name == "STZ" or insn.operand == 0x21:
+            vals = None
+        else:
+            vals = register_values(an, pc, insn.name[2], fl)
+        if not vals:
+            problems.append(f"{fmt(pc)}: a store to a sequence pointer whose value isn't known")
+            continue
+        out.append((pc, ptr, vals))
+    return out
+
+
+def derive_seqscript(an, fl) -> Derivation:
+    from . import seqscript
+    d = Derivation()
+    read = program_reader(an)
+    sec = next((s for s in an.ram.sections if s.name == "attract_program"), None)
+    program = sorted(pc for pc in an.code if sec and sec.base <= pc < sec.end)
+    by_entry = {}
+    for (e, _), c in an.contexts.items():
+        by_entry.setdefault(e, set()).update(c.insns)
+    parse, problems = None, []
+    for _ in range(16):
+        problems = []
+        effects, inside = {}, set()
+        for target in sorted(parse.calls) if parse else []:
+            pcs = set()
+            for entry in callees(an, [target]):
+                pcs |= by_entry.get(entry, set())
+            inside |= pcs
+            effects[target] = [(ptr, vals) for _, ptr, vals in
+                               _pointer_stores(an, fl, sorted(pcs), problems, frozenset([target]))]
+        roots = []
+        for pc, ptr, vals in _pointer_stores(an, fl, [p for p in program if p not in inside], problems):
+            roots += [(v, ptr, f"store at {fmt(pc)}") for v in sorted(vals)]
+        new = seqscript.parse(read, roots, effects)
+        done = parse is not None and set(new.roots) == set(parse.roots) and set(new.calls) == set(parse.calls)
+        parse = new
+        if done:
+            break
+    d.problems += list(dict.fromkeys(problems + parse.problems))
+    tasks = {"0920": set(parse.tasks_0920), "0940": set(parse.tasks_0940)}
+    static = 0
+    for adder, lst in SEQ_TASK_ADDERS.items():
+        for site in call_sites(an, adder):
+            xs = register_values(an, site, "X", fl)
+            if xs:
+                tasks[lst] |= {0x7E0000 | x for x in xs}
+                static += len(xs)
+            elif site not in SEQ_DYNAMIC_ADDS:
+                d.problems.append(f"{fmt(site)}: a task added whose handler isn't a constant and isn't listed")
+    d.targets["call"] = set(parse.calls)
+    d.targets["tasks_0920"] = tasks["0920"]
+    d.targets["tasks_0940"] = tasks["0940"]
+    d.notes.append(f"{len(parse.roots)} roots, {len(parse.commands)} commands; {len(parse.calls)} code calls, "
+                   f"{len(tasks['0920'])} and {len(tasks['0940'])} tasks ({static} added by code)")
+    d.detail = parse
+    return d
+
+
+# ---- operands written at run time (RAM code) ------------------------------------
+
+CONTROL = {"JSR", "JMP", "JSL", "JML", "BRA", "BRL", "BEQ", "BNE", "BCC", "BCS", "BPL", "BMI", "BVC", "BVS"}
+
+
+def _operand_stores(an, fl):
+    """Stores (STA/STX/STY absolute or long, 16-bit) into the operand bytes of a
+    control transfer in a RAM section, as {site: [(store pc, values or None)]}.
+    Only stores in the site's own section count: a program's image is only in
+    RAM while it runs. Absolute stores are taken to write bank $7E (the sections
+    with such transfers are there): another data bank would only add targets."""
+    operand_of = {}
+    for pc, variants in an.code.items():
+        if bus_to_offset(pc) is not None:
+            continue
+        insn = next(iter(variants.values()))
+        if insn.name in CONTROL and insn.size > 1:
+            for a in range(pc + 1, pc + insn.size):
+                operand_of[a] = pc
+    out = {}
+    for pc, variants in an.code.items():
+        insn = next(iter(variants.values()))
+        if insn.name not in ("STA", "STX", "STY") or insn.mode not in (Mode.ABS, Mode.LONG):
+            continue
+        dest = insn.operand if insn.mode is Mode.LONG else 0x7E0000 | insn.operand
+        site = operand_of.get(dest)
+        sec = an.ram.section_at(site) if site is not None else None
+        # only the program's own code runs while its image is in RAM
+        if site is None or sec is None or not sec.base <= pc < sec.end:
+            continue
+        widths = {w[0] if insn.name == "STA" else w[1] for w in variants}
+        reg = insn.name[2]
+        vals = None
+        if widths == {False} and dest == site + 1:
+            vals = register_values(an, pc, reg, fl)
+        elif widths == {True} and dest in (site + 1, site + 2):
+            # a byte: paired with a store of the other operand byte in the next or
+            # previous few instructions, else the other byte stays the image's
+            other = site + 3 - (dest - site)
+            mine = register_values(an, pc, reg, fl)
+            theirs = None
+            for step in (1, -1):
+                cur = pc
+                for _ in range(6):
+                    cur = cur + next(iter(an.code[cur].values())).size if step > 0 else fl.pred.get(cur)
+                    if cur is None or cur not in an.code:
+                        break
+                    i2 = next(iter(an.code[cur].values()))
+                    d2 = i2.operand if i2.mode is Mode.LONG else 0x7E0000 | i2.operand
+                    if i2.name in ("STA", "STX", "STY") and i2.mode in (Mode.ABS, Mode.LONG) and d2 == other:
+                        theirs = register_values(an, cur, i2.name[2], fl)
+                        break
+                if theirs:
+                    break
+            if theirs is None:
+                b = an.read(other, 1)
+                theirs = {b[0]} if b else None
+            if mine and theirs:
+                vals = {(m | th << 8) if dest == site + 1 else (th | m << 8) for m in mine for th in theirs}
+        out.setdefault(site, []).append((pc, vals))
+    return out
+
+
+def derive_operands(an, fl) -> Derivation:
+    d = Derivation()
+    stores = _operand_stores(an, fl)
+    wanted = {site for site, spec in an.hints.derive.items() if spec.startswith("operands.")}
+    for site, lst in sorted(stores.items()):
+        bank = site & 0xFF0000
+        part = f"{site:06X}"
+        d.targets.setdefault(part, set())
+        for pc, vals in lst:
+            if not vals:
+                d.problems.append(f"{fmt(pc)}: writes the operand of {fmt(site)} with a value that isn't known")
+                continue
+            d.targets[part] |= {bank | v for v in vals}
+        if site not in wanted:
+            d.problems.append(f"{fmt(site)}: code writes its operand ({', '.join(fmt(p) for p, _ in lst)}) and no "
+                              "derive hint takes the values")
+    for site in wanted:
+        # the operand the image holds runs until the first store
+        insn = next(iter(an.code[site].values())) if site in an.code else None
+        d.targets.setdefault(f"{site:06X}", set())
+        if insn is not None and insn.name in ("JSR", "JMP") and insn.mode is Mode.ABS:
+            d.targets[f"{site:06X}"].add((site & 0xFF0000) | insn.operand)
+    d.notes.append(f"{len(stores)} transfers in RAM code with operands written at run time, "
+                   f"{sum(len(v) for v in stores.values())} stores")
+    return d
+
+
+DERIVERS = {
+    "objscript": derive_objscript,
+    "seqscript": derive_seqscript,
+    "operands": derive_operands,
+}
+
+
+def derive_all(an) -> dict:
+    """site -> targets for every `derive` hint, running each deriver once."""
+    results = {}
+    out = {}
+    fl = None
+    for site, spec in sorted(an.hints.derive.items()):
+        name, _, part = spec.partition(".")
+        if name not in DERIVERS:
+            raise ValueError(f"derive {spec!r} at {fmt(site)}: no deriver {name!r}")
+        if name not in results:
+            fl = fl or flow(an)
+            results[name] = DERIVERS[name](an, fl)
+        res = results[name]
+        if part not in res.targets:
+            raise ValueError(f"derive {spec!r} at {fmt(site)}: {name} has no part {part!r}")
+        out[site] = res.targets[part]
+    an.derivations.update(results)
+    return out
+
+
+__all__ = ["DERIVERS", "Derivation", "derive_all"]

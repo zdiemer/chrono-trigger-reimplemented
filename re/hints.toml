@@ -22,6 +22,16 @@
 #                                                   writes the decode under m/x
 #   [[ramcode]]      name, base, source, format = lz | copy | writes, [size],
 #                    [end, m, x], [over]            code the game runs from RAM
+#   derive = "name.part" on [[indirect]] / [[jumptable]]: targets derived from
+#                    the data the code interprets (tools/disasm/derive.py)
+#   header_vectors   enter the native NMI/IRQ and the reset vector of the header
+
+# MD4: the native NMI ($00:FFEA) and IRQ ($00:FFEE) vectors point at the JML
+# stubs $00:FF10 and $00:FF14, reset ($00:FFFC) at $00:FF00. The COP and BRK
+# vectors point at $00:FF18, table bytes: the code set has no BRK or COP. The
+# emulation-mode NMI and IRQ vectors are $FFFF (reset runs with interrupts off
+# until it leaves emulation mode).
+header_vectors = true
 
 # Hardware vector: SEI; CLC; XCE; JML $FD:C000
 [[entry]]
@@ -355,49 +365,41 @@ targets = [
     "C2:E613", "C2:E61B", "C2:E6AE", "C2:E705",             # mode 14, C2:E60B
 ]
 
-# Object handlers (C2:051D walks the 64 object slots at $0B30-$1B30 and jumps
-# through each slot's word $0000,X, copied to $50; handlers run m8 x16 with X =
-# slot and return carry set to free it). Slots are filled by sub_C2048A /
-# sub_C204CD with X = handler. Static loads (complete for known callers):
-# C2:0F63 from sub_C204D9 / sub_C204FB, and the LDX constants before the JSRs at
-# C2:10C4 (1CF5), 10F7 (1DD4), 1590 (20A2), 159E (2105), 15AC (21F8), 15BA (2194),
-# 1DE2 (1E38), 63A6 (666C), 7417 (6AC8), 742D (6F85) and 7441 (7143).
-# Object script command $35 (C2:1839) also spawns objects with the handler word
-# taken from the script, so the list can't be complete. The rest are addresses
-# that ran m8 x16 without any static or recorded call edge, and appear in ROM as
-# the operand of a $35 command: in the C2:6A0A script right after its first two
-# commands (67FA, 683B, 68A3), and in data at C3:8000-CFFF where these commands
-# cluster (C3:8C10
-# 3AE2, 8C23 42DD, 8C27 495E, 8C2A 309E, 8C31 2F94, 8C34 5628, 8BBD 75C3, 980D
-# 75FD, 9811 7652, 9848 3404, 986C 3264, 9F92 7702, 8DAD 49CF; most repeat in
-# several scripts). Only what runs in the movies.
+# MD4: the object system's code addresses, derived from every object script in
+# the ROM (tools/disasm/objscript.py, tools/disasm/derive.py). C2:051D walks the
+# 64 object slots at $0B30-$1B30 and jumps through each slot's word $0000,X,
+# copied to $50 (handlers run m8 x16 with X = slot and return carry set to free
+# it). The only store of a new value into a slot's word is C2:04A7 in
+# sub_C2048A / sub_C204CD, from X; the other writes to the slot array are the
+# MVN copies at C2:25B4-25EA and C2:2E2F-2EBA, which save and restore whole
+# slot arrays. Their callers load X with a constant (C2:0F63 at C2:04E0 and
+# C2:0502, the script runner; C2:10C4, 10F7, 1590, 159E, 15AC, 15BA, 1DE2,
+# 63A6, 7417, 742D, 7441) except object script commands $35 (C2:183F) and $42
+# (C2:1A49), whose word operands the parse collects. Scripts are found from
+# every place the code starts one: the constant arguments of sub_C204D9 and
+# sub_C204FB and constant stores to slot +$07, the eight scenes' script streams
+# (C6:FFE0 table, run at $7F:0400) and their $7E:8480 word tables (C6:FFC0
+# table), and the script commands that name scripts. Every target the movie-only
+# list here had (28) is among the derived ones.
 [[indirect]]
 at = "C2:0553"
-targets = ["C2:0F63", "C2:1CF5", "C2:1DD4", "C2:1E38", "C2:20A2", "C2:2105",
-           "C2:21F8", "C2:2194", "C2:666C", "C2:6AC8", "C2:6F85", "C2:7143",
-           "C2:2F94", "C2:309E", "C2:3264", "C2:3404", "C2:3AE2", "C2:42DD",
-           "C2:495E", "C2:49CF", "C2:5628", "C2:67FA", "C2:683B", "C2:68A3",
-           "C2:75C3", "C2:75FD", "C2:7652", "C2:7702"]
+derive = "objscript.handler"
 
-# Object script command $34 (C2:1807): JSR to the word operand (JMP ($005B) in
-# C2:1819, m8 x16, returns to C2:1813). Targets are script data. These ran m8
-# x16 without any static or recorded call edge and appear as $34 operands: C2:48CD
-# at C2:4AF1 and C2:4BE9 (both on command boundaries parsing the C2:4A9B script
-# from its start) and C3:94B2; C2:2F0F at C3:8BB6, A639, AC8B, BA59 and BFB9;
-# C2:7575, 7598 and 78A1 at C3:8E67, 8E6A and 8E82; C2:7BC4 at C3:98F4. Only
-# what runs in the movies.
+# Object script command $34 (C2:1807): JSR to the word operand through JMP
+# ($005B) at C2:1819 (m8 x16, returns to C2:1813). The targets are the $34
+# operands of every script the parse reaches; the 6 the movies ran are among
+# them.
 [[indirect]]
 at = "C2:1819"
-targets = ["C2:48CD", "C2:2F0F", "C2:7575", "C2:7598", "C2:78A1", "C2:7BC4"]
+derive = "objscript.jsr"
 
-# Object script command $4E (C2:181C): JSL to the long operand (JML [$005B] in
-# C2:1836, m8 x16, returns to C2:1830). C6:E237 ran m8 x16 without any other
-# edge, ends in RTL, and a $4E command naming it appears in the object script
-# data at C3:994B, followed by an operand naming the byte it reads. Only what
-# runs in the movies.
+# Object script command $4E (C2:181C): JSL to the long operand through JML
+# [$005B] at C2:1836 (m8 x16, returns to C2:1830). The targets are the $4E
+# operands of every script the parse reaches; C6:E237, the one the movies ran,
+# is among them.
 [[indirect]]
 at = "C2:1836"
-targets = ["C6:E237"]
+derive = "objscript.jsl"
 
 # sub_C2EFBE: A indexes the 16-entry word table at C2:EFD4 (it ends where the
 # first handler, C2:EFF4, starts); PER makes the handler return to the RTS at
@@ -1216,29 +1218,37 @@ size = 8
 at = "7E:300A"
 count = 16
 
-# Task lists in work RAM: $7E:39CF calls through the words at $0940,X and
-# $7E:3998 through $0950,X, $7E:37F6 through the word at $00F0 (X = 0, the word
-# stored at C3:0C55 from script data). The tables are filled at run time, so
-# none of them has static entries; the targets are the ones the calls files
-# show called from each site. Only what runs in the movies.
+# MD4: task lists in work RAM, derived from the attract program's sequence
+# scripts (tools/disasm/seqscript.py) and the code that fills the lists
+# (tools/disasm/derive.py). $7E:39CF calls through the words at $0940,X: the
+# list the adders $7E:3974 and C3:0CF8 fill (from X; C3:0CF8 only for sequence
+# command $A8). $7E:3998 runs the list the adders $7E:395E and C3:0CE2 fill
+# (command $AA) and the runner's exit $7E:39B1 rewrites (the handler's X), and
+# removes entries from $0920 (its dispatch operand reads $0950, a list nothing
+# in the program fills: the call logs show the $0920 tasks called from this
+# site). $7E:37F6 calls through the word at $00F0 (X = 0), which only C3:0C55,
+# sequence command $A0, stores, from its operand. The stores to the lists
+# (STA $0920,X / $0940,X) in the program and C3 are those in the adders and the
+# exit; sequence commands that store to memory are checked not to write the
+# lists, $00F0 or the channel pointers. Scripts start where the program stores a
+# constant to $0A20 or $0B20, and continue through the commands' gotos and
+# calls, the pointer stores of command $A2 and the pointer table code $7E:3F59
+# stores (listed in derive.py). All the targets of the old movie-only lists
+# (11, 26, 4) are among the derived ones.
 [[jumptable]]
 at = "7E:39CF"
 count = 0
-targets = ["7E:380B", "7E:3843", "7E:388B", "7E:43F2", "7E:449C", "7E:44FE", "7E:4643", "7E:464D",
-           "7E:5221", "7E:5C57", "7E:6212"]
+derive = "seqscript.tasks_0940"
 
 [[jumptable]]
 at = "7E:3998"
 count = 0
-targets = ["7E:347A", "7E:3495", "7E:34AB", "7E:34C2", "7E:3749", "7E:3754", "7E:37FA", "7E:428B",
-           "7E:42BD", "7E:42CE", "7E:4339", "7E:4447", "7E:44CE", "7E:485D", "7E:4D0D", "7E:4F54",
-           "7E:5B99", "7E:5BBF", "7E:5BCF", "7E:5C98", "7E:5D01", "7E:5D20", "7E:5D32", "7E:5D71",
-           "7E:5E1E", "7E:5FFE"]
+derive = "seqscript.tasks_0920"
 
 [[jumptable]]
 at = "7E:37F6"
 count = 0
-targets = ["7E:3F59", "7E:5DA7", "7E:5DB4", "7E:5DE9"]
+derive = "seqscript.call"
 
 # $7E:B574 is written at run time by C3:09E9, which emits only LDA immediate,
 # TCD, LDA absolute and STA direct page instructions and ends them with an RTS
@@ -1267,18 +1277,25 @@ x = 16
 regs = { x = 0x0C00, y = 0x0200 }
 size = 5153
 
-# Calls whose operand the program writes at run time. The operand of the JSR at
-# $7E:3023 (the attract main loop's per-frame call, an RTS at $7E:3176 in the
-# image) is stored at $7E:3CE4 and $7E:70D7; that of the JSR at $7E:35FC at
-# $7E:3CDE and $7E:86EC. Those are the only stores to the operand bytes in the
-# program, each of a constant. Complete for this program.
+# Calls whose operand the program writes at run time (MD4: derived). The
+# `operands` deriver (tools/disasm/derive.py) takes every absolute or long store
+# into the operand bytes of a transfer in RAM code, resolves its value, and adds
+# the operand the image holds; a store into the operand of a transfer without
+# such a hint, or of a value it can't resolve, is a problem. The JSR at $7E:3023
+# is the attract main loop's per-frame call (STA at $7E:3CE4, $7E:70D7, $7E:96FE,
+# STX at $7E:8794, $7E:87D0; MD1's list had missed the STX stores and $7E:96FE);
+# $7E:35FC (stores at $7E:3CDE, $7E:86EC); $7E:5E43 (the long STA at $7E:8C5D).
 [[indirect]]
 at = "7E:3023"
-targets = ["7E:3176", "7E:51D1", "7E:7441"]
+derive = "operands.7E3023"
 
 [[indirect]]
 at = "7E:35FC"
-targets = ["7E:45B0", "7E:9B46"]
+derive = "operands.7E35FC"
+
+[[indirect]]
+at = "7E:5E43"
+derive = "operands.7E5E43"
 
 # M3: instructions the program replaces for a while (`patch`), found by the
 # miss report (ct_dev --misses) as RAM code run with an opcode the image doesn't
@@ -2432,14 +2449,62 @@ start = "C2:4946"
 end = "C2:495D"
 type = "bytes"
 
-# C2:4A9B-5627 (2957 bytes): object script data: C2:4476 and C2:4529 pass
-# addresses in it to sub_C204D9, which starts an object with a script; the code-
-# shaped runs in it (C2:4D07-55DA) are script commands naming routines. Census:
-# 2195 unknown, 762 16-bit code-ptr tables.
+# C2:4A9B-4CC4: object scripts. C2:4476, C2:4529 and C2:477A start objects on
+# C2:4A9B, C2:4C8F and C2:4AAD; the parse (tools/disasm/objscript.py) reaches
+# every command in C2:4A9B-4C6E and C2:4C8F-4CC4. MD1 typed C2:4A9B-5627 as
+# script data; MD4's object script parse found that the rest is object
+# handlers ($35 operands of the scene scripts: C2:4CC5, C2:504B, C2:5097,
+# C2:5494) with their tables, below.
 [[data]]
 start = "C2:4A9B"
-end = "C2:5627"
+end = "C2:4CC4"
 type = "script"
+format = "object"
+
+# C2:4CCB, C2:5051, C2:509D, C2:549A (in the object handlers C2:4CC5, 504B,
+# 5097, 5494): TDC; LDA $0002,X; ASL; TAX; JMP (table,X) directly followed by
+# its table; the index is the handler's state byte. Each table runs up to its
+# first handler (C2:4CDA, 5058, 50AC, 54A7).
+[[jumptable]]
+at = "C2:4CCB"
+count = 6
+[[jumptable]]
+at = "C2:5051"
+count = 2
+[[jumptable]]
+at = "C2:509D"
+count = 6
+[[jumptable]]
+at = "C2:549A"
+count = 5
+
+# C2:5037-504A: read 16-bit at offsets 0 and 2 of a 4-byte record by C2:4EE9 and
+# C2:4EF0; it runs up to the handler at C2:504B.
+[[data]]
+start = "C2:5037"
+end = "C2:504A"
+type = "words"
+
+# C2:508F-5096: read 16-bit by C2:5073 and C2:5083 (offsets 0 and 2); up to the
+# handler at C2:5097.
+[[data]]
+start = "C2:508F"
+end = "C2:5096"
+type = "words"
+
+# C2:543C-545B: read 16-bit by C2:5332 and C2:5350 (offsets 0 and 2); up to code
+# at C2:545C (sub_C2545C).
+[[data]]
+start = "C2:543C"
+end = "C2:545B"
+type = "words"
+
+# C2:548C-5493: read by C2:5484 (the index is a state and a direction), passed
+# to sub_C21CDA as a sprite script number; up to the handler at C2:5494.
+[[data]]
+start = "C2:548C"
+end = "C2:5493"
+type = "bytes"
 
 # C2:57B0-57DE: read by the long indexed operands at C2:5777, C2:577F, at
 # offsets 18, 20.
@@ -2552,13 +2617,21 @@ m = 8
 x = 16
 kind = "unreached"
 
-# C2:7BD1-7FFF (1071 bytes): no reader found; 540 bytes of fill at its end.
-# Census: 540 padding, 421 unknown, 98 16-bit code-ptr tables, 12 24-bit ptr
-# tables.
+# C2:7BD1-7DE3 is code (MD4): routines the scene scripts call with command $34
+# (C2:7BD1, 7BD8, 7C48, 7C4F, 7C56, 7C97, 7CD8, 7D5E). MD1 had typed
+# C2:7BD1-7FFF as data with no reader.
+
+# C2:7C28-7C47: read by the long indexed LDA at C2:7C04, X counting 0-$1F.
 [[data]]
-start = "C2:7BD1"
+start = "C2:7C28"
+end = "C2:7C47"
+type = "bytes"
+
+# C2:7DE4-7FFF: one fill value to the end of the bank.
+[[data]]
+start = "C2:7DE4"
 end = "C2:7FFF"
-type = "mixed"
+type = "padding"
 
 # C2:808F-8095: read by the long indexed operands at C2:8079.
 [[data]]
@@ -3105,20 +3178,19 @@ start = "C3:7A2C"
 end = "C3:FFFF"
 type = "mixed"
 
-# C6:0000-E236 (57911 bytes): the census parses most of it as streams for the
-# decompressor at C3:0557. Census: 51974 compressed, 4540 unknown, 1163 padding,
-# 234 BRR-like.
+# C6:0000-DFFF (57344 bytes): the census parses most of it as streams for the
+# decompressor at C3:0557 (the scene tables streams of the C6:FFC0 table among
+# them). Census at MD1: 51974 compressed, 4540 unknown, 1163 padding, 234
+# BRR-like. C6:E000-E236 is code (MD4): HDMA and loader routines the scene
+# scripts call with command $4E (C6:E000, E028, E04D, E072, E101, E170, E1FF);
+# MD1 had typed it with the data before it.
 [[data]]
 start = "C6:0000"
-end = "C6:E236"
+end = "C6:DFFF"
 type = "mixed"
 
-# C6:E7FA-E90E (277 bytes): between the C6:E77F routine and the C6:E90F code; no
-# reader found. Census: 277 unknown.
-[[data]]
-start = "C6:E7FA"
-end = "C6:E90E"
-type = "undetermined"
+# C6:E7FA-E90E is code (MD4): a routine scene 0's script calls with command $4E.
+# MD1 had typed it as undetermined data.
 
 # C6:EB23-EB3A: read by the long indexed operands at C6:EAEB.
 [[data]]
@@ -3126,11 +3198,13 @@ start = "C6:EB23"
 end = "C6:EB3A"
 type = "bytes"
 
-# C6:EE23-FFFF (4573 bytes): tables read through long operands in C2 (e.g. at
-# C2:66B2), and fill. Census: 2862 unknown, 1143 padding, 330 24-bit ptr tables,
-# 238 16-bit offset tables.
+# C6:EE38-FFFF (4552 bytes): tables read through long operands in C2 (e.g. at
+# C2:66B2; the scene records at C6:FD00 and the stream tables at C6:FDF0-FFFF),
+# and fill. C6:EE23-EE37 is code (MD4): two routines the scene scripts call with
+# command $4E (C6:EE23, C6:EE31). Census at MD1 (from C6:EE23): 2862 unknown,
+# 1143 padding, 330 24-bit ptr tables, 238 16-bit offset tables.
 [[data]]
-start = "C6:EE23"
+start = "C6:EE38"
 end = "C6:FFFF"
 type = "mixed"
 

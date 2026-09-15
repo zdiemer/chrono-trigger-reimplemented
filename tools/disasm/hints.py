@@ -83,6 +83,8 @@ class Hints:
     noreturn: set = field(default_factory=set)
     inline_args: dict = field(default_factory=dict)    # function -> bytes skipped after JSR
     indirect: dict = field(default_factory=dict)       # JMP (abs)/JML [abs] site -> targets
+    derive: dict = field(default_factory=dict)         # indirect or table site -> "deriver.part" (derive.py)
+    header_vectors: bool = False                       # enter the NMI, IRQ and reset vectors of the header
     data: list = field(default_factory=list)           # (start, end) inclusive, never code
     data_regions: list = field(default_factory=list)   # DataHint, sorted by start
     overlaps: dict = field(default_factory=dict)       # addr -> (m, x) whose decode the source writes
@@ -121,6 +123,7 @@ def load(path: Path) -> Hints:
     if not path.exists():
         return h
     doc = tomllib.loads(path.read_text(encoding="utf-8"))
+    h.header_vectors = bool(doc.get("header_vectors", False))
 
     for e in doc.get("entry", []):
         addr = parse(e["addr"])
@@ -146,7 +149,14 @@ def load(path: Path) -> Hints:
     for i in doc.get("inline_args", []):
         h.inline_args[parse(i["addr"])] = i["size"]
     for i in doc.get("indirect", []):
-        h.indirect[parse(i["at"])] = [parse(t) for t in i["targets"]]
+        if "targets" not in i and "derive" not in i:
+            raise ValueError(f"indirect {i['at']}: needs targets or derive")
+        h.indirect[parse(i["at"])] = [parse(t) for t in i.get("targets", [])]
+        if "derive" in i:
+            h.derive[parse(i["at"])] = i["derive"]
+    for t in doc.get("jumptable", []):
+        if "derive" in t:
+            h.derive[parse(t["at"])] = t["derive"]
     for d in doc.get("data", []):
         start, end = parse(d["start"]), parse(d["end"])
         if end < start or start >> 16 != end >> 16:
