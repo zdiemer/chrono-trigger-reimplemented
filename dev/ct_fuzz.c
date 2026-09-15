@@ -171,6 +171,7 @@ int main(int argc, char **argv)
 
     static Snes base, orig, native;
     snes_init(&base, rom + header, rom_len - header);
+    base.interpreter = cpu_step;   /* call-outs are interpreted (native_call) */
     snes_power_on(&base);
     if (state_path && snes_state_load(&base, state_path) != 0) {
         fprintf(stderr, "cannot load state %s\n", state_path);

@@ -1288,8 +1288,16 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
             rt->table[idx].fn(s);
             if (rt->table[idx].generated)
                 rc_timing = (RcTiming){ .limit = UINT32_MAX };
-        } else
-            cpu_step(&s->cpu);
+        } else if (s->interpreter) {
+            s->interpreter(&s->cpu);
+        } else {
+            /* Without the interpreter (a player built without it runs hand ports
+             * only inside the runtime, so this is a host's mistake): give up. */
+            native_call_timeouts++;
+            fprintf(stderr, "native_call: %06X called from %06X reached %06X, which only the interpreter runs\n",
+                    target, site, pc);
+            break;
+        }
         native_call_steps++;
     }
     s->cpu.nmi_pending = nmi;

@@ -1,5 +1,5 @@
-/* The development system: interpreter CPU, bus, PPU registers and APU, driven
- * by an NTSC scanline timing model.
+/* The development system: CPU (the interpreter, or native code through the
+ * intercept), bus, PPU registers and APU, driven by an NTSC scanline timing model.
  *
  * Timing is instruction-granular. Each instruction costs its exact bus accesses
  * at their real speeds plus its exact internal cycles; HDMA lands on the first
@@ -55,13 +55,30 @@ typedef struct Snes {
     void *on_line_ctx;
 
     /* Optional: called before each instruction. Returns -1 to let the
-     * interpreter run it, or the master clocks spent if the hook executed
-     * something itself (native code standing in for a routine). */
+     * interpreter run it (or, without it, cpu_service and the miss path below),
+     * or the master clocks spent if the hook executed something itself (native
+     * code standing in for a routine). */
     int32_t (*intercept)(void *ctx, struct Snes *snes);
     void *intercept_ctx;
     /* Set by an intercept that returned time: the length of the last cycle of
      * what it ran, where interrupts are sampled; 0 means one internal cycle. */
     uint32_t intercept_last_cycle;
+
+    /* The interpreter, for the steps the intercept doesn't take: cpu_step, set
+     * by hosts that link it (snes_init leaves it NULL, so the system code
+     * itself never pulls the interpreter into a program). */
+    CpuStep (*interpreter)(Cpu *cpu);
+    /* Without the interpreter (native_only, or no interpreter set; docs/RECOMP.md,
+     * "Without the interpreter"): interrupt entry, WAI and STP go through
+     * cpu_service, and an instruction the intercept doesn't run is a miss.
+     * on_miss is called with PC at it; returning true runs it on the
+     * interpreter (if set), false (or no on_miss) halts the machine: `halted`
+     * is set, the frame ends there, and snes_run_frame does nothing until a
+     * state load clears it. */
+    bool native_only;
+    bool (*on_miss)(void *ctx, struct Snes *snes);
+    void *on_miss_ctx;
+    bool halted;
 } Snes;
 
 /* rom must stay valid for the lifetime of the system. */
@@ -69,11 +86,13 @@ void snes_init(Snes *snes, const uint8_t *rom, size_t rom_size);
 void snes_power_on(Snes *snes);
 
 /* Copy the whole machine into dst, re-pointing internal references at dst.
- * Hooks and the WRAM write mask are not carried over. */
+ * Hooks (the interpreter and native_only stay) and the WRAM write mask are not
+ * carried over. */
 void snes_clone(Snes *dst, const Snes *src);
 
 /* Save states: the raw machine image, valid only for the build that wrote it.
- * Loading keeps the destination's ROM, hooks and write mask. Return 0 on success. */
+ * Loading keeps the destination's ROM, hooks (interpreter and native_only
+ * included) and write mask, and clears `halted`. Return 0 on success. */
 int snes_state_save(const Snes *snes, const char *path);
 int snes_state_load(Snes *snes, const char *path);
 

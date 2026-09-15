@@ -21,11 +21,64 @@ For an optimized player in `dist/`:
 
 ```sh
 python3 tools/dist.py                                   # Release build in build/dist, installed to dist/
+python3 tools/dist.py --strict                          # the same without the interpreter linked at all
 python3 tools/dist.py -- -DCMAKE_PREFIX_PATH=<prefix>   # when CMake can't find SDL2 on its own
 ```
 
 On Windows it copies `SDL2.dll` next to `ct_play.exe`. `dist/` is never
-committed.
+committed. The `dist/` player runs without the interpreter (below), so it needs
+the ROM at build time (`CT_ROM`, `roms/ct-usa.sfc` by default); `tools/dist.py`
+stops if no blocks were generated. `--interpreter` builds the development
+player instead.
+
+### Without the interpreter
+
+The development system's 65816 interpreter is the reference everything is
+checked against, not something a player needs: the code generated from the ROM
+runs every instruction of the 25 movies ([RECOMP.md](RECOMP.md), M3). The CMake
+option `CT_PLAYER_INTERPRETER` decides what `ct_play` keeps of it (`ct_dev`,
+`ct_fuzz` and the test runners always have it):
+
+| Value | `ct_play` | Used by |
+|---|---|---|
+| `ON` (default) | the interpreter is linked and every `--native` and `--recomp` mode works | `cmake` builds |
+| `FALLBACK` | generated code only; an instruction without generated code (a *miss*) runs on the interpreter and is logged | `tools/dist.py` |
+| `OFF` | generated code only; the interpreter isn't linked (about 28 KB of code), and a miss stops the game | `tools/dist.py --strict` |
+
+```sh
+cmake -S . -B build/main -G Ninja -DCT_PLAYER_INTERPRETER=FALLBACK && cmake --build build/main --target ct_play
+```
+
+The two players without the interpreter only run `--native on` with
+`--recomp only` (the default) or `--recomp on`, and refuse to start when they
+have no generated blocks for the ROM (a build without `CT_ROM`, or another
+ROM). `ct_play --help` ends with the mode the build runs in; so do the first
+line on stderr and the title bar (`[generated code, fallback]`,
+`[generated code only]`).
+
+**Misses** are logged to `<rom name>.misses.txt` next to the saves (the ROM's
+directory, or `--save-dir`): one line per address and register widths with how
+often it ran, and whether it is ROM code or RAM code and in which RAM section,
+the format of `ct_dev --misses`. The file is written within a second of a new
+miss in a window, when the game stops, and on exit, and each session adds to
+the counts already there. The
+fallback player prints the first 20 addresses to stderr as they happen and
+shows the number of misses in the title bar. The strict player stops at the
+first miss: the frame stays on screen, a message box and stderr name the
+address (`no generated code for 7E:1F00 m8 x8, RAM in no section`), `F7` loads
+the quick save and `Esc` quits; headless (`--frames`), it exits with status 1.
+
+A misses file is a coverage file, so feeding it back is adding it to the
+build's coverage and rebuilding, which generates blocks for that code:
+
+```sh
+python3 tools/dist.py -- "-DCT_RECOMP_COVERAGE=traces/coverage-*.txt;path/to/ct.misses.txt"
+```
+
+That covers ROM code and RAM code inside the RAM sections `re/hints.toml`
+describes; RAM code in no section needs a `[[ramcode]]` section first
+([RECOMP.md](RECOMP.md), "RAM code as generated blocks"). Like coverage files,
+misses files stay out of the repository.
 
 ### Linux and macOS
 
@@ -127,7 +180,8 @@ power-on, so a recording:
   the same file with `--sram`;
 - runs in shadow mode by default, which also checks the ported routines while
   you play. `--native off`, or `--native on` with the default `--recomp only`
-  (fastest), keep the timing exact too; `--recomp on` doesn't, so it's refused;
+  (fastest), keep the timing exact too; `--recomp on` doesn't, so it's refused.
+  A player built without the interpreter records in `--native on` mode;
 - can continue an existing movie: `--movie base.ctm` replays it at full speed
   first (up to its last input, or `--movie-frames N`), and the recording holds
   its input followed by yours;

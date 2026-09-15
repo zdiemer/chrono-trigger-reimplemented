@@ -150,8 +150,8 @@ int native_suspended(const NativeRuntime *rt);
  * again at each later call and at return. If the callee unwinds past its return
  * instead, the routine is abandoned, as the original would be.
  *
- * Outside the runtime the callee is interpreted synchronously, with interrupts
- * held off and no time passing. */
+ * Outside the runtime the callee runs synchronously (registered entries, else
+ * the machine's interpreter), with interrupts held off and no time passing. */
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call);
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care);
 

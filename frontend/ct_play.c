@@ -12,6 +12,12 @@
  * keyboard takes over; --record writes everything played from power-on as a
  * movie that ct_dev replays identically. In a window, the APU's 32000 Hz output
  * plays through SDL audio (see audio_frame).
+ *
+ * Built with CT_PLAYER_NO_INTERPRETER (CMake CT_PLAYER_INTERPRETER=FALLBACK or
+ * OFF, docs/PLAYING.md), it runs only native code, the generated blocks: an
+ * instruction without generated code is a miss, logged to <rom name>.misses.txt
+ * and run on the interpreter (1, FALLBACK), or, with the interpreter not linked
+ * at all (2, OFF), the game stops there.
  */
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -27,6 +33,24 @@
 #include "snes/render.h"
 #include "snes/system.h"
 #include "trace.h"
+
+#ifndef CT_PLAYER_NO_INTERPRETER
+#define CT_PLAYER_NO_INTERPRETER 0
+#endif
+#if CT_PLAYER_NO_INTERPRETER
+#include "misses.h"
+#endif
+
+/* What this build does with the interpreter, for --help, the title and stderr. */
+static const char *const build_mode[] = {
+    "with the interpreter (every --native mode)",
+    "generated code only, the interpreter as a logged fallback for misses (CT_PLAYER_INTERPRETER=FALLBACK)",
+    "generated code only, without the interpreter (CT_PLAYER_INTERPRETER=OFF)",
+};
+static const char *const title_mode[] = { "", " [generated code, fallback]", " [generated code only]" };
+
+/* Misses reported on stderr as they happen, at most. */
+#define MISSES_REPORTED 20
 
 /* NTSC: 21.477272 MHz master clock, 1364 clocks per line, 262 lines per frame. */
 #define MASTER_CLOCK_HZ 21477272.0
@@ -110,6 +134,13 @@ typedef struct {
     Track track;
     bool mute;                            /* no audio device */
     const char *wav_path;                 /* headless: write the audio here */
+#if CT_PLAYER_NO_INTERPRETER
+    Misses *misses;                       /* instructions without generated code, as in misses_path */
+    char misses_path[1024];
+    unsigned long miss_steps;             /* misses this session */
+    unsigned long miss_steps_written;
+    char halt_reason[256];                /* why the game stopped (snes.halted) */
+#endif
 } Player;
 
 static void usage(FILE *out)
@@ -158,7 +189,55 @@ static void usage(FILE *out)
             "\n"
             "Saves are written to <rom name>.srm when the game changes them and on exit.\n",
             "P", "Tab", "F5 / F7", "F11, Alt+Enter", "Esc");
+    fprintf(out, "\nThis build runs %s.\n", build_mode[CT_PLAYER_NO_INTERPRETER]);
+    if (CT_PLAYER_NO_INTERPRETER)
+        fprintf(out,
+                "Only --native on works (with --recomp only or on). An instruction nothing was generated for is a\n"
+                "miss: it is logged to <rom name>.misses.txt next to the saves, a coverage file to feed back into\n"
+                "the build (CT_RECOMP_COVERAGE), and %s.\n",
+                CT_PLAYER_NO_INTERPRETER == 1 ? "runs on the interpreter" : "stops the game");
 }
+
+/* ---- misses ------------------------------------------------------------------- */
+
+#if CT_PLAYER_NO_INTERPRETER
+/* The system found no native code for the instruction at PC. */
+static bool on_miss(void *ctx, Snes *snes)
+{
+    Player *pl = ctx;
+    const Cpu *c = &snes->cpu;
+    size_t before = misses_count(pl->misses, NULL);
+    misses_note(pl->misses, cpu_pc24(c), c->p, c->e);
+    pl->miss_steps++;
+    char what[200];
+    if (CT_PLAYER_NO_INTERPRETER == 2) {
+        misses_describe(snes, what, sizeof what);
+        snprintf(pl->halt_reason, sizeof pl->halt_reason, "no generated code for %s", what);
+        fprintf(stderr, "ct_play: stopped at frame %u: %s. This player has no interpreter to run it; the address is "
+                        "logged to %s for the build's CT_RECOMP_COVERAGE.\n",
+                (unsigned)snes->frame, what, pl->misses_path);
+        return false;
+    }
+    if (misses_count(pl->misses, NULL) > before && before < MISSES_REPORTED) {
+        misses_describe(snes, what, sizeof what);
+        fprintf(stderr, "ct_play: frame %u: no generated code for %s; running it on the interpreter (logged to %s)\n",
+                (unsigned)snes->frame, what, pl->misses_path);
+    }
+    return true;
+}
+
+/* Write the misses file if this session added misses since it was last written. */
+static void misses_flush(Player *pl)
+{
+    if (pl->miss_steps == pl->miss_steps_written)
+        return;
+    if (misses_write(pl->misses, pl->misses_path, NULL) != 0) {
+        fprintf(stderr, "cannot write %s\n", pl->misses_path);
+        return;
+    }
+    pl->miss_steps_written = pl->miss_steps;
+}
+#endif
 
 static uint8_t *read_file(const char *path, size_t *len)
 {
@@ -596,7 +675,8 @@ static int run_headless(Player *pl, long frames, const Hold *holds, int nholds, 
         fprintf(stderr, "cannot open %s\n", pl->wav_path);
         return 1;
     }
-    for (long frame = 0; frame < frames; frame++) {
+    long frame;
+    for (frame = 0; frame < frames && !pl->snes.halted; frame++) {
         uint16_t pad = 0;
         for (int i = 0; i < nholds; i++) {
             if (frame >= holds[i].first && frame <= holds[i].last)
@@ -607,6 +687,10 @@ static int run_headless(Player *pl, long frames, const Hold *holds, int nholds, 
     }
     sram_flush(pl);
     int rc = track_write(pl) != 0;
+    if (pl->snes.halted) {
+        frames = frame - 1;
+        rc = 1;
+    }
     if (ct_wav_close(&wav) != 0) {
         fprintf(stderr, "cannot write %s\n", pl->wav_path);
         rc = 1;
@@ -659,10 +743,36 @@ static uint16_t read_pad(void)
     return pad;
 }
 
+static const char *halt_reason(const Player *pl)
+{
+#if CT_PLAYER_NO_INTERPRETER
+    return pl->halt_reason;
+#else
+    (void)pl;
+    return "an instruction without native code";
+#endif
+}
+
+static const char *misses_path(const Player *pl)
+{
+#if CT_PLAYER_NO_INTERPRETER
+    return pl->misses_path;
+#else
+    (void)pl;
+    return "the miss report";
+#endif
+}
+
 static void update_title(SDL_Window *window, const Player *pl, bool paused, bool saving)
 {
-    char title[160];
-    int n = snprintf(title, sizeof title, "ct_play");
+    char title[400];
+    int n = snprintf(title, sizeof title, "ct_play%s", title_mode[CT_PLAYER_NO_INTERPRETER]);
+#if CT_PLAYER_NO_INTERPRETER
+    if (pl->snes.halted)
+        n += snprintf(title + n, sizeof title - n, " (stopped: %s)", pl->halt_reason);
+    else if (pl->miss_steps)
+        n += snprintf(title + n, sizeof title - n, " (%lu misses)", pl->miss_steps);
+#endif
     if (replaying(pl))
         n += snprintf(title + n, sizeof title - n, " (replaying %u/%u)", (unsigned)pl->snes.frame,
                       (unsigned)pl->track.replay_frames);
@@ -706,7 +816,7 @@ static int run_window(Player *pl, int scale, bool fullscreen)
     const Uint64 ticks_per_second = SDL_GetPerformanceFrequency();
     const Uint64 period = (Uint64)(ticks_per_second / FRAME_RATE);
     Uint64 deadline = SDL_GetPerformanceCounter() + period;
-    bool running = true, paused = false, save_pending = false;
+    bool running = true, paused = false, save_pending = false, halt_shown = false;
     long save_wait = 0;
     long frames_since_flush = 0;
     update_title(window, pl, paused, save_pending);
@@ -738,12 +848,31 @@ static int run_window(Player *pl, int scale, bool fullscreen)
         }
 
         bool fast = false;
-        if (!paused) {
+        if (pl->snes.halted && !halt_shown) {
+            /* Without the interpreter, a miss stops the game (the stderr message says more). */
+            halt_shown = true;
+#if CT_PLAYER_NO_INTERPRETER
+            misses_flush(pl);
+#endif
+            update_title(window, pl, paused, save_pending);
+            char msg[1600];
+            snprintf(msg, sizeof msg,
+                     "The game stopped at frame %u: %s.\n\nThis player runs without the interpreter. The address "
+                     "is logged to %s; a build with it in CT_RECOMP_COVERAGE generates the code. F7 loads the quick "
+                     "save; Esc quits.",
+                     (unsigned)pl->snes.frame, halt_reason(pl), misses_path(pl));
+            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "ct_play stopped", msg, window);
+        } else if (!pl->snes.halted) {
+            halt_shown = false;
+        }
+        if (!paused && !pl->snes.halted) {
             /* Replay and fast forward run frames unpaced for up to a display frame. */
             const Uint8 *keys = SDL_GetKeyboardState(NULL);
             Uint64 budget_end = SDL_GetPerformanceCounter() + period;
             do {
                 step(pl, read_pad());
+                if (pl->snes.halted)
+                    break;
                 if (save_pending) {
                     if (!natives_busy(pl)) {
                         save_pending = false;
@@ -756,6 +885,9 @@ static int run_window(Player *pl, int scale, bool fullscreen)
                 if (++frames_since_flush >= SRAM_FLUSH_FRAMES) {
                     frames_since_flush = 0;
                     sram_flush(pl);
+#if CT_PLAYER_NO_INTERPRETER
+                    misses_flush(pl);
+#endif
                     update_title(window, pl, paused, save_pending);
                 }
                 fast = replaying(pl) || keys[SDL_SCANCODE_TAB];
@@ -765,7 +897,7 @@ static int run_window(Player *pl, int scale, bool fullscreen)
             SDL_UpdateTexture(texture, NULL, pl->renderer.pixels, RENDER_WIDTH * 4);
         }
         /* Fast frames aren't played: the device stays silent until normal speed. */
-        audio_frame(&audio, &pl->snes, paused || fast);
+        audio_frame(&audio, &pl->snes, paused || fast || pl->snes.halted);
         SDL_RenderClear(sdl_renderer);
         SDL_RenderCopy(sdl_renderer, texture, NULL, NULL);
         SDL_RenderPresent(sdl_renderer);
@@ -883,6 +1015,11 @@ int main(int argc, char **argv)
         usage(stderr);
         return 2;
     }
+    if (CT_PLAYER_NO_INTERPRETER && (pl.native_mode != NATIVE_ON || !recomp)) {
+        fprintf(stderr, "this player runs %s: it needs --native on and generated blocks (--recomp only or on)\n",
+                build_mode[CT_PLAYER_NO_INTERPRETER]);
+        return 2;
+    }
     Track *t = &pl.track;
     if (t->record_path) {
         /* A movie replays the same only where the original code's timing is kept,
@@ -896,7 +1033,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "--record starts from power-on and can't be combined with --load-state\n");
             return 2;
         }
-        if (!native_given)
+        if (!native_given && !CT_PLAYER_NO_INTERPRETER)
             pl.native_mode = NATIVE_SHADOW;
     }
 
@@ -935,6 +1072,28 @@ int main(int argc, char **argv)
         recomp = false;
     }
     int nrecomp = recomp ? recomp_native_count : 0;
+#if CT_PLAYER_NO_INTERPRETER
+    if (!nrecomp) {
+        fprintf(stderr, "this player runs %s, and it has no generated blocks for this ROM (%s): build it with the "
+                        "ROM as CT_ROM\n",
+                build_mode[CT_PLAYER_NO_INTERPRETER], recomp_native_count ? "they are for another ROM" : "none");
+        return 1;
+    }
+#if CT_PLAYER_NO_INTERPRETER == 1
+    pl.snes.interpreter = cpu_step;   /* for misses only */
+#endif
+    pl.snes.native_only = true;
+    pl.snes.on_miss = on_miss;
+    pl.snes.on_miss_ctx = &pl;
+    side_path(pl.misses_path, sizeof pl.misses_path, rom_path, rom_path, save_dir, ".misses.txt");
+    pl.misses = misses_create(&pl.snes);
+    if (misses_load(pl.misses, pl.misses_path) < 0)
+        fprintf(stderr, "warning: cannot read %s; starting a new one\n", pl.misses_path);
+    fprintf(stderr, "ct_play: %s; instructions without generated code are logged to %s\n",
+            build_mode[CT_PLAYER_NO_INTERPRETER], pl.misses_path);
+#else
+    pl.snes.interpreter = cpu_step;
+#endif
     /* In on mode, generated blocks alone keep the original's timing exactly;
      * ported routines charge estimated time (docs/RECOMP.md, M2). Shadow and off
      * modes don't depend on timing, so they keep the ported routines. Without
@@ -981,7 +1140,8 @@ int main(int argc, char **argv)
         return 1;
     if (t->record_path)
         fprintf(stderr, "recording to %s in %s mode; quick saves go to %s\n", t->record_path,
-                pl.native_mode == NATIVE_SHADOW ? "shadow" : "off", pl.state_path);
+                pl.native_mode == NATIVE_SHADOW ? "shadow" : pl.native_mode == NATIVE_ON ? "on" : "off",
+                pl.state_path);
 
     int rc;
     if (frames >= 0)
@@ -993,6 +1153,17 @@ int main(int argc, char **argv)
         fprintf(stderr, "recorded %lu frames to %s\n", (unsigned long)t->frames, t->record_path);
     natives_report(&pl);
     native_destroy(pl.natives);
+#if CT_PLAYER_NO_INTERPRETER
+    misses_flush(&pl);
+    if (pl.miss_steps) {
+        uint64_t total;
+        size_t distinct = misses_count(pl.misses, &total);
+        fprintf(stderr, "ct_play: %lu instructions this session had no generated code; %s now lists %llu at %lu "
+                        "addresses (feed it back with CT_RECOMP_COVERAGE)\n",
+                pl.miss_steps, pl.misses_path, (unsigned long long)total, (unsigned long)distinct);
+    }
+    misses_destroy(pl.misses);
+#endif
     free(t->pads);
     free(rom);
     return rc;

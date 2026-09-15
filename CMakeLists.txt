@@ -33,6 +33,7 @@ endif()
 # Development runtime: interpreter CPU and modeled hardware.
 add_library(ct_runtime STATIC
   runtime/cpu/cpu65816.c
+  runtime/cpu/cpu_entry.c
   runtime/apu/spc700.c
   runtime/apu/apu.c
   runtime/apu/dsp.c
@@ -126,7 +127,7 @@ add_executable(ct_fuzz dev/ct_fuzz.c)
 target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
 
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
-add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c)
+add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c)
 add_executable(spc700_runner tests/apu/spc700_runner.c runtime/apu/spc700.c)
 add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c)
 target_include_directories(dsp_test PRIVATE runtime)
@@ -150,7 +151,7 @@ if(Python3_Interpreter_FOUND)
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     DEPENDS ${RECOMP_TOOL_SOURCES} tools/disasm/cpu.py
     COMMENT "Translating every opcode for sst_recomp_runner")
-  add_executable(sst_recomp_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c ${RECOMP_SST_SOURCES})
+  add_executable(sst_recomp_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c ${RECOMP_SST_SOURCES})
   target_compile_definitions(sst_recomp_runner PRIVATE SST_RECOMP)
   target_include_directories(sst_recomp_runner PRIVATE runtime tests/cpu)
   add_executable(recomp_bus_diff tests/cpu/recomp_bus_diff.c ${RECOMP_SST_SOURCES})
@@ -185,8 +186,29 @@ else()
   endif()
 endif()
 
+# CT_PLAYER_INTERPRETER: what ct_play does with the 65816 interpreter (docs/PLAYING.md,
+# "Without the interpreter"). ON: linked and used as in ct_dev (every --native mode).
+# FALLBACK: generated code runs everything; the interpreter is linked but runs only
+# instructions nothing was generated for, which are logged to <rom name>.misses.txt.
+# OFF: not linked at all; such an instruction stops the game. ct_dev, ct_fuzz and the
+# test runners always have the interpreter, the reference they check against.
+set(CT_PLAYER_INTERPRETER ON CACHE STRING "ct_play's 65816 interpreter: ON, FALLBACK (misses only, logged) or OFF")
+set_property(CACHE CT_PLAYER_INTERPRETER PROPERTY STRINGS ON FALLBACK OFF)
+string(TOUPPER "${CT_PLAYER_INTERPRETER}" CT_PLAYER_INTERPRETER_MODE)
+if(NOT CT_PLAYER_INTERPRETER_MODE MATCHES "^(ON|FALLBACK|OFF)$")
+  message(FATAL_ERROR "CT_PLAYER_INTERPRETER must be ON, FALLBACK or OFF, not ${CT_PLAYER_INTERPRETER}")
+endif()
+
 if(CT_SDL2)
   add_executable(ct_play frontend/ct_play.c)
+  if(NOT CT_PLAYER_INTERPRETER_MODE STREQUAL "ON")
+    # The miss report (dev/misses.h) is the player's log of misses.
+    target_sources(ct_play PRIVATE dev/misses.c)
+    target_include_directories(ct_play PRIVATE dev)
+    target_compile_definitions(ct_play PRIVATE
+      CT_PLAYER_NO_INTERPRETER=$<IF:$<STREQUAL:${CT_PLAYER_INTERPRETER_MODE},OFF>,2,1>)
+  endif()
+  message(STATUS "ct_play: interpreter ${CT_PLAYER_INTERPRETER_MODE} (CT_PLAYER_INTERPRETER)")
   target_link_libraries(ct_play PRIVATE ct_game ct_recomp ct_runtime ct_trace ${CT_SDL2})
   if(MINGW)
     target_link_options(ct_play PRIVATE -static-libgcc)

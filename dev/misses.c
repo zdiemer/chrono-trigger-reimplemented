@@ -85,6 +85,33 @@ static void grow(Misses *m)
     free(old);
 }
 
+/* The RAM section whose image has the bytes of the instruction at WRAM address
+ * `w` (returned), or -1; then `range` is the first section whose range holds
+ * them, or -1, and `diff` the bytes that differ from its image (bit 0: opcode). */
+static int find_section(const Snes *s, uint32_t w, bool m8, bool x8, int *range, uint8_t *diff)
+{
+    const uint8_t *wram = s->bus.wram;
+    const uint8_t *code = wram + ((w - 0x7E0000) & 0x1FFFF);
+    char size = operand_bytes[code[0]];
+    int len = 1 + (size == 'M' ? (m8 ? 1 : 2) : size == 'X' ? (x8 ? 1 : 2) : size - '0');
+    *range = -1;
+    *diff = 0;
+    for (int i = 0; i < recomp_ram_section_count; i++) {
+        const RecompRamSection *sec = &recomp_ram_sections[i];
+        if (w < sec->base || w + (uint32_t)len > sec->base + sec->size)
+            continue;
+        const uint8_t *img = sec->image + (w - sec->base);
+        if (!memcmp(code, img, (size_t)len))
+            return i;
+        if (*range < 0) {
+            *range = i;
+            for (int k = 0; k < len; k++)
+                *diff |= (uint8_t)((code[k] != img[k]) << k);
+        }
+    }
+    return -1;
+}
+
 void misses_note(Misses *m, uint32_t pc, uint8_t p, bool e)
 {
     bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
@@ -102,30 +129,98 @@ void misses_note(Misses *m, uint32_t pc, uint8_t p, bool e)
     if (!w)
         return;
     /* Compare the instruction's bytes with every section image holding them. */
-    const uint8_t *wram = m->s->bus.wram;
-    uint8_t op = wram[(w - 0x7E0000) & 0x1FFFF];
-    char size = operand_bytes[op];
-    int len = 1 + (size == 'M' ? (m8 ? 1 : 2) : size == 'X' ? (x8 ? 1 : 2) : size - '0');
-    const uint8_t *code = wram + ((w - 0x7E0000) & 0x1FFFF);
-    uint8_t diff = 0;
-    bool inside = false;
-    for (int i = 0; i < recomp_ram_section_count; i++) {
-        const RecompRamSection *sec = &recomp_ram_sections[i];
-        if (w < sec->base || w + (uint32_t)len > sec->base + sec->size)
-            continue;
-        const uint8_t *img = sec->image + (w - sec->base);
-        if (!memcmp(code, img, (size_t)len)) {
-            ms->section = (int16_t)i;
-            return;
-        }
-        if (!inside)
-            for (int k = 0; k < len; k++)
-                diff |= (uint8_t)((code[k] != img[k]) << k);
-        inside = true;
-    }
-    if (inside) {
+    int range;
+    uint8_t diff;
+    int section = find_section(m->s, w, m8, x8, &range, &diff);
+    if (section >= 0) {
+        ms->section = (int16_t)section;
+    } else if (range >= 0) {
         ms->modified++;
         ms->diff |= diff;
+    }
+}
+
+int misses_load(Misses *m, const char *path)
+{
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return 0;
+    char line[512];
+    int n = 0;
+    while (fgets(line, sizeof line, f)) {
+        unsigned bank, addr;
+        int mw, xw;
+        unsigned long long count;
+        char rest[400] = "";
+        if (line[0] == '#' || sscanf(line, "%2x:%4x %d %d # %llu%399[^\n]", &bank, &addr, &mw, &xw, &count, rest) < 5)
+            continue;
+        bool e = strstr(rest, " emulation") != NULL, m8 = mw == 8, x8 = xw == 8;
+        uint32_t pc = (uint32_t)bank << 16 | addr;
+        uint32_t key = (pc << 3 | (uint32_t)e << 2 | (uint32_t)m8 << 1 | (uint32_t)x8) + 1;
+        if (m->used * 2 >= m->cap)
+            grow(m);
+        Miss *ms = slot(m, key);
+        if (!ms->key) {
+            ms->key = key;
+            ms->section = -1;
+            m->used++;
+        }
+        ms->count += count;
+        char name[128];
+        if (sscanf(rest, " RAM %127s", name) == 1)
+            for (int i = 0; i < recomp_ram_section_count; i++)
+                if (!strcmp(recomp_ram_sections[i].name, name))
+                    ms->section = (int16_t)i;
+        const char *mod = strstr(rest, " modified ");
+        unsigned long long modified;
+        char what[16];
+        if (mod && sscanf(mod, " modified %llu (%15[a-z])", &modified, what) == 2) {
+            ms->modified += modified;
+            ms->diff |= !strcmp(what, "opcode") ? 1 : 2;
+        }
+        n++;
+    }
+    int bad = ferror(f);
+    fclose(f);
+    return bad ? -1 : n;
+}
+
+size_t misses_count(const Misses *m, uint64_t *instructions)
+{
+    if (instructions) {
+        *instructions = 0;
+        for (size_t i = 0; i < m->cap; i++)
+            *instructions += m->slots[i].count;
+    }
+    return m->used;
+}
+
+void misses_describe(const Snes *s, char *out, size_t n)
+{
+    const Cpu *c = &s->cpu;
+    uint32_t pc = cpu_pc24(c);
+    bool m8 = c->e || (c->p & CPU_FLAG_M), x8 = c->e || (c->p & CPU_FLAG_X);
+    int len = snprintf(out, n, "%02X:%04X m%d x%d%s, ", pc >> 16, pc & 0xFFFF, m8 ? 8 : 16, x8 ? 8 : 16,
+                       c->e ? " emulation mode" : "");
+    if (len < 0 || (size_t)len >= n)
+        return;
+    out += len, n -= (size_t)len;
+    uint32_t w = wram_addr(pc);
+    if (is_rom(pc)) {
+        snprintf(out, n, "ROM");
+    } else if (!w) {
+        snprintf(out, n, "neither ROM nor work RAM");
+    } else {
+        int range;
+        uint8_t diff;
+        int section = find_section(s, w, m8, x8, &range, &diff);
+        if (section >= 0)
+            snprintf(out, n, "RAM in section %s", recomp_ram_sections[section].name);
+        else if (range >= 0)
+            snprintf(out, n, "RAM in section %s, but its %s differs from the image", recomp_ram_sections[range].name,
+                     diff & 1 ? "opcode" : "operand");
+        else
+            snprintf(out, n, "RAM in no section");
     }
 }
 
@@ -154,7 +249,8 @@ int misses_write(Misses *m, const char *path, FILE *summary)
     uint64_t insns[KINDS] = { 0 }, addrs[KINDS] = { 0 };
     uint64_t *sec_insns = calloc((size_t)recomp_ram_section_count + 1, sizeof *sec_insns);
     uint64_t *sec_addrs = calloc((size_t)recomp_ram_section_count + 1, sizeof *sec_addrs);
-    fprintf(f, "# instructions the interpreter ran: BB:AAAA m x # count, ROM or RAM and its section (ct_dev --misses)\n");
+    fprintf(f, "# instructions without generated code: BB:AAAA m x # count, ROM or RAM and its section "
+               "(docs/RECOMP.md, miss report)\n");
     for (size_t i = 0; i < n; i++) {
         const Miss *ms = &list[i];
         uint32_t key = ms->key - 1, pc = key >> 3;
@@ -180,6 +276,12 @@ int misses_write(Misses *m, const char *path, FILE *summary)
         fprintf(f, "%s\n", e ? " emulation" : "");
     }
     int rc = fclose(f);
+    if (!summary) {
+        free(sec_insns);
+        free(sec_addrs);
+        free(list);
+        return rc;
+    }
     fprintf(summary, "misses:");
     for (int k = 0; k < KINDS; k++)
         fprintf(summary, "%s %s %llu at %llu", k ? "," : "", kind_names[k], (unsigned long long)insns[k],

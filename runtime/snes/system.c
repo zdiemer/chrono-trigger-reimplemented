@@ -72,6 +72,7 @@ void snes_clone(Snes *dst, const Snes *src)
     dst->apu.on_insn = NULL;
     dst->on_line = NULL;
     dst->intercept = NULL;
+    dst->on_miss = NULL;
 }
 
 #define STATE_MAGIC "CTSS"
@@ -122,6 +123,11 @@ int snes_state_load(Snes *s, const char *path)
     s->on_line_ctx = keep.on_line_ctx;
     s->intercept = keep.intercept;
     s->intercept_ctx = keep.intercept_ctx;
+    s->interpreter = keep.interpreter;
+    s->native_only = keep.native_only;
+    s->on_miss = keep.on_miss;
+    s->on_miss_ctx = keep.on_miss_ctx;
+    s->halted = false;
     return 0;
 }
 
@@ -354,6 +360,8 @@ uint32_t snes_clocks_to_next_poll_change(const Snes *s)
 
 void snes_run_frame(Snes *s, uint16_t pad1)
 {
+    if (s->halted)
+        return;
     s->bus.pad[0] = pad1;
     s->frame_done = false;
     while (!s->frame_done) {
@@ -366,12 +374,28 @@ void snes_run_frame(Snes *s, uint16_t pad1)
         bool polled = true;
         s->intercept_last_cycle = 0;
         int32_t spent = s->intercept ? s->intercept(s->intercept_ctx, s) : -1;
+        CpuStep kind = CPU_STEP_READY;
+        if (spent < 0 && (s->native_only || !s->interpreter)) {
+            /* Without the interpreter: what cpu_step does besides instructions
+             * happens here, and an instruction no native code runs is a miss. */
+            bool waiting = s->cpu.waiting;
+            kind = cpu_service(&s->cpu);
+            if (kind == CPU_STEP_READY && waiting && s->intercept)
+                spent = s->intercept(s->intercept_ctx, s);   /* WAI ended by a masked IRQ: the next instruction runs now */
+            if (kind == CPU_STEP_READY && spent < 0 &&
+                !(s->on_miss && s->on_miss(s->on_miss_ctx, s) && s->interpreter)) {
+                s->halted = true;
+                return;
+            }
+        }
         if (spent >= 0) {
             clocks = (uint32_t)spent;   /* native code: its time ends in one poll */
             if (s->intercept_last_cycle)
                 last_cycle = s->intercept_last_cycle;
         } else {
-            polled = cpu_step(&s->cpu) != CPU_STEP_INTERRUPT;   /* entry sequences don't poll */
+            if (kind == CPU_STEP_READY)
+                kind = s->interpreter(&s->cpu);
+            polled = kind != CPU_STEP_INTERRUPT;   /* entry sequences don't poll */
             clocks = s->bus.clocks + s->cpu.io_cycles * CLOCKS_PER_IO_CYCLE;
             if (s->bus.clocks && !s->cpu.last_cycle_io)
                 last_cycle = s->bus.clocks - s->bus.access_start;

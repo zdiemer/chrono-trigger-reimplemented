@@ -924,6 +924,105 @@ saves; all 25 movies were run in full, 561550 frames.)
   `endings-beyond-time` about 120 ms of a 62 s run. Well under 1% everywhere,
   so no cheaper scheme (a write counter per section, say) is needed.
 
+## Without the interpreter
+
+M3 left the interpreter nothing to run in the library, but every program still
+linked it and the system loop still called it:
+
+| What | Before | Now |
+|---|---|---|
+| Interrupt entry | the intercept returns -1 when an NMI or unmasked IRQ is deliverable, and `cpu_step` runs the entry sequence | `cpu_service` (`runtime/cpu/cpu_entry.c`) |
+| `WAI` and `STP` | no entry applies while the CPU is halted, so `cpu_step` ran the idle steps (and the wake-up by an IRQ that I holds off, which then runs the next instruction in the same step) | `cpu_service`; after that wake-up the system asks the intercept again |
+| Power-on | `cpu_init` and `cpu_reset` (which reads the reset vector) were in `cpu65816.c` | moved to `cpu_entry.c` unchanged |
+| The system loop | `snes_run_frame` called `cpu_step` | calls `Snes.interpreter`, which hosts set to `cpu_step` (`snes_init` leaves it NULL) |
+| `native_call`'s synchronous fallback (tools, `ct_fuzz`) | `cpu_step` | `Snes.interpreter`; without one it gives up with a message. In `on` mode hand ports call out through their fiber and never reach it |
+| An instruction no entry, stop or index covers (and a block that returns without running) | `cpu_step` | a miss (below) |
+
+With these, nothing in the runtime, game code or generated code refers to the
+interpreter: a program that doesn't set `Snes.interpreter` doesn't link
+`cpu65816.c` (static libraries only pull objects something refers to).
+
+### The system loop without the interpreter
+
+`Snes.native_only` (or no interpreter at all) switches `snes_run_frame` to the
+path a player without the interpreter runs. The intercept runs first, as
+always (hand ports, their debt and call-outs, generated blocks, stops, the
+index). When it returns -1, `cpu_service` does what `cpu_step` does before an
+instruction: STP idles; a pending NMI, or an IRQ with I clear, runs the entry
+sequence (a step that doesn't poll); an IRQ with I set ends WAI; WAI idles.
+Otherwise an instruction is due and nothing ran it: `Snes.on_miss` is called
+with PC there. If it returns true and an interpreter is set, the interpreter
+runs that one instruction as an ordinary step; otherwise `Snes.halted` is set
+and the frame ends at once, before the step (a state load clears it). Time,
+polling and the last cycle are computed exactly as for the interpreter's steps.
+
+`cpu_service` is a separate implementation of the interpreter's entry
+sequence, so `recomp_bus_diff` now also runs it against `cpu_step` from random
+states (every context, random NMI and IRQ inputs, I, WAI and STP), comparing
+the same things as for instructions (registers, memory, open bus, bus clocks,
+internal cycles, the last cycle, halt state) and the result kind: 50180 entries
+and idle steps, 0 mismatches (13820 states where an instruction is due are
+skipped). With the B flag left set in the emulation-mode push, 282 of them
+mismatch.
+
+### Checking it: `ct_dev --no-interpreter`
+
+`ct_dev --native on --no-interpreter strict` runs the strict player's path (a
+miss stops the run with exit status 1 and names the address and its section),
+`--no-interpreter fallback` the fallback player's (misses run on the
+interpreter, the first ten are printed, `--misses` counts them). Built as in M3
+(12022 blocks), `--native on --recomp only --no-interpreter strict` against
+`--native off` over every frame (`trace.py diff --framebuffer`):
+
+| Movie | Frames | Traces | Exit |
+|---|--:|---|---|
+| `new-game` | 7200 | identical | 0 |
+| `gato-battle` | 21600 | identical | 0 |
+| `saves/events-jetbike-race` | 9400 | identical | 0 |
+| `saves/battle-golem-twins-gameover` (game over, SPC700 boot ROM restart) | 12400 | identical | 0 |
+| `saves/endings-beyond-time` | 100000 | identical | 0 |
+
+Every run ran to its end in strict mode, so no instruction reached an
+interpreter, and every NMI, IRQ and WAI went through `cpu_service`. The fallback
+path was checked by taking blocks away: `new-game` with `--exclude recomp_C0
+--exclude recomp_FD --no-interpreter fallback` interprets 38.3 million
+instructions at 10978 addresses through the miss path and its trace is still
+identical to `--native off`; `--no-interpreter strict --exclude recomp_FD` stops
+in frame 0 at `FD:C000` (the reset code after the emulation-mode block).
+
+### The player builds
+
+`CT_PLAYER_INTERPRETER` ([PLAYING.md](PLAYING.md), "Without the interpreter")
+applies to `ct_play` only: `ON` (the default for CMake builds) as before,
+`FALLBACK` (`CT_PLAYER_NO_INTERPRETER=1`, what `tools/dist.py` builds) sets
+`native_only` and an `on_miss` that logs the miss to
+`<rom name>.misses.txt` with `dev/misses.c` and lets the interpreter run it,
+and `OFF` (`CT_PLAYER_NO_INTERPRETER=2`, `tools/dist.py --strict`) doesn't set
+the interpreter, so `cpu65816.c` isn't linked (CI's `linux-clang` job builds it
+and checks with `nm` that `cpu_step` isn't in `ct_play`), and its `on_miss` logs
+the miss, stops the game and says where.
+
+- **Size** (MinGW gcc, Release, stripped, with the 12022 blocks): `ON`
+  32813568 bytes, `FALLBACK` 32820224 (+6.7 KB: the miss log), `OFF` 32792064
+  (-21.5 KB). The interpreter is 28.7 KB of code; the generated blocks are
+  nearly all of the 32 MB.
+- **Speed** (`ct_play --movie oracle/movies/gato-battle.ctm --frames 21600`
+  headless, process CPU time, mean and best of six alternating runs on a
+  machine shared with other jobs): the player before these changes 8.73 s and
+  8.42 s, `ON` 8.85 s and 8.67 s, `FALLBACK` 8.89 s and 8.44 s, `OFF` 8.78 s
+  and 8.53 s. The differences are within the noise: the steps that change (an
+  interrupt entry or halt, through a function call either way) are a handful per
+  frame. All four end on the same final frame.
+- **Misses** on a state patched to loop in RAM no section holds (`NOP`, `INX`,
+  `BRA` at `$7E:1F00`): the fallback player ran the loop on the interpreter
+  (1.27 million instructions in 60 frames, the NMI handler still generated),
+  logged its three addresses and added to their counts on a second run; the
+  strict player stopped before the first instruction with exit status 1 and
+  wrote `7E:1F00 8 8 # 1 RAM unknown`.
+
+Feeding the misses file back is the same as for `ct_dev --misses` reports
+("Misses fed back"): add it to `CT_RECOMP_COVERAGE` and rebuild.
+
 ## Cleanup into hand ports (M5)
 
 A port starts from the generated block instead of the listing:

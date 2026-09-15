@@ -433,27 +433,7 @@ static void interrupt(Cpu *c, uint16_t native_vec, uint16_t emu_vec, bool softwa
 
 /* ---- public ---------------------------------------------------------------- */
 
-void cpu_init(Cpu *cpu, CpuBus bus)
-{
-    *cpu = (Cpu){ 0 };
-    cpu->bus = bus;
-}
-
-void cpu_reset(Cpu *c)
-{
-    c->e = true;
-    c->p = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_I;
-    c->db = 0;
-    c->pb = 0;
-    c->d = 0;
-    c->s = 0x0100 | (c->s & 0xFF);
-    c->x &= 0xFF;
-    c->y &= 0xFF;
-    c->nmi_pending = false;
-    c->waiting = false;
-    c->stopped = false;
-    c->pc = read_word_bank0(c, 0xFFFC);
-}
+/* cpu_init and cpu_reset are in cpu_entry.c, which doesn't need the interpreter. */
 
 CpuStep cpu_step(Cpu *c)
 {

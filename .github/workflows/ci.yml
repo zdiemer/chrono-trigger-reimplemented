@@ -68,6 +68,8 @@ jobs:
             os: ubuntu-latest
             cc: clang
             shell: bash
+            # the player without the interpreter (docs/PLAYING.md)
+            configure: -DCT_PLAYER_INTERPRETER=OFF
           - name: macos-clang
             os: macos-latest
             cc: clang
@@ -123,11 +125,16 @@ jobs:
       - name: Configure
         run: >-
           cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON -DCT_ROM=
+          -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON -DCT_ROM= ${{ matrix.configure }}
       - name: Build
         run: cmake --build build/ci
       - name: Check that ct_play was built
         run: test -f build/ci/ct_play || test -f build/ci/ct_play.exe
+      - name: Check that the interpreter isn't linked into ct_play
+        if: contains(matrix.configure, 'CT_PLAYER_INTERPRETER=OFF')
+        run: |
+          nm build/ci/ct_dev | grep -qw cpu_step
+          if nm build/ci/ct_play | grep -w cpu_step; then exit 1; fi
       - name: Build oracle harness
         run: |
           cmake -S oracle -B build/oracle -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON

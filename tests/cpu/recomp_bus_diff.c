@@ -12,7 +12,10 @@
  * PPU, APU and CPU I/O registers. After each instruction the machines must match
  * in everything shadow validation compares, plus open bus, bus clocks, internal
  * cycles and the interrupt and halt state. N instructions run per opcode and
- * context (default 200). Prints a summary; exits non-zero on any mismatch.
+ * context (default 200). Then cpu_service, the interrupt entry and WAI/STP
+ * handling the system uses without the interpreter, runs against cpu_step from
+ * 64 * N random states per context with random interrupt inputs and halt state.
+ * Prints a summary; exits non-zero on any mismatch.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,6 +132,7 @@ int main(int argc, char **argv)
         rom[i] = (uint8_t)rng();
     Snes *interp = malloc(sizeof *interp), *gen = malloc(sizeof *gen);
     snes_init(interp, rom, sizeof rom);
+    interp->interpreter = cpu_step;
     snes_power_on(interp);
 
     static const char *ctx_names[] = { "m8x8", "m8x16", "m16x8", "m16x16", "emu" };
@@ -153,6 +157,49 @@ int main(int argc, char **argv)
         }
     }
     printf("%lu instructions, %lu mismatches\n", runs, failures);
+
+    /* What the system loop runs without the interpreter besides generated
+     * blocks: cpu_service's interrupt entry, WAI and STP against cpu_step, from
+     * the same random states with random interrupt inputs and halt state. */
+    unsigned long entries = 0, entry_failures = 0, ready = 0;
+    static const char *kind_names[] = { "instruction", "interrupt", "idle", "ready" };
+    for (int ctx = 0; ctx < 5; ctx++) {
+        randomize_wram(interp);
+        for (unsigned long it = 0; it < iterations * 64; it++) {
+            setup(interp, (uint8_t)rng(), ctx);
+            uint64_t bits = rng();
+            interp->cpu.nmi_pending = bits & 1;
+            interp->cpu.irq_line = bits & 2;
+            interp->cpu.waiting = (bits & 12) == 4;
+            interp->cpu.stopped = (bits & 12) == 8;
+            snes_clone(gen, interp);
+            CpuStep want = cpu_service(&gen->cpu);
+            if (want == CPU_STEP_READY) {
+                ready++;   /* cpu_step would execute the instruction: nothing to compare */
+                continue;
+            }
+            CpuStep got = cpu_step(&interp->cpu);
+            entries++;
+            char why[200];
+            bool bad = got != want;
+            if (bad)
+                snprintf(why, sizeof why, "step interpreter %s cpu_service %s", kind_names[got], kind_names[want]);
+            else if (interp->cpu.nmi_pending != gen->cpu.nmi_pending) {
+                bad = true;
+                snprintf(why, sizeof why, "NMI pending interpreter %d cpu_service %d", interp->cpu.nmi_pending,
+                         gen->cpu.nmi_pending);
+            } else
+                bad = differ(interp, gen, why, sizeof why);
+            if (bad) {
+                if (entry_failures++ < 4)
+                    printf("  entry %s nmi %d irq %d wait %d stop %d: %s\n", ctx_names[ctx], (int)(bits & 1),
+                           (int)(bits >> 1 & 1), (bits & 12) == 4, (bits & 12) == 8, why);
+            }
+        }
+    }
+    printf("%lu interrupt entries and halts (%lu ready states skipped), %lu mismatches\n", entries, ready,
+           entry_failures);
+    failures += entry_failures;
     free(interp);
     free(gen);
     return failures != 0;

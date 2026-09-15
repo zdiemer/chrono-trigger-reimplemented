@@ -28,6 +28,11 @@
  * --misses writes every instruction the interpreter ran, with counts, as ROM or
  * RAM code and the RAM section it lies in (dev/misses.h; the miss report with
  * --native on --recomp only).
+ * --no-interpreter strict|fallback (with --native on) runs the system loop the
+ * way a player built without the interpreter does (docs/RECOMP.md, "Without the
+ * interpreter"): interrupt entry, WAI and STP without the interpreter, and an
+ * instruction no native code runs stops the run (strict, exit status 1) or runs
+ * on the interpreter and is reported (fallback).
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,6 +58,26 @@
 
 static IoLog *io_log;
 static Misses *misses;
+
+/* --no-interpreter: 0 off, 1 fallback, 2 strict. */
+static int no_interpreter;
+static unsigned long miss_steps;
+
+static bool on_miss(void *ctx, Snes *snes)
+{
+    (void)ctx;
+    char what[160];
+    if (no_interpreter == 2 || miss_steps < 10)
+        misses_describe(snes, what, sizeof what);
+    if (no_interpreter == 2) {
+        fprintf(stderr, "frame %u: no generated code for %s; stopping (--no-interpreter strict)\n",
+                (unsigned)snes->frame, what);
+        return false;
+    }
+    if (miss_steps++ < 10)
+        fprintf(stderr, "frame %u: no generated code for %s; interpreting it\n", (unsigned)snes->frame, what);
+    return true;   /* --misses counts it through the instruction hook */
+}
 
 static void on_line(void *ctx, Snes *snes, uint16_t line)
 {
@@ -213,6 +238,14 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--io-log")) io_log_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
+        else if (!strcmp(a, "--no-interpreter")) {
+            if (!strcmp(v, "fallback")) no_interpreter = 1;
+            else if (!strcmp(v, "strict")) no_interpreter = 2;
+            else {
+                fprintf(stderr, "--no-interpreter must be strict or fallback\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--recomp")) {
             if (!strcmp(v, "off") || !strcmp(v, "on") || !strcmp(v, "only")) {
                 recomp = strcmp(v, "off") != 0;
@@ -242,7 +275,11 @@ int main(int argc, char **argv)
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
-                        "[--insn-stats] [--io-log out.txt] [--misses out.txt]\n");
+                        "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]\n");
+        return 2;
+    }
+    if (no_interpreter && native_mode != NATIVE_ON) {
+        fprintf(stderr, "--no-interpreter needs --native on\n");
         return 2;
     }
 
@@ -263,6 +300,9 @@ int main(int argc, char **argv)
     static Snes snes;   /* large; keep it off the stack */
     static Renderer renderer;
     snes_init(&snes, image, image_len);
+    snes.interpreter = cpu_step;
+    snes.native_only = no_interpreter != 0;
+    snes.on_miss = on_miss;
     render_init(&renderer);
     snes.on_line = on_line;
     snes.on_line_ctx = &renderer;
@@ -365,10 +405,15 @@ int main(int argc, char **argv)
         apu_take_samples(&snes.apu, audio, DSP_OUT_FRAMES);   /* left over in a loaded state */
     }
 
+    int rc = 0;
     uint8_t cgram[0x200];
     for (long frame = (long)snes.frame; frame < frames; frame++) {
         uint16_t pad = ct_movie_buttons(&movie, (uint32_t)frame);
         snes_run_frame(&snes, pad);
+        if (snes.halted) {
+            rc = 1;
+            break;
+        }
         if (wav_path)
             ct_wav_write(&wav, audio, apu_take_samples(&snes.apu, audio, DSP_OUT_FRAMES));
 
@@ -398,7 +443,8 @@ int main(int argc, char **argv)
         }
     }
 
-    int rc = 0;
+    if (no_interpreter == 1 && miss_steps)
+        fprintf(stderr, "--no-interpreter fallback: %lu instructions had no generated code\n", miss_steps);
     if (save_state && natives && native_suspended(natives))
         fprintf(stderr, "warning: saving with native routines in progress; they won't resume from the state\n");
     if (save_state && snes_state_save(&snes, save_state) != 0) {
