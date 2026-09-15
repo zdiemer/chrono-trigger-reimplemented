@@ -21,6 +21,7 @@ add_library(ct_runtime STATIC
   runtime/cpu/cpu65816.c
   runtime/apu/spc700.c
   runtime/apu/apu.c
+  runtime/apu/dsp.c
   runtime/snes/bus.c
   runtime/snes/ppu.c
   runtime/snes/render.c
@@ -97,6 +98,8 @@ target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c)
 add_executable(spc700_runner tests/apu/spc700_runner.c runtime/apu/spc700.c)
+add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c)
+target_include_directories(dsp_test PRIVATE runtime)
 
 if(MINGW)
   target_link_options(ct_dev PRIVATE -static)

@@ -18,7 +18,8 @@ seeding the disassembler. `--calls` writes executed call edges for liveness
 analysis. `--save-state` writes the machine at the end of a run and
 `--load-state` resumes from it (same build only), which makes iterating on the
 end of a long movie fast. Frame numbers and movie input continue from the
-saved frame, and resumed runs are identical to straight runs.
+saved frame, and resumed runs are identical to straight runs. `--wav out.wav`
+writes the sound (32000 Hz stereo, see S-DSP below).
 
 ## Components
 
@@ -27,6 +28,7 @@ saved frame, and resumed runs are identical to straight runs.
 | `runtime/cpu/cpu65816.c` | 65C816 interpreter | SingleStepTests, 5.12M cases, 0 failures |
 | `runtime/apu/spc700.c` | SPC700 interpreter with cycle counts | SingleStepTests, 256K cases, 0 failures |
 | `runtime/apu/apu.c` | Sound RAM, `$F0-$FF` registers, timers, boot upload protocol | Oracle traces |
+| `runtime/apu/dsp.c` | S-DSP: BRR voices, pitch modulation, envelopes, noise, echo, 32 kHz output | `dsp_test`; Snes9x audio (see S-DSP) |
 | `runtime/snes/bus.c` | HiROM map, `$4200` registers, joypads, DMA | Oracle traces |
 | `runtime/snes/ppu.c` | VRAM/CGRAM/OAM access, decoded scroll/Mode 7/color registers, multiply, counters | Oracle traces |
 | `runtime/snes/render.c` | Scanline renderer with Snes9x-compatible output colors | Snes9x framebuffers (see Renderer) |
@@ -34,7 +36,9 @@ saved frame, and resumed runs are identical to straight runs.
 
 Build the conformance runners with the same CMake project (`sst_runner`,
 `spc700_runner`); test data comes from `tests/cpu/fetch_sst.py` and
-`tests/apu/fetch_sst_spc700.py`.
+`tests/apu/fetch_sst_spc700.py`. `dsp_test` needs no data: it checks the
+envelope rate counter, BRR decoding, and key-on, envelope, ENDX and echo
+timing, and must print "all checks passed".
 
 ## Design notes
 
@@ -103,6 +107,88 @@ Gaps:
 - Which sprites lose tiles past the 34-tile limit follows OAM order from the
   first sprite; unverified against hardware.
 - The ignored 16x16 tile-size bits of `$2105` have no effect, as on hardware.
+
+## S-DSP
+
+`runtime/apu/dsp.c` generates the sound. It lives inside the `Apu` and is
+clocked by the SPC700's cycle count: `tick_timers` advances it with the same
+cycles as the timers, and every 32 cycles (32000 Hz at the 1.024 MHz SPC700
+rate) it produces one stereo sample. It never looks at wall time, so audio is
+as deterministic as the rest of the machine. Samples collect in a 4096-frame
+buffer inside the `Apu`; hosts take them with `apu_take_samples()` (ct_dev
+`--wav` every frame, ct_play for SDL output, see [PLAYING.md](PLAYING.md)).
+When nobody takes them, new samples are dropped and counted. Generating sound
+changes nothing the CPUs see except what the DSP exposes: ENVX, OUTX and ENDX,
+and the echo buffer it writes into sound RAM. The six movies run identically
+in shadow mode, and a `--native off` run of `new-game.ctm` ends on the same
+framebuffer as before the DSP existed.
+
+The model is sample-granular (register writes land on the next sample, not on
+one of the 32 clock phases within it) and follows the documented hardware
+(fullsnes) and the behavior established by the accurate DSP emulators:
+
+- **BRR**: 9-byte blocks decoded four samples (two bytes) at a time when the
+  pitch counter passes bit 14, into a 12-sample history; shift 13-15 quirk,
+  the four filters, saturation to 16 bits and then wrap to 15. End flag sets
+  ENDX and jumps to the loop address; end without loop silences the voice
+  (release, envelope 0) as soon as that block is current.
+- **Pitch**: 14-bit pitch; PMON (voices 1-7) scales it by the previous voice's
+  output; the counter is capped at `$7FFF`.
+- **Interpolation**: the hardware's 512-entry Gaussian table, with the first
+  three products wrapping at 16 bits and the last saturating.
+- **Key on/off**: KON and KOFF are polled every other sample; a KON bit acts
+  once. Key-on waits 5 samples (restart from the directory, three decodes to
+  fill the history, no envelope, no pitch) before the envelope runs.
+  FLG bit 7 releases every voice with envelope 0 each sample.
+- **Envelopes**: attack, decay, sustain and release, direct GAIN and the four
+  GAIN modes, stepped by one global counter (30720 values, counting down) with
+  the 32-entry period table and its three phase groups. Phase changes don't wait
+  for the counter; in GAIN mode the decay-to-sustain check reads the GAIN
+  register, as on hardware.
+- **Noise**: 15-bit LFSR stepped at the FLG rate; NON voices use it instead of
+  BRR (BRR decoding, looping and ENDX continue).
+- **Mixing and echo**: per-voice volumes with saturation after each voice;
+  echo input from EON voices; the ring buffer at ESA (sampled a sample before
+  use) with length from EDL (sampled when the offset wraps); the 8-tap FIR over
+  15-bit history (first seven taps wrap, the eighth saturates); EFB feedback;
+  FLG echo-write disable (left write uses the previous sample's FLG); MVOL/EVOL
+  with their 16-bit product wrap; FLG mute.
+
+Power-on values: FLG `$E0`, noise `$4000`, counter 0, other registers 0.
+
+The DSP costs about 3% of run time (`gato-battle.ctm` with `--native on`:
+30.3 s against 29.5 s). Its state is part of the machine image, so save states
+from before it (state version 1) don't load.
+
+### Comparison with Snes9x
+
+`tools/audio_compare.py` compares `ct_dev --wav` with `ct_oracle --wav` for
+the same movie. Snes9x labels its DSP samples 32040 Hz (its SPC700 runs about
+0.125% faster relative to the CPU), so the tool compares sample for sample and
+finds each segment's lag by cross-correlation. Music the driver times itself
+keeps a fixed lag; sounds the CPU starts land at different lags, which is what
+lowers the numbers below where they overlap other sounds.
+
+| Movie | Audible 4 s segments | Waveform correlation (median, >= 0.9) | Spectrum correlation (median) | Log-spectral distance (median) |
+|---|---|---|---|---|
+| `new-game.ctm`, 7200 frames | 24 | 0.933, 15 of 24 | 0.999 | 0.52 dB |
+| `field.ctm`, 11400 frames | 42 | 0.940, 30 of 42 | 0.9997 | 0.39 dB |
+
+Segments below 0.9 are the title menu, battle mode choice and name entry
+(cursor and confirmation sounds on top of music) and one field event; in 0.5 s
+windows those sections have lags jumping by a third of a frame between sounds,
+and windows holding a single sound match at 50-63 dB SNR with over 70% of
+samples identical.
+
+Sample-exact equality holds wherever the timing agrees. The first half second
+of title music is 99% identical. After that, envelope steps land up to a few
+hundred samples apart because the rate counter runs from power-on and the song
+starts at a different DSP time on the two systems; with the counter's start
+value shifted by the lag (an experiment, not a setting), output matched Snes9x
+exactly for the first 2.6 s of music, until the first note keyed on one KON
+poll (2 samples) apart. Note starts differ by one poll in either direction,
+with no bias, so it's SPC700-to-DSP timing rather than a latency error. Moving
+the DSP's clock phase against the timers didn't remove it.
 
 ## Status
 

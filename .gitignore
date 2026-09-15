@@ -14,6 +14,7 @@ traces/
 captures/
 *.cttr
 *.wram
+*.wav
 *.state
 
 # Reference emulator cores are supplied locally, never vendored

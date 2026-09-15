@@ -69,7 +69,7 @@ void snes_clone(Snes *dst, const Snes *src)
 }
 
 #define STATE_MAGIC "CTSS"
-#define STATE_VERSION 1u
+#define STATE_VERSION 2u
 
 int snes_state_save(const Snes *s, const char *path)
 {
