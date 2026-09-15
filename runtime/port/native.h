@@ -9,6 +9,9 @@
  *           CGRAM, OAM, PPU and CPU I/O registers, APU ports). Timing isn't
  *           compared. See native_call.
  *   ON      registered routines run natively in place of the original.
+ *
+ * Several entries may share an address: hand-written ones are tried first,
+ * then generated blocks (NativeEntry.generated).
  */
 #ifndef CT_PORT_NATIVE_H
 #define CT_PORT_NATIVE_H
@@ -55,6 +58,11 @@ typedef struct NativeEntry {
      * mode, so it must only peek (snes_bus_peek): a bus read costs time and
      * sets open bus, which would make shadow runs differ from plain ones. */
     bool (*guard)(Snes *s);
+    /* A block generated from the ROM (tools/recomp, docs/RECOMP.md): it runs to
+     * completion on the machine without a fiber and never calls out, and its
+     * time is exact. Hand-written entries at the same address take precedence.
+     * cost_milli, dont_care, idle and guard are unused. */
+    bool generated;
 } NativeEntry;
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
@@ -86,6 +94,18 @@ bool native_compare(const Snes *original, const Snes *native, uint16_t dont_care
 
 /* Nonzero if any shadow comparison failed. */
 int native_failed(const NativeRuntime *rt);
+
+/* Generated blocks (docs/RECOMP.md). ON mode: a loop's back edge returns to the
+ * runtime once the block has spent this many master clocks (default one
+ * scanline). SHADOW mode: the interpreter's bus accesses and the machine at each
+ * instruction boundary are recorded, and every generated block that applies at
+ * a boundary is replayed against that record: same accesses in the same order,
+ * same values written, same registers and time where the original reaches the
+ * point the block stopped. */
+void native_set_recomp_yield(uint32_t clocks);
+/* Instructions executed in generated blocks so far (in every mode, replays
+ * included). */
+uint64_t native_generated_instructions(void);
 
 /* Number of registered routines entered and not yet left (suspended in
  * call-outs, or awaiting shadow comparison). Save states taken while this is

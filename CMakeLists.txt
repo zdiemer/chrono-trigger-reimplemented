@@ -90,7 +90,7 @@ add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/med
 target_include_directories(ct_trace PUBLIC oracle/src)
 
 add_executable(ct_dev dev/ct_dev.c)
-target_link_libraries(ct_dev PRIVATE ct_game ct_runtime ct_trace)
+target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 
 add_executable(ct_fuzz dev/ct_fuzz.c)
 target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
@@ -129,6 +129,9 @@ else()
   message(STATUS "Python 3.11+ not found: not building sst_recomp_runner and recomp_bus_diff")
 endif()
 
+# Blocks generated from the ROM for ct_dev and ct_play (cmake/recomp.cmake).
+include(cmake/recomp.cmake)
+
 if(MINGW)
   target_link_options(ct_dev PRIVATE -static)
 endif()
@@ -149,7 +152,7 @@ endif()
 
 if(CT_SDL2)
   add_executable(ct_play frontend/ct_play.c)
-  target_link_libraries(ct_play PRIVATE ct_game ct_runtime ct_trace ${CT_SDL2})
+  target_link_libraries(ct_play PRIVATE ct_game ct_recomp ct_runtime ct_trace ${CT_SDL2})
   if(MINGW)
     target_link_options(ct_play PRIVATE -static-libgcc)
   endif()
