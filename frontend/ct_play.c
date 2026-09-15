@@ -153,6 +153,8 @@ static void usage(FILE *out)
             "Options:\n"
             "  --scale N            window scale (integer, default 3)\n"
             "  --fullscreen         start fullscreen\n"
+            "  --aspect A           4:3 (default, as on a TV), 8:7 (the SNES pixel aspect) or square\n"
+            "  --crop N|T,B         hide rows at the top and bottom as a TV's overscan did (default 8; 0 shows all)\n"
             "  --mute               no sound\n"
             "  --native MODE        on: run ported routines natively (default); off: interpret everything;\n"
             "                       shadow: interpret, and check each ported routine against the original\n"
@@ -792,14 +794,44 @@ static void update_title(SDL_Window *window, const Player *pl, bool paused, bool
     SDL_SetWindowTitle(window, title);
 }
 
-static int run_window(Player *pl, int scale, bool fullscreen)
+/* How the 256x224 picture is shown: rows cropped at the top and bottom (TVs
+ * hid some of them as overscan; Chrono Trigger leaves its bottom rows black),
+ * and the width a row is stretched to relative to its height. */
+typedef struct {
+    int crop_top, crop_bottom;
+    double pixel_aspect;   /* displayed pixel width / height */
+} Display;
+
+static int display_rows(const Display *d) { return RENDER_HEIGHT - d->crop_top - d->crop_bottom; }
+
+/* The destination rectangle for the picture in an output of w x h: as large as
+ * fits with the right aspect, a whole number of output rows per picture row
+ * where the output is tall enough, centered. */
+static SDL_Rect display_rect(const Display *d, int w, int h)
+{
+    int rows = display_rows(d);
+    double pic_w = RENDER_WIDTH * d->pixel_aspect, pic_h = rows;
+    double scale = w / pic_w < h / pic_h ? w / pic_w : h / pic_h;
+    if (scale >= 1.0)
+        scale = (double)(int)scale;
+    SDL_Rect r;
+    r.w = (int)(pic_w * scale + 0.5);
+    r.h = (int)(pic_h * scale + 0.5);
+    r.x = (w - r.w) / 2;
+    r.y = (h - r.h) / 2;
+    return r;
+}
+
+static int run_window(Player *pl, int scale, bool fullscreen, const Display *display)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 1;
     }
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     SDL_Window *window = SDL_CreateWindow("ct_play", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                          RENDER_WIDTH * scale, RENDER_HEIGHT * scale,
+                                          (int)(RENDER_WIDTH * display->pixel_aspect * scale + 0.5),
+                                          display_rows(display) * scale,
                                           SDL_WINDOW_RESIZABLE | (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
     SDL_Renderer *sdl_renderer = window ? SDL_CreateRenderer(window, -1, 0) : NULL;
     SDL_Texture *texture = sdl_renderer ? SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGB888,
@@ -811,9 +843,8 @@ static int run_window(Player *pl, int scale, bool fullscreen)
         SDL_Quit();
         return 1;
     }
-    SDL_SetWindowMinimumSize(window, RENDER_WIDTH, RENDER_HEIGHT);
-    SDL_RenderSetLogicalSize(sdl_renderer, RENDER_WIDTH, RENDER_HEIGHT);
-    SDL_RenderSetIntegerScale(sdl_renderer, SDL_TRUE);
+    SDL_SetWindowMinimumSize(window, (int)(RENDER_WIDTH * display->pixel_aspect + 0.5), display_rows(display));
+    const SDL_Rect src = { 0, display->crop_top, RENDER_WIDTH, display_rows(display) };
     static Audio audio;   /* large; keep it off the stack */
     if (!pl->mute)
         audio_open(&audio);
@@ -903,8 +934,12 @@ static int run_window(Player *pl, int scale, bool fullscreen)
         }
         /* Fast frames aren't played: the device stays silent until normal speed. */
         audio_frame(&audio, &pl->snes, paused || fast || pl->snes.halted);
+        SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 255);
         SDL_RenderClear(sdl_renderer);
-        SDL_RenderCopy(sdl_renderer, texture, NULL, NULL);
+        int out_w, out_h;
+        SDL_GetRendererOutputSize(sdl_renderer, &out_w, &out_h);
+        SDL_Rect dst = display_rect(display, out_w, out_h);
+        SDL_RenderCopy(sdl_renderer, texture, &src, &dst);
         SDL_RenderPresent(sdl_renderer);
 
         /* Pace to the console's frame rate. When the host falls more than a few
@@ -944,6 +979,8 @@ int main(int argc, char **argv)
     bool native_given = false, recomp = true, recomp_only = true, recomp_given = false, audio_direct = false;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
+    /* A TV showed the picture at 4:3 and hid about 8 rows at the top and bottom. */
+    Display display = { .crop_top = 8, .crop_bottom = 8, .pixel_aspect = 4.0 / 3.0 * RENDER_HEIGHT / RENDER_WIDTH };
     bool fullscreen = false;
     static Hold holds[MAX_HOLDS];
     int nholds = 0;
@@ -973,6 +1010,27 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--rom")) rom_path = v;
         else if (!strcmp(a, "--scale")) scale = strtol(v, NULL, 10);
+        else if (!strcmp(a, "--aspect")) {
+            if (!strcmp(v, "4:3")) display.pixel_aspect = 4.0 / 3.0 * RENDER_HEIGHT / RENDER_WIDTH;
+            else if (!strcmp(v, "8:7")) display.pixel_aspect = 8.0 / 7.0;
+            else if (!strcmp(v, "square")) display.pixel_aspect = 1.0;
+            else {
+                fprintf(stderr, "--aspect must be 4:3, 8:7 or square\n");
+                return 2;
+            }
+        }
+        else if (!strcmp(a, "--crop")) {
+            char *end;
+            long top = strtol(v, &end, 10), bottom = top;
+            if (*end == ',')
+                bottom = strtol(end + 1, &end, 10);
+            if (*end || top < 0 || bottom < 0 || top + bottom > RENDER_HEIGHT - 16) {
+                fprintf(stderr, "--crop must be ROWS or TOP,BOTTOM\n");
+                return 2;
+            }
+            display.crop_top = (int)top;
+            display.crop_bottom = (int)bottom;
+        }
         else if (!strcmp(a, "--save-dir")) save_dir = v;
         else if (!strcmp(a, "--frames")) frames = strtol(v, NULL, 10);
         else if (!strcmp(a, "--screenshot")) screenshot = v;
@@ -1172,7 +1230,7 @@ int main(int argc, char **argv)
     if (frames >= 0)
         rc = run_headless(&pl, frames, holds, nholds, screenshot, save_state_path);
     else
-        rc = run_window(&pl, (int)scale, fullscreen);
+        rc = run_window(&pl, (int)scale, fullscreen, &display);
 
     if (t->record_path)
         fprintf(stderr, "recorded %lu frames to %s\n", (unsigned long)t->frames, t->record_path);

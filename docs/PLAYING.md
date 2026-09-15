@@ -153,6 +153,16 @@ show up as a short gap. `--audio snes` (the default) keeps the original timing.
 
 The mapping is the `keymap` table at the top of `frontend/ct_play.c`.
 
+The SNES picture is 256x224, but a TV showed it at a 4:3 aspect and hid roughly
+8 rows at the top and bottom as overscan; Chrono Trigger leaves its last dozen
+or so rows black, which a TV mostly hid. By default the window shows it that
+way (`--aspect 4:3 --crop 8`): stretched to 4:3, 8 rows cropped at each edge,
+scaled by whole rows where the window is tall enough, and letterboxed on
+resize. `--aspect 8:7` uses the SNES's own pixel aspect, `--aspect square`
+shows square pixels, and `--crop 0` (or `--crop TOP,BOTTOM`) shows more rows.
+Screenshots (`--screenshot`, `ct_dev --shot-dir`) always hold the full
+256x224 frame.
+
 ## Saves
 
 In-game saves go to `<rom name>.srm` in the ROM's directory (or `--save-dir`),
