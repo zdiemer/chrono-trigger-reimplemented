@@ -105,7 +105,7 @@ target_link_libraries(ct_game PUBLIC ct_runtime)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-add_executable(ct_dev dev/ct_dev.c dev/io_log.c)
+add_executable(ct_dev dev/ct_dev.c dev/io_log.c dev/misses.c)
 target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 
 add_executable(ct_fuzz dev/ct_fuzz.c)

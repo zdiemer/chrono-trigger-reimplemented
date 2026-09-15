@@ -61,9 +61,24 @@ typedef struct NativeEntry {
     /* A block generated from the ROM (tools/recomp, docs/RECOMP.md): it runs to
      * completion on the machine without a fiber and never calls out, and its
      * time is exact. Hand-written entries at the same address take precedence.
-     * cost_milli, dont_care, idle and guard are unused. */
+     * cost_milli, dont_care and idle are unused; guard is set for blocks of RAM
+     * code (M3), which run only while RAM holds the code they were generated from. */
     bool generated;
+    /* Generated only: entered in emulation mode (the reset vector's first
+     * instructions); p_mask and p_value are 0. Every other entry needs native mode. */
+    bool emulation;
 } NativeEntry;
+
+/* Where generated code can continue at an instruction that isn't an entry
+ * (docs/RECOMP.md, M3): for every instruction of every generated block, a block
+ * whose function starts there, keyed by address | P's M and X bits << 24 |
+ * E << 30 and sorted by key; guard as in NativeEntry. */
+typedef struct RecompIndexEntry {
+    uint32_t key;
+    NativeFn fn;
+    bool (*guard)(Snes *s);
+    const char *name;
+} RecompIndexEntry;
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
 
@@ -80,6 +95,10 @@ typedef struct NativeRuntime NativeRuntime;
 
 NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mode);
 void native_destroy(NativeRuntime *rt);
+
+/* ON mode: continue in generated code at any instruction of a generated block
+ * (index sorted by key), not only at entries and where a block stopped. */
+void native_set_index(NativeRuntime *rt, const RecompIndexEntry *index, int count);
 
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);

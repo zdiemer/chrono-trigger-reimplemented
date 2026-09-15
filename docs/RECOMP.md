@@ -14,7 +14,7 @@ and its tests are what's committed.
 | M0 | Instruction translation for every opcode, addressing mode and register width | done |
 | M1 | Blocks for all statically found code, built from the ROM, registered with the native runtime; 0 shadow mismatches over the movies | done |
 | M2 | Exact timing: interrupts on the interpreter's instruction boundaries, loop re-entry | done |
-| M3 | Coverage feedback: interpreted ROM code seeds the analysis | |
+| M3 | Closing the interpreted remainder: miss report, RAM code as guarded blocks, coverage feedback | done |
 | M4 | Optimizations: dead flags from liveness, direct block-to-block transfers, fast dispatch | |
 | M5 | Cleanup workflow from a generated block to a hand port | designed |
 
@@ -273,7 +273,8 @@ save movies).
 Generated entries are `NativeEntry`s with `.generated = true`,
 `.p_mask = CPU_FLAG_M | CPU_FLAG_X` and `.p_value` for the widths (native mode
 only, and not while the CPU is halted by `WAI`/`STP`). `cost_milli`,
-`dont_care`, `idle` and `guard` are unused.
+`dont_care` and `idle` are unused; since M3 blocks of RAM code have a `guard`
+and the reset vector's block is an `emulation` entry.
 
 - **Several entries per address.** The table is sorted by address with
   hand-written entries before generated ones; `find_entry` returns the first
@@ -673,16 +674,255 @@ giving hand ports more exact time were tried on six movies (`new-game`, `field`,
 So `--recomp only` is the configuration for checking `on` mode against the
 interpreter; hand ports are checked by shadow mode as before.
 
-## RAM code and unknown code
+## Closing the interpreted remainder (M3)
 
-No generated entry, no change: the interpreter runs code in RAM (the attract
-sequence at `$7E:3000`), ROM code the analysis didn't reach, and contexts with
-widths it didn't find. M3 closes the ROM part: `ct_dev --coverage` restricted to
-interpreted instructions lists the executed ROM addresses and widths without a
-generated entry, and feeding that back as coverage seeds gives them entries on
-the next build. RAM code could get guarded blocks (hash of the block's bytes,
-as `m_code_matches` does for hand ports) from code images captured at build
-time; that's left open.
+After M2 generated blocks ran 77-98% of the instructions; the interpreter ran
+the rest: code in RAM (the program decompressed to `$7E:3000`, the code the jet
+bike race generates at `$7E:B574`, the `$00:0500` interrupt stubs, the
+`$7E:9690` block move stub), the reset vector's first instructions (emulation
+mode), and ROM code without an entry. M3 measures that remainder and removes
+it: over the 25 movies of the library, `--native on --recomp only` now runs
+every instruction in generated code.
+
+| Path | What |
+|---|---|
+| `dev/misses.c` | `ct_dev --misses`: the miss report |
+| `tools/recomp/blocks.py` | Spaces (ROM and each RAM section), guards, live operands, the emulation-mode reset block |
+| `tools/recomp/__main__.py` | The instruction index (`recomp_index[]`), section images and guard masks in `table.c` |
+| `tools/recomp/translate.py` | `live`: operands fetched at run time (`RC_FETCH_LIVE`) |
+| `runtime/port/recomp_block.h`, `recomp_snes.h` | `rc_ram_matches`, `RC_CODE`, `RC_STOP_GUARDED`, `RC_FETCH_LIVE`, the self-write check |
+| `runtime/port/native.c` | Guards on generated entries and resumes, `native_set_index` and continuing at any instruction, guards decided while recording in shadow mode, emulation-mode entries |
+| `tools/disasm/ram.py`, `re/hints.toml` | Section formats `run` and `writes` from RAM code, `patch` sections |
+
+### The miss report
+
+```sh
+build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/new-game.ctm --frames 7200 \
+    --native on --recomp only --misses traces/misses-newgame.txt
+```
+
+Every instruction the interpreter runs is counted by address, widths and
+emulation mode (from the CPU's instruction hook, so it costs nothing without
+the option) and written as `BB:AAAA m x # count kind`, which is also the
+coverage format: the ROM lines can seed the analysis directly. The kind is
+`ROM`, `RAM` with the section whose image holds the instruction's bytes when it
+ran (`recomp_ram_sections[]`, which the generator writes with the images),
+`modified` (in a section's range, but with bytes no image has, and whether the
+opcode or only operands differ) or `unknown` (in no section). A summary line
+per kind goes to stderr. With `--native on --recomp only` everything that isn't
+generated code is interpreted, so the report is the closure check C7 of
+[MATCHING.md](MATCHING.md).
+
+Before M3 (the M2 build, 20 coverage files, 19 call logs), every movie had
+13.2 million RAM instructions (the attract program, which every movie runs up
+to the title screen or the load menu) plus:
+
+- **ROM**: 3 to 166021 instructions at 3 to 516 addresses. Three in every
+  movie are the reset vector's `SEI`, `CLC`, `XCE` in emulation mode. The rest
+  were instructions of existing blocks reached where no entry or stop applied:
+  the computed entry into the `LDA`/`STA` run at `$CE:E293` in battles (up to
+  400 runs per address), and resumes whose slot an interrupt handler had
+  taken. None was code outside the analysis, not even in the three ending
+  movies, which had no coverage files then (below).
+- **RAM, modified**: the race and the endings patch the program (operands at
+  13 addresses, opcodes at `$7E:3634`, `$3635`, `$510D`, `$A074` and `$A075`),
+  the `$00:0500` stubs jump to handlers the partial installers write, and menu
+  code in C2 and FF writes the `$7E:9690` stub over the program's bytes.
+- **RAM, unknown**: the race's generated code, 2065 addresses (2.1 million
+  instructions in `events-jetbike-race`, 6.5 million in `endings-beyond-time`).
+
+### RAM code as generated blocks
+
+The analysis already traces the RAM sections ([[ramcode]] hints) from their
+images, checked by the matching build (MATCHING.md, MD1). The generator now
+forms blocks for them too. Each section is a *space*: an entry is (address,
+widths, space), a block's instructions are decoded from its section's image and
+never leave it, and blocks are named after the section
+(`recomp_7E3000_m16x16_attract_program`). Several sections at one address are
+alternatives, each with its own blocks (the seven `$00:0500` stubs, the block
+move stub over the program, the patches below).
+
+- **Guards.** A RAM block's entry gets a `guard`: the bytes its instructions
+  were decoded from must equal the image. It compares, for each run of the
+  block's instructions (merged when less than 16 bytes apart), work RAM with
+  the image under a mask (`rc_ram_matches`, 8 bytes at a time): a byte is
+  checked where some block of the section decodes an opcode or an operand that
+  isn't live (below), so data between instructions and patched operands don't
+  matter. Guards read `bus.wram` directly, so they only peek. `entry_applies`
+  checks them for generated entries as for hand ports, a resume checks the
+  stopped block's guard (`RC_STOP_GUARDED`), and the index checks each
+  candidate's.
+- **Live operands.** The program patches operands at run time: call targets
+  (`$7E:3023`, `$7E:35FC`), immediates and addresses in the race's and the
+  endings' matrix code, the JML targets of the interrupt stubs, the stub's
+  `MVN` banks. So the operands of RAM instructions are fetched at run time
+  (`translate(..., live=True)`: `RC_FETCH_LIVE` charges the fetch like
+  `RC_FETCH` and keeps the bytes in `rc_timing.op[]`, from the bus in `on` mode
+  and from the record in shadow replays), except those that shape the block:
+  `REP`/`SEP` operands, and branch and `JMP` targets unless analysed code
+  stores to them. A patched branch (the `BRA` at `$7E:3616`) is live and still
+  continues in the block when it has the image's target.
+- **Self-modification inside a run.** A block may write its own code (the
+  program's stores at `$7E:3596`-`$35F9` patch operands of `$7E:360A`-`$3633`
+  just after them). A RAM
+  block sets `RC_CODE` to its instruction ranges; a write there, through the
+  WRAM port or a DMA transfer ends the block before its next instruction
+  (`rc_code_write` sets the limit to 0, as for `CLI`), and it resumes only if
+  its guard still holds. Nothing else runs while a block runs, and whatever runs
+  between two of its steps is followed by a guard check.
+- **Patched opcodes** are `patch` sections: `patch_3634_skip` and
+  `patch_3634_swap` (`$7E:45C9` and `$7E:45D1` overwrite `INX`, `NOP` with a
+  `BRA` or with `NOP`, `INX`), `patch_510d_return` (`$7E:4880` writes an
+  `RTS`), `patch_a074_nops` (the Beyond Time ending replaces a `BCS` with two
+  `NOP`s around a call). Their images come from simulating the stores
+  (`writes`, now also from code in a section, with long loads from an image as
+  constants). Every address a patch or `over` section covers, and the one after
+  it, is an entry in every space, so no block runs across the patch boundary.
+- **Shadow mode.** A replay can't evaluate a guard (RAM has moved on by then),
+  so the intercept decides, while recording, which generated entry applies at
+  boundaries whose address has a guarded or emulation-mode entry
+  (`Boundary.gen`); other boundaries are decided at replay as before.
+
+`is_code` for a RAM space needs the analysis to have code at the address with
+compatible widths and the section's image to decode an instruction there: the
+analysis reads one alternative (the overlay, or the first section), and the
+guard makes sure the decode a block was built from is the one that runs.
+
+### The race's generated code
+
+`$C3:09E9` writes 1024 `LDA` absolute / `STA` direct page pairs with a `TCD`
+every 128 pairs and an `RTS` through the WRAM port. Its three callers in the
+program (`$7E:3CFB`, `$7E:799D`, `$7E:8569`) set the port to `$7E:B574`,
+X = `$0C00` and Y = `$0200` just before, all constants, and the routine reads
+nothing but its table at `$C3:09D9`. So the code is always the same 5153 bytes,
+and it is a section: format `run` executes the generator in a small 65816
+interpreter (`tools/disasm/ram.py`, `simulate_run`: the instructions such
+generators use, binary mode, no calls or interrupts, RAM reads only of what
+it wrote) with those registers and collects the port writes. The result equals
+the race's work RAM in a trace (frame 7500 of `events-jetbike-race`), the
+matching build assembles it like any section, and it becomes one block of 2065
+instructions whose operands are live and whose guard checks the opcodes. A
+different caller or table would make the guard fail and the interpreter run
+it, visible in the miss report. The alternative, leaving it to the interpreter,
+would have kept 2.1 to 6.5 million instructions per movie there.
+
+### Continuing at any instruction
+
+A block's function already starts where PC points (M2). The generator now also
+writes `recomp_index[]`: for every instruction of every block, one block that
+contains it with those widths (the block entered there if there is one; one
+per section for RAM code), sorted by address | M, X << 24 | E << 30. When no
+entry applies and no stopped block is in the resume slot, `continue_generated`
+binary-searches it (behind a bit per 16-bit address) and runs the first
+candidate whose guard holds. That covers computed jumps into a block's middle
+and resume slot collisions without new block boundaries. `ct_dev` and `ct_play`
+register it with `native_set_index` (`ct_dev --exclude` filters it too); shadow
+mode doesn't use it. Blocks entered this way are counted as `indexed`.
+
+### The reset vector
+
+The emulation-mode reset vector (`$00:FFFC`) gets a block with the emulation
+context (`recomp_00FF00_emu`, up to its `XCE`), registered with
+`NativeEntry.emulation` and p_mask 0; `entry_applies` now requires the entry's
+emulation flag to match E, resume keys carry E, and shadow replays load E from
+the boundary.
+
+### Misses fed back
+
+The miss report is a coverage file, so feeding it back is adding it to
+`CT_RECOMP_COVERAGE`. With the M3 generator and only the 20 coverage files the
+M2 build had (none for the three ending movies), the ROM part of the report is
+already 0 over all 25 movies: the ROM misses of the M2 build were the reset
+vector and instructions of existing blocks, which the emulation-mode block and
+the index cover. The RAM part isn't: `endings-beyond-time` still interprets
+24.7 million instructions of the program at 1757 addresses that only the ending
+reaches (task handlers the analysis only knows from call logs), the attract
+program's code for the credits. Adding that one movie's miss report as a
+coverage file and rebuilding gives 0 misses, and the same blocks (12022, 144095
+instructions) as a build with the ending movies' coverage files, which is how
+the build below is configured. One iteration was enough; no hint was needed for
+ROM code.
+
+### Results
+
+Built from the ROM with 23 coverage files (the main, save and ending movies)
+and 22 call logs: 12022 blocks, 144095 instructions (the analysis has 123716),
+of which 860 blocks and 9987 instructions are RAM code (803 blocks of the
+program at `$7E:3000`, 1 of the race code, 40 of the interrupt stubs, 2 of the
+block move stub, 6 of patches), and an index of 123867 instructions. The
+generated C grew from 27 to 41 MB (`table.c`, with the index, images and
+masks, is 12 MB) and `ct_dev` from 27 to 34 MB; generation takes about 5 s.
+
+"Before" is the M2 build (20 coverage files, 19 call logs), "after" this one,
+both `--native on --recomp only --misses`. Before, every movie also
+interpreted 13.2 million RAM instructions or more in the program's sections
+(the attract sequence or the load menu); RAM misses are given as in a section /
+modified / in no section.
+
+| Movie | Frames | Before: generated | ROM misses | RAM misses | After: generated | Misses |
+|---|--:|--:|--:|--:|--:|--:|
+| `new-game` | 7200 | 87.4% | 3 at 3 | 13178873 / 3830 / 0 | 100.0% | 0 |
+| `menu` | 8900 | 89.8% | 3 at 3 | 13180977 / 6399 / 0 | 100.0% | 0 |
+| `field` | 11400 | 92.3% | 3 at 3 | 13186255 / 6164 / 0 | 100.0% | 0 |
+| `fair` | 12450 | 92.9% | 5 at 4 | 13187995 / 6164 / 0 | 100.0% | 0 |
+| `fair-companion` | 17900 | 95.1% | 5 at 4 | 13198652 / 8496 / 0 | 100.0% | 0 |
+| `gato-battle` | 21600 | 95.9% | 14 at 6 | 13188137 / 26354 / 0 | 100.0% | 0 |
+| `saves/battle-golem-twins-gameover` | 12400 | 84.3% | 66 at 16 | 24997574 / 26873 / 0 | 100.0% | 0 |
+| `saves/battle-magus` | 18000 | 94.5% | 66744 at 452 | 13187922 / 32561 / 0 | 100.0% | 0 |
+| `saves/battle-tyrano-lair-walls` | 8200 | 87.8% | 1716 at 104 | 13178109 / 22760 / 0 | 100.0% | 0 |
+| `saves/events-blackbird` | 4400 | 77.2% | 3 at 3 | 13176279 / 18298 / 0 | 100.0% | 0 |
+| `saves/events-end-of-time-gate` | 5600 | 83.0% | 3 at 3 | 13178287 / 16699 / 0 | 100.0% | 0 |
+| `saves/events-jetbike-race` | 9400 | 83.0% | 17 at 8 | 17011838 / 2849596 / 2147600 | 100.0% | 0 |
+| `saves/events-keepers-dome` | 5000 | 80.5% | 5 at 4 | 13176843 / 18303 / 0 | 100.0% | 0 |
+| `saves/events-prison-escape` | 12900 | 93.1% | 3 at 3 | 13193068 / 17658 / 0 | 100.0% | 0 |
+| `saves/late-lavos` | 51000 | 98.0% | 77278 at 460 | 13220915 / 65298 / 0 | 100.0% | 0 |
+| `saves/late-omen-battles` | 17100 | 94.1% | 7061 at 138 | 13186982 / 31635 / 0 | 100.0% | 0 |
+| `saves/late-omen-terramutant` | 15500 | 93.3% | 49400 at 303 | 13198415 / 17162 / 0 | 100.0% | 0 |
+| `saves/late-omen-zeal` | 35300 | 97.1% | 166021 at 460 | 13205184 / 49848 / 0 | 100.0% | 0 |
+| `saves/menus-end-of-time` | 8800 | 89.2% | 3 at 3 | 13185051 / 66593 / 0 | 100.0% | 0 |
+| `saves/menus-epoch` | 8800 | 89.5% | 8 at 4 | 13179037 / 23123 / 0 | 100.0% | 0 |
+| `saves/menus-field-menu` | 10600 | 90.9% | 3 at 3 | 13182685 / 67293 / 0 | 100.0% | 0 |
+| `saves/menus-shop-inn` | 9700 | 90.4% | 7 at 4 | 13185560 / 73569 / 0 | 100.0% | 0 |
+| `saves/endings-beyond-time` | 100000 | 91.2% | 96512 at 516 | 92485911 / 19771791 / 6504750 | 100.0% | 0 |
+| `saves/endings-telepod-lavos` | 31000 | 96.8% | 32610 at 256 | 13198753 / 45282 / 0 | 100.0% | 0 |
+| `saves/endings-bucket-lavos` | 118400 | 99.1% | 149351 at 512 | 13285673 / 132173 / 0 | 100.0% | 0 |
+
+(The ending movies are `oracle/movies/saves/endings-*.ctm` from technoplaza
+saves; all 25 movies were run in full, 561550 frames.)
+
+- **Misses:** 0 ROM and 0 RAM instructions interpreted in every movie, the
+  reset vector's included. Nothing is left to the interpreter in the library.
+- **Traces:** `--native on --recomp only` against `--native off`, every frame's
+  WRAM, VRAM, SRAM, CGRAM, OAM and framebuffer hash (`trace.py diff
+  --framebuffer`): identical for `new-game`, `gato-battle`,
+  `events-jetbike-race`, `battle-golem-twins-gameover`, `late-omen-zeal`
+  (35300 frames) and `endings-beyond-time` (100000 frames, which runs the race
+  code and the patches).
+- **Shadow** (`--native shadow`, hand ports and generated blocks) over the six
+  main movies and all 16 save movies: 1537003643 block checks, 0 mismatched,
+  219972 interrupted, 9 unfinished; no hand port mismatched. Also
+  `endings-beyond-time` (428248169 checks) and `endings-telepod-lavos`
+  (145144310): 0 mismatched. `endings-bucket-lavos` wasn't run in shadow mode
+  (118400 frames, about half an hour); its miss report is 0 like the others'.
+- **Conformance:** `sst_recomp_runner` 5120000 tests, 0 failures;
+  `recomp_bus_diff` 256000 instructions, 0 mismatches. `unittest` passes
+  (`tests/test_recomp_m3.py` covers RAM blocks, live operands, the index, the
+  emulation block and the new section formats).
+- **Speed** (process CPU time, best of three, on a machine shared with other
+  jobs): `--native on --recomp only` `new-game` 2.83 s before and after,
+  `gato-battle` 9.94 s and 9.86 s, `events-jetbike-race` 5.02 s and 5.14 s;
+  `--native on` `gato-battle` 7.03 s and 7.03 s, `events-jetbike-race` 3.44 s
+  and 3.56 s. Rendering still dominates; the 13 million instructions the attract
+  program ran on the interpreter weren't a large share of the time. The race
+  is 2-3% slower in both modes, which is more than its guards cost (below);
+  the live operand fetches, which peek through the bus for every operand byte
+  of RAM code, are the likely rest.
+- **Guards** (measured with a temporary `rdtsc` probe around every guard call,
+  less the probe's own cost): 8.7 million calls in `new-game` and `gato-battle`
+  costing about 2-4 ms, 9.7 million in `events-jetbike-race` about 33 ms (the
+  5153-byte race block's guard is the long one, about 16 ns), 63 million in
+  `endings-beyond-time` about 120 ms of a 62 s run. Well under 1% everywhere,
+  so no cheaper scheme (a write counter per section, say) is needed.
 
 ## Cleanup into hand ports (M5)
 
@@ -724,15 +964,23 @@ A port starts from the generated block instead of the listing:
   syncing. A new time-driven event in `system.c` (or a register whose value
   moves with time outside the synced I/O area) must be added to
   `snes_horizon`; the `--recomp only` trace comparison is the check.
-- **Left for later.** RAM code, the largest part of what still runs on the
-  interpreter; coverage feedback for the little ROM code that does (M3);
-  `ct_fuzz` doesn't fuzz generated blocks.
+- **Left for later.** `ct_fuzz` doesn't fuzz generated blocks.
+- **RAM code nobody enumerated.** Blocks exist only for the RAM sections the
+  hints describe and are guarded by their images, so other RAM code, a patch
+  the movies don't reach or a caller of `$C3:09E9` with other registers runs on
+  the interpreter, correctly and visibly in `--misses`, until a section
+  describes it.
+- **Live operands.** RAM code fetches most operands at run time, which costs
+  constant folding there; a patched branch target outside the block, or a
+  store the analysis doesn't see into a branch operand, falls back to the
+  runtime or the interpreter.
 - **Precedence surprises.** A hand port whose precondition rejects a call now
   falls back to a generated block rather than the interpreter; both are exact,
   so this only changes speed.
 - **Stale analysis.** Blocks come from the analysis at build time; code the
-  movies reach later falls back to the interpreter until coverage is fed back
-  (M3). This is a speed issue, never a correctness one.
+  movies reach later falls back to the interpreter until coverage (or the miss
+  report, which is a coverage file) is fed back. This is a speed issue, never a
+  correctness one.
 - **ROM-derived output.** Everything the generator writes is ROM-derived: it
   stays in the build tree, and nothing that prints generated code writes into
   the repository.

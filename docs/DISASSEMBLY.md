@@ -62,8 +62,10 @@ Coverage is used three ways:
 - Tracing stops at `BRK`, `COP`, `WDM` and `STP`, which almost always mean data.
 - Code the game runs from RAM is traced from images that `[[ramcode]]` hints
   describe: a stream decompressed with `tools/disasm/lz.py` (the `$C3:0557`
-  format), bytes copied from ROM, or the constants a run of code stores
-  (`writes`). Addresses outside every section stay unmapped.
+  format), bytes copied from ROM, the constants a run of code stores
+  (`writes`), or what a code generator writes through the WRAM port when run
+  with known registers (`run`, `tools/disasm/ram.py`'s small interpreter).
+  Addresses outside every section stay unmapped.
 
 ## Liveness
 
@@ -94,7 +96,7 @@ Kinds added for the matching disassembly (MD1):
 |---|---|---|
 | `[[data]]` | `start`, `end`, `type`, [`name`], type parameters | never decode as code; `type` is one of `DATA_TYPES` in `tools/disasm/hints.py` (`padding`, `bytes`, `words`, `ptr16`, `ptr24`, `struct` with `size`, `lz`, `brr`, `script` with `format`, `text`, `mixed`, `undetermined`, `header`, `ram_code`, ...); the matching build checks padding, element sizes and lz streams |
 | `[[overlap]]` | `addr`, `m`, `x` | an instruction that really runs with widths giving two lengths; the source writes the decode under m/x and checks the other ends on an instruction |
-| `[[ramcode]]` | `name`, `base`, `source`, `format` = `lz` / `copy` / `writes`, [`size`], [`end`, `m`, `x`], [`over`] | a RAM section: its image at run address `base`; `writes` simulates the stores of the code from `source` to `end`; `over` names a section this one is written over |
+| `[[ramcode]]` | `name`, `base`, `source`, `format` = `lz` / `copy` / `writes` / `run`, [`size`], [`end`, `m`, `x`], [`regs`], [`over`], [`patch`] | a RAM section: its image at run address `base`; `writes` simulates the stores of the code from `source` to `end` (which may itself be in an earlier section; long loads from ROM or a section count as constants); `run` executes the routine at `source` with widths `m`/`x` and registers `regs` (`a`, `x`, `y`, `db`, `d`) and collects what it writes through the WRAM port from `base` (M3); `over` names a section this one is written over; `patch` names a section whose code the program replaces with this one for a while (both are alternatives: the analysis reads the patched section, blocks exist for both) |
 | `[[noreturn]]` | `addr` | as `[noreturn] addrs`, one per entry with its comment |
 | `[[entry]]` without `m`/`x` | | entered with any widths (interrupt handlers) |
 | `[[jumptable]]` `targets` | list | targets of a table filled at run time (`count` may be 0) |

@@ -65,7 +65,8 @@ def build_section(sec: RamSection, an: Analyzer) -> tuple[dict, RamStats]:
         decoded = {decode(read, sec.base + i, m, x) for m, x in ws}
         sizes = {d.size if d else None for d in decoded}
         if None in sizes or len(sizes) != 1:
-            st.problems.append(f"{fmt(sec.base + i)}: doesn't decode to one length in this image")
+            if not sec.patch:     # a patch may cut an instruction of the code it patches
+                st.problems.append(f"{fmt(sec.base + i)}: doesn't decode to one length in this image")
             continue
         insns[i] = (next(iter(decoded)), ws)
     # Drop instructions another one overlaps (they belong to another section's
@@ -73,7 +74,10 @@ def build_section(sec: RamSection, an: Analyzer) -> tuple[dict, RamStats]:
     clean, end = {}, 0
     for i in sorted(insns):
         if i < end:
-            st.problems.append(f"{fmt(sec.base + i)}: overlaps the instruction before it")
+            # an instruction start only in a patch of this code, or in this patch
+            # only an instruction of the code it patches
+            if not an.ram.patched(sec, sec.base + i) and not sec.patch:
+                st.problems.append(f"{fmt(sec.base + i)}: overlaps the instruction before it")
             continue
         clean[i] = insns[i]
         end = i + insns[i][0].size
@@ -110,7 +114,8 @@ def build_section(sec: RamSection, an: Analyzer) -> tuple[dict, RamStats]:
                 t = insn.branch_target() - sec.base
                 ref = labels.get(t)
                 if ref is None:
-                    st.problems.append(f"{fmt(pc)}: branch target isn't an instruction in the section")
+                    if not sec.patch:     # a patch branches into the code it patches
+                        st.problems.append(f"{fmt(pc)}: branch target isn't an instruction in the section")
                     ref = f"${insn.branch_target():06X}"
             elif (insn.name, insn.mode) in (("JSR", Mode.ABS), ("JMP", Mode.ABS)):
                 t = ((pc & 0xFF0000) | insn.operand) - sec.base

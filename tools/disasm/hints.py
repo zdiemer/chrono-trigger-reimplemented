@@ -63,12 +63,14 @@ class RamCodeHint:
     name: str
     base: int             # run address
     source: int           # ROM address of the stream or the copied bytes
-    format: str           # "lz", "copy" or "writes"
+    format: str           # "lz", "copy", "writes" or "run"
     size: int | None      # bytes copied or written; lz: the part of the output the section covers
     end: int | None = None        # writes: last instruction of the storing code
     m: bool | None = None         # writes: widths at source
     x: bool | None = None
     over: str | None = None       # the section this one is written over at run time
+    regs: dict | None = None      # run: registers the routine is called with (a, x, y, db, d)
+    patch: str | None = None      # the section whose code this one patches for a while
 
 
 @dataclass
@@ -158,16 +160,18 @@ def load(path: Path) -> Hints:
     h.data_regions.sort(key=lambda r: r.start)
     for r in doc.get("ramcode", []):
         fmt_ = r.get("format", "lz")
-        if fmt_ not in ("lz", "copy", "writes"):
-            raise ValueError(f"ramcode {r.get('name')}: format must be lz, copy or writes")
+        if fmt_ not in ("lz", "copy", "writes", "run"):
+            raise ValueError(f"ramcode {r.get('name')}: format must be lz, copy, writes or run")
         if fmt_ in ("copy", "writes") and "size" not in r:
             raise ValueError(f"ramcode {r.get('name')}: {fmt_} needs a size")
         if fmt_ == "writes" and ("end" not in r or "m" not in r or "x" not in r):
             raise ValueError(f"ramcode {r.get('name')}: writes needs end, m and x")
+        if fmt_ == "run" and ("m" not in r or "x" not in r):
+            raise ValueError(f"ramcode {r.get('name')}: run needs m and x")
         h.ramcode.append(RamCodeHint(r["name"], parse(r["base"]), parse(r["source"]), fmt_, r.get("size"),
                                      parse(r["end"]) if "end" in r else None,
                                      _width(r.get("m"), r["name"]), _width(r.get("x"), r["name"]),
-                                     r.get("over")))
+                                     r.get("over"), r.get("regs"), r.get("patch")))
     for o in doc.get("overlap", []):
         h.overlaps[parse(o["addr"])] = (_width(o.get("m"), o["addr"]), _width(o.get("x"), o["addr"]))
     return h

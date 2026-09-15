@@ -153,7 +153,9 @@ BANK0_MODES = {Mode.DP, Mode.DPX, Mode.DPY, Mode.SR}
 
 
 class _Emitter:
-    def __init__(self, opcode: int, operand: Operand, pc: Value, pb: Value, ctx: Ctx, flow: Flow):
+    def __init__(self, opcode: int, operand: Operand, pc: Value, pb: Value, ctx: Ctx, flow: Flow,
+                 live: bool = False):
+        self.live = live
         self.opcode = opcode
         self.name, self.mode = OPCODES[opcode]
         self.op = operand
@@ -178,8 +180,11 @@ class _Emitter:
 
     def fetch(self, start: int, n: int):
         """The interpreter fetching n instruction bytes starting at offset `start`."""
-        last = self.opcode if start + n == 1 else self.op.bytes[start + n - 2]
         where = addr24(self.pb, add16(self.pc, start) if start else self.pc)
+        if self.live:
+            self.emit(f"RC_FETCH_LIVE(c, {lit(where, 6)}, {n}, {start});")
+            return
+        last = self.opcode if start + n == 1 else self.op.bytes[start + n - 2]
         self.emit(f"RC_FETCH(c, {lit(where, 6)}, {n}, {lit(last, 2)});")
 
     def next_pc(self, extra: int = 0) -> Value:
@@ -513,11 +518,20 @@ class _Emitter:
         return Ctx(m8 or bool(bits & 0x20), x8 or bool(bits & 0x10))
 
 
-def translate(opcode: int, operand: Operand, pc: Value, pb: Value, ctx: Ctx, flow: Flow) -> Translation:
+LIVE_OPERAND = tuple(f"rc_timing.op[{k}]" for k in range(1, 4))
+
+
+def translate(opcode: int, operand: Operand, pc: Value, pb: Value, ctx: Ctx, flow: Flow,
+              live: bool = False) -> Translation:
     """C statements for the instruction at pb:pc. Unless the translation says it
     doesn't fall through, the caller continues with the next instruction (or sets
-    PC to it); the statements never set PC for fall-through."""
-    return _Emitter(opcode, operand, pc, pb, ctx, flow).run()
+    PC to it); the statements never set PC for fall-through.
+
+    live: the operand bytes are whatever the instruction fetches at run time
+    (code in RAM that the program patches): the fetch stores them in
+    rc_timing.op[1..3] (RC_FETCH_LIVE), and `operand` must be
+    Operand(LIVE_OPERAND[:n])."""
+    return _Emitter(opcode, operand, pc, pb, ctx, flow, live).run()
 
 
 def indent(lines: list[str], depth: int = 1, unit: str = "    ") -> list[str]:
