@@ -69,6 +69,7 @@ add_library(ct_game STATIC
   game/battle/nmi.c
   game/battle/objects.c
   game/battle/scripts.c
+  game/battle/setup.c
   game/battle/sprites.c
   game/battle/stats.c
   game/battle/tiles.c
