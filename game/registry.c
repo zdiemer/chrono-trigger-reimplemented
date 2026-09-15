@@ -2,6 +2,7 @@
 
 #include "attract/attract.h"
 #include "battle/battle.h"
+#include "battle/main_loop.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "core/palette.h"
@@ -51,6 +52,15 @@ const NativeEntry game_natives[] = {
       .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 2530 },
     { .addr = 0xCD076C, .name = "battle_update_scroll_tables_bg3_moving", .fn = battle_update_scroll_tables_bg3_moving,
       .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 2530 },
+    { .addr = 0xC18000, .name = "battle_main_loop_start", .fn = battle_main_loop_start, NEEDS_M8_X16_BINARY,
+      .cost_milli = 4750 },
+    { .addr = 0xC18120, .name = "battle_main_loop", .fn = battle_main_loop, NEEDS_M8_X16, .cost_milli = 3250 },
+    { .addr = 0xC1812C, .name = "battle_main_loop_body", .fn = battle_main_loop_body, NEEDS_M8_X16_BINARY,
+      .cost_milli = 7495 },
+    { .addr = 0xC18345, .name = "battle_main_loop_tail", .fn = battle_main_loop_tail, NEEDS_M8_X16,
+      .cost_milli = 9571 },
+    { .addr = 0xC18461, .name = "battle_run_queued_scripts", .fn = battle_run_queued_scripts,
+      NEEDS_M8_X16_BINARY, .cost_milli = 5260, .dont_care = DC_N | DC_Z },
     { .addr = 0xC18231, .name = "battle_tick_timers", .fn = battle_tick_timers, .p_mask = CPU_FLAG_X,
       .p_value = 0, .cost_milli = 3709 },
     { .addr = 0xC18290, .name = "battle_dispatch_expired_timers", .fn = battle_dispatch_expired_timers,
