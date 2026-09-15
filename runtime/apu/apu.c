@@ -22,7 +22,7 @@ static uint8_t smp_read(void *ctx, uint16_t addr)
 {
     Apu *apu = ctx;
     if (addr < 0x00F0 || addr > 0x00FF)
-        return apu->ram[addr];   /* the IPL ROM overlay at $FFC0 is not modeled */
+        return apu->ram[addr];   /* reads of the boot ROM overlay at $FFC0 aren't modeled (see enter_ipl) */
     switch (addr) {
     case 0x00F2: return apu->dsp_addr;
     case 0x00F3: return dsp_read(&apu->dsp, apu->dsp_addr);
@@ -125,6 +125,24 @@ uint8_t apu_read_port(void *ctx, uint8_t port)
     return apu->cpu_out[port & 3];
 }
 
+/* The boot ROM clears direct page $01-$EF (MOV (X),A : DEC X : BNE, about 10
+ * cycles a byte) before announcing itself. */
+#define IPL_CLEAR_CYCLES 2400
+
+/* A jump to $FFC0 with the boot ROM mapped ($F1 bit 7) restarts it: games send
+ * the driver a command to do that before uploading a new one (Chrono Trigger
+ * does it after a game over). The ROM's code is modeled by the upload protocol
+ * below, so only its effects are reproduced here. */
+static void enter_ipl(Apu *apu)
+{
+    memset(apu->ram + 0x01, 0, 0xEF);
+    apu->spc.sp = 0xEF;
+    apu->cpu_out[0] = 0xAA;
+    apu->cpu_out[1] = 0xBB;
+    apu->phase = APU_IPL_WAIT_KICK;
+    apu->ipl_busy = IPL_CLEAR_CYCLES;
+}
+
 static void start_driver(Apu *apu, uint16_t entry)
 {
     apu->phase = APU_DRIVER;
@@ -201,6 +219,11 @@ void apu_advance(Apu *apu, uint32_t master_clocks)
         apu->ipl_busy = (int32_t)(ipl_poll(apu) ? apu->ipl_byte_cycles : apu->ipl_poll_cycles);
     }
     while (apu->budget > 0) {
+        if (apu->spc.pc == 0xFFC0 && (apu->control & 0x80)) {
+            enter_ipl(apu);
+            apu_advance(apu, 0);
+            return;
+        }
         if (apu->on_insn)
             apu->on_insn(apu->on_insn_ctx, apu);
         unsigned cycles = spc700_step(&apu->spc);

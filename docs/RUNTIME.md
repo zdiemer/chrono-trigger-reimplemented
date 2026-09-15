@@ -47,7 +47,11 @@ timing, and must print "all checks passed".
   receive blocks at consecutive addresses, echo indices, then jump to the
   driver. It polls the ports the way the ROM does, because games write ports 0
   and 1 with one 16-bit write. Per-byte latency (`IPL_BYTE_CYCLES`) is
-  calibrated so upload blocks land on the same frames as in Snes9x.
+  calibrated so upload blocks land on the same frames as in Snes9x. When the
+  driver jumps back to `$FFC0` with the ROM mapped (`$F1` bit 7), which Chrono
+  Trigger has it do after a game over before uploading the driver again, the
+  SPC700 returns to that protocol: direct page `$01-$EF` cleared, `$BBAA`
+  announced. Reads of the ROM overlay itself still return RAM.
 - **Frame boundary.** A frame ends at the start of vblank (scanline 225), after
   the NMI flag is set and before the handler runs.
 - **Work RAM port.** `$2181-$2183` set an address and each read or write of
