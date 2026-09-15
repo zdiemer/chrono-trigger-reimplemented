@@ -196,7 +196,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
-                        "[--sram save.srm] [--wav out.wav]\n");
+                        "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]...\n");
         return 2;
     }
 
