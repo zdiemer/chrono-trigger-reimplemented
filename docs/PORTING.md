@@ -66,8 +66,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
 - **`on`:** registered routines run natively in place of the original. A native
   routine finishes instantly, so the time the original would have taken is
   charged afterwards, one scanline at a time, so frame boundaries and line
-  events still happen. Each call's cost is its own bus-access clocks times the
-  routine's `cost_milli`/1000, so cost tracks data size.
+  events still happen (interrupts wait until the debt is paid). Each call's
+  cost is its own bus-access clocks times the routine's `cost_milli`/1000, so
+  cost tracks data size. That is an estimate, and any error shifts everything
+  after it, so `on` mode with hand ports drifts from `off` mode. Generated
+  blocks don't: their time is exact to the instruction (below).
 - **Syncing with the SPC700.** Charging a routine's time after it stops is wrong
   where another processor watches the timing of its I/O. The sound driver
   writes parameters to APU ports 1-3 and then calls out to a subroutine that
@@ -83,7 +86,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
 - **Generated blocks.** A build given the ROM also registers C blocks
   generated from it ([RECOMP.md](RECOMP.md)) behind the ported routines: a port
   takes precedence at its address, and shadow mode checks the blocks too.
-  `--recomp off` leaves them out.
+  `--recomp off` leaves them out. In `on` mode a block's time passes per
+  instruction, I/O sees the time the interpreter's would, and interrupts land
+  between the same instructions (RECOMP.md, "Exact timing"): with
+  `--recomp only`, which leaves the hand ports out, `on` mode produces the same
+  traces as `off` mode, frame for frame.
 
 ## Call-outs
 
@@ -272,11 +279,12 @@ are identical to the interpreter-only run at the same frame. Almost all of the
 rest (2088) are the same frames one frame earlier, from approximating the
 decompressor's time cost.
 
-`on` mode's time accounting is approximate, so input can land on different
-frames than in an interpreter-only run. The new-game movie still plays
-identically. In the field movie, where walking is sensitive to that, 8658 of
-11400 frames also appear in the interpreter-only run. Use shadow mode, not
-`on` mode, to judge correctness.
+`on` mode's time accounting is approximate for hand ports, so input can land on
+different frames than in an interpreter-only run. The new-game movie still
+plays identically. In the field movie, where walking is sensitive to that, 8658
+of 11400 frames also appear in the interpreter-only run. Use shadow mode, not
+`on` mode, to judge correctness. (Generated blocks alone are exact; see
+RECOMP.md for what making hand ports' time more exact did and didn't change.)
 
 A first attempt at the event script loop that runs each object's init script
 (`$C0:58DE`) predated suspending call-outs. Back then a call-out interpreted

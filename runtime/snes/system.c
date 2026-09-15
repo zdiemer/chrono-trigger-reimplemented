@@ -304,6 +304,45 @@ static void advance(Snes *s, uint32_t clocks)
     }
 }
 
+void snes_sync(Snes *s, uint32_t clocks)
+{
+    /* Nothing the timing model does between here and the horizon touches the
+     * CPU's bus accounting, but keep it intact regardless: the step in progress
+     * still owns it. */
+    uint32_t bus_clocks = s->bus.clocks, access_start = s->bus.access_start;
+    uint8_t open_bus = s->bus.open_bus;
+    advance(s, clocks);
+    s->bus.clocks = bus_clocks;
+    s->bus.access_start = access_start;
+    s->bus.open_bus = open_bus;
+}
+
+static inline uint64_t clock_before(uint64_t t) { return t ? t - 1 : 0; }
+
+uint64_t snes_horizon(const Snes *s)
+{
+    uint64_t start = s->master - s->hclock;
+    /* The line ends (and the next one's events happen) in the advance that
+     * reaches hclock 1364, so an instruction may start up to 1363. */
+    uint64_t h = start + SNES_CLOCKS_PER_LINE - 1;
+    /* Line events at hclock P happen in the advance that goes past P. */
+    if (s->vline < SNES_VBLANK_LINE && !s->hdma_done_this_line && s->hclock <= HDMA_HCLOCK)
+        h = start + HDMA_HCLOCK;
+    uint8_t timer_mode = s->bus.nmitimen & 0x30;
+    uint32_t htime = (uint32_t)s->bus.htime * 4;
+    /* One clock early: the IRQ it raises can be recognized from the event's
+     * own time on, which only a step ending after that time reaches. The same
+     * goes for interrupts already raised and not yet recognized. */
+    if (!s->htimer_done_this_line && (timer_mode == 0x10 || (timer_mode == 0x30 && s->vline == s->bus.vtime)) &&
+        s->hclock <= htime && htime < SNES_CLOCKS_PER_LINE && clock_before(start + htime) < h)
+        h = clock_before(start + htime);
+    if (s->nmi_scheduled && clock_before(s->nmi_at) < h)
+        h = clock_before(s->nmi_at);
+    if (s->bus.irq_flag && s->poll_at < s->irq_at && clock_before(s->irq_at) < h)
+        h = clock_before(s->irq_at);
+    return h;
+}
+
 uint32_t snes_clocks_to_next_poll_change(const Snes *s)
 {
     if (s->hclock < HBLANK_END_HCLOCK)
@@ -325,9 +364,12 @@ void snes_run_frame(Snes *s, uint16_t pad1)
         /* Run one step and find where its last cycle begins. */
         uint32_t clocks = 0, last_cycle = CLOCKS_PER_IO_CYCLE;
         bool polled = true;
+        s->intercept_last_cycle = 0;
         int32_t spent = s->intercept ? s->intercept(s->intercept_ctx, s) : -1;
         if (spent >= 0) {
             clocks = (uint32_t)spent;   /* native code: its time ends in one poll */
+            if (s->intercept_last_cycle)
+                last_cycle = s->intercept_last_cycle;
         } else {
             polled = cpu_step(&s->cpu) != CPU_STEP_INTERRUPT;   /* entry sequences don't poll */
             clocks = s->bus.clocks + s->cpu.io_cycles * CLOCKS_PER_IO_CYCLE;

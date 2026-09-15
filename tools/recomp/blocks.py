@@ -24,11 +24,6 @@ from .translate import Ctx, Operand, Translation, translate
 
 CALLS = {("JSR", Mode.ABS), ("JSL", Mode.LONG), ("JSR", Mode.ABSXIND)}
 BACKWARD_JUMPS = {"BPL", "BMI", "BVC", "BVS", "BCC", "BCS", "BNE", "BEQ", "BRA", "BRL", "JMP", "JML"}
-# Reads of registers that change with time on their own: the PPU counters and
-# status, the APU ports, and $4210-$4212. A loop polling one of them yields to
-# the runtime on every pass in `on` mode, so the time it waits for passes.
-POLL_READS = {"LDA", "LDX", "LDY", "CMP", "CPX", "CPY", "BIT", "AND", "ORA", "EOR", "ADC", "SBC"}
-POLL_MODES = {Mode.ABS, Mode.ABSX, Mode.ABSY, Mode.LONG, Mode.LONGX}
 JUMP_MARK = "\x00J"
 
 
@@ -43,15 +38,9 @@ def ctx_order(ctx: Ctx) -> int:
     return (0 if ctx.m8 else 2) + (0 if ctx.x8 else 1)
 
 
-def polls_timed_register(insn) -> bool:
-    if insn.name not in POLL_READS or insn.mode not in POLL_MODES:
-        return False
-    if insn.mode in (Mode.LONG, Mode.LONGX):
-        bank = insn.operand >> 16
-        if bank & 0x40:
-            return False
-    a = insn.operand & 0xFFFF
-    return 0x2137 <= a <= 0x217F or 0x4210 <= a <= 0x4212
+def unmasks_irq(insn) -> bool:
+    """CLI, or REP clearing I (PLP and RTI end blocks anyway)."""
+    return insn.name == "CLI" or (insn.name == "REP" and bool(insn.operand & 0x04))
 
 
 class MarkFlow:
@@ -80,7 +69,6 @@ class Block:
     ctx: Ctx
     steps: dict = field(default_factory=dict)     # pc -> Step
     exits: set = field(default_factory=set)       # (pc, ctx) left to the runtime
-    polls: bool = False                           # reads a timed register
 
     @property
     def name(self) -> str:
@@ -191,8 +179,6 @@ class BlockBuilder:
         while work:
             pc, c = work.pop()
             s = b.steps[pc]
-            if polls_timed_register(s.insn):
-                b.polls = True
             for target, tctx in self.edges(s):
                 if tctx is None:
                     continue
@@ -247,8 +233,6 @@ class BlockBuilder:
             inside = b.steps.get(target)
             if tctx is not None and inside is not None and inside.ctx == tctx:
                 if target == b.entry:
-                    if b.polls:
-                        return [f"c->pc = 0x{target & 0xFFFF:04X};", "return;"]
                     labels.add(target)
                     return [f"if (RC_YIELD(c)) {{", f"c->pc = 0x{target & 0xFFFF:04X};", "return;", "}",
                             f"goto L_{target:06X};"]
@@ -261,12 +245,16 @@ class BlockBuilder:
         for i, pc in enumerate(order):
             s = b.steps[pc]
             lines = [f"/* {fmt(pc)}  {s.insn.text()}{'' if s.ctx == b.ctx else f'  ({s.ctx.name()})'} */",
-                     "RC_INSN(c);"]
+                     f"RC_INSN(c, 0x{pc & 0xFFFF:04X});"]
+            if pc != b.entry:
+                labels.add(pc)   # a block can stop before any instruction and resume there
             for line in s.t.lines:
                 if line.startswith(JUMP_MARK):
                     lines += transfer(int(line[len(JUMP_MARK):], 16), s.t.next_ctx, pc)
                 else:
                     lines.append(line)
+            if unmasks_irq(s.insn):
+                lines.append("RC_IRQ_UNMASKED(c);")
             if s.t.falls_through:
                 nxt = (pc & 0xFF0000) | ((pc + s.t.size) & 0xFFFF)
                 follows = i + 1 < len(order) and order[i + 1] == nxt and b.steps[nxt].ctx == s.t.next_ctx \
@@ -278,4 +266,13 @@ class BlockBuilder:
             if pc in labels:
                 body.append(f"L_{pc:06X}:")
             body += lines
-        return [f"// ${fmt(b.entry)}", f"void {b.name}(Snes *s)", "{", "Cpu *const c = &s->cpu;", *body, "}"]
+        # Start where PC points: the entry, or an instruction the block stopped before.
+        resume = []
+        if len(order) > 1:
+            resume = ["switch (c->pc) {", f"case 0x{b.entry & 0xFFFF:04X}:", "break;"]
+            for pc in order:
+                if pc != b.entry:
+                    resume += [f"case 0x{pc & 0xFFFF:04X}:", f"goto L_{pc:06X};"]
+            resume += ["default:", "return;", "}"]
+        return [f"// ${fmt(b.entry)}", f"void {b.name}(Snes *s)", "{", "Cpu *const c = &s->cpu;", *resume, *body,
+                f"RC_STOP({b.name});", "}"]

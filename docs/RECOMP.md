@@ -13,7 +13,7 @@ and its tests are what's committed.
 |---|---|---|
 | M0 | Instruction translation for every opcode, addressing mode and register width | done |
 | M1 | Blocks for all statically found code, built from the ROM, registered with the native runtime; 0 shadow mismatches over the movies | done |
-| M2 | Exact timing: interrupts on the interpreter's instruction boundaries, loop re-entry | designed |
+| M2 | Exact timing: interrupts on the interpreter's instruction boundaries, loop re-entry | done |
 | M3 | Coverage feedback: interpreted ROM code seeds the analysis | |
 | M4 | Optimizations: dead flags from liveness, direct block-to-block transfers, fast dispatch | |
 | M5 | Cleanup workflow from a generated block to a hand port | designed |
@@ -129,7 +129,8 @@ python3 -m unittest discover tests
   instructions in WRAM, random registers and WRAM, operands, data bank and
   direct page biased toward PPU, APU and CPU I/O registers. After each
   instruction both machines must match in everything shadow validation compares
-  plus open bus, bus clocks, internal cycles and interrupt/halt state. The
+  plus open bus, bus clocks, internal cycles, interrupt/halt state and (since
+  M2) the kind and length of the last cycle, where interrupts are sampled. The
   flat SST memory can't show those. Result: 256000 instructions (200 per opcode
   and context), 0 mismatches. A deliberately wrong open bus in `RC_FETCH` fails
   about 28% of them.
@@ -154,7 +155,7 @@ boundary.
 | `tools/recomp/__main__.py` | `python3 -m tools.recomp`: runs the analysis, writes the shards and the table |
 | `tools/recomp/blocks.py` | Entries, block formation, C emission |
 | `cmake/recomp.cmake` | The build step and the `ct_recomp` library (generated, or the stub) |
-| `runtime/port/recomp_block.h` | Included by generated shards: `RC_INSN`, `RC_YIELD` |
+| `runtime/port/recomp_block.h` | Included by generated shards: `RC_INSN`, `RC_YIELD` (and `RC_IRQ_UNMASKED`, M2) |
 | `runtime/port/recomp_table.h`, `recomp_table_stub.c` | The table's declaration, and the empty table built without a ROM |
 | `runtime/port/native.c` | Several entries per address, running blocks in `on` mode, checking them in `shadow` mode |
 | `tests/test_recomp_blocks.py` | Entries and block boundaries on synthetic code |
@@ -198,12 +199,12 @@ analysis doesn't have as code under the block's widths, a second arrival at an
 instruction with other widths, a cross-bank target and everything dynamic
 (calls, returns, indirect jumps, `BRK`/`COP`, `WAI`/`STP`, widths after
 `PLP`/`XCE`) end the block with PC (and PB) set. Each instruction starts with
-`RC_INSN(c)`, which counts executed instructions for `--insn-stats`.
+`RC_INSN`, which counts executed instructions for `--insn-stats` (and, since
+M2, is where a block can stop; see "Exact timing").
 
-A loop that reads a register that changes with time on its own (`$2137-$213F`,
-the APU ports `$2140-$217F`, `$4210-$4212`, through absolute or long addressing)
-returns to the runtime at every back edge instead: time only passes between
-blocks in M1, so a polling loop must let it pass on every pass.
+In M1 a loop that read a register that changes with time on its own
+(`$2137-$213F`, the APU ports, `$4210-$4212`) returned to the runtime at every
+back edge instead, since time only passed between blocks. M2 removed that.
 
 Correctness doesn't depend on the analysis being right about widths: an entry
 only runs when P's M and X match the widths it was generated for, and within a
@@ -287,11 +288,10 @@ only, and not while the CPU is halted by `WAI`/`STP`). `cost_milli`,
   exact, so no debt and no second look at the same PC. The system loop then
   advances time, polls interrupts as after an instruction, and calls the
   intercept again at the new PC: a hand port, another block, or the
-  interpreter. Interrupts land at block boundaries.
-- **Loops.** `RC_YIELD` is true once the block has spent
-  `recomp_yield_clocks` (one scanline, 1364 clocks; `ct_dev --recomp-yield`).
-  64 and 256 clocks gave the same frame agreement with interpreter-only runs as
-  1364 over the 21 movies (1404 against 1405 of 2447 sampled frames).
+  interpreter. In M1 interrupts landed at block boundaries; M2 makes them land
+  where the interpreter's do.
+- **Loops.** In M1 `RC_YIELD` was true once the block had spent a scanline
+  (`ct_dev --recomp-yield`, removed in M2).
 - **Bus.** `recomp_snes.h` makes `RC_READ`/`RC_WRITE` call through the Cpu's
   bus hooks (`snes_init` points them at `snes_bus_read`/`snes_bus_write`) and
   `RC_FETCH` checks that the hook is the SNES bus, so shadow mode can serve a
@@ -343,7 +343,7 @@ unchecked. What M1 does instead checks every block:
   boundary. If it runs out there at the first fetch of an instruction, its
   registers and time so far are compared with that boundary (counted as
   interrupted); running out inside an instruction is a mismatch.
-- **Every back edge yields** (`recomp_yield_clocks` is 0), so a check ends at
+- **Every back edge yields** (`RC_YIELD` is true outside `on` mode), so a check ends at
   each loop pass and the next pass is checked from its head.
 - Checks don't touch the machine, so they run everywhere, including inside
   hand ports' segments, and hand ports' reports are the same with and without
@@ -361,7 +361,7 @@ building it, it also caught its own first bug: the record was replayed before
 the boundary of the step whose accesses it had just recorded, which showed as
 261 blocks "stopped inside an instruction of the original".
 
-### Results
+### Results (M1)
 
 Built from the ROM with the 19 coverage files and 18 call logs (10667 blocks).
 `shadow` is `--native shadow`; checks are block runs replayed against the
@@ -421,31 +421,257 @@ with an interpreter-only run (`--native off`) at the same frame.
 
 ## Exact timing (M2)
 
-Blocks keep `bus.clocks + 6 * io_cycles` current, so the system can run a block
-against a horizon instead of charging time afterwards:
+In `on` mode a generated block now runs with the machine's time right at every
+instruction: everything that happens between two of the interpreter's steps
+(line events, interrupt recognition, the end of a frame) happens between the
+same two instructions, and I/O sees the master clock the interpreter's I/O
+sees. With only generated code (`ct_dev --recomp only`), `--native on` produces
+the same traces and audio as `--native off` over every movie (Results below).
 
-- The system computes a horizon: the clocks until the next point anything the
-  CPU can observe changes on its own (hblank start and end, the HDMA point, the
-  end of the line, H/V timer IRQs, the frame boundary). At each instruction
-  boundary a block checks whether it has spent that much; if so it stops, the
-  system advances by the time spent (applying the events in order, as
-  per-instruction advances would, since only the last instruction crossed
-  one), and the next instruction starts with interrupts polled exactly as the
-  interpreter polls them.
-- I/O accesses sync first: `RC_READ`/`RC_WRITE` on `$2100-$21FF` and
-  `$4000-$43FF` advance time to the current instruction before touching the
-  PPU counters, `$4210-$4212` or the APU ports, so the SPC700 sees writes and
-  produces answers at the same master clock.
-- Interrupts can also become deliverable without time passing: a `$4200` write
-  enabling NMI while the NMI flag is set, or I cleared (`CLI`, `REP`, `PLP`)
-  with an IRQ pending. Those instructions check for a deliverable interrupt and
-  stop the block, as the system loop would take it before the next instruction.
-- Loop heads use the same check, which replaces M1's fixed budget and its
-  return on every pass of loops polling timed registers.
+| Path | What |
+|---|---|
+| `runtime/snes/system.c` | `snes_horizon`, `snes_sync`, and the last cycle native code reports (`intercept_last_cycle`) |
+| `runtime/port/recomp_snes.h` | `RcTiming`; `RC_READ`/`RC_WRITE` sync before I/O; `RC_IO` and `RC_FETCH` keep the last cycle |
+| `runtime/port/recomp_block.h` | `RC_INSN(c, pc)`: the stop check, and `RC_STOP(block)` at the end of each block; `RC_YIELD`; `RC_IRQ_UNMASKED` |
+| `runtime/port/native.c` | `run_block`, `rc_io_sync`, where blocks stopped |
+| `tools/recomp/blocks.py` | Blocks that start at any of their instructions, `RC_IRQ_UNMASKED` after `CLI` and `REP` clearing I |
+| `dev/ct_dev.c` | `--recomp only` |
 
-The check for M2 is stronger than shadow mode: with only generated code
-(`--recomp only`), `--native on` must produce traces and audio identical to
-`--native off`, frame for frame.
+### What the interpreter does between steps
+
+The system loop (`snes_run_frame`) runs one step (an instruction, an interrupt
+entry, or native code), advances the machine by the step's time, handles an
+NMI request from a `$4200` write, and samples interrupts at the start of the
+step's last cycle ([RUNTIME.md](RUNTIME.md), "Interrupt timing"). Advancing is
+where time-driven things happen: the APU runs, the H counter and hblank flag
+move, and line events fire (the renderer and HDMA at hclock 1104 of visible
+lines, the end of the line with vblank, RDNMI, auto-joypad, V-timer and the
+frame's end, H-timer IRQs at HTIME).
+
+Advancing by `a` and then by `b` does the same as advancing by `a + b` as long
+as the CPU does nothing observable in between: the SPC700 and DSP run the same
+cycles against the same port values, and each line event fires once at its
+position either way. So several instructions can run back to back and have
+their time applied at once, as long as (1) no line event or interrupt
+recognition falls between them, (2) whatever they do that depends on time sees
+the right time, and (3) nothing they do changes what the system would do.
+
+### The horizon
+
+`snes_horizon` is the latest master clock at which the next instruction may
+start with nothing for the system to do before it. A line event at hclock `P`
+fires in the advance that goes past `P`, so an instruction starting at `P` or
+before still runs before it: the horizon is the smallest of
+
+- the line's end, hclock 1363 (the line wraps when an advance reaches 1364);
+- on visible lines, the HDMA point 1104 if it hasn't fired yet (rendering needs
+  it even without HDMA channels: the renderer reads the PPU state as of then,
+  and HDMA reads tables from WRAM the CPU may be writing);
+- the H-timer position minus one, when the timer mode and line make it fire;
+- an NMI that is scheduled, and a raised IRQ that hasn't been recognized yet,
+  minus one: they're recognized after a step whose last cycle starts at or
+  after their time, which only a step ending after it can have.
+
+An IRQ that is recognized but masked by I isn't part of it (see below).
+
+### Stopping
+
+`run_block` gives the block the clocks until the horizon as its limit.
+`RC_INSN`, at the start of every instruction, compares the block's time so far
+(`bus.clocks + 6 * io_cycles`) with the limit: past it, the block sets PC to
+that instruction and returns through `RC_STOP`. The first instruction always runs, so every
+block makes progress. The system then advances by the block's time, handles
+the NMI request and samples interrupts with the last cycle of the block's last
+instruction, exactly as after the interpreter's step for that instruction: all
+the instructions before it ended before the horizon, and their poll points
+recognized nothing.
+
+The last cycle is what the interpreter tracks with `last_cycle_io` and the
+bus's `access_start`: `RC_IO` sets `last_cycle_io`, `RC_READ` and `RC_WRITE`
+clear it (the bus sets `access_start`), and `RC_FETCH` clears it and sets
+`access_start` for the last byte. Fetches are emitted before the operation in
+generated code but interleave with it in the interpreter; `recomp_bus_diff` now
+also compares the last cycle's kind and length, and all 256000 instructions
+match.
+
+A loop's back edge no longer returns in `on` mode (`RC_YIELD` is false there):
+the head's `RC_INSN` stops the loop when time is up. This replaces M1's
+one-scanline budget and the return on every pass of loops polling timed
+registers. Shadow replays still return at every back edge.
+
+### Resuming
+
+A block can stop before any of its instructions, most of them not entries. So
+every block starts where PC points: its function begins with a `switch` on PC
+with a case per instruction (the entry's falls through to the first one), and
+every instruction has a label. `run_block` remembers the block that stopped,
+keyed by the 24-bit address and the M/X widths at the stop, in a direct-mapped
+table of 4096 slots; when the intercept finds no entry at PC, it looks there
+and continues the block. Only a block that stopped at that address with those
+widths is ever found, and its code for that instruction was generated for
+those widths, so this is as safe as an entry. A miss (an interrupt handler's
+stops took the slot) runs the interpreter up to the next entry, which costs
+speed only. Over `gato-battle` with only generated code, blocks stopped 8.9
+million times (411 per frame) and 6.4 million of those resumed from the table;
+nearly all the rest stopped at their loop heads, which are entries.
+
+### I/O
+
+`RC_READ` and `RC_WRITE` check whether the address is in the CPU I/O area
+(`$2000-$5FFF` in banks `$00-$3F` and `$80-$BF`) while an `on` mode block runs.
+There `rc_io_sync` first advances the machine to the start of the current
+instruction (`snes_sync`, which can't reach a line event: the instruction
+started before the horizon), which is the time the interpreter's accesses see,
+since it advances after each instruction. That covers the H/V counters and
+their latch, `$4210-$4212`, the APU ports (the SPC700 sees writes and has
+produced answers at the same master clock) and everything else in the area
+except the WRAM port (`$2180-$2183`) and the multiplier and divider
+(`$4202-$4206`, `$4214-$4217`), which only CPU writes change.
+
+Two kinds of instruction make an interrupt deliverable, or move one, without
+time passing: writes to `$4200-$420A` (enabling NMI while RDNMI is set requests
+one; the timer settings move the H/V IRQ) and clearing I (`CLI`, `REP` with bit
+2), where a recognized IRQ may be waiting. After those the block's limit drops
+to 0, so it stops before the next instruction and the system decides, as after
+any stop.
+`PLP` and `RTI` end blocks already.
+
+### Where M2 departs from its design
+
+- The design synced on `$2100-$21FF` and `$4000-$43FF`; the whole I/O area
+  syncs, except the registers above that only CPU writes change.
+- The design had the instructions that make an interrupt deliverable check for
+  one and stop; they stop unconditionally at the next instruction and leave the
+  check to the system loop, which is the same code as for any step.
+- hblank start and end aren't horizon points: nothing changes then except
+  `$4212`'s bit, which I/O syncs for.
+- The design didn't say how a block continues after stopping inside it:
+  resumable blocks and the table of stops above.
+- `ct_dev --recomp only` registers the generated blocks without the hand ports;
+  `--recomp-yield` is gone.
+
+### Results
+
+Built from the ROM with the 19 coverage files and 18 call logs (10671 blocks,
+127536 instructions). "Traces" compares `--native on --recomp only` with
+`--native off` over every frame: the WRAM, VRAM, SRAM, CGRAM, OAM and
+written-WRAM hashes and the framebuffer hash of each frame. "Generated" is the
+share of instructions that ran in generated code in that run (the attract
+sequence's RAM program, 13 million instructions, and the other RAM code run on
+the interpreter, since hand ports for them are left out). "Stops" is how often
+blocks stopped at the horizon.
+
+| Movie | Frames | Traces | Generated | Stops |
+|---|---|---|---|---|
+| `new-game` | 7200 | identical | 87.4% | 2702393 |
+| `menu` | 8900 | identical | 89.8% | 3489959 |
+| `field` | 11400 | identical | 92.3% | 4639666 |
+| `fair` | 12450 | identical | 92.9% | 5111960 |
+| `fair-companion` | 17900 | identical | 95.1% | 7547523 |
+| `gato-battle` | 21600 | identical | 95.9% | 8875081 |
+| `saves/battle-magus` | 18000 | identical | 94.5% | 6118154 |
+| `saves/battle-golem-twins-gameover` | 12400 | identical | 84.3% | 3672714 |
+| `saves/battle-tyrano-lair-walls` | 8200 | identical | 87.8% | 2499672 |
+| `saves/late-omen-battles` | 17100 | identical | 94.1% | 5436074 |
+| `saves/late-omen-terramutant` | 15500 | identical | 93.3% | 4726429 |
+| `saves/late-omen-zeal` | 35300 | identical | 97.1% | 11404715 |
+| `saves/late-lavos` | 51000 | identical | 98.0% | 16015208 |
+| `saves/events-jetbike-race` | 9400 | identical | 82.9% | 3260207 |
+| `saves/events-end-of-time-gate` | 5600 | identical | 83.0% | 1877218 |
+| `saves/events-prison-escape` | 12900 | identical | 93.1% | 5199595 |
+| `saves/events-keepers-dome` | 5000 | identical | 80.5% | 1603579 |
+| `saves/events-blackbird` | 4400 | identical | 77.2% | 1351581 |
+| `saves/menus-field-menu` | 10600 | identical | 90.8% | 4153296 |
+| `saves/menus-shop-inn` | 9700 | identical | 90.3% | 3751780 |
+| `saves/menus-epoch` | 8800 | identical | 89.4% | 3330399 |
+| `saves/menus-end-of-time` | 8800 | identical | 89.2% | 3228659 |
+
+- **Traces:** all 22 movies (312150 frames) identical. `--wav`
+  output of `new-game` and `events-jetbike-race` is byte-identical too.
+- **Shadow** (`--native shadow`, hand ports and generated blocks) over the 22
+  movies: 1337405091 block checks, 0 mismatched, 211792 interrupted, 9
+  unfinished, and every hand port's counts as before; each movie's report is
+  byte-identical to the one M1 prints for it (shadow replays don't stop at the
+  horizon, and back edges still return there). With `--recomp off` the reports
+  are identical to M1's too.
+- **Conformance:** `sst_runner` and `sst_recomp_runner` 0 failures,
+  `recomp_bus_diff` 0 mismatches (with the last-cycle check).
+- **Speed** (`gato-battle`, 21600 frames, process CPU time averaged over four
+  alternating runs each on a machine shared with other jobs): `--native on`
+  40.8 s with the M1 build and 41.1 s with M2; `--native on --recomp only`
+  42.9 s; `--native off` 46.7 s and 46.4 s. The renderer still dominates (see
+  M1's results); the stop check before every instruction, the 411 stops per
+  frame and the I/O syncs cost about 1%, within the noise. The generated C grew
+  from 20 to 27 MB (a label, a stop check and a `switch` case per instruction)
+  and `ct_dev` from 15 to 26 MB.
+
+### Hand ports in `on` mode
+
+Hand ports still charge estimated time (`cost_milli` times their bus clocks)
+after they stop, a scanline at a time with interrupts held, and sync explicitly
+where they talk to the APU ([PORTING.md](PORTING.md)). Their time can't be made
+exact without running the original, and any error moves everything after it:
+registering the hand ports of one subsystem at a time (with all generated
+blocks), `new-game` departs from the interpreter-only run for every subsystem
+whose ports it reaches, most within frames 22-40 (`memory` and `menu` at 1750),
+so no movie stays identical with hand ports.
+
+How close `on` mode gets, as the share of frames whose framebuffer is the
+interpreter-only run's at the same frame ("same"), and whose framebuffer
+appears in that run within 120 frames ("near", a looser measure of being in
+the same scene), with hand ports and generated blocks:
+
+| Movie | M1: same / near | M2: same / near |
+|---|---|---|
+| `new-game` | 70.5% / 99.9% | 70.5% / 99.9% |
+| `menu` | 74.0% / 99.5% | 74.1% / 99.6% |
+| `field` | 75.8% / 99.3% | 75.8% / 99.4% |
+| `fair` | 71.8% / 94.7% | 71.8% / 94.2% |
+| `fair-companion` | 65.8% / 89.2% | 74.8% / 93.2% |
+| `gato-battle` | 56.9% / 77.0% | 64.7% / 81.1% |
+| `saves/battle-magus` | 43.9% / 45.1% | 27.6% / 36.1% |
+| `saves/battle-golem-twins-gameover` | 36.6% / 53.5% | 41.7% / 50.2% |
+| `saves/battle-tyrano-lair-walls` | 43.5% / 47.2% | 54.0% / 58.3% |
+| `saves/late-omen-battles` | 29.0% / 34.0% | 34.7% / 37.4% |
+| `saves/late-omen-terramutant` | 22.3% / 27.0% | 22.3% / 27.0% |
+| `saves/late-omen-zeal` | 9.4% / 11.0% | 9.4% / 11.0% |
+| `saves/late-lavos` | 6.4% / 9.0% | 7.3% / 9.9% |
+| `saves/events-jetbike-race` | 52.1% / 66.7% | 62.7% / 68.1% |
+| `saves/events-end-of-time-gate` | 62.6% / 91.2% | 68.9% / 91.2% |
+| `saves/events-prison-escape` | 57.7% / 95.0% | 57.8% / 95.1% |
+| `saves/events-keepers-dome` | 73.0% / 87.6% | 73.0% / 87.6% |
+| `saves/events-blackbird` | 96.3% / 98.9% | 96.3% / 98.9% |
+| `saves/menus-field-menu` | 92.0% / 99.7% | 92.0% / 99.5% |
+| `saves/menus-shop-inn` | 90.9% / 95.9% | 90.9% / 96.0% |
+| `saves/menus-epoch` | 69.5% / 88.2% | 70.3% / 89.2% |
+| `saves/menus-end-of-time` | 66.8% / 79.8% | 62.9% / 78.8% |
+| all frames | 44.4% / 56.3% | 45.8% / 56.9% |
+
+Exact blocks help a little overall, and most in movies with battles and
+races, where the M1 blocks' late interrupts added to the drift; `battle-magus`
+and `menus-end-of-time` went the other way, which is the same drift landing
+differently. The late battles still go differently from the interpreter-only
+run: in `late-lavos` the party ends up in the tech menu against the outer shell
+from about frame 25000 to the end in both M1 and M2 (the movie's input no
+longer fits the fight; the menu keeps moving, the game doesn't hang), while
+`--native off`, and `--native on --recomp only`, reach Lavos's core. Two ways of
+giving hand ports more exact time were tried on six movies (`new-game`, `field`,
+`gato-battle`, `late-omen-battles`, `late-omen-terramutant`,
+`events-prison-escape`) and not kept:
+
+- **Sync before time-observing I/O**, as generated blocks do: every hand port
+  access to the APU ports, `$2137-$213F` and `$4210-$4212` (and in a second
+  variant also PPU register and `$4200-$420C` writes) first let the time the
+  routine had taken so far pass (`native_sync`). Same-frame agreement changed by
+  at most 0.1 point, except `late-omen-battles` with the second variant (34.7%
+  to 31.8%). The sound driver ports, which already sync, are nearly all the
+  time-observing I/O hand ports do.
+- **No idle entries in `on` mode**, so the busy-wait loops run as exact
+  generated blocks instead of skipping ahead: worse (`field` 75.8% to 49.9%,
+  `gato-battle` 64.7% to 53.0%, `new-game` 70.5% to 57.9%).
+
+So `--recomp only` is the configuration for checking `on` mode against the
+interpreter; hand ports are checked by shadow mode as before.
 
 ## RAM code and unknown code
 
@@ -489,15 +715,18 @@ A port starts from the generated block instead of the listing:
   on the paths the movies take; code they don't reach is checked only by the
   instruction-level tests. A flag a block gets wrong and a later instruction in
   the same block overwrites is invisible, as it is to the rest of the machine.
-- **Approximate timing in M1.** Interrupts and events land late by up to a
-  block in `on` mode, and I/O inside a block sees the time the block started,
-  so frames can drift from `off`; loops waiting on the APU are the most
-  sensitive (see "Syncing with the SPC700" in [PORTING.md](PORTING.md)). Over
-  the movies the drift is about what hand ports alone cause (see Results). M2
-  removes it.
-- **Left for M2 and later.** Exact timing (above); RAM code, the largest part
-  of what still runs on the interpreter; coverage feedback for the little ROM
-  code that does (M3); `ct_fuzz` doesn't fuzz generated blocks.
+- **Timing.** In M1 interrupts and events landed late by up to a block in `on`
+  mode, and I/O inside a block saw the time the block started. M2 made blocks
+  exact; what still drifts in `on` mode is the hand ports' estimated time (see
+  "Hand ports in `on` mode").
+- **Horizon completeness.** Exactness rests on the horizon listing everything
+  the system does between steps that the CPU can see without I/O, and on I/O
+  syncing. A new time-driven event in `system.c` (or a register whose value
+  moves with time outside the synced I/O area) must be added to
+  `snes_horizon`; the `--recomp only` trace comparison is the check.
+- **Left for later.** RAM code, the largest part of what still runs on the
+  interpreter; coverage feedback for the little ROM code that does (M3);
+  `ct_fuzz` doesn't fuzz generated blocks.
 - **Precedence surprises.** A hand port whose precondition rejects a call now
   falls back to a generated block rather than the interpreter; both are exact,
   so this only changes speed.

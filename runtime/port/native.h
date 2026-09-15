@@ -95,14 +95,15 @@ bool native_compare(const Snes *original, const Snes *native, uint16_t dont_care
 /* Nonzero if any shadow comparison failed. */
 int native_failed(const NativeRuntime *rt);
 
-/* Generated blocks (docs/RECOMP.md). ON mode: a loop's back edge returns to the
- * runtime once the block has spent this many master clocks (default one
- * scanline). SHADOW mode: the interpreter's bus accesses and the machine at each
+/* Generated blocks (docs/RECOMP.md). ON mode: a block runs until the system's
+ * horizon (snes_horizon) and stops before the first instruction past it, with
+ * I/O catching the machine up to its instruction first, so time and interrupts
+ * are exactly the interpreter's; a block that stopped resumes where it stopped.
+ * SHADOW mode: the interpreter's bus accesses and the machine at each
  * instruction boundary are recorded, and every generated block that applies at
  * a boundary is replayed against that record: same accesses in the same order,
  * same values written, same registers and time where the original reaches the
  * point the block stopped. */
-void native_set_recomp_yield(uint32_t clocks);
 /* Instructions executed in generated blocks so far (in every mode, replays
  * included). */
 uint64_t native_generated_instructions(void);

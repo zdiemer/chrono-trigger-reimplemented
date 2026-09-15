@@ -5,8 +5,8 @@
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
- *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on]
- *          [--recomp-yield clocks] [--insn-stats]
+ *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
+ *          [--insn-stats]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -19,9 +19,10 @@
  * --wav writes the DSP's output (32000 Hz stereo) over the frames run.
  * --recomp on (the default when the build generated blocks from this ROM)
  * registers the generated blocks after the ported routines (docs/RECOMP.md);
- * --recomp-yield sets how long a generated loop runs before letting time pass
- * in on mode. --insn-stats reports how many instructions the interpreter and
- * generated blocks executed.
+ * --recomp only registers the generated blocks without the ported routines, for
+ * checking that --native on produces the same traces as --native off.
+ * --insn-stats reports how many instructions the interpreter and generated
+ * blocks executed.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -166,7 +167,7 @@ int main(int argc, char **argv)
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     const char *shot_dir = NULL, *wav_path = NULL;
     NativeMode native_mode = NATIVE_OFF;
-    bool recomp = true, insn_stats = false;
+    bool recomp = true, ports = true, insn_stats = false;
     long frames = -1, status_every = 0, shot_every = 0;
     const char *excludes[64];
     int nexcludes = 0;
@@ -194,12 +195,12 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else if (!strcmp(a, "--wav")) wav_path = v;
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
-        else if (!strcmp(a, "--recomp-yield")) native_set_recomp_yield((uint32_t)strtoul(v, NULL, 10));
         else if (!strcmp(a, "--recomp")) {
-            if (!strcmp(v, "off")) recomp = false;
-            else if (!strcmp(v, "on")) recomp = true;
-            else {
-                fprintf(stderr, "--recomp must be off or on\n");
+            if (!strcmp(v, "off") || !strcmp(v, "on") || !strcmp(v, "only")) {
+                recomp = strcmp(v, "off") != 0;
+                ports = strcmp(v, "only") != 0;
+            } else {
+                fprintf(stderr, "--recomp must be off, on or only\n");
                 return 2;
             }
         }
@@ -222,8 +223,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
-                        "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on] "
-                        "[--recomp-yield clocks] [--insn-stats]\n");
+                        "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
+                        "[--insn-stats]\n");
         return 2;
     }
 
@@ -279,7 +280,7 @@ int main(int argc, char **argv)
     int nrecomp = recomp ? recomp_native_count : 0;
     NativeEntry *table = malloc(sizeof *table * (size_t)(game_native_count + nrecomp + 1));
     int table_count = 0;
-    for (int i = 0; i < game_native_count + nrecomp; i++) {
+    for (int i = ports ? 0 : game_native_count; i < game_native_count + nrecomp; i++) {
         const NativeEntry *e = i < game_native_count ? &game_natives[i] : &recomp_natives[i - game_native_count];
         bool excluded = false;
         for (int k = 0; k < nexcludes; k++)
