@@ -55,11 +55,15 @@ add_library(ct_game STATIC
   game/event/sound.c
   game/event/variables.c
   game/field/frame.c
+  game/field/graphics.c
   game/field/interrupts.c
+  game/field/layers.c
   game/field/motion.c
   game/field/nmi.c
+  game/field/object_update.c
   game/field/objects.c
   game/field/scroll.c
+  game/field/sprites.c
   game/menu/frame.c
   game/menu/glyphs.c
   game/attract/main_loop.c
