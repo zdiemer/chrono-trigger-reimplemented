@@ -21,17 +21,28 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `python3 tools/fetch_core.py`, then `build/oracle/ct_oracle --core cores/snes9x_libretro.<ext>
   --rom roms/ct-usa.sfc --frames N --movie <.ctm> --trace traces/<name>.cttr`. Inspect and diff with
   `python3 tools/trace.py`. Snes9x is the trace oracle. See docs/ORACLE.md.
-- Main build: `cmake -S . -B build/main -G Ninja && cmake --build build/main` builds `ct_dev` (ROM on
-  our runtime, writes `.cttr` traces; see docs/RUNTIME.md) and the conformance runners.
+- Main build: `cmake -S . -B build/main -G Ninja -DCT_ROM=roms/ct-usa.sfc
+  "-DCT_RECOMP_COVERAGE=traces/coverage-*.txt;traces/saves/cov-*.txt"
+  "-DCT_RECOMP_CALLS=traces/calls-*.txt;traces/saves/calls-*.txt" && cmake --build build/main` builds
+  `ct_dev` (ROM on our runtime, writes `.cttr` traces; see docs/RUNTIME.md), `ct_play` (docs/PLAYING.md),
+  `ct_fuzz`, the conformance runners, the C generated from the ROM (docs/RECOMP.md) and the matching
+  reassembly check (docs/MATCHING.md). Coverage and call files are optional, gitignored inputs.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
-  `build/main/sst_runner tests/cpu/data/*.bin` and `build/main/spc700_runner tests/apu/data/*.bin`
-  (both must report 0 failures).
+  `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_recomp_runner tests/cpu/data/*.bin`,
+  `build/main/recomp_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
+  failures).
+- Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
+  (`--sram`; each header names its save and frame count; docs/RUNTIME.md). Record new ones with
+  `ct_play --record` (docs/PLAYING.md).
+- Validation: every movie in `--native shadow` must exit 0 with no `mismatched [1-9]` lines;
+  `--native on --recomp only` must produce traces identical to `--native off` (`python3 tools/trace.py
+  diff`); `--native on --recomp only --misses out.txt` lists anything still interpreted.
 
 - Porting: add routines under `game/<subsystem>/` (named by what they do, not by ROM bank), register in
-  `game/registry.c`, validate with
-  `build/main/ct_dev ... --movie oracle/movies/new-game.ctm --native shadow` (must report 0
-  mismatches), then `--native on`, and fuzz with `build/main/ct_fuzz --load-state <state> --routine <name>`.
-  See docs/PORTING.md.
+  `game/registry.c`, validate with `ct_dev ... --native shadow` over the movie library (0 mismatches),
+  then `--native on`, and fuzz with `build/main/ct_fuzz --load-state <state> --routine <name>`. Hardware
+  access in converted files goes through `runtime/platform/` (docs/PLATFORM.md; a lint test enforces
+  it). See docs/PORTING.md.
 
 ## Rules
 
