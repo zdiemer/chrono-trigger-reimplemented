@@ -237,8 +237,17 @@ static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
 
 /* ---- DMA ------------------------------------------------------------------------ */
 
+/* DMA takes the CPU's place on the bus at its own fixed rate, not at the speed
+ * of the addresses it reads and writes: 8 master clocks per byte and per
+ * channel, plus the pause to stop and restart the CPU (DMA_SYNC_CLOCKS: bsnes
+ * spends 8 plus clock alignment, Snes9x 18). */
+#define DMA_BYTE_CLOCKS 8
+#define DMA_CHANNEL_CLOCKS 8
+#define DMA_SYNC_CLOCKS 18
+
 static void run_dma(SnesBus *bus, uint8_t channels)
 {
+    uint32_t clocks = bus->clocks + (channels ? DMA_SYNC_CLOCKS : 0);
     for (int ch = 0; ch < 8; ch++) {
         if (!(channels & (1 << ch)))
             continue;
@@ -267,7 +276,9 @@ static void run_dma(SnesBus *bus, uint8_t channels)
         r[2] = addr & 0xFF;
         r[3] = addr >> 8;
         r[5] = r[6] = 0;
+        clocks += DMA_CHANNEL_CLOCKS + count * DMA_BYTE_CLOCKS;
     }
+    bus->clocks = clocks;   /* the accesses above counted bus speeds; replace them */
 }
 
 /* ---- public ------------------------------------------------------------------ */

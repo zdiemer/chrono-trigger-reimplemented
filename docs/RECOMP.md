@@ -323,7 +323,8 @@ unchecked. What M1 does instead checks every block:
   CPU's bus hooks record every access it makes: address, direction, value and
   the bus clocks it took (a `$420B` write includes its DMA). HDMA, DMA and the
   APU don't go through the CPU's hooks and aren't recorded. At every step the
-  intercept records a boundary: registers, PB:PC, E, master clock, frame, the
+  intercept records a boundary: registers, PB:PC, E, the CPU's own time
+  (master clocks minus the pauses for work RAM refresh and HDMA), frame, the
   number of accesses so far, and whether the step is an interrupt entry or the
   CPU is halted. Hand ports' clones don't record.
 - **Replay.** When the record fills up (131072 boundaries or about 2 million
@@ -337,7 +338,7 @@ unchecked. What M1 does instead checks every block:
   comes through those accesses. When the block returns, the record must be at
   a boundary (not inside an instruction of the original), and that boundary
   must have the block's registers, P, E, halt state and PC, with
-  `recorded clocks + 6 * io_cycles` equal to the master clocks that passed.
+  `recorded clocks + 6 * io_cycles` equal to the CPU time that passed.
   The next check starts at that boundary, so blocks chain as `on` mode
   dispatches them; where no block applies, the next boundary is tried.
 - **Interrupts.** A block's accesses are limited to the next interrupt
@@ -468,6 +469,11 @@ before still runs before it: the horizon is the smallest of
 - on visible lines, the HDMA point 1104 if it hasn't fired yet (rendering needs
   it even without HDMA channels: the renderer reads the PPU state as of then,
   and HDMA reads tables from WRAM the CPU may be writing);
+- the work RAM refresh point 538 if it hasn't happened yet: the CPU pauses
+  there for 40 clocks ([RUNTIME.md](RUNTIME.md), "Exact CPU timing"), and a
+  block's clocks count CPU time, so it stops before the first instruction
+  starting past a pause (HDMA's pauses are at the HDMA point and, for the
+  frame's HDMA setup, at the start of line 0, both already on the list);
 - the H-timer position minus one, when the timer mode and line make it fire;
 - an NMI that is scheduled, and a raised IRQ that hasn't been recognized yet,
   minus one: they're recognized after a step whose last cycle starts at or
@@ -514,7 +520,9 @@ those widths, so this is as safe as an entry. A miss (an interrupt handler's
 stops took the slot) runs the interpreter up to the next entry, which costs
 speed only. Over `gato-battle` with only generated code, blocks stopped 8.9
 million times (411 per frame) and 6.4 million of those resumed from the table;
-nearly all the rest stopped at their loop heads, which are entries.
+nearly all the rest stopped at their loop heads, which are entries. (Since the
+refresh point joined the horizon, one more stop per line: 13.9 million, 643 per
+frame, 10.3 million resumed.)
 
 ### I/O
 

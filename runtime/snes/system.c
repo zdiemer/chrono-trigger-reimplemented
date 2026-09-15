@@ -8,6 +8,14 @@
 #define HDMA_HCLOCK 1104       /* ~dot 276 */
 #define HBLANK_START_HCLOCK 1096
 #define HBLANK_END_HCLOCK 16
+/* The CPU pauses for 40 master clocks at hclock 538 of every line while work RAM
+ * is refreshed (bsnes, Snes9x). */
+#define REFRESH_HCLOCK 538
+#define REFRESH_CLOCKS 40
+/* HDMA pauses the CPU too: HDMA_SYNC_CLOCKS to stop and restart it on each line
+ * with an active channel, HDMA_BYTE_CLOCKS per table byte. */
+#define HDMA_SYNC_CLOCKS 18
+#define HDMA_BYTE_CLOCKS 8
 
 /* Interrupt timing (docs/RUNTIME.md, "Interrupt timing"). The 65C816 samples
  * its interrupt inputs at the start of each instruction's last cycle and acts
@@ -76,7 +84,7 @@ void snes_clone(Snes *dst, const Snes *src)
 }
 
 #define STATE_MAGIC "CTSS"
-#define STATE_VERSION 3u
+#define STATE_VERSION 4u
 
 int snes_state_save(const Snes *s, const char *path)
 {
@@ -174,8 +182,15 @@ static void hdma_load_entry(Snes *s, int ch)
     s->hdma[ch].do_transfer = true;
 }
 
-static void hdma_init(Snes *s)
+/* HDMA's CPU time (Snes9x's accounting; bsnes's is close): starting and
+ * stopping the CPU, 8 clocks per table byte read to load a channel's line
+ * count and its indirect address, and per byte transferred. */
+static uint32_t hdma_load_clocks(const uint8_t *r) { return HDMA_BYTE_CLOCKS * ((r[0] & 0x40) ? 3 : 1); }
+
+/* Returns the CPU time it took. */
+static uint32_t hdma_init(Snes *s)
 {
+    uint32_t clocks = 0;
     for (int ch = 0; ch < 8; ch++) {
         uint8_t *r = s->bus.dma[ch].reg;
         s->hdma[ch].active = s->bus.hdmaen & (1 << ch);
@@ -183,11 +198,14 @@ static void hdma_init(Snes *s)
             continue;
         r[8] = r[2];
         r[9] = r[3];
+        clocks += hdma_load_clocks(r);
         hdma_load_entry(s, ch);
     }
+    return clocks ? clocks + HDMA_SYNC_CLOCKS : 0;
 }
 
-static void hdma_line(Snes *s)
+/* Returns the CPU time it took. */
+static uint32_t hdma_line(Snes *s)
 {
     static const uint8_t pattern[8][4] = {
         { 0, 0, 0, 0 }, { 0, 1, 0, 1 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 },
@@ -195,13 +213,17 @@ static void hdma_line(Snes *s)
     };
     static const uint8_t unit_len[8] = { 1, 2, 2, 4, 4, 4, 2, 4 };
 
+    uint32_t clocks = 0;
     for (int ch = 0; ch < 8; ch++) {
         HdmaChannel *h = &s->hdma[ch];
         uint8_t *r = s->bus.dma[ch].reg;
         if (!h->active || !(s->bus.hdmaen & (1 << ch)))
             continue;
+        if (!clocks)
+            clocks = HDMA_SYNC_CLOCKS;
         if (h->do_transfer) {
             uint8_t mode = r[0] & 7;
+            clocks += unit_len[mode] * HDMA_BYTE_CLOCKS;
             for (int i = 0; i < unit_len[mode]; i++) {
                 uint32_t src;
                 if (r[0] & 0x40) {
@@ -222,9 +244,14 @@ static void hdma_line(Snes *s)
         }
         r[10]--;
         h->do_transfer = r[10] & 0x80;
-        if (!(r[10] & 0x7F))
+        if (!(r[10] & 0x7F)) {
+            clocks += hdma_load_clocks(r);
             hdma_load_entry(s, ch);
+        } else {
+            clocks += HDMA_BYTE_CLOCKS;
+        }
     }
+    return clocks;
 }
 
 /* ---- timing ------------------------------------------------------------------- */
@@ -247,15 +274,34 @@ static void schedule_nmi(Snes *s, uint64_t at)
     s->nmi_scheduled = true;
 }
 
+/* Inside advance, where hclock has already moved past `hpos` on the current
+ * line: the CPU pauses for `clocks` from hpos on, and the rest of the step's
+ * time comes after the pause. Everything but the CPU keeps running. */
+static void stall_at(Snes *s, uint32_t hpos, uint32_t clocks)
+{
+    if (!clocks)
+        return;
+    uint64_t at = line_start(s) + hpos;
+    SnesStall *st = &s->stalls[s->stall_next];
+    s->stall_next = (uint8_t)((s->stall_next + 1) % SNES_STALL_HISTORY);
+    st->cpu_at = at - s->stall_total;
+    st->total_before = s->stall_total;
+    s->stall_total += clocks;
+    s->master += clocks;
+    s->hclock += clocks;
+    apu_advance(&s->apu, clocks);
+}
+
 static void start_line(Snes *s)
 {
     s->hdma_done_this_line = false;
     s->htimer_done_this_line = false;
+    s->refresh_done_this_line = false;
 
     if (s->vline == 0) {
         s->bus.in_vblank = false;
         s->bus.nmi_flag = false;
-        hdma_init(s);
+        stall_at(s, 0, hdma_init(s));
     } else if (s->vline == SNES_VBLANK_LINE) {
         s->bus.in_vblank = true;
         s->bus.nmi_flag = true;
@@ -272,6 +318,23 @@ static void start_line(Snes *s)
         raise_irq(s, line_start(s));
 }
 
+static inline uint32_t line_end(const Snes *s)
+{
+    return s->hclock < SNES_CLOCKS_PER_LINE ? s->hclock : SNES_CLOCKS_PER_LINE;
+}
+
+/* H-timer IRQ: every line (H only) or only on the V-timer line (H+V). */
+static void check_htimer(Snes *s, uint32_t before, uint32_t end)
+{
+    uint32_t htime = (uint32_t)s->bus.htime * 4;
+    uint8_t timer_mode = s->bus.nmitimen & 0x30;
+    if (!s->htimer_done_this_line && (timer_mode == 0x10 || (timer_mode == 0x30 && s->vline == s->bus.vtime)) &&
+        before <= htime && htime < end) {
+        s->htimer_done_this_line = true;
+        raise_irq(s, line_start(s) + htime);
+    }
+}
+
 static void advance(Snes *s, uint32_t clocks)
 {
     s->master += clocks;
@@ -281,22 +344,24 @@ static void advance(Snes *s, uint32_t clocks)
     s->hclock += clocks;
 
     for (;;) {
-        uint32_t end = s->hclock < SNES_CLOCKS_PER_LINE ? s->hclock : SNES_CLOCKS_PER_LINE;
-
-        /* H-timer IRQ: every line (H only) or only on the V-timer line (H+V). */
-        uint32_t htime = (uint32_t)s->bus.htime * 4;
-        uint8_t timer_mode = s->bus.nmitimen & 0x30;
-        if (!s->htimer_done_this_line && (timer_mode == 0x10 || (timer_mode == 0x30 && s->vline == s->bus.vtime)) &&
-            before <= htime && htime < end) {
-            s->htimer_done_this_line = true;
-            raise_irq(s, line_start(s) + htime);
+        uint32_t end = line_end(s);
+        /* Line events in hclock order. The CPU pauses for work RAM refresh
+         * and HDMA, which moves the end of the step (and the events after
+         * them) later. */
+        if (!s->refresh_done_this_line && before <= REFRESH_HCLOCK && REFRESH_HCLOCK < end) {
+            s->refresh_done_this_line = true;
+            stall_at(s, REFRESH_HCLOCK, REFRESH_CLOCKS);
+            end = line_end(s);
         }
+        check_htimer(s, before, end);
         if (!s->hdma_done_this_line && before <= HDMA_HCLOCK && HDMA_HCLOCK < end) {
             s->hdma_done_this_line = true;
             if (s->vline < SNES_VBLANK_LINE) {
                 if (s->on_line)
                     s->on_line(s->on_line_ctx, s, s->vline);
-                hdma_line(s);
+                stall_at(s, HDMA_HCLOCK, hdma_line(s));
+                end = line_end(s);
+                check_htimer(s, before, end);
             }
         }
         s->bus.in_hblank = end >= HBLANK_START_HCLOCK || end < HBLANK_END_HCLOCK;
@@ -334,6 +399,9 @@ uint64_t snes_horizon(const Snes *s)
     /* Line events at hclock P happen in the advance that goes past P. */
     if (s->vline < SNES_VBLANK_LINE && !s->hdma_done_this_line && s->hclock <= HDMA_HCLOCK)
         h = start + HDMA_HCLOCK;
+    /* Pauses too: the time after them moves later. */
+    if (!s->refresh_done_this_line && s->hclock <= REFRESH_HCLOCK)
+        h = start + REFRESH_HCLOCK;
     uint8_t timer_mode = s->bus.nmitimen & 0x30;
     uint32_t htime = (uint32_t)s->bus.htime * 4;
     /* One clock early: the IRQ it raises can be recognized from the event's
@@ -358,6 +426,27 @@ uint32_t snes_clocks_to_next_poll_change(const Snes *s)
     return SNES_CLOCKS_PER_LINE - s->hclock;
 }
 
+/* After a step that ended now: the master clock at which its last cycle,
+ * `last_cycle` clocks of CPU time long, began. Pauses of the CPU inside that
+ * cycle delay its end, not its start. `step_stalls` is stall_total before the
+ * step; when pauses inside the cycle outnumber the history (a long DMA
+ * transfer, which counts as part of the last cycle), all of the step's are. */
+static uint64_t last_cycle_start(const Snes *s, uint32_t last_cycle, uint64_t step_stalls)
+{
+    uint64_t cpu_start = s->master - s->stall_total - last_cycle;
+    uint64_t inside_from = s->stall_total;   /* stall_total before the first pause inside the cycle */
+    int i;
+    for (i = 1; i <= SNES_STALL_HISTORY; i++) {
+        const SnesStall *st = &s->stalls[(s->stall_next + SNES_STALL_HISTORY - i) % SNES_STALL_HISTORY];
+        if (st->total_before < step_stalls || st->cpu_at <= cpu_start)
+            break;
+        inside_from = st->total_before;
+    }
+    if (i > SNES_STALL_HISTORY)
+        inside_from = step_stalls;
+    return s->master - last_cycle - (s->stall_total - inside_from);
+}
+
 void snes_run_frame(Snes *s, uint16_t pad1)
 {
     if (s->halted)
@@ -373,6 +462,7 @@ void snes_run_frame(Snes *s, uint16_t pad1)
         uint32_t clocks = 0, last_cycle = CLOCKS_PER_IO_CYCLE;
         bool polled = true;
         s->intercept_last_cycle = 0;
+        uint64_t step_stalls = s->stall_total;
         int32_t spent = s->intercept ? s->intercept(s->intercept_ctx, s) : -1;
         CpuStep kind = CPU_STEP_READY;
         if (spent < 0 && (s->native_only || !s->interpreter)) {
@@ -411,7 +501,7 @@ void snes_run_frame(Snes *s, uint16_t pad1)
             schedule_nmi(s, s->master);
         }
         if (polled) {
-            s->poll_at = s->master - last_cycle;
+            s->poll_at = last_cycle_start(s, last_cycle, step_stalls);
             if (s->nmi_scheduled && s->poll_at >= s->nmi_at) {
                 s->nmi_scheduled = false;
                 s->cpu.nmi_pending = true;

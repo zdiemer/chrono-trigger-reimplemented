@@ -74,6 +74,21 @@ translation ([RECOMP.md](RECOMP.md)); they're built when Python 3.11+ is found.
 - **Exact CPU timing.** Each instruction costs its bus accesses at their real
   speeds plus its internal cycles (6 master clocks each), both verified per
   opcode against SingleStepTests.
+- **Time the CPU loses to other bus users.** As in bsnes and Snes9x, the CPU
+  stops while something else has the bus:
+  - work RAM refresh: 40 master clocks at hclock 538 of every line;
+  - HDMA (as Snes9x counts it): on each line with an active channel, 18 clocks
+    to stop and restart the CPU, 8 per byte transferred, and 8 per channel for
+    its line counter (24 when it reloads an indirect address); the frame's
+    setup at the start of line 0 costs 18 plus 8 (or 24) per enabled channel;
+  - DMA: 18 clocks, then 8 per channel and 8 per byte, whatever the speed of
+    the addresses read and written.
+
+  A pause happens inside the step that crosses its position, and the rest of
+  the step's time comes after it. Pauses don't move the point where the step
+  samples interrupts: when one falls inside the last cycle, that cycle still
+  began before it (`last_cycle_start` in `system.c`). The DMA cost is part of
+  the `$420B` write, as before.
 - **Interrupt timing.** The 65C816 samples its interrupt inputs at the start
   of each instruction's last cycle and takes a recognized interrupt after the
   instruction; an input that changes during the last cycle waits until after
@@ -113,7 +128,7 @@ translation ([RECOMP.md](RECOMP.md)); they're built when Python 3.11+ is found.
   and bsnes. On `new-game`, `menu` and `field` every framebuffer stayed the
   same as before the change; WRAM differs only in stack contents, one scratch
   byte and a few writes landing a frame apart. State version 3 carries the
-  interrupt timing fields.
+  interrupt timing fields; version 4 the CPU pauses.
 - **Oracle conventions.** Power-on RAM contents follow Snes9x so unwritten
   bytes compare equal: WRAM `$55`, SRAM `$60` (no save file), and a gradient
   preloaded into CGRAM. SRAM then matches Snes9x throughout the attract
@@ -348,11 +363,16 @@ handshake races that emulators resolve differently:
 
 With `oracle/movies/new-game.ctm` (title, battle mode, name entry, the opening
 and the first dialog), the input resynchronizes both systems: after START,
-frames match Snes9x with no offset. Over frames 1800-5400, 3212 of 3233
-non-blank frames are pixel-identical to the same Snes9x frame. In the dialog
-section (5400-7200), 1354 of 1550 match, most of the rest within a frame or
-three. WRAM there differs only in frame-count and animation-timer bytes left
-over from the earlier timing offset.
+frames match Snes9x with no offset. Over frames 1800-5399, 1665 of 3231
+non-blank frames are pixel-identical to the same Snes9x frame and 3210 within
+16 frames: the blank load before the opening starts one frame later than on
+Snes9x (3209 against 3208, as before the CPU pauses were modeled) and now lasts
+89 frames, as on Snes9x and bsnes, so the opening stays a frame behind until
+4800 (before, a load one frame shorter than theirs made up for it: 3209 same
+frame). In the dialog section (5400-7199), 1437 of 1548 match at the same frame
+and 1544 within 16 frames (962 and 1342 before). WRAM there differs only in
+frame-count and animation-timer bytes left over from the earlier timing
+offset.
 
 Longer movies build on it. All were timed on the development system and reach
 the same scenes on Snes9x:
@@ -363,7 +383,7 @@ the same scenes on Snes9x:
 | `menu.ctm` | from the starting room, opens the main menu, enters and leaves five submenus, closes it | 8900 |
 | `fair.ctm` | `field.ctm`'s route, then across the world map into the fair and north through it | 12450 |
 | `fair-companion.ctm` | `fair.ctm`'s route (without its last walk), then up to the plaza, the meeting event with the story character, picking up and returning the item they drop, and the character joining the party | 17900 |
-| `gato-battle.ctm` | `fair-companion.ctm`, then out of the plaza's west edge to the singing robot's stage, the conversation that starts the fight, and the first battle, won (results at 21200 here, 21600 on Snes9x: battles run on real time, so they diverge in detail) | 21600 |
+| `gato-battle.ctm` | `fair-companion.ctm`, then out of the plaza's west edge to the singing robot's stage, the conversation that starts the fight, and the first battle, won (results at 21250 here, 21600 on Snes9x: battles run on real time, so they diverge in detail) | 21600 |
 
 Movies in `oracle/movies/saves/` start from power-on with a cartridge save
 loaded (`--sram`, see [ORACLE.md](ORACLE.md)) to reach later parts of the game:
@@ -408,36 +428,54 @@ All run in shadow mode with no mismatches. Making them found two hangs in the
 development system, both fixed: the location-change vblank wait (see Interrupt
 timing) and the SPC700's return to its boot ROM after a game over.
 
+They were timed before the CPU's pauses for work RAM refresh and HDMA were
+modeled and DMA's cost corrected (see the battle glitches below). With those,
+battles and other real-time sections play out differently, and several movies
+no longer reach the scenes listed: `battle-golem-twins-gameover` doesn't wipe
+the party, `endings-beyond-time` and `endings-telepod-lavos` lose their last
+battle, `late-omen-zeal` ends still fighting the Mammon Machine, `late-lavos`
+still on the outer shell, `endings-bucket-lavos` in an earlier form of the
+fight, and `menus-shop-inn` and `menus-field-menu` end a few frames apart from
+before. On Snes9x they don't reach those scenes either:
+`battle-golem-twins-gameover` shows the same frames on Snes9x and here at 6000,
+9000, 11000 and 12000, and `endings-beyond-time` at 20000, 40000 and 60000,
+none of which matched before. They still exercise the same areas for shadow
+mode, and need retiming to cover their listed endings again.
+
 Non-blank frames pixel-identical to Snes9x at the same frame / within 16 frames:
 
 | Section | `menu` | `field` | `fair` |
 |---|---|---|---|
-| 7200-8899, menu | 1264 / 1453 of 1640 | | |
-| 7200-8999, walking the house | | 166 / 482 of 1752 | same as `field` |
-| 9000-10799, dialog and name entry | | 48 / 185 of 1692 | same as `field` |
-| 10800-11399, world map | | 216 / 600 of 600 | |
-| 10800-12449, world map and fair | | | 381 / 984 of 1558 |
+| 7200-8899, menu | 1555 / 1594 of 1639 | | |
+| 7200-8999, walking the house | | 1184 / 1448 of 1752 | same as `field` |
+| 9000-10799, dialog and name entry | | 48 / 183 of 1690 | same as `field` |
+| 10800-11399, world map | | 40 / 540 of 600 | |
+| 10800-12449, world map and fair | | | 153 / 1322 of 1556 |
 
-The house frames that match no Snes9x frame look the same but differ in a few
-hundred pixels around the characters (for example 87 pixels in rows 97-112 at
-frame 8700). WRAM there differs in about 160 bytes, including a coordinate
-byte off by one (`$7E:01AB`), and no frame offset lines it up. Direction holds
-land one frame apart relative to the game's frame counter on the two systems,
-so positions drift by a pixel. The world map lines up again at a wall. This
-looks like input phase, not a hardware-model bug. Movies meant for exact
-comparison should walk into obstacles to realign positions.
+Before the CPU's pauses were modeled the numbers were 1264 / 1453 (menu),
+166 / 482 (house), 48 / 185, 216 / 600 and 381 / 984. The house frames that
+matched no Snes9x frame then looked the same but differed in a few hundred
+pixels around the characters (87 pixels in rows 97-112 at frame 8700), with a
+coordinate byte off by one (`$7E:01AB`): direction holds landed one frame apart
+relative to the game's frame counter, so positions drifted by a pixel. That
+was mostly the CPU running about 3% fast without work RAM refresh, not input
+phase: with refresh alone added to the DMA fix, 1012 of them matched. The world
+map now comes up three frames after Snes9x's: its load starts a frame later,
+as before, and lasts 48 frames, against 47 on Snes9x and bsnes (46 before).
 
 `fair-companion.ctm`, same metric:
 
 | Section | Result |
 |---|---|
-| 12200-13899, fair and plaza (walking, waiting) | 137 / 146 of 1656 |
-| 13900-15899, meeting event, item pickup and return | 426 / 1302 of 2000 |
-| 15900-17899, dialog and joining | 835 / 1696 of 1940 |
+| 12200-13899, fair and plaza (walking, waiting) | 448 / 1129 of 1655 |
+| 13900-15899, meeting event, item pickup and return | 712 / 1159 of 2000 |
+| 15900-17899, dialog and joining | 111 / 654 of 1940 |
 
-Most event frames match within a few frames, so both systems run the same
-events; the low same-frame rate while walking looks like the position drift
-above but wasn't investigated separately. Two spots were checked by
+Before the CPU's pauses were modeled: 137 / 146, 426 / 1302 and 835 / 1696.
+Both systems run the same events (screenshots every 200 frames show the same
+scenes); in the last section most frames now differ from every nearby Snes9x
+frame in a few hundred pixels of sprites (654 pixels at 16700), an animation
+phase that happened to agree before. Two spots were checked by
 screenshot on both systems and looked identical: a vertical seam in the fair's
 east side (part of the map) and a spot at the north stairs where the player
 is blocked.
@@ -453,6 +491,36 @@ Fuzzing found another: a DMA transfer whose destination covers `$420B` wrote
 to it, which started a transfer inside the transfer, and so on until the host
 stack overflowed. The game never does this; random register values did.
 Transfers no longer nest.
+
+Playing the first battle showed single frames with the top of the picture black
+or the battle window missing (the field showing down to row 208 and a black
+band at the top), which Snes9x never shows. The battle's NMI handler
+(`$D1:E77C`) forces blank, turns HDMA off and uploads VRAM, OAM and CGRAM by
+DMA; the per-frame work it calls turns HDMA back on (`$CD:08FE`) and restores
+the brightness (`$CD:0925`). On busy frames (seven transfers, 3872 bytes) that
+finished on line 8 of the next frame: forced blank until then, and HDMA was
+off at the frame's HDMA setup on line 0, so none of the window's HDMA ran that
+frame. The IRQ at line 211 forced blank below the window as usual. The cause
+was CPU time: DMA was charged the speed of each byte's read and write (12 or
+14 clocks) instead of 8, which made those vblanks about 16 lines too long. Fixing
+that alone made the CPU faster than on hardware, because two other costs were
+missing: work RAM refresh (3% of every line) and HDMA's CPU time. With all
+three, the latest restore in that battle is 7 lines before the frame starts.
+Repro: `gato-battle.ctm` with `--native off` had 15 of these frames between
+19308 and 20921 before, none after; so did a movie of the same route recorded
+on `ct_play` (frames 13898, 13982, 14305), which after the change still
+reaches and plays the battle, with no full-width one-frame change in 13300-14430.
+Scan with screenshots every frame for frames that differ from both neighbours;
+the blinking target cursor is the only one left. With `--native on` (what
+`ct_play` runs) `gato-battle.ctm` still shows 11 such frames (95 one-frame
+changes before, 17 now, cursor included): hand ports charge estimated time
+and interrupts wait until it's paid (PORTING.md), so an NMI can arrive dozens
+of lines late (frame 19313: no NMI in the frame before, then one at line 27).
+That is the ports' time estimate, not the hardware model. Load lengths now agree better
+with bsnes (accuracy core) as well: in `new-game`, the static runs at 3208,
+5591 and 6134 last 89, 252 and 36 frames in bsnes and here, 88, 250 and 30
+before; the world map load in `field` lasts 47 frames in bsnes, 48 here (46
+before).
 
 ## Validation strategy
 
