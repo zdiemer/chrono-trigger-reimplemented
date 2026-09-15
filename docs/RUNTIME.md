@@ -364,10 +364,14 @@ the same scenes on Snes9x:
 Movies in `oracle/movies/saves/` start from power-on with a cartridge save
 loaded (`--sram`, see [ORACLE.md](ORACLE.md)) to reach later parts of the game:
 bosses, late-game techs, menus, shops, the Epoch, minigames and events. The
-saves are the "SRM" set at fantasyanime.com/squaresoft/ctsaves-srm.htm; each
+saves are the "SRM" set at fantasyanime.com/squaresoft/ctsaves-srm.htm (headers
+`# Save: ctsaveNN-name`), and for the `endings-` movies the battery saves in the
+emuWorks state archives at games.technoplaza.net/snes/chronotrigger/savestates.php
+(headers `# Save: technoplaza ct-stateNN`; only the `.srm` is used). Each
 movie's header names the archive and slot and carries the save's CRC-32, and
-the frame count to run. They were timed on the development system. Put a
-save at `roms/saves/<archive name>/chrono_trigger.srm` and run, for example:
+the frame count to run. They were timed on the development system. Put a save
+at `roms/saves/<archive name>/chrono_trigger.srm` (or
+`roms/saves-technoplaza/ct-stateNN/Chrono Trigger (U).srm`) and run, for example:
 
 ```sh
 build/main/ct_dev --rom roms/ct-usa.sfc --sram roms/saves/ctsave07-azala/chrono_trigger.srm \
@@ -383,6 +387,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --sram roms/saves/ctsave07-azala/chrono_
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, Mega Bomb, item menus, Life 2 | 15500 |
 | `late-omen-zeal.ctm` | ctsave15, 3 | Queen Zeal won (Luminaire, Antipode 3, Flare, Hallation), then the Mammon Machine won (Mega Bomb, Delta Force, Flare and more) and the start of the Zeal face-and-hands battle | 35300 |
 | `late-lavos.ctm` | ctsave16, 1 | Lavos: the outer shell beaten with many techs and MegaElixirs, then the core form with a revive | 51000 |
+| `endings-beyond-time.ctm` | technoplaza ct-state15, 1 | The final battle won (second form, Lavos Core with revives) and the whole Beyond Time ending: the pardon, the Moonlight Parade, the farewells at the Gate, the bell and fireworks, and the staff credits to The End | 100000 |
+| `endings-bucket-lavos.ctm` | technoplaza ct-state18, 2 | New Game+: the End of Time bucket, the Day of Lavos, the outer shell's boss imitations and the shell, the inner cavern and the inner Lavos (ends mid-battle, before the Good Night ending) | 118400 |
+| `endings-telepod-lavos.ctm` | technoplaza ct-state16, 2 | New Game+ with Crono and Marle: Taban's telepod at the Millennial Fair, the outer shell, the inner cavern and the inner Lavos, to the start of the core fight (before the Dream Project ending) | 31000 |
 | `events-jetbike-race.ctm` | ctsave03, 1 | Lab 32: Johnny's challenge and the Mode 7 race with turbo boosts | 9400 |
 | `events-end-of-time-gate.ctm` | ctsave03, 3 | End of Time pillar, yes/no prompt, gate effect, arrival in Medina | 5600 |
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
