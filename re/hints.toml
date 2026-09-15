@@ -1,17 +1,27 @@
 # Analysis hints for tools/disasm: facts static analysis can't infer by itself.
 # Addresses are SNES bus addresses (BB:AAAA). Widths: m/x = 8 or 16.
 #
-#   [[entry]]        addr, m, x, [name], [kind]     code entry point
+#   [[entry]]        addr, m, x, [name], [kind]     code entry point (omit m/x: unknown)
 #   [[name]]         addr, name                     label only
-#   [[jumptable]]    at, count, [kind=abs|long], [table]
-#                                                   JMP/JSR (abs,X) at `at`
+#   [[jumptable]]    at, count, [kind=abs|long], [table], [targets = [...]]
+#                                                   JMP/JSR (abs,X) at `at`; targets for
+#                                                   tables filled at run time
 #   [[returns]]      addr, m, x                     widths after the function returns
 #                                                   (omit m or x: the caller's)
 #   [[state]]        addr, m, x                     force widths at an address
 #   [noreturn]       addrs = [...]                  calls that never come back
+#   [[noreturn]]     addr                           the same, one per entry
 #   [[inline_args]]  addr, size                     bytes after JSR/JSL to skip
-#   [[indirect]]     at, targets = [...]            JMP (abs) / JML [abs] targets
-#   [[data]]         start, end                     never decode as code
+#   [[indirect]]     at, targets = [...]            JMP (abs) / JML [abs] targets, or the
+#                                                   targets of a JSR/JSL whose operand
+#                                                   code writes at run time
+#   [[data]]         start, end, [type], [name]     never decode as code; type is one of
+#                                                   tools/disasm/hints.py DATA_TYPES
+#   [[overlap]]      addr, m, x                     an instruction that runs with widths
+#                                                   giving different lengths; the source
+#                                                   writes the decode under m/x
+#   [[ramcode]]      name, base, source, format = lz | copy | writes, [size],
+#                    [end, m, x], [over]            code the game runs from RAM
 
 # Hardware vector: SEI; CLC; XCE; JML $FD:C000
 [[entry]]
@@ -119,7 +129,7 @@ x = 16
 
 # sub_C24917 sets carry only on its REP #$20 path (C2:493B-4943) and returns with
 # CLC otherwise, so the carry-set fall-through at C2:455B always has M=16.
-# (Coverage only saw the carry-clear m8 return; the m16 one is pruned.)
+# (Coverage only saw the carry-clear m8 return.)
 [[state]]
 addr = "C2:455B"
 m = 16
@@ -413,3 +423,2952 @@ targets = ["C3:0F35", "C3:0F48", "C3:0F5B", "C3:0F6E"]
 [[indirect]]
 at = "CE:E7CC"
 targets = ["CE:E293"]
+
+# ==============================================================================
+# MD1 (docs/MATCHING.md): jump table bounds
+# ==============================================================================
+# Every JMP/JSR (abs,X) the analysis sizes gets a count derived from the code
+# instead of the length heuristic: an index mask or compare before the dispatch,
+# a table that runs up to its first handler or other code, or a table that ends
+# where another dispatcher's table begins. Entries are numbered from 0.
+
+# C0:1D3E, C0:1D4C, table C0:1D56: X is the slot index in $DB; the table runs up
+# to its first handler at C0:1D5E.
+[[jumptable]]
+at = "C0:1D3E"
+count = 4
+[[jumptable]]
+at = "C0:1D4C"
+count = 4
+
+# C0:1E04, table C0:1E92: The index is masked to 0-6 before TAX (C0:1E00), so
+# entries 0-3; the table runs up to its first handler at C0:1E9A.
+[[jumptable]]
+at = "C0:1E04"
+count = 4
+
+# C0:21EA, table C0:21EE: The index is $39 minus one, doubled, with no guard;
+# the table runs up to its first handler at C0:220E. The length heuristic
+# stopped at 9, but the calls files show entry 13 called from here.
+[[jumptable]]
+at = "C0:21EA"
+count = 16
+
+# C0:4009, table C0:400E: The index is $DF minus a constant, doubled; the table runs up to
+# its first handler at C0:4036.
+[[jumptable]]
+at = "C0:4009"
+count = 20
+
+# C0:5977, C0:5AB1, table C0:5D6E: The event command byte is masked to 0-255
+# before ASL (C0:5970, C0:5AAA): the whole 256-entry command table, as for
+# C0:5910. The heuristic gave C0:5AB1 12 entries; the calls files show higher
+# ones called from it.
+[[jumptable]]
+at = "C0:5977"
+count = 256
+[[jumptable]]
+at = "C0:5AB1"
+count = 256
+
+# C0:5BE6, table C0:5BF2: X is the slot index in $D9; the table runs up to its
+# first handler at C0:5BFA.
+[[jumptable]]
+at = "C0:5BE6"
+count = 4
+
+# C0:6307, C0:6398, C0:6433, table C0:6467: An 8-bit index from an event script
+# operand; the table runs up to its first handler at C0:6487.
+[[jumptable]]
+at = "C0:6307"
+count = 16
+[[jumptable]]
+at = "C0:6398"
+count = 16
+[[jumptable]]
+at = "C0:6433"
+count = 16
+
+# C0:633D, C0:63D7, table C0:6477: The same list as C0:6467 from its entry 8 on:
+# it runs up to code at C0:6487.
+[[jumptable]]
+at = "C0:633D"
+count = 8
+[[jumptable]]
+at = "C0:63D7"
+count = 8
+
+# C0:6FA3, table C0:6FA7: Negative values branch away (C0:6F9F); the table runs
+# up to its first handler at C0:6FB9.
+[[jumptable]]
+at = "C0:6FA3"
+count = 9
+
+# C0:717D, table C0:7181: Negative values branch away (C0:7179); the table runs
+# up to its first handler at C0:7199.
+[[jumptable]]
+at = "C0:717D"
+count = 12
+
+# C0:88FC, table C0:8902: The index is masked to 0-15 before ASL (C0:88F6): 16
+# entries. The word after them points at the first handler too but can't be
+# reached from here.
+[[jumptable]]
+at = "C0:88FC"
+count = 16
+
+# C1:004A, table C1:0051: A is the argument of sub_C10045; the table runs up to
+# code at C1:0065 (the JMP target at C1:0018). The heuristic stopped at 9; the
+# calls files show entry 9 called.
+[[jumptable]]
+at = "C1:004A"
+count = 10
+
+# C1:0067, table C1:006B: The table runs up to C1:006D, a handler that is entry
+# 6 of the C1:0051 table.
+[[jumptable]]
+at = "C1:0067"
+count = 1
+
+# C1:1FC9, table C1:1FF8: The index is masked to 0-127 (C1:1FBF) and values
+# above 32 are replaced by 32 (C1:1FC1-1FC5): 33 entries, up to its first
+# handler at C1:203A.
+[[jumptable]]
+at = "C1:1FC9"
+count = 33
+
+# C1:1FE6, table C1:1FEA: Values 7 and up branch away (C1:1FE0-1FE2): 7 entries,
+# ending where the C1:1FF8 table (C1:1FC9) begins.
+[[jumptable]]
+at = "C1:1FE6"
+count = 7
+
+# C1:29AE, table C1:2D81: The index comes from $986E without a guard; the table
+# runs up to code at C1:2D9F. The heuristic stopped at 6; the calls files show
+# entry 14 called.
+[[jumptable]]
+at = "C1:29AE"
+count = 15
+
+# C1:30B2, table C1:3216: Negative values are replaced by 0 (C1:30AD-30AF); the
+# table runs up to code at C1:3234.
+[[jumptable]]
+at = "C1:30B2"
+count = 15
+
+# C1:375C, table C1:3760: The index is a byte looked up in bank CC; the table
+# runs up to its first handler at C1:3772.
+[[jumptable]]
+at = "C1:375C"
+count = 9
+
+# C1:4328, table C1:7A63: Values 4 and up are replaced by 0 (C1:4321-4325): 4
+# entries, ending where the C1:7A6B table (C1:4CD4) begins.
+[[jumptable]]
+at = "C1:4328"
+count = 4
+
+# C1:4CD4, table C1:7A6B: Battle animation script command byte: values from $DB
+# up branch away before the dispatch (C1:4CC9-4CCB), so 219 entries. Five more
+# words follow before code at C1:7C2B; nothing dispatches to them.
+[[jumptable]]
+at = "C1:4CD4"
+count = 219
+
+# C1:75D1, table C1:79A1: A is a script operand passed by the callers (C1:6001,
+# C1:6024, C1:6048); the table ends where the C1:79D3 table (C1:7633) begins.
+[[jumptable]]
+at = "C1:75D1"
+count = 25
+
+# C1:7633, table C1:79D3: A is a script operand passed by the callers; the table
+# ends where the C1:7A63 table (C1:4328) begins.
+[[jumptable]]
+at = "C1:7633"
+count = 72
+
+# C1:8333, table C1:B92D: X counts from 0 and the loop ends at 13
+# (C1:833C-8340): 13 entries. The words after them aren't handler addresses
+# (they step by 11 bytes); read as entries they produced the overlapping decodes
+# at C1:AFD6-B004.
+[[jumptable]]
+at = "C1:8333"
+count = 13
+
+# C1:874E, C1:8769, C1:B006, C1:B021, table C1:B80D: Enemy script command byte
+# from bank CC; the table ends where the C1:B85F table (C1:8CE7) begins.
+[[jumptable]]
+at = "C1:874E"
+count = 41
+[[jumptable]]
+at = "C1:8769"
+count = 41
+[[jumptable]]
+at = "C1:B006"
+count = 41
+[[jumptable]]
+at = "C1:B021"
+count = 41
+
+# C1:8CE7, table C1:B85F: Negative command bytes branch away (C1:8CE3); the
+# table ends where the C1:B88D table (C1:8D88) begins.
+[[jumptable]]
+at = "C1:8CE7"
+count = 23
+
+# C1:8D88, table C1:B88D: Negative command bytes branch away (C1:8D5C, C1:8D81);
+# the table ends where the C1:B8BB table (C1:AC2E) begins.
+[[jumptable]]
+at = "C1:8D88"
+count = 23
+
+# C1:AC2E, table C1:B8BB: Negative bytes branch away (C1:AC22); the table ends
+# where the C1:B92D table (C1:8333) begins.
+[[jumptable]]
+at = "C1:AC2E"
+count = 57
+
+# C1:C732, table C1:C95C: X is $04 masked to 7 bits and doubled at the only caller
+# (C1:C5E6-C5EC); the table runs up to code at C1:C96A.
+[[jumptable]]
+at = "C1:C732"
+count = 7
+
+# C1:CFE1, table C1:D126: The table runs up to code at C1:D132.
+[[jumptable]]
+at = "C1:CFE1"
+count = 6
+
+# C1:D704, C1:D893, C1:D999, table C1:D9D7: The index is $AEE6; the table ends
+# where the C1:DA31 table (C1:D783) begins.
+[[jumptable]]
+at = "C1:D704"
+count = 45
+[[jumptable]]
+at = "C1:D893"
+count = 45
+[[jumptable]]
+at = "C1:D999"
+count = 45
+
+# C1:D783, table C1:DA31: The table runs up to code at C1:DA37.
+[[jumptable]]
+at = "C1:D783"
+count = 3
+
+# C1:EB45, table C1:FA61: The table runs up to code at C1:FA8B.
+[[jumptable]]
+at = "C1:EB45"
+count = 21
+
+# C2:0E34, table C2:0E4A: The table runs up to its first handler at C2:0E5A.
+[[jumptable]]
+at = "C2:0E34"
+count = 8
+
+# C2:1A5B, C2:1AB5, table C2:1A70: The table runs up to its first handler at
+# C2:1A76.
+[[jumptable]]
+at = "C2:1A5B"
+count = 3
+[[jumptable]]
+at = "C2:1AB5"
+count = 3
+
+# C2:1E3E, table C2:1E41: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:1E47.
+[[jumptable]]
+at = "C2:1E3E"
+count = 3
+
+# C2:20A8, table C2:20AB: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:20AF.
+[[jumptable]]
+at = "C2:20A8"
+count = 2
+
+# C2:23D8, table C2:23DB: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:23EF.
+[[jumptable]]
+at = "C2:23D8"
+count = 10
+
+# C2:2F9A, table C2:2F9D: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:2FA5.
+[[jumptable]]
+at = "C2:2F9A"
+count = 4
+
+# C2:31EF, table C2:31F2: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:31FA.
+[[jumptable]]
+at = "C2:31EF"
+count = 4
+
+# C2:3221, table C2:3224: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:322C.
+[[jumptable]]
+at = "C2:3221"
+count = 4
+
+# C2:3272, table C2:3275: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:3279.
+[[jumptable]]
+at = "C2:3272"
+count = 2
+
+# C2:337B, table C2:337E: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:338E.
+[[jumptable]]
+at = "C2:337B"
+count = 8
+
+# C2:342A, table C2:342D: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:3439.
+[[jumptable]]
+at = "C2:342A"
+count = 6
+
+# C2:345A, table C2:345D: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to code at C2:346D.
+[[jumptable]]
+at = "C2:345A"
+count = 8
+
+# C2:3490, table C2:3493: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to code at C2:349B.
+[[jumptable]]
+at = "C2:3490"
+count = 4
+
+# C2:34A0, table C2:34A3: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:34AB.
+[[jumptable]]
+at = "C2:34A0"
+count = 4
+
+# C2:37C7, table C2:37CA: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:37D2.
+[[jumptable]]
+at = "C2:37C7"
+count = 4
+
+# C2:3AB7, table C2:3ABA: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:3AC2.
+[[jumptable]]
+at = "C2:3AB7"
+count = 4
+
+# C2:3B0C, table C2:3B0F: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:3B1B.
+[[jumptable]]
+at = "C2:3B0C"
+count = 6
+
+# C2:3B55, table C2:3B58: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to code at C2:3B68.
+[[jumptable]]
+at = "C2:3B55"
+count = 8
+
+# C2:3B71, table C2:3B74: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to code at C2:3B7C.
+[[jumptable]]
+at = "C2:3B71"
+count = 4
+
+# C2:3B81, table C2:3B84: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:3B8C.
+[[jumptable]]
+at = "C2:3B81"
+count = 4
+
+# C2:3FE5, table C2:3FE8: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:3FF0.
+[[jumptable]]
+at = "C2:3FE5"
+count = 4
+
+# C2:42E3, table C2:42E6: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:42F8.
+[[jumptable]]
+at = "C2:42E3"
+count = 9
+
+# C2:4964, table C2:4967: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:496B.
+[[jumptable]]
+at = "C2:4964"
+count = 2
+
+# C2:5634, table C2:5637: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:563F.
+[[jumptable]]
+at = "C2:5634"
+count = 4
+
+# C2:5839, table C2:5842: The table runs up to code at C2:584A (sub_C2584A).
+[[jumptable]]
+at = "C2:5839"
+count = 4
+
+# C2:5900, table C2:5903: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:5945.
+[[jumptable]]
+at = "C2:5900"
+count = 33
+
+# C2:5A87, table C2:5A8A: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:5A8E.
+[[jumptable]]
+at = "C2:5A87"
+count = 2
+
+# C2:5C25, table C2:5C28: A is built from 0 by setting only bits 0 and 1 (the
+# two ORA in the preceding lines), so 0-3; the table runs up to its first
+# handler at C2:5C30.
+[[jumptable]]
+at = "C2:5C25"
+count = 4
+
+# C2:5C5E, table C2:5C61: A is built from 0 by setting only bits 0 and 1 (the
+# two ORA in the preceding lines), so 0-3; the table runs up to its first
+# handler at C2:5C69.
+[[jumptable]]
+at = "C2:5C5E"
+count = 4
+
+# C2:5CA7, table C2:5CAA: A is built from 0 by setting only bits 0 and 1 (the
+# two ORA in the preceding lines), so 0-3; the table runs up to its first
+# handler at C2:5CB2.
+[[jumptable]]
+at = "C2:5CA7"
+count = 4
+
+# C2:5EAC, table C2:5EAF: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:5EBF.
+[[jumptable]]
+at = "C2:5EAC"
+count = 8
+
+# C2:5F7D, table C2:5F80: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:5F90.
+[[jumptable]]
+at = "C2:5F7D"
+count = 8
+
+# C2:6672, table C2:6675: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:667D.
+[[jumptable]]
+at = "C2:6672"
+count = 4
+
+# C2:6ACE, table C2:6AD1: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:6AD7.
+[[jumptable]]
+at = "C2:6ACE"
+count = 3
+
+# C2:7149, table C2:714C: JMP (table,X) directly followed by its table; the
+# index is a state byte. The table runs up to its first handler at C2:7156.
+[[jumptable]]
+at = "C2:7149"
+count = 5
+
+# C2:8C4A, table C2:8C5B: The table runs up to its first handler at C2:8C75.
+[[jumptable]]
+at = "C2:8C4A"
+count = 13
+
+# C2:91B4, table C2:91DB: The index is masked to 0-7 (C2:91B0): 8 entries, up to
+# its first handler at C2:91EB.
+[[jumptable]]
+at = "C2:91B4"
+count = 8
+
+# C2:9269, table C2:926E: The table runs up to its first handler at C2:9276.
+[[jumptable]]
+at = "C2:9269"
+count = 4
+
+# C2:9B5D, table C2:9B65: The table runs up to code at C2:9B71.
+[[jumptable]]
+at = "C2:9B5D"
+count = 6
+
+# C2:9B77, table C2:9B83: The table runs up to code at C2:9B8F.
+[[jumptable]]
+at = "C2:9B77"
+count = 6
+
+# C2:B0E9, table C2:B0EE: The table runs up to code at C2:B0FA (sub_C2B0FA,
+# called just before).
+[[jumptable]]
+at = "C2:B0E9"
+count = 6
+
+# C2:B138, table C2:B141: X counts from 0 and stops at 3 at most (C2:B12A-B133):
+# 4 entries, up to its first handler at C2:B149.
+[[jumptable]]
+at = "C2:B138"
+count = 4
+
+# C2:C9F7, table C2:CA63: X is A masked with 2, so 0 or 2: 2 entries.
+[[jumptable]]
+at = "C2:C9F7"
+count = 2
+
+# C2:E27D, table C2:E298: Negative values branch away; the table runs up to its
+# first handler at C2:E2A0.
+[[jumptable]]
+at = "C2:E27D"
+count = 4
+
+# C2:EA17, table C2:EA1F: The table runs up to code at C2:EA27 (sub_C2EA27).
+[[jumptable]]
+at = "C2:EA17"
+count = 4
+
+# C2:F6AF, table C2:F6D8: The table runs up to code at C2:F6E0.
+[[jumptable]]
+at = "C2:F6AF"
+count = 4
+
+# C3:0B71, table C3:0B74: The index is masked to 0-15 (C3:0B6C): 16 entries.
+[[jumptable]]
+at = "C3:0B71"
+count = 16
+
+# C6:E7B7, table C6:E7BA: The table runs up to its first handler at C6:E7CA.
+[[jumptable]]
+at = "C6:E7B7"
+count = 8
+
+# CD:06B9, table CD:06BC: The table runs up to its first handler at CD:06C4.
+[[jumptable]]
+at = "CD:06B9"
+count = 4
+
+# CD:0C99, table CD:0C83: The table sits before the dispatcher and runs up to
+# code at CD:0C89.
+[[jumptable]]
+at = "CD:0C99"
+count = 3
+
+# CD:120A, table CD:1219: The index is masked to 0, 2, 4 or 6 before TAX: 4
+# entries.
+[[jumptable]]
+at = "CD:120A"
+count = 4
+
+# CD:13B9, table CD:13E6: The index is masked to 0, 2, 4 or 6 before TAX: 4
+# entries.
+[[jumptable]]
+at = "CD:13B9"
+count = 4
+
+# CD:13D1, table CD:13D4: The index is masked to 0, 2, 4 or 6 before TAX: 4
+# entries.
+[[jumptable]]
+at = "CD:13D1"
+count = 4
+
+# CD:16AF, table CD:16B5: The table runs up to its first handler at CD:17A9.
+[[jumptable]]
+at = "CD:16AF"
+count = 122
+
+# CD:295E, table CD:2961: The table runs up to its first handler at CD:2969.
+[[jumptable]]
+at = "CD:295E"
+count = 4
+
+# CD:299F, table CD:29A2: The table runs up to its first handler at CD:29AA.
+[[jumptable]]
+at = "CD:299F"
+count = 4
+
+# CD:2A4E, table CD:2A51: The table runs up to its first handler at CD:2A8B.
+[[jumptable]]
+at = "CD:2A4E"
+count = 29
+
+# CD:2DE7, table CD:2DEA: The index is the top three bits of the byte, shifted
+# down to 0-14: 8 entries.
+[[jumptable]]
+at = "CD:2DE7"
+count = 8
+
+# CD:319A, table CD:319E: The table runs up to code at CD:31AA (sub_CD31AA). The
+# heuristic stopped at 5.
+[[jumptable]]
+at = "CD:319A"
+count = 6
+
+# CF:EFE6, table CF:F01E: The table runs up to its first handler at CF:F03E. The
+# heuristic stopped at 8; the calls files show entry 14 called.
+[[jumptable]]
+at = "CF:EFE6"
+count = 16
+
+# CF:F016, table CF:F02E: The second half of the CF:F01E list: it runs up to
+# code at CF:F03E.
+[[jumptable]]
+at = "CF:F016"
+count = 8
+
+# D1:F682, table D1:F686: The table runs up to its first handler at D1:F692 (the
+# mask would allow 16 values; only 6 entries exist).
+[[jumptable]]
+at = "D1:F682"
+count = 6
+
+# D1:FBCE, table D1:FBD2: The table runs up to its first handler at D1:FBDA.
+[[jumptable]]
+at = "D1:FBCE"
+count = 4
+
+# FD:C2CB, table FD:C2E5: The table runs up to code at FD:C2EB.
+[[jumptable]]
+at = "FD:C2CB"
+count = 3
+
+# FD:C2D7, table FD:C2DF: The table ends where the FD:C2E5 table (FD:C2CB)
+# begins.
+[[jumptable]]
+at = "FD:C2D7"
+count = 3
+
+# ==============================================================================
+# MD1: call returns and widths
+# ==============================================================================
+# The analysis follows every static return (coverage no longer prunes them).
+# These hints decide the returns where following the static widths is wrong.
+
+# sub_C07199, and sub_C07212 / sub_C07217 which enter it at C0:719B: the path
+# through C0:71ED sets M=16 (C0:71F2) and, when the compare at C0:71F9 differs,
+# leaves through the CLC/RTS at C0:71EB still in 16-bit mode. The only caller is
+# the dispatch at C0:717D, whose RTS returns to 8-bit object code: followed with
+# M=16 that code decodes into length conflicts and COP operands (C0:6FBF,
+# C0:B0F8, C0:B299, C0:B706 ...), and the movies never ran C0:7180 with M=16.
+# The 16-bit exit is taken as not happening: these return 8-bit.
+[[returns]]
+addr = "C0:7199"
+m = 8
+x = 8
+
+[[returns]]
+addr = "C0:7212"
+m = 8
+x = 8
+
+[[returns]]
+addr = "C0:7217"
+m = 8
+x = 8
+
+# sub_C30011 jumps to C3:0EFA, which pushes D, DB and P and starts a chain of
+# JSR $0F83 blocks through JMP ($03F0) (see the C3:0F32 hint). sub_C30F83 counts
+# its calls in $F4; on the fourth it discards its own return address (PLA at
+# C3:0FA5) and finishes the whole operation, ending in the pulls and RTL of
+# C3:10BA, so the RTL returns to sub_C30011's caller with the P pushed at
+# C3:0EFC: the caller's widths. The tracer attributes that return to
+# sub_C30F83, so it never sees sub_C30011 return.
+[[returns]]
+addr = "C3:0011"
+
+# Calls that never return. Each resets the stack or loops forever:
+# C0:5F6E loads a colour into X and branches to C0:2E1E, which blanks the
+# screen, points both RAM vectors at RTI and ends in BRA to itself (C0:2E65).
+# Unused event command table entries point here.
+[[noreturn]]
+addr = "C0:5F6E"
+
+# C0:260E and C0:4181 set S to $06FF (C0:2643-2646, C0:4189-418C) and jump to
+# C3:0000 and FD:C000, the mode loaders.
+[[noreturn]]
+addr = "C0:260E"
+
+[[noreturn]]
+addr = "C0:4181"
+
+# C0:3B4B (and C0:3B98, which branches to it) sets S to $06FF at C0:3B91 and
+# branches to C0:0000.
+[[noreturn]]
+addr = "C0:3B4B"
+
+[[noreturn]]
+addr = "C0:3B98"
+
+# The RAM vector stubs at $00:0500/$00:0504 jump to these handlers from
+# whatever code the interrupt stopped, so they are entered with any widths
+# (coverage has C0:EA63, C0:ECCC and C2:015E entered with three or four of the
+# combinations). Each first sets A and X to 16 bits, before anything width-dependent.
+# These entries add the unknown-width context next to the m8 x16 ones above.
+[[entry]]
+addr = "C0:EA63"
+kind = "vector"
+
+[[entry]]
+addr = "C0:ECCC"
+kind = "vector"
+
+[[entry]]
+addr = "C2:015E"
+kind = "vector"
+
+[[entry]]
+addr = "C2:0345"
+kind = "vector"
+
+[[entry]]
+addr = "C3:0548"
+kind = "vector"
+
+[[entry]]
+addr = "C3:0529"
+kind = "vector"
+
+[[entry]]
+addr = "FD:DE15"
+kind = "vector"
+
+[[entry]]
+addr = "FD:DE87"
+kind = "vector"
+
+# C2:EFD3 is the RTS the PER at C2:EFCD makes every text control code handler
+# return to. The handlers at C2:F022, F068, F071, F08D, F0A2, F0B8 and F0D1
+# return with M=8 (their RTS runs m8 x16), so the RTS also runs m8 x16.
+[[entry]]
+addr = "C2:EFD3"
+m = 8
+x = 16
+
+# C2:8C52 runs with both widths (coverage: m8 x8 and m16 x16). The handlers of
+# the C2:8C5B table return 8-bit or 16-bit (C2:8D05, C2:8D45 and C2:8D8F leave
+# M and X 16-bit). With M=8 the bytes are a 2-byte LDA immediate and an XBA;
+# with M=16 a 3-byte LDA immediate that swallows the XBA and continues at
+# C2:8C55. Either way the high byte of A ends up zero before the PLP at C2:8C57
+# restores the caller's widths. The source writes the 8-bit decode.
+[[overlap]]
+addr = "C2:8C52"
+m = 8
+x = 8
+
+# ==============================================================================
+# MD1: code run from RAM
+# ==============================================================================
+# [[ramcode]] name, base, source, format = lz | copy | writes, [size], [end, m, x]
+# (docs/DISASSEMBLY.md). The analysis traces these images at their run address.
+
+# The attract, title and jet bike race program. C3:0056-0073 loads the low
+# word of the resource pointer at FE:0003 as the source offset in bank C3,
+# decompresses to $7E:3000 and jumps there. The resource table at FE:0000 holds
+# 24-bit stream pointers the program also loads by index (sub_7E3691).
+# The output is 34175 bytes; the section stops at $7E:B574, where C3:09E9
+# (called with the WRAM port set to $7E:B574, e.g. from $7E:3CEF) writes
+# generated instructions over the end of the image at run time.
+[[ramcode]]
+name = "attract_program"
+base = "7E:3000"
+source = "C3:1313"
+format = "lz"
+size = 0x8574
+
+# The block move stub the menu and FF code call. C2:8635-863E stores MVN with
+# both banks $7E and then RTL; the callers patch the bank bytes before other
+# calls (see the returns hint on 7E:9690).
+[[ramcode]]
+name = "mvn_stub"
+over = "attract_program"
+base = "7E:9690"
+source = "C2:8635"
+end = "C2:863E"
+m = 16
+x = 16
+format = "writes"
+size = 4
+
+# JML stubs for NMI and IRQ at $00:0500 and $00:0504, as each mode's installer
+# writes them (the targets are entries elsewhere in this file).
+[[ramcode]]
+name = "vectors_c3"
+base = "00:0500"
+source = "C3:0016"
+end = "C3:002F"
+m = 8
+x = 16
+format = "writes"
+size = 8
+
+[[ramcode]]
+name = "vectors_c2"
+base = "00:0500"
+source = "C2:8406"
+format = "copy"
+size = 8
+
+# $7E:3000 dispatches on the mode in $0384 masked to 0-31 (AND at $7E:3006);
+# the table at $7E:3043 runs up to its first handler, sub_7E3063 at $7E:3063,
+# so 16 entries.
+[[jumptable]]
+at = "7E:300A"
+count = 16
+
+# Task lists in work RAM: $7E:39CF calls through the words at $0940,X and
+# $7E:3998 through $0950,X, $7E:37F6 through the word at $00F0 (X = 0, the word
+# stored at C3:0C55 from script data). The tables are filled at run time, so
+# none of them has static entries; the targets are the ones the calls files
+# show called from each site. Only what runs in the movies.
+[[jumptable]]
+at = "7E:39CF"
+count = 0
+targets = ["7E:380B", "7E:3843", "7E:388B", "7E:43F2", "7E:449C", "7E:44FE", "7E:4643", "7E:464D",
+           "7E:5221", "7E:5C57", "7E:6212"]
+
+[[jumptable]]
+at = "7E:3998"
+count = 0
+targets = ["7E:347A", "7E:3495", "7E:34AB", "7E:34C2", "7E:3749", "7E:3754", "7E:37FA", "7E:428B",
+           "7E:42BD", "7E:42CE", "7E:4339", "7E:4447", "7E:44CE", "7E:485D", "7E:4D0D", "7E:4F54",
+           "7E:5B99", "7E:5BBF", "7E:5BCF", "7E:5C98", "7E:5D01", "7E:5D20", "7E:5D32", "7E:5D71",
+           "7E:5E1E", "7E:5FFE"]
+
+[[jumptable]]
+at = "7E:37F6"
+count = 0
+targets = ["7E:3F59", "7E:5DA7", "7E:5DB4", "7E:5DE9"]
+
+# $7E:B574 is written at run time by C3:09E9, which emits only LDA immediate,
+# TCD, LDA absolute and STA direct page instructions and ends them with an RTS
+# (C3:0A22-0A8A). None of those changes the width bits, so the routine returns
+# with its caller's widths. (The instructions themselves aren't a section yet.)
+[[returns]]
+addr = "7E:B574"
+
+# Calls whose operand the program writes at run time. The operand of the JSR at
+# $7E:3023 (the attract main loop's per-frame call, an RTS at $7E:3176 in the
+# image) is stored at $7E:3CE4 and $7E:70D7; that of the JSR at $7E:35FC at
+# $7E:3CDE and $7E:86EC. Those are the only stores to the operand bytes in the
+# program, each of a constant. Complete for this program.
+[[indirect]]
+at = "7E:3023"
+targets = ["7E:3176", "7E:51D1", "7E:7441"]
+
+[[indirect]]
+at = "7E:35FC"
+targets = ["7E:45B0", "7E:9B46"]
+
+# Task handlers of the attract program that never return: each ends in a JMP
+# to the task lists' exit code ($7E:34BF to $7E:39B1, $7E:34E0 to $7E:39A7,
+# $7E:4674 to $7E:39DE), which pulls and drops the handler's return address
+# before continuing the task loop.
+[[noreturn]]
+addr = "7E:34AB"
+
+[[noreturn]]
+addr = "7E:4643"
+
+[[noreturn]]
+addr = "7E:464D"
+
+# The task loops continue at $7E:399F and $7E:39D6 after a PLP that pulls the P
+# pushed at $7E:3996 or $7E:39CA, whether the handler returned normally or left
+# through the exit code. That P has 16-bit A and X: each loop starts with
+# a REP making A 16-bit ($7E:398A, $7E:39BE) and a 3-byte LDX immediate ($7E:398C,
+# $7E:39C0).
+[[state]]
+addr = "7E:399F"
+m = 16
+x = 16
+
+[[state]]
+addr = "7E:39D6"
+m = 16
+x = 16
+
+[[ramcode]]
+name = "vectors_c2_boot"
+base = "00:0500"
+source = "C2:0110"
+end = "C2:012B"
+m = 8
+x = 16
+format = "writes"
+size = 8
+
+[[ramcode]]
+name = "vectors_fd"
+base = "00:0500"
+source = "FD:EAF4"
+end = "FD:EB0F"
+m = 8
+x = 16
+format = "writes"
+size = 8
+
+[[ramcode]]
+name = "vectors_d1"
+base = "00:0500"
+source = "D1:F1B9"
+end = "D1:F1D4"
+m = 8
+x = 16
+format = "writes"
+size = 8
+
+# C0:0B64 and C0:0B75 install the field handlers one vector at a time.
+[[ramcode]]
+name = "vector_c0_nmi"
+base = "00:0500"
+source = "C0:0B64"
+end = "C0:0B71"
+m = 8
+x = 16
+format = "writes"
+size = 4
+
+[[ramcode]]
+name = "vector_c0_irq"
+base = "00:0504"
+source = "C0:0B75"
+end = "C0:0B82"
+m = 8
+x = 16
+format = "writes"
+size = 4
+
+# More NMI/IRQ handlers, entered through the $00:0500/$00:0504 stubs with any
+# widths: C2:840E and C2:8472 (the stubs C2:809C copies from C2:8406),
+# C3:08C9 (installed at C3:08DF) and C3:08B3 (at C3:093E), D1:E77C and D1:FE97
+# (at D1:F1C3-F1CC), D1:F4C0 (at CD:041D). C2:8472 and C3:08C9 are empty
+# handlers nothing else reaches.
+[[entry]]
+addr = "C2:840E"
+kind = "vector"
+
+[[entry]]
+addr = "C2:8472"
+kind = "vector"
+
+[[entry]]
+addr = "C3:08C9"
+kind = "vector"
+
+[[entry]]
+addr = "C3:08B3"
+kind = "vector"
+
+[[entry]]
+addr = "D1:E77C"
+kind = "vector"
+
+[[entry]]
+addr = "D1:FE97"
+kind = "vector"
+
+[[entry]]
+addr = "D1:F4C0"
+kind = "vector"
+
+# ------------------------------------------------------------------------------
+# MD1: code nothing found reaches
+# ------------------------------------------------------------------------------
+# Each entry below starts bytes that sit between known code, decode completely
+# as instructions with the widths of the code around them, call or jump only to
+# known code or within themselves, and that nothing the analysis found runs or
+# reads. Unreachable as far as known (or reached through data the analysis
+# doesn't follow); kept as code. kind = "unreached".
+
+# C0:54B0-54B5.
+[[entry]]
+addr = "C0:54B0"
+m = 8
+x = 16
+kind = "unreached"
+
+# C0:A942-A946.
+[[entry]]
+addr = "C0:A942"
+m = 8
+x = 8
+kind = "unreached"
+
+# C0:AF30-AF4D.
+[[entry]]
+addr = "C0:AF30"
+m = 8
+x = 8
+kind = "unreached"
+[[entry]]
+addr = "C0:AF49"
+m = 8
+x = 8
+kind = "unreached"
+
+# C0:ED14-ED14.
+[[entry]]
+addr = "C0:ED14"
+m = 16
+x = 16
+kind = "unreached"
+
+# C1:0015-0017: a slot of the jump list at C1:0000 that no known code calls.
+[[entry]]
+addr = "C1:0015"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:0BB5-0BB5.
+[[entry]]
+addr = "C1:0BB5"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:2328-2328.
+[[entry]]
+addr = "C1:2328"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:2F1F-2F21.
+[[entry]]
+addr = "C1:2F1F"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:4EF6-4EF6.
+[[entry]]
+addr = "C1:4EF6"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:5F57-5F58.
+[[entry]]
+addr = "C1:5F57"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:5F88-5F89.
+[[entry]]
+addr = "C1:5F88"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:6C44-6C45.
+[[entry]]
+addr = "C1:6C44"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:995F-995F.
+[[entry]]
+addr = "C1:995F"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:AE0D-AE12.
+[[entry]]
+addr = "C1:AE0D"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:AED3-AEFC.
+[[entry]]
+addr = "C1:AED3"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:AEF1"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:B70D-B70D.
+[[entry]]
+addr = "C1:B70D"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:BC62-BCDF.
+[[entry]]
+addr = "C1:BC62"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:BC9F"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:BF81-BFA3.
+[[entry]]
+addr = "C1:BF81"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:C09A-C1B1.
+[[entry]]
+addr = "C1:C09A"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:C0DC"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:C119"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:C150"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:C182"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:C731-C731.
+[[entry]]
+addr = "C1:C731"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:CE36-CE39.
+[[entry]]
+addr = "C1:CE36"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:CF51-CF68.
+[[entry]]
+addr = "C1:CF51"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:CF52"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:CF5F"
+m = 16
+x = 16
+kind = "unreached"
+
+# C1:CFBE-CFC1.
+[[entry]]
+addr = "C1:CFBE"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:D1A0-D1A3.
+[[entry]]
+addr = "C1:D1A0"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:D1CF-D1D2.
+[[entry]]
+addr = "C1:D1CF"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:D507-D507.
+[[entry]]
+addr = "C1:D507"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:E07B-E09D.
+[[entry]]
+addr = "C1:E07B"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:E08D"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:E895-E89A.
+[[entry]]
+addr = "C1:E895"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:E8E1-E8E1.
+[[entry]]
+addr = "C1:E8E1"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:EA9C-EA9C.
+[[entry]]
+addr = "C1:EA9C"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:EB49-EB67.
+[[entry]]
+addr = "C1:EB49"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:EFD3-F035.
+[[entry]]
+addr = "C1:EFD3"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:F007"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C1:F026"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:F9EA-F9EA.
+[[entry]]
+addr = "C1:F9EA"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:0006-0008: a slot of the jump list at C2:0000 that no known code calls.
+[[entry]]
+addr = "C2:0006"
+m = 16
+x = 16
+kind = "unreached"
+
+# C2:000C-000E: a slot of the jump list at C2:0000 that no known code calls.
+[[entry]]
+addr = "C2:000C"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:2273-232C.
+[[entry]]
+addr = "C2:2273"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:2291"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:2295"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:2299"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:229D"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:2315"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:2318"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:2323"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:232A"
+m = 16
+x = 16
+kind = "unreached"
+
+# C2:48E8-4916.
+[[entry]]
+addr = "C2:48E8"
+m = 16
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:4915"
+m = 16
+x = 16
+kind = "unreached"
+
+# C2:6291-62AD.
+[[entry]]
+addr = "C2:6291"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:8A96-8A97.
+[[entry]]
+addr = "C2:8A96"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:E97C-E983.
+[[entry]]
+addr = "C2:E97C"
+m = 16
+x = 16
+kind = "unreached"
+
+# C2:EAD6-EAF8.
+[[entry]]
+addr = "C2:EAD6"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:EAE7"
+m = 8
+x = 8
+kind = "unreached"
+
+# C2:F362-F363.
+[[entry]]
+addr = "C2:F362"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:F6F5-F6F6.
+[[entry]]
+addr = "C2:F6F5"
+m = 8
+x = 8
+kind = "unreached"
+
+# C3:0945-094B: an empty IRQ handler (acknowledges $4211 and returns).
+[[entry]]
+addr = "C3:0945"
+m = 8
+x = 16
+kind = "unreached"
+
+# C3:0BEF-0C18.
+[[entry]]
+addr = "C3:0BEF"
+m = 8
+x = 16
+kind = "unreached"
+
+# C3:0DF3-0E28.
+[[entry]]
+addr = "C3:0DF3"
+m = 16
+x = 16
+kind = "unreached"
+
+# C6:E77F-E796: a routine ending in RTL, like the object script JSL target C6:E237.
+[[entry]]
+addr = "C6:E77F"
+m = 8
+x = 16
+kind = "unreached"
+
+# C7:0003-0003: the byte after the first jump of the list at C7:0000.
+[[entry]]
+addr = "C7:0003"
+m = 8
+x = 16
+kind = "unreached"
+
+# CC:E290-E2E3.
+[[entry]]
+addr = "CC:E290"
+m = 8
+x = 16
+kind = "unreached"
+
+# CD:000F-0011: a slot of the jump list at CD:0000 that no known code calls.
+[[entry]]
+addr = "CD:000F"
+m = 8
+x = 16
+kind = "unreached"
+
+# CD:0215-0234.
+[[entry]]
+addr = "CD:0215"
+m = 8
+x = 16
+kind = "unreached"
+
+# CD:3E21-3E3A.
+[[entry]]
+addr = "CD:3E21"
+m = 8
+x = 8
+kind = "unreached"
+
+# CE:E1C7-E292.
+[[entry]]
+addr = "CE:E1C7"
+m = 8
+x = 16
+kind = "unreached"
+
+# CF:F9F7-F9FA.
+[[entry]]
+addr = "CF:F9F7"
+m = 8
+x = 16
+kind = "unreached"
+
+# FD:AF8B-AFD6.
+[[entry]]
+addr = "FD:AF8B"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "FD:AFBB"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "FD:AFC9"
+m = 8
+x = 16
+kind = "unreached"
+
+# FD:B67F-B6CA.
+[[entry]]
+addr = "FD:B67F"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "FD:B6AF"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "FD:B6BD"
+m = 8
+x = 16
+kind = "unreached"
+
+# FD:DD1D-DD64.
+[[entry]]
+addr = "FD:DD1D"
+m = 8
+x = 16
+kind = "unreached"
+
+# CD:001E: a slot of the jump list at CD:0000 that no known code calls; it jumps to CD:0215.
+[[entry]]
+addr = "CD:001E"
+m = 8
+x = 16
+kind = "unreached"
+# C2:77F2: an object handler (the slot in X from $4E, fields at $0002,X on)
+# ending in CLC/RTS like the known handlers; nothing found spawns it (object
+# script command $35 names handlers in script data).
+[[entry]]
+addr = "C2:77F2"
+m = 8
+x = 16
+kind = "unreached"
+
+# C6:E241: sets up an HDMA channel ($4310-$4317 writes) and returns with RTL,
+# like the object script JSL target C6:E237 just before it.
+[[entry]]
+addr = "C6:E241"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:78E3-7B59 and C6:E2AF-E4A6: runs of routines, each ending in RTS or RTL,
+# that call known code (object handler helpers and HDMA setup in the style of
+# C6:E237/C6:E241) and that nothing found reaches. An entry at each routine
+# start that follows a return; the tracer finds the rest.
+[[entry]]
+addr = "C2:78E3"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7957"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7981"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:79C8"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:79E0"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7A0C"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7A31"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7A56"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7AAF"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7ADA"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7AEB"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7AFC"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7B20"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7B44"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C2:7B4F"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E2AF"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E2B5"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E318"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E340"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E368"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E448"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E470"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E498"
+m = 8
+x = 16
+kind = "unreached"
+# C6:E391, C6:E4BE, C6:E568: more routines of the same run (each starts with
+# a REP making A 16-bit and uses the slot in $4E or the HDMA tables at $7E:8A21), after a
+# BRA or an RTL; nothing found reaches them.
+[[entry]]
+addr = "C6:E391"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E4BE"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E568"
+m = 8
+x = 16
+kind = "unreached"
+# C6:E583, C6:E590, C6:E595, C6:E5C5: the next routines of that run, each after
+# a return.
+[[entry]]
+addr = "C6:E583"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E590"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E595"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E5C5"
+m = 8
+x = 16
+kind = "unreached"
+# C6:E63D-E74D: short routines ending in RTL after that run, each after a return.
+[[entry]]
+addr = "C6:E63D"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E644"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E64A"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E66F"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E694"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "C6:E6D0"
+m = 8
+x = 16
+kind = "unreached"
+
+# C6:E90F, FF:FF3E: routines after a return (an HDMA setup like C6:E241, and a
+# routine with a jump table that sends sound commands) inside bytes the census
+# scan found code-shaped; nothing found reaches them.
+[[entry]]
+addr = "C6:E90F"
+m = 8
+x = 16
+kind = "unreached"
+[[entry]]
+addr = "FF:FF3E"
+m = 8
+x = 16
+kind = "unreached"
+
+# C6:EB18 (in the C6:E90F code), table C6:EB1B: the index is $10 doubled, with
+# no guard; the first four words point at the handlers that follow the table
+# (C6:EB3B-EC7C), the words after them into the first half of the bank, far
+# below any code, so 4 entries.
+[[jumptable]]
+at = "C6:EB18"
+count = 4
+
+# FF:FF4B (in the FF:FF3E code), table FF:FFE2: runs up to its first handler at
+# FF:FFEA, 4 entries.
+[[jumptable]]
+at = "FF:FF4B"
+count = 4
+
+# ------------------------------------------------------------------------------
+# MD1: data in the banks with code
+# ------------------------------------------------------------------------------
+# Every byte between instructions in C0-C3, C6, C7, CC-CF, D1, FD and FF has a
+# [[data]] hint (start, end inclusive, type; docs/DISASSEMBLY.md) or is a jump
+# table. The comment says what the bounds rest on: a reader (long indexed
+# operands name a table; an immediate names an address passed on), code on both
+# sides, or the census composition for large regions typed `mixed` (MD2 work).
+
+# C0:5D37-5D6D: its address is loaded as an immediate at C0:5CEE, C0:5CFC,
+# C0:5D0A and 2 more.
+[[data]]
+start = "C0:5D37"
+end = "C0:5D6D"
+type = "bytes"
+
+# C0:6EA0-6EAF: read by the absolute indexed LDA at C0:6E6A in the routine
+# before it (its data bank is its program bank); it runs up to code at C0:6EB0.
+[[data]]
+start = "C0:6EA0"
+end = "C0:6EAF"
+type = "bytes"
+
+# C0:8922-8923: a 17th word after the 16 entries of the C0:8902 table (C0:88FC
+# masks the index to 0-15), pointing at the same first handler; nothing reads
+# it.
+[[data]]
+start = "C0:8922"
+end = "C0:8923"
+type = "ptr16"
+
+# C0:9BF5-9C36: read by the long indexed operands at C0:9AF9, C0:9B08, C0:9B14
+# and 2 more, at offsets 0, 22, 44.
+[[data]]
+start = "C0:9BF5"
+end = "C0:9C36"
+type = "bytes"
+
+# C0:A077-A078: one word after the 64 entries of the C0:9FF7 table (the
+# dispatchers mask the index to even values below 128); nothing reads it.
+[[data]]
+start = "C0:A077"
+end = "C0:A078"
+type = "ptr16"
+
+# C0:F170-FEFF (3472 bytes): tables read through 86 long and absolute operands
+# in C0, C1, CE, CF and FD (the most named addresses are C0:F300, C0:F700,
+# C0:F900, C0:FD00, C0:FE00); not split yet. Census: 1969 unknown, 964 16-bit
+# code-ptr tables, 370 16-bit offset tables, 169 padding.
+[[data]]
+start = "C0:F170"
+end = "C0:FEFF"
+type = "mixed"
+
+# C0:FF07-FF0F: one fill value; nothing found reads it.
+[[data]]
+start = "C0:FF07"
+end = "C0:FF0F"
+type = "padding"
+
+# C0:FF18-FFAF: tables read through long operands in FD (FD:C5F3 and others) and
+# absolute ones in C0 (C0:6B83 and others).
+[[data]]
+start = "C0:FF18"
+end = "C0:FFAF"
+type = "bytes"
+
+# C0:FFB0-FFFF: the cartridge header and the interrupt vectors.
+[[data]]
+start = "C0:FFB0"
+end = "C0:FFFF"
+type = "header"
+
+# C1:15B6-15C7: whole instructions the BRA at C1:15B4 skips; nothing branches
+# into them. Kept as code.
+[[entry]]
+addr = "C1:15B6"
+m = 8
+x = 16
+kind = "unreached"
+
+# C1:7C21-7C2A: five more words of the C1:7A6B table, for command bytes $DB-$DF,
+# which C1:4CC9 sends elsewhere; nothing reads them.
+[[data]]
+start = "C1:7C21"
+end = "C1:7C2A"
+type = "ptr16"
+
+# C1:7C3D-7FFF (963 bytes): no reader found; not code. Census: 699 unknown, 214
+# 16-bit code-ptr tables, 50 16-bit offset tables.
+[[data]]
+start = "C1:7C3D"
+end = "C1:7FFF"
+type = "undetermined"
+
+# C1:B947-B960: read by the long indexed operands at C1:82C5.
+[[data]]
+start = "C1:B947"
+end = "C1:B960"
+type = "words"
+
+# C1:FDD3-FFFF (557 bytes): to the end of the bank; the last byte is read at
+# C1:8345, the rest has no reader found. Census: 431 unknown, 126 16-bit code-
+# ptr tables.
+[[data]]
+start = "C1:FDD3"
+end = "C1:FFFF"
+type = "mixed"
+
+# C2:0556-0567: read by the long indexed operands at C2:0576, C2:057C, C2:0582
+# and 7 more, at offsets 0, 6, 12.
+[[data]]
+start = "C2:0556"
+end = "C2:0567"
+type = "words"
+
+# C2:0E0D-0E1C: read by the long indexed operands at C2:0DED.
+[[data]]
+start = "C2:0E0D"
+end = "C2:0E1C"
+type = "bytes"
+
+# C2:2062-20A1: read by the long indexed operands at C2:1FD6, C2:1FE7, C2:1FFD
+# and 3 more.
+[[data]]
+start = "C2:2062"
+end = "C2:20A1"
+type = "bytes"
+
+# C2:2509-250C: read by the long indexed operands at C2:1157, C2:24CE.
+[[data]]
+start = "C2:2509"
+end = "C2:250C"
+type = "bytes"
+
+# C2:26D4-26D5: its address is loaded as an immediate at C2:26BD.
+[[data]]
+start = "C2:26D4"
+end = "C2:26D5"
+type = "bytes"
+
+# C2:2EC1-2ED8: its address is loaded as an immediate at C2:2456, C2:2524,
+# C2:2568 and 7 more and passed to C2:04D9, C2:8820.
+[[data]]
+start = "C2:2EC1"
+end = "C2:2ED8"
+type = "bytes"
+
+# C2:31A8-31B1: its address is loaded as an immediate at C2:3151 and passed to
+# C2:04D9.
+[[data]]
+start = "C2:31A8"
+end = "C2:31B1"
+type = "script"
+format = "object"
+
+# C2:324C-3263: its address is loaded as an immediate at C2:30E6, C2:310D,
+# C2:3172 and 1 more and passed to C2:2345, C2:F114.
+[[data]]
+start = "C2:324C"
+end = "C2:3263"
+type = "bytes"
+
+# C2:397F-3986: read by the long indexed operands at C2:3967.
+[[data]]
+start = "C2:397F"
+end = "C2:3986"
+type = "bytes"
+
+# C2:39AA-39AD: read by the long indexed operands at C2:3992.
+[[data]]
+start = "C2:39AA"
+end = "C2:39AD"
+type = "bytes"
+
+# C2:4012-4031: an object handler shape (slot from $4E, fields at $002E,X and
+# $0030,X) ending in a return; nothing found reaches it. Kept as code.
+[[entry]]
+addr = "C2:4012"
+m = 16
+x = 16
+kind = "unreached"
+
+# C2:4899-48A8: read by the long indexed operands at C2:4628, C2:462F, at
+# offsets 0, 2.
+[[data]]
+start = "C2:4899"
+end = "C2:48A8"
+type = "words"
+
+# C2:48C5-48CC: read by the long indexed operands at C2:48B7, C2:48BE, at
+# offsets 0, 4.
+[[data]]
+start = "C2:48C5"
+end = "C2:48CC"
+type = "bytes"
+
+# C2:4946-495D: its address is loaded as an immediate at C2:454D, C2:4903,
+# C2:4932 and 2 more and passed to C2:2345, C2:4917.
+[[data]]
+start = "C2:4946"
+end = "C2:495D"
+type = "bytes"
+
+# C2:4A9B-5627 (2957 bytes): object script data: C2:4476 and C2:4529 pass
+# addresses in it to sub_C204D9, which starts an object with a script; the code-
+# shaped runs in it (C2:4D07-55DA) are script commands naming routines. Census:
+# 2195 unknown, 762 16-bit code-ptr tables.
+[[data]]
+start = "C2:4A9B"
+end = "C2:5627"
+type = "script"
+
+# C2:57B0-57DE: read by the long indexed operands at C2:5777, C2:577F, at
+# offsets 18, 20.
+[[data]]
+start = "C2:57B0"
+end = "C2:57DE"
+type = "bytes"
+
+# C2:5D03-5D22: read by the long indexed operands at C2:5CCB, C2:5CEA.
+[[data]]
+start = "C2:5D03"
+end = "C2:5D22"
+type = "words"
+
+# C2:5FD8-614A: read by the long indexed operands at C2:5A2E, C2:5B1D, C2:5B7D
+# and 1 more, at offsets 0, 270.
+[[data]]
+start = "C2:5FD8"
+end = "C2:614A"
+type = "bytes"
+
+# C2:68E4-68F3: read by the long indexed operands at C2:68BF.
+[[data]]
+start = "C2:68E4"
+end = "C2:68F3"
+type = "words"
+
+# C2:69F0-6A33: read by the long indexed operands at C2:6975.
+[[data]]
+start = "C2:69F0"
+end = "C2:6A33"
+type = "words"
+
+# C2:6C97-6CC0: read by the long indexed operands at C2:6B49, C2:6C07, C2:6C6E,
+# at offsets 28.
+[[data]]
+start = "C2:6C97"
+end = "C2:6CC0"
+type = "words"
+
+# C2:6F2D-6F32: read by the long indexed operands at C2:6D4D, C2:6D54.
+[[data]]
+start = "C2:6F2D"
+end = "C2:6F32"
+type = "bytes"
+
+# C2:71DD-71F8: read by the long indexed operands at C2:716C, C2:7173, C2:7193
+# and 1 more, at offsets 0, 1, 14, 15.
+[[data]]
+start = "C2:71DD"
+end = "C2:71F8"
+type = "bytes"
+
+# C2:7220-722B: read by the long indexed operands at C2:7206, C2:720D, at
+# offsets 0, 2.
+[[data]]
+start = "C2:7220"
+end = "C2:722B"
+type = "words"
+
+# C2:72B8-72D7: read by the long indexed operands at C2:725A.
+[[data]]
+start = "C2:72B8"
+end = "C2:72D7"
+type = "words"
+
+# C2:7321-7360: its address is loaded as an immediate at C2:73BC.
+[[data]]
+start = "C2:7321"
+end = "C2:7360"
+type = "bytes"
+
+# C2:74AE-754C: its address is loaded as an immediate at C2:6AA8, C2:741C,
+# C2:7424 and 1 more and passed to C2:04D9.
+[[data]]
+start = "C2:74AE"
+end = "C2:754C"
+type = "script"
+format = "object"
+
+# C2:7849-785F: an object handler shape (slot from $4E) after the C2:77F2
+# handler; nothing found reaches it. Kept as code.
+[[entry]]
+addr = "C2:7849"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:7860: a routine ending in RTS that saves or restores $7E:2980-2982, before
+# the $34 target C2:78A1; nothing found reaches it. Kept as code.
+[[entry]]
+addr = "C2:7860"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:786F: a routine ending in RTS that saves or restores $7E:2980-2982, before
+# the $34 target C2:78A1; nothing found reaches it. Kept as code.
+[[entry]]
+addr = "C2:786F"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:7888: a routine ending in RTS that saves or restores $7E:2980-2982, before
+# the $34 target C2:78A1; nothing found reaches it. Kept as code.
+[[entry]]
+addr = "C2:7888"
+m = 8
+x = 16
+kind = "unreached"
+
+# C2:7BD1-7FFF (1071 bytes): no reader found; 540 bytes of fill at its end.
+# Census: 540 padding, 421 unknown, 98 16-bit code-ptr tables, 12 24-bit ptr
+# tables.
+[[data]]
+start = "C2:7BD1"
+end = "C2:7FFF"
+type = "mixed"
+
+# C2:808F-8095: read by the long indexed operands at C2:8079.
+[[data]]
+start = "C2:808F"
+end = "C2:8095"
+type = "bytes"
+
+# C2:8291: the byte before the menu mode table, which modes 8-10 point at (see
+# the C2:828E hint).
+[[data]]
+start = "C2:8291"
+end = "C2:8291"
+type = "undetermined"
+
+# C2:8292-82B1: the menu mode table, read by the long indexed LDA at C2:827F; 16
+# entries up to code at C2:82B2.
+[[data]]
+start = "C2:8292"
+end = "C2:82B1"
+type = "ptr16"
+
+# C2:8406-840D: the NMI/IRQ stubs C2:809C copies to $00:0500 (the vectors_c2 RAM
+# section).
+[[data]]
+start = "C2:8406"
+end = "C2:840D"
+type = "ram_code"
+
+# C2:84D0-84D1: read by the long indexed operands at C2:84B4.
+[[data]]
+start = "C2:84D0"
+end = "C2:84D1"
+type = "bytes"
+
+# C2:85D0-85D5: read by the long indexed operands at C2:85BE.
+[[data]]
+start = "C2:85D0"
+end = "C2:85D5"
+type = "bytes"
+
+# C2:8771-8790: its address is loaded as an immediate at C2:86E1.
+[[data]]
+start = "C2:8771"
+end = "C2:8790"
+type = "bytes"
+
+# C2:88A7-88AC: read by the long indexed operands at C2:8887, C2:8893, at
+# offsets 0, 1.
+[[data]]
+start = "C2:88A7"
+end = "C2:88AC"
+type = "bytes"
+
+# C2:894F-8952: read by the long indexed operands at C2:8906, C2:8DBC, C2:8DF7.
+[[data]]
+start = "C2:894F"
+end = "C2:8952"
+type = "words"
+
+# C2:89DC-89E3: read by the long indexed operands at C2:895E, C2:8964, at
+# offsets 0, 1.
+[[data]]
+start = "C2:89DC"
+end = "C2:89E3"
+type = "bytes"
+
+# C2:8DDF-8DE2: read by the long indexed operands at C2:8DC9.
+[[data]]
+start = "C2:8DDF"
+end = "C2:8DE2"
+type = "bytes"
+
+# C2:90F8-90FB: read by the long indexed operands at C2:90BE.
+[[data]]
+start = "C2:90F8"
+end = "C2:90FB"
+type = "bytes"
+
+# C2:9510-9511: its address is loaded as an immediate at C2:94E1, C2:952F.
+[[data]]
+start = "C2:9510"
+end = "C2:9511"
+type = "bytes"
+
+# C2:99CA-99CD: the handler table of menu mode 0 (see the C2:828E hint).
+[[data]]
+start = "C2:99CA"
+end = "C2:99CD"
+type = "ptr16"
+
+# C2:9C29-9C30: the handler table of menu mode 1 (see the C2:828E hint).
+[[data]]
+start = "C2:9C29"
+end = "C2:9C30"
+type = "ptr16"
+
+# C2:A2C6-A2CC: read by the long indexed operands at C2:A27C.
+[[data]]
+start = "C2:A2C6"
+end = "C2:A2CC"
+type = "bytes"
+
+# C2:A3BA-A3E1: its address is loaded as an immediate at C2:A39D and passed to
+# C2:EF65.
+[[data]]
+start = "C2:A3BA"
+end = "C2:A3E1"
+type = "script"
+format = "C2:EF65"
+
+# C2:A4AB-A4AE: read by the long indexed operands at C2:A481.
+[[data]]
+start = "C2:A4AB"
+end = "C2:A4AE"
+type = "bytes"
+
+# C2:A642-A64C: read by the long indexed operands at C2:A5FB.
+[[data]]
+start = "C2:A642"
+end = "C2:A64C"
+type = "bytes"
+
+# C2:AA06-AA18: its address is loaded as an immediate at C2:A8B6.
+[[data]]
+start = "C2:AA06"
+end = "C2:AA18"
+type = "bytes"
+
+# C2:AA34-AA3F: the handler table of menu mode 2 (see the C2:828E hint).
+[[data]]
+start = "C2:AA34"
+end = "C2:AA3F"
+type = "ptr16"
+
+# C2:AC12-AC1C: read by the long indexed operands at C2:ABEA, C2:ABF0, at
+# offsets 0, 5.
+[[data]]
+start = "C2:AC12"
+end = "C2:AC1C"
+type = "bytes"
+
+# C2:AF3A-AF41: read by the long indexed operands at C2:AF24.
+[[data]]
+start = "C2:AF3A"
+end = "C2:AF41"
+type = "words"
+
+# C2:B045-B04A: read by the long indexed operands at C2:B015.
+[[data]]
+start = "C2:B045"
+end = "C2:B04A"
+type = "words"
+
+# C2:B13D-B140: read by the long indexed operands at C2:B12A.
+[[data]]
+start = "C2:B13D"
+end = "C2:B140"
+type = "bytes"
+
+# C2:B316-B31B: not code (it decodes to BRK); no reader found.
+[[data]]
+start = "C2:B316"
+end = "C2:B31B"
+type = "undetermined"
+
+# C2:B353-B35C: the handler table of menu mode 3 (see the C2:828E hint).
+[[data]]
+start = "C2:B353"
+end = "C2:B35C"
+type = "ptr16"
+
+# C2:B519-B51F: read by the long indexed operands at C2:B4F0.
+[[data]]
+start = "C2:B519"
+end = "C2:B51F"
+type = "bytes"
+
+# C2:BB1A-BB1E: read by the long indexed operands at C2:BB11.
+[[data]]
+start = "C2:BB1A"
+end = "C2:BB1E"
+type = "bytes"
+
+# C2:BD40-BD6A: read by the long indexed operands at C2:BCDB, C2:BCE1, C2:BD11
+# and 1 more, at offsets 0, 1, 37, 38.
+[[data]]
+start = "C2:BD40"
+end = "C2:BD6A"
+type = "bytes"
+
+# C2:BECE-BEDB: its address is loaded as an immediate at C2:BEBA, C2:BEC0 and
+# passed to C2:8385.
+[[data]]
+start = "C2:BECE"
+end = "C2:BEDB"
+type = "script"
+format = "C2:8385"
+
+# C2:BF2F-BF34: read by the long indexed LDA at C2:BF02.
+[[data]]
+start = "C2:BF2F"
+end = "C2:BF34"
+type = "bytes"
+
+# C2:BF35-BF3C: the handler table of menu mode 4 (see the C2:828E hint).
+[[data]]
+start = "C2:BF35"
+end = "C2:BF3C"
+type = "ptr16"
+
+# C2:C207-C20E: read by the long indexed operands at C2:C1CE, C2:C1F4.
+[[data]]
+start = "C2:C207"
+end = "C2:C20E"
+type = "bytes"
+
+# C2:C2BD-C2FE: read by the long indexed operands at C2:C23D, C2:C251, at
+# offsets 0, 8.
+[[data]]
+start = "C2:C2BD"
+end = "C2:C2FE"
+type = "words"
+
+# C2:C41B-C439: read by the long indexed operands at C2:C3F0, C2:C3F7, at
+# offsets 0, 20.
+[[data]]
+start = "C2:C41B"
+end = "C2:C439"
+type = "bytes"
+
+# C2:C4F9-C510: read by the long indexed operands at C2:C4E4, C2:C4ED, at
+# offsets 0, 12.
+[[data]]
+start = "C2:C4F9"
+end = "C2:C510"
+type = "bytes"
+
+# C2:C548-C54E: its address is loaded as an immediate at C2:C53D and passed to
+# C2:8385.
+[[data]]
+start = "C2:C548"
+end = "C2:C54E"
+type = "script"
+format = "C2:8385"
+
+# C2:C5A7-C5B2: read by the long indexed operands at C2:C583, C2:C604.
+[[data]]
+start = "C2:C5A7"
+end = "C2:C5B2"
+type = "words"
+
+# C2:C621-C626: the handler table of menu mode 5 (see the C2:828E hint).
+[[data]]
+start = "C2:C621"
+end = "C2:C626"
+type = "ptr16"
+
+# C2:C7A6-C7AB: the handler table of menu mode 7 (see the C2:828E hint).
+[[data]]
+start = "C2:C7A6"
+end = "C2:C7AB"
+type = "ptr16"
+
+# C2:CAD9-CADF: its address is loaded as an immediate at C2:CAD2 and passed to
+# C2:8385.
+[[data]]
+start = "C2:CAD9"
+end = "C2:CADF"
+type = "script"
+format = "C2:8385"
+
+# C2:CDCB-CDE2: read by the long indexed operands at C2:CDA7.
+[[data]]
+start = "C2:CDCB"
+end = "C2:CDE2"
+type = "words"
+
+# C2:CE6E-CE85: read by the long indexed operands at C2:CDB8, C2:CE62.
+[[data]]
+start = "C2:CE6E"
+end = "C2:CE85"
+type = "words"
+
+# C2:CE96-CE9C: its address is loaded as an immediate at C2:CE8A, C2:E5A6 and
+# passed to C2:8385.
+[[data]]
+start = "C2:CE96"
+end = "C2:CE9C"
+type = "script"
+format = "C2:8385"
+
+# C2:CED4-CEDB: the handler table of menu mode 6 (see the C2:828E hint).
+[[data]]
+start = "C2:CED4"
+end = "C2:CEDB"
+type = "ptr16"
+
+# C2:CF30-CF36: its address is loaded as an immediate at C2:CF2A and passed to
+# C2:8385.
+[[data]]
+start = "C2:CF30"
+end = "C2:CF36"
+type = "script"
+format = "C2:8385"
+
+# C2:D044-D064: its address is loaded as an immediate at C2:CFFE.
+[[data]]
+start = "C2:D044"
+end = "C2:D064"
+type = "bytes"
+
+# C2:D198-D19E: its address is loaded as an immediate at C2:D190 and passed to
+# C2:8385.
+[[data]]
+start = "C2:D198"
+end = "C2:D19E"
+type = "script"
+format = "C2:8385"
+
+# C2:D329-D32B: read by the long indexed operands at C2:D2F7.
+[[data]]
+start = "C2:D329"
+end = "C2:D32B"
+type = "bytes"
+
+# C2:D45F-D465: its address is loaded as an immediate at C2:D3FE and passed to
+# C2:8385.
+[[data]]
+start = "C2:D45F"
+end = "C2:D465"
+type = "script"
+format = "C2:8385"
+
+# C2:D4B4-D4BA: read by the long indexed operands at C2:D481.
+[[data]]
+start = "C2:D4B4"
+end = "C2:D4BA"
+type = "bytes"
+
+# C2:D4F0-D4F7: the handler table of menu mode 11 (see the C2:828E hint).
+[[data]]
+start = "C2:D4F0"
+end = "C2:D4F7"
+type = "ptr16"
+
+# C2:D519-D52A: the handler table of menu mode 12 (see the C2:828E hint).
+[[data]]
+start = "C2:D519"
+end = "C2:D52A"
+type = "ptr16"
+
+# C2:DB98-DB9E: its address is loaded as an immediate at C2:DB8B and passed to
+# C2:8385.
+[[data]]
+start = "C2:DB98"
+end = "C2:DB9E"
+type = "script"
+format = "C2:8385"
+
+# C2:DC74-DC7A: read by the long indexed operands at C2:DC48.
+[[data]]
+start = "C2:DC74"
+end = "C2:DC7A"
+type = "bytes"
+
+# C2:DE1D-DE20: read by the long indexed operands at C2:DDB0.
+[[data]]
+start = "C2:DE1D"
+end = "C2:DE20"
+type = "bytes"
+
+# C2:DFC5-DFCE: read by the long indexed operands at C2:DFB5.
+[[data]]
+start = "C2:DFC5"
+end = "C2:DFCE"
+type = "words"
+
+# C2:E1DC-E1E2: read by the long indexed LDA at C2:E19D.
+[[data]]
+start = "C2:E1DC"
+end = "C2:E1E2"
+type = "bytes"
+
+# C2:E1E3-E1EC: the handler table of menu mode 13 (see the C2:828E hint).
+[[data]]
+start = "C2:E1E3"
+end = "C2:E1EC"
+type = "ptr16"
+
+# C2:E53E-E544: its address is loaded as an immediate at C2:E51F and passed to
+# C2:8385.
+[[data]]
+start = "C2:E53E"
+end = "C2:E544"
+type = "script"
+format = "C2:8385"
+
+# C2:E60B-E612: the handler table of menu mode 14 (see the C2:828E hint).
+[[data]]
+start = "C2:E60B"
+end = "C2:E612"
+type = "ptr16"
+
+# C2:E88A-E890: its address is loaded as an immediate at C2:E87C and passed to
+# C2:8385.
+[[data]]
+start = "C2:E88A"
+end = "C2:E890"
+type = "script"
+format = "C2:8385"
+
+# C2:E914-E91A: the same 7-byte shape as the window descriptors whose addresses
+# C2:BEBA and others pass to C2:8385; no reference found.
+[[data]]
+start = "C2:E914"
+end = "C2:E91A"
+type = "undetermined"
+
+# C2:E9D9-E9E1: read by the long indexed operands at C2:E99D.
+[[data]]
+start = "C2:E9D9"
+end = "C2:E9E1"
+type = "bytes"
+
+# C2:ED6F-ED76: the short block move ending in RTS after the 11 entries of the
+# C2:ED59 table (see the C2:ED50 hint); nothing found reaches it. Kept as code.
+[[entry]]
+addr = "C2:ED6F"
+m = 16
+x = 16
+kind = "unreached"
+
+# C2:EEF5-EF04: read by the long indexed operands at C2:EE9A.
+[[data]]
+start = "C2:EEF5"
+end = "C2:EF04"
+type = "bytes"
+
+# C2:EFD4-EFF3: read by the long indexed operands at C2:EFC6.
+[[data]]
+start = "C2:EFD4"
+end = "C2:EFF3"
+type = "words"
+
+# C2:F17A-F1D9: read by the long indexed operands at C2:F15A, C2:F162, at
+# offsets 0, 2.
+[[data]]
+start = "C2:F17A"
+end = "C2:F1D9"
+type = "words"
+
+# C2:F27D-F28C: read by the long indexed operands at C2:F26D.
+[[data]]
+start = "C2:F27D"
+end = "C2:F28C"
+type = "bytes"
+
+# C2:F548-F565: read by the long indexed operands at C2:F3DC, C2:F3E2, C2:F403
+# and 2 more, at offsets 0, 1, 14, 20, 26.
+[[data]]
+start = "C2:F548"
+end = "C2:F565"
+type = "words"
+
+# C2:F755-F75B: read by the long indexed operands at C2:F717.
+[[data]]
+start = "C2:F755"
+end = "C2:F75B"
+type = "bytes"
+
+# C2:FBCE-FCB1: its address is loaded as an immediate at C2:8F73, C2:95F1,
+# C2:95FD and 147 more and passed to C2:8385, C2:8663.
+[[data]]
+start = "C2:FBCE"
+end = "C2:FCB1"
+type = "bytes"
+
+# C2:FE0A-FED8: from the address menu mode 15 names (C2:FE0A, see the C2:828E
+# hint) to the end of the bank; not a handler table, no reader found.
+[[data]]
+start = "C2:FE0A"
+end = "C2:FED8"
+type = "undetermined"
+
+# C2:FEE9-FFFF (279 bytes): code-shaped (a PHP/SEP routine at C2:FEFB), but with
+# an entry there the analysis calls C2:EB89 with 16-bit A, which conflicts with
+# that code's 8-bit use; left as data until its widths are settled. Census: 251
+# unknown, 28 16-bit code-ptr tables.
+[[data]]
+start = "C2:FEE9"
+end = "C2:FFFF"
+type = "undetermined"
+
+# C3:0005-0007: a 3-byte slot of the jump list at C3:0000 that doesn't hold a
+# jump; nothing reads or calls it.
+[[data]]
+start = "C3:0005"
+end = "C3:0007"
+type = "undetermined"
+
+# C3:000B-000D: like C3:0005, a slot of the C3:0000 list that doesn't hold a
+# jump.
+[[data]]
+start = "C3:000B"
+end = "C3:000D"
+type = "undetermined"
+
+# C3:09D9-09E8: read by the long indexed operands at C3:0A04.
+[[data]]
+start = "C3:09D9"
+end = "C3:09E8"
+type = "words"
+
+# C3:0B94-0B94: one fill value; nothing found reads it.
+[[data]]
+start = "C3:0B94"
+end = "C3:0B94"
+type = "padding"
+
+# C3:0E36-0EF9: ASCII text between the C3 routines; nothing reads it.
+[[data]]
+start = "C3:0E36"
+end = "C3:0EF9"
+type = "text"
+
+# C3:10C0-1312: between the C3 code and the attract program stream; no reader
+# found.
+[[data]]
+start = "C3:10C0"
+end = "C3:1312"
+type = "undetermined"
+
+# C3:1313-7A2B: the stream of the attract program (the attract_program RAM
+# section), whose pointer is the resource entry at FE:0003.
+[[data]]
+start = "C3:1313"
+end = "C3:7A2B"
+type = "lz"
+
+# C3:7A2C-FFFF: object script data (the operands the C2:0553 and C2:1819 hints
+# cite are in C3:8000-CFFF) and streams; not split yet.
+[[data]]
+start = "C3:7A2C"
+end = "C3:FFFF"
+type = "mixed"
+
+# C6:0000-E236 (57911 bytes): the census parses most of it as streams for the
+# decompressor at C3:0557. Census: 51974 compressed, 4540 unknown, 1163 padding,
+# 234 BRR-like.
+[[data]]
+start = "C6:0000"
+end = "C6:E236"
+type = "mixed"
+
+# C6:E7FA-E90E (277 bytes): between the C6:E77F routine and the C6:E90F code; no
+# reader found. Census: 277 unknown.
+[[data]]
+start = "C6:E7FA"
+end = "C6:E90E"
+type = "undetermined"
+
+# C6:EB23-EB3A: read by the long indexed operands at C6:EAEB.
+[[data]]
+start = "C6:EB23"
+end = "C6:EB3A"
+type = "bytes"
+
+# C6:EE23-FFFF (4573 bytes): tables read through long operands in C2 (e.g. at
+# C2:66B2), and fill. Census: 2862 unknown, 1143 padding, 330 24-bit ptr tables,
+# 238 16-bit offset tables.
+[[data]]
+start = "C6:EE23"
+end = "C6:FFFF"
+type = "mixed"
+
+# C7:0007-0037: read by the long indexed operands at C7:0062, C7:0069, C7:0080
+# and 3 more, at offsets 9, 10, 21, 22.
+[[data]]
+start = "C7:0007"
+end = "C7:0037"
+type = "bytes"
+
+# C7:0A98-0AD8: read by the long indexed operands at C7:0725, C7:072B, C7:0740,
+# at offsets 0, 2, 64.
+[[data]]
+start = "C7:0A98"
+end = "C7:0AD8"
+type = "bytes"
+
+# C7:0AE9-FFFF (62743 bytes): sound data read by the driver interface in C7
+# (C7:01A5, C7:0666 and others): the census counts about 30 KiB of it as BRR-
+# like samples. Census: 30317 BRR-like, 25098 unknown, 4120 padding, 1546 16-bit
+# offset tables, 1044 16-bit code-ptr tables, 618 24-bit ptr tables.
+[[data]]
+start = "C7:0AE9"
+end = "C7:FFFF"
+type = "mixed"
+
+# CC:0000-DFFF (57344 bytes): battle data read through 346 long operands (enemy
+# scripts at CC:0000 are read by C1:86B4 and others). Census: 50039 unknown,
+# 2234 16-bit offset tables, 2205 padding, 1584 BRR-like, 1230 24-bit ptr
+# tables, 52 16-bit code-ptr tables.
+[[data]]
+start = "CC:0000"
+end = "CC:DFFF"
+type = "mixed"
+
+# CC:F383-FFFF (3197 bytes): tables read through 186 long operands in C1 and CC.
+# Census: 1416 unknown, 979 padding, 598 16-bit offset tables, 204 24-bit ptr
+# tables.
+[[data]]
+start = "CC:F383"
+end = "CC:FFFF"
+type = "mixed"
+
+# CD:019D-01A4: read by the long indexed operands at CD:01AE.
+[[data]]
+start = "CD:019D"
+end = "CD:01A4"
+type = "bytes"
+
+# CD:05FF-0606: read by the long indexed operands at CD:061A.
+[[data]]
+start = "CD:05FF"
+end = "CD:0606"
+type = "words"
+
+# CD:06B2-06B3: its address is loaded as an immediate at CD:067C.
+[[data]]
+start = "CD:06B2"
+end = "CD:06B3"
+type = "bytes"
+
+# CD:1300-1313: read by the long indexed operands at CD:1344, CD:13A7, at
+# offsets 0, 8.
+[[data]]
+start = "CD:1300"
+end = "CD:1313"
+type = "words"
+
+# CD:1C5B-1C62: read by the long indexed operands at CD:1CC6, CD:1CCC, at
+# offsets 0, 2.
+[[data]]
+start = "CD:1C5B"
+end = "CD:1C62"
+type = "words"
+
+# CD:26B0-26BF: read by the long indexed operands at CD:2696, CD:26C6.
+[[data]]
+start = "CD:26B0"
+end = "CD:26BF"
+type = "words"
+
+# CD:2A42-2A49: read by the long indexed operands at CD:29ED.
+[[data]]
+start = "CD:2A42"
+end = "CD:2A49"
+type = "bytes"
+
+# CD:38AA-38B1: read by the long indexed operands at CD:38D1, CD:3B29.
+[[data]]
+start = "CD:38AA"
+end = "CD:38B1"
+type = "words"
+
+# CD:3F9E-FFFF (49250 bytes): data read through 72 long operands in C1, CD and
+# D1. Census: 33320 unknown, 6854 16-bit code-ptr tables, 3456 padding, 2878
+# 16-bit offset tables, 2322 BRR-like, 420 24-bit ptr tables.
+[[data]]
+start = "CD:3F9E"
+end = "CD:FFFF"
+type = "mixed"
+
+# CE:0000-DFFF (57344 bytes): data read through long operands in C1 (e.g.
+# C1:4438). Census: 54560 unknown, 1654 16-bit offset tables, 1118 padding, 12
+# 24-bit ptr tables.
+[[data]]
+start = "CE:0000"
+end = "CE:DFFF"
+type = "mixed"
+
+# CE:E08E-E18D: its address is loaded as an immediate at CE:E1B5.
+[[data]]
+start = "CE:E08E"
+end = "CE:E18D"
+type = "bytes"
+
+# CE:EF11-F065: read by the long indexed operands at CD:00AD, CD:012B, CD:0E46
+# and 5 more, at offsets 207, 217, 225, 233, 237.
+[[data]]
+start = "CE:EF11"
+end = "CE:F065"
+type = "bytes"
+
+# CE:F0E6-FFFF (3866 bytes): tables read through 64 long operands in D1. Census:
+# 2759 unknown, 894 16-bit offset tables, 180 24-bit ptr tables, 33 padding.
+[[data]]
+start = "CE:F0E6"
+end = "CE:FFFF"
+type = "mixed"
+
+# CF:0000-E2FF (58112 bytes): data read through long operands in CD (e.g.
+# CD:12C1). Census: 47646 unknown, 5710 16-bit offset tables, 2313 24-bit ptr
+# tables, 1130 16-bit code-ptr tables, 773 padding, 540 BRR-like.
+[[data]]
+start = "CF:0000"
+end = "CF:E2FF"
+type = "mixed"
+
+# CF:FE85-FFFF: read by the long indexed operands at C1:4064, C1:4074, C1:4084,
+# at offsets 376, 377, 378.
+[[data]]
+start = "CF:FE85"
+end = "CF:FFFF"
+type = "bytes"
+
+# D1:0000-E709 (59146 bytes): data read through long operands in C1 and CC; the
+# census parses 13 KiB of streams. Census: 39158 unknown, 13006 compressed, 3999
+# padding, 1164 16-bit offset tables, 1089 BRR-like, 640 16-bit code-ptr tables,
+# 90 24-bit ptr tables.
+[[data]]
+start = "D1:0000"
+end = "D1:E709"
+type = "mixed"
+
+# D1:E9EF-EA00: read by the long indexed operands at D1:EA6C, D1:EBB7.
+[[data]]
+start = "D1:E9EF"
+end = "D1:EA00"
+type = "words"
+
+# D1:EA21-EA4A: read by the long indexed operands at D1:EB1E, D1:EB2D, D1:EB3C,
+# at offsets 0, 14, 28.
+[[data]]
+start = "D1:EA21"
+end = "D1:EA4A"
+type = "bytes"
+
+# D1:EC5F-ECF2: read by the long indexed operands at CD:1EFE, CD:1F06, CD:1F0E
+# and 2 more, at offsets 0, 1, 2, 112, 124.
+[[data]]
+start = "D1:EC5F"
+end = "D1:ECF2"
+type = "words"
+
+# D1:EE99-EEA4: read by the long indexed operands at CD:01C3.
+[[data]]
+start = "D1:EE99"
+end = "D1:EEA4"
+type = "bytes"
+
+# D1:F69C-F6B3: read by the long indexed operands at D1:F6BE, D1:F6D2, D1:F6F5
+# and 3 more, at offsets 0, 8, 16, 20.
+[[data]]
+start = "D1:F69C"
+end = "D1:F6B3"
+type = "bytes"
+
+# D1:FEF4-FFFF: its address is loaded as an immediate at D1:EE77, D1:EE87,
+# D1:F316 and 6 more.
+[[data]]
+start = "D1:FEF4"
+end = "D1:FFFF"
+type = "bytes"
+
+# FD:0000-A8A4 (43173 bytes): the census parses most of it as streams; read
+# through long operands in C0, C1 and FD. Census: 40162 compressed, 2254
+# unknown, 412 padding, 261 BRR-like, 72 16-bit offset tables, 12 16-bit code-
+# ptr tables.
+[[data]]
+start = "FD:0000"
+end = "FD:A8A4"
+type = "mixed"
+
+# FD:B957-BFFF (1705 bytes): tables read through long operands in C1 and FD, and
+# fill. Census: 1177 padding, 520 unknown, 8 16-bit code-ptr tables.
+[[data]]
+start = "FD:B957"
+end = "FD:BFFF"
+type = "mixed"
+
+# FD:D5D4-D9FF (1068 bytes): starts with instructions that store constants
+# (possibly code reached through data), not traced yet. Census: 699 unknown, 285
+# padding, 84 16-bit code-ptr tables.
+[[data]]
+start = "FD:D5D4"
+end = "FD:D9FF"
+type = "undetermined"
+
+# FD:DD96-DE14: read by the long indexed operands at FD:DA15, FD:DA34, FD:DA74
+# and 7 more, at offsets 0, 31, 95.
+[[data]]
+start = "FD:DD96"
+end = "FD:DE14"
+type = "bytes"
+
+# FD:ED79-ED88: read by the long indexed operands at FD:DBC3, FD:DBCA, at
+# offsets 0, 8.
+[[data]]
+start = "FD:ED79"
+end = "FD:ED88"
+type = "bytes"
+
+# FD:F001-F122: read by the long indexed operands at FD:EF9E, FD:EFAB, FD:EFE4,
+# at offsets 0, 128, 256.
+[[data]]
+start = "FD:F001"
+end = "FD:F122"
+type = "words"
+
+# FD:F181-F1C0: read by the long indexed operands at FD:F131, FD:F150.
+[[data]]
+start = "FD:F181"
+end = "FD:F1C0"
+type = "bytes"
+
+# FD:F290-FFE4 (3413 bytes): tables read through 31 long operands in FD. Census:
+# 2150 unknown, 1107 BRR-like, 156 16-bit offset tables.
+[[data]]
+start = "FD:F290"
+end = "FD:FFE4"
+type = "mixed"
+
+# FF:0000-F547 (62792 bytes): data read through long operands in C2 and CC, and
+# fill. Census: 51240 unknown, 8803 padding, 1208 16-bit offset tables, 684
+# compressed, 549 24-bit ptr tables, 308 16-bit code-ptr tables.
+[[data]]
+start = "FF:0000"
+end = "FF:F547"
+type = "mixed"
+
+# FF:F6F2-F715: read by the long indexed operands at FF:F6A8.
+[[data]]
+start = "FF:F6F2"
+end = "FF:F715"
+type = "words"
+
+# FF:F759-F7D8: read by the long indexed operands at FF:F743.
+[[data]]
+start = "FF:F759"
+end = "FF:F7D8"
+type = "words"
+
+# FF:F951-F957: read by the long indexed operands at FF:F893.
+[[data]]
+start = "FF:F951"
+end = "FF:F957"
+type = "bytes"
+
+# FF:F9BB-F9C3: read by the long indexed operands at C2:8C95, C2:93B8, C2:BC07
+# and 6 more.
+[[data]]
+start = "FF:F9BB"
+end = "FF:F9C3"
+type = "bytes"
+
+# FF:FA7B-FAA2: its address is loaded as an immediate at FF:FA1A, FF:FAB2 and
+# passed to FF:FBD3.
+[[data]]
+start = "FF:FA7B"
+end = "FF:FAA2"
+type = "bytes"
+
+# FF:FBC1-FBD2: read by the long indexed operands at FF:FB78, at offsets 14.
+[[data]]
+start = "FF:FBC1"
+end = "FF:FBD2"
+type = "bytes"
+
+# FF:FBE1-FBE6: read by the long indexed operands at FF:FBDA.
+[[data]]
+start = "FF:FBE1"
+end = "FF:FBE6"
+type = "words"
+
+# FF:FC57-FF3D (743 bytes): read at FF:FC39 from its start; bytes further in
+# look like code (FF:FC6E, the same shape as FF:FF0F) but aren't reached.
+# Census: 725 unknown, 18 16-bit offset tables.
+[[data]]
+start = "FF:FC57"
+end = "FF:FF3D"
+type = "mixed"
+
+# FF:FFF5-FFFF (11 bytes): after the four handlers of the FF:FFE2 table, to the
+# end of the bank. Census: 11 unknown.
+[[data]]
+start = "FF:FFF5"
+end = "FF:FFFF"
+type = "undetermined"

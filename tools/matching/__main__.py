@@ -1,4 +1,4 @@
-"""Extract, emit and reassemble the ROM, and check it matches (docs/MATCHING.md, MD0).
+"""Extract, emit and reassemble the ROM, and check it matches (docs/MATCHING.md, MD0 and MD1).
 
     python3 -m tools.matching --rom roms/ct-usa.sfc --out build/main/matching \\
         [--hints re/hints.toml] [--registry game/registry.c] \\
@@ -28,6 +28,7 @@ from tools.disasm.memmap import ROM_SIZE, Rom, fmt
 
 from .asm import AsmError, Assembler, write_symbols
 from .emit import Emitter, registry_names
+from .ramsrc import build_section, check_ram_coverage, check_section
 
 ROM_CRC32 = 0x2D206BF7
 ROM_SHA1 = "de5822f4f2f7a55acb8926d4c0eaa63d5d989312"
@@ -70,9 +71,9 @@ def run_asar(asar: str, src: Path, out: Path) -> bytes:
     return out.read_bytes()
 
 
-def report(st, times: dict, out: Path) -> str:
+def report(st, times: dict, out: Path, cov=None, data_problems=(), an=None, ram=None) -> str:
     total = st.insn_bytes + st.db_bytes + st.incbin_bytes
-    lines = ["# Matching source (MD0)", "",
+    lines = ["# Matching source", "",
              "| | Bytes | KiB | Share |", "|---|--:|--:|--:|"]
     for label, n in (("Instructions", st.insn_bytes), ("db", st.db_bytes), ("incbin", st.incbin_bytes)):
         lines.append(f"| {label} | {n} | {n / 1024:.1f} | {n / total:.2%} |")
@@ -82,10 +83,40 @@ def report(st, times: dict, out: Path) -> str:
               + "".join(f"\n  - {nm} at {fmt(0xC00000 | o)}" for nm, o in st.unplaced),
               f"- registry addresses that aren't an instruction start: {len(st.registry_not_insn)}"
               + "".join(f"\n  - {fmt(a)}" for a in st.registry_not_insn),
-              "- time: " + ", ".join(f"{k} {v:.1f} s" for k, v in times.items()),
-              "", "| Bank | Instructions | db | incbin |", "|---|--:|--:|--:|"]
+              f"- overlap hints whose other decodes don't end on an instruction: {len(st.overlap_problems)}"
+              + "".join(f"\n  - {p}" for p in st.overlap_problems),
+              (f"- executed ROM addresses (coverage): {cov.rom}, {cov.ok} instruction starts with compatible "
+               f"widths, {len(cov.problems)} not" + "".join(f"\n  - {fmt(a)}: {t}" for a, t in cov.problems)
+               + f"\n- executed addresses outside ROM: {cov.ram}") if cov else "- no coverage given",
+              f"- [[data]] hints that don't fit their bytes: {len(data_problems)}"
+              + "".join(f"\n  - {p}" for p in data_problems),
+              f"- transfers into [[data]] regions: {len(an.forced_data) if an else 0}"
+              + "".join(f"\n  - {fmt(a)}" for a in sorted(an.forced_data if an else ())),
+              "- time: " + ", ".join(f"{k} {v:.1f} s" for k, v in times.items())]
+    code_banks = [b for b, (i, d, n) in enumerate(st.per_bank) if i or d]
+    untyped = [(a, n) for a, n in st.untyped_blobs if (a >> 16) - 0xC0 in code_banks]
+    lines.append(f"- untyped blobs in the {len(code_banks)} banks with code: {len(untyped)}, "
+                 f"{sum(n for _, n in untyped)} bytes")
+    kinds = sorted({k for c in st.blob_kinds for k in c})
+    lines += ["", "| Bank | Instructions | db | incbin | " + " | ".join(kinds) + " |",
+              "|---|--:|--:|--:|" + "--:|" * len(kinds)]
     for b, (i, d, n) in enumerate(st.per_bank):
-        lines.append(f"| ${0xC0 + b:02X} | {i} | {d} | {n} |")
+        lines.append(f"| ${0xC0 + b:02X} | {i} | {d} | {n} | "
+                     + " | ".join(str(st.blob_kinds[b][k]) for k in kinds) + " |")
+    if ram is not None:
+        sections, (total, inside, ram_problems, outside) = ram
+        lines += ["", "## RAM sections", "", "| Section | Run at | Bytes | From | Instructions | Data | Problems |",
+                  "|---|---|--:|---|--:|--:|--:|"]
+        for sec, rs in sections:
+            lines.append(f"| {sec.name} | {fmt(sec.base)} | {len(sec.image)} | {sec.format} {fmt(sec.source)} | "
+                         f"{rs.insn_bytes} | {rs.data_bytes} | {len(rs.problems)} |")
+        lines += [f"- {sec.name}: {p}" for sec, rs in sections for p in rs.problems]
+        lines += ["", f"- executed RAM addresses: {total}, {inside} in sections, {len(ram_problems)} of those not "
+                      f"instruction starts with compatible widths, {len(outside)} in no section"
+                  + (f" ({fmt(min(outside))}-{fmt(max(outside))})" if outside else "")]
+        lines += [f"  - {fmt(a)}: {t}" for a, t in ram_problems]
+    lines += ["", "## Untyped blobs in banks with code", ""]
+    lines += [f"- {fmt(a)}, {n} bytes" for a, n in untyped] or ["(none)"]
     text = "\n".join(lines) + "\n"
     write_if_changed(out / "report.md", text)
     return text
@@ -123,6 +154,13 @@ def main():
     calls = set(coverage_mod.load_calls(args.calls)) if args.calls else set()
     em = Emitter(data, an, registry, calls)
     files = em.build()
+    cov = em.check_coverage(an.coverage) if an.coverage else None
+    data_problems = em.check_data()
+    ram_sections = []
+    for sec in an.ram.sections:
+        ram_files, rs = build_section(sec, an)
+        files.update(ram_files)
+        ram_sections.append((sec, rs))
     times["emit"] = time.time() - t
 
     t = time.time()
@@ -130,7 +168,7 @@ def main():
     changed = sum(write_if_changed(src / rel, content) for rel, content in sorted(files.items()))
     wanted = {(src / rel).resolve() for rel in files}
     removed = 0
-    for old in sorted(list(src.glob("*.asm")) + list(src.glob("data/**/*.bin"))):
+    for old in sorted(list(src.glob("*.asm")) + list(src.glob("ram/*.asm")) + list(src.glob("data/**/*.bin"))):
         if old.resolve() not in wanted:
             old.unlink()
             removed += 1
@@ -141,6 +179,9 @@ def main():
         res = Assembler().assemble_file(src / "rom.asm")
     except AsmError as e:
         sys.exit(f"matching: assembly failed: {e}")
+    for sec, rs in ram_sections:
+        check_section(sec, src / "ram" / f"{sec.name}.asm", rs)
+    ram_cov = check_ram_coverage(ram_sections, an.coverage)
     times["assemble"] = time.time() - t
 
     image = bytes(res.image)
@@ -148,7 +189,7 @@ def main():
     write_if_changed(args.out / "rom.sfc", image)
     write_symbols(res.symbols, args.out / "rom.sym")
     st = em.stats
-    print(report(st, times, args.out).split("\n\n| Bank")[0])
+    print(report(st, times, args.out, cov, data_problems, an, (ram_sections, ram_cov)).split("\n\n| Bank")[0])
     print(f"wrote {changed} files, removed {removed}, into {src}")
 
     got_crc, got_sha1 = identify(image)
@@ -162,6 +203,14 @@ def main():
             msg += f" ({where[2]}:{where[3]})" if where else " (no statement wrote it)"
         sys.exit(msg)
     print(f"matching: {args.out / 'rom.sfc'} matches (CRC32 {got_crc:08X}, SHA-1 {got_sha1})")
+
+    ram_problems = sum(len(rs.problems) for _, rs in ram_sections) + len(ram_cov[2]) + len(an.ram.problems)
+    if st.overlap_problems or (cov and cov.problems) or data_problems or an.forced_data or ram_problems:
+        sys.exit(f"matching: {len(cov.problems) if cov else 0} executed ROM addresses aren't instructions the "
+                 f"source can run, {len(st.overlap_problems)} overlap hints and {len(data_problems)} data hints "
+                 f"don't fit, {len(an.forced_data)} transfers into data, {ram_problems} RAM section problems "
+                 "(see report.md)")
+    print(f"matching: {len(ram_sections)} RAM sections assemble to their images")
 
     asar = shutil.which("asar") if args.asar == "auto" else None if args.asar == "off" else args.asar
     if asar:

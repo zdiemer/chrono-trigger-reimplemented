@@ -4,9 +4,12 @@
 
 One closed, explicit dialect, a subset of asar syntax:
 
-- `hirom` (required before the first `org`), `org ADDR`, `warnpc ADDR`,
-  `incsrc "file"`, `incbin "file"`, `db`/`dw`/`dl` with comma-separated
-  values, `label:` definitions, `;` comments.
+- `hirom` (required before the first `org`), `org ADDR`, `base ADDR` and
+  `base off`, `warnpc ADDR`, `incsrc "file"`, `incbin "file"`, `db`/`dw`/`dl`
+  with comma-separated values, `label:` definitions, `;` comments.
+- `base ADDR` assembles what follows as if it were at ADDR (labels, branch
+  displacements, bank checks) while bytes still go where `org` put them, as for
+  code the game copies to RAM; `base off` or the next `org` ends it.
 - Instructions: a mnemonic from tools/disasm/cpu.py, with the operand size
   always written as a suffix (`LDA.b $12`, `LDA.w $0012`, `LDA.l $000012`,
   `LDA.b #$12`, `LDA.w #$1234`). Only branches, `BRL`, `PER` (a label target)
@@ -216,6 +219,7 @@ class Assembler:
         self.stmts: list = []
         self.hirom = False
         self._pc: int | None = None
+        self._delta = 0                  # base: logical address minus write address
 
     # ---- pass 1 -------------------------------------------------------------
 
@@ -257,7 +261,7 @@ class Assembler:
                     raise AsmError(f"label {label} defined twice", where)
                 if label.upper() in MNEMONICS or label.upper() in ("A", "X", "Y", "S"):
                     raise AsmError(f"label {label} is a reserved word", where)
-                self.symbols[label] = self._pc
+                self.symbols[label] = self._pc + self._delta
             if not rest:
                 continue
             w = _WORD.match(rest)
@@ -272,8 +276,19 @@ class Assembler:
                     if not self.hirom:
                         raise ValueError("org before hirom (the only mapper this dialect has)")
                     self._pc = self._const(arg)
+                    self._delta = 0
                     if bus_to_offset(self._pc) is None:
                         raise ValueError(f"org ${self._pc:06X} isn't ROM")
+                    widths = None
+                elif lw == "base" and not suffix:
+                    pc = self._need_pc()
+                    if arg.lower() == "off":
+                        self._delta = 0
+                    else:
+                        logical = self._const(arg)
+                        if not 0 <= logical <= 0xFFFFFF:
+                            raise ValueError(f"base ${logical:X} isn't a 24-bit address")
+                        self._delta = logical - pc
                     widths = None
                 elif lw == "warnpc" and not suffix:
                     self.stmts.append(("warnpc", where, self._need_pc(), parse_expr(arg)))
@@ -296,7 +311,7 @@ class Assembler:
                     widths = None
                 else:
                     insn = parse_insn(word, suffix, arg, widths)
-                    self._emit(("insn", where, self._need_pc(), insn), insn.size)
+                    self._emit(("insn", where, self._need_pc(), insn, self._pc + self._delta), insn.size)
             except ValueError as e:
                 raise AsmError(str(e), where)
 
@@ -327,6 +342,8 @@ class Assembler:
         pc = stmt[2]
         if size and (pc & 0xFFFF) + size > 0x10000:
             raise ValueError(f"statement at ${pc:06X} ({size} bytes) runs across a bank boundary")
+        if size and self._delta and ((pc + self._delta) & 0xFFFF) + size > 0x10000:
+            raise ValueError(f"statement at base ${pc + self._delta:06X} ({size} bytes) runs across a bank boundary")
         self.stmts.append(stmt)
         self._pc = pc + size
 
@@ -351,7 +368,7 @@ class Assembler:
             kind, where, pc = st[0], st[1], st[2]
             try:
                 if kind == "insn":
-                    out = self._encode(st[3], pc)
+                    out = self._encode(st[3], st[4])
                 elif kind == "bytes":
                     out = st[3]
                 elif kind == "data":
