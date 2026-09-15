@@ -15,6 +15,10 @@
 #include "data/decompress.h"
 #include "event/event.h"
 #include "field/field.h"
+#include "field/graphics.h"
+#include "field/layers.h"
+#include "field/object_update.h"
+#include "field/sprites.h"
 #include "menu/menu.h"
 
 /* Entry preconditions on P. */
@@ -493,6 +497,48 @@ const NativeEntry game_natives[] = {
       .cost_milli = 4058, .dont_care = DC_N | DC_Z },
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
       NEEDS_M8_X8_BINARY, .cost_milli = 4657, .dont_care = DC_X | DC_N | DC_Z },
+    /* per-frame object update loop and its steps; 8-bit A and X */
+    { .addr = 0xC0A810, .name = "field_update_objects", .fn = field_update_objects, NEEDS_M8_X8,
+      .cost_milli = 4208, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0A947, .name = "field_update_object_in_window", .fn = field_update_object_in_window,
+      NEEDS_M8_X8_BINARY, .cost_milli = 3938, .dont_care = DC_X | DC_N | DC_Z | DC_C },
+    { .addr = 0xC0A98A, .name = "field_unlink_object_row", .fn = field_unlink_object_row, .cost_milli = 4574,
+      .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0A9CD, .name = "field_link_object_row", .fn = field_link_object_row, .cost_milli = 4582,
+      .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0AA07, .name = "field_move_object", .fn = field_move_object, NEEDS_M8_X8_BINARY,
+      .cost_milli = 3750, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0AAFD, .name = "field_move_object_unbounded", .fn = field_move_object_unbounded,
+      NEEDS_M8_X8_BINARY, .cost_milli = 4335, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0AB45, .name = "field_update_screen_position", .fn = field_update_screen_position,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_X, .cost_milli = 3445, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0C98A, .name = "field_step_object_animation", .fn = field_step_object_animation,
+      NEEDS_M8_X8_BINARY, .cost_milli = 3782, .dont_care = DC_X | DC_N | DC_Z },
+    /* sprite table; 8-bit A, 16-bit X */
+    { .addr = 0xC0B271, .name = "field_build_sprite_table", .fn = field_build_sprite_table, NEEDS_M8_X16,
+      .cost_milli = 6737, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC0B309, .name = "field_draw_object_sprites", .fn = field_draw_object_sprites, NEEDS_M8_X16_BINARY,
+      .cost_milli = 4130, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0B701, .name = "field_update_object_sprites", .fn = field_update_object_sprites, NEEDS_M8_X16,
+      .cost_milli = 4267, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0B788, .name = "field_position_sprites", .fn = field_position_sprites, NEEDS_M8_X16_BINARY,
+      .cost_milli = 4000, .dont_care = DC_X | DC_N | DC_Z | DC_C },
+    { .addr = 0xC0B8CA, .name = "field_load_and_position_sprites", .fn = field_load_and_position_sprites,
+      NEEDS_M8_X16_BINARY, .cost_milli = 3708, .dont_care = DC_X | DC_N | DC_Z | DC_C },
+    /* layers */
+    { .addr = 0xC07F9A, .name = "field_compute_layer_edges", .fn = field_compute_layer_edges,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 2918, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC091AC, .name = "field_update_layer_scroll", .fn = field_update_layer_scroll,
+      .p_mask = CPU_FLAG_M | CPU_FLAG_D, .p_value = CPU_FLAG_M, .cost_milli = 4330, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC0A521, .name = "field_unpack_tile_maps", .fn = field_unpack_tile_maps, NEEDS_M8_X16,
+      .cost_milli = 3972, .dont_care = DC_N | DC_Z },
+    /* sprite graphics */
+    { .addr = 0xC0E687, .name = "field_copy_sprite_tile", .fn = field_copy_sprite_tile, NEEDS_M16_X16_BINARY,
+      .cost_milli = 2924, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0E534, .name = "field_copy_sprite_tile_flipped", .fn = field_copy_sprite_tile_flipped,
+      NEEDS_M16_X16, .cost_milli = 2811, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC0CB3A, .name = "field_read_animation_frame", .fn = field_read_animation_frame, NEEDS_M8_X8_BINARY,
+      .cost_milli = 3199, .dont_care = DC_N | DC_Z },
 
     /* menu */
     { .addr = 0xC25E89, .name = "menu_draw_glyph_pixel", .fn = menu_draw_glyph_pixel, NEEDS_M8_X16,
