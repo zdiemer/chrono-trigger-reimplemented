@@ -21,6 +21,7 @@ from pathlib import Path
 from tools.disasm import coverage as coverage_mod
 from tools.disasm import hints as hints_mod
 from tools.disasm.analyze import Analyzer
+from tools.disasm.closure import code_set
 from tools.disasm.memmap import Rom, bus_to_offset
 
 from .blocks import BlockBuilder
@@ -116,6 +117,16 @@ def generate(rom: Rom, hints: Path, registry: Path, coverage: list, calls: list,
     builder = BlockBuilder(an, registry_addresses(registry), call_targets)
     blocks = builder.build_all()
     t2 = time.time()
+    # MD4: the code set of the blocks is the analysis's, which the matching source
+    # writes as instructions (docs/MATCHING.md): every instruction variant in a
+    # block is analysed code, and every analysed variant is in a block.
+    generated = {(pc, s.ctx.m8, s.ctx.x8) for b in blocks for pc, s in b.steps.items()}
+    analysed = code_set(an)
+    if generated != analysed:
+        extra, missing = sorted(generated - analysed), sorted(analysed - generated)
+        sys.exit(f"recomp: the blocks' code set differs from the analysis's: {len(extra)} variants only in blocks "
+                 f"{[f'{a:06X}' for a, _, _ in extra[:5]]}, {len(missing)} only in the analysis "
+                 f"{[f'{a:06X}' for a, _, _ in missing[:5]]}")
 
     out.mkdir(parents=True, exist_ok=True)
     files = [[] for _ in range(shards)]
@@ -153,6 +164,7 @@ def generate(rom: Rom, hints: Path, registry: Path, coverage: list, calls: list,
     changed += write_if_changed(out / "table.c", "\n".join(table) + "\n")
     return {"analysis_s": t1 - t0, "blocks_s": t2 - t1, "write_s": time.time() - t2, "blocks": len(blocks),
             "instructions": insns, "analysis_instructions": sum(len(v) for v in an.code.values()),
+            "code_set": len(analysed),
             "files_changed": changed}
 
 
@@ -175,7 +187,8 @@ def main():
     if crc != ROM_CRC32:
         sys.exit(f"{args.rom}: CRC32 {crc:08X}, expected {ROM_CRC32:08X} (Chrono Trigger (USA))")
     stats = generate(Rom(data), args.hints, args.registry, args.coverage, args.calls, args.out, args.shards, crc)
-    print("recomp: {blocks} blocks, {instructions} instructions ({analysis_instructions} in the analysis); "
+    print("recomp: {blocks} blocks, {instructions} instructions ({analysis_instructions} in the analysis; "
+          "code set of {code_set} instruction variants, the same in blocks and analysis); "
           "analysis {analysis_s:.1f} s, blocks {blocks_s:.1f} s, write {write_s:.1f} s; "
           "{files_changed} files changed".format(**stats))
     if args.stamp:

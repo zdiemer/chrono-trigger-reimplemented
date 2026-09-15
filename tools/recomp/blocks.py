@@ -240,11 +240,14 @@ class BlockBuilder:
                         add(target)
                 if name in ("MVN", "MVP"):
                     add(pc)
-        # 3. jump table targets
+        # 2b. where indirect calls return: PER then JMP, and calls whose operand is written at run time
+        for pc in getattr(an, "resumes", ()):
+            add(pc)
+        # 3. jump table targets (and those derived from data for tables filled at run time)
         for jt in an.tables.values():
-            if jt.call or not jt.count:
+            if jt.call:
                 continue
-            for t in an._table_targets(jt, jt.count):
+            for t in an._table_targets(jt, jt.count or 0) + list(jt.extra) + sorted(an.derived.get(jt.dispatcher, ())):
                 add(t)
         # 6. hand ports and idle loops: blocks end there
         for pc in self.registry:

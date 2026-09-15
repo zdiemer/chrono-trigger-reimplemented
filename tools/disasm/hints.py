@@ -83,6 +83,10 @@ class Hints:
     noreturn: set = field(default_factory=set)
     inline_args: dict = field(default_factory=dict)    # function -> bytes skipped after JSR
     indirect: dict = field(default_factory=dict)       # JMP (abs)/JML [abs] site -> targets
+    derive: dict = field(default_factory=dict)         # indirect or table site -> "deriver.part" (derive.py)
+    header_vectors: bool = False                       # enter the NMI, IRQ and reset vectors of the header
+    bounds: dict = field(default_factory=dict)         # indirect or table site -> argument kind (BOUNDS)
+    nofollow: set = field(default_factory=set)         # indirect sites whose targets are entries, not traced
     data: list = field(default_factory=list)           # (start, end) inclusive, never code
     data_regions: list = field(default_factory=list)   # DataHint, sorted by start
     overlaps: dict = field(default_factory=dict)       # addr -> (m, x) whose decode the source writes
@@ -116,11 +120,26 @@ def _width(v, where: str) -> bool | None:
     return v == 8
 
 
+# How an indirect site's target set is argued (docs/MATCHING.md, C1): "guard"
+# (code bounds the index before the dispatch), "layout" (the table ends where
+# code or another table begins; the index isn't checked), "constant" (the
+# targets are the constants every writer of the cell loads). A `derive` hint is
+# argued by its data; a site with neither has no argument.
+BOUNDS = {"guard", "layout", "constant"}
+
+
+def _bound(d: dict) -> str:
+    if d["bound"] not in BOUNDS:
+        raise ValueError(f"{d['at']}: bound must be one of {sorted(BOUNDS)}")
+    return d["bound"]
+
+
 def load(path: Path) -> Hints:
     h = Hints()
     if not path.exists():
         return h
     doc = tomllib.loads(path.read_text(encoding="utf-8"))
+    h.header_vectors = bool(doc.get("header_vectors", False))
 
     for e in doc.get("entry", []):
         addr = parse(e["addr"])
@@ -146,7 +165,20 @@ def load(path: Path) -> Hints:
     for i in doc.get("inline_args", []):
         h.inline_args[parse(i["addr"])] = i["size"]
     for i in doc.get("indirect", []):
-        h.indirect[parse(i["at"])] = [parse(t) for t in i["targets"]]
+        if "targets" not in i and "derive" not in i:
+            raise ValueError(f"indirect {i['at']}: needs targets or derive")
+        h.indirect[parse(i["at"])] = [parse(t) for t in i.get("targets", [])]
+        if "derive" in i:
+            h.derive[parse(i["at"])] = i["derive"]
+        if "bound" in i:
+            h.bounds[parse(i["at"])] = _bound(i)
+        if i.get("follow", True) is False:
+            h.nofollow.add(parse(i["at"]))
+    for t in doc.get("jumptable", []):
+        if "derive" in t:
+            h.derive[parse(t["at"])] = t["derive"]
+        if "bound" in t:
+            h.bounds[parse(t["at"])] = _bound(t)
     for d in doc.get("data", []):
         start, end = parse(d["start"]), parse(d["end"])
         if end < start or start >> 16 != end >> 16:

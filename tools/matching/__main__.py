@@ -22,6 +22,7 @@ import zlib
 from pathlib import Path
 
 from tools.disasm import coverage as coverage_mod
+from tools.disasm.closure import closure, report_lines
 from tools.disasm import hints as hints_mod
 from tools.disasm.analyze import Analyzer
 from tools.disasm.memmap import ROM_SIZE, Rom, fmt
@@ -71,7 +72,7 @@ def run_asar(asar: str, src: Path, out: Path) -> bytes:
     return out.read_bytes()
 
 
-def report(st, times: dict, out: Path, cov=None, data_problems=(), an=None, ram=None) -> str:
+def report(st, times: dict, out: Path, cov=None, data_problems=(), an=None, ram=None, checks=()) -> str:
     total = st.insn_bytes + st.db_bytes + st.incbin_bytes
     lines = ["# Matching source", "",
              "| | Bytes | KiB | Share |", "|---|--:|--:|--:|"]
@@ -115,6 +116,8 @@ def report(st, times: dict, out: Path, cov=None, data_problems=(), an=None, ram=
                       f"instruction starts with compatible widths, {len(outside)} in no section"
                   + (f" ({fmt(min(outside))}-{fmt(max(outside))})" if outside else "")]
         lines += [f"  - {fmt(a)}: {t}" for a, t in ram_problems]
+    if checks:
+        lines += [""] + report_lines(checks)
     lines += ["", "## Untyped blobs in banks with code", ""]
     lines += [f"- {fmt(a)}, {n} bytes" for a, n in untyped] or ["(none)"]
     text = "\n".join(lines) + "\n"
@@ -133,6 +136,9 @@ def main():
                     help="call logs from ct_dev --calls: their targets get sub_ labels")
     ap.add_argument("--asar", default="auto", help="asar executable, 'auto' (asar on PATH if any) or 'off'")
     ap.add_argument("--stamp", type=Path, help="file to touch when the check passes (build systems)")
+    ap.add_argument("--closure", choices=("check", "report"), default="check",
+                    help="closure checks C1-C7 (docs/MATCHING.md, MD4): fail the run when one fails (check, "
+                         "the default) or only report them")
     args = ap.parse_args()
 
     t_start = time.time()
@@ -183,13 +189,18 @@ def main():
         check_section(sec, src / "ram" / f"{sec.name}.asm", rs)
     ram_cov = check_ram_coverage(ram_sections, an.coverage)
     times["assemble"] = time.time() - t
+    t = time.time()
+    checks = closure(an)
+    times["closure"] = time.time() - t
 
     image = bytes(res.image)
     holes = ROM_SIZE - sum(res.written)
     write_if_changed(args.out / "rom.sfc", image)
     write_symbols(res.symbols, args.out / "rom.sym")
     st = em.stats
-    print(report(st, times, args.out, cov, data_problems, an, (ram_sections, ram_cov)).split("\n\n| Bank")[0])
+    print(report(st, times, args.out, cov, data_problems, an, (ram_sections, ram_cov), checks).split("\n\n| Bank")[0])
+    for c in checks:
+        print(f"closure: {c.name}: {'pass' if c.ok else 'FAIL'}; " + ", ".join(f"{k} {v}" for k, v in c.counts.items()))
     print(f"wrote {changed} files, removed {removed}, into {src}")
 
     got_crc, got_sha1 = identify(image)
@@ -211,6 +222,10 @@ def main():
                  f"don't fit, {len(an.forced_data)} transfers into data, {ram_problems} RAM section problems "
                  "(see report.md)")
     print(f"matching: {len(ram_sections)} RAM sections assemble to their images")
+    failed = [c for c in checks if not c.ok]
+    if failed and args.closure == "check":
+        sys.exit("matching: closure checks fail: " + "; ".join(f"{c.name}: {c.problems[0]} ({len(c.problems)} problems)"
+                                                             for c in failed) + " (see report.md)")
 
     asar = shutil.which("asar") if args.asar == "auto" else None if args.asar == "off" else args.asar
     if asar:
