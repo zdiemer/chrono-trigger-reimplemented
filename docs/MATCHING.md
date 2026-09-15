@@ -300,7 +300,8 @@ The assembler must handle:
 | bass | Table-driven, small | Little maintenance, few users |
 | Our own (Python) | No new dependency (the build already runs Python for the recompiler); reuses `tools/disasm/cpu.py`, whose opcode table the recompiler's 5.12M SingleStepTests already exercise; exact control of encodings and of the symbol-field record the shift test needs | A new tool to write and test; a bug shared by emitter and assembler cancels in the round trip |
 
-**Recommendation:** generate one closed, explicit dialect (every operand size
+**Chosen (no strong preference either way, so the recommendation stands):**
+generate one closed, explicit dialect (every operand size
 written out, no inference, no macros) that is a subset of asar syntax, and
 assemble it with a small stdlib Python assembler in `tools/matching/` as the
 build's round trip. Where asar is installed, the same source assembled with
@@ -475,7 +476,10 @@ every code byte, can be recovered from it. The same holds for `tools/recomp`
 output, which RECOMP.md keeps in the build tree for that reason. There are two
 ways to handle it:
 
-- **A. Generate the source at build time (proposed).** Commit the tools, the
+**Decided: A.** Only tools and knowledge are committed, on the condition that
+the full source can always be derived from them and the user's ROM.
+
+- **A. Generate the source at build time.** Commit the tools, the
   format parsers and the knowledge in `re/`: names, types, bounds, pointer
   facts, layout and comments, keyed by address. The source is generated from
   the user's ROM into the build tree, like `disasm/out/` and the recompiler's
@@ -492,8 +496,8 @@ ways to handle it:
 Under A the knowledge base itself must not become a transcription: hints state
 facts the tools can't infer (a bound, a width, a type), not per-instruction
 contents, and comments should avoid quoting ROM bytes. A few existing comments
-quote short byte sequences (the `$C2:ED50` table note, the `$C3:994B` operand);
-that should stay rare.
+quoted short byte sequences (the `$C2:ED50` table note, the `$C3:994B`
+operand); they were reworded, and new comments shouldn't quote bytes.
 
 ## Risks
 
