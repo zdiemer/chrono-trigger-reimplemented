@@ -3,7 +3,8 @@
  *
  * Timing is instruction-granular. Each instruction costs its exact bus accesses
  * at their real speeds plus its exact internal cycles; HDMA lands on the first
- * instruction boundary after its scheduled time. Interrupts are recognized
+ * instruction boundary after its scheduled time. The CPU also pauses while work
+ * RAM is refreshed and while HDMA and DMA use the bus. Interrupts are recognized
  * where the CPU polls for them, at the start of an instruction's last cycle, so
  * one asserted during the last cycle waits for the next instruction.
  *
@@ -27,6 +28,14 @@ typedef struct HdmaChannel {
     bool do_transfer;
 } HdmaChannel;
 
+/* A pause of the CPU (work RAM refresh, HDMA): the CPU's own time when it
+ * began (master clocks minus all earlier pauses), and the total of the pauses before it. */
+typedef struct SnesStall {
+    uint64_t cpu_at;
+    uint64_t total_before;
+} SnesStall;
+#define SNES_STALL_HISTORY 16
+
 typedef struct Snes {
     Cpu cpu;
     SnesBus bus;
@@ -45,9 +54,16 @@ typedef struct Snes {
     bool nmi_scheduled;
     uint64_t irq_at;        /* when the timer IRQ ($4211 bit 7) reaches the CPU */
 
+    /* CPU pauses: their total since power-on, and the latest ones (a ring), to
+     * find where a step's last cycle began when a pause fell inside it. */
+    uint64_t stall_total;
+    SnesStall stalls[SNES_STALL_HISTORY];
+    uint8_t stall_next;
+
     HdmaChannel hdma[8];
     bool hdma_done_this_line;
     bool htimer_done_this_line;
+    bool refresh_done_this_line;
 
     /* Optional: called for lines 0-224 at the start of hblank, before that
      * line's HDMA writes, with PPU state as it stood while the line was drawn. */
@@ -111,7 +127,8 @@ void snes_run_frame(Snes *snes, uint16_t pad1);
  *
  * snes_horizon: the latest master clock at which an instruction can start
  * without the system having anything to do before it: no line event (HDMA and
- * rendering, the line's end with vblank, NMI flag and V-timer), H-timer IRQ,
+ * rendering, work RAM refresh, the line's end with vblank, NMI flag and
+ * V-timer), H-timer IRQ,
  * or interrupt recognition between the previous instruction and it. Until an
  * instruction starts past it, instructions may run back to back without
  * returning to the system loop. I/O writes that change interrupt timing

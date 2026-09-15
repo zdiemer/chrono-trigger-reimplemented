@@ -130,7 +130,7 @@ enum { B_INTERRUPT = 1, B_WAITING = 2, B_STOPPED = 4 };
 
 /* The machine at the start of a step (an instruction boundary). */
 typedef struct Boundary {
-    uint64_t master;
+    uint64_t master;       /* the CPU's own time: master clocks minus its pauses (refresh, HDMA) */
     uint32_t acc;          /* accesses recorded before this step */
     uint32_t frame;
     int32_t gen;           /* the generated entry that applies here, decided while recording
@@ -455,7 +455,7 @@ static NativeStats *stats_of(NativeRuntime *rt, const Active *a) { return &rt->s
 static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
 {
     NativeStats *st = stats_of(rt, a);
-    st->original_clocks += s->master - a->segment_start;
+    st->original_clocks += s->master - s->stall_total - a->segment_start;   /* CPU time */
     st->native_bus_clocks += a->segment_bus_clocks;
 }
 
@@ -512,7 +512,7 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         }
     } else {
         a->segment_bus_clocks = m->bus.clocks;
-        a->segment_start = s->master;
+        a->segment_start = s->master - s->stall_total;
         a->segment_frame = s->frame;
         memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
         a->segment_interrupted = false;
@@ -807,7 +807,7 @@ static void record_boundary(NativeRuntime *rt, Snes *s)
     Boundary *b = &rt->bnd[rt->nbnd++];
     /* Guards look at RAM as it is now; decide those entries while recording. */
     b->gen = rt->record_filter[a16 >> 3] & (1 << (a16 & 7)) ? generated_applying(rt, s) : GEN_LATER;
-    b->master = s->master;
+    b->master = s->master - s->stall_total;
     b->acc = rt->nacc;
     b->frame = s->frame;
     b->pc24 = cpu_pc24(c);
