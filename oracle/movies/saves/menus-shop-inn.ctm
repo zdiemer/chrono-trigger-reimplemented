@@ -1,7 +1,7 @@
 # Lucca's House area, 1000 AD: walk the world map to the Truce market, talk to the shopkeeper, buy items
 # and equipment, sell items, leave, enter the Truce Inn and rest.
 # Save: ctsave14-side_quests3 slot 1 (fantasyanime.com/squaresoft/ctsaves-srm.htm, chrono_trigger.srm).
-# frames 9700
+# frames 9702
 # sram crc32 1E34C588
 # <start_frame> <frame_count> <buttons>
 1620 5 START
@@ -71,11 +71,11 @@
 7830 4 A
 7880 4 B
 7920 4 B
-8000 150 DOWN
-8300 75 RIGHT
-8400 4 A
-8510 14 LEFT
-8530 150 UP
-8700 4 A
-8780 4 A
-8860 4 A
+8002 150 DOWN
+8302 75 RIGHT
+8402 4 A
+8512 14 LEFT
+8532 150 UP
+8702 4 A
+8782 4 A
+8862 4 A

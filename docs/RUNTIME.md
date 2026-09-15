@@ -407,12 +407,12 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | Movie | Save, slot | Covers | Frames |
 |---|---|---|---|
 | `battle-magus.ctm` | ctsave07, 1 | Vamp ambush won (results), the Magus fight: Mid Tonic, Ice Water dual tech, Lightning2, barrier changes, a Revive, Cure | 18000 |
-| `battle-golem-twins-gameover.ctm` | ctsave10, 3 | Delta Force, the Golems copying elements, Life revive, party wiped, game over back to the title (the sound driver restarts the SPC700 boot ROM) | 12400 |
-| `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8200 |
-| `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos, many single techs, running away from an ambush | 17100 |
-| `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, Mega Bomb, item menus, Life 2 | 15500 |
-| `late-omen-zeal.ctm` | ctsave15, 3 | Queen Zeal won (Luminaire, Antipode 3, Flare, Hallation), then the Mammon Machine won (Mega Bomb, Delta Force, Flare and more) and the start of the Zeal face-and-hands battle | 35300 |
-| `late-lavos.ctm` | ctsave16, 1 | Lavos: the outer shell beaten with many techs and MegaElixirs, then the core form with a revive | 51000 |
+| `battle-golem-twins-gameover.ctm` | ctsave10, 3 | Delta Force, the Golems copying elements, Life revive, party wiped, game over back to the title (the sound driver restarts the SPC700 boot ROM) | 12969 |
+| `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8042 |
+| `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos keeping Lucca confused, many single techs, running away from an ambush | 18412 |
+| `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |
+| `late-omen-zeal.ctm` | ctsave15, 3 | Queen Zeal won (Luminaire, Life 2, Cure 2, Hallation), then the Mammon Machine won (Antipode 3, Mega Bomb, Delta Force, Flare and more) and the start of the Zeal face-and-hands battle | 36922 |
+| `late-lavos.ctm` | ctsave16, 1 | Lavos: the outer shell beaten with many techs, the DNA dialogue, then the core form (Crying Heavens, a MegaElixir, Cure 2, a revive) | 60249 |
 | `endings-beyond-time.ctm` | technoplaza ct-state15, 1 | The final battle won (second form, Lavos Core with revives) and the whole Beyond Time ending: the pardon, the Moonlight Parade, the farewells at the Gate, the bell and fireworks, and the staff credits to The End | 100000 |
 | `endings-bucket-lavos.ctm` | technoplaza ct-state18, 2 | New Game+: the End of Time bucket, the Day of Lavos, the outer shell's boss imitations and the shell, the inner cavern and the inner Lavos (ends mid-battle, before the Good Night ending) | 118400 |
 | `endings-telepod-lavos.ctm` | technoplaza ct-state16, 2 | New Game+ with Crono and Marle: Taban's telepod at the Millennial Fair, the outer shell, the inner cavern and the inner Lavos, to the start of the core fight (before the Dream Project ending) | 31000 |
@@ -422,7 +422,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `events-keepers-dome.ctm` | ctsave09, 1 | Keeper's Dome: the pendant opens the sealed door, Belthasar's hall | 5000 |
 | `events-blackbird.ctm` | ctsave11, 1 | Blackbird escape onto the hull over scrolling clouds | 4400 |
 | `menus-field-menu.ctm` | ctsave14, 3 | Every field submenu: equipment, items (use, organize), techs, config, party order, saving | 10600 |
-| `menus-shop-inn.ctm` | ctsave14, 1 | Truce Market buy and sell, resting at the inn | 9700 |
+| `menus-shop-inn.ctm` | ctsave14, 1 | Truce Market buy and sell, resting at the inn | 9702 |
 | `menus-epoch.ctm` | ctsave14, 1 | Epoch: Mode 7 flight, map view, time travel between eras, landing, buildings | 8800 |
 | `menus-end-of-time.ctm` | ctsave12, 2 | Party exchange, the Guru of Time, saving over a slot | 8800 |
 
@@ -430,19 +430,16 @@ All run in shadow mode with no mismatches. Making them found two hangs in the
 development system, both fixed: the location-change vblank wait (see Interrupt
 timing) and the SPC700's return to its boot ROM after a game over.
 
-They were timed before the CPU's pauses for work RAM refresh and HDMA were
+They were first timed before the CPU's pauses for work RAM refresh and HDMA were
 modeled and DMA's cost corrected (see the battle glitches below). With those,
-battles and other real-time sections play out differently, and several movies
-no longer reach the scenes listed: `battle-golem-twins-gameover` doesn't wipe
-the party, `endings-beyond-time` and `endings-telepod-lavos` lose their last
-battle, `late-omen-zeal` ends still fighting the Mammon Machine, `late-lavos`
-still on the outer shell, `endings-bucket-lavos` in an earlier form of the
-fight, and `menus-shop-inn` and `menus-field-menu` end a few frames apart from
-before. On Snes9x they don't reach those scenes either:
-`battle-golem-twins-gameover` shows the same frames on Snes9x and here at 6000,
-9000, 11000 and 12000, and `endings-beyond-time` at 20000, 40000 and 60000,
-none of which matched before. They still exercise the same areas for shadow
-mode, and need retiming to cover their listed endings again.
+battles and other real-time sections play out differently: on Snes9x the old
+inputs didn't reach the listed scenes either (`battle-golem-twins-gameover`
+showed the same frames on Snes9x and here at 6000, 9000, 11000 and 12000 only
+after the fix). The battle movies, `menus-shop-inn` and the late-game movies
+were re-authored on the corrected timing and reach their listed scenes again;
+the `endings-` movies still need it (`endings-beyond-time` and
+`endings-telepod-lavos` lose their last battle, `endings-bucket-lavos` stops in
+an earlier form of the fight).
 
 Non-blank frames pixel-identical to Snes9x at the same frame / within 16 frames:
 
