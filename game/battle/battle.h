@@ -32,6 +32,7 @@ void battle_update_low_hp_flag(Snes *s);
 void battle_update_status_flags(Snes *s);
 void battle_update_all_combatants(Snes *s);
 void battle_select_status_pose(Snes *s);
+void battle_update_combo_members(Snes *s);
 
 /* battle/tiles.c */
 void battle_decode_tile_row(Snes *s);

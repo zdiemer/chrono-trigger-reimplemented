@@ -294,3 +294,95 @@ void battle_select_status_pose(Snes *s)
     m_write8(s, m_abs(s, 0xA440), m_lda8(s, m_read8(s, m_dp(s, 0x84))));
     m_rts(s);
 }
+
+/* LDA $abs : AND #mask : CMP #mask : BEQ -- then the nibble (shifted down for
+ * the high one) selects which of two table cells gets it. */
+static void pair_nibble(Snes *s, uint16_t source, bool high, uint8_t first, uint16_t first_cell, uint8_t second,
+                        uint16_t second_cell)
+{
+    uint8_t mask = high ? 0xF0 : 0x0F;
+    uint8_t v = m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, m_abs(s, source))) & mask));
+    m_cmp8(s, v, mask);
+    if (v == mask)
+        return;
+    if (high) {
+        for (int i = 0; i < 4; i++)
+            v = m_lsr8(s, v);
+        m_set_a8(s, v);
+    }
+    m_cmp8(s, v, first);
+    if (v == first) {
+        m_write8(s, m_abs(s, first_cell), v);
+        return;
+    }
+    m_cmp8(s, v, second);
+    if (v == second)
+        m_write8(s, m_abs(s, second_cell), v);
+}
+
+// $C1:B575
+/* Work out which party members can join a combination tech: fill the 3x3
+ * table at $B3EB from the members' pairing nibbles ($93F3, $93FA, $9401: low
+ * then high nibble naming a partner), then for each member check its row
+ * through $FD:A8A5 (result in $B3EA) and, on success, flag it and its
+ * partners in $B3E7-$B3E9. Finishes with $FD:A95F. */
+void battle_update_combo_members(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_tdc(s);
+    m_tax(s);
+    m_lda8(s, 0xFF);
+    do {
+        m_write8(s, m_abs(s, 0xB3EB) + c->x, 0xFF);
+        m_inx(s);
+        m_cmp16(s, c->x, 0x0009);
+    } while (c->x < 0x0009);
+    m_tdc(s);
+    m_write8(s, m_abs(s, 0xB3EB), (uint8_t)c->a);
+    m_write8(s, m_abs(s, 0xB3EE), m_lda8(s, (uint8_t)((uint8_t)c->a + 1)));
+    m_write8(s, m_abs(s, 0xB3F1), m_lda8(s, (uint8_t)((uint8_t)c->a + 1)));
+    for (uint16_t i = 0; i < 3; i++)
+        m_write8(s, m_abs(s, (uint16_t)(0xB3E7 + i)), 0x00);
+    for (int pass = 0; pass < 2; pass++) {
+        bool high = pass == 1;
+        pair_nibble(s, 0x93F3, high, 0x01, 0xB3EC, 0x02, 0xB3ED);
+        pair_nibble(s, 0x93FA, high, 0x00, 0xB3F0, 0x02, 0xB3EF);
+        pair_nibble(s, 0x9401, high, 0x00, 0xB3F2, 0x01, 0xB3F3);
+    }
+
+    /* $C1:B639: each member's row */
+    static const struct {
+        uint16_t row;
+        uint32_t site;
+        uint16_t self, partner1_cell, partner1_flag, partner2_cell, partner2_flag;
+    } rows[3] = {
+        { 0xB3EB, 0xC1B640, 0xB3E7, 0xB3EC, 0xB3E8, 0xB3ED, 0xB3E9 },
+        { 0xB3EE, 0xC1B671, 0xB3E8, 0xB3EF, 0xB3E9, 0xB3F0, 0xB3E7 },
+        { 0xB3F1, 0xC1B6A2, 0xB3E9, 0xB3F2, 0xB3E7, 0xB3F3, 0xB3E8 },
+    };
+    for (int r = 0; r < 3; r++) {
+        m_tdc(s);
+        m_tax(s);
+        do {
+            if (!(m_lda8(s, m_read8(s, m_abs(s, rows[r].row) + c->x)) & 0x80)) {
+                m_jsl(s, rows[r].site, 0xFDA8A5);
+                if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+                    return;
+                if (m_lda8(s, m_read8(s, m_abs(s, 0xB3EA))) != 0) {
+                    m_write8(s, m_abs(s, rows[r].self), m_lda8(s, 0x01));
+                    if (!(m_lda8(s, m_read8(s, m_abs(s, rows[r].partner1_cell))) & 0x80))
+                        m_write8(s, m_abs(s, rows[r].partner1_flag), m_lda8(s, 0x01));
+                    if (!(m_lda8(s, m_read8(s, m_abs(s, rows[r].partner2_cell))) & 0x80))
+                        m_write8(s, m_abs(s, rows[r].partner2_flag), m_lda8(s, 0x01));
+                    break;
+                }
+            }
+            m_inx(s);
+            m_cmp16(s, c->x, 0x0003);
+        } while (c->x < 0x0003);
+    }
+    m_jsl(s, 0xC1B6CC, 0xFDA95F);
+    if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+        return;
+    m_rts(s);
+}
