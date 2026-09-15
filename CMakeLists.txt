@@ -35,6 +35,7 @@ add_library(ct_game STATIC
   game/core/display.c
   game/core/input.c
   game/core/palette.c
+  game/core/sound_driver.c
   game/core/tile_animation.c
   game/data/decompress.c
   game/event/animation.c

@@ -14,6 +14,8 @@
 /* Timers 0 and 1 tick at 8 kHz, timer 2 at 64 kHz. */
 static const uint32_t timer_period[3] = { 128, 128, 16 };
 
+unsigned long apu_port_clears[2];
+
 /* ---- SPC700 bus ------------------------------------------------------------------ */
 
 static uint8_t smp_read(void *ctx, uint16_t addr)
@@ -55,10 +57,14 @@ static void smp_write(void *ctx, uint16_t addr, uint8_t v)
             }
             apu->timer[i].enabled = on;
         }
-        if (v & 0x10)
+        if (v & 0x10) {
             apu->cpu_in[0] = apu->cpu_in[1] = 0;
-        if (v & 0x20)
+            apu_port_clears[0]++;
+        }
+        if (v & 0x20) {
             apu->cpu_in[2] = apu->cpu_in[3] = 0;
+            apu_port_clears[1]++;
+        }
         apu->control = v;
         break;
     case 0x00F2: apu->dsp_addr = v; break;
