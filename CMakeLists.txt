@@ -147,6 +147,9 @@ endif()
 # Blocks generated from the ROM for ct_dev and ct_play (cmake/recomp.cmake).
 include(cmake/recomp.cmake)
 
+# Matching source reassembled from the ROM and checked against it (cmake/matching.cmake).
+include(cmake/matching.cmake)
+
 if(MINGW)
   target_link_options(ct_dev PRIVATE -static)
 endif()

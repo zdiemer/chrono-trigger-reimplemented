@@ -117,3 +117,12 @@ heuristics. It prints counts per bank only. It measures the remaining work for
 a byte-identical, reassemblable disassembly, scoped in
 [MATCHING.md](MATCHING.md): every byte classified, every address symbolic, and
 closure checks that make the recompiler's code set provably complete.
+
+`python3 -m tools.matching --rom roms/ct-usa.sfc --out build/main/matching
+[--coverage ...] [--calls ...]` (or the `ct_matching` CMake target) is its first
+milestone: it writes the analysis's code as assembly source (explicit operand
+sizes, `;@ m8 x16` width annotations, labels from hints, `game/registry.c` and
+the analysis), `incbin`s every other byte from files extracted into the build
+tree, reassembles it with `tools/matching/asm.py` and fails unless the result is
+the ROM. Like `disasm/out/`, all of that is ROM-derived and stays in the build
+tree.

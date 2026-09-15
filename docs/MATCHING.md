@@ -2,8 +2,10 @@
 
 This is a scoping document: what a byte-identical, reassemblable disassembly of
 Chrono Trigger would take in this project, what it would prove, and how it
-would plug into the disassembler, the static recompiler and the runtime. None
-of it is built yet except the measuring tool, `tools/disasm/census.py`.
+would plug into the disassembler, the static recompiler and the runtime. Built
+so far: the measuring tool, `tools/disasm/census.py`, and milestone MD0, the
+naive split with its assembler and round trip (`tools/matching`, see
+[MD0 as built](#md0-as-built)).
 
 The motivation is completeness. The recompiler ([RECOMP.md](RECOMP.md)) turns
 the code the analysis finds into C, and the interpreter runs whatever it
@@ -311,7 +313,8 @@ relocatable objects turn out to matter more than a dependency-free build.
 
 ### Source layout and naming
 
-- The source is generated (see section 6): `build/<cfg>/matching/src/`.
+- The source is generated (see section 6): `build/<cfg>/matching/src/`. MD0
+  writes one file per bank; modules come with the layout map.
 - A committed layout map, `re/layout.toml`, assigns ROM ranges to modules
   named like `game/` (`field/object_update`, `battle/sprites`,
   `data/decompress`), defaulting to `bank_XX` for unassigned ranges. A
@@ -322,15 +325,17 @@ relocatable objects turn out to matter more than a dependency-free build.
   the new data hints, then generated `sub_`, `loc_`, `jt_` and per-type
   prefixes (`lz_`, `brr_`, `ptrs_`). The build checks that every registry
   address is an instruction start in the source with widths compatible with
-  the entry's precondition.
+  the entry's precondition (MD0 reports registry addresses that aren't
+  instruction starts in `report.md`, without the width check).
 - Generated parts: instructions, labels, region directives, `incbin` lines.
   Hand-curated parts are all in `re/`: names, types, pointer facts, layout,
   comments. Hint comments carry over as source comments.
 
 ### Build-time extraction
 
-`python3 -m tools.matching extract` checks the ROM's CRC32 and writes every
-data region to the build tree (`matching/data/<type>/<label>.<ext>`): raw
+The extraction step checks the ROM's CRC32 and writes every
+data region to the build tree (`matching/src/data/<type>/<label>.<ext>`; MD0
+writes only `raw/bank_XX/<address>.bin`): raw
 blobs, and decoded forms where a type has one (decompressed streams, BRR as
 is, graphics as planar tiles). Source refers to them with `incbin`. The
 reassembled ROM is also written only to the build tree. Nothing extracted,
@@ -391,11 +396,127 @@ needs to understand the pictures.
 
 ### Round trip
 
-`python3 -m tools.matching check` (and a CMake target when `CT_ROM` exists,
-like `cmake/recomp.cmake`): extract, emit, assemble, compare CRC32 and SHA-1.
-On a mismatch it prints the first differing file offset, its region and type,
-and the source file and line, never the bytes. Every format parser also
+`python3 -m tools.matching` (and the `ct_matching` CMake target when `CT_ROM`
+exists, like `cmake/recomp.cmake`): extract, emit, assemble, compare CRC32 and
+SHA-1. On a mismatch it prints the first differing address and the source file
+and line that wrote it, never the bytes. From MD2, every format parser also
 re-serializes its region in the same run.
+
+### MD0 as built
+
+```sh
+python3 -m tools.matching --rom roms/ct-usa.sfc --out build/main/matching \
+    --coverage traces/coverage-gato.txt ... --calls traces/calls-gato.txt ... [--asar auto|off|PATH]
+python3 -m tools.matching.asm build/main/matching/src/rom.asm -o out.sfc [--sym out.sym]
+cmake --build build/main --target ct_matching     # with the recompiler's CT_ROM, CT_RECOMP_COVERAGE, CT_RECOMP_CALLS
+```
+
+| Path | What |
+|---|---|
+| `tools/matching/asm.py` | The assembler for the dialect below (stdlib only) |
+| `tools/matching/emit.py` | Layout, labels and source from an `Analyzer` that has run |
+| `tools/matching/__main__.py` | ROM check, analysis, writing the tree, assembly, CRC32/SHA-1 check, optional asar run |
+| `cmake/matching.cmake` | `ct_matching`: in the default build when `CT_MATCHING` is on (default); `CT_ASAR` if found |
+| `tests/test_matching_asm.py` | Encodings, directives, errors, the emitter on synthetic code |
+
+The command verifies the ROM's CRC32 and SHA-1, runs the analysis in process
+with hints, coverage and call logs (call targets get `sub_` labels), and writes
+into the build tree only:
+
+- `src/rom.asm` (`hirom`, then `incsrc` of each bank in ROM order),
+  `src/bank_C0.asm` ... `src/bank_FF.asm` (one `org $XX0000` each, ending in
+  `warnpc`), `src/data/raw/bank_XX/<address>.bin` (the extracted blobs);
+- `rom.sfc` (the reassembled ROM), `rom.sym` (labels), `report.md` (the byte
+  breakdown per bank, counts only).
+
+Files whose content didn't change aren't rewritten and stale ones are removed;
+two runs give identical trees. The build step fails unless the result has the
+ROM's CRC32 and SHA-1 and every ROM byte was assembled exactly once.
+
+**Layout.** Instructions come from `Analyzer.code`, merged by ROM offset (the
+reset stub runs at `$00:FF00` and is written at `$C0:FF00` with a comment).
+Instructions whose byte ranges intersect, and addresses decoded with more than
+one length, form clusters written as `db`, with the decodes in comments and a
+label at every instruction start. Everything else is `incbin`, cut at bank
+boundaries and at every label, so labels always fall between statements.
+
+**Labels**, in order: `[[name]]`/`[[entry]]` hints, `game/registry.c` names
+(all of them, as extra labels), then generated `sub_`, `jt_`, `loc_` by address.
+Symbolic operands: branch, `BRL` and `PER` targets (a `PER` into the middle of
+an instruction is `label+n`, as at `$C2:EFCD`), `JSR`/`JMP abs`, `JSR`/`JMP
+(abs,X)` onto a labelled table, and `JSL`/`JML long` whose operand is the
+label's `$C0-$FF` address. All other operands are numbers until MD3. Each
+context entry gets a comment with its widths and how it was found. The analysis
+doesn't track the data bank yet (MD3), so there are no DB annotations.
+
+**Result** (this ROM, hints, the 20 coverage files and 19 call logs):
+
+| | Bytes | KiB | Share |
+|---|--:|--:|--:|
+| Instructions | 238402 | 232.8 | 5.68% |
+| `db` (4 clusters, 16 instruction starts) | 19 | 0.0 | 0.00% |
+| `incbin` (393 files) | 3955883 | 3863.2 | 94.32% |
+
+108924 instructions and 11355 labels; instructions plus `db` are exactly the
+analysis's 238421 code bytes. The clusters are `$C1:AFD6-AFDD`, `$C1:AFF6-AFF9`
+and `$C1:B001-B004` (overlaps) and `$C2:8C52-8C54` (the length conflict). Every
+registry address is an instruction start. Time: analysis 5.5-7 s, emit 0.8 s,
+write 0.2 s, assembly 1.4 s, about 8-9 s in all. CRC32 `2D206BF7` and SHA-1
+`de5822f4...` match. asar wasn't available, so the asar build is unchecked (see
+the dialect's open points).
+
+### Dialect
+
+One closed dialect, meant to be a subset of asar syntax, so that the Python
+assembler and asar read the same source:
+
+- **Directives:** `hirom` (required, the only mapper), `org ADDR` (bus address,
+  HiROM mapping), `warnpc ADDR`, `incsrc "file"`, `incbin "file"` (whole files,
+  no ranges; paths relative to the including file), `db`/`dw`/`dl` with
+  comma-separated values, `label:`, `;` comments.
+- **Expressions:** numbers (`$hex`, `%binary`, decimal) and labels joined by
+  `+`/`-`. No other operators, no defines, no macros.
+- **Instructions:** mnemonics as in `tools/disasm/cpu.py` (case-insensitive),
+  operand size always a suffix: `LDA.b $12`, `LDA.w $0012`, `LDA.l $000012`,
+  `LDA.b #$12`, `LDA.w #$1234`, `JMP.w ($1234,X)`, `JML.w [$0000]`,
+  `PEA.w $2100`, `PEI.b ($30)`, `LDA.b ($03,S),Y`. `JML.l`/`JSL.l` for long
+  jumps and calls. Only operands whose layout the mnemonic fixes take no
+  suffix: branches, `BRL` and `PER` (a label), `MVN`/`MVP` (`MVN $src,$dst`,
+  which encodes the destination bank first). A missing suffix, a suffix on
+  those, or a size that isn't an addressing mode of the mnemonic is an error.
+- **Width annotations:** `;@ m8 x16` (`8`, `16` or `?`) comments state the
+  widths the following instructions run with. Until the next `org`, `db`/`dw`/
+  `dl` or `incbin`, immediates of width-dependent instructions must have the
+  annotated size, and an unknown width with such an immediate is an error. The
+  emitter writes one whenever the widths change. asar ignores them.
+- **Stricter than asar:** a ROM byte written twice, a statement across a bank
+  boundary, a value that doesn't fit its field (`dw label` with a 24-bit label
+  is an error; write the difference), a branch or `JSR.w`/`JMP.w` label in
+  another bank, and an 8-bit branch out of range are errors.
+- **16-bit displacements wrap.** `BRL` and `PER` reach the whole bank: the
+  displacement is `(target - next) & $FFFF`, as the CPU adds it. The original
+  needs this: 7 `BRL`s in C0 (`$C0:00DB`, `$C0:00F1`, `$C0:086E`, `$C0:0902`,
+  `$C0:17C2`, `$C0:17EB`, `$C0:185F`) jump forward past `$8000` bytes by
+  wrapping backwards.
+
+The asar command is `asar --no-title-check --fix-checksum=off rom.asm out.sfc`
+run in `src/`. Open points to confirm on a machine with asar: that it accepts
+the suffix on `JML.w [$0000]` (1 in the source), `PEA.w` (46) and `PEI.b` (3),
+and on `BRK`/`COP`/`WDM.b #imm` (none in the source today); that its
+`MVN`/`MVP` operand order is source first; that it takes the wrapping `BRL`s
+without a range error (otherwise those 7 need another spelling); and that it
+doesn't pad or change the checksum of a new file. Each is a change to the
+emitter's spelling, not to the layout.
+
+**Next (MD1).** The first things MD1 needs from this: a check in the same run
+that every coverage address is an instruction start with a compatible width
+(today it only follows from the analysis seeding them); typed `[[data]]` hints
+that the emitter cuts and names `incbin` regions by, so the 13 code banks'
+blobs get a type or a reason; hints for the 108 heuristic tables, 26 assumed
+returns and 13 pruned returns, and a look at the three C1 overlap clusters
+(code or data decoded as code); and, for RAM programs, a `base` directive
+(asar has one) plus a Python decompressor to check code sections assembled at
+their run address against the decoded streams.
 
 ### Shift test
 
@@ -432,8 +553,9 @@ into data; reachability from the entries.
   guards, and format parsers in the tracing fixpoint (script operands become
   entries). `census.py` reads the typed hints, so its unknown column is the
   progress meter for MD1 and MD2.
-- **`tools/matching`** (new): `extract`, `emit`, `asm`, `check`, `shift`,
-  `lz` (decoder and encoder), `formats/`.
+- **`tools/matching`**: `emit`, `asm` and the round trip in `__main__` exist
+  (MD0); to come: typed extraction, `shift`, `lz` (decoder and encoder),
+  `formats/`.
 - **`tools/recomp`** takes its code set from the source model instead of
   `Analyzer.code`, and the build checks the two agree (at MD4, exactly). RAM
   sections become guarded blocks, the option RECOMP.md leaves open.
@@ -446,13 +568,13 @@ into data; reachability from the entries.
 Relative effort is in rough units against MD0, from the measurements above.
 No dates.
 
-| | Goal | Done when | Main drivers | Effort |
-|---|---|---|---|---|
-| MD0 | Naive split: toolchain and extraction | The build extracts, emits and assembles a ROM with CRC32 `2D206BF7` and the SHA-1 from APPROACH.md; code the analysis finds (238421 bytes) is instructions, everything else `incbin` from the build tree; the 10 length conflicts and overlaps are `db` with labels; assembler encodings are unit-tested for every opcode and width; with asar available, the asar build matches too; nothing ROM-derived is tracked by git | Assembler, emitter, extraction, CMake target | 1 |
-| MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 now), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB now) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 |
-| MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 |
-| MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 |
-| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 |
+| | Goal | Done when | Main drivers | Effort | Status |
+|---|---|---|---|---|---|
+| MD0 | Naive split: toolchain and extraction | The build extracts, emits and assembles a ROM with CRC32 `2D206BF7` and the SHA-1 from APPROACH.md; code the analysis finds (238421 bytes) is instructions, everything else `incbin` from the build tree; the 10 length conflicts and overlaps are `db` with labels; assembler encodings are unit-tested for every opcode and width; with asar available, the asar build matches too; nothing ROM-derived is tracked by git | Assembler, emitter, extraction, CMake target | 1 | done, except the asar build: unchecked, asar wasn't available ([MD0 as built](#md0-as-built)) |
+| MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 now), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB now) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | |
+| MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | |
+| MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 | |
+| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | |
 
 **Order.** MD0 and MD1 first. For the goal that motivates this (a provably
 complete code set for the recompiler), MD4's checks need only the data that
