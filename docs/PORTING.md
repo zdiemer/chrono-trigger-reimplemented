@@ -80,6 +80,10 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   when a port talks to the APU. `ct_dev --exclude PREFIX` leaves out the
   routines whose names start with PREFIX, for narrowing down which port causes
   a difference.
+- **Generated blocks.** A build given the ROM also registers C blocks
+  generated from it ([RECOMP.md](RECOMP.md)) behind the ported routines: a port
+  takes precedence at its address, and shadow mode checks the blocks too.
+  `--recomp off` leaves them out.
 
 ## Call-outs
 

@@ -1,9 +1,11 @@
 #include "native.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "fiber.h"
+#include "port/recomp_snes.h"
 
 static void push8_raw(Snes *s, uint8_t v)
 {
@@ -109,6 +111,42 @@ typedef struct Active {
     bool segment_interrupted, interrupted, mismatched;
 } Active;
 
+/* SHADOW mode record of the original's execution, for replaying generated
+ * blocks against it (see "generated blocks in shadow mode" below). */
+typedef struct Access {
+    uint32_t addr;
+    uint32_t clocks;       /* bus clocks the access took (a $420B write includes its DMA) */
+    uint8_t value;
+    bool write;
+} Access;
+
+enum { B_INTERRUPT = 1, B_WAITING = 2, B_STOPPED = 4 };
+
+/* The machine at the start of a step (an instruction boundary). */
+typedef struct Boundary {
+    uint64_t master;
+    uint32_t acc;          /* accesses recorded before this step */
+    uint32_t frame;
+    uint32_t pc24;
+    uint16_t a, x, y, s, d;
+    uint8_t db, p, flags;
+    bool e;
+} Boundary;
+
+typedef struct Replay {
+    NativeRuntime *rt;
+    uint32_t pos, end;     /* next access to consume, and where the record stops */
+    uint64_t clocks;
+    bool dead;             /* stopped consuming: failed or ran out of record */
+    bool bad;
+    bool exhausted;
+    bool exhausted_at_fetch;   /* ran out at the first byte of an instruction */
+    uint32_t exhaust_addr;
+    Cpu exhaust_cpu;
+    uint64_t exhaust_clocks;
+    char why[200];
+} Replay;
+
 struct NativeRuntime {
     const NativeEntry *table;
     int count;
@@ -120,14 +158,35 @@ struct NativeRuntime {
     uint32_t debt;               /* ON mode: master clocks native code still owes */
     char details[MAX_DETAILS][400];
     int ndetails;
+
+    int generated;               /* generated entries in the table */
+    Snes *attached;
+    CpuBus attached_bus;         /* the machine's CPU bus hooks before recording */
+    Access *acc;                 /* SHADOW with generated entries: the record */
+    uint32_t nacc, cap_acc;
+    Boundary *bnd;
+    uint32_t nbnd, cap_bnd;
+    Snes *replay_machine;        /* its Cpu runs replayed blocks */
+    Replay replay;
+    unsigned long gen_unfinished;
 };
 
 static const NativeRuntime *active_runtime;   /* for synchronous native_call */
 
+uint64_t recomp_executed;
+uint32_t recomp_yield_clocks;
+static uint32_t yield_clocks_on = SNES_CLOCKS_PER_LINE;
+
+void native_set_recomp_yield(uint32_t clocks) { yield_clocks_on = clocks ? clocks : 1; }
+uint64_t native_generated_instructions(void) { return recomp_executed; }
+
+/* By address; hand-written entries before generated ones at the same address. */
 static int entry_cmp(const void *a, const void *b)
 {
-    uint32_t x = ((const NativeEntry *)a)->addr, y = ((const NativeEntry *)b)->addr;
-    return x < y ? -1 : x > y;
+    const NativeEntry *p = a, *q = b;
+    if (p->addr != q->addr)
+        return p->addr < q->addr ? -1 : 1;
+    return (int)p->generated - (int)q->generated;
 }
 
 NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mode)
@@ -143,7 +202,9 @@ NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mod
     for (int i = 0; i < count; i++) {
         uint16_t a = sorted[i].addr & 0xFFFF;
         rt->filter[a >> 3] |= (uint8_t)(1 << (a & 7));
+        rt->generated += sorted[i].generated;
     }
+    recomp_yield_clocks = mode == NATIVE_ON ? yield_clocks_on : 0;
     active_runtime = rt;
     return rt;
 }
@@ -167,6 +228,11 @@ void native_destroy(NativeRuntime *rt)
         active_runtime = NULL;
     while (rt->nactive > 0)
         active_pop(rt);
+    if (rt->attached && rt->acc)
+        rt->attached->cpu.bus = rt->attached_bus;
+    free(rt->acc);
+    free(rt->bnd);
+    free(rt->replay_machine);
     free((void *)rt->table);
     free(rt->stats);
     free(rt);
@@ -174,29 +240,31 @@ void native_destroy(NativeRuntime *rt)
 
 int native_suspended(const NativeRuntime *rt) { return rt->nactive; }
 
+/* The first entry at pc (hand-written ones come first), or -1. */
 static int find_entry(const NativeRuntime *rt, uint32_t pc)
 {
     uint16_t a = pc & 0xFFFF;
     if (!(rt->filter[a >> 3] & (1 << (a & 7))))
         return -1;
-    int lo = 0, hi = rt->count - 1;
-    while (lo <= hi) {
+    int lo = 0, hi = rt->count;
+    while (lo < hi) {
         int mid = (lo + hi) / 2;
-        if (rt->table[mid].addr == pc)
-            return mid;
         if (rt->table[mid].addr < pc)
             lo = mid + 1;
         else
-            hi = mid - 1;
+            hi = mid;
     }
-    return -1;
+    return lo < rt->count && rt->table[lo].addr == pc ? lo : -1;
 }
 
-/* Entry preconditions: register widths/modes on P, native mode, and the guard. */
+/* Entry preconditions: register widths/modes on P, native mode, and the guard.
+ * A generated block also needs the CPU running (not halted by WAI or STP). */
 static bool entry_applies(const NativeEntry *e, Snes *s)
 {
     if ((s->cpu.p & e->p_mask) != e->p_value || s->cpu.e)
         return false;
+    if (e->generated)
+        return !s->cpu.waiting && !s->cpu.stopped;
     return !e->guard || e->guard(s);
 }
 
@@ -525,10 +593,352 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
     return false;
 }
 
+/* ---- generated blocks in shadow mode ---------------------------------------------
+ *
+ * Cloning the machine for every block, as for hand ports, would cost a few
+ * hundred kilobytes of copying and comparing per block entry. Instead the
+ * interpreter's CPU bus accesses are recorded (address, value, direction, bus
+ * time), with the registers and master clock at every instruction boundary.
+ * Every so often the record is replayed: at each boundary where a generated
+ * block applies (right widths, native mode, not an interrupt entry), the block
+ * runs on a scratch CPU from the boundary's registers, with its bus accesses
+ * served from the record. Each access must be the one the original made, in the
+ * same order (instruction fetches included), with the same value written; where
+ * the block stops, the original must be at an instruction boundary with the same
+ * registers, and the same time must have passed. Everything a block can observe
+ * comes through its accesses, so this checks every block the machine reaches,
+ * with nothing sampled and no machine copies. An interrupt before the block
+ * stops ends the check at the interrupt's boundary, where the registers and
+ * time so far are compared (counted as interrupted). Blocks then chain: the next
+ * check starts where this block stopped, as ON mode's dispatch would. */
+
+#define RECORD_BOUNDARIES (1u << 17)
+#define RECORD_ACCESSES (1u << 21)
+
+static uint8_t record_read(void *ctx, uint32_t addr)
+{
+    SnesBus *bus = ctx;
+    uint32_t before = bus->clocks;
+    uint8_t v = snes_bus_read(ctx, addr);
+    NativeRuntime *rt = (NativeRuntime *)active_runtime;
+    if (rt && rt->attached && bus == &rt->attached->bus && rt->nacc < rt->cap_acc)
+        rt->acc[rt->nacc++] = (Access){ addr, bus->clocks - before, v, false };
+    return v;
+}
+
+static void record_write(void *ctx, uint32_t addr, uint8_t v)
+{
+    SnesBus *bus = ctx;
+    uint32_t before = bus->clocks;
+    snes_bus_write(ctx, addr, v);
+    NativeRuntime *rt = (NativeRuntime *)active_runtime;
+    if (rt && rt->attached && bus == &rt->attached->bus && rt->nacc < rt->cap_acc)
+        rt->acc[rt->nacc++] = (Access){ addr, bus->clocks - before, v, true };
+}
+
+static void replay_fail(Replay *r, const char *why)
+{
+    if (!r->dead) {
+        r->bad = true;
+        snprintf(r->why, sizeof r->why, "%s", why);
+    }
+    r->dead = true;
+}
+
+/* The next recorded access, or NULL (and the replay stops consuming) if the
+ * record ends here. */
+static const Access *replay_next(Replay *r, const Cpu *c, uint32_t addr, bool fetch_start)
+{
+    if (r->dead)
+        return NULL;
+    if (r->pos >= r->end) {
+        r->dead = true;
+        r->exhausted = true;
+        r->exhausted_at_fetch = fetch_start;
+        r->exhaust_addr = addr;
+        if (c)
+            r->exhaust_cpu = *c;
+        r->exhaust_clocks = r->clocks;
+        return NULL;
+    }
+    return &r->rt->acc[r->pos];
+}
+
+static void describe_access(char *out, size_t n, const Access *a)
+{
+    if (a->write)
+        snprintf(out, n, "wrote %02X to %06X", a->value, a->addr);
+    else
+        snprintf(out, n, "read %06X", a->addr);
+}
+
+static uint8_t replay_read(void *ctx, uint32_t addr)
+{
+    Replay *r = ctx;
+    const Access *a = replay_next(r, NULL, addr, false);
+    if (!a)
+        return 0;
+    if (a->write || a->addr != addr) {
+        char orig[48], why[160];
+        describe_access(orig, sizeof orig, a);
+        snprintf(why, sizeof why, "block read %06X where the original %s", addr, orig);
+        replay_fail(r, why);
+        return 0;
+    }
+    r->pos++;
+    r->clocks += a->clocks;
+    return a->value;
+}
+
+static void replay_write(void *ctx, uint32_t addr, uint8_t v)
+{
+    Replay *r = ctx;
+    const Access *a = replay_next(r, NULL, addr, false);
+    if (!a)
+        return;
+    if (!a->write || a->addr != addr || a->value != v) {
+        char orig[48], why[160];
+        describe_access(orig, sizeof orig, a);
+        snprintf(why, sizeof why, "block wrote %02X to %06X where the original %s", v, addr, orig);
+        replay_fail(r, why);
+        return;
+    }
+    r->pos++;
+    r->clocks += a->clocks;
+}
+
+void native_replay_fetch(Cpu *c, uint32_t addr, unsigned n, uint8_t last)
+{
+    Replay *r = c->bus.ctx;
+    for (unsigned i = 0; i < n; i++) {
+        uint32_t at = (addr & 0xFF0000) | (uint16_t)(addr + i);
+        const Access *a = replay_next(r, c, at, i == 0);
+        if (!a)
+            return;
+        if (a->write || a->addr != at || (i == n - 1 && a->value != last)) {
+            char orig[48], why[160];
+            describe_access(orig, sizeof orig, a);
+            snprintf(why, sizeof why, "block fetched %06X where the original %s", at, orig);
+            replay_fail(r, why);
+            return;
+        }
+        r->pos++;
+        r->clocks += a->clocks;
+    }
+}
+
+static void record_boundary(NativeRuntime *rt, Snes *s)
+{
+    const Cpu *c = &s->cpu;
+    Boundary *b = &rt->bnd[rt->nbnd++];
+    b->master = s->master;
+    b->acc = rt->nacc;
+    b->frame = s->frame;
+    b->pc24 = cpu_pc24(c);
+    b->a = c->a, b->x = c->x, b->y = c->y, b->s = c->s, b->d = c->d;
+    b->db = c->db, b->p = c->p, b->e = c->e;
+    b->flags = (uint8_t)((interrupt_deliverable(s) ? B_INTERRUPT : 0) | (c->waiting ? B_WAITING : 0) |
+                         (c->stopped ? B_STOPPED : 0));
+}
+
+static int find_generated(const NativeRuntime *rt, const Boundary *b)
+{
+    int i = find_entry(rt, b->pc24);
+    if (i < 0)
+        return -1;
+    for (; i < rt->count && rt->table[i].addr == b->pc24; i++) {
+        const NativeEntry *e = &rt->table[i];
+        if (e->generated && (b->p & e->p_mask) == e->p_value)
+            return i;
+    }
+    return -1;
+}
+
+/* Registers where a replayed block stopped against a recorded boundary. */
+static bool registers_differ(const Cpu *c, uint32_t pc24, const Boundary *b, char *out, size_t n)
+{
+#define REG(label, x, y)                                                                              \
+    if ((x) != (y)) {                                                                                 \
+        snprintf(out, n, "%s original %lX block %lX", label, (unsigned long)(y), (unsigned long)(x)); \
+        return true;                                                                                  \
+    }
+    REG("PC", pc24, b->pc24)
+    REG("A", c->a, b->a)
+    REG("X", c->x, b->x)
+    REG("Y", c->y, b->y)
+    REG("S", c->s, b->s)
+    REG("D", c->d, b->d)
+    REG("DB", c->db, b->db)
+    REG("P", c->p, b->p)
+    REG("E", c->e, b->e)
+    REG("WAI", c->waiting, (b->flags & B_WAITING) != 0)
+    REG("STP", c->stopped, (b->flags & B_STOPPED) != 0)
+#undef REG
+    return false;
+}
+
+static void generated_mismatch(NativeRuntime *rt, int idx, const Boundary *start, const Boundary *at,
+                               const char *why)
+{
+    rt->stats[idx].mismatched++;
+    char msg[300];
+    snprintf(msg, sizeof msg, "from frame %u, stopped at %06X: %s", (unsigned)start->frame,
+             (unsigned)at->pc24, why);
+    detail(rt, "mismatch", &rt->table[idx], msg);
+}
+
+/* Replay the record up to the last boundary whose blocks can be decided, and
+ * drop what has been checked. `final`: the record ends here for good. */
+static void replay_record(NativeRuntime *rt, bool final)
+{
+    uint32_t nb = rt->nbnd;
+    if (nb == 0)
+        return;
+    /* next_int[i]: the first boundary at or after i where an interrupt entry runs */
+    uint32_t *next_int = malloc(sizeof *next_int * nb);
+    uint32_t next = nb;
+    for (uint32_t i = nb; i-- > 0;) {
+        if (rt->bnd[i].flags & B_INTERRUPT)
+            next = i;
+        next_int[i] = next;
+    }
+    Snes *m = rt->replay_machine;
+    Replay *r = &rt->replay;
+    uint32_t i = 0;
+    while (i + 1 < nb) {
+        const Boundary *b = &rt->bnd[i];
+        if ((b->flags & (B_INTERRUPT | B_WAITING | B_STOPPED)) || b->e) {
+            i++;
+            continue;
+        }
+        int idx = find_generated(rt, b);
+        if (idx < 0) {
+            i++;
+            continue;
+        }
+        uint32_t k = next_int[i + 1];
+        bool open = k >= nb;
+        memset(r, 0, offsetof(Replay, why));
+        r->rt = rt;
+        r->pos = b->acc;
+        /* up to the interrupt, or to the latest boundary: accesses after it
+         * belong to a step still in progress */
+        r->end = open ? rt->bnd[nb - 1].acc : rt->bnd[k].acc;
+        Cpu *c = &m->cpu;
+        c->a = b->a, c->x = b->x, c->y = b->y, c->s = b->s, c->d = b->d;
+        c->db = b->db, c->p = b->p, c->e = false;
+        c->pb = b->pc24 >> 16, c->pc = b->pc24 & 0xFFFF;
+        c->io_cycles = 0;
+        c->waiting = c->stopped = false;
+        c->bus = (CpuBus){ r, replay_read, replay_write };
+        rt->table[idx].fn(m);
+
+        if (r->bad) {
+            rt->stats[idx].calls++;
+            /* where in the original: the step holding the failing access */
+            uint32_t lo = i, hi = nb - 1;
+            while (lo < hi) {
+                uint32_t mid = (lo + hi + 1) / 2;
+                if (rt->bnd[mid].acc <= r->pos)
+                    lo = mid;
+                else
+                    hi = mid - 1;
+            }
+            generated_mismatch(rt, idx, b, &rt->bnd[lo], r->why);
+            i++;
+            continue;
+        }
+        if (r->exhausted) {
+            if (open) {
+                if (!final)
+                    break;   /* the original hasn't got that far yet */
+                rt->gen_unfinished++;
+                i++;
+                continue;
+            }
+            rt->stats[idx].calls++;
+            const Boundary *at = &rt->bnd[k];
+            char why[160];
+            uint64_t spent = r->exhaust_clocks + 6ull * r->exhaust_cpu.io_cycles;
+            if (!r->exhausted_at_fetch)
+                generated_mismatch(rt, idx, b, at, "the original took an interrupt inside an instruction of the block");
+            else if (registers_differ(&r->exhaust_cpu, r->exhaust_addr, at, why, sizeof why))
+                generated_mismatch(rt, idx, b, at, why);
+            else if (spent != at->master - b->master) {
+                snprintf(why, sizeof why, "time original %llu block %llu (to an interrupt)",
+                         (unsigned long long)(at->master - b->master), (unsigned long long)spent);
+                generated_mismatch(rt, idx, b, at, why);
+            } else
+                rt->stats[idx].interrupted++;
+            i = k;
+            continue;
+        }
+        rt->stats[idx].calls++;
+        /* the block stopped: the original's first boundary after the same accesses */
+        uint32_t lo = i + 1, hi = nb;
+        while (lo < hi) {
+            uint32_t mid = (lo + hi) / 2;
+            if (rt->bnd[mid].acc < r->pos)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        if (lo >= nb || rt->bnd[lo].acc != r->pos) {
+            generated_mismatch(rt, idx, b, &rt->bnd[lo >= nb ? nb - 1 : lo],
+                               "the block stopped inside an instruction of the original");
+            i++;
+            continue;
+        }
+        const Boundary *at = &rt->bnd[lo];
+        char why[160];
+        uint64_t spent = r->clocks + 6ull * c->io_cycles;
+        if (registers_differ(c, cpu_pc24(c), at, why, sizeof why))
+            generated_mismatch(rt, idx, b, at, why);
+        else if (spent != at->master - b->master) {
+            snprintf(why, sizeof why, "time original %llu block %llu", (unsigned long long)(at->master - b->master),
+                     (unsigned long long)spent);
+            generated_mismatch(rt, idx, b, at, why);
+        } else
+            rt->stats[idx].matched++;
+        i = lo;
+    }
+    free(next_int);
+    if (final)
+        i = nb;
+    /* keep boundaries from i on */
+    uint32_t base = i < nb ? rt->bnd[i].acc : rt->nacc;
+    memmove(rt->acc, rt->acc + base, sizeof *rt->acc * (rt->nacc - base));
+    rt->nacc -= base;
+    memmove(rt->bnd, rt->bnd + i, sizeof *rt->bnd * (nb - i));
+    rt->nbnd = nb - i;
+    for (uint32_t j = 0; j < rt->nbnd; j++)
+        rt->bnd[j].acc -= base;
+}
+
+/* At the start of every step. The record is checked when it fills up, right
+ * after a boundary (so every recorded access belongs to a step that ended). */
+static void record_step(NativeRuntime *rt, Snes *s)
+{
+    record_boundary(rt, s);
+    if (rt->nbnd < rt->cap_bnd && rt->nacc + 0x10000 < rt->cap_acc)
+        return;
+    replay_record(rt, false);
+    if (rt->nbnd >= rt->cap_bnd || rt->nacc + 0x10000 >= rt->cap_acc) {
+        /* a block whose record doesn't fit: give up on it */
+        rt->gen_unfinished++;
+        rt->nbnd = 0;
+        rt->nacc = 0;
+        record_boundary(rt, s);
+    }
+}
+
 static int32_t intercept(void *ctx, Snes *s)
 {
     NativeRuntime *rt = ctx;
     uint32_t pc = cpu_pc24(&s->cpu);
+
+    if (rt->acc)
+        record_step(rt, s);
 
     /* Native code finishes instantly but the original took time. Pay that time
      * off a scanline at a time so frame boundaries and line events still happen
@@ -556,47 +966,64 @@ static int32_t intercept(void *ctx, Snes *s)
     int idx = find_entry(rt, pc);
     if (idx < 0)
         return -1;
-    const NativeEntry *e = &rt->table[idx];
-    NativeStats *st = &rt->stats[idx];
-    st->calls++;
-    if (!entry_applies(e, s)) {
-        st->skipped++;
-        return -1;
-    }
+    for (; idx < rt->count && rt->table[idx].addr == pc; idx++) {
+        const NativeEntry *e = &rt->table[idx];
+        NativeStats *st = &rt->stats[idx];
 
-    if (e->idle) {
-        if (rt->mode != NATIVE_ON) {
-            st->skipped++;
-            return -1;
+        if (e->generated) {
+            /* SHADOW checks generated blocks by replaying the record */
+            if (rt->mode != NATIVE_ON || !entry_applies(e, s))
+                continue;
+            st->calls++;
+            s->bus.clocks = 0;
+            s->cpu.io_cycles = 0;
+            e->fn(s);
+            uint32_t clocks = s->bus.clocks + 6 * s->cpu.io_cycles;
+            s->cpu.io_cycles = 0;
+            return (int32_t)clocks;
         }
-        e->fn(s);
-        if (cpu_pc24(&s->cpu) == pc)
-            return (int32_t)(e->idle_clocks ? e->idle_clocks : snes_clocks_to_next_poll_change(s));
-        return 0;
-    }
 
-    if (rt->nactive == MAX_ACTIVE) {
-        st->skipped++;
-        return -1;
+        st->calls++;
+        if (!entry_applies(e, s)) {
+            st->skipped++;
+            continue;
+        }
+
+        if (e->idle) {
+            if (rt->mode != NATIVE_ON) {
+                st->skipped++;
+                continue;
+            }
+            e->fn(s);
+            if (cpu_pc24(&s->cpu) == pc)
+                return (int32_t)(e->idle_clocks ? e->idle_clocks : snes_clocks_to_next_poll_change(s));
+            return 0;
+        }
+
+        if (rt->nactive == MAX_ACTIVE) {
+            st->skipped++;
+            continue;
+        }
+        Active *a = &rt->active[rt->nactive++];
+        memset(a, 0, sizeof *a);
+        a->entry = e;
+        a->entry_s = s->cpu.s;
+        a->job = job_get();
+        a->job->entry = e;
+        if (rt->mode == NATIVE_SHADOW) {
+            a->clone = malloc(sizeof *a->clone);
+            snes_clone(a->clone, s);
+            a->clone->bus.clocks = 0;
+            a->job->m = a->clone;
+        } else {
+            s->bus.clocks = 0;
+            a->job->m = s;
+        }
+        job_run(a->job);
+        after_run(rt, a, s);
+        return rt->mode == NATIVE_ON ? 0 : -1;
     }
-    Active *a = &rt->active[rt->nactive++];
-    memset(a, 0, sizeof *a);
-    a->entry = e;
-    a->entry_s = s->cpu.s;
-    a->job = job_get();
-    a->job->entry = e;
-    if (rt->mode == NATIVE_SHADOW) {
-        a->clone = malloc(sizeof *a->clone);
-        snes_clone(a->clone, s);
-        a->clone->bus.clocks = 0;
-        a->job->m = a->clone;
-    } else {
-        s->bus.clocks = 0;
-        a->job->m = s;
-    }
-    job_run(a->job);
-    after_run(rt, a, s);
-    return rt->mode == NATIVE_ON ? 0 : -1;
+    return -1;
 }
 
 unsigned long native_call_step_limit = 50000000ul;
@@ -645,8 +1072,12 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
             break;
         }
         const NativeRuntime *rt = active_runtime;
-        int idx = rt ? find_entry(rt, cpu_pc24(&s->cpu)) : -1;
-        if (idx >= 0 && !rt->table[idx].idle && entry_applies(&rt->table[idx], s))
+        uint32_t pc = cpu_pc24(&s->cpu);
+        int idx = rt ? find_entry(rt, pc) : -1;
+        while (idx >= 0 && idx < rt->count && rt->table[idx].addr == pc &&
+               (rt->table[idx].idle || !entry_applies(&rt->table[idx], s)))
+            idx++;
+        if (idx >= 0 && idx < rt->count && rt->table[idx].addr == pc)
             rt->table[idx].fn(s);
         else
             cpu_step(&s->cpu);
@@ -676,17 +1107,46 @@ void native_attach(NativeRuntime *rt, Snes *snes)
         return;
     snes->intercept = intercept;
     snes->intercept_ctx = rt;
+    rt->attached = snes;
+    if (rt->mode == NATIVE_SHADOW && rt->generated && !rt->acc) {
+        rt->cap_acc = RECORD_ACCESSES;
+        rt->cap_bnd = RECORD_BOUNDARIES;
+        rt->acc = malloc(sizeof *rt->acc * rt->cap_acc);
+        rt->bnd = malloc(sizeof *rt->bnd * rt->cap_bnd);
+        rt->replay_machine = calloc(1, sizeof *rt->replay_machine);
+        rt->attached_bus = snes->cpu.bus;
+        snes->cpu.bus.read = record_read;
+        snes->cpu.bus.write = record_write;
+    }
 }
 
 /* ---- reporting ---------------------------------------------------------------- */
 
+/* Check what the record holds so far. */
+static void replay_pending(const NativeRuntime *crt, bool final)
+{
+    NativeRuntime *rt = (NativeRuntime *)crt;
+    if (rt->acc && rt->nbnd)
+        replay_record(rt, final);
+}
+
 void native_report(const NativeRuntime *rt, FILE *out)
 {
     static const char *modes[] = { "off", "shadow", "on" };
+    replay_pending(rt, true);
     fprintf(out, "native routines (%s mode):\n", modes[rt->mode]);
+    unsigned long gen_calls = 0, gen_matched = 0, gen_mismatched = 0, gen_interrupted = 0, gen_reached = 0;
     for (int i = 0; i < rt->count; i++) {
         const NativeEntry *e = &rt->table[i];
         const NativeStats *st = &rt->stats[i];
+        if (e->generated) {
+            gen_calls += st->calls;
+            gen_matched += st->matched;
+            gen_mismatched += st->mismatched;
+            gen_interrupted += st->interrupted;
+            gen_reached += st->calls > 0;
+            continue;
+        }
         fprintf(out, "  %06X %-40s calls %u", e->addr, e->name, st->calls);
         if (rt->mode == NATIVE_SHADOW) {
             fprintf(out, "  matched %u  mismatched %u  interrupted %u", st->matched, st->mismatched, st->interrupted);
@@ -699,6 +1159,15 @@ void native_report(const NativeRuntime *rt, FILE *out)
             fprintf(out, "  skipped %u", st->skipped);
         fprintf(out, "\n");
     }
+    if (rt->generated) {
+        fprintf(out, "  generated blocks: %d entries, %lu reached, calls %lu", rt->generated, gen_reached, gen_calls);
+        if (rt->mode == NATIVE_SHADOW)
+            fprintf(out, "  matched %lu  mismatched %lu  interrupted %lu  unfinished %lu", gen_matched, gen_mismatched,
+                    gen_interrupted, rt->gen_unfinished);
+        else
+            fprintf(out, "  instructions %llu", (unsigned long long)recomp_executed);
+        fprintf(out, "\n");
+    }
     if (rt->nactive)
         fprintf(out, "  %d routine(s) still in progress\n", rt->nactive);
     for (int i = 0; i < rt->ndetails; i++)
@@ -707,6 +1176,7 @@ void native_report(const NativeRuntime *rt, FILE *out)
 
 int native_failed(const NativeRuntime *rt)
 {
+    replay_pending(rt, false);
     for (int i = 0; i < rt->count; i++)
         if (rt->stats[i].mismatched)
             return 1;

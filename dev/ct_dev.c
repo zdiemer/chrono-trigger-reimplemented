@@ -5,7 +5,8 @@
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
- *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]...
+ *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on]
+ *          [--recomp-yield clocks] [--insn-stats]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -16,6 +17,11 @@
  * --sram starts with that cartridge save (8 KiB) in place of blank SRAM; a movie
  * recorded from a save names its CRC-32 and must be replayed with the same one.
  * --wav writes the DSP's output (32000 Hz stereo) over the frames run.
+ * --recomp on (the default when the build generated blocks from this ROM)
+ * registers the generated blocks after the ported routines (docs/RECOMP.md);
+ * --recomp-yield sets how long a generated loop runs before letting time pass
+ * in on mode. --insn-stats reports how many instructions the interpreter and
+ * generated blocks executed.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +29,7 @@
 
 #include "media.h"
 #include "movie.h"
+#include "port/recomp_table.h"
 #include "registry.h"
 #include "snes/render.h"
 #include "snes/system.h"
@@ -49,6 +56,8 @@ static void on_line(void *ctx, Snes *snes, uint16_t line)
 typedef struct {
     uint8_t *seen;       /* bitmap over COVERAGE_BITS, or NULL */
     uint64_t *calls;     /* open-addressed set of site << 24 | target, or NULL */
+    uint64_t insns;      /* instructions the interpreter executed */
+    uint64_t ram_insns;  /* of those, code in RAM (banks $7E-$7F, or below $8000 in banks $00-$3F/$80-$BF) */
     Snes *snes;
 } Coverage;
 
@@ -70,6 +79,9 @@ static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
 {
     Coverage *cov = ctx;
     bool m = e || (p & CPU_FLAG_M), x = e || (p & CPU_FLAG_X);
+    cov->insns++;
+    if ((pc >> 16 & 0xFE) == 0x7E || (!(pc & 0x400000) && (pc & 0xFFFF) < 0x8000))
+        cov->ram_insns++;
     if (cov->seen) {
         uint32_t key = pc << 2 | (uint32_t)m << 1 | (uint32_t)x;
         cov->seen[key >> 3] |= (uint8_t)(1 << (key & 7));
@@ -154,11 +166,16 @@ int main(int argc, char **argv)
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     const char *shot_dir = NULL, *wav_path = NULL;
     NativeMode native_mode = NATIVE_OFF;
+    bool recomp = true, insn_stats = false;
     long frames = -1, status_every = 0, shot_every = 0;
     const char *excludes[64];
     int nexcludes = 0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
+        if (!strcmp(a, "--insn-stats")) {
+            insn_stats = true;
+            continue;
+        }
         if (!v) {
             fprintf(stderr, "missing value for %s\n", a);
             return 2;
@@ -177,6 +194,15 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else if (!strcmp(a, "--wav")) wav_path = v;
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
+        else if (!strcmp(a, "--recomp-yield")) native_set_recomp_yield((uint32_t)strtoul(v, NULL, 10));
+        else if (!strcmp(a, "--recomp")) {
+            if (!strcmp(v, "off")) recomp = false;
+            else if (!strcmp(v, "on")) recomp = true;
+            else {
+                fprintf(stderr, "--recomp must be off or on\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--native")) {
             if (!strcmp(v, "off")) native_mode = NATIVE_OFF;
             else if (!strcmp(v, "shadow")) native_mode = NATIVE_SHADOW;
@@ -196,7 +222,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
-                        "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]...\n");
+                        "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on] "
+                        "[--recomp-yield clocks] [--insn-stats]\n");
         return 2;
     }
 
@@ -240,16 +267,25 @@ int main(int argc, char **argv)
         fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", load_state);
         return 1;
     }
-    /* --exclude drops ported routines whose names start with a prefix, for
-     * narrowing down which one causes a difference. */
-    static NativeEntry table[4096];
+    /* --exclude drops ported routines (and generated blocks, recomp_BBAAAA_...)
+     * whose names start with a prefix, for narrowing down which one causes a
+     * difference. Generated blocks are only registered for the ROM they were
+     * generated from. */
+    if (recomp && recomp_native_count > 0 && ct_crc32(image, image_len) != recomp_rom_crc) {
+        fprintf(stderr, "warning: generated blocks are for ROM CRC-32 %08X, not this one; not using them\n",
+                (unsigned)recomp_rom_crc);
+        recomp = false;
+    }
+    int nrecomp = recomp ? recomp_native_count : 0;
+    NativeEntry *table = malloc(sizeof *table * (size_t)(game_native_count + nrecomp + 1));
     int table_count = 0;
-    for (int i = 0; i < game_native_count && table_count < (int)(sizeof table / sizeof table[0]); i++) {
+    for (int i = 0; i < game_native_count + nrecomp; i++) {
+        const NativeEntry *e = i < game_native_count ? &game_natives[i] : &recomp_natives[i - game_native_count];
         bool excluded = false;
         for (int k = 0; k < nexcludes; k++)
-            excluded |= strncmp(game_natives[i].name, excludes[k], strlen(excludes[k])) == 0;
+            excluded |= strncmp(e->name, excludes[k], strlen(excludes[k])) == 0;
         if (!excluded)
-            table[table_count++] = game_natives[i];
+            table[table_count++] = *e;
     }
     NativeRuntime *natives = native_create(table, table_count, native_mode);
     native_attach(natives, &snes);
@@ -261,7 +297,7 @@ int main(int argc, char **argv)
         cov.seen = calloc((size_t)1 << (COVERAGE_BITS - 3), 1);
     if (calls_path)
         cov.calls = calloc((size_t)1 << CALL_SET_BITS, sizeof *cov.calls);
-    if (coverage_path || calls_path) {
+    if (coverage_path || calls_path || insn_stats) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -341,7 +377,14 @@ int main(int argc, char **argv)
         if (native_failed(natives))
             rc = 1;
     }
+    if (insn_stats) {
+        uint64_t generated = native_generated_instructions();
+        fprintf(stderr, "instructions: interpreted %llu (%llu in RAM), generated %llu (%.1f%% generated)\n",
+                (unsigned long long)cov.insns, (unsigned long long)cov.ram_insns, (unsigned long long)generated,
+                cov.insns + generated ? 100.0 * (double)generated / (double)(cov.insns + generated) : 0.0);
+    }
     native_destroy(natives);
+    free(table);
     if (ct_trace_close(trace) != 0)
         rc = 1;
     if (wav_path) {

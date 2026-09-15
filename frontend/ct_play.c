@@ -1,7 +1,8 @@
 /* ct_play: plays the game in a window, with the ported routines running natively
  * and the rest on the development system (docs/PLAYING.md).
  *
- *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--save-dir dir]
+ *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp on|off]
+ *           [--save-dir dir]
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
  *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm] [--wav out.wav]
@@ -21,6 +22,7 @@
 
 #include "media.h"
 #include "movie.h"
+#include "port/recomp_table.h"
 #include "registry.h"
 #include "snes/render.h"
 #include "snes/system.h"
@@ -99,6 +101,8 @@ typedef struct {
     NativeRuntime *natives;
     NativeMode native_mode;    /* the mode asked for */
     NativeMode runtime_mode;   /* the mode natives runs in now */
+    NativeEntry *table;        /* ported routines, then generated blocks */
+    int table_count;
     bool persist_sram;
     char sram_path[1024];
     char state_path[1024];
@@ -119,6 +123,7 @@ static void usage(FILE *out)
             "  --mute               no sound\n"
             "  --native MODE        on: run ported routines natively (default); off: interpret everything;\n"
             "                       shadow: interpret, and check each ported routine against the original\n"
+            "  --recomp on|off      register the blocks generated from the ROM at build time (default on)\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
             "\n"
             "Movies:\n"
@@ -276,7 +281,7 @@ static void natives_start(Player *pl, NativeMode mode)
     native_destroy(pl->natives);
     pl->snes.intercept = NULL;
     pl->snes.intercept_ctx = NULL;
-    pl->natives = native_create(game_natives, game_native_count, mode);
+    pl->natives = native_create(pl->table, pl->table_count, mode);
     pl->runtime_mode = mode;
     native_attach(pl->natives, &pl->snes);
 }
@@ -795,7 +800,7 @@ int main(int argc, char **argv)
     int movie_sram = 0;
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
-    bool native_given = false;
+    bool native_given = false, recomp = true;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
     bool fullscreen = false;
@@ -843,6 +848,14 @@ int main(int argc, char **argv)
                 return 2;
             }
             nholds++;
+        }
+        else if (!strcmp(a, "--recomp")) {
+            if (!strcmp(v, "off")) recomp = false;
+            else if (!strcmp(v, "on")) recomp = true;
+            else {
+                fprintf(stderr, "--recomp must be on or off\n");
+                return 2;
+            }
         }
         else if (!strcmp(a, "--native")) {
             native_given = true;
@@ -911,6 +924,17 @@ int main(int argc, char **argv)
     }
 
     snes_init(&pl.snes, rom + header, rom_len - header);
+    if (recomp && recomp_native_count > 0 && ct_crc32(rom + header, rom_len - header) != recomp_rom_crc) {
+        fprintf(stderr, "warning: generated blocks are for ROM CRC-32 %08X, not this one; not using them\n",
+                (unsigned)recomp_rom_crc);
+        recomp = false;
+    }
+    int nrecomp = recomp ? recomp_native_count : 0;
+    pl.table = malloc(sizeof *pl.table * (size_t)(game_native_count + nrecomp + 1));
+    memcpy(pl.table, game_natives, sizeof *pl.table * (size_t)game_native_count);
+    if (nrecomp)
+        memcpy(pl.table + game_native_count, recomp_natives, sizeof *pl.table * (size_t)nrecomp);
+    pl.table_count = game_native_count + nrecomp;
     render_init(&pl.renderer);
     pl.snes.on_line = on_line;
     pl.snes.on_line_ctx = &pl.renderer;
