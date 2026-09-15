@@ -424,8 +424,14 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             /* Above both the stop point and the entry: an early stop can be
              * below the entry (after pushes), where the original starts. */
             if (s->cpu.s > a->ret_s && s->cpu.s > a->entry_s) {
-                a->mismatched = true;
-                detail(rt, "mismatch", a->entry, "original left the routine without returning where the native one did");
+                /* An interrupt handler may switch stacks (the menu code runs
+                 * tasks on their own stacks); nothing to compare then. */
+                if (a->segment_interrupted)
+                    a->interrupted = true;
+                else {
+                    a->mismatched = true;
+                    detail(rt, "mismatch", a->entry, "original left the routine without returning where the native one did");
+                }
                 finish(rt);
                 return true;
             }
@@ -439,6 +445,11 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             compare(rt, a, s, j->call_dont_care, where);
             a->phase = PH_CALLOUT;
             return false;
+        }
+        if (s->cpu.s > a->entry_s + 1 && a->segment_interrupted) {
+            a->interrupted = true;
+            finish(rt);
+            return true;
         }
         if (s->cpu.s > a->entry_s + 1) {
             char msg[96];
