@@ -19,7 +19,10 @@ analysis. `--save-state` writes the machine at the end of a run and
 `--load-state` resumes from it (same build only), which makes iterating on the
 end of a long movie fast. Frame numbers and movie input continue from the
 saved frame, and resumed runs are identical to straight runs. `--wav out.wav`
-writes the sound (32000 Hz stereo, see S-DSP below).
+writes the sound (32000 Hz stereo, see S-DSP below). `--io-log out.txt` counts
+every hardware register access by what made it: a hand port and the platform
+service call it went through, a generated block, the interpreter's instruction,
+HDMA, or a DMA transfer ([PLATFORM.md](PLATFORM.md)).
 
 ## Components
 

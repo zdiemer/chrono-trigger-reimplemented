@@ -1,6 +1,9 @@
 /* Battle: the NMI and IRQ handlers. */
 #include "battle/battle.h"
 
+#include "platform/input.h"
+#include "platform/timing.h"
+#include "platform/video.h"
 #include "port/machine.h"
 
 /* Call out; false if the callee didn't leave 8-bit A and 16-bit X (the port
@@ -58,6 +61,7 @@ static void leave(Snes *s)
 void battle_nmi(Snes *s)
 {
     Cpu *c = &s->cpu;
+    Platform *pf = m_platform(s);
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
     m_push16(s, c->a);
     m_push16(s, c->x);
@@ -68,9 +72,10 @@ void battle_nmi(Snes *s)
     m_set_nz16(s, c->d);
     m_lda16(s, c->d);
     m_sep(s, CPU_FLAG_M);
-    m_write8(s, 0x00420C, (uint8_t)c->a);
-    m_lda8(s, m_read8(s, 0x004210));
-    m_write8(s, 0x004200, m_lda8(s, 0xA1));
+    vid_enable_line_effects(pf, PF_AT(0xD1E78A), (uint8_t)c->a);
+    m_lda8(s, tm_ack_vblank(pf, PF_AT(0xD1E78E)));
+    m_lda8(s, 0xA1);
+    tm_enable_interrupts(pf, PF_AT(0xD1E794), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
     if (m_lda8(s, m_read8(s, m_dp(s, 0x7F))) != 0) {
         leave(s);
         return;
@@ -88,10 +93,12 @@ void battle_nmi(Snes *s)
     m_push8(s, (uint8_t)c->a);
     c->db = m_pull8(s);
     m_set_nz8(s, c->db);
-    set_abs8(s, 0x420C, (uint8_t)c->a);
-    m_lda8(s, abs8(s, 0x213F));
-    set_abs8(s, 0x2100, m_lda8(s, 0x80));
-    set_abs8(s, 0x2115, 0x80);
+    /* the data bank is the direct page's low byte, 0 */
+    vid_enable_line_effects(pf, PF_AT(0xD1E7CC), (uint8_t)c->a);
+    m_lda8(s, tm_reset_beam_latch(pf, PF_AT(0xD1E7CF)));
+    m_lda8(s, 0x80);
+    vid_set_display(pf, PF_AT(0xD1E7D4), &(VidDisplay){ .blank = true });
+    vid_begin_vram_uploads(pf, PF_AT(0xD1E7D7), NULL);
     if (!jsl(s, 0xD1E7DA, 0xCD0C95))
         return;
 
@@ -120,7 +127,7 @@ void battle_nmi(Snes *s)
         if (m_lda8(s, v & 0x20) != 0 || m_lda8(s, abs8(s, 0xCE16)) != 0) {
             clear_pause = true;
         } else {
-            v = m_lda8(s, m_read8(s, 0x004219));
+            v = m_lda8(s, in_read_high(pf, PF_AT(0xD1E81E), 0));
             if (m_lda8(s, v & 0x10) != 0) {
                 clear_toggle = false;
                 if (m_lda8(s, abs8(s, 0xCD03)) == 0) {
@@ -140,7 +147,7 @@ void battle_nmi(Snes *s)
     if (!jsl(s, 0xD1E841, 0xD1FE71))
         return;
     if (m_lda8(s, m_read8(s, 0xCD3FFF)) != 0) {
-        uint8_t v = m_lda8(s, m_read8(s, 0x004218));
+        uint8_t v = m_lda8(s, in_read_low(pf, PF_AT(0xD1E84B), 0));
         if (m_lda8(s, v & 0x10) != 0) {
             set_abs8(s, 0xCD02, 0x00);
             set_abs8(s, 0xCD03, 0x00);
@@ -150,7 +157,7 @@ void battle_nmi(Snes *s)
             a = m_lda8(s, a & 0x03);
             (void)count;
             if (a == 0) {
-                a = m_lda8(s, m_read8(s, 0x004218));
+                a = m_lda8(s, in_read_low(pf, PF_AT(0xD1E86A), 0));
                 a = m_lda8(s, a & 0x20);
                 a = m_lda8(s, a ^ 0x20);
                 for (int i = 0; i < 5; i++)
@@ -222,6 +229,7 @@ void battle_irq_update_ca22(Snes *s)
 void battle_irq(Snes *s)
 {
     Cpu *c = &s->cpu;
+    Platform *pf = m_platform(s);
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
     m_push16(s, c->a);
     m_push16(s, c->x);
@@ -234,13 +242,14 @@ void battle_irq(Snes *s)
     m_write8(s, m_dp(s, 0x7F), busy);
     m_set_nz8(s, busy);
     m_rep(s, CPU_FLAG_X);
-    m_lda8(s, m_read8(s, 0x004211));
-    m_write8(s, 0x004200, m_lda8(s, 0x81));
+    m_lda8(s, tm_ack_line_irq(pf, PF_AT(0xD1FEA8)));
+    m_lda8(s, 0x81);
+    tm_enable_interrupts(pf, PF_AT(0xD1FEAE), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
     m_tdc(s);
     m_push8(s, (uint8_t)c->a);
     c->db = m_pull8(s);
     m_set_nz8(s, c->db);
-    set_abs8(s, 0x420C, (uint8_t)c->a);
+    vid_enable_line_effects(pf, PF_AT(0xD1FEB5), (uint8_t)c->a);   /* the data bank is 0 */
     c->pc = 0xFEB8;
 }
 
@@ -252,7 +261,8 @@ void battle_irq(Snes *s)
 void battle_irq_after_hblank(Snes *s)
 {
     Cpu *c = &s->cpu;
-    set_abs8(s, 0x2100, m_lda8(s, 0x80));
+    m_lda8(s, 0x80);
+    vid_raster_display(m_platform(s), PF_AT(0xD1FEC1), VID_AT_LINE_HANDLER, &(VidDisplay){ .blank = true });
     uint8_t frame = m_lda8(s, m_read8(s, m_dp(s, 0x7C)));
     if (m_lda8(s, frame & 0x01) == 0) {
         m_lda8(s, 0x7E);
@@ -282,3 +292,12 @@ void battle_irq_after_hblank(Snes *s)
     m_write8(s, m_dp(s, 0x7F), 0x00);
     leave(s);
 }
+
+/* Guards. battle_irq_after_hblank and battle_setup_window_hdma address
+ * registers through the data bank (their callers set it to 0), which the
+ * platform services address in bank 0. */
+bool battle_data_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
+
+/* battle_upload_vram loads the OAM transfer's mode and address with TDC, which
+ * the service writes as 0. */
+bool battle_direct_page_low_is_zero(Snes *s) { return (s->cpu.d & 0xFF) == 0; }

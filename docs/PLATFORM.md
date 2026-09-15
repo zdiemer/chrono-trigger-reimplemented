@@ -8,12 +8,13 @@ instead, with the SNES hardware model as one backend: the reference that every
 other backend (a native renderer and mixer, widescreen, a GBA build) is checked
 against.
 
-It's a design, not an implementation: the headers below are sketches, and no
-code exists yet.
+P0 is implemented (`runtime/platform/`, see [P0](#p0-seams-and-the-snes-backend));
+the rest is a design. Where P0 had to change the sketches below, the headers
+are authoritative and "P0 as built" lists what changed and why.
 
 | Milestone | What | Status |
 |---|---|---|
-| P0 | Service headers, SNES backend, first hand ports converted | designed |
+| P0 | Service headers, SNES backend, first hand ports converted | done |
 | P1 | Audio behind the API | |
 | P2 | Video behind the API, subsystem by subsystem | |
 | P3 | Native renderer, pixel-identical to `render.c` | |
@@ -129,6 +130,12 @@ to `$C0:FF00`. **Saves** are the 8 KiB SRAM at `$6000-$7FFF` in banks
 `$20-$3F` and mirrors; `ct_play` persists it as `.srm`.
 
 ## API sketch
+
+The sketches in this section are the design as written before P0. The
+implemented subset, with the changes the original code forced (a register per
+call where the original writes them at different times, exact encodings, write
+orders per call site), is in `runtime/platform/*.h` and summarized under
+[P0 as built](#p0-as-built).
 
 ### Conventions
 
@@ -496,8 +503,8 @@ on the SNES backend until replaced. Native consumers still see their effects:
 
 ### Migrating an existing port: the sprite path
 
-**Step 1 (P2, exact).** The battle's OAM upload in `battle_upload_vram`
-(`$CF:E300`, `game/battle/frame.c`) today:
+**Step 1 (exact; done in P0).** The battle's OAM upload in `battle_upload_vram`
+(`$CF:E300`, `game/battle/frame.c`) before P0:
 
 ```c
 put_d8(s, 0x4370);          /* TDC : STA $4370 -- one register, A to B */
@@ -511,19 +518,23 @@ put_d8(s, 0x2102);          /* OAM address 0 */
 start_dma7(s);              /* LDA #$80 : STA $420B */
 ```
 
-After:
+After (as built):
 
 ```c
 // $CF:E300
-static const VidSnesXfer battle_dma7 = { .channel = 7, .order = XFER_CHANNEL_THEN_ADDRESS };
-
-vid_upload_oam(pf, PF_AT(0xCFE300), PF_GAME(0x000700), &battle_dma7);
-m_lda8(s, 0x80);            /* the LDA #$80 before STA $420B: A, N and Z as the original leaves them */
+static const uint8_t steps_full_short_target[] = {
+    VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
+    VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_TARGET_LO, VID_STEP_START, VID_STEP_END,
+};
+static const VidSnesXfer oam = { BATTLE_DMA, DMA_ONE_REGISTER, steps_full_short_target };
+vid_upload_oam(pf, PF_AT(0xCFE301), PF_GAME(0x000700), &oam);
+m_tdc(s);
+m_lda8(s, 0x80);            /* TDC ... LDA #$80 before STA $420B: A, N and Z as the original leaves them */
 ```
 
 The SNES backend writes `$4370-$4376`, `$2102` and `$420B` with the same
-values (the `TDC` value is the direct page's low byte, 0 in battle; the port's
-precondition or a check keeps that true), and the bus model runs the transfer
+values in the same order (the `TDC` value is the direct page's low byte, 0 in
+battle; a registry guard keeps that true), and the bus model runs the transfer
 as before. Shadow mode sees the same machine. The observer decodes the 544
 bytes into `VidSprite[128]` for the frame. The builders (`$CF:E83A`, field
 `$C0:B271`/`$C0:B309`) don't change at all in this step: they write WRAM.
@@ -608,6 +619,152 @@ covers the result on screen.
 converted files; all 21 movies run in shadow mode with 0 mismatches; the
 converted routines pass their fuzz runs again; `on` mode's sampled frame
 agreement with `off` is the same as before conversion.
+
+#### P0 as built
+
+| Path | What |
+|---|---|
+| `runtime/platform/platform.h` | `Platform`, `PfOrigin` (`PF_AT`, `PF_CALL`), `PfData` (`PF_GAME`), `PF_API` binding |
+| `runtime/platform/video.h` | display, BG mode, windows, color math, fixed color, line effects, VRAM/CGRAM/OAM uploads, decoders for SNES-format shadows, the `VidSnesXfer` step lists, the `vid_snes_transfer` escape |
+| `runtime/platform/timing.h` | `tm_enable_interrupts`, `tm_ack_vblank`, `tm_ack_line_irq`, `tm_video_status`, `tm_reset_beam_latch`, `tm_sync` |
+| `runtime/platform/audio.h` | `au_command` (`AudioCommand` with a parameter count), `au_play_song`, `au_status`, `au_take_samples` |
+| `runtime/platform/input.h` | `in_ready`, `in_read`, `in_read_low`, `in_read_high`, `in_host_set` |
+| `runtime/platform/save.h` | `sv_read8`, `sv_write8`, `sv_host_bytes` |
+| `runtime/platform/snes/` | the SNES backend: `static inline` definitions writing through `m_write8`, and the service call marker `--io-log` reads |
+| `runtime/port/machine.h` | `m_platform(s)` (the machine is the platform), `m_io_bank` |
+| `dev/io_log.c` | `ct_dev --io-log` |
+| `tests/test_platform_lint.py` | rule 1 over `game/` |
+
+**Binding.** Headers declare every call `PF_API`; without
+`CT_PLATFORM_EXTERN` that is `static inline` and the SNES definitions follow,
+so a call compiles to the writes it stands for plus two stores of the call
+marker. `gato-battle` with `--native on`, six alternating runs each on a shared
+machine: 6.99-7.40 s before (median 7.12 s), 7.03-7.32 s after (median 7.18 s),
+within run-to-run noise.
+
+**Converted.** Whole files, since the lint works per file:
+`game/core/display.c` (`$C0:0B4E`), `game/field/nmi.c` (the register copies of
+`$C0:EA63`), `game/event/sound.c` (`$E8`-`$EE`; the screen commands `$E3`-`$E7`,
+`$F0`-`$FA` in `screen.c` only write WRAM shadows and needed nothing),
+`game/battle/nmi.c` (`battle_nmi`, and with it `battle_irq` and
+`battle_irq_after_hblank`), `game/battle/frame.c` (`battle_frame_work`,
+`battle_upload_vram`, `battle_vram_transfer`, `battle_setup_window_hdma`, and
+with them `battle_upload_alternating_vram` `$CD:0607` and the controller reads of
+`battle_frame_update` `$CF:E58A`), `game/core/tile_animation.c`,
+`game/core/input.c` (`input_read_joypad`) and `game/scene/nmi.c`. The
+multiplier and divider stay direct (not a service).
+
+**What changed from the sketch, and why.**
+
+- **Calls come with their first user.** The SNES encoding of a call (which
+  registers, in which order, partial writes) can only be taken from the original
+  code that uses it, so the backend implements what the converted ports use.
+  Not implemented yet: `vid_set_bg`, `vid_set_scroll`, `vid_set_mode7`,
+  `vid_set_obj_config`, `vid_submit_sprites`, `tm_wait_frame`,
+  `tm_set_vblank_handler`, `tm_set_line_handler`, `tm_wait_line`,
+  `tm_beam_line`, `au_boot`.
+- **One call per register group the original writes at a different time.**
+  The field NMI writes BG mode at the top and brightness at the bottom, so
+  `VidDisplay` holds brightness and blank only and `vid_set_mode` is separate.
+  The fixed color register sets chosen channels to an intensity, so it is
+  `vid_set_fixed_color(channels, intensity)` rather than a BGR555 member of
+  `VidColorMath`. The windows' `fields` bits are one per register.
+- **Exact encodings.** Shadow validation compares register bytes and fuzzing
+  randomizes the shadows, so every structure encodes back to the byte it was
+  decoded from: `VidWinUse` keeps the (enable, invert) bit pair, and
+  `VidDisplay`, `VidMode`, `VidWindows` and `VidColorMath` carry the bits the
+  hardware ignores (`snes_extra`, `large_tiles`). Ports decode the game's
+  SNES-format shadows with `vid_*_decode`.
+- **Write order is a step list.** The converted upload sites use six different
+  orders and partial reprogramming (a second upload reusing the first one's
+  mode, destination and bank; the tile animation's 16-bit `STZ` of the size
+  before writing its low byte), so `VidSnesXfer` carries the channel, the
+  control byte and a `VID_STEP_*` list instead of an order enum. An upload's
+  length is 1-65536 bytes; 0 means empty, and the backend stops at the first
+  size step, which is where the battle's queued uploads check.
+- **More small calls.** `vid_begin_vram_uploads` (the VRAM port mode, with the
+  tile animation's channel setup ahead of its uploads), `vid_fill_vram` (a
+  fixed-source transfer), `vid_stop_uploads` (`$420B` = 0), and the timing and
+  input reads above. Status reads return the byte as the SNES reads it, with
+  named bits, because the ports keep the flags of the original's `LDA`, `CMP`
+  and `BIT`.
+- **`AudioCommand.count`.** Event `$E8` sets two parameters and the driver sends
+  the third as the last command left it; the scene song sets three.
+- **Addressing.** Services address registers in bank `$00`. Where the original
+  reached them through the data bank, the entry has a registry guard
+  (`event_sound_bank_is_system`, `battle_data_bank_is_io`) or the port stops at
+  the instruction after a call-out that could have changed the bank. The OAM
+  upload's mode and address come from `TDC` in the original, so
+  `battle_upload_vram` is guarded on the direct page's low byte being 0. No
+  movie call is refused by these guards.
+- **One escape.** The battle upload described by the table at `$9EEA` takes its
+  mode and destination from game data whose meaning isn't established; it uses
+  `vid_snes_transfer`, which the lint allows only there.
+- **`vid_raster_display`** takes `VID_AT_LINE_HANDLER`: the line the battle IRQ
+  fires on isn't established.
+
+**I/O log.** `ct_dev --io-log out.txt` counts every access to `$2100-$217F`,
+`$4016-$4017`, `$4200-$421F` and `$4300-$437F` by origin and register, with the
+frame of the first one, and prints a summary. Hand ports are identified with
+`native_running_entry()` (the running job, idle entry or generated block) and
+the backend's call marker, the interpreter by the instruction's address, HDMA
+by the line hook that precedes its writes, and DMA transfer bytes are counted
+separately under the origin that started the transfer. It is meaningful with
+`--native on`: in shadow mode hand ports run on clones and generated blocks are
+replayed off the machine. The log is a table rather than a stream because the
+DMA bytes alone run to tens of millions per movie. Summed over the 22 movies
+(`on` mode; register accesses, excluding transfer bytes):
+
+| Origin | PPU | APU ports | CPU `$42xx` | multiply/divide | DMA registers |
+|---|---|---|---|---|---|
+| hand ports, through services | 3130864 | 468 | 3766795 | 0 | 4605113 |
+| hand ports, direct | 0 | 2058028 | 0 | 3507500 | 10008 |
+| idle entries | 1403421 | 15854144 | 1743344 | 0 | 0 |
+| generated blocks | 6089605 | 5106557 | 2994264 | 2404276 | 8118416 |
+| interpreter | 1318900 | 21199 | 177068 | 272222 | 1047056 |
+| HDMA | 262790127 | | | | |
+
+Direct hand-port access left: the sound driver's APU ports (P1), the
+multiplier and divider, and `menu_object_wave_hdma`'s HDMA setup
+(`menu/objects.c`). Transfer bytes: 238.9 million started by services, 265.6
+million by generated blocks, 64.8 million by the interpreter (2.57 million per
+movie is the attract sequence's RAM code).
+
+**Results.**
+
+- Lint: `python3 -m unittest tests.test_platform_lint` passes; the files still
+  listed as unconverted are the ones above plus idle entries' polls, the battle
+  debug path and two false positives, each noted in the test.
+- Shadow: all 22 movies (the six main movies and the 16 save movies) exit 0
+  with no mismatch, 1337193299 generated-block checks included. Calls of the
+  converted routines, all matched: `input_read_joypad` 266551,
+  `battle_irq`/`battle_irq_after_hblank` 108614, `battle_nmi` and
+  `battle_setup_window_hdma` 108391, `battle_frame_work`, `battle_upload_vram`
+  and `battle_frame_update` 107815, `battle_upload_alternating_vram` 107513,
+  `tile_animation_upload` 106647, `field_nmi` 104751, `scene_nmi` 36928,
+  `battle_vram_transfer` 36678, `display_blank_and_stop_interrupts` 378, event
+  `$EE` 433, `$E8` 148, `$EB` 115, `$EA` 107, `$ED` 107, `$EC` 75.
+- `on` mode: every sampled frame (every 100th, 3122 frames) of all 22 movies is
+  byte-identical to the build before conversion, and the native reports are the
+  same; agreement with `off` is unchanged at 1426 of 3122. The services make
+  exactly the original's accesses, so bus time, and with it `on` mode's timing,
+  doesn't move.
+- Fuzzing: every converted routine matches on every state that completed, 0
+  mismatches: `display_blank_and_stop_interrupts` 20000 (from a `field` state);
+  event `$ED` and `$EE` 5000 each, `$EA` 4232 of 5000, `$EC` 3351, `$E8` and `$EB`
+  2516 (`--range Y=0000-7FFF --keep 7E006D-7E006E`; the rest skipped where the
+  driver call-out doesn't return on random RAM, the same counts as the build
+  before conversion); `battle_irq`, `battle_vram_transfer`,
+  `battle_upload_alternating_vram`, `tile_animation_upload` and
+  `input_read_joypad` 30000 each, `battle_frame_work` 29897 of 30000,
+  `battle_upload_vram` 10000, `battle_frame_update` 9354 of 10000,
+  `battle_nmi` 292 of 2000 (`--interrupt --keep 7E007F-7E007F`), and
+  `battle_irq_after_hblank` 30000 and `battle_setup_window_hdma` 20000 with
+  `--db 00` (from `battle20000.state`, whose data bank `$7E` their new guards
+  refuse; `ct_fuzz --db` sets it); `scene_nmi` 19901 of 20000 (`--interrupt`,
+  from the attract sequence). `field_nmi`, not fuzzed before, 2916 of 3000
+  (`--interrupt --step-limit 20000`, the same as before conversion).
+  `recomp_bus_diff` still reports 0 mismatches.
 
 ### P1: audio behind the API
 

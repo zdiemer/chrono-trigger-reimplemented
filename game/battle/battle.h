@@ -75,6 +75,8 @@ void battle_restore_math_operands(Snes *s);
 void battle_irq_update_ca22(Snes *s);
 void battle_irq(Snes *s);
 void battle_irq_after_hblank(Snes *s);
+bool battle_data_bank_is_io(Snes *s);
+bool battle_direct_page_low_is_zero(Snes *s);
 
 /* battle/scripts.c */
 void battle_run_script_channel(Snes *s);

@@ -1,6 +1,8 @@
 /* Battle: the per-frame work the NMI handler runs. */
 #include "battle/battle.h"
 
+#include "platform/input.h"
+#include "platform/video.h"
 #include "port/machine.h"
 
 static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
@@ -164,6 +166,7 @@ static void toggle_ca21(Snes *s)
 void battle_frame_work(Snes *s)
 {
     Cpu *c = &s->cpu;
+    Platform *pf = m_platform(s);
     if (m_lda8(s, m_read8(s, 0x7ECE0F)) != 0) {
         if (!jsl(s, 0xCD0893, 0xCD09CE))
             return;
@@ -182,10 +185,16 @@ void battle_frame_work(Snes *s)
             return;
     }
 
-    /* $CD:08B8 */
-    static const uint16_t regs[5] = { 0x2123, 0x2124, 0x2125, 0x212A, 0x212B };
-    for (int i = 0; i < 5; i++)
-        m_write8(s, regs[i], m_lda8(s, abs8(s, (uint16_t)(0xC861 + i))));
+    /* $CD:08B8: the window shadows $C861-$C865 */
+    static const struct { uint32_t field, site; } windows[5] = {
+        { VID_WINDOWS_BG1_BG2, 0xCD08BB }, { VID_WINDOWS_BG3_BG4, 0xCD08C2 }, { VID_WINDOWS_OBJ_BACK, 0xCD08C9 },
+        { VID_WINDOWS_BG_LOGIC, 0xCD08D0 }, { VID_WINDOWS_OBJ_LOGIC, 0xCD08D7 },
+    };
+    VidWindows w = { 0 };
+    for (int i = 0; i < 5; i++) {
+        vid_windows_decode(&w, windows[i].field, m_lda8(s, abs8(s, (uint16_t)(0xC861 + i))));
+        vid_set_windows(pf, PF_AT(windows[i].site), &w, windows[i].field);
+    }
     set_abs8(s, 0xBE93, m_lda8(s, abs8(s, 0xC866)));
     m_write16(s, m_abs(s, 0xC151), m_ldx16(s, m_read16(s, m_abs(s, 0xC155))));
     m_write16(s, m_abs(s, 0xC153), m_ldx16(s, m_read16(s, m_abs(s, 0xC157))));
@@ -198,7 +207,7 @@ void battle_frame_work(Snes *s)
     m_set_nz8(s, c->db);
     if (!jsr(s, 0xCD08F5, 0xCD05B2) || !jsr(s, 0xCD08F8, 0xCD05B2))
         return;
-    m_write8(s, 0x00420C, m_lda8(s, abs8(s, 0xCA1D)));
+    vid_enable_line_effects(pf, PF_AT(0xCD08FE), m_lda8(s, abs8(s, 0xCA1D)));
 
     if (m_lda8(s, abs8(s, 0xCD02)) != 0) {
         uint8_t brightness;
@@ -208,7 +217,8 @@ void battle_frame_work(Snes *s)
             brightness = m_lsr8(s, m_lda8(s, abs8(s, 0xBB00)));
             m_set_a8(s, brightness);
         }
-        m_write8(s, 0x002100, brightness);
+        VidDisplay paused = vid_display_decode(brightness);
+        vid_set_display(pf, PF_AT(0xCD0916), &paused);
         if (!jsl(s, 0xCD091A, 0xC28002) || !jsr(s, 0xCD091E, 0xCD0340))
             return;
         m_rts(s);
@@ -216,7 +226,8 @@ void battle_frame_work(Snes *s)
     }
 
     /* $CD:0922 */
-    m_write8(s, 0x002100, m_lda8(s, abs8(s, 0xBB00)));
+    VidDisplay display = vid_display_decode(m_lda8(s, abs8(s, 0xBB00)));
+    vid_set_display(pf, PF_AT(0xCD0925), &display);
     if (!jsr(s, 0xCD0929, 0xCD06B4) || !jsr(s, 0xCD092C, 0xCD0B51))
         return;
     uint8_t frame = m_lda8(s, dp8(s, 0x7C));
@@ -266,49 +277,55 @@ void battle_frame_work(Snes *s)
     m_rts(s);
 }
 
-/* LDA #v (or a table value) : STA $00xxxx */
-static void put8(Snes *s, uint16_t reg, uint8_t v) { m_write8(s, reg, m_lda8(s, v)); }
+/* The battle's uploads run on DMA channel 7. The step lists are the orders the
+ * original programs the channel in. */
+enum { BATTLE_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01, DMA_WORDS_FIXED_SOURCE = 0x09 };
 
-/* TDC : STA $00xxxx -- the direct page's low byte, 0 in battle. */
-static void put_d8(Snes *s, uint16_t reg)
-{
-    m_tdc(s);
-    m_write8(s, reg, (uint8_t)s->cpu.a);
-}
+static const uint8_t steps_full[] = {
+    VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
+    VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_START, VID_STEP_END,
+};
+/* OAM and CGRAM have a one-byte address register. */
+static const uint8_t steps_full_short_target[] = {
+    VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
+    VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_TARGET_LO, VID_STEP_START, VID_STEP_END,
+};
+/* A second upload reusing the first one's mode, destination and bank. */
+static const uint8_t steps_same_channel[] = {
+    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,
+    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_START, VID_STEP_END,
+};
+static const VidSnesXfer dma_words = { BATTLE_DMA, DMA_WORDS, steps_full };
+static const VidSnesXfer dma_words_again = { BATTLE_DMA, DMA_WORDS, steps_same_channel };
 
-/* LDA #$80 : STA $00420B -- run DMA channel 7. */
-static void start_dma7(Snes *s) { put8(s, 0x420B, 0x80); }
+/* A 16-bit DMA size as a length: 0 means 65536. */
+static uint32_t dma_length(uint16_t size) { return size ? size : 0x10000; }
 
 /* One of the queued VRAM uploads from the tables at $CC:F957 (`slot` a
- * multiple of 2; X, or 0 through long addresses): two transfers from $7E, the
- * second only when its size is nonzero. */
-static void upload_queued_vram(Snes *s, uint16_t slot)
+ * multiple of 2; X, or 0 through long addresses): two uploads from $7E, the
+ * second only when its size is nonzero. `sites`: the first writes of each. */
+static void upload_queued_vram(Snes *s, uint16_t slot, uint32_t first_site, uint32_t second_site)
 {
-    put8(s, 0x4370, 0x01);
-    put8(s, 0x4371, 0x18);
-    put8(s, 0x4372, m_read8(s, 0xCCF957 + slot));
-    put8(s, 0x4373, m_read8(s, 0xCCF958 + slot));
-    put8(s, 0x4374, 0x7E);
+    Platform *pf = m_platform(s);
+    uint32_t source = 0x7E0000 | m_read8(s, 0xCCF957 + slot) | m_read8(s, 0xCCF958 + slot) << 8;
+    uint16_t size = m_read16(s, 0xCCF977 + slot);
+    uint16_t vram = m_read16(s, 0xCCF967 + slot);
     m_rep(s, CPU_FLAG_M);
-    m_write16(s, 0x4375, m_lda16(s, m_read16(s, 0xCCF977 + slot)));
-    m_write16(s, 0x2116, m_lda16(s, m_read16(s, 0xCCF967 + slot)));
     m_tdc(s);
     m_sep(s, CPU_FLAG_M);
-    start_dma7(s);
-    put8(s, 0x4372, m_read8(s, 0xCCF95F + slot));
-    put8(s, 0x4373, m_read8(s, 0xCCF960 + slot));
+    m_lda8(s, 0x80);
+    vid_upload_vram(pf, PF_AT(first_site), vram, PF_GAME(source), dma_length(size), &dma_words);
+
+    source = 0x7E0000 | m_read8(s, 0xCCF95F + slot) | m_read8(s, 0xCCF960 + slot) << 8;
     m_rep(s, CPU_FLAG_M);
-    uint16_t size = m_lda16(s, m_read16(s, 0xCCF97F + slot));
-    if (size != 0) {
-        m_write16(s, 0x4375, size);
-        m_write16(s, 0x2116, m_lda16(s, m_read16(s, 0xCCF96F + slot)));
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        start_dma7(s);
-    } else {
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-    }
+    size = m_lda16(s, m_read16(s, 0xCCF97F + slot));
+    vram = size != 0 ? m_read16(s, 0xCCF96F + slot) : 0;
+    m_tdc(s);
+    m_sep(s, CPU_FLAG_M);
+    if (size != 0)
+        m_lda8(s, 0x80);
+    /* an empty second upload only programs its source address */
+    vid_upload_vram(pf, PF_AT(second_site), vram, PF_GAME(source), size, &dma_words_again);
 }
 
 // $CF:E300
@@ -318,48 +335,47 @@ static void upload_queued_vram(Snes *s, uint16_t slot)
  * rotating queued VRAM uploads ($A4) while $E5 is set and $A013 clear; the
  * current object's two graphics uploads when $A012 is 1 (objects of graphics
  * kind below 3); and upload slot 0 again when the $A118 countdown ends.
- * Returns with RTL. */
+ * Returns with RTL. Registered with a guard that the direct page's low byte is
+ * 0: the original loads the OAM transfer's mode and address with TDC. */
 void battle_upload_vram(Snes *s)
 {
     Cpu *c = &s->cpu;
-    put_d8(s, 0x4370);
-    put8(s, 0x4371, 0x04);
-    put8(s, 0x4372, 0x00);
-    put8(s, 0x4373, 0x07);
-    put8(s, 0x4374, 0x00);
-    put8(s, 0x4375, 0x20);
-    put8(s, 0x4376, 0x02);
-    put_d8(s, 0x2102);
-    start_dma7(s);
+    Platform *pf = m_platform(s);
+    static const VidSnesXfer oam = { BATTLE_DMA, DMA_ONE_REGISTER, steps_full_short_target };
+    vid_upload_oam(pf, PF_AT(0xCFE301), PF_GAME(0x000700), &oam);
+    m_tdc(s);
+    m_lda8(s, 0x80);
 
     if (m_lda8(s, dp8(s, 0xA0)) != 0) {
-        static const uint16_t regs[9] = { 0x4370, 0x4371, 0x4372, 0x4373, 0x4374, 0x4375, 0x4376, 0x2116, 0x2117 };
+        /* the channel's values from every sixth byte of the table at $9EEA */
+        uint8_t v[9];
         for (int i = 0; i < 9; i++)
-            m_write8(s, regs[i], m_lda8(s, abs8(s, (uint16_t)(0x9EEA + 6 * i))));
-        start_dma7(s);
+            v[i] = m_lda8(s, abs8(s, (uint16_t)(0x9EEA + 6 * i)));
+        m_lda8(s, 0x80);
+        VidSnesXfer x = { BATTLE_DMA, v[0], steps_full };
+        VidSnesTransfer t = { .dest = v[1], .source = (uint32_t)v[4] << 16 | v[3] << 8 | v[2],
+                              .size = (uint16_t)(v[6] << 8 | v[5]), .target_reg = 0x16,
+                              .target = (uint16_t)(v[8] << 8 | v[7]) };
+        vid_snes_transfer(pf, PF_AT(0xCFE33B), &t, &x);
         m_write8(s, m_dp(s, 0xA0), 0x00);
     }
     if (m_lda8(s, abs8(s, 0x99E2)) != 0) {
-        static const uint8_t v[9] = { 0x01, 0x18, 0x40, 0x0B, 0x00, 0x80, 0x01, 0x00, 0x7A };
-        static const uint16_t regs[9] = { 0x4370, 0x4371, 0x4372, 0x4373, 0x4374, 0x4375, 0x4376, 0x2116, 0x2117 };
-        for (int i = 0; i < 9; i++)
-            put8(s, regs[i], v[i]);
-        start_dma7(s);
+        m_lda8(s, 0x80);
+        vid_upload_vram(pf, PF_AT(0xCFE386), 0x7A00, PF_GAME(0x000B40), 0x0180, &dma_words);
         set_abs8(s, 0x99E2, 0x00);
     }
     {
-        static const uint8_t v[7] = { 0x00, 0x22, 0x00, 0x22, 0x7E, 0x00, 0x02 };
-        for (int i = 0; i < 7; i++)
-            put8(s, (uint16_t)(0x4370 + i), v[i]);
-        put_d8(s, 0x2121);
-        start_dma7(s);
+        static const VidSnesXfer palette = { BATTLE_DMA, DMA_ONE_REGISTER, steps_full_short_target };
+        m_tdc(s);
+        m_lda8(s, 0x80);
+        vid_upload_palette(pf, PF_AT(0xCFE3C5), (uint8_t)c->d, PF_GAME(0x7E2200), 256, &palette);
     }
 
     /* $CF:E3F8 */
     if (m_lda8(s, abs8(s, 0xA013)) == 0 && m_lda8(s, dp8(s, 0xE5)) != 0) {
         m_set_a8(s, m_asl8(s, m_lda8(s, dp8(s, 0xA4))));
         m_tax(s);
-        upload_queued_vram(s, c->x);
+        upload_queued_vram(s, c->x, 0xCFE40A, 0xCFE449);
         uint8_t slot = (uint8_t)(dp8(s, 0xA4) + 1);
         m_write8(s, m_dp(s, 0xA4), slot);
         m_set_nz8(s, slot);
@@ -384,20 +400,18 @@ void battle_upload_vram(Snes *s)
                 m_set_a8(s, m_asl8(s, (uint8_t)c->a));
                 m_tax(s);
                 /* source $A654/$A66A, size $A6AC/$A6C2, VRAM address $A680/$A696 */
-                static const uint16_t regs[6] = { 0x4372, 0x4373, 0x4375, 0x4376, 0x2116, 0x2117 };
-                static const uint16_t tables[2][6] = {
-                    { 0xA654, 0xA655, 0xA6AC, 0xA6AD, 0xA680, 0xA681 },
-                    { 0xA66A, 0xA66B, 0xA6C2, 0xA6C3, 0xA696, 0xA697 },
+                static const struct { uint16_t table[6]; uint32_t site; const VidSnesXfer *x; } uploads[2] = {
+                    { { 0xA654, 0xA655, 0xA6AC, 0xA6AD, 0xA680, 0xA681 }, 0xCFE4A0, &dma_words },
+                    { { 0xA66A, 0xA66B, 0xA6C2, 0xA6C3, 0xA696, 0xA697 }, 0xCFE4E3, &dma_words_again },
                 };
-                put8(s, 0x4370, 0x01);
-                put8(s, 0x4371, 0x18);
-                for (int t = 0; t < 2; t++) {
-                    for (int i = 0; i < 6; i++) {
-                        if (t == 0 && i == 2)
-                            put8(s, 0x4374, 0x7E);
-                        put8(s, regs[i], m_read8(s, m_abs(s, tables[t][i]) + c->x));
-                    }
-                    start_dma7(s);
+                for (int u = 0; u < 2; u++) {
+                    uint8_t v[6];
+                    for (int i = 0; i < 6; i++)
+                        v[i] = m_read8(s, m_abs(s, uploads[u].table[i]) + c->x);
+                    m_lda8(s, 0x80);
+                    vid_upload_vram(pf, PF_AT(uploads[u].site), (uint16_t)(v[5] << 8 | v[4]),
+                                    PF_GAME(0x7E0000 | v[1] << 8 | v[0]), dma_length((uint16_t)(v[3] << 8 | v[2])),
+                                    uploads[u].x);
                 }
             }
         }
@@ -405,7 +419,7 @@ void battle_upload_vram(Snes *s)
 
     /* $CF:E510 */
     if (m_lda8(s, abs8(s, 0xA118)) != 0 && step_abs8(s, 0xA118, -1) == 0)
-        upload_queued_vram(s, 0);
+        upload_queued_vram(s, 0, 0xCFE51C, 0xCFE55B);
     m_rtl(s);
 }
 
@@ -545,8 +559,8 @@ void battle_frame_update(Snes *s)
     }
     m_push8(s, m_lda8(s, dp8(s, 0xA1)));
     if (m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x2989)) & 0x20)) != 0) {
-        uint8_t pad = m_lda8(s, m_read8(s, 0x004218));
-        if (m_lda8(s, (uint8_t)(pad | m_read8(s, 0x004219))) != 0)
+        uint8_t pad = m_lda8(s, in_read_low(m_platform(s), PF_AT(0xCFE6E0), 0));
+        if (m_lda8(s, (uint8_t)(pad | in_read_high(m_platform(s), PF_AT(0xCFE6E4), 0))) != 0)
             set_abs8(s, 0xA097, m_lda8(s, 0x01));
         if (m_lda8(s, abs8(s, 0xA097)) != 0) {
             uint8_t fade = m_lda8(s, (uint8_t)(abs8(s, 0xBB00) - 1));
@@ -562,7 +576,7 @@ void battle_frame_update(Snes *s)
 
     /* $CF:E706 */
     if (m_lda8(s, abs8(s, 0xA013)) == 0) {
-        uint8_t lr = m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, 0x004218)) & 0x30));
+        uint8_t lr = m_lda8(s, (uint8_t)(m_lda8(s, in_read_low(m_platform(s), PF_AT(0xCFE70B), 0)) & 0x30));
         m_cmp8(s, lr, 0x30);
         if (lr == 0x30) {
             m_rep(s, CPU_FLAG_M);
@@ -622,14 +636,15 @@ void battle_vram_transfer(Snes *s)
     m_set_nz8(s, c->db);
     uint8_t bank = m_pull8(s);
     m_lda8(s, bank);
-    m_write16(s, 0x2116, c->y);
-    m_write16(s, 0x4372, c->x);
-    m_write8(s, 0x4374, bank);
-    put8(s, 0x4370, 0x01);
-    put8(s, 0x4371, 0x18);
-    m_ldx16(s, m_read16(s, m_dp(s, 0x45)));
-    m_write16(s, 0x4375, c->x);
-    start_dma7(s);
+    uint32_t source = (uint32_t)bank << 16 | c->x;
+    uint16_t size = m_ldx16(s, m_read16(s, m_dp(s, 0x45)));
+    m_lda8(s, 0x80);
+    static const uint8_t steps[] = {
+        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
+        VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START, VID_STEP_END,
+    };
+    static const VidSnesXfer x = { BATTLE_DMA, DMA_WORDS, steps };
+    vid_upload_vram(m_platform(s), PF_AT(0xCD3E95), c->y, PF_GAME(source), dma_length(size), &x);
     c->db = m_pull8(s);
     m_set_nz8(s, c->db);
     m_rts(s);
@@ -698,13 +713,15 @@ void battle_upload_alternating_vram(Snes *s)
     m_push8(s, c->db);
     set_data_bank(s, m_lda8(s, 0x00));
     bool odd = m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, 0x7ECE14)) & 0x01)) != 0;
-    m_write16(s, m_abs(s, 0x2116), m_ldx16(s, odd ? 0x5800 : 0x5980));
-    set_abs8(s, 0x4370, m_lda8(s, 0x09));
-    set_abs8(s, 0x4371, m_lda8(s, 0x18));
-    m_write16(s, m_abs(s, 0x4372), m_ldx16(s, 0x06B2));
-    set_abs8(s, 0x4374, m_lda8(s, 0xCD));
-    m_write16(s, m_abs(s, 0x4375), m_ldx16(s, 0x0200));
-    set_abs8(s, 0x420B, m_lda8(s, 0x80));
+    m_ldx16(s, 0x0200);
+    m_lda8(s, 0x80);
+    /* from the zero byte at $CD:06B2, a fixed-source transfer */
+    static const uint8_t steps[] = {
+        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO,
+        VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START, VID_STEP_END,
+    };
+    static const VidSnesXfer x = { BATTLE_DMA, DMA_WORDS_FIXED_SOURCE, steps };
+    vid_fill_vram(m_platform(s), PF_AT(0xCD066F), odd ? 0x5800 : 0x5980, PF_GAME(0xCD06B2), 0x0200, &x);
     c->db = m_pull8(s);
     m_set_nz8(s, c->db);
     m_rts(s);
@@ -821,13 +838,17 @@ void battle_update_screen_shake(Snes *s)
  * on even ones. */
 void battle_setup_window_hdma(Snes *s)
 {
-    set_abs8(s, 0x4370, m_lda8(s, 0x44));
-    set_abs8(s, 0x4371, m_lda8(s, 0x26));
-    set_abs8(s, 0x4377, m_lda8(s, 0x7E));
-    set_abs8(s, 0x4374, m_lda8(s, 0x7E));
     uint8_t frame = m_lda8(s, dp8(s, 0x7C));
     uint16_t table = m_lda8(s, frame & 0x01) ? 0xC9CF : 0xC9A2;
-    m_write16(s, m_abs(s, 0x4372), m_ldx16(s, table));
+    m_ldx16(s, table);
+    static const uint8_t steps[] = {
+        VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_INDIRECT_BANK, VID_STEP_SOURCE_BANK,
+        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_END,
+    };
+    const VidLineEffect effect = {
+        .target = VID_LINE_WINDOWS, .table = PF_GAME(0x7E0000 | table), .indirect = true, .indirect_bank = 0x7E,
+    };
+    vid_set_line_effect(m_platform(s), PF_AT(0xCD0AF0), BATTLE_DMA, &effect, steps);
     m_rts(s);
 }
 

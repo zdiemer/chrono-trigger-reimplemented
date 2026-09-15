@@ -1,6 +1,8 @@
 /* Controller input shared by the menus and battle. */
 #include "core/input.h"
 
+#include "platform/input.h"
+#include "platform/timing.h"
 #include "port/machine.h"
 
 static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
@@ -30,6 +32,7 @@ static void tsb_dp16(Snes *s, uint8_t cell)
 void input_read_joypad(Snes *s)
 {
     Cpu *c = &s->cpu;
+    Platform *pf = m_platform(s);
     pea(s, 0x0000);
     c->d = m_pull16(s);
     m_set_nz16(s, c->d);
@@ -39,25 +42,25 @@ void input_read_joypad(Snes *s)
     m_set_nz8(s, c->db);
     m_sep(s, CPU_FLAG_M);
     m_lda8(s, 0x01);
-    uint8_t hvbjoy = m_read8(s, m_abs(s, 0x4212));
-    m_set_flag(s, CPU_FLAG_N, hvbjoy & 0x80);
-    m_set_flag(s, CPU_FLAG_V, hvbjoy & 0x40);
-    m_set_flag(s, CPU_FLAG_Z, (hvbjoy & 0x01) == 0);
-    if (hvbjoy & 0x01) {
+    uint8_t status = tm_video_status(pf, PF_AT(0xC284F9));   /* BIT with A = $01 */
+    m_set_flag(s, CPU_FLAG_N, status & 0x80);
+    m_set_flag(s, CPU_FLAG_V, status & 0x40);
+    m_set_flag(s, CPU_FLAG_Z, (status & TM_STATUS_JOYPAD_BUSY) == 0);
+    if (status & TM_STATUS_JOYPAD_BUSY) {
         c->pc = 0x84F9;   /* BIT $4212 : BNE -- still reading */
         return;
     }
     m_ldx16(s, dp16(s, 0xF2));
     set_dp16(s, 0xFE, c->x);
-    set_dp8(s, 0xF2, m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, m_abs(s, 0x4218))) & 0xF0)));
-    set_dp8(s, 0xF3, m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, m_abs(s, 0x4219))) & 0x0F)));
-    uint8_t high = m_lda8(s, m_read8(s, m_abs(s, 0x4219)));
+    set_dp8(s, 0xF2, m_lda8(s, (uint8_t)(m_lda8(s, in_read_low(pf, PF_AT(0xC28502), 0)) & 0xF0)));
+    set_dp8(s, 0xF3, m_lda8(s, (uint8_t)(m_lda8(s, in_read_high(pf, PF_AT(0xC28509), 0)) & 0x0F)));
+    uint8_t high = m_lda8(s, in_read_high(pf, PF_AT(0xC28510), 0));
     for (int i = 0; i < 4; i++)
         high = m_lsr8(s, high);
     m_set_a8(s, high);
     m_tsb8(s, m_dp(s, 0xF2));
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    uint16_t pad = m_lda16(s, m_read16(s, m_abs(s, 0x4218)));
+    uint16_t pad = m_lda16(s, in_read(pf, PF_AT(0xC2851B), 0));
     m_cmp16(s, pad, 0x3030);
     if (pad == 0x3030) {
         c->pb = 0xC0;

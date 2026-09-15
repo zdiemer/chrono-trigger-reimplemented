@@ -6,7 +6,7 @@
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
- *          [--insn-stats]
+ *          [--insn-stats] [--io-log out.txt]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -23,11 +23,14 @@
  * checking that --native on produces the same traces as --native off.
  * --insn-stats reports how many instructions the interpreter and generated
  * blocks executed.
+ * --io-log writes every hardware register access counted by what made it
+ * (dev/io_log.h; meaningful with --native on).
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "io_log.h"
 #include "media.h"
 #include "movie.h"
 #include "port/recomp_table.h"
@@ -44,9 +47,13 @@
 #define make_dir(p) mkdir(p, 0755)
 #endif
 
+static IoLog *io_log;
+
 static void on_line(void *ctx, Snes *snes, uint16_t line)
 {
     render_line(ctx, &snes->ppu, line);
+    if (io_log)
+        io_log_note_hdma(io_log);
 }
 
 /* Executed (address, M, X) triples, for seeding the disassembler. */
@@ -79,6 +86,8 @@ static void record_call(Coverage *cov, uint32_t site, uint32_t target)
 static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
 {
     Coverage *cov = ctx;
+    if (io_log)
+        io_log_note_instruction(io_log, pc);
     bool m = e || (p & CPU_FLAG_M), x = e || (p & CPU_FLAG_X);
     cov->insns++;
     if ((pc >> 16 & 0xFE) == 0x7E || (!(pc & 0x400000) && (pc & 0xFFFF) < 0x8000))
@@ -165,7 +174,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
-    const char *shot_dir = NULL, *wav_path = NULL;
+    const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL;
     NativeMode native_mode = NATIVE_OFF;
     bool recomp = true, ports = true, insn_stats = false;
     long frames = -1, status_every = 0, shot_every = 0;
@@ -194,6 +203,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else if (!strcmp(a, "--wav")) wav_path = v;
+        else if (!strcmp(a, "--io-log")) io_log_path = v;
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
         else if (!strcmp(a, "--recomp")) {
             if (!strcmp(v, "off") || !strcmp(v, "on") || !strcmp(v, "only")) {
@@ -224,7 +234,7 @@ int main(int argc, char **argv)
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
-                        "[--insn-stats]\n");
+                        "[--insn-stats] [--io-log out.txt]\n");
         return 2;
     }
 
@@ -298,7 +308,9 @@ int main(int argc, char **argv)
         cov.seen = calloc((size_t)1 << (COVERAGE_BITS - 3), 1);
     if (calls_path)
         cov.calls = calloc((size_t)1 << CALL_SET_BITS, sizeof *cov.calls);
-    if (coverage_path || calls_path || insn_stats) {
+    if (io_log_path)
+        io_log = io_log_create(&snes);
+    if (coverage_path || calls_path || insn_stats || io_log_path) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -384,6 +396,11 @@ int main(int argc, char **argv)
                 (unsigned long long)cov.insns, (unsigned long long)cov.ram_insns, (unsigned long long)generated,
                 cov.insns + generated ? 100.0 * (double)generated / (double)(cov.insns + generated) : 0.0);
     }
+    if (io_log && io_log_write(io_log, io_log_path, stderr) != 0) {
+        fprintf(stderr, "cannot write %s\n", io_log_path);
+        rc = 1;
+    }
+    io_log_destroy(io_log);
     native_destroy(natives);
     free(table);
     if (ct_trace_close(trace) != 0)

@@ -78,7 +78,13 @@ static uint8_t *wram_port_byte(SnesBus *bus)
 
 /* ---- CPU I/O registers ------------------------------------------------------- */
 
-static uint8_t read_io(SnesBus *bus, uint16_t a)
+void (*snes_bus_io_observer)(void *ctx, const SnesBus *bus, uint16_t addr, uint8_t value, unsigned flags);
+void *snes_bus_io_observer_ctx;
+
+/* Inside a DMA transfer (they don't nest). */
+static bool in_dma;
+
+static uint8_t read_io_register(SnesBus *bus, uint16_t a)
 {
     uint8_t ob = bus->open_bus;
     if (a >= 0x2100 && a <= 0x213F)
@@ -131,10 +137,20 @@ static uint8_t read_io(SnesBus *bus, uint16_t a)
     return ob;
 }
 
+static uint8_t read_io(SnesBus *bus, uint16_t a)
+{
+    uint8_t v = read_io_register(bus, a);
+    if (snes_bus_io_observer)
+        snes_bus_io_observer(snes_bus_io_observer_ctx, bus, a, v, in_dma ? SNES_IO_DMA : 0);
+    return v;
+}
+
 static void run_dma(SnesBus *bus, uint8_t channels);
 
 static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
 {
+    if (snes_bus_io_observer)
+        snes_bus_io_observer(snes_bus_io_observer_ctx, bus, a, v, SNES_IO_WRITE | (in_dma ? SNES_IO_DMA : 0));
     if (a >= 0x2100 && a <= 0x213F) {
         if (bus->io.ppu_write)
             bus->io.ppu_write(bus->io.ctx, a & 0xFF, v);
@@ -204,7 +220,6 @@ static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
          * value is latched but doesn't start another one). DMA runs to
          * completion inside this call, so the flag is never part of a saved
          * state. */
-        static bool in_dma;
         bus->mdmaen = v;
         if (!in_dma) {
             uint32_t access_start = bus->access_start;

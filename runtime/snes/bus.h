@@ -88,6 +88,15 @@ uint32_t snes_bus_access_clocks(const SnesBus *bus, uint32_t addr);
 /* Side-effect-free read for debuggers and tracing. I/O reads return open bus. */
 uint8_t snes_bus_peek(const SnesBus *bus, uint32_t addr);
 
+/* Optional observer of every access to the I/O area ($2000-$5FFF outside SRAM:
+ * PPU, APU, WRAM port, CPU and DMA registers), for ct_dev --io-log: called with
+ * the value read (after the read) or about to be written (before the write),
+ * SNES_IO_WRITE for writes and SNES_IO_DMA for accesses a DMA transfer makes.
+ * It sees clones' buses too, so it compares `bus`. */
+enum { SNES_IO_WRITE = 1, SNES_IO_DMA = 2 };
+extern void (*snes_bus_io_observer)(void *ctx, const SnesBus *bus, uint16_t addr, uint8_t value, unsigned flags);
+extern void *snes_bus_io_observer_ctx;
+
 /* Latch pad[] into the $4218-$421F registers, as auto-joypad read does at vblank. */
 void snes_bus_auto_joypad(SnesBus *bus);
 

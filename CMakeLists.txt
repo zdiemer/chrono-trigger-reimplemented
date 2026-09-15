@@ -27,7 +27,8 @@ add_library(ct_runtime STATIC
   runtime/snes/render.c
   runtime/snes/system.c
   runtime/port/fiber.c
-  runtime/port/native.c)
+  runtime/port/native.c
+  runtime/platform/snes/backend.c)
 target_include_directories(ct_runtime PUBLIC runtime)
 
 # Ported game code, organized by subsystem.
@@ -104,7 +105,7 @@ target_link_libraries(ct_game PUBLIC ct_runtime)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-add_executable(ct_dev dev/ct_dev.c)
+add_executable(ct_dev dev/ct_dev.c dev/io_log.c)
 target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 
 add_executable(ct_fuzz dev/ct_fuzz.c)

@@ -46,6 +46,11 @@ typedef struct Job {
 static Job *current_job;
 static Job *free_jobs;
 
+/* An idle or generated entry running on the machine outside a job. */
+static const NativeEntry *running_direct;
+
+const NativeEntry *native_running_entry(void) { return current_job ? current_job->entry : running_direct; }
+
 static void job_body(void *arg)
 {
     Job *j = arg;
@@ -970,14 +975,20 @@ static inline uint32_t resume_key(const Snes *s)
 
 static inline unsigned resume_slot(uint32_t key) { return (key * 2654435761u) >> 20; }
 
-static int32_t run_block(NativeRuntime *rt, Snes *s, NativeFn fn)
+/* Stands in for the entry of a block resumed where it stopped, for attribution
+ * (native_running_entry). */
+static const NativeEntry resumed_block = { .name = "(resumed generated block)", .generated = true };
+
+static int32_t run_block(NativeRuntime *rt, Snes *s, NativeFn fn, const NativeEntry *entry)
 {
     uint64_t horizon = snes_horizon(s);
     uint64_t room = horizon > s->master ? horizon - s->master : 0;
     s->bus.clocks = 0;
     s->cpu.io_cycles = 0;
     rc_timing = (RcTiming){ .s = s, .limit = room < UINT32_MAX ? (uint32_t)room : UINT32_MAX - 1 };
+    running_direct = entry;
     fn(s);
+    running_direct = NULL;
     uint32_t clocks = s->bus.clocks + 6 * s->cpu.io_cycles;
     uint32_t synced = rc_timing.synced;
     NativeFn stopped = rc_timing.stopped;
@@ -1035,7 +1046,7 @@ static int32_t intercept(void *ctx, Snes *s)
             unsigned slot = resume_slot(key);
             if (rt->resume[slot].key == (key | 1u << 31)) {
                 rt->gen_resumes++;
-                return run_block(rt, s, rt->resume[slot].fn);
+                return run_block(rt, s, rt->resume[slot].fn, &resumed_block);
             }
         }
         return -1;
@@ -1049,7 +1060,7 @@ static int32_t intercept(void *ctx, Snes *s)
             if (rt->mode != NATIVE_ON || !entry_applies(e, s))
                 continue;
             st->calls++;
-            return run_block(rt, s, e->fn);
+            return run_block(rt, s, e->fn, e);
         }
 
         st->calls++;
@@ -1063,7 +1074,9 @@ static int32_t intercept(void *ctx, Snes *s)
                 st->skipped++;
                 continue;
             }
+            running_direct = e;
             e->fn(s);
+            running_direct = NULL;
             if (cpu_pc24(&s->cpu) == pc)
                 return (int32_t)(e->idle_clocks ? e->idle_clocks : snes_clocks_to_next_poll_change(s));
             return 0;
