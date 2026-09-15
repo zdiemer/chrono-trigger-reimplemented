@@ -18,7 +18,9 @@ partly native, validated in shadow mode over 21 input movies
 ([docs/PORTING.md](docs/PORTING.md)). The development runtime plays the game
 with sound ([docs/PLAYING.md](docs/PLAYING.md)). The recompiler translates every
 65816 instruction ([docs/RECOMP.md](docs/RECOMP.md)); generating whole banks is
-next.
+next. [docs/PLATFORM.md](docs/PLATFORM.md) designs the platform services
+(video, audio, timing, input, saves) that let the game run on backends other
+than the SNES hardware model: a native renderer, widescreen, and possibly GBA.
 
 ## ROM
 
