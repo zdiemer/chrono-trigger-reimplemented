@@ -4,8 +4,9 @@
 everything else runs on the development system (see [RUNTIME.md](RUNTIME.md)
 and [PORTING.md](PORTING.md)). It needs your own ROM (see the README) and SDL2.
 
-There is no sound yet. The sound driver runs on the SPC700, but the DSP doesn't
-generate samples.
+Sound comes from the game's own sound driver on the SPC700 and the S-DSP model
+(see the APU section of [RUNTIME.md](RUNTIME.md)), played through SDL audio.
+`--mute` turns it off.
 
 ## Build
 
@@ -29,12 +30,21 @@ committed.
 ## Run
 
 ```sh
-dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--native on|off] [--save-dir dir]
+dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--mute] [--native on|off] [--save-dir dir]
 ```
 
 The ROM can also be given as the only argument, so dropping it onto the
 executable works. `--native off` interprets everything, the reference behavior.
 `ct_play --help` lists the options and controls.
+
+The emulation produces 32000 Hz audio in step with the frames it runs, and
+frames are paced by the host clock. The audio device plays at its own rate
+(usually 44100 or 48000 Hz) from its own clock, so the player resamples into a
+buffer of about 80 ms and adjusts the resampling ratio by up to 0.5% to keep
+that buffer at its target fill. Video is never slowed down or skipped for
+audio, and the pitch change is inaudible. Pausing stops the device and empties
+the buffer, so it's silent until play resumes. If the host can't keep up, the
+buffer runs dry and there are gaps of silence.
 
 | Key | Button |
 |---|---|
@@ -71,8 +81,8 @@ which is written to the `.srm` file on the next check.
 
 For checking a build without a display, `--frames N` runs without a window and
 `--screenshot out.png` writes the last frame. `--hold BUTTON[+BUTTON]@FIRST-LAST`
-holds buttons over a range of frames, and `--load-state`/`--save-state` read and
-write state files:
+holds buttons over a range of frames, `--load-state`/`--save-state` read and
+write state files, and `--wav out.wav` writes the sound (32000 Hz stereo):
 
 ```sh
 build/main/ct_play --rom roms/ct-usa.sfc --frames 1500 --screenshot captures/title.png
@@ -80,4 +90,4 @@ build/main/ct_play --rom roms/ct-usa.sfc --frames 3600 --hold START@1620-1624 \
     --hold A@2400-2403 --hold START@3000-3003 --hold START@3200-3203 --screenshot captures/opening.png
 ```
 
-Screenshots are derived from the ROM; keep them out of the repository.
+Screenshots and audio are derived from the ROM; keep them out of the repository.

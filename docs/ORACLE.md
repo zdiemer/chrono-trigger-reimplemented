@@ -249,7 +249,8 @@ Other routes if this ever needs replacing:
   mid-frame writes such as raster effects or HDMA only show through their
   end-of-frame result and the framebuffer.
 - **APU state isn't traced.** SPC700 RAM and DSP registers are absent. For
-  audio, compare `--wav` output.
+  audio, compare `--wav` output with `ct_dev --wav` using
+  `tools/audio_compare.py` (docs/RUNTIME.md, S-DSP).
 - **Trace windows.** `--trace-from` still emulates every frame before the
   window; there's no savestate seeking.
 - **bsnes2014 limits** are described under [Cores](#cores).

@@ -1,17 +1,20 @@
 /* S-SMP audio subsystem: SPC700, 64 KiB sound RAM, control registers, timers,
- * DSP register storage, and the four I/O ports shared with the main CPU.
+ * the S-DSP sound generator (dsp.h), and the four I/O ports shared with the main CPU.
  *
  * The console's IPL boot ROM is not included. Its documented upload protocol
  * (announce $BBAA, accept blocks, jump to the uploaded driver) is implemented
  * directly in C; after the jump, the uploaded driver runs on the SPC700 core.
- * DSP sample generation is not implemented yet; registers are stored only.
+ * The DSP generates 32000 Hz stereo from the SPC700's cycle count; the host
+ * collects it with apu_take_samples().
  */
 #ifndef CT_APU_H
 #define CT_APU_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
+#include "dsp.h"
 #include "spc700.h"
 
 typedef enum {
@@ -44,7 +47,7 @@ typedef struct Apu {
     Spc700 spc;
     uint8_t control;     /* $F1 */
     uint8_t dsp_addr;    /* $F2 */
-    uint8_t dsp[128];
+    Dsp dsp;
     ApuTimer timer[3];
 
     int64_t budget;      /* time owed to the SPC700 in master clocks x SPC700 Hz; negative is debt */
@@ -69,5 +72,10 @@ void apu_write_port(void *ctx, uint8_t port, uint8_t value);
 
 /* Run the APU for the given number of main-CPU master clocks. */
 void apu_advance(Apu *apu, uint32_t master_clocks);
+
+/* Move up to max_frames generated stereo frames (32000 Hz, L/R interleaved)
+ * into out; returns how many. Up to DSP_OUT_FRAMES wait in the APU; beyond
+ * that, new frames are dropped (counted in apu->dsp.out_dropped). */
+size_t apu_take_samples(Apu *apu, int16_t *out, size_t max_frames);
 
 #endif

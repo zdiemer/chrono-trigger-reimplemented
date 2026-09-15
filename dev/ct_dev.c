@@ -5,6 +5,7 @@
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
+ *          [--wav out.wav]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -12,6 +13,7 @@
  * disassembler's liveness analysis knows about callers it can't see statically.
  * --load-state resumes from a state saved by --save-state (same build only);
  * frame numbers, and so movie input, continue from the saved frame.
+ * --wav writes the DSP's output (32000 Hz stereo) over the frames run.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -148,7 +150,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL;
-    const char *shot_dir = NULL;
+    const char *shot_dir = NULL, *wav_path = NULL;
     NativeMode native_mode = NATIVE_OFF;
     long frames = -1, status_every = 0, shot_every = 0;
     for (int i = 1; i < argc; i++) {
@@ -168,6 +170,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--status-every")) status_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
+        else if (!strcmp(a, "--wav")) wav_path = v;
         else if (!strcmp(a, "--native")) {
             if (!strcmp(v, "off")) native_mode = NATIVE_OFF;
             else if (!strcmp(v, "shadow")) native_mode = NATIVE_SHADOW;
@@ -186,7 +189,7 @@ int main(int argc, char **argv)
     if (!rom_path || frames < 0 || (shot_every > 0 && !shot_dir)) {
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
-                        "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f]\n");
+                        "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] [--wav out.wav]\n");
         return 2;
     }
 
@@ -250,10 +253,22 @@ int main(int argc, char **argv)
         }
     }
 
+    static ct_wav wav;
+    static int16_t audio[DSP_OUT_FRAMES * 2];
+    if (wav_path) {
+        if (ct_wav_open(&wav, wav_path, DSP_SAMPLE_RATE) != 0) {
+            fprintf(stderr, "cannot open %s\n", wav_path);
+            return 1;
+        }
+        apu_take_samples(&snes.apu, audio, DSP_OUT_FRAMES);   /* left over in a loaded state */
+    }
+
     uint8_t cgram[0x200];
     for (long frame = (long)snes.frame; frame < frames; frame++) {
         uint16_t pad = ct_movie_buttons(&movie, (uint32_t)frame);
         snes_run_frame(&snes, pad);
+        if (wav_path)
+            ct_wav_write(&wav, audio, apu_take_samples(&snes.apu, audio, DSP_OUT_FRAMES));
 
         if (trace) {
             for (int i = 0; i < 256; i++) {
@@ -296,6 +311,14 @@ int main(int argc, char **argv)
     native_destroy(natives);
     if (ct_trace_close(trace) != 0)
         rc = 1;
+    if (wav_path) {
+        if (snes.apu.dsp.out_dropped)
+            fprintf(stderr, "warning: %u audio frames dropped\n", (unsigned)snes.apu.dsp.out_dropped);
+        if (ct_wav_close(&wav) != 0) {
+            fprintf(stderr, "cannot write %s\n", wav_path);
+            rc = 1;
+        }
+    }
     if (coverage_path && write_coverage(&cov, coverage_path) != 0) {
         fprintf(stderr, "cannot write %s\n", coverage_path);
         rc = 1;

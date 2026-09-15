@@ -1,13 +1,13 @@
 /* ct_play: plays the game in a window, with the ported routines running natively
  * and the rest on the development system (docs/PLAYING.md).
  *
- *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--native on|off] [--save-dir dir]
+ *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|off] [--save-dir dir]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
- *           [--load-state f] [--save-state f]
+ *           [--load-state f] [--save-state f] [--wav out.wav]
  *
  * With --frames it runs headless (no window) for a fixed number of frames, for
- * checking a build without a display. There is no sound yet: the APU runs the
- * sound driver, but DSP sample generation isn't implemented.
+ * checking a build without a display. In a window, the APU's 32000 Hz output
+ * plays through SDL audio (see audio_frame).
  */
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -80,6 +80,8 @@ typedef struct {
     char sram_path[1024];
     char state_path[1024];
     uint8_t sram_saved[SNES_SRAM_SIZE];   /* SRAM as last loaded or written */
+    bool mute;                            /* no audio device */
+    const char *wav_path;                 /* headless: write the audio here */
 } Player;
 
 static void usage(FILE *out)
@@ -90,6 +92,7 @@ static void usage(FILE *out)
             "Options:\n"
             "  --scale N            window scale (integer, default 3)\n"
             "  --fullscreen         start fullscreen\n"
+            "  --mute               no sound\n"
             "  --native on|off      run ported routines natively (default on) or interpret everything\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
             "\n"
@@ -100,6 +103,7 @@ static void usage(FILE *out)
             "                       for example --hold START@700-710\n"
             "  --load-state F       start from a state file\n"
             "  --save-state F       write a state file at the end\n"
+            "  --wav F.wav          write the sound (32000 Hz stereo)\n"
             "\n"
             "Controls:\n");
     for (int i = 0; i < KEYMAP_COUNT; i++)
@@ -110,8 +114,7 @@ static void usage(FILE *out)
             "  %-12s toggle fullscreen\n"
             "  %-12s quit\n"
             "\n"
-            "Saves are written to <rom name>.srm when the game changes them and on exit.\n"
-            "No sound yet.\n",
+            "Saves are written to <rom name>.srm when the game changes them and on exit.\n",
             "P", "F5 / F7", "F11, Alt+Enter", "Esc");
 }
 
@@ -250,11 +253,181 @@ static int state_load(Player *pl, const char *path)
     return 0;
 }
 
+/* ---- audio --------------------------------------------------------------------- */
+
+/* The APU produces 32000 Hz as the emulation runs, paced by video. The device
+ * plays at its own rate from its own clock, so samples are resampled into a
+ * ring buffer the device callback drains, and the resampling ratio is nudged
+ * (at most AUDIO_MAX_ADJUST) to keep the buffer near its target fill instead
+ * of dropping or repeating anything. */
+#define AUDIO_MAX_ADJUST 0.005
+#define AUDIO_RING_FRAMES 16384
+#define AUDIO_HISTORY 4096   /* input frames kept for the resampler (> one video frame) */
+
+typedef struct {
+    SDL_AudioDeviceID dev;   /* 0: muted or no device */
+    int rate;
+    bool playing;
+
+    /* Ring buffer shared with the callback (guarded by SDL_LockAudioDevice). */
+    int16_t ring[AUDIO_RING_FRAMES * 2];
+    size_t head, count;
+
+    /* Resampler input: frames from the APU not yet passed, and the read position. */
+    int16_t in[(AUDIO_HISTORY + DSP_OUT_FRAMES) * 2];
+    size_t in_count;
+    double pos;
+    double fill_avg;
+    size_t target;
+} Audio;
+
+static void SDLCALL audio_callback(void *ctx, Uint8 *stream, int len)
+{
+    Audio *a = ctx;
+    int16_t *out = (int16_t *)(void *)stream;
+    size_t frames = (size_t)len / 4;
+    size_t n = frames < a->count ? frames : a->count;
+    size_t tail = (a->head + AUDIO_RING_FRAMES - a->count) % AUDIO_RING_FRAMES;
+    for (size_t i = 0; i < n; i++) {
+        size_t at = (tail + i) % AUDIO_RING_FRAMES;
+        out[i * 2] = a->ring[at * 2];
+        out[i * 2 + 1] = a->ring[at * 2 + 1];
+    }
+    a->count -= n;
+    memset(out + n * 2, 0, (frames - n) * 4);   /* underrun: silence */
+}
+
+static void audio_open(Audio *a)
+{
+    memset(a, 0, sizeof *a);
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
+        fprintf(stderr, "no audio: %s\n", SDL_GetError());
+        return;
+    }
+    SDL_AudioSpec want = { 0 }, have;
+    want.freq = DSP_SAMPLE_RATE;
+    want.format = AUDIO_S16SYS;
+    want.channels = 2;
+    want.samples = 1024;
+    want.callback = audio_callback;
+    want.userdata = a;
+    a->dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+    if (!a->dev) {
+        fprintf(stderr, "no audio: %s\n", SDL_GetError());
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+        return;
+    }
+    a->rate = have.freq;
+    /* Two device buffers plus about two video frames. */
+    a->target = (size_t)have.samples * 2 + (size_t)have.freq / 30;
+    if (a->target > AUDIO_RING_FRAMES / 4)
+        a->target = AUDIO_RING_FRAMES / 4;
+    a->fill_avg = (double)a->target;
+    a->pos = 1.0;
+}
+
+static void audio_close(Audio *a)
+{
+    if (!a->dev)
+        return;
+    SDL_CloseAudioDevice(a->dev);
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    a->dev = 0;
+}
+
+static void audio_ring_clear(Audio *a)
+{
+    SDL_LockAudioDevice(a->dev);
+    a->count = 0;
+    SDL_UnlockAudioDevice(a->dev);
+    a->in_count = 0;
+    a->pos = 1.0;
+    a->fill_avg = (double)a->target;
+}
+
+/* Once per loop iteration: move the samples the last frame produced to the
+ * device. While paused, the device is stopped and the buffers emptied. */
+static void audio_frame(Audio *a, Snes *snes, bool paused)
+{
+    if (!a->dev || paused) {
+        int16_t discard[256 * 2];
+        while (apu_take_samples(&snes->apu, discard, 256))
+            ;
+        if (a->dev) {
+            if (a->playing)
+                SDL_PauseAudioDevice(a->dev, 1);
+            a->playing = false;
+            audio_ring_clear(a);
+        }
+        return;
+    }
+
+    a->in_count += apu_take_samples(&snes->apu, a->in + a->in_count * 2,
+                                    sizeof a->in / sizeof a->in[0] / 2 - a->in_count);
+
+    SDL_LockAudioDevice(a->dev);
+    size_t fill = a->count;
+    SDL_UnlockAudioDevice(a->dev);
+    a->fill_avg += (fill - a->fill_avg) * 0.05;
+    double err = (a->fill_avg - (double)a->target) / (double)a->target;
+    err = err < -1 ? -1 : err > 1 ? 1 : err;
+    double step = (double)DSP_SAMPLE_RATE / a->rate * (1.0 + AUDIO_MAX_ADJUST * err);
+
+    /* Cubic Hermite over in[i-1..i+2] at pos = i + f. */
+    int16_t out[4096 * 2];
+    size_t n = 0;
+    size_t i;
+    while ((i = (size_t)a->pos) + 2 < a->in_count && n < 4096) {
+        double f = a->pos - (double)i;
+        for (int ch = 0; ch < 2; ch++) {
+            double y0 = a->in[(i - 1) * 2 + ch], y1 = a->in[i * 2 + ch];
+            double y2 = a->in[(i + 1) * 2 + ch], y3 = a->in[(i + 2) * 2 + ch];
+            double c1 = 0.5 * (y2 - y0), c2 = y0 - 2.5 * y1 + 2 * y2 - 0.5 * y3;
+            double c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
+            double v = ((c3 * f + c2) * f + c1) * f + y1;
+            out[n * 2 + ch] = (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
+        }
+        n++;
+        a->pos += step;
+    }
+    /* Keep in[i-1] onward. */
+    i = (size_t)a->pos;
+    size_t drop = i > 1 ? i - 1 : 0;
+    if (drop > a->in_count)
+        drop = a->in_count;
+    memmove(a->in, a->in + drop * 2, (a->in_count - drop) * 2 * sizeof a->in[0]);
+    a->in_count -= drop;
+    a->pos -= (double)drop;
+
+    SDL_LockAudioDevice(a->dev);
+    /* Past four times the target (a device far slower than its rate), drop
+     * rather than let latency grow. */
+    for (size_t k = 0; k < n && a->count < 4 * a->target; k++) {
+        a->ring[a->head * 2] = out[k * 2];
+        a->ring[a->head * 2 + 1] = out[k * 2 + 1];
+        a->head = (a->head + 1) % AUDIO_RING_FRAMES;
+        a->count++;
+    }
+    fill = a->count;
+    SDL_UnlockAudioDevice(a->dev);
+
+    if (!a->playing && fill >= a->target) {   /* start once there's a cushion */
+        SDL_PauseAudioDevice(a->dev, 0);
+        a->playing = true;
+    }
+}
+
 /* ---- headless ------------------------------------------------------------------ */
 
 static int run_headless(Player *pl, long frames, const Hold *holds, int nholds, const char *screenshot,
                         const char *save_state)
 {
+    static ct_wav wav;
+    static int16_t audio[DSP_OUT_FRAMES * 2];
+    if (pl->wav_path && ct_wav_open(&wav, pl->wav_path, DSP_SAMPLE_RATE) != 0) {
+        fprintf(stderr, "cannot open %s\n", pl->wav_path);
+        return 1;
+    }
     for (long frame = 0; frame < frames; frame++) {
         uint16_t pad = 0;
         for (int i = 0; i < nholds; i++) {
@@ -262,9 +435,14 @@ static int run_headless(Player *pl, long frames, const Hold *holds, int nholds, 
                 pad |= holds[i].buttons;
         }
         snes_run_frame(&pl->snes, pad);
+        ct_wav_write(&wav, audio, apu_take_samples(&pl->snes.apu, audio, DSP_OUT_FRAMES));
     }
     sram_flush(pl);
     int rc = 0;
+    if (ct_wav_close(&wav) != 0) {
+        fprintf(stderr, "cannot write %s\n", pl->wav_path);
+        rc = 1;
+    }
     if (screenshot && ct_png_write(screenshot, pl->renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT) != 0) {
         fprintf(stderr, "cannot write %s\n", screenshot);
         rc = 1;
@@ -340,6 +518,9 @@ static int run_window(Player *pl, int scale, bool fullscreen)
     SDL_SetWindowMinimumSize(window, RENDER_WIDTH, RENDER_HEIGHT);
     SDL_RenderSetLogicalSize(sdl_renderer, RENDER_WIDTH, RENDER_HEIGHT);
     SDL_RenderSetIntegerScale(sdl_renderer, SDL_TRUE);
+    static Audio audio;   /* large; keep it off the stack */
+    if (!pl->mute)
+        audio_open(&audio);
 
     const Uint64 ticks_per_second = SDL_GetPerformanceFrequency();
     const Uint64 period = (Uint64)(ticks_per_second / FRAME_RATE);
@@ -394,6 +575,7 @@ static int run_window(Player *pl, int scale, bool fullscreen)
                 sram_flush(pl);
             }
         }
+        audio_frame(&audio, &pl->snes, paused);
         SDL_RenderClear(sdl_renderer);
         SDL_RenderCopy(sdl_renderer, texture, NULL, NULL);
         SDL_RenderPresent(sdl_renderer);
@@ -417,6 +599,7 @@ static int run_window(Player *pl, int scale, bool fullscreen)
     }
 
     sram_flush(pl);
+    audio_close(&audio);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(sdl_renderer);
     SDL_DestroyWindow(window);
@@ -446,6 +629,10 @@ int main(int argc, char **argv)
             fullscreen = true;
             continue;
         }
+        if (!strcmp(a, "--mute")) {
+            pl.mute = true;
+            continue;
+        }
         if (a[0] != '-') {
             rom_path = a;
             continue;
@@ -461,6 +648,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--screenshot")) screenshot = v;
         else if (!strcmp(a, "--load-state")) load_state_path = v;
         else if (!strcmp(a, "--save-state")) save_state_path = v;
+        else if (!strcmp(a, "--wav")) pl.wav_path = v;
         else if (!strcmp(a, "--hold")) {
             if (nholds == MAX_HOLDS || parse_hold(v, &holds[nholds]) != 0) {
                 fprintf(stderr, "bad --hold %s (expected BUTTON[+BUTTON]@FIRST-LAST)\n", v);

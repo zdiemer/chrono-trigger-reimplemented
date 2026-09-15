@@ -25,7 +25,7 @@ static uint8_t smp_read(void *ctx, uint16_t addr)
         return apu->ram[addr];   /* the IPL ROM overlay at $FFC0 is not modeled */
     switch (addr) {
     case 0x00F2: return apu->dsp_addr;
-    case 0x00F3: return apu->dsp[apu->dsp_addr & 0x7F];
+    case 0x00F3: return dsp_read(&apu->dsp, apu->dsp_addr);
     case 0x00F4: case 0x00F5: case 0x00F6: case 0x00F7:
         return apu->cpu_in[addr - 0x00F4];
     case 0x00F8: case 0x00F9:
@@ -70,7 +70,7 @@ static void smp_write(void *ctx, uint16_t addr, uint8_t v)
     case 0x00F2: apu->dsp_addr = v; break;
     case 0x00F3:
         if (!(apu->dsp_addr & 0x80))
-            apu->dsp[apu->dsp_addr] = v;
+            dsp_write(&apu->dsp, apu->dsp_addr, v);
         break;
     case 0x00F4: case 0x00F5: case 0x00F6: case 0x00F7:
         apu->cpu_out[addr - 0x00F4] = v;
@@ -84,8 +84,10 @@ static void smp_write(void *ctx, uint16_t addr, uint8_t v)
     }
 }
 
+/* Timers and DSP run from the same SPC700 clock. */
 static void tick_timers(Apu *apu, unsigned cycles)
 {
+    dsp_run(&apu->dsp, apu->ram, cycles);
     for (int i = 0; i < 3; i++) {
         ApuTimer *t = &apu->timer[i];
         t->divider += cycles;
@@ -108,6 +110,7 @@ void apu_init(Apu *apu)
 {
     memset(apu, 0, sizeof *apu);
     spc700_init(&apu->spc, (Spc700Bus){ apu, smp_read, smp_write });
+    dsp_init(&apu->dsp);
     apu->phase = APU_IPL_WAIT_KICK;
     apu->cpu_out[0] = 0xAA;
     apu->cpu_out[1] = 0xBB;
@@ -205,4 +208,9 @@ void apu_advance(Apu *apu, uint32_t master_clocks)
         apu->spc_cycles += cycles;
         apu->budget -= (int64_t)cycles * MASTER_HZ;
     }
+}
+
+size_t apu_take_samples(Apu *apu, int16_t *out, size_t max_frames)
+{
+    return dsp_take_samples(&apu->dsp, out, max_frames);
 }
