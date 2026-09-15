@@ -414,7 +414,10 @@ with an interpreter-only run (`--native off`) at the same frame.
   the scanline renderer (`render_line`, `draw_bg`), 5% in the S-DSP and 2% in
   the SPC700; the CPU side (blocks, dispatch, bus) is about 7%, against about
   20% for the interpreter in `off` mode. Until rendering is faster, generated
-  code can't make runs much faster.
+  code can't make runs much faster. (Since then the renderer draws a tile at a
+  time and skips unchanged lines: `on` runs `gato-battle` in about 7 s, a
+  quarter of it in the renderer; see Speed under Renderer in
+  [RUNTIME.md](RUNTIME.md).)
 
 ## Exact timing (M2)
 

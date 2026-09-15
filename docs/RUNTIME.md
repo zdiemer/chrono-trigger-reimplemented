@@ -152,6 +152,89 @@ Gaps:
   first sprite; unverified against hardware.
 - The ignored 16x16 tile-size bits of `$2105` have no effect, as on hardware.
 
+### Speed
+
+The renderer's output is defined by the plain per-pixel algorithm: for each
+pixel, walk the mode's front-to-back layer order, take the first layer whose
+pixel is opaque, enabled on that screen and not masked by its window, then
+apply color math. The code gets the same bytes faster in two ways.
+
+Drawing a line:
+- **A tile at a time.** Without mosaic, offset-per-tile or hi-res, a BG layer
+  costs one tilemap lookup and one bitplane decode per 8 pixels: `tile_row`
+  turns the 2, 4 or 8 plane bytes of a tile row into eight pixel values in one
+  64-bit word through a byte-expansion table, a flip reverses the word, and a
+  bit trick marks the opaque pixels. Fully transparent tile rows are skipped.
+  The other cases take one sample per mosaic block.
+- **Depths instead of order walks.** Every (layer, priority) pair appears at
+  most once in a mode's order list, so each layer pixel gets its position in
+  the list as a depth, and a screen keeps the largest: the same winner as the
+  walk. Layers merge into the main and sub screens with branch-free loops that
+  the compiler vectorizes. Window masks are built once per layer per line, and
+  only when a window is enabled.
+- **Color math chosen per line.** The sub screen's layers are only merged when
+  color math with sub screen addition can apply, and the final loop is
+  compiled separately for each add/subtract, half and sub screen setting.
+- **Sprites per row.** Bitmaps of the sprites covering each row, rebuilt when
+  OAM or the OBSEL size changes, replace the scan of all 128 sprites.
+- **Palette.** CGRAM scaled by brightness is kept as RGB565 and updated per
+  changed entry.
+
+Skipping lines: over the movies, 60-87% of drawn lines come out identical to
+the same line in the previous frame. Each line has a `RenderLineCache` entry:
+a key holding every register and decoded value the line reads (with values
+that can't matter zeroed: scroll of unused layers, Mode 7 values outside mode
+7, window settings when no window is enabled, the fixed color when color math
+is off), the sprite generation of its row, and the CGRAM entries and VRAM pages
+(32 bytes, one 4bpp tile) its drawing read, with the generations current then.
+When the key matches and none of those entries or pages has changed since, the
+framebuffer row already holds the line, and the range/time-over flags drawing
+set last time are set again.
+- CGRAM and OAM are compared with the renderer's copies on every line (games
+  change CGRAM mid-frame). A changed entry bumps its generation; a changed
+  sprite bumps the rows it covered and covers.
+- VRAM is only written outside active display, so it's compared with the
+  renderer's copy (page by page when it differs) at line 0 of each frame, and
+  within a frame only when `Ppu.vram_writes` changed, which only forced-blank
+  writes do. The counter is a hint that emulation never reads; changes are
+  found by comparing contents, so state loads and DMA need no hooks.
+- Marking is conservative: a tile row marks its whole tile, a BG line its whole
+  map row, and Mode 7, mosaic, offset-per-tile and hi-res lines depend on all
+  of VRAM and CGRAM.
+- Hosts must not write to `Renderer.pixels`: skipped lines aren't redrawn.
+
+Wall time, `ct_dev --native on` on a shared machine, one run at a time; the
+renderer share is timed inside `on_line`:
+
+| Movie | Frames | Total before | Total after | Renderer before | Renderer after |
+|---|---|---|---|---|---|
+| `gato-battle.ctm` | 21600 | 39.5 s | 7.1 s | 33.6 s (84%) | 2.0 s (26%) |
+| `saves/events-jetbike-race.ctm` (Mode 7) | 9400 | 13.3 s | 3.6 s | 10.3 s (79%) | 1.3 s (36%) |
+| `saves/late-omen-zeal.ctm` (color math, windows) | 35300 | 61.5 s | 12.5 s | 52.6 s (83%) | 2.9 s (23%) |
+
+Within the renderer, drawing BG tiles is about half the time, compositing
+(merge and color math) a quarter, and the cache checks most of the rest. In
+Mode 7 scenes most lines change every frame.
+
+How identity was checked, and how to check a change to `render.c`:
+- **Per line against the previous renderer.** A copy of `ct_dev` built with
+  the previous `render.c` under renamed symbols runs it in `on_line` first on
+  the same PPU state (restoring the sprite flags), then the new renderer, and
+  compares the framebuffer row and both flags. The seven movies in
+  `oracle/movies/` and all sixteen save movies, run to their full frame counts
+  with `--native on` (315150 frames, 70.6 million lines), had no differing line
+  or flag, and every frame's framebuffer hash equals the hash recorded with the
+  previous renderer before the work started. Hash lists derive from the ROM, so
+  they stay in the build tree.
+- **State loads with a warm cache.** The same check with a state saved and
+  loaded back 300-3700 frames later within one run (field, battle, Mode 7), and
+  once, by accident, a different save's state: no differing line.
+- **Emulation unchanged.** The six-movie `--native shadow` suite exits 0 with no
+  mismatches, and `--native off` traces of `new-game.ctm` from before and after
+  have no divergence, framebuffer hashes included. Against the Snes9x trace
+  of the same movie, 3209 of 3233 non-blank frames in 1800-5399 are identical
+  at the same frame, before and after.
+
 ## S-DSP
 
 `runtime/apu/dsp.c` generates the sound. It lives inside the `Apu` and is

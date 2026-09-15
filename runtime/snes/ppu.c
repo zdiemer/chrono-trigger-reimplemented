@@ -35,8 +35,10 @@ static void vram_reload_prefetch(Ppu *p)
 
 static void vram_write(Ppu *p, bool high, uint8_t v)
 {
-    if (!p->active_display)
+    if (!p->active_display) {
         p->vram[(uint16_t)((vram_mapped(p) << 1) + high)] = v;
+        p->vram_writes++;
+    }
     if (((p->reg[0x15] & 0x80) != 0) == high)
         vram_step(p);
 }
