@@ -290,7 +290,8 @@ build/main/ct_dev --rom roms/ct-usa.sfc --sram roms/saves/ctsave07-azala/chrono_
 | `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8200 |
 | `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos, many single techs, running away from an ambush | 17100 |
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, Mega Bomb, item menus, Life 2 | 15500 |
-| `late-omen-zeal.ctm` | ctsave15, 3 | Queen Zeal won: Luminaire, Antipode 3, Flare, Hallation | 18800 |
+| `late-omen-zeal.ctm` | ctsave15, 3 | Queen Zeal won (Luminaire, Antipode 3, Flare, Hallation), then the Mammon Machine won (Mega Bomb, Delta Force, Flare and more) and the start of the Zeal face-and-hands battle | 35300 |
+| `late-lavos.ctm` | ctsave16, 1 | Lavos: the outer shell beaten with many techs and MegaElixirs, then the core form with a revive | 51000 |
 | `events-jetbike-race.ctm` | ctsave03, 1 | Lab 32: Johnny's challenge and the Mode 7 race with turbo boosts | 9400 |
 | `events-end-of-time-gate.ctm` | ctsave03, 3 | End of Time pillar, yes/no prompt, gate effect, arrival in Medina | 5600 |
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
