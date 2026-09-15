@@ -103,6 +103,7 @@ typedef struct Active {
     uint16_t ret_s;        /* after the native routine returned: S and PC the original must match */
     uint32_t ret_pc;
     uint64_t segment_start;
+    uint32_t segment_frame;      /* frame counter when the segment started */
     uint32_t segment_bus_clocks;
     unsigned long segment_port_clears[2];   /* apu_port_clears when the segment started */
     bool segment_interrupted, interrupted, mismatched;
@@ -367,6 +368,10 @@ static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, c
     for (int pair = 0; pair < 2; pair++)
         if (apu_port_clears[pair] != a->segment_port_clears[pair])
             memcpy(a->clone->apu.cpu_in + 2 * pair, s->apu.cpu_in + 2 * pair, 2);
+    /* Vblank reloads the OAM address (outside forced blank), so it moves if a
+     * vblank passed while the original ran with NMI disabled. */
+    if (s->frame != a->segment_frame)
+        a->clone->ppu.oam_addr = s->ppu.oam_addr;
     char why[200], msg[256];
     if (native_compare(s, a->clone, dont_care, why, sizeof why)) {
         a->mismatched = true;
@@ -405,6 +410,7 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     } else {
         a->segment_bus_clocks = m->bus.clocks;
         a->segment_start = s->master;
+        a->segment_frame = s->frame;
         memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
         a->segment_interrupted = false;
     }

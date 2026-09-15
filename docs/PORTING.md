@@ -41,8 +41,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   PPU and CPU I/O register state, and the CPU-to-APU ports. Timing isn't
   compared, and neither is state that changes with time on its own: HDMA's
   per-channel line counters and table addresses, and the PPU registers enabled
-  HDMA channels write, and CPU-to-APU ports the SPC700 cleared (its driver
-  writing `$F1` bits 4-5) while the original ran. Calls interrupted by NMI/IRQ
+  HDMA channels write, CPU-to-APU ports the SPC700 cleared (its driver
+  writing `$F1` bits 4-5) while the original ran, and the OAM address when a
+  vblank (which reloads it) passed with NMI disabled. Calls interrupted by NMI/IRQ
   are counted but not compared. Registers and flags in the routine's
   don't-care set (below) aren't compared. Any mismatch prints the first differing field and makes `ct_dev`
   exit nonzero.
