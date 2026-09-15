@@ -22,6 +22,7 @@
 #include "core/sound_driver.h"
 
 #include "port/machine.h"
+#include "port/native.h"
 
 #define M8_X16 CPU_FLAG_M
 #define M16_X16 0
@@ -60,8 +61,22 @@ static uint32_t long_y(Snes *s, uint8_t cell)
 /* (dp): the 16-bit pointer in the cell, in the data bank. */
 static uint32_t ind(Snes *s, uint8_t cell) { return m_abs(s, dp16(s, cell)); }
 
-static void port_write(Snes *s, uint16_t reg, uint8_t v) { m_write8(s, m_abs(s, reg), v); }
-static uint8_t port_read(Snes *s, uint16_t reg) { return m_read8(s, m_abs(s, reg)); }
+/* APU port I/O. The SPC700 reads ports 1-3 soon after it sees port 0 change,
+ * so the time the original spent before each access has to have passed by then
+ * (native_sync): charged afterwards, it would open a gap between the parameter
+ * writes and the call-out that writes port 0, and the SPC700 would take a
+ * message with some parameters from the next one. */
+static void port_write(Snes *s, uint16_t reg, uint8_t v)
+{
+    native_sync(s);
+    m_write8(s, m_abs(s, reg), v);
+}
+
+static uint8_t port_read(Snes *s, uint16_t reg)
+{
+    native_sync(s);
+    return m_read8(s, m_abs(s, reg));
+}
 
 static void clc(Snes *s) { m_set_flag(s, CPU_FLAG_C, false); }
 static void inx(Snes *s) { m_set_index(s, &s->cpu.x, (uint16_t)(s->cpu.x + 1)); }

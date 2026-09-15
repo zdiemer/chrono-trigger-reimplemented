@@ -110,6 +110,14 @@ int native_suspended(const NativeRuntime *rt);
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call);
 void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care);
 
+/* For native routines, before I/O whose timing another processor observes (the
+ * APU ports): in ON mode, let the time the routine has taken so far pass on the
+ * machine first. ON mode otherwise charges a routine's time after it stops, so
+ * everything it wrote would appear at once, followed by a gap the original never
+ * had; the SPC700 reading the ports in that gap sees a half-written message. No
+ * effect in SHADOW mode or outside the runtime. */
+void native_sync(Snes *s);
+
 /* Synchronous call-outs: the instructions callees may run in total
  * (native_call_steps counts them; a tool resets it) before a call gives up,
  * leaving the machine mid-callee; how many calls have given up; and a hook run

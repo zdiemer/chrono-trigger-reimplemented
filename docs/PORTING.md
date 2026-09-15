@@ -66,6 +66,18 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   charged afterwards, one scanline at a time, so frame boundaries and line
   events still happen. Each call's cost is its own bus-access clocks times the
   routine's `cost_milli`/1000, so cost tracks data size.
+- **Syncing with the SPC700.** Charging a routine's time after it stops is wrong
+  where another processor watches the timing of its I/O. The sound driver
+  writes parameters to APU ports 1-3 and then calls out to a subroutine that
+  writes port 0. Charged afterwards, the time opened a gap between the two,
+  the SPC700 read the ports inside it, and uploaded songs came out scrambled:
+  no music in `on` mode, while `shadow` (which doesn't model timing) matched.
+  A port calls `native_sync(s)` before such I/O. In `on` mode the routine
+  suspends there until the time it has taken so far has passed, then continues.
+  `shadow` mode ignores it. Compare `on` against `off` audio with `ct_dev --wav`
+  when a port talks to the APU. `ct_dev --exclude PREFIX` leaves out the
+  routines whose names start with PREFIX, for narrowing down which port causes
+  a difference.
 
 ## Call-outs
 

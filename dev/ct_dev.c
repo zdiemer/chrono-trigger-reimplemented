@@ -5,7 +5,7 @@
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
- *          [--sram save.srm] [--wav out.wav]
+ *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]...
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -155,6 +155,8 @@ int main(int argc, char **argv)
     const char *shot_dir = NULL, *wav_path = NULL;
     NativeMode native_mode = NATIVE_OFF;
     long frames = -1, status_every = 0, shot_every = 0;
+    const char *excludes[64];
+    int nexcludes = 0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!v) {
@@ -174,6 +176,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else if (!strcmp(a, "--wav")) wav_path = v;
+        else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
         else if (!strcmp(a, "--native")) {
             if (!strcmp(v, "off")) native_mode = NATIVE_OFF;
             else if (!strcmp(v, "shadow")) native_mode = NATIVE_SHADOW;
@@ -237,7 +240,18 @@ int main(int argc, char **argv)
         fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", load_state);
         return 1;
     }
-    NativeRuntime *natives = native_create(game_natives, game_native_count, native_mode);
+    /* --exclude drops ported routines whose names start with a prefix, for
+     * narrowing down which one causes a difference. */
+    static NativeEntry table[4096];
+    int table_count = 0;
+    for (int i = 0; i < game_native_count && table_count < (int)(sizeof table / sizeof table[0]); i++) {
+        bool excluded = false;
+        for (int k = 0; k < nexcludes; k++)
+            excluded |= strncmp(game_natives[i].name, excludes[k], strlen(excludes[k])) == 0;
+        if (!excluded)
+            table[table_count++] = game_natives[i];
+    }
+    NativeRuntime *natives = native_create(table, table_count, native_mode);
     native_attach(natives, &snes);
     if (shot_dir)
         make_dir(shot_dir);

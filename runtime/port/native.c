@@ -22,7 +22,7 @@ static void push16_raw(Snes *s, uint16_t v)
 
 /* ---- jobs: native routines running on their own stacks ------------------------ */
 
-typedef enum { JOB_RUNNING, JOB_CALLING, JOB_DONE } JobState;
+typedef enum { JOB_RUNNING, JOB_CALLING, JOB_SYNCING, JOB_DONE } JobState;
 
 /* A native routine in progress. It runs on a fiber so that calling code that
  * isn't ported (m_jsr/m_jsl) can suspend it: the call is set up on the machine,
@@ -90,6 +90,7 @@ static void job_run(Job *j)
 typedef enum {
     PH_SEGMENT,   /* native code ran up to a call or return; the original is catching up */
     PH_CALLOUT,   /* both are inside a callee the native routine called */
+    PH_SYNC,      /* ON: suspended in native_sync until its time has passed */
 } Phase;
 
 /* A registered routine that has been entered and not yet left. */
@@ -397,6 +398,10 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     if (rt->mode == NATIVE_ON) {
         rt->debt += (uint32_t)((uint64_t)m->bus.clocks * a->entry->cost_milli / 1000);
         m->bus.clocks = 0;
+        if (j->state == JOB_SYNCING) {
+            a->phase = PH_SYNC;
+            return;
+        }
     } else {
         a->segment_bus_clocks = m->bus.clocks;
         a->segment_start = s->master;
@@ -469,6 +474,14 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             return true;
         }
         return false;
+    }
+
+    if (a->phase == PH_SYNC) {   /* ON only; intercept has paid the debt by now */
+        s->bus.clocks = 0;
+        job_run(a->job);
+        after_run(rt, a, s);
+        *result = 0;
+        return true;
     }
 
     /* PH_CALLOUT: waiting for the callee to return. */
@@ -635,6 +648,15 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
     }
     s->cpu.nmi_pending = nmi;
     s->cpu.irq_line = irq;
+}
+
+void native_sync(Snes *s)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON || !s->bus.clocks)
+        return;
+    j->state = JOB_SYNCING;
+    fiber_switch(fiber_main());
 }
 
 void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
