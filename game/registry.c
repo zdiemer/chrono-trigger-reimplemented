@@ -16,6 +16,10 @@
 #include "event/event.h"
 #include "field/field.h"
 #include "menu/menu.h"
+#include "menu/objects.h"
+#include "menu/save_screen.h"
+#include "menu/text.h"
+#include "menu/vram.h"
 
 /* Entry preconditions on P. */
 #define NEEDS_M8 .p_mask = CPU_FLAG_M, .p_value = CPU_FLAG_M
@@ -501,6 +505,49 @@ const NativeEntry game_natives[] = {
       .guard = menu_glyph_mode_is_valid, .cost_milli = 3159 },
     { .addr = 0xC20348, .name = "menu_wait_for_frame_loop", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true },
     { .addr = 0xC281CA, .name = "menu_wait_ready_loop", .fn = menu_wait_ready_loop, NEEDS_M8, .idle = true },
+    /* menu text and numbers */
+    { .addr = 0xC2F13F, .name = "menu_number_to_bcd", .fn = menu_number_to_bcd, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 3268, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC2F114, .name = "menu_draw_number", .fn = menu_draw_number, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 3467, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC2EF97, .name = "menu_draw_tile", .fn = menu_draw_tile, .p_mask = CPU_FLAG_X, .p_value = 0,
+      .cost_milli = 3984, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC2EF65, .name = "menu_draw_text", .fn = menu_draw_text, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 3604, .dont_care = DC_N | DC_Z },
+    /* menu VRAM upload queue, sprites and the save file screen */
+    { .addr = 0xC28385, .name = "menu_queue_vram_upload", .fn = menu_queue_vram_upload, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 3596 },
+    { .addr = 0xC2838E, .name = "menu_queue_vram_upload_7e", .fn = menu_queue_vram_upload_7e,
+      .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 3329, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC2E92D, .name = "menu_reset_sprites", .fn = menu_reset_sprites, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 2907, .dont_care = DC_A },
+    { .addr = 0xC2CFFB, .name = "menu_load_row_table", .fn = menu_load_row_table, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 3290, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC2D466, .name = "menu_draw_member_portrait", .fn = menu_draw_member_portrait,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3552,
+      .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC2D36C, .name = "menu_draw_save_slot", .fn = menu_draw_save_slot, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 3328, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC2E743, .name = "menu_show_save_slot", .fn = menu_show_save_slot, .cost_milli = 2900 },
+    /* menu sprite objects (run from the vblank handler of the $C2:0000 mode) */
+    { .addr = 0xC20C4D, .name = "menu_reset_sprite_nodes", .fn = menu_reset_sprite_nodes, NEEDS_M8_X16_BINARY,
+      .cost_milli = 2708, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC2034D, .name = "menu_hide_all_sprites", .fn = menu_hide_all_sprites, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 3898, .dont_care = DC_X | DC_N | DC_Z },
+    { .addr = 0xC2051D, .name = "menu_run_objects", .fn = menu_run_objects, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 5193, .dont_care = DC_X | DC_Y | DC_N | DC_Z },
+    { .addr = 0xC20CEA, .name = "menu_draw_sprite_nodes", .fn = menu_draw_sprite_nodes, NEEDS_M8_X16_BINARY,
+      .cost_milli = 2968, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_DB },
+    { .addr = 0xC20B53, .name = "menu_insert_sprite_node", .fn = menu_insert_sprite_node, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 3364 },
+    { .addr = 0xC20E1D, .name = "menu_run_sprite_script", .fn = menu_run_sprite_script,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3166 },
+    { .addr = 0xC20F63, .name = "menu_run_object_script", .fn = menu_run_object_script,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 2482 },
+    { .addr = 0xC27759, .name = "menu_object_wave_hdma", .fn = menu_object_wave_hdma, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3758 },
+    { .addr = 0xC2F871, .name = "menu_draw_record_sprites", .fn = menu_draw_record_sprites, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 4147, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C },
 
     /* attract (runs from RAM; guarded) */
     { .addr = 0x7E3023, .name = "attract_wait_loop", .fn = attract_wait_loop, NEEDS_M16, .idle = true,
