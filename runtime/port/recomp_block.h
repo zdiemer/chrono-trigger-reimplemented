@@ -2,6 +2,8 @@
 #ifndef CT_PORT_RECOMP_BLOCK_H
 #define CT_PORT_RECOMP_BLOCK_H
 
+#include <string.h>
+
 #include "port/recomp_snes.h"
 #include "snes/system.h"
 
@@ -30,6 +32,38 @@ extern uint64_t recomp_executed;
 #define RC_STOP(self)                                                   \
     rc_stop:                                                            \
     rc_timing.stopped = (self)
+
+/* The same for a block of RAM code, which resumes only if its guard still holds. */
+#define RC_STOP_GUARDED(self, guard)                                    \
+    rc_stop:                                                            \
+    rc_timing.stopped = (self);                                         \
+    rc_timing.stopped_guard = (guard)
+
+/* At the start of a block of RAM code: the ranges of its instructions' bytes
+ * (RcTiming.code). */
+#define RC_CODE(ranges, count) (rc_timing.code = (ranges), rc_timing.code_count = (count))
+
+/* A RAM block's guard: the `len` work RAM bytes at `wram_off` equal `image` where
+ * `mask` is set (the bytes the block's code was decoded from, as opposed to
+ * operands it fetches at run time). Only peeks. */
+static inline bool rc_ram_matches(const Snes *s, uint32_t wram_off, const uint8_t *image, const uint8_t *mask,
+                                  uint32_t len)
+{
+    const uint8_t *w = s->bus.wram + wram_off;
+    uint32_t i = 0;
+    for (; i + 8 <= len; i += 8) {
+        uint64_t a, b, m;
+        memcpy(&a, w + i, 8);
+        memcpy(&b, image + i, 8);
+        memcpy(&m, mask + i, 8);
+        if ((a ^ b) & m)
+            return false;
+    }
+    for (; i < len; i++)
+        if ((w[i] ^ image[i]) & mask[i])
+            return false;
+    return true;
+}
 
 /* At a loop's back edge: outside ON mode (shadow replays), return to the
  * runtime on every pass, so each pass is checked from the loop head. In ON mode

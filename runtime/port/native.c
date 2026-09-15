@@ -133,6 +133,8 @@ typedef struct Boundary {
     uint64_t master;
     uint32_t acc;          /* accesses recorded before this step */
     uint32_t frame;
+    int32_t gen;           /* the generated entry that applies here, decided while recording
+                              where guards or emulation mode matter; GEN_LATER otherwise */
     uint32_t pc24;
     uint16_t a, x, y, s, d;
     uint8_t db, p, flags;
@@ -178,9 +180,20 @@ struct NativeRuntime {
 
     /* ON mode: where generated blocks stopped before an instruction, so that
      * code resumes there in the same block (direct-mapped by address and widths). */
-    struct { uint32_t key; NativeFn fn; } resume[RESUME_SLOTS];
+    struct { uint32_t key; NativeFn fn; bool (*guard)(Snes *s); } resume[RESUME_SLOTS];
     unsigned long gen_stops, gen_resumes;
+    /* ON mode: every instruction of every block (native_set_index), for
+     * continuing in generated code where no entry or stop applies. */
+    const RecompIndexEntry *index;
+    int index_count;
+    uint8_t index_filter[0x2000];   /* bit per 16-bit address: some index entry might be here */
+    unsigned long gen_indexed;
+    /* SHADOW: bit per 16-bit address with a generated entry that has a guard or
+     * needs emulation mode, decided while recording (Boundary.gen). */
+    uint8_t record_filter[0x2000];
 };
+
+#define GEN_LATER (-2)
 
 static const NativeRuntime *active_runtime;   /* for synchronous native_call */
 
@@ -212,6 +225,8 @@ NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mod
         uint16_t a = sorted[i].addr & 0xFFFF;
         rt->filter[a >> 3] |= (uint8_t)(1 << (a & 7));
         rt->generated += sorted[i].generated;
+        if (sorted[i].generated && (sorted[i].guard || sorted[i].emulation))
+            rt->record_filter[a >> 3] |= (uint8_t)(1 << (a & 7));
     }
     active_runtime = rt;
     return rt;
@@ -265,14 +280,15 @@ static int find_entry(const NativeRuntime *rt, uint32_t pc)
     return lo < rt->count && rt->table[lo].addr == pc ? lo : -1;
 }
 
-/* Entry preconditions: register widths/modes on P, native mode, and the guard.
- * A generated block also needs the CPU running (not halted by WAI or STP). */
+/* Entry preconditions: register widths/modes on P, native mode (emulation mode
+ * for the generated entries made for it), and the guard. A generated block also
+ * needs the CPU running (not halted by WAI or STP). */
 static bool entry_applies(const NativeEntry *e, Snes *s)
 {
-    if ((s->cpu.p & e->p_mask) != e->p_value || s->cpu.e)
+    if ((s->cpu.p & e->p_mask) != e->p_value || s->cpu.e != e->emulation)
         return false;
-    if (e->generated)
-        return !s->cpu.waiting && !s->cpu.stopped;
+    if (e->generated && (s->cpu.waiting || s->cpu.stopped))
+        return false;
     return !e->guard || e->guard(s);
 }
 
@@ -735,10 +751,51 @@ void native_replay_fetch(Cpu *c, uint32_t addr, unsigned n, uint8_t last)
     }
 }
 
+void native_replay_fetch_live(Cpu *c, uint32_t addr, unsigned n, unsigned start)
+{
+    Replay *r = c->bus.ctx;
+    for (unsigned i = 0; i < n; i++) {
+        uint32_t at = (addr & 0xFF0000) | (uint16_t)(addr + i);
+        rc_timing.op[start + i] = 0;
+        const Access *a = replay_next(r, c, at, i == 0);
+        if (!a)
+            return;
+        if (a->write || a->addr != at) {
+            char orig[48], why[160];
+            describe_access(orig, sizeof orig, a);
+            snprintf(why, sizeof why, "block fetched %06X where the original %s", at, orig);
+            replay_fail(r, why);
+            return;
+        }
+        rc_timing.op[start + i] = a->value;
+        r->pos++;
+        r->clocks += a->clocks;
+    }
+}
+
+/* The first generated entry that applies to the machine as it is (widths,
+ * emulation mode, guard), or -1. */
+static int generated_applying(const NativeRuntime *rt, Snes *s)
+{
+    uint32_t pc = cpu_pc24(&s->cpu);
+    int i = find_entry(rt, pc);
+    if (i < 0)
+        return -1;
+    for (; i < rt->count && rt->table[i].addr == pc; i++) {
+        const NativeEntry *e = &rt->table[i];
+        if (e->generated && entry_applies(e, s))
+            return i;
+    }
+    return -1;
+}
+
 static void record_boundary(NativeRuntime *rt, Snes *s)
 {
     const Cpu *c = &s->cpu;
+    uint16_t a16 = (uint16_t)c->pc;
     Boundary *b = &rt->bnd[rt->nbnd++];
+    /* Guards look at RAM as it is now; decide those entries while recording. */
+    b->gen = rt->record_filter[a16 >> 3] & (1 << (a16 & 7)) ? generated_applying(rt, s) : GEN_LATER;
     b->master = s->master;
     b->acc = rt->nacc;
     b->frame = s->frame;
@@ -751,12 +808,14 @@ static void record_boundary(NativeRuntime *rt, Snes *s)
 
 static int find_generated(const NativeRuntime *rt, const Boundary *b)
 {
+    if (b->gen != GEN_LATER)
+        return b->gen;
     int i = find_entry(rt, b->pc24);
     if (i < 0)
         return -1;
     for (; i < rt->count && rt->table[i].addr == b->pc24; i++) {
         const NativeEntry *e = &rt->table[i];
-        if (e->generated && (b->p & e->p_mask) == e->p_value)
+        if (e->generated && (b->p & e->p_mask) == e->p_value && e->emulation == b->e && !e->guard)
             return i;
     }
     return -1;
@@ -815,7 +874,7 @@ static void replay_record(NativeRuntime *rt, bool final)
     uint32_t i = 0;
     while (i + 1 < nb) {
         const Boundary *b = &rt->bnd[i];
-        if ((b->flags & (B_INTERRUPT | B_WAITING | B_STOPPED)) || b->e) {
+        if (b->flags & (B_INTERRUPT | B_WAITING | B_STOPPED)) {
             i++;
             continue;
         }
@@ -834,12 +893,14 @@ static void replay_record(NativeRuntime *rt, bool final)
         r->end = open ? rt->bnd[nb - 1].acc : rt->bnd[k].acc;
         Cpu *c = &m->cpu;
         c->a = b->a, c->x = b->x, c->y = b->y, c->s = b->s, c->d = b->d;
-        c->db = b->db, c->p = b->p, c->e = false;
+        c->db = b->db, c->p = b->p, c->e = b->e;
         c->pb = b->pc24 >> 16, c->pc = b->pc24 & 0xFFFF;
         c->io_cycles = 0;
         c->waiting = c->stopped = false;
         c->bus = (CpuBus){ r, replay_read, replay_write };
+        rc_timing = (RcTiming){ .limit = UINT32_MAX };
         rt->table[idx].fn(m);
+        rc_timing = (RcTiming){ .limit = UINT32_MAX };
 
         if (r->bad) {
             rt->stats[idx].calls++;
@@ -968,8 +1029,34 @@ void rc_io_sync(uint32_t addr, bool write)
         rc_timing.limit = 0;
 }
 
+/* A RAM block wrote at `addr` (rc_snes_write): if that can change the block's
+ * own code (its instructions' bytes, or anything through the WRAM port or a DMA
+ * transfer), stop before the next instruction so the guard is checked again. */
+void rc_code_write(uint32_t addr)
+{
+    uint8_t bank = (uint8_t)(addr >> 16);
+    uint16_t a = (uint16_t)addr;
+    uint32_t w;
+    if (bank == 0x7E || bank == 0x7F)
+        w = addr;
+    else if (!(bank & 0x40) && a < 0x2000)
+        w = 0x7E0000 | a;
+    else {
+        if (!(bank & 0x40) && (a == 0x2180 || a == 0x420B))
+            rc_timing.limit = 0;
+        return;
+    }
+    for (uint32_t i = 0; i < rc_timing.code_count; i++)
+        if (w - rc_timing.code[2 * i] < rc_timing.code[2 * i + 1])
+            rc_timing.limit = 0;
+}
+
+/* Address and widths, as recomp_index's keys: pc | P's M and X << 24 | E << 30
+ * (emulation mode counts as 8-bit). */
 static inline uint32_t resume_key(const Snes *s)
 {
+    if (s->cpu.e)
+        return cpu_pc24(&s->cpu) | (uint32_t)(CPU_FLAG_M | CPU_FLAG_X) << 24 | 1u << 30;
     return cpu_pc24(&s->cpu) | (uint32_t)(s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) << 24;
 }
 
@@ -992,6 +1079,7 @@ static int32_t run_block(NativeRuntime *rt, Snes *s, NativeFn fn, const NativeEn
     uint32_t clocks = s->bus.clocks + 6 * s->cpu.io_cycles;
     uint32_t synced = rc_timing.synced;
     NativeFn stopped = rc_timing.stopped;
+    bool (*stopped_guard)(Snes *) = rc_timing.stopped_guard;
     rc_timing = (RcTiming){ .limit = UINT32_MAX };
     s->cpu.io_cycles = 0;
     if (clocks == 0)
@@ -1003,8 +1091,57 @@ static int32_t run_block(NativeRuntime *rt, Snes *s, NativeFn fn, const NativeEn
         unsigned slot = resume_slot(key);
         rt->resume[slot].key = key | 1u << 31;
         rt->resume[slot].fn = stopped;
+        rt->resume[slot].guard = stopped_guard;
     }
     return (int32_t)(clocks - synced);
+}
+
+static const NativeEntry indexed_block = { .name = "(generated block at an instruction)", .generated = true };
+
+void native_set_index(NativeRuntime *rt, const RecompIndexEntry *index, int count)
+{
+    rt->index = index;
+    rt->index_count = count;
+    memset(rt->index_filter, 0, sizeof rt->index_filter);
+    for (int i = 0; i < count; i++) {
+        uint16_t a = (uint16_t)index[i].key;
+        rt->index_filter[a >> 3] |= (uint8_t)(1 << (a & 7));
+    }
+}
+
+/* ON mode, where no entry applies: continue in generated code if a block stopped
+ * here, or else if any block has the instruction (for code reached through a
+ * computed jump, or where an interrupt handler took the stop's slot). */
+static int32_t continue_generated(NativeRuntime *rt, Snes *s)
+{
+    if (s->cpu.waiting || s->cpu.stopped)
+        return -1;
+    uint32_t key = resume_key(s);
+    unsigned slot = resume_slot(key);
+    if (rt->gen_stops && rt->resume[slot].key == (key | 1u << 31) &&
+        (!rt->resume[slot].guard || rt->resume[slot].guard(s))) {
+        rt->gen_resumes++;
+        return run_block(rt, s, rt->resume[slot].fn, &resumed_block);
+    }
+    uint16_t a16 = (uint16_t)key;
+    if (!(rt->index_filter[a16 >> 3] & (1 << (a16 & 7))))
+        return -1;
+    int lo = 0, hi = rt->index_count;
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (rt->index[mid].key < key)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    for (; lo < rt->index_count && rt->index[lo].key == key; lo++) {
+        const RecompIndexEntry *x = &rt->index[lo];
+        if (x->guard && !x->guard(s))
+            continue;
+        rt->gen_indexed++;
+        return run_block(rt, s, x->fn, &indexed_block);
+    }
+    return -1;
 }
 
 static int32_t intercept(void *ctx, Snes *s)
@@ -1039,19 +1176,7 @@ static int32_t intercept(void *ctx, Snes *s)
     }
 
     int idx = find_entry(rt, pc);
-    if (idx < 0) {
-        /* inside a generated block that stopped here */
-        if (rt->mode == NATIVE_ON && rt->gen_stops && !s->cpu.e && !s->cpu.waiting && !s->cpu.stopped) {
-            uint32_t key = resume_key(s);
-            unsigned slot = resume_slot(key);
-            if (rt->resume[slot].key == (key | 1u << 31)) {
-                rt->gen_resumes++;
-                return run_block(rt, s, rt->resume[slot].fn, &resumed_block);
-            }
-        }
-        return -1;
-    }
-    for (; idx < rt->count && rt->table[idx].addr == pc; idx++) {
+    for (; idx >= 0 && idx < rt->count && rt->table[idx].addr == pc; idx++) {
         const NativeEntry *e = &rt->table[idx];
         NativeStats *st = &rt->stats[idx];
 
@@ -1105,7 +1230,7 @@ static int32_t intercept(void *ctx, Snes *s)
         after_run(rt, a, s);
         return rt->mode == NATIVE_ON ? 0 : -1;
     }
-    return -1;
+    return rt->mode == NATIVE_ON && rt->generated ? continue_generated(rt, s) : -1;
 }
 
 unsigned long native_call_step_limit = 50000000ul;
@@ -1159,9 +1284,11 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
         while (idx >= 0 && idx < rt->count && rt->table[idx].addr == pc &&
                (rt->table[idx].idle || !entry_applies(&rt->table[idx], s)))
             idx++;
-        if (idx >= 0 && idx < rt->count && rt->table[idx].addr == pc)
+        if (idx >= 0 && idx < rt->count && rt->table[idx].addr == pc) {
             rt->table[idx].fn(s);
-        else
+            if (rt->table[idx].generated)
+                rc_timing = (RcTiming){ .limit = UINT32_MAX };
+        } else
             cpu_step(&s->cpu);
         native_call_steps++;
     }
@@ -1247,8 +1374,8 @@ void native_report(const NativeRuntime *rt, FILE *out)
             fprintf(out, "  matched %lu  mismatched %lu  interrupted %lu  unfinished %lu", gen_matched, gen_mismatched,
                     gen_interrupted, rt->gen_unfinished);
         else
-            fprintf(out, "  instructions %llu  stops %lu  resumed %lu", (unsigned long long)recomp_executed,
-                    rt->gen_stops, rt->gen_resumes);
+            fprintf(out, "  instructions %llu  stops %lu  resumed %lu  indexed %lu", (unsigned long long)recomp_executed,
+                    rt->gen_stops, rt->gen_resumes, rt->gen_indexed);
         fprintf(out, "\n");
     }
     if (rt->nactive)

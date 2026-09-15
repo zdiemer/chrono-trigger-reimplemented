@@ -1243,9 +1243,29 @@ targets = ["7E:3F59", "7E:5DA7", "7E:5DB4", "7E:5DE9"]
 # $7E:B574 is written at run time by C3:09E9, which emits only LDA immediate,
 # TCD, LDA absolute and STA direct page instructions and ends them with an RTS
 # (C3:0A22-0A8A). None of those changes the width bits, so the routine returns
-# with its caller's widths. (The instructions themselves aren't a section yet.)
+# with its caller's widths.
 [[returns]]
 addr = "7E:B574"
+
+# M3: those instructions as a section. The program calls the generator from
+# three places ($7E:3CFB, $7E:799D, $7E:8569; no other code has the call), and
+# each sets the WRAM port to $7E:B574 and X = $0C00, Y = $0200 just before,
+# all constants. The routine reads nothing but
+# its table at C3:09D9, so it always writes the same code: 1024 LDA absolute /
+# STA direct page pairs (source addresses from Y and the table, direct page
+# offsets from X) with a TCD to the next page every 128 pairs, and an RTS.
+# `run` executes C3:09E9 with those registers; the result must be 5153 bytes,
+# and it is the RAM the jet bike race runs (compared with a trace of
+# events-jetbike-race). The Beyond Time ending runs the same code.
+[[ramcode]]
+name = "race_matrix_code"
+base = "7E:B574"
+source = "C3:09E9"
+format = "run"
+m = 8
+x = 16
+regs = { x = 0x0C00, y = 0x0200 }
+size = 5153
 
 # Calls whose operand the program writes at run time. The operand of the JSR at
 # $7E:3023 (the attract main loop's per-frame call, an RTS at $7E:3176 in the
@@ -1259,6 +1279,62 @@ targets = ["7E:3176", "7E:51D1", "7E:7441"]
 [[indirect]]
 at = "7E:35FC"
 targets = ["7E:45B0", "7E:9B46"]
+
+# M3: instructions the program replaces for a while (`patch`), found by the
+# miss report (ct_dev --misses) as RAM code run with an opcode the image doesn't
+# have, and the stores that write it. Operands the program writes (the JSRs above,
+# immediates, the BRA at $7E:3616) need no section: generated code fetches the
+# operands of RAM code at run time.
+#
+# $7E:3634-3635 (INX, NOP in the image) during the race: $7E:45C9 copies the two
+# bytes at $7E:368F (a BRA over the rest of the routine, $7E:366C) over them, and
+# $7E:45D1 writes NOP, INX; each is a 16-bit store (coverage has both at m16 x16).
+[[ramcode]]
+name = "patch_3634_skip"
+patch = "attract_program"
+base = "7E:3634"
+source = "7E:45C5"
+end = "7E:45C9"
+m = 16
+x = 16
+format = "writes"
+size = 2
+
+[[ramcode]]
+name = "patch_3634_swap"
+patch = "attract_program"
+base = "7E:3634"
+source = "7E:45CE"
+end = "7E:45D1"
+m = 16
+x = 16
+format = "writes"
+size = 2
+
+# $7E:510D (LDA $B0 in the image) becomes an RTS: $7E:487E-4880, 8-bit.
+[[ramcode]]
+name = "patch_510d_return"
+patch = "attract_program"
+base = "7E:510D"
+source = "7E:487E"
+end = "7E:4880"
+m = 8
+x = 16
+format = "writes"
+size = 1
+
+# $7E:A074-A075 (BCS $A04E in the image) become two NOPs around the call at
+# $7E:9C36 in the Beyond Time ending: $7E:9C29-9C2C, restored from $F0 after.
+[[ramcode]]
+name = "patch_a074_nops"
+patch = "attract_program"
+base = "7E:A074"
+source = "7E:9C29"
+end = "7E:9C2C"
+m = 16
+x = 16
+format = "writes"
+size = 2
 
 # Task handlers of the attract program that never return: each ends in a JMP
 # to the task lists' exit code ($7E:34BF to $7E:39B1, $7E:34E0 to $7E:39A7,

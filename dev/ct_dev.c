@@ -6,7 +6,7 @@
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
- *          [--insn-stats] [--io-log out.txt]
+ *          [--insn-stats] [--io-log out.txt] [--misses out.txt]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -25,12 +25,16 @@
  * blocks executed.
  * --io-log writes every hardware register access counted by what made it
  * (dev/io_log.h; meaningful with --native on).
+ * --misses writes every instruction the interpreter ran, with counts, as ROM or
+ * RAM code and the RAM section it lies in (dev/misses.h; the miss report with
+ * --native on --recomp only).
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "io_log.h"
+#include "misses.h"
 #include "media.h"
 #include "movie.h"
 #include "port/recomp_table.h"
@@ -48,6 +52,7 @@
 #endif
 
 static IoLog *io_log;
+static Misses *misses;
 
 static void on_line(void *ctx, Snes *snes, uint16_t line)
 {
@@ -88,6 +93,8 @@ static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
     Coverage *cov = ctx;
     if (io_log)
         io_log_note_instruction(io_log, pc);
+    if (misses)
+        misses_note(misses, pc, p, e);
     bool m = e || (p & CPU_FLAG_M), x = e || (p & CPU_FLAG_X);
     cov->insns++;
     if ((pc >> 16 & 0xFE) == 0x7E || (!(pc & 0x400000) && (pc & 0xFFFF) < 0x8000))
@@ -174,7 +181,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
-    const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL;
+    const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     NativeMode native_mode = NATIVE_OFF;
     bool recomp = true, ports = true, insn_stats = false;
     long frames = -1, status_every = 0, shot_every = 0;
@@ -204,6 +211,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else if (!strcmp(a, "--wav")) wav_path = v;
         else if (!strcmp(a, "--io-log")) io_log_path = v;
+        else if (!strcmp(a, "--misses")) misses_path = v;
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
         else if (!strcmp(a, "--recomp")) {
             if (!strcmp(v, "off") || !strcmp(v, "on") || !strcmp(v, "only")) {
@@ -234,7 +242,7 @@ int main(int argc, char **argv)
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
-                        "[--insn-stats] [--io-log out.txt]\n");
+                        "[--insn-stats] [--io-log out.txt] [--misses out.txt]\n");
         return 2;
     }
 
@@ -299,6 +307,16 @@ int main(int argc, char **argv)
             table[table_count++] = *e;
     }
     NativeRuntime *natives = native_create(table, table_count, native_mode);
+    RecompIndexEntry *index = malloc(sizeof *index * (size_t)(recomp_index_count + 1));
+    int index_count = 0;
+    for (int i = 0; recomp && i < recomp_index_count; i++) {
+        bool excluded = false;
+        for (int k = 0; k < nexcludes; k++)
+            excluded |= strncmp(recomp_index[i].name, excludes[k], strlen(excludes[k])) == 0;
+        if (!excluded)
+            index[index_count++] = recomp_index[i];
+    }
+    native_set_index(natives, index, index_count);
     native_attach(natives, &snes);
     if (shot_dir)
         make_dir(shot_dir);
@@ -310,7 +328,9 @@ int main(int argc, char **argv)
         cov.calls = calloc((size_t)1 << CALL_SET_BITS, sizeof *cov.calls);
     if (io_log_path)
         io_log = io_log_create(&snes);
-    if (coverage_path || calls_path || insn_stats || io_log_path) {
+    if (misses_path)
+        misses = misses_create(&snes);
+    if (coverage_path || calls_path || insn_stats || io_log_path || misses_path) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -401,8 +421,14 @@ int main(int argc, char **argv)
         rc = 1;
     }
     io_log_destroy(io_log);
+    if (misses && misses_write(misses, misses_path, stderr) != 0) {
+        fprintf(stderr, "cannot write %s\n", misses_path);
+        rc = 1;
+    }
+    misses_destroy(misses);
     native_destroy(natives);
     free(table);
+    free(index);
     if (ct_trace_close(trace) != 0)
         rc = 1;
     if (wav_path) {

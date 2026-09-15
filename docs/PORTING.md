@@ -91,7 +91,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   instruction, I/O sees the time the interpreter's would, and interrupts land
   between the same instructions (RECOMP.md, "Exact timing"): with
   `--recomp only`, which leaves the hand ports out, `on` mode produces the same
-  traces as `off` mode, frame for frame.
+  traces as `off` mode, frame for frame. Since M3 the code the game runs from
+  RAM has guarded blocks too, so a guarded hand port for RAM code competes with
+  a block generated from the same image (the port wins where its guard holds).
 
 ## Call-outs
 

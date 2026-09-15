@@ -285,6 +285,7 @@ static void natives_start(Player *pl, NativeMode mode)
     pl->snes.intercept = NULL;
     pl->snes.intercept_ctx = NULL;
     pl->natives = native_create(pl->table, pl->table_count, mode);
+    native_set_index(pl->natives, recomp_index, recomp_index_count);   /* used only with generated entries */
     pl->runtime_mode = mode;
     native_attach(pl->natives, &pl->snes);
 }

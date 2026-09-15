@@ -102,13 +102,15 @@ The checks that give the classification its meaning are therefore separate:
      a fixpoint: code finds interpreters, typed data gives operands, operands
      give code.
    - **C4, RAM code.** Every instruction the game runs in RAM belongs to an
-     enumerated RAM section: the programs decompressed to `$7E:3000` (the
-     attract, jet bike race and game over copies, which differ in 26 bytes),
-     the `MVN`/`RTL` stub at `$7E:9690` that code in C2 and FF writes and
-     patches, the JML stubs at `$00:0500`. This is the weakest check: proving statically
-     that no other executed RAM bytes exist needs a model of every write to an
-     executed range. The plan settles for enumerated sources plus the miss
-     report.
+     enumerated RAM section: the program decompressed to `$7E:3000` (one
+     stream, which the attract sequence, the jet bike race, the game over and
+     the endings run; the race and the endings patch it at run time: operands,
+     and the opcodes the `patch` sections list), the code `$C3:09E9` generates
+     at `$7E:B574` (a `run` section), the `MVN`/`RTL` stub at `$7E:9690` that
+     code in C2 and FF writes and patches, the JML stubs at `$00:0500`. This is
+     the weakest check: proving statically that no other executed RAM bytes
+     exist needs a model of every write to an executed range. The plan settles
+     for enumerated sources plus the miss report.
    - **C5, disjointness.** No proven transfer targets a data region, and no
      code byte lies in one. Bytes that are both code and read as data are
      annotated, not an error.
@@ -119,16 +121,17 @@ The checks that give the classification its meaning are therefore separate:
 
 ### The miss report
 
-Today `ct_dev --insn-stats` counts instructions interpreted in `on` mode and
-how many of those were in RAM (RECOMP.md: 84.7-97.4% generated per movie, the
-rest mostly RAM code). RECOMP.md's M3 turns that into a list of interpreted ROM
-addresses. The matching work defines it as `ct_dev --misses FILE`: every
-instruction interpreted at a ROM address with no hand port or generated entry,
-and every one in RAM whose surrounding bytes don't hash to an enumerated RAM
-section (the check `m_code_matches` already does for guarded ports). Zero
-misses on every movie is necessary but not sufficient: it only covers the paths
-the movies take. C1-C6 are the sufficient part; the miss report catches a
-wrong argument in them.
+`ct_dev --misses FILE` (built in RECOMP.md's M3) lists every instruction the
+interpreter runs, with its widths and count, as ROM code or RAM code, and RAM
+code by the enumerated section whose image holds its bytes, "modified" (in a
+section's range, with bytes no section has, and whether the opcode or only
+operands differ) or "unknown" (in no section). With `--native on --recomp only`
+everything generated code doesn't run is listed, so it is this check. The file
+is also a coverage file, so its ROM lines can seed the analysis. Zero misses on
+every movie is necessary but not sufficient: it only covers the paths the
+movies take. C1-C6 are the sufficient part; the miss report catches a wrong
+argument in them. Since M3 it is zero over the movie library (25 movies, 561550
+frames; RECOMP.md, M3).
 
 ## 2. Current state, measured
 
@@ -630,12 +633,22 @@ movies (`new-game` 7200, `menu` 8900, `field` 11400, `fair` 12450,
 `fair-companion` 17900, `gato-battle` 21600 frames) in `--native shadow` report 0
 mismatched generated blocks and no mismatching hand port.
 
+**Since (recompiler M3).** Five sections more: `race_matrix_code` (format
+`run`) and four `patch` sections for the opcodes the race and the Beyond Time
+ending write into the program. With the 23 coverage files of the main, save
+and ending movies, the build checks 14 RAM sections against their images and
+7304 of 7304 executed RAM addresses (none in no section); `ramsrc.py` accepts
+an instruction start that exists only in a patch of the code (and, in a patch,
+instructions of the patched code it cuts or branches to).
+
 **Left for MD1:**
 
 - `$7E:B574-C994`: the jet bike race runs code at 2065 addresses that `C3:09E9` writes
   through the WRAM port at run time (it emits `LDA` immediate, `TCD`, `LDA`
   absolute, `STA` direct page and a final `RTS`). A section format that runs
-  the generator would make them a checked section.
+  the generator would make them a checked section. Done in M3 of the
+  recompiler: the `run` format, section `race_matrix_code` (5153 bytes, all
+  instructions, assembled and compared like the others).
 - The partial vector installers (`C3:08DF`, `C3:093E`, `CD:041D`) only
   replace the target of a stub another installer wrote; their handlers are
   entries, their images aren't sections.
@@ -690,8 +703,8 @@ into data; reachability from the entries.
   `formats/`.
 - **`tools/recomp`** takes its code set from the source model instead of
   `Analyzer.code`, and the build checks the two agree (at MD4, exactly). RAM
-  sections become guarded blocks, the option RECOMP.md leaves open.
-- **Runtime**: `ct_dev --misses` (section 1).
+  sections are guarded blocks since M3 (RECOMP.md).
+- **Runtime**: `ct_dev --misses` (section 1, built in M3).
 - **Coverage movies** stop being seeds at MD4 and become checks: an executed
   address outside the closed code set is a closure failure, not new input.
 
@@ -703,7 +716,7 @@ No dates.
 | | Goal | Done when | Main drivers | Effort | Status |
 |---|---|---|---|---|---|
 | MD0 | Naive split: toolchain and extraction | The build extracts, emits and assembles a ROM with CRC32 `2D206BF7` and the SHA-1 from APPROACH.md; code the analysis finds (238421 bytes) is instructions, everything else `incbin` from the build tree; the 10 length conflicts and overlaps are `db` with labels; assembler encodings are unit-tested for every opcode and width; with asar available, the asar build matches too; nothing ROM-derived is tracked by git | Assembler, emitter, extraction, CMake target | 1 | done, except the asar build: unchecked, asar wasn't available ([MD0 as built](#md0-as-built)) |
-| MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the code C3:09E9 generates at `$7E:B574` (2065 executed RAM addresses in no section) and the partial vector installers; 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
+| MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the partial vector installers (the code C3:09E9 generates at `$7E:B574` became a section in recompiler M3); 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
 | MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | |
 | MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 | |
 | MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | |
