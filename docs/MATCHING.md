@@ -6,7 +6,8 @@ would plug into the disassembler, the static recompiler and the runtime. Built
 so far: the measuring tool, `tools/disasm/census.py`, milestone MD0, the naive
 split with its assembler and round trip (`tools/matching`, see
 [MD0 as built](#md0-as-built)), and most of MD1, all code in source form (see
-[MD1 as built](#md1-as-built)).
+[MD1 as built](#md1-as-built)), and most of MD4, closure checks in the build (see
+[MD4 as built](#md4-as-built)).
 
 The motivation is completeness. The recompiler ([RECOMP.md](RECOMP.md)) turns
 the code the analysis finds into C, and the interpreter runs whatever it
@@ -679,7 +680,102 @@ every build.
 C1-C7 from section 1, as a build step over the source model: every indirect
 site lists its target-set argument (a derived bound, a parsed data set, or a
 hint marked complete); no coverage address outside the code set; no transfer
-into data; reachability from the entries.
+into data; reachability from the entries. Built in MD4, below.
+
+### MD4 as built
+
+Same commands as MD0 and MD1. The matching run now also runs the closure
+checks (`tools/disasm/closure.py`), writes them to `report.md` and fails when
+one fails (`--closure report` only reports them); the recompiler's generator
+fails unless its blocks' instruction variants are the analysis's. See
+DISASSEMBLY.md for the new hint fields, parsers and derivations.
+
+| Path | What |
+|---|---|
+| `tools/disasm/objscript.py` | Object command scripts (`$C2:0F63`): the 83 commands read from their handlers, the eight scenes' streams, the parse |
+| `tools/disasm/seqscript.py` | The attract program's sequence scripts (`$C3:0B03`): the command set, a parse per channel |
+| `tools/disasm/derive.py` | Derivers: object scripts, sequence scripts, operands written in RAM code, window command lists; roots from constant arguments, with lists of the dynamic sources and why they're covered |
+| `tools/disasm/codeargs.py` | Constant register values at an instruction over every path into it |
+| `tools/disasm/closure.py` | Checks C1, C2, C3, C5, C6, C7 and the code set |
+| `tools/disasm/analyze.py` | `derive` sites traced to a fixpoint in rounds, `PER` calls, header vectors, `patch` sections' entries, `follow = false` |
+| `tools/recomp/blocks.py`, `__main__.py` | Entries at `PER` call returns and derived table targets; the code set check |
+| `tests/test_md4.py` | Arguments, `PER` calls, derivations and their rounds, sequence scripts, closure checks |
+
+**C3, data-driven dispatch.** The "only what runs in the movies" target lists
+are gone; each is derived from the data, and every target the old list had is
+among the derived ones:
+
+| Site | Interpreter | Parsed | Old list | Derived |
+|---|---|---|---|---:|
+| `$C2:0553` object handler words | object scripts | 425 roots, 8452 commands: 231 in ROM (747 bytes: `$C2:2EC1`, `31A8`, `4A9B`, `4C8F`, `69F8`, `74AE`) and the rest in the eight scenes' `$7F:0400` images (27757 bytes, of which 26622 are reached) | 28 (12 static loads, 16 movie-only) | 35 |
+| `$C2:1819` command `$34` JSR | object scripts | | 6 | 39 |
+| `$C2:1836` command `$4E` JSL | object scripts | | 1 | 34 |
+| `$C2:0F7A` command table | object scripts | 75 of the 83 commands are used; none above `$52` | layout | 75 |
+| `$7E:37F6` sequence call through `$00F0` | sequence scripts | 301 roots (by channel), 1307 commands (4363 bytes) | 4 | 33 |
+| `$7E:3998` task list `$0920` | sequence scripts and 17 constant adds | | 26 | 82 |
+| `$7E:39CF` task list `$0940` | sequence scripts and 6 constant adds | | 11 | 40 |
+| `$7E:3023`, `$7E:35FC` JSR operands | stores in the program | 12 stores | 3, 2 ("complete": the STX stores and `$7E:96FE` had been missed) | 5, 4 |
+| `$7E:5E43` JSR operand | stores in the program | a long store of two bytes | (not known) | 2 |
+| `$C2:ED50` window commands | window command lists | 56 lists, 400 commands, entries 0-4, 6, 7 of 11 | layout | 7 (bound confirmed) |
+
+The parses found code MD1 had typed as data: object handlers with their state
+tables in `$C2:4CC5-5627` (MD1 typed `$C2:4A9B-5627` as scripts), routines the
+scenes call in `$C2:7BD1-7DE3`, `$C6:E000-E236`, `$C6:E7FA-E90E` and
+`$C6:EE23-EE37`; the data hints are split around it, with 4 new jump table
+hints. 48 of MD1's 131 `unreached` entries are now reached through derived
+edges and removed. The other interpreters:
+
+- **Event commands** (`$C0:5910`, 256 handlers): no command names code. The
+  indirect sites reachable from the handlers are the tables and derivations of
+  the modes events start (battle, menu, attract program); the tables an event
+  operand indexes (`$C0:6307`, `6398`, `6433`, `633D`, `63D7`) are bounded by
+  layout only. Parsing every location's event script would turn those bounds
+  into data-derived ones; not done.
+- **Battle animation scripts** (`$C1:4CD4`, table `$C1:7A6B`): the command byte
+  is guarded (`$DB` and up branch away). The sub-dispatches on script operands
+  (`$C1:75D1`, `$C1:7633`) are bounded by layout; not parsed.
+- **Enemy scripts** (`$C1:874E` and three more, table `$C1:B80D`): the
+  command byte from bank CC isn't checked; the 41-entry bound is layout. Not
+  parsed.
+- **Text control codes** (`$C2:EFD0`): guarded by the only caller (`CMP #$10`).
+
+**C1, indirect transfers.** 147 sites (JMP/JSR `(abs,X)`, JMP `(abs)`, JML
+`[abs]`, calls with written operands), every one with an argument: 11 derived,
+38 guard (a mask, a compare, a loop bound), 96 layout (the table ends where
+code or another table begins; the index isn't checked), 2 constant (`$C3:0F32`,
+the menu threads at `$C2:8203`); none without. Both `PER`s are followed as
+calls (`$C2:8289`, `$C2:EFCD`). 19 stack switches: 14 reset S to a constant, 3
+restore an S a `TSX` saved, 2 are the thread scheduler's. 36 stores to the RAM
+vector stubs: all in `writes` sections or the listed partial installers (whose
+handlers are entries). The native NMI, IRQ and reset vectors come from the
+header (`header_vectors`); BRK and COP aren't in the code set.
+
+**C2, widths.** 0 undeclared length conflicts (1 declared), 0 calls on assumed
+widths (two needed hints: `$C3:0EFA` returns like `$C3:0011`, which let
+`$7E:9A0C` return), 0 pruned returns, 0 immediates decoded with an unknown
+width. 1298 addresses are traced with more than one width pair in one context
+(loop and join variants of one length); not a failure.
+
+**C5, disjointness.** 0 transfers into data, 0 instruction bytes in data, 0
+table entries into data.
+
+**C6, reachability.** 123695 of 124664 instruction addresses are reachable from
+the roots (vectors, hints, patches) through proven edges; the 969 others are
+only from the 83 `unreached` entries, each with its comment.
+
+**C7 and "coverage adds no address".** With the 23 coverage files, 0 seeds:
+static analysis alone finds every executed ROM and RAM address (MD1 needed 66
+seed contexts, 1899 addresses). The analysis has 127044 instructions without
+coverage (MD1: 121760 without, 123716 with).
+
+**Code set.** The recompiler's blocks hold exactly the analysis's 127178
+instruction variants (address and widths, unknown widths as both; RAM code
+compared by address and widths across alternative sections), 12412 blocks.
+
+**Result** (this ROM, hints, the 23 coverage files and 22 call logs): CRC32
+`2D206BF7` and SHA-1 `de5822f4...` match, 14 RAM sections assemble to their
+images, all closure checks pass; the run takes about 10 s (analysis 5-7 s in
+two derivation rounds, closure 0.6 s).
 
 ## 4. How it plugs into the existing tools
 
@@ -719,7 +815,7 @@ No dates.
 | MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the partial vector installers (the code C3:09E9 generates at `$7E:B574` became a section in recompiler M3); 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
 | MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | |
 | MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 | |
-| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | |
+| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | C1, C2, C3, C5, C6, C7 checks pass and fail the build; code set equal; static analysis alone reaches every executed address; left: layout-bounded tables (96) and the event, battle animation and enemy script parses that would bound some of them, C4 beyond the miss report ([MD4 as built](#md4-as-built)) |
 
 **Order.** MD0 and MD1 first. For the goal that motivates this (a provably
 complete code set for the recompiler), MD4's checks need only the data that

@@ -105,6 +105,45 @@ Kinds added for the matching disassembly (MD1):
 Hints the MD1 work added carry `kind = "unreached"` on entries for code nothing
 found reaches, and live in sections headed "MD1".
 
+Kinds and fields added for closure (MD4, [MATCHING.md](MATCHING.md#md4-as-built)):
+
+| Hint | Fields | Meaning |
+|---|---|---|
+| `derive` on `[[indirect]]` / `[[jumptable]]` | `"deriver.part"` | the site's targets come from a deriver in `tools/disasm/derive.py` (below), traced to a fixpoint; `targets` becomes optional |
+| `bound` on `[[indirect]]` / `[[jumptable]]` | `"guard"`, `"layout"`, `"constant"` | how the target set is argued: code bounds the index before the dispatch; the table ends where code or another table begins (the index isn't checked); the targets are the constants every writer of the cell loads |
+| `follow = false` on `[[indirect]]` | | the targets are entries, not traced from the site (the menu threads at `$C2:8203`, which run on their own stacks) |
+| `header_vectors = true` | top-level key | the native NMI and IRQ and the reset vector of the header are entries |
+
+The analysis also follows a `PER` into the `JMP (abs)` / `JMP (abs,X)` it
+precedes as a call returning after the pushed address, and treats the
+instruction starts and branch targets of `patch` sections as entries.
+
+## Parsers and derivations (MD4)
+
+Where code dispatches through addresses taken from data, the targets are
+derived by parsing that data from every place the code starts it, not from
+the movies. Each parser's command set is read from its interpreter's handlers
+(the module docstrings give them handler by handler); command lengths and
+effects are facts about the code, the scripts stay in the ROM.
+
+| Module | Interpreter | Roots | Gives |
+|---|---|---|---|
+| `tools/disasm/objscript.py` | object command scripts, `$C2:0F63` (83 commands) | constant arguments of `$C2:04D9`/`$C2:04FB` and constant stores to slot +$07; the eight scenes' script streams (`$C6:FFE0`, run at `$7F:0400`) and their `$7E:8480` word tables (`$C6:FFC0`); commands `$08`, `$09`, `$43`, gotos, calls, branches | `$34` JSR targets (`$C2:1819`), `$4E` JSL targets (`$C2:1836`), `$35`/`$42` handler words (`$C2:0553`), the commands used (`$C2:0F7A`) |
+| `tools/disasm/seqscript.py` | the attract program's sequence channels, `$C3:0B03` | constant stores to `$0A20`/`$0B20`, pointer stores in code the scripts call, command `$A2` on a pointer | code calls through `$00F0` (`$7E:37F6`), tasks added to `$0920` (`$7E:3998`) and `$0940` (`$7E:39CF`) |
+| `derive.py` `operands` | calls in RAM code whose operand the program writes | absolute and long stores (words, or byte pairs) into a transfer's operand in the same section | the JSR targets at `$7E:3023`, `$7E:35FC`, `$7E:5E43` |
+| `derive.py` `winlist` | window command lists, `$C2:ED31` | constant X at the calls, the word table at `$C2:DFC5` | the handlers the lists use (confirms the 11-entry bound of `$C2:ED50`) |
+
+`tools/disasm/codeargs.py` gives the constant values a register can hold at an
+instruction over every path into it (none when a path reaches an entry, a
+table target or a non-constant setter). A deriver reports a problem for every
+source it can't resolve and doesn't list with a reason. Derivation runs in
+rounds: each restarts the analysis with the targets the previous round derived
+last, until a round derives what it started from, so a partial code set can't
+leave spurious targets behind.
+
+`tools/disasm/closure.py` holds the closure checks C1-C7 the matching build
+runs (MATCHING.md).
+
 ## Known structure
 
 - Reset `$00:FF00` is `SEI; CLC; XCE; JML $FD:C000`.
@@ -116,10 +155,12 @@ found reaches, and live in sections headed "MD1".
 - Bank C2's object system runs a handler per slot (`$C2:051D`, `JMP ($0050)`)
   and an object script interpreter with an 83-entry command table at
   `$C2:0F91`. Script commands `$34`/`$35`/`$4E` call, spawn or JSL to addresses
-  in script data, so their `indirect` hints only list targets seen running.
+  in script data; since MD4 their targets are derived from every script
+  (`tools/disasm/objscript.py`).
 - The menu in C2 runs cooperative threads: `$C2:8203` starts one on its own
-  stack and `JSR $821E` yields. Thread starts are `entry` hints because the
-  tracer would treat that `JMP (abs)` as a tail call.
+  stack and `JSR $821E` yields. Thread starts are `entry` hints (and the
+  `follow = false` targets of `$C2:8203`) because the tracer would treat that
+  `JMP (abs)` as a tail call.
 
 ## Limits
 
