@@ -89,6 +89,7 @@ class Analyzer:
         self.site_states: dict[int, list] = defaultdict(list)
         self.derivations: dict = {}                      # deriver name -> its result (reports, checks)
         self.last_derived: dict = {}                     # the targets the last derivation gave
+        self.resumes: set = set()                        # where indirect calls return (JSR operands, PER)
         self.derive_unstable = False                     # rounds didn't reach a fixpoint
         # Diagnostics
         self.unresolved: dict[int, Insn] = {}
@@ -289,6 +290,7 @@ class Analyzer:
             return
         if state[0] == "call":
             _, key, resume, st, kind = state
+            self.resumes.add(resume)
             for t in targets:
                 callee = self.ctx(t, st.widths, kind)
                 callee.callers.add(site)
@@ -392,6 +394,8 @@ class Analyzer:
                     # PER then JMP: a call whose targets return after the PER's address
                     state = ("call", key, (pc & 0xFF0000) | (nxt.per + 1) & 0xFFFF, replace(nxt, per=None),
                              "indirect")
+                if pc in self.hints.nofollow:
+                    return          # the targets are entries (threads on their own stacks)
                 if pc in self.hints.derive:
                     self.site_states[pc].append(state)
                 elif not targets:
@@ -493,6 +497,7 @@ class Analyzer:
             if jt.call or st.per is not None:
                 # JSR (abs,X), or PER then JMP (abs,X): returns after the PER's address
                 resume = jt.dispatcher + 3 if jt.call else st.per + 1
+                self.resumes.add((jt.dispatcher & 0xFF0000) | (resume & 0xFFFF))
                 callee = self.ctx(t, st.widths, "table")
                 callee.callers.add(jt.dispatcher)
                 self.wait_on(callee, ("call", key, (jt.dispatcher & 0xFF0000) | (resume & 0xFFFF),

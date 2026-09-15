@@ -114,6 +114,8 @@ def derive_objscript(an, fl) -> Derivation:
     d.targets["jsr"] = set(parse.jsr)
     d.targets["jsl"] = set(parse.jsl)
     d.targets["handler"] = set(parse.handlers) | static_handlers
+    used = sorted({op for op, _ in parse.commands.values()})
+    d.targets["commands"] = {0xC20000 | an.rom.u16(0xC20F91 + 2 * op) for op in used}
     if any(i >= 3 for i in parse.subs):
         d.problems.append(f"commands $44/$45 index the 3-entry table at C2:1A70 with {sorted(parse.subs)}")
     d.notes.append(f"{len(parse.roots)} roots, {len(parse.commands)} commands "

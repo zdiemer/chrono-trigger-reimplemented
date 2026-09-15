@@ -53,6 +53,7 @@ name = "vec_irq"
 # through a 256-entry table of command handlers; loops at C0:5900.
 [[jumptable]]
 at = "C0:5910"
+bound = "guard"
 count = 256
 
 [[name]]
@@ -158,16 +159,20 @@ addr = "7E:9690"
 # Field object script interpreter (sub_C20F63): command byte from [$58] indexes
 # this table. It runs from C2:0F91 up to the first handler at C2:1037, so 83
 # entries; every entry points at a handler in C2:1037-1C81, and the calls files
-# show 57 of them being called from C2:0F7A.
+# show 57 of them being called from C2:0F7A. MD4: the command byte isn't
+# checked (AND #$00FF), but every command of every object script the parse
+# reaches is below $53 (a byte outside the table is a parse problem).
 [[jumptable]]
 at = "C2:0F7A"
 count = 83
+derive = "objscript.commands"
 
 # APU command dispatch in sub_C70004: C7:0161-0169 only get here with A in
 # $10-$17, and AND #$0F; ASL gives X = 0-14, so 8 entries. The word after the
 # table (C7:0AE9) is a data byte read by CMP $C70AE9 at C7:01A5, not a target.
 [[jumptable]]
 at = "C7:0173"
+bound = "guard"
 count = 8
 
 # The tables below were sized right by the length heuristic before, or not at all,
@@ -177,6 +182,7 @@ count = 8
 # same 256-entry command table as C0:5910.
 [[jumptable]]
 at = "C0:59A0"
+bound = "guard"
 count = 256
 
 # Four dispatchers share the table at C0:9FF7; each indexes it with AND #$7E; TAX,
@@ -184,30 +190,36 @@ count = 256
 # 20) are in the calls files.
 [[jumptable]]
 at = "C0:9ECD"
+bound = "guard"
 count = 64
 
 [[jumptable]]
 at = "C0:9F1C"
+bound = "guard"
 count = 64
 
 [[jumptable]]
 at = "C0:9F6B"
+bound = "guard"
 count = 64
 
 [[jumptable]]
 at = "C0:9FCF"
+bound = "guard"
 count = 64
 
 # sub_C2584A: $15 * 2 indexes C2:5851, which runs up to the first target, C2:5893:
 # 33 entries.
 [[jumptable]]
 at = "C2:584E"
+bound = "layout"
 count = 33
 
 # Menu: C2:BFFF runs up to the first handler, C2:C017: 12 entries. Entries 8-11
 # (C2:C0E9, C095, C0B9, C0D1) all ran in the movies.
 [[jumptable]]
 at = "C2:BFE0"
+bound = "layout"
 count = 12
 
 # Object handler state tables (TDC/REP; LDA $0002,X; ASL; TAX; JMP (table,X)), and
@@ -216,30 +228,37 @@ count = 12
 # (DA64) ran.
 [[jumptable]]
 at = "C2:1CFF"
+bound = "layout"
 count = 2
 
 [[jumptable]]
 at = "C2:210B"
+bound = "layout"
 count = 4
 
 [[jumptable]]
 at = "C2:21A0"
+bound = "layout"
 count = 2
 
 [[jumptable]]
 at = "C2:2202"
+bound = "layout"
 count = 2
 
 [[jumptable]]
 at = "C2:30BE"
+bound = "layout"
 count = 6
 
 [[jumptable]]
 at = "C2:6F8B"
+bound = "layout"
 count = 2
 
 [[jumptable]]
 at = "C2:DA23"
+bound = "layout"
 count = 4
 
 # C2:ED59: entries 0-10 point at routines in C2:ED77-F378 (the 7 targets in the
@@ -265,7 +284,16 @@ derive = "winlist.handlers"
 # tail call, but a thread never returns into the scheduler (threads end with
 # JMP $8216, e.g. C2:83C7), and routines that JMP into the yield code (C2:8403,
 # C2:CF5B) would inherit whatever every menu handler returns with. Threads start
-# with REP #$30 in effect.
+# with REP #$30 in effect. The two stack switches (TCS at C2:81FA and C2:8208)
+# are the scheduler's own. MD4: `follow = false` states the site's targets are
+# these entries (the closure check verifies each is one).
+[[indirect]]
+at = "C2:8203"
+bound = "constant"
+follow = false
+targets = ["C2:826F", "C2:E91B", "C2:83BD", "C2:89F2", "C2:8A45", "C2:8AB2", "C2:8AF5", "C2:8BB8",
+           "C2:9016", "C2:CBBF", "C2:CECE", "C2:F657", "C2:F9B2", "C2:FA06", "C2:FA9F"]
+
 [[entry]]
 addr = "C2:826F"
 m = 16
@@ -353,6 +381,7 @@ x = 16
 # most doing the same JSR $E984 / BIT $0D1D input check as the executed ones.
 [[indirect]]
 at = "C2:828E"
+bound = "layout"
 targets = [
     "C2:99CE", "C2:9A1B",                                   # mode 0, C2:99CA
     "C2:9C31", "C2:9C39", "C2:9C70", "C2:9CA5",             # mode 1, C2:9C29
@@ -407,9 +436,11 @@ derive = "objscript.jsl"
 
 # sub_C2EFBE: A indexes the 16-entry word table at C2:EFD4 (it ends where the
 # first handler, C2:EFF4, starts); PER makes the handler return to the RTS at
-# C2:EFD3. Entries 0 and 13-15 are that RTS. Complete.
+# C2:EFD3. Entries 0 and 13-15 are that RTS. Complete: the only caller, C2:EF8A,
+# runs it for bytes below $10 (CMP #$10; BCS at C2:EF86-EF88) that aren't 0.
 [[indirect]]
 at = "C2:EFD0"
+bound = "guard"
 targets = ["C2:EFD3", "C2:EFF4", "C2:F005", "C2:F011", "C2:F022", "C2:F036",
            "C2:F0A2", "C2:F071", "C2:F08D", "C2:F0B8", "C2:F068", "C2:F0C1",
            "C2:F0D1"]
@@ -419,6 +450,7 @@ targets = ["C2:EFD3", "C2:EFF4", "C2:F005", "C2:F011", "C2:F022", "C2:F036",
 # blocks). Complete.
 [[indirect]]
 at = "C3:0F32"
+bound = "constant"
 targets = ["C3:0F35", "C3:0F48", "C3:0F5B", "C3:0F6E"]
 
 # Computed entry into a run of 222 LDA $nnnn,Y / STA $nnnn,X pairs ending in the
@@ -428,6 +460,7 @@ targets = ["C3:0F35", "C3:0F48", "C3:0F5B", "C3:0F6E"]
 # stands for the set.
 [[indirect]]
 at = "CE:E7CC"
+bound = "guard"
 targets = ["CE:E293"]
 
 # ==============================================================================
@@ -442,15 +475,18 @@ targets = ["CE:E293"]
 # to its first handler at C0:1D5E.
 [[jumptable]]
 at = "C0:1D3E"
+bound = "layout"
 count = 4
 [[jumptable]]
 at = "C0:1D4C"
+bound = "layout"
 count = 4
 
 # C0:1E04, table C0:1E92: The index is masked to 0-6 before TAX (C0:1E00), so
 # entries 0-3; the table runs up to its first handler at C0:1E9A.
 [[jumptable]]
 at = "C0:1E04"
+bound = "guard"
 count = 4
 
 # C0:21EA, table C0:21EE: The index is $39 minus one, doubled, with no guard;
@@ -458,12 +494,14 @@ count = 4
 # stopped at 9, but the calls files show entry 13 called from here.
 [[jumptable]]
 at = "C0:21EA"
+bound = "layout"
 count = 16
 
 # C0:4009, table C0:400E: The index is $DF minus a constant, doubled; the table runs up to
 # its first handler at C0:4036.
 [[jumptable]]
 at = "C0:4009"
+bound = "layout"
 count = 20
 
 # C0:5977, C0:5AB1, table C0:5D6E: The event command byte is masked to 0-255
@@ -472,48 +510,58 @@ count = 20
 # ones called from it.
 [[jumptable]]
 at = "C0:5977"
+bound = "guard"
 count = 256
 [[jumptable]]
 at = "C0:5AB1"
+bound = "guard"
 count = 256
 
 # C0:5BE6, table C0:5BF2: X is the slot index in $D9; the table runs up to its
 # first handler at C0:5BFA.
 [[jumptable]]
 at = "C0:5BE6"
+bound = "layout"
 count = 4
 
 # C0:6307, C0:6398, C0:6433, table C0:6467: An 8-bit index from an event script
 # operand; the table runs up to its first handler at C0:6487.
 [[jumptable]]
 at = "C0:6307"
+bound = "layout"
 count = 16
 [[jumptable]]
 at = "C0:6398"
+bound = "layout"
 count = 16
 [[jumptable]]
 at = "C0:6433"
+bound = "layout"
 count = 16
 
 # C0:633D, C0:63D7, table C0:6477: The same list as C0:6467 from its entry 8 on:
 # it runs up to code at C0:6487.
 [[jumptable]]
 at = "C0:633D"
+bound = "layout"
 count = 8
 [[jumptable]]
 at = "C0:63D7"
+bound = "layout"
 count = 8
 
 # C0:6FA3, table C0:6FA7: Negative values branch away (C0:6F9F); the table runs
 # up to its first handler at C0:6FB9.
 [[jumptable]]
 at = "C0:6FA3"
+bound = "guard"
 count = 9
 
 # C0:717D, table C0:7181: Negative values branch away (C0:7179); the table runs
 # up to its first handler at C0:7199.
 [[jumptable]]
 at = "C0:717D"
+bound = "guard"
 count = 12
 
 # C0:88FC, table C0:8902: The index is masked to 0-15 before ASL (C0:88F6): 16
@@ -521,6 +569,7 @@ count = 12
 # reached from here.
 [[jumptable]]
 at = "C0:88FC"
+bound = "guard"
 count = 16
 
 # C1:004A, table C1:0051: A is the argument of sub_C10045; the table runs up to
@@ -528,12 +577,14 @@ count = 16
 # calls files show entry 9 called.
 [[jumptable]]
 at = "C1:004A"
+bound = "layout"
 count = 10
 
 # C1:0067, table C1:006B: The table runs up to C1:006D, a handler that is entry
 # 6 of the C1:0051 table.
 [[jumptable]]
 at = "C1:0067"
+bound = "layout"
 count = 1
 
 # C1:1FC9, table C1:1FF8: The index is masked to 0-127 (C1:1FBF) and values
@@ -541,12 +592,14 @@ count = 1
 # handler at C1:203A.
 [[jumptable]]
 at = "C1:1FC9"
+bound = "guard"
 count = 33
 
 # C1:1FE6, table C1:1FEA: Values 7 and up branch away (C1:1FE0-1FE2): 7 entries,
 # ending where the C1:1FF8 table (C1:1FC9) begins.
 [[jumptable]]
 at = "C1:1FE6"
+bound = "guard"
 count = 7
 
 # C1:29AE, table C1:2D81: The index comes from $986E without a guard; the table
@@ -554,24 +607,28 @@ count = 7
 # entry 14 called.
 [[jumptable]]
 at = "C1:29AE"
+bound = "layout"
 count = 15
 
 # C1:30B2, table C1:3216: Negative values are replaced by 0 (C1:30AD-30AF); the
 # table runs up to code at C1:3234.
 [[jumptable]]
 at = "C1:30B2"
+bound = "guard"
 count = 15
 
 # C1:375C, table C1:3760: The index is a byte looked up in bank CC; the table
 # runs up to its first handler at C1:3772.
 [[jumptable]]
 at = "C1:375C"
+bound = "layout"
 count = 9
 
 # C1:4328, table C1:7A63: Values 4 and up are replaced by 0 (C1:4321-4325): 4
 # entries, ending where the C1:7A6B table (C1:4CD4) begins.
 [[jumptable]]
 at = "C1:4328"
+bound = "guard"
 count = 4
 
 # C1:4CD4, table C1:7A6B: Battle animation script command byte: values from $DB
@@ -579,18 +636,21 @@ count = 4
 # words follow before code at C1:7C2B; nothing dispatches to them.
 [[jumptable]]
 at = "C1:4CD4"
+bound = "guard"
 count = 219
 
 # C1:75D1, table C1:79A1: A is a script operand passed by the callers (C1:6001,
 # C1:6024, C1:6048); the table ends where the C1:79D3 table (C1:7633) begins.
 [[jumptable]]
 at = "C1:75D1"
+bound = "layout"
 count = 25
 
 # C1:7633, table C1:79D3: A is a script operand passed by the callers; the table
 # ends where the C1:7A63 table (C1:4328) begins.
 [[jumptable]]
 at = "C1:7633"
+bound = "layout"
 count = 72
 
 # C1:8333, table C1:B92D: X counts from 0 and the loop ends at 13
@@ -599,235 +659,278 @@ count = 72
 # at C1:AFD6-B004.
 [[jumptable]]
 at = "C1:8333"
+bound = "guard"
 count = 13
 
 # C1:874E, C1:8769, C1:B006, C1:B021, table C1:B80D: Enemy script command byte
 # from bank CC; the table ends where the C1:B85F table (C1:8CE7) begins.
 [[jumptable]]
 at = "C1:874E"
+bound = "layout"
 count = 41
 [[jumptable]]
 at = "C1:8769"
+bound = "layout"
 count = 41
 [[jumptable]]
 at = "C1:B006"
+bound = "layout"
 count = 41
 [[jumptable]]
 at = "C1:B021"
+bound = "layout"
 count = 41
 
 # C1:8CE7, table C1:B85F: Negative command bytes branch away (C1:8CE3); the
 # table ends where the C1:B88D table (C1:8D88) begins.
 [[jumptable]]
 at = "C1:8CE7"
+bound = "guard"
 count = 23
 
 # C1:8D88, table C1:B88D: Negative command bytes branch away (C1:8D5C, C1:8D81);
 # the table ends where the C1:B8BB table (C1:AC2E) begins.
 [[jumptable]]
 at = "C1:8D88"
+bound = "guard"
 count = 23
 
 # C1:AC2E, table C1:B8BB: Negative bytes branch away (C1:AC22); the table ends
 # where the C1:B92D table (C1:8333) begins.
 [[jumptable]]
 at = "C1:AC2E"
+bound = "guard"
 count = 57
 
 # C1:C732, table C1:C95C: X is $04 masked to 7 bits and doubled at the only caller
 # (C1:C5E6-C5EC); the table runs up to code at C1:C96A.
 [[jumptable]]
 at = "C1:C732"
+bound = "guard"
 count = 7
 
 # C1:CFE1, table C1:D126: The table runs up to code at C1:D132.
 [[jumptable]]
 at = "C1:CFE1"
+bound = "layout"
 count = 6
 
 # C1:D704, C1:D893, C1:D999, table C1:D9D7: The index is $AEE6; the table ends
 # where the C1:DA31 table (C1:D783) begins.
 [[jumptable]]
 at = "C1:D704"
+bound = "layout"
 count = 45
 [[jumptable]]
 at = "C1:D893"
+bound = "layout"
 count = 45
 [[jumptable]]
 at = "C1:D999"
+bound = "layout"
 count = 45
 
 # C1:D783, table C1:DA31: The table runs up to code at C1:DA37.
 [[jumptable]]
 at = "C1:D783"
+bound = "layout"
 count = 3
 
 # C1:EB45, table C1:FA61: The table runs up to code at C1:FA8B.
 [[jumptable]]
 at = "C1:EB45"
+bound = "layout"
 count = 21
 
 # C2:0E34, table C2:0E4A: The table runs up to its first handler at C2:0E5A.
 [[jumptable]]
 at = "C2:0E34"
+bound = "layout"
 count = 8
 
 # C2:1A5B, C2:1AB5, table C2:1A70: The table runs up to its first handler at
 # C2:1A76.
 [[jumptable]]
 at = "C2:1A5B"
+bound = "layout"
 count = 3
 [[jumptable]]
 at = "C2:1AB5"
+bound = "layout"
 count = 3
 
 # C2:1E3E, table C2:1E41: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:1E47.
 [[jumptable]]
 at = "C2:1E3E"
+bound = "layout"
 count = 3
 
 # C2:20A8, table C2:20AB: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:20AF.
 [[jumptable]]
 at = "C2:20A8"
+bound = "layout"
 count = 2
 
 # C2:23D8, table C2:23DB: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:23EF.
 [[jumptable]]
 at = "C2:23D8"
+bound = "layout"
 count = 10
 
 # C2:2F9A, table C2:2F9D: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:2FA5.
 [[jumptable]]
 at = "C2:2F9A"
+bound = "layout"
 count = 4
 
 # C2:31EF, table C2:31F2: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:31FA.
 [[jumptable]]
 at = "C2:31EF"
+bound = "layout"
 count = 4
 
 # C2:3221, table C2:3224: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:322C.
 [[jumptable]]
 at = "C2:3221"
+bound = "layout"
 count = 4
 
 # C2:3272, table C2:3275: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:3279.
 [[jumptable]]
 at = "C2:3272"
+bound = "layout"
 count = 2
 
 # C2:337B, table C2:337E: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:338E.
 [[jumptable]]
 at = "C2:337B"
+bound = "layout"
 count = 8
 
 # C2:342A, table C2:342D: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:3439.
 [[jumptable]]
 at = "C2:342A"
+bound = "layout"
 count = 6
 
 # C2:345A, table C2:345D: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to code at C2:346D.
 [[jumptable]]
 at = "C2:345A"
+bound = "layout"
 count = 8
 
 # C2:3490, table C2:3493: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to code at C2:349B.
 [[jumptable]]
 at = "C2:3490"
+bound = "layout"
 count = 4
 
 # C2:34A0, table C2:34A3: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:34AB.
 [[jumptable]]
 at = "C2:34A0"
+bound = "layout"
 count = 4
 
 # C2:37C7, table C2:37CA: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:37D2.
 [[jumptable]]
 at = "C2:37C7"
+bound = "layout"
 count = 4
 
 # C2:3AB7, table C2:3ABA: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:3AC2.
 [[jumptable]]
 at = "C2:3AB7"
+bound = "layout"
 count = 4
 
 # C2:3B0C, table C2:3B0F: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:3B1B.
 [[jumptable]]
 at = "C2:3B0C"
+bound = "layout"
 count = 6
 
 # C2:3B55, table C2:3B58: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to code at C2:3B68.
 [[jumptable]]
 at = "C2:3B55"
+bound = "layout"
 count = 8
 
 # C2:3B71, table C2:3B74: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to code at C2:3B7C.
 [[jumptable]]
 at = "C2:3B71"
+bound = "layout"
 count = 4
 
 # C2:3B81, table C2:3B84: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:3B8C.
 [[jumptable]]
 at = "C2:3B81"
+bound = "layout"
 count = 4
 
 # C2:3FE5, table C2:3FE8: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:3FF0.
 [[jumptable]]
 at = "C2:3FE5"
+bound = "layout"
 count = 4
 
 # C2:42E3, table C2:42E6: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:42F8.
 [[jumptable]]
 at = "C2:42E3"
+bound = "layout"
 count = 9
 
 # C2:4964, table C2:4967: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:496B.
 [[jumptable]]
 at = "C2:4964"
+bound = "layout"
 count = 2
 
 # C2:5634, table C2:5637: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:563F.
 [[jumptable]]
 at = "C2:5634"
+bound = "layout"
 count = 4
 
 # C2:5839, table C2:5842: The table runs up to code at C2:584A (sub_C2584A).
 [[jumptable]]
 at = "C2:5839"
+bound = "layout"
 count = 4
 
 # C2:5900, table C2:5903: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:5945.
 [[jumptable]]
 at = "C2:5900"
+bound = "layout"
 count = 33
 
 # C2:5A87, table C2:5A8A: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:5A8E.
 [[jumptable]]
 at = "C2:5A87"
+bound = "layout"
 count = 2
 
 # C2:5C25, table C2:5C28: A is built from 0 by setting only bits 0 and 1 (the
@@ -835,6 +938,7 @@ count = 2
 # handler at C2:5C30.
 [[jumptable]]
 at = "C2:5C25"
+bound = "guard"
 count = 4
 
 # C2:5C5E, table C2:5C61: A is built from 0 by setting only bits 0 and 1 (the
@@ -842,6 +946,7 @@ count = 4
 # handler at C2:5C69.
 [[jumptable]]
 at = "C2:5C5E"
+bound = "guard"
 count = 4
 
 # C2:5CA7, table C2:5CAA: A is built from 0 by setting only bits 0 and 1 (the
@@ -849,200 +954,236 @@ count = 4
 # handler at C2:5CB2.
 [[jumptable]]
 at = "C2:5CA7"
+bound = "guard"
 count = 4
 
 # C2:5EAC, table C2:5EAF: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:5EBF.
 [[jumptable]]
 at = "C2:5EAC"
+bound = "layout"
 count = 8
 
 # C2:5F7D, table C2:5F80: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:5F90.
 [[jumptable]]
 at = "C2:5F7D"
+bound = "layout"
 count = 8
 
 # C2:6672, table C2:6675: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:667D.
 [[jumptable]]
 at = "C2:6672"
+bound = "layout"
 count = 4
 
 # C2:6ACE, table C2:6AD1: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:6AD7.
 [[jumptable]]
 at = "C2:6ACE"
+bound = "layout"
 count = 3
 
 # C2:7149, table C2:714C: JMP (table,X) directly followed by its table; the
 # index is a state byte. The table runs up to its first handler at C2:7156.
 [[jumptable]]
 at = "C2:7149"
+bound = "layout"
 count = 5
 
 # C2:8C4A, table C2:8C5B: The table runs up to its first handler at C2:8C75.
 [[jumptable]]
 at = "C2:8C4A"
+bound = "layout"
 count = 13
 
 # C2:91B4, table C2:91DB: The index is masked to 0-7 (C2:91B0): 8 entries, up to
 # its first handler at C2:91EB.
 [[jumptable]]
 at = "C2:91B4"
+bound = "guard"
 count = 8
 
 # C2:9269, table C2:926E: The table runs up to its first handler at C2:9276.
 [[jumptable]]
 at = "C2:9269"
+bound = "layout"
 count = 4
 
 # C2:9B5D, table C2:9B65: The table runs up to code at C2:9B71.
 [[jumptable]]
 at = "C2:9B5D"
+bound = "layout"
 count = 6
 
 # C2:9B77, table C2:9B83: The table runs up to code at C2:9B8F.
 [[jumptable]]
 at = "C2:9B77"
+bound = "layout"
 count = 6
 
 # C2:B0E9, table C2:B0EE: The table runs up to code at C2:B0FA (sub_C2B0FA,
 # called just before).
 [[jumptable]]
 at = "C2:B0E9"
+bound = "layout"
 count = 6
 
 # C2:B138, table C2:B141: X counts from 0 and stops at 3 at most (C2:B12A-B133):
 # 4 entries, up to its first handler at C2:B149.
 [[jumptable]]
 at = "C2:B138"
+bound = "guard"
 count = 4
 
 # C2:C9F7, table C2:CA63: X is A masked with 2, so 0 or 2: 2 entries.
 [[jumptable]]
 at = "C2:C9F7"
+bound = "guard"
 count = 2
 
 # C2:E27D, table C2:E298: Negative values branch away; the table runs up to its
 # first handler at C2:E2A0.
 [[jumptable]]
 at = "C2:E27D"
+bound = "guard"
 count = 4
 
 # C2:EA17, table C2:EA1F: The table runs up to code at C2:EA27 (sub_C2EA27).
 [[jumptable]]
 at = "C2:EA17"
+bound = "layout"
 count = 4
 
 # C2:F6AF, table C2:F6D8: The table runs up to code at C2:F6E0.
 [[jumptable]]
 at = "C2:F6AF"
+bound = "layout"
 count = 4
 
 # C3:0B71, table C3:0B74: The index is masked to 0-15 (C3:0B6C): 16 entries.
 [[jumptable]]
 at = "C3:0B71"
+bound = "guard"
 count = 16
 
 # C6:E7B7, table C6:E7BA: The table runs up to its first handler at C6:E7CA.
 [[jumptable]]
 at = "C6:E7B7"
+bound = "layout"
 count = 8
 
 # CD:06B9, table CD:06BC: The table runs up to its first handler at CD:06C4.
 [[jumptable]]
 at = "CD:06B9"
+bound = "layout"
 count = 4
 
 # CD:0C99, table CD:0C83: The table sits before the dispatcher and runs up to
 # code at CD:0C89.
 [[jumptable]]
 at = "CD:0C99"
+bound = "layout"
 count = 3
 
 # CD:120A, table CD:1219: The index is masked to 0, 2, 4 or 6 before TAX: 4
 # entries.
 [[jumptable]]
 at = "CD:120A"
+bound = "guard"
 count = 4
 
 # CD:13B9, table CD:13E6: The index is masked to 0, 2, 4 or 6 before TAX: 4
 # entries.
 [[jumptable]]
 at = "CD:13B9"
+bound = "guard"
 count = 4
 
 # CD:13D1, table CD:13D4: The index is masked to 0, 2, 4 or 6 before TAX: 4
 # entries.
 [[jumptable]]
 at = "CD:13D1"
+bound = "guard"
 count = 4
 
 # CD:16AF, table CD:16B5: The table runs up to its first handler at CD:17A9.
 [[jumptable]]
 at = "CD:16AF"
+bound = "layout"
 count = 122
 
 # CD:295E, table CD:2961: The table runs up to its first handler at CD:2969.
 [[jumptable]]
 at = "CD:295E"
+bound = "layout"
 count = 4
 
 # CD:299F, table CD:29A2: The table runs up to its first handler at CD:29AA.
 [[jumptable]]
 at = "CD:299F"
+bound = "layout"
 count = 4
 
 # CD:2A4E, table CD:2A51: The table runs up to its first handler at CD:2A8B.
 [[jumptable]]
 at = "CD:2A4E"
+bound = "layout"
 count = 29
 
 # CD:2DE7, table CD:2DEA: The index is the top three bits of the byte, shifted
 # down to 0-14: 8 entries.
 [[jumptable]]
 at = "CD:2DE7"
+bound = "guard"
 count = 8
 
 # CD:319A, table CD:319E: The table runs up to code at CD:31AA (sub_CD31AA). The
 # heuristic stopped at 5.
 [[jumptable]]
 at = "CD:319A"
+bound = "layout"
 count = 6
 
 # CF:EFE6, table CF:F01E: The table runs up to its first handler at CF:F03E. The
 # heuristic stopped at 8; the calls files show entry 14 called.
 [[jumptable]]
 at = "CF:EFE6"
+bound = "layout"
 count = 16
 
 # CF:F016, table CF:F02E: The second half of the CF:F01E list: it runs up to
 # code at CF:F03E.
 [[jumptable]]
 at = "CF:F016"
+bound = "layout"
 count = 8
 
 # D1:F682, table D1:F686: The table runs up to its first handler at D1:F692 (the
 # mask would allow 16 values; only 6 entries exist).
 [[jumptable]]
 at = "D1:F682"
+bound = "layout"
 count = 6
 
 # D1:FBCE, table D1:FBD2: The table runs up to its first handler at D1:FBDA.
 [[jumptable]]
 at = "D1:FBCE"
+bound = "layout"
 count = 4
 
 # FD:C2CB, table FD:C2E5: The table runs up to code at FD:C2EB.
 [[jumptable]]
 at = "FD:C2CB"
+bound = "layout"
 count = 3
 
 # FD:C2D7, table FD:C2DF: The table ends where the FD:C2E5 table (FD:C2CB)
 # begins.
 [[jumptable]]
 at = "FD:C2D7"
+bound = "layout"
 count = 3
 
 # ==============================================================================
@@ -1226,6 +1367,7 @@ size = 8
 # so 16 entries.
 [[jumptable]]
 at = "7E:300A"
+bound = "guard"
 count = 16
 
 # MD4: task lists in work RAM, derived from the attract program's sequence
@@ -2002,12 +2144,14 @@ kind = "unreached"
 # below any code, so 4 entries.
 [[jumptable]]
 at = "C6:EB18"
+bound = "layout"
 count = 4
 
 # FF:FF4B (in the FF:FF3E code), table FF:FFE2: runs up to its first handler at
 # FF:FFEA, 4 entries.
 [[jumptable]]
 at = "FF:FF4B"
+bound = "layout"
 count = 4
 
 # ------------------------------------------------------------------------------
@@ -2232,15 +2376,19 @@ format = "object"
 # first handler (C2:4CDA, 5058, 50AC, 54A7).
 [[jumptable]]
 at = "C2:4CCB"
+bound = "layout"
 count = 6
 [[jumptable]]
 at = "C2:5051"
+bound = "layout"
 count = 2
 [[jumptable]]
 at = "C2:509D"
+bound = "layout"
 count = 6
 [[jumptable]]
 at = "C2:549A"
+bound = "layout"
 count = 5
 
 # C2:5037-504A: read 16-bit at offsets 0 and 2 of a 4-byte record by C2:4EE9 and
