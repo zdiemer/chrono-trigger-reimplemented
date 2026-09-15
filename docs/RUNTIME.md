@@ -22,7 +22,11 @@ saved frame, and resumed runs are identical to straight runs. `--wav out.wav`
 writes the sound (32000 Hz stereo, see S-DSP below). `--io-log out.txt` counts
 every hardware register access by what made it: a hand port and the platform
 service call it went through, a generated block, the interpreter's instruction,
-HDMA, or a DMA transfer ([PLATFORM.md](PLATFORM.md)).
+HDMA, or a DMA transfer ([PLATFORM.md](PLATFORM.md)). `--audio direct` (with
+`--native on`) selects the APU-direct audio backend: the sound driver's uploads
+and commands run the SPC700 ahead of the machine instead of taking CPU time
+(`Apu.lead`, absorbed from the machine's following advances; PLATFORM.md, P1).
+It changes timing, so it's never used for validation.
 
 ## Components
 

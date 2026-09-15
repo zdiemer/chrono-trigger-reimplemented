@@ -3,7 +3,7 @@
  *
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
  *           [--iterations N] [--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--step-limit N]
- *           [--db BB]
+ *           [--db BB] [--apu-loopback]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -15,6 +15,8 @@
  * advances time, and interrupts don't happen. States where the native
  * routine's call-outs together run more than --step-limit instructions (default
  * 100000), or the original doesn't get back within four times that, are skipped.
+ * An idle entry is checked the same way over one pass of its loop: the original
+ * runs until it is back at the loop head, or at the exit the pass took.
  *
  * --keep leaves a WRAM range (bus addresses in $7E/$7F) as it is in the base
  * state, for routines that need some structure intact. --range A|X|Y=lo-hi
@@ -24,7 +26,9 @@
  * --fill BBAAAA-BBAAAA=lo-hi gives a WRAM range random bytes from lo to hi
  * instead, for example to make a pointer in script operands point into WRAM.
  * --db sets the data bank, which the base state otherwise decides, for entries
- * that address registers through it.
+ * that address registers through it. --apu-loopback makes reads of the APU ports
+ * return what the CPU last wrote to them: the SPC700 doesn't run here, so the
+ * sound driver's echo waits would otherwise never end.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,6 +71,12 @@ static uint8_t *read_file(const char *path, size_t *len)
 
 static unsigned long step_limit = 100000;
 
+/* --apu-loopback: the SNES's APU read hook, answering with the CPU's own writes. */
+static uint8_t apu_loopback_read(void *ctx, uint8_t port)
+{
+    return ((Snes *)ctx)->apu.cpu_in[port & 3];
+}
+
 /* The native routine runs on its own fiber, so that when its call-outs run out
  * of steps it can be abandoned wherever it is. */
 static const NativeEntry *native_entry;
@@ -108,7 +118,7 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
     unsigned long iterations = 100000;
     uint64_t seed = 1;
-    bool long_call = false, interrupt = false;
+    bool long_call = false, interrupt = false, apu_loopback = false;
     uint32_t keep_lo[MAX_KEEP], keep_hi[MAX_KEEP];
     unsigned range_lo[3] = { 0, 0, 0 }, range_hi[3] = { 0xFFFF, 0xFFFF, 0xFFFF };   /* A, X, Y */
     int nkeep = 0;
@@ -123,6 +133,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--interrupt")) {
             interrupt = true;
+            continue;
+        }
+        if (!strcmp(a, "--apu-loopback")) {
+            apu_loopback = true;
             continue;
         }
         if (!v)
@@ -156,8 +170,8 @@ int main(int argc, char **argv)
     for (int i = 0; i < game_native_count; i++)
         if (!strcmp(game_natives[i].name, routine) || game_natives[i].addr == want)
             e = &game_natives[i];
-    if (!e || e->idle) {
-        fprintf(stderr, "no routine %s (idle entries can't be fuzzed)\n", routine);
+    if (!e) {
+        fprintf(stderr, "no routine %s\n", routine);
         return 2;
     }
 
@@ -179,6 +193,8 @@ int main(int argc, char **argv)
     base.cpu.e = false;
     if (data_bank >= 0)
         base.cpu.db = (uint8_t)data_bank;
+    if (apu_loopback)
+        base.bus.io.apu_read = apu_loopback_read;
     native_call_step_limit = step_limit;
     native_call_timeout_hook = abandon_native;
     native_entry = e;
@@ -266,7 +282,8 @@ int main(int argc, char **argv)
         uint16_t stop_s = native.cpu.s;
         /* A routine that jumps back to its own entry stops where it started,
          * so the original has to run at least one instruction to get there. */
-        bool back_at_entry = stop_pc == e->addr && stop_s == entry_s && native.bus.clocks != orig.bus.clocks;
+        bool back_at_entry = stop_pc == e->addr && stop_s == entry_s &&
+                             (e->idle || native.bus.clocks != orig.bus.clocks);
         if (!run_until(&orig, stop_pc, stop_s, back_at_entry)) {
             if (stop_pc == ret_pc && stop_s == ret_s) {
                 no_return++;
@@ -292,6 +309,6 @@ int main(int argc, char **argv)
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
                     "[--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--range A|X|Y=lo-hi]... [--step-limit N] "
-                    "[--db BB]\n");
+                    "[--db BB] [--apu-loopback]\n");
     return 2;
 }

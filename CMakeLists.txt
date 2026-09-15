@@ -28,7 +28,8 @@ add_library(ct_runtime STATIC
   runtime/snes/system.c
   runtime/port/fiber.c
   runtime/port/native.c
-  runtime/platform/snes/backend.c)
+  runtime/platform/snes/backend.c
+  runtime/platform/direct/audio.c)
 target_include_directories(ct_runtime PUBLIC runtime)
 
 # Ported game code, organized by subsystem.
@@ -71,6 +72,7 @@ add_library(ct_game STATIC
   game/menu/glyphs.c
   game/menu/objects.c
   game/menu/save_screen.c
+  game/menu/sound.c
   game/menu/text.c
   game/menu/vram.c
   game/attract/main_loop.c
@@ -78,6 +80,7 @@ add_library(ct_game STATIC
   game/scene/math.c
   game/scene/nmi.c
   game/scene/program.c
+  game/scene/sound.c
   game/scene/sprites.c
   game/battle/animation.c
   game/battle/buffers.c
@@ -92,6 +95,7 @@ add_library(ct_game STATIC
   game/battle/objects.c
   game/battle/scripts.c
   game/battle/setup.c
+  game/battle/sound.c
   game/battle/sprites.c
   game/battle/stats.c
   game/battle/tiles.c

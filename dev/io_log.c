@@ -9,7 +9,8 @@
 typedef enum {
     ORIGIN_PORT_SERVICE,   /* a hand port, through a platform service call */
     ORIGIN_PORT_DIRECT,    /* a hand port touching the register itself */
-    ORIGIN_IDLE,           /* an idle entry (a hand-written busy-wait pass) */
+    ORIGIN_IDLE_SERVICE,   /* an idle entry (a hand-written busy-wait pass), through a service call */
+    ORIGIN_IDLE,           /* an idle entry touching the register itself */
     ORIGIN_GENERATED,      /* a generated block */
     ORIGIN_INTERPRETER,
     ORIGIN_HDMA,
@@ -17,14 +18,21 @@ typedef enum {
 } OriginKind;
 
 static const char *const kind_names[ORIGIN_KINDS] = {
-    "port-service", "port-direct", "idle", "generated", "interpreter", "hdma",
+    "port-service", "port-direct", "idle-service", "idle", "generated", "interpreter", "hdma",
 };
 static const char *const kind_titles[ORIGIN_KINDS] = {
-    "hand ports, through services", "hand ports, direct", "idle entries", "generated blocks", "interpreter", "HDMA",
+    "hand ports, through services", "hand ports, direct", "idle entries, through services", "idle entries, direct",
+    "generated blocks", "interpreter", "HDMA",
 };
 
-typedef enum { GROUP_PPU, GROUP_APU, GROUP_JOYPAD, GROUP_CPU, GROUP_MATH, GROUP_DMA_REG, GROUP_DMA_DATA, GROUPS } Group;
-static const char *const group_names[GROUPS] = { "ppu", "apu", "joypad", "cpu", "math", "dma-reg", "dma-data" };
+/* APU ports: $2140-$2143; apu-mirror: $2144-$217F, which reach the same four
+ * ports (in the movies only as the low byte of 16-bit accesses aimed at the
+ * work RAM port $2180, docs/PLATFORM.md P1). */
+typedef enum {
+    GROUP_PPU, GROUP_APU, GROUP_APU_MIRROR, GROUP_JOYPAD, GROUP_CPU, GROUP_MATH, GROUP_DMA_REG, GROUP_DMA_DATA, GROUPS
+} Group;
+static const char *const group_names[GROUPS] = { "ppu", "apu", "apu-mirror", "joypad", "cpu", "math", "dma-reg",
+                                                 "dma-data" };
 
 typedef struct {
     const char *origin;    /* entry name, or NULL (the pc, HDMA) */
@@ -53,8 +61,10 @@ static int group_of(uint16_t a, unsigned flags)
         return GROUP_DMA_DATA;
     if (a >= 0x2100 && a <= 0x213F)
         return GROUP_PPU;
-    if (a >= 0x2140 && a <= 0x217F)
+    if (a >= 0x2140 && a <= 0x2143)
         return GROUP_APU;
+    if (a >= 0x2144 && a <= 0x217F)
+        return GROUP_APU_MIRROR;
     if (a == 0x4016 || a == 0x4017)
         return GROUP_JOYPAD;
     if ((a >= 0x4202 && a <= 0x4206) || (a >= 0x4214 && a <= 0x4217))
@@ -122,8 +132,14 @@ static void observe(void *ctx, const SnesBus *bus, uint16_t addr, uint8_t value,
         key.kind = ORIGIN_GENERATED;
         key.origin = e->name;
     } else if (e && e->idle) {
-        key.kind = ORIGIN_IDLE;
         key.origin = e->name;
+        if (pf_snes_call.name) {
+            key.kind = ORIGIN_IDLE_SERVICE;
+            key.call = pf_snes_call.name;
+            key.pc = pf_snes_call.site;
+        } else {
+            key.kind = ORIGIN_IDLE;
+        }
     } else if (e) {
         key.origin = e->name;
         if (pf_snes_call.name) {
@@ -209,7 +225,7 @@ int io_log_write(IoLog *log, const char *path, FILE *summary)
         for (size_t i = 0; i < n; i++) {
             const Slot *r = &rows[i];
             char site[16] = "-";
-            if (r->kind == ORIGIN_INTERPRETER || r->kind == ORIGIN_PORT_SERVICE)
+            if (r->kind == ORIGIN_INTERPRETER || r->kind == ORIGIN_PORT_SERVICE || r->kind == ORIGIN_IDLE_SERVICE)
                 snprintf(site, sizeof site, "%02X:%04X", (unsigned)(r->pc >> 16), (unsigned)(r->pc & 0xFFFF));
             fprintf(f, "%s %s %s %s $%04X %s %s %llu %u\n", kind_names[r->kind], r->origin ? r->origin : "-", site,
                     r->call ? r->call : "-", r->addr, group_names[group_of(r->addr, r->flags)],
@@ -220,7 +236,8 @@ int io_log_write(IoLog *log, const char *path, FILE *summary)
             rc = -1;
     }
 
-    fprintf(summary, "io-log: register accesses by origin (columns: ppu apu joypad cpu math dma-reg dma-data)\n");
+    fprintf(summary,
+            "io-log: register accesses by origin (columns: ppu apu apu-mirror joypad cpu math dma-reg dma-data)\n");
     for (int k = 0; k < ORIGIN_KINDS; k++) {
         fprintf(summary, "  %-30s", kind_titles[k]);
         for (int g = 0; g < GROUPS; g++)
