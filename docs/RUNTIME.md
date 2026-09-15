@@ -413,9 +413,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, the dual tech list, Mega Bomb, Confuse, item menus, Life 2 on a fallen Crono | 17762 |
 | `late-omen-zeal.ctm` | ctsave15, 3 | Queen Zeal won (Luminaire, Life 2, Cure 2, Hallation), then the Mammon Machine won (Antipode 3, Mega Bomb, Delta Force, Flare and more) and the start of the Zeal face-and-hands battle | 36922 |
 | `late-lavos.ctm` | ctsave16, 1 | Lavos: the outer shell beaten with many techs, the DNA dialogue, then the core form (Crying Heavens, a MegaElixir, Cure 2, a revive) | 60249 |
-| `endings-beyond-time.ctm` | technoplaza ct-state15, 1 | The final battle won (second form, Lavos Core with revives) and the whole Beyond Time ending: the pardon, the Moonlight Parade, the farewells at the Gate, the bell and fireworks, and the staff credits to The End | 100000 |
-| `endings-bucket-lavos.ctm` | technoplaza ct-state18, 2 | New Game+: the End of Time bucket, the Day of Lavos, the outer shell's boss imitations and the shell, the inner cavern and the inner Lavos (ends mid-battle, before the Good Night ending) | 118400 |
-| `endings-telepod-lavos.ctm` | technoplaza ct-state16, 2 | New Game+ with Crono and Marle: Taban's telepod at the Millennial Fair, the outer shell, the inner cavern and the inner Lavos, to the start of the core fight (before the Dream Project ending) | 31000 |
+| `endings-beyond-time.ctm` | technoplaza ct-state15, 1 | The final battle won (second form, then the Lavos Core), and the whole Beyond Time ending: the pardon, the Moonlight Parade, the farewells at the Gate, the bell and fireworks, and the staff credits to The End | 105000 |
+| `endings-bucket-lavos.ctm` | technoplaza ct-state18, 2 | New Game+: the End of Time bucket, the Day of Lavos, the shell's boss imitations and the shell, the inner cavern, the inner Lavos and the Core, then the Good Night ending credits | 196000 |
+| `endings-telepod-lavos.ctm` | technoplaza ct-state16, 2 | New Game+ with Crono and Marle: Taban's telepod at the fair, the outer shell, the inner cavern, the inner Lavos and the Core, then the whole Dream Project ending: the developer rooms, the Dream Team and the credits to The End | 132885 |
 | `events-jetbike-race.ctm` | ctsave03, 1 | Lab 32: Johnny's challenge and the Mode 7 race with turbo boosts | 9400 |
 | `events-end-of-time-gate.ctm` | ctsave03, 3 | End of Time pillar, yes/no prompt, gate effect, arrival in Medina | 5600 |
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
@@ -436,10 +436,10 @@ battles and other real-time sections play out differently: on Snes9x the old
 inputs didn't reach the listed scenes either (`battle-golem-twins-gameover`
 showed the same frames on Snes9x and here at 6000, 9000, 11000 and 12000 only
 after the fix). The battle movies, `menus-shop-inn` and the late-game movies
-were re-authored on the corrected timing and reach their listed scenes again;
-the `endings-` movies still need it (`endings-beyond-time` and
-`endings-telepod-lavos` lose their last battle, `endings-bucket-lavos` stops in
-an earlier form of the fight).
+and the `endings-` movies were re-authored on the corrected timing and reach
+their listed scenes again. The ending movies were played by a driver that reads
+game memory (whose turn it is, cursors, HP) and backtracks through save states
+when a fight is lost, so their routes can be replayed on a future build.
 
 Non-blank frames pixel-identical to Snes9x at the same frame / within 16 frames:
 
