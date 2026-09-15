@@ -61,6 +61,7 @@ add_library(ct_game STATIC
   game/menu/frame.c
   game/menu/glyphs.c
   game/attract/main_loop.c
+  game/battle/animation.c
   game/battle/buffers.c
   game/battle/display.c
   game/battle/frame.c
@@ -73,7 +74,8 @@ add_library(ct_game STATIC
   game/battle/stats.c
   game/battle/tiles.c
   game/battle/timers.c
-  game/battle/wait.c)
+  game/battle/wait.c
+  game/battle/window.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 
