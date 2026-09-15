@@ -9,11 +9,25 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+# Only little-endian hosts are built and tested (x86-64 and ARM64 are). File
+# formats are written byte by byte, but save states are raw memory images, and
+# no big-endian host has checked the rest.
+if(CMAKE_C_BYTE_ORDER STREQUAL "BIG_ENDIAN")
+  message(WARNING "big-endian host: untested, expect differences from the original")
+endif()
+
+option(CT_WERROR "Treat compiler warnings as errors (CI)" OFF)
 if(MSVC)
   add_compile_options(/W4)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+  if(CT_WERROR)
+    add_compile_options(/WX)
+  endif()
 else()
   add_compile_options(-Wall -Wextra)
+  if(CT_WERROR)
+    add_compile_options(-Werror)
+  endif()
 endif()
 
 # Development runtime: interpreter CPU and modeled hardware.
@@ -116,6 +130,8 @@ add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c)
 add_executable(spc700_runner tests/apu/spc700_runner.c runtime/apu/spc700.c)
 add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c)
 target_include_directories(dsp_test PRIVATE runtime)
+add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c)
+target_include_directories(fiber_test PRIVATE runtime)
 
 # Instruction translation (tools/recomp, docs/RECOMP.md), with C generated into
 # the build tree for every opcode and context: sst_recomp_runner runs it on the

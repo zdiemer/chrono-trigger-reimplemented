@@ -27,6 +27,24 @@ python3 tools/dist.py -- -DCMAKE_PREFIX_PATH=<prefix>   # when CMake can't find 
 On Windows it copies `SDL2.dll` next to `ct_play.exe`. `dist/` is never
 committed.
 
+### Linux and macOS
+
+The project builds with gcc or clang on Linux and Apple clang on macOS (CI
+covers x86-64 Linux and ARM64 macOS; only little-endian hosts are supported).
+Python 3.11+ is needed for the generated code, as on Windows. Install the tools
+and SDL2, then build as above:
+
+```sh
+sudo apt install build-essential cmake ninja-build python3 libsdl2-dev   # Debian, Ubuntu
+brew install cmake ninja python sdl2                                     # macOS (Homebrew)
+cmake -S . -B build/main -G Ninja && cmake --build build/main
+```
+
+`CT_ROM` works the same way (without a ROM the build has an empty table of
+generated blocks). Native routines run on `ucontext` coroutines there instead
+of Windows fibers (`runtime/port/fiber.c`). CI builds and tests every platform
+without a ROM (`.github/workflows/ci.yml`).
+
 ## Run
 
 ```sh

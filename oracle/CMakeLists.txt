@@ -21,11 +21,12 @@ target_include_directories(ct_oracle PRIVATE
   src
   ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/libretro)
 
+option(CT_WERROR "Treat compiler warnings as errors (CI)" OFF)
 if(MSVC)
-  target_compile_options(ct_oracle PRIVATE /W4)
+  target_compile_options(ct_oracle PRIVATE /W4 $<$<BOOL:${CT_WERROR}>:/WX>)
   target_compile_definitions(ct_oracle PRIVATE _CRT_SECURE_NO_WARNINGS)
 else()
-  target_compile_options(ct_oracle PRIVATE -Wall -Wextra)
+  target_compile_options(ct_oracle PRIVATE -Wall -Wextra $<$<BOOL:${CT_WERROR}>:-Werror>)
 endif()
 
 if(NOT WIN32)

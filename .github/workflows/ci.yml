@@ -1,0 +1,150 @@
+# Builds everything that builds without a ROM and runs the ROM-free tests.
+# No ROM or ROM-derived data is ever used here: CT_ROM points nowhere, so the
+# generated block table is the empty stub and ct_matching isn't configured.
+
+name: CI
+
+on:
+  push:
+    paths-ignore: ['**.md', 'docs/**', 'oracle/movies/**']
+  pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'oracle/movies/**']
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # SingleStepTests data (65816 and SPC700), downloaded once and cached for
+  # every OS. Pull requests from branches of this repository are already built
+  # by their push, so only pull requests from forks run again.
+  sst-data:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            tests/cpu/data
+            tests/apu/data
+          # Bump v1 to download the data again; the build jobs use the same key.
+          key: sst-v1-${{ hashFiles('tests/cpu/fetch_sst.py', 'tests/apu/fetch_sst_spc700.py') }}
+          enableCrossOsArchive: true
+          lookup-only: true
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch test data
+        if: steps.cache.outputs.cache-hit != 'true'
+        # The scripts fetch only what's missing, so a second pass retries failures.
+        run: |
+          python3 tests/cpu/fetch_sst.py > /dev/null || python3 tests/cpu/fetch_sst.py > /dev/null
+          python3 tests/apu/fetch_sst_spc700.py > /dev/null || python3 tests/apu/fetch_sst_spc700.py > /dev/null
+          ls tests/cpu/data | wc -l
+          ls tests/apu/data | wc -l
+
+  build:
+    needs: sst-data
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-latest
+            cc: gcc
+            shell: bash
+          - name: linux-clang
+            os: ubuntu-latest
+            cc: clang
+            shell: bash
+          - name: macos-clang
+            os: macos-latest
+            cc: clang
+            shell: bash
+          - name: windows-mingw-gcc
+            os: windows-latest
+            cc: gcc
+            shell: msys2 {0}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ninja-build libsdl2-dev
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja sdl2
+      - if: runner.os != 'Windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-SDL2
+
+      - name: Restore test data
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            tests/cpu/data
+            tests/apu/data
+          key: sst-v1-${{ hashFiles('tests/cpu/fetch_sst.py', 'tests/apu/fetch_sst_spc700.py') }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON -DCT_ROM=
+      - name: Build
+        run: cmake --build build/ci
+      - name: Check that ct_play was built
+        run: test -f build/ci/ct_play || test -f build/ci/ct_play.exe
+      - name: Build oracle harness
+        run: |
+          cmake -S oracle -B build/oracle -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON
+          cmake --build build/oracle
+
+      - name: Unit tests
+        run: python3 -m unittest discover tests
+      - name: dsp_test
+        run: build/ci/dsp_test
+      - name: fiber_test
+        run: build/ci/fiber_test
+      # The full suites (5.12M and 256k cases) take seconds, so every job runs them.
+      - name: 65816 SingleStepTests (interpreter)
+        run: build/ci/sst_runner tests/cpu/data/*.bin
+      - name: 65816 SingleStepTests (generated code)
+        run: build/ci/sst_recomp_runner tests/cpu/data/*.bin
+      - name: SPC700 SingleStepTests
+        run: build/ci/spc700_runner tests/apu/data/*.bin
+      - name: Generated code against the interpreter on the SNES bus
+        run: build/ci/recomp_bus_diff

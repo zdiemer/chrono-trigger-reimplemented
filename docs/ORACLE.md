@@ -12,8 +12,9 @@ movie.ctm ─┬─> ct_oracle + libretro core + ROM ──> oracle.cttr ─┐
 
 ## Building
 
-Needs CMake 3.20+ and a C17 compiler. MinGW gcc is tested; the loader shim
-also supports `dlopen` on Linux and macOS. If CMake and Ninja aren't installed,
+Needs CMake 3.20+ and a C17 compiler. MinGW gcc is used for traces; CI also
+builds it with gcc and clang on Linux and Apple clang on macOS, where the
+loader shim uses `dlopen`. If CMake and Ninja aren't installed,
 `python3 -m pip install cmake ninja` provides both.
 
 ```sh
