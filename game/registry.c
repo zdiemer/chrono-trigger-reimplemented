@@ -1,9 +1,11 @@
 #include "registry.h"
 
 #include "attract/attract.h"
+#include "battle/animation.h"
 #include "battle/battle.h"
 #include "battle/windows.h"
 #include "battle/main_loop.h"
+#include "battle/window.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "core/palette.h"
@@ -29,6 +31,10 @@
  * disasm/out/liveness.json ("dead_after_return"). */
 const NativeEntry game_natives[] = {
     /* battle */
+    { .addr = 0xC10299, .name = "battle_draw_window", .fn = battle_draw_window, NEEDS_M8_X16_BINARY,
+      .cost_milli = 6281, .dont_care = DC_N },
+    { .addr = 0xC12D9F, .name = "battle_step_combatant_animations", .fn = battle_step_combatant_animations,
+      NEEDS_M8_X16_BINARY, .cost_milli = 3752, .dont_care = DC_N | DC_Z | DC_C },
     { .addr = 0xD1E77C, .name = "battle_nmi", .fn = battle_nmi, .cost_milli = 4000 },
     { .addr = 0xD1FE97, .name = "battle_irq", .fn = battle_irq, .cost_milli = 3311 },
     { .addr = 0xD1FEBF, .name = "battle_irq_after_hblank", .fn = battle_irq_after_hblank, NEEDS_M8_X16,
