@@ -92,6 +92,8 @@ void battle_cycle_party_palettes(Snes *s);
 void battle_build_object_graphics(Snes *s);
 void battle_build_object_graphics_checked(Snes *s);
 void battle_step_object_palettes(Snes *s);
+void battle_index_record_groups(Snes *s);
+void battle_build_bitmap_sprites(Snes *s);
 
 /* battle/gauges.c */
 void battle_draw_gauge(Snes *s);
