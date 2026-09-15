@@ -2,10 +2,22 @@
 
 /* ---- bus and flag helpers ------------------------------------------------ */
 
-static inline uint8_t rd(Cpu *c, uint32_t addr) { return c->bus.read(c->bus.ctx, addr & 0xFFFFFF); }
-static inline void wr(Cpu *c, uint32_t addr, uint8_t v) { c->bus.write(c->bus.ctx, addr & 0xFFFFFF, v); }
+static inline uint8_t rd(Cpu *c, uint32_t addr)
+{
+    c->last_cycle_io = false;
+    return c->bus.read(c->bus.ctx, addr & 0xFFFFFF);
+}
+static inline void wr(Cpu *c, uint32_t addr, uint8_t v)
+{
+    c->last_cycle_io = false;
+    c->bus.write(c->bus.ctx, addr & 0xFFFFFF, v);
+}
 
-static inline void io(Cpu *c) { c->io_cycles++; }
+static inline void io(Cpu *c)
+{
+    c->io_cycles++;
+    c->last_cycle_io = true;
+}
 
 static inline bool m8(const Cpu *c) { return c->e || (c->p & CPU_FLAG_M); }
 static inline bool x8(const Cpu *c) { return c->e || (c->p & CPU_FLAG_X); }
@@ -443,25 +455,25 @@ void cpu_reset(Cpu *c)
     c->pc = read_word_bank0(c, 0xFFFC);
 }
 
-void cpu_step(Cpu *c)
+CpuStep cpu_step(Cpu *c)
 {
     if (c->stopped)
-        return;
+        return CPU_STEP_IDLE;
     if (c->nmi_pending) {
         c->nmi_pending = false;
         c->waiting = false;
         interrupt(c, 0xFFEA, 0xFFFA, false);
-        return;
+        return CPU_STEP_INTERRUPT;
     }
     if (c->irq_line) {
         c->waiting = false;
         if (!(c->p & CPU_FLAG_I)) {
             interrupt(c, 0xFFEE, 0xFFFE, false);
-            return;
+            return CPU_STEP_INTERRUPT;
         }
     }
     if (c->waiting)
-        return;
+        return CPU_STEP_IDLE;
 
     if (c->on_insn)
         c->on_insn(c->on_insn_ctx, cpu_pc24(c), c->p, c->e);
@@ -800,4 +812,5 @@ void cpu_step(Cpu *c)
     case 0xCB: io(c); io(c); c->waiting = true; break;
     case 0xDB: io(c); io(c); c->stopped = true; break;
     }
+    return CPU_STEP_INSTRUCTION;
 }

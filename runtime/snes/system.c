@@ -9,6 +9,12 @@
 #define HBLANK_START_HCLOCK 1096
 #define HBLANK_END_HCLOCK 16
 
+/* Interrupt timing (docs/RUNTIME.md, "Interrupt timing"). The 65C816 samples
+ * its interrupt inputs at the start of each instruction's last cycle and acts
+ * on them after the instruction. /NMI reaches the CPU 6 master clocks into the
+ * first vblank line, after RDNMI is set. */
+#define NMI_DELAY_CLOCKS 6
+
 /* ---- I/O routing ------------------------------------------------------------ */
 
 static void sync_ppu_view(Snes *s)
@@ -69,7 +75,7 @@ void snes_clone(Snes *dst, const Snes *src)
 }
 
 #define STATE_MAGIC "CTSS"
-#define STATE_VERSION 2u
+#define STATE_VERSION 3u
 
 int snes_state_save(const Snes *s, const char *path)
 {
@@ -217,7 +223,23 @@ static void hdma_line(Snes *s)
 
 /* ---- timing ------------------------------------------------------------------- */
 
-static void raise_irq(Snes *s) { s->bus.irq_flag = true; }
+/* Master clock at which the current line began (valid inside advance, where
+ * hclock can run past the line's end). */
+static inline uint64_t line_start(const Snes *s) { return s->master - s->hclock; }
+
+/* Set TIMEUP at master clock `at`; the CPU sees the IRQ from then on. */
+static void raise_irq(Snes *s, uint64_t at)
+{
+    s->bus.irq_flag = true;
+    s->irq_at = at;
+}
+
+static void schedule_nmi(Snes *s, uint64_t at)
+{
+    if (!s->nmi_scheduled || at < s->nmi_at)
+        s->nmi_at = at;
+    s->nmi_scheduled = true;
+}
 
 static void start_line(Snes *s)
 {
@@ -232,7 +254,7 @@ static void start_line(Snes *s)
         s->bus.in_vblank = true;
         s->bus.nmi_flag = true;
         if (s->bus.nmitimen & 0x80)
-            s->cpu.nmi_pending = true;
+            schedule_nmi(s, line_start(s) + NMI_DELAY_CLOCKS);
         if (s->bus.nmitimen & 0x01)
             snes_bus_auto_joypad(&s->bus);
         ppu_vblank(&s->ppu);
@@ -241,7 +263,7 @@ static void start_line(Snes *s)
 
     /* V-timer IRQ (without H) fires at the start of the matching line. */
     if ((s->bus.nmitimen & 0x30) == 0x20 && s->vline == s->bus.vtime)
-        raise_irq(s);
+        raise_irq(s, line_start(s));
 }
 
 static void advance(Snes *s, uint32_t clocks)
@@ -261,7 +283,7 @@ static void advance(Snes *s, uint32_t clocks)
         if (!s->htimer_done_this_line && (timer_mode == 0x10 || (timer_mode == 0x30 && s->vline == s->bus.vtime)) &&
             before <= htime && htime < end) {
             s->htimer_done_this_line = true;
-            raise_irq(s);
+            raise_irq(s, line_start(s) + htime);
         }
         if (!s->hdma_done_this_line && before <= HDMA_HCLOCK && HDMA_HCLOCK < end) {
             s->hdma_done_this_line = true;
@@ -298,21 +320,37 @@ void snes_run_frame(Snes *s, uint16_t pad1)
     while (!s->frame_done) {
         s->bus.clocks = 0;
         s->cpu.io_cycles = 0;
-        s->cpu.irq_line = s->bus.irq_flag;
-        if (s->intercept) {
-            int32_t spent = s->intercept(s->intercept_ctx, s);
-            if (spent >= 0) {
-                advance(s, spent ? (uint32_t)spent : CLOCKS_PER_IO_CYCLE);
-                continue;
-            }
+        s->cpu.irq_line = s->bus.irq_flag && s->poll_at >= s->irq_at;
+
+        /* Run one step and find where its last cycle begins. */
+        uint32_t clocks = 0, last_cycle = CLOCKS_PER_IO_CYCLE;
+        bool polled = true;
+        int32_t spent = s->intercept ? s->intercept(s->intercept_ctx, s) : -1;
+        if (spent >= 0) {
+            clocks = (uint32_t)spent;   /* native code: its time ends in one poll */
+        } else {
+            polled = cpu_step(&s->cpu) != CPU_STEP_INTERRUPT;   /* entry sequences don't poll */
+            clocks = s->bus.clocks + s->cpu.io_cycles * CLOCKS_PER_IO_CYCLE;
+            if (s->bus.clocks && !s->cpu.last_cycle_io)
+                last_cycle = s->bus.clocks - s->bus.access_start;
         }
-        cpu_step(&s->cpu);
+        if (!clocks)
+            clocks = CLOCKS_PER_IO_CYCLE;   /* WAI/STP idle, or native code that took no time */
+        advance(s, clocks);
+
+        /* Enabling NMIs while RDNMI is set raises /NMI when the write happens,
+         * in the step's last cycle, so it's recognized one step later. */
         if (s->bus.nmi_request) {
             s->bus.nmi_request = false;
-            s->cpu.nmi_pending = true;
+            schedule_nmi(s, s->master);
         }
-        uint32_t clocks = s->bus.clocks + s->cpu.io_cycles * CLOCKS_PER_IO_CYCLE;
-        advance(s, clocks ? clocks : CLOCKS_PER_IO_CYCLE);   /* WAI/STP idle */
+        if (polled) {
+            s->poll_at = s->master - last_cycle;
+            if (s->nmi_scheduled && s->poll_at >= s->nmi_at) {
+                s->nmi_scheduled = false;
+                s->cpu.nmi_pending = true;
+            }
+        }
     }
     s->frame++;
 }

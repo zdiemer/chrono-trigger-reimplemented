@@ -207,9 +207,11 @@ static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
         static bool in_dma;
         bus->mdmaen = v;
         if (!in_dma) {
+            uint32_t access_start = bus->access_start;
             in_dma = true;
             run_dma(bus, v);
             in_dma = false;
+            bus->access_start = access_start;
         }
         break;
     }
@@ -260,6 +262,7 @@ uint8_t snes_bus_read(void *ctx, uint32_t addr)
     SnesBus *bus = ctx;
     size_t i;
     uint8_t v;
+    bus->access_start = bus->clocks;
     bus->clocks += access_clocks(bus, addr);
     switch (decode(bus, addr, &i)) {
     case REGION_ROM: v = bus->rom[i]; break;
@@ -276,6 +279,7 @@ void snes_bus_write(void *ctx, uint32_t addr, uint8_t value)
 {
     SnesBus *bus = ctx;
     size_t i;
+    bus->access_start = bus->clocks;
     bus->clocks += access_clocks(bus, addr);
     bus->open_bus = value;
     switch (decode(bus, addr, &i)) {

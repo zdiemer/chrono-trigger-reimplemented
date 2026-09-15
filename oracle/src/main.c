@@ -356,6 +356,7 @@ static void usage(void) {
             "  --shot-every N           write a PNG every N frames (requires --shot-dir)\n"
             "  --shot-dir <dir>         directory for PNG screenshots\n"
             "  --wav <out.wav>          record audio\n"
+            "  --sram <save.srm>        start with this cartridge save in save RAM\n"
             "  --option key=value       override a core option (repeatable)\n"
             "  --no-ppu-state           don't extract CGRAM/OAM from savestates\n"
             "  --work-dir <dir>         core system/save directory (default: <temp>/ct_oracle)\n"
@@ -377,7 +378,7 @@ static const region_source region_sources[] = {
 
 int main(int argc, char **argv) {
     const char *core_path = NULL, *rom_path = NULL, *movie_path = NULL, *trace_path = NULL;
-    const char *shot_dir = NULL, *wav_path = NULL;
+    const char *shot_dir = NULL, *wav_path = NULL, *sram_path = NULL;
     long frames = -1, trace_from = 0, trace_to = -1, shot_every = 0;
     bool ppu_state = true;
     g.work_dir = default_work_dir();
@@ -406,6 +407,8 @@ int main(int argc, char **argv) {
             shot_dir = v;
         else if (ARG("--wav"))
             wav_path = v;
+        else if (ARG("--sram"))
+            sram_path = v;
         else if (ARG("--work-dir"))
             g.work_dir = v;
         else if (ARG("--option")) {
@@ -473,6 +476,34 @@ int main(int argc, char **argv) {
         return 1;
     }
     api->set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
+
+    /* A cartridge save goes into the core's save RAM before the first frame,
+     * the way a frontend loads a .srm. */
+    if (sram_path) {
+        size_t sram_len;
+        uint8_t *sram = read_file(sram_path, &sram_len);
+        uint8_t *dest = api->get_memory_data(RETRO_MEMORY_SAVE_RAM);
+        size_t dest_len = api->get_memory_size(RETRO_MEMORY_SAVE_RAM);
+        if (!sram) {
+            fprintf(stderr, "cannot read %s\n", sram_path);
+            return 1;
+        }
+        if (!dest || sram_len != dest_len) {
+            fprintf(stderr, "%s is %zu bytes; the core's save RAM is %zu bytes\n", sram_path, sram_len, dest_len);
+            return 1;
+        }
+        memcpy(dest, sram, sram_len);
+        free(sram);
+    }
+    if (movie.has_sram) {
+        const uint8_t *sram = api->get_memory_data(RETRO_MEMORY_SAVE_RAM);
+        size_t sram_len = api->get_memory_size(RETRO_MEMORY_SAVE_RAM);
+        if (!sram_path || !sram || ct_crc32(sram, sram_len) != movie.sram_crc) {
+            fprintf(stderr, "%s starts from SRAM with CRC-32 %08X; pass that save with --sram\n", movie_path,
+                    (unsigned)movie.sram_crc);
+            return 1;
+        }
+    }
 
     struct retro_system_av_info av = {0};
     api->get_system_av_info(&av);

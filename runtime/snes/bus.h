@@ -36,6 +36,9 @@ typedef struct SnesBus {
     /* Master clocks spent on bus access since the system last cleared it:
      * 6 per fast access, 8 per slow one, 12 for $4000-$41FF. */
     uint32_t clocks;
+    /* Value of clocks when the latest CPU access began. A DMA transfer counts
+     * as part of the $420B write that started it. */
+    uint32_t access_start;
 
     SnesIo io;
 

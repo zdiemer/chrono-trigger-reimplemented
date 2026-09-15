@@ -71,13 +71,14 @@ build/oracle/ct_oracle --core cores/snes9x_libretro.dll --rom roms/ct-usa.sfc \
 | `--trace-from A`, `--trace-to B` | record only frames A..B (inclusive); the first recorded frame is the keyframe |
 | `--shot-every N --shot-dir <dir>` | PNG of the framebuffer on every frame divisible by N |
 | `--wav <file>` | 16-bit stereo audio at the core's sample rate |
+| `--sram <file>` | start with this cartridge save: copied into the core's save RAM (`RETRO_MEMORY_SAVE_RAM`, which must be the file's size) after the game loads, before the first frame |
 | `--option key=value` | override a core option; otherwise each option's default is used |
 | `--no-ppu-state` | skip CGRAM/OAM extraction |
 | `--work-dir <dir>` | core system/save directory (default `<temp>/ct_oracle`) |
 | `--verbose` | log core options, memory maps, unhandled environment calls |
 
-The core starts from power-on with no save file, and runs as fast as the host
-allows. Keep traces, screenshots and audio in gitignored locations such as
+The core starts from power-on with no save file unless `--sram` gives one, and
+runs as fast as the host allows. Keep traces, screenshots and audio in gitignored locations such as
 `traces/` or `captures/`, or outside the repository. They are derived from the ROM.
 
 ## Frame numbering
@@ -110,8 +111,8 @@ Text, one event per line; `#` starts a comment.
 - Movies recorded with `ct_play --record` (docs/PLAYING.md) have one event per
   run of unchanged buttons and a `# frames N` comment giving the recorded length.
 - A `# sram crc32 XXXXXXXX` comment means the movie starts from power-on with a
-  cartridge save in SRAM instead of blank SRAM. `ct_dev` refuses to replay it
-  unless `--sram` gives a save with that CRC-32. Saves aren't committed; the
+  cartridge save in SRAM instead of blank SRAM. `ct_dev` and `ct_oracle` refuse
+  to replay it unless `--sram` gives a save with that CRC-32. Saves aren't committed; the
   movie's comments say where the save comes from.
 
 Buttons are stored in SNES JOY1 (`$4218/$4219`) bit order, so the port can load
