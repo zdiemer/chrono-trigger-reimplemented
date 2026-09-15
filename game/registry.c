@@ -5,6 +5,7 @@
 #include "core/display.h"
 #include "core/input.h"
 #include "core/palette.h"
+#include "core/sound_driver.h"
 #include "core/tile_animation.h"
 #include "data/decompress.h"
 #include "event/event.h"
@@ -191,6 +192,38 @@ const NativeEntry game_natives[] = {
       .cost_milli = 4118 },
     { .addr = 0xFDE8D7, .name = "palette_fade_toward_white", .fn = palette_fade_toward_white,
       NEEDS_M8_X16_BINARY, .cost_milli = 4874 },
+    /* sound driver: the routines stop at the APU echo waits, which run in the
+     * original, and further entries continue where a wait exits */
+    { .addr = 0xC70004, .name = "sound_driver_command", .fn = sound_driver_command, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 3100 },
+    { .addr = 0xC7063D, .name = "sound_driver_command_timed_out", .fn = sound_driver_command_timed_out,
+      NEEDS_M8_X16, .cost_milli = 4094 },
+    { .addr = 0xC70643, .name = "sound_driver_command_echoed", .fn = sound_driver_command_echoed,
+      NEEDS_M8_X16_BINARY, .cost_milli = 3143 },
+    { .addr = 0xC70614, .name = "sound_driver_upload_finished", .fn = sound_driver_upload_finished, NEEDS_M8_X16,
+      .cost_milli = 4450 },
+    { .addr = 0xC70655, .name = "sound_driver_upload_block", .fn = sound_driver_upload_block,
+      NEEDS_M16_X16_BINARY, .cost_milli = 2650 },
+    { .addr = 0xC70922, .name = "sound_driver_upload_2f00_data", .fn = sound_driver_upload_2f00_data, NEEDS_M8_X16,
+      .cost_milli = 2821 },
+    { .addr = 0xC70A39, .name = "sound_driver_send_song", .fn = sound_driver_send_song, NEEDS_M8_X16_BINARY,
+      .cost_milli = 4380 },
+    { .addr = 0xC70A79, .name = "sound_driver_song_timed_out", .fn = sound_driver_song_timed_out, NEEDS_M8_X16,
+      .cost_milli = 3786 },
+    { .addr = 0xC70A7B, .name = "sound_driver_song_echoed", .fn = sound_driver_song_echoed, NEEDS_M8_X16,
+      .cost_milli = 4300 },
+    { .addr = 0xC70A90, .name = "sound_driver_song_refused", .fn = sound_driver_song_refused, NEEDS_M8_X16,
+      .cost_milli = 2941 },
+    /* per pass with FastROM: CMP $2140 and a taken branch, 42 master clocks;
+     * with BEQ not taken, DEX and BNE taken, 66 */
+    { .addr = 0xC70635, .name = "sound_driver_wait_command_echo_loop", .fn = sound_driver_wait_command_echo_loop,
+      NEEDS_M8_X16, .idle = true, .idle_clocks = 66 },
+    { .addr = 0xC70A71, .name = "sound_driver_wait_song_echo_loop", .fn = sound_driver_wait_song_echo_loop,
+      NEEDS_M8_X16, .idle = true, .idle_clocks = 66 },
+    { .addr = 0xC709E0, .name = "sound_driver_wait_echo_loop", .fn = sound_driver_wait_echo_loop, NEEDS_M8,
+      .idle = true, .idle_clocks = 42 },
+    { .addr = 0xC70A8B, .name = "sound_driver_wait_port0_change_loop", .fn = sound_driver_wait_port0_change_loop,
+      NEEDS_M8, .idle = true, .idle_clocks = 42 },
 
     /* data */
     { .addr = 0xC30002, .name = "decompress", .fn = decompress, .cost_milli = 3953 },

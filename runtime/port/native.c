@@ -103,6 +103,7 @@ typedef struct Active {
     uint32_t ret_pc;
     uint64_t segment_start;
     uint32_t segment_bus_clocks;
+    unsigned long segment_port_clears[2];   /* apu_port_clears when the segment started */
     bool segment_interrupted, interrupted, mismatched;
 } Active;
 
@@ -359,6 +360,12 @@ static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, c
         a->interrupted = true;
         return;
     }
+    /* The SPC700 clears the CPU-to-APU ports ($F1 bits 4-5) when its own code
+     * decides to, whatever the CPU is doing: a pair it cleared while the
+     * original ran isn't compared. */
+    for (int pair = 0; pair < 2; pair++)
+        if (apu_port_clears[pair] != a->segment_port_clears[pair])
+            memcpy(a->clone->apu.cpu_in + 2 * pair, s->apu.cpu_in + 2 * pair, 2);
     char why[200], msg[256];
     if (native_compare(s, a->clone, dont_care, why, sizeof why)) {
         a->mismatched = true;
@@ -393,6 +400,7 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     } else {
         a->segment_bus_clocks = m->bus.clocks;
         a->segment_start = s->master;
+        memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
         a->segment_interrupted = false;
     }
     if (j->state == JOB_DONE) {
@@ -544,7 +552,7 @@ static int32_t intercept(void *ctx, Snes *s)
         }
         e->fn(s);
         if (cpu_pc24(&s->cpu) == pc)
-            return (int32_t)snes_clocks_to_next_poll_change(s);
+            return (int32_t)(e->idle_clocks ? e->idle_clocks : snes_clocks_to_next_poll_change(s));
         return 0;
     }
 

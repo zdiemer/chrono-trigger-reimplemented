@@ -1,6 +1,6 @@
 /* Event commands: sound. Commands for the sound driver are written to
- * $1E00-$1E03 (command, then parameters) and sent with JSL $C7:0004, which
- * stays in the original for now. */
+ * $1E00-$1E03 (command, then parameters) and sent with JSL $C7:0004
+ * (core/sound_driver.c). */
 #include "event/event.h"
 
 #include "event/script.h"

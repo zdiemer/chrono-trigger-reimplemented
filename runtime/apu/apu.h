@@ -55,6 +55,12 @@ typedef struct Apu {
     void *on_insn_ctx;
 } Apu;
 
+/* SPC700 writes to $F1 that cleared the CPU-to-APU ports: [0] ports 0-1, [1]
+ * ports 2-3. Counted over every machine in the process (only the machine the
+ * system loop runs moves its SPC700); shadow validation uses the counts to leave
+ * out ports the SPC700 cleared while an original routine ran. */
+extern unsigned long apu_port_clears[2];
+
 void apu_init(Apu *apu);
 
 /* Main-CPU side of the ports (SnesIo-compatible; ctx is the Apu). */

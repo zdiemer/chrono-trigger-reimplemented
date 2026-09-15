@@ -44,6 +44,11 @@ typedef struct NativeEntry {
      * skips ahead to the next point where $4212's blanking bits can change
      * (hblank end or start, or the line's end); SHADOW mode skips idle entries. */
     bool idle;
+    /* For idle loops polling something other than $4212 (the APU ports): if
+     * nonzero, a waiting pass takes this many master clocks, the loop's own
+     * time per pass, since skipping ahead would change when it sees the other
+     * processor's answer. */
+    uint32_t idle_clocks;
     /* Optional extra precondition, for example for code the game places in
      * RAM: return false unless the bytes at the entry are the code the port was
      * written for (see m_code_matches). It runs on the real machine in every
