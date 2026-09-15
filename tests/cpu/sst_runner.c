@@ -1,7 +1,9 @@
 /* Runs converted SingleStepTests 65816 files (see fetch_sst.py) against the
- * interpreter.
+ * interpreter, or, built as sst_recomp_runner (SST_RECOMP), against the C that
+ * tools/recomp generates for each instruction.
  *
  *   sst_runner [-v] tests/cpu/data/<op>.<mode>.bin ...
+ *   sst_recomp_runner [-v] tests/cpu/data/<op>.<mode>.bin ...
  *
  * Prints one line per file and a summary; exits non-zero on any failure.
  */
@@ -12,6 +14,20 @@
 
 #include "../../runtime/cpu/cpu65816.h"
 
+#ifdef SST_RECOMP
+#include "sst_recomp.h"
+
+/* The generated function for the opcode at PC and the current widths. */
+static void step(Cpu *cpu)
+{
+    uint8_t opcode = sst_mem[cpu_pc24(cpu)];
+    int ctx = cpu->e ? 4 : ((cpu->p & CPU_FLAG_M) ? 0 : 2) + ((cpu->p & CPU_FLAG_X) ? 0 : 1);
+    sst_recomp_table[opcode][ctx](cpu);
+}
+#else
+#define step cpu_step
+#endif
+
 typedef struct {
     uint16_t pc, s, a, x, y, d;
     uint8_t p, dbr, pbr, e;
@@ -20,11 +36,11 @@ typedef struct {
     uint8_t *val;
 } State;
 
-static uint8_t *mem;
-static unsigned bus_cycles;
+uint8_t *sst_mem;
+unsigned sst_bus_cycles;
 
-static uint8_t bus_read(void *ctx, uint32_t addr) { (void)ctx; bus_cycles++; return mem[addr]; }
-static void bus_write(void *ctx, uint32_t addr, uint8_t v) { (void)ctx; bus_cycles++; mem[addr] = v; }
+static uint8_t bus_read(void *ctx, uint32_t addr) { (void)ctx; sst_bus_cycles++; return sst_mem[addr]; }
+static void bus_write(void *ctx, uint32_t addr, uint8_t v) { (void)ctx; sst_bus_cycles++; sst_mem[addr] = v; }
 
 static const uint8_t *rd_state(const uint8_t *p, State *s)
 {
@@ -77,15 +93,15 @@ static int run_file(const char *path, int verbose, long *tests_out, long *cycle_
             want_cycles = p[0] | p[1] << 8;
             p += 2;
         }
-        for (int i = 0; i < in.ram_count; i++) mem[in.addr[i]] = in.val[i];
+        for (int i = 0; i < in.ram_count; i++) sst_mem[in.addr[i]] = in.val[i];
 
         cpu.pc = in.pc; cpu.s = in.s; cpu.p = in.p; cpu.a = in.a; cpu.x = in.x; cpu.y = in.y;
         cpu.db = in.dbr; cpu.d = in.d; cpu.pb = in.pbr; cpu.e = in.e;
         cpu.nmi_pending = cpu.irq_line = cpu.waiting = cpu.stopped = false;
         if (cpu.e)   /* S is confined to page 1 in emulation mode */
             cpu.s = 0x0100 | (cpu.s & 0xFF);
-        uint8_t opcode = mem[(uint32_t)in.pbr << 16 | in.pc];
-        bus_cycles = 0;
+        uint8_t opcode = sst_mem[(uint32_t)in.pbr << 16 | in.pc];
+        sst_bus_cycles = 0;
         cpu.io_cycles = 0;
         if (opcode == 0x44 || opcode == 0x54) {
             /* The suite captures block moves partway through, after a fixed number of
@@ -93,10 +109,10 @@ static int run_file(const char *path, int verbose, long *tests_out, long *cycle_
              * don't compare PC. */
             uint16_t iterations = (uint16_t)(in.a - out.a);
             for (unsigned i = 0; i < iterations; i++)
-                cpu_step(&cpu);
+                step(&cpu);
             cpu.pc = out.pc;
         } else {
-            cpu_step(&cpu);
+            step(&cpu);
         }
 
         char why[256] = "";
@@ -109,13 +125,13 @@ static int run_file(const char *path, int verbose, long *tests_out, long *cycle_
         CHK(y, out.y, 4) CHK(db, out.dbr, 2) CHK(d, out.d, 4) CHK(pb, out.pbr, 2) CHK(e, out.e, 1)
 #undef CHK
         for (int i = 0; i < out.ram_count; i++) {
-            if (mem[out.addr[i]] != out.val[i] && n < (int)sizeof why - 40)
+            if (sst_mem[out.addr[i]] != out.val[i] && n < (int)sizeof why - 40)
                 n += snprintf(why + n, sizeof why - n, " [%06X]=%02X(want %02X)",
-                              out.addr[i], mem[out.addr[i]], out.val[i]);
+                              out.addr[i], sst_mem[out.addr[i]], out.val[i]);
         }
         /* Cycle counts aren't comparable for block moves (captured mid-instruction) or
          * WAI/STP (the suite adds one cycle of harness idle after the halt). */
-        unsigned got_cycles = bus_cycles + cpu.io_cycles;
+        unsigned got_cycles = sst_bus_cycles + cpu.io_cycles;
         bool cycles_comparable = opcode != 0x44 && opcode != 0x54 && opcode != 0xCB && opcode != 0xDB;
         if (has_cycles && cycles_comparable && got_cycles != want_cycles) {
             if (n < (int)sizeof why - 40)
@@ -127,8 +143,8 @@ static int run_file(const char *path, int verbose, long *tests_out, long *cycle_
                 printf("  test %u:%s\n", t, why);
             failures++;
         }
-        for (int i = 0; i < in.ram_count; i++) mem[in.addr[i]] = 0;
-        for (int i = 0; i < out.ram_count; i++) mem[out.addr[i]] = 0;
+        for (int i = 0; i < in.ram_count; i++) sst_mem[in.addr[i]] = 0;
+        for (int i = 0; i < out.ram_count; i++) sst_mem[out.addr[i]] = 0;
         free_state(&in);
         free_state(&out);
     }
@@ -142,7 +158,7 @@ int main(int argc, char **argv)
 {
     int verbose = 0, files = 0, bad_files = 0;
     long total = 0, total_fail = 0, total_cycle_fail = 0;
-    mem = calloc(1 << 24, 1);
+    sst_mem = calloc(1 << 24, 1);
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-v")) { verbose = 3; continue; }
         long n = 0, cycle_fails = 0;

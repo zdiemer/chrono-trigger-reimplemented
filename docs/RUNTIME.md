@@ -33,12 +33,15 @@ writes the sound (32000 Hz stereo, see S-DSP below).
 | `runtime/snes/ppu.c` | VRAM/CGRAM/OAM access, decoded scroll/Mode 7/color registers, multiply, counters | Oracle traces |
 | `runtime/snes/render.c` | Scanline renderer with Snes9x-compatible output colors | Snes9x framebuffers (see Renderer) |
 | `runtime/snes/system.c` | Scanline timing, NMI/IRQ, HDMA, auto-joypad | Oracle traces |
+| `runtime/port/recomp.h` | Instruction semantics for generated code ([RECOMP.md](RECOMP.md)) | SingleStepTests, 5.12M cases with cycle counts; the interpreter on the SNES bus |
 
 Build the conformance runners with the same CMake project (`sst_runner`,
 `spc700_runner`); test data comes from `tests/cpu/fetch_sst.py` and
 `tests/apu/fetch_sst_spc700.py`. `dsp_test` needs no data: it checks the
 envelope rate counter, BRR decoding, and key-on, envelope, ENDX and echo
-timing, and must print "all checks passed".
+timing, and must print "all checks passed". `sst_recomp_runner` (same CPU test
+data) and `recomp_bus_diff` check the static recompiler's instruction
+translation ([RECOMP.md](RECOMP.md)); they're built when Python 3.11+ is found.
 
 ## Design notes
 

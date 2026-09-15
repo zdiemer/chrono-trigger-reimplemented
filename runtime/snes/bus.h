@@ -80,6 +80,11 @@ void snes_bus_init(SnesBus *bus, const uint8_t *rom, size_t rom_size, SnesIo io)
 uint8_t snes_bus_read(void *bus, uint32_t addr);
 void snes_bus_write(void *bus, uint32_t addr, uint8_t value);
 
+/* Master clocks one access to addr takes (what snes_bus_read and snes_bus_write
+ * charge), for code that accounts for accesses it doesn't make, such as
+ * generated code standing in for instruction fetches. */
+uint32_t snes_bus_access_clocks(const SnesBus *bus, uint32_t addr);
+
 /* Side-effect-free read for debuggers and tracing. I/O reads return open bus. */
 uint8_t snes_bus_peek(const SnesBus *bus, uint32_t addr);
 

@@ -257,6 +257,8 @@ static void run_dma(SnesBus *bus, uint8_t channels)
 
 /* ---- public ------------------------------------------------------------------ */
 
+uint32_t snes_bus_access_clocks(const SnesBus *bus, uint32_t addr) { return access_clocks(bus, addr); }
+
 uint8_t snes_bus_read(void *ctx, uint32_t addr)
 {
     SnesBus *bus = ctx;

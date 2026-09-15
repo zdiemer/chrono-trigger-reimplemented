@@ -101,6 +101,34 @@ add_executable(spc700_runner tests/apu/spc700_runner.c runtime/apu/spc700.c)
 add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c)
 target_include_directories(dsp_test PRIVATE runtime)
 
+# Instruction translation (tools/recomp, docs/RECOMP.md), with C generated into
+# the build tree for every opcode and context: sst_recomp_runner runs it on the
+# same test data as sst_runner; recomp_bus_diff binds it to the development
+# system's bus and compares it with the interpreter there.
+find_package(Python3 3.11 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  set(RECOMP_SST_DIR ${CMAKE_CURRENT_BINARY_DIR}/recomp_sst)
+  set(RECOMP_SST_SOURCES ${RECOMP_SST_DIR}/table.c)
+  foreach(i 0 1 2 3 4 5 6 7 8 9 a b c d e f)
+    list(APPEND RECOMP_SST_SOURCES ${RECOMP_SST_DIR}/ops_${i}.c)
+  endforeach()
+  file(GLOB RECOMP_TOOL_SOURCES CONFIGURE_DEPENDS tools/recomp/*.py)
+  add_custom_command(OUTPUT ${RECOMP_SST_SOURCES}
+    COMMAND ${Python3_EXECUTABLE} -m tools.recomp.sst --out ${RECOMP_SST_DIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    DEPENDS ${RECOMP_TOOL_SOURCES} tools/disasm/cpu.py
+    COMMENT "Translating every opcode for sst_recomp_runner")
+  add_executable(sst_recomp_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c ${RECOMP_SST_SOURCES})
+  target_compile_definitions(sst_recomp_runner PRIVATE SST_RECOMP)
+  target_include_directories(sst_recomp_runner PRIVATE runtime tests/cpu)
+  add_executable(recomp_bus_diff tests/cpu/recomp_bus_diff.c ${RECOMP_SST_SOURCES})
+  target_compile_definitions(recomp_bus_diff PRIVATE SST_RECOMP_SNES)
+  target_include_directories(recomp_bus_diff PRIVATE tests/cpu)
+  target_link_libraries(recomp_bus_diff PRIVATE ct_runtime)
+else()
+  message(STATUS "Python 3.11+ not found: not building sst_recomp_runner and recomp_bus_diff")
+endif()
+
 if(MINGW)
   target_link_options(ct_dev PRIVATE -static)
 endif()
