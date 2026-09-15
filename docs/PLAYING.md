@@ -30,11 +30,17 @@ committed.
 ## Run
 
 ```sh
-dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--mute] [--native on|shadow|off] [--save-dir dir]
+dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--mute] [--native on|shadow|off] \
+    [--recomp only|on|off] [--save-dir dir]
 ```
 
 The ROM can also be given as the only argument, so dropping it onto the
-executable works. `--native off` interprets everything, the reference behavior;
+executable works. By default (`--native on --recomp only`) the game runs as the
+C generated from your ROM at build time ([RECOMP.md](RECOMP.md)), which keeps
+the original's timing exactly: it behaves frame for frame like `--native off`.
+`--recomp on` adds the hand-ported routines, whose timing is estimated, so
+events can drift from the original (the game still works, but a battle may
+play out differently). `--native off` interprets everything, the reference behavior;
 `--native shadow` also interprets everything and checks each ported routine
 against it as it goes (the title bar shows "shadow mismatch" if one differs,
 and the details are printed on exit).
@@ -101,9 +107,9 @@ power-on, so a recording:
   starts it with a cartridge save instead (for reaching later parts of the
   game quickly); the movie records the save's CRC-32, and `ct_dev` then needs
   the same file with `--sram`;
-- runs in shadow mode (or `--native off`), because on mode changes the timing
-  and the movie wouldn't replay the same. Shadow mode also checks the ported
-  routines while you play;
+- runs in shadow mode by default, which also checks the ported routines while
+  you play. `--native off`, or `--native on` with the default `--recomp only`
+  (fastest), keep the timing exact too; `--recomp on` doesn't, so it's refused;
 - can continue an existing movie: `--movie base.ctm` replays it at full speed
   first (up to its last input, or `--movie-frames N`), and the recording holds
   its input followed by yours;

@@ -1,7 +1,7 @@
 /* ct_play: plays the game in a window, with the ported routines running natively
  * and the rest on the development system (docs/PLAYING.md).
  *
- *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp on|off]
+ *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp only|on|off]
  *           [--save-dir dir]
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
@@ -123,7 +123,10 @@ static void usage(FILE *out)
             "  --mute               no sound\n"
             "  --native MODE        on: run ported routines natively (default); off: interpret everything;\n"
             "                       shadow: interpret, and check each ported routine against the original\n"
-            "  --recomp on|off      register the blocks generated from the ROM at build time (default on)\n"
+            "  --recomp MODE        only: in on mode, run the blocks generated from the ROM without the ported\n"
+            "                       routines, which keeps the original timing exactly (default); on: generated\n"
+            "                       blocks and ported routines (the ported routines' timing is estimated);\n"
+            "                       off: no generated blocks\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
             "\n"
             "Movies:\n"
@@ -800,7 +803,7 @@ int main(int argc, char **argv)
     int movie_sram = 0;
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
-    bool native_given = false, recomp = true;
+    bool native_given = false, recomp = true, recomp_only = true;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
     bool fullscreen = false;
@@ -850,10 +853,11 @@ int main(int argc, char **argv)
             nholds++;
         }
         else if (!strcmp(a, "--recomp")) {
-            if (!strcmp(v, "off")) recomp = false;
-            else if (!strcmp(v, "on")) recomp = true;
+            if (!strcmp(v, "off")) recomp = false, recomp_only = false;
+            else if (!strcmp(v, "on")) recomp = true, recomp_only = false;
+            else if (!strcmp(v, "only")) recomp = true, recomp_only = true;
             else {
-                fprintf(stderr, "--recomp must be on or off\n");
+                fprintf(stderr, "--recomp must be only, on or off\n");
                 return 2;
             }
         }
@@ -882,9 +886,9 @@ int main(int argc, char **argv)
     if (t->record_path) {
         /* A movie replays the same only where the original code's timing is kept,
          * from power-on with the SRAM ct_dev starts with. */
-        if (native_given && pl.native_mode == NATIVE_ON) {
-            fprintf(stderr, "--record needs --native shadow or off: on mode changes timing, so the movie "
-                            "wouldn't replay the same\n");
+        if (native_given && pl.native_mode == NATIVE_ON && !recomp_only) {
+            fprintf(stderr, "--record needs --native shadow or off, or on with --recomp only: ported routines "
+                            "change timing, so the movie wouldn't replay the same\n");
             return 2;
         }
         if (load_state_path) {
@@ -930,11 +934,20 @@ int main(int argc, char **argv)
         recomp = false;
     }
     int nrecomp = recomp ? recomp_native_count : 0;
-    pl.table = malloc(sizeof *pl.table * (size_t)(game_native_count + nrecomp + 1));
-    memcpy(pl.table, game_natives, sizeof *pl.table * (size_t)game_native_count);
+    /* In on mode, generated blocks alone keep the original's timing exactly;
+     * ported routines charge estimated time (docs/RECOMP.md, M2). Shadow and off
+     * modes don't depend on timing, so they keep the ported routines. Without
+     * generated blocks, the ported routines run. */
+    int nported = recomp_only && nrecomp > 0 && pl.native_mode == NATIVE_ON ? 0 : game_native_count;
+    pl.table = malloc(sizeof *pl.table * (size_t)(nported + nrecomp + 1));
+    memcpy(pl.table, game_natives, sizeof *pl.table * (size_t)nported);
     if (nrecomp)
-        memcpy(pl.table + game_native_count, recomp_natives, sizeof *pl.table * (size_t)nrecomp);
-    pl.table_count = game_native_count + nrecomp;
+        memcpy(pl.table + nported, recomp_natives, sizeof *pl.table * (size_t)nrecomp);
+    pl.table_count = nported + nrecomp;
+    if (t->record_path && pl.native_mode == NATIVE_ON && nported) {
+        fprintf(stderr, "--record with --native on needs the generated blocks, which this build or ROM lacks\n");
+        return 2;
+    }
     render_init(&pl.renderer);
     pl.snes.on_line = on_line;
     pl.snes.on_line_ctx = &pl.renderer;
