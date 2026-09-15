@@ -782,7 +782,11 @@ move stub over the program, the patches below).
   `patch_3634_swap` (`$7E:45C9` and `$7E:45D1` overwrite `INX`, `NOP` with a
   `BRA` or with `NOP`, `INX`), `patch_510d_return` (`$7E:4880` writes an
   `RTS`), `patch_a074_nops` (the Beyond Time ending replaces a `BCS` with two
-  `NOP`s around a call). Their images come from simulating the stores
+  `NOP`s around a call), `patch_582e_bra` (`$7E:5640` turns the `BMI` choosing
+  a star's sprite attribute in the star field task into a `BRA` to the next
+  instruction, from the Dream Project ending's staff credits and from mode 4's
+  sequence script; found later by the player's misses file, below). Their
+  images come from simulating the stores
   (`writes`, now also from code in a section, with long loads from an image as
   constants). Every address a patch or `over` section covers, and the one after
   it, is an entry in every space, so no block runs across the patch boundary.
@@ -1040,6 +1044,34 @@ the miss, stops the game and says where.
 
 Feeding the misses file back is the same as for `ct_dev --misses` reports
 ("Misses fed back"): add it to `CT_RECOMP_COVERAGE` and rebuild.
+
+### A patch the library didn't reach
+
+A fallback player replaying an ending logged 26 misses at `$7E:5805-583D`, the
+star field task's sprite loop in the program at `$7E:3000`, one of them
+`RAM modified (opcode)` at `$7E:582E`: the whole run between the `PLP`s at
+`$7E:5804` and `$7E:583D` fell back to the interpreter, since its block's guard
+covers the patched `BMI`. Coverage can't fix that, as the code is already
+analysed; a patch the hints don't describe needs a section. The run was
+`endings-telepod-lavos` re-recorded for the DMA, HDMA and refresh timing change
+(the version before it, and `endings-beyond-time`, which now loses its final
+battle, don't get that far): `--native on --recomp only --misses` over
+140000 frames gave the same 26 addresses, 1298176 runs each, all after the
+program dispatches mode `$0D` for the staff credits (frame 129854). A bus write
+watch in a scratch build of `ct_dev` (`--native off`) showed `$7E:5643` storing
+the word at `$582E` three frames later, from `JSR $5640` at `$7E:8F8B`, and no
+other write there while the program ran. The analysis has that `STA` as the only
+store addressing `$582E-582F` in RAM code, with a constant value, so
+`patch_582e_bra` (a `writes` section of `$7E:5640-5643`, 16-bit) is its only
+variant; sequence command `$A0` at `$7E:55EA` (mode 4's script) calls the same
+routine.
+
+With the section (12418 blocks, 6 more): the telepod run has 0 misses and its
+`--native on --recomp only` trace is identical to `--native off` over all 140000
+frames (`trace.py diff --framebuffer`), and in `--native shadow` its 485100616
+block checks have 0 mismatched; `new-game` and `gato-battle` have 0 misses,
+`new-game`'s trace is identical too, and the six main movies in shadow mode
+have 0 mismatched blocks and hand ports.
 
 ## Cleanup into hand ports (M5)
 

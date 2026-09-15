@@ -1505,6 +1505,31 @@ x = 16
 format = "writes"
 size = 2
 
+# $7E:582E-582F (BMI $5834 in the image, where the star field task $7E:579B picks
+# a sprite's attribute byte) become BRA $5830, a branch to the next instruction,
+# so every star takes the fall-through attribute: $7E:5640-5643 loads a constant
+# with 16-bit A and stores the word at $582E. Two sites run it: JSR $5640 at
+# $7E:8F8B in the handler of mode $0D (after REP #$20 at $7E:8F85; the Dream
+# Project ending's staff credits, which then start the script at $7E:93E3 that
+# adds the task) and sequence command $A0 at $7E:55EA (mode 4's script). The STA at
+# $7E:5643 is the only store in analysed RAM code addressing $582E or $582F
+# (absolute, long, or indexed from up to $400 below), and its value is a constant,
+# so the patch has one image. Nothing in the program writes the BMI back; entering
+# the program through C3:0000 decompresses it again. Found by the fallback player's misses file
+# (docs/RECOMP.md, "Without the interpreter"): endings-telepod-lavos, retimed,
+# reaches the credits, and a bus write watch shows $7E:5643 writing the word
+# 3 frames after the program dispatches mode $0D, and nothing else writing it there.
+[[ramcode]]
+name = "patch_582e_bra"
+patch = "attract_program"
+base = "7E:582E"
+source = "7E:5640"
+end = "7E:5643"
+m = 16
+x = 16
+format = "writes"
+size = 2
+
 # Task handlers of the attract program that never return: each ends in a JMP
 # to the task lists' exit code ($7E:34BF to $7E:39B1, $7E:34E0 to $7E:39A7,
 # $7E:4674 to $7E:39DE), which pulls and drops the handler's return address
