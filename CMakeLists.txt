@@ -68,6 +68,10 @@ add_library(ct_game STATIC
   game/field/window_shape.c
   game/menu/frame.c
   game/menu/glyphs.c
+  game/menu/objects.c
+  game/menu/save_screen.c
+  game/menu/text.c
+  game/menu/vram.c
   game/attract/main_loop.c
   game/scene/bitmap.c
   game/scene/math.c
