@@ -6,6 +6,7 @@
 #include "battle/menu_window.h"
 #include "battle/main_loop.h"
 #include "battle/window.h"
+#include "battle/setup.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "core/palette.h"
@@ -160,6 +161,10 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3430 },
     { .addr = 0xCFF9FB, .name = "battle_sine_scale", .fn = battle_sine_scale, NEEDS_M8_X16_BINARY, .cost_milli = 3507 },
     { .addr = 0xCFF978, .name = "battle_step_orbits", .fn = battle_step_orbits, NEEDS_M8_X16_BINARY, .cost_milli = 3243 },
+    { .addr = 0xCCE2E4, .name = "battle_setup_state", .fn = battle_setup_state, NEEDS_M8_X16_BINARY,
+      .cost_milli = 8292, .dont_care = DC_X | DC_N },
+    { .addr = 0xCCED87, .name = "battle_setup_graphics", .fn = battle_setup_graphics, NEEDS_M8_X16_BINARY,
+      .cost_milli = 5190 },
     { .addr = 0xCCF06B, .name = "battle_reset_object_state", .fn = battle_reset_object_state, NEEDS_M8_X16,
       .cost_milli = 7433 },
     { .addr = 0xC1B575, .name = "battle_update_combo_members", .fn = battle_update_combo_members, NEEDS_M8_X16,
