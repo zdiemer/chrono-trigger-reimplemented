@@ -3,7 +3,7 @@
 #include "attract/attract.h"
 #include "battle/animation.h"
 #include "battle/battle.h"
-#include "battle/windows.h"
+#include "battle/menu_window.h"
 #include "battle/main_loop.h"
 #include "battle/window.h"
 #include "core/display.h"

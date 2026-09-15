@@ -6,7 +6,7 @@
  * the command list and the tech list). The cursor sprites are four 4-byte
  * entries at $0700 (x, y, tile, attributes) with their size and visibility
  * bits in $0900. */
-#include "battle/windows.h"
+#include "battle/menu_window.h"
 
 #include "port/machine.h"
 

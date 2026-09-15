@@ -1,11 +1,11 @@
 /* Battle: the menu window's contents and cursor sprites, and the damage
  * number sprites. */
-#ifndef CT_GAME_BATTLE_WINDOWS_H
-#define CT_GAME_BATTLE_WINDOWS_H
+#ifndef CT_GAME_BATTLE_MENU_WINDOW_H
+#define CT_GAME_BATTLE_MENU_WINDOW_H
 
 #include "snes/system.h"
 
-/* battle/windows.c */
+/* battle/menu_window.c */
 void battle_draw_menu_window(Snes *s);
 void battle_place_menu_cursors(Snes *s);
 

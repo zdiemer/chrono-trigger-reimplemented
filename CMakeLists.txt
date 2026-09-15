@@ -68,6 +68,7 @@ add_library(ct_game STATIC
   game/battle/gauges.c
   game/battle/main_loop.c
   game/battle/math.c
+  game/battle/menu_window.c
   game/battle/nmi.c
   game/battle/numbers.c
   game/battle/objects.c
@@ -77,8 +78,7 @@ add_library(ct_game STATIC
   game/battle/tiles.c
   game/battle/timers.c
   game/battle/wait.c
-  game/battle/window.c
-  game/battle/windows.c)
+  game/battle/window.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 

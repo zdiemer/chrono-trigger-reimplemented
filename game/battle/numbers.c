@@ -5,7 +5,7 @@
  * built from each combatant's number in $AD9C (a 4-byte record per combatant
  * at $AD9C + $CC:F829 offset: value, then a kind at $AD9E). Presumably damage
  * and recovery numbers. */
-#include "battle/windows.h"
+#include "battle/menu_window.h"
 
 #include "port/machine.h"
 
