@@ -132,6 +132,11 @@ uint64_t native_generated_instructions(void);
  * the system runs. For attributing hardware access (ct_dev --io-log). */
 const NativeEntry *native_running_entry(void);
 
+/* The first hand-written entry (idle entries included) registered at the
+ * machine's PC whose precondition and guard hold, or NULL. For running
+ * registered code synchronously (the APU-direct audio backend). */
+const NativeEntry *native_hand_entry(Snes *s);
+
 /* Number of registered routines entered and not yet left (suspended in
  * call-outs, or awaiting shadow comparison). Save states taken while this is
  * nonzero can't restore those routines. */

@@ -2,7 +2,7 @@
  * and the rest on the development system (docs/PLAYING.md).
  *
  *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp only|on|off]
- *           [--save-dir dir]
+ *           [--audio snes|direct] [--save-dir dir]
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
  *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm] [--wav out.wav]
@@ -28,6 +28,8 @@
 
 #include "media.h"
 #include "movie.h"
+#include "platform/audio.h"
+#include "port/machine.h"
 #include "port/recomp_table.h"
 #include "registry.h"
 #include "snes/render.h"
@@ -158,6 +160,9 @@ static void usage(FILE *out)
             "                       routines, which keeps the original timing exactly (default); on: generated\n"
             "                       blocks and ported routines (the ported routines' timing is estimated);\n"
             "                       off: no generated blocks\n"
+            "  --audio BACKEND      snes: the APU on the machine's timeline (default); direct: the sound driver's\n"
+            "                       uploads and commands take no CPU time (APU-direct; needs --native on, and\n"
+            "                       runs the ported routines, so --recomp on is implied)\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
             "\n"
             "Movies:\n"
@@ -598,7 +603,7 @@ static void audio_frame(Audio *a, Snes *snes, bool paused)
 {
     if (!a->dev || paused) {
         int16_t discard[256 * 2];
-        while (apu_take_samples(&snes->apu, discard, 256))
+        while (au_take_samples(m_platform(snes), discard, 256))
             ;
         if (a->dev) {
             if (a->playing)
@@ -609,8 +614,8 @@ static void audio_frame(Audio *a, Snes *snes, bool paused)
         return;
     }
 
-    a->in_count += apu_take_samples(&snes->apu, a->in + a->in_count * 2,
-                                    sizeof a->in / sizeof a->in[0] / 2 - a->in_count);
+    a->in_count += au_take_samples(m_platform(snes), a->in + a->in_count * 2,
+                                   sizeof a->in / sizeof a->in[0] / 2 - a->in_count);
 
     SDL_LockAudioDevice(a->dev);
     size_t fill = a->count;
@@ -683,7 +688,7 @@ static int run_headless(Player *pl, long frames, const Hold *holds, int nholds, 
                 pad |= holds[i].buttons;
         }
         step(pl, pad);
-        ct_wav_write(&wav, audio, apu_take_samples(&pl->snes.apu, audio, DSP_OUT_FRAMES));
+        ct_wav_write(&wav, audio, au_take_samples(m_platform(&pl->snes), audio, DSP_OUT_FRAMES));
     }
     sram_flush(pl);
     int rc = track_write(pl) != 0;
@@ -936,7 +941,7 @@ int main(int argc, char **argv)
     int movie_sram = 0;
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
-    bool native_given = false, recomp = true, recomp_only = true;
+    bool native_given = false, recomp = true, recomp_only = true, recomp_given = false, audio_direct = false;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
     bool fullscreen = false;
@@ -985,7 +990,16 @@ int main(int argc, char **argv)
             }
             nholds++;
         }
+        else if (!strcmp(a, "--audio")) {
+            if (!strcmp(v, "snes") || !strcmp(v, "direct")) {
+                audio_direct = strcmp(v, "direct") == 0;
+            } else {
+                fprintf(stderr, "--audio must be snes or direct\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--recomp")) {
+            recomp_given = true;
             if (!strcmp(v, "off")) recomp = false, recomp_only = false;
             else if (!strcmp(v, "on")) recomp = true, recomp_only = false;
             else if (!strcmp(v, "only")) recomp = true, recomp_only = true;
@@ -1021,6 +1035,15 @@ int main(int argc, char **argv)
         return 2;
     }
     Track *t = &pl.track;
+    if (audio_direct) {
+        /* APU-direct runs in the sound driver's ported routines and changes timing */
+        if (pl.native_mode != NATIVE_ON || t->record_path || (recomp_given && recomp_only)) {
+            fprintf(stderr, "--audio direct needs --native on with the ported routines (not --recomp only), "
+                            "and can't record: it changes the original's timing\n");
+            return 2;
+        }
+        recomp_only = false;
+    }
     if (t->record_path) {
         /* A movie replays the same only where the original code's timing is kept,
          * from power-on with the SRAM ct_dev starts with. */
@@ -1136,6 +1159,8 @@ int main(int argc, char **argv)
     /* Replaying for a recording runs uninterrupted interpretation, which keeps the
      * same timing as shadow mode and is several times faster. */
     natives_start(&pl, t->replay_frames && pl.native_mode == NATIVE_SHADOW ? NATIVE_OFF : pl.native_mode);
+    if (audio_direct)
+        au_select_backend(m_platform(&pl.snes), AU_BACKEND_DIRECT);
     if (load_state_path && state_load(&pl, load_state_path) != 0)
         return 1;
     if (t->record_path)

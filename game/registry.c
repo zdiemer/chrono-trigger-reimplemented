@@ -7,6 +7,7 @@
 #include "battle/main_loop.h"
 #include "battle/window.h"
 #include "battle/setup.h"
+#include "battle/sound.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "core/memory.h"
@@ -24,6 +25,8 @@
 #include "scene/scene.h"
 #include "menu/objects.h"
 #include "menu/save_screen.h"
+#include "menu/sound.h"
+#include "scene/sound.h"
 #include "menu/text.h"
 #include "menu/vram.h"
 
@@ -65,6 +68,16 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCCF05B, .name = "battle_wait_setup_counter_loop", .fn = battle_wait_setup_counter_loop, NEEDS_M8,
       .idle = true },
     { .addr = 0xC1003C, .name = "battle_wait_ca1f_loop", .fn = battle_wait_ca1f_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xCD3E49, .name = "battle_sound_pause", .fn = battle_sound_pause, NEEDS_M8,
+      .cost_milli = 4000, .guard = battle_sound_bank_reaches_1e00 },
+    { .addr = 0xCD3E65, .name = "battle_sound_resume", .fn = battle_sound_resume, NEEDS_M8, .cost_milli = 4000,
+      .guard = battle_sound_bank_reaches_1e00 },
+    { .addr = 0xCD042B, .name = "battle_wait_sound_port1_or_2a1f", .fn = battle_wait_sound_port1_or_2a1f, NEEDS_M8,
+      .cost_milli = 6940 },
+    { .addr = 0xCD0D9C, .name = "battle_wait_sound_port1_0d9c", .fn = battle_wait_sound_port1_0d9c, NEEDS_M8,
+      .cost_milli = 4000 },
+    { .addr = 0xCD0DB7, .name = "battle_wait_sound_port1_0db7", .fn = battle_wait_sound_port1_0db7, NEEDS_M8,
+      .cost_milli = 4000 },
     { .addr = 0xD1FEB8, .name = "battle_irq_wait_hblank_loop", .fn = battle_irq_wait_hblank_loop, NEEDS_M8,
       .idle = true },
     { .addr = 0xCD06C4, .name = "battle_update_scroll_tables", .fn = battle_update_scroll_tables,
@@ -232,38 +245,82 @@ const NativeEntry game_natives[] = {
       .cost_milli = 4118 },
     { .addr = 0xFDE8D7, .name = "palette_fade_toward_white", .fn = palette_fade_toward_white,
       NEEDS_M8_X16_BINARY, .cost_milli = 4874 },
-    /* sound driver: the routines stop at the APU echo waits, which run in the
-     * original, and further entries continue where a wait exits */
+    /* sound driver: the routines stop at the APU echo waits, which are idle
+     * entries, and further entries continue where a wait exits. Every entry
+     * but $C7:0000 and $C7:0004 reaches the ports through the data bank. */
+    { .addr = 0xC70000, .name = "sound_driver_boot", .fn = sound_driver_boot, .cost_milli = 2969 },
+    { .addr = 0xC7005F, .name = "sound_driver_boot_start", .fn = sound_driver_boot_start, NEEDS_M8_X16,
+      .cost_milli = 5167, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC7007D, .name = "sound_driver_boot_block", .fn = sound_driver_boot_block, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3065, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC700B0, .name = "sound_driver_boot_next_byte", .fn = sound_driver_boot_next_byte, NEEDS_M8_X16,
+      .cost_milli = 3381, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC700FB, .name = "sound_driver_boot_started", .fn = sound_driver_boot_started, NEEDS_M8_X16_BINARY,
+      .cost_milli = 7613, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70004, .name = "sound_driver_command", .fn = sound_driver_command, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 3100 },
     { .addr = 0xC7063D, .name = "sound_driver_command_timed_out", .fn = sound_driver_command_timed_out,
-      NEEDS_M8_X16, .cost_milli = 4094 },
+      NEEDS_M8_X16, .cost_milli = 4094, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70643, .name = "sound_driver_command_echoed", .fn = sound_driver_command_echoed,
       NEEDS_M8_X16_BINARY, .cost_milli = 3143 },
     { .addr = 0xC70614, .name = "sound_driver_upload_finished", .fn = sound_driver_upload_finished, NEEDS_M8_X16,
       .cost_milli = 4450 },
     { .addr = 0xC70655, .name = "sound_driver_upload_block", .fn = sound_driver_upload_block,
-      NEEDS_M16_X16_BINARY, .cost_milli = 2650 },
+      NEEDS_M16_X16_BINARY, .cost_milli = 2650, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70922, .name = "sound_driver_upload_2f00_data", .fn = sound_driver_upload_2f00_data, NEEDS_M8_X16,
-      .cost_milli = 2821 },
+      .cost_milli = 2821, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC708FF, .name = "sound_driver_2f00_command_echoed", .fn = sound_driver_2f00_command_echoed,
+      NEEDS_M8_X16, .cost_milli = 4500, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70A39, .name = "sound_driver_send_song", .fn = sound_driver_send_song, NEEDS_M8_X16_BINARY,
-      .cost_milli = 4380 },
+      .cost_milli = 4380, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70A79, .name = "sound_driver_song_timed_out", .fn = sound_driver_song_timed_out, NEEDS_M8_X16,
-      .cost_milli = 3786 },
+      .cost_milli = 3786, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70A7B, .name = "sound_driver_song_echoed", .fn = sound_driver_song_echoed, NEEDS_M8_X16,
-      .cost_milli = 4300 },
+      .cost_milli = 4300, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70A90, .name = "sound_driver_song_refused", .fn = sound_driver_song_refused, NEEDS_M8_X16,
       .cost_milli = 2941 },
+    { .addr = 0xC709DA, .name = "sound_driver_send_counter", .fn = sound_driver_send_counter, .cost_milli = 4555,
+      .guard = sound_driver_bank_is_system },
+    { .addr = 0xC709EA, .name = "sound_driver_resend_counter", .fn = sound_driver_resend_counter,
+      .cost_milli = 4000, .guard = sound_driver_bank_is_system },
     /* per pass with FastROM: CMP $2140 and a taken branch, 42 master clocks;
-     * with BEQ not taken, DEX and BNE taken, 66 */
+     * with BEQ not taken, DEX and BNE taken, 66; the boot's first loop (two
+     * immediate loads, two writes, a 16-bit CPX and a taken branch), 120 */
+    { .addr = 0xC70050, .name = "sound_driver_boot_wait_ready_loop", .fn = sound_driver_boot_wait_ready_loop,
+      NEEDS_M8_X16, .idle = true, .idle_clocks = 120, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC70078, .name = "sound_driver_boot_wait_start_loop", .fn = sound_driver_boot_wait_start_loop,
+      NEEDS_M8, .idle = true, .idle_clocks = 42, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC700AB, .name = "sound_driver_boot_wait_byte_loop", .fn = sound_driver_boot_wait_byte_loop,
+      NEEDS_M8, .idle = true, .idle_clocks = 42, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC700DB, .name = "sound_driver_boot_wait_block_loop", .fn = sound_driver_boot_wait_block_loop,
+      NEEDS_M8, .idle = true, .idle_clocks = 42, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC700F6, .name = "sound_driver_boot_wait_jump_loop", .fn = sound_driver_boot_wait_jump_loop,
+      NEEDS_M8, .idle = true, .idle_clocks = 42, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70635, .name = "sound_driver_wait_command_echo_loop", .fn = sound_driver_wait_command_echo_loop,
-      NEEDS_M8_X16, .idle = true, .idle_clocks = 66 },
+      NEEDS_M8_X16, .idle = true, .idle_clocks = 66, .guard = sound_driver_bank_is_system },
     { .addr = 0xC70A71, .name = "sound_driver_wait_song_echo_loop", .fn = sound_driver_wait_song_echo_loop,
-      NEEDS_M8_X16, .idle = true, .idle_clocks = 66 },
+      NEEDS_M8_X16, .idle = true, .idle_clocks = 66, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC7060C, .name = "sound_driver_wait_upload_echo_loop", .fn = sound_driver_wait_upload_echo_loop,
+      NEEDS_M8_X16, .idle = true, .idle_clocks = 66, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC708CD, .name = "sound_driver_wait_slot_upload_echo_loop",
+      .fn = sound_driver_wait_slot_upload_echo_loop, NEEDS_M8_X16, .idle = true, .idle_clocks = 66,
+      .guard = sound_driver_bank_is_system },
+    { .addr = 0xC70912, .name = "sound_driver_wait_2f00_echo_loop", .fn = sound_driver_wait_2f00_echo_loop,
+      NEEDS_M8_X16, .idle = true, .idle_clocks = 66, .guard = sound_driver_bank_is_system },
     { .addr = 0xC709E0, .name = "sound_driver_wait_echo_loop", .fn = sound_driver_wait_echo_loop, NEEDS_M8,
-      .idle = true, .idle_clocks = 42 },
+      .idle = true, .idle_clocks = 42, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC709F2, .name = "sound_driver_wait_resend_echo_loop", .fn = sound_driver_wait_resend_echo_loop,
+      NEEDS_M8, .idle = true, .idle_clocks = 42, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC708FA, .name = "sound_driver_wait_2f00_command_echo_loop",
+      .fn = sound_driver_wait_2f00_command_echo_loop, NEEDS_M8, .idle = true, .idle_clocks = 42,
+      .guard = sound_driver_bank_is_system },
     { .addr = 0xC70A8B, .name = "sound_driver_wait_port0_change_loop", .fn = sound_driver_wait_port0_change_loop,
-      NEEDS_M8, .idle = true, .idle_clocks = 42 },
+      NEEDS_M8, .idle = true, .idle_clocks = 42, .guard = sound_driver_bank_is_system },
+    { .addr = 0xC708D5, .name = "sound_driver_wait_slot_upload_change_loop",
+      .fn = sound_driver_wait_slot_upload_change_loop, NEEDS_M8, .idle = true, .idle_clocks = 42,
+      .guard = sound_driver_bank_is_system },
+    { .addr = 0xC7091A, .name = "sound_driver_wait_2f00_change_loop", .fn = sound_driver_wait_2f00_change_loop,
+      NEEDS_M8, .idle = true, .idle_clocks = 42, .guard = sound_driver_bank_is_system },
 
     /* core: a block move stub written to RAM (guarded) */
     { .addr = 0x7E9690, .name = "memory_move_stub", .fn = memory_move_stub, .p_mask = CPU_FLAG_X, .p_value = 0,
@@ -609,6 +666,13 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3758 },
     { .addr = 0xC2F871, .name = "menu_draw_record_sprites", .fn = menu_draw_record_sprites, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 4147, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC2CBC1, .name = "menu_wait_sound_port1_cbc1", .fn = menu_wait_sound_port1_cbc1, NEEDS_M8,
+      .cost_milli = 4000 },
+    { .addr = 0xC2CC28, .name = "menu_wait_sound_port1_cc28", .fn = menu_wait_sound_port1_cc28, NEEDS_M8,
+      .cost_milli = 4000 },
+    /* per waiting pass: LDA long (30), AND #imm (12), BEQ taken (18) */
+    { .addr = 0xC2CBE0, .name = "menu_wait_sound_port3_loop", .fn = menu_wait_sound_port3_loop, NEEDS_M8,
+      .idle = true, .idle_clocks = 60 },
 
     /* scenes run from RAM: the bank C3 routines they call */
     { .addr = 0xC30D0E, .name = "scene_load_sprite_list", .fn = scene_load_sprite_list, NEEDS_M16_X16_BINARY,
@@ -621,6 +685,9 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC3094C, .name = "scene_multiply_signed", .fn = scene_multiply_signed,
       .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3162 },
     { .addr = 0xC308B3, .name = "scene_nmi", .fn = scene_nmi, .cost_milli = 3060 },
+    /* per waiting pass: SEP (18), two long reads (30 each), BNE taken (18) */
+    { .addr = 0xC30C2A, .name = "scene_script_wait_sound_port2", .fn = scene_script_wait_sound_port2, .idle = true,
+      .idle_clocks = 96 },
 
     /* scenes run from RAM: the program's routines (guarded) */
     { .addr = 0x7E339F, .name = "scene_divide", .fn = scene_divide, NEEDS_M16_X16_BINARY, .cost_milli = 2053,
@@ -640,6 +707,15 @@ const NativeEntry game_natives[] = {
       .idle = true, .idle_clocks = 68, .guard = scene_wait_apu_port3_present },
     { .addr = 0x7E5211, .name = "scene_wait_39_clear_loop", .fn = scene_wait_39_clear_loop, NEEDS_M16,
       .idle = true, .guard = scene_wait_39_clear_present },
+    { .addr = 0x7E377E, .name = "scene_send_sound_command", .fn = scene_send_sound_command, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 5250, .guard = scene_send_sound_command_present },
+    { .addr = 0x7E3780, .name = "scene_send_sound_command_again", .fn = scene_send_sound_command_again,
+      NEEDS_M8_X16, .cost_milli = 4857, .guard = scene_send_sound_command_present },
+    /* per waiting pass from WRAM: CMP $2140 (30), BEQ not taken (16), DEX (14), BNE taken (22) */
+    { .addr = 0x7E379B, .name = "scene_wait_sound_command_echo_loop", .fn = scene_wait_sound_command_echo_loop,
+      NEEDS_M8_X16, .idle = true, .idle_clocks = 82, .guard = scene_send_sound_command_present },
+    { .addr = 0x7E4BD2, .name = "scene_race_send_sound_parameter", .fn = scene_race_send_sound_parameter, NEEDS_M8,
+      .cost_milli = 5000, .guard = scene_race_sound_present },
 
     /* attract (runs from RAM; guarded) */
     { .addr = 0x7E3023, .name = "attract_wait_loop", .fn = attract_wait_loop, NEEDS_M16, .idle = true,

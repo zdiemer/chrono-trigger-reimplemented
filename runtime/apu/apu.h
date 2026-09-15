@@ -51,6 +51,7 @@ typedef struct Apu {
     ApuTimer timer[3];
 
     int64_t budget;      /* time owed to the SPC700 in master clocks x SPC700 Hz; negative is debt */
+    uint64_t lead;       /* master clocks run ahead of the main CPU (apu_run_ahead), not yet absorbed */
     uint64_t spc_cycles; /* total SPC700 cycles run */
 
     /* Optional: called before each SPC700 instruction. */
@@ -70,8 +71,13 @@ void apu_init(Apu *apu);
 uint8_t apu_read_port(void *ctx, uint8_t port);
 void apu_write_port(void *ctx, uint8_t port, uint8_t value);
 
-/* Run the APU for the given number of main-CPU master clocks. */
+/* Run the APU for the given number of main-CPU master clocks. Time it has run
+ * ahead (lead) is absorbed first. */
 void apu_advance(Apu *apu, uint32_t master_clocks);
+
+/* Run the APU for master_clocks ahead of the main CPU, adding them to lead (the
+ * APU-direct audio backend, platform/direct/audio.h). */
+void apu_run_ahead(Apu *apu, uint32_t master_clocks);
 
 /* Move up to max_frames generated stereo frames (32000 Hz, L/R interleaved)
  * into out; returns how many. Up to DSP_OUT_FRAMES wait in the APU; beyond

@@ -6,7 +6,8 @@
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
- *          [--insn-stats] [--io-log out.txt] [--misses out.txt]
+ *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
+ *          [--audio snes|direct]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -33,6 +34,10 @@
  * interpreter"): interrupt entry, WAI and STP without the interpreter, and an
  * instruction no native code runs stops the run (strict, exit status 1) or runs
  * on the interpreter and is reported (fallback).
+ * --audio direct selects the APU-direct audio backend (platform/direct/audio.h):
+ * the sound driver's upload and commands take no main-CPU time. It needs
+ * --native on with the ported routines, and can't keep the original's timing,
+ * so it isn't for validation; snes (the default) is the SNES backend.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,6 +47,8 @@
 #include "misses.h"
 #include "media.h"
 #include "movie.h"
+#include "platform/audio.h"
+#include "port/machine.h"
 #include "port/recomp_table.h"
 #include "registry.h"
 #include "snes/render.h"
@@ -208,7 +215,7 @@ int main(int argc, char **argv)
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     NativeMode native_mode = NATIVE_OFF;
-    bool recomp = true, ports = true, insn_stats = false;
+    bool recomp = true, ports = true, insn_stats = false, audio_direct = false;
     long frames = -1, status_every = 0, shot_every = 0;
     const char *excludes[64];
     int nexcludes = 0;
@@ -246,6 +253,14 @@ int main(int argc, char **argv)
                 return 2;
             }
         }
+        else if (!strcmp(a, "--audio")) {
+            if (!strcmp(v, "snes") || !strcmp(v, "direct")) {
+                audio_direct = strcmp(v, "direct") == 0;
+            } else {
+                fprintf(stderr, "--audio must be snes or direct\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--recomp")) {
             if (!strcmp(v, "off") || !strcmp(v, "on") || !strcmp(v, "only")) {
                 recomp = strcmp(v, "off") != 0;
@@ -275,7 +290,8 @@ int main(int argc, char **argv)
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
-                        "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]\n");
+                        "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
+                        "[--audio snes|direct]\n");
         return 2;
     }
     if (no_interpreter && native_mode != NATIVE_ON) {
@@ -358,6 +374,14 @@ int main(int argc, char **argv)
     }
     native_set_index(natives, index, index_count);
     native_attach(natives, &snes);
+    if (audio_direct) {
+        /* the sound driver's registry entries run the backend */
+        if (native_mode != NATIVE_ON || !ports) {
+            fprintf(stderr, "--audio direct needs --native on with the ported routines (not --recomp only)\n");
+            return 2;
+        }
+        au_select_backend(m_platform(&snes), AU_BACKEND_DIRECT);
+    }
     if (shot_dir)
         make_dir(shot_dir);
 
@@ -402,7 +426,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "cannot open %s\n", wav_path);
             return 1;
         }
-        apu_take_samples(&snes.apu, audio, DSP_OUT_FRAMES);   /* left over in a loaded state */
+        au_take_samples(m_platform(&snes), audio, DSP_OUT_FRAMES);   /* left over in a loaded state */
     }
 
     int rc = 0;
@@ -415,7 +439,7 @@ int main(int argc, char **argv)
             break;
         }
         if (wav_path)
-            ct_wav_write(&wav, audio, apu_take_samples(&snes.apu, audio, DSP_OUT_FRAMES));
+            ct_wav_write(&wav, audio, au_take_samples(m_platform(&snes), audio, DSP_OUT_FRAMES));
 
         if (trace) {
             for (int i = 0; i < 256; i++) {
@@ -456,6 +480,7 @@ int main(int argc, char **argv)
         if (native_failed(natives))
             rc = 1;
     }
+    au_direct_report(stderr);
     if (insn_stats) {
         uint64_t generated = native_generated_instructions();
         fprintf(stderr, "instructions: interpreted %llu (%llu in RAM), generated %llu (%.1f%% generated)\n",

@@ -198,7 +198,7 @@ void apu_write_port(void *ctx, uint8_t port, uint8_t value)
     apu->cpu_in[port & 3] = value;
 }
 
-void apu_advance(Apu *apu, uint32_t master_clocks)
+static void run(Apu *apu, uint32_t master_clocks)
 {
     apu->budget += (int64_t)master_clocks * SPC_HZ;
     while (apu->phase != APU_DRIVER) {
@@ -221,7 +221,7 @@ void apu_advance(Apu *apu, uint32_t master_clocks)
     while (apu->budget > 0) {
         if (apu->spc.pc == 0xFFC0 && (apu->control & 0x80)) {
             enter_ipl(apu);
-            apu_advance(apu, 0);
+            run(apu, 0);
             return;
         }
         if (apu->on_insn)
@@ -231,6 +231,24 @@ void apu_advance(Apu *apu, uint32_t master_clocks)
         apu->spc_cycles += cycles;
         apu->budget -= (int64_t)cycles * MASTER_HZ;
     }
+}
+
+void apu_advance(Apu *apu, uint32_t master_clocks)
+{
+    if (apu->lead) {
+        uint32_t absorbed = apu->lead < master_clocks ? (uint32_t)apu->lead : master_clocks;
+        apu->lead -= absorbed;
+        master_clocks -= absorbed;
+        if (!master_clocks)
+            return;
+    }
+    run(apu, master_clocks);
+}
+
+void apu_run_ahead(Apu *apu, uint32_t master_clocks)
+{
+    apu->lead += master_clocks;
+    run(apu, master_clocks);
 }
 
 size_t apu_take_samples(Apu *apu, int16_t *out, size_t max_frames)

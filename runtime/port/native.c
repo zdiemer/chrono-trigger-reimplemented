@@ -292,6 +292,17 @@ static bool entry_applies(const NativeEntry *e, Snes *s)
     return !e->guard || e->guard(s);
 }
 
+const NativeEntry *native_hand_entry(Snes *s)
+{
+    const NativeRuntime *rt = active_runtime;
+    uint32_t pc = cpu_pc24(&s->cpu);
+    int idx = rt ? find_entry(rt, pc) : -1;
+    for (; idx >= 0 && idx < rt->count && rt->table[idx].addr == pc && !rt->table[idx].generated; idx++)
+        if (entry_applies(&rt->table[idx], s))
+            return &rt->table[idx];
+    return NULL;
+}
+
 /* ---- comparison --------------------------------------------------------------- */
 
 static void detail(NativeRuntime *rt, const char *prefix, const NativeEntry *e, const char *what)
