@@ -26,12 +26,13 @@ Coverage is used three ways:
 
 - **Seeds.** Executed addresses that static tracing didn't reach start new
   contexts with their observed widths.
-- **Return pruning.** When a callee statically returns with widths that its
-  return address never ran with, that continuation is dropped for that call
-  site and listed in the report. These entries point at the root of width
-  over-approximation (a callee with a path that leaves M or X changed only
-  under conditions the run never hit, or never at all), which is worth
-  confirming and pinning with a `returns` hint.
+- **Returns the movies never ran.** When a callee statically returns with
+  widths its return address never ran with, the continuation is still traced
+  and the return is listed in the report. Most are paths the movies didn't
+  take; where following one decodes garbage (a width conflict, BRK/COP), the
+  callee's static exit is an over-approximation to pin with a `returns` or
+  `state` hint. `--prune-returns` drops such continuations instead, for
+  exploration only.
 - **Conflicts.** Executed addresses still decoded statically with different
   widths are listed as errors to fix with hints.
 
@@ -59,6 +60,10 @@ Coverage is used three ways:
   tables' starts and targets, or a target that doesn't decode as plausible code.
   The heuristic runs after everything else is traced and iterates to a fixpoint.
 - Tracing stops at `BRK`, `COP`, `WDM` and `STP`, which almost always mean data.
+- Code the game runs from RAM is traced from images that `[[ramcode]]` hints
+  describe: a stream decompressed with `tools/disasm/lz.py` (the `$C3:0557`
+  format), bytes copied from ROM, or the constants a run of code stores
+  (`writes`). Addresses outside every section stay unmapped.
 
 ## Liveness
 
@@ -82,6 +87,21 @@ it was established. Typical workflow:
 2. Pick an unresolved indirect jump, a suspicious opcode, or a heuristic table.
 3. Inspect it with `tools.disasm.linear` and the listing.
 4. Add an `entry`, `jumptable`, `returns`, `indirect` or `data` hint, then rerun.
+
+Kinds added for the matching disassembly (MD1):
+
+| Hint | Fields | Meaning |
+|---|---|---|
+| `[[data]]` | `start`, `end`, `type`, [`name`], type parameters | never decode as code; `type` is one of `DATA_TYPES` in `tools/disasm/hints.py` (`padding`, `bytes`, `words`, `ptr16`, `ptr24`, `struct` with `size`, `lz`, `brr`, `script` with `format`, `text`, `mixed`, `undetermined`, `header`, `ram_code`, ...); the matching build checks padding, element sizes and lz streams |
+| `[[overlap]]` | `addr`, `m`, `x` | an instruction that really runs with widths giving two lengths; the source writes the decode under m/x and checks the other ends on an instruction |
+| `[[ramcode]]` | `name`, `base`, `source`, `format` = `lz` / `copy` / `writes`, [`size`], [`end`, `m`, `x`], [`over`] | a RAM section: its image at run address `base`; `writes` simulates the stores of the code from `source` to `end`; `over` names a section this one is written over |
+| `[[noreturn]]` | `addr` | as `[noreturn] addrs`, one per entry with its comment |
+| `[[entry]]` without `m`/`x` | | entered with any widths (interrupt handlers) |
+| `[[jumptable]]` `targets` | list | targets of a table filled at run time (`count` may be 0) |
+| `[[indirect]]` on a `JSR`/`JSL` | `at`, `targets` | code writes the call's operand at run time; the targets replace the one in the bytes |
+
+Hints the MD1 work added carry `kind = "unreached"` on entries for code nothing
+found reaches, and live in sections headed "MD1".
 
 ## Known structure
 
@@ -110,10 +130,12 @@ distinct instructions, all of which static tracing already finds.
 
 ## Census and the matching disassembly
 
-`python3 -m tools.disasm.census [--coverage ...]` classifies every ROM byte:
-code and jump tables from the analysis, and in the rest padding, streams in the
-decompressor's format, BRR-like samples and pointer-table-like runs, by
-heuristics. It prints counts per bank only. It measures the remaining work for
+`python3 -m tools.disasm.census [--coverage ...] [--list-code-shaped]` classifies
+every ROM byte: code and jump tables from the analysis, typed `[[data]]` hints,
+and in the rest padding, streams in the decompressor's format, BRR-like samples
+and pointer-table-like runs, by heuristics. It prints counts per bank only, and
+the code-shaped runs (linear decodes that look like routines calling known
+code) left in unknown bytes and in hints typed `mixed` or `undetermined`. It measures the remaining work for
 a byte-identical, reassemblable disassembly, scoped in
 [MATCHING.md](MATCHING.md): every byte classified, every address symbolic, and
 closure checks that make the recompiler's code set provably complete.
@@ -124,5 +146,8 @@ milestone: it writes the analysis's code as assembly source (explicit operand
 sizes, `;@ m8 x16` width annotations, labels from hints, `game/registry.c` and
 the analysis), `incbin`s every other byte from files extracted into the build
 tree, reassembles it with `tools/matching/asm.py` and fails unless the result is
-the ROM. Like `disasm/out/`, all of that is ROM-derived and stays in the build
+the ROM. Since MD1 it also fails unless every executed ROM address is an
+instruction start with compatible widths, every `[[data]]` hint fits its bytes,
+and every RAM section, written as `src/ram/<name>.asm` with `base`, assembles to
+its image. Like `disasm/out/`, all of that is ROM-derived and stays in the build
 tree.

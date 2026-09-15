@@ -131,7 +131,7 @@ class Analysis(unittest.TestCase):
         an2.run()
         self.assertIn(0xC08010, an2.coverage_conflicts())
 
-    def test_coverage_prunes_return_widths_that_never_ran(self):
+    def test_coverage_reports_or_prunes_return_widths_that_never_ran(self):
         # C0:8000 JSR $8010 ; LDA #$12 ; RTS
         # C0:8010 BEQ +2 ; RTS ; REP #$20 ; RTS    returns m8 or m16 statically
         code = {
@@ -144,9 +144,18 @@ class Analysis(unittest.TestCase):
         static.run()
         self.assertIn(0xC08003, static.width_conflicts())
 
+        # By default coverage only reports the return the movies never ran.
         h = Hints()
         h.entries.append(type("E", (), {"addr": 0xC08000, "m": True, "x": True, "kind": "test"})())
-        guided = Analyzer(FakeRom(code), h, coverage={0xC08003: {(True, True)}})
+        reported = Analyzer(FakeRom(code), h, coverage={0xC08003: {(True, True)}})
+        reported.run()
+        self.assertEqual(reported.coverage_unobserved, {(0xC08003, (False, True))})
+        self.assertFalse(reported.coverage_pruned)
+        self.assertIn(0xC08003, reported.width_conflicts())
+
+        h = Hints()
+        h.entries.append(type("E", (), {"addr": 0xC08000, "m": True, "x": True, "kind": "test"})())
+        guided = Analyzer(FakeRom(code), h, coverage={0xC08003: {(True, True)}}, prune_returns=True)
         guided.run()
         self.assertEqual(guided.coverage_pruned, {(0xC08003, (False, True))})
         self.assertFalse(guided.width_conflicts())

@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from .cpu import CONDITIONAL_BRANCHES, RETURNS, SUSPICIOUS, Insn, Mode, decode
 from .hints import Hints
 from .memmap import Rom, bus_to_offset, fmt
+from .ram import RamImages
+from .ram import build as build_ram
 
 PSTACK_DEPTH = 8
 MAX_TABLE_ENTRIES = 256
@@ -51,17 +53,23 @@ class JumpTable:
     call: bool                 # JSR (abs,X) vs JMP (abs,X)
     count: int | None = None
     source: str = "hint"       # "hint" or "heuristic"
+    extra: list = field(default_factory=list)     # targets a hint lists for a table filled at run time
     pending: list = field(default_factory=list)   # (ctx key, state) awaiting a length
 
 
 class Analyzer:
-    def __init__(self, rom: Rom, hints: Hints, assume_returns: bool = True, coverage: dict | None = None):
+    def __init__(self, rom: Rom, hints: Hints, assume_returns: bool = True, coverage: dict | None = None,
+                 prune_returns: bool = False, ram: RamImages | None = None):
         self.rom = rom
         self.hints = hints
+        # Code run from RAM ([[ramcode]] hints) is traced from its images.
+        self.ram = ram if ram is not None else build_ram(rom.data, hints)
         self.assume_returns = assume_returns
+        self.prune_returns = prune_returns
         self.coverage = coverage or {}                   # executed addr -> {(m, x)}
         self.coverage_seeded: set = set()                # executed addrs static tracing missed
-        self.coverage_pruned: set = set()                # (return addr, widths) contradicted by coverage
+        self.coverage_unobserved: set = set()            # (return addr, widths) the coverage never ran
+        self.coverage_pruned: set = set()                # the same, dropped (prune_returns only)
         self.contexts: dict[tuple, Context] = {}
         self.code: dict[int, dict[Widths, Insn]] = defaultdict(dict)
         self.labels: dict[int, set] = defaultdict(set)   # bus addr -> {"sub","loc","jt"}
@@ -106,10 +114,14 @@ class Analyzer:
             x = st.x if widths[1] is None else widths[1]
             observed = self.coverage.get(resume_pc)
             if observed is not None and (m, x) not in observed:
-                # The return address ran, but never with these widths: this
-                # return path is a static over-approximation for this call site.
-                self.coverage_pruned.add((resume_pc, (m, x)))
-                return
+                # The return address ran, but never with these widths. That is
+                # either a path the movies didn't take or a static
+                # over-approximation; `returns` and `state` hints decide which.
+                # Pruning on coverage alone is only an exploration aid.
+                self.coverage_unobserved.add((resume_pc, (m, x)))
+                if self.prune_returns:
+                    self.coverage_pruned.add((resume_pc, (m, x)))
+                    return
             self.work.append((caller_key, resume_pc, State(m, x, None, st.ps)))
         else:
             _, caller_key = waiter
@@ -126,7 +138,17 @@ class Analyzer:
 
     # ---- tracing --------------------------------------------------------------
 
+    def u16(self, addr: int) -> int | None:
+        b = self.read(addr, 2)
+        return None if b is None else b[0] | b[1] << 8
+
+    def u24(self, addr: int) -> int | None:
+        b = self.read(addr, 3)
+        return None if b is None else b[0] | b[1] << 8 | b[2] << 16
+
     def read(self, addr: int, n: int):
+        if bus_to_offset(addr) is None:
+            return self.ram.read(addr, n)
         return self.rom.read(addr, n)
 
     def run(self):
@@ -165,7 +187,7 @@ class Analyzer:
                 return
             c.visited.add(vkey)
 
-            if bus_to_offset(pc) is None:
+            if bus_to_offset(pc) is None and self.ram.section_at(pc) is None:
                 self.unmapped.add(pc)
                 return
             if self.hints.is_data(pc):
@@ -210,12 +232,15 @@ class Analyzer:
 
             if name in ("JSR", "JSL") and mode in (Mode.ABS, Mode.LONG):
                 target = insn.operand if name == "JSL" else (pc & 0xFF0000) | insn.operand
-                callee = self.ctx(target, nxt.widths, name.lower())
-                callee.callers.add(pc)
-                if target in self.hints.noreturn:
-                    return
-                resume = insn.next_pc + self.hints.inline_args.get(target, 0)
-                self.wait_on(callee, ("call", key, resume, nxt))
+                # An `indirect` hint on a call means code writes its operand at
+                # run time: the hint's targets replace the one in the bytes.
+                for target in self.hints.indirect.get(pc, [target]):
+                    callee = self.ctx(target, nxt.widths, name.lower())
+                    callee.callers.add(pc)
+                    if target in self.hints.noreturn:
+                        continue
+                    resume = insn.next_pc + self.hints.inline_args.get(target, 0)
+                    self.wait_on(callee, ("call", key, resume, nxt))
                 return
 
             if mode is Mode.ABSXIND:   # JMP (abs,X) / JSR (abs,X)
@@ -285,7 +310,7 @@ class Analyzer:
             hint = self.hints.tables.get(insn.pc)
             jt = JumpTable(insn.pc, bank | insn.operand, "abs", insn.name == "JSR")
             if hint:
-                jt.count, jt.kind = hint.count, hint.kind
+                jt.count, jt.kind, jt.extra = hint.count, hint.kind, hint.targets
                 if hint.table is not None:
                     jt.table = hint.table
             else:
@@ -301,12 +326,14 @@ class Analyzer:
     def _follow_table(self, jt: JumpTable, key: tuple, st: State):
         step = 3 if jt.kind == "long" else 2
         bank = jt.dispatcher & 0xFF0000
-        for i in range(jt.count):
+        for i in range(jt.count + len(jt.extra)):
             ent = jt.table + i * step
-            if jt.kind == "long":
-                t = self.rom.u24(ent)
+            if i >= jt.count:
+                t = jt.extra[i - jt.count]
+            elif jt.kind == "long":
+                t = self.u24(ent)
             else:
-                v = self.rom.u16(ent)
+                v = self.u16(ent)
                 t = None if v is None else bank | v
             if t is None:
                 continue
@@ -353,9 +380,9 @@ class Analyzer:
         out = []
         for i in range(n):
             if jt.kind == "long":
-                t = self.rom.u24(jt.table + i * 3)
+                t = self.u24(jt.table + i * 3)
             else:
-                v = self.rom.u16(jt.table + i * 2)
+                v = self.u16(jt.table + i * 2)
                 t = None if v is None else bank | v
             if t is not None:
                 out.append(t)
@@ -369,7 +396,7 @@ class Analyzer:
             ent = jt.table + n * 2
             if n and (ent in barriers or ent + 1 in barriers):
                 break
-            v = self.rom.u16(ent)
+            v = self.u16(ent)
             if v is None:
                 break
             t = bank | v
@@ -385,7 +412,7 @@ class Analyzer:
         if pc in self.code:
             return True
         for _ in range(depth):
-            if bus_to_offset(pc) is None or self.hints.is_data(pc):
+            if (bus_to_offset(pc) is None and self.ram.section_at(pc) is None) or self.hints.is_data(pc):
                 return False
             insn = decode(self.read, pc, st.m, st.x)
             if insn is None or insn.name in SUSPICIOUS:
@@ -420,6 +447,8 @@ class Analyzer:
         cov = set()
         for pc, variants in self.code.items():
             off = bus_to_offset(pc)
+            if off is None:           # code in a RAM section
+                continue
             size = max(i.size for i in variants.values())
             cov.update(range(off, off + size))
         return cov
@@ -442,9 +471,11 @@ class Analyzer:
                 out[addr] = (observed, wrong)
         return out
 
-    def width_conflicts(self) -> dict:
+    def width_conflicts(self, declared: bool = False) -> dict:
+        """Addresses decoded with more than one instruction length. Those an
+        `overlap` hint declares are left out, or listed alone with declared=True."""
         return {pc: v for pc, v in self.code.items()
-                if len({i.size for i in v.values()}) > 1}
+                if len({i.size for i in v.values()}) > 1 and (pc in self.hints.overlaps) == declared}
 
     def label(self, addr: int) -> str | None:
         name = self.hints.names.get(addr)

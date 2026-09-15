@@ -3,9 +3,10 @@
 This is a scoping document: what a byte-identical, reassemblable disassembly of
 Chrono Trigger would take in this project, what it would prove, and how it
 would plug into the disassembler, the static recompiler and the runtime. Built
-so far: the measuring tool, `tools/disasm/census.py`, and milestone MD0, the
-naive split with its assembler and round trip (`tools/matching`, see
-[MD0 as built](#md0-as-built)).
+so far: the measuring tool, `tools/disasm/census.py`, milestone MD0, the naive
+split with its assembler and round trip (`tools/matching`, see
+[MD0 as built](#md0-as-built)), and most of MD1, all code in source form (see
+[MD1 as built](#md1-as-built)).
 
 The motivation is completeness. The recompiler ([RECOMP.md](RECOMP.md)) turns
 the code the analysis finds into C, and the interpreter runs whatever it
@@ -471,9 +472,11 @@ One closed dialect, meant to be a subset of asar syntax, so that the Python
 assembler and asar read the same source:
 
 - **Directives:** `hirom` (required, the only mapper), `org ADDR` (bus address,
-  HiROM mapping), `warnpc ADDR`, `incsrc "file"`, `incbin "file"` (whole files,
-  no ranges; paths relative to the including file), `db`/`dw`/`dl` with
-  comma-separated values, `label:`, `;` comments.
+  HiROM mapping), `base ADDR` / `base off` (assemble at a logical address while
+  bytes go where `org` put them, for RAM sections; `org` also ends it),
+  `warnpc ADDR`, `incsrc "file"`, `incbin "file"` (whole files, no ranges; paths
+  relative to the including file), `db`/`dw`/`dl` with comma-separated values,
+  `label:`, `;` comments.
 - **Expressions:** numbers (`$hex`, `%binary`, decimal) and labels joined by
   `+`/`-`. No other operators, no defines, no macros.
 - **Instructions:** mnemonics as in `tools/disasm/cpu.py` (case-insensitive),
@@ -508,15 +511,144 @@ without a range error (otherwise those 7 need another spelling); and that it
 doesn't pad or change the checksum of a new file. Each is a change to the
 emitter's spelling, not to the layout.
 
-**Next (MD1).** The first things MD1 needs from this: a check in the same run
-that every coverage address is an instruction start with a compatible width
-(today it only follows from the analysis seeding them); typed `[[data]]` hints
-that the emitter cuts and names `incbin` regions by, so the 13 code banks'
-blobs get a type or a reason; hints for the 108 heuristic tables, 26 assumed
-returns and 13 pruned returns, and a look at the three C1 overlap clusters
-(code or data decoded as code); and, for RAM programs, a `base` directive
-(asar has one) plus a Python decompressor to check code sections assembled at
-their run address against the decoded streams.
+**Next (MD1).** MD0 listed what MD1 needed first: a check that every coverage
+address is an instruction start with a compatible width, typed `[[data]]` hints
+that cut and name `incbin` regions, hints for the heuristic tables and the
+assumed and pruned returns, a look at the C1 overlap clusters, and a `base`
+directive with a Python decompressor for RAM programs. All of it is built; see
+[MD1 as built](#md1-as-built).
+
+### MD1 as built
+
+Same commands as MD0 (`python3 -m tools.matching ...`, the `ct_matching`
+target). The run now also fails unless:
+
+- **Coverage.** Every executed ROM address in the coverage files is an
+  instruction start in the source, and every width pair it ran with decodes
+  there to the written length and is among the widths the analysis gives the
+  instruction (`Emitter.check_coverage`). An `[[overlap]]` hint names the
+  decode the source writes where an instruction really runs with two lengths;
+  the other decode must end on an instruction boundary.
+- **Data.** Every `[[data]]` region holds no instruction, has its type's shape
+  (one fill value for `padding`, whole elements for `words`/`ptr16`/`ptr24`/
+  `struct`, exactly one stream for `lz`) and receives no traced transfer. The
+  emitter cuts `incbin`s at region bounds, labels them with the hint's name (or
+  `type_ADDRESS`) and writes them as `data/<type>/<label>.bin`. The report
+  lists incbin bytes by kind per bank and every untyped blob in a bank with
+  code.
+- **RAM.** Every `[[ramcode]]` section is written as `src/ram/<name>.asm`
+  (`org $C00000` then `base` at its run address), assembled into its own image
+  and compared with the section's image, and every executed RAM address inside
+  a section is an instruction start there with a compatible width
+  (`tools/matching/ramsrc.py`).
+
+Analysis changes (`tools/disasm`):
+
+- **No pruning by coverage.** Every static return is followed; returns the
+  coverage never ran with are only reported (`--prune-returns` keeps the old
+  behavior for exploration). Of MD0's 13 pruned returns, 12 add width variants
+  without any conflict and stay; the thirteenth (`C0:7180`) came from a real
+  16-bit exit at `C0:71EB` that would turn the object code after it into
+  garbage, and `returns` hints on `C0:7199`, `C0:7212`, `C0:7217` pin it.
+- **RAM sections.** `[[ramcode]]` hints give an image at a run address: a
+  stream decoded by `tools/disasm/lz.py` (the `$C3:0557` format, written from
+  `game/data/decompress.c`), bytes copied from ROM, or the constants a run of
+  code stores (`writes`, simulated from `source` to `end`). The analysis traces
+  them like ROM code; the recompiler still skips non-ROM code.
+- **Hint kinds**: `[[data]]` gains `type` and `name`; `[[overlap]]`;
+  `[[ramcode]]`; `[[noreturn]] addr` per entry; `[[entry]]` without widths
+  (interrupt handlers, entered with any); `jumptable` `targets` for tables
+  filled at run time; `indirect` on a `JSR`/`JSL` whose operand code writes at
+  run time. See docs/DISASSEMBLY.md.
+- **Census** counts typed hints (padding, lz and brr in their columns, the rest
+  as typed data) and scans unknown bytes, and separately `mixed` and
+  `undetermined` regions, for code-shaped runs: six or more instructions
+  without BRK/COP/WDM/STP, ending in a return or an unconditional jump, calling
+  or jumping to two or more known entries. The rule finds nothing in the 2.2 MiB
+  of candidate streams and about 40% of known C1 code; it is evidence, not
+  proof.
+
+**Hints added** (sections headed "MD1" in `re/hints.toml`):
+
+- **Jump tables** (the 108, plus 2 in code found later and 4 in the attract
+  program): 22 bounded by an index mask, a compare or a loop bound, 14 by ending
+  where another dispatcher's table begins, the rest by running up to their first
+  handler or other code. 19 counts changed from the heuristic's; for 5 the calls
+  files show entries the heuristic cut off called (`C0:21EA`, `C0:5AB1`,
+  `C1:004A`, `C1:29AE`, `CF:EFE6`), and `C1:8333`'s bound (13,
+  not 22) removed the three C1 overlap clusters, which were data decoded as
+  code through that table.
+- **Returns and widths**: 5 `noreturn` in C0 (error screen, stack resets), the
+  `C3:0011` chain returning through `C3:0F83`'s RTL, 3 attract task handlers,
+  generated `$7E:B574` returning with the caller's widths, two task-loop
+  `state` hints, `C2:EFD3` entered 8-bit, and unknown-width entries for 15
+  interrupt handlers (the 8 MD0 knew of had one width pair; coverage entered
+  three of them with three or four).
+- **The width conflict**: `C2:8C52` runs with both widths (coverage has m8 x8
+  and m16 x16), as a 2-byte `LDA` plus `XBA` or a 3-byte `LDA`; an `overlap`
+  hint writes the 8-bit decode.
+- **RAM**: the attract/title/race program (`$7E:3000`, 34164 bytes of the
+  34175-byte output of the stream at `C3:1313`, which `C3:0056` loads through
+  the resource word at `FE:0003`), the `MVN`/`RTL` stub at `$7E:9690`
+  (`over` the program's range), and 7 NMI/IRQ stub images from the installers
+  in C0 (two), C2 (two), C3, D1 and FD; the attract program's two self-modified
+  `JSR` operands and three run-time task tables.
+- **Code nothing found reaches**: 131 entries (`kind = "unreached"`): bytes
+  between known code that decode completely with the surrounding widths and
+  only call known code, jump-list slots, and runs of routines in C2:77F2-7B5A,
+  C6:E237-EC7C and FF:FF3E found by the code-shape scan. Most are probably
+  reached through script data the analysis doesn't parse yet (MD4, C3).
+- **Data**: 171 typed regions cover every other byte of the 13 banks with code:
+  72 `bytes` and 32 `words` tables with their long indexed readers, 16 `ptr16`,
+  14 `script` (object scripts passed to `sub_C204D9`, window descriptors passed
+  to `C2:8385` and `C2:ED31`), 1 `lz`, `padding`, `header`, `text`,
+  `ram_code`, 12 `undetermined` (3.4 KiB, each with why it isn't code) and 19
+  `mixed` (565 KiB: large regions typed by their readers and census
+  composition, not split).
+
+**Result** (this ROM, hints, the 20 coverage files and 19 call logs):
+
+| | MD0 | MD1 |
+|---|--:|--:|
+| Jump tables (heuristic) | 126 (108) | 132 (0) |
+| Calls continued on assumed widths | 26 | 0 |
+| Call returns pruned by coverage | 13 | 0 (55 returns the movies never ran, traced) |
+| Width conflicts | 1 | 0 (1 declared by an overlap hint) |
+| `db` clusters in the source | 4 | 0 |
+| Executed ROM addresses that are instruction starts with compatible widths | not checked (9 in clusters, 6 with other widths) | 84877 of 84877 |
+| Code bytes | 238421 | 245680 |
+| Instructions in the ROM source | 108924 | 112150 |
+| RAM sections assembled and matching their images | 0 | 9 |
+| Executed RAM addresses in sections, compatible | - | 3194 of 3194 (2065 more in no section) |
+| Untyped blob bytes in the 13 banks with code | - | 0 |
+| Census unknown bytes in C0-C2 / the other 10 code banks | 10.6 / 348.1 KiB | 0 / 0 KiB |
+| Code-shaped runs in unknown bytes / in `mixed` and `undetermined` hints | - | 0 / 3 (135 bytes) |
+
+CRC32 `2D206BF7` and SHA-1 `de5822f4...` still match; the run takes about 5 s.
+The recompiler builds from the same analysis (11160 blocks), and the six main
+movies (`new-game` 7200, `menu` 8900, `field` 11400, `fair` 12450,
+`fair-companion` 17900, `gato-battle` 21600 frames) in `--native shadow` report 0
+mismatched generated blocks and no mismatching hand port.
+
+**Left for MD1:**
+
+- `$7E:B574-C994`: the jet bike race runs code at 2065 addresses that `C3:09E9` writes
+  through the WRAM port at run time (it emits `LDA` immediate, `TCD`, `LDA`
+  absolute, `STA` direct page and a final `RTS`). A section format that runs
+  the generator would make them a checked section.
+- The partial vector installers (`C3:08DF`, `C3:093E`, `CD:041D`) only
+  replace the target of a stub another installer wrote; their handlers are
+  entries, their images aren't sections.
+- Three code-shaped runs inside typed data: `C2:FEE9` (a routine at `C2:FEFB`
+  whose entry widths conflict with the code it calls), `FF:FC6E` and `FF:FF0F`
+  (routine-like bytes inside regions typed `mixed`).
+- The `mixed` regions (565 KiB, nearly all of it in C3 and C6-FF) are typed by readers only; MD2
+  splits and parses them. The `unreached` entries and the "only what runs in
+  the movies" hints (object script operands, the attract program's task
+  tables) wait for script parsing (MD4, C3).
+- Table bounds from layout ("runs up to its first handler") hold for the code
+  as written; an index guard would make them independent of it.
+- asar is still unchecked; `base` is spelled as asar's.
 
 ### Shift test
 
@@ -571,7 +703,7 @@ No dates.
 | | Goal | Done when | Main drivers | Effort | Status |
 |---|---|---|---|---|---|
 | MD0 | Naive split: toolchain and extraction | The build extracts, emits and assembles a ROM with CRC32 `2D206BF7` and the SHA-1 from APPROACH.md; code the analysis finds (238421 bytes) is instructions, everything else `incbin` from the build tree; the 10 length conflicts and overlaps are `db` with labels; assembler encodings are unit-tested for every opcode and width; with asar available, the asar build matches too; nothing ROM-derived is tracked by git | Assembler, emitter, extraction, CMake target | 1 | done, except the asar build: unchecked, asar wasn't available ([MD0 as built](#md0-as-built)) |
-| MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 now), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB now) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | |
+| MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the code C3:09E9 generates at `$7E:B574` (2065 executed RAM addresses in no section) and the partial vector installers; 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
 | MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | |
 | MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 | |
 | MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | |

@@ -232,9 +232,9 @@ class Liveness:
         out = []
         for i in range(jt.count):
             if jt.kind == "long":
-                t = self.an.rom.u24(jt.table + i * 3)
+                t = self.an.u24(jt.table + i * 3)
             else:
-                v = self.an.rom.u16(jt.table + i * 2)
+                v = self.an.u16(jt.table + i * 2)
                 t = None if v is None else bank | v
             if t is not None:
                 out.append(t)

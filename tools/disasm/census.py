@@ -12,7 +12,16 @@ per bank only, never bytes, so its output can go into docs.
 The data rules are heuristics for sizing the work, not classification: a
 stream is a byte range the decompressor would consume exactly, a BRR run is a
 sequence of plausible 9-byte blocks, and so on. Each rule only claims bytes no
-earlier rule claimed, in the order of CLASSES.
+earlier rule claimed, in the order of CLASSES. Typed [[data]] hints come first
+after code and tables: padding, lz and brr hints count in those columns, the
+other types as typed data.
+
+What stays unknown is also scanned for code-shaped runs (code_shaped): a
+linear decode, under some pair of widths, of at least six instructions without
+BRK/COP/WDM/STP that ends in a return or an unconditional jump and calls or
+jumps to at least two entries the analysis knows. On this ROM the rule finds
+nothing in the 2.2 MiB of candidate streams and about 40% of known code in C1,
+so a run it reports is worth a look; its absence is evidence, not proof.
 """
 
 import argparse
@@ -24,16 +33,19 @@ from pathlib import Path
 
 from . import coverage as coverage_mod
 from . import hints as hints_mod
-from .analyze import Analyzer
-from .cpu import Mode
+from .analyze import Analyzer, State
+from .cpu import RETURNS, SUSPICIOUS, Mode, decode
 from .memmap import ROM_SIZE, Rom, bus_to_offset
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROM_CRC32 = 0x2D206BF7
 
 CLASSES = ["code", "jump tables", "padding", "compressed", "BRR-like", "24-bit ptr tables",
-           "16-bit code-ptr tables", "16-bit offset tables", "unknown"]
-CODE, TABLE, PAD, STREAM, BRR, PTR24, CODEPTR, OFS16, UNKNOWN = range(len(CLASSES))
+           "16-bit code-ptr tables", "16-bit offset tables", "typed data", "unknown"]
+CODE, TABLE, PAD, STREAM, BRR, PTR24, CODEPTR, OFS16, TYPED, UNKNOWN = range(len(CLASSES))
+HINT_CLASS = {"padding": PAD, "lz": STREAM, "brr": BRR, "ptr24": PTR24}
+MIN_SHAPED_INSNS = 6
+MIN_SHAPED_KNOWN = 2
 
 MIN_PADDING = 16            # bytes of one value ($00 or $FF)
 MIN_STREAM_OUTPUT = 64      # decompressed bytes
@@ -147,12 +159,21 @@ class Census:
             cls[off] = CODE
         for jt in an.tables.values():
             o = bus_to_offset(jt.table)
+            if o is None:                      # a table in a RAM section
+                continue
             for i in range(o, o + jt.count * (3 if jt.kind == "long" else 2)):
                 if cls[i] == UNKNOWN:
                     cls[i] = TABLE
         for i in range(0xFFB0, 0x10000):      # cartridge header and vectors
             if cls[i] == UNKNOWN:
                 cls[i] = TABLE
+        for r in an.hints.data_regions:        # typed [[data]] hints
+            if r.type is None:
+                continue
+            o = bus_to_offset(r.start)
+            for i in range(o, bus_to_offset(r.end) + 1):
+                if cls[i] == UNKNOWN:
+                    cls[i] = HINT_CLASS.get(r.type, TYPED)
 
         def same_value(i):
             j = i
@@ -220,6 +241,76 @@ class Census:
         self.found["ofs16"] = _runs(cls, lambda i: i + 2 <= len(data), ofs16_extend, 2 * MIN_OFS16_ENTRIES, OFS16)
         return self
 
+    def code_shaped(self, weak: bool = False) -> list:
+        """(offset, bytes) of code-shaped runs in unknown bytes (module docstring);
+        with weak=True also in [[data]] regions typed mixed or undetermined."""
+        an, cls, data = self.an, self.cls, self.data
+        scan = bytearray(c == UNKNOWN for c in cls)
+        if weak:
+            for r in an.hints.data_regions:
+                if r.type in ("mixed", "undetermined"):
+                    o = bus_to_offset(r.start)
+                    scan[o:bus_to_offset(r.end) + 1] = bytes([1]) * (bus_to_offset(r.end) + 1 - o)
+        entries = {e for e, _ in an.contexts}
+        memo = {}
+        found = []
+        o = 0
+        n = len(data)
+        while o < n:
+            if not scan[o]:
+                o += 1
+                continue
+            best = 0
+            for widths in ((True, False), (False, False), (True, True), (False, True)):
+                r = self._shaped_run(o, State(*widths), entries, scan, memo)
+                if r and r[1] >= MIN_SHAPED_INSNS and r[2] >= MIN_SHAPED_KNOWN:
+                    best = max(best, r[0])
+            if best:
+                found.append((o, best))
+                o += best
+            else:
+                o += 1
+        return found
+
+    def _shaped_run(self, off: int, st: State, entries: set, scan, memo: dict):
+        """(bytes, instructions, known calls) from off to the first return or
+        unconditional jump, or None; memoized on (offset, state)."""
+        an = self.an
+        chain = []
+        result = None
+        while True:
+            key = (off, st)
+            if key in memo:
+                result = memo[key]
+                break
+            pc = 0xC00000 | off
+            insn = decode(an.rom.read, pc, st.m, st.x)
+            if insn is None or insn.name in SUSPICIOUS or not all(scan[off:off + insn.size]):
+                result = None
+                memo[key] = None
+                break
+            known = int((insn.name in ("JSR", "JMP") and insn.mode is Mode.ABS
+                         and (pc & 0xFF0000 | insn.operand) in entries)
+                        or (insn.name in ("JSL", "JML") and insn.mode is Mode.LONG and insn.operand in entries))
+            if insn.name in RETURNS or insn.name in ("JMP", "JML", "BRA", "BRL"):
+                result = (insn.size, 1, known)
+                memo[key] = result
+                break
+            chain.append((key, insn.size, known))
+            if len(chain) > 4096:
+                result = None
+                break
+            st = an.step_state(insn, st)
+            off = bus_to_offset(insn.next_pc)
+            if off is None or insn.next_pc & 0xFFFF < insn.pc & 0xFFFF:
+                result = None
+                break
+        for key, size, known in reversed(chain):
+            if result is not None:
+                result = (result[0] + size, result[1] + 1, result[2] + known)
+            memo[key] = result
+        return result
+
     # ---- reporting (aggregates only) ---------------------------------------------
 
     def per_bank(self) -> list[Counter]:
@@ -284,6 +375,8 @@ def main():
     ap.add_argument("--rom", type=Path, default=REPO_ROOT / "roms" / "ct-usa.sfc")
     ap.add_argument("--hints", type=Path, default=REPO_ROOT / "re" / "hints.toml")
     ap.add_argument("--coverage", type=Path, action="append", default=[])
+    ap.add_argument("--list-code-shaped", action="store_true",
+                    help="print the address and size of every code-shaped run in unknown bytes")
     args = ap.parse_args()
 
     if not args.rom.exists():
@@ -318,6 +411,17 @@ def main():
                            if i.mode in (Mode.LONG, Mode.LONGX) and i.name not in ("JSL", "JML")
                            and bus_to_offset(i.operand) is not None)
     print("long data operands into ROM, by class of the target:", dict(long_targets))
+    shaped = c.code_shaped()
+    weak = [r for r in c.code_shaped(weak=True) if r not in shaped]
+    per_bank = Counter()
+    for off, size in shaped:
+        per_bank[off >> 16] += size
+    print(f"code-shaped runs in unknown bytes: {len(shaped)}, {sum(s for _, s in shaped)} bytes; per bank: "
+          + (", ".join(f"${0xC0 + b:02X} {v}" for b, v in sorted(per_bank.items())) or "none"))
+    print(f"code-shaped runs in data hints typed mixed or undetermined: {len(weak)}, {sum(s for _, s in weak)} bytes")
+    if args.list_code_shaped:
+        for off, size in shaped + weak:
+            print(f"  {0xC0 + (off >> 16):02X}:{off & 0xFFFF:04X} {size} bytes")
     print(f"contexts {len(an.contexts)}, jump tables {len(an.tables)} "
           f"({sum(1 for t in an.tables.values() if t.source == 'heuristic')} heuristic), "
           f"unresolved indirect {len(an.unresolved)}, assumed returns {len(an.assumed)}, "

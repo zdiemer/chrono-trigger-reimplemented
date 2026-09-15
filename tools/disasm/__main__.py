@@ -17,6 +17,8 @@ def write_listing(an: Analyzer, out: Path):
     """One file per ROM bank ($C0-$FF), code in ROM order, with data gaps summarized."""
     by_offset = defaultdict(list)
     for pc, variants in an.code.items():
+        if bus_to_offset(pc) is None:          # RAM sections aren't in the bank listings
+            continue
         for widths, insn in variants.items():
             by_offset[bus_to_offset(pc)].append((pc, widths, insn))
     lst = out / "listing"
@@ -83,7 +85,8 @@ def write_report(an: Analyzer, out: Path) -> str:
         f"- stops on unknown width: {len(an.width_unknown)}",
         f"- suspicious opcodes: {len(an.suspicious)}",
         f"- calls continued on assumed widths: {len(an.assumed)}",
-        f"- width conflicts: {len(an.width_conflicts())}",
+        f"- width conflicts: {len(an.width_conflicts())} ({len(an.width_conflicts(declared=True))} more declared "
+        "by overlap hints)",
     ]
     if an.coverage:
         executed = len(an.coverage)
@@ -91,7 +94,8 @@ def write_report(an: Analyzer, out: Path) -> str:
             f"- executed addresses (coverage): {executed}, "
             f"{executed - len(an.coverage_seeded)} found statically, {len(an.coverage_seeded)} seeded",
             f"- static decodes contradicted by coverage: {len(an.coverage_conflicts())}",
-            f"- call returns pruned by coverage: {len(an.coverage_pruned)}",
+            f"- call returns with widths the coverage never ran there: {len(an.coverage_unobserved)}"
+            + (f", {len(an.coverage_pruned)} pruned" if an.prune_returns else ""),
         ]
     lines.append("")
     summary = "\n".join(lines)
@@ -127,8 +131,9 @@ def write_report(an: Analyzer, out: Path) -> str:
     if an.coverage:
         section("Coverage seeds (executed, not reached statically)", [
             f"- {fmt(a)}" for a in sorted(an.coverage_seeded)])
-        section("Call returns pruned by coverage (return address never ran with these widths)", [
-            f"- return to {fmt(a)} with {describe_widths(w)}" for a, w in sorted(an.coverage_pruned)])
+        section("Call returns the coverage never ran with these widths"
+                + (" (pruned)" if an.prune_returns else " (traced; hints decide)"), [
+            f"- return to {fmt(a)} with {describe_widths(w)}" for a, w in sorted(an.coverage_unobserved)])
         section("Static decodes contradicted by coverage", [
             f"- {fmt(a)}: ran as " + ", ".join(describe_widths(w) for w in sorted(obs, key=str)) + "; decoded as "
             + ", ".join(f"[{describe_widths(w)}] {i.text()}" for w, i in wrong.items())
@@ -164,13 +169,16 @@ def main():
                     help="executed call edges from ct_dev --calls (repeatable); needed for sound liveness")
     ap.add_argument("--no-assume-returns", action="store_true",
                     help="don't continue after calls whose callee was never seen to return")
+    ap.add_argument("--prune-returns", action="store_true",
+                    help="drop call returns whose widths the coverage never ran at the return address "
+                         "(exploration aid; the committed analysis traces them)")
     args = ap.parse_args()
 
     if not args.rom.exists():
         sys.exit(f"{args.rom} not found; stage the ROM with tools/rom.py first")
     rom = Rom(args.rom.read_bytes())
     an = Analyzer(rom, hints_mod.load(args.hints), assume_returns=not args.no_assume_returns,
-                  coverage=coverage_mod.load(args.coverage))
+                  coverage=coverage_mod.load(args.coverage), prune_returns=args.prune_returns)
     an.run()
 
     args.out.mkdir(parents=True, exist_ok=True)
