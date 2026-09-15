@@ -3,12 +3,22 @@
 A native PC port of *Chrono Trigger* (SNES, USA), reimplemented in C and
 validated frame by frame against the original ROM.
 
-This is not an emulator and not an automated recompilation. See
-[docs/APPROACH.md](docs/APPROACH.md) for the strategy and roadmap.
+The goal is readable, hand-written C, not an emulator. Until every routine is
+ported, the original code runs on a development hardware model and a 65816
+interpreter, with each ported routine checked against it. A static recompiler
+([docs/RECOMP.md](docs/RECOMP.md)) is being built as scaffolding: it turns the
+remaining original code into mechanical C at build time from your ROM, as a
+starting point for hand ports. See [docs/APPROACH.md](docs/APPROACH.md) for the
+strategy and roadmap.
 
 ## Status
 
-Foundation stage: ROM verification and project plan.
+Porting: the attract sequence, field, menu, event and battle systems are
+partly native, validated in shadow mode over 21 input movies
+([docs/PORTING.md](docs/PORTING.md)). The development runtime plays the game
+with sound ([docs/PLAYING.md](docs/PLAYING.md)). The recompiler translates every
+65816 instruction ([docs/RECOMP.md](docs/RECOMP.md)); generating whole banks is
+next.
 
 ## ROM
 
