@@ -107,6 +107,8 @@ Text, one event per line; `#` starts a comment.
   `B Y SELECT START UP DOWN LEFT RIGHT A X L R`.
 - An event holds its buttons for frames `start_frame .. start_frame+frame_count-1`.
 - Overlapping events OR together.
+- Movies recorded with `ct_play --record` (docs/PLAYING.md) have one event per
+  run of unchanged buttons and a `# frames N` comment giving the recorded length.
 
 Buttons are stored in SNES JOY1 (`$4218/$4219`) bit order, so the port can load
 the value straight into its joypad register:

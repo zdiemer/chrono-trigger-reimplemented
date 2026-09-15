@@ -1,12 +1,15 @@
 /* ct_play: plays the game in a window, with the ported routines running natively
  * and the rest on the development system (docs/PLAYING.md).
  *
- *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--native on|off] [--save-dir dir]
+ *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--native on|shadow|off] [--save-dir dir]
+ *           [--movie m.ctm [--movie-frames N]] [--record out.ctm]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
- *           [--load-state f] [--save-state f]
+ *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm]
  *
  * With --frames it runs headless (no window) for a fixed number of frames, for
- * checking a build without a display. There is no sound yet: the APU runs the
+ * checking a build without a display. --movie replays an input movie before the
+ * keyboard takes over; --record writes everything played from power-on as a
+ * movie that ct_dev replays identically. There is no sound yet: the APU runs the
  * sound driver, but DSP sample generation isn't implemented.
  */
 #define SDL_MAIN_HANDLED
@@ -21,6 +24,7 @@
 #include "registry.h"
 #include "snes/render.h"
 #include "snes/system.h"
+#include "trace.h"
 
 /* NTSC: 21.477272 MHz master clock, 1364 clocks per line, 262 lines per frame. */
 #define MASTER_CLOCK_HZ 21477272.0
@@ -28,6 +32,8 @@
 
 /* Frames between checks for changed SRAM, which is then written out. */
 #define SRAM_FLUSH_FRAMES 60
+/* Frames between writes of the movie being recorded, so a crash loses little. */
+#define RECORD_FLUSH_FRAMES 600
 /* How long a quick save waits for native routines suspended in call-outs to
  * finish before giving up (see native_suspended). In the field that's rarely
  * needed; in battle, stretches of several seconds are common. */
@@ -72,14 +78,30 @@ typedef struct {
 
 #define MAX_HOLDS 64
 
+/* Input by frame since power-on: the replayed movie's frames, then whatever was
+ * played after them. */
+typedef struct {
+    uint16_t *pads;
+    uint32_t frames, cap;
+    uint32_t replay_frames;    /* frames taken from the movie before the keyboard (or --hold) */
+    const char *movie_name;    /* file name of the replayed movie, or NULL */
+    const char *record_path;   /* movie being recorded, or NULL */
+    uint32_t written_frames;   /* frames in the last write of record_path */
+    uint32_t state_crc;        /* CRC of the quick save made during this recording */
+    bool state_ours;
+} Track;
+
 typedef struct {
     Snes snes;
     Renderer renderer;
     NativeRuntime *natives;
-    NativeMode native_mode;
+    NativeMode native_mode;    /* the mode asked for */
+    NativeMode runtime_mode;   /* the mode natives runs in now */
+    bool persist_sram;
     char sram_path[1024];
     char state_path[1024];
     uint8_t sram_saved[SNES_SRAM_SIZE];   /* SRAM as last loaded or written */
+    Track track;
 } Player;
 
 static void usage(FILE *out)
@@ -90,8 +112,16 @@ static void usage(FILE *out)
             "Options:\n"
             "  --scale N            window scale (integer, default 3)\n"
             "  --fullscreen         start fullscreen\n"
-            "  --native on|off      run ported routines natively (default on) or interpret everything\n"
+            "  --native MODE        on: run ported routines natively (default); off: interpret everything;\n"
+            "                       shadow: interpret, and check each ported routine against the original\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
+            "\n"
+            "Movies:\n"
+            "  --movie F.ctm        replay this input movie from power-on, fast, then hand over to the keyboard\n"
+            "  --movie-frames N     replay N frames of it (default: up to its last input)\n"
+            "  --record F.ctm       record input from power-on (including the replayed movie) to F.ctm,\n"
+            "                       for ct_dev to replay. Starts without the .srm save, runs in shadow mode\n"
+            "                       unless --native off is given, and quick saves go to <F>.state\n"
             "\n"
             "Headless check (no window):\n"
             "  --frames N           run N frames and exit\n"
@@ -106,13 +136,14 @@ static void usage(FILE *out)
         fprintf(out, "  %-12s %s\n", keymap[i].key_name, keymap[i].button_name);
     fprintf(out,
             "  %-12s pause\n"
+            "  %-12s fast forward (hold)\n"
             "  %-12s quick save / quick load (same build only)\n"
             "  %-12s toggle fullscreen\n"
             "  %-12s quit\n"
             "\n"
             "Saves are written to <rom name>.srm when the game changes them and on exit.\n"
             "No sound yet.\n",
-            "P", "F5 / F7", "F11, Alt+Enter", "Esc");
+            "P", "Tab", "F5 / F7", "F11, Alt+Enter", "Esc");
 }
 
 static uint8_t *read_file(const char *path, size_t *len)
@@ -134,20 +165,27 @@ static uint8_t *read_file(const char *path, size_t *len)
     return data;
 }
 
-/* dir/<rom file name without extension><ext>; dir defaults to the ROM's directory. */
-static void side_path(char *out, size_t n, const char *rom_path, const char *dir, const char *ext)
+static const char *file_name(const char *path)
 {
-    const char *name = rom_path;
-    for (const char *p = rom_path; *p; p++) {
+    const char *name = path;
+    for (const char *p = path; *p; p++) {
         if (*p == '/' || *p == '\\')
             name = p + 1;
     }
+    return name;
+}
+
+/* dir/<name_path's file name without extension><ext>; dir defaults to dir_of's directory. */
+static void side_path(char *out, size_t n, const char *name_path, const char *dir_of, const char *dir,
+                      const char *ext)
+{
+    const char *name = file_name(name_path);
     const char *dot = strrchr(name, '.');
     int stem = dot && dot != name ? (int)(dot - name) : (int)strlen(name);
     if (dir)
         snprintf(out, n, "%s/%.*s%s", dir, stem, name, ext);
     else
-        snprintf(out, n, "%.*s%.*s%s", (int)(name - rom_path), rom_path, stem, name, ext);
+        snprintf(out, n, "%.*s%.*s%s", (int)(file_name(dir_of) - dir_of), dir_of, stem, name, ext);
 }
 
 static int parse_hold(const char *s, Hold *h)
@@ -204,7 +242,7 @@ static void sram_load(Player *pl)
 /* Write SRAM if it changed since it was last loaded or written. */
 static void sram_flush(Player *pl)
 {
-    if (!memcmp(pl->sram_saved, pl->snes.bus.sram, SNES_SRAM_SIZE))
+    if (!pl->persist_sram || !memcmp(pl->sram_saved, pl->snes.bus.sram, SNES_SRAM_SIZE))
         return;
     FILE *f = fopen(pl->sram_path, "wb");
     int ok = f && fwrite(pl->snes.bus.sram, SNES_SRAM_SIZE, 1, f) == 1;
@@ -217,13 +255,42 @@ static void sram_flush(Player *pl)
     memcpy(pl->sram_saved, pl->snes.bus.sram, SNES_SRAM_SIZE);
 }
 
-static void natives_start(Player *pl)
+/* In shadow mode, print what the runtime found if any routine mismatched. */
+static void natives_report(Player *pl)
 {
+    if (pl->natives && pl->runtime_mode == NATIVE_SHADOW && native_failed(pl->natives)) {
+        fprintf(stderr, "shadow mode found mismatches:\n");
+        native_report(pl->natives, stderr);
+    }
+}
+
+static void natives_start(Player *pl, NativeMode mode)
+{
+    natives_report(pl);
     native_destroy(pl->natives);
     pl->snes.intercept = NULL;
     pl->snes.intercept_ctx = NULL;
-    pl->natives = native_create(game_natives, game_native_count, pl->native_mode);
+    pl->natives = native_create(game_natives, game_native_count, mode);
+    pl->runtime_mode = mode;
     native_attach(pl->natives, &pl->snes);
+}
+
+/* Whether a state saved now would lose native routines suspended in call-outs.
+ * In shadow mode the machine runs only the original code, so a save just drops
+ * comparisons in progress. */
+static bool natives_busy(const Player *pl)
+{
+    return pl->runtime_mode == NATIVE_ON && native_suspended(pl->natives);
+}
+
+static uint32_t file_crc(const char *path, bool *ok)
+{
+    size_t len;
+    uint8_t *data = read_file(path, &len);
+    *ok = data != NULL;
+    uint32_t crc = data ? ct_crc32(data, len) : 0;
+    free(data);
+    return crc;
 }
 
 static int state_save(Player *pl, const char *path)
@@ -232,22 +299,107 @@ static int state_save(Player *pl, const char *path)
         fprintf(stderr, "cannot save state %s\n", path);
         return -1;
     }
+    if (pl->track.record_path && path == pl->state_path)
+        pl->track.state_crc = file_crc(path, &pl->track.state_ours);
     fprintf(stderr, "saved state %s\n", path);
     return 0;
 }
 
 /* A state holds only the machine, so native routines suspended in call-outs when
  * it was saved can't resume; the frontend only saves when none are. Loading
- * restarts the native runtime, abandoning any routines suspended now. */
+ * restarts the native runtime, abandoning any routines suspended now. While
+ * recording, only the quick save made during the recording loads, and the
+ * recording goes back to its frame. */
 static int state_load(Player *pl, const char *path)
 {
+    Track *t = &pl->track;
+    if (t->record_path) {
+        bool ok;
+        uint32_t crc = file_crc(path, &ok);
+        if (!ok || !t->state_ours || crc != t->state_crc) {
+            fprintf(stderr, "not loading %s: while recording, only a quick save made in this recording loads\n",
+                    path);
+            return -1;
+        }
+    }
     if (snes_state_load(&pl->snes, path) != 0) {
         fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", path);
         return -1;
     }
-    natives_start(pl);
+    natives_start(pl, pl->runtime_mode);
+    if (t->record_path && pl->snes.frame < t->frames) {
+        t->frames = pl->snes.frame;
+        if (t->replay_frames > t->frames)
+            t->replay_frames = t->frames;
+    }
     fprintf(stderr, "loaded state %s\n", path);
     return 0;
+}
+
+/* ---- input track ---------------------------------------------------------------- */
+
+static bool replaying(const Player *pl)
+{
+    return pl->snes.frame < pl->track.replay_frames;
+}
+
+/* Buttons for the frame about to run: the track's while replaying, else live. */
+static uint16_t next_pad(Player *pl, uint16_t live)
+{
+    const Track *t = &pl->track;
+    uint32_t fr = pl->snes.frame;
+    if (fr < t->replay_frames)
+        return fr < t->frames ? t->pads[fr] : 0;
+    return live;
+}
+
+static void track_set(Track *t, uint32_t frame, uint16_t pad)
+{
+    if (frame >= t->cap) {
+        t->cap = frame + 1 > t->cap * 2 ? frame + 1 : t->cap * 2;
+        t->pads = realloc(t->pads, t->cap * sizeof *t->pads);
+    }
+    for (uint32_t fr = t->frames; fr < frame; fr++)
+        t->pads[fr] = 0;
+    t->pads[frame] = pad;
+    if (frame >= t->frames)
+        t->frames = frame + 1;
+}
+
+static int track_write(Player *pl)
+{
+    Track *t = &pl->track;
+    if (!t->record_path || t->frames == t->written_frames)
+        return 0;
+    char header[512];
+    int n = snprintf(header, sizeof header, "# Recorded with ct_play from power-on");
+    if (t->movie_name)
+        n += snprintf(header + n, sizeof header - n, ", continuing %s", t->movie_name);
+    snprintf(header + n, sizeof header - n,
+             ".\n# frames %lu\n# Replay: ct_dev --rom <rom> --frames %lu --movie %s --native shadow\n",
+             (unsigned long)t->frames, (unsigned long)t->frames, file_name(t->record_path));
+    if (ct_movie_write(t->record_path, t->pads, t->frames, header) != 0) {
+        fprintf(stderr, "cannot write %s\n", t->record_path);
+        return -1;
+    }
+    t->written_frames = t->frames;
+    return 0;
+}
+
+/* Runs one frame with the given live buttons (used once replay is over). */
+static void step(Player *pl, uint16_t live)
+{
+    Track *t = &pl->track;
+    if (!replaying(pl) && pl->runtime_mode != pl->native_mode)
+        natives_start(pl, pl->native_mode);
+    uint32_t fr = pl->snes.frame;
+    uint16_t pad = next_pad(pl, live);
+    snes_run_frame(&pl->snes, pad);
+    if (t->record_path) {
+        track_set(t, fr, pad);
+        if (t->frames - t->written_frames >= RECORD_FLUSH_FRAMES)
+            track_write(pl);
+    }
 }
 
 /* ---- headless ------------------------------------------------------------------ */
@@ -261,23 +413,23 @@ static int run_headless(Player *pl, long frames, const Hold *holds, int nholds, 
             if (frame >= holds[i].first && frame <= holds[i].last)
                 pad |= holds[i].buttons;
         }
-        snes_run_frame(&pl->snes, pad);
+        step(pl, pad);
     }
     sram_flush(pl);
-    int rc = 0;
+    int rc = track_write(pl) != 0;
     if (screenshot && ct_png_write(screenshot, pl->renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT) != 0) {
         fprintf(stderr, "cannot write %s\n", screenshot);
         rc = 1;
     }
     if (save_state) {
         long waited = 0;
-        while (native_suspended(pl->natives) && waited < SAVE_WAIT_FRAMES) {
+        while (natives_busy(pl) && waited < SAVE_WAIT_FRAMES) {
             snes_run_frame(&pl->snes, 0);
             waited++;
         }
         if (waited)
             fprintf(stderr, "waited %ld frames for native routines to finish\n", waited);
-        if (native_suspended(pl->natives)) {
+        if (natives_busy(pl)) {
             fprintf(stderr, "cannot save state: native routines stayed suspended\n");
             rc = 1;
         } else if (state_save(pl, save_state) != 0) {
@@ -313,9 +465,22 @@ static uint16_t read_pad(void)
     return pad;
 }
 
-static void set_title(SDL_Window *window, bool paused, bool saving)
+static void update_title(SDL_Window *window, const Player *pl, bool paused, bool saving)
 {
-    SDL_SetWindowTitle(window, paused ? "ct_play (paused)" : saving ? "ct_play (saving state...)" : "ct_play");
+    char title[160];
+    int n = snprintf(title, sizeof title, "ct_play");
+    if (replaying(pl))
+        n += snprintf(title + n, sizeof title - n, " (replaying %u/%u)", (unsigned)pl->snes.frame,
+                      (unsigned)pl->track.replay_frames);
+    else if (pl->track.record_path)
+        n += snprintf(title + n, sizeof title - n, " (recording, frame %u)", (unsigned)pl->snes.frame);
+    if (paused)
+        n += snprintf(title + n, sizeof title - n, " (paused)");
+    if (saving)
+        n += snprintf(title + n, sizeof title - n, " (saving state...)");
+    if (pl->runtime_mode == NATIVE_SHADOW && native_failed(pl->natives))
+        snprintf(title + n, sizeof title - n, " [shadow mismatch]");
+    SDL_SetWindowTitle(window, title);
 }
 
 static int run_window(Player *pl, int scale, bool fullscreen)
@@ -347,6 +512,7 @@ static int run_window(Player *pl, int scale, bool fullscreen)
     bool running = true, paused = false, save_pending = false;
     long save_wait = 0;
     long frames_since_flush = 0;
+    update_title(window, pl, paused, save_pending);
 
     while (running) {
         SDL_Event ev;
@@ -363,36 +529,43 @@ static int run_window(Player *pl, int scale, bool fullscreen)
                     SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
                 } else if (sc == SDL_SCANCODE_P || sc == SDL_SCANCODE_PAUSE) {
                     paused = !paused;
-                    set_title(window, paused, save_pending);
                 } else if (sc == SDL_SCANCODE_F5) {
                     save_pending = true;
                     save_wait = 0;
-                    set_title(window, paused, save_pending);
                 } else if (sc == SDL_SCANCODE_F7) {
                     save_pending = false;
                     state_load(pl, pl->state_path);
-                    set_title(window, paused, save_pending);
                 }
+                update_title(window, pl, paused, save_pending);
             }
         }
 
         if (!paused) {
-            snes_run_frame(&pl->snes, read_pad());            SDL_UpdateTexture(texture, NULL, pl->renderer.pixels, RENDER_WIDTH * 4);
-            if (save_pending) {
-                if (!native_suspended(pl->natives)) {
-                    save_pending = false;
-                    state_save(pl, pl->state_path);
-                } else if (++save_wait > SAVE_WAIT_FRAMES) {
-                    save_pending = false;
-                    fprintf(stderr, "quick save skipped: native routines stayed suspended; try again\n");
+            /* Replay and fast forward run frames unpaced for up to a display frame. */
+            const Uint8 *keys = SDL_GetKeyboardState(NULL);
+            Uint64 budget_end = SDL_GetPerformanceCounter() + period;
+            bool fast;
+            do {
+                step(pl, read_pad());
+                if (save_pending) {
+                    if (!natives_busy(pl)) {
+                        save_pending = false;
+                        state_save(pl, pl->state_path);
+                    } else if (++save_wait > SAVE_WAIT_FRAMES) {
+                        save_pending = false;
+                        fprintf(stderr, "quick save skipped: native routines stayed suspended; try again\n");
+                    }
                 }
-                if (!save_pending)
-                    set_title(window, paused, false);
-            }
-            if (++frames_since_flush >= SRAM_FLUSH_FRAMES) {
-                frames_since_flush = 0;
-                sram_flush(pl);
-            }
+                if (++frames_since_flush >= SRAM_FLUSH_FRAMES) {
+                    frames_since_flush = 0;
+                    sram_flush(pl);
+                    update_title(window, pl, paused, save_pending);
+                }
+                fast = replaying(pl) || keys[SDL_SCANCODE_TAB];
+            } while (fast && SDL_GetPerformanceCounter() < budget_end);
+            if (fast)
+                deadline = SDL_GetPerformanceCounter();
+            SDL_UpdateTexture(texture, NULL, pl->renderer.pixels, RENDER_WIDTH * 4);
         }
         SDL_RenderClear(sdl_renderer);
         SDL_RenderCopy(sdl_renderer, texture, NULL, NULL);
@@ -421,16 +594,17 @@ static int run_window(Player *pl, int scale, bool fullscreen)
     SDL_DestroyRenderer(sdl_renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return 0;
+    return track_write(pl) != 0;
 }
 
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *save_dir = NULL, *screenshot = NULL;
-    const char *load_state_path = NULL, *save_state_path = NULL;
+    const char *load_state_path = NULL, *save_state_path = NULL, *movie_path = NULL;
     static Player pl;   /* large; keep it off the stack */
+    bool native_given = false;
     pl.native_mode = NATIVE_ON;
-    long frames = -1, scale = 3;
+    long frames = -1, scale = 3, movie_frames = -1;
     bool fullscreen = false;
     static Hold holds[MAX_HOLDS];
     int nholds = 0;
@@ -461,6 +635,9 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--screenshot")) screenshot = v;
         else if (!strcmp(a, "--load-state")) load_state_path = v;
         else if (!strcmp(a, "--save-state")) save_state_path = v;
+        else if (!strcmp(a, "--movie")) movie_path = v;
+        else if (!strcmp(a, "--movie-frames")) movie_frames = strtol(v, NULL, 10);
+        else if (!strcmp(a, "--record")) pl.track.record_path = v;
         else if (!strcmp(a, "--hold")) {
             if (nholds == MAX_HOLDS || parse_hold(v, &holds[nholds]) != 0) {
                 fprintf(stderr, "bad --hold %s (expected BUTTON[+BUTTON]@FIRST-LAST)\n", v);
@@ -469,10 +646,12 @@ int main(int argc, char **argv)
             nholds++;
         }
         else if (!strcmp(a, "--native")) {
+            native_given = true;
             if (!strcmp(v, "off")) pl.native_mode = NATIVE_OFF;
             else if (!strcmp(v, "on")) pl.native_mode = NATIVE_ON;
+            else if (!strcmp(v, "shadow")) pl.native_mode = NATIVE_SHADOW;
             else {
-                fprintf(stderr, "--native must be on or off\n");
+                fprintf(stderr, "--native must be on, shadow or off\n");
                 return 2;
             }
         }
@@ -487,6 +666,22 @@ int main(int argc, char **argv)
         usage(stderr);
         return 2;
     }
+    Track *t = &pl.track;
+    if (t->record_path) {
+        /* A movie replays the same only where the original code's timing is kept,
+         * from power-on with the SRAM ct_dev starts with. */
+        if (native_given && pl.native_mode == NATIVE_ON) {
+            fprintf(stderr, "--record needs --native shadow or off: on mode changes timing, so the movie "
+                            "wouldn't replay the same\n");
+            return 2;
+        }
+        if (load_state_path) {
+            fprintf(stderr, "--record starts from power-on and can't be combined with --load-state\n");
+            return 2;
+        }
+        if (!native_given)
+            pl.native_mode = NATIVE_SHADOW;
+    }
 
     size_t rom_len;
     uint8_t *rom = read_file(rom_path, &rom_len);
@@ -496,18 +691,40 @@ int main(int argc, char **argv)
     }
     size_t header = rom_len % 0x8000 == 0x200 ? 0x200 : 0;
 
-    side_path(pl.sram_path, sizeof pl.sram_path, rom_path, save_dir, ".srm");
-    side_path(pl.state_path, sizeof pl.state_path, rom_path, save_dir, ".state");
+    side_path(pl.sram_path, sizeof pl.sram_path, rom_path, rom_path, save_dir, ".srm");
+    if (t->record_path)
+        side_path(pl.state_path, sizeof pl.state_path, t->record_path, rom_path, save_dir, ".state");
+    else
+        side_path(pl.state_path, sizeof pl.state_path, rom_path, rom_path, save_dir, ".state");
+
+    if (movie_path) {
+        ct_movie movie;
+        if (ct_movie_load(&movie, movie_path) != 0)
+            return 1;
+        uint32_t n = movie_frames >= 0 ? (uint32_t)movie_frames : movie.length;
+        for (uint32_t fr = 0; fr < n; fr++)
+            track_set(t, fr, ct_movie_buttons(&movie, fr));
+        t->replay_frames = n;
+        t->movie_name = file_name(movie_path);
+        ct_movie_free(&movie);
+    }
 
     snes_init(&pl.snes, rom + header, rom_len - header);
     render_init(&pl.renderer);
     pl.snes.on_line = on_line;
     pl.snes.on_line_ctx = &pl.renderer;
     snes_power_on(&pl.snes);
-    sram_load(&pl);
-    natives_start(&pl);
+    pl.persist_sram = !t->record_path;
+    if (pl.persist_sram)
+        sram_load(&pl);
+    /* Replaying for a recording runs uninterrupted interpretation, which keeps the
+     * same timing as shadow mode and is several times faster. */
+    natives_start(&pl, t->replay_frames && pl.native_mode == NATIVE_SHADOW ? NATIVE_OFF : pl.native_mode);
     if (load_state_path && state_load(&pl, load_state_path) != 0)
         return 1;
+    if (t->record_path)
+        fprintf(stderr, "recording to %s in %s mode; quick saves go to %s\n", t->record_path,
+                pl.native_mode == NATIVE_SHADOW ? "shadow" : "off", pl.state_path);
 
     int rc;
     if (frames >= 0)
@@ -515,7 +732,11 @@ int main(int argc, char **argv)
     else
         rc = run_window(&pl, (int)scale, fullscreen);
 
+    if (t->record_path)
+        fprintf(stderr, "recorded %lu frames to %s\n", (unsigned long)t->frames, t->record_path);
+    natives_report(&pl);
     native_destroy(pl.natives);
+    free(t->pads);
     free(rom);
     return rc;
 }

@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Longest movie accepted: about 46 hours at 60 frames per second. */
+#define MAX_FRAMES 10000000u
+
 static const struct {
     const char *name;
     uint16_t bit;
@@ -59,7 +62,8 @@ int ct_movie_load(ct_movie *movie, const char *path) {
         unsigned long start, count;
         char buttons[128];
         uint16_t mask;
-        if (sscanf(p, "%lu %lu %127s", &start, &count, buttons) != 3 || parse_buttons(buttons, &mask) != 0) {
+        if (sscanf(p, "%lu %lu %127s", &start, &count, buttons) != 3 || parse_buttons(buttons, &mask) != 0 ||
+            start > MAX_FRAMES || count > MAX_FRAMES - start) {
             fprintf(stderr, "movie: %s:%d: expected '<start_frame> <frame_count> <buttons>'\n", path, lineno);
             fclose(f);
             ct_movie_free(movie);
@@ -70,22 +74,58 @@ int ct_movie_load(ct_movie *movie, const char *path) {
             movie->events = realloc(movie->events, cap * sizeof *movie->events);
         }
         movie->events[movie->count++] = (ct_movie_event){(uint32_t)start, (uint32_t)count, mask};
+        if (start + count > movie->length)
+            movie->length = (uint32_t)(start + count);
     }
     fclose(f);
+
+    /* Per-frame table, so lookups don't scan every event. */
+    movie->pads = calloc(movie->length ? movie->length : 1, sizeof *movie->pads);
+    for (int i = 0; i < movie->count; i++) {
+        const ct_movie_event *e = &movie->events[i];
+        for (uint32_t fr = e->start; fr < e->start + e->count; fr++)
+            movie->pads[fr] |= e->buttons;
+    }
     return 0;
 }
 
 void ct_movie_free(ct_movie *movie) {
     free(movie->events);
+    free(movie->pads);
     memset(movie, 0, sizeof *movie);
 }
 
 uint16_t ct_movie_buttons(const ct_movie *movie, uint32_t frame) {
-    uint16_t mask = 0;
-    for (int i = 0; i < movie->count; i++) {
-        const ct_movie_event *e = &movie->events[i];
-        if (frame >= e->start && frame - e->start < e->count)
-            mask |= e->buttons;
+    return frame < movie->length ? movie->pads[frame] : 0;
+}
+
+static void write_buttons(FILE *f, uint16_t mask) {
+    const char *sep = "";
+    for (size_t i = 0; i < sizeof button_names / sizeof button_names[0]; i++) {
+        if (mask & button_names[i].bit) {
+            fprintf(f, "%s%s", sep, button_names[i].name);
+            sep = "+";
+        }
     }
-    return mask;
+}
+
+int ct_movie_write(const char *path, const uint16_t *pads, uint32_t frames, const char *header) {
+    FILE *f = fopen(path, "w");
+    if (!f)
+        return -1;
+    if (header)
+        fputs(header, f);
+    fprintf(f, "# <start_frame> <frame_count> <buttons>\n");
+    for (uint32_t fr = 0; fr < frames;) {
+        uint32_t end = fr + 1;
+        while (end < frames && pads[end] == pads[fr])
+            end++;
+        if (pads[fr]) {
+            fprintf(f, "%lu %lu ", (unsigned long)fr, (unsigned long)(end - fr));
+            write_buttons(f, pads[fr]);
+            fputc('\n', f);
+        }
+        fr = end;
+    }
+    return fclose(f) == 0 ? 0 : -1;
 }

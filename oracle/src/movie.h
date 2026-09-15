@@ -2,6 +2,7 @@
 #ifndef CT_MOVIE_H
 #define CT_MOVIE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 /* JOY1 ($4218/$4219) bit order. */
@@ -28,6 +29,8 @@ typedef struct {
 typedef struct {
     ct_movie_event *events;
     int count;
+    uint16_t *pads;    /* buttons per frame, 0 .. length-1 */
+    uint32_t length;   /* one past the last frame any event covers */
 } ct_movie;
 
 /* Returns 0 on success; prints a diagnostic and returns -1 on error. */
@@ -36,5 +39,10 @@ void ct_movie_free(ct_movie *movie);
 
 /* Buttons held on a frame: the OR of every event covering it. */
 uint16_t ct_movie_buttons(const ct_movie *movie, uint32_t frame);
+
+/* Writes frames 0 .. frames-1 of pads as a movie, one event per run of equal
+ * buttons. header, if not NULL, is written first; each of its lines should start
+ * with '#'. Returns 0 on success, -1 on error. */
+int ct_movie_write(const char *path, const uint16_t *pads, uint32_t frames, const char *header);
 
 #endif
