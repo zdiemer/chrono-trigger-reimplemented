@@ -777,6 +777,41 @@ compared by address and widths across alternative sections), 12412 blocks.
 images, all closure checks pass; the run takes about 10 s (analysis 5-7 s in
 two derivation rounds, closure 0.6 s).
 
+**Validation.** `unittest` passes (99 tests). The build with the coverage files
+and call logs gives 12412 blocks (148491 instructions); the six main movies in
+`--native shadow` report 0 mismatched generated blocks and no mismatching hand
+port (`new-game` 44087249 block checks, `menu` 55489410, `field` 68908992,
+`fair` 73751643, `fair-companion` 99024398, `gato-battle` 116449525), and
+`--native on --recomp only --misses` reports 0 misses on `new-game` and
+`gato-battle`. **Without any coverage file or call log** (static analysis and
+hints only) the generator writes the same blocks, byte for byte (`table.c` is
+identical), the matching source is the same, and the miss report is 0 on
+`new-game` and `gato-battle` too: the movies need nothing static tracing
+doesn't find.
+
+**Left for MD4:**
+
+- 96 tables are bounded by layout only: the table ends where code or another
+  table begins, and nothing checks the index. The data that indexes some of
+  them isn't parsed yet: event scripts (the operand tables `$C0:6307`, `6398`,
+  `6433`, `633D`, `63D7`; all locations' scripts are compressed), enemy scripts
+  (`$C1:B80D`, 41 entries, and the action tables `$C1:B85F`, `B88D`, `B8BB`),
+  battle animation script operands (`$C1:75D1`, `$C1:7633`). The object
+  handlers' state tables are indexed by state bytes the handlers set.
+- `$C2:828E` (menu modes): modes 8-10 and 15 point at bytes that aren't handler
+  tables; that no code sets them is assumed, not shown.
+- `$7E:3998` dispatches through `$0950,X` in the image while the lists it runs
+  and clears are `$0920`; nothing in the program fills `$0950`, so the derived
+  set is complete either way, but the operand's value at run time isn't
+  explained.
+- C4 still rests on the enumerated sections and the miss report; the whole
+  library's miss report wasn't rerun for this change (new-game and gato-battle
+  were).
+- The parsed scripts aren't typed regions with a round trip yet, except the
+  object scripts in `$C2:4A9B-4CC4` (`format = "object"`); the scene streams in
+  C3 and C6 are still inside `mixed` regions.
+- asar is still unchecked.
+
 ## 4. How it plugs into the existing tools
 
 - **`re/hints.toml`** grows data and pointer kinds, and the large maps move to
