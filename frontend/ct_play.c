@@ -136,6 +136,7 @@ typedef struct {
     uint8_t sram_saved[SNES_SRAM_SIZE];   /* SRAM as last loaded or written */
     Track track;
     bool mute;                            /* no audio device */
+    bool watch;                           /* replay --movie at normal speed, with sound */
     const char *wav_path;                 /* headless: write the audio here */
 #if CT_PLAYER_NO_INTERPRETER
     Misses *misses;                       /* instructions without generated code, as in misses_path */
@@ -171,6 +172,8 @@ static void usage(FILE *out)
             "Movies:\n"
             "  --movie F.ctm        replay this input movie from power-on, fast, then hand over to the keyboard\n"
             "  --movie-frames N     replay N frames of it (default: up to its last input)\n"
+            "  --watch              replay the movie at normal speed with sound instead of fast (Tab still\n"
+            "                       fast-forwards); the keyboard takes over when it ends\n"
             "  --record F.ctm       record input from power-on (including the replayed movie) to F.ctm,\n"
             "                       for ct_dev to replay. Starts without the .srm save (or with --sram), runs in\n"
             "                       shadow mode unless --native off is given, and quick saves go to <F>.state\n"
@@ -930,7 +933,7 @@ static int run_window(Player *pl, int scale, bool fullscreen, const Display *dis
 #endif
                     update_title(window, pl, paused, save_pending);
                 }
-                fast = replaying(pl) || keys[SDL_SCANCODE_TAB];
+                fast = (replaying(pl) && !pl->watch) || keys[SDL_SCANCODE_TAB];
             } while (fast && SDL_GetPerformanceCounter() < budget_end);
             if (fast)
                 deadline = SDL_GetPerformanceCounter();
@@ -999,6 +1002,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--fullscreen")) {
             fullscreen = true;
+            continue;
+        }
+        if (!strcmp(a, "--watch")) {
+            pl.watch = true;
             continue;
         }
         if (!strcmp(a, "--mute")) {

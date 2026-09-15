@@ -213,6 +213,19 @@ validation runs, put it in `oracle/movies/` with a comment saying what it
 covers, and list it in the movie table in [RUNTIME.md](RUNTIME.md).
 
 `--movie` also works without `--record`, to watch a movie and then take over.
+It replays at full speed unless `--watch` is given, which plays it at normal
+speed with sound (hold Tab to fast-forward):
+
+```sh
+dist/ct_play --rom path/to/ct.sfc --movie oracle/movies/gato-battle.ctm --watch
+dist/ct_play --rom path/to/ct.sfc --movie oracle/movies/saves/battle-magus.ctm \
+    --sram roms/saves/ctsave07-azala/chrono_trigger.srm --watch
+```
+
+A movie started from a cartridge save needs that save with `--sram` (the
+header names it). The window replays exactly what `ct_dev` validates only in
+the default mode (`--recomp only`) or `--native off`; with `--recomp on` or
+`--audio direct`, timing differs and the replay drifts from the recording.
 
 `--load-zst state.zst` starts from a ZSNES 1.51 save state (in a window or
 headless), for looking around late in the game. Its cartridge save isn't
