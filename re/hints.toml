@@ -223,9 +223,9 @@ at = "C2:DA23"
 count = 4
 
 # C2:ED59: entries 0-10 point at routines in C2:ED77-F378 (the 7 targets in the
-# calls files are among them). The bytes after, E8 A0 5B 00 54 7E FF 60, are
-# code (INX; LDY #$005B; MVN $FF,$7E; RTS, like C2:ED47), not addresses: read as
-# entries they give C2:A0E8, 005B, 7E54 and 60FF (a byte table, hit BRK).
+# calls files are among them). The bytes after them are code (a short block
+# move ending in RTS, like C2:ED47), not addresses: read as entries they point
+# into a byte table, where decoding hit BRK.
 [[jumptable]]
 at = "C2:ED50"
 count = 11
@@ -382,9 +382,9 @@ targets = ["C2:48CD", "C2:2F0F", "C2:7575", "C2:7598", "C2:78A1", "C2:7BC4"]
 
 # Object script command $4E (C2:181C): JSL to the long operand (JML [$005B] in
 # C2:1836, m8 x16, returns to C2:1830). C6:E237 ran m8 x16 without any other
-# edge, ends in RTL and appears as `4E 37 E2 C6` at C3:994B, with operands
-# naming $1BA9 (the byte it reads) a few bytes later. Only what runs in the
-# movies.
+# edge, ends in RTL, and a $4E command naming it appears in the object script
+# data at C3:994B, followed by an operand naming the byte it reads. Only what
+# runs in the movies.
 [[indirect]]
 at = "C2:1836"
 targets = ["C6:E237"]
