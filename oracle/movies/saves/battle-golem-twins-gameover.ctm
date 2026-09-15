@@ -1,0 +1,46 @@
+# Ocean Palace, Golem Twins lost on purpose: Dalton's scene, then Crono, Marle and Lucca's Delta
+# Force triple tech, the Golems' Iron Orb and copied Shadow tech counters, Lucca KO'd and revived
+# with Crono's Life tech, the party defeated, and A on the defeat screen: the sound driver restarts
+# the SPC700 boot ROM and the game returns to the title screen.
+# Save: ctsave10-ocean_palace slot 3 (fantasyanime.com/squaresoft/ctsaves-srm.htm, chrono_trigger.srm).
+# frames 12400
+# sram crc32 C209238C
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 4 A
+3320 40 RIGHT
+3360 300 UP
+3800 3 A
+3860 3 A
+3920 3 A
+3980 3 A
+4040 3 A
+4100 3 A
+4160 3 A
+4220 3 A
+4280 3 A
+4340 3 A
+4400 3 A
+4460 3 A
+4520 3 A
+4580 3 A
+4640 3 A
+4700 3 A
+5450 5 DOWN
+5468 5 A
+5490 60 DOWN
+5560 5 A
+5580 6 A
+7170 5 DOWN
+7190 5 A
+7215 5 UP
+7230 5 UP
+7245 5 UP
+7260 5 UP
+7275 5 UP
+7290 5 UP
+7305 5 UP
+7320 5 UP
+7345 6 A
+7380 8 A
+10900 6 A

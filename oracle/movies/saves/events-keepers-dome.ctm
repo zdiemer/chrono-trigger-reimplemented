@@ -1,0 +1,28 @@
+# Keeper's Dome (2300 A.D.): enter from the world map, walk past the sleeping Nu to the sealed door,
+# Marle's pendant opens it (flash effect, dialog), into Belthasar's hall and the "Huh...?" event; then walking around the hall.
+# Save: ctsave09-epoch slot 1 (fantasyanime.com/squaresoft/ctsaves-srm.htm, chrono_trigger.srm).
+# frames 5000
+# sram crc32 1CAFA619
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2400 4 DOWN
+2440 4 DOWN
+2500 4 A
+3010 20 UP
+3050 4 A
+3300 40 UP+B
+3345 40 RIGHT+B
+3390 100 UP+B
+3500 30 LEFT
+3540 150 UP
+3700 45 RIGHT+B
+3750 250 UP
+4010 4 A
+4100 4 A
+4160 4 A
+4260 150 UP
+4420 40 RIGHT
+4520 4 A
+4600 30 RIGHT
+4640 40 UP
+4690 150 UP+RIGHT

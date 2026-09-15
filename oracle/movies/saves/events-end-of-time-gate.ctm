@@ -1,0 +1,36 @@
+# End of Time: walk from Gaspar's lamp post to the pillars of light, step into the top pillar, the
+# Yes/No destination prompt (cursor moved down and back up, Yes), the time-gate tunnel effect and arrival in Medina Village (1000 A.D.).
+# Save: ctsave03-future_more slot 3 (fantasyanime.com/squaresoft/ctsaves-srm.htm, chrono_trigger.srm).
+# frames 5600
+# sram crc32 3A9BE857
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2400 4 A
+3000 20 RIGHT
+3025 130 UP
+3160 200 LEFT
+3370 60 UP
+3440 16 RIGHT
+3470 10 UP
+3500 4 A
+3580 4 DOWN
+3620 4 UP
+3680 4 A
+4800 3 A
+4840 3 A
+4880 3 A
+4920 3 A
+4960 3 A
+5000 3 A
+5040 3 A
+5080 3 A
+5120 3 A
+5160 3 A
+5200 3 A
+5240 3 A
+5280 3 A
+5320 3 A
+5360 3 A
+5400 3 A
+5440 3 A
+5480 3 A

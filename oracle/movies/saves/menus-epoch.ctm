@@ -1,0 +1,58 @@
+# Board the Epoch outside Lucca's House, fly the Mode 7 overworld, open the map view, time-travel to
+# 600 AD, land, enter and leave a residence, reboard, browse the time dial, travel back to 1000 AD, fly,
+# land near Truce, enter and leave the Truce Inn, walk the world map.
+# Save: ctsave14-side_quests3 slot 1 (fantasyanime.com/squaresoft/ctsaves-srm.htm, chrono_trigger.srm).
+# frames 8800
+# sram crc32 1E34C588
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2600 4 DOWN
+2700 4 DOWN
+2800 4 A
+3300 12 RIGHT
+3315 14 DOWN
+3400 4 A
+3450 2 UP
+3480 4 A
+3650 120 UP
+3820 4 SELECT
+4060 4 B
+4250 4 Y
+4610 4 DOWN
+4700 4 A
+5400 22 LEFT
+5430 8 DOWN
+5470 8 DOWN
+5510 8 DOWN
+5550 8 DOWN
+5590 8 DOWN
+5630 8 DOWN
+5650 3 A
+5790 40 RIGHT
+5840 40 DOWN
+5890 80 RIGHT
+5960 4 A
+6100 60 DOWN
+6400 45 LEFT
+6450 12 UP
+6465 14 LEFT
+6520 4 A
+6650 60 DOWN
+6720 60 RIGHT
+6800 4 Y
+7000 4 UP
+7060 4 UP
+7120 4 UP
+7180 4 DOWN
+7240 4 DOWN
+7320 4 A
+7800 120 UP
+7925 30 LEFT
+7960 25 DOWN
+8000 10 RIGHT
+8040 4 A
+8250 20 RIGHT
+8275 4 A
+8450 40 DOWN
+8600 60 LEFT
+8680 40 UP

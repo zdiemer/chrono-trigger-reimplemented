@@ -1,0 +1,29 @@
+# Aboard the Blackbird (12000 B.C.): walk to the ladder in the cell, the escape cutscene onto the hull,
+# the Blackbird fly-over sequence over the clouds, then walking on the hull and examining the hatch.
+# Save: ctsave11-crono_gone slot 1 (fantasyanime.com/squaresoft/ctsaves-srm.htm, chrono_trigger.srm).
+# frames 4400
+# sram crc32 C6FD718D
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2400 4 DOWN
+2440 4 DOWN
+2500 4 A
+3000 70 RIGHT
+3080 150 UP
+3300 3 A
+3345 3 A
+3390 3 A
+3435 3 A
+3480 3 A
+3525 3 A
+3570 3 A
+3615 3 A
+3660 3 A
+3705 3 A
+3750 3 A
+3795 3 A
+3840 3 A
+3885 3 A
+4000 60 UP
+4070 60 LEFT
+4140 4 A

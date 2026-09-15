@@ -267,6 +267,41 @@ the same scenes on Snes9x:
 | `fair-companion.ctm` | `fair.ctm`'s route (without its last walk), then up to the plaza, the meeting event with the story character, picking up and returning the item they drop, and the character joining the party | 17900 |
 | `gato-battle.ctm` | `fair-companion.ctm`, then out of the plaza's west edge to the singing robot's stage, the conversation that starts the fight, and the first battle, won (results at 21200 here, 21600 on Snes9x: battles run on real time, so they diverge in detail) | 21600 |
 
+Movies in `oracle/movies/saves/` start from power-on with a cartridge save
+loaded (`--sram`, see [ORACLE.md](ORACLE.md)) to reach later parts of the game:
+bosses, late-game techs, menus, shops, the Epoch, minigames and events. The
+saves are the "SRM" set at fantasyanime.com/squaresoft/ctsaves-srm.htm; each
+movie's header names the archive and slot and carries the save's CRC-32, and
+the frame count to run. They were timed on the development system. Put a
+save at `roms/saves/<archive name>/chrono_trigger.srm` and run, for example:
+
+```sh
+build/main/ct_dev --rom roms/ct-usa.sfc --sram roms/saves/ctsave07-azala/chrono_trigger.srm \
+    --movie oracle/movies/saves/battle-magus.ctm --frames 18000 --native shadow
+```
+
+| Movie | Save, slot | Covers | Frames |
+|---|---|---|---|
+| `battle-magus.ctm` | ctsave07, 1 | Vamp ambush won (results), the Magus fight: Mid Tonic, Ice Water dual tech, Lightning2, barrier changes, a Revive, Cure | 18000 |
+| `battle-golem-twins-gameover.ctm` | ctsave10, 3 | Delta Force, the Golems copying elements, Life revive, party wiped, game over back to the title (the sound driver restarts the SPC700 boot ROM) | 12400 |
+| `battle-tyrano-lair-walls.ctm` | ctsave08, 1 | Volcano and Avian Rex: Volt Bite, Haste, won with an item drop and a level-up | 8200 |
+| `late-omen-battles.ctm` | ctsave15, 1 | Black Omen random battles won (results), status Chaos, many single techs, running away from an ambush | 17100 |
+| `late-omen-terramutant.ctm` | ctsave15, 2 | TerraMutant (two-part boss): Delta Force, Mega Bomb, item menus, Life 2 | 15500 |
+| `late-omen-zeal.ctm` | ctsave15, 3 | Queen Zeal won: Luminaire, Antipode 3, Flare, Hallation | 18800 |
+| `events-jetbike-race.ctm` | ctsave03, 1 | Lab 32: Johnny's challenge and the Mode 7 race with turbo boosts | 9400 |
+| `events-end-of-time-gate.ctm` | ctsave03, 3 | End of Time pillar, yes/no prompt, gate effect, arrival in Medina | 5600 |
+| `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
+| `events-keepers-dome.ctm` | ctsave09, 1 | Keeper's Dome: the pendant opens the sealed door, Belthasar's hall | 5000 |
+| `events-blackbird.ctm` | ctsave11, 1 | Blackbird escape onto the hull over scrolling clouds | 4400 |
+| `menus-field-menu.ctm` | ctsave14, 3 | Every field submenu: equipment, items (use, organize), techs, config, party order, saving | 10600 |
+| `menus-shop-inn.ctm` | ctsave14, 1 | Truce Market buy and sell, resting at the inn | 9700 |
+| `menus-epoch.ctm` | ctsave14, 1 | Epoch: Mode 7 flight, map view, time travel between eras, landing, buildings | 8800 |
+| `menus-end-of-time.ctm` | ctsave12, 2 | Party exchange, the Guru of Time, saving over a slot | 8800 |
+
+All run in shadow mode with no mismatches. Making them found two hangs in the
+development system, both fixed: the location-change vblank wait (see Interrupt
+timing) and the SPC700's return to its boot ROM after a game over.
+
 Non-blank frames pixel-identical to Snes9x at the same frame / within 16 frames:
 
 | Section | `menu` | `field` | `fair` |

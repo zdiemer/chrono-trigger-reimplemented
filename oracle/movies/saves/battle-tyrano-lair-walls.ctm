@@ -1,0 +1,59 @@
+# Tyrano Lair castle walls (the Azala save; the boss itself isn't reached): walk out of the skull
+# room and west along the walkway into a Volcano and Avian Rex battle. Crono browses the Comb list
+# and does the Volt Bite dual tech with Ayla, Marle casts Haste, Volcano's fire attack, then the
+# party wins by attacking: experience, tech points, an item drop and Ayla's level up.
+# Save: ctsave08-zeal slot 1 (fantasyanime.com/squaresoft/ctsaves-srm.htm, chrono_trigger.srm).
+# frames 8200
+# sram crc32 C2813AC8
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2300 4 DOWN
+2360 4 DOWN
+2420 4 A
+3320 50 RIGHT
+3370 520 DOWN
+3900 60 UP
+3960 700 LEFT
+4780 6 DOWN
+4805 6 A
+4840 6 DOWN
+4870 6 DOWN
+4900 6 DOWN
+4930 6 DOWN
+4960 6 DOWN
+4990 6 DOWN
+5020 6 DOWN
+5050 6 DOWN
+5080 6 A
+5115 8 A
+5830 6 DOWN
+5855 6 A
+5890 6 DOWN
+5925 6 A
+5960 8 A
+6500 6 A
+6540 6 A
+6580 6 A
+6620 6 A
+6660 6 A
+6700 6 A
+6740 6 A
+6780 6 A
+6820 6 A
+6860 6 A
+6900 6 A
+6940 6 A
+6980 6 A
+7020 6 A
+7060 6 A
+7100 6 A
+7140 6 A
+7180 6 A
+7220 6 A
+7260 6 A
+7300 6 A
+7340 6 A
+7380 6 A
+7800 6 A
+7900 6 A
+8000 6 A
