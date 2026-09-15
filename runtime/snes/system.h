@@ -2,8 +2,10 @@
  * by an NTSC scanline timing model.
  *
  * Timing is instruction-granular. Each instruction costs its exact bus accesses
- * at their real speeds plus its exact internal cycles; interrupts and HDMA land
- * on the first instruction boundary after their scheduled time.
+ * at their real speeds plus its exact internal cycles; HDMA lands on the first
+ * instruction boundary after its scheduled time. Interrupts are recognized
+ * where the CPU polls for them, at the start of an instruction's last cycle, so
+ * one asserted during the last cycle waits for the next instruction.
  *
  * A frame ends at the start of vblank (scanline 225), after the NMI flag is set
  * and before the NMI handler runs.
@@ -36,6 +38,12 @@ typedef struct Snes {
     uint64_t master;    /* total master clocks since power-on */
     uint32_t frame;     /* completed frames */
     bool frame_done;
+
+    /* Interrupt recognition, in master clocks since power-on. */
+    uint64_t poll_at;       /* start of the last cycle of the latest polled step */
+    uint64_t nmi_at;        /* when the scheduled NMI's edge reaches the CPU */
+    bool nmi_scheduled;
+    uint64_t irq_at;        /* when the timer IRQ ($4211 bit 7) reaches the CPU */
 
     HdmaChannel hdma[8];
     bool hdma_done_this_line;

@@ -53,7 +53,9 @@ timing, and must print "all checks passed".
   SPC700 returns to that protocol: direct page `$01-$EF` cleared, `$BBAA`
   announced. Reads of the ROM overlay itself still return RAM.
 - **Frame boundary.** A frame ends at the start of vblank (scanline 225), after
-  the NMI flag is set and before the handler runs.
+  the NMI flag is set and before the handler runs. The next frame's first
+  step enters the handler, or its second when /NMI arrived during the last
+  cycle of the frame's final instruction (see Interrupt timing).
 - **Work RAM port.** `$2181-$2183` set an address and each read or write of
   `$2180` accesses that WRAM byte and advances the address. Only the low 17
   bits select the byte, so `$00:3000` and `$7E:3000` are the same. Chrono
@@ -62,6 +64,41 @@ timing, and must print "all checks passed".
 - **Exact CPU timing.** Each instruction costs its bus accesses at their real
   speeds plus its internal cycles (6 master clocks each), both verified per
   opcode against SingleStepTests.
+- **Interrupt timing.** The 65C816 samples its interrupt inputs at the start
+  of each instruction's last cycle and takes a recognized interrupt after the
+  instruction; an input that changes during the last cycle waits until after
+  the next instruction (bsnes models it as an interrupt test one cycle early;
+  Snes9x approximates it with a fixed delay after vblank starts). The system
+  records, for every step, the master clock at which its last cycle began:
+  6 clocks before the end if that cycle was internal, otherwise the length of
+  the last bus access before the end (a DMA transfer counts as part of the
+  `$420B` write that started it). An interrupt is taken after
+  the first step whose last cycle begins at or after the interrupt's time.
+  - NMI: RDNMI is set when line 225 starts, and /NMI reaches the CPU 6 master
+    clocks later, as in bsnes (flag at H=2 clocks, /NMI edge 4 clocks after).
+    Enabling NMIs through `$4200` while RDNMI is set counts from the end of
+    the write, so it's taken one instruction later.
+  - Timer IRQ: from the moment `$4211` bit 7 is set (no extra delay;
+    hardware's is about 3.5 dots), with the I flag read when the IRQ is taken,
+    so an IRQ pending across `CLI` is taken right after it rather than one
+    instruction later as on hardware.
+  - Interrupt entry sequences don't sample, so the handler's first instruction
+    always runs; WAI polls on every idle cycle; native code standing in for a
+    routine counts as one step whose last cycle is its final 6 clocks.
+
+  Chrono Trigger depends on this. Its location-change event command waits for
+  vblank with `LDA $4210 / BPL` at `$C0:3B71` while NMIs are enabled, and the
+  NMI handler (`$C0:EA63`, reached through `JML` stubs at `$00:0500`) reads
+  `$4210` too. When NMIs were taken right after the instruction in which
+  vblank began, the handler always cleared RDNMI before the loop read it, and
+  the game hung on a black screen (Magic Cave cutscene, Lavos, Mammon Machine
+  transition). With the sampling point, when /NMI arrives during `BPL`'s last
+  cycle or before `LDA`'s read cycle, the NMI waits until after `LDA`, which
+  sees the flag, and the loop exits within a few frames as it does on Snes9x
+  and bsnes. On `new-game`, `menu` and `field` every framebuffer stayed the
+  same as before the change; WRAM differs only in stack contents, one scratch
+  byte and a few writes landing a frame apart. State version 3 carries the
+  interrupt timing fields.
 - **Oracle conventions.** Power-on RAM contents follow Snes9x so unwritten
   bytes compare equal: WRAM `$55`, SRAM `$60` (no save file), and a gradient
   preloaded into CGRAM. SRAM then matches Snes9x throughout the attract

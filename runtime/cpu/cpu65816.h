@@ -44,6 +44,10 @@ typedef struct Cpu {
      * master clocks. Together with bus accesses this gives exact per-instruction
      * cycle counts (verified against SingleStepTests). */
     uint32_t io_cycles;
+    /* Whether the last cycle executed was internal rather than a bus access;
+     * with the bus's own accounting it gives the last cycle's length, where
+     * the system samples the interrupt lines. */
+    bool last_cycle_io;
 
     /* Optional: called before each instruction with its 24-bit address. */
     void (*on_insn)(void *ctx, uint32_t pc, uint8_t p, bool e);
@@ -53,8 +57,14 @@ typedef struct Cpu {
 void cpu_init(Cpu *cpu, CpuBus bus);
 void cpu_reset(Cpu *cpu);
 
+typedef enum CpuStep {
+    CPU_STEP_INSTRUCTION,   /* executed one instruction */
+    CPU_STEP_INTERRUPT,     /* ran an interrupt entry sequence (no interrupt poll) */
+    CPU_STEP_IDLE,          /* waiting (WAI) or stopped (STP): no bus activity */
+} CpuStep;
+
 /* Service a pending interrupt or execute one instruction. */
-void cpu_step(Cpu *cpu);
+CpuStep cpu_step(Cpu *cpu);
 
 static inline uint32_t cpu_pc24(const Cpu *cpu) { return (uint32_t)cpu->pb << 16 | cpu->pc; }
 
