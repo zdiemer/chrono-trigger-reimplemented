@@ -3,7 +3,7 @@
  *
  *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp only|on|off]
  *           [--audio snes|direct] [--save-dir dir]
- *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm]
+ *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm] [--load-zst in.zst]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
  *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm] [--wav out.wav]
  *
@@ -34,6 +34,7 @@
 #include "registry.h"
 #include "snes/render.h"
 #include "snes/system.h"
+#include "snes/zst.h"
 #include "trace.h"
 
 #ifndef CT_PLAYER_NO_INTERPRETER
@@ -174,6 +175,9 @@ static void usage(FILE *out)
             "                       for ct_dev to replay. Starts without the .srm save (or with --sram), runs in\n"
             "                       shadow mode unless --native off is given, and quick saves go to <F>.state\n"
             "  --sram F.srm         start with this cartridge save instead of <rom name>.srm, and don't write it\n"
+            "  --load-zst F.zst     start from a ZSNES 1.51 save state (.zst, .zs1-.zs9), including its cartridge\n"
+            "                       save, which isn't written back; some of its state is approximated, so it's\n"
+            "                       for exploring and coverage, and can't be recorded\n"
             "\n"
             "Headless check (no window):\n"
             "  --frames N           run N frames and exit\n"
@@ -973,6 +977,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *save_dir = NULL, *screenshot = NULL;
     const char *load_state_path = NULL, *save_state_path = NULL, *movie_path = NULL, *sram_file = NULL;
+    const char *zst_path = NULL;
     int movie_sram = 0;
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
@@ -1035,6 +1040,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--frames")) frames = strtol(v, NULL, 10);
         else if (!strcmp(a, "--screenshot")) screenshot = v;
         else if (!strcmp(a, "--load-state")) load_state_path = v;
+        else if (!strcmp(a, "--load-zst")) zst_path = v;
         else if (!strcmp(a, "--save-state")) save_state_path = v;
         else if (!strcmp(a, "--wav")) pl.wav_path = v;
         else if (!strcmp(a, "--movie")) movie_path = v;
@@ -1110,8 +1116,8 @@ int main(int argc, char **argv)
                             "change timing, so the movie wouldn't replay the same\n");
             return 2;
         }
-        if (load_state_path) {
-            fprintf(stderr, "--record starts from power-on and can't be combined with --load-state\n");
+        if (load_state_path || zst_path) {
+            fprintf(stderr, "--record starts from power-on and can't be combined with --load-state or --load-zst\n");
             return 2;
         }
         if (!native_given && !CT_PLAYER_NO_INTERPRETER)
@@ -1194,7 +1200,7 @@ int main(int argc, char **argv)
     pl.snes.on_line_ctx = &pl.renderer;
     snes_power_on(&pl.snes);
     /* --sram and recordings start from a fixed save and never write one back. */
-    pl.persist_sram = !t->record_path && !sram_file;
+    pl.persist_sram = !t->record_path && !sram_file && !zst_path;
     if (sram_file) {
         size_t sram_len;
         uint8_t *sram = read_file(sram_file, &sram_len);
@@ -1221,6 +1227,17 @@ int main(int argc, char **argv)
         au_select_backend(m_platform(&pl.snes), AU_BACKEND_DIRECT);
     if (load_state_path && state_load(&pl, load_state_path) != 0)
         return 1;
+    if (zst_path) {
+        char why[160];
+        if (zst_import_file(&pl.snes, zst_path, why, sizeof why) != 0) {
+            fprintf(stderr, "cannot import %s: %s\n", zst_path, why);
+            return 1;
+        }
+        memcpy(pl.sram_saved, pl.snes.bus.sram, SNES_SRAM_SIZE);
+        pl.snes.frame = 0;
+        natives_start(&pl, pl.runtime_mode);
+        fprintf(stderr, "imported ZSNES state %s (some state approximated; not for validation)\n", zst_path);
+    }
     if (t->record_path)
         fprintf(stderr, "recording to %s in %s mode; quick saves go to %s\n", t->record_path,
                 pl.native_mode == NATIVE_SHADOW ? "shadow" : pl.native_mode == NATIVE_ON ? "on" : "off",

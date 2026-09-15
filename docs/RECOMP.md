@@ -843,6 +843,16 @@ instructions) as a build with the ending movies' coverage files, which is how
 the build below is configured. One iteration was enough; no hint was needed for
 ROM code.
 
+Code that no movie reaches can be covered from ZSNES save states
+([RUNTIME.md](RUNTIME.md), "ZSNES save states"): `ct_dev --load-zst <state>`
+with `--coverage` and `--calls` (in `--native off`, where every instruction goes
+through the instruction hook) writes files that go into `CT_RECOMP_COVERAGE`
+and `CT_RECOMP_CALLS` like a movie's, and `--native on --recomp only --misses`
+gives the miss report from the same point. The runs aren't replayable, so they
+only feed the analysis; shadow validation of what they add still needs a movie
+from power-on. The twelve ending states' miss reports were already empty with
+the build below; their coverage adds 455 ROM instructions and 28 call edges.
+
 ### Results
 
 Built from the ROM with 23 coverage files (the main, save and ending movies)

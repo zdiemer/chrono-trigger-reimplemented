@@ -358,6 +358,24 @@ uint32_t snes_clocks_to_next_poll_change(const Snes *s)
     return SNES_CLOCKS_PER_LINE - s->hclock;
 }
 
+void snes_enter_vblank(Snes *s)
+{
+    s->hclock = 0;
+    s->vline = SNES_VBLANK_LINE;
+    s->nmi_scheduled = false;
+    s->nmi_at = 0;
+    s->irq_at = 0;
+    s->poll_at = s->master;
+    s->bus.irq_flag = false;
+    s->bus.nmi_request = false;
+    s->bus.in_hblank = false;
+    s->cpu.nmi_pending = false;
+    s->cpu.irq_line = false;
+    for (int ch = 0; ch < 8; ch++)
+        s->hdma[ch] = (HdmaChannel){ 0 };
+    start_line(s);   /* line 225: RDNMI, the NMI, auto-joypad, OAM reload, frame_done */
+}
+
 void snes_run_frame(Snes *s, uint16_t pad1)
 {
     if (s->halted)

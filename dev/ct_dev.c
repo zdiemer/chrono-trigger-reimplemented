@@ -7,7 +7,7 @@
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
- *          [--audio snes|direct]
+ *          [--audio snes|direct] [--load-zst in.zst [--frame F]]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -15,6 +15,10 @@
  * disassembler's liveness analysis knows about callers it can't see statically.
  * --load-state resumes from a state saved by --save-state (same build only);
  * frame numbers, and so movie input, continue from the saved frame.
+ * --load-zst starts from a ZSNES 1.51 save state (snes/zst.h) at frame F (--frame,
+ * default 0; --frames stays the frame to stop before). Such a run can't be
+ * replayed from power-on and the import approximates some state, so it's for
+ * coverage, miss reports and exploring, never for validation.
  * --sram starts with that cartridge save (8 KiB) in place of blank SRAM; a movie
  * recorded from a save names its CRC-32 and must be replayed with the same one.
  * --wav writes the DSP's output (32000 Hz stereo) over the frames run.
@@ -53,6 +57,7 @@
 #include "registry.h"
 #include "snes/render.h"
 #include "snes/system.h"
+#include "snes/zst.h"
 #include "trace.h"
 
 #ifdef _WIN32
@@ -214,6 +219,8 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
+    const char *zst_path = NULL;
+    long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
     bool recomp = true, ports = true, insn_stats = false, audio_direct = false;
     long frames = -1, status_every = 0, shot_every = 0;
@@ -236,6 +243,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--coverage")) coverage_path = v;
         else if (!strcmp(a, "--calls")) calls_path = v;
         else if (!strcmp(a, "--load-state")) load_state = v;
+        else if (!strcmp(a, "--load-zst")) zst_path = v;
+        else if (!strcmp(a, "--frame")) start_frame = strtol(v, NULL, 10);
         else if (!strcmp(a, "--save-state")) save_state = v;
         else if (!strcmp(a, "--sram")) sram_path = v;
         else if (!strcmp(a, "--status-every")) status_every = strtol(v, NULL, 10);
@@ -291,7 +300,15 @@ int main(int argc, char **argv)
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
-                        "[--audio snes|direct]\n");
+                        "[--audio snes|direct] [--load-zst in.zst [--frame F]]\n");
+        return 2;
+    }
+    if (zst_path && load_state) {
+        fprintf(stderr, "--load-zst and --load-state can't be combined\n");
+        return 2;
+    }
+    if (start_frame >= 0 && !zst_path) {
+        fprintf(stderr, "--frame sets the frame number of an imported state (--load-zst)\n");
         return 2;
     }
     if (no_interpreter && native_mode != NATIVE_ON) {
@@ -341,6 +358,17 @@ int main(int argc, char **argv)
     if (load_state && snes_state_load(&snes, load_state) != 0) {
         fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", load_state);
         return 1;
+    }
+    if (zst_path) {
+        char why[160];
+        if (zst_import_file(&snes, zst_path, why, sizeof why) != 0) {
+            fprintf(stderr, "cannot import %s: %s\n", zst_path, why);
+            return 1;
+        }
+        snes.frame = (uint32_t)(start_frame > 0 ? start_frame : 0);
+        fprintf(stderr, "imported ZSNES state %s as frame %u. Runs from it can't be replayed from power-on and "
+                        "approximate some state: use them for coverage and exploring, never for validation.\n",
+                zst_path, (unsigned)snes.frame);
     }
     /* --exclude drops ported routines (and generated blocks, recomp_BBAAAA_...)
      * whose names start with a prefix, for narrowing down which one causes a

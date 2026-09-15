@@ -96,6 +96,13 @@ void snes_clone(Snes *dst, const Snes *src);
 int snes_state_save(const Snes *snes, const char *path);
 int snes_state_load(Snes *snes, const char *path);
 
+/* Put the timing model where snes_run_frame leaves it: the start of vblank
+ * (line 225) with RDNMI set, the NMI scheduled if $4200 enables it, joypads
+ * latched and the OAM address reloaded. Pending interrupts and HDMA progress
+ * are dropped. For hosts that overwrite the machine's contents from a foreign
+ * save state (snes/zst.h), which then continues at the next frame. */
+void snes_enter_vblank(Snes *snes);
+
 /* Run until the start of the next vblank. pad1 is in JOY1 bit order. */
 void snes_run_frame(Snes *snes, uint16_t pad1);
 

@@ -214,6 +214,11 @@ covers, and list it in the movie table in [RUNTIME.md](RUNTIME.md).
 
 `--movie` also works without `--record`, to watch a movie and then take over.
 
+`--load-zst state.zst` starts from a ZSNES 1.51 save state (in a window or
+headless), for looking around late in the game. Its cartridge save isn't
+written back, it can't be recorded, and some of its state is approximated
+([RUNTIME.md](RUNTIME.md), "ZSNES save states").
+
 ## Headless check
 
 For checking a build without a display, `--frames N` runs without a window and

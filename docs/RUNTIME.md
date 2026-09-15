@@ -18,7 +18,9 @@ seeding the disassembler. `--calls` writes executed call edges for liveness
 analysis. `--save-state` writes the machine at the end of a run and
 `--load-state` resumes from it (same build only), which makes iterating on the
 end of a long movie fast. Frame numbers and movie input continue from the
-saved frame, and resumed runs are identical to straight runs. `--wav out.wav`
+saved frame, and resumed runs are identical to straight runs. `--load-zst`
+starts from a ZSNES save state instead, for coverage runs only (see ZSNES save
+states below). `--wav out.wav`
 writes the sound (32000 Hz stereo, see S-DSP below). `--io-log out.txt` counts
 every hardware register access by what made it: a hand port and the platform
 service call it went through, a generated block, the interpreter's instruction,
@@ -40,6 +42,7 @@ It changes timing, so it's never used for validation.
 | `runtime/snes/ppu.c` | VRAM/CGRAM/OAM access, decoded scroll/Mode 7/color registers, multiply, counters | Oracle traces |
 | `runtime/snes/render.c` | Scanline renderer with Snes9x-compatible output colors | Snes9x framebuffers (see Renderer) |
 | `runtime/snes/system.c` | Scanline timing, NMI/IRQ, HDMA, auto-joypad | Oracle traces |
+| `runtime/snes/zst.c` | ZSNES save state import, for coverage runs (see ZSNES save states) | Chrono Trigger states run on |
 | `runtime/port/recomp.h` | Instruction semantics for generated code ([RECOMP.md](RECOMP.md)) | SingleStepTests, 5.12M cases with cycle counts; the interpreter on the SNES bus |
 
 Build the conformance runners with the same CMake project (`sst_runner`,
@@ -474,6 +477,162 @@ WRAM bytes the game has written: `ct_dev` traces carry a `WRAMW` region, and
 2. **Porting.** Continue replacing routines with native code; shadow mode over
    `new-game`, `field`, `menu`, `fair`, `fair-companion` and `gato-battle` is
    the regression check (docs/PORTING.md).
+
+## ZSNES save states
+
+`ct_dev --load-zst <file> [--frame F]` (and `ct_play --load-zst <file>`)
+starts from a ZSNES 1.51 save state (`.zst`, `.zs1`-`.zs9`, header
+`ZSNES Save State File V143`) instead of power-on. It exists to reach code no
+movie reaches yet, for coverage files and miss reports, and to put a
+movie-authoring session next to a boss or an ending quickly. **A run from an
+imported state is never a validation run:** it can't be replayed from
+power-on, and the import approximates state the file doesn't hold in our form
+(below), so what follows isn't exactly what the original would do. Movies must
+still start from power-on (with `--sram`, which `--load-zst` replaces).
+
+```sh
+build/main/ct_dev --rom roms/ct-usa.sfc --load-zst "roms/saves-technoplaza/ct-state18/Chrono Trigger (U).zs4" \
+    --frames 30000 --movie a-presses.ctm --coverage traces/cov-zst-state18.txt --calls traces/calls-zst-state18.txt
+```
+
+Frames are numbered from `--frame` (default 0), so a movie's input applies
+relative to the import; `--frames` is still the frame to stop before. ct_play
+doesn't write the state's cartridge save back to `<rom name>.srm`, and can't
+record from an import.
+
+### Format
+
+The layout, from ZsKnight's `zst_frmt.txt` and _Demo_'s SPC section
+description (romhacking.net documents 170 and 171, which describe an early
+version) and creaothceann's addendum on the fields added since (document 190),
+checked against the Chrono Trigger states of the emuWorks archive. Everything
+is little-endian; offsets are into the file. The implementation is
+`runtime/snes/zst.c`.
+
+| Offset | Size | What | Checked by |
+|---|---|---|---|
+| `$00` | 28 | `ZSNES Save State File V143`, `$1A`, `$8F` (143) | all files |
+| `$1C`, `$1D` | 1, 2 | cycles left in the line, scanline: always 0 and 224 | all files |
+| `$24` | 1 | sound enabled (the SPC700 section below is present) | |
+| `$29`-`$38` | | 65816: A (2), DB, PB, S (2), D (2), X (2), Y (2), P, E, PC (2) | PC at the game's wait loops (`$C0:EC71`, `$CD:3E87`); with PC after `LDA $0152`, A is `$7E:0152` |
+| `$4A`, `$4C` | 1, 2 | `$4200` NMITIMEN, V-timer | |
+| `$4E`, `$50` | 1, 1 | brightness, force blank (`$80`) | |
+| `$51`, `$59`, `$5A` | 4, 1, 1 | OBSEL: name base, small and large size as (pixels / 8)² | |
+| `$61`, `$63` | 2, 2 | OAM address, OAM address reload | |
+| `$66`-`$6A` | 5 | BG mode, BG3 priority, tile size bits, mosaic enable, mosaic size | |
+| `$6B`, `$8B`, `$8F` | 8, 4, 8 | per BG: tilemap VRAM byte address, map size, tile data VRAM byte address | tilemaps at `$C000`-`$F000` hold tile words |
+| `$97`, `$A1` | 10, 8 | BG1-4 H scroll (and a spare word), V scroll | |
+| `$A9`-`$B1` | | VRAM step, VRAM address (dword, byte address), CGRAM address | |
+| `$B4` | 2 | main and sub screen designation (`$212C`, `$212D`) | |
+| `$B9`-`$BF` | | WRMPYA, WRDIV, RDDIV, RDMPY | |
+| `$C7`-`$D4` | 14 | WH0-WH3, window selects as nybbles (BG1-4, OBJ, color), WBGLOG, WOBJLOG, TMW, TSW | |
+| `$D5`-`$E1` | 13 | M7SEL, Mode 7 A, B, C, D, X, Y | |
+| `$E9` | 4 | `$2181` WRAM port address | |
+| `$ED` | 129 | `$4300`-`$437F` as written (16 per channel, then a spare byte) | modes, B-bus targets and table addresses look like HDMA setups; `$43xB`-`$43xF` are `$FF` |
+| `$170` | 1 | HDMA channels still active in the frame | |
+| `$171` | 152 | ZSNES's HDMA state (host pointers, count, table address) | |
+| `$20A`-`$20F` | 6 | fixed color red, green, blue; CGWSEL, CGADSUB | |
+| `$218` | 1024 | OAM (544 used) | sprite entries |
+| `$618` | 512 | CGRAM | palettes (also found by nesdev forum users) |
+| `$A18`, `$A27` | 1, 2 | VMAIN as written, H-timer | |
+| `$C13` | 131072 | WRAM `$7E:0000`-`$7F:FFFF` | CPU registers, battle HP at `$7E:5E30`, sound command mirror `$1E00` |
+| `$20C13` | 65536 | VRAM | |
+| `$30C13` | 65536 + 16 | sound RAM (with `$F0`-`$FF`: `$F1` control, `$F2` DSP address, `$F4`-`$F7` what the CPU wrote, `$FA`-`$FC` timer targets, `$FD`-`$FF` counters) | the driver's code at PC; `$F4`-`$F7` equal the game's command mirror `$7E:1E00` |
+| `$40C23` | 36 | SPC700 dwords: PC, A, X, Y, PSW, NZ, SP, direct page, cycles | PC at the driver's main loop (`CALL $0B96`) |
+| `$40C47` | 4 | ports as the main CPU reads them | |
+| `$40C4B` | 8 | timers enabled, ticks per count (3), ticks left (3), phase bit | |
+| `$40C53` | 256 | spare | |
+| `$40D53` | 1068 | ZSNES's DSP voice model; at `$40DEB` each voice's next BRR block, at `$40E0B` its loop block | loop blocks equal the sample directory's |
+| `$4117F` | 256 | S-DSP registers (128 used) | pitches equal ZSNES's copies at `$40DD3`; DIR, ESA, EDL plausible |
+| `$4127F` | 220 | ZSNES internals | |
+| `$4135B` | 8192 | cartridge SRAM (size of the cartridge's) | equals the archive's `.srm` where it was saved at the same time |
+| `$4335B` | 7168 | 64x56 thumbnail | file size |
+
+Most PPU state is kept decoded, not as register values, and some write-only
+state isn't kept at all. The importer rebuilds the registers from it.
+
+### Import
+
+After power-on the importer overwrites the machine:
+
+- **Memory:** WRAM, SRAM, VRAM, CGRAM, OAM and sound RAM are copied.
+- **CPU:** registers from the file, not waiting or stopped.
+- **PPU:** register values are reassembled from ZSNES's fields and written
+  through `ppu_write` (`$2100`-`$2103`, `$2105`-`$2117`, `$211A`-`$2121`,
+  `$2123`-`$2133`; the two-byte ones low byte first through their latches,
+  Mode 7 before BG1's scroll), so decoded scroll and Mode 7 values come out as
+  a game's writes would leave them. Then the write latches, `$2122` and `$213B`
+  flip-flops and counter latches are reset, and SETINI is 0.
+- **CPU I/O:** NMITIMEN, H/V timers, multiply/divide registers, the WRAM
+  port address and all `$43x0`-`$43xF` registers are set directly. HDMAEN is
+  taken from the channels still active (usually 0), FastROM is on (Chrono
+  Trigger sets `$420D` at boot; the file doesn't hold it), and no DMA or IRQ is
+  pending.
+- **APU:** the driver phase, SPC700 registers (P from the direct page flag),
+  both port directions, `$F1`, `$F2`, timer enables and targets, and DSP
+  registers.
+- **Position:** the state is taken at the end of line 224, before the NMI
+  (RDNMI clear, no NMI in progress). `snes_enter_vblank` puts the timing model
+  at the start of line 225, where a frame of ours ends, with RDNMI set and the
+  NMI scheduled, so the first frame run starts with the game's NMI handler.
+
+Approximations (what the file holds only in ZSNES's own form, or not at all):
+
+- **S-DSP voices.** A voice with a nonzero ENVX continues from the BRR block
+  ZSNES had reached, at envelope ENVX × 16, in sustain (decay if ADSR and above
+  the sustain level; release if KOFF is set), with an empty decode history and
+  pitch counter; the others are silent. The global rate counter, noise, echo
+  position and FIR history start over. Music continues with, at most, a click
+  at the import; the next key-ons are exact.
+- **Timers.** Stage is the target less ZSNES's ticks left, the divider starts
+  at 0, counters keep their low 4 bits.
+- **Timing within the line and frame.** The partial line and HDMA progress are
+  dropped; ZSNES's CPU/APU cycle balance is lost (the APU starts in step).
+- **PPU fields the file doesn't show clearly:** OBSEL's name base and the
+  mosaic size (0 in every state checked), OAM priority rotation (off), CGRAM
+  address flip-flop. Chrono Trigger's NMI handlers rewrite INIDISP, HDMAEN and
+  the scroll registers from WRAM every frame, so these last one frame at most.
+- **Not imported:** controller latches, open bus, `$4201` WRIO (stays at power-on),
+  coprocessor data (Chrono Trigger has none).
+
+### Checked on the emuWorks states
+
+All 51 Chrono Trigger states of the archive's endings (ct-state15 slots 1-7,
+ct-state16-26 slots 1-4) and five story states (ct-state1, 5, 9, 13, 14) were
+run from the import for 3600 frames with `--native off` and no input, with a
+screenshot every 60 frames. Every one kept running: field scenes animate
+(fountains, water, the party idling), the Lavos battles go on (the shell's
+imitated bosses, Lavos Core casting, the party's gauges filling, battle
+messages), the events before each core fight play their cutscene up to the
+first dialog waiting for a button, and the ending states play their opening
+(the time vortex, the flash, the first scenes) with music. The first frame
+shows the old OAM until the game's NMI handler uploads it.
+
+The twelve ending states (ct-state15 slot 7, ct-state16-26 slot 4) were then
+run for 30000 frames with A pressed for 3 frames every 90, once with `--native
+off --coverage --calls` and once with `--native on --recomp only --misses`
+(same screenshots at every 3000th frame in both):
+
+| State | Ending | Result |
+|---|---|---|
+| 15, 7 | Beyond Time | the pardon, the Moonlight Parade; then waits for the player to walk (the rest is in `endings-beyond-time.ctm`) |
+| 16, 4 | Dream Project | reaches the End of Time scene, then waits for the player to walk |
+| 17, 4 | The Successor of Guardia | reaches Leene's Square, then waits for the player to walk |
+| 18, 4 | Good Night | staff credits to The End (animated) |
+| 19, 4 | The Legendary Hero | credits with scenes to The End |
+| 20, 4 | The Unknown Past | credits with scenes to The End |
+| 21, 4 | People of the Times | credits to The End |
+| 22, 4 | The Oath | scenes, credits, The End over a moonlit tower |
+| 23, 4 | Dino Age | credits with scenes to The End |
+| 24, 4 | What the Prophet Seeks | credits to The End |
+| 25, 4 | Slide Show | the slide show and The End |
+| 26, 4 | Reunion | reaches the End of Time scene, then waits for the player to walk |
+
+The miss reports were empty: the generated code (23 coverage files, including
+`endings-beyond-time`'s) already runs every instruction of all twelve. The
+coverage files add 455 instructions (all ROM, 427 in bank `$C0`, 26 in `$FD`)
+and the call logs 28 edges to the 23 existing files, from the endings other
+than Beyond Time and Dream Project.
 
 ## Finding routes
 

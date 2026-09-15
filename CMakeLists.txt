@@ -41,6 +41,7 @@ add_library(ct_runtime STATIC
   runtime/snes/ppu.c
   runtime/snes/render.c
   runtime/snes/system.c
+  runtime/snes/zst.c
   runtime/port/fiber.c
   runtime/port/native.c
   runtime/platform/snes/backend.c
