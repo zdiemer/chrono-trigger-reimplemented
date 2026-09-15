@@ -28,4 +28,7 @@ void field_line_up_with_tile(Snes *s);
 /* field/objects.c */
 void field_update_object_visibility(Snes *s);
 
+/* field/scroll.c */
+void field_scroll_layers(Snes *s);
+
 #endif

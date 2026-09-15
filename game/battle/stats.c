@@ -189,3 +189,108 @@ void battle_update_all_combatants(Snes *s)
     m_write8(s, m_dp(s, 0x24), m_lda8(s, 0x01));
     m_rts(s);
 }
+
+// $C1:2F97
+/* Choose combatant $94's status pose: walk the 4-byte entries of the table at
+ * $CC:F77F (stat block offset, mask, pose, animation; a negative offset ends
+ * it) for the first status bit set in its stat block ($CC:F8ED + slot * 2);
+ * the first entry also applies when $A119 is set. A matching entry sets the
+ * pose in $A441 (and $968C = $FF to restart the animation when it differs
+ * from $A44C) and its animation in $A440 ($FF: 3 unless $A0A7 is set). With no
+ * match, bit 0 of $5E2F picks pose $80 and animation $12 (unless $A09B is set);
+ * otherwise the animation is 0, or 3 when $A09B is clear. */
+void battle_select_status_pose(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_ldx16(s, m_read16(s, m_dp(s, 0x94)));
+    uint8_t base = m_lda8(s, absx8(s, 0xA09B)) ? 0x00 : 0x03;
+    m_write8(s, m_dp(s, 0x84), m_lda8(s, base));
+    set_absx8(s, 0xA441, m_lda8(s, 0xFF));
+    m_set_a8(s, m_asl8(s, m_lda8(s, m_read8(s, m_dp(s, 0x94)))));
+    m_tax(s);
+    m_rep(s, CPU_FLAG_M);
+    m_set_index(s, &c->y, m_lda16(s, m_read16(s, 0xCCF8ED + c->x)));
+    m_write16(s, m_dp(s, 0xA2), c->y);
+    m_tdc(s);
+    m_write16(s, m_dp(s, 0x80), c->a);
+    m_sep(s, CPU_FLAG_M);
+    m_ldx16(s, m_read16(s, m_dp(s, 0x94)));
+    bool restart = m_lda8(s, absx8(s, 0xA119)) != 0;
+    if (!restart)
+        restart = m_lda8(s, m_read8(s, m_abs(s, 0x5E4A) + c->y)) & 0x80;
+    if (restart) {
+        set_absx8(s, 0xA0A8, m_lda8(s, 0x01));
+        set_absx8(s, 0x968C, m_lda8(s, 0xFF));
+    }
+    m_tdc(s);
+    m_tax(s);
+    for (;;) {
+        /* $C1:2FD5 */
+        uint8_t offset = m_lda8(s, m_read8(s, 0xCCF77F + c->x));
+        if (offset & 0x80) {
+            /* $C1:302C: no status pose */
+            m_set_index(s, &c->y, m_read16(s, m_dp(s, 0xA2)));
+            if (m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, m_abs(s, 0x5E2F) + c->y)) & 0x01)) != 0) {
+                m_set_index(s, &c->y, m_read16(s, m_dp(s, 0x94)));
+                if (m_lda8(s, m_read8(s, m_abs(s, 0xA09B) + c->y)) == 0) {
+                    m_write8(s, m_abs(s, 0xA441) + c->y, m_lda8(s, 0x80));
+                    uint8_t last = m_read8(s, m_abs(s, 0xA44C) + c->y);
+                    m_lda8(s, 0x12);
+                    m_cmp8(s, 0x12, last);
+                    if (last != 0x12) {
+                        m_cmp16(s, c->y, 0x0003);
+                        if (c->y < 0x0003)
+                            m_write8(s, m_abs(s, 0x968C) + c->y, m_lda8(s, 0xFF));
+                    }
+                    m_write8(s, m_abs(s, 0xA440), m_lda8(s, 0x12));
+                    m_rts(s);
+                    return;
+                }
+            }
+            break;
+        }
+        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
+        c->a = m_adc16(s, c->a, m_read16(s, m_dp(s, 0xA2)));
+        m_set_index(s, &c->y, c->a);
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+        uint8_t bits = m_lda8(s, m_read8(s, m_abs(s, 0x5E4A) + c->y));
+        bool match = m_lda8(s, (uint8_t)(bits & m_read8(s, 0xCCF780 + c->x))) != 0;
+        if (!match) {
+            m_txa(s);
+            if ((uint8_t)c->a == 0) {
+                m_ldx16(s, m_read16(s, m_dp(s, 0x94)));
+                match = m_lda8(s, absx8(s, 0xA119)) != 0;
+                m_tdc(s);
+                m_tax(s);
+            }
+        }
+        if (match) {
+            /* $C1:2FFE */
+            uint8_t anim = m_lda8(s, m_read8(s, 0xCCF782 + c->x));
+            m_cmp8(s, anim, 0xFF);
+            if (anim == 0xFF) {
+                if (m_lda8(s, m_read8(s, m_abs(s, 0xA0A7))) != 0)
+                    goto next;
+                anim = m_lda8(s, 0x03);
+            }
+            m_write8(s, m_dp(s, 0x84), anim);
+            m_set_index(s, &c->y, m_read16(s, m_dp(s, 0x94)));
+            uint8_t pose = m_lda8(s, m_read8(s, 0xCCF781 + c->x));
+            if (!(pose & 0x80)) {
+                m_write8(s, m_abs(s, 0xA441) + c->y, pose);
+                uint8_t last = m_read8(s, m_abs(s, 0xA44C) + c->y);
+                m_cmp8(s, pose, last);
+                if (pose != last)
+                    m_write8(s, m_abs(s, 0x968C) + c->y, m_lda8(s, 0xFF));
+            }
+            break;
+        }
+    next:
+        for (int i = 0; i < 4; i++)
+            m_inx(s);
+    }
+    /* $C1:3056 */
+    m_write8(s, m_abs(s, 0xA440), m_lda8(s, m_read8(s, m_dp(s, 0x84))));
+    m_rts(s);
+}

@@ -128,6 +128,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC13714, .name = "battle_step_slot_effects", .fn = battle_step_slot_effects, NEEDS_M8_X16, .cost_milli = 3403 },
     { .addr = 0xCFF957, .name = "battle_points_are_close", .fn = battle_points_are_close, NEEDS_M8_X16_BINARY,
       .cost_milli = 4000 },
+    { .addr = 0xC12F97, .name = "battle_select_status_pose", .fn = battle_select_status_pose, NEEDS_M8_X16_BINARY,
+      .cost_milli = 7168, .dont_care = DC_N | DC_Z },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
       .cost_milli = 4344, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,
@@ -407,6 +409,8 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16_BINARY, .cost_milli = 4000, .dont_care = DC_X | DC_N | DC_Z },
     { .addr = 0xC0305D, .name = "field_line_up_with_tile", .fn = field_line_up_with_tile,
       NEEDS_M8_X16_BINARY, .cost_milli = 4000, .dont_care = DC_N | DC_Z },
+    { .addr = 0xC02C41, .name = "field_scroll_layers", .fn = field_scroll_layers, NEEDS_M8_X16_BINARY,
+      .cost_milli = 4058, .dont_care = DC_N | DC_Z },
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
       NEEDS_M8_X8_BINARY, .cost_milli = 4657, .dont_care = DC_X | DC_N | DC_Z },
 
