@@ -5,6 +5,7 @@
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
+ *          [--sram save.srm]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -12,6 +13,8 @@
  * disassembler's liveness analysis knows about callers it can't see statically.
  * --load-state resumes from a state saved by --save-state (same build only);
  * frame numbers, and so movie input, continue from the saved frame.
+ * --sram starts with that cartridge save (8 KiB) in place of blank SRAM; a movie
+ * recorded from a save names its CRC-32 and must be replayed with the same one.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -147,7 +150,7 @@ static uint8_t *read_file(const char *path, size_t *len)
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
-    const char *calls_path = NULL, *load_state = NULL, *save_state = NULL;
+    const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     const char *shot_dir = NULL;
     NativeMode native_mode = NATIVE_OFF;
     long frames = -1, status_every = 0, shot_every = 0;
@@ -165,6 +168,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--calls")) calls_path = v;
         else if (!strcmp(a, "--load-state")) load_state = v;
         else if (!strcmp(a, "--save-state")) save_state = v;
+        else if (!strcmp(a, "--sram")) sram_path = v;
         else if (!strcmp(a, "--status-every")) status_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
@@ -186,7 +190,8 @@ int main(int argc, char **argv)
     if (!rom_path || frames < 0 || (shot_every > 0 && !shot_dir)) {
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
-                        "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f]\n");
+                        "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
+                        "[--sram save.srm]\n");
         return 2;
     }
 
@@ -211,6 +216,21 @@ int main(int argc, char **argv)
     snes.on_line = on_line;
     snes.on_line_ctx = &renderer;
     snes_power_on(&snes);
+    if (sram_path) {
+        size_t sram_len;
+        uint8_t *sram = read_file(sram_path, &sram_len);
+        if (!sram || sram_len != SNES_SRAM_SIZE) {
+            fprintf(stderr, "cannot read %s as a %d-byte SRAM file\n", sram_path, SNES_SRAM_SIZE);
+            return 1;
+        }
+        memcpy(snes.bus.sram, sram, SNES_SRAM_SIZE);
+        free(sram);
+    }
+    if (movie.has_sram && (!sram_path || ct_crc32(snes.bus.sram, SNES_SRAM_SIZE) != movie.sram_crc)) {
+        fprintf(stderr, "%s starts from SRAM with CRC-32 %08X; pass that save with --sram\n", movie_path,
+                (unsigned)movie.sram_crc);
+        return 1;
+    }
     if (load_state && snes_state_load(&snes, load_state) != 0) {
         fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", load_state);
         return 1;

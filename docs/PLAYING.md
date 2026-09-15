@@ -87,7 +87,10 @@ hold only button presses, so they can be committed; they are replayed from
 power-on, so a recording:
 
 - starts from power-on with blank SRAM, as `ct_dev` does: it doesn't load or
-  write `<rom name>.srm`, and `--load-state` isn't allowed;
+  write `<rom name>.srm`, and `--load-state` isn't allowed. `--sram save.srm`
+  starts it with a cartridge save instead (for reaching later parts of the
+  game quickly); the movie records the save's CRC-32, and `ct_dev` then needs
+  the same file with `--sram`;
 - runs in shadow mode (or `--native off`), because on mode changes the timing
   and the movie wouldn't replay the same. Shadow mode also checks the ported
   routines while you play;

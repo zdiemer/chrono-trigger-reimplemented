@@ -85,6 +85,8 @@ typedef struct {
     uint32_t frames, cap;
     uint32_t replay_frames;    /* frames taken from the movie before the keyboard (or --hold) */
     const char *movie_name;    /* file name of the replayed movie, or NULL */
+    const char *sram_name;     /* file name of the --sram save, or NULL */
+    uint32_t sram_crc;         /* CRC-32 of the SRAM at power-on */
     const char *record_path;   /* movie being recorded, or NULL */
     uint32_t written_frames;   /* frames in the last write of record_path */
     uint32_t state_crc;        /* CRC of the quick save made during this recording */
@@ -120,8 +122,9 @@ static void usage(FILE *out)
             "  --movie F.ctm        replay this input movie from power-on, fast, then hand over to the keyboard\n"
             "  --movie-frames N     replay N frames of it (default: up to its last input)\n"
             "  --record F.ctm       record input from power-on (including the replayed movie) to F.ctm,\n"
-            "                       for ct_dev to replay. Starts without the .srm save, runs in shadow mode\n"
-            "                       unless --native off is given, and quick saves go to <F>.state\n"
+            "                       for ct_dev to replay. Starts without the .srm save (or with --sram), runs in\n"
+            "                       shadow mode unless --native off is given, and quick saves go to <F>.state\n"
+            "  --sram F.srm         start with this cartridge save instead of <rom name>.srm, and don't write it\n"
             "\n"
             "Headless check (no window):\n"
             "  --frames N           run N frames and exit\n"
@@ -373,11 +376,15 @@ static int track_write(Player *pl)
         return 0;
     char header[512];
     int n = snprintf(header, sizeof header, "# Recorded with ct_play from power-on");
+    if (t->sram_name)
+        n += snprintf(header + n, sizeof header - n, " with the save %s", t->sram_name);
     if (t->movie_name)
         n += snprintf(header + n, sizeof header - n, ", continuing %s", t->movie_name);
-    snprintf(header + n, sizeof header - n,
-             ".\n# frames %lu\n# Replay: ct_dev --rom <rom> --frames %lu --movie %s --native shadow\n",
-             (unsigned long)t->frames, (unsigned long)t->frames, file_name(t->record_path));
+    n += snprintf(header + n, sizeof header - n, ".\n# frames %lu\n", (unsigned long)t->frames);
+    if (t->sram_name)
+        n += snprintf(header + n, sizeof header - n, "# sram crc32 %08X\n", (unsigned)t->sram_crc);
+    snprintf(header + n, sizeof header - n, "# Replay: ct_dev --rom <rom> --frames %lu --movie %s%s --native shadow\n",
+             (unsigned long)t->frames, file_name(t->record_path), t->sram_name ? " --sram <save>" : "");
     if (ct_movie_write(t->record_path, t->pads, t->frames, header) != 0) {
         fprintf(stderr, "cannot write %s\n", t->record_path);
         return -1;
@@ -600,7 +607,9 @@ static int run_window(Player *pl, int scale, bool fullscreen)
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *save_dir = NULL, *screenshot = NULL;
-    const char *load_state_path = NULL, *save_state_path = NULL, *movie_path = NULL;
+    const char *load_state_path = NULL, *save_state_path = NULL, *movie_path = NULL, *sram_file = NULL;
+    int movie_sram = 0;
+    uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
     bool native_given = false;
     pl.native_mode = NATIVE_ON;
@@ -638,6 +647,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--movie")) movie_path = v;
         else if (!strcmp(a, "--movie-frames")) movie_frames = strtol(v, NULL, 10);
         else if (!strcmp(a, "--record")) pl.track.record_path = v;
+        else if (!strcmp(a, "--sram")) sram_file = v;
         else if (!strcmp(a, "--hold")) {
             if (nholds == MAX_HOLDS || parse_hold(v, &holds[nholds]) != 0) {
                 fprintf(stderr, "bad --hold %s (expected BUTTON[+BUTTON]@FIRST-LAST)\n", v);
@@ -706,6 +716,8 @@ int main(int argc, char **argv)
             track_set(t, fr, ct_movie_buttons(&movie, fr));
         t->replay_frames = n;
         t->movie_name = file_name(movie_path);
+        movie_sram = movie.has_sram;
+        movie_sram_crc = movie.sram_crc;
         ct_movie_free(&movie);
     }
 
@@ -714,7 +726,25 @@ int main(int argc, char **argv)
     pl.snes.on_line = on_line;
     pl.snes.on_line_ctx = &pl.renderer;
     snes_power_on(&pl.snes);
-    pl.persist_sram = !t->record_path;
+    /* --sram and recordings start from a fixed save and never write one back. */
+    pl.persist_sram = !t->record_path && !sram_file;
+    if (sram_file) {
+        size_t sram_len;
+        uint8_t *sram = read_file(sram_file, &sram_len);
+        if (!sram || sram_len != SNES_SRAM_SIZE) {
+            fprintf(stderr, "cannot read %s as a %d-byte SRAM file\n", sram_file, SNES_SRAM_SIZE);
+            return 1;
+        }
+        memcpy(pl.snes.bus.sram, sram, SNES_SRAM_SIZE);
+        free(sram);
+        t->sram_name = file_name(sram_file);
+    }
+    t->sram_crc = ct_crc32(pl.snes.bus.sram, SNES_SRAM_SIZE);
+    if (movie_sram && (!sram_file || t->sram_crc != movie_sram_crc)) {
+        fprintf(stderr, "%s starts from SRAM with CRC-32 %08X; pass that save with --sram\n", movie_path,
+                (unsigned)movie_sram_crc);
+        return 1;
+    }
     if (pl.persist_sram)
         sram_load(&pl);
     /* Replaying for a recording runs uninterrupted interpretation, which keeps the

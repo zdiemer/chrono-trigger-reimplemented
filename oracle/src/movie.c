@@ -50,6 +50,11 @@ int ct_movie_load(ct_movie *movie, const char *path) {
     int lineno = 0, cap = 0;
     while (fgets(line, sizeof line, f)) {
         lineno++;
+        unsigned long crc;
+        if (sscanf(line, " # sram crc32 %lx", &crc) == 1) {
+            movie->has_sram = 1;
+            movie->sram_crc = (uint32_t)crc;
+        }
         char *hash = strchr(line, '#');
         if (hash)
             *hash = 0;

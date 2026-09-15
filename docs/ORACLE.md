@@ -109,6 +109,10 @@ Text, one event per line; `#` starts a comment.
 - Overlapping events OR together.
 - Movies recorded with `ct_play --record` (docs/PLAYING.md) have one event per
   run of unchanged buttons and a `# frames N` comment giving the recorded length.
+- A `# sram crc32 XXXXXXXX` comment means the movie starts from power-on with a
+  cartridge save in SRAM instead of blank SRAM. `ct_dev` refuses to replay it
+  unless `--sram` gives a save with that CRC-32. Saves aren't committed; the
+  movie's comments say where the save comes from.
 
 Buttons are stored in SNES JOY1 (`$4218/$4219`) bit order, so the port can load
 the value straight into its joypad register:

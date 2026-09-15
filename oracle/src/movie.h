@@ -31,6 +31,10 @@ typedef struct {
     int count;
     uint16_t *pads;    /* buttons per frame, 0 .. length-1 */
     uint32_t length;   /* one past the last frame any event covers */
+    /* From a "# sram crc32 XXXXXXXX" comment: the movie starts from power-on
+     * with SRAM whose CRC-32 is sram_crc (see docs/ORACLE.md). */
+    int has_sram;
+    uint32_t sram_crc;
 } ct_movie;
 
 /* Returns 0 on success; prints a diagnostic and returns -1 on error. */
