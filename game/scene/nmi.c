@@ -1,16 +1,22 @@
 /* Scenes: the NMI handler the RAM programs install at $0500. */
 #include "scene/scene.h"
 
+#include "platform/audio.h"
+#include "platform/input.h"
+#include "platform/timing.h"
+#include "platform/video.h"
 #include "port/machine.h"
 
 static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
 static void set_abs8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr), v); }
 
 /* After a call-out: false unless the CPU is in native mode with 16-bit X (the
- * code that follows has 16-bit index immediates), and, when need_m8, 8-bit A. */
+ * code that follows has 16-bit index immediates), and, when need_m8, 8-bit A;
+ * and unless the data bank still reaches the registers the code that follows
+ * addresses absolutely (the platform services address them in bank 0). */
 static bool widths_ok(Snes *s, bool need_m8)
 {
-    if (s->cpu.e || (s->cpu.p & CPU_FLAG_X))
+    if (s->cpu.e || (s->cpu.p & CPU_FLAG_X) || !m_io_bank(s->cpu.db))
         return false;
     return !need_m8 || (s->cpu.p & CPU_FLAG_M);
 }
@@ -23,14 +29,14 @@ static bool read_pause_button(Snes *s)
 {
     Cpu *c = &s->cpu;
     m_sep(s, CPU_FLAG_M);
-    uint8_t status = m_lda8(s, abs8(s, 0x4212));
+    uint8_t status = m_lda8(s, tm_video_status(m_platform(s), PF_AT(0xC30A90)));
     m_bit_imm8(s, 0x01);
-    if (status & 0x01) {
+    if (status & TM_STATUS_JOYPAD_BUSY) {
         c->pc = 0x0A95;   /* BNE back to the LDA $4212 */
         return false;
     }
     m_rep(s, CPU_FLAG_M);
-    uint16_t pad = m_lda16(s, m_read16(s, m_abs(s, 0x4218)));
+    uint16_t pad = m_lda16(s, in_read(m_platform(s), PF_AT(0xC30A99), 0));
     m_write16(s, m_dp(s, 0x02), pad);
     m_cmp16(s, pad, 0x3030);
     if (pad == 0x3030) {
@@ -76,6 +82,7 @@ static bool read_pause_button(Snes *s)
 static bool frame_work(Snes *s)
 {
     Cpu *c = &s->cpu;
+    Platform *pf = m_platform(s);
     m_sep(s, CPU_FLAG_M);
     m_push16(s, 0x0000);                      /* PEA #$0000 : PLD */
     c->d = m_pull16(s);
@@ -84,25 +91,29 @@ static bool frame_work(Snes *s)
     m_push8(s, (uint8_t)c->a);                /* PHA : PLB */
     c->db = m_pull8(s);
     m_set_nz8(s, c->db);
-    m_cmp8(s, (uint8_t)c->a, abs8(s, 0x4210));
-    set_abs8(s, 0x420C, 0x00);
+    m_cmp8(s, (uint8_t)c->a, tm_ack_vblank(pf, PF_AT(0xC308D9)));
+    vid_enable_line_effects(pf, PF_AT(0xC308DC), 0x00);
     m_ldx16(s, 0x08C9);
     m_write16(s, m_abs(s, 0x0501), c->x);
     m_lda8(s, abs8(s, 0x0384));
     m_bit_imm8(s, 0x80);
     if (c->a & 0x80)
         m_set_flag(s, CPU_FLAG_I, false);     /* CLI */
-    set_abs8(s, 0x2100, m_lda8(s, 0x80));
+    m_lda8(s, 0x80);
+    vid_set_display(pf, PF_AT(0xC308EF), &(VidDisplay){ .blank = true });
     if (m_lda8(s, abs8(s, 0x0392)) == 0) {
         m_jsl(s, 0xC308F7, 0x7E39BE);
         if (!widths_ok(s, false))
             return false;
     }
     m_sep(s, CPU_FLAG_M);
-    set_abs8(s, 0x420C, m_lda8(s, abs8(s, 0x038C)));
+    vid_enable_line_effects(pf, PF_AT(0xC30900), m_lda8(s, abs8(s, 0x038C)));
+    VidDisplay display = { .blank = true };
     if (m_lda8(s, abs8(s, 0x038D)) == 0)
         m_lda8(s, 0x80);
-    set_abs8(s, 0x2100, (uint8_t)c->a);
+    else
+        display = vid_display_decode((uint8_t)c->a);
+    vid_set_display(pf, PF_AT(0xC3090A), &display);
     m_rep(s, CPU_FLAG_M);
     uint16_t frames = (uint16_t)(m_read16(s, m_dp(s, 0x08)) + 1);
     m_write16(s, m_dp(s, 0x08), frames);
@@ -122,9 +133,12 @@ static bool frame_work(Snes *s)
         m_sep(s, CPU_FLAG_M);
         uint8_t half = m_lsr8(s, m_lda8(s, abs8(s, 0x038D)));
         m_set_a8(s, half);
+        VidDisplay dimmed = { .blank = true };
         if (half == 0)
             m_lda8(s, 0x80);
-        set_abs8(s, 0x2100, (uint8_t)c->a);
+        else
+            dimmed = vid_display_decode(half);
+        vid_set_display(pf, PF_AT(0xC30931), &dimmed);
         m_rep(s, CPU_FLAG_M);
     } else {
         m_jsl(s, 0xC30938, 0x7E398A);
@@ -159,11 +173,15 @@ static bool update_song(Snes *s)
     uint8_t busy = (uint8_t)(abs8(s, 0x0388) + 1);
     set_abs8(s, 0x0388, busy);
     m_set_nz8(s, busy);
-    set_abs8(s, 0x1E00, m_lda8(s, 0x10));
-    set_abs8(s, 0x1E01, m_lda8(s, abs8(s, 0x038A)));
+    if (!m_io_bank(c->db)) {
+        c->pc = 0x09C0;   /* the command buffer isn't where the audio service writes it */
+        return false;
+    }
+    m_lda8(s, 0x10);
+    uint8_t next = m_lda8(s, abs8(s, 0x038A));
     m_ldx16(s, 0xFFFF);
-    m_write16(s, m_abs(s, 0x1E02), c->x);
-    m_jsl(s, 0xC309D1, 0xC70004);
+    au_command(m_platform(s), PF_CALL(0xC309D1, 0xC70004),
+               (AudioCommand){ .command = 0x10, .p1 = next, .p2 = 0xFF, .p3 = 0xFF, .count = 3 });
     if (!widths_ok(s, true))
         return false;
     set_abs8(s, 0x0388, 0x00);

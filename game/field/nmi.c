@@ -1,6 +1,8 @@
 /* Field mode: the vertical blank interrupt handler. */
 #include "field/field.h"
 
+#include "platform/timing.h"
+#include "platform/video.h"
 #include "port/machine.h"
 
 enum { DP_SYSTEM = 0x0100, DP_UPLOADS = 0x1D00 };
@@ -142,6 +144,7 @@ static void run_video_uploads(Snes *s)
 void field_nmi(Snes *s)
 {
     Cpu *c = &s->cpu;
+    Platform *pf = m_platform(s);
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
     m_push16(s, c->a);
     m_push16(s, c->x);
@@ -155,13 +158,13 @@ void field_nmi(Snes *s)
     c->db = m_pull8(s);
     m_set_nz8(s, c->db);
 
-    m_lda8(s, m_read8(s, m_abs(s, 0x4210)));      /* acknowledge NMI */
+    m_lda8(s, tm_ack_vblank(pf, PF_AT(0xC0EA70)));
     m_lda8(s, 0x00);
-    m_write8(s, m_abs(s, 0x420C), 0x00);          /* HDMA off during vblank work */
+    vid_enable_line_effects(pf, PF_AT(0xC0EA75), 0x00);   /* off during vblank work */
     m_lda8(s, 0xA1);
-    m_write8(s, m_abs(s, 0x4200), 0xA1);          /* NMI, V-timer IRQ, auto-joypad */
+    tm_enable_interrupts(pf, PF_AT(0xC0EA7A), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
     m_lda8(s, 0x09);
-    m_write8(s, m_abs(s, 0x2105), 0x09);          /* BG mode 1, BG3 priority */
+    vid_set_mode(pf, PF_AT(0xC0EA7F), &(VidMode){ .mode = 1, .bg3_priority = true });
 
     if (m_lda8(s, m_read8(s, m_abs(s, 0x0152))) != 0) {
         set_direct_page(s, DP_SYSTEM);
@@ -192,20 +195,36 @@ void field_nmi(Snes *s)
     }
 
     m_jsl(s, 0xC0EC15, 0xC28002);
-    static const struct { uint16_t shadow; uint16_t reg; } shadows[] = {
-        { 0x0BD9, 0x2123 }, { 0x0BDA, 0x2124 }, { 0x0BDB, 0x2125 },   /* window masks */
-        { 0x0BDC, 0x2128 }, { 0x0BDD, 0x2129 }, { 0x0BDE, 0x2130 },   /* window 2 position, color math */
+    if (!m_io_bank(c->db)) {
+        c->pc = 0xEC19;   /* absolute writes wouldn't reach the registers: the original carries on */
+        return;
+    }
+    /* The window and color math shadows, each copied as the original reads it. */
+    static const struct { uint16_t shadow; uint32_t field; uint32_t site; } windows[] = {
+        { 0x0BD9, VID_WINDOWS_BG1_BG2, 0xC0EC1C }, { 0x0BDA, VID_WINDOWS_BG3_BG4, 0xC0EC22 },
+        { 0x0BDB, VID_WINDOWS_OBJ_BACK, 0xC0EC28 }, { 0x0BDC, VID_WINDOWS_W2_LEFT, 0xC0EC2E },
+        { 0x0BDD, VID_WINDOWS_W2_RIGHT, 0xC0EC34 },
     };
-    for (size_t i = 0; i < sizeof shadows / sizeof shadows[0]; i++)
-        m_write8(s, m_abs(s, shadows[i].reg), m_lda8(s, m_read8(s, m_abs(s, shadows[i].shadow))));
+    VidWindows w = { 0 };
+    for (size_t i = 0; i < sizeof windows / sizeof windows[0]; i++) {
+        vid_windows_decode(&w, windows[i].field, m_lda8(s, m_read8(s, m_abs(s, windows[i].shadow))));
+        vid_set_windows(pf, PF_AT(windows[i].site), &w, windows[i].field);
+    }
+    VidColorMath math = { 0 };
+    vid_color_math_decode(&math, VID_MATH_CONTROL, m_lda8(s, m_read8(s, m_abs(s, 0x0BDE))));
+    vid_set_color_math(pf, PF_AT(0xC0EC3A), &math, VID_MATH_CONTROL);
     m_lda8(s, 0xE0);
-    m_write8(s, m_abs(s, 0x2132), 0xE0);                                         /* fixed color black */
-    m_write8(s, m_abs(s, 0x2132), m_lda8(s, m_read8(s, m_abs(s, 0x0121))));
-    m_write8(s, m_abs(s, 0x420C), m_lda8(s, m_read8(s, m_abs(s, 0x0128))));      /* HDMA enable */
+    vid_set_fixed_color(pf, PF_AT(0xC0EC3F), VID_RED | VID_GREEN | VID_BLUE, 0);   /* black */
+    uint8_t color = m_lda8(s, m_read8(s, m_abs(s, 0x0121)));
+    vid_set_fixed_color(pf, PF_AT(0xC0EC45), color >> 5, color & 0x1F);
+    vid_enable_line_effects(pf, PF_AT(0xC0EC4B), m_lda8(s, m_read8(s, m_abs(s, 0x0128))));
     uint8_t brightness = m_lda8(s, m_read8(s, m_abs(s, 0x0119)));
-    if (brightness == 0)
-        brightness = m_lda8(s, 0x80);                                            /* force blank */
-    m_write8(s, m_abs(s, 0x2100), brightness);
+    VidDisplay display = { .blank = true };
+    if (brightness != 0)
+        display = vid_display_decode(brightness);
+    else
+        m_lda8(s, 0x80);
+    vid_set_display(pf, PF_AT(0xC0EC55), &display);
 
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
     c->db = m_pull8(s);

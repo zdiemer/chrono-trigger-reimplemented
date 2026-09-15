@@ -107,6 +107,11 @@ void native_set_recomp_yield(uint32_t clocks);
  * included). */
 uint64_t native_generated_instructions(void);
 
+/* The registered entry whose native code is running right now (the innermost
+ * hand port, or an idle or generated entry), or NULL while the interpreter or
+ * the system runs. For attributing hardware access (ct_dev --io-log). */
+const NativeEntry *native_running_entry(void);
+
 /* Number of registered routines entered and not yet left (suspended in
  * call-outs, or awaiting shadow comparison). Save states taken while this is
  * nonzero can't restore those routines. */

@@ -3,6 +3,7 @@
  *
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
  *           [--iterations N] [--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--step-limit N]
+ *           [--db BB]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -22,6 +23,8 @@
  * whose open bus reads depend on instruction fetches native code doesn't do.
  * --fill BBAAAA-BBAAAA=lo-hi gives a WRAM range random bytes from lo to hi
  * instead, for example to make a pointer in script operands point into WRAM.
+ * --db sets the data bank, which the base state otherwise decides, for entries
+ * that address registers through it.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -111,6 +114,7 @@ int main(int argc, char **argv)
     int nkeep = 0;
     unsigned fill_lo[MAX_KEEP], fill_hi[MAX_KEEP], fill_min[MAX_KEEP], fill_max[MAX_KEEP];
     int nfill = 0;
+    int data_bank = -1;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--long")) {
@@ -130,6 +134,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--iterations")) iterations = strtoul(v, NULL, 0);
         else if (!strcmp(a, "--seed")) seed = strtoull(v, NULL, 0);
         else if (!strcmp(a, "--step-limit")) step_limit = strtoul(v, NULL, 0);
+        else if (!strcmp(a, "--db")) data_bank = (int)(strtoul(v, NULL, 16) & 0xFF);
         else if (!strcmp(a, "--range") && strchr("AXY", v[0]) && v[1] == '=' &&
                  sscanf(v + 2, "%x-%x", &range_lo[strchr("AXY", v[0]) - "AXY"],
                         &range_hi[strchr("AXY", v[0]) - "AXY"]) == 2)
@@ -172,6 +177,8 @@ int main(int argc, char **argv)
         return 1;
     }
     base.cpu.e = false;
+    if (data_bank >= 0)
+        base.cpu.db = (uint8_t)data_bank;
     native_call_step_limit = step_limit;
     native_call_timeout_hook = abandon_native;
     native_entry = e;
@@ -284,6 +291,7 @@ int main(int argc, char **argv)
 
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
-                    "[--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--range A|X|Y=lo-hi]... [--step-limit N]\n");
+                    "[--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--range A|X|Y=lo-hi]... [--step-limit N] "
+                    "[--db BB]\n");
     return 2;
 }

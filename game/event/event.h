@@ -201,6 +201,7 @@ void event_cmd_sound_81_83(Snes *s);  /* $EB */
 void event_cmd_sound_command(Snes *s);  /* $EC */
 void event_cmd_wait_apu_port1(Snes *s);  /* $ED */
 void event_cmd_wait_apu_port3(Snes *s);  /* $EE */
+bool event_sound_bank_is_system(Snes *s);  /* their guard */
 
 /* event/screen.c: screen effects */
 void event_cmd_set_1f(Snes *s);  /* $E3 */

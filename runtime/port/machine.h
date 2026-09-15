@@ -9,8 +9,14 @@
 #ifndef CT_PORT_MACHINE_H
 #define CT_PORT_MACHINE_H
 
+#include "platform/platform.h"
 #include "port/native.h"
 #include "snes/system.h"
+
+/* The platform services' handle (runtime/platform/): on the development system
+ * the SNES backend, which is the machine itself, so a native routine's calls act
+ * on whichever machine it runs on (the clone, in shadow mode). */
+static inline Platform *m_platform(Snes *s) { return (Platform *)s; }
 
 static inline uint8_t m_read8(Snes *s, uint32_t addr) { return snes_bus_read(&s->bus, addr & 0xFFFFFF); }
 static inline void m_write8(Snes *s, uint32_t addr, uint8_t v) { snes_bus_write(&s->bus, addr & 0xFFFFFF, v); }
@@ -25,6 +31,12 @@ static inline void m_write16(Snes *s, uint32_t addr, uint16_t v)
     m_write8(s, addr, v & 0xFF);
     m_write8(s, addr + 1, v >> 8);
 }
+
+/* True if absolute addressing with this data bank reaches the I/O registers
+ * (banks $00-$3F and $80-$BF). Ports whose original addresses registers through
+ * the data bank check it before calling a platform service, which addresses
+ * them directly. */
+static inline bool m_io_bank(uint8_t bank) { return (bank & 0x40) == 0; }
 
 /* Address in the data bank / direct page, as the original's abs / dp modes see it. */
 static inline uint32_t m_abs(const Snes *s, uint16_t addr) { return (uint32_t)s->cpu.db << 16 | addr; }

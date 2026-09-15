@@ -45,6 +45,11 @@ typedef struct Job {
 static Job *current_job;
 static Job *free_jobs;
 
+/* An idle or generated entry running on the machine outside a job. */
+static const NativeEntry *running_direct;
+
+const NativeEntry *native_running_entry(void) { return current_job ? current_job->entry : running_direct; }
+
 static void job_body(void *arg)
 {
     Job *j = arg;
@@ -977,7 +982,9 @@ static int32_t intercept(void *ctx, Snes *s)
             st->calls++;
             s->bus.clocks = 0;
             s->cpu.io_cycles = 0;
+            running_direct = e;
             e->fn(s);
+            running_direct = NULL;
             uint32_t clocks = s->bus.clocks + 6 * s->cpu.io_cycles;
             s->cpu.io_cycles = 0;
             return (int32_t)clocks;
@@ -994,7 +1001,9 @@ static int32_t intercept(void *ctx, Snes *s)
                 st->skipped++;
                 continue;
             }
+            running_direct = e;
             e->fn(s);
+            running_direct = NULL;
             if (cpu_pc24(&s->cpu) == pc)
                 return (int32_t)(e->idle_clocks ? e->idle_clocks : snes_clocks_to_next_poll_change(s));
             return 0;
