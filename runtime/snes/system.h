@@ -59,6 +59,9 @@ typedef struct Snes {
      * something itself (native code standing in for a routine). */
     int32_t (*intercept)(void *ctx, struct Snes *snes);
     void *intercept_ctx;
+    /* Set by an intercept that returned time: the length of the last cycle of
+     * what it ran, where interrupts are sampled; 0 means one internal cycle. */
+    uint32_t intercept_last_cycle;
 } Snes;
 
 /* rom must stay valid for the lifetime of the system. */
@@ -76,6 +79,23 @@ int snes_state_load(Snes *snes, const char *path);
 
 /* Run until the start of the next vblank. pad1 is in JOY1 bit order. */
 void snes_run_frame(Snes *snes, uint16_t pad1);
+
+/* For native code standing in for several instructions within one step (a
+ * generated block, docs/RECOMP.md "Exact timing"):
+ *
+ * snes_horizon: the latest master clock at which an instruction can start
+ * without the system having anything to do before it: no line event (HDMA and
+ * rendering, the line's end with vblank, NMI flag and V-timer), H-timer IRQ,
+ * or interrupt recognition between the previous instruction and it. Until an
+ * instruction starts past it, instructions may run back to back without
+ * returning to the system loop. I/O writes that change interrupt timing
+ * ($4200-$420A) can move it earlier.
+ *
+ * snes_sync: let `clocks` pass on the machine inside the step (APU, counters,
+ * hblank) without polling interrupts, before I/O whose result depends on the
+ * time. Only valid up to the horizon; the step then returns the rest. */
+uint64_t snes_horizon(const Snes *snes);
+void snes_sync(Snes *snes, uint32_t clocks);
 
 /* Master clocks from now until the next point in the line where $4212's
  * hblank/vblank bits can change (hblank end, hblank start, or the line's end).

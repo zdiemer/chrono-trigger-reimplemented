@@ -11,7 +11,7 @@ import unittest
 
 from tools.disasm.analyze import Analyzer
 from tools.disasm.hints import Hints
-from tools.recomp.blocks import BlockBuilder
+from tools.recomp.blocks import BlockBuilder, unmasks_irq
 from tools.recomp.translate import Ctx
 from tests.test_disasm import FakeRom
 
@@ -56,7 +56,7 @@ class Blocks(unittest.TestCase):
         blk = blocks[(0xC08000, M8X8)]
         self.assertEqual(sorted(blk.steps), [0xC08000])
         text = "\n".join(b.emit(blk))
-        self.assertTrue(text.endswith("c->pc = 0x8002;\nreturn;\n}"), text)
+        self.assertTrue(text.endswith("c->pc = 0x8002;\nreturn;\nRC_STOP(recomp_C08000_m8x8);\n}"), text)
 
     def test_loop_yields_at_its_back_edge(self):
         b, blocks = builder()
@@ -66,16 +66,32 @@ class Blocks(unittest.TestCase):
         self.assertIn("L_C08002:", text)
         self.assertIn("if (RC_YIELD(c)) {\nc->pc = 0x8002;\nreturn;\n}\ngoto L_C08002;", text)
         self.assertIn("rc_push16(c, 0x8007);\nc->pc = 0x8010;\nreturn;", text)
-        self.assertEqual(text.count("RC_INSN(c);"), 3)
+        self.assertEqual(text.count("RC_INSN(c, "), 3)
+        self.assertIn("RC_INSN(c, 0x8003);", text)
+        self.assertTrue(text.endswith("RC_STOP(recomp_C08002_m8x8);\n}"), text)
 
-    def test_polling_loop_returns_on_every_pass(self):
+    def test_block_resumes_before_any_instruction(self):
+        b, blocks = builder()
+        text = "\n".join(b.emit(blocks[(0xC08002, M8X8)]))
+        self.assertIn("switch (c->pc) {\ncase 0x8002:\nbreak;\ncase 0x8003:\ngoto L_C08003;\n"
+                      "case 0x8005:\ngoto L_C08005;\ndefault:\nreturn;\n}", text)
+        self.assertIn("L_C08003:", text)
+
+    def test_polling_loop_yields_like_any_loop(self):
         b, blocks = builder()
         blk = blocks[(0xC08008, M16X8)]
-        self.assertTrue(blk.polls)
         text = "\n".join(b.emit(blk))
-        self.assertNotIn("RC_YIELD", text)
-        self.assertNotIn("L_C08008", text)
+        self.assertIn("if (RC_YIELD(c)) {\nc->pc = 0x8008;\nreturn;\n}\ngoto L_C08008;", text)
         self.assertIn("rc_lda16(c, rc_rd16(c, rc_abs(c, 0x4212)));", text)
+
+    def test_instructions_clearing_i_stop_the_block_after_them(self):
+        insn = lambda name, operand=None: type("I", (), {"name": name, "operand": operand})()
+        self.assertTrue(unmasks_irq(insn("CLI")))
+        self.assertTrue(unmasks_irq(insn("REP", 0x24)))
+        self.assertFalse(unmasks_irq(insn("REP", 0x20)))
+        self.assertFalse(unmasks_irq(insn("SEI")))
+        b, blocks = builder()
+        self.assertNotIn("RC_IRQ_UNMASKED", "\n".join(b.emit(blocks[(0xC08010, M8X8)])))
 
     def test_widths_follow_rep(self):
         b, blocks = builder()

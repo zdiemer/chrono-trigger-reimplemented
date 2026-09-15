@@ -86,8 +86,13 @@ translation ([RECOMP.md](RECOMP.md)); they're built when Python 3.11+ is found.
     so an IRQ pending across `CLI` is taken right after it rather than one
     instruction later as on hardware.
   - Interrupt entry sequences don't sample, so the handler's first instruction
-    always runs; WAI polls on every idle cycle; native code standing in for a
-    routine counts as one step whose last cycle is its final 6 clocks.
+    always runs; WAI polls on every idle cycle; a hand-written native routine
+    counts as one step whose last cycle is its final 6 clocks. A generated
+    block runs instructions back to back only up to the system's horizon
+    (`snes_horizon`: the next line event or interrupt recognition), lets time
+    pass up to its current instruction before I/O (`snes_sync`), and reports
+    its last instruction's last cycle, so its interrupts and I/O land exactly
+    where the interpreter's do ([RECOMP.md](RECOMP.md), "Exact timing").
 
   Chrono Trigger depends on this. Its location-change event command waits for
   vblank with `LDA $4210 / BPL` at `$C0:3B71` while NMIs are enabled, and the

@@ -21,6 +21,7 @@ static void push16_raw(Snes *s, uint16_t v)
 
 #define MAX_ACTIVE 32
 #define MAX_DETAILS 16
+#define RESUME_SLOTS 4096
 
 /* ---- jobs: native routines running on their own stacks ------------------------ */
 
@@ -169,15 +170,18 @@ struct NativeRuntime {
     Snes *replay_machine;        /* its Cpu runs replayed blocks */
     Replay replay;
     unsigned long gen_unfinished;
+
+    /* ON mode: where generated blocks stopped before an instruction, so that
+     * code resumes there in the same block (direct-mapped by address and widths). */
+    struct { uint32_t key; NativeFn fn; } resume[RESUME_SLOTS];
+    unsigned long gen_stops, gen_resumes;
 };
 
 static const NativeRuntime *active_runtime;   /* for synchronous native_call */
 
 uint64_t recomp_executed;
-uint32_t recomp_yield_clocks;
-static uint32_t yield_clocks_on = SNES_CLOCKS_PER_LINE;
+RcTiming rc_timing = { .limit = UINT32_MAX };
 
-void native_set_recomp_yield(uint32_t clocks) { yield_clocks_on = clocks ? clocks : 1; }
 uint64_t native_generated_instructions(void) { return recomp_executed; }
 
 /* By address; hand-written entries before generated ones at the same address. */
@@ -204,7 +208,6 @@ NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mod
         rt->filter[a >> 3] |= (uint8_t)(1 << (a & 7));
         rt->generated += sorted[i].generated;
     }
-    recomp_yield_clocks = mode == NATIVE_ON ? yield_clocks_on : 0;
     active_runtime = rt;
     return rt;
 }
@@ -932,6 +935,67 @@ static void record_step(NativeRuntime *rt, Snes *s)
     }
 }
 
+/* ---- generated blocks in ON mode ------------------------------------------------
+ *
+ * A block runs against the system's horizon (snes_horizon): it stops before the
+ * first instruction that would start past it, so everything the system does
+ * between steps (line events, interrupt recognition, the frame's end) happens
+ * between the same instructions as with the interpreter. I/O accesses first let
+ * the machine catch up with the start of their instruction (rc_io_sync), which
+ * is the time the interpreter's I/O sees. The step's time is what the block
+ * spent beyond that, and its last cycle is the block's last instruction's. */
+
+void rc_io_sync(uint32_t addr, bool write)
+{
+    uint16_t a = (uint16_t)addr;
+    /* Registers nothing but CPU writes changes: the WRAM port and the math. */
+    if ((a >= 0x2180 && a <= 0x2183) || (a >= 0x4202 && a <= 0x4206) || (a >= 0x4214 && a <= 0x4217))
+        return;
+    uint32_t delta = rc_timing.insn_start - rc_timing.synced;
+    if (delta) {
+        snes_sync(rc_timing.s, delta);
+        rc_timing.synced = rc_timing.insn_start;
+    }
+    /* NMITIMEN and the timer positions change when interrupts happen (and
+     * enabling NMIs with RDNMI set requests one): let the system look again
+     * after this instruction. */
+    if (write && a >= 0x4200 && a <= 0x420A)
+        rc_timing.limit = 0;
+}
+
+static inline uint32_t resume_key(const Snes *s)
+{
+    return cpu_pc24(&s->cpu) | (uint32_t)(s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) << 24;
+}
+
+static inline unsigned resume_slot(uint32_t key) { return (key * 2654435761u) >> 20; }
+
+static int32_t run_block(NativeRuntime *rt, Snes *s, NativeFn fn)
+{
+    uint64_t horizon = snes_horizon(s);
+    uint64_t room = horizon > s->master ? horizon - s->master : 0;
+    s->bus.clocks = 0;
+    s->cpu.io_cycles = 0;
+    rc_timing = (RcTiming){ .s = s, .limit = room < UINT32_MAX ? (uint32_t)room : UINT32_MAX - 1 };
+    fn(s);
+    uint32_t clocks = s->bus.clocks + 6 * s->cpu.io_cycles;
+    uint32_t synced = rc_timing.synced;
+    NativeFn stopped = rc_timing.stopped;
+    rc_timing = (RcTiming){ .limit = UINT32_MAX };
+    s->cpu.io_cycles = 0;
+    if (clocks == 0)
+        return -1;   /* not resumable here after all: let the interpreter run it */
+    s->intercept_last_cycle = s->cpu.last_cycle_io ? 6 : s->bus.clocks - s->bus.access_start;
+    if (stopped) {
+        rt->gen_stops++;
+        uint32_t key = resume_key(s);
+        unsigned slot = resume_slot(key);
+        rt->resume[slot].key = key | 1u << 31;
+        rt->resume[slot].fn = stopped;
+    }
+    return (int32_t)(clocks - synced);
+}
+
 static int32_t intercept(void *ctx, Snes *s)
 {
     NativeRuntime *rt = ctx;
@@ -964,8 +1028,18 @@ static int32_t intercept(void *ctx, Snes *s)
     }
 
     int idx = find_entry(rt, pc);
-    if (idx < 0)
+    if (idx < 0) {
+        /* inside a generated block that stopped here */
+        if (rt->mode == NATIVE_ON && rt->gen_stops && !s->cpu.e && !s->cpu.waiting && !s->cpu.stopped) {
+            uint32_t key = resume_key(s);
+            unsigned slot = resume_slot(key);
+            if (rt->resume[slot].key == (key | 1u << 31)) {
+                rt->gen_resumes++;
+                return run_block(rt, s, rt->resume[slot].fn);
+            }
+        }
         return -1;
+    }
     for (; idx < rt->count && rt->table[idx].addr == pc; idx++) {
         const NativeEntry *e = &rt->table[idx];
         NativeStats *st = &rt->stats[idx];
@@ -975,12 +1049,7 @@ static int32_t intercept(void *ctx, Snes *s)
             if (rt->mode != NATIVE_ON || !entry_applies(e, s))
                 continue;
             st->calls++;
-            s->bus.clocks = 0;
-            s->cpu.io_cycles = 0;
-            e->fn(s);
-            uint32_t clocks = s->bus.clocks + 6 * s->cpu.io_cycles;
-            s->cpu.io_cycles = 0;
-            return (int32_t)clocks;
+            return run_block(rt, s, e->fn);
         }
 
         st->calls++;
@@ -1165,7 +1234,8 @@ void native_report(const NativeRuntime *rt, FILE *out)
             fprintf(out, "  matched %lu  mismatched %lu  interrupted %lu  unfinished %lu", gen_matched, gen_mismatched,
                     gen_interrupted, rt->gen_unfinished);
         else
-            fprintf(out, "  instructions %llu", (unsigned long long)recomp_executed);
+            fprintf(out, "  instructions %llu  stops %lu  resumed %lu", (unsigned long long)recomp_executed,
+                    rt->gen_stops, rt->gen_resumes);
         fprintf(out, "\n");
     }
     if (rt->nactive)
