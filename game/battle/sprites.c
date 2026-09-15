@@ -1294,3 +1294,110 @@ void battle_build_bitmap_sprites(Snes *s)
     }
     m_rts(s);
 }
+
+/* $CF:F9FB body: A = the high byte of (the radius in $00) times the sine of
+ * the angle in A (256 steps per turn; table at $C0:F900, negated in the second
+ * half), computed through $02-$06 with the hardware multiplier. */
+static void sine_scale(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_rep(s, CPU_FLAG_M);
+    c->a = m_asl16(s, c->a);
+    c->a = m_asl16(s, c->a);
+    m_lda16(s, c->a & 0x03FF);
+    m_tax(s);
+    uint16_t v = m_lda16(s, (uint16_t)(m_read16(s, 0xC0F900 + c->x) & 0x00FF));
+    m_cmp16(s, c->x, 0x0200);
+    if (c->x >= 0x0200)
+        v = m_lda16(s, (uint16_t)((v ^ 0xFFFF) + 1));
+    set_dp16(s, 0x02, v);
+    m_sep(s, CPU_FLAG_M);
+    m_push8(s, c->db);
+    m_tdc(s);
+    m_push8(s, (uint8_t)c->a);
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    m_write8(s, m_abs(s, 0x4202), m_lda8(s, dp8(s, 0x00)));
+    m_write8(s, m_abs(s, 0x4203), m_lda8(s, dp8(s, 0x02)));
+    m_push8(s, c->p);
+    uint8_t high = m_lda8(s, dp8(s, 0x03));
+    set_dp8(s, 0x06, 0x00);
+    m_ldx16(s, m_read16(s, m_abs(s, 0x4216)));
+    m_write8(s, m_abs(s, 0x4203), high);
+    set_dp16(s, 0x04, c->x);
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
+    uint16_t sum = m_adc16(s, m_lda16(s, dp16(s, 0x05)), m_read16(s, m_abs(s, 0x4216)));
+    set_dp16(s, 0x05, sum);
+    m_tdc(s);
+    c->p = m_pull8(s);
+    if (c->p & CPU_FLAG_X) {
+        c->x &= 0xFF;
+        c->y &= 0xFF;
+    }
+    m_sep(s, CPU_FLAG_M);
+    c->db = m_pull8(s);
+    m_set_nz8(s, c->db);
+    m_lda8(s, dp8(s, 0x05));
+}
+
+// $CF:F9FB
+void battle_sine_scale(Snes *s)
+{
+    sine_scale(s);
+    m_rts(s);
+}
+
+// $CF:F978
+/* Move the 8 orbiting objects (slots 7-0, active when $98A7 is set): every
+ * $9742 frames ($9819 counting down), grow the radius $9737 by $98C2 (ending
+ * the orbit at 8), and place the object ($1D26/$1D0F + slot) at its center
+ * ($98B7, $98AF) plus radius * sine and cosine of its angle $9786. */
+void battle_step_orbits(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_ldx16(s, 0x0007);
+    set_dp16(s, 0xC6, c->x);
+    do {
+        m_ldx16(s, dp16(s, 0xC6));
+        if (m_lda8(s, absx8(s, 0x98A7)) == 0)
+            continue;
+        uint8_t count = (uint8_t)(absx8(s, 0x9819) - 1);
+        set_absx8(s, 0x9819, count);
+        m_set_nz8(s, count);
+        if (count != 0)
+            continue;
+        set_absx8(s, 0x9819, m_lda8(s, absx8(s, 0x9742)));
+        m_set_flag(s, CPU_FLAG_C, false);
+        uint8_t radius = m_adc8(s, m_lda8(s, absx8(s, 0x9737)), absx8(s, 0x98C2));
+        m_set_a8(s, radius);
+        set_absx8(s, 0x9737, radius);
+        set_dp8(s, 0x00, radius);
+        m_cmp8(s, radius, 0x08);
+        if (radius == 0x08) {
+            set_absx8(s, 0x98A7, 0x00);
+            set_absx8(s, 0x9737, 0x00);
+        }
+        m_lda8(s, absx8(s, 0x9786));
+        m_push16(s, 0xF9AA);
+        sine_scale(s);
+        m_pull16(s);
+        set_dp8(s, 0xC8, (uint8_t)c->a);
+        m_ldx16(s, dp16(s, 0xC6));
+        m_set_flag(s, CPU_FLAG_C, false);
+        m_set_a8(s, m_adc8(s, m_lda8(s, absx8(s, 0x9786)), 0x40));
+        m_push16(s, 0xF9B7);
+        sine_scale(s);
+        m_pull16(s);
+        set_dp8(s, 0xC9, (uint8_t)c->a);
+        m_ldx16(s, dp16(s, 0xC6));
+        m_set_flag(s, CPU_FLAG_C, false);
+        uint8_t v = m_adc8(s, m_lda8(s, absx8(s, 0x98B7)), dp8(s, 0xC8));
+        m_set_a8(s, v);
+        set_absx8(s, 0x1D26, v);
+        m_set_flag(s, CPU_FLAG_C, false);
+        v = m_adc8(s, m_lda8(s, absx8(s, 0x98AF)), dp8(s, 0xC9));
+        m_set_a8(s, v);
+        set_absx8(s, 0x1D0F, v);
+    } while (!(dec_dp8(s, 0xC6) & 0x80));
+    m_rts(s);
+}

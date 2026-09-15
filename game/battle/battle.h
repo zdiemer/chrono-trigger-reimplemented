@@ -13,6 +13,7 @@ void battle_wait_line_loop(Snes *s);
 void battle_wait_for_nmi_loop(Snes *s);
 void battle_wait_ca1f_loop(Snes *s);
 void battle_irq_wait_hblank_loop(Snes *s);
+void battle_wait_setup_counter_loop(Snes *s);
 
 /* battle/buffers.c */
 void battle_clear_oam_buffer(Snes *s);
@@ -20,6 +21,7 @@ void battle_mark_object_grid(Snes *s);
 void battle_reset_0b40_table(Snes *s);
 void battle_clear_b328_table(Snes *s);
 void battle_clear_ad9c_table(Snes *s);
+void battle_reset_object_state(Snes *s);
 
 /* battle/display.c */
 void battle_update_scroll_tables(Snes *s);
@@ -94,6 +96,8 @@ void battle_build_object_graphics_checked(Snes *s);
 void battle_step_object_palettes(Snes *s);
 void battle_index_record_groups(Snes *s);
 void battle_build_bitmap_sprites(Snes *s);
+void battle_sine_scale(Snes *s);
+void battle_step_orbits(Snes *s);
 
 /* battle/gauges.c */
 void battle_draw_gauge(Snes *s);

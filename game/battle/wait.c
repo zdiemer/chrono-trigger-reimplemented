@@ -96,6 +96,17 @@ void battle_irq_wait_hblank_loop(Snes *s)
         s->cpu.pc = 0xFEBF;
 }
 
+// $CC:F05B
+/* At the end of battle setup ($CC:ED87): wait until interrupt code has
+ * counted $98CA up to 4. Idle entry, 8-bit A; exits to the RTL at $CC:F062. */
+void battle_wait_setup_counter_loop(Snes *s)
+{
+    uint8_t v = m_lda8(s, m_read8(s, m_abs(s, 0x98CA)));
+    m_cmp8(s, v, 0x04);
+    if (v == 0x04)
+        s->cpu.pc = 0xF062;
+}
+
 // $CD:3B92
 /* Third loop: wait for hblank to end, then latch the counters and compare the
  * vertical position with the line in $45; loop until it's reached. Idle
