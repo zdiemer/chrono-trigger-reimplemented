@@ -41,3 +41,6 @@ __pycache__/
 # Downloaded test suites
 tests/cpu/data/
 tests/apu/data/
+
+# Player binaries built by tools/dist.py
+dist/
