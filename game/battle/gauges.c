@@ -166,3 +166,193 @@ void battle_number_to_digits(Snes *s)
     m_set_nz16(s, c->x);
     m_rts(s);
 }
+
+// $C1:0174
+/* Write the 16-bit number at $9499 (below 100) as two digit tiles from
+ * $CC:F903 into $949E-$949F, with $FF at $949C and $949D. Entered with 16-bit
+ * A; returns with 8-bit A. */
+void battle_number_to_2_digits(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_push16(s, c->x);
+    count_digit(s, 10, false);
+    m_sep(s, CPU_FLAG_M);
+    m_tax(s);
+    m_write8(s, m_abs(s, 0x949F), m_lda8(s, m_read8(s, 0xCCF903 + c->x)));
+    c->x = m_pull16(s);
+    m_set_nz16(s, c->x);
+    m_write8(s, m_abs(s, 0x949E), m_lda8(s, m_read8(s, 0xCCF903 + c->x)));
+    m_lda8(s, 0xFF);
+    m_write8(s, m_abs(s, 0x949D), 0xFF);
+    m_write8(s, m_abs(s, 0x949C), 0xFF);
+    c->x = m_pull16(s);
+    m_set_nz16(s, c->x);
+    m_rts(s);
+}
+
+// $C1:104E
+/* Blank the leading zero digit tiles ($73) of the number at $949D-$949F:
+ * the hundreds, then the tens when the hundreds are blank. */
+void battle_blank_leading_zeros(Snes *s)
+{
+    uint8_t hundreds = m_lda8(s, m_read8(s, m_abs(s, 0x949D)));
+    m_cmp8(s, hundreds, 0x73);
+    if (hundreds == 0x73)
+        m_write8(s, m_abs(s, 0x949D), m_lda8(s, 0xFF));
+    uint8_t tens = m_lda8(s, m_read8(s, m_abs(s, 0x949E)));
+    m_cmp8(s, tens, 0x73);
+    if (tens == 0x73) {
+        hundreds = m_lda8(s, m_read8(s, m_abs(s, 0x949D)));
+        m_cmp8(s, hundreds, 0xFF);
+        if (hundreds == 0xFF)
+            m_write8(s, m_abs(s, 0x949E), m_lda8(s, 0xFF));
+    }
+    m_rts(s);
+}
+
+/* JSR out; false if the callee didn't come back with the widths `widths`. */
+static bool call_with(Snes *s, uint32_t site, uint32_t target, uint8_t widths)
+{
+    m_jsr(s, site, target);
+    return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == widths;
+}
+
+/* LDX #$29 : LDA $A10F : BEQ : LDX #$2D : TXA -- the digit attribute: $2D
+ * while $A10F is set (low HP), $29 otherwise. */
+static uint8_t digit_attribute(Snes *s)
+{
+    m_ldx16(s, 0x0029);
+    if (m_lda8(s, m_read8(s, m_abs(s, 0xA10F))) != 0)
+        m_ldx16(s, 0x002D);
+    m_txa(s);
+    return (uint8_t)s->cpu.a;
+}
+
+// $C1:05A7
+/* Draw the next party member's status in the battle window (cycling $A6E0
+ * through 0-2): its HP as three digits ($5E30, highlighted with $A10F when 0
+ * or at most an eighth of $5E32 on blink frames $A110) and MP as two digits
+ * ($5E34), at a position from $CC:FA2F/$FA35/$FA3B by window layout $9F20;
+ * then, in layouts other than 0, all party gauges. With $A6DB positive, $A09A
+ * clear and layout 1, only the gauges are drawn. */
+void battle_draw_party_status(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    bool gauges_only = false;
+    if (!(m_lda8(s, m_read8(s, m_abs(s, 0xA6DB))) & 0x80) && m_lda8(s, m_read8(s, m_abs(s, 0xA09A))) == 0) {
+        uint8_t layout = m_lda8(s, m_read8(s, m_abs(s, 0x9F20)));
+        if (layout != 0 && m_lda8(s, (uint8_t)(layout - 1)) == 0)
+            gauges_only = true;
+    }
+    if (!gauges_only) {
+        uint32_t turn = m_abs(s, 0xA6E0);
+        uint8_t member = (uint8_t)(m_read8(s, turn) + 1);
+        m_write8(s, turn, member);
+        m_set_nz8(s, member);
+        member = m_lda8(s, m_read8(s, turn));
+        m_cmp8(s, member, 0x03);
+        if (member >= 0x03)
+            m_write8(s, turn, 0x00);
+        m_lda8(s, m_read8(s, turn));
+        m_tax(s);
+        m_write16(s, m_dp(s, 0x80), c->x);
+        if (m_lda8(s, m_read8(s, m_abs(s, 0x96F5) + c->x)) == 0) {
+            m_rts(s);
+            return;
+        }
+        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
+        m_lda16(s, m_read16(s, m_dp(s, 0x80)));
+        c->a = m_asl16(s, c->a);
+        m_tax(s);
+        uint16_t layout = m_lda16(s, m_read16(s, m_abs(s, 0x9F20)));
+        uint32_t positions = 0xCCFA2F;
+        if (layout != 0)
+            positions = m_lda16(s, (uint16_t)(layout - 1)) == 0 ? 0xCCFA35 : 0xCCFA3B;
+        m_set_index(s, &c->y, m_lda16(s, m_read16(s, positions + c->x)));
+        m_write16(s, m_dp(s, 0x86), c->y);
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+        m_write8(s, m_abs(s, 0xA10F), 0x00);
+
+        /* $C1:05FE: HP */
+        m_rep(s, CPU_FLAG_M);
+        m_lda16(s, m_read16(s, m_dp(s, 0x80)));
+        c->a = m_asl16(s, c->a);
+        m_tax(s);
+        m_write16(s, m_dp(s, 0xA2), m_lda16(s, m_read16(s, 0xCCF8ED + c->x)));
+        m_tax(s);
+        uint16_t hp = m_lda16(s, m_read16(s, m_abs(s, 0x5E30) + c->x));
+        m_write16(s, m_abs(s, 0x9499), hp);
+        bool low = hp == 0;
+        if (!low) {
+            m_lda16(s, m_read16(s, m_abs(s, 0x5E32) + c->x));
+            m_push16(s, 0x0618);   /* JSR $011B: LSR x3 */
+            for (int i = 0; i < 3; i++)
+                c->a = m_lsr16(s, c->a);
+            m_pull16(s);
+            uint16_t eighth = c->a;
+            uint16_t cur = m_read16(s, m_abs(s, 0x9499));
+            m_cmp16(s, eighth, cur);
+            if (eighth >= cur)
+                low = m_lda16(s, m_read16(s, m_abs(s, 0xA110))) != 0;
+        }
+        if (low) {
+            uint32_t flag = m_abs(s, 0xA10F);
+            uint16_t v = (uint16_t)(m_read16(s, flag) + 1);
+            m_write16(s, flag, v);
+            m_set_nz16(s, v);
+        }
+        if (!call_with(s, 0xC10628, 0xC1011F, CPU_FLAG_M) || !call_with(s, 0xC1062B, 0xC1104E, CPU_FLAG_M))
+            return;
+        for (uint16_t i = 0; i < 3; i++)
+            m_write8(s, m_abs(s, (uint16_t)(0x0CC0 + 2 * i)) + c->y, m_lda8(s, m_read8(s, m_abs(s, (uint16_t)(0x949D + i)))));
+        uint8_t attr = digit_attribute(s);
+        for (uint16_t k = 1; k < 8; k += 2)
+            m_write8(s, m_abs(s, (uint16_t)(0x0CC0 + k)) + c->y, attr);
+        if (m_lda8(s, m_read8(s, m_abs(s, 0x9F20))) == 0) {
+            m_txa(s);
+            for (uint16_t k = 9; k < 14; k += 2)
+                m_write8(s, m_abs(s, (uint16_t)(0x0CC0 + k)) + c->y, (uint8_t)c->a);
+        }
+
+        /* $C1:0667: MP */
+        m_rep(s, CPU_FLAG_M);
+        m_ldx16(s, m_read16(s, m_dp(s, 0xA2)));
+        m_write16(s, m_abs(s, 0x9499), m_lda16(s, m_read16(s, m_abs(s, 0x5E34) + c->x)));
+        uint16_t wide = m_lda16(s, m_read16(s, m_abs(s, 0x9F20)));
+        m_set_flag(s, CPU_FLAG_C, false);
+        m_lda16(s, m_read16(s, m_dp(s, 0x86)));
+        c->a = m_adc16(s, c->a, wide == 0 ? 0x0010 : 0x0008);
+        m_set_index(s, &c->y, c->a);
+        if (!call_with(s, 0xC10686, 0xC10174, CPU_FLAG_M))
+            return;
+        bool compact = m_lda8(s, m_read8(s, m_abs(s, 0x9F20))) != 0;
+        if (!call_with(s, compact ? 0xC10693 : 0xC1068E, 0xC1104E, CPU_FLAG_M))
+            return;
+        uint16_t first = compact ? 0x0CC0 : 0x0CC2;
+        m_write8(s, m_abs(s, first) + c->y, m_lda8(s, m_read8(s, m_abs(s, 0x949E))));
+        m_write8(s, m_abs(s, (uint16_t)(first + 2)) + c->y, m_lda8(s, m_read8(s, m_abs(s, 0x949F))));
+        attr = digit_attribute(s);
+        m_write8(s, m_abs(s, (uint16_t)(first + 1)) + c->y, attr);
+        m_write8(s, m_abs(s, (uint16_t)(first + 3)) + c->y, attr);
+    }
+
+    /* $C1:06D4: gauges */
+    if (m_lda8(s, m_read8(s, m_abs(s, 0x9F20))) != 0) {
+        m_tdc(s);
+        m_tax(s);
+        m_write16(s, m_dp(s, 0x80), c->x);
+        uint8_t member;
+        do {
+            m_ldx16(s, m_read16(s, m_dp(s, 0x80)));
+            if (m_lda8(s, m_read8(s, m_abs(s, 0x96F5) + c->x)) != 0 && !call_with(s, 0xC106E4, 0xC106F0, CPU_FLAG_M))
+                return;
+            member = (uint8_t)(m_read8(s, m_dp(s, 0x80)) + 1);
+            m_write8(s, m_dp(s, 0x80), member);
+            m_set_nz8(s, member);
+            member = m_lda8(s, m_read8(s, m_dp(s, 0x80)));
+            m_cmp8(s, member, 0x03);
+        } while (member != 0x03);
+    }
+    m_rts(s);
+}

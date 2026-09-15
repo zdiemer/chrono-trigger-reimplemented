@@ -96,6 +96,9 @@ void battle_step_object_palettes(Snes *s);
 /* battle/gauges.c */
 void battle_draw_gauge(Snes *s);
 void battle_number_to_digits(Snes *s);
+void battle_number_to_2_digits(Snes *s);
+void battle_blank_leading_zeros(Snes *s);
+void battle_draw_party_status(Snes *s);
 
 /* battle/math.c */
 void battle_multiply_8x8(Snes *s);
