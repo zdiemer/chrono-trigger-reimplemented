@@ -59,6 +59,7 @@ add_library(ct_game STATIC
   game/field/objects.c
   game/field/scroll.c
   game/menu/frame.c
+  game/menu/glyphs.c
   game/attract/main_loop.c
   game/battle/buffers.c
   game/battle/display.c

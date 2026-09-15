@@ -9,4 +9,9 @@
 void menu_wait_for_frame_loop(Snes *s);
 void menu_wait_ready_loop(Snes *s);
 
+/* menu/glyphs.c */
+bool menu_glyph_mode_is_valid(Snes *s);
+void menu_draw_glyph_pixel(Snes *s);
+void menu_draw_glyph(Snes *s);
+
 #endif

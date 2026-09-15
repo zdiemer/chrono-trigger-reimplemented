@@ -430,6 +430,10 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X8_BINARY, .cost_milli = 4657, .dont_care = DC_X | DC_N | DC_Z },
 
     /* menu */
+    { .addr = 0xC25E89, .name = "menu_draw_glyph_pixel", .fn = menu_draw_glyph_pixel, NEEDS_M8_X16,
+      .guard = menu_glyph_mode_is_valid, .cost_milli = 3273 },
+    { .addr = 0xC25E36, .name = "menu_draw_glyph", .fn = menu_draw_glyph, NEEDS_M8_X16_BINARY,
+      .guard = menu_glyph_mode_is_valid, .cost_milli = 3159 },
     { .addr = 0xC20348, .name = "menu_wait_for_frame_loop", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true },
     { .addr = 0xC281CA, .name = "menu_wait_ready_loop", .fn = menu_wait_ready_loop, NEEDS_M8, .idle = true },
 
