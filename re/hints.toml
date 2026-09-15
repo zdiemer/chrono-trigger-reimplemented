@@ -6,6 +6,7 @@
 #   [[jumptable]]    at, count, [kind=abs|long], [table]
 #                                                   JMP/JSR (abs,X) at `at`
 #   [[returns]]      addr, m, x                     widths after the function returns
+#                                                   (omit m or x: the caller's)
 #   [[state]]        addr, m, x                     force widths at an address
 #   [noreturn]       addrs = [...]                  calls that never come back
 #   [[inline_args]]  addr, size                     bytes after JSR/JSL to skip
@@ -104,3 +105,311 @@ m = 8
 x = 16
 name = "irq_fd"
 kind = "vector"
+
+# ---- Widths the tracer over-approximates -------------------------------------
+
+# C1:DDDF BEQ is never taken with M=16: C1:DDCA leaves when A = $5E30,X is 0, and
+# C1:DDCF-DDD4 only reach DDD9 when A <= $AD89, so LDX $AD89 is nonzero. The
+# only real way into C1:DE0A is from the SEP #$20 path. Coverage agrees: DE0A-DE3A
+# ran m8 x16 only.
+[[state]]
+addr = "C1:DE0A"
+m = 8
+x = 16
+
+# sub_C24917 sets carry only on its REP #$20 path (C2:493B-4943) and returns with
+# CLC otherwise, so the carry-set fall-through at C2:455B always has M=16.
+# (Coverage only saw the carry-clear m8 return; the m16 one is pruned.)
+[[state]]
+addr = "C2:455B"
+m = 16
+x = 16
+
+# 7E:9690 is a RAM stub. Before each JSL to it, the caller writes `54 dd ss 6B`
+# there (C2:8635-863E, C2:F70D-F724, FF:FA0E-FA17, FF:FAA6-FAAF, FF:FAF0-FAF9),
+# patching only the bank operands in its loop (C2:F761, FF:FA32, FF:FAC9,
+# FF:FB13): MVN; RTL, which leaves P alone. So the call returns with the caller's
+# widths (no m/x given).
+[[returns]]
+addr = "7E:9690"
+
+# ---- Jump tables --------------------------------------------------------------
+
+# Field object script interpreter (sub_C20F63): command byte from [$58] indexes
+# this table. It runs from C2:0F91 up to the first handler at C2:1037, so 83
+# entries; every entry points at a handler in C2:1037-1C81, and the calls files
+# show 57 of them being called from C2:0F7A.
+[[jumptable]]
+at = "C2:0F7A"
+count = 83
+
+# APU command dispatch in sub_C70004: C7:0161-0169 only get here with A in
+# $10-$17, and AND #$0F; ASL gives X = 0-14, so 8 entries. The word after the
+# table (C7:0AE9) is a data byte read by CMP $C70AE9 at C7:01A5, not a target.
+[[jumptable]]
+at = "C7:0173"
+count = 8
+
+# The tables below were sized right by the length heuristic before, or not at all,
+# and drift as other hints add code; their bounds are established, so pin them.
+
+# Second copy of the event fetch loop (C0:5990 = C0:5900 byte for byte) using the
+# same 256-entry command table as C0:5910.
+[[jumptable]]
+at = "C0:59A0"
+count = 256
+
+# Four dispatchers share the table at C0:9FF7; each indexes it with AND #$7E; TAX,
+# so 64 entries. Calls from them to C0:A108 and C0:A11D (entries 25 and 12, 19,
+# 20) are in the calls files.
+[[jumptable]]
+at = "C0:9ECD"
+count = 64
+
+[[jumptable]]
+at = "C0:9F1C"
+count = 64
+
+[[jumptable]]
+at = "C0:9F6B"
+count = 64
+
+[[jumptable]]
+at = "C0:9FCF"
+count = 64
+
+# sub_C2584A: $15 * 2 indexes C2:5851, which runs up to the first target, C2:5893:
+# 33 entries.
+[[jumptable]]
+at = "C2:584E"
+count = 33
+
+# Menu: C2:BFFF runs up to the first handler, C2:C017: 12 entries. Entries 8-11
+# (C2:C0E9, C095, C0B9, C0D1) all ran in the movies.
+[[jumptable]]
+at = "C2:BFE0"
+count = 12
+
+# Object handler state tables (TDC/REP; LDA $0002,X; ASL; TAX; JMP (table,X)), and
+# one menu table: each table runs up to its first target, which fixes the count.
+# Coverage confirms the last entry of 30C1 (31D0, 321C), 6F8E (7087) and DA35
+# (DA64) ran.
+[[jumptable]]
+at = "C2:1CFF"
+count = 2
+
+[[jumptable]]
+at = "C2:210B"
+count = 4
+
+[[jumptable]]
+at = "C2:21A0"
+count = 2
+
+[[jumptable]]
+at = "C2:2202"
+count = 2
+
+[[jumptable]]
+at = "C2:30BE"
+count = 6
+
+[[jumptable]]
+at = "C2:6F8B"
+count = 2
+
+[[jumptable]]
+at = "C2:DA23"
+count = 4
+
+# C2:ED59: entries 0-10 point at routines in C2:ED77-F378 (the 7 targets in the
+# calls files are among them). The bytes after, E8 A0 5B 00 54 7E FF 60, are
+# code (INX; LDY #$005B; MVN $FF,$7E; RTS, like C2:ED47), not addresses: read as
+# entries they give C2:A0E8, 005B, 7E54 and 60FF (a byte table, hit BRK).
+[[jumptable]]
+at = "C2:ED50"
+count = 11
+
+# ---- Indirect jumps -----------------------------------------------------------
+
+# Menu thread scheduler (C2:81CA): C2:8203 JMP ($0000) starts a thread at the
+# address stored at $B2,X, on a fresh stack. Only sub_C28249 writes $B2,X (STA
+# $B2,X at C2:824C, A = start address); its 14 call sites (12 JSR, 2 JMP) load
+# the constants below (C2:F983 and C2:F9A7 share the call at C2:F9AD), so the
+# list is complete for every caller static analysis knows. They are entries
+# rather than an `indirect` hint on C2:8203: the tracer treats JMP (abs) as a
+# tail call, but a thread never returns into the scheduler (threads end with
+# JMP $8216, e.g. C2:83C7), and routines that JMP into the yield code (C2:8403,
+# C2:CF5B) would inherit whatever every menu handler returns with. Threads start
+# with REP #$30 in effect.
+[[entry]]
+addr = "C2:826F"
+m = 16
+x = 16
+name = "menu_thread_main"
+
+[[entry]]
+addr = "C2:E91B"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:83BD"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:89F2"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:8A45"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:8AB2"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:8AF5"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:8BB8"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:9016"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:CBBF"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:CECE"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:F657"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:F9B2"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:FA06"
+m = 16
+x = 16
+
+[[entry]]
+addr = "C2:FA9F"
+m = 16
+x = 16
+
+# Menu mode dispatch (C2:826F): $67 indexes the word table at C2:8292 (16 entries,
+# ending where code starts at C2:82B2), each entry pointing at a per-mode
+# sub-table indexed by $68. Every sub-table sits directly before its first
+# handler, which fixes its length. Modes 8-10 point at C2:8291 and mode 15 at
+# C2:FE0A, neither of which follows that layout, and none of them ran in the
+# movies, so they are left out. Handlers run m8 x16 (SEP #$20 at C2:828C) and
+# return through the PER to C2:826C. Unexecuted entries (AC1D, BF6D, CF92,
+# D4F8, D506, D6C3, D715, D778, E6AE, E705) all decode as plausible handlers,
+# most doing the same JSR $E984 / BIT $0D1D input check as the executed ones.
+[[indirect]]
+at = "C2:828E"
+targets = [
+    "C2:99CE", "C2:9A1B",                                   # mode 0, C2:99CA
+    "C2:9C31", "C2:9C39", "C2:9C70", "C2:9CA5",             # mode 1, C2:9C29
+    "C2:AA40", "C2:AA4A", "C2:AA86", "C2:AAC8", "C2:AB4A", "C2:AC1D",  # mode 2
+    "C2:B35D", "C2:B365", "C2:B36D", "C2:B3AE", "C2:B48E",  # mode 3, C2:B353
+    "C2:BF3D", "C2:BF45", "C2:BF6D", "C2:BF9F",             # mode 4, C2:BF35
+    "C2:C627", "C2:C65D", "C2:C6B9",                        # mode 5, C2:C621
+    "C2:CEDC", "C2:CEFD", "C2:CF61", "C2:CF92",             # mode 6, C2:CED4
+    "C2:C7AC", "C2:C7E0",                                   # mode 7, C2:C7A6 (+C6B9)
+    "C2:D4F8", "C2:D506",                                   # mode 11, C2:D4F0 (+CF61, CF92)
+    "C2:D52B", "C2:D546", "C2:D58B", "C2:D645", "C2:D690",  # mode 12, C2:D519
+    "C2:D618", "C2:D6C3", "C2:D715", "C2:D778",
+    "C2:E1ED", "C2:E21E", "C2:E236", "C2:E201", "C2:E209",  # mode 13, C2:E1E3
+    "C2:E613", "C2:E61B", "C2:E6AE", "C2:E705",             # mode 14, C2:E60B
+]
+
+# Object handlers (C2:051D walks the 64 object slots at $0B30-$1B30 and jumps
+# through each slot's word $0000,X, copied to $50; handlers run m8 x16 with X =
+# slot and return carry set to free it). Slots are filled by sub_C2048A /
+# sub_C204CD with X = handler. Static loads (complete for known callers):
+# C2:0F63 from sub_C204D9 / sub_C204FB, and the LDX constants before the JSRs at
+# C2:10C4 (1CF5), 10F7 (1DD4), 1590 (20A2), 159E (2105), 15AC (21F8), 15BA (2194),
+# 1DE2 (1E38), 63A6 (666C), 7417 (6AC8), 742D (6F85) and 7441 (7143).
+# Object script command $35 (C2:1839) also spawns objects with the handler word
+# taken from the script, so the list can't be complete. The rest are addresses
+# that ran m8 x16 without any static or recorded call edge, and appear in ROM as
+# the operand of a $35 command: in the C2:6A0A script right after its first two
+# commands (67FA, 683B, 68A3), and in data at C3:8000-CFFF where these commands
+# cluster (C3:8C10
+# 3AE2, 8C23 42DD, 8C27 495E, 8C2A 309E, 8C31 2F94, 8C34 5628, 8BBD 75C3, 980D
+# 75FD, 9811 7652, 9848 3404, 986C 3264, 9F92 7702, 8DAD 49CF; most repeat in
+# several scripts). Only what runs in the movies.
+[[indirect]]
+at = "C2:0553"
+targets = ["C2:0F63", "C2:1CF5", "C2:1DD4", "C2:1E38", "C2:20A2", "C2:2105",
+           "C2:21F8", "C2:2194", "C2:666C", "C2:6AC8", "C2:6F85", "C2:7143",
+           "C2:2F94", "C2:309E", "C2:3264", "C2:3404", "C2:3AE2", "C2:42DD",
+           "C2:495E", "C2:49CF", "C2:5628", "C2:67FA", "C2:683B", "C2:68A3",
+           "C2:75C3", "C2:75FD", "C2:7652", "C2:7702"]
+
+# Object script command $34 (C2:1807): JSR to the word operand (JMP ($005B) in
+# C2:1819, m8 x16, returns to C2:1813). Targets are script data. These ran m8
+# x16 without any static or recorded call edge and appear as $34 operands: C2:48CD
+# at C2:4AF1 and C2:4BE9 (both on command boundaries parsing the C2:4A9B script
+# from its start) and C3:94B2; C2:2F0F at C3:8BB6, A639, AC8B, BA59 and BFB9;
+# C2:7575, 7598 and 78A1 at C3:8E67, 8E6A and 8E82; C2:7BC4 at C3:98F4. Only
+# what runs in the movies.
+[[indirect]]
+at = "C2:1819"
+targets = ["C2:48CD", "C2:2F0F", "C2:7575", "C2:7598", "C2:78A1", "C2:7BC4"]
+
+# Object script command $4E (C2:181C): JSL to the long operand (JML [$005B] in
+# C2:1836, m8 x16, returns to C2:1830). C6:E237 ran m8 x16 without any other
+# edge, ends in RTL and appears as `4E 37 E2 C6` at C3:994B, with operands
+# naming $1BA9 (the byte it reads) a few bytes later. Only what runs in the
+# movies.
+[[indirect]]
+at = "C2:1836"
+targets = ["C6:E237"]
+
+# sub_C2EFBE: A indexes the 16-entry word table at C2:EFD4 (it ends where the
+# first handler, C2:EFF4, starts); PER makes the handler return to the RTS at
+# C2:EFD3. Entries 0 and 13-15 are that RTS. Complete.
+[[indirect]]
+at = "C2:EFD0"
+targets = ["C2:EFD3", "C2:EFF4", "C2:F005", "C2:F011", "C2:F022", "C2:F036",
+           "C2:F0A2", "C2:F071", "C2:F08D", "C2:F0B8", "C2:F068", "C2:F0C1",
+           "C2:F0D1"]
+
+# D = $0300 there, so STY $F0 at C3:0F30 writes $03F0. Y is one of the four
+# constants loaded at C3:0F05-0F22 (entry points into the chain of JSR $0F83
+# blocks). Complete.
+[[indirect]]
+at = "C3:0F32"
+targets = ["C3:0F35", "C3:0F48", "C3:0F5B", "C3:0F6E"]
+
+# Computed entry into a run of 222 LDA $nnnn,Y / STA $nnnn,X pairs ending in the
+# RTS at CE:E7C7: sub_CD3616 sets $4B = $E7C7 - 6n, and 222 = $DE is the bound
+# checked at CD:35E6. Any pair start in CE:E293-E7C1 (or the RTS) can be entered; they all
+# fall through to the RTS with the same inputs, so the first one, CE:E293,
+# stands for the set.
+[[indirect]]
+at = "CE:E7CC"
+targets = ["CE:E293"]

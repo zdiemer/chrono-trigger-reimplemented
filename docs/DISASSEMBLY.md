@@ -91,6 +91,13 @@ it was established. Typical workflow:
   (`RTI`) there disables a vector.
 - The event script interpreter dispatches through a 256-entry command table at
   `$C0:5D6E`, fetching command bytes from `$7F:2001,X`.
+- Bank C2's object system runs a handler per slot (`$C2:051D`, `JMP ($0050)`)
+  and an object script interpreter with an 83-entry command table at
+  `$C2:0F91`. Script commands `$34`/`$35`/`$4E` call, spawn or JSL to addresses
+  in script data, so their `indirect` hints only list targets seen running.
+- The menu in C2 runs cooperative threads: `$C2:8203` starts one on its own
+  stack and `JSR $821E` yields. Thread starts are `entry` hints because the
+  tracer would treat that `JMP (abs)` as a tail call.
 
 ## Limits
 
