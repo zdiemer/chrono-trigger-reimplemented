@@ -147,6 +147,8 @@ const NativeEntry game_natives[] = {
       .cost_milli = 7433 },
     { .addr = 0xC1B575, .name = "battle_update_combo_members", .fn = battle_update_combo_members, NEEDS_M8_X16,
       .cost_milli = 10349 },
+    { .addr = 0xC1B279, .name = "battle_update_combatant", .fn = battle_update_combatant, NEEDS_M8_X16,
+      .cost_milli = 5485, .dont_care = DC_N | DC_Z },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
       .cost_milli = 4344, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,

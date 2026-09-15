@@ -386,3 +386,44 @@ void battle_update_combo_members(Snes *s)
         return;
     m_rts(s);
 }
+
+// $C1:B279
+/* Per-combatant update for slot Y (stat block X): unless $AF0A + Y is $FF,
+ * clear bit 7 of $5E4A, copy $AF0A to $AEFF, clear $24 and set bit 0 of $B03A.
+ * A party member, or an enemy without $AF12 bit 7, with HP ($5E30) left is
+ * done. Otherwise it continues to the knocked-out handling at $C1:B2B1 (or, for
+ * enemies with $AF12 bit 7, $C1:B2B9), which stays in the original: it is
+ * reached rarely and makes eight call-outs. */
+void battle_update_combatant(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    uint8_t v = m_lda8(s, absy8(s, 0xAF0A));
+    m_cmp8(s, v, 0xFF);
+    if (v == 0xFF) {
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+        m_rts(s);
+        return;
+    }
+    set_absx8(s, 0x5E4A, m_lda8(s, (uint8_t)(m_lda8(s, absx8(s, 0x5E4A)) & 0x7F)));
+    set_absy8(s, 0xAEFF, m_lda8(s, absy8(s, 0xAF0A)));
+    m_write8(s, m_dp(s, 0x24), 0x00);
+    set_absy8(s, 0xB03A, m_lda8(s, (uint8_t)(m_lda8(s, absy8(s, 0xB03A)) | 0x01)));
+    m_cmp16(s, c->y, 0x0003);
+    if (c->y >= 0x0003) {
+        m_lda8(s, absy8(s, 0xAF12));
+        m_bit_imm8(s, 0x80);
+        if (c->a & 0x80) {
+            c->pc = 0xB2B9;
+            return;
+        }
+    }
+    m_rep(s, CPU_FLAG_M);
+    if (m_lda16(s, m_read16(s, m_abs(s, 0x5E30) + c->x)) != 0) {
+        m_tdc(s);
+        m_sep(s, CPU_FLAG_M);
+        m_rts(s);
+        return;
+    }
+    c->pc = 0xB2B1;
+}
