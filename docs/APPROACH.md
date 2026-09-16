@@ -117,6 +117,8 @@ the disassembler.
    services with the SNES hardware model as the reference backend, then a
    native renderer, widescreen and a GBA feasibility study)*
 
+Loose ends from finished milestones are collected in [TODO.md](TODO.md).
+
 ## Conventions
 
 - Game code in C17, host in C17 or C++20, built with CMake.
