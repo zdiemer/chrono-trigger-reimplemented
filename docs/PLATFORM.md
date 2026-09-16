@@ -17,7 +17,7 @@ are authoritative and "P0 as built" and "P1 as built" list what changed and why.
 |---|---|---|
 | P0 | Service headers, SNES backend, first hand ports converted | done |
 | P1 | Audio behind the API | done, except `new-game`'s log-spectral distance in the audio comparison (see P1 as built) |
-| P2 | Video behind the API, subsystem by subsystem | |
+| P2 | Video behind the API, subsystem by subsystem | the `VidFrame`, its decoder, the observer and their comparison are in; shared code and battle done, field's own code done, scenes and menus left (see P2 as built) |
 | P3 | Native renderer, pixel-identical to `render.c` | |
 | P4 | Widescreen | |
 | P5 | GBA feasibility study | |
@@ -998,6 +998,134 @@ from their generated drafts ([RECOMP.md](RECOMP.md), M5).
 no PPU, DMA or HDMA register write outside `vid_*`; shadow mode has 0
 mismatches; and the observer's command-built `VidFrame` equals the decoder's
 `VidFrame` on every frame (same spans, sprites, palette and VRAM).
+
+#### P2 as built: shared code and battle done, field started
+
+| Subsystem | State |
+|---|---|
+| shared | done: display blank (P0), the palette upload `$C0:712E`, the animated tiles (P0) |
+| battle | done: no PPU, DMA or HDMA register write outside `vid_*` from battle code in `gato-battle`, `battle-magus` or `battle-golem-twins-gameover`, and the two frames agree on 2197 of the fight's 2200 frames |
+| field | its own code is done: over `field.ctm` no routine in banks `$C0` or `$FD` writes a register any more. What still writes them during field frames belongs to the menus (below), so the frames don't agree yet |
+| scenes | not started: the program the boot decompresses to `$7E:3000` writes the registers itself (`$7E:380E`, `$7E:3843`, `$7E:388B`, `$7E:5C57`, `$7E:6212` and the rest), as do `$C3:08D0` and `$C3:08FB` |
+| menus | not started, and it is what the field waits on: `$C2:8002`, the per-frame routine *every* mode's vblank handler calls, copies a block of shadows into `$2100-$2113` through the work RAM port (`$C2:85E4`), moves 16 more into `$2123-$2132` with `MVN` (`$C2:8601`), uploads OAM and the palette (`$C2:8654`, `$C2:86A9`) and runs the queued VRAM uploads (`$C2:8683`). Those are writes no call can express as they stand, so porting them means deciding what each byte of the block means |
+
+**The frame, its two builders and their comparison.**
+
+| Path | What |
+|---|---|
+| `runtime/platform/video.h` | `VidBg`, `VidMode7`, `VidSprite`, `VidObjConfig`, `VidVideoConfig`, `VidVramPort`, `VidLineState`, `VidSpan`, `VidFrame`, and the calls the ports below needed |
+| `runtime/platform/snes/decode.c` | the decoder: `VidLineState` from the `Ppu` registers at every line, sprites from OAM at line 1, spans merged while nothing changes |
+| `runtime/platform/observe.c` | the observer: every service call folded into a `VidFrame` semantically, uploads applied to its own video memory, per-line effects expanded from the game's tables |
+| `dev/vid_check.c` | `ct_dev --vid-check [out.txt]`: compares the two per frame and reports the differences by kind |
+
+The decoder reads the register layer, so it works whoever wrote the registers
+and P3's renderer doesn't wait for P2. The observer never sees a register: each
+call hands it the structure the call took, uploads are copied out of game memory
+through a read callback, and a per-line effect is expanded from the table the
+game keeps, the way a native backend would have to expand it. Its HDMA
+bookkeeping (line counts with the repeat bit, indirect addresses, reloads) is
+the same state machine the hardware runs, because the table is the game's data
+format. The one call it can't take semantically, the SNES-only transfer escape,
+it follows byte by byte where the destination is video memory: without that, the
+battle's object graphics never reached the observer's VRAM and no frame of the
+fight could agree.
+
+**Calls added**, each with its first user: `vid_set_bg_map`, `vid_set_bg_chars`,
+`vid_set_scroll`, `vid_set_mosaic`, `vid_set_mode7`, `vid_set_obj_config`,
+`vid_set_screens`, `vid_set_video_config`, `vid_set_vram_address`,
+`vid_write_vram`, `vid_write_vram_byte`, and four more `VidLineTarget`s for the
+battle's per-line slots (`VID_LINE_BG_MAPS`, `VID_LINE_SCREENS`,
+`VID_LINE_COLOR_MATH`, `VID_LINE_MODE`) and three for the field's
+(`VID_LINE_MATH_LAYERS`, `VID_LINE_WINDOW2_LEFT`, `VID_LINE_WINDOW2_RIGHT`).
+`vid_begin_vram_uploads` now takes the port setting and the source bank instead
+of assuming both, and `VidSnesXfer` carries a port for `VID_STEP_VRAM_PORT`,
+where an upload sets the VRAM port in the middle of its own register sequence
+(the field's deferred uploads do).
+
+**Ported** (all in [PORTING.md](PORTING.md)'s status table):
+`palette_upload` `$C0:712E`; the battle's `$CD:09CE`, `$CD:09F1`, `$CC:E000`,
+`$D1:E8D9` and the second vblank handler `$D1:F4C0`; the field's `$FD:C1EE`,
+`$C0:ECA3`, `$C0:B1B2`, the twelve deferred uploads `$C0:8445`-`$C0:87BF`,
+`$FD:C0D7`, `$C0:A509`, `$C0:2DC8`, `$C0:2DF1`, `$C0:F05E` with its four tile
+writers, and the line interrupt `$C0:ECCC`/`$C0:ECEB`/`$C0:ECF2`.
+
+**Deviations, and why.**
+
+- **Write order within a routine.** `field_setup_line_effects` and
+  `battle_setup_display` program eight and seven channels; the original writes
+  all the controls, then all the destinations, and so on, while the calls write
+  each slot's registers together. Neither routine calls anything in between, so
+  the only comparison is at its return, where every register holds the same
+  byte. The same goes for the reads a port does before a call that writes
+  several registers at once.
+- **One write still reaches the registers through the data bank.** The second
+  battle vblank handler writes the per-line enable register with absolute
+  addressing, so with another data bank it lands in memory instead. The port
+  stops there when the bank isn't one the registers are mapped in, as
+  `field_nmi` does.
+- **One more SNES-only escape.** `$C0:2DF1` clears memory by zeroing the Mode 7
+  matrix, whose multiplier then offers a product of 0, and copying that *out of*
+  a PPU register with a transfer in the other direction. The matrix values go
+  through `vid_set_mode7`; the copy uses `vid_snes_transfer`, which the lint now
+  allows in `field/display.c` as well.
+- **Direct pages on the register block.** Routines that put `$2100` or `$4300`
+  in D keep doing it, since D is CPU state; `M_DP_PPU` and `M_DP_DMA` in
+  `port/machine.h` name the two values so no register constant appears in
+  `game/`.
+- **Lines are compared, not spans.** `vid_frame_diff` compares the state each
+  line ends up with rather than the span boundaries: an upload that rewrites a
+  palette with the same colors starts a span on one side only and changes
+  nothing a renderer draws.
+- **`--vid-check-from N`.** The observer starts from what the calls have told
+  it, so it can only be compared once every writer of every register has been
+  behind the API since power-on. Until the last subsystem is, `--vid-check-from`
+  seeds it from the PPU at a frame, which is how a subsystem is checked from the
+  frame it takes over.
+
+**Results.** Shadow mode: `new-game`, `field`, `fair-companion`, `gato-battle`,
+`battle-magus`, `battle-golem-twins-gameover` and `menus-field-menu` exit 0 with
+no mismatch; the new entries' call counts are in
+[PORTING.md](PORTING.md)'s status table. The lint and the unit tests pass and
+the build is warning-free.
+
+I/O log, `--native on`, register accesses (excluding transfer bytes), over
+`gato-battle`:
+
+| Origin | PPU before | PPU after | DMA registers before | DMA registers after |
+|---|---|---|---|---|
+| hand ports, through services | 219916 | 301558 | 218997 | 1093251 |
+| generated blocks | 645950 | 562990 | 957689 | 82658 |
+
+What the generated blocks have left in that movie is all bank `$C2` and the
+scene program in `$7E`; the last write from bank `$C0`, `$CC`, `$CD`, `$D1` or
+`$FD` is gone. Over `field.ctm` the same holds: everything left is `$7E` before
+frame 892, `$C3:08D0`/`$C3:08FB` at frame 146, `$FF:FC04` at frame 2416 (reached
+from `$C2:E503`) and bank `$C2` from frame 1706 on.
+
+`--vid-check`, seeded at the frame the subsystem takes over:
+
+| Run | Frames equal | Differences |
+|---|---|---|
+| `gato-battle` from frame 19400 (the fight) | 2197 of 2200 | `windows.w1_left` on 3 frames |
+| `field.ctm` from frame 4000 | 1 of 5000 | the scroll, brightness, windows, sprites and VRAM the `$C2:8002` block copies carry |
+
+The battle's three frames are a shared channel: the transfer channel the battle
+uploads with is also the slot its window effect runs on, so a transfer started
+inside the visible frame leaves the effect reading from a cleared indirect
+address. The hardware's channels are one set of registers for both purposes;
+the observer keeps a transfer and a per-line effect apart, as a native backend
+would.
+
+Fuzzing found one real bug the movies don't reach: a deferred upload's
+transfer, when its size is large enough to read through the stack page, copies
+the bytes the routine's own `JSR` left there, so the port has to write them
+before the transfer rather than after. The four window tile writers are guarded
+on a direct page on the PPU block, which the fuzzer's base states don't have, so
+they are validated by shadow mode only.
+
+`--native on --recomp only` still produces traces identical to `--native off`
+(3600 frames of `new-game`, no divergence in WRAM, VRAM, SRAM, CGRAM or OAM),
+so the block boundaries the new registry entries move change nothing.
 
 ### P3: native renderer, pixel-identical
 

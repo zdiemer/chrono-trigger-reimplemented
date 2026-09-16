@@ -98,7 +98,7 @@ void battle_nmi(Snes *s)
     m_lda8(s, tm_reset_beam_latch(pf, PF_AT(0xD1E7CF)));
     m_lda8(s, 0x80);
     vid_set_display(pf, PF_AT(0xD1E7D4), &(VidDisplay){ .blank = true });
-    vid_begin_vram_uploads(pf, PF_AT(0xD1E7D7), NULL);
+    vid_begin_vram_uploads(pf, PF_AT(0xD1E7D7), VID_VRAM_WORD_PORT, PF_GAME(0), NULL);
     if (!jsl(s, 0xD1E7DA, 0xCD0C95))
         return;
 

@@ -26,6 +26,11 @@ void battle_reset_object_state(Snes *s);
 /* battle/display.c */
 void battle_update_scroll_tables(Snes *s);
 void battle_update_scroll_tables_bg3_moving(Snes *s);
+void battle_upload_palette(Snes *s);
+void battle_setup_display(Snes *s);
+void battle_load_graphics(Snes *s);
+void battle_upload_tile_rows(Snes *s);
+void battle_nmi_alternate(Snes *s);
 
 /* battle/stats.c */
 void battle_update_low_hp_flag(Snes *s);

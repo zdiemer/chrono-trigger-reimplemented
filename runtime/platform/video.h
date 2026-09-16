@@ -18,6 +18,7 @@
 
 typedef enum { VID_BG1, VID_BG2, VID_BG3, VID_BG4, VID_OBJ, VID_BACK } VidLayer;
 #define VID_LAYER_BIT(layer) (1u << (layer))
+enum { VID_LAYERS = 6 };
 
 /* Master brightness and forced blank. */
 typedef struct {
@@ -130,6 +131,145 @@ static inline void vid_color_math_decode(VidColorMath *m, uint32_t field, uint8_
 /* Channels of the fixed color a vid_set_fixed_color call sets. */
 enum { VID_RED = 1, VID_GREEN = 2, VID_BLUE = 4 };
 
+/* A background layer's placement in video memory and its scroll. */
+typedef struct {
+    uint16_t map_base;     /* VRAM word address of the tilemap */
+    uint8_t map_w, map_h;  /* 32 or 64 tiles */
+    uint16_t char_base;    /* VRAM word address of tile 0 */
+    uint16_t hofs, vofs;   /* 10-bit scroll */
+    bool mosaic;           /* the layer takes part in the mosaic */
+    bool large_tiles;      /* 16x16 tiles */
+} VidBg;
+
+/* Which of a layer's scroll values a vid_set_scroll call sets. */
+enum { VID_SCROLL_H = 1 << 0, VID_SCROLL_V = 1 << 1 };
+
+enum { VID_M7_WRAP = 0, VID_M7_WRAP_UNUSED = 1, VID_M7_TRANSPARENT = 2, VID_M7_TILE0 = 3 };
+
+typedef struct {
+    int16_t a, b, c, d;     /* matrix, 8.8 fixed point */
+    int16_t cx, cy;         /* 13-bit rotation center, sign-extended */
+    int16_t hofs, vofs;     /* 13-bit, sign-extended */
+    bool hflip, vflip;
+    uint8_t outside;        /* VID_M7_* : what lies outside the 1024x1024 plane */
+} VidMode7;
+
+/* Members a vid_set_mode7 call sets. */
+enum {
+    VID_M7_SELECT = 1 << 0,   /* hflip, vflip, outside */
+    VID_M7_MATRIX = 1 << 1,   /* a, b, c, d */
+    VID_M7_CENTER = 1 << 2,   /* cx, cy */
+    VID_M7_SCROLL = 1 << 3,   /* hofs, vofs */
+    VID_M7_MATRIX_AB = 1 << 4,   /* a and b only: they double as the signed multiplier */
+};
+
+/* One OAM entry, as the game builds it. */
+typedef struct {
+    int16_t x;              /* 9 bits, as OAM holds it */
+    uint8_t y;
+    uint16_t tile;          /* 9-bit name */
+    uint8_t palette;        /* 0-7 */
+    uint8_t priority;       /* 0-3 */
+    bool hflip, vflip, large;
+} VidSprite;
+
+typedef struct {
+    uint8_t size_select;    /* which pair of sprite sizes (0-7) */
+    uint16_t base;          /* VRAM word address of sprite tile 0 */
+    uint16_t name_select;   /* word offset from it to the second tile page */
+} VidObjConfig;
+
+/* Interlace, overscan and hi-res settings ($2133). The game leaves them off;
+ * they are kept so no register state is lost. */
+typedef struct {
+    bool interlace, obj_interlace, overscan, pseudo_hires;
+    bool extbg;             /* Mode 7's BG2 carries priority bits */
+    uint8_t snes_extra;     /* bits 4, 5 and 7, which the renderer doesn't model */
+} VidVideoConfig;
+
+/* How VRAM writes step the address (the VRAM port's mode). */
+typedef struct {
+    uint8_t step;           /* words the address advances: 1, 32 or 128 */
+    uint8_t remap;          /* address remapping, 0-3 (0: none) */
+    bool after_high;        /* step after the high byte rather than the low one */
+    bool snes_step_alt;     /* the second SNES encoding of 128, which behaves the same */
+} VidVramPort;
+
+/* The setting every upload in ported code uses: a word at a time, stepping
+ * after the high byte. */
+#define VID_VRAM_WORD_PORT (&(const VidVramPort){ .step = 1, .after_high = true })
+
+/* Decoders for the SNES-format bytes the game keeps as shadows, exact like the
+ * ones above: the backend encodes each structure back to the byte it came from. */
+static inline VidMode vid_mode_decode(uint8_t v)
+{
+    return (VidMode){ .mode = v & 7, .bg3_priority = (v & 8) != 0, .large_tiles = (uint8_t)(v >> 4) };
+}
+
+static inline VidObjConfig vid_obj_config_decode(uint8_t v)
+{
+    return (VidObjConfig){ .size_select = (uint8_t)(v >> 5), .base = (uint16_t)((v & 7) << 13),
+                           .name_select = (uint16_t)(((v >> 3) & 3) << 12) };
+}
+
+static inline VidVideoConfig vid_video_config_decode(uint8_t v)
+{
+    return (VidVideoConfig){ .interlace = (v & 0x01) != 0, .obj_interlace = (v & 0x02) != 0,
+                             .overscan = (v & 0x04) != 0, .pseudo_hires = (v & 0x08) != 0,
+                             .extbg = (v & 0x40) != 0, .snes_extra = (uint8_t)(v & 0xB0) };
+}
+
+/* $2107-$210A: the tilemap's address and how many 32x32 quadrants it holds. */
+static inline void vid_bg_map_decode(VidBg *b, uint8_t v)
+{
+    b->map_base = (uint16_t)((v & 0xFC) << 8);
+    b->map_w = (uint8_t)((v & 1) ? 64 : 32);
+    b->map_h = (uint8_t)((v & 2) ? 64 : 32);
+}
+
+static inline VidVramPort vid_vram_port_decode(uint8_t v)
+{
+    static const uint8_t steps[4] = { 1, 32, 128, 128 };
+    return (VidVramPort){ .step = steps[v & 3], .remap = (uint8_t)((v >> 2) & 3), .after_high = (v & 0x80) != 0,
+                          .snes_step_alt = (v & 3) == 3 };
+}
+
+/* Everything a renderer needs for one line. */
+typedef struct {
+    VidDisplay display;
+    VidMode mode;
+    uint8_t mosaic_size;    /* 1-16 */
+    VidBg bg[4];
+    VidMode7 mode7;
+    VidObjConfig obj;
+    VidWindows windows;
+    VidColorMath math;
+    VidVideoConfig config;
+    uint16_t fixed_color;   /* BGR555 */
+    uint8_t main_layers, sub_layers;   /* VID_LAYER_BIT sets: $212C, $212D */
+} VidLineState;
+
+typedef struct {
+    uint16_t line;          /* first line (1-224) this state applies to */
+    bool palette_changed;   /* CGRAM changed since the previous span */
+    VidLineState state;
+} VidSpan;
+
+enum { VID_SPRITES = 128, VID_MAX_SPANS = 225 };
+
+/* A frame as a renderer consumes it: the lines' states as spans, the sprites in
+ * OAM order (order decides overlap), and the memory they read. Built two ways
+ * (docs/PLATFORM.md, P2): decoded from the PPU registers line by line, or folded
+ * from the service calls by the observer; the two must agree. */
+typedef struct {
+    VidSprite sprites[VID_SPRITES];
+    uint8_t first_sprite;   /* OAM priority rotation */
+    uint16_t span_count;
+    VidSpan spans[VID_MAX_SPANS];   /* spans[0].line == 1 */
+    const uint8_t *vram;    /* 64 KiB, SNES layout */
+    const uint16_t *cgram;  /* 256 BGR555 */
+} VidFrame;
+
 /* A per-line effect: a table the game keeps in memory, read at the start of
  * every frame, in HDMA's format (line counts with repeat bit, then values),
  * direct or indirect. The target names what it drives. */
@@ -140,6 +280,12 @@ typedef enum {
     VID_LINE_SCROLL_BG1, VID_LINE_SCROLL_BG2, VID_LINE_SCROLL_BG3,
     VID_LINE_FIXED_COLOR,
     VID_LINE_BRIGHTNESS,
+    VID_LINE_BG_MAPS,           /* the four layers' tilemap addresses and sizes */
+    VID_LINE_SCREENS,           /* main_layers, sub_layers, win_main, win_sub */
+    VID_LINE_COLOR_MATH,        /* math control, math layers, fixed color, video config */
+    VID_LINE_MODE,              /* BG mode and mosaic */
+    VID_LINE_MATH_LAYERS,       /* math layers and the fixed color */
+    VID_LINE_WINDOW2_LEFT, VID_LINE_WINDOW2_RIGHT,   /* one edge of window 2 */
 } VidLineTarget;
 
 typedef struct {
@@ -168,12 +314,14 @@ enum {
     VID_STEP_TARGET_LO,      /* the destination's address register: VRAM, CGRAM or OAM */
     VID_STEP_TARGET_HI,      /* its high byte (VRAM) */
     VID_STEP_START,          /* $420B = the channel's bit */
+    VID_STEP_VRAM_PORT,      /* $2115: how VRAM writes step, from VidSnesXfer.port */
 };
 
 typedef struct {
     uint8_t channel;         /* 0-7 */
     uint8_t control;         /* $43x0 as the original writes it (mode 1 for VRAM words, bit 3 fixed source, ...) */
     const uint8_t *steps;
+    const VidVramPort *port; /* for VID_STEP_VRAM_PORT, where an upload sets it itself */
 } VidSnesXfer;
 
 /* Master brightness and forced blank. */
@@ -184,6 +332,23 @@ PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
 enum { VID_AT_LINE_HANDLER = 0xFFFF };
 PF_API void vid_raster_display(Platform *pf, PfOrigin o, uint16_t line, const VidDisplay *d);
 PF_API void vid_set_mode(Platform *pf, PfOrigin o, const VidMode *m);
+/* Where a layer's tilemap lies and how large it is ($2107-$210A). */
+PF_API void vid_set_bg_map(Platform *pf, PfOrigin o, VidLayer bg, const VidBg *b);
+/* The character bases of a layer pair (BG1+BG2 or BG3+BG4), which the original
+ * sets in one register. */
+PF_API void vid_set_bg_chars(Platform *pf, PfOrigin o, VidLayer first, uint16_t base0, uint16_t base1);
+/* `fields`: VID_SCROLL_H, VID_SCROLL_V. BG1's scroll shares its registers with
+ * Mode 7's, which the backend keeps in step. */
+PF_API void vid_set_scroll(Platform *pf, PfOrigin o, VidLayer bg, uint16_t hofs, uint16_t vofs, uint32_t fields);
+/* Mosaic: `bgs` is a VID_LAYER_BIT set of BG1-BG4, `size` 1-16. */
+PF_API void vid_set_mosaic(Platform *pf, PfOrigin o, uint8_t bgs, uint8_t size);
+/* `fields`: VID_M7_* members to set. */
+PF_API void vid_set_mode7(Platform *pf, PfOrigin o, const VidMode7 *m7, uint32_t fields);
+PF_API void vid_set_obj_config(Platform *pf, PfOrigin o, const VidObjConfig *c);
+/* Which layers are on the main and the sub screen. */
+enum { VID_SCREEN_MAIN = 1 << 0, VID_SCREEN_SUB = 1 << 1 };
+PF_API void vid_set_screens(Platform *pf, PfOrigin o, uint8_t main_layers, uint8_t sub_layers, uint32_t fields);
+PF_API void vid_set_video_config(Platform *pf, PfOrigin o, const VidVideoConfig *c);
 /* `fields`: VID_WINDOWS_* members to set, written in the order of the bits. */
 PF_API void vid_set_windows(Platform *pf, PfOrigin o, const VidWindows *w, uint32_t fields);
 /* `fields`: VID_MATH_* members to set. */
@@ -197,10 +362,16 @@ PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const Vi
 /* Slots whose line effects run from the next frame on (bit per slot). */
 PF_API void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots);
 
-/* Vblank upload work begins: VRAM uploads write words from here on. The SNES
- * backend sets the VRAM port and, with `x`, programs the channel's steps (its
- * mode and destination) ahead of uploads that reuse them. */
-PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidSnesXfer *x);
+/* Vblank upload work begins: VRAM writes step the address as `port` says from
+ * here on. The SNES backend sets the VRAM port and, with `x`, programs the
+ * channel's steps (its mode and destination) ahead of uploads that reuse them. */
+PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port, PfData source,
+                                   const VidSnesXfer *x);
+/* Where the next VRAM writes go (word address), and one word or byte written
+ * there through the port rather than by an upload. */
+PF_API void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr);
+PF_API void vid_write_vram(Platform *pf, PfOrigin o, uint16_t value);
+PF_API void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value);
 /* Copy `len` bytes (1-65536) from `src` into VRAM at word address `vram_addr`
  * (as the VRAM address register holds it). A `len` of 0 uploads nothing: the
  * SNES backend performs the steps before the first size step, as the original
@@ -230,6 +401,39 @@ typedef struct {
     uint16_t target;
 } VidSnesTransfer;
 PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x);
+
+/* ---- observer (docs/PLATFORM.md, P2) ------------------------------------------
+ *
+ * The development system folds every call into a VidFrame, so the command-built
+ * frame can be compared with the one decoded from the PPU registers. The hooks
+ * are no-ops while no observer is installed; every backend call carries the
+ * semantic arguments to the hook, never the registers they encode to. */
+typedef struct VidObserver VidObserver;
+extern VidObserver *vid_observer;   /* NULL unless a host installs one */
+
+void vid_obs_display(VidObserver *ob, const VidDisplay *d);
+void vid_obs_mode(VidObserver *ob, const VidMode *m);
+void vid_obs_bg_map(VidObserver *ob, VidLayer bg, const VidBg *b);
+void vid_obs_bg_chars(VidObserver *ob, VidLayer first, uint16_t base0, uint16_t base1);
+void vid_obs_scroll(VidObserver *ob, VidLayer bg, uint16_t hofs, uint16_t vofs, uint32_t fields);
+void vid_obs_mosaic(VidObserver *ob, uint8_t bgs, uint8_t size);
+void vid_obs_mode7(VidObserver *ob, const VidMode7 *m7, uint32_t fields);
+void vid_obs_obj_config(VidObserver *ob, const VidObjConfig *c);
+void vid_obs_screens(VidObserver *ob, uint8_t main_layers, uint8_t sub_layers, uint32_t fields);
+void vid_obs_video_config(VidObserver *ob, const VidVideoConfig *c);
+void vid_obs_windows(VidObserver *ob, const VidWindows *w, uint32_t fields);
+void vid_obs_color_math(VidObserver *ob, const VidColorMath *m, uint32_t fields);
+void vid_obs_fixed_color(VidObserver *ob, uint8_t channels, uint8_t intensity);
+void vid_obs_line_effect(VidObserver *ob, uint8_t slot, const VidLineEffect *e);
+void vid_obs_enable_line_effects(VidObserver *ob, uint8_t slots);
+void vid_obs_vram_port(VidObserver *ob, const VidVramPort *port);
+void vid_obs_vram_address(VidObserver *ob, uint16_t vram_addr);
+void vid_obs_write_vram(VidObserver *ob, uint16_t value, int half);   /* half: -1 word, 0 low, 1 high */
+void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
+                         const VidVramPort *port);
+void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
+void vid_obs_upload_oam(VidObserver *ob, PfData oam);
+void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control);
 
 #ifdef CT_PLATFORM_SNES
 #include "platform/snes/video.h"
