@@ -166,7 +166,15 @@ Subsystem by subsystem, each through the gate, cheapest and best understood
 first. `--uncovered BANK` lists the largest unported runs, which is how to pick
 the next routine. Taking a subsystem includes bringing its existing ports up to
 the same bar (Phase 2), so the refactor is paid where the code is already being
-read rather than as a sweep. The order should follow what the profile says runs most and
+read rather than as a sweep.
+
+It also includes **laying the asset seam**, which is cheap here and expensive
+later. Only about 150 places in `game/` read ROM data by address; a subsystem's
+share of them is a handful. Routing those through a named accessor for the
+resource, rather than `m_read8(s, 0xD15E10 + c->x)`, costs nothing now, reads
+better either way, and is what lets Phase 4 point the same call at an extracted
+file or a GBA-format conversion without revisiting the ports. Where a resource
+already has a type from MD2 (MATCHING.md), name the accessor after it. The order should follow what the profile says runs most and
 what the existing ports already surround, so each conversion has neighbours to
 check it against. How to write the ports themselves is in CLAUDE.md, "Writing a
 port from generated code".
@@ -191,6 +199,12 @@ the decompilation, so they wait behind it.
   game-side rewrites no backend fixes.
 - **Host backends beyond SDL** (TODO.md, "Platform"): rendering on the GPU, a
   native mixer behind `au_*`, controllers.
+- **Assets as data rather than ROM reads** (TODO.md, "Platform"). The pipeline
+  half belongs here: a layout meant to be read rather than reassembled, the
+  script as text once MD2 has the string encoding, and a runtime that can load
+  from a user data directory instead of the ROM image. A GBA build is what
+  forces it, since it can't map a 4 MiB SNES image the way the recompilation
+  does; the seam it needs is laid in Phase 3 (below).
 
 ## Phase 5: the long tail
 
