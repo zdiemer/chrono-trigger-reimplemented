@@ -73,6 +73,23 @@ and [PLATFORM.md](PLATFORM.md).
   figure predated `render.c`'s line cache), so the speed case for it is still
   unmade; what remains to win is the decoder, which a call-fed build wouldn't
   run at all.
+- **Host backends beyond SDL**, none of them scoped as milestones yet. Game code
+  reaches the host only through the platform services, so each is a backend
+  behind an existing API rather than a change to `game/`:
+  - **Rendering on the GPU** (Vulkan, Metal or GL). It would be a third consumer
+    of `VidFrame` beside `render.c` and P3's renderer, with `--px-check` as its
+    conformance harness. What it implements is SNES compositing, not arbitrary
+    geometry: per-line state (`VidSpan`) makes a frame scanline-shaped rather
+    than a few quads, and the colour math has to stay integer to keep
+    pixel-identity as the test oracle. It wants feeding from the observer rather
+    than the decoder, so it waits on the P2 and P3 leftovers above.
+  - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
+    CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
+    item is a native mixer behind `au_*` replacing the SPC700 driver, which
+    APPROACH.md calls optional and later; `--audio direct` is the halfway house.
+  - **Controllers.** `in_host_set` is already the one host entry point per
+    frame, so this is an SDL GameController call into it plus bindings (see
+    Player and tooling).
 - **Open questions** in PLATFORM.md: code that stops when the beam passes a
   scanline (the event scheduler `$C0:5A46`, the sprite frame queue `$C0:CA76`),
   battles playing out differently once timing changes, widescreen's exposed
