@@ -3,7 +3,8 @@
 Loose ends the milestone docs record in passing, collected so they don't get
 lost. Each line says where the detail lives. Milestones themselves are in
 [APPROACH.md](APPROACH.md), [RECOMP.md](RECOMP.md), [MATCHING.md](MATCHING.md)
-and [PLATFORM.md](PLATFORM.md).
+and [PLATFORM.md](PLATFORM.md); which of these to work on next, and why the
+rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 

@@ -119,7 +119,8 @@ the disassembler.
    the movie library pixel-identically; widescreen and a GBA feasibility study
    follow)*
 
-Loose ends from finished milestones are collected in [TODO.md](TODO.md).
+Loose ends from finished milestones are collected in [TODO.md](TODO.md), and
+what to work on next is [PLAN.md](PLAN.md).
 
 ## Conventions
 
