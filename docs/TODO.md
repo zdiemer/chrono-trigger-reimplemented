@@ -129,12 +129,9 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Player and tooling
 
-- **The movie suite is slow and lives nowhere.** Running the validation gate
-  (every movie in `--native shadow`, then the `--recomp only` trace comparison)
-  takes about an hour, and the scripts that do it are ad-hoc shell in a
-  scratch directory rather than a committed tool, so each session rebuilds
-  them. Committing it as `tools/suite.py`, with the movie list, a job count and
-  a summary line, is what the rest of these need:
+- **The movie suite is slow.** Running the validation gate (`tools/suite.py`:
+  every movie in `--native shadow`, then the `--recomp only` trace comparison)
+  takes about an hour:
   - **Don't render what nobody looks at.** `ct_dev` calls `render_line` for
     every line and hashes the framebuffer every frame, but a shadow run reads
     neither unless `--trace`, `--shot-dir` or `--px-check` asked for them.
@@ -145,9 +142,8 @@ rest waits, is [PLAN.md](PLAN.md).
     across 25 movies. A state snapshot taken once at the point a movie's own
     input starts would cut that, at the cost of no longer validating the boot
     path 25 times over.
-  - **Size the job count to the machine** rather than to a constant, and report
-    which movies are still running, so a run is legible while it goes.
-  - **A fast gate**: the subset of movies that can reach the subsystem a change
-    touched, for use while iterating, with the full set still required to land.
+  - **A fast gate**: `--movies` and `--only` narrow a run by hand, but deriving
+    the subset that can reach the subsystem a change touched would make the
+    iterating case automatic, with the full set still required to land.
 - Gamepad support, configurable keys, and quick saves that survive a rebuild.
 - CI: the macOS job costs 10x minutes on a private repo.

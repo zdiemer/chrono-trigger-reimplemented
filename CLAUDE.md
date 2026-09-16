@@ -40,8 +40,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `ct_play --record` (docs/PLAYING.md), or script them from game state: `build/main/ct_drive` plus
   `python3 -m tools.movies.routes.<route> --sram <save.srm> --prefix <scratch dir> --movie <out.ctm>`
   (docs/MOVIES.md). Routes survive timing changes; the movies they write don't, so re-run the route.
-- Validation: every movie in `--native shadow` must exit 0 with no `mismatched [1-9]` lines;
-  `--native on --recomp only` must produce traces identical to `--native off` (`python3 tools/trace.py
+- Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev` runs the gate and exits 0 only when
+  it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). The gate
+  is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines;
+  `--native on --recomp only` produces traces identical to `--native off` (`python3 tools/trace.py
   diff`); `--native on --recomp only --misses out.txt` lists anything still interpreted;
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
   docs/PLATFORM.md P3).

@@ -1,5 +1,6 @@
 # Power on, wait through the attract sequence, start a new game.
 # Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# frames 11400
 # <start_frame> <frame_count> <buttons>
 1620 5 START
 2400 4 A
