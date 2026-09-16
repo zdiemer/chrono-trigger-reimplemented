@@ -23,7 +23,7 @@
 #   [[ramcode]]      name, base, source, format = lz | copy | writes, [size],
 #                    [end, m, x], [over]            code the game runs from RAM
 #   [[resource]]     at, count, [name], [kind = ptr24 | ptr16, bank], [slots],
-#                    target = lz | text | blob, [type], [size],
+#                    target = lz | text | sized | blob, [type], [size],
 #                    [extent = "next", end], [skip]  a pointer table a loader
 #                                                   indexes by a resource id;
 #                                                   types it and its targets
@@ -3151,11 +3151,14 @@ start = "C7:0A98"
 end = "C7:0AD8"
 type = "bytes"
 
-# C7:0AE9-FFFF (62743 bytes): sound data read by the driver interface in C7
-# (C7:01A5, C7:0666 and others): the census counts about 30 KiB of it as BRR-
-# like samples. Census: 30317 BRR-like, 25098 unknown, 4120 padding, 1546 16-bit
-# offset tables, 1044 16-bit code-ptr tables, 618 24-bit ptr tables.
+# C7:0AE9-FFFF: sound data read by the driver interface in C7. The tables and
+# blocks below carve this region up; what is left keeps the MD1 type, and the
+# census counted 30317 BRR-like, 25098 unknown, 4120 padding, 1546 16-bit
+# offset tables, 1044 16-bit code-ptr tables and 618 24-bit ptr tables in it
+# before that. C7:0AE9 itself is the song count (83), read by CMP $C70AE9 at
+# C7:01A5.
 [[data]]
+fill = true
 start = "C7:0AE9"
 end = "C7:FFFF"
 type = "mixed"
@@ -3455,11 +3458,12 @@ type = "undetermined"
 # ==============================================================================
 # MD2: resource pointer tables
 # ==============================================================================
-# [[resource]] at, count, [name], target = lz | blob, [type], [size],
+# [[resource]] at, count, [name], [kind = ptr24 | ptr16, bank], [slots],
+#              target = lz | text | sized | blob, [type], [size],
 #              [extent = "next", end], [skip = [i, "first-last", ...]]
 # (docs/DISASSEMBLY.md). tools/disasm/resources.py walks the table and types
-# both it (ptr24) and what its entries point at; an lz entry must be a stream
-# the decompressor at C3:0557 consumes exactly, or the run fails.
+# both it (ptr24/ptr16) and what its entries point at; an lz entry must be a
+# stream the decompressor at C3:0557 consumes exactly, or the run fails.
 #
 # The loaders share one shape: a resource id is multiplied by three (ASL, ADC)
 # into X, two long indexed loads read the pointer's low word and bank byte, and
@@ -3623,6 +3627,63 @@ end = ["DC:DF97", "DD:FD47", "DE:BFFF", "E1:F517", "E3:F8C0"]
 # index at CC:E9BC-EA05. CC:EA07-EA18 takes the difference between an entry and
 # the next as the record's size, so entry 193 is an end sentinel and entries
 # 194-255 are zero fill. The records are what $1C99 and $1CBA point at.
+# C7:0AEA (62): the sound driver's data blocks, uploaded to the SPC700.
+# sound_driver_upload_block (`$C7:0655`, ported in game/core/sound_driver.c)
+# reads entry (id - 1) * 3 into $12-$14 and sends a 16-bit length followed by
+# that many bytes to the sound CPU, so each entry names a length-prefixed
+# record. The 62 blocks run end to end from C7:730D to CA:8ACB. The table ends
+# where the three 16-bit tables below begin, one word per block.
+[[resource]]
+at = "C7:0AEA"
+count = 62
+target = "sized"
+type = "spc700"
+name = "sound_block_ptrs"
+
+# C7:0BA4, C7:0C20, C7:0C9C: one word per block (62 each, $7C bytes), read at
+# C7:03AC (added to a value the driver builds), C7:043C and C7:048A (sent to
+# the APU ports as the $1E80 and $1F00 tables; see play_song and upload_to_slot
+# in game/core/sound_driver.c).
+[[data]]
+start = "C7:0BA4"
+end = "C7:0C1F"
+type = "words"
+
+[[data]]
+start = "C7:0C20"
+end = "C7:0C9B"
+type = "words"
+
+[[data]]
+start = "C7:0C9C"
+end = "C7:0D17"
+type = "words"
+
+# C7:0D18 (83): the songs, one length-prefixed sequence each, read at
+# C7:050A-0520 with 3 * the song id (bounded by CMP $C70AE9 at C7:01A5, which
+# holds 83) and uploaded to SPC700 address $2000. They run end to end from
+# CA:8ACC to CB:F163.
+[[resource]]
+at = "C7:0D18"
+count = 83
+target = "sized"
+type = "spc700"
+name = "song_ptrs"
+
+# C7:0E11-1870: 16 block ids per song, 16-bit, for the 83 songs (play_song at
+# C7:01A1 compares them with the 16 slots at $20). The table ends where the 12
+# three-byte entries play_song sends from C7:1871 begin.
+[[data]]
+start = "C7:0E11"
+end = "C7:1870"
+type = "words"
+
+[[data]]
+start = "C7:1871"
+end = "C7:1894"
+type = "struct"
+size = 3
+
 # D0:E000 (6): read at D1:ED8A-EDA8 with 3 * the byte at $CD42 as the index,
 # the pointer stored at $0300-$0302 and the destination $7E:D000; D1:EDB4 calls
 # the decompressor at C3:0002. Entry 6 isn't a stream, so the table stops there;

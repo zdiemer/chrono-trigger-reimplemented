@@ -160,6 +160,20 @@ class ResourceTest(unittest.TestCase):
         self.assertEqual(len(rep.problems), 1)
         self.assertIn("terminator", rep.problems[0])
 
+    def test_sized_entries_take_their_length_from_the_first_word(self):
+        data = rom(x000000=ptr(0xC01000), x001000=bytes([4, 0]) + b"abcd")
+        h, rep = self.expand(data, Resource(0xC00000, 1, "tbl", "sized", type="spc700"))
+        self.assertEqual((rep.problems, rep.blobs, rep.blob_bytes), ([], 1, 6))
+        self.assertEqual((h.data_regions[1].start, h.data_regions[1].end, h.data_regions[1].type),
+                         (0xC01000, 0xC01005, "spc700"))
+
+    def test_a_sized_entry_running_into_the_next_bank_is_split(self):
+        data = rom(x00FFFE=bytes([0x10, 0x00]), x000000=ptr(0xC0FFFE))
+        h, rep = self.expand(data, Resource(0xC00000, 1, "tbl", "sized", type="spc700"))
+        self.assertEqual((rep.problems, rep.blobs, rep.blob_bytes), ([], 1, 0x12))
+        self.assertEqual([(r.start, r.end) for r in h.data_regions[1:]],
+                         [(0xC0FFFE, 0xC0FFFF), (0xC10000, 0xC1000F)])
+
     def test_fill_region_takes_what_no_other_region_claims(self):
         data = rom(x000000=ptr(0xC01000), x001000=STREAM)
         fill = DataHint(0xC00000, 0xC01FFF, "gfx", "tiles", {"fill": True})

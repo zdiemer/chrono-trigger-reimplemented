@@ -14,14 +14,20 @@ regions:
   far as `tools/disasm/lz.py` consumes. An entry that isn't a stream is a
   problem unless the hint's `skip` lists it, so a wrong count or a wrong
   target type is reported rather than silently accepted;
+- for `target = "text"`, one region per distinct entry running to and including
+  its zero terminator, with the bytes between one terminator and the next
+  string reported (zero when the strings tile their range);
+- for `target = "sized"`, one region per distinct entry whose first two bytes
+  are its length, as the sound driver's blocks are;
 - for `target = "blob"`, one region per distinct entry of the hint's `type`,
   `size` bytes long, or (`extent = "next"`) running to the next entry's target
   in the same bank, with `end` giving the last one's.
 
-Regions that land inside a hint typed `mixed` or `undetermined` split it, since
-those types mean "several kinds, not split yet"; anything else that overlaps is
-a problem. Nothing here reads the ROM's contents beyond decompressing and
-measuring, and the expansion is a pure function of the ROM and the hints.
+Regions that land inside a hint typed `mixed` or `undetermined`, or inside one
+with `fill = true`, split it, since those mean "whatever else is here";
+anything else that overlaps is a problem. Nothing here reads the ROM's contents
+beyond decompressing and measuring, and the expansion is a pure function of the
+ROM and the hints.
 """
 
 import bisect
@@ -31,7 +37,7 @@ from .hints import DataHint, Hints
 from .lz import decompress
 from .memmap import bus_to_offset, fmt, offset_to_bus
 
-TARGETS = {"lz", "blob", "text"}
+TARGETS = {"lz", "blob", "text", "sized"}
 
 
 @dataclass
@@ -168,6 +174,20 @@ def expand(hints: Hints, data: bytes) -> Report:
                 report.string_bytes += z - t + 1
                 text_spans.setdefault(id(r), []).append((t, z))
                 add(DataHint(start, offset_to_bus(z), "text", None, {}))
+            elif r.target == "sized":
+                end = t + 1 + (data[t] | data[t + 1] << 8)
+                if end >= len(data):
+                    report.problems.append(f"resource {r.name or fmt(r.at)}[{k}] -> {fmt(start)}: "
+                                           "its length runs past the ROM")
+                    continue
+                report.blobs += 1
+                report.blob_bytes += end - t + 1
+                # A block can run into the next bank; a region stays within one.
+                a = t
+                while a <= end:
+                    b = min(end, a | 0xFFFF)
+                    add(DataHint(offset_to_bus(a), offset_to_bus(b), r.type, None, {}))
+                    a = b + 1
             elif r.size:
                 if (t + r.size - 1) >> 16 != t >> 16:
                     report.problems.append(f"resource {r.name or fmt(r.at)}[{k}] -> {fmt(start)}: "
