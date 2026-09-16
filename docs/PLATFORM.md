@@ -1006,7 +1006,7 @@ mismatches; and the observer's command-built `VidFrame` equals the decoder's
 | battle | done in `gato-battle` and `battle-magus`, where no PPU, DMA or HDMA register write is left outside `vid_*`, and the two frames agree on 2198 of the fight's 2200 frames. `$D1:F4E6`, which `battle-golem-twins-gameover` reaches on its way back to the title, is in as well |
 | field | done: over `field.ctm` no routine in banks `$C0` or `$FD` writes a register any more, and with the menus behind the API as well the two frames agree on all 5000 frames sampled from frame 4000 |
 | menus | done: both modes of bank `$C2` -- the menus proper at `$C2:800E` and the sprite objects at `$C2:0000`, whose entry `$C2:000F` sets the brightness the mode then runs at -- and the window commands. No PPU, DMA or HDMA register write is left outside `vid_*` from bank `$C2` or from `$FF:FC04` in `field.ctm`, `menus-field-menu` or `gato-battle`. Left, and found only by comparing from power-on: the Epoch's flight screen, about fifteen routines between `$C2:6325` and `$C2:76A8` that only `menus-epoch` reaches, and whatever sets the tilemap sizes in `menus-end-of-time`; both lie outside every movie the menus were measured on |
-| scenes | done: the attract sequence, the title screen and the jet bike race. Twenty-two entries cover the program at `$7E:3000` and `$C3:08D0` is an entry of its own, so nothing in the scenes writes a PPU, DMA or HDMA register outside the services in any movie. `$7E:59D5`, the fill the graphics loader starts without programming a source, goes through the SNES-only escape, which resolves what the call site leaves unprogrammed from the channel |
+| scenes | done: the attract sequence, the title screen and the jet bike race. Twenty entries cover the program at `$7E:3000` and eighteen more the race's own code in it, with `$C3:08D0` an entry of its own, so nothing in the scenes writes a PPU, DMA or HDMA register outside the services in any movie. `$7E:59D5`, the fill the graphics loader starts without programming a source, goes through the SNES-only escape, which resolves what the call site leaves unprogrammed from the channel |
 
 **The frame, its two builders and their comparison.**
 
@@ -1324,7 +1324,7 @@ from frame 0:
 | `fair-companion.ctm` | 17895 of 17899 | `fixed_color` on 4 |
 | `gato-battle.ctm` | 21593 of 21599 | `fixed_color` on 4, `windows.w1_left` on 2 |
 | `saves/menus-field-menu.ctm` | 10594 of 10599 | `fixed_color`, `bg.hofs`, `math.layers` |
-| `saves/battle-golem-twins-gameover.ctm` | 12961 of 12968 | `windows.w1_left` on 3, `sprite` on 2, brightness on 2 |
+| `saves/battle-golem-twins-gameover.ctm` | 12963 of 12968 | `windows.w1_left` on 3, `sprite` on 2 |
 | `saves/battle-tyrano-lair-walls.ctm` | 8023 of 8041 | brightness on 10, `windows.w1_left` on 7 |
 | `saves/battle-magus.ctm` | 17977 of 17999 | `windows.w1_left` on 10, `sprite` on 8 |
 | `saves/late-omen-terramutant.ctm` | 17749 of 17761 | `windows.w1_left` and `sprite` on 6 each |
