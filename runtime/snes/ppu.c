@@ -48,13 +48,16 @@ static void vram_write(Ppu *p, bool high, uint8_t v)
 static void oam_write(Ppu *p, uint8_t v)
 {
     if (p->oam_addr & 0x200) {
-        if (!p->active_display)
+        if (!p->active_display) {
             p->oam[0x200 + (p->oam_addr & 0x1F)] = v;
+            p->oam_writes++;
+        }
     } else if (!(p->oam_addr & 1)) {
         p->oam_latch = v;
     } else if (!p->active_display) {
         p->oam[p->oam_addr - 1] = p->oam_latch;
         p->oam[p->oam_addr] = v;
+        p->oam_writes++;
     }
     p->oam_addr = (p->oam_addr + 1) & 0x3FF;
 }
@@ -172,6 +175,7 @@ void ppu_write(void *ctx, uint8_t reg, uint8_t v)
         } else {
             p->cgram[p->cg_addr] = (uint16_t)((v & 0x7F) << 8 | p->cg_latch);
             p->cg_addr++;
+            p->cgram_writes++;
         }
         p->cg_second = !p->cg_second;
         break;

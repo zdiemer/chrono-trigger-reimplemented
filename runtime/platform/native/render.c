@@ -49,7 +49,7 @@ typedef struct {
     const uint8_t *vram;
     const VidSprite *sprites;      /* the span's sprites, in OAM order */
     uint8_t first_sprite;          /* OAM priority rotation */
-    uint16_t pal[256];             /* CGRAM as RGB565, scaled by brightness */
+    const uint16_t *pal;           /* CGRAM as RGB565, scaled by brightness */
     uint8_t brightness;
     uint8_t depth[L_OBJ + 1][4];   /* layer, priority -> depth; 0: not in this mode's order */
     uint16_t fixed565;
@@ -62,22 +62,75 @@ typedef struct {
     uint8_t clip[W], math_on[W];   /* the color window's effect */
 } SpanCtx;
 
-/* Per-line state the layer drawers need. */
+/* VRAM is tracked in 32-byte pages: one 4bpp tile each, which the dependency
+ * marking below relies on (a 2bpp or 4bpp tile lies within one page). */
+#define VRAM_PAGE_BITS 5
+#define VRAM_PAGES (0x10000 >> VRAM_PAGE_BITS)
+#define VRAM_WORDS (VRAM_PAGES / 64)
+
+/* Per-line state the layer drawers need, and what the line read. */
 typedef struct {
     const SpanCtx *sp;
     int line;
+    uint64_t palette_entries[4];      /* bit i % 64 of word i / 64: CGRAM entry i */
+    uint64_t vram_pages[VRAM_WORDS];  /* likewise per VRAM page */
 } LineCtx;
+
+/* A line as last drawn: what it depended on besides VRAM and CGRAM (the span's
+ * state with the parts that can't affect a line zeroed, and the sprites of its
+ * own row), the CGRAM entries and VRAM pages it read with the generations
+ * current then, and the sprite flags drawing it set. While none of that
+ * changes, the line's pixels are still right. The state is compared with
+ * memcmp, so padding noise only ever costs a redraw. */
+typedef struct {
+    VidLineState state;
+    uint8_t first_sprite;
+    uint64_t sprite_row_gen;
+    uint64_t palette_gen, vram_gen;
+    uint64_t palette_entries[4];
+    uint64_t vram_pages[VRAM_WORDS];
+    bool valid, range_over, time_over;
+} LineCache;
 
 struct VidRenderer {
     Screen main_s, sub_s;
     LayerBuf lb;
     SpanCtx span;
-    /* Sprite geometry for the frame, as render.c's sprite cache holds it. */
+    /* Caches of what the frame's memory means, as render.c keeps them, carried
+     * from frame to frame: each holds a copy of what it was built from and
+     * compares it with the frame's, so nothing outside has to invalidate it.
+     * Generations count changes; a part's generation is the count when it last
+     * changed. They are brought up to date at a span rather than at a line,
+     * because a span is exactly a run of lines that read the same memory. */
     struct {
-        int16_t x[VID_SPRITES];
+        bool valid;
+        uint8_t brightness;
+        uint64_t gen;
+        uint64_t entry_gen[256];
+        uint64_t last_changed[4];   /* entries that changed at generation gen */
+        uint16_t cgram[256];
+        uint16_t rgb565[256];       /* CGRAM scaled by brightness, packed as Snes9x does */
+    } palette;
+    struct {
+        bool valid;
+        uint8_t size;               /* the size pair OBSEL selects */
+        VidSprite sprites[VID_SPRITES];
+        int16_t x[VID_SPRITES];     /* signed screen X */
         uint8_t w[VID_SPRITES], h[VID_SPRITES];
-        uint64_t rows[256][2];   /* per row: bit n set when sprite n covers it */
+        uint64_t rows[256][2];      /* per row: bit n set when sprite n covers it */
+        uint64_t row_gen[256];      /* per row: changes when a sprite covering it changes */
     } sprites;
+    struct {
+        bool valid;
+        uint64_t gen;
+        uint64_t page_gen[VRAM_PAGES];
+        uint64_t last_changed[VRAM_WORDS];   /* pages that changed at generation gen */
+        uint8_t copy[0x10000];
+    } vram;
+    VidLineState span_key;      /* the span's state, masked for the line cache */
+    LineCache lines[H + 1];
+    const uint32_t *last_out;   /* the framebuffer the cached lines are in */
+    VidRenderStats stats;
     bool range_over, time_over;
 };
 
@@ -222,6 +275,100 @@ static inline uint16_t math_sub_half(uint16_t a, uint16_t b)
     return (uint16_t)(r << 11 | g << 5 | bl);
 }
 
+/* ---- cached state: palette, VRAM, sprites -------------------------------------------
+ *
+ * Brought up to date at the start of each span, which is where the frame says
+ * memory may have changed. */
+
+static void palette_update(VidRenderer *r, const uint16_t *cgram, uint8_t brightness)
+{
+    uint64_t next = r->palette.gen + 1;
+    if (!r->palette.valid || r->palette.brightness != brightness) {
+        for (int i = 0; i < 256; i++) {
+            r->palette.rgb565[i] = color565(cgram[i], brightness);
+            r->palette.entry_gen[i] = next;
+        }
+        memset(r->palette.last_changed, 0xFF, sizeof r->palette.last_changed);
+    } else if (memcmp(r->palette.cgram, cgram, sizeof r->palette.cgram) != 0) {
+        memset(r->palette.last_changed, 0, sizeof r->palette.last_changed);
+        for (int i = 0; i < 256; i++) {
+            if (r->palette.cgram[i] != cgram[i]) {
+                r->palette.rgb565[i] = color565(cgram[i], brightness);
+                r->palette.entry_gen[i] = next;
+                r->palette.last_changed[i >> 6] |= (uint64_t)1 << (i & 63);
+            }
+        }
+    } else {
+        return;
+    }
+    memcpy(r->palette.cgram, cgram, sizeof r->palette.cgram);
+    r->palette.brightness = brightness;
+    r->palette.valid = true;
+    r->palette.gen = next;
+}
+
+static void vram_update(VidRenderer *r, const uint8_t *vram)
+{
+    if (r->vram.valid && !memcmp(r->vram.copy, vram, 0x10000))
+        return;
+    uint64_t next = r->vram.gen + 1;
+    const size_t size = (size_t)1 << VRAM_PAGE_BITS;
+    memset(r->vram.last_changed, 0, sizeof r->vram.last_changed);
+    for (int page = 0; page < VRAM_PAGES; page++) {
+        uint8_t *copy = r->vram.copy + page * size;
+        const uint8_t *live = vram + page * size;
+        if (!r->vram.valid || memcmp(copy, live, size) != 0) {
+            memcpy(copy, live, size);
+            r->vram.page_gen[page] = next;
+            r->vram.last_changed[page >> 6] |= (uint64_t)1 << (page & 63);
+        }
+    }
+    r->vram.valid = true;
+    r->vram.gen = next;
+}
+
+/* Whether none of the parts in mask (words * 64 bits) changed after generation
+ * then. Lines are checked every frame, and a hit brings then up to date, so
+ * usually at most one change (last_changed) has happened since. */
+static bool parts_unchanged(const uint64_t *part_gen, uint64_t gen, const uint64_t *last_changed, uint64_t then,
+                            const uint64_t *mask, int words)
+{
+    if (gen == then)
+        return true;
+    if (gen == then + 1) {
+        uint64_t hit = 0;
+        for (int w = 0; w < words; w++)
+            hit |= mask[w] & last_changed[w];
+        return hit == 0;
+    }
+    for (int w = 0; w < words; w++) {
+        for (uint64_t m = mask[w]; m; m &= m - 1) {
+            if (part_gen[w * 64 + lowest_bit(m)] > then)
+                return false;
+        }
+    }
+    return true;
+}
+
+static inline void mark_vram(uint64_t *pages, uint32_t addr)
+{
+    uint32_t page = (addr & 0xFFFF) >> VRAM_PAGE_BITS;
+    pages[page >> 6] |= (uint64_t)1 << (page & 63);
+}
+
+/* Marks the pages of the bytes bytes at addr, at most two pages' worth. */
+static inline void mark_vram_span(uint64_t *pages, uint32_t addr, uint32_t bytes)
+{
+    mark_vram(pages, addr & 0xFFFF);
+    mark_vram(pages, (addr + bytes - 1) & 0xFFFF);
+}
+
+/* Marks CGRAM entry index as read when used. */
+static inline void mark_entry(uint64_t entries[4], unsigned index, bool used)
+{
+    entries[(index >> 6) & 3] |= (uint64_t)used << (index & 63);
+}
+
 /* ---- windows -------------------------------------------------------------------- */
 
 /* Sets out[x] to 1 inside the combined window and 0 outside. Returns false,
@@ -290,7 +437,7 @@ static inline uint16_t map_entry(const uint8_t *vram, uint32_t base, bool wide, 
 
 /* draw_bg without mosaic, offset-per-tile or hi-res: a tile at a time, writing
  * every pixel of the line. */
-static inline void draw_bg_tiles(LayerBuf *lb, const LineCtx *c, int bg, int planes, unsigned pal_base, bool direct)
+static inline void draw_bg_tiles(LayerBuf *lb, LineCtx *c, int bg, int planes, unsigned pal_base, bool direct)
 {
     const SpanCtx *sp = c->sp;
     const VidBg *b = &sp->st->bg[bg];
@@ -301,6 +448,8 @@ static inline void draw_bg_tiles(LayerBuf *lb, const LineCtx *c, int bg, int pla
     uint32_t char_base = (uint32_t)b->char_base << 1;
     uint32_t tile_bytes = (uint32_t)planes * 8;
     const uint8_t *depth = sp->depth[bg];
+    /* Pages and entries read, kept in locals while drawing. */
+    uint64_t pages[VRAM_WORDS] = { 0 }, entries[4] = { 0 };
 
     uint32_t by = ((uint32_t)c->line + b->vofs) & hmask;
     uint32_t bx = b->hofs & wmask;
@@ -309,6 +458,11 @@ static inline void draw_bg_tiles(LayerBuf *lb, const LineCtx *c, int bg, int pla
     uint32_t quad_y = ((map_row & 0x20) && tall) ? (wide ? 2048 : 1024) : 0;
     uint32_t row_base = ((uint32_t)b->map_base << 1) + (quad_y + ((map_row & 0x1F) << 5)) * 2;
     uint32_t quad_x = wide ? 1024 : 0;   /* for columns with bit 5 set */
+    /* The line reads entries from this map row only: 32 entries (64 bytes,
+     * row_base is a multiple of 64) and, in a 64-wide map, 32 more 2048 bytes on. */
+    mark_vram_span(pages, row_base, 64);
+    if (wide)
+        mark_vram_span(pages, row_base + 2048, 64);
 
     for (int x = 0; x < W;) {
         int tx0 = (int)(bx & 7);
@@ -322,6 +476,11 @@ static inline void draw_bg_tiles(LayerBuf *lb, const LineCtx *c, int bg, int pla
         int ty = (entry & 0x8000) ? 7 - (int)(by & 7) : (int)(by & 7);
         uint32_t addr = (char_base + (entry & 0x3FFu) * tile_bytes) & 0xFFFF;
         uint64_t row = tile_row(vram, addr, planes, ty);
+        /* A tile's bytes start at a multiple of its size: 2bpp and 4bpp tiles
+         * lie within one page, 8bpp tiles span two. */
+        mark_vram(pages, addr);
+        if (planes == 8)
+            mark_vram(pages, addr + 63);
         uint8_t pal = (entry >> 10) & 7;
         unsigned cbase = planes == 8 ? 0 : pal_base + pal * (1u << planes);
         /* Eight pixels are written from the tile's first on screen; the next
@@ -344,16 +503,35 @@ static inline void draw_bg_tiles(LayerBuf *lb, const LineCtx *c, int bg, int pla
         } else {
             /* Index at most 127 below 8bpp, 255 at 8bpp: no wrap. */
             const uint16_t *pals = sp->pal + cbase;
-            for (int i = 0; i < 8; i++)
-                color[i] = pals[(uint8_t)(row >> (8 * i))];
+            if (planes == 8) {
+                for (int i = 0; i < 8; i++) {
+                    uint8_t px = (uint8_t)(row >> (8 * i));
+                    color[i] = pals[px];
+                    mark_entry(entries, px, px != 0);
+                }
+            } else {
+                /* Pixel values used, as a set; cbase is a multiple of 1 << planes,
+                 * so the set fits in the entry word at cbase. */
+                unsigned used = 0;
+                for (int i = 0; i < 8; i++) {
+                    uint8_t px = (uint8_t)(row >> (8 * i));
+                    color[i] = pals[px];
+                    used |= 1u << px;
+                }
+                entries[cbase >> 6] |= (uint64_t)(used & ~1u) << (cbase & 63);
+            }
         }
     }
+    for (int w = 0; w < VRAM_WORDS; w++)
+        c->vram_pages[w] |= pages[w];
+    for (int w = 0; w < 4; w++)
+        c->palette_entries[w] |= entries[w];
 }
 
 /* Normal (modes 0-6) BG layer. planes: 2, 4 or 8. hires: sample at double width.
  * In modes 2, 4 and 6, BG1 and BG2 take per-column scroll offsets from BG3's
  * tilemap (offset-per-tile); the leftmost tile column is never affected. */
-static void draw_bg(LayerBuf *lb, const LineCtx *c, int bg, int planes, bool hires)
+static void draw_bg(LayerBuf *lb, LineCtx *c, int bg, int planes, bool hires)
 {
     const SpanCtx *sp = c->sp;
     const VidLineState *st = sp->st;
@@ -373,6 +551,10 @@ static void draw_bg(LayerBuf *lb, const LineCtx *c, int bg, int planes, bool hir
         return;
     }
 
+    /* One sample per mosaic block (per pixel without mosaic). Rare, so the line
+     * is simply taken to depend on all of VRAM and CGRAM. */
+    memset(c->vram_pages, 0xFF, sizeof c->vram_pages);
+    memset(c->palette_entries, 0xFF, sizeof c->palette_entries);
     memset(lb->z, 0, sizeof lb->z);
 
     const uint8_t *vram = sp->vram;
@@ -448,7 +630,7 @@ static void draw_bg(LayerBuf *lb, const LineCtx *c, int bg, int planes, bool hir
 static int m7_clip(int n) { return (n & 0x2000) ? (n | ~1023) : (n & 1023); }
 
 /* Mode 7 BG1, and BG2 when EXTBG is set (bit 7 of each pixel is its priority). */
-static void draw_mode7(LayerBuf *lb, const LineCtx *c, int bg)
+static void draw_mode7(LayerBuf *lb, LineCtx *c, int bg)
 {
     const SpanCtx *sp = c->sp;
     const VidLineState *st = sp->st;
@@ -466,6 +648,10 @@ static void draw_mode7(LayerBuf *lb, const LineCtx *c, int bg)
     const uint8_t *depth = sp->depth[bg];
     const uint8_t *vram = sp->vram;
     bool limit = (m7->outside & 2) != 0, fill = (m7->outside & 1) != 0;
+
+    /* Mode 7 reads the whole first half of VRAM, and palette indices up to 255. */
+    memset(c->vram_pages, 0xFF, sizeof c->vram_pages / 2);
+    memset(c->palette_entries, 0xFF, sizeof c->palette_entries);
 
     if (msize == 1 && !direct) {
         /* Every pixel written, with no branches: the coordinates step by (a, c)
@@ -531,27 +717,66 @@ static const uint8_t obj_height[8][2] = {
     { 8, 16 }, { 8, 32 }, { 8, 64 }, { 16, 32 }, { 16, 64 }, { 32, 64 }, { 32, 64 }, { 32, 32 },
 };
 
-/* The rows each sprite covers: a sprite entirely off the left edge covers none.
- * Done once per frame, again wherever the sprites or their sizes change. */
-static void sprites_prepare(VidRenderer *r, const VidSprite *sprites, uint8_t size)
+static bool sprite_equal(const VidSprite *a, const VidSprite *b)
 {
+    return a->x == b->x && a->y == b->y && a->tile == b->tile && a->palette == b->palette &&
+           a->priority == b->priority && a->hflip == b->hflip && a->vflip == b->vflip && a->large == b->large;
+}
+
+/* Rows sprite n covers, as (first row, count): none when it's entirely off the
+ * left edge. */
+static int sprite_rows(const VidSprite *s, uint8_t size, int *first)
+{
+    int large = s->large ? 1 : 0;
+    int w = obj_width[size][large];
+    int x9 = s->x & 0x1FF;
+    *first = s->y;
+    return (x9 > 256 && x9 + w - 1 < 512) ? 0 : obj_height[size][large];
+}
+
+/* Rebuilds the per-row sprite sets when the frame's sprites or their size pair
+ * changed, bumping the generation of every row a changed sprite covered or
+ * covers. */
+static void sprites_update(VidRenderer *r, const VidSprite *sprites, uint8_t size)
+{
+    if (r->sprites.valid && r->sprites.size == size) {
+        bool same = true;
+        for (int n = 0; n < VID_SPRITES && same; n++)
+            same = sprite_equal(&r->sprites.sprites[n], &sprites[n]);
+        if (same)
+            return;
+        for (int n = 0; n < VID_SPRITES; n++) {
+            if (sprite_equal(&r->sprites.sprites[n], &sprites[n]))
+                continue;
+            for (int version = 0; version < 2; version++) {
+                int first, count = sprite_rows(&(version ? sprites : r->sprites.sprites)[n], size, &first);
+                for (int k = 0; k < count; k++)
+                    r->sprites.row_gen[(first + k) & 0xFF]++;
+            }
+        }
+    } else {
+        for (int row = 0; row < 256; row++)
+            r->sprites.row_gen[row]++;
+    }
+    memcpy(r->sprites.sprites, sprites, sizeof r->sprites.sprites);
+    r->sprites.size = size;
+    r->sprites.valid = true;
     memset(r->sprites.rows, 0, sizeof r->sprites.rows);
     for (int n = 0; n < VID_SPRITES; n++) {
         const VidSprite *s = &sprites[n];
         int large = s->large ? 1 : 0;
-        int w = obj_width[size][large];
         int x9 = s->x & 0x1FF;
         r->sprites.x[n] = (int16_t)(x9 >= 256 ? x9 - 512 : x9);
-        r->sprites.w[n] = (uint8_t)w;
+        r->sprites.w[n] = obj_width[size][large];
         r->sprites.h[n] = obj_height[size][large];
-        int count = (x9 > 256 && x9 + w - 1 < 512) ? 0 : obj_height[size][large];
+        int first, count = sprite_rows(s, size, &first);
         for (int k = 0; k < count; k++)
-            r->sprites.rows[(s->y + k) & 0xFF][n >> 6] |= (uint64_t)1 << (n & 63);
+            r->sprites.rows[(first + k) & 0xFF][n >> 6] |= (uint64_t)1 << (n & 63);
     }
 }
 
-/* Sprites on this line. */
-static void draw_obj(VidRenderer *r, LayerBuf *lb, const LineCtx *c)
+/* Sprites on this line; sprites_update must be current. */
+static void draw_obj(VidRenderer *r, LayerBuf *lb, LineCtx *c)
 {
     const SpanCtx *sp = c->sp;
     const VidObjConfig *obj = &sp->st->obj;
@@ -628,6 +853,7 @@ listed:;
             if (tile & 0x100)
                 addr += name_select;
             uint64_t pixels = tile_row(vram, addr & 0xFFFF, 4, dy & 7);
+            mark_vram_span(c->vram_pages, addr, 32);
             if (!pixels)
                 continue;
             for (int j = 0; j < 8; j++) {
@@ -640,6 +866,7 @@ listed:;
                 lb->z[sx] = zt;
                 lb->color[sx] = pals[v];
                 lb->math[sx] = math;
+                mark_entry(c->palette_entries, 128u + pal * 16u + v, true);
             }
         }
     }
@@ -725,18 +952,24 @@ static inline void compose_math(uint32_t *restrict out, const Screen *m, const S
 
 /* ---- span and line ------------------------------------------------------------------- */
 
-/* Everything a span shares, worked out once for all its lines. */
-static void span_begin(SpanCtx *sp, const VidSpan *span, const VidFrame *f)
+/* Everything a span shares, worked out once for all its lines, and the caches
+ * brought up to the memory it reads. `recheck_vram` compares all of VRAM, which
+ * is worth doing once a frame and again wherever the frame says it changed. */
+static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, bool recheck_vram)
 {
+    SpanCtx *sp = &r->span;
     const VidLineState *st = &span->state;
     sp->st = st;
     sp->vram = span->vram ? span->vram : f->vram;
     sp->sprites = span->sprites ? span->sprites->sprites : f->sprites;
     sp->first_sprite = span->sprites ? span->sprites->first_sprite : f->first_sprite;
-    const uint16_t *cgram = span->cgram ? span->cgram : f->cgram;
     sp->brightness = (uint8_t)(st->display.brightness & 15);
-    for (int i = 0; i < 256; i++)
-        sp->pal[i] = color565(cgram[i], sp->brightness);
+    if (recheck_vram)
+        vram_update(r, sp->vram);
+    palette_update(r, span->cgram ? span->cgram : f->cgram, sp->brightness);
+    sp->pal = r->palette.rgb565;
+    if ((st->main_layers | st->sub_layers) & VID_LAYER_BIT(VID_OBJ))
+        sprites_update(r, sp->sprites, st->obj.size_select);
     order_depths(layer_order(st), sp->depth);
     const uint8_t *s = scale5[sp->brightness];
     sp->fixed565 = pack565(s[st->fixed_color & 31], s[(st->fixed_color >> 5) & 31], s[(st->fixed_color >> 10) & 31]);
@@ -788,7 +1021,7 @@ static void span_begin(SpanCtx *sp, const VidSpan *span, const VidFrame *f)
     }
 }
 
-static void draw_line(VidRenderer *r, const LineCtx *c, uint32_t *out)
+static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
 {
     const SpanCtx *sp = c->sp;
     const VidLineState *st = sp->st;
@@ -880,21 +1113,65 @@ VidRenderer *vid_render_create(void)
 
 void vid_render_destroy(VidRenderer *r) { free(r); }
 
+void vid_render_get_stats(const VidRenderer *r, VidRenderStats *out) { *out = r->stats; }
+
+/* The span's state with the parts that can't affect a line in it zeroed, so
+ * that writes to them don't make its lines look changed. The same for every
+ * line of the span, so it is built once; what is left per line is the sprites
+ * of that line's own row. */
+static void span_key(VidRenderer *r, const SpanCtx *sp)
+{
+    VidLineState *k = &r->span_key;
+    memset(k, 0, sizeof *k);
+    memcpy(k, sp->st, sizeof *k);
+    uint8_t used = sp->used;
+    if (sp->mode == 7) {
+        for (int bg = 0; bg < 4; bg++)
+            k->bg[bg].hofs = k->bg[bg].vofs = 0;
+    } else {
+        k->mode7.a = k->mode7.b = k->mode7.c = k->mode7.d = 0;
+        k->mode7.cx = k->mode7.cy = k->mode7.hofs = k->mode7.vofs = 0;
+        bool opt = sp->mode == 2 || sp->mode == 4 || sp->mode == 6;
+        for (int bg = 0; bg < 4; bg++) {
+            if (!((used & (1 << bg)) || (bg == 2 && opt && (used & 3))))
+                k->bg[bg].hofs = k->bg[bg].vofs = 0;
+        }
+    }
+    if (!sp->any_math)   /* the fixed color is only read by color math */
+        k->fixed_color = 0;
+    bool any_window = false;
+    for (int l = 0; l < VID_LAYERS; l++)
+        any_window |= (k->windows.w1[l] & 2) != 0 || (k->windows.w2[l] & 2) != 0;
+    if (!any_window) {
+        /* No window enabled: positions, logic and masks are unused. */
+        k->windows.w1_left = k->windows.w1_right = 0;
+        k->windows.w2_left = k->windows.w2_right = 0;
+        memset(k->windows.logic, 0, sizeof k->windows.logic);
+        k->windows.snes_extra_logic = 0;
+        k->windows.win_main = k->windows.win_sub = 0;
+    }
+}
+
 void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)
 {
     r->range_over = r->time_over = false;
+    r->stats.frames++;
+    /* The cached lines are the pixels in the framebuffer they were drawn into. */
+    if (out != r->last_out) {
+        for (int line = 1; line <= H; line++)
+            r->lines[line].valid = false;
+        r->last_out = out;
+    }
     if (f->span_count == 0) {
         memset(out, 0, sizeof *out * (size_t)W * H);
+        for (int line = 1; line <= H; line++)
+            r->lines[line].valid = false;
         if (flags)
             *flags = (VidRenderFlags){ false, false };
         return;
     }
 
-    /* The sprites' geometry is rebuilt when the sprites themselves or the size
-     * pair OBSEL selects change, both of which a span carries. */
-    uint8_t size = 0xFF;
-    const VidSprite *sprites = NULL;
-
+    const uint8_t *vram_seen = NULL;
     for (uint16_t i = 0; i < f->span_count; i++) {
         const VidSpan *span = &f->spans[i];
         int from = span->line < 1 ? 1 : span->line;
@@ -903,20 +1180,66 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
             to = H;
         if (from > to)
             continue;
-        span_begin(&r->span, span, f);
-        if (r->span.sprites != sprites || span->state.obj.size_select != size) {
-            sprites = r->span.sprites;
-            size = span->state.obj.size_select;
-            sprites_prepare(r, sprites, size);
+        const uint8_t *vram = span->vram ? span->vram : f->vram;
+        bool recheck_vram = i == 0 || vram != vram_seen;
+        vram_seen = vram;
+        r->stats.spans++;
+        /* A forced-blank span is black whatever memory holds, and its brightness
+         * is the low bits of the forced-blank byte rather than a brightness the
+         * game means, so the palette and sprite caches are left alone: taking it
+         * would rebuild the whole palette twice a frame and no line would ever
+         * be kept. VRAM is still compared, as uploads happen under forced blank. */
+        if (span->state.display.blank) {
+            if (recheck_vram)
+                vram_update(r, vram);
+            for (int line = from; line <= to; line++) {
+                memset(out + (size_t)(line - 1) * W, 0, sizeof *out * W);
+                r->lines[line].valid = false;
+                r->stats.lines_blank++;
+            }
+            continue;
         }
+        span_begin(r, span, f, recheck_vram);
+        const SpanCtx *sp = &r->span;
+        span_key(r, sp);
+        bool has_obj = (sp->used & VID_LAYER_BIT(VID_OBJ)) != 0;
+        uint8_t first_sprite = has_obj ? sp->first_sprite : 0;
         for (int line = from; line <= to; line++) {
             uint32_t *row = out + (size_t)(line - 1) * W;
-            if (span->state.display.blank) {
-                memset(row, 0, sizeof *row * W);
+            LineCache *cache = &r->lines[line];
+            uint64_t row_gen = has_obj ? r->sprites.row_gen[(line - 1) & 0xFF] : 0;
+            if (cache->valid && cache->first_sprite == first_sprite && cache->sprite_row_gen == row_gen &&
+                !memcmp(&cache->state, &r->span_key, sizeof cache->state) &&
+                parts_unchanged(r->palette.entry_gen, r->palette.gen, r->palette.last_changed, cache->palette_gen,
+                                cache->palette_entries, 4) &&
+                parts_unchanged(r->vram.page_gen, r->vram.gen, r->vram.last_changed, cache->vram_gen,
+                                cache->vram_pages, VRAM_WORDS)) {
+                /* The pixels are still in the framebuffer, and the flags come out the same. */
+                cache->palette_gen = r->palette.gen;
+                cache->vram_gen = r->vram.gen;
+                r->range_over |= cache->range_over;
+                r->time_over |= cache->time_over;
+                r->stats.lines_kept++;
                 continue;
             }
-            LineCtx c = { .sp = &r->span, .line = line };
+            r->stats.lines_drawn++;
+            bool range_over = r->range_over, time_over = r->time_over;
+            r->range_over = r->time_over = false;
+            LineCtx c = { .sp = sp, .line = line };
+            mark_entry(c.palette_entries, 0, true);   /* the backdrop */
             draw_line(r, &c, row);
+            memcpy(&cache->state, &r->span_key, sizeof cache->state);
+            cache->first_sprite = first_sprite;
+            cache->sprite_row_gen = row_gen;
+            cache->palette_gen = r->palette.gen;
+            cache->vram_gen = r->vram.gen;
+            memcpy(cache->palette_entries, c.palette_entries, sizeof cache->palette_entries);
+            memcpy(cache->vram_pages, c.vram_pages, sizeof cache->vram_pages);
+            cache->valid = true;
+            cache->range_over = r->range_over;
+            cache->time_over = r->time_over;
+            r->range_over |= range_over;
+            r->time_over |= time_over;
         }
     }
     if (flags) {

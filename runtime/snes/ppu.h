@@ -41,10 +41,12 @@ typedef struct Ppu {
 
     bool range_over, time_over;        /* $213E, set by the renderer */
 
-    /* VRAM bytes written since power-on (wrapping). The renderer uses changes
-     * to it as a hint to recheck VRAM between frames' starts; emulation never
-     * reads it. */
-    uint32_t vram_writes;
+    /* VRAM bytes, CGRAM entries and OAM entries written since power-on
+     * (wrapping). Renderers and the VidFrame decoder use changes to them as a
+     * hint to recheck the memory; emulation never reads them. A change that
+     * doesn't go through these writes (a state load) is caught by comparing
+     * contents at a frame's start. */
+    uint32_t vram_writes, cgram_writes, oam_writes;
 
     uint16_t h_latch, v_latch;
     bool h_second, v_second;

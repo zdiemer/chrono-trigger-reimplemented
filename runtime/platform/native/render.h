@@ -33,8 +33,17 @@ VidRenderer *vid_render_create(void);
 void vid_render_destroy(VidRenderer *r);
 
 /* Draw the whole frame into `out`: 256x224 XRGB8888, row 0 being line 1.
- * `flags` may be NULL. */
+ * `flags` may be NULL.
+ *
+ * `out` must be the same buffer every frame and must not be written to outside
+ * the renderer: a line whose inputs are unchanged keeps the pixels it has. */
 void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags);
+
+/* What the line cache did, since the renderer was created. */
+typedef struct {
+    uint64_t frames, spans, lines_drawn, lines_kept, lines_blank;
+} VidRenderStats;
+void vid_render_get_stats(const VidRenderer *r, VidRenderStats *out);
 
 /* Snes9x output color: a BGR555 value scaled by master brightness and packed as
  * RGB565, then widened to XRGB8888 (the same arithmetic as render.c's). */

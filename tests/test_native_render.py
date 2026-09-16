@@ -22,7 +22,10 @@ ALLOWED_INCLUDES = {
     "platform/platform.h",
 }
 
-FORBIDDEN_NAMES = ("Ppu", "Snes", "snes_", "ppu_", "render_line", "Renderer")
+# The hardware model's types and functions. `snes_extra*` is excluded: those are
+# members of the video service's own structures, naming the bits of a SNES
+# register that the hardware ignores.
+FORBIDDEN_NAMES = ("Ppu", "Snes", "snes_(?!extra)", "ppu_", "render_line", "Renderer")
 
 
 class TestNativeRenderer(unittest.TestCase):

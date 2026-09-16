@@ -16,6 +16,7 @@ enum { VID_DEC_VRAM_SNAPSHOTS = 8, VID_DEC_CGRAM_SNAPSHOTS = 32, VID_DEC_SPRITE_
 struct VidDecoder {
     VidFrame frame;
     uint16_t cgram[256];   /* CGRAM as of the last line, to notice changes */
+    uint32_t cgram_writes;
     bool palette_dirty;
     bool have_cgram;
 
@@ -24,6 +25,7 @@ struct VidDecoder {
     bool have_vram, vram_dirty;
 
     uint8_t oam[0x220];      /* OAM as of the last line */
+    uint32_t oam_writes;
     bool have_oam, sprites_dirty;
 
     uint16_t cgram_snap[VID_DEC_CGRAM_SNAPSHOTS][256];
@@ -186,16 +188,21 @@ void vid_decode_line(VidDecoder *d, const Ppu *p, uint16_t line)
         d->frame.span_count = 0;
         d->cgram_used = d->vram_used = d->sprites_used = 0;
     }
-    if (memcmp(d->cgram, p->cgram, sizeof d->cgram) != 0) {
-        keep_cgram(d);
-        memcpy(d->cgram, p->cgram, sizeof d->cgram);
-        d->palette_dirty = d->have_cgram;
+    /* CGRAM, VRAM and OAM are compared at every frame's start, which catches
+     * writes in vblank and state loads, and during the frame only when their
+     * write counters moved, which catches what a line interrupt does under
+     * forced blank (render.c uses the VRAM counter the same way). */
+    bool frame_start = line == 0;
+    if (frame_start || !d->have_cgram || p->cgram_writes != d->cgram_writes) {
+        d->cgram_writes = p->cgram_writes;
+        if (memcmp(d->cgram, p->cgram, sizeof d->cgram) != 0) {
+            keep_cgram(d);
+            memcpy(d->cgram, p->cgram, sizeof d->cgram);
+            d->palette_dirty = d->have_cgram;
+        }
         d->have_cgram = true;
     }
-    /* VRAM is compared at every frame's start, which catches writes in vblank
-     * and state loads, and during the frame when the write counter moved, which
-     * catches uploads under forced blank (render.c does the same). */
-    if (line == 0 || !d->have_vram || p->vram_writes != d->vram_writes) {
+    if (frame_start || !d->have_vram || p->vram_writes != d->vram_writes) {
         d->vram_writes = p->vram_writes;
         if (memcmp(d->vram, p->vram, sizeof d->vram) != 0) {
             keep_vram(d);
@@ -207,12 +214,15 @@ void vid_decode_line(VidDecoder *d, const Ppu *p, uint16_t line)
     /* The sprites are whatever OAM holds, re-decoded when it or the priority
      * rotation changes; the spans before a mid-frame change keep the set they
      * showed, as with VRAM and CGRAM. */
-    if (!d->have_oam || d->frame.first_sprite != ppu_first_sprite(p) ||
-        memcmp(d->oam, p->oam, sizeof d->oam) != 0) {
-        keep_sprites(d);
-        memcpy(d->oam, p->oam, sizeof d->oam);
-        decode_sprites(d, p);
-        d->sprites_dirty = d->have_oam;
+    if (frame_start || !d->have_oam || p->oam_writes != d->oam_writes ||
+        d->frame.first_sprite != ppu_first_sprite(p)) {
+        d->oam_writes = p->oam_writes;
+        if (d->frame.first_sprite != ppu_first_sprite(p) || memcmp(d->oam, p->oam, sizeof d->oam) != 0) {
+            keep_sprites(d);
+            memcpy(d->oam, p->oam, sizeof d->oam);
+            decode_sprites(d, p);
+            d->sprites_dirty = d->have_oam;
+        }
         d->have_oam = true;
     }
     d->frame.vram = p->vram;

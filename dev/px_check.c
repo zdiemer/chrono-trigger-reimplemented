@@ -199,6 +199,12 @@ int px_check_write(PxCheck *pc, const char *path, FILE *summary)
     vid_decoder_snapshot_peak(pc->dec, &vram_peak, &cgram_peak, &sprite_peak);
     fprintf(summary, "  mid-frame snapshots: at most %d VRAM, %d CGRAM, %d sprite sets in a frame, %u lost\n",
             vram_peak, cgram_peak, sprite_peak, vid_decoder_snapshots_lost(pc->dec));
+    VidRenderStats st;
+    vid_render_get_stats(pc->vr, &st);
+    fprintf(summary, "  native renderer: %llu spans, %llu lines drawn, %llu kept, %llu blank (%.1f%% drawn)\n",
+            (unsigned long long)st.spans, (unsigned long long)st.lines_drawn, (unsigned long long)st.lines_kept,
+            (unsigned long long)st.lines_blank,
+            st.frames ? 100.0 * (double)st.lines_drawn / ((double)st.frames * VID_RENDER_HEIGHT) : 0.0);
     for (int i = 0; i < pc->kind_count; i++)
         fprintf(summary, "  %-16s %8llu frames, %8llu lines, first %u\n", pc->kinds[i].kind,
                 (unsigned long long)pc->kinds[i].frames, (unsigned long long)pc->kinds[i].lines,
