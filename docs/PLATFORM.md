@@ -1187,8 +1187,9 @@ decoder fills them in: when memory changes, it keeps the old contents in a
 snapshot, hands it to the spans already emitted, and starts a span at that line
 so the lines after it read the new contents. It snapshots only for spans that
 would show the difference -- not forced-blank lines, and sprites only where OBJ
-is on a screen -- which is why one snapshot of each per frame is all the movie
-library needs (the peak over all 26 movies; none was ever lost). `VidFrame`'s own
+is on a screen -- which is why the movie library never needs more than two VRAM
+snapshots and one of each of the others in a frame (the peak over all 26 movies;
+the pools hold 8, 32 and 8, and none was ever lost). `VidFrame`'s own
 `sprites` and `first_sprite` are now the set the frame ends with, re-decoded
 whenever OAM or the priority rotation changes rather than only at line 1, so they
 mean the same thing as its `vram` and `cgram`.
