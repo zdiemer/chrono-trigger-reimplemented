@@ -7,9 +7,11 @@
 #include "platform/video.h"
 
 enum {
-    PF_SNES_INIDISP = 0x2100, PF_SNES_OAMADDL = 0x2102, PF_SNES_BGMODE = 0x2105, PF_SNES_VMAIN = 0x2115,
-    PF_SNES_VMADDL = 0x2116, PF_SNES_CGADD = 0x2121, PF_SNES_W12SEL = 0x2123, PF_SNES_CGWSEL = 0x2130,
-    PF_SNES_COLDATA = 0x2132, PF_SNES_MDMAEN = 0x420B, PF_SNES_HDMAEN = 0x420C,
+    PF_SNES_INIDISP = 0x2100, PF_SNES_OBSEL = 0x2101, PF_SNES_OAMADDL = 0x2102, PF_SNES_BGMODE = 0x2105,
+    PF_SNES_MOSAIC = 0x2106, PF_SNES_BG1SC = 0x2107, PF_SNES_BG12NBA = 0x210B, PF_SNES_BG1HOFS = 0x210D,
+    PF_SNES_VMAIN = 0x2115, PF_SNES_VMADDL = 0x2116, PF_SNES_VMDATAL = 0x2118, PF_SNES_M7SEL = 0x211A,
+    PF_SNES_M7A = 0x211B, PF_SNES_CGADD = 0x2121, PF_SNES_W12SEL = 0x2123, PF_SNES_CGWSEL = 0x2130,
+    PF_SNES_COLDATA = 0x2132, PF_SNES_SETINI = 0x2133, PF_SNES_MDMAEN = 0x420B, PF_SNES_HDMAEN = 0x420C,
 };
 
 static inline uint8_t pf_snes_display_byte(const VidDisplay *d)
@@ -21,6 +23,8 @@ PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d)
 {
     pf_snes_begin("vid_set_display", o);
     pf_snes_put(pf_snes(pf), PF_SNES_INIDISP, pf_snes_display_byte(d));
+    if (vid_observer)
+        vid_obs_display(vid_observer, d);
     pf_snes_end();
 }
 
@@ -29,6 +33,8 @@ PF_API void vid_raster_display(Platform *pf, PfOrigin o, uint16_t line, const Vi
     (void)line;
     pf_snes_begin("vid_raster_display", o);
     pf_snes_put(pf_snes(pf), PF_SNES_INIDISP, pf_snes_display_byte(d));
+    if (vid_observer)
+        vid_obs_display(vid_observer, d);
     pf_snes_end();
 }
 
@@ -37,6 +43,121 @@ PF_API void vid_set_mode(Platform *pf, PfOrigin o, const VidMode *m)
     pf_snes_begin("vid_set_mode", o);
     pf_snes_put(pf_snes(pf), PF_SNES_BGMODE,
                 (uint8_t)((m->mode & 7) | (m->bg3_priority ? 0x08 : 0) | (m->large_tiles & 0x0F) << 4));
+    if (vid_observer)
+        vid_obs_mode(vid_observer, m);
+    pf_snes_end();
+}
+
+PF_API void vid_set_bg_map(Platform *pf, PfOrigin o, VidLayer bg, const VidBg *b)
+{
+    pf_snes_begin("vid_set_bg_map", o);
+    pf_snes_put(pf_snes(pf), (uint16_t)(PF_SNES_BG1SC + bg),
+                (uint8_t)((b->map_base >> 8 & 0xFC) | (b->map_w == 64 ? 1 : 0) | (b->map_h == 64 ? 2 : 0)));
+    if (vid_observer)
+        vid_obs_bg_map(vid_observer, bg, b);
+    pf_snes_end();
+}
+
+PF_API void vid_set_bg_chars(Platform *pf, PfOrigin o, VidLayer first, uint16_t base0, uint16_t base1)
+{
+    pf_snes_begin("vid_set_bg_chars", o);
+    pf_snes_put(pf_snes(pf), (uint16_t)(PF_SNES_BG12NBA + first / 2),
+                (uint8_t)((base0 >> 12 & 0x0F) | (base1 >> 12 & 0x0F) << 4));
+    if (vid_observer)
+        vid_obs_bg_chars(vid_observer, first, base0, base1);
+    pf_snes_end();
+}
+
+PF_API void vid_set_scroll(Platform *pf, PfOrigin o, VidLayer bg, uint16_t hofs, uint16_t vofs, uint32_t fields)
+{
+    Snes *s = pf_snes(pf);
+    pf_snes_begin("vid_set_scroll", o);
+    if (fields & VID_SCROLL_H) {
+        pf_snes_put(s, (uint16_t)(PF_SNES_BG1HOFS + 2 * bg), (uint8_t)hofs);
+        pf_snes_put(s, (uint16_t)(PF_SNES_BG1HOFS + 2 * bg), (uint8_t)(hofs >> 8));
+    }
+    if (fields & VID_SCROLL_V) {
+        pf_snes_put(s, (uint16_t)(PF_SNES_BG1HOFS + 2 * bg + 1), (uint8_t)vofs);
+        pf_snes_put(s, (uint16_t)(PF_SNES_BG1HOFS + 2 * bg + 1), (uint8_t)(vofs >> 8));
+    }
+    if (vid_observer)
+        vid_obs_scroll(vid_observer, bg, hofs, vofs, fields);
+    pf_snes_end();
+}
+
+PF_API void vid_set_mosaic(Platform *pf, PfOrigin o, uint8_t bgs, uint8_t size)
+{
+    pf_snes_begin("vid_set_mosaic", o);
+    pf_snes_put(pf_snes(pf), PF_SNES_MOSAIC, (uint8_t)((bgs & 0x0F) | ((size - 1) & 0x0F) << 4));
+    if (vid_observer)
+        vid_obs_mosaic(vid_observer, bgs, size);
+    pf_snes_end();
+}
+
+PF_API void vid_set_mode7(Platform *pf, PfOrigin o, const VidMode7 *m7, uint32_t fields)
+{
+    Snes *s = pf_snes(pf);
+    pf_snes_begin("vid_set_mode7", o);
+    if (fields & VID_M7_SELECT)
+        pf_snes_put(s, PF_SNES_M7SEL,
+                    (uint8_t)((m7->outside & 3) << 6 | (m7->vflip ? 2 : 0) | (m7->hflip ? 1 : 0)));
+    if (fields & VID_M7_MATRIX) {
+        const int16_t v[4] = { m7->a, m7->b, m7->c, m7->d };
+        for (int i = 0; i < 4; i++) {
+            pf_snes_put(s, (uint16_t)(PF_SNES_M7A + i), (uint8_t)v[i]);
+            pf_snes_put(s, (uint16_t)(PF_SNES_M7A + i), (uint8_t)((uint16_t)v[i] >> 8));
+        }
+    }
+    if (fields & VID_M7_CENTER) {
+        const int16_t v[2] = { m7->cx, m7->cy };
+        for (int i = 0; i < 2; i++) {
+            pf_snes_put(s, (uint16_t)(PF_SNES_M7A + 4 + i), (uint8_t)v[i]);
+            pf_snes_put(s, (uint16_t)(PF_SNES_M7A + 4 + i), (uint8_t)((uint16_t)v[i] >> 8));
+        }
+    }
+    if (fields & VID_M7_SCROLL) {
+        const int16_t v[2] = { m7->hofs, m7->vofs };
+        for (int i = 0; i < 2; i++) {
+            pf_snes_put(s, (uint16_t)(PF_SNES_BG1HOFS + i), (uint8_t)v[i]);
+            pf_snes_put(s, (uint16_t)(PF_SNES_BG1HOFS + i), (uint8_t)((uint16_t)v[i] >> 8));
+        }
+    }
+    if (vid_observer)
+        vid_obs_mode7(vid_observer, m7, fields);
+    pf_snes_end();
+}
+
+PF_API void vid_set_obj_config(Platform *pf, PfOrigin o, const VidObjConfig *c)
+{
+    pf_snes_begin("vid_set_obj_config", o);
+    pf_snes_put(pf_snes(pf), PF_SNES_OBSEL,
+                (uint8_t)((c->size_select & 7) << 5 | (c->name_select >> 12 & 3) << 3 | (c->base >> 13 & 7)));
+    if (vid_observer)
+        vid_obs_obj_config(vid_observer, c);
+    pf_snes_end();
+}
+
+PF_API void vid_set_screens(Platform *pf, PfOrigin o, uint8_t main_layers, uint8_t sub_layers, uint32_t fields)
+{
+    Snes *s = pf_snes(pf);
+    pf_snes_begin("vid_set_screens", o);
+    if (fields & VID_SCREEN_MAIN)
+        pf_snes_put(s, (uint16_t)(PF_SNES_W12SEL + 9), main_layers);
+    if (fields & VID_SCREEN_SUB)
+        pf_snes_put(s, (uint16_t)(PF_SNES_W12SEL + 10), sub_layers);
+    if (vid_observer)
+        vid_obs_screens(vid_observer, main_layers, sub_layers, fields);
+    pf_snes_end();
+}
+
+PF_API void vid_set_video_config(Platform *pf, PfOrigin o, const VidVideoConfig *c)
+{
+    pf_snes_begin("vid_set_video_config", o);
+    pf_snes_put(pf_snes(pf), PF_SNES_SETINI,
+                (uint8_t)((c->interlace ? 1 : 0) | (c->obj_interlace ? 2 : 0) | (c->overscan ? 4 : 0) |
+                          (c->pseudo_hires ? 8 : 0) | (c->extbg ? 0x40 : 0) | (c->snes_extra & 0xB0)));
+    if (vid_observer)
+        vid_obs_video_config(vid_observer, c);
     pf_snes_end();
 }
 
@@ -67,6 +188,8 @@ PF_API void vid_set_windows(Platform *pf, PfOrigin o, const VidWindows *w, uint3
         pf_snes_put(s, (uint16_t)(PF_SNES_W12SEL + 11), w->win_main);
     if (fields & VID_WINDOWS_SUB)
         pf_snes_put(s, (uint16_t)(PF_SNES_W12SEL + 12), w->win_sub);
+    if (vid_observer)
+        vid_obs_windows(vid_observer, w, fields);
     pf_snes_end();
 }
 
@@ -81,6 +204,8 @@ PF_API void vid_set_color_math(Platform *pf, PfOrigin o, const VidColorMath *m, 
     if (fields & VID_MATH_LAYERS)
         pf_snes_put(s, (uint16_t)(PF_SNES_CGWSEL + 1),
                     (uint8_t)((m->subtract ? 0x80 : 0) | (m->half ? 0x40 : 0) | (m->layers & 0x3F)));
+    if (vid_observer)
+        vid_obs_color_math(vid_observer, m, fields);
     pf_snes_end();
 }
 
@@ -88,6 +213,8 @@ PF_API void vid_set_fixed_color(Platform *pf, PfOrigin o, uint8_t channels, uint
 {
     pf_snes_begin("vid_set_fixed_color", o);
     pf_snes_put(pf_snes(pf), PF_SNES_COLDATA, (uint8_t)((channels & 7) << 5 | (intensity & 0x1F)));
+    if (vid_observer)
+        vid_obs_fixed_color(vid_observer, channels, intensity);
     pf_snes_end();
 }
 
@@ -95,6 +222,8 @@ PF_API void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots)
 {
     pf_snes_begin("vid_enable_line_effects", o);
     pf_snes_put(pf_snes(pf), PF_SNES_HDMAEN, slots);
+    if (vid_observer)
+        vid_obs_enable_line_effects(vid_observer, slots);
     pf_snes_end();
 }
 
@@ -148,24 +277,65 @@ PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const Vi
                                 const uint8_t *snes_steps)
 {
     /* transfer mode and first register per target */
-    static const uint8_t mode[] = { 4, 1, 1, 3, 3, 3, 0, 0 };
-    static const uint8_t reg[] = { 0x26, 0x26, 0x28, 0x0D, 0x0F, 0x11, 0x32, 0x00 };
+    static const uint8_t mode[] = { 4, 1, 1, 3, 3, 3, 0, 0, 4, 4, 4, 1 };
+    static const uint8_t reg[] = { 0x26, 0x26, 0x28, 0x0D, 0x0F, 0x11, 0x32, 0x00, 0x07, 0x2C, 0x30, 0x05 };
     pf_snes_begin("vid_set_line_effect", o);
     PfSnesChannel c = { .channel = slot, .control = (uint8_t)((e->indirect ? 0x40 : 0) | mode[e->target]),
                         .dest = reg[e->target], .source = e->table.addr, .indirect_bank = e->indirect_bank };
     pf_snes_program(pf_snes(pf), &c, snes_steps);
+    if (vid_observer)
+        vid_obs_line_effect(vid_observer, slot, e);
     pf_snes_end();
 }
 
-PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidSnesXfer *x)
+static inline uint8_t pf_snes_vram_port_byte(const VidVramPort *p)
+{
+    uint8_t step = p->snes_step_alt ? 3 : p->step == 1 ? 0 : p->step == 32 ? 1 : 2;
+    return (uint8_t)((p->after_high ? 0x80 : 0) | (p->remap & 3) << 2 | step);
+}
+
+PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port, const VidSnesXfer *x)
 {
     Snes *s = pf_snes(pf);
     pf_snes_begin("vid_begin_vram_uploads", o);
-    pf_snes_put(s, PF_SNES_VMAIN, 0x80);
+    pf_snes_put(s, PF_SNES_VMAIN, pf_snes_vram_port_byte(port));
     if (x) {
         PfSnesChannel c = { .channel = x->channel, .control = x->control, .dest = 0x18 };
         pf_snes_program(s, &c, x->steps);
     }
+    if (vid_observer)
+        vid_obs_vram_port(vid_observer, port);
+    pf_snes_end();
+}
+
+PF_API void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr)
+{
+    Snes *s = pf_snes(pf);
+    pf_snes_begin("vid_set_vram_address", o);
+    pf_snes_put(s, PF_SNES_VMADDL, (uint8_t)vram_addr);
+    pf_snes_put(s, (uint16_t)(PF_SNES_VMADDL + 1), (uint8_t)(vram_addr >> 8));
+    if (vid_observer)
+        vid_obs_vram_address(vid_observer, vram_addr);
+    pf_snes_end();
+}
+
+PF_API void vid_write_vram(Platform *pf, PfOrigin o, uint16_t value)
+{
+    Snes *s = pf_snes(pf);
+    pf_snes_begin("vid_write_vram", o);
+    pf_snes_put(s, PF_SNES_VMDATAL, (uint8_t)value);
+    pf_snes_put(s, (uint16_t)(PF_SNES_VMDATAL + 1), (uint8_t)(value >> 8));
+    if (vid_observer)
+        vid_obs_write_vram(vid_observer, value, -1);
+    pf_snes_end();
+}
+
+PF_API void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value)
+{
+    pf_snes_begin("vid_write_vram_byte", o);
+    pf_snes_put(pf_snes(pf), (uint16_t)(PF_SNES_VMDATAL + (high ? 1 : 0)), value);
+    if (vid_observer)
+        vid_obs_write_vram(vid_observer, value, high ? 1 : 0);
     pf_snes_end();
 }
 
@@ -183,23 +353,31 @@ PF_API void vid_upload_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData
                             const VidSnesXfer *x)
 {
     pf_snes_upload(pf, o, "vid_upload_vram", 0x18, 0x16, vram_addr, src, len, x);
+    if (vid_observer)
+        vid_obs_upload_vram(vid_observer, vram_addr, src, len, false);
 }
 
 PF_API void vid_fill_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len,
                           const VidSnesXfer *x)
 {
     pf_snes_upload(pf, o, "vid_fill_vram", 0x18, 0x16, vram_addr, value, len, x);
+    if (vid_observer)
+        vid_obs_upload_vram(vid_observer, vram_addr, value, len, true);
 }
 
 PF_API void vid_upload_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count,
                                const VidSnesXfer *x)
 {
     pf_snes_upload(pf, o, "vid_upload_palette", 0x22, 0x21, first, src, 2u * count, x);
+    if (vid_observer)
+        vid_obs_upload_palette(vid_observer, first, src, count);
 }
 
 PF_API void vid_upload_oam(Platform *pf, PfOrigin o, PfData oam, const VidSnesXfer *x)
 {
     pf_snes_upload(pf, o, "vid_upload_oam", 0x04, 0x02, 0, oam, 0x220, x);
+    if (vid_observer)
+        vid_obs_upload_oam(vid_observer, oam);
 }
 
 PF_API void vid_stop_uploads(Platform *pf, PfOrigin o)
@@ -215,6 +393,8 @@ PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t
     PfSnesChannel c = { .channel = x->channel, .control = x->control, .dest = t->dest, .source = t->source,
                         .len = t->size, .target_reg = t->target_reg, .target = t->target };
     pf_snes_program(pf_snes(pf), &c, x->steps);
+    if (vid_observer)
+        vid_obs_snes_transfer(vid_observer, t);
     pf_snes_end();
 }
 

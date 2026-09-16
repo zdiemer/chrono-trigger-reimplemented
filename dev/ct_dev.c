@@ -7,7 +7,7 @@
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
- *          [--audio snes|direct] [--load-zst in.zst [--frame F]]
+ *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -33,6 +33,9 @@
  * --misses writes every instruction the interpreter ran, with counts, as ROM or
  * RAM code and the RAM section it lies in (dev/misses.h; the miss report with
  * --native on --recomp only).
+ * --vid-check [out.txt] compares the VidFrame the video service calls build with
+ * the one decoded from the PPU registers, frame by frame (dev/vid_check.h,
+ * docs/PLATFORM.md P2); it needs --native on.
  * --no-interpreter strict|fallback (with --native on) runs the system loop the
  * way a player built without the interpreter does (docs/RECOMP.md, "Without the
  * interpreter"): interrupt entry, WAI and STP without the interpreter, and an
@@ -49,6 +52,7 @@
 
 #include "io_log.h"
 #include "misses.h"
+#include "vid_check.h"
 #include "media.h"
 #include "movie.h"
 #include "sram_find.h"
@@ -71,6 +75,7 @@
 
 static IoLog *io_log;
 static Misses *misses;
+static VidCheck *vid_check;
 
 /* --no-interpreter: 0 off, 1 fallback, 2 strict. */
 static int no_interpreter;
@@ -95,6 +100,8 @@ static bool on_miss(void *ctx, Snes *snes)
 static void on_line(void *ctx, Snes *snes, uint16_t line)
 {
     render_line(ctx, &snes->ppu, line);
+    if (vid_check)
+        vid_check_line(vid_check, line);
     if (io_log)
         io_log_note_hdma(io_log);
 }
@@ -220,7 +227,8 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
-    const char *zst_path = NULL;
+    const char *zst_path = NULL, *vid_check_path = NULL;
+    bool want_vid_check = false;
     long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
     bool recomp = true, ports = true, insn_stats = false, audio_direct = false;
@@ -231,6 +239,10 @@ int main(int argc, char **argv)
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--insn-stats")) {
             insn_stats = true;
+            continue;
+        }
+        if (!strcmp(a, "--vid-check") && (!v || v[0] == '-')) {
+            want_vid_check = true;
             continue;
         }
         if (!v) {
@@ -254,6 +266,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--wav")) wav_path = v;
         else if (!strcmp(a, "--io-log")) io_log_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
+        else if (!strcmp(a, "--vid-check")) { vid_check_path = v; want_vid_check = true; }
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
         else if (!strcmp(a, "--no-interpreter")) {
             if (!strcmp(v, "fallback")) no_interpreter = 1;
@@ -301,7 +314,7 @@ int main(int argc, char **argv)
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
-                        "[--audio snes|direct] [--load-zst in.zst [--frame F]]\n");
+                        "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]]\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -426,6 +439,11 @@ int main(int argc, char **argv)
         cov.seen = calloc((size_t)1 << (COVERAGE_BITS - 3), 1);
     if (calls_path)
         cov.calls = calloc((size_t)1 << CALL_SET_BITS, sizeof *cov.calls);
+    if (want_vid_check) {
+        if (native_mode != NATIVE_ON)
+            fprintf(stderr, "warning: --vid-check needs --native on; the ports' calls are what it observes\n");
+        vid_check = vid_check_create(&snes);
+    }
     if (io_log_path)
         io_log = io_log_create(&snes);
     if (misses_path)
@@ -523,6 +541,12 @@ int main(int argc, char **argv)
                 (unsigned long long)cov.insns, (unsigned long long)cov.ram_insns, (unsigned long long)generated,
                 cov.insns + generated ? 100.0 * (double)generated / (double)(cov.insns + generated) : 0.0);
     }
+    if (vid_check && vid_check_write(vid_check, vid_check_path, stderr) != 0) {
+        fprintf(stderr, "cannot write %s\n", vid_check_path);
+        rc = 1;
+    }
+    vid_check_destroy(vid_check);
+    vid_check = NULL;
     if (io_log && io_log_write(io_log, io_log_path, stderr) != 0) {
         fprintf(stderr, "cannot write %s\n", io_log_path);
         rc = 1;

@@ -59,7 +59,7 @@ void tile_animation_upload(Snes *s)
     static const uint8_t setup[] = { VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_END };
     static const VidSnesXfer channel = { TILE_DMA, TILE_DMA_CONTROL, setup };
     m_lda8(s, 0x18);
-    vid_begin_vram_uploads(m_platform(s), PF_AT(0xFDE02B), &channel);
+    vid_begin_vram_uploads(m_platform(s), PF_AT(0xFDE02B), VID_VRAM_WORD_PORT, &channel);
     m_ldx16(s, 0x0500);
     m_push16(s, c->x);
     c->d = m_pull16(s);
