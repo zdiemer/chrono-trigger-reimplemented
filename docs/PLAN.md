@@ -85,6 +85,27 @@ Two facts make that survivable, and the phase starts by choosing between them:
 entries cover, per bank or per subsystem, which is how a conversion's progress
 is seen. It reads as an estimate for the reasons its own docstring gives.
 
+**Build the RAM map first.** Ports spell every variable as its address, because
+there is nowhere to get a name from: roadmap step 1 ([APPROACH.md](APPROACH.md))
+called for "a symbol and RAM-map database" and only the code/data side of it
+exists, in `re/hints.toml`. So `game/` holds 10955 hex literals against 42 named
+groups, and a port reads `0x95D5` where it means the battle's state.
+
+The job is smaller than that number: 519 distinct low-RAM addresses
+(`$0100-$1FFF`, the game's variables) in 1206 uses, and 144 long WRAM addresses
+in 216 more. Most of the rest are direct page offsets and bit masks. The
+knowledge is mostly written down already, scattered through port comments,
+PORTING.md's status table and MOVIES.md, so this is largely harvesting rather
+than reverse engineering. A map in `re/`, a generated header, and naming a
+subsystem's variables becomes mechanical as Phase 3 reaches it. Nothing about
+the bytes changes, so the gate is unaffected.
+
+The 1845 ROM addresses in `game/` are *not* the target and should be left
+alone: nearly all of them are call sites, call-out targets, registry entries and
+service origins, where the address is the routine's identity and the
+`// $BB:AAAA` contract. Only about 150 are reads of ROM data, which is the class
+the asset work in TODO.md covers.
+
 **Then set the bar against the ports that exist.** The 291 entries were written
 over months and they are not one standard. The recent ones read as source: named
 constants, service calls, a comment saying what the data means. The early ones
