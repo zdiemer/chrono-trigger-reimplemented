@@ -37,7 +37,7 @@ static void upload_slot(Snes *s, uint8_t base, uint32_t table, uint32_t site)
         VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
         VID_STEP_SIZE_CLEAR, VID_STEP_SIZE_LO, VID_STEP_START, VID_STEP_END,
     };
-    static const VidSnesXfer x = { TILE_DMA, TILE_DMA_CONTROL, steps };
+    static const VidSnesXfer x = { TILE_DMA, TILE_DMA_CONTROL, steps, NULL };
     vid_upload_vram(m_platform(s), PF_AT(site), vram, PF_GAME((uint32_t)bank << 16 | source), (uint8_t)c->y, &x);
 }
 
@@ -57,9 +57,9 @@ void tile_animation_upload(Snes *s)
     m_set_nz8(s, c->db);
     m_lda8(s, 0x80);
     static const uint8_t setup[] = { VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_END };
-    static const VidSnesXfer channel = { TILE_DMA, TILE_DMA_CONTROL, setup };
+    static const VidSnesXfer channel = { TILE_DMA, TILE_DMA_CONTROL, setup, NULL };
     m_lda8(s, 0x18);
-    vid_begin_vram_uploads(m_platform(s), PF_AT(0xFDE02B), VID_VRAM_WORD_PORT, &channel);
+    vid_begin_vram_uploads(m_platform(s), PF_AT(0xFDE02B), VID_VRAM_WORD_PORT, PF_GAME(0), &channel);
     m_ldx16(s, 0x0500);
     m_push16(s, c->x);
     c->d = m_pull16(s);

@@ -30,6 +30,7 @@ UNCONVERTED = {
 # Uses of the SNES-only escapes, per file.
 ESCAPES = {
     "battle/frame.c": 1,   # $CF:E338, the transfer described by the table at $9EEA
+    "field/display.c": 1,  # $C0:2DF1, which copies a PPU register into memory rather than writing one
 }
 
 # Files allowed to use the driver-level audio calls (au_driver_*).

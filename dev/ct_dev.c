@@ -7,7 +7,7 @@
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
- *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]]
+ *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
@@ -35,7 +35,9 @@
  * --native on --recomp only).
  * --vid-check [out.txt] compares the VidFrame the video service calls build with
  * the one decoded from the PPU registers, frame by frame (dev/vid_check.h,
- * docs/PLATFORM.md P2); it needs --native on.
+ * docs/PLATFORM.md P2); it needs --native on. --vid-check-from N seeds the
+ * observer from the PPU at frame N and compares from there on, so a subsystem
+ * can be checked from the frame it takes over.
  * --no-interpreter strict|fallback (with --native on) runs the system loop the
  * way a player built without the interpreter does (docs/RECOMP.md, "Without the
  * interpreter"): interrupt entry, WAI and STP without the interpreter, and an
@@ -229,6 +231,7 @@ int main(int argc, char **argv)
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL;
     bool want_vid_check = false;
+    long vid_check_from = 0;
     long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
     bool recomp = true, ports = true, insn_stats = false, audio_direct = false;
@@ -267,6 +270,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--io-log")) io_log_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
         else if (!strcmp(a, "--vid-check")) { vid_check_path = v; want_vid_check = true; }
+        else if (!strcmp(a, "--vid-check-from")) { vid_check_from = strtol(v, NULL, 10); want_vid_check = true; }
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
         else if (!strcmp(a, "--no-interpreter")) {
             if (!strcmp(v, "fallback")) no_interpreter = 1;
@@ -314,7 +318,8 @@ int main(int argc, char **argv)
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
-                        "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]]\n");
+                        "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
+                        "[--vid-check-from N]\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -442,7 +447,7 @@ int main(int argc, char **argv)
     if (want_vid_check) {
         if (native_mode != NATIVE_ON)
             fprintf(stderr, "warning: --vid-check needs --native on; the ports' calls are what it observes\n");
-        vid_check = vid_check_create(&snes);
+        vid_check = vid_check_create(&snes, (uint32_t)(vid_check_from > 0 ? vid_check_from : 0));
     }
     if (io_log_path)
         io_log = io_log_create(&snes);

@@ -999,6 +999,99 @@ no PPU, DMA or HDMA register write outside `vid_*`; shadow mode has 0
 mismatches; and the observer's command-built `VidFrame` equals the decoder's
 `VidFrame` on every frame (same spans, sprites, palette and VRAM).
 
+#### P2 as built: shared code and battle done, field started
+
+| Subsystem | State |
+|---|---|
+| shared | done: display blank (P0), the palette upload `$C0:712E`, the animated tiles (P0) |
+| battle | done: no PPU, DMA or HDMA register write outside `vid_*` from battle code in `gato-battle`, `battle-magus` or `battle-golem-twins-gameover` |
+| field | most of it: the NMI's uploads and per-line effects, the deferred uploads, the mode setup and the line interrupt are behind the API; what is left is listed below |
+| scenes | not started |
+| menus | not started |
+
+**The frame, its two builders and their comparison.**
+
+| Path | What |
+|---|---|
+| `runtime/platform/video.h` | `VidBg`, `VidMode7`, `VidSprite`, `VidObjConfig`, `VidVideoConfig`, `VidVramPort`, `VidLineState`, `VidSpan`, `VidFrame`, and the calls the ports below needed |
+| `runtime/platform/snes/decode.c` | the decoder: `VidLineState` from the `Ppu` registers at every line, sprites from OAM at line 1, spans merged while nothing changes |
+| `runtime/platform/observe.c` | the observer: every service call folded into a `VidFrame` semantically, uploads applied to its own video memory, per-line effects expanded from the game's tables |
+| `dev/vid_check.c` | `ct_dev --vid-check [out.txt]`: compares the two per frame and reports the differences by kind |
+
+The decoder reads the register layer, so it works whoever wrote the registers
+and P3's renderer doesn't wait for P2. The observer never sees a register: each
+call hands it the structure the call took, uploads are copied out of game memory
+through a read callback, and a per-line effect is expanded from the table the
+game keeps, the way a native backend would have to expand it. Its HDMA
+bookkeeping (line counts with the repeat bit, indirect addresses, reloads) is
+the same state machine the hardware runs, because the table is the game's data
+format.
+
+**Calls added**, each with its first user: `vid_set_bg_map`, `vid_set_bg_chars`,
+`vid_set_scroll`, `vid_set_mosaic`, `vid_set_mode7`, `vid_set_obj_config`,
+`vid_set_screens`, `vid_set_video_config`, `vid_set_vram_address`,
+`vid_write_vram`, `vid_write_vram_byte`, and four more `VidLineTarget`s for the
+battle's per-line slots (`VID_LINE_BG_MAPS`, `VID_LINE_SCREENS`,
+`VID_LINE_COLOR_MATH`, `VID_LINE_MODE`) and three for the field's
+(`VID_LINE_MATH_LAYERS`, `VID_LINE_WINDOW2_LEFT`, `VID_LINE_WINDOW2_RIGHT`).
+`vid_begin_vram_uploads` now takes the port setting and the source bank instead
+of assuming both, and `VidSnesXfer` carries a port for `VID_STEP_VRAM_PORT`,
+where an upload sets the VRAM port in the middle of its own register sequence
+(the field's deferred uploads do).
+
+**Ported** (all in [PORTING.md](PORTING.md)'s status table):
+`palette_upload` `$C0:712E`; the battle's `$CD:09CE`, `$CD:09F1`, `$CC:E000`,
+`$D1:E8D9` and the second vblank handler `$D1:F4C0`; the field's `$FD:C1EE`,
+`$C0:ECA3`, `$C0:B1B2`, the twelve deferred uploads `$C0:8445`-`$C0:87BF`,
+`$FD:C0D7`, `$C0:A509`, `$C0:2DC8`, `$C0:2DF1`, `$C0:F05E` with its four tile
+writers, and the line interrupt `$C0:ECCC`/`$C0:ECEB`/`$C0:ECF2`.
+
+**Deviations, and why.**
+
+- **Write order within a routine.** `field_setup_line_effects` and
+  `battle_setup_display` program eight and seven channels; the original writes
+  all the controls, then all the destinations, and so on, while the calls write
+  each slot's registers together. Neither routine calls anything in between, so
+  the only comparison is at its return, where every register holds the same
+  byte. The same goes for the reads a port does before a call that writes
+  several registers at once.
+- **One write still reaches the registers through the data bank.** The second
+  battle vblank handler writes the per-line enable register with absolute
+  addressing, so with another data bank it lands in memory instead. The port
+  stops there when the bank isn't one the registers are mapped in, as
+  `field_nmi` does.
+- **One more SNES-only escape.** `$C0:2DF1` clears memory by zeroing the Mode 7
+  matrix, whose multiplier then offers a product of 0, and copying that *out of*
+  a PPU register with a transfer in the other direction. The matrix values go
+  through `vid_set_mode7`; the copy uses `vid_snes_transfer`, which the lint now
+  allows in `field/display.c` as well.
+- **Direct pages on the register block.** Routines that put `$2100` or `$4300`
+  in D keep doing it, since D is CPU state; `M_DP_PPU` and `M_DP_DMA` in
+  `port/machine.h` name the two values so no register constant appears in
+  `game/`.
+- **Lines are compared, not spans.** `vid_frame_diff` compares the state each
+  line ends up with rather than the span boundaries: an upload that rewrites a
+  palette with the same colors starts a span on one side only and changes
+  nothing a renderer draws.
+- **`--vid-check-from N`.** The observer starts from what the calls have told
+  it, so it can only be compared once every writer of every register has been
+  behind the API since power-on. Until the last subsystem is, `--vid-check-from`
+  seeds it from the PPU at a frame, which is how a subsystem is checked from the
+  frame it takes over.
+
+**Results.** Shadow mode: `new-game`, `field`, `fair-companion`, `gato-battle`,
+`battle-magus`, `battle-golem-twins-gameover` and `menus-field-menu` exit 0 with
+no mismatch; the new entries' call counts are in
+[PORTING.md](PORTING.md)'s status table. The lint and the unit tests pass and
+the build is warning-free.
+
+Fuzzing found one real bug the movies don't reach: a deferred upload's
+transfer, when its size is large enough to read through the stack page, copies
+the bytes the routine's own `JSR` left there, so the port has to write them
+before the transfer rather than after. The four window tile writers are guarded
+on a direct page on the PPU block, which the fuzzer's base states don't have, so
+they are validated by shadow mode only.
+
 ### P3: native renderer, pixel-identical
 
 - A frame renderer working from `VidFrame`: whole spans instead of per-pixel

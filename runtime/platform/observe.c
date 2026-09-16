@@ -63,6 +63,16 @@ uint32_t vid_obs_unmodelled(const VidObserver *ob) { return ob->unmodelled; }
 
 const VidFrame *vid_obs_frame(const VidObserver *ob) { return &ob->frame; }
 
+void vid_obs_seed(VidObserver *ob, const VidLineState *state, const uint8_t *vram, const uint16_t *cgram,
+                  const uint8_t *oam)
+{
+    ob->state = *state;
+    memcpy(ob->vram, vram, sizeof ob->vram);
+    memcpy(ob->cgram, cgram, sizeof ob->cgram);
+    memcpy(ob->oam, oam, sizeof ob->oam);
+    ob->palette_dirty = true;
+}
+
 /* ---- video memory ------------------------------------------------------------ */
 
 static uint16_t vram_mapped(const VidObserver *ob)
@@ -173,6 +183,11 @@ void vid_obs_mode7(VidObserver *ob, const VidMode7 *m7, uint32_t fields)
         d->d = m7->d;
         ob->m7_latch = (uint8_t)((uint16_t)m7->d >> 8);
     }
+    if (fields & VID_M7_MATRIX_AB) {
+        d->a = m7->a;
+        d->b = m7->b;
+        ob->m7_latch = (uint8_t)((uint16_t)m7->b >> 8);
+    }
     if (fields & VID_M7_CENTER) {
         d->cx = m7->cx;
         d->cy = m7->cy;
@@ -268,8 +283,11 @@ void vid_obs_write_vram(VidObserver *ob, uint16_t value, int half)
     }
 }
 
-void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill)
+void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
+                         const VidVramPort *port)
 {
+    if (port)
+        ob->port = *port;
     if (len == 0)
         return;
     ob->vram_addr = vram_addr;
@@ -320,7 +338,8 @@ static uint8_t effect_unit_len(VidLineTarget target)
     case VID_LINE_BG_MAPS:
     case VID_LINE_SCREENS:
     case VID_LINE_COLOR_MATH: return 4;
-    case VID_LINE_MODE: return 2;
+    case VID_LINE_MODE:
+    case VID_LINE_MATH_LAYERS: return 2;
     default: return 1;
     }
 }
@@ -380,6 +399,18 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
         } else {
             vid_obs_mosaic(ob, (uint8_t)(v & 0x0F), (uint8_t)((v >> 4) + 1));
         }
+        break;
+    case VID_LINE_MATH_LAYERS:
+        if (i == 0)
+            vid_color_math_decode(&ob->state.math, VID_MATH_LAYERS, v);
+        else
+            set_fixed_channels(ob, (uint8_t)(v >> 5), (uint8_t)(v & 0x1F));
+        break;
+    case VID_LINE_WINDOW2_LEFT:
+        ob->state.windows.w2_left = v;
+        break;
+    case VID_LINE_WINDOW2_RIGHT:
+        ob->state.windows.w2_right = v;
         break;
     }
 }

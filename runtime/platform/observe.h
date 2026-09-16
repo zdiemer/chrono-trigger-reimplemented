@@ -28,6 +28,12 @@ void vid_obs_line(VidObserver *ob, uint16_t line);
 /* The frame the calls built, valid from line 224 until the next line 0. */
 const VidFrame *vid_obs_frame(const VidObserver *ob);
 
+/* Start from a state the observer didn't build, so that a subsystem can be
+ * checked from the frame it takes over: everything the calls before it left is
+ * taken as given. Call it at a line 0, before vid_obs_line(). */
+void vid_obs_seed(VidObserver *ob, const VidLineState *state, const uint8_t *vram, const uint16_t *cgram,
+                  const uint8_t *oam);
+
 /* How many calls the observer could not model (vid_snes_transfer). */
 uint32_t vid_obs_unmodelled(const VidObserver *ob);
 

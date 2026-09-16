@@ -38,6 +38,12 @@ static inline void m_write16(Snes *s, uint32_t addr, uint16_t v)
  * them directly. */
 static inline bool m_io_bank(uint8_t bank) { return (bank & 0x40) == 0; }
 
+/* Direct pages the original sometimes puts on the I/O block so that it can
+ * reach registers with direct-page addressing. A port reproduces the value in
+ * D, which is CPU state, while its own accesses go through the platform
+ * services (docs/PLATFORM.md). */
+enum { M_DP_PPU = 0x2100, M_DP_DMA = 0x4300 };
+
 /* Address in the data bank / direct page, as the original's abs / dp modes see it. */
 static inline uint32_t m_abs(const Snes *s, uint16_t addr) { return (uint32_t)s->cpu.db << 16 | addr; }
 static inline uint32_t m_dp(const Snes *s, uint8_t addr) { return (uint16_t)(s->cpu.d + addr); }

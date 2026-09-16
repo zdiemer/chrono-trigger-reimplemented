@@ -160,6 +160,7 @@ enum {
     VID_M7_MATRIX = 1 << 1,   /* a, b, c, d */
     VID_M7_CENTER = 1 << 2,   /* cx, cy */
     VID_M7_SCROLL = 1 << 3,   /* hofs, vofs */
+    VID_M7_MATRIX_AB = 1 << 4,   /* a and b only: they double as the signed multiplier */
 };
 
 /* One OAM entry, as the game builds it. */
@@ -283,6 +284,8 @@ typedef enum {
     VID_LINE_SCREENS,           /* main_layers, sub_layers, win_main, win_sub */
     VID_LINE_COLOR_MATH,        /* math control, math layers, fixed color, video config */
     VID_LINE_MODE,              /* BG mode and mosaic */
+    VID_LINE_MATH_LAYERS,       /* math layers and the fixed color */
+    VID_LINE_WINDOW2_LEFT, VID_LINE_WINDOW2_RIGHT,   /* one edge of window 2 */
 } VidLineTarget;
 
 typedef struct {
@@ -311,12 +314,14 @@ enum {
     VID_STEP_TARGET_LO,      /* the destination's address register: VRAM, CGRAM or OAM */
     VID_STEP_TARGET_HI,      /* its high byte (VRAM) */
     VID_STEP_START,          /* $420B = the channel's bit */
+    VID_STEP_VRAM_PORT,      /* $2115: how VRAM writes step, from VidSnesXfer.port */
 };
 
 typedef struct {
     uint8_t channel;         /* 0-7 */
     uint8_t control;         /* $43x0 as the original writes it (mode 1 for VRAM words, bit 3 fixed source, ...) */
     const uint8_t *steps;
+    const VidVramPort *port; /* for VID_STEP_VRAM_PORT, where an upload sets it itself */
 } VidSnesXfer;
 
 /* Master brightness and forced blank. */
@@ -360,7 +365,8 @@ PF_API void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots);
 /* Vblank upload work begins: VRAM writes step the address as `port` says from
  * here on. The SNES backend sets the VRAM port and, with `x`, programs the
  * channel's steps (its mode and destination) ahead of uploads that reuse them. */
-PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port, const VidSnesXfer *x);
+PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port, PfData source,
+                                   const VidSnesXfer *x);
 /* Where the next VRAM writes go (word address), and one word or byte written
  * there through the port rather than by an upload. */
 PF_API void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr);
@@ -423,7 +429,8 @@ void vid_obs_enable_line_effects(VidObserver *ob, uint8_t slots);
 void vid_obs_vram_port(VidObserver *ob, const VidVramPort *port);
 void vid_obs_vram_address(VidObserver *ob, uint16_t vram_addr);
 void vid_obs_write_vram(VidObserver *ob, uint16_t value, int half);   /* half: -1 word, 0 low, 1 high */
-void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill);
+void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
+                         const VidVramPort *port);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam);
 void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t);

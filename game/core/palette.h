@@ -7,5 +7,7 @@
 void palette_animate(Snes *s);
 void palette_animate_fade(Snes *s);
 void palette_fade_toward_white(Snes *s);
+void palette_upload(Snes *s);
+bool palette_bank_is_io(Snes *s);
 
 #endif

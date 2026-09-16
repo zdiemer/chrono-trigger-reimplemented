@@ -22,16 +22,20 @@ struct VidCheck {
     VidDecoder *dec;
     VidObserver *obs;
     uint64_t frames, equal;
+    uint32_t from_frame;
+    bool seeded;
     KindRow kinds[KINDS];
     int kind_count;
 };
 
 static uint8_t peek(void *ctx, uint32_t addr) { return snes_bus_peek(&((Snes *)ctx)->bus, addr); }
 
-VidCheck *vid_check_create(Snes *s)
+VidCheck *vid_check_create(Snes *s, uint32_t from_frame)
 {
     VidCheck *vc = calloc(1, sizeof *vc);
     vc->s = s;
+    vc->from_frame = from_frame;
+    vc->seeded = from_frame == 0;
     vc->dec = vid_decoder_create();
     vc->obs = vid_obs_create(peek, s);
     vid_observer = vc->obs;
@@ -61,9 +65,15 @@ static void note(VidCheck *vc, const VidDiff *d)
 
 void vid_check_line(VidCheck *vc, uint16_t line)
 {
+    if (!vc->seeded && line == 0 && vc->s->frame >= vc->from_frame) {
+        VidLineState st;
+        vid_decode_state(&vc->s->ppu, &st);
+        vid_obs_seed(vc->obs, &st, vc->s->ppu.vram, vc->s->ppu.cgram, vc->s->ppu.oam);
+        vc->seeded = true;
+    }
     vid_decode_line(vc->dec, &vc->s->ppu, line);
     vid_obs_line(vc->obs, line);
-    if (line != 224)
+    if (line != 224 || !vc->seeded)
         return;
     vc->frames++;
     VidDiff d;
