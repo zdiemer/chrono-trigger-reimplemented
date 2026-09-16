@@ -21,8 +21,11 @@
 VidObserver *vid_obs_create(uint8_t (*read)(void *ctx, uint32_t addr), void *ctx);
 void vid_obs_destroy(VidObserver *ob);
 
+/* A frame is about to start: the per-line effect slots reload their tables.
+ * The host calls it at line 0, before vid_obs_line(). */
+void vid_obs_frame_start(VidObserver *ob);
 /* The beam has reached `line` (0-224), before that line's per-line effects are
- * applied. Line 0 starts a frame; the frame is complete after line 224. */
+ * applied. The frame is complete after line 224. */
 void vid_obs_line(VidObserver *ob, uint16_t line);
 
 /* The frame the calls built, valid from line 224 until the next line 0. */

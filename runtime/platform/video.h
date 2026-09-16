@@ -433,7 +433,7 @@ void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32
                          const VidVramPort *port);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam);
-void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t);
+void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control);
 
 #ifdef CT_PLATFORM_SNES
 #include "platform/snes/video.h"

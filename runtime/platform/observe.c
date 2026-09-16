@@ -34,7 +34,10 @@ struct VidObserver {
 
     VidVramPort port;
     uint16_t vram_addr;
-    bool vram_half;      /* a byte written to the low half is waiting */
+    uint8_t cg_addr, cg_latch;
+    bool cg_second;
+    uint16_t oam_addr;
+    uint8_t oam_latch;
 
     ObsSlot slot[8];
     uint8_t enabled_slots;
@@ -92,6 +95,31 @@ static void vram_put(VidObserver *ob, bool high, uint8_t v)
     ob->vram[(uint16_t)((vram_mapped(ob) << 1) + (high ? 1 : 0))] = v;
     if (ob->port.after_high == high)
         ob->vram_addr = (uint16_t)(ob->vram_addr + ob->port.step);
+}
+
+/* CGRAM and OAM through their ports, as runtime/snes/ppu.c writes them. */
+static void cgram_put(VidObserver *ob, uint8_t v)
+{
+    if (!ob->cg_second) {
+        ob->cg_latch = v;
+    } else {
+        ob->cgram[ob->cg_addr++] = (uint16_t)((v & 0x7F) << 8 | ob->cg_latch);
+        ob->palette_dirty = true;
+    }
+    ob->cg_second = !ob->cg_second;
+}
+
+static void oam_put(VidObserver *ob, uint8_t v)
+{
+    if (ob->oam_addr & 0x200) {
+        ob->oam[0x200 + (ob->oam_addr & 0x1F)] = v;
+    } else if (!(ob->oam_addr & 1)) {
+        ob->oam_latch = v;
+    } else {
+        ob->oam[ob->oam_addr - 1] = ob->oam_latch;
+        ob->oam[ob->oam_addr] = v;
+    }
+    ob->oam_addr = (uint16_t)((ob->oam_addr + 1) & 0x3FF);
 }
 
 /* ---- the state the commands build -------------------------------------------- */
@@ -316,10 +344,50 @@ void vid_obs_upload_oam(VidObserver *ob, PfData oam)
         ob->oam[i] = ob->read(ob->ctx, oam.addr + i);
 }
 
-void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t)
+/* The SNES-only escape: a transfer whose mode and destination are game data.
+ * Where the destination is video memory the observer can still follow it, byte
+ * by byte in the pattern the transfer mode gives (as runtime/snes/bus.c does);
+ * a transfer that reads a register into memory changes no video state, and
+ * anything else is counted as not modelled. */
+void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control)
 {
-    (void)t;
-    ob->unmodelled++;
+    static const uint8_t pattern[8][4] = {
+        { 0, 0, 0, 0 }, { 0, 1, 0, 1 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 },
+        { 0, 1, 2, 3 }, { 0, 1, 0, 1 }, { 0, 0, 0, 0 }, { 0, 0, 1, 1 },
+    };
+    static const uint8_t unit_len[8] = { 1, 2, 2, 4, 4, 4, 2, 4 };
+    if (control & 0x80)
+        return;
+    if (t->target_reg == 0x16)
+        ob->vram_addr = t->target;
+    else if (t->target_reg == 0x21)
+        ob->cg_addr = (uint8_t)t->target;
+    else if (t->target_reg != 0) {
+        ob->unmodelled++;
+        return;
+    }
+    uint8_t mode = control & 7;
+    bool fixed = (control & 0x08) != 0;
+    int step = (control & 0x10) ? -1 : 1;
+    uint32_t len = t->size ? t->size : 0x10000;
+    uint32_t bank = t->source & 0xFF0000;
+    uint16_t addr = (uint16_t)t->source;
+    for (uint32_t i = 0; i < len; i++) {
+        uint8_t reg = (uint8_t)(t->dest + pattern[mode][i % unit_len[mode]]);
+        uint8_t v = ob->read(ob->ctx, bank | addr);
+        if (reg == 0x18 || reg == 0x19)
+            vram_put(ob, reg == 0x19, v);
+        else if (reg == 0x22)
+            cgram_put(ob, v);
+        else if (reg == 0x04)
+            oam_put(ob, v);
+        else {
+            ob->unmodelled++;
+            return;
+        }
+        if (!fixed)
+            addr = (uint16_t)(addr + step);
+    }
 }
 
 /* ---- per-line effects --------------------------------------------------------- */
@@ -491,11 +559,15 @@ static void decode_sprites(VidObserver *ob)
     }
 }
 
+void vid_obs_frame_start(VidObserver *ob)
+{
+    ob->frame.span_count = 0;
+    effects_init(ob);
+}
+
 void vid_obs_line(VidObserver *ob, uint16_t line)
 {
     if (line == 0) {
-        ob->frame.span_count = 0;
-        effects_init(ob);
         effects_line(ob);
         return;
     }
@@ -627,8 +699,19 @@ bool vid_frame_diff(const VidFrame *a, const VidFrame *b, VidDiff *out)
         const VidLineState *x = state_at(a, line), *y = state_at(b, line);
         if (!x || !y)
             DIFF("spans", "line %u: no state (spans %u and %u)", line, a->span_count, b->span_count);
-        if (state_diff(x, y, line, out))
+        if (state_diff(x, y, line, out)) {
+            /* How much of the frame is affected, and how the two split it into
+             * spans, tells a state that moved from one that is timed wrong. */
+            unsigned lines = 0;
+            VidDiff ignored;
+            for (unsigned l = 1; l <= 224; l++)
+                if (state_diff(state_at(a, l), state_at(b, l), l, &ignored))
+                    lines++;
+            size_t n = strlen(out->text);
+            snprintf(out->text + n, sizeof out->text - n, " (%u of 224 lines, spans %u and %u)", lines, a->span_count,
+                     b->span_count);
             return true;
+        }
     }
     for (int n = 0; n < VID_SPRITES; n++) {
         const VidSprite *x = &a->sprites[n], *y = &b->sprites[n];

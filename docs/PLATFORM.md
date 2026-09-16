@@ -17,7 +17,7 @@ are authoritative and "P0 as built" and "P1 as built" list what changed and why.
 |---|---|---|
 | P0 | Service headers, SNES backend, first hand ports converted | done |
 | P1 | Audio behind the API | done, except `new-game`'s log-spectral distance in the audio comparison (see P1 as built) |
-| P2 | Video behind the API, subsystem by subsystem | |
+| P2 | Video behind the API, subsystem by subsystem | the `VidFrame`, its decoder, the observer and their comparison are in; shared code and battle done, field's own code done, scenes and menus left (see P2 as built) |
 | P3 | Native renderer, pixel-identical to `render.c` | |
 | P4 | Widescreen | |
 | P5 | GBA feasibility study | |
@@ -1004,10 +1004,10 @@ mismatches; and the observer's command-built `VidFrame` equals the decoder's
 | Subsystem | State |
 |---|---|
 | shared | done: display blank (P0), the palette upload `$C0:712E`, the animated tiles (P0) |
-| battle | done: no PPU, DMA or HDMA register write outside `vid_*` from battle code in `gato-battle`, `battle-magus` or `battle-golem-twins-gameover` |
-| field | most of it: the NMI's uploads and per-line effects, the deferred uploads, the mode setup and the line interrupt are behind the API; what is left is listed below |
-| scenes | not started |
-| menus | not started |
+| battle | done: no PPU, DMA or HDMA register write outside `vid_*` from battle code in `gato-battle`, `battle-magus` or `battle-golem-twins-gameover`, and the two frames agree on 2197 of the fight's 2200 frames |
+| field | its own code is done: over `field.ctm` no routine in banks `$C0` or `$FD` writes a register any more. What still writes them during field frames belongs to the menus (below), so the frames don't agree yet |
+| scenes | not started: the program the boot decompresses to `$7E:3000` writes the registers itself (`$7E:380E`, `$7E:3843`, `$7E:388B`, `$7E:5C57`, `$7E:6212` and the rest), as do `$C3:08D0` and `$C3:08FB` |
+| menus | not started, and it is what the field waits on: `$C2:8002`, the per-frame routine *every* mode's vblank handler calls, copies a block of shadows into `$2100-$2113` through the work RAM port (`$C2:85E4`), moves 16 more into `$2123-$2132` with `MVN` (`$C2:8601`), uploads OAM and the palette (`$C2:8654`, `$C2:86A9`) and runs the queued VRAM uploads (`$C2:8683`). Those are writes no call can express as they stand, so porting them means deciding what each byte of the block means |
 
 **The frame, its two builders and their comparison.**
 
@@ -1025,7 +1025,10 @@ through a read callback, and a per-line effect is expanded from the table the
 game keeps, the way a native backend would have to expand it. Its HDMA
 bookkeeping (line counts with the repeat bit, indirect addresses, reloads) is
 the same state machine the hardware runs, because the table is the game's data
-format.
+format. The one call it can't take semantically, the SNES-only transfer escape,
+it follows byte by byte where the destination is video memory: without that, the
+battle's object graphics never reached the observer's VRAM and no frame of the
+fight could agree.
 
 **Calls added**, each with its first user: `vid_set_bg_map`, `vid_set_bg_chars`,
 `vid_set_scroll`, `vid_set_mosaic`, `vid_set_mode7`, `vid_set_obj_config`,
@@ -1084,6 +1087,34 @@ writers, and the line interrupt `$C0:ECCC`/`$C0:ECEB`/`$C0:ECF2`.
 no mismatch; the new entries' call counts are in
 [PORTING.md](PORTING.md)'s status table. The lint and the unit tests pass and
 the build is warning-free.
+
+I/O log, `--native on`, register accesses (excluding transfer bytes), over
+`gato-battle`:
+
+| Origin | PPU before | PPU after | DMA registers before | DMA registers after |
+|---|---|---|---|---|
+| hand ports, through services | 219916 | 301558 | 218997 | 1093251 |
+| generated blocks | 645950 | 562990 | 957689 | 82658 |
+
+What the generated blocks have left in that movie is all bank `$C2` and the
+scene program in `$7E`; the last write from bank `$C0`, `$CC`, `$CD`, `$D1` or
+`$FD` is gone. Over `field.ctm` the same holds: everything left is `$7E` before
+frame 892, `$C3:08D0`/`$C3:08FB` at frame 146, `$FF:FC04` at frame 2416 (reached
+from `$C2:E503`) and bank `$C2` from frame 1706 on.
+
+`--vid-check`, seeded at the frame the subsystem takes over:
+
+| Run | Frames equal | Differences |
+|---|---|---|
+| `gato-battle` from frame 19400 (the fight) | 2197 of 2200 | `windows.w1_left` on 3 frames |
+| `field.ctm` from frame 4000 | 1 of 5000 | the scroll, brightness, windows, sprites and VRAM the `$C2:8002` block copies carry |
+
+The battle's three frames are a shared channel: the transfer channel the battle
+uploads with is also the slot its window effect runs on, so a transfer started
+inside the visible frame leaves the effect reading from a cleared indirect
+address. The hardware's channels are one set of registers for both purposes;
+the observer keeps a transfer and a per-line effect apart, as a native backend
+would.
 
 Fuzzing found one real bug the movies don't reach: a deferred upload's
 transfer, when its size is large enough to read through the stack page, copies

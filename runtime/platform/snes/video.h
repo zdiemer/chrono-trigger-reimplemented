@@ -406,7 +406,7 @@ PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t
                         .len = t->size, .target_reg = t->target_reg, .target = t->target };
     pf_snes_program(pf_snes(pf), &c, x->steps);
     if (vid_observer)
-        vid_obs_snes_transfer(vid_observer, t);
+        vid_obs_snes_transfer(vid_observer, t, x->control);
     pf_snes_end();
 }
 

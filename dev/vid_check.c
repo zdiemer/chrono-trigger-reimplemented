@@ -65,11 +65,14 @@ static void note(VidCheck *vc, const VidDiff *d)
 
 void vid_check_line(VidCheck *vc, uint16_t line)
 {
-    if (!vc->seeded && line == 0 && vc->s->frame >= vc->from_frame) {
-        VidLineState st;
-        vid_decode_state(&vc->s->ppu, &st);
-        vid_obs_seed(vc->obs, &st, vc->s->ppu.vram, vc->s->ppu.cgram, vc->s->ppu.oam);
-        vc->seeded = true;
+    if (line == 0) {
+        if (!vc->seeded && vc->s->frame >= vc->from_frame) {
+            VidLineState st;
+            vid_decode_state(&vc->s->ppu, &st);
+            vid_obs_seed(vc->obs, &st, vc->s->ppu.vram, vc->s->ppu.cgram, vc->s->ppu.oam);
+            vc->seeded = true;
+        }
+        vid_obs_frame_start(vc->obs);
     }
     vid_decode_line(vc->dec, &vc->s->ppu, line);
     vid_obs_line(vc->obs, line);
