@@ -131,6 +131,11 @@ target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 add_executable(ct_fuzz dev/ct_fuzz.c)
 target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
 
+# The machine as a scriptable server, for authoring input movies from game state
+# (tools/movies, docs/MOVIES.md). Interpreter only, like ct_dev --native off.
+add_executable(ct_drive dev/ct_drive.c)
+target_link_libraries(ct_drive PRIVATE ct_runtime ct_trace)
+
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c)
 add_executable(spc700_runner tests/apu/spc700_runner.c runtime/apu/spc700.c)

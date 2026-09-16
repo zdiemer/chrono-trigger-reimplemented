@@ -232,6 +232,10 @@ headless), for looking around late in the game. Its cartridge save isn't
 written back, it can't be recorded, and some of its state is approximated
 ([RUNTIME.md](RUNTIME.md), "ZSNES save states").
 
+Movies too long to play by hand — a route through boss fights to an ending —
+can be written by a script that reads the game's memory instead of counting
+frames: [MOVIES.md](MOVIES.md) covers `ct_drive` and `tools/movies`.
+
 ## Headless check
 
 For checking a build without a display, `--frames N` runs without a window and

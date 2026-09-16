@@ -378,7 +378,10 @@ frame-count and animation-timer bytes left over from the earlier timing
 offset.
 
 Longer movies build on it. All were timed on the development system and reach
-the same scenes on Snes9x:
+the same scenes on Snes9x. The ones that play a whole ending were written by the
+route scripts in `tools/movies/routes`, which decide what to press from the
+game's memory ([MOVIES.md](MOVIES.md)); the rest were played by hand
+([PLAYING.md](PLAYING.md)).
 
 | Movie | Reaches | Frames |
 |---|---|---|
