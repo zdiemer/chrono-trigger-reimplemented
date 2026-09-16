@@ -1123,6 +1123,10 @@ before the transfer rather than after. The four window tile writers are guarded
 on a direct page on the PPU block, which the fuzzer's base states don't have, so
 they are validated by shadow mode only.
 
+`--native on --recomp only` still produces traces identical to `--native off`
+(3600 frames of `new-game`, no divergence in WRAM, VRAM, SRAM, CGRAM or OAM),
+so the block boundaries the new registry entries move change nothing.
+
 ### P3: native renderer, pixel-identical
 
 - A frame renderer working from `VidFrame`: whole spans instead of per-pixel
