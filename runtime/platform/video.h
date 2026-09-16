@@ -148,8 +148,8 @@ enum { VID_M7_WRAP = 0, VID_M7_WRAP_UNUSED = 1, VID_M7_TRANSPARENT = 2, VID_M7_T
 
 typedef struct {
     int16_t a, b, c, d;     /* matrix, 8.8 fixed point */
-    int16_t cx, cy;         /* 13-bit rotation center, sign-extended */
-    int16_t hofs, vofs;     /* 13-bit, sign-extended */
+    int16_t cx, cy;         /* rotation center, as written; the hardware keeps 13 bits */
+    int16_t hofs, vofs;     /* as written; the hardware keeps 13 bits */
     bool hflip, vflip;
     uint8_t outside;        /* VID_M7_* : what lies outside the 1024x1024 plane */
 } VidMode7;
@@ -198,6 +198,14 @@ typedef struct {
 /* The setting every upload in ported code uses: a word at a time, stepping
  * after the high byte. */
 #define VID_VRAM_WORD_PORT (&(const VidVramPort){ .step = 1, .after_high = true })
+
+/* What the hardware keeps of a Mode 7 center or scroll word: 13 bits, sign
+ * extended. Calls pass the value as written, since the registers hold the whole
+ * byte; this is what a renderer reads. */
+static inline int16_t vid_mode7_13bit(uint16_t v)
+{
+    return (int16_t)((int)((v & 0x1FFF) ^ 0x1000) - 0x1000);
+}
 
 /* Decoders for the SNES-format bytes the game keeps as shadows, exact like the
  * ones above: the backend encodes each structure back to the byte it came from. */
@@ -286,6 +294,14 @@ typedef enum {
     VID_LINE_MODE,              /* BG mode and mosaic */
     VID_LINE_MATH_LAYERS,       /* math layers and the fixed color */
     VID_LINE_WINDOW2_LEFT, VID_LINE_WINDOW2_RIGHT,   /* one edge of window 2 */
+    /* One register or one scroll value, as the menus' window commands ask for */
+    VID_LINE_BG_MODE,           /* the BG mode alone, without the mosaic */
+    VID_LINE_MAIN_SCREEN,       /* main_layers alone */
+    VID_LINE_MATH_LAYERS_ONLY,  /* math layers alone, without the fixed color */
+    VID_LINE_SCROLL_BG1_H, VID_LINE_SCROLL_BG1_V,
+    VID_LINE_SCROLL_BG2_V,
+    VID_LINE_SCROLL_BG3_H, VID_LINE_SCROLL_BG3_V,
+    VID_LINE_TARGETS,
 } VidLineTarget;
 
 typedef struct {
@@ -294,6 +310,39 @@ typedef struct {
     bool indirect;
     uint8_t indirect_bank;
 } VidLineEffect;
+
+/* How the SNES drives a target: the transfer mode and the first register of the
+ * group. The pair lives here rather than in the backend because game data holds
+ * it instead of naming the target (the menus' window command at $C2:F337 takes
+ * the channel's two control bytes from the command stream). */
+static inline void vid_line_snes_encoding(VidLineTarget target, uint8_t *mode, uint8_t *reg)
+{
+    static const uint8_t modes[VID_LINE_TARGETS] = {
+        4, 1, 1, 3, 3, 3, 0, 0, 4, 4, 4, 1, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2,
+    };
+    static const uint8_t regs[VID_LINE_TARGETS] = {
+        0x26, 0x26, 0x28, 0x0D, 0x0F, 0x11, 0x32, 0x00, 0x07, 0x2C, 0x30, 0x05,
+        0x31, 0x28, 0x29, 0x05, 0x2C, 0x31, 0x0D, 0x0E, 0x10, 0x11, 0x12,
+    };
+    *mode = modes[target];
+    *reg = regs[target];
+}
+
+/* The target a channel's control and destination bytes name, for game data that
+ * holds them. False where no target drives that group in that mode. */
+static inline bool vid_line_effect_decode(uint8_t control, uint8_t dest, VidLineEffect *e)
+{
+    for (int t = 0; t < VID_LINE_TARGETS; t++) {
+        uint8_t mode, reg;
+        vid_line_snes_encoding((VidLineTarget)t, &mode, &reg);
+        if (mode == (control & 7) && reg == dest) {
+            e->target = (VidLineTarget)t;
+            e->indirect = (control & 0x40) != 0;
+            return true;
+        }
+    }
+    return false;
+}
 
 /* How the SNES backend programs a DMA or HDMA channel: the register writes in
  * the original's order, as a list of steps ending in VID_STEP_END. The original
@@ -359,6 +408,11 @@ PF_API void vid_set_fixed_color(Platform *pf, PfOrigin o, uint8_t channels, uint
 
 PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e,
                                 const uint8_t *snes_steps);
+/* A slot's table moves inside the bank it was programmed with, its target and
+ * mode unchanged: the menus swap between two tables by frame parity, and
+ * rebuild one in place. */
+PF_API void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table,
+                               const uint8_t *snes_steps);
 /* Slots whose line effects run from the next frame on (bit per slot). */
 PF_API void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots);
 
@@ -382,6 +436,12 @@ PF_API void vid_upload_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData
  * fixed-source transfer, so `x->control` has bit 3 set). */
 PF_API void vid_fill_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len,
                           const VidSnesXfer *x);
+/* Where the next palette writes go (CGRAM entry), and where the next sprite
+ * writes go: the OAM word address, with the priority rotation that decides which
+ * sprite is drawn first. Uploads set both themselves; these are for the mode
+ * setups that only put them back to 0. */
+PF_API void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first);
+PF_API void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool priority_rotation);
 /* `count` BGR555 colors from `src` into CGRAM from entry `first`. */
 PF_API void vid_upload_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count,
                                const VidSnesXfer *x);
@@ -425,9 +485,12 @@ void vid_obs_windows(VidObserver *ob, const VidWindows *w, uint32_t fields);
 void vid_obs_color_math(VidObserver *ob, const VidColorMath *m, uint32_t fields);
 void vid_obs_fixed_color(VidObserver *ob, uint8_t channels, uint8_t intensity);
 void vid_obs_line_effect(VidObserver *ob, uint8_t slot, const VidLineEffect *e);
+void vid_obs_line_table(VidObserver *ob, uint8_t slot, uint16_t table);
 void vid_obs_enable_line_effects(VidObserver *ob, uint8_t slots);
 void vid_obs_vram_port(VidObserver *ob, const VidVramPort *port);
 void vid_obs_vram_address(VidObserver *ob, uint16_t vram_addr);
+void vid_obs_palette_address(VidObserver *ob, uint8_t first);
+void vid_obs_oam_address(VidObserver *ob, uint16_t word_addr, bool priority_rotation);
 void vid_obs_write_vram(VidObserver *ob, uint16_t value, int half);   /* half: -1 word, 0 low, 1 high */
 void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
                          const VidVramPort *port);

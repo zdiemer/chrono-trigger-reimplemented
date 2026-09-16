@@ -87,6 +87,7 @@ add_library(ct_game STATIC
   game/field/scroll.c
   game/field/sprites.c
   game/field/window_shape.c
+  game/menu/display.c
   game/menu/frame.c
   game/menu/glyphs.c
   game/menu/objects.c

@@ -12,6 +12,7 @@
  * X high bits into $0900. */
 #include "menu/objects.h"
 
+#include "platform/video.h"
 #include "port/machine.h"
 
 static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
@@ -685,11 +686,18 @@ void menu_object_wave_hdma(Snes *s)
     m_write16(s, 0x7E8A21, m_lda16(s, 0x8B56));
     m_write16(s, 0x7E8A23, m_lda16(s, 0x8C36));
     m_sep(s, CPU_FLAG_M);
-    m_write16(s, m_abs(s, 0x4310), m_ldy(s, 0x1142));
-    m_write16(s, m_abs(s, 0x4312), m_ldy(s, 0x8A35));
+    /* STY $4310 : STY $4312 : STA $4314 : STA $4317 -- slot 1 reads the table
+     * at $7E:8A35 indirectly and drives BG3's horizontal scroll per line. */
+    static const uint8_t steps[] = {
+        VID_STEP_CONTROL,     VID_STEP_DEST,          VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
+        VID_STEP_SOURCE_BANK, VID_STEP_INDIRECT_BANK, VID_STEP_END,
+    };
+    static const VidLineEffect wave = { .target = VID_LINE_SCROLL_BG3_H, .table = PF_GAME(0x7E8A35),
+                                        .indirect = true, .indirect_bank = 0x7E };
+    m_ldy(s, 0x1142);
+    m_ldy(s, 0x8A35);
     m_lda8(s, 0x7E);
-    m_write8(s, m_abs(s, 0x4314), (uint8_t)c->a);
-    m_write8(s, m_abs(s, 0x4317), (uint8_t)c->a);
+    vid_set_line_effect(m_platform(s), PF_AT(0xC2779E), 1, &wave, steps);
     m_lda8(s, 0x02);
     m_tsb8(s, m_dp(s, 0x4A));
     m_rep(s, CPU_FLAG_M);

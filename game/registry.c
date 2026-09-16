@@ -22,6 +22,7 @@
 #include "field/layers.h"
 #include "field/object_update.h"
 #include "field/sprites.h"
+#include "menu/display.h"
 #include "menu/menu.h"
 #include "scene/scene.h"
 #include "menu/objects.h"
@@ -688,6 +689,41 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3984, .dont_care = DC_N | DC_Z },
     { .addr = 0xC2EF65, .name = "menu_draw_text", .fn = menu_draw_text, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 3604, .dont_care = DC_N | DC_Z },
+    /* menu display (P2) */
+    { .addr = 0xC2800E, .name = "menu_mode_start", .fn = menu_mode_start, NEEDS_M8_X16, .cost_milli = 3946 },
+    { .addr = 0xC282C1, .name = "menu_mode_return", .fn = menu_mode_return, NEEDS_M8_X16, .cost_milli = 3750 },
+    { .addr = 0xC2832F, .name = "menu_mode_restart", .fn = menu_mode_restart, NEEDS_M8_X16, .cost_milli = 8750 },
+    { .addr = 0xC2842A, .name = "menu_nmi_work", .fn = menu_nmi_work, NEEDS_M8_X16,
+      .cost_milli = 3761, .dont_care = DC_C },
+    { .addr = 0xC285D6, .name = "menu_vblank_upload", .fn = menu_vblank_upload, NEEDS_M8_X16, .cost_milli = 1375 },
+    { .addr = 0xC28663, .name = "menu_upload_vram_queue", .fn = menu_upload_vram_queue, .cost_milli = 1058 },
+    { .addr = 0xC286A9, .name = "menu_upload_palette", .fn = menu_upload_palette, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 1497 },
+    { .addr = 0xC286DD, .name = "menu_build_math_line_table", .fn = menu_build_math_line_table,
+      .p_mask = CPU_FLAG_X, .p_value = 0, .cost_milli = 4305 },
+    { .addr = 0xC20043, .name = "menu_object_init_video", .fn = menu_object_init_video, NEEDS_M8_X16,
+      .cost_milli = 3580 },
+    { .addr = 0xC2015E, .name = "menu_object_nmi", .fn = menu_object_nmi, .cost_milli = 1438 },
+    { .addr = 0xC20405, .name = "menu_object_upload_vram_queue", .fn = menu_object_upload_vram_queue,
+      NEEDS_M8_X16, .cost_milli = 1928 },
+    { .addr = 0xC20ADC, .name = "menu_object_upload_sprite_tiles", .fn = menu_object_upload_sprite_tiles,
+      NEEDS_M16_X16, .cost_milli = 1608, .guard = menu_sprite_tiles_page_is_io },
+    { .addr = 0xC226A8, .name = "menu_clear_vram", .fn = menu_clear_vram, NEEDS_M8_X16, .cost_milli = 1001,
+      .guard = menu_display_bank_is_io },
+    { .addr = 0xC22D70, .name = "menu_upload_vram", .fn = menu_upload_vram, NEEDS_M16_X16, .cost_milli = 1003,
+      .guard = menu_display_bank_is_io },
+    { .addr = 0xC22D47, .name = "menu_upload_loaded_palette", .fn = menu_upload_loaded_palette, NEEDS_M16_X16,
+      .cost_milli = 1052, .guard = menu_display_bank_is_io },
+    { .addr = 0xC2940D, .name = "menu_init_video", .fn = menu_init_video, .cost_milli = 3395 },
+    { .addr = 0xC294D5, .name = "menu_init_video_memory", .fn = menu_init_video_memory, NEEDS_M8_X16,
+      .cost_milli = 1000 },
+    { .addr = 0xC29512, .name = "menu_fill_memory", .fn = menu_fill_memory, .p_mask = CPU_FLAG_X, .p_value = 0,
+      .cost_milli = 1003 },
+    { .addr = 0xC29542, .name = "menu_copy_to_memory", .fn = menu_copy_to_memory, .cost_milli = 1015 },
+    { .addr = 0xC2F337, .name = "menu_window_set_line_effect", .fn = menu_window_set_line_effect,
+      NEEDS_M8_X16, .cost_milli = 3133, .guard = menu_window_line_effect_is_known },
+    { .addr = 0xFFFC04, .name = "menu_window_build_line_table", .fn = menu_window_build_line_table,
+      .cost_milli = 4248 },
     /* menu VRAM upload queue, sprites and the save file screen */
     { .addr = 0xC28385, .name = "menu_queue_vram_upload", .fn = menu_queue_vram_upload, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 3596 },
