@@ -1,0 +1,56 @@
+"""The native renderer draws from a VidFrame and nothing else.
+
+P3 of docs/PLATFORM.md: runtime/platform/native/ is a backend of the video
+service, so it may read platform/video.h and the C library, and nothing in
+runtime/snes/ -- not the PPU register layer, not its VRAM, CGRAM or OAM, not the
+scanline renderer it is checked against. Everything it draws has to reach it
+through the frame the service describes, or a second backend (widescreen, GBA)
+would inherit the hardware model with it.
+"""
+import pathlib
+import re
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+NATIVE = ROOT / "runtime" / "platform" / "native"
+
+# What the renderer may include: the video service, the platform conventions
+# below it, and the C library.
+ALLOWED_INCLUDES = {
+    "platform/native/render.h",
+    "platform/video.h",
+    "platform/platform.h",
+}
+
+FORBIDDEN_NAMES = ("Ppu", "Snes", "snes_", "ppu_", "render_line", "Renderer")
+
+
+class TestNativeRenderer(unittest.TestCase):
+    def sources(self):
+        files = sorted(NATIVE.glob("*.c")) + sorted(NATIVE.glob("*.h"))
+        self.assertTrue(files, "no sources in runtime/platform/native")
+        return files
+
+    def test_includes(self):
+        for path in self.sources():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                m = re.match(r'\s*#\s*include\s+"([^"]+)"', line)
+                if m:
+                    self.assertIn(m.group(1), ALLOWED_INCLUDES,
+                                  f"{path.name} includes {m.group(1)}")
+                m = re.match(r"\s*#\s*include\s+<([^>]+)>", line)
+                if m:
+                    self.assertTrue(m.group(1).endswith(".h"), f"{path.name}: {line}")
+
+    def test_no_hardware_model_names(self):
+        for path in self.sources():
+            text = path.read_text(encoding="utf-8")
+            # Comments may name the hardware model; code may not.
+            code = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+            for name in FORBIDDEN_NAMES:
+                self.assertNotRegex(code, r"\b" + name,
+                                    f"{path.name} names {name} outside a comment")
+
+
+if __name__ == "__main__":
+    unittest.main()
