@@ -63,3 +63,13 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - Reference emulator cores are supplied locally under `cores/` and never
   vendored.
 - Every ported routine carries its original address in a `// $BB:AAAA` comment.
+- Keep the docs current as work lands, in the same commit as the work: the
+  milestone docs (docs/APPROACH.md, RECOMP.md, MATCHING.md, PLATFORM.md,
+  RUNTIME.md, PORTING.md) say what was built and how it was measured,
+  docs/TODO.md holds the open follow-ups, and docs/PLAN.md says what to do next
+  and why the rest waits.
+- **Delete finished work from the plan and the follow-ups rather than marking it
+  done.** A completed item leaves docs/PLAN.md and docs/TODO.md entirely; what
+  it produced belongs in its milestone doc's "as built" section, which is where
+  the history lives. No "(done)" annotations, no struck-through lines, no
+  completed-work sections.
