@@ -60,13 +60,8 @@ rest waits, is [PLAN.md](PLAN.md).
   but for the leftovers below.
 - **P2 leftovers** (PLATFORM.md, "P2 as built"): the jet bike race's own display
   code, 19 blocks between `$7E:36DA` and `$7E:8752` that only
-  `events-jetbike-race` reaches, found from the I/O log late; `$7E:59D5`, where
-  the graphics loader starts a fill without programming a source, so the
-  transfer reads on from wherever the last one left the channel and no call can
-  name it; and `$D1:F4E6`, reached once on `battle-golem-twins-gameover`'s path
-  back to the title. Until they are behind the API, `--vid-check` from power-on
-  is still not possible (1265 of `new-game`'s first 3000 frames) and
-  `--vid-check-from` remains how a subsystem is checked.
+  `events-jetbike-race` reaches. Until it is behind the API that movie can't be
+  compared from power-on, though every other one now can.
 - **P3 leftovers** (PLATFORM.md, "P3 as built"): the observer doesn't fill in
   the per-span memory pointers the decoder now does, which it needs before the
   renderer can be fed by service calls rather than registers. The native

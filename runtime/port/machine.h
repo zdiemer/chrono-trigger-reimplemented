@@ -44,6 +44,13 @@ static inline bool m_io_bank(uint8_t bank) { return (bank & 0x40) == 0; }
  * services (docs/PLATFORM.md). */
 enum { M_DP_PPU = 0x2100, M_DP_DMA = 0x4300 };
 
+/* Registers an original reaches with absolute addressing, so that with a data
+ * bank the registers aren't mapped in (m_io_bank) the store lands in memory
+ * instead and is no register write at all. A port that has to make that write
+ * names the address from here, which keeps game/ free of register constants
+ * (tests/test_platform_lint.py). */
+enum { M_REG_LINE_EFFECTS = 0x420C };
+
 /* Address in the data bank / direct page, as the original's abs / dp modes see it. */
 static inline uint32_t m_abs(const Snes *s, uint16_t addr) { return (uint32_t)s->cpu.db << 16 | addr; }
 static inline uint32_t m_dp(const Snes *s, uint8_t addr) { return (uint16_t)(s->cpu.d + addr); }

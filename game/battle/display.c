@@ -375,14 +375,15 @@ void battle_nmi_alternate(Snes *s)
     m_write8(s, m_dp(s, 0x47), 0x00);
     if (!call(s, 0xD1F4DE, 0xCD09CE, true) || !call(s, 0xD1F4E2, 0xC00005, true))
         return;
-    if (!m_io_bank(c->db)) {
-        /* The enable register is the one write this handler makes through the
-         * data bank; with another bank it lands in memory, which the original
-         * carries on doing from here. */
-        c->pc = 0xF4E6;
-        return;
-    }
-    vid_enable_line_effects(pf, PF_AT(0xD1F4E6), (uint8_t)c->a);
+    /* The enable register is the one write this handler makes through the data
+     * bank. With another bank -- which is how `battle-golem-twins-gameover`
+     * reaches this handler on its way back to the title -- the store lands in
+     * memory and no register is written, so the port writes the memory byte and
+     * carries on rather than handing the rest back. */
+    if (m_io_bank(c->db))
+        vid_enable_line_effects(pf, PF_AT(0xD1F4E6), (uint8_t)c->a);
+    else
+        m_write8(s, m_abs(s, M_REG_LINE_EFFECTS), (uint8_t)c->a);
     VidDisplay display = vid_display_decode(m_lda8(s, m_read8(s, 0x000045)));
     vid_set_display(pf, PF_AT(0xD1F4ED), &display);
     m_lda8(s, 0x7E);

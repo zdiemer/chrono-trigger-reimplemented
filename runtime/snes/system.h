@@ -70,6 +70,13 @@ typedef struct Snes {
     void (*on_line)(void *ctx, struct Snes *snes, uint16_t line);
     void *on_line_ctx;
 
+    /* Optional: called at the top of a frame, where HDMA loads each enabled
+     * channel, before any of the frame's code runs. A consumer that models
+     * HDMA itself has to latch the enabled channels here, as the hardware
+     * does, rather than at line 0's hblank. */
+    void (*on_frame_top)(void *ctx, struct Snes *snes);
+    void *on_frame_top_ctx;
+
     /* Optional: called before each instruction. Returns -1 to let the
      * interpreter run it (or, without it, cpu_service and the miss path below),
      * or the master clocks spent if the hook executed something itself (native

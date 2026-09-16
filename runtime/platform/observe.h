@@ -36,6 +36,10 @@ const VidFrame *vid_obs_frame(const VidObserver *ob);
  * taken as given. Call it at a line 0, before vid_obs_line(). */
 void vid_obs_seed(VidObserver *ob, const VidLineState *state, const uint8_t *vram, const uint16_t *cgram,
                   const uint8_t *oam);
+/* The video memory alone, for a comparison that starts at power-on: every
+ * register is the game's to set, but what VRAM, CGRAM and OAM hold before it
+ * does is the machine's and no call produces it. */
+void vid_obs_seed_memory(VidObserver *ob, const uint8_t *vram, const uint16_t *cgram, const uint8_t *oam);
 
 /* How many calls the observer could not model (vid_snes_transfer). */
 uint32_t vid_obs_unmodelled(const VidObserver *ob);

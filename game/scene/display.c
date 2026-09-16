@@ -10,6 +10,7 @@
  */
 #include "scene/display.h"
 
+#include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "scene/scene.h"
@@ -26,6 +27,15 @@ enum { WRAM_PORT = 0x2180, WRAM_ADDR = 0x2181 };
  * transfers. */
 static const VidVramPort low_byte_port = { .step = 1, .after_high = false };
 static const VidVramPort word_port = { .step = 1, .after_high = true };
+
+/* A transfer's register writes in the order the program makes them: the control
+ * and destination together (one 16-bit store), then the source, the size and the
+ * start. Several of the program's own transfers share it. */
+static const uint8_t transfer_steps[] = {
+    VID_STEP_CONTROL,     VID_STEP_DEST,    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
+    VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,   VID_STEP_START,
+    VID_STEP_END,
+};
 
 static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
 
@@ -60,6 +70,83 @@ void scene_frame_work(Snes *s)
 }
 
 /* ---- the program at $7E:3000 --------------------------------------------------- */
+
+bool scene_program_restart_present(Snes *s) { return m_code_matches(s, 0x7E302A, 14, 0x614033C5F8C83156ull); }
+
+// $7E:302A
+/* The program stops: interrupts and per-line effects off and the display
+ * blanked, before it moves the stack and jumps to the reset entry. Stops at the
+ * call that follows, which the program has not been taken apart past. */
+void scene_program_restart(Snes *s)
+{
+    Platform *pf = m_platform(s);
+    m_lda16(s, 0x0080);
+    m_sep(s, CPU_FLAG_M);
+    tm_enable_interrupts(pf, PF_AT(0x7E302F), 0);
+    vid_enable_line_effects(pf, PF_AT(0x7E3032), 0);
+    vid_set_display(pf, PF_AT(0x7E3035), &(VidDisplay){ .blank = true });
+    s->cpu.pc = 0x3038;
+}
+
+bool scene_clear_work_ram_present(Snes *s) { return m_code_matches(s, 0x7E3092, 87, 0x2A1AE096D5B36F10ull); }
+
+// $7E:3092
+/* Clear the program's work RAM by copying the PPU multiplier's product out of
+ * $2134: with the matrix set to $0404 times 0 the product is 0, and two
+ * transfers in the other direction spread it over $00:0000-$00:00FF and then
+ * over either $00:0920 or $00:0900 upwards, depending on bit 7 of the mode word
+ * at $0384. The transfers read a register rather than writing one, so they go
+ * through the SNES-only escape; only the matrix they leave behind is video
+ * state. The second transfer keeps the first one's mode, destination and bank,
+ * which this port knows because it made them.
+ *
+ * Returns where the mode word says the shorter clear (the title screen coming
+ * back), and otherwise stops at $7E:30E9, where the program goes on. */
+void scene_clear_work_ram(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    Platform *pf = m_platform(s);
+    static const uint8_t again_steps[] = {
+        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START,
+        VID_STEP_END,
+    };
+    const VidSnesXfer x = { SCENE_DMA, DMA_FROM_REGISTER, transfer_steps, NULL };
+    const VidSnesXfer again = { SCENE_DMA, DMA_FROM_REGISTER, again_steps, NULL };
+
+    m_push16(s, M_DP_DMA);
+    c->d = m_pull16(s);
+    m_set_nz16(s, c->d);
+    uint8_t v = (uint8_t)c->a;
+    vid_set_mode7(pf, PF_AT(0x7E3096), &(VidMode7){ .a = (int16_t)(v << 8 | v) }, VID_M7_MATRIX_A);
+    m_tdc(s);
+    vid_set_mode7(pf, PF_AT(0x7E309D), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B);
+    m_ldx(s, 0x3480);
+    m_ldx(s, 0x0000);
+    m_ldx(s, 0x0100);
+    m_lda8(s, 0x80);
+    const VidSnesTransfer first = { .dest = 0x34, .source = 0x000000, .size = 0x0100 };
+    vid_snes_transfer(pf, PF_AT(0x7E30B6), &first, &x);
+
+    m_push16(s, 0x0000);
+    c->d = m_pull16(s);
+    m_set_nz16(s, c->d);
+    m_lda8(s, m_read8(s, m_abs(s, 0x0384)));
+    m_bit_imm8(s, 0x80);
+    bool shorter = !m_flag(s, CPU_FLAG_Z);
+    m_ldx(s, shorter ? 0x0920 : 0x0900);
+    m_ldx(s, shorter ? 0x14E0 : 0x1500);
+    m_lda8(s, 0x80);
+    const VidSnesTransfer second = { .dest = 0x34, .source = shorter ? 0x000920 : 0x000900,
+                                     .size = (uint16_t)(shorter ? 0x14E0 : 0x1500) };
+    vid_snes_transfer(pf, PF_AT(shorter ? 0x7E30D2 : 0x7E30E6), &second, &again);
+    if (!shorter) {
+        c->pc = 0x30E9;
+        return;
+    }
+    m_tdc(s);
+    m_xba(s);
+    m_rts(s);
+}
 
 bool scene_init_video_present(Snes *s) { return m_code_matches(s, 0x7E30F9, 126, 0x4F3F340A8EB09E78ull); }
 
@@ -296,6 +383,93 @@ void scene_set_vram_0000(Snes *s) { set_vram_address(s, 0x0000, 0x7E59AD, 0x59B0
 void scene_set_vram_6400(Snes *s) { set_vram_address(s, 0x6400, 0x7E59BF, 0x59C2); }
 // $7E:59CC
 void scene_set_vram_6000(Snes *s) { set_vram_address(s, 0x6000, 0x7E59CF, 0x59D2); }
+
+// $7E:59D5
+/* The last of the title screen's graphics: $F00 bytes of VRAM from $6480 filled
+ * with the two bytes the transfer before this one repeated. It programs the
+ * channel's mode, the VRAM address and the size, and nothing else, so the fill
+ * reads on from wherever that transfer left the source -- an address this
+ * routine never computes and no call could name. The SNES-only escape carries
+ * it: `continue_channel` says the channel supplies what the steps don't, which
+ * only a backend holding the channel can resolve. The VRAM port comes from what
+ * the routine before left in A. */
+void scene_fill_graphics_tail(Snes *s)
+{
+    Platform *pf = m_platform(s);
+    /* STA $2115 : STA $4370 : STX $2116 : STX $4375 : STA $420B */
+    static const uint8_t steps[] = {
+        VID_STEP_CONTROL,  VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SIZE_LO,
+        VID_STEP_SIZE_HI,  VID_STEP_START,     VID_STEP_END,
+    };
+    m_write8(s, m_abs(s, 0x0305), 0x00);
+    VidVramPort port = vid_vram_port_decode((uint8_t)s->cpu.a);
+    vid_begin_vram_uploads(pf, PF_AT(0x7E59D8), &port, PF_GAME(0), NULL);
+    m_lda8(s, 0x09);
+    m_ldx(s, 0x6480);
+    m_ldx(s, 0x0F00);
+    m_lda8(s, 0x80);
+    const VidSnesXfer x = { SCENE_DMA, (uint8_t)(DMA_WORDS | DMA_FIXED_BYTE), steps, NULL };
+    const VidSnesTransfer t = { .size = 0x0F00, .target_reg = 0x16, .target = 0x6480,
+                                .continue_channel = true };
+    vid_snes_transfer(pf, PF_AT(0x7E59DD), &t, &x);
+    s->cpu.pc = 0x59F1;
+}
+
+bool scene_setup_mode7_display_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E5A59, 61, 0xCB90A7CBF9F435C1ull);
+}
+
+// $7E:5A59
+/* The Mode 7 scene's display, written through a direct page on the register
+ * block: mode 7 with the plane transparent outside it, BG1 alone on the main
+ * screen and BG2 alone on the sub screen, the three tilemaps at VRAM $6400
+ * (64 tiles wide), $6000 and $7000, BG1's and BG2's tiles at $5000, color math
+ * halving the sub screen over BG1, the rotation center at (32, -64) and BG2's
+ * horizontal scroll. Stops at $7E:5A96, where the scene goes on to its own
+ * state. This is what the attract sequence's pendulum runs on, so every movie
+ * reaches it. */
+void scene_setup_mode7_display(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    Platform *pf = m_platform(s);
+    c->d = m_lda16(s, M_DP_PPU);
+    m_set_nz16(s, c->d);
+    m_sep(s, CPU_FLAG_M);
+
+    m_lda8(s, 0x07);
+    VidMode mode = vid_mode_decode(0x07);
+    vid_set_mode(pf, PF_AT(0x7E5A61), &mode);
+    m_lda8(s, 0x80);
+    vid_set_mode7(pf, PF_AT(0x7E5A65), &(VidMode7){ .outside = VID_M7_TRANSPARENT }, VID_M7_SELECT);
+    m_ldx(s, 0x1001);
+    vid_set_screens(pf, PF_AT(0x7E5A6A), 0x01, 0x10, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+    m_ldx(s, 0x6065);
+    VidBg bg = { 0 };
+    vid_bg_map_decode(&bg, 0x65);
+    vid_set_bg_map(pf, PF_AT(0x7E5A6F), VID_BG1, &bg);
+    vid_bg_map_decode(&bg, 0x60);
+    vid_set_bg_map(pf, PF_AT(0x7E5A6F), VID_BG2, &bg);
+    m_lda8(s, 0x70);
+    vid_bg_map_decode(&bg, 0x70);
+    vid_set_bg_map(pf, PF_AT(0x7E5A73), VID_BG3, &bg);
+    m_lda8(s, 0x55);
+    vid_set_bg_chars(pf, PF_AT(0x7E5A77), VID_BG1, 0x5000, 0x5000);
+    m_ldx(s, (uint16_t)(0x02 | 0x21 << 8));   /* the two color-math bytes in one store */
+    VidColorMath math = { 0 };
+    vid_color_math_decode(&math, VID_MATH_CONTROL, 0x02);
+    vid_color_math_decode(&math, VID_MATH_LAYERS, 0x21);
+    vid_set_color_math(pf, PF_AT(0x7E5A7C), &math, VID_MATH_CONTROL | VID_MATH_LAYERS);
+    m_lda8(s, 0x20);
+    m_lda8(s, 0x00);
+    m_lda8(s, 0xC0);
+    m_lda8(s, 0xFF);
+    vid_set_mode7(pf, PF_AT(0x7E5A80), &(VidMode7){ .cx = 0x0020, .cy = (int16_t)0xFFC0 }, VID_M7_CENTER);
+    m_lda8(s, 0x40);
+    m_lda8(s, 0xFF);
+    vid_set_scroll(pf, PF_AT(0x7E5A90), VID_BG2, 0xFF40, 0, VID_SCROLL_H);
+    c->pc = 0x5A96;
+}
 
 bool scene_upload_tiles_through_port_present(Snes *s)
 {

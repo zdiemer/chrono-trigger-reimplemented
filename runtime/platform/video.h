@@ -163,6 +163,7 @@ enum {
     VID_M7_MATRIX_AB = 1 << 4,   /* a and b only: they double as the signed multiplier */
     VID_M7_MATRIX_A = 1 << 5,    /* a alone: the multiplier's 16-bit operand */
     VID_M7_MATRIX_B_HIGH = 1 << 6,  /* the high byte of b alone: its 8-bit operand */
+    VID_M7_MATRIX_B = 1 << 7,    /* b alone, both bytes */
 };
 
 /* One OAM entry, as the game builds it. */
@@ -195,6 +196,7 @@ typedef struct {
     uint8_t remap;          /* address remapping, 0-3 (0: none) */
     bool after_high;        /* step after the high byte rather than the low one */
     bool snes_step_alt;     /* the second SNES encoding of 128, which behaves the same */
+    uint8_t snes_extra;     /* bits 4-6 of the SNES byte, which the hardware ignores */
 } VidVramPort;
 
 /* The setting every upload in ported code uses: a word at a time, stepping
@@ -241,7 +243,7 @@ static inline VidVramPort vid_vram_port_decode(uint8_t v)
 {
     static const uint8_t steps[4] = { 1, 32, 128, 128 };
     return (VidVramPort){ .step = steps[v & 3], .remap = (uint8_t)((v >> 2) & 3), .after_high = (v & 0x80) != 0,
-                          .snes_step_alt = (v & 3) == 3 };
+                          .snes_step_alt = (v & 3) == 3, .snes_extra = (uint8_t)(v & 0x70) };
 }
 
 /* Everything a renderer needs for one line. */
@@ -474,6 +476,14 @@ typedef struct {
     uint16_t size;           /* $43x5-$43x6, 0 meaning 65536 */
     uint8_t target_reg;      /* low byte of the address register the TARGET steps write */
     uint16_t target;
+    /* The transfer carries on with what the channel already holds: the graphics
+     * loader at $7E:59D5 starts a fill without programming a source, so it
+     * repeats from wherever the last transfer left the channel. No call can name
+     * an address the routine never computes, and only a backend with the channel
+     * can resolve it, so the escape reads back whatever `steps` leaves unwritten
+     * -- control, destination or source -- and hands the observer the transfer
+     * that will actually run. */
+    bool continue_channel;
 } VidSnesTransfer;
 PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x);
 

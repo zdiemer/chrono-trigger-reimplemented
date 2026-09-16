@@ -15,6 +15,7 @@ void menu_upload_palette(Snes *s);
 void menu_build_math_line_table(Snes *s);
 
 /* The mode at $C2:0000 (sprite objects) */
+void menu_object_mode_start(Snes *s);
 void menu_object_init_video(Snes *s);
 void menu_object_nmi(Snes *s);
 void menu_object_upload_vram_queue(Snes *s);
