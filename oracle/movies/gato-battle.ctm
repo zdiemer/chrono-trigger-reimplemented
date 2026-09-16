@@ -2,6 +2,7 @@
 # character in the plaza, have them join, then walk west to the singing robot and win
 # the first battle.
 # Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# frames 21600
 # <start_frame> <frame_count> <buttons>
 1620 5 START
 2400 4 A

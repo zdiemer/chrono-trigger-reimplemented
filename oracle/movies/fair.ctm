@@ -1,5 +1,6 @@
 # Power on, start a new game, leave the house, cross the world map and enter the fair.
 # Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# frames 12450
 # <start_frame> <frame_count> <buttons>
 1620 5 START
 2400 4 A

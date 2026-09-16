@@ -40,8 +40,13 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `ct_play --record` (docs/PLAYING.md), or script them from game state: `build/main/ct_drive` plus
   `python3 -m tools.movies.routes.<route> --sram <save.srm> --prefix <scratch dir> --movie <out.ctm>`
   (docs/MOVIES.md). Routes survive timing changes; the movies they write don't, so re-run the route.
-- Validation: every movie in `--native shadow` must exit 0 with no `mismatched [1-9]` lines;
-  `--native on --recomp only` must produce traces identical to `--native off` (`python3 tools/trace.py
+- `python3 tools/burndown.py`: how much of the ROM's code the hand ports cover, per bank or
+  `--by subsystem`, with `--uncovered BANK` listing the largest unported runs. An estimate, for
+  sequencing the port work (docs/PLAN.md); its docstring says which way it is wrong.
+- Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev` runs the gate and exits 0 only when
+  it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). The gate
+  is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines;
+  `--native on --recomp only` produces traces identical to `--native off` (`python3 tools/trace.py
   diff`); `--native on --recomp only --misses out.txt` lists anything still interpreted;
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
   docs/PLATFORM.md P3).
@@ -54,6 +59,30 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 
 ## Rules
 
+- **Writing a port from generated code** (docs/PLAN.md, docs/RECOMP.md's M5). The draft
+  `tools.recomp` prints is a mechanical image of the ROM; the port is source, and the later
+  goals (a native renderer, widescreen, a GBA build, assets as data) are made easy or hard
+  here rather than in a backend:
+  - Write what the routine *does*, not what the draft says. Don't carry over the draft's
+    shape: emulated register variables, dead flag updates, block boundaries, or a name from
+    its address. Keep the `// $BB:AAAA` comment and nothing else mechanical.
+  - Reach the host only through `runtime/platform/` (a lint test enforces it). No PPU, DMA,
+    HDMA or APU register number appears in `game/`. Read and write the machine through
+    `machine.h`'s `m_read8`/`m_write8` and friends, never by indexing a mapped image, so a
+    build that loads its data from somewhere else can redirect it.
+  - Keep SNES *semantics* -- tiles, palettes, priority, window logic -- and drop SNES
+    *mechanics*: which register latches what, channel programming, write order, the timing
+    of a write. The services exist to express the first and hide the second.
+  - Don't bake in what a later target changes: the 256x224 screen, the 0-255 coordinate
+    range, a tile's size or bit depth, or a fixed bank layout. Take them from the service or
+    give them a named constant. Screen coordinates are signed, so positions off the original
+    screen survive widescreen.
+  - Where the original waits on beam position or depends on exact timing, don't reproduce
+    the wait silently: port what it computes, say so in a comment at its `// $BB:AAAA`, and
+    add it to docs/TODO.md. Those routines are what block the platform milestones.
+  - A port that can't be expressed through a service yet is a finding, not a defeat: add the
+    call the subsystem needs (additive), or use the documented SNES escape and write down
+    why, as docs/PLATFORM.md's "as built" sections do.
 - Keep the repo machine-independent: no local paths, drive letters, or
   toolchain install locations in code, docs, or build files.
 - Never commit ROM bytes or anything derived from them: extracted assets, SPC

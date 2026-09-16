@@ -1,6 +1,7 @@
 # Power on, start a new game, cross the world map into the fair, meet the story
 # character in the plaza, return the item they drop, and have them join the party.
 # Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# frames 17900
 # <start_frame> <frame_count> <buttons>
 1620 5 START
 2400 4 A
