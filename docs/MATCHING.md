@@ -797,8 +797,9 @@ generated blocks and no mismatching hand port.
   `[[data]]` regions with a round trip, and the event, battle animation and
   enemy script formats aren't parsed at all.
 - The strings' encoding isn't decoded: the regions are bounds, not glyphs. The
-  control codes at their starts (`$14`-`$17` dominate) and the menu encoding in
-  `game/menu/text.c` should agree.
+  small set of values that dominates their first byte looks like a control
+  code, and should agree with the menu encoding in `game/menu/text.c` and the
+  control-code handlers at `$C2:EFD4`.
 - The 66 skipped stream-table entries and the 18 stream candidates no table
   names are unexplained.
 - Nothing recompresses, so an `lz` region's round trip is "the decompressor
