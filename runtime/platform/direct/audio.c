@@ -120,17 +120,27 @@ static void run_loop(Snes *s, uint32_t lo, uint32_t hi, uint32_t ret, int32_t s_
             } else {
                 au_direct_pass(s);
             }
-        } else {
+        } else if (s->interpreter) {
             /* no entry: the interpreter, with interrupts held off, its time exact */
             bool nmi = s->cpu.nmi_pending, irq = s->cpu.irq_line;
             s->cpu.nmi_pending = false;
             s->cpu.irq_line = false;
             dir.cost_milli = 1000;
-            cpu_step(&s->cpu);
+            s->interpreter(&s->cpu);
             s->cpu.nmi_pending = nmi;
             s->cpu.irq_line = irq;
             dir.interpreted++;
             au_direct_pass(s);
+        } else {
+            /* A build without the interpreter (docs/PLAYING.md, "Without the
+             * interpreter") has nothing to run an instruction no entry covers,
+             * so the run is given up here and the code carries on in the
+             * machine's timeline, as when the SPC700 doesn't answer. Reaching
+             * the interpreter through the machine rather than calling cpu_step
+             * is what keeps cpu65816.c out of a program that doesn't link it
+             * (`snes_init` leaves `interpreter` NULL for that reason). */
+            dir.given_up = true;
+            dir.given_up_runs++;
         }
         dir.cost_milli = outer_cost;
     }
