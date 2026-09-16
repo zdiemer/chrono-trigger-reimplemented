@@ -249,13 +249,26 @@ typedef struct {
     uint8_t main_layers, sub_layers;   /* VID_LAYER_BIT sets: $212C, $212D */
 } VidLineState;
 
+enum { VID_SPRITES = 128, VID_MAX_SPANS = 225 };
+
+/* The sprites of one span, where OAM changed while the frame was being drawn. */
+typedef struct {
+    VidSprite sprites[VID_SPRITES];
+    uint8_t first_sprite;
+} VidSpriteSet;
+
 typedef struct {
     uint16_t line;          /* first line (1-224) this state applies to */
     bool palette_changed;   /* CGRAM changed since the previous span */
     VidLineState state;
+    /* The video memory and sprites this span's lines read. NULL means the
+     * frame's, which is what they were when the frame was finished: a builder
+     * fills these in only where they changed while the frame was being drawn,
+     * and then only for the spans before the change (docs/PLATFORM.md, P3). */
+    const uint16_t *cgram;
+    const uint8_t *vram;
+    const VidSpriteSet *sprites;
 } VidSpan;
-
-enum { VID_SPRITES = 128, VID_MAX_SPANS = 225 };
 
 /* A frame as a renderer consumes it: the lines' states as spans, the sprites in
  * OAM order (order decides overlap), and the memory they read. Built two ways

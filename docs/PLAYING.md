@@ -102,7 +102,7 @@ without a ROM (`.github/workflows/ci.yml`).
 
 ```sh
 dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--mute] [--native on|shadow|off] \
-    [--recomp only|on|off] [--audio snes|direct] [--save-dir dir]
+    [--recomp only|on|off] [--audio snes|direct] [--renderer native|scanline] [--save-dir dir]
 ```
 
 The ROM can also be given as the only argument, so dropping it onto the
@@ -133,6 +133,12 @@ sound driver, so it implies `--recomp on`, and it can't be combined with
 `--record`. After a long upload the APU has produced its sound ahead of the
 game and then waits for it; the buffer absorbs short leads, and a long one can
 show up as a short gap. `--audio snes` (the default) keeps the original timing.
+
+The picture comes from the native renderer ([PLATFORM.md](PLATFORM.md), P3),
+which draws each frame from the video service's frame state rather than from the
+PPU registers line by line. `--renderer scanline` selects the reference renderer
+instead; the two are pixel-identical on every frame of every movie, so the
+option is for comparing them, not for choosing a look.
 
 | Key | Button |
 |---|---|

@@ -146,6 +146,12 @@ XRGB8888 image. `ct_dev` hooks it up, writes its hash into traces, and saves
 PNGs with `--shot-every N --shot-dir <dir>`. It's a low-level reference
 renderer, kept separate from `ppu.c` so a native renderer can replace it.
 
+That native renderer is `runtime/platform/native/render.c`
+([PLATFORM.md](PLATFORM.md), P3): it draws a whole frame from the video
+service's frame state rather than from the registers, is what `ct_play` shows by
+default, and is pixel-identical to this one on every frame of every movie
+(`ct_dev --px-check`). What follows still defines what both draw.
+
 Supported:
 - BG modes 0-7 with per-mode priorities, including the mode 1 BG3 priority
   bit; 2/4/8bpp tiles, flips, and 32/64-tile maps laid out as 32x32 quadrants

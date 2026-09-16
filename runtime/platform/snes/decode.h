@@ -24,6 +24,14 @@ void vid_decode_line(VidDecoder *d, const Ppu *ppu, uint16_t line);
 /* The frame, valid from line 224 until the next line 0. */
 const VidFrame *vid_decoder_frame(const VidDecoder *d);
 
+/* How often a mid-frame change of VRAM or CGRAM had no snapshot left, so spans
+ * before it read memory as it ended up rather than as they saw it. 0 over every
+ * movie; a nonzero count means the pools are too small. */
+uint32_t vid_decoder_snapshots_lost(const VidDecoder *d);
+
+/* The most snapshots of each one frame needed, for sizing the pools. */
+void vid_decoder_snapshot_peak(const VidDecoder *d, int *vram, int *cgram, int *sprites);
+
 /* One line's state on its own, for a renderer that doesn't keep spans. */
 void vid_decode_state(const Ppu *ppu, VidLineState *st);
 
