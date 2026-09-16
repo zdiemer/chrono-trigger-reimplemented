@@ -8,17 +8,16 @@ instead, with the SNES hardware model as one backend: the reference that every
 other backend (a native renderer and mixer, widescreen, a GBA build) is checked
 against.
 
-P0 and P1 are implemented (`runtime/platform/`, see
-[P0](#p0-seams-and-the-snes-backend) and [P1](#p1-audio-behind-the-api)); the
-rest is a design. Where P0 and P1 had to change the sketches below, the headers
-are authoritative and "P0 as built" and "P1 as built" list what changed and why.
+P0, P1 and P3 are implemented and P2 is under way (`runtime/platform/`); P4 and
+P5 are a design. Where a milestone had to change the sketches below, the headers
+are authoritative and its "as built" section lists what changed and why.
 
 | Milestone | What | Status |
 |---|---|---|
 | P0 | Service headers, SNES backend, first hand ports converted | done |
 | P1 | Audio behind the API | done, except `new-game`'s log-spectral distance in the audio comparison (see P1 as built) |
 | P2 | Video behind the API, subsystem by subsystem | the `VidFrame`, its decoder, the observer and their comparison are in; shared code and battle done, field's own code done, scenes and menus left (see P2 as built) |
-| P3 | Native renderer, pixel-identical to `render.c` | |
+| P3 | Native renderer, pixel-identical to `render.c` | done, fed by the register decoder: every frame of all 26 movies is identical (see P3 as built) |
 | P4 | Widescreen | |
 | P5 | GBA feasibility study | |
 
@@ -1142,6 +1141,180 @@ at 256x224, including battle windows, split-screen dialogs and the Mode 7
 scenes (hi-res frames, if any turn up, compared at `render.c`'s 256-wide
 sampling); `ct_play` uses it by default; `on` mode over `gato-battle` is
 measurably faster.
+
+#### P3 as built
+
+| Path | What |
+|---|---|
+| `runtime/platform/native/render.c` | the renderer: one frame from a `VidFrame`, 256x224 XRGB8888, with a line cache |
+| `runtime/platform/native/render.h` | `vid_render_frame`, `VidRenderFlags`, `VidRenderStats`, the color helpers |
+| `runtime/platform/video.h` | `VidSpriteSet`, and `VidSpan.cgram`, `.vram`, `.sprites`: the memory a span reads |
+| `runtime/platform/snes/decode.c` | the snapshots that fill those in, and the hints that keep the decoder cheap |
+| `runtime/snes/ppu.h` | `cgram_writes` and `oam_writes` beside `vram_writes` |
+| `dev/px_check.c` | `ct_dev --px-check [out.txt]`: the two renderers compared frame by frame |
+| `frontend/ct_play.c` | `--renderer native` (the default) or `scanline` |
+| `tests/test_native_render.py` | the renderer reads nothing in `runtime/snes/` |
+
+**What it reads, and what it doesn't.** `vid_render_frame(r, frame, out, flags)`
+draws lines 1-224 of a `VidFrame` into a 256x224 XRGB8888 buffer. Its only input
+is the frame: the lines' state as spans, the sprites in OAM order, and the VRAM,
+CGRAM and sprite set each span reads. It includes `platform/video.h` and the C
+library and nothing else -- not `Ppu`, not the hardware model's video memory, not
+`render.c`'s color helpers, which it has its own copies of. A unit test enforces
+that, because a second backend (widescreen, GBA) would otherwise inherit the
+hardware model along with the renderer.
+
+The drawing is `render.c`'s, kept identical down to the arithmetic rather than
+tidied: the same front-to-back layer order per mode, the same depth merge, the
+same window logic, the same Snes9x color pipeline (palette entries scaled by
+master brightness, packed RGB565 with green's LSB copied from its top bit, color
+math on the packed values). Where the hardware is ambiguous, the scanline
+renderer is the definition.
+
+**The gap in the representation, and how it was closed.** `VidFrame` carried one
+VRAM pointer, one CGRAM pointer and one set of sprites: whatever they held when
+the frame was finished. `VidSpan.palette_changed` said a palette had changed
+mid-frame but not what it changed to. That is enough to compare two frames
+(P2's `--vid-check`) and not enough to draw one, because the game does change
+video memory while the beam is in the picture: the palette animation and fades
+write CGRAM between spans, and the battle's line interrupt forces blank, uploads
+VRAM and OAM, and unblanks again. A renderer given only the end-of-frame memory
+draws the lines before such a change with memory they never saw.
+
+So `VidSpan` gained `cgram`, `vram` and `sprites`, each NULL meaning the frame's
+(additive: the observer leaves them NULL and P2's comparison is unchanged). The
+decoder fills them in: when memory changes, it keeps the old contents in a
+snapshot, hands it to the spans already emitted, and starts a span at that line
+so the lines after it read the new contents. It snapshots only for spans that
+would show the difference -- not forced-blank lines, and sprites only where OBJ
+is on a screen -- which is why one snapshot of each per frame is all the movie
+library needs (the peak over all 26 movies; none was ever lost). `VidFrame`'s own
+`sprites` and `first_sprite` are now the set the frame ends with, re-decoded
+whenever OAM or the priority rotation changes rather than only at line 1, so they
+mean the same thing as its `vram` and `cgram`.
+
+Two further gaps were looked for and turned out not to be gaps. `VidObjConfig`
+carries three bits of sprite base address where `render.c` keeps two, but the
+third is bit 16 of a byte address the renderer masks to 64 KiB, so the two agree.
+`VidBg.char_base` keeps four bits of the character base where `render.c` masks to
+three, and the fourth is bit 16 the same way.
+
+**Speed.** The renderer keeps `render.c`'s caches -- the palette as RGB565 with a
+generation per entry, VRAM in 32-byte pages with a generation per page, the
+per-row sprite sets with a generation per row -- and redraws a line only when the
+state it was drawn from, or a CGRAM entry or VRAM page it read, has changed. The
+dependency marking is `render.c`'s, so the two draw exactly the same lines:
+1152805 of 4455190 over `gato-battle`, the rest kept. Without the cache the
+renderer redrew all 224 lines every frame and cost 5.9 s against `render.c`'s
+2.7 s, which is the same factor `render.c` gained when it got its cache
+([RUNTIME.md](RUNTIME.md)).
+
+What the spans buy is that the caches are brought up to date once per span
+rather than once per line -- a span is a run of lines that read the same memory,
+which is exactly the question those caches answer -- and that the key a line is
+compared against is the span's state masked once, leaving only the line's own
+sprite-row generation per line.
+
+One thing had to be learned rather than copied: a forced-blank span's brightness
+is the low bits of the forced-blank byte, not a brightness the game means, so
+feeding it to the palette cache rebuilt the whole palette twice a frame and no
+line was ever kept (78% of lines redrawn instead of 24%). `render.c` returns
+before touching the palette on a blank line; the span loop does the same, while
+still comparing VRAM, which is what a line interrupt writes under forced blank.
+
+**Deviations, and why.**
+
+- **`$213E`'s sprite flags come at the end of the frame.** `render.c` sets
+  range-over and time-over as the beam passes the lines that hit the limits; a
+  frame renderer can only know them once the frame is drawn, so `ct_play` sets
+  them then. No ported code reads `$213E`; a reader would see them a frame late.
+- **The renderer owns its framebuffer between frames.** A line whose inputs are
+  unchanged keeps the pixels it has, so `out` must be the same buffer every frame
+  and the host must not write to it -- the same contract `render.c` has.
+- **Hi-res, pseudo-hires and interlace are what `render.c` makes of them.**
+  Modes 5 and 6 are sampled at 256 columns and `$2133`'s interlace and pseudo-
+  hires bits are not modeled. They are carried in `VidVideoConfig` so nothing is
+  lost, and matching the reference is what P3 is for; a renderer that draws them
+  properly is a deliberate departure, like widescreen.
+- **The decoder is a bridge, not part of the renderer.** It costs about 0.3 s per
+  `gato-battle` run on top of the drawing, because it rebuilds a `VidLineState`
+  and compares it at every line. A build where game code feeds the video service
+  directly wouldn't decode registers at all; until P2 is finished, every movie
+  runs through it.
+- **`Ppu` gained two counters.** `cgram_writes` and `oam_writes` join
+  `vram_writes` as hints, so the decoder can skip comparing 116 KB of CGRAM and
+  122 KB of OAM per frame. As with VRAM, a change that doesn't go through them (a
+  state load) is caught by comparing contents at a frame's start.
+
+**Results.**
+
+`ct_dev --px-check --native on` over the whole movie library: **762738 frames,
+every one identical to `render.c`'s at 256x224**, not a differing pixel. The
+range-over and time-over flags agree on every frame, and no mid-frame change of
+video memory ever ran out of snapshots. "Lines drawn" is how many of the frames'
+non-blank lines the cache made the renderer redraw, which is the same number
+`render.c` redraws.
+
+| Movie | Frames | Identical | Spans per frame | Lines drawn |
+|---|---|---|---|---|
+| `title-start.ctm` | 1801 | all | 3.0 | 66.4% |
+| `new-game.ctm` | 7201 | all | 12.8 | 32.9% |
+| `menu.ctm` | 8902 | all | 16.1 | 27.6% |
+| `field.ctm` | 11402 | all | 10.3 | 26.4% |
+| `fair.ctm` | 12452 | all | 9.6 | 26.6% |
+| `fair-companion.ctm` | 17903 | all | 8.9 | 23.7% |
+| `gato-battle.ctm` | 21603 | all | 10.3 | 23.8% |
+| `saves/battle-tyrano-lair-walls.ctm` | 8043 | all | 19.4 | 32.0% |
+| `saves/battle-golem-twins-gameover.ctm` | 12970 | all | 17.3 | 26.2% |
+| `saves/battle-magus.ctm` | 18001 | all | 18.8 | 26.9% |
+| `saves/events-blackbird.ctm` | 4401 | all | 16.6 | 50.2% |
+| `saves/events-keepers-dome.ctm` | 5001 | all | 36.7 | 47.4% |
+| `saves/events-end-of-time-gate.ctm` | 5601 | all | 119.5 | 48.5% |
+| `saves/events-jetbike-race.ctm` (Mode 7) | 9401 | all | 50.7 | 46.8% |
+| `saves/events-prison-escape.ctm` | 12901 | all | 7.3 | 23.0% |
+| `saves/menus-end-of-time.ctm` | 8803 | all | 83.1 | 36.6% |
+| `saves/menus-epoch.ctm` | 8805 | all | 68.5 | 51.0% |
+| `saves/menus-shop-inn.ctm` | 9704 | all | 20.5 | 26.0% |
+| `saves/menus-field-menu.ctm` | 10602 | all | 55.2 | 25.3% |
+| `saves/late-omen-terramutant.ctm` | 17763 | all | 32.1 | 30.1% |
+| `saves/late-omen-battles.ctm` | 18413 | all | 21.7 | 26.0% |
+| `saves/late-omen-zeal.ctm` (color math, windows) | 36923 | all | 35.5 | 44.4% |
+| `saves/late-lavos.ctm` | 60250 | all | 29.1 | 25.2% |
+| `saves/endings-beyond-time.ctm` | 105003 | all | 55.2 | 7.4% |
+| `saves/endings-telepod-lavos.ctm` | 132888 | all | 33.4 | 9.9% |
+| `saves/endings-bucket-lavos.ctm` | 196001 | all | 25.7 | 52.8% |
+
+The per-line effects are what the span counts show: the battles run about 20
+spans a frame, the menus and the Epoch 55-85, the End of Time's gate 120. That
+is also what the decoder costs, since it rebuilds and compares a `VidLineState`
+at every line whatever happens.
+
+Speed, `ct_play` headless with `--native on --recomp only`, on a shared machine,
+runs alternating between the two renderers (five pairs for `gato-battle`, three
+for the others):
+
+| Movie | Frames | Scanline (median) | Native (median) |
+|---|---|---|---|
+| `gato-battle.ctm` | 21600 | 11.74 s (11.54-11.85) | 11.79 s (11.75-11.86) |
+| `saves/events-jetbike-race.ctm` | 9400 | 5.61 s (5.46-5.64) | 5.55 s (5.39-5.79) |
+| `saves/late-omen-zeal.ctm` | 36922 | 20.86 s (20.44-23.80) | 20.55 s (19.30-23.71) |
+
+That is a wash, so P3's "measurably faster" isn't met: the two renderers do the
+same drawing on the same lines, and the native one carries the decoder on top.
+The 81% figure the milestone quoted was the renderer's share before it had a
+cache; against the cached `render.c` there is nothing left to win by rendering
+whole spans, and what remains to win is the decoder, which a build fed by service
+calls wouldn't run at all.
+
+The unit tests (including the platform lint and the new renderer lint) pass and
+the build is warning-free with `-DCT_WERROR=ON`.
+
+**What is left.** The native renderer draws the frame the *decoder* builds. The
+frame the *observer* builds from service calls is the same object, so the
+renderer will take it as soon as P2 finishes and every register writer is behind
+the API; until then `--vid-check` is what says how far that is. The observer
+does not fill in the per-span memory pointers, which it will need for the same
+reason the decoder does.
 
 ### P4: widescreen
 

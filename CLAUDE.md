@@ -42,7 +42,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (docs/MOVIES.md). Routes survive timing changes; the movies they write don't, so re-run the route.
 - Validation: every movie in `--native shadow` must exit 0 with no `mismatched [1-9]` lines;
   `--native on --recomp only` must produce traces identical to `--native off` (`python3 tools/trace.py
-  diff`); `--native on --recomp only --misses out.txt` lists anything still interpreted.
+  diff`); `--native on --recomp only --misses out.txt` lists anything still interpreted;
+  `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
+  docs/PLATFORM.md P3).
 
 - Porting: add routines under `game/<subsystem>/` (named by what they do, not by ROM bank), register in
   `game/registry.c`, validate with `ct_dev ... --native shadow` over the movie library (0 mismatches),
