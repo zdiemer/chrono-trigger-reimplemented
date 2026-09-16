@@ -46,3 +46,6 @@ tests/apu/data/
 
 # Player binaries built by tools/dist.py
 dist/
+
+# Linked worktrees kept inside the checkout
+.worktrees/
