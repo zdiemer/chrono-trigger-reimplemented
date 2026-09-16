@@ -59,6 +59,30 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 
 ## Rules
 
+- **Writing a port from generated code** (docs/PLAN.md, docs/RECOMP.md's M5). The draft
+  `tools.recomp` prints is a mechanical image of the ROM; the port is source, and the later
+  goals (a native renderer, widescreen, a GBA build, assets as data) are made easy or hard
+  here rather than in a backend:
+  - Write what the routine *does*, not what the draft says. Don't carry over the draft's
+    shape: emulated register variables, dead flag updates, block boundaries, or a name from
+    its address. Keep the `// $BB:AAAA` comment and nothing else mechanical.
+  - Reach the host only through `runtime/platform/` (a lint test enforces it). No PPU, DMA,
+    HDMA or APU register number appears in `game/`. Read and write the machine through
+    `machine.h`'s `m_read8`/`m_write8` and friends, never by indexing a mapped image, so a
+    build that loads its data from somewhere else can redirect it.
+  - Keep SNES *semantics* -- tiles, palettes, priority, window logic -- and drop SNES
+    *mechanics*: which register latches what, channel programming, write order, the timing
+    of a write. The services exist to express the first and hide the second.
+  - Don't bake in what a later target changes: the 256x224 screen, the 0-255 coordinate
+    range, a tile's size or bit depth, or a fixed bank layout. Take them from the service or
+    give them a named constant. Screen coordinates are signed, so positions off the original
+    screen survive widescreen.
+  - Where the original waits on beam position or depends on exact timing, don't reproduce
+    the wait silently: port what it computes, say so in a comment at its `// $BB:AAAA`, and
+    add it to docs/TODO.md. Those routines are what block the platform milestones.
+  - A port that can't be expressed through a service yet is a finding, not a defeat: add the
+    call the subsystem needs (additive), or use the documented SNES escape and write down
+    why, as docs/PLATFORM.md's "as built" sections do.
 - Keep the repo machine-independent: no local paths, drive letters, or
   toolchain install locations in code, docs, or build files.
 - Never commit ROM bytes or anything derived from them: extracted assets, SPC
