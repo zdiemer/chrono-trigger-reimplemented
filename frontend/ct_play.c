@@ -2,7 +2,7 @@
  * and the rest on the development system (docs/PLAYING.md).
  *
  *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp only|on|off]
- *           [--audio snes|direct] [--save-dir dir]
+ *           [--audio snes|direct] [--renderer native|scanline] [--save-dir dir]
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm] [--load-zst in.zst]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
  *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm] [--wav out.wav]
@@ -30,6 +30,8 @@
 #include "movie.h"
 #include "sram_find.h"
 #include "platform/audio.h"
+#include "platform/native/render.h"
+#include "platform/snes/decode.h"
 #include "port/machine.h"
 #include "port/recomp_table.h"
 #include "registry.h"
@@ -125,7 +127,14 @@ typedef struct {
 
 typedef struct {
     Snes snes;
+    /* The picture: the native renderer drawing the decoded VidFrame once a frame
+     * (docs/PLATFORM.md, P3), or the scanline renderer line by line
+     * (--renderer scanline). `pixels` is whichever one's framebuffer. */
     Renderer renderer;
+    VidDecoder *decoder;
+    VidRenderer *native_render;
+    uint32_t *pixels;
+    bool scanline;
     NativeRuntime *natives;
     NativeMode native_mode;    /* the mode asked for */
     NativeMode runtime_mode;   /* the mode natives runs in now */
@@ -168,6 +177,8 @@ static void usage(FILE *out)
             "  --audio BACKEND      snes: the APU on the machine's timeline (default); direct: the sound driver's\n"
             "                       uploads and commands take no CPU time (APU-direct; needs --native on, and\n"
             "                       runs the ported routines, so --recomp on is implied)\n"
+            "  --renderer R         native: draw each frame from the video service's frame state (default);\n"
+            "                       scanline: the reference renderer, line by line from the PPU registers\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
             "\n"
             "Movies:\n"
@@ -327,7 +338,20 @@ static int parse_hold(const char *s, Hold *h)
 
 static void on_line(void *ctx, Snes *snes, uint16_t line)
 {
-    render_line(ctx, &snes->ppu, line);
+    Player *pl = ctx;
+    if (pl->scanline) {
+        render_line(&pl->renderer, &snes->ppu, line);
+        return;
+    }
+    vid_decode_line(pl->decoder, &snes->ppu, line);
+    if (line != RENDER_HEIGHT)
+        return;
+    VidRenderFlags flags;
+    vid_render_frame(pl->native_render, vid_decoder_frame(pl->decoder), pl->pixels, &flags);
+    /* $213E's sprite flags, which the scanline renderer sets as the beam passes
+     * them: a frame renderer only knows them once the frame is drawn. */
+    snes->ppu.range_over = flags.range_over;
+    snes->ppu.time_over = flags.time_over;
 }
 
 /* ---- saves -------------------------------------------------------------------- */
@@ -710,7 +734,7 @@ static int run_headless(Player *pl, long frames, const Hold *holds, int nholds, 
         fprintf(stderr, "cannot write %s\n", pl->wav_path);
         rc = 1;
     }
-    if (screenshot && ct_png_write(screenshot, pl->renderer.pixels, RENDER_WIDTH, RENDER_HEIGHT) != 0) {
+    if (screenshot && ct_png_write(screenshot, pl->pixels, RENDER_WIDTH, RENDER_HEIGHT) != 0) {
         fprintf(stderr, "cannot write %s\n", screenshot);
         rc = 1;
     }
@@ -938,7 +962,7 @@ static int run_window(Player *pl, int scale, bool fullscreen, const Display *dis
             } while (fast && SDL_GetPerformanceCounter() < budget_end);
             if (fast)
                 deadline = SDL_GetPerformanceCounter();
-            SDL_UpdateTexture(texture, NULL, pl->renderer.pixels, RENDER_WIDTH * 4);
+            SDL_UpdateTexture(texture, NULL, pl->pixels, RENDER_WIDTH * 4);
         }
         /* Fast frames aren't played: the device stays silent until normal speed. */
         audio_frame(&audio, &pl->snes, paused || fast || pl->snes.halted);
@@ -1043,6 +1067,14 @@ int main(int argc, char **argv)
             }
             display.crop_top = (int)top;
             display.crop_bottom = (int)bottom;
+        }
+        else if (!strcmp(a, "--renderer")) {
+            if (!strcmp(v, "scanline")) pl.scanline = true;
+            else if (!strcmp(v, "native")) pl.scanline = false;
+            else {
+                fprintf(stderr, "--renderer must be native or scanline\n");
+                return 2;
+            }
         }
         else if (!strcmp(a, "--save-dir")) save_dir = v;
         else if (!strcmp(a, "--frames")) frames = strtol(v, NULL, 10);
@@ -1204,8 +1236,18 @@ int main(int argc, char **argv)
         return 2;
     }
     render_init(&pl.renderer);
+    pl.pixels = pl.renderer.pixels;
+    if (!pl.scanline) {
+        pl.decoder = vid_decoder_create();
+        pl.native_render = vid_render_create();
+        pl.pixels = calloc((size_t)RENDER_WIDTH * RENDER_HEIGHT, sizeof *pl.pixels);
+        if (!pl.decoder || !pl.native_render || !pl.pixels) {
+            fprintf(stderr, "out of memory\n");
+            return 1;
+        }
+    }
     pl.snes.on_line = on_line;
-    pl.snes.on_line_ctx = &pl.renderer;
+    pl.snes.on_line_ctx = &pl;
     snes_power_on(&pl.snes);
     /* A movie from a cartridge save: find the save by its CRC-32 when --sram
      * isn't given (the vendored saves next to the movies, or below the ROM). */
