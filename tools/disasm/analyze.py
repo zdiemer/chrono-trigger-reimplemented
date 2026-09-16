@@ -14,6 +14,7 @@ from .hints import Hints
 from .memmap import Rom, bus_to_offset, fmt
 from .ram import RamImages
 from .ram import build as build_ram
+from .resources import expand as expand_resources
 
 PSTACK_DEPTH = 8
 # Instructions that push or pull, or move the stack: a PER followed by one of
@@ -67,6 +68,8 @@ class Analyzer:
                  prune_returns: bool = False, ram: RamImages | None = None):
         self.rom = rom
         self.hints = hints
+        # [[resource]] hints expand into typed data regions, once per Hints object.
+        self.resources = expand_resources(hints, rom.data)
         # Code run from RAM ([[ramcode]] hints) is traced from its images.
         self.ram = ram if ram is not None else build_ram(rom.data, hints)
         self.assume_returns = assume_returns

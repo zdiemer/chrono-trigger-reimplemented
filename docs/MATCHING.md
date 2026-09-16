@@ -6,8 +6,10 @@ would plug into the disassembler, the static recompiler and the runtime. Built
 so far: the measuring tool, `tools/disasm/census.py`, milestone MD0, the naive
 split with its assembler and round trip (`tools/matching`, see
 [MD0 as built](#md0-as-built)), and most of MD1, all code in source form (see
-[MD1 as built](#md1-as-built)), and most of MD4, closure checks in the build (see
-[MD4 as built](#md4-as-built)).
+[MD1 as built](#md1-as-built)), most of MD4, closure checks in the build (see
+[MD4 as built](#md4-as-built)), and the first part of MD2, the resource pointer
+tables and the streams, strings and records they name (see
+[MD2 as built](#md2-as-built-first-part)).
 
 The motivation is completeness. The recompiler ([RECOMP.md](RECOMP.md)) turns
 the code the analysis finds into C, and the interpreter runs whatever it
@@ -156,6 +158,11 @@ eight increasing 16-bit values (pointer-like). Everything else is unknown. It
 prints aggregates only.
 
 ### Summary
+
+The tables below are the MD0-era measurement, kept because they sized the work.
+Current numbers, after MD1, MD4 and the first part of MD2, are in
+[MD2 as built](#md2-as-built-first-part): 249341 bytes of code, 106951 unknown
+(2.5%), 1381381 in typed `[[data]]` regions and 2357173 in streams.
 
 | | Code | Tables, header | Padding | LZ streams | BRR-like | Pointer-like | Unknown |
 |---|--:|--:|--:|--:|--:|--:|--:|
@@ -664,6 +671,141 @@ instructions of the patched code it cuts or branches to).
   as written; an index guard would make them independent of it.
 - asar is still unchecked; `base` is spelled as asar's.
 
+### MD2 as built (first part)
+
+Same commands as MD0, MD1 and MD4. The analysis, the census and the matching
+build now expand `[[resource]]` hints into typed data regions before tracing
+(`tools/disasm/resources.py`, DISASSEMBLY.md), and the matching run fails if any
+of them doesn't fit.
+
+| Path | What |
+|---|---|
+| `tools/disasm/resources.py` | `[[resource]]` expansion: the tables, their targets (`lz`, `text`, `blob`), merging into the hand hints and `fill` regions |
+| `tools/disasm/hints.py` | the `[[resource]]` hint and `fill = true` on `[[data]]` |
+| `tests/test_resources.py` | 22 tests on synthetic data (no ROM): each target kind, `skip`, repeated entries, `slots`, splitting, fill, bank crossing, idempotence |
+
+**Resource pointer tables.** The loaders all have one shape: a resource id is
+multiplied by three (or doubled) into X, two long indexed loads read the
+pointer's low word and its bank byte, and the pair is either stored at
+`$0300`/`$0302`, where the decompressor at `$C3:0002` takes its source, or kept
+as a data pointer. 38 tables are declared with the reading code in their
+comments. They give, with 0 problems:
+
+| Kind | Tables | Regions | Bytes |
+|---|--:|--:|--:|
+| Streams (`lz`), consumed exactly by `tools/disasm/lz.py` | 19 | 1371 | 2354164 (4007103 out) |
+| Strings (`text`), each to its zero terminator | 15 | 4405 | 170097 |
+| Sound blocks (`sized`), a 16-bit length then the data | 2 | 145 | 294487 |
+| Blobs (`blob`), sized by the next entry or by the hint | 2 | 617 | 279808 |
+| The tables themselves (`ptr24`, `ptr16`) | 38 | 38 | 7702 |
+
+- **Streams.** 6790 entries over the 38 tables (66 skipped, each with a comment,
+  186 repeating another entry's target) confirm 1371 streams by a pointer a
+  loader reads. Before this the census claimed 1251 by shape alone; 18
+  candidates (9534 bytes) are left for it to claim, 10 of them with a 24-bit
+  pointer somewhere in the ROM. The largest tables are `$FC:F9F0` (513 entries,
+  read at `$C0:56D4` with the id from the location record's byte +8,
+  decompressed to `$7F:2000`), `$E4:2000` (248, battle sprites), `$F6:2220`
+  (219), `$F6:1E00` (202) and `$FE:0000` (73, the attract program's).
+- **Strings.** Fifteen self-describing tables of 16-bit offsets into their own
+  bank (`$D8:D000`, `$D8:DD80`, `$DE:C000`, `$DE:E300`, `$F6:A000`, `$F6:B230`,
+  `$F7:0000`, `$F7:4900`, `$F8:4650`, `$F9:B000`, `$FC:BA00`, `$FF:4460`,
+  `$FF:5860`, `$FF:6B00`, `$FF:8400`): entry 0 points just past the table, the
+  entries never decrease, and the last points one past the last terminator. The
+  4405 distinct strings tile their ranges with **58 bytes** left over in three
+  places (9 in `$DE:E300`, 48 in `$F8:4650`, 1 in `$FC:BA00`), which is the
+  format's exact-consumption check. What reads them isn't established: no
+  instruction in the code set sets its data bank to those banks or holds a long
+  operand into them, so the readers take a pointer out of RAM.
+- **Sound blocks.** `$C7:0AEA` (62 entries) and `$C7:0D18` (83, the songs, its
+  count the byte at `$C7:0AE9` the dispatch compares) name length-prefixed
+  records the driver uploads to the SPC700: `sound_driver_upload_block`
+  (`$C7:0655`, ported in `game/core/sound_driver.c`) reads a 16-bit length and
+  sends that many bytes. The 62 blocks run end to end from `$C7:730D` to
+  `$CA:8ACB` (202687 bytes) and the 83 songs from `$CA:8ACC` to `$CB:F163`
+  (91800), which is the whole of banks C8, C9 and CA and most of CB, including
+  everything the census's BRR rule used to claim there. Three blocks run into
+  the next bank; each becomes one region per bank. The five side tables around
+  them (`$C7:0BA4`, `$C7:0C20`, `$C7:0C9C`, one word per block; `$C7:0E11`, 16
+  block ids per song; `$C7:1871`, 12 three-byte entries) are typed by hand, and
+  the MD1 `mixed` hint over `$C7:0AE9-FFFF` carries `fill = true` so they and
+  the blocks carve it up.
+- **Blobs.** `$E4:2300` (231 entries, the second pointer of a battle sprite,
+  `$1C78,Y`) covers banks DC, DD, DE, E1 and E3 end to end; `$E4:2600` and
+  `$E4:2800` (193 records each, 16-bit offsets with the bank byte from the
+  immediate at `$CC:E9CE`) cover `$E4:3000-A5EF` and `$E4:A800-CC56`. Record
+  lengths come from the next entry, since `$C1:1C8B` adds a frame offset to the
+  pointer and reads through the sum.
+
+**Other regions typed.** `fill = true` gives banks D2-D5 the type `gfx`: the
+unrolled 32-byte tile copies at `$C0:E7C3`, `$C0:E846`, `$C0:E8C9` and
+`$C0:E94C` read one 4bpp tile from any offset of one bank, and the rest of each
+bank is the compressed battle sprites of the `$E4:2000` table, which carve the
+fill regions up. `$F6:0000-1BFF` is 512 records of 14 bytes, one per location:
+`$C0:0945` builds the index with the hardware multiplier (`$4203 = $0E`) and
+adds `$0E00` for indices over 255, which is 256 * 14, and the fields read
+through it are the resource ids of five of the stream tables.
+
+**Result** (this ROM and the hints, no coverage):
+
+| Census class | Before (MD4) | After | |
+|---|--:|--:|---|
+| Unknown | 877473 | 106951 | 20.9% -> 2.5% of the ROM |
+| Typed `[[data]]` | 572058 | 1381381 | |
+| Compressed | 2198893 | 2357173 | 1251 by shape -> 1371 by pointer, 18 by shape |
+| BRR-like | 169506 | 2232 | the samples are inside the driver's typed blocks |
+| Padding | 96893 | 85790 | fill inside a typed region counts as its type |
+| Pointer-like runs | 26514 | 7810 | |
+
+Unknown bytes per bank, before and after: `$C8` 5943 -> 0, `$C9` 120 -> 0,
+`$CA` 27209 -> 0, `$CB` 57769 -> 3251, `$D0` 54359 (unchanged), `$D8` 11690 ->
+17, `$DE` 61669 -> 882, `$E1` 5601 -> 249, `$E4` 46325 -> 9925, `$E5` 6509 ->
+6018, `$EF` 6902 -> 3704, `$F5` 4064 (unchanged), `$F6` 37002 -> 20507, `$F7`
+59363 -> 135, `$F8` 24736 -> 755, `$F9` 19414 -> 1456, `$FC` 15409 -> 64,
+`$FE` 1294 -> 1247, the rest small. Banks C8, C9, CA, DC, DD and E3 went from
+wholly or mostly unknown to wholly typed.
+
+6787 typed regions in all: 1371 `lz`, 4406 `text`, 691 `bytes`, 149 `spc700`,
+38 `mixed` (388374 bytes), 33 `ptr16`, 20 `ptr24`, 39 `words`, 8 `gfx`
+(219431), 14 `script`, 11 `undetermined`, and the header, padding and RAM-code
+regions.
+
+**Validation.** `unittest` passes (121 tests). CRC32 `2D206BF7` and SHA-1
+`de5822f4...` still match, every `[[data]]` region fits its bytes, the closure
+checks C1, C2, C3, C5, C6 and C7 pass, the 15 RAM sections assemble to their
+images, and the six main movies in `--native shadow` report 0 mismatched
+generated blocks and no mismatching hand port.
+
+**Left for MD2:**
+
+- 106951 unknown bytes: `$D0:0000-DFFF` (57344, no reader found; the palettes
+  at `$D0:FA00` and `$D0:FD00`, which `$D1:ED77` and `$D1:E98E` copy 96 bytes at
+  a time, and the 6-entry stream table at `$D0:E000` are the only parts tied to
+  code), `$F6:24B1-7FFF` (23375) and `$F6:1C00-1DFF` (512, after the location
+  records), `$E4` (9925: `$E4:0000-1FFF`, read by `$C0:CA35` and others,
+  `$E4:2A00-2FFF`, and `$E4:CC57-FFFF`, which holds the 5-byte records at
+  `$E4:F000` and the 10-byte ones at `$E4:F600` -- the strides are in the
+  multiplier setups at `$C0:4491` and `$C0:46E4`, but neither count divides the
+  space the layout gives, so they are left alone), `$E5:0000-1FFF` (8192, read
+  as records at `$C0:9CD3`), `$CB:F164-FFFF` (3740, after the last song),
+  `$EF:B168-BFFF` (3736, one of the blocks the skipped `$F6:21C0` entries point
+  at), `$F5:EE02-FFFF` (4606), and smaller pieces.
+- 379 KiB is still typed `mixed` (C0, C1, C3, C6, C7, CC-CF, D1, FD, FF): the
+  streams, strings and sound blocks split those regions where they fall, but
+  what is left has a reader and a census composition, not a parser.
+- The scripts MD4 parses (object, sequence, window command lists) are still not
+  `[[data]]` regions with a round trip, and the event, battle animation and
+  enemy script formats aren't parsed at all.
+- The strings' encoding isn't decoded: the regions are bounds, not glyphs. The
+  small set of values that dominates their first byte looks like a control
+  code, and should agree with the menu encoding in `game/menu/text.c` and the
+  control-code handlers at `$C2:EFD4`.
+- The 66 skipped stream-table entries and the 18 stream candidates no table
+  names are unexplained.
+- Nothing recompresses, so an `lz` region's round trip is "the decompressor
+  consumes exactly these bytes", not "re-encoding gives them back" (MD3's
+  encoder would close that).
+
 ### Shift test
 
 `python3 -m tools.matching shift` builds a set of shifted ROMs: padding at the
@@ -848,7 +990,7 @@ No dates.
 |---|---|---|---|---|---|
 | MD0 | Naive split: toolchain and extraction | The build extracts, emits and assembles a ROM with CRC32 `2D206BF7` and the SHA-1 from APPROACH.md; code the analysis finds (238421 bytes) is instructions, everything else `incbin` from the build tree; the 10 length conflicts and overlaps are `db` with labels; assembler encodings are unit-tested for every opcode and width; with asar available, the asar build matches too; nothing ROM-derived is tracked by git | Assembler, emitter, extraction, CMake target | 1 | done, except the asar build: unchecked, asar wasn't available ([MD0 as built](#md0-as-built)) |
 | MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the partial vector installers (the code C3:09E9 generates at `$7E:B574` became a section in recompiler M3); 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
-| MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | |
+| MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | in progress: 38 resource pointer tables type 1371 streams, 4405 strings, 145 sound blocks and 617 records; census unknown 877473 -> 106951 bytes (2.5%); left are `$D0`, `$F6:24B1-7FFF`, 379 KiB still typed `mixed`, and the script formats ([MD2 as built](#md2-as-built-first-part)) |
 | MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 | |
 | MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | C1, C2, C3, C5, C6, C7 checks pass and fail the build; code set equal; static analysis alone reaches every executed address; left: layout-bounded tables (96) and the event, battle animation and enemy script parses that would bound some of them, C4 beyond the miss report ([MD4 as built](#md4-as-built)) |
 
