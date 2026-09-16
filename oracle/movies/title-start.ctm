@@ -1,3 +1,4 @@
 # Power on, let the attract sequence reach the finished title screen, press START.
+# frames 1800
 # <start_frame> <frame_count> <buttons>
 1620 5 START
