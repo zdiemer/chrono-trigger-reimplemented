@@ -254,6 +254,7 @@ typedef struct {
     uint8_t indirect_bank;
     uint8_t target_reg;
     uint16_t target;
+    uint8_t spill;
     const VidVramPort *port;
 } PfSnesChannel;
 
@@ -294,6 +295,8 @@ static inline void pf_snes_program(Snes *s, const PfSnesChannel *c, const uint8_
             break;
         case VID_STEP_START: pf_snes_put(s, PF_SNES_MDMAEN, (uint8_t)(1u << (c->channel & 7))); break;
         case VID_STEP_VRAM_PORT: pf_snes_put(s, PF_SNES_VMAIN, pf_snes_vram_port_byte(c->port)); break;
+        case VID_STEP_SPILL_SIZE_LO: pf_snes_put(s, (uint16_t)(base + 5), c->spill); break;
+        case VID_STEP_SPILL_CURSOR_LO: pf_snes_put(s, (uint16_t)(base + 8), c->spill); break;
         }
     }
 }
@@ -305,7 +308,8 @@ PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const Vi
     vid_line_snes_encoding(e->target, &mode, &reg);
     pf_snes_begin("vid_set_line_effect", o);
     PfSnesChannel c = { .channel = slot, .control = (uint8_t)((e->indirect ? 0x40 : 0) | mode),
-                        .dest = reg, .source = e->table.addr, .indirect_bank = e->indirect_bank };
+                        .dest = reg, .source = e->table.addr, .indirect_bank = e->indirect_bank,
+                        .spill = e->snes_spill };
     pf_snes_program(pf_snes(pf), &c, snes_steps);
     if (vid_observer)
         vid_obs_line_effect(vid_observer, slot, e);
@@ -473,10 +477,15 @@ PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t
      * where it doesn't the value is never used. */
     PfSnesChannel c = { .channel = x->channel, .control = x->control, .dest = resolved.dest,
                         .source = resolved.source, .len = t->size, .target_reg = t->target_reg,
-                        .target = t->target };
+                        .target = t->target, .port = x->port };
     pf_snes_program(s, &c, x->steps);
-    if (vid_observer)
+    if (vid_observer) {
+        /* An escape that sets the VRAM port inside its own sequence, as the
+         * race's column uploads do, has told the port before it starts. */
+        if (x->port && pf_snes_has_step(x->steps, VID_STEP_VRAM_PORT))
+            vid_obs_vram_port(vid_observer, x->port);
         vid_obs_snes_transfer(vid_observer, &resolved, control);
+    }
     pf_snes_end();
 }
 

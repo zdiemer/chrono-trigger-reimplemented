@@ -318,6 +318,8 @@ typedef enum {
     VID_LINE_SCROLL_BG1_H, VID_LINE_SCROLL_BG1_V,
     VID_LINE_SCROLL_BG2_V,
     VID_LINE_SCROLL_BG3_H, VID_LINE_SCROLL_BG3_V,
+    VID_LINE_WINDOW1_LEFT,      /* window 1's left edge alone */
+    VID_LINE_MODE7_AB, VID_LINE_MODE7_CD,   /* a pair of Mode 7 matrix values */
     VID_LINE_TARGETS,
 } VidLineTarget;
 
@@ -326,6 +328,12 @@ typedef struct {
     PfData table;
     bool indirect;
     uint8_t indirect_bank;
+    /* The scenes program a slot from a packed five-byte descriptor, whose last
+     * value is read as a word: the byte after it lands in the channel's unused
+     * size and table-cursor registers ($43x5, $43x8), which HDMA rewrites. It
+     * is video state nowhere but in what shadow mode compares, so it is carried
+     * here and written only by the steps that name those registers. */
+    uint8_t snes_spill;
 } VidLineEffect;
 
 /* How the SNES drives a target: the transfer mode and the first register of the
@@ -336,10 +344,12 @@ static inline void vid_line_snes_encoding(VidLineTarget target, uint8_t *mode, u
 {
     static const uint8_t modes[VID_LINE_TARGETS] = {
         4, 1, 1, 3, 3, 3, 0, 0, 4, 4, 4, 1, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2,
+        0, 3, 3,
     };
     static const uint8_t regs[VID_LINE_TARGETS] = {
         0x26, 0x26, 0x28, 0x0D, 0x0F, 0x11, 0x32, 0x00, 0x07, 0x2C, 0x30, 0x05,
         0x31, 0x28, 0x29, 0x05, 0x2C, 0x31, 0x0D, 0x0E, 0x10, 0x11, 0x12,
+        0x26, 0x1B, 0x1D,
     };
     *mode = modes[target];
     *reg = regs[target];
@@ -381,6 +391,8 @@ enum {
     VID_STEP_TARGET_HI,      /* its high byte (VRAM) */
     VID_STEP_START,          /* $420B = the channel's bit */
     VID_STEP_VRAM_PORT,      /* $2115: how VRAM writes step, from VidSnesXfer.port */
+    VID_STEP_SPILL_SIZE_LO,  /* $43x5 = VidLineEffect.snes_spill */
+    VID_STEP_SPILL_CURSOR_LO, /* $43x8 = VidLineEffect.snes_spill */
 };
 
 typedef struct {

@@ -58,10 +58,14 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **P4** (widescreen) and **P5** (GBA feasibility) are next; P2 and P3 are done
   but for the leftovers below.
-- **P2 leftovers** (PLATFORM.md, "P2 as built"): the jet bike race's own display
-  code, 19 blocks between `$7E:36DA` and `$7E:8752` that only
-  `events-jetbike-race` reaches. Until it is behind the API that movie can't be
-  compared from power-on, though every other one now can.
+- **The Epoch's flight screen** (PLATFORM.md, "P2 as built"), found once
+  `--vid-check` could run from power-on: about fifteen routines between
+  `$C2:6325` and `$C2:76A8` program their own tilemaps, sprite bases, uploads and
+  HDMA channels, and `menus-epoch` agrees on 5505 of its 8799 frames because of
+  it. `menus-end-of-time` has a smaller one, `bg.map_size` on 565 frames.
+  Neither movie was in the set the menus were measured on, which is why neither
+  had been looked at. Same shape of work as the race: an I/O log with
+  `--recomp off` names every writer, then one entry each.
 - **P3 leftovers** (PLATFORM.md, "P3 as built"): the observer doesn't fill in
   the per-span memory pointers the decoder now does, which it needs before the
   renderer can be fed by service calls rather than registers. The native

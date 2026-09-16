@@ -16,7 +16,7 @@ are authoritative and its "as built" section lists what changed and why.
 |---|---|---|
 | P0 | Service headers, SNES backend, first hand ports converted | done |
 | P1 | Audio behind the API | done, except `new-game`'s log-spectral distance in the audio comparison (see P1 as built) |
-| P2 | Video behind the API, subsystem by subsystem | shared code, battle, field, menus and the scenes' attract sequence and title screen are done, and `--vid-check` runs from power-on rather than from the frame a subsystem takes over; the jet bike race's own code is left (see P2 as built) |
+| P2 | Video behind the API, subsystem by subsystem | done for everything the milestone set out to cover: shared code, battle, field, menus and the scenes, the jet bike race included, and `--vid-check` now runs from power-on rather than from the frame a subsystem takes over. The Epoch's flight screen, which only `menus-epoch` reaches, turned out to be a slice of bank `$C2` nothing had looked at (see P2 as built) |
 | P3 | Native renderer, pixel-identical to `render.c` | done, fed by the register decoder: every frame of all 26 movies is identical (see P3 as built) |
 | P4 | Widescreen | |
 | P5 | GBA feasibility study | |
@@ -998,7 +998,7 @@ no PPU, DMA or HDMA register write outside `vid_*`; shadow mode has 0
 mismatches; and the observer's command-built `VidFrame` equals the decoder's
 `VidFrame` on every frame (same spans, sprites, palette and VRAM).
 
-#### P2 as built: shared code, battle, field, menus and the scenes' attract sequence
+#### P2 as built: shared code, battle, field, menus and the scenes
 
 | Subsystem | State |
 |---|---|
@@ -1006,7 +1006,7 @@ mismatches; and the observer's command-built `VidFrame` equals the decoder's
 | battle | done in `gato-battle` and `battle-magus`, where no PPU, DMA or HDMA register write is left outside `vid_*`, and the two frames agree on 2198 of the fight's 2200 frames. `$D1:F4E6`, which `battle-golem-twins-gameover` reaches on its way back to the title, is in as well |
 | field | done: over `field.ctm` no routine in banks `$C0` or `$FD` writes a register any more, and with the menus behind the API as well the two frames agree on all 5000 frames sampled from frame 4000 |
 | menus | done: both modes of bank `$C2` -- the menus proper at `$C2:800E` and the sprite objects at `$C2:0000`, whose entry `$C2:000F` sets the brightness the mode then runs at -- and the window commands. No PPU, DMA or HDMA register write is left outside `vid_*` from bank `$C2` or from `$FF:FC04` in `field.ctm`, `menus-field-menu` or `gato-battle`. Left, and found only by comparing from power-on: the Epoch's flight screen, about fifteen routines between `$C2:6325` and `$C2:76A8` that only `menus-epoch` reaches, and whatever sets the tilemap sizes in `menus-end-of-time`; both lie outside every movie the menus were measured on |
-| scenes | the attract sequence and title screen are done: twenty entries cover the program at `$7E:3000` and `$C3:08D0` is an entry of its own, `$7E:59D5` (the fill the graphics loader starts without programming a source) included. Left: the jet bike race's own display code, 19 blocks between `$7E:36DA` and `$7E:8752` that only `events-jetbike-race` reaches |
+| scenes | done: the attract sequence, the title screen and the jet bike race. Twenty-two entries cover the program at `$7E:3000` and `$C3:08D0` is an entry of its own, so nothing in the scenes writes a PPU, DMA or HDMA register outside the services in any movie. `$7E:59D5`, the fill the graphics loader starts without programming a source, goes through the SNES-only escape, which resolves what the call site leaves unprogrammed from the channel |
 
 **The frame, its two builders and their comparison.**
 
@@ -1058,12 +1058,18 @@ keeps of a Mode 7 center or scroll word: a call passes the value as written,
 since the registers hold the whole byte, and the observer narrows it to the 13
 bits a renderer reads.
 
-The boot and the scene program's last entries added two more.
-`VID_M7_MATRIX_B` sets the second matrix value alone, both bytes, which the
-scene program's memory clear writes where `VID_M7_MATRIX_B_HIGH` (the
-multiplier's 8-bit operand) writes one. `VidSnesTransfer.continue_channel` says
-a transfer carries on with whatever the channel already holds, for the graphics
-loader at `$7E:59D5` (below).
+The race and the boot added the last few. `VID_M7_MATRIX_B` sets the second
+matrix value alone, both bytes, which the scene program's memory clear writes
+where `VID_M7_MATRIX_B_HIGH` (the multiplier's 8-bit operand) writes one.
+`VID_LINE_MODE7_AB` and `VID_LINE_MODE7_CD` are the race's per-line matrix, a
+pair of values to a line; `VID_LINE_WINDOW1_LEFT` is window 1's left edge alone,
+which the same table drives. `VidLineEffect.snes_spill` with
+`VID_STEP_SPILL_SIZE_LO` and `VID_STEP_SPILL_CURSOR_LO` carries the byte a
+five-byte descriptor read as a word leaves in the channel's unused size and
+table-cursor registers: it is video state nowhere but in what shadow mode
+compares, so only the steps that name those registers write it.
+`VidSnesTransfer.continue_channel` says a transfer carries on with whatever the
+channel already holds, for the graphics loader at `$7E:59D5` (below).
 
 **Ported** (all in [PORTING.md](PORTING.md)'s status table):
 `palette_upload` `$C0:712E`; the battle's `$CD:09CE`, `$CD:09F1`, `$CC:E000`,
@@ -1081,7 +1087,10 @@ them; the boot's `$FD:C036`; and the scenes' `$C3:08D0` and, in the program at
 `$7E:388B`, `$7E:38E7`, the five VRAM addresses the graphics loader sets
 (`$7E:597B`, `$59A0`, `$59AA`, `$59BC`, `$59CC`) with the fill that follows them
 (`$7E:59D5`), `$7E:5A59`, `$7E:5AB6`, `$7E:5C57`, `$7E:5C98`, `$7E:5DA7`,
-`$7E:5E54` and `$7E:6212`.
+`$7E:5E54` and `$7E:6212`. The race is eighteen more, in `game/scene/race.c`:
+`$7E:36CC`, `$7E:3C09`, `$7E:3CFF`, `$7E:3D8C`, the eight VRAM addresses and
+clears between `$7E:3DC8` and `$7E:3EA0`, `$7E:43F2`, `$7E:4643`/`$7E:464D`,
+`$7E:5221`, `$7E:5261` and `$7E:8752`.
 
 **Two Mode 7 fields for the multiplier.** `$7E:3843` hides every sprite by
 setting the matrix to 1 times -32, whose product the PPU offers at `$2134`, and
@@ -1191,8 +1200,10 @@ color three times, one channel each.
   the `on_line` hook the observer was driven from fires 1104 clocks later, at
   line 0's hblank. The scenes' vblank work sometimes runs into that gap and turns
   the per-line effects back on inside it, so the observer started effects the
-  hardware had not loaded. `Snes.on_frame_top` is a hook at the load itself, and
-  `vid_check_frame_top` is what the observer is started from.
+  hardware had not loaded -- 40 of `events-jetbike-race`'s frames, where it drew
+  a Mode 7 frame the hardware never showed. `Snes.on_frame_top` is a hook at the
+  load itself, and `vid_check_frame_top` is what the observer is started from;
+  with it the race agrees on every frame.
 - **A register write that isn't one.** `$D1:F4E6` writes the per-line enable
   register through the data bank, and on `battle-golem-twins-gameover`'s way back
   to the title the bank isn't one the registers are mapped in, so the store lands
@@ -1211,13 +1222,31 @@ color three times, one channel each.
   narrower name, and would have put a DMA channel's retained state into the
   service every other backend has to implement; the escape is where P2 already
   keeps what only the SNES can mean.
+- **The race's per-line effects come from a descriptor table.** `$7E:36CC` walks
+  five-byte records -- mode and destination register, table address, indirect
+  bank -- into channels 0 upwards until a record starting `$FF`. Whether the port
+  can express the table is a property of the table, not of the code, so it is
+  part of the guard: that walks the whole table (at most eight records, one per
+  channel) and refuses one whose mode and destination no `VidLineTarget` names,
+  and the interpreter programs it instead. Stopping halfway through the loop
+  instead, which is what the port did first, is not something either validation
+  can check -- shadow mode and the fuzzer both look for the original at the
+  address the port stopped at, and a loop passes the same address every time, so
+  they compared the wrong iteration. The race's own table needed three targets
+  that did not exist (above).
+- **Two of the race's uploads write the data port's low half alone.** The column
+  at `$7E:4643`/`$7E:464D` and the Mode 7 plane at `$7E:8752` send one byte to
+  each VRAM word, which `vid_upload_vram` would model as whole words, so they go
+  through the SNES-only escape like `$7E:5AEB` before them. The plane's also
+  carries on from the VRAM address the block before it left.
 
-**Results.** Shadow mode: `new-game`, `menu`, `field`, `fair`, `fair-companion`,
-`gato-battle`, `menus-field-menu`, `menus-epoch`, `menus-shop-inn`,
-`menus-end-of-time`, `events-jetbike-race` and `battle-golem-twins-gameover`
-exit 0 with no mismatch; the new entries' call counts are in
-[PORTING.md](PORTING.md)'s status table. The lint and the unit tests pass and
-the build is warning-free.
+**Results.** Shadow mode: all 22 movies up to `late-omen-zeal` exit 0 with no
+mismatch (the four ending runs, 100000 frames and more each, aren't run in
+shadow mode); the new entries' call counts are in [PORTING.md](PORTING.md)'s
+status table. `--native on --recomp only` still traces identically to
+`--native off` over `new-game` and `events-jetbike-race`, so the block
+boundaries the new entries move change nothing. The lint and the unit tests pass
+and the build is warning-free.
 
 I/O log, `--native on`, register accesses (excluding transfer bytes), over
 `gato-battle`:
@@ -1236,8 +1265,16 @@ and of `gato-battle` has exactly one register write outside the services: the
 seven registers `$7E:59D5` programs, once, for the fill it starts without a
 source. Everything else in those logs is HDMA.
 `battle-golem-twins-gameover` had that one and `$D1:F4E6`, on the path back to
-the title, and both are in now; `events-jetbike-race` still has the race's own
-display code, 19 blocks between `$7E:36DA` and `$7E:8752`.
+the title, and `events-jetbike-race` the race's own display code as well, 19
+blocks between `$7E:36DA` and `$7E:8752`.
+
+With all of those in, `events-jetbike-race` has no PPU, DMA or HDMA register
+*write* left outside the services at all -- the log's remaining PPU rows are
+HDMA and the two beam-counter reads the event scheduler and the sprite frame
+queue make (`$C0:5A46`, `$C0:CA76`), which are reads of a latch rather than
+video state. That is the strictest form of P2's claim, and it holds over a movie
+that runs the attract sequence, the field, the menus, a battle and the Mode 7
+race.
 
 `--vid-check`, seeded at the frame the subsystem takes over. These are what P2
 reported before it could run from power-on; the table below it is what matters
@@ -1266,24 +1303,55 @@ moves with `on` mode's timing, so tuning the new entries' `cost_milli` changed
 them.
 
 **`--vid-check` from power-on**, which is the number that says whether the
-observer can be built from the calls alone. It could not be run at all before:
-the scene program set the Mode 7 display for the attract sequence's pendulum at
-frame 104 and the boot wrote the whole register block at frame 0, so the observer
-was out of step with the hardware from the first frames on and stayed there.
-`new-game`'s first 3000 frames went from 1267 to 2996 with the scene program's
-last writers in, and to all but four with the boot's register block, the sprite
-object mode's entry and the power-on video memory seeded. Over the whole movie it
-is 7195 of 7199, and the four are the `fixed_color` frames P2 already had. The
-race is what is left before every movie can be compared this way.
+observer can be built from the calls alone. `new-game`'s first 3000 frames went
+from 1267 to 2996 as the scene program's last writers went in, and to all but
+four with the boot's register block and `$C2:000F`; the whole library now runs
+from frame 0:
+
+| Movie | Frames equal | What differs |
+|---|---|---|
+| `title-start.ctm` | 1799 of 1799 | -- |
+| `saves/events-blackbird.ctm` | 4399 of 4399 | -- |
+| `saves/events-keepers-dome.ctm` | 4999 of 4999 | -- |
+| `saves/events-end-of-time-gate.ctm` | 5599 of 5599 | -- |
+| `saves/events-jetbike-race.ctm` | 9399 of 9399 | -- |
+| `saves/menus-shop-inn.ctm` | 9701 of 9701 | -- |
+| `saves/events-prison-escape.ctm` | 12899 of 12899 | -- |
+| `new-game.ctm` | 7195 of 7199 | `fixed_color` on 4 |
+| `menu.ctm` | 8894 of 8899 | `fixed_color` on 5 |
+| `field.ctm` | 11395 of 11399 | `fixed_color` on 4 |
+| `fair.ctm` | 12445 of 12449 | `fixed_color` on 4 |
+| `fair-companion.ctm` | 17895 of 17899 | `fixed_color` on 4 |
+| `gato-battle.ctm` | 21593 of 21599 | `fixed_color` on 4, `windows.w1_left` on 2 |
+| `saves/menus-field-menu.ctm` | 10594 of 10599 | `fixed_color`, `bg.hofs`, `math.layers` |
+| `saves/battle-golem-twins-gameover.ctm` | 12961 of 12968 | `windows.w1_left` on 3, `sprite` on 2, brightness on 2 |
+| `saves/battle-tyrano-lair-walls.ctm` | 8023 of 8041 | brightness on 10, `windows.w1_left` on 7 |
+| `saves/battle-magus.ctm` | 17977 of 17999 | `windows.w1_left` on 10, `sprite` on 8 |
+| `saves/late-omen-terramutant.ctm` | 17749 of 17761 | `windows.w1_left` and `sprite` on 6 each |
+| `saves/late-omen-battles.ctm` | 18351 of 18411 | brightness on 34, `windows.w1_left` on 20 |
+| `saves/menus-end-of-time.ctm` | 8234 of 8799 | `bg.map_size` on 565 |
+| `saves/menus-epoch.ctm` | 5505 of 8799 | the Epoch's flight screen (below) |
+
+Seven movies agree on every frame. What is left in the rest is two known things
+and one new one. `fixed_color` is the four frames P2 already had. The battles'
+`windows.w1_left` and `sprite` frames are the shared channel P2 already had, and
+their brightness frames are the battle IRQ writing `$2100` at a line the observer
+places differently. The new one is `menus-epoch`: the Epoch's flight screen
+programs its own tilemaps, sprite bases, uploads and HDMA channels from about
+fifteen routines between `$C2:6325` and `$C2:76A8`, and `menus-end-of-time`
+writes tilemap sizes from somewhere the menus' ports don't cover. Neither movie
+was in the set the menus were measured on, so neither had ever been compared;
+they are the next slice, and they are in [TODO.md](TODO.md).
 
 Fuzzing found one real bug the movies don't reach: a deferred upload's
 transfer, when its size is large enough to read through the stack page, copies
 the bytes the routine's own `JSR` left there, so the port has to write them
-before the transfer rather than after. It found one more. The VRAM
+before the transfer rather than after. It found two more in this round. The VRAM
 port's byte has three bits the hardware ignores, which `VidVramPort` dropped, so
 a routine that sets the port from a value it was handed (`$7E:59D5`) wrote a
 different byte back; `snes_extra` keeps them, as the other decoders already do
-for their spare bits. The four window tile writers are guarded
+for their spare bits. And a port that hands back in the middle of a loop can't be
+validated at all (above). The four window tile writers are guarded
 on a direct page on the PPU block, which the fuzzer's base states don't have, so
 they are validated by shadow mode only.
 

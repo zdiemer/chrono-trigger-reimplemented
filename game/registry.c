@@ -25,6 +25,7 @@
 #include "menu/display.h"
 #include "menu/menu.h"
 #include "scene/display.h"
+#include "scene/race.h"
 #include "scene/scene.h"
 #include "menu/objects.h"
 #include "menu/save_screen.h"
@@ -735,6 +736,43 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3723, .guard = scene_expand_tile_rows_present },
     { .addr = 0x7E6212, .name = "scene_upload_map_and_scroll", .fn = scene_upload_map_and_scroll,
       NEEDS_M8_X16, .cost_milli = 1388, .guard = scene_upload_map_and_scroll_present },
+    /* the jet bike race's display (P2) */
+    { .addr = 0x7E36CC, .name = "scene_setup_line_effects", .fn = scene_setup_line_effects, NEEDS_M8_X16,
+      .cost_milli = 4615, .guard = scene_setup_line_effects_present },
+    { .addr = 0x7E3C09, .name = "scene_race_clear_buffers", .fn = scene_race_clear_buffers, NEEDS_M8_X16,
+      .cost_milli = 1006, .guard = scene_race_clear_buffers_present },
+    { .addr = 0x7E3CFF, .name = "scene_race_setup_maps", .fn = scene_race_setup_maps, NEEDS_M8_X16,
+      .cost_milli = 2829, .guard = scene_race_setup_maps_present },
+    { .addr = 0x7E3D8C, .name = "scene_race_fill_map", .fn = scene_race_fill_map, NEEDS_M8_X16,
+      .cost_milli = 1009, .guard = scene_race_fill_map_present },
+    { .addr = 0x7E3DC8, .name = "scene_race_set_vram_0000", .fn = scene_race_set_vram_0000, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_race_load_graphics_present },
+    { .addr = 0x7E3DE1, .name = "scene_race_set_vram_0000_again", .fn = scene_race_set_vram_0000_again,
+      NEEDS_M8_X16, .cost_milli = 5000, .guard = scene_race_load_graphics_present },
+    { .addr = 0x7E3E01, .name = "scene_race_begin_tile_uploads", .fn = scene_race_begin_tile_uploads,
+      NEEDS_M8_X16, .cost_milli = 5941, .guard = scene_race_load_graphics_present },
+    { .addr = 0x7E3E20, .name = "scene_race_set_vram_7100", .fn = scene_race_set_vram_7100, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_race_load_graphics_present },
+    { .addr = 0x7E3E30, .name = "scene_race_set_vram_5000", .fn = scene_race_set_vram_5000, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_race_load_graphics_present },
+    { .addr = 0x7E3E58, .name = "scene_race_clear_scratch", .fn = scene_race_clear_scratch, NEEDS_M8_X16,
+      .cost_milli = 1019, .guard = scene_race_load_graphics_present },
+    { .addr = 0x7E3E8A, .name = "scene_race_set_vram_6800", .fn = scene_race_set_vram_6800, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_race_load_graphics_present },
+    { .addr = 0x7E3EA0, .name = "scene_race_set_vram_6400", .fn = scene_race_set_vram_6400, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_race_load_graphics_present },
+    { .addr = 0x7E43F2, .name = "scene_race_move_camera", .fn = scene_race_move_camera, NEEDS_M8_X16,
+      .cost_milli = 4429, .guard = scene_race_move_camera_present },
+    { .addr = 0x7E4643, .name = "scene_race_upload_column_rom", .fn = scene_race_upload_column_rom,
+      NEEDS_M8_X16, .cost_milli = 2467, .guard = scene_race_upload_column_present },
+    { .addr = 0x7E464D, .name = "scene_race_upload_column_ram", .fn = scene_race_upload_column_ram,
+      NEEDS_M8_X16, .cost_milli = 2377, .guard = scene_race_upload_column_present },
+    { .addr = 0x7E5221, .name = "scene_race_upload_tilemap", .fn = scene_race_upload_tilemap, NEEDS_M8_X16,
+      .cost_milli = 1038, .guard = scene_race_upload_tilemap_present },
+    { .addr = 0x7E5261, .name = "scene_race_upload_strip", .fn = scene_race_upload_strip, NEEDS_M8_X16,
+      .cost_milli = 1571, .guard = scene_race_upload_tilemap_present },
+    { .addr = 0x7E8752, .name = "scene_race_upload_plane", .fn = scene_race_upload_plane, NEEDS_M8_X16,
+      .cost_milli = 1004, .guard = scene_race_upload_plane_present },
     /* menu display (P2) */
     { .addr = 0xC2800E, .name = "menu_mode_start", .fn = menu_mode_start, NEEDS_M8_X16, .cost_milli = 3946 },
     { .addr = 0xC282C1, .name = "menu_mode_return", .fn = menu_mode_return, NEEDS_M8_X16, .cost_milli = 3750 },

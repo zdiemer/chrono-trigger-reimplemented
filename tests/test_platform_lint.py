@@ -34,6 +34,9 @@ ESCAPES = {
     "scene/display.c": 6,  # $7E:3843, $7E:5AEB and the two clears at $7E:3092, whose transfers no call
                            # expresses; $7E:38E7, whose mode and destination are game data; and
                            # $7E:59D5, which carries on from what the channel holds
+    "scene/race.c": 4,     # the two memory clears through the multiplier, the read back out of VRAM at
+                           # $7E:3D41, the column at $7E:4655 and the plane at $7E:876E, which write the
+                           # data port's low half alone
 }
 
 # Files allowed to use the driver-level audio calls (au_driver_*).

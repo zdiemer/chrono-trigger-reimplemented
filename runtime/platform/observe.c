@@ -452,6 +452,8 @@ static uint8_t effect_unit_len(VidLineTarget target)
     case VID_LINE_SCROLL_BG2_V:
     case VID_LINE_SCROLL_BG3_H:
     case VID_LINE_SCROLL_BG3_V: return 2;
+    case VID_LINE_MODE7_AB:
+    case VID_LINE_MODE7_CD: return 4;
     default: return 1;
     }
 }
@@ -550,6 +552,19 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
     case VID_LINE_SCROLL_BG3_V:
         set_scroll_v(ob, 2, v);
         break;
+    case VID_LINE_WINDOW1_LEFT:
+        ob->state.windows.w1_left = v;
+        break;
+    case VID_LINE_MODE7_AB:
+    case VID_LINE_MODE7_CD: {
+        /* The Mode 7 registers share one latch: each write leaves the byte
+         * before it in the low half, so a pair of writes is one value. */
+        VidMode7 *m = &ob->state.mode7;
+        int16_t *value = target == VID_LINE_MODE7_AB ? (i < 2 ? &m->a : &m->b) : (i < 2 ? &m->c : &m->d);
+        *value = (int16_t)((uint16_t)v << 8 | ob->m7_latch);
+        ob->m7_latch = v;
+        break;
+    }
     case VID_LINE_TARGETS:
         break;
     }
