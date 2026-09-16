@@ -37,7 +37,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   warning-free on all four and tests must pass without a ROM. Docs-only changes don't trigger it.
 - Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
   (`--sram`; each header names its save and frame count; docs/RUNTIME.md). Record new ones with
-  `ct_play --record` (docs/PLAYING.md).
+  `ct_play --record` (docs/PLAYING.md), or script them from game state: `build/main/ct_drive` plus
+  `python3 -m tools.movies.routes.<route> --sram <save.srm> --prefix <scratch dir> --movie <out.ctm>`
+  (docs/MOVIES.md). Routes survive timing changes; the movies they write don't, so re-run the route.
 - Validation: every movie in `--native shadow` must exit 0 with no `mismatched [1-9]` lines;
   `--native on --recomp only` must produce traces identical to `--native off` (`python3 tools/trace.py
   diff`); `--native on --recomp only --misses out.txt` lists anything still interpreted.
