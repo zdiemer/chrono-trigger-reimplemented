@@ -91,6 +91,20 @@ rest waits, is [PLAN.md](PLAN.md).
   - **Controllers.** `in_host_set` is already the one host entry point per
     frame, so this is an SDL GameController call into it plus bindings (see
     Player and tooling).
+- **Assets as data files rather than ROM reads.** The matching build already
+  extracts every typed data region from the user's ROM (MATCHING.md,
+  "Build-time extraction"): raw blobs, and decoded forms where a type has one -
+  decompressed streams, BRR as is, graphics as planar tiles. Three things are
+  missing before that is an asset pipeline. A layout meant to be *read* rather
+  than reassembled, and stable enough to depend on. The script as text, which
+  waits on MD2's string encoding. And a decision about whether the runtime
+  should load from such a directory at all, since APPROACH.md's conventions
+  have assets loading from the ROM image at run time and every reader today
+  assumes that. A GBA build is what forces the question, because it can't map a
+  4 MiB SNES image the way the recompilation does; widescreen and translation
+  want it too. Extracted assets are ROM-derived and stay out of the repository
+  wherever they live (CLAUDE.md), so a user data directory beside the saves is
+  the shape.
 - **Open questions** in PLATFORM.md: code that stops when the beam passes a
   scanline (the event scheduler `$C0:5A46`, the sprite frame queue `$C0:CA76`),
   battles playing out differently once timing changes, widescreen's exposed
