@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             tests/cpu/data
@@ -39,7 +39,7 @@ jobs:
           enableCrossOsArchive: true
           lookup-only: true
       - if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Fetch test data
@@ -85,7 +85,7 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_INSTALL_CLEANUP: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -96,7 +96,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ninja sdl2
       - if: runner.os != 'Windows'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install dependencies (Windows)
@@ -113,7 +113,7 @@ jobs:
             mingw-w64-x86_64-SDL2
 
       - name: Restore test data
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             tests/cpu/data

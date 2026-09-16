@@ -79,5 +79,4 @@ and [PLATFORM.md](PLATFORM.md).
 ## Player and tooling
 
 - Gamepad support, configurable keys, and quick saves that survive a rebuild.
-- CI: actions still on Node 20 (GitHub warns), and the macOS job costs 10x
-  minutes on a private repo.
+- CI: the macOS job costs 10x minutes on a private repo.
