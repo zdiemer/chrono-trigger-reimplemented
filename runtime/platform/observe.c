@@ -38,6 +38,7 @@ struct VidObserver {
     bool cg_second;
     uint16_t oam_addr;
     uint8_t oam_latch;
+    uint8_t oam_first_sprite;   /* the priority rotation, as the address register sets it */
 
     ObsSlot slot[8];
     uint8_t enabled_slots;
@@ -216,9 +217,18 @@ void vid_obs_mode7(VidObserver *ob, const VidMode7 *m7, uint32_t fields)
         d->b = m7->b;
         ob->m7_latch = (uint8_t)((uint16_t)m7->b >> 8);
     }
+    if (fields & VID_M7_MATRIX_A) {
+        d->a = m7->a;
+        ob->m7_latch = (uint8_t)((uint16_t)m7->a >> 8);
+    }
+    if (fields & VID_M7_MATRIX_B_HIGH) {
+        uint8_t hi = (uint8_t)((uint16_t)m7->b >> 8);
+        d->b = (int16_t)((uint16_t)(hi << 8) | ob->m7_latch);
+        ob->m7_latch = hi;
+    }
     if (fields & VID_M7_CENTER) {
-        d->cx = m7->cx;
-        d->cy = m7->cy;
+        d->cx = vid_mode7_13bit((uint16_t)m7->cx);
+        d->cy = vid_mode7_13bit((uint16_t)m7->cy);
         ob->m7_latch = (uint8_t)((uint16_t)m7->cy >> 8);
     }
     if (fields & VID_M7_SCROLL) {
@@ -295,11 +305,29 @@ void vid_obs_line_effect(VidObserver *ob, uint8_t slot, const VidLineEffect *e)
     ob->slot[slot & 7].programmed = true;
 }
 
+void vid_obs_line_table(VidObserver *ob, uint8_t slot, uint16_t table)
+{
+    PfData *t = &ob->slot[slot & 7].e.table;
+    t->addr = (t->addr & 0xFF0000) | table;
+}
+
 void vid_obs_enable_line_effects(VidObserver *ob, uint8_t slots) { ob->enabled_slots = slots; }
 
 void vid_obs_vram_port(VidObserver *ob, const VidVramPort *port) { ob->port = *port; }
 
 void vid_obs_vram_address(VidObserver *ob, uint16_t vram_addr) { ob->vram_addr = vram_addr; }
+
+void vid_obs_palette_address(VidObserver *ob, uint8_t first)
+{
+    ob->cg_addr = first;
+    ob->cg_second = false;
+}
+
+void vid_obs_oam_address(VidObserver *ob, uint16_t word_addr, bool priority_rotation)
+{
+    ob->oam_addr = (uint16_t)((word_addr & 0x1FF) << 1);
+    ob->oam_first_sprite = priority_rotation ? (uint8_t)((ob->oam_addr >> 2) & 0x7F) : 0;
+}
 
 void vid_obs_write_vram(VidObserver *ob, uint16_t value, int half)
 {
@@ -347,8 +375,8 @@ void vid_obs_upload_oam(VidObserver *ob, PfData oam)
 /* The SNES-only escape: a transfer whose mode and destination are game data.
  * Where the destination is video memory the observer can still follow it, byte
  * by byte in the pattern the transfer mode gives (as runtime/snes/bus.c does);
- * a transfer that reads a register into memory changes no video state, and
- * anything else is counted as not modelled. */
+ * a transfer that reads a register into memory, or writes the work RAM port,
+ * changes no video state, and anything else is counted as not modelled. */
 void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t control)
 {
     static const uint8_t pattern[8][4] = {
@@ -357,6 +385,8 @@ void vid_obs_snes_transfer(VidObserver *ob, const VidSnesTransfer *t, uint8_t co
     };
     static const uint8_t unit_len[8] = { 1, 2, 2, 4, 4, 4, 2, 4 };
     if (control & 0x80)
+        return;
+    if ((t->dest & 0xFC) == 0x80)   /* $2180-$2183: memory, not video */
         return;
     if (t->target_reg == 0x16)
         ob->vram_addr = t->target;
@@ -407,7 +437,12 @@ static uint8_t effect_unit_len(VidLineTarget target)
     case VID_LINE_SCREENS:
     case VID_LINE_COLOR_MATH: return 4;
     case VID_LINE_MODE:
-    case VID_LINE_MATH_LAYERS: return 2;
+    case VID_LINE_MATH_LAYERS:
+    case VID_LINE_SCROLL_BG1_H:
+    case VID_LINE_SCROLL_BG1_V:
+    case VID_LINE_SCROLL_BG2_V:
+    case VID_LINE_SCROLL_BG3_H:
+    case VID_LINE_SCROLL_BG3_V: return 2;
     default: return 1;
     }
 }
@@ -479,6 +514,34 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
         break;
     case VID_LINE_WINDOW2_RIGHT:
         ob->state.windows.w2_right = v;
+        break;
+    case VID_LINE_BG_MODE: {
+        VidMode m = vid_mode_decode(v);
+        vid_obs_mode(ob, &m);
+        break;
+    }
+    case VID_LINE_MAIN_SCREEN:
+        ob->state.main_layers = v;
+        break;
+    case VID_LINE_MATH_LAYERS_ONLY:
+        vid_color_math_decode(&ob->state.math, VID_MATH_LAYERS, v);
+        break;
+    case VID_LINE_SCROLL_BG1_H:
+        set_scroll_h(ob, 0, v);
+        break;
+    case VID_LINE_SCROLL_BG1_V:
+        set_scroll_v(ob, 0, v);
+        break;
+    case VID_LINE_SCROLL_BG2_V:
+        set_scroll_v(ob, 1, v);
+        break;
+    case VID_LINE_SCROLL_BG3_H:
+        set_scroll_h(ob, 2, v);
+        break;
+    case VID_LINE_SCROLL_BG3_V:
+        set_scroll_v(ob, 2, v);
+        break;
+    case VID_LINE_TARGETS:
         break;
     }
 }
@@ -573,7 +636,7 @@ void vid_obs_line(VidObserver *ob, uint16_t line)
     }
     if (line == 1) {
         decode_sprites(ob);
-        ob->frame.first_sprite = 0;   /* no call sets the priority rotation yet */
+        ob->frame.first_sprite = ob->oam_first_sprite;
     }
     VidSpan *last = ob->frame.span_count ? &ob->frame.spans[ob->frame.span_count - 1] : NULL;
     if (!last || ob->palette_dirty || memcmp(&last->state, &ob->state, sizeof ob->state) != 0) {

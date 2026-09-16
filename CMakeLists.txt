@@ -88,6 +88,7 @@ add_library(ct_game STATIC
   game/field/scroll.c
   game/field/sprites.c
   game/field/window_shape.c
+  game/menu/display.c
   game/menu/frame.c
   game/menu/glyphs.c
   game/menu/objects.c
@@ -98,6 +99,7 @@ add_library(ct_game STATIC
   game/attract/main_loop.c
   game/scene/bitmap.c
   game/scene/math.c
+  game/scene/display.c
   game/scene/nmi.c
   game/scene/program.c
   game/scene/sound.c

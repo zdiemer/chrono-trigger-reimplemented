@@ -78,8 +78,9 @@ static bool read_pause_button(Snes *s)
 }
 
 /* $C3:08D0, entered with its JSL's return address pushed; false where the port
- * stops. */
-static bool frame_work(Snes *s)
+ * stops. Also the whole of the entry at $C3:08D0 (scene/display.c), which the
+ * program calls directly. */
+bool scene_run_frame_work(Snes *s)
 {
     Cpu *c = &s->cpu;
     Platform *pf = m_platform(s);
@@ -209,12 +210,9 @@ void scene_nmi(Snes *s)
     m_push16(s, c->d);
     m_push8(s, c->db);
 
-    m_push8(s, 0xC3);                         /* JSL $C308D0 */
-    m_push16(s, 0x08BD);
-    if (!frame_work(s))
+    m_jsl(s, 0xC308BA, 0xC308D0);             /* the frame's own work, a port of its own */
+    if (!widths_ok(s, true))
         return;
-    m_pull16(s);                              /* RTL */
-    m_pull8(s);
 
     m_push16(s, 0x08C0);                      /* JSR $09A4 */
     if (!update_song(s))
