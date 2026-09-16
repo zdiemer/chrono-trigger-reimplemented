@@ -85,6 +85,31 @@ Two facts make that survivable, and the phase starts by choosing between them:
 entries cover, per bank or per subsystem, which is how a conversion's progress
 is seen. It reads as an estimate for the reasons its own docstring gives.
 
+**Then set the bar against the ports that exist.** The 291 entries were written
+over months and they are not one standard. The recent ones read as source: named
+constants, service calls, a comment saying what the data means. The early ones
+read as transcription, still moving emulated A and X about and naming direct
+page bytes by their addresses (`game/battle/setup.c` is the clearest case). Both
+pass the gate, so nothing is broken; what is missing is that half of them are
+not the thing M5 is for.
+
+Two things do *not* need a pass, which is worth knowing before scoping one: the
+platform lint already covers all of `game/` bar five documented files, so
+hardware access is behind the services everywhere; and no screen geometry is
+baked in that widescreen would have to undo.
+
+So the refactor is readability only, it is cheap to defer, and it should be paid
+per subsystem in Phase 3 rather than as a sweep: converting a subsystem's
+generated code includes bringing that subsystem's existing ports to the same
+bar, while its behaviour is already under the gate. A sweep across all of
+`game/` at once would be a large diff with no behavioural check beyond the gate
+it already passes.
+
+**One thing the timing answer decides.** 259 of the 291 entries carry an
+estimated `cost_milli`. If a derived port can carry its block's exact cost, all
+259 want revisiting, and that is a real refactor rather than a cosmetic one.
+Settle the timing question before counting the cost of this.
+
 **Done when** a subsystem's worth of routines has been converted through the
 workflow and the timing question has an answer written down.
 
@@ -118,7 +143,9 @@ been back.
 
 Subsystem by subsystem, each through the gate, cheapest and best understood
 first. `--uncovered BANK` lists the largest unported runs, which is how to pick
-the next routine. The order should follow what the profile says runs most and
+the next routine. Taking a subsystem includes bringing its existing ports up to
+the same bar (Phase 2), so the refactor is paid where the code is already being
+read rather than as a sweep. The order should follow what the profile says runs most and
 what the existing ports already surround, so each conversion has neighbours to
 check it against. How to write the ports themselves is in CLAUDE.md, "Writing a
 port from generated code".
