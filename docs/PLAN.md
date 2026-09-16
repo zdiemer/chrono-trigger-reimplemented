@@ -79,12 +79,14 @@ Two facts make that survivable, and the phase starts by choosing between them:
 - a draft close enough that the remaining work is naming and structure;
 - a **ground truth check**: derive a routine that is *already* hand ported and
   compare, which says how good the drafts are without waiting for new ports to
-  be validated;
-- a burndown metric, the share of the ROM's 245 KiB of code that registered
-  entries cover, reported per subsystem the way `--misses` reports coverage.
+  be validated.
+
+`python3 tools/burndown.py` already reports the share of code the registered
+entries cover, per bank or per subsystem, which is how a conversion's progress
+is seen. It reads as an estimate for the reasons its own docstring gives.
 
 **Done when** a subsystem's worth of routines has been converted through the
-workflow, the metric exists, and the timing question has an answer written down.
+workflow and the timing question has an answer written down.
 
 ## Phase 3: M5 in bulk
 

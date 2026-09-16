@@ -40,6 +40,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `ct_play --record` (docs/PLAYING.md), or script them from game state: `build/main/ct_drive` plus
   `python3 -m tools.movies.routes.<route> --sram <save.srm> --prefix <scratch dir> --movie <out.ctm>`
   (docs/MOVIES.md). Routes survive timing changes; the movies they write don't, so re-run the route.
+- `python3 tools/burndown.py`: how much of the ROM's code the hand ports cover, per bank or
+  `--by subsystem`, with `--uncovered BANK` listing the largest unported runs. An estimate, for
+  sequencing the port work (docs/PLAN.md); its docstring says which way it is wrong.
 - Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev` runs the gate and exits 0 only when
   it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). The gate
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines;
