@@ -93,6 +93,8 @@ def report(st, times: dict, out: Path, cov=None, data_problems=(), an=None, ram=
               + "".join(f"\n  - {p}" for p in data_problems),
               f"- transfers into [[data]] regions: {len(an.forced_data) if an else 0}"
               + "".join(f"\n  - {fmt(a)}" for a in sorted(an.forced_data if an else ())),
+              f"- [[resource]] tables: {an.resources.summary()}"
+              + "".join(f"\n  - {p}" for p in an.resources.problems) if an else "",
               "- time: " + ", ".join(f"{k} {v:.1f} s" for k, v in times.items())]
     code_banks = [b for b, (i, d, n) in enumerate(st.per_bank) if i or d]
     untyped = [(a, n) for a, n in st.untyped_blobs if (a >> 16) - 0xC0 in code_banks]
@@ -216,12 +218,14 @@ def main():
     print(f"matching: {args.out / 'rom.sfc'} matches (CRC32 {got_crc:08X}, SHA-1 {got_sha1})")
 
     ram_problems = sum(len(rs.problems) for _, rs in ram_sections) + len(ram_cov[2]) + len(an.ram.problems)
-    if st.overlap_problems or (cov and cov.problems) or data_problems or an.forced_data or ram_problems:
+    if (st.overlap_problems or (cov and cov.problems) or data_problems or an.forced_data or ram_problems
+            or an.resources.problems):
         sys.exit(f"matching: {len(cov.problems) if cov else 0} executed ROM addresses aren't instructions the "
                  f"source can run, {len(st.overlap_problems)} overlap hints and {len(data_problems)} data hints "
-                 f"don't fit, {len(an.forced_data)} transfers into data, {ram_problems} RAM section problems "
-                 "(see report.md)")
+                 f"don't fit, {len(an.forced_data)} transfers into data, {ram_problems} RAM section problems, "
+                 f"{len(an.resources.problems)} resource table problems (see report.md)")
     print(f"matching: {len(ram_sections)} RAM sections assemble to their images")
+    print(f"matching: {an.resources.summary()}")
     failed = [c for c in checks if not c.ok]
     if failed and args.closure == "check":
         sys.exit("matching: closure checks fail: " + "; ".join(f"{c.name}: {c.problems[0]} ({len(c.problems)} problems)"

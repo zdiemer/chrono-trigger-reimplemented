@@ -22,6 +22,13 @@
 #                                                   writes the decode under m/x
 #   [[ramcode]]      name, base, source, format = lz | copy | writes, [size],
 #                    [end, m, x], [over]            code the game runs from RAM
+#   [[resource]]     at, count, [name], [kind = ptr24 | ptr16, bank], [slots],
+#                    target = lz | text | blob, [type], [size],
+#                    [extent = "next", end], [skip]  a pointer table a loader
+#                                                   indexes by a resource id;
+#                                                   types it and its targets
+#   fill = true on [[data]]: a background type for a range (every byte no other
+#                    region claims)
 #   derive = "name.part" on [[indirect]] / [[jumptable]]: targets derived from
 #                    the data the code interprets (tools/disasm/derive.py)
 #   header_vectors   enter the native NMI/IRQ and the reset vector of the header
@@ -3444,3 +3451,391 @@ type = "mixed"
 start = "FF:FFF5"
 end = "FF:FFFF"
 type = "undetermined"
+
+# ==============================================================================
+# MD2: resource pointer tables
+# ==============================================================================
+# [[resource]] at, count, [name], target = lz | blob, [type], [size],
+#              [extent = "next", end], [skip = [i, "first-last", ...]]
+# (docs/DISASSEMBLY.md). tools/disasm/resources.py walks the table and types
+# both it (ptr24) and what its entries point at; an lz entry must be a stream
+# the decompressor at C3:0557 consumes exactly, or the run fails.
+#
+# The loaders share one shape: a resource id is multiplied by three (ASL, ADC)
+# into X, two long indexed loads read the pointer's low word and bank byte, and
+# the pair is either stored at $0300/$0302, where the decompressor at C3:0002
+# takes its source, or kept as a data pointer. `count` is a layout bound for
+# every table below: the tables sit next to each other with fill between, and
+# the entry after the last one no longer reads as a pointer to a resource.
+# `skip` lists entries that don't point at a stream; each is bytes the
+# decompressor rejects, so either the id is never used or another loader reads
+# them raw. Which is which isn't established, so those bytes stay untyped.
+
+# C6:FDF0 (14): scene graphics. C2:2790-27A5 takes the id from the scene
+# descriptor at [$10],Y (negative = none, BMI at C2:278A), decompresses to the
+# destination the caller left at $0303 and adds $1000 per entry.
+[[resource]]
+at = "C6:FDF0"
+count = 14
+target = "lz"
+
+# C6:FE20 (37): the same shape at C2:27FA-280F, descriptor field [$ED],Y,
+# 7 entries per scene (CMP #$0007 at C2:2820).
+[[resource]]
+at = "C6:FE20"
+count = 37
+target = "lz"
+
+# C6:FEA0 (19): read at C2:2899-28AE and C2:28AF-28C5; every entry is in bank C3.
+[[resource]]
+at = "C6:FEA0"
+count = 19
+target = "lz"
+
+# C6:FF00 (6): read at C2:2975-298A.
+[[resource]]
+at = "C6:FF00"
+count = 6
+target = "lz"
+
+# C6:FF20 (8): read at C2:29A3-29B8.
+[[resource]]
+at = "C6:FF20"
+count = 8
+target = "lz"
+
+# C6:FF40 (6): read at C2:286B-2880 and C2:7B2D-7B42.
+[[resource]]
+at = "C6:FF40"
+count = 6
+target = "lz"
+
+# C6:FF80 (7): read at C2:29D1-29E6.
+[[resource]]
+at = "C6:FF80"
+count = 7
+target = "lz"
+
+# C6:FFA0 (3): read at C2:29FF-2A14.
+[[resource]]
+at = "C6:FFA0"
+count = 3
+target = "lz"
+
+# C6:FFC0 (8): read at C2:2A5B-2A70, decompressed to $7E:0000 (C2:2A71).
+[[resource]]
+at = "C6:FFC0"
+count = 8
+target = "lz"
+
+# C6:FFE0 (8): the eight scenes' object command scripts, decompressed to
+# $7F:0400 (C2:2A44-2A4E, then C2:2A2D-2A42). tools/disasm/objscript.py parses
+# their output; the derived targets of C2:0553, C2:1819 and C2:1836 come from it.
+[[resource]]
+at = "C6:FFE0"
+count = 8
+name = "scene_script_ptrs"
+target = "lz"
+
+# E4:2000 (248): battle sprite graphics. CC:E98A-E9B9 indexes it with 3 * the
+# enemy's graphics id and stores the pointer at $1C57,Y; the parallel table at
+# E4:2300 goes to $1C78,Y and the 16-bit tables at E4:2600/E4:2800 give sizes by
+# difference (CC:EA07-EA18). Entries 0-6 point at the uncompressed tile banks
+# D2-D5, which the unrolled 32-byte copies at C0:E7C3, C0:E846, C0:E8C9 and
+# C0:E94C read; they are not streams.
+[[resource]]
+at = "E4:2000"
+count = 248
+target = "lz"
+skip = ["0-6"]
+
+# F6:1E00 (202): read at C0:A33B-A369 with the id from the record at $F60004,X,
+# decompressed to $7E:B500. Entry 201 is not a stream.
+[[resource]]
+at = "F6:1E00"
+count = 202
+target = "lz"
+skip = [201]
+
+# F6:2100 (64): read at C0:09F2-0A12 with the id from $F60001,X (C0:0962,
+# C0:09DF), decompressed to $7E:B000. The table ends where F6:21C0 begins.
+[[resource]]
+at = "F6:2100"
+count = 64
+target = "lz"
+
+# F6:21C0 (23): read at C0:0A2D-0A4E with the id from $F60002,X (C0:0A1A;
+# id $FF means none, CMP #$FF at C0:0A1E). Entries 19-22 point at bytes
+# $1000 apart in bank EF that the decompressor rejects.
+[[resource]]
+at = "F6:21C0"
+count = 23
+target = "lz"
+skip = ["19-22"]
+
+# F6:2220 (219): read at C0:6D40-6D63 (and C0:6D76, C0:6DAD, C0:6DE6, D1:ED1A)
+# with ids from $F6000A-000D,X, decompressed to $7E:0000. Entries 204-218 point
+# at bytes the decompressor rejects, in two runs about $1014 apart (bank FD,
+# then bank F6).
+[[resource]]
+at = "F6:2220"
+count = 219
+target = "lz"
+skip = ["204-218"]
+
+# FC:F9F0 (513): read at C0:56D4-5702 with the id from $F60008,X, decompressed
+# to $7F:2000. Entries 75-81, 102-110, 231-235 and 320-322 each repeat one
+# pointer into bytes the decompressor rejects: unused ids.
+[[resource]]
+at = "FC:F9F0"
+count = 513
+target = "lz"
+skip = ["75-81", "102-110", "231-235", "320-322"]
+
+# FE:0000 (73): the attract, title and jet bike race program's resource table
+# (sub_7E3691 reads it at $7E:3694/369C; C3:0058 loads entry 1, the program's
+# own stream). Entries 18-21, 37 and 48-57 point at bytes the decompressor
+# rejects; the last ten are $20-$100 apart at the end of bank FE.
+[[resource]]
+at = "FE:0000"
+count = 73
+name = "attract_resource_ptrs"
+target = "lz"
+skip = ["18-21", 37, "48-57"]
+
+# E4:2300 (231): the second pointer of a battle sprite, read at CC:E9A5-E9B9
+# beside E4:2000 and kept at $1C78,Y. C1:1C8B adds a 16-bit frame offset ($A9)
+# to it and reads through the sum, so a record's length isn't in the record: it
+# runs to the next entry's target, and the last one in each bank to where that
+# bank's trailing fill begins (in DE, where the string table at DE:C000 starts).
+# Nothing else in the ROM points into DC, DD, DE or E3, and the entries start
+# each of those banks at 0000.
+[[resource]]
+at = "E4:2300"
+count = 231
+target = "blob"
+type = "bytes"
+extent = "next"
+end = ["DC:DF97", "DD:FD47", "DE:BFFF", "E1:F517", "E3:F8C0"]
+
+# E4:2600 and E4:2800: two tables of 16-bit offsets in bank E4 (the bank byte is
+# the immediate $E4 at CC:E9CE and CC:E9E5), 256 slots each, read with a doubled
+# index at CC:E9BC-EA05. CC:EA07-EA18 takes the difference between an entry and
+# the next as the record's size, so entry 193 is an end sentinel and entries
+# 194-255 are zero fill. The records are what $1C99 and $1CBA point at.
+# D0:E000 (6): read at D1:ED8A-EDA8 with 3 * the byte at $CD42 as the index,
+# the pointer stored at $0300-$0302 and the destination $7E:D000; D1:EDB4 calls
+# the decompressor at C3:0002. Entry 6 isn't a stream, so the table stops there;
+# the streams it names are in D0 itself, between D0:E012 and D0:F98E.
+[[resource]]
+at = "D0:E000"
+count = 6
+target = "lz"
+
+[[resource]]
+at = "E4:2600"
+count = 193
+slots = 256
+kind = "ptr16"
+bank = "E4"
+target = "blob"
+type = "bytes"
+extent = "next"
+end = "E4:A5EF"
+
+[[resource]]
+at = "E4:2800"
+count = 193
+slots = 256
+kind = "ptr16"
+bank = "E4"
+target = "blob"
+type = "bytes"
+extent = "next"
+end = "E4:CC56"
+
+# D2-D5: uncompressed sprite tiles. C0:E7C3, C0:E846, C0:E8C9 and C0:E94C each
+# copy 32 bytes (one 4bpp tile) from the start of one bank with an unrolled run
+# of sixteen 16-bit long indexed loads, so any tile-aligned offset can be read
+# and the banks hold nothing else; the seven tile sets D2:0000, D2:72C0,
+# D3:0000, D3:6B40, D4:0000, D4:7C40 and D5:0000 are entries 0-6 of the E4:2000
+# table. `fill = true` gives the type to every byte of the bank no other region
+# claims, which here is everything outside the compressed battle sprites the
+# rest of the E4:2000 table puts in these banks. Blank tiles are part of a set,
+# so the fill runs inside count as tiles too.
+[[data]]
+start = "D2:0000"
+end = "D2:FFFF"
+type = "gfx"
+fill = true
+
+[[data]]
+start = "D3:0000"
+end = "D3:FFFF"
+type = "gfx"
+fill = true
+
+[[data]]
+start = "D4:0000"
+end = "D4:FFFF"
+type = "gfx"
+fill = true
+
+[[data]]
+start = "D5:0000"
+end = "D5:FFFF"
+type = "gfx"
+fill = true
+
+# ==============================================================================
+# MD2: string tables
+# ==============================================================================
+# Fifteen tables of 16-bit offsets into their own bank whose entries name
+# zero-terminated strings. Each is self-describing: entry 0 points at the byte
+# just after the table, the entries never decrease, and the last one points one
+# past the last string's terminator, so the table's length and the strings'
+# bounds come from the table alone. `target = "text"` runs each string to its
+# terminator and reports any byte between one terminator and the next string,
+# which is the format's exact-consumption check: over all fifteen the strings
+# tile their range with no byte left over except where noted below.
+#
+# `count` is one less than `slots` everywhere: the last entry is the end
+# sentinel, not a string. The tables in F6 and FF sit in ranges MD1 typed
+# `mixed`; the expansion splits those around them. What reads a table isn't
+# established: no code in the found set sets its data bank or holds a long
+# operand into it, so the readers take a pointer out of RAM. The strings
+# themselves stay in the ROM; only their bounds are recorded here.
+
+[[resource]]
+at = "D8:D000"
+count = 77
+slots = 78
+kind = "ptr16"
+bank = "D8"
+target = "text"
+
+[[resource]]
+at = "D8:DD80"
+count = 257
+slots = 258
+kind = "ptr16"
+bank = "D8"
+target = "text"
+
+[[resource]]
+at = "DE:C000"
+count = 186
+slots = 187
+kind = "ptr16"
+bank = "DE"
+target = "text"
+
+[[resource]]
+at = "DE:E300"
+count = 144
+slots = 145
+kind = "ptr16"
+bank = "DE"
+target = "text"
+
+[[resource]]
+at = "F6:A000"
+count = 105
+slots = 106
+kind = "ptr16"
+bank = "F6"
+target = "text"
+
+[[resource]]
+at = "F6:B230"
+count = 143
+slots = 144
+kind = "ptr16"
+bank = "F6"
+target = "text"
+
+[[resource]]
+at = "F7:0000"
+count = 455
+slots = 456
+kind = "ptr16"
+bank = "F7"
+target = "text"
+
+[[resource]]
+at = "F7:4900"
+count = 1202
+slots = 1203
+kind = "ptr16"
+bank = "F7"
+target = "text"
+
+[[resource]]
+at = "F8:4650"
+count = 767
+slots = 768
+kind = "ptr16"
+bank = "F8"
+target = "text"
+
+[[resource]]
+at = "F9:B000"
+count = 443
+slots = 444
+kind = "ptr16"
+bank = "F9"
+target = "text"
+
+[[resource]]
+at = "FC:BA00"
+count = 398
+slots = 399
+kind = "ptr16"
+bank = "FC"
+target = "text"
+
+[[resource]]
+at = "FF:4460"
+count = 80
+slots = 81
+kind = "ptr16"
+bank = "FF"
+target = "text"
+
+[[resource]]
+at = "FF:5860"
+count = 84
+slots = 85
+kind = "ptr16"
+bank = "FF"
+target = "text"
+
+[[resource]]
+at = "FF:6B00"
+count = 185
+slots = 186
+kind = "ptr16"
+bank = "FF"
+target = "text"
+
+[[resource]]
+at = "FF:8400"
+count = 38
+slots = 39
+kind = "ptr16"
+bank = "FF"
+target = "text"
+
+# F6:0000-1BFF: 512 records of 14 bytes, one per location. C0:0945-095F makes
+# the index with the hardware multiplier ($4202 = the low byte of the location
+# at $00, $4203 = $0E) and adds $0E00 when bit 0 of $01 is set, which is
+# 256 * 14, so the record is 14 bytes and the index runs 0-511. The fields read
+# through it are the resource ids of the F6:1E00, F6:2100, F6:21C0, F6:2220 and
+# FC:F9F0 tables ($F60001, $F60002, $F60004, $F60008, $F6000A-000D at C0:0962,
+# C0:0A1A, C0:A33F, C0:56D8, C0:747A and more) and the bytes at +0 and +3.
+[[data]]
+start = "F6:0000"
+end = "F6:1BFF"
+type = "struct"
+size = 14
+name = "location_records"

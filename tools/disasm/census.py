@@ -400,7 +400,10 @@ def main():
     print()
     s_in = sum(l for _, l, _ in c.streams)
     s_out = sum(y for *_, y in c.streams)
-    print(f"streams: {len(c.streams)}, {s_in} bytes decompressing to {s_out}; "
+    print("resources:", an.resources.summary())
+    for p in an.resources.problems:
+        print("  !", p)
+    print(f"streams the heuristic still claims: {len(c.streams)}, {s_in} bytes decompressing to {s_out}; "
           f"{c.stream_pointer_count()} have a 24-bit pointer to their start in the ROM")
     print(f"BRR-like runs: {len(c.found['brr'])}; 24-bit pointer runs: {len(c.found['ptr24'])}; "
           f"16-bit code-pointer runs: {len(c.found['codeptr'])}; 16-bit offset runs: {len(c.found['ofs16'])}")

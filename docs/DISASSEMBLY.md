@@ -118,6 +118,32 @@ The analysis also follows a `PER` into the `JMP (abs)` / `JMP (abs,X)` it
 precedes as a call returning after the pushed address, and treats the
 instruction starts and branch targets of `patch` sections as entries.
 
+Kinds and fields added for data typing (MD2, [MATCHING.md](MATCHING.md#md2-as-built)):
+
+| Hint | Fields | Meaning |
+|---|---|---|
+| `[[resource]]` | `at`, `count`, [`name`], [`kind` = `ptr24` \| `ptr16` + `bank`], [`slots`], `target` = `lz` \| `text` \| `blob`, [`type`], [`size`], [`extent = "next"`, `end`], [`skip`] | a table of pointers a loader indexes by a resource id: `tools/disasm/resources.py` types the table (`ptr24`/`ptr16`, `slots` entries, `count` of them walked) and what its entries point at |
+| `fill = true` on `[[data]]` | | a background type for a range: every byte in it that no other region claims is of this type (bank D2-D5's sprite tiles). Other regions carve it up; one crossing its edge is an error |
+
+`[[resource]]` targets:
+
+- `lz`: each entry must be a stream `tools/disasm/lz.py` consumes exactly, and
+  the region is exactly those bytes. An entry that isn't is an error unless
+  `skip` lists it (with the comment saying why).
+- `text`: each entry names a zero-terminated string, and the region runs to the
+  terminator. The report counts the bytes between one string's terminator and
+  the next string, which is zero when the table's strings tile their range.
+- `blob`: a region of the hint's `type`, `size` bytes long, or (`extent =
+  "next"`) running to the next entry of the same table in the same bank, with
+  `end` (one address per bank) for the last one.
+
+Entries that repeat a target claim one region. A derived region that lands
+inside a hint typed `mixed` or `undetermined`, or inside a `fill` region,
+splits it; any other overlap is an error. The expansion runs once per `Hints`
+object, before tracing, so `census.py`, the analysis and the matching build all
+see the same regions; `tools/disasm/resources.py` has no state beyond the ROM
+and the hints, and `tests/test_resources.py` exercises it on synthetic data.
+
 ## Parsers and derivations (MD4)
 
 Where code dispatches through addresses taken from data, the targets are
@@ -132,6 +158,7 @@ effects are facts about the code, the scripts stay in the ROM.
 | `tools/disasm/seqscript.py` | the attract program's sequence channels, `$C3:0B03` | constant stores to `$0A20`/`$0B20`, pointer stores in code the scripts call, command `$A2` on a pointer | code calls through `$00F0` (`$7E:37F6`), tasks added to `$0920` (`$7E:3998`) and `$0940` (`$7E:39CF`) |
 | `derive.py` `operands` | calls in RAM code whose operand the program writes | absolute and long stores (words, or byte pairs) into a transfer's operand in the same section | the JSR targets at `$7E:3023`, `$7E:35FC`, `$7E:5E43` |
 | `derive.py` `winlist` | window command lists, `$C2:ED31` | constant X at the calls, the word table at `$C2:DFC5` | the handlers the lists use (confirms the 11-entry bound of `$C2:ED50`) |
+| `tools/disasm/resources.py` | the loaders that index a 24-bit or 16-bit pointer table by a resource id | `[[resource]]` hints, each with the reading code in its comment | typed regions for the tables and for the streams, strings and blobs their entries name (MD2) |
 
 `tools/disasm/codeargs.py` gives the constant values a register can hold at an
 instruction over every path into it (none when a path reaches an entry, a

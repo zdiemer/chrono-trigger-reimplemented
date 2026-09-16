@@ -91,6 +91,8 @@ class Hints:
     data_regions: list = field(default_factory=list)   # DataHint, sorted by start
     overlaps: dict = field(default_factory=dict)       # addr -> (m, x) whose decode the source writes
     ramcode: list = field(default_factory=list)        # RamCodeHint
+    resources: list = field(default_factory=list)      # resources.Resource (expanded into data_regions)
+    resource_report: object = None                     # resources.Report once expanded
 
     def is_data(self, addr: int) -> bool:
         if len(self._data_starts) != len(self.data):
@@ -126,6 +128,20 @@ def _width(v, where: str) -> bool | None:
 # targets are the constants every writer of the cell loads). A `derive` hint is
 # argued by its data; a site with neither has no argument.
 BOUNDS = {"guard", "layout", "constant"}
+
+
+def _indices(spec) -> list:
+    """Entry indices from a list of numbers and "first-last" ranges."""
+    out = []
+    for v in spec:
+        if isinstance(v, int):
+            out.append(v)
+            continue
+        a, _, b = str(v).partition("-")
+        if not b:
+            raise ValueError(f"bad entry index {v!r}; expected a number or \"first-last\"")
+        out.extend(range(int(a), int(b) + 1))
+    return out
 
 
 def _bound(d: dict) -> str:
@@ -190,6 +206,28 @@ def load(path: Path) -> Hints:
         h.data.append((start, end))
         h.data_regions.append(DataHint(start, end, kind, d.get("name"), params))
     h.data_regions.sort(key=lambda r: r.start)
+    for r in doc.get("resource", []):
+        from .resources import TARGETS, Resource
+        target = r.get("target", "lz")
+        if target not in TARGETS:
+            raise ValueError(f"resource {r['at']}: target must be one of {sorted(TARGETS)}")
+        kind = r.get("type", "bytes")
+        if kind not in DATA_TYPES:
+            raise ValueError(f"resource {r['at']}: unknown type {kind!r}")
+        if target == "blob" and "size" not in r and r.get("extent") != "next":
+            raise ValueError(f"resource {r['at']}: blob targets need a size or extent = \"next\"")
+        entry = r.get("kind", "ptr24")
+        if entry not in ("ptr16", "ptr24"):
+            raise ValueError(f"resource {r['at']}: kind must be ptr16 or ptr24")
+        if entry == "ptr16" and "bank" not in r:
+            raise ValueError(f"resource {r['at']}: ptr16 entries need the bank the code supplies")
+        ends = r.get("end", [])
+        ends = [ends] if isinstance(ends, str) else list(ends)
+        h.resources.append(Resource(parse(r["at"]), r["count"], r.get("name"), target, kind,
+                                    r.get("size"), tuple(parse(e) for e in ends),
+                                    r.get("extent"), tuple(_indices(r.get("skip", []))),
+                                    entry, int(r.get("bank", 0), 16) if isinstance(r.get("bank"), str)
+                                    else r.get("bank", 0), r.get("slots")))
     for r in doc.get("ramcode", []):
         fmt_ = r.get("format", "lz")
         if fmt_ not in ("lz", "copy", "writes", "run"):
