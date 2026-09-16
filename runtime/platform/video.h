@@ -161,6 +161,8 @@ enum {
     VID_M7_CENTER = 1 << 2,   /* cx, cy */
     VID_M7_SCROLL = 1 << 3,   /* hofs, vofs */
     VID_M7_MATRIX_AB = 1 << 4,   /* a and b only: they double as the signed multiplier */
+    VID_M7_MATRIX_A = 1 << 5,    /* a alone: the multiplier's 16-bit operand */
+    VID_M7_MATRIX_B_HIGH = 1 << 6,  /* the high byte of b alone: its 8-bit operand */
 };
 
 /* One OAM entry, as the game builds it. */

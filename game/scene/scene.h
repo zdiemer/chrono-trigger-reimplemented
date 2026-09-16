@@ -21,6 +21,7 @@ void scene_multiply_signed(Snes *s);
 
 /* scene/nmi.c */
 void scene_nmi(Snes *s);
+bool scene_run_frame_work(Snes *s);
 
 /* scene/program.c (RAM code; guarded) */
 bool scene_divide_present(Snes *s);

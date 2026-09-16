@@ -24,6 +24,7 @@
 #include "field/sprites.h"
 #include "menu/display.h"
 #include "menu/menu.h"
+#include "scene/display.h"
 #include "scene/scene.h"
 #include "menu/objects.h"
 #include "menu/save_screen.h"
@@ -689,6 +690,41 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3984, .dont_care = DC_N | DC_Z },
     { .addr = 0xC2EF65, .name = "menu_draw_text", .fn = menu_draw_text, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 3604, .dont_care = DC_N | DC_Z },
+    /* scene display (P2) */
+    { .addr = 0xC308D0, .name = "scene_frame_work", .fn = scene_frame_work, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 3198 },
+    { .addr = 0x7E30F9, .name = "scene_init_video", .fn = scene_init_video, .p_mask = CPU_FLAG_X,
+      .p_value = 0, .cost_milli = 3351, .guard = scene_init_video_present },
+    { .addr = 0x7E380E, .name = "scene_upload_sprites", .fn = scene_upload_sprites, NEEDS_M8_X16,
+      .cost_milli = 1098, .guard = scene_upload_sprites_present },
+    { .addr = 0x7E3843, .name = "scene_clear_sprite_table", .fn = scene_clear_sprite_table, NEEDS_M8_X16,
+      .cost_milli = 1090, .guard = scene_clear_sprite_table_present },
+    { .addr = 0x7E388B, .name = "scene_upload_palette", .fn = scene_upload_palette, NEEDS_M8_X16,
+      .cost_milli = 1073, .guard = scene_upload_palette_present },
+    { .addr = 0x7E38E7, .name = "scene_transfer", .fn = scene_transfer, NEEDS_M8_X16, .cost_milli = 1011,
+      .guard = scene_transfer_present },
+    { .addr = 0x7E597B, .name = "scene_set_vram_4000", .fn = scene_set_vram_4000, NEEDS_M8_X16,
+      .cost_milli = 5889, .guard = scene_load_graphics_present },
+    { .addr = 0x7E59A0, .name = "scene_set_vram_5000", .fn = scene_set_vram_5000, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_load_graphics_present },
+    { .addr = 0x7E59AA, .name = "scene_set_vram_0000", .fn = scene_set_vram_0000, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_load_graphics_present },
+    { .addr = 0x7E59BC, .name = "scene_set_vram_6400", .fn = scene_set_vram_6400, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_load_graphics_present },
+    { .addr = 0x7E59CC, .name = "scene_set_vram_6000", .fn = scene_set_vram_6000, NEEDS_M8_X16,
+      .cost_milli = 5000, .guard = scene_load_graphics_present },
+    { .addr = 0x7E5AB6, .name = "scene_upload_tiles_through_port", .fn = scene_upload_tiles_through_port,
+      NEEDS_M8_X16, .cost_milli = 5274, .guard = scene_upload_tiles_through_port_present },
+    { .addr = 0x7E5C57, .name = "scene_set_mode7_matrix", .fn = scene_set_mode7_matrix, NEEDS_M8_X16,
+      .cost_milli = 3924, .guard = scene_set_mode7_matrix_present },
+    { .addr = 0x7E5C98, .name = "scene_show_layers", .fn = scene_show_layers, NEEDS_M16_X16,
+      .cost_milli = 6502, .guard = scene_show_layers_present },
+    { .addr = 0x7E5DA7, .name = "scene_set_mode_2", .fn = scene_set_mode_2, NEEDS_M16_X16,
+      .cost_milli = 3773, .guard = scene_set_mode_2_present },
+    { .addr = 0x7E5E54, .name = "scene_expand_tile_rows", .fn = scene_expand_tile_rows, NEEDS_M8_X16,
+      .cost_milli = 3723, .guard = scene_expand_tile_rows_present },
+    { .addr = 0x7E6212, .name = "scene_upload_map_and_scroll", .fn = scene_upload_map_and_scroll,
+      NEEDS_M8_X16, .cost_milli = 1388, .guard = scene_upload_map_and_scroll_present },
     /* menu display (P2) */
     { .addr = 0xC2800E, .name = "menu_mode_start", .fn = menu_mode_start, NEEDS_M8_X16, .cost_milli = 3946 },
     { .addr = 0xC282C1, .name = "menu_mode_return", .fn = menu_mode_return, NEEDS_M8_X16, .cost_milli = 3750 },

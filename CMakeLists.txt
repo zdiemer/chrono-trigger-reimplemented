@@ -98,6 +98,7 @@ add_library(ct_game STATIC
   game/attract/main_loop.c
   game/scene/bitmap.c
   game/scene/math.c
+  game/scene/display.c
   game/scene/nmi.c
   game/scene/program.c
   game/scene/sound.c

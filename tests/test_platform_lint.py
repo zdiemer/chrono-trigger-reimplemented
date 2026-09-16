@@ -31,6 +31,8 @@ ESCAPES = {
     "battle/frame.c": 1,   # $CF:E338, the transfer described by the table at $9EEA
     "field/display.c": 1,  # $C0:2DF1, which copies a PPU register into memory rather than writing one
     "menu/display.c": 2,   # $C2:9512 and $C2:9542, which fill and copy memory through the work RAM port
+    "scene/display.c": 3,  # $7E:3843 and $7E:5AEB, whose transfers no call expresses, and $7E:38E7,
+                           # whose mode and destination are game data
 }
 
 # Files allowed to use the driver-level audio calls (au_driver_*).

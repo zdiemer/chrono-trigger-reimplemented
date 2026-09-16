@@ -217,6 +217,15 @@ void vid_obs_mode7(VidObserver *ob, const VidMode7 *m7, uint32_t fields)
         d->b = m7->b;
         ob->m7_latch = (uint8_t)((uint16_t)m7->b >> 8);
     }
+    if (fields & VID_M7_MATRIX_A) {
+        d->a = m7->a;
+        ob->m7_latch = (uint8_t)((uint16_t)m7->a >> 8);
+    }
+    if (fields & VID_M7_MATRIX_B_HIGH) {
+        uint8_t hi = (uint8_t)((uint16_t)m7->b >> 8);
+        d->b = (int16_t)((uint16_t)(hi << 8) | ob->m7_latch);
+        ob->m7_latch = hi;
+    }
     if (fields & VID_M7_CENTER) {
         d->cx = vid_mode7_13bit((uint16_t)m7->cx);
         d->cy = vid_mode7_13bit((uint16_t)m7->cy);

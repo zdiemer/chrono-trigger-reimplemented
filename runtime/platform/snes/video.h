@@ -115,6 +115,12 @@ PF_API void vid_set_mode7(Platform *pf, PfOrigin o, const VidMode7 *m7, uint32_t
             pf_snes_put(s, (uint16_t)(PF_SNES_M7A + i), (uint8_t)((uint16_t)v[i] >> 8));
         }
     }
+    if (fields & VID_M7_MATRIX_A) {
+        pf_snes_put(s, PF_SNES_M7A, (uint8_t)m7->a);
+        pf_snes_put(s, PF_SNES_M7A, (uint8_t)((uint16_t)m7->a >> 8));
+    }
+    if (fields & VID_M7_MATRIX_B_HIGH)
+        pf_snes_put(s, (uint16_t)(PF_SNES_M7A + 1), (uint8_t)((uint16_t)m7->b >> 8));
     if (fields & VID_M7_CENTER) {
         const int16_t v[2] = { m7->cx, m7->cy };
         for (int i = 0; i < 2; i++) {
