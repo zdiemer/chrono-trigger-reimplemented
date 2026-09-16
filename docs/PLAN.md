@@ -69,6 +69,28 @@ Two facts make that survivable, and the phase starts by choosing between them:
   `--recomp only`, and the readable code becomes the shipping path. It is worth
   a spike before committing to the first option.
 
+The spike settles it, and both answers carry work rather than only a note:
+
+- **If a derived port can carry an exact cost**, that is the fix for the drift,
+  and applying it to the 259 entries that hold an estimate is a step of its own,
+  scheduled here rather than left implied. The check is the gate's own: with the
+  ports in, `--native on --recomp on` traces identically to `--native off`, the
+  comparison only `--recomp only` passes today. Do it before Phase 3 converts
+  more code, so the bulk work produces exact ports rather than a second
+  backlog.
+- **If it can't**, write down that `--recomp only` is the shipping path for as
+  long as the SNES backend is the one that matters, and that the readable code
+  is validated by shadow mode rather than by running. That is a real decision
+  about what the decompilation is *for*, and Phase 3 should not start before it
+  is made.
+
+Two other timing threads exist and neither is this one, so they shouldn't be
+conflated with it: the machine's own approximations (TODO.md, "Correctness and
+accuracy" -- the IRQ trigger delay, an IRQ pending across `CLI`, the S-DSP's KON
+poll), and the game code that waits on beam position, which is a game-side
+rewrite in Phase 4. The unexplained `fair` and `fair-companion` regression
+belongs with the first group and is the only one that might be a bug.
+
 **Then build the workflow.** M5 is a tooling problem, not a grinding problem.
 `tools/recomp/show` is designed but unwritten. What it needs to earn:
 
@@ -122,13 +144,9 @@ bar, while its behaviour is already under the gate. A sweep across all of
 `game/` at once would be a large diff with no behavioural check beyond the gate
 it already passes.
 
-**One thing the timing answer decides.** 259 of the 291 entries carry an
-estimated `cost_milli`. If a derived port can carry its block's exact cost, all
-259 want revisiting, and that is a real refactor rather than a cosmetic one.
-Settle the timing question before counting the cost of this.
-
-**Done when** a subsystem's worth of routines has been converted through the
-workflow and the timing question has an answer written down.
+**Done when** the timing spike has an answer and whichever work it implies is
+done, the RAM map exists, and a subsystem's worth of routines has been converted
+through the workflow to the bar above.
 
 ## Phase 3: M5 in bulk
 
