@@ -20,6 +20,8 @@ typedef struct VidCheck VidCheck;
 /* `from_frame`: seed the observer from the PPU at that frame and compare from
  * there on, so a subsystem can be checked from the frame it takes over. */
 VidCheck *vid_check_create(Snes *s, uint32_t from_frame);
+/* From the on_frame_top hook, where HDMA loads its channels. */
+void vid_check_frame_top(VidCheck *vc);
 /* From the on_line hook, for lines 0-224. */
 void vid_check_line(VidCheck *vc, uint16_t line);
 int vid_check_write(VidCheck *vc, const char *path, FILE *summary);

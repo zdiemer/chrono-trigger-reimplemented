@@ -121,6 +121,10 @@ PF_API void vid_set_mode7(Platform *pf, PfOrigin o, const VidMode7 *m7, uint32_t
     }
     if (fields & VID_M7_MATRIX_B_HIGH)
         pf_snes_put(s, (uint16_t)(PF_SNES_M7A + 1), (uint8_t)((uint16_t)m7->b >> 8));
+    if (fields & VID_M7_MATRIX_B) {
+        pf_snes_put(s, (uint16_t)(PF_SNES_M7A + 1), (uint8_t)m7->b);
+        pf_snes_put(s, (uint16_t)(PF_SNES_M7A + 1), (uint8_t)((uint16_t)m7->b >> 8));
+    }
     if (fields & VID_M7_CENTER) {
         const int16_t v[2] = { m7->cx, m7->cy };
         for (int i = 0; i < 2; i++) {
@@ -250,13 +254,14 @@ typedef struct {
     uint8_t indirect_bank;
     uint8_t target_reg;
     uint16_t target;
+    uint8_t spill;
     const VidVramPort *port;
 } PfSnesChannel;
 
 static inline uint8_t pf_snes_vram_port_byte(const VidVramPort *p)
 {
     uint8_t step = p->snes_step_alt ? 3 : p->step == 1 ? 0 : p->step == 32 ? 1 : 2;
-    return (uint8_t)((p->after_high ? 0x80 : 0) | (p->remap & 3) << 2 | step);
+    return (uint8_t)((p->after_high ? 0x80 : 0) | (p->snes_extra & 0x70) | (p->remap & 3) << 2 | step);
 }
 
 static inline void pf_snes_program(Snes *s, const PfSnesChannel *c, const uint8_t *steps)
@@ -290,6 +295,8 @@ static inline void pf_snes_program(Snes *s, const PfSnesChannel *c, const uint8_
             break;
         case VID_STEP_START: pf_snes_put(s, PF_SNES_MDMAEN, (uint8_t)(1u << (c->channel & 7))); break;
         case VID_STEP_VRAM_PORT: pf_snes_put(s, PF_SNES_VMAIN, pf_snes_vram_port_byte(c->port)); break;
+        case VID_STEP_SPILL_SIZE_LO: pf_snes_put(s, (uint16_t)(base + 5), c->spill); break;
+        case VID_STEP_SPILL_CURSOR_LO: pf_snes_put(s, (uint16_t)(base + 8), c->spill); break;
         }
     }
 }
@@ -301,7 +308,8 @@ PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const Vi
     vid_line_snes_encoding(e->target, &mode, &reg);
     pf_snes_begin("vid_set_line_effect", o);
     PfSnesChannel c = { .channel = slot, .control = (uint8_t)((e->indirect ? 0x40 : 0) | mode),
-                        .dest = reg, .source = e->table.addr, .indirect_bank = e->indirect_bank };
+                        .dest = reg, .source = e->table.addr, .indirect_bank = e->indirect_bank,
+                        .spill = e->snes_spill };
     pf_snes_program(pf_snes(pf), &c, snes_steps);
     if (vid_observer)
         vid_obs_line_effect(vid_observer, slot, e);
@@ -435,14 +443,49 @@ PF_API void vid_stop_uploads(Platform *pf, PfOrigin o)
     pf_snes_end();
 }
 
+/* True if `steps` writes that register itself. */
+static inline bool pf_snes_has_step(const uint8_t *steps, uint8_t step)
+{
+    for (; *steps != VID_STEP_END; steps++)
+        if (*steps == step)
+            return true;
+    return false;
+}
+
 PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x)
 {
+    Snes *s = pf_snes(pf);
+    VidSnesTransfer resolved = *t;
+    uint8_t control = x->control;
+    if (t->continue_channel) {
+        /* Whatever this call site doesn't program stays as the channel holds
+         * it, and that is what the transfer will use. */
+        const uint8_t *reg = s->bus.dma[x->channel & 7].reg;
+        if (!pf_snes_has_step(x->steps, VID_STEP_CONTROL))
+            control = reg[0];
+        if (!pf_snes_has_step(x->steps, VID_STEP_DEST))
+            resolved.dest = reg[1];
+        if (!pf_snes_has_step(x->steps, VID_STEP_SOURCE_LO))
+            resolved.source = (resolved.source & 0xFFFF00) | reg[2];
+        if (!pf_snes_has_step(x->steps, VID_STEP_SOURCE_HI))
+            resolved.source = (resolved.source & 0xFF00FF) | (uint32_t)reg[3] << 8;
+        if (!pf_snes_has_step(x->steps, VID_STEP_SOURCE_BANK))
+            resolved.source = (resolved.source & 0x00FFFF) | (uint32_t)reg[4] << 16;
+    }
     pf_snes_begin("vid_snes_transfer", o);
-    PfSnesChannel c = { .channel = x->channel, .control = x->control, .dest = t->dest, .source = t->source,
-                        .len = t->size, .target_reg = t->target_reg, .target = t->target };
-    pf_snes_program(pf_snes(pf), &c, x->steps);
-    if (vid_observer)
-        vid_obs_snes_transfer(vid_observer, t, x->control);
+    /* Resolved and unresolved agree wherever `steps` writes the register, and
+     * where it doesn't the value is never used. */
+    PfSnesChannel c = { .channel = x->channel, .control = x->control, .dest = resolved.dest,
+                        .source = resolved.source, .len = t->size, .target_reg = t->target_reg,
+                        .target = t->target, .port = x->port };
+    pf_snes_program(s, &c, x->steps);
+    if (vid_observer) {
+        /* An escape that sets the VRAM port inside its own sequence, as the
+         * race's column uploads do, has told the port before it starts. */
+        if (x->port && pf_snes_has_step(x->steps, VID_STEP_VRAM_PORT))
+            vid_obs_vram_port(vid_observer, x->port);
+        vid_obs_snes_transfer(vid_observer, &resolved, control);
+    }
     pf_snes_end();
 }
 

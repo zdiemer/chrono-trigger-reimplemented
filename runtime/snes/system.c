@@ -79,6 +79,7 @@ void snes_clone(Snes *dst, const Snes *src)
     dst->cpu.on_insn = NULL;
     dst->apu.on_insn = NULL;
     dst->on_line = NULL;
+    dst->on_frame_top = NULL;
     dst->intercept = NULL;
     dst->on_miss = NULL;
 }
@@ -129,6 +130,8 @@ int snes_state_load(Snes *s, const char *path)
     s->apu.on_insn_ctx = keep.apu.on_insn_ctx;
     s->on_line = keep.on_line;
     s->on_line_ctx = keep.on_line_ctx;
+    s->on_frame_top = keep.on_frame_top;
+    s->on_frame_top_ctx = keep.on_frame_top_ctx;
     s->intercept = keep.intercept;
     s->intercept_ctx = keep.intercept_ctx;
     s->interpreter = keep.interpreter;
@@ -302,6 +305,8 @@ static void start_line(Snes *s)
         s->bus.in_vblank = false;
         s->bus.nmi_flag = false;
         stall_at(s, 0, hdma_init(s));
+        if (s->on_frame_top)
+            s->on_frame_top(s->on_frame_top_ctx, s);
     } else if (s->vline == SNES_VBLANK_LINE) {
         s->bus.in_vblank = true;
         s->bus.nmi_flag = true;

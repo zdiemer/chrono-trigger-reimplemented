@@ -163,6 +163,7 @@ enum {
     VID_M7_MATRIX_AB = 1 << 4,   /* a and b only: they double as the signed multiplier */
     VID_M7_MATRIX_A = 1 << 5,    /* a alone: the multiplier's 16-bit operand */
     VID_M7_MATRIX_B_HIGH = 1 << 6,  /* the high byte of b alone: its 8-bit operand */
+    VID_M7_MATRIX_B = 1 << 7,    /* b alone, both bytes */
 };
 
 /* One OAM entry, as the game builds it. */
@@ -195,6 +196,7 @@ typedef struct {
     uint8_t remap;          /* address remapping, 0-3 (0: none) */
     bool after_high;        /* step after the high byte rather than the low one */
     bool snes_step_alt;     /* the second SNES encoding of 128, which behaves the same */
+    uint8_t snes_extra;     /* bits 4-6 of the SNES byte, which the hardware ignores */
 } VidVramPort;
 
 /* The setting every upload in ported code uses: a word at a time, stepping
@@ -241,7 +243,7 @@ static inline VidVramPort vid_vram_port_decode(uint8_t v)
 {
     static const uint8_t steps[4] = { 1, 32, 128, 128 };
     return (VidVramPort){ .step = steps[v & 3], .remap = (uint8_t)((v >> 2) & 3), .after_high = (v & 0x80) != 0,
-                          .snes_step_alt = (v & 3) == 3 };
+                          .snes_step_alt = (v & 3) == 3, .snes_extra = (uint8_t)(v & 0x70) };
 }
 
 /* Everything a renderer needs for one line. */
@@ -316,6 +318,8 @@ typedef enum {
     VID_LINE_SCROLL_BG1_H, VID_LINE_SCROLL_BG1_V,
     VID_LINE_SCROLL_BG2_V,
     VID_LINE_SCROLL_BG3_H, VID_LINE_SCROLL_BG3_V,
+    VID_LINE_WINDOW1_LEFT,      /* window 1's left edge alone */
+    VID_LINE_MODE7_AB, VID_LINE_MODE7_CD,   /* a pair of Mode 7 matrix values */
     VID_LINE_TARGETS,
 } VidLineTarget;
 
@@ -324,6 +328,12 @@ typedef struct {
     PfData table;
     bool indirect;
     uint8_t indirect_bank;
+    /* The scenes program a slot from a packed five-byte descriptor, whose last
+     * value is read as a word: the byte after it lands in the channel's unused
+     * size and table-cursor registers ($43x5, $43x8), which HDMA rewrites. It
+     * is video state nowhere but in what shadow mode compares, so it is carried
+     * here and written only by the steps that name those registers. */
+    uint8_t snes_spill;
 } VidLineEffect;
 
 /* How the SNES drives a target: the transfer mode and the first register of the
@@ -334,10 +344,12 @@ static inline void vid_line_snes_encoding(VidLineTarget target, uint8_t *mode, u
 {
     static const uint8_t modes[VID_LINE_TARGETS] = {
         4, 1, 1, 3, 3, 3, 0, 0, 4, 4, 4, 1, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2,
+        0, 3, 3,
     };
     static const uint8_t regs[VID_LINE_TARGETS] = {
         0x26, 0x26, 0x28, 0x0D, 0x0F, 0x11, 0x32, 0x00, 0x07, 0x2C, 0x30, 0x05,
         0x31, 0x28, 0x29, 0x05, 0x2C, 0x31, 0x0D, 0x0E, 0x10, 0x11, 0x12,
+        0x26, 0x1B, 0x1D,
     };
     *mode = modes[target];
     *reg = regs[target];
@@ -379,6 +391,8 @@ enum {
     VID_STEP_TARGET_HI,      /* its high byte (VRAM) */
     VID_STEP_START,          /* $420B = the channel's bit */
     VID_STEP_VRAM_PORT,      /* $2115: how VRAM writes step, from VidSnesXfer.port */
+    VID_STEP_SPILL_SIZE_LO,  /* $43x5 = VidLineEffect.snes_spill */
+    VID_STEP_SPILL_CURSOR_LO, /* $43x8 = VidLineEffect.snes_spill */
 };
 
 typedef struct {
@@ -474,6 +488,14 @@ typedef struct {
     uint16_t size;           /* $43x5-$43x6, 0 meaning 65536 */
     uint8_t target_reg;      /* low byte of the address register the TARGET steps write */
     uint16_t target;
+    /* The transfer carries on with what the channel already holds: the graphics
+     * loader at $7E:59D5 starts a fill without programming a source, so it
+     * repeats from wherever the last transfer left the channel. No call can name
+     * an address the routine never computes, and only a backend with the channel
+     * can resolve it, so the escape reads back whatever `steps` leaves unwritten
+     * -- control, destination or source -- and hands the observer the transfer
+     * that will actually run. */
+    bool continue_channel;
 } VidSnesTransfer;
 PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x);
 

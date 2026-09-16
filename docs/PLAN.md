@@ -29,12 +29,8 @@ Nothing lands without it, and it is the same gate for every phase:
 
 ## Phase 0: finish what is in flight
 
-- The **jet bike race's display code** (19 blocks between `$7E:36DA` and
-  `$7E:8752`), `$7E:59D5` and `$D1:F4E6`, which are the last direct register
-  writers and the end of P2.
-- The **MD2 data-typing** work through the gate.
-
-Both are started; finishing them costs less than carrying them.
+- The **MD2 data-typing** work through the gate. It is started; finishing it
+  costs less than carrying it.
 
 ## Phase 1: a build other people can play
 

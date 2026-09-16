@@ -496,6 +496,26 @@ void menu_build_math_line_table(Snes *s)
 
 /* ---- the mode at $C2:0000 ------------------------------------------------------ */
 
+// $C2:000F
+/* Entering the sprite-object mode: interrupts, uploads and per-line effects
+ * off, then forced blank at full brightness, which is the brightness the mode's
+ * vblank handler goes on using. Stops at $C2:0024, where the routine moves on
+ * to the CPU registers ($420D, which has no service) and its own state. */
+void menu_object_mode_start(Snes *s)
+{
+    Platform *pf = m_platform(s);
+    m_set_flag(s, CPU_FLAG_I, true);
+    m_sep(s, CPU_FLAG_M);
+    m_rep(s, CPU_FLAG_X);
+    m_lda8(s, 0x00);
+    tm_enable_interrupts(pf, PF_AT(0xC20016), 0);
+    vid_stop_uploads(pf, PF_AT(0xC20019));
+    vid_enable_line_effects(pf, PF_AT(0xC2001C), 0);
+    m_lda8(s, 0x8F);
+    vid_set_display(pf, PF_AT(0xC20021), &(VidDisplay){ .blank = true, .brightness = 0x0F });
+    s->cpu.pc = 0x0024;
+}
+
 // $C2:0043
 /* The mode's video setup, written through a direct page on the register block:
  * no sprites, mode 1 with the BG3 priority bit, the four tilemaps at $6000,

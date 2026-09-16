@@ -35,7 +35,6 @@ VidCheck *vid_check_create(Snes *s, uint32_t from_frame)
     VidCheck *vc = calloc(1, sizeof *vc);
     vc->s = s;
     vc->from_frame = from_frame;
-    vc->seeded = from_frame == 0;
     vc->dec = vid_decoder_create();
     vc->obs = vid_obs_create(peek, s);
     vid_observer = vc->obs;
@@ -63,17 +62,31 @@ static void note(VidCheck *vc, const VidDiff *d)
     }
 }
 
-void vid_check_line(VidCheck *vc, uint16_t line)
+/* The top of a frame, where the hardware loads its HDMA channels: the observer
+ * has to start its own per-line effects here and not at line 0's hblank, or a
+ * write to the enable register in between (the scenes' vblank work running into
+ * the frame) would reach it on the wrong side of the load. */
+void vid_check_frame_top(VidCheck *vc)
 {
-    if (line == 0) {
-        if (!vc->seeded && vc->s->frame >= vc->from_frame) {
+    if (!vc->seeded && vc->s->frame >= vc->from_frame) {
+        if (vc->from_frame == 0) {
+            /* From power-on the calls build every register themselves, but the
+             * video memory the machine starts with is the machine's
+             * (runtime/snes/system.c preloads CGRAM the way the trace oracle
+             * does) and no call produces it. */
+            vid_obs_seed_memory(vc->obs, vc->s->ppu.vram, vc->s->ppu.cgram, vc->s->ppu.oam);
+        } else {
             VidLineState st;
             vid_decode_state(&vc->s->ppu, &st);
             vid_obs_seed(vc->obs, &st, vc->s->ppu.vram, vc->s->ppu.cgram, vc->s->ppu.oam);
-            vc->seeded = true;
         }
-        vid_obs_frame_start(vc->obs);
+        vc->seeded = true;
     }
+    vid_obs_frame_start(vc->obs);
+}
+
+void vid_check_line(VidCheck *vc, uint16_t line)
+{
     vid_decode_line(vc->dec, &vc->s->ppu, line);
     vid_obs_line(vc->obs, line);
     if (line != 224 || !vc->seeded)

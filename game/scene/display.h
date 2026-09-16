@@ -8,6 +8,8 @@
 void scene_frame_work(Snes *s);
 
 /* The program at $7E:3000, each entry guarded by a hash of its bytes */
+void scene_program_restart(Snes *s);
+void scene_clear_work_ram(Snes *s);
 void scene_init_video(Snes *s);
 void scene_upload_sprites(Snes *s);
 void scene_clear_sprite_table(Snes *s);
@@ -18,6 +20,8 @@ void scene_set_vram_5000(Snes *s);
 void scene_set_vram_0000(Snes *s);
 void scene_set_vram_6400(Snes *s);
 void scene_set_vram_6000(Snes *s);
+void scene_fill_graphics_tail(Snes *s);
+void scene_setup_mode7_display(Snes *s);
 void scene_upload_tiles_through_port(Snes *s);
 void scene_set_mode7_matrix(Snes *s);
 void scene_show_layers(Snes *s);
@@ -25,7 +29,10 @@ void scene_set_mode_2(Snes *s);
 void scene_expand_tile_rows(Snes *s);
 void scene_upload_map_and_scroll(Snes *s);
 
+bool scene_program_restart_present(Snes *s);
+bool scene_clear_work_ram_present(Snes *s);
 bool scene_init_video_present(Snes *s);
+bool scene_setup_mode7_display_present(Snes *s);
 bool scene_upload_sprites_present(Snes *s);
 bool scene_clear_sprite_table_present(Snes *s);
 bool scene_upload_palette_present(Snes *s);

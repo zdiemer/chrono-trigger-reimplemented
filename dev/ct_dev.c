@@ -106,6 +106,14 @@ static bool on_miss(void *ctx, Snes *snes)
     return true;   /* --misses counts it through the instruction hook */
 }
 
+static void on_frame_top(void *ctx, Snes *snes)
+{
+    (void)ctx;
+    (void)snes;
+    if (vid_check)
+        vid_check_frame_top(vid_check);
+}
+
 static void on_line(void *ctx, Snes *snes, uint16_t line)
 {
     render_line(ctx, &snes->ppu, line);
@@ -371,6 +379,7 @@ int main(int argc, char **argv)
     snes.on_miss = on_miss;
     render_init(&renderer);
     snes.on_line = on_line;
+    snes.on_frame_top = on_frame_top;
     snes.on_line_ctx = &renderer;
     snes_power_on(&snes);
     static char found_sram[1024];
