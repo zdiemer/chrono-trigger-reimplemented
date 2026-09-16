@@ -1,9 +1,10 @@
 /* The jet bike race's display work, in the program the boot at $C3:0014
  * decompresses to $7E:3000 (scene/display.c holds the rest of it). The race is a
- * Mode 7 plane the program rebuilds every frame: it fills the plane's tilemap,
- * uploads a scaled road strip and a column of tiles, and moves the rotation
- * center and the two flat layers' scroll. Only `events-jetbike-race` reaches any
- * of it.
+ * Mode 7 plane, drawn on the lines its per-line effect leaves in that mode while
+ * the rest of the screen stays in mode 1. The program rebuilds it every frame:
+ * it uploads a scaled road strip and a column of the plane's name table, and
+ * moves the rotation center and the flat layers' scroll. Only
+ * `events-jetbike-race` reaches any of it.
  *
  * Every entry is guarded by a hash of its bytes, as the program's other ports
  * are: the same addresses hold other code and data at other times.
@@ -19,8 +20,9 @@ enum { SCENE_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01, DMA_FIXED_BYTE 
        DMA_FROM_REGISTER = 0x80 };
 
 /* $2115 as the race sets it: a word at a time for the tilemap uploads, the low
- * byte alone for the plane and the column, and a whole tile row at a time where
- * the column upload walks down the tilemap. */
+ * byte alone where it writes the Mode 7 plane's name table (which lives in the
+ * low half of every VRAM word), and a row of that table at a time where the
+ * column upload walks down it. */
 static const VidVramPort word_port = { .step = 1, .after_high = true };
 static const VidVramPort low_byte_port = { .step = 1, .after_high = false };
 static const VidVramPort column_port = { .step = 128, .after_high = false };
@@ -82,6 +84,11 @@ bool scene_setup_line_effects_present(Snes *s)
         uint8_t control = snes_bus_peek(&s->bus, 0x7E0000u | at);
         if (control == 0xFF)
             return true;
+        /* A `VidLineEffect` carries the transfer mode and the indirect bit and
+         * nothing else, so a control byte with any other bit set would be
+         * written back as a different one. */
+        if (control & ~0x47u)
+            return false;
         VidLineEffect e = { 0 };
         if (!vid_line_effect_decode(control, snes_bus_peek(&s->bus, 0x7E0000u | (uint16_t)(at + 1)), &e))
             return false;
@@ -181,12 +188,12 @@ void scene_race_clear_buffers(Snes *s)
 bool scene_race_setup_maps_present(Snes *s) { return m_code_matches(s, 0x7E3CFF, 70, 0xCBA05FD5E80212BEull); }
 
 // $7E:3CFF
-/* Where the race's layers live: the Mode 7 plane's tilemap at VRAM $6000, the
- * two flat layers' at $6400 and $6800 with their tiles at $7000, color math over
- * the sub screen, BG1-BG3 and the sprites on the main screen and BG3 alone on
- * the sub screen. It ends by reading $14 bytes of VRAM from $0B00 back into
- * $7E:C995 -- a transfer in the other direction, which goes through the
- * SNES-only escape. */
+/* Where the race's layers live on the lines its per-line effect leaves in mode
+ * 1: BG1, BG2 and BG3's tilemaps at VRAM $6000, $6400 and $6800, their tiles at
+ * $7000, color math over the sub screen, BG1-BG3 and the sprites on the main
+ * screen and BG3 alone on the sub screen. It ends by reading $14 bytes of VRAM
+ * from $0B00 -- the start of the Mode 7 name table -- back into $7E:C995, a
+ * transfer in the other direction, which goes through the SNES-only escape. */
 void scene_race_setup_maps(Snes *s)
 {
     Platform *pf = m_platform(s);
@@ -227,9 +234,10 @@ void scene_race_setup_maps(Snes *s)
 bool scene_race_fill_map_present(Snes *s) { return m_code_matches(s, 0x7E3D8C, 39, 0x563C9A2564F8E0A1ull); }
 
 // $7E:3D8C
-/* Fill VRAM $4000 upwards, $1000 bytes, with the word at $7E:350B: the plane's
- * tilemap before the race draws into it. Stops where the program goes on to
- * decompress its graphics. */
+/* Fill VRAM $4000 upwards, $1000 bytes, with the word at $7E:350B: the two
+ * tilemaps at $4000 and $4400 the race sends a half of each frame, before it
+ * draws into them. Stops where the program goes on to decompress its
+ * graphics. */
 void scene_race_fill_map(Snes *s)
 {
     Platform *pf = m_platform(s);
@@ -322,11 +330,11 @@ void scene_race_move_camera(Snes *s)
 
 bool scene_race_upload_column_present(Snes *s) { return m_code_matches(s, 0x7E4643, 52, 0xAE7FE41C71F7EB77ull); }
 
-/* $13 bytes into the low halves of VRAM words from $0B00, stepping a tilemap row
- * at a time: a column of the flat layer's map. The transfer writes the data
- * port's low half alone, which vid_upload_vram would model as words, so it goes
- * through the SNES-only escape. Both entries end by jumping into the task
- * list's exit. */
+/* $13 bytes into the low halves of VRAM words from $0B00, stepping 128 words (a
+ * row) at a time: a column of the Mode 7 plane's name table, which lives in the
+ * low half of every word. The transfer writes the data port's low half alone,
+ * which vid_upload_vram would model as words, so it goes through the SNES-only
+ * escape. Both entries end by jumping into the task list's exit. */
 static void upload_column(Snes *s, uint32_t source, uint32_t site)
 {
     static const uint8_t steps[] = {
@@ -356,9 +364,9 @@ void scene_race_upload_column_ram(Snes *s) { upload_column(s, 0x7EC995, 0x7E4671
 bool scene_race_upload_tilemap_present(Snes *s) { return m_code_matches(s, 0x7E5221, 106, 0x2A63AA398E2A05CBull); }
 
 // $7E:5221
-/* Whichever half of the plane's tilemap the race marked ready ($AA for VRAM
- * $4000, $AC for $4400): $800 bytes from $00:0C00, a word at a time. With
- * neither marked it returns without uploading. */
+/* Whichever of the two tilemaps the race marked ready ($AA for VRAM $4000, $AC
+ * for $4400): $800 bytes from $00:0C00, a word at a time. With neither marked it
+ * returns without uploading. */
 void scene_race_upload_tilemap(Snes *s)
 {
     uint16_t vram;
@@ -407,9 +415,11 @@ bool scene_race_upload_plane_present(Snes *s) { return m_code_matches(s, 0x7E875
 
 // $7E:8752
 /* $2000 bytes from $7F:2200 into the data port's low half alone, carrying on
- * from the VRAM address the block before it left: the Mode 7 plane's tiles, one
- * byte to a word, which vid_upload_vram would model as words. So it goes through
- * the SNES-only escape, which the observer follows byte by byte. */
+ * from the VRAM address the block before it left: half of the Mode 7 plane's
+ * 128x128 name table, which is the low byte of every VRAM word, so the two calls
+ * the loader makes cover all $4000 of them. One byte to a word is what
+ * vid_upload_vram would model as words, so it goes through the SNES-only escape,
+ * which the observer follows byte by byte. */
 void scene_race_upload_plane(Snes *s)
 {
     Platform *pf = m_platform(s);

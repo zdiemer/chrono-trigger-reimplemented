@@ -1193,8 +1193,12 @@ color three times, one channel each.
   calls build every register themselves, but what VRAM, CGRAM and OAM hold before
   the game writes them is the machine's: `snes_power_on` preloads CGRAM with the
   gradient the trace oracle uses, and no call produces it. `vid_obs_seed_memory`
-  hands the observer that memory once, at the frame it starts comparing from.
-  Without it every frame before the first palette upload differs.
+  hands the observer that memory once, at the top of the first frame it compares.
+  Without it every frame before the first palette upload differs. Power-on starts
+  inside frame 0, so the hook first fires at the top of frame 1 and frame 0 is
+  not compared (which is why the counts below are one short of each movie's
+  frames); the boot writes no VRAM, CGRAM or OAM data in it, so what the seed
+  takes is still what the machine powered on with.
 - **The observer's frame starts where HDMA loads.** The hardware loads each
   enabled channel at the top of a frame, before any of that frame's code runs;
   the `on_line` hook the observer was driven from fires 1104 clocks later, at
@@ -1228,7 +1232,9 @@ color three times, one channel each.
   can express the table is a property of the table, not of the code, so it is
   part of the guard: that walks the whole table (at most eight records, one per
   channel) and refuses one whose mode and destination no `VidLineTarget` names,
-  and the interpreter programs it instead. Stopping halfway through the loop
+  or whose control byte has a bit outside the transfer mode and the indirect flag
+  (which is all a `VidLineEffect` carries), and the interpreter programs it
+  instead. Stopping halfway through the loop
   instead, which is what the port did first, is not something either validation
   can check -- shadow mode and the fuzzer both look for the original at the
   address the port stopped at, and a loop passes the same address every time, so
@@ -1261,9 +1267,10 @@ HDMA register any more, and the scene program and `$C3:08D0` were all that was
 left (18932 PPU and 26762 DMA accesses in `gato-battle` and `field.ctm`, 18981
 and 26762 in `menus-field-menu`: nearly all of it the attract sequence, which
 every movie runs first). With the scenes in as well, the whole of `field.ctm`
-and of `gato-battle` has exactly one register write outside the services: the
+and of `gato-battle` had exactly one register write outside the services: the
 seven registers `$7E:59D5` programs, once, for the fill it starts without a
-source. Everything else in those logs is HDMA.
+source, which is behind the API now too. Everything else in those logs is
+HDMA.
 `battle-golem-twins-gameover` had that one and `$D1:F4E6`, on the path back to
 the title, and `events-jetbike-race` the race's own display code as well, 19
 blocks between `$7E:36DA` and `$7E:8752`.

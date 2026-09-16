@@ -28,9 +28,9 @@ enum { WRAM_PORT = 0x2180, WRAM_ADDR = 0x2181 };
 static const VidVramPort low_byte_port = { .step = 1, .after_high = false };
 static const VidVramPort word_port = { .step = 1, .after_high = true };
 
-/* A transfer's register writes in the order the program makes them: the control
- * and destination together (one 16-bit store), then the source, the size and the
- * start. Several of the program's own transfers share it. */
+/* A transfer's register writes in the order the scene program's memory clear
+ * makes them: the control and destination together (one 16-bit store), then the
+ * source, the size and the start. */
 static const uint8_t transfer_steps[] = {
     VID_STEP_CONTROL,     VID_STEP_DEST,    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
     VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,   VID_STEP_START,
@@ -423,7 +423,7 @@ bool scene_setup_mode7_display_present(Snes *s)
 // $7E:5A59
 /* The Mode 7 scene's display, written through a direct page on the register
  * block: mode 7 with the plane transparent outside it, BG1 alone on the main
- * screen and BG2 alone on the sub screen, the three tilemaps at VRAM $6400
+ * screen and the sprites alone on the sub screen, the three tilemaps at VRAM $6400
  * (64 tiles wide), $6000 and $7000, BG1's and BG2's tiles at $5000, color math
  * halving the sub screen over BG1, the rotation center at (32, -64) and BG2's
  * horizontal scroll. Stops at $7E:5A96, where the scene goes on to its own
