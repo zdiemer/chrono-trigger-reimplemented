@@ -37,12 +37,15 @@ and [PLATFORM.md](PLATFORM.md).
 
 ## Matching disassembly
 
-- **MD2 leftovers** (MATCHING.md, "MD2 as built"): `$D0:0000-DFFF` (57 KiB, no
-  reader found), `$F6:24B1-7FFF`, the `$E4:F000`/`$E4:F600` record tables,
-  `$E5:0000-1FFF`, and 379 KiB still typed `mixed`. Not started: the string
-  encoding, the event/battle-animation/enemy script formats as typed regions
-  with round trips, and re-encoding for `lz` (today's check is that the
-  decompressor consumes the bytes exactly).
+- **MD2 leftovers** (MATCHING.md, "MD2 as built"): `$F6:24B1-7FFF` and other
+  gaps (43481 census-unknown bytes), plus 322.5 KiB still typed `mixed`.
+  The D0 graphics pool, CF 2bpp graphics, E4 sprite records and E5 exit lists
+  now have codecs; tile-descriptor ownership and the E4 battle-record count
+  still need stronger bounds. Not started: the string encoding, the
+  event/battle-animation/enemy script formats as typed regions with round
+  trips, and re-encoding for `lz` (today's check is that the decompressor
+  consumes the bytes exactly). The data-typing follow-up still needs the
+  full movie suite before integration.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 96 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests

@@ -417,6 +417,7 @@ class Emitter:
         """Problems with [[data]] regions: overlap with instructions or with each
         other, and regions whose bytes don't have their type's shape."""
         from tools.disasm.lz import stream_length
+        from tools.disasm.dataformats import check_format
         problems = []
         code = set()
         for off in self.clean:
@@ -443,6 +444,10 @@ class Emitter:
                 problems.append(f"{where}: {n} bytes isn't a multiple of {size}")
             elif r.type == "lz" and stream_length(self.data, s) != n:
                 problems.append(f"{where}: the decompressor doesn't consume exactly these bytes")
+            try:
+                check_format(blob, r)
+            except (ValueError, KeyError) as exc:
+                problems.append(f"{where}: {exc}")
         return problems
 
     # ---- checks ----------------------------------------------------------------

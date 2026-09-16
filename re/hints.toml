@@ -3266,13 +3266,16 @@ start = "CE:F0E6"
 end = "CE:FFFF"
 type = "mixed"
 
-# CF:0000-E2FF (58112 bytes): data read through long operands in CD (e.g.
-# CD:12C1). Census: 47646 unknown, 5710 16-bit offset tables, 2313 24-bit ptr
-# tables, 1130 16-bit code-ptr tables, 773 padding, 540 BRR-like.
+# CD:12B8 masks the tile descriptor to 13 bits and multiplies by eight;
+# CD:12C1-12F6 copies sixteen bytes from CF into the 2bpp tile buffer.
+# The pool ends at the following code (CF:E300). Tile ownership/aliases
+# remain in the descriptors; the codec checks the interleaved plane storage.
 [[data]]
 start = "CF:0000"
 end = "CF:E2FF"
-type = "mixed"
+type = "gfx"
+format = "snes-2bpp"
+name = "overworld_2bpp_tiles"
 
 # CF:FE85-FFFF: read by the long indexed operands at C1:4064, C1:4074, C1:4084,
 # at offsets 376, 377, 378.
@@ -3900,3 +3903,82 @@ end = "F6:1BFF"
 type = "struct"
 size = 14
 name = "location_records"
+
+# CD:1509 masks a descriptor to 13 bits and multiplies by eight. CD:1488
+# reads sixteen bytes from D0 as two interleaved planes; CD:1525-15CB reads
+# another eight when descriptor bit 13 is clear, generating the fourth plane
+# from the mask in $5F. This is an eight-byte-aligned 2/3bpp graphics pool,
+# not uniform 4bpp tiles. E000 is the following resource pointer table.
+[[data]]
+start = "D0:0000"
+end = "D0:DFFF"
+type = "gfx"
+format = "plane-pool"
+name = "overworld_packed_planes"
+
+# C0:A695 masks the location to nine bits and reads two adjacent offsets.
+# C0:A6AF-A70D walks [start,end) in seven-byte steps; C0:9CBD-9D21 selects
+# an exit by index * 7 and reads its fields. The 513th offset is the sentinel.
+# The codec validates ALL adjacent pairs, including repeated (empty) lists,
+# and regenerates the offsets from the parsed records, not copied bytes.
+[[data]]
+start = "E5:0000"
+end = "E5:1A43"
+type = "struct"
+format = "location-exits"
+count = 512
+name = "location_exit_lists"
+
+[[data]]
+start = "E5:1A44"
+end = "E5:1FFF"
+type = "padding"
+
+# C0:4491 multiplies an eight-bit id by five, reading all five fields.
+# C0:4595 uses the same stride but base F023 (seven player records first),
+# so the combined table has 7 + 256 entries, NOT floor($600 / 5).
+[[data]]
+start = "E4:F000"
+end = "E4:F522"
+type = "struct"
+size = 5
+name = "field_sprite_records"
+format = "sprite-records"
+
+[[data]]
+start = "E4:F523"
+end = "E4:F5FF"
+type = "padding"
+
+# C0:46E4 and CC:EAD2 use id * 10. Fields +0..4 select graphics, assembly,
+# palette and animation; CC:EBB0-EBCC reads +5..9. The final four records
+# follow the $F8 boundary in C0:477A (those use the uncompressed path).
+# Count 252 is a layout bound: complete records end at FFD7, then eight
+# zero bytes and the independently referenced base-pointer table at FFE0.
+# It is NOT a proof that every record is reachable from scripts.
+[[data]]
+start = "E4:F600"
+end = "E4:FFD7"
+type = "struct"
+size = 10
+name = "battle_sprite_records"
+format = "sprite-records"
+
+[[data]]
+start = "E4:FFD8"
+end = "E4:FFDF"
+type = "padding"
+
+# C0:0BF8-0C0A and C2:F48A-F4F3 load the first five bank-E4 bases;
+# CC:E9CE supplies the bank for the sprite resources. The last two bases
+# name the assembly data following the offset tables at E42600/E42800.
+[[data]]
+start = "E4:FFE0"
+end = "E4:FFED"
+type = "ptr16"
+name = "sprite_resource_bases"
+
+[[data]]
+start = "E4:FFEE"
+end = "E4:FFFF"
+type = "padding"

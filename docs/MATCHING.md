@@ -776,23 +776,54 @@ checks C1, C2, C3, C5, C6 and C7 pass, the 15 RAM sections assemble to their
 images, and the six main movies in `--native shadow` report 0 mismatched
 generated blocks and no mismatching hand port.
 
+**MD2 data-typing follow-up.** The following regions now have reader-backed
+formats in `tools/disasm/dataformats.py`, exercised by the matching data check:
+
+- `$D0:0000-DFFF` is an eight-byte-aligned graphics pool. The previously
+  missed reader is `$CD:1509`: it masks a descriptor to 13 bits and scales it
+  by eight. `$CD:1488` reads two interleaved planes; `$CD:1525-15CB` optionally
+  reads a third plane and synthesizes a fourth. The `plane-pool` codec
+  round-trips storage units as rows of bits. It does not yet enumerate tile
+  descriptors or prove which offsets are used by every map.
+- `$CF:0000-E2FF`, previously `mixed`, is 2bpp graphics read by `$CD:12B8-12F6`.
+  Its codec decodes MSB-left pixels and re-encodes interleaved SNES planes.
+- `$E5:0000-1A43` contains 513 bank-relative offsets and 814 seven-byte exits
+  for 512 locations. `$C0:A695-A70D` supplies the count, adjacent-offset bounds
+  and stride. Parsing rejects descending offsets, partial records, a wrong
+  first offset or a sentinel that does not consume the region; serialization
+  rebuilds offsets from the record lists, including empty lists. The rest of
+  `$E5:0000-1FFF` is checked padding.
+- `$E4:F000-F522` contains 263 five-byte sprite records: the second reader
+  at `$C0:4595` uses base `$F023`, seven records beyond the first reader's
+  `$F000`, with an eight-bit id. `$E4:F600-FFD7` contains 252 ten-byte battle
+  sprite records; this count remains **layout-bounded**, not a proven bound
+  on script ids. Both have field parsers and serializers. The intervening
+  padding and `$E4:FFE0-FFED` bank-relative resource bases are separate regions.
+
+Without coverage, the census unknown count falls **106951 -> 43481 bytes**;
+`mixed` falls **388374 -> 330262 bytes**. Newly declared region bytes and
+unknown-byte reductions differ because the census previously guessed padding,
+BRR and pointer-like runs inside these regions.
+
+Validation: 159 Python tests pass; matching reproduces CRC32 `2D206BF7` and
+SHA-1 `de5822f4f2f7a55acb8926d4c0eaa63d5d989312`, with no data or resource
+problems and all 15 RAM sections matching. With identical generator flags
+(no coverage/calls), main at `74d0992` and the follow-up branch both generate
+12419 blocks, 148499 instructions, 127045 analyzed instructions and 127181
+instruction variants. All 65 generated C files are byte-identical. This is
+static validation; the full shadow/trace/misses movie suite remains an
+integration gate and was not rerun for this follow-up.
+
 **Left for MD2:**
 
-- 106951 unknown bytes: `$D0:0000-DFFF` (57344, no reader found; the palettes
-  at `$D0:FA00` and `$D0:FD00`, which `$D1:ED77` and `$D1:E98E` copy 96 bytes at
-  a time, and the 6-entry stream table at `$D0:E000` are the only parts tied to
-  code), `$F6:24B1-7FFF` (23375) and `$F6:1C00-1DFF` (512, after the location
-  records), `$E4` (9925: `$E4:0000-1FFF`, read by `$C0:CA35` and others,
-  `$E4:2A00-2FFF`, and `$E4:CC57-FFFF`, which holds the 5-byte records at
-  `$E4:F000` and the 10-byte ones at `$E4:F600` -- the strides are in the
-  multiplier setups at `$C0:4491` and `$C0:46E4`, but neither count divides the
-  space the layout gives, so they are left alone), `$E5:0000-1FFF` (8192, read
-  as records at `$C0:9CD3`), `$CB:F164-FFFF` (3740, after the last song),
-  `$EF:B168-BFFF` (3736, one of the blocks the skipped `$F6:21C0` entries point
-  at), `$F5:EE02-FFFF` (4606), and smaller pieces.
-- 379 KiB is still typed `mixed` (C0, C1, C3, C6, C7, CC-CF, D1, FD, FF): the
-  streams, strings and sound blocks split those regions where they fall, but
-  what is left has a reader and a census composition, not a parser.
+- 43481 census-unknown bytes, chiefly `$F6:24B1-7FFF`; that range still lacks
+  a reader-backed format. Other leftovers include `$F6:1C00-1DFF`,
+  `$E4:0000-1FFF`, `$E4:2A00-2FFF`, `$E4:CC57-EFFF`, bank D0 outside the
+  graphics pool and known streams, `$CB:F164-FFFF`, `$EF:B168-BFFF`,
+  `$F5:EE02-FFFF`, and smaller pieces. Do not infer types from the CRC alone.
+- 322.5 KiB is still typed `mixed` (C0, C1, C3, C6, C7, CC-CE, D1, FD, FF):
+  the streams, strings and sound blocks split those regions where they fall,
+  but what is left has a reader and a census composition, not a parser.
 - The scripts MD4 parses (object, sequence, window command lists) are still not
   `[[data]]` regions with a round trip, and the event, battle animation and
   enemy script formats aren't parsed at all.
