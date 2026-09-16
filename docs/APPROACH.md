@@ -113,9 +113,11 @@ the disassembler.
 5. **Full-game equivalence.** Zero divergences and zero interpreter entries
    across the movie library.
 6. **Beyond the SNES.** Native renderer, widescreen, quality-of-life options.
-   *(designed: [PLATFORM.md](PLATFORM.md); game code moves to platform
-   services with the SNES hardware model as the reference backend, then a
-   native renderer, widescreen and a GBA feasibility study)*
+   *(in progress: [PLATFORM.md](PLATFORM.md); game code moves to platform
+   services with the SNES hardware model as the reference backend. Audio and
+   video are behind the services and the native renderer draws every frame of
+   the movie library pixel-identically; widescreen and a GBA feasibility study
+   follow)*
 
 Loose ends from finished milestones are collected in [TODO.md](TODO.md).
 
