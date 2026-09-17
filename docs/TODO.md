@@ -113,6 +113,85 @@ rest waits, is [PLAN.md](PLAN.md).
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
 
+## Targets beyond the desktop SNES build
+
+Wanted, none of them scoped as milestones. Each says what the design already
+carries and what it doesn't; what they share is that the game side is still 85%
+generated code (PLAN.md, Phase 3), so anything needing the *game* to know
+something -- a screen coordinate, a menu's shape, where a resource lives --
+waits on M5 rather than on a backend.
+
+- **A WebAssembly build.** The seam is right: `game/` reaches the host only
+  through `runtime/platform/`, and the one frontend (`frontend/ct_play.c`, SDL2)
+  is what Emscripten ports best. Four things are in the way, in order of how
+  much they cost.
+  - **Call-outs run on their own stack.** Every non-idle registry entry runs on
+    a fiber (`runtime/port/fiber.c`, `job_run` in `runtime/port/native.c`), which
+    is Windows fibers or POSIX `ucontext`; wasm has neither. The choices are
+    Asyncify (a whole-program cost on the hot path), JSPI stack switching (a
+    narrower runtime floor), or making a call-out not need a stack of its own,
+    which is a `native.c` redesign. This decides whether the build is easy or a
+    project, so it is the thing to spike first.
+  - **What the browser build is made of.** The default path generates C from the
+    user's ROM at build time (RECOMP.md), and nothing ROM-derived can be shipped
+    (CLAUDE.md), so a public build cannot contain it. That leaves a build the
+    user compiles, or one that is hand ports plus the interpreter over a ROM the
+    page loads at run time -- which makes M5's coverage the gate on it, and asks
+    the same question as "assets as data files" above: the readers assume a
+    mapped ROM image.
+  - **The loop and the clock.** `ct_play` blocks on its own frame pacing and
+    drives an SDL audio device it resamples against; the browser wants a
+    callback-driven loop and gives no synchronous file access. Saves
+    (`sv_host_bytes`) need a persistence backend that isn't a path.
+  - **Speed**, which is unmeasured: the interpreter plus `render.c` per line, in
+    one thread, with no `-static` build to lean on.
+- **A native AYN Thor multi-screen port.** Two parts, and only one of them is a
+  backend. The Android/ARM64 side is ordinary: SDL2 builds there, the platform
+  lint says no screen geometry is baked into `game/`, and the handheld's pad
+  arrives through `in_host_set` once Phase 1's controller work lands. The second
+  screen is the real question, because `VidFrame` is one frame of one screen per
+  frame. Two shapes, and they cost differently: a *companion* view (party state,
+  the map, an item list) drawn by the frontend from game state, which needs the
+  RAM map (PLAN.md, Phase 2) before there is anything to read by name; or a
+  *second game screen* in the DS sense, which needs the video service to carry
+  more than one frame and the game to decide what goes where. Either way it wants
+  P3's leftover first (the observer doesn't fill in the per-span memory pointers),
+  since a frontend-fed screen is the same call-fed rendering widescreen needs.
+  Native resolution is far above 256x224, so it also meets P4's questions about
+  what lives outside the original screen.
+- **DS and PlayStation content in the original.** The Dimensional Vortex, the
+  Arena, the Lost Sanctum, the bestiary: this is content authoring, not a port,
+  and it is the largest item in this file by a wide margin. What it needs, in
+  dependency order: MD2's **string encoding** and the **event, battle-animation
+  and enemy script formats as typed regions with round trips** (see "Matching
+  disassembly" above) -- a dungeon cannot be written until its scripts and text
+  can be written; the **asset pipeline** ("Assets as data files" above), because
+  new maps, sprites and music have no ROM address to read from, which is exactly
+  what Phase 3's named resource accessors are the seam for; and the field, event
+  and scene subsystems ported far enough to extend (`$C0` is 84% generated and
+  `$C6` has no entries at all). Three things are worth writing down now so they
+  don't surprise later: the DS and PS1 releases are a different engine and a
+  different asset format, so this is re-implementation from a reference, not an
+  import; their assets are as ROM-derived as ours and stay out of the repository
+  wherever they live, extracted from the user's own copies; and the animated
+  cutscenes have no path at all -- there is no video decode anywhere in the
+  runtime, and adding one is its own decision.
+- **Native touch controls**, rather than a virtual d-pad over the screen. A
+  virtual pad is free today and needs nothing new: the frontend maps it to
+  `PadBits` and calls `in_host_set`. Real touch is not a host problem, it is a
+  game-side one. The input service is one 16-bit word per frame because that is
+  what the machine reads; a pointer service beside it (`in_host_point`, position
+  and pressed) is additive and cheap. What it buys nothing without is a game that
+  knows where its UI *is*: menus and dialogs are drawn as tilemap writes from
+  `$C2`, 92% of it still generated, so there is no element with a screen-space
+  box to hit-test against. So the order is: the pointer service, then the menu
+  and dialog subsystem ported to the bar where a selectable item carries its own
+  rectangle, then a policy per mode (a tap on the field: a target to walk to, or
+  a synthesized direction -- the object activation window at `$C0:A88D` makes
+  that a real question, the same one P4 runs into). Screen coordinates are
+  already signed by the porting rules, which is what keeps this from needing a
+  second pass after widescreen.
+
 ## Movies and coverage
 
 - **Endings**: Reunion needs a route to Lavos from "The Time Egg" (no Epoch

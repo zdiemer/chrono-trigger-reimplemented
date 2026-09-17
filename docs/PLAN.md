@@ -247,3 +247,12 @@ the decompilation, so they wait behind it.
 - **A GBA port**: P5 is a feasibility study, and its constraints would reshape
   the platform API. Worth pulling forward only if the GBA becomes a real target
   rather than an interest.
+- **The other targets** (TODO.md, "Targets beyond the desktop SNES build"): a
+  wasm build, an AYN Thor multi-screen port, DS and PlayStation content in the
+  original game, and native touch controls. They are wanted, and three of the
+  four are mostly blocked on work this plan already has in order -- M5's
+  coverage, the RAM map, the asset seam, MD2's string and script formats -- so
+  scheduling them ahead of it would mean doing that work twice. The exception
+  is wasm's fiber-based call-outs (`runtime/port/native.c`), which no phase
+  here touches and which decides how big that build is: a spike is worth doing
+  whenever, and its answer is cheap to write down.
