@@ -45,6 +45,42 @@ Days of work, and it unblocks anyone else running this.
 - **Packaging**, so `tools/dist.py`'s output runs on a machine that never built
   it.
 
+### The host seam
+
+Three of those four are edits to `frontend/ct_play.c` and the save path, which
+is also where any host that isn't a desktop has to be let in. Doing them in the
+shape that host needs costs little more than doing them twice.
+
+`Player` and `step` (`frontend/ct_play.c`) are already the right idea: no SDL
+type is in the struct, and a frame is a function call rather than a loop
+iteration. What isn't factored is everything around them. `run_window` owns the
+loop, the pacing (`SDL_Delay` against a deadline), the event poll, the window
+and the audio device; `run_headless` is a second copy of that shape; and
+persistence is spelled as paths throughout -- `sram_path` and `state_path` in
+`Player`, `fopen` in the frontend, `snes_save_state` and `zst.c` taking a path
+in `runtime/snes/`. A browser offers neither of those: the host calls back once
+a frame rather than being called, and there is no synchronous filesystem.
+
+Two seams, each worth having on the desktop by itself:
+
+- **A driver seam.** Promote `Player`, `step` and the audio fill to a header of
+  their own, so `run_window` is one driver over them and `run_headless` another.
+  The rule that makes it hold: below the driver, nothing owns the loop, sleeps,
+  spins on a clock or reads an event queue -- the game advances one frame per
+  call, and input arrives as `in_host_set` already demands. A third driver is
+  then a file the size of the other two rather than a fork of the player.
+  Configurable keys and gamepad support are bindings *in* a driver, so they
+  should be written on the far side of this rather than into `run_window`.
+- **A storage seam.** Persistence moves bytes under a name: the `.srm`, a quick
+  save, a recorded movie, the misses file. Files sit behind it on the desktop
+  and whatever the host has elsewhere, and the runtime's by-path helpers become
+  buffer functions with the path wrapper in the driver. Quick saves need a
+  versioned, field-wise format in this phase regardless, and that is the same
+  code, so the two land together.
+
+Neither seam answers wasm's real question, which is the stack one below; they
+are what makes the rest of that build ordinary.
+
 ## Phase 2: M5's foundation
 
 The question that decides whether M5 is a decade of work or a year, and it
@@ -252,7 +288,27 @@ the decompilation, so they wait behind it.
   original game, and native touch controls. They are wanted, and three of the
   four are mostly blocked on work this plan already has in order -- M5's
   coverage, the RAM map, the asset seam, MD2's string and script formats -- so
-  scheduling them ahead of it would mean doing that work twice. The exception
-  is wasm's fiber-based call-outs (`runtime/port/native.c`), which no phase
-  here touches and which decides how big that build is: a spike is worth doing
-  whenever, and its answer is cheap to write down.
+  scheduling them ahead of it would mean doing that work twice. Phase 1's host
+  seam is the part that isn't deferred, because it is the same work as making
+  the desktop build shippable.
+
+  What stays open is the **stack question**, and it is the one thing no phase
+  here touches. Every non-idle registry entry runs on a stack of its own: a
+  call-out is `job_run` in `runtime/port/native.c` switching to a fiber, so the
+  port can run the routine to completion while the machine it was called from
+  waits mid-instruction. The abstraction for that already exists and is in the
+  right place -- `runtime/port/fiber.h` is four functions, with Windows fibers
+  and POSIX `ucontext` behind it -- so the question is not what to abstract but
+  whether a third implementation can sit there at a price worth paying. Wasm
+  can't switch stacks on its own, and the candidates differ in kind: Asyncify
+  instruments the whole program to unwind and rewind it, which costs size and
+  speed everywhere rather than at the call-out; JSPI does it in the host, which
+  is cheaper but sets a floor on what can run the build. The alternative is to
+  stop needing a stack -- a call-out that returns to its caller instead of
+  suspending it -- which is a `native.c` redesign and would be felt by shadow
+  mode and the whole gate.
+
+  So the spike is: put a third backend behind `fiber.h`, run the movie suite
+  under it, and measure. A day's answer that decides whether a browser build is
+  a frontend job or a runtime project, and it is cheap to write down either way.
+  Worth doing whenever; it doesn't wait on M5, and M5 doesn't wait on it.

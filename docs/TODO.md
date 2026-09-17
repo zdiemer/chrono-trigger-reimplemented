@@ -127,11 +127,13 @@ waits on M5 rather than on a backend.
   much they cost.
   - **Call-outs run on their own stack.** Every non-idle registry entry runs on
     a fiber (`runtime/port/fiber.c`, `job_run` in `runtime/port/native.c`), which
-    is Windows fibers or POSIX `ucontext`; wasm has neither. The choices are
-    Asyncify (a whole-program cost on the hot path), JSPI stack switching (a
-    narrower runtime floor), or making a call-out not need a stack of its own,
-    which is a `native.c` redesign. This decides whether the build is easy or a
-    project, so it is the thing to spike first.
+    is Windows fibers or POSIX `ucontext`; wasm has neither. The abstraction is
+    already in the right place, so the question is what can sit behind it:
+    Asyncify (a whole-program cost), JSPI (cheaper, but a floor on what can run
+    the build), or a call-out that doesn't suspend its caller, which is a
+    `native.c` redesign. This decides whether the build is easy or a project.
+    The spike, and why no phase covers it, is in PLAN.md's "What this plan
+    deprioritizes".
   - **What the browser build is made of.** The default path generates C from the
     user's ROM at build time (RECOMP.md), and nothing ROM-derived can be shipped
     (CLAUDE.md), so a public build cannot contain it. That leaves a build the
@@ -142,7 +144,10 @@ waits on M5 rather than on a backend.
   - **The loop and the clock.** `ct_play` blocks on its own frame pacing and
     drives an SDL audio device it resamples against; the browser wants a
     callback-driven loop and gives no synchronous file access. Saves
-    (`sv_host_bytes`) need a persistence backend that isn't a path.
+    (`sv_host_bytes`) need a persistence backend that isn't a path. This is the
+    driver and storage seams in PLAN.md, Phase 1, which are scheduled for the
+    desktop build's sake anyway; the rules that keep them from re-closing are in
+    CLAUDE.md, "Writing host-side code".
   - **Speed**, which is unmeasured: the interpreter plus `render.c` per line, in
     one thread, with no `-static` build to lean on.
 - **A native AYN Thor multi-screen port.** Two parts, and only one of them is a

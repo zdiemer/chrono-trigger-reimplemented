@@ -61,8 +61,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 
 - **Writing a port from generated code** (docs/PLAN.md, docs/RECOMP.md's M5). The draft
   `tools.recomp` prints is a mechanical image of the ROM; the port is source, and the later
-  goals (a native renderer, widescreen, a GBA build, assets as data) are made easy or hard
-  here rather than in a backend:
+  goals (a native renderer, widescreen, a GBA or browser build, assets as data) are made
+  easy or hard here rather than in a backend:
   - Write what the routine *does*, not what the draft says. Don't carry over the draft's
     shape: emulated register variables, dead flag updates, block boundaries, or a name from
     its address. Keep the `// $BB:AAAA` comment and nothing else mechanical.
@@ -83,6 +83,21 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   - A port that can't be expressed through a service yet is a finding, not a defeat: add the
     call the subsystem needs (additive), or use the documented SNES escape and write down
     why, as docs/PLATFORM.md's "as built" sections do.
+- **Writing host-side code** (docs/PLAN.md, Phase 1's "The host seam"). `game/` is kept
+  portable by the platform services; what a host that isn't a desktop runs into instead is
+  the frontend, so hold the line there too. A host that calls back once a frame, with no
+  filesystem and no stack of its own, is the case these are for:
+  - The loop belongs to the driver (`run_window`, `run_headless` in `frontend/ct_play.c`).
+    Below it nothing sleeps, spins on a clock, polls an event queue or blocks on a device:
+    the game advances one frame per call, and input arrives through `in_host_set`.
+  - Persistence moves bytes under a name, not a path. A new runtime or player function takes
+    a buffer; opening a file, choosing a directory and knowing what a save is called are the
+    driver's, which is also what makes a save survive a host with no `fopen`.
+  - Stack switching goes through `runtime/port/fiber.h`, which is where a host that can't
+    switch stacks natively gets its one implementation. No `ucontext`, thread or `setjmp`
+    stack trick anywhere else.
+  - Keys, pads and window geometry are bindings in a driver, not player state. A second
+    frontend should be able to differ in all three without touching the player.
 - Keep the repo machine-independent: no local paths, drive letters, or
   toolchain install locations in code, docs, or build files.
 - Never commit ROM bytes or anything derived from them: extracted assets, SPC
