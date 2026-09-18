@@ -17,7 +17,7 @@ and [PLATFORM.md](PLATFORM.md).
 3. **Phases in order, work within them in parallel.** A phase's items can run
    side by side when they don't share files, each in its own worktree and each
    through the gate before it lands; a later phase's item can start early when it
-   depends on nothing still open (Phase 2's string encoding beside Phase 1, for
+   depends on nothing still open (Phase 2's RAM map beside Phase 1, for
    instance). Parallel work shares one machine, so each track is given a process
    budget.
 
