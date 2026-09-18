@@ -50,6 +50,12 @@ rest waits, is [PLAN.md](PLAN.md).
   Not started: the event/battle-animation/enemy script formats as typed regions
   with round trips, and re-encoding for `lz` (today's check is that the
   decompressor consumes the bytes exactly).
+- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 32 addresses
+  the code touches without anything establishing what they mean (menu 13, field
+  6, battle 5, event 4, scene 4, core 2), named as Phase 3 reaches each
+  subsystem; and the menus' two modes, which reuse the same bytes while the map
+  allows one owner per subsystem, so the object mode's slots at `$0B30` and part
+  of its page-0 cells are unnamed until the menus get a second subsystem tag.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 96 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
