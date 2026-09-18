@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 from tools.disasm.analyze import Analyzer, describe_widths
 from tools.disasm.cpu import OPCODES, Mode, decode
+from tools.disasm.battlescript import FORMATS as SCRIPT_FORMATS, ScriptError, context as script_context,     decode as script_decode, encode as script_encode
 from tools.disasm.memmap import bus_to_offset, fmt
 from tools.disasm.text import FORMATS as TEXT_FORMATS, TextError, decode as text_decode, \
     dictionary_context, encode as text_encode, parse_dictionary_text, region_params
@@ -437,20 +438,31 @@ class Emitter:
         parts by a label inside it, or bytes the format rejects, which
         check_data reports)."""
         form = region.params.get("format")
-        if region.type != "text" or form not in TEXT_FORMATS:
+        script = region.type == "script" and form in SCRIPT_FORMATS
+        if not script and (region.type != "text" or form not in TEXT_FORMATS):
             return None
         where = f"{fmt(region.start)}-{fmt(region.end)} ({form})"
         if start != bus_to_offset(region.start) or end != bus_to_offset(region.end) + 1:
             self.stats.text_problems.append(f"{where}: cut by a label inside it, extracted raw")
             return None
         try:
-            text = text_decode(form, self.data[start:end], region_params(region), self.text_context)
-        except TextError as exc:
+            if script:
+                text = script_decode(form, self.data[start:end], region, self.script_context())
+            else:
+                text = text_decode(form, self.data[start:end], region_params(region), self.text_context)
+        except (TextError, ScriptError) as exc:
             self.stats.text_problems.append(f"{where}: {exc}")
             return None
         self.stats.text_regions[form] += 1
         self.stats.text_bytes[form] += end - start
         return text if text.endswith("\n") else text + "\n"
+
+    def script_context(self) -> dict:
+        """What the battle script formats need from the whole ROM
+        (tools/disasm/battlescript.py), worked out once."""
+        if getattr(self, "_script_context", None) is None:
+            self._script_context = script_context(self.data)
+        return self._script_context
 
     def encode_text(self, src) -> tuple[dict, list]:
         """The .bin of every region build() wrote as text, encoded from the
@@ -463,10 +475,13 @@ class Emitter:
             form = region.params["format"]
             try:
                 text = (src / txt).read_bytes().decode("utf-8")
+                if region.type == "script":
+                    out[path] = script_encode(form, text, region)
+                    continue
                 if form == "dialog-dictionary":
                     context["dictionary"] = parse_dictionary_text(text)
                 out[path] = text_encode(form, text, region_params(region), context)
-            except (OSError, UnicodeDecodeError, TextError) as exc:
+            except (OSError, UnicodeDecodeError, TextError, ScriptError) as exc:
                 problems.append(f"{txt}: {exc}")
         return out, problems
 
@@ -481,6 +496,8 @@ class Emitter:
         except TextError as exc:
             problems.append(f"the dialog dictionary: {exc}")
             context = {}
+        if any(r.type == "script" and r.params.get("format") in SCRIPT_FORMATS for r in self.an.hints.data_regions):
+            context.update(self.script_context())
         code = set()
         for off in self.clean:
             code.update(range(off, off + self.clean[off][0][2].size))

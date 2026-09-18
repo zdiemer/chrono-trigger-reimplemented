@@ -90,10 +90,10 @@ is seen. It reads as an estimate for the reasons its own docstring gives.
 
 **Type the formats the code interprets.** MD2 has typed where the data is; what
 it hasn't done is the scripts the game *interprets*, and those are what the big
-subsystems are written around: the event, battle-animation and enemy script
-formats as typed regions with round trips (MATCHING.md, "MD2 as built"; TODO.md,
-"Matching disassembly"), each built the way MATCHING.md's "The string
-encodings" is: a codec in `tools/disasm/`, the regions typed in
+subsystems are written around: the event script format as a typed region
+with round trips (MATCHING.md, "MD2 as built"; TODO.md, "Matching
+disassembly"), built the way MATCHING.md's "The string encodings" and "The
+battle script formats" are: a codec in `tools/disasm/`, the regions typed in
 `re/hints.toml`, and the matching build assembling them from the decoded form.
 `$C0` is 84% generated and much of it is the event interpreter; porting a
 command handler is a different job when the command's operands have names and a
