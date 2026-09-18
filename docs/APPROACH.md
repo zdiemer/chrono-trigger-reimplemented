@@ -93,7 +93,8 @@ the disassembler.
 
 0. **Foundation.** Repo, ROM verification, docs. *(done)*
 1. **Disassembly and knowledge base.** 65816 disassembler with M/X width
-   tracking, a code/data map, and a symbol and RAM-map database. Pull in
+   tracking, a code/data map, and a symbol and RAM-map database (the RAM
+   map is `re/ram.toml`, with a header ports include). Pull in
    community documentation of event commands and data tables as reference.
    *(in progress: [DISASSEMBLY.md](DISASSEMBLY.md); a byte-identical,
    reassemblable disassembly as the proof that the recompiled code set is

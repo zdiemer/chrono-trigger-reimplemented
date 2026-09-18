@@ -88,27 +88,6 @@ belongs with the first group and is the only one that might be a bug.
 entries cover, per bank or per subsystem, which is how a conversion's progress
 is seen. It reads as an estimate for the reasons its own docstring gives.
 
-**Build the RAM map first.** Ports spell every variable as its address, because
-there is nowhere to get a name from: roadmap step 1 ([APPROACH.md](APPROACH.md))
-called for "a symbol and RAM-map database" and only the code/data side of it
-exists, in `re/hints.toml`. So `game/` holds 10955 hex literals against 42 named
-groups, and a port reads `0x95D5` where it means the battle's state.
-
-The job is smaller than that number: 519 distinct low-RAM addresses
-(`$0100-$1FFF`, the game's variables) in 1206 uses, and 144 long WRAM addresses
-in 216 more. Most of the rest are direct page offsets and bit masks. The
-knowledge is mostly written down already, scattered through port comments,
-PORTING.md's status table and MOVIES.md, so this is largely harvesting rather
-than reverse engineering. A map in `re/`, a generated header, and naming a
-subsystem's variables becomes mechanical as Phase 3 reaches it. Nothing about
-the bytes changes, so the gate is unaffected.
-
-The 1845 ROM addresses in `game/` are *not* the target and should be left
-alone: nearly all of them are call sites, call-out targets, registry entries and
-service origins, where the address is the routine's identity and the
-`// $BB:AAAA` contract. Only about 150 are reads of ROM data, which is the class
-the asset work in TODO.md covers.
-
 **Type the formats the code interprets.** MD2 has typed where the data is; what
 it hasn't done is the scripts the game *interprets*, and those are what the big
 subsystems are written around: the event, battle-animation and enemy script
@@ -128,12 +107,13 @@ check: parse, re-encode, and the matching build still produces CRC32
 over months and they are not one standard. The recent ones read as source: named
 constants, service calls, a comment saying what the data means. The early ones
 read as transcription, still moving emulated A and X about and naming direct
-page bytes by their addresses (`game/battle/setup.c` is the clearest case). Both
+page bytes by their addresses (`game/battle/setup.c` is the clearest case; its
+variables now carry the RAM map's names, but its shape is still the ROM's). Both
 pass the gate, so nothing is broken; what is missing is that half of them are
 not the thing M5 is for.
 
 Two things do *not* need a pass, which is worth knowing before scoping one: the
-platform lint already covers all of `game/` bar five documented files, so
+platform lint already covers all of `game/` bar four documented files, so
 hardware access is behind the services everywhere; and no screen geometry is
 baked in that widescreen would have to undo.
 
@@ -145,7 +125,7 @@ bar, while its behaviour is already under the gate. A sweep across all of
 it already passes.
 
 **Done when** the timing spike has an answer and whichever work it implies is
-done, the RAM map exists, the script formats round-trip, and a subsystem's worth of routines has been converted
+done, the script formats round-trip, and a subsystem's worth of routines has been converted
 through the workflow to the bar above.
 
 ## Phase 3: M5 in bulk
@@ -181,6 +161,15 @@ first. `--uncovered BANK` lists the largest unported runs, which is how to pick
 the next routine. Taking a subsystem includes bringing its existing ports up to
 the same bar (Phase 2), so the refactor is paid where the code is already being
 read rather than as a sweep.
+
+Naming is part of that bar. The RAM map (`re/ram.toml`, docs/DISASSEMBLY.md)
+names 91% of the work RAM addresses `game/` spells as literals, so a subsystem's
+ports switch to `game/ram.h`'s names the way `game/battle/setup.c` did
+(DISASSEMBLY.md, "The RAM map"), and each routine converted adds what it learns
+about the rest. `python3 tools/ram_map.py coverage --open --subsystem S` lists
+what is still unnamed; what it can't show is direct-page scratch and the
+absolute operands of `$2000` and up, which a porter names while reading the
+routine.
 
 It also includes **laying the asset seam**, which is cheap here and expensive
 later. Only about 150 places in `game/` read ROM data by address; a subsystem's
@@ -255,9 +244,8 @@ the decompilation, so they wait behind it.
 - **The other targets** (TODO.md, "Targets beyond the desktop SNES build"): a
   wasm build, an AYN Thor multi-screen port, DS and PlayStation content in the
   original game, native touch controls, and a SNES ROM compiled from the hand
-  ports. They are wanted, and most of
-  them are mostly blocked on work this plan already has in order -- M5's
-  coverage, the RAM map, the asset seam, MD2's script formats -- so
+  ports. They are wanted, and most of them are mostly blocked on work this plan
+  already has in order -- M5's coverage, the asset seam, MD2's script formats -- so
   scheduling them ahead of it would mean doing that work twice. The host seam
   wasn't deferred, because it was the same work as making the desktop build
   shippable: the player advances a frame per call and persists bytes under

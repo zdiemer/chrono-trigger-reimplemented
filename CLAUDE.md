@@ -67,6 +67,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   - Write what the routine *does*, not what the draft says. Don't carry over the draft's
     shape: emulated register variables, dead flag updates, block boundaries, or a name from
     its address. Keep the `// $BB:AAAA` comment and nothing else mechanical.
+  - Name work RAM with `game/ram.h` (`RAM_BATTLE_MENU_MEMBER`, not `0x95D5`), generated
+    from `re/ram.toml`; add what the port learns to the map (docs/DISASSEMBLY.md, "The RAM map").
   - Reach the host only through `runtime/platform/` (a lint test enforces it). No PPU, DMA,
     HDMA or APU register number appears in `game/`. Read and write the machine through
     `machine.h`'s `m_read8`/`m_write8` and friends, never by indexing a mapped image, so a

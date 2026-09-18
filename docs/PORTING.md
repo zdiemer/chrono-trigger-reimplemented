@@ -209,7 +209,11 @@ call, besides running the machine.
 3. Write readable C with the same observable effects: memory writes (including
    stack bytes from push/pull), I/O writes, and every register and flag that
    isn't dead after return. Use the data bank and direct page as the original
-   does (`m_abs`, `m_dp`), not hard-coded banks. Reach PPU, APU, DMA, HDMA and
+   does (`m_abs`, `m_dp`), not hard-coded banks. Spell work RAM with the
+   names in `game/ram.h` (`RAM_ABS(name)` where the original reaches it through
+   the data bank, `name_DP` through the direct page), and add the variables the
+   routine establishes to `re/ram.toml` ([DISASSEMBLY.md](DISASSEMBLY.md), "The
+   RAM map"). Reach PPU, APU, DMA, HDMA and
    CPU registers (other than the multiplier and divider) through the platform
    services (`m_platform(s)`, [PLATFORM.md](PLATFORM.md)); `tests/test_platform_lint.py`
    checks it. Call routines that aren't

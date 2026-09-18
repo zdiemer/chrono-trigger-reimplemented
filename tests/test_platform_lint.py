@@ -21,7 +21,6 @@ GAME = ROOT / "game"
 UNCONVERTED = {
     "attract/main_loop.c",   # $4212 polls in RAM wait loops
     "battle/main_loop.c",    # the debug path's second controller
-    "battle/setup.c",        # not a register: $213A is a WRAM destination in bank $7E
     "battle/wait.c",         # $4212 and counter polls in idle entries
     "field/sprites.c",       # direct page $2100 for the WRAM port at $2180
 }

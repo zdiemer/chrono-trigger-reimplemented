@@ -166,8 +166,8 @@ waits on M5 rather than on a backend.
   `frontend/bindings.c` is the desktop's). The second
   screen is the real question, because `VidFrame` is one frame of one screen per
   frame. Two shapes, and they cost differently: a *companion* view (party state,
-  the map, an item list) drawn by the frontend from game state, which needs the
-  RAM map (PLAN.md, Phase 2) before there is anything to read by name; or a
+  the map, an item list) drawn by the frontend from game state, which can read
+  it by name from the RAM map (`re/ram.toml`, `game/ram.h`); or a
   *second game screen* in the DS sense, which needs the video service to carry
   more than one frame and the game to decide what goes where. Either way it wants
   P3's leftover first (the observer doesn't fill in the per-span memory pointers),
@@ -247,6 +247,13 @@ waits on M5 rather than on a backend.
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest
   movies and feed anything new back into the build.
+- **Battle setup is never compared.** Every call of `battle_setup_state`
+  (`$CC:E2E4`) and `battle_setup_graphics` (`$CC:ED87`) in the library is
+  interrupted by NMI, so shadow mode counts them and compares none; the gate
+  passes on them without looking. What checks them today is `--native on
+  --recomp off` tracing identically to a known-good build (DISASSEMBLY.md,
+  "The RAM map"). A fuzz state at their entry, or comparing interrupted calls
+  when the interrupt touches none of their state, would close it.
 - **Snes9x agreement tables** in RUNTIME.md were re-measured after the timing
   fix for `new-game`, `menu` and `field` only; `fair` and `fair-companion` got
   worse and are unexplained.
