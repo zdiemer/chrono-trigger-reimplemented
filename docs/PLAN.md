@@ -223,7 +223,9 @@ the decompilation, so they wait behind it.
 ## Phase 5: the long tail
 
 - **MD2's remainder**: 43481 census-unknown bytes, 322.5 KiB still `mixed`, and
-  `lz` re-encoding; then **MD3** and the **MD4 residue**. The unknown bytes are
+  `lz` re-encoding; then **MD3** and the **MD4 residue**. MD3 is also the
+  prerequisite for a SNES ROM compiled from the ports (TODO.md), so it comes
+  forward if that target does. The unknown bytes are
   by definition ones no reader has been found for, so no port depends on them;
   they are proof-of-completeness work, and the formats that ports do depend on
   moved to Phase 2.
@@ -252,7 +254,8 @@ the decompilation, so they wait behind it.
   rather than an interest.
 - **The other targets** (TODO.md, "Targets beyond the desktop SNES build"): a
   wasm build, an AYN Thor multi-screen port, DS and PlayStation content in the
-  original game, and native touch controls. They are wanted, and three of the
+  original game, native touch controls, and a SNES ROM compiled from the hand
+  ports. They are wanted, and three of the
   four are mostly blocked on work this plan already has in order -- M5's
   coverage, the RAM map, the asset seam, MD2's script formats -- so
   scheduling them ahead of it would mean doing that work twice. The host seam

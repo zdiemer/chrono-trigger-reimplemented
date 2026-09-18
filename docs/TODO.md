@@ -191,6 +191,37 @@ waits on M5 rather than on a backend.
   wherever they live, extracted from the user's own copies; and the animated
   cutscenes have no path at all -- there is no video decode anywhere in the
   runtime, and adding one is its own decision.
+- **A SNES ROM compiled from the hand ports.** Not byte-exact: a playable ROM
+  whose routines are the C in `game/`, compiled for the 65816, with the
+  original's assembly for whatever isn't ported. In dependency order:
+  - **Relocatable source first.** The matching build rebuilds the ROM
+    byte-identically from assembly, but every pointer is still a number, so
+    nothing can move or grow. MD3 (every pointer symbolic, with the shift tests)
+    is what makes a routine replaceable at all; it is the prerequisite for any
+    ROM that differs from the original, compiled or hand-edited.
+  - **Then a hybrid, one routine at a time**: link a compiled routine in place of
+    the original's, keep the original's assembly for the rest, and check that the
+    ROM plays. A call-out to unported code is a real `JSL` there, so the
+    incremental shape the project already has carries over.
+  - **Ports written for it.** The ports run against an emulated machine: they take
+    a `Snes *`, read through `m_read8`, and the transcription-style ones move
+    emulated registers about (about 5800 calls to `m_lda`, `m_push`, `set_dp` and
+    the like across `game/`). A 65816 build needs each routine's logic apart from
+    the original's calling convention, which is also what the readability bar
+    asks for; CLAUDE.md's porting rules say so, and `tests/test_port_subset.py`
+    keeps `game/` inside what a 65816 compiler handles (no floating point, no
+    64-bit integers, no host C library -- none of which `game/` uses today). The
+    platform services already fit: their SNES backend turns each `vid_*` call
+    into the original register writes, which is what a SNES build compiles them to.
+  - **Speed is the open question.** The CPU runs at about 3.6 MHz, the original
+    is hand-tuned assembly, and compiled C is several times larger and slower;
+    NMI and HDMA work that misses vblank corrupts the picture rather than slowing
+    it. Which routines can be C at all is to be measured, not assumed, and the
+    hot ones may stay assembly for good. Size too: about 240 KB of code in a
+    nearly full 4 MiB ROM, so an extended layout (ExHiROM) is likely.
+  - **The toolchain** is its own evaluation: 65816 C compilers exist (PVSnesLib's,
+    Calypsi), and they differ in output quality, control over the calling
+    convention, and licence.
 - **Native touch controls**, rather than a virtual d-pad over the screen. A
   virtual pad is free today and needs nothing new: the frontend maps it to
   `PadBits` and calls `in_host_set`. Real touch is not a host problem, it is a

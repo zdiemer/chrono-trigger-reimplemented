@@ -61,7 +61,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 
 - **Writing a port from generated code** (docs/PLAN.md, docs/RECOMP.md's M5). The draft
   `tools.recomp` prints is a mechanical image of the ROM; the port is source, and the later
-  goals (a native renderer, widescreen, a GBA or browser build, assets as data) are made
+  goals (a native renderer, widescreen, a GBA or browser build, assets as data, a SNES ROM
+  compiled from the ports themselves) are made
   easy or hard here rather than in a backend:
   - Write what the routine *does*, not what the draft says. Don't carry over the draft's
     shape: emulated register variables, dead flag updates, block boundaries, or a name from
@@ -80,6 +81,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   - Where the original waits on beam position or depends on exact timing, don't reproduce
     the wait silently: port what it computes, say so in a comment at its `// $BB:AAAA`, and
     add it to docs/TODO.md. Those routines are what block the platform milestones.
+  - Keep the logic compilable for the 65816 as well as the host (docs/TODO.md, "A SNES ROM
+    compiled from the hand ports"). Put what the routine does in a C function with real
+    parameters and results, and keep the translation to and from the original's registers,
+    flags and direct page in a thin wrapper at its entry: that wrapper is what a SNES build
+    replaces with glue to the original calling convention, and the logic compiles for either.
+    Use 8- and 16-bit types where the value fits; no floating point, 64-bit integers,
+    recursion or large locals; no C library beyond `memcpy`, `memset` and `memcmp`.
+    `tests/test_port_subset.py` enforces the mechanical part.
   - A port that can't be expressed through a service yet is a finding, not a defeat: add the
     call the subsystem needs (additive), or use the documented SNES escape and write down
     why, as docs/PLATFORM.md's "as built" sections do.
