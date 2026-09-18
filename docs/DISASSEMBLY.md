@@ -268,6 +268,24 @@ Beyond the total, it names 535 distinct absolute operands of `$2000` and up
 scene 4, core 2, each a byte whose use the code shows but whose meaning it
 doesn't (a call-out's parameters, a flag only ever tested).
 
+`game/battle/setup.c`, the plan's example of a transcription, was renamed with
+it as the demonstration: its data-bank helpers take a work RAM address
+(`RAM_ABS` inside), and every literal the map names became the name, 221 of
+them, e.g. `STORE_DOWN(s, 0x0004, RAM_BATTLE_MENU_MEMBER)` for
+`STORE_DOWN(s, 0x0004, 0x95D5)`. The rewrite is mechanical -- a literal is
+replaced only as an address argument of a known helper -- and what stays a
+literal is the 56 addresses whose meaning no port establishes yet and the
+direct-page scratch cells. The gate didn't move: `tools/suite.py --only core` passes, and
+`battle-magus`, `battle-golem-twins-gameover`, `battle-tyrano-lair-walls` and
+`late-omen-battles` run clean in shadow mode. Shadow mode alone doesn't reach
+this file, though: every call of `battle_setup_state` and
+`battle_setup_graphics` in the library is interrupted by NMI, and interrupted
+calls aren't compared. So the check that does is the port running: `--native
+on --recomp off` over `gato-battle` (21600 frames) and `battle-magus` (18000)
+traces identically before and after the rename. A side effect: `$7E:213A`, a palette destination that the
+platform lint had to be told was not the register `$213A`, is now
+`RAM_PALETTE_BASE + 0x13A`, so setup.c left the lint's exception list.
+
 ## Known structure
 
 - Reset `$00:FF00` is `SEI; CLC; XCE; JML $FD:C000`.

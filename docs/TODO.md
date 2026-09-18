@@ -216,6 +216,13 @@ waits on M5 rather than on a backend.
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest
   movies and feed anything new back into the build.
+- **Battle setup is never compared.** Every call of `battle_setup_state`
+  (`$CC:E2E4`) and `battle_setup_graphics` (`$CC:ED87`) in the library is
+  interrupted by NMI, so shadow mode counts them and compares none; the gate
+  passes on them without looking. What checks them today is `--native on
+  --recomp off` tracing identically to a known-good build (DISASSEMBLY.md,
+  "The RAM map"). A fuzz state at their entry, or comparing interrupted calls
+  when the interrupt touches none of their state, would close it.
 - **Snes9x agreement tables** in RUNTIME.md were re-measured after the timing
   fix for `new-game`, `menu` and `field` only; `fair` and `fair-companion` got
   worse and are unexplained.

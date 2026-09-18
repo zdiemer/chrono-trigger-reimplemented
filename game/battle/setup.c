@@ -10,25 +10,26 @@
 #include "battle/setup.h"
 
 #include "port/machine.h"
+#include "ram.h"
 
 /* Instruction-sized helpers: absolute addresses in the data bank, direct-page
  * cells, 8-bit A and 16-bit X and Y. */
-static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
-static uint8_t absx8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.x); }
-static uint8_t absy8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.y); }
+static uint8_t abs8(Snes *s, uint32_t addr) { return m_read8(s, m_abs(s, RAM_ABS(addr))); }
+static uint8_t absx8(Snes *s, uint32_t addr) { return m_read8(s, m_abs(s, RAM_ABS(addr)) + s->cpu.x); }
+static uint8_t absy8(Snes *s, uint32_t addr) { return m_read8(s, m_abs(s, RAM_ABS(addr)) + s->cpu.y); }
 static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
 static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
 static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
 
-static uint8_t lda(Snes *s, uint16_t addr) { return m_lda8(s, abs8(s, addr)); }
-static uint8_t lda_x(Snes *s, uint16_t addr) { return m_lda8(s, absx8(s, addr)); }
-static uint8_t lda_y(Snes *s, uint16_t addr) { return m_lda8(s, absy8(s, addr)); }
+static uint8_t lda(Snes *s, uint32_t addr) { return m_lda8(s, abs8(s, addr)); }
+static uint8_t lda_x(Snes *s, uint32_t addr) { return m_lda8(s, absx8(s, addr)); }
+static uint8_t lda_y(Snes *s, uint32_t addr) { return m_lda8(s, absy8(s, addr)); }
 static uint8_t lda_dp(Snes *s, uint8_t cell) { return m_lda8(s, dp8(s, cell)); }
 static uint8_t lda_long_x(Snes *s, uint32_t addr) { return m_lda8(s, m_read8(s, addr + s->cpu.x)); }
 
-static void sta(Snes *s, uint16_t addr) { m_write8(s, m_abs(s, addr), (uint8_t)s->cpu.a); }
-static void sta_x(Snes *s, uint16_t addr) { m_write8(s, m_abs(s, addr) + s->cpu.x, (uint8_t)s->cpu.a); }
-static void sta_y(Snes *s, uint16_t addr) { m_write8(s, m_abs(s, addr) + s->cpu.y, (uint8_t)s->cpu.a); }
+static void sta(Snes *s, uint32_t addr) { m_write8(s, m_abs(s, RAM_ABS(addr)), (uint8_t)s->cpu.a); }
+static void sta_x(Snes *s, uint32_t addr) { m_write8(s, m_abs(s, RAM_ABS(addr)) + s->cpu.x, (uint8_t)s->cpu.a); }
+static void sta_y(Snes *s, uint32_t addr) { m_write8(s, m_abs(s, RAM_ABS(addr)) + s->cpu.y, (uint8_t)s->cpu.a); }
 static void sta_dp(Snes *s, uint8_t cell) { m_write8(s, m_dp(s, cell), (uint8_t)s->cpu.a); }
 /* LDA/STA dp,X: the direct-page address plus X wraps within bank 0. */
 static uint8_t lda_dpx(Snes *s, uint8_t cell) { return m_lda8(s, m_read8(s, (uint16_t)(s->cpu.d + cell + s->cpu.x))); }
@@ -36,8 +37,8 @@ static void sta_dpx(Snes *s, uint8_t cell)
 {
     m_write8(s, (uint16_t)(s->cpu.d + cell + s->cpu.x), (uint8_t)s->cpu.a);
 }
-static void stz(Snes *s, uint16_t addr) { m_write8(s, m_abs(s, addr), 0x00); }
-static void stz_x(Snes *s, uint16_t addr) { m_write8(s, m_abs(s, addr) + s->cpu.x, 0x00); }
+static void stz(Snes *s, uint32_t addr) { m_write8(s, m_abs(s, RAM_ABS(addr)), 0x00); }
+static void stz_x(Snes *s, uint32_t addr) { m_write8(s, m_abs(s, RAM_ABS(addr)) + s->cpu.x, 0x00); }
 static void stz_dp(Snes *s, uint8_t cell) { m_write8(s, m_dp(s, cell), 0x00); }
 
 static void stx_dp(Snes *s, uint8_t cell) { set_dp16(s, cell, s->cpu.x); }
@@ -75,8 +76,8 @@ static uint8_t step8(Snes *s, uint32_t addr, int delta)
 }
 static uint8_t inc_dp(Snes *s, uint8_t cell) { return step8(s, m_dp(s, cell), +1); }
 static uint8_t dec_dp(Snes *s, uint8_t cell) { return step8(s, m_dp(s, cell), -1); }
-static void inc_abs(Snes *s, uint16_t addr) { step8(s, m_abs(s, addr), +1); }
-static void inc_abs_x(Snes *s, uint16_t addr) { step8(s, m_abs(s, addr) + s->cpu.x, +1); }
+static void inc_abs(Snes *s, uint32_t addr) { step8(s, m_abs(s, RAM_ABS(addr)), +1); }
+static void inc_abs_x(Snes *s, uint32_t addr) { step8(s, m_abs(s, RAM_ABS(addr)) + s->cpu.x, +1); }
 
 /* INC on a 16-bit word (16-bit A mode), setting N and Z. */
 static void inc16(Snes *s, uint32_t addr)
@@ -96,7 +97,7 @@ static void asl_a_n(Snes *s, int n)
 static bool widths_ok(const Snes *s) { return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M; }
 
 /* LDX #last : STA table,X (for each table) : DEX : BPL */
-static void store_down(Snes *s, uint16_t last, const uint16_t *tables, int n)
+static void store_down(Snes *s, uint16_t last, const uint32_t *tables, int n)
 {
     m_ldx16(s, last);
     do {
@@ -106,13 +107,13 @@ static void store_down(Snes *s, uint16_t last, const uint16_t *tables, int n)
     } while (!(s->cpu.x & 0x8000));
 }
 #define STORE_DOWN(s, last, ...) \
-    store_down(s, last, (const uint16_t[]){ __VA_ARGS__ }, \
-               (int)(sizeof((const uint16_t[]){ __VA_ARGS__ }) / sizeof(uint16_t)))
+    store_down(s, last, (const uint32_t[]){ __VA_ARGS__ }, \
+               (int)(sizeof((const uint32_t[]){ __VA_ARGS__ }) / sizeof(uint32_t)))
 
 /* TDC : TAX : LDA src,X : STA dst,X : INX : CPX #n : BNE. Also stands for the
  * loop at $CC:E6D7, which copies two bytes per pass: the compare at the odd
  * counts is overwritten and never ends the loop. */
-static void copy_rom_up(Snes *s, uint32_t src, uint16_t dst, uint16_t n)
+static void copy_rom_up(Snes *s, uint32_t src, uint32_t dst, uint16_t n)
 {
     m_tdc(s);
     m_tax(s);
@@ -125,7 +126,7 @@ static void copy_rom_up(Snes *s, uint32_t src, uint16_t dst, uint16_t n)
 }
 
 /* LDA src,X : STA dst,Y : INY : INX : CPX #n : BNE */
-static void copy_rom_to_y(Snes *s, uint32_t src, uint16_t dst, uint16_t n)
+static void copy_rom_to_y(Snes *s, uint32_t src, uint32_t dst, uint16_t n)
 {
     do {
         lda_long_x(s, src);
@@ -138,7 +139,7 @@ static void copy_rom_to_y(Snes *s, uint32_t src, uint16_t dst, uint16_t n)
 
 /* TDC : TAX : LDA #$29 : STZ table,X : STA table+1,X : INX : INX : CPX #n : BNE
  * -- fill a table of words with $2900. */
-static void fill_2900_words(Snes *s, uint16_t table, uint16_t n)
+static void fill_2900_words(Snes *s, uint32_t table, uint16_t n)
 {
     m_tdc(s);
     m_tax(s);
@@ -153,7 +154,7 @@ static void fill_2900_words(Snes *s, uint16_t table, uint16_t n)
 }
 
 /* LDA #$FF : STA table,X : LDA #$29 : STA table+1,X : INX : INX : CPX #n : BNE */
-static void fill_29ff_words(Snes *s, uint16_t table, uint16_t n)
+static void fill_29ff_words(Snes *s, uint32_t table, uint16_t n)
 {
     do {
         m_lda8(s, 0xFF);
@@ -170,7 +171,7 @@ static void fill_29ff_words(Snes *s, uint16_t table, uint16_t n)
 static void fill_7ffd_counting(Snes *s, uint16_t n)
 {
     do {
-        sta_x(s, 0x7FFD);
+        sta_x(s, RAM_BATTLE_LOAD_TILEMAP);
         inc_a(s);
         m_inx(s);
         m_inx(s);
@@ -186,26 +187,26 @@ static void reset_battle_tables(Snes *s)
     m_lda8(s, 0x40);
     sta_dp(s, 0xE4);
     m_lda8(s, 0x01);
-    STORE_DOWN(s, 0x0003, 0x9694);
+    STORE_DOWN(s, 0x0003, RAM_BATTLE_ENEMY_FRAME_DELAY);
     inc_a(s);
-    STORE_DOWN(s, 0x0003, 0x9698);
+    STORE_DOWN(s, 0x0003, (RAM_BATTLE_ENEMY_FRAME_DELAY + 4));
     m_tdc(s);
     m_write8(s, 0x002183, (uint8_t)c->a);
-    STORE_DOWN(s, 0x00FF, 0x1D00);
+    STORE_DOWN(s, 0x00FF, RAM_BATTLE_OBJECT_X);
     dec_a(s);
-    static const uint16_t cells[15] = { 0x9EE7, 0x99D4, 0x99D5, 0x99D6, 0x99D7, 0x95D2, 0x9920, 0xA4EF,
-                                        0xA6D9, 0xA6DA, 0xA6DB, 0xA6DC, 0xA6DD, 0xA6DF, 0xA6E0 };
+    static const uint32_t cells[15] = { (RAM_BATTLE_SELECTED_TECH + 4), 0x99D4, 0x99D5, 0x99D6, 0x99D7, 0x95D2, RAM_BATTLE_ITEM_ARROWS_SHOWN, RAM_BATTLE_COLOR_PHASE,
+                                        RAM_BATTLE_MENU_SLOT_MEMBERS, (RAM_BATTLE_MENU_SLOT_MEMBERS + 1), (RAM_BATTLE_MENU_SLOT_MEMBERS + 2), 0xA6DC, RAM_BATTLE_MENU_SLOT, RAM_BATTLE_MENU_SLOT_SHOWN, RAM_BATTLE_STATUS_MEMBER };
     for (int i = 0; i < 15; i++)
         sta(s, cells[i]);
-    STORE_DOWN(s, 0x0004, 0x95D5);
-    STORE_DOWN(s, 0x0101, 0x94D0);
-    STORE_DOWN(s, 0x0007, 0x974A, 0x9752, 0x988B, 0x98FF, 0xA437);
-    STORE_DOWN(s, 0x000A, 0x9907, 0xA441, 0xA44C);
+    STORE_DOWN(s, 0x0004, RAM_BATTLE_MENU_MEMBER);
+    STORE_DOWN(s, 0x0101, RAM_BATTLE_TECH_LIST_IDS);
+    STORE_DOWN(s, 0x0007, RAM_BATTLE_ENEMY_ANIMATION_LOADED, 0x9752, (RAM_BATTLE_OBJECT_PALETTE_INITIAL + 3), RAM_BATTLE_ENEMY_KINDS, RAM_BATTLE_ANCHOR_SOURCES);
+    STORE_DOWN(s, 0x000A, RAM_BATTLE_OBJECT_FRAME_SHOWN, RAM_BATTLE_OBJECT_POSE, RAM_BATTLE_OBJECT_POSE_LAST);
     STORE_DOWN(s, 0x0006, 0x9919);
     m_lda8(s, 0x08);
-    sta(s, 0xA112);
+    sta(s, RAM_BATTLE_BLINK_TIMER);
     m_lda8(s, 0x02);
-    sta(s, 0x9F46);
+    sta(s, RAM_BATTLE_CURSOR_PRIORITY);
     m_lda8(s, 0x03);
     sta(s, 0x99D9);
     lda(s, 0x2990);
@@ -215,7 +216,7 @@ static void reset_battle_tables(Snes *s)
     lda(s, 0x2992);
     m_tax(s);
     lda_long_x(s, 0xCCFBC5);
-    sta(s, 0x9F20);
+    sta(s, RAM_BATTLE_WINDOW_LAYOUT);
     lda(s, 0x2991);
     and_a(s, 0x40);
     sta(s, 0xA0D4);
@@ -232,12 +233,12 @@ static void reset_battle_tables(Snes *s)
     m_ldx16(s, 0x0002);
     m_lda8(s, 0xF0);
     do {
-        stz_x(s, 0x9708);
-        sta_x(s, 0x9713);
+        stz_x(s, RAM_BATTLE_CURSOR_OFFSET_X);
+        sta_x(s, RAM_BATTLE_CURSOR_OFFSET_Y);
         dex(s);
     } while (!(c->x & 0x8000));
     m_lda8(s, 0x08);
-    STORE_DOWN(s, 0x0002, 0x971E, 0x9729);
+    STORE_DOWN(s, 0x0002, RAM_BATTLE_OBJECT_HALF_WIDTH, RAM_BATTLE_OBJECT_HALF_HEIGHT);
     m_ldx16(s, 0x0002);
     do {
         m_lda8(s, 0x02);
@@ -247,9 +248,9 @@ static void reset_battle_tables(Snes *s)
         dex(s);
     } while (!(c->x & 0x8000));
     m_lda8(s, 0x20);
-    STORE_DOWN(s, 0x000F, 0x9897);
-    lda(s, 0xA5E3);
-    STORE_DOWN(s, 0x000A, 0x99B5, 0x9F3B);
+    STORE_DOWN(s, 0x000F, RAM_BATTLE_ENEMY_EFFECT_DELAY);
+    lda(s, RAM_BATTLE_SPRITE_ATTRIBUTES);
+    STORE_DOWN(s, 0x000A, RAM_BATTLE_OBJECT_ATTRIBUTE_BITS, 0x9F3B);
     STORE_DOWN(s, 0x0007, 0xAB5F, 0xAB57);
 }
 
@@ -270,7 +271,7 @@ static void fill_cell_tables(Snes *s)
                 sta_y(s, (uint16_t)(0x8E2D + i));
             lda_long_x(s, 0xCCF4CC);
             for (uint16_t i = 0; i < 4; i++)
-                sta_y(s, (uint16_t)(0x8C2D + i));
+                sta_y(s, (uint16_t)(RAM_BATTLE_OAM_HIGH_BITS + i));
             for (int i = 0; i < 4; i++)
                 m_iny(s);
             m_inx(s);
@@ -288,7 +289,7 @@ static void fill_cell_tables(Snes *s)
         for (int i = 0; i < 4; i++)
             c->a = m_lsr16(s, c->a);
         m_sep(s, CPU_FLAG_M);
-        sta_x(s, 0x902D);
+        sta_x(s, RAM_BATTLE_OAM_HIGH_OFFSETS);
         m_inx(s);
         cpx(s, 0x0200);
     } while (c->x != 0x0200);
@@ -304,17 +305,17 @@ static void build_base_grid(Snes *s)
     m_tdc(s);
     m_tax(s);
     tay(s);
-    copy_rom_to_y(s, 0xCCF694, 0x7BFD, 0x0020);
+    copy_rom_to_y(s, 0xCCF694, RAM_BATTLE_BASE_GRID, 0x0020);
     m_lda8(s, 0x0B);
     sta_dp(s, 0x80);
     do {
         m_tdc(s);
         m_tax(s);
-        copy_rom_to_y(s, 0xCCF644, 0x7BFD, 0x0010);
+        copy_rom_to_y(s, 0xCCF644, RAM_BATTLE_BASE_GRID, 0x0010);
     } while (dec_dp(s, 0x80) != 0);
     m_tdc(s);
     m_tax(s);
-    copy_rom_to_y(s, 0xCCF694, 0x7BFD, 0x0030);
+    copy_rom_to_y(s, 0xCCF694, RAM_BATTLE_BASE_GRID, 0x0030);
     m_ldx16(s, 0x00FF);
     do {
         lda_x(s, 0x2B23);
@@ -324,8 +325,8 @@ static void build_base_grid(Snes *s)
         lda_x(s, 0x2A23);
         and_a(s, 0x80);
         ora_a(s, dp8(s, 0x80));
-        ora_a(s, absx8(s, 0x7BFD));
-        sta_x(s, 0x7BFD);
+        ora_a(s, absx8(s, RAM_BATTLE_BASE_GRID));
+        sta_x(s, RAM_BATTLE_BASE_GRID);
         dex(s);
     } while (!(c->x & 0x8000));
 }
@@ -336,13 +337,13 @@ static void build_base_grid(Snes *s)
  * (bytes from $D1:5D50, then words $29FF). */
 static void reset_word_buffers(Snes *s)
 {
-    fill_2900_words(s, 0x99E3, 0x0500);
-    fill_2900_words(s, 0xA6E1, 0x0180);
-    fill_2900_words(s, 0x0CC0, 0x04C0);
-    copy_rom_up(s, 0xD15800, 0x0B40, 0x0180);
+    fill_2900_words(s, RAM_BATTLE_MENU_LIST_TILES, 0x0500);
+    fill_2900_words(s, RAM_BATTLE_MENU_TILEMAP_TILE, 0x0180);
+    fill_2900_words(s, RAM_BATTLE_WINDOW_TILEMAP_TILE, 0x04C0);
+    copy_rom_up(s, 0xD15800, RAM_BATTLE_WINDOW_FRAMES_TILEMAP_TILE, 0x0180);
     m_tdc(s);
     m_tax(s);
-    fill_29ff_words(s, 0x7FFD, 0x0100);
+    fill_29ff_words(s, RAM_BATTLE_LOAD_TILEMAP, 0x0100);
     m_tdc(s);
     m_ldx16(s, 0x0040);
     fill_7ffd_counting(s, 0x0060);
@@ -352,8 +353,8 @@ static void reset_word_buffers(Snes *s)
     fill_7ffd_counting(s, 0x00A0);
     m_lda8(s, 0x40);
     fill_7ffd_counting(s, 0x00C0);
-    copy_rom_up(s, 0xD15D50, 0x80FD, 0x00C0);
-    fill_29ff_words(s, 0x80FD, 0x0200);
+    copy_rom_up(s, 0xD15D50, RAM_BATTLE_LOAD_TILEMAP_2, 0x00C0);
+    fill_29ff_words(s, RAM_BATTLE_LOAD_TILEMAP_2, 0x0200);
 }
 
 /* $CC:F063, called with JSR from `site`: TDC, then JSL $C1:0018, which with A =
@@ -373,9 +374,9 @@ static bool convert_name(Snes *s, uint32_t site)
 
 /* TDC : TAX : LDA $94A0,X : STA dst,Y : INY : INX : CPX #n : BNE, then the
  * same for $94B0: both converted rows, `n` bytes each. */
-static void store_name_rows(Snes *s, uint16_t dst, uint16_t n)
+static void store_name_rows(Snes *s, uint32_t dst, uint16_t n)
 {
-    for (uint16_t row = 0x94A0; row <= 0x94B0; row = (uint16_t)(row + 0x10)) {
+    for (uint32_t row = RAM_BATTLE_NAME_BUFFER; row <= RAM_BATTLE_NAME_BUFFER + 0x10; row += 0x10) {
         m_tdc(s);
         m_tax(s);
         do {
@@ -391,7 +392,7 @@ static void store_name_rows(Snes *s, uint16_t dst, uint16_t n)
 /* $CC:E595 and $CC:E659: for `count` names ($80), copy the 5 bytes at `src` +
  * the name's offset from $CC:F83F to $94A0 (with $94A5 = 0), convert them,
  * and store both rows at `dst` + its offset from $CC:F837. */
-static bool convert_names(Snes *s, uint16_t src, uint16_t dst, uint8_t count, uint32_t site)
+static bool convert_names(Snes *s, uint32_t src, uint32_t dst, uint8_t count, uint32_t site)
 {
     m_tdc(s);
     tay(s);
@@ -403,9 +404,9 @@ static bool convert_names(Snes *s, uint16_t src, uint16_t dst, uint8_t count, ui
         tay(s);
         for (uint16_t i = 0; i < 5; i++) {
             lda_y(s, (uint16_t)(src + i));
-            sta(s, (uint16_t)(0x94A0 + i));
+            sta(s, (uint16_t)(RAM_BATTLE_NAME_BUFFER + i));
         }
-        stz(s, 0x94A5);
+        stz(s, (RAM_BATTLE_NAME_BUFFER + 5));
         if (!convert_name(s, site))
             return false;
         lda_dp(s, 0x80);
@@ -430,8 +431,8 @@ static void copy_name_records(Snes *s)
     tay(s);
     do {
         for (uint16_t i = 0; i < 5; i++) {
-            lda_y(s, (uint16_t)(0x2C23 + i));
-            sta_x(s, (uint16_t)(0x9430 + i));
+            lda_y(s, (uint16_t)(RAM_CHARACTER_NAMES + i));
+            sta_x(s, (uint16_t)(RAM_BATTLE_CHARACTER_NAMES + i));
         }
         tya(s);
         clc(s);
@@ -459,16 +460,16 @@ static void read_party_slots(Snes *s)
     stx_dp(s, 0x82);
     do {
         ldx_dp(s, 0x80);
-        if (!(lda_x(s, 0x2980) & 0x80)) {
+        if (!(lda_x(s, RAM_PARTY_MEMBERS) & 0x80)) {
             and_a(s, 0x07);
             cmp(s, 0x04);
             if (a8(s) == 0x04) {
-                m_write16(s, m_abs(s, 0xA0FF), c->x);
+                m_write16(s, m_abs(s, RAM_ABS(RAM_BATTLE_FROG_SLOT)), c->x);
             } else {
                 cmp(s, 0x06);
                 if (a8(s) == 0x06) {
-                    m_write16(s, m_abs(s, 0xA115), c->x);
-                    inc_abs(s, 0xA117);
+                    m_write16(s, m_abs(s, RAM_ABS(RAM_BATTLE_MAGUS_SLOT)), c->x);
+                    inc_abs(s, RAM_BATTLE_MAGUS_PRESENT);
                 }
             }
             m_tax(s);
@@ -476,11 +477,11 @@ static void read_party_slots(Snes *s)
             m_tax(s);
             ldy_dp(s, 0x82);
             for (uint16_t i = 0; i < 5; i++) {
-                lda_x(s, (uint16_t)(0x2C23 + i));
-                sta_y(s, (uint16_t)(0x9403 + i));
+                lda_x(s, (uint16_t)(RAM_CHARACTER_NAMES + i));
+                sta_y(s, (uint16_t)(RAM_BATTLE_PARTY_NAMES + i));
             }
             ldx_dp(s, 0x80);
-            inc_abs_x(s, 0x96F5);
+            inc_abs_x(s, RAM_BATTLE_SLOT_PRESENT);
         }
         inc_dp(s, 0x80);
         clc(s);
@@ -490,11 +491,11 @@ static void read_party_slots(Snes *s)
         cmp(s, 0x0F);
     } while (a8(s) != 0x0F);
     /* $CC:E64D */
-    lda(s, 0xA0FF);
+    lda(s, RAM_BATTLE_FROG_SLOT);
     asl_a_n(s, 2);
     clc(s);
-    adc(s, abs8(s, 0xA0FF));
-    sta(s, 0xA0FF);
+    adc(s, abs8(s, RAM_BATTLE_FROG_SLOT));
+    sta(s, RAM_BATTLE_FROG_SLOT);
 }
 
 /* $CC:E6B7-$CC:E70F: palette colors from $FF:9C68, $FF:9C70 and $FF:9E0A into
@@ -503,13 +504,13 @@ static void read_party_slots(Snes *s)
 static void load_palettes(Snes *s)
 {
     Cpu *c = &s->cpu;
-    copy_rom_up(s, 0xFF9C68, 0x2010, 0x0008);
-    copy_rom_up(s, 0xFF9C70, 0x2018, 0x0008);
-    copy_rom_up(s, 0xFF9E0A, 0x213A, 0x0006);
+    copy_rom_up(s, 0xFF9C68, (RAM_PALETTE_BASE + 0x10), 0x0008);
+    copy_rom_up(s, 0xFF9C70, (RAM_PALETTE_BASE + 0x18), 0x0008);
+    copy_rom_up(s, 0xFF9E0A, (RAM_PALETTE_BASE + 0x13A), 0x0006);
     m_ldx16(s, 0x01FF);
     do {
-        lda_x(s, 0x2000);
-        sta_x(s, 0x2200);
+        lda_x(s, RAM_PALETTE_BASE);
+        sta_x(s, RAM_PALETTE_WORKING);
         dex(s);
     } while (!(c->x & 0x8000));
     m_lda8(s, 0x0A);
@@ -518,8 +519,8 @@ static void load_palettes(Snes *s)
             inc_a(s);
             inc_a(s);
         }
-        sta(s, (uint16_t)(0x9888 + i));
-        sta(s, (uint16_t)(0x993C + i));
+        sta(s, (uint16_t)(RAM_BATTLE_OBJECT_PALETTE_INITIAL + i));
+        sta(s, (uint16_t)(RAM_BATTLE_OBJECT_PALETTE + i));
     }
 }
 
@@ -554,7 +555,7 @@ static void copy_party_colors(Snes *s)
         sta_dp(s, 0x80);
         do {
             lda_long_x(s, 0xD14B00);
-            sta_y(s, 0x23BA);
+            sta_y(s, (RAM_PALETTE_WORKING + 0x1BA));
             m_inx(s);
             m_iny(s);
         } while (dec_dp(s, 0x80) != 0);
@@ -584,13 +585,13 @@ static void mark_member_records(Snes *s)
         lda_long_x(s, 0xCCF396);
         sta_dp(s, 0x81);
         ldx_dp(s, 0x80);
-        if (!(lda_x(s, 0x1AC6) & 0x80)) {
+        if (!(lda_x(s, (RAM_BATTLE_TECH_RECORDS_ID + 10 * RAM_BATTLE_TECH_RECORDS_STRIDE)) & 0x80)) {
             m_lda8(s, 0x01);
-            sta_y(s, 0x9F25);
+            sta_y(s, RAM_BATTLE_DOUBLE_TECHS);
         }
-        if (!(lda_x(s, 0x1AFE) & 0x80)) {
+        if (!(lda_x(s, (RAM_BATTLE_TECH_RECORDS_ID + 18 * RAM_BATTLE_TECH_RECORDS_STRIDE)) & 0x80)) {
             m_lda8(s, 0x01);
-            sta_y(s, 0x9F28);
+            sta_y(s, RAM_BATTLE_TRIPLE_TECHS);
         }
         dey(s);
     } while (!(c->y & 0x8000));
@@ -628,16 +629,16 @@ static void load_member_list_end(Snes *s)
  * (7 bytes each from `table` + X), append each first byte other than $FF to
  * the list at $94D0 + Y, with the entry number at $9551 + Y, counting them in
  * $8C. */
-static void append_member_entries(Snes *s, uint16_t table, uint8_t end)
+static void append_member_entries(Snes *s, uint32_t table, uint8_t end)
 {
     Cpu *c = &s->cpu;
     do {
         uint8_t v = lda_x(s, table);
         cmp(s, 0xFF);
         if (v != 0xFF) {
-            sta_y(s, 0x94D0);
+            sta_y(s, RAM_BATTLE_TECH_LIST_IDS);
             lda_dp(s, 0x82);
-            sta_y(s, 0x9551);
+            sta_y(s, RAM_BATTLE_TECH_LIST);
             m_iny(s);
             inc_dp(s, 0x8C);
         }
@@ -656,13 +657,13 @@ static void append_member_entries(Snes *s, uint16_t table, uint8_t end)
 /* $CC:E7C8 and $CC:E83C: when `flag` + member is set, append `marker` to the
  * list; save the list end in $86 + member * 2 and move to the next member.
  * True while members remain. */
-static bool finish_member_list(Snes *s, uint16_t flag, uint8_t marker)
+static bool finish_member_list(Snes *s, uint32_t flag, uint8_t marker)
 {
     lda_dp(s, 0x83);
     m_tax(s);
     if (lda_x(s, flag) != 0) {
         m_lda8(s, marker);
-        sta_y(s, 0x94D0);
+        sta_y(s, RAM_BATTLE_TECH_LIST_IDS);
         m_iny(s);
     }
     sty_dp(s, 0x84);
@@ -698,8 +699,8 @@ static void build_member_lists(Snes *s)
         lda_long_x(s, 0xCCF38C);
         tay(s);
         load_member_records(s);
-        append_member_entries(s, 0x1A80, 0x08);
-    } while (finish_member_list(s, 0x9F25, 0xFC));
+        append_member_entries(s, RAM_BATTLE_TECH_RECORDS_ID, 0x08);
+    } while (finish_member_list(s, RAM_BATTLE_DOUBLE_TECHS, 0xFC));
 
     /* $CC:E7EC */
     m_tdc(s);
@@ -712,8 +713,8 @@ static void build_member_lists(Snes *s)
         stz_dp(s, 0x8C);
         load_member_list_end(s);
         load_member_records(s);
-        append_member_entries(s, 0x1AC6, 0x10);
-    } while (finish_member_list(s, 0x9F28, 0xFD));
+        append_member_entries(s, (RAM_BATTLE_TECH_RECORDS_ID + 10 * RAM_BATTLE_TECH_RECORDS_STRIDE), 0x10);
+    } while (finish_member_list(s, RAM_BATTLE_TRIPLE_TECHS, 0xFD));
 
     /* $CC:E863 */
     m_tdc(s);
@@ -723,16 +724,16 @@ static void build_member_lists(Snes *s)
     do {
         lda_dp(s, 0x83);
         m_tax(s);
-        if (lda_x(s, 0x9F28) != 0) {
+        if (lda_x(s, RAM_BATTLE_TRIPLE_TECHS) != 0) {
             m_lda8(s, 0x12);
             sta_dp(s, 0x82);
             load_member_list_end(s);
             load_member_records(s);
-            uint8_t v = lda_x(s, 0x1AFE);
-            sta_y(s, 0x94D0);
+            uint8_t v = lda_x(s, (RAM_BATTLE_TECH_RECORDS_ID + 18 * RAM_BATTLE_TECH_RECORDS_STRIDE));
+            sta_y(s, RAM_BATTLE_TECH_LIST_IDS);
             if (!(v & 0x80)) {
                 m_lda8(s, 0x12);
-                sta_y(s, 0x9551);
+                sta_y(s, RAM_BATTLE_TECH_LIST);
             }
         }
         inc_dp(s, 0x83);
@@ -749,15 +750,15 @@ static void build_member_lists(Snes *s)
         lda_long_x(s, 0xCCF38C);
         tay(s);
         ldx_dp(s, 0x80);
-        stz_x(s, 0xA02A);
+        stz_x(s, RAM_BATTLE_TECH_LIST_LENGTH);
         for (;;) {
-            uint8_t v = lda_y(s, 0x94D0);
+            uint8_t v = lda_y(s, RAM_BATTLE_TECH_LIST_IDS);
             cmp(s, 0xFF);
             if (v == 0xFF)
                 break;
             m_iny(s);
-            inc_abs_x(s, 0xA02A);
-            uint8_t n = lda_x(s, 0xA02A);
+            inc_abs_x(s, RAM_BATTLE_TECH_LIST_LENGTH);
+            uint8_t n = lda_x(s, RAM_BATTLE_TECH_LIST_LENGTH);
             cmp(s, 0x14);
             if (n == 0x14)
                 break;
@@ -776,7 +777,7 @@ static void read_slot_extras(Snes *s)
     stx_dp(s, 0x80);
     do {
         ldx_dp(s, 0x80);
-        if (!(lda_x(s, 0x2980) & 0x80)) {
+        if (!(lda_x(s, RAM_PARTY_MEMBERS) & 0x80)) {
             asl_a_n(s, 2);
             tay(s);
             if (lda(s, 0xA0D4) != 0) {
@@ -796,7 +797,7 @@ static void read_slot_extras(Snes *s)
                 adc(s, m_read8(s, 0xCCF38C + s->cpu.x));
                 m_tax(s);
                 uint8_t want = lda_y(s, 0x2C7F);
-                uint8_t have = absx8(s, 0x94D0);
+                uint8_t have = absx8(s, RAM_BATTLE_TECH_LIST_IDS);
                 m_cmp8(s, want, have);
                 if (want != have) {
                     ldx_dp(s, 0x80);
@@ -807,16 +808,16 @@ static void read_slot_extras(Snes *s)
         }
     } while (!(dec_dp(s, 0x80) & 0x80));
     if (lda(s, 0xA0D5) != 0) {
-        lda(s, 0x2C98);
-        sta(s, 0x95E6);
-        lda(s, 0x2C99);
-        sta(s, 0x95E5);
+        lda(s, RAM_BATTLE_REMEMBERED_ITEM_TOP);
+        sta(s, RAM_BATTLE_ITEM_TOP);
+        lda(s, RAM_BATTLE_REMEMBERED_ITEM_ROW);
+        sta(s, RAM_BATTLE_ITEM_ROW);
     }
 }
 
 /* LDA tile,X : ASL x4 : CLC : ADC fine,X -- a coordinate from a tile number
  * and an offset within the tile. */
-static void tile_coordinate(Snes *s, uint16_t tile, uint16_t fine)
+static void tile_coordinate(Snes *s, uint32_t tile, uint32_t fine)
 {
     lda_x(s, tile);
     asl_a_n(s, 4);
@@ -833,7 +834,7 @@ static void place_party_objects(Snes *s)
     m_tdc(s);
     m_tax(s);
     do {
-        lda_x(s, 0x29B0);
+        lda_x(s, RAM_BATTLE_PARTY_PLACEMENT_TILE_X);
         sta_x(s, 0x96A4);
         m_inx(s);
         cpx(s, 0x000F);
@@ -843,15 +844,15 @@ static void place_party_objects(Snes *s)
     m_tax(s);
     do {
         tile_coordinate(s, 0x96A4, 0x96A6);
-        sta_y(s, 0x1D0C);
+        sta_y(s, (RAM_BATTLE_OBJECT_X + 0xC));
         tile_coordinate(s, 0x96A5, 0x96A7);
-        sta_y(s, 0x1D23);
+        sta_y(s, (RAM_BATTLE_OBJECT_Y + 0xC));
         m_lda8(s, 0x0F);
-        sta_y(s, 0x1D7F);
+        sta_y(s, (RAM_BATTLE_OBJECT_PART_COUNT + 0xC));
         lda_x(s, 0x96A8);
         sta_y(s, 0xA4DC);
         m_tdc(s);
-        sta_y(s, 0x96DB);
+        sta_y(s, RAM_BATTLE_OBJECT_FACING);
         m_txa(s);
         clc(s);
         adc(s, 0x05);
@@ -873,11 +874,11 @@ static void load_party_graphics(Snes *s)
     stz_dp(s, 0x81);
     do {
         ldy_dp(s, 0x80);
-        lda_y(s, 0x2980);
+        lda_y(s, RAM_PARTY_MEMBERS);
         asl_a(s);
         m_push8(s, a8(s));
         clc(s);
-        adc(s, absy8(s, 0x2980));
+        adc(s, absy8(s, RAM_PARTY_MEMBERS));
         m_tax(s);
         tya(s);
         asl_a(s);
@@ -886,15 +887,16 @@ static void load_party_graphics(Snes *s)
         tay(s);
         for (uint16_t i = 0; i < 3; i++) {
             lda_long_x(s, 0xE42000 + i);
-            sta_y(s, (uint16_t)(0x1C57 + i));
+            sta_y(s, (uint16_t)(RAM_BATTLE_OBJECT_GRAPHICS + i));
         }
         for (uint16_t i = 0; i < 3; i++) {
             lda_long_x(s, 0xE42300 + i);
-            sta_y(s, (uint16_t)(0x1C78 + i));
+            sta_y(s, (uint16_t)(RAM_BATTLE_OBJECT_TILE_LISTS + i));
         }
         m_lda8(s, m_pull8(s));
         m_tax(s);
-        static const struct { uint32_t src; uint16_t dst; } ptrs[2] = { { 0xE42600, 0x1C99 }, { 0xE42800, 0x1CBA } };
+        static const struct { uint32_t src, dst; } ptrs[2] = { { 0xE42600, RAM_BATTLE_OBJECT_FRAME_LISTS },
+                                                          { 0xE42800, RAM_BATTLE_OBJECT_DELAY_LISTS } };
         for (int p = 0; p < 2; p++) {
             for (uint16_t i = 0; i < 2; i++) {
                 lda_long_x(s, ptrs[p].src + i);
@@ -932,9 +934,9 @@ static void load_party_graphics(Snes *s)
         m_sep(s, CPU_FLAG_M);
         ldx_dp(s, 0x80);
         lda_dp(s, 0x82);
-        sta_x(s, 0x966E);
+        sta_x(s, RAM_BATTLE_FACING_STRIDE_LOW);
         lda_dp(s, 0x83);
-        sta_x(s, 0xA2C8);
+        sta_x(s, RAM_BATTLE_FACING_STRIDE_HIGH);
         inc_dp(s, 0x80);
         lda_dp(s, 0x80);
         cmp(s, 0x03);
@@ -952,7 +954,7 @@ static void copy_enemy_headers(Snes *s)
     do {
         stz_dp(s, 0x81);
         do {
-            lda_x(s, 0x29BF);
+            lda_x(s, RAM_BATTLE_ENEMY_PLACEMENT_TILE_X);
             sta_y(s, 0x96B3);
             m_inx(s);
             m_iny(s);
@@ -971,8 +973,8 @@ static void copy_enemy_headers(Snes *s)
 }
 
 /* A 16-bit read and write in the data bank, indexed. */
-static uint16_t absx16(Snes *s, uint16_t addr) { return m_read16(s, m_abs(s, addr) + s->cpu.x); }
-static void set_absy16(Snes *s, uint16_t addr, uint16_t v) { m_write16(s, m_abs(s, addr) + s->cpu.y, v); }
+static uint16_t absx16(Snes *s, uint32_t addr) { return m_read16(s, m_abs(s, RAM_ABS(addr)) + s->cpu.x); }
+static void set_absy16(Snes *s, uint32_t addr, uint16_t v) { m_write16(s, m_abs(s, RAM_ABS(addr)) + s->cpu.y, v); }
 
 /* REP #$20 : LDA $8C (or $29C4,X) : ASL : STA $82 : ASL : ASL : CLC : ADC $82 :
  * TAX -- the enemy's index times 10 (16-bit A). */
@@ -1001,43 +1003,43 @@ static void setup_enemy(Snes *s)
     lda_dp(s, 0x80);
     adc(s, 0x03);
     tay(s);
-    lda_x(s, 0x29C6);
+    lda_x(s, RAM_BATTLE_ENEMY_PLACEMENT_KIND);
     and_a(s, 0x07);
-    sta_y(s, 0x967C);
+    sta_y(s, RAM_BATTLE_OBJECT_KIND);
     m_push16(s, c->x);
     m_tax(s);
     lda_long_x(s, 0xCCF505);
-    sta_y(s, 0x1D7F);
+    sta_y(s, (RAM_BATTLE_OBJECT_PART_COUNT + 0xC));
     c->x = m_pull16(s);
     m_set_nz16(s, c->x);
-    tile_coordinate(s, 0x29BF, 0x29C1);
-    sta_y(s, 0x1D0C);
-    tile_coordinate(s, 0x29C0, 0x29C2);
-    sta_y(s, 0x1D23);
-    lda_x(s, 0x29C3);
+    tile_coordinate(s, RAM_BATTLE_ENEMY_PLACEMENT_TILE_X, RAM_BATTLE_ENEMY_PLACEMENT_X_OFFSET);
+    sta_y(s, (RAM_BATTLE_OBJECT_X + 0xC));
+    tile_coordinate(s, RAM_BATTLE_ENEMY_PLACEMENT_TILE_Y, RAM_BATTLE_ENEMY_PLACEMENT_Y_OFFSET);
+    sta_y(s, (RAM_BATTLE_OBJECT_Y + 0xC));
+    lda_x(s, (RAM_BATTLE_ENEMY_PLACEMENT + 4));
     sta_y(s, 0xA4DC);
     m_tdc(s);
-    sta_y(s, 0x96DB);
-    sta_y(s, 0x96E6);
-    lda_x(s, 0x29C7);
+    sta_y(s, RAM_BATTLE_OBJECT_FACING);
+    sta_y(s, RAM_BATTLE_OBJECT_FACING_LOADED);
+    lda_x(s, RAM_BATTLE_ENEMY_PLACEMENT_PALETTE);
     asl_a(s);
-    sta_y(s, 0x9888);
-    sta_y(s, 0x993C);
-    lda_x(s, 0x29C6);
+    sta_y(s, RAM_BATTLE_OBJECT_PALETTE_INITIAL);
+    sta_y(s, RAM_BATTLE_OBJECT_PALETTE);
+    lda_x(s, RAM_BATTLE_ENEMY_PLACEMENT_KIND);
     and_a(s, 0x80);
-    sta_y(s, 0x9FF7);
+    sta_y(s, RAM_BATTLE_OBJECT_HIDDEN);
     lda_dp(s, 0x80);
     asl_a(s);
     clc(s);
     adc(s, dp8(s, 0x80));
     tay(s);
-    lda_x(s, 0x29CA);
-    sta_y(s, 0x1C62);
+    lda_x(s, (RAM_BATTLE_ENEMY_PLACEMENT + 0xB));
+    sta_y(s, (RAM_BATTLE_OBJECT_GRAPHICS + 0xB));
 
     /* $CC:EACA */
     m_rep(s, CPU_FLAG_M);
-    set_absy16(s, 0x1C60, m_lda16(s, absx16(s, 0x29C8)));
-    uint16_t enemy = m_lda16(s, absx16(s, 0x29C4));
+    set_absy16(s, (RAM_BATTLE_OBJECT_GRAPHICS + 9), m_lda16(s, absx16(s, (RAM_BATTLE_ENEMY_PLACEMENT + 9))));
+    uint16_t enemy = m_lda16(s, absx16(s, RAM_BATTLE_ENEMY_PLACEMENT_ENEMY));
     set_dp16(s, 0x8C, enemy);
     enemy_times_10(s, enemy);
     m_lda16(s, m_read16(s, 0xE4F603 + c->x));
@@ -1048,27 +1050,27 @@ static void setup_enemy(Snes *s)
     clc(s);
     c->a = m_adc16(s, c->a, dp16(s, 0x82));
     m_tax(s);
-    set_absy16(s, 0x1C81, m_lda16(s, m_read16(s, 0xE42300 + c->x)));
+    set_absy16(s, (RAM_BATTLE_OBJECT_TILE_LISTS + 9), m_lda16(s, m_read16(s, 0xE42300 + c->x)));
     m_tdc(s);
     m_sep(s, CPU_FLAG_M);
     lda_long_x(s, 0xE42302);
-    sta_y(s, 0x1C83);
+    sta_y(s, (RAM_BATTLE_OBJECT_TILE_LISTS + 0xB));
     m_rep(s, CPU_FLAG_M);
     m_lda16(s, dp16(s, 0x8E));
     c->a = m_asl16(s, c->a);
     m_tax(s);
     m_lda16(s, m_read16(s, 0xE42600 + c->x));
-    set_absy16(s, 0x1CA2, c->a);
+    set_absy16(s, (RAM_BATTLE_OBJECT_FRAME_LISTS + 9), c->a);
     set_dp16(s, 0x84, c->a);
     m_lda16(s, m_read16(s, 0xE42800 + c->x));
-    set_absy16(s, 0x1CC3, c->a);
+    set_absy16(s, (RAM_BATTLE_OBJECT_DELAY_LISTS + 9), c->a);
     set_dp16(s, 0x86, c->a);
     m_tdc(s);
     m_sep(s, CPU_FLAG_M);
     m_lda8(s, 0xE4);
-    sta_y(s, 0x1CA4);
+    sta_y(s, (RAM_BATTLE_OBJECT_FRAME_LISTS + 0xB));
     m_lda8(s, 0xE4);
-    sta_y(s, 0x1CC5);
+    sta_y(s, (RAM_BATTLE_OBJECT_DELAY_LISTS + 0xB));
     m_rep(s, CPU_FLAG_M);
     m_lda16(s, dp16(s, 0x8E));
     m_lda16(s, (uint16_t)(c->a + 1));
@@ -1093,9 +1095,9 @@ static void setup_enemy(Snes *s)
     adc(s, 0x03);
     m_tax(s);
     lda_dp(s, 0x84);
-    sta_x(s, 0x966E);
+    sta_x(s, RAM_BATTLE_FACING_STRIDE_LOW);
     lda_dp(s, 0x85);
-    sta_x(s, 0xA2C8);
+    sta_x(s, RAM_BATTLE_FACING_STRIDE_HIGH);
     m_rep(s, CPU_FLAG_M);
     enemy_times_10(s, dp16(s, 0x8C));
     m_tdc(s);
@@ -1104,20 +1106,20 @@ static void setup_enemy(Snes *s)
     /* $CC:EB73 */
     ldy_dp(s, 0x80);
     lda_long_x(s, 0xE4F604);
-    sta_y(s, 0x9700);
+    sta_y(s, RAM_BATTLE_ENEMY_FLAGS);
     and_a(s, 0x80);
     if (a8(s) != 0) {
         sta_y(s, 0xA5C5);
-        sta_y(s, 0xA5D0);
+        sta_y(s, (RAM_BATTLE_OBJECT_EXTRA_DRAW_ON + 3));
     }
-    lda_y(s, 0x9700);
+    lda_y(s, RAM_BATTLE_ENEMY_FLAGS);
     and_a(s, 0x08);
     if (a8(s) != 0) {
         inc_abs(s, 0xAA63);
         lda_dp(s, 0x80);
         sta(s, 0xA002);
     }
-    lda_y(s, 0x9700);
+    lda_y(s, RAM_BATTLE_ENEMY_FLAGS);
     and_a(s, 0x20);
     if (a8(s) != 0) {
         m_push16(s, c->x);
@@ -1127,58 +1129,58 @@ static void setup_enemy(Snes *s)
         c->x = m_pull16(s);
         m_set_nz16(s, c->x);
     }
-    lda_y(s, 0x9700);
+    lda_y(s, RAM_BATTLE_ENEMY_FLAGS);
     and_a(s, 0x04);
     sta_y(s, 0xA08F);
     m_tdc(s);
-    sta_y(s, 0xA5DB);
-    static const uint16_t dsts[4] = { 0x970B, 0x9716, 0x9721, 0x972C };
+    sta_y(s, (RAM_BATTLE_OBJECT_SHADOW + 3));
+    static const uint32_t dsts[4] = { (RAM_BATTLE_CURSOR_OFFSET_X + 3), (RAM_BATTLE_CURSOR_OFFSET_Y + 3), (RAM_BATTLE_OBJECT_HALF_WIDTH + 3), (RAM_BATTLE_OBJECT_HALF_HEIGHT + 3) };
     for (uint16_t i = 0; i < 4; i++) {
         lda_long_x(s, 0xE4F605 + i);
         sta_y(s, dsts[i]);
     }
     lda_long_x(s, 0xE4F609);
     and_a(s, 0x07);
-    sta_y(s, 0x98C2);
+    sta_y(s, RAM_BATTLE_ORBIT_RADIUS_STEP);
     lda_long_x(s, 0xE4F609);
     for (int i = 0; i < 4; i++)
         lsr_a(s);
-    sta_y(s, 0x9742);
-    sta_y(s, 0x9819);
+    sta_y(s, RAM_BATTLE_ORBIT_PERIOD);
+    sta_y(s, RAM_BATTLE_ORBIT_COUNTDOWN);
     lsr_a(s);
     asl_a_n(s, 2);
     sta_dp(s, 0x82);
-    lda_y(s, 0x98C2);
+    lda_y(s, RAM_BATTLE_ORBIT_RADIUS_STEP);
     lsr_a(s);
     clc(s);
     adc(s, dp8(s, 0x82));
     m_tax(s);
     lda_long_x(s, 0xCCF544);
-    sta_y(s, 0x989F);
+    sta_y(s, RAM_BATTLE_ENEMY_EFFECT_PERIOD);
     clc(s);
     adc(s, dp8(s, 0x80));
-    sta_y(s, 0x9897);
+    sta_y(s, RAM_BATTLE_ENEMY_EFFECT_DELAY);
     lda_dp(s, 0x80);
     asl_a(s);
     m_tax(s);
     lda_dp(s, 0x8C);
-    sta_x(s, 0x9853);
+    sta_x(s, RAM_BATTLE_ENEMY_NUMBERS);
     uint8_t high = lda_dp(s, 0x8D);
-    sta_x(s, 0x9854);
+    sta_x(s, (RAM_BATTLE_ENEMY_NUMBERS + 1));
     if (high == 0) {
         static const uint8_t special[3] = { 0xD8, 0x94, 0xAD };
-        uint8_t id = lda_x(s, 0x9853);
+        uint8_t id = lda_x(s, RAM_BATTLE_ENEMY_NUMBERS);
         for (int i = 0; i < 3; i++) {
             cmp(s, special[i]);
             if (id == special[i]) {
                 ldx_dp(s, 0x80);
-                inc_abs_x(s, 0x1D26);
+                inc_abs_x(s, (RAM_BATTLE_OBJECT_Y + 0xF));
                 break;
             }
         }
     }
     ldx_dp(s, 0x80);
-    inc_abs_x(s, 0x96F8);
+    inc_abs_x(s, (RAM_BATTLE_SLOT_PRESENT + 3));
 }
 
 /* $CC:EA57-$CC:EC62: the eight enemy slots, in the order of $CC:F939 (record
@@ -1194,7 +1196,7 @@ static void setup_enemies(Snes *s)
         ldx_dp(s, 0x80);
         lda_long_x(s, 0xCCF939);
         m_tax(s);
-        if (!(lda_x(s, 0x29C5) & 0x80))
+        if (!(lda_x(s, (RAM_BATTLE_ENEMY_PLACEMENT_ENEMY + 1)) & 0x80))
             setup_enemy(s);
         inc_dp(s, 0x80);
         lda_dp(s, 0x80);
@@ -1206,20 +1208,20 @@ static void setup_enemies(Snes *s)
         return;
     lda(s, 0xA002);
     m_tax(s);
-    lda_x(s, 0x1D0F);
+    lda_x(s, (RAM_BATTLE_OBJECT_X + 0xF));
     sta_dp(s, 0x80);
-    lda_x(s, 0x1D26);
+    lda_x(s, (RAM_BATTLE_OBJECT_Y + 0xF));
     sta_dp(s, 0x81);
     m_tdc(s);
     m_tax(s);
     do {
-        if (lda_x(s, 0x96F8) != 0) {
+        if (lda_x(s, (RAM_BATTLE_SLOT_PRESENT + 3)) != 0) {
             sec(s);
-            lda_x(s, 0x1D0F);
+            lda_x(s, (RAM_BATTLE_OBJECT_X + 0xF));
             sbc(s, dp8(s, 0x80));
             sta_x(s, 0xAA64);
             sec(s);
-            lda_x(s, 0x1D26);
+            lda_x(s, (RAM_BATTLE_OBJECT_Y + 0xF));
             sbc(s, dp8(s, 0x81));
             sta_x(s, 0xAA6C);
         }
@@ -1252,7 +1254,7 @@ static void scan_enemy_specials(Snes *s)
                 break;
             continue;
         }
-        uint16_t enemy = m_read16(s, m_abs(s, 0x9853) + c->y);
+        uint16_t enemy = m_read16(s, m_abs(s, RAM_ABS(RAM_BATTLE_ENEMY_NUMBERS)) + c->y);
         m_cmp16(s, id, enemy);
         if (id == enemy) {
             uint16_t value = m_lda16(s, m_read16(s, 0xE1DE02 + c->x));
@@ -1292,14 +1294,14 @@ static void count_enemy_kinds(Snes *s)
         sty_dp(s, cell);
     do {
         ldx_dp(s, 0x88);
-        if (lda_x(s, 0x96F8) != 0 && !(lda_x(s, 0x9FFA) & 0x80)) {
+        if (lda_x(s, (RAM_BATTLE_SLOT_PRESENT + 3)) != 0 && !(lda_x(s, (RAM_BATTLE_OBJECT_HIDDEN + 3)) & 0x80)) {
             m_rep(s, CPU_FLAG_M);
             m_tdc(s);
             m_tax(s);
             bool found = false;
             do {
-                uint16_t id = m_lda16(s, m_read16(s, m_abs(s, 0x9853) + c->y));
-                uint16_t have = absx16(s, 0x98FF);
+                uint16_t id = m_lda16(s, m_read16(s, m_abs(s, RAM_ABS(RAM_BATTLE_ENEMY_NUMBERS)) + c->y));
+                uint16_t have = absx16(s, RAM_BATTLE_ENEMY_KINDS);
                 m_cmp16(s, id, have);
                 if (id == have) {
                     found = true;
@@ -1311,7 +1313,7 @@ static void count_enemy_kinds(Snes *s)
             } while (c->x != 0x0006);
             if (!found) {
                 ldx_dp(s, 0x86);
-                m_write16(s, m_abs(s, 0x98FF) + c->x, c->a);
+                m_write16(s, m_abs(s, RAM_ABS(RAM_BATTLE_ENEMY_KINDS)) + c->x, c->a);
                 inc16(s, m_dp(s, 0x86));
                 inc16(s, m_dp(s, 0x86));
             }
@@ -1326,7 +1328,7 @@ static void count_enemy_kinds(Snes *s)
     } while (c->y != 0x0010);
     for (uint16_t i = 0; i < 3; i++) {
         lda_dp(s, (uint8_t)(0x80 + 2 * i));
-        sta(s, (uint16_t)(0x98CC + i));
+        sta(s, (uint16_t)(RAM_BATTLE_ENEMY_KIND_COUNTS + i));
     }
 }
 
@@ -1341,9 +1343,9 @@ static bool convert_enemy_names(Snes *s)
     stx_dp(s, 0x80);
     do {
         ldx_dp(s, 0x80);
-        if (!(lda_x(s, 0x9900) & 0x80)) {
+        if (!(lda_x(s, (RAM_BATTLE_ENEMY_KINDS + 1)) & 0x80)) {
             m_rep(s, CPU_FLAG_M);
-            m_lda16(s, absx16(s, 0x98FF));
+            m_lda16(s, absx16(s, RAM_BATTLE_ENEMY_KINDS));
             c->a = m_asl16(s, c->a);
             c->a = m_asl16(s, c->a);
             set_dp16(s, 0x82, c->a);
@@ -1351,12 +1353,12 @@ static bool convert_enemy_names(Snes *s)
             clc(s);
             c->a = m_adc16(s, c->a, dp16(s, 0x82));
             sec(s);
-            c->a = m_sbc16(s, c->a, absx16(s, 0x98FF));
+            c->a = m_sbc16(s, c->a, absx16(s, RAM_BATTLE_ENEMY_KINDS));
             m_tax(s);
             for (uint16_t i = 0; i < 12; i = (uint16_t)(i + 2))
-                m_write16(s, m_abs(s, (uint16_t)(0x94A0 + i)), m_lda16(s, m_read16(s, 0xCC6500 + c->x + i)));
+                m_write16(s, m_abs(s, (uint16_t)(RAM_ABS(RAM_BATTLE_NAME_BUFFER) + i)), m_lda16(s, m_read16(s, 0xCC6500 + c->x + i)));
             m_tdc(s);
-            m_write16(s, m_abs(s, 0x94AB), c->a);
+            m_write16(s, m_abs(s, RAM_ABS(RAM_BATTLE_NAME_BUFFER + 0xB)), c->a);
             m_sep(s, CPU_FLAG_M);
             if (!convert_name(s, 0xCCED50))
                 return false;
@@ -1367,7 +1369,7 @@ static bool convert_enemy_names(Snes *s)
             clc(s);
             adc(s, dp8(s, 0x82));
             tay(s);
-            store_name_rows(s, 0xACBC, 0x000C);
+            store_name_rows(s, RAM_BATTLE_ENEMY_NAME_TILES, 0x000C);
         }
         inc_dp(s, 0x80);
         inc_dp(s, 0x80);
@@ -1392,10 +1394,10 @@ void battle_setup_state(Snes *s)
     build_base_grid(s);
     reset_word_buffers(s);
     copy_name_records(s);
-    if (!convert_names(s, 0x9430, 0x9453, 0x07, 0xCCE5C2))
+    if (!convert_names(s, RAM_BATTLE_CHARACTER_NAMES, RAM_BATTLE_CHARACTER_NAME_TILES, 0x07, 0xCCE5C2))
         return;
     read_party_slots(s);
-    if (!convert_names(s, 0x9403, 0x9412, 0x03, 0xCCE686))
+    if (!convert_names(s, RAM_BATTLE_PARTY_NAMES, RAM_BATTLE_PARTY_NAME_TILES, 0x03, 0xCCE686))
         return;
     load_palettes(s);
     copy_party_colors(s);
@@ -1427,7 +1429,7 @@ static void store_row_value(Snes *s)
 {
     lda_dp(s, 0x80);
     for (uint16_t i = 0; i < 16; i = (uint16_t)(i + 4))
-        sta_y(s, (uint16_t)(0x11E3 + i));
+        sta_y(s, (uint16_t)((RAM_BATTLE_OBJECT_SPRITE_ENTRIES_ATTRIBUTES + 12 * RAM_BATTLE_OBJECT_SPRITE_ENTRIES_STRIDE) + i));
 }
 
 /* $CC:ED87-$CC:EDA9: the 44 words at $11B0: $0000 and then a word from
@@ -1440,13 +1442,13 @@ static void fill_11b0_table(Snes *s)
     tay(s);
     do {
         m_tdc(s);
-        sta_y(s, 0x11B0);
+        sta_y(s, RAM_BATTLE_OBJECT_SPRITE_ENTRIES);
         m_iny(s);
-        sta_y(s, 0x11B0);
+        sta_y(s, RAM_BATTLE_OBJECT_SPRITE_ENTRIES);
         m_iny(s);
         for (int i = 0; i < 2; i++) {
             lda_long_x(s, 0xCCFAF3);
-            sta_y(s, 0x11B0);
+            sta_y(s, RAM_BATTLE_OBJECT_SPRITE_ENTRIES);
             m_iny(s);
             m_inx(s);
         }
@@ -1463,24 +1465,24 @@ static void mark_object_parts(Snes *s)
     m_tdc(s);
     m_tax(s);
     do {
-        if (lda_x(s, 0x96F5) != 0) {
+        if (lda_x(s, RAM_BATTLE_SLOT_PRESENT) != 0) {
             m_lda8(s, 0xAA);
-            sta_x(s, 0x0B24);
-            uint8_t parts = lda_x(s, 0x967C);
+            sta_x(s, RAM_BATTLE_OBJECT_SIZE_BITS);
+            uint8_t parts = lda_x(s, RAM_BATTLE_OBJECT_KIND);
             sta_dp(s, 0x80);
             if (parts != 0) {
                 m_inx(s);
                 m_lda8(s, 0xAA);
-                sta_x(s, 0x0B24);
+                sta_x(s, RAM_BATTLE_OBJECT_SIZE_BITS);
                 if (dec_dp(s, 0x80) != 0) {
                     m_inx(s);
                     m_lda8(s, 0xAA);
-                    sta_x(s, 0x0B24);
+                    sta_x(s, RAM_BATTLE_OBJECT_SIZE_BITS);
                     if (dec_dp(s, 0x80) != 0) {
                         for (int i = 0; i < 3; i++) {
                             m_inx(s);
                             m_lda8(s, 0xAA);
-                            sta_x(s, 0x0B24);
+                            sta_x(s, RAM_BATTLE_OBJECT_SIZE_BITS);
                         }
                     }
                 }
@@ -1501,14 +1503,14 @@ static void fill_enemy_rows(Snes *s)
     m_tax(s);
     tay(s);
     do {
-        if (lda_x(s, 0x96F8) != 0) {
-            lda_x(s, 0x988B);
+        if (lda_x(s, (RAM_BATTLE_SLOT_PRESENT + 3)) != 0) {
+            lda_x(s, (RAM_BATTLE_OBJECT_PALETTE_INITIAL + 3));
             clc(s);
             adc(s, 0x20);
             sta_dp(s, 0x80);
             for (uint16_t i = 0; i < 16; i = (uint16_t)(i + 4))
-                sta_y(s, (uint16_t)(0x11E3 + i));
-            uint8_t parts = lda_x(s, 0x967F);
+                sta_y(s, (uint16_t)((RAM_BATTLE_OBJECT_SPRITE_ENTRIES_ATTRIBUTES + 12 * RAM_BATTLE_OBJECT_SPRITE_ENTRIES_STRIDE) + i));
+            uint8_t parts = lda_x(s, (RAM_BATTLE_OBJECT_KIND + 3));
             sta_dp(s, 0x82);
             if (parts != 0) {
                 next_row(s);
@@ -1549,7 +1551,7 @@ static void build_tile_block(Snes *s)
         sta_dp(s, 0x81);
         do {
             lda_long_x(s, 0xD14C80);
-            sta_y(s, 0x2F00);
+            sta_y(s, (RAM_BATTLE_DECODED_TILES + 0x200));
             m_inx(s);
             m_iny(s);
         } while (dec_dp(s, 0x81) != 0);
@@ -1557,7 +1559,7 @@ static void build_tile_block(Snes *s)
         sta_dp(s, 0x81);
         m_tdc(s);
         do {
-            sta_y(s, 0x2F00);
+            sta_y(s, (RAM_BATTLE_DECODED_TILES + 0x200));
             m_iny(s);
         } while (dec_dp(s, 0x81) != 0);
     } while (dec_dp(s, 0x80) != 0);
@@ -1570,7 +1572,7 @@ static void build_tile_block(Snes *s)
         sta_dp(s, 0x81);
         do {
             lda_long_x(s, 0xD13900);
-            sta_y(s, 0x2F00);
+            sta_y(s, (RAM_BATTLE_DECODED_TILES + 0x200));
             m_inx(s);
             m_iny(s);
         } while (dec_dp(s, 0x81) != 0);
@@ -1583,19 +1585,19 @@ static void build_tile_block(Snes *s)
 static void reset_oam_and_colors(Snes *s)
 {
     for (uint16_t i = 0; i < 16; i = (uint16_t)(i + 4))
-        stz(s, (uint16_t)(0x0702 + i));
+        stz(s, (uint16_t)(RAM_OAM_BUFFER_TILE + i));
     m_lda8(s, 0x32);
     for (uint16_t i = 0; i < 16; i = (uint16_t)(i + 4))
-        sta(s, (uint16_t)(0x0703 + i));
+        sta(s, (uint16_t)(RAM_OAM_BUFFER_ATTRIBUTES + i));
     m_lda8(s, 0xFF);
-    sta(s, 0x0900);
+    sta(s, RAM_OAM_HIGH_TABLE);
     for (uint16_t i = 0; i < 16; i = (uint16_t)(i + 4))
-        stz(s, (uint16_t)(0x0700 + i));
+        stz(s, (uint16_t)(RAM_OAM_BUFFER_X + i));
     for (uint16_t i = 0; i < 16; i = (uint16_t)(i + 4))
-        stz(s, (uint16_t)(0x0701 + i));
+        stz(s, (uint16_t)(RAM_OAM_BUFFER_Y + i));
     copy_rom_up(s, 0xD14D80, 0x999F, 0x0010);
-    copy_rom_up(s, 0xD138F2, 0x235A, 0x0006);
-    copy_rom_up(s, 0xD138FA, 0x237A, 0x0006);
+    copy_rom_up(s, 0xD138F2, (RAM_PALETTE_WORKING + 0x15A), 0x0006);
+    copy_rom_up(s, 0xD138FA, (RAM_PALETTE_WORKING + 0x17A), 0x0006);
 }
 
 /* $CC:EF34-$CC:F05A: for each present object ($96F5, slots 0-10), its two
@@ -1609,18 +1611,18 @@ static void reset_oam_and_colors(Snes *s)
 static void set_upload_descriptors(Snes *s)
 {
     Cpu *c = &s->cpu;
-    static const uint16_t cells[12] = { 0xA680, 0xA681, 0xA696, 0xA697, 0xA6AC, 0xA6AD,
-                                        0xA6C2, 0xA6C3, 0xA654, 0xA655, 0xA66A, 0xA66B };
+    static const uint32_t cells[12] = { RAM_BATTLE_UPLOAD_VRAM_ADDRESS, (RAM_BATTLE_UPLOAD_VRAM_ADDRESS + 1), (RAM_BATTLE_UPLOAD_VRAM_ADDRESS + 0x16), (RAM_BATTLE_UPLOAD_VRAM_ADDRESS + 0x17), RAM_BATTLE_UPLOAD_SIZE, (RAM_BATTLE_UPLOAD_SIZE + 1),
+                                        (RAM_BATTLE_UPLOAD_SIZE + 0x16), (RAM_BATTLE_UPLOAD_SIZE + 0x17), RAM_BATTLE_UPLOAD_SOURCE, (RAM_BATTLE_UPLOAD_SOURCE + 1), (RAM_BATTLE_UPLOAD_SOURCE + 0x16), (RAM_BATTLE_UPLOAD_SOURCE + 0x17) };
     m_tdc(s);
     m_tax(s);
     stx_dp(s, 0x80);
     do {
         ldx_dp(s, 0x80);
-        if (lda_x(s, 0x96F5) != 0) {
+        if (lda_x(s, RAM_BATTLE_SLOT_PRESENT) != 0) {
             lda_dp(s, 0x80);
             asl_a(s);
             tay(s);
-            uint8_t kind = lda_x(s, 0x967C);
+            uint8_t kind = lda_x(s, RAM_BATTLE_OBJECT_KIND);
             cmp(s, 0x02);
             if (kind == 0x02) {
                 static const uint8_t slot3[12] = { 0x00, 0x04, 0x00, 0x07, 0x00, 0x05,
@@ -1657,7 +1659,7 @@ static void set_upload_descriptors(Snes *s)
     } while (a8(s) != 0x0B);
 
     /* $CC:F034 */
-    static const uint16_t members[3] = { 0x5E57, 0x5ED7, 0x5F57 };
+    static const uint32_t members[3] = { (RAM_BATTLE_STATS + 0x28), (RAM_BATTLE_STATS + 1 * RAM_BATTLE_STATS_STRIDE + 0x28), (RAM_BATTLE_STATS + 2 * RAM_BATTLE_STATS_STRIDE + 0x28) };
     bool mark = false;
     for (int i = 0; i < 3 && !mark; i++) {
         uint8_t v = lda(s, members[i]);
@@ -1671,7 +1673,7 @@ static void set_upload_descriptors(Snes *s)
     }
     if (mark)
         inc_abs(s, 0x9F34);
-    inc_abs(s, 0x98CA);
+    inc_abs(s, RAM_BATTLE_GRAPHICS_LOAD_STEP);
 }
 
 // $CC:ED87
