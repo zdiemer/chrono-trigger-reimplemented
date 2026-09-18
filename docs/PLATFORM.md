@@ -712,7 +712,13 @@ by the line hook that precedes its writes, and DMA transfer bytes are counted
 separately under the origin that started the transfer. It is meaningful with
 `--native on`: in shadow mode hand ports run on clones and generated blocks are
 replayed off the machine. The log is a table rather than a stream because the
-DMA bytes alone run to tens of millions per movie. Summed over the 22 movies
+DMA bytes alone run to tens of millions per movie. Each row also counts when
+its accesses landed (vblank, forced blank on a picture line, or the display
+on), with a per-line histogram of the picture-line ones, for the vblank check
+(RECOMP.md, "Where video writes land"); those columns are appended after the
+original nine, generated-block rows now carry the block's address as their
+site, and HDMA writes made during a generated block's catch-up are counted as
+HDMA rather than as the block's. Summed over the 22 movies
 (`on` mode; register accesses, excluding transfer bytes):
 
 | Origin | PPU | APU ports | CPU `$42xx` | multiply/divide | DMA registers |

@@ -880,6 +880,124 @@ So:
   and every call outside its line still needs the generated block. Its oracle
   and counters are kept as measurement.
 
+### Where video writes land
+
+Timing that differs from the original is acceptable in the shipping mode
+(`--native on --recomp on`); timing that damages the picture isn't. One class
+of damage is a display update that must land in vblank or forced blank landing
+on the picture instead, because a routine ran late or long: the battle's black
+bands and missing window before the DMA timing fix (RUNTIME.md) were this.
+`tools/vblank_check.py` looks for it. It is one piece of the timing gate, not
+yet wired into `tools/suite.py`.
+
+**When a write lands.** `ct_dev --io-log` (PLATFORM.md, "I/O log") now also
+counts each access by when it landed, as the PPU sees it rather than by a rule
+of thumb: the time is the machine's line when the access happens, which is the
+time `ppu.c` itself acts on (`sync_ppu_view`).
+
+- *vblank*: lines 225-261 (`SNES_VBLANK_LINE` on). The PPU accepts VRAM and OAM
+  data, RDNMI is set, and nothing is drawn.
+- *forced blank*: lines 0-224 with `$2100` bit 7 set, as it was before the
+  write. Data lands, and the line is drawn black.
+- *visible*: lines 0-224 with the display on: exactly `Ppu.active_display`.
+  `ppu.c` drops VRAM (`$2118-$2119`) and OAM (`$2104`) data written then, and
+  any other register changes the picture from the next line drawn.
+
+Line 0 is a picture line to the PPU (it locks VRAM, and the frame's HDMA setup
+happens on it) though it isn't shown. The renderer draws each line whole at
+the line hook (dot 276, where HDMA runs), so for picture-line writes the log
+also keeps a histogram by the *first line the write can change*: its own line,
+or the next if its own has been drawn. That separates a register write every
+shown line sees (line 0 or 1, harmless) from one that splits the picture, and
+it finds the write that ends forced blank with a nonzero brightness: the lines
+above it were black. Hand ports run to completion at the time they start and
+pay their estimated time afterwards, so their writes are timed where the PPU
+sees them, at the start of the port or after its last sync or call-out;
+generated blocks catch up to each I/O instruction (`rc_io_sync`); a DMA
+transfer's bytes all land at the time of the `$420B` write, as `ppu.c` sees
+them. HDMA writes are counted apart: they are meant for the picture. They are
+told from the CPU's by the master clock of the line hook they follow, which
+also stops HDMA writes made during a generated block's catch-up being counted
+as the block's (the log did before).
+
+**The comparison.** Run the same movie in the reference (`--native on
+--recomp only`, generated code timed exactly like the original) and in the
+shipping mode. The two runs desync within a few dozen frames, so a
+frame-by-frame diff means nothing; instead the check compares, per movie, what
+each *routine* does with each *register group* (display, OAM, BG, VRAM, mode 7,
+CGRAM, screens, HDMA enable): a finding is something the shipping mode does on
+the picture that the same routine never does in the reference of the same
+movie. That survives desync because it asks about a routine's behaviour, not a
+frame's contents, and a routine the shipping run reaches that the reference
+never ran is reported as `unmatched` rather than judged.
+
+To be the same routine in both runs, a write is keyed by ROM address. A hand
+port is its entry; its region of the ROM runs from the entry to its last
+service call site (the log records both), and the reference's generated code
+in that region is the port's. Other code is keyed by the generated block
+containing the address a block keeps in PC (where it started, resumed or last
+branched), mapped to its block through the build's generated C. The categories:
+
+| Category | Fails | Meaning |
+|---|---|---|
+| `visible` | yes | writes with the display on, changing a shown line (or VRAM/OAM data, lost on any picture line), where the reference routine makes none |
+| `unblank` | yes | the write ending forced blank on a line after the first shown one, on a line the reference routine never ends it on: black lines above it |
+| `lines` | yes | a raster write (display on) landing on lines the reference routine never writes that group on, where it writes it on some |
+| `late` | no | other writes in forced blank on a picture line where the reference makes none: the routine ran late, but the screen was blank anyway (the cost appears as `unblank` in whichever routine ends the blank) |
+| `unmatched` | no | picture-line writes by a routine the reference never ran |
+
+**Pass/fail.** The check exits 0 only when every failing finding is listed in
+`tools/vblank_check_exceptions.txt` (`routine group category reason`), checked
+in with reasons. It is empty: nothing found so far is harmless.
+
+    python3 tools/vblank_check.py --ct-dev build/main/ct_dev -j 2
+    python3 tools/vblank_check.py --no-run --failing-only     # re-read the logs in build/vblank
+
+Both runs of all 26 movies take about 730 CPU seconds (6 minutes at `-j 2`;
+`on` mode is fast). Logs go to `build/vblank`: they name ROM addresses.
+`tests/test_vblank_check.py` covers the comparison on made-up logs.
+
+**What it found** (the 26 movies, before the timing spike's changes). The
+shipping mode damages the picture on this axis today, in four ways, all of them
+the hand ports' estimated time:
+
+- **Late NMIs in battle.** `battle_nmi` (`$D1:E77C`) forces blank and turns
+  HDMA off with the display on, from line 2 down: 255 times in the 11 movies with
+  battles (the reference: never). The rest of that frame is black. The NMI is
+  late because interrupts wait while a port's time is paid off (PORTING.md), the
+  cause RUNTIME.md's timing history already named for `gato-battle`'s 11
+  one-frame flickers. `field_nmi` (`$C0:EA63`) does the same on 32 frames of 8
+  movies, with windows, color math, BG mode and HDMA changing mid-picture.
+- **Black bands at the top.** The write that ends forced blank lands on lines
+  2-150 instead of in vblank: `field_nmi` 1348 times (mostly line 6, in every
+  field movie), `battle_frame_work` (`$CD:088D`, the brightness restore at
+  `$CD:0925`) 1023 times, `scene_frame_work` (`$C3:08D0`) 367 times in the
+  jetbike race, `battle_setup_display` (`$CD:09F1`) 53 times. The ports that ran
+  late with the screen blanked (`late`, 36 findings) are mostly the uploads
+  behind them: `battle_upload_vram` (to line 97), `battle_upload_alternating_vram`,
+  `battle_load_graphics`, `field_nmi`'s windows and color math, and the jetbike
+  race's map uploads.
+- **The raster split one line early, every frame.** The line IRQs' forced blank
+  under the playfield (`field_irq_after_hblank` `$C0:ECF2`,
+  `battle_irq_after_hblank` `$D1:FEBF`) changes line 211 in the shipping mode
+  and line 212 in the reference: 144857 and 305627 writes, one a frame, so the last line of
+  the field and battle picture is black in nearly every frame (seen in
+  screenshots of `gato-battle`: row 210 black in the shipping mode, drawn in the
+  reference). The ports run when the idle entry's hblank wait ends (hclock
+  1096), 8 clocks before the line is drawn; the original's instructions after
+  its `$4212` poll take it past that point.
+- **Late line IRQs.** `battle_irq` (`$D1:FE97`) and `battle_irq_after_hblank`
+  land on lines 212-224 and above (8292 and about 7800 times): the blank under
+  the battle window starts late, or a frame late.
+- Smaller: the ending's scene program (`scene_program_restart` `$7E:302A`,
+  `scene_show_layers` `$7E:5C98`) moves 4 raster writes each by 1-27 lines.
+
+No port writes VRAM or OAM data with the display on: every data write the
+shipping mode makes on a picture line is in forced blank. The 22 `unmatched`
+findings are all forced-blank writes too, mostly menu loads (`menu_clear_vram`
+and others) whose original does the work in code past the port's last call
+site, where the region can't follow it.
+
 ## Closing the interpreted remainder (M3)
 
 After M2 generated blocks ran 77-98% of the instructions; the interpreter ran

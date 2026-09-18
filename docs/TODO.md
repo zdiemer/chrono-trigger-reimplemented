@@ -42,6 +42,17 @@ rest waits, is [PLAN.md](PLAN.md).
   safe. Speed only; rendering and sound dominate now.
 - **M5**: a workflow that turns a generated block into a readable hand port,
   which is what PLATFORM's later milestones need.
+- **The vblank check into the timing gate.** `tools/vblank_check.py`
+  (RECOMP.md, "Where video writes land") runs on its own; `tools/suite.py`
+  should run it when the timing gate is assembled, failing on any finding not
+  in `tools/vblank_check_exceptions.txt`. It fails today on late battle and
+  field NMIs, black bands from late display restores, the line IRQs' raster
+  split one line early (`field_irq_after_hblank`, `battle_irq_after_hblank`:
+  the last playfield line is black every frame) and late line IRQs. Two gaps in
+  it: a hand port's region ends at its last service call, so the reference's
+  work in code the original jumps to past it is `unmatched` (the menu loads);
+  following the call stack in the reference would close that. And it names the
+  routine whose writes land late, not the port whose time made them late.
 - **Player without the interpreter**: the strict build's CI check is new and
   hasn't run on a real miss; the misses-feedback loop is documented but only
   exercised by hand so far (PLAYING.md, "Without the interpreter").

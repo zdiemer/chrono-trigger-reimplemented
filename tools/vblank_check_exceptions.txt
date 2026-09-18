@@ -1,0 +1,10 @@
+# Accepted findings of tools/vblank_check.py (docs/RECOMP.md, "Where video writes land").
+#
+# One per line: routine group category reason...
+#   routine   a hand port's name, or an address ($C0:1234 or C0:1234) for a port or generated block
+#   group     display, oam, bg, vram, mode7, cgram, screens, hdma-enable, or * for any
+#   category  visible, unblank or lines
+#   reason    why the damage is accepted, in words (required)
+#
+# Empty: every finding the check makes today is visible damage in the shipping
+# mode (--native on --recomp on), and none has been accepted.
