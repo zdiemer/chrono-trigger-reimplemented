@@ -39,13 +39,15 @@ rest waits, is [PLAN.md](PLAN.md).
 ## Matching disassembly
 
 - **MD2 leftovers** (MATCHING.md, "MD2 as built"): `$F6:24B1-7FFF` and other
-  gaps (43481 census-unknown bytes), plus 322.5 KiB still typed `mixed`.
+  gaps (42590 census-unknown bytes), plus 311.9 KiB still typed `mixed`.
   The D0 graphics pool, CF 2bpp graphics, E4 sprite records and E5 exit lists
   now have codecs; tile-descriptor ownership and the E4 battle-record count
-  still need stronger bounds. Not started: the string encoding, the
-  event/battle-animation/enemy script formats as typed regions with round
-  trips, and re-encoding for `lz` (today's check is that the decompressor
-  consumes the bytes exactly).
+  still need stronger bounds. The strings' leftovers (MATCHING.md, "The string
+  encodings"): the dialog tables at `$FF:D3FE` and `$CC:3A09`, whose extents
+  aren't settled, and the menu strings passed to `$C2:EF65` by address in code.
+  Not started: the event/battle-animation/enemy script formats as typed regions
+  with round trips, and re-encoding for `lz` (today's check is that the
+  decompressor consumes the bytes exactly).
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 96 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
@@ -94,8 +96,9 @@ rest waits, is [PLAN.md](PLAN.md).
   "Build-time extraction"): raw blobs, and decoded forms where a type has one -
   decompressed streams, BRR as is, graphics as planar tiles. Three things are
   missing before that is an asset pipeline. A layout meant to be *read* rather
-  than reassembled, and stable enough to depend on. The script as text, which
-  waits on MD2's string encoding. And a decision about whether the runtime
+  than reassembled, and stable enough to depend on. The script as text: the
+  strings are decoded now (MATCHING.md, "The string encodings"), the event
+  scripts that name them aren't. And a decision about whether the runtime
   should load from such a directory at all, since APPROACH.md's conventions
   have assets loading from the ROM image at run time and every reader today
   assumes that. A GBA build is what forces the question, because it can't map a
@@ -172,9 +175,9 @@ waits on M5 rather than on a backend.
 - **DS and PlayStation content in the original.** The Dimensional Vortex, the
   Arena, the Lost Sanctum, the bestiary: this is content authoring, not a port,
   and it is the largest item in this file by a wide margin. What it needs, in
-  dependency order: MD2's **string encoding** and the **event, battle-animation
-  and enemy script formats as typed regions with round trips** (see "Matching
-  disassembly" above) -- a dungeon cannot be written until its scripts and text
+  dependency order: the **event, battle-animation and enemy script formats as
+  typed regions with round trips** (see "Matching disassembly" above; the
+  strings they name already have one, MATCHING.md, "The string encodings") -- a dungeon cannot be written until its scripts and text
   can be written; the **asset pipeline** ("Assets as data files" above), because
   new maps, sprites and music have no ROM address to read from, which is exactly
   what Phase 3's named resource accessors are the seam for; and the field, event
