@@ -140,9 +140,12 @@ add_executable(ct_fuzz dev/ct_fuzz.c)
 target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
 
 # The machine as a scriptable server, for authoring input movies from game state
-# (tools/movies, docs/MOVIES.md). Interpreter only, like ct_dev --native off.
-add_executable(ct_drive dev/ct_drive.c)
-target_link_libraries(ct_drive PRIVATE ct_runtime ct_trace)
+# and testing the shipping mode with the routes that do (tools/movies,
+# docs/MOVIES.md). The interpreter by default, like ct_dev --native off; --native
+# and --recomp choose native code the way ct_play does (frontend/natives.c).
+add_executable(ct_drive dev/ct_drive.c frontend/natives.c)
+target_include_directories(ct_drive PRIVATE frontend)
+target_link_libraries(ct_drive PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c)
@@ -220,7 +223,7 @@ if(NOT CT_PLAYER_INTERPRETER_MODE MATCHES "^(ON|FALLBACK|OFF)$")
 endif()
 
 if(CT_SDL2)
-  add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/audio_fill.c frontend/window.c
+  add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/audio_fill.c frontend/window.c
     frontend/headless.c frontend/files.c frontend/bindings.c)
   if(NOT CT_PLAYER_INTERPRETER_MODE STREQUAL "ON")
     # The miss report (dev/misses.h) is the player's log of misses.

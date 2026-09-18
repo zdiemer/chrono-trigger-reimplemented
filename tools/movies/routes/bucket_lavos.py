@@ -6,7 +6,7 @@ The bucket to the Day of Lavos in 1999 A.D., the shell with its boss imitations,
 the inner cavern, the inner Lavos and the Lavos Core, then the credits with the
 three sleeping monsters.
 """
-from ..campaign import Run, route_arguments
+from ..campaign import Run, route_arguments, run_route
 
 HEADER = """\
 # Good Night ending, from the End of Time bucket in New Game+: load the End of Time save (Crono, Robo, Lucca), examine the
@@ -21,12 +21,14 @@ HEADER = """\
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
+SAVE = "oracle/saves/technoplaza/ct-state18.srm"
 PHASES = ["eot", "dayoflavos", "shell", "cavern", "inner", "core", "ending"]
 
 
 def main():
-    args = route_arguments(__doc__.splitlines()[0])
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive)
+    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
+              recomp=args.recomp, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 
@@ -85,10 +87,11 @@ def main():
     run.dialogs_until(lambda: False, 17000)                  # the credits
     machine.screenshot(run.prefix + "_end.png")
     run.say("end frame", machine.frame)
+    run.finish("the Good Night ending")
     if args.movie:
         run.write_movie(args.movie, HEADER.splitlines())
     run.close()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(run_route(main))

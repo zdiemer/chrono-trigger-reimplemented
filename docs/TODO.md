@@ -297,3 +297,16 @@ waits on M5 rather than on a backend.
     the subset that can reach the subsystem a change touched would make the
     iterating case automatic, with the full set still required to land.
 - CI: the macOS job costs 10x minutes on a private repo.
+- **Routes in the timing gate.** `tools/movies/route_check.py` runs routes in
+  the shipping mode and reports each outcome (MOVIES.md, "Routes as a test");
+  it isn't part of `tools/suite.py` yet. A route takes minutes, not seconds, so
+  it wants a short set (a field and a battle route) in the gate and the full
+  endings less often.
+- **`ct_drive` can't see the time ports owe.** Its replay bases (MOVIES.md,
+  "Native code") require no routine suspended, but ON mode's `debt` in
+  `native.c` isn't exposed, so a base with time owed makes the replay come out
+  "inexact". An accessor in `native.h` (0 at a base) makes every replay exact.
+- **`ct_dev` builds its own native table** (for `--exclude`) instead of using
+  `frontend/natives.c` as `ct_play` and `ct_drive` do, and its `--recomp only`
+  leaves the ported routines out in shadow mode too, where the others keep
+  them. Move it onto `natives_select` with an exclude filter.

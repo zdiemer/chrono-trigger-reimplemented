@@ -35,11 +35,20 @@ class DriveError(RuntimeError):
 
 
 class Machine:
-    def __init__(self, rom=None, sram=None, drive=None):
+    """`native` and `recomp` are ct_drive's --native and --recomp (default: the
+    interpreter, or $CT_DRIVE_NATIVE and $CT_DRIVE_RECOMP)."""
+
+    def __init__(self, rom=None, sram=None, drive=None, native=None, recomp=None):
         rom = str(rom or os.environ.get("CT_ROM") or DEFAULT_ROM)
         drive = str(drive or os.environ.get("CT_DRIVE") or DEFAULT_DRIVE)
-        command = [drive, rom] + ([str(sram)] if sram else [])
+        native = native or os.environ.get("CT_DRIVE_NATIVE") or "off"
+        recomp = recomp or os.environ.get("CT_DRIVE_RECOMP") or "on"
+        command = [drive]
+        if native != "off":
+            command += ["--native", native, "--recomp", recomp]
+        command += [rom] + ([str(sram)] if sram else [])
         self.rom, self.sram, self.drive = rom, sram, drive
+        self.native, self.recomp = native, recomp
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         text=True, bufsize=1)
         self.frame = 0
@@ -156,6 +165,14 @@ class Machine:
             with open(sidecar, encoding="utf-8") as handle:
                 self.pads = [int(value) for value in handle.read().split()]
         return self.frame
+
+    def native_status(self):
+        """ct_drive's `native` answer as a dict: mode, suspended, replayed, inexact, lost,
+        mismatched (dev/ct_drive.c)."""
+        words = self.cmd("native").split()
+        status = {"mode": words[0]}
+        status.update({words[i]: int(words[i + 1]) for i in range(1, len(words) - 1, 2)})
+        return status
 
     # ---- output --------------------------------------------------------------------------
 
