@@ -30,16 +30,45 @@ from .ctdrv import Machine
 PLAYER_SLOT = 4090      # in-memory slot used by find_player
 
 
-def route_arguments(description):
-    """The command line every route script takes."""
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+class RouteDone(Exception):
+    """Raised by Run.checkpoint at the phase --until names: the route stops there."""
+
+
+def route_arguments(description, save=None):
+    """The command line every route script takes. `save` is the route's cartridge
+    save, relative to the repo (oracle/saves), the default for --sram."""
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--sram", required=True, help="cartridge save the route starts from")
+    parser.add_argument("--sram", required=save is None, default=save and os.path.join(REPO, save),
+                        help="cartridge save the route starts from" + (" (default %s)" % save if save else ""))
     parser.add_argument("--prefix", default="route", help="where checkpoints, the log and shots go")
     parser.add_argument("--rom", help="ROM (default roms/ct-usa.sfc, or $CT_ROM)")
     parser.add_argument("--drive", help="ct_drive binary (default build/main/ct_drive, or $CT_DRIVE)")
     parser.add_argument("--movie", help="write the finished run as this .ctm")
     parser.add_argument("--seed", type=int, default=1, help="seed for the fights' choices")
+    parser.add_argument("--native", choices=("off", "shadow", "on"),
+                        help="ct_drive --native (default off, the interpreter; or $CT_DRIVE_NATIVE)")
+    parser.add_argument("--recomp", choices=("off", "on", "only"),
+                        help="ct_drive --recomp with --native (default on; or $CT_DRIVE_RECOMP)")
+    parser.add_argument("--until", metavar="PHASE", help="stop once this phase's checkpoint is written")
     return parser.parse_args()
+
+
+def run_route(main):
+    """Run a route's main(), turning its outcome into an exit status and a last
+    line tools/movies/route_check.py reads: "outcome reached <what> frame <n>"
+    (status 0), or "outcome failed <why>" (status 1)."""
+    try:
+        main()
+    except RouteDone as done:
+        print("outcome reached %s" % done, flush=True)
+        return 0
+    except (AssertionError, RuntimeError) as failure:
+        print("outcome failed %s: %s" % (type(failure).__name__, failure), flush=True)
+        return 1
+    return 0
 
 
 class Run:
@@ -47,10 +76,11 @@ class Run:
 
     cell = 6            # BFS cell size in pixels for field maps
 
-    def __init__(self, prefix, rom=None, sram=None, drive=None):
+    def __init__(self, prefix, rom=None, sram=None, drive=None, native=None, recomp=None, until=None):
+        self.until = until
         self.prefix = str(prefix)
         os.makedirs(os.path.dirname(self.prefix) or ".", exist_ok=True)
-        self.machine = Machine(rom=rom, sram=sram, drive=drive)
+        self.machine = Machine(rom=rom, sram=sram, drive=drive, native=native, recomp=recomp)
         self.logfile = open(self.prefix + ".log", "a", encoding="utf-8")
         self.player = 1
 
@@ -87,6 +117,14 @@ class Run:
     def checkpoint(self, name):
         self.machine.save_state("%s_%s.st" % (self.prefix, name))
         self.say("checkpoint", name, "frame", self.machine.frame, "map", self.map_id())
+        if name == self.until:
+            frame = self.machine.frame
+            self.close()
+            raise RouteDone("%s frame %d" % (name, frame))
+
+    def finish(self, what):
+        """The route reached its goal: say so, with the frame, for route_check."""
+        self.say("outcome reached", what, "frame", self.machine.frame)
 
     def resume(self, name):
         path = "%s_%s.st" % (self.prefix, name)
@@ -98,6 +136,10 @@ class Run:
 
     def start_at(self, phases):
         """Index of the first phase to run, resuming the last checkpoint there is."""
+        if self.until in phases and self.resume(self.until):
+            frame = self.machine.frame
+            self.close()
+            raise RouteDone("%s frame %d (resumed)" % (self.until, frame))
         for index in range(len(phases) - 1, -1, -1):
             if self.resume(phases[index]):
                 return index + 1
@@ -391,6 +433,9 @@ class Run:
 
     def write_movie(self, path, header_lines=(), frames=None):
         """Write the run's input as a movie, filling {FRAMES} and {CRC} in the header."""
+        if self.machine.native != "off":
+            self.say("warning: this run was on native code (--native %s); its movie replays only in that mode "
+                     "and build, not with ct_dev --native shadow" % self.machine.native)
         count = frames if frames is not None else self.machine.frame
         crc = mkmovie.sram_crc32(self.machine.sram) if self.machine.sram else ""
         header = [line.replace("{FRAMES}", str(count)).replace("{CRC}", crc) for line in header_lines]

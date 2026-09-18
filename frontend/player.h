@@ -22,6 +22,7 @@
 
 #include "platform/native/render.h"
 #include "platform/snes/decode.h"
+#include "natives.h"
 #include "port/native.h"
 #include "snes/render.h"
 #include "snes/system.h"
@@ -72,8 +73,7 @@ typedef struct {
     NativeRuntime *natives;
     NativeMode native_mode;    /* the mode asked for */
     NativeMode runtime_mode;   /* the mode natives runs in now */
-    NativeEntry *table;        /* ported routines, then generated blocks */
-    int table_count;
+    NativeTable table;         /* what --native and --recomp registered */
     bool persist_sram;                    /* hand out the SRAM when the game changes it */
     uint8_t sram_saved[SNES_SRAM_SIZE];   /* SRAM as last loaded or stored */
     Track track;

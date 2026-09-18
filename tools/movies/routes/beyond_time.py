@@ -6,7 +6,7 @@ The second Lavos form and the Lavos Core, then the whole ending: the pardon, the
 Moonlight Parade, the farewells at the Gate, Marle and the King at Leene's Bell,
 the fireworks and the Epoch credits.
 """
-from ..campaign import Run, route_arguments
+from ..campaign import Run, route_arguments, run_route
 
 HEADER = """\
 # Beyond Time ending: load the Final Battle save (Crono, Magus, Lucca inside Lavos), walk to the second Lavos form and
@@ -20,13 +20,15 @@ HEADER = """\
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
+SAVE = "oracle/saves/technoplaza/ct-state15.srm"
 PHASES = ["inside", "form2", "core", "ending"]
 SQUARE, BELL_PLAZA, TELEPODS = "5000", "5100", "5500"
 
 
 def main():
-    args = route_arguments(__doc__.splitlines()[0])
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive)
+    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
+              recomp=args.recomp, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 
@@ -90,11 +92,13 @@ def main():
             last_shot = machine.frame // shot_every
             machine.screenshot("%s_e%06d.png" % (run.prefix, machine.frame))
     machine.screenshot(run.prefix + "_end.png")
-    run.say("end frame", machine.frame)
+    run.say("end frame", machine.frame, "maps", " ".join(seen))
+    assert TELEPODS in seen and king_done, "the farewells at the Gate and Marle back to the King"
+    run.finish("the Beyond Time ending")
     if args.movie:
         run.write_movie(args.movie, HEADER.splitlines())
     run.close()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(run_route(main))

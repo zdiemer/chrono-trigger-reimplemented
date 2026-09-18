@@ -10,17 +10,19 @@ to win boss fights are another matter, and that is what the tools here are for.
 `tools/movies` drives it: it reads the game's memory to decide what to press —
 whose turn it is in a battle, where the party is standing, whether a text window
 is waiting — instead of counting frames. A run logs the buttons it held on every
-frame, so a finished run *is* a movie.
+frame, so a finished run *is* a movie. And because a route reads the machine
+instead of counting frames, it is also the one test of the mode the player
+ships in, where movies can't follow (see Routes as a test).
 
 ```
-route script ──> tools/movies ──> ct_drive (interpreter, no ported code)
+route script ──> tools/movies ──> ct_drive (the interpreter, or --native on)
       ▲                │
       └── game memory ─┘            run's pad log ──> movie.ctm ──> ct_dev --native shadow
 ```
 
 ## The driver
 
-`ct_drive` is the same machine as `ct_dev --native off` — the interpreter and
+By default `ct_drive` is the same machine as `ct_dev --native off` — the interpreter and
 the modeled hardware, no ported routines and no generated blocks — so anything
 it reaches, a `ct_dev` replay of the same input reaches too. `tools/movies/check_drive.py` is that check: it replays a movie's first 20000
 frames in both and compares all of work RAM (identical, at the commit that added
@@ -36,7 +38,15 @@ python3 -m tools.movies.check_drive --rom roms/ct-usa.sfc --sram save.srm \
 ```sh
 cmake --build build/main --target ct_drive
 build/main/ct_drive roms/ct-usa.sfc save.srm
+build/main/ct_drive --native on --recomp on roms/ct-usa.sfc save.srm   # the shipping mode
 ```
+
+`--native off|shadow|on` and `--recomp off|on|only` mean what they mean to
+`ct_play`: `frontend/natives.c` chooses the registered entries for both
+(generated blocks only for the ROM they came from; `--recomp only` leaves the
+ported routines out in on mode). `--recomp` defaults to `on`. Only `--native
+off` is the machine movies are made on; see Native code for what the others
+change.
 
 Commands arrive one per line and answer one line starting `ok` or `err`
 (`dev/ct_drive.c` has the full list):
@@ -51,10 +61,60 @@ Commands arrive one per line and answer one line starting `ok` or `err`
 | `savefile`/`loadfile <path>` | save states, the format `ct_dev --save-state` writes |
 | `shot <path>` | PNG of the last rendered frame |
 | `wram <path>`, `frame`, `quit` | work RAM dump, frame number, exit |
+| `native` | mode, routines suspended now, and how loads rebuilt suspended routines (Native code) |
 | `poke <addr> <hex>` | **diagnostic only**: write work RAM |
 
 `poke` is for asking "what does this flag do"; a run that used it is no longer
 reproducible from input, so it must not become a movie.
+
+### Native code
+
+With `--native on`, what a run does to the machine is the same as without it —
+commands, slots and state files work as before — but two things needed care.
+
+**Suspended routines.** A hand port that calls code that isn't ported is
+suspended on a stack of its own until the callee returns
+(`native_call`). In the field that is rare at a frame's end; in battle and in
+parts of the ending it is usual (in `battle-tyrano-lair-walls`, at 33 of the 79
+frame ends sampled). A slot or a state file holds the machine, not that stack.
+`ct_play` handles it by taking a quick save only once nothing is suspended,
+which a route can't: its searches copy the machine at the frame they are at.
+Loading such a copy with a fresh runtime would leave the rest of each routine
+to the original code, which can read registers the port never set. So
+`ct_drive` keeps a *base*, the last frame end where nothing was suspended (a
+fresh runtime there is the runtime the run had; refreshed each clean frame with
+`snes_clone_since`, so it copies only the written pages), and the buttons of
+every frame since. A copy made while routines are suspended keeps the base and
+those buttons, and loading it restores the base and replays them, which brings
+the routines back as they were. A state file keeps them beside it,
+`<path>.base` and `<path>.base.pads`.
+
+The replay is checked against the copy (their save-state images). It matches
+unless the ports owed time at the base: ON mode charges a port's estimated time
+after it stops, a scanline at a time, and that debt is runtime state a copy
+doesn't hold and `native.h` doesn't expose (TODO.md). Then the replay is kept
+anyway ("inexact" in `native`'s answer): its routines are intact and it differs
+from the copy only by that time, the same approximation `ct_play`'s quick load
+makes. Measured on `battle-tyrano-lair-walls`: a load at every 50th frame from
+4500 to 8000, twice at each: 132 of the 140 loads had routines suspended, 126 replayed exactly and 6
+inexact; with the debt counted as suspended (a local experiment), all exact.
+Continuing 200 frames after every one of those loads matched continuing without
+the load. Only a copy with no base loads without its routines (`lost`): one
+made after a `poke` while routines were suspended.
+
+**Write tracking.** A `poke` or a load replaces memory without the bus, so it
+calls `snes_mark_all_written` as before (PORTING.md, "What shadow mode costs"),
+and the base's next refresh copies everything. In shadow mode a poke or load
+also restarts the runtime: the machine copies of routines in progress didn't
+see the change, so their comparisons are dropped (what `ct_play`'s loads do),
+and the mismatches found so far are reported first.
+
+Checked with the same command script (movie into a battle, slots saved and
+loaded while routines were suspended, a state file, a poke) against the
+previous `ct_drive`: `--native off` answers identically and ends with identical
+work RAM, and so do `--native on --recomp only` (generated code alone keeps the
+original's timing) and `--native shadow` (no mismatches); `--native on
+--recomp on` gives the same result on every run.
 
 ## Routes
 
@@ -63,18 +123,24 @@ cartridge save to an ending. The three ending movies in `oracle/movies/saves`
 come from these:
 
 ```sh
-python3 -m tools.movies.routes.telepod_lavos --sram "<ct-state16>/Chrono Trigger (U).srm" \
-    --prefix work/telepod --movie oracle/movies/saves/endings-telepod-lavos.ctm
-python3 -m tools.movies.routes.bucket_lavos  --sram "<ct-state18>/Chrono Trigger (U).srm" ...
-python3 -m tools.movies.routes.beyond_time   --sram "<ct-state15>/Chrono Trigger (U).srm" ...
+python3 -m tools.movies.routes.telepod_lavos --prefix work/telepod \
+    --movie oracle/movies/saves/endings-telepod-lavos.ctm
+python3 -m tools.movies.routes.bucket_lavos --prefix work/bucket ...
+python3 -m tools.movies.routes.beyond_time --prefix work/beyond ...
 ```
 
-The saves are the technoplaza cartridge saves the movie headers name
-(`games.technoplaza.net/snes/chronotrigger/savestates.php`); like all saves they
-stay out of the repo. `--prefix` is where the run's checkpoints, log and
+Each starts from the technoplaza cartridge save its movie header names
+(`games.technoplaza.net/snes/chronotrigger/savestates.php`), which is in
+`oracle/saves/technoplaza/` and is the route's `SAVE`; `--sram` picks another.
+`--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and
-`build/main/ct_drive`.
+`build/main/ct_drive`, and `--native`/`--recomp` (or `$CT_DRIVE_NATIVE`,
+`$CT_DRIVE_RECOMP`) to run it on native code. `--until <phase>` stops it once
+that phase's checkpoint is written. A route ends by printing `outcome reached
+<goal> frame <n>` (exit status 0) or `outcome failed <why>` (1): its asserts
+along the way, and a check of its goal at the end (the Dream Team all spoken
+to; the farewells at the Gate and the King in the Beyond Time ending).
 
 A route is a list of phases, each ending in a checkpoint file. Re-running it
 resumes at the last phase that finished, so a failing phase can be iterated on
@@ -128,3 +194,47 @@ it still works after the hardware model's timing changes — re-run it and it
 finds the new inputs. The `.ctm` it produced is a fixed list of frames: change
 the timing and it drifts, and a long one usually stops reaching its ending. When
 a timing change lands, re-run the routes rather than patching the movies.
+
+## Routes as a test
+
+The player ships with `--native on --recomp on`: hand ports where they exist,
+generated code elsewhere. Hand ports charge estimated time, so a run in that
+mode drifts from the original's timing, and a movie's presses land on the wrong
+frames; the movie library can only test `--recomp only`, which is exact. A
+route plays the same scene whatever the timing, so whether it still reaches its
+goal is a test of the shipping mode: of what the hand ports do along a whole
+scene, not of their timing.
+
+`tools/movies/route_check.py` runs routes in chosen modes, each from its save
+and from scratch, and reports each outcome, with the frame each phase was
+reached at, modes side by side. It exits 0 only if every run reached its goal.
+
+```sh
+python3 -m tools.movies.route_check                        # telepod_lavos:shell and beyond_time, on:on
+python3 -m tools.movies.route_check --mode off --mode on:on --scratch work/check -j 2 \
+    telepod_lavos:shell beyond_time
+```
+
+`telepod_lavos:shell` is the field test: the world map, Leene Square and the
+telepod exhibit, walking, talking and dialogue, stopped at the Gate.
+`beyond_time` is the battle test: two Lavos fights, then the ending's walks and
+talks.
+
+As built, `--mode off --mode on:on -j 2` (frames at each checkpoint):
+
+| Route, phase | `off` (interpreter) | `on:on` (shipping) |
+|---|---|---|
+| `telepod_lavos:shell` | reached, 140 s | reached, 116 s |
+| &nbsp; fair / exhibit / shell | 2728 / 4008 / 5102 | 2728 / 4024 / 5118 |
+| `beyond_time` | reached, 604 s | reached, 715 s |
+| &nbsp; inside / form2 / core / ending | 2554 / 3762 / 27520 / 58135 | 2554 / 3802 / 27446 / 57631 |
+| &nbsp; the end | 106136 | 105640 |
+
+Both modes reached every goal: the same maps in the same order through the
+ending, both Lavos fights won without a single backtrack, the King found at the
+same spot. The frame counts drift by up to 500 frames, the accepted difference.
+In the shipping mode the searches and fights made 2253 loads with routines
+suspended (15 of them inexact) and the field route 56 (none). Neither route
+needed a change to survive the drift. The `off` run through the `core`
+checkpoint wrote the same input and the same state file as the `ct_drive`
+before these options.

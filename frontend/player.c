@@ -5,12 +5,12 @@
 #include <string.h>
 
 #include "movie.h"
+#include "natives.h"
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "platform/save.h"
 #include "port/machine.h"
 #include "port/recomp_table.h"
-#include "registry.h"
 #include "snes/zst.h"
 #include "trace.h"
 
@@ -168,13 +168,8 @@ static void natives_report(Player *pl)
 static void natives_start(Player *pl, NativeMode mode)
 {
     natives_report(pl);
-    native_destroy(pl->natives);
-    pl->snes.intercept = NULL;
-    pl->snes.intercept_ctx = NULL;
-    pl->natives = native_create(pl->table, pl->table_count, mode);
-    native_set_index(pl->natives, recomp_index, recomp_index_count);   /* used only with generated entries */
+    pl->natives = natives_restart(pl->natives, &pl->table, mode, &pl->snes);
     pl->runtime_mode = mode;
-    native_attach(pl->natives, &pl->snes);
 }
 
 /* In shadow mode the machine runs only the original code, so a save just drops
@@ -325,14 +320,12 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bo
 {
     Track *t = &pl->track;
     snes_init(&pl->snes, rom, rom_size);
-    if (recomp && recomp_native_count > 0 && ct_crc32(rom, rom_size) != recomp_rom_crc) {
-        fprintf(stderr, "warning: generated blocks are for ROM CRC-32 %08X, not this one; not using them\n",
-                (unsigned)recomp_rom_crc);
-        recomp = false;
+    if (natives_select(&pl->table, rom, rom_size, pl->native_mode, recomp, recomp_only) != 0) {
+        fprintf(stderr, "out of memory\n");
+        return 1;
     }
-    int nrecomp = recomp ? recomp_native_count : 0;
 #if CT_PLAYER_NO_INTERPRETER
-    if (!nrecomp) {
+    if (!pl->table.generated) {
         fprintf(stderr, "this player runs %s, and it has no generated blocks for this ROM (%s): build it with the "
                         "ROM as CT_ROM\n",
                 player_build_mode[CT_PLAYER_NO_INTERPRETER], recomp_native_count ? "they are for another ROM" : "none");
@@ -348,17 +341,7 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bo
 #else
     pl->snes.interpreter = cpu_step;
 #endif
-    /* In on mode, generated blocks alone keep the original's timing exactly;
-     * ported routines charge estimated time (docs/RECOMP.md, M2). Shadow and off
-     * modes don't depend on timing, so they keep the ported routines. Without
-     * generated blocks, the ported routines run. */
-    int nported = recomp_only && nrecomp > 0 && pl->native_mode == NATIVE_ON ? 0 : game_native_count;
-    pl->table = malloc(sizeof *pl->table * (size_t)(nported + nrecomp + 1));
-    memcpy(pl->table, game_natives, sizeof *pl->table * (size_t)nported);
-    if (nrecomp)
-        memcpy(pl->table + nported, recomp_natives, sizeof *pl->table * (size_t)nrecomp);
-    pl->table_count = nported + nrecomp;
-    if (t->record_name && pl->native_mode == NATIVE_ON && nported) {
+    if (t->record_name && pl->native_mode == NATIVE_ON && pl->table.ported) {
         fprintf(stderr, "--record with --native on needs the generated blocks, which this build or ROM lacks\n");
         return 2;
     }
@@ -454,6 +437,7 @@ void player_finish(Player *pl)
     natives_report(pl);
     native_destroy(pl->natives);
     pl->natives = NULL;
+    natives_free(&pl->table);
 #if CT_PLAYER_NO_INTERPRETER
     if (pl->miss_steps) {
         uint64_t total;

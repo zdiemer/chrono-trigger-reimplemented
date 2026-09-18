@@ -9,7 +9,7 @@ platform's edge) open the Gates to the Dream Team, whose five members end the
 game.
 """
 from .. import addresses as A
-from ..campaign import Run, route_arguments
+from ..campaign import Run, route_arguments, run_route
 
 HEADER = """\
 # Dream Project ending, from the telepod at the Millennial Fair in New Game+: load the fair save (Crono and Marle), walk
@@ -24,6 +24,7 @@ HEADER = """\
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
 
+SAVE = "oracle/saves/technoplaza/ct-state16.srm"
 PHASES = ["fair", "exhibit", "shell", "cavern", "inner", "core", "ending", "devroom", "tour", "kokubo", "credits"]
 
 # The development room: which object in which map sets which bit of $7F:0078.
@@ -35,8 +36,9 @@ DREAM_TEAM = [(9, 0x02), (8, 0x04), (10, 0x01), (11, 0x08), (12, 0x10)]      # b
 
 
 def main():
-    args = route_arguments(__doc__.splitlines()[0])
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive)
+    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
+              recomp=args.recomp, until=args.until)
     machine = run.machine
     developers = lambda: machine.b(A.DEVELOPERS_TALKED)
     dream_team = lambda: machine.b(A.DREAM_TEAM_TALKED)
@@ -142,14 +144,16 @@ def main():
         for index, bit in DREAM_TEAM:
             run.talk(index, done=lambda b=bit: dream_team() & b)
         run.say("dream team %02X" % dream_team())
+        assert dream_team() == 0x1F, "all five of the Dream Team"
         run.dialogs_until(lambda: False, 3000)  # the credits run themselves
         run.checkpoint("credits")
     machine.screenshot(run.prefix + "_end.png")
     run.say("end frame", machine.frame)
+    run.finish("the Dream Project ending")
     if args.movie:
         run.write_movie(args.movie, HEADER.splitlines())
     run.close()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(run_route(main))

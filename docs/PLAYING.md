@@ -330,6 +330,7 @@ holds the rules that keep it that way).
 | File | What it is |
 |---|---|
 | `frontend/player.h`, `player.c` | the machine, its renderer and native runtime, the input track that replays and records, quick saves |
+| `frontend/natives.h`, `natives.c` | which entries `--native` and `--recomp` register, and a runtime over them; shared with `ct_drive` so the two can't drift apart |
 | `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between the APU's 32000 Hz and an audio device's rate (above) |
 | `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard and gamepads, and the frame pacing |
 | `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |

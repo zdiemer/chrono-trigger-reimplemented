@@ -13,6 +13,7 @@ rather than by counting frames:
     campaign.py    the route runner: phases, checkpoints, dialog, fights with backtracking
     routes/        the routes used for the ending movies in oracle/movies/saves
     check_drive.py ct_drive against ct_dev --native off (needs the ROM)
+    route_check.py routes as a test of a native-code mode: each run's outcome, modes side by side
 
 Everything in here is stdlib-only and imports without a ROM; running a route
 needs the ROM, a build of ct_drive and (for the save routes) a cartridge save.
