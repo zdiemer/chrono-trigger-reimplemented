@@ -43,6 +43,7 @@ It changes timing, so it's never used for validation.
 | `runtime/snes/render.c` | Scanline renderer with Snes9x-compatible output colors | Snes9x framebuffers (see Renderer) |
 | `runtime/snes/system.c` | Scanline timing, NMI/IRQ, HDMA, auto-joypad | Oracle traces |
 | `runtime/snes/zst.c` | ZSNES save state import, for coverage runs (see ZSNES save states) | Chrono Trigger states run on |
+| `runtime/snes/state.c` | Save states, written field by field so later builds load them (see Save states) | `state_test`; states resumed against uninterrupted traces |
 | `runtime/port/recomp.h` | Instruction semantics for generated code ([RECOMP.md](RECOMP.md)) | SingleStepTests, 5.12M cases with cycle counts; the interpreter on the SNES bus |
 
 Build the conformance runners with the same CMake project (`sst_runner`,
@@ -320,8 +321,8 @@ one of the 32 clock phases within it) and follows the documented hardware
 Power-on values: FLG `$E0`, noise `$4000`, counter 0, other registers 0.
 
 The DSP costs about 3% of run time (`gato-battle.ctm` with `--native on`:
-30.3 s against 29.5 s). Its state is part of the machine image, so save states
-from before it (state version 1) don't load.
+30.3 s against 29.5 s). Its state is part of the machine's save states (see
+Save states).
 
 ### Comparison with Snes9x
 
@@ -550,6 +551,74 @@ WRAM bytes the game has written: `ct_dev` traces carry a `WRAMW` region, and
 2. **Porting.** Continue replacing routines with native code; shadow mode over
    `new-game`, `field`, `menu`, `fair`, `fair-companion` and `gato-battle` is
    the regression check (docs/PORTING.md).
+
+## Save states
+
+`ct_play`'s quick saves, `--save-state`/`--load-state` in `ct_play`, `ct_dev`
+and `ct_drive`, and `ct_fuzz`'s base states are one format
+(`runtime/snes/state.c`): the machine written field by field under names, so a
+state saved by one build loads in a later one whose structures have changed.
+They used to be the raw `Snes` image, which stopped loading whenever a
+structure changed (P3 showed it by changing `sizeof(Snes)`).
+
+| Bytes | Holds |
+|---|---|
+| 4 | `CTST` |
+| 2, 2 | format version (1), flags (0) |
+| per field | name length (1-255), the name (`cpu.a`, `ppu.vram`, `apu.dsp.voice[3].env`), element size (1, 2, 4 or 8), element count (4 bytes), the elements |
+| 1 | 0: end of the fields |
+| 4 | CRC-32 of everything before it |
+
+Every number is little-endian whatever the host, so states also move between
+hosts. The first field is `rom.crc32`, the ROM the state was saved with; the
+rest are every field of `Snes` except the ROM, host pointers, hooks and
+`halted`, about 300 of them in 290 KB (work RAM, VRAM and sound RAM are most
+of it).
+
+A load looks up each field this build has by name, into a machine powered on
+with the same ROM, and copies that machine in only once everything checked out:
+
+- a field the state lacks keeps its power-on value: the state is from a build
+  before the field existed;
+- a field the state has and this build doesn't is skipped: the state is from
+  a later build, or the field was removed;
+- the state is refused, with a reason and the machine left as it was, when its
+  checksum fails (truncated or damaged), its magic is wrong (the old raw
+  images, `CTSS`, are named as such), its format version is newer, it was
+  saved with another ROM, a field's element size or count differs from this
+  build's, a bool isn't 0 or 1, or a value the emulation indexes or loops with
+  is out of range (`snes.stall_next`, `snes.vline`, `snes.hclock`,
+  `ppu.oam_addr`, `ppu.oam_reload`, `apu.phase`, `apu.dsp.out_count`,
+  `apu.dsp.fir_pos`, a voice's `env_mode`).
+
+So adding a field to `Snes` or anything in it means adding its line to
+`visit()` in `state.c`, and a field whose meaning changes gets a new name
+rather than being read as the old one. Enums are written as a byte, since their
+size is the compiler's.
+
+`state_test` (no ROM; CI runs it) checks this on a small synthetic program:
+states round-trip every field and byte, and the loaded machine runs on
+identically; a state without a field (an older build's) loads with it at its
+power-on value, and one with an unknown field (a newer build's) loads; every
+prefix of a state, flipped bytes, the raw magic, a newer version, a resized
+field or array, a duplicate field, out-of-range values and another ROM's state
+are all refused with the machine unchanged. It also checks that every byte of
+`Snes` is a state field, a host pointer or hook, or padding, so a field added
+without its line in `visit()` fails the test (a forgotten field small enough to
+pass for padding is caught by the byte-for-byte round trip instead, if the
+program changes it).
+
+On the game: a state saved at frame 2500 of `battle-magus.ctm` (with
+`--native on --recomp only`) and resumed traces identically to the
+uninterrupted run over frames 2500-3999. Across builds: with a field added to
+`Ppu` (so `sizeof(Snes)` changed), the build with it loaded the state the build
+without it had saved, and the reverse, and both resumed to traces identical to
+the uninterrupted run; a state written by a build from before this format is
+refused as a raw image.
+
+A state still can't hold a native routine suspended in a call-out
+([PORTING.md](PORTING.md)), which is why `ct_play` waits for none to be before
+a quick save.
 
 ## ZSNES save states
 

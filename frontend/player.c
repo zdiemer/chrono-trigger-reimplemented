@@ -191,12 +191,12 @@ uint8_t *player_save_state(Player *pl, size_t *len)
 
 /* A state holds only the machine, so native routines suspended in call-outs when
  * it was saved can't resume; the player only saves when none are. */
-int player_load_state(Player *pl, const uint8_t *data, size_t len)
+int player_load_state(Player *pl, const uint8_t *data, size_t len, char *why, size_t why_len)
 {
     Track *t = &pl->track;
     if (t->record_name && (!t->state_ours || ct_crc32(data, len) != t->state_crc))
         return PLAYER_NOT_OURS;
-    if (snes_state_read(&pl->snes, data, len) != 0)
+    if (snes_state_read(&pl->snes, data, len, why, why_len) != 0)
         return -1;
     natives_start(pl, pl->runtime_mode);
     if (t->record_name && pl->snes.frame < t->frames) {

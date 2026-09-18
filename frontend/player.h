@@ -145,14 +145,15 @@ void player_cancel_save(Player *pl);
 static inline bool player_saving(const Player *pl) { return pl->save_pending; }
 uint8_t *player_take_quick_save(Player *pl, size_t *len);
 
-/* The machine as a state, malloc'd (NULL if out of memory), and loading one.
- * A load restarts the native runtime. While recording, only the quick save
- * taken during the recording loads (PLAYER_NOT_OURS otherwise), and the
- * recording goes back to its frame. Returns 0, PLAYER_NOT_OURS, or -1 for a
- * state this build can't read. */
+/* The machine as a state (snes_state_write: it loads in later builds too),
+ * malloc'd (NULL if out of memory), and loading one. A load restarts the
+ * native runtime. While recording, only the quick save taken during the
+ * recording loads (PLAYER_NOT_OURS otherwise), and the recording goes back to
+ * its frame. Returns 0, PLAYER_NOT_OURS, or -1 with why for a state this build
+ * can't read, leaving the game as it was. */
 enum { PLAYER_NOT_OURS = -2 };
 uint8_t *player_save_state(Player *pl, size_t *len);
-int player_load_state(Player *pl, const uint8_t *data, size_t len);
+int player_load_state(Player *pl, const uint8_t *data, size_t len, char *why, size_t why_len);
 
 /* Start from a ZSNES save state instead of power-on. Returns 0, or -1 with why. */
 int player_import_zst(Player *pl, const uint8_t *data, size_t len, char *why, size_t why_len);

@@ -175,8 +175,12 @@ In-game saves go to `<rom name>.srm` in the ROM's directory (or `--save-dir`),
 written within a second of the game changing them and again on exit. The file
 is the cartridge's 8 KiB SRAM, the format other emulators use.
 
-Quick saves go to `<rom name>.state` in the same place. They're raw machine
-images, valid only for the build that wrote them. A quick save waits until no
+Quick saves go to `<rom name>.state` in the same place. A quick save made by
+one build loads in later builds too, including ones whose machine has changed
+since: the state is written field by field, and a field added since comes up at
+its power-on value ([RUNTIME.md](RUNTIME.md), "Save states"). A state that can't
+be read -- damaged, from another ROM, or from before this format -- is refused
+with a message, and the game goes on as it was. A quick save waits until no
 native routine is suspended in a call-out, since a state can't capture one.
 In the field that's immediate; in battle it can take several seconds (the
 title bar shows "saving state..." meanwhile), and it gives up after 30. Loading a quick save also restores the SRAM it held,

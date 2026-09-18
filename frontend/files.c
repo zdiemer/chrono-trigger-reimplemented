@@ -91,13 +91,17 @@ int files_save_state(Player *pl, const char *path)
 int files_load_state(Player *pl, const char *path)
 {
     size_t len = 0;
-    uint8_t *data = files_read(path, &len, false, NULL);
-    int rc = data ? player_load_state(pl, data, len) : pl->track.record_name ? PLAYER_NOT_OURS : -1;
+    bool missing;
+    char why[200] = "it can't be read";
+    uint8_t *data = files_read(path, &len, false, &missing);
+    if (missing)
+        snprintf(why, sizeof why, "there is none");
+    int rc = data ? player_load_state(pl, data, len, why, sizeof why) : pl->track.record_name ? PLAYER_NOT_OURS : -1;
     free(data);
     if (rc == PLAYER_NOT_OURS)
         fprintf(stderr, "not loading %s: while recording, only a quick save made in this recording loads\n", path);
     else if (rc != 0)
-        fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", path);
+        fprintf(stderr, "cannot load state %s: %s\n", path, why);
     else
         fprintf(stderr, "loaded state %s\n", path);
     return rc == 0 ? 0 : -1;

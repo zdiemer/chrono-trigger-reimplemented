@@ -45,7 +45,7 @@ void window_print_controls(FILE *out)
     fprintf(out,
             "  %-12s pause\n"
             "  %-12s fast forward (hold)\n"
-            "  %-12s quick save / quick load (same build only)\n"
+            "  %-12s quick save / quick load\n"
             "  %-12s toggle fullscreen\n"
             "  %-12s quit\n",
             "P", "Tab", "F5 / F7", "F11, Alt+Enter", "Esc");

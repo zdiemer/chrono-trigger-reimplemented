@@ -113,16 +113,23 @@ void snes_power_on(Snes *snes);
  * carried over. */
 void snes_clone(Snes *dst, const Snes *src);
 
-/* Save states: the raw machine image, valid only for the build that wrote it.
+/* Save states (state.c; docs/RUNTIME.md, "Save states"): the machine written
+ * field by field under names, so a state loads in any later build. A field
+ * the state lacks keeps its power-on value and one this build lacks is
+ * skipped; a changed field, a damaged file or another ROM's state is refused.
  * Loading keeps the destination's ROM, hooks (interpreter and native_only
  * included) and write mask, and clears `halted`.
  *
  * snes_state_write returns the state as a malloc'd buffer of *len bytes (NULL
  * if out of memory); snes_state_read loads one, returning 0, or -1 with the
- * machine unchanged. snes_state_save and snes_state_load do the same with a
- * file, for the development tools. */
+ * machine unchanged and why in err (if given). snes_state_save and
+ * snes_state_load do the same with a file, for the development tools. */
 uint8_t *snes_state_write(const Snes *snes, size_t *len);
-int snes_state_read(Snes *snes, const uint8_t *data, size_t len);
+int snes_state_read(Snes *snes, const uint8_t *data, size_t len, char *err, size_t err_len);
+/* The fields a state holds, for tests: fn gets each one's name, address,
+ * element size and element count. */
+typedef void (*SnesStateField)(void *ctx, const char *name, void *field, unsigned size, uint32_t count);
+void snes_state_fields(Snes *snes, SnesStateField fn, void *ctx);
 int snes_state_save(const Snes *snes, const char *path);
 int snes_state_load(Snes *snes, const char *path);
 

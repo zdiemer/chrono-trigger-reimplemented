@@ -19,8 +19,7 @@ rest waits, is [PLAN.md](PLAN.md).
 - **S-DSP** is sample-granular, and note starts differ from Snes9x by one KON
   poll (RUNTIME.md, "S-DSP"). The audio comparison table predates the DMA and
   refresh timing fix and should be re-measured.
-- **Big-endian hosts** are untested (CMake warns); save states are raw memory
-  images.
+- **Big-endian hosts** are untested (CMake warns).
 - **ZSNES state import** approximates DSP voice history, timer phase and
   in-frame position (RUNTIME.md, "ZSNES save states"), so those runs are for
   coverage only.

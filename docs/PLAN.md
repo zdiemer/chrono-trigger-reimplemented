@@ -34,9 +34,6 @@ Days of work, and it unblocks anyone else running this.
 - **Gamepad support.** `in_host_set` is already the single per-frame host entry
   point, so this is an SDL GameController call into it.
 - **Configurable keys**, replacing the fixed `keymap` table in `frontend/window.c`.
-- **Quick saves that survive a rebuild.** They are raw machine images today and
-  break whenever a structure changes, which P3 demonstrated by changing
-  `sizeof(Snes)`. Needs a versioned, field-wise format.
 - **Packaging**, so `tools/dist.py`'s output runs on a machine that never built
   it.
 
@@ -52,8 +49,7 @@ which names them and puts them in files; the runtime's by-path helpers
 (`snes_state_save`, `zst_import_file`, `ct_movie_load`, `misses_write`) are
 wrappers over buffer functions that the player uses instead. Configurable keys
 and gamepad support are bindings *in* a driver, so they go into
-`frontend/window.c` rather than the player; the quick-save format is the
-runtime's `snes_state_write` and `snes_state_read`.
+`frontend/window.c` rather than the player.
 
 Neither seam answers wasm's real question, which is the stack one below; they
 are what makes the rest of that build ordinary.
