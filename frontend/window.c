@@ -7,7 +7,7 @@
 
 #include "audio_fill.h"
 #include "driver.h"
-#include "movie.h"
+#include "bindings.h"
 
 /* NTSC: 21.477272 MHz master clock, 1364 clocks per line, 262 lines per frame. */
 #define MASTER_CLOCK_HZ 21477272.0
@@ -16,62 +16,46 @@
 /* Frames between checks for changed SRAM, which is then written out. */
 #define SRAM_FLUSH_FRAMES 60
 
-/* Keyboard to controller. One key per row; several keys may share a button. */
-static const struct {
-    SDL_Scancode key;
-    const char *key_name;
-    uint16_t button;
-    const char *button_name;
-} keymap[] = {
-    { SDL_SCANCODE_UP, "Up", CT_BTN_UP, "Up" },
-    { SDL_SCANCODE_DOWN, "Down", CT_BTN_DOWN, "Down" },
-    { SDL_SCANCODE_LEFT, "Left", CT_BTN_LEFT, "Left" },
-    { SDL_SCANCODE_RIGHT, "Right", CT_BTN_RIGHT, "Right" },
-    { SDL_SCANCODE_X, "X", CT_BTN_A, "A" },
-    { SDL_SCANCODE_Z, "Z", CT_BTN_B, "B" },
-    { SDL_SCANCODE_S, "S", CT_BTN_X, "X" },
-    { SDL_SCANCODE_A, "A", CT_BTN_Y, "Y" },
-    { SDL_SCANCODE_Q, "Q", CT_BTN_L, "L" },
-    { SDL_SCANCODE_W, "W", CT_BTN_R, "R" },
-    { SDL_SCANCODE_RETURN, "Enter", CT_BTN_START, "Start" },
-    { SDL_SCANCODE_RSHIFT, "Right Shift", CT_BTN_SELECT, "Select" },
-};
-#define KEYMAP_COUNT (int)(sizeof keymap / sizeof keymap[0])
-
 void window_print_controls(FILE *out)
 {
-    for (int i = 0; i < KEYMAP_COUNT; i++)
-        fprintf(out, "  %-12s %s\n", keymap[i].key_name, keymap[i].button_name);
-    fprintf(out,
-            "  %-12s pause\n"
-            "  %-12s fast forward (hold)\n"
-            "  %-12s quick save / quick load\n"
-            "  %-12s toggle fullscreen\n"
-            "  %-12s quit\n",
-            "P", "Tab", "F5 / F7", "F11, Alt+Enter", "Esc");
+    bindings_print(out);
 }
 
-static uint16_t read_pad(void)
+/* ---- pads ------------------------------------------------------------------------ */
+
+#define MAX_PADS 8
+
+typedef struct {
+    SDL_GameController *open[MAX_PADS];
+    int count;
+} Pads;
+
+static void pad_added(Pads *p, int device)
 {
-    const Uint8 *keys = SDL_GetKeyboardState(NULL);
-    uint16_t pad = 0;
-    for (int i = 0; i < KEYMAP_COUNT; i++) {
-        if (keys[keymap[i].key])
-            pad |= keymap[i].button;
-    }
-    /* Alt+Enter toggles fullscreen; don't also press what Enter is mapped to. */
-    if (SDL_GetModState() & KMOD_ALT) {
-        for (int i = 0; i < KEYMAP_COUNT; i++) {
-            if (keymap[i].key == SDL_SCANCODE_RETURN)
-                pad &= (uint16_t)~keymap[i].button;
+    if (p->count == MAX_PADS || !SDL_IsGameController(device))
+        return;
+    SDL_GameController *c = SDL_GameControllerOpen(device);
+    if (!c)
+        return;
+    for (int i = 0; i < p->count; i++) {
+        if (p->open[i] == c) {   /* already open: SDL reports pads present at start too */
+            SDL_GameControllerClose(c);
+            return;
         }
     }
-    /* A real d-pad can't press opposite directions together, and games don't expect it. */
-    if ((pad & (CT_BTN_UP | CT_BTN_DOWN)) == (CT_BTN_UP | CT_BTN_DOWN))
-        pad &= (uint16_t)~(CT_BTN_UP | CT_BTN_DOWN);
-    if ((pad & (CT_BTN_LEFT | CT_BTN_RIGHT)) == (CT_BTN_LEFT | CT_BTN_RIGHT))
-        pad &= (uint16_t)~(CT_BTN_LEFT | CT_BTN_RIGHT);
-    return pad;
+    p->open[p->count++] = c;
+    fprintf(stderr, "gamepad: %s\n", SDL_GameControllerName(c));
+}
+
+static void pad_removed(Pads *p, SDL_JoystickID id)
+{
+    for (int i = 0; i < p->count; i++) {
+        if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(p->open[i])) == id) {
+            SDL_GameControllerClose(p->open[i]);
+            p->open[i] = p->open[--p->count];
+            return;
+        }
+    }
 }
 
 static void update_title(SDL_Window *window, const Player *pl, bool paused)
@@ -201,14 +185,28 @@ int run_window(Player *pl, const WindowOptions *o)
     if (!o->mute)
         audio_open(&audio);
 
+    /* Gamepads: SDL reports the ones already plugged in as added, too. Pads
+     * are read by position (bindings.c), not by the labels on their buttons. */
+#ifdef SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS
+    SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
+#endif
+    static Pads pads;
+    if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) != 0)
+        fprintf(stderr, "no gamepads: %s\n", SDL_GetError());
+
     const Uint64 ticks_per_second = SDL_GetPerformanceFrequency();
     const Uint64 period = (Uint64)(ticks_per_second / FRAME_RATE);
     Uint64 deadline = SDL_GetPerformanceCounter() + period;
     bool running = true, paused = false, halt_shown = false;
+    bool pad_was_held[ACT_COUNT] = { false };
     long frames_since_flush = 0;
     update_title(window, pl, paused);
 
     while (running) {
+        /* The actions of this iteration's key presses, then of pad inputs
+         * newly held (sticks and triggers have no press events). */
+        Action actions[64];
+        int nactions = 0;
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) {
@@ -216,21 +214,44 @@ int run_window(Player *pl, const WindowOptions *o)
             } else if (ev.type == SDL_KEYDOWN && !ev.key.repeat) {
                 SDL_Scancode sc = ev.key.keysym.scancode;
                 bool alt = (ev.key.keysym.mod & KMOD_ALT) != 0;
-                if (sc == SDL_SCANCODE_ESCAPE) {
-                    running = false;
-                } else if (sc == SDL_SCANCODE_F11 || (alt && sc == SDL_SCANCODE_RETURN)) {
-                    fullscreen = !fullscreen;
-                    SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
-                } else if (sc == SDL_SCANCODE_P || sc == SDL_SCANCODE_PAUSE) {
-                    paused = !paused;
-                } else if (sc == SDL_SCANCODE_F5) {
-                    player_request_save(pl);
-                } else if (sc == SDL_SCANCODE_F7) {
-                    player_cancel_save(pl);
-                    files_load_state(pl, o->files->state);
-                }
-                update_title(window, pl, paused);
+                Action a = alt && sc == SDL_SCANCODE_RETURN ? ACT_FULLSCREEN : bindings_key_action(sc);
+                if (nactions < 64)
+                    actions[nactions++] = a;
+            } else if (ev.type == SDL_CONTROLLERDEVICEADDED) {
+                pad_added(&pads, ev.cdevice.which);
+            } else if (ev.type == SDL_CONTROLLERDEVICEREMOVED) {
+                pad_removed(&pads, ev.cdevice.which);
             }
+        }
+        for (int a = ACT_PAUSE; a < ACT_COUNT; a++) {
+            bool now = bindings_held((Action)a, pads.open, pads.count, false);
+            if (now && !pad_was_held[a] && a != ACT_FAST_FORWARD && nactions < 64)
+                actions[nactions++] = (Action)a;
+            pad_was_held[a] = now;
+        }
+        for (int i = 0; i < nactions; i++) {
+            switch (actions[i]) {
+            case ACT_QUIT:
+                running = false;
+                break;
+            case ACT_FULLSCREEN:
+                fullscreen = !fullscreen;
+                SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+                break;
+            case ACT_PAUSE:
+                paused = !paused;
+                break;
+            case ACT_QUICK_SAVE:
+                player_request_save(pl);
+                break;
+            case ACT_QUICK_LOAD:
+                player_cancel_save(pl);
+                files_load_state(pl, o->files->state);
+                break;
+            default:
+                continue;
+            }
+            update_title(window, pl, paused);
         }
 
         bool fast = false;
@@ -239,23 +260,24 @@ int run_window(Player *pl, const WindowOptions *o)
             halt_shown = true;
             files_flush(o->files, pl);
             update_title(window, pl, paused);
-            char msg[1600];
+            char msg[1600], load[64], quit[64];
             snprintf(msg, sizeof msg,
                      "The game stopped at frame %u: %s.\n\nThis player runs without the interpreter. The address "
-                     "is logged to %s; a build with it in CT_RECOMP_COVERAGE generates the code. F7 loads the quick "
-                     "save; Esc quits.",
-                     (unsigned)pl->snes.frame, player_halt_reason(pl), player_misses_name(pl));
+                     "is logged to %s; a build with it in CT_RECOMP_COVERAGE generates the code. %s loads the quick "
+                     "save; %s quits.",
+                     (unsigned)pl->snes.frame, player_halt_reason(pl), player_misses_name(pl),
+                     bindings_name(ACT_QUICK_LOAD, load, sizeof load, "QuickLoad"),
+                     bindings_name(ACT_QUIT, quit, sizeof quit, "closing the window"));
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "ct_play stopped", msg, window);
         } else if (!pl->snes.halted) {
             halt_shown = false;
         }
         if (!paused && !pl->snes.halted) {
             /* Replay and fast forward run frames unpaced for up to a display frame. */
-            const Uint8 *keys = SDL_GetKeyboardState(NULL);
             Uint64 budget_end = SDL_GetPerformanceCounter() + period;
             do {
                 bool was_saving = player_saving(pl);
-                player_step(pl, read_pad());
+                player_step(pl, bindings_buttons(pads.open, pads.count));
                 files_after_frame(o->files, pl);
                 if (pl->snes.halted)
                     break;
@@ -266,7 +288,8 @@ int run_window(Player *pl, const WindowOptions *o)
                     files_flush(o->files, pl);
                     update_title(window, pl, paused);
                 }
-                fast = (player_replaying(pl) && !pl->watch) || keys[SDL_SCANCODE_TAB];
+                fast = (player_replaying(pl) && !pl->watch) ||
+                       bindings_held(ACT_FAST_FORWARD, pads.open, pads.count, true);
             } while (fast && SDL_GetPerformanceCounter() < budget_end);
             if (fast)
                 deadline = SDL_GetPerformanceCounter();
@@ -302,6 +325,8 @@ int run_window(Player *pl, const WindowOptions *o)
 
     files_flush(o->files, pl);
     audio_close(&audio);
+    while (pads.count)
+        SDL_GameControllerClose(pads.open[--pads.count]);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(sdl_renderer);
     SDL_DestroyWindow(window);

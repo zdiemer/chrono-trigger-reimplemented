@@ -156,7 +156,8 @@ waits on M5 rather than on a backend.
 - **A native AYN Thor multi-screen port.** Two parts, and only one of them is a
   backend. The Android/ARM64 side is ordinary: SDL2 builds there, no screen
   geometry is baked into `game/` (PLAN.md, Phase 2), and the handheld's pad
-  arrives through `in_host_set` once Phase 1's controller work lands. The second
+  arrives through `in_host_set` like any other (a binding in its driver, as
+  `frontend/bindings.c` is the desktop's). The second
   screen is the real question, because `VidFrame` is one frame of one screen per
   frame. Two shapes, and they cost differently: a *companion* view (party state,
   the map, an item list) drawn by the frontend from game state, which needs the
@@ -231,5 +232,4 @@ waits on M5 rather than on a backend.
   - **A fast gate**: `--movies` and `--only` narrow a run by hand, but deriving
     the subset that can reach the subsystem a change touched would make the
     iterating case automatic, with the full set still required to land.
-- Gamepad support, configurable keys, and quick saves that survive a rebuild.
 - CI: the macOS job costs 10x minutes on a private repo.

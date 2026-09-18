@@ -221,7 +221,7 @@ endif()
 
 if(CT_SDL2)
   add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/audio_fill.c frontend/window.c
-    frontend/headless.c frontend/files.c)
+    frontend/headless.c frontend/files.c frontend/bindings.c)
   if(NOT CT_PLAYER_INTERPRETER_MODE STREQUAL "ON")
     # The miss report (dev/misses.h) is the player's log of misses.
     target_sources(ct_play PRIVATE dev/misses.c)
@@ -234,6 +234,10 @@ if(CT_SDL2)
   if(MINGW)
     target_link_options(ct_play PRIVATE -static-libgcc)
   endif()
+  # The window driver's bindings on a virtual game controller.
+  add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c)
+  target_include_directories(bindings_test PRIVATE frontend oracle/src)
+  target_link_libraries(bindings_test PRIVATE ${CT_SDL2})
   install(TARGETS ct_play RUNTIME DESTINATION .)
   if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
     install(FILES $<TARGET_RUNTIME_DLLS:ct_play> DESTINATION .)

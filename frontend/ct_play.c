@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bindings.h"
 #include "driver.h"
 #include "files.h"
 #include "movie.h"
@@ -34,6 +35,9 @@
 #include "trace.h"
 
 #define MAX_HOLDS 64
+#define MAX_BINDS 64
+/* The key file read when --keys isn't given, next to the executable. */
+#define KEYS_FILE "ct_play.keys"
 
 static const struct {
     const char *name;
@@ -67,6 +71,10 @@ static void usage(FILE *out)
             "  --renderer R         native: draw each frame from the video service's frame state (default);\n"
             "                       scanline: the reference renderer, line by line from the PPU registers\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
+            "  --keys F             read key and gamepad bindings from F, one INPUT = ACTION a line (default:\n"
+            "                       " KEYS_FILE " next to ct_play, if there is one)\n"
+            "  --bind INPUT=ACTION  bind a key or pad input, after the key file (repeatable); for example\n"
+            "                       --bind \"Space=A\" --bind \"Pad guide=QuickSave\" --bind \"Tab=None\"\n"
             "\n"
             "Movies:\n"
             "  --movie F.ctm        replay this input movie from power-on, fast, then hand over to the keyboard\n"
@@ -90,7 +98,7 @@ static void usage(FILE *out)
             "  --save-state F       write a state file at the end\n"
             "  --wav F.wav          write the sound (32000 Hz stereo)\n"
             "\n"
-            "Controls:\n");
+            "Controls (keyboard and gamepad; --keys and --bind change them):\n");
     window_print_controls(out);
     fprintf(out, "\nSaves are written to <rom name>.srm when the game changes them and on exit.\n");
     fprintf(out, "\nThis build runs %s.\n", player_build_mode[CT_PLAYER_NO_INTERPRETER]);
@@ -161,13 +169,16 @@ int main(int argc, char **argv)
     const char *wav_path = NULL;
     static Hold holds[MAX_HOLDS];
     int nholds = 0;
+    const char *keys_path = NULL, *binds[MAX_BINDS];
+    int nbinds = 0;
+    bool help = false;
 
     SDL_SetMainReady();
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--help") || !strcmp(a, "-h")) {
-            usage(stdout);
-            return 0;
+            help = true;
+            continue;
         }
         if (!strcmp(a, "--fullscreen")) {
             wo.fullscreen = true;
@@ -221,6 +232,14 @@ int main(int argc, char **argv)
             }
         }
         else if (!strcmp(a, "--save-dir")) save_dir = v;
+        else if (!strcmp(a, "--keys")) keys_path = v;
+        else if (!strcmp(a, "--bind")) {
+            if (nbinds == MAX_BINDS) {
+                fprintf(stderr, "more than %d --bind\n", MAX_BINDS);
+                return 2;
+            }
+            binds[nbinds++] = v;
+        }
         else if (!strcmp(a, "--frames")) frames = strtol(v, NULL, 10);
         else if (!strcmp(a, "--screenshot")) screenshot = v;
         else if (!strcmp(a, "--load-state")) load_state_path = v;
@@ -272,6 +291,42 @@ int main(int argc, char **argv)
             return 2;
         }
         i++;
+    }
+    /* The window's controls: the defaults, the key file, then --bind. */
+    bindings_reset();
+    char default_keys[1024] = "";
+    if (!keys_path) {
+        char *base = SDL_GetBasePath();
+        if (base) {
+            snprintf(default_keys, sizeof default_keys, "%s%s", base, KEYS_FILE);
+            SDL_free(base);
+        }
+    }
+    const char *keys_file = keys_path ? keys_path : default_keys[0] ? default_keys : NULL;
+    if (keys_file) {
+        size_t len = 0;
+        bool missing;
+        char *text = (char *)files_read(keys_file, &len, true, &missing);
+        if (!text && (keys_path || !missing)) {
+            fprintf(stderr, "cannot read %s\n", keys_file);
+            return 2;
+        }
+        if (text && bindings_load(text, len, keys_file) != 0) {
+            free(text);
+            return 2;
+        }
+        free(text);
+    }
+    for (int i = 0; i < nbinds; i++) {
+        char err[160];
+        if (bindings_set(binds[i], err, sizeof err) != 0) {
+            fprintf(stderr, "bad --bind %s: %s\n", binds[i], err);
+            return 2;
+        }
+    }
+    if (help) {
+        usage(stdout);
+        return 0;
     }
     if (!rom_path || scale < 1 || scale > 16) {
         usage(stderr);

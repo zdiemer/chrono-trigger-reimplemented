@@ -140,24 +140,61 @@ PPU registers line by line. `--renderer scanline` selects the reference renderer
 instead; the two are pixel-identical on every frame of every movie, so the
 option is for comparing them, not for choosing a look.
 
-| Key | Button |
-|---|---|
-| Arrows | D-pad |
-| X | A |
-| Z | B |
-| S | X |
-| A | Y |
-| Q | L |
-| W | R |
-| Enter | Start |
-| Right Shift | Select |
-| P | pause |
-| Tab (hold) | fast forward |
-| F5 / F7 | quick save / quick load |
-| F11, Alt+Enter | fullscreen |
-| Esc | quit |
+### Controls
 
-The mapping is the `keymap` table at the top of `frontend/window.c`.
+The keyboard and any number of gamepads (SDL game controllers: Xbox,
+PlayStation, Switch Pro and most others) work at once, all as controller 1. Pad
+buttons go by position, as on a SNES pad, whatever their labels say: the bottom
+face button is B, the right one A, the left one Y, the top one X.
+
+| SNES / player | Keyboard | Gamepad |
+|---|---|---|
+| D-pad | Arrows | D-pad, left stick |
+| A | X | right face button (`Pad b`) |
+| B | Z | bottom face button (`Pad a`) |
+| X | S | top face button (`Pad y`) |
+| Y | A | left face button (`Pad x`) |
+| L / R | Q / W | shoulder buttons |
+| Start | Return | Start |
+| Select | Right Shift | Back / Select |
+| pause | P, Pause | |
+| fast forward (hold) | Tab | right trigger |
+| quick save / quick load | F5 / F7 | |
+| fullscreen | F11, Alt+Return | |
+| quit | Escape | |
+
+Any of it can be changed, and pad buttons can drive the player too. A key file
+holds one binding a line, `INPUT = ACTION`, with `#` starting a comment:
+
+```
+# ct_play.keys
+Space = A
+Left Ctrl = B
+Tab = None              # no more fast forward on Tab
+Pad guide = QuickSave
+Pad lefttrigger = QuickLoad
+Pad rightstick = Pause
+```
+
+An input is a key by its SDL name (`X`, `Return` or `Enter`, `Right Shift`,
+`Space`, `F5`, `Keypad 8`), or `Pad` and a controller input by its SDL name: a
+button (`a`, `b`, `x`, `y`, `back`, `guide`, `start`, `leftstick`,
+`rightstick`, `leftshoulder`, `rightshoulder`, `dpup`, `dpdown`, `dpleft`,
+`dpright`, `misc1`, `paddle1`-`paddle4`, `touchpad`), a stick direction
+(`leftx-`, `leftx+`, `lefty-` is up, `lefty+`, and the same for `right`) or a
+trigger (`lefttrigger`, `righttrigger`). Sticks and triggers count past half
+way. An action is a SNES button (`A`, `B`, `X`, `Y`, `L`, `R`, `Start`,
+`Select`, `Up`, `Down`, `Left`, `Right`), `Pause`, `FastForward`, `QuickSave`,
+`QuickLoad`, `Fullscreen`, `Quit`, or `None` to unbind the input. A binding
+replaces whatever that input did; several inputs can share an action.
+
+`ct_play` reads `ct_play.keys` next to the executable if there is one, or the
+file `--keys` names, and then `--bind INPUT=ACTION` options on top
+(`--bind "Pad guide=QuickSave"`). `ct_play --help` lists the controls as bound.
+Alt+Return always toggles fullscreen, and opposite d-pad directions pressed
+together cancel, as a real d-pad can't press them. Bindings live in the window
+driver (`frontend/bindings.c`); the player only sees the buttons they add up
+to.
 
 The SNES picture is 256x224, but a TV showed it at a 4:3 aspect and hid roughly
 8 rows at the top and bottom as overscan; Chrono Trigger leaves its last dozen
@@ -275,7 +312,8 @@ its own rather than a fork of the player ([PLAN.md](PLAN.md), Phase 1).
 |---|---|
 | `frontend/player.h`, `player.c` | the machine, its renderer and native runtime, the input track that replays and records, quick saves |
 | `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between the APU's 32000 Hz and an audio device's rate (above) |
-| `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard, and the frame pacing |
+| `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard and gamepads, and the frame pacing |
+| `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |
 | `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
 | `frontend/files.h`, `files.c` | the desktop's storage: what the saves are called, and the files they go in |
 | `frontend/ct_play.c` | the options, which it turns into a player and one driver |
