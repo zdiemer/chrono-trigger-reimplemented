@@ -155,6 +155,19 @@ service origins, where the address is the routine's identity and the
 `// $BB:AAAA` contract. Only about 150 are reads of ROM data, which is the class
 the asset work in TODO.md covers.
 
+**Type the formats the code interprets.** MD2 has typed where the data is; what
+it hasn't done is the formats the game *interprets*, and those are what the big
+subsystems are written around: the string encoding, and the event,
+battle-animation and enemy script formats as typed regions with round trips
+(MATCHING.md, "MD2 as built"; TODO.md, "Matching disassembly"). `$C0` is 84%
+generated and much of it is the event interpreter; porting a command handler is
+a different job when the command's operands have names and a parser says what
+follows it. The same work is the first dependency of script-as-text extraction
+and of new content (TODO.md, "Targets beyond the desktop SNES build"), so it is
+done once, here, before the conversion that leans on it. The round trip is the
+check: parse, re-encode, and the matching build still produces CRC32
+`2D206BF7`.
+
 **Then set the bar against the ports that exist.** The 291 entries were written
 over months and they are not one standard. The recent ones read as source: named
 constants, service calls, a comment saying what the data means. The early ones
@@ -176,7 +189,7 @@ bar, while its behaviour is already under the gate. A sweep across all of
 it already passes.
 
 **Done when** the timing spike has an answer and whichever work it implies is
-done, the RAM map exists, and a subsystem's worth of routines has been converted
+done, the RAM map exists, the string and script formats round-trip, and a subsystem's worth of routines has been converted
 through the workflow to the bar above.
 
 ## Phase 3: M5 in bulk
@@ -253,8 +266,11 @@ the decompilation, so they wait behind it.
 
 ## Phase 5: the long tail
 
-- **MD2's remainder** (43481 census-unknown bytes, 322.5 KiB still `mixed`, the
-  string encoding, the script formats), **MD3** and the **MD4 residue**.
+- **MD2's remainder**: 43481 census-unknown bytes, 322.5 KiB still `mixed`, and
+  `lz` re-encoding; then **MD3** and the **MD4 residue**. The unknown bytes are
+  by definition ones no reader has been found for, so no port depends on them;
+  they are proof-of-completeness work, and the formats that ports do depend on
+  moved to Phase 2.
 - **The asar cross-check**, which has never run.
 - **Accuracy**: the IRQ timing simplifications, the S-DSP's KON poll, and
   re-measuring the audio comparison table, which predates the DMA and refresh
