@@ -51,6 +51,10 @@ enum { M_DP_PPU = 0x2100, M_DP_DMA = 0x4300 };
  * (tests/test_platform_lint.py). */
 enum { M_REG_LINE_EFFECTS = 0x420C };
 
+/* The timing spike (NativeEntry.exact_time): the original's time on this path
+ * beyond the port's bus accesses. */
+static inline void m_spend(Snes *s, int32_t clocks) { native_spend(s, clocks); }
+
 /* Address in the data bank / direct page, as the original's abs / dp modes see it. */
 static inline uint32_t m_abs(const Snes *s, uint16_t addr) { return (uint32_t)s->cpu.db << 16 | addr; }
 static inline uint32_t m_dp(const Snes *s, uint8_t addr) { return (uint16_t)(s->cpu.d + addr); }

@@ -35,39 +35,33 @@ Nothing lands without it, and it is the same gate for every phase:
 The question that decides whether M5 is a decade of work or a year, and it
 should be answered before any bulk conversion.
 
-**First, settle the timing.** A hand port charges estimated time
-(`cost_milli`), and a generated block is exact, which is why `--recomp only` is
-the default and why `--recomp on` can play a battle out differently. M5 as
-designed in [RECOMP.md](RECOMP.md) does not change that: it prints a draft, and
-the port is hand written from it as ports are today. Converting the ROM that way
-makes the drift grow with every routine.
+**The timing is settled: `--recomp only` is the shipping path.** A hand port
+charges estimated time (`cost_milli`) and a generated block is exact, which is
+why `--recomp on` can play a battle out differently. The timing spike
+([RECOMP.md](RECOMP.md), "Can a hand port be exact?") asked whether a port could
+carry its code's exact time instead, and the answer is only partly. A port that
+adds the time its bus accesses don't show (the original's fetches and internal
+cycles on the path it took) and runs as one step is exact when its call does no
+time-dependent I/O and contains no interrupt or frame boundary; 14 ports done
+that way trace identically to `--native off` over all 26 movies. But every call
+that fails those tests has to run as the generated block, so the blocks ship
+anyway; ports behind the platform services are outside the line by the porting
+rules' own design (they drop write order and timing); and the time of any
+routine with more than a few paths has to be paid back by hand along the
+original's control flow, which is the draft's shape the rules tell a port to
+leave behind. So:
 
-Two facts make that survivable, and the phase starts by choosing between them:
-
-- `--recomp only` ignores hand ports, so ports can accumulate without touching
-  what the default build plays. The decompilation grows; the shipping path stays
-  exact. This works indefinitely but leaves the readable code permanently
-  second-class.
-- A port *derived* from a block could carry that block's exact cost instead of
-  an estimate, which is what TODO.md means by "ports derived from generated
-  blocks". If that holds, `--recomp on` becomes trace-identical to
-  `--recomp only`, and the readable code becomes the shipping path. It is worth
-  a spike before committing to the first option.
-
-The spike settles it, and both answers carry work rather than only a note:
-
-- **If a derived port can carry an exact cost**, that is the fix for the drift,
-  and applying it to the 259 entries that hold an estimate is a step of its own,
-  scheduled here rather than left implied. The check is the gate's own: with the
-  ports in, `--native on --recomp on` traces identically to `--native off`, the
-  comparison only `--recomp only` passes today. Do it before Phase 3 converts
-  more code, so the bulk work produces exact ports rather than a second
-  backlog.
-- **If it can't**, write down that `--recomp only` is the shipping path for as
-  long as the SNES backend is the one that matters, and that the readable code
-  is validated by shadow mode rather than by running. That is a real decision
-  about what the decompilation is *for*, and Phase 3 should not start before it
-  is made.
+- `--recomp only` is the shipping path for as long as the SNES backend is the
+  one that matters, and the readable code is validated by shadow mode rather
+  than by running. That is what the decompilation is *for* until a backend
+  where SNES timing stops mattering (PLATFORM.md) makes the question moot.
+- Ports are not asked to carry their time, and `cost_milli` stays an estimate
+  for `--recomp on`, which is a development configuration, not a shipping one.
+  Phase 3 can start on that basis.
+- Nothing further is scheduled from the spike. Its prototype is kept, off by
+  default: shadow mode's per-stretch time check and the interrupt horizon are
+  what to build on if exact ports are ever wanted, with per-path costs coming
+  from the M5 draft rather than by hand.
 
 Two other timing threads exist and neither is this one, so they shouldn't be
 conflated with it: the machine's own approximations (TODO.md, "Correctness and
@@ -144,8 +138,7 @@ bar, while its behaviour is already under the gate. A sweep across all of
 `game/` at once would be a large diff with no behavioural check beyond the gate
 it already passes.
 
-**Done when** the timing spike has an answer and whichever work it implies is
-done, the RAM map exists, the script formats round-trip, and a subsystem's worth of routines has been converted
+**Done when** the RAM map exists, the script formats round-trip, and a subsystem's worth of routines has been converted
 through the workflow to the bar above.
 
 ## Phase 3: M5 in bulk
@@ -281,8 +274,8 @@ the decompilation, so they wait behind it.
   a fiber, and the default player (`--recomp only`) runs no hand ports, so a
   user-compiled build in that mode never switches stacks: `fiber.h` needs a
   backend there only to link. What needs a real one is a build that runs hand
-  ports -- the public one that can't carry generated code, or any build once
-  the timing spike makes hand ports the shipping path.
+  ports -- the public one that can't carry generated code. (The timing spike
+  settled that hand ports don't become the SNES shipping path.)
 
   So the spike is: put a third backend behind `fiber.h`, run the movie suite
   under it, and measure. A day's answer that decides whether a browser build is

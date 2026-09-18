@@ -176,6 +176,18 @@ void snes_run_frame(Snes *snes, uint16_t pad1);
 uint64_t snes_horizon(const Snes *snes);
 void snes_sync(Snes *snes, uint32_t clocks);
 
+/* The timing spike's measure (docs/RECOMP.md, "Can a hand port be exact?"):
+ * like snes_horizon, but only the points no atomic stand-in for a stretch of
+ * code can move past in any design -- the next interrupt the system may
+ * recognize (a scheduled NMI, a raised IRQ, the H/V timer's next position), and
+ * the frame's boundaries (the start of line 0 and of vblank, where the frame
+ * ends and NMI fires). Refresh, HDMA and ordinary line ends are left out: they
+ * pause the CPU or act on state a stretch may not touch. */
+uint64_t snes_interrupt_horizon(const Snes *snes);
+/* An upper bound on the master clocks `cpu_clocks` of CPU time starting now
+ * take, with the refresh and HDMA pauses of the lines they cross. */
+uint64_t snes_span_bound(const Snes *snes, uint64_t cpu_clocks);
+
 /* Master clocks from now until the next point in the line where $4212's
  * hblank/vblank bits can change (hblank end, hblank start, or the line's end).
  * For skipping ahead in busy-wait loops that poll them. */

@@ -40,6 +40,7 @@ typedef struct Job {
     uint32_t call_ret;     /* where the callee returns to, and S after it has */
     uint16_t call_s_after;
     uint16_t call_dont_care;
+    int64_t spent;         /* m_spend since the job last resumed (the timing spike) */
     struct Job *next_free;
 } Job;
 
@@ -89,6 +90,7 @@ static void job_run(Job *j)
     Job *outer = current_job;
     current_job = j;
     j->state = JOB_RUNNING;
+    j->spent = 0;
     fiber_switch(j->fiber);
     current_job = outer;
 }
@@ -114,7 +116,9 @@ typedef struct Active {
     uint64_t segment_start;
     uint32_t segment_frame;      /* frame counter when the segment started */
     uint32_t segment_bus_clocks;
+    int64_t segment_spent;       /* SHADOW: the port's m_spend for the segment */
     unsigned long segment_port_clears[2];   /* apu_port_clears when the segment started */
+    uint64_t segment_horizon, segment_interrupt_horizon;   /* SHADOW: at the segment's start (timing spike) */
     bool segment_interrupted, interrupted, mismatched;
 } Active;
 
@@ -197,9 +201,31 @@ struct NativeRuntime {
     /* SHADOW: bit per 16-bit address with a generated entry that has a guard or
      * needs emulation mode, decided while recording (Boundary.gen). */
     uint8_t record_filter[0x2000];
+
+    /* The timing spike (native_set_port_timing, native_set_timing_report). */
+    PortTiming port_timing;
+    bool port_horizon_interrupts;
+    bool timing_report;
+    unsigned long self_timed_io;              /* SELF: time-dependent I/O while a port runs */
+    void (*prev_observer)(void *ctx, const SnesBus *bus, uint16_t addr, uint8_t value, unsigned flags);
+    void *prev_observer_ctx;
+    uint64_t step_master, prev_step_master;   /* SHADOW: master clock at the latest two steps */
+    Snes *timing_copy;                        /* the machine as it was before a port ran, to put it back */
+    uint64_t timing_copy_since;
+    Snes *timing_scratch;                     /* ORACLE: the machine the generated code is timed on */
+    uint64_t timing_scratch_since;
 };
 
+void native_set_port_timing(NativeRuntime *rt, PortTiming timing) { rt->port_timing = timing; }
+void native_set_timing_report(NativeRuntime *rt, bool on) { rt->timing_report = on; }
+void native_set_port_horizon(NativeRuntime *rt, bool interrupts_only) { rt->port_horizon_interrupts = interrupts_only; }
+
+/* I/O accesses rc_io_sync saw that depend on or change the time (the timing
+ * spike's oracle counts them while it times a call). */
+static unsigned long rc_timed_io;
+
 #define GEN_LATER (-2)
+#define CLOCKS_PER_IO_CYCLE_NATIVE 6
 
 static const NativeRuntime *active_runtime;   /* for synchronous native_call */
 
@@ -275,6 +301,8 @@ void native_destroy(NativeRuntime *rt)
     free(rt->acc);
     free(rt->bnd);
     free(rt->replay_machine);
+    free(rt->timing_copy);
+    free(rt->timing_scratch);
     free((void *)rt->table);
     free(rt->stats);
     free(rt);
@@ -503,8 +531,47 @@ static NativeStats *stats_of(NativeRuntime *rt, const Active *a) { return &rt->s
 static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
 {
     NativeStats *st = stats_of(rt, a);
-    st->original_clocks += s->master - s->stall_total - a->segment_start;   /* CPU time */
+    uint64_t original = s->master - s->stall_total - a->segment_start;   /* CPU time */
+    st->original_clocks += original;
     st->native_bus_clocks += a->segment_bus_clocks;
+    /* The timing spike: the estimate against the original, and whether the
+     * stretch fit (its last instruction, the step before this one, started
+     * before the horizon it had when it began). */
+    uint64_t estimate = (uint64_t)a->segment_bus_clocks * a->entry->cost_milli / 1000;
+    if (a->entry->exact_time && !a->segment_interrupted) {
+        int64_t own = (int64_t)a->segment_bus_clocks + a->entry->time_extra + a->segment_spent;
+        if (own != (int64_t)original) {
+            if (!st->t_time_mismatched) {
+                char msg[160];
+                snprintf(msg, sizeof msg, "time original %llu port %lld (bus %u)", (unsigned long long)original,
+                         (long long)own, a->segment_bus_clocks);
+                detail(rt, "timing", a->entry, msg);
+            }
+            st->t_time_mismatched++;
+        }
+    }
+    st->t_stretches++;
+    st->t_estimate_exact += estimate == original;
+    st->t_estimate_error += estimate > original ? estimate - original : original - estimate;
+    if (!a->segment_interrupted && st->t_nextra <= 8) {
+        uint32_t extra = (uint32_t)(original - a->segment_bus_clocks);
+        unsigned k = 0;
+        while (k < st->t_nextra && k < 8 && st->t_extra[k] != extra)
+            k++;
+        if (k == st->t_nextra) {
+            if (k < 8)
+                st->t_extra[k] = extra;
+            st->t_nextra++;
+        }
+    }
+    if (!a->segment_interrupted && rt->prev_step_master <= a->segment_horizon) {
+        st->t_fit_horizon++;
+        st->t_fit_horizon_clocks += original;
+    }
+    if (!a->segment_interrupted && rt->prev_step_master <= a->segment_interrupt_horizon) {
+        st->t_fit_interrupt++;
+        st->t_fit_interrupt_clocks += original;
+    }
 }
 
 static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, const char *where)
@@ -560,8 +627,11 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         }
     } else {
         a->segment_bus_clocks = m->bus.clocks;
+        a->segment_spent = j->spent;
         a->segment_start = s->master - s->stall_total;
         a->segment_frame = s->frame;
+        a->segment_horizon = snes_horizon(s);
+        a->segment_interrupt_horizon = snes_interrupt_horizon(s);
         memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
         a->segment_interrupted = false;
     }
@@ -1073,6 +1143,7 @@ void rc_io_sync(uint32_t addr, bool write)
     /* Registers nothing but CPU writes changes: the WRAM port and the math. */
     if ((a >= 0x2180 && a <= 0x2183) || (a >= 0x4202 && a <= 0x4206) || (a >= 0x4214 && a <= 0x4217))
         return;
+    rc_timed_io++;
     uint32_t delta = rc_timing.insn_start - rc_timing.synced;
     if (delta) {
         snes_sync(rc_timing.s, delta);
@@ -1200,6 +1271,274 @@ static int32_t continue_generated(NativeRuntime *rt, Snes *s)
     return -1;
 }
 
+static void observe_timed_io(void *ctx, const SnesBus *bus, uint16_t a, uint8_t v, unsigned flags)
+{
+    NativeRuntime *rt = ctx;
+    if (!((a >= 0x2180 && a <= 0x2183) || (a >= 0x4202 && a <= 0x4206) || (a >= 0x4214 && a <= 0x4217)))
+        rt->self_timed_io++;
+    if (rt->prev_observer)
+        rt->prev_observer(rt->prev_observer_ctx, bus, a, v, flags);
+}
+
+/* Put s back as it was when `copy` was refreshed from it (write epoch `since`),
+ * keeping s's hooks. */
+static void restore_machine(Snes *s, Snes *copy, uint64_t since)
+{
+    uint8_t *wram_written = s->bus.wram_written;
+    void (*cpu_on_insn)(void *, uint32_t, uint8_t, bool) = s->cpu.on_insn;
+    void (*apu_on_insn)(void *, const Apu *) = s->apu.on_insn;
+    void (*on_line)(void *, Snes *, uint16_t) = s->on_line;
+    void (*on_frame_top)(void *, Snes *) = s->on_frame_top;
+    int32_t (*icpt)(void *, Snes *) = s->intercept;
+    bool (*on_miss)(void *, Snes *) = s->on_miss;
+    snes_clone_since(s, copy, since);
+    s->bus.wram_written = wram_written;
+    s->cpu.on_insn = cpu_on_insn;
+    s->apu.on_insn = apu_on_insn;
+    s->on_line = on_line;
+    s->on_frame_top = on_frame_top;
+    s->intercept = icpt;
+    s->on_miss = on_miss;
+}
+
+/* Master clocks `cpu_clocks` of a port's time may take from now: exactly that
+ * against snes_horizon, which no pause lies before; against the interrupt
+ * horizon, a bound with the pauses of the lines it crosses. */
+static uint64_t span_of(const NativeRuntime *rt, const Snes *s, uint64_t cpu_clocks)
+{
+    return rt->port_horizon_interrupts ? snes_span_bound(s, cpu_clocks) : cpu_clocks;
+}
+
+/* ---- the timing spike: exact time for a hand port (PORT_TIMING_ORACLE) -------------
+ *
+ * A prototype, to test whether a port can be exact when given the original's
+ * exact time (docs/RECOMP.md, "Can a hand port be exact?"): the port runs on
+ * the machine, then the generated code for the call runs on a copy of the
+ * machine as it was, to where the port stopped, which gives the exact time,
+ * the last cycle and whether it did anything that depends on the time. Only if
+ * it did nothing of the kind and all of it fits before the horizon (so nothing
+ * the system does falls inside it) is the port's call kept, charged that time;
+ * otherwise the machine is put back and the generated block, exact by itself,
+ * runs instead. The copy's end state doubles as a check of the port. */
+
+/* The generated code that runs at the machine's PC, or NULL. */
+static NativeFn generated_at(const NativeRuntime *rt, Snes *s)
+{
+    int idx = generated_applying(rt, s);
+    if (idx >= 0)
+        return rt->table[idx].fn;
+    uint32_t key = resume_key(s);
+    uint16_t a16 = (uint16_t)key;
+    if (!(rt->index_filter[a16 >> 3] & (1 << (a16 & 7))))
+        return NULL;
+    int lo = 0, hi = rt->index_count;
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (rt->index[mid].key < key)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    for (; lo < rt->index_count && rt->index[lo].key == key; lo++)
+        if (!rt->index[lo].guard || rt->index[lo].guard(s))
+            return rt->index[lo].fn;
+    return NULL;
+}
+
+typedef struct OracleTime {
+    uint64_t clocks;        /* CPU time to the return */
+    uint64_t last_start;    /* when its last instruction started */
+    uint32_t last_cycle;
+    bool ok;                /* timed, with nothing time-dependent inside */
+    bool untimed;           /* no generated code for part of it */
+} OracleTime;
+
+/* Run generated code on m from its PC until it reaches end_pc with S at end_s
+ * (where the port stopped). */
+static OracleTime oracle_time(const NativeRuntime *rt, Snes *m, uint32_t end_pc, uint16_t end_s, uint64_t room)
+{
+    OracleTime o = { .last_cycle = CLOCKS_PER_IO_CYCLE_NATIVE, .ok = true };
+    unsigned long io_before = rc_timed_io;
+    NativeFn next = NULL;
+    for (int n = 0; o.ok; n++) {
+        NativeFn fn = next ? next : generated_at(rt, m);
+        if (!fn || n > 1000000 || m->cpu.waiting || m->cpu.stopped) {
+            o.ok = false;
+            o.untimed = true;
+            break;
+        }
+        m->bus.clocks = 0;
+        m->cpu.io_cycles = 0;
+        rc_timing = (RcTiming){ .s = m, .limit = UINT32_MAX - 1 };
+        fn(m);
+        uint32_t t = m->bus.clocks + CLOCKS_PER_IO_CYCLE_NATIVE * m->cpu.io_cycles;
+        o.last_start = o.clocks + rc_timing.insn_start;
+        next = rc_timing.stopped;
+        if (rc_timing.limit == 0)
+            o.ok = false;   /* it made an interrupt deliverable, or wrote code */
+        rc_timing = (RcTiming){ .limit = UINT32_MAX };
+        m->cpu.io_cycles = 0;
+        if (!t) {
+            o.ok = false;
+            break;
+        }
+        o.clocks += t;
+        if (o.clocks > room + 0x10000) {
+            o.last_start = o.clocks;   /* far past the room: it can't fit, wherever it ends */
+            break;
+        }
+        o.last_cycle = m->cpu.last_cycle_io ? CLOCKS_PER_IO_CYCLE_NATIVE : m->bus.clocks - m->bus.access_start;
+        if (cpu_pc24(&m->cpu) == end_pc && m->cpu.s == end_s)
+            break;
+        if (m->cpu.s > end_s) {
+            o.ok = false;   /* the original went elsewhere */
+            o.untimed = true;
+        }
+    }
+    if (rc_timed_io != io_before)
+        o.ok = false;
+    return o;
+}
+
+/* ON, PORT_TIMING_ORACLE: run hand entry e exactly if it can be. Returns false
+ * (with the machine put back) to leave the call to the generated block. */
+static bool oracle_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st, Snes *s, int32_t *result)
+{
+    if (!rt->timing_copy)
+        rt->timing_copy = malloc(sizeof *rt->timing_copy);
+    if (!rt->timing_scratch)
+        rt->timing_scratch = malloc(sizeof *rt->timing_scratch);
+    uint64_t backup_since = rt->timing_copy_since = snes_clone_since(rt->timing_copy, s, rt->timing_copy_since);
+    Snes *m = rt->timing_scratch;
+    uint64_t since = rt->timing_scratch_since = snes_clone_since(m, s, rt->timing_scratch_since);
+    uint64_t horizon = rt->port_horizon_interrupts ? snes_interrupt_horizon(s) : snes_horizon(s);
+    uint64_t room = horizon > s->master ? horizon - s->master : 0;
+
+    Active *a = &rt->active[rt->nactive++];
+    memset(a, 0, sizeof *a);
+    a->entry = e;
+    a->entry_s = s->cpu.s;
+    a->job = job_get();
+    a->job->entry = e;
+    a->job->m = s;
+    s->bus.clocks = 0;
+    job_run(a->job);
+    bool escaped = a->job->state != JOB_DONE;
+    if (escaped) {
+        /* it called out or synced: the prototype only runs whole calls */
+        active_pop(rt);
+    } else {
+        job_put(a->job);
+        a->job = NULL;
+        rt->nactive--;
+    }
+    OracleTime o = { 0 };
+    if (!escaped)
+        o = oracle_time(rt, m, cpu_pc24(&s->cpu), s->cpu.s, room);
+    if (escaped || !o.ok || span_of(rt, s, o.last_start) > room || o.clocks > INT32_MAX) {
+        restore_machine(s, rt->timing_copy, backup_since);
+        rt->timing_copy_since = rt->timing_scratch_since = 0;
+        st->t_fallback++;
+        if (escaped)
+            st->t_escapes++;
+        else if (o.untimed)
+            st->t_untimed++;
+        else if (!o.ok)
+            st->t_timed_io++;
+        else
+            st->t_no_fit++;
+        return false;
+    }
+
+    /* The port's registers must be the original's: an interrupt right after
+     * the return pushes them. Registers the callers don't read (dont_care) may
+     * differ; count those and take the original's. */
+    Cpu *c = &s->cpu;
+    const Cpu *oc = &m->cpu;
+    if (c->a != oc->a || c->x != oc->x || c->y != oc->y || c->p != oc->p || c->d != oc->d || c->db != oc->db) {
+        st->t_register_fixups++;
+        c->a = oc->a, c->x = oc->x, c->y = oc->y, c->p = oc->p, c->d = oc->d, c->db = oc->db;
+    }
+    s->bus.open_bus = m->bus.open_bus;
+    char why[200];
+    if (compare_machines(m, s, 0, since, why, sizeof why)) {
+        if (!st->t_state_diffs) {
+            char msg[256];
+            snprintf(msg, sizeof msg, "port state differs from the timed original: %s", why);
+            detail(rt, "timing", e, msg);
+        }
+        st->t_state_diffs++;
+    }
+    st->t_exact++;
+    s->bus.clocks = 0;
+    s->intercept_last_cycle = o.last_cycle;
+    *result = (int32_t)o.clocks;
+    return true;
+}
+
+/* ON, PORT_TIMING_SELF: run exact_time entry e and charge its own time if that
+ * is exact; otherwise put the machine back and return false (the generated
+ * block runs). */
+static bool self_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st, Snes *s, int32_t *result)
+{
+    if (!rt->timing_copy)
+        rt->timing_copy = malloc(sizeof *rt->timing_copy);
+    Snes *m = rt->timing_copy;
+    uint64_t since = rt->timing_copy_since = snes_clone_since(m, s, rt->timing_copy_since);
+    uint64_t horizon = rt->port_horizon_interrupts ? snes_interrupt_horizon(s) : snes_horizon(s);
+    uint64_t room = horizon > s->master ? horizon - s->master : 0;
+    uint16_t entry_s = s->cpu.s;
+
+    Active *a = &rt->active[rt->nactive++];
+    memset(a, 0, sizeof *a);
+    a->entry = e;
+    a->entry_s = entry_s;
+    a->job = job_get();
+    a->job->entry = e;
+    a->job->m = s;
+    s->bus.clocks = 0;
+    rt->self_timed_io = 0;
+    rt->prev_observer = snes_bus_io_observer;
+    rt->prev_observer_ctx = snes_bus_io_observer_ctx;
+    snes_bus_io_observer = observe_timed_io;
+    snes_bus_io_observer_ctx = rt;
+    job_run(a->job);
+    snes_bus_io_observer = rt->prev_observer;
+    snes_bus_io_observer_ctx = rt->prev_observer_ctx;
+    Job *j = a->job;
+    if (j->state != JOB_DONE) {
+        /* it called out or synced: the prototype only runs whole calls */
+        active_pop(rt);
+        restore_machine(s, m, since);
+        rt->timing_copy_since = 0;
+        st->t_escapes++;
+        st->t_fallback++;
+        return false;
+    }
+    int64_t own = (int64_t)s->bus.clocks + e->time_extra + j->spent;
+    /* The last cycle: RTS ends with an internal cycle, RTL with its last pull. */
+    uint32_t last_cycle = (uint16_t)(s->cpu.s - entry_s) == 3 ? s->bus.clocks - s->bus.access_start
+                                                               : CLOCKS_PER_IO_CYCLE_NATIVE;
+    job_put(j);
+    a->job = NULL;
+    rt->nactive--;
+    if (rt->self_timed_io || own <= 0 || span_of(rt, s, (uint64_t)own) > room || own > INT32_MAX) {
+        restore_machine(s, m, since);
+        rt->timing_copy_since = 0;
+        st->t_fallback++;
+        if (rt->self_timed_io)
+            st->t_timed_io++;
+        else
+            st->t_no_fit++;
+        return false;
+    }
+    st->t_exact++;
+    s->bus.clocks = 0;
+    s->intercept_last_cycle = last_cycle;
+    *result = (int32_t)own;
+    return true;
+}
+
 static int32_t intercept(void *ctx, Snes *s)
 {
     NativeRuntime *rt = ctx;
@@ -1207,6 +1546,8 @@ static int32_t intercept(void *ctx, Snes *s)
 
     if (rt->acc)
         record_step(rt, s);
+    rt->prev_step_master = rt->step_master;
+    rt->step_master = s->master;
 
     /* Native code finishes instantly but the original took time. Pay that time
      * off a scanline at a time so frame boundaries and line events still happen
@@ -1250,6 +1591,15 @@ static int32_t intercept(void *ctx, Snes *s)
             continue;
         }
 
+        if (rt->mode == NATIVE_ON && rt->port_timing != PORT_TIMING_ESTIMATE && e->idle)
+            continue;   /* the timing spike's modes run only whole routines */
+        if (rt->mode == NATIVE_ON && rt->port_timing == PORT_TIMING_SELF) {
+            int32_t result;
+            if (e->exact_time && rt->nactive < MAX_ACTIVE && self_run(rt, e, st, s, &result))
+                return result;
+            continue;   /* the generated block at the same address runs */
+        }
+
         if (e->idle) {
             if (rt->mode != NATIVE_ON) {
                 st->skipped++;
@@ -1266,6 +1616,12 @@ static int32_t intercept(void *ctx, Snes *s)
         if (rt->nactive == MAX_ACTIVE) {
             st->skipped++;
             continue;
+        }
+        if (rt->mode == NATIVE_ON && rt->port_timing == PORT_TIMING_ORACLE) {
+            int32_t result;
+            if (oracle_run(rt, e, st, s, &result))
+                return result;
+            continue;   /* the generated block at the same address runs */
         }
         Active *a = &rt->active[rt->nactive++];
         memset(a, 0, sizeof *a);
@@ -1357,6 +1713,13 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
     s->cpu.irq_line = irq;
 }
 
+void native_spend(Snes *s, int32_t clocks)
+{
+    Job *j = current_job;
+    if (j && j->m == s)
+        j->spent += clocks;
+}
+
 void native_sync(Snes *s)
 {
     Job *j = current_job;
@@ -1430,6 +1793,27 @@ void native_report(const NativeRuntime *rt, FILE *out)
         if (st->skipped)
             fprintf(out, "  skipped %u", st->skipped);
         fprintf(out, "\n");
+        if (rt->timing_report && st->t_stretches) {
+            fprintf(out, "    timing: stretches %u  estimate exact %u  mean |error| %.1f  of %.1f"
+                         "  fit horizon %u (%.1f%% of time)  fit interrupts %u (%.1f%% of time)\n",
+                    st->t_stretches, st->t_estimate_exact, (double)st->t_estimate_error / st->t_stretches,
+                    (double)st->original_clocks / st->t_stretches, st->t_fit_horizon,
+                    st->original_clocks ? 100.0 * st->t_fit_horizon_clocks / st->original_clocks : 0.0,
+                    st->t_fit_interrupt,
+                    st->original_clocks ? 100.0 * st->t_fit_interrupt_clocks / st->original_clocks : 0.0);
+            fprintf(out, "    timing: unseen time values %s%u:", st->t_nextra > 8 ? ">" : "",
+                    st->t_nextra > 8 ? 8 : st->t_nextra);
+            for (unsigned k = 0; k < st->t_nextra && k < 8; k++)
+                fprintf(out, " %u", st->t_extra[k]);
+            fprintf(out, "\n");
+        }
+        if (rt->timing_report && st->t_time_mismatched)
+            fprintf(out, "    timing: own time mismatched %u\n", st->t_time_mismatched);
+        if (rt->timing_report && (st->t_exact || st->t_fallback || st->t_escapes))
+            fprintf(out, "    timing: exact %u  fallback %u (untimed %u, timed I/O %u, no room %u)  register fixups %u"
+                         "  state diffs %u  escapes %u\n",
+                    st->t_exact, st->t_fallback, st->t_untimed, st->t_timed_io, st->t_no_fit, st->t_register_fixups,
+                    st->t_state_diffs, st->t_escapes);
     }
     if (rt->generated) {
         fprintf(out, "  generated blocks: %d entries, %lu reached, calls %lu", rt->generated, gen_reached, gen_calls);

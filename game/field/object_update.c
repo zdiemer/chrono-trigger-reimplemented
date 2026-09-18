@@ -175,6 +175,17 @@ void field_update_object_in_window(Snes *s)
     m_rts(s);
 }
 
+/* The timing spike (docs/RECOMP.md, "Can a hand port be exact?"): the three
+ * routines below carry the original's exact time. m_spend adds, per path, the
+ * master clocks of the original's instruction fetches and internal cycles,
+ * which the port's own bus accesses don't account for (6 per byte of this
+ * FastROM code and per internal cycle). An indexed read whose index carries
+ * into the next page takes one more internal cycle (8-bit X). */
+static int32_t page_cross(const Snes *s, uint16_t base)
+{
+    return (base & 0xFF) + (s->cpu.x & 0xFF) > 0xFF ? 6 : 0;
+}
+
 /* LDA $0A80,X : LSR A : AND #$FE : TAY -- the object's row. */
 static void load_row(Snes *s)
 {
@@ -194,15 +205,21 @@ void field_unlink_object_row(Snes *s)
     Cpu *c = &s->cpu;
     m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
     m_ldx(s, dp8(s, 0x6D));
+    m_spend(s, page_cross(s, 0x0E01));
     if (m_lda8(s, obj8(s, 0x0E01)) & 0x80) {
+        m_spend(s, 90);
         m_rts(s);
         return;
     }
+    m_spend(s, page_cross(s, 0x0E80) + page_cross(s, 0x0E81));
     if (m_lda8(s, obj8(s, 0x0E80)) & 0x80) {
+        m_spend(s, page_cross(s, 0x0A80));
         load_row(s);
         uint8_t next = m_lda8(s, obj8(s, 0x0E81));
         m_write8(s, m_abs(s, 0x0E00) + c->y, next);
+        m_spend(s, 276);
         if (!(next & 0x80)) {
+            m_spend(s, 318 - 276);
             tay(s);
             m_lda8(s, 0x80);
             m_write8(s, m_abs(s, 0x0E80) + c->y, 0x80);
@@ -213,6 +230,7 @@ void field_unlink_object_row(Snes *s)
         return;
     }
     /* $C0:A9B4 */
+    m_spend(s, 330);
     tay(s);
     m_xba(s);
     uint8_t next = m_lda8(s, obj8(s, 0x0E81));
@@ -236,12 +254,16 @@ void field_link_object_row(Snes *s)
     Cpu *c = &s->cpu;
     m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
     m_ldx(s, dp8(s, 0x6D));
+    m_spend(s, page_cross(s, 0x0E01));
     if (!(m_lda8(s, obj8(s, 0x0E01)) & 0x80)) {
+        m_spend(s, 90);
         m_rts(s);
         return;
     }
+    m_spend(s, page_cross(s, 0x0A80));
     load_row(s);
     if (m_lda8(s, m_read8(s, m_abs(s, 0x0E00) + c->y)) & 0x80) {
+        m_spend(s, 288);
         m_txa(s);
         m_write8(s, m_abs(s, 0x0E00) + c->y, (uint8_t)c->a);
         set_obj8(s, 0x0E01, 0x00);
@@ -252,6 +274,7 @@ void field_link_object_row(Snes *s)
         return;
     }
     /* $C0:A9F2 */
+    m_spend(s, 342);
     set_dp8(s, 0xC5, (uint8_t)c->y);
     tay(s);
     m_txa(s);
@@ -416,8 +439,10 @@ static void screen_axis(Snes *s, uint16_t pos, uint8_t origin, uint16_t out)
         c->a = m_lsr16(s, c->a);
     m_set_flag(s, CPU_FLAG_C, true);
     c->a = m_sbc16(s, c->a, dp16(s, origin));
-    if (!m_flag(s, CPU_FLAG_C))
+    if (!m_flag(s, CPU_FLAG_C)) {
+        m_spend(s, 12);   /* BCS not taken and ORA #$0100 */
         m_lda16(s, (uint16_t)(c->a | 0x0100));
+    }
     set_obj16(s, out, m_lda16(s, (uint16_t)(c->a & 0x01FF)));
 }
 
@@ -430,6 +455,7 @@ void field_update_screen_position(Snes *s)
     Cpu *c = &s->cpu;
     m_rep(s, CPU_FLAG_M);
     m_ldx(s, dp8(s, 0x6D));
+    m_spend(s, 684 + page_cross(s, 0x1880));
     set_dp16(s, 0xD9, m_lda16(s, (uint16_t)(abs16(s, 0x1D87) & 0x0007)));
     set_dp16(s, 0xDB, m_lda16(s, (uint16_t)(abs16(s, 0x1D89) & 0x0007)));
     static const struct { uint16_t tile; uint8_t fine, out; } origins[2] = { { 0x1D0A, 0xD9, 0xDD }, { 0x1D0E, 0xDB, 0xDF } };

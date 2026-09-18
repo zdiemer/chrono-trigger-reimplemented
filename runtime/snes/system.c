@@ -414,6 +414,58 @@ uint64_t snes_horizon(const Snes *s)
     return h;
 }
 
+/* The master clock at which line `line` next starts (after now). */
+static uint64_t next_line_start(const Snes *s, uint16_t line)
+{
+    uint32_t ahead = (uint32_t)(line + SNES_LINES_PER_FRAME - s->vline) % SNES_LINES_PER_FRAME;
+    if (ahead == 0)
+        ahead = SNES_LINES_PER_FRAME;
+    return s->master - s->hclock + (uint64_t)ahead * SNES_CLOCKS_PER_LINE;
+}
+
+uint64_t snes_interrupt_horizon(const Snes *s)
+{
+    uint64_t h = clock_before(next_line_start(s, SNES_VBLANK_LINE));
+    uint64_t top = clock_before(next_line_start(s, 0));
+    if (top < h)
+        h = top;
+    if (s->nmi_scheduled && clock_before(s->nmi_at) < h)
+        h = clock_before(s->nmi_at);
+    if (s->bus.irq_flag && s->poll_at < s->irq_at && clock_before(s->irq_at) < h)
+        h = clock_before(s->irq_at);
+    uint8_t timer_mode = s->bus.nmitimen & 0x30;
+    uint32_t htime = (uint32_t)s->bus.htime * 4;
+    uint64_t at = UINT64_MAX;
+    if (timer_mode == 0x10) {
+        at = s->master - s->hclock + htime;
+        if (s->htimer_done_this_line || s->hclock > htime)
+            at += SNES_CLOCKS_PER_LINE;
+    } else if (timer_mode == 0x20) {
+        at = next_line_start(s, s->bus.vtime);
+    } else if (timer_mode == 0x30) {
+        at = s->vline == s->bus.vtime && !s->htimer_done_this_line && s->hclock <= htime
+                 ? s->master - s->hclock + htime
+                 : next_line_start(s, s->bus.vtime) + htime;
+    }
+    if (at != UINT64_MAX && clock_before(at) < h)
+        h = clock_before(at);
+    return h;
+}
+
+uint64_t snes_span_bound(const Snes *s, uint64_t cpu_clocks)
+{
+    /* Per line at most: the refresh, and HDMA stopping the CPU and reading up
+     * to 7 bytes per enabled channel (4 to transfer, 3 to load an entry). */
+    unsigned channels = 0;
+    for (int ch = 0; ch < 8; ch++)
+        channels += (s->bus.hdmaen >> ch) & 1;
+    uint64_t per_line = REFRESH_CLOCKS + (channels ? HDMA_SYNC_CLOCKS + 7 * HDMA_BYTE_CLOCKS * channels : 0);
+    uint64_t span = cpu_clocks;
+    for (int i = 0; i < 4; i++)
+        span = cpu_clocks + ((s->hclock + span) / SNES_CLOCKS_PER_LINE + 1) * per_line;
+    return span;
+}
+
 uint32_t snes_clocks_to_next_poll_change(const Snes *s)
 {
     if (s->hclock < HBLANK_END_HCLOCK)

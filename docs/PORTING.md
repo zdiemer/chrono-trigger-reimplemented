@@ -83,7 +83,10 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   `shadow` mode ignores it. Compare `on` against `off` audio with `ct_dev --wav`
   when a port talks to the APU. `ct_dev --exclude PREFIX` leaves out the
   routines whose names start with PREFIX, for narrowing down which port causes
-  a difference.
+  a difference; `--include PREFIX` keeps only the ports whose names start with
+  it (generated blocks stay). A port's time stays an estimate: the timing
+  spike's exact-time prototype (`--port-timing`, `NativeEntry.exact_time`,
+  `m_spend`; RECOMP.md, "Can a hand port be exact?") is not asked of ports.
 - **Generated blocks.** A build given the ROM also registers C blocks
   generated from it ([RECOMP.md](RECOMP.md)) behind the ported routines: a port
   takes precedence at its address, and shadow mode checks the blocks too.
