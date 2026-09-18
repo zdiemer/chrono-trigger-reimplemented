@@ -124,12 +124,15 @@ Kinds and fields added for data typing (MD2, [MATCHING.md](MATCHING.md#md2-as-bu
 |---|---|---|
 | `[[resource]]` | `at`, `count`, [`name`], [`kind` = `ptr24` \| `ptr16` + `bank`], [`slots`], `target` = `lz` \| `text` \| `sized` \| `blob`, [`type`], [`size`], [`extent = "next"`, `end`], [`skip`], [`format`] | a table of pointers a loader indexes by a resource id: `tools/disasm/resources.py` types the table (`ptr24`/`ptr16`, `slots` entries, `count` of them walked) and what its entries point at |
 | `fill = true` on `[[data]]` | | a background type for a range: every byte in it that no other region claims is of this type (bank D2-D5's sprite tiles). Other regions carve it up; one crossing its edge is an error |
+| `format = "event-commands"`, `entries` on a `script` `[[data]]` | | a run of event commands with no header, entered at the `entries` addresses (the built-in commands at `$C0:5D37`); decoded and assembled from the decoded form (MATCHING.md, "The event scripts") |
 
 `[[resource]]` targets:
 
 - `lz`: each entry must be a stream `tools/disasm/lz.py` consumes exactly, and
   the region is exactly those bytes. An entry that isn't is an error unless
-  `skip` lists it (with the comment saying why).
+  `skip` lists it (with the comment saying why). `format = "event"` says the
+  output is an event script (`tools/disasm/eventscript.py`), which the regions
+  carry and the matching build decodes (MATCHING.md, "The event scripts").
 - `text`: each entry names a zero-terminated string, and the region runs to the
   terminator. The report counts the bytes between one string's terminator and
   the next string, which is zero when the table's strings tile their range.
@@ -293,7 +296,8 @@ platform lint had to be told was not the register `$213A`, is now
   game mode installs its own handlers (see `re/hints.toml`). Writing `$40`
   (`RTI`) there disables a vector.
 - The event script interpreter dispatches through a 256-entry command table at
-  `$C0:5D6E`, fetching command bytes from `$7F:2001,X`.
+  `$C0:5D6E`, fetching command bytes from `$7F:2001,X`. The scripts are parsed
+  and typed (`tools/disasm/eventscript.py`, MATCHING.md "The event scripts").
 - Bank C2's object system runs a handler per slot (`$C2:051D`, `JMP ($0050)`)
   and an object script interpreter with an 83-entry command table at
   `$C2:0F91`. Script commands `$34`/`$35`/`$4E` call, spawn or JSL to addresses

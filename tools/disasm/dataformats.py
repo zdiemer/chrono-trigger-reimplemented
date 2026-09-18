@@ -103,10 +103,51 @@ def encode_graphics(tiles, planes):
     return bytes(out)
 
 
+def event_bytes(blob, region):
+    """The event commands a region holds: an `lz` region's output (the whole
+    buffer), or a `script` region's bytes. None for another type."""
+    if region.type == "lz":
+        from .lz import decompress
+        got = decompress(blob, 0)
+        if got is None or got[1] != len(blob):
+            raise ValueError("not a stream the decompressor consumes exactly")
+        return got[0]
+    return blob if region.type == "script" else None
+
+
+def event_entries(region):
+    """Positions in the region of an `event-commands` region's entries."""
+    from .memmap import parse as parse_addr
+    return [parse_addr(e) - region.start for e in region.params.get("entries", [])]
+
+
+def check_event(blob, region):
+    """(encoded, expected) for an event format: the script decoded to its
+    readable form and encoded back (tools/disasm/eventscript.py)."""
+    from . import eventscript as ev
+    raw = event_bytes(blob, region)
+    if raw is None:
+        return None
+    form = region.params.get("format")
+    try:
+        if form == "event":
+            if region.type != "lz":
+                raise ValueError("format event is for lz regions")
+            text = ev.decode(raw)
+        else:
+            if region.type != "script":
+                raise ValueError("format event-commands is for script regions")
+            text = ev.decode_commands(raw, event_entries(region))
+        return ev.encode(text), raw
+    except ev.ScriptError as exc:
+        raise ValueError(f"event script: {exc}") from None
+
+
 def check_format(blob, region, context=None):
     """Validate explicitly supported formats; older format annotations stay as-is.
     Text formats (tools/disasm/text.py) decode and re-encode; `context` carries
-    what they share, the decoded dialog dictionary."""
+    what they share, the decoded dialog dictionary. The event formats decode
+    and re-encode the commands, for an `lz` region its decompressed output."""
     form = region.params.get("format")
     if region.type == "text" and form is not None:
         from .text import decode, encode, region_params
@@ -119,6 +160,11 @@ def check_format(blob, region, context=None):
     elif form in ("snes-2bpp", "plane-pool"):
         planes = 2 if form == "snes-2bpp" else 1
         encoded = encode_graphics(decode_graphics(blob, planes), planes)
+    elif form in ("event", "event-commands"):
+        got = check_event(blob, region)
+        if got is None:
+            return
+        encoded, blob = got              # compared on the commands, not the stream
     elif form == "sprite-records":
         encoded = b"".join(record.encode() for record in decode_sprites(blob, region.params["size"]))
     else:

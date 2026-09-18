@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from tools.disasm.analyze import Analyzer, describe_widths
 from tools.disasm.cpu import OPCODES, Mode, decode
 from tools.disasm.memmap import bus_to_offset, fmt
+from tools.disasm import eventscript
+from tools.disasm.dataformats import event_bytes, event_entries
 from tools.disasm.text import FORMATS as TEXT_FORMATS, TextError, decode as text_decode, \
     dictionary_context, encode as text_encode, parse_dictionary_text, region_params
 
@@ -95,6 +97,8 @@ class Stats:
     text_regions: Counter = field(default_factory=Counter)   # format -> regions assembled from text
     text_bytes: Counter = field(default_factory=Counter)     # format -> their bytes
     text_problems: list = field(default_factory=list)        # regions of a text format kept raw, and why
+    event_streams: int = 0          # lz regions of an event format written decoded beside their bytes
+    event_bytes: int = 0            # their decompressed bytes
 
 
 @dataclass
@@ -291,6 +295,7 @@ class Emitter:
                 ctx_at[off].add(f"{describe_widths(widths)}{at} ({', '.join(sorted(c.kinds))})")
         self.index_data()
         self.text_jobs = {}                      # .bin path -> (.txt path, region)
+        self.event_jobs = {}                     # .txt path -> the decompressed stream it must encode to
         try:
             self.text_context = dictionary_context(self.an.hints.data_regions, self.data, bus_to_offset)
         except TextError as exc:
@@ -380,6 +385,13 @@ class Emitter:
                     self.text_jobs[path] = (path[:-4] + ".txt", region)
                 else:
                     files[path] = self.data[o:nxt]
+                    event = self._decoded_stream(region, o, nxt) if region is not None else None
+                    if event is not None:
+                        # A compressed script: the stream is assembled as bytes
+                        # (nothing recompresses), and its output written decoded
+                        # beside it; encode_text() checks that it encodes back.
+                        files[path[:-4] + ".txt"] = event[0]
+                        self.event_jobs[path[:-4] + ".txt"] = event[1]
                 lines.append(f'\tincbin "{path}" ; {fmt(0xC00000 | o)}-{fmt(0xC00000 | nxt - 1)}, {nxt - o} bytes'
                              + ("" if kind == "untyped" else f", {kind}"))
                 st.incbin_files += 1
@@ -437,25 +449,47 @@ class Emitter:
         parts by a label inside it, or bytes the format rejects, which
         check_data reports)."""
         form = region.params.get("format")
-        if region.type != "text" or form not in TEXT_FORMATS:
+        commands = region.type == "script" and form == "event-commands"
+        if not commands and (region.type != "text" or form not in TEXT_FORMATS):
             return None
         where = f"{fmt(region.start)}-{fmt(region.end)} ({form})"
         if start != bus_to_offset(region.start) or end != bus_to_offset(region.end) + 1:
             self.stats.text_problems.append(f"{where}: cut by a label inside it, extracted raw")
             return None
         try:
-            text = text_decode(form, self.data[start:end], region_params(region), self.text_context)
-        except TextError as exc:
+            if commands:
+                text = eventscript.decode_commands(self.data[start:end], event_entries(region))
+            else:
+                text = text_decode(form, self.data[start:end], region_params(region), self.text_context)
+        except (TextError, eventscript.ScriptError) as exc:
             self.stats.text_problems.append(f"{where}: {exc}")
             return None
         self.stats.text_regions[form] += 1
         self.stats.text_bytes[form] += end - start
         return text if text.endswith("\n") else text + "\n"
 
+    def _decoded_stream(self, region, start: int, end: int):
+        """(readable form, decompressed bytes) of a whole `lz` region of an
+        event format, or None (tools/disasm/eventscript.py). A stream that
+        doesn't decode is check_data's to report."""
+        if region.type != "lz" or region.params.get("format") not in eventscript.LZ_FORMATS:
+            return None
+        if start != bus_to_offset(region.start) or end != bus_to_offset(region.end) + 1:
+            return None
+        try:
+            raw = event_bytes(self.data[start:end], region)
+            text = eventscript.decode(raw)
+        except (ValueError, eventscript.ScriptError):
+            return None
+        self.stats.event_streams += 1
+        self.stats.event_bytes += len(raw)
+        return text, raw
+
     def encode_text(self, src) -> tuple[dict, list]:
         """The .bin of every region build() wrote as text, encoded from the
         .txt as it reads back from `src` (the dictionary first, since dialog
-        needs it). Returns ({path: bytes}, problems)."""
+        needs it); and every compressed event script's decoded output encoded
+        back and compared with the stream's. Returns ({path: bytes}, problems)."""
         out, problems = {}, []
         context = {}
         jobs = sorted(self.text_jobs.items(), key=lambda j: j[1][1].params.get("format") != "dialog-dictionary")
@@ -463,10 +497,19 @@ class Emitter:
             form = region.params["format"]
             try:
                 text = (src / txt).read_bytes().decode("utf-8")
+                if form == "event-commands":
+                    out[path] = eventscript.encode(text)
+                    continue
                 if form == "dialog-dictionary":
                     context["dictionary"] = parse_dictionary_text(text)
                 out[path] = text_encode(form, text, region_params(region), context)
-            except (OSError, UnicodeDecodeError, TextError) as exc:
+            except (OSError, UnicodeDecodeError, TextError, eventscript.ScriptError) as exc:
+                problems.append(f"{txt}: {exc}")
+        for txt, raw in sorted(self.event_jobs.items()):
+            try:
+                if eventscript.encode((src / txt).read_bytes().decode("utf-8")) != raw:
+                    problems.append(f"{txt}: doesn't encode to the stream's output")
+            except (OSError, UnicodeDecodeError, eventscript.ScriptError) as exc:
                 problems.append(f"{txt}: {exc}")
         return out, problems
 

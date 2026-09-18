@@ -25,7 +25,7 @@
 #   [[resource]]     at, count, [name], [kind = ptr24 | ptr16, bank], [slots],
 #                    target = lz | text | sized | blob, [type], [size],
 #                    [extent = "next", end], [skip],
-#                    [format] (text)                a pointer table a loader
+#                    [format] (text; lz: event)     a pointer table a loader
 #                                                   indexes by a resource id;
 #                                                   types it and its targets
 #   fill = true on [[data]]: a background type for a range (every byte no other
@@ -2198,10 +2198,16 @@ count = 4
 
 # C0:5D37-5D6D: its address is loaded as an immediate at C0:5CEE, C0:5CFC,
 # C0:5D0A and 2 more.
+# Event scripts: C0:5CEC copies these to $7F:3700-3785 after every script load,
+# and commands $DA, $D9 and C0:3154 point objects at them ($1180 = $16FF,
+# $171F/$173F/$175F, $177F): three runs of event commands with no header,
+# entered at their starts (tools/disasm/eventscript.py, "event-commands").
 [[data]]
 start = "C0:5D37"
 end = "C0:5D6D"
-type = "bytes"
+type = "script"
+format = "event-commands"
+entries = ["C0:5D37", "C0:5D50", "C0:5D68"]
 
 # C0:6EA0-6EAF: read by the absolute indexed LDA at C0:6E6A in the routine
 # before it (its data bank is its program bank); it runs up to code at C0:6EB0.
@@ -3598,12 +3604,18 @@ skip = ["204-218"]
 
 # FC:F9F0 (513): read at C0:56D4-5702 with the id from $F60008,X, decompressed
 # to $7F:2000. Entries 75-81, 102-110, 231-235 and 320-322 each repeat one
-# pointer into bytes the decompressor rejects: unused ids.
+# pointer into bytes the decompressor rejects: unused ids (locations $1C0,
+# $1C4-$1C7 and $1CD-$1CF name the last eight, and no location command of any
+# event script names those locations; no other location names one).
+# Event scripts: `format = "event"` (tools/disasm/eventscript.py,
+# docs/MATCHING.md "The event scripts") makes the matching build decode each
+# stream's output and check that it encodes back byte for byte.
 [[resource]]
 at = "FC:F9F0"
 count = 513
 target = "lz"
 skip = ["75-81", "102-110", "231-235", "320-322"]
+format = "event"
 
 # FE:0000 (73): the attract, title and jet bike race program's resource table
 # (sub_7E3691 reads it at $7E:3694/369C; C3:0058 loads entry 1, the program's
