@@ -14,8 +14,12 @@ and [PLATFORM.md](PLATFORM.md).
    remaining task in the project by a wide margin.
 2. **A build other people can play**, soon. Small next to M5, and it stops being
    cheap to defer once anyone else is running it.
-3. **One track at a time.** Each phase below finishes and passes its gate before
-   the next starts.
+3. **Phases in order, work within them in parallel.** A phase's items can run
+   side by side when they don't share files, each in its own worktree and each
+   through the gate before it lands; a later phase's item can start early when it
+   depends on nothing still open (Phase 2's string encoding beside Phase 1, for
+   instance). Parallel work shares one machine, so each track is given a process
+   budget.
 
 ## The validation gate
 
