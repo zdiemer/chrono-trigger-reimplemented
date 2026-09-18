@@ -14,10 +14,6 @@ rest waits, is [PLAN.md](PLAN.md).
   gate will measure and bound: per-entry estimate error from
   `--timing-report`, `cost_milli` recalibration, and video writes that leave
   vblank. `--recomp only` stays exact.
-- **The shipping mode has no end-to-end test.** Movies desync under
-  `--recomp on`, so they only regression-test `--recomp only`. The state-driven
-  route scripts (`tools/movies`, docs/MOVIES.md) survive timing changes, but
-  `ct_drive` can't run them with `--native on` yet.
 - **Fuzzing coverage of existing ports.** Fuzzing is now part of every port's
   definition of done (PORTING.md); ports registered before that without a
   recorded fuzz run should get one, subsystem by subsystem in Phase 3.

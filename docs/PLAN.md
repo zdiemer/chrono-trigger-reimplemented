@@ -58,9 +58,9 @@ generated block. The decision drawn from it:
   movies and fuzzing reach (Phase 3's bar).
 - **Timing is deterministic per build**, not per machine: a movie recorded in a
   build replays in that build anywhere.
-- **Testing the shipping mode end to end** later means the state-driven route
-  scripts (`tools/movies`) running through `ct_drive` with `--native on`,
-  which it can't do yet (TODO.md).
+- **The shipping mode is tested end to end** by the state-driven route scripts
+  (`tools/movies/route_check.py`, docs/MOVIES.md), which `ct_drive` runs with
+  `--native on` and which survive the drift that desyncs movies.
 
 **Next: the timing gate.** What it measures is already there:
 `ct_dev --native shadow --timing-report` gives each hand-port entry's estimate
