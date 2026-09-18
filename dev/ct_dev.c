@@ -315,9 +315,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--port-timing")) {
             if (!strcmp(v, "estimate")) port_timing = PORT_TIMING_ESTIMATE;
             else if (!strcmp(v, "oracle")) port_timing = PORT_TIMING_ORACLE;
-            else if (!strcmp(v, "self")) port_timing = PORT_TIMING_SELF;
             else {
-                fprintf(stderr, "--port-timing must be estimate, oracle or self\n");
+                fprintf(stderr, "--port-timing must be estimate or oracle\n");
                 return 2;
             }
         }
@@ -374,7 +373,7 @@ int main(int argc, char **argv)
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--include name-prefix]... "
-                        "[--recomp off|on|only] [--port-timing estimate|oracle|self] [--port-horizon strict|interrupts] "
+                        "[--recomp off|on|only] [--port-timing estimate|oracle] [--port-horizon strict|interrupts] "
                         "[--timing-report] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "

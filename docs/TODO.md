@@ -9,11 +9,18 @@ rest waits, is [PLAN.md](PLAN.md).
 ## Correctness and accuracy
 
 - **Hand ports' time is an estimate**, so `--native on --recomp on` drifts from
-  the original (battles play out differently). Generated-only mode is exact,
-  and it is the shipping path: the timing spike (RECOMP.md, "Can a hand port be
-  exact?") found exact port time possible only for short, computational calls,
-  with the generated block still needed for the rest. The drift goes away with
-  PLATFORM's backends, where SNES-exact timing stops mattering.
+  the original (battles play out differently). That difference is accepted
+  (PLAN.md, Phase 2's timing decision); timing *errors* are what the timing
+  gate will measure and bound: per-entry estimate error from
+  `--timing-report`, `cost_milli` recalibration, and video writes that leave
+  vblank. `--recomp only` stays exact.
+- **The shipping mode has no end-to-end test.** Movies desync under
+  `--recomp on`, so they only regression-test `--recomp only`. The state-driven
+  route scripts (`tools/movies`, docs/MOVIES.md) survive timing changes, but
+  `ct_drive` can't run them with `--native on` yet.
+- **Fuzzing coverage of existing ports.** Fuzzing is now part of every port's
+  definition of done (PORTING.md); ports registered before that without a
+  recorded fuzz run should get one, subsystem by subsystem in Phase 3.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -141,8 +148,8 @@ waits on M5 rather than on a backend.
     machine without a fiber (they never call out; RECOMP.md), and the default
     player, `--recomp only`, runs no hand ports, so a build the user compiles
     from their own ROM in that mode needs no stack switching at all. The
-    question is live for the public build below; the timing spike settled that
-    hand ports don't become the SNES build's shipping path (RECOMP.md).
+    question is live for the public build below, and for the default player
+    once the timing gate flips it to `--recomp on` (PLAN.md, Phase 2).
     The spike, and why no phase covers it, is in PLAN.md's "What this plan
     deprioritizes".
   - **What the browser build is made of.** The default path generates C from the

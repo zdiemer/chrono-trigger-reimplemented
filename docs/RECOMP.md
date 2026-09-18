@@ -681,26 +681,39 @@ giving hand ports more exact time were tried on six movies (`new-game`, `field`,
 
 So `--recomp only` is the configuration for checking `on` mode against the
 interpreter; hand ports are checked by shadow mode as before. Whether a hand
-port could carry exact time instead was settled by the spike below.
+port could carry exact time instead is the spike below; it could, only for a
+class of calls, and the decision it led to is to ship the readable code with
+estimated time and measure the estimates instead.
 
 ### Can a hand port be exact? (the timing spike)
 
 Phase 2 of [PLAN.md](PLAN.md) opened with a question: can a hand port carry
 its code's exact time, so that `--native on --recomp on` traces identically to
 `--native off` and the readable code, rather than the generated blocks, is what
-the SNES build runs? The answer is **partly**: the mechanism exists and was
+the SNES build runs? The answer was **partly**: the mechanism exists and was
 demonstrated, but only for a class of calls, and the class excludes what the
-porting rules themselves ask ports to be. `--recomp only` stays the shipping
-path for the SNES backend. The prototype is kept, off by default:
+porting rules themselves ask ports to be. The decision it led to is at the end
+of this section: timing *differences* from the original are accepted, the
+readable code ships, and timing *errors* become a measured, gated quantity.
+What was kept is the measurement, off by default:
 
 | Path | What |
 |---|---|
-| `runtime/port/native.c` | Shadow's timing counters; `PORT_TIMING_ORACLE` and `PORT_TIMING_SELF` in `on` mode; `native_spend` |
-| `runtime/port/native.h` | `NativeEntry.exact_time` and `time_extra`, the counters, `native_set_port_timing`, `native_set_port_horizon`, `native_set_timing_report` |
-| `runtime/port/machine.h` | `m_spend` |
-| `runtime/snes/system.c` | `snes_interrupt_horizon`, `snes_span_bound` |
-| `dev/ct_dev.c` | `--include PREFIX`, `--port-timing estimate\|oracle\|self`, `--port-horizon strict\|interrupts`, `--timing-report` |
-| `game/registry.c`, `game/field/object_update.c` | 14 entries marked `exact_time`, three with per-path `m_spend` |
+| `runtime/port/native.c` | Shadow mode's timing counters for every hand-port entry; `PORT_TIMING_ORACLE` in `on` mode |
+| `runtime/port/native.h` | The counters (`NativeStats.t_*`), `native_set_port_timing`, `native_set_port_horizon`, `native_set_timing_report` |
+| `runtime/snes/system.c` | `snes_interrupt_horizon`, `snes_span_bound` (the oracle's interrupt horizon) |
+| `dev/ct_dev.c` | `--include PREFIX`, `--timing-report`, `--port-timing estimate\|oracle`, `--port-horizon strict\|interrupts` |
+
+`--timing-report` adds per hand-port entry, in shadow mode, over the stretches
+(calls, or parts of calls between call-outs) no interrupt fell in: how many,
+how many the `cost_milli` estimate got exactly right, its mean and largest
+absolute error in master clocks, the mean original time, the `cost_milli` the
+measured totals imply ("calibrated"), how many fit the two horizons below, and
+the distinct values of the time a port can't see. Shadow mode's original runs
+on the interpreter, so these are the same in every run whatever the estimates
+are: they are what the timing gate (PLAN.md) is built on. The self-timing
+prototype described below was removed from the tree when the decision was
+made; it is in the history of the `timing-spike` branch.
 
 **What exactness needs.** Three things, each checked:
 
@@ -758,20 +771,22 @@ need the block to run the whole call, reads and writes, to follow its path, so
 the port recomputes what the block already computed; the port would execute,
 but it would not be what decides anything. (a) is kept as an oracle, to test
 the rest. (b) *The port counts its own time*: the port adds the time it can't
-see with `m_spend` along its path; `time_extra` holds a constant part. That is
-the only design in which the port is what runs, and the one prototyped.
+see with `m_spend` along its path, and an entry's `time_extra` holds a
+constant part (both removed with the prototype). That is the only design in
+which the port is what runs, and the one prototyped.
 
 **Mechanism** (`on` mode, per hand-port call). The machine is copied
 (incrementally, as shadow mode does); the port runs on the machine and gives
-its time; if it did no time-dependent I/O (an I/O observer counts), didn't call
-out or sync, and its span fits the horizon, the step returns that time with the
-return's last cycle (an internal cycle for `RTS`, the last pull for `RTL`).
-Otherwise the machine is put back from the copy and the generated block at the
-same address runs, exact by M2. `PORT_TIMING_ORACLE` is the same with the time
-taken from the generated code, run on a second copy to where the port stopped,
-and the port's end state compared with it. Shadow mode checks a self-timed
-port's time against the original's on every stretch (`timing ...: time
-original N port M`, and `own time mismatched` with `--timing-report`).
+its time; if it did no time-dependent I/O (an I/O observer counted it), didn't
+call out or sync, and its span fits the horizon, the step returns that time
+with the return's last cycle (an internal cycle for `RTS`, the last pull for
+`RTL`). Otherwise the machine is put back from the copy and the generated
+block at the same address runs, exact by M2. In the self-timing prototype
+(`--port-timing self`, removed) the port gave its own time, and shadow mode
+checked it against the original's on every stretch. The oracle
+(`--port-timing oracle`, kept) takes the time from the generated code instead,
+run on a second copy to where the port stopped, and compares the port's end
+state with it.
 
 **Results.**
 
@@ -788,7 +803,8 @@ original N port M`, and `own time mismatched` with `--timing-report`).
   master-clock horizon and diverged in `new-game` at frame 2412, in menu text:
   the refresh and HDMA pauses inside a 25000-clock glyph call carried it past
   a frame boundary; `snes_span_bound` is that fix.
-- *Self-timed, 14 ports* (interrupt horizon, `--port-timing self`): 11 whose
+- *Self-timed, 14 ports* (interrupt horizon, `--port-timing self`; tried,
+  worked, not adopted): 11 whose
   hidden time was one constant in every movie (`time_extra`:
   `input_map_buttons`, `scene_multiply`, `field_copy_sprite_tile_flipped`,
   `scene_clear_sprite_table`, `menu_reset_sprite_nodes`,
@@ -803,8 +819,9 @@ original N port M`, and `own time mismatched` with `--timing-report`).
   constant over six movies and isn't: shadow's check flagged it in two menu
   movies (`time original 15860 port 16202`), and self mode diverged in exactly
   those two (frames 3623 and 3654); without it they are identical too (the
-  other 24 movies were run with it, where its time did match). `scene_clear_sprite_table` always falls back: its
-  time is exact, but it programs a DMA.
+  other 24 movies were run with it, where its time did match).
+  `scene_clear_sprite_table` always falls back: its time is exact, but it
+  programs a DMA.
 - *Cost.* `gato-battle` without a trace, CPU seconds: `--recomp only` 7.2, the
   14 self-timed ports 8.0, the oracle 31.0, estimated hand ports 5.3,
   interpreter 9.5. The prototype's copy per call is what costs; a write
@@ -839,18 +856,29 @@ blocks ship regardless. That line excludes, by construction:
 
 So readable code can run exactly where it is small, computational and short:
 counted by call, most of today's port calls are that; counted by where the
-game's time goes, and by the code Phase 3 will write, most are not. Running it
-buys nothing the generated blocks don't already give the SNES build, costs an
-annotation per path on every port, and still needs the blocks and a rollback.
-The decision is therefore the plan's second outcome: `--recomp only` is the
-shipping path for as long as the SNES backend is the one that matters, readable
-code is validated by shadow mode rather than by running, and ports are not
-asked to carry their time. What the spike leaves that is worth keeping for any
-future attempt: shadow mode can check a port's time exactly, per stretch, at
-no cost to ports that don't opt in; the interrupt horizon with a span bound is
-the right unit of atomicity; and the draft M5 prints could carry each basic
-block's hidden time, which is where per-path costs would have to come from if
-this is ever wanted.
+game's time goes, and by the code Phase 3 will write, most are not.
+
+**The decision** (the user's, [PLAN.md](PLAN.md) Phase 2). Exactness was the
+wrong requirement. A timing *difference* from the original -- a battle that
+plays out differently -- is acceptable; a timing *error* that shows, such as a
+video write landing outside vblank where the original's was inside it, is not.
+So:
+
+- The readable code ships: `--recomp on`, hand ports with generated code
+  wherever no port exists, becomes the player's default, but only once the
+  timing gate exists (PLAN.md).
+- `--recomp only` stays as the exact mode and the gate's reference; the movie
+  library stays the regression suite on it, since movies desync under
+  `--recomp on` and can't test it end to end.
+- Timing errors are measured and gated: each port's estimate error per call
+  from shadow mode's counters above, which don't drift; a threshold; the worst
+  offenders fixed case by case; `cost_milli` recalibrated from the measured
+  totals; and a check for video writes outside vblank.
+- Ports don't carry cycle costs. The self-timing prototype is not adopted,
+  for the reasons above: it exacts per-path numbers the rules tell a port to
+  leave behind, it excludes ports behind the platform services by design,
+  and every call outside its line still needs the generated block. Its oracle
+  and counters are kept as measurement.
 
 ## Closing the interpreted remainder (M3)
 
@@ -1277,8 +1305,10 @@ A port starts from the generated block instead of the listing:
 - **Timing.** In M1 interrupts and events landed late by up to a block in `on`
   mode, and I/O inside a block saw the time the block started. M2 made blocks
   exact; what still drifts in `on` mode is the hand ports' estimated time (see
-  "Hand ports in `on` mode"), and the timing spike found that only short,
-  computational calls could be made exact ("Can a hand port be exact?").
+  "Hand ports in `on` mode"). The timing spike found that only short,
+  computational calls could be made exact, and the decision is to ship hand
+  ports with estimates and gate the estimates' error ("Can a hand port be
+  exact?").
 - **Horizon completeness.** Exactness rests on the horizon listing everything
   the system does between steps that the CPU can see without I/O, and on I/O
   syncing. A new time-driven event in `system.c` (or a register whose value
