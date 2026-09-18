@@ -165,7 +165,8 @@ def _anim_table():
     put([0x42], "store_a", 0x59FA, 2)
     put([0x43], "load_place_offset", 0x5A0C, 4, places=(1,))
     put([0x44], "load_actor_xy", 0x5A3E, 1)
-    put([0x47, 0x48, 0x81, 0x82, 0x83, 0x84], "keep_place", 0x623C, 2, places=(1,))  # $A4E8 = byte + 1, read at $C1:4218
+    # $A4E8 = byte + 1, which $C1:4218 passes to the $79D3 dispatch less 1
+    put([0x47, 0x48, 0x81, 0x82, 0x83, 0x84], "keep_place", 0x623C, 2, places=(1,))
     put([0x49], "add_var_clamped", 0x5A70, 3)
     put([0x4A, 0x4D], "swap_a_b", 0x5A99, 1)
     put([0x4E], "swap_a_x", 0x5AAF, 1)
@@ -821,6 +822,84 @@ def encode_enemy(text: str, start: int) -> bytes:
         return bytes([code] + [_byte(t, where) for t in args])
 
     return _assemble(text, start, size, emit)
+
+
+# ---- derivations (tools/disasm/derive.py) -----------------------------------
+
+# The loads the parse's roots stand on: each loader's header table, the call
+# table and the enemy pointer table, as `LDA long,X` at these addresses.
+ROOT_LOADS = {
+    0xC1442C: 0xCD5EC6, 0xC14535: 0xCD5FF0, 0xC14617: 0xCD5EF0, 0xC146EF: 0xCD61F0, 0xC147CB: 0xCD63F0,
+    0xC156E7: CALLS,
+    0xC1AFD6: ENEMY_POINTERS, 0xC1B48C: ENEMY_POINTERS,
+}
+# Every store to a channel's script pointer ($5DBD-$5DBF + 4Y, Y 0-15) in the
+# code set, and why it starts no script the parse doesn't know.
+POINTER_STORES = {
+    **{pc: "a loader: a header's pointer, bank from the loader's immediate" for pc in (
+        0xC14471, 0xC14477, 0xC1457A, 0xC14580, 0xC1465C, 0xC14662, 0xC14734, 0xC1473A, 0xC14810, 0xC14816)},
+    **{pc: "the interpreter storing its own pointer back" for pc in (0xC14CE2, 0xC14CE7, 0xC14CEC)},
+    **{pc: "the menus' use of the same cells (bank $C2, the menu mode)" for pc in (0xC2A097, 0xC2B4C3, 0xC2B63C,
+                                                                                    0xC2BE9E)},
+}
+# The battle's opening effect ($C1:34A7, called at $C1:0031, and the routines
+# it calls up to $C1:3713) keeps counters and positions in the same cells
+# before any channel runs; it stores nothing to $5DAC-$5DBC.
+OPENING = range(0xC134A7, 0xC13714)
+
+
+def _check_roots(an, d):
+    from .cpu import Mode
+    for pc, table in ROOT_LOADS.items():
+        insn = next(iter(an.code.get(pc, {}).values()), None)
+        if insn is None or insn.name != "LDA" or insn.mode is not Mode.LONGX or insn.operand != table:
+            d.problems.append(f"{fmt(pc)}: expected LDA ${table:06X},X, the load the scripts' roots stand on")
+
+
+def derive_animation(an, fl):
+    """`places` ($C1:7633) and `directions` ($C1:75D1): the handlers the
+    operands of every parsed animation script select, index * 2 with an 8-bit
+    ASL as the code does (so an index past the table reads the words after it)."""
+    from .cpu import Mode
+    from .derive import Derivation
+    d = Derivation()
+    _check_roots(an, d)
+    cells = {0x5DBD + 4 * y + k for y in range(16) for k in range(3)}
+    writes = ("STA", "STX", "STY", "STZ", "INC", "DEC", "ASL", "LSR", "ROL", "ROR", "TSB", "TRB")
+    for pc, variants in an.code.items():
+        insn = next(iter(variants.values()))
+        if (insn.name in writes and insn.mode in (Mode.ABS, Mode.ABSX, Mode.ABSY)
+                and (insn.operand in cells or insn.operand + 1 in cells)
+                and pc not in POINTER_STORES and pc not in OPENING):
+            d.problems.append(f"{fmt(pc)}: a store to a script channel's pointer that isn't listed")
+    p = parse_animation(an.rom)
+    d.problems += p.problems
+    d.targets["places"] = place_targets(an.rom, p.places)
+    d.targets["directions"] = direction_targets(an.rom, p.directions)
+    used = sorted({op for op, _ in p.commands.values()})
+    past = sorted(i for i in p.places if i >= PLACES_COUNT) + sorted(i for i in p.directions if i >= DIRECTIONS_COUNT)
+    d.notes.append(f"{len(p.headers)} headers ({p.skipped} table entries empty or not a header), "
+                   f"{len(p.roots)} scripts, {len(p.commands)} commands; command bytes used {len(used)}; call "
+                   f"indices {len(p.calls)} of {CALL_COUNT}; places "
+                   f"{sum(1 for i in p.places if i < PLACES_COUNT)} of {PLACES_COUNT}, directions "
+                   f"{sorted(p.directions)}" + (f"; indices past their table {past}" if past else ""))
+    d.detail = p
+    return d
+
+
+def derive_enemy(an, fl):
+    """`conditions` ($C1:874E, $C1:8769, $C1:B006, $C1:B021): the handlers of
+    the condition bytes the evaluators dispatch reading every enemy's script."""
+    from .derive import Derivation
+    d = Derivation()
+    _check_roots(an, d)
+    p = parse_enemy(an.rom)
+    d.problems += p.problems
+    d.targets["conditions"] = condition_targets(an.rom, p.conditions)
+    d.notes.append(f"{len(p.sections)} sections; condition bytes {sorted(p.conditions)} "
+                   f"({len(p.conditions)} of {CONDITION_COUNT}); actions {sorted(p.actions)}; " + "; ".join(p.notes))
+    d.detail = p
+    return d
 
 
 # ---- the codec entry points (tools/disasm/dataformats.py, tools/matching) ----

@@ -1011,10 +1011,11 @@ ROM.
 
 | Path | What |
 |---|---|
-| `tools/disasm/battlescript.py` | both codecs: the animation command table read from its 115 handlers, the enemy condition and action tables, the parses from every root, the decoders and encoders |
+| `tools/disasm/battlescript.py` | both codecs: the animation command table read from its 115 handlers, the enemy condition and action tables, the parses from every root, the decoders and encoders, the derivers |
+| `tools/disasm/derive.py` | `battleanim` and `enemyai` registered as derivers |
 | `tools/disasm/dataformats.py` | `check_format` decodes and re-encodes a `script` region of either format, with the animation headers as context |
 | `tools/matching/emit.py` | the two formats written as `.txt` and encoded back, beside the text formats |
-| `tests/test_battlescript.py` | 17 tests on synthetic data: every animation command's length and round trip, `$80`'s count, headers, the call table, labels, bytes at a boundary the parse disagrees with, the call-return rule, every condition and action, a block that ends at `$FF`, a script that starts inside a section, the evaluators' reading of a script, the length table check, the `check_format` path |
+| `tests/test_battlescript.py` | 18 tests on synthetic data: every animation command's length and round trip, `$80`'s count, headers, the call table, labels, bytes at a boundary the parse disagrees with, the call-return rule, every condition and action, a block that ends at `$FF`, a script that starts inside a section, the evaluators' reading of a script, the length table check, the derivers' checks on the code they stand on, the `check_format` path |
 
 Nothing comes from outside documentation: every length is what a handler
 passes on, every root a table a loader reads. Neither format is compressed:
@@ -1116,6 +1117,27 @@ first four bytes are also that script's last two commands. The region writes
 the header, so the second of those is the one command start the parse reaches
 that the text doesn't show.
 
+**MD4's bounds.** The parses give the values the data feeds the dispatches
+that depend on it, so four sites went from "layout" to "derived" (C1: 17
+derived, 90 layout, before 11 and 96):
+
+| Site | Indexed by | Before | Derived |
+|---|---|---|---|
+| `$C1:7633`, table `$C1:79D3` (72) | the place operands of 18 commands, and `$A4E8` (`$C1:421E`), which commands `$47`/`$48`/`$81-$84` fill | layout | 67 of the 72 indices, and `$80`, which the 8-bit `ASL` before the `TAX` makes entry 0 |
+| `$C1:75D1`, table `$C1:79A1` (25) | command `$72`'s operand | layout | 13 indices, all four handlers, and `$1F`, which reads past the table: the word at `$C1:79DF`, entry 6 of `$79D3` (`$C1:7639`) |
+| `$C1:874E`, `8769`, `B006`, `B021`, table `$C1:B80D` (41) | the condition bytes, unchecked | layout | 26 bytes, none above `$26`: `$00-$05`, `$07-$09`, `$0B`, `$0C`, `$10-$13`, `$15`, `$17`, `$18`, `$1A`, `$1B`, `$1F`, `$20`, `$23-$26` |
+
+For the enemy scripts the derived set is the only bound there is: nothing in
+the code checks the byte, so what the data dispatches is read the way the
+evaluators read it, from each enemy's pointer and from its reaction section's
+start, stopping after an always-passing block. The derivers also check the
+loads the roots stand on (the five header table reads, `$C1:56E7`, `$C1:AFD6`,
+`$C1:B48C`) and that every store to a channel's pointer cells is a loader's,
+the interpreter's own, the menus' (bank C2) or the battle's opening effect's
+(`$C1:34A7-3713`, before any channel runs). Derived targets add to a table's,
+and every one is already a handler of its own table or the next, so the code
+set doesn't change.
+
 **Result.** 5 regions, 85590 bytes, are assembled from their decoded form,
 all round-tripping. `mixed` 319422 -> 233732 bytes (311.9 -> 228.3 KiB); the
 census's unknown count doesn't move (42590), since these bytes were typed
@@ -1123,7 +1145,7 @@ census's unknown count doesn't move (42590), since these bytes were typed
 tools.recomp` gives 12431 blocks, 148301 instructions, 127045 in the analysis
 and a code set of 127181 variants on `main` and on this work, without and with
 the coverage and call logs, and the 65 generated C files are byte-identical.
-`unittest` passes (206 tests); CRC32 `2D206BF7` and SHA-1 `de5822f4...`
+`unittest` passes (207 tests); CRC32 `2D206BF7` and SHA-1 `de5822f4...`
 match, all closure checks pass.
 
 **Left for the battle scripts:**
@@ -1209,10 +1231,11 @@ edges and removed. The other interpreters:
   into data-derived ones; not done.
 - **Battle animation scripts** (`$C1:4CD4`, table `$C1:7A6B`): the command byte
   is guarded (`$DB` and up branch away). The sub-dispatches on script operands
-  (`$C1:75D1`, `$C1:7633`) are bounded by layout; not parsed.
+  (`$C1:75D1`, `$C1:7633`) were bounded by layout; they are derived since
+  "The battle script formats" above.
 - **Enemy scripts** (`$C1:874E` and three more, table `$C1:B80D`): the
-  command byte from bank CC isn't checked; the 41-entry bound is layout. Not
-  parsed.
+  command byte from bank CC isn't checked; the 41-entry bound was layout, and
+  is derived since the same section.
 - **Text control codes** (`$C2:EFD0`): guarded by the only caller (`CMP #$10`).
 
 **C1, indirect transfers.** 147 sites (JMP/JSR `(abs,X)`, JMP `(abs)`, JML
@@ -1267,13 +1290,14 @@ doesn't find.
 
 **Left for MD4:**
 
-- 96 tables are bounded by layout only: the table ends where code or another
-  table begins, and nothing checks the index. The data that indexes some of
-  them isn't parsed yet: event scripts (the operand tables `$C0:6307`, `6398`,
-  `6433`, `633D`, `63D7`; all locations' scripts are compressed), enemy scripts
-  (`$C1:B80D`, 41 entries, and the action tables `$C1:B85F`, `B88D`, `B8BB`),
-  battle animation script operands (`$C1:75D1`, `$C1:7633`). The object
-  handlers' state tables are indexed by state bytes the handlers set.
+- 90 tables are bounded by layout only (96 before the battle script formats
+  derived six): the table ends where code or another table begins, and
+  nothing checks the index. The data that indexes some of them isn't parsed
+  yet: event scripts (the operand tables `$C0:6307`, `6398`, `6433`, `633D`,
+  `63D7`; all locations' scripts are compressed). The enemy scripts' action and
+  target tables (`$C1:B85F`, `B88D`, `B8BB`) are guarded by the sign only; the
+  parse knows the actions used but not every target operand's offset. The
+  object handlers' state tables are indexed by state bytes the handlers set.
 - `$C2:828E` (menu modes): modes 8-10 and 15 point at bytes that aren't handler
   tables; that no code sets them is assumed, not shown.
 - `$7E:3998` dispatches through `$0950,X` in the image while the lists it runs

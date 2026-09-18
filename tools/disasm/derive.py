@@ -453,7 +453,19 @@ def derive_winlist(an, fl) -> Derivation:
     return d
 
 
+def derive_battleanim(an, fl) -> Derivation:
+    from .battlescript import derive_animation
+    return derive_animation(an, fl)
+
+
+def derive_enemyai(an, fl) -> Derivation:
+    from .battlescript import derive_enemy
+    return derive_enemy(an, fl)
+
+
 DERIVERS = {
+    "battleanim": derive_battleanim,
+    "enemyai": derive_enemyai,
     "objscript": derive_objscript,
     "seqscript": derive_seqscript,
     "operands": derive_operands,

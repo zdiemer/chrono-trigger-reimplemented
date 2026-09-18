@@ -97,16 +97,20 @@ class AnimationCommands(unittest.TestCase):
                 B.encode_animation(text, 0xCE0000)
 
 
+def anim_rom(script: bytes, sub: bytes = bytes([0x1F]), header=(0x8000, 0x0000)) -> Rom:
+    """One header in $CD:5EC6's first entry naming `script`, and a call table
+    whose every entry is `sub`."""
+    return rom_with({
+        0xCD5EC6: words(0x0380) + b"\xFF" * 40,
+        0xCE0380: bytes([header[0] >> 8, header[0] & 0xFF, header[1] >> 8, header[1] & 0xFF]) + words(0x0390),
+        0xCE0390: script,
+        0xCE0000: words(*([0xD000] * B.CALL_COUNT)),
+        0xCED000: sub,
+    })
+
+
 class AnimationParse(unittest.TestCase):
-    def rom(self, script: bytes, sub: bytes = bytes([0x1F]), header=(0x8000, 0x0000)):
-        parts = {
-            0xCD5EC6: words(0x0380) + b"\xFF" * 40,
-            0xCE0380: bytes([header[0] >> 8, header[0] & 0xFF, header[1] >> 8, header[1] & 0xFF]) + words(0x0390),
-            0xCE0390: script,
-            0xCE0000: words(*([0xD000] * B.CALL_COUNT)),
-            0xCED000: sub,
-        }
-        return rom_with(parts)
+    rom = staticmethod(anim_rom)
 
     def test_roots_places_directions_and_calls(self):
         script = (bytes([0x12, 0x05, 0x72, 0x1F, 0x76, 0x03, 0x04, 0x1E, 0x02]) + bytes([0x47, 0x09])
@@ -202,6 +206,36 @@ class EnemyScripts(unittest.TestCase):
     def test_parse_checks_the_length_table(self):
         rom = rom_with({B.ACTION_LENGTHS: b"\x09" * B.ACTION_COUNT})
         self.assertTrue(B.parse_enemy(rom).problems)
+
+
+class Derivations(unittest.TestCase):
+    """The derivers' checks on the code they stand on, with a code set of
+    single instructions."""
+
+    def analyzer(self, rom, extra=()):
+        from types import SimpleNamespace
+        from tools.disasm.cpu import decode
+        code = {}
+        for pc, table in B.ROOT_LOADS.items():
+            raw = bytes([0xBF]) + table.to_bytes(3, "little")        # LDA long,X
+            code[pc] = {(True, False): decode(lambda a, n, r=raw, p=pc: r[a - p:a - p + n], pc, True, False)}
+        for pc, raw in extra:
+            code[pc] = {(True, False): decode(lambda a, n, r=raw, p=pc: r[a - p:a - p + n], pc, True, False)}
+        return SimpleNamespace(rom=rom, code=code)
+
+    def test_targets_and_checks(self):
+        script = bytes([0x12, 0x05, 0x72, 0x01, 0x00])
+        rom = anim_rom(script)
+        d = B.derive_animation(self.analyzer(rom), None)
+        self.assertEqual(d.problems, [])
+        self.assertEqual(d.targets["places"], {0xC10000 | rom.u16(B.PLACES + 10)})
+        self.assertEqual(d.targets["directions"], {0xC10000 | rom.u16(B.DIRECTIONS + 2)})
+        # a store to channel 2's pointer nothing lists
+        d = B.derive_animation(self.analyzer(rom, [(0xC1ABCD, bytes([0x8D, 0xC5, 0x5D]))]), None)
+        self.assertTrue(any("C1:ABCD" in p for p in d.problems))
+        an = self.analyzer(rom)
+        del an.code[0xC1AFD6]
+        self.assertTrue(any("C1:AFD6" in p for p in B.derive_enemy(an, None).problems))
 
 
 class CheckFormat(unittest.TestCase):
