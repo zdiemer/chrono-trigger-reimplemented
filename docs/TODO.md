@@ -41,17 +41,19 @@ rest waits, is [PLAN.md](PLAN.md).
 ## Matching disassembly
 
 - **MD2 leftovers** (MATCHING.md, "MD2 as built"): `$F6:24B1-7FFF` and other
-  gaps (42590 census-unknown bytes), plus 311.9 KiB still typed `mixed`.
+  gaps (42590 census-unknown bytes), plus 228.3 KiB still typed `mixed`.
   The D0 graphics pool, CF 2bpp graphics, E4 sprite records and E5 exit lists
   now have codecs; tile-descriptor ownership and the E4 battle-record count
   still need stronger bounds. The strings' leftovers (MATCHING.md, "The string
   encodings"): the dialog tables at `$FF:D3FE` and `$CC:3A09`, whose extents
   aren't settled, and the menu strings passed to `$C2:EF65` by address in code.
-  Not started: the battle-animation and enemy script formats as typed regions
-  with round trips, and re-encoding for `lz` (today's check is that the
-  decompressor consumes the bytes exactly; the event scripts, all `lz`
-  streams, round-trip on their decompressed output and would be assembled from
-  their decoded form with it: MATCHING.md, "The event scripts").
+  The battle scripts' leftovers (MATCHING.md, "The battle script formats"):
+  names for the commands, conditions and actions that keep their numbers, and
+  deriving the action and target tables (`$C1:B85F`, `B88D`, `B8BB`) from the
+  parse. Not started: re-encoding for `lz` (today's check is that the
+  decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
+  round-trip on their decompressed output and would be assembled from their
+  decoded form with it: MATCHING.md, "The event scripts").
 - **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 32 addresses
   the code touches without anything establishing what they mean (menu 13, field
   6, battle 5, event 4, scene 4, core 2), named as Phase 3 reaches each
@@ -186,11 +188,10 @@ waits on M5 rather than on a backend.
 - **DS and PlayStation content in the original.** The Dimensional Vortex, the
   Arena, the Lost Sanctum, the bestiary: this is content authoring, not a port,
   and it is the largest item in this file by a wide margin. What it needs, in
-  dependency order: the **battle-animation and enemy script formats as
-  typed regions with round trips** (see "Matching disassembly" above; the
-  strings and the event scripts already have one, MATCHING.md, "The string
-  encodings" and "The event scripts") -- a dungeon cannot be written until its scripts and text
-  can be written; the **asset pipeline** ("Assets as data files" above), because
+  dependency order: the scripts and text are typed with round trips now
+  (MATCHING.md, "The string encodings", "The event scripts" and "The battle
+  script formats"), so what a dungeon needs first is the **asset pipeline**
+  ("Assets as data files" above), because
   new maps, sprites and music have no ROM address to read from, which is exactly
   what Phase 3's named resource accessors are the seam for; and the field, event
   and scene subsystems ported far enough to extend (`$C0` is 84% generated and

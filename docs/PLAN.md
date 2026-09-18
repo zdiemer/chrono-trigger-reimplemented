@@ -88,20 +88,6 @@ belongs with the first group and is the only one that might be a bug.
 entries cover, per bank or per subsystem, which is how a conversion's progress
 is seen. It reads as an estimate for the reasons its own docstring gives.
 
-**Type the formats the code interprets.** MD2 has typed where the data is; what
-it hasn't done is the battle scripts the game *interprets*, and those are what
-the battle code is written around: the battle-animation and enemy script
-formats as typed regions with round trips (MATCHING.md, "MD2 as built"; TODO.md,
-"Matching disassembly"), each built the way MATCHING.md's "The string
-encodings" and "The event scripts" are: a codec in `tools/disasm/`, the regions
-typed in `re/hints.toml`, and the matching build assembling them from the
-decoded form. Porting a command handler is a different job when the command's
-operands have names and a parser says what follows it. The same work is the first dependency of script-as-text extraction
-and of new content (TODO.md, "Targets beyond the desktop SNES build"), so it is
-done once, here, before the conversion that leans on it. The round trip is the
-check: parse, re-encode, and the matching build still produces CRC32
-`2D206BF7`.
-
 **Then set the bar against the ports that exist.** The 291 entries were written
 over months and they are not one standard. The recent ones read as source: named
 constants, service calls, a comment saying what the data means. The early ones
@@ -124,7 +110,7 @@ bar, while its behaviour is already under the gate. A sweep across all of
 it already passes.
 
 **Done when** the timing spike has an answer and whichever work it implies is
-done, the script formats round-trip, and a subsystem's worth of routines has been converted
+done, and a subsystem's worth of routines has been converted
 through the workflow to the bar above.
 
 ## Phase 3: M5 in bulk
@@ -245,7 +231,7 @@ the decompilation, so they wait behind it.
   wasm build, an AYN Thor multi-screen port, DS and PlayStation content in the
   original game, native touch controls, and a SNES ROM compiled from the hand
   ports. They are wanted, and most of them are mostly blocked on work this plan
-  already has in order -- M5's coverage, the asset seam, MD2's script formats -- so
+  already has in order -- M5's coverage and the asset seam -- so
   scheduling them ahead of it would mean doing that work twice. The host seam
   wasn't deferred, because it was the same work as making the desktop build
   shippable: the player advances a frame per call and persists bytes under

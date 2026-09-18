@@ -145,14 +145,19 @@ def check_event(blob, region):
 
 def check_format(blob, region, context=None):
     """Validate explicitly supported formats; older format annotations stay as-is.
-    Text formats (tools/disasm/text.py) decode and re-encode; `context` carries
-    what they share, the decoded dialog dictionary. The event formats decode
-    and re-encode the commands, for an `lz` region its decompressed output."""
+    Text formats (tools/disasm/text.py), the event formats
+    (tools/disasm/eventscript.py) and the battle script formats
+    (tools/disasm/battlescript.py) decode and re-encode; `context` carries what
+    they share: the decoded dialog dictionary, the animation headers' places.
+    An event format's `lz` region decodes to its decompressed output."""
     form = region.params.get("format")
     if region.type == "text" and form is not None:
         from .text import decode, encode, region_params
         params = region_params(region)
         encoded = encode(form, decode(form, blob, params, context or {}), params, context or {})
+    elif region.type == "script" and form in ("battle-animation", "enemy-ai"):
+        from .battlescript import decode, encode
+        encoded = encode(form, decode(form, blob, region, context or {}), region)
     elif form == "location-exits":
         if region.start & 0xFFFF:
             raise ValueError("exit offset table must start at bank offset zero")

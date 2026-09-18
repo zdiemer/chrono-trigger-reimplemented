@@ -652,19 +652,27 @@ at = "C1:4CD4"
 bound = "guard"
 count = 219
 
-# C1:75D1, table C1:79A1: A is a script operand passed by the callers (C1:6001,
-# C1:6024, C1:6048); the table ends where the C1:79D3 table (C1:7633) begins.
+# C1:75D1, table C1:79A1: A is byte 1 of battle animation command $72 (C1:5FDE,
+# kept in $8E and passed at C1:6001, C1:6024, C1:6048); the table ends where the
+# C1:79D3 table (C1:7633) begins. Derived from every animation script the parse
+# reaches (tools/disasm/battlescript.py): 13 of the 25 indices, which name all
+# four of its handlers, and $1F, which reads past the table (index * 2 with an
+# 8-bit ASL): the word at C1:79DF, entry 6 of the C1:79D3 table, C1:7639.
 [[jumptable]]
 at = "C1:75D1"
-bound = "layout"
 count = 25
+derive = "battleanim.directions"
 
-# C1:7633, table C1:79D3: A is a script operand passed by the callers; the table
-# ends where the C1:7A63 table (C1:4328) begins.
+# C1:7633, table C1:79D3: A is a battle animation script operand (the "place"
+# operands of tools/disasm/battlescript.py's command table, passed at 18 sites),
+# or at C1:421E one a script left in $A4E8 (commands $47/$48/$81-$84, C1:6250);
+# the table ends where the C1:7A63 table (C1:4328) begins. Derived from every
+# animation script the parse reaches: 67 of the 72 indices, and $80, which the
+# 8-bit ASL makes entry 0.
 [[jumptable]]
 at = "C1:7633"
-bound = "layout"
 count = 72
+derive = "battleanim.places"
 
 # C1:8333, table C1:B92D: X counts from 0 and the loop ends at 13
 # (C1:833C-8340): 13 entries. The words after them aren't handler addresses
@@ -675,24 +683,27 @@ at = "C1:8333"
 bound = "guard"
 count = 13
 
-# C1:874E, C1:8769, C1:B006, C1:B021, table C1:B80D: Enemy script command byte
-# from bank CC; the table ends where the C1:B85F table (C1:8CE7) begins.
+# C1:874E, C1:8769, C1:B006, C1:B021, table C1:B80D: an enemy script's condition
+# byte from bank CC, which nothing checks; the table ends where the C1:B85F table
+# (C1:8CE7) begins. Derived: the condition bytes the four sites dispatch when
+# every enemy's script is read as the evaluators read it
+# (tools/disasm/battlescript.py), 26 of the 41, none above $26.
 [[jumptable]]
 at = "C1:874E"
-bound = "layout"
 count = 41
+derive = "enemyai.conditions"
 [[jumptable]]
 at = "C1:8769"
-bound = "layout"
 count = 41
+derive = "enemyai.conditions"
 [[jumptable]]
 at = "C1:B006"
-bound = "layout"
 count = 41
+derive = "enemyai.conditions"
 [[jumptable]]
 at = "C1:B021"
-bound = "layout"
 count = 41
+derive = "enemyai.conditions"
 
 # C1:8CE7, table C1:B85F: Negative command bytes branch away (C1:8CE3); the
 # table ends where the C1:B88D table (C1:8D88) begins.
@@ -3248,19 +3259,22 @@ type = "words"
 
 # CD:3F9E-FFFF (49250 bytes): data read through 72 long operands in C1, CD and
 # D1. Census: 33320 unknown, 6854 16-bit code-ptr tables, 3456 padding, 2878
-# 16-bit offset tables, 2322 BRR-like, 420 24-bit ptr tables.
+# 16-bit offset tables, 2322 BRR-like, 420 24-bit ptr tables. `fill` so the
+# battle animation scripts (below, "Battle script formats") carve it.
 [[data]]
 start = "CD:3F9E"
 end = "CD:FFFF"
 type = "mixed"
+fill = true
 
 # CE:0000-DFFF (57344 bytes): data read through long operands in C1 (e.g.
 # C1:4438). Census: 54560 unknown, 1654 16-bit offset tables, 1118 padding, 12
-# 24-bit ptr tables.
+# 24-bit ptr tables. `fill` so the battle animation scripts carve it.
 [[data]]
 start = "CE:0000"
 end = "CE:DFFF"
 type = "mixed"
+fill = true
 
 # CE:E08E-E18D: its address is loaded as an immediate at CE:E1B5.
 [[data]]
@@ -4192,3 +4206,59 @@ name = "sprite_resource_bases"
 start = "E4:FFEE"
 end = "E4:FFFF"
 type = "padding"
+
+# ==============================================================================
+# Battle script formats (tools/disasm/battlescript.py; docs/MATCHING.md, "The
+# battle script formats")
+# ==============================================================================
+# Each region decodes to its readable form and the matching build assembles it
+# back from that (format = the codec).
+
+# Battle animation scripts: the headers of the five loaders' tables and every
+# script they and the call table start, end to end. The first header is at
+# CD:6E0C; CD:EE23 is the table after the last script.
+[[data]]
+start = "CD:6E0C"
+end = "CD:EE22"
+type = "script"
+format = "battle-animation"
+name = "battle_animations_cd"
+
+# Command $1E's subroutine table (C1:56E7): 78 words, then $FFFF to the 128th,
+# the last an 8-bit index * 2 reaches.
+[[data]]
+start = "CE:0000"
+end = "CE:009B"
+type = "script"
+format = "battle-animation"
+name = "battle_animation_calls"
+
+[[data]]
+start = "CE:009C"
+end = "CE:00FF"
+type = "padding"
+
+[[data]]
+start = "CE:0380"
+end = "CE:886F"
+type = "script"
+format = "battle-animation"
+name = "battle_animations_ce"
+
+# The subroutines the call table names, end to end.
+[[data]]
+start = "CE:D428"
+end = "CE:DC19"
+type = "script"
+format = "battle-animation"
+name = "battle_animation_subroutines"
+
+# Enemy scripts: the pointer table (256 words, C1:AFD6, C1:B48C) and the
+# sections after it in storage order; CC:CBC9 is the table after them.
+[[data]]
+start = "CC:8B08"
+end = "CC:CBC8"
+type = "script"
+format = "enemy-ai"
+count = 256
+name = "enemy_scripts"

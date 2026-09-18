@@ -827,14 +827,15 @@ integration gate and was not rerun for this follow-up.
   `$E4:0000-1FFF`, `$E4:2A00-2FFF`, `$E4:CC57-EFFF`, bank D0 outside the
   graphics pool and known streams, `$CB:F164-FFFF`, `$EF:B168-BFFF`,
   `$F5:EE02-FFFF`, and smaller pieces. Do not infer types from the CRC alone.
-- 311.9 KiB is still typed `mixed` (C0, C1, C3, C6, C7, CC-CE, D1, FD, FF;
-  322.5 KiB before the string work below): the streams, strings and sound
-  blocks split those regions where they fall,
+- 228.3 KiB is still typed `mixed` (C0, C1, C3, C6, C7, CC-CE, D1, FD, FF;
+  322.5 KiB before the string work and 311.9 before the battle scripts below):
+  the streams, strings, sound blocks and scripts split those regions where they
+  fall,
   but what is left has a reader and a census composition, not a parser.
 - The scripts MD4 parses (object, sequence, window command lists) are still not
-  `[[data]]` regions with a round trip, and the battle animation and enemy
-  script formats aren't parsed at all (the event scripts are: "The event
-  scripts", below).
+  `[[data]]` regions with a round trip; the event, battle animation and enemy
+  script formats are ("The event scripts" and "The battle script formats",
+  below).
 - The 66 skipped stream-table entries and the 18 stream candidates no table
   names are unexplained.
 - Nothing recompresses, so an `lz` region's round trip is "the decompressor
@@ -1138,8 +1139,8 @@ dispatches on script operands, which MD4 left bounded by layout:
 
 The deriver reads the scripts the location records name and the built-in
 commands; a location naming an entry that isn't a stream, beyond the eight
-above, would be a problem. C1 now has 17 derived sites and 90 bounded by
-layout (11 and 96 before). The table entries no script uses (the 8-bit
+above, would be a problem. C1 then had 17 derived sites and 90 bounded by
+layout (11 and 96 before; the battle script formats took it to 23 and 84). The table entries no script uses (the 8-bit
 table's `or`, the 16-bit table's last three, `$FF`'s `$A0-$A3`) stay in the
 code set, which is unchanged.
 
@@ -1160,6 +1161,166 @@ logs. The analysis takes about 1.5 s longer (one parse per ROM).
 - The dispatch on the command byte (`$C0:5910` and its copies) keeps its guard
   bound (the byte is masked to 0-255): four commands are never used, but
   nothing would be gained by dropping them.
+
+### MD2 as built: the battle script formats
+
+Same commands. The battle's two script formats are decoded and assembled back
+from the decoded form the way the strings are: the matching build writes each
+region decoded and fails unless the bytes its text encodes to reassemble the
+ROM.
+
+| Path | What |
+|---|---|
+| `tools/disasm/battlescript.py` | both codecs: the animation command table read from its 115 handlers, the enemy condition and action tables, the parses from every root, the decoders and encoders, the derivers |
+| `tools/disasm/derive.py` | `battleanim` and `enemyai` registered as derivers |
+| `tools/disasm/dataformats.py` | `check_format` decodes and re-encodes a `script` region of either format, with the animation headers as context |
+| `tools/matching/emit.py` | the two formats written as `.txt` and encoded back, beside the text formats |
+| `tests/test_battlescript.py` | 18 tests on synthetic data: every animation command's length and round trip, `$80`'s count, headers, the call table, labels, bytes at a boundary the parse disagrees with, the call-return rule, every condition and action, a block that ends at `$FF`, a script that starts inside a section, the evaluators' reading of a script, the length table check, the derivers' checks on the code they stand on, the `check_format` path |
+
+Nothing comes from outside documentation: every length is what a handler
+passes on, every root a table a loader reads. Neither format is compressed:
+the scripts sit in banks CC, CD and CE as the interpreters read them, so the
+round trip is the whole check and `lz` re-encoding doesn't come into it.
+
+**Animation scripts.** `$C1:4BBE` runs up to sixteen channels a frame
+(`game/battle/scripts.c`); channel Y's 24-bit script pointer is
+`$5DBD + 4Y`. `$C1:4C9E` fetches a command byte, stops for the frame on `$DB`
+and up without moving (`$C1:4CC9`), and calls the handler from the word table
+`$C1:7A6B` (`JSR ($7A6B,X)` at `$C1:4CD4`). A handler moves the pointer on by
+the A it passes to `$C1:75BB`, or not at all to run again next frame, so a
+command's length is what its handler passes on every path; the waiting
+handlers keep it in `$8E` and pass it when their wait is over, and `$80` passes
+its first operand's low nibble plus one. 149 of the 219 table entries have
+handlers of their own (`$50-$55` is `game/battle/numbers.c`); the other 70
+share `$C1:4CF7`, which leaves the channel on the command for good (counting
+`$9876` up each frame). `$DA` reads a byte after it but passes 1, so that
+byte is also the next command.
+
+Five loaders start channels (`$C1:4401`, `$C1:450A`, `$C1:45EC`, `$C1:46C6`,
+`$C1:47A4`), each through a table of header offsets in bank CD (`$CD:5EC6`,
+21 words; `$CD:5EF0`, 128; `$CD:5FF0`, 256; `$CD:61F0`, 256; `$CD:63F0`, 96,
+counts to the next table) whose headers and scripts are in bank CE, CE, CD,
+CD and CE. A header is two channel masks, big-endian (bit 15 is channel 0),
+then a pointer in its bank for each set bit of the first mask and then of the
+second: with `$A0B3` (bit 6 of `$AE94`, `$C1:4099`) clear the first mask's
+channels start and the second's pointers are never read; set, the first's
+are skipped. Command `$1E` calls through the word table at `$CE:0000` (bank CE
+whichever bank the caller is in; 78 words, then `$FFFF` to the 128th an 8-bit
+index reaches), keeping the return at `$A569 + 4Y`; `$1F` returns and `$21`
+returns when `$5D9F` is zero. `$00` stops the channel, and `$25` does when
+`$A018 +` its operand is negative.
+
+The parse starts from every header of the five tables and every entry of the
+call table. 239 table entries give no header: 162 are `$FFFF`, and the unused
+ids at the end of `$CD:5FF0` (15) and `$CD:61F0` (62) repeat a word that points
+into script bytes and the table after the scripts; the parser names both. A
+call continues after itself only when its subroutine can return, which the
+parse settles by iterating over the subroutines (all 78 can). It reaches 464
+headers, 2434 scripts and 32047 commands; 127 command bytes are used, `$01`
+the only one of `$4CF7`'s, and nothing at `$DB` or above.
+
+**Enemy scripts.** `$CC:8B08` holds a word per enemy id (`$C1:AFD6`,
+`$C1:B48C`), and the scripts follow the table in bank CC. A script is two
+sections, each ending with `$FF`: the attack section, which `$C1:8C09`
+evaluates on each enemy's turn, and the reaction section, which `$C1:B488`
+finds by scanning for the first `$FF` and `$C1:8461` evaluates when the party
+acts (`game/battle/main_loop.c`). A section is blocks: conditions of four
+bytes, the first dispatched through `$C1:B80D` (`$C1:B006`, `$C1:874E`), `$FE`,
+then actions, `$FE`. The evaluators read the first condition and, unless byte
+4 is `$FE`, the second (`$C1:B021`, `$C1:8769`); a failing block is skipped by
+scanning for `$FE` twice (`$C1:B054`, `$C1:B066`), and a block whose only
+condition is `$00` always passes (`$C1:8EA7` sets no failure in `$AF24`). An
+action is a byte below `$80` (`$C1:8CE3` stops at any other), dispatched
+through `$C1:B85F` when chosen and `$C1:B88D` when run; its length is the
+byte at `$FD:BA4A` plus the action (`$C1:8E68`), 23 entries. `$04` is `$FF`
+there but one byte in the data: `$C1:98C5` steps over it to one of the four
+actions after it at random. `$03` (0) and `$05` (`$FF`) have no encoding;
+nothing uses them. Byte 1 of 14 conditions and byte 2 of 7 is a target
+selector, dispatched through `$C1:B8BB` from `$C1:AC14`.
+
+The sections run end to end from the pointer table to `$CC:CBC9`, where
+another table begins: 514 of them, the grammar accepting every byte. One
+block's actions end at the `$FF` closing its section instead of their own
+`$FE`, which the dispatcher allows. One enemy's script starts at a block in
+the middle of another's section, so it shares that section's tail. The four
+sections before the first pointer's target are no enemy's.
+
+**Readable form.** One line per header (`header $8000 $0000 L_CD6E14`), call
+table row (`calls`), command (`name $op ...`), condition (`if_name $a $b $c`)
+or action (`name $op ...`); `then` and `end` are the `$FE` after a block's
+conditions and after its actions, `done` the `$FF` after a section, and
+`scripts` the enemy pointer table. A pointer that lands in the region is a
+label named by its address, which the encoder checks; one outside is a word.
+Names say what the handler does where that was read (`move_place`,
+`wait_var`, `call`, `if_hp_half`, `attack`); the rest keep their number
+(`cmd_6C`, `if_0A`, `act_07`), and an opcode sharing another's handler takes
+the name with its own number (`halt_4B`). Animation bytes the parse doesn't
+reach decode as commands too, when they fit before the next header or command
+the parse starts; bytes that don't are `db`. Files go to the build tree only.
+
+**The regions.**
+
+| Format | Region | Bytes |
+|---|---|--:|
+| `battle-animation` | `$CD:6E0C-EE22`: the headers and scripts of `$CD:5FF0` and `$CD:61F0` | 32791 |
+| `battle-animation` | `$CE:0000-009B`: the call table | 156 |
+| `battle-animation` | `$CE:0380-886F`: the headers and scripts of the other three | 34032 |
+| `battle-animation` | `$CE:D428-DC19`: the subroutines the call table names | 2034 |
+| `enemy-ai` | `$CC:8B08-CBC8`: the pointer table and the sections | 16577 |
+
+`$CE:009C-00FF` is padding. The CD and CE `mixed` regions became `fill = true`
+so these carve them. 32602 animation commands are decoded, 555 of them in
+bytes no root reaches (script tails after a stop), and none of the five
+regions has a `db` line. In one place the parse and the layout overlap: a
+script whose last call returns runs on into the header stored after it, whose
+first four bytes are also that script's last two commands. The region writes
+the header, so the second of those is the one command start the parse reaches
+that the text doesn't show.
+
+**MD4's bounds.** The parses give the values the data feeds the dispatches
+that depend on it, so four sites went from "layout" to "derived" (C1: 23
+derived, 84 layout, after the event scripts' 17 and 90):
+
+| Site | Indexed by | Before | Derived |
+|---|---|---|---|
+| `$C1:7633`, table `$C1:79D3` (72) | the place operands of 18 commands, and `$A4E8` (`$C1:421E`), which commands `$47`/`$48`/`$81-$84` fill | layout | 67 of the 72 indices, and `$80`, which the 8-bit `ASL` before the `TAX` makes entry 0 |
+| `$C1:75D1`, table `$C1:79A1` (25) | command `$72`'s operand | layout | 13 indices, all four handlers, and `$1F`, which reads past the table: the word at `$C1:79DF`, entry 6 of `$79D3` (`$C1:7639`) |
+| `$C1:874E`, `8769`, `B006`, `B021`, table `$C1:B80D` (41) | the condition bytes, unchecked | layout | 26 bytes, none above `$26`: `$00-$05`, `$07-$09`, `$0B`, `$0C`, `$10-$13`, `$15`, `$17`, `$18`, `$1A`, `$1B`, `$1F`, `$20`, `$23-$26` |
+
+For the enemy scripts the derived set is the only bound there is: nothing in
+the code checks the byte, so what the data dispatches is read the way the
+evaluators read it, from each enemy's pointer and from its reaction section's
+start, stopping after an always-passing block. The derivers also check the
+loads the roots stand on (the five header table reads, `$C1:56E7`, `$C1:AFD6`,
+`$C1:B48C`) and that every store to a channel's pointer cells is a loader's,
+the interpreter's own, the menus' (bank C2) or the battle's opening effect's
+(`$C1:34A7-3713`, before any channel runs). Derived targets add to a table's,
+and every one is already a handler of its own table or the next, so the code
+set doesn't change.
+
+**Result.** 5 regions, 85590 bytes, are assembled from their decoded form,
+all round-tripping. `mixed` 319422 -> 233732 bytes (311.9 -> 228.3 KiB); the
+census's unknown count doesn't move (42590), since these bytes were typed
+`mixed` already. The generator's input is unchanged: `python3 -m
+tools.recomp` gives 12431 blocks, 148301 instructions, 127045 in the analysis
+and a code set of 127181 variants on `main` and on this work, without and with
+the coverage and call logs, and the 65 generated C files are byte-identical.
+`unittest` passes (207 tests); CRC32 `2D206BF7` and SHA-1 `de5822f4...`
+match, all closure checks pass.
+
+**Left for the battle scripts:**
+
+- Names: 56 animation handlers, 32 conditions and 12 actions keep their
+  numbers; what they do is in their handlers, not read closely enough yet to
+  name.
+- `$C1:B8BB` (57 target selectors, dispatched from condition and action
+  operands through `$C1:AC14`/`$C1:AC2C`) and the action tables `$C1:B85F` and
+  `$C1:B88D` (23, guarded by the sign only) could be derived from the parse
+  too: the actions used are known, the offset of each target operand isn't
+  pinned down for every condition and action.
+- `$C1:7A6B`'s bound stays the guard (219); the data uses 127 bytes of it.
+- Whether `$A0B3` is ever set for a header whose second mask is empty isn't
+  shown; the parse follows both masks' pointers either way.
 
 ### Shift test
 
@@ -1231,10 +1392,11 @@ edges and removed. The other interpreters:
   scripts").
 - **Battle animation scripts** (`$C1:4CD4`, table `$C1:7A6B`): the command byte
   is guarded (`$DB` and up branch away). The sub-dispatches on script operands
-  (`$C1:75D1`, `$C1:7633`) are bounded by layout; not parsed.
+  (`$C1:75D1`, `$C1:7633`) were bounded by layout; they are derived since
+  "The battle script formats" above.
 - **Enemy scripts** (`$C1:874E` and three more, table `$C1:B80D`): the
-  command byte from bank CC isn't checked; the 41-entry bound is layout. Not
-  parsed.
+  command byte from bank CC isn't checked; the 41-entry bound was layout, and
+  is derived since the same section.
 - **Text control codes** (`$C2:EFD0`): guarded by the only caller (`CMP #$10`).
 
 **C1, indirect transfers.** 147 sites (JMP/JSR `(abs,X)`, JMP `(abs)`, JML
@@ -1289,13 +1451,13 @@ doesn't find.
 
 **Left for MD4:**
 
-- 90 tables are bounded by layout only (96 at MD4; the event scripts derived
-  six, MD2 "The event scripts"): the table ends where code or another table
-  begins, and nothing checks the index. The data that indexes some of them
-  isn't parsed yet: enemy scripts
-  (`$C1:B80D`, 41 entries, and the action tables `$C1:B85F`, `B88D`, `B8BB`),
-  battle animation script operands (`$C1:75D1`, `$C1:7633`). The object
-  handlers' state tables are indexed by state bytes the handlers set.
+- 84 tables are bounded by layout only (96 at MD4; the event scripts and the
+  battle script formats derived six each, MD2 "The event scripts" and "The
+  battle script formats"): the table ends where code or another table begins,
+  and nothing checks the index. The enemy scripts' action and target tables
+  (`$C1:B85F`, `B88D`, `B8BB`) are guarded by the sign only; the parse knows the
+  actions used but not every target operand's offset. The object handlers'
+  state tables are indexed by state bytes the handlers set.
 - `$C2:828E` (menu modes): modes 8-10 and 15 point at bytes that aren't handler
   tables; that no code sets them is assumed, not shown.
 - `$7E:3998` dispatches through `$0950,X` in the image while the lists it runs
