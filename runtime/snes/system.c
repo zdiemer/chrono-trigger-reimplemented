@@ -69,9 +69,9 @@ void snes_init(Snes *s, const uint8_t *rom, size_t rom_size)
     cpu_init(&s->cpu, (CpuBus){ &s->bus, snes_bus_read, snes_bus_write });
 }
 
-void snes_clone(Snes *dst, const Snes *src)
+/* snes_clone's fixups: internal references point at dst, and hooks aren't copied. */
+static void clone_pointers(Snes *dst)
 {
-    memcpy(dst, src, sizeof *dst);
     dst->bus.io.ctx = dst;
     dst->cpu.bus.ctx = &dst->bus;
     dst->apu.spc.bus.ctx = &dst->apu;
@@ -82,6 +82,48 @@ void snes_clone(Snes *dst, const Snes *src)
     dst->on_frame_top = NULL;
     dst->intercept = NULL;
     dst->on_miss = NULL;
+}
+
+void snes_clone(Snes *dst, const Snes *src)
+{
+    memcpy(dst, src, sizeof *dst);
+    clone_pointers(dst);
+}
+
+/* Pages of `mem` (count of them) that either machine wrote since `since`, copied from src. */
+static void copy_written_pages(uint8_t *dst_mem, const uint8_t *src_mem, size_t size, const uint64_t *dst_epoch,
+                               const uint64_t *src_epoch, size_t count, uint64_t since)
+{
+    size_t page = size / count;
+    for (size_t i = 0; i < count; i++)
+        if (src_epoch[i] >= since || dst_epoch[i] >= since)
+            memcpy(dst_mem + i * page, src_mem + i * page, page);
+}
+
+uint64_t snes_clone_since(Snes *dst, Snes *src, uint64_t since)
+{
+    if (since) {
+        copy_written_pages(dst->bus.wram, src->bus.wram, sizeof src->bus.wram, dst->bus.wram_page_epoch,
+                           src->bus.wram_page_epoch, SNES_WRAM_PAGES, since);
+        copy_written_pages(dst->ppu.vram, src->ppu.vram, sizeof src->ppu.vram, dst->ppu.vram_page_epoch,
+                           src->ppu.vram_page_epoch,
+                           sizeof src->ppu.vram_page_epoch / sizeof src->ppu.vram_page_epoch[0], since);
+    }
+    uint64_t epoch = ++src->bus.write_epoch;
+    src->ppu.write_epoch = epoch;
+    if (!since) {
+        snes_clone(dst, src);
+        return epoch;
+    }
+    /* Work RAM and VRAM now match; copy everything around them. */
+    _Static_assert(offsetof(Snes, bus) < offsetof(Snes, ppu), "work RAM lies before VRAM");
+    size_t w0 = offsetof(Snes, bus) + offsetof(SnesBus, wram), w1 = w0 + sizeof src->bus.wram;
+    size_t v0 = offsetof(Snes, ppu) + offsetof(Ppu, vram), v1 = v0 + sizeof src->ppu.vram;
+    memcpy(dst, src, w0);
+    memcpy((uint8_t *)dst + w1, (const uint8_t *)src + w1, v0 - w1);
+    memcpy((uint8_t *)dst + v1, (const uint8_t *)src + v1, sizeof *dst - v1);
+    clone_pointers(dst);
+    return epoch;
 }
 
 void snes_power_on(Snes *s)

@@ -189,6 +189,17 @@ Gaps:
   first sprite; unverified against hardware.
 - The ignored 16x16 tile-size bits of `$2105` have no effect, as on hardware.
 
+`ct_dev` draws only when something reads the pixels: `--trace` (the hash),
+`--shot-every` or `--px-check`. Otherwise each line runs `render_line_flags`,
+which does the one thing drawing changes in the machine: the sprite range-over
+and time-over flags `$213E` returns, from the same sprite evaluation.
+`--native off` traces of `gato-battle` and `saves/battle-magus`, battles full of
+sprites, are identical in every region whether lines are drawn, only flagged,
+or not rendered at all, so nothing there acts on the flags; but a reader
+elsewhere would see flags that are never set, so they are kept. Over the whole
+suite, the shadow reports, coverage and call files of runs without drawing are
+byte-identical to those of runs with it.
+
 ### Speed
 
 The renderer's output is defined by the plain per-pixel algorithm: for each

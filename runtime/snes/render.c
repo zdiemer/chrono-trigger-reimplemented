@@ -713,19 +713,17 @@ static void sprite_cache_update(Renderer *r, const Ppu *p)
     }
 }
 
-/* Sprites on this line; sprite_cache_update must be current. */
-static void draw_obj(Renderer *r, LayerBuf *lb, LineCtx *c)
+/* The sprites the PPU draws on a line, in OAM order from the first sprite
+ * (list), and how many of them keep their tiles (the return value); sets the
+ * PPU's range-over and time-over flags. sprite_cache_update must be current. */
+static int sprites_on_line(const Renderer *r, Ppu *p, int line, int list[32])
 {
-    Ppu *p = c->p;
-    uint8_t obsel = p->reg[0x01];
-    uint32_t base = (uint32_t)(obsel & 3) << 14;
-    uint32_t name_select = (uint32_t)((obsel >> 3) & 3) << 13;
-    int row = c->line - 1;
+    int row = line - 1;
     int first = ppu_first_sprite(p);
     const uint64_t *bits = r->sprites.rows[row & 0xFF];
 
     /* In range: up to 32 sprites in OAM order from the first sprite; a 33rd sets range over. */
-    int list[32], count = 0;
+    int count = 0;
     for (int seg = 0; seg < 2; seg++) {
         int lo = seg == 0 ? first : 0, hi = seg == 0 ? 128 : first;
         for (int wi = 0; wi < 2; wi++) {
@@ -762,6 +760,19 @@ listed:;
             }
         }
     }
+    return keep;
+}
+
+/* Sprites on this line; sprite_cache_update must be current. */
+static void draw_obj(Renderer *r, LayerBuf *lb, LineCtx *c)
+{
+    Ppu *p = c->p;
+    uint8_t obsel = p->reg[0x01];
+    uint32_t base = (uint32_t)(obsel & 3) << 14;
+    uint32_t name_select = (uint32_t)((obsel >> 3) & 3) << 13;
+    int row = c->line - 1;
+    int list[32];
+    int keep = sprites_on_line(r, p, c->line, list);
 
     memset(lb->z, 0, sizeof lb->z);
     const uint8_t *depth = c->depth[L_OBJ];
@@ -1112,4 +1123,20 @@ void render_line(Renderer *r, Ppu *p, int line)
     cache->time_over = p->time_over;
     p->range_over |= range_over;
     p->time_over |= time_over;
+}
+
+void render_line_flags(Renderer *r, Ppu *p, int line)
+{
+    if (line < 0 || line > RENDER_HEIGHT)
+        return;
+    if (line == 0) {
+        p->range_over = p->time_over = false;
+        return;
+    }
+    r->lines[line].valid = false;   /* the framebuffer row isn't this line any more */
+    if (ppu_force_blank(p) || !((p->reg[0x2C] | p->reg[0x2D]) & 0x10))
+        return;
+    sprite_cache_update(r, p);
+    int list[32];
+    sprites_on_line(r, p, line, list);
 }

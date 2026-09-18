@@ -130,6 +130,62 @@ rather than returning, and states a port doesn't handle yet.
 Save states can't capture a routine suspended in a call-out; `ct_dev` warns
 when `--save-state` is used while one is.
 
+### What shadow mode costs
+
+Every entry to a ported routine, and every return from one of its call-outs,
+brings a copy of the machine up to date and later compares it with the
+original, so a movie makes millions of them (`gato-battle` 1.1 million in its
+first 10000 frames). Copying the whole 289 KB machine and comparing 200 KB of
+memory byte by byte each time was most of a shadow run: a sampling profile of
+that stretch put 74% of the time in the comparison, 8% in the copy and 2% in
+the renderer. What it does now:
+
+- **Copies are kept.** `native.c` keeps one machine copy per nesting level and
+  refreshes it with `snes_clone_since` rather than allocating a new one per
+  call.
+- **Only written pages move.** The bus and the PPU stamp each 256-byte page of
+  work RAM and VRAM with the machine's write epoch when they write it
+  (`SNES_TRACK_PAGE_BITS`, `bus.h`). A refresh copies the pages either machine
+  wrote since the copy's last refresh, and everything outside those two
+  memories (90 KB, most of it sound RAM); the comparison looks at the same
+  pages, and all of SRAM, CGRAM and OAM. Nothing else writes those memories
+  while a movie runs. A change made outside the bus and the PPU (a state load, a
+  poke) needs a new native runtime, which `ct_play` already makes on every load
+  and `ct_dev` only loads before creating one; `native_compare`, which
+  `ct_fuzz` uses on machines it fills directly, still compares everything.
+- **`memcmp` before the byte loop,** which now only runs to describe a
+  difference.
+- **No drawing in the suite's runs.** `ct_dev` draws only when something reads
+  the pixels (RUNTIME.md, Renderer).
+
+Checked: a build that also made the full copy and the full comparison at every
+refresh and compare, and stopped on any difference, ran the whole suite (113
+million refreshes and as many comparisons) without one. The suite's 26 shadow
+reports, coverage files and call files are byte-identical before and after, as
+are `new-game`'s `--native off` and `--recomp only` traces, framebuffer hashes
+included.
+
+CPU time of single shadow runs with the suite's options, the old and new
+builds running side by side:
+
+| Movie | Frames | Before | After |
+|---|---|---|---|
+| `gato-battle` | 21600 | 222 s | 30 s |
+| `saves/battle-magus` | 18000 | 176 s | 29 s |
+| `saves/late-omen-zeal` | 36922 | 351 s | 47 s |
+| `saves/endings-bucket-lavos` | 196000 | 1742 s | 285 s |
+
+Per frame the endings cost what the other movies do (1.3-1.6 ms now, 9-10 ms
+before); they take longest because they are longest, the three together
+434000 of the library's 763000 frames, and most of that the fights and credits
+they exist to cover. The whole suite at `-j 2` went from 84 minutes to 9-11,
+on a machine other work was also using (the old build's run shared it with
+more). `suite.py` now starts the longest movies first, so a long one started
+late doesn't run on alone at the end. What remains is the shadow machinery
+itself: recording every bus access and replaying the generated blocks against
+it, the interception at every instruction, and the copying and comparison per
+call, besides running the machine.
+
 ## Writing a port
 
 1. Refresh the analysis with runtime call edges, so liveness knows every caller:

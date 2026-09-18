@@ -113,6 +113,15 @@ void snes_power_on(Snes *snes);
  * carried over. */
 void snes_clone(Snes *dst, const Snes *src);
 
+/* snes_clone for a copy that is kept and refreshed (shadow mode's): dst was
+ * made from src by snes_clone_since, which returned `since`, and since then
+ * work RAM and VRAM changed on either machine only through their writes (see
+ * SNES_TRACK_PAGE_BITS). Only the pages written since are copied. `since` 0
+ * copies everything. Starts a new write epoch on src, and returns it: the
+ * `since` for the next refresh, and the epoch writes to either machine are
+ * stamped with from now on. */
+uint64_t snes_clone_since(Snes *dst, Snes *src, uint64_t since);
+
 /* Save states (state.c; docs/RUNTIME.md, "Save states"): the machine written
  * field by field under names, so a state loads in any later build. A field
  * the state lacks keeps its power-on value and one this build lacks is
