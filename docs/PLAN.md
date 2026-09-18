@@ -160,13 +160,15 @@ service origins, where the address is the routine's identity and the
 the asset work in TODO.md covers.
 
 **Type the formats the code interprets.** MD2 has typed where the data is; what
-it hasn't done is the formats the game *interprets*, and those are what the big
-subsystems are written around: the string encoding, and the event,
-battle-animation and enemy script formats as typed regions with round trips
-(MATCHING.md, "MD2 as built"; TODO.md, "Matching disassembly"). `$C0` is 84%
-generated and much of it is the event interpreter; porting a command handler is
-a different job when the command's operands have names and a parser says what
-follows it. The same work is the first dependency of script-as-text extraction
+it hasn't done is the scripts the game *interprets*, and those are what the big
+subsystems are written around: the event, battle-animation and enemy script
+formats as typed regions with round trips (MATCHING.md, "MD2 as built"; TODO.md,
+"Matching disassembly"), each built the way MATCHING.md's "The string
+encodings" is: a codec in `tools/disasm/`, the regions typed in
+`re/hints.toml`, and the matching build assembling them from the decoded form.
+`$C0` is 84% generated and much of it is the event interpreter; porting a
+command handler is a different job when the command's operands have names and a
+parser says what follows it. The same work is the first dependency of script-as-text extraction
 and of new content (TODO.md, "Targets beyond the desktop SNES build"), so it is
 done once, here, before the conversion that leans on it. The round trip is the
 check: parse, re-encode, and the matching build still produces CRC32
@@ -193,7 +195,7 @@ bar, while its behaviour is already under the gate. A sweep across all of
 it already passes.
 
 **Done when** the timing spike has an answer and whichever work it implies is
-done, the RAM map exists, the string and script formats round-trip, and a subsystem's worth of routines has been converted
+done, the RAM map exists, the script formats round-trip, and a subsystem's worth of routines has been converted
 through the workflow to the bar above.
 
 ## Phase 3: M5 in bulk
@@ -263,7 +265,7 @@ the decompilation, so they wait behind it.
   native mixer behind `au_*`, controllers.
 - **Assets as data rather than ROM reads** (TODO.md, "Platform"). The pipeline
   half belongs here: a layout meant to be read rather than reassembled, the
-  script as text once MD2 has the string encoding, and a runtime that can load
+  script as text once MD2 has the event script format, and a runtime that can load
   from a user data directory instead of the ROM image. A GBA build is what
   forces it, since it can't map a 4 MiB SNES image the way the recompilation
   does; the seam it needs is laid in Phase 3 (below).
@@ -302,7 +304,7 @@ the decompilation, so they wait behind it.
   wasm build, an AYN Thor multi-screen port, DS and PlayStation content in the
   original game, and native touch controls. They are wanted, and three of the
   four are mostly blocked on work this plan already has in order -- M5's
-  coverage, the RAM map, the asset seam, MD2's string and script formats -- so
+  coverage, the RAM map, the asset seam, MD2's script formats -- so
   scheduling them ahead of it would mean doing that work twice. Phase 1's host
   seam is the part that isn't deferred, because it is the same work as making
   the desktop build shippable.

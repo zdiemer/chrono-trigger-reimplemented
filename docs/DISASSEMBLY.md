@@ -94,7 +94,7 @@ Kinds added for the matching disassembly (MD1):
 
 | Hint | Fields | Meaning |
 |---|---|---|
-| `[[data]]` | `start`, `end`, `type`, [`name`], type parameters | never decode as code; `type` is one of `DATA_TYPES` in `tools/disasm/hints.py` (`padding`, `bytes`, `words`, `ptr16`, `ptr24`, `struct` with `size`, `lz`, `brr`, `script` with `format`, `text`, `mixed`, `undetermined`, `header`, `ram_code`, ...); the matching build checks padding, element sizes and lz streams |
+| `[[data]]` | `start`, `end`, `type`, [`name`], type parameters | never decode as code; `type` is one of `DATA_TYPES` in `tools/disasm/hints.py` (`padding`, `bytes`, `words`, `ptr16`, `ptr24`, `struct` with `size`, `lz`, `brr`, `script` with `format`, `text` with an optional `format` from `tools/disasm/text.py`, `mixed`, `undetermined`, `header`, `ram_code`, ...); the matching build checks padding, element sizes and lz streams |
 | `[[overlap]]` | `addr`, `m`, `x` | an instruction that really runs with widths giving two lengths; the source writes the decode under m/x and checks the other ends on an instruction |
 | `[[ramcode]]` | `name`, `base`, `source`, `format` = `lz` / `copy` / `writes` / `run`, [`size`], [`end`, `m`, `x`], [`regs`], [`over`], [`patch`] | a RAM section: its image at run address `base`; `writes` simulates the stores of the code from `source` to `end` (which may itself be in an earlier section; long loads from ROM or a section count as constants); `run` executes the routine at `source` with widths `m`/`x` and registers `regs` (`a`, `x`, `y`, `db`, `d`) and collects what it writes through the WRAM port from `base` (M3); `over` names a section this one is written over; `patch` names a section whose code the program replaces with this one for a while (both are alternatives: the analysis reads the patched section, blocks exist for both) |
 | `[[noreturn]]` | `addr` | as `[noreturn] addrs`, one per entry with its comment |
@@ -122,7 +122,7 @@ Kinds and fields added for data typing (MD2, [MATCHING.md](MATCHING.md#md2-as-bu
 
 | Hint | Fields | Meaning |
 |---|---|---|
-| `[[resource]]` | `at`, `count`, [`name`], [`kind` = `ptr24` \| `ptr16` + `bank`], [`slots`], `target` = `lz` \| `text` \| `sized` \| `blob`, [`type`], [`size`], [`extent = "next"`, `end`], [`skip`] | a table of pointers a loader indexes by a resource id: `tools/disasm/resources.py` types the table (`ptr24`/`ptr16`, `slots` entries, `count` of them walked) and what its entries point at |
+| `[[resource]]` | `at`, `count`, [`name`], [`kind` = `ptr24` \| `ptr16` + `bank`], [`slots`], `target` = `lz` \| `text` \| `sized` \| `blob`, [`type`], [`size`], [`extent = "next"`, `end`], [`skip`], [`format`] | a table of pointers a loader indexes by a resource id: `tools/disasm/resources.py` types the table (`ptr24`/`ptr16`, `slots` entries, `count` of them walked) and what its entries point at |
 | `fill = true` on `[[data]]` | | a background type for a range: every byte in it that no other region claims is of this type (bank D2-D5's sprite tiles). Other regions carve it up; one crossing its edge is an error |
 
 `[[resource]]` targets:
@@ -133,6 +133,9 @@ Kinds and fields added for data typing (MD2, [MATCHING.md](MATCHING.md#md2-as-bu
 - `text`: each entry names a zero-terminated string, and the region runs to the
   terminator. The report counts the bytes between one string's terminator and
   the next string, which is zero when the table's strings tile their range.
+  `format` names the encoding (`dialog`, `tools/disasm/text.py`), which the
+  regions carry and which says where a string ends: the parse skips operands,
+  and a string also ends at `$03 $00` (MATCHING.md, "The string encodings").
 - `sized`: the entry's first two bytes are the record's length, as the sound
   driver's blocks are. A record that runs into the next bank becomes one region
   per bank.

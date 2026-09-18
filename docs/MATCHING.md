@@ -354,6 +354,11 @@ reassembled ROM is also written only to the build tree. Nothing extracted,
 decoded or reassembled is ever in the repository, and the build fails with a
 clear message without a ROM, as `tools.recomp` does.
 
+Text regions are assembled from their decoded form: the extraction writes a
+region of a text format as `data/text/<label>.txt`, and the `.bin` its `incbin`
+names is what the format's encoder makes of that file as it reads back from the
+build tree, so the CRC check is the round trip (MD2, "The string encodings").
+
 Compressed regions whose contents become symbolic (a RAM program, a script
 with pointers) are assembled from their decoded form. The matching build
 doesn't need a compressor that reproduces the original encoder's choices: it
@@ -368,7 +373,7 @@ valid encoder.
 | LZ streams (`$C3:0557`) | Decoder ported and validated (`game/data/decompress.c`); 1449 candidate streams, 2.20 MiB | Confirm each by its referencing pointer; type every stream's decompressed contents (below) |
 | RAM programs | Scene program at `$7E:3000` (three copies), `$7E:9690` stub, `$00:0500` stubs | Code sections assembled at their run address; find which streams they come from; model patched operands as fields |
 | Event scripts | Interpreter `$C0:5A93`, table `$C0:5D6E`, fetched from `$7F:2001,X`; 185 routines ported, most of them command handlers with their operand layouts (`game/event/`) | Command length table from the ports; parse every location's script; operands that are pointers (the `$B8` dialog table) |
-| Dialog and menu text | Menu strings: tile bytes, control codes `$01-$0F` (`$C2:EFD4`), digit tiles `$D4-$DD` | Dialog encoding, string tables, their pointers |
+| Dialog and menu text | Dialog decoder `$C2:57DF`/`$C2:5823` with its dictionary `$DE:FA00`, menu drawer `$C2:EF65`, name records; 21 string tables, codecs in `tools/disasm/text.py` (MD2, "The string encodings") | Menu strings outside `$C2:A3BA` (window command lists, computed addresses); the two tables left untyped |
 | Object and sprite scripts | Interpreters `$C2:0F63` (83 commands), `$C2:0E1D`; `$34`/`$35`/`$4E` carry code addresses | Command lengths; parse all scripts; feeds C3 |
 | Battle scripts and tables | Animation script channels (`$C1:4BBE`, handlers `$C1:7A6B`), enemy scripts from bank CC (`$C1:8461`, handlers `$C1:B80D`), enemy table `$E4:F600`, pose table `$CC:F77F` | Formats, record sizes, table lengths |
 | Graphics | Sprite tiles copied from D2-D5, flip table `$C0:FD00`, sine table `$C0:F900`, tile layers unpacked by `$C0:A521`, glyph bitplanes (`$C2:5E36`), battle graphics sets | Region bounds and tile formats; most need no pointers, only proof of who reads them |
@@ -816,26 +821,185 @@ integration gate and was not rerun for this follow-up.
 
 **Left for MD2:**
 
-- 43481 census-unknown bytes, chiefly `$F6:24B1-7FFF`; that range still lacks
+- 42590 census-unknown bytes (43481 before the string work below), chiefly
+  `$F6:24B1-7FFF`; that range still lacks
   a reader-backed format. Other leftovers include `$F6:1C00-1DFF`,
   `$E4:0000-1FFF`, `$E4:2A00-2FFF`, `$E4:CC57-EFFF`, bank D0 outside the
   graphics pool and known streams, `$CB:F164-FFFF`, `$EF:B168-BFFF`,
   `$F5:EE02-FFFF`, and smaller pieces. Do not infer types from the CRC alone.
-- 322.5 KiB is still typed `mixed` (C0, C1, C3, C6, C7, CC-CE, D1, FD, FF):
-  the streams, strings and sound blocks split those regions where they fall,
+- 311.9 KiB is still typed `mixed` (C0, C1, C3, C6, C7, CC-CE, D1, FD, FF;
+  322.5 KiB before the string work below): the streams, strings and sound
+  blocks split those regions where they fall,
   but what is left has a reader and a census composition, not a parser.
 - The scripts MD4 parses (object, sequence, window command lists) are still not
   `[[data]]` regions with a round trip, and the event, battle animation and
   enemy script formats aren't parsed at all.
-- The strings' encoding isn't decoded: the regions are bounds, not glyphs. The
-  small set of values that dominates their first byte looks like a control
-  code, and should agree with the menu encoding in `game/menu/text.c` and the
-  control-code handlers at `$C2:EFD4`.
 - The 66 skipped stream-table entries and the 18 stream candidates no table
   names are unexplained.
 - Nothing recompresses, so an `lz` region's round trip is "the decompressor
   consumes exactly these bytes", not "re-encoding gives them back" (MD3's
   encoder would close that).
+
+### MD2 as built: the string encodings
+
+Same commands. The game's strings are now decoded to text and assembled back
+from it: the matching build writes every region of a text format decoded
+(Build-time extraction, above) and fails unless the bytes the text encodes to
+reassemble the ROM.
+
+| Path | What |
+|---|---|
+| `tools/disasm/text.py` | the codecs: the glyph set, the control-code tables with their operands, `dialog`, `dialog-dictionary`, `menu`, `names` |
+| `tools/disasm/resources.py` | `format` on a `text` target: where a string ends, and the format its regions carry |
+| `tools/disasm/dataformats.py` | `check_format` decodes and re-encodes a text region, with the dictionary as context |
+| `tools/matching/emit.py`, `__main__.py` | text regions written as `.txt`, their `.bin` encoded from the file read back |
+| `tests/test_text.py` | 19 tests on synthetic data: every control code of both encodings, the dictionary, names, the resource and emitter paths |
+
+Two readers interpret strings, the dialog decoder and the menu drawer; the
+decoder's dictionary and the name records both draw from are shapes of their
+own, so there are four formats. Nothing in them comes from outside
+documentation; the tables in `text.py` are what the code at each address does
+with a byte.
+
+**Dialog** (`dialog`). `$C2:57DF` (entered through `$C2:0003`) takes a table
+address from `$020D-$020F` and an 8-bit index from `$020C`, loads the string's
+address from `[$020D],Y` with Y twice the index, and `$C2:5823` (through
+`$C2:0009`) draws from it a few glyphs per call. The field dialog sets it up at
+`$C0:20F2` from `$2A-$2D`, which the event commands in `game/event/dialog.c`
+fill; that is why no instruction holds a long operand into the text banks. A
+string byte (`$C2:58B2`) is:
+
+| Byte | Meaning | Handler |
+|---|---|---|
+| `$00` | end of the string | `$C2:594F` |
+| `$01 xx`, `$02 xx` | a 16-bit glyph code `$01xx`/`$02xx` | `$C2:5B06` |
+| `$03 xx` | a delay: `$C0:21A8` waits `xx` x 15 frames; `xx = 0` goes to the exit the terminator takes (`$C0:21D8`), so `$03 $00` ends a field dialog (`[end]`) | `$C2:5945` |
+| `$04-$0C` | state `$0215` = the byte, no operand. `$C2:5851` starts the next line at x 8 (odd) or 20 (even); `$C0:2126` clears the box first for `$09-$0C`, waits for a key for `$07`, `$08`, `$0B`, `$0C` and when the box is full for `$05-$08`. `$04`, the decoder's starting state, draws nothing | `$C2:594F` |
+| `$0D`, `$0E`, `$0F` | an 8-, 16- or 24-bit number, from the argument pointer `$023D`, not the string | `$C2:5953`, `$C2:5985`, `$C2:59C8` |
+| `$10` | a bare RTS | `$C2:5B14` |
+| `$11` | a character's name, the index from the argument pointer | `$C2:5A26` |
+| `$12 xx` | `xx` 0 or 1: an 11-byte name record from `$CC:15C4` or `$CC:6500`, the index from the argument pointer; `xx` of 8 and up: dictionary entry `xx + $17` | `$C2:5A4C` |
+| `$13-$19` | the seven characters' names (`$7E:2C23 + 6n`, through `$C2:5FD8`) | `$C2:5B15` |
+| `$1A` | the name at `$7E:2C23` again, through its own handler | `$C2:5B3B` |
+| `$1B-$1D` | the name of the party member in slot n (`$7E:2980`) | `$C2:5B70` |
+| `$1E` | the five glyphs at `$C2:6146` | `$C2:5B56` |
+| `$1F` | the name of the item whose id is at `$7F:0200` (`$CC:0B5E + 11n`, after its icon) | `$C2:5B9B` |
+| `$20` | the name at `$7E:2C4D`, slot 7 of `$C2:5FD8`'s layout | `$C2:5BD6` |
+| `$21-$9F` | dictionary entry `byte - $21` | `$C2:58D0` |
+| `$A0-$FF` | a glyph | `$C2:58BE` |
+
+A glyph code indexes the 12x12 font at `$FF:2060` (24 bytes a glyph; the
+right four columns from `$FF:3860`), its width from `$C2:60E6` (`$C2:5DC4`).
+The characters for `$A0-$FF` were read off that font: capitals, small letters,
+digits (the `$D4-$DD` that `$C2:5C3E` and the menu's `$C2:F20B` add to a
+digit), then 22 punctuation, symbol and space glyphs (`$DE-$F3`). `$EF` is the
+dialog's space and `$FF` the menus' blank tile (written `_`); `$F4-$FE` are
+blank and unused, so they keep hex escapes.
+
+**The dictionary** (`dialog-dictionary`, `$DE:FA00-FD00`). `$C2:58DD` reads
+entry n's 16-bit pointer at `$DE:FA00 + 2n`, bank `$DE` from the immediate at
+`$C2:58E8`; the entry is a length byte and that many glyph bytes, which
+`$C2:5BF5` draws (a `$01`/`$02` there also takes the next byte). The table has
+128 pointers, the entries start right after them at `$DE:FB00` and run end to
+end through `$DE:FD00`, 2 to 11 bytes each, not in index order; the parser
+requires exactly that and re-derives the pointers from the storage order.
+Entry `$7F` has no byte of its own: only `$12 $68` reaches it. The 128
+expansions are distinct.
+
+The menus use the same decoder for location names, item descriptions and help
+text: their callers set `$020C-$020F` themselves and step it from `$C2:F905` or
+`$C2:F90C`, which carry on past a `$05` (moving down four rows, `$C2:F92F`) and
+stop at any other code, so the same format, and the same string ends, serve
+them.
+
+**Menu strings** (`menu`). The drawer `$C2:EF65`/`$C2:EF7E` (ported in
+`game/menu/text.c`): `$00` ends a string, as does the tile limit in `$87`;
+`$10-$FF` is a tile, written with the attribute in `$7E` (`$C2:EF97`); `$01-$0F`
+index the handler table at `$C2:EFD4`: `$01` new line, `$02` a position word,
+`$03` a number (address and format words, `$C2:F114`), `$04` a substring at a
+long address, `$05` a name from `$7E` (word), `$06` palette bits from `$7E`
+(word), `$07` a tile word from `$7E` (word), `$08` a count of blanks (byte),
+`$09` `$88` (byte), `$0A` the attribute (byte), `$0B` a number through
+`$C2:F227` (two words), `$0C` a limited number (byte, word); `$0D-$0F` point at
+the handlers' RTS. With `width`, a region is fixed records drawn with that
+limit, each ending at the limit or at a terminator that fills it out.
+
+**Name records** (`names`). 11 bytes each, glyphs padded with `$EF` and, for
+items and some techniques, an icon tile below `$A0` in front. The menus draw
+them with a limit of 11 tiles (`LDA #$CC0B` at `$C2:B05E` and `$C2:BDE3`); the
+dialog's name codes skip the icon and stop at the first `$EF` (`$C2:5D23`,
+`$C2:5D34`). The text drops the trailing padding and the encoder restores it.
+
+**Readable form.** A glyph with a character is that character and any other
+byte `[$XX]` (a 16-bit glyph `[$01XX]`); a control code is `[name]` or
+`[name $op ...]`; a dictionary byte is its expansion in braces, `{...}`, which
+names the entry because the expansions are distinct. Line and page codes are
+followed by a newline the encoder ignores. The files are written to the build
+tree only; the repository has the codecs, not the text.
+
+**The regions.**
+
+| Format | Tables | Regions | Bytes |
+|---|--:|--:|--:|
+| `dialog` | 21 | 4697 | 173651 |
+| `dialog-dictionary` | | 1 | 769 |
+| `menu` | | 1 | 40 |
+| `names` | | 3 (610 records) | 6710 |
+
+- The fifteen MD2 tables are `dialog`, plus a sixteenth at `$DE:FF00` (three
+  strings), which `$C0:20FD` loads instead of `$2B-$2D` while bit 5 of `$54` is
+  set. `format = "dialog"` ends a string at `$03 $00` as well as at `$00`: in
+  the fifteen, 64 strings end that way, and 62 of them are followed directly by the string the
+  next entry names, which is how the tables were laid out. Because the operand
+  is the first zero, the bounds are the ones MD2's zero scan found.
+- The menus' tables are `$C6:F400` (112 entries, strings before it from
+  `$C6:F000`; `$C2:69A0`), `$CC:2EB1` (242, one per item; `$C2:F317`),
+  `$FF:CF3B` (7), `$FF:D03E` (27) and `$FF:D396` (8): 283 more strings, 3337
+  bytes. All but the first are self-describing like MD2's; none has an end
+  sentinel, and none of their strings holds a `$03`.
+- MD2's 58 bytes between strings, and a 59th in `$CC:2EB1`, are typed by hand:
+  three fragments of text before an entry's start that read on into it
+  (`terminated = false`), and two strings after a string ending in `$03 $00` in
+  `$F8`. The string after `$DE:E300`'s sentinel, at `$DE:F917`, is typed too.
+- Names: `$CC:0B5E` (242 records, the items; the next table starts right after
+  them), `$CC:15C4` (117, read at `$C2:BDD9` and by `$12 $00`) and `$CC:6500`
+  (251, by `$12 $01`); the counts are layout bounds, the next record not
+  reading as glyphs. `$CC:0000-DFFF` became `fill = true` so the hand regions
+  carve it.
+- Menu strings: only `$C2:A3BA` (four 10-tile records, `$C2:A39D`, index x 10),
+  retyped from `script`.
+
+Codes no typed dialog string uses: `$01`, `$04`, `$07`, `$08`, `$0F`, `$10`,
+`$11`, `$12`. In the fifteen MD2 tables the most common are `$06` (3821 times)
+and `$05` (1535).
+
+**Result.** 4702 regions, 181170 bytes, are assembled from text, all of them
+round-tripping; none of a text format is kept raw. Census unknown 43481 ->
+42590 bytes (`$DE` 882 -> 19); `mixed` 330262 -> 319422 bytes (322.5 -> 311.9
+KiB). The generator's input is unchanged: `python3 -m tools.recomp` without
+coverage gives 12431 blocks, 148301 instructions, 127045 in the analysis and a
+code set of 127181 instruction variants on `main` and on this work, and the 65
+generated C files are byte-identical. `unittest` passes (178 tests); CRC32
+`2D206BF7` and SHA-1 `de5822f4...` match; the matching run writes 4702 more
+files (a `.txt` beside each encoded `.bin`), which costs a few seconds. With the
+build's coverage and call logs the generated C is identical to `main`'s too, and
+`tools/suite.py --only core` passes (7 of 7 movies clean, trace identity on
+`new-game`).
+
+**Left for the strings:**
+
+- `$FF:D3FE` is loaded by the same decoder (`$C2:D2E0`, index + `$0E`, and
+  `$C2:F958`), but its first entry points an odd number of bytes past it and
+  entries point into each other's strings, so its extent isn't the table's.
+- `$CC:3A09` (`$C2:BE63`): 120 entries tile their strings and the 121st is
+  their sentinel, but entry 0 points 18 bytes further, over 9 words that don't
+  read as pointers into the strings. Which bound is right is open.
+- Menu strings passed to `$C2:EF65` by address in code (window command lists,
+  `$C2:8385`, and computed addresses) aren't enumerated: the drawer has 10
+  `JSR` sites in C2 besides the lists, and only `$C2:A3BA` is a region.
+- The names of `$05-$0C` describe what the field caller `$C0:2126` does with
+  them; the menus' loop stops at all of them but `$05`. `$04`, `$10` and the
+  bytes with no handler keep hex escapes rather than names.
 
 ### Shift test
 
@@ -1077,8 +1241,9 @@ operand); they were reworded, and new comments shouldn't quote bytes.
   same build step as the CRC.
 - **Heuristic census.** The numbers size the work; they aren't classification.
   The `$C3:8000-CFFF` ambiguity shows one way they can be wrong.
-- **Undocumented formats.** Dialog text, battle and enemy scripts and music
-  sequences are the bulk of MD2 and the least known. Community documentation
+- **Undocumented formats.** Battle and enemy scripts and music sequences are
+  the bulk of what MD2 has left and the least known (the dialog text is decoded:
+  "The string encodings"). Community documentation
   can guide the reverse engineering; the facts go into hints, not copied text.
 - **RAM code.** C4 rests on enumerating RAM programs and on the miss report;
   code that writes and runs something no movie reaches could stay unseen.

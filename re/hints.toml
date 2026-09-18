@@ -24,7 +24,8 @@
 #                    [end, m, x], [over]            code the game runs from RAM
 #   [[resource]]     at, count, [name], [kind = ptr24 | ptr16, bank], [slots],
 #                    target = lz | text | sized | blob, [type], [size],
-#                    [extent = "next", end], [skip]  a pointer table a loader
+#                    [extent = "next", end], [skip],
+#                    [format] (text)                a pointer table a loader
 #                                                   indexes by a resource id;
 #                                                   types it and its targets
 #   fill = true on [[data]]: a background type for a range (every byte no other
@@ -2664,12 +2665,14 @@ end = "C2:A2CC"
 type = "bytes"
 
 # C2:A3BA-A3E1: its address is loaded as an immediate at C2:A39D and passed to
-# C2:EF65.
+# C2:EF65 with a limit of 10 tiles (LDA #$C20A at C2:A3A6): four menu strings
+# of 10 bytes, the last ended early by its terminator.
 [[data]]
 start = "C2:A3BA"
 end = "C2:A3E1"
-type = "script"
-format = "C2:EF65"
+type = "text"
+format = "menu"
+width = 10
 
 # C2:A4AB-A4AE: read by the long indexed operands at C2:A481.
 [[data]]
@@ -3166,8 +3169,10 @@ type = "mixed"
 # CC:0000-DFFF (57344 bytes): battle data read through 346 long operands (enemy
 # scripts at CC:0000 are read by C1:86B4 and others). Census: 50039 unknown,
 # 2234 16-bit offset tables, 2205 padding, 1584 BRR-like, 1230 24-bit ptr
-# tables, 52 16-bit code-ptr tables.
+# tables, 52 16-bit code-ptr tables. `fill = true` so the string fragment at
+# CC:35E4 (MD2 strings, below) carves it as the derived regions do.
 [[data]]
+fill = true
 start = "CC:0000"
 end = "CC:DFFF"
 type = "mixed"
@@ -3463,7 +3468,8 @@ type = "undetermined"
 # ==============================================================================
 # [[resource]] at, count, [name], [kind = ptr24 | ptr16, bank], [slots],
 #              target = lz | text | sized | blob, [type], [size],
-#              [extent = "next", end], [skip = [i, "first-last", ...]]
+#              [extent = "next", end], [skip = [i, "first-last", ...]],
+#              [format = dialog] (text; tools/disasm/text.py)
 # (docs/DISASSEMBLY.md). tools/disasm/resources.py walks the table and types
 # both it (ptr24/ptr16) and what its entries point at; an lz entry must be a
 # stream the decompressor at C3:0557 consumes exactly, or the run fails.
@@ -3755,20 +3761,30 @@ fill = true
 # MD2: string tables
 # ==============================================================================
 # Fifteen tables of 16-bit offsets into their own bank whose entries name
-# zero-terminated strings. Each is self-describing: entry 0 points at the byte
-# just after the table, the entries never decrease, and the last one points one
-# past the last string's terminator, so the table's length and the strings'
-# bounds come from the table alone. `target = "text"` runs each string to its
-# terminator and reports any byte between one terminator and the next string,
-# which is the format's exact-consumption check: over all fifteen the strings
-# tile their range with no byte left over except where noted below.
+# dialog strings. Each is self-describing: entry 0 points at the byte just after
+# the table, the entries never decrease, and the last one points one past the
+# last string's end, so the table's length and the strings' bounds come from the
+# table alone. `target = "text"` runs each string to its end and reports any
+# byte between one string's end and the next string, which is the format's
+# exact-consumption check: over all fifteen the strings tile their range except
+# for the three gaps typed after the tables.
 #
 # `count` is one less than `slots` everywhere: the last entry is the end
 # sentinel, not a string. The tables in F6 and FF sit in ranges MD1 typed
-# `mixed`; the expansion splits those around them. What reads a table isn't
-# established: no code in the found set sets its data bank or holds a long
-# operand into it, so the readers take a pointer out of RAM. The strings
-# themselves stay in the ROM; only their bounds are recorded here.
+# `mixed`; the expansion splits those around them.
+#
+# The reader is the dialog decoder (tools/disasm/text.py, docs/MATCHING.md "The
+# string encodings"): event command $B8 (C0:3557) stores a table's address at
+# $2B-$2D, the dialog commands (C0:3570 and the rest of game/event/dialog.c) an
+# index at $2A, and C0:20F2 hands both to C2:57DF through $020C-$020F, which
+# loads the string's address from [$020D],Y with Y = 2 x the index. So no code
+# holds a long operand into these banks, and an event's table address points
+# into the middle of the larger tables (an index is 8 bits, the tables up to
+# 1202 entries). `format = "dialog"` makes a string end where the field dialog
+# stops reading: the terminator, or $03 $00 (C0:21A8 sends a zero delay to the
+# terminator's exit), whose operand is the first zero byte, so the bounds are
+# the ones a zero scan gives. The matching build writes each string decoded and
+# assembles it from that text.
 
 [[resource]]
 at = "D8:D000"
@@ -3777,6 +3793,7 @@ slots = 78
 kind = "ptr16"
 bank = "D8"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "D8:DD80"
@@ -3785,6 +3802,7 @@ slots = 258
 kind = "ptr16"
 bank = "D8"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "DE:C000"
@@ -3793,6 +3811,7 @@ slots = 187
 kind = "ptr16"
 bank = "DE"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "DE:E300"
@@ -3801,6 +3820,7 @@ slots = 145
 kind = "ptr16"
 bank = "DE"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "F6:A000"
@@ -3809,6 +3829,7 @@ slots = 106
 kind = "ptr16"
 bank = "F6"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "F6:B230"
@@ -3817,6 +3838,7 @@ slots = 144
 kind = "ptr16"
 bank = "F6"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "F7:0000"
@@ -3825,6 +3847,7 @@ slots = 456
 kind = "ptr16"
 bank = "F7"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "F7:4900"
@@ -3833,6 +3856,7 @@ slots = 1203
 kind = "ptr16"
 bank = "F7"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "F8:4650"
@@ -3841,6 +3865,7 @@ slots = 768
 kind = "ptr16"
 bank = "F8"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "F9:B000"
@@ -3849,6 +3874,7 @@ slots = 444
 kind = "ptr16"
 bank = "F9"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "FC:BA00"
@@ -3857,6 +3883,7 @@ slots = 399
 kind = "ptr16"
 bank = "FC"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "FF:4460"
@@ -3865,6 +3892,7 @@ slots = 81
 kind = "ptr16"
 bank = "FF"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "FF:5860"
@@ -3873,6 +3901,7 @@ slots = 85
 kind = "ptr16"
 bank = "FF"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "FF:6B00"
@@ -3881,6 +3910,7 @@ slots = 186
 kind = "ptr16"
 bank = "FF"
 target = "text"
+format = "dialog"
 
 [[resource]]
 at = "FF:8400"
@@ -3889,6 +3919,169 @@ slots = 39
 kind = "ptr16"
 bank = "FF"
 target = "text"
+format = "dialog"
+
+# DE:FF00: a sixteenth table, the one C0:20FD loads instead of $2B-$2D while
+# bit 5 of $54 is set (C0:20F7). Five entries: three strings, then two copies
+# of the end sentinel (DE:FF52), so `slots` covers both.
+[[resource]]
+at = "DE:FF00"
+count = 3
+slots = 5
+kind = "ptr16"
+bank = "DE"
+target = "text"
+format = "dialog"
+
+# The same decoder's tables for the menus: their callers set $020C-$020F
+# themselves and step the decoder from C2:F905/F90C, which carries on past a
+# line code ($05, C2:F92F) and stops at anything else, so the terminator and
+# $03 $00 end these strings too (none of them holds a $03). Each table is
+# self-describing as the ones above are but has no end sentinel, except
+# C6:F400, whose strings come before it.
+#
+# C6:F400: 112 entries (location names), strings from C6:F000. C2:69A0 loads
+# the table (bank $C6 from C2:69A6); the index at C2:698B, or $6F from C2:699B,
+# the highest entry. Entries $70 on are zero, the layout bound.
+[[resource]]
+at = "C6:F400"
+count = 112
+kind = "ptr16"
+bank = "C6"
+target = "text"
+format = "dialog"
+
+# CC:2EB1: 242 entries, one per item (the item names at CC:0B5E have 242
+# records before the next table, CC:15C4). C2:F317, bank $CC from C2:F31D, the
+# index from C2:F308.
+[[resource]]
+at = "CC:2EB1"
+count = 242
+kind = "ptr16"
+bank = "CC"
+target = "text"
+format = "dialog"
+
+# FF:CF3B: 7 entries, loaded at C2:CA84, C2:E4D2, C2:E5F0 and C2:E854 with the
+# index an immediate ($00-$05) at each.
+[[resource]]
+at = "FF:CF3B"
+count = 7
+kind = "ptr16"
+bank = "FF"
+target = "text"
+format = "dialog"
+
+# FF:D03E: 27 entries, loaded at C2:D2A0.
+[[resource]]
+at = "FF:D03E"
+count = 27
+kind = "ptr16"
+bank = "FF"
+target = "text"
+format = "dialog"
+
+# FF:D396: 8 entries, loaded at C2:D3D4 with the index from C2:D3CB.
+[[resource]]
+at = "FF:D396"
+count = 8
+kind = "ptr16"
+bank = "FF"
+target = "text"
+format = "dialog"
+
+# DE:FA00-FD00: the dialog dictionary. C2:58D0-58FA reads a string byte of
+# $21-$9F as entry (byte - $21) of the 16-bit pointers at DE:FA00 (LDA
+# $DEFA00,X, bank $DE from the immediate at C2:58E8); an entry is a length byte
+# and that many glyphs, which C2:5BF5 draws. 128 pointers (the entries start at
+# FB00, right after them; entry $7F is only reachable through code $12, C2:5A4C,
+# with the operand + $17 as the index) and 128 entries stored end to end, not in
+# index order, through DE:FD00. The expansions are all distinct.
+[[data]]
+start = "DE:FA00"
+end = "DE:FD00"
+type = "text"
+format = "dialog-dictionary"
+
+# The bytes the string tables don't name (the 59-byte "left over" count, plus
+# the string after the last one DE:E300 names). DE:E8EC-E8F4, FC:D9AC and
+# CC:35E4: text before the start of the string an entry names, which reads on
+# into it, so a fragment with no end of its own. F8:90C9-90F8: after a string that ends with
+# $03 $00, two more strings (the first also ending with $03 $00). DE:F917-F96C:
+# one string after the sentinel of the DE:E300 table (DE:F917); what follows it
+# to DE:FA00 is zero. No reader is known for any of them; they decode as dialog.
+[[data]]
+start = "CC:35E4"
+end = "CC:35E4"
+type = "text"
+format = "dialog"
+terminated = false
+
+[[data]]
+start = "DE:E8EC"
+end = "DE:E8F4"
+type = "text"
+format = "dialog"
+terminated = false
+
+[[data]]
+start = "DE:F917"
+end = "DE:F96C"
+type = "text"
+format = "dialog"
+
+[[data]]
+start = "F8:90C9"
+end = "F8:90D0"
+type = "text"
+format = "dialog"
+
+[[data]]
+start = "F8:90D1"
+end = "F8:90F8"
+type = "text"
+format = "dialog"
+
+[[data]]
+start = "FC:D9AC"
+end = "FC:D9AC"
+type = "text"
+format = "dialog"
+terminated = false
+
+# Name records: 11 bytes each, glyphs padded with $EF, a tile below $A0 in
+# front for an icon. Both readers draw them: the menu drawer C2:EF65 with a
+# limit of 11 tiles (the $0B in LDA #$CC0B at C2:B05E and C2:BDE3), and the
+# dialog decoder, which skips an icon and stops at the first $EF (C2:5D23,
+# C2:5D34). Record n is at the table + 11n; the counts are layout bounds: the
+# record after the last doesn't read as glyphs.
+#
+# CC:0B5E: 242 records, what code $1F names (C2:5B9B: $7F:0200 x 11 + $0B5E,
+# plus one for the icon); the next table starts right after the last.
+[[data]]
+start = "CC:0B5E"
+end = "CC:15C3"
+type = "text"
+format = "names"
+width = 11
+
+# CC:15C4: 117 records, read at C2:BDD9 (x 11 + $15C4) and by code $12 $00
+# (C2:5A8E, which skips an icon $2F).
+[[data]]
+start = "CC:15C4"
+end = "CC:1ACA"
+type = "text"
+format = "names"
+width = 11
+
+# CC:6500: 251 records, read by code $12 $01 (C2:5AD0, x 11 + $6500, all 11
+# bytes).
+[[data]]
+start = "CC:6500"
+end = "CC:6FC8"
+type = "text"
+format = "names"
+width = 11
 
 # F6:0000-1BFF: 512 records of 14 bytes, one per location. C0:0945-095F makes
 # the index with the hardware multiplier ($4202 = the low byte of the location
