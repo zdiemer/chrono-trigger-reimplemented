@@ -32,7 +32,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `build/main/recomp_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
   failures). `build/main/dsp_test`, `fiber_test`, `state_test` and `bindings_test` need no data.
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
-  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`,
+  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `bindings_test`,
   the conformance runners (test data cached) and builds `ct_play` and the oracle. Code must build
   warning-free on all four and tests must pass without a ROM. Docs-only changes don't trigger it.
 - Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
