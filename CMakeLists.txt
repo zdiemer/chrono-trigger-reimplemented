@@ -10,8 +10,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # Only little-endian hosts are built and tested (x86-64 and ARM64 are). File
-# formats are written byte by byte, but save states are raw memory images, and
-# no big-endian host has checked the rest.
+# formats, save states included, are written byte by byte, but no big-endian
+# host has checked the rest.
 if(CMAKE_C_BYTE_ORDER STREQUAL "BIG_ENDIAN")
   message(WARNING "big-endian host: untested, expect differences from the original")
 endif()
@@ -41,6 +41,7 @@ add_library(ct_runtime STATIC
   runtime/snes/ppu.c
   runtime/snes/render.c
   runtime/snes/system.c
+  runtime/snes/state.c
   runtime/snes/zst.c
   runtime/port/fiber.c
   runtime/port/native.c
@@ -150,6 +151,8 @@ add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c)
 target_include_directories(dsp_test PRIVATE runtime)
 add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c)
 target_include_directories(fiber_test PRIVATE runtime)
+add_executable(state_test tests/port/state_test.c)
+target_link_libraries(state_test PRIVATE ct_runtime)
 
 # Instruction translation (tools/recomp, docs/RECOMP.md), with C generated into
 # the build tree for every opcode and context: sst_recomp_runner runs it on the
@@ -217,7 +220,8 @@ if(NOT CT_PLAYER_INTERPRETER_MODE MATCHES "^(ON|FALLBACK|OFF)$")
 endif()
 
 if(CT_SDL2)
-  add_executable(ct_play frontend/ct_play.c)
+  add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/audio_fill.c frontend/window.c
+    frontend/headless.c frontend/files.c frontend/bindings.c)
   if(NOT CT_PLAYER_INTERPRETER_MODE STREQUAL "ON")
     # The miss report (dev/misses.h) is the player's log of misses.
     target_sources(ct_play PRIVATE dev/misses.c)
@@ -230,6 +234,10 @@ if(CT_SDL2)
   if(MINGW)
     target_link_options(ct_play PRIVATE -static-libgcc)
   endif()
+  # The window driver's bindings on a virtual game controller.
+  add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c)
+  target_include_directories(bindings_test PRIVATE frontend oracle/src)
+  target_link_libraries(bindings_test PRIVATE ${CT_SDL2})
   install(TARGETS ct_play RUNTIME DESTINATION .)
   if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
     install(FILES $<TARGET_RUNTIME_DLLS:ct_play> DESTINATION .)

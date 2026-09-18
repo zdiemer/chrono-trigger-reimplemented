@@ -84,64 +84,6 @@ void snes_clone(Snes *dst, const Snes *src)
     dst->on_miss = NULL;
 }
 
-#define STATE_MAGIC "CTSS"
-#define STATE_VERSION 4u
-
-int snes_state_save(const Snes *s, const char *path)
-{
-    FILE *f = fopen(path, "wb");
-    if (!f)
-        return -1;
-    uint32_t header[2] = { STATE_VERSION, (uint32_t)sizeof *s };
-    int ok = fwrite(STATE_MAGIC, 4, 1, f) == 1 && fwrite(header, sizeof header, 1, f) == 1 &&
-             fwrite(s, sizeof *s, 1, f) == 1;
-    return (fclose(f) == 0 && ok) ? 0 : -1;
-}
-
-int snes_state_load(Snes *s, const char *path)
-{
-    FILE *f = fopen(path, "rb");
-    if (!f)
-        return -1;
-    char magic[4];
-    uint32_t header[2];
-    Snes *loaded = malloc(sizeof *loaded);
-    int ok = loaded && fread(magic, 4, 1, f) == 1 && memcmp(magic, STATE_MAGIC, 4) == 0 &&
-             fread(header, sizeof header, 1, f) == 1 && header[0] == STATE_VERSION &&
-             header[1] == sizeof *s && fread(loaded, sizeof *loaded, 1, f) == 1;
-    fclose(f);
-    if (!ok) {
-        free(loaded);
-        return -1;
-    }
-    /* Everything but pointers comes from the file; pointers stay this process's. */
-    const Snes keep = *s;
-    *s = *loaded;
-    free(loaded);
-    s->bus.rom = keep.bus.rom;
-    s->bus.rom_size = keep.bus.rom_size;
-    s->bus.io = keep.bus.io;
-    s->bus.wram_written = keep.bus.wram_written;
-    s->cpu.bus = keep.cpu.bus;
-    s->cpu.on_insn = keep.cpu.on_insn;
-    s->cpu.on_insn_ctx = keep.cpu.on_insn_ctx;
-    s->apu.spc.bus = keep.apu.spc.bus;
-    s->apu.on_insn = keep.apu.on_insn;
-    s->apu.on_insn_ctx = keep.apu.on_insn_ctx;
-    s->on_line = keep.on_line;
-    s->on_line_ctx = keep.on_line_ctx;
-    s->on_frame_top = keep.on_frame_top;
-    s->on_frame_top_ctx = keep.on_frame_top_ctx;
-    s->intercept = keep.intercept;
-    s->intercept_ctx = keep.intercept_ctx;
-    s->interpreter = keep.interpreter;
-    s->native_only = keep.native_only;
-    s->on_miss = keep.on_miss;
-    s->on_miss_ctx = keep.on_miss_ctx;
-    s->halted = false;
-    return 0;
-}
-
 void snes_power_on(Snes *s)
 {
     /* Power-on RAM contents are undefined on hardware. Match the trace oracle's

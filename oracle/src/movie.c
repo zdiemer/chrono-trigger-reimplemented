@@ -39,16 +39,22 @@ static int parse_buttons(const char *s, uint16_t *out) {
     return 0;
 }
 
-int ct_movie_load(ct_movie *movie, const char *path) {
+int ct_movie_parse(ct_movie *movie, const char *text, size_t len, const char *name) {
     memset(movie, 0, sizeof *movie);
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        fprintf(stderr, "movie: cannot open %s\n", path);
-        return -1;
-    }
     char line[512];
     int lineno = 0, cap = 0;
-    while (fgets(line, sizeof line, f)) {
+    size_t at = 0;
+    while (at < len) {
+        /* One line, as fgets would read it into line[]: a longer one continues
+         * as the next. */
+        size_t n = 0;
+        while (at < len && n < sizeof line - 1) {
+            char c = text[at++];
+            line[n++] = c;
+            if (c == '\n')
+                break;
+        }
+        line[n] = 0;
         lineno++;
         unsigned long crc;
         if (sscanf(line, " # sram crc32 %lx", &crc) == 1) {
@@ -69,8 +75,7 @@ int ct_movie_load(ct_movie *movie, const char *path) {
         uint16_t mask;
         if (sscanf(p, "%lu %lu %127s", &start, &count, buttons) != 3 || parse_buttons(buttons, &mask) != 0 ||
             start > MAX_FRAMES || count > MAX_FRAMES - start) {
-            fprintf(stderr, "movie: %s:%d: expected '<start_frame> <frame_count> <buttons>'\n", path, lineno);
-            fclose(f);
+            fprintf(stderr, "movie: %s:%d: expected '<start_frame> <frame_count> <buttons>'\n", name, lineno);
             ct_movie_free(movie);
             return -1;
         }
@@ -82,7 +87,6 @@ int ct_movie_load(ct_movie *movie, const char *path) {
         if (start + count > movie->length)
             movie->length = (uint32_t)(start + count);
     }
-    fclose(f);
 
     /* Per-frame table, so lookups don't scan every event. */
     movie->pads = calloc(movie->length ? movie->length : 1, sizeof *movie->pads);
@@ -92,6 +96,35 @@ int ct_movie_load(ct_movie *movie, const char *path) {
             movie->pads[fr] |= e->buttons;
     }
     return 0;
+}
+
+int ct_movie_load(ct_movie *movie, const char *path) {
+    memset(movie, 0, sizeof *movie);
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        fprintf(stderr, "movie: cannot open %s\n", path);
+        return -1;
+    }
+    char *text = NULL;
+    size_t len = 0, cap = 0, n;
+    char chunk[4096];
+    while ((n = fread(chunk, 1, sizeof chunk, f)) > 0) {
+        if (len + n > cap) {
+            cap = (len + n) * 2;
+            text = realloc(text, cap);
+        }
+        memcpy(text + len, chunk, n);
+        len += n;
+    }
+    int bad = ferror(f);
+    fclose(f);
+    int rc = -1;
+    if (bad)
+        fprintf(stderr, "movie: cannot read %s\n", path);
+    else
+        rc = ct_movie_parse(movie, text ? text : "", len, path);
+    free(text);
+    return rc;
 }
 
 void ct_movie_free(ct_movie *movie) {
@@ -104,33 +137,70 @@ uint16_t ct_movie_buttons(const ct_movie *movie, uint32_t frame) {
     return frame < movie->length ? movie->pads[frame] : 0;
 }
 
-static void write_buttons(FILE *f, uint16_t mask) {
-    const char *sep = "";
-    for (size_t i = 0; i < sizeof button_names / sizeof button_names[0]; i++) {
-        if (mask & button_names[i].bit) {
-            fprintf(f, "%s%s", sep, button_names[i].name);
-            sep = "+";
+/* A growing string. */
+typedef struct {
+    char *s;
+    size_t len, cap;
+    int failed;
+} text_buf;
+
+static void put(text_buf *b, const char *str) {
+    size_t n = strlen(str);
+    if (b->len + n + 1 > b->cap) {
+        size_t cap = (b->len + n + 1) * 2;
+        char *s = realloc(b->s, cap);
+        if (!s) {
+            b->failed = 1;
+            return;
         }
+        b->s = s;
+        b->cap = cap;
     }
+    memcpy(b->s + b->len, str, n + 1);
+    b->len += n;
 }
 
-int ct_movie_write(const char *path, const uint16_t *pads, uint32_t frames, const char *header) {
-    FILE *f = fopen(path, "w");
-    if (!f)
-        return -1;
+char *ct_movie_format(const uint16_t *pads, uint32_t frames, const char *header, size_t *len) {
+    text_buf b = {0};
+    put(&b, "");
     if (header)
-        fputs(header, f);
-    fprintf(f, "# <start_frame> <frame_count> <buttons>\n");
+        put(&b, header);
+    put(&b, "# <start_frame> <frame_count> <buttons>\n");
     for (uint32_t fr = 0; fr < frames;) {
         uint32_t end = fr + 1;
         while (end < frames && pads[end] == pads[fr])
             end++;
         if (pads[fr]) {
-            fprintf(f, "%lu %lu ", (unsigned long)fr, (unsigned long)(end - fr));
-            write_buttons(f, pads[fr]);
-            fputc('\n', f);
+            char num[48];
+            snprintf(num, sizeof num, "%lu %lu ", (unsigned long)fr, (unsigned long)(end - fr));
+            put(&b, num);
+            const char *sep = "";
+            for (size_t i = 0; i < sizeof button_names / sizeof button_names[0]; i++) {
+                if (pads[fr] & button_names[i].bit) {
+                    put(&b, sep);
+                    put(&b, button_names[i].name);
+                    sep = "+";
+                }
+            }
+            put(&b, "\n");
         }
         fr = end;
     }
-    return fclose(f) == 0 ? 0 : -1;
+    if (b.failed) {
+        free(b.s);
+        return NULL;
+    }
+    *len = b.len;
+    return b.s;
+}
+
+int ct_movie_write(const char *path, const uint16_t *pads, uint32_t frames, const char *header) {
+    size_t len;
+    char *text = ct_movie_format(pads, frames, header, &len);
+    FILE *f = text ? fopen(path, "w") : NULL;
+    int ok = f && fwrite(text, 1, len, f) == len;
+    if (f && fclose(f) != 0)
+        ok = 0;
+    free(text);
+    return ok ? 0 : -1;
 }

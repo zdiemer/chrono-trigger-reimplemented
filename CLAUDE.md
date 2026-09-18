@@ -30,7 +30,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_recomp_runner tests/cpu/data/*.bin`,
   `build/main/recomp_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test` and `build/main/fiber_test` need no data.
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test` and `bindings_test` need no data.
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
   configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`,
   the conformance runners (test data cached) and builds `ct_play` and the oracle. Code must build
@@ -83,11 +83,11 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   - A port that can't be expressed through a service yet is a finding, not a defeat: add the
     call the subsystem needs (additive), or use the documented SNES escape and write down
     why, as docs/PLATFORM.md's "as built" sections do.
-- **Writing host-side code** (docs/PLAN.md, Phase 1's "The host seam"). `game/` is kept
+- **Writing host-side code** (docs/PLAYING.md, "How the player is built"). `game/` is kept
   portable by the platform services; what a host that isn't a desktop runs into instead is
   the frontend, so hold the line there too. A host that calls back once a frame, with no
   filesystem and no stack of its own, is the case these are for:
-  - The loop belongs to the driver (`run_window`, `run_headless` in `frontend/ct_play.c`).
+  - The loop belongs to the driver (`frontend/window.c`, `frontend/headless.c`).
     Below it nothing sleeps, spins on a clock, polls an event queue or blocks on a device:
     the game advances one frame per call, and input arrives through `in_host_set`.
   - Persistence moves bytes under a name, not a path. A new runtime or player function takes

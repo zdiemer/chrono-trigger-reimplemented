@@ -39,6 +39,8 @@ typedef struct {
 
 /* Returns 0 on success; prints a diagnostic and returns -1 on error. */
 int ct_movie_load(ct_movie *movie, const char *path);
+/* The same for a movie held in memory; `name` is for the diagnostics. */
+int ct_movie_parse(ct_movie *movie, const char *text, size_t len, const char *name);
 void ct_movie_free(ct_movie *movie);
 
 /* Buttons held on a frame: the OR of every event covering it. */
@@ -48,5 +50,8 @@ uint16_t ct_movie_buttons(const ct_movie *movie, uint32_t frame);
  * buttons. header, if not NULL, is written first; each of its lines should start
  * with '#'. Returns 0 on success, -1 on error. */
 int ct_movie_write(const char *path, const uint16_t *pads, uint32_t frames, const char *header);
+/* The same text as a malloc'd string of *len bytes (LF line ends, NUL
+ * terminated), or NULL if out of memory. */
+char *ct_movie_format(const uint16_t *pads, uint32_t frames, const char *header, size_t *len);
 
 #endif

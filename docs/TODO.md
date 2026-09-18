@@ -19,8 +19,10 @@ rest waits, is [PLAN.md](PLAN.md).
 - **S-DSP** is sample-granular, and note starts differ from Snes9x by one KON
   poll (RUNTIME.md, "S-DSP"). The audio comparison table predates the DMA and
   refresh timing fix and should be re-measured.
-- **Big-endian hosts** are untested (CMake warns); save states are raw memory
-  images.
+- **Big-endian hosts** are untested (CMake warns).
+- **Packaging on Linux and macOS** isn't checked on a machine that never built
+  it, and `dist/` there relies on the player's machine having SDL2 (PLAYING.md,
+  "Build"). A macOS bundle would copy the dylib and rewrite its install name.
 - **ZSNES state import** approximates DSP voice history, timer phase and
   in-frame position (RUNTIME.md, "ZSNES save states"), so those runs are for
   coverage only.
@@ -149,19 +151,19 @@ waits on M5 rather than on a backend.
     page loads at run time -- which makes M5's coverage the gate on it, and asks
     the same question as "assets as data files" above: the readers assume a
     mapped ROM image.
-  - **The loop and the clock.** `ct_play` blocks on its own frame pacing and
-    drives an SDL audio device it resamples against; the browser wants a
-    callback-driven loop and gives no synchronous file access. Saves
-    (`sv_host_bytes`) need a persistence backend that isn't a path. This is the
-    driver and storage seams in PLAN.md, Phase 1, which are scheduled for the
-    desktop build's sake anyway; the rules that keep them from re-closing are in
-    CLAUDE.md, "Writing host-side code".
+  - **A driver of its own.** The player advances one frame per call and hands
+    out what it persists as bytes under names (PLAYING.md, "How the player is
+    built"), so what the browser needs is a third driver beside `run_window`
+    and `run_headless`: a frame callback, an audio worklet fed through
+    `audio_fill`, and saves kept in browser storage. The rules that keep those
+    seams from re-closing are in CLAUDE.md, "Writing host-side code".
   - **Speed**, which is unmeasured: the interpreter plus `render.c` per line, in
     one thread, with no `-static` build to lean on.
 - **A native AYN Thor multi-screen port.** Two parts, and only one of them is a
   backend. The Android/ARM64 side is ordinary: SDL2 builds there, no screen
   geometry is baked into `game/` (PLAN.md, Phase 2), and the handheld's pad
-  arrives through `in_host_set` once Phase 1's controller work lands. The second
+  arrives through `in_host_set` like any other (a binding in its driver, as
+  `frontend/bindings.c` is the desktop's). The second
   screen is the real question, because `VidFrame` is one frame of one screen per
   frame. Two shapes, and they cost differently: a *companion* view (party state,
   the map, an item list) drawn by the frontend from game state, which needs the
@@ -236,5 +238,4 @@ waits on M5 rather than on a backend.
   - **A fast gate**: `--movies` and `--only` narrow a run by hand, but deriving
     the subset that can reach the subsystem a change touched would make the
     iterating case automatic, with the full set still required to land.
-- Gamepad support, configurable keys, and quick saves that survive a rebuild.
 - CI: the macOS job costs 10x minutes on a private repo.

@@ -25,8 +25,24 @@ python3 tools/dist.py --strict                          # the same without the i
 python3 tools/dist.py -- -DCMAKE_PREFIX_PATH=<prefix>   # when CMake can't find SDL2 on its own
 ```
 
-On Windows it copies `SDL2.dll` next to `ct_play.exe`. `dist/` is never
-committed. The `dist/` player runs without the interpreter (below), so it needs
+`dist/` is never committed. Once it is installed, `tools/dist.py` checks that
+it runs on a machine that never built it, from the binaries' own import lists:
+
+- **Windows**: every DLL `ct_play.exe` loads, and every DLL those load, is either
+  part of Windows (in the system directory, or an API set) or copied into
+  `dist/` from `PATH` and the compiler's directory; one it can't find stops it.
+  With MSYS2's MinGW-w64 gcc that is `SDL2.dll` alone: `ct_play` links libgcc
+  statically (`-static-libgcc`), uses Windows fibers rather than a thread
+  library, and SDL2 itself imports only Windows DLLs, so no MinGW runtime DLL is
+  needed. A toolchain that links one (a C++ runtime, `libwinpthread`) gets it
+  copied. Checked by running `dist/` from a directory outside the build with
+  `PATH` cut down to the Windows directories: headless, it played a movie and
+  wrote its screenshot and save.
+- **Linux and macOS**: it lists the shared libraries the player needs beyond the
+  base system (`ldd`, `otool -L`), which is SDL2; a player's machine installs it
+  from its package manager (`libsdl2-2.0-0`, `brew install sdl2`), since `dist/`
+  doesn't bundle it. Neither is checked on a machine without a build yet: CI
+  builds `ct_play` on both, but nothing there runs `tools/dist.py`. The `dist/` player runs without the interpreter (below), so it needs
 the ROM at build time (`CT_ROM`, `roms/ct-usa.sfc` by default); `tools/dist.py`
 stops if no blocks were generated. `--interpreter` builds the development
 player instead.
@@ -140,24 +156,61 @@ PPU registers line by line. `--renderer scanline` selects the reference renderer
 instead; the two are pixel-identical on every frame of every movie, so the
 option is for comparing them, not for choosing a look.
 
-| Key | Button |
-|---|---|
-| Arrows | D-pad |
-| X | A |
-| Z | B |
-| S | X |
-| A | Y |
-| Q | L |
-| W | R |
-| Enter | Start |
-| Right Shift | Select |
-| P | pause |
-| Tab (hold) | fast forward |
-| F5 / F7 | quick save / quick load |
-| F11, Alt+Enter | fullscreen |
-| Esc | quit |
+### Controls
 
-The mapping is the `keymap` table at the top of `frontend/ct_play.c`.
+The keyboard and any number of gamepads (SDL game controllers: Xbox,
+PlayStation, Switch Pro and most others) work at once, all as controller 1. Pad
+buttons go by position, as on a SNES pad, whatever their labels say: the bottom
+face button is B, the right one A, the left one Y, the top one X.
+
+| SNES / player | Keyboard | Gamepad |
+|---|---|---|
+| D-pad | Arrows | D-pad, left stick |
+| A | X | right face button (`Pad b`) |
+| B | Z | bottom face button (`Pad a`) |
+| X | S | top face button (`Pad y`) |
+| Y | A | left face button (`Pad x`) |
+| L / R | Q / W | shoulder buttons |
+| Start | Return | Start |
+| Select | Right Shift | Back / Select |
+| pause | P, Pause | |
+| fast forward (hold) | Tab | right trigger |
+| quick save / quick load | F5 / F7 | |
+| fullscreen | F11, Alt+Return | |
+| quit | Escape | |
+
+Any of it can be changed, and pad buttons can drive the player too. A key file
+holds one binding a line, `INPUT = ACTION`, with `#` starting a comment:
+
+```
+# ct_play.keys
+Space = A
+Left Ctrl = B
+Tab = None              # no more fast forward on Tab
+Pad guide = QuickSave
+Pad lefttrigger = QuickLoad
+Pad rightstick = Pause
+```
+
+An input is a key by its SDL name (`X`, `Return` or `Enter`, `Right Shift`,
+`Space`, `F5`, `Keypad 8`), or `Pad` and a controller input by its SDL name: a
+button (`a`, `b`, `x`, `y`, `back`, `guide`, `start`, `leftstick`,
+`rightstick`, `leftshoulder`, `rightshoulder`, `dpup`, `dpdown`, `dpleft`,
+`dpright`, `misc1`, `paddle1`-`paddle4`, `touchpad`), a stick direction
+(`leftx-`, `leftx+`, `lefty-` is up, `lefty+`, and the same for `right`) or a
+trigger (`lefttrigger`, `righttrigger`). Sticks and triggers count past half
+way. An action is a SNES button (`A`, `B`, `X`, `Y`, `L`, `R`, `Start`,
+`Select`, `Up`, `Down`, `Left`, `Right`), `Pause`, `FastForward`, `QuickSave`,
+`QuickLoad`, `Fullscreen`, `Quit`, or `None` to unbind the input. A binding
+replaces whatever that input did; several inputs can share an action.
+
+`ct_play` reads `ct_play.keys` next to the executable if there is one, or the
+file `--keys` names, and then `--bind INPUT=ACTION` options on top
+(`--bind "Pad guide=QuickSave"`). `ct_play --help` lists the controls as bound.
+Alt+Return always toggles fullscreen, and opposite d-pad directions pressed
+together cancel, as a real d-pad can't press them. Bindings live in the window
+driver (`frontend/bindings.c`); the player only sees the buttons they add up
+to.
 
 The SNES picture is 256x224, but a TV showed it at a 4:3 aspect and hid roughly
 8 rows at the top and bottom as overscan; Chrono Trigger leaves its last dozen
@@ -175,8 +228,12 @@ In-game saves go to `<rom name>.srm` in the ROM's directory (or `--save-dir`),
 written within a second of the game changing them and again on exit. The file
 is the cartridge's 8 KiB SRAM, the format other emulators use.
 
-Quick saves go to `<rom name>.state` in the same place. They're raw machine
-images, valid only for the build that wrote them. A quick save waits until no
+Quick saves go to `<rom name>.state` in the same place. A quick save made by
+one build loads in later builds too, including ones whose machine has changed
+since: the state is written field by field, and a field added since comes up at
+its power-on value ([RUNTIME.md](RUNTIME.md), "Save states"). A state that can't
+be read -- damaged, from another ROM, or from before this format -- is refused
+with a message, and the game goes on as it was. A quick save waits until no
 native routine is suspended in a call-out, since a state can't capture one.
 In the field that's immediate; in battle it can take several seconds (the
 title bar shows "saving state..." meanwhile), and it gives up after 30. Loading a quick save also restores the SRAM it held,
@@ -259,4 +316,44 @@ Screenshots and audio are derived from the ROM; keep them out of the repository.
 
 `--movie` and `--record` work headless too (holds count from the start of the
 run), which is how recording is checked: record with holds, replay the movie
-with `ct_dev` for the same number of frames, and compare the two final states.
+with `ct_dev` for the same number of frames, and compare the two final states
+(`--save-state` on both; give `ct_dev` a `--wav` too, so that both have taken
+the sound out of the machine and the states match byte for byte).
+
+## How the player is built
+
+`ct_play` is a player and two drivers over it, split so that a host which isn't
+a desktop (a browser calling back once a frame, a handheld) needs a driver of
+its own rather than a fork of the player (CLAUDE.md, "Writing host-side code",
+holds the rules that keep it that way).
+
+| File | What it is |
+|---|---|
+| `frontend/player.h`, `player.c` | the machine, its renderer and native runtime, the input track that replays and records, quick saves |
+| `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between the APU's 32000 Hz and an audio device's rate (above) |
+| `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard and gamepads, and the frame pacing |
+| `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |
+| `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
+| `frontend/files.h`, `files.c` | the desktop's storage: what the saves are called, and the files they go in |
+| `frontend/ct_play.c` | the options, which it turns into a player and one driver |
+
+The player advances one frame per `player_step` call, and the buttons it is
+given reach the game through the input service's `in_host_set`. Below the
+driver nothing owns the loop, sleeps, reads a clock, polls events or opens a
+device: the drivers do all of that, and take each frame's picture
+(`player_pixels`) and sound (`player_take_audio`, or `audio_fill` for a device
+with its own clock) to wherever they go. A quick save the player can't take yet
+(a native routine is suspended) is a request it carries out at the end of a
+later frame, so no driver has to wait for it.
+
+Nor does the player know a path. What it persists it takes and hands out as
+bytes: the cartridge save (through the save service's `sv_host_bytes`), a quick
+save it has taken, the text of the movie being recorded, the misses log. The
+driver decides what they are called and where they go -- on the desktop,
+`frontend/files.c` names them after the ROM or the recording and writes them
+next to the ROM or into `--save-dir` -- so a host without a filesystem keeps
+them its own way. The runtime's file helpers are the same split: the player
+uses `snes_state_write`/`snes_state_read`, `zst_import`, `ct_movie_parse`/
+`ct_movie_format` and `misses_parse`/`misses_format`, and the path functions the
+development tools call (`snes_state_save`, `zst_import_file`, `ct_movie_load`,
+`misses_write`) are wrappers over them.
