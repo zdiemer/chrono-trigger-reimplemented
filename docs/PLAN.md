@@ -33,7 +33,7 @@ Days of work, and it unblocks anyone else running this.
 
 - **Gamepad support.** `in_host_set` is already the single per-frame host entry
   point, so this is an SDL GameController call into it.
-- **Configurable keys**, replacing the fixed `keymap` table in `frontend/ct_play.c`.
+- **Configurable keys**, replacing the fixed `keymap` table in `frontend/window.c`.
 - **Quick saves that survive a rebuild.** They are raw machine images today and
   break whenever a structure changes, which P3 demonstrated by changing
   `sizeof(Snes)`. Needs a versioned, field-wise format.
@@ -42,31 +42,20 @@ Days of work, and it unblocks anyone else running this.
 
 ### The host seam
 
-Three of those four are edits to `frontend/ct_play.c` and the save path, which
-is also where any host that isn't a desktop has to be let in. Doing them in the
-shape that host needs costs little more than doing them twice.
+Three of those four are edits to the frontend and the save path, which is also
+where any host that isn't a desktop has to be let in. Doing them in the shape
+that host needs costs little more than doing them twice.
 
-`Player` and `step` (`frontend/ct_play.c`) are already the right idea: no SDL
-type is in the struct, and a frame is a function call rather than a loop
-iteration. What isn't factored is everything around them. `run_window` owns the
-loop, the pacing (`SDL_Delay` against a deadline), the event poll, the window
-and the audio device; `run_headless` is a second copy of that shape; and
-persistence is spelled as paths throughout -- `sram_path` and `state_path` in
-`Player`, `fopen` in the frontend, `snes_save_state` and `zst.c` taking a path
-in `runtime/snes/`. A browser offers neither of those: the host calls back once
-a frame rather than being called, and there is no synchronous filesystem.
+The driver seam is in: `Player` and `player_step` have a header of their own
+(`frontend/player.h`), `run_window` and `run_headless` are two drivers over
+them, and the audio fill is host-neutral (PLAYING.md, "How the player is
+built"). Configurable keys and gamepad support are bindings *in* a driver, so
+they go into `frontend/window.c` rather than the player. What is left:
 
-Two seams, each worth having on the desktop by itself:
-
-- **A driver seam.** Promote `Player`, `step` and the audio fill to a header of
-  their own, so `run_window` is one driver over them and `run_headless` another.
-  The rule that makes it hold: below the driver, nothing owns the loop, sleeps,
-  spins on a clock or reads an event queue -- the game advances one frame per
-  call, and input arrives as `in_host_set` already demands. A third driver is
-  then a file the size of the other two rather than a fork of the player.
-  Configurable keys and gamepad support are bindings *in* a driver, so they
-  should be written on the far side of this rather than into `run_window`.
-- **A storage seam.** Persistence moves bytes under a name: the `.srm`, a quick
+- **A storage seam.** Persistence is still spelled as paths -- `sram_path` and
+  `state_path` in `Player`, `fopen` in the player, `snes_state_save` and
+  `zst.c` taking a path in `runtime/snes/` -- and a browser has no synchronous
+  filesystem. Persistence should move bytes under a name: the `.srm`, a quick
   save, a recorded movie, the misses file. Files sit behind it on the desktop
   and whatever the host has elsewhere, and the runtime's by-path helpers become
   buffer functions with the path wrapper in the driver. Quick saves need a

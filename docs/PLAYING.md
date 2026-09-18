@@ -157,7 +157,7 @@ option is for comparing them, not for choosing a look.
 | F11, Alt+Enter | fullscreen |
 | Esc | quit |
 
-The mapping is the `keymap` table at the top of `frontend/ct_play.c`.
+The mapping is the `keymap` table at the top of `frontend/window.c`.
 
 The SNES picture is 256x224, but a TV showed it at a 4:3 aspect and hid roughly
 8 rows at the top and bottom as overscan; Chrono Trigger leaves its last dozen
@@ -260,3 +260,26 @@ Screenshots and audio are derived from the ROM; keep them out of the repository.
 `--movie` and `--record` work headless too (holds count from the start of the
 run), which is how recording is checked: record with holds, replay the movie
 with `ct_dev` for the same number of frames, and compare the two final states.
+
+## How the player is built
+
+`ct_play` is a player and two drivers over it, split so that a host which isn't
+a desktop (a browser calling back once a frame, a handheld) needs a driver of
+its own rather than a fork of the player ([PLAN.md](PLAN.md), Phase 1).
+
+| File | What it is |
+|---|---|
+| `frontend/player.h`, `player.c` | the machine, its renderer and native runtime, the input track that replays and records, quick saves |
+| `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between the APU's 32000 Hz and an audio device's rate (above) |
+| `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard, and the frame pacing |
+| `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
+| `frontend/ct_play.c` | the options, which it turns into a player and one driver |
+
+The player advances one frame per `player_step` call, and the buttons it is
+given reach the game through the input service's `in_host_set`. Below the
+driver nothing owns the loop, sleeps, reads a clock, polls events or opens a
+device: the drivers do all of that, and take each frame's picture
+(`player_pixels`) and sound (`player_take_audio`, or `audio_fill` for a device
+with its own clock) to wherever they go. A quick save the player can't take yet
+(a native routine is suspended) is a request it carries out at the end of a
+later frame, so no driver has to wait for it.
