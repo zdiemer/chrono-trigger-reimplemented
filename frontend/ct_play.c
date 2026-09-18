@@ -2,16 +2,18 @@
  * and the rest on the development system (docs/PLAYING.md).
  *
  *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp only|on|off]
- *           [--audio snes|direct] [--renderer native|scanline] [--save-dir dir]
+ *           [--audio snes|direct] [--renderer native|scanline] [--save-dir dir] [--keys f] [--bind IN=ACTION]...
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm] [--load-zst in.zst]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
  *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm] [--wav out.wav]
  *
- * With --frames it runs headless (no window) for a fixed number of frames, for
- * checking a build without a display. --movie replays an input movie before the
- * keyboard takes over; --record writes everything played from power-on as a
- * movie that ct_dev replays identically. In a window, the APU's 32000 Hz output
- * plays through SDL audio (see frontend/audio_fill.h).
+ * This file turns the options into a player (player.h), the desktop's storage
+ * (files.h) and one of two drivers (driver.h): run_window, or with --frames
+ * run_headless, which runs a fixed number of frames without a display, for
+ * checking a build. --movie replays an input movie before the keyboard and pads
+ * take over; --record writes everything played from power-on as a movie that
+ * ct_dev replays identically. In a window, the APU's 32000 Hz output plays
+ * through SDL audio (see audio_fill.h).
  *
  * Built with CT_PLAYER_NO_INTERPRETER (CMake CT_PLAYER_INTERPRETER=FALLBACK or
  * OFF, docs/PLAYING.md), it runs only native code, the generated blocks: an
