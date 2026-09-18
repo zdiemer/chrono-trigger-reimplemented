@@ -166,8 +166,8 @@ waits on M5 rather than on a backend.
   `frontend/bindings.c` is the desktop's). The second
   screen is the real question, because `VidFrame` is one frame of one screen per
   frame. Two shapes, and they cost differently: a *companion* view (party state,
-  the map, an item list) drawn by the frontend from game state, which needs the
-  RAM map (PLAN.md, Phase 2) before there is anything to read by name; or a
+  the map, an item list) drawn by the frontend from game state, which can read
+  it by name from the RAM map (`re/ram.toml`, `game/ram.h`); or a
   *second game screen* in the DS sense, which needs the video service to carry
   more than one frame and the game to decide what goes where. Either way it wants
   P3's leftover first (the observer doesn't fill in the per-span memory pointers),

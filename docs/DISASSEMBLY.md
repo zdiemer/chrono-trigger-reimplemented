@@ -177,6 +177,97 @@ leave spurious targets behind.
 `tools/disasm/closure.py` holds the closure checks C1-C7 the matching build
 runs (MATCHING.md).
 
+## The RAM map (`re/ram.toml`)
+
+`re/hints.toml` says what the ROM's bytes are; `re/ram.toml` says what work
+RAM's bytes mean: each game variable's address, width and layout, a name, one
+or two sentences of meaning, the subsystem that owns it and where that was
+established. It is knowledge about the console's memory, worked out from the
+code, so it is committed; no initial value or table content read out of the ROM
+goes in it. The schema is at the top of the file:
+
+| Entry | Fields | Meaning |
+|---|---|---|
+| `[[page]]` | `name`, [`d`], `subsystem`, `meaning`, `source`, [`why`] | a direct page: D while that code runs, or no `d` and a `why` when D isn't known statically |
+| `[[var]]` | `name`, `addr` or `dp`, [`size`], [`count`, `stride`, `index`], [`page`], `subsystem`, `meaning`, `source` | a variable, an array (`count` elements `stride` bytes apart, selected by `index`), or with `[[var.field]]`s (`name`, `offset`, [`size`], `meaning`) an array of records |
+| `[[image]]` | `name`, `start`, `end`, `subsystem` (a list), `meaning`, `source` | work RAM holding a program the game runs from there (the attract program at `$7E:3000`): routines, named by their origin like ROM code, and left out of the count |
+| `[[not_ram]]` | `file`, `values`, `why` | literals in one `game/` file that look like work RAM and aren't (SPC700 addresses, program counters, VRAM word addresses, counts), for the count only |
+| `[[offset]]` | `file`, `values`, `bank`, `why` | four-digit literals the file adds to a bank's base (`0x7F0000u + 0x0980`), which the count reads as that bank's addresses |
+
+Work RAM is reused from one game mode to the next, so two entries may cover the
+same bytes when their subsystems differ (the battle's `$7E:2000` is not the
+field's); within a subsystem the map rejects an overlap. State every mode
+shares -- the party, inventory, story flags -- is `core`.
+
+**Direct page.** A direct-page offset has no meaning of its own: `$6D` is the
+event engine's current object with D = `$0100` and something else in battle,
+where D = `$0000`. So a variable the code reaches through the direct page names
+its page, and its address is the page's D plus the offset. The pages come from
+measurement, not assumption: every ported routine's D and data bank at entry,
+logged over the whole movie library, agree with the constant `TCD` and
+`PEA`/`PLD` sites listed in each page's `source` (field and events `$0100`;
+battle, menus and scenes `$0000`; `$1D00` scratch pages in field and battle;
+the menus' `$0D00` and `$0200`; the sound driver's `$1E00`; the decompressor's
+`$0300`). Two pages have no D, and the map says so rather than choose one:
+`caller`, the controller reader's cells, which run on whichever page the caller
+set (five different ones are measured), and `menu_record`, where the menus
+point D at the `$40`-byte record being drawn. Variables on those pages have an
+offset (`dp`) and no address. The I/O pages (`$2100`, `$4200`, `$4300`) are
+registers, which the platform services own, and aren't in the map.
+
+**The header.** `python3 tools/ram_map.py header` writes `game/ram.h`, which
+ports include (`#include "ram.h"`):
+
+- `RAM_<NAME>`: the long address (`$7E`/`$7F`), for `m_read8` and friends; for
+  an array or record, element 0's, with `RAM_<NAME>_COUNT` and
+  `RAM_<NAME>_STRIDE`, and a record's fields as `RAM_<NAME>_<FIELD>`;
+- `RAM_<NAME>_DP`: the direct-page offset of a variable with a page, for
+  `m_dp`, and `RAM_PAGE_<PAGE>` the page's D;
+- `RAM_ABS(addr)`: the 16-bit operand of an absolute access, for code that
+  still reaches work RAM through the data bank (`m_abs`).
+
+The header is committed rather than generated into the build tree: it is
+source ports include, the CI builds have no ROM (the map needs none, but
+nothing else in the build runs Python), and a reviewer should see the names a
+change adds. `tests/test_ram_map.py` fails when it is out of date with the map,
+and checks that `tools/movies/addresses.py`, which reads the same memory from
+Python, names nothing the map doesn't.
+
+**Adding to it.** When a port establishes what a byte means, add the entry
+with the port as its `source`, run `python3 tools/ram_map.py header`, and use
+the name. `python3 tools/ram_map.py lookup 7E:95D5` says what the map knows
+about an address, and `check` validates the file.
+
+**Coverage.** `python3 tools/ram_map.py coverage` reports how much of what
+`game/` touches has a name. It counts four-digit literals `$0100-$1FFF` (low
+RAM) and six-digit literals in banks `$7E`/`$7F`, and `RAM_` names (plus a
+constant offset) at the address they stand for, by distinct address and by
+use, so renaming a file doesn't move the total. A use is named by an entry of
+its own subsystem, of `core`, or of the one it shares a page with (field and
+event, scene and attract): the battle's name for `$7E:0B40` says nothing about
+the field's. `--open [--subsystem S]` lists what is left by the subsystem using
+it. Absolute operands of `$2000` and up are outside the total -- a literal
+`0x95D5` can't be told from a constant without reading the code -- and are
+reported beside it as the ones the map names (`--abs` lists them); most battle
+and menu variables are there. Direct-page offsets aren't counted.
+
+**As built.** The map was harvested from what the repo already said: the port
+comments in `game/`, PORTING.md's status table, MOVIES.md and
+`tools/movies/addresses.py`, PLATFORM.md's "as built" sections, and the enums
+some ports already had. It holds 14 pages, 601 variables and 3 program images,
+and 297 literals in 41 files are marked as not work RAM (the sound driver's
+`$C7` program counters are most of them). Of the literals `game/` used, it
+names 338 of the 370 distinct addresses (91%, 906 of 951 uses): 258 of 285 in
+low RAM and 80 of 85 long. By the plan's first count, which took every
+four-digit literal in range for an address, 523 low-RAM addresses in 1222 uses
+and 230 long ones in 361 -- the difference is the literals marked as something
+else (297 addresses) and the attract program's routines at `$7E:3000` (143).
+Beyond the total, it names 535 distinct absolute operands of `$2000` and up
+(1289 uses). The
+32 open addresses are listed by `--open`: menu 13, field 6, battle 5, event 4,
+scene 4, core 2, each a byte whose use the code shows but whose meaning it
+doesn't (a call-out's parameters, a flag only ever tested).
+
 ## Known structure
 
 - Reset `$00:FF00` is `SEI; CLC; XCE; JML $FD:C000`.
