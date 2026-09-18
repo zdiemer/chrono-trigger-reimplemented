@@ -969,8 +969,9 @@ tree only; the repository has the codecs, not the text.
 - Menu strings: only `$C2:A3BA` (four 10-tile records, `$C2:A39D`, index x 10),
   retyped from `script`.
 
-Codes the typed dialog never uses: `$01`, `$04`, `$07`, `$08`, `$10`, `$11`,
-`$12`. The most common are `$06` (3821 times) and `$05` (1535).
+Codes no typed dialog string uses: `$01`, `$04`, `$07`, `$08`, `$0F`, `$10`,
+`$11`, `$12`. In the fifteen MD2 tables the most common are `$06` (3821 times)
+and `$05` (1535).
 
 **Result.** 4702 regions, 181170 bytes, are assembled from text, all of them
 round-tripping; none of a text format is kept raw. Census unknown 43481 ->
@@ -980,7 +981,10 @@ coverage gives 12431 blocks, 148301 instructions, 127045 in the analysis and a
 code set of 127181 instruction variants on `main` and on this work, and the 65
 generated C files are byte-identical. `unittest` passes (178 tests); CRC32
 `2D206BF7` and SHA-1 `de5822f4...` match; the matching run writes 4702 more
-files (a `.txt` beside each encoded `.bin`), which costs a few seconds.
+files (a `.txt` beside each encoded `.bin`), which costs a few seconds. With the
+build's coverage and call logs the generated C is identical to `main`'s too, and
+`tools/suite.py --only core` passes (7 of 7 movies clean, trace identity on
+`new-game`).
 
 **Left for the strings:**
 
