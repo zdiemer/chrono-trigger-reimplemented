@@ -16,7 +16,10 @@ regions:
   target type is reported rather than silently accepted;
 - for `target = "text"`, one region per distinct entry running to and including
   its zero terminator, with the bytes between one terminator and the next
-  string reported (zero when the strings tile their range);
+  string reported (zero when the strings tile their range). With `format =
+  "dialog"` a string ends where the field dialog stops reading it
+  (`tools/disasm/text.py`, `dialog_length`): at the terminator, or at `$03 $00`,
+  whose operand is the first zero. The regions carry the format;
 - for `target = "sized"`, one region per distinct entry whose first two bytes
   are its length, as the sound driver's blocks are;
 - for `target = "blob"`, one region per distinct entry of the hint's `type`,
@@ -36,6 +39,7 @@ from dataclasses import dataclass, field
 from .hints import DataHint, Hints
 from .lz import decompress
 from .memmap import bus_to_offset, fmt, offset_to_bus
+from .text import dialog_length
 
 TARGETS = {"lz", "blob", "text", "sized"}
 
@@ -54,6 +58,7 @@ class Resource:
     kind: str = "ptr24"      # "ptr24", or "ptr16" with `bank` supplying the bank byte
     bank: int = 0            # ptr16: the bank the reading code puts on the offset
     slots: int | None = None # entries the table region covers (default: count)
+    format: str | None = None  # text: the encoding (tools/disasm/text.py FORMATS)
 
     @property
     def stride(self) -> int:
@@ -165,7 +170,11 @@ def expand(hints: Hints, data: bytes) -> Report:
                 report.stream_output += len(out)
                 add(DataHint(start, start + used - 1, "lz", None, {"output": len(out)}))
             elif r.target == "text":
-                z = data.find(b"\0", t, (t | 0xFFFF) + 1)
+                if r.format == "dialog":
+                    n = dialog_length(data, t, (t | 0xFFFF) + 1)
+                    z = -1 if n is None else t + n - 1
+                else:
+                    z = data.find(b"\0", t, (t | 0xFFFF) + 1)
                 if z < 0:
                     report.problems.append(
                         f"resource {r.name or fmt(r.at)}[{k}] -> {fmt(start)}: no terminator before the bank ends")
@@ -173,7 +182,7 @@ def expand(hints: Hints, data: bytes) -> Report:
                 report.strings += 1
                 report.string_bytes += z - t + 1
                 text_spans.setdefault(id(r), []).append((t, z))
-                add(DataHint(start, offset_to_bus(z), "text", None, {}))
+                add(DataHint(start, offset_to_bus(z), "text", None, {"format": r.format} if r.format else {}))
             elif r.target == "sized":
                 end = t + 1 + (data[t] | data[t + 1] << 8)
                 if end >= len(data):

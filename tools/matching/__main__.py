@@ -5,8 +5,9 @@
         [--coverage traces/coverage.txt ...] [--calls traces/calls.txt ...] [--asar auto|off|PATH]
 
 Verifies the ROM (CRC32 and SHA-1), runs the disassembler's analysis in process,
-writes the source into OUT/src (rom.asm, bank_XX.asm, data/raw/bank_XX/*.bin),
-assembles it with tools/matching/asm.py into OUT/rom.sfc and fails unless that
+writes the source into OUT/src (rom.asm, bank_XX.asm, data/raw/bank_XX/*.bin;
+regions of a text format as data/text/*.txt, and their .bin encoded from that
+text as it reads back, docs/MATCHING.md "The string encodings"), assembles it with tools/matching/asm.py into OUT/rom.sfc and fails unless that
 is the ROM. With asar available it assembles the same source with asar too.
 Everything written is ROM-derived and belongs in the build tree only. Files
 whose content didn't change aren't rewritten; stale ones are removed.
@@ -89,6 +90,11 @@ def report(st, times: dict, out: Path, cov=None, data_problems=(), an=None, ram=
               (f"- executed ROM addresses (coverage): {cov.rom}, {cov.ok} instruction starts with compatible "
                f"widths, {len(cov.problems)} not" + "".join(f"\n  - {fmt(a)}: {t}" for a, t in cov.problems)
                + f"\n- executed addresses outside ROM: {cov.ram}") if cov else "- no coverage given",
+              f"- regions assembled from text: "
+              + (", ".join(f"{st.text_regions[k]} {k} ({st.text_bytes[k]} bytes)" for k in sorted(st.text_regions))
+                 or "none")
+              + f"; text regions kept raw: {len(st.text_problems)}"
+              + "".join(f"\n  - {p}" for p in st.text_problems),
               f"- [[data]] hints that don't fit their bytes: {len(data_problems)}"
               + "".join(f"\n  - {p}" for p in data_problems),
               f"- transfers into [[data]] regions: {len(an.forced_data) if an else 0}"
@@ -174,9 +180,16 @@ def main():
     t = time.time()
     src = args.out / "src"
     changed = sum(write_if_changed(src / rel, content) for rel, content in sorted(files.items()))
-    wanted = {(src / rel).resolve() for rel in files}
+    # Regions of a text format are written decoded; their bytes come from
+    # encoding that text as it reads back, so the assembly below is the check.
+    encoded, text_problems = em.encode_text(src)
+    if text_problems:
+        sys.exit("matching: text that doesn't encode:\n  " + "\n  ".join(text_problems[:20]))
+    changed += sum(write_if_changed(src / rel, content) for rel, content in sorted(encoded.items()))
+    wanted = {(src / rel).resolve() for rel in list(files) + list(encoded)}
     removed = 0
-    for old in sorted(list(src.glob("*.asm")) + list(src.glob("ram/*.asm")) + list(src.glob("data/**/*.bin"))):
+    for old in sorted(list(src.glob("*.asm")) + list(src.glob("ram/*.asm")) + list(src.glob("data/**/*.bin"))
+                      + list(src.glob("data/**/*.txt"))):
         if old.resolve() not in wanted:
             old.unlink()
             removed += 1
@@ -219,13 +232,16 @@ def main():
 
     ram_problems = sum(len(rs.problems) for _, rs in ram_sections) + len(ram_cov[2]) + len(an.ram.problems)
     if (st.overlap_problems or (cov and cov.problems) or data_problems or an.forced_data or ram_problems
-            or an.resources.problems):
+            or an.resources.problems or st.text_problems):
         sys.exit(f"matching: {len(cov.problems) if cov else 0} executed ROM addresses aren't instructions the "
                  f"source can run, {len(st.overlap_problems)} overlap hints and {len(data_problems)} data hints "
                  f"don't fit, {len(an.forced_data)} transfers into data, {ram_problems} RAM section problems, "
-                 f"{len(an.resources.problems)} resource table problems (see report.md)")
+                 f"{len(an.resources.problems)} resource table problems, {len(st.text_problems)} text regions "
+                 "kept raw (see report.md)")
     print(f"matching: {len(ram_sections)} RAM sections assemble to their images")
     print(f"matching: {an.resources.summary()}")
+    print("matching: assembled from text: " + (", ".join(f"{st.text_regions[k]} {k} regions ({st.text_bytes[k]} bytes)"
+                                                          for k in sorted(st.text_regions)) or "nothing"))
     failed = [c for c in checks if not c.ok]
     if failed and args.closure == "check":
         sys.exit("matching: closure checks fail: " + "; ".join(f"{c.name}: {c.problems[0]} ({len(c.problems)} problems)"

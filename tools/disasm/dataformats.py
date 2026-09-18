@@ -103,10 +103,16 @@ def encode_graphics(tiles, planes):
     return bytes(out)
 
 
-def check_format(blob, region):
-    """Validate explicitly supported formats; older format annotations stay as-is."""
+def check_format(blob, region, context=None):
+    """Validate explicitly supported formats; older format annotations stay as-is.
+    Text formats (tools/disasm/text.py) decode and re-encode; `context` carries
+    what they share, the decoded dialog dictionary."""
     form = region.params.get("format")
-    if form == "location-exits":
+    if region.type == "text" and form is not None:
+        from .text import decode, encode, region_params
+        params = region_params(region)
+        encoded = encode(form, decode(form, blob, params, context or {}), params, context or {})
+    elif form == "location-exits":
         if region.start & 0xFFFF:
             raise ValueError("exit offset table must start at bank offset zero")
         encoded = encode_exits(decode_exits(blob, region.params["count"]))
