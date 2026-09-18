@@ -45,8 +45,7 @@ rest waits, is [PLAN.md](PLAN.md).
   still need stronger bounds. Not started: the string encoding, the
   event/battle-animation/enemy script formats as typed regions with round
   trips, and re-encoding for `lz` (today's check is that the decompressor
-  consumes the bytes exactly). The data-typing follow-up still needs the
-  full movie suite before integration.
+  consumes the bytes exactly).
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 96 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
@@ -131,7 +130,13 @@ waits on M5 rather than on a backend.
     already in the right place, so the question is what can sit behind it:
     Asyncify (a whole-program cost), JSPI (cheaper, but a floor on what can run
     the build), or a call-out that doesn't suspend its caller, which is a
-    `native.c` redesign. This decides whether the build is easy or a project.
+    `native.c` redesign. This decides whether the build is easy or a project --
+    but only for a build that runs hand ports. Generated blocks run on the
+    machine without a fiber (they never call out; RECOMP.md), and the default
+    player, `--recomp only`, runs no hand ports, so a build the user compiles
+    from their own ROM in that mode needs no stack switching at all. The
+    question is live for the public build below, and for the day hand ports
+    become the shipping path (PLAN.md, Phase 2's timing spike).
     The spike, and why no phase covers it, is in PLAN.md's "What this plan
     deprioritizes".
   - **What the browser build is made of.** The default path generates C from the
@@ -151,8 +156,8 @@ waits on M5 rather than on a backend.
   - **Speed**, which is unmeasured: the interpreter plus `render.c` per line, in
     one thread, with no `-static` build to lean on.
 - **A native AYN Thor multi-screen port.** Two parts, and only one of them is a
-  backend. The Android/ARM64 side is ordinary: SDL2 builds there, the platform
-  lint says no screen geometry is baked into `game/`, and the handheld's pad
+  backend. The Android/ARM64 side is ordinary: SDL2 builds there, no screen
+  geometry is baked into `game/` (PLAN.md, Phase 2), and the handheld's pad
   arrives through `in_host_set` once Phase 1's controller work lands. The second
   screen is the real question, because `VidFrame` is one frame of one screen per
   frame. Two shapes, and they cost differently: a *companion* view (party state,

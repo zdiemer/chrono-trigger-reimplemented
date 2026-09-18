@@ -27,11 +27,6 @@ Nothing lands without it, and it is the same gate for every phase:
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
 
-## Phase 0: finish what is in flight
-
-- The **MD2 data-typing** work through the gate. It is started; finishing it
-  costs less than carrying it.
-
 ## Phase 1: a build other people can play
 
 Days of work, and it unblocks anyone else running this.
@@ -307,6 +302,13 @@ the decompilation, so they wait behind it.
   stop needing a stack -- a call-out that returns to its caller instead of
   suspending it -- which is a `native.c` redesign and would be felt by shadow
   mode and the whole gate.
+
+  It is narrower than it looks. Generated blocks never call out and run without
+  a fiber, and the default player (`--recomp only`) runs no hand ports, so a
+  user-compiled build in that mode never switches stacks: `fiber.h` needs a
+  backend there only to link. What needs a real one is a build that runs hand
+  ports -- the public one that can't carry generated code, or any build once
+  the timing spike makes hand ports the shipping path.
 
   So the spike is: put a third backend behind `fiber.h`, run the movie suite
   under it, and measure. A day's answer that decides whether a browser build is
