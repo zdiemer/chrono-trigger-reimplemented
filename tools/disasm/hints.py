@@ -220,9 +220,11 @@ def load(path: Path) -> Hints:
         if entry not in ("ptr16", "ptr24"):
             raise ValueError(f"resource {r['at']}: kind must be ptr16 or ptr24")
         if "format" in r:
+            from .eventscript import LZ_FORMATS
             from .text import FORMATS
-            if target != "text" or r["format"] not in FORMATS:
-                raise ValueError(f"resource {r['at']}: format is for text targets, one of {FORMATS}")
+            if not ((target == "text" and r["format"] in FORMATS) or (target == "lz" and r["format"] in LZ_FORMATS)):
+                raise ValueError(f"resource {r['at']}: format is for text targets, one of {FORMATS}, "
+                                 f"or lz targets, one of {LZ_FORMATS}")
         if entry == "ptr16" and "bank" not in r:
             raise ValueError(f"resource {r['at']}: ptr16 entries need the bank the code supplies")
         ends = r.get("end", [])

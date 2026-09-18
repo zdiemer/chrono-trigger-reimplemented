@@ -95,6 +95,8 @@ def report(st, times: dict, out: Path, cov=None, data_problems=(), an=None, ram=
                  or "none")
               + f"; text regions kept raw: {len(st.text_problems)}"
               + "".join(f"\n  - {p}" for p in st.text_problems),
+              f"- compressed event scripts written decoded and encoded back: {st.event_streams} "
+              f"({st.event_bytes} bytes decompressed)",
               f"- [[data]] hints that don't fit their bytes: {len(data_problems)}"
               + "".join(f"\n  - {p}" for p in data_problems),
               f"- transfers into [[data]] regions: {len(an.forced_data) if an else 0}"
@@ -242,6 +244,8 @@ def main():
     print(f"matching: {an.resources.summary()}")
     print("matching: assembled from text: " + (", ".join(f"{st.text_regions[k]} {k} regions ({st.text_bytes[k]} bytes)"
                                                           for k in sorted(st.text_regions)) or "nothing"))
+    print(f"matching: compressed event scripts decoded and encoded back: {st.event_streams} "
+          f"({st.event_bytes} bytes decompressed)")
     failed = [c for c in checks if not c.ok]
     if failed and args.closure == "check":
         sys.exit("matching: closure checks fail: " + "; ".join(f"{c.name}: {c.problems[0]} ({len(c.problems)} problems)"

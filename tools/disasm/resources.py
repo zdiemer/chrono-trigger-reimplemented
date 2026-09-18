@@ -13,7 +13,9 @@ regions:
 - for `target = "lz"`, one `lz` region per distinct entry, running exactly as
   far as `tools/disasm/lz.py` consumes. An entry that isn't a stream is a
   problem unless the hint's `skip` lists it, so a wrong count or a wrong
-  target type is reported rather than silently accepted;
+  target type is reported rather than silently accepted. With `format` (the
+  event scripts, `tools/disasm/eventscript.py`) the regions carry the format
+  of their output;
 - for `target = "text"`, one region per distinct entry running to and including
   its zero terminator, with the bytes between one terminator and the next
   string reported (zero when the strings tile their range). With `format =
@@ -58,7 +60,7 @@ class Resource:
     kind: str = "ptr24"      # "ptr24", or "ptr16" with `bank` supplying the bank byte
     bank: int = 0            # ptr16: the bank the reading code puts on the offset
     slots: int | None = None # entries the table region covers (default: count)
-    format: str | None = None  # text: the encoding (tools/disasm/text.py FORMATS)
+    format: str | None = None  # text: the encoding (tools/disasm/text.py FORMATS); lz: what the output is
 
     @property
     def stride(self) -> int:
@@ -168,7 +170,10 @@ def expand(hints: Hints, data: bytes) -> Report:
                 report.streams += 1
                 report.stream_bytes += used
                 report.stream_output += len(out)
-                add(DataHint(start, start + used - 1, "lz", None, {"output": len(out)}))
+                params = {"output": len(out)}
+                if r.format:
+                    params["format"] = r.format      # what the output is (tools/disasm/eventscript.py)
+                add(DataHint(start, start + used - 1, "lz", None, params))
             elif r.target == "text":
                 if r.format == "dialog":
                     n = dialog_length(data, t, (t | 0xFFFF) + 1)

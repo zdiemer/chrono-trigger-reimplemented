@@ -89,15 +89,14 @@ entries cover, per bank or per subsystem, which is how a conversion's progress
 is seen. It reads as an estimate for the reasons its own docstring gives.
 
 **Type the formats the code interprets.** MD2 has typed where the data is; what
-it hasn't done is the scripts the game *interprets*, and those are what the big
-subsystems are written around: the event, battle-animation and enemy script
+it hasn't done is the battle scripts the game *interprets*, and those are what
+the battle code is written around: the battle-animation and enemy script
 formats as typed regions with round trips (MATCHING.md, "MD2 as built"; TODO.md,
 "Matching disassembly"), each built the way MATCHING.md's "The string
-encodings" is: a codec in `tools/disasm/`, the regions typed in
-`re/hints.toml`, and the matching build assembling them from the decoded form.
-`$C0` is 84% generated and much of it is the event interpreter; porting a
-command handler is a different job when the command's operands have names and a
-parser says what follows it. The same work is the first dependency of script-as-text extraction
+encodings" and "The event scripts" are: a codec in `tools/disasm/`, the regions
+typed in `re/hints.toml`, and the matching build assembling them from the
+decoded form. Porting a command handler is a different job when the command's
+operands have names and a parser says what follows it. The same work is the first dependency of script-as-text extraction
 and of new content (TODO.md, "Targets beyond the desktop SNES build"), so it is
 done once, here, before the conversion that leans on it. The round trip is the
 check: parse, re-encode, and the matching build still produces CRC32
@@ -204,7 +203,8 @@ the decompilation, so they wait behind it.
   native mixer behind `au_*`, controllers.
 - **Assets as data rather than ROM reads** (TODO.md, "Platform"). The pipeline
   half belongs here: a layout meant to be read rather than reassembled, the
-  script as text once MD2 has the event script format, and a runtime that can load
+  scripts as text (the event scripts have a readable form, MATCHING.md "The
+  event scripts"; the battle scripts need one), and a runtime that can load
   from a user data directory instead of the ROM image. A GBA build is what
   forces it, since it can't map a 4 MiB SNES image the way the recompilation
   does; the seam it needs is laid in Phase 3 (below).

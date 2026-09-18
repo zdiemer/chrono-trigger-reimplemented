@@ -47,9 +47,11 @@ rest waits, is [PLAN.md](PLAN.md).
   still need stronger bounds. The strings' leftovers (MATCHING.md, "The string
   encodings"): the dialog tables at `$FF:D3FE` and `$CC:3A09`, whose extents
   aren't settled, and the menu strings passed to `$C2:EF65` by address in code.
-  Not started: the event/battle-animation/enemy script formats as typed regions
+  Not started: the battle-animation and enemy script formats as typed regions
   with round trips, and re-encoding for `lz` (today's check is that the
-  decompressor consumes the bytes exactly).
+  decompressor consumes the bytes exactly; the event scripts, all `lz`
+  streams, round-trip on their decompressed output and would be assembled from
+  their decoded form with it: MATCHING.md, "The event scripts").
 - **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 32 addresses
   the code touches without anything establishing what they mean (menu 13, field
   6, battle 5, event 4, scene 4, core 2), named as Phase 3 reaches each
@@ -57,7 +59,7 @@ rest waits, is [PLAN.md](PLAN.md).
   allows one owner per subsystem, so the object mode's slots at `$0B30` and part
   of its page-0 cells are unnamed until the menus get a second subsystem tag.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
-- **MD4 residue**: 96 jump tables are bounded by layout alone, the claim that
+- **MD4 residue**: 90 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
   on the enumerated sections plus the miss report.
 - **asar cross-check** of the generated source has never run (asar isn't
@@ -105,8 +107,9 @@ rest waits, is [PLAN.md](PLAN.md).
   decompressed streams, BRR as is, graphics as planar tiles. Three things are
   missing before that is an asset pipeline. A layout meant to be *read* rather
   than reassembled, and stable enough to depend on. The script as text: the
-  strings are decoded now (MATCHING.md, "The string encodings"), the event
-  scripts that name them aren't. And a decision about whether the runtime
+  strings and the event scripts that name them decode to a readable form now
+  (MATCHING.md, "The string encodings" and "The event scripts"), the battle
+  scripts don't. And a decision about whether the runtime
   should load from such a directory at all, since APPROACH.md's conventions
   have assets loading from the ROM image at run time and every reader today
   assumes that. A GBA build is what forces the question, because it can't map a
@@ -183,9 +186,10 @@ waits on M5 rather than on a backend.
 - **DS and PlayStation content in the original.** The Dimensional Vortex, the
   Arena, the Lost Sanctum, the bestiary: this is content authoring, not a port,
   and it is the largest item in this file by a wide margin. What it needs, in
-  dependency order: the **event, battle-animation and enemy script formats as
+  dependency order: the **battle-animation and enemy script formats as
   typed regions with round trips** (see "Matching disassembly" above; the
-  strings they name already have one, MATCHING.md, "The string encodings") -- a dungeon cannot be written until its scripts and text
+  strings and the event scripts already have one, MATCHING.md, "The string
+  encodings" and "The event scripts") -- a dungeon cannot be written until its scripts and text
   can be written; the **asset pipeline** ("Assets as data files" above), because
   new maps, sprites and music have no ROM address to read from, which is exactly
   what Phase 3's named resource accessors are the seam for; and the field, event

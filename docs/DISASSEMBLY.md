@@ -124,12 +124,15 @@ Kinds and fields added for data typing (MD2, [MATCHING.md](MATCHING.md#md2-as-bu
 |---|---|---|
 | `[[resource]]` | `at`, `count`, [`name`], [`kind` = `ptr24` \| `ptr16` + `bank`], [`slots`], `target` = `lz` \| `text` \| `sized` \| `blob`, [`type`], [`size`], [`extent = "next"`, `end`], [`skip`], [`format`] | a table of pointers a loader indexes by a resource id: `tools/disasm/resources.py` types the table (`ptr24`/`ptr16`, `slots` entries, `count` of them walked) and what its entries point at |
 | `fill = true` on `[[data]]` | | a background type for a range: every byte in it that no other region claims is of this type (bank D2-D5's sprite tiles). Other regions carve it up; one crossing its edge is an error |
+| `format = "event-commands"`, `entries` on a `script` `[[data]]` | | a run of event commands with no header, entered at the `entries` addresses (the built-in commands at `$C0:5D37`); decoded and assembled from the decoded form (MATCHING.md, "The event scripts") |
 
 `[[resource]]` targets:
 
 - `lz`: each entry must be a stream `tools/disasm/lz.py` consumes exactly, and
   the region is exactly those bytes. An entry that isn't is an error unless
-  `skip` lists it (with the comment saying why).
+  `skip` lists it (with the comment saying why). `format = "event"` says the
+  output is an event script (`tools/disasm/eventscript.py`), which the regions
+  carry and the matching build decodes (MATCHING.md, "The event scripts").
 - `text`: each entry names a zero-terminated string, and the region runs to the
   terminator. The report counts the bytes between one string's terminator and
   the next string, which is zero when the table's strings tile their range.
@@ -161,6 +164,7 @@ effects are facts about the code, the scripts stay in the ROM.
 | Module | Interpreter | Roots | Gives |
 |---|---|---|---|
 | `tools/disasm/objscript.py` | object command scripts, `$C2:0F63` (83 commands) | constant arguments of `$C2:04D9`/`$C2:04FB` and constant stores to slot +$07; the eight scenes' script streams (`$C6:FFE0`, run at `$7F:0400`) and their `$7E:8480` word tables (`$C6:FFC0`); commands `$08`, `$09`, `$43`, gotos, calls, branches | `$34` JSR targets (`$C2:1819`), `$4E` JSL targets (`$C2:1836`), `$35`/`$42` handler words (`$C2:0553`), the commands used (`$C2:0F7A`) |
+| `tools/disasm/eventscript.py` (`derive.py` `eventscript`) | event scripts, `$C0:5900`/`$C0:5AA3` (256-entry table `$C0:5D6E`) | the script each location record names (the word at `$F6:0008`, the stream table `$FC:F9F0`), every function of every object; the built-in commands at `$C0:5D37` | the comparison operators of `$12`-`$16` (`$C0:6307`, `633D`, `6398`, `63D7`, `6433`) and `$FF`'s modes (`$C0:4009`) |
 | `tools/disasm/seqscript.py` | the attract program's sequence channels, `$C3:0B03` | constant stores to `$0A20`/`$0B20`, pointer stores in code the scripts call, command `$A2` on a pointer | code calls through `$00F0` (`$7E:37F6`), tasks added to `$0920` (`$7E:3998`) and `$0940` (`$7E:39CF`) |
 | `derive.py` `operands` | calls in RAM code whose operand the program writes | absolute and long stores (words, or byte pairs) into a transfer's operand in the same section | the JSR targets at `$7E:3023`, `$7E:35FC`, `$7E:5E43` |
 | `derive.py` `winlist` | window command lists, `$C2:ED31` | constant X at the calls, the word table at `$C2:DFC5` | the handlers the lists use (confirms the 11-entry bound of `$C2:ED50`) |
@@ -293,7 +297,8 @@ platform lint had to be told was not the register `$213A`, is now
   game mode installs its own handlers (see `re/hints.toml`). Writing `$40`
   (`RTI`) there disables a vector.
 - The event script interpreter dispatches through a 256-entry command table at
-  `$C0:5D6E`, fetching command bytes from `$7F:2001,X`.
+  `$C0:5D6E`, fetching command bytes from `$7F:2001,X`. The scripts are parsed
+  and typed (`tools/disasm/eventscript.py`, MATCHING.md "The event scripts").
 - Bank C2's object system runs a handler per slot (`$C2:051D`, `JMP ($0050)`)
   and an object script interpreter with an 83-entry command table at
   `$C2:0F91`. Script commands `$34`/`$35`/`$4E` call, spawn or JSL to addresses

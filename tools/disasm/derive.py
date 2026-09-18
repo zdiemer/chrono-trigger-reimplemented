@@ -453,7 +453,105 @@ def derive_winlist(an, fl) -> Derivation:
     return d
 
 
+# ---- event scripts (tools/disasm/eventscript.py) ---------------------------------
+
+# $C0:56D4 decompresses entry n of the stream table at $FC:F9F0 to $7F:2000, n
+# the word at +8 of the location's 14-byte record at $F6:0000 (512 records).
+EVENT_STREAMS, EVENT_STREAM_COUNT = 0xFCF9F0, 513
+EVENT_LOCATIONS, EVENT_LOCATION_COUNT, EVENT_LOCATION_SIZE, EVENT_LOCATION_FIELD = 0xF60000, 512, 14, 8
+# Entries some location names that the decompressor rejects (the resource hint
+# skips them): locations $1C0, $1C4-$1C7 and $1CD-$1CF, which no location command
+# ($DC-$E1) of any event script names. Were one entered, the decompressor would
+# make something of those bytes; that no path enters one is assumed, not shown.
+EVENT_UNLOADABLE = frozenset((231, 232, 233, 234, 235, 320, 321, 322))
+# The built-in runs of commands at $C0:5D37-5D6D, which $C0:5CEC copies to
+# $7F:3700-3785 after every load (their addresses are the immediates at
+# $C0:5CEE, $C0:5CFC, $C0:5D0A, $C0:5D18, $C0:5D26), entered through $1180 =
+# $16FF (event command $DA, and $C0:5B4C, $C2:2E38, $C2:2E87), $171F/$173F/$175F
+# ($D9) and $177F ($C0:324F, in $C0:3154, which command $B0 runs).
+EVENT_BUILTIN = (0xC05D37, 0xC05D6D, (0xC05D37, 0xC05D50, 0xC05D68))
+# Dispatches on an operand: site -> (opcode, operand key, table, entries).
+# $12/$14/$16 and $13/$15 double the 8-bit operator with ASL A (so bit 7 is
+# lost; $16 masks it first) and call through the 8-bit or the 16-bit table;
+# $FF's modes from $90 index $C0:400E with (mode - $90) * 2.
+EVENT_SITES = {
+    0xC06307: (0x12, "op", 0xC06467, 16),
+    0xC0633D: (0x13, "op", 0xC06477, 8),
+    0xC06398: (0x14, "op", 0xC06467, 16),
+    0xC063D7: (0x15, "op", 0xC06477, 8),
+    0xC06433: (0x16, "op", 0xC06467, 16),
+    0xC04009: (0xFF, "mode", 0xC0400E, 20),
+}
+EVENT_PARTS = {0xC06307: "if_var_const", 0xC0633D: "if_var_const16", 0xC06398: "if_var_var",
+               0xC063D7: "if_var_var16", 0xC06433: "if_mem_const", 0xC04009: "mode"}
+
+
+def event_scripts(rom):
+    """[(where, Script)] of every event script the code can load, and problems."""
+    from . import eventscript as ev
+    from .lz import decompress
+    out, problems = [], []
+    ids = set()
+    for k in range(EVENT_LOCATION_COUNT):
+        ids.add(rom.u16(EVENT_LOCATIONS + EVENT_LOCATION_SIZE * k + EVENT_LOCATION_FIELD))
+    seen = set()
+    for n in sorted(ids):
+        if n >= EVENT_STREAM_COUNT:
+            problems.append(f"a location names event script {n}, past the {EVENT_STREAM_COUNT}-entry table")
+            continue
+        at = rom.u24(EVENT_STREAMS + 3 * n)
+        off = bus_to_offset(at)
+        got = decompress(rom.data, off) if off is not None else None
+        if got is None:
+            if n not in EVENT_UNLOADABLE:
+                problems.append(f"event script {n} at {fmt(at)} isn't a stream and isn't listed")
+            continue
+        if at in seen:
+            continue
+        seen.add(at)
+        try:
+            out.append((f"script {n} ({fmt(at)})", ev.parse(got[0])))
+        except ev.ScriptError as exc:
+            problems.append(f"event script {n} at {fmt(at)}: {exc}")
+    start, end, entries = EVENT_BUILTIN
+    blob = rom.read(start, end - start + 1)
+    out.append((f"{fmt(start)}-{fmt(end)}", ev.parse_commands(blob, [e - start for e in entries])))
+    for where, sc in out:
+        problems += [f"{where}: {p}" for p in sc.problems]
+    return out, problems
+
+
+def derive_eventscript(an, fl) -> Derivation:
+    d = Derivation()
+    # The scripts depend on the ROM alone: parse them once per ROM, not per round.
+    cached = getattr(an.rom, "_event_scripts", None)
+    if cached is None:
+        cached = an.rom._event_scripts = event_scripts(an.rom)
+    scripts, problems = cached
+    d.problems = list(problems)
+    for site, (op, key, table, count) in EVENT_SITES.items():
+        values = set()
+        for _, sc in scripts:
+            values |= sc.operands.get((op, key), set())
+        if op == 0xFF:
+            index = {v - 0x90 for v in values if v >= 0x90}
+        else:
+            index = {v & 0x7F for v in values}           # (v << 1) & $FF, halved
+        bad = sorted(i for i in index if i >= count)
+        if bad:
+            d.problems.append(f"{fmt(site)}: event command {op:02X} indexes the {count}-entry table at "
+                              f"{fmt(table)} with {bad}")
+        d.targets[EVENT_PARTS[site]] = {(table & 0xFF0000) | an.rom.u16(table + 2 * i) for i in index if i < count}
+        d.notes.append(f"{fmt(site)}: entries {sorted(index)} of {count}")
+    reached = sum(sum(sc.commands.values()) for _, sc in scripts)
+    d.notes.insert(0, f"{len(scripts) - 1} event scripts and the built-in commands, "
+                      f"{sum(len(sc.commands) for _, sc in scripts)} commands ({reached} bytes)")
+    d.detail = scripts
+    return d
+
+
 DERIVERS = {
+    "eventscript": derive_eventscript,
     "objscript": derive_objscript,
     "seqscript": derive_seqscript,
     "operands": derive_operands,
