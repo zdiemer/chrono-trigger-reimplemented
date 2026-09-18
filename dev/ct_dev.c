@@ -264,10 +264,16 @@ int main(int argc, char **argv)
     NativeMode native_mode = NATIVE_OFF;
     bool recomp = true, ports = true, insn_stats = false, audio_direct = false;
     long frames = -1, status_every = 0, shot_every = 0;
-    const char *excludes[64];
-    int nexcludes = 0;
+    const char *excludes[64], *includes[64];
+    int nexcludes = 0, nincludes = 0;
+    PortTiming port_timing = PORT_TIMING_ESTIMATE;
+    bool timing_report = false, port_horizon_interrupts = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
+        if (!strcmp(a, "--timing-report")) {
+            timing_report = true;
+            continue;
+        }
         if (!strcmp(a, "--insn-stats")) {
             insn_stats = true;
             continue;
@@ -305,6 +311,23 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--vid-check-from")) { vid_check_from = strtol(v, NULL, 10); want_vid_check = true; }
         else if (!strcmp(a, "--px-check")) { px_check_path = v; want_px_check = true; }
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
+        else if (!strcmp(a, "--include") && nincludes < 64) includes[nincludes++] = v;
+        else if (!strcmp(a, "--port-timing")) {
+            if (!strcmp(v, "estimate")) port_timing = PORT_TIMING_ESTIMATE;
+            else if (!strcmp(v, "oracle")) port_timing = PORT_TIMING_ORACLE;
+            else {
+                fprintf(stderr, "--port-timing must be estimate or oracle\n");
+                return 2;
+            }
+        }
+        else if (!strcmp(a, "--port-horizon")) {
+            if (!strcmp(v, "strict") || !strcmp(v, "interrupts")) {
+                port_horizon_interrupts = strcmp(v, "interrupts") == 0;
+            } else {
+                fprintf(stderr, "--port-horizon must be strict or interrupts\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--no-interpreter")) {
             if (!strcmp(v, "fallback")) no_interpreter = 1;
             else if (!strcmp(v, "strict")) no_interpreter = 2;
@@ -349,7 +372,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: ct_dev --rom <rom> --frames N [--movie m.ctm] [--trace out.cttr] "
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
-                        "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only] "
+                        "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--include name-prefix]... "
+                        "[--recomp off|on|only] [--port-timing estimate|oracle] [--port-horizon strict|interrupts] "
+                        "[--timing-report] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
                         "[--vid-check-from N] [--px-check [out.txt]]\n");
@@ -447,10 +472,20 @@ int main(int argc, char **argv)
         bool excluded = false;
         for (int k = 0; k < nexcludes; k++)
             excluded |= strncmp(e->name, excludes[k], strlen(excludes[k])) == 0;
+        /* --include keeps only the hand ports named by a prefix (generated blocks stay) */
+        if (nincludes && i < game_native_count) {
+            bool included = false;
+            for (int k = 0; k < nincludes; k++)
+                included |= strncmp(e->name, includes[k], strlen(includes[k])) == 0;
+            excluded |= !included;
+        }
         if (!excluded)
             table[table_count++] = *e;
     }
     NativeRuntime *natives = native_create(table, table_count, native_mode);
+    native_set_port_timing(natives, port_timing);
+    native_set_port_horizon(natives, port_horizon_interrupts);
+    native_set_timing_report(natives, timing_report);
     RecompIndexEntry *index = malloc(sizeof *index * (size_t)(recomp_index_count + 1));
     int index_count = 0;
     for (int i = 0; recomp && i < recomp_index_count; i++) {

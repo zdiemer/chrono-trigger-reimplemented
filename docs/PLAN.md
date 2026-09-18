@@ -35,39 +35,52 @@ Nothing lands without it, and it is the same gate for every phase:
 The question that decides whether M5 is a decade of work or a year, and it
 should be answered before any bulk conversion.
 
-**First, settle the timing.** A hand port charges estimated time
-(`cost_milli`), and a generated block is exact, which is why `--recomp only` is
-the default and why `--recomp on` can play a battle out differently. M5 as
-designed in [RECOMP.md](RECOMP.md) does not change that: it prints a draft, and
-the port is hand written from it as ports are today. Converting the ROM that way
-makes the drift grow with every routine.
+**The timing decision: the readable code ships.** A hand port charges
+estimated time (`cost_milli`) and a generated block is exact. The timing spike
+([RECOMP.md](RECOMP.md), "Can a hand port be exact?") showed that a port can
+carry exact time only for short calls with no time-dependent I/O, by
+annotating its path's cycles, and that every other call would still need the
+generated block. The decision drawn from it:
 
-Two facts make that survivable, and the phase starts by choosing between them:
+- **Timing differences are acceptable.** A battle that plays out differently
+  from the original is fine. So the readable code ships: `--recomp on`, with
+  generated code wherever no port exists, becomes `ct_play`'s default -- but
+  only once the timing gate below exists.
+- **`--recomp only` stays** as the exact mode and the gate's reference. The
+  movie library stays the regression suite on it: movies desync under
+  `--recomp on` and can't test it end to end.
+- **Timing errors are measured and gated** -- the kind that makes glitches, as
+  opposed to differences (the timing gate, next).
+- **Ports don't carry cycle costs.** No hand-written per-path numbers in
+  `game/`; `cost_milli` stays an estimate, calibrated by measurement.
+- **Fuzzing is part of every port's definition of done**: generated code is
+  correct on every path by construction, a hand port only on the paths the
+  movies and fuzzing reach (Phase 3's bar).
+- **Timing is deterministic per build**, not per machine: a movie recorded in a
+  build replays in that build anywhere.
+- **Testing the shipping mode end to end** later means the state-driven route
+  scripts (`tools/movies`) running through `ct_drive` with `--native on`,
+  which it can't do yet (TODO.md).
 
-- `--recomp only` ignores hand ports, so ports can accumulate without touching
-  what the default build plays. The decompilation grows; the shipping path stays
-  exact. This works indefinitely but leaves the readable code permanently
-  second-class.
-- A port *derived* from a block could carry that block's exact cost instead of
-  an estimate, which is what TODO.md means by "ports derived from generated
-  blocks". If that holds, `--recomp on` becomes trace-identical to
-  `--recomp only`, and the readable code becomes the shipping path. It is worth
-  a spike before committing to the first option.
+**Next: the timing gate.** What it measures is already there:
+`ct_dev --native shadow --timing-report` gives each hand-port entry's estimate
+error per call (mean and largest), and the `cost_milli` its measured totals
+imply, over the stretches no interrupt fell in; the original runs on the
+interpreter there, so the numbers don't drift with the estimates. What it
+needs:
 
-The spike settles it, and both answers carry work rather than only a note:
+- the gate: a threshold on each entry's estimate error over the movie library,
+  checked by `tools/suite.py` alongside the shadow run it already makes;
+- `cost_milli` recalibrated for every entry from the measured totals, and the
+  worst offenders (entries whose error per call stays large because their time
+  varies with the path) fixed case by case -- by splitting the entry, or by
+  a better estimate, not by cycle annotations;
+- a check that video writes landing in vblank in the original still land in
+  vblank under `--recomp on` (ports charge their time after they run, so a
+  late write can slip past the end of vblank), reported per port.
 
-- **If a derived port can carry an exact cost**, that is the fix for the drift,
-  and applying it to the 259 entries that hold an estimate is a step of its own,
-  scheduled here rather than left implied. The check is the gate's own: with the
-  ports in, `--native on --recomp on` traces identically to `--native off`, the
-  comparison only `--recomp only` passes today. Do it before Phase 3 converts
-  more code, so the bulk work produces exact ports rather than a second
-  backlog.
-- **If it can't**, write down that `--recomp only` is the shipping path for as
-  long as the SNES backend is the one that matters, and that the readable code
-  is validated by shadow mode rather than by running. That is a real decision
-  about what the decompilation is *for*, and Phase 3 should not start before it
-  is made.
+**Done when** the gate is in `tools/suite.py` and passing, and `ct_play`'s
+default is `--recomp on`.
 
 Two other timing threads exist and neither is this one, so they shouldn't be
 conflated with it: the machine's own approximations (TODO.md, "Correctness and
@@ -109,9 +122,9 @@ bar, while its behaviour is already under the gate. A sweep across all of
 `game/` at once would be a large diff with no behavioural check beyond the gate
 it already passes.
 
-**Done when** the timing spike has an answer and whichever work it implies is
-done, and a subsystem's worth of routines has been converted
-through the workflow to the bar above.
+**Done when** the timing gate is done and the default flipped, and a
+subsystem's worth of routines has been converted through the workflow to the bar
+above.
 
 ## Phase 3: M5 in bulk
 
@@ -158,6 +171,15 @@ about the rest. `python3 tools/ram_map.py coverage --open --subsystem S` lists
 what is still unnamed; what it can't show is direct-page scratch and the
 absolute operands of `$2000` and up, which a porter names while reading the
 routine.
+
+The per-port bar, for new ports and existing ones brought up to it: every call
+matches in shadow mode over the movie library; the port is **fuzzed** with
+`ct_fuzz`, including the paths the movies don't reach, with the run recorded
+in its PORTING.md row (a generated block is right on every path by
+construction, a hand port only on the paths something exercised); its
+`cost_milli` is the calibrated value and its estimate error is within the
+timing gate's threshold; and it reads as source, with no cycle costs
+carried.
 
 It also includes **laying the asset seam**, which is cheap here and expensive
 later. Only about 150 places in `game/` read ROM data by address; a subsystem's
@@ -261,8 +283,8 @@ the decompilation, so they wait behind it.
   a fiber, and the default player (`--recomp only`) runs no hand ports, so a
   user-compiled build in that mode never switches stacks: `fiber.h` needs a
   backend there only to link. What needs a real one is a build that runs hand
-  ports -- the public one that can't carry generated code, or any build once
-  the timing spike makes hand ports the shipping path.
+  ports -- the public one that can't carry generated code, and the default
+  player once the timing gate flips it to `--recomp on`.
 
   So the spike is: put a third backend behind `fiber.h`, run the movie suite
   under it, and measure. A day's answer that decides whether a browser build is

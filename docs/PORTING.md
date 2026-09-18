@@ -83,7 +83,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   `shadow` mode ignores it. Compare `on` against `off` audio with `ct_dev --wav`
   when a port talks to the APU. `ct_dev --exclude PREFIX` leaves out the
   routines whose names start with PREFIX, for narrowing down which port causes
-  a difference.
+  a difference; `--include PREFIX` keeps only the ports whose names start with
+  it (generated blocks stay). A port's time stays an estimate and ports don't
+  carry cycle costs; `--timing-report` in shadow mode measures each entry's
+  estimate error per call and the `cost_milli` its totals imply, which is what
+  the timing gate bounds (RECOMP.md, "Can a hand port be exact?").
 - **Generated blocks.** A build given the ROM also registers C blocks
   generated from it ([RECOMP.md](RECOMP.md)) behind the ported routines: a port
   takes precedence at its address, and shadow mode checks the blocks too.
@@ -230,7 +234,12 @@ call, besides running the machine.
 5. Run `--native shadow` over the movie library. Every call must match. Then
    run `--native on` and compare frames with the interpreter-only run.
 6. Fuzz it with `ct_fuzz` (below), especially paths the movies don't reach.
-7. Set `cost_milli` from the `original/native-bus` ratio `shadow` reports.
+   This is part of done, not optional: generated code is correct on every path
+   by construction, a hand port only on the paths the movies and fuzzing reach.
+   Record the states and counts in the port's table row, as the rows below do.
+7. Set `cost_milli` from the calibrated value `--native shadow --timing-report`
+   prints (the `original/native-bus` ratio, over stretches no interrupt fell
+   in), and check its estimate error there.
 
 Liveness is only as good as the call graph. Functions called from code the
 analysis can't see (RAM code, unresolved indirect jumps) keep everything live,

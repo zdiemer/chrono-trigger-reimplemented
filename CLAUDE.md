@@ -94,6 +94,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   - A port that can't be expressed through a service yet is a finding, not a defeat: add the
     call the subsystem needs (additive), or use the documented SNES escape and write down
     why, as docs/PLATFORM.md's "as built" sections do.
+  - Ports don't carry cycle costs: no per-path timing numbers in `game/`. A port's time is
+    its `cost_milli` estimate, and the timing gate measures and bounds the estimates' error
+    (docs/PLAN.md, Phase 2). Fuzzing is part of a port's definition of done.
 - **Writing host-side code** (docs/PLAYING.md, "How the player is built"). `game/` is kept
   portable by the platform services; what a host that isn't a desktop runs into instead is
   the frontend, so hold the line there too. A host that calls back once a frame, with no

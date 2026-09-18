@@ -7,7 +7,7 @@
  *           clone, and at each call it makes and when the original returns the
  *           two machines must match exactly (registers, WRAM, SRAM, VRAM,
  *           CGRAM, OAM, PPU and CPU I/O registers, APU ports). Timing isn't
- *           compared. See native_call.
+ *           compared; it is measured (native_set_timing_report). See native_call.
  *   ON      registered routines run natively in place of the original.
  *
  * Several entries may share an address: hand-written ones are tried first,
@@ -89,7 +89,48 @@ typedef struct NativeStats {
      * (excluding call-outs), and the native routine's bus-access clocks for them. */
     uint64_t original_clocks;
     uint64_t native_bus_clocks;
+    /* Timing measurement (docs/RECOMP.md, "Can a hand port be exact?"),
+     * reported with native_set_timing_report. SHADOW, over every stretch no
+     * interrupt fell in (a stretch is a call, or the part of one between
+     * call-outs): how many; the original's CPU time and the port's bus clocks
+     * summed (their ratio is the calibrated cost_milli); how many the
+     * cost_milli estimate got exactly right; the estimate's total and largest
+     * absolute error, in master clocks; and how many (and how much original
+     * time) fit before the system's next horizon point (snes_horizon) or its
+     * next interrupt or frame boundary (snes_interrupt_horizon). */
+    unsigned t_stretches, t_estimate_exact, t_fit_horizon, t_fit_interrupt;
+    uint64_t t_original_clocks, t_bus_clocks;
+    uint64_t t_estimate_error, t_fit_horizon_clocks, t_fit_interrupt_clocks;
+    uint32_t t_estimate_max_error;
+    /* The distinct values of the original's time minus the port's bus clocks
+     * over uninterrupted stretches (up to 8; t_nextra 9 means more): the time
+     * the port can't see, instruction fetches and internal cycles, which varies
+     * with the path the original took. */
+    uint32_t t_extra[8];
+    unsigned t_nextra;
+    /* ON with PORT_TIMING_ORACLE: calls run as the port with the exact time,
+     * calls left to the generated block, and calls whose registers the port
+     * left different from the original's (don't-care registers; fixed up) or
+     * whose machine state differed otherwise. Fallbacks are counted again by why: the port called out or
+     * synced (escapes; the prototype times whole calls only), no generated code
+     * to time it, time-dependent I/O, no room before the horizon. */
+    unsigned t_exact, t_fallback, t_register_fixups, t_state_diffs, t_escapes;
+    unsigned t_untimed, t_timed_io, t_no_fit;
 } NativeStats;
+
+/* How ON mode charges hand ports' time. ESTIMATE: cost_milli
+ * times their bus clocks, after they stop (the default). ORACLE: a prototype
+ * that gives a port the original's exact time and keeps its call only where
+ * that is exact: the port runs, then the generated code of the same routine
+ * runs on a copy of the machine as it was, to where the port stopped, to
+ * measure the time. If the whole call fits before the horizon, did no
+ * time-dependent I/O and didn't call out, it is charged that time (and the
+ * copy's end state is compared with the port's); otherwise the machine is put
+ * back and the generated block runs instead. */
+typedef enum { PORT_TIMING_ESTIMATE, PORT_TIMING_ORACLE } PortTiming;
+/* The horizon ORACLE uses: snes_horizon, or with native_set_port_horizon(rt,
+ * true) snes_interrupt_horizon, which lets a call run across refresh, HDMA and
+ * line ends it doesn't interact with (it has no time-dependent I/O). */
 
 typedef struct NativeRuntime NativeRuntime;
 
@@ -99,6 +140,11 @@ void native_destroy(NativeRuntime *rt);
 /* ON mode: continue in generated code at any instruction of a generated block
  * (index sorted by key), not only at entries and where a block stopped. */
 void native_set_index(NativeRuntime *rt, const RecompIndexEntry *index, int count);
+
+void native_set_port_timing(NativeRuntime *rt, PortTiming timing);
+void native_set_port_horizon(NativeRuntime *rt, bool interrupts_only);
+/* Print the timing counters per routine in native_report. */
+void native_set_timing_report(NativeRuntime *rt, bool on);
 
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);
