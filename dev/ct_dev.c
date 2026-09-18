@@ -17,7 +17,7 @@
  * routine against its native version; --native on runs the ported routines.
  * --calls writes every executed JSR/JSL/JSR(abs,X) call site and target, so the
  * disassembler's liveness analysis knows about callers it can't see statically.
- * --load-state resumes from a state saved by --save-state (same build only);
+ * --load-state resumes from a state saved by --save-state (docs/RUNTIME.md, "Save states");
  * frame numbers, and so movie input, continue from the saved frame.
  * --load-zst starts from a ZSNES 1.51 save state (snes/zst.h) at frame F (--frame,
  * default 0; --frames stays the frame to stop before). Such a run can't be
@@ -416,7 +416,7 @@ int main(int argc, char **argv)
         return 1;
     }
     if (load_state && snes_state_load(&snes, load_state) != 0) {
-        fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", load_state);
+        fprintf(stderr, "cannot load state %s (missing, damaged, or not a state for this ROM)\n", load_state);
         return 1;
     }
     if (zst_path) {

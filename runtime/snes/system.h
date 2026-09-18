@@ -122,6 +122,12 @@ void snes_clone(Snes *dst, const Snes *src);
  * stamped with from now on. */
 uint64_t snes_clone_since(Snes *dst, Snes *src, uint64_t since);
 
+/* After work RAM or VRAM changed other than through the bus and the PPU:
+ * count every page as written now, so the next snes_clone_since refresh copies
+ * all of both (and shadow mode compares all of both). Loading a state does
+ * this itself. */
+void snes_mark_all_written(Snes *snes);
+
 /* Save states (state.c; docs/RUNTIME.md, "Save states"): the machine written
  * field by field under names, so a state loads in any later build. A field
  * the state lacks keeps its power-on value and one this build lacks is

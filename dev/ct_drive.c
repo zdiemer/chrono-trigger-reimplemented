@@ -184,6 +184,7 @@ int main(int argc, char **argv)
                 char byte[3] = { a2[2 * i], a2[2 * i + 1], 0 };
                 snes.bus.wram[(addr + (uint32_t)i) & (SNES_WRAM_SIZE - 1)] = (uint8_t)strtoul(byte, NULL, 16);
             }
+            snes_mark_all_written(&snes);
             printf("ok\n");
         } else if (!strcmp(cmd, "wram")) {
             FILE *f = fopen(a1, "wb");
@@ -209,6 +210,7 @@ int main(int argc, char **argv)
                     printf("err empty\n");
                 } else {
                     snes_clone(&snes, slots[k]);
+                    snes_mark_all_written(&snes);
                     restore_hooks();
                     printf("ok %u\n", (unsigned)snes.frame);
                 }

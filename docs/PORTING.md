@@ -149,10 +149,12 @@ the renderer. What it does now:
   wrote since the copy's last refresh, and everything outside those two
   memories (90 KB, most of it sound RAM); the comparison looks at the same
   pages, and all of SRAM, CGRAM and OAM. Nothing else writes those memories
-  while a movie runs. A change made outside the bus and the PPU (a state load, a
-  poke) needs a new native runtime, which `ct_play` already makes on every load
-  and `ct_dev` only loads before creating one; `native_compare`, which
-  `ct_fuzz` uses on machines it fills directly, still compares everything.
+  while a movie runs; what changes them another way calls
+  `snes_mark_all_written`, which counts every page as written so the next
+  refresh and comparison take all of them. A state load does it itself
+  (RUNTIME.md, "Save states"), as do the ZSNES import and `ct_drive`'s pokes.
+  `native_compare`, which `ct_fuzz` uses on machines it fills directly, still
+  compares everything.
 - **`memcmp` before the byte loop,** which now only runs to describe a
   difference.
 - **No drawing in the suite's runs.** `ct_dev` draws only when something reads
@@ -160,7 +162,12 @@ the renderer. What it does now:
 
 Checked: a build that also made the full copy and the full comparison at every
 refresh and compare, and stopped on any difference, ran the whole suite (113
-million refreshes and as many comparisons) without one. The suite's 26 shadow
+million refreshes and as many comparisons) without one. From a state: a
+`gato-battle` shadow run saved at frame 10000 and one resumed from that state
+to frame 21600 add up to the straight 21600-frame run, routine by routine
+(calls, matches, interruptions, skips; 289 routines called after the load, none
+mismatched), except one generated block in flight at the cut, and their
+coverage and call files together are the straight run's. The suite's 26 shadow
 reports, coverage files and call files are byte-identical before and after, as
 are `new-game`'s `--native off` and `--recomp only` traces, framebuffer hashes
 included.

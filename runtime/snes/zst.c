@@ -276,6 +276,7 @@ int zst_import(Snes *snes, const uint8_t *z, size_t len, char *err, size_t err_l
     import_apu(&snes->apu, z);
     snes->halted = false;
     snes_enter_vblank(snes);
+    snes_mark_all_written(snes);   /* work RAM and VRAM were copied in, not written */
     return 0;
 }
 

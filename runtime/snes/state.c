@@ -609,6 +609,12 @@ int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t 
     s->on_miss = keep.on_miss;
     s->on_miss_ctx = keep.on_miss_ctx;
     s->halted = false;
+    /* Write tracking isn't in the state: the epochs carry on from the machine's
+     * own, and all of work RAM and VRAM counts as just written, so a machine
+     * copy refreshed since the last write (shadow mode's) takes all of it. */
+    s->bus.write_epoch = keep.bus.write_epoch;
+    s->ppu.write_epoch = keep.ppu.write_epoch;
+    snes_mark_all_written(s);
     return 0;
 }
 

@@ -126,6 +126,14 @@ uint64_t snes_clone_since(Snes *dst, Snes *src, uint64_t since)
     return epoch;
 }
 
+void snes_mark_all_written(Snes *s)
+{
+    for (size_t i = 0; i < SNES_WRAM_PAGES; i++)
+        s->bus.wram_page_epoch[i] = s->bus.write_epoch;
+    for (size_t i = 0; i < sizeof s->ppu.vram_page_epoch / sizeof s->ppu.vram_page_epoch[0]; i++)
+        s->ppu.vram_page_epoch[i] = s->ppu.write_epoch;
+}
+
 void snes_power_on(Snes *s)
 {
     /* Power-on RAM contents are undefined on hardware. Match the trace oracle's

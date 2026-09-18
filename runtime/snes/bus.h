@@ -17,8 +17,9 @@
 /* Write tracking, for machine copies that only copy and compare what changed
  * (snes_clone_since): every write to work RAM or VRAM stamps its page with the
  * machine's current write epoch. Only the bus and the PPU write those memories
- * during a run; a change made any other way (a state load, a poke) isn't
- * stamped, so a copy taken before it must be refreshed in full. */
+ * during a run; whatever changes them any other way (a state load, a foreign
+ * state import, a poke) must call snes_mark_all_written afterwards. The epochs
+ * are bookkeeping, not machine state: save states don't hold them. */
 #define SNES_TRACK_PAGE_BITS 8
 #define SNES_WRAM_PAGES (SNES_WRAM_SIZE >> SNES_TRACK_PAGE_BITS)
 
