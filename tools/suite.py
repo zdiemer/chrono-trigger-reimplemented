@@ -137,6 +137,9 @@ def main():
     movies = collect(args.only, set(args.movies))
     if not movies:
         sys.exit("no movies to run")
+    # Longest first: the three endings are more than half the suite, and one
+    # started late sets the wall time while the other workers sit idle.
+    movies.sort(key=lambda m: -m[2])
     print("%d movies, %d at a time" % (len(movies), jobs), flush=True)
 
     bad_movies = []

@@ -14,6 +14,15 @@
 #define SNES_WRAM_SIZE 0x20000
 #define SNES_SRAM_SIZE 0x2000
 
+/* Write tracking, for machine copies that only copy and compare what changed
+ * (snes_clone_since): every write to work RAM or VRAM stamps its page with the
+ * machine's current write epoch. Only the bus and the PPU write those memories
+ * during a run; whatever changes them any other way (a state load, a foreign
+ * state import, a poke) must call snes_mark_all_written afterwards. The epochs
+ * are bookkeeping, not machine state: save states don't hold them. */
+#define SNES_TRACK_PAGE_BITS 8
+#define SNES_WRAM_PAGES (SNES_WRAM_SIZE >> SNES_TRACK_PAGE_BITS)
+
 typedef struct SnesIo {
     void *ctx;
     uint8_t (*ppu_read)(void *ctx, uint8_t reg, uint8_t open_bus);    /* $2100-$213F */
@@ -70,6 +79,9 @@ typedef struct SnesBus {
     /* Optional, SNES_WRAM_SIZE bytes: set to 1 for every WRAM byte the game
      * writes. Lets traces be compared against emulators with random power-on RAM. */
     uint8_t *wram_written;
+
+    uint64_t write_epoch;                       /* see SNES_TRACK_PAGE_BITS */
+    uint64_t wram_page_epoch[SNES_WRAM_PAGES];  /* epoch of each page's latest write */
 
     DmaChannel dma[8];
     uint8_t mdmaen;    /* last $420B write; the system runs the transfers */

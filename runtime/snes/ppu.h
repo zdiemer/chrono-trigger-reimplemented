@@ -48,6 +48,11 @@ typedef struct Ppu {
      * contents at a frame's start. */
     uint32_t vram_writes, cgram_writes, oam_writes;
 
+    /* Write tracking as for work RAM (SNES_TRACK_PAGE_BITS in bus.h): the epoch
+     * of each VRAM page's latest write. */
+    uint64_t write_epoch;
+    uint64_t vram_page_epoch[0x10000 >> 8];
+
     uint16_t h_latch, v_latch;
     bool h_second, v_second;
     bool counters_latched;

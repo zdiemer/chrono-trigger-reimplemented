@@ -4,8 +4,13 @@
  * - a state round-trips every field, and the loaded machine runs on exactly
  *   like the one that saved it;
  * - every byte of Snes is either written to a state or is a host pointer, a
- *   hook or padding, so a field added without its line in state.c is caught
- *   (one small enough to pass for padding only if the program changed it);
+ *   hook, write-tracking bookkeeping or padding, so a field added without its
+ *   line in state.c is caught (one small enough to pass for padding only if
+ *   the program changed it);
+ * - write tracking isn't saved, and a load counts all of work RAM and VRAM as
+ *   written, so a machine copy refreshed with snes_clone_since before the load
+ *   takes all of them afterwards (shadow mode would otherwise compare against
+ *   memory the load replaced);
  * - a state from an older build, which lacks a field this one has, loads with
  *   that field at its power-on value; one from a newer build, with a field
  *   this one lacks, loads with the field skipped;
@@ -220,8 +225,9 @@ static void expect_rejected(const Snes *s, const Fields *f, const uint8_t *state
     free(t);
 }
 
-/* Not machine state: the ROM, host pointers and hooks, and `halted`, which a
- * load clears. */
+/* Not machine state: the ROM, host pointers and hooks, `halted`, which a load
+ * clears, and write tracking (SNES_TRACK_PAGE_BITS), which a load resets
+ * (check_write_tracking). */
 static bool host_byte(size_t offset)
 {
     static const struct {
@@ -234,6 +240,7 @@ static bool host_byte(size_t offset)
         HOST(on_line), HOST(on_line_ctx), HOST(on_frame_top), HOST(on_frame_top_ctx),
         HOST(intercept), HOST(intercept_ctx), HOST(interpreter), HOST(native_only),
         HOST(on_miss), HOST(on_miss_ctx), HOST(halted),
+        HOST(bus.write_epoch), HOST(bus.wram_page_epoch), HOST(ppu.write_epoch), HOST(ppu.vram_page_epoch),
 #undef HOST
     };
     for (size_t i = 0; i < sizeof host / sizeof host[0]; i++) {
@@ -450,6 +457,60 @@ static void check_rejected(Snes *s, const uint8_t *rom, const Fields *f)
     free(state);
 }
 
+/* Write tracking across a load. A copy of the machine is refreshed, the
+ * machine loads an older state (different work RAM and VRAM, no bus or PPU
+ * write in between), and the next refresh must bring the copy level with it.
+ * The same with the memory overwritten directly and no snes_mark_all_written
+ * shows the check can fail. */
+static void check_write_tracking(const uint8_t *rom)
+{
+    Snes *a = malloc(sizeof *a), *copy = malloc(sizeof *copy);
+    boot(a, rom);
+    run(a, 3, 0);
+    size_t len;
+    uint8_t *older = snes_state_write(a, &len);
+    run(a, 20, 0);
+
+    uint64_t since = snes_clone_since(copy, a, 0);
+    run(a, 2, 0);
+    since = snes_clone_since(copy, a, since);
+    CHECK(!memcmp(copy->bus.wram, a->bus.wram, sizeof a->bus.wram) &&
+              !memcmp(copy->ppu.vram, a->ppu.vram, sizeof a->ppu.vram),
+          "a refresh after running missed a write");
+
+    /* Without marking, a direct overwrite goes unseen: the check is live. */
+    Snes *b = malloc(sizeof *b);
+    boot(b, rom);
+    CHECK(snes_state_read(b, older, len, NULL, 0) == 0, "loading the older state failed");
+    memcpy(a->bus.wram, b->bus.wram, sizeof a->bus.wram);
+    memcpy(a->ppu.vram, b->ppu.vram, sizeof a->ppu.vram);
+    Snes *probe = malloc(sizeof *probe);
+    memcpy(probe, copy, sizeof *probe);
+    snes_clone_since(probe, a, since);
+    CHECK(memcmp(probe->bus.wram, a->bus.wram, sizeof a->bus.wram) != 0,
+          "a direct overwrite reached the copy unmarked; the check below would prove nothing");
+    free(probe);
+    run(a, 1, 0);
+    since = snes_clone_since(copy, a, 0);
+
+    /* A load: the next refresh takes everything, and the epochs carry on. */
+    uint64_t epoch = a->bus.write_epoch;
+    char err[256] = "";
+    CHECK(snes_state_read(a, older, len, err, sizeof err) == 0, "load: %s", err);
+    CHECK(a->bus.write_epoch == epoch && a->ppu.write_epoch == epoch, "a load changed the write epoch");
+    CHECK(memcmp(copy->bus.wram, a->bus.wram, sizeof a->bus.wram) != 0, "the load changed no work RAM");
+    snes_clone_since(copy, a, since);
+    CHECK(!memcmp(copy->bus.wram, a->bus.wram, sizeof a->bus.wram), "a refresh after a load missed work RAM");
+    CHECK(!memcmp(copy->ppu.vram, a->ppu.vram, sizeof a->ppu.vram), "a refresh after a load missed VRAM");
+
+    /* The state holds no tracking. */
+    CHECK(find_record(older, len, "bus.write_epoch", &(size_t){ 0 }) == NULL, "the state holds write tracking");
+    free(b);
+    free(older);
+    free(copy);
+    free(a);
+}
+
 int main(void)
 {
     uint8_t *rom = make_rom(0x00);
@@ -465,6 +526,7 @@ int main(void)
     check_round_trip(s, rom, f);
     check_versions(s, rom, f);
     check_rejected(s, rom, f);
+    check_write_tracking(rom);
 
     free(f);
     free(s);

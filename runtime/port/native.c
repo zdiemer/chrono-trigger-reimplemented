@@ -106,7 +106,8 @@ typedef struct Active {
     const NativeEntry *entry;
     Job *job;              /* NULL once the native routine has returned */
     Phase phase;
-    Snes *clone;           /* SHADOW: the machine the native routine runs on */
+    Snes *clone;           /* SHADOW: the machine the native routine runs on (clones[level]) */
+    uint64_t since;        /* SHADOW: the write epoch the clone was last refreshed at */
     uint16_t entry_s;
     uint16_t ret_s;        /* after the native routine returned: S and PC the original must match */
     uint32_t ret_pc;
@@ -163,6 +164,11 @@ struct NativeRuntime {
     uint8_t filter[0x2000];      /* bit per 16-bit address: some entry might be here */
     Active active[MAX_ACTIVE];
     int nactive;
+    /* SHADOW: the machine copies native routines run on, one per nesting level,
+     * kept between calls so a refresh copies only what changed
+     * (snes_clone_since), and the epoch each was last refreshed at (0: never). */
+    Snes *clones[MAX_ACTIVE];
+    uint64_t clone_since[MAX_ACTIVE];
     uint32_t debt;               /* ON mode: master clocks native code still owes */
     char details[MAX_DETAILS][400];
     int ndetails;
@@ -239,8 +245,19 @@ static void active_pop(NativeRuntime *rt)
         job_abandon(a->job);
         a->job = NULL;
     }
-    free(a->clone);
     a->clone = NULL;
+}
+
+/* SHADOW: bring the active routine's machine copy up to date with s. */
+static void clone_refresh(NativeRuntime *rt, Active *a, Snes *s)
+{
+    int level = (int)(a - rt->active);
+    if (!rt->clones[level])
+        rt->clones[level] = malloc(sizeof *rt->clones[level]);
+    a->clone = rt->clones[level];
+    a->since = rt->clone_since[level] = snes_clone_since(a->clone, s, rt->clone_since[level]);
+    a->clone->bus.clocks = 0;
+    a->job->m = a->clone;
 }
 
 void native_destroy(NativeRuntime *rt)
@@ -253,6 +270,8 @@ void native_destroy(NativeRuntime *rt)
         active_pop(rt);
     if (rt->attached && rt->acc)
         rt->attached->cpu.bus = rt->attached_bus;
+    for (int i = 0; i < MAX_ACTIVE; i++)
+        free(rt->clones[i]);
     free(rt->acc);
     free(rt->bnd);
     free(rt->replay_machine);
@@ -312,14 +331,34 @@ static void detail(NativeRuntime *rt, const char *prefix, const NativeEntry *e, 
     snprintf(rt->details[rt->ndetails++], sizeof rt->details[0], "%s %06X %s: %s", prefix, e->addr, e->name, what);
 }
 
-static bool diff_bytes(char *out, size_t n, const char *name, const uint8_t *a, const uint8_t *b, size_t size)
+static bool diff_bytes(char *out, size_t n, const char *name, const uint8_t *a, const uint8_t *b, size_t size,
+                       size_t base)
 {
+    /* memcmp first: it is several times faster than a byte loop that stops at
+     * the first difference, and this runs on every shadowed call. The loop
+     * only runs to describe a difference. */
+    if (!memcmp(a, b, size))
+        return false;
     for (size_t i = 0; i < size; i++) {
         if (a[i] != b[i]) {
-            snprintf(out, n, "%s[%04zX] original %02X native %02X", name, i, a[i], b[i]);
+            snprintf(out, n, "%s[%04zX] original %02X native %02X", name, base + i, a[i], b[i]);
             return true;
         }
     }
+    return false;
+}
+
+/* diff_bytes over the pages of a tracked memory (SNES_TRACK_PAGE_BITS) that
+ * either machine wrote since `since`: the others are equal, as they were when
+ * the copy was refreshed. */
+static bool diff_pages(char *out, size_t n, const char *name, const uint8_t *a, const uint8_t *b, size_t size,
+                       const uint64_t *a_epoch, const uint64_t *b_epoch, size_t count, uint64_t since)
+{
+    size_t page = size / count;
+    for (size_t i = 0; i < count; i++)
+        if ((a_epoch[i] >= since || b_epoch[i] >= since) &&
+            diff_bytes(out, n, name, a + i * page, b + i * page, page, i * page))
+            return true;
     return false;
 }
 
@@ -330,8 +369,9 @@ static bool diff_bytes(char *out, size_t n, const char *name, const uint8_t *a, 
     }
 
 /* Returns true and describes the first difference if the machines differ in
- * anything CPU-side code can observe or change. */
-bool native_compare(const Snes *o, const Snes *c, uint16_t dont_care, char *out, size_t n)
+ * anything CPU-side code can observe or change. Work RAM and VRAM are compared
+ * only in the pages written since write epoch `since` (0: all of them). */
+static bool compare_machines(const Snes *o, const Snes *c, uint16_t dont_care, uint64_t since, char *out, size_t n)
 {
     uint8_t ignored_flags = (uint8_t)((dont_care & DC_N ? CPU_FLAG_N : 0) | (dont_care & DC_V ? CPU_FLAG_V : 0) |
                                       (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
@@ -352,12 +392,15 @@ bool native_compare(const Snes *o, const Snes *c, uint16_t dont_care, char *out,
     CHECK_FIELD("P", o->cpu.p & p_mask, c->cpu.p & p_mask)
     CHECK_FIELD("E", o->cpu.e, c->cpu.e)
 
-    if (diff_bytes(out, n, "WRAM", o->bus.wram, c->bus.wram, sizeof o->bus.wram) ||
-        diff_bytes(out, n, "SRAM", o->bus.sram, c->bus.sram, sizeof o->bus.sram) ||
-        diff_bytes(out, n, "VRAM", o->ppu.vram, c->ppu.vram, sizeof o->ppu.vram) ||
+    if (diff_pages(out, n, "WRAM", o->bus.wram, c->bus.wram, sizeof o->bus.wram, o->bus.wram_page_epoch,
+                   c->bus.wram_page_epoch, SNES_WRAM_PAGES, since) ||
+        diff_bytes(out, n, "SRAM", o->bus.sram, c->bus.sram, sizeof o->bus.sram, 0) ||
+        diff_pages(out, n, "VRAM", o->ppu.vram, c->ppu.vram, sizeof o->ppu.vram, o->ppu.vram_page_epoch,
+                   c->ppu.vram_page_epoch, sizeof o->ppu.vram_page_epoch / sizeof o->ppu.vram_page_epoch[0],
+                   since) ||
         diff_bytes(out, n, "CGRAM", (const uint8_t *)o->ppu.cgram, (const uint8_t *)c->ppu.cgram,
-                   sizeof o->ppu.cgram) ||
-        diff_bytes(out, n, "OAM", o->ppu.oam, c->ppu.oam, sizeof o->ppu.oam))
+                   sizeof o->ppu.cgram, 0) ||
+        diff_bytes(out, n, "OAM", o->ppu.oam, c->ppu.oam, sizeof o->ppu.oam, 0))
         return true;
 
     /* PPU registers that enabled HDMA channels write each scanline change with
@@ -437,9 +480,14 @@ bool native_compare(const Snes *o, const Snes *c, uint16_t dont_care, char *out,
             }
         }
     }
-    if (diff_bytes(out, n, "APU port (CPU to APU)", o->apu.cpu_in, c->apu.cpu_in, sizeof o->apu.cpu_in))
+    if (diff_bytes(out, n, "APU port (CPU to APU)", o->apu.cpu_in, c->apu.cpu_in, sizeof o->apu.cpu_in, 0))
         return true;
     return false;
+}
+
+bool native_compare(const Snes *o, const Snes *c, uint16_t dont_care, char *out, size_t n)
+{
+    return compare_machines(o, c, dont_care, 0, out, n);
 }
 
 /* ---- intercept -------------------------------------------------------------- */
@@ -476,7 +524,7 @@ static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, c
     if (s->frame != a->segment_frame)
         a->clone->ppu.oam_addr = s->ppu.oam_addr;
     char why[200], msg[256];
-    if (native_compare(s, a->clone, dont_care, why, sizeof why)) {
+    if (compare_machines(s, a->clone, dont_care, a->since, why, sizeof why)) {
         a->mismatched = true;
         snprintf(msg, sizeof msg, "%s: %s", where, why);
         detail(rt, "mismatch", a->entry, msg);
@@ -599,10 +647,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         if (interrupt_deliverable(s))
             return false;   /* resume after the interrupt returns here */
         if (rt->mode == NATIVE_SHADOW) {
-            Snes *clone = a->clone;
-            snes_clone(clone, s);
-            clone->bus.clocks = 0;
-            a->job->m = clone;
+            clone_refresh(rt, a, s);
         } else {
             s->bus.clocks = 0;
         }
@@ -1229,10 +1274,7 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job = job_get();
         a->job->entry = e;
         if (rt->mode == NATIVE_SHADOW) {
-            a->clone = malloc(sizeof *a->clone);
-            snes_clone(a->clone, s);
-            a->clone->bus.clocks = 0;
-            a->job->m = a->clone;
+            clone_refresh(rt, a, s);
         } else {
             s->bus.clocks = 0;
             a->job->m = s;
@@ -1336,6 +1378,8 @@ void native_attach(NativeRuntime *rt, Snes *snes)
     snes->intercept = intercept;
     snes->intercept_ctx = rt;
     rt->attached = snes;
+    for (int i = 0; i < MAX_ACTIVE; i++)
+        rt->clone_since[i] = 0;   /* copies of another machine, if any */
     if (rt->mode == NATIVE_SHADOW && rt->generated && !rt->acc) {
         rt->cap_acc = RECORD_ACCESSES;
         rt->cap_bnd = RECORD_BOUNDARIES;

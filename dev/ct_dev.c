@@ -10,11 +10,14 @@
  *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *          [--px-check [out.txt]]
  *
+ * The framebuffer is only drawn for what reads it (--trace, --shot-every,
+ * --px-check); otherwise each line computes just the sprite flags the game can
+ * read ($213E), which leaves the machine as drawing would.
  * --native shadow runs the original code and checks each call of a ported
  * routine against its native version; --native on runs the ported routines.
  * --calls writes every executed JSR/JSL/JSR(abs,X) call site and target, so the
  * disassembler's liveness analysis knows about callers it can't see statically.
- * --load-state resumes from a state saved by --save-state (same build only);
+ * --load-state resumes from a state saved by --save-state (docs/RUNTIME.md, "Save states");
  * frame numbers, and so movie input, continue from the saved frame.
  * --load-zst starts from a ZSNES 1.51 save state (snes/zst.h) at frame F (--frame,
  * default 0; --frames stays the frame to stop before). Such a run can't be
@@ -114,9 +117,17 @@ static void on_frame_top(void *ctx, Snes *snes)
         vid_check_frame_top(vid_check);
 }
 
+/* Whether anything reads the framebuffer: a trace (its hash), screenshots or
+ * --px-check. Without them lines only get the sprite flags the game can read
+ * (render_line_flags). */
+static bool draw_pixels;
+
 static void on_line(void *ctx, Snes *snes, uint16_t line)
 {
-    render_line(ctx, &snes->ppu, line);
+    if (draw_pixels)
+        render_line(ctx, &snes->ppu, line);
+    else
+        render_line_flags(ctx, &snes->ppu, line);
     if (vid_check)
         vid_check_line(vid_check, line);
     if (px_check)
@@ -405,7 +416,7 @@ int main(int argc, char **argv)
         return 1;
     }
     if (load_state && snes_state_load(&snes, load_state) != 0) {
-        fprintf(stderr, "cannot load state %s (missing, or saved by a different build)\n", load_state);
+        fprintf(stderr, "cannot load state %s (missing, damaged, or not a state for this ROM)\n", load_state);
         return 1;
     }
     if (zst_path) {
@@ -461,6 +472,7 @@ int main(int argc, char **argv)
     }
     if (shot_dir)
         make_dir(shot_dir);
+    draw_pixels = trace_path || shot_every > 0 || want_px_check;
 
     Coverage cov = { .snes = &snes };
     if (coverage_path)

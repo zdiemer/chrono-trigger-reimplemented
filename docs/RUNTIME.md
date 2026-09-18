@@ -16,7 +16,7 @@ python3 tools/trace.py diff traces/oracle.cttr traces/dev.cttr --region WRAM
 `--coverage` writes every executed instruction address with its M/X widths, for
 seeding the disassembler. `--calls` writes executed call edges for liveness
 analysis. `--save-state` writes the machine at the end of a run and
-`--load-state` resumes from it (same build only), which makes iterating on the
+`--load-state` resumes from it (see Save states), which makes iterating on the
 end of a long movie fast. Frame numbers and movie input continue from the
 saved frame, and resumed runs are identical to straight runs. `--load-zst`
 starts from a ZSNES save state instead, for coverage runs only (see ZSNES save
@@ -188,6 +188,17 @@ Gaps:
 - Which sprites lose tiles past the 34-tile limit follows OAM order from the
   first sprite; unverified against hardware.
 - The ignored 16x16 tile-size bits of `$2105` have no effect, as on hardware.
+
+`ct_dev` draws only when something reads the pixels: `--trace` (the hash),
+`--shot-every` or `--px-check`. Otherwise each line runs `render_line_flags`,
+which does the one thing drawing changes in the machine: the sprite range-over
+and time-over flags `$213E` returns, from the same sprite evaluation.
+`--native off` traces of `gato-battle` and `saves/battle-magus`, battles full of
+sprites, are identical in every region whether lines are drawn, only flagged,
+or not rendered at all, so nothing there acts on the flags; but a reader
+elsewhere would see flags that are never set, so they are kept. Over the whole
+suite, the shadow reports, coverage and call files of runs without drawing are
+byte-identical to those of runs with it.
 
 ### Speed
 
@@ -571,9 +582,18 @@ structure changed (P3 showed it by changing `sizeof(Snes)`).
 
 Every number is little-endian whatever the host, so states also move between
 hosts. The first field is `rom.crc32`, the ROM the state was saved with; the
-rest are every field of `Snes` except the ROM, host pointers, hooks and
-`halted`, about 300 of them in 290 KB (work RAM, VRAM and sound RAM are most
-of it).
+rest are every field of `Snes` except the ROM, host pointers, hooks,
+`halted` and the write tracking shadow mode uses (below), about 300 of them in
+290 KB (work RAM, VRAM and sound RAM are most of it).
+
+Write tracking isn't state. Shadow mode refreshes its machine copies with only
+the pages of work RAM and VRAM written since the last refresh
+([PORTING.md](PORTING.md), "What shadow mode costs"), from a write epoch the
+bus and the PPU stamp on each page. A load replaces those memories without a
+single write, so it keeps the machine's own epoch counters and stamps every
+page with the current one (`snes_mark_all_written`): the next refresh of any
+copy takes all of both, whether or not the native runtime is restarted. The
+ZSNES import and `ct_drive`'s `poke` and slot `load` do the same.
 
 A load looks up each field this build has by name, into a machine powered on
 with the same ROM, and copies that machine in only once everything checked out:
@@ -603,10 +623,13 @@ power-on value, and one with an unknown field (a newer build's) loads; every
 prefix of a state, flipped bytes, the raw magic, a newer version, a resized
 field or array, a duplicate field, out-of-range values and another ROM's state
 are all refused with the machine unchanged. It also checks that every byte of
-`Snes` is a state field, a host pointer or hook, or padding, so a field added
-without its line in `visit()` fails the test (a forgotten field small enough to
-pass for padding is caught by the byte-for-byte round trip instead, if the
-program changes it).
+`Snes` is a state field, a host pointer or hook, write tracking, or padding, so
+a field added without its line in `visit()` fails the test (a forgotten field
+small enough to pass for padding is caught by the byte-for-byte round trip
+instead, if the program changes it). And that write tracking survives a load
+correctly: a copy refreshed before a load, refreshed again after it, equals the
+loaded machine in work RAM and VRAM, and the state holds no tracking; with the
+load's `snes_mark_all_written` removed, that check fails.
 
 On the game: a state saved at frame 2500 of `battle-magus.ctm` (with
 `--native on --recomp only`) and resumed traces identically to the

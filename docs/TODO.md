@@ -222,19 +222,25 @@ waits on M5 rather than on a backend.
 
 ## Player and tooling
 
-- **The movie suite is slow.** Running the validation gate (`tools/suite.py`:
-  every movie in `--native shadow`, then the `--recomp only` trace comparison)
-  takes about an hour:
-  - **Don't render what nobody looks at.** `ct_dev` calls `render_line` for
-    every line and hashes the framebuffer every frame, but a shadow run reads
-    neither unless `--trace`, `--shot-dir` or `--px-check` asked for them.
-    Rendering dominates run time (PLATFORM.md, P3), so a flag that skips it
-    should be most of the suite's cost.
+- **The movie suite's wall time is the longest movie's.** The gate
+  (`tools/suite.py`) takes about 10 minutes at `-j 2` (PORTING.md, "What
+  shadow mode costs"). The three endings are 54% of its CPU time and
+  `endings-bucket-lavos` alone 24%, so from about `-j 4` up the wall time is
+  that one movie however many workers are idle:
+  - **Split the long movies.** A `--native off` pass (3-4 times faster than
+    shadow) could save states at a few cut points, and the segments run in
+    shadow in parallel from them, with their coverage and call files merged.
+    The routines in flight at a cut would go unchecked there.
   - **Skip the shared prefix.** Every movie replays the attract sequence and
     title from power-on before reaching what it covers, about 1638 frames each
-    across 25 movies. A state snapshot taken once at the point a movie's own
-    input starts would cut that, at the cost of no longer validating the boot
-    path 25 times over.
+    across 25 movies, now about 5% of the suite. A state snapshot taken once at
+    the point a movie's own input starts would cut that, at the cost of no
+    longer validating the boot path 25 times over.
+  - **Sound RAM in the shadow copies.** A refresh still copies the 90 KB
+    outside work RAM and VRAM, mostly the APU's 64 KB, which with the
+    comparison is about 15% of an ending's shadow run. Stamping sound RAM
+    pages as work RAM's are (the SPC700's writes and the DSP's echo writes)
+    would cut it.
   - **A fast gate**: `--movies` and `--only` narrow a run by hand, but deriving
     the subset that can reach the subsystem a change touched would make the
     iterating case automatic, with the full set still required to land.

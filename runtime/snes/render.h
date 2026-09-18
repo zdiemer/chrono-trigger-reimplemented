@@ -93,6 +93,12 @@ void render_init(Renderer *r);
  * outside the renderer: unchanged lines aren't redrawn. */
 void render_line(Renderer *r, Ppu *ppu, int line);
 
+/* render_line's effect on the machine without the drawing: the range-over and
+ * time-over flags ($213E), which the game can read back. For runs nothing looks
+ * at the pixels of: the framebuffer isn't updated, and render_line redraws
+ * the line in full next time. */
+void render_line_flags(Renderer *r, Ppu *ppu, int line);
+
 /* Snes9x output color: a 15-bit BGR555 value (0bbbbbgggggrrrrr) scaled by master
  * brightness and packed as RGB565, then widened to XRGB8888. Exposed for tests. */
 uint16_t render_snes9x_color(uint16_t bgr555, uint8_t brightness);
