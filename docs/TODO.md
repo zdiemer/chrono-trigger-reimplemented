@@ -47,6 +47,9 @@ rest waits, is [PLAN.md](PLAN.md).
   still need stronger bounds. The strings' leftovers (MATCHING.md, "The string
   encodings"): the dialog tables at `$FF:D3FE` and `$CC:3A09`, whose extents
   aren't settled, and the menu strings passed to `$C2:EF65` by address in code.
+  The event scripts' leftovers (MATCHING.md, "The event scripts"): commands
+  and operands named mechanically (`set_1c80`, `party_routine_6`), and the 39
+  command layouts read from handlers no port has checked yet.
   The battle scripts' leftovers (MATCHING.md, "The battle script formats"):
   names for the commands, conditions and actions that keep their numbers, and
   deriving the action and target tables (`$C1:B85F`, `B88D`, `B8BB`) from the

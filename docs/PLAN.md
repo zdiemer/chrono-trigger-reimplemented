@@ -145,7 +145,10 @@ Subsystem by subsystem, each through the gate, cheapest and best understood
 first. `--uncovered BANK` lists the largest unported runs, which is how to pick
 the next routine. Taking a subsystem includes bringing its existing ports up to
 the same bar (Phase 2), so the refactor is paid where the code is already being
-read rather than as a sweep.
+read rather than as a sweep. The same goes for the script formats' numbered
+commands (`cmd_6C`, `if_0A`, `set_1c80`): porting a command's handler is when
+it gets a real name in `tools/disasm/eventscript.py` or `battlescript.py`, since
+that's when someone has read what it does.
 
 Naming is part of that bar. The RAM map (`re/ram.toml`, docs/DISASSEMBLY.md)
 names 91% of the work RAM addresses `game/` spells as literals, so a subsystem's
