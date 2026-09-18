@@ -21,10 +21,11 @@ int run_headless(Player *pl, const HeadlessOptions *o)
                 pad |= o->holds[i].buttons;
         }
         player_step(pl, pad);
+        files_after_frame(o->files, pl);
         ct_wav_write(&wav, audio, player_take_audio(pl, audio, DSP_OUT_FRAMES));
     }
-    player_sram_flush(pl);
-    int rc = player_movie_flush(pl) != 0;
+    files_flush(o->files, pl);
+    int rc = files_flush_movie(o->files, pl) != 0;
     if (pl->snes.halted) {
         frames = frame - 1;
         rc = 1;
@@ -48,7 +49,7 @@ int run_headless(Player *pl, const HeadlessOptions *o)
         if (player_busy(pl)) {
             fprintf(stderr, "cannot save state: native routines stayed suspended\n");
             rc = 1;
-        } else if (player_save_state(pl, o->save_state) != 0) {
+        } else if (files_save_state(pl, o->save_state) != 0) {
             rc = 1;
         }
     }

@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include "driver.h"
+#include "files.h"
 #include "movie.h"
 #include "player.h"
 #include "sram_find.h"
@@ -101,46 +102,15 @@ static void usage(FILE *out)
                 CT_PLAYER_NO_INTERPRETER == 1 ? "runs on the interpreter" : "stops the game");
 }
 
+/* A whole binary file; NULL if it is missing, unreadable or empty. */
 static uint8_t *read_file(const char *path, size_t *len)
 {
-    FILE *f = fopen(path, "rb");
-    if (!f)
-        return NULL;
-    fseek(f, 0, SEEK_END);
-    long n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    uint8_t *data = malloc(n > 0 ? (size_t)n : 1);
-    if (n <= 0 || fread(data, 1, (size_t)n, f) != (size_t)n) {
-        fclose(f);
+    uint8_t *data = files_read(path, len, false, NULL);
+    if (data && !*len) {
         free(data);
         return NULL;
     }
-    fclose(f);
-    *len = (size_t)n;
     return data;
-}
-
-static const char *file_name(const char *path)
-{
-    const char *name = path;
-    for (const char *p = path; *p; p++) {
-        if (*p == '/' || *p == '\\')
-            name = p + 1;
-    }
-    return name;
-}
-
-/* dir/<name_path's file name without extension><ext>; dir defaults to dir_of's directory. */
-static void side_path(char *out, size_t n, const char *name_path, const char *dir_of, const char *dir,
-                      const char *ext)
-{
-    const char *name = file_name(name_path);
-    const char *dot = strrchr(name, '.');
-    int stem = dot && dot != name ? (int)(dot - name) : (int)strlen(name);
-    if (dir)
-        snprintf(out, n, "%s/%.*s%s", dir, stem, name, ext);
-    else
-        snprintf(out, n, "%.*s%.*s%s", (int)(file_name(dir_of) - dir_of), dir_of, stem, name, ext);
 }
 
 static int parse_hold(const char *s, Hold *h)
@@ -180,6 +150,7 @@ int main(int argc, char **argv)
     int movie_sram = 0;
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
+    static Files files;
     bool native_given = false, recomp = true, recomp_only = true, recomp_given = false, audio_direct = false;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
@@ -258,7 +229,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--wav")) wav_path = v;
         else if (!strcmp(a, "--movie")) movie_path = v;
         else if (!strcmp(a, "--movie-frames")) movie_frames = strtol(v, NULL, 10);
-        else if (!strcmp(a, "--record")) pl.track.record_path = v;
+        else if (!strcmp(a, "--record")) files.movie = v;
         else if (!strcmp(a, "--sram")) sram_file = v;
         else if (!strcmp(a, "--hold")) {
             if (nholds == MAX_HOLDS || parse_hold(v, &holds[nholds]) != 0) {
@@ -311,17 +282,17 @@ int main(int argc, char **argv)
                 player_build_mode[CT_PLAYER_NO_INTERPRETER]);
         return 2;
     }
-    Track *t = &pl.track;
+    const char *record_path = files.movie;
     if (audio_direct) {
         /* APU-direct runs in the sound driver's ported routines and changes timing */
-        if (pl.native_mode != NATIVE_ON || t->record_path || (recomp_given && recomp_only)) {
+        if (pl.native_mode != NATIVE_ON || record_path || (recomp_given && recomp_only)) {
             fprintf(stderr, "--audio direct needs --native on with the ported routines (not --recomp only), "
                             "and can't record: it changes the original's timing\n");
             return 2;
         }
         recomp_only = false;
     }
-    if (t->record_path) {
+    if (record_path) {
         /* A movie replays the same only where the original code's timing is kept,
          * from power-on with the SRAM ct_dev starts with. */
         if (native_given && pl.native_mode == NATIVE_ON && !recomp_only) {
@@ -335,6 +306,7 @@ int main(int argc, char **argv)
         }
         if (!native_given && !CT_PLAYER_NO_INTERPRETER)
             pl.native_mode = NATIVE_SHADOW;
+        pl.track.record_name = files_name(record_path);
     }
 
     size_t rom_len;
@@ -345,11 +317,11 @@ int main(int argc, char **argv)
     }
     size_t header = rom_len % 0x8000 == 0x200 ? 0x200 : 0;
 
-    side_path(pl.sram_path, sizeof pl.sram_path, rom_path, rom_path, save_dir, ".srm");
-    if (t->record_path)
-        side_path(pl.state_path, sizeof pl.state_path, t->record_path, rom_path, save_dir, ".state");
-    else
-        side_path(pl.state_path, sizeof pl.state_path, rom_path, rom_path, save_dir, ".state");
+    /* What the saves are called and where they go. */
+    files_side_path(files.sram, sizeof files.sram, rom_path, rom_path, save_dir, ".srm");
+    files_side_path(files.state, sizeof files.state, record_path ? record_path : rom_path, rom_path, save_dir,
+                    ".state");
+    files_side_path(files.misses, sizeof files.misses, rom_path, rom_path, save_dir, ".misses.txt");
 
     if (movie_path) {
         ct_movie movie;
@@ -359,7 +331,7 @@ int main(int argc, char **argv)
         uint16_t *pads = calloc(n ? n : 1, sizeof *pads);
         for (uint32_t fr = 0; fr < n; fr++)
             pads[fr] = ct_movie_buttons(&movie, fr);
-        player_replay(&pl, pads, n, file_name(movie_path));
+        player_replay(&pl, pads, n, files_name(movie_path));
         free(pads);
         movie_sram = movie.has_sram;
         movie_sram_crc = movie.sram_crc;
@@ -367,11 +339,23 @@ int main(int argc, char **argv)
     }
 
 #if CT_PLAYER_NO_INTERPRETER
-    side_path(pl.misses_path, sizeof pl.misses_path, rom_path, rom_path, save_dir, ".misses.txt");
+    pl.misses_name = files.misses;
 #endif
     int rc = player_init(&pl, rom + header, rom_len - header, recomp, recomp_only);
     if (rc != 0)
         return rc;
+    if (CT_PLAYER_NO_INTERPRETER) {
+        size_t len = 0;
+        bool missing;
+        char *text = (char *)files_read(files.misses, &len, true, &missing);
+        if (text)
+            player_misses_merge(&pl, text, len);
+        else if (!missing)
+            fprintf(stderr, "warning: cannot read %s; starting a new one\n", files.misses);
+        free(text);
+        fprintf(stderr, "ct_play: %s; instructions without generated code are logged to %s\n",
+                player_build_mode[CT_PLAYER_NO_INTERPRETER], files.misses);
+    }
     /* A movie from a cartridge save: find the save by its CRC-32 when --sram
      * isn't given (the vendored saves next to the movies, or below the ROM). */
     static char found_sram[1024];
@@ -381,7 +365,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "using save %s (CRC-32 %08X)\n", sram_file, (unsigned)movie_sram_crc);
     }
     /* --sram and recordings start from a fixed save and never write one back. */
-    pl.persist_sram = !t->record_path && !sram_file && !zst_path;
+    pl.persist_sram = !record_path && !sram_file && !zst_path;
     if (sram_file) {
         size_t sram_len;
         uint8_t *sram = read_file(sram_file, &sram_len);
@@ -389,35 +373,53 @@ int main(int argc, char **argv)
             fprintf(stderr, "cannot read %s as a %d-byte SRAM file\n", sram_file, SNES_SRAM_SIZE);
             return 1;
         }
-        memcpy(pl.snes.bus.sram, sram, SNES_SRAM_SIZE);
+        player_use_sram(&pl, sram, files_name(sram_file));
         free(sram);
-        t->sram_name = file_name(sram_file);
     }
-    t->sram_crc = ct_crc32(pl.snes.bus.sram, SNES_SRAM_SIZE);
-    if (movie_sram && (!sram_file || t->sram_crc != movie_sram_crc)) {
+    uint32_t sram_crc = player_sram_crc(&pl);
+    if (movie_sram && (!sram_file || sram_crc != movie_sram_crc)) {
         fprintf(stderr, "%s starts from SRAM with CRC-32 %08X; pass that save with --sram\n", movie_path,
                 (unsigned)movie_sram_crc);
         return 1;
     }
-    if (pl.persist_sram)
-        player_sram_load(&pl);
+    if (pl.persist_sram) {
+        size_t sram_len = 0;
+        uint8_t *sram = files_read(files.sram, &sram_len, false, NULL);
+        if (sram && sram_len != SNES_SRAM_SIZE)
+            fprintf(stderr, "ignoring %s: expected %d bytes\n", files.sram, SNES_SRAM_SIZE);
+        player_load_sram(&pl, sram && sram_len == SNES_SRAM_SIZE ? sram : NULL);
+        free(sram);
+    }
     player_start(&pl, audio_direct);
-    if (load_state_path && player_load_state(&pl, load_state_path) != 0)
+    if (load_state_path && files_load_state(&pl, load_state_path) != 0)
         return 1;
-    if (zst_path && player_import_zst(&pl, zst_path) != 0)
-        return 1;
-    if (t->record_path)
-        fprintf(stderr, "recording to %s in %s mode; quick saves go to %s\n", t->record_path,
+    if (zst_path) {
+        size_t len;
+        uint8_t *data = read_file(zst_path, &len);
+        char why[160] = "cannot read the file";
+        if (!data || player_import_zst(&pl, data, len, why, sizeof why) != 0) {
+            fprintf(stderr, "cannot import %s: %s\n", zst_path, why);
+            return 1;
+        }
+        free(data);
+        fprintf(stderr, "imported ZSNES state %s (some state approximated; not for validation)\n", zst_path);
+    }
+    if (record_path)
+        fprintf(stderr, "recording to %s in %s mode; quick saves go to %s\n", record_path,
                 pl.native_mode == NATIVE_SHADOW ? "shadow" : pl.native_mode == NATIVE_ON ? "on" : "off",
-                pl.state_path);
+                files.state);
 
     if (frames >= 0) {
-        HeadlessOptions ho = { frames, holds, nholds, screenshot, save_state_path, wav_path };
+        HeadlessOptions ho = { &files, frames, holds, nholds, screenshot, save_state_path, wav_path };
         rc = run_headless(&pl, &ho);
     } else {
+        wo.files = &files;
         wo.scale = (int)scale;
         rc = run_window(&pl, &wo);
     }
+    if (record_path)
+        fprintf(stderr, "recorded %lu frames to %s\n", (unsigned long)pl.track.frames, record_path);
+    files_flush(&files, &pl);
     player_finish(&pl);
     free(rom);
     return rc;

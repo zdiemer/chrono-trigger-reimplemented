@@ -42,25 +42,18 @@ Days of work, and it unblocks anyone else running this.
 
 ### The host seam
 
-Three of those four are edits to the frontend and the save path, which is also
-where any host that isn't a desktop has to be let in. Doing them in the shape
-that host needs costs little more than doing them twice.
-
-The driver seam is in: `Player` and `player_step` have a header of their own
-(`frontend/player.h`), `run_window` and `run_headless` are two drivers over
-them, and the audio fill is host-neutral (PLAYING.md, "How the player is
-built"). Configurable keys and gamepad support are bindings *in* a driver, so
-they go into `frontend/window.c` rather than the player. What is left:
-
-- **A storage seam.** Persistence is still spelled as paths -- `sram_path` and
-  `state_path` in `Player`, `fopen` in the player, `snes_state_save` and
-  `zst.c` taking a path in `runtime/snes/` -- and a browser has no synchronous
-  filesystem. Persistence should move bytes under a name: the `.srm`, a quick
-  save, a recorded movie, the misses file. Files sit behind it on the desktop
-  and whatever the host has elsewhere, and the runtime's by-path helpers become
-  buffer functions with the path wrapper in the driver. Quick saves need a
-  versioned, field-wise format in this phase regardless, and that is the same
-  code, so the two land together.
+Both seams are in (PLAYING.md, "How the player is built"). The driver seam:
+`Player` and `player_step` have a header of their own (`frontend/player.h`),
+`run_window` and `run_headless` are two drivers over them, and the audio fill is
+host-neutral. The storage seam: the player takes and hands out what it persists
+as bytes -- the `.srm` through `sv_host_bytes`, quick saves, the movie being
+recorded, the misses log -- and `frontend/files.c` is the desktop's storage,
+which names them and puts them in files; the runtime's by-path helpers
+(`snes_state_save`, `zst_import_file`, `ct_movie_load`, `misses_write`) are
+wrappers over buffer functions that the player uses instead. Configurable keys
+and gamepad support are bindings *in* a driver, so they go into
+`frontend/window.c` rather than the player; the quick-save format is the
+runtime's `snes_state_write` and `snes_state_read`.
 
 Neither seam answers wasm's real question, which is the stack one below; they
 are what makes the rest of that build ordinary.

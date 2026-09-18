@@ -227,7 +227,7 @@ int run_window(Player *pl, const WindowOptions *o)
                     player_request_save(pl);
                 } else if (sc == SDL_SCANCODE_F7) {
                     player_cancel_save(pl);
-                    player_load_state(pl, pl->state_path);
+                    files_load_state(pl, o->files->state);
                 }
                 update_title(window, pl, paused);
             }
@@ -237,14 +237,14 @@ int run_window(Player *pl, const WindowOptions *o)
         if (pl->snes.halted && !halt_shown) {
             /* Without the interpreter, a miss stops the game (the stderr message says more). */
             halt_shown = true;
-            player_misses_flush(pl);
+            files_flush(o->files, pl);
             update_title(window, pl, paused);
             char msg[1600];
             snprintf(msg, sizeof msg,
                      "The game stopped at frame %u: %s.\n\nThis player runs without the interpreter. The address "
                      "is logged to %s; a build with it in CT_RECOMP_COVERAGE generates the code. F7 loads the quick "
                      "save; Esc quits.",
-                     (unsigned)pl->snes.frame, player_halt_reason(pl), player_misses_path(pl));
+                     (unsigned)pl->snes.frame, player_halt_reason(pl), player_misses_name(pl));
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "ct_play stopped", msg, window);
         } else if (!pl->snes.halted) {
             halt_shown = false;
@@ -256,14 +256,14 @@ int run_window(Player *pl, const WindowOptions *o)
             do {
                 bool was_saving = player_saving(pl);
                 player_step(pl, read_pad());
+                files_after_frame(o->files, pl);
                 if (pl->snes.halted)
                     break;
                 if (was_saving && !player_saving(pl))
                     update_title(window, pl, paused);
                 if (++frames_since_flush >= SRAM_FLUSH_FRAMES) {
                     frames_since_flush = 0;
-                    player_sram_flush(pl);
-                    player_misses_flush(pl);
+                    files_flush(o->files, pl);
                     update_title(window, pl, paused);
                 }
                 fast = (player_replaying(pl) && !pl->watch) || keys[SDL_SCANCODE_TAB];
@@ -300,11 +300,11 @@ int run_window(Player *pl, const WindowOptions *o)
         deadline += period;
     }
 
-    player_sram_flush(pl);
+    files_flush(o->files, pl);
     audio_close(&audio);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(sdl_renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return player_movie_flush(pl) != 0;
+    return files_flush_movie(o->files, pl) != 0;
 }

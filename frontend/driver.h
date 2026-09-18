@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "files.h"
 #include "player.h"
 
 /* Headless input: buttons held over a range of frames. */
@@ -17,6 +18,7 @@ typedef struct {
 } Hold;
 
 typedef struct {
+    const Files *files;
     long frames;
     const Hold *holds;
     int nholds;
@@ -36,6 +38,7 @@ typedef struct {
 } Display;
 
 typedef struct {
+    const Files *files;
     int scale;
     bool fullscreen;
     bool mute;

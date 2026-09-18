@@ -86,34 +86,33 @@ void snes_clone(Snes *dst, const Snes *src)
 
 #define STATE_MAGIC "CTSS"
 #define STATE_VERSION 4u
+#define STATE_HEADER 12
 
-int snes_state_save(const Snes *s, const char *path)
+uint8_t *snes_state_write(const Snes *s, size_t *len)
 {
-    FILE *f = fopen(path, "wb");
-    if (!f)
-        return -1;
+    uint8_t *out = malloc(STATE_HEADER + sizeof *s);
+    if (!out)
+        return NULL;
     uint32_t header[2] = { STATE_VERSION, (uint32_t)sizeof *s };
-    int ok = fwrite(STATE_MAGIC, 4, 1, f) == 1 && fwrite(header, sizeof header, 1, f) == 1 &&
-             fwrite(s, sizeof *s, 1, f) == 1;
-    return (fclose(f) == 0 && ok) ? 0 : -1;
+    memcpy(out, STATE_MAGIC, 4);
+    memcpy(out + 4, header, sizeof header);
+    memcpy(out + STATE_HEADER, s, sizeof *s);
+    *len = STATE_HEADER + sizeof *s;
+    return out;
 }
 
-int snes_state_load(Snes *s, const char *path)
+int snes_state_read(Snes *s, const uint8_t *data, size_t len)
 {
-    FILE *f = fopen(path, "rb");
-    if (!f)
-        return -1;
-    char magic[4];
     uint32_t header[2];
-    Snes *loaded = malloc(sizeof *loaded);
-    int ok = loaded && fread(magic, 4, 1, f) == 1 && memcmp(magic, STATE_MAGIC, 4) == 0 &&
-             fread(header, sizeof header, 1, f) == 1 && header[0] == STATE_VERSION &&
-             header[1] == sizeof *s && fread(loaded, sizeof *loaded, 1, f) == 1;
-    fclose(f);
-    if (!ok) {
-        free(loaded);
+    if (len != STATE_HEADER + sizeof *s || memcmp(data, STATE_MAGIC, 4) != 0)
         return -1;
-    }
+    memcpy(header, data + 4, sizeof header);
+    if (header[0] != STATE_VERSION || header[1] != sizeof *s)
+        return -1;
+    Snes *loaded = malloc(sizeof *loaded);
+    if (!loaded)
+        return -1;
+    memcpy(loaded, data + STATE_HEADER, sizeof *loaded);
     /* Everything but pointers comes from the file; pointers stay this process's. */
     const Snes keep = *s;
     *s = *loaded;
@@ -140,6 +139,37 @@ int snes_state_load(Snes *s, const char *path)
     s->on_miss_ctx = keep.on_miss_ctx;
     s->halted = false;
     return 0;
+}
+
+int snes_state_save(const Snes *s, const char *path)
+{
+    size_t len;
+    uint8_t *data = snes_state_write(s, &len);
+    FILE *f = data ? fopen(path, "wb") : NULL;
+    int ok = f && fwrite(data, len, 1, f) == 1;
+    if (f && fclose(f) != 0)
+        ok = 0;
+    free(data);
+    return ok ? 0 : -1;
+}
+
+int snes_state_load(Snes *s, const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return -1;
+    uint8_t *data = NULL;
+    size_t len = 0;
+    if (fseek(f, 0, SEEK_END) == 0) {
+        long n = ftell(f);
+        if (n > 0 && fseek(f, 0, SEEK_SET) == 0 && (data = malloc((size_t)n)) != NULL &&
+            fread(data, 1, (size_t)n, f) == (size_t)n)
+            len = (size_t)n;
+    }
+    fclose(f);
+    int rc = len ? snes_state_read(s, data, len) : -1;
+    free(data);
+    return rc;
 }
 
 void snes_power_on(Snes *s)

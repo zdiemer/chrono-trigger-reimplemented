@@ -146,13 +146,12 @@ waits on M5 rather than on a backend.
     page loads at run time -- which makes M5's coverage the gate on it, and asks
     the same question as "assets as data files" above: the readers assume a
     mapped ROM image.
-  - **The loop and the clock.** `ct_play` blocks on its own frame pacing and
-    drives an SDL audio device it resamples against; the browser wants a
-    callback-driven loop and gives no synchronous file access. Saves
-    (`sv_host_bytes`) need a persistence backend that isn't a path. This is the
-    driver and storage seams in PLAN.md, Phase 1, which are scheduled for the
-    desktop build's sake anyway; the rules that keep them from re-closing are in
-    CLAUDE.md, "Writing host-side code".
+  - **A driver of its own.** The player advances one frame per call and hands
+    out what it persists as bytes under names (PLAYING.md, "How the player is
+    built"), so what the browser needs is a third driver beside `run_window`
+    and `run_headless`: a frame callback, an audio worklet fed through
+    `audio_fill`, and saves kept in browser storage. The rules that keep those
+    seams from re-closing are in CLAUDE.md, "Writing host-side code".
   - **Speed**, which is unmeasured: the interpreter plus `render.c` per line, in
     one thread, with no `-static` build to lean on.
 - **A native AYN Thor multi-screen port.** Two parts, and only one of them is a

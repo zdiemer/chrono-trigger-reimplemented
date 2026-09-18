@@ -218,7 +218,7 @@ endif()
 
 if(CT_SDL2)
   add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/audio_fill.c frontend/window.c
-    frontend/headless.c)
+    frontend/headless.c frontend/files.c)
   if(NOT CT_PLAYER_INTERPRETER_MODE STREQUAL "ON")
     # The miss report (dev/misses.h) is the player's log of misses.
     target_sources(ct_play PRIVATE dev/misses.c)

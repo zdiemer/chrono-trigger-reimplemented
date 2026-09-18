@@ -23,6 +23,8 @@ void misses_note(Misses *m, uint32_t pc, uint8_t p, bool e);
 /* Adds the counts of a report written earlier; a missing file adds nothing.
  * Returns the number of entries read, or -1 if the file can't be read. */
 int misses_load(Misses *m, const char *path);
+/* The same for a report held in memory: returns the number of entries read. */
+int misses_parse(Misses *m, const char *text, size_t len);
 /* Distinct entries (address, widths, emulation mode); `instructions`, if not
  * NULL, gets the instructions counted. */
 size_t misses_count(const Misses *m, uint64_t *instructions);
@@ -32,6 +34,9 @@ void misses_describe(const Snes *s, char *out, size_t n);
 /* Writes the list to `path` and, unless `summary` is NULL, a summary to
  * `summary`. Returns 0 on success. */
 int misses_write(Misses *m, const char *path, FILE *summary);
+/* The list as a malloc'd string of *len bytes (LF line ends, NUL
+ * terminated; NULL if out of memory), and the summary as misses_write. */
+char *misses_format(Misses *m, size_t *len, FILE *summary);
 void misses_destroy(Misses *m);
 
 #endif

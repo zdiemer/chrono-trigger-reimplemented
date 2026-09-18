@@ -1,5 +1,6 @@
 #include "misses.h"
 
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -140,6 +141,63 @@ void misses_note(Misses *m, uint32_t pc, uint8_t p, bool e)
     }
 }
 
+/* One line of a report. Returns whether it was an entry. */
+static bool parse_line(Misses *m, const char *line)
+{
+    unsigned bank, addr;
+    int mw, xw;
+    unsigned long long count;
+    char rest[400] = "";
+    if (line[0] == '#' || sscanf(line, "%2x:%4x %d %d # %llu%399[^\n]", &bank, &addr, &mw, &xw, &count, rest) < 5)
+        return false;
+    bool e = strstr(rest, " emulation") != NULL, m8 = mw == 8, x8 = xw == 8;
+    uint32_t pc = (uint32_t)bank << 16 | addr;
+    uint32_t key = (pc << 3 | (uint32_t)e << 2 | (uint32_t)m8 << 1 | (uint32_t)x8) + 1;
+    if (m->used * 2 >= m->cap)
+        grow(m);
+    Miss *ms = slot(m, key);
+    if (!ms->key) {
+        ms->key = key;
+        ms->section = -1;
+        m->used++;
+    }
+    ms->count += count;
+    char name[128];
+    if (sscanf(rest, " RAM %127s", name) == 1)
+        for (int i = 0; i < recomp_ram_section_count; i++)
+            if (!strcmp(recomp_ram_sections[i].name, name))
+                ms->section = (int16_t)i;
+    const char *mod = strstr(rest, " modified ");
+    unsigned long long modified;
+    char what[16];
+    if (mod && sscanf(mod, " modified %llu (%15[a-z])", &modified, what) == 2) {
+        ms->modified += modified;
+        ms->diff |= !strcmp(what, "opcode") ? 1 : 2;
+    }
+    return true;
+}
+
+int misses_parse(Misses *m, const char *text, size_t len)
+{
+    char line[512];
+    int n = 0;
+    size_t at = 0;
+    while (at < len) {
+        size_t k = 0;
+        while (at < len && k < sizeof line - 1) {
+            char c = text[at++];
+            if (c == '\r')
+                continue;
+            line[k++] = c;
+            if (c == '\n')
+                break;
+        }
+        line[k] = 0;
+        n += parse_line(m, line);
+    }
+    return n;
+}
+
 int misses_load(Misses *m, const char *path)
 {
     FILE *f = fopen(path, "r");
@@ -147,39 +205,8 @@ int misses_load(Misses *m, const char *path)
         return 0;
     char line[512];
     int n = 0;
-    while (fgets(line, sizeof line, f)) {
-        unsigned bank, addr;
-        int mw, xw;
-        unsigned long long count;
-        char rest[400] = "";
-        if (line[0] == '#' || sscanf(line, "%2x:%4x %d %d # %llu%399[^\n]", &bank, &addr, &mw, &xw, &count, rest) < 5)
-            continue;
-        bool e = strstr(rest, " emulation") != NULL, m8 = mw == 8, x8 = xw == 8;
-        uint32_t pc = (uint32_t)bank << 16 | addr;
-        uint32_t key = (pc << 3 | (uint32_t)e << 2 | (uint32_t)m8 << 1 | (uint32_t)x8) + 1;
-        if (m->used * 2 >= m->cap)
-            grow(m);
-        Miss *ms = slot(m, key);
-        if (!ms->key) {
-            ms->key = key;
-            ms->section = -1;
-            m->used++;
-        }
-        ms->count += count;
-        char name[128];
-        if (sscanf(rest, " RAM %127s", name) == 1)
-            for (int i = 0; i < recomp_ram_section_count; i++)
-                if (!strcmp(recomp_ram_sections[i].name, name))
-                    ms->section = (int16_t)i;
-        const char *mod = strstr(rest, " modified ");
-        unsigned long long modified;
-        char what[16];
-        if (mod && sscanf(mod, " modified %llu (%15[a-z])", &modified, what) == 2) {
-            ms->modified += modified;
-            ms->diff |= !strcmp(what, "opcode") ? 1 : 2;
-        }
-        n++;
-    }
+    while (fgets(line, sizeof line, f))
+        n += parse_line(m, line);
     int bad = ferror(f);
     fclose(f);
     return bad ? -1 : n;
@@ -230,7 +257,51 @@ static int by_key(const void *a, const void *b)
     return p->key < q->key ? -1 : p->key > q->key;
 }
 
-int misses_write(Misses *m, const char *path, FILE *summary)
+/* A growing string for misses_format. */
+typedef struct {
+    char *s;
+    size_t len, cap;
+    bool failed;
+} Text;
+
+static void put(Text *t, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if (n < 0 || t->failed) {
+        t->failed = true;
+        return;
+    }
+    if (t->len + (size_t)n + 1 > t->cap) {
+        size_t cap = (t->len + (size_t)n + 1) * 2;
+        char *s = realloc(t->s, cap);
+        if (!s) {
+            t->failed = true;
+            return;
+        }
+        t->s = s;
+        t->cap = cap;
+    }
+    va_start(ap, fmt);
+    vsnprintf(t->s + t->len, (size_t)n + 1, fmt, ap);
+    va_end(ap);
+    t->len += (size_t)n;
+}
+
+static char *text_done(Text *t, size_t *len)
+{
+    put(t, "");
+    if (t->failed) {
+        free(t->s);
+        return NULL;
+    }
+    *len = t->len;
+    return t->s;
+}
+
+char *misses_format(Misses *m, size_t *len, FILE *summary)
 {
     Miss *list = malloc(sizeof *list * (m->used ? m->used : 1));
     size_t n = 0;
@@ -239,17 +310,13 @@ int misses_write(Misses *m, const char *path, FILE *summary)
             list[n++] = m->slots[i];
     qsort(list, n, sizeof *list, by_key);
 
-    FILE *f = fopen(path, "w");
-    if (!f) {
-        free(list);
-        return -1;
-    }
+    Text f = { 0 };
     enum { ROM, SECTION, MODIFIED, UNKNOWN, OTHER, KINDS };
     static const char *kind_names[KINDS] = { "ROM", "RAM in a section", "RAM modified", "RAM unknown", "other" };
     uint64_t insns[KINDS] = { 0 }, addrs[KINDS] = { 0 };
     uint64_t *sec_insns = calloc((size_t)recomp_ram_section_count + 1, sizeof *sec_insns);
     uint64_t *sec_addrs = calloc((size_t)recomp_ram_section_count + 1, sizeof *sec_addrs);
-    fprintf(f, "# instructions without generated code: BB:AAAA m x # count, ROM or RAM and its section "
+    put(&f, "# instructions without generated code: BB:AAAA m x # count, ROM or RAM and its section "
                "(docs/RECOMP.md, miss report)\n");
     for (size_t i = 0; i < n; i++) {
         const Miss *ms = &list[i];
@@ -259,28 +326,27 @@ int misses_write(Misses *m, const char *path, FILE *summary)
                  : ms->modified ? MODIFIED : UNKNOWN;
         insns[kind] += ms->count;
         addrs[kind]++;
-        fprintf(f, "%02X:%04X %d %d # %llu %s", pc >> 16, pc & 0xFFFF, m8 ? 8 : 16, x8 ? 8 : 16,
+        put(&f, "%02X:%04X %d %d # %llu %s", pc >> 16, pc & 0xFFFF, m8 ? 8 : 16, x8 ? 8 : 16,
                 (unsigned long long)ms->count, kind == ROM ? "ROM" : kind == OTHER ? "other" : "RAM");
         if (kind == SECTION || kind == MODIFIED) {
             if (ms->section >= 0) {
-                fprintf(f, " %s", recomp_ram_sections[ms->section].name);
+                put(&f, " %s", recomp_ram_sections[ms->section].name);
                 sec_insns[ms->section] += ms->count;
                 sec_addrs[ms->section]++;
             }
             if (ms->modified)
-                fprintf(f, " modified %llu (%s)", (unsigned long long)ms->modified,
+                put(&f, " modified %llu (%s)", (unsigned long long)ms->modified,
                         ms->diff & 1 ? "opcode" : "operand");
         } else if (kind == UNKNOWN) {
-            fprintf(f, " unknown");
+            put(&f, " unknown");
         }
-        fprintf(f, "%s\n", e ? " emulation" : "");
+        put(&f, "%s\n", e ? " emulation" : "");
     }
-    int rc = fclose(f);
     if (!summary) {
         free(sec_insns);
         free(sec_addrs);
         free(list);
-        return rc;
+        return text_done(&f, len);
     }
     fprintf(summary, "misses:");
     for (int k = 0; k < KINDS; k++)
@@ -294,5 +360,17 @@ int misses_write(Misses *m, const char *path, FILE *summary)
     free(sec_insns);
     free(sec_addrs);
     free(list);
-    return rc;
+    return text_done(&f, len);
+}
+
+int misses_write(Misses *m, const char *path, FILE *summary)
+{
+    size_t len;
+    char *text = misses_format(m, &len, summary);
+    FILE *f = text ? fopen(path, "w") : NULL;
+    int ok = f && fwrite(text, 1, len, f) == len;
+    if (f && fclose(f) != 0)
+        ok = 0;
+    free(text);
+    return ok ? 0 : -1;
 }

@@ -273,6 +273,7 @@ its own rather than a fork of the player ([PLAN.md](PLAN.md), Phase 1).
 | `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between the APU's 32000 Hz and an audio device's rate (above) |
 | `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard, and the frame pacing |
 | `frontend/headless.c` | `run_headless`: `--frames`, `--hold`, `--screenshot`, `--wav` |
+| `frontend/files.h`, `files.c` | the desktop's storage: what the saves are called, and the files they go in |
 | `frontend/ct_play.c` | the options, which it turns into a player and one driver |
 
 The player advances one frame per `player_step` call, and the buttons it is
@@ -283,3 +284,15 @@ device: the drivers do all of that, and take each frame's picture
 with its own clock) to wherever they go. A quick save the player can't take yet
 (a native routine is suspended) is a request it carries out at the end of a
 later frame, so no driver has to wait for it.
+
+Nor does the player know a path. What it persists it takes and hands out as
+bytes: the cartridge save (through the save service's `sv_host_bytes`), a quick
+save it has taken, the text of the movie being recorded, the misses log. The
+driver decides what they are called and where they go -- on the desktop,
+`frontend/files.c` names them after the ROM or the recording and writes them
+next to the ROM or into `--save-dir` -- so a host without a filesystem keeps
+them its own way. The runtime's file helpers are the same split: the player
+uses `snes_state_write`/`snes_state_read`, `zst_import`, `ct_movie_parse`/
+`ct_movie_format` and `misses_parse`/`misses_format`, and the path functions the
+development tools call (`snes_state_save`, `zst_import_file`, `ct_movie_load`,
+`misses_write`) are wrappers over them.
