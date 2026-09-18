@@ -12,8 +12,8 @@ and [PLATFORM.md](PLATFORM.md).
    written C, named and structured by what it does, in place of the mechanical
    image of the ROM. That is [RECOMP.md](RECOMP.md)'s M5, and it is the largest
    remaining task in the project by a wide margin.
-2. **A build other people can play**, soon. Small next to M5, and it stops being
-   cheap to defer once anyone else is running it.
+2. **A build other people can play** comes first when it breaks. Others run it
+   now ([PLAYING.md](PLAYING.md)), and it is small next to M5.
 3. **One track at a time.** Each phase below finishes and passes its gate before
    the next starts.
 
@@ -26,29 +26,6 @@ Nothing lands without it, and it is the same gate for every phase:
 - `--misses` stays empty;
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
-
-## Phase 1: a build other people can play
-
-Days of work, and it unblocks anyone else running this.
-
-- **Packaging**, so `tools/dist.py`'s output runs on a machine that never built
-  it.
-
-### The host seam
-
-Both seams are in (PLAYING.md, "How the player is built"). The driver seam:
-`Player` and `player_step` have a header of their own (`frontend/player.h`),
-`run_window` and `run_headless` are two drivers over them, and the audio fill is
-host-neutral. The storage seam: the player takes and hands out what it persists
-as bytes -- the `.srm` through `sv_host_bytes`, quick saves, the movie being
-recorded, the misses log -- and `frontend/files.c` is the desktop's storage,
-which names them and puts them in files; the runtime's by-path helpers
-(`snes_state_save`, `zst_import_file`, `ct_movie_load`, `misses_write`) are
-wrappers over buffer functions that the player uses instead. Keys and gamepads
-are bindings in the window driver (`frontend/bindings.c`), not player state.
-
-Neither seam answers wasm's real question, which is the stack one below; they
-are what makes the rest of that build ordinary.
 
 ## Phase 2: M5's foundation
 
@@ -273,9 +250,11 @@ the decompilation, so they wait behind it.
   original game, and native touch controls. They are wanted, and three of the
   four are mostly blocked on work this plan already has in order -- M5's
   coverage, the RAM map, the asset seam, MD2's string and script formats -- so
-  scheduling them ahead of it would mean doing that work twice. Phase 1's host
-  seam is the part that isn't deferred, because it is the same work as making
-  the desktop build shippable.
+  scheduling them ahead of it would mean doing that work twice. The host seam
+  wasn't deferred, because it was the same work as making the desktop build
+  shippable: the player advances a frame per call and persists bytes under
+  names (PLAYING.md, "How the player is built"), so a browser build needs a
+  driver of its own rather than a fork of the player.
 
   What stays open is the **stack question**, and it is the one thing no phase
   here touches. Every non-idle registry entry runs on a stack of its own: a

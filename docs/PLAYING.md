@@ -25,8 +25,24 @@ python3 tools/dist.py --strict                          # the same without the i
 python3 tools/dist.py -- -DCMAKE_PREFIX_PATH=<prefix>   # when CMake can't find SDL2 on its own
 ```
 
-On Windows it copies `SDL2.dll` next to `ct_play.exe`. `dist/` is never
-committed. The `dist/` player runs without the interpreter (below), so it needs
+`dist/` is never committed. Once it is installed, `tools/dist.py` checks that
+it runs on a machine that never built it, from the binaries' own import lists:
+
+- **Windows**: every DLL `ct_play.exe` loads, and every DLL those load, is either
+  part of Windows (in the system directory, or an API set) or copied into
+  `dist/` from `PATH` and the compiler's directory; one it can't find stops it.
+  With MSYS2's MinGW-w64 gcc that is `SDL2.dll` alone: `ct_play` links libgcc
+  statically (`-static-libgcc`), uses Windows fibers rather than a thread
+  library, and SDL2 itself imports only Windows DLLs, so no MinGW runtime DLL is
+  needed. A toolchain that links one (a C++ runtime, `libwinpthread`) gets it
+  copied. Checked by running `dist/` from a directory outside the build with
+  `PATH` cut down to the Windows directories: headless, it played a movie and
+  wrote its screenshot and save.
+- **Linux and macOS**: it lists the shared libraries the player needs beyond the
+  base system (`ldd`, `otool -L`), which is SDL2; a player's machine installs it
+  from its package manager (`libsdl2-2.0-0`, `brew install sdl2`), since `dist/`
+  doesn't bundle it. Neither is checked on a machine without a build yet: CI
+  builds `ct_play` on both, but nothing there runs `tools/dist.py`. The `dist/` player runs without the interpreter (below), so it needs
 the ROM at build time (`CT_ROM`, `roms/ct-usa.sfc` by default); `tools/dist.py`
 stops if no blocks were generated. `--interpreter` builds the development
 player instead.
@@ -300,13 +316,16 @@ Screenshots and audio are derived from the ROM; keep them out of the repository.
 
 `--movie` and `--record` work headless too (holds count from the start of the
 run), which is how recording is checked: record with holds, replay the movie
-with `ct_dev` for the same number of frames, and compare the two final states.
+with `ct_dev` for the same number of frames, and compare the two final states
+(`--save-state` on both; give `ct_dev` a `--wav` too, so that both have taken
+the sound out of the machine and the states match byte for byte).
 
 ## How the player is built
 
 `ct_play` is a player and two drivers over it, split so that a host which isn't
 a desktop (a browser calling back once a frame, a handheld) needs a driver of
-its own rather than a fork of the player ([PLAN.md](PLAN.md), Phase 1).
+its own rather than a fork of the player (CLAUDE.md, "Writing host-side code",
+holds the rules that keep it that way).
 
 | File | What it is |
 |---|---|

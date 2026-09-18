@@ -20,6 +20,9 @@ rest waits, is [PLAN.md](PLAN.md).
   poll (RUNTIME.md, "S-DSP"). The audio comparison table predates the DMA and
   refresh timing fix and should be re-measured.
 - **Big-endian hosts** are untested (CMake warns).
+- **Packaging on Linux and macOS** isn't checked on a machine that never built
+  it, and `dist/` there relies on the player's machine having SDL2 (PLAYING.md,
+  "Build"). A macOS bundle would copy the dylib and rewrite its install name.
 - **ZSNES state import** approximates DSP voice history, timer phase and
   in-frame position (RUNTIME.md, "ZSNES save states"), so those runs are for
   coverage only.
