@@ -255,8 +255,8 @@ the decompilation, so they wait behind it.
 - **The other targets** (TODO.md, "Targets beyond the desktop SNES build"): a
   wasm build, an AYN Thor multi-screen port, DS and PlayStation content in the
   original game, native touch controls, and a SNES ROM compiled from the hand
-  ports. They are wanted, and three of the
-  four are mostly blocked on work this plan already has in order -- M5's
+  ports. They are wanted, and most of
+  them are mostly blocked on work this plan already has in order -- M5's
   coverage, the RAM map, the asset seam, MD2's script formats -- so
   scheduling them ahead of it would mean doing that work twice. The host seam
   wasn't deferred, because it was the same work as making the desktop build
