@@ -1015,8 +1015,9 @@ decompressor makes of its stream.
 | `tools/disasm/eventscript.py` | the command table (224 commands, their operands and flow), the parse, the readable form and its encoder |
 | `tools/disasm/dataformats.py` | `check_format` for `event` (an `lz` region: the stream decompressed, decoded, encoded back) and `event-commands` (a `script` region) |
 | `tools/disasm/resources.py`, `hints.py` | `format` on an `lz` resource target, carried onto its regions |
+| `tools/disasm/derive.py` | the `eventscript` deriver: every script a location can load, and the operand dispatches it bounds |
 | `tools/matching/emit.py`, `__main__.py` | a compressed script's output written as `.txt` beside the stream and encoded back from the file read back; the built-in commands assembled from theirs |
-| `tests/test_eventscript.py` | 19 tests on synthetic data: every command's length and flow, the operand-dependent lengths, the parse, the readable form, the formats, resource and emitter paths |
+| `tests/test_eventscript.py` | 21 tests on synthetic data: every command's length and flow, the operand-dependent lengths, the parse, the readable form, the formats, the deriver, resource and emitter paths |
 
 **Where they are.** `$C0:56D4` reads the word at +8 of the location's 14-byte
 record at `$F6:0000`, takes that entry of the 513-entry stream table at
@@ -1111,7 +1112,7 @@ only.
 - The matching build writes 462 scripts decoded (a `.txt` beside each stream's
   `.bin`) and encodes each back from the file read back; the built-in commands
   are assembled from their decoded form, like the strings. CRC32 `2D206BF7`
-  and SHA-1 `de5822f4...` still match; `unittest` passes (208 tests).
+  and SHA-1 `de5822f4...` still match; `unittest` passes (210 tests).
 
 **Why the streams aren't assembled from the decoded form.** Doing that needs
 an encoder that gives back the original stream byte for byte: the same
@@ -1123,11 +1124,30 @@ encode, compare, and the decompressor consuming the stream exactly), and the
 stream stays bytes until the `lz` encoder exists. The built-in commands aren't
 compressed and are assembled from text today.
 
+**MD4's bounds.** The operators and modes every script uses bound the
+dispatches on script operands, which MD4 left bounded by layout:
+
+| Site | Command | Table | Before | Derived |
+|---|---|---|---|---|
+| `$C0:6307` | `$12` variable vs constant | `$C0:6467`, 16 entries | layout | entries 0-6 |
+| `$C0:633D` | `$13` (16-bit) | `$C0:6477`, 8 | layout | 0-4 |
+| `$C0:6398` | `$14` variable vs variable | `$C0:6467`, 16 | layout | 0-4 |
+| `$C0:63D7` | `$15` (16-bit) | `$C0:6477`, 8 | layout | 2, 3 |
+| `$C0:6433` | `$16` memory vs constant | `$C0:6467`, 16 | layout | 0-6 |
+| `$C0:4009` | `$FF` modes `$90` and up | `$C0:400E`, 20 | layout | 0-15 (the built-in commands use `$9D`) |
+
+The deriver reads the scripts the location records name and the built-in
+commands; a location naming an entry that isn't a stream, beyond the eight
+above, would be a problem. C1 now has 17 derived sites and 90 bounded by
+layout (11 and 96 before). The table entries no script uses (the 8-bit
+table's `or`, the 16-bit table's last three, `$FF`'s `$A0-$A3`) stay in the
+code set, which is unchanged.
+
 **The recompiler's input is unchanged**: `python3 -m tools.recomp` gives 12431
 blocks, 148301 instructions, 127045 in the analysis and 127181 instruction
 variants on `main` and on this work, and the 65 generated C files are
 byte-identical, without coverage and with the build's coverage files and call
-logs.
+logs. The analysis takes about 1.5 s longer (one parse per ROM).
 
 **Left for the event scripts:**
 
@@ -1207,7 +1227,8 @@ edges and removed. The other interpreters:
   the modes events start (battle, menu, attract program); the tables an event
   operand indexes (`$C0:6307`, `6398`, `6433`, `633D`, `63D7`) are bounded by
   layout only. Parsing every location's event script would turn those bounds
-  into data-derived ones; not done.
+  into data-derived ones; not done here (since done: MD2, "The event
+  scripts").
 - **Battle animation scripts** (`$C1:4CD4`, table `$C1:7A6B`): the command byte
   is guarded (`$DB` and up branch away). The sub-dispatches on script operands
   (`$C1:75D1`, `$C1:7633`) are bounded by layout; not parsed.
@@ -1268,11 +1289,10 @@ doesn't find.
 
 **Left for MD4:**
 
-- 96 tables are bounded by layout only: the table ends where code or another
-  table begins, and nothing checks the index. The data that indexes some of
-  them isn't parsed yet: event scripts (the operand tables `$C0:6307`, `6398`,
-  `6433`, `633D`, `63D7`; parsed since, MD2 "The event scripts", not yet fed to
-  the derivations), enemy scripts
+- 90 tables are bounded by layout only (96 at MD4; the event scripts derived
+  six, MD2 "The event scripts"): the table ends where code or another table
+  begins, and nothing checks the index. The data that indexes some of them
+  isn't parsed yet: enemy scripts
   (`$C1:B80D`, 41 entries, and the action tables `$C1:B85F`, `B88D`, `B8BB`),
   battle animation script operands (`$C1:75D1`, `$C1:7633`). The object
   handlers' state tables are indexed by state bytes the handlers set.
@@ -1328,7 +1348,7 @@ No dates.
 | MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the partial vector installers (the code C3:09E9 generates at `$7E:B574` became a section in recompiler M3); 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
 | MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | in progress: 38 resource pointer tables type 1371 streams, 4405 strings, 145 sound blocks and 617 records; census unknown 877473 -> 106951 bytes (2.5%); left are `$D0`, `$F6:24B1-7FFF`, 379 KiB still typed `mixed`, and the battle script formats (the event scripts round-trip) ([MD2 as built](#md2-as-built-first-part)) |
 | MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 | |
-| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | C1, C2, C3, C5, C6, C7 checks pass and fail the build; code set equal; static analysis alone reaches every executed address; left: layout-bounded tables (96) and the battle animation and enemy script parses that would bound some of them, C4 beyond the miss report ([MD4 as built](#md4-as-built)) |
+| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | C1, C2, C3, C5, C6, C7 checks pass and fail the build; code set equal; static analysis alone reaches every executed address; left: layout-bounded tables (90) and the battle animation and enemy script parses that would bound some of them, C4 beyond the miss report ([MD4 as built](#md4-as-built)) |
 
 **Order.** MD0 and MD1 first. For the goal that motivates this (a provably
 complete code set for the recompiler), MD4's checks need only the data that

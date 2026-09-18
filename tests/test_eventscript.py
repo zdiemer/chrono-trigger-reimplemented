@@ -338,6 +338,47 @@ class Formats(unittest.TestCase):
         self.assertEqual([(r.start, r.params) for r in lz], [(0xC00010, {"output": len(buf), "format": "event"})])
 
 
+class Derivation(unittest.TestCase):
+    """The `eventscript` deriver: the scripts the location records name, and
+    the operand dispatches their operators and modes bound."""
+
+    def rom(self, body: bytes):
+        from tools.disasm.derive import EVENT_BUILTIN, EVENT_LOCATIONS, EVENT_STREAMS
+        buf = script([0], body=body)
+        buf += bytes([HALT]) * (-len(buf) % 8)
+        start, end, _ = EVENT_BUILTIN
+        return FakeRom({
+            EVENT_LOCATIONS: bytes(14 * 512),                     # every location names script 0
+            EVENT_STREAMS: bytes([0x00, 0x00, 0xC1]),             # script 0 at C1:0000
+            0xC10000: lz_literals(buf),
+            start: bytes([HALT]) * (end - start + 1),
+            0xC06467: bytes(range(0x40, 0x60)),                   # the operator tables, 16 words
+            0xC0400E: bytes(range(0x80, 0xA8)),                   # $FF's modes, 20 words
+        })
+
+    def derive(self, rom):
+        from types import SimpleNamespace
+        from tools.disasm.derive import derive_eventscript
+        return derive_eventscript(SimpleNamespace(rom=rom), None)
+
+    def test_targets_are_the_entries_used(self):
+        # Each condition's else branch goes on to the next test.
+        body = bytes([0x12, 0x10, 0x01, 0x02, 0x02, HALT, 0x13, 0x10, 0x01, 0x00, 0x84, 0x02, HALT,
+                      0xFF, 0x91, 0xFF, 0x90, 1, 2, 3, HALT])
+        d = self.derive(self.rom(body))
+        self.assertEqual(d.problems, [])
+        word = lambda base, i: 0xC00000 | (base + 2 * i) | (base + 2 * i + 1) << 8
+        self.assertEqual(d.targets["if_var_const"], {word(0x40, 2)})
+        self.assertEqual(d.targets["if_var_const16"], {word(0x50, 4)})      # $84: bit 7 is shifted out
+        self.assertEqual(d.targets["mode"], {word(0x80, 0), word(0x80, 1)})
+        self.assertEqual(d.targets["if_var_var"], set())
+
+    def test_an_index_past_the_table_is_a_problem(self):
+        d = self.derive(self.rom(bytes([0x13, 0x10, 0x01, 0x00, 0x08, 0x01, HALT])))
+        self.assertEqual(len(d.problems), 1)
+        self.assertEqual(d.targets["if_var_const16"], set())
+
+
 class Emission(unittest.TestCase):
     """The matching build assembles a run of commands from its readable form,
     and writes a compressed script's output decoded beside the stream."""

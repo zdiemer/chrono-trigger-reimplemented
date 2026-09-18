@@ -507,10 +507,12 @@ count = 16
 
 # C0:4009, table C0:400E: The index is $DF minus a constant, doubled; the table runs up to
 # its first handler at C0:4036.
+# Event scripts: $DF is the mode operand of event command $FF (C0:3FAF), $90
+# and up; derived from every event script.
 [[jumptable]]
 at = "C0:4009"
-bound = "layout"
 count = 20
+derive = "eventscript.mode"
 
 # C0:5977, C0:5AB1, table C0:5D6E: The event command byte is masked to 0-255
 # before ASL (C0:5970, C0:5AAA): the whole 256-entry command table, as for
@@ -534,29 +536,32 @@ count = 4
 
 # C0:6307, C0:6398, C0:6433, table C0:6467: An 8-bit index from an event script
 # operand; the table runs up to its first handler at C0:6487.
+# Event scripts: the operator of commands $12, $14 and $16, derived from every
+# event script a location can load (tools/disasm/derive.py, `eventscript`).
 [[jumptable]]
 at = "C0:6307"
-bound = "layout"
 count = 16
+derive = "eventscript.if_var_const"
 [[jumptable]]
 at = "C0:6398"
-bound = "layout"
 count = 16
+derive = "eventscript.if_var_var"
 [[jumptable]]
 at = "C0:6433"
-bound = "layout"
 count = 16
+derive = "eventscript.if_mem_const"
 
 # C0:633D, C0:63D7, table C0:6477: The same list as C0:6467 from its entry 8 on:
 # it runs up to code at C0:6487.
+# Event scripts: the operator of commands $13 and $15, derived.
 [[jumptable]]
 at = "C0:633D"
-bound = "layout"
 count = 8
+derive = "eventscript.if_var_const16"
 [[jumptable]]
 at = "C0:63D7"
-bound = "layout"
 count = 8
+derive = "eventscript.if_var_var16"
 
 # C0:6FA3, table C0:6FA7: Negative values branch away (C0:6F9F); the table runs
 # up to its first handler at C0:6FB9.

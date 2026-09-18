@@ -59,7 +59,7 @@ rest waits, is [PLAN.md](PLAN.md).
   allows one owner per subsystem, so the object mode's slots at `$0B30` and part
   of its page-0 cells are unnamed until the menus get a second subsystem tag.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
-- **MD4 residue**: 96 jump tables are bounded by layout alone (the event script parse can bound five), the claim that
+- **MD4 residue**: 90 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
   on the enumerated sections plus the miss report.
 - **asar cross-check** of the generated source has never run (asar isn't
