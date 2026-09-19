@@ -169,6 +169,8 @@ add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c)
 target_include_directories(fiber_test PRIVATE runtime)
 add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
+add_executable(shadow_test tests/port/shadow_test.c)
+target_link_libraries(shadow_test PRIVATE ct_runtime)
 # The fuzzer's core (dev/fuzz.c) on made-up routines and ports.
 add_executable(fuzz_test tests/port/fuzz_test.c dev/fuzz.c)
 target_include_directories(fuzz_test PRIVATE dev)

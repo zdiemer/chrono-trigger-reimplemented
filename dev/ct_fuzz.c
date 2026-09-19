@@ -12,9 +12,11 @@
  * --long) would, or as an interrupt (--interrupt). The original runs on the
  * interpreter; the native routine runs on a copy (call-outs interpreted
  * synchronously). The machines are compared where the native routine left
- * off, normally the return, as in shadow mode: ignoring the routine's
+ * off, normally the return, as in shadow mode (at the first pass of the
+ * original through that point where they are the same): ignoring the routine's
  * don't-care set (and what it declares dead where it stops,
- * native_dont_care_at_stop), and the stack bytes the original pushed and
+ * native_dont_care_at_stop, or instead of it, native_own_dont_care_at_stop),
+ * and the stack bytes the original pushed and
  * pulled again (native_copy_popped_stack). Nothing advances time, and
  * interrupts don't happen. A mismatching state is described in full: every
  * register and flag that differs, and every differing run of memory, grouped.

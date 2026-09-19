@@ -50,6 +50,7 @@ typedef struct Job {
     uint16_t call_dont_care;
     uint16_t stop_dont_care;   /* set by native_dont_care_at_stop */
     uint32_t stop_at;          /* ...with where it applies (0: not called) */
+    bool stop_own;             /* ...and whether it is the stop's own (native_own_dont_care_at_stop) */
     bool returned;             /* native_note_return was called */
     /* Time attribution (native_time_as): the table index of the routine the
      * port's bus clocks count as now (-1: its own entry), the machine's bus
@@ -171,8 +172,14 @@ typedef struct Active {
     uint16_t segment_low_s;   /* SHADOW: the lowest S the original has reached in the segment */
     uint16_t ret_dont_care;   /* SHADOW: the native routine's native_dont_care_at_stop */
     uint32_t ret_at;          /* ...and where it said the set applies */
+    bool ret_own;             /* ...and that the set is the stop's own */
     Cpu call_cpu;             /* SHADOW: the original's registers at the last call-out */
     bool ret_returned;        /* ...or that it finished by returning */
+    /* SHADOW: passes of the original through the point the native routine got
+     * to (a call it made, or where it finished) that were compared and
+     * differed, and the first one's difference (see reach_point). */
+    unsigned failed_passes;
+    char failed_why[256], last_why[200];
     uint32_t sync_pc;      /* ON, PH_SYNC: where the machine is while the port is suspended */
     uint16_t sync_s;
     /* SHADOW: the stretch's bus clocks by the routine they are attributed to
@@ -405,7 +412,7 @@ static void part_flush(Job *j)
  * then; the clone holds the original's now. */
 static void keep_untouched(Cpu *clone, const Cpu *mine, const Cpu *was, uint16_t dont_care)
 {
-    if ((dont_care & DC_A) && (clone->a & 0xFF) == (was->a & 0xFF))
+    if ((dont_care & (DC_A | DC_AL)) && (clone->a & 0xFF) == (was->a & 0xFF))
         clone->a = (uint16_t)((clone->a & 0xFF00) | (mine->a & 0xFF));
     if ((dont_care & (DC_A | DC_AH)) && (clone->a & 0xFF00) == (was->a & 0xFF00))
         clone->a = (uint16_t)((clone->a & 0xFF) | (mine->a & 0xFF00));
@@ -564,10 +571,14 @@ static bool compare_machines(const Snes *o, const Snes *c, uint16_t dont_care, u
     uint8_t ignored_flags = (uint8_t)((dont_care & DC_N ? CPU_FLAG_N : 0) | (dont_care & DC_V ? CPU_FLAG_V : 0) |
                                       (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
     uint8_t p_mask = (uint8_t)~ignored_flags;
-    if (!(dont_care & (DC_A | DC_AH)))
+    bool a_low = !(dont_care & (DC_A | DC_AL)), a_high = !(dont_care & (DC_A | DC_AH));
+    if (a_low && a_high) {
         CHECK_FIELD("A", o->cpu.a, c->cpu.a)
-    if (!(dont_care & DC_A) && (dont_care & DC_AH))
+    } else if (a_low) {
         CHECK_FIELD("A's low byte", o->cpu.a & 0xFF, c->cpu.a & 0xFF)
+    } else if (a_high) {
+        CHECK_FIELD("A's high byte", o->cpu.a >> 8, c->cpu.a >> 8)
+    }
     if (!(dont_care & DC_X))
         CHECK_FIELD("X", o->cpu.x, c->cpu.x)
     if (!(dont_care & DC_Y))
@@ -688,6 +699,7 @@ void native_copy_popped_stack(const Snes *o, Snes *c, uint16_t lowest_s)
 
 uint16_t native_stop_dont_care_direct;
 uint32_t native_stop_at_direct;
+bool native_stop_own_direct;
 bool native_returned_direct;
 
 void native_note_return(Snes *s)
@@ -699,17 +711,22 @@ void native_note_return(Snes *s)
         native_returned_direct = true;
 }
 
-void native_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care)
+static void declare_stop(Snes *s, uint32_t at, uint16_t dont_care, bool own)
 {
     Job *j = current_job;
     if (j && j->m == s) {
         j->stop_dont_care = dont_care;
         j->stop_at = at;
+        j->stop_own = own;
     } else {
         native_stop_dont_care_direct = dont_care;
         native_stop_at_direct = at;
+        native_stop_own_direct = own;
     }
 }
+
+void native_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care) { declare_stop(s, at, dont_care, false); }
+void native_own_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care) { declare_stop(s, at, dont_care, true); }
 
 bool native_is_return(const Snes *s, uint32_t at)
 {
@@ -802,11 +819,15 @@ static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
     }
 }
 
-static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, const char *where)
+/* SHADOW: whether the native routine's machine differs from the original's
+ * now, with the first difference in why. An interrupt in the segment ran on
+ * the original only: then nothing is compared (a->interrupted) and the answer
+ * is false. */
+static bool differs(Active *a, Snes *s, uint16_t dont_care, char *why, size_t n)
 {
     if (a->segment_interrupted) {
         a->interrupted = true;
-        return;
+        return false;
     }
     /* The SPC700 clears the CPU-to-APU ports ($F1 bits 4-5) when its own code
      * decides to, whatever the CPU is doing: a pair it cleared while the
@@ -821,12 +842,81 @@ static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, c
     /* What the original pushed and pulled again since the segment began is dead
      * (native_copy_popped_stack). */
     native_copy_popped_stack(s, a->clone, a->segment_low_s);
-    char why[200], msg[256];
-    if (compare_machines(s, a->clone, dont_care, a->since, why, sizeof why)) {
-        a->mismatched = true;
-        snprintf(msg, sizeof msg, "%s: %s", where, why);
-        detail(rt, "mismatch", a->entry, msg);
+    return compare_machines(s, a->clone, dont_care, a->since, why, n);
+}
+
+/* The most passes of the original through one point that reach_point
+ * compares before it reports the first one's difference. */
+#define MAX_POINT_PASSES 65536u
+
+/* SHADOW: the native routine differed from the original at every pass through
+ * the point it got to: report the first pass's difference. */
+static void point_failed(NativeRuntime *rt, Active *a, const char *then)
+{
+    char msg[360];
+    a->mismatched = true;
+    if (a->failed_passes > 1)
+        snprintf(msg, sizeof msg, "%.160s (and at %u later passes, %.24s; at the last: %.120s)", a->failed_why,
+                 a->failed_passes - 1, then, a->last_why);
+    else
+        snprintf(msg, sizeof msg, "%.250s", a->failed_why);
+    detail(rt, "mismatch", a->entry, msg);
+}
+
+/* SHADOW: the original is at the point the native routine got to (the call it
+ * made, or where it finished) with the same S. Returns true when that settles
+ * the comparison: the machines are the same, an interrupt fell in the segment
+ * (nothing to compare), or they have differed at MAX_POINT_PASSES passes; false
+ * to wait for the original's next pass through the same point, the first
+ * pass's difference kept (a->failed_passes, a->failed_why).
+ *
+ * Why a later pass can count: a routine that stops at, or calls out from, an
+ * instruction the original passes more than once (a loop's head, an
+ * interpreter's dispatch) stands for some number of passes, which the address
+ * doesn't say, and the original's first pass is often not the one. So every
+ * pass is compared, and the first where the machines are the same is taken.
+ * That can't let a wrong routine through. The comparison covers everything
+ * the original's code can observe, except what is dead there (the declared
+ * sets, which tools/dontcare_check.py checks against liveness at the point,
+ * and the stack below S) and what changes with time rather than with code
+ * (HDMA's registers, the SPC700's port clears, the OAM reload), which the
+ * first pass leaves out as well. What the original does from a pass is
+ * decided by the machine at that pass, so from a pass where the two are the
+ * same the original goes on exactly as the machine does in ON mode from where
+ * the native routine left it: whichever pass it is, what follows is what the
+ * original did. A routine that is different at every pass is reported with the
+ * first pass's difference, as when only the first pass counted: once the
+ * original leaves the point's frame, or an interrupt comes (its handler runs
+ * on the original only), or after MAX_POINT_PASSES; one still waiting when the
+ * run ends counts as failed (native_failed). */
+static bool reach_point(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, const char *where)
+{
+    char why[200];
+    if (!differs(a, s, dont_care, why, sizeof why)) {
+        a->failed_passes = 0;   /* (an interrupt after a failed pass is point_given_up's) */
+        return true;
     }
+    if (a->failed_passes++ == 0)
+        snprintf(a->failed_why, sizeof a->failed_why, "%.48s: %.200s", where, why);
+    else
+        memcpy(a->last_why, why, sizeof a->last_why);
+    if (a->failed_passes < MAX_POINT_PASSES)
+        return false;
+    point_failed(rt, a, "no more compared");
+    a->failed_passes = 0;
+    return true;
+}
+
+/* SHADOW: after a pass that differed, whether the comparison is over without
+ * one that matched (the original left the point's frame, or an interrupt
+ * came): then it is reported, and true. */
+static bool point_given_up(NativeRuntime *rt, Active *a, bool left)
+{
+    if (!a->failed_passes || !(left || a->segment_interrupted))
+        return false;
+    point_failed(rt, a, left ? "then the original left" : "then an interrupt");
+    a->failed_passes = 0;
+    return true;
 }
 
 static void finish(NativeRuntime *rt)
@@ -946,6 +1036,7 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     if (j->state == JOB_DONE) {
         a->ret_dont_care = j->stop_dont_care;
         a->ret_at = j->stop_at;
+        a->ret_own = j->stop_own;
         a->ret_returned = j->returned;
         job_put(j);
         a->job = NULL;
@@ -966,28 +1057,36 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
 
     if (a->phase == PH_SEGMENT) {   /* SHADOW only */
         if (!a->job) {
+            /* Above both the stop point and the entry: an early stop can be
+             * below the entry (after pushes), where the original starts. */
+            bool left = s->cpu.s > a->ret_s && s->cpu.s > a->entry_s;
+            if (point_given_up(rt, a, left)) {
+                finish(rt);
+                return true;
+            }
             if (s->cpu.s == a->ret_s && pc == a->ret_pc) {
-                end_segment(rt, a, s);
-                if (a->ret_at && a->ret_at != pc && !native_is_return(s, a->ret_at)) {
+                /* the stop's address, the first time the original gets there */
+                if (a->failed_passes == 0 && a->ret_at && a->ret_at != pc && !native_is_return(s, a->ret_at)) {
                     char msg[96];
                     snprintf(msg, sizeof msg, "stopped at %06X, but declared what is dead at %06X", pc,
                              a->ret_at);
                     a->mismatched = true;
                     detail(rt, "mismatch", a->entry, msg);
-                } else if (!a->ret_at && !a->ret_returned && a->entry->dont_care) {
+                } else if (a->failed_passes == 0 && !a->ret_at && !a->ret_returned && a->entry->dont_care) {
                     char msg[112];
                     snprintf(msg, sizeof msg, "stopped at %06X without declaring it (m_stop_at), with a don't-care set",
                              pc);
                     a->mismatched = true;
                     detail(rt, "mismatch", a->entry, msg);
                 }
-                compare(rt, a, s, a->entry->dont_care | a->ret_dont_care, "at return");
+                if (!reach_point(rt, a, s, native_finish_dont_care(a->entry->dont_care, a->ret_dont_care, a->ret_own),
+                                 "at return"))
+                    return false;
+                end_segment(rt, a, s);
                 finish(rt);
                 return true;
             }
-            /* Above both the stop point and the entry: an early stop can be
-             * below the entry (after pushes), where the original starts. */
-            if (s->cpu.s > a->ret_s && s->cpu.s > a->entry_s) {
+            if (left) {
                 /* An interrupt handler may switch stacks (the menu code runs
                  * tasks on their own stacks); nothing to compare then. */
                 if (a->segment_interrupted)
@@ -1002,11 +1101,16 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             return false;
         }
         const Job *j = a->job;
+        if (point_given_up(rt, a, s->cpu.s > a->entry_s + 1)) {
+            finish(rt);
+            return true;
+        }
         if (pc == j->call_target && s->cpu.s == a->clone->cpu.s) {
             char where[48];
             snprintf(where, sizeof where, "at call to %06X", j->call_target);
+            if (!reach_point(rt, a, s, j->call_dont_care, where))
+                return false;
             end_segment(rt, a, s);
-            compare(rt, a, s, j->call_dont_care, where);
             a->call_cpu = s->cpu;
             a->phase = PH_CALLOUT;
             return false;
@@ -1072,6 +1176,71 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         return true;
     }
     return false;
+}
+
+/* SHADOW: whether the original is at the point `a` waits for, with the same
+ * S: the call it made or where it finished (PH_SEGMENT), or where its
+ * call-out returns (PH_CALLOUT). */
+static bool at_point(const Active *a, const Snes *s, uint32_t pc)
+{
+    if (a->phase == PH_CALLOUT)
+        return a->job && pc == a->job->call_ret && s->cpu.s == a->job->call_s_after;
+    if (a->phase != PH_SEGMENT)
+        return false;
+    if (a->job)
+        return pc == a->job->call_target && s->cpu.s == a->clone->cpu.s;
+    return pc == a->ret_pc && s->cpu.s == a->ret_s;
+}
+
+/* SHADOW: entries started inside another's stretch.
+ *
+ * An entry the original reaches while it catches up with a native routine
+ * (inside the stretch that routine stood in for: an inlined helper, or a
+ * registered address in the middle of the routine's path) is compared on its
+ * own, nested, as it always was. Only check_top's innermost routine is
+ * checked, though, so a nested comparison still running when the original
+ * gets to the point an enclosing routine waits for used to take that point
+ * for itself -- the same call, typically -- and the enclosing comparison then
+ * failed ("original returned without the call", PORTING.md's Call-outs). Now
+ * the outermost routine waiting at the original's point comes first: the
+ * nested ones are checked there, innermost first, as before, and one that
+ * finishes or goes on (its own point is here too, or its callee unwound past
+ * it) is dealt with as it was; any other is set aside, counted as abandoned and
+ * not compared further (a difference it had shown stays a mismatch, and one
+ * waiting for a later pass is one now). That compares less only for a call the
+ * shipping mode never makes: there the enclosing routine runs natively and the
+ * nested entry isn't called at all, and the enclosing comparison, which now
+ * takes place, covers everything the stretch did. */
+static void settle_nested(NativeRuntime *rt, Snes *s, uint32_t pc)
+{
+    int outer = -1;
+    for (int i = 0; i + 1 < rt->nactive && outer < 0; i++)
+        if (at_point(&rt->active[i], s, pc))
+            outer = i;
+    if (outer < 0)
+        return;
+    const NativeEntry *enclosing = rt->active[outer].entry;
+    while (rt->nactive - 1 > outer) {
+        Active *a = &rt->active[rt->nactive - 1];
+        int32_t result = -1;
+        if (check_top(rt, s, pc, &result))
+            continue;   /* it finished here too, or went on, as it would have */
+        NativeStats *st = stats_of(rt, a);
+        if (a->failed_passes) {
+            /* it differed here, and no later pass can be waited for */
+            point_failed(rt, a, "then an enclosing routine's point");
+            a->failed_passes = 0;
+        }
+        if (a->mismatched) {
+            st->mismatched++;
+        } else if (st->abandoned++ == 0) {
+            char msg[160];
+            snprintf(msg, sizeof msg, "started inside %06X %.40s's stretch and still running at its point: not compared",
+                     enclosing->addr, enclosing->name);
+            detail(rt, "abandoned", a->entry, msg);
+        }
+        active_pop(rt);
+    }
 }
 
 /* ---- generated blocks in shadow mode ---------------------------------------------
@@ -1748,6 +1917,7 @@ static bool oracle_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st,
     a->job->entry = e;
     a->job->stop_dont_care = 0;
     a->job->stop_at = 0;
+    a->job->stop_own = false;
     a->job->returned = false;
     a->job->part = -1;
     a->job->m = s;
@@ -1832,6 +2002,8 @@ static int32_t intercept(void *ctx, Snes *s)
         }
     }
 
+    if (rt->mode == NATIVE_SHADOW && rt->nactive > 1)
+        settle_nested(rt, s, pc);
     int32_t result = -1;
     while (rt->nactive > 0 && check_top(rt, s, pc, &result)) {
         if (result >= 0)
@@ -1900,6 +2072,7 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job->entry = e;
         a->job->stop_dont_care = 0;
         a->job->stop_at = 0;
+        a->job->stop_own = false;
         a->job->returned = false;
         a->job->part = -1;
         if (rt->mode == NATIVE_SHADOW) {
@@ -2156,15 +2329,33 @@ void native_report(const NativeRuntime *rt, FILE *out)
     }
     if (rt->nactive)
         fprintf(out, "  %d routine(s) still in progress\n", rt->nactive);
+    for (int i = 0; i < rt->nactive; i++)
+        if (rt->active[i].failed_passes)
+            fprintf(out, "  mismatch %06X %s: %s (still waiting for a pass that matches when the run ended)\n",
+                    rt->active[i].entry->addr, rt->active[i].entry->name, rt->active[i].failed_why);
     for (int i = 0; i < rt->ndetails; i++)
         fprintf(out, "  %s\n", rt->details[i]);
 }
+
+const NativeStats *native_stats_named(const NativeRuntime *rt, const char *name)
+{
+    replay_pending(rt, false);
+    for (int i = 0; i < rt->count; i++)
+        if (rt->table[i].name && !strcmp(rt->table[i].name, name))
+            return &rt->stats[i];
+    return NULL;
+}
+
+const char *native_detail(const NativeRuntime *rt, int i) { return i >= 0 && i < rt->ndetails ? rt->details[i] : NULL; }
 
 int native_failed(const NativeRuntime *rt)
 {
     replay_pending(rt, false);
     for (int i = 0; i < rt->count; i++)
         if (rt->stats[i].mismatched)
+            return 1;
+    for (int i = 0; i < rt->nactive; i++)
+        if (rt->active[i].failed_passes)
             return 1;
     return 0;
 }

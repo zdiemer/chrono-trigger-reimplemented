@@ -18,6 +18,10 @@ applies it:
   instruction `at`, which must not read `set` (with the entry's) before
   setting it; or `at` is the return instruction the port carries out last, and
   the set must be dead after that return;
+- `m_stop_at_own(s, at, set)`: the same, but the set is the stop's own and the
+  entry's isn't added there (shadow mode leaves out `set` alone), so `set` alone
+  must be dead at `at`, and the entry's set only where the port returns or makes
+  a stop that isn't its own;
 - `m_jsr_dc(s, site, target, set)`, `m_jsl_dc(...)`, and the platform's
   `au_driver_call(pf, PF_CALL(site, target), set)`: the machines are compared
   when the original reaches `target` from `site`, and the port's registers
@@ -30,7 +34,9 @@ constants, or built from the parameters of the function they are in (every
 call of it in the same file is followed), its locals, and the rows of a table
 in the file. A declaration the check can't read is a finding, as is one
 liveness doesn't agree with. `DC_A` is the whole accumulator, `DC_AH` its high
-byte alone; liveness has the two bytes apart.
+byte alone and `DC_AL` its low byte alone; liveness has the two bytes apart.
+With `--list`, a declaration that could leave out more than it does says what
+(`could add`): liveness has it dead there too.
 
 Needs the ROM and the analysis's inputs (coverage and call logs, as for
 tools.recomp.show): more call logs only make liveness more conservative. Exit
@@ -48,12 +54,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.disasm.liveness import ALL, dc_text, dead_of_dc, describe  # noqa: E402
+from tools.disasm import liveness as _lv  # noqa: E402
+from tools.disasm.liveness import ALL, describe  # noqa: E402
 
 HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
-DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "m_stop_dont_care", "m_stop_at")
+STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
+DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call") + STOPS
 CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call")
 RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
 RETURN_OPCODES = {0x60: "RTS", 0x6B: "RTL", 0x40: "RTI"}
@@ -62,6 +70,36 @@ MAX_DEPTH = 6
 
 class Unreadable(Exception):
     """A declaration's argument the check can't evaluate."""
+
+
+# ---- DC_* sets -----------------------------------------------------------------------------------
+# runtime/port/native.h's DC_* bits are liveness's, except that DC_A is the
+# whole accumulator (liveness's A and AH) and DC_AL, which liveness has no
+# DC_* name for, is liveness's A: the low byte alone.
+
+DC_AL = 1 << 10
+
+
+def dead_of_dc(dc: int) -> int:
+    """What a DC_* set declares dead, as liveness bits."""
+    return _lv.dead_of_dc(dc & ~DC_AL) | (_lv.A if dc & DC_AL else 0)
+
+
+def dc_text(dc: int) -> str:
+    names = [n for n in _lv.dc_text(dc & ~DC_AL).split(" | ") if n != "0"] + (["DC_AL"] if dc & DC_AL else [])
+    return " | ".join(names) or "0"
+
+
+def dc_of_dead(dead: int) -> int:
+    """The DC_* set that declares exactly these liveness bits dead."""
+    out = dead & ~_lv.AW
+    if dead & _lv.AW == _lv.AW:
+        out |= _lv.A
+    elif dead & _lv.AH:
+        out |= _lv.AH
+    elif dead & _lv.A:
+        out |= DC_AL
+    return out
 
 
 # ---- C source ----------------------------------------------------------------------------------
@@ -101,6 +139,22 @@ def split_args(text: str) -> list:
     if text[start:].strip():
         out.append(text[start:].strip())
     return out
+
+
+def struct_fields(body: str) -> list:
+    """The field names of a struct's body, in order: every declarator of every
+    declaration (`uint16_t flag, copy;` is two fields), without its pointer
+    stars, array bounds or bit-field width."""
+    names = []
+    for decl in body.split(";"):
+        if not decl.strip():
+            continue
+        for declarator in split_args(decl):
+            declarator = re.sub(r"\[[^\]]*\]|:\s*\w+\s*$", "", declarator)
+            words = re.findall(r"[A-Za-z_]\w*", declarator)
+            if words:
+                names.append(words[-1])
+    return names
 
 
 @dataclass
@@ -160,7 +214,7 @@ class Source:
                 prev = name
         # static const tables of struct rows: `...struct { fields } name[] = { rows };`
         for m in re.finditer(r"\bstruct\s*\{([^{}]*)\}\s*(\w+)\s*\[\s*\w*\s*\]\s*=\s*\{", t):
-            fields = [f.split()[-1].strip("*") for f in m.group(1).split(";") if f.strip()]
+            fields = struct_fields(m.group(1))
             end = matching(t, m.end() - 1, "{", "}")
             rows = []
             for row in split_args(t[m.end():end]):
@@ -612,6 +666,7 @@ class Decl:
     at: int = 0         # stop: the instruction
     site: int = 0       # call: the JSR/JSL and its target
     target: int = 0
+    own: bool = False   # stop: the set is the stop's own (m_stop_at_own), the entry's not added
 
 
 @dataclass
@@ -702,7 +757,7 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
             f = src.func_at(call.offset)
             where = f"{src.path}:{src.line(call.offset)}"
             try:
-                if call.name in ("m_stop_dont_care", "m_stop_at"):
+                if call.name in STOPS:
                     if len(call.args) != 3:
                         raise Unreadable(f"{call.name} takes (s, at, dont_care)")
                     nodes = [parse(call.args[1]), parse(call.args[2])]
@@ -716,7 +771,7 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                 try:
                     vals = ev.values(nodes, src, f)
                 except Unreadable:
-                    if call.name == "m_stop_dont_care" or call.name == "m_stop_at":
+                    if call.name in STOPS:
                         raise
                     # a target computed at run time (a jump table's): the original's call at the site says
                     vals = [((v[0], None, v[1]), c) for v, c in ev.values([nodes[0], nodes[2]], src, f)]
@@ -726,9 +781,9 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                 findings.append(Finding(where, f"can't read {call.name}: {e}"))
                 continue
             for v, _ in vals:
-                if call.name in ("m_stop_dont_care", "m_stop_at"):
+                if call.name in STOPS:
                     decls.append(Decl("stop", src.path, src.line(call.offset), f.name if f else None, v[1] & 0xFFFF,
-                                      at=v[0] & 0xFFFFFF))
+                                      at=v[0] & 0xFFFFFF, own=call.name == "m_stop_at_own"))
                 else:
                     decls.append(Decl("call", src.path, src.line(call.offset), f.name if f else None, v[2] & 0xFFFF,
                                       site=v[0] & 0xFFFFFF, target=None if v[1] is None else v[1] & 0xFFFFFF))
@@ -768,6 +823,16 @@ def fmt(addr: int) -> str:
 def excess(declared_dc: int, live: int) -> int:
     """The declared-dead registers liveness says may be read (liveness bits)."""
     return dead_of_dc(declared_dc) & live
+
+
+def verdict(declared_dc: int, live: int) -> str:
+    """A --list row's verdict: what liveness has read of the set, or ok, with
+    what else it has dead there."""
+    bad = excess(declared_dc, live)
+    if bad:
+        return "reads " + describe(bad)
+    more = ALL & ~live & ~dead_of_dc(declared_dc)
+    return "ok" + (f" (could add {dc_text(dc_of_dead(more))})" if more else "")
 
 
 def call_out_targets(src: Source, funcs, ev: Evaluator) -> set:
@@ -817,8 +882,7 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at) -> tuple:
 
     def entry_ok(e, point_live, where, what):
         bad = excess(e.dont_care, point_live)
-        rows.append(f"{where}: {e.name} {dc_text(e.dont_care)} {what}: "
-                    + ("ok" if not bad else "reads " + describe(bad)))
+        rows.append(f"{where}: {e.name} {dc_text(e.dont_care)} {what}: " + verdict(e.dont_care, point_live))
         if bad:
             findings.append(Finding(where, f"{e.name}'s .dont_care ({dc_text(e.dont_care)}) {what}, "
                                            f"where liveness has {describe(bad)} read"))
@@ -850,13 +914,13 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at) -> tuple:
                 live = lv.callee_reads(target)
                 bad = excess(d.dont_care, live)
                 rows.append(f"{where}: call {fmt(d.site)} -> {fmt(target)} {dc_text(d.dont_care)}: "
-                            + ("ok" if not bad else "reads " + describe(bad)))
+                            + verdict(d.dont_care, live))
                 if bad:
                     findings.append(Finding(where, f"the call from {fmt(d.site)} to {fmt(target)} declares "
                                                    f"{dc_text(d.dont_care)}, where liveness has {describe(bad)} read"))
             continue
-        # a stop: the entries that reach it add their own sets
-        owners = [e for e in entries if e.name in reach and (d.path, d.func) in reach[e.name]]
+        # a stop: the entries that reach it add their own sets, unless it is the stop's own
+        owners = [] if d.own else [e for e in entries if e.name in reach and (d.path, d.func) in reach[e.name]]
         op = opcode_at(d.at)
         if op in RETURN_OPCODES:
             live = lv.live_after_return(d.at)
@@ -871,8 +935,8 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at) -> tuple:
             dc = d.dont_care | (e.dont_care if e else 0)
             bad = excess(dc, live)
             who = f" (with {e.name}'s {dc_text(e.dont_care)})" if e and e.dont_care else ""
-            rows.append(f"{where}: stop {what} {dc_text(d.dont_care)}{who}: "
-                        + ("ok" if not bad else "reads " + describe(bad)))
+            who += " (its own)" if d.own else ""
+            rows.append(f"{where}: stop {what} {dc_text(d.dont_care)}{who}: " + verdict(dc, live))
             if bad:
                 findings.append(Finding(where, f"the stop declares {dc_text(d.dont_care)}{who} {what}, "
                                                f"where liveness has {describe(bad)} read"))

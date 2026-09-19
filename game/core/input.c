@@ -28,7 +28,11 @@ static void tsb_dp16(Snes *s, uint8_t cell)
  * (A X L R B Y Select Start, then the direction pad in $F3). $F0 and $F4 get
  * the newly pressed ones; $F4 also gets held ones repeating, after $FD frames
  * (reloaded from $FC). L+R+Select+Start resets to $C0:FF00. Returns with 16-bit
- * A and 8-bit X, the direct page and data bank 0. */
+ * A and 8-bit X, the direct page and data bank 0.
+ *
+ * Its callers don't read Y or the overflow (the entry's set), but the wait and
+ * the reset do: its two stops declare their own sets. */
+enum { STOP_DEAD = DC_X | DC_N | DC_Z | DC_C };
 void input_read_joypad(Snes *s)
 {
     Cpu *c = &s->cpu;
@@ -47,7 +51,7 @@ void input_read_joypad(Snes *s)
     m_set_flag(s, CPU_FLAG_V, status & 0x40);
     m_set_flag(s, CPU_FLAG_Z, (status & TM_STATUS_JOYPAD_BUSY) == 0);
     if (status & TM_STATUS_JOYPAD_BUSY) {
-        m_stop_at(s, 0xC284F9, 0);   /* BIT $4212 : BNE -- still reading */
+        m_stop_at_own(s, 0xC284F9, STOP_DEAD);   /* BIT $4212 : BNE -- still reading */
         return;
     }
     m_ldx16(s, dp16(s, 0xF2));
@@ -63,7 +67,7 @@ void input_read_joypad(Snes *s)
     uint16_t pad = m_lda16(s, in_read(pf, PF_AT(0xC2851B), 0));
     m_cmp16(s, pad, 0x3030);
     if (pad == 0x3030) {
-        m_stop_at(s, 0xC0FF00, 0);
+        m_stop_at_own(s, 0xC0FF00, STOP_DEAD);
         return;
     }
     uint16_t held = m_lda16(s, dp16(s, 0xF2));
@@ -85,9 +89,7 @@ void input_read_joypad(Snes *s)
     }
     set_dp8(s, 0xFD, (uint8_t)c->x);
     /* V is $4212's hblank bit from the BIT above, which native time doesn't
-     * reproduce; nothing reads it after the return (it is live where the
-     * routine stops for a reset, so it isn't the entry's). */
-    m_stop_dont_care(s, 0xC28544, DC_V);   /* the RTS */
+     * reproduce; nothing reads it after the return (the entry's set). */
     m_rts(s);
 }
 

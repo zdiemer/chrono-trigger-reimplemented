@@ -21,8 +21,8 @@
  * so a handler takes the slot's index in them. The handlers run with the
  * battle page and data bank $7E (the entries' guard) and A's high byte 0, as
  * the loop leaves it; they return what they leave in A, which the loop hands
- * on, since A's high byte is live after it and nothing can declare its low
- * byte dead alone. */
+ * on (battle_step_effect_slots still reproduces it). Called by themselves they
+ * leave A's low byte as it is: their callers don't read it (DC_AL). */
 #include "battle/battle.h"
 #include "battle/effects.h"
 
@@ -831,20 +831,15 @@ void battle_step_orbits(Snes *s)
  * ($A002, a battle slot less 3), each at its own offset. */
 void battle_place_formation(Snes *s)
 {
-    uint16_t a = s->cpu.a;
     uint8_t leader = m_read8(s, RAM_BATTLE_FORMATION_LEADER);
-    uint16_t lead = (uint16_t)((a & 0xFF00) | leader);
+    uint16_t lead = (uint16_t)((s->cpu.a & 0xFF00) | leader);
     for (int i = 7; i >= 0; i--) {
-        uint8_t present = m_read8(s, RAM_BATTLE_SLOT_PRESENT + 3 + (unsigned)i);
-        a = (uint16_t)((a & 0xFF00) | present);
-        if (!present)
+        if (!m_read8(s, RAM_BATTLE_SLOT_PRESENT + 3 + (unsigned)i))
             continue;
         m_write8(s, object_x(3 + (unsigned)i), (uint8_t)(m_read8(s, object_x(3) + lead) + m_read8(s, RAM_BATTLE_FORMATION_OFFSET_X + (unsigned)i)));
         uint8_t y = (uint8_t)(m_read8(s, object_y(3) + lead) + m_read8(s, RAM_BATTLE_FORMATION_OFFSET_Y + (unsigned)i));
         m_write8(s, object_y(3 + (unsigned)i), y);
-        a = (uint16_t)((a & 0xFF00) | y);
     }
-    s->cpu.a = a;
     s->cpu.x = 0xFFFF;
     s->cpu.y = lead;
     m_rts(s);
@@ -866,21 +861,103 @@ static void return_a(Snes *s, uint8_t a)
     m_rts(s);
 }
 
-void battle_effect_combatant_line(Snes *s) { return_a(s, move_line(s, false)); }
-void battle_effect_combatant_jump(Snes *s) { return_a(s, move_jump(s, false)); }
-void battle_effect_combatant_spiral(Snes *s) { return_a(s, move_spiral(s, false)); }
-void battle_effect_combatant_orbit(Snes *s) { return_a(s, move_orbit(s, false, false)); }
-void battle_effect_combatant_jump_to_target(Snes *s) { return_a(s, move_jump_to_target(s, false)); }
-void battle_effect_combatant_orbit_flat(Snes *s) { return_a(s, move_orbit(s, false, true)); }
-void battle_effect_flicker(Snes *s) { return_a(s, move_flicker(s)); }
-void battle_effect_combatant_chase(Snes *s) { return_a(s, move_chase(s, false)); }
-void battle_effect_anchor_line(Snes *s) { return_a(s, move_line(s, true)); }
-void battle_effect_anchor_jump(Snes *s) { return_a(s, move_jump(s, true)); }
-void battle_effect_anchor_spiral(Snes *s) { return_a(s, move_spiral(s, true)); }
-void battle_effect_anchor_orbit(Snes *s) { return_a(s, move_orbit(s, true, false)); }
-void battle_effect_anchor_jump_to_target(Snes *s) { return_a(s, move_jump_to_target(s, true)); }
-void battle_effect_anchor_orbit_facing(Snes *s) { return_a(s, move_orbit_facing(s)); }
-void battle_effect_anchor_chase(Snes *s) { return_a(s, move_chase(s, true)); }
+/* A handler's return: 8-bit A, whose low byte nothing reads after (DC_AL) and
+ * whose high byte is still the 0 it was entered with. */
+static void return_from_handler(Snes *s)
+{
+    s->cpu.p |= CPU_FLAG_M;
+    m_rts(s);
+}
+
+void battle_effect_combatant_line(Snes *s)
+{
+    move_line(s, false);
+    return_from_handler(s);
+}
+
+void battle_effect_combatant_jump(Snes *s)
+{
+    move_jump(s, false);
+    return_from_handler(s);
+}
+
+void battle_effect_combatant_spiral(Snes *s)
+{
+    move_spiral(s, false);
+    return_from_handler(s);
+}
+
+void battle_effect_combatant_orbit(Snes *s)
+{
+    move_orbit(s, false, false);
+    return_from_handler(s);
+}
+
+void battle_effect_combatant_jump_to_target(Snes *s)
+{
+    move_jump_to_target(s, false);
+    return_from_handler(s);
+}
+
+void battle_effect_combatant_orbit_flat(Snes *s)
+{
+    move_orbit(s, false, true);
+    return_from_handler(s);
+}
+
+void battle_effect_flicker(Snes *s)
+{
+    move_flicker(s);
+    return_from_handler(s);
+}
+
+void battle_effect_combatant_chase(Snes *s)
+{
+    move_chase(s, false);
+    return_from_handler(s);
+}
+
+void battle_effect_anchor_line(Snes *s)
+{
+    move_line(s, true);
+    return_from_handler(s);
+}
+
+void battle_effect_anchor_jump(Snes *s)
+{
+    move_jump(s, true);
+    return_from_handler(s);
+}
+
+void battle_effect_anchor_spiral(Snes *s)
+{
+    move_spiral(s, true);
+    return_from_handler(s);
+}
+
+void battle_effect_anchor_orbit(Snes *s)
+{
+    move_orbit(s, true, false);
+    return_from_handler(s);
+}
+
+void battle_effect_anchor_jump_to_target(Snes *s)
+{
+    move_jump_to_target(s, true);
+    return_from_handler(s);
+}
+
+void battle_effect_anchor_orbit_facing(Snes *s)
+{
+    move_orbit_facing(s);
+    return_from_handler(s);
+}
+
+void battle_effect_anchor_chase(Snes *s)
+{
+    move_chase(s, true);
+    return_from_handler(s);
+}
 
 void battle_effect_flicker_step(Snes *s)
 {

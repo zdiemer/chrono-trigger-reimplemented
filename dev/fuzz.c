@@ -180,6 +180,10 @@ static void original_access(SnesBus *bus)
     original_work++;
 }
 
+/* The most passes of the original through the point a port stopped at that
+ * are compared (a loop's head; shadow mode's MAX_POINT_PASSES). */
+#define FUZZ_MAX_POINT_PASSES 0x10000u
+
 /* Run the interpreter until PC and S are back at the sentinel, noting the
  * lowest S on the way, for at most `budget` bus accesses. */
 static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step, uint16_t *lowest_s,
@@ -259,10 +263,13 @@ static void describe_mismatch(FILE *out, const Snes *o, const Snes *c, uint16_t 
 {
     Diff d = { out, 0, 0 };
     const Cpu *oc = &o->cpu, *cc = &c->cpu;
-    if (!(dont_care & (DC_A | DC_AH)))
+    bool a_low = !(dont_care & (DC_A | DC_AL)), a_high = !(dont_care & (DC_A | DC_AH));
+    if (a_low && a_high)
         diff_field(&d, "A", oc->a, cc->a);
-    else if (!(dont_care & DC_A))
+    else if (a_low)
         diff_field(&d, "A's low byte", oc->a & 0xFF, cc->a & 0xFF);
+    else if (a_high)
+        diff_field(&d, "A's high byte", oc->a >> 8, cc->a >> 8);
     if (!(dont_care & DC_X))
         diff_field(&d, "X", oc->x, cc->x);
     if (!(dont_care & DC_Y))
@@ -342,7 +349,7 @@ static void report(FuzzResult *r, const FuzzOptions *o, FILE *log, unsigned long
 
 FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o, FILE *log)
 {
-    static Snes orig, native;
+    static Snes orig, native, first_pass;
     FuzzResult r = { 0 };
     native_entry = e;
     native_machine = &native;
@@ -423,6 +430,7 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         native_call_steps = 0;
         native_stop_dont_care_direct = 0;
         native_stop_at_direct = 0;
+        native_stop_own_direct = false;
         native_returned_direct = false;
         if (!native_fiber)
             native_fiber = fiber_create(native_fiber_main, NULL);
@@ -485,13 +493,34 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
             }
             continue;
         }
-        uint16_t dont_care = e->dont_care | native_stop_dont_care_direct;
-        native_copy_popped_stack(&orig, &native, lowest_s);
-        if (native_compare(&orig, &native, dont_care, what, sizeof what)) {
-            report(&r, o, log, it, what, &orig, &native, dont_care);
-        } else {
-            r.matched++;
+        /* Where the original passes that point more than once (a loop's
+         * head), the first pass where the machines are the same counts, as in
+         * shadow mode (native.c, reach_point); one that is the same at no pass
+         * is reported with the first pass's difference. */
+        uint16_t dont_care =
+            native_finish_dont_care(e->dont_care, native_stop_dont_care_direct, native_stop_own_direct);
+        bool same = false;
+        char first_what[160] = "";
+        for (unsigned pass = 0; pass < FUZZ_MAX_POINT_PASSES; pass++) {
+            native_copy_popped_stack(&orig, &native, lowest_s);
+            if (!native_compare(&orig, &native, dont_care, what, sizeof what)) {
+                same = true;
+                break;
+            }
+            if (!pass) {
+                memcpy(first_what, what, sizeof first_what);
+                snes_clone(&first_pass, &orig);
+            }
+            uint16_t low;
+            if (!run_until(&orig, stop_pc, stop_s, true, &low, budget))
+                break;
+            if (low < lowest_s)
+                lowest_s = low;
         }
+        if (same)
+            r.matched++;
+        else
+            report(&r, o, log, it, first_what, &first_pass, &native, dont_care);
     }
     return r;
 }

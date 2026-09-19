@@ -21,18 +21,30 @@ from tools.disasm.memmap import bus_to_offset
 # C0:8010  LDA #$01 : STA $20 : RTS           after it returns X and Y are read, A and C aren't
 # C0:8020  STX $30 : RTS                      reads X, carries Y through
 # C0:8030  TYA : STA $50 : SEC : RTS          reads Y
+#
+# and, for A's two bytes (8-bit A):
+# C0:8040  JSR $8050 : XBA : STA $40 : RTS    after $8050 returns A's high byte is read, its low byte isn't
+# C0:8050  LDA #$02 : RTS                     reads nothing
+# C0:8058  LDA #$03 : RTS
+# C0:8060  STA $60 : RTS                      reads A's low byte (8-bit), not its high byte
+# C0:8070  JSR $8058 : STA $70 : RTS          after $8058 returns A's low byte is read
 CODE = {
     0xC08000: bytes.fromhex("201080 202080 203080 B000 60".replace(" ", "")),
     0xC08010: bytes.fromhex("A901 8520 60".replace(" ", "")),
     0xC08020: bytes.fromhex("8630 60".replace(" ", "")),
     0xC08030: bytes.fromhex("98 8550 38 60".replace(" ", "")),
+    0xC08040: bytes.fromhex("205080 EB 8540 60".replace(" ", "")),
+    0xC08050: bytes.fromhex("A902 60".replace(" ", "")),
+    0xC08058: bytes.fromhex("A903 60".replace(" ", "")),
+    0xC08060: bytes.fromhex("8560 60".replace(" ", "")),
+    0xC08070: bytes.fromhex("205880 8570 60".replace(" ", "")),
 }
 
 NATIVE_H = """
 enum {
     DC_A = 1 << 0, DC_X = 1 << 1, DC_Y = 1 << 2,
     DC_N = 1 << 3, DC_V = 1 << 4, DC_Z = 1 << 5, DC_C = 1 << 6,
-    DC_DB = 1 << 7, DC_D = 1 << 8, DC_AH = 1 << 9,
+    DC_DB = 1 << 7, DC_D = 1 << 8, DC_AH = 1 << 9, DC_AL = 1 << 10,
     DC_FLAGS = DC_N | DC_V | DC_Z | DC_C,
 };
 """
@@ -92,7 +104,8 @@ void unreadable(Snes *s) { m_stop_dont_care(s, m_read16(s, 0x7E0000), 0); }
 
 def liveness():
     h = Hints()
-    h.entries.append(type("E", (), {"addr": 0xC08000, "m": True, "x": True, "kind": "test"})())
+    for addr in (0xC08000, 0xC08040, 0xC08060, 0xC08070):
+        h.entries.append(type("E", (), {"addr": addr, "m": True, "x": True, "kind": "test"})())
     rom = FakeRom(CODE)
     an = Analyzer(rom, h)
     an.run()
@@ -123,6 +136,23 @@ class Evaluation(unittest.TestCase):
         self.assertEqual(either, [1, 2])
         with self.assertRaises(dc.Unreadable):
             ev.values([dc.parse("m_read16(s, 0x7E0000)")], src, src.funcs["unreadable"])
+
+    def test_fields_declared_together(self):
+        # `uint16_t at, pad;` declares two fields: the columns after it stay in place
+        src = dc.Source("game/port.c", """
+static const struct { uint16_t at, pad; uint16_t dead; } rows[] = {
+    { 0x8030, 0x9999, DC_X },
+    { 0x8031, 0x8888, DC_Y },
+};
+static void stop_row(Snes *s, int i) { m_stop_at(s, 0xC00000u | rows[i].at, rows[i].dead); }
+void caller(Snes *s) { stop_row(s, 0); stop_row(s, 1); }
+""")
+        self.assertEqual(src.tables["rows"][0], ["at", "pad", "dead"])
+        self.assertEqual(dc.struct_fields(" uint8_t *p, n[4]; unsigned bits : 3; "), ["p", "n", "bits"])
+        ev = dc.Evaluator([src], [dc.Source("runtime/port/native.h", NATIVE_H)])
+        stops = sorted({v for v, _ in ev.values([dc.parse("0xC00000u | rows[i].at"), dc.parse("rows[i].dead")],
+                                                 src, src.funcs["stop_row"])})
+        self.assertEqual(stops, [(0xC08030, 1 << 1), (0xC08031, 1 << 2)])
 
     def test_registry_macros(self):
         src = dc.Source("game/registry.c", REGISTRY)
@@ -159,7 +189,7 @@ class Check(unittest.TestCase):
         self.assertIn("game/port.c:39: can't read m_stop_dont_care", text)
         self.assertEqual(len(found), 8)
         self.assertEqual(counts["calls"], 7)   # a value per target and per helper call
-        self.assertTrue(any(r.endswith(": ok") for r in rows))
+        self.assertTrue(any(": ok" in r for r in rows))
 
     def test_a_high_byte(self):
         # DC_AH claims A's high byte alone, which C0:8010's LDA #$01 (8-bit) leaves
@@ -167,6 +197,91 @@ class Check(unittest.TestCase):
         registry = REGISTRY.replace("DC_A | DC_C | DC_N | DC_Z", "DC_AH")
         found, _, _ = findings(registry=registry)
         self.assertFalse([f for f in found if "load_one's" in f])
+
+
+
+# Entries and ports for A's low byte alone and a stop's own set.
+REGISTRY_SPLIT = """
+const NativeEntry game_natives[] = {
+    { .addr = 0xC08050, .name = "load_two", .fn = load_two, .dont_care = DC_AL },
+    { .addr = 0xC08050, .name = "load_two_high", .fn = load_two_high, .dont_care = DC_AH },
+    { .addr = 0xC08050, .name = "load_two_whole", .fn = load_two_whole, .dont_care = DC_A },
+    { .addr = 0xC08058, .name = "load_three", .fn = load_three, .dont_care = DC_AL },
+    { .addr = 0xC08030, .name = "store_y", .fn = store_y, .dont_care = DC_X | DC_Y },
+    { .addr = 0xC08030, .name = "store_y_shared", .fn = store_y_shared, .dont_care = DC_X | DC_Y },
+};
+"""
+
+PORT_SPLIT = """
+void load_two(Snes *s) { m_rts(s); }
+void load_two_high(Snes *s) { m_rts(s); }
+void load_two_whole(Snes *s) { m_rts(s); }
+void load_three(Snes *s) { m_rts(s); }
+
+/* returns (X and Y dead after), or leaves early for code that reads Y */
+void store_y(Snes *s)
+{
+    if (s->cpu.y) {
+        m_stop_at_own(s, 0xC08030, DC_X);
+        return;
+    }
+    m_rts(s);
+}
+
+/* the same stop, but the entry's set is added there */
+void store_y_shared(Snes *s) { m_stop_at(s, 0xC08030, DC_X); }
+
+/* an own set that is wrong by itself */
+void store_y_wrong(Snes *s) { m_stop_at_own(s, 0xC08030, DC_Y); }
+
+void call_low(Snes *s)
+{
+    m_jsr_dc(s, 0xC08040, 0xC08050, DC_AL | DC_Y);
+    m_jsr_dc(s, 0xC08070, 0xC08060, DC_AH);
+    m_jsr_dc(s, 0xC08070, 0xC08060, DC_AL);
+}
+"""
+
+
+class SplitSets(unittest.TestCase):
+    """DC_AL (A's low byte alone) and m_stop_at_own, each accepted where
+    liveness agrees and rejected where it doesn't."""
+
+    def setUp(self):
+        self.found, self.rows, _ = findings(port=PORT_SPLIT, registry=REGISTRY_SPLIT)
+        self.text = "\n".join(self.found)
+
+    def test_a_low_byte_at_a_return(self):
+        # C0:8040 reads A's high byte after C0:8050 returns (XBA), not its low byte
+        self.assertNotIn("load_two's", self.text)
+        self.assertIn("load_two_high's .dont_care (DC_AH)", self.text)
+        self.assertIn("load_two_whole's .dont_care (DC_A)", self.text)
+        # C0:8070 reads A's low byte after C0:8058 returns: DC_AL is wrong there
+        self.assertIn("load_three's .dont_care (DC_AL) after $C0:8058's routine returns, where liveness has A read",
+                      self.text)
+
+    def test_a_low_byte_at_a_call(self):
+        # C0:8050 reads nothing; C0:8060 reads the low byte and not the high one
+        self.assertNotIn("to $C0:8050", self.text)
+        self.assertNotIn("declares DC_AH,", self.text)
+        self.assertIn("the call from $C0:8070 to $C0:8060 declares DC_AL, where liveness has A read", self.text)
+
+    def test_own_stop(self):
+        # alone, X is dead at C0:8030; with the entry's set added, Y (which TYA reads) isn't
+        self.assertFalse([f for f in self.found if "(its own)" in f and "DC_X" in f])
+        self.assertIn("the stop declares DC_X (with store_y_shared's DC_X | DC_Y) at $C0:8030, where liveness has Y read",
+                      self.text)
+        self.assertNotIn("with store_y's", self.text)
+        # a wrong own set is still a finding
+        self.assertIn("the stop declares DC_Y (its own) at $C0:8030, where liveness has Y read", self.text)
+        # and the entry's set is still checked where it returns: X and Y are dead after C0:8030 returns
+        self.assertTrue(any("store_y DC_X | DC_Y after $C0:8030's routine returns: ok" in r for r in self.rows))
+
+    def test_list_suggests(self):
+        # a declaration liveness allows more than: --list says what could be added
+        self.assertTrue(any("load_two DC_AL" in r and "could add" in r for r in self.rows))
+        self.assertEqual(dc.dc_text(dc.dc_of_dead(dc.dead_of_dc(dc.DC_AL))), "DC_AL")
+        self.assertEqual(dc.dc_text(dc.DC_AL | 1), "DC_A | DC_AL")
 
 
 if __name__ == "__main__":

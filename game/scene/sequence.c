@@ -453,7 +453,12 @@ void scene_run_sequence(Snes *s)
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     put_flags(s, &f);
     if (end == CARRY_ON) {
-        /* the original's own loop, from the command the port left */
+        /* the original's own loop, from the command the port left. Not a
+         * stop at the loop's head, which shadow mode and the fuzzer could now
+         * compare at the right pass: a command the port gives up on has
+         * already written the scratch cell ($F0) and the flags the original
+         * writes only once it runs that command, so the port would have to
+         * put them back first (docs/TODO.md) */
         m_jsr_dc(s, 0xC30AFF, 0xC30B03, DC_A | DC_X | DC_N | DC_Z);
     } else {
         s->cpu.a = result;
@@ -463,11 +468,11 @@ void scene_run_sequence(Snes *s)
 
 bool scene_sequence_bank_is_scripts(Snes *s) { return machine_as_expected(s); }
 
-/* $C3:0C28, where the wait for the sound driver goes on, isn't an entry: the
- * store command's own path runs through it, so the original entering it
- * inside a run would start a comparison of its own and take the call the
- * run's comparison waits for (docs/PORTING.md, Call-outs). After the wait, the
- * rest of that run is the original's. */
+/* $C3:0C28, where the wait for the sound driver goes on, isn't an entry, so
+ * after the wait the rest of that run is the original's. It could be: the
+ * store command's own path runs through it, but an entry the original reaches
+ * inside a run shadow mode is comparing no longer takes the run's call-outs
+ * (docs/PORTING.md, Call-outs). */
 
 /* CMP, 8-bit: the loop's flags, which the pass leaves as the original's. */
 static void compare8(Snes *s, uint8_t a, uint8_t b)

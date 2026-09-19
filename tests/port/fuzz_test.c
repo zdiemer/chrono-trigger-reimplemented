@@ -12,6 +12,9 @@
  * - a fill at a pointer the state holds ([cell]+offset,count) lands where the
  *   pointer points, after the pointer itself is filled;
  * - a call-out that halts the CPU is stopped too;
+ * - a port that stops at a loop's head after some passes is compared at the
+ *   original's pass where the machines are the same, and one the same at no
+ *   pass is a mismatch;
  * - areas parse, and malformed ones don't.
  *
  * Exits non-zero on failure.
@@ -119,6 +122,20 @@ static void copy_bank(Snes *s)
     m_rts(s);
 }
 
+/* $C0:8100 after three passes of its loop, stopping at the loop's head
+ * ($C0:8103, DEX), where the original is on its fourth; the wrong one also
+ * writes a byte the original doesn't. */
+static void countdown_after(Snes *s, bool wrong)
+{
+    s->cpu.x = 0x0D;
+    m_set_nz16(s, 0x0D);
+    if (wrong)
+        m_write8(s, 0x7E0060, (uint8_t)~m_read8(s, 0x7E0060));
+    m_stop_at(s, 0xC08103, 0);
+}
+static void countdown_third(Snes *s) { countdown_after(s, false); }
+static void countdown_wrong(Snes *s) { countdown_after(s, true); }
+
 static void calls_halting(Snes *s)
 {
     m_jsr(s, 0xC08500, 0xC08600);
@@ -135,6 +152,8 @@ static const NativeEntry entries[] = {
     { .addr = 0xC08300, .name = "pointer_assumes_5", .fn = pointer_assumes_5, M8_X16, .dont_care = DC_A | DC_FLAGS },
     { .addr = 0xC08400, .name = "copy_bank", .fn = copy_bank, M8_X16, .dont_care = DC_A | DC_FLAGS },
     { .addr = 0xC08500, .name = "calls_halting", .fn = calls_halting, M8_X16 },
+    { .addr = 0xC08100, .name = "countdown_third", .fn = countdown_third, M8_X16, .dont_care = DC_A },
+    { .addr = 0xC08100, .name = "countdown_wrong", .fn = countdown_wrong, M8_X16, .dont_care = DC_A },
 };
 
 static uint8_t rom[ROM_SIZE];
@@ -231,6 +250,16 @@ int main(void)
     CHECK(fuzz_parse_area("[7E0040]+20,1=05-05", false, &o.areas[o.nareas++]), "parse the fill at the pointer");
     r = run(4, &o, log, sizeof log);
     CHECK(r.matched == 300, "pointer_assumes_5 with the fill: matched %lu mismatched %lu", r.matched, r.mismatched);
+
+    /* A stop at a loop's head: the pass where the machines are the same counts;
+     * one the same at no pass is described at the first. */
+    o = options(100);
+    r = run(7, &o, log, sizeof log);
+    CHECK(r.matched == 100, "countdown_third: matched %lu mismatched %lu", r.matched, r.mismatched);
+    o.details = 1;
+    r = run(8, &o, log, sizeof log);
+    CHECK(r.mismatched > 90, "countdown_wrong: mismatched %lu", r.mismatched);
+    CHECK(strstr(log, "  X: original 10 native D") != NULL, "the first pass's difference:\n%s", log);
 
     /* Areas. */
     FuzzArea a;

@@ -61,6 +61,23 @@ rest waits, is [PLAN.md](PLAN.md).
   `field_scroll_layers`); operand names for the battle script handlers;
   turning I/O register writes and the multiplier into platform calls and C
   arithmetic; stub signatures that still vary by what a call reads back.
+- **Drafts and ports don't use the new declarations yet** (RECOMP.md, "Between
+  the waves: the validator"). The draft tool writes A's low byte back wherever
+  its high byte is live and gives a stop the entry's set; `DC_AL` and
+  `m_stop_at_own` would let it name exactly what is dead. Among the ports,
+  `python3 tools/dontcare_check.py --list` has 295 declarations that could add
+  `DC_AL` (`could add`), `battle_step_effect_slots` still carrying the handlers'
+  A through its loop among them, and entries whose sets a stop kept small
+  (`battle_update_combatant`, `event_run_object_script`, `menu_run_objects`,
+  `field_object_in_the_way`, the event dialog and condition commands).
+- **The scene sequence interpreter's hand-back** (`scene/sequence.c`): a
+  command the port doesn't handle is given back as a call-out to the loop from
+  the entry's `JSR` site, which shadow mode compares at the loop's first pass,
+  right only when no command ran before it (no movie has such a command).
+  Stopping at the loop's head `$C3:0B03` instead is what shadow mode can now
+  compare at the right pass, once the port puts back what the given-up command
+  already wrote: the scratch cell `$F0` and the flags (RECOMP.md, "Between the
+  waves: the validator").
 - **Liveness across a saved stack pointer.** The overflow flag is still live
   after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
   no longer are): the menus' entry `$C2:800E` saves P and then copies S to
@@ -72,13 +89,6 @@ rest waits, is [PLAN.md](PLAN.md).
   Following S through the cell it is saved in, and a callee that finishes its
   caller's iteration, would free them (RECOMP.md, "The tooling pass after
   wave 1: the analysis").
-- **The C reading the don't-care check and the burndown share**
-  (`tools/dontcare_check.py`'s `Source`): a table whose row struct declares two
-  fields in one declaration (`uint16_t flag, copy;` in
-  `battle_run_queued_scripts`) is read with its columns shifted. The burndown
-  catches it where a site comes out as something that isn't a call and
-  credits that port no callee; a declaration read that way would be checked
-  against the wrong address.
 - **Scene cells the menu objects use.** The C6 irises and motion routines
   (`scene/objects.c`) run on the menu's direct page and use the circle
   drawer's and the scaler's cells, which the map files under the scene; their

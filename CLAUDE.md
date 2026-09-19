@@ -30,9 +30,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_recomp_runner tests/cpu/data/*.bin`,
   `build/main/recomp_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test`, `fiber_test`, `state_test` and `bindings_test` need no data.
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test` and `bindings_test` need no data.
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
-  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `bindings_test`,
+  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test`, `bindings_test`,
   the conformance runners (test data cached) and builds `ct_play` and the oracle. Code must build
   warning-free on all four and tests must pass without a ROM. Docs-only changes don't trigger it.
 - Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
@@ -113,9 +113,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     dispatcher's handlers) names that routine with `NATIVE_TIME_AS(s, 0xBBAAAA, ...)`, so the
     work is estimated at that routine's own calibrated value: a tag, never a number
     (docs/PORTING.md, "Writing a port"). Fuzzing is part of a port's definition of done.
-  - Declare what the original leaves dead rather than reproduce it: flags nobody reads, A's
-    high byte, a subroutine's stack frame. An entry's don't-care set, `m_stop_at` where a
-    port stops, and the don't-care sets of call-outs say so, and shadow mode doesn't compare
+  - Declare what the original leaves dead rather than reproduce it: flags nobody reads,
+    either byte of A (`DC_AH`, `DC_AL`), a subroutine's stack frame. An entry's don't-care
+    set, `m_stop_at` where a port stops (`m_stop_at_own` where the stop's set is its own,
+    not the entry's too), and the don't-care sets of call-outs say so, and shadow mode doesn't compare
     them (docs/PORTING.md). A declaration is a claim about the original, so it must be one the
     liveness analysis agrees with: `tools/dontcare_check.py` checks every one, and the gate runs
     it. A port stops with `m_stop_at` and its address, and writes the addresses and sets as
