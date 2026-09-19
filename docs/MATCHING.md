@@ -1328,7 +1328,8 @@ match, all closure checks pass.
 
 ### Shift test
 
-`python3 -m tools.matching shift` builds a set of shifted ROMs: padding at the
+MD3 adds a `shift` subcommand (`python3 -m tools.matching shift`, not written
+yet) that builds a set of shifted ROMs: padding at the
 start of each module (within its bank's trailing padding), plus a few
 cross-bank moves of whole modules. For each: the pointer-shaped literal lint,
 then `ct_dev --native off --recomp off --rom <shifted>` over the movies

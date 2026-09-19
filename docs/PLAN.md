@@ -64,7 +64,7 @@ docstring says which way it is wrong). **73% of the code is still generated.**
 | **total** | **268.5K** | **72.0K** | **3.0K** | **73%** | **677** |
 
 The three big banks are the work; the entries are concentrated in small hot
-routines (and the 180 event commands), which is why the shares are so high
+routines (and the 185 event command entries), which is why the shares are so high
 despite the count. The burndown follows the jump tables the analysis has sized,
 counts the registry's macro rows, and credits the callees a port inlines (no
 call-out at their call; RECOMP.md, "The tooling pass after wave 1: the
