@@ -534,9 +534,10 @@ Scan with screenshots every frame for frames that differ from both neighbours;
 the blinking target cursor is the only one left. With `--native on` (what
 `ct_play` runs) `gato-battle.ctm` still shows 11 such frames (95 one-frame
 changes before, 17 now, cursor included): hand ports charge estimated time
-and interrupts wait until it's paid (PORTING.md), so an NMI can arrive dozens
-of lines late (frame 19313: no NMI in the frame before, then one at line 27).
-That is the ports' time estimate, not the hardware model. Load lengths now agree better
+and interrupts waited until it was paid (PORTING.md), so an NMI could arrive
+dozens of lines late (frame 19313: no NMI in the frame before, then one at line
+27). That was the ports' time estimate, not the hardware model; the timing gate
+takes interrupts during a port's time now (RECOMP.md, "The timing gate"). Load lengths now agree better
 with bsnes (accuracy core) as well: in `new-game`, the static runs at 3208,
 5591 and 6134 last 89, 252 and 36 frames in bsnes and here, 88, 250 and 30
 before; the world map load in `field` lasts 47 frames in bsnes, 48 here (46

@@ -37,8 +37,9 @@ typedef struct NativeEntry {
     NativeFn fn;
     uint8_t p_mask;         /* entry precondition on P: (p & p_mask) == p_value */
     uint8_t p_value;
-    /* ON-mode time cost: the native routine's own bus-access clocks times
-     * cost_milli/1000. Shadow mode reports the original/native-bus ratio to set it. */
+    /* ON-mode time cost: the time the native routine's DMA transfers took, as
+     * it is, plus the rest of its own bus-access clocks times cost_milli/1000.
+     * Shadow mode's --timing-report gives the calibrated value to set it. */
     uint32_t cost_milli;
     uint16_t dont_care;     /* DC_* bits */
     /* Idle entries replace one pass of a busy-wait loop rather than a routine:
@@ -82,6 +83,8 @@ typedef struct RecompIndexEntry {
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
 
+#define NATIVE_ERROR_BUCKETS 24
+
 typedef struct NativeStats {
     unsigned calls, matched, mismatched, interrupted, skipped;
     unsigned abandoned;         /* a callee unwound the routine's frame, so it never finished */
@@ -93,15 +96,28 @@ typedef struct NativeStats {
      * reported with native_set_timing_report. SHADOW, over every stretch no
      * interrupt fell in (a stretch is a call, or the part of one between
      * call-outs): how many; the original's CPU time and the port's bus clocks
-     * summed (their ratio is the calibrated cost_milli); how many the
+     * summed (their ratio, less DMA's time, which is the same in both, is
+     * the calibrated cost_milli); how many the
      * cost_milli estimate got exactly right; the estimate's total and largest
      * absolute error, in master clocks; and how many (and how much original
      * time) fit before the system's next horizon point (snes_horizon) or its
      * next interrupt or frame boundary (snes_interrupt_horizon). */
     unsigned t_stretches, t_estimate_exact, t_fit_horizon, t_fit_interrupt;
-    uint64_t t_original_clocks, t_bus_clocks;
+    uint64_t t_original_clocks, t_bus_clocks, t_dma_clocks;   /* t_dma_clocks: the part of both DMA took */
     uint64_t t_estimate_error, t_fit_horizon_clocks, t_fit_interrupt_clocks;
     uint32_t t_estimate_max_error;
+    /* The estimate's absolute error per stretch, counted by bit length: bucket
+     * 0 is exact, bucket k (1..NATIVE_ERROR_BUCKETS-1) holds errors of k bits
+     * (2^(k-1) to 2^k - 1 master clocks), and the last bucket everything
+     * longer. What the timing gate reads percentiles from (tools/suite.py). */
+    unsigned t_error_hist[NATIVE_ERROR_BUCKETS];
+    /* The same for the stretches that began on a vblank line, the NMI
+     * handler's time for video work: how many, the largest error, and the
+     * histogram. The rest began on a picture line; t_picture_max_error is
+     * their largest error. */
+    unsigned t_vblank_stretches;
+    uint32_t t_vblank_max_error, t_picture_max_error;
+    unsigned t_vblank_error_hist[NATIVE_ERROR_BUCKETS];
     /* The distinct values of the original's time minus the port's bus clocks
      * over uninterrupted stretches (up to 8; t_nextra 9 means more): the time
      * the port can't see, instruction fetches and internal cycles, which varies
@@ -118,8 +134,8 @@ typedef struct NativeStats {
     unsigned t_untimed, t_timed_io, t_no_fit;
 } NativeStats;
 
-/* How ON mode charges hand ports' time. ESTIMATE: cost_milli
- * times their bus clocks, after they stop (the default). ORACLE: a prototype
+/* How ON mode charges hand ports' time. ESTIMATE: their DMA time plus
+ * cost_milli times the rest of their bus clocks, after they stop (the default). ORACLE: a prototype
  * that gives a port the original's exact time and keeps its call only where
  * that is exact: the port runs, then the generated code of the same routine
  * runs on a copy of the machine as it was, to where the port stopped, to

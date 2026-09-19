@@ -58,7 +58,10 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   every change. Loops polling something else, like the APU ports, give
   `idle_clocks` instead: a waiting pass then takes the loop's own time per
   pass, since skipping ahead would change when the loop sees the other
-  processor's answer. `shadow` mode skips idle entries.
+  processor's answer. A loop that waits for a change leaves on a pass that
+  takes `IDLE_EXIT_CLOCKS` (54, the shortest such loop's pass), since the
+  original sees a change on its next read, not at the change. `shadow` mode
+  skips idle entries.
 - **Guards** cover code the game decompresses or copies into RAM, where the
   same address holds different code and data at different times. An entry's
   `guard` checks, with `m_code_matches`, that the bytes at the entry hash to
@@ -67,9 +70,12 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
 - **`on`:** registered routines run natively in place of the original. A native
   routine finishes instantly, so the time the original would have taken is
   charged afterwards, one scanline at a time, so frame boundaries and line
-  events still happen (interrupts wait until the debt is paid). Each call's
-  cost is its own bus-access clocks times the routine's `cost_milli`/1000, so
-  cost tracks data size. That is an estimate, and any error shifts everything
+  events still happen. An interrupt that comes due meanwhile is taken at the
+  instruction boundary where the port stopped, and the rest of the time is paid
+  when the handler returns there (RECOMP.md, "The timing gate"). Each call's
+  cost is the time of its DMA transfers, as it is, plus the rest of its own
+  bus-access clocks times the routine's `cost_milli`/1000, so cost tracks data
+  size. That is an estimate, and any error shifts everything
   after it, so `on` mode with hand ports drifts from `off` mode. Generated
   blocks don't: their time is exact to the instruction (below).
 - **Syncing with the SPC700.** Charging a routine's time after it stops is wrong
@@ -86,8 +92,8 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   a difference; `--include PREFIX` keeps only the ports whose names start with
   it (generated blocks stay). A port's time stays an estimate and ports don't
   carry cycle costs; `--timing-report` in shadow mode measures each entry's
-  estimate error per call and the `cost_milli` its totals imply, which is what
-  the timing gate bounds (RECOMP.md, "Can a hand port be exact?").
+  estimate error per call and the `cost_milli` its totals imply, and the timing
+  gate in `tools/suite.py` bounds it (RECOMP.md, "The timing gate").
 - **Generated blocks.** A build given the ROM also registers C blocks
   generated from it ([RECOMP.md](RECOMP.md)) behind the ported routines: a port
   takes precedence at its address, and shadow mode checks the blocks too.
@@ -237,9 +243,14 @@ call, besides running the machine.
    This is part of done, not optional: generated code is correct on every path
    by construction, a hand port only on the paths the movies and fuzzing reach.
    Record the states and counts in the port's table row, as the rows below do.
-7. Set `cost_milli` from the calibrated value `--native shadow --timing-report`
-   prints (the `original/native-bus` ratio, over stretches no interrupt fell
-   in), and check its estimate error there.
+7. Set `cost_milli` from the measurement: run the suite (its shadow runs carry
+   `--timing-report`), then `python3 tools/timing_gate.py
+   build/suite/shadow-*.log --calibrate game/registry.c` sets every measured
+   entry to the value its totals imply (the original's time over the port's
+   bus clocks, DMA left out of both). The suite's timing check then holds the
+   port to the gate's limits; a port whose time follows its data in a way one
+   scalar can't may need an entry in `tools/timing_exceptions.txt`, with the
+   reason its error doesn't reach the budget the limit stands for.
 
 Liveness is only as good as the call graph. Functions called from code the
 analysis can't see (RAM code, unresolved indirect jumps) keep everything live,

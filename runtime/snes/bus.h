@@ -48,6 +48,10 @@ typedef struct SnesBus {
     /* Value of clocks when the latest CPU access began. A DMA transfer counts
      * as part of the $420B write that started it. */
     uint32_t access_start;
+    /* Master clocks DMA transfers have taken, ever (it wraps): hand ports'
+     * time estimates take DMA's time as it is and estimate only the rest
+     * (runtime/port/native.c), so they measure their own by difference. */
+    uint32_t dma_clocks;
 
     SnesIo io;
 

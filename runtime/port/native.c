@@ -101,6 +101,34 @@ typedef enum {
     PH_SYNC,      /* ON: suspended in native_sync until its time has passed */
 } Phase;
 
+/* ON mode: time a hand port still owes, and the machine's instruction
+ * boundary it is paid at: where the port stopped (its return address, or the
+ * first instruction of a callee it called out to), with S as it was there.
+ * A port that stopped inside itself (native_sync) owes it mid-routine, which
+ * is no instruction boundary: at_boundary is false, and nothing interrupts
+ * the payment. */
+typedef struct Debt {
+    uint32_t clocks;
+    uint32_t pc;
+    uint16_t s;
+    bool at_boundary;
+} Debt;
+
+#define MAX_DEBTS 16
+
+/* ON: the time an idle entry's exit pass takes, when it waits for a change
+ * rather than passing its own time (idle_clocks 0). A waiting pass skips to
+ * the point the change happens, so the exit pass sees it there; the original
+ * sees it on the first read of its next pass, a few cycles later, and then
+ * falls through its branch. Charging nothing put the code after the loop at
+ * the change itself: the line IRQs' forced blank after their hblank wait
+ * landed at hclock 1102, before the line is drawn (1104), and blacked out the
+ * playfield's last line in every field and battle frame (docs/RECOMP.md,
+ * "The timing gate"). This is the shortest such loop's pass, LDA
+ * abs / AND # / BEQ (9 cycles, 6 master clocks each at FastROM and I/O
+ * speed), so the exit lands no earlier than the original's could. */
+#define IDLE_EXIT_CLOCKS 54
+
 /* A registered routine that has been entered and not yet left. */
 typedef struct Active {
     const NativeEntry *entry;
@@ -113,7 +141,10 @@ typedef struct Active {
     uint32_t ret_pc;
     uint64_t segment_start;
     uint32_t segment_frame;      /* frame counter when the segment started */
+    bool segment_vblank;         /* ...and whether it started on a vblank line */
     uint32_t segment_bus_clocks;
+    uint32_t segment_dma_clocks;   /* of segment_bus_clocks, DMA's */
+    uint32_t dma_mark;             /* the machine's bus.dma_clocks when the port's clocks were cleared */
     unsigned long segment_port_clears[2];   /* apu_port_clears when the segment started */
     uint64_t segment_horizon, segment_interrupt_horizon;   /* SHADOW: at the segment's start (timing spike) */
     bool segment_interrupted, interrupted, mismatched;
@@ -170,7 +201,10 @@ struct NativeRuntime {
      * (snes_clone_since), and the epoch each was last refreshed at (0: never). */
     Snes *clones[MAX_ACTIVE];
     uint64_t clone_since[MAX_ACTIVE];
-    uint32_t debt;               /* ON mode: master clocks native code still owes */
+    /* ON mode: master clocks native code still owes, where it owes them
+     * (paying debt, below). */
+    Debt debts[MAX_DEBTS];
+    int ndebts;
     char details[MAX_DETAILS][400];
     int ndetails;
 
@@ -269,6 +303,22 @@ static void active_pop(NativeRuntime *rt)
     a->clone = NULL;
 }
 
+/* Start counting a port's bus clocks on m, its DMA transfers' among them. */
+static void count_from(Active *a, Snes *m)
+{
+    m->bus.clocks = 0;
+    a->dma_mark = m->bus.dma_clocks;
+}
+
+/* A port's estimated time for `bus` clocks of its own accesses, `dma` of them
+ * DMA transfers: DMA takes the same time in the port as in the original, so
+ * that part is as it is, and cost_milli estimates the rest (the time of the
+ * instructions around the accesses, which the port doesn't make). */
+static uint64_t estimate_clocks(const NativeEntry *e, uint32_t bus, uint32_t dma)
+{
+    return dma + (uint64_t)(bus - dma) * e->cost_milli / 1000;
+}
+
 /* SHADOW: bring the active routine's machine copy up to date with s. */
 static void clone_refresh(NativeRuntime *rt, Active *a, Snes *s)
 {
@@ -277,7 +327,7 @@ static void clone_refresh(NativeRuntime *rt, Active *a, Snes *s)
         rt->clones[level] = malloc(sizeof *rt->clones[level]);
     a->clone = rt->clones[level];
     a->since = rt->clone_since[level] = snes_clone_since(a->clone, s, rt->clone_since[level]);
-    a->clone->bus.clocks = 0;
+    count_from(a, a->clone);
     a->job->m = a->clone;
 }
 
@@ -536,15 +586,29 @@ static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
      * is the same in every run whatever the ports' estimates are. */
     if (a->segment_interrupted)
         return;
-    uint64_t estimate = (uint64_t)a->segment_bus_clocks * a->entry->cost_milli / 1000;
+    uint64_t estimate = estimate_clocks(a->entry, a->segment_bus_clocks, a->segment_dma_clocks);
     uint64_t error = estimate > original ? estimate - original : original - estimate;
     st->t_stretches++;
     st->t_original_clocks += original;
     st->t_bus_clocks += a->segment_bus_clocks;
+    st->t_dma_clocks += a->segment_dma_clocks;
     st->t_estimate_exact += error == 0;
     st->t_estimate_error += error;
     if (error > st->t_estimate_max_error)
         st->t_estimate_max_error = error > UINT32_MAX ? UINT32_MAX : (uint32_t)error;
+    unsigned bucket = 0;
+    for (uint64_t e = error; e && bucket < NATIVE_ERROR_BUCKETS - 1; e >>= 1)
+        bucket++;
+    st->t_error_hist[bucket]++;
+    uint32_t error32 = error > UINT32_MAX ? UINT32_MAX : (uint32_t)error;
+    if (a->segment_vblank) {
+        st->t_vblank_stretches++;
+        st->t_vblank_error_hist[bucket]++;
+        if (error32 > st->t_vblank_max_error)
+            st->t_vblank_max_error = error32;
+    } else if (error32 > st->t_picture_max_error) {
+        st->t_picture_max_error = error32;
+    }
     if (st->t_nextra <= 8) {
         uint32_t extra = (uint32_t)(original - a->segment_bus_clocks);
         unsigned k = 0;
@@ -605,13 +669,80 @@ static void finish(NativeRuntime *rt)
     active_pop(rt);
 }
 
+/* ON: add time a port owes at where the machine is now. */
+static void owe(NativeRuntime *rt, const Snes *s, uint32_t clocks, bool at_boundary)
+{
+    if (!clocks)
+        return;
+    uint32_t pc = cpu_pc24(&s->cpu);
+    Debt *top = rt->ndebts ? &rt->debts[rt->ndebts - 1] : NULL;
+    if (top && ((top->pc == pc && top->s == s->cpu.s && top->at_boundary == at_boundary) ||
+                rt->ndebts == MAX_DEBTS)) {
+        top->clocks += clocks;   /* the same point (or no room: paid with the latest) */
+        return;
+    }
+    rt->debts[rt->ndebts++] = (Debt){ clocks, pc, s->cpu.s, at_boundary };
+}
+
+/* A step of up to `clocks` that native code (a debt's payment, an idle wait)
+ * takes as one, cut short to end just after the next point an interrupt can
+ * be raised (snes_interrupt_horizon), by the step's last cycle, where the poll
+ * that recognizes it is: so the interrupt is taken on time, not a step late.
+ * An interrupt already raised that no poll has seen yet (the horizon is behind
+ * us: a V-timer IRQ raised at the start of the line this step starts on) is
+ * seen by a step as short as one cycle. */
+static uint32_t until_interrupt(const Snes *s, uint32_t clocks)
+{
+    uint64_t h = snes_interrupt_horizon(s);
+    uint64_t room = (h >= s->master ? h - s->master : 0) + 1 + CLOCKS_PER_IO_CYCLE_NATIVE;
+    return room < clocks ? (uint32_t)room : clocks;
+}
+
+enum { DEBT_INTERRUPT = -1, DEBT_WAITS = -2 };
+
+/* ON: the step that pays some of the latest debt; DEBT_INTERRUPT when the
+ * interpreter is to take an interrupt here, or DEBT_WAITS when the machine is
+ * inside that interrupt's handler and runs as usual.
+ *
+ * The original's time passes a scanline at a time, so frame boundaries and
+ * line events still happen while the routine "runs". An interrupt the CPU
+ * recognizes during that time is taken there, as the original would take it
+ * somewhere inside the routine: the handler runs on time (it sees the port's
+ * work already done, a timing difference), returns to the boundary, and the
+ * rest is paid then. Holding interrupts until the whole debt was paid, as
+ * this did before, started NMI handlers late by up to the length of the call
+ * they interrupted, and pushed their video writes out of vblank (docs/RECOMP.md,
+ * "Where video writes land"). So a payment step also ends just after the next
+ * point an interrupt can be raised (snes_interrupt_horizon), where the poll
+ * can see it. A debt owed mid-routine (native_sync) is paid whole, as before. */
+static int32_t pay_debt(NativeRuntime *rt, Snes *s, uint32_t pc)
+{
+    Debt *d = &rt->debts[rt->ndebts - 1];
+    bool here = pc == d->pc && s->cpu.s == d->s;
+    if (d->at_boundary && !here && s->cpu.s < d->s)
+        return DEBT_WAITS;   /* inside a handler taken during the payment: the debt waits for its return */
+    if (d->at_boundary && here && interrupt_deliverable(s))
+        return DEBT_INTERRUPT;
+    /* Not here and not deeper: the machine left the boundary some other way
+     * (an interrupt it didn't take after all, a handler that switched
+     * stacks): the time is paid where it is. */
+    uint32_t spend = d->clocks < SNES_CLOCKS_PER_LINE ? d->clocks : SNES_CLOCKS_PER_LINE;
+    if (d->at_boundary)
+        spend = until_interrupt(s, spend);
+    d->clocks -= spend;
+    if (!d->clocks)
+        rt->ndebts--;
+    return (int32_t)spend;
+}
+
 /* After running native code for `a`: account for it and record where it stopped. */
 static void after_run(NativeRuntime *rt, Active *a, Snes *s)
 {
     Job *j = a->job;
     Snes *m = j->m;
     if (rt->mode == NATIVE_ON) {
-        rt->debt += (uint32_t)((uint64_t)m->bus.clocks * a->entry->cost_milli / 1000);
+        owe(rt, s, (uint32_t)estimate_clocks(a->entry, m->bus.clocks, m->bus.dma_clocks - a->dma_mark),
+            j->state != JOB_SYNCING);
         m->bus.clocks = 0;
         if (j->state == JOB_SYNCING) {
             a->phase = PH_SYNC;
@@ -619,8 +750,10 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         }
     } else {
         a->segment_bus_clocks = m->bus.clocks;
+        a->segment_dma_clocks = m->bus.dma_clocks - a->dma_mark;
         a->segment_start = s->master - s->stall_total;
         a->segment_frame = s->frame;
+        a->segment_vblank = s->vline >= SNES_VBLANK_LINE;
         a->segment_horizon = snes_horizon(s);
         a->segment_interrupt_horizon = snes_interrupt_horizon(s);
         memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
@@ -695,7 +828,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
     }
 
     if (a->phase == PH_SYNC) {   /* ON only; intercept has paid the debt by now */
-        s->bus.clocks = 0;
+        count_from(a, s);
         job_run(a->job);
         after_run(rt, a, s);
         *result = 0;
@@ -710,7 +843,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         if (rt->mode == NATIVE_SHADOW) {
             clone_refresh(rt, a, s);
         } else {
-            s->bus.clocks = 0;
+            count_from(a, s);
         }
         job_run(a->job);
         after_run(rt, a, s);
@@ -1470,13 +1603,12 @@ static int32_t intercept(void *ctx, Snes *s)
     rt->prev_step_master = rt->step_master;
     rt->step_master = s->master;
 
-    /* Native code finishes instantly but the original took time. Pay that time
-     * off a scanline at a time so frame boundaries and line events still happen
-     * while the routine "runs". */
-    if (rt->debt > 0) {
-        uint32_t spend = rt->debt < SNES_CLOCKS_PER_LINE ? rt->debt : SNES_CLOCKS_PER_LINE;
-        rt->debt -= spend;
-        return (int32_t)spend;
+    /* Native code finishes instantly but the original took time: pay it
+     * (pay_debt), unless an interrupt taken during the payment is running. */
+    if (rt->ndebts) {
+        int32_t spend = pay_debt(rt, s, pc);
+        if (spend != DEBT_WAITS)
+            return spend;   /* the time, or -1: the interpreter takes the interrupt */
     }
 
     int32_t result = -1;
@@ -1524,8 +1656,9 @@ static int32_t intercept(void *ctx, Snes *s)
             e->fn(s);
             running_direct = NULL;
             if (cpu_pc24(&s->cpu) == pc)
-                return (int32_t)(e->idle_clocks ? e->idle_clocks : snes_clocks_to_next_poll_change(s));
-            return 0;
+                return (int32_t)(e->idle_clocks ? e->idle_clocks
+                                                : until_interrupt(s, snes_clocks_to_next_poll_change(s)));
+            return e->idle_clocks ? 0 : IDLE_EXIT_CLOCKS;
         }
 
         if (rt->nactive == MAX_ACTIVE) {
@@ -1547,8 +1680,8 @@ static int32_t intercept(void *ctx, Snes *s)
         if (rt->mode == NATIVE_SHADOW) {
             clone_refresh(rt, a, s);
         } else {
-            s->bus.clocks = 0;
             a->job->m = s;
+            count_from(a, s);
         }
         job_run(a->job);
         after_run(rt, a, s);
@@ -1707,7 +1840,22 @@ void native_report(const NativeRuntime *rt, FILE *out)
                          "  calibrated cost_milli %.0f\n",
                     st->t_stretches, st->t_estimate_exact, (double)st->t_estimate_error / st->t_stretches,
                     st->t_estimate_max_error, orig / st->t_stretches,
-                    st->t_bus_clocks ? 1000.0 * orig / (double)st->t_bus_clocks : 0.0);
+                    st->t_bus_clocks > st->t_dma_clocks
+                        ? 1000.0 * (orig - (double)st->t_dma_clocks) / (double)(st->t_bus_clocks - st->t_dma_clocks)
+                        : 0.0);
+            /* Exact totals and the error histogram, for aggregating over
+             * movies (tools/suite.py's timing check). */
+            fprintf(out, "    timing: totals original %llu native-bus %llu dma %llu |error| %llu cost_milli %u"
+                         "  error bits",
+                    (unsigned long long)st->t_original_clocks, (unsigned long long)st->t_bus_clocks,
+                    (unsigned long long)st->t_dma_clocks, (unsigned long long)st->t_estimate_error, e->cost_milli);
+            for (unsigned k = 0; k < NATIVE_ERROR_BUCKETS; k++)
+                fprintf(out, " %u", st->t_error_hist[k]);
+            fprintf(out, "\n    timing: vblank stretches %u  max |error| %u  picture max |error| %u  vblank error bits",
+                    st->t_vblank_stretches, st->t_vblank_max_error, st->t_picture_max_error);
+            for (unsigned k = 0; k < NATIVE_ERROR_BUCKETS; k++)
+                fprintf(out, " %u", st->t_vblank_error_hist[k]);
+            fprintf(out, "\n");
             fprintf(out, "    timing: fit horizon %u (%.1f%% of time)  fit interrupts %u (%.1f%% of time)\n",
                     st->t_fit_horizon, orig ? 100.0 * st->t_fit_horizon_clocks / orig : 0.0, st->t_fit_interrupt,
                     orig ? 100.0 * st->t_fit_interrupt_clocks / orig : 0.0);

@@ -1,0 +1,32 @@
+# Accepted over-limit entries of the timing gate (tools/timing_gate.py;
+# docs/RECOMP.md, "The timing gate").
+#
+# One per line: entry limit reason...
+#   entry   a hand port's name, as in game/registry.c
+#   limit   drift, vblank-tail, vblank-worst or worst
+#   reason  why the error doesn't reach the budget the limit stands for (required)
+#
+# Each of these is an entry whose time follows its data in a way one scalar
+# can't, and whose error was shown not to reach a budget that matters: the
+# vblank check (tools/vblank_check.py) finds none of their writes moved.
+
+# The decompressor: a call is 260-290 lines on average (a frame is 262),
+# seven times the length of vblank, and interrupts are taken during its time: its error
+# moves the end of a load (by 6% of it on average), not a video write. Its time
+# follows the compressed data, literals against copies of every length.
+decompress vblank-tail a load 7 vblanks long on average; its error moves the end of the load, not a video write
+decompress vblank-worst as for vblank-tail: the error of a call that starts in vblank lands frames later, at the load's end
+decompress worst as for vblank-tail: 6% of a 260-line call on average; a load ends a frame sooner or later
+decompress_direct vblank-tail the decompressor writing straight to memory: as decompress
+decompress_direct vblank-worst as decompress
+decompress_direct worst as decompress
+
+# Main-loop work that runs on into vblank after the NMI handler, writing RAM
+# (tables and tile buffers the next frame uploads), not video registers: its
+# error moves when the RAM is ready, and the calls are as long as vblank or
+# longer, so the original's own time already runs them into the picture.
+field_rasterize_quad vblank-tail rasterizes a window shape into a RAM table (35 lines a call, as long as vblank); 7.5% error, the time follows the quadrilateral's edges
+field_rasterize_quad vblank-worst as for vblank-tail: at most 14885 clocks (11 lines) in a call of 35 lines or more, writing RAM
+menu_object_wave_hdma vblank-tail fills a RAM scroll-wave table in 53-line calls, longer than vblank; its error never exceeds 1396 clocks (one line), just over the tail's 1024
+menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 18-line calls; its time follows the glyph's pixels; at most 2658 clocks (two lines)
+menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; at most 4509 clocks (3.3 lines) in vblank

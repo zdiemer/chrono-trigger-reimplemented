@@ -616,9 +616,12 @@ blocks stopped at the horizon.
 
 ### Hand ports in `on` mode
 
-Hand ports still charge estimated time (`cost_milli` times their bus clocks)
-after they stop, a scanline at a time with interrupts held, and sync explicitly
-where they talk to the APU ([PORTING.md](PORTING.md)). Their time can't be made
+Hand ports still charge estimated time (`cost_milli` times their bus clocks;
+since the timing gate, DMA's time as it is plus `cost_milli` times the rest)
+after they stop, a scanline at a time (interrupts were held until it was paid;
+since the timing gate they are taken during it), and sync explicitly where they
+talk to the APU ([PORTING.md](PORTING.md)). The measurements below predate
+both. Their time can't be made
 exact without running the original, and any error moves everything after it:
 registering the hand ports of one subsystem at a time (with all generated
 blocks), `new-game` departs from the interpreter-only run for every subsystem
@@ -948,7 +951,7 @@ branched), mapped to its block through the build's generated C. The categories:
 
 **Pass/fail.** The check exits 0 only when every failing finding is listed in
 `tools/vblank_check_exceptions.txt` (`routine group category reason`), checked
-in with reasons. It is empty: nothing found so far is harmless.
+in with reasons. It lists three, the boot program's ("The timing gate", below).
 
     python3 tools/vblank_check.py --ct-dev build/main/ct_dev -j 2
     python3 tools/vblank_check.py --no-run --failing-only     # re-read the logs in build/vblank
@@ -957,9 +960,9 @@ Both runs of all 26 movies take about 730 CPU seconds (6 minutes at `-j 2`;
 `on` mode is fast). Logs go to `build/vblank`: they name ROM addresses.
 `tests/test_vblank_check.py` covers the comparison on made-up logs.
 
-**What it found** (the 26 movies, before the timing spike's changes). The
-shipping mode damages the picture on this axis today, in four ways, all of them
-the hand ports' estimated time:
+**What it found** (the 26 movies, before the timing gate's changes). The
+shipping mode damaged the picture on this axis in four ways, all of them the
+hand ports' estimated time:
 
 - **Late NMIs in battle.** `battle_nmi` (`$D1:E77C`) forces blank and turns
   HDMA off with the display on, from line 2 down: 255 times in the 11 movies with
@@ -997,6 +1000,207 @@ shipping mode makes on a picture line is in forced blank. The 22 `unmatched`
 findings are all forced-blank writes too, mostly menu loads (`menu_clear_vram`
 and others) whose original does the work in code past the port's last call
 site, where the region can't follow it.
+
+The timing gate's changes (next) cleared all of these but the boot program's
+three, which are accepted.
+
+### The timing gate
+
+The timing decision (PLAN.md, Phase 2) accepts timing *differences* in the
+shipping mode and bounds timing *errors*. This is the bound: every hand port's
+estimated time is measured against the original's over the movie library, on
+every suite run, and each entry is held to limits tied to the budgets an error
+could break. It is one check of `tools/suite.py`; the vblank check above and a
+route runner join it before `ct_play`'s default flips (PLAN.md).
+
+| Path | What |
+|---|---|
+| `tools/timing_gate.py` | Parses `--timing-report` output, sums it per entry over the movies, checks the limits, `--table`, `--calibrate` |
+| `tools/timing_exceptions.txt` | Entries allowed over a limit, each with its reason |
+| `tools/suite.py` | Runs the shadow movies with `--timing-report`; its `CHECKS` table runs the trace comparison and then the timing check |
+| `runtime/port/native.c` | The report's exact totals, DMA share and error histograms; the estimate (DMA as is); paying debt with interrupts taken; the idle exit |
+| `runtime/snes/bus.c` | `SnesBus.dma_clocks`: DMA's time, which the estimate takes as it is |
+| `game/registry.c` | Every measured entry's `cost_milli`, calibrated |
+| `tests/test_timing_gate.py` | Aggregation, limits, exceptions and calibration on made-up reports |
+
+**What is measured.** Shadow mode's timing counters (the spike above) run on
+every shadow run whether or not `--timing-report` is given; the switch only
+prints them, a few lines per entry at exit, so the suite's runs carry it at no
+cost. The report now also gives the exact totals (the original's time, the
+port's bus clocks and their DMA part, the summed error), the error histogram by
+bit length, and the same for the stretches that began on a vblank line, with
+the largest error there and on picture lines. The original runs on the
+interpreter in shadow mode, so none of it moves with the estimates; only the
+error does. `tools/timing_gate.py` sums the reports over the 26 movies, weighted
+by stretch count: 414 entries, 113.4 million stretches.
+
+**The estimate.** A port's time was `cost_milli`/1000 times all of its bus
+clocks. A DMA transfer's time counts among them (the `$420B` write takes the
+whole transfer), and DMA takes the same time in the port as in the original,
+while the rest of the bus clocks stand for a few times their length in
+instructions. One ratio can't fit both in a port that does some of each, so a
+port's estimate is now its DMA time as it is plus `cost_milli`/1000 times the
+rest (`estimate_clocks`), and the calibrated `cost_milli` leaves DMA out of both
+sides. This is a better estimate, not a per-path cost: ports carry nothing new.
+
+**Calibration.** `python3 tools/timing_gate.py build/suite/shadow-*.log
+--calibrate game/registry.c` sets every measured entry to the value its totals
+imply. The event command and field upload tables' macros take the value as an
+argument, so each entry has its own. Over the library:
+
+| | exact | mean \|error\| | share of port time | net drift | off by >= 1024 clocks | entries over drift |
+|---|---|---|---|---|---|---|
+| Before (hand-set `cost_milli`) | 7.4% | 78.4 clocks | 7.79% | +2.085% | 0.774% | 208 |
+| Recalibrated | 8.7% | 41.2 clocks | 4.09% | +0.003% | 0.172% | 0 |
+| DMA as is, recalibrated | 9.0% | 38.1 clocks | 3.79% | +0.001% | 0.104% | 0 |
+
+(The spike's "125 clocks on average" was over a different run's counters; these
+are from the totals.) What one scalar fixed is the systematic part: 208 entries
+had drifted more than the limit below, some by far (`event_cmd_follow_party_member`
++135%, `battle_divide` +69%, `battle_nmi` +33%, `tile_animation_upload` -27%,
+`field_vram_transfer` +288%), and all are now within 0.03%. Taking DMA as it is
+fixed the ports that mix a transfer with code: `tile_animation_upload` from 31%
+mean error to 3.1%, `field_upload_vram_queue` 33% to 8.9%, `battle_upload_vram`
+4.1% to 0.7%, `menu_object_nmi` 4.4% to 0.7%, `field_fill_memory` 1.3% to 0.
+
+What a scalar can't fix is the spread: entries whose original time follows
+their data or their path (the spike's "more than eight hidden-time values")
+keep a large error per call around a mean that is now right.
+`field_update_objects` (28.7% of a 115-clock call), `field_nmi` (29%),
+`menu_run_objects` (41%), `battle_draw_window` (33%), `battle_draw_menu_window`
+(28%) and `field_build_sprite_table` (19%) are the largest; all but the six
+exceptions below are within the limits anyway, because their errors are small
+in clocks or fall outside vblank. None was split: no split of these reads
+naturally as source (their variation is inside one loop or one helper, not
+between two entry paths the game names), and none needed one to meet a budget.
+
+**The limits** (`tools/timing_gate.py`), each from what an error of that kind
+can break. An error moves the work after the port's call; with interrupts now
+taken on time during a port's time (below), what it can move past is the end
+of vblank, for work done in vblank, and the end of the frame's work, for the
+rest.
+
+| Limit | Bound | Why |
+|---|---|---|
+| `drift` | \|mean signed error\| <= 1364/357368 = 0.38% of the entry's time | A systematic error adds up over every call in a frame. At this bound, a frame spent entirely in the entry would end its work one scanline off. |
+| `vblank-tail` | at most 1% of the stretches that begin in vblank off by >= 1024 clocks | In vblank the NMI handler does the frame's video work, and an error of about a line (the histogram's bound nearest one, 3/4 of a line) moves the handler's later writes a line nearer the picture. |
+| `vblank-worst` | no stretch that begins in vblank off by more than 12617 clocks | A quarter of vblank (37 lines, 50468 clocks): a spike that takes a quarter of the handler's time. |
+| `worst` | no stretch on a picture line off by more than 50468 clocks | On picture lines an error moves the main loop's work within its frame; interrupts come on time and raster writes are the vblank check's. What it can break is the frame: an error longer than vblank can push work that ended before the NMI past it, and the frame's update slips. |
+
+Mean and worst are kept apart because they break different things: the mean
+error (drift) accumulates and is what a scalar fixes, so its bound is tight and
+relative; single spikes don't accumulate, so their bounds are absolute and sized
+by the budget they could hit. Drift and `vblank-tail` need 100 stretches to
+judge.
+
+The drift bound is tight enough that it holds only for a calibrated value: an
+entry's drift over one part of the library differs from its drift over all of it
+by far more than 0.38% (over the two movies `gato-battle` and `battle-magus` alone, more than 80 entries are over
+it, `battle_cycle_party_palettes` by +29%). So adding a movie to the library, or
+a port, means running `--calibrate` again, which is the point: `cost_milli` is
+the measured value, not a guess. That variation between scenes is real
+systematic error in the frames it happens in, and the per-stretch limits are
+what bound it where it could matter.
+
+An entry over a limit fails unless `tools/timing_exceptions.txt` lists it
+for that limit with a reason; an exception an entry no longer needs is reported,
+so the list doesn't go stale.
+
+**Exceptions** (6 entries, 11 limits). Each is an entry whose time follows its
+data in a way one scalar can't, and whose error was shown not to reach the
+budget: the vblank check finds none of their writes moved.
+
+| Entry | Over | Why it doesn't matter |
+|---|---|---|
+| `decompress`, `decompress_direct` | `vblank-tail`, `vblank-worst`, `worst` | 350k-395k clocks a call on average (260-290 lines, seven vblanks), mean error 6%, the largest 296k and 333k. Interrupts are taken during its time, so the error moves the end of a load, not a video write. Its time follows the compressed data (literals against copies of every length). |
+| `field_rasterize_quad` | `vblank-tail`, `vblank-worst` | Rasterizes a window shape into a RAM table, 35 lines a call (as long as vblank), 7.5% error, at most 14885 clocks. Main-loop work running on into vblank after the NMI, writing RAM, and the original's own time already runs it into the picture. |
+| `menu_object_wave_hdma` | `vblank-tail` | Fills a RAM scroll-wave table in 53-line calls, longer than vblank; its error never exceeds 1396 clocks (one line), just over the tail's 1024. |
+| `menu_draw_glyph` | `vblank-tail` | Draws a glyph into the menu's tile buffer in RAM, 18-line calls; at most 2658 clocks (two lines). |
+| `menu_draw_text` | `vblank-tail` | Draws text into the menu's tilemap buffer in RAM, 19-line calls; at most 4509 clocks in vblank. |
+
+**Interrupts during a port's time.** The vblank check (above) found the
+shipping mode's worst damage, and recalibration alone didn't clear it: with the
+calibrated values the 16 failing findings were still all there, most of them
+smaller (`field_nmi`'s black bands 1348 to 6, `battle_nmi`'s mid-picture blanks
+255 to 64). The cause was how a port's time is paid. A port runs to completion
+at once and its time is charged afterwards, a scanline at a time, and
+interrupts waited until the whole debt was paid: an NMI arriving during a long
+port was taken up to that port's length late, and the handler's video writes
+went with it. The spike saw the same with `scene_multiply`, whose totals were
+exact and still drifted.
+
+Now a debt is owed at a place: the instruction boundary where the port stopped
+(its return address, or the first instruction of a callee it called out to),
+with S as it was there (`owe`, `pay_debt`). While the machine is at that
+boundary the debt is paid, and an interrupt the CPU would recognize is taken
+there instead, as the original would take it somewhere inside the routine: the
+handler runs on time (seeing the port's work already done, a timing difference
+the decision accepts), returns to the boundary, and the rest is paid then. A
+payment step also ends just after the next point an interrupt can be raised
+(`until_interrupt`, from the spike's `snes_interrupt_horizon`), so the poll sees
+it that step; an interrupt already raised and not yet seen (a V-timer IRQ at the
+start of the line the step starts on) ends the step after one cycle. Debts nest
+as handlers run ports of their own. Two cases keep the old behaviour: a debt a
+port owes mid-routine (`native_sync`, where the port is suspended between two
+APU accesses and there is no instruction boundary) is paid whole, and if the
+machine leaves the boundary some other way than by an interrupt, the debt is
+paid where it is. Idle waits end their steps at the same points, so a line IRQ
+arriving during one is no longer taken at the next hblank change.
+
+**The idle exit.** The raster split one line early was a separate cause: an
+idle entry's waiting pass skips to the point the polled bits change, so the
+exit pass saw the change at the change itself, and the line IRQs' forced blank
+after their hblank wait landed at hclock 1102, before the line is drawn (1104).
+The original sees a change on the first read of its next pass and then falls
+through its branch. An idle entry that waits for a change (no `idle_clocks`)
+now charges its exit pass `IDLE_EXIT_CLOCKS`, the shortest such loop's pass
+(`LDA abs`/`AND #`/`BEQ`, 54 clocks), so the code after the loop lands no
+earlier than the original's could.
+
+**The vblank check, before and after** (failing findings over the 26 movies):
+
+| | Failing findings |
+|---|---|
+| Before (the hand-set `cost_milli`) | 16 |
+| Recalibrated only | 16, most of them smaller |
+| + interrupts taken during a port's time | 6: both line IRQs' split at line 211, `battle_irq` a line late 20 times, the boot program's three |
+| + the idle exit | 5: `battle_irq` and its blank a line late about 15 times in 5 movies, the boot program's three |
+| + the step that sees an IRQ already raised | 3, the boot program's, accepted |
+
+(These were measured with the scalar calibration; the final build, with DMA
+taken as it is and recalibrated, has the same three and nothing else, and 4
+`late` findings where the first run had 36.)
+
+The three left are writes the original also makes on the picture: the boot and
+title program at `$7E:3000` shows the title's layers from line 32 instead of 31
+(`scene_show_layers`), and blanks from line 40 instead of 38 on the frame before
+it restarts (`scene_program_restart`, display and HDMA enable), once each per
+movie. They land wherever the frame's main-loop work has got to, which in the
+shipping mode is estimated; they are in `tools/vblank_check_exceptions.txt`.
+
+None of this touches `--recomp only` (no hand ports, so no debt and no idle
+entries) or shadow mode (no debt), and the trace identity check is unchanged:
+`new-game` shows no divergence in 7200 frames.
+
+**Failing.** With `battle_draw_sprite_parts`'s `cost_milli` set from 3011 to
+3500 (the entry with the most hand-port time), the whole suite fails and names
+it, with its numbers:
+
+    26 of 26 movies clean in 529s
+    timing: 1 of 414 entries over the limits  <-- FAILED
+      battle_draw_sprite_parts over the drift limit: +16.26% (limit +/-0.38%)
+          1855861 stretches in 11 movie(s), mean time 5542, mean |error| 901 (16.3%), drift +16.26%,
+          max 2189; in vblank 46330, off by >= 1024 clocks 0.17%, max 2177; cost_milli 3500, calibrated 3011
+    FAILED: timing
+
+**Cost.** Nothing measurable: the counters were already there, the report adds a
+few lines per entry to each shadow log, and parsing 26 logs takes under a
+second. The suite at `-j 2` runs its 26 shadow movies in about 520-550 seconds
+(716 in the baseline run, on a busier machine).
+
+    python3 tools/suite.py --ct-dev build/main/ct_dev -j 2        # the gate, timing check included
+    python3 tools/timing_gate.py build/suite/shadow-*.log --table # every entry's numbers
+    python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c
 
 ## Closing the interpreted remainder (M3)
 

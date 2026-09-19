@@ -26,6 +26,9 @@ Nothing lands without it, and it is the same gate for every phase:
 
 - every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines;
 - `--native on --recomp only` traces identically to `--native off`;
+- every hand port's estimated time stays within the timing gate's limits over
+  the shadow runs, or is on its exceptions list with a reason
+  (`tools/timing_gate.py`; RECOMP.md, "The timing gate");
 - `--misses` stays empty;
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
@@ -62,22 +65,20 @@ generated block. The decision drawn from it:
   scripts (`tools/movies`) running through `ct_drive` with `--native on`,
   which it can't do yet (TODO.md).
 
-**Next: the timing gate.** What it measures is already there:
-`ct_dev --native shadow --timing-report` gives each hand-port entry's estimate
-error per call (mean and largest), and the `cost_milli` its measured totals
-imply, over the stretches no interrupt fell in; the original runs on the
-interpreter there, so the numbers don't drift with the estimates. What it
-needs:
+**Next: finish the timing gate.** Its core is in `tools/suite.py`: every
+entry's estimate error, measured over the shadow runs, against limits tied to
+the budgets an error could break, with `cost_milli` calibrated from the
+measurement and the entries a scalar can't fix on a checked-in exceptions
+list; and `on` mode now takes interrupts during a port's time, which with the
+calibration cleared the vblank check's findings (RECOMP.md, "The timing
+gate"). What is left:
 
-- the gate: a threshold on each entry's estimate error over the movie library,
-  checked by `tools/suite.py` alongside the shadow run it already makes;
-- `cost_milli` recalibrated for every entry from the measured totals, and the
-  worst offenders (entries whose error per call stays large because their time
-  varies with the path) fixed case by case -- by splitting the entry, or by
-  a better estimate, not by cycle annotations;
-- a check that video writes landing in vblank in the original still land in
-  vblank under `--recomp on` (ports charge their time after they run, so a
-  late write can slip past the end of vblank), reported per port.
+- wire `tools/vblank_check.py` into the suite as a row of its `CHECKS` (a
+  function returning a summary line, and `--no-vblank` to skip it); it passes
+  today with three accepted findings;
+- wire in the route runner, so the shipping mode has an end-to-end test (the
+  `ct_drive --native on` work, TODO.md), the same way;
+- then flip `ct_play`'s default to `--recomp on`.
 
 **Done when** the gate is in `tools/suite.py` and passing, and `ct_play`'s
 default is `--recomp on`.

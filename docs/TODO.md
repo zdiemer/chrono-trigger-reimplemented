@@ -10,10 +10,13 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **Hand ports' time is an estimate**, so `--native on --recomp on` drifts from
   the original (battles play out differently). That difference is accepted
-  (PLAN.md, Phase 2's timing decision); timing *errors* are what the timing
-  gate will measure and bound: per-entry estimate error from
-  `--timing-report`, `cost_milli` recalibration, and video writes that leave
-  vblank. `--recomp only` stays exact.
+  (PLAN.md, Phase 2's timing decision); the timing gate bounds the errors
+  (RECOMP.md, "The timing gate"). Left open there: six entries whose time
+  follows their data are on `tools/timing_exceptions.txt` (the decompressor,
+  menu text and glyphs, `field_rasterize_quad`, `menu_object_wave_hdma`);
+  a debt a port owes mid-routine (`native_sync`) is still paid whole with
+  interrupts held; and adding a movie or a port means recalibrating, since the
+  drift limit holds only for the measured value. `--recomp only` stays exact.
 - **The shipping mode has no end-to-end test.** Movies desync under
   `--recomp on`, so they only regression-test `--recomp only`. The state-driven
   route scripts (`tools/movies`, docs/MOVIES.md) survive timing changes, but
@@ -44,11 +47,9 @@ rest waits, is [PLAN.md](PLAN.md).
   which is what PLATFORM's later milestones need.
 - **The vblank check into the timing gate.** `tools/vblank_check.py`
   (RECOMP.md, "Where video writes land") runs on its own; `tools/suite.py`
-  should run it when the timing gate is assembled, failing on any finding not
-  in `tools/vblank_check_exceptions.txt`. It fails today on late battle and
-  field NMIs, black bands from late display restores, the line IRQs' raster
-  split one line early (`field_irq_after_hblank`, `battle_irq_after_hblank`:
-  the last playfield line is black every frame) and late line IRQs. Two gaps in
+  should run it as a row of its `CHECKS`, failing on any finding not in
+  `tools/vblank_check_exceptions.txt`. It passes today, with the boot
+  program's three findings accepted (RECOMP.md, "The timing gate"). Two gaps in
   it: a hand port's region ends at its last service call, so the reference's
   work in code the original jumps to past it is `unmatched` (the menu loads);
   following the call stack in the reference would close that. And it names the

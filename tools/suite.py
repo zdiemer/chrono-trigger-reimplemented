@@ -1,14 +1,16 @@
-"""Run the movie suite: every movie in shadow mode, then the trace comparison.
+"""Run the movie suite: every movie in shadow mode, then the gate's checks.
 
     python3 tools/suite.py --ct-dev build/main/ct_dev [--rom roms/ct-usa.sfc]
     python3 tools/suite.py --ct-dev build/main/ct_dev --only saves
     python3 tools/suite.py --ct-dev build/main/ct_dev --movies gato-battle field
-    python3 tools/suite.py --ct-dev build/main/ct_dev --no-trace-check -j 6
+    python3 tools/suite.py --ct-dev build/main/ct_dev --no-trace --no-timing -j 6
 
 This is the validation gate (CLAUDE.md, "Validation"): every movie run with
-`--native shadow` must exit 0 with no `mismatched [1-9]` line, and
-`--native on --recomp only` must produce a trace identical to `--native off`.
-Exit status is 0 only when all of that holds.
+`--native shadow` must exit 0 with no `mismatched [1-9]` line; then the checks
+in CHECKS run, each printing one line: `--native on --recomp only` must produce
+a trace identical to `--native off`, and every hand port's estimated time must
+stay within the timing gate's limits over the shadow runs' `--timing-report`
+(tools/timing_gate.py). Exit status is 0 only when all of that holds.
 
 Each movie's frame count comes from its own `# frames N` header, and a movie
 that starts from a cartridge save finds it by CRC-32 among the committed ones
@@ -28,6 +30,10 @@ import shutil
 import subprocess
 import sys
 import time
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from tools import timing_gate  # noqa: E402
 
 MISMATCH = re.compile(rb"mismatched [1-9]")
 FRAMES = re.compile(r"^# frames (\d+)", re.M)
@@ -65,7 +71,7 @@ def run_movie(binary, rom, out, name, path, frames):
     """One shadow run. Returns (name, ok, detail)."""
     log = out / ("shadow-%s.log" % name)
     cmd = [str(binary), "--rom", str(rom), "--movie", str(path),
-           "--frames", str(frames), "--native", "shadow",
+           "--frames", str(frames), "--native", "shadow", "--timing-report",
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name))]
     started = time.time()
@@ -108,6 +114,39 @@ def trace_check(binary, rom, out, movie, frames):
     return diff.returncode == 0 and "no divergence" in tail, tail
 
 
+# ---- the checks after the shadow runs -------------------------------------------
+#
+# Each takes the parsed arguments and the context of the shadow runs and
+# returns (ok, label, one-line summary, detail lines to print under it). The gate
+# runs them in order after the shadow runs. Adding a check is a function here
+# and a row in CHECKS, with a --no-<name> switch to skip it while iterating.
+
+def check_trace(args, ctx):
+    """`--recomp only` against `--native off` on one movie."""
+    ok, detail = trace_check(ctx["binary"], args.rom, args.out, args.trace_movie, args.trace_frames)
+    return ok, "trace identity (%s)" % args.trace_movie, detail, []
+
+
+def check_timing(args, ctx):
+    """The hand ports' estimated time against the original's (tools/timing_gate.py)."""
+    agg = timing_gate.load(args.out / ("shadow-%s.log" % name) for name in ctx["movies"])
+    if not agg:
+        return False, "timing", "no --timing-report output in the shadow logs", []
+    result = timing_gate.check(agg, timing_gate.read_exceptions(timing_gate.EXCEPTIONS))
+    lines = timing_gate.failure_lines(result)
+    if not ctx["complete"]:
+        lines.append("note: measured over %d of the library's %d movies" % (len(ctx["movies"]), ctx["library"]))
+    return not result.failures, "timing", timing_gate.summary(result), lines
+
+
+
+CHECKS = (
+    # name, function, what --no-<name> skips
+    ("trace", check_trace, "the --recomp only trace comparison"),
+    ("timing", check_timing, "the timing gate over the shadow runs"),
+)
+
+
 def main():
     ap = argparse.ArgumentParser(prog="python3 tools/suite.py")
     ap.add_argument("--ct-dev", type=pathlib.Path, required=True, help="the ct_dev to run")
@@ -119,8 +158,9 @@ def main():
                     help="concurrent movies (default: half the CPUs, at least 1)")
     ap.add_argument("--trace-movie", default="new-game")
     ap.add_argument("--trace-frames", type=int, default=7200)
-    ap.add_argument("--no-trace-check", action="store_true",
-                    help="skip the --recomp only trace comparison")
+    for name, _fn, what in CHECKS:
+        ap.add_argument("--no-%s" % name, action="store_true", help="skip " + what)
+    ap.add_argument("--no-trace-check", action="store_true", help=argparse.SUPPRESS)   # the old spelling
     args = ap.parse_args()
 
     binary = args.ct_dev.resolve()
@@ -156,15 +196,23 @@ def main():
     print("%d of %d movies clean in %.0fs"
           % (len(movies) - len(bad_movies), len(movies), time.time() - started))
 
-    trace_ok = True
-    if not args.no_trace_check:
-        trace_ok, detail = trace_check(binary, args.rom, args.out,
-                                       args.trace_movie, args.trace_frames)
-        print("trace identity (%s): %s" % (args.trace_movie, detail), flush=True)
+    args.no_trace |= args.no_trace_check
+    library = len(collect("all", set()))
+    ctx = {"binary": binary, "movies": [m[0] for m in movies], "library": library,
+           "complete": library == len(movies)}
+    failed = ["movies: " + ", ".join(bad_movies)] if bad_movies else []
+    for name, fn, _what in CHECKS:
+        if getattr(args, "no_" + name):
+            continue
+        ok, label, summary, details = fn(args, ctx)
+        print("%s: %s%s" % (label, summary, "" if ok else "  <-- FAILED"), flush=True)
+        for line in details:
+            print("  " + line)
+        if not ok:
+            failed.append(name)
 
-    if bad_movies:
-        print("FAILED: " + ", ".join(bad_movies))
-    if bad_movies or not trace_ok:
+    if failed:
+        print("FAILED: " + "; ".join(failed))
         return 1
     print("suite OK")
     return 0
