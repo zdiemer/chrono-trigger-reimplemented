@@ -7,7 +7,7 @@ from pathlib import Path
 from . import coverage as coverage_mod
 from . import hints as hints_mod
 from .analyze import Analyzer, describe_widths
-from .liveness import ALL, Liveness, describe as describe_live
+from .liveness import ALL, Liveness, dc_mask, dc_text, describe as describe_live
 from .memmap import Rom, bus_to_offset, fmt, offset_to_bus
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -151,6 +151,7 @@ def write_liveness(an: Analyzer, lv: Liveness, out: Path) -> str:
             "live_in": describe_live(lv.func_live_in[e]),
             "live_after_return": describe_live(lv.ret_live[e]),
             "dead_after_return": describe_live(ALL & ~lv.ret_live[e]),
+            "dont_care": dc_text(dc_mask(ALL & ~lv.ret_live[e])),
             "all_live_reason": lv.reasons.get(e),
         }
     (out / "liveness.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")

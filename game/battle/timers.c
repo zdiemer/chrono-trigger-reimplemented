@@ -293,12 +293,11 @@ static bool run_effect_slots(Snes *s, uint16_t last, uint16_t active, uint16_t d
  * returns if $A0FD is set and otherwise continues at $CF:F978. */
 void battle_step_effect_slots(Snes *s)
 {
-    Cpu *c = &s->cpu;
     if (m_lda8(s, m_read8(s, m_abs(s, 0xA013))) == 0) {
         if (m_lda8(s, m_read8(s, m_abs(s, 0xA0FD))) != 0)
             m_rts(s);
         else
-            c->pc = 0xF978;
+            m_stop_at(s, 0xCFF978, 0);
         return;
     }
     if (!run_effect_slots(s, 0x000A, 0xA337, 0xA2EB, 0xA2FE, 0xA86D, 0xF01E, 0xCFEFE6))

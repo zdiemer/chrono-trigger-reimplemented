@@ -278,6 +278,8 @@ int main(int argc, char **argv)
         unsigned long timeouts = native_call_timeouts;
         native_call_steps = 0;
         native_stop_dont_care_direct = 0;
+        native_stop_at_direct = 0;
+        native_returned_direct = false;
         if (!native_fiber)
             native_fiber = fiber_create(native_fiber_main, NULL);
         fiber_switch(native_fiber);
@@ -291,6 +293,18 @@ int main(int argc, char **argv)
         }
         uint32_t stop_pc = cpu_pc24(&native.cpu);
         uint16_t stop_s = native.cpu.s;
+        if (native_stop_at_direct && native_stop_at_direct != stop_pc && !native_is_return(&orig, native_stop_at_direct)) {
+            if (mismatched++ < 10)
+                fprintf(stderr, "iteration %lu: stopped at %06X, but declared what is dead at %06X\n", it, stop_pc,
+                        native_stop_at_direct);
+            continue;
+        }
+        if (!native_stop_at_direct && !native_returned_direct && e->dont_care) {
+            if (mismatched++ < 10)
+                fprintf(stderr, "iteration %lu: stopped at %06X without declaring it (m_stop_at), with a don't-care set\n",
+                        it, stop_pc);
+            continue;
+        }
         /* A routine that jumps back to its own entry stops where it started,
          * so the original has to run at least one instruction to get there. */
         bool back_at_entry = stop_pc == e->addr && stop_s == entry_s &&

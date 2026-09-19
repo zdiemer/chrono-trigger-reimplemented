@@ -34,11 +34,7 @@ static bool widths_are(Snes *s, uint8_t mx)
 }
 
 /* Stop at `pc` in bank $C2, handing the rest to the original. */
-static void stop_at(Snes *s, uint16_t pc)
-{
-    s->cpu.pb = 0xC2;
-    s->cpu.pc = pc;
-}
+static void stop_at(Snes *s, uint16_t pc) { m_stop_at(s, 0xC20000u | pc, 0); }
 
 /* STZ abs (16-bit) : LDX #from : LDY #from+2 : LDA #count : MVN $7E,$7E,
  * filling count+2 bytes with zeros. */

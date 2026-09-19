@@ -48,7 +48,9 @@
  * original's time per native bus-access clock, x1000, DMA's time left out:
  * calibrated from the movie library by `tools/timing_gate.py --calibrate`
  * (docs/RECOMP.md, "The timing gate"). dont_care comes from
- * disasm/out/liveness.json ("dead_after_return"). */
+ * disasm/out/liveness.json ("dont_care"), and applies wherever the port
+ * finishes: after it returns and at every stop it declares with m_stop_at.
+ * tools/dontcare_check.py checks it against liveness. */
 const NativeEntry game_natives[] = {
     /* battle */
     { .addr = 0xC10299, .name = "battle_draw_window", .fn = battle_draw_window, NEEDS_M8_X16_BINARY,
@@ -185,7 +187,7 @@ const NativeEntry game_natives[] = {
       .cost_milli = 4300 },
     { .addr = 0xCD0ADE, .name = "battle_step_cdc9", .fn = battle_step_cdc9, NEEDS_M8, .cost_milli = 3467 },
     { .addr = 0xC11C55, .name = "battle_build_object_graphics", .fn = battle_build_object_graphics,
-      NEEDS_M8_X16_BINARY, .cost_milli = 3303, .dont_care = DC_X | DC_N | DC_Z | DC_C },
+      NEEDS_M8_X16_BINARY, .cost_milli = 3303, .dont_care = DC_N | DC_Z },
     { .addr = 0xC11C4A, .name = "battle_build_object_graphics_checked", .fn = battle_build_object_graphics_checked,
       NEEDS_M8_X16_BINARY, .cost_milli = 4000, .dont_care = DC_N | DC_Z },
     { .addr = 0xC10089, .name = "battle_multiply_8x8", .fn = battle_multiply_8x8, NEEDS_M8, .cost_milli = 3591, .dont_care = DC_N | DC_Z },
@@ -294,7 +296,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xFDE022, .name = "tile_animation_upload", .fn = tile_animation_upload, NEEDS_M8_X16_BINARY,
       .cost_milli = 3160 },
     { .addr = 0xC284EC, .name = "input_read_joypad", .fn = input_read_joypad, .p_mask = CPU_FLAG_X, .p_value = 0,
-      .cost_milli = 2887, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
+      .cost_milli = 2887, .dont_care = DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC28545, .name = "input_map_buttons", .fn = input_map_buttons, .cost_milli = 3767,
       .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC00B4E, .name = "display_blank_and_stop_interrupts", .fn = display_blank_and_stop_interrupts,
@@ -416,7 +418,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC058DE, .name = "event_run_init_scripts", .fn = event_run_init_scripts,
       NEEDS_M8_X16, .cost_milli = 4476 },
     { .addr = 0xC05A93, .name = "event_run_object_script", .fn = event_run_object_script,
-      NEEDS_M8_X8, .cost_milli = 4150, .dont_care = DC_X | DC_N | DC_Z | DC_C },
+      NEEDS_M8_X8, .cost_milli = 4150, .dont_care = DC_N | DC_Z },
 
     /* event commands. Entered through the command table with
      * 8-bit A and 16-bit X and Y; N and Z are dead after return. */
@@ -645,7 +647,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0ACFD, .name = "field_start_step", .fn = field_start_step,
       NEEDS_M8_X16_BINARY, .cost_milli = 4080, .dont_care = DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC05B95, .name = "field_object_in_the_way", .fn = field_object_in_the_way,
-      NEEDS_M8_X16_BINARY, .cost_milli = 4560, .dont_care = DC_X | DC_N | DC_Z },
+      NEEDS_M8_X16_BINARY, .cost_milli = 4560, .dont_care = DC_N | DC_Z },
     { .addr = 0xC05614, .name = "field_update_walk_animation", .fn = field_update_walk_animation,
       NEEDS_M8_X16_BINARY, .cost_milli = 4625, .dont_care = DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC0568B, .name = "field_stand_animation", .fn = field_stand_animation,
@@ -857,7 +859,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2034D, .name = "menu_hide_all_sprites", .fn = menu_hide_all_sprites, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 3898, .dont_care = DC_X | DC_N | DC_Z },
     { .addr = 0xC2051D, .name = "menu_run_objects", .fn = menu_run_objects, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 5175, .dont_care = DC_X | DC_Y | DC_N | DC_Z },
+      .p_value = 0, .cost_milli = 5175, .dont_care = DC_X | DC_N | DC_Z },
     { .addr = 0xC20CEA, .name = "menu_draw_sprite_nodes", .fn = menu_draw_sprite_nodes, NEEDS_M8_X16_BINARY,
       .cost_milli = 2962, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_DB },
     { .addr = 0xC20B53, .name = "menu_insert_sprite_node", .fn = menu_insert_sprite_node, .p_mask = CPU_FLAG_X,

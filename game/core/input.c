@@ -47,7 +47,7 @@ void input_read_joypad(Snes *s)
     m_set_flag(s, CPU_FLAG_V, status & 0x40);
     m_set_flag(s, CPU_FLAG_Z, (status & TM_STATUS_JOYPAD_BUSY) == 0);
     if (status & TM_STATUS_JOYPAD_BUSY) {
-        c->pc = 0x84F9;   /* BIT $4212 : BNE -- still reading */
+        m_stop_at(s, 0xC284F9, 0);   /* BIT $4212 : BNE -- still reading */
         return;
     }
     m_ldx16(s, dp16(s, 0xF2));
@@ -63,8 +63,7 @@ void input_read_joypad(Snes *s)
     uint16_t pad = m_lda16(s, in_read(pf, PF_AT(0xC2851B), 0));
     m_cmp16(s, pad, 0x3030);
     if (pad == 0x3030) {
-        c->pb = 0xC0;
-        c->pc = 0xFF00;
+        m_stop_at(s, 0xC0FF00, 0);
         return;
     }
     uint16_t held = m_lda16(s, dp16(s, 0xF2));
@@ -85,6 +84,10 @@ void input_read_joypad(Snes *s)
         m_set_index(s, &c->x, dp8(s, 0xFC));
     }
     set_dp8(s, 0xFD, (uint8_t)c->x);
+    /* V is $4212's hblank bit from the BIT above, which native time doesn't
+     * reproduce; nothing reads it after the return (it is live where the
+     * routine stops for a reset, so it isn't the entry's). */
+    m_stop_dont_care(s, 0xC28544, DC_V);   /* the RTS */
     m_rts(s);
 }
 

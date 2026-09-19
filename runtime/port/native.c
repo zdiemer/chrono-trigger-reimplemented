@@ -41,6 +41,8 @@ typedef struct Job {
     uint16_t call_s_after;
     uint16_t call_dont_care;
     uint16_t stop_dont_care;   /* set by native_dont_care_at_stop */
+    uint32_t stop_at;          /* ...with where it applies (0: not called) */
+    bool returned;             /* native_note_return was called */
     struct Job *next_free;
 } Job;
 
@@ -149,6 +151,9 @@ typedef struct Active {
     bool segment_interrupted, interrupted, mismatched;
     uint16_t segment_low_s;   /* SHADOW: the lowest S the original has reached in the segment */
     uint16_t ret_dont_care;   /* SHADOW: the native routine's native_dont_care_at_stop */
+    uint32_t ret_at;          /* ...and where it said the set applies */
+    Cpu call_cpu;             /* SHADOW: the original's registers at the last call-out */
+    bool ret_returned;        /* ...or that it finished by returning */
     uint32_t sync_pc;      /* ON, PH_SYNC: where the machine is while the port is suspended */
     uint16_t sync_s;
 } Active;
@@ -323,6 +328,35 @@ static uint64_t estimate_clocks(const NativeEntry *e, uint32_t bus, uint32_t dma
 }
 
 /* SHADOW: bring the active routine's machine copy up to date with s. */
+/* After a call-out returns, SHADOW mode gives the native routine the
+ * original's machine. A register the call declared don't-care and the callee
+ * left as it found it is the native routine's own again, though: in ON mode
+ * the callee carries the native value through, so a routine that relies on
+ * the original's value there would pass here and ship a wrong register.
+ * `mine` is the native routine's registers at the call, `was` the original's
+ * then; the clone holds the original's now. */
+static void keep_untouched(Cpu *clone, const Cpu *mine, const Cpu *was, uint16_t dont_care)
+{
+    if ((dont_care & DC_A) && (clone->a & 0xFF) == (was->a & 0xFF))
+        clone->a = (uint16_t)((clone->a & 0xFF00) | (mine->a & 0xFF));
+    if ((dont_care & (DC_A | DC_AH)) && (clone->a & 0xFF00) == (was->a & 0xFF00))
+        clone->a = (uint16_t)((clone->a & 0xFF) | (mine->a & 0xFF00));
+    if ((dont_care & DC_X) && clone->x == was->x)
+        clone->x = mine->x;
+    if ((dont_care & DC_Y) && clone->y == was->y)
+        clone->y = mine->y;
+    if ((dont_care & DC_D) && clone->d == was->d)
+        clone->d = mine->d;
+    if ((dont_care & DC_DB) && clone->db == was->db)
+        clone->db = mine->db;
+    static const struct { uint16_t dc; uint8_t flag; } flags[] = {
+        { DC_N, CPU_FLAG_N }, { DC_V, CPU_FLAG_V }, { DC_Z, CPU_FLAG_Z }, { DC_C, CPU_FLAG_C },
+    };
+    for (int i = 0; i < 4; i++)
+        if ((dont_care & flags[i].dc) && (clone->p & flags[i].flag) == (was->p & flags[i].flag))
+            clone->p = (uint8_t)((clone->p & ~flags[i].flag) | (mine->p & flags[i].flag));
+}
+
 static void clone_refresh(NativeRuntime *rt, Active *a, Snes *s)
 {
     int level = (int)(a - rt->active);
@@ -583,14 +617,34 @@ void native_copy_popped_stack(const Snes *o, Snes *c, uint16_t lowest_s)
 }
 
 uint16_t native_stop_dont_care_direct;
+uint32_t native_stop_at_direct;
+bool native_returned_direct;
 
-void native_dont_care_at_stop(Snes *s, uint16_t dont_care)
+void native_note_return(Snes *s)
 {
     Job *j = current_job;
     if (j && j->m == s)
-        j->stop_dont_care = dont_care;
+        j->returned = true;
     else
+        native_returned_direct = true;
+}
+
+void native_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care)
+{
+    Job *j = current_job;
+    if (j && j->m == s) {
+        j->stop_dont_care = dont_care;
+        j->stop_at = at;
+    } else {
         native_stop_dont_care_direct = dont_care;
+        native_stop_at_direct = at;
+    }
+}
+
+bool native_is_return(const Snes *s, uint32_t at)
+{
+    uint8_t op = snes_bus_peek(&s->bus, at & 0xFFFFFF);
+    return op == 0x60 || op == 0x6B || op == 0x40;
 }
 
 /* ---- intercept -------------------------------------------------------------- */
@@ -796,6 +850,8 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     }
     if (j->state == JOB_DONE) {
         a->ret_dont_care = j->stop_dont_care;
+        a->ret_at = j->stop_at;
+        a->ret_returned = j->returned;
         job_put(j);
         a->job = NULL;
         a->ret_s = m->cpu.s;
@@ -817,6 +873,19 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         if (!a->job) {
             if (s->cpu.s == a->ret_s && pc == a->ret_pc) {
                 end_segment(rt, a, s);
+                if (a->ret_at && a->ret_at != pc && !native_is_return(s, a->ret_at)) {
+                    char msg[96];
+                    snprintf(msg, sizeof msg, "stopped at %06X, but declared what is dead at %06X", pc,
+                             a->ret_at);
+                    a->mismatched = true;
+                    detail(rt, "mismatch", a->entry, msg);
+                } else if (!a->ret_at && !a->ret_returned && a->entry->dont_care) {
+                    char msg[112];
+                    snprintf(msg, sizeof msg, "stopped at %06X without declaring it (m_stop_at), with a don't-care set",
+                             pc);
+                    a->mismatched = true;
+                    detail(rt, "mismatch", a->entry, msg);
+                }
                 compare(rt, a, s, a->entry->dont_care | a->ret_dont_care, "at return");
                 finish(rt);
                 return true;
@@ -843,6 +912,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             snprintf(where, sizeof where, "at call to %06X", j->call_target);
             end_segment(rt, a, s);
             compare(rt, a, s, j->call_dont_care, where);
+            a->call_cpu = s->cpu;
             a->phase = PH_CALLOUT;
             return false;
         }
@@ -881,7 +951,9 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         if (interrupt_deliverable(s))
             return false;   /* resume after the interrupt returns here */
         if (rt->mode == NATIVE_SHADOW) {
+            Cpu mine = a->clone->cpu;
             clone_refresh(rt, a, s);
+            keep_untouched(&a->clone->cpu, &mine, &a->call_cpu, j->call_dont_care);
         } else {
             count_from(a, s);
         }
@@ -1578,6 +1650,8 @@ static bool oracle_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st,
     a->job = job_get();
     a->job->entry = e;
     a->job->stop_dont_care = 0;
+    a->job->stop_at = 0;
+    a->job->returned = false;
     a->job->m = s;
     s->bus.clocks = 0;
     job_run(a->job);
@@ -1727,6 +1801,8 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job = job_get();
         a->job->entry = e;
         a->job->stop_dont_care = 0;
+    a->job->stop_at = 0;
+    a->job->returned = false;
         if (rt->mode == NATIVE_SHADOW) {
             clone_refresh(rt, a, s);
         } else {

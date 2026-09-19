@@ -414,7 +414,7 @@ void battle_update_combatant(Snes *s)
         m_lda8(s, absy8(s, 0xAF12));
         m_bit_imm8(s, 0x80);
         if (c->a & 0x80) {
-            c->pc = 0xB2B9;
+            m_stop_at(s, 0xC1B2B9, 0);
             return;
         }
     }
@@ -425,5 +425,5 @@ void battle_update_combatant(Snes *s)
         m_rts(s);
         return;
     }
-    c->pc = 0xB2B1;
+    m_stop_at(s, 0xC1B2B1, 0);
 }

@@ -103,8 +103,7 @@ static void finish_conditional(Snes *s, uint32_t call_site, bool wide)
     m_tax(s);
     if (index >= (wide ? 14 : 16)) {
         /* An operator outside the tables; leave it to the original. */
-        s->cpu.pb = call_site >> 16;
-        s->cpu.pc = call_site & 0xFFFF;
+        m_stop_at(s, call_site, 0);
         return;
     }
     m_jsr_stack_bytes(s, (uint16_t)(call_site + 2));

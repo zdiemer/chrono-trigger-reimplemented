@@ -1,8 +1,11 @@
 """Interprocedural register and flag liveness.
 
-For every function, computes which of A, X, Y, the N/V/Z/C flags, DB and D
-may be read by some caller after the function returns (`ret_live`), and which
-it reads before writing (`live_in`). Ported routines use the complement of
+For every function, computes which of A's low byte (`A`), A's high byte
+(`AH`), X, Y, the N/V/Z/C flags, DB and D may be read by some caller after the
+function returns (`ret_live`), and which it reads before writing (`live_in`).
+The two bytes of A are apart because code working on an 8-bit accumulator
+reads and writes only the low one, and leaves the high one to whatever last
+set it. Ported routines use the complement of
 `ret_live` to know which registers and flags they don't have to reproduce.
 
 The analysis is conservative: unknown control flow, unresolved indirect
@@ -29,10 +32,13 @@ from collections import defaultdict
 from .analyze import Analyzer
 from .cpu import CONDITIONAL_BRANCHES, RETURNS, SUSPICIOUS, Insn, Mode
 
-A, X, Y, N, V, Z, C, DB, D = (1 << i for i in range(9))
-ALL = (1 << 9) - 1
-NAMES = [("A", A), ("X", X), ("Y", Y), ("N", N), ("V", V), ("Z", Z), ("C", C), ("DB", DB), ("D", D)]
+# Bit order matches runtime/port/native.h's DC_* bits, except that DC_A means
+# the whole of A, so A and AH dead together is DC_A and AH alone DC_AH.
+A, X, Y, N, V, Z, C, DB, D, AH = (1 << i for i in range(10))
+ALL = (1 << 10) - 1
+NAMES = [("A", A), ("AH", AH), ("X", X), ("Y", Y), ("N", N), ("V", V), ("Z", Z), ("C", C), ("DB", DB), ("D", D)]
 FLAGS = N | V | Z | C
+AW = A | AH       # the whole accumulator
 
 # Whether a PHP's byte could be followed to the PLPs that restore it, and why not.
 PAIRED = "paired"
@@ -50,6 +56,35 @@ def describe(mask: int) -> str:
     return " ".join(name for name, bit in NAMES if mask & bit) or "-"
 
 
+DC_NAMES = [("DC_A", A), ("DC_X", X), ("DC_Y", Y), ("DC_N", N), ("DC_V", V), ("DC_Z", Z), ("DC_C", C),
+            ("DC_DB", DB), ("DC_D", D), ("DC_AH", AH)]
+
+
+def dc_mask(dead: int) -> int:
+    """A set of dead registers as the DC_* bits that declare it: DC_A only
+    for the whole of A, DC_AH for its high byte alone."""
+    out = dead & ~AW
+    if dead & AW == AW:
+        out |= A
+    elif dead & AH:
+        out |= AH
+    return out
+
+
+def dead_of_dc(dc: int) -> int:
+    """What a DC_* set declares dead, as liveness bits."""
+    out = dc & ~AW
+    if dc & A:
+        out |= AW
+    if dc & AH:
+        out |= AH
+    return out
+
+
+def dc_text(dc: int) -> str:
+    return " | ".join(name for name, bit in DC_NAMES if dc & bit) or "0"
+
+
 def _address_uses(mode: Mode) -> int:
     """Registers an addressing mode reads to form its address."""
     uses = 0
@@ -65,13 +100,15 @@ def _address_uses(mode: Mode) -> int:
     return uses
 
 
-def use_def(insn: Insn, m8: bool | None) -> tuple[int, int]:
-    """(uses, defs) of one instruction. 8-bit accumulator writes don't define A
-    as a whole (the high byte survives), so they aren't counted as defs."""
+def use_def(insn: Insn, m8: bool | None, x8: bool | None = None) -> tuple[int, int]:
+    """(uses, defs) of one instruction. An 8-bit accumulator reads and writes
+    A's low byte alone; with its width unknown, a read is of both bytes and a
+    write defines neither."""
     n, mode = insn.name, insn.mode
     addr = 0 if mode in (Mode.IMP, Mode.ACC, Mode.IMM_M, Mode.IMM_X, Mode.IMM8, Mode.REL8, Mode.REL16,
                          Mode.MOVE, Mode.PEA) else _address_uses(mode)
-    a_def = A if m8 is False else 0
+    a_def = A if m8 is True else (AW if m8 is False else 0)
+    a_use = A if m8 is True else AW
     acc = mode is Mode.ACC
 
     if n == "LDA":
@@ -81,7 +118,7 @@ def use_def(insn: Insn, m8: bool | None) -> tuple[int, int]:
     if n == "LDY":
         return addr, Y | N | Z
     if n == "STA":
-        return addr | A, 0
+        return addr | a_use, 0
     if n == "STX":
         return addr | X, 0
     if n == "STY":
@@ -89,38 +126,40 @@ def use_def(insn: Insn, m8: bool | None) -> tuple[int, int]:
     if n == "STZ":
         return addr, 0
     if n in ("ORA", "AND", "EOR"):
-        return addr | A, a_def | N | Z
+        return addr | a_use, a_def | N | Z
     if n in ("ADC", "SBC"):
-        return addr | A | C, a_def | N | V | Z | C
+        return addr | a_use | C, a_def | N | V | Z | C
     if n == "CMP":
-        return addr | A, N | Z | C
+        return addr | a_use, N | Z | C
     if n == "CPX":
         return addr | X, N | Z | C
     if n == "CPY":
         return addr | Y, N | Z | C
     if n == "BIT":
-        return addr | A, Z if mode is Mode.IMM_M else N | V | Z
+        return addr | a_use, Z if mode is Mode.IMM_M else N | V | Z
     if n in ("INC", "DEC"):
-        return (A, a_def | N | Z) if acc else (addr, N | Z)
+        return (a_use, a_def | N | Z) if acc else (addr, N | Z)
     if n in ("ASL", "LSR"):
-        return (A, a_def | N | Z | C) if acc else (addr, N | Z | C)
+        return (a_use, a_def | N | Z | C) if acc else (addr, N | Z | C)
     if n in ("ROL", "ROR"):
-        return (A | C, a_def | N | Z | C) if acc else (addr | C, N | Z | C)
+        return (a_use | C, a_def | N | Z | C) if acc else (addr | C, N | Z | C)
     if n in ("TSB", "TRB"):
-        return addr | A, Z
+        return addr | a_use, Z
     if n in ("INX", "DEX"):
         return X, X | N | Z
     if n in ("INY", "DEY"):
         return Y, Y | N | Z
+    index_a = A if x8 is True else AW     # TAX/TAY copy as much of A as the index registers hold
     transfers = {
-        "TAX": (A, X | N | Z), "TAY": (A, Y | N | Z), "TXA": (X, a_def | N | Z), "TYA": (Y, a_def | N | Z),
-        "TXY": (X, Y | N | Z), "TYX": (Y, X | N | Z), "TCD": (A, D | N | Z), "TDC": (D, A | N | Z),
-        "TCS": (A, 0), "TSC": (0, A | N | Z), "TXS": (X, 0), "TSX": (0, X | N | Z), "XBA": (A, N | Z),
+        "TAX": (index_a, X | N | Z), "TAY": (index_a, Y | N | Z), "TXA": (X, a_def | N | Z),
+        "TYA": (Y, a_def | N | Z), "TXY": (X, Y | N | Z), "TYX": (Y, X | N | Z), "TCD": (AW, D | N | Z),
+        "TDC": (D, AW | N | Z), "TCS": (AW, 0), "TSC": (0, AW | N | Z), "TXS": (X, 0), "TSX": (0, X | N | Z),
+        "XBA": (AW, AW | N | Z),
     }
     if n in transfers:
         return transfers[n]
     stack = {
-        "PHA": (A, 0), "PHX": (X, 0), "PHY": (Y, 0), "PHB": (DB, 0), "PHD": (D, 0), "PHK": (0, 0),
+        "PHA": (a_use, 0), "PHX": (X, 0), "PHY": (Y, 0), "PHB": (DB, 0), "PHD": (D, 0), "PHK": (0, 0),
         "PHP": (FLAGS, 0), "PLA": (0, a_def | N | Z), "PLX": (0, X | N | Z), "PLY": (0, Y | N | Z),
         "PLB": (0, DB | N | Z), "PLD": (0, D | N | Z), "PLP": (0, FLAGS), "PEA": (0, 0), "PEI": (D, 0),
         "PER": (0, 0),
@@ -142,7 +181,7 @@ def use_def(insn: Insn, m8: bool | None) -> tuple[int, int]:
     if n == "XCE":
         return C, C
     if n in ("MVN", "MVP"):
-        return A | X | Y, A | X | Y | DB
+        return AW | X | Y, AW | X | Y | DB
     return addr, 0   # NOP, WDM, SEI, CLI, SED, CLD, WAI, control flow (handled by the caller)
 
 
@@ -175,6 +214,67 @@ def _sr_bytes(insn: Insn, widths) -> int | None:
     return None if widths[0] is None else (1 if widths[0] else 2)
 
 
+# Packed values (see Liveness's dataflow): NSEG segments of SEG bits.
+SEG = 10
+NSEG = 11
+_REPS: dict = {}
+
+
+def _rep(mask: int) -> int:
+    """mask in every segment."""
+    r = _REPS.get(mask)
+    if r is None:
+        r = _REPS[mask] = sum(mask << (SEG * i) for i in range(NSEG))
+    return r
+
+
+ONES = _rep(1)
+IDENT = sum((1 << b) << (SEG * (b + 1)) for b in range(SEG))    # a return: live if the caller reads it
+_BIT = {bit: i for i in range(SEG) for bit in [1 << i]}
+
+
+def _eval(value: int, ret: int) -> int:
+    """A packed value as a mask, given what the callers read after the return."""
+    out = value & ALL
+    for b in range(SEG):
+        if ret >> b & 1:
+            out |= (value >> (SEG * (b + 1))) & ALL
+    return out
+
+
+def _apply(summary: int, after: int) -> int:
+    """The packed value before a call to a routine with this summary, given the
+    packed value after it."""
+    out = summary & ALL
+    for c in range(SEG):
+        m = (summary >> (SEG * (c + 1))) & ALL
+        if m:
+            sel = (after >> c) & ONES
+            if sel:
+                out |= sel * m
+    return out
+
+
+# The registers a push saves, and where a pull puts what it takes (with
+# whether it sets N and Z from it).
+PUSH_BITS = {"PHP": FLAGS, "PHA": None, "PHX": X, "PHY": Y, "PHB": DB, "PHD": D}
+PULL_DEST = {"PLP": "PHP", "PLA": "PHA", "PLX": "PHX", "PLY": "PHY", "PLB": "PHB", "PLD": "PHD"}
+
+
+def _push_bits(name: str, widths) -> int:
+    if name == "PHA":
+        return A if widths[0] is True else AW
+    return PUSH_BITS[name]
+
+
+def _pull_dest(name: str, widths) -> tuple:
+    if name == "PLP":
+        return FLAGS, False
+    if name == "PLA":
+        return (A if widths[0] is True else AW), True
+    return {"PLX": X, "PLY": Y, "PLB": DB, "PLD": D}[name], True
+
+
 class Liveness:
     def __init__(self, an: Analyzer, dynamic_calls: dict[int, set] | None = None):
         """dynamic_calls: target -> call sites observed at runtime (ct_dev --calls)."""
@@ -185,10 +285,12 @@ class Liveness:
         self.all_live_returns: set[int] = set()
         self.reasons: dict[int, str] = {}
         self.reach: dict[int, int] = {}                  # routine -> bytes above its entry S it may touch
-        self.php_pairs: dict[tuple, frozenset] = {}      # (ctx key, PHP pc) -> resume pcs of its PLPs
-        self.php_cases: dict[tuple, str] = {}            # (ctx key, PHP pc) -> a PAIRING_CASES entry
+        self.push_pairs: dict[tuple, frozenset] = {}     # (ctx key, push pc) -> the pulls that restore it
+        self.push_cases: dict[tuple, str] = {}           # (ctx key, push pc) -> a PAIRING_CASES entry
+        self.summary: dict[int, int] = {}                # routine -> packed value at its entry
+        self.sym: dict[tuple, dict[int, int]] = {}       # ctx key -> pc -> packed value
         self._seed(dynamic_calls or {})
-        self._pair_php()
+        self._pair_pushes()
 
     # ---- seeding -----------------------------------------------------------------
 
@@ -217,8 +319,13 @@ class Liveness:
     # ---- PHP/PLP pairing -----------------------------------------------------------
 
     def _call_targets(self, pc: int, insn: Insn) -> list:
+        """Where a JSR/JSL goes, as the analysis follows it (an `indirect` hint
+        replaces the operand); empty if that isn't known."""
+        an = self.an
         target = insn.operand if insn.name == "JSL" else (pc & 0xFF0000) | insn.operand
-        return list(self.an.hints.indirect.get(pc, [target]))
+        if pc in an.hints.derive:
+            return list(an.hints.indirect.get(pc, [])) + sorted(an.derived.get(pc, ()))
+        return list(an.hints.indirect.get(pc, [target]))
 
     def _successors(self, pc: int, insn: Insn):
         """(next pcs, why control leaves or None), for the stack walks. A call
@@ -240,7 +347,7 @@ class Liveness:
             if any(t in an.hints.noreturn for t in targets):
                 return [], LEAVES
             skip = max((an.hints.inline_args.get(t, 0) for t in targets), default=0)
-            return [insn.next_pc + skip], None
+            return [insn.next_pc + skip], (None if targets else LEAVES)
         if mode is Mode.ABSXIND:
             jt = an.tables.get(pc)
             if jt is None or jt.count is None:
@@ -251,7 +358,7 @@ class Liveness:
     def _callees(self, pc: int, insn: Insn) -> list:
         """What an instruction calls and returns from."""
         if insn.name in ("JSR", "JSL") and insn.mode in (Mode.ABS, Mode.LONG):
-            return self._call_targets(pc, insn)
+            return self._call_targets(pc, insn) or [None]
         if insn.mode is Mode.ABSXIND:
             jt = self.an.tables.get(pc)
             if jt is not None and jt.call and jt.count is not None:
@@ -368,18 +475,19 @@ class Liveness:
                     changed = True
         self.reach = reach
 
-    def _follow_php(self, key, php_pc: int) -> tuple:
-        """Walk forward from a PHP counting the bytes above its byte, to the
-        PLPs that pull it: (PAIRED, their resume pcs) or (why not, empty). A
-        path that sets a new stack, or never ends, leaves the byte unread."""
+    def _follow_push(self, key, push_pc: int, size: int) -> tuple:
+        """Walk forward from a push of `size` bytes counting the bytes above
+        them, to the pulls that take them off: (PAIRED, {(resume pc, pull
+        name, pull's widths)}) or (why not, empty). A path that sets a new
+        stack, or never ends, leaves the bytes unread."""
         an = self.an
         c = an.contexts[key]
         above = {}
         seen = set()
-        plps = set()
-        work = [(insn.next_pc, 0, None) for insn in an.code[php_pc].values()]
+        pulls = set()
+        work = [(insn.next_pc, 0, None) for insn in an.code[push_pc].values()]
         while work:
-            pc, k, prev = work.pop()            # k: bytes pushed above the PHP's byte
+            pc, k, prev = work.pop()            # k: bytes pushed above the pushed ones
             if pc not in c.insns:
                 return LEAVES, frozenset()
             if above.setdefault(pc, k) != k:
@@ -396,52 +504,94 @@ class Liveness:
                     return S_UNKNOWN, frozenset()
                 if name in ("TSC", "TSX"):
                     return READ_OTHERWISE, frozenset()
-                if name == "PLP" and k == 0:
-                    plps.add(insn.next_pc)
-                    continue
                 if mode in (Mode.SR, Mode.SRINDY):
                     w = _sr_bytes(insn, widths)
                     if w is None:
                         return S_UNKNOWN, frozenset()
-                    if insn.operand <= k + 1 <= insn.operand + w - 1:
+                    if insn.operand <= k + size and k + 1 <= insn.operand + w - 1:
                         return READ_OTHERWISE, frozenset()
                 if name in RETURNS:
-                    return (READ_OTHERWISE if k < (2 if name == "RTS" else 3) else LEAVES), frozenset()
+                    return (READ_OTHERWISE if k < {"RTS": 2, "RTL": 3, "RTI": 4}[name] else LEAVES), frozenset()
                 eff = stack_effect(insn, widths)
                 if eff is None:
                     return S_UNKNOWN, frozenset()
+                if k == 0 and eff == -size and name in PULL_DEST:
+                    pulls.add((insn.next_pc, name, widths))
+                    continue
                 if k + eff < 0:
                     return READ_OTHERWISE, frozenset()
-                size = 3 if name == "JSL" else 2
-                if any(self.reach.get(t, UNBOUNDED) > k + size for t in self._callees(pc, insn)):
+                call = 3 if name == "JSL" else 2
+                if any(self.reach.get(t, UNBOUNDED) > k + call for t in self._callees(pc, insn)):
                     return CALLEE_REACHES, frozenset()
                 nexts, why = self._successors(pc, insn)
                 if why is not None and not (name in ("JSR", "JSL") and nexts == []):
                     return why, frozenset()       # (a call that doesn't return ends the path)
                 loads = self._loads(insn, widths)
                 work += [(n, k + eff, loads) for n in nexts]
-        return PAIRED, frozenset(plps)
+        return PAIRED, frozenset(pulls)
 
-    def _pair_php(self):
+    def _pair_pushes(self):
         self._compute_reach()
         for key, c in self.an.contexts.items():
             for pc in c.insns:
-                if not any(insn.name == "PHP" for insn in self.an.code[pc].values()):
+                variants = {(insn.name, stack_effect(insn, w)) for w, insn in self.an.code[pc].items()}
+                if len(variants) != 1:
                     continue
-                case, plps = self._follow_php(key, pc)
-                self.php_cases[(key, pc)] = case
+                name, size = variants.pop()
+                if name not in PUSH_BITS:
+                    continue
+                if size is None:
+                    case, pulls = S_UNKNOWN, frozenset()
+                else:
+                    case, pulls = self._follow_push(key, pc, size)
+                self.push_cases[(key, pc)] = case
                 if case == PAIRED:
-                    self.php_pairs[(key, pc)] = plps
+                    self.push_pairs[(key, pc)] = pulls
 
-    def pairing_stats(self) -> dict:
-        """PAIRING_CASES entry -> (PHPs counted per context, distinct PHP addresses)."""
+    def pairing_stats(self, names=("PHP",)) -> dict:
+        """PAIRING_CASES entry -> (pushes counted per context, distinct push
+        addresses), for the pushes named."""
         out = {}
         for case in PAIRING_CASES:
-            sites = [k for k, v in self.php_cases.items() if v == case]
+            sites = [k for k, v in self.push_cases.items() if v == case
+                     and self.an.code[k[1]] and next(iter(self.an.code[k[1]].values())).name in names]
             out[case] = (len(sites), len({pc for _key, pc in sites}))
         return out
 
+    def _pushed_read(self, key, pc, insn: Insn, widths, live_at) -> int | None:
+        """What a paired push reads: of the register it saves, what is live
+        after the pulls that restore it (all of it where a pull puts it
+        somewhere else that is live, or sets N and Z from it and they are);
+        None if the push isn't paired."""
+        pulls = self.push_pairs.get((key, pc))
+        if pulls is None:
+            return None
+        saved = _push_bits(insn.name, widths)
+        read = 0
+        for resume, pull, pull_widths in pulls:
+            after = live_at(resume)
+            dest, nz = _pull_dest(pull, pull_widths)
+            if PULL_DEST[pull] == insn.name:
+                read |= after & _rep(saved)
+                any_of = (N | Z) if nz else 0
+            else:
+                any_of = dest | ((N | Z) if nz else 0)
+            sel = 0
+            for bit in range(SEG):
+                if any_of >> bit & 1:
+                    sel |= (after >> bit) & ONES
+            read |= sel * saved
+        return read
+
     # ---- per-context dataflow ------------------------------------------------------
+    #
+    # Liveness is solved as a function of what the routine's callers read after
+    # it returns, so that a call transfers only what *its* caller reads after it
+    # through the callee, not what every caller of the callee does. At each
+    # instruction the value is packed into one integer of NSEG segments of SEG
+    # bits: segment 0 is what is live whatever the callers read, segment b + 1
+    # what is live if they read register bit b. A routine's entry value is its
+    # summary; a call applies the callee's summary to the value after the call.
 
     def _entries_at(self, addr: int) -> list:
         return [k for k in self.an.contexts if k[0] == addr]
@@ -452,58 +602,62 @@ class Liveness:
             return ALL
         return self.func_live_in[target]
 
+    def _summary(self, target: int) -> int:
+        if not self._entries_at(target):
+            return ALL
+        return self.summary.get(target, 0)
+
+    def _call(self, targets, after: int) -> int:
+        """The value before a call to any of targets, given the value after."""
+        live = 0
+        for t in targets:
+            live |= _apply(self._summary(t), after)
+        return live
+
     def _instruction_live_in(self, key, pc, insn: Insn, widths, live_at) -> int:
         an = self.an
-        entry = key[0]
         name, mode = insn.name, insn.mode
-        m8 = widths[0]
-        uses, defs = use_def(insn, m8)
+        uses, defs = use_def(insn, widths[0], widths[1])
         bank = pc & 0xFF0000
 
-        if name in SUSPICIOUS or name == "STP":
+        if name in SUSPICIOUS or name == "STP" or name == "RTI":
             return ALL
         if name in ("RTS", "RTL"):
-            return self.ret_live[entry]
-        if name == "RTI":
-            return ALL
-        if name == "PHP":
-            plps = self.php_pairs.get((key, pc))
-            if plps is not None:
-                saved = 0
-                for resume in plps:
-                    saved |= live_at(resume)
-                return (saved & FLAGS) | live_at(insn.next_pc)
+            return IDENT
+        if name == "XBA":
+            # the bytes change places, so their liveness does; N and Z come
+            # from the byte that ends up low
+            out = live_at(insn.next_pc)
+            swapped = ((out & _rep(A)) << 9) | ((out & _rep(AH)) >> 9)
+            nz = (((out >> _BIT[N]) | (out >> _BIT[Z])) & ONES) * AH
+            return swapped | nz | (out & ~_rep(AW | N | Z))
+        if name in PUSH_BITS:
+            read = self._pushed_read(key, pc, insn, widths, live_at)
+            if read is not None:
+                return read | live_at(insn.next_pc)
         if name in CONDITIONAL_BRANCHES:
-            out = live_at(insn.next_pc) | live_at(insn.branch_target())
-            return uses | out
+            return uses | live_at(insn.next_pc) | live_at(insn.branch_target())
         if name in ("BRA", "BRL"):
             return live_at(insn.branch_target())
         if name == "JMP" and mode is Mode.ABS:
             return live_at(bank | insn.operand)
         if name == "JML" and mode is Mode.LONG:
-            self._merge_ret(insn.operand, self.ret_live[entry])
-            return self._callee_live_in(insn.operand)
+            return self._call([insn.operand], IDENT)
         if name in ("JSR", "JSL") and mode in (Mode.ABS, Mode.LONG):
-            target = insn.operand if name == "JSL" else bank | insn.operand
-            callee = self._callee_live_in(target)
-            if target in an.hints.noreturn:
-                return callee
-            resume = insn.next_pc + an.hints.inline_args.get(target, 0)
-            after = live_at(resume)
-            self._merge_ret(target, after)
-            return callee | after
+            targets = self._call_targets(pc, insn)
+            if not targets:
+                return ALL
+            if any(t in an.hints.noreturn for t in targets):
+                return self._call(targets, 0)
+            skip = max(an.hints.inline_args.get(t, 0) for t in targets)
+            return self._call(targets, live_at(insn.next_pc + skip))
         if mode is Mode.ABSXIND:
             jt = an.tables.get(pc)
             if jt is None or jt.count is None:
                 return ALL
             targets = self._table_targets(jt)
             if jt.call:
-                after = live_at(insn.next_pc)
-                live = uses | after
-                for t in targets:
-                    self._merge_ret(t, after)
-                    live |= self._callee_live_in(t)
-                return live
+                return uses | self._call(targets, live_at(insn.next_pc))
             live = uses
             for t in targets:
                 live |= live_at(t)
@@ -512,12 +666,8 @@ class Liveness:
             targets = an.hints.indirect.get(pc)
             if not targets:
                 return ALL
-            live = uses
-            for t in targets:
-                self._merge_ret(t, self.ret_live[entry])
-                live |= self._callee_live_in(t)
-            return live
-        return uses | (live_at(insn.next_pc) & ~defs)
+            return uses | self._call(targets, IDENT)
+        return uses | (live_at(insn.next_pc) & ~_rep(defs))
 
     def _table_targets(self, jt) -> list:
         bank = jt.dispatcher & 0xFF0000
@@ -532,19 +682,12 @@ class Liveness:
                 out.append(t)
         return out
 
-    def _merge_ret(self, target: int, live: int):
-        if target in self.all_live_returns:
-            return
-        new = self.ret_live[target] | live
-        if new != self.ret_live[target]:
-            self.ret_live[target] = new
-            self._changed = True
-
-    def _solve_context(self, key):
+    def _solve_context(self, key) -> int:
+        """Solve a context with the summaries as they are; its entry's value."""
         an = self.an
         c = an.contexts[key]
-        live = self.live_in.setdefault(key, {})
-        pcs = sorted(c.insns)
+        live = self.sym.setdefault(key, {})
+        pcs = sorted(c.insns, reverse=True)
 
         def live_at(addr):
             if addr not in c.insns:
@@ -554,26 +697,147 @@ class Liveness:
         changed = True
         while changed:
             changed = False
-            for pc in reversed(pcs):
+            for pc in pcs:
                 value = 0
                 for widths, insn in an.code[pc].items():
                     value |= self._instruction_live_in(key, pc, insn, widths, live_at)
                 if value != live.get(pc):
                     live[pc] = value
                     changed = True
-        entry_live = live.get(c.entry, ALL)
-        if (self.func_live_in[c.entry] | entry_live) != self.func_live_in[c.entry]:
-            self.func_live_in[c.entry] |= entry_live
-            self._changed = True
+        return live.get(c.entry, ALL)
 
-    def solve(self, max_rounds: int = 50):
+    def _call_edges(self):
+        """(caller key, pc after the call or None for a tail, targets) of every
+        call and tail jump, for carrying what callers read into ret_live."""
+        an = self.an
+        for key, c in an.contexts.items():
+            for pc in c.insns:
+                for insn in an.code[pc].values():
+                    name, mode = insn.name, insn.mode
+                    if name == "JML" and mode is Mode.LONG:
+                        yield key, None, [insn.operand]
+                    elif name in ("JSR", "JSL") and mode in (Mode.ABS, Mode.LONG):
+                        targets = self._call_targets(pc, insn)
+                        if not targets or any(t in an.hints.noreturn for t in targets):
+                            continue
+                        skip = max(an.hints.inline_args.get(t, 0) for t in targets)
+                        yield key, insn.next_pc + skip, targets
+                    elif mode is Mode.ABSXIND:
+                        jt = an.tables.get(pc)
+                        if jt is not None and jt.count is not None and jt.call:
+                            yield key, insn.next_pc, self._table_targets(jt)
+                    elif mode in (Mode.ABSIND, Mode.ABSLIND) and an.hints.indirect.get(pc):
+                        yield key, None, an.hints.indirect[pc]
+
+    def solve(self, max_rounds: int = 60):
+        an = self.an
+        # 1. every routine's summary, from nothing up to the least fixpoint
         for _ in range(max_rounds):
-            self._changed = False
-            for key in self.an.contexts:
-                self._solve_context(key)
-            if not self._changed:
-                return
-        raise RuntimeError("liveness did not converge")
+            changed = False
+            for key in an.contexts:
+                entry_value = self._solve_context(key)
+                new = self.summary.get(key[0], 0) | entry_value
+                if new != self.summary.get(key[0], 0):
+                    self.summary[key[0]] = new
+                    changed = True
+            if not changed:
+                break
+        else:
+            raise RuntimeError("liveness did not converge")
+        # 2. what callers read after each routine returns
+        edges = list(self._call_edges())
+        for _ in range(max_rounds * 4):
+            changed = False
+            for key, resume, targets in edges:
+                c = an.contexts[key]
+                if resume is None:
+                    after = self.ret_live[key[0]]
+                elif resume in c.insns:
+                    after = _eval(self.sym[key].get(resume, 0), self.ret_live[key[0]])
+                else:
+                    after = ALL
+                for t in targets:
+                    if t in self.all_live_returns:
+                        continue
+                    new = self.ret_live[t] | after
+                    if new != self.ret_live[t]:
+                        self.ret_live[t] = new
+                        changed = True
+            if not changed:
+                break
+        else:
+            raise RuntimeError("liveness did not converge")
+        # 3. the values, given what the callers read
+        for key, values in self.sym.items():
+            ret = self.ret_live[key[0]]
+            self.live_in[key] = {pc: _eval(v, ret) for pc, v in values.items()}
+            c = an.contexts[key]
+            self.func_live_in[key[0]] |= self.live_in[key].get(c.entry, ALL)
 
     def dead_at_return(self, entry: int) -> int:
         return ALL & ~self.ret_live[entry]
+
+    # ---- queries at program points (after solve) --------------------------------------
+
+    def contexts_at(self, pc: int) -> list:
+        """The contexts that run the instruction at pc."""
+        return [key for key, c in self.an.contexts.items() if pc in c.insns]
+
+    def live_at(self, pc: int) -> int | None:
+        """What may be read from pc on before it is set, over every context
+        that runs pc; None if none does."""
+        keys = self.contexts_at(pc)
+        if not keys:
+            return None
+        live = 0
+        for key in keys:
+            live |= self.live_in.get(key, {}).get(pc, ALL)
+        return live
+
+    def live_after_return(self, pc: int) -> int | None:
+        """What may be read after the routine running pc returns (pc a return
+        instruction, or any instruction of it), over every context that runs
+        pc; None if none does."""
+        keys = self.contexts_at(pc)
+        if not keys:
+            return None
+        live = 0
+        for key in keys:
+            live |= ALL if key[0] in self.all_live_returns else self.ret_live[key[0]]
+        return live
+
+    def callee_reads(self, target: int) -> int:
+        """What a routine reads before it returns, whatever its caller reads
+        after: what a call to it needs set (a register it only carries to its
+        return is left out)."""
+        if not self._entries_at(target):
+            return ALL
+        return _eval(self._summary(target), 0)
+
+    def live_into_call(self, site: int, target: int) -> int:
+        """What may be read from target's entry on when the JSR/JSL at site
+        calls it: what the callee reads, and what the caller reads after the
+        call returns that the callee leaves alone. Other call sites' readers
+        don't count, unlike func_live_in; a site that isn't such a call gets
+        func_live_in."""
+        an = self.an
+        after = None
+        for key in self.contexts_at(site):
+            c = an.contexts[key]
+            for insn in an.code[site].values():
+                if insn.name in ("JSR", "JSL") and insn.mode in (Mode.ABS, Mode.LONG):
+                    targets = self._call_targets(site, insn)
+                elif insn.mode is Mode.ABSXIND and insn.name == "JSR":
+                    targets = self._callees(site, insn)
+                else:
+                    continue
+                if target not in targets:
+                    continue
+                resume = insn.next_pc + an.hints.inline_args.get(target, 0)
+                live = self.live_in.get(key, {}).get(resume, ALL) if resume in c.insns else ALL
+                after = live if after is None else after | live
+        if not self._entries_at(target):
+            return ALL
+        if after is None:
+            return self.func_live_in[target]
+        return _eval(_apply(self._summary(target), after), 0)

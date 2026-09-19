@@ -92,12 +92,16 @@ PROGRAMS = {
     # C0:8710  SEP #$30 : REP #$10 : RTS                  (truncates Y without "writing" it)
     0xC08700: bytes.fromhex("A034122010878460 60".replace(" ", "")),
     0xC08710: bytes.fromhex("E230C21060"),
+    # C0:8800  JSR $8810 : STA $30 : RTS               (the caller reads A's low byte alone)
+    # C0:8810  REP #$20 : LDA $10 : SEP #$20 : RTS
+    0xC08800: bytes.fromhex("2010888530 60".replace(" ", "")),
+    0xC08810: bytes.fromhex("C220A510E220 60".replace(" ", "")),
     # C0:8C00  PHP : JSR $8310 : PLP : RTS             (saves the caller's P around a call)
     0xC08C00: bytes.fromhex("08 201083 28 60".replace(" ", "")),
 }
 ENTRIES = [(0xC08000, True, True), (0xC08200, True, True), (0xC08210, True, True),
            (0xC08300, True, True), (0xC08500, True, True), (0xC062B5, True, False), (0xC08600, True, True),
-           (0xC08700, True, False), (0xC08C00, True, True)]
+           (0xC08700, True, False), (0xC08800, True, True), (0xC08C00, True, True)]
 
 
 def knowledge():
@@ -169,19 +173,25 @@ class Drafts(unittest.TestCase):
 
     def test_ram_and_direct_page_names(self):
         _, text = draft(0xC08010)
-        self.assertIn("a = m_read8(s, RAM_TEST_SOURCE);", text)
-        self.assertIn("m_write8(s, 0x7E0120, a);", text)
+        self.assertIn("m_write8(s, 0x7E0120, m_read8(s, RAM_TEST_SOURCE));", text)
 
     def test_dead_flags_are_dropped(self):
-        # the caller reloads the low byte of A and N, Z after the call: no flags
-        # are left; A goes back (liveness keeps A as one register), and as the
-        # routine never touches its high byte, only the low one
+        # the caller reloads the low byte of A and N, Z after the call and
+        # nothing reads A's high byte: no flags are left, and A doesn't go back
         _, text = draft(0xC08010)
         logic = logic_of(text)
         self.assertNotIn("zero", logic)
         self.assertNotIn("negative", logic)
-        self.assertIn("static uint8_t sub_C08010_logic(Snes *s)", text)
-        self.assertIn("m_set_a8(s, out);", text)
+        self.assertIn("static void sub_C08010_logic(Snes *s)", text)
+        d, _ = draft(0xC08010)
+        self.assertTrue(d.registration()["dont_care"].startswith("DC_A | DC_X"))
+
+    def test_a_high_byte_nobody_reads(self):
+        # the caller stores A's low byte: the 16-bit load's high byte is
+        # dead, which the registration declares with DC_AH
+        d, text = draft(0xC08810)
+        self.assertIn("DC_AH", d.registration()["dont_care"])
+        self.assertNotIn("DC_A |", d.registration()["dont_care"])
 
     def test_p_saved_at_the_entry_is_the_machines(self):
         # PHP before anything changes a flag pushes the caller's P as it is, so
@@ -210,7 +220,8 @@ class Drafts(unittest.TestCase):
         _, text = draft(0xC08300)
         # nothing calls C0:8300 here, so its callers may read every register and
         # flag: the call-out gives back A and the flags ASL sets
-        self.assertIn("m_jsr_dc(s, site, 0xC08310, DC_X | DC_Y | DC_V);", text)
+        # (the callee works on an 8-bit A, so A's high byte is left out as well)
+        self.assertIn("m_jsr_dc(s, site, 0xC08310, DC_AH | DC_X | DC_Y | DC_V);", text)
         self.assertIn("call_sub_C08310(s, 0xC08302, &a, &negative, &zero, &carry);", text)
         # the stub moves the registers in and out; the logic never touches the machine's
         stub = text[text.index("static void call_sub_C08310"):]

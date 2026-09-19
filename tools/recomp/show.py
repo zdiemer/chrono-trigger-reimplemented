@@ -41,7 +41,7 @@ from tools.disasm import coverage as coverage_mod
 from tools.disasm import hints as hints_mod
 from tools.disasm.analyze import Analyzer
 from tools.disasm.cpu import Mode
-from tools.disasm.liveness import ALL, NAMES as LIVE_NAMES, Liveness, use_def
+from tools.disasm.liveness import ALL, NAMES as LIVE_NAMES, Liveness, dc_mask, dc_text, use_def
 from tools.disasm.memmap import Rom, fmt, parse
 from tools.ram_map import RamMap
 
@@ -56,7 +56,7 @@ from .structure import Break, Continue, If, Label, Loop, structure
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
-KEY_BITS = {"al": "A", "ah": "A", "x": "X", "y": "Y", "n": "N", "v": "V", "z": "Z", "c": "C"}
+KEY_BITS = {"al": "A", "ah": "AH", "x": "X", "y": "Y", "n": "N", "v": "V", "z": "Z", "c": "C"}
 FLAG_BITS = {"n": "CPU_FLAG_N", "v": "CPU_FLAG_V", "z": "CPU_FLAG_Z", "c": "CPU_FLAG_C"}
 ORDER = ("a", "x", "y", "n", "v", "z", "c")
 
@@ -93,7 +93,7 @@ def mask_keys(mask: int) -> frozenset:
     out = set()
     for name, bit in LIVE_NAMES:
         if mask & bit:
-            out |= {"A": {"al", "ah"}, "X": {"x"}, "Y": {"y"}, "N": {"n"}, "V": {"v"}, "Z": {"z"},
+            out |= {"A": {"al"}, "AH": {"ah"}, "X": {"x"}, "Y": {"y"}, "N": {"n"}, "V": {"v"}, "Z": {"z"},
                     "C": {"c"}}.get(name, set())
     return frozenset(out)
 
@@ -113,10 +113,16 @@ def reg_type(r: str, a8: bool = False) -> str:
 
 
 def dc_bits(keys) -> str:
+    """The DC_* set for what keys leaves out: DC_A for the whole of A, DC_AH
+    when only its low byte is kept."""
     bits = []
     for r in ORDER:
-        present = (keys & {"al", "ah"}) if r == "a" else (r in keys)
-        if not present:
+        if r == "a":
+            if not keys & {"al", "ah"}:
+                bits.append("DC_A")
+            elif "ah" not in keys and "al" in keys:
+                bits.append("DC_AH")
+        elif r not in keys:
             bits.append(f"DC_{r.upper()}")
     return " | ".join(bits)
 
@@ -873,7 +879,7 @@ class Draft:
         """How the draft registers: its precondition, don't-care set and the
         guard on the D and DB it assumed from its callers."""
         ret = self.k.ret_live(self.addr)
-        dc = ALL & ~_keys_mask(ret)
+        dc = dc_mask(ALL & ~_keys_mask(ret))
         needs = f"NEEDS_M{8 if self.m8 else 16}_X{8 if self.x8 else 16}" +             ("_BINARY" if self.routine.decimal_sensitive else "")
         p_mask = 0x30 | (0x08 if self.routine.decimal_sensitive else 0)
         p_value = (0x20 if self.m8 else 0) | (0x10 if self.x8 else 0)
@@ -883,7 +889,7 @@ class Draft:
         if self.db is not None and not self.db_given and self._uses("db"):
             guard.append(f"s->cpu.db == 0x{self.db:02X}")
         return {"needs": needs, "p_mask": p_mask, "p_value": p_value, "dc": dc,
-                "dont_care": " | ".join(f"DC_{n}" for n, bit in LIVE_NAMES if dc & bit) or "0", "guard": guard}
+                "dont_care": dc_text(dc), "guard": guard}
 
     def _uses(self, what: str) -> bool:
         dp = (Mode.DP, Mode.DPX, Mode.DPY, Mode.DPIND, Mode.DPXIND, Mode.DPINDY, Mode.DPLIND, Mode.DPLINDY)
@@ -908,9 +914,9 @@ def _touches_ah(s) -> bool:
 def _keys_mask(keys) -> int:
     m = 0
     for name, bit in LIVE_NAMES:
-        if name == "A" and keys & {"al", "ah"}:
+        if name == "A" and "al" in keys:
             m |= bit
-        elif name.lower() in keys:
+        elif name != "A" and name.lower() in keys:
             m |= bit
     return m
 

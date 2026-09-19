@@ -203,6 +203,33 @@ class Analysis(unittest.TestCase):
         self.assertTrue(lv.ret_live[0xC08010] & X, "X is read by the next callee")
         self.assertTrue(lv.func_live_in[0xC08020] & X)
 
+    def test_liveness_splits_the_accumulator(self):
+        from tools.disasm.liveness import AH, A, AW, dc_mask, dc_text, dead_of_dc, DC_NAMES
+        # an 8-bit STA after the call reads A's low byte alone
+        lv = self.php("A91060", after_call="853060")          # LDA #$10 : RTS ; caller STA $30
+        self.assertEqual(lv.ret_live[0xC08010] & AW, A)
+        self.assertFalse(lv.func_live_in[0xC08010] & AW, "the 8-bit LDA defines the low byte")
+        # XBA swaps the bytes' liveness: the STA after it reads what was the high byte
+        lv = self.php("60", after_call="EB853060")            # RTS ; caller XBA : STA $30
+        self.assertEqual(lv.ret_live[0xC08010] & AW, AH)
+        # and sets N and Z from it
+        lv = self.php("60", after_call="EBF00060")            # RTS ; caller XBA : BEQ +0
+        self.assertEqual(lv.ret_live[0xC08010] & AW, AH)
+        # a 16-bit store after it reads both
+        lv = self.php("60", after_call="C220EB853060")        # RTS ; caller REP #$20 : XBA : STA $30
+        self.assertEqual(lv.ret_live[0xC08010] & AW, AW)
+        # a 16-bit TAX reads both, an 8-bit one the low byte (m8 x16 then x8)
+        lv = self.php("60", after_call="AA60")
+        self.assertEqual(lv.ret_live[0xC08010] & AW, A)       # entered x8
+        # an 8-bit write leaves the high byte live through it
+        lv = self.php("A901EB8530 60".replace(" ", ""))       # LDA #$01 : XBA : STA $30 : RTS
+        self.assertEqual(lv.func_live_in[0xC08010] & AW, AH)
+        # the DC_* forms: DC_A is the whole of A, DC_AH its high byte alone
+        self.assertEqual(dc_text(dc_mask(AW)), "DC_A")
+        self.assertEqual(dc_text(dc_mask(AH)), "DC_AH")
+        self.assertEqual(dc_mask(A), 0)
+        self.assertEqual(dead_of_dc(dict(DC_NAMES)["DC_A"]), AW)
+
     def php(self, callee: str, after_call: str = "60", extra=None):
         """Liveness of C0:8010 (`callee`), called from C0:8000 with
         `after_call` after the JSR; `extra` adds code elsewhere."""
@@ -217,7 +244,7 @@ class Analysis(unittest.TestCase):
         from tools.disasm.liveness import C, FLAGS, N, PAIRED, V, Z
         # PHP ; LDA #$01 ; PLP ; BCC +0 ; RTS: the saved carry is read, nothing else
         lv = self.php("08 A901 28 9000 60".replace(" ", ""))
-        self.assertEqual(lv.php_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
+        self.assertEqual(lv.push_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
         self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, C)
         # PHP ; PLP ; RTS, and the caller branches on N after the call
         lv = self.php("082860", after_call="300060")
@@ -231,14 +258,14 @@ class Analysis(unittest.TestCase):
         from tools.disasm.liveness import FLAGS, PAIRED, Z
         # PHP ; JSR $8020 ; BCS +1 ; SEC ; PLP ; BEQ +0 ; RTS: Z is read after the PLP
         lv = self.php("08 202080 B001 38 28 F000 60".replace(" ", ""), extra={0xC08020: bytes.fromhex("60")})
-        self.assertEqual(lv.php_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
+        self.assertEqual(lv.push_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
         self.assertEqual(lv.func_live_in[0xC08010] & FLAGS & ~0x40, Z)   # C is read by the BCS itself
 
     def test_php_stays_conservative_where_the_pairing_is_unclear(self):
         from tools.disasm.liveness import CALLEE_REACHES, FLAGS, LEAVES, READ_OTHERWISE, S_UNKNOWN
         key = ((0xC08010, (True, True)), 0xC08010)
         cases = [
-            ("08 68 60", READ_OTHERWISE, None),             # PHP ; PLA: pulled by something else
+            ("08 C210 FA 60", READ_OTHERWISE, None),        # PHP ; REP #$10 ; PLX: pulled with another byte
             ("08 A301 28 60", READ_OTHERWISE, None),        # PHP ; LDA 1,S: read where it lies
             ("08 3B 28 60", READ_OTHERWISE, None),          # PHP ; TSC: S itself is read
             ("08 60", READ_OTHERWISE, None),                # PHP ; RTS: the return pulls it
@@ -253,16 +280,37 @@ class Analysis(unittest.TestCase):
         for code, case, extra in cases:
             lv = self.php(code.replace(" ", ""), extra=extra)
             if case is None:
-                self.assertEqual(lv.php_cases[key], "paired", code)
+                self.assertEqual(lv.push_cases[key], "paired", code)
                 continue
-            self.assertEqual(lv.php_cases[key], case, code)
+            self.assertEqual(lv.push_cases[key], case, code)
             self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, FLAGS, code)
+
+    def test_pushes_pair_with_the_pulls_that_restore_them(self):
+        from tools.disasm.liveness import AW, FLAGS, PAIRED, X, Y
+        key = ((0xC08010, (True, True)), 0xC08010)
+        # PHX ; LDX #$05 ; STX $30 ; PLX ; RTS: X is only carried to the return
+        lv = self.php("DA A205 8630 FA 60".replace(" ", ""))
+        self.assertEqual(lv.push_cases[key], PAIRED)
+        self.assertFalse(lv.func_live_in[0xC08010] & X)
+        # ...and is live at the push when the caller reads it after
+        lv = self.php("DA A205 8630 FA 60".replace(" ", ""), after_call="8640 60".replace(" ", ""))
+        self.assertTrue(lv.func_live_in[0xC08010] & X)
+        # PHP ; PLA: P moves into A, so the flags are read if A is
+        lv = self.php("0868 60".replace(" ", ""))
+        self.assertEqual(lv.push_cases[key], PAIRED)
+        self.assertFalse(lv.func_live_in[0xC08010] & FLAGS)
+        lv = self.php("0868 8530 60".replace(" ", ""))
+        self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, FLAGS)
+        # PHY ; PLY ; BEQ: N and Z come from the pulled value, so Y is read
+        lv = self.php("5A7A F000 60".replace(" ", ""))
+        self.assertTrue(lv.func_live_in[0xC08010] & Y)
+        self.assertEqual(lv.pairing_stats(("PHY",))["paired"], (1, 1))
 
     def test_php_under_a_new_stack_is_never_read(self):
         from tools.disasm.liveness import FLAGS, PAIRED
         # PHP ; LDX #$FF ; TXS ; BRA *: the stack is abandoned, and the saved P with it
         lv = self.php("08 A2FF 9A 80FE".replace(" ", ""))
-        self.assertEqual(lv.php_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
+        self.assertEqual(lv.push_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
         self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, 0)
         # a callee that stays in its frame, or leaves it only for a new stack, reaches its return address
         lv = self.php("08 202080 28 60".replace(" ", ""), extra={0xC08020: bytes.fromhex("48 68 60".replace(" ", ""))})

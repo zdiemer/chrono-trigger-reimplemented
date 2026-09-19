@@ -48,8 +48,15 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   vblank (which reloads it) passed with NMI disabled. Calls interrupted by NMI/IRQ
   are counted but not compared. Registers and flags in the routine's
   don't-care set (below) aren't compared, nor, where a port stops at an
-  instruction of the original, those it declares dead there
-  (`m_stop_dont_care`). Nor are the stack bytes the original pushed and pulled
+  instruction of the original, those it declares dead there (`m_stop_at(s,
+  at, set)`, which also sets PC, or `m_stop_dont_care(s, at, set)`, `at` being
+  the instruction, or the return instruction the port carries out last when
+  the set is dead after a return). Shadow mode reports a port that stops
+  anywhere but the address it declared, and one whose entry has a don't-care
+  set that finishes without returning or declaring where: that set applies at
+  every stop. Every declaration is a claim about the original, and
+  `tools/dontcare_check.py` checks each against liveness where it applies (the
+  gate runs it; RECOMP.md, "Before the bulk"). Nor are the stack bytes the original pushed and pulled
   again since the last comparison, between the lowest S it reached and its S
   now: nothing reads below S, so a port needn't rebuild the frames of the
   subroutines it inlines or the P bytes a callee saves and restores (the $C7
@@ -132,10 +139,14 @@ In `shadow` mode the native routine runs on the clone up to its first
 call-out. The machines are compared when the original reaches the same call
 (same target and stack pointer), as well as at the return. While the callee
 runs, only the original machine moves. When it returns, the clone is reloaded
-from it, and the native routine continues to the next call or its return. A
+from it, and the native routine continues to the next call or its return,
+except that a register the call declared don't-care and the callee left as it
+found it stays the native routine's own, as the shipping mode would have it:
+the callee carried the native value through. A
 port is thus checked at every call it makes, not just at the end. That makes
 `shadow` strict about registers passed to callees; `m_jsr_dc`/`m_jsl_dc` name
-registers and flags a callee doesn't read. An interrupt in the stretch before a
+registers and flags a callee doesn't read (before it returns: what it only
+carries back is the port's business, and compared later). An interrupt in the stretch before a
 checkpoint skips that one comparison, and later stretches are still checked.
 
 Two consequences for a port that inlines its callees. A callee's frame that is
@@ -286,8 +297,11 @@ What the $C7 pilot added (RECOMP.md, "The $C7 pilot", has the measurements):
   compare them; with the rules in Modes above, a port leaves out flags nobody
   reads, the frames of callees it inlines, and the P bytes a callee saves and
   restores, and says so: `m_jsr_dc` or `au_driver_call` with what the callee
-  doesn't take, `m_stop_dont_care` with what is dead where it stops, the entry's
-  don't-care set for what is dead where it returns.
+  doesn't take, `m_stop_at` with what is dead where it stops, the entry's
+  don't-care set for what is dead wherever it finishes, and `m_stop_dont_care`
+  at the return instruction for what is dead after the return alone. Write
+  them as constants, or from a helper's parameters, locals or a table in the
+  file, so `tools/dontcare_check.py` can read them.
 - **Decide per exit.** A routine that stops at several instructions of the
   original (the sound driver's wait loops) leaves different registers live at
   each; a table of the exits with the registers each needs and the ones it
@@ -316,7 +330,8 @@ What the $C7 pilot added (RECOMP.md, "The $C7 pilot", has the measurements):
    listing where the draft leaves a question. `disasm/out/functions.json` has
    the M/X widths it's entered with, and `disasm/out/liveness.json`
    `dead_after_return`: the registers and flags no caller reads after it
-   returns (the draft's header says both).
+   returns, `dont_care` the same as a registry entry writes it (the draft's
+   header says both).
 3. Write readable C with the same observable effects: memory writes (including
    stack bytes from push/pull), I/O writes, and every register and flag that
    isn't dead after return. Use the data bank and direct page as the original
@@ -393,7 +408,8 @@ guarded on a data bank that reaches the I/O registers need it when the state's
 is `$7E`. `--d HHHH` sets the direct page the same way, for entries guarded on
 their subsystem's page. The comparison leaves out what shadow mode does: the
 routine's don't-care set, what it declares dead where it stops, and the stack
-bytes the original pushed and pulled again.
+bytes the original pushed and pulled again; and a stop somewhere the routine
+didn't declare is a mismatch, as in shadow mode.
 
 The SPC700 doesn't run in `ct_fuzz`, so a routine waiting for the sound driver's
 echo on an APU port would never finish; `--apu-loopback` makes the ports read

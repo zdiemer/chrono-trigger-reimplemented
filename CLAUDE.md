@@ -57,7 +57,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
   (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode
   (`tools/movies/route_check.py`; the suite runs the fast route, `--long-routes` all of them, which
-  is worth doing before a change to timing or to the native runtime lands);
+  is worth doing before a change to timing or to the native runtime lands); every
+  don't-care declaration in `game/` is one the liveness analysis agrees with
+  (`tools/dontcare_check.py`, run by the suite, static; docs/RECOMP.md, "Before the bulk");
   `--native on --recomp only --misses out.txt` lists anything still interpreted;
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
   docs/PLATFORM.md P3).
@@ -109,10 +111,13 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     its `cost_milli` estimate, and the timing gate measures and bounds the estimates' error
     (docs/RECOMP.md, "The timing gate"). Fuzzing is part of a port's definition of done.
   - Declare what the original leaves dead rather than reproduce it: flags nobody reads, A's
-    high byte, a subroutine's stack frame. An entry's don't-care set, `m_stop_dont_care` where
-    a port stops, and the don't-care sets of call-outs say so, and shadow mode doesn't compare
+    high byte, a subroutine's stack frame. An entry's don't-care set, `m_stop_at` where a
+    port stops, and the don't-care sets of call-outs say so, and shadow mode doesn't compare
     them (docs/PORTING.md). A declaration is a claim about the original, so it must be one the
-    liveness analysis agrees with.
+    liveness analysis agrees with: `tools/dontcare_check.py` checks every one, and the gate runs
+    it. A port stops with `m_stop_at` and its address, and writes the addresses and sets as
+    constants, or from a helper's parameters, locals or a table in the same file, so the check
+    can read them.
   - Still write the scratch cells the original writes, even ones that look like temporaries:
     other code may read them, and shadow mode compares memory.
   - Keep the original's index arithmetic, wraparound and odd offsets included, rather than

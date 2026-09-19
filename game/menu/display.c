@@ -155,15 +155,19 @@ void menu_nmi_work(Snes *s)
     if (!(m_lda8(s, m_read8(s, m_dp(s, 0x01))) & 0x80)) {
         vid_enable_line_effects(pf, PF_AT(0xC2843C), 0x00);
         m_jsr_dc(s, 0xC2843F, 0xC285D6, DC_C);
-        if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+        if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M) {
+            m_stop_dont_care(s, 0xC28442, 0);   /* the original carries on after the call */
             return;
+        }
         uint8_t slots = m_lda8(s, m_read8(s, m_dp(s, 0x13)));
         vid_enable_line_effects(pf, PF_AT(0xC28446), m_lda8(s, (uint8_t)(slots & 0x7F)));
         m_write8(s, m_dp(s, 0x01), m_lda8(s, 0xFF));
     }
     m_jsr_dc(s, 0xC2844D, 0xC28473, DC_C);
-    if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+    if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M) {
+        m_stop_dont_care(s, 0xC28450, 0);
         return;
+    }
     m_lda8(s, 0x09);
     vid_set_mode(pf, PF_AT(0xC28452), &(VidMode){ .mode = 1, .bg3_priority = true });
     uint8_t brightness = m_lda8(s, m_read8(s, m_dp(s, 0x10)));
@@ -179,7 +183,7 @@ void menu_nmi_work(Snes *s)
         m_write8(s, m_abs(s, 0x0D76), wait);
         m_set_nz8(s, wait);
     }
-    c->pc = 0x8466;
+    m_stop_at(s, 0xC28466, 0);
 }
 
 /* $C2:8607-$C2:8623: STX $2102 : STX $4370 : STX $4372 : STX $4375 :

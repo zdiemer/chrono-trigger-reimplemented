@@ -69,15 +69,24 @@ Coverage is used three ways:
 
 ## Liveness
 
-`tools/disasm/liveness.py` computes, for every function, which of A, X, Y, the
-N/V/Z/C flags, DB and D any caller may read after it returns. It's an
-interprocedural backward dataflow over the traced code: calls contribute the
-callee's inputs, returns take the union of what's live at every call site, and
-unknown control flow keeps everything live. Functions entered as vectors,
-hints, coverage seeds or indirect targets, and functions that `--calls` shows
-being called from sites static analysis doesn't know, keep everything live
-after return. Ported routines use the dead set to skip reproducing values
-nobody reads (docs/PORTING.md).
+`tools/disasm/liveness.py` computes, for every function, which of A's low
+byte, A's high byte, X, Y, the N/V/Z/C flags, DB and D any caller may read
+after it returns. It's an interprocedural backward dataflow over the traced
+code, solved as a function of what the callers read: each function has a
+summary (what it reads whatever its callers do, and what it carries through
+to its return for each register they might read), a call applies the callee's
+summary to what is live after the call, returns take the union of what's live
+at every call site, and unknown control flow keeps everything live. A push
+reads the register it saves only as far as the pull that restores it is
+followed by a read: `PHP`/`PLP` and the other push/pull pairs are followed on
+the stack, and where the pairing can't be established the push reads
+everything it saves (docs/RECOMP.md, "Before the bulk"). Functions entered as
+vectors, hints, coverage seeds or indirect targets, and functions that
+`--calls` shows being called from sites static analysis doesn't know, keep
+everything live after return. Ported routines use the dead set to skip
+reproducing values nobody reads (docs/PORTING.md), and
+`tools/dontcare_check.py` checks every don't-care set they declare against it;
+`liveness.json` gives each function's as `dont_care`, in `DC_*` terms.
 
 ## Hints (`re/hints.toml`)
 

@@ -189,10 +189,25 @@ void native_copy_popped_stack(const Snes *original, Snes *native, uint16_t lowes
 /* For native routines that stop at an instruction of the original rather than
  * returning (setting PC): registers and flags that nothing reads at that point
  * before setting them, which SHADOW mode then doesn't compare there, on top of
- * the entry's dont_care. Outside the runtime (ct_fuzz) the last value is kept
- * in native_stop_dont_care_direct, which the tool clears before each call. */
-void native_dont_care_at_stop(Snes *s, uint16_t dont_care);
+ * the entry's dont_care. `at` is the instruction (24-bit), or the return
+ * instruction (RTS, RTL, RTI) the routine carries out last; SHADOW mode
+ * reports a routine that stops anywhere else as a mismatch, so the address
+ * tools/dontcare_check.py checks the set at is the one it applies at. Outside
+ * the runtime (ct_fuzz) the last values are kept in native_stop_dont_care_direct
+ * and native_stop_at_direct, which the tool clears before each call. */
+void native_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care);
 extern uint16_t native_stop_dont_care_direct;
+extern uint32_t native_stop_at_direct;
+/* Whether the instruction at `at` is a return (RTS, RTL, RTI). */
+bool native_is_return(const Snes *s, uint32_t at);
+/* Called by m_rts, m_rtl and m_rti (machine.h): the routine finishes by
+ * returning, where its entry's dont_care applies. A routine whose entry has a
+ * dont_care and that finishes anywhere else (setting PC) must say where with
+ * native_dont_care_at_stop, or SHADOW mode reports it: the set is checked
+ * against liveness where it applies (tools/dontcare_check.py), which needs to
+ * know where that is. Outside the runtime it sets native_returned_direct. */
+void native_note_return(Snes *s);
+extern bool native_returned_direct;
 
 /* Nonzero if any shadow comparison failed. */
 int native_failed(const NativeRuntime *rt);

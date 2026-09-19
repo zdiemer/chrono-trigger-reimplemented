@@ -35,6 +35,8 @@ Nothing lands without it, and it is the same gate for every phase:
 - the route scripts reach their outcomes in the shipping mode
   (`tools/movies/route_check.py`: the fast route every time, all of them with
   `--long-routes` before a change to timing or the native runtime lands);
+- every don't-care declaration in `game/` is one liveness agrees with
+  (`tools/dontcare_check.py`; RECOMP.md, "Before the bulk");
 - `--misses` stays empty;
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
@@ -42,20 +44,15 @@ Nothing lands without it, and it is the same gate for every phase:
 ## Phase 3: M5 in bulk
 
 **First, before the bulk.** The pilot settled how a port's logic meets shadow
-mode, and it showed two things worth doing once rather than in every subsystem:
+mode, and it showed two things worth doing once rather than in every subsystem.
+Declared don't-cares are now checked against liveness, and liveness sees
+through saved registers (RECOMP.md, "Before the bulk"). What is left:
 
-- **Verify declared don't-cares.** Shadow mode no longer compares what a port
-  declares dead (an entry's don't-care set, `m_stop_dont_care`, the sets on
-  call-outs), and nothing checks those declarations. A wrong one hides a real
-  difference from the gate and ships a wrong register. The liveness analysis
-  (`tools/disasm/liveness.py`) knows what the original reads, so every
-  declaration should be checked against it, in the unit tests or the gate.
-- **The draft tool's fixes**, in the pilot's order (liveness that doesn't count
-  a flag `PHP` saves as read is in: RECOMP.md, "Before the bulk"): liveness
-  reported at a draft's hand-backs (the port's `m_stop_dont_care`, and the same
-  data the check above needs); D kept across call-outs that leave it alone;
-  and `tools.recomp.groundtruth` resolving a port's file-local names and
-  call-out stubs.
+- **The draft tool's fixes**, in the pilot's order: liveness reported at a
+  draft's hand-backs (a port's `m_stop_at`, from the same data the check
+  uses); D kept across call-outs that leave it alone; and
+  `tools.recomp.groundtruth` resolving a port's file-local names and call-out
+  stubs.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
 docstring says which way it is wrong). **83% of the code is still generated.**
@@ -142,9 +139,13 @@ which converted the sound driver to this bar:
 - **The draft is a reference more than a starting text**: its header, names
   and control flow carried over, its text almost none of it (0-7% of the
   port's lines). Before the bulk, in this order: liveness at a draft's
-  hand-backs, which is the port's `m_stop_dont_care`; D kept across call-outs
-  that leave it alone (RECOMP.md, "What drafts don't do yet"). Liveness no
-  longer counts a flag `PHP` saves as read (RECOMP.md, "Before the bulk").
+  hand-backs, which is the port's `m_stop_at`; D kept across call-outs that
+  leave it alone (RECOMP.md, "What drafts don't do yet"). Liveness no longer
+  counts a flag `PHP` saves as read (RECOMP.md, "Before the bulk").
+- **Declarations are checked.** Every don't-care set a port declares is
+  verified against liveness where shadow mode applies it
+  (`tools/dontcare_check.py`, in the gate), so leaving a register out of the
+  comparison is a claim the check holds a port to.
 - **Fuzzing earns its place**: it found three bugs no movie reaches, where the
   port had tidied an index or a width the original doesn't.
 - **Existing ports in the early style** can be brought over the same way; the
