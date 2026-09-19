@@ -333,6 +333,3 @@ void battle_irq_after_hblank(Snes *s)
  * bank 0. */
 bool battle_data_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
 
-/* battle_upload_vram loads the OAM transfer's mode and address with TDC, which
- * the service writes as 0. */
-bool battle_direct_page_low_is_zero(Snes *s) { return (s->cpu.d & 0xFF) == 0; }

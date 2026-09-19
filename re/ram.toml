@@ -4057,7 +4057,7 @@ count = 23
 index = "battle object ($0C + battle slot for the combatants)"
 subsystem = "battle"
 meaning = "Battle objects' screen X positions"
-source = "game/battle/sprites.c header, battle_draw_sprite_parts $CF:EAC5, battle_draw_shadow $CF:EA8A; the ports at D = 0 index it as $1D0C + slot (setup.c place_party_objects, battle_step_object_paths $CF:EC78, objects.c, buffers.c)"
+source = "game/battle/draw_objects.c header, draw_sprite_parts $CF:EAC5, draw_shadow $CF:EA8A; the ports at D = 0 index it as $1D0C + slot (setup.c place_party_objects, battle_step_object_paths $CF:EC78, objects.c, buffers.c)"
 
 [[var]]
 name = "battle_object_y"
@@ -4067,17 +4067,17 @@ count = 23
 index = "battle object ($0C + battle slot for the combatants)"
 subsystem = "battle"
 meaning = "Battle objects' screen Y positions, also their depth when sprites are sorted"
-source = "game/battle/sprites.c header, battle_draw_objects $CF:E83A; indexed as $1D23 + slot at D = 0 (setup.c, battle_step_object_paths $CF:EC78, battle_step_orbits $CF:F978)"
+source = "game/battle/draw_objects.c header, draw_objects $CF:E83A; indexed as $1D23 + slot at D = 0 (setup.c, battle_step_object_paths $CF:EC78, battle_step_orbits $CF:F978)"
 
 [[var]]
 name = "battle_object_extra_draw"
-addr = "7E:1D39"
+addr = "7E:1D45"
 page = "battle_sprites"
-count = 23
-index = "battle object"
+count = 11
+index = "battle slot (object $0C + slot)"
 subsystem = "battle"
 meaning = "1 when the object also gets a topmost draw-list entry ($A5CD set); set to $80 once its parts are drawn, and then it gets no shadow"
-source = "game/battle/sprites.c battle_draw_objects $CF:E83A"
+source = "game/battle/draw_objects.c draw_objects $CF:E83A"
 
 [[var]]
 name = "battle_object_part_count"
@@ -4087,7 +4087,7 @@ count = 23
 index = "battle object"
 subsystem = "battle"
 meaning = "Number of sprite parts drawn for the object (0: shadow only); $0F for party members"
-source = "game/battle/sprites.c header and battle_draw_objects $CF:E83A; game/battle/setup.c place_party_objects and setup_enemy ($1D7F + slot)"
+source = "game/battle/draw_objects.c header and draw_objects $CF:E83A; game/battle/setup.c place_party_objects and setup_enemy ($1D7F + slot)"
 
 [[var]]
 name = "battle_draw_list_depth"
@@ -4097,7 +4097,7 @@ count = 23
 index = "draw list entry"
 subsystem = "battle"
 meaning = "Sort keys of the draw list: the object's Y position, $FE for a topmost entry; sorted descending"
-source = "game/battle/sprites.c battle_draw_objects $CF:E83A"
+source = "game/battle/draw_objects.c draw_objects $CF:E83A"
 
 [[var]]
 name = "battle_draw_list"
@@ -4107,7 +4107,7 @@ count = 23
 index = "draw list entry"
 subsystem = "battle"
 meaning = "The draw list: battle object | $40 (bit 6 clear for a topmost extra entry), $FF after the last"
-source = "game/battle/sprites.c battle_draw_objects $CF:E83A"
+source = "game/battle/draw_objects.c draw_objects $CF:E83A"
 
 [[var]]
 name = "battle_draw_list_position"
@@ -4115,7 +4115,7 @@ addr = "7E:1DC3"
 page = "battle_sprites"
 subsystem = "battle"
 meaning = "Draw list entry being drawn"
-source = "game/battle/sprites.c battle_draw_objects $CF:E83A"
+source = "game/battle/draw_objects.c draw_objects $CF:E83A"
 
 [[var]]
 name = "battle_draw_object"
@@ -4124,7 +4124,7 @@ page = "battle_sprites"
 size = 2
 subsystem = "battle"
 meaning = "Battle object whose sprites are being drawn"
-source = "game/battle/sprites.c battle_draw_objects $CF:E83A, battle_draw_sprite_parts $CF:EAC5, draw_marker in $CF:EDB8"
+source = "game/battle/draw_objects.c draw_objects $CF:E83A, draw_sprite_parts $CF:EAC5, draw_marker in $CF:EDB8"
 
 [[var]]
 name = "battle_oam_next"
@@ -4133,7 +4133,7 @@ page = "battle_sprites"
 size = 2
 subsystem = "battle"
 meaning = "Offset in the OAM buffer of the next free sprite entry (starts at $10, after the four cursor sprites)"
-source = "game/battle/sprites.c header, battle_draw_objects $CF:E83A, battle_draw_shadow $CF:EA8A"
+source = "game/battle/draw_objects.c header, draw_objects $CF:E83A, draw_shadow $CF:EA8A"
 
 [[var]]
 name = "battle_object_size_bits"
@@ -4518,8 +4518,8 @@ addr = "7E:8C2D"
 count = 0x200
 index = "OAM buffer offset"
 subsystem = "battle"
-meaning = "For each OAM buffer byte offset, the high-table bits (X high bit) of that sprite within its high-table byte"
-source = "game/battle/setup.c fill_cell_tables in battle_setup_state $CC:E2E4; game/battle/sprites.c battle_draw_sprite_parts $CF:EAC5 (read as $8E2D, the second of the two tables)"
+meaning = "For each OAM buffer byte offset, the mask that clears its sprite's X high bit in its high-table byte (the second table, battle_oam_x_high_bits, sets it)"
+source = "game/battle/setup.c fill_cell_tables in battle_setup_state $CC:E2E4; game/battle/draw_objects.c draw_sprite_parts $CF:EAC5 (read as $8E2D, the second of the two tables)"
 
 [[var]]
 name = "battle_oam_high_offsets"
@@ -4528,7 +4528,7 @@ count = 0x200
 index = "OAM buffer offset"
 subsystem = "battle"
 meaning = "For each OAM buffer byte offset, its sprite's byte in the high table (offset / 16)"
-source = "game/battle/setup.c fill_cell_tables in battle_setup_state $CC:E2E4; game/battle/sprites.c battle_draw_sprite_parts $CF:EAC5, copy_prepared_sprites"
+source = "game/battle/setup.c fill_cell_tables in battle_setup_state $CC:E2E4; game/battle/draw_objects.c draw_sprite_parts $CF:EAC5, copy_prepared_sprites"
 
 # ---- number sprites, names and digits ------------------------------------------
 
@@ -4540,7 +4540,7 @@ stride = 4
 index = "combatant * 4 + digit"
 subsystem = "battle"
 meaning = "Prepared number sprites shown over the combatants (four digits each)"
-source = "game/battle/numbers.c header and battle_script_build_number_sprites $C1:5ADB; game/battle/sprites.c copy_prepared_sprites, battle_step_prepared_sprites $CF:E781"
+source = "game/battle/numbers.c header and battle_script_build_number_sprites $C1:5ADB; game/battle/draw_objects.c copy_prepared_sprites; game/battle/object_motion.c battle_step_prepared_sprites $CF:E781"
   [[var.field]]
   name = "x"
   offset = 0
@@ -4565,7 +4565,7 @@ count = 11
 index = "combatant"
 subsystem = "battle"
 meaning = "OAM high-table byte of each combatant's four number sprites"
-source = "game/battle/numbers.c header; game/battle/sprites.c copy_prepared_sprites in $CF:EDB8"
+source = "game/battle/numbers.c header; game/battle/draw_objects.c copy_prepared_sprites in $CF:EDB8"
 
 [[var]]
 name = "battle_member_actions"
@@ -5236,7 +5236,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "The combatant's pose ($FF none; $80 the low HP pose), chosen from its status"
-source = "game/battle/stats.c battle_select_status_pose $C1:2F97; game/battle/sprites.c battle_cycle_party_palettes $CF:E7D7"
+source = "game/battle/stats.c battle_select_status_pose $C1:2F97; game/battle/object_motion.c battle_cycle_party_palettes $CF:E7D7"
 
 [[var]]
 name = "battle_object_pose_last"
@@ -5270,7 +5270,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Object's sprite palette (times 2, the attribute bits; party $0A, $0C, $0E)"
-source = "game/battle/setup.c load_palettes, setup_enemy; game/battle/sprites.c battle_draw_sprite_parts $CF:EAC5 ($9930 + object), battle_cycle_party_palettes $CF:E7D7"
+source = "game/battle/setup.c load_palettes, setup_enemy; game/battle/draw_objects.c draw_sprite_parts $CF:EAC5 ($9930 + object); game/battle/object_motion.c battle_cycle_party_palettes $CF:E7D7"
 
 [[var]]
 name = "battle_object_palette_initial"
@@ -5288,21 +5288,21 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Attribute bits ORed with the palette into the object's sprites"
-source = "game/battle/sprites.c battle_draw_sprite_parts $CF:EAC5 ($99A9 + object); game/battle/setup.c reset_battle_tables"
+source = "game/battle/draw_objects.c draw_sprite_parts $CF:EAC5 ($99A9 + object); game/battle/setup.c reset_battle_tables"
 
 [[var]]
 name = "battle_sprite_attributes"
 addr = "7E:A5E3"
 subsystem = "battle"
 meaning = "Attribute bits (priority) ORed into the shadows, markers and bitmap sprites"
-source = "game/battle/sprites.c battle_draw_shadow $CF:EA8A, draw_marker, battle_build_bitmap_sprites $C1:4943"
+source = "game/battle/draw_objects.c draw_shadow $CF:EA8A, draw_marker; game/battle/sprites.c battle_build_bitmap_sprites $C1:4943"
 
 [[var]]
 name = "battle_cursor_priority"
 addr = "7E:9F46"
 subsystem = "battle"
 meaning = "Priority bits of the four cursor sprites and the shadows; bit 3 picks the animated color at $233C or $23BC"
-source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/sprites.c battle_draw_shadow $CF:EA8A"
+source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/draw_objects.c draw_shadow $CF:EA8A"
 
 [[var]]
 name = "battle_part_offsets"
@@ -5312,7 +5312,7 @@ stride = 4
 index = "battle slot * 4 + part"
 subsystem = "battle"
 meaning = "The current frame's sprite part offsets from the object's position (sign-extended)"
-source = "game/battle/sprites.c battle_build_object_graphics $C1:1C55, battle_draw_sprite_parts $CF:EAC5"
+source = "game/battle/sprites.c battle_build_object_graphics $C1:1C55; game/battle/draw_objects.c draw_sprite_parts $CF:EAC5"
   [[var.field]]
   name = "x"
   offset = 0
@@ -5331,7 +5331,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set to skip drawing the object's parts and shadow; enemies start with bit 7 of their placement kind, and hidden ones aren't counted among the enemy kinds"
-source = "game/battle/sprites.c battle_draw_sprite_parts $CF:EAC5, battle_draw_shadow $CF:EA8A ($9FEB + object); game/battle/setup.c setup_enemy, count_enemy_kinds ($9FFA + enemy)"
+source = "game/battle/draw_objects.c draw_sprite_parts $CF:EAC5, draw_shadow $CF:EA8A ($9FEB + object); game/battle/setup.c setup_enemy, count_enemy_kinds ($9FFA + enemy)"
 
 [[var]]
 name = "battle_object_extra_draw_on"
@@ -5340,7 +5340,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set when the object gets a topmost draw-list entry as well ($80 for enemies with flag bit 7 of $E4:F604)"
-source = "game/battle/sprites.c battle_draw_objects $CF:E83A ($A5C1 + object); game/battle/setup.c setup_enemy ($A5D0 + enemy)"
+source = "game/battle/draw_objects.c draw_objects $CF:E83A ($A5C1 + object); game/battle/setup.c setup_enemy ($A5D0 + enemy)"
 
 [[var]]
 name = "battle_object_shadow"
@@ -5349,7 +5349,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set when the object has a shadow sprite (cleared for enemies at setup)"
-source = "game/battle/sprites.c battle_draw_shadow $CF:EA8A ($A5CC + object); game/battle/setup.c setup_enemy ($A5DB + enemy)"
+source = "game/battle/draw_objects.c draw_shadow $CF:EA8A ($A5CC + object); game/battle/setup.c setup_enemy ($A5DB + enemy)"
 
 [[var]]
 name = "battle_sprite_offset_x"
@@ -5358,7 +5358,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Signed X offset added to the object's position for its sprites and trail"
-source = "game/battle/sprites.c battle_draw_sprite_parts $CF:EAC5 ($A498 + object), battle_record_object_trails $CF:ED18"
+source = "game/battle/draw_objects.c draw_sprite_parts $CF:EAC5 ($A498 + object); game/battle/object_motion.c battle_record_object_trails $CF:ED18"
 
 [[var]]
 name = "battle_sprite_offset_y"
@@ -5367,7 +5367,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Signed Y offset added to the object's position for its sprites and trail"
-source = "game/battle/sprites.c battle_draw_sprite_parts $CF:EAC5 ($A4A3 + object), battle_record_object_trails $CF:ED18"
+source = "game/battle/draw_objects.c draw_sprite_parts $CF:EAC5 ($A4A3 + object); game/battle/object_motion.c battle_record_object_trails $CF:ED18"
 
 [[var]]
 name = "battle_cursor_offset_x"
@@ -5592,7 +5592,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set while the object moves along a scripted path"
-source = "game/battle/sprites.c battle_step_object_paths $CF:EC78"
+source = "game/battle/object_motion.c battle_step_object_paths $CF:EC78"
 
 [[var]]
 name = "battle_path_steps"
@@ -5601,7 +5601,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Path steps left (from 7; negative when done)"
-source = "game/battle/sprites.c battle_step_object_paths $CF:EC78"
+source = "game/battle/object_motion.c battle_step_object_paths $CF:EC78"
 
 [[var]]
 name = "battle_path"
@@ -5610,7 +5610,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "The path the object follows (8 X/Y delta steps each in $CC:F494/$CC:F594)"
-source = "game/battle/sprites.c battle_step_object_paths $CF:EC78"
+source = "game/battle/object_motion.c battle_step_object_paths $CF:EC78"
 
 [[var]]
 name = "battle_anchor_x"
@@ -5620,7 +5620,7 @@ count = 8
 index = "anchor"
 subsystem = "battle"
 meaning = "Anchor points' X positions, for effects"
-source = "game/battle/sprites.c battle_update_anchor_points $CF:ECC2"
+source = "game/battle/object_motion.c battle_update_anchor_points $CF:ECC2"
 
 [[var]]
 name = "battle_anchor_y"
@@ -5630,7 +5630,7 @@ count = 8
 index = "anchor"
 subsystem = "battle"
 meaning = "Anchor points' Y positions"
-source = "game/battle/sprites.c battle_update_anchor_points $CF:ECC2"
+source = "game/battle/object_motion.c battle_update_anchor_points $CF:ECC2"
 
 [[var]]
 name = "battle_anchor_sources"
@@ -5639,7 +5639,7 @@ count = 8
 index = "anchor"
 subsystem = "battle"
 meaning = "What each anchor follows: the battle slot of an object, with bit 6 another anchor (low three bits); negative none"
-source = "game/battle/sprites.c battle_update_anchor_points $CF:ECC2; game/battle/buffers.c battle_reset_object_state $CC:F06B"
+source = "game/battle/object_motion.c battle_update_anchor_points $CF:ECC2; game/battle/buffers.c battle_reset_object_state $CC:F06B"
 
 [[var]]
 name = "battle_trail_on"
@@ -5648,7 +5648,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set when the object records a position trail"
-source = "game/battle/sprites.c battle_record_object_trails $CF:ED18"
+source = "game/battle/object_motion.c battle_record_object_trails $CF:ED18"
 
 [[var]]
 name = "battle_trail_period"
@@ -5657,7 +5657,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Frames between the object's trail records"
-source = "game/battle/sprites.c battle_record_object_trails $CF:ED18"
+source = "game/battle/object_motion.c battle_record_object_trails $CF:ED18"
 
 [[var]]
 name = "battle_trail_countdown"
@@ -5666,7 +5666,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Frames until the object's next trail record"
-source = "game/battle/sprites.c battle_record_object_trails $CF:ED18"
+source = "game/battle/object_motion.c battle_record_object_trails $CF:ED18"
 
 [[var]]
 name = "battle_effect_reload"
@@ -5675,7 +5675,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Period of the object's four-part effect"
-source = "game/battle/sprites.c battle_step_object_effect $CF:E92C ($AB71 + object)"
+source = "game/battle/draw_objects.c step_trail $CF:E92C ($AB71 + object)"
 
 [[var]]
 name = "battle_effect_countdown"
@@ -5684,7 +5684,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Frames until the object's four-part effect steps"
-source = "game/battle/sprites.c battle_step_object_effect $CF:E92C ($AB7C + object)"
+source = "game/battle/draw_objects.c step_trail $CF:E92C ($AB7C + object)"
 
 [[var]]
 name = "battle_trail_low"
@@ -5694,7 +5694,7 @@ stride = 0x16
 index = "trail entry (0 the newest)"
 subsystem = "battle"
 meaning = "Low bytes of the objects' last four recorded positions (the four-part effect draws from them)"
-source = "game/battle/sprites.c battle_record_object_trails $CF:ED18, battle_step_object_effect $CF:E92C; game/battle/buffers.c battle_reset_object_state $CC:F06B"
+source = "game/battle/object_motion.c battle_record_object_trails $CF:ED18; game/battle/draw_objects.c step_trail $CF:E92C; game/battle/buffers.c battle_reset_object_state $CC:F06B"
   [[var.field]]
   name = "x"
   offset = 0
@@ -5714,7 +5714,7 @@ stride = 0x16
 index = "trail entry (0 the newest)"
 subsystem = "battle"
 meaning = "High bytes of the objects' last four recorded positions"
-source = "game/battle/sprites.c battle_record_object_trails $CF:ED18, battle_step_object_effect $CF:E92C"
+source = "game/battle/object_motion.c battle_record_object_trails $CF:ED18; game/battle/draw_objects.c step_trail $CF:E92C"
   [[var.field]]
   name = "x"
   offset = 0
@@ -5733,7 +5733,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Set while the enemy moves in a circle"
-source = "game/battle/sprites.c battle_step_orbits $CF:F978"
+source = "game/battle/effect_paths.c step_orbits $CF:F978"
 
 [[var]]
 name = "battle_orbit_center_x"
@@ -5742,7 +5742,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "X of the orbit's center"
-source = "game/battle/sprites.c battle_step_orbits $CF:F978"
+source = "game/battle/effect_paths.c step_orbits $CF:F978"
 
 [[var]]
 name = "battle_orbit_center_y"
@@ -5751,7 +5751,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Y of the orbit's center"
-source = "game/battle/sprites.c battle_step_orbits $CF:F978"
+source = "game/battle/effect_paths.c step_orbits $CF:F978"
 
 [[var]]
 name = "battle_orbit_radius"
@@ -5760,7 +5760,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Orbit radius (the orbit ends when it reaches 8)"
-source = "game/battle/sprites.c battle_step_orbits $CF:F978"
+source = "game/battle/effect_paths.c step_orbits $CF:F978"
 
 [[var]]
 name = "battle_orbit_radius_step"
@@ -5769,7 +5769,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Added to the radius at each orbit step"
-source = "game/battle/sprites.c battle_step_orbits $CF:F978; game/battle/setup.c setup_enemy (low bits of $E4:F609)"
+source = "game/battle/effect_paths.c step_orbits $CF:F978; game/battle/setup.c setup_enemy (low bits of $E4:F609)"
 
 [[var]]
 name = "battle_orbit_period"
@@ -5778,7 +5778,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Frames between orbit steps"
-source = "game/battle/sprites.c battle_step_orbits $CF:F978; game/battle/setup.c setup_enemy (high nibble of $E4:F609)"
+source = "game/battle/effect_paths.c step_orbits $CF:F978; game/battle/setup.c setup_enemy (high nibble of $E4:F609)"
 
 [[var]]
 name = "battle_orbit_angle"
@@ -5787,7 +5787,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Angle on the orbit (256 steps per turn)"
-source = "game/battle/sprites.c battle_step_orbits $CF:F978"
+source = "game/battle/effect_paths.c step_orbits $CF:F978"
 
 [[var]]
 name = "battle_orbit_countdown"
@@ -5796,7 +5796,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Frames until the next orbit step"
-source = "game/battle/sprites.c battle_step_orbits $CF:F978; game/battle/setup.c setup_enemy"
+source = "game/battle/effect_paths.c step_orbits $CF:F978; game/battle/setup.c setup_enemy"
 
 [[var]]
 name = "battle_enemy_effect_delay"
@@ -5877,7 +5877,7 @@ count = 88
 index = "effect slot * 11 + battle slot"
 subsystem = "battle"
 meaning = "Eight effect slots per object drawn with its sprites: negative ones under the parts, positive ones over them"
-source = "game/battle/sprites.c effect_slots in $CF:EDB8/$CF:EDF7; game/battle/buffers.c battle_reset_object_state $CC:F06B"
+source = "game/battle/draw_objects.c draw_effects in $CF:EDB8/$CF:EDF7; game/battle/buffers.c battle_reset_object_state $CC:F06B"
 
 [[var]]
 name = "battle_marker_on"
@@ -5886,7 +5886,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set when an animated marker sprite is drawn with the object"
-source = "game/battle/sprites.c draw_marker in battle_draw_object_underlays $CF:EDB8"
+source = "game/battle/draw_objects.c draw_marker in draw_underlays $CF:EDB8"
 
 [[var]]
 name = "battle_marker_countdown"
@@ -5895,7 +5895,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Frames until the marker's next frame"
-source = "game/battle/sprites.c draw_marker"
+source = "game/battle/draw_objects.c draw_marker"
 
 [[var]]
 name = "battle_marker_period"
@@ -5904,7 +5904,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Frames per marker frame"
-source = "game/battle/sprites.c draw_marker"
+source = "game/battle/draw_objects.c draw_marker"
 
 [[var]]
 name = "battle_marker_kind"
@@ -5913,7 +5913,16 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Which marker (its four frames' offset in $CC:F6D4)"
-source = "game/battle/sprites.c draw_marker"
+source = "game/battle/draw_objects.c draw_marker"
+
+[[var]]
+name = "battle_marker_frame"
+addr = "7E:A4DB"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "The marker's frame, 0-3"
+source = "game/battle/draw_objects.c draw_marker in draw_underlays $CF:EDB8"
 
 [[var]]
 name = "battle_prepared_sprites_on"
@@ -5922,28 +5931,28 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set when the object's prepared (number) sprites are copied to the OAM buffer"
-source = "game/battle/sprites.c copy_prepared_sprites in $CF:EDB8"
+source = "game/battle/draw_objects.c copy_prepared_sprites in $CF:EDB8"
 
 [[var]]
 name = "battle_number_step"
 addr = "7E:A3D1"
 subsystem = "battle"
 meaning = "Step of the number display script opcodes (hide, build, wait); while set the objects draw their prepared sprites"
-source = "game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB; game/battle/sprites.c battle_draw_object_underlays $CF:EDB8"
+source = "game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB; game/battle/draw_objects.c draw_underlays $CF:EDB8"
 
 [[var]]
 name = "battle_numbers_rising"
 addr = "7E:AC5A"
 subsystem = "battle"
 meaning = "Set while the prepared number sprites move by the rows of $D1:5E10; cleared at the row ending the motion"
-source = "game/battle/sprites.c battle_step_prepared_sprites $CF:E781; game/battle/numbers.c"
+source = "game/battle/object_motion.c battle_step_prepared_sprites $CF:E781; game/battle/numbers.c"
 
 [[var]]
 name = "battle_numbers_row"
 addr = "7E:A3D2"
 subsystem = "battle"
 meaning = "Row of the number motion table reached"
-source = "game/battle/sprites.c battle_step_prepared_sprites $CF:E781"
+source = "game/battle/object_motion.c battle_step_prepared_sprites $CF:E781"
 
 [[var]]
 name = "battle_number_records"
@@ -6025,7 +6034,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Set while the member's effect palette cycles"
-source = "game/battle/sprites.c battle_cycle_party_palettes $CF:E7D7"
+source = "game/battle/object_motion.c battle_cycle_party_palettes $CF:E7D7"
 
 [[var]]
 name = "battle_party_palette_cycle"
@@ -6034,7 +6043,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Position in the member's palette cycle (steps by 2, wraps at $7C)"
-source = "game/battle/sprites.c battle_cycle_party_palettes $CF:E7D7"
+source = "game/battle/object_motion.c battle_cycle_party_palettes $CF:E7D7"
 
 [[var]]
 name = "battle_color_phase"
@@ -6834,7 +6843,7 @@ count = 0x20
 index = "byte ($00-$1F)"
 subsystem = "battle"
 meaning = "Direct-page scratch the battle's routines share at $00-$1F: the multiply's operands and product ($00 by $02-$03 into $04-$06), and the window quadrilateral rasterizer's four edge slopes (8.8, words at $03-$09), a slope's end and start column and lines ($0B-$0D), the top line ($0F) and the corners sorted by line (X, Y at $12-$19)"
-source = "game/battle/screen_window.c battle_draw_window_quad $D1:F9AF, battle_quad_edge_slopes $D1:F91D; $D1:F9E7; game/battle/sprites.c $CF:F9FB"
+source = "game/battle/screen_window.c battle_draw_window_quad $D1:F9AF, battle_quad_edge_slopes $D1:F91D; $D1:F9E7; game/battle/effect_paths.c $CF:F9FB"
 
 [[var]]
 name = "battle_window_quad_index"
@@ -7362,6 +7371,192 @@ index = "enemy (battle slot less 3)"
 subsystem = "battle"
 meaning = "Y of each enemy's place in the formation"
 source = "game/battle/effect_paths.c battle_place_formation $CF:F9D3"
+
+[[var]]
+name = "battle_background_cycle_on"
+addr = "7E:A08B"
+subsystem = "battle"
+meaning = "Nonzero to rotate the background palette colors battle_background_cycle names, with the sprite colors at $2382"
+source = "game/battle/frame.c battle_frame_update $CF:E58A"
+
+[[var]]
+name = "battle_background_cycle"
+addr = "7E:99D3"
+subsystem = "battle"
+meaning = "The rotated background colors: the palette in the high nibble from the color in the low one, and color 1-15 of every palette after it"
+source = "game/battle/frame.c battle_frame_update $CF:E58A"
+
+[[var]]
+name = "battle_demo_exiting"
+addr = "7E:A097"
+subsystem = "battle"
+meaning = "Set by any button in a demo battle; the brightness then counts down to the exit"
+source = "game/battle/frame.c battle_frame_update $CF:E58A"
+
+[[var]]
+name = "battle_leaving"
+addr = "7E:BB80"
+subsystem = "battle"
+meaning = "Set to $80 as a demo battle exits to the reset code"
+source = "game/battle/frame.c battle_frame_update $CF:E58A"
+
+[[var]]
+name = "battle_lr_state"
+addr = "7E:99D1"
+subsystem = "battle"
+meaning = "Cleared with battle_lr_held when L and R are let go"
+source = "game/battle/frame.c battle_frame_update $CF:E58A"
+
+[[var]]
+name = "battle_formation"
+addr = "7E:AA63"
+subsystem = "battle"
+meaning = "Nonzero while an enemy formation places its members each frame ($CF:F9D3)"
+source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/setup.c setup_enemy"
+
+[[var]]
+name = "battle_sprites_frozen"
+addr = "7E:A028"
+subsystem = "battle"
+meaning = "Nonzero to leave the OAM buffer as it is: it is neither cleared nor drawn into"
+source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/frame.c battle_frame_work $CD:088D"
+
+# ---- drawing the battle objects (bank CF) ------------------------------------------
+
+[[var]]
+name = "battle_oam_x_high_bits"
+addr = "7E:8E2D"
+count = 0x200
+index = "OAM buffer offset"
+subsystem = "battle"
+meaning = "For each OAM buffer byte offset, the bit of its sprite's X high bit in its high-table byte"
+source = "game/battle/draw_objects.c set_x_high_bit; game/battle/setup.c fill_cell_tables"
+
+[[var]]
+name = "battle_draw_scratch"
+addr = "7E:1D2E"
+page = "battle_sprites"
+count = 0x17
+index = "byte"
+subsystem = "battle"
+meaning = "The drawing routines' scratch on the object page ($2E-$44): the base position (16-bit X, Y), the part's position, the part count, the attribute word, the sprite offset sign-extended, the part index; the draw list's last index at $30"
+source = "game/battle/draw_objects.c draw_parts $CF:EAC5, draw_objects $CF:E83A"
+
+[[var]]
+name = "battle_draw_part_count"
+addr = "7E:1DC7"
+page = "battle_sprites"
+size = 2
+subsystem = "battle"
+meaning = "Parts of the object being drawn, from which its tile groups are counted"
+source = "game/battle/draw_objects.c draw_objects $CF:E83A"
+
+[[var]]
+name = "battle_effect_object"
+addr = "7E:1DCB"
+page = "battle_sprites"
+size = 2
+subsystem = "battle"
+meaning = "The object whose trail is being drawn"
+source = "game/battle/draw_objects.c step_trail $CF:E92C"
+
+[[var]]
+name = "battle_draw_tile_groups"
+addr = "7E:1DCD"
+page = "battle_sprites"
+size = 2
+subsystem = "battle"
+meaning = "Groups of four sprites whose tiles are left to copy"
+source = "game/battle/draw_objects.c copy_sprite_tiles $CF:EB94"
+
+[[var]]
+name = "battle_effect_sprite_attributes"
+addr = "7E:00A1"
+page = "battle"
+subsystem = "battle"
+meaning = "The attribute bits of the effect whose sprites are being drawn"
+source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB"
+
+[[var]]
+name = "battle_effect_attribute_bits"
+addr = "7E:AB5F"
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "Attribute bits (palette, priority) of each effect's sprites"
+source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB; game/battle/setup.c"
+
+[[var]]
+name = "battle_anchor_offset_x"
+addr = "7E:A260"
+size = 2
+count = 8
+index = "anchor"
+subsystem = "battle"
+meaning = "Offset from the anchor an effect's sprites are drawn at, X"
+source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB"
+
+[[var]]
+name = "battle_anchor_offset_y"
+addr = "7E:A270"
+size = 2
+count = 8
+index = "anchor"
+subsystem = "battle"
+meaning = "Offset from the anchor an effect's sprites are drawn at, Y"
+source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB"
+
+[[var]]
+name = "battle_effect_sprite_set"
+addr = "7E:A2C0"
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "The sprite set an effect draws (low six bits)"
+source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB"
+
+[[var]]
+name = "battle_effect_sprite_data"
+addr = "7E:4500"
+count = 0x800
+index = "byte"
+subsystem = "battle"
+meaning = "The effect sprite sets: four bytes a sprite (X, Y from the anchor, tile, attributes)"
+source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB"
+
+[[var]]
+name = "battle_effect_shown"
+addr = "7E:A1D8"
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "Nonzero while the effect's sprites are drawn with the objects"
+source = "game/battle/draw_objects.c draw_effects $CF:EDB8"
+
+[[var]]
+name = "battle_markers_held"
+addr = "7E:A0FE"
+subsystem = "battle"
+meaning = "Nonzero to leave the objects' markers undrawn"
+source = "game/battle/draw_objects.c draw_underlays $CF:EDB8"
+
+[[var]]
+name = "battle_number_rise"
+addr = "7E:A0E7"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "How far each combatant's number sprites move this frame"
+source = "game/battle/object_motion.c step_prepared_sprites $CF:E781"
+
+[[var]]
+name = "battle_number_rise_alt"
+addr = "7E:A0DC"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Nonzero for combatants whose numbers rise by the second table"
+source = "game/battle/object_motion.c step_prepared_sprites $CF:E781"
 
 # ==============================================================================
 # Found by measurement (tools/movies/addresses.py): no port reads these yet

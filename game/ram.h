@@ -1362,6 +1362,9 @@
  * is */
 #define RAM_BATTLE_TRANSFER_PENDING 0x7E00A0u
 #define RAM_BATTLE_TRANSFER_PENDING_DP 0xA0u /* page battle */
+/* The attribute bits of the effect whose sprites are being drawn */
+#define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES 0x7E00A1u
+#define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES_DP 0xA1u /* page battle */
 /* Cycles 0-3: which of the four queued VRAM uploads runs this frame, and whose animations step
  * (0 the party, 1-3 an enemy group) */
 #define RAM_BATTLE_FRAME_PHASE 0x7E00A4u
@@ -1461,12 +1464,19 @@
 #define RAM_BATTLE_OBJECT_Y_COUNT 23u
 #define RAM_BATTLE_OBJECT_Y_STRIDE 0x01u
 #define RAM_BATTLE_OBJECT_Y_DP 0x17u         /* page battle_sprites */
+/* The drawing routines' scratch on the object page ($2E-$44): the base position (16-bit X, Y),
+ * the part's position, the part count, the attribute word, the sprite offset sign-extended, the
+ * part index; the draw list's last index at $30 [23 x $1 bytes, by byte] */
+#define RAM_BATTLE_DRAW_SCRATCH 0x7E1D2Eu
+#define RAM_BATTLE_DRAW_SCRATCH_COUNT 23u
+#define RAM_BATTLE_DRAW_SCRATCH_STRIDE 0x01u
+#define RAM_BATTLE_DRAW_SCRATCH_DP 0x2Eu     /* page battle_sprites */
 /* 1 when the object also gets a topmost draw-list entry ($A5CD set); set to $80 once its parts
- * are drawn, and then it gets no shadow [23 x $1 bytes, by battle object] */
-#define RAM_BATTLE_OBJECT_EXTRA_DRAW 0x7E1D39u
-#define RAM_BATTLE_OBJECT_EXTRA_DRAW_COUNT 23u
+ * are drawn, and then it gets no shadow [11 x $1 bytes, by battle slot (object $0C + slot)] */
+#define RAM_BATTLE_OBJECT_EXTRA_DRAW 0x7E1D45u
+#define RAM_BATTLE_OBJECT_EXTRA_DRAW_COUNT 11u
 #define RAM_BATTLE_OBJECT_EXTRA_DRAW_STRIDE 0x01u
-#define RAM_BATTLE_OBJECT_EXTRA_DRAW_DP 0x39u /* page battle_sprites */
+#define RAM_BATTLE_OBJECT_EXTRA_DRAW_DP 0x45u /* page battle_sprites */
 /* Number of sprite parts drawn for the object (0: shadow only); $0F for party members [23 x $1
  * bytes, by battle object] */
 #define RAM_BATTLE_OBJECT_PART_COUNT 0x7E1D73u
@@ -1491,10 +1501,19 @@
 /* Battle object whose sprites are being drawn [2 bytes] */
 #define RAM_BATTLE_DRAW_OBJECT 0x7E1DC5u
 #define RAM_BATTLE_DRAW_OBJECT_DP 0xC5u      /* page battle_sprites */
+/* Parts of the object being drawn, from which its tile groups are counted [2 bytes] */
+#define RAM_BATTLE_DRAW_PART_COUNT 0x7E1DC7u
+#define RAM_BATTLE_DRAW_PART_COUNT_DP 0xC7u  /* page battle_sprites */
 /* Offset in the OAM buffer of the next free sprite entry (starts at $10, after the four cursor
  * sprites) [2 bytes] */
 #define RAM_BATTLE_OAM_NEXT 0x7E1DC9u
 #define RAM_BATTLE_OAM_NEXT_DP 0xC9u         /* page battle_sprites */
+/* The object whose trail is being drawn [2 bytes] */
+#define RAM_BATTLE_EFFECT_OBJECT 0x7E1DCBu
+#define RAM_BATTLE_EFFECT_OBJECT_DP 0xCBu    /* page battle_sprites */
+/* Groups of four sprites whose tiles are left to copy [2 bytes] */
+#define RAM_BATTLE_DRAW_TILE_GROUPS 0x7E1DCDu
+#define RAM_BATTLE_DRAW_TILE_GROUPS_DP 0xCDu /* page battle_sprites */
 /* Flags of the battle being started: bit 7 no running away (L+R), bit 5 a demo battle (any
  * button ends it), bit 2 the party left off the battlefield grid */
 #define RAM_BATTLE_SETUP_FLAGS 0x7E2989u
@@ -1535,6 +1554,11 @@
 #define RAM_BATTLE_DECODED_TILES 0x7E2D00u
 #define RAM_BATTLE_DECODED_TILES_COUNT 3072u
 #define RAM_BATTLE_DECODED_TILES_STRIDE 0x01u
+/* The effect sprite sets: four bytes a sprite (X, Y from the anchor, tile, attributes) [2048 x
+ * $1 bytes, by byte] */
+#define RAM_BATTLE_EFFECT_SPRITE_DATA 0x7E4500u
+#define RAM_BATTLE_EFFECT_SPRITE_DATA_COUNT 2048u
+#define RAM_BATTLE_EFFECT_SPRITE_DATA_STRIDE 0x01u
 /* Set while the screen script channels run; cleared when both have ended. The HP gradient waits
  * for it */
 #define RAM_BATTLE_SCREEN_SCRIPTS_RUNNING 0x7E5D9Bu
@@ -1587,11 +1611,17 @@
 #define RAM_BATTLE_LOAD_TILEMAP_2 0x7E80FDu
 #define RAM_BATTLE_LOAD_TILEMAP_2_COUNT 512u
 #define RAM_BATTLE_LOAD_TILEMAP_2_STRIDE 0x01u
-/* For each OAM buffer byte offset, the high-table bits (X high bit) of that sprite within its
- * high-table byte [512 x $1 bytes, by OAM buffer offset] */
+/* For each OAM buffer byte offset, the mask that clears its sprite's X high bit in its
+ * high-table byte (the second table, battle_oam_x_high_bits, sets it) [512 x $1 bytes, by OAM
+ * buffer offset] */
 #define RAM_BATTLE_OAM_HIGH_BITS 0x7E8C2Du
 #define RAM_BATTLE_OAM_HIGH_BITS_COUNT 512u
 #define RAM_BATTLE_OAM_HIGH_BITS_STRIDE 0x01u
+/* For each OAM buffer byte offset, the bit of its sprite's X high bit in its high-table byte
+ * [512 x $1 bytes, by OAM buffer offset] */
+#define RAM_BATTLE_OAM_X_HIGH_BITS 0x7E8E2Du
+#define RAM_BATTLE_OAM_X_HIGH_BITS_COUNT 512u
+#define RAM_BATTLE_OAM_X_HIGH_BITS_STRIDE 0x01u
 /* For each OAM buffer byte offset, its sprite's byte in the high table (offset / 16) [512 x $1
  * bytes, by OAM buffer offset] */
 #define RAM_BATTLE_OAM_HIGH_OFFSETS 0x7E902Du
@@ -1889,6 +1919,11 @@
 /* Frames L and R have been held together (cleared when released); while nonzero the party shows
  * its running pose [2 bytes] */
 #define RAM_BATTLE_LR_HELD 0x7E99CFu
+/* Cleared with battle_lr_held when L and R are let go */
+#define RAM_BATTLE_LR_STATE 0x7E99D1u
+/* The rotated background colors: the palette in the high nibble from the color in the low one,
+ * and color 1-15 of every palette after it */
+#define RAM_BATTLE_BACKGROUND_CYCLE 0x7E99D3u
 /* Party member's remaining wait before it can act (copied from its timer counter each pass); its
  * gauge shows the part that has passed, highlighted while nonzero [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_GAUGE_WAIT 0x7E99DDu
@@ -1957,6 +1992,8 @@
 #define RAM_BATTLE_GRAPHICS_UPLOAD_REQUEST 0x7EA012u
 /* Set while the timed effect slots run; the enemies' orbits run instead otherwise */
 #define RAM_BATTLE_EFFECTS_RUNNING 0x7EA013u
+/* Nonzero to leave the OAM buffer as it is: it is neither cleared nor drawn into */
+#define RAM_BATTLE_SPRITES_FROZEN 0x7EA028u
 /* Set while main code uses the hardware divider, so the interrupt handlers restore its operands
  * rather than the multiplier's */
 #define RAM_BATTLE_DIVIDER_BUSY 0x7EA029u
@@ -1977,13 +2014,28 @@
 #define RAM_BATTLE_BITMAP_COUNTS 0x7EA05Bu
 #define RAM_BATTLE_BITMAP_COUNTS_COUNT 4u
 #define RAM_BATTLE_BITMAP_COUNTS_STRIDE 0x01u
+/* Nonzero to rotate the background palette colors battle_background_cycle names, with the sprite
+ * colors at $2382 */
+#define RAM_BATTLE_BACKGROUND_CYCLE_ON 0x7EA08Bu
+/* Set by any button in a demo battle; the brightness then counts down to the exit */
+#define RAM_BATTLE_DEMO_EXITING 0x7EA097u
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
  * techs naming it, are dimmed [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_MEMBER_DISABLED 0x7EA0D1u
 #define RAM_BATTLE_MEMBER_DISABLED_COUNT 3u
 #define RAM_BATTLE_MEMBER_DISABLED_STRIDE 0x01u
+/* Nonzero for combatants whose numbers rise by the second table [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_NUMBER_RISE_ALT 0x7EA0DCu
+#define RAM_BATTLE_NUMBER_RISE_ALT_COUNT 11u
+#define RAM_BATTLE_NUMBER_RISE_ALT_STRIDE 0x01u
+/* How far each combatant's number sprites move this frame [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_NUMBER_RISE 0x7EA0E7u
+#define RAM_BATTLE_NUMBER_RISE_COUNT 11u
+#define RAM_BATTLE_NUMBER_RISE_STRIDE 0x01u
 /* Nonzero to hold the enemies' orbits while no effects run */
 #define RAM_BATTLE_ORBITS_HELD 0x7EA0FDu
+/* Nonzero to leave the objects' markers undrawn */
+#define RAM_BATTLE_MARKERS_HELD 0x7EA0FEu
 /* Party slot of character 4 (Frog), times 5 after setup (an index into $1C48) [2 bytes] */
 #define RAM_BATTLE_FROG_SLOT 0x7EA0FFu
 /* Set when the combatants' sprite attributes point at the other half of the sprite palettes
@@ -2036,6 +2088,10 @@
 #define RAM_BATTLE_SLOT_DELAYS 0x7EA1B0u
 #define RAM_BATTLE_SLOT_DELAYS_COUNT 8u
 #define RAM_BATTLE_SLOT_DELAYS_STRIDE 0x01u
+/* Nonzero while the effect's sprites are drawn with the objects [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_SHOWN 0x7EA1D8u
+#define RAM_BATTLE_EFFECT_SHOWN_COUNT 8u
+#define RAM_BATTLE_EFFECT_SHOWN_STRIDE 0x01u
 /* Set when the anchor's path has ended [8 x $1 bytes, by anchor] */
 #define RAM_BATTLE_ANCHOR_DONE 0x7EA1E0u
 #define RAM_BATTLE_ANCHOR_DONE_COUNT 8u
@@ -2054,6 +2110,14 @@
 #define RAM_BATTLE_ANCHOR_Y 0x7EA250u
 #define RAM_BATTLE_ANCHOR_Y_COUNT 8u
 #define RAM_BATTLE_ANCHOR_Y_STRIDE 0x02u
+/* Offset from the anchor an effect's sprites are drawn at, X [8 x $2 bytes, by anchor] */
+#define RAM_BATTLE_ANCHOR_OFFSET_X 0x7EA260u
+#define RAM_BATTLE_ANCHOR_OFFSET_X_COUNT 8u
+#define RAM_BATTLE_ANCHOR_OFFSET_X_STRIDE 0x02u
+/* Offset from the anchor an effect's sprites are drawn at, Y [8 x $2 bytes, by anchor] */
+#define RAM_BATTLE_ANCHOR_OFFSET_Y 0x7EA270u
+#define RAM_BATTLE_ANCHOR_OFFSET_Y_COUNT 8u
+#define RAM_BATTLE_ANCHOR_OFFSET_Y_STRIDE 0x02u
 /* Offset in bank CE where each group of 4-byte records starts [16 x $2 bytes, by group] */
 #define RAM_BATTLE_RECORD_GROUP_STARTS 0x7EA280u
 #define RAM_BATTLE_RECORD_GROUP_STARTS_COUNT 16u
@@ -2062,6 +2126,10 @@
 #define RAM_BATTLE_RECORD_GROUP_COUNTS 0x7EA2A0u
 #define RAM_BATTLE_RECORD_GROUP_COUNTS_COUNT 16u
 #define RAM_BATTLE_RECORD_GROUP_COUNTS_STRIDE 0x01u
+/* The sprite set an effect draws (low six bits) [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_SPRITE_SET 0x7EA2C0u
+#define RAM_BATTLE_EFFECT_SPRITE_SET_COUNT 8u
+#define RAM_BATTLE_EFFECT_SPRITE_SET_STRIDE 0x01u
 /* High byte of battle_facing_stride_low's length [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_FACING_STRIDE_HIGH 0x7EA2C8u
 #define RAM_BATTLE_FACING_STRIDE_HIGH_COUNT 11u
@@ -2206,6 +2274,10 @@
 #define RAM_BATTLE_MARKER_KIND 0x7EA4D0u
 #define RAM_BATTLE_MARKER_KIND_COUNT 11u
 #define RAM_BATTLE_MARKER_KIND_STRIDE 0x01u
+/* The marker's frame, 0-3 [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_MARKER_FRAME 0x7EA4DBu
+#define RAM_BATTLE_MARKER_FRAME_COUNT 11u
+#define RAM_BATTLE_MARKER_FRAME_STRIDE 0x01u
 /* Position mode of the animation slot plus 1 (0: none) [6 x $1 bytes, by animation slot] */
 #define RAM_BATTLE_ANIMATION_POSITION_MODES 0x7EA4E8u
 #define RAM_BATTLE_ANIMATION_POSITION_MODES_COUNT 6u
@@ -2350,6 +2422,8 @@
 #define RAM_BATTLE_EFFECT_JUMP_BOUNCE 0x7EAA3Du
 #define RAM_BATTLE_EFFECT_JUMP_BOUNCE_COUNT 19u
 #define RAM_BATTLE_EFFECT_JUMP_BOUNCE_STRIDE 0x02u
+/* Nonzero while an enemy formation places its members each frame ($CF:F9D3) */
+#define RAM_BATTLE_FORMATION 0x7EAA63u
 /* X of each enemy's place in the formation [8 x $1 bytes, by enemy (battle slot less 3)] */
 #define RAM_BATTLE_FORMATION_OFFSET_X 0x7EAA64u
 #define RAM_BATTLE_FORMATION_OFFSET_X_COUNT 8u
@@ -2420,6 +2494,10 @@
 #define RAM_BATTLE_ANCHOR_FACING_RECORD 0x7EAB4Fu
 #define RAM_BATTLE_ANCHOR_FACING_RECORD_COUNT 8u
 #define RAM_BATTLE_ANCHOR_FACING_RECORD_STRIDE 0x01u
+/* Attribute bits (palette, priority) of each effect's sprites [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_ATTRIBUTE_BITS 0x7EAB5Fu
+#define RAM_BATTLE_EFFECT_ATTRIBUTE_BITS_COUNT 8u
+#define RAM_BATTLE_EFFECT_ATTRIBUTE_BITS_STRIDE 0x01u
 /* Frames between the object's trail records [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_TRAIL_PERIOD 0x7EAB67u
 #define RAM_BATTLE_TRAIL_PERIOD_COUNT 11u
@@ -2535,6 +2613,8 @@
 #define RAM_BATTLE_BG_OFFSET 0x7EBB01u
 #define RAM_BATTLE_BG_OFFSET_COUNT 2u
 #define RAM_BATTLE_BG_OFFSET_STRIDE 0x02u
+/* Set to $80 as a demo battle exits to the reset code */
+#define RAM_BATTLE_LEAVING 0x7EBB80u
 /* The layers' per-line scroll tables (horizontal/vertical word pairs), refilled each frame [3 x
  * $80 bytes, by layer (BG1-BG3)] */
 #define RAM_BATTLE_SCROLL_TABLES 0x7EBC89u

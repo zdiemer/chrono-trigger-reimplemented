@@ -30,3 +30,11 @@ field_rasterize_quad vblank-worst as for vblank-tail: at most 14885 clocks (11 l
 menu_object_wave_hdma vblank-tail fills a RAM scroll-wave table in 53-line calls, longer than vblank; its error never exceeds 1396 clocks (one line), just over the tail's 1024
 menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 18-line calls; its time follows the glyph's pixels; at most 2658 clocks (two lines)
 menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; at most 4509 clocks (3.3 lines) in vblank
+battle_draw_objects vblank-tail draws the battle objects into the OAM buffer in RAM in 37-line calls, longer than vblank; its time follows the objects' parts, effects and afterimages; 10.7% error
+battle_draw_objects vblank-worst as for vblank-tail: at most 23882 clocks (18 lines) in a call of 37 lines on average, writing RAM
+battle_draw_object_underlays vblank-tail part of battle_draw_objects' pass: an object's markers, number or effect sprites into the OAM buffer in RAM; its time follows which of the three it draws
+battle_draw_object_underlays vblank-worst as for vblank-tail: at most 17409 clocks, inside a pass of 37 lines writing RAM
+battle_step_effect_slots vblank-tail steps the 19 effect slots' paths in RAM (positions and the sine and arctangent products); its time follows which handlers run; 7.9% of calls in vblank off by a line or more
+battle_step_effect_slots vblank-worst as for vblank-tail: at most 18133 clocks, writing RAM the object drawing reads later in the frame
+battle_screen_wave_windows vblank-tail fills the two window line buffers in RAM in 94-line calls; 1.3% error, at most 4506 clocks
+battle_step_hp_gradient vblank-tail writes three palette rows in RAM, uploaded at the next vblank; 1.58% of calls off by 1024 clocks or more, at most 2509

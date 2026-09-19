@@ -126,6 +126,8 @@ add_library(ct_game STATIC
   game/battle/setup.c
   game/battle/sound.c
   game/battle/sprites.c
+  game/battle/draw_objects.c
+  game/battle/object_motion.c
   game/battle/stats.c
   game/battle/tiles.c
   game/battle/timers.c
