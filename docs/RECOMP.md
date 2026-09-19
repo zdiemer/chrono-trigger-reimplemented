@@ -2265,7 +2265,7 @@ These are the tool's next improvements, or its known limits:
 ### Phase 3, wave 1: the scene engine and scene data (`$C3`, `$C6`)
 
 The scene engine's bank went from 44% left to 25% by `python3 tools/burndown.py`
-(11 entries to 28), and the scene data bank from 100% to 80% (21 entries); what
+(11 entries to 28), and the scene data bank from 100% to 68% (25 entries); what
 is left in `$C3` is code the beam's counters decide, one routine nothing reaches
 and the edge sequence `field_rasterize_quad` inlines, which the tool can't
 credit (PORTING.md's rows). The early ports (the NMI, the sprite lists, the
@@ -2310,7 +2310,7 @@ about the workflow rather than the code:
   object mode's cells after the scene program's (`RAM_SCENE_FRAME_READY` for
   `$00`). Entries with more than one entry width need `--m`/`--x`.
 
-Effort: a long working day for 49 entries (0.7 KiB of bank C6 among them,
+Effort: a long working day for 53 entries (1.1 KiB of bank C6 among them,
 counting the jump-table copies); the sequence interpreter and the circle were
 most of the reading, the ambiguous stops most of the debugging, and machine
 time (the library in shadow mode, 10 minutes at two at a time; the gate with

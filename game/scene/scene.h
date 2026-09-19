@@ -25,6 +25,7 @@ bool scene_sequence_bank_is_scripts(Snes *s);
 
 /* scene/circle.c */
 void scene_draw_circle(Snes *s);
+void scene_circle_draw(Snes *s, uint8_t mode);
 
 /* scene/matrix_code.c */
 void scene_write_matrix_code(Snes *s);
@@ -50,6 +51,10 @@ void scene_object_window1_lines(Snes *s);
 void scene_object_window2_lines(Snes *s);
 void scene_object_bg1_scroll_lines(Snes *s);
 bool scene_object_bank_reaches_io(Snes *s);
+void scene_object_squashed_iris_1(Snes *s);
+void scene_object_squashed_iris_2(Snes *s);
+void scene_object_capsule_iris_1(Snes *s);
+void scene_object_capsule_iris_2(Snes *s);
 
 /* scene/math.c */
 void scene_multiply_signed(Snes *s);

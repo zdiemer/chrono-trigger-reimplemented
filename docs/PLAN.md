@@ -58,12 +58,12 @@ docstring says which way it is wrong). **83% of the code is still generated.**
 | battle NMI, graphics (`$D1`) | 5.7K | 0.7K | 87% | 9 |
 | battle setup (`$CC`) | 4.9K | 4.3K | 11% | 8 |
 | scene engine (`$C3`) | 3.9K | 3.0K | 25% | 28 |
-| scene data (`$C6`) | 3.5K | 0.7K | 80% | 21 |
+| scene data (`$C6`) | 3.5K | 1.1K | 68% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 95% | 1 |
-| **total** | **268.5K** | **46.1K** | **83%** | **364** |
+| **total** | **268.5K** | **46.5K** | **83%** | **368** |
 
-The three big banks are the work; the 364 entries are concentrated in small hot
+The three big banks are the work; the 368 entries are concentrated in small hot
 routines, which is why the shares are so high despite the count. The burndown
 now follows the jump tables the analysis has sized, which a port that
 dispatches through one inlines: that alone moved 1.1 KiB (`$C2`, `$CD`, `$C3`)
@@ -72,8 +72,8 @@ its old figure was mostly the tool's. `$CC` is the
 one subsystem near done. `$C3` (the scene engine) is done but for code the
 beam's counters decide, one routine nothing reaches and the edge sequence the
 field's rasterizer inlines (PORTING.md's row); `$C6` has its small object
-routines, and its Mode 7 map and perspective effects, irises and orbit
-routines are left, none of which a movie reaches.
+routines and irises, and its Mode 7 map and perspective effects, table
+builders and orbit routines are left, none of which a movie reaches.
 
 Subsystem by subsystem, each through the gate, cheapest and best understood
 first. `--uncovered BANK` lists the largest unported runs, which is how to pick

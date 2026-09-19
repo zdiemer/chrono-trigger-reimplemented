@@ -196,17 +196,24 @@ static void draw_circle(Snes *s, uint8_t mode)
     close_lines(s, cell(s, TABLE));
 }
 
-/* The mode in A's low byte. Every register comes back as it was, the flags
- * too except N and Z, which the last pull (PLB) sets from the data bank. */
-void scene_draw_circle(Snes *s)
+/* The circle as a C call, for the routines that call $C3:0077: its registers
+ * come back as they were. */
+void scene_circle_draw(Snes *s, uint8_t mode)
 {
     Cpu *c = &s->cpu;
     uint16_t d = c->d;
     uint8_t db = c->db;
     c->d = SHAPE_PAGE;
-    draw_circle(s, (uint8_t)c->a);
+    draw_circle(s, mode);
     c->d = d;
     c->db = db;
-    m_set_nz8(s, db);
+}
+
+/* The mode in A's low byte. Every register comes back as it was, the flags
+ * too except N and Z, which the last pull (PLB) sets from the data bank. */
+void scene_draw_circle(Snes *s)
+{
+    scene_circle_draw(s, (uint8_t)s->cpu.a);
+    m_set_nz8(s, s->cpu.db);
     m_rtl(s);
 }

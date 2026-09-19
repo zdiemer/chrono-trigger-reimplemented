@@ -427,3 +427,198 @@ void scene_object_bg1_scroll_lines(Snes *s)
     m_set_nz16(s, slot);
     m_rtl(s);
 }
+
+/* ---- Irises --------------------------------------------------------------------------
+ *
+ * A circular window drawn into a per-line table for slot 1 or 2: the object
+ * alternates between two pairs of tables by a frame count, staging the pair it
+ * draws into for the menu's vblank handler, and has $C3:0077 draw the circle
+ * (scene/circle.c; the original calls it, and its registers come back as they
+ * were). The tables are in bank $7E, which the routines make the data bank
+ * while they copy lines. */
+
+typedef struct {
+    uint32_t staged;              /* the slot's staged pointer pair */
+    uint16_t pairs[2][2];         /* the two tables of each pair, even and odd */
+} Iris;
+
+static const Iris slot1_iris = { RAM_MENU_OBJECT_HDMA_POINTERS, { { 0x8B56, 0x8C36 }, { 0x8DF6, 0x8ED6 } } };
+static const Iris slot2_iris = { RAM_MENU_OBJECT_HDMA_POINTERS + 4, { { 0x9176, 0x9256 }, { 0x9416, 0x94F6 } } };
+
+enum { TABLE_BANK_7E = 0x7E, CLOSED_LINE = 0x0001 };
+
+/* The circle's cells, where the objects reach them through the data bank. */
+static uint32_t circle_cell(Snes *s, uint32_t cell) { return m_abs(s, RAM_ABS(cell)); }
+
+/* Push the data bank and make it $7E, and pull it back: PLB sets N and Z. */
+static uint8_t enter_table_bank(Snes *s)
+{
+    uint8_t saved = s->cpu.db;
+    m_push8(s, saved);
+    s->cpu.db = TABLE_BANK_7E;
+    return saved;
+}
+
+static void leave_table_bank(Snes *s)
+{
+    s->cpu.db = m_pull8(s);
+    m_set_nz8(s, s->cpu.db);
+}
+
+/* A table word through the data bank ($7E here). */
+static uint16_t table_word(Snes *s, uint16_t at) { return m_read16(s, m_abs(s, 0) + at); }
+static void set_table_word(Snes *s, uint16_t at, uint16_t v) { m_write16(s, m_abs(s, 0) + at, v); }
+
+// $C6:E368, $C6:E391
+/* An iris squashed to half its height: the circle drawn at the object's
+ * position ($14, $18) with its radius ($22) into the next table of the pair,
+ * then its upper half rebuilt from every other line of itself, and the lines
+ * beyond it closed, above and below. A radius below 2 makes the copies run
+ * through the whole bank, as the original's do. */
+static void squashed_iris(Snes *s, const Iris *iris)
+{
+    Cpu *c = &s->cpu;
+    uint16_t slot = object(s);
+    uint32_t frame = field_at(s, slot, OBJECT_PARAMETER_2);
+    m_write16(s, frame, (uint16_t)(m_read16(s, frame) + 1));
+    const uint16_t *pair = iris->pairs[m_read16(s, frame) & 1];
+    m_write16(s, iris->staged, pair[0]);
+    m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE), pair[0]);
+    m_write16(s, iris->staged + 2, pair[1]);
+    m_write8(s, circle_cell(s, RAM_SCENE_CIRCLE_CENTER_X), m_read8(s, field_at(s, slot, OBJECT_X)));
+    m_write8(s, circle_cell(s, RAM_SCENE_CIRCLE_CENTER_Y), m_read8(s, field_at(s, slot, OBJECT_Y)));
+    m_write8(s, circle_cell(s, RAM_SCENE_CIRCLE_RADIUS), m_read8(s, field_at(s, slot, OBJECT_PARAMETER)));
+    m_write8(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE_BANK), TABLE_BANK_7E);
+    scene_circle_draw(s, (uint8_t)c->d);   /* TDC: the mode is the direct page's low byte */
+
+    enter_table_bank(s);
+    slot = object(s);
+    Sum f = { false, false };
+    uint16_t y = field16(s, slot, OBJECT_Y);
+    f.carry = y & 0x8000;   /* the ASL's */
+    uint16_t center = add16(&f, (uint16_t)(y << 1), m_read16(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE)));
+    set_cell16(s, 0x19, center);
+    set_cell16(s, 0x16, (uint16_t)(center + 2));
+    f.carry = false;
+    uint16_t above = add16(&f, (uint16_t)(center + 2), 0xFFFC);
+    set_cell16(s, 0x13, above);
+    set_cell16(s, 0x10, (uint16_t)(above - 2));
+    uint16_t radius = field16(s, slot, OBJECT_PARAMETER);
+    bool carry = radius & 1;
+    set_cell16(s, 0x00, radius >> 1);
+    set_cell16(s, 0x02, radius >> 1);
+
+    /* the upper half, from every other line above the center */
+    uint16_t from = m_read16(s, m_dp(s, 0x10)), to = m_read16(s, m_dp(s, 0x13));
+    do {
+        set_table_word(s, to, table_word(s, from));
+        from = (uint16_t)(from - 4);
+        to = (uint16_t)(to - 2);
+        set_cell16(s, 0x00, (uint16_t)(m_read16(s, m_dp(s, 0x00)) - 1));
+    } while (m_read16(s, m_dp(s, 0x00)) != 0);
+    uint16_t lines = m_read16(s, m_dp(s, 0x02));
+    set_cell16(s, 0x00, lines);
+    uint16_t n = (uint16_t)(lines + 1);
+    do {
+        set_table_word(s, to, CLOSED_LINE);
+        to = (uint16_t)(to - 2);
+    } while (--n);
+    /* the lower half, likewise */
+    from = m_read16(s, m_dp(s, 0x16));
+    to = m_read16(s, m_dp(s, 0x19));
+    do {
+        set_table_word(s, to, table_word(s, from));
+        from = (uint16_t)(from + 4);
+        to = (uint16_t)(to + 2);
+        set_cell16(s, 0x00, (uint16_t)(m_read16(s, m_dp(s, 0x00)) - 1));
+    } while (m_read16(s, m_dp(s, 0x00)) != 0);
+    n = (uint16_t)(m_read16(s, m_dp(s, 0x02)) + 1);
+    do {
+        set_table_word(s, to, CLOSED_LINE);
+        to = (uint16_t)(to + 2);
+    } while (--n);
+    leave_table_bank(s);
+    c->a = 1;
+    c->x = 0;
+    c->y = to;
+    c->p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG_X);
+    m_set_flag(s, CPU_FLAG_C, carry);
+    m_set_flag(s, CPU_FLAG_V, f.overflow);
+}
+
+// $C6:E498, $C6:E4BE
+/* An iris stretched into a capsule: the circle drawn at the object's position
+ * ($14, $18) with its radius ($22) into the pair's first table, then its lower
+ * half moved $24 lines down and the gap filled with the center line. A radius
+ * of 0 fills $24 lines from the center with both edges at the object's X. */
+static void capsule_iris(Snes *s, const Iris *iris)
+{
+    Cpu *c = &s->cpu;
+    uint16_t slot = object(s);
+    uint32_t frame = field_at(s, slot, 0x26);
+    const uint16_t *pair = iris->pairs[m_read16(s, frame) & 1];
+    m_write16(s, iris->staged, pair[0]);
+    m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE), pair[0]);
+    m_write16(s, iris->staged + 2, (uint16_t)(pair[0] + 0xE0));
+    m_write16(s, frame, (uint16_t)(m_read16(s, frame) + 1));
+    m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_CENTER_X), field16(s, slot, OBJECT_X));
+    m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_CENTER_Y), field16(s, slot, OBJECT_Y));
+    m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_RADIUS), field16(s, slot, OBJECT_PARAMETER));
+    m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE_BANK), TABLE_BANK_7E);
+    scene_circle_draw(s, (uint8_t)c->d);
+
+    enter_table_bank(s);
+    slot = object(s);
+    uint16_t stretch = field16(s, slot, OBJECT_PARAMETER_2);
+    Sum f = { false, false };
+    uint16_t from, to;
+    uint32_t count;
+    if (field16(s, slot, OBJECT_PARAMETER) == 0) {
+        set_cell16(s, 0x08, stretch);
+        uint16_t y = field16(s, slot, OBJECT_Y);
+        f.carry = y & 0x8000;
+        uint16_t row = add16(&f, (uint16_t)(y << 1), m_read16(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE)));
+        set_table_word(s, row, field16(s, slot, OBJECT_X));
+        from = row;
+        to = (uint16_t)(row + 1);
+        uint16_t h = m_read16(s, m_dp(s, 0x08));
+        f.carry = h & 0x8000;
+        count = (uint32_t)(uint16_t)((h << 1) - 2) + 1;
+    } else {
+        uint16_t center = (uint16_t)(m_read16(s, circle_cell(s, RAM_SCENE_CIRCLE_CENTER_Y)) - 1);
+        f.carry = center & 0x8000;
+        uint16_t line = add16(&f, (uint16_t)(center << 1), m_read16(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE)));
+        set_cell16(s, 0x08, line);
+        f.carry = stretch & 0x8000;
+        uint16_t down = add16(&f, (uint16_t)(stretch << 1), m_read16(s, m_dp(s, 0x08)));
+        set_cell16(s, 0x00, m_read16(s, circle_cell(s, RAM_SCENE_CIRCLE_RADIUS)));
+        uint16_t up = line;
+        do {
+            set_table_word(s, down, table_word(s, up));
+            up = (uint16_t)(up - 2);
+            down = (uint16_t)(down + 2);
+            set_cell16(s, 0x00, (uint16_t)(m_read16(s, m_dp(s, 0x00)) - 1));
+        } while (m_read16(s, m_dp(s, 0x00)) != 0);
+        uint16_t h = field16(s, object(s), OBJECT_PARAMETER_2);
+        f.carry = h & 0x8000;
+        uint16_t n = add16(&f, (uint16_t)(h << 1), 0xFFFD);
+        from = m_read16(s, m_dp(s, 0x08));
+        to = (uint16_t)(from + 2);
+        count = (uint32_t)n + 1;
+    }
+    /* MVN in bank $7E: an overlapping copy repeats what it just wrote */
+    for (uint32_t i = 0; i < count; i++)
+        m_write8(s, 0x7E0000u | (uint16_t)(to + i), m_read8(s, 0x7E0000u | (uint16_t)(from + i)));
+    c->x = (uint16_t)(from + count);
+    c->y = (uint16_t)(to + count);
+    c->a = 0xFFFF;
+    leave_table_bank(s);
+    c->p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG_X);
+    m_set_flag(s, CPU_FLAG_C, f.carry);
+    m_set_flag(s, CPU_FLAG_V, f.overflow);
+}
+
+void scene_object_squashed_iris_1(Snes *s) { squashed_iris(s, &slot1_iris); m_rtl(s); }
+void scene_object_squashed_iris_2(Snes *s) { squashed_iris(s, &slot2_iris); m_rtl(s); }
+void scene_object_capsule_iris_1(Snes *s) { capsule_iris(s, &slot1_iris); m_rtl(s); }
+void scene_object_capsule_iris_2(Snes *s) { capsule_iris(s, &slot2_iris); m_rtl(s); }

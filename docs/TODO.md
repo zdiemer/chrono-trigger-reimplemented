@@ -256,7 +256,7 @@ waits on M5 rather than on a backend.
   new maps, sprites and music have no ROM address to read from, which is exactly
   what Phase 3's named resource accessors are the seam for; and the field, event
   and scene subsystems ported far enough to extend (`$C0` is 84% generated and
-  `$C6` 80%). Three things are worth writing down now so they
+  `$C6` 68%). Three things are worth writing down now so they
   don't surprise later: the DS and PS1 releases are a different engine and a
   different asset format, so this is re-implementation from a reference, not an
   import; their assets are as ROM-derived as ours and stay out of the repository
