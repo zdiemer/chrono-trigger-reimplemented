@@ -293,6 +293,8 @@ uint8_t snes_bus_read(void *ctx, uint32_t addr)
     SnesBus *bus = ctx;
     size_t i;
     uint8_t v;
+    if (bus->on_access && !in_dma)
+        bus->on_access(bus);
     bus->access_start = bus->clocks;
     bus->clocks += access_clocks(bus, addr);
     switch (decode(bus, addr, &i)) {
@@ -310,6 +312,8 @@ void snes_bus_write(void *ctx, uint32_t addr, uint8_t value)
 {
     SnesBus *bus = ctx;
     size_t i;
+    if (bus->on_access && !in_dma)
+        bus->on_access(bus);
     bus->access_start = bus->clocks;
     bus->clocks += access_clocks(bus, addr);
     bus->open_bus = value;

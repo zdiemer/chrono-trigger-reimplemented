@@ -8,7 +8,12 @@
 #
 # Each of these is an entry whose time follows its data in a way one scalar
 # can't, and whose error was shown not to reach a budget that matters: the
-# vblank check (tools/vblank_check.py) finds none of their writes moved.
+# vblank check (tools/vblank_check.py) finds none of their writes moved. A port
+# whose time follows which other routines it runs inline attributes their part
+# to them instead (NATIVE_TIME_AS; docs/RECOMP.md, "The timing gate",
+# "Dispatchers"), which is what emptied this list of palette_animate and the
+# fades: what is left follows a path inside one routine, or a loop of the
+# port's own.
 
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
@@ -28,30 +33,14 @@ decompress_direct worst as decompress
 field_rasterize_quad vblank-tail rasterizes a window shape into a RAM table (35 lines a call, as long as vblank); 7.5% error, the time follows the quadrilateral's edges
 field_rasterize_quad vblank-worst as for vblank-tail: at most 14885 clocks (11 lines) in a call of 35 lines or more, writing RAM
 menu_object_wave_hdma vblank-tail fills a RAM scroll-wave table in 53-line calls, longer than vblank; its error never exceeds 1396 clocks (one line), just over the tail's 1024
-menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 18-line calls; its time follows the glyph's pixels; at most 2658 clocks (two lines)
-menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; at most 4509 clocks (3.3 lines) in vblank
-
-# Palette animation, every mode's main-loop work, writing the working palette
-# in RAM that the next vblank uploads: its time follows which slots are due
-# and their types (twelve delay counts on most frames, a fade of up to 256
-# colors through the multiplier on others), which one scalar can't fit, while
-# each handler on its own fits its scalar within 0.3-4.4%. Its error moves when
-# the RAM is ready; the vblank check finds no video write moved.
-palette_animate vblank-tail the working palette in RAM, the time following the due slots' types (25.9% mean error, each handler alone 0.3-4.4%); no video write moved
-palette_animate vblank-worst as for vblank-tail: at most 26796 clocks (20 lines), writing RAM
-palette_fade_to_white vblank-tail a fade's colors through the multiplier, or restored unchanged when it ends, in RAM; 3.3% mean error; no video write moved
-palette_fade_to_white vblank-worst as for vblank-tail: at most 17718 clocks (13 lines), writing RAM
-palette_fade_to_black vblank-tail as palette_fade_to_white; 1.1% mean error
-palette_fade_to_black vblank-worst as palette_fade_to_white: at most 30817 clocks (23 lines), writing RAM
+menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 18-line calls; its pixels are attributed to $C2:5E89, whose own time follows the pixel's bits (7.1% on its own); at most 2932 clocks (two lines)
+menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; its tiles and numbers are attributed (19% of vblank calls off by a line, from 32%), the control codes' handlers are no entries and the loop follows the string; at most 3498 clocks (2.6 lines) in vblank
 
 # The scene engine's circle, a RAM window table the next frame's HDMA reads.
 scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls; its time follows the radius (the midpoint steps and the fills); at most 1883 clocks (1.4 lines)
 scene_draw_circle_jump vblank-tail the same routine through its jump at $C3:0008: as scene_draw_circle
-battle_draw_objects vblank-tail draws the battle objects into the OAM buffer in RAM in 37-line calls, longer than vblank; its time follows the objects' parts, effects and afterimages; 10.7% error
-battle_draw_objects vblank-worst as for vblank-tail: at most 23882 clocks (18 lines) in a call of 37 lines on average, writing RAM
-battle_draw_object_underlays vblank-tail part of battle_draw_objects' pass: an object's markers, number or effect sprites into the OAM buffer in RAM; its time follows which of the three it draws
-battle_draw_object_underlays vblank-worst as for vblank-tail: at most 17409 clocks, inside a pass of 37 lines writing RAM
-battle_step_effect_slots vblank-tail steps the 19 effect slots' paths in RAM (positions and the sine and arctangent products); its time follows which handlers run; 7.9% of calls in vblank off by a line or more
-battle_step_effect_slots vblank-worst as for vblank-tail: at most 18133 clocks, writing RAM the object drawing reads later in the frame
+battle_draw_objects vblank-tail draws the battle objects into the OAM buffer in RAM in 37-line calls, longer than vblank; the routines it runs per object are attributed (10.7% error to 3.7%), what is left is its own draw list build and exchange sort, whose swaps follow the order; at most 7311 clocks (5.4 lines)
+battle_draw_object_underlays vblank-tail part of battle_draw_objects' pass, into the OAM buffer in RAM; its marker, number sprites and effect sprites are attributed (55.4% error to 12.7%), what is left is its own loop over the object's eight effect records, whose time follows which are set; at most 1855 clocks
+battle_step_effect_slots vblank-tail steps the 19 effect slots' paths in RAM; its handlers and their helpers are attributed (18.1% error to 4.9%, 7.9% of vblank calls off by a line to 1.9%), what is left follows its own loop over which slots are active and due, and the handlers' own spread; at most 2838 clocks, writing RAM the object drawing reads later in the frame
 battle_screen_wave_windows vblank-tail fills the two window line buffers in RAM in 94-line calls; 1.3% error, at most 4506 clocks
 battle_step_hp_gradient vblank-tail writes three palette rows in RAM, uploaded at the next vblank; 1.58% of calls off by 1024 clocks or more, at most 2509

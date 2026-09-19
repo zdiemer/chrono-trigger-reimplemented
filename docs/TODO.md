@@ -11,11 +11,16 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Hand ports' time is an estimate**, so `--native on --recomp on` drifts from
   the original (battles play out differently). That difference is accepted
   (RECOMP.md, "Can a hand port be exact?"); the timing gate bounds the errors
-  (RECOMP.md, "The timing gate"). Left open there: six entries whose time
-  follows their data are on `tools/timing_exceptions.txt` (the decompressor,
-  menu text and glyphs, `field_rasterize_quad`, `menu_object_wave_hdma`);
-  and adding a movie or a port means recalibrating, since the
-  drift limit holds only for the measured value. `--recomp only` stays exact.
+  (RECOMP.md, "The timing gate"). Left open there: thirteen entries whose
+  time follows a path inside one routine, or a loop of the port's own, are on
+  `tools/timing_exceptions.txt` (the decompressor, the menu's text, glyphs and
+  wave table, `field_rasterize_quad`, the scene's circle, the battle's wave
+  windows and HP gradient, and the own loops of the effect slots, the object
+  drawing and its underlays); a dispatcher's handlers are attributed to
+  instead (RECOMP.md, "Dispatchers"), and the menu text's control codes would
+  be too once their handlers are entries. Adding a movie or a port means
+  recalibrating, since the drift limit holds only for the measured value.
+  `--recomp only` stays exact.
 - **Fuzzing coverage of existing ports.** Fuzzing is now part of every port's
   definition of done (PORTING.md); ports registered before that without a
   recorded fuzz run should get one, subsystem by subsystem in Phase 3.
@@ -33,12 +38,16 @@ rest waits, is [PLAN.md](PLAN.md).
   in-frame position (RUNTIME.md, "ZSNES save states"), so those runs are for
   coverage only.
 - **`ct_fuzz` doesn't use generated blocks**, only hand ports (RECOMP.md).
-- **`ct_fuzz` can't stop a native loop.** The original gets a step limit and a
-  call-out a timeout, but a loop in the port's own C runs until it ends: the
-  battle's object drawing, on random RAM, can read its draw list back from
-  what its sprites overwrote and never find the end, so it is fuzzed with the
-  part counts bounded (PORTING.md). A step budget the ports' loops count
-  against, off outside the fuzzer, would let those states be skipped instead.
+- **`battle_draw_objects` on unbounded counts.** Fuzzed with the part and
+  sprite set counts unbounded (which the fuzzer can do now that it stops a
+  port's own loop), 40 of 20000 states from a `gato-battle` state differ: in 28
+  the port runs on past its budget where the original returns after about
+  200000 accesses (by then the draw list position `$1DC3`, which the sprites
+  overwrite, is far past the list, and the port meets no end entry), and in 12
+  a byte of the drawing page's cells (`$1DC7`, the part count) or `$0049`
+  differs. No movie reaches these; they are the port's to fix or to declare
+  out of reach (`ct_fuzz --routine battle_draw_objects --range A=0000-00FF
+  --db 7E`).
 - **The last of `$CF`**: `$CF:FADD` (264 bytes) and `$CF:FD9E` (231) are the
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 

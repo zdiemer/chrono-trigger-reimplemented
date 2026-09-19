@@ -28,9 +28,18 @@ it for that limit with a reason. Exceptions that no longer exceed their limit
 are reported, so the list can't go stale silently. Drift and vblank-tail need
 MIN_STRETCHES stretches to judge; with fewer, only the worst cases count.
 
+A port that runs other routines' work inline (a dispatcher's handlers as C
+calls) attributes the bus clocks it spends on each to that routine
+(native_time_as, runtime/port/native.h), and the report lists them as parts:
+the estimate is then each part's clocks times its routine's own `cost_milli`,
+plus the rest times the entry's. The routines are entries of their own, which
+shadow mode measures and calibrates on their own calls. An attribution to an
+address with no hand port fails the check.
+
 --calibrate rewrites each measured entry's `cost_milli` in game/registry.c
 to the value the totals imply: the original's time over the port's bus clocks,
-DMA's time (the same in both) left out of both.
+DMA's time (the same in both) left out of both, and for an entry with parts,
+the parts' estimates (at their routines' calibrated values) left out too.
 """
 
 import argparse
@@ -82,6 +91,19 @@ TOTALS = re.compile(r"^    timing: totals original (\d+) native-bus (\d+) dma (\
                     r"  error bits ([\d ]+)$")
 VBLANK = re.compile(r"^    timing: vblank stretches (\d+)  max \|error\| (\d+)  picture max \|error\| (\d+)"
                     r"  vblank error bits ([\d ]+)$")
+PART = re.compile(r"^    timing: part ([0-9A-F]{6}) (\S+) native-bus (\d+) dma (\d+) cost_milli (\d+)$")
+BAD_TAGS = re.compile(r"^    timing: attributions to no hand port (\d+) \(last ([0-9A-F]{6})\)"
+                      r"  past the parts' room (\d+)$")
+
+
+class Part:
+    """A port's bus clocks attributed to another routine, and that routine's cost_milli."""
+
+    def __init__(self, name, addr, bus, dma, cost_milli):
+        self.name, self.addr, self.bus, self.dma, self.cost_milli = name, addr, bus, dma, cost_milli
+
+    def estimate(self, cost_milli=None):
+        return self.dma + (self.bus - self.dma) * (self.cost_milli if cost_milli is None else cost_milli) / 1000.0
 
 
 def add_hist(a, b):
@@ -103,6 +125,9 @@ class Entry:
         self.hist = []
         self.vblank_hist = []
         self.movies = 0
+        self.parts = {}                 # name: Part
+        self.bad_tags = self.part_overflows = 0
+        self.bad_tag = None
 
     def add(self, other):
         if self.cost_milli is not None and other.cost_milli != self.cost_milli:
@@ -115,6 +140,19 @@ class Entry:
             setattr(self, f, max(getattr(self, f), getattr(other, f)))
         add_hist(self.hist, other.hist)
         add_hist(self.vblank_hist, other.vblank_hist)
+        for name, q in other.parts.items():
+            mine = self.parts.get(name)
+            if mine is None:
+                self.parts[name] = Part(name, q.addr, q.bus, q.dma, q.cost_milli)
+                continue
+            if mine.cost_milli != q.cost_milli:
+                raise ValueError("%s: part %s at cost_milli %d in one report and %d in another (mixed builds)"
+                                 % (self.name, name, mine.cost_milli, q.cost_milli))
+            mine.bus += q.bus
+            mine.dma += q.dma
+        self.bad_tags += other.bad_tags
+        self.part_overflows += other.part_overflows
+        self.bad_tag = other.bad_tag or self.bad_tag
 
     @property
     def mean_time(self):
@@ -130,9 +168,20 @@ class Entry:
         return self.error / self.original if self.original else 0.0
 
     @property
+    def own_bus(self):
+        """The port's bus clocks not attributed to another routine, and their DMA part."""
+        return self.bus - sum(q.bus for q in self.parts.values())
+
+    @property
+    def own_dma(self):
+        return self.dma - sum(q.dma for q in self.parts.values())
+
+    @property
     def estimate(self):
-        """The estimate's total: DMA's time as it is, cost_milli times the rest of the port's bus clocks."""
-        return self.dma + (self.bus - self.dma) * self.cost_milli / 1000.0
+        """The estimate's total: DMA's time as it is, cost_milli times the rest of
+        the port's own bus clocks, and each part's clocks times its routine's."""
+        return (self.own_dma + (self.own_bus - self.own_dma) * self.cost_milli / 1000.0
+                + sum(q.estimate() for q in self.parts.values()))
 
     @property
     def drift(self):
@@ -144,10 +193,22 @@ class Entry:
     @property
     def calibrated(self):
         """The cost_milli the totals imply: the original's time over the port's
-        bus clocks, DMA's time (the same in both) left out."""
-        if self.bus <= self.dma:
+        bus clocks, DMA's time (the same in both) left out; the parts' estimates
+        at their routines' present cost_milli left out too."""
+        return self.calibrated_with({})
+
+    def calibrated_with(self, part_costs):
+        """As calibrated, with the parts' routines at part_costs[name] where given."""
+        own_bus, own_dma = self.own_bus, self.own_dma
+        if own_bus <= own_dma:
             return self.cost_milli
-        return max(1, round(1000.0 * (self.original - self.dma) / (self.bus - self.dma)))
+        rest = self.original - own_dma - sum(q.estimate(part_costs.get(name)) for name, q in self.parts.items())
+        return max(1, round(1000.0 * rest / (own_bus - own_dma)))
+
+    @property
+    def measured(self):
+        """Whether the port has bus clocks of its own to calibrate."""
+        return self.own_bus > self.own_dma
 
     def tail(self):
         """The share of all stretches off by 2^TAIL_BITS clocks or more."""
@@ -186,7 +247,17 @@ def parse_report(text):
         if m:
             cur.vblank_stretches, cur.vblank_max, cur.picture_max = (int(x) for x in m.groups()[:3])
             cur.vblank_hist = [int(x) for x in m.group(4).split()]
-            cur = None
+            continue
+        m = PART.match(line)
+        if m:
+            addr, name, bus, dma, cost = m.groups()
+            cur.parts[name] = Part(name, int(addr, 16), int(bus), int(dma), int(cost))
+            continue
+        m = BAD_TAGS.match(line)
+        if m:
+            cur.bad_tags, cur.part_overflows = int(m.group(1)), int(m.group(3))
+            cur.bad_tag = int(m.group(2), 16)
+            out.setdefault(cur.name, cur)
     return out
 
 
@@ -239,6 +310,11 @@ def exceeded(e):
 
 Result = collections.namedtuple("Result", "entries failures known stale")
 
+# Not a limit but a failure all the same, which no exception covers: an entry
+# attributed time to an address with no hand port, or to more routines than a
+# stretch holds, so part of its estimate used its own cost_milli instead.
+ATTRIBUTION = "attribution"
+
 
 def check(agg, exceptions):
     """Judge every entry. failures and known are [(Entry, limit, value, bound)];
@@ -247,6 +323,8 @@ def check(agg, exceptions):
     hit = set()
     for name in sorted(agg):
         e = agg[name]
+        if e.bad_tags or e.part_overflows:
+            failures.append((e, ATTRIBUTION, e.bad_tags + e.part_overflows, 0))
         for limit, (value, bound) in exceeded(e).items():
             if (name, limit) in exceptions:
                 known.append((e, limit, value, bound))
@@ -277,6 +355,14 @@ def failure_lines(result, exceptions_name=EXCEPTIONS.name):
     """What tools/suite.py prints under the summary: every failure, then stale exceptions."""
     lines = []
     for e, limit, value, bound in result.failures:
+        if limit == ATTRIBUTION:
+            if e.bad_tags:
+                lines.append("%s attributed time to $%02X:%04X %d time(s), where no hand port is registered "
+                             "(native_time_as)" % (e.name, e.bad_tag >> 16, e.bad_tag & 0xFFFF, e.bad_tags))
+            if e.part_overflows:
+                lines.append("%s attributed time to more routines than a stretch holds, %d time(s) "
+                             "(MAX_SEGMENT_PARTS, runtime/port/native.c)" % (e.name, e.part_overflows))
+            continue
         lines.append("%s over the %s limit: %s (limit %s)"
                      % (e.name, limit, fmt_value(limit, value), fmt_value(limit, bound, bound=True)))
         lines.append("    " + describe(e))
@@ -325,6 +411,29 @@ def distribution(agg, out=sys.stdout):
              100.0 * vtail / max(vbl, 1), ", ".join("%s %d" % (lim, over[lim]) for lim in LIMITS)), file=out)
 
 
+def calibrated_values(agg):
+    """{name: calibrated cost_milli} for every measured entry. An entry's parts
+    (the routines it attributes time to) are estimated at their own calibrated
+    values, so those are worked out first."""
+    out = {}
+    busy = set()
+
+    def value(name):
+        if name in out:
+            return out[name]
+        e = agg[name]
+        busy.add(name)
+        costs = {p: value(p) for p in e.parts if p in agg and agg[p].measured and p not in busy}
+        busy.discard(name)
+        out[name] = e.calibrated_with(costs)
+        return out[name]
+
+    for name in agg:
+        if agg[name].measured:
+            value(name)
+    return out
+
+
 def calibrate(agg, registry):
     """Rewrite each measured entry's cost_milli in registry to its calibrated
     value. Entries are either `{ .addr = 0x..., .name = "n", ..., .cost_milli
@@ -333,16 +442,17 @@ def calibrate(agg, registry):
     text = pathlib.Path(registry).read_text()
     changes = []
     seen = set()
+    values = calibrated_values(agg)
 
     def measured(name):
         e = agg.get(name)
-        return e is not None and e.bus > e.dma
+        return e is not None and e.measured
 
     def new_value(name, old):
         seen.add(name)
         if not measured(name):
             return old
-        new = agg[name].calibrated
+        new = values[name]
         if new != old:
             changes.append((name, old, new))
         return new

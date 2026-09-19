@@ -1239,6 +1239,115 @@ second. The suite at `-j 2` runs its 26 shadow movies in about 520-550 seconds
     python3 tools/timing_gate.py build/suite/shadow-*.log --table # every entry's numbers
     python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c
 
+**Dispatchers: the time of the routines a port runs** (between Phase 3's
+waves 1 and 2). The exceptions went from 11 to 27 in wave 1, and most of the
+new ones had one cause: a port that runs a dispatcher's handlers as C calls
+rather than calling out to them (`palette_animate` and its eight types, the
+battle's effect slots and its fifteen path handlers, the object drawing pass
+and the six routines it calls per object) spends its time on whichever
+handlers ran, and one `cost_milli` for the whole call can't fit that:
+`palette_animate` ran twelve delay counts one frame and a fade of 256 colors
+through the multiplier the next, and missed by 25.9% on average while each
+handler on its own fitted its own scalar within 0.3-4.4%. Wave 2's banks are
+full of dispatchers, so the fix is in the estimate rather than in more
+exceptions.
+
+A port now names the routine whose work it is doing, by its address:
+
+```c
+NATIVE_TIME_AS(s, 0xCFEDB8, draw_underlays(s));        /* $CF:EDB8's time, not the pass's */
+
+int was = native_time_as(s, type_handlers[type]);      /* around several statements */
+x = run_type(s, slot, type);
+native_time_end(s, was);
+```
+
+and the port's bus clocks in between are estimated with the `cost_milli` of
+the hand port registered at that address instead of its own
+(`runtime/port/native.c`: the running job keeps the routine it attributes to,
+closes a part when that changes, and `estimate_parts` sums DMA's time as it is
+and each part's other clocks times its routine's value). Nothing in `game/`
+says how long anything takes: the tag is an address, and the value it selects
+is calibrated like every other entry's. That works because the original runs
+the handlers as routines, so shadow mode already measures each of them on
+every call it makes, from its entry to its return, as an entry of its own
+(nested inside the dispatcher's comparison); the dispatcher's estimate is then
+the sum over the handlers it actually ran, at their own measured rates, plus
+its own loop at its rate. Scopes nest (a fade handler attributes its colors to
+its channel mode's loop), a scope naming the running port is its own time, and
+a helper that is a routine of its own can carry the tag inside it
+(`battle_sine_scaled` names `$CF:F9FB` wherever it runs) so every caller
+attributes it.
+
+The shadow report lists the attributed clocks per routine (`timing: part
+<addr> <name> native-bus N dma M cost_milli C`), and `tools/timing_gate.py`
+estimates an entry as its own clocks at its value plus each part at its
+routine's. `--calibrate` works the handlers out first, from their own calls,
+and then gives the dispatcher's own part what the handlers' new estimates
+leave of its time. An attribution to an address with no hand port counts as
+the port's own time, and the report names it; the gate fails on it with no
+exception possible, and `tests/test_timing_gate.py` checks every literal tag
+in `game/` against the registry. `tests/port/time_parts_test.c` runs a made-up
+dispatcher and two handlers in shadow mode and checks the parts' clocks, the
+handlers' own measurement and the report of a bad tag. Nothing shadow mode
+compares changes: a tag only decides which `cost_milli` a port's clocks are
+estimated with, in the report and in `on` mode's charge.
+
+A tag needs a hand port at its address to be measured. Where the part of a
+dispatcher that varies wasn't one, it became one, as an entry of its own with
+its guard, don't-care set and fuzzing (and `tools/dontcare_check.py` agrees
+with all four): the underlays' marker `$CF:EE2C` and prepared number sprites
+`$CF:EE9F`, which the original jumps to, and the fades' restore paths `$FD:E8AC`
+and `$FD:E624`, which it branches to: a fade that ends by restoring its colors
+copies up to 255 of them at a rate nothing like the level arithmetic's, which
+was the fades' and `palette_animate`'s whole worst case (30817 clocks). An
+entry can start at any instruction the original reaches, and shadow mode
+measures it from there to its return like any other.
+
+Adopted on the dispatchers behind the wave-1 exceptions: `palette_animate`'s
+types and the fades' channel modes and restore paths (`core/palette.c`), the
+battle's effect slot handlers with the flicker step, the orbit step, the sine,
+multiply, distance and angle helpers (`battle/effect_paths.c`), the object
+drawing's six routines per object, the trail's afterimages, the underlays'
+three and the tile copy (`battle/draw_objects.c`), and the menu text's tiles
+and numbers and the glyph's pixels (`menu/text.c`, `menu/glyphs.c`).
+Recalibrated over the library, the entries it changed:
+
+| Entry | mean \|error\| before | after | vblank stretches off by >= 1024, before | after | largest in vblank, before | after |
+|---|---|---|---|---|---|---|
+| `palette_animate` | 25.9% | 1.8% | 57.66% | 0.46% | 26796 | 1725 |
+| `palette_fade_to_white` | 3.3% | 0.4% | 4.45% | 0.00% | 17718 | 889 |
+| `palette_fade_to_black` | 1.1% | 0.5% | 1.07% | 0.00% | 30817 | 527 |
+| `battle_step_effect_slots` | 18.1% | 4.9% | 7.91% | 1.94% | 18133 | 2838 |
+| `battle_draw_objects` | 10.7% | 3.7% | 92.23% | 85.36% | 23882 | 7311 |
+| `battle_draw_object_underlays` | 55.4% | 12.7% | 8.96% | 8.11% | 17409 | 1855 |
+| `menu_draw_text` | 2.0% | 2.1% | 32.39% | 19.35% | 4509 | 3498 |
+| `menu_draw_glyph` | 5.1% | 5.5% | 53.89% | 59.92% | 2658 | 2932 |
+
+Over all 523 entries the estimate's error fell from 95.4 to 52.7 clocks a
+stretch on average (7.01% to 3.89% of hand-port time), and the stretches
+off by 1024 clocks or more from 1.115% to 0.512% (in vblank, 1.053% to 0.723%).
+
+**The exceptions, before and after**: 27 limits over 16 entries before, and
+18 limits over 13 entries after. Removed: all six of `palette_animate`,
+`palette_fade_to_white` and `palette_fade_to_black`, and the `vblank-worst` of
+`battle_draw_objects`, `battle_draw_object_underlays` and
+`battle_step_effect_slots`. What is left, and why each stays:
+
+| Entry | Over | Why |
+|---|---|---|
+| `decompress`, `decompress_direct` | `vblank-tail`, `vblank-worst`, `worst` | Not a dispatcher: its time follows the compressed data (literals against copies of every length) inside one routine; unchanged (above). |
+| `field_rasterize_quad` | `vblank-tail`, `vblank-worst` | Its time follows the quadrilateral's edges; the edge sequence it inlines is no routine the original calls, so there is nothing to attribute to. |
+| `menu_object_wave_hdma`, `battle_screen_wave_windows`, `scene_draw_circle`, `scene_draw_circle_jump`, `battle_step_hp_gradient` | `vblank-tail` | One routine each, its time following a path inside it (the sign of each wave step's product, the circle's midpoint steps, the gradient's rows): long calls whose error is 1-5% but over the tail's absolute 1024 clocks. |
+| `menu_draw_glyph` | `vblank-tail` | Its pixels are a routine (`$C2:5E89`) and are attributed to it, but that routine's own time follows the pixel's bits (7.1% on its own), so the sum varies as much as before. |
+| `menu_draw_text` | `vblank-tail` | Its tiles and numbers are attributed (the share off by a line fell from 32% to 19%); the control codes' handlers are no entries yet, and the code loop's own time follows the string. |
+| `battle_draw_objects` | `vblank-tail` | Every routine it runs per object is attributed (10.7% to 3.7%); what is left is its own work, building and sorting the draw list (an exchange sort whose swaps depend on the order) in 37-line calls, where 3.7% is still over a line. |
+| `battle_draw_object_underlays` | `vblank-tail` | Its three routines are attributed (55.4% to 12.7%); what is left is its own loop over the object's eight effect records, whose time follows which are set. |
+| `battle_step_effect_slots` | `vblank-tail` | Its handlers and the helpers they call are attributed (18.1% to 4.9%, and 7.9% of its vblank calls off by a line to 1.9%); what is left follows its own loop over which of the nineteen slots are active and due, and the handlers' own spread. |
+
+None of these writes a video register: they write RAM the next vblank uploads,
+and the vblank check finds no video write moved.
+
 ## Closing the interpreted remainder (M3)
 
 After M2 generated blocks ran 77-98% of the instructions; the interpreter ran

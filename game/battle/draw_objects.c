@@ -153,7 +153,7 @@ static void copy_object_tiles(Snes *s, uint16_t sp, uint16_t ret)
     uint16_t to = (uint16_t)(oam_next(s) + (uint16_t)RAM_OAM_BUFFER);
     uint16_t from = battle_object_tile_source(s, (uint16_t)(draw_object(s) << 1));
     m_write16(s, RAM_BATTLE_DRAW_TILE_GROUPS, (uint16_t)((uint16_t)(m_read16(s, RAM_BATTLE_DRAW_PART_COUNT) + 1) >> 4));
-    copy_sprite_tiles(s, RAM_OAM_BUFFER & 0xFF0000u, from, to);
+    NATIVE_TIME_AS(s, 0xCFEB94, copy_sprite_tiles(s, RAM_OAM_BUFFER & 0xFF0000u, from, to));
 }
 
 /* The object's parts at the base position in the scratch: each part at the
@@ -262,7 +262,7 @@ static uint16_t step_trail(Snes *s, uint16_t object, uint16_t a, uint16_t sp)
         set_scratch8(s, PART_COUNT, m_read8(s, RAM_BATTLE_TRAIL_HIGH_X + o));
         set_scratch8(s, PART_COUNT + 1, m_read8(s, RAM_BATTLE_TRAIL_HIGH_Y + o));
         push_return(s, sp, returns[record]);
-        a = draw_afterimage(s, (uint16_t)(sp - 2));
+        NATIVE_TIME_AS(s, 0xCFE99C, a = draw_afterimage(s, (uint16_t)(sp - 2)));
     }
     return a;
 }
@@ -344,16 +344,17 @@ static uint8_t draw_effects(Snes *s, bool under)
         if (v != 0 && ((v & EFFECT_UNDER) != 0) == under) {
             uint8_t effect = under ? (uint8_t)(v & 0x7F) : (uint8_t)(v & 0xBF);
             if (m_read8(s, RAM_BATTLE_EFFECT_SHOWN + effect))
-                draw_effect_sprites(s, record);
+                NATIVE_TIME_AS(s, 0xCFEEEB, draw_effect_sprites(s, record));
         }
         record = (uint8_t)(record + EFFECT_RECORD_STRIDE);
     } while (record < EFFECT_RECORDS_END);
     return record;
 }
 
-/* $CF:EE2C: the object's animated marker, when it has one: its frame steps
- * every period frames through four, and the frame's sprite goes at the
- * object's position. */
+// $CF:EE2C
+/* The object's animated marker, when it has one: its frame steps every
+ * period frames through four, and the frame's sprite goes at the object's
+ * position. */
 static void draw_marker(Snes *s)
 {
     uint16_t slot = draw_slot(s);
@@ -381,8 +382,9 @@ static void draw_marker(Snes *s)
     set_oam_next(s, (uint16_t)(at + SPRITE_BYTES));
 }
 
-/* $CF:EE9F: the object's four prepared number sprites, when it has them, with
- * their high-table byte. */
+// $CF:EE9F
+/* The object's four prepared number sprites, when it has them, with their
+ * high-table byte. */
 static void copy_prepared_sprites(Snes *s)
 {
     uint16_t slot = draw_slot(s);
@@ -406,15 +408,16 @@ static void copy_prepared_sprites(Snes *s)
 // $CF:EDB8
 /* What goes under the object: while numbers show, its prepared sprites;
  * otherwise, unless effects run or markers are held off, its marker; or else
- * its effects marked to go under. */
+ * its effects marked to go under. The first two are routines of their own,
+ * which the original jumps to. */
 static void draw_underlays(Snes *s)
 {
     if (m_read8(s, RAM_BATTLE_NUMBER_STEP)) {
-        copy_prepared_sprites(s);
+        NATIVE_TIME_AS(s, 0xCFEE9F, copy_prepared_sprites(s));
         return;
     }
     if (!m_read8(s, RAM_BATTLE_EFFECTS_RUNNING) && !m_read8(s, RAM_BATTLE_MARKERS_HELD)) {
-        draw_marker(s);
+        NATIVE_TIME_AS(s, 0xCFEE2C, draw_marker(s));
         return;
     }
     draw_effects(s, true);
@@ -513,10 +516,12 @@ static void draw_objects(Snes *s, uint16_t sp)
             uint8_t parts = m_read8(s, page_at(RAM_BATTLE_OBJECT_PART_COUNT, object));
             if (parts != 0) {
                 m_write8(s, RAM_BATTLE_DRAW_PART_COUNT, parts);
-                draw_underlays(s);
+                /* each part of the drawing is a routine of the original's,
+                 * whose time the port's is (native_time_as) */
+                NATIVE_TIME_AS(s, 0xCFEDB8, draw_underlays(s));
                 copy_object_tiles(s, sp, 0xE8F3);
-                draw_sprite_parts(s);
-                draw_overlays(s);
+                NATIVE_TIME_AS(s, 0xCFEAC5, draw_sprite_parts(s));
+                NATIVE_TIME_AS(s, 0xCFEDF7, draw_overlays(s));
                 object = draw_object(s);
                 uint32_t extra = page_at(RAM_BATTLE_OBJECT_EXTRA_DRAW - FIRST_OBJECT, object);
                 if (m_read8(s, extra)) {
@@ -526,12 +531,12 @@ static void draw_objects(Snes *s, uint16_t sp)
             }
         }
         if (shadow)
-            draw_shadow(s, object);
+            NATIVE_TIME_AS(s, 0xCFEA8A, draw_shadow(s, object));
         if (m_read8(s, RAM_BATTLE_EFFECTS_RUNNING)) {
             uint8_t e = m_read8(s, page_at(RAM_BATTLE_DRAW_LIST, m_read16(s, RAM_BATTLE_DRAW_LIST_POSITION)));
             if ((e & LIST_MAIN) && m_read8(s, RAM_BATTLE_TRAIL_ON - FIRST_OBJECT + (e & LIST_OBJECT))) {
                 push_return(s, sp, 0xE920);
-                step_trail(s, e & LIST_OBJECT, 0, (uint16_t)(sp - 2));
+                NATIVE_TIME_AS(s, 0xCFE92C, step_trail(s, e & LIST_OBJECT, 0, (uint16_t)(sp - 2)));
             }
         }
         m_write8(s, RAM_BATTLE_DRAW_LIST_POSITION, (uint8_t)(m_read8(s, RAM_BATTLE_DRAW_LIST_POSITION) + 1));
@@ -587,6 +592,20 @@ void battle_copy_sprite_tiles(Snes *s)
 void battle_draw_object_underlays(Snes *s)
 {
     draw_underlays(s);
+    m_rts(s);
+}
+
+/* The two the underlays jump to, as entries of their own: shadow mode
+ * measures their time apart from the rest of the pass (native_time_as). */
+void battle_draw_object_marker(Snes *s)
+{
+    draw_marker(s);
+    m_rts(s);
+}
+
+void battle_copy_prepared_sprites(Snes *s)
+{
+    copy_prepared_sprites(s);
     m_rts(s);
 }
 
