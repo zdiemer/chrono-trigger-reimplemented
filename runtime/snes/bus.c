@@ -248,7 +248,8 @@ static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
 
 static void run_dma(SnesBus *bus, uint8_t channels)
 {
-    uint32_t clocks = bus->clocks + (channels ? DMA_SYNC_CLOCKS : 0);
+    uint32_t start = bus->clocks;
+    uint32_t clocks = start + (channels ? DMA_SYNC_CLOCKS : 0);
     for (int ch = 0; ch < 8; ch++) {
         if (!(channels & (1 << ch)))
             continue;
@@ -280,6 +281,7 @@ static void run_dma(SnesBus *bus, uint8_t channels)
         clocks += DMA_CHANNEL_CLOCKS + count * DMA_BYTE_CLOCKS;
     }
     bus->clocks = clocks;   /* the accesses above counted bus speeds; replace them */
+    bus->dma_clocks += clocks - start;
 }
 
 /* ---- public ------------------------------------------------------------------ */

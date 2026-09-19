@@ -47,7 +47,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). The gate
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines;
   `--native on --recomp only` produces traces identical to `--native off` (`python3 tools/trace.py
-  diff`); `--native on --recomp only --misses out.txt` lists anything still interpreted;
+  diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
+  or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after
+  adding a movie or a port, recalibrate with its `--calibrate game/registry.c`; docs/RECOMP.md, "The
+  timing gate"); `--native on --recomp only --misses out.txt` lists anything still interpreted;
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
   docs/PLATFORM.md P3).
 
