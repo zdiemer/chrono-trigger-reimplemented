@@ -66,7 +66,7 @@ cmake -S . -B build/main -G Ninja -DCT_PLAYER_INTERPRETER=FALLBACK && cmake --bu
 ```
 
 The two players without the interpreter only run `--native on` with
-`--recomp only` (the default) or `--recomp on`, and refuse to start when they
+`--recomp on` (the default) or `--recomp only`, and refuse to start when they
 have no generated blocks for the ROM (a build without `CT_ROM`, or another
 ROM). `ct_play --help` ends with the mode the build runs in; so do the first
 line on stderr and the title bar (`[generated code, fallback]`,
@@ -122,12 +122,17 @@ dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--mute] [--native 
 ```
 
 The ROM can also be given as the only argument, so dropping it onto the
-executable works. By default (`--native on --recomp only`) the game runs as the
-C generated from your ROM at build time ([RECOMP.md](RECOMP.md)), which keeps
-the original's timing exactly: it behaves frame for frame like `--native off`.
-`--recomp on` adds the hand-ported routines, whose timing is estimated, so
-events can drift from the original (the game still works, but a battle may
-play out differently). `--native off` interprets everything, the reference behavior;
+executable works. By default (`--native on --recomp on`) the game runs as the
+hand-ported routines, the readable C in `game/`, with the C generated from your
+ROM at build time ([RECOMP.md](RECOMP.md)) wherever no routine is ported yet.
+The ports' timing is estimated rather than the original's, so events can play
+out differently from the original (a battle may go another way); the timing
+gate bounds how far the estimates may be off and checks that no display write
+lands on the picture where the original's doesn't (RECOMP.md, "The timing
+gate"). `--recomp only` runs the generated C alone, which keeps the original's
+timing exactly: it behaves frame for frame like `--native off`, and it is what
+movies replay and record in (below). `--native off` interprets everything, the
+reference behavior;
 `--native shadow` also interprets everything and checks each ported routine
 against it as it goes (the title bar shows "shadow mismatch" if one differs,
 and the details are printed on exit).
@@ -260,8 +265,9 @@ power-on, so a recording:
   game quickly); the movie records the save's CRC-32, and `ct_dev` then needs
   the same file with `--sram`;
 - runs in shadow mode by default, which also checks the ported routines while
-  you play. `--native off`, or `--native on` with the default `--recomp only`
-  (fastest), keep the timing exact too; `--recomp on` doesn't, so it's refused.
+  you play. `--native off`, or `--native on` (which records with `--recomp only`
+  unless `--recomp` is given; fastest), keep the timing exact too; `--recomp on`
+  doesn't, so it's refused.
   A player built without the interpreter records in `--native on` mode;
 - can continue an existing movie: `--movie base.ctm` replays it at full speed
   first (up to its last input, or `--movie-frames N`), and the recording holds
@@ -286,9 +292,11 @@ dist/ct_play --rom path/to/ct.sfc --movie oracle/movies/saves/battle-magus.ctm -
 
 A movie started from a cartridge save finds that save by its CRC-32 among the
 committed ones in `oracle/saves/` (or below the ROM's directory); `--sram`
-picks one explicitly. The window replays exactly what `ct_dev` validates only in
-the default mode (`--recomp only`) or `--native off`; with `--recomp on` or
-`--audio direct`, timing differs and the replay drifts from the recording.
+picks one explicitly. A movie replays with `--recomp only` unless `--recomp` is
+given, because that is where it replays exactly what `ct_dev` validates (so
+does `--native off`); with `--recomp on` or `--audio direct` the timing differs
+and the replay drifts from the recording, since a movie is button presses at
+frame numbers.
 
 `--load-zst state.zst` starts from a ZSNES 1.51 save state (in a window or
 headless), for looking around late in the game. Its cartridge save isn't

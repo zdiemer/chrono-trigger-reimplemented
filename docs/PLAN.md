@@ -29,6 +29,12 @@ Nothing lands without it, and it is the same gate for every phase:
 - every hand port's estimated time stays within the timing gate's limits over
   the shadow runs, or is on its exceptions list with a reason
   (`tools/timing_gate.py`; RECOMP.md, "The timing gate");
+- no video write in the shipping mode lands on the picture where the
+  reference's doesn't, unless it is an accepted exception
+  (`tools/vblank_check.py`);
+- the route scripts reach their outcomes in the shipping mode
+  (`tools/movies/route_check.py`: the fast route every time, all of them with
+  `--long-routes` before a change to timing or the native runtime lands);
 - `--misses` stays empty;
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
@@ -47,13 +53,13 @@ generated block. The decision drawn from it:
 
 - **Timing differences are acceptable.** A battle that plays out differently
   from the original is fine. So the readable code ships: `--recomp on`, with
-  generated code wherever no port exists, becomes `ct_play`'s default -- but
-  only once the timing gate below exists.
+  generated code wherever no port exists, is `ct_play`'s default, since the
+  timing gate below.
 - **`--recomp only` stays** as the exact mode and the gate's reference. The
   movie library stays the regression suite on it: movies desync under
   `--recomp on` and can't test it end to end.
 - **Timing errors are measured and gated** -- the kind that makes glitches, as
-  opposed to differences (the timing gate, next).
+  opposed to differences (RECOMP.md, "The timing gate").
 - **Ports don't carry cycle costs.** No hand-written per-path numbers in
   `game/`; `cost_milli` stays an estimate, calibrated by measurement.
 - **Fuzzing is part of every port's definition of done**: generated code is
@@ -64,24 +70,6 @@ generated block. The decision drawn from it:
 - **The shipping mode is tested end to end** by the state-driven route scripts
   (`tools/movies/route_check.py`, docs/MOVIES.md), which `ct_drive` runs with
   `--native on` and which survive the drift that desyncs movies.
-
-**Next: finish the timing gate.** Its core is in `tools/suite.py`: every
-entry's estimate error, measured over the shadow runs, against limits tied to
-the budgets an error could break, with `cost_milli` calibrated from the
-measurement and the entries a scalar can't fix on a checked-in exceptions
-list; and `on` mode now takes interrupts during a port's time, which with the
-calibration cleared the vblank check's findings (RECOMP.md, "The timing
-gate"). What is left:
-
-- wire `tools/vblank_check.py` into the suite as a row of its `CHECKS` (a
-  function returning a summary line, and `--no-vblank` to skip it); it passes
-  today with three accepted findings;
-- wire in the route runner, so the shipping mode has an end-to-end test (the
-  `ct_drive --native on` work, TODO.md), the same way;
-- then flip `ct_play`'s default to `--recomp on`.
-
-**Done when** the gate is in `tools/suite.py` and passing, and `ct_play`'s
-default is `--recomp on`.
 
 Two other timing threads exist and neither is this one, so they shouldn't be
 conflated with it: the machine's own approximations (TODO.md, "Correctness and
@@ -123,9 +111,8 @@ bar, while its behaviour is already under the gate. A sweep across all of
 `game/` at once would be a large diff with no behavioural check beyond the gate
 it already passes.
 
-**Done when** the timing gate is done and the default flipped, and a
-subsystem's worth of routines has been converted through the workflow to the bar
-above.
+**Done when** a subsystem's worth of routines has been converted through the
+workflow to the bar above.
 
 ## Phase 3: M5 in bulk
 
@@ -281,11 +268,11 @@ the decompilation, so they wait behind it.
   mode and the whole gate.
 
   It is narrower than it looks. Generated blocks never call out and run without
-  a fiber, and the default player (`--recomp only`) runs no hand ports, so a
-  user-compiled build in that mode never switches stacks: `fiber.h` needs a
-  backend there only to link. What needs a real one is a build that runs hand
-  ports -- the public one that can't carry generated code, and the default
-  player once the timing gate flips it to `--recomp on`.
+  a fiber, and `--recomp only` runs no hand ports, so a user-compiled build in
+  that mode never switches stacks: `fiber.h` needs a backend there only to
+  link. What needs a real one is a build that runs hand ports -- the public one
+  that can't carry generated code, and the default player, which runs them
+  since the timing gate made `--recomp on` its default.
 
   So the spike is: put a third backend behind `fiber.h`, run the movie suite
   under it, and measure. A day's answer that decides whether a browser build is

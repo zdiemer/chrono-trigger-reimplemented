@@ -167,11 +167,11 @@ waits on M5 rather than on a backend.
     the build), or a call-out that doesn't suspend its caller, which is a
     `native.c` redesign. This decides whether the build is easy or a project --
     but only for a build that runs hand ports. Generated blocks run on the
-    machine without a fiber (they never call out; RECOMP.md), and the default
-    player, `--recomp only`, runs no hand ports, so a build the user compiles
-    from their own ROM in that mode needs no stack switching at all. The
-    question is live for the public build below, and for the default player
-    once the timing gate flips it to `--recomp on` (PLAN.md, Phase 2).
+    machine without a fiber (they never call out; RECOMP.md), and
+    `--recomp only` runs no hand ports, so a build the user compiles from their
+    own ROM in that mode needs no stack switching at all. The question is live
+    for the public build below, and for the default player, which runs hand
+    ports since the timing gate made `--recomp on` its default.
     The spike, and why no phase covers it, is in PLAN.md's "What this plan
     deprioritizes".
   - **What the browser build is made of.** The default path generates C from the

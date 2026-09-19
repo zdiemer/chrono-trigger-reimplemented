@@ -8,9 +8,13 @@
 This is the validation gate (CLAUDE.md, "Validation"): every movie run with
 `--native shadow` must exit 0 with no `mismatched [1-9]` line; then the checks
 in CHECKS run, each printing one line: `--native on --recomp only` must produce
-a trace identical to `--native off`, and every hand port's estimated time must
+a trace identical to `--native off`; every hand port's estimated time must
 stay within the timing gate's limits over the shadow runs' `--timing-report`
-(tools/timing_gate.py). Exit status is 0 only when all of that holds.
+(tools/timing_gate.py); no video write in the shipping mode may land on the
+picture where the reference's doesn't (tools/vblank_check.py); and the route
+scripts must reach their outcomes in the shipping mode
+(tools/movies/route_check.py; the fast route by default, all of them with
+--long-routes). Exit status is 0 only when all of that holds.
 
 Each movie's frame count comes from its own `# frames N` header, and a movie
 that starts from a cartridge save finds it by CRC-32 among the committed ones
@@ -140,10 +144,53 @@ def check_timing(args, ctx):
 
 
 
+def run_tool(cmd):
+    """(exit status, output lines) of a check that is its own program."""
+    proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+    return proc.returncode, (proc.stdout + proc.stderr).rstrip().splitlines()
+
+
+def check_vblank(args, ctx):
+    """Video writes in the shipping mode that land on the picture where the
+    reference's don't (tools/vblank_check.py), over the same movies."""
+    cmd = [sys.executable, str(ROOT / "tools/vblank_check.py"), "--ct-dev", str(ctx["binary"]),
+           "--rom", str(args.rom), "--out", str(args.out / "vblank"), "--failing-only",
+           "-j", str(ctx["jobs"]), "--only", args.only]
+    if args.movies:
+        cmd += ["--movies"] + args.movies
+    rc, lines = run_tool(cmd)
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "vblank", summary, [] if rc == 0 else lines[-40:]
+
+
+# The route the gate runs by default, and all of them for --long-routes: the
+# ending route is most of an hour of CPU, so it runs on request.
+FAST_ROUTES = ["telepod_lavos:shell"]
+
+
+def check_routes(args, ctx):
+    """The shipping mode end to end: state-driven routes reach their outcomes
+    (tools/movies/route_check.py), which movies can't test once timing drifts."""
+    drive = ctx["binary"].with_name("ct_drive" + ctx["binary"].suffix)
+    if not drive.exists():
+        return False, "routes", "%s: not found (build it first)" % drive, []
+    cmd = [sys.executable, "-m", "tools.movies.route_check", "--drive", str(drive), "--rom", str(args.rom),
+           "--mode", "on:on", "-j", str(min(ctx["jobs"], 2))]
+    if not args.long_routes:
+        cmd += FAST_ROUTES
+    rc, lines = run_tool(cmd)
+    passed = sum(1 for line in lines if re.match(r"^\S+\s+pass", line))
+    failed = sum(1 for line in lines if re.match(r"^\S+\s+FAIL", line))
+    summary = "%d of %d route(s) reach their outcome in the shipping mode" % (passed, passed + failed)
+    return rc == 0 and failed == 0, "routes", summary, [] if rc == 0 else lines[-30:]
+
+
 CHECKS = (
     # name, function, what --no-<name> skips
     ("trace", check_trace, "the --recomp only trace comparison"),
     ("timing", check_timing, "the timing gate over the shadow runs"),
+    ("vblank", check_vblank, "the check for video writes on the picture in the shipping mode"),
+    ("routes", check_routes, "the route scripts in the shipping mode"),
 )
 
 
@@ -158,6 +205,8 @@ def main():
                     help="concurrent movies (default: half the CPUs, at least 1)")
     ap.add_argument("--trace-movie", default="new-game")
     ap.add_argument("--trace-frames", type=int, default=7200)
+    ap.add_argument("--long-routes", action="store_true",
+                    help="run every route, the ending ones too (most of an hour), not only the fast one")
     for name, _fn, what in CHECKS:
         ap.add_argument("--no-%s" % name, action="store_true", help="skip " + what)
     ap.add_argument("--no-trace-check", action="store_true", help=argparse.SUPPRESS)   # the old spelling
@@ -198,7 +247,7 @@ def main():
 
     args.no_trace |= args.no_trace_check
     library = len(collect("all", set()))
-    ctx = {"binary": binary, "movies": [m[0] for m in movies], "library": library,
+    ctx = {"binary": binary, "jobs": jobs, "movies": [m[0] for m in movies], "library": library,
            "complete": library == len(movies)}
     failed = ["movies: " + ", ".join(bad_movies)] if bad_movies else []
     for name, fn, _what in CHECKS:

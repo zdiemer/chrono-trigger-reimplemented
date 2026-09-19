@@ -50,7 +50,12 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
   or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after
   adding a movie or a port, recalibrate with its `--calibrate game/registry.c`; docs/RECOMP.md, "The
-  timing gate"); `--native on --recomp only --misses out.txt` lists anything still interpreted;
+  timing gate"); no video write in the shipping mode (`--recomp on`, `ct_play`'s default) lands on the
+  picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
+  (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode
+  (`tools/movies/route_check.py`; the suite runs the fast route, `--long-routes` all of them, which
+  is worth doing before a change to timing or to the native runtime lands);
+  `--native on --recomp only --misses out.txt` lists anything still interpreted;
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
   docs/PLATFORM.md P3).
 

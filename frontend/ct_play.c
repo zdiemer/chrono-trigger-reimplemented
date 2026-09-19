@@ -63,9 +63,10 @@ static void usage(FILE *out)
             "  --mute               no sound\n"
             "  --native MODE        on: run ported routines natively (default); off: interpret everything;\n"
             "                       shadow: interpret, and check each ported routine against the original\n"
-            "  --recomp MODE        only: in on mode, run the blocks generated from the ROM without the ported\n"
-            "                       routines, which keeps the original timing exactly (default); on: generated\n"
-            "                       blocks and ported routines (the ported routines' timing is estimated);\n"
+            "  --recomp MODE        on: the ported routines, and the blocks generated from the ROM where there\n"
+            "                       is no port (default; the ports' timing is estimated, within the timing\n"
+            "                       gate's bounds); only: the generated blocks alone, which keep the original\n"
+            "                       timing exactly (what --movie and --record use unless --recomp is given);\n"
             "                       off: no generated blocks\n"
             "  --audio BACKEND      snes: the APU on the machine's timeline (default); direct: the sound driver's\n"
             "                       uploads and commands take no CPU time (APU-direct; needs --native on, and\n"
@@ -161,7 +162,7 @@ int main(int argc, char **argv)
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
     static Files files;
-    bool native_given = false, recomp = true, recomp_only = true, recomp_given = false, audio_direct = false;
+    bool native_given = false, recomp = true, recomp_only = false, recomp_given = false, audio_direct = false;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
     /* A TV showed the picture at 4:3 and hid about 8 rows at the top and bottom. */
@@ -340,6 +341,12 @@ int main(int argc, char **argv)
         return 2;
     }
     const char *record_path = files.movie;
+    /* A movie is button presses at frame numbers, recorded against the original's
+     * timing: replayed or recorded with the ported routines' estimated timing it
+     * would drift and go off its route, so a movie means the exact mode unless
+     * --recomp says otherwise. */
+    if ((movie_path || record_path) && !recomp_given)
+        recomp_only = true;
     if (audio_direct) {
         /* APU-direct runs in the sound driver's ported routines and changes timing */
         if (pl.native_mode != NATIVE_ON || record_path || (recomp_given && recomp_only)) {

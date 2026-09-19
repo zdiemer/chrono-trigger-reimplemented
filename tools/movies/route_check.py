@@ -111,6 +111,11 @@ def main(argv=None):
     parser.add_argument("-j", "--jobs", type=int, default=1, help="routes run at once (default 1)")
     parser.add_argument("--timeout", type=int, default=6 * 3600, help="seconds per run (default 6 hours)")
     args = parser.parse_args(argv)
+    # The routes start ct_drive from their own working directory, so a relative
+    # path given here would name nothing there: resolve it against ours.
+    for name in ("drive", "rom"):
+        if getattr(args, name):
+            setattr(args, name, os.path.abspath(getattr(args, name)))
     modes = args.mode or [parse_mode(mode) for mode in DEFAULT_MODES]
 
     scratch = args.scratch or tempfile.mkdtemp(prefix="route_check-")
