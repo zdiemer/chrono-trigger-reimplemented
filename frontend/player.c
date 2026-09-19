@@ -335,7 +335,9 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bo
 {
     Track *t = &pl->track;
     snes_init(&pl->snes, rom, rom_size);
-    if (natives_select(&pl->table, rom, rom_size, pl->native_mode, recomp, recomp_only) != 0) {
+    NativeChoice choice = { .mode = pl->native_mode, .recomp = recomp, .recomp_only = recomp_only,
+                            .only = NATIVES_ONLY_TIMED };
+    if (natives_select(&pl->table, rom, rom_size, &choice) != 0) {
         fprintf(stderr, "out of memory\n");
         return 1;
     }

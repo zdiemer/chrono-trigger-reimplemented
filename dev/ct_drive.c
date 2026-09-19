@@ -532,7 +532,9 @@ int main(int argc, char **argv)
         free(sram);
     }
     if (native_mode != NATIVE_OFF) {
-        if (natives_select(&table, rom + header, rom_len - header, native_mode, recomp, recomp_only) != 0) {
+        NativeChoice choice = { .mode = native_mode, .recomp = recomp, .recomp_only = recomp_only,
+                                .only = NATIVES_ONLY_TIMED };
+        if (natives_select(&table, rom + header, rom_len - header, &choice) != 0) {
             fprintf(stderr, "out of memory\n");
             return 1;
         }

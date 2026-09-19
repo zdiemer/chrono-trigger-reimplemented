@@ -66,11 +66,10 @@
 #include "vid_check.h"
 #include "media.h"
 #include "movie.h"
+#include "natives.h"
 #include "sram_find.h"
 #include "platform/audio.h"
 #include "port/machine.h"
-#include "port/recomp_table.h"
-#include "registry.h"
 #include "snes/render.h"
 #include "snes/system.h"
 #include "snes/zst.h"
@@ -262,7 +261,7 @@ int main(int argc, char **argv)
     long vid_check_from = 0;
     long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
-    bool recomp = true, ports = true, insn_stats = false, audio_direct = false;
+    bool recomp = true, recomp_only = false, insn_stats = false, audio_direct = false;
     long frames = -1, status_every = 0, shot_every = 0;
     const char *excludes[64], *includes[64];
     int nexcludes = 0, nincludes = 0;
@@ -347,7 +346,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--recomp")) {
             if (!strcmp(v, "off") || !strcmp(v, "on") || !strcmp(v, "only")) {
                 recomp = strcmp(v, "off") != 0;
-                ports = strcmp(v, "only") != 0;
+                recomp_only = strcmp(v, "only") == 0;
             } else {
                 fprintf(stderr, "--recomp must be off, on or only\n");
                 return 2;
@@ -455,51 +454,25 @@ int main(int argc, char **argv)
                         "approximate some state: use them for coverage and exploring, never for validation.\n",
                 zst_path, (unsigned)snes.frame);
     }
-    /* --exclude drops ported routines (and generated blocks, recomp_BBAAAA_...)
-     * whose names start with a prefix, for narrowing down which one causes a
-     * difference. Generated blocks are only registered for the ROM they were
-     * generated from. */
-    if (recomp && recomp_native_count > 0 && ct_crc32(image, image_len) != recomp_rom_crc) {
-        fprintf(stderr, "warning: generated blocks are for ROM CRC-32 %08X, not this one; not using them\n",
-                (unsigned)recomp_rom_crc);
-        recomp = false;
+    /* The entries, as ct_play and ct_drive choose them (frontend/natives.h),
+     * with --exclude and --include. --recomp only leaves the ported routines
+     * out in every mode (NATIVES_ONLY_ALWAYS), where those two keep them in
+     * shadow and off modes and without generated blocks. */
+    NativeChoice choice = { .mode = native_mode, .recomp = recomp, .recomp_only = recomp_only,
+                            .only = NATIVES_ONLY_ALWAYS, .exclude = excludes, .nexclude = nexcludes,
+                            .include = includes, .ninclude = nincludes };
+    NativeTable table;
+    if (natives_select(&table, image, image_len, &choice) != 0) {
+        fprintf(stderr, "out of memory\n");
+        return 1;
     }
-    int nrecomp = recomp ? recomp_native_count : 0;
-    NativeEntry *table = malloc(sizeof *table * (size_t)(game_native_count + nrecomp + 1));
-    int table_count = 0;
-    for (int i = ports ? 0 : game_native_count; i < game_native_count + nrecomp; i++) {
-        const NativeEntry *e = i < game_native_count ? &game_natives[i] : &recomp_natives[i - game_native_count];
-        bool excluded = false;
-        for (int k = 0; k < nexcludes; k++)
-            excluded |= strncmp(e->name, excludes[k], strlen(excludes[k])) == 0;
-        /* --include keeps only the hand ports named by a prefix (generated blocks stay) */
-        if (nincludes && i < game_native_count) {
-            bool included = false;
-            for (int k = 0; k < nincludes; k++)
-                included |= strncmp(e->name, includes[k], strlen(includes[k])) == 0;
-            excluded |= !included;
-        }
-        if (!excluded)
-            table[table_count++] = *e;
-    }
-    NativeRuntime *natives = native_create(table, table_count, native_mode);
+    NativeRuntime *natives = natives_restart(NULL, &table, native_mode, &snes);
     native_set_port_timing(natives, port_timing);
     native_set_port_horizon(natives, port_horizon_interrupts);
     native_set_timing_report(natives, timing_report);
-    RecompIndexEntry *index = malloc(sizeof *index * (size_t)(recomp_index_count + 1));
-    int index_count = 0;
-    for (int i = 0; recomp && i < recomp_index_count; i++) {
-        bool excluded = false;
-        for (int k = 0; k < nexcludes; k++)
-            excluded |= strncmp(recomp_index[i].name, excludes[k], strlen(excludes[k])) == 0;
-        if (!excluded)
-            index[index_count++] = recomp_index[i];
-    }
-    native_set_index(natives, index, index_count);
-    native_attach(natives, &snes);
     if (audio_direct) {
         /* the sound driver's registry entries run the backend */
-        if (native_mode != NATIVE_ON || !ports) {
+        if (native_mode != NATIVE_ON || recomp_only) {
             fprintf(stderr, "--audio direct needs --native on with the ported routines (not --recomp only)\n");
             return 2;
         }
@@ -645,8 +618,7 @@ int main(int argc, char **argv)
     }
     misses_destroy(misses);
     native_destroy(natives);
-    free(table);
-    free(index);
+    natives_free(&table);
     if (ct_trace_close(trace) != 0)
         rc = 1;
     if (wav_path) {

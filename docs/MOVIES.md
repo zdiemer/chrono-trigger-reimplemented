@@ -42,9 +42,10 @@ build/main/ct_drive --native on --recomp on roms/ct-usa.sfc save.srm   # the shi
 ```
 
 `--native off|shadow|on` and `--recomp off|on|only` mean what they mean to
-`ct_play`: `frontend/natives.c` chooses the registered entries for both
-(generated blocks only for the ROM they came from; `--recomp only` leaves the
-ported routines out in on mode). `--recomp` defaults to `on`. Only `--native
+`ct_play`: `frontend/natives.c` chooses the registered entries for both, and
+for `ct_dev` (generated blocks only for the ROM they came from; `--recomp only`
+leaves the ported routines out in on mode, and in `ct_dev` in every mode; see
+`natives.h`). `--recomp` defaults to `on`. Only `--native
 off` is the machine movies are made on; see Native code for what the others
 change.
 

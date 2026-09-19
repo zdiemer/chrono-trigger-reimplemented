@@ -353,7 +353,7 @@ holds the rules that keep it that way).
 | File | What it is |
 |---|---|
 | `frontend/player.h`, `player.c` | the machine, its renderer and native runtime, the input track that replays and records, quick saves |
-| `frontend/natives.h`, `natives.c` | which entries `--native` and `--recomp` register, and a runtime over them; shared with `ct_drive` so the two can't drift apart |
+| `frontend/natives.h`, `natives.c` | which entries `--native`, `--recomp` (and `ct_dev`'s `--exclude` and `--include`) register, and a runtime over them; shared with `ct_drive` and `ct_dev` so the three can't drift apart |
 | `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between the APU's 32000 Hz and an audio device's rate (above) |
 | `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard and gamepads, and the frame pacing |
 | `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |
@@ -370,6 +370,28 @@ with its own clock) to wherever they go. A quick save the player can't take yet
 (a native routine is suspended, or time is owed; `player_save_ready`) is a
 request it carries out at the end of a later frame, so no driver has to wait
 for it.
+
+The three tools that run native code choose it with one `natives_select`, and
+differ in one deliberate place, a parameter of it (`NativesOnly`): which
+ported routines `--recomp only` leaves out. The option exists for the
+original's exact timing, which hand ports lose (they charge an estimate) and
+generated blocks keep. `ct_play` and `ct_drive` leave the ports out only where
+that changes anything, in on mode when there are generated blocks
+(`NATIVES_ONLY_TIMED`): shadow and off modes run the original code whatever
+the table holds, so a shadow recording with `--recomp only` still checks the
+ports, and a build
+without generated blocks still has the ports to run. `ct_dev` leaves them out
+in every mode (`NATIVES_ONLY_ALWAYS`): its `--recomp only` means the generated
+code alone, so shadow mode checks the generated blocks without the ports, and
+on mode without generated blocks is the interpreter, still exact.
+Neither choice reaches the gate, which runs `--native shadow` with `--recomp
+on` and `--recomp only` in on mode with generated blocks, where the two agree;
+nor `ct_play --record`, which runs shadow mode with `--recomp on` unless told
+otherwise, and a shadow run's machine doesn't depend on the table. Moving
+`ct_dev` onto `natives.c` left its reports, coverage, call logs and traces
+byte-identical (`new-game`, `menu`, `field` and `battle-magus` in shadow mode,
+the first three with `--native on --recomp only`, and `--exclude`, `--include`
+and shadow `--recomp only` runs of `menu` and `field`).
 
 Nor does the player know a path. What it persists it takes and hands out as
 bytes: the cartridge save (through the save service's `sv_host_bytes`), a quick

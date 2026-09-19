@@ -312,7 +312,3 @@ waits on M5 rather than on a backend.
     the subset that can reach the subsystem a change touched would make the
     iterating case automatic, with the full set still required to land.
 - CI: the macOS job costs 10x minutes on a private repo.
-- **`ct_dev` builds its own native table** (for `--exclude`) instead of using
-  `frontend/natives.c` as `ct_play` and `ct_drive` do, and its `--recomp only`
-  leaves the ported routines out in shadow mode too, where the others keep
-  them. Move it onto `natives_select` with an exclude filter.
