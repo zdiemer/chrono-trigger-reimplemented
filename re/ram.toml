@@ -635,6 +635,13 @@ meaning = "Set when Start toggles pause and cleared when it is released, so a he
 source = "game/scene/nmi.c, read_pause_button $C3:0A8E"
 
 [[var]]
+name = "scene_reset_disabled"
+addr = "7E:0396"
+subsystem = "scene"
+meaning = "Nonzero keeps L+R+Select+Start from resetting the console during a scene"
+source = "game/scene/nmi.c, read_pause_button $C3:0A8E"
+
+[[var]]
 name = "scene_tasks"
 addr = "7E:0920"
 size = 2
@@ -2196,6 +2203,47 @@ size = 3
 subsystem = "field"
 meaning = "24-bit pointer to the per-line table the quadrilateral is rasterized into (two bytes per line, left X then right X)"
 source = "game/field/window_shape.c, field_rasterize_quad $C3:0011"
+
+[[var]]
+name = "scene_circle_center_x"
+addr = "7E:0350"
+page = "decompress"
+subsystem = "scene"
+meaning = "X of the center of the circle $C3:0077 draws into a per-line window table (8-bit; the routine clears the byte after it)"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+[[var]]
+name = "scene_circle_center_y"
+addr = "7E:0352"
+page = "decompress"
+subsystem = "scene"
+meaning = "Line of the circle's center (8-bit; the routine clears the byte after it)"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+[[var]]
+name = "scene_circle_radius"
+addr = "7E:0354"
+page = "decompress"
+subsystem = "scene"
+meaning = "The circle's radius in lines (8-bit; the routine clears the byte after it); 0 closes every line"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+[[var]]
+name = "scene_circle_table"
+addr = "7E:0356"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "Address of the circle's per-line table (224 lines of left and right X)"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+[[var]]
+name = "scene_circle_table_bank"
+addr = "7E:0358"
+page = "decompress"
+subsystem = "scene"
+meaning = "Bit 0: the circle's table is in bank $7F rather than $7E"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
 name = "field_window_shape_corners"
@@ -6575,9 +6623,9 @@ values = [0x0309]
 why = "PC value: the loop head $C3:0309 the scaler stops at"
 
 [[not_ram]]
-file = "scene/sound.c"
-values = [0x0C28]
-why = "PC value: the scene script loop at $C3:0C28"
+file = "scene/sequence.c"
+values = [0x0C28, 0x0B01, 0x1F00, 0x2000, 0x8000]
+why = "PC values and the interpreter's return address in bank $C3; the end of low RAM (and of the pages below it) and the task list search's step count"
 
 [[not_ram]]
 file = "scene/sprites.c"

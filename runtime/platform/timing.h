@@ -29,6 +29,8 @@ enum { TM_BEAM_LATCHED = 0x80 };
 
 /* Which interrupts are delivered (TM_INT_* bits; others as given, SNES only). */
 PF_API void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources);
+/* The line the line handler (TM_INT_LINE) runs at, from the top of the frame. */
+PF_API void tm_set_line(Platform *pf, PfOrigin o, uint16_t line);
 /* Acknowledge the vblank interrupt; returns its status. */
 PF_API uint8_t tm_ack_vblank(Platform *pf, PfOrigin o);
 /* Acknowledge the line interrupt; returns its status. */

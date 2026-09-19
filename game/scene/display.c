@@ -59,16 +59,6 @@ static void rol_a8(Snes *s)
     m_set_nz8(s, r);
 }
 
-// $C3:08D0 (also inlined by scene_nmi, which reaches it through a JSL)
-/* The first half of the scenes' vblank work, when something other than the NMI
- * handler calls it: acknowledge, per-line effects off, forced blank, the task
- * list, then the enables and brightness back. Returns with RTL. */
-void scene_frame_work(Snes *s)
-{
-    if (scene_run_frame_work(s))
-        m_rtl(s);
-}
-
 /* ---- the program at $7E:3000 --------------------------------------------------- */
 
 bool scene_program_restart_present(Snes *s) { return m_code_matches(s, 0x7E302A, 14, 0x614033C5F8C83156ull); }

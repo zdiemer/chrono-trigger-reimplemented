@@ -626,7 +626,7 @@ agreement with `off` is the same as before conversion.
 |---|---|
 | `runtime/platform/platform.h` | `Platform`, `PfOrigin` (`PF_AT`, `PF_CALL`), `PfData` (`PF_GAME`), `PF_API` binding |
 | `runtime/platform/video.h` | display, BG mode, windows, color math, fixed color, line effects, VRAM/CGRAM/OAM uploads, decoders for SNES-format shadows, the `VidSnesXfer` step lists, the `vid_snes_transfer` escape |
-| `runtime/platform/timing.h` | `tm_enable_interrupts`, `tm_ack_vblank`, `tm_ack_line_irq`, `tm_video_status`, `tm_reset_beam_latch`, `tm_sync` |
+| `runtime/platform/timing.h` | `tm_enable_interrupts`, `tm_set_line`, `tm_ack_vblank`, `tm_ack_line_irq`, `tm_video_status`, `tm_reset_beam_latch`, `tm_sync` |
 | `runtime/platform/audio.h` | `au_command` (`AudioCommand` with a parameter count), `au_play_song`, `au_status`, `au_take_samples` |
 | `runtime/platform/input.h` | `in_ready`, `in_read`, `in_read_low`, `in_read_high`, `in_host_set` |
 | `runtime/platform/save.h` | `sv_read8`, `sv_write8`, `sv_host_bytes` |
@@ -1149,7 +1149,20 @@ color three times, one channel each.
   in D keep doing it, since D is CPU state; `M_DP_PPU` and `M_DP_DMA` in
   `port/machine.h` name the two values so no register constant appears in
   `game/`. `$C2:85D6` walks the scroll registers with X in the same way, and
-  names the two ends of the walk off `M_DP_PPU`.
+  names the two ends of the walk off `M_DP_PPU`. `M_DP_CPU` (`$4200`) joined
+  them in Phase 3 for the scenes' divisor loop `$C3:0E29`, which reaches the
+  divider through the direct page.
+- **The line interrupt's line** (Phase 3, the scene boot `$C3:0000`):
+  `tm_set_line` sets the line `TM_INT_LINE` fires at ($4209/$420A), a narrower
+  call than the `tm_set_line_handler` sketched under Timing above, since the
+  boot installs the handler's stub itself.
+- **Script-driven register writes** (Phase 3, the sequence scripts' command
+  `$AB` at `$C3:0C5F`): a byte from the script into `$21xx`, xx from the
+  script. The scripts write nine registers (Mode 7's flips, window 1's edges
+  and the OBJ/color window masks, the main and sub screens, the main-screen
+  window mask, the color math layers, the video config), and the port turns
+  each into its service call; any other register is left to the original,
+  which never meets one.
 - **Two more SNES-only escapes, both memory.** `$C2:9512` and `$C2:9542` fill
   and copy work RAM over a DMA channel into the work RAM port. The port is
   memory access rather than video ([the survey](#video) above), but the channel

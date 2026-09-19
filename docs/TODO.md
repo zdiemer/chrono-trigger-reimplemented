@@ -50,6 +50,14 @@ rest waits, is [PLAN.md](PLAN.md).
   reads for every routine that sends a command, and pushes across the menus'
   task switch (`$C2:821E`) stay conservative too. Following a callee's pulls of
   its caller's bytes to the registers they land in would free both.
+- **Liveness through indirect tail jumps.** A routine entered through an
+  indirect jump counts every register as read after it returns, even where the
+  jump is a tail call whose caller's continuation is known: the menu object
+  scripts' command `$4E` jumps through `JML [$005B]` at `$C2:1836`, which
+  returns to `$C2:1830`, where only X, Y, V, C and the banks are live. So the
+  bank C6 routines it reaches (`scene/objects.c`) reproduce A and every flag
+  too. Taking the return liveness of the routine that makes the tail jump for
+  its targets would drop that from the rest of bank C6.
 - **Stops after a call-out that changed the widths.** Ports that give up there
   (`battle_step_effect_slots`' `call`, the menus' `widths_are` checks) leave PC
   at the call's return address without declaring it; with a don't-care set on
@@ -165,6 +173,16 @@ rest waits, is [PLAN.md](PLAN.md).
 - **P1 leftovers**: `$217F` mirror writes still come from unported video code,
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
+- **The scenes' waits on the beam** (`scene/`): the NMI's controller read
+  (`$C3:0A8E`) stops at its wait for the automatic read while it is busy, and
+  the boot's line interrupt (`$C3:0529`) waits for the end of one hblank and the
+  start of the next before it blanks the screen, both as the original's loops
+  (idle entries for the second). `$C3:02DD` makes random numbers from the
+  beam's position counters (`$2137`, `$213C`, `$213D`) and stays generated, as
+  does `$C3:01E4`, the scene effect that uses them (reached through `$C3:000E`
+  from bank C6's `$C6:E27E`, which no movie runs): a port runs in no time, so
+  it would read other counters, and fuzzing can't compare it. A native backend
+  needs a source of randomness for it instead.
 - **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
   the boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
   the driver) and every echo wait stay loops on the machine as idle entries.
