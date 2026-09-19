@@ -4,6 +4,7 @@
 #include "platform/input.h"
 #include "platform/video.h"
 #include "port/machine.h"
+#include "ram.h"
 
 static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
 static void set_abs8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr), v); }
@@ -301,326 +302,381 @@ static const VidSnesXfer dma_words_again = { BATTLE_DMA, DMA_WORDS, steps_same_c
 /* A 16-bit DMA size as a length: 0 means 65536. */
 static uint32_t dma_length(uint16_t size) { return size ? size : 0x10000; }
 
-/* One of the queued VRAM uploads from the tables at $CC:F957 (`slot` a
- * multiple of 2; X, or 0 through long addresses): two uploads from $7E, the
- * second only when its size is nonzero. `sites`: the first writes of each. */
-static void upload_queued_vram(Snes *s, uint16_t slot, uint32_t first_site, uint32_t second_site)
+/* The four queued VRAM uploads' table ($CC:F957): per slot, two uploads' source
+ * addresses in bank $7E, VRAM addresses and sizes, each field four words
+ * (the second upload's eight bytes after the first's). */
+enum { QUEUED_SOURCE = 0xF957, QUEUED_VRAM = 0xF967, QUEUED_SIZE = 0xF977, QUEUED_SECOND = 8, QUEUED_SLOTS = 4,
+       OBJECT_UPLOAD_SECOND = 11 * 2, KINDS_UPLOADED = 3, FRAMES_TILEMAP_BYTES = 0x0180,
+       FRAMES_TILEMAP_VRAM = 0x7A00, PALETTE_COLORS = 256,
+       TARGET_VRAM_ADDRESS_LOW = 0x16 /* the escape names the VRAM address register by its low byte */ };
+static uint16_t queued_upload(Snes *s, uint16_t field, uint16_t slot_x2) { return m_read16(s, 0xCC0000u + field + slot_x2); }
+
+/* One of the queued VRAM uploads (`slot_x2` twice the slot): two uploads from
+ * bank $7E, the second only when its size is nonzero. `sites`: the first
+ * writes of each. */
+static void upload_queued_vram(Snes *s, uint16_t slot_x2, uint32_t first_site, uint32_t second_site)
 {
     Platform *pf = m_platform(s);
-    uint32_t source = 0x7E0000 | m_read8(s, 0xCCF957 + slot) | m_read8(s, 0xCCF958 + slot) << 8;
-    uint16_t size = m_read16(s, 0xCCF977 + slot);
-    uint16_t vram = m_read16(s, 0xCCF967 + slot);
-    m_rep(s, CPU_FLAG_M);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, 0x80);
-    vid_upload_vram(pf, PF_AT(first_site), vram, PF_GAME(source), dma_length(size), &dma_words);
-
-    source = 0x7E0000 | m_read8(s, 0xCCF95F + slot) | m_read8(s, 0xCCF960 + slot) << 8;
-    m_rep(s, CPU_FLAG_M);
-    size = m_lda16(s, m_read16(s, 0xCCF97F + slot));
-    vram = size != 0 ? m_read16(s, 0xCCF96F + slot) : 0;
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
-    if (size != 0)
-        m_lda8(s, 0x80);
+    uint32_t bank = RAM_OAM_BUFFER & 0xFF0000u;
+    vid_upload_vram(pf, PF_AT(first_site), queued_upload(s, QUEUED_VRAM, slot_x2),
+                    PF_GAME(bank | queued_upload(s, QUEUED_SOURCE, slot_x2)),
+                    dma_length(queued_upload(s, QUEUED_SIZE, slot_x2)), &dma_words);
+    uint16_t second = (uint16_t)(slot_x2 + QUEUED_SECOND);
+    uint16_t size = queued_upload(s, QUEUED_SIZE, second);
     /* an empty second upload only programs its source address */
-    vid_upload_vram(pf, PF_AT(second_site), vram, PF_GAME(source), size, &dma_words_again);
+    vid_upload_vram(pf, PF_AT(second_site), size != 0 ? queued_upload(s, QUEUED_VRAM, second) : 0,
+                    PF_GAME(bank | queued_upload(s, QUEUED_SOURCE, second)), size, &dma_words_again);
 }
 
 // $CF:E300
-/* The battle's vblank uploads over DMA channel 7: the OAM buffer ($0700, 544
- * bytes); a pending transfer described at $9EEA ($A0 set); the $0B40 tile
- * block to VRAM $7A00 when $99E2 is set; the palette ($7E:2200); one of four
- * rotating queued VRAM uploads ($A4) while $E5 is set and $A013 clear; the
- * current object's two graphics uploads when $A012 is 1 (objects of graphics
- * kind below 3); and upload slot 0 again when the $A118 countdown ends.
- * Returns with RTL. Registered with a guard that the direct page's low byte is
- * 0: the original loads the OAM transfer's mode and address with TDC. */
-void battle_upload_vram(Snes *s)
+/* The battle's vblank uploads over DMA channel 7: the OAM buffer; the
+ * transfer described at battle_pending_transfer when one is pending; the
+ * window frames' tilemap when asked for; the working palette; one of the four
+ * rotating queued VRAM uploads while they run and no effects do; the graphics
+ * object's two uploads when asked for (objects of the first three kinds); and
+ * queued upload 0 again when its countdown ends. Returns with RTL. */
+static void upload_vram(Snes *s)
 {
-    Cpu *c = &s->cpu;
     Platform *pf = m_platform(s);
     static const VidSnesXfer oam = { BATTLE_DMA, DMA_ONE_REGISTER, steps_full_short_target, NULL };
-    vid_upload_oam(pf, PF_AT(0xCFE301), PF_GAME(0x000700), &oam);
-    m_tdc(s);
-    m_lda8(s, 0x80);
+    vid_upload_oam(pf, PF_AT(0xCFE301), PF_GAME(RAM_OAM_BUFFER & 0xFFFFu), &oam);
 
-    if (m_lda8(s, dp8(s, 0xA0)) != 0) {
-        /* the channel's values from every sixth byte of the table at $9EEA */
+    if (m_read8(s, RAM_BATTLE_TRANSFER_PENDING)) {
+        /* the channel's own values, from every sixth byte */
         uint8_t v[9];
-        for (int i = 0; i < 9; i++)
-            v[i] = m_lda8(s, abs8(s, (uint16_t)(0x9EEA + 6 * i)));
-        m_lda8(s, 0x80);
+        for (uint16_t i = 0; i < 9; i++)
+            v[i] = m_read8(s, RAM_BATTLE_PENDING_TRANSFER + i * RAM_BATTLE_PENDING_TRANSFER_STRIDE);
         VidSnesXfer x = { BATTLE_DMA, v[0], steps_full, NULL };
         VidSnesTransfer t = { .dest = v[1], .source = (uint32_t)v[4] << 16 | v[3] << 8 | v[2],
-                              .size = (uint16_t)(v[6] << 8 | v[5]), .target_reg = 0x16,
+                              .size = (uint16_t)(v[6] << 8 | v[5]), .target_reg = TARGET_VRAM_ADDRESS_LOW,
                               .target = (uint16_t)(v[8] << 8 | v[7]) };
         vid_snes_transfer(pf, PF_AT(0xCFE33B), &t, &x);
-        m_write8(s, m_dp(s, 0xA0), 0x00);
+        m_write8(s, RAM_BATTLE_TRANSFER_PENDING, 0);
     }
-    if (m_lda8(s, abs8(s, 0x99E2)) != 0) {
-        m_lda8(s, 0x80);
-        vid_upload_vram(pf, PF_AT(0xCFE386), 0x7A00, PF_GAME(0x000B40), 0x0180, &dma_words);
-        set_abs8(s, 0x99E2, 0x00);
+    if (m_read8(s, RAM_BATTLE_FRAMES_UPLOAD_REQUEST)) {
+        vid_upload_vram(pf, PF_AT(0xCFE386), FRAMES_TILEMAP_VRAM, PF_GAME(RAM_BATTLE_WINDOW_FRAMES_TILEMAP & 0xFFFFu),
+                        FRAMES_TILEMAP_BYTES, &dma_words);
+        m_write8(s, RAM_BATTLE_FRAMES_UPLOAD_REQUEST, 0);
     }
-    {
-        static const VidSnesXfer palette = { BATTLE_DMA, DMA_ONE_REGISTER, steps_full_short_target, NULL };
-        m_tdc(s);
-        m_lda8(s, 0x80);
-        vid_upload_palette(pf, PF_AT(0xCFE3C5), (uint8_t)c->d, PF_GAME(0x7E2200), 256, &palette);
+    static const VidSnesXfer palette = { BATTLE_DMA, DMA_ONE_REGISTER, steps_full_short_target, NULL };
+    vid_upload_palette(pf, PF_AT(0xCFE3C5), 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS, &palette);
+
+    // $CF:E3F8
+    if (!m_read8(s, RAM_BATTLE_EFFECTS_RUNNING) && m_read8(s, RAM_BATTLE_QUEUED_UPLOADS_ON)) {
+        uint8_t phase = m_read8(s, RAM_BATTLE_FRAME_PHASE);
+        upload_queued_vram(s, (uint8_t)(phase << 1), 0xCFE40A, 0xCFE449);
+        phase = (uint8_t)(m_read8(s, RAM_BATTLE_FRAME_PHASE) + 1);
+        m_write8(s, RAM_BATTLE_FRAME_PHASE, phase == QUEUED_SLOTS ? 0 : phase);
     }
 
-    /* $CF:E3F8 */
-    if (m_lda8(s, abs8(s, 0xA013)) == 0 && m_lda8(s, dp8(s, 0xE5)) != 0) {
-        m_set_a8(s, m_asl8(s, m_lda8(s, dp8(s, 0xA4))));
-        m_tax(s);
-        upload_queued_vram(s, c->x, 0xCFE40A, 0xCFE449);
-        uint8_t slot = (uint8_t)(dp8(s, 0xA4) + 1);
-        m_write8(s, m_dp(s, 0xA4), slot);
-        m_set_nz8(s, slot);
-        slot = m_lda8(s, dp8(s, 0xA4));
-        m_cmp8(s, slot, 0x04);
-        if (slot == 0x04)
-            m_write8(s, m_dp(s, 0xA4), 0x00);
-    }
-
-    /* $CF:E481 */
-    uint8_t request = m_lda8(s, abs8(s, 0xA012));
-    if (request != 0) {
-        m_cmp8(s, request, 0x01);
-        if (request == 0x01) {
-            set_abs8(s, 0xA012, 0x00);
-            m_lda8(s, abs8(s, 0x9679));
-            m_tax(s);
-            uint8_t kind = m_lda8(s, m_read8(s, m_abs(s, 0x967C) + c->x));
-            m_cmp8(s, kind, 0x03);
-            if (kind < 0x03) {
-                m_txa(s);
-                m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-                m_tax(s);
-                /* source $A654/$A66A, size $A6AC/$A6C2, VRAM address $A680/$A696 */
-                static const struct { uint16_t table[6]; uint32_t site; const VidSnesXfer *x; } uploads[2] = {
-                    { { 0xA654, 0xA655, 0xA6AC, 0xA6AD, 0xA680, 0xA681 }, 0xCFE4A0, &dma_words },
-                    { { 0xA66A, 0xA66B, 0xA6C2, 0xA6C3, 0xA696, 0xA697 }, 0xCFE4E3, &dma_words_again },
-                };
-                for (int u = 0; u < 2; u++) {
-                    uint8_t v[6];
-                    for (int i = 0; i < 6; i++)
-                        v[i] = m_read8(s, m_abs(s, uploads[u].table[i]) + c->x);
-                    m_lda8(s, 0x80);
-                    vid_upload_vram(pf, PF_AT(uploads[u].site), (uint16_t)(v[5] << 8 | v[4]),
-                                    PF_GAME(0x7E0000 | v[1] << 8 | v[0]), dma_length((uint16_t)(v[3] << 8 | v[2])),
-                                    uploads[u].x);
-                }
+    // $CF:E481
+    if (m_read8(s, RAM_BATTLE_GRAPHICS_UPLOAD_REQUEST) == 1) {
+        m_write8(s, RAM_BATTLE_GRAPHICS_UPLOAD_REQUEST, 0);
+        uint8_t slot = m_read8(s, RAM_BATTLE_GRAPHICS_OBJECT);
+        if (m_read8(s, RAM_BATTLE_OBJECT_KIND + slot) < KINDS_UPLOADED) {
+            uint16_t w = (uint8_t)(slot << 1);
+            static const uint32_t sites[2] = { 0xCFE4A0, 0xCFE4E3 };
+            for (uint16_t u = 0; u < 2; u++) {
+                uint16_t k = (uint16_t)(w + u * OBJECT_UPLOAD_SECOND);
+                vid_upload_vram(pf, PF_AT(sites[u]), m_read16(s, RAM_BATTLE_UPLOAD_VRAM_ADDRESS + k),
+                                PF_GAME((RAM_OAM_BUFFER & 0xFF0000u) | m_read16(s, RAM_BATTLE_UPLOAD_SOURCE + k)),
+                                dma_length(m_read16(s, RAM_BATTLE_UPLOAD_SIZE + k)), u ? &dma_words_again : &dma_words);
             }
         }
     }
 
-    /* $CF:E510 */
-    if (m_lda8(s, abs8(s, 0xA118)) != 0 && step_abs8(s, 0xA118, -1) == 0)
-        upload_queued_vram(s, 0, 0xCFE51C, 0xCFE55B);
+    // $CF:E510
+    uint8_t left = m_read8(s, RAM_BATTLE_REUPLOAD_COUNTDOWN);
+    if (left) {
+        m_write8(s, RAM_BATTLE_REUPLOAD_COUNTDOWN, --left);
+        if (!left)
+            upload_queued_vram(s, 0, 0xCFE51C, 0xCFE55B);
+    }
+}
+
+/* Guarded on the battle page and data bank $7E: the original loads the OAM
+ * address and the palette's first entry with TDC. Leaves Y and V. */
+void battle_upload_vram(Snes *s)
+{
+    upload_vram(s);
     m_rtl(s);
 }
 
-/* INC on a 16-bit absolute word, setting N and Z. */
-static void inc_abs16(Snes *s, uint16_t addr)
+/* ---- Requests for the described transfer ------------------------------------------ *
+ *
+ * battle_upload_vram makes the transfer described at battle_pending_transfer
+ * when battle_transfer_pending is set. These three describe the upload of
+ * three rows of the menu window's tilemap to VRAM, from one of three places.
+ * The description is the DMA channel's own values -- words to the VRAM data
+ * port, source, size and VRAM address -- which the upload hands to the
+ * SNES-only transfer escape as they are. */
+enum { WINDOW_ROWS_BYTES = 0x0180, WINDOW_ROWS_VRAM = 0x7820, WINDOW_ROWS_LOWER = 0x01C0, DESCRIPTION_STRIDE = 6,
+       DEST_VRAM_PORT = 0x18, TRANSFER_PENDING = 0x80 };
+
+static void request_window_rows(Snes *s, uint32_t source)
 {
-    uint16_t v = (uint16_t)(m_read16(s, m_abs(s, addr)) + 1);
-    m_write16(s, m_abs(s, addr), v);
-    m_set_nz16(s, v);
+    const uint8_t values[9] = {
+        DMA_WORDS, DEST_VRAM_PORT, (uint8_t)source, (uint8_t)(source >> 8), (uint8_t)(source >> 16),
+        (uint8_t)WINDOW_ROWS_BYTES, (uint8_t)(WINDOW_ROWS_BYTES >> 8), (uint8_t)WINDOW_ROWS_VRAM,
+        (uint8_t)(WINDOW_ROWS_VRAM >> 8),
+    };
+    for (uint16_t i = 0; i < 9; i++)
+        m_write8(s, RAM_BATTLE_PENDING_TRANSFER + i * DESCRIPTION_STRIDE, values[i]);
+    m_write8(s, RAM_BATTLE_TRANSFER_PENDING, TRANSFER_PENDING);
 }
 
-/* DEC on the 16-bit direct-page word $C8; returns the new value. */
-static uint16_t dec_c8(Snes *s)
+/* What the three leave: X the direct page (TDC : TAX, 0 on the battle page)
+ * and A the pending flag. */
+static void finish_request(Snes *s)
 {
-    uint16_t v = (uint16_t)(m_read16(s, m_dp(s, 0xC8)) - 1);
-    m_write16(s, m_dp(s, 0xC8), v);
-    m_set_nz16(s, v);
+    s->cpu.x = s->cpu.d;
+    s->cpu.a = (uint16_t)((s->cpu.d & 0xFF00) | TRANSFER_PENDING);
+    m_rtl(s);
+}
+
+// $CF:FD02
+/* The window tilemap's first three rows (from bank $00, its work RAM mirror). */
+void battle_request_window_rows(Snes *s)
+{
+    request_window_rows(s, (uint16_t)RAM_BATTLE_WINDOW_TILEMAP);
+    finish_request(s);
+}
+
+// $CF:FD36
+/* The three rows the menu saved. */
+void battle_request_saved_window_rows(Snes *s)
+{
+    request_window_rows(s, RAM_BATTLE_MENU_TILEMAP);
+    finish_request(s);
+}
+
+// $CF:FD6A
+/* The window tilemap's rows further down. */
+void battle_request_lower_window_rows(Snes *s)
+{
+    request_window_rows(s, (uint16_t)(RAM_BATTLE_WINDOW_TILEMAP + WINDOW_ROWS_LOWER));
+    finish_request(s);
+}
+
+/* The palette colors the frame update animates and rotates, and the cells it
+ * rotates them through (the battle page's, from $C6). */
+enum { ANIMATED_COLOR = 0x13C, ANIMATED_COLOR_ALT = 0x1BC, ROTATED_COLORS = 0x180, ROTATED_LAST = 0x16,
+       COLOR_PHASES = 0x3E, BLINK_PERIOD = 0x0C, PALETTE_BYTES = 0x20, CYCLE_ROW_MOVES = 0x0E,
+       CELL_KEPT = 0x00, CELL_MOVES = 0x02, CELL_START = 0x04, SPRITE_PRIORITY_KEPT = 0xF1, CURSOR_SPRITES = 4,
+       BUTTON_L_R = 0x30, RUN_HOLD_FRAMES = 0x78, RUN_NOT_ALLOWED = 0x80, DEMO_BATTLE = 0x20,
+       GRAPHICS_UPLOAD_NEXT_FRAME = 2 };
+
+/* The animated color's two bytes by phase * 2 ($D1:5980). */
+static uint8_t battle_animated_color_byte(Snes *s, uint16_t at) { return m_read8(s, 0xD15980u + at); }
+
+static uint16_t palette_word(Snes *s, uint16_t at) { return m_read16(s, RAM_PALETTE_WORKING + at); }
+static void set_palette_word(Snes *s, uint16_t at, uint16_t v) { m_write16(s, RAM_PALETTE_WORKING + at, v); }
+/* The word above `at`: past $FFFF it runs on into bank $7F, as the original's
+ * indexed store does. */
+static void set_palette_word_above(Snes *s, uint16_t at, uint16_t v) { m_write16(s, RAM_PALETTE_WORKING + 2u + at, v); }
+static uint16_t frame_cell(Snes *s, uint8_t c) { return m_read16(s, RAM_BATTLE_EFFECT_CELLS + c); }
+static void set_frame_cell(Snes *s, uint8_t c, uint16_t v) { m_write16(s, RAM_BATTLE_EFFECT_CELLS + c, v); }
+
+/* $CF:E653/$CF:E682: rotate the working palette's colors up one, the color
+ * at byte `at` going to the bottom, over the 16-bit count of moves in the
+ * cells (0 meaning 65536, as the original's DEC runs). */
+static void rotate_colors(Snes *s, uint16_t at)
+{
+    set_frame_cell(s, CELL_KEPT, palette_word(s, at));
+    at = (uint16_t)(at - 2);
+    uint16_t left;
+    do {
+        set_palette_word_above(s, at, palette_word(s, at));
+        at = (uint16_t)(at - 2);
+        left = (uint16_t)(frame_cell(s, CELL_MOVES) - 1);
+        set_frame_cell(s, CELL_MOVES, left);
+    } while (left != 0);
+    set_palette_word_above(s, at, frame_cell(s, CELL_KEPT));
+}
+
+static bool overflow8(uint8_t a, uint8_t b, uint8_t r) { return (~(a ^ b) & (a ^ r) & 0x80) != 0; }
+static bool overflow16(uint16_t a, uint16_t b, uint16_t r) { return (~(a ^ b) & (a ^ r) & 0x8000) != 0; }
+
+/* Rotate the colors: every period frames, the twelve at $2382 up one; and
+ * with the background cycle on, in the palette its high nibble names the
+ * colors from its low nibble on, and the fifteen above color 0 of every
+ * later palette. Returns the overflow the last addition leaves (`v` if none). */
+static bool rotate_palette_colors(Snes *s, bool v)
+{
+    if (!m_read8(s, RAM_BATTLE_COLOR_ROTATION_ON))
+        return v;
+    uint8_t count = (uint8_t)(m_read8(s, RAM_BATTLE_COLOR_ROTATION_COUNT) - 1);
+    m_write8(s, RAM_BATTLE_COLOR_ROTATION_COUNT, count);
+    if (count)
+        return v;
+    m_write8(s, RAM_BATTLE_COLOR_ROTATION_COUNT, m_read8(s, RAM_BATTLE_COLOR_ROTATION_PERIOD));
+    set_frame_cell(s, CELL_KEPT, palette_word(s, ROTATED_COLORS + ROTATED_LAST + 2));
+    for (int16_t x = ROTATED_LAST; x >= 0; x -= 2)
+        set_palette_word(s, (uint16_t)(ROTATED_COLORS + 2 + x), palette_word(s, (uint16_t)(ROTATED_COLORS + x)));
+    set_palette_word(s, ROTATED_COLORS + 2, frame_cell(s, CELL_KEPT));
+
+    if (!m_read8(s, RAM_BATTLE_BACKGROUND_CYCLE_ON))
+        return v;
+    uint8_t first = m_read8(s, RAM_BATTLE_BACKGROUND_CYCLE) & 0x0F;
+    m_write8(s, RAM_BATTLE_EFFECT_CELLS + CELL_KEPT, first);
+    set_frame_cell(s, CELL_MOVES, (uint8_t)(0x0F - first));
+    uint16_t at = (uint16_t)((uint8_t)(m_read8(s, RAM_BATTLE_BACKGROUND_CYCLE) | 0x0F) << 1);
+    set_frame_cell(s, CELL_START, at);
+    rotate_colors(s, at);
+
+    uint8_t top = (uint8_t)(m_read8(s, RAM_BATTLE_BACKGROUND_CYCLE) | 0x0F);
+    uint8_t next = (uint8_t)(top + 0x10);
+    v = overflow8(top, 0x10, next);
+    set_frame_cell(s, CELL_START, (uint16_t)(next << 1));
+    uint16_t start;
+    do {
+        set_frame_cell(s, CELL_MOVES, CYCLE_ROW_MOVES);
+        rotate_colors(s, frame_cell(s, CELL_START));
+        uint16_t was = frame_cell(s, CELL_START);
+        start = (uint16_t)(was + PALETTE_BYTES);
+        v = overflow16(was, PALETTE_BYTES, start);
+        set_frame_cell(s, CELL_START, start);
+    } while ((start & 0xFF00) == 0);
     return v;
 }
 
-/* $CF:E653/$CF:E682: rotate colors of the working palette up one slot, from
- * X down, for $C8 + 1 colors (16-bit A). */
-static void rotate_colors(Snes *s)
+/* The frame update's call-outs: the callees read A's high byte (never its
+ * low byte, which is set as the original loads it), the direct page and the
+ * data bank; nothing reads X or the flags after. False if the callee didn't
+ * leave 8-bit A and 16-bit X. */
+enum { FRAME_CALL_DEAD = DC_X | DC_N | DC_Z | DC_C };
+static bool call_on(Snes *s, uint32_t site, uint32_t target)
 {
-    Cpu *c = &s->cpu;
-    m_write16(s, m_dp(s, 0xC6), m_lda16(s, m_read16(s, m_abs(s, 0x2200) + c->x)));
-    m_ldx16(s, (uint16_t)(c->x - 2));
-    do {
-        m_write16(s, m_abs(s, 0x2202) + c->x, m_lda16(s, m_read16(s, m_abs(s, 0x2200) + c->x)));
-        m_ldx16(s, (uint16_t)(c->x - 2));
-    } while (dec_c8(s) != 0);
-    m_write16(s, m_abs(s, 0x2202) + c->x, m_lda16(s, m_read16(s, m_dp(s, 0xC6))));
+    m_jsr_dc(s, site, target, FRAME_CALL_DEAD);
+    return widths_ok(s);
+}
+static bool call_out(Snes *s, uint32_t site, uint32_t target, uint8_t a)
+{
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | a);
+    return call_on(s, site, target);
 }
 
 // $CF:E58A
 /* The battle's per-frame update, run from the main loop's frame wait: the
- * blink timer ($A110 toggling every 12 frames), the party palette cycle, the
- * animated color at $233C or $23BC (by $9F46 bit 3, flipped by $A101), the
- * 32-bit frame counter $96F1, the twelve-color rotation at $2382 and the
- * background color rotation ($A08B, rows from $99D3), priority bits of the
- * first four OAM entries from $9F46, a demo exit on any button (resetting to
- * $C0:FF00 once $BB00 counts down), the L+R hold counter ($99CF), the effect
- * slots, object paths, anchors, trails and prepared sprites, $CF:F9D3 when
- * $AA63 is set, and the object sprites. Clears $9E, restores $A1 and returns
- * with RTL. */
+ * blink timer, the party palette cycle, the animated color (in the palette
+ * the cursor's priority bits pick, the other one while the sprite palettes
+ * are flipped), the 32-bit frame count, the color rotations, the cursor
+ * sprites' priority, a demo battle's exit on any button (to the reset code
+ * once the brightness counts down), the L+R hold that makes the party run,
+ * the frame ticks, the effect slots, and while effects run the objects'
+ * paths, anchors, trails and rising numbers; the formation; and, unless the
+ * sprites are frozen, the objects' drawing. Clears the frame's pending flag,
+ * puts battle_effect_sprite_attributes back and returns with RTL.
+ *
+ * Its callees read only A's high byte, which is 0 from the frame count's TDC
+ * on (guarded on the battle page); before that the party palette cycle gets
+ * the caller's, and what it leaves indexes the animated color. */
 void battle_frame_update(Snes *s)
 {
     Cpu *c = &s->cpu;
-    if (step_abs8(s, 0xA112, -1) == 0) {
-        set_abs8(s, 0xA112, m_lda8(s, 0x0C));
-        set_abs8(s, 0xA110, m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0xA110)) ^ 0x01)));
+    Platform *pf = m_platform(s);
+    uint8_t blink = (uint8_t)(m_read8(s, RAM_BATTLE_BLINK_TIMER) - 1);
+    m_write8(s, RAM_BATTLE_BLINK_TIMER, blink);
+    if (!blink) {
+        m_write8(s, RAM_BATTLE_BLINK_TIMER, BLINK_PERIOD);
+        m_write8(s, RAM_BATTLE_BLINK, (uint8_t)(m_read8(s, RAM_BATTLE_BLINK) ^ 0x01));
     }
-    if (m_lda8(s, abs8(s, 0xA113)) != 0)
-        set_abs8(s, 0x9945, m_lda8(s, abs8(s, 0x993F)));
-    if (!jsr(s, 0xCFE5A7, 0xCFE7D7))
+    uint8_t mirror = m_read8(s, RAM_BATTLE_EFFECT_MIRROR_SLOT3);
+    if (mirror)
+        m_write8(s, RAM_BATTLE_OBJECT_PALETTE + 9, mirror = m_read8(s, RAM_BATTLE_OBJECT_PALETTE + 3));
+    if (!call_out(s, 0xCFE5A7, 0xCFE7D7, mirror))
         return;
-    step_abs8(s, 0xA4EF, +1);
-    uint8_t phase = m_lda8(s, abs8(s, 0xA4EF));
-    m_cmp8(s, phase, 0x3E);
-    if (phase == 0x3E) {
-        m_tdc(s);
-        set_abs8(s, 0xA4EF, (uint8_t)c->a);
+
+    uint16_t index_high = c->a & 0xFF00;
+    uint8_t phase = (uint8_t)(m_read8(s, RAM_BATTLE_COLOR_PHASE) + 1);
+    m_write8(s, RAM_BATTLE_COLOR_PHASE, phase);
+    if (phase == COLOR_PHASES) {
+        phase = 0;
+        index_high = c->d & 0xFF00;
+        m_write8(s, RAM_BATTLE_COLOR_PHASE, 0);
     }
-    m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-    m_tax(s);
-    uint8_t layer;
-    if (m_lda8(s, abs8(s, 0xA101)) != 0)
-        layer = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x9F46)) ^ 0x08));
-    else
-        layer = m_lda8(s, abs8(s, 0x9F46));
-    uint16_t color = m_lda8(s, layer & 0x08) ? 0x23BC : 0x233C;
-    set_abs8(s, color, m_lda8(s, m_read8(s, 0xD15980 + c->x)));
-    set_abs8(s, (uint16_t)(color + 1), m_lda8(s, m_read8(s, 0xD15981 + c->x)));
+    uint16_t at = (uint16_t)(index_high | (uint8_t)(phase << 1));
+    uint8_t priority = m_read8(s, RAM_BATTLE_CURSOR_PRIORITY);
+    if (m_read8(s, RAM_BATTLE_SPRITE_PALETTES_FLIPPED))
+        priority ^= 0x08;
+    uint16_t color = (priority & 0x08) ? ANIMATED_COLOR_ALT : ANIMATED_COLOR;
+    m_write8(s, RAM_PALETTE_WORKING + color, battle_animated_color_byte(s, at));
+    m_write8(s, RAM_PALETTE_WORKING + color + 1, battle_animated_color_byte(s, (uint16_t)(at + 1)));
 
-    /* $CF:E5EB */
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-    uint16_t low = m_adc16(s, m_lda16(s, m_read16(s, m_abs(s, 0x96F1))), 0x0001);
-    m_write16(s, m_abs(s, 0x96F1), low);
-    uint16_t high = m_adc16(s, m_lda16(s, m_read16(s, m_abs(s, 0x96F3))), 0x0000);
-    m_write16(s, m_abs(s, 0x96F3), high);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
+    // $CF:E5EB
+    uint16_t low = m_read16(s, RAM_BATTLE_FRAMES), high = m_read16(s, RAM_BATTLE_FRAMES + 2);
+    m_write16(s, RAM_BATTLE_FRAMES, (uint16_t)(low + 1));
+    uint16_t carry = low == 0xFFFF;
+    m_write16(s, RAM_BATTLE_FRAMES + 2, (uint16_t)(high + carry));
+    bool v = overflow16(high, 0, (uint16_t)(high + carry));
+    c->a = c->d;   /* TDC: A's high byte 0 from here */
 
-    if (m_lda8(s, abs8(s, 0xAB4E)) != 0 && step_abs8(s, 0xAB4A, -1) == 0) {
-        set_abs8(s, 0xAB4A, m_lda8(s, abs8(s, 0xAB4B)));
-        m_ldx16(s, 0x0016);
-        m_rep(s, CPU_FLAG_M);
-        m_write16(s, m_dp(s, 0xC6), m_lda16(s, m_read16(s, m_abs(s, 0x2398))));
-        do {
-            m_write16(s, m_abs(s, 0x2382) + c->x, m_lda16(s, m_read16(s, m_abs(s, 0x2380) + c->x)));
-            m_ldx16(s, (uint16_t)(c->x - 2));
-        } while (!(c->x & 0x8000));
-        m_write16(s, m_abs(s, 0x2382), m_lda16(s, m_read16(s, m_dp(s, 0xC6))));
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
+    /* the overflow of the last addition, which the callees pass on */
+    m_set_flag(s, CPU_FLAG_V, rotate_palette_colors(s, v));
 
-        if (m_lda8(s, abs8(s, 0xA08B)) != 0) {
-            uint8_t row = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x99D3)) & 0x0F));
-            m_write8(s, m_dp(s, 0xC6), row);
-            m_set_flag(s, CPU_FLAG_C, true);
-            m_set_a8(s, m_sbc8(s, m_lda8(s, 0x0F), m_read8(s, m_dp(s, 0xC6))));
-            m_tax(s);
-            m_write16(s, m_dp(s, 0xC8), c->x);
-            m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x99D3)) | 0x0F));
-            m_rep(s, CPU_FLAG_M);
-            c->a = m_asl16(s, c->a);
-            m_tax(s);
-            m_write16(s, m_dp(s, 0xCA), c->x);
-            rotate_colors(s);
-            m_tdc(s);
-            m_sep(s, CPU_FLAG_M);
-
-            m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x99D3)) | 0x0F));
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0x10));
-            m_rep(s, CPU_FLAG_M);
-            c->a = m_asl16(s, c->a);
-            m_write16(s, m_dp(s, 0xCA), c->a);
-            do {
-                m_write16(s, m_dp(s, 0xC8), m_lda16(s, 0x000E));
-                m_ldx16(s, m_read16(s, m_dp(s, 0xCA)));
-                rotate_colors(s);
-                m_set_flag(s, CPU_FLAG_C, false);
-                uint16_t next = m_adc16(s, m_lda16(s, m_read16(s, m_dp(s, 0xCA))), 0x0020);
-                m_write16(s, m_dp(s, 0xCA), next);
-                c->a = next;
-            } while (m_lda16(s, c->a & 0xFF00) == 0);
-            m_tdc(s);
-            m_sep(s, CPU_FLAG_M);
-        }
+    // $CF:E6AA
+    for (uint16_t k = 0; k < CURSOR_SPRITES; k++) {
+        uint32_t attributes = RAM_OAM_BUFFER_ATTRIBUTES + k * 4u;
+        m_write8(s, attributes,
+                 (uint8_t)((m_read8(s, attributes) & SPRITE_PRIORITY_KEPT) | m_read8(s, RAM_BATTLE_CURSOR_PRIORITY)));
     }
-
-    /* $CF:E6AA */
-    for (uint16_t attr = 0x0703; attr <= 0x070F; attr += 4) {
-        uint8_t v = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, attr)) & 0xF1));
-        set_abs8(s, attr, m_lda8(s, (uint8_t)(v | abs8(s, 0x9F46))));
-    }
-    m_push8(s, m_lda8(s, dp8(s, 0xA1)));
-    if (m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x2989)) & 0x20)) != 0) {
-        uint8_t pad = m_lda8(s, in_read_low(m_platform(s), PF_AT(0xCFE6E0), 0));
-        if (m_lda8(s, (uint8_t)(pad | in_read_high(m_platform(s), PF_AT(0xCFE6E4), 0))) != 0)
-            set_abs8(s, 0xA097, m_lda8(s, 0x01));
-        if (m_lda8(s, abs8(s, 0xA097)) != 0) {
-            uint8_t fade = m_lda8(s, (uint8_t)(abs8(s, 0xBB00) - 1));
-            set_abs8(s, 0xBB00, fade);
-            if (fade == 0) {
-                set_abs8(s, 0xBB80, m_lda8(s, 0x80));
-                c->pb = 0xC0;
-                c->pc = 0xFF00;
+    m_push8(s, m_read8(s, RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES));
+    if (m_read8(s, RAM_BATTLE_SETUP_FLAGS) & DEMO_BATTLE) {
+        if (in_read_low(pf, PF_AT(0xCFE6E0), 0) | in_read_high(pf, PF_AT(0xCFE6E4), 0))
+            m_write8(s, RAM_BATTLE_DEMO_EXITING, 1);
+        if (m_read8(s, RAM_BATTLE_DEMO_EXITING)) {
+            uint8_t brightness = (uint8_t)(m_read8(s, RAM_BATTLE_BRIGHTNESS) - 1);
+            m_write8(s, RAM_BATTLE_BRIGHTNESS, brightness);
+            if (!brightness) {
+                m_write8(s, RAM_BATTLE_LEAVING, 0x80);
+                /* JML to the reset code, the attribute byte still pushed */
+                m_stop_at(s, 0xC0FF00, DC_A | DC_X | DC_N | DC_Z | DC_C);
                 return;
             }
         }
     }
 
-    /* $CF:E706 */
-    if (m_lda8(s, abs8(s, 0xA013)) == 0) {
-        uint8_t lr = m_lda8(s, (uint8_t)(m_lda8(s, in_read_low(m_platform(s), PF_AT(0xCFE70B), 0)) & 0x30));
-        m_cmp8(s, lr, 0x30);
-        if (lr == 0x30) {
-            m_rep(s, CPU_FLAG_M);
-            inc_abs16(s, 0x99CF);
-            uint16_t held = m_lda16(s, m_read16(s, m_abs(s, 0x99CF)));
-            m_cmp16(s, held, 0x0078);
-            if (held >= 0x0078 &&
-                m_lda16(s, (uint16_t)(m_lda16(s, m_read16(s, m_abs(s, 0x2989))) & 0x0080)) == 0)
-                inc_abs16(s, 0x99CD);
-            m_tdc(s);
-            m_sep(s, CPU_FLAG_M);
+    // $CF:E706
+    if (!m_read8(s, RAM_BATTLE_EFFECTS_RUNNING)) {
+        if ((in_read_low(pf, PF_AT(0xCFE70B), 0) & BUTTON_L_R) == BUTTON_L_R) {
+            uint16_t held = (uint16_t)(m_read16(s, RAM_BATTLE_LR_HELD) + 1);
+            m_write16(s, RAM_BATTLE_LR_HELD, held);
+            if (held >= RUN_HOLD_FRAMES && !(m_read8(s, RAM_BATTLE_SETUP_FLAGS) & RUN_NOT_ALLOWED))
+                m_write16(s, RAM_BATTLE_RUN_COUNTER, (uint16_t)(m_read16(s, RAM_BATTLE_RUN_COUNTER) + 1));
         } else {
-            set_abs8(s, 0x99D1, 0x00);
-            set_abs8(s, 0x99CF, 0x00);
-            set_abs8(s, 0x99D0, 0x00);
+            m_write8(s, RAM_BATTLE_LR_STATE, 0);
+            m_write16(s, RAM_BATTLE_LR_HELD, 0);
         }
     }
 
-    /* $CF:E73B */
-    step_abs8(s, 0x9931, +1);
-    if (m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x9931)) & 0x03)) == 0)
-        step_abs8(s, 0x993A, +1);
-    if (!jsr(s, 0xCFE748, 0xCFEFAF))
+    // $CF:E73B
+    uint8_t tick = (uint8_t)(m_read8(s, RAM_BATTLE_FRAME_TICK) + 1);
+    m_write8(s, RAM_BATTLE_FRAME_TICK, tick);
+    if (!(tick & 0x03))
+        m_write8(s, RAM_BATTLE_FRAME_TICK_4, (uint8_t)(m_read8(s, RAM_BATTLE_FRAME_TICK_4) + 1));
+    if (!call_out(s, 0xCFE748, 0xCFEFAF, tick & 0x03))
         return;
-    if (m_lda8(s, abs8(s, 0xA013)) != 0 &&
-        (!jsr(s, 0xCFE750, 0xCFEC78) || !jsr(s, 0xCFE753, 0xCFECC2) || !jsr(s, 0xCFE756, 0xCFED18) ||
-         !jsr(s, 0xCFE759, 0xCFE781)))
+    uint8_t running = m_read8(s, RAM_BATTLE_EFFECTS_RUNNING);
+    if (running && (!call_out(s, 0xCFE750, 0xCFEC78, running) || !call_on(s, 0xCFE753, 0xCFECC2) ||
+                    !call_on(s, 0xCFE756, 0xCFED18) || !call_on(s, 0xCFE759, 0xCFE781)))
         return;
-    if (m_lda8(s, abs8(s, 0xAA63)) != 0 && !jsr(s, 0xCFE761, 0xCFF9D3))
+    uint8_t formation = m_read8(s, RAM_BATTLE_FORMATION);
+    if (formation && !call_out(s, 0xCFE761, 0xCFF9D3, formation))
         return;
-    if (m_lda8(s, abs8(s, 0xA028)) == 0) {
-        if (m_lda8(s, abs8(s, 0xA013)) != 0) {
-            uint8_t request = m_lda8(s, abs8(s, 0xA012));
-            m_cmp8(s, request, 0x02);
-            if (request == 0x02)
-                step_abs8(s, 0xA012, -1);
+    if (!m_read8(s, RAM_BATTLE_SPRITES_FROZEN)) {
+        uint8_t loaded = m_read8(s, RAM_BATTLE_EFFECTS_RUNNING);
+        if (loaded) {
+            loaded = m_read8(s, RAM_BATTLE_GRAPHICS_UPLOAD_REQUEST);
+            if (loaded == GRAPHICS_UPLOAD_NEXT_FRAME)
+                m_write8(s, RAM_BATTLE_GRAPHICS_UPLOAD_REQUEST, GRAPHICS_UPLOAD_NEXT_FRAME - 1);
         }
-        if (!jsr(s, 0xCFE778, 0xCFE83A))
+        if (!call_out(s, 0xCFE778, 0xCFE83A, loaded))
             return;
     }
-    m_write8(s, m_dp(s, 0x9E), 0x00);
-    uint8_t a1 = m_pull8(s);
-    m_lda8(s, a1);
-    m_write8(s, m_dp(s, 0xA1), a1);
+    m_write8(s, RAM_BATTLE_FRAME_PENDING, 0);
+    uint8_t attributes = m_pull8(s);
+    c->a = (uint16_t)((c->a & 0xFF00) | attributes);
+    m_write8(s, RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES, attributes);
     m_rtl(s);
 }
 
@@ -872,81 +928,6 @@ void battle_call_c00002(Snes *s)
     c->db = m_pull8(s);
     m_set_nz8(s, c->db);
     m_tdc(s);
-    m_rtl(s);
-}
-
-/* TXA : CLC : ADC #$0C : TAX -- next palette animation slot. */
-static void next_palette_slot(Snes *s)
-{
-    m_txa(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)s->cpu.a, 0x0C));
-    m_tax(s);
-}
-
-/* $D1:F411: save the type bytes of palette animation slots 0-7 to $CD2F. */
-static void save_palette_slot_types(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_tax(s);
-    m_set_index(s, &c->y, c->a);
-    do {
-        m_write8(s, m_abs(s, 0xCD2F) + c->y, m_lda8(s, m_read8(s, m_abs(s, 0x0520) + c->x)));
-        next_palette_slot(s);
-        m_iny(s);
-        m_cmp16(s, c->y, 0x0008);
-    } while (c->y != 0x0008);
-}
-
-// $D1:F426
-/* While $CFFF is set, pause palette animation once ($CE12): save the slot
- * types and stop the slots of type 1 or with bit 7 set; once $CFFF is clear
- * again, restore the saved types. Returns with RTL. */
-void battle_pause_palette_animation(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    if (m_lda8(s, abs8(s, 0xCFFF)) != 0) {
-        if (m_lda8(s, abs8(s, 0xCE12)) != 0) {
-            m_rtl(s);
-            return;
-        }
-        step_abs8(s, 0xCE12, +1);
-        m_push16(s, 0xF43B);
-        save_palette_slot_types(s);
-        m_pull16(s);
-        m_tdc(s);
-        m_tax(s);
-        do {
-            uint8_t type = m_lda8(s, m_read8(s, m_abs(s, 0x0520) + c->x));
-            bool stop = type & 0x80;
-            if (!stop) {
-                type = m_lda8(s, type & 0xF0);
-                m_cmp8(s, type, 0x10);
-                stop = type == 0x10;
-            }
-            if (stop)
-                m_write8(s, m_abs(s, 0x0520) + c->x, 0x00);
-            next_palette_slot(s);
-            m_cmp16(s, c->x, 0x0060);
-        } while (c->x != 0x0060);
-        m_rtl(s);
-        return;
-    }
-    if (m_lda8(s, abs8(s, 0xCE12)) == 0) {
-        m_rtl(s);
-        return;
-    }
-    set_abs8(s, 0xCE12, 0x00);
-    m_tdc(s);
-    m_tax(s);
-    m_set_index(s, &c->y, c->a);
-    do {
-        m_write8(s, m_abs(s, 0x0520) + c->x, m_lda8(s, m_read8(s, m_abs(s, 0xCD2F) + c->y)));
-        next_palette_slot(s);
-        m_iny(s);
-        m_cmp16(s, c->y, 0x0008);
-    } while (c->y != 0x0008);
     m_rtl(s);
 }
 

@@ -44,7 +44,7 @@ Nothing lands without it, and it is the same gate for every phase:
 ## Phase 3: M5 in bulk
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **80% of the code is still generated.**
+docstring says which way it is wrong). **78% of the code is still generated.**
 
 | Subsystem | Code | Ported | Left | Entries |
 |---|--:|--:|--:|--:|
@@ -54,16 +54,16 @@ docstring says which way it is wrong). **80% of the code is still generated.**
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 2.2K | 86% | 27 |
 | field graphics (`$FD`) | 15.3K | 8.1K | 47% | 50 |
-| battle sprites (`$CF`) | 6.8K | 3.3K | 52% | 18 |
-| battle NMI, graphics (`$D1`) | 5.7K | 0.7K | 87% | 9 |
+| battle sprites (`$CF`) | 6.8K | 6.3K | 7% | 42 |
+| battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.3K | 11% | 8 |
 | scene engine (`$C3`) | 3.9K | 3.0K | 25% | 28 |
 | scene data (`$C6`) | 3.5K | 1.1K | 68% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 95% | 1 |
-| **total** | **268.5K** | **53.1K** | **80%** | **409** |
+| **total** | **268.5K** | **60.1K** | **78%** | **476** |
 
-The three big banks are the work; the 368 entries are concentrated in small hot
+The three big banks are the work; the 476 entries are concentrated in small hot
 routines, which is why the shares are so high despite the count. The burndown
 now follows the jump tables the analysis has sized, which a port that
 dispatches through one inlines: that alone moved 1.1 KiB (`$C2`, `$CD`, `$C3`)

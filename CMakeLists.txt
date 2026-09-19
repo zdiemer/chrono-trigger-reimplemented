@@ -114,6 +114,7 @@ add_library(ct_game STATIC
   game/battle/animation.c
   game/battle/buffers.c
   game/battle/display.c
+  game/battle/effect_paths.c
   game/battle/frame.c
   game/battle/gauges.c
   game/battle/main_loop.c
@@ -122,10 +123,16 @@ add_library(ct_game STATIC
   game/battle/nmi.c
   game/battle/numbers.c
   game/battle/objects.c
+  game/battle/screen_motion.c
+  game/battle/screen_palette.c
+  game/battle/screen_setup.c
+  game/battle/screen_window.c
   game/battle/scripts.c
   game/battle/setup.c
   game/battle/sound.c
   game/battle/sprites.c
+  game/battle/draw_objects.c
+  game/battle/object_motion.c
   game/battle/stats.c
   game/battle/tiles.c
   game/battle/timers.c

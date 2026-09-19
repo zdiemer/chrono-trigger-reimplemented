@@ -4,6 +4,7 @@
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
+#include "ram.h"
 
 /* LDA abs : CLC : ADC abs (16-bit) */
 static uint16_t add_abs16(Snes *s, uint16_t a, uint16_t b)
@@ -111,6 +112,8 @@ void battle_upload_palette(Snes *s)
     m_lda8(s, 0x80);
     m_rtl(s);
 }
+
+static bool widths_ok(const Snes *s) { return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M; }
 
 /* Call out; false if the callee didn't leave 8-bit A and 16-bit X. */
 static bool call(Snes *s, uint32_t site, uint32_t target, bool long_call)
@@ -299,13 +302,15 @@ void battle_load_graphics(Snes *s)
 }
 
 // $D1:E8D9
-/* Upload sixteen $20-byte blocks from A:X into VRAM, the first at the word
- * address in $45 and each next one $20 words further on. The source address
- * isn't rewritten: the transfer leaves it past the block it read, so the blocks
- * follow one another in memory. Returns with RTL. */
-void battle_upload_tile_rows(Snes *s)
+/* Upload sixteen $20-byte blocks from A:X into VRAM over DMA channel 7, the
+ * first at the word address in $45 and each next one $20 words further on.
+ * The source address isn't rewritten: the transfer leaves it past the block
+ * it read, so the blocks follow one another in memory (wrapping in the
+ * bank). The count it ran down stays in $47. */
+enum { TILE_ROW_BLOCKS = 16, TILE_ROW_BYTES = 0x20, TILE_ROW_WORDS = 0x20 };
+
+static void upload_tile_rows(Snes *s, uint32_t source, uint16_t vram)
 {
-    Cpu *c = &s->cpu;
     /* STX $4372 : STA $4374 : STA $4370 : STA $4371 : STZ $4376, then per block
      * STA $2116 (16-bit) : STY $4375 : STX $420B */
     static const uint8_t first_steps[] = {
@@ -316,101 +321,100 @@ void battle_upload_tile_rows(Snes *s)
     static const uint8_t next_steps[] = {
         VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SIZE_LO, VID_STEP_START, VID_STEP_END,
     };
-    m_push8(s, c->db);
-    m_push8(s, (uint8_t)c->a);
-    m_lda8(s, 0x00);
-    m_push8(s, 0x00);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    uint32_t source = (uint32_t)m_lda8(s, m_pull8(s)) << 16 | c->x;
-    m_lda8(s, 0x01);
-    m_lda8(s, 0x18);
-    m_rep(s, CPU_FLAG_M);
-    m_sep(s, CPU_FLAG_X);
-    m_set_index(s, &c->y, 0x20);
-    m_set_index(s, &c->x, 0x80);
-    m_write16(s, m_dp(s, 0x47), m_lda16(s, 0x0010));
-    m_lda16(s, m_read16(s, m_dp(s, 0x45)));
-    for (int k = 0; k < 16; k++) {
+    for (uint16_t k = 0; k < TILE_ROW_BLOCKS; k++) {
+        /* the count of blocks left is kept in $47 as it goes, which a source
+         * overlapping the direct page reads */
+        m_write16(s, RAM_BATTLE_SCRATCH + 2, (uint16_t)(TILE_ROW_BLOCKS - k));
         const VidSnesXfer x = { BATTLE_UPLOAD_DMA, DMA_WORDS, k == 0 ? first_steps : next_steps, NULL };
-        vid_upload_vram(m_platform(s), PF_AT(k == 0 ? 0xD1E8E0 : 0xD1E902), c->a,
-                        PF_GAME((source & 0xFF0000) | (uint16_t)(source + 0x20 * k)), 0x20, &x);
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, 0x0020);
-        uint16_t left = (uint16_t)(m_read16(s, m_dp(s, 0x47)) - 1);
-        m_write16(s, m_dp(s, 0x47), left);
-        m_set_nz16(s, left);
+        vid_upload_vram(m_platform(s), PF_AT(k == 0 ? 0xD1E8E0 : 0xD1E902), (uint16_t)(vram + TILE_ROW_WORDS * k),
+                        PF_GAME((source & 0xFF0000) | (uint16_t)(source + TILE_ROW_BYTES * k)), TILE_ROW_BYTES, &x);
     }
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
-    m_rep(s, CPU_FLAG_X);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
+    m_write16(s, RAM_BATTLE_SCRATCH + 2, 0);
+}
+
+void battle_upload_tile_rows(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    /* The data bank and the source bank pass through the stack (PHB : PHA :
+     * LDA #0 : PHA : PLB : PLA); a source that overlaps the stack reads them. */
+    m_write8(s, c->s, c->db);
+    m_write8(s, (uint16_t)(c->s - 1), (uint8_t)c->a);
+    m_write8(s, (uint16_t)(c->s - 2), 0x00);
+    upload_tile_rows(s, (uint32_t)(uint8_t)c->a << 16 | c->x, m_read16(s, RAM_BATTLE_SCRATCH));
+    /* what the loop leaves: the index registers' last values, A = the direct
+     * page (TDC), 8-bit A, and the overflow of its last step of the VRAM
+     * address (ADC #$0020), which its callers read */
+    uint16_t last = (uint16_t)(m_read16(s, RAM_BATTLE_SCRATCH) + TILE_ROW_WORDS * (TILE_ROW_BLOCKS - 1));
+    uint16_t next = (uint16_t)(last + TILE_ROW_WORDS);
+    m_set_flag(s, CPU_FLAG_V, (~(last ^ TILE_ROW_WORDS) & (last ^ next) & 0x8000) != 0);
+    c->x = 0x0080;
+    c->y = TILE_ROW_BYTES;
+    c->a = c->d;
+    c->p |= CPU_FLAG_M;
     m_rtl(s);
 }
+
+/* The battle page (D = $0000), for the entries that address its cells. */
+bool battle_page(Snes *s) { return s->cpu.d == 0x0000; }
 
 // $D1:F4C0
 /* A second battle vblank handler: per-line effects off, the interrupt
  * acknowledged and re-enabled, the working palette uploaded ($CD:09CE), the
  * per-line effects turned back on with what $C0:0005 returns, the brightness
- * from $45 and the three layers' scroll from $7E:2C70-$2C7B, then the frame's
- * remaining work. Returns with RTI. */
+ * from $45 and the three layers' scroll from their base positions, then
+ * $C0:0002 (through $CD:0C89) and $FD:FFF7. Returns with RTI. */
 void battle_nmi_alternate(Snes *s)
 {
     Cpu *c = &s->cpu;
     Platform *pf = m_platform(s);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    c->p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG_X);
     m_push16(s, c->a);
     m_push16(s, c->x);
     m_push16(s, c->y);
     m_push8(s, c->db);
     m_push16(s, c->d);
-    c->d = m_lda16(s, 0x0000);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
+    c->d = 0x0000;
+    c->a = 0x0000;
+    c->p |= CPU_FLAG_M;
     vid_enable_line_effects(pf, PF_AT(0xD1F4CE), 0x00);
-    m_lda8(s, tm_ack_vblank(pf, PF_AT(0xD1F4D2)));
-    m_lda8(s, 0xA1);
+    tm_ack_vblank(pf, PF_AT(0xD1F4D2));
     tm_enable_interrupts(pf, PF_AT(0xD1F4D8), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
-    m_write8(s, m_dp(s, 0x47), 0x00);
-    if (!call(s, 0xD1F4DE, 0xCD09CE, true) || !call(s, 0xD1F4E2, 0xC00005, true))
+    m_write8(s, RAM_BATTLE_SCRATCH + 2, 0x00);
+    m_jsl_dc(s, 0xD1F4DE, 0xCD09CE, DC_A | DC_X | DC_N | DC_Z | DC_C);
+    if (!widths_ok(s))
+        return;
+    m_jsl_dc(s, 0xD1F4E2, 0xC00005, DC_A | DC_X | DC_Y | DC_FLAGS);
+    if (!widths_ok(s))
         return;
     /* The enable register is the one write this handler makes through the data
-     * bank. With another bank -- which is how `battle-golem-twins-gameover`
-     * reaches this handler on its way back to the title -- the store lands in
-     * memory and no register is written, so the port writes the memory byte and
-     * carries on rather than handing the rest back. */
+     * bank, which is the interrupted code's. With another bank -- which is how
+     * `battle-golem-twins-gameover` reaches this handler on its way back to the
+     * title -- the store lands in memory and no register is written, so the
+     * port writes the memory byte and carries on. */
     if (m_io_bank(c->db))
         vid_enable_line_effects(pf, PF_AT(0xD1F4E6), (uint8_t)c->a);
     else
         m_write8(s, m_abs(s, M_REG_LINE_EFFECTS), (uint8_t)c->a);
-    VidDisplay display = vid_display_decode(m_lda8(s, m_read8(s, 0x000045)));
+    VidDisplay display = vid_display_decode(m_read8(s, RAM_BATTLE_SCRATCH));
     vid_set_display(pf, PF_AT(0xD1F4ED), &display);
-    m_lda8(s, 0x7E);
-    m_push8(s, (uint8_t)c->a);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
+    c->db = 0x7E;
     static const uint32_t scroll_sites[3] = { 0xD1F4F8, 0xD1F514, 0xD1F530 };
     for (int bg = 0; bg < 3; bg++) {
-        uint16_t base = (uint16_t)(0x2C70 + 4 * bg);
-        uint16_t h = m_lda8(s, m_read8(s, m_abs(s, base)));
-        h |= (uint16_t)m_lda8(s, m_read8(s, m_abs(s, (uint16_t)(base + 1)))) << 8;
-        uint16_t v = m_lda8(s, m_read8(s, m_abs(s, (uint16_t)(base + 2))));
-        v |= (uint16_t)m_lda8(s, m_read8(s, m_abs(s, (uint16_t)(base + 3)))) << 8;
-        vid_set_scroll(pf, PF_AT(scroll_sites[bg]), (VidLayer)bg, h, v, VID_SCROLL_H | VID_SCROLL_V);
+        uint32_t at = RAM_BATTLE_BG_SCROLL_STRIDE * (unsigned)bg;
+        vid_set_scroll(pf, PF_AT(scroll_sites[bg]), (VidLayer)bg, m_read16(s, RAM_BATTLE_BG_SCROLL_X + at),
+                       m_read16(s, RAM_BATTLE_BG_SCROLL_Y + at), VID_SCROLL_H | VID_SCROLL_V);
     }
-    if (!call(s, 0xD1F549, 0xCD0C89, true) || !call(s, 0xD1F54D, 0xFDFFF7, true))
+    m_jsl_dc(s, 0xD1F549, 0xCD0C89, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
+    if (!widths_ok(s))
         return;
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_jsl_dc(s, 0xD1F54D, 0xFDFFF7, DC_A | DC_X | DC_Y | DC_FLAGS);
+    if (!widths_ok(s))
+        return;
+    c->p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG_X);
     c->d = m_pull16(s);
-    m_set_nz16(s, c->d);
     c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
     c->y = m_pull16(s);
-    m_set_nz16(s, c->y);
     c->x = m_pull16(s);
-    m_set_nz16(s, c->x);
     c->a = m_pull16(s);
-    m_set_nz16(s, c->a);
     m_rti(s);
 }
