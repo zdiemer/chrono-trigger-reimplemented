@@ -1,6 +1,7 @@
 """tools/timing_gate.py on made-up --timing-report output (no ROM needed)."""
 
 import pathlib
+import re
 import tempfile
 import unittest
 
@@ -140,6 +141,53 @@ class TimingGateTest(unittest.TestCase):
             missing = tg.aggregate([parse(entry("gone", 10, 100, 10, 0, 4000, hist(b0=10), 0))])
             with self.assertRaises(SystemExit):
                 tg.calibrate(missing, path)
+
+    def test_parts_are_estimated_at_their_routines_cost(self):
+        # A dispatcher: 1000 bus clocks of its own (at 4000), and 3000 it ran
+        # inline for a handler (at 2000, 500 of them DMA): 4000 + 500 + 5000.
+        report = (entry("dispatcher", 100, 9500, 4000, 0, 4000, hist(b0=100), 0, dma=500)
+                  + part("C0AAAA", "handler", 3000, 500, 2000)
+                  + entry("handler", 100, 4000, 2000, 0, 2000, hist(b0=100), 0, addr="C0AAAA"))
+        agg = tg.aggregate([tg.parse_report(REPORT + report), tg.parse_report(REPORT + report)])
+        e = agg["dispatcher"]
+        self.assertEqual((e.own_bus, e.own_dma), (2000, 0))
+        self.assertEqual(e.parts["handler"].bus, 6000)
+        self.assertEqual(e.estimate, 2 * 9500)
+        self.assertAlmostEqual(e.drift, 0.0)
+        self.assertEqual(e.calibrated, 4000)
+        # The handler calibrates to 3000 on its own calls; the dispatcher's
+        # own part then takes what the handler's new estimate leaves.
+        agg["handler"].original = 2 * 6000
+        values = tg.calibrated_values(agg)
+        self.assertEqual(values["handler"], 3000)
+        self.assertEqual(values["dispatcher"], round(1000.0 * (19000 - 1000 - 2 * 2500 * 3) / 2000))
+
+    def test_misattribution_fails_without_exception(self):
+        agg = tg.aggregate([tg.parse_report(
+            REPORT + entry("port", 100, 400, 100, 0, 4000, hist(b0=100), 0)
+            + "    timing: attributions to no hand port 7 (last C01234)  past the parts' room 0\n")])
+        result = tg.check(agg, {("port", "drift"): "no"})
+        self.assertEqual([(f[0].name, f[1]) for f in result.failures], [("port", "attribution")])
+        self.assertIn("port attributed time to $C0:1234 7 time(s)", tg.failure_lines(result)[0])
+
+    def test_time_tags_in_game_name_hand_ports(self):
+        """Every literal address a port attributes time to (native_time_as,
+        NATIVE_TIME_AS) has a hand port registered there; shadow mode reports
+        the rest (computed ones) as it meets them."""
+        root = pathlib.Path(__file__).resolve().parents[1]
+        registry = (root / "game/registry.c").read_text()
+        registered = {int(a, 16) for a in re.findall(r"\b0x([0-9A-Fa-f]{6})\b", registry)}
+        tags = []
+        for path in sorted((root / "game").rglob("*.c")):
+            for m in re.finditer(r"(?:native_time_as|NATIVE_TIME_AS)\(\s*\w+\s*,\s*0x([0-9A-Fa-f]{6})\s*[,)]",
+                                 path.read_text()):
+                tags.append((path.name, int(m.group(1), 16)))
+        self.assertTrue(tags)
+        self.assertEqual([(f, "%06X" % a) for f, a in tags if a not in registered], [])
+
+
+def part(addr, name, bus, dma, cost_milli):
+    return "    timing: part %s %s native-bus %d dma %d cost_milli %d\n" % (addr, name, bus, dma, cost_milli)
 
 
 if __name__ == "__main__":

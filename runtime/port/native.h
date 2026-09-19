@@ -136,7 +136,22 @@ typedef struct NativeStats {
      * to time it, time-dependent I/O, no room before the horizon. */
     unsigned t_exact, t_fallback, t_register_fixups, t_state_diffs, t_escapes;
     unsigned t_untimed, t_timed_io, t_no_fit;
+    /* SHADOW, over the same stretches: the port's bus clocks (and their DMA
+     * part) it attributed to other routines with native_time_as, by routine;
+     * the rest are its own. t_nparts of them, allocated as they appear. And
+     * attributions that named no hand port (their clocks stay the port's own),
+     * and those past the parts a stretch can hold (likewise). */
+    struct NativeTimePart *t_parts;
+    unsigned t_nparts;
+    unsigned t_bad_tags, t_part_overflows;
+    uint32_t t_bad_tag;            /* the latest address that named no hand port */
 } NativeStats;
+
+/* A port's bus clocks attributed to the routine at table index `entry`. */
+typedef struct NativeTimePart {
+    int entry;
+    uint64_t bus, dma;
+} NativeTimePart;
 
 /* How ON mode charges hand ports' time. ESTIMATE: their DMA time plus
  * cost_milli times the rest of their bus clocks, after they stop (the default). ORACLE: a prototype
@@ -273,6 +288,36 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
  * had; the SPC700 reading the ports in that gap sees a half-written message. No
  * effect in SHADOW mode or outside the runtime. */
 void native_sync(Snes *s);
+
+/* Time attribution, for a port that runs another routine's work as C rather
+ * than calling out to it: a dispatcher that runs its handlers inline. A port's
+ * time is estimated from its bus clocks times its entry's cost_milli (above);
+ * a dispatcher's time follows which handlers ran, which one scalar can't fit.
+ * So the port names the routine whose work it is doing:
+ *
+ *     int was = native_time_as(s, 0xFDE82C);   // $FD:E82C's work from here
+ *     x = fade(s, slot, true);
+ *     native_time_end(s, was);
+ *
+ * and the bus clocks in between are estimated with the cost_milli of the hand
+ * port registered at that address, which shadow mode calibrates on that
+ * routine's own calls like any other entry's (the original runs it as a
+ * routine, so every call it makes is measured). The estimate is then the sum
+ * over the routines the call actually ran. `routine` is a 24-bit address, the
+ * routine's `// $BB:AAAA`: a tag, not a time; a port names no cycle counts.
+ * Scopes nest (a handler's own handlers), and one naming the running port
+ * itself is its own time. An address with no hand port registered counts as
+ * the port's own time, and shadow mode's timing report names it (the timing
+ * gate fails on it). Outside the runtime (ct_fuzz, tests) both do nothing. */
+int native_time_as(Snes *s, uint32_t routine);
+void native_time_end(Snes *s, int was);
+/* The same around one statement: NATIVE_TIME_AS(s, 0xCFEAC5, a = draw_parts(s)); */
+#define NATIVE_TIME_AS(s, routine, statement)                 \
+    do {                                                      \
+        int native_time_was_ = native_time_as((s), (routine)); \
+        statement;                                            \
+        native_time_end((s), native_time_was_);               \
+    } while (0)
 
 /* Synchronous call-outs: the instructions callees may run in total
  * (native_call_steps counts them; a tool resets it) before a call gives up,

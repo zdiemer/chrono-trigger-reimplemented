@@ -22,6 +22,14 @@ static void push16_raw(Snes *s, uint16_t v)
 #define MAX_ACTIVE 32
 #define MAX_DETAILS 16
 #define RESUME_SLOTS 4096
+#define MAX_SEGMENT_PARTS 32   /* distinct routines one stretch of a port attributes time to */
+
+/* A port's bus clocks in one stretch attributed to the routine at table index
+ * `entry` (native_time_as). */
+typedef struct SegmentPart {
+    int entry;
+    uint32_t bus, dma;
+} SegmentPart;
 
 /* ---- jobs: native routines running on their own stacks ------------------------ */
 
@@ -43,6 +51,17 @@ typedef struct Job {
     uint16_t stop_dont_care;   /* set by native_dont_care_at_stop */
     uint32_t stop_at;          /* ...with where it applies (0: not called) */
     bool returned;             /* native_note_return was called */
+    /* Time attribution (native_time_as): the table index of the routine the
+     * port's bus clocks count as now (-1: its own entry), the machine's bus
+     * clocks and DMA clocks when that began, and this stretch's clocks by
+     * routine so far, with attributions that named no hand port or found no
+     * room. */
+    int part;
+    uint32_t part_bus, part_dma;
+    int nparts;
+    SegmentPart parts[MAX_SEGMENT_PARTS];
+    unsigned bad_tags, part_overflows;
+    uint32_t bad_tag;
     struct Job *next_free;
 } Job;
 
@@ -156,6 +175,13 @@ typedef struct Active {
     bool ret_returned;        /* ...or that it finished by returning */
     uint32_t sync_pc;      /* ON, PH_SYNC: where the machine is while the port is suspended */
     uint16_t sync_s;
+    /* SHADOW: the stretch's bus clocks by the routine they are attributed to
+     * (the job's parts when it stopped), and its attributions that named no
+     * hand port or found no room. */
+    int segment_nparts;
+    SegmentPart segment_parts[MAX_SEGMENT_PARTS];
+    unsigned segment_bad_tags, segment_part_overflows;
+    uint32_t segment_bad_tag;
 } Active;
 
 /* SHADOW mode record of the original's execution, for replaying generated
@@ -311,20 +337,62 @@ static void active_pop(NativeRuntime *rt)
     a->clone = NULL;
 }
 
-/* Start counting a port's bus clocks on m, its DMA transfers' among them. */
+/* Start counting a port's bus clocks on m, its DMA transfers' among them, and
+ * the routines it attributes them to (the attribution itself carries on). */
 static void count_from(Active *a, Snes *m)
 {
     m->bus.clocks = 0;
     a->dma_mark = m->bus.dma_clocks;
+    Job *j = a->job;
+    if (j) {
+        j->part_bus = 0;
+        j->part_dma = m->bus.dma_clocks;
+        j->nparts = 0;
+        j->bad_tags = j->part_overflows = 0;
+    }
 }
 
-/* A port's estimated time for `bus` clocks of its own accesses, `dma` of them
- * DMA transfers: DMA takes the same time in the port as in the original, so
- * that part is as it is, and cost_milli estimates the rest (the time of the
- * instructions around the accesses, which the port doesn't make). */
-static uint64_t estimate_clocks(const NativeEntry *e, uint32_t bus, uint32_t dma)
+/* A port's estimated time for `bus` clocks of its accesses, `dma` of them DMA
+ * transfers, `parts` of them attributed to other routines (native_time_as):
+ * DMA takes the same time in the port as in the original, so that part is as
+ * it is, and cost_milli estimates the rest (the time of the instructions
+ * around the accesses, which the port doesn't make): the routine's own for
+ * each attributed part, the entry's for the rest. */
+static uint64_t estimate_parts(const NativeRuntime *rt, const NativeEntry *e, uint32_t bus, uint32_t dma,
+                               const SegmentPart *parts, int nparts)
 {
-    return dma + (uint64_t)(bus - dma) * e->cost_milli / 1000;
+    uint64_t milli = 0;
+    for (int k = 0; k < nparts; k++) {
+        const SegmentPart *p = &parts[k];
+        milli += (uint64_t)p->dma * 1000 + (uint64_t)(p->bus - p->dma) * rt->table[p->entry].cost_milli;
+        bus -= p->bus;
+        dma -= p->dma;
+    }
+    return (milli + (uint64_t)dma * 1000 + (uint64_t)(bus - dma) * e->cost_milli) / 1000;
+}
+
+/* The bus clocks j's machine spent since the attribution last changed go to
+ * the routine they are attributed to (its own entry's aren't listed). */
+static void part_flush(Job *j)
+{
+    Snes *m = j->m;
+    uint32_t bus = m->bus.clocks - j->part_bus, dma = m->bus.dma_clocks - j->part_dma;
+    j->part_bus = m->bus.clocks;
+    j->part_dma = m->bus.dma_clocks;
+    if (j->part < 0 || !bus)
+        return;
+    for (int k = 0; k < j->nparts; k++) {
+        if (j->parts[k].entry == j->part) {
+            j->parts[k].bus += bus;
+            j->parts[k].dma += dma;
+            return;
+        }
+    }
+    if (j->nparts == MAX_SEGMENT_PARTS) {
+        j->part_overflows++;   /* no room: they stay the port's own */
+        return;
+    }
+    j->parts[j->nparts++] = (SegmentPart){ j->part, bus, dma };
 }
 
 /* SHADOW: bring the active routine's machine copy up to date with s. */
@@ -385,6 +453,8 @@ void native_destroy(NativeRuntime *rt)
     free(rt->replay_machine);
     free(rt->timing_copy);
     free(rt->timing_scratch);
+    for (int i = 0; i < rt->count; i++)
+        free(rt->stats[i].t_parts);
     free((void *)rt->table);
     free(rt->stats);
     free(rt);
@@ -663,6 +733,10 @@ static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
     uint64_t original = s->master - s->stall_total - a->segment_start;   /* CPU time */
     st->original_clocks += original;
     st->native_bus_clocks += a->segment_bus_clocks;
+    st->t_bad_tags += a->segment_bad_tags;
+    if (a->segment_bad_tags)
+        st->t_bad_tag = a->segment_bad_tag;
+    st->t_part_overflows += a->segment_part_overflows;
     /* Timing: the estimate against the original, which only a stretch no
      * interrupt fell in measures, and whether the stretch fit (its last
      * instruction, the step before this one, started before the horizon it had
@@ -670,7 +744,21 @@ static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
      * is the same in every run whatever the ports' estimates are. */
     if (a->segment_interrupted)
         return;
-    uint64_t estimate = estimate_clocks(a->entry, a->segment_bus_clocks, a->segment_dma_clocks);
+    uint64_t estimate = estimate_parts(rt, a->entry, a->segment_bus_clocks, a->segment_dma_clocks, a->segment_parts,
+                                       a->segment_nparts);
+    for (int k = 0; k < a->segment_nparts; k++) {
+        const SegmentPart *p = &a->segment_parts[k];
+        unsigned i = 0;
+        while (i < st->t_nparts && st->t_parts[i].entry != p->entry)
+            i++;
+        if (i == st->t_nparts) {
+            st->t_parts = realloc(st->t_parts, sizeof *st->t_parts * (i + 1));
+            st->t_parts[i] = (NativeTimePart){ p->entry, 0, 0 };
+            st->t_nparts++;
+        }
+        st->t_parts[i].bus += p->bus;
+        st->t_parts[i].dma += p->dma;
+    }
     uint64_t error = estimate > original ? estimate - original : original - estimate;
     st->t_stretches++;
     st->t_original_clocks += original;
@@ -827,8 +915,10 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
 {
     Job *j = a->job;
     Snes *m = j->m;
+    part_flush(j);
     if (rt->mode == NATIVE_ON) {
-        owe(rt, s, (uint32_t)estimate_clocks(a->entry, m->bus.clocks, m->bus.dma_clocks - a->dma_mark));
+        owe(rt, s, (uint32_t)estimate_parts(rt, a->entry, m->bus.clocks, m->bus.dma_clocks - a->dma_mark, j->parts,
+                                            j->nparts));
         m->bus.clocks = 0;
         if (j->state == JOB_SYNCING) {
             a->phase = PH_SYNC;
@@ -847,6 +937,11 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
         a->segment_interrupted = false;
         a->segment_low_s = s->cpu.s;
+        a->segment_nparts = j->nparts;
+        memcpy(a->segment_parts, j->parts, sizeof *j->parts * (size_t)j->nparts);
+        a->segment_bad_tags = j->bad_tags;
+        a->segment_bad_tag = j->bad_tag;
+        a->segment_part_overflows = j->part_overflows;
     }
     if (j->state == JOB_DONE) {
         a->ret_dont_care = j->stop_dont_care;
@@ -1514,6 +1609,7 @@ static int32_t continue_generated(NativeRuntime *rt, Snes *s)
 static void restore_machine(Snes *s, Snes *copy, uint64_t since)
 {
     uint8_t *wram_written = s->bus.wram_written;
+    void (*on_access)(SnesBus *) = s->bus.on_access;
     void (*cpu_on_insn)(void *, uint32_t, uint8_t, bool) = s->cpu.on_insn;
     void (*apu_on_insn)(void *, const Apu *) = s->apu.on_insn;
     void (*on_line)(void *, Snes *, uint16_t) = s->on_line;
@@ -1522,6 +1618,7 @@ static void restore_machine(Snes *s, Snes *copy, uint64_t since)
     bool (*on_miss)(void *, Snes *) = s->on_miss;
     snes_clone_since(s, copy, since);
     s->bus.wram_written = wram_written;
+    s->bus.on_access = on_access;
     s->cpu.on_insn = cpu_on_insn;
     s->apu.on_insn = apu_on_insn;
     s->on_line = on_line;
@@ -1652,8 +1749,9 @@ static bool oracle_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st,
     a->job->stop_dont_care = 0;
     a->job->stop_at = 0;
     a->job->returned = false;
+    a->job->part = -1;
     a->job->m = s;
-    s->bus.clocks = 0;
+    count_from(a, s);
     job_run(a->job);
     bool escaped = a->job->state != JOB_DONE;
     if (escaped) {
@@ -1801,8 +1899,9 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job = job_get();
         a->job->entry = e;
         a->job->stop_dont_care = 0;
-    a->job->stop_at = 0;
-    a->job->returned = false;
+        a->job->stop_at = 0;
+        a->job->returned = false;
+        a->job->part = -1;
         if (rt->mode == NATIVE_SHADOW) {
             clone_refresh(rt, a, s);
         } else {
@@ -1901,6 +2000,35 @@ void native_call(Snes *s, uint32_t site, uint32_t target, bool long_call)
     native_call_dc(s, site, target, long_call, 0);
 }
 
+int native_time_as(Snes *s, uint32_t routine)
+{
+    Job *j = current_job;
+    const NativeRuntime *rt = active_runtime;
+    if (!j || j->m != s || !rt)
+        return -1;
+    int was = j->part;
+    part_flush(j);
+    int idx = find_entry(rt, routine & 0xFFFFFF);
+    if (idx < 0 || rt->table[idx].generated) {
+        j->bad_tags++;   /* nothing to estimate it with: it stays the port's own */
+        j->bad_tag = routine;
+        idx = -1;
+    } else if (&rt->table[idx] == j->entry) {
+        idx = -1;
+    }
+    j->part = idx;
+    return was;
+}
+
+void native_time_end(Snes *s, int was)
+{
+    Job *j = current_job;
+    if (!j || j->m != s)
+        return;
+    part_flush(j);
+    j->part = was;
+}
+
 void native_attach(NativeRuntime *rt, Snes *snes)
 {
     if (rt->mode == NATIVE_OFF)
@@ -1962,13 +2090,21 @@ void native_report(const NativeRuntime *rt, FILE *out)
         fprintf(out, "\n");
         if (rt->timing_report && st->t_stretches) {
             double orig = (double)st->t_original_clocks;
+            /* The calibrated cost_milli is the one for the port's own clocks:
+             * the original's time less DMA's and the attributed parts'
+             * estimates, over the rest of its bus clocks. */
+            double own_bus = (double)st->t_bus_clocks, own_dma = (double)st->t_dma_clocks, rest = orig;
+            for (unsigned k = 0; k < st->t_nparts; k++) {
+                const NativeTimePart *p = &st->t_parts[k];
+                own_bus -= (double)p->bus;
+                own_dma -= (double)p->dma;
+                rest -= (double)p->dma + (double)(p->bus - p->dma) * rt->table[p->entry].cost_milli / 1000.0;
+            }
             fprintf(out, "    timing: stretches %u  estimate exact %u  mean |error| %.1f  max |error| %u  of %.1f"
                          "  calibrated cost_milli %.0f\n",
                     st->t_stretches, st->t_estimate_exact, (double)st->t_estimate_error / st->t_stretches,
                     st->t_estimate_max_error, orig / st->t_stretches,
-                    st->t_bus_clocks > st->t_dma_clocks
-                        ? 1000.0 * (orig - (double)st->t_dma_clocks) / (double)(st->t_bus_clocks - st->t_dma_clocks)
-                        : 0.0);
+                    own_bus > own_dma ? 1000.0 * (rest - own_dma) / (own_bus - own_dma) : 0.0);
             /* Exact totals and the error histogram, for aggregating over
              * movies (tools/suite.py's timing check). */
             fprintf(out, "    timing: totals original %llu native-bus %llu dma %llu |error| %llu cost_milli %u"
@@ -1990,7 +2126,18 @@ void native_report(const NativeRuntime *rt, FILE *out)
             for (unsigned k = 0; k < st->t_nextra && k < 8; k++)
                 fprintf(out, " %u", st->t_extra[k]);
             fprintf(out, "\n");
+            /* The clocks attributed to other routines (native_time_as), for the
+             * timing gate's estimate and calibration; the rest are the port's. */
+            for (unsigned k = 0; k < st->t_nparts; k++) {
+                const NativeTimePart *p = &st->t_parts[k];
+                const NativeEntry *pe = &rt->table[p->entry];
+                fprintf(out, "    timing: part %06X %s native-bus %llu dma %llu cost_milli %u\n", pe->addr, pe->name,
+                        (unsigned long long)p->bus, (unsigned long long)p->dma, pe->cost_milli);
+            }
         }
+        if (rt->timing_report && (st->t_bad_tags || st->t_part_overflows))
+            fprintf(out, "    timing: attributions to no hand port %u (last %06X)  past the parts' room %u\n",
+                    st->t_bad_tags, st->t_bad_tag, st->t_part_overflows);
         if (rt->timing_report && (st->t_exact || st->t_fallback || st->t_escapes))
             fprintf(out, "    timing: exact %u  fallback %u (untimed %u, timed I/O %u, no room %u)  register fixups %u"
                          "  state diffs %u  escapes %u\n",
