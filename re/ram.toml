@@ -144,7 +144,7 @@ name = "palette_fade"
 d = 0x0500
 subsystem = "core"
 meaning = "Page the palette fades and the animated tile uploads run on"
-source = "palette_animate_fade and palette_fade_toward_white entered with D = $0500"
+source = "palette_animate $FD:E39C sets D = $0500 (LDX #$0500 : PHX : PLD) for its handlers"
 
 [[page]]
 name = "scene"
@@ -954,6 +954,14 @@ size = 2
 subsystem = "field"
 meaning = "Rate of a gradual fixed color change (event $F1's operand 2, written to both bytes)"
 source = "game/event/screen.c, event_cmd_fixed_color $C0:3D07"
+
+[[var]]
+name = "location_record_offset"
+addr = "7E:01FE"
+size = 2
+subsystem = "field"
+meaning = "Byte offset of the current location's record in location_records ($F6:0000, 14 bytes a location)"
+source = "LDX $01FE at $C0:7477; game/core/palette.c, palette_load_animations $FD:E292"
 
 [[var]]
 name = "dialog_window_position"
@@ -2855,7 +2863,7 @@ count = 256
 index = "color"
 subsystem = "core"
 meaning = "The palette as loaded: the colors the palette animations start from and restore"
-source = "game/core/palette.c, palette_animate_fade $FD:E82C, palette_fade_toward_white $FD:E8D7"
+source = "game/core/palette.c, fade $FD:E82C, fade_colors $FD:E8D7"
 
 [[var]]
 name = "palette_working"
@@ -2865,7 +2873,7 @@ count = 256
 index = "color"
 subsystem = "core"
 meaning = "The working palette the animations write and every mode's vblank work sends to CGRAM"
-source = "game/core/palette.c, palette_upload $C0:712E, palette_animate_fade $FD:E82C; docs/PLATFORM.md (CGRAM row)"
+source = "game/core/palette.c, palette_upload $C0:712E, fade $FD:E82C; docs/PLATFORM.md (CGRAM row)"
 
 [[var]]
 name = "palette_animations"
@@ -2880,7 +2888,7 @@ source = "game/core/palette.c, palette_animate $FD:E39C (loop ends at Y = $90: 1
   [[var.field]]
   name = "kind"
   offset = 0
-  meaning = "Animation type in the high nibble (0 none, 4 fade; the handler table has 8), step count less one in the low nibble"
+  meaning = "Animation type in the high nibble (0 none, 1 frames, 2 and 3 rotate down and up, 4 and 5 fade to white and black, 6 and 7 pulse white and black, 8-15 frames from a table), frame count less one in the low nibble (types 1 and 8)"
   [[var.field]]
   name = "first_color"
   offset = 1
@@ -2892,7 +2900,7 @@ source = "game/core/palette.c, palette_animate $FD:E39C (loop ends at Y = $90: 1
   [[var.field]]
   name = "step"
   offset = 3
-  meaning = "Current step (types 1 and 8, wrapping after the step count); for a fade the amount the level moves per step"
+  meaning = "Current frame (types 1 and 8, wrapping after the frame count); for a fade or pulse the amount the level moves per step"
   [[var.field]]
   name = "delay"
   offset = 4
@@ -2904,15 +2912,45 @@ source = "game/core/palette.c, palette_animate $FD:E39C (loop ends at Y = $90: 1
   [[var.field]]
   name = "fade_mode"
   offset = 6
-  meaning = "Fade (type 4) sub-mode: 0 toward white, 1-6 other handlers"
+  meaning = "Fades and pulses (types 4-7): which channels change (0 all; the others by core/palette.c's table, 6 and up the last)"
   [[var.field]]
   name = "fade_level"
   offset = 7
-  meaning = "Fade level, loaded into the multiplier as the fraction / 256 applied to each color"
+  meaning = "Fade level, loaded into the multiplier as the fraction / 256 applied to each color; a pulse's running phase"
   [[var.field]]
   name = "fade_target"
   offset = 8
-  meaning = "Level the fade moves toward; reaching it ends the animation"
+  meaning = "Level the fade moves toward, reaching it ends the animation; a pulse's amplitude"
+  [[var.field]]
+  name = "frames"
+  offset = 6
+  size = 2
+  meaning = "Types 1 and 8: offset of the animation's frames in the ROM's palette frames ($F6:0000)"
+  [[var.field]]
+  name = "frame_table"
+  offset = 9
+  size = 3
+  meaning = "Type 8: long pointer to the frame numbers, indexed by the current frame"
+
+[[var]]
+name = "palette_animation_scratch"
+addr = "7E:050C"
+page = "palette_fade"
+size = 2
+count = 4
+index = "cell"
+subsystem = "core"
+meaning = "Scratch of the palette animations: a color's channels as a fade builds it and the old green ($0E), or a rotation's two carried colors ($0C base, $0E working) and its end and length ($10, $12)"
+source = "game/core/palette.c, fade_colors $FD:E8D7, rotate $FD:E4E8"
+
+[[var]]
+name = "palette_animation_pointer"
+addr = "7E:0518"
+page = "palette_fade"
+size = 3
+subsystem = "core"
+meaning = "Long pointer of the frame animations: to the frame table, then into the working palette as the colors are copied"
+source = "game/core/palette.c, copy_frame $FD:E437"
 
 [[var]]
 name = "tile_animation_frame"

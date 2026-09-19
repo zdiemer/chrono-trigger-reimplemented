@@ -82,6 +82,17 @@
 #define RAM_NMI_VECTOR 0x7E0500u
 /* JML the IRQ vector jumps through; each mode installs its handler here [4 bytes] */
 #define RAM_IRQ_VECTOR 0x7E0504u
+/* Scratch of the palette animations: a color's channels as a fade builds it and the old green
+ * ($0E), or a rotation's two carried colors ($0C base, $0E working) and its end and length ($10,
+ * $12) [4 x $2 bytes, by cell] */
+#define RAM_PALETTE_ANIMATION_SCRATCH 0x7E050Cu
+#define RAM_PALETTE_ANIMATION_SCRATCH_COUNT 4u
+#define RAM_PALETTE_ANIMATION_SCRATCH_STRIDE 0x02u
+#define RAM_PALETTE_ANIMATION_SCRATCH_DP 0x0Cu /* page palette_fade */
+/* Long pointer of the frame animations: to the frame table, then into the working palette as the
+ * colors are copied [3 bytes] */
+#define RAM_PALETTE_ANIMATION_POINTER 0x7E0518u
+#define RAM_PALETTE_ANIMATION_POINTER_DP 0x18u /* page palette_fade */
 /* Frame counter of the animated tile uploads: even frames send slots 0-5, odd frames slots 6-11 */
 #define RAM_TILE_ANIMATION_FRAME 0x7E051Du
 #define RAM_TILE_ANIMATION_FRAME_DP 0x1Du    /* page palette_fade */
@@ -91,15 +102,17 @@
 #define RAM_PALETTE_ANIMATIONS_COUNT 12u
 #define RAM_PALETTE_ANIMATIONS_STRIDE 0x0Cu
 #define RAM_PALETTE_ANIMATIONS_DP 0x20u      /* page palette_fade */
-#define RAM_PALETTE_ANIMATIONS_KIND 0x7E0520u /* Animation type in the high nibble (0 none, 4 fade; the handler table has 8), step count less one in the low nibble */
+#define RAM_PALETTE_ANIMATIONS_KIND 0x7E0520u /* Animation type in the high nibble (0 none, 1 frames, 2 and 3 rotate down and up, 4 and 5 fade to white and black, 6 and 7 pulse white and black, 8-15 frames from a table), frame count less one in the low nibble (types 1 and 8) */
 #define RAM_PALETTE_ANIMATIONS_FIRST_COLOR 0x7E0521u /* First palette entry the animation changes */
 #define RAM_PALETTE_ANIMATIONS_COLOR_COUNT 0x7E0522u /* Number of palette entries it changes */
-#define RAM_PALETTE_ANIMATIONS_STEP 0x7E0523u /* Current step (types 1 and 8, wrapping after the step count); for a fade the amount the level moves per step */
+#define RAM_PALETTE_ANIMATIONS_STEP 0x7E0523u /* Current frame (types 1 and 8, wrapping after the frame count); for a fade or pulse the amount the level moves per step */
 #define RAM_PALETTE_ANIMATIONS_DELAY 0x7E0524u /* Frame counter toward the period */
 #define RAM_PALETTE_ANIMATIONS_PERIOD 0x7E0525u /* Frames between steps; for a fade, a negative value is taken as the level itself */
-#define RAM_PALETTE_ANIMATIONS_FADE_MODE 0x7E0526u /* Fade (type 4) sub-mode: 0 toward white, 1-6 other handlers */
-#define RAM_PALETTE_ANIMATIONS_FADE_LEVEL 0x7E0527u /* Fade level, loaded into the multiplier as the fraction / 256 applied to each color */
-#define RAM_PALETTE_ANIMATIONS_FADE_TARGET 0x7E0528u /* Level the fade moves toward; reaching it ends the animation */
+#define RAM_PALETTE_ANIMATIONS_FADE_MODE 0x7E0526u /* Fades and pulses (types 4-7): which channels change (0 all; the others by core/palette.c's table, 6 and up the last) */
+#define RAM_PALETTE_ANIMATIONS_FADE_LEVEL 0x7E0527u /* Fade level, loaded into the multiplier as the fraction / 256 applied to each color; a pulse's running phase */
+#define RAM_PALETTE_ANIMATIONS_FADE_TARGET 0x7E0528u /* Level the fade moves toward, reaching it ends the animation; a pulse's amplitude */
+#define RAM_PALETTE_ANIMATIONS_FRAMES 0x7E0526u /* Types 1 and 8: offset of the animation's frames in the ROM's palette frames ($F6:0000) */
+#define RAM_PALETTE_ANIMATIONS_FRAME_TABLE 0x7E0529u /* Type 8: long pointer to the frame numbers, indexed by the current frame */
 /* The animated background tile slots, each sending 128 bytes of its current frame to VRAM [12 x
  * $5 bytes, by animated tile slot] */
 #define RAM_TILE_ANIMATIONS 0x7E05B0u
@@ -559,6 +572,9 @@
 /* Index into the random byte table at $FE00, stepped before each use */
 #define RAM_FIELD_RANDOM_INDEX 0x7E01F8u
 #define RAM_FIELD_RANDOM_INDEX_DP 0xF8u      /* page field */
+/* Byte offset of the current location's record in location_records ($F6:0000, 14 bytes a
+ * location) [2 bytes] */
+#define RAM_LOCATION_RECORD_OFFSET 0x7E01FEu
 /* The party's position on the overworld, in pixels; it moves in 16-pixel steps [4 bytes] */
 #define RAM_WORLD_POSITION 0x7E0283u
 #define RAM_WORLD_POSITION_X 0x7E0283u       /* Horizontal */
