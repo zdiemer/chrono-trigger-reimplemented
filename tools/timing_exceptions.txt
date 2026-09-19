@@ -30,3 +30,5 @@ field_rasterize_quad vblank-worst as for vblank-tail: at most 14885 clocks (11 l
 menu_object_wave_hdma vblank-tail fills a RAM scroll-wave table in 53-line calls, longer than vblank; its error never exceeds 1396 clocks (one line), just over the tail's 1024
 menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 18-line calls; its time follows the glyph's pixels; at most 2658 clocks (two lines)
 menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; at most 4509 clocks (3.3 lines) in vblank
+scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls; its time follows the radius (the midpoint steps and the fills); at most 1883 clocks (1.4 lines)
+scene_draw_circle_jump vblank-tail the same routine through its jump at $C3:0008: as scene_draw_circle
