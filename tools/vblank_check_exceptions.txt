@@ -6,6 +6,12 @@
 #   category  visible, unblank or lines
 #   reason    why the damage is accepted, in words (required)
 #
+# What may be accepted: a difference in where a write lands that is a line or two
+# of picture on a few frames, and that can't change the game's outcome (a write
+# to a display register, which nothing reads back to decide anything). The route
+# check is what shows the outcome is unchanged. Anything larger, or anything that
+# reaches game state, is a bug to fix, not an entry here.
+#
 
 # The boot and title program's main-loop writes, which the original also makes
 # with the display on (docs/RECOMP.md, "The timing gate"): they land wherever
