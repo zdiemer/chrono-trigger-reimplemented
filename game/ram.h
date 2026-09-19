@@ -1196,6 +1196,14 @@
 #define RAM_MENU_RECORDS_X 0x7E180Fu         /* X position */
 #define RAM_MENU_RECORDS_TILE 0x7E1819u      /* Tile and attributes of the first sprite; each next sprite's tile is 2 more */
 #define RAM_MENU_RECORDS_SPRITE_OFFSETS 0x7E1822u /* The first sprite's (X, Y) offset pair; the other sprites' pairs follow */
+/* Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237) */
+#define RAM_MENU_SCENE_MODE_BITS 0x7E1BA9u
+/* Horizontal scroll the menu code leaves for BG3, which the drift routine adds and clears [2
+ * bytes] */
+#define RAM_MENU_PENDING_SCROLL_X 0x7E1BF1u
+/* Vertical scroll the menu code leaves for BG3, which the drift routine adds and clears [2
+ * bytes] */
+#define RAM_MENU_PENDING_SCROLL_Y 0x7E1BF3u
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes] */
 #define RAM_MENU_SAVE_SLOT_TILEMAP 0x7E3200u

@@ -35,4 +35,19 @@ static inline uint16_t scene_matrix_table_word(Snes *s, uint16_t index)
     return m_read16(s, SCENE_MATRIX_TABLE + index * 2u);
 }
 
+/* The menu mode's scene stream tables in bank C6 (MD2 resources, 24-bit
+ * pointers): scene graphics at $C6:FDF0, and the streams at $C6:FEA0, all in
+ * bank C3. `offset` is the byte offset the loaders index them with. */
+enum { SCENE_GRAPHICS_STREAMS = 0xC6FDF0, SCENE_C3_STREAMS = 0xC6FEA0 };
+
+static inline uint16_t scene_stream_word(Snes *s, uint32_t table, uint16_t offset)
+{
+    return m_read16(s, table + offset);
+}
+
+static inline uint8_t scene_stream_bank(Snes *s, uint32_t table, uint16_t offset)
+{
+    return m_read8(s, table + offset + 2);
+}
+
 #endif

@@ -3777,6 +3777,29 @@ meaning = "The next free entry of the sprite table while sprite nodes are drawn"
 source = "game/menu/objects.c, draw_node $C2:0D08; game/menu/display.c, menu_object_nmi $C2:015E"
 
 [[var]]
+name = "menu_scene_mode_bits"
+addr = "7E:1BA9"
+subsystem = "menu"
+meaning = "Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237)"
+source = "game/scene/objects.c, scene_object_read_mode $C6:E237"
+
+[[var]]
+name = "menu_pending_scroll_x"
+addr = "7E:1BF1"
+size = 2
+subsystem = "menu"
+meaning = "Horizontal scroll the menu code leaves for BG3, which the drift routine adds and clears"
+source = "game/scene/objects.c, scene_object_drift $C6:E2B5"
+
+[[var]]
+name = "menu_pending_scroll_y"
+addr = "7E:1BF3"
+size = 2
+subsystem = "menu"
+meaning = "Vertical scroll the menu code leaves for BG3, which the drift routine adds and clears"
+source = "game/scene/objects.c, scene_object_drift $C6:E2B5"
+
+[[var]]
 name = "menu_object_current"
 addr = "7E:004E"
 page = "menu"
