@@ -58,8 +58,7 @@ void event_cmd_set_dialog_table(Snes *s)
 static bool dialog_can_run(Snes *s, uint16_t error_at)
 {
     if (m_lda8(s, dp8(s, 0x2D)) == 0) {
-        s->cpu.pb = 0xC0;
-        s->cpu.pc = error_at;
+        m_stop_at(s, 0xC00000u | error_at, 0);
         return false;
     }
     if (m_lda8(s, dp8(s, 0x29)) != 0) {

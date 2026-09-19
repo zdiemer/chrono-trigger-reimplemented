@@ -412,8 +412,7 @@ void field_object_in_the_way(Snes *s)
                     m_ldx(s, dp8(s, 0xD9));
                     if (s->cpu.x >= 8) {
                         /* A facing outside the table; the original takes it from here. */
-                        s->cpu.pb = 0xC0;
-                        s->cpu.pc = 0x5BE6;
+                        m_stop_at(s, 0xC05BE6, 0);
                         return;
                     }
                     /* JSR ($5BF2,X), inlined */

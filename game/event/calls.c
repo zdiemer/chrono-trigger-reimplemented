@@ -386,8 +386,7 @@ void event_cmd_return(Snes *s)
     for (unsigned guard = 0;; guard++) {
         if (guard == 0x10000) {
             /* Doesn't happen in the game; leave an endless search to the original. */
-            s->cpu.pb = 0xC0;
-            s->cpu.pc = 0x5F97;
+            m_stop_at(s, 0xC05F97, 0);
             return;
         }
         m_txa(s);

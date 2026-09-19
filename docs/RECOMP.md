@@ -1745,7 +1745,9 @@ the instructions again, into values.
    instruction.
 4. **Cleanup** (`tools/recomp/draft.py`): basic blocks in address order;
    liveness per flag and per byte of A, from what the routine's callers read
-   after it (`ret_live`) and what each callee reads (`live_in`); dead
+   after it (`ret_live`, over every routine the address is part of), what is
+   read where it hands back (`live_at`), and what each callee reads before it
+   returns (`callee_reads`; see "Before the bulk" below); dead
    assignments dropped (a read of an I/O register is kept for its side
    effect); constants propagated within a block; and a value computed once and
    read once in the same block written where it is read, when nothing between
@@ -2026,16 +2028,206 @@ where the fight plays out differently in the shipping mode. With
 (0.9997 and 0.39 dB before), and the direct runs now interpret 5 instructions
 where they interpreted 84856, the code after the wait loops being entries.
 
+### Before the bulk: liveness, the don't-care check, the draft's hand-backs
+
+The pilot left three things to do once rather than in every subsystem (PLAN.md,
+Phase 3): liveness that sees through a saved P, a check that every don't-care
+set a port declares is one the original agrees with, and the draft tool's
+remaining gaps. They were done in that order, since each needed the one before.
+
+**Liveness through PHP and PLP.** `tools/disasm/liveness.py` counted `PHP` as
+reading every flag, and Chrono Trigger's subroutines save P at entry and
+restore it before returning, so nearly every routine "read" N, V, Z and C, and
+a draft carried all four through every routine that called one. Saving P
+reads nothing by itself: a flag is live at a `PHP` exactly when it is live
+after the `PLP` that pulls the byte. So for each `PHP` a walk forward counts
+the bytes pushed and pulled above its byte; where every path reaches a `PLP`
+that pulls exactly it, the `PHP` reads what is live after those `PLP`s, and
+otherwise it stays a read of every flag:
+
+- **S changes**: `TCS`, `TXS`, `XCE`, a push whose width the analysis doesn't
+  know, or paths that meet with different depths. `LDX #const : TXS` (the
+  mode loaders' new stack) and `CLC : XCE` are understood: a byte under a new
+  stack is never read again.
+- **Read otherwise**: the byte is pulled by something else or with other
+  bytes, a return pulls it, a stack-relative access reaches it, or `TSC`/`TSX`
+  copies S while it is on the stack.
+- **A callee reaches it**: every routine has a `reach`, how far above its entry
+  S it (or what it calls) pulls or reads the stack; 2609 of 3136 routines reach
+  exactly a JSR's return address, 262 a JSL's, 228 can't be bounded (tasks that
+  switch stacks, code in RAM). A call made while the byte is on the stack, to a
+  routine that reaches that far, may read it.
+- **Control leaves** with the byte on the stack: a return, a tail jump, an
+  indirect jump, a flow out of the traced code. A call that doesn't return
+  just ends the path.
+
+Of the 669 `PHP`s the analysis traces (counted once per context; 399
+addresses): 566 paired (84.6%, 321 addresses), none where S changes, 13 read
+otherwise (5 addresses: the menus' task switch at `$C2:821E` copies S, and
+`$C7:0A39`'s refused path pulls its P byte with a `PLA`), 87 where a callee
+reaches the byte (71: calls into the menus' task switch, and the sound driver's
+`$C7:0A39`, whose refused path drops its caller's frame and leaves through the
+driver's common exit), 3 where control leaves (2). Routines whose entry reads
+all four flags went from 424 of 3136 to 164; flag bits read at entries, summed,
+from 4336 to 3671; flag bits live after returns from 5400 to 5141. The
+generated blocks don't use liveness (M4's dead flags aren't built), so `python3
+-m tools.recomp` writes byte-identical C before and after (all 65 files), and
+the gate passed unchanged (`suite OK` with `--long-routes`; trace identity,
+`sst_recomp_runner` and `recomp_bus_diff` 0 failures). What changes is the
+drafts, checked by `draftcheck` (below). The draft of a routine that starts
+with `PHP` now pushes the machine's P as it is (a `PHP` reached only along a
+straight line from the entry through instructions that leave P alone, where the
+machine's P is still the original's), so the flags don't enter the draft at
+all.
+
+**The don't-care check** (`tools/dontcare_check.py`). Shadow mode doesn't
+compare what a port declares dead, so a wrong declaration hides a difference
+and ships a wrong register. Each declaration is a claim about the original at
+the point `runtime/port/native.c` applies it, and the check verifies it against
+liveness there:
+
+| Declaration | Where shadow mode leaves it out | What liveness must say |
+|---|---|---|
+| a registry entry's `.dont_care` | where the port finishes: at its return, and at every stop | dead after the routine returns (over every routine the entry is part of: `$C1:1C55` is also the fall-through end of `$C1:1C4A`), and dead at each stop the port declares |
+| `m_stop_at(s, at, set)`, `m_stop_dont_care(s, at, set)` | at the stop, with the entry's set | `set` and the entry's dead at `at`; or, when `at` is a return instruction the port carries out last, dead after that return |
+| `m_jsr_dc`, `m_jsl_dc`, `au_driver_call` | at the callee's entry | not read by the callee before it returns (`Liveness.callee_reads`) |
+
+That needed three runtime changes, so the claims mean what the check verifies:
+
+- **Stops say where.** `m_stop_dont_care` takes the stop's address, and
+  `m_stop_at(s, at, set)` sets PC and declares in one call. Shadow mode (and
+  `ct_fuzz`) report a port that stops somewhere other than the address it
+  declared, and one whose entry has a don't-care set that finishes without
+  either returning (`m_rts`, `m_rtl`, `m_rti` now tell the runtime) or
+  declaring its stop: the entry's set applies there, so the check has to know
+  the address. 24 entries stop somewhere; each stop is now an `m_stop_at`.
+- **A call-out's set means what the callee reads, and no more.** When a
+  callee returns, shadow mode reloaded the port's machine from the original's,
+  so a register the port declared don't-care at the call and the callee
+  carried through came back as the original's, while in the shipping mode it
+  comes back as the port's. Now a declared register the callee left as it
+  found it is the port's own again after the reload (`keep_untouched`): if the
+  port relies on it later, shadow mode sees what the shipping mode would. The
+  claim at the call is then only that the callee doesn't read the set, which
+  is `machine.h`'s documented meaning.
+- **Liveness splits A.** `DC_AH` claims A's high byte alone, so liveness has
+  `A` (the low byte) and `AH` apart: an 8-bit accumulator reads and writes the
+  low byte, `XBA` swaps the two bytes' liveness, `TAX` with 8-bit index
+  registers reads the low byte. `DC_A` is dead only when both are.
+
+The declarations are read from the source, not run: registry entries through
+the file's macros, the rest with their arguments evaluated from constants,
+the function's parameters (every call of it in the same file is followed, so
+the sound driver's `stop_at(s, loop, dead)` and `call_driver(...)` helpers
+resolve per call), locals, the rows of a table in the file (the wait table's
+address and dead set stay paired), and both branches of a condition decided
+at run time. A call-out whose target is computed (a jump table's) takes its
+targets from the original's call at the site. A declaration the check can't
+read is itself a finding. It is a row of `tools/suite.py`'s `CHECKS`
+(`--no-dontcare`), fed the call logs the shadow runs just wrote, and takes
+about 20 seconds; `--tree` checks another tree, such as a `draftcheck` one.
+
+**What it found on the ports**, and what was done. Every finding was either
+liveness being too conservative, fixed where that was sound, or a declaration
+wider than the original allows, narrowed:
+
+| Finding | Kind | Resolution |
+|---|---|---|
+| the sound driver's boot stops (`$C7:00AB`, `$C7:00DB`) declare `DC_AH`; liveness had A's high byte live | liveness | the value there is overwritten on every path after the `XBA`s that move it; with `XBA` swapping the bytes' liveness, it is dead |
+| `$C7:0922`'s entry and the stop at `$C7:08FA` declare X and Y; liveness had them read | liveness | `$C7:09DA` carries X and Y back to callers that read them, and a call counted every caller's readers. Liveness is now solved as a function of what callers read (a summary per routine, the value at each instruction packed per register the caller may read), so a call carries only its own caller's through |
+| the call-outs through `au_driver_call` declare X and Y (loop counters the port keeps in C) and `$C7:01AE`'s call to `$C7:0A39` the flags | semantics | the callee reads none of them; what the caller does after the call is the port's, now compared as the shipping mode would run it (above). `$C7:0A39`'s `PHP` byte is pulled by a `PLA` whose A is dead: pairing is now for every push, and a pull into another register reads what was pushed only where that register (or N and Z) is live |
+| `menu_nmi_work`'s `DC_C` checked at its return | declaration | it never returns: it stops at `$C2:8466`, or after a call-out that changed the widths; the three stops are declared, and the carry is dead at each |
+| `battle_build_object_graphics` (`$C1:1C55`) declares X and C | declaration | live after `$C1:1C4A`'s callers resume, which it returns to when `$C1:1C4A` falls into it; narrowed to N and Z |
+| `input_read_joypad` declares Y and V | declaration | live at its stops (the joypad wait at `$C2:84F9`, the reset at `$C0:FF00`); narrowed. V is `$4212`'s hblank bit from a `BIT` that native time can't reproduce, and dead after the return: that is now declared at the `RTS` (`$C2:8544`) alone |
+| `event_run_object_script` X and C, `field_object_in_the_way` X, `menu_run_objects` Y | declaration | live at the stops each makes after a call-out changes the widths (`$C0:5AB4`, `$C0:5BE6`, `$C2:0541`); narrowed |
+
+Over the 26 movies in shadow mode the narrowed ports still match everywhere:
+the early ports reproduce every register they declared, so none of the wrong
+declarations was hiding a difference on the paths the movies reach. The one
+exception proves the mechanism: with V taken out of `input_read_joypad`'s
+set, 416 calls mismatched at the return on V, the hblank bit; declared at the
+`RTS`, none do. Today's tree: 0 findings over 284 entries with a don't-care
+set, 56 stop and 45 call-out declarations (a value per helper call and table
+row).
+
+The liveness those fixes left, from the same analysis (3136 routines):
+
+| | Before | PHP pairing | Now |
+|---|--:|--:|--:|
+| routines whose entry reads all four flags | 424 | 164 | 123 |
+| flag bits read at entries, summed | 4336 | 3671 | 2409 |
+| flag bits live after returns, summed | 5400 | 5141 | 3968 |
+| routines X is live after | 1635 | 1635 | 1032 |
+| routines A's low byte is live after (A whole before) | 2553 | 2553 | 511 |
+| routines with something dead after return | 2663 | 2743 | 2820 |
+
+Pushes of every register pair the same way now (1980 in contexts): 1784
+paired (1140 addresses), 3 where S changes, 60 read otherwise, 120 where a
+callee reaches the byte, 13 where control leaves. The solve takes 15 s.
+
+**The draft tool's fixes**, in the pilot's order, each on the machinery above:
+
+- **Liveness at hand-backs.** A draft stops with `m_stop_at(s, at, set)`,
+  `set` being what liveness has dead at `at`, and writes back only what is live
+  there (and A's low byte wherever its high byte is, since no set leaves out
+  the low byte alone). Its registry line declares what is dead everywhere it
+  finishes, after the return and at every stop, and a return declares the
+  rest at the return instruction, so a draft suggests declarations the check
+  accepts: `tools/dontcare_check.py --tree` on the `draftcheck` tree finds
+  nothing over 335 entries, 113 stops and 516 call-outs.
+- **Call-out stubs set what the callee reads** (`callee_reads`) and name the
+  rest don't-care, rather than everything any caller reads after the callee;
+  and a `PLP` that pulls the byte the routine's first `PHP` pushed restores the
+  caller's P, so it no longer makes the call "change" every register. Fewer
+  inputs and read-backs mean fewer stub signatures (`$C7:0004`: 16 to 11).
+- **D kept across call-outs that leave it alone.** A callee's summary of D and
+  DB now takes only the returns that come back to its caller (at the depth it
+  was entered with): `$C7:0A39`'s refused path, which pulls its caller's frame
+  and returns further up, no longer makes D unknown after the call, and the
+  rest of `$C7:0004`'s draft names its direct page (135 `m_dp` accesses to
+  none).
+- **The ground truth reads a port the way the check does.** Its file-local
+  names (`COUNTER` for `RAM_ABS(RAM_SOUND_DRIVER_UPLOAD_COUNTER)`) resolve
+  through the file's macros, a helper's parameters count as addresses only
+  where the helper reads or writes through them, and call-outs are followed
+  through the file's stubs to their targets.
+
+Drafts before and after (`python3 -m tools.recomp.show`, the library's coverage
+and call logs):
+
+| Routine | Flag assignments | Flag parameters | Call-out stubs | `m_dp` accesses | Logic lines | Stops declared |
+|---|--:|--:|--:|--:|--:|--:|
+| `$C7:0004` (m8 x16) | 140 → 11 | 4 → 1 | 16 → 11 | 135 → 0 | 893 → 690 | 0 → 7 |
+| `$C7:0655` | 15 → 2 | 4 → 0 | 3 → 3 | 43 → 0 | 128 → 90 | - |
+| `$C7:0A39` | 5 → 0 | 4 → 0 | 1 → 1 | - | 26 → 19 | 0 → 1 |
+| `$C2:015E` | 2 → 0 | 2 → 2 | 6 → 6 | - | 115 → 109 | - |
+| `$C1:423A` | 7 → 6 | 1 → 1 | 2 → 2 | - | 112 → 109 | - |
+| `$C0:62DE`, `$C0:5FB6` | unchanged | | | | 33, 79 | |
+
+The ground truth on the `$C7` port, which it undercounted:
+
+| Port | Accesses in both / port (before) | Named in the port (before) | Call-outs in both / port (before) |
+|---|--:|--:|--:|
+| `$C7:0004` | 23 / 23 (0 / 43) | 97 of 97 (0 of 62) | 5 / 5 (0 / 0) |
+| `$C7:0655` | 8 / 8 (0 / 5) | 13 of 13 (0 of 5) | 2 / 2 (0 / 0) |
+| `$C7:0922` | 5 / 7 (0 / 4) | 11 of 11 (0 of 4) | 2 / 2 (0 / 0) |
+| `$C7:0A39` | 2 / 6 (0 / 1) | 13 of 13 (0 of 4) | 0 / 0 (0 / 0) |
+
+The draft reaches every address the port's `$C7:0004` does and calls what it
+calls; where the counts still differ, the port inlines a stage the draft calls
+out (`$C7:09FD`, `$C7:0734`) or reads a table through the driver's own
+accessors. Its other ports read as before (`$C1:423A`, `$C0:62DE`,
+`$C2:015E`, `$C0:5FB6` unchanged).
+
+`draftcheck` over the library, with every fix: 188 drafts registered in place
+of the ports (134 left as they are), 182 called, 53.1 million calls,
+none mismatching, 84824 interrupted. It exports the committed tree by default;
+`--rev` takes another (`git stash create` gives one of uncommitted work).
+
 ### What drafts don't do yet
 
 These are the tool's next improvements, or its known limits:
 
-- **Liveness keeps A whole.** `tools/disasm/liveness.py` has no byte-level A, so
-  a routine whose callers reload only A's low byte still returns A, and keeps
-  its high byte where it has any 16-bit A of its own (`(a & 0xFF00) | ...`); the
-  8-bit-A mode covers the routines that never touch the high byte (136 of
-  466). The same conservatism carries flags out that no caller reads
-  (`overflow` in the event handlers).
 - **D or DB unknown** in 12-16% of drafts: interrupt handlers and what only
   they reach, and bank `$FD`'s palette code, whose data bank comes from callers
   the analysis doesn't connect. Those accesses stay `m_dp`/`m_abs` offsets.
@@ -2057,28 +2249,18 @@ These are the tool's next improvements, or its known limits:
 - **Structure** stays a goto where regions interleave (28% of drafts have one),
   and a `switch` over a jump table goes to its cases by label.
 
-From the $C7 pilot (above), in the order they would have saved the most:
-
-- **Liveness counts a saved flag as read.** `PHP` makes every flag live, so a
-  callee that saves and restores P "takes" the caller's flags, and the draft
-  carries `negative`, `overflow`, `zero` and `carry` through every routine that
-  calls one. Since shadow mode leaves popped stack bytes out, a `PHP ... PLP`
-  pair reads nothing the caller must provide; liveness that knew it would drop
-  most of the flag locals, and the call-out stubs could name the untaken
-  registers instead of setting them (one stub per callee, not one per register
-  signature: ten for `$C7:09DA` in one draft).
-- **No liveness at a hand-back.** A draft that stops at another entry (a wait
-  loop) doesn't say what that entry and the code after it read, which is what
-  a port declares with `m_stop_dont_care`; the porter works it out per exit.
-- **D lost after a call-out** that leaves it alone (`$C7:0004` after
-  `$C7:0734`), so the rest of the draft reaches the direct page by offset.
-- **Inlined subroutines and shared shape.** The draft of `$C7:0004` is 895
-  lines with 49 gotos because it inlines every stage of `play_song`; the six
-  copies of the header-retry and upload loops that the port shares as helpers
-  appear once per site.
-- **The ground-truth tool** doesn't resolve a port's file-local names for
-  `RAM_` constants or its call-out stubs, so on a port in the new style it
-  undercounts accesses and call-outs.
+- **Inlined subroutines and shared shape** (from the $C7 pilot). The draft of
+  `$C7:0004` is 690 lines with 49 gotos because it inlines every stage of
+  `play_song`; the six copies of the header-retry and upload loops that the
+  port shares as helpers appear once per site.
+- **Stub signatures still vary by what is read back** after a call (the
+  flags a callee may set), so a callee called from several places can still
+  get a few stubs (`$C7:09DA`: five in `$C7:0004`'s draft).
+- **Liveness stays conservative where a callee leaves through its caller's
+  frame** (the sound driver's `$C7:0A39` returns past `$C7:0004` on its refused
+  path, so the driver's register saves count as reads of everything, for every
+  routine that sends it a command) and across the menus' task switch at
+  `$C2:821E`, which copies S. Both are "a callee reaches it" above.
 
 ## Risks
 

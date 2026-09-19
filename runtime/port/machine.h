@@ -80,12 +80,18 @@ static inline uint16_t m_pull16(Snes *s)
     return (uint16_t)(lo | m_pull8(s) << 8);
 }
 
-/* Returns, as RTS / RTL would. */
-static inline void m_rts(Snes *s) { s->cpu.pc = (uint16_t)(m_pull16(s) + 1); }
+/* Returns, as RTS / RTL would (which is where the entry's don't-care set
+ * applies: native_note_return). */
+static inline void m_rts(Snes *s)
+{
+    s->cpu.pc = (uint16_t)(m_pull16(s) + 1);
+    native_note_return(s);
+}
 static inline void m_rtl(Snes *s)
 {
     s->cpu.pc = (uint16_t)(m_pull16(s) + 1);
     s->cpu.pb = m_pull8(s);
+    native_note_return(s);
 }
 
 /* Flags. */
@@ -308,6 +314,7 @@ static inline void m_rti(Snes *s)
     }
     s->cpu.pc = m_pull16(s);
     s->cpu.pb = m_pull8(s);
+    native_note_return(s);
 }
 
 /* True if the `len` bytes at `addr` hash (64-bit FNV-1a) to `hash`. For guards
@@ -341,7 +348,25 @@ static inline void m_jsl_dc(Snes *s, uint32_t site, uint32_t target, uint16_t do
 /* For a native routine that stops at an instruction of the original (setting
  * PC) rather than returning: registers and flags nothing reads there before
  * setting them, which shadow validation then doesn't compare at the stop, on
- * top of the entry's don't-care set (native_dont_care_at_stop). */
-static inline void m_stop_dont_care(Snes *s, uint16_t dont_care) { native_dont_care_at_stop(s, dont_care); }
+ * top of the entry's don't-care set (native_dont_care_at_stop). `at` is that
+ * instruction's 24-bit address, or the return instruction the routine carries
+ * out last when what it declares is dead after a return: tools/dontcare_check.py
+ * checks the set against liveness there, so write both as constants, or
+ * from the caller's constants or a table in the same file. */
+static inline void m_stop_dont_care(Snes *s, uint32_t at, uint16_t dont_care)
+{
+    native_dont_care_at_stop(s, at, dont_care);
+}
+
+/* Stop at the original's instruction `at` (24-bit), where the interpreter or
+ * the next entry carries on, with `dont_care` dead there (m_stop_dont_care).
+ * A routine whose entry has a don't-care set stops this way, so the check
+ * knows where the entry's set applies (native_note_return). */
+static inline void m_stop_at(Snes *s, uint32_t at, uint16_t dont_care)
+{
+    s->cpu.pb = (uint8_t)(at >> 16);
+    s->cpu.pc = (uint16_t)at;
+    native_dont_care_at_stop(s, at, dont_care);
+}
 
 #endif

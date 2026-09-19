@@ -9,7 +9,8 @@ tracks widths), so this module works them out:
   `PEA #$0300 : PLD`, `PHK : PLB`, `PEA #$7E7E : PLB : PLB` and a PHD/PLD pair
   around a stretch all give known values, and everything else unknown. A call
   keeps them unless the callee's own returns show it sets them (a summary per
-  callee, computed the same way).
+  callee, computed the same way, from the returns that come back to the
+  caller: one made after the callee pulled its caller's frame goes further up).
 - **At the entry**, D and DB are what every caller has at its call site: the
   static call sites the analysis found (and, with call logs, the ones ct_dev
   saw), each worked out in its caller the same way, recursively. An entry the
@@ -25,6 +26,7 @@ from dataclasses import dataclass, field, replace
 
 from tools.disasm.analyze import Analyzer, State
 from tools.disasm.cpu import CONDITIONAL_BRANCHES, RETURNS, SUSPICIOUS, Mode
+from tools.disasm.liveness import stack_effect
 
 D0, DB0 = "D0", "DB0"      # the entry's D and DB, symbolically
 
@@ -383,6 +385,30 @@ def _index_step(f: Frame, insn, x8) -> Frame:
     return replace(f, **{reg: val})
 
 
+def return_depths(g: Graph) -> dict | None:
+    """node -> bytes pushed since the routine's entry, for every instruction
+    (calls taken to return where they were made); None where S can't be
+    followed that way. A return at a depth other than 0 isn't to the caller."""
+    depth = {g.entry: 0}
+    work = [g.entry]
+    while work:
+        node = work.pop()
+        insn = g.insns[node]
+        if insn.name in ("TCS", "TXS", "XCE"):
+            return None
+        eff = stack_effect(insn, node[1:])
+        if eff is None:
+            return None
+        for succ in g.succ.get(node, []):
+            d = depth[node] + eff
+            if succ not in depth:
+                depth[succ] = d
+                work.append(succ)
+            elif depth[succ] != d:
+                return None
+    return depth
+
+
 def resolve_in(vals, here, sym):
     """A callee's outcome set with `sym` (what the caller had) replaced by here."""
     if vals is None:
@@ -453,9 +479,12 @@ class Frames:
         self._summing.add(key)
         frames = self.frames(key)
         g = self.graph(key)
+        depth = return_depths(g)
         ds, dbs = frozenset(), frozenset()
         for node, insn in g.insns.items():
             if insn.name in ("RTS", "RTL", "RTI") and node in frames:
+                if depth is not None and depth.get(node, 0) != 0:
+                    continue      # returns past its caller (it unwound the caller's frame), not to it
                 ds = union(ds, frames[node].d)
                 dbs = union(dbs, frames[node].db)
         self._summing.discard(key)

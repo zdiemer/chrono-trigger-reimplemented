@@ -152,8 +152,7 @@ void menu_run_objects(Snes *s)
             set_dp16(s, 0x4E, c->x);
             m_jsr(s, 0xC2053E, 0xC20553);
             if (m_x8(s) || c->e) {
-                c->pb = 0xC2;
-                c->pc = 0x0541;
+                m_stop_at(s, 0xC20541, 0);
                 return;
             }
             m_ldx(s, dp16(s, 0x4E));

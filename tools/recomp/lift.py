@@ -82,6 +82,7 @@ class Routine:
     callee_live_in: object      # target -> keys (ALL_KEYS if unknown)
     callee_may_def: object      # target -> keys
     noreturn: set = field(default_factory=set)
+    stop_live: object = None    # 24-bit pc -> keys read from there on (a hand-back's), or None: unknown
     temps: dict = field(default_factory=dict)     # name -> width
     dp_name: object = None                        # offset -> name in a page with no fixed D
     decimal_sensitive: bool = False
@@ -183,6 +184,29 @@ class Lifter:
         return Load(w, addr, pure_at(addr))
 
 
+# Instructions that leave P alone in the original and in a draft.
+_KEEPS_P = {"PHA", "PHX", "PHY", "PHB", "PHD", "PHK", "PEA", "PEI", "PER", "STA", "STX", "STY", "STZ", "NOP",
+            "JMP", "BRA", "BRL"}
+
+
+def _p_as_entered(L: Lifter, node) -> bool:
+    """Whether the machine's P at node is the original's: node is reached only
+    along a straight line from the routine's entry, which nothing jumps back
+    to, through instructions that change no flag or width. A draft keeps its
+    flags in locals, so elsewhere the machine's P is stale."""
+    preds: dict = {}
+    for n, ss in L.g.succ.items():
+        for t in ss:
+            preds.setdefault(t, []).append(n)
+    while node != L.g.entry:
+        p = preds.get(node, [])
+        if len(p) != 1 or L.g.succ.get(p[0]) != [node] or p[0] in L.g.calls \
+                or L.g.insns[p[0]].name not in _KEEPS_P:
+            return False
+        node = p[0]
+    return not preds.get(node)
+
+
 def lift_routine(lifter: Lifter) -> dict:
     """node -> Lifted for every node of the graph."""
     return {node: lift_node(lifter, node) for node in lifter.g.insns}
@@ -208,14 +232,19 @@ def lift_node(L: Lifter, node) -> Lifted:
 
     def stop(pc_target: int, note: str = "", widths=True) -> Exit:
         return Exit("stop", Const(pc_target & 0xFFFF, 16), pc_target >> 16 if pc_target >> 16 != bank >> 16 else None,
-                    m8 if widths else None, x8 if widths else None, note=note)
+                    m8 if widths else None, x8 if widths else None, note=note, live=stop_live(pc_target))
+
+    def stop_live(pc_target: int) -> frozenset:
+        live = r.stop_live(pc_target) if r.stop_live else None
+        return ALL_KEYS if live is None else live
 
     def goto(pc_target: int) -> list:
         t = to(pc_target)
         return [Goto(t)] if t is not None else [stop(pc_target)]
 
     def hand_back(why: str) -> Lifted:
-        return Lifted(node, insn, [Exit("stop", Const(pc & 0xFFFF, 16), None, m8, x8, note=why)], None)
+        return Lifted(node, insn, [Exit("stop", Const(pc & 0xFFFF, 16), None, m8, x8, note=why, live=stop_live(pc))],
+                      None)
 
     # widths this instruction needs
     needs_m = n in ("LDA", "STA", "STZ", "ORA", "AND", "EOR", "ADC", "SBC", "CMP", "BIT", "PHA", "PLA", "TXA",
@@ -428,9 +457,13 @@ def lift_node(L: Lifter, node) -> Lifted:
         out.append(Push(16, Const(d, 16) if isinstance(d, int) else Mach("s->cpu.d", 16)))
     elif n == "PHK":
         out.append(Push(8, Const(pc >> 16, 8)))
+    elif n == "PHP" and _p_as_entered(L, node):
+        # The machine's P is still the original's here, flags and widths, so
+        # the byte is pushed as it is and the draft takes no flags for it
+        out.append(Push(8, Mach("s->cpu.p", 8)))
     elif n == "PHP":
         mx = (0x20 if m8 else 0) | (0x10 if x8 else 0)
-        out.append(Push(8, Fn("draft_p", (Const(mx, 8), Var("n", 1), Var("v", 1), Var("z", 1), Var("c", 1)), 8,
+        out.append(Push(8, Fn("draft_p",(Const(mx, 8), Var("n", 1), Var("v", 1), Var("z", 1), Var("c", 1)), 8,
                               pure=False)))
     elif n == "PEA":
         out.append(Push(16, Const(o, 16)))
@@ -542,7 +575,7 @@ def lift_node(L: Lifter, node) -> Lifted:
         return Lifted(node, insn, out, resume)
     elif n in ("RTS", "RTL", "RTI"):
         live = r.ret_live if n != "RTI" else frozenset({"al", "ah", "x", "y"})
-        out.append(Exit(n.lower(), m8=m8, x8=x8, live=live))
+        out.append(Exit(n.lower(), m8=m8, x8=x8, live=live, at=pc))
         return Lifted(node, insn, out, None)
     else:
         return hand_back(f"{insn.text()} isn't drafted")

@@ -1,0 +1,964 @@
+"""Check every don't-care declaration in game/ against the liveness analysis.
+
+    python3 tools/dontcare_check.py [--rom roms/ct-usa.sfc] [--root DIR] [--calls GLOB...] [--list] [--tree DIR]
+
+Shadow mode doesn't compare what a port declares dead (docs/PORTING.md,
+Modes), so a wrong declaration hides a real difference from the gate, and the
+shipping mode then runs with a wrong register. A declaration is a claim about
+the original: that nothing reads those registers and flags from a point on
+before setting them. tools/disasm/liveness.py knows what the original reads,
+so each claim is checked against it, at the point where runtime/port/native.c
+applies it:
+
+- a registry entry's `.dont_care` (game/registry.c) is left out of the
+  comparison where the port finishes: when it returns, the declared set must
+  be dead after the routine it is an entry of returns; and at every stop the
+  port declares (below), on top of that stop's own set;
+- `m_stop_dont_care(s, at, set)`: the port stops at the original's
+  instruction `at`, which must not read `set` (with the entry's) before
+  setting it; or `at` is the return instruction the port carries out last, and
+  the set must be dead after that return;
+- `m_jsr_dc(s, site, target, set)`, `m_jsl_dc(...)`, and the platform's
+  `au_driver_call(pf, PF_CALL(site, target), set)`: the machines are compared
+  when the original reaches `target` from `site`, and the port's registers
+  are what the callee runs with, so the set must be dead at the callee's entry
+  for that call: neither the callee nor the caller after it returns may read
+  it (`Liveness.live_into_call`).
+
+The declarations are read from the source, not run: their arguments must be
+constants, or built from the parameters of the function they are in (every
+call of it in the same file is followed), its locals, and the rows of a table
+in the file. A declaration the check can't read is a finding, as is one
+liveness doesn't agree with. `DC_A` is the whole accumulator, `DC_AH` its high
+byte alone; liveness has the two bytes apart.
+
+Needs the ROM and the analysis's inputs (coverage and call logs, as for
+tools.recomp.show): more call logs only make liveness more conservative. Exit
+status is 0 when every declaration is readable and agrees with liveness.
+"""
+
+import argparse
+import glob
+import pathlib
+import re
+import sys
+from dataclasses import dataclass, field
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.disasm.liveness import ALL, dc_text, dead_of_dc, describe  # noqa: E402
+
+HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
+DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
+DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
+DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "m_stop_dont_care", "m_stop_at")
+CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call")
+RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
+RETURN_OPCODES = {0x60: "RTS", 0x6B: "RTL", 0x40: "RTI"}
+MAX_DEPTH = 6
+
+
+class Unreadable(Exception):
+    """A declaration's argument the check can't evaluate."""
+
+
+# ---- C source ----------------------------------------------------------------------------------
+
+def strip_comments(text: str) -> str:
+    """Comments blanked, newlines kept (so offsets and line numbers survive);
+    string literals are left as they are."""
+    def blank(m):
+        return m.group(0) if m.group(0).startswith('"') else re.sub(r"[^\n]", " ", m.group(0))
+    return re.sub(r'"(?:\\.|[^"\\\n])*"|/\*.*?\*/|//[^\n]*', blank, text, flags=re.S)
+
+
+def matching(text: str, i: int, open_: str = "(", close: str = ")") -> int:
+    """Index of the bracket closing the one at text[i]."""
+    depth = 0
+    for j in range(i, len(text)):
+        if text[j] == open_:
+            depth += 1
+        elif text[j] == close:
+            depth -= 1
+            if depth == 0:
+                return j
+    raise ValueError("unbalanced")
+
+
+def split_args(text: str) -> list:
+    """Top-level comma-separated parts."""
+    out, depth, start = [], 0, 0
+    for i, ch in enumerate(text):
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            out.append(text[start:i].strip())
+            start = i + 1
+    if text[start:].strip():
+        out.append(text[start:].strip())
+    return out
+
+
+@dataclass
+class Func:
+    name: str
+    params: list
+    start: int          # the body, between its braces
+    end: int
+    static: bool = False
+
+
+@dataclass
+class Call:
+    """A call of `name` in a source: its arguments' text and where it is."""
+    name: str
+    args: list
+    offset: int
+
+
+KEYWORDS = {"if", "while", "for", "switch", "return", "sizeof", "do", "else"}
+TYPE_WORDS = {"uint8_t": 8, "uint16_t": 16, "uint32_t": 32, "int8_t": 8, "int16_t": 16, "int32_t": 32,
+              "int": 32, "unsigned": 32, "bool": 1}
+
+
+class Source:
+    """One C file: its macros, enum constants, tables, functions and calls."""
+
+    def __init__(self, path: str, text: str):
+        self.path = path
+        self.raw = text
+        self.text = strip_comments(text)
+        self.defines: dict = {}      # name -> (params or None, body)
+        self.consts: dict = {}       # enum constant -> expression text
+        self.tables: dict = {}       # name -> (field names, [row: {field: expr text}])
+        self.funcs: dict = {}        # name -> Func
+        self.arrays: list = []       # (name, offset, [element expr text]) of arrays of scalars
+        self._scan()
+
+    def line(self, offset: int) -> int:
+        return self.text.count("\n", 0, offset) + 1
+
+    def _scan(self):
+        t = self.text
+        for m in re.finditer(r"^[ \t]*#[ \t]*define[ \t]+(\w+)(\([^)]*\))?((?:\\\n|[^\n])*)", t, re.M):
+            params = [p.strip() for p in m.group(2)[1:-1].split(",")] if m.group(2) else None
+            self.defines[m.group(1)] = (params, m.group(3).replace("\\\n", " ").strip())
+        for m in re.finditer(r"\benum\b\s*\w*\s*\{", t):
+            body = t[m.end():matching(t, m.end() - 1, "{", "}")]
+            prev = None
+            for item in split_args(body):
+                name, _, value = item.partition("=")
+                name = name.strip()
+                if not re.fullmatch(r"\w+", name):
+                    continue
+                expr = value.strip() if value.strip() else ("0" if prev is None else f"({prev}) + 1")
+                self.consts[name] = expr
+                prev = name
+        # static const tables of struct rows: `...struct { fields } name[] = { rows };`
+        for m in re.finditer(r"\bstruct\s*\{([^{}]*)\}\s*(\w+)\s*\[\s*\w*\s*\]\s*=\s*\{", t):
+            fields = [f.split()[-1].strip("*") for f in m.group(1).split(";") if f.strip()]
+            end = matching(t, m.end() - 1, "{", "}")
+            rows = []
+            for row in split_args(t[m.end():end]):
+                row = re.sub(r"^\[[^\]]*\]\s*=\s*", "", row).strip()
+                if not row.startswith("{"):
+                    continue
+                values = split_args(row[1:matching(row, 0, "{", "}")])
+                rows.append(dict(zip(fields, values)))
+            self.tables[m.group(2)] = (fields, rows)
+        for m in re.finditer(r"\b(\w+)\s*\[\s*\w*\s*\]\s*=\s*\{", t):
+            end = matching(t, m.end() - 1, "{", "}")
+            values = split_args(t[m.end():end])
+            if values and not any(v.startswith(("{", "[", ".")) for v in values):
+                self.arrays.append((m.group(1), m.start(), values))
+        # function definitions at the top level: a line starting with a type and
+        # a name, parameters, then the body's brace
+        for m in re.finditer(r"^((?:[A-Za-z_]\w*[ \t\*]+)+)(\w+)[ \t]*\(", t, re.M):
+            name = m.group(2)
+            if name in KEYWORDS or set(m.group(1).split()) & KEYWORDS:
+                continue
+            try:
+                close = matching(t, m.end() - 1)
+            except ValueError:
+                continue
+            rest = t[close + 1:close + 200]
+            if not rest.lstrip().startswith("{"):
+                continue
+            open_ = close + 1 + (len(rest) - len(rest.lstrip()))
+            params = []
+            for p in split_args(t[m.end():close]):
+                pointer = re.search(r"\(\s*\*\s*(\w+)\s*\)", p)
+                words = re.findall(r"\w+", p)
+                if pointer:
+                    params.append(pointer.group(1))
+                elif words and words != ["void"]:
+                    params.append(words[-1])
+            self.funcs[name] = Func(name, params, open_ + 1, matching(t, open_, "{", "}"),
+                                    "static" in m.group(1).split())
+
+    def func_at(self, offset: int):
+        for f in self.funcs.values():
+            if f.start <= offset < f.end:
+                return f
+        return None
+
+    def calls(self, names) -> list:
+        out = []
+        for m in re.finditer(r"\b(%s)\s*\(" % "|".join(map(re.escape, names)), self.text):
+            open_ = m.end() - 1
+            try:
+                close = matching(self.text, open_)
+            except ValueError:
+                continue
+            line_start = self.text.rfind("\n", 0, m.start()) + 1
+            prefix = self.text[line_start:m.start()]
+            words = prefix.split()
+            if words and re.fullmatch(r"[\w\s\*]+", prefix) and words[-1] not in ("return", "else", "case", "do"):
+                continue      # its definition or a prototype
+            out.append(Call(m.group(1), split_args(self.text[open_ + 1:close]), m.start()))
+        return out
+
+    def called_names(self, f: Func) -> set:
+        return set(re.findall(r"\b(\w+)\s*\(", self.text[f.start:f.end])) - KEYWORDS
+
+    def locals_of(self, f: Func, name: str) -> list:
+        """The expressions a local of f is given, by declaration or assignment."""
+        body = self.text[f.start:f.end]
+        return [m.group(1) for m in re.finditer(r"(?<![\w.>])%s\s*=(?!=)\s*([^;]*);" % re.escape(name), body)]
+
+
+# ---- expressions -------------------------------------------------------------------------------
+
+TOKEN = re.compile(r"\s*(0[xX][0-9A-Fa-f]+[uUlL]*|\d+[uUlL]*|\w+|->|<<|>>|<=|>=|==|!=|&&|\|\||[-+*/%&|^~!<>?:()\[\].,{}])")
+
+
+def tokenize(text: str) -> list:
+    out, i = [], 0
+    text = text.strip()
+    while i < len(text):
+        m = TOKEN.match(text, i)
+        if not m:
+            raise Unreadable(f"can't read {text!r}")
+        out.append(m.group(1))
+        i = m.end()
+    return out
+
+
+BINARY = {"||": 1, "&&": 2, "|": 3, "^": 4, "&": 5, "==": 6, "!=": 6, "<": 7, "<=": 7, ">": 7, ">=": 7,
+          "<<": 8, ">>": 8, "+": 9, "-": 9, "*": 10, "/": 10, "%": 10}
+
+
+class Parser:
+    def __init__(self, text: str):
+        self.toks = tokenize(text)
+        self.i = 0
+        self.text = text
+
+    def peek(self):
+        return self.toks[self.i] if self.i < len(self.toks) else None
+
+    def take(self, want=None):
+        tok = self.peek()
+        if tok is None or (want is not None and tok != want):
+            raise Unreadable(f"can't read {self.text!r}")
+        self.i += 1
+        return tok
+
+    def parse(self):
+        e = self.expr()
+        if self.peek() is not None:
+            raise Unreadable(f"can't read {self.text!r}")
+        return e
+
+    def expr(self):
+        c = self.binary(1)
+        if self.peek() == "?":
+            self.take()
+            a = self.expr()
+            self.take(":")
+            b = self.expr()
+            return ("cond", c, a, b)
+        return c
+
+    def binary(self, level):
+        left = self.unary()
+        while self.peek() in BINARY and BINARY[self.peek()] >= level:
+            op = self.take()
+            right = self.binary(BINARY[op] + 1)
+            left = ("bin", op, left, right)
+        return left
+
+    def unary(self):
+        tok = self.peek()
+        if tok in ("~", "!", "-", "+"):
+            self.take()
+            return ("un", tok, self.unary())
+        if tok == "(" and self.i + 2 < len(self.toks) and self.toks[self.i + 1] in TYPE_WORDS \
+                and self.toks[self.i + 2] == ")":
+            self.take()
+            bits = TYPE_WORDS[self.take()]
+            self.take(")")
+            return ("cast", bits, self.unary())
+        return self.postfix(self.primary())
+
+    def primary(self):
+        tok = self.take()
+        if tok == "(":
+            e = self.expr()
+            self.take(")")
+            return e
+        if re.fullmatch(r"\d\w*|0[xX]\w+", tok):
+            return ("num", int(tok.rstrip("uUlL"), 0))
+        if re.fullmatch(r"\w+", tok):
+            if self.peek() == "(":
+                self.take()
+                args = []
+                while self.peek() != ")":
+                    args.append(self.expr())
+                    if self.peek() == ",":
+                        self.take()
+                self.take(")")
+                return ("call", tok, args)
+            return ("id", tok)
+        raise Unreadable(f"can't read {self.text!r}")
+
+    def postfix(self, e):
+        while self.peek() in ("[", ".", "->"):
+            tok = self.take()
+            if tok == "[":
+                start = self.i
+                idx = self.expr()
+                text = " ".join(self.toks[start:self.i])
+                self.take("]")
+                e = ("index", e, idx, text)
+            else:
+                e = ("field", e, self.take())
+        return e
+
+
+def parse(text: str):
+    return Parser(text).parse()
+
+
+def _substitute(node, env: dict):
+    """A macro body's parse with its parameters replaced by the arguments'."""
+    if node[0] == "id" and node[1] in env:
+        return env[node[1]]
+    return tuple(_substitute(x, env) if isinstance(x, tuple) else
+                 ([_substitute(a, env) for a in x] if isinstance(x, list) else x) for x in node)
+
+
+def merge(a: dict, b: dict):
+    """Two sets of choices, or None if they disagree."""
+    out = dict(a)
+    for k, v in b.items():
+        if out.get(k, v) != v:
+            return None
+        out[k] = v
+    return out
+
+
+def apply(op, x, y=None):
+    if op == "||":
+        return int(bool(x) or bool(y))
+    if op == "&&":
+        return int(bool(x) and bool(y))
+    return {"|": lambda: x | y, "^": lambda: x ^ y, "&": lambda: x & y, "==": lambda: int(x == y),
+            "!=": lambda: int(x != y), "<": lambda: int(x < y), "<=": lambda: int(x <= y),
+            ">": lambda: int(x > y), ">=": lambda: int(x >= y), "<<": lambda: x << y, ">>": lambda: x >> y,
+            "+": lambda: x + y, "-": lambda: x - y, "*": lambda: x * y,
+            "/": lambda: x // y if y else 0, "%": lambda: x % y if y else 0}[op]()
+
+
+class Evaluator:
+    """Values of expressions in a function of a source, as a list of (value,
+    choices): choices say which caller supplied a parameter and which row of a
+    table a lookup took, so values that came from the same call or row stay
+    together."""
+
+    def __init__(self, sources: list, globals_: list):
+        self.sources = sources
+        self.globals = globals_          # sources whose constants and macros every file sees
+        self.only_callers = None         # a parameter's values from calls in these functions alone
+
+    def const(self, src: Source, name: str):
+        for s in [src] + self.globals:
+            if name in s.consts:
+                return s, s.consts[name]
+            if name in s.defines and s.defines[name][0] is None:
+                return s, s.defines[name][1]
+        return None
+
+    def macro(self, src: Source, name: str):
+        for s in [src] + self.globals:
+            if name in s.defines and s.defines[name][0] is not None:
+                return s.defines[name]
+        return None
+
+    def values(self, nodes: list, src: Source, f: Func | None, depth: int = 0) -> list:
+        """[(tuple of values, choices)] for nodes evaluated together."""
+        out = [((), {})]
+        for node in nodes:
+            nxt = []
+            for vals, ch in out:
+                for v, c in self.eval(node, src, f, depth, ch):
+                    m = merge(ch, c)
+                    if m is not None:
+                        nxt.append((vals + (v,), m))
+            out = nxt
+        seen, unique = set(), []
+        for vals, ch in out:
+            key = (vals, tuple(sorted(ch.items())))
+            if key not in seen:
+                seen.add(key)
+                unique.append((vals, ch))
+        return unique
+
+    def eval(self, node, src, f, depth, choices) -> list:
+        kind = node[0]
+        if kind == "num":
+            return [(node[1], {})]
+        if kind == "id":
+            return self.ident(node[1], src, f, depth, choices)
+        if kind == "un":
+            return [({"~": lambda v: ~v, "!": lambda v: int(not v), "-": lambda v: -v, "+": lambda v: v}[node[1]](v), c)
+                    for v, c in self.eval(node[2], src, f, depth, choices)]
+        if kind == "cast":
+            bits = node[1]
+            return [((int(bool(v)) if bits == 1 else v & ((1 << bits) - 1)), c)
+                    for v, c in self.eval(node[2], src, f, depth, choices)]
+        if kind == "bin":
+            out = []
+            for (x, y), c in self.values([node[2], node[3]], src, f, depth):
+                if merge(c, choices) is not None:
+                    out.append((apply(node[1], x, y), c))
+            return out
+        if kind == "cond":
+            out = []
+            try:
+                conds = self.eval(node[1], src, f, depth, choices)
+            except Unreadable:
+                conds = [(1, {}), (0, {})]     # decided at run time: either value
+            for cv, c in conds:
+                within = merge(choices, c)
+                if within is None:
+                    continue
+                for v, c2 in self.eval(node[2] if cv else node[3], src, f, depth, within):
+                    m = merge(c, c2)
+                    if m is not None:
+                        out.append((v, m))
+            return out
+        if kind == "field" and node[1][0] == "index" and node[1][1][0] == "id":
+            return self.table_field(node[1][1][1], node[1][2], node[1][3], node[2], src, f, depth, choices)
+        if kind == "index" and node[1][0] == "id":
+            return self.element(node[1][1], node[3], src, f, depth, choices)
+        if kind == "call":
+            macro = self.macro(src, node[1])
+            if macro is not None and len(macro[0]) == len(node[2]):
+                params, body = macro
+                env = dict(zip(params, node[2]))
+                return self.eval(_substitute(parse(body), env), src, f, depth, choices)
+        raise Unreadable(f"can't evaluate {node!r}")
+
+    def mentions(self, node, src, prefix: str = "RAM_", depth: int = 0) -> bool:
+        """Whether an expression spells a name starting with prefix, through
+        the macros and constants it uses."""
+        if depth > 8:
+            return False
+        kind = node[0]
+        if kind == "id":
+            if node[1].startswith(prefix):
+                return True
+            c = self.const(src, node[1])
+            return c is not None and self.mentions(parse(c[1]), c[0], prefix, depth + 1)
+        if kind == "call":
+            macro = self.macro(src, node[1])
+            if macro is not None and prefix in macro[1]:
+                return True
+            return any(self.mentions(a, src, prefix, depth + 1) for a in node[2])
+        return any(isinstance(x, tuple) and self.mentions(x, src, prefix, depth + 1) for x in node[1:])
+
+    def ident(self, name, src, f, depth, choices) -> list:
+        if name in ("true", "false"):
+            return [(int(name == "true"), {})]
+        if f is not None:
+            defs = src.locals_of(f, name)
+            if name in f.params and not defs:
+                return self.param(name, src, f, depth, choices)
+            if defs:
+                if len(set(defs)) != 1:
+                    raise Unreadable(f"{name} is set more than once in {f.name}")
+                return self.eval(parse(defs[0]), src, f, depth, choices)
+        c = self.const(src, name)
+        if c is not None:
+            return self.eval(parse(c[1]), c[0], None, depth, choices)
+        raise Unreadable(f"{name} isn't a constant, a local or a parameter")
+
+    def param(self, name, src, f, depth, choices) -> list:
+        """A parameter's values: what every call of f in the same file passes."""
+        if depth >= MAX_DEPTH:
+            raise Unreadable(f"{name}: callers nested too deep")
+        idx = f.params.index(name)
+        key = ("caller", src.path, f.name)
+        out = []
+        calls = [c for c in src.calls([f.name]) if self._caller_ok(src, c)]
+        if not calls:
+            raise Unreadable(f"{name}: nothing in {src.path} calls {f.name}")
+        for i, call in enumerate(calls):
+            if key in choices and choices[key] != i:
+                continue
+            if idx >= len(call.args):
+                raise Unreadable(f"{name}: a call of {f.name} passes fewer arguments")
+            caller = src.func_at(call.offset)
+            for v, c in self.eval(parse(call.args[idx]), src, caller, depth + 1, {}):
+                m = merge(c, {key: i})
+                if m is not None:
+                    out.append((v, m))
+        return out
+
+    def element(self, name, idx_text, src, f, depth, choices) -> list:
+        """An element of an array of constants, whichever the index picks: the
+        function's own array of that name, else the file's, else (a
+        parameter) the arrays its callers pass."""
+        arrays = [a for a in src.arrays if a[0] == name]
+        own = [a for a in arrays if f is not None and f.start <= a[1] < f.end]
+        if f is not None and name in f.params and not own:
+            return self.param_array(name, idx_text, src, f, depth, choices)
+        pick = own or [a for a in arrays if not any(g.start <= a[1] < g.end for g in src.funcs.values())]
+        if len(pick) != 1:
+            raise Unreadable(f"{name}[...] isn't an array of constants in {src.path}")
+        _, offset, values = pick[0]
+        key = ("element", src.path, name, offset, idx_text)
+        out = []
+        for i, text in enumerate(values):
+            if key in choices and choices[key] != i:
+                continue
+            for v, c in self.eval(parse(text), src, None, depth, {}):
+                m = merge(c, {key: i})
+                if m is not None:
+                    out.append((v, m))
+        return out
+
+    def param_array(self, name, idx_text, src, f, depth, choices) -> list:
+        """An element of an array a parameter points at: the arrays every call
+        of f in the file passes."""
+        if depth >= MAX_DEPTH:
+            raise Unreadable(f"{name}: callers nested too deep")
+        idx = f.params.index(name)
+        key = ("caller", src.path, f.name)
+        out = []
+        for i, call in enumerate(src.calls([f.name])):
+            if (key in choices and choices[key] != i) or not self._caller_ok(src, call):
+                continue
+            arg = call.args[idx].strip()
+            if not re.fullmatch(r"\w+", arg):
+                raise Unreadable(f"{name}: {f.name} is passed {arg!r}")
+            for v, c in self.element(arg, idx_text, src, src.func_at(call.offset), depth + 1, {}):
+                m = merge(c, {key: i})
+                if m is not None:
+                    out.append((v, m))
+        return out
+
+    def _caller_ok(self, src, call) -> bool:
+        if self.only_callers is None:
+            return True
+        f = src.func_at(call.offset)
+        return f is not None and f.name in self.only_callers
+
+    def table_field(self, table, idx, idx_text, fieldname, src, f, depth, choices) -> list:
+        if table not in src.tables:
+            raise Unreadable(f"{table}[...] isn't a table in {src.path}")
+        fields, rows = src.tables[table]
+        if fieldname not in fields:
+            raise Unreadable(f"{table} has no field {fieldname}")
+        key = ("row", src.path, table, idx_text, f.name if f else None)
+        out = []
+        for i, row in enumerate(rows):
+            if key in choices and choices[key] != i:
+                continue
+            if fieldname not in row:
+                continue
+            for v, c in self.eval(parse(row[fieldname]), src, None, depth, {}):
+                m = merge(c, {key: i})
+                if m is not None:
+                    out.append((v, m))
+        return out
+
+
+# ---- the declarations --------------------------------------------------------------------------
+
+@dataclass
+class Entry:
+    addr: int
+    name: str
+    fn: str
+    dont_care: int
+    idle: bool
+    generated: bool
+    line: int
+
+
+@dataclass
+class Decl:
+    kind: str           # "stop" or "call"
+    path: str
+    line: int
+    func: str | None
+    dont_care: int
+    at: int = 0         # stop: the instruction
+    site: int = 0       # call: the JSR/JSL and its target
+    target: int = 0
+
+
+@dataclass
+class Finding:
+    where: str
+    what: str
+    extra: list = field(default_factory=list)
+
+    def text(self) -> str:
+        return f"{self.where}: {self.what}"
+
+
+def expand_macros(text: str, defines: dict) -> str:
+    """Function-like and object-like macros expanded (#x stringified), until
+    nothing changes; enough for a table of initializers."""
+    for _ in range(8):
+        before = text
+        for name, (params, body) in defines.items():
+            if params is None:
+                if name.isupper() or name.startswith("NEEDS_"):
+                    text = re.sub(r"\b%s\b" % re.escape(name), lambda m, b=body: b, text)
+                continue
+            pos = 0
+            while True:
+                m = re.search(r"\b%s\s*\(" % re.escape(name), text[pos:])
+                if not m:
+                    break
+                open_ = pos + m.end() - 1
+                close = matching(text, open_)
+                args = split_args(text[open_ + 1:close])
+                out = body
+                for p, a in zip(params, args):
+                    out = re.sub(r"#\s*%s\b" % re.escape(p), lambda m, a=a: '"%s"' % a, out)
+                    out = re.sub(r"\b%s\b" % re.escape(p), lambda m, a=a: a, out)
+                text = text[:pos + m.start()] + out + text[close + 1:]
+                pos = pos + m.start() + len(out)
+        if text == before:
+            break
+    return text
+
+
+def registry_entries(src: Source, ev: Evaluator) -> tuple:
+    """The entries of game/registry.c's table, and findings for ones it can't read."""
+    raw = strip_comments(src.raw)
+    m = re.search(r"NativeEntry\s+\w+\s*\[\s*\]\s*=\s*\{", raw)
+    if not m:
+        return [], [Finding(src.path, "no NativeEntry table")]
+    end = matching(raw, m.end() - 1, "{", "}")
+    body = raw[m.end():end]
+    body = re.sub(r"^[ \t]*#[ \t]*(define|undef)\b(?:\\\n|[^\n])*", "", body, flags=re.M)
+    table = expand_macros(body, src.defines)
+    entries, findings = [], []
+    for item in split_args(table):
+        if not item.startswith("{"):
+            continue
+        fields = {}
+        for part in split_args(item[1:matching(item, 0, "{", "}")]):
+            fm = re.match(r"\.(\w+)\s*=\s*(.*)$", part, re.S)
+            if fm:
+                fields[fm.group(1)] = fm.group(2).strip()
+        name = fields.get("name", "?").strip('"')
+        try:
+            addr = only(ev.values([parse(fields["addr"])], src, None), "the address")
+            dc = only(ev.values([parse(fields["dont_care"])], src, None), "the set") if "dont_care" in fields else 0
+        except (Unreadable, KeyError) as e:
+            findings.append(Finding(f"{src.path}: {name}", f"can't read the entry: {e}"))
+            continue
+        at = re.search(r"\b%s\b" % re.escape(name), src.raw)
+        line = src.line(at.start()) if at else 0
+        entries.append(Entry(addr, name, fields.get("fn", name).strip(), dc, fields.get("idle") == "true",
+                             fields.get("generated") == "true", line))
+    return entries, findings
+
+
+def only(values: list, what: str) -> int:
+    got = {v[0][0] for v in values}
+    if len(got) != 1:
+        raise Unreadable(f"{what} has {len(got)} values")
+    return got.pop()
+
+
+def declarations(sources: list, ev: Evaluator) -> tuple:
+    """Every stop and call-out declaration, one per value its arguments can
+    take, and findings for the ones that can't be read."""
+    decls, findings = [], []
+    for src in sources:
+        for call in src.calls(DECLARATIONS):
+            f = src.func_at(call.offset)
+            where = f"{src.path}:{src.line(call.offset)}"
+            try:
+                if call.name in ("m_stop_dont_care", "m_stop_at"):
+                    if len(call.args) != 3:
+                        raise Unreadable(f"{call.name} takes (s, at, dont_care)")
+                    nodes = [parse(call.args[1]), parse(call.args[2])]
+                elif call.name == "au_driver_call":
+                    origin = parse(call.args[1])
+                    if origin[0] != "call" or origin[1] != "PF_CALL":
+                        raise Unreadable("au_driver_call's origin isn't PF_CALL(site, target)")
+                    nodes = [origin[2][0], origin[2][1], parse(call.args[2])]
+                else:
+                    nodes = [parse(a) for a in call.args[1:4]]
+                try:
+                    vals = ev.values(nodes, src, f)
+                except Unreadable:
+                    if call.name == "m_stop_dont_care" or call.name == "m_stop_at":
+                        raise
+                    # a target computed at run time (a jump table's): the original's call at the site says
+                    vals = [((v[0], None, v[1]), c) for v, c in ev.values([nodes[0], nodes[2]], src, f)]
+                if not vals:
+                    raise Unreadable("no values")
+            except Unreadable as e:
+                findings.append(Finding(where, f"can't read {call.name}: {e}"))
+                continue
+            for v, _ in vals:
+                if call.name in ("m_stop_dont_care", "m_stop_at"):
+                    decls.append(Decl("stop", src.path, src.line(call.offset), f.name if f else None, v[1] & 0xFFFF,
+                                      at=v[0] & 0xFFFFFF))
+                else:
+                    decls.append(Decl("call", src.path, src.line(call.offset), f.name if f else None, v[2] & 0xFFFF,
+                                      site=v[0] & 0xFFFFFF, target=None if v[1] is None else v[1] & 0xFFFFFF))
+    return decls, findings
+
+
+def reaching(sources: list, fn: str) -> set:
+    """(path, function) pairs the function reaches by C calls, itself
+    included. A name is the same file's function if it has one, else a
+    function of that name that isn't static."""
+    public = {}
+    for src in sources:
+        for name, f in src.funcs.items():
+            if not f.static:
+                public.setdefault(name, []).append(src)
+    out = set()
+    work = [(src, fn) for src in public.get(fn, [])]
+    while work:
+        src, name = work.pop()
+        if (src.path, name) in out:
+            continue
+        out.add((src.path, name))
+        for callee in src.called_names(src.funcs[name]):
+            if callee in src.funcs:
+                work.append((src, callee))
+            else:
+                work += [(s, callee) for s in public.get(callee, [])]
+    return out
+
+
+# ---- the check ---------------------------------------------------------------------------------
+
+def fmt(addr: int) -> str:
+    return f"${addr >> 16:02X}:{addr & 0xFFFF:04X}"
+
+
+def excess(declared_dc: int, live: int) -> int:
+    """The declared-dead registers liveness says may be read (liveness bits)."""
+    return dead_of_dc(declared_dc) & live
+
+
+def call_out_targets(src: Source, funcs, ev: Evaluator) -> set:
+    """The routines the call-outs in the named functions of src reach
+    (m_jsr, m_jsl, their _dc forms and au_driver_call), followed through the
+    file's helpers as the declarations are; "computed" for one that can't be
+    read."""
+    out = set()
+    saved, ev.only_callers = ev.only_callers, set(funcs)
+    for call in src.calls(CALL_OUTS):
+        f = src.func_at(call.offset)
+        if f is None or f.name not in funcs:
+            continue
+        try:
+            if call.name == "au_driver_call":
+                origin = parse(call.args[1])
+                if origin[0] != "call" or origin[1] != "PF_CALL":
+                    raise Unreadable("not PF_CALL")
+                node = origin[2][1]
+            else:
+                node = parse(call.args[2])
+            out |= {v[0] & 0xFFFFFF for v, _ in ev.values([node], src, f)}
+        except (Unreadable, IndexError):
+            out.add("computed")
+    ev.only_callers = saved
+    return out
+
+
+def site_targets(lv, site: int) -> list:
+    """What the original's call at site calls (a jump table's targets too)."""
+    out = set()
+    for key in lv.contexts_at(site):
+        for insn in lv.an.code[site].values():
+            if insn.name in ("JSR", "JSL"):
+                out.update(t for t in lv._callees(site, insn) if t is not None)
+    return sorted(out)
+
+
+def check(entries: list, decls: list, sources: list, lv, opcode_at) -> tuple:
+    """(findings, rows): rows describe every declaration checked, for --list."""
+    findings, rows = [], []
+    reach = {}
+    for e in entries:
+        if e.idle or e.generated:
+            continue
+        reach[e.name] = reaching(sources, e.fn)
+
+    def entry_ok(e, point_live, where, what):
+        bad = excess(e.dont_care, point_live)
+        rows.append(f"{where}: {e.name} {dc_text(e.dont_care)} {what}: "
+                    + ("ok" if not bad else "reads " + describe(bad)))
+        if bad:
+            findings.append(Finding(where, f"{e.name}'s .dont_care ({dc_text(e.dont_care)}) {what}, "
+                                           f"where liveness has {describe(bad)} read"))
+
+    by_path = {src.path: src for src in sources}
+    for e in entries:
+        if e.idle or e.generated or not e.dont_care:
+            continue
+        returns = any(RETURNS.search(by_path[path].text[f.start:f.end])
+                      for path, name in reach[e.name] for f in [by_path[path].funcs[name]])
+        if not returns:
+            continue      # it only stops, at the points it declares
+        live = lv.live_after_return(e.addr)
+        where = f"game/registry.c:{e.line}"
+        if live is None:
+            findings.append(Finding(where, f"{e.name}: {fmt(e.addr)} isn't code the analysis knows"))
+            continue
+        entry_ok(e, live, where, f"after {fmt(e.addr)}'s routine returns")
+
+    for d in decls:
+        where = f"{d.path}:{d.line}"
+        if d.kind == "call":
+            targets = [d.target] if d.target is not None else site_targets(lv, d.site)
+            if not targets:
+                findings.append(Finding(where, f"the call from {fmt(d.site)}: its target is computed, and the "
+                                               "original's instruction there isn't a call the analysis resolved"))
+                continue
+            for target in targets:
+                live = lv.callee_reads(target)
+                bad = excess(d.dont_care, live)
+                rows.append(f"{where}: call {fmt(d.site)} -> {fmt(target)} {dc_text(d.dont_care)}: "
+                            + ("ok" if not bad else "reads " + describe(bad)))
+                if bad:
+                    findings.append(Finding(where, f"the call from {fmt(d.site)} to {fmt(target)} declares "
+                                                   f"{dc_text(d.dont_care)}, where liveness has {describe(bad)} read"))
+            continue
+        # a stop: the entries that reach it add their own sets
+        owners = [e for e in entries if e.name in reach and (d.path, d.func) in reach[e.name]]
+        op = opcode_at(d.at)
+        if op in RETURN_OPCODES:
+            live = lv.live_after_return(d.at)
+            what = f"after the {RETURN_OPCODES[op]} at {fmt(d.at)}"
+        else:
+            live = lv.live_at(d.at)
+            what = f"at {fmt(d.at)}"
+        if live is None:
+            findings.append(Finding(where, f"the stop at {fmt(d.at)} isn't code the analysis knows"))
+            continue
+        for e in owners or [None]:
+            dc = d.dont_care | (e.dont_care if e else 0)
+            bad = excess(dc, live)
+            who = f" (with {e.name}'s {dc_text(e.dont_care)})" if e and e.dont_care else ""
+            rows.append(f"{where}: stop {what} {dc_text(d.dont_care)}{who}: "
+                        + ("ok" if not bad else "reads " + describe(bad)))
+            if bad:
+                findings.append(Finding(where, f"the stop declares {dc_text(d.dont_care)}{who} {what}, "
+                                               f"where liveness has {describe(bad)} read"))
+    return findings, rows
+
+
+def load_sources(root: pathlib.Path) -> tuple:
+    sources = []
+    for path in sorted((root / "game").rglob("*.[ch]")):
+        rel = path.relative_to(root).as_posix()
+        sources.append(Source(rel, path.read_text(encoding="utf-8")))
+    headers = [Source(h, (root / h).read_text(encoding="utf-8")) for h in HEADERS if (root / h).exists()]
+    game_headers = [s for s in sources if s.path.endswith(".h")]
+    return sources, headers + game_headers
+
+
+def run(root: pathlib.Path, lv, opcode_at) -> tuple:
+    """(findings, rows, counts) for the tree at root."""
+    return run_sources(*load_sources(root), lv, opcode_at)
+
+
+def run_sources(sources: list, globals_: list, lv, opcode_at) -> tuple:
+    """(findings, rows, counts) for these sources, one of them game/registry.c."""
+    ev = Evaluator(sources, globals_)
+    registry = next(s for s in sources if s.path == "game/registry.c")
+    entries, f1 = registry_entries(registry, ev)
+    decls, f2 = declarations([s for s in sources if s.path.endswith(".c")], ev)
+    findings, rows = check(entries, decls, sources, lv, opcode_at)
+    counts = {"entries": sum(1 for e in entries if e.dont_care and not e.idle and not e.generated),
+              "stops": sum(1 for d in decls if d.kind == "stop"), "calls": sum(1 for d in decls if d.kind == "call")}
+    unique = list(dict.fromkeys(f.text() for f in f1 + f2 + findings))
+    return [Finding(*t.split(": ", 1)) for t in unique], list(dict.fromkeys(rows)), counts
+
+
+def expand(patterns, root) -> list:
+    out = []
+    for p in patterns:
+        out += sorted(glob.glob(str(root / p)) if not pathlib.Path(p).is_absolute() else glob.glob(p))
+    return [pathlib.Path(p) for p in out]
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="python3 tools/dontcare_check.py", description=__doc__.split("\n")[0])
+    ap.add_argument("--rom", type=pathlib.Path, default=ROOT / "roms" / "ct-usa.sfc")
+    ap.add_argument("--hints", type=pathlib.Path, default=ROOT / "re" / "hints.toml")
+    ap.add_argument("--root", type=pathlib.Path, default=ROOT,
+                    help="where the default coverage and call globs are looked for")
+    ap.add_argument("--coverage", action="append", default=[], help="more coverage files (globs)")
+    ap.add_argument("--calls", action="append", default=[], help="more call logs (globs)")
+    ap.add_argument("--list", action="store_true", help="print every declaration and its verdict")
+    ap.add_argument("--tree", type=pathlib.Path, default=ROOT,
+                    help="the source tree whose game/ to check (default: this one; a draftcheck scratch tree works)")
+    args = ap.parse_args(argv)
+
+    from tools.disasm import coverage as coverage_mod
+    from tools.disasm import hints as hints_mod
+    from tools.disasm.analyze import Analyzer
+    from tools.disasm.liveness import Liveness
+    from tools.disasm.memmap import Rom, bus_to_offset
+
+    if not args.rom.exists():
+        print(f"{args.rom}: not found (tools/rom.py stage <path>)", file=sys.stderr)
+        return 2
+    rom = Rom(args.rom.read_bytes())
+    coverage = expand(DEFAULT_COVERAGE, args.root) + expand(args.coverage, pathlib.Path.cwd())
+    calls = expand(DEFAULT_CALLS, args.root) + expand(args.calls, pathlib.Path.cwd())
+    an = Analyzer(rom, hints_mod.load(args.hints), coverage=coverage_mod.load(coverage) if coverage else None)
+    an.run()
+    lv = Liveness(an, coverage_mod.load_calls(calls) if calls else {})
+    lv.solve()
+
+    def opcode_at(addr):
+        off = bus_to_offset(addr)
+        return rom.data[off] if off is not None else None
+
+    findings, rows, counts = run(args.tree, lv, opcode_at)
+    if args.list:
+        for r in rows:
+            print(r)
+    for f in findings:
+        print(f.text())
+    print(f"{len(findings)} finding(s) over {counts['entries']} entries with a don't-care set, "
+          f"{counts['stops']} stop and {counts['calls']} call-out declarations"
+          + ("" if calls else " (no call logs: liveness may be too trusting)"))
+    return 1 if findings else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

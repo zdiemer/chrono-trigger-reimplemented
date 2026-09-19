@@ -14,7 +14,9 @@ stay within the timing gate's limits over the shadow runs' `--timing-report`
 picture where the reference's doesn't (tools/vblank_check.py); and the route
 scripts must reach their outcomes in the shipping mode
 (tools/movies/route_check.py; the fast route by default, all of them with
---long-routes). Exit status is 0 only when all of that holds.
+--long-routes); and every don't-care declaration in game/ must be one the
+liveness analysis agrees with (tools/dontcare_check.py, static, with the call
+logs the shadow runs just wrote). Exit status is 0 only when all of that holds.
 
 Each movie's frame count comes from its own `# frames N` header, and a movie
 that starts from a cartridge save finds it by CRC-32 among the committed ones
@@ -190,12 +192,28 @@ def check_routes(args, ctx):
     return rc == 0 and failed == 0, "routes", summary, [] if rc == 0 else lines[-30:]
 
 
+def check_dontcare(args, ctx):
+    """Every don't-care declaration in game/ against liveness (tools/dontcare_check.py),
+    the analysis fed the call and coverage logs the shadow runs wrote as well as
+    the committed tree's defaults: more call sites only make it more careful."""
+    cmd = [sys.executable, str(ROOT / "tools/dontcare_check.py"), "--rom", str(args.rom)]
+    for name in ctx["movies"]:
+        for kind, flag in (("calls", "--calls"), ("cov", "--coverage")):
+            path = args.out / ("%s-%s.txt" % (kind, name))
+            if path.exists():
+                cmd += [flag, str(path)]
+    rc, lines = run_tool(cmd)
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "dontcare", summary, [] if rc == 0 else lines[:-1][-40:]
+
+
 CHECKS = (
     # name, function, what --no-<name> skips
     ("trace", check_trace, "the --recomp only trace comparison"),
     ("timing", check_timing, "the timing gate over the shadow runs"),
     ("vblank", check_vblank, "the check for video writes on the picture in the shipping mode"),
     ("routes", check_routes, "the route scripts in the shipping mode"),
+    ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
 )
 
 

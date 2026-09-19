@@ -162,8 +162,7 @@ enum { ECHO_TRIES = 0x0400 };
 
 static void stop_at(Snes *s, uint16_t loop, uint16_t dead)
 {
-    s->cpu.pc = loop;
-    m_stop_dont_care(s, (uint16_t)(dead | DC_FLAGS));
+    m_stop_at(s, 0xC70000u | loop, (uint16_t)(dead | DC_FLAGS));
 }
 
 /* How a driver routine ends, which its entry carries out. */
@@ -1282,7 +1281,7 @@ void sound_driver_song_echoed(Snes *s)
         return;
     }
     restore_p(s);
-    m_stop_dont_care(s, DC_A);
+    m_stop_dont_care(s, 0xC70A97, DC_A);   /* the RTS after $C7:0A96's PLP */
     m_rts(s);
 }
 

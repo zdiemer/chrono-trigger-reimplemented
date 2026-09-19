@@ -240,8 +240,7 @@ void field_update_object_sprites(Snes *s)
     if (mode != 0x01) {
         m_cmp8(s, mode, 0x02);
         if (mode != 0x02) {
-            s->cpu.pb = 0xC0;
-            s->cpu.pc = 0xC73A;
+            m_stop_at(s, 0xC0C73A, 0);
             return;
         }
         kind = &kinds[1];

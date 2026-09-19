@@ -43,8 +43,7 @@ void event_run_object_script(Snes *s)
         uint16_t handler = m_read16(s, 0xC00000 | (uint16_t)(0x5D6E + op));
         m_jsr(s, 0xC05AB1, 0xC00000 | handler);
         if (!engine_widths(s)) {
-            s->cpu.pb = 0xC0;
-            s->cpu.pc = 0x5AB4;
+            m_stop_at(s, 0xC05AB4, 0);
             return;
         }
         if (!m_flag(s, CPU_FLAG_C))

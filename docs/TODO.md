@@ -38,16 +38,24 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **M4**: skip flags nobody reads, call generated blocks directly where it's
   safe. Speed only; rendering and sound dominate now.
-- **The draft tool's gaps** (RECOMP.md, "What drafts don't do yet"): liveness
-  that counts a flag `PHP` saves as read, and no liveness where a draft hands
-  back at another entry (the $C7 pilot's two costliest; PLAN.md, Phase 3);
-  the ground-truth tool not resolving a port's file-local names; liveness
-  that keeps A whole (so drafts carry A's high byte and flags no caller reads);
-  D and DB for code only interrupts reach, and the field's main loop after a
-  battle, which the frame analysis gets wrong (a guard catches it: 432877
-  calls of `field_scroll_layers`); operand names for the battle script
-  handlers; turning I/O register writes and the multiplier into platform calls
-  and C arithmetic.
+- **The draft tool's gaps** (RECOMP.md, "What drafts don't do yet"): D and DB
+  for code only interrupts reach, and the field's main loop after a battle,
+  which the frame analysis gets wrong (a guard catches it: 432877 calls of
+  `field_scroll_layers`); operand names for the battle script handlers;
+  turning I/O register writes and the multiplier into platform calls and C
+  arithmetic; stub signatures that still vary by what a call reads back.
+- **Liveness where a callee leaves through its caller's frame** (RECOMP.md,
+  "Before the bulk"): the sound driver's `$C7:0A39` returns past `$C7:0004` on
+  its refused path, so the driver's saves of the caller's registers count as
+  reads for every routine that sends a command, and pushes across the menus'
+  task switch (`$C2:821E`) stay conservative too. Following a callee's pulls of
+  its caller's bytes to the registers they land in would free both.
+- **Stops after a call-out that changed the widths.** Ports that give up there
+  (`battle_step_effect_slots`' `call`, the menus' `widths_are` checks) leave PC
+  at the call's return address without declaring it; with a don't-care set on
+  the entry, shadow mode and `ct_fuzz` report it if it ever happens, but the
+  check can't see the point. None of the movies reaches one; declaring them
+  (`m_stop_dont_care` at the return address) would make them checkable.
 - **Gaps in the vblank check** (RECOMP.md, "Where video writes land"), which
   the suite runs with seven findings accepted (RECOMP.md, "The timing gate"): a
   hand port's region ends at its last service call, so the reference's work in

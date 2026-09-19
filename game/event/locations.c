@@ -140,8 +140,7 @@ static void change_location_now(Snes *s)
     m_iny(s);
     m_tyx(s);
     store_location(s, 0x12);
-    s->cpu.pb = 0xC0;
-    s->cpu.pc = 0x3B71;
+    m_stop_at(s, 0xC03B71, 0);
 }
 
 // $C0:3B4B

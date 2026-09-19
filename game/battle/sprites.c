@@ -1017,7 +1017,7 @@ void battle_build_object_graphics_checked(Snes *s)
         m_rts(s);
         return;
     }
-    s->cpu.pc = 0x1C55;
+    m_stop_at(s, 0xC11C55, 0);
 }
 
 // $CC:F1E7

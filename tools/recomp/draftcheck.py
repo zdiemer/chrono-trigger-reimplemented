@@ -5,7 +5,7 @@
 Drafts compile against the runtime and do what the original does
 (tools/recomp/show.py), so the way to know a draft is right is the way a port
 is known to be right: register it and run shadow mode over the movie library.
-This exports the committed tree (`git archive HEAD`) into --out/src and drafts
+This exports the committed tree (`git archive HEAD`, or --rev) into --out/src and drafts
 routines there:
 
 - every routine game/registry.c registers, or those named: each draft goes to
@@ -148,6 +148,8 @@ def main(argv=None):
     ap.add_argument("--m", type=int, choices=(8, 16), help="widths for the addresses given")
     ap.add_argument("--x", type=int, choices=(8, 16))
     ap.add_argument("--rom", type=Path, default=REPO_ROOT / "roms" / "ct-usa.sfc")
+    ap.add_argument("--rev", default="HEAD",
+                    help="the tree to export (a commit; `git stash create` gives one of uncommitted work)")
     ap.add_argument("--root", type=Path, default=REPO_ROOT,
                     help="where the default coverage and call globs are looked for")
     args = ap.parse_args(argv)
@@ -160,7 +162,7 @@ def main(argv=None):
     if src.exists():
         shutil.rmtree(src)
     src.mkdir(parents=True)
-    tree = subprocess.run(["git", "-C", str(REPO_ROOT), "archive", "HEAD"], capture_output=True, check=True).stdout
+    tree = subprocess.run(["git", "-C", str(REPO_ROOT), "archive", args.rev], capture_output=True, check=True).stdout
     subprocess.run(["tar", "-x", "-C", src.as_posix()], input=tree, check=True)
 
     registry = entries((REPO_ROOT / "game" / "registry.c").read_text(encoding="utf-8"))
