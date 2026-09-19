@@ -61,7 +61,7 @@ docstring says which way it is wrong). **73% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 1.1K | 0.0K | 68% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **71.6K** | **2.6K** | **73%** | **673** |
+| **total** | **268.5K** | **72.0K** | **3.0K** | **73%** | **677** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 180 event commands), which is why the shares are so high
@@ -113,6 +113,50 @@ already has a type from MD2 (MATCHING.md), name the accessor after it. The order
 what the existing ports already surround, so each conversion has neighbours to
 check it against. How to write the ports themselves is in CLAUDE.md, "Writing a
 port from generated code".
+
+### How a wave is run
+
+A wave is a few subsystems converted at once, each by its own agent. What
+follows is the shape that worked for wave 1 and the tooling pass; it is here
+because the merge costs, not the porting, are what a new wave gets wrong.
+
+- **One worktree and one branch per agent**, cut from `main`
+  (`git worktree add -b <branch> .worktrees/<branch> main`), and **one directory
+  of `game/` each** (`game/battle/`, `game/field/`, `game/menu/`,
+  `game/scene/`), so two agents never edit the same port. Nobody writes to the
+  main checkout, and nobody links its gitignored directories (`roms/`,
+  `traces/`) into a worktree: a worktree removal deletes through such a link.
+  An agent stages its own ROM (`python3 tools/rom.py stage <path>`) or points
+  `-DCT_ROM` at the main checkout's copy, which is read-only use.
+- **Shared files are edited in place, not reorganised.** `game/registry.c` (each
+  agent's entries together, in its subsystem's part), `re/ram.toml` (its
+  subsystem's part), `tools/timing_exceptions.txt` and
+  `tools/vblank_check_exceptions.txt` (whose headers say what may be accepted),
+  and additive-only changes to `runtime/platform/*.h`. Calibration
+  (`tools/timing_gate.py --calibrate game/registry.c`) rewrites every measured
+  `cost_milli`, so an agent commits only its own subsystem's.
+- **Each agent validates its own branch** with the full gate and
+  `--long-routes`, and fuzzes every entry it writes or rewrites.
+- **Whoever merges** takes them one at a time, and after each: regenerates
+  `game/ram.h` from the merged `re/ram.toml` (`python3 tools/ram_map.py
+  header`), recomputes the burndown for this table, and runs the **full gate
+  with `--long-routes` on the merged tree**, because a tree combining two
+  branches is one nobody has gated. Doc conflicts are usually both sides
+  appended; a status row two agents changed takes both edits.
+- **A wave ends with a review**: each agent reports where the workflow and the
+  tools still hurt, and those answers decide whether the next thing is another
+  wave or a tooling pass. Wave 1's review produced the tooling pass recorded in
+  RECOMP.md, which cut the cost every later port pays.
+
+**Wave 2: the three big banks.** `$C0` (field and events, 68% left), `$C1`
+(battle, 83%) and `$C2` (menus, 90%) are about 165 KiB between them, far too
+much for one agent each, so each bank goes in chunks of roughly 8-12 KiB, taken
+in an order the burndown's `--uncovered` and the profile suggest, and one agent
+per bank at a time so each keeps its own directory. Two things found in wave 1
+belong to a bank's own wave rather than to whoever finds them: the battle
+routines that live in `$FD:A8A5`-`$B7EB` but are called from `$C1`, and the
+`$C6` object handlers now in `game/scene/`, which are menu-mode code and should
+move to `game/menu/` when the menus are converted.
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:
