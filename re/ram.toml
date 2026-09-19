@@ -2746,7 +2746,7 @@ addr = "7E:1E00"
 page = "sound"
 subsystem = "core"
 meaning = "The sound driver command a caller puts here before JSL $C7:0004 ($10-$17 play a song, $18-$2F and $80-$FF go to the SPC700 as they are, $30-$3F, $70, $71); the driver clears it when it returns"
-source = "game/core/sound_driver.c, sound_driver_command $C7:0004, driver_return $C7:0192"
+source = "game/core/sound_driver.c, command $C7:0155, leave_driver $C7:0192"
 
 [[var]]
 name = "sound_command_parameters"
@@ -2756,15 +2756,41 @@ count = 3
 index = "parameter: $01 the song or block for song commands and $71, $01-$03 to APU ports 1-3"
 subsystem = "core"
 meaning = "The sound command's parameters, written to APU ports 1-3 with the command"
-source = "game/core/sound_driver.c, send_command $C7:061C, play_song $C7:01A1"
+source = "game/core/sound_driver.c, send_command $C7:061C, play_song $C7:01A1, send_song $C7:0A39, upload_to_slot $C7:0755"
 
 [[var]]
 name = "sound_driver_song"
 addr = "7E:1E05"
 page = "sound"
 subsystem = "core"
-meaning = "The song play_song is loading, copied from the song parameter; the end of play_song stores the SPC700's final echo here, and the entry ignores every command while bit 7 is clear"
-source = "game/core/sound_driver.c, play_song $C7:01A1, sound_driver_upload_finished $C7:0614, sound_driver_command $C7:0004"
+meaning = "The song play_song is uploading, or $E0 (bit 7 set) when the driver is ready: the end of an upload and the boot store $E0 here, and the driver ignores every command while bit 7 is clear"
+source = "game/core/sound_driver.c, play_song $C7:01A1, sound_driver_upload_finished $C7:0614, command $C7:0155, boot_finish $C7:011E"
+
+[[var]]
+name = "sound_driver_unused_0a"
+addr = "7E:1E0A"
+page = "sound"
+subsystem = "core"
+meaning = "Cleared before play_song loads blocks; nothing in the game reads it"
+source = "game/core/sound_driver.c, load_missing_blocks $C7:0326; no reader in the disassembly"
+
+[[var]]
+name = "sound_driver_work"
+addr = "7E:1E0C"
+page = "sound"
+size = 2
+subsystem = "core"
+meaning = "The driver's work word: the length of the resource being uploaded (the end offset of a boot block), or, while play_song sorts slots, how far the used slots reach, the first free slot, and whether a block move has been answered"
+source = "game/core/sound_driver.c, upload_length, boot_block $C7:007D, play_song $C7:01A1, move_blocks_down"
+
+[[var]]
+name = "sound_driver_song_ids_end"
+addr = "7E:1E0E"
+page = "sound"
+size = 2
+subsystem = "core"
+meaning = "Where the song's 16 block ids end in the table at $C7:0E11 (song * 32 + 32), which play_song counts to"
+source = "game/core/sound_driver.c, play_song $C7:01A1"
 
 [[var]]
 name = "sound_driver_2f00_set"
@@ -2772,7 +2798,7 @@ addr = "7E:1E10"
 page = "sound"
 subsystem = "core"
 meaning = "Which of the two data sets goes to SPC700 address $2F00: zero the one at $C7:430B, nonzero the one at $C7:5B0D (command $70 sets it from whether its parameter is nonzero)"
-source = "game/core/sound_driver.c, sound_driver_upload_2f00_data $C7:0922, sound_driver_command $C7:0004 ($C7:08E3)"
+source = "game/core/sound_driver.c, upload_2f00_set $C7:0922, select_2f00_set $C7:08E3, prepare_2f00 $C7:04A9"
 
 [[var]]
 name = "sound_driver_2f00_set_sent"
@@ -2780,7 +2806,7 @@ addr = "7E:1E11"
 page = "sound"
 subsystem = "core"
 meaning = "The $2F00 data set last asked for, to tell when it changes"
-source = "game/core/sound_driver.c, song_prepare_2f00 $C7:04A9, sound_driver_command $C7:0004 ($C7:08E3)"
+source = "game/core/sound_driver.c, prepare_2f00 $C7:04A9, select_2f00_set $C7:08E3"
 
 [[var]]
 name = "sound_driver_data_pointer"
@@ -2788,8 +2814,8 @@ addr = "7E:1E12"
 page = "sound"
 size = 3
 subsystem = "core"
-meaning = "Long pointer to the data being uploaded to the SPC700 (also a work pointer into the id lists while play_song sorts them)"
-source = "game/core/sound_driver.c, send_three_bytes, sound_driver_upload_block $C7:0655, sound_driver_boot_block $C7:007D"
+meaning = "Long pointer to the data being uploaded to the SPC700; for resources from a table the low word is 0 and the offset is in Y. While play_song sorts a song's ids its first word and the word after it ($1E14-$1E15) are pointers into the two id lists, and build_address_table leaves its first word past the $1F80 table"
+source = "game/core/sound_driver.c, upload_from, upload_at, upload_byte; upload_block $C7:0655, boot_block $C7:007D, play_song $C7:01A1"
 
 [[var]]
 name = "sound_driver_load_slot"
@@ -2798,7 +2824,7 @@ page = "sound"
 size = 2
 subsystem = "core"
 meaning = "The slot (times 2) whose block sound_driver_upload_block is uploading"
-source = "game/core/sound_driver.c, song_load_blocks $C7:0326, sound_driver_upload_block $C7:0655"
+source = "game/core/sound_driver.c, load_missing_blocks $C7:0326, upload_block $C7:0655"
 
 [[var]]
 name = "sound_driver_load_index"
@@ -2807,7 +2833,7 @@ page = "sound"
 size = 2
 subsystem = "core"
 meaning = "Position (times 2) in the list of missing block ids while their blocks are loaded"
-source = "game/core/sound_driver.c, song_load_blocks $C7:0326"
+source = "game/core/sound_driver.c, load_missing_blocks $C7:0326"
 
 [[var]]
 name = "sound_driver_slot_ids"
@@ -2818,7 +2844,7 @@ count = 16
 index = "slot"
 subsystem = "core"
 meaning = "The block id loaded in each SPC700 memory slot, 0 for a free slot"
-source = "game/core/sound_driver.c, play_song $C7:01A1, song_load_blocks $C7:0326"
+source = "game/core/sound_driver.c, play_song $C7:01A1, load_missing_blocks $C7:0326, move_blocks_down"
 
 [[var]]
 name = "sound_driver_slot_lengths"
@@ -2829,7 +2855,7 @@ count = 16
 index = "slot"
 subsystem = "core"
 meaning = "The length of the block loaded in each slot"
-source = "game/core/sound_driver.c, sound_driver_upload_block $C7:0655, play_song $C7:01A1"
+source = "game/core/sound_driver.c, upload_block $C7:0655, move_blocks_down, upload_to_slot $C7:0755"
 
 [[var]]
 name = "sound_driver_slot_addresses"
@@ -2840,7 +2866,16 @@ count = 17
 index = "slot; entry n + 1 is where slot n's block ends"
 subsystem = "core"
 meaning = "The SPC700 address of each slot's block; the entry after a slot is the address past its block"
-source = "game/core/sound_driver.c, sound_driver_upload_block $C7:0655, clear_slots_from_f2 $C7:0A12 (clears $62,X up to slot $1F)"
+source = "game/core/sound_driver.c, upload_block $C7:0655, forget_slots_past_limit $C7:0A12 (clears the entries after a slot byte by byte up to the tables' end), boot_started $C7:00FB"
+
+[[var]]
+name = "sound_driver_index_scratch"
+addr = "7E:1E82"
+page = "sound"
+size = 2
+subsystem = "core"
+meaning = "Scratch for the index arithmetic before a table lookup: a block id less 1, a song, or 12 times a song"
+source = "game/core/sound_driver.c, upload_block $C7:0655, send_sequence $C7:04DB, send_f120_entries $C7:059A, upload_to_slot $C7:0755"
 
 [[var]]
 name = "sound_driver_upload_counter"
@@ -2848,7 +2883,15 @@ addr = "7E:1E84"
 page = "sound"
 subsystem = "core"
 meaning = "The counter written to APU port 0 after each three bytes of an upload, whose echo the driver waits for ($E0 at a block header)"
-source = "game/core/sound_driver.c, send_counter, reset_counter; sound_driver_send_counter $C7:09DA"
+source = "game/core/sound_driver.c, send_counter, end_exchange; sound_driver_send_counter $C7:09DA, sound_driver_counter_resent $C7:09F7"
+
+[[var]]
+name = "sound_driver_header_kind"
+addr = "7E:1E86"
+page = "sound"
+subsystem = "core"
+meaning = "The kind upload_2f00_set sends in its header (5 for command $70, 3 otherwise), which the SPC700 answers with"
+source = "game/core/sound_driver.c, upload_2f00_set $C7:0922"
 
 [[var]]
 name = "sound_driver_reserve"
@@ -2856,7 +2899,15 @@ addr = "7E:1EF0"
 page = "sound"
 subsystem = "core"
 meaning = "The value that sets the slot limit: blocks may not reach SPC700 page $F1 - 8 * it; set from a song's table entry at $C7:241D or command $FC's parameter"
-source = "game/core/sound_driver.c, set_f0 $C7:09FD, sound_driver_send_song $C7:0A39, sound_driver_command_echoed $C7:0643"
+source = "game/core/sound_driver.c, set_reserve $C7:09FD, send_song $C7:0A39, sound_driver_command_echoed $C7:0643, boot_finish $C7:011E"
+
+[[var]]
+name = "sound_driver_unused_f1"
+addr = "7E:1EF1"
+page = "sound"
+subsystem = "core"
+meaning = "Cleared at boot, after the reserve; nothing in the game reads it"
+source = "game/core/sound_driver.c, boot_finish $C7:011E; no reader in the disassembly"
 
 [[var]]
 name = "sound_driver_slot_limit"
@@ -2864,7 +2915,7 @@ addr = "7E:1EF2"
 page = "sound"
 subsystem = "core"
 meaning = "High byte of the first SPC700 address blocks may not reach: slots from the first whose address is at or above it are forgotten"
-source = "game/core/sound_driver.c, set_f0 $C7:09FD, clear_slots_from_f2 $C7:0A12"
+source = "game/core/sound_driver.c, set_reserve $C7:09FD, forget_slots_past_limit $C7:0A12"
 
 [[var]]
 name = "sound_driver_2f00_pending"
@@ -2872,7 +2923,7 @@ addr = "7E:1EF3"
 page = "sound"
 subsystem = "core"
 meaning = "Nonzero while the data at SPC700 address $2F00 needs uploading (the $2F00 set changed, or a song's sequence is $0F00 bytes or longer)"
-source = "game/core/sound_driver.c, song_prepare_2f00 $C7:04A9, song_send_sequence $C7:04DB, sound_driver_upload_2f00_data $C7:0922"
+source = "game/core/sound_driver.c, prepare_2f00 $C7:04A9, send_sequence $C7:04DB, upload_2f00_set $C7:0922"
 
 [[var]]
 name = "sound_driver_free_address"
@@ -2881,7 +2932,7 @@ page = "sound"
 size = 2
 subsystem = "core"
 meaning = "The SPC700 address after the last loaded block"
-source = "game/core/sound_driver.c, song_load_blocks $C7:0326, sound_driver_boot_started $C7:00FB"
+source = "game/core/sound_driver.c, load_missing_blocks $C7:0326, boot_started $C7:00FB"
 
 [[var]]
 name = "sound_driver_base_address"
@@ -2890,7 +2941,16 @@ page = "sound"
 size = 2
 subsystem = "core"
 meaning = "The SPC700 address of the first slot, set when the driver starts"
-source = "game/core/sound_driver.c, sound_driver_boot_started $C7:00FB"
+source = "game/core/sound_driver.c, boot_started $C7:00FB"
+
+[[var]]
+name = "sound_driver_unused_fa"
+addr = "7E:1EFA"
+page = "sound"
+size = 2
+subsystem = "core"
+meaning = "Set to $C700 at boot; nothing in the game reads it"
+source = "game/core/sound_driver.c, boot_finish $C7:011E; no reader in the disassembly"
 
 [[var]]
 name = "sound_driver_upload_slot"
@@ -2899,7 +2959,7 @@ page = "sound"
 size = 2
 subsystem = "core"
 meaning = "The slot (times 2) command $71 uploads its block into: the slot of the song's first block id, less 2"
-source = "game/core/sound_driver.c, song_prepare_2f00 $C7:04A9, sound_driver_command $C7:0004 ($C7:0755), upload_to_slot $C7:07AE"
+source = "game/core/sound_driver.c, prepare_2f00 $C7:04A9, upload_to_slot $C7:0755, sound_driver_slot_uploaded $C7:08DA"
 
 [[var]]
 name = "sound_driver_song_ids"
@@ -2909,7 +2969,7 @@ count = 16
 index = "entry; a 0 id ends the list"
 subsystem = "core"
 meaning = "The block ids the song being loaded uses (from $C7:0E11, 16 per song)"
-source = "game/core/sound_driver.c, play_song $C7:01A1, song_build_address_table $C7:037B"
+source = "game/core/sound_driver.c, play_song $C7:01A1, build_address_table $C7:037B"
 
 [[var]]
 name = "sound_driver_missing_ids"
@@ -2919,7 +2979,7 @@ count = 16
 index = "entry; a 0 id ends the list"
 subsystem = "core"
 meaning = "The song's block ids that are not loaded in any slot, which play_song then uploads"
-source = "game/core/sound_driver.c, play_song $C7:01A1, song_load_blocks $C7:0326"
+source = "game/core/sound_driver.c, play_song $C7:01A1, load_missing_blocks $C7:0326"
 
 [[var]]
 name = "sound_driver_address_table"
@@ -2929,7 +2989,7 @@ count = 16
 index = "the song's block id entry"
 subsystem = "core"
 meaning = "Per block of the song, its slot's SPC700 address and that plus the block's entry at $C7:0BA4 (both zero when not loaded); sent to SPC700 address $1E80"
-source = "game/core/sound_driver.c, song_build_address_table $C7:037B, song_send_address_table $C7:03C8"
+source = "game/core/sound_driver.c, build_address_table $C7:037B, send_address_table"
   [[var.field]]
   name = "address"
   offset = 0

@@ -99,33 +99,34 @@ bar, while its behaviour is already under the gate. A sweep across all of
 `game/` at once would be a large diff with no behavioural check beyond the gate
 it already passes.
 
-**Done when** a subsystem's worth of routines has been converted through the
-workflow ([PORTING.md](PORTING.md), "From a draft to a port") to the bar above.
-
 ## Phase 3: M5 in bulk
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **85% of the code is still generated.**
+docstring says which way it is wrong). **83% of the code is still generated.**
 
 | Subsystem | Code | Ported | Left | Entries |
 |---|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.8K | 10.1K | 84% | 42 |
-| field engine, events (`$C0`) | 59.4K | 9.5K | 84% | 50 |
-| menus, text (`$C2`) | 59.3K | 4.5K | 92% | 51 |
-| scene program, RAM (`$7E`) | 24.9K | 1.7K | 93% | 32 |
-| battle frame work (`$CD`) | 15.5K | 2.0K | 87% | 27 |
-| field graphics (`$FD`) | 15.3K | 1.5K | 90% | 8 |
+| battle (`$C1`, `$CE`) | 64.9K | 10.1K | 84% | 42 |
+| field engine, events (`$C0`) | 59.4K | 9.6K | 84% | 52 |
+| menus, text (`$C2`) | 59.3K | 5.2K | 91% | 52 |
+| scene program, RAM (`$7E`) | 24.9K | 2.8K | 89% | 54 |
+| battle frame work (`$CD`) | 15.5K | 2.2K | 86% | 27 |
+| field graphics (`$FD`) | 15.3K | 1.5K | 90% | 9 |
 | battle sprites (`$CF`) | 6.8K | 3.3K | 52% | 18 |
 | battle NMI, graphics (`$D1`) | 5.7K | 0.7K | 87% | 9 |
 | battle setup (`$CC`) | 4.9K | 4.3K | 11% | 8 |
-| scene engine (`$C3`) | 3.9K | 2.1K | 48% | 11 |
+| scene engine (`$C3`) | 3.9K | 2.2K | 44% | 11 |
 | scene data (`$C6`) | 3.5K | 0.0K | 100% | 0 |
-| sound driver (`$C7`) | 2.6K | 1.4K | 46% | 34 |
+| sound driver (`$C7`) | 2.6K | 2.6K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 95% | 1 |
-| **total** | **268.5K** | **41.2K** | **85%** | **291** |
+| **total** | **268.5K** | **44.6K** | **83%** | **326** |
 
-The three big banks are the work; the 291 entries are concentrated in small hot
-routines, which is why the shares are so high despite the count. `$CC` is the
+The three big banks are the work; the 326 entries are concentrated in small hot
+routines, which is why the shares are so high despite the count. The burndown
+now follows the jump tables the analysis has sized, which a port that
+dispatches through one inlines: that alone moved 1.1 KiB (`$C2`, `$CD`, `$C3`)
+and took the sound driver from 46% left to 4% before the pilot touched it, so
+its old figure was mostly the tool's. `$CC` is the
 one subsystem near done, and `$C6`'s 3.5 KiB has no entries at all -- MD4's
 script parsing found routines there that MD1 had typed as data, and nobody has
 been back.
@@ -167,6 +168,33 @@ already has a type from MD2 (MATCHING.md), name the accessor after it. The order
 what the existing ports already surround, so each conversion has neighbours to
 check it against. How to write the ports themselves is in CLAUDE.md, "Writing a
 port from generated code".
+
+**What the Phase 2 pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
+which converted the sound driver to this bar:
+
+- **The bar is reachable, and the logic ends up with no emulated registers**,
+  but only after the gate stopped comparing what the original itself
+  overwrites before reading: popped stack bytes, what a port declares dead where
+  it stops, A's high byte on its own (PORTING.md, Modes). Every subsystem has
+  `PHP`/`PLP` subroutines, so that was decided once, for all of them.
+- **Cost.** 2.6 KiB of 65816 became 1550 lines of C in about a working day
+  including validation, of which the one-time decision above was the largest
+  part. Code like it, with its services already in place, should go at 2-3 KiB
+  a day; code that needs new service calls, or RAM nobody has named, slower.
+  Machine time is what paces it: a library shadow run is 6 minutes, fuzzing a
+  subsystem minutes, the full gate with every route most of an hour.
+- **The draft is a reference more than a starting text**: its header, names
+  and control flow carried over, its text almost none of it (0-7% of the
+  port's lines). Before the bulk, in this order: liveness that doesn't count a
+  flag `PHP` saves as read (most of a draft's flag locals and its per-signature
+  call-out stubs go with it); liveness at a draft's hand-backs, which is the
+  port's `m_stop_dont_care`; D kept across call-outs that leave it alone
+  (RECOMP.md, "What drafts don't do yet").
+- **Fuzzing earns its place**: it found three bugs no movie reaches, where the
+  port had tidied an index or a width the original doesn't.
+- **Existing ports in the early style** can be brought over the same way; the
+  sound driver's 1066 emulated-register operations went to 86, all in its
+  entries and stubs.
 
 This is the long haul. It is worth re-reading the burndown after the first two
 subsystems and deciding whether the workflow needs another pass before
