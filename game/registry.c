@@ -931,7 +931,7 @@ const NativeEntry game_natives[] = {
 
     /* object routines in bank C6 (menu object scripts' command $4E, and the Epoch's map) */
     { .addr = 0xC6E237, .name = "scene_object_read_mode", .fn = scene_object_read_mode, NEEDS_M8_X16,
-      .cost_milli = 4000 },
+      .cost_milli = 3100 },
     { .addr = 0xC6E2AF, .name = "scene_object_clear_7f0062", .fn = scene_object_clear_7f0062, NEEDS_M8_X16,
       .cost_milli = 4000 },
     { .addr = 0xC6E63D, .name = "scene_object_set_7f01ed", .fn = scene_object_set_7f01ed, NEEDS_M8_X16,
@@ -948,9 +948,9 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC6E2B5, .name = "scene_object_drift", .fn = scene_object_drift, NEEDS_M8_X16_BINARY,
       .cost_milli = 4000 },
     { .addr = 0xC6E74E, .name = "scene_epoch_outside_sides", .fn = scene_epoch_outside_sides, NEEDS_M8_X16,
-      .cost_milli = 4000, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C },
+      .cost_milli = 3167, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC6E797, .name = "scene_epoch_in_area", .fn = scene_epoch_in_area, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 4000, .dont_care = DC_A | DC_X | DC_N | DC_Z, .guard = scene_epoch_on_world_map },
+      .p_value = 0, .cost_milli = 4321, .dont_care = DC_A | DC_X | DC_N | DC_Z, .guard = scene_epoch_on_world_map },
     { .addr = 0xC6E000, .name = "scene_object_window1_lines", .fn = scene_object_window1_lines, NEEDS_M8_X16,
       .cost_milli = 4000, .guard = scene_object_bank_reaches_io },
     { .addr = 0xC6E318, .name = "scene_object_window1_lines_2", .fn = scene_object_window1_lines, NEEDS_M8_X16,
