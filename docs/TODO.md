@@ -38,14 +38,12 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **M4**: skip flags nobody reads, call generated blocks directly where it's
   safe. Speed only; rendering and sound dominate now.
-- **The draft tool's gaps** (RECOMP.md, "What drafts don't do yet"): no
-  liveness where a draft hands back at another entry (the $C7 pilot's costliest
-  left; PLAN.md, Phase 3); the ground-truth tool not resolving a port's
-  file-local names; D and DB for code only interrupts reach, and the field's main loop after a
-  battle, which the frame analysis gets wrong (a guard catches it: 432877
-  calls of `field_scroll_layers`); operand names for the battle script
-  handlers; turning I/O register writes and the multiplier into platform calls
-  and C arithmetic.
+- **The draft tool's gaps** (RECOMP.md, "What drafts don't do yet"): D and DB
+  for code only interrupts reach, and the field's main loop after a battle,
+  which the frame analysis gets wrong (a guard catches it: 432877 calls of
+  `field_scroll_layers`); operand names for the battle script handlers;
+  turning I/O register writes and the multiplier into platform calls and C
+  arithmetic; stub signatures that still vary by what a call reads back.
 - **Liveness where a callee leaves through its caller's frame** (RECOMP.md,
   "Before the bulk"): the sound driver's `$C7:0A39` returns past `$C7:0004` on
   its refused path, so the driver's saves of the caller's registers count as

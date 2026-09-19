@@ -82,6 +82,7 @@ class Routine:
     callee_live_in: object      # target -> keys (ALL_KEYS if unknown)
     callee_may_def: object      # target -> keys
     noreturn: set = field(default_factory=set)
+    stop_live: object = None    # 24-bit pc -> keys read from there on (a hand-back's), or None: unknown
     temps: dict = field(default_factory=dict)     # name -> width
     dp_name: object = None                        # offset -> name in a page with no fixed D
     decimal_sensitive: bool = False
@@ -231,14 +232,19 @@ def lift_node(L: Lifter, node) -> Lifted:
 
     def stop(pc_target: int, note: str = "", widths=True) -> Exit:
         return Exit("stop", Const(pc_target & 0xFFFF, 16), pc_target >> 16 if pc_target >> 16 != bank >> 16 else None,
-                    m8 if widths else None, x8 if widths else None, note=note)
+                    m8 if widths else None, x8 if widths else None, note=note, live=stop_live(pc_target))
+
+    def stop_live(pc_target: int) -> frozenset:
+        live = r.stop_live(pc_target) if r.stop_live else None
+        return ALL_KEYS if live is None else live
 
     def goto(pc_target: int) -> list:
         t = to(pc_target)
         return [Goto(t)] if t is not None else [stop(pc_target)]
 
     def hand_back(why: str) -> Lifted:
-        return Lifted(node, insn, [Exit("stop", Const(pc & 0xFFFF, 16), None, m8, x8, note=why)], None)
+        return Lifted(node, insn, [Exit("stop", Const(pc & 0xFFFF, 16), None, m8, x8, note=why, live=stop_live(pc))],
+                      None)
 
     # widths this instruction needs
     needs_m = n in ("LDA", "STA", "STZ", "ORA", "AND", "EOR", "ADC", "SBC", "CMP", "BIT", "PHA", "PLA", "TXA",
@@ -457,7 +463,7 @@ def lift_node(L: Lifter, node) -> Lifted:
         out.append(Push(8, Mach("s->cpu.p", 8)))
     elif n == "PHP":
         mx = (0x20 if m8 else 0) | (0x10 if x8 else 0)
-        out.append(Push(8, Fn("draft_p", (Const(mx, 8), Var("n", 1), Var("v", 1), Var("z", 1), Var("c", 1)), 8,
+        out.append(Push(8, Fn("draft_p",(Const(mx, 8), Var("n", 1), Var("v", 1), Var("z", 1), Var("c", 1)), 8,
                               pure=False)))
     elif n == "PEA":
         out.append(Push(16, Const(o, 16)))
@@ -569,7 +575,7 @@ def lift_node(L: Lifter, node) -> Lifted:
         return Lifted(node, insn, out, resume)
     elif n in ("RTS", "RTL", "RTI"):
         live = r.ret_live if n != "RTI" else frozenset({"al", "ah", "x", "y"})
-        out.append(Exit(n.lower(), m8=m8, x8=x8, live=live))
+        out.append(Exit(n.lower(), m8=m8, x8=x8, live=live, at=pc))
         return Lifted(node, insn, out, None)
     else:
         return hand_back(f"{insn.text()} isn't drafted")

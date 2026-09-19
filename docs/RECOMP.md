@@ -1745,7 +1745,9 @@ the instructions again, into values.
    instruction.
 4. **Cleanup** (`tools/recomp/draft.py`): basic blocks in address order;
    liveness per flag and per byte of A, from what the routine's callers read
-   after it (`ret_live`) and what each callee reads (`live_in`); dead
+   after it (`ret_live`, over every routine the address is part of), what is
+   read where it hands back (`live_at`), and what each callee reads before it
+   returns (`callee_reads`; see "Before the bulk" below); dead
    assignments dropped (a read of an I/O register is kept for its side
    effect); constants propagated within a block; and a value computed once and
    read once in the same block written where it is read, when nothing between
@@ -2072,7 +2074,7 @@ generated blocks don't use liveness (M4's dead flags aren't built), so `python3
 -m tools.recomp` writes byte-identical C before and after (all 65 files), and
 the gate passed unchanged (`suite OK` with `--long-routes`; trace identity,
 `sst_recomp_runner` and `recomp_bus_diff` 0 failures). What changes is the
-drafts, checked by `draftcheck`. The draft of a routine that starts
+drafts, checked by `draftcheck` (below). The draft of a routine that starts
 with `PHP` now pushes the machine's P as it is (a `PHP` reached only along a
 straight line from the entry through instructions that leave P alone, where the
 machine's P is still the original's), so the flags don't enter the draft at
@@ -2163,6 +2165,65 @@ Pushes of every register pair the same way now (1980 in contexts): 1784
 paired (1140 addresses), 3 where S changes, 60 read otherwise, 120 where a
 callee reaches the byte, 13 where control leaves. The solve takes 15 s.
 
+**The draft tool's fixes**, in the pilot's order, each on the machinery above:
+
+- **Liveness at hand-backs.** A draft stops with `m_stop_at(s, at, set)`,
+  `set` being what liveness has dead at `at`, and writes back only what is live
+  there (and A's low byte wherever its high byte is, since no set leaves out
+  the low byte alone). Its registry line declares what is dead everywhere it
+  finishes, after the return and at every stop, and a return declares the
+  rest at the return instruction, so a draft suggests declarations the check
+  accepts: `tools/dontcare_check.py --tree` on the `draftcheck` tree finds
+  nothing over 335 entries, 113 stops and 516 call-outs.
+- **Call-out stubs set what the callee reads** (`callee_reads`) and name the
+  rest don't-care, rather than everything any caller reads after the callee;
+  and a `PLP` that pulls the byte the routine's first `PHP` pushed restores the
+  caller's P, so it no longer makes the call "change" every register. Fewer
+  inputs and read-backs mean fewer stub signatures (`$C7:0004`: 16 to 11).
+- **D kept across call-outs that leave it alone.** A callee's summary of D and
+  DB now takes only the returns that come back to its caller (at the depth it
+  was entered with): `$C7:0A39`'s refused path, which pulls its caller's frame
+  and returns further up, no longer makes D unknown after the call, and the
+  rest of `$C7:0004`'s draft names its direct page (135 `m_dp` accesses to
+  none).
+- **The ground truth reads a port the way the check does.** Its file-local
+  names (`COUNTER` for `RAM_ABS(RAM_SOUND_DRIVER_UPLOAD_COUNTER)`) resolve
+  through the file's macros, a helper's parameters count as addresses only
+  where the helper reads or writes through them, and call-outs are followed
+  through the file's stubs to their targets.
+
+Drafts before and after (`python3 -m tools.recomp.show`, the library's coverage
+and call logs):
+
+| Routine | Flag assignments | Flag parameters | Call-out stubs | `m_dp` accesses | Logic lines | Stops declared |
+|---|--:|--:|--:|--:|--:|--:|
+| `$C7:0004` (m8 x16) | 140 → 11 | 4 → 1 | 16 → 11 | 135 → 0 | 893 → 690 | 0 → 7 |
+| `$C7:0655` | 15 → 2 | 4 → 0 | 3 → 3 | 43 → 0 | 128 → 90 | - |
+| `$C7:0A39` | 5 → 0 | 4 → 0 | 1 → 1 | - | 26 → 19 | 0 → 1 |
+| `$C2:015E` | 2 → 0 | 2 → 2 | 6 → 6 | - | 115 → 109 | - |
+| `$C1:423A` | 7 → 6 | 1 → 1 | 2 → 2 | - | 112 → 109 | - |
+| `$C0:62DE`, `$C0:5FB6` | unchanged | | | | 33, 79 | |
+
+The ground truth on the `$C7` port, which it undercounted:
+
+| Port | Accesses in both / port (before) | Named in the port (before) | Call-outs in both / port (before) |
+|---|--:|--:|--:|
+| `$C7:0004` | 23 / 23 (0 / 43) | 97 of 97 (0 of 62) | 5 / 5 (0 / 0) |
+| `$C7:0655` | 8 / 8 (0 / 5) | 13 of 13 (0 of 5) | 2 / 2 (0 / 0) |
+| `$C7:0922` | 5 / 7 (0 / 4) | 11 of 11 (0 of 4) | 2 / 2 (0 / 0) |
+| `$C7:0A39` | 2 / 6 (0 / 1) | 13 of 13 (0 of 4) | 0 / 0 (0 / 0) |
+
+The draft reaches every address the port's `$C7:0004` does and calls what it
+calls; where the counts still differ, the port inlines a stage the draft calls
+out (`$C7:09FD`, `$C7:0734`) or reads a table through the driver's own
+accessors. Its other ports read as before (`$C1:423A`, `$C0:62DE`,
+`$C2:015E`, `$C0:5FB6` unchanged).
+
+`draftcheck` over the library, with every fix: 188 drafts registered in place
+of the ports (134 left as they are), 182 called, 53.1 million calls,
+none mismatching, 84824 interrupted. It exports the committed tree by default;
+`--rev` takes another (`git stash create` gives one of uncommitted work).
+
 ### What drafts don't do yet
 
 These are the tool's next improvements, or its known limits:
@@ -2188,25 +2249,18 @@ These are the tool's next improvements, or its known limits:
 - **Structure** stays a goto where regions interleave (28% of drafts have one),
   and a `switch` over a jump table goes to its cases by label.
 
-From the $C7 pilot (above), in the order they would have saved the most:
-
-- **No liveness at a hand-back.** A draft that stops at another entry (a wait
-  loop) doesn't say what that entry and the code after it read, which is what
-  a port declares with `m_stop_dont_care`; the porter works it out per exit.
-- **D lost after a call-out** that leaves it alone (`$C7:0004` after
-  `$C7:0734`), so the rest of the draft reaches the direct page by offset.
-- **Inlined subroutines and shared shape.** The draft of `$C7:0004` is 895
-  lines with 49 gotos because it inlines every stage of `play_song`; the six
-  copies of the header-retry and upload loops that the port shares as helpers
-  appear once per site.
+- **Inlined subroutines and shared shape** (from the $C7 pilot). The draft of
+  `$C7:0004` is 690 lines with 49 gotos because it inlines every stage of
+  `play_song`; the six copies of the header-retry and upload loops that the
+  port shares as helpers appear once per site.
+- **Stub signatures still vary by what is read back** after a call (the
+  flags a callee may set), so a callee called from several places can still
+  get a few stubs (`$C7:09DA`: five in `$C7:0004`'s draft).
 - **Liveness stays conservative where a callee leaves through its caller's
   frame** (the sound driver's `$C7:0A39` returns past `$C7:0004` on its refused
   path, so the driver's register saves count as reads of everything, for every
   routine that sends it a command) and across the menus' task switch at
   `$C2:821E`, which copies S. Both are "a callee reaches it" above.
-- **The ground-truth tool** doesn't resolve a port's file-local names for
-  `RAM_` constants or its call-out stubs, so on a port in the new style it
-  undercounts accesses and call-outs.
 
 ## Risks
 

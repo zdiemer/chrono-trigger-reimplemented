@@ -536,6 +536,7 @@ class Exit(Stmt):
     x8: bool | None = None
     note: str = ""
     live: frozenset = ALL_KEYS   # what the continuation may read
+    at: int | None = None        # rts, rtl, rti: the return instruction
     control = True
 
     def exprs(self):

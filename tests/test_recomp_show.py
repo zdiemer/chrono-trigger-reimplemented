@@ -96,12 +96,22 @@ PROGRAMS = {
     # C0:8810  REP #$20 : LDA $10 : SEP #$20 : RTS
     0xC08800: bytes.fromhex("2010888530 60".replace(" ", "")),
     0xC08810: bytes.fromhex("C220A510E220 60".replace(" ", "")),
+    # C0:8900  BCC $8909 : PLA : PLA : PEA #$0000 : PLD : RTS : RTS
+    #          (one path drops its return address, sets D and returns past its caller)
+    # C0:8A00  PEA #$0100 : PLD : JSR $8900 : LDA $10 : RTS
+    0xC08900: bytes.fromhex("9007 6868 F40000 2B 60 60".replace(" ", "")),
+    0xC08A00: bytes.fromhex("F40001 2B 200089 A510 60".replace(" ", "")),
+    # C0:8B00  JSR $8B10 : XBA : STA $30 : RTS         (the caller reads A's high byte alone)
+    # C0:8B10  LDA #$01 : RTS
+    0xC08B00: bytes.fromhex("20108B EB 8530 60".replace(" ", "")),
+    0xC08B10: bytes.fromhex("A901 60".replace(" ", "")),
     # C0:8C00  PHP : JSR $8310 : PLP : RTS             (saves the caller's P around a call)
     0xC08C00: bytes.fromhex("08 201083 28 60".replace(" ", "")),
 }
 ENTRIES = [(0xC08000, True, True), (0xC08200, True, True), (0xC08210, True, True),
            (0xC08300, True, True), (0xC08500, True, True), (0xC062B5, True, False), (0xC08600, True, True),
-           (0xC08700, True, False), (0xC08800, True, True), (0xC08C00, True, True)]
+           (0xC08700, True, False), (0xC08800, True, True), (0xC08A00, True, True),
+           (0xC08B00, True, True), (0xC08C00, True, True)]
 
 
 def knowledge():
@@ -161,6 +171,14 @@ class Frames_(unittest.TestCase):
         at_call = [v for n, v in fr.items() if n[0] == 0xC08008][0]
         self.assertEqual(single(at_call.d), 0x0100)
 
+    def test_d_kept_by_a_callee_that_only_changes_it_past_its_caller(self):
+        # C0:8900 sets D only on the path that returns further up, so the
+        # caller has the D it had after the call
+        k = K or knowledge()
+        fr = Frames(k.an).frames((0xC08A00, (True, True)))
+        after = [v for n, v in fr.items() if n[0] == 0xC08A07][0]
+        self.assertEqual(single(after.d), 0x0100)
+
 
 class Drafts(unittest.TestCase):
     def test_no_emulated_cpu_in_the_logic(self):
@@ -185,6 +203,12 @@ class Drafts(unittest.TestCase):
         self.assertIn("static void sub_C08010_logic(Snes *s)", text)
         d, _ = draft(0xC08010)
         self.assertTrue(d.registration()["dont_care"].startswith("DC_A | DC_X"))
+
+    def test_a_low_byte_goes_back_with_the_high_one(self):
+        # only A's high byte is read after C0:8B10 returns, but a don't-care set
+        # can't leave out the low byte alone: the draft gives it back
+        _, text = draft(0xC08B10)
+        self.assertIn("m_set_a8(s, out);", text)
 
     def test_a_high_byte_nobody_reads(self):
         # the caller stores A's low byte: the 16-bit load's high byte is
@@ -220,8 +244,8 @@ class Drafts(unittest.TestCase):
         _, text = draft(0xC08300)
         # nothing calls C0:8300 here, so its callers may read every register and
         # flag: the call-out gives back A and the flags ASL sets
-        # (the callee works on an 8-bit A, so A's high byte is left out as well)
-        self.assertIn("m_jsr_dc(s, site, 0xC08310, DC_AH | DC_X | DC_Y | DC_V);", text)
+        # (the draft never touches A's high byte, so it is the original's, and compared)
+        self.assertIn("m_jsr_dc(s, site, 0xC08310, DC_X | DC_Y | DC_V);", text)
         self.assertIn("call_sub_C08310(s, 0xC08302, &a, &negative, &zero, &carry);", text)
         # the stub moves the registers in and out; the logic never touches the machine's
         stub = text[text.index("static void call_sub_C08310"):]
@@ -243,7 +267,8 @@ class Drafts(unittest.TestCase):
     def test_wait_loops_hand_back(self):
         d, text = draft(0xC08210)
         self.assertIn("waits on $4212", text)
-        self.assertIn("s->cpu.pc = 0x8214;", text)
+        # it stops at the loop, declaring what is dead there (only DB is read)
+        self.assertIn("m_stop_at(s, 0xC08214, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D);", text)
         d, text = draft(0xC08200)
         self.assertIn("idle entry", text)
 

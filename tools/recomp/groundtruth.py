@@ -30,6 +30,7 @@ import re
 import sys
 from pathlib import Path
 
+from tools import dontcare_check as dc
 from tools.disasm.memmap import Rom, fmt, parse
 from tools.ram_map import name_values
 
@@ -85,7 +86,8 @@ def constants(text: str) -> dict:
 
 def find_port(addr: int, game: Path = GAME):
     """(path, function name, [texts of the function and its static helpers],
-    constants in scope) for the port whose `// $BB:AAAA` comment names addr."""
+    constants in scope, [those functions' names]) for the port whose
+    `// $BB:AAAA` comment names addr."""
     tag = f"// ${addr >> 16:02X}:{addr & 0xFFFF:04X}"
     for path in sorted(game.rglob("*.c")):
         raw = path.read_text(encoding="utf-8")
@@ -116,8 +118,55 @@ def find_port(addr: int, game: Path = GAME):
             for callee in re.findall(r"\b(\w+)\s*\(", body):
                 if callee in statics and callee not in seen:
                     work.append(callee)
-        return path, name, [funcs[n][2] for n in seen], consts
+        return path, name, [funcs[n][2] for n in seen], consts, seen
     return None
+
+
+class Resolver:
+    """The port's file-local names, through tools/dontcare_check.py's reading
+    of C: its macros (COUNTER for RAM_ABS(RAM_SOUND_DRIVER_UPLOAD_COUNTER)),
+    enums and constants, and game/ram.h's, and the targets of call-outs made
+    through the file's helpers."""
+
+    def __init__(self, path: Path, root: Path = REPO_ROOT):
+        sources, globals_ = dc.load_sources(root)
+        rel = path.relative_to(root).as_posix()
+        self.src = next((s for s in sources if s.path == rel), None) or dc.Source(rel, path.read_text(encoding="utf-8"))
+        self.ev = dc.Evaluator(sources, globals_)
+
+    def value(self, expr: str):
+        """(value, spelled with a RAM_ name) of a constant expression, or (None, False)."""
+        try:
+            node = dc.parse(expr)
+            vals = {v[0] for v, _ in self.ev.values([node], self.src, None)}
+        except (dc.Unreadable, ValueError, IndexError):
+            return None, False
+        if len(vals) != 1:
+            return None, False
+        return vals.pop(), self.ev.mentions(node, self.src)
+
+    def call_outs(self, funcs) -> set:
+        return dc.call_out_targets(self.src, set(funcs), self.ev)
+
+    def address_params(self, name: str, depth: int = 0):
+        """Which of a helper's parameters (by position, `s` being 0) end up in
+        the address of a read or a write, directly or through another helper
+        of the file; None if the file doesn't define it."""
+        f = self.src.funcs.get(name)
+        if f is None:
+            return None
+        out = set()
+        for fn, args in calls(self.src.text[f.start:f.end]):
+            if re.fullmatch(r"m_(?:read|write)(?:8|16)", fn) and len(args) >= 2:
+                spots = [args[1]]
+            elif fn in self.src.funcs and fn != name and depth < 6:
+                spots = [args[j] for j in sorted(self.address_params(fn, depth + 1) or ()) if j < len(args)]
+            else:
+                continue
+            for i, p in enumerate(f.params):
+                if any(re.search(r"\b%s\b" % re.escape(p), spot) for spot in spots):
+                    out.add(i)
+        return out
 
 
 def strip(text: str) -> str:
@@ -159,10 +208,15 @@ def calls(text: str):
         yield m.group(1), [a.strip() for a in args]
 
 
-def _address(expr: str, consts: dict, names: dict, d, db):
+def _address(expr: str, consts: dict, names: dict, d, db, resolver=None):
     """(24-bit address, spelled by a RAM_ name) of an address expression's first
-    term: a literal, a RAM_ name, a constant, m_dp / m_abs / RAM_ABS of one."""
+    term: a literal, a RAM_ name, a constant, m_dp / m_abs / RAM_ABS of one,
+    or with a resolver, any constant expression of the file's names."""
     base = re.split(r"\s*[+|]\s*", expr.strip().strip("()"), maxsplit=1)[0].strip()
+    if resolver is not None and not re.match(r"m_(?:dp|abs)\(", base):
+        v, named = resolver.value(base)
+        if v is not None:
+            return v, named
     named = "RAM_" in base
     m = re.fullmatch(r"m_dp\(\s*s\s*,\s*(\w+)\s*\)", base)
     if m:
@@ -175,7 +229,7 @@ def _address(expr: str, consts: dict, names: dict, d, db):
     return _value(base, consts, names), named
 
 
-def port_addresses(text: str, consts: dict, names: dict, d, db) -> tuple:
+def port_addresses(text: str, consts: dict, names: dict, d, db, resolver=None) -> tuple:
     """(work RAM addresses, how many were spelled by a RAM_ name, how many as a
     number) the port's reads and writes reach, as far as its text says: the
     first argument of m_read/m_write, and the address-like literals (4 or 6 hex
@@ -194,10 +248,12 @@ def port_addresses(text: str, consts: dict, names: dict, d, db) -> tuple:
         else:
             # the port's own helpers: dp8(s, 0x77), absx8(s, 0xA12F), ...
             kind = "dp" if "dp" in fn else ("abs" if "abs" in fn else None)
-            cands = [a for a in args[1:] if a.startswith("RAM_") or
-                     re.fullmatch(r"0x[0-9A-Fa-f]{%s}u?" % ("2,4" if kind else "4,6"), a)]
+            known = resolver.address_params(fn) if resolver is not None else None
+            cands = [a for i, a in enumerate(args) if i > 0 and (known is None or i in known) and
+                     (a.startswith("RAM_") or re.fullmatch(r"0x[0-9A-Fa-f]{%s}u?" % ("2,4" if kind else "4,6"), a) or
+                      (resolver is not None and re.fullmatch(r"[A-Z][A-Z0-9_]*", a) and resolver.value(a)[1]))]
         for arg in cands:
-            a, by_name = _address(arg, consts, names, d, db)
+            a, by_name = _address(arg, consts, names, d, db, resolver)
             if a is None:
                 continue
             long_literal = bool(re.fullmatch(r"0x[0-9A-Fa-f]{6}u?", arg.strip()))
@@ -250,7 +306,12 @@ def draft_addresses(d) -> tuple:
     return out, named, numbered
 
 
-def port_callouts(text: str, consts: dict) -> set:
+def port_callouts(text: str, consts: dict, resolver=None, funcs=()) -> set:
+    """The routines the port calls out to: with a resolver, through its
+    file's helpers (a stub that calls m_jsr with its parameter, a platform
+    call-out); otherwise the literal targets of m_jsr/m_jsl in its text."""
+    if resolver is not None:
+        return resolver.call_outs(funcs)
     out = set()
     for m in CALL.finditer(text):
         t = _value(m.group(2), consts, {})
@@ -306,13 +367,14 @@ def left_to_do(d, logic: str) -> dict:
 
 
 def measure(k, d, port) -> dict:
-    path, pname, texts, consts = port
+    path, pname, texts, consts, funcs = port
     ptext = strip("\n".join(texts))
     logic = "\n".join(d._logic(d.rend))
     names = name_values(k.ram) if k.ram else {}
-    pa, pnamed, pnum = port_addresses(ptext, consts, names, d.d, d.db)
+    resolver = Resolver(path)
+    pa, pnamed, pnum = port_addresses(ptext, consts, names, d.d, d.db, resolver)
     da, dnamed, dnum = draft_addresses(d)
-    pc, dc = port_callouts(ptext, consts), draft_callouts(d)
+    pc, dc = port_callouts(ptext, consts, resolver, funcs), draft_callouts(d)
     hit, lines = line_coverage(ptext, logic)
     sm = difflib.SequenceMatcher(None, tokens(ptext), tokens(logic), autojunk=False)
     return {

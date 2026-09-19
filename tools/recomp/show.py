@@ -98,6 +98,14 @@ def mask_keys(mask: int) -> frozenset:
     return frozenset(out)
 
 
+def exit_keys(mask: int) -> frozenset:
+    """What a draft leaves exact where it finishes: what is live there, with
+    A's low byte whenever its high byte is (a don't-care set can leave out all
+    of A or its high byte, not its low byte alone)."""
+    keys = mask_keys(mask)
+    return keys | {"al"} if "ah" in keys else keys
+
+
 def regs_of(keys) -> list:
     out = []
     for r in ORDER:
@@ -183,7 +191,21 @@ class Knowledge:
         return self.registry.get(addr) or self.an.hints.names.get(addr)
 
     def callee_live_in(self, target: int) -> frozenset:
-        return mask_keys(self.lv._callee_live_in(target))
+        """What a call to target has to set: what the callee reads before it
+        returns (a register it only carries back is left to the machine, and
+        a call-out names it don't-care)."""
+        return mask_keys(self.lv.callee_reads(target))
+
+    def stop_live(self, pc: int) -> frozenset | None:
+        """What is read from pc on (a hand-back), or None if pc isn't code the
+        analysis traced."""
+        live = self.lv.live_at(pc)
+        return None if live is None else exit_keys(live)
+
+    def stop_dead(self, pc: int) -> int:
+        """Liveness bits dead at pc (0 if pc isn't known code)."""
+        live = self.lv.live_at(pc)
+        return 0 if live is None else ALL & ~live
 
     def may_def(self, target: int, depth: int = 0) -> frozenset:
         """Keys a call to target may change (every register write it or its callees make)."""
@@ -204,6 +226,8 @@ class Knowledge:
                         out |= self.may_def(t, depth + 1)
                     elif n == "JML" and mode is Mode.LONG:
                         out |= self.may_def(insn.operand, depth + 1)
+                    elif n == "PLP" and self._restores_entry_p(k, pc):
+                        pass          # P back as the caller had it: nothing changes
                     elif mode in (Mode.ABSXIND, Mode.ABSIND, Mode.ABSLIND) or n in ("RTI", "XCE", "PLP"):
                         out |= ALL_KEYS
                     elif n == "SEP" and insn.operand & 0x10:
@@ -216,12 +240,51 @@ class Knowledge:
         self._may_def[target] = frozenset(out)
         return self._may_def[target]
 
+    def _restores_entry_p(self, key, plp_pc: int) -> bool:
+        """Whether the PLP at plp_pc always pulls the byte a PHP at the start
+        of the routine pushed (after pushes that leave P alone), so the flags
+        and widths it restores are the caller's: that PHP is paired with it
+        (tools/disasm/liveness.py), and no other push in the routine may be."""
+        an, lv = self.an, self.lv
+        pc = key[0]
+        for _ in range(8):
+            insns = list(an.code.get(pc, {}).values())
+            if not insns or len({i.next_pc for i in insns}) != 1:
+                return False
+            if insns[0].name == "PHP":
+                break
+            if insns[0].name == "JMP" and insns[0].mode is Mode.ABS:
+                pc = (pc & 0xFF0000) | insns[0].operand
+                continue
+            if insns[0].name not in ("PHA", "PHX", "PHY", "PHB", "PHD", "PHK", "PEA", "PEI", "PER"):
+                return False
+            pc = insns[0].next_pc
+        else:
+            return False
+        mine = lv.push_pairs.get((key, pc))
+        if mine is None or not any(r == plp_pc + 1 and n == "PLP" for r, n, _ in mine):
+            return False
+        for (k, push), case in lv.push_cases.items():
+            if k != key or push == pc:
+                continue
+            pulls = lv.push_pairs.get((k, push))
+            if pulls is None or any(r == plp_pc + 1 for r, _, _ in pulls):
+                return False
+        return True
+
     def ret_live(self, entry: int) -> frozenset:
+        return exit_keys(self.ret_live_mask(entry))
+
+    def ret_live_mask(self, entry: int) -> int:
+        """Liveness bits a caller may read after entry returns (all of them for
+        a routine whose callers the analysis doesn't know)."""
         c = [c for k, c in self.an.contexts.items() if k[0] == entry]
         if entry in self.lv.all_live_returns or not any(x.callers for x in c) and \
                 not self.dynamic.get(entry):
-            return ALL_KEYS
-        return mask_keys(self.lv.ret_live[entry])
+            return ALL
+        # every routine it is part of: code that falls into it returns for its own callers
+        live = self.lv.live_after_return(entry)
+        return self.lv.ret_live[entry] if live is None else live
 
     def table(self, pc: int) -> list:
         jt = self.an.tables.get(pc)
@@ -394,7 +457,7 @@ class Draft:
     def build(self):
         k = self.k
         self.routine = Routine(self.addr, self.m8, self.x8, self.d_set, self.db_set, k.ret_live(self.addr),
-                               k.callee_live_in, k.may_def, set(k.an.hints.noreturn))
+                               k.callee_live_in, k.may_def, set(k.an.hints.noreturn), stop_live=k.stop_live)
         if self.page is not None and self.d is None and k.ram is not None:
             namer = names_mod.RamNamer(k.ram, self.subsystem)
             self.routine.dp_name = lambda o: namer.dp_name(self.page, o)
@@ -415,8 +478,10 @@ class Draft:
                 if h == self.graph.entry:
                     continue
                 l = lifted[h]
+                live = k.stop_live(h[0])
                 l.stmts = [Exit("stop", Const(h[0] & 0xFFFF, 16), None, h[1], h[2],
-                                note=f"the loop at {fmt(h[0])} waits on {', '.join(what)}")]
+                                note=f"the loop at {fmt(h[0])} waits on {', '.join(what)}",
+                                live=ALL_KEYS if live is None else live)]
                 l.fall = None
         # A routine that never reads or writes A's high byte itself works on an
         # 8-bit A: the machine's high byte is then exactly the original's
@@ -427,8 +492,12 @@ class Draft:
                 if isinstance(s, CallOut):
                     s.outputs = frozenset(s.may_def) & ALL_KEYS
                     if self.a8:
+                        # the machine's high byte is the original's: the stub
+                        # leaves it, and sets the low byte if the callee reads
+                        # either (a don't-care set can't leave out the low alone)
                         s.a8 = True
-                        s.inputs = frozenset(s.inputs) - {"ah"}
+                        reads_a = bool(s.inputs & {"al", "ah"})
+                        s.inputs = frozenset(s.inputs) - {"ah"} | ({"al"} if reads_a else set())
                         s.outputs = s.outputs - {"ah"}
                 elif isinstance(s, Exit) and self.a8:
                     s.live = frozenset(s.live) - {"ah"}
@@ -461,6 +530,10 @@ class Draft:
         for s in self.exits:
             self.exit_live.setdefault(s.signature(), set()).update(regs_of(s.live))
         self.has_jump = any(s.kind == "jump" for s in self.exits)
+        self._return_at = {}
+        for s in self.exits:
+            if s.kind in ("rts", "rtl", "rti") and s.at is not None:
+                self._return_at.setdefault(s.signature(), s.at)
         self.items = self._flatten()
         self.tree = structure(self.items)
         self.stubs = self._stubs()
@@ -740,7 +813,10 @@ class Draft:
             out.append(f"    draft_widths(s, {str(s.m8).lower()}, {str(s.x8).lower()});")
             kind = "m_jsl" if s.long else "m_jsr"
             target = "target" if s.target_expr is not None else f"0x{s.target:06X}"
-            dc = dc_bits(s.inputs | s.outputs)
+            # an 8-bit-A draft never touches A's high byte, so the machine's is the
+            # original's wherever the stub sets the low byte
+            keys = s.inputs | s.outputs
+            dc = dc_bits(keys | ({"ah"} if s.a8 and "al" in keys else set()))
             if dc:
                 out.append(f"    {kind}_dc(s, site, {target}, {dc});")
             else:
@@ -786,6 +862,10 @@ class Draft:
                         code.append(f"m_set_flag(s, {FLAG_BITS[r]}, {v});")
                 else:
                     code.append(f"m_set_a8(s, {v});" if r == "a" and self.a8 else f"s->cpu.{r} = {v};")
+            extra = self._return_extra(sig)
+            if extra:
+                code.append(f"m_stop_dont_care(s, 0x{self._return_at[sig]:06X}, {dc_text(extra)});  "
+                            "/* dead after the return, not where it stops */")
             if kind == "rts":
                 code.append("m_rts(s);")
             elif kind == "rtl":
@@ -793,9 +873,9 @@ class Draft:
             elif kind == "rti":
                 code.append("m_rti(s);")
             elif kind == "stop":
-                if pb is not None:
-                    code.append(f"s->cpu.pb = 0x{pb:02X};")
-                code.append(f"s->cpu.pc = 0x{pc:04X};  /* the interpreter carries on there */")
+                at = (pb if pb is not None else self.addr >> 16) << 16 | pc
+                dead = dc_text(dc_mask(self.k.stop_dead(at)))
+                code.append(f"m_stop_at(s, 0x{at:06X}, {dead});  /* the interpreter carries on there */")
             elif kind == "jump":
                 v = "out" if len(fields) == 1 else "out.pc"
                 code += [f"s->cpu.pb = (uint8_t)({v} >> 16);", f"s->cpu.pc = (uint16_t){v};"]
@@ -875,11 +955,34 @@ class Draft:
                                                  "assumed)" if reg["guard"] else "") + ".")
         return _comment(lines)
 
+    def _dead_everywhere(self) -> int:
+        """Liveness bits dead wherever the draft finishes: after it returns and
+        at each hand-back. What the entry declares applies at all of them (a
+        return declares the rest itself); with a computed jump there is no
+        telling where, so nothing."""
+        if any(s.kind == "jump" for s in self.exits):
+            return 0
+        dead = ALL & ~self.k.ret_live_mask(self.addr)
+        for s in self.exits:
+            if s.kind == "stop":
+                dead &= self.k.stop_dead(self._stop_at(s))
+        return dead
+
+    def _stop_at(self, s) -> int:
+        pc = s.pc.v if isinstance(s.pc, Const) else 0
+        return (s.pb if s.pb is not None else self.addr >> 16) << 16 | pc
+
+    def _return_extra(self, sig) -> int:
+        """DC_* bits dead after a return but not declared by the entry."""
+        if sig[0] not in ("rts", "rtl", "rti") or sig not in self._return_at:
+            return 0
+        after = dc_mask(ALL & ~self.k.ret_live_mask(self.addr))
+        return after & ~self.registration()["dc"]
+
     def registration(self) -> dict:
         """How the draft registers: its precondition, don't-care set and the
         guard on the D and DB it assumed from its callers."""
-        ret = self.k.ret_live(self.addr)
-        dc = dc_mask(ALL & ~_keys_mask(ret))
+        dc = dc_mask(self._dead_everywhere())
         needs = f"NEEDS_M{8 if self.m8 else 16}_X{8 if self.x8 else 16}" +             ("_BINARY" if self.routine.decimal_sensitive else "")
         p_mask = 0x30 | (0x08 if self.routine.decimal_sensitive else 0)
         p_value = (0x20 if self.m8 else 0) | (0x10 if self.x8 else 0)
