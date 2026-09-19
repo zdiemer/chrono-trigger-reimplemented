@@ -48,13 +48,13 @@ docstring says which way it is wrong). **73% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 10.8K | 0.7K | 83% | 42 |
+| battle (`$C1`, `$CE`) | 64.9K | 11.2K | 1.1K | 83% | 42 |
 | field engine, events (`$C0`) | 59.4K | 18.7K | 0.4K | 68% | 249 |
 | menus, text (`$C2`) | 59.3K | 5.6K | 0.4K | 90% | 52 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 2.7K | 0.5K | 83% | 27 |
-| field graphics (`$FD`) | 15.3K | 8.1K | 0.0K | 47% | 50 |
-| battle sprites (`$CF`) | 6.8K | 6.4K | 0.0K | 7% | 42 |
+| field graphics (`$FD`) | 15.3K | 8.1K | 0.0K | 47% | 52 |
+| battle sprites (`$CF`) | 6.8K | 6.4K | 0.0K | 7% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.5K | 0.1K | 9% | 8 |
 | scene engine (`$C3`) | 3.9K | 3.5K | 0.5K | 10% | 28 |
@@ -86,7 +86,8 @@ it gets a real name in `tools/disasm/eventscript.py` or `battlescript.py`, since
 that's when someone has read what it does.
 
 Naming is part of that bar. The RAM map (`re/ram.toml`, docs/DISASSEMBLY.md)
-names 91% of the work RAM addresses `game/` spells as literals, so a subsystem's
+names 89% of the work RAM addresses `game/` spells as literals (381 of 429),
+so a subsystem's
 ports switch to `game/ram.h`'s names the way `game/battle/setup.c` did
 (DISASSEMBLY.md, "The RAM map"), and each routine converted adds what it learns
 about the rest. `python3 tools/ram_map.py coverage --open --subsystem S` lists
@@ -248,7 +249,7 @@ the decompilation, so they wait behind it.
 
 ## Phase 5: the long tail
 
-- **MD2's remainder**: 43481 census-unknown bytes, 322.5 KiB still `mixed`, and
+- **MD2's remainder**: 42590 census-unknown bytes, 228.3 KiB still `mixed`, and
   `lz` re-encoding; then **MD3** and the **MD4 residue**. MD3 is also the
   prerequisite for a SNES ROM compiled from the ports (TODO.md), so it comes
   forward if that target does. The unknown bytes are
