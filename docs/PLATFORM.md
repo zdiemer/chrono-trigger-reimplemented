@@ -801,7 +801,7 @@ comparison allows per-segment lag.
 | `runtime/apu/apu.c` | `Apu.lead`, `apu_run_ahead` |
 | `runtime/port/native.c` | `native_hand_entry`, for running registered code synchronously |
 | `game/core/sound_driver.c` | the rest of the driver's CPU half: the upload at `$C7:0000`, `$C7:09DA`, `$C7:09EA`, command `$70`'s and `$71`'s paths, retries, data crossing a bank, and every wait loop, all through the service |
-| `game/battle/sound.c`, `game/menu/sound.c`, `game/scene/sound.c`, `game/scene/program.c` | the other code that touches the ports or the command buffer around them |
+| `game/battle/sound.c`, `game/menu/sound.c`, `game/scene/sequence.c`, `game/scene/program.c` | the other code that touches the ports or the command buffer around them |
 | `dev/io_log.c` | idle entries through services; the port mirrors `$2144-$217F` as their own group |
 | `dev/ct_dev.c`, `frontend/ct_play.c` | `--audio snes|direct` |
 | `dev/ct_fuzz.c` | `--apu-loopback`; idle entries can be fuzzed |
