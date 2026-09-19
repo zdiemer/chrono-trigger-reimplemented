@@ -14,6 +14,8 @@ void field_nmi(Snes *s);
 
 /* field/frame.c */
 void field_wait_for_frame_loop(Snes *s);
+void field_change_location_wait_for_vblank_loop(Snes *s);
+void field_restart_wait_for_vblank_loop(Snes *s);
 
 /* field/motion.c */
 void field_direction_to_target(Snes *s);

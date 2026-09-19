@@ -85,7 +85,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   the SPC700 read the ports inside it, and uploaded songs came out scrambled:
   no music in `on` mode, while `shadow` (which doesn't model timing) matched.
   A port calls `native_sync(s)` before such I/O. In `on` mode the routine
-  suspends there until the time it has taken so far has passed, then continues.
+  suspends there until the time it has taken so far has passed, then continues;
+  an interrupt that comes due meanwhile is taken, and returns to the suspended
+  port.
   `shadow` mode ignores it. Compare `on` against `off` audio with `ct_dev --wav`
   when a port talks to the APU. `ct_dev --exclude PREFIX` leaves out the
   routines whose names start with PREFIX, for narrowing down which port causes
@@ -375,6 +377,7 @@ overwrite its own stack and variables (it needs generated streams), and
 | `field_nmi` | `$C0:EA63` (NMI vector) | 7703, all match; also every call in `field`, `menu` and `fair`; calls about 25 unported routines |
 | `decompress` | `$C3:0002` → `$C3:0557` | 54, all match; also registered at `$C3:0557` for direct calls |
 | `field_wait_for_frame_loop`, `menu_wait_for_frame_loop`, `menu_wait_ready_loop` | `$C0:EC71`, `$C2:0348`, `$C2:81CA` | idle entries: the wait-for-next-frame loops, about 64% of all instructions executed |
+| `field_change_location_wait_for_vblank_loop`, `field_restart_wait_for_vblank_loop` | `$C0:3B71`, `$C0:4181` | idle entries: waits for vblank before a location load, which in the original race the NMI handler for the vblank flag; they wait for vblank instead (RECOMP.md, "The timing gate") |
 | `attract_wait_loop`, `attract_vblank_end_loop`, `attract_vblank_start_loop` | `$7E:3023`, `$7E:31B0`, `$7E:31B7` | idle entries in RAM code, guarded by hash. The "hottest routine" by call count, `$7E:3176`, is an empty routine this loop calls |
 
 The validator catches injected bugs: a wrong flag and a missing stack write

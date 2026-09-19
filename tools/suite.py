@@ -163,9 +163,12 @@ def check_vblank(args, ctx):
     return rc == 0, "vblank", summary, [] if rc == 0 else lines[-40:]
 
 
-# The route the gate runs by default, and all of them for --long-routes: the
-# ending route is most of an hour of CPU, so it runs on request.
-FAST_ROUTES = ["telepod_lavos:shell"]
+# The routes the gate runs by default, and all of them for --long-routes: the
+# ending routes are most of an hour of CPU, so they run on request. The fast
+# set is a field route and the ending's approach to the second form, which is
+# where a race in the original's wait for vblank hung the shipping mode once
+# its timing moved (RECOMP.md, "The timing gate").
+FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 
 
 def check_routes(args, ctx):

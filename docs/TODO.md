@@ -14,8 +14,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (RECOMP.md, "The timing gate"). Left open there: six entries whose time
   follows their data are on `tools/timing_exceptions.txt` (the decompressor,
   menu text and glyphs, `field_rasterize_quad`, `menu_object_wave_hdma`);
-  a debt a port owes mid-routine (`native_sync`) is still paid whole with
-  interrupts held; and adding a movie or a port means recalibrating, since the
+  and adding a movie or a port means recalibrating, since the
   drift limit holds only for the measured value. `--recomp only` stays exact.
 - **Fuzzing coverage of existing ports.** Fuzzing is now part of every port's
   definition of done (PORTING.md); ports registered before that without a
@@ -41,13 +40,10 @@ rest waits, is [PLAN.md](PLAN.md).
   safe. Speed only; rendering and sound dominate now.
 - **M5**: a workflow that turns a generated block into a readable hand port,
   which is what PLATFORM's later milestones need.
-- **The vblank check into the timing gate.** `tools/vblank_check.py`
-  (RECOMP.md, "Where video writes land") runs on its own; `tools/suite.py`
-  should run it as a row of its `CHECKS`, failing on any finding not in
-  `tools/vblank_check_exceptions.txt`. It passes today, with the boot
-  program's three findings accepted (RECOMP.md, "The timing gate"). Two gaps in
-  it: a hand port's region ends at its last service call, so the reference's
-  work in code the original jumps to past it is `unmatched` (the menu loads);
+- **Gaps in the vblank check** (RECOMP.md, "Where video writes land"), which
+  the suite runs with four findings accepted (RECOMP.md, "The timing gate"): a
+  hand port's region ends at its last service call, so the reference's work in
+  code the original jumps to past it is `unmatched` (the menu loads);
   following the call stack in the reference would close that. And it names the
   routine whose writes land late, not the port whose time made them late.
 - **Player without the interpreter**: the strict build's CI check is new and
@@ -140,6 +136,9 @@ rest waits, is [PLAN.md](PLAN.md).
   the shape.
 - **Open questions** in PLATFORM.md: code that stops when the beam passes a
   scanline (the event scheduler `$C0:5A46`, the sprite frame queue `$C0:CA76`),
+  and code that races the NMI handler for the vblank flag (`$C0:3B71` and
+  `$C0:4181`, idle entries that wait for vblank instead; RECOMP.md, "The timing
+  gate": the shipping mode lost that race once and hung a route),
   battles playing out differently once timing changes, widescreen's exposed
   assumptions (the 0-255 object window at `$C0:A88D`, map data beyond VRAM,
   single-byte battle window positions), and GBA's constraints.
@@ -313,11 +312,6 @@ waits on M5 rather than on a backend.
     the subset that can reach the subsystem a change touched would make the
     iterating case automatic, with the full set still required to land.
 - CI: the macOS job costs 10x minutes on a private repo.
-- **Routes in the timing gate.** `tools/movies/route_check.py` runs routes in
-  the shipping mode and reports each outcome (MOVIES.md, "Routes as a test");
-  it isn't part of `tools/suite.py` yet. A route takes minutes, not seconds, so
-  it wants a short set (a field and a battle route) in the gate and the full
-  endings less often.
 - **`ct_drive` can't see the time ports owe.** Its replay bases (MOVIES.md,
   "Native code") require no routine suspended, but ON mode's `debt` in
   `native.c` isn't exposed, so a base with time owed makes the replay come out

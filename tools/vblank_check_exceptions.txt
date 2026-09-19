@@ -14,3 +14,9 @@
 scene_show_layers screens lines the title's layers appear from line 32 instead of 31, on the one frame they are turned on; the write is mid-picture in the original too
 scene_program_restart display lines the boot program's stop blanks from line 39 or 40 instead of 38, on the frame before it restarts; mid-picture in the original too
 scene_program_restart hdma-enable lines per-line effects end with the blank above, at line 39 or 40 instead of 38, once
+
+# The battle's line interrupt taken late while the battle's frame work runs with
+# interrupts masked (P.I set) past line 211: the reference does the same in the
+# same fight (endings-bucket-lavos: lines 212-223, and in vblank), and which line
+# it lands on depends on how long that frame's work ran.
+battle_irq hdma-enable lines taken late behind the battle's masked frame work, as the reference is on lines 212-223 in the same fight; once on line 224 in the shipping mode

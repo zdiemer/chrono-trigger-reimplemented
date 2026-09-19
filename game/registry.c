@@ -614,6 +614,10 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_N | DC_Z | DC_D },
     { .addr = 0xC0EA63, .name = "field_nmi", .fn = field_nmi, .cost_milli = 4023 },
     { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xC03B71, .name = "field_change_location_wait_for_vblank_loop",
+      .fn = field_change_location_wait_for_vblank_loop, NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
+    { .addr = 0xC04181, .name = "field_restart_wait_for_vblank_loop", .fn = field_restart_wait_for_vblank_loop,
+      NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
     /* field object motion; entered with 8-bit A and 16-bit X */
     { .addr = 0xC0ABA2, .name = "field_direction_to_target", .fn = field_direction_to_target,
       NEEDS_M8_X16_BINARY, .cost_milli = 4731, .dont_care = DC_X | DC_N | DC_Z },

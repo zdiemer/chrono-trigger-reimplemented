@@ -951,7 +951,7 @@ branched), mapped to its block through the build's generated C. The categories:
 
 **Pass/fail.** The check exits 0 only when every failing finding is listed in
 `tools/vblank_check_exceptions.txt` (`routine group category reason`), checked
-in with reasons. It lists three, the boot program's ("The timing gate", below).
+in with reasons. It lists four ("The timing gate", below).
 
     python3 tools/vblank_check.py --ct-dev build/main/ct_dev -j 2
     python3 tools/vblank_check.py --no-run --failing-only     # re-read the logs in build/vblank
@@ -1001,8 +1001,8 @@ findings are all forced-blank writes too, mostly menu loads (`menu_clear_vram`
 and others) whose original does the work in code past the port's last call
 site, where the region can't follow it.
 
-The timing gate's changes (next) cleared all of these but the boot program's
-three, which are accepted.
+The timing gate's changes (next) cleared all of these; four findings of the
+same kind as the reference's own are accepted.
 
 ### The timing gate
 
@@ -1140,11 +1140,13 @@ payment step also ends just after the next point an interrupt can be raised
 (`until_interrupt`, from the spike's `snes_interrupt_horizon`), so the poll sees
 it that step; an interrupt already raised and not yet seen (a V-timer IRQ at the
 start of the line the step starts on) ends the step after one cycle. Debts nest
-as handlers run ports of their own. Two cases keep the old behaviour: a debt a
-port owes mid-routine (`native_sync`, where the port is suspended between two
-APU accesses and there is no instruction boundary) is paid whole, and if the
-machine leaves the boundary some other way than by an interrupt, the debt is
-paid where it is. Idle waits end their steps at the same points, so a line IRQ
+as handlers run ports of their own. A port suspended in `native_sync` (between
+two APU accesses) owes its time the same way: its PC and S stay put while it
+waits, an interrupt taken then returns to them, and the port goes on once the
+rest is paid. (At first those debts were paid whole with interrupts held; a
+sound driver upload then delayed `field_irq` past line 211 in `late-lavos`,
+and its blank landed on line 214.) If the machine leaves the boundary some
+other way than by an interrupt, the debt is paid where it is. Idle waits end their steps at the same points, so a line IRQ
 arriving during one is no longer taken at the next hblank change.
 
 **The idle exit.** The raster split one line early was a separate cause: an
@@ -1156,6 +1158,33 @@ through its branch. An idle entry that waits for a change (no `idle_clocks`)
 now charges its exit pass `IDLE_EXIT_CLOCKS`, the shortest such loop's pass
 (`LDA abs`/`AND #`/`BEQ`, 54 clocks), so the code after the loop lands no
 earlier than the original's could.
+
+**A race it exposed.** With the idle exit, the `beyond_time` route
+(`tools/movies/route_check`, shipping mode) stuck in map `$DA01`: the party
+reached the passage to the second form's chamber and nothing happened. Only
+`field_irq_wait_hblank_loop`'s exit made the difference (bisected by entry
+prefix: with the exit on every other idle entry the route passed). What it
+changed is the phase of a busy loop. The event command that changes location
+now (`$E1`, whose port stops at `$C0:3B71`) waits for vblank before blanking and
+loading: `LDA $4210 : BPL`, with the vblank interrupt enabled, and the field NMI
+handler reads `$4210` too (`$C0:EA70`), which clears the flag. The loop sees the
+flag only if its read lands between the flag going up at line 225 and the NMI
+being taken; otherwise the handler clears it first, and the line interrupt at
+line 211 returns to the loop at the same point every frame, so it misses it in
+every frame after, for good. The original's exact timing wins that race (the
+reference changes map 83 frames after the push, as the interpreter does); the
+line interrupt ending 48 clocks later lost it, and before the idle exit the
+route passed on the same luck. Machine states at frame boundaries were identical
+apart from the latched H counter, and so was all of work RAM; the CPU sat at
+`$C0:3B71` from then on. Two loops in the ROM race like this (`$C0:3B71` and
+`$C0:4181`, both followed by `$C0:0B4E`, which blanks the screen and stops
+interrupts); the other two `$4210` loops (`$C0:0B38`, `$FD:EADA`) run with the
+NMI disabled. Both are idle entries now (`field_change_location_wait_for_vblank_loop`,
+`field_restart_wait_for_vblank_loop`): a pass reads the flag as the original
+does and leaves when it is set or, if the handler got there first, when the
+blanking status says vblank. That is what the loop waits for, and it can't lose
+the race; the reference (`--recomp only`) and shadow mode don't run idle entries,
+so nothing they check moves.
 
 **The vblank check, before and after** (failing findings over the 26 movies):
 
@@ -1169,7 +1198,11 @@ earlier than the original's could.
 
 (These were measured with the scalar calibration; the final build, with DMA
 taken as it is and recalibrated, has the same three and nothing else, and 4
-`late` findings where the first run had 36.)
+`late` findings where the first run had 36. After the race fix below changed
+the movies' paths, `battle_irq` landed once on line 224 in
+`endings-bucket-lavos`, behind the battle's frame work running with interrupts
+masked; the reference does the same in that fight on lines 212-223 and in
+vblank, so it is accepted too.)
 
 The three left are writes the original also makes on the picture: the boot and
 title program at `$7E:3000` shows the title's layers from line 32 instead of 31
