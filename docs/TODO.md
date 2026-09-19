@@ -33,6 +33,14 @@ rest waits, is [PLAN.md](PLAN.md).
   in-frame position (RUNTIME.md, "ZSNES save states"), so those runs are for
   coverage only.
 - **`ct_fuzz` doesn't use generated blocks**, only hand ports (RECOMP.md).
+- **`ct_fuzz` can't stop a native loop.** The original gets a step limit and a
+  call-out a timeout, but a loop in the port's own C runs until it ends: the
+  battle's object drawing, on random RAM, can read its draw list back from
+  what its sprites overwrote and never find the end, so it is fuzzed with the
+  part counts bounded (PORTING.md). A step budget the ports' loops count
+  against, off outside the fuzzer, would let those states be skipped instead.
+- **The last of `$CF`**: `$CF:FADD` (264 bytes) and `$CF:FD9E` (231) are the
+  bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
 ## Recompiler
 
@@ -162,9 +170,16 @@ rest waits, is [PLAN.md](PLAN.md).
   battles playing out differently once timing changes, widescreen's exposed
   assumptions (the 0-255 object window at `$C0:A88D`, map data beyond VRAM,
   single-byte battle window positions), and GBA's constraints.
-- **P1 leftovers**: `$217F` mirror writes still come from unported video code,
+- **P1 leftovers**: `$217F` mirror writes still come from unported video code
+  (one of them the battle's window quadrilateral rasterizer `$D1:F9E7`, which
+  writes the window table through the work RAM port with 16-bit stores, so each
+  edge's low byte also lands on APU port 3; RECOMP.md, "Phase 3, wave 1"),
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
+- **The battle's screen setup `$D1:F1B0`** (609 bytes, the largest unported run
+  in `$D1`) sets the line interrupt's line (`$4209`), which the timing service
+  has no call for (PLATFORM.md's sketch has `tm_set_line_handler`, never
+  built), and reads some 30 cells of the `$CD` frame work that aren't named yet.
 - **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
   the boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
   the driver) and every echo wait stay loops on the machine as idle entries.

@@ -2224,6 +2224,95 @@ of the ports (134 left as they are), 182 called, 53.1 million calls,
 none mismatching, 84824 interrupted. It exports the committed tree by default;
 `--rev` takes another (`git stash create` gives one of uncommitted work).
 
+### Phase 3, wave 1: the battle's graphics banks ($CF, $D1)
+
+The first subsystem converted in bulk after the pilot, chosen because its code
+is video-heavy where the pilot's went through the audio service. What that
+turned out to mean, and what the workflow cost:
+
+**Where it ended.** `python3 tools/burndown.py`: `$D1` from 87% left to 17%,
+`$CF` from 52% to 7% (the whole ROM from 83% to 81%, 44.6K to 51.7K ported).
+New: the battle's screen script commands and the frame's palette and window
+effects in `$D1` (`battle/screen_*.c`), the nineteen timed effect slots in
+`$CF` (`battle/effect_paths.c`), the afterimages and effect sprites the object
+drawing had called out to, and the three window-row transfer requests.
+Rewritten to the bar: the NMI and IRQ handlers, the tile row upload and the
+second vblank handler in `$D1`; the object drawing and motion
+(`battle/draw_objects.c`, `battle/object_motion.c`, out of `battle/sprites.c`),
+the vblank uploads and the frame update in `$CF`. Every call over the library
+matches and every entry is fuzzed (PORTING.md's rows). What is left is in
+docs/TODO.md: `$D1:F1B0` and `$D1:F9E7` (below), and two runs in `$CF`
+(`$CF:FADD`, `$CF:FD9E`).
+
+**The video service was the smaller part.** Almost none of `$D1`'s "graphics"
+code touches a register: it writes tables in work RAM that the per-line
+effects and the uploads read (the two window line buffers, the palette's two
+copies, the fade tables, the quadrilateral's corners), so it is ordinary
+logic under the RAM map. The register writes are in the handlers and the
+uploads, which P2 had already converted, so bringing them to the bar was
+restructuring around calls that already existed (`vid_enable_line_effects`,
+`vid_set_display`, `vid_raster_display`, `vid_upload_vram`,
+`vid_upload_palette`, `vid_upload_oam`, the SNES transfer escape for the
+described transfer, the timing service's acknowledgements). No service call
+was added. Two things no service expresses were found, and both are left in
+the original for now rather than escaped: the window quadrilateral rasterizer
+`$D1:F9E7` writes the window table through the work RAM port with 16-bit
+stores to `$217F`, so the low byte of every edge also lands on APU port 3 (the
+P1 leftover in TODO.md, now located); and the battle's screen setup
+`$D1:F1B0` sets the line interrupt's line (`$4209`), for which the timing
+service has no call yet (PLATFORM.md's sketch has `tm_set_line_handler`,
+never built).
+
+**What cost the time** was A's high byte. Liveness has it live after most of
+these routines (their callers' later 16-bit loads and `TAX`es take it along),
+and no declaration leaves out A's low byte alone, so a port that is otherwise
+pure logic still has to return exactly what the original leaves in A, path by
+path: the handler that ran last, the flag byte a skipped slot loaded, the
+distance the proximity test measured. For the effect slots that is a return
+value on every handler. The same byte enters as an index (`TAX` after an
+8-bit load), so the entries whose callers always leave it 0 are guarded on
+that instead of carrying it through every table lookup; the handful that
+genuinely take it (`$D1:EA4B`'s level lookup, `$D1:ECF3`'s first block,
+`$D1:EEA5`'s start line, the animated color `$CF:E58A` indexes with what the
+party palette cycle leaves) pass it as a parameter. A routine made of
+call-outs, like the frame update, also has to set A's low byte before each
+call even though no callee reads it, since the call's comparison includes it.
+
+**What shadow mode and fuzzing found** is the pilot's list again: flags a
+caller reads that the early ports reproduced by emulating every instruction
+and a rewrite has to set on purpose (the IRQ's pushed P under `$FD:FFFD`, the
+carry `$D1:FE4C` hands back through `$CE:EE6E`, the overflow of
+`$D1:E8D9`'s last address step, the carry the fade tables' last `CPX`
+leaves, the frame update's overflow, which its callees pass on), 16-bit
+`INC`/`DEC` read as 8-bit (the script pointer's step back, the wipe's count,
+the homing jump's arrival count, which carries into the next slot's byte),
+16-bit wraps where the original's indexed access runs into bank `$7F` (a
+palette offset, the effect slots' anchor offsets, the rotated colors), a
+direct-page index that wraps in bank `$00` where the port had used the work
+RAM address, and orders of reads and writes that matter where two tables
+overlap: the effect chase's cells, and the object drawing, whose sprites,
+written far enough on, land on the drawing page's own cells (the object
+number, the counts, the base position), which the original reads back. Two
+more were copies that read the stack page: the tile row upload's source can
+cover the bytes its `PHB : PHA` leave there and its count on the direct page,
+and the sprite tile copy the return address of its own `JSR`, so the ports
+write those bytes too, as the deferred uploads' port already did. None of it
+is reached by a movie.
+
+**The fuzzer's limits showed.** A native loop can't be stopped the way the
+interpreter's step limit stops the original, so the object drawing, which on
+random RAM can loop forever reading its draw list back from what its own
+sprites overwrote, is fuzzed with the part and sprite counts bounded (PORTING.md
+says how). And a copy whose destination covers its own return address sends
+the original somewhere the port can't follow; the entries that take a
+destination from RAM are fuzzed with it kept above the stack.
+
+**The draft tool** was used for its headers and liveness far more than its
+text, as in the pilot; with the listing at hand the logic was written from
+the listing. Its dispatch-table handlers draft as separate functions, which
+is right, but the burndown only credits a handler that is registered, so each
+inlined helper and handler also became a (small) registry entry of its own.
+
 ### What drafts don't do yet
 
 These are the tool's next improvements, or its known limits:
