@@ -6504,21 +6504,864 @@ count = 8
 index = "palette animation slot"
 subsystem = "battle"
 meaning = "Types of palette animation slots 0-7, saved while palette animation is paused"
-source = "game/battle/frame.c battle_pause_palette_animation $D1:F426"
+source = "game/battle/screen_palette.c battle_pause_palette_animation $D1:F426"
 
 [[var]]
 name = "battle_palette_paused"
 addr = "7E:CE12"
 subsystem = "battle"
 meaning = "Set once palette animation has been paused for $CFFF"
-source = "game/battle/frame.c battle_pause_palette_animation $D1:F426"
+source = "game/battle/screen_palette.c battle_pause_palette_animation $D1:F426"
 
 [[var]]
 name = "battle_palette_pause_request"
 addr = "7E:CFFF"
 subsystem = "battle"
 meaning = "Nonzero to pause palette animation; clearing it restores the saved slot types"
-source = "game/battle/frame.c battle_pause_palette_animation $D1:F426"
+source = "game/battle/screen_palette.c battle_pause_palette_animation $D1:F426"
+
+# ---- screen effects (bank D1): screen scripts, palettes, window tables ----------
+
+[[var]]
+name = "battle_screen_script"
+addr = "7E:0040"
+page = "battle"
+size = 3
+subsystem = "battle"
+meaning = "Screen script pointer while a command runs: at the command's first operand; the channel moves it one byte on after the handler returns"
+source = "game/battle/screen.h; $CD:1654 runs a channel, $CD:16A6 dispatches through $CD:16B5; game/battle/screen_palette.c battle_screen_swap_palette_rows $D1:E70A"
+
+[[var]]
+name = "battle_screen_channel"
+addr = "7E:0043"
+page = "battle"
+size = 2
+subsystem = "battle"
+meaning = "Offset of the screen script channel whose command runs (0 or $10)"
+source = "game/battle/screen.h; $CD:16A6"
+
+[[var]]
+name = "battle_scratch"
+addr = "7E:0045"
+page = "battle"
+count = 0x17
+index = "byte"
+subsystem = "battle"
+meaning = "Direct-page scratch the battle's routines share ($45-$5B): counts, thresholds, operands and table offsets, each routine's own"
+source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c"
+
+[[var]]
+name = "battle_background_flags"
+addr = "7E:2A21"
+subsystem = "battle"
+meaning = "How the battle's background behaves: bit 0 the HP gradient runs each frame, bit 1 palette animation slot 7 follows the sprite palette row swap"
+source = "game/battle/frame.c battle_frame_work $CD:088D; game/battle/screen_palette.c battle_screen_swap_palette_rows $D1:E70A"
+
+[[var]]
+name = "battle_screen_scripts_running"
+addr = "7E:5D9B"
+subsystem = "battle"
+meaning = "Set while the screen script channels run; cleared when both have ended. The HP gradient waits for it"
+source = "$CD:1609 ($CD:164D); game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+
+[[var]]
+name = "battle_sprite_palettes_flipped"
+addr = "7E:A101"
+subsystem = "battle"
+meaning = "Set when the combatants' sprite attributes point at the other half of the sprite palettes ($CD:1B78); the row swap clears it"
+source = "game/battle/screen_palette.c battle_screen_swap_palette_rows $D1:E70A; $CD:1B78; $CF:E5BA"
+
+[[var]]
+name = "battle_effect_graphics_list"
+addr = "7E:CD3D"
+size = 2
+subsystem = "battle"
+meaning = "Offset of the next block id in the effect's list of four ($D1:ECDB)"
+source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+
+[[var]]
+name = "battle_effect_graphics_vram"
+addr = "7E:CD3F"
+size = 2
+subsystem = "battle"
+meaning = "VRAM word address the next effect graphics block goes to ($2000 on, $800 apart)"
+source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+
+[[var]]
+name = "battle_effect_graphics_block"
+addr = "7E:CD41"
+subsystem = "battle"
+meaning = "Which of the effect's four graphics blocks is being loaded"
+source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+
+[[var]]
+name = "battle_effect_graphics_id"
+addr = "7E:CD42"
+subsystem = "battle"
+meaning = "The effect whose graphics are being loaded"
+source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+
+[[var]]
+name = "battle_effect_graphics_loading"
+addr = "7E:CD43"
+subsystem = "battle"
+meaning = "Set while an effect's graphics load, which waits for frames; the frame wait tail doesn't start another meanwhile"
+source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3; game/battle/frame.c battle_frame_wait_tail $CD:04AA"
+
+[[var]]
+name = "battle_palette_rows_moved"
+addr = "7E:CDC8"
+subsystem = "battle"
+meaning = "Set while background rows 2-4 are moved back to their place with their starting colors ($D1:E984); moving them up clears it"
+source = "game/battle/screen_palette.c battle_screen_move_rows_up $D1:E91A, battle_screen_move_rows_down $D1:E984"
+
+[[var]]
+name = "battle_gradient_phase"
+addr = "7E:CDC9"
+subsystem = "battle"
+meaning = "Rotation phase of the HP gradient's rows (13 down to 0 and around), which picks each row's rotation"
+source = "game/battle/screen_palette.c battle_find_gradient_phase $D1:EA01, battle_step_hp_gradient $D1:EA4B; game/battle/frame.c battle_step_cdc9 $CD:0ADE"
+
+[[var]]
+name = "battle_gradient_colors"
+addr = "7E:CDCC"
+size = 2
+count = 28
+index = "color (14, then the same 14 again)"
+subsystem = "battle"
+meaning = "The HP gradient's 14 colors as they fade, followed by a copy, so that 14 colors from any rotation run on without wrapping"
+source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+
+[[var]]
+name = "battle_gradient_fading"
+addr = "7E:CE0A"
+subsystem = "battle"
+meaning = "Nonzero while the HP gradient fades from one level's colors to the next's"
+source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+
+[[var]]
+name = "battle_gradient_level"
+addr = "7E:CE0B"
+subsystem = "battle"
+meaning = "HP level (1-8, eighths of the first enemy's maximum HP) the gradient fades toward"
+source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+
+[[var]]
+name = "battle_gradient_level_shown"
+addr = "7E:CE0C"
+subsystem = "battle"
+meaning = "HP level whose colors the gradient shows; it follows the level one step per fade"
+source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+
+[[var]]
+name = "battle_gradient_fade_frames"
+addr = "7E:CE0D"
+subsystem = "battle"
+meaning = "Frames left in the gradient's fade ($20 at the start)"
+source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+
+[[var]]
+name = "battle_gradient_level_override"
+addr = "7E:CE0E"
+subsystem = "battle"
+meaning = "With bit 7 set, the HP level the gradient takes (bits 0-6) instead of the enemy's, in one fade"
+source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+
+[[var]]
+name = "battle_gradient_reversed"
+addr = "7E:CE10"
+subsystem = "battle"
+meaning = "Nonzero to rotate the gradient's rows the other way"
+source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B; $CD:2AA1 sets it, $CD:17FB clears it"
+
+[[var]]
+name = "battle_window_lines"
+addr = "7E:C161"
+count = 448
+stride = 4
+index = "buffer * 224 + line (the frame work writes buffer 1 on odd frames, 0 on even ones)"
+subsystem = "battle"
+meaning = "The two windows' edges per line, in two buffers the window line effect alternates between (through the indirect tables at $C9A2 and $C9CF); four more lines' entries at $C151 come before the first"
+source = "game/battle/screen_window.c header; game/battle/frame.c battle_setup_window_hdma $CD:0AEE"
+  [[var.field]]
+  name = "w1_left"
+  offset = 0
+  meaning = "Window 1's left edge"
+  [[var.field]]
+  name = "w1_right"
+  offset = 1
+  meaning = "Window 1's right edge"
+  [[var.field]]
+  name = "w2_left"
+  offset = 2
+  meaning = "Window 2's left edge"
+  [[var.field]]
+  name = "w2_right"
+  offset = 3
+  meaning = "Window 2's right edge"
+
+[[var]]
+name = "battle_window_line_deltas"
+addr = "7E:0A00"
+count = 0x80
+index = "table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones)"
+subsystem = "battle"
+meaning = "Per-line amounts added to the window edges of lines 48-175"
+source = "game/battle/screen_window.c battle_screen_add_line_deltas $D1:F108"
+
+[[var]]
+name = "battle_wave_edges"
+addr = "7E:E500"
+size = 2
+count = 106
+stride = 8
+index = "line pair"
+subsystem = "battle"
+meaning = "Window 1's edges (left, right) per pair of lines, which the wave effect moves"
+source = "game/battle/screen_window.c battle_screen_wave_windows $D1:EEC4"
+
+[[var]]
+name = "battle_window_steps"
+addr = "7E:CD3A"
+count = 2
+index = "count (A, B)"
+subsystem = "battle"
+meaning = "Step counts the window effects keep between calls: A the band's half width, the waves' summed operand or the wipe's steps; B the band's half height or the counted wave's calls"
+source = "game/battle/screen_window.c battle_screen_open_band $D1:EDCD, battle_screen_wave_windows $D1:EEC4, battle_screen_wave_counted $D1:EFD0, battle_screen_wipe_from_left $D1:EEA5"
+
+[[var]]
+name = "battle_column_band_half_height"
+addr = "7E:CD38"
+subsystem = "battle"
+meaning = "Half the height of the column band window 1 draws around line $6A"
+source = "game/battle/screen_window.c battle_screen_draw_column_band $D1:FB72"
+
+[[var]]
+name = "battle_column_band_left"
+addr = "7E:CD39"
+subsystem = "battle"
+meaning = "The column band's left edge; its right edge is 255 less it"
+source = "game/battle/screen_window.c battle_screen_move_column_band $D1:FB68, battle_screen_draw_column_band $D1:FB72"
+
+[[var]]
+name = "battle_window_quads"
+addr = "7E:CD0D"
+count = 8
+stride = 2
+index = "coordinate (X0, Y0, X1, Y1, X2, Y2, X3, Y3)"
+subsystem = "battle"
+meaning = "The corners of a window quadrilateral $D1:F9AF rasterizes into the window table (the beam's: its top edge, then its bottom edge)"
+source = "game/battle/screen_window.c battle_screen_draw_beam $D1:EBFF; $D1:F9AF"
+
+[[var]]
+name = "battle_screen_motion_direction"
+addr = "7E:CA52"
+size = 2
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "Direction of the channel's swing: nonzero while its speed grows and its position falls"
+source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
+
+[[var]]
+name = "battle_screen_motion_base"
+addr = "7E:CA54"
+size = 2
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "Offset the channel's swing moves around"
+source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
+
+[[var]]
+name = "battle_screen_swing_speed"
+addr = "7E:CA7A"
+size = 2
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "Speed of the channel's swing, in 1/65536 of a pixel a frame"
+source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
+
+[[var]]
+name = "battle_screen_swing_step"
+addr = "7E:CA7C"
+size = 2
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "How much the swing's speed changes a frame"
+source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
+
+[[var]]
+name = "battle_screen_swing_position"
+addr = "7E:CA7E"
+size = 4
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "Position of the swing, 16.16 fixed point"
+source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
+
+[[var]]
+name = "battle_saved_positions"
+addr = "7E:CAEA"
+count = 12
+index = "position byte * 2 + slot"
+subsystem = "battle"
+meaning = "The three animation positions, saved by the screen script into one of two interleaved slots"
+source = "game/battle/screen_motion.c battle_screen_save_positions $D1:F5CD"
+
+[[var]]
+name = "battle_fade_line_data"
+addr = "7E:C02F"
+count = 0x120
+index = "byte (four tables of one-line entries: $C030, $C090, $C0F0, $C120)"
+subsystem = "battle"
+meaning = "The fade tables built at the start of a battle: entries of a line count and a value falling from $E8 or rising from $E0 (all color channels), four bytes apart"
+source = "game/battle/screen_setup.c battle_build_fade_tables $D1:F83D"
+
+[[var]]
+name = "battle_low_scratch"
+addr = "7E:0000"
+page = "battle"
+count = 0x20
+index = "byte ($00-$1F)"
+subsystem = "battle"
+meaning = "Direct-page scratch the battle's routines share at $00-$1F: the multiply's operands and product ($00 by $02-$03 into $04-$06), and the window quadrilateral rasterizer's four edge slopes (8.8, words at $03-$09), a slope's end and start column and lines ($0B-$0D), the top line ($0F) and the corners sorted by line (X, Y at $12-$19)"
+source = "game/battle/screen_window.c battle_draw_window_quad $D1:F9AF, battle_quad_edge_slopes $D1:F91D; $D1:F9E7; game/battle/sprites.c $CF:F9FB"
+
+[[var]]
+name = "battle_window_quad_index"
+addr = "7E:CC64"
+subsystem = "battle"
+meaning = "Which window quadrilateral is being rasterized; its bit 0 picks the table half $CD:38B6 points the work RAM port at"
+source = "game/battle/screen_window.c battle_draw_window_quad $D1:F9AF; $CD:38B6"
+
+[[var]]
+name = "battle_split_line_values"
+addr = "7E:BE89"
+size = 2
+count = 8
+index = "word (the NMI copies words 0, 1, 4 and 5 to 2, 3, 6 and 7)"
+subsystem = "battle"
+meaning = "Words the per-line effects read through their tables; each frame the NMI copies the first two of each group of four over the next two, so the lines after a split take the new values"
+source = "game/battle/nmi.c battle_nmi $D1:E77C; game/battle/frame.c battle_frame_work $CD:088D ($BE93)"
+
+[[var]]
+name = "battle_pause_held"
+addr = "7E:CD03"
+subsystem = "battle"
+meaning = "Set while Start is held after it toggled the pause, so one press toggles once; the debug frame advance runs only while it is set"
+source = "game/battle/nmi.c battle_nmi $D1:E77C"
+
+[[var]]
+name = "battle_setup_flags_copy"
+addr = "7E:CD27"
+subsystem = "battle"
+meaning = "The battle's setup flags (battle_setup_flags), copied at the start; bit 5 (a demo battle) keeps Start from pausing"
+source = "game/battle/nmi.c battle_nmi $D1:E77C; $D1:F1B0 copies $2989"
+
+[[var]]
+name = "battle_pause_blocked"
+addr = "7E:CE16"
+subsystem = "battle"
+meaning = "Nonzero while Start can't pause the battle ($FF from the start, cleared at $CD:05F8)"
+source = "game/battle/nmi.c battle_nmi $D1:E77C"
+
+[[var]]
+name = "battle_frame_advance_count"
+addr = "7E:CE19"
+subsystem = "battle"
+meaning = "Frames counted by the debug frame advance, whose every fourth frame can run"
+source = "game/battle/nmi.c battle_nmi $D1:E77C"
+
+[[var]]
+name = "battle_message_frames"
+addr = "7E:CCEB"
+subsystem = "battle"
+meaning = "Frames left before a timed battle message closes"
+source = "game/battle/nmi.c battle_nmi $D1:E77C; $CD:0215 and $CD:0295 set it"
+
+[[var]]
+name = "battle_message_timed"
+addr = "7E:CCED"
+subsystem = "battle"
+meaning = "Set while a timed battle message is up; the NMI counts its frames down and closes it"
+source = "game/battle/nmi.c battle_nmi $D1:E77C; $CD:0215 and $CD:0295 set it"
+
+[[var]]
+name = "battle_message_by_id"
+addr = "7E:CD1D"
+subsystem = "battle"
+meaning = "Set while a battle message opened by id ($CD:0295) is up; the other message calls return while it is"
+source = "game/battle/nmi.c battle_nmi $D1:E77C; $CD:0295, $CD:02CB, $CD:02D8"
+
+[[var]]
+name = "battle_message_shown"
+addr = "7E:CE17"
+subsystem = "battle"
+meaning = "Id of the battle message last opened by id ($FF once it has closed), so the same one doesn't open twice"
+source = "game/battle/nmi.c battle_nmi $D1:E77C; $CD:02A5"
+
+[[var]]
+name = "battle_alternate_base"
+addr = "7E:CA25"
+subsystem = "battle"
+meaning = "Added to the alternating-frame request when the IRQ applies it ($CE:EE6E): 0, 2 or 8 by the window slide and the display setup"
+source = "game/battle/nmi.c battle_irq_update_ca22 $D1:FE4C; game/battle/frame.c battle_step_window_slide $CD:05B2"
+
+# ---- timed effect slots (bank CF) ------------------------------------------------
+
+[[var]]
+name = "battle_effect_cells"
+addr = "7E:00C6"
+page = "battle"
+count = 12
+index = "byte"
+subsystem = "battle"
+meaning = "The effect loops' cells: the slot ($C6, a word), twice and four times it ($C8, $CA), and the handlers' scratch ($CC-$D1): a point, a target, the proximity limit ($D1) and result ($D0) for $CF:F957, sine products, a 16-bit substep count"
+source = "game/battle/effect_paths.c battle_step_effect_slots $CF:EFAF"
+
+[[var]]
+name = "battle_effect_done"
+addr = "7E:A19D"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Set when the combatant's path has ended"
+source = "game/battle/effect_paths.c $CF:F03E-$CF:F405"
+
+[[var]]
+name = "battle_anchor_done"
+addr = "7E:A1E0"
+count = 8
+index = "anchor"
+subsystem = "battle"
+meaning = "Set when the anchor's path has ended"
+source = "game/battle/effect_paths.c $CF:F4B2-$CF:F884"
+
+[[var]]
+name = "battle_effect_line_frames"
+addr = "7E:ABEB"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Frames left on a straight path"
+source = "game/battle/effect_paths.c move_line $CF:F03E"
+
+[[var]]
+name = "battle_effect_jump_frames"
+addr = "7E:ABFE"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Frames left on a jump"
+source = "game/battle/effect_paths.c move_jump $CF:F087"
+
+[[var]]
+name = "battle_effect_velocity_x"
+addr = "7E:A888"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Horizontal velocity, 8.8 pixels a frame"
+source = "game/battle/effect_paths.c step_position"
+
+[[var]]
+name = "battle_effect_velocity_y"
+addr = "7E:A8AE"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Vertical velocity, 8.8 pixels a frame"
+source = "game/battle/effect_paths.c step_position"
+
+[[var]]
+name = "battle_effect_position_x"
+addr = "7E:A8D4"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Horizontal position from the base, 8.8"
+source = "game/battle/effect_paths.c step_position"
+
+[[var]]
+name = "battle_effect_position_y"
+addr = "7E:A8FA"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Vertical position from the base, 8.8"
+source = "game/battle/effect_paths.c step_position"
+
+[[var]]
+name = "battle_effect_base_x"
+addr = "7E:A35D"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "X the path is measured from"
+source = "game/battle/effect_paths.c"
+
+[[var]]
+name = "battle_effect_base_y"
+addr = "7E:A370"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Y the path is measured from"
+source = "game/battle/effect_paths.c"
+
+[[var]]
+name = "battle_effect_steps"
+addr = "7E:A324"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The jump's substeps a frame, the spiral's radius growth, or the chase's speed"
+source = "game/battle/effect_paths.c"
+
+[[var]]
+name = "battle_effect_radius"
+addr = "7E:A311"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The spiral's radius"
+source = "game/battle/effect_paths.c move_spiral $CF:F194"
+
+[[var]]
+name = "battle_effect_angle"
+addr = "7E:A34A"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The spiral's angle (256 steps a turn)"
+source = "game/battle/effect_paths.c move_spiral $CF:F194"
+
+[[var]]
+name = "battle_effect_angle_used"
+addr = "7E:A5AA"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The angle the spiral last used, which the flicker reuses"
+source = "game/battle/effect_paths.c move_spiral $CF:F194, flicker $CF:F3BA"
+
+[[var]]
+name = "battle_effect_target_x"
+addr = "7E:A383"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "X of the jump's or chase's target"
+source = "game/battle/effect_paths.c"
+
+[[var]]
+name = "battle_effect_target_y"
+addr = "7E:A396"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Y of the jump's or chase's target"
+source = "game/battle/effect_paths.c"
+
+[[var]]
+name = "battle_effect_spiral_frames"
+addr = "7E:A639"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Frames the spiral may still run"
+source = "game/battle/effect_paths.c move_spiral $CF:F194"
+
+[[var]]
+name = "battle_effect_jump_falling"
+addr = "7E:A9DE"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Nonzero while the jump falls (its speed then grows under gravity)"
+source = "game/battle/effect_paths.c step_jump"
+
+[[var]]
+name = "battle_effect_jump_gravity"
+addr = "7E:A9B8"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Change of the jump's speed each substep"
+source = "game/battle/effect_paths.c step_jump"
+
+[[var]]
+name = "battle_effect_jump_bounce"
+addr = "7E:AA3D"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Speed the jump bounces back up with when its fall's speed overflows"
+source = "game/battle/effect_paths.c step_jump"
+
+[[var]]
+name = "battle_effect_jump_speed"
+addr = "7E:A920"
+size = 4
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The jump's speed, 16.16"
+source = "game/battle/effect_paths.c step_jump"
+
+[[var]]
+name = "battle_effect_jump_height"
+addr = "7E:A96C"
+size = 4
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The jump's height, 16.16"
+source = "game/battle/effect_paths.c step_jump"
+
+[[var]]
+name = "battle_effect_jump_up"
+addr = "7E:AA2A"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Nonzero to lift upward (a positive offset)"
+source = "game/battle/effect_paths.c move_jump $CF:F087"
+
+[[var]]
+name = "battle_effect_jump_single"
+addr = "7E:AA04"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Nonzero to lift by the height once rather than twice"
+source = "game/battle/effect_paths.c move_jump $CF:F087"
+
+[[var]]
+name = "battle_effect_orbit_radius"
+addr = "7E:AAE6"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The orbit's radius"
+source = "game/battle/effect_paths.c move_orbit $CF:F1F8"
+
+[[var]]
+name = "battle_effect_orbit_angle"
+addr = "7E:AA9A"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The orbit's angle"
+source = "game/battle/effect_paths.c move_orbit $CF:F1F8"
+
+[[var]]
+name = "battle_effect_orbit_step"
+addr = "7E:AAD3"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Added to the orbit's angle each frame"
+source = "game/battle/effect_paths.c move_orbit $CF:F1F8"
+
+[[var]]
+name = "battle_effect_orbit_frames"
+addr = "7E:AAAD"
+size = 2
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Frames left on the orbit"
+source = "game/battle/effect_paths.c move_orbit $CF:F1F8"
+
+[[var]]
+name = "battle_anchor_orbit_center_x"
+addr = "7E:AA7F"
+count = 8
+index = "anchor"
+subsystem = "battle"
+meaning = "X of the center an anchor orbits"
+source = "game/battle/effect_paths.c move_orbit $CF:F68D"
+
+[[var]]
+name = "battle_anchor_orbit_center_y"
+addr = "7E:AA92"
+count = 8
+index = "anchor"
+subsystem = "battle"
+meaning = "Y of the center an anchor orbits"
+source = "game/battle/effect_paths.c move_orbit $CF:F68D"
+
+[[var]]
+name = "battle_effect_home_stage"
+addr = "7E:AB00"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Set once the jump onto its target has first come near it"
+source = "game/battle/effect_paths.c move_jump_to_target $CF:F23D"
+
+[[var]]
+name = "battle_effect_flicker_frames"
+addr = "7E:AB13"
+count = 11
+index = "slot"
+subsystem = "battle"
+meaning = "Frames the flicker still runs"
+source = "game/battle/effect_paths.c flicker $CF:F3BA"
+
+[[var]]
+name = "battle_effect_flicker_count"
+addr = "7E:AB29"
+count = 11
+index = "slot"
+subsystem = "battle"
+meaning = "Frames until the flicker turns"
+source = "game/battle/effect_paths.c flicker $CF:F3BA"
+
+[[var]]
+name = "battle_effect_flicker_period"
+addr = "7E:AB34"
+count = 11
+index = "slot"
+subsystem = "battle"
+meaning = "Frames between the flicker's turns"
+source = "game/battle/effect_paths.c flicker $CF:F3BA"
+
+[[var]]
+name = "battle_effect_flicker_radius"
+addr = "7E:AB1E"
+count = 11
+index = "slot"
+subsystem = "battle"
+meaning = "How far the flicker moves the sprite when on"
+source = "game/battle/effect_paths.c flicker $CF:F3BA"
+
+[[var]]
+name = "battle_effect_flicker_hidden"
+addr = "7E:AB3F"
+count = 11
+index = "slot"
+subsystem = "battle"
+meaning = "Set while the flicker has the offset off"
+source = "game/battle/effect_paths.c flicker $CF:F3BA"
+
+[[var]]
+name = "battle_effect_chase_angle"
+addr = "7E:AC11"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "The chase's heading"
+source = "game/battle/effect_paths.c move_chase $CF:F405"
+
+[[var]]
+name = "battle_effect_chase_aligned"
+addr = "7E:AC24"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Set once the chase's heading has reached the target's angle; it then follows it at once"
+source = "game/battle/effect_paths.c move_chase $CF:F405"
+
+[[var]]
+name = "battle_effect_chase_turn"
+addr = "7E:AC37"
+count = 19
+index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+subsystem = "battle"
+meaning = "Nonzero to turn the chase's heading down rather than up"
+source = "game/battle/effect_paths.c move_chase $CF:F405"
+
+[[var]]
+name = "battle_chase_cells"
+addr = "7E:AC4A"
+count = 16
+index = "byte"
+subsystem = "battle"
+meaning = "$CF:FA43's cells: the point and the target (X, Y, X, Y), the target angle ($AC52), the signed distances ($AC4E-$AC51), their magnitudes ($AC55, $AC57) and the table index ($AC53, $AC59, whose word store runs into $AC5A)"
+source = "game/battle/effect_paths.c angle_to_target $CF:FA43"
+
+[[var]]
+name = "battle_anchor_facing"
+addr = "7E:A230"
+count = 8
+index = "anchor"
+subsystem = "battle"
+meaning = "Facing of an anchor's chase, from its angle"
+source = "game/battle/effect_paths.c move_chase $CF:F884"
+
+[[var]]
+name = "battle_anchor_facing_record"
+addr = "7E:AB4F"
+count = 8
+index = "anchor"
+subsystem = "battle"
+meaning = "Offset in its slot's 11 bytes of battle_object_effect_slots of the record whose facing an anchor's orbit sets"
+source = "game/battle/effect_paths.c move_orbit_facing $CF:F7FC"
+
+[[var]]
+name = "battle_effect_mirror_slot3"
+addr = "7E:A113"
+subsystem = "battle"
+meaning = "Set to have battle slot 9's sprite offset copy slot 3's while slot 3 flickers"
+source = "game/battle/effect_paths.c move_flicker $CF:F39F"
+
+[[var]]
+name = "battle_effects_running"
+addr = "7E:A013"
+subsystem = "battle"
+meaning = "Set while the timed effect slots run; the enemies' orbits run instead otherwise"
+source = "game/battle/effect_paths.c battle_step_effect_slots $CF:EFAF; game/battle/frame.c"
+
+[[var]]
+name = "battle_orbits_held"
+addr = "7E:A0FD"
+subsystem = "battle"
+meaning = "Nonzero to hold the enemies' orbits while no effects run"
+source = "game/battle/effect_paths.c battle_step_effect_slots $CF:EFAF"
+
+[[var]]
+name = "battle_formation_leader"
+addr = "7E:A002"
+subsystem = "battle"
+meaning = "The enemy (battle slot less 3) the formation keeps its places around"
+source = "game/battle/effect_paths.c battle_place_formation $CF:F9D3"
+
+[[var]]
+name = "battle_formation_offset_x"
+addr = "7E:AA64"
+count = 8
+index = "enemy (battle slot less 3)"
+subsystem = "battle"
+meaning = "X of each enemy's place in the formation"
+source = "game/battle/effect_paths.c battle_place_formation $CF:F9D3"
+
+[[var]]
+name = "battle_formation_offset_y"
+addr = "7E:AA6C"
+count = 8
+index = "enemy (battle slot less 3)"
+subsystem = "battle"
+meaning = "Y of each enemy's place in the formation"
+source = "game/battle/effect_paths.c battle_place_formation $CF:F9D3"
 
 # ==============================================================================
 # Found by measurement (tools/movies/addresses.py): no port reads these yet

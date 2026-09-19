@@ -31,6 +31,7 @@ void battle_setup_display(Snes *s);
 void battle_load_graphics(Snes *s);
 void battle_upload_tile_rows(Snes *s);
 void battle_nmi_alternate(Snes *s);
+bool battle_page(Snes *s);
 
 /* battle/stats.c */
 void battle_update_low_hp_flag(Snes *s);
@@ -47,7 +48,6 @@ void battle_decode_tile_row(Snes *s);
 void battle_tick_timers(Snes *s);
 void battle_dispatch_expired_timers(Snes *s);
 void battle_step_slot_delays(Snes *s);
-void battle_step_effect_slots(Snes *s);
 void battle_step_slot_effects(Snes *s);
 
 /* battle/objects.c */
@@ -55,7 +55,6 @@ void battle_update_object_bounds(Snes *s);
 void battle_update_all_object_bounds(Snes *s);
 void battle_find_due_animation(Snes *s);
 void battle_update_animation_positions(Snes *s);
-void battle_points_are_close(Snes *s);
 
 /* battle/frame.c */
 void battle_frame_dispatch(Snes *s);
@@ -71,7 +70,6 @@ void battle_upload_alternating_vram(Snes *s);
 void battle_update_screen_shake(Snes *s);
 void battle_setup_window_hdma(Snes *s);
 void battle_call_c00002(Snes *s);
-void battle_pause_palette_animation(Snes *s);
 void battle_frame_wait_tail(Snes *s);
 
 /* battle/nmi.c */
@@ -105,8 +103,6 @@ void battle_build_object_graphics_checked(Snes *s);
 void battle_step_object_palettes(Snes *s);
 void battle_index_record_groups(Snes *s);
 void battle_build_bitmap_sprites(Snes *s);
-void battle_sine_scale(Snes *s);
-void battle_step_orbits(Snes *s);
 
 /* battle/gauges.c */
 void battle_draw_gauge(Snes *s);

@@ -164,28 +164,3 @@ void battle_update_animation_positions(Snes *s)
     m_rts(s);
 }
 
-// $CF:F957
-/* $D0 = 1 when the points ($CC, $CD) and ($CE, $CF) are less than $D1 apart
- * on both axes, else 0. */
-void battle_points_are_close(Snes *s)
-{
-    m_write8(s, m_dp(s, 0xD0), 0x00);
-    for (uint8_t axis = 0; axis < 2; axis++) {
-        m_set_flag(s, CPU_FLAG_C, true);
-        uint8_t a = m_lda8(s, m_read8(s, m_dp(s, (uint8_t)(0xCC + axis))));
-        uint8_t d = m_sbc8(s, a, m_read8(s, m_dp(s, (uint8_t)(0xCE + axis))));
-        m_set_a8(s, d);
-        if (d & 0x80)
-            d = m_lda8(s, (uint8_t)((d ^ 0xFF) + 1));
-        uint8_t limit = m_read8(s, m_dp(s, 0xD1));
-        m_cmp8(s, d, limit);
-        if (d >= limit) {
-            m_rts(s);
-            return;
-        }
-    }
-    uint8_t v = (uint8_t)(m_read8(s, m_dp(s, 0xD0)) + 1);
-    m_write8(s, m_dp(s, 0xD0), v);
-    m_set_nz8(s, v);
-    m_rts(s);
-}
