@@ -138,7 +138,7 @@ static void plp(Snes *s)
  * (it unwound the caller's frame, or APU-direct gave up waiting). */
 static bool jsr(Snes *s, uint16_t site, uint16_t target, uint8_t widths)
 {
-    au_driver_call(m_platform(s), PF_CALL(0xC70000 | site, 0xC70000 | target));
+    au_driver_call(m_platform(s), PF_CALL(0xC70000 | site, 0xC70000 | target), 0);
     return cpu_pc24(&s->cpu) == (0xC70000 | (uint16_t)(site + 3)) && !s->cpu.e &&
            (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == widths;
 }

@@ -47,8 +47,17 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   writing `$F1` bits 4-5) while the original ran, and the OAM address when a
   vblank (which reloads it) passed with NMI disabled. Calls interrupted by NMI/IRQ
   are counted but not compared. Registers and flags in the routine's
-  don't-care set (below) aren't compared. Any mismatch prints the first differing field and makes `ct_dev`
-  exit nonzero.
+  don't-care set (below) aren't compared, nor, where a port stops at an
+  instruction of the original, those it declares dead there
+  (`m_stop_dont_care`). Nor are the stack bytes the original pushed and pulled
+  again since the last comparison, between the lowest S it reached and its S
+  now: nothing reads below S, so a port needn't rebuild the frames of the
+  subroutines it inlines or the P bytes a callee saves and restores (bytes still
+  on the stack, such as a frame live under a call-out's return address, are
+  compared as before). `DC_AH` in a don't-care
+  set leaves out A's high byte only, for code that works on an 8-bit A and
+  leaves the high byte to whatever last set it. Any mismatch prints the first
+  differing field and makes `ct_dev` exit nonzero.
 - **Idle entries** stand in for one pass of a busy-wait loop (the game's
   wait-for-next-frame loops) instead of a routine. The native function runs
   the loop body and either leaves PC at the loop head or sets it to the loop's
@@ -345,7 +354,10 @@ never exercises. `--range` limits a register (script offsets, for example), and
 
 `--db BB` sets the data bank, which otherwise comes from the base state; entries
 guarded on a data bank that reaches the I/O registers need it when the state's
-is `$7E`.
+is `$7E`. `--d HHHH` sets the direct page the same way, for entries guarded on
+their subsystem's page. The comparison leaves out what shadow mode does: the
+routine's don't-care set, what it declares dead where it stops, and the stack
+bytes the original pushed and pulled again.
 
 The SPC700 doesn't run in `ct_fuzz`, so a routine waiting for the sound driver's
 echo on an APU port would never finish; `--apu-loopback` makes the ports read

@@ -338,4 +338,10 @@ static inline void m_jsl_dc(Snes *s, uint32_t site, uint32_t target, uint16_t do
     native_call_dc(s, site, target, true, dont_care);
 }
 
+/* For a native routine that stops at an instruction of the original (setting
+ * PC) rather than returning: registers and flags nothing reads there before
+ * setting them, which shadow validation then doesn't compare at the stop, on
+ * top of the entry's don't-care set (native_dont_care_at_stop). */
+static inline void m_stop_dont_care(Snes *s, uint16_t dont_care) { native_dont_care_at_stop(s, dont_care); }
+
 #endif

@@ -62,13 +62,13 @@ PF_API uint8_t au_driver_read(Platform *pf, PfOrigin o, uint8_t port)
 
 PF_API bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi) { return au_direct_run(pf_snes(pf), lo, hi); }
 
-PF_API void au_driver_call(Platform *pf, PfOrigin o)
+PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care)
 {
     Snes *s = pf_snes(pf);
     if (au_direct_running(s))
         au_direct_call(s, o.site, o.target);
     else
-        m_jsr(s, o.site, o.target);
+        m_jsr_dc(s, o.site, o.target, dont_care);
 }
 
 PF_API void au_select_backend(Platform *pf, AuBackend backend)

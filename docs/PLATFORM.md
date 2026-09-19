@@ -795,7 +795,7 @@ comparison allows per-segment lag.
 
 | Path | What |
 |---|---|
-| `runtime/platform/audio.h` | `au_driver_write`, `au_driver_read`, `au_driver_run_direct`, `au_driver_call` (the protocol level, below `au_command`); `AuBackend`, `au_select_backend` |
+| `runtime/platform/audio.h` | `au_driver_write`, `au_driver_read`, `au_driver_run_direct`, `au_driver_call` (the protocol level, below `au_command`; the call-out takes the callee's don't-care set); `AuBackend`, `au_select_backend` |
 | `runtime/platform/snes/audio.h` | the SNES backend, which hands the protocol-level calls to APU-direct while one of its runs is in progress |
 | `runtime/platform/direct/` | APU-direct: synchronous runs of the driver, the APU's lead, the sample buffer |
 | `runtime/apu/apu.c` | `Apu.lead`, `apu_run_ahead` |
