@@ -93,6 +93,9 @@ class Analyzer:
         self.derivations: dict = {}                      # deriver name -> its result (reports, checks)
         self.last_derived: dict = {}                     # the targets the last derivation gave
         self.resumes: set = set()                        # where indirect calls return (JSR operands, PER)
+        # Indirect transfers that are calls (a PER before a JMP (abs) or JMP (abs,X)): site -> where
+        # their targets return to, for liveness, which otherwise takes an indirect JMP for a tail jump.
+        self.call_resumes: dict[int, set] = defaultdict(set)
         self.derive_unstable = False                     # rounds didn't reach a fixpoint
         # Diagnostics
         self.unresolved: dict[int, Insn] = {}
@@ -294,6 +297,7 @@ class Analyzer:
         if state[0] == "call":
             _, key, resume, st, kind = state
             self.resumes.add(resume)
+            self.call_resumes[site].add(resume)
             for t in targets:
                 callee = self.ctx(t, st.widths, kind)
                 callee.callers.add(site)
@@ -501,6 +505,7 @@ class Analyzer:
                 # JSR (abs,X), or PER then JMP (abs,X): returns after the PER's address
                 resume = jt.dispatcher + 3 if jt.call else st.per + 1
                 self.resumes.add((jt.dispatcher & 0xFF0000) | (resume & 0xFFFF))
+                self.call_resumes[jt.dispatcher].add((jt.dispatcher & 0xFF0000) | (resume & 0xFFFF))
                 callee = self.ctx(t, st.widths, "table")
                 callee.callers.add(jt.dispatcher)
                 self.wait_on(callee, ("call", key, (jt.dispatcher & 0xFF0000) | (resume & 0xFFFF),

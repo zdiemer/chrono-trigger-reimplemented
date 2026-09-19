@@ -8,10 +8,11 @@
  * reached through the data bank. The Epoch's map screen also calls two of them
  * directly (from $C2:455E and $C2:4E6D).
  *
- * The script commands they return to are reached through an indirect jump,
- * which the liveness analysis doesn't follow, so for those every register and
- * flag counts as read after the return, and each entry leaves them as the
- * original does. */
+ * The script commands they return to are reached through an indirect jump.
+ * These entries were written when the liveness analysis didn't follow it, and
+ * leave every register and flag as the original does; it does now, and only X
+ * and the carry are read after them (docs/RECOMP.md, "The tooling pass after
+ * wave 1: the analysis"). */
 #include "scene/scene.h"
 
 #include "platform/video.h"

@@ -25,6 +25,35 @@ reach it (`reach`: how far above its own frame a routine, or what it calls,
 pulls or reads the stack), or control leaves with it on the stack (a return,
 a tail jump, an indirect jump, a flow out of the traced code, a call that
 doesn't return). `pairing_stats` counts each case.
+
+**Callees that leave through their caller's frame.** A routine can pull its
+own return address and then its caller's saved registers and return for the
+caller (the sound driver's `$C7:0A39`, refused, runs its caller `$C7:0004`'s
+exit). A push whose byte such a callee reaches is followed into it
+(`_follow_into`): where every path either returns normally with the byte
+untouched, or pulls it with a pull of its size and then only pulls the rest of
+the caller's frame and returns as the caller does (`_escapes`), the push reads
+what is live after that pull (`push_foreign`), which is what the caller's
+callers read. A return below the depth a routine was entered at is a return
+through its caller's frame: the packed values carry what is read after those
+apart from what is read after an ordinary return (segments from ESC on,
+`esc_live`), a call maps them to what is read after its caller returns (and,
+where the callee may pull more than the caller's frame, further up), and
+`after_return` counts both.
+
+**Indirect jumps.** A `JMP (abs)` or `JML [abs]` goes to the targets the
+analysis follows (a hint's and the ones derived from data); preceded by a
+`PER` it is a call returning to the `PER`'s address, otherwise a tail jump
+whose targets return for the routine making it. A routine an indirect jump
+reaches keeps everything live after it only where some site that reaches it
+has targets nobody argued complete (neither a `derive` nor a `bound` hint):
+such a site could reach it from anywhere (`indirect_entries` says which).
+Tables filled at run time are called at every target the analysis follows
+(their entries, a hint's, the derived ones).
+
+Each context runs its instructions with the widths the analysis traced it
+with there (`_code`), not every context's; and `RTI` takes P from the stack,
+so the flags before it are dead.
 """
 
 from collections import defaultdict
@@ -214,9 +243,14 @@ def _sr_bytes(insn: Insn, widths) -> int | None:
     return None if widths[0] is None else (1 if widths[0] else 2)
 
 
-# Packed values (see Liveness's dataflow): NSEG segments of SEG bits.
+# Packed values (see Liveness's dataflow): NSEG segments of SEG bits. Segment
+# 0 is live whatever the callers read; segment b + 1 is live if what runs
+# after the routine returns reads register bit b; segment ESC + b if what runs
+# after it leaves through its caller's frame (a return that pulls more than
+# the routine pushed, into its caller's caller) does.
 SEG = 10
-NSEG = 11
+ESC = SEG + 1
+NSEG = 2 * SEG + 1
 _REPS: dict = {}
 
 
@@ -230,21 +264,27 @@ def _rep(mask: int) -> int:
 
 ONES = _rep(1)
 IDENT = sum((1 << b) << (SEG * (b + 1)) for b in range(SEG))    # a return: live if the caller reads it
+ESC_IDENT = sum((1 << b) << (SEG * (ESC + b)) for b in range(SEG))   # a return through the caller's frame
 _BIT = {bit: i for i in range(SEG) for bit in [1 << i]}
 
 
-def _eval(value: int, ret: int) -> int:
-    """A packed value as a mask, given what the callers read after the return."""
+def _eval(value: int, ret: int, esc: int = 0) -> int:
+    """A packed value as a mask, given what is read after the routine returns
+    and after it leaves through its caller's frame."""
     out = value & ALL
     for b in range(SEG):
         if ret >> b & 1:
             out |= (value >> (SEG * (b + 1))) & ALL
+        if esc >> b & 1:
+            out |= (value >> (SEG * (ESC + b))) & ALL
     return out
 
 
-def _apply(summary: int, after: int) -> int:
+def _apply(summary: int, after: int, deep: bool = True) -> int:
     """The packed value before a call to a routine with this summary, given the
-    packed value after it."""
+    packed value after it. Where the callee leaves through the caller's frame
+    it returns for the caller, and where it may pull more than the caller's
+    frame (`deep`), further up: what is read after either counts."""
     out = summary & ALL
     for c in range(SEG):
         m = (summary >> (SEG * (c + 1))) & ALL
@@ -252,6 +292,20 @@ def _apply(summary: int, after: int) -> int:
             sel = (after >> c) & ONES
             if sel:
                 out |= sel * m
+        m = (summary >> (SEG * (ESC + c))) & ALL
+        if m:
+            out |= (m << (SEG * (c + 1))) | ((m << (SEG * (ESC + c))) if deep else 0)
+    return out
+
+
+def _as_caller(value: int) -> int:
+    """A packed value from a callee's path that ends leaving through its
+    caller's frame, as the caller's: that return is the caller's own."""
+    out = value & ALL
+    for c in range(SEG):
+        m = ((value >> (SEG * (c + 1))) | (value >> (SEG * (ESC + c)))) & ALL
+        if m:
+            out |= m << (SEG * (c + 1))
     return out
 
 
@@ -282,13 +336,25 @@ class Liveness:
         self.live_in: dict[tuple, dict[int, int]] = {}     # ctx key -> pc -> live-in mask
         self.func_live_in: dict[int, int] = defaultdict(int)
         self.ret_live: dict[int, int] = defaultdict(int)
+        # routine -> what may be read after it leaves through its caller's frame
+        # (only a routine with such a return has it read: after_return())
+        self.esc_live: dict[int, int] = defaultdict(int)
         self.all_live_returns: set[int] = set()
         self.reasons: dict[int, str] = {}
         self.reach: dict[int, int] = {}                  # routine -> bytes above its entry S it may touch
         self.push_pairs: dict[tuple, frozenset] = {}     # (ctx key, push pc) -> the pulls that restore it
         self.push_cases: dict[tuple, str] = {}           # (ctx key, push pc) -> a PAIRING_CASES entry
+        # (ctx key, push pc) -> pulls in a callee that leaves through the pusher's frame,
+        # {(callee's ctx key, resume pc, pull, widths)} (_follow_into)
+        self.push_foreign: dict[tuple, frozenset] = {}
+        self._depths: dict = {}
+        self._deep_cache: dict = {}
+        self._widths: dict = {}                          # ctx key -> pc -> widths it runs with there
+        self._foreign_deps: set = set()                  # (ctx key, pc) whose value a push elsewhere reads
         self.summary: dict[int, int] = {}                # routine -> packed value at its entry
         self.sym: dict[tuple, dict[int, int]] = {}       # ctx key -> pc -> packed value
+        # routines an indirect JMP/JML reaches -> why everything stays live after them, or None
+        self.indirect_entries: dict[int, str | None] = {}
         self._seed(dynamic_calls or {})
         self._pair_pushes()
 
@@ -303,17 +369,57 @@ class Liveness:
                     if insn.name in ("JSR", "JSL"):
                         static_sites.add(pc)
         for key, c in an.contexts.items():
-            unsafe = c.kinds & {"vector", "coverage", "indirect", "hint"}
+            unsafe = c.kinds & {"vector", "coverage", "hint"}
             if unsafe:
                 self._all_live(c.entry, f"entered as {', '.join(sorted(unsafe))}")
+            elif "indirect" in c.kinds:
+                why = self._indirect_entry(c)
+                self.indirect_entries[c.entry] = why
+                if why is not None:
+                    self._all_live(c.entry, why)
         for target, sites in dynamic_calls.items():
             unknown = sorted(s for s in sites if s not in static_sites)
             if unknown:
                 self._all_live(target, f"called from sites static analysis doesn't know ({len(unknown)})")
 
+    def _indirect_entry(self, c) -> str | None:
+        """Why a routine an indirect JMP or JML reaches must keep everything
+        live after it returns, or None when its callers are known: every
+        indirect site the analysis follows to it has a target set argued
+        complete (a `derive` hint, or a `bound`), so it is entered from those
+        sites (and the calls and jumps the analysis sees) and nowhere else,
+        and returns where they do. A site whose targets are only the ones the
+        movies ran could reach it from elsewhere too."""
+        an = self.an
+        sites = [pc for pc in sorted(c.callers)
+                 if any(i.mode in (Mode.ABSIND, Mode.ABSLIND) for i in an.code.get(pc, {}).values())]
+        if not sites:
+            return "entered as indirect"
+        loose = [pc for pc in sites if pc not in an.hints.derive and pc not in an.hints.bounds]
+        if loose:
+            return ("entered by an indirect jump whose targets aren't argued complete "
+                    f"(${loose[0] >> 16:02X}:{loose[0] & 0xFFFF:04X})")
+        return None
+
+    def _code(self, key, pc: int) -> list:
+        """The instruction at pc as the context runs it: (widths, insn) for
+        each set of widths the analysis traced it with there. (an.code has
+        every context's; a routine entered with 8- and 16-bit index
+        registers pushes one or two bytes at a PHX, and only one of them in
+        each context.)"""
+        ws = self._widths.get(key)
+        if ws is None:
+            ws = self._widths[key] = defaultdict(set)
+            for p, st in self.an.contexts[key].visited:
+                ws[p].add(st.widths)
+        variants = self.an.code[pc]
+        mine = [(w, variants[w]) for w in sorted(ws.get(pc, ()), key=str) if w in variants]
+        return mine or list(variants.items())
+
     def _all_live(self, entry: int, why: str):
         self.all_live_returns.add(entry)
         self.ret_live[entry] = ALL
+        self.esc_live[entry] = ALL
         self.reasons.setdefault(entry, why)
 
     # ---- PHP/PLP pairing -----------------------------------------------------------
@@ -412,7 +518,7 @@ class Liveness:
             if (pc, prev) in seen:
                 continue
             seen.add((pc, prev))
-            for widths, insn in an.code[pc].items():
+            for widths, insn in self._code(key, pc):
                 name, mode = insn.name, insn.mode
                 sets = self._sets_s(insn, prev)
                 if sets == "reset":
@@ -433,10 +539,14 @@ class Liveness:
                 if eff < 0:
                     r = max(r, -eff - d)
                 if name == "JML" or mode in (Mode.ABSIND, Mode.ABSLIND):
-                    targets = [insn.operand] if mode is Mode.LONG else an.hints.indirect.get(pc, [])
+                    targets = [insn.operand] if mode is Mode.LONG else self.indirect_targets(pc)
                     if not targets:
                         return UNBOUNDED
                     r = max([r] + [reach.get(t, UNBOUNDED) - d for t in targets])
+                    if r >= UNBOUNDED // 2:
+                        return UNBOUNDED
+                    # PER then JMP (abs): the targets return to the PER's address, its two bytes pulled
+                    work += [(n, d - 2, None) for n in self.indirect_resumes(pc)] if mode is Mode.ABSIND else []
                     continue
                 size = 3 if name == "JSL" else 2
                 for t in self._callees(pc, insn):
@@ -485,7 +595,8 @@ class Liveness:
         above = {}
         seen = set()
         pulls = set()
-        work = [(insn.next_pc, 0, None) for insn in an.code[push_pc].values()]
+        foreign = set()
+        work = [(insn.next_pc, 0, None) for insn in (i for _, i in self._code(key, push_pc))]
         while work:
             pc, k, prev = work.pop()            # k: bytes pushed above the pushed ones
             if pc not in c.insns:
@@ -495,7 +606,7 @@ class Liveness:
             if (pc, prev) in seen:
                 continue
             seen.add((pc, prev))
-            for widths, insn in an.code[pc].items():
+            for widths, insn in self._code(key, pc):
                 name, mode = insn.name, insn.mode
                 sets = self._sets_s(insn, prev)
                 if sets == "reset":
@@ -521,20 +632,178 @@ class Liveness:
                 if k + eff < 0:
                     return READ_OTHERWISE, frozenset()
                 call = 3 if name == "JSL" else 2
-                if any(self.reach.get(t, UNBOUNDED) > k + call for t in self._callees(pc, insn)):
-                    return CALLEE_REACHES, frozenset()
+                reaching = [t for t in self._callees(pc, insn) if self.reach.get(t, UNBOUNDED) > k + call]
+                if reaching:
+                    got = self._follow_into(key, push_pc, size, reaching, k + call, call)
+                    if got is None:
+                        return CALLEE_REACHES, frozenset()
+                    foreign |= got
                 nexts, why = self._successors(pc, insn)
                 if why is not None and not (name in ("JSR", "JSL") and nexts == []):
                     return why, frozenset()       # (a call that doesn't return ends the path)
                 loads = self._loads(insn, widths)
                 work += [(n, k + eff, loads) for n in nexts]
+        if foreign:
+            self.push_foreign[(key, push_pc)] = frozenset(foreign)
         return PAIRED, frozenset(pulls)
+
+    def _follow_into(self, key, push_pc: int, size: int, callees, k0: int, call: int):
+        """A callee that reaches the pushed bytes (they lie `k0` bytes above
+        its entry S, the last `call` of them its return address): the pulls in
+        it that take them off, as {(callee's ctx key, resume pc, pull, pull's
+        widths)}, or None where it isn't clear the callee does only that.
+
+        This is a routine that leaves through its caller's frame: the sound
+        driver's `$C7:0A39`, refused, pulls its own return address and runs
+        its caller's exit, which restores the caller's registers and returns
+        to the caller's caller. Every path through the callee must either
+        return to the caller normally, the bytes untouched, or pull them with
+        a pull of the same size and then only pull the rest of the caller's
+        frame and return as the caller does (`_escapes`). What is live after
+        such a pull is then what the caller's callers read, the same packed
+        value as at the caller's own pull, so the push reads it."""
+        an = self.an
+        owner = self._returns_as(key)
+        dp0 = self._depth_before(key, push_pc)
+        out = set()
+        for t in callees:
+            fkeys = self._entries_at(t)
+            if not fkeys:
+                return None
+            for fkey in fkeys:
+                c = an.contexts[fkey]
+                above, seen = {}, set()
+                work = [(c.entry, k0, None)]
+                while work:
+                    pc, k, prev = work.pop()      # k: bytes above the pushed ones
+                    if pc not in c.insns or above.setdefault(pc, k) != k:
+                        return None
+                    if (pc, prev) in seen:
+                        continue
+                    seen.add((pc, prev))
+                    for widths, insn in self._code(fkey, pc):
+                        name, mode = insn.name, insn.mode
+                        sets = self._sets_s(insn, prev)
+                        if sets == "reset":
+                            continue
+                        if sets == "unknown" or name in ("TSC", "TSX") or name in SUSPICIOUS:
+                            return None
+                        if mode in (Mode.SR, Mode.SRINDY):
+                            w = _sr_bytes(insn, widths)
+                            if w is None or insn.operand + w - 1 > k:
+                                return None
+                        if name in RETURNS:
+                            if k == k0 and {"RTS": 2, "RTL": 3}.get(name) == call:
+                                continue          # back to the caller, the bytes untouched
+                            return None
+                        eff = stack_effect(insn, widths)
+                        if eff is None:
+                            return None
+                        if k == 0 and eff == -size and name in PULL_DEST:
+                            if owner is None or dp0 is None or not self._escapes(fkey, insn.next_pc, dp0, owner):
+                                return None
+                            out.add((fkey, insn.next_pc, name, widths))
+                            continue
+                        if k + eff < 0:
+                            return None
+                        c2 = 3 if name == "JSL" else 2
+                        if any(self.reach.get(t2, UNBOUNDED) > k + c2 for t2 in self._callees(pc, insn)):
+                            return None
+                        nexts, why = self._successors(pc, insn)
+                        if why is not None:
+                            if name in ("JSR", "JSL") and nexts == []:
+                                continue          # a call that doesn't return ends the path
+                            return None
+                        work += [(n, k + eff, self._loads(insn, widths)) for n in nexts]
+        return out
+
+    def _escapes(self, fkey, pc: int, depth: int, ret: str) -> bool:
+        """Whether every path from pc (in context fkey) pulls `depth` more
+        bytes and then returns with `ret`, reading nothing further up: the
+        return the routine whose frame those bytes are makes."""
+        an = self.an
+        c = an.contexts[fkey]
+        above, seen = {}, set()
+        work = [(pc, depth, None)]
+        while work:
+            pc, j, prev = work.pop()
+            if pc not in c.insns or above.setdefault(pc, j) != j:
+                return False
+            if (pc, prev) in seen:
+                continue
+            seen.add((pc, prev))
+            for widths, insn in self._code(fkey, pc):
+                name, mode = insn.name, insn.mode
+                if self._sets_s(insn, prev) is not None or name in ("TSC", "TSX") or name in SUSPICIOUS:
+                    return False
+                if name in RETURNS:
+                    if j != 0 or name != ret:
+                        return False
+                    continue
+                if mode in (Mode.SR, Mode.SRINDY):
+                    w = _sr_bytes(insn, widths)
+                    if w is None or insn.operand + w - 1 > j:
+                        return False
+                eff = stack_effect(insn, widths)
+                if eff is None or j + eff < 0:
+                    return False
+                c2 = 3 if name == "JSL" else 2
+                if any(self.reach.get(t, UNBOUNDED) > j + c2 for t in self._callees(pc, insn)):
+                    return False
+                nexts, why = self._successors(pc, insn)
+                if why is not None:
+                    if name in ("JSR", "JSL") and nexts == []:
+                        continue
+                    return False
+                work += [(n, j + eff, self._loads(insn, widths)) for n in nexts]
+        return True
+
+    def _returns_as(self, key) -> str | None:
+        """The return a routine entered only by JSL ("RTL"), or only by JSR
+        and call tables ("RTS"), makes to its caller; None for others."""
+        kinds = self.an.contexts[key].kinds
+        if kinds and kinds <= {"jsl"}:
+            return "RTL"
+        if kinds and kinds <= {"jsr", "table"}:
+            return "RTS"
+        return None
+
+    def _depth_before(self, key, pc: int) -> int | None:
+        """Bytes a context has pushed since its entry when it reaches pc, if
+        that is one number on every path."""
+        if key not in self._depths:
+            an = self.an
+            c = an.contexts[key]
+            depth, seen, ok = {}, set(), True
+            work = [(c.entry, 0, None)]
+            while work and ok:
+                p, d, prev = work.pop()
+                if p not in c.insns:
+                    continue
+                if depth.setdefault(p, d) != d:
+                    ok = False
+                    break
+                if (p, prev) in seen:
+                    continue
+                seen.add((p, prev))
+                for widths, insn in self._code(key, p):
+                    if self._sets_s(insn, prev) is not None:
+                        continue
+                    eff = stack_effect(insn, widths)
+                    if eff is None:
+                        ok = False
+                        break
+                    nexts, _ = self._successors(p, insn)
+                    work += [(n, d + eff, self._loads(insn, widths)) for n in nexts]
+            self._depths[key] = depth if ok else None
+        depth = self._depths[key]
+        return None if depth is None else depth.get(pc)
 
     def _pair_pushes(self):
         self._compute_reach()
         for key, c in self.an.contexts.items():
             for pc in c.insns:
-                variants = {(insn.name, stack_effect(insn, w)) for w, insn in self.an.code[pc].items()}
+                variants = {(insn.name, stack_effect(insn, w)) for w, insn in self._code(key, pc)}
                 if len(variants) != 1:
                     continue
                 name, size = variants.pop()
@@ -558,6 +827,14 @@ class Liveness:
             out[case] = (len(sites), len({pc for _key, pc in sites}))
         return out
 
+    def _foreign_value(self, fkey, pc: int) -> int:
+        """The packed value at pc in another context, read by a push this
+        context makes (solve() iterates until these stop changing too)."""
+        self._foreign_deps.add((fkey, pc))
+        if pc not in self.an.contexts[fkey].insns:
+            return ALL
+        return self.sym.get(fkey, {}).get(pc, 0)
+
     def _pushed_read(self, key, pc, insn: Insn, widths, live_at) -> int | None:
         """What a paired push reads: of the register it saves, what is live
         after the pulls that restore it (all of it where a pull puts it
@@ -568,8 +845,13 @@ class Liveness:
             return None
         saved = _push_bits(insn.name, widths)
         read = 0
-        for resume, pull, pull_widths in pulls:
-            after = live_at(resume)
+        # a pull in a callee that leaves through this routine's frame: what is
+        # live after it is read by this routine's callers (its return is this
+        # routine's), so its packed value counts as this routine's
+        pulled = [(live_at(r), p, w) for r, p, w in pulls] + \
+                 [(_as_caller(self._foreign_value(fkey, r)), p, w)
+                  for fkey, r, p, w in self.push_foreign.get((key, pc), ())]
+        for after, pull, pull_widths in pulled:
             dest, nz = _pull_dest(pull, pull_widths)
             if PULL_DEST[pull] == insn.name:
                 read |= after & _rep(saved)
@@ -607,12 +889,29 @@ class Liveness:
             return ALL
         return self.summary.get(target, 0)
 
-    def _call(self, targets, after: int) -> int:
-        """The value before a call to any of targets, given the value after."""
+    def _call(self, targets, after: int, key=None, pc: int | None = None, size: int | None = None) -> int:
+        """The value before a call to any of targets, given the value after
+        (the call's context, address and bytes pushed say how far up a
+        callee that leaves through the caller's frame can go)."""
         live = 0
         for t in targets:
-            live |= _apply(self._summary(t), after)
+            live |= _apply(self._summary(t), after, self._deep(key, pc, t, size))
         return live
+
+    def _deep(self, key, pc, target: int, size: int | None) -> bool:
+        """Whether the routine a call at pc makes may pull more than the
+        caller's frame (what the caller pushed and its return address), and
+        so return past the caller's caller; True where that isn't known."""
+        if key is None or size is None:
+            return True
+        got = self._deep_cache.get((key, pc, target))
+        if got is None:
+            r = self.reach.get(target, UNBOUNDED)
+            depth = self._depth_before(key, pc)
+            ret = {"RTS": 2, "RTL": 3}.get(self._returns_as(key))
+            got = r >= UNBOUNDED or depth is None or ret is None or r - size > depth + ret
+            self._deep_cache[(key, pc, target)] = got
+        return got
 
     def _instruction_live_in(self, key, pc, insn: Insn, widths, live_at) -> int:
         an = self.an
@@ -620,10 +919,15 @@ class Liveness:
         uses, defs = use_def(insn, widths[0], widths[1])
         bank = pc & 0xFF0000
 
-        if name in SUSPICIOUS or name == "STP" or name == "RTI":
+        if name in SUSPICIOUS or name == "STP":
             return ALL
+        if name == "RTI":
+            return ALL & ~FLAGS     # the interrupted code's registers; its P comes off the stack
         if name in ("RTS", "RTL"):
-            return IDENT
+            depth = self._depth_before(key, pc)
+            # below the depth it was entered at, it returns through its caller's
+            # frame; where S isn't followed it is taken to return to the caller
+            return ESC_IDENT if depth is not None and depth < 0 else IDENT
         if name == "XBA":
             # the bytes change places, so their liveness does; N and Z come
             # from the byte that ends up low
@@ -647,29 +951,44 @@ class Liveness:
             targets = self._call_targets(pc, insn)
             if not targets:
                 return ALL
+            size = 3 if name == "JSL" else 2
             if any(t in an.hints.noreturn for t in targets):
-                return self._call(targets, 0)
+                return self._call(targets, 0, key, pc, size)
             skip = max(an.hints.inline_args.get(t, 0) for t in targets)
-            return self._call(targets, live_at(insn.next_pc + skip))
+            return self._call(targets, live_at(insn.next_pc + skip), key, pc, size)
         if mode is Mode.ABSXIND:
             jt = an.tables.get(pc)
             if jt is None or jt.count is None:
                 return ALL
             targets = self._table_targets(jt)
             if jt.call:
-                return uses | self._call(targets, live_at(insn.next_pc))
+                return uses | self._call(targets, live_at(insn.next_pc), key, pc, 2)
             live = uses
+            resumes = self.indirect_resumes(pc)
+            if resumes:         # PER then JMP (abs,X): the targets return to the PER's address
+                after = 0
+                for r in resumes:
+                    after |= live_at(r)
+                live |= self._call(targets, after, key, pc, 2)
             for t in targets:
                 live |= live_at(t)
             return live
         if mode in (Mode.ABSIND, Mode.ABSLIND):
-            targets = an.hints.indirect.get(pc)
+            targets = self.indirect_targets(pc)
             if not targets:
                 return ALL
-            return uses | self._call(targets, IDENT)
+            resumes = self.indirect_resumes(pc)
+            if resumes:         # PER then JMP (abs): a call
+                after = 0
+                for r in resumes:
+                    after |= live_at(r)
+                return uses | self._call(targets, after, key, pc, 2)
+            return uses | self._call(targets, IDENT)     # a tail jump: they return for this routine
         return uses | (live_at(insn.next_pc) & ~_rep(defs))
 
     def _table_targets(self, jt) -> list:
+        """Every target the analysis follows from a sized table: its entries,
+        a hint's extra targets and the ones derived from data."""
         bank = jt.dispatcher & 0xFF0000
         out = []
         for i in range(jt.count):
@@ -680,7 +999,22 @@ class Liveness:
                 t = None if v is None else bank | v
             if t is not None:
                 out.append(t)
-        return out
+        out += list(jt.extra) + sorted(self.an.derived.get(jt.dispatcher, ()))
+        return list(dict.fromkeys(out))
+
+    def indirect_targets(self, pc: int) -> list:
+        """Where a JMP (abs) or JML [abs] goes, as the analysis follows it (a
+        hint's targets and the ones derived from data); empty if it doesn't
+        (no targets, or targets that are threads' entries)."""
+        an = self.an
+        if pc in an.hints.nofollow:
+            return []
+        return list(dict.fromkeys(list(an.hints.indirect.get(pc, [])) + sorted(an.derived.get(pc, ()))))
+
+    def indirect_resumes(self, pc: int) -> list:
+        """Where the targets of an indirect JMP at pc return to when it is a
+        call (a PER before it pushed the address); empty for a tail jump."""
+        return sorted(self.an.call_resumes.get(pc, ()))
 
     def _solve_context(self, key) -> int:
         """Solve a context with the summaries as they are; its entry's value."""
@@ -699,7 +1033,7 @@ class Liveness:
             changed = False
             for pc in pcs:
                 value = 0
-                for widths, insn in an.code[pc].items():
+                for widths, insn in self._code(key, pc):
                     value |= self._instruction_live_in(key, pc, insn, widths, live_at)
                 if value != live.get(pc):
                     live[pc] = value
@@ -707,39 +1041,52 @@ class Liveness:
         return live.get(c.entry, ALL)
 
     def _call_edges(self):
-        """(caller key, pc after the call or None for a tail, targets) of every
-        call and tail jump, for carrying what callers read into ret_live."""
+        """(caller key, the call's pc, pc after the call or None for a tail,
+        targets, bytes the call pushes or None for a tail) of every call and
+        tail jump, for carrying what callers read into ret_live."""
         an = self.an
         for key, c in an.contexts.items():
             for pc in c.insns:
                 for insn in an.code[pc].values():
                     name, mode = insn.name, insn.mode
                     if name == "JML" and mode is Mode.LONG:
-                        yield key, None, [insn.operand]
+                        yield key, pc, None, [insn.operand], None
                     elif name in ("JSR", "JSL") and mode in (Mode.ABS, Mode.LONG):
                         targets = self._call_targets(pc, insn)
                         if not targets or any(t in an.hints.noreturn for t in targets):
                             continue
                         skip = max(an.hints.inline_args.get(t, 0) for t in targets)
-                        yield key, insn.next_pc + skip, targets
+                        yield key, pc, insn.next_pc + skip, targets, 3 if name == "JSL" else 2
                     elif mode is Mode.ABSXIND:
                         jt = an.tables.get(pc)
-                        if jt is not None and jt.count is not None and jt.call:
-                            yield key, insn.next_pc, self._table_targets(jt)
-                    elif mode in (Mode.ABSIND, Mode.ABSLIND) and an.hints.indirect.get(pc):
-                        yield key, None, an.hints.indirect[pc]
+                        if jt is not None and jt.count is not None:
+                            if jt.call:
+                                yield key, pc, insn.next_pc, self._table_targets(jt), 2
+                            else:
+                                for r in self.indirect_resumes(pc):
+                                    yield key, pc, r, self._table_targets(jt), 2
+                    elif mode in (Mode.ABSIND, Mode.ABSLIND) and self.indirect_targets(pc):
+                        resumes = self.indirect_resumes(pc)
+                        for r in resumes:
+                            yield key, pc, r, self.indirect_targets(pc), 2
+                        if not resumes:
+                            yield key, pc, None, self.indirect_targets(pc), None
 
     def solve(self, max_rounds: int = 60):
         an = self.an
         # 1. every routine's summary, from nothing up to the least fixpoint
         for _ in range(max_rounds):
             changed = False
+            foreign = {(k, pc): self.sym.get(k, {}).get(pc) for k, pc in self._foreign_deps}
             for key in an.contexts:
                 entry_value = self._solve_context(key)
                 new = self.summary.get(key[0], 0) | entry_value
                 if new != self.summary.get(key[0], 0):
                     self.summary[key[0]] = new
                     changed = True
+            if len(foreign) != len(self._foreign_deps) or \
+                    any(self.sym.get(k, {}).get(pc) != v for (k, pc), v in foreign.items()):
+                changed = True        # a push reads a value in another context that has moved
             if not changed:
                 break
         else:
@@ -748,20 +1095,23 @@ class Liveness:
         edges = list(self._call_edges())
         for _ in range(max_rounds * 4):
             changed = False
-            for key, resume, targets in edges:
+            for key, pc, resume, targets, size in edges:
                 c = an.contexts[key]
+                ret, esc = self.ret_live[key[0]], self.esc_live[key[0]]
                 if resume is None:
-                    after = self.ret_live[key[0]]
+                    after = ret
                 elif resume in c.insns:
-                    after = _eval(self.sym[key].get(resume, 0), self.ret_live[key[0]])
+                    after = _eval(self.sym[key].get(resume, 0), ret, esc)
                 else:
                     after = ALL
                 for t in targets:
                     if t in self.all_live_returns:
                         continue
+                    # leaving through the caller's frame, it returns for the caller or further up
                     new = self.ret_live[t] | after
-                    if new != self.ret_live[t]:
-                        self.ret_live[t] = new
+                    new_esc = self.esc_live[t] | ret | (esc if self._deep(key, pc, t, size) else 0)
+                    if new != self.ret_live[t] or new_esc != self.esc_live[t]:
+                        self.ret_live[t], self.esc_live[t] = new, new_esc
                         changed = True
             if not changed:
                 break
@@ -769,13 +1119,35 @@ class Liveness:
             raise RuntimeError("liveness did not converge")
         # 3. the values, given what the callers read
         for key, values in self.sym.items():
-            ret = self.ret_live[key[0]]
-            self.live_in[key] = {pc: _eval(v, ret) for pc, v in values.items()}
+            ret, esc = self.ret_live[key[0]], self.esc_live[key[0]]
+            self.live_in[key] = {pc: _eval(v, ret, esc) for pc, v in values.items()}
             c = an.contexts[key]
             self.func_live_in[key[0]] |= self.live_in[key].get(c.entry, ALL)
 
+    def escaped_returns(self, key) -> set:
+        """The return instructions of a context that return through its
+        caller's frame: below the depth it was entered at."""
+        out = set()
+        for pc in self.an.contexts[key].insns:
+            for _, insn in self._code(key, pc):
+                if insn.name in ("RTS", "RTL"):
+                    depth = self._depth_before(key, pc)
+                    if depth is not None and depth < 0:
+                        out.add(pc)
+        return out
+
+    def after_return(self, entry: int) -> int:
+        """What may be read after the routine at entry returns, whichever way:
+        to its caller, or (a routine that does) through its caller's frame."""
+        if entry in self.all_live_returns:
+            return ALL
+        live = self.ret_live[entry]
+        if any(self.escaped_returns(key) for key in self._entries_at(entry)):
+            live |= self.esc_live[entry]
+        return live
+
     def dead_at_return(self, entry: int) -> int:
-        return ALL & ~self.ret_live[entry]
+        return ALL & ~self.after_return(entry)
 
     # ---- queries at program points (after solve) --------------------------------------
 
@@ -797,13 +1169,21 @@ class Liveness:
     def live_after_return(self, pc: int) -> int | None:
         """What may be read after the routine running pc returns (pc a return
         instruction, or any instruction of it), over every context that runs
-        pc; None if none does."""
+        pc; None if none does. At a return instruction, what is read after
+        that return: to the caller, or through the caller's frame."""
         keys = self.contexts_at(pc)
         if not keys:
             return None
         live = 0
         for key in keys:
-            live |= ALL if key[0] in self.all_live_returns else self.ret_live[key[0]]
+            if key[0] in self.all_live_returns:
+                return ALL
+            rets = [i for _, i in self._code(key, pc) if i.name in ("RTS", "RTL")]
+            if rets:
+                depth = self._depth_before(key, pc)     # as the solve takes it
+                live |= self.esc_live[key[0]] if depth is not None and depth < 0 else self.ret_live[key[0]]
+            else:
+                live |= self.after_return(key[0])
         return live
 
     def callee_reads(self, target: int) -> int:

@@ -73,7 +73,7 @@ class Tree:
     def draft(self, addr: int, name: str, m, x, cost: str | None = None) -> str | None:
         """The registry entry for the draft of addr, or None (the reason is in
         self.skipped)."""
-        ws = show.entry_widths(self.k.an, addr, m, x)
+        ws = show.entry_widths(self.k.an, addr, m, x, {addr: (m, x)})
         if len(ws) != 1 or (addr, ws[0]) not in self.k.an.contexts:
             self.skipped[name] = "widths " + (", ".join(f"m{8 if a else 16} x{8 if b else 16}" for a, b in ws)
                                               or "unknown")

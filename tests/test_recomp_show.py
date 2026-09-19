@@ -54,6 +54,21 @@ meaning = "a cell by its offset"
 source = "test"
 
 [[var]]
+name = "test_loose"
+addr = "7E:0130"
+subsystem = "field"
+meaning = "a cell under the page with no page of its own"
+source = "test"
+
+[[var]]
+name = "test_core"
+addr = "7E:0140"
+page = "test_page"
+subsystem = "core"
+meaning = "a cell every subsystem shares"
+source = "test"
+
+[[var]]
 name = "test_table"
 addr = "7E:9100"
 size = 1
@@ -149,7 +164,8 @@ class Frames_(unittest.TestCase):
     def test_d_set_by_the_routine_itself(self):
         d, text = draft(0xC08500)
         # PEA #$1D00 : PLD puts D on $1D00 for the load; PHD/PLD brings it back
-        self.assertIn("m_read8(s, 0x7E1D10)", text)
+        self.assertIn("m_read8(s, SCRATCH_1D10)", text)
+        self.assertIn("#define SCRATCH_1D10 0x7E1D10", text)
         self.assertIn("s->cpu.d = m_pull16(s);", text)
 
     def test_unknown_d_stays_an_offset(self):
@@ -190,8 +206,11 @@ class Drafts(unittest.TestCase):
             self.assertNotRegex(logic, r"\bm_(lda|ldx|tax|rep|sep|set_nz)")
 
     def test_ram_and_direct_page_names(self):
+        # $10 is a variable of the page; $20 isn't, and gets a scratch name the draft defines and ends
         _, text = draft(0xC08010)
-        self.assertIn("m_write8(s, 0x7E0120, m_read8(s, RAM_TEST_SOURCE));", text)
+        self.assertIn("m_write8(s, SCRATCH_0120, m_read8(s, RAM_TEST_SOURCE));", text)
+        self.assertIn("#define SCRATCH_0120 0x7E0120   /* direct page $20 with D = $0100", text)
+        self.assertTrue(text.rstrip().endswith("#undef SCRATCH_0120"))
 
     def test_dead_flags_are_dropped(self):
         # the caller reloads the low byte of A and N, Z after the call and
@@ -292,6 +311,61 @@ class Names(unittest.TestCase):
         self.assertEqual(n.name(0x7E0110), "RAM_TEST_SOURCE")
         self.assertEqual(n.name(0x7E9103), "RAM_TEST_TABLE + 3")
         self.assertIsNone(names.RamNamer(RamMap(text=RAM_TOML), "battle").name(0x7E0110))
+
+    def test_direct_page_names_need_the_page_and_the_subsystem(self):
+        m = RamMap(text=RAM_TOML)
+        field, event = names.RamNamer(m, "field"), names.RamNamer(m, "event")
+        # a variable of the page, from its own subsystem
+        self.assertEqual(field.name(0x7E0110, dp=0x0100), "RAM_TEST_SOURCE")
+        # the event engine shares the field's page: an absolute access takes the field's
+        # name, a direct-page one doesn't (the cell is the event command's scratch too)
+        self.assertEqual(event.name(0x7E0110), "RAM_TEST_SOURCE")
+        self.assertIsNone(event.name(0x7E0110, dp=0x0100))
+        # a variable under the page that the map doesn't put on it
+        self.assertEqual(field.name(0x7E0130), "RAM_TEST_LOOSE")
+        self.assertIsNone(field.name(0x7E0130, dp=0x0100))
+        # another D: not this page's variable
+        self.assertIsNone(field.name(0x7E0110, dp=0x0000))
+        # core's are everyone's; a routine whose subsystem isn't known gets nothing else
+        self.assertEqual(event.name(0x7E0140, dp=0x0100), "RAM_TEST_CORE")
+        unknown = names.RamNamer(m, None)
+        self.assertEqual(unknown.name(0x7E0140), "RAM_TEST_CORE")
+        self.assertIsNone(unknown.name(0x7E0110))
+        self.assertEqual(unknown.scratch(0x7E0110, 0x0100), "SCRATCH_0110")
+
+    def test_subsystem_of_a_routine_in_a_shared_bank(self):
+        # C3:8000 is called from the menus (C2) only; C3:8010 from the menus and the battle (C1);
+        # C3:8020 from C3:8000 alone, so it works for the menus as well
+        code = {0xC28000: bytes.fromhex("220080C3 221080C3 60".replace(" ", "")),
+                0xC18000: bytes.fromhex("221080C3 60".replace(" ", "")),
+                0xC38000: bytes.fromhex("202080 6B".replace(" ", "")), 0xC38010: bytes.fromhex("6B"),
+                0xC38020: bytes.fromhex("60")}
+        h = Hints()
+        for addr in (0xC28000, 0xC18000):
+            h.entries.append(type("E", (), {"addr": addr, "m": True, "x": True, "kind": "test"})())
+        an = Analyzer(FakeRom(code), h)
+        an.run()
+        self.assertEqual(names.routine_subsystem(an, 0xC38000), "menu")
+        self.assertEqual(names.routine_subsystem(an, 0xC38020), "menu")
+        self.assertIsNone(names.routine_subsystem(an, 0xC38010))
+        self.assertEqual(names.routine_subsystem(an, 0xC18000), "battle")
+        # the call logs' callers count too
+        self.assertIsNone(names.routine_subsystem(an, 0xC38000, {0xC38000: {0xC18000}}))
+
+    def test_entry_widths_narrowed_by_the_registry_and_the_coverage(self):
+        # C0:8000 calls C0:8020 with 8-bit and with 16-bit index registers
+        code = {0xC08000: bytes.fromhex("202080 C210 202080 60".replace(" ", "")),
+                0xC08020: bytes.fromhex("60")}
+        h = Hints()
+        h.entries.append(type("E", (), {"addr": 0xC08000, "m": True, "x": True, "kind": "test"})())
+        an = Analyzer(FakeRom(code), h)
+        an.run()
+        both = [(True, False), (True, True)]
+        self.assertEqual(show.entry_widths(an, 0xC08020, None, None), both)
+        self.assertEqual(show.entry_widths(an, 0xC08020, None, None, {0xC08020: (8, 16)}), [(True, False)])
+        self.assertEqual(show.entry_widths(an, 0xC08020, None, None, {0xC08020: (8, None)}), both)
+        an.coverage = {0xC08020: {(True, True)}}
+        self.assertEqual(show.entry_widths(an, 0xC08020, None, None, {0xC08020: (8, None)}), [(True, True)])
 
     def test_io_names(self):
         self.assertEqual(names.io_name(0x002100), "INIDISP")

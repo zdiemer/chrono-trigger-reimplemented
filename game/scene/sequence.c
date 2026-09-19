@@ -206,7 +206,7 @@ static bool call_program(Snes *s, Flags *f, uint16_t routine)
     s->cpu.x = 0;
     set_widths16(s);
     put_flags(s, f);
-    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_A | DC_N | DC_Z | DC_C);
+    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_A | DC_N | DC_Z);
     return can_continue(s, f);
 }
 
