@@ -2316,6 +2316,60 @@ These are the tool's next improvements, or its known limits:
   routine that sends it a command) and across the menus' task switch at
   `$C2:821E`, which copies S. Both are "a callee reaches it" above.
 
+### Phase 3, wave 1: the scene engine and scene data (`$C3`, `$C6`)
+
+The scene engine's bank went from 44% left to 25% by `python3 tools/burndown.py`
+(11 entries to 28), and the scene data bank from 100% to 68% (25 entries); what
+is left in `$C3` is code the beam's counters decide, one routine nothing reaches
+and the edge sequence `field_rasterize_quad` inlines, which the tool can't
+credit (PORTING.md's rows). The early ports (the NMI, the sprite lists, the
+scaler, the multiply) were rewritten to the bar on the way. Found on the way,
+about the workflow rather than the code:
+
+- **A stop inside the original's loop is ambiguous.** Shadow mode and
+  `ct_fuzz` take a stop as reached the first time the original passes that
+  instruction with the same S. The sequence interpreter's loop head, or any
+  instruction a command shares, is passed again and again, so a port that runs
+  several commands and then stops there (a command it doesn't handle, a script
+  that never yields) was compared against the original's first pass. Such a port
+  now puts the script back on the command and makes the rest of the run a
+  call-out to the original's loop from the entry's own `JSR` site, which leaves
+  the stack exactly as the original has it; the divisor loop `$C3:0E29`, whose
+  loop head is its entry, hands a loop that never ends back after its first
+  pass, where the machine is also after all 256.
+- **An entry on a path the port also runs** is the nesting rule of Call-outs in
+  PORTING.md again: `$C3:0C28`, where the sound wait goes on, is also where the
+  store command's path continues, so the original entering it inside a run
+  started a comparison of its own, which took the run's call to the sound
+  driver. It isn't an entry; before registering an address in the middle of a
+  routine, check that nothing else a port covers runs through it.
+- **Chained carries** (`ADC` without `CLC`) run through the scaler's samples,
+  the circle's midpoint steps and the sequence commands, and callers read the
+  carry and overflow after them. A `bool carry` threaded through the logic
+  reproduces them; fuzzing checked every one first time.
+- **Open bus in a status byte kept in A**: `$4211` and `$4212` return open bus
+  in the bits they don't define, which the original reads as the instruction's
+  last operand byte; where A keeps the byte, the port masks those bits.
+- **Everything live after an indirect tail jump** (docs/TODO.md): bank C6's
+  routines are reached through `JML [$005B]`, so liveness keeps every register
+  and flag live after them, and each port reproduces all of them.
+- **Fuzzing long native runs**: `ct_fuzz` gives the original four times the
+  call-outs' step budget, but not the port's own work, so a port that runs a
+  long script natively can be reported as "original never reached" where the
+  original only ran out of steps; `--step-limit` fixes it. Pointers into I/O
+  space (object slots, script pointers) need `--fill` to stay in RAM, where the
+  game keeps them.
+- **The draft tool** names a direct page cell by whichever page has that D: the
+  menu's page and the scene's are both `$0000`, so the C6 drafts named the menu
+  object mode's cells after the scene program's (`RAM_SCENE_FRAME_READY` for
+  `$00`). Entries with more than one entry width need `--m`/`--x`.
+
+Effort: a long working day for 53 entries (1.1 KiB of bank C6 among them,
+counting the jump-table copies); the sequence interpreter and the circle were
+most of the reading, the ambiguous stops most of the debugging, and machine
+time (the library in shadow mode, 10 minutes at two at a time; the gate with
+every route about an hour) most of the waiting.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

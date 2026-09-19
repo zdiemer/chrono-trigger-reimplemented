@@ -43,3 +43,7 @@ palette_fade_to_white vblank-tail a fade's colors through the multiplier, or res
 palette_fade_to_white vblank-worst as for vblank-tail: at most 17718 clocks (13 lines), writing RAM
 palette_fade_to_black vblank-tail as palette_fade_to_white; 1.1% mean error
 palette_fade_to_black vblank-worst as palette_fade_to_white: at most 30817 clocks (23 lines), writing RAM
+
+# The scene engine's circle, a RAM window table the next frame's HDMA reads.
+scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls; its time follows the radius (the midpoint steps and the fills); at most 1883 clocks (1.4 lines)
+scene_draw_circle_jump vblank-tail the same routine through its jump at $C3:0008: as scene_draw_circle

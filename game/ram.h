@@ -1310,6 +1310,14 @@
 #define RAM_MENU_RECORDS_X 0x7E180Fu         /* X position */
 #define RAM_MENU_RECORDS_TILE 0x7E1819u      /* Tile and attributes of the first sprite; each next sprite's tile is 2 more */
 #define RAM_MENU_RECORDS_SPRITE_OFFSETS 0x7E1822u /* The first sprite's (X, Y) offset pair; the other sprites' pairs follow */
+/* Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237) */
+#define RAM_MENU_SCENE_MODE_BITS 0x7E1BA9u
+/* Horizontal scroll the menu code leaves for BG3, which the drift routine adds and clears [2
+ * bytes] */
+#define RAM_MENU_PENDING_SCROLL_X 0x7E1BF1u
+/* Vertical scroll the menu code leaves for BG3, which the drift routine adds and clears [2
+ * bytes] */
+#define RAM_MENU_PENDING_SCROLL_Y 0x7E1BF3u
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes] */
 #define RAM_MENU_SAVE_SLOT_TILEMAP 0x7E3200u
@@ -2633,6 +2641,23 @@
 #define RAM_SCENE_MATH_SCRATCH_C 0x7E00F4u   /* 32-bit product; the 8.8 quotient (low word); the 32-bit divide's divisor */
 #define RAM_SCENE_MATH_SCRATCH_QUOTIENT 0x7E00F8u /* 32-bit divide's quotient; its low word is the 8.8 divide's divisor minus one */
 #define RAM_SCENE_MATH_SCRATCH_REMAINDER 0x7E00FCu /* 32-bit divide's remainder */
+/* X of the center of the circle $C3:0077 draws into a per-line window table (8-bit; the routine
+ * clears the byte after it) */
+#define RAM_SCENE_CIRCLE_CENTER_X 0x7E0350u
+#define RAM_SCENE_CIRCLE_CENTER_X_DP 0x50u   /* page decompress */
+/* Line of the circle's center (8-bit; the routine clears the byte after it) */
+#define RAM_SCENE_CIRCLE_CENTER_Y 0x7E0352u
+#define RAM_SCENE_CIRCLE_CENTER_Y_DP 0x52u   /* page decompress */
+/* The circle's radius in lines (8-bit; the routine clears the byte after it); 0 closes every
+ * line */
+#define RAM_SCENE_CIRCLE_RADIUS 0x7E0354u
+#define RAM_SCENE_CIRCLE_RADIUS_DP 0x54u     /* page decompress */
+/* Address of the circle's per-line table (224 lines of left and right X) [2 bytes] */
+#define RAM_SCENE_CIRCLE_TABLE 0x7E0356u
+#define RAM_SCENE_CIRCLE_TABLE_DP 0x56u      /* page decompress */
+/* Bit 0: the circle's table is in bank $7F rather than $7E */
+#define RAM_SCENE_CIRCLE_TABLE_BANK 0x7E0358u
+#define RAM_SCENE_CIRCLE_TABLE_BANK_DP 0x58u /* page decompress */
 /* Scene mode bits: bit 7 = interrupts stay enabled through the NMI work (IRQs in use) and the
  * shorter work RAM clear (the title coming back); bit 5 = don't send song changes */
 #define RAM_SCENE_FLAGS 0x7E0384u
@@ -2656,6 +2681,8 @@
 /* Set when Start toggles pause and cleared when it is released, so a held Start toggles once [2
  * bytes] */
 #define RAM_SCENE_START_HELD 0x7E0394u
+/* Nonzero keeps L+R+Select+Start from resetting the console during a scene */
+#define RAM_SCENE_RESET_DISABLED 0x7E0396u
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence
  * scripts add and remove; the NMI copies it to $0950 and runs the copy each frame [16 x $2
  * bytes, by task slot] */

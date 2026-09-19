@@ -42,7 +42,7 @@ static inline bool m_io_bank(uint8_t bank) { return (bank & 0x40) == 0; }
  * reach registers with direct-page addressing. A port reproduces the value in
  * D, which is CPU state, while its own accesses go through the platform
  * services (docs/PLATFORM.md). */
-enum { M_DP_PPU = 0x2100, M_DP_DMA = 0x4300 };
+enum { M_DP_PPU = 0x2100, M_DP_CPU = 0x4200, M_DP_DMA = 0x4300 };
 
 /* Registers an original reaches with absolute addressing, so that with a data
  * bank the registers aren't mapped in (m_io_bank) the store lands in memory
