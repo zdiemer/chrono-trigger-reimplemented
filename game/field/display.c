@@ -7,63 +7,6 @@
 
 bool field_display_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
 
-// $FD:C1EE
-/* Program the field's eight per-line effect slots, all reading tables in bank
- * $7F indirectly: the layers' tilemap addresses, BG1-BG3 scroll, the screens
- * and window masks, window 1's edges, the color math layers with the fixed
- * color, and one edge of window 2 -- the left one, or the right one while
- * $013C bit 0 is set. The tables lie at $7F:0F80 and up, or at $7F:1238 and up
- * while the low nibble of $0153 is set (two sets, presumably swapped between
- * frames). The slots themselves are turned on elsewhere; the field NMI copies
- * the enable shadow $0128 every frame. Returns with RTL.
- *
- * The original writes all eight controls, then all eight destinations, and so
- * on; the calls below write each slot's registers together. Nothing observes
- * the order: the routine makes no calls, and every register ends up the same. */
-void field_setup_line_effects(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,     VID_STEP_DEST,      VID_STEP_SOURCE_BANK, VID_STEP_INDIRECT_BANK,
-        VID_STEP_SOURCE_LO,   VID_STEP_SOURCE_HI, VID_STEP_END,
-    };
-    static const VidLineTarget targets[8] = {
-        VID_LINE_BG_MAPS,     VID_LINE_SCROLL_BG1, VID_LINE_SCROLL_BG2, VID_LINE_SCROLL_BG3,
-        VID_LINE_SCREENS,     VID_LINE_WINDOW1,    VID_LINE_MATH_LAYERS, VID_LINE_WINDOW2_LEFT,
-    };
-    static const uint16_t tables[2][8] = {
-        { 0x0F80, 0x0FD7, 0x102E, 0x1085, 0x10DC, 0x1133, 0x118A, 0x11E1 },
-        { 0x1238, 0x128F, 0x12E6, 0x133D, 0x1394, 0x13EB, 0x1442, 0x1499 },
-    };
-    static const uint32_t sites[8] = { 0xFDC1F9, 0xFDC1FD, 0xFDC201, 0xFDC205,
-                                       0xFDC209, 0xFDC20D, 0xFDC211, 0xFDC215 };
-
-    m_push16(s, c->d);
-    m_rep(s, CPU_FLAG_M);
-    c->d = m_lda16(s, M_DP_DMA);
-    m_sep(s, CPU_FLAG_M);
-
-    m_lda8(s, m_read8(s, m_abs(s, 0x013C)));
-    m_bit_imm8(s, 0x01);
-    bool right_edge = ((uint8_t)c->a & 0x01) != 0;
-    /* The values the original loads for each slot's registers only reach A on
-     * their way to the registers, which the calls below write instead. */
-    int set = m_lda8(s, (uint8_t)(m_read8(s, m_abs(s, 0x0153)) & 0x0F)) != 0 ? 1 : 0;
-    for (int i = 0; i < 8; i++) {
-        m_ldx16(s, tables[set][i]);
-        const VidLineEffect e = {
-            .target = i == 7 && right_edge ? VID_LINE_WINDOW2_RIGHT : targets[i],
-            .table = PF_GAME(0x7F0000 | tables[set][i]),
-            .indirect = true,
-            .indirect_bank = 0x7F,
-        };
-        vid_set_line_effect(m_platform(s), PF_AT(sites[i]), (uint8_t)i, &e, steps);
-    }
-    c->d = m_pull16(s);
-    m_set_nz16(s, c->d);
-    m_rtl(s);
-}
-
 /* The field's uploads use DMA channel 7: OAM one byte at a time, VRAM in words. */
 enum { FIELD_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01 };
 
@@ -272,18 +215,12 @@ FIELD_UPLOAD_ENTRY(field_upload_layer3_columns_alt,
 /* Set the field's video mode up: mode 1 with the BG3 priority bit, the three
  * layers' tilemaps at $6800, $7000 and $7200 (64 tiles wide) with character
  * bases at $1000, $1000 and $5000, no sprites or interlace, every scroll at 0,
- * BG1-BG3 and the sprites on the main screen, color math adding the sub screen,
- * and a black fixed color. Writes through a direct page on the registers
- * themselves; returns with RTL. */
-void field_init_video_mode(Snes *s)
+ * BG1, BG2 and the sprites on the main screen, color math adding the sub
+ * screen, and a black fixed color. The original writes through a direct page on the
+ * registers themselves and restores its caller's; nothing it leaves in the
+ * registers is read after it returns (the entry's don't-care set). */
+static void init_video_mode(Platform *pf)
 {
-    Cpu *c = &s->cpu;
-    Platform *pf = m_platform(s);
-    m_push16(s, c->d);
-    m_rep(s, CPU_FLAG_M);
-    c->d = m_lda16(s, M_DP_PPU);
-    m_sep(s, CPU_FLAG_M);
-
     vid_set_mode(pf, PF_AT(0xFDC0E2), &(VidMode){ .mode = 1, .bg3_priority = true });
     vid_set_bg_chars(pf, PF_AT(0xFDC0E6), VID_BG1, 0x1000, 0x1000);
     vid_set_bg_chars(pf, PF_AT(0xFDC0EA), VID_BG3, 0x5000, 0x0000);
@@ -300,16 +237,17 @@ void field_init_video_mode(Snes *s)
     static const uint32_t scroll_sites[3] = { 0xFDC0FE, 0xFDC106, 0xFDC10E };
     for (int bg = 0; bg < 3; bg++)
         vid_set_scroll(pf, PF_AT(scroll_sites[bg]), (VidLayer)bg, 0, 0, VID_SCROLL_H | VID_SCROLL_V);
-    m_lda8(s, 0x13);
-    vid_set_screens(pf, PF_AT(0xFDC118), 0x13, 0, VID_SCREEN_MAIN);
-    m_lda8(s, 0x02);
+    vid_set_screens(pf, PF_AT(0xFDC118), VID_LAYER_BIT(VID_BG1) | VID_LAYER_BIT(VID_BG2) | VID_LAYER_BIT(VID_OBJ), 0,
+                    VID_SCREEN_MAIN);
     VidColorMath math = { 0 };
     vid_color_math_decode(&math, VID_MATH_CONTROL, 0x02);
     vid_set_color_math(pf, PF_AT(0xFDC11C), &math, VID_MATH_CONTROL);
-    m_lda8(s, 0xE0);
     vid_set_fixed_color(pf, PF_AT(0xFDC120), VID_RED | VID_GREEN | VID_BLUE, 0);
-    c->d = m_pull16(s);
-    m_set_nz16(s, c->d);
+}
+
+void field_init_video_mode(Snes *s)
+{
+    init_video_mode(m_platform(s));
     m_rtl(s);
 }
 

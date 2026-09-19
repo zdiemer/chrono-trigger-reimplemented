@@ -82,6 +82,17 @@
 #define RAM_NMI_VECTOR 0x7E0500u
 /* JML the IRQ vector jumps through; each mode installs its handler here [4 bytes] */
 #define RAM_IRQ_VECTOR 0x7E0504u
+/* Scratch of the palette animations: a color's channels as a fade builds it and the old green
+ * ($0E), or a rotation's two carried colors ($0C base, $0E working) and its end and length ($10,
+ * $12) [4 x $2 bytes, by cell] */
+#define RAM_PALETTE_ANIMATION_SCRATCH 0x7E050Cu
+#define RAM_PALETTE_ANIMATION_SCRATCH_COUNT 4u
+#define RAM_PALETTE_ANIMATION_SCRATCH_STRIDE 0x02u
+#define RAM_PALETTE_ANIMATION_SCRATCH_DP 0x0Cu /* page palette_fade */
+/* Long pointer of the frame animations: to the frame table, then into the working palette as the
+ * colors are copied [3 bytes] */
+#define RAM_PALETTE_ANIMATION_POINTER 0x7E0518u
+#define RAM_PALETTE_ANIMATION_POINTER_DP 0x18u /* page palette_fade */
 /* Frame counter of the animated tile uploads: even frames send slots 0-5, odd frames slots 6-11 */
 #define RAM_TILE_ANIMATION_FRAME 0x7E051Du
 #define RAM_TILE_ANIMATION_FRAME_DP 0x1Du    /* page palette_fade */
@@ -91,15 +102,17 @@
 #define RAM_PALETTE_ANIMATIONS_COUNT 12u
 #define RAM_PALETTE_ANIMATIONS_STRIDE 0x0Cu
 #define RAM_PALETTE_ANIMATIONS_DP 0x20u      /* page palette_fade */
-#define RAM_PALETTE_ANIMATIONS_KIND 0x7E0520u /* Animation type in the high nibble (0 none, 4 fade; the handler table has 8), step count less one in the low nibble */
+#define RAM_PALETTE_ANIMATIONS_KIND 0x7E0520u /* Animation type in the high nibble (0 none, 1 frames, 2 and 3 rotate down and up, 4 and 5 fade to white and black, 6 and 7 pulse white and black, 8-15 frames from a table), frame count less one in the low nibble (types 1 and 8) */
 #define RAM_PALETTE_ANIMATIONS_FIRST_COLOR 0x7E0521u /* First palette entry the animation changes */
 #define RAM_PALETTE_ANIMATIONS_COLOR_COUNT 0x7E0522u /* Number of palette entries it changes */
-#define RAM_PALETTE_ANIMATIONS_STEP 0x7E0523u /* Current step (types 1 and 8, wrapping after the step count); for a fade the amount the level moves per step */
+#define RAM_PALETTE_ANIMATIONS_STEP 0x7E0523u /* Current frame (types 1 and 8, wrapping after the frame count); for a fade or pulse the amount the level moves per step */
 #define RAM_PALETTE_ANIMATIONS_DELAY 0x7E0524u /* Frame counter toward the period */
 #define RAM_PALETTE_ANIMATIONS_PERIOD 0x7E0525u /* Frames between steps; for a fade, a negative value is taken as the level itself */
-#define RAM_PALETTE_ANIMATIONS_FADE_MODE 0x7E0526u /* Fade (type 4) sub-mode: 0 toward white, 1-6 other handlers */
-#define RAM_PALETTE_ANIMATIONS_FADE_LEVEL 0x7E0527u /* Fade level, loaded into the multiplier as the fraction / 256 applied to each color */
-#define RAM_PALETTE_ANIMATIONS_FADE_TARGET 0x7E0528u /* Level the fade moves toward; reaching it ends the animation */
+#define RAM_PALETTE_ANIMATIONS_FADE_MODE 0x7E0526u /* Fades and pulses (types 4-7): which channels change (0 all; the others by core/palette.c's table, 6 and up the last) */
+#define RAM_PALETTE_ANIMATIONS_FADE_LEVEL 0x7E0527u /* Fade level, loaded into the multiplier as the fraction / 256 applied to each color; a pulse's running phase */
+#define RAM_PALETTE_ANIMATIONS_FADE_TARGET 0x7E0528u /* Level the fade moves toward, reaching it ends the animation; a pulse's amplitude */
+#define RAM_PALETTE_ANIMATIONS_FRAMES 0x7E0526u /* Types 1 and 8: offset of the animation's frames in the ROM's palette frames ($F6:0000) */
+#define RAM_PALETTE_ANIMATIONS_FRAME_TABLE 0x7E0529u /* Type 8: long pointer to the frame numbers, indexed by the current frame */
 /* The animated background tile slots, each sending 128 bytes of its current frame to VRAM [12 x
  * $5 bytes, by animated tile slot] */
 #define RAM_TILE_ANIMATIONS 0x7E05B0u
@@ -430,8 +443,13 @@
 /* Rate of a gradual fixed color change (event $F1's operand 2, written to both bytes) [2 bytes] */
 #define RAM_FIELD_FIXED_COLOR_RATE 0x7E0123u
 #define RAM_FIELD_FIXED_COLOR_RATE_DP 0x23u  /* page field */
+/* Where the dialog window opens, which picks the layout of the per-line effect tables: 0 no
+ * window, 1 the top of the screen (a band centered on line 48), 2 the bottom (centered on line
+ * 171) */
+#define RAM_DIALOG_WINDOW_POSITION 0x7E0126u
+#define RAM_DIALOG_WINDOW_POSITION_DP 0x26u  /* page field */
 /* Nonzero while a text window is open and waiting ($16, $28, $40 seen for different window
- * kinds) */
+ * kinds); the per-line effects draw the window as a band twice this many lines tall */
 #define RAM_DIALOG_WINDOW_STATE 0x7E0127u
 #define RAM_DIALOG_WINDOW_STATE_DP 0x27u     /* page field */
 /* Per-line effect (HDMA) enable shadow the field NMI restores every frame */
@@ -554,6 +572,9 @@
 /* Index into the random byte table at $FE00, stepped before each use */
 #define RAM_FIELD_RANDOM_INDEX 0x7E01F8u
 #define RAM_FIELD_RANDOM_INDEX_DP 0xF8u      /* page field */
+/* Byte offset of the current location's record in location_records ($F6:0000, 14 bytes a
+ * location) [2 bytes] */
+#define RAM_LOCATION_RECORD_OFFSET 0x7E01FEu
 /* The party's position on the overworld, in pixels; it moves in 16-pixel steps [4 bytes] */
 #define RAM_WORLD_POSITION 0x7E0283u
 #define RAM_WORLD_POSITION_X 0x7E0283u       /* Horizontal */
@@ -887,12 +908,20 @@
 #define RAM_FIELD_LAYER_MAP_BASE_COUNT 3u
 #define RAM_FIELD_LAYER_MAP_BASE_STRIDE 0x02u
 #define RAM_FIELD_LAYER_MAP_BASE_DP 0x7Cu    /* page field_layers */
-/* Fine scroll: the low 3 bits are the pixel offset added to the screen's 8-pixel tile origin [2
- * x $2 bytes, by axis (X, Y)] */
-#define RAM_FIELD_SCROLL_FINE 0x7E1D87u
-#define RAM_FIELD_SCROLL_FINE_COUNT 2u
-#define RAM_FIELD_SCROLL_FINE_STRIDE 0x02u
-#define RAM_FIELD_SCROLL_FINE_DP 0x87u       /* page field_layers */
+/* Bits ORed into the low byte of each layer's field_layer_map_base to make the tile map register
+ * value the per-line effects send [3 x $1 bytes, by layer (BG1-BG3)] */
+#define RAM_FIELD_LAYER_MAP_SIZE 0x7E1D84u
+#define RAM_FIELD_LAYER_MAP_SIZE_COUNT 3u
+#define RAM_FIELD_LAYER_MAP_SIZE_STRIDE 0x01u
+/* The layers' scroll, which the per-line effect tables send every frame; the low 3 bits of BG1's
+ * are the pixel offset added to the screen's 8-pixel tile origin [3 x $4 bytes, by layer
+ * (BG1-BG3)] */
+#define RAM_FIELD_LAYER_SCROLL 0x7E1D87u
+#define RAM_FIELD_LAYER_SCROLL_COUNT 3u
+#define RAM_FIELD_LAYER_SCROLL_STRIDE 0x04u
+#define RAM_FIELD_LAYER_SCROLL_DP 0x87u      /* page field_layers */
+#define RAM_FIELD_LAYER_SCROLL_H 0x7E1D87u   /* Horizontal */
+#define RAM_FIELD_LAYER_SCROLL_V 0x7E1D89u   /* Vertical */
 /* Each layer's position in tiles [3 x $2 bytes, by layer (BG1-BG3)] */
 #define RAM_FIELD_LAYER_POSITION 0x7E1D99u
 #define RAM_FIELD_LAYER_POSITION_COUNT 3u
@@ -913,8 +942,16 @@
 #define RAM_FIELD_LAYER_EDGE_SIZES_COUNT 3u
 #define RAM_FIELD_LAYER_EDGE_SIZES_STRIDE 0x0Au
 #define RAM_FIELD_LAYER_EDGE_SIZES_DP 0xDBu  /* page field_layers */
+/* Nonzero: BG3 waves, its scroll table pointing at field_line_wave every 16 lines (the table
+ * builders test the low byte, the scroll update the word) [2 bytes] */
+#define RAM_FIELD_LINE_WAVE_BG3 0x7E1DF9u
+/* Advanced by one every frame a wave is on; its bits 1-5 pick where in the wave offsets the 16
+ * lines start */
+#define RAM_FIELD_LINE_WAVE_PHASE 0x7E1DFBu
+/* Nonzero: BG2 waves like field_line_wave_bg3 (with BG3's scroll) [2 bytes] */
+#define RAM_FIELD_LINE_WAVE_BG2 0x7E1DFDu
 /* Scroll values of the self-scrolling layers, copied from their positions in bank $7F [2 x $4
- * bytes, by layer (BG1, BG2)] */
+ * bytes, by layer (BG2, BG3)] */
 #define RAM_FIELD_LAYER_SCROLL_VALUES 0x7E2C74u
 #define RAM_FIELD_LAYER_SCROLL_VALUES_COUNT 2u
 #define RAM_FIELD_LAYER_SCROLL_VALUES_STRIDE 0x04u
@@ -943,24 +980,101 @@
 #define RAM_FIELD_LINE_EFFECT_TABLES 0x7F0F80u
 #define RAM_FIELD_LINE_EFFECT_TABLES_COUNT 16u
 #define RAM_FIELD_LINE_EFFECT_TABLES_STRIDE 0x57u
+/* Tile map register values of BG1-BG4 the tile map line effect sends; inside the dialog window
+ * BG1 and BG3 read the window's tile map [2 x $4 bytes, by 0 outside the dialog window, 1 inside
+ * it] */
+#define RAM_FIELD_LINE_BG_MAPS 0x7F14F0u
+#define RAM_FIELD_LINE_BG_MAPS_COUNT 2u
+#define RAM_FIELD_LINE_BG_MAPS_STRIDE 0x04u
+/* Scroll of BG1 and BG3 inside the dialog window, which brings the window's tile map into place
+ * [4 x $4 bytes, by window position (0 top, 1 bottom) * 2 + layer (0 BG1, 1 BG3)] */
+#define RAM_FIELD_LINE_WINDOW_SCROLL 0x7F14F8u
+#define RAM_FIELD_LINE_WINDOW_SCROLL_COUNT 4u
+#define RAM_FIELD_LINE_WINDOW_SCROLL_STRIDE 0x04u
+#define RAM_FIELD_LINE_WINDOW_SCROLL_H 0x7F14F8u /* Horizontal */
+#define RAM_FIELD_LINE_WINDOW_SCROLL_V 0x7F14FAu /* Vertical */
+/* The layers' scroll as the scroll line effects send it, copied from field_layer_scroll by the
+ * table set's builder [6 x $4 bytes, by layer (BG1-BG3) * 2 + table set] */
+#define RAM_FIELD_LINE_SCROLL 0x7F1508u
+#define RAM_FIELD_LINE_SCROLL_COUNT 6u
+#define RAM_FIELD_LINE_SCROLL_STRIDE 0x04u
+#define RAM_FIELD_LINE_SCROLL_H 0x7F1508u    /* Horizontal */
+#define RAM_FIELD_LINE_SCROLL_V 0x7F150Au    /* Vertical */
+/* Main and sub screen layers and their window masks the screens line effect sends
+ * (field_main_screen and field_sub_screen outside the window) [3 x $4 bytes, by 0 outside the
+ * dialog window, 1 its body, 2 its top and bottom edges] */
+#define RAM_FIELD_LINE_SCREENS 0x7F1520u
+#define RAM_FIELD_LINE_SCREENS_COUNT 3u
+#define RAM_FIELD_LINE_SCREENS_STRIDE 0x04u
+/* Color math layers and fixed color the color math line effect sends [4 x $2 bytes, by table
+ * set, + 2 inside the dialog window] */
+#define RAM_FIELD_LINE_COLOR_MATH 0x7F152Cu
+#define RAM_FIELD_LINE_COLOR_MATH_COUNT 4u
+#define RAM_FIELD_LINE_COLOR_MATH_STRIDE 0x02u
+#define RAM_FIELD_LINE_COLOR_MATH_LAYERS 0x7F152Cu /* Color math layers (field_fixed_color_math_layers) */
+#define RAM_FIELD_LINE_COLOR_MATH_FIXED_COLOR 0x7F152Du /* Fixed color (field_fixed_color outside the window) */
+/* Window 1's left and right edge inside the dialog window: the whole line [2 x $2 bytes, by
+ * table set] */
+#define RAM_FIELD_LINE_WINDOW1_EDGES 0x7F1534u
+#define RAM_FIELD_LINE_WINDOW1_EDGES_COUNT 2u
+#define RAM_FIELD_LINE_WINDOW1_EDGES_STRIDE 0x02u
+/* Per-line color math inside the dialog window, set 0's copy: a gradient of the fixed color,
+ * added then subtracted [100 x $2 bytes, by line of the shading, from the window's middle out] */
+#define RAM_FIELD_DIALOG_SHADING 0x7F1538u
+#define RAM_FIELD_DIALOG_SHADING_COUNT 100u
+#define RAM_FIELD_DIALOG_SHADING_STRIDE 0x02u
+#define RAM_FIELD_DIALOG_SHADING_LAYERS 0x7F1538u /* Color math layers ($01 add to BG1, $81 subtract) */
+#define RAM_FIELD_DIALOG_SHADING_FIXED_COLOR 0x7F1539u /* Fixed color */
+/* Table set 1's copy of field_dialog_shading [128 x $2 bytes, by line of the shading, from the
+ * window's middle out] */
+#define RAM_FIELD_DIALOG_SHADING_COPY 0x7F1600u
+#define RAM_FIELD_DIALOG_SHADING_COPY_COUNT 128u
+#define RAM_FIELD_DIALOG_SHADING_COPY_STRIDE 0x02u
+/* Window 1's left and right edge per line, for table set 0, which the event screen effects fill;
+ * window 2's per-line edge tables (a byte a line) are its two halves, $7F:17C8 and $7F:18A8 [224
+ * x $2 bytes, by line] */
+#define RAM_FIELD_WINDOW_EDGE_LINES 0x7F17C8u
+#define RAM_FIELD_WINDOW_EDGE_LINES_COUNT 224u
+#define RAM_FIELD_WINDOW_EDGE_LINES_STRIDE 0x02u
+/* field_window_edge_lines for table set 1 [224 x $2 bytes, by line] */
+#define RAM_FIELD_WINDOW_EDGE_LINES_COPY 0x7F1AC8u
+#define RAM_FIELD_WINDOW_EDGE_LINES_COPY_COUNT 224u
+#define RAM_FIELD_WINDOW_EDGE_LINES_COPY_STRIDE 0x02u
 /* Corners the field copies into field_window_shape_corners before rasterizing [15 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_QUAD 0x7F1CEAu
-/* Self-scrolling layers: bit 1 BG1, bit 2 BG2 */
+/* A wave's per-line scroll, 16 lines long, which a waving layer's scroll table points into [64 x
+ * $4 bytes, by table set * 32 + line (the second 16 of each set repeat the first)] */
+#define RAM_FIELD_LINE_WAVE 0x7F1D27u
+#define RAM_FIELD_LINE_WAVE_COUNT 64u
+#define RAM_FIELD_LINE_WAVE_STRIDE 0x04u
+#define RAM_FIELD_LINE_WAVE_H 0x7F1D27u      /* Horizontal */
+#define RAM_FIELD_LINE_WAVE_V 0x7F1D29u      /* Vertical */
+/* Color math layers the table builders send instead of field_fixed_color_math_layers while
+ * field_display_flags bit 7 is set */
+#define RAM_FIELD_COLOR_MATH_LAYERS_OVERRIDE 0x7F22C0u
+/* Self-scrolling layers: bit 1 BG2, bit 2 BG3 (their positions mirror to BG2's and BG3's scroll
+ * copies at $7E:2C74 and $7E:2C78) */
 #define RAM_FIELD_AUTO_SCROLL 0x7F3415u
-/* Self-scrolling speed, 4.4 fixed point [2 x $2 bytes, by layer (BG1, BG2)] */
+/* Self-scrolling speed, 4.4 fixed point [2 x $2 bytes, by layer (BG2, BG3)] */
 #define RAM_FIELD_AUTO_SCROLL_SPEED 0x7F3417u
 #define RAM_FIELD_AUTO_SCROLL_SPEED_COUNT 2u
 #define RAM_FIELD_AUTO_SCROLL_SPEED_STRIDE 0x02u
 #define RAM_FIELD_AUTO_SCROLL_SPEED_X 0x7F3417u /* Horizontal */
 #define RAM_FIELD_AUTO_SCROLL_SPEED_Y 0x7F3418u /* Vertical */
 /* Self-scrolling 4.4 fixed-point accumulators; whole pixels move the position, the fraction
- * stays [2 x $2 bytes, by layer (BG1, BG2)] */
+ * stays [2 x $2 bytes, by layer (BG2, BG3)] */
 #define RAM_FIELD_AUTO_SCROLL_ACCUMULATOR 0x7F341Du
 #define RAM_FIELD_AUTO_SCROLL_ACCUMULATOR_COUNT 2u
 #define RAM_FIELD_AUTO_SCROLL_ACCUMULATOR_STRIDE 0x02u
 #define RAM_FIELD_AUTO_SCROLL_ACCUMULATOR_X 0x7F341Du /* Horizontal */
 #define RAM_FIELD_AUTO_SCROLL_ACCUMULATOR_Y 0x7F341Eu /* Vertical */
-/* Self-scrolling layers' 16-bit scroll positions [2 x $4 bytes, by layer (BG1, BG2)] */
+/* BG1's scroll kept beside field_auto_scroll_position's BG2 and BG3; the table builders send all
+ * three instead of field_layer_scroll while field_display_flags bit 7 is set, as the field's
+ * setup has it [4 bytes] */
+#define RAM_FIELD_BG1_SCROLL_POSITION 0x7F3467u
+#define RAM_FIELD_BG1_SCROLL_POSITION_H 0x7F3467u /* Horizontal */
+#define RAM_FIELD_BG1_SCROLL_POSITION_V 0x7F3469u /* Vertical */
+/* Self-scrolling layers' 16-bit scroll positions [2 x $4 bytes, by layer (BG2, BG3)] */
 #define RAM_FIELD_AUTO_SCROLL_POSITION 0x7F346Bu
 #define RAM_FIELD_AUTO_SCROLL_POSITION_COUNT 2u
 #define RAM_FIELD_AUTO_SCROLL_POSITION_STRIDE 0x04u

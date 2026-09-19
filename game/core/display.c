@@ -41,28 +41,16 @@ void display_blank_and_stop_interrupts(Snes *s)
  * It runs once, at frame 0, which is why it matters out of proportion to its
  * size: the observer is built from the calls, so until this is one of them a
  * comparison from power-on starts out of step with the hardware. */
-void display_init_registers(Snes *s)
+static void init_registers(Platform *pf)
 {
-    Cpu *c = &s->cpu;
-    Platform *pf = m_platform(s);
     static const VidVramPort low_byte_port = { .step = 1, .after_high = false };
 
-    m_rep(s, CPU_FLAG_M);
-    c->d = m_lda16(s, M_DP_PPU);
-    m_set_nz16(s, c->d);
-    m_sep(s, CPU_FLAG_M);
-
-    m_lda8(s, 0x80);
     vid_set_display(pf, PF_AT(0xFDC040), &(VidDisplay){ .blank = true });
-    m_lda8(s, 0x63);
     VidObjConfig obj = vid_obj_config_decode(0x63);
     vid_set_obj_config(pf, PF_AT(0xFDC044), &obj);
-    m_lda8(s, 0x00);
     vid_set_oam_address(pf, PF_AT(0xFDC048), 0x0000, false);
-    m_lda8(s, 0x09);
     VidMode mode = vid_mode_decode(0x09);
     vid_set_mode(pf, PF_AT(0xFDC04E), &mode);
-    m_lda8(s, 0x00);
     vid_set_mosaic(pf, PF_AT(0xFDC052), 0x00, 1);
     for (int bg = 0; bg < 4; bg++) {
         VidBg b = { 0 };
@@ -77,21 +65,14 @@ void display_init_registers(Snes *s)
     vid_begin_vram_uploads(pf, PF_AT(0xFDC080), &low_byte_port, PF_GAME(0), NULL);
     vid_set_vram_address(pf, PF_AT(0xFDC082), 0x0000);
     vid_set_mode7(pf, PF_AT(0xFDC086), &(VidMode7){ 0 }, VID_M7_SELECT);
-    /* The identity matrix, written as $00 $01 $00 $00 $00 $00 $00 $01 with the
-     * accumulator stepped between the pairs. */
-    m_lda8(s, 0x01);
-    m_lda8(s, 0x00);
-    m_lda8(s, 0x01);
-    m_lda8(s, 0x00);
+    /* The identity matrix. */
     vid_set_mode7(pf, PF_AT(0xFDC088), &(VidMode7){ .a = 0x0100, .d = 0x0100 }, VID_M7_MATRIX);
     vid_set_mode7(pf, PF_AT(0xFDC09D), &(VidMode7){ 0 }, VID_M7_CENTER);
     vid_set_palette_address(pf, PF_AT(0xFDC0A5), 0x00);
 
     VidWindows w = { 0 };
     vid_windows_decode(&w, VID_WINDOWS_BG1_BG2, 0x00);
-    m_lda8(s, 0x03);
     vid_windows_decode(&w, VID_WINDOWS_BG3_BG4, 0x03);
-    m_lda8(s, 0x00);
     static const uint32_t rest[] = {
         VID_WINDOWS_OBJ_BACK, VID_WINDOWS_W1_LEFT, VID_WINDOWS_W1_RIGHT, VID_WINDOWS_W2_LEFT,
         VID_WINDOWS_W2_RIGHT, VID_WINDOWS_BG_LOGIC, VID_WINDOWS_OBJ_LOGIC,
@@ -109,13 +90,18 @@ void display_init_registers(Snes *s)
     vid_color_math_decode(&math, VID_MATH_CONTROL, 0x00);
     vid_color_math_decode(&math, VID_MATH_LAYERS, 0x00);
     vid_set_color_math(pf, PF_AT(0xFDC0C1), &math, VID_MATH_CONTROL | VID_MATH_LAYERS);
-    m_lda8(s, 0x1F);
     vid_set_screens(pf, PF_AT(0xFDC0C7), 0x1F, 0x1F, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-    m_lda8(s, 0xC0);
     vid_set_fixed_color(pf, PF_AT(0xFDC0CD), VID_GREEN | VID_BLUE, 0);
-    m_lda8(s, 0x00);
     vid_set_video_config(pf, PF_AT(0xFDC0D1), &(VidVideoConfig){ 0 });
+}
 
-    c->pb = 0xC0;
-    c->pc = 0x000E;
+/* The original leaves the direct page on the PPU registers and A with the $2100
+ * it set it from and the last byte it wrote, 0, and hands over to the boot. */
+void display_init_registers(Snes *s)
+{
+    init_registers(m_platform(s));
+    s->cpu.d = M_DP_PPU;
+    s->cpu.a = M_DP_PPU;
+    m_set_nz8(s, 0x00);
+    m_stop_at(s, 0xC0000E, 0);
 }
