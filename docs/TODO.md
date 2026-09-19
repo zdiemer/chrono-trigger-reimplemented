@@ -14,8 +14,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (RECOMP.md, "The timing gate"). Left open there: six entries whose time
   follows their data are on `tools/timing_exceptions.txt` (the decompressor,
   menu text and glyphs, `field_rasterize_quad`, `menu_object_wave_hdma`);
-  a debt a port owes mid-routine (`native_sync`) is still paid whole with
-  interrupts held; and adding a movie or a port means recalibrating, since the
+  and adding a movie or a port means recalibrating, since the
   drift limit holds only for the measured value. `--recomp only` stays exact.
 - **The shipping mode has no end-to-end test.** Movies desync under
   `--recomp on`, so they only regression-test `--recomp only`. The state-driven
@@ -48,8 +47,8 @@ rest waits, is [PLAN.md](PLAN.md).
 - **The vblank check into the timing gate.** `tools/vblank_check.py`
   (RECOMP.md, "Where video writes land") runs on its own; `tools/suite.py`
   should run it as a row of its `CHECKS`, failing on any finding not in
-  `tools/vblank_check_exceptions.txt`. It passes today, with the boot
-  program's three findings accepted (RECOMP.md, "The timing gate"). Two gaps in
+  `tools/vblank_check_exceptions.txt`. It passes today, with four findings
+  accepted (RECOMP.md, "The timing gate"). Two gaps in
   it: a hand port's region ends at its last service call, so the reference's
   work in code the original jumps to past it is `unmatched` (the menu loads);
   following the call stack in the reference would close that. And it names the
@@ -144,6 +143,9 @@ rest waits, is [PLAN.md](PLAN.md).
   the shape.
 - **Open questions** in PLATFORM.md: code that stops when the beam passes a
   scanline (the event scheduler `$C0:5A46`, the sprite frame queue `$C0:CA76`),
+  and code that races the NMI handler for the vblank flag (`$C0:3B71` and
+  `$C0:4181`, idle entries that wait for vblank instead; RECOMP.md, "The timing
+  gate": the shipping mode lost that race once and hung a route),
   battles playing out differently once timing changes, widescreen's exposed
   assumptions (the 0-255 object window at `$C0:A88D`, map data beyond VRAM,
   single-byte battle window positions), and GBA's constraints.

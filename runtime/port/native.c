@@ -101,17 +101,15 @@ typedef enum {
     PH_SYNC,      /* ON: suspended in native_sync until its time has passed */
 } Phase;
 
-/* ON mode: time a hand port still owes, and the machine's instruction
- * boundary it is paid at: where the port stopped (its return address, or the
- * first instruction of a callee it called out to), with S as it was there.
- * A port that stopped inside itself (native_sync) owes it mid-routine, which
- * is no instruction boundary: at_boundary is false, and nothing interrupts
- * the payment. */
+/* ON mode: time a hand port still owes, and where the machine is while it is
+ * paid: where the port stopped (its return address, the first instruction of a
+ * callee it called out to, or, for a port suspended in native_sync, PC and S
+ * as the port left them), with S as it was there. An interrupt taken during
+ * the payment returns there. */
 typedef struct Debt {
     uint32_t clocks;
     uint32_t pc;
     uint16_t s;
-    bool at_boundary;
 } Debt;
 
 #define MAX_DEBTS 16
@@ -148,6 +146,8 @@ typedef struct Active {
     unsigned long segment_port_clears[2];   /* apu_port_clears when the segment started */
     uint64_t segment_horizon, segment_interrupt_horizon;   /* SHADOW: at the segment's start (timing spike) */
     bool segment_interrupted, interrupted, mismatched;
+    uint32_t sync_pc;      /* ON, PH_SYNC: where the machine is while the port is suspended */
+    uint16_t sync_s;
 } Active;
 
 /* SHADOW mode record of the original's execution, for replaying generated
@@ -670,18 +670,17 @@ static void finish(NativeRuntime *rt)
 }
 
 /* ON: add time a port owes at where the machine is now. */
-static void owe(NativeRuntime *rt, const Snes *s, uint32_t clocks, bool at_boundary)
+static void owe(NativeRuntime *rt, const Snes *s, uint32_t clocks)
 {
     if (!clocks)
         return;
     uint32_t pc = cpu_pc24(&s->cpu);
     Debt *top = rt->ndebts ? &rt->debts[rt->ndebts - 1] : NULL;
-    if (top && ((top->pc == pc && top->s == s->cpu.s && top->at_boundary == at_boundary) ||
-                rt->ndebts == MAX_DEBTS)) {
+    if (top && ((top->pc == pc && top->s == s->cpu.s) || rt->ndebts == MAX_DEBTS)) {
         top->clocks += clocks;   /* the same point (or no room: paid with the latest) */
         return;
     }
-    rt->debts[rt->ndebts++] = (Debt){ clocks, pc, s->cpu.s, at_boundary };
+    rt->debts[rt->ndebts++] = (Debt){ clocks, pc, s->cpu.s };
 }
 
 /* A step of up to `clocks` that native code (a debt's payment, an idle wait)
@@ -714,21 +713,22 @@ enum { DEBT_INTERRUPT = -1, DEBT_WAITS = -2 };
  * they interrupted, and pushed their video writes out of vblank (docs/RECOMP.md,
  * "Where video writes land"). So a payment step also ends just after the next
  * point an interrupt can be raised (snes_interrupt_horizon), where the poll
- * can see it. A debt owed mid-routine (native_sync) is paid whole, as before. */
+ * can see it. A port suspended in native_sync is interrupted the same way: its
+ * PC and S stay put while it waits, the handler returns to them, and the port
+ * goes on once the rest is paid (check_top). Holding interrupts for those
+ * too made a line interrupt late during the sound driver's uploads. */
 static int32_t pay_debt(NativeRuntime *rt, Snes *s, uint32_t pc)
 {
     Debt *d = &rt->debts[rt->ndebts - 1];
     bool here = pc == d->pc && s->cpu.s == d->s;
-    if (d->at_boundary && !here && s->cpu.s < d->s)
+    if (!here && s->cpu.s < d->s)
         return DEBT_WAITS;   /* inside a handler taken during the payment: the debt waits for its return */
-    if (d->at_boundary && here && interrupt_deliverable(s))
+    if (here && interrupt_deliverable(s))
         return DEBT_INTERRUPT;
     /* Not here and not deeper: the machine left the boundary some other way
      * (an interrupt it didn't take after all, a handler that switched
      * stacks): the time is paid where it is. */
-    uint32_t spend = d->clocks < SNES_CLOCKS_PER_LINE ? d->clocks : SNES_CLOCKS_PER_LINE;
-    if (d->at_boundary)
-        spend = until_interrupt(s, spend);
+    uint32_t spend = until_interrupt(s, d->clocks < SNES_CLOCKS_PER_LINE ? d->clocks : SNES_CLOCKS_PER_LINE);
     d->clocks -= spend;
     if (!d->clocks)
         rt->ndebts--;
@@ -741,11 +741,12 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     Job *j = a->job;
     Snes *m = j->m;
     if (rt->mode == NATIVE_ON) {
-        owe(rt, s, (uint32_t)estimate_clocks(a->entry, m->bus.clocks, m->bus.dma_clocks - a->dma_mark),
-            j->state != JOB_SYNCING);
+        owe(rt, s, (uint32_t)estimate_clocks(a->entry, m->bus.clocks, m->bus.dma_clocks - a->dma_mark));
         m->bus.clocks = 0;
         if (j->state == JOB_SYNCING) {
             a->phase = PH_SYNC;
+            a->sync_pc = cpu_pc24(&s->cpu);
+            a->sync_s = s->cpu.s;
             return;
         }
     } else {
@@ -828,6 +829,10 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
     }
 
     if (a->phase == PH_SYNC) {   /* ON only; intercept has paid the debt by now */
+        /* An interrupt taken during the payment runs first, and one due now is
+         * taken before the port goes on; it returns here. */
+        if (pc != a->sync_pc || s->cpu.s != a->sync_s || interrupt_deliverable(s))
+            return false;
         count_from(a, s);
         job_run(a->job);
         after_run(rt, a, s);

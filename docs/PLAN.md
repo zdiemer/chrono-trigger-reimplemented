@@ -75,7 +75,7 @@ gate"). What is left:
 
 - wire `tools/vblank_check.py` into the suite as a row of its `CHECKS` (a
   function returning a summary line, and `--no-vblank` to skip it); it passes
-  today with three accepted findings;
+  today with four accepted findings;
 - wire in the route runner, so the shipping mode has an end-to-end test (the
   `ct_drive --native on` work, TODO.md), the same way;
 - then flip `ct_play`'s default to `--recomp on`.
