@@ -30,3 +30,16 @@ field_rasterize_quad vblank-worst as for vblank-tail: at most 14885 clocks (11 l
 menu_object_wave_hdma vblank-tail fills a RAM scroll-wave table in 53-line calls, longer than vblank; its error never exceeds 1396 clocks (one line), just over the tail's 1024
 menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 18-line calls; its time follows the glyph's pixels; at most 2658 clocks (two lines)
 menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; at most 4509 clocks (3.3 lines) in vblank
+
+# Palette animation, every mode's main-loop work, writing the working palette
+# in RAM that the next vblank uploads: its time follows which slots are due
+# and their types (twelve delay counts on most frames, a fade of up to 256
+# colors through the multiplier on others), which one scalar can't fit, while
+# each handler on its own fits its scalar within 0.3-4.4%. Its error moves when
+# the RAM is ready; the vblank check finds no video write moved.
+palette_animate vblank-tail the working palette in RAM, the time following the due slots' types (25.9% mean error, each handler alone 0.3-4.4%); no video write moved
+palette_animate vblank-worst as for vblank-tail: at most 26796 clocks (20 lines), writing RAM
+palette_fade_to_white vblank-tail a fade's colors through the multiplier, or restored unchanged when it ends, in RAM; 3.3% mean error; no video write moved
+palette_fade_to_white vblank-worst as for vblank-tail: at most 17718 clocks (13 lines), writing RAM
+palette_fade_to_black vblank-tail as palette_fade_to_white; 1.1% mean error
+palette_fade_to_black vblank-worst as palette_fade_to_white: at most 30817 clocks (23 lines), writing RAM

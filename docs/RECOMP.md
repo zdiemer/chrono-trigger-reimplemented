@@ -2267,6 +2267,13 @@ pass fuzzing (PORTING.md's rows). What the part taught, for the next waves:
   pointer in the direct page, which a count of 0 overwrites; the port reads it
   from memory each time, and fuzzing needed `--step-limit` raised to compare
   those states at all (the default skipped them).
+- **Inlining a dispatcher's handlers costs its time estimate.** Each palette
+  handler fits its own `cost_milli` within 0.3-4.4%, but `palette_animate`,
+  which now runs them as C calls rather than call-outs, spends its time on
+  twelve delay counts one frame and a fade through the multiplier the next,
+  and one scalar misses by 25.9% on average. The vblank check finds no video
+  write moved (it writes RAM), so it and the two fades are timing exceptions
+  (`tools/timing_exceptions.txt`), as the decompressor is.
 - **Declarations the check can't read**: a registry entry whose precondition
   is a macro argument (`LINE_PIECE(..., NEEDS_M8_X16, ...)`) is a finding of
   `tools/dontcare_check.py`; entries are written out.
