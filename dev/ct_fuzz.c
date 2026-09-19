@@ -11,7 +11,8 @@
  * --long) would, or as an interrupt (--interrupt). The original runs on the interpreter until it returns; the
  * native routine runs on a copy (call-outs interpreted synchronously). The
  * machines are compared where the native routine left off, normally the
- * return, as in shadow mode: ignoring the routine's don't-care set (and what it
+ * return, as in shadow mode (at the first pass of the original through that
+ * point where they are the same): ignoring the routine's don't-care set (and what it
  * declares dead where it stops, native_dont_care_at_stop), and the stack bytes
  * the original pushed and pulled again (native_copy_popped_stack). Nothing
  * advances time, and interrupts don't happen. States where the native
@@ -279,6 +280,7 @@ int main(int argc, char **argv)
         native_call_steps = 0;
         native_stop_dont_care_direct = 0;
         native_stop_at_direct = 0;
+        native_stop_own_direct = false;
         native_returned_direct = false;
         if (!native_fiber)
             native_fiber = fiber_create(native_fiber_main, NULL);
@@ -320,14 +322,30 @@ int main(int argc, char **argv)
             }
             continue;
         }
-        char why[256];
-        native_copy_popped_stack(&orig, &native, lowest_s);
-        if (native_compare(&orig, &native, e->dont_care | native_stop_dont_care_direct, why, sizeof why)) {
-            if (mismatched++ < 10)
-                fprintf(stderr, "iteration %lu: %s\n", it, why);
-        } else {
-            matched++;
+        /* Where the original passes that point more than once (a loop's
+         * head), the first pass where the machines are the same counts, as in
+         * shadow mode (native.c, reach_point). */
+        char why[256], first_why[256] = "";
+        uint16_t dead = native_finish_dont_care(e->dont_care, native_stop_dont_care_direct, native_stop_own_direct);
+        bool same = false;
+        for (unsigned pass = 0; pass < 0x10000u; pass++) {
+            native_copy_popped_stack(&orig, &native, lowest_s);
+            if (!native_compare(&orig, &native, dead, why, sizeof why)) {
+                same = true;
+                break;
+            }
+            if (!pass)
+                snprintf(first_why, sizeof first_why, "%s", why);
+            uint16_t low;
+            if (!run_until(&orig, stop_pc, stop_s, true, &low))
+                break;
+            if (low < lowest_s)
+                lowest_s = low;
         }
+        if (same)
+            matched++;
+        else if (mismatched++ < 10)
+            fprintf(stderr, "iteration %lu: %s\n", it, first_why);
     }
     printf("%s: %lu iterations, matched %lu, mismatched %lu, skipped %lu (didn't return, or guard failed)\n",
            e->name, iterations, matched, mismatched, no_return);

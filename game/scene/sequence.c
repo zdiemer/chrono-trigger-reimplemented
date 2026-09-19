@@ -28,9 +28,9 @@
  * A command the port doesn't handle -- one no script has: a store outside low
  * RAM, a register write no call expresses, a task list search that never ends
  * -- is left to the original: the port puts the script back on the command and
- * runs the rest of the interpreter's run as a call-out. So do scripts that go
- * on for COMMAND_LIMIT commands without yielding, which would hang the
- * original. */
+ * stops at the interpreter loop's head, where the original runs the rest of
+ * the run. So do scripts that go on for COMMAND_LIMIT commands without
+ * yielding, which would hang the original. */
 #include "scene/scene.h"
 
 #include "platform/audio.h"
@@ -436,8 +436,10 @@ static Step run(Snes *s, Flags *f, uint16_t *result)
 
 /* ---- Entries ----------------------------------------------------------------------- */
 
-/* The JSR at $C3:0AFF pushes this as its return address. */
+/* The JSR at $C3:0AFF pushes this as its return address, and the loop it calls
+ * starts each command at its head. */
 enum { INTERPRETER_RETURN = 0x0B01 };
+enum { SEQUENCE_LOOP = 0xC30B03 };
 
 // $C3:0AFF
 /* The channel whose page is in D runs until its script yields. */
@@ -449,25 +451,27 @@ void scene_run_sequence(Snes *s)
     Step end = run(s, &f, &result);
     if (end == STOPPED)
         return;
-    m_pull16(s);
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     put_flags(s, &f);
     if (end == CARRY_ON) {
-        /* the original's own loop, from the command the port left */
-        m_jsr_dc(s, 0xC30AFF, 0xC30B03, DC_A | DC_X | DC_N | DC_Z);
-    } else {
-        s->cpu.a = result;
+        /* the original's own loop goes on from the command the port left, at
+         * its head, inside the JSR's frame (shadow mode compares the pass
+         * after the commands the port ran) */
+        m_stop_at(s, SEQUENCE_LOOP, DC_A | DC_X | DC_N | DC_Z | DC_C);
+        return;
     }
+    m_pull16(s);
+    s->cpu.a = result;
     m_rtl(s);
 }
 
 bool scene_sequence_bank_is_scripts(Snes *s) { return machine_as_expected(s); }
 
-/* $C3:0C28, where the wait for the sound driver goes on, isn't an entry: the
- * store command's own path runs through it, so the original entering it
- * inside a run would start a comparison of its own and take the call the
- * run's comparison waits for (docs/PORTING.md, Call-outs). After the wait, the
- * rest of that run is the original's. */
+/* $C3:0C28, where the wait for the sound driver goes on, isn't an entry, so
+ * after the wait the rest of that run is the original's. It could be: the
+ * store command's own path runs through it, but an entry the original reaches
+ * inside a run shadow mode is comparing no longer takes the run's call-outs
+ * (docs/PORTING.md, Call-outs). */
 
 /* CMP, 8-bit: the loop's flags, which the pass leaves as the original's. */
 static void compare8(Snes *s, uint8_t a, uint8_t b)

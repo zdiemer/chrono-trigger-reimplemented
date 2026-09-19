@@ -361,12 +361,27 @@ static inline void m_stop_dont_care(Snes *s, uint32_t at, uint16_t dont_care)
 /* Stop at the original's instruction `at` (24-bit), where the interpreter or
  * the next entry carries on, with `dont_care` dead there (m_stop_dont_care).
  * A routine whose entry has a don't-care set stops this way, so the check
- * knows where the entry's set applies (native_note_return). */
+ * knows where the entry's set applies (native_note_return). `at` may be an
+ * instruction the original passes more than once, such as a loop's head:
+ * shadow mode compares every pass the original makes through it with the same
+ * S and takes the first where the machines are the same (native.c,
+ * reach_point), so the port can stop after any number of passes. */
 static inline void m_stop_at(Snes *s, uint32_t at, uint16_t dont_care)
 {
     s->cpu.pb = (uint8_t)(at >> 16);
     s->cpu.pc = (uint16_t)at;
     native_dont_care_at_stop(s, at, dont_care);
+}
+
+/* The same, with `dont_care` the stop's own set: the entry's isn't added
+ * there (native_own_dont_care_at_stop). For an early exit to code that reads
+ * what the entry's callers don't, such as a reset: the entry keeps the larger
+ * set for its returns, and the check verifies each where it applies. */
+static inline void m_stop_at_own(Snes *s, uint32_t at, uint16_t dont_care)
+{
+    s->cpu.pb = (uint8_t)(at >> 16);
+    s->cpu.pc = (uint16_t)at;
+    native_own_dont_care_at_stop(s, at, dont_care);
 }
 
 #endif

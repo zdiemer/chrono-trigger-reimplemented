@@ -8,6 +8,11 @@
  *           two machines must match exactly (registers, WRAM, SRAM, VRAM,
  *           CGRAM, OAM, PPU and CPU I/O registers, APU ports). Timing isn't
  *           compared; it is measured (native_set_timing_report). See native_call.
+ *           An entry the original reaches while it catches up with a native
+ *           routine (inside the stretch that routine stood in for) is compared
+ *           nested; if it is still running when the original gets to the point
+ *           an enclosing routine waits for, it is set aside (abandoned) and the
+ *           enclosing one compared.
  *   ON      registered routines run natively in place of the original.
  *
  * Several entries may share an address: hand-written ones are tried first,
@@ -25,13 +30,15 @@ typedef void (*NativeFn)(Snes *s);
 /* Registers and flags no caller reads after a routine returns, from
  * `python3 -m tools.disasm --calls ...` (disasm/out/liveness.json). Shadow
  * validation doesn't compare them. Bit order matches tools/disasm/liveness.py.
- * DC_AH, which liveness doesn't produce, is A's high byte alone: A's low byte is
- * still compared (code that works on an 8-bit A leaves the high byte to
- * whatever 16-bit arithmetic last put there, and nothing reads it). */
+ * DC_A is the whole accumulator; DC_AH is its high byte alone and DC_AL its low
+ * byte alone, which liveness tracks apart (code that works on an 8-bit A leaves
+ * the high byte to whatever 16-bit arithmetic last put there; a caller's later
+ * 16-bit load or TAX can read the high byte of an A whose low byte nothing
+ * reads). DC_AL | DC_AH is the same claim as DC_A. */
 enum {
     DC_A = 1 << 0, DC_X = 1 << 1, DC_Y = 1 << 2,
     DC_N = 1 << 3, DC_V = 1 << 4, DC_Z = 1 << 5, DC_C = 1 << 6,
-    DC_DB = 1 << 7, DC_D = 1 << 8, DC_AH = 1 << 9,
+    DC_DB = 1 << 7, DC_D = 1 << 8, DC_AH = 1 << 9, DC_AL = 1 << 10,
     DC_FLAGS = DC_N | DC_V | DC_Z | DC_C,
 };
 
@@ -196,8 +203,22 @@ void native_copy_popped_stack(const Snes *original, Snes *native, uint16_t lowes
  * the runtime (ct_fuzz) the last values are kept in native_stop_dont_care_direct
  * and native_stop_at_direct, which the tool clears before each call. */
 void native_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care);
+/* The same, but the set is the stop's own: the entry's don't-care set, which
+ * is the claim about its returns, isn't added there. For a port whose entry
+ * leaves more dead after its return than is dead where it stops (an early exit
+ * to code that reads a register its callers don't); tools/dontcare_check.py
+ * checks the set alone at `at`. native_stop_own_direct says which was last
+ * called outside the runtime. */
+void native_own_dont_care_at_stop(Snes *s, uint32_t at, uint16_t dont_care);
 extern uint16_t native_stop_dont_care_direct;
 extern uint32_t native_stop_at_direct;
+extern bool native_stop_own_direct;
+/* What shadow mode (and ct_fuzz) leave out where a routine finishes: the
+ * entry's set and the stop's, or the stop's alone if it was declared as its own. */
+static inline uint16_t native_finish_dont_care(uint16_t entry, uint16_t stop, bool own)
+{
+    return own ? stop : (uint16_t)(entry | stop);
+}
 /* Whether the instruction at `at` is a return (RTS, RTL, RTI). */
 bool native_is_return(const Snes *s, uint32_t at);
 /* Called by m_rts, m_rtl and m_rti (machine.h): the routine finishes by
@@ -211,6 +232,12 @@ extern bool native_returned_direct;
 
 /* Nonzero if any shadow comparison failed. */
 int native_failed(const NativeRuntime *rt);
+
+/* For tests: the counters of the first entry registered as `name` (NULL if
+ * none), and the i-th of the details native_report prints after them (the
+ * first mismatches; NULL past the last). */
+const NativeStats *native_stats_named(const NativeRuntime *rt, const char *name);
+const char *native_detail(const NativeRuntime *rt, int i);
 
 /* Generated blocks (docs/RECOMP.md). ON mode: a block runs until the system's
  * horizon (snes_horizon) and stops before the first instruction past it, with
@@ -257,9 +284,11 @@ uint64_t native_owed(const NativeRuntime *rt);
  * a ported callee runs natively) and the routine resumes when the callee
  * returns to the call's return address with the stack as it was before the
  * call. SHADOW mode compares the machines when the original reaches the same
- * call, ignoring `dont_care` (DC_* bits: what the callee doesn't read), then
- * again at each later call and at return. If the callee unwinds past its return
- * instead, the routine is abandoned, as the original would be.
+ * call (the first pass through it, with the same S, where they are the same:
+ * a call inside a loop the port runs several passes of), ignoring `dont_care`
+ * (DC_* bits: what the callee doesn't read), then again at each later call and
+ * at return. If the callee unwinds past its return instead, the routine is
+ * abandoned, as the original would be.
  *
  * Outside the runtime the callee runs synchronously (registered entries, else
  * the machine's interpreter), with interrupts held off and no time passing. */

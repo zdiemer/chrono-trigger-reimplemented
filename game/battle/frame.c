@@ -540,20 +540,15 @@ static bool rotate_palette_colors(Snes *s, bool v)
     return v;
 }
 
-/* The frame update's call-outs: the callees read A's high byte (never its
- * low byte, which is set as the original loads it), the direct page and the
- * data bank; nothing reads X or the flags after. False if the callee didn't
- * leave 8-bit A and 16-bit X. */
-enum { FRAME_CALL_DEAD = DC_X | DC_N | DC_Z | DC_C };
+/* The frame update's call-outs: the callees read A's high byte, the direct
+ * page and the data bank, and none of them A's low byte, X, Y or the flags,
+ * which nothing after them reads either. False if the callee didn't leave
+ * 8-bit A and 16-bit X. */
+enum { FRAME_CALL_DEAD = DC_AL | DC_X | DC_Y | DC_FLAGS };
 static bool call_on(Snes *s, uint32_t site, uint32_t target)
 {
     m_jsr_dc(s, site, target, FRAME_CALL_DEAD);
     return widths_ok(s);
-}
-static bool call_out(Snes *s, uint32_t site, uint32_t target, uint8_t a)
-{
-    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | a);
-    return call_on(s, site, target);
 }
 
 // $CF:E58A
@@ -581,10 +576,9 @@ void battle_frame_update(Snes *s)
         m_write8(s, RAM_BATTLE_BLINK_TIMER, BLINK_PERIOD);
         m_write8(s, RAM_BATTLE_BLINK, (uint8_t)(m_read8(s, RAM_BATTLE_BLINK) ^ 0x01));
     }
-    uint8_t mirror = m_read8(s, RAM_BATTLE_EFFECT_MIRROR_SLOT3);
-    if (mirror)
-        m_write8(s, RAM_BATTLE_OBJECT_PALETTE + 9, mirror = m_read8(s, RAM_BATTLE_OBJECT_PALETTE + 3));
-    if (!call_out(s, 0xCFE5A7, 0xCFE7D7, mirror))
+    if (m_read8(s, RAM_BATTLE_EFFECT_MIRROR_SLOT3))
+        m_write8(s, RAM_BATTLE_OBJECT_PALETTE + 9, m_read8(s, RAM_BATTLE_OBJECT_PALETTE + 3));
+    if (!call_on(s, 0xCFE5A7, 0xCFE7D7))
         return;
 
     uint16_t index_high = c->a & 0xFF00;
@@ -611,7 +605,8 @@ void battle_frame_update(Snes *s)
     bool v = overflow16(high, 0, (uint16_t)(high + carry));
     c->a = c->d;   /* TDC: A's high byte 0 from here */
 
-    /* the overflow of the last addition, which the callees pass on */
+    /* the overflow of the last addition, which the reset reads if a demo
+     * battle leaves below */
     m_set_flag(s, CPU_FLAG_V, rotate_palette_colors(s, v));
 
     // $CF:E6AA
@@ -629,8 +624,10 @@ void battle_frame_update(Snes *s)
             m_write8(s, RAM_BATTLE_BRIGHTNESS, brightness);
             if (!brightness) {
                 m_write8(s, RAM_BATTLE_LEAVING, 0x80);
-                /* JML to the reset code, the attribute byte still pushed */
-                m_stop_at(s, 0xC0FF00, DC_A | DC_X | DC_N | DC_Z | DC_C);
+                /* JML to the reset code, the attribute byte still pushed; the
+                 * reset reads Y and the overflow, which the frame update's
+                 * callers don't */
+                m_stop_at_own(s, 0xC0FF00, DC_A | DC_X | DC_N | DC_Z | DC_C);
                 return;
             }
         }
@@ -654,14 +651,14 @@ void battle_frame_update(Snes *s)
     m_write8(s, RAM_BATTLE_FRAME_TICK, tick);
     if (!(tick & 0x03))
         m_write8(s, RAM_BATTLE_FRAME_TICK_4, (uint8_t)(m_read8(s, RAM_BATTLE_FRAME_TICK_4) + 1));
-    if (!call_out(s, 0xCFE748, 0xCFEFAF, tick & 0x03))
+    if (!call_on(s, 0xCFE748, 0xCFEFAF))
         return;
     uint8_t running = m_read8(s, RAM_BATTLE_EFFECTS_RUNNING);
-    if (running && (!call_out(s, 0xCFE750, 0xCFEC78, running) || !call_on(s, 0xCFE753, 0xCFECC2) ||
+    if (running && (!call_on(s, 0xCFE750, 0xCFEC78) || !call_on(s, 0xCFE753, 0xCFECC2) ||
                     !call_on(s, 0xCFE756, 0xCFED18) || !call_on(s, 0xCFE759, 0xCFE781)))
         return;
     uint8_t formation = m_read8(s, RAM_BATTLE_FORMATION);
-    if (formation && !call_out(s, 0xCFE761, 0xCFF9D3, formation))
+    if (formation && !call_on(s, 0xCFE761, 0xCFF9D3))
         return;
     if (!m_read8(s, RAM_BATTLE_SPRITES_FROZEN)) {
         uint8_t loaded = m_read8(s, RAM_BATTLE_EFFECTS_RUNNING);
@@ -670,7 +667,7 @@ void battle_frame_update(Snes *s)
             if (loaded == GRAPHICS_UPLOAD_NEXT_FRAME)
                 m_write8(s, RAM_BATTLE_GRAPHICS_UPLOAD_REQUEST, GRAPHICS_UPLOAD_NEXT_FRAME - 1);
         }
-        if (!call_out(s, 0xCFE778, 0xCFE83A, loaded))
+        if (!call_on(s, 0xCFE778, 0xCFE83A))
             return;
     }
     m_write8(s, RAM_BATTLE_FRAME_PENDING, 0);

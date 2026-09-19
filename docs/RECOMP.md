@@ -2458,6 +2458,163 @@ most of the reading, the ambiguous stops most of the debugging, and machine
 time (the library in shadow mode, 10 minutes at two at a time; the gate with
 every route about an hour) most of the waiting.
 
+### Between the waves: the validator
+
+Wave 1's reports named five places where shadow mode and the don't-care check
+made a port reproduce what the original leaves dead, or broke on a port shaped
+the natural way. Each is fixed in `runtime/port/native.c` and
+`tools/dontcare_check.py`, under one rule: anything that lets shadow mode
+compare less is shown sound (from liveness, or from the original's own
+execution), and a deliberately wrong port is shown still caught. The runtime
+side is tested on a synthetic program (`tests/port/shadow_test.c`, in CI), the
+check's on synthetic code (`tests/test_dontcare_check.py`), and each on the
+ROM below.
+
+**A's low byte alone: `DC_AL`.** Liveness has A's two bytes apart, but only
+the high byte could be declared by itself (`DC_AH`), so a routine whose callers
+read A's high byte (a later 16-bit load or `TAX` takes it along) had to return
+the exact low byte an 8-bit routine leaves, on every path: the battle's effect
+handlers returned "what the original leaves in A" as a value, and the frame
+update set A's low byte before each of its call-outs although no callee reads
+it. `DC_AL` (bit 10) leaves out the low byte alone, at a return, a stop and a
+call-out; with it every register byte and flag liveness tracks can be declared
+on its own. Sound for the same reason as every declaration: the check maps
+`DC_AL` to liveness's low-byte bit and verifies it where shadow mode applies
+it, and at a call-out a low byte the callee left as it found it goes back to
+being the port's own (`keep_untouched`), so a port that relies on the value it
+declared dead there is compared as the shipping mode would run it. Shown: the
+synthetic program's routine that returns a wrong low byte under `DC_AL`
+matches and one with a wrong high byte doesn't ("A's high byte original 12
+native 99"); one that declares the low byte dead at a call-out and then stores
+it is caught at its return; on the ROM, `DC_AL` on `battle_sine_scale`'s entry
+(its callers read the result) and on the call to `$CD:3E8E` (which pushes the
+bank A holds) are findings. `--list` now says, for every declaration, what
+else liveness has dead there (`could add`): 312 declarations could add
+`DC_AL` before the ports below adopted it, 291 after.
+
+**A stop's own set: `m_stop_at_own`.** An entry's set applied at its returns
+and at every stop it made, so one early exit to code that reads a register the
+callers don't shrank the whole entry's set: the frame update's demo exit to the
+reset code at `$C0:FF00`, which reads Y and V, kept both out of a set that is
+otherwise dead after the return, and `input_read_joypad` declared V at its
+`RTS` as a stop to get around it. `m_stop_at_own(s, at, set)` (and
+`native_own_dont_care_at_stop`) makes `set` the stop's alone: shadow mode and
+`ct_fuzz` leave out exactly that set there, and the check verifies it alone at
+`at`; the entry's set then applies only at returns and at stops that aren't
+their own, and is checked at each (`native_finish_dont_care` is the one rule
+both runtimes use). Nothing is compared less than it is declared, and every
+set is checked where it applies. Shown: on the synthetic program, a wrong Y at
+an own stop is caught and the same stop declared with `m_stop_at`, which adds
+the entry's `DC_Y`, hides it; on the ROM, `scene_run_sequence` with D added to
+its entry (dead after its return, read at the sound wait) and a wrong D at the
+wait matches all 32854 calls of `endings-beyond-time` as a shared stop, which
+the check rejects ("where liveness has D read"), and mismatches 5142 as its own
+stop, which the check accepts; an own set with V at `$C0:FF00` is rejected.
+
+**Call-outs compare exactly what the callee reads.** With `DC_AL`, a call-out's
+set can be the complement of `Liveness.callee_reads` bit for bit, and the check
+verifies it there as before. Making the runtime leave out what no callee reads
+by itself, from a liveness table built with the generated code, was considered
+and not done: it would put the ROM's analysis into the runtime (and make what
+is compared depend on the build's call logs), and it would move the claim out
+of the source, where the declaration is reviewed and `--list` shows what else
+could be declared.
+
+**Stops and calls at a loop's head.** Shadow mode took a stop or call-out as
+reached the first time the original passed its instruction with the same S, so
+a port that ran several passes of an interpreter loop and stopped at its head
+was compared against the first, and ports worked around it (the scene
+sequence interpreter handed the rest of a run back as a call-out from its
+entry's own `JSR` site, which is compared at the same first pass and was only
+right when no command had run in that stretch). Now every pass is compared,
+and the first where the machines are the same counts (`reach_point`). It can't
+accept a wrong pass: the comparison covers everything the original's code can
+observe except what is dead there (the declared sets, checked against
+liveness, and the stack below S) and what changes with time rather than code
+(HDMA's registers, the SPC700's port clears, the OAM reload), which the first
+pass left out as well. What the original does from a pass is decided by the
+machine at that pass, so from a pass where the two are the same the original
+goes on exactly as the shipping mode goes on from where the port stopped:
+whichever pass it is, what follows is what the original did. A port that is
+the same at no pass is reported with the first pass's difference, and the
+last's, once the original leaves the point's frame, when an interrupt comes
+(its handler runs on the original only, so a later pass can't be compared:
+reported as a mismatch, as the first pass's difference was before), after
+65536 passes, or when the run ends with it still waiting (`native_failed`).
+So nothing the old rule reported as a mismatch passes now unless a later pass
+matched exactly. A failed pass costs a comparison per later pass until then.
+`ct_fuzz` does the same over the original's passes. Shown: on the synthetic
+program, a stop after two passes of a loop and a call-out from a loop's head
+after two inlined passes match (under the old runtime, every call mismatched,
+"X original 0 native 2"), a stop whose memory matches no pass is caught ("and
+at 2 later passes, then the original left"), and in a loop longer than a
+frame a port matching no pass is reported at the NMI. On the ROM,
+`scene_run_sequence` made to stop at its loop's head `$C3:0B03` after one
+command: in `title-start` 235 of its 1500 calls mismatch under the first-pass
+rule and none now; the same with the script pointer one byte off, 238 mismatch
+("... at the last: WRAM[0A20] original 3B native 3C").
+`scene_run_sequence` now stops at `$C3:0B03` in place of the workaround.
+
+**An entry on another port's path.** An entry the original reached while it
+was catching up with a native routine started a comparison of its own, nested,
+and only the innermost comparison was checked, so one still running when the
+original got to the point the enclosing routine waited for took that point
+for itself (the same call, typically), and the enclosing comparison failed:
+the $C7 pilot's `play_song`, and `$C3:0C28`, where the scenes' sound wait goes
+on and the store command's path runs through. The runtime handles it rather
+than the check rejecting it: at each step the outermost routine waiting at the
+original's point comes first (`settle_nested`). The nested comparisons are
+checked there first, innermost first, as before, and one that finishes or goes
+on (its own point is here too, or its callee unwound past it) is dealt with as
+it was; any other is set aside, counted as `abandoned` with a note naming the
+enclosing routine, and the enclosing one is compared (a difference a set-aside
+one had shown stays a mismatch, and one waiting for a later pass is reported
+then). That compares less only
+for a call the shipping mode never makes (there the enclosing routine runs
+natively and the entry isn't called at all), and the comparison it gives way
+to covers everything the stretch did. Nothing that matched before is set
+aside: nested comparisons that end inside the stretch, the common case (a
+helper the port inlines and the burndown credits as an entry), are compared as
+they were, and those that outlasted it made the enclosing one fail. Over the
+library the shadow runs' counts are the same as under the old rules for every
+entry (calls, 64558726 matched, 64158 interrupted, 489 abandoned, none
+mismatched), so both this and the loop heads change nothing that passed. A
+first version didn't start an entry inside another's stretch at all, which is
+the shipping mode's rule, but that dropped 17.3 million of those comparisons
+(the battle's per-object drawing routines and the menus' glyph and number
+routines, all inlined by their callers) and moved four entries' timing past
+the timing gate's limits, so it was replaced. A check could only reject such a
+registration by knowing which of the original's instructions each port stands
+for, which the burndown only estimates, and it would forbid the registrations
+porters want. Shown: on the synthetic program, an entry registered in the
+middle of another's path took the outer one's call-out (all 250 of the outer's
+calls mismatched, "original returned without the call"); now both match, the
+inner one set aside once per pass inside the outer's stretch and compared at
+its own calls, and a callee the outer inlines, registered as well, is still
+compared at every call (none abandoned). On the ROM, `$C3:0C28` registered for
+the demonstration: under the old rule `events-jetbike-race` reports
+`scene_run_sequence: original returned without the call to C70004`, the scene
+agent's failure, and `endings-beyond-time` 8 such (2 of `scene_run_sequence`,
+6 of the new entry's own); now none, and the new entry is compared at 26 of
+its 35 calls there (1 of 2 in the race), the rest set aside where they
+outlasted a run's call.
+
+**A reader fix.** The check read a table's struct with two fields in one
+declaration (`uint16_t flag, copy;`, `battle_run_queued_scripts`' table) as one
+field, which shifted every column after it, so a declaration taken from such a
+table would be checked with the wrong address or set; it now reads every
+declarator (`struct_fields`, tested on synthetic code).
+
+**The ports that adopted them**, each changed only as far as the declarations
+go, fuzzed again and matching over the library (PORTING.md's rows):
+`battle_frame_update` declares Y and V dead after its return, its demo exit
+its own set, and its call-outs `DC_AL | DC_X | DC_Y | DC_FLAGS`, so the low
+byte it set before each call is gone; the fifteen effect handlers, called by
+themselves, and `battle_place_formation` declare `DC_AL` and no longer
+reproduce what the original leaves in A's low byte; `input_read_joypad`
+declares Y and V after its return and its two stops their own sets, in place
+of its stop at the `RTS`; `scene_run_sequence` stops at its loop's head.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

@@ -1261,7 +1261,9 @@ color three times, one channel each.
   instead, which is what the port did first, is not something either validation
   can check -- shadow mode and the fuzzer both look for the original at the
   address the port stopped at, and a loop passes the same address every time, so
-  they compared the wrong iteration. The race's own table needed three targets
+  they compared the wrong iteration (both now compare every pass and take the
+  one where the machines are the same: RECOMP.md, "Between the waves: the
+  validator"). The race's own table needed three targets
   that did not exist (above).
 - **Two of the race's uploads write the data port's low half alone.** The column
   at `$7E:4643`/`$7E:464D` and the Mode 7 plane at `$7E:8752` send one byte to
@@ -1380,8 +1382,8 @@ before the transfer rather than after. It found two more in this round. The VRAM
 port's byte has three bits the hardware ignores, which `VidVramPort` dropped, so
 a routine that sets the port from a value it was handed (`$7E:59D5`) wrote a
 different byte back; `snes_extra` keeps them, as the other decoders already do
-for their spare bits. And a port that hands back in the middle of a loop can't be
-validated at all (above). The four window tile writers are guarded
+for their spare bits. And a port that hands back in the middle of a loop couldn't
+be validated at all (above; it can now). The four window tile writers are guarded
 on a direct page on the PPU block, which the fuzzer's base states don't have, so
 they are validated by shadow mode only.
 

@@ -57,6 +57,15 @@ rest waits, is [PLAN.md](PLAN.md).
   carry and the overflow flag the table builders leave (RECOMP.md, "Phase 3,
   wave 1"); following the loop's callees would free them, and the same holds
   for every routine it calls.
+- **Drafts and ports don't use the new declarations yet** (RECOMP.md, "Between
+  the waves: the validator"). The draft tool writes A's low byte back wherever
+  its high byte is live and gives a stop the entry's set; `DC_AL` and
+  `m_stop_at_own` would let it name exactly what is dead. Among the ports,
+  `python3 tools/dontcare_check.py --list` has 291 declarations that could add
+  `DC_AL` (`could add`), `battle_step_effect_slots` still carrying the handlers'
+  A through its loop among them, and entries whose sets a stop kept small
+  (`battle_update_combatant`, `event_run_object_script`, `menu_run_objects`,
+  `field_object_in_the_way`, the event dialog and condition commands).
 - **The burndown doesn't follow call tables** (`JSR (abs,X)`): a port that
   dispatches through one is credited with its targets only when they are
   registered (`tools/burndown.py`).
