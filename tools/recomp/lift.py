@@ -119,7 +119,8 @@ class Lifter:
         d = self.d_at(node)
         if isinstance(d, int):
             a = (d + o) & 0xFFFF
-            base = long_const(a) if a < 0x2000 else Const(a, 24, "long")
+            # tagged with the page, which is what names a direct-page cell (names.py)
+            base = Const(canonical(a) if a < 0x2000 else a, 24, f"dp{d:04X}")
             return base if index is None else Bin("+", base, index, 24)
         named = self.r.dp_name(o) if self.r.dp_name else None
         m = Mach(f"m_dp(s, {named or f'0x{o:02X}'})", 16)

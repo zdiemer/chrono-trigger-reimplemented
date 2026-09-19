@@ -11,9 +11,11 @@
  * scene's offset (RAM_SCENE_SPRITE_OFFSET_X/_Y).
  *
  * The buffer and the high table are reached through the data bank, as the
- * original does; the lists are read through the work RAM port. No caller reads
- * a register afterwards (the lists' callers the overflow excepted, below), so
- * the entries leave them as they are. */
+ * original does; the lists are read through the work RAM port. What the
+ * callers can read afterwards is Y, the next free entry, and (after a list)
+ * A, which the scene program's task loop carries into the next task: the lists
+ * and the small sprite leave those as the original does, the clipped list its
+ * overflow too, and the other registers as they are. */
 #include "scene/scene.h"
 
 #include "port/machine.h"
@@ -83,11 +85,27 @@ static void shift_in(Snes *s, uint32_t at, uint8_t (*add)(uint8_t))
 /* A list in $7E: a count byte, then count - 1 entries of tile, attributes, X
  * and Y (a count of 0 is 256). The count goes into its cell, which counts down
  * as the entries are copied: another_entry is the loop's test. */
-static void open_list(Snes *s, uint16_t list)
+static uint8_t open_list(Snes *s, uint16_t list)
 {
     m_write16(s, m_abs(s, WRAM_PORT_ADDRESS), list);
     m_write8(s, m_abs(s, WRAM_PORT_BANK), 0);
-    m_write8(s, m_dp(s, RAM_SCENE_SPRITE_LIST_LEFT_DP), m_read8(s, m_abs(s, WRAM_PORT)));
+    uint8_t count = m_read8(s, m_abs(s, WRAM_PORT));
+    m_write8(s, m_dp(s, RAM_SCENE_SPRITE_LIST_LEFT_DP), count);
+    return count;
+}
+
+/* Where a list leaves the buffer, and the A it leaves: its low byte the count
+ * for a list with no entries, else the last entry's offset within its
+ * high-table byte (the loop's test); its high byte what the loop last put
+ * there. */
+typedef struct {
+    uint16_t oam;
+    uint16_t a;
+} ListEnd;
+
+static uint16_t list_a(uint8_t high, uint8_t count, bool entries, uint16_t oam)
+{
+    return (uint16_t)(high << 8 | (entries ? (oam & ENTRIES_PER_HIGH_BYTE_MASK) : count));
 }
 
 static bool another_entry(Snes *s)
@@ -109,12 +127,14 @@ static void close_list(Snes *s, uint16_t oam, uint16_t high)
 
 /* Copy the sprite list at $7E:list into the buffer, all small with X's 9th
  * bit clear. The high-table pointer is used as an index, whole. */
-static void load_sprite_list(Snes *s, uint16_t list)
+static ListEnd load_sprite_list(Snes *s, uint16_t list)
 {
-    open_list(s, list);
+    uint8_t count = open_list(s, list);
     uint16_t oam = cell16(s, RAM_SCENE_SPRITE_INDEX_DP);
     uint16_t high = cell16(s, RAM_SCENE_SPRITE_HIGH_POINTER_DP);
+    bool entries = false;
     while (another_entry(s)) {
+        entries = true;
         set_oam(s, oam, RAM_OAM_BUFFER_TILE, list_byte(s));
         set_oam(s, oam, RAM_OAM_BUFFER_ATTRIBUTES, list_byte(s));
         set_oam(s, oam, RAM_OAM_BUFFER_X, offset_x8(s, list_byte(s)));
@@ -124,41 +144,46 @@ static void load_sprite_list(Snes *s, uint16_t list)
             high++;
     }
     close_list(s, oam, high);
+    return (ListEnd){oam, list_a((uint8_t)(list >> 8), count, entries, oam)};
 }
 
 /* The same with the X offset 16-bit, all sprites large: an X past the right
  * edge moves the sprite off screen, and a negative one sets X's 9th bit.
- * Returns the overflow of the last Y's addition (`overflow` when there is
- * none). */
-static bool load_sprite_list_clipped(Snes *s, uint16_t list, bool overflow)
+ * `*overflow` becomes the overflow of the last Y's addition (as it was when
+ * there is none); A's high byte is left from the word X shifted left. */
+static ListEnd load_sprite_list_clipped(Snes *s, uint16_t list, bool *overflow)
 {
-    open_list(s, list);
+    uint8_t count = open_list(s, list);
     uint16_t oam = cell16(s, RAM_SCENE_SPRITE_INDEX_DP);
     uint16_t high = cell16(s, RAM_SCENE_SPRITE_HIGH_POINTER_DP);
+    uint8_t a_high = (uint8_t)(list >> 8);
+    bool entries = false;
     while (another_entry(s)) {
+        entries = true;
         set_oam(s, oam, RAM_OAM_BUFFER_TILE, list_byte(s));
         set_oam(s, oam, RAM_OAM_BUFFER_ATTRIBUTES, list_byte(s));
         uint16_t x = (uint16_t)(list_byte(s) + cell16(s, RAM_SCENE_SPRITE_OFFSET_X_DP));
         if (!((uint16_t)(x - SCREEN_WIDTH) & 0x8000))
             x = OFFSCREEN_X;
         set_oam16(s, oam, RAM_OAM_BUFFER_X, x);   /* the Y overwrites the high byte */
+        a_high = (uint8_t)((uint16_t)(x << 1) >> 8);
         uint32_t at = m_abs(s, 0) + high;
         uint8_t bits = HIGH_LARGE | ((x & 0x8000) ? HIGH_X9 : 0);
         m_write8(s, at, (uint8_t)(bits | m_read8(s, at) >> 2));
         uint8_t y = list_byte(s);
-        overflow = y_add_overflows(s, y);
+        *overflow = y_add_overflows(s, y);
         set_oam(s, oam, RAM_OAM_BUFFER_Y, offset_y8(s, y));
         if (next_entry(&oam))
             high++;
     }
     close_list(s, oam, high);
-    return overflow;
+    return (ListEnd){oam, list_a(a_high, count, entries, oam)};
 }
 
 /* One sprite from the four bytes at $7E:source (tile, attributes, X, Y), whose
  * high bits `add` shifts in. The pointer's low byte moves on after every
  * fourth sprite. */
-static void add_sprite(Snes *s, uint16_t source, uint8_t (*add)(uint8_t))
+static uint16_t add_sprite(Snes *s, uint16_t source, uint8_t (*add)(uint8_t))
 {
     uint16_t oam = cell16(s, RAM_SCENE_SPRITE_INDEX_DP);
     uint32_t from = 0x7E0000u + source;
@@ -171,6 +196,7 @@ static void add_sprite(Snes *s, uint16_t source, uint8_t (*add)(uint8_t))
         m_write8(s, pointer_low, (uint8_t)(m_read8(s, pointer_low) + 1));
     }
     set_cell16(s, RAM_SCENE_SPRITE_INDEX_DP, oam);
+    return oam;
 }
 
 /* ---- Entries: 16-bit A and index registers ------------------------------------------ */
@@ -179,7 +205,9 @@ static void add_sprite(Snes *s, uint16_t source, uint8_t (*add)(uint8_t))
 /* The list at $7E:A, small sprites. */
 void scene_load_sprite_list(Snes *s)
 {
-    load_sprite_list(s, s->cpu.a);
+    ListEnd end = load_sprite_list(s, s->cpu.a);
+    s->cpu.a = end.a;
+    s->cpu.y = end.oam;
     m_rtl(s);
 }
 
@@ -187,8 +215,11 @@ void scene_load_sprite_list(Snes *s)
 /* The list at $7E:A, large sprites clipped at the right edge. */
 void scene_load_sprite_list_clipped(Snes *s)
 {
-    bool overflow = load_sprite_list_clipped(s, s->cpu.a, m_flag(s, CPU_FLAG_V));
+    bool overflow = m_flag(s, CPU_FLAG_V);
+    ListEnd end = load_sprite_list_clipped(s, s->cpu.a, &overflow);
     m_set_flag(s, CPU_FLAG_V, overflow);
+    s->cpu.a = end.a;
+    s->cpu.y = end.oam;
     m_rtl(s);
 }
 
@@ -200,7 +231,7 @@ void scene_load_sprite_list_clipped(Snes *s)
 void scene_add_sprite(Snes *s)
 {
     m_push8(s, s->cpu.p);
-    add_sprite(s, s->cpu.x, shift_in_small);
+    s->cpu.y = add_sprite(s, s->cpu.x, shift_in_small);
     m_pull8(s);
     m_rtl(s);
 }

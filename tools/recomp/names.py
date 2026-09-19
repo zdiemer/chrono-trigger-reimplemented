@@ -7,8 +7,18 @@
   draft takes a name from its own subsystem, `core`, or the subsystem that
   shares its page (field and event, scene and attract), as the map's coverage
   count does; one from another subsystem says nothing about this use of the
-  bytes. Where the routine's D is known and a page of the map has that D and
-  the routine's subsystem, that page's variables come first.
+  bytes. A routine's subsystem is its bank's where the bank has one; in the
+  banks several subsystems share (`$C3`, `$C6`, `$FD`, `$FF`) it is the one
+  every caller's comes back to (`routine_subsystem`), and where they don't
+  agree, or nothing calls it, it has none, and only `core` names it.
+- **Direct-page cells.** A direct-page access with D known is named only by a
+  variable the map puts on a page with that D (`page = ...`), of the
+  routine's subsystem as above: the direct page is where modes keep their
+  scratch, and a variable that merely lies at the same address (the field's
+  sprite range cells at `$01DB` under the event commands' scratch, the scene's
+  frame flag at `$0000` under the menu's) says nothing about this use. Any
+  other cell gets a plain scratch name, `SCRATCH_01DB`, defined in the draft
+  (`RamNamer.scratch`).
 - **I/O registers** get their conventional names in a comment: game/ reaches
   them through runtime/platform/, so a draft that touches one is showing the
   porter a platform call to make.
@@ -23,9 +33,58 @@ from tools.ram_map import SHARES, macro
 
 # Subsystem of the code in a bank (the RAM map's names; docs/PORTING.md's layout).
 BANK_SUBSYSTEM = {
-    0x7E: "scene", 0xC0: "field", 0xC1: "battle", 0xC2: "menu", 0xC3: "scene", 0xC6: "scene",
+    0x7E: "scene", 0xC0: "field", 0xC1: "battle", 0xC2: "menu",
     0xC7: "core", 0xCC: "battle", 0xCD: "battle", 0xCE: "battle", 0xCF: "battle", 0xD1: "battle",
 }
+# Banks whose code serves several subsystems: a routine there takes its
+# callers' (the scene engine, the decompressor and the field's window
+# rasterizer in $C3; scene data and the menu objects' routines in $C6; field
+# graphics and battle routines in $FD).
+SHARED_BANKS = (0xC3, 0xC6, 0xFD, 0xFF)
+
+
+def routine_subsystem(an, addr: int, dynamic: dict | None = None, depth: int = 16) -> str | None:
+    """The subsystem a routine works for: its bank's, or in a shared bank the
+    one its callers' all come back to (through the static call sites, the
+    call logs' and the indirect jumps the analysis follows, up to a routine in
+    a bank with a subsystem); None where they differ or nothing is known."""
+    if addr >> 16 in BANK_SUBSYSTEM:
+        return BANK_SUBSYSTEM[addr >> 16]
+    owners, callers = _index(an)
+    found, seen, work = set(), {addr}, [(addr, 0)]
+    while work:
+        at, d = work.pop()
+        # its call sites, and the routines that run into it (a loop head a port
+        # registers, a routine another falls into) at its own address
+        sites = callers.get(at, set()) | set((dynamic or {}).get(at, ())) | {at}
+        for site in sites:
+            for caller in owners.get(site, ()):
+                if caller >> 16 in BANK_SUBSYSTEM:
+                    found.add(BANK_SUBSYSTEM[caller >> 16])
+                elif caller not in seen and d < depth:
+                    seen.add(caller)
+                    work.append((caller, d + 1))
+        if len(found) > 1:
+            return None
+    return found.pop() if len(found) == 1 else None
+
+
+_OWNERS: dict = {}
+
+
+def _index(an) -> tuple:
+    """(pc -> the entries of the routines that run it, entry -> the sites
+    that call or jump to it), cached per analysis."""
+    got = _OWNERS.get(id(an))
+    if got is None or got[0] is not an:
+        owners: dict = {}
+        callers: dict = {}
+        for key, c in an.contexts.items():
+            callers.setdefault(key[0], set()).update(c.callers)
+            for pc in c.insns:
+                owners.setdefault(pc, set()).add(key[0])
+        got = _OWNERS[id(an)] = (an, owners, callers)
+    return got[1], got[2]
 
 IO_REGISTERS = {
     0x2100: "INIDISP", 0x2101: "OBSEL", 0x2102: "OAMADDL", 0x2103: "OAMADDH", 0x2104: "OAMDATA",
@@ -75,17 +134,27 @@ class RamNamer:
         self.subsystem = subsystem
         self.d = d
         self.used: set = set()
+        self.scratch_cells: dict = {}     # SCRATCH_ name -> (address, D)
 
     def allowed(self, var) -> bool:
+        """A variable of the routine's subsystem, of `core`, or of the one
+        sharing its page; `core` alone for a routine whose subsystem isn't
+        known."""
         if self.subsystem is None:
-            return True
+            return var.subsystem == "core"
         return var.subsystem in ({self.subsystem, "core"} | SHARES.get(self.subsystem, set()))
 
-    def name(self, a: int) -> str | None:
+    def name(self, a: int, dp: int | None = None) -> str | None:
+        """The name of work RAM address a; for a direct-page access (`dp` the
+        D it was made with), only from a variable on a page with that D."""
         hits = [(v, f) for v, f in self.map.lookup(a, self.subsystem) if self.allowed(v)]
+        if dp is not None:
+            # a page's cells are scratch as much as variables: code on its own
+            # subsystem's page takes what the map puts there (the sharing
+            # subsystem's too), code on another's page only its own and core's
+            hits = [(v, f) for v, f in hits if v.page is not None and v.page.d == dp
+                    and (v.subsystem in (self.subsystem, "core") or v.page.subsystem == self.subsystem)]
         if not hits:
-            return None
-        if self.subsystem is None and len({v.name for v, _ in hits}) > 1:
             return None
         hits.sort(key=lambda h: (not (h[0].page is not None and h[0].page.d == self.d and self.d is not None),
                                  h[0].subsystem != self.subsystem, h[0].addr))
@@ -105,6 +174,23 @@ class RamNamer:
         if r:
             text += f" + {r}" if r < 10 else f" + 0x{r:X}"
         return text
+
+    def scratch(self, a: int, dp: int) -> str:
+        """A plain name for a direct-page cell the map has no variable for on
+        this page: SCRATCH_ and its address, which the draft defines."""
+        name = f"SCRATCH_{a & 0xFFFF:04X}"
+        self.scratch_cells[name] = (a, dp)
+        return name
+
+    def scratch_defines(self) -> list:
+        """#define lines for the scratch names used, and the #undef lines that
+        end them (a draft printed with others doesn't pass them on)."""
+        defs, undefs = [], []
+        for name, (a, dp) in sorted(self.scratch_cells.items()):
+            defs.append(f"#define {name} 0x{a:06X}   /* direct page ${(a - dp) & 0xFF:02X} with D = ${dp:04X}: "
+                        "scratch, no map entry for this page */")
+            undefs.append(f"#undef {name}")
+        return defs, undefs
 
     def dp_name(self, page, offset: int) -> str | None:
         """A variable of a page whose D isn't fixed, by its offset."""

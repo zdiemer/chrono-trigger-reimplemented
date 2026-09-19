@@ -149,13 +149,13 @@ def write_liveness(an: Analyzer, lv: Liveness, out: Path) -> str:
         rows[fmt(e)] = {
             "name": an.label(e),
             "live_in": describe_live(lv.func_live_in[e]),
-            "live_after_return": describe_live(lv.ret_live[e]),
-            "dead_after_return": describe_live(ALL & ~lv.ret_live[e]),
-            "dont_care": dc_text(dc_mask(ALL & ~lv.ret_live[e])),
+            "live_after_return": describe_live(lv.after_return(e)),
+            "dead_after_return": describe_live(lv.dead_at_return(e)),
+            "dont_care": dc_text(dc_mask(lv.dead_at_return(e))),
             "all_live_reason": lv.reasons.get(e),
         }
     (out / "liveness.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
-    relaxed = sum(1 for e in entries if lv.ret_live[e] != ALL)
+    relaxed = sum(1 for e in entries if lv.after_return(e) != ALL)
     return f"- liveness: {relaxed} of {len(entries)} functions have registers or flags dead after return"
 
 

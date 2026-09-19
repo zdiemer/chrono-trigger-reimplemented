@@ -52,28 +52,30 @@ rest waits, is [PLAN.md](PLAN.md).
   `field_scroll_layers`); operand names for the battle script handlers;
   turning I/O register writes and the multiplier into platform calls and C
   arithmetic; stub signatures that still vary by what a call reads back.
-- **Liveness through the field's main loop.** Nothing the analysis can rule
-  out after `$FD:C2C1` returns, so its port reproduces X, A's high byte, the
-  carry and the overflow flag the table builders leave (RECOMP.md, "Phase 3,
-  wave 1"); following the loop's callees would free them, and the same holds
-  for every routine it calls.
-- **The burndown doesn't follow call tables** (`JSR (abs,X)`): a port that
-  dispatches through one is credited with its targets only when they are
-  registered (`tools/burndown.py`).
-- **Liveness where a callee leaves through its caller's frame** (RECOMP.md,
-  "Before the bulk"): the sound driver's `$C7:0A39` returns past `$C7:0004` on
-  its refused path, so the driver's saves of the caller's registers count as
-  reads for every routine that sends a command, and pushes across the menus'
-  task switch (`$C2:821E`) stay conservative too. Following a callee's pulls of
-  its caller's bytes to the registers they land in would free both.
-- **Liveness through indirect tail jumps.** A routine entered through an
-  indirect jump counts every register as read after it returns, even where the
-  jump is a tail call whose caller's continuation is known: the menu object
-  scripts' command `$4E` jumps through `JML [$005B]` at `$C2:1836`, which
-  returns to `$C2:1830`, where only X, Y, V, C and the banks are live. So the
-  bank C6 routines it reaches (`scene/objects.c`) reproduce A and every flag
-  too. Taking the return liveness of the routine that makes the tail jump for
-  its targets would drop that from the rest of bank C6.
+- **Liveness across a saved stack pointer.** The overflow flag is still live
+  after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
+  no longer are): the menus' entry `$C2:800E` saves P and then copies S to
+  `$0920` (`TSX`) to run on a stack of its own, which the pairing of pushes
+  can't follow, so its `PHP` reads every flag for every caller. The same holds
+  across the menus' task switch (`$C2:821E`), and for the scene program's task
+  lists (`$7E:3994`, `$7E:39C8`), whose tasks leave through `JMP $39A7` into
+  the loop's own code and carry on with the next task rather than return.
+  Following S through the cell it is saved in, and a callee that finishes its
+  caller's iteration, would free them (RECOMP.md, "The tooling pass after
+  wave 1: the analysis").
+- **The C reading the don't-care check and the burndown share**
+  (`tools/dontcare_check.py`'s `Source`): a table whose row struct declares two
+  fields in one declaration (`uint16_t flag, copy;` in
+  `battle_run_queued_scripts`) is read with its columns shifted. The burndown
+  catches it where a site comes out as something that isn't a call and
+  credits that port no callee; a declaration read that way would be checked
+  against the wrong address.
+- **Scene cells the menu objects use.** The C6 irises and motion routines
+  (`scene/objects.c`) run on the menu's direct page and use the circle
+  drawer's and the scaler's cells, which the map files under the scene; their
+  drafts now give those cells scratch names (RECOMP.md, "The tooling pass
+  after wave 1: the analysis"). Filing them where both subsystems see them (`core`, or
+  entries on the menu's page) would name them again.
 - **Stops after a call-out that changed the widths.** Ports that give up there
   (`battle_step_effect_slots`' `call`, the menus' `widths_are` checks) leave PC
   at the call's return address without declaring it; with a don't-care set on

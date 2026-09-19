@@ -274,8 +274,11 @@ class Analysis(unittest.TestCase):
             ("08 9002 48 68 28 60", None, None),            # both paths pull a byte: still paired
             ("08 9001 48 28 60", S_UNKNOWN, None),          # PHP ; BCC ; PHA ; PLP: depths differ
             ("08 5C3080C0", LEAVES, {0xC08030: bytes.fromhex("2860")}),   # PHP ; JML: the PLP is elsewhere
-            # PHP ; JSR $8020, which pulls its return address and the byte under it
-            ("08 202080 28 60", CALLEE_REACHES, {0xC08020: bytes.fromhex("FA686860")}),
+            # PHP ; JSR $8020, which reads the byte under its return address where it lies
+            ("08 202080 28 60", CALLEE_REACHES, {0xC08020: bytes.fromhex("A30360")}),
+            # PHP ; JSR $8020, which pulls its return address and the byte, and returns with the
+            # byte pulled: back to the caller, with a byte of the caller's frame missing
+            ("08 202080 28 60", CALLEE_REACHES, {0xC08020: bytes.fromhex("FA68684860")}),
         ]
         for code, case, extra in cases:
             lv = self.php(code.replace(" ", ""), extra=extra)
@@ -305,6 +308,103 @@ class Analysis(unittest.TestCase):
         lv = self.php("5A7A F000 60".replace(" ", ""))
         self.assertTrue(lv.func_live_in[0xC08010] & Y)
         self.assertEqual(lv.pairing_stats(("PHY",))["paired"], (1, 1))
+
+    def escape(self, after_call: str):
+        """C0:8040 saves P around a call to C0:8020, which pulls its return
+        address and the byte under it and returns: through C0:8040's frame, to
+        C0:8000, which runs `after_call`."""
+        from tools.disasm.liveness import Liveness
+        code = {0xC08000: bytes.fromhex("204080" + after_call),
+                0xC08040: bytes.fromhex("08 202080 28 60".replace(" ", "")),     # PHP ; JSR $8020 ; PLP ; RTS
+                0xC08020: bytes.fromhex("FA686860")}                            # PLX ; PLA ; PLA ; RTS
+        lv = Liveness(self.run_an(code, 0xC08000))
+        lv.solve()
+        return lv
+
+    def test_a_callee_that_leaves_through_its_callers_frame(self):
+        from tools.disasm.liveness import A, FLAGS, PAIRED
+        key = ((0xC08040, (True, True)), 0xC08040)
+        # the byte PHP pushed ends in A when C0:8020 returns past C0:8040; C0:8000 sets A again
+        lv = self.escape("A900 8530 60".replace(" ", ""))              # LDA #$00 ; STA $30 ; RTS
+        self.assertEqual(lv.push_cases[key], PAIRED)
+        self.assertEqual(lv.push_foreign[key], {((0xC08020, (True, True)), 0xC08023, "PLA", (True, True))})
+        self.assertFalse(lv.func_live_in[0xC08040] & FLAGS)
+        self.assertEqual(lv.escaped_returns((0xC08020, (True, True))), {0xC08023})
+        # ...or stores it: the flags are read
+        lv = self.escape("8530 60".replace(" ", ""))                   # STA $30 ; RTS
+        self.assertEqual(lv.func_live_in[0xC08040] & FLAGS, FLAGS)
+        # what is read after the escape counts after C0:8020 returns, and at its RTS
+        self.assertTrue(lv.after_return(0xC08020) & A)
+        self.assertTrue(lv.live_after_return(0xC08023) & A)
+
+    def test_rti_restores_the_flags(self):
+        from tools.disasm.liveness import FLAGS, X, Liveness
+        # C0:8000  LDX #$00 ; RTI: the interrupted code's P comes off the stack, its X doesn't
+        lv = Liveness(self.run_an({0xC08000: bytes.fromhex("A20040")}, 0xC08000))
+        lv.solve()
+        self.assertFalse(lv.func_live_in[0xC08000] & (FLAGS | X))
+
+    def test_each_context_runs_its_own_widths(self):
+        from tools.disasm.liveness import Liveness
+        # C0:8000  JSR $8020 ; REP #$10 ; JSR $8020 ; RTS: C0:8020 (PHX ; PLX ; RTS) is run with
+        # 8-bit and 16-bit X, pushing one byte or two, and reaches only its return address in each
+        code = {0xC08000: bytes.fromhex("202080 C210 202080 60".replace(" ", "")),
+                0xC08020: bytes.fromhex("DAFA60")}
+        lv = Liveness(self.run_an(code, 0xC08000))
+        self.assertEqual(lv.reach[0xC08020], 2)
+
+    def indirect(self, bound, per=False):
+        """C0:8000 calls C0:8050, which jumps through ($9000) to C0:8060 (a
+        tail jump; or, with `per`, a call returning to C0:8056); after it,
+        C0:8000 sets A, X, Y and every flag, and reads D and DB."""
+        from tools.disasm.liveness import Liveness
+        h = Hints()
+        site = 0xC08053 if per else 0xC08050
+        h.indirect[site] = [0xC08060]
+        if bound:
+            h.bounds[site] = "guard"
+        body = "620200 6C0090 8530 60" if per else "6C0090"     # PER ; JMP ($9000) ; STA $30 ; RTS
+        # JSR $8050 ; LDA #$00 ; TAX ; TAY ; REP #$CF ; STA $30 ; LDA $1000 ; RTS
+        code = {0xC08000: bytes.fromhex("205080 A900 AA A8 C2CF 8530 AD0010 60".replace(" ", "")),
+                0xC08050: bytes.fromhex(body.replace(" ", "")),
+                0xC08060: bytes.fromhex("A90560")}                               # LDA #$05 ; RTS
+        lv = Liveness(self.run_an(code, 0xC08000, hints=h))
+        lv.solve()
+        return lv
+
+    def test_liveness_through_an_indirect_tail_jump(self):
+        from tools.disasm.liveness import ALL, DB, D
+        lv = self.indirect(bound=True)
+        self.assertIsNone(lv.indirect_entries[0xC08060])
+        self.assertNotIn(0xC08060, lv.all_live_returns)
+        # it returns for C0:8050, so what C0:8000 reads after that call is what is live
+        self.assertEqual(lv.ret_live[0xC08060], lv.ret_live[0xC08050])
+        self.assertEqual(lv.ret_live[0xC08060], DB | D)
+        # targets only the movies showed: anything could jump there, so everything stays live
+        lv = self.indirect(bound=False)
+        self.assertIn(0xC08060, lv.all_live_returns)
+        self.assertIn("aren't argued complete", lv.reasons[0xC08060])
+        self.assertEqual(lv.after_return(0xC08060), ALL)
+
+    def test_liveness_through_an_indirect_call(self):
+        from tools.disasm.liveness import A, Liveness
+        # PER then JMP ($9000): C0:8060 returns to the STA after the jump, which reads A
+        lv = self.indirect(bound=True, per=True)
+        self.assertEqual(lv.indirect_resumes(0xC08053), [0xC08056])
+        self.assertTrue(lv.ret_live[0xC08060] & A)
+        self.assertNotIn(0xC08060, lv.all_live_returns)
+
+    def test_liveness_through_a_table_filled_at_run_time(self):
+        from tools.disasm.hints import TableHint
+        from tools.disasm.liveness import A, Liveness
+        # C0:8000  JSR ($9100,X) ; STA $30 ; RTS, a table with no entries in the ROM whose
+        # targets a hint lists (C0:8020: RTS): they are called, and return to the STA
+        h = Hints()
+        h.tables[0xC08000] = TableHint(0, "abs", None, [0xC08020])
+        code = {0xC08000: bytes.fromhex("FC0091 8530 60".replace(" ", "")), 0xC08020: bytes.fromhex("60")}
+        lv = Liveness(self.run_an(code, 0xC08000, hints=h))
+        lv.solve()
+        self.assertTrue(lv.ret_live[0xC08020] & A)
 
     def test_php_under_a_new_stack_is_never_read(self):
         from tools.disasm.liveness import FLAGS, PAIRED

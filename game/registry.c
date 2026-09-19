@@ -1152,11 +1152,11 @@ const NativeEntry game_natives[] = {
 
     /* scenes run from RAM: the bank C3 routines they call */
     { .addr = 0xC30D0E, .name = "scene_load_sprite_list", .fn = scene_load_sprite_list, NEEDS_M16_X16_BINARY,
-      .cost_milli = 4715, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
+      .cost_milli = 4715, .dont_care = DC_X | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC30D5E, .name = "scene_load_sprite_list_clipped", .fn = scene_load_sprite_list_clipped,
-      NEEDS_M16_X16_BINARY, .cost_milli = 4704, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C },
+      NEEDS_M16_X16_BINARY, .cost_milli = 4704, .dont_care = DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC30DBC, .name = "scene_add_sprite", .fn = scene_add_sprite, NEEDS_M16_X16_BINARY, .cost_milli = 3292,
-      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
+      .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC30DF3, .name = "scene_add_large_sprite", .fn = scene_add_large_sprite, NEEDS_M16_X16_BINARY,
       .cost_milli = 3292, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC30309, .name = "scene_scale_bitmap_row", .fn = scene_scale_bitmap_row, NEEDS_M16_X16_BINARY,
@@ -1164,7 +1164,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC30307, .name = "scene_scale_bitmap", .fn = scene_scale_bitmap, NEEDS_M16_X16_BINARY,
       .cost_milli = 1750, .dont_care = DC_A | DC_X | DC_N | DC_Z },
     { .addr = 0xC3094C, .name = "scene_multiply_signed", .fn = scene_multiply_signed,
-      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3813, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z },
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3813, .dont_care = DC_A | DC_N | DC_V | DC_Z },
     { .addr = 0xC308B3, .name = "scene_nmi", .fn = scene_nmi, .cost_milli = 2594 },
     { .addr = 0xC308C9, .name = "scene_nmi_while_working", .fn = scene_nmi_while_working, .cost_milli = 2579 },
     { .addr = 0xC30945, .name = "scene_line_irq_ack", .fn = scene_line_irq_ack, .cost_milli = 3000 },
