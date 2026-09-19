@@ -2224,6 +2224,53 @@ of the ports (134 left as they are), 182 called, 53.1 million calls,
 none mismatching, 84824 interrupted. It exports the committed tree by default;
 `--rev` takes another (`git stash create` gives one of uncommitted work).
 
+### Phase 3, wave 1: bank `$FD`
+
+The first bulk subsystem after the pilot: bank `$FD`'s field graphics, 15.3
+KiB of code of which 1.5 KiB was ported (9 entries, most in the early style).
+`python3 tools/burndown.py` for `$FD`: 90% left before, 47% after, 8.1 KiB
+ported in 50 entries (9 before). Two coherent parts were converted to the bar, with the
+bank's existing ports:
+
+- **The field's per-line effects** (`game/field/line_effects.c`, 871 lines):
+  the tables the eight line effects read, rebuilt every frame for where the
+  dialog window is (`$FD:C2C1` and six builders, two table sets of three
+  layouts, with their pieces), the values the setup fills once (`$FD:C124`,
+  with the dialog window's shading through the divider, `$FD:D52D`), and the
+  slot programming (`$FD:C1EE`, moved here from `field/display.c`). About
+  2400 lines of drafts for 5.1 KiB of 65816, most of it straight-line stores
+  twice over; the port is one function per layout, the sets and the window's
+  position as parameters.
+- **Palette and tile animation** (`game/core/palette.c`, `tile_animation.c`):
+  the per-frame animation of every mode (`$FD:E39C`), its eight types'
+  handlers and fourteen channel modes as two tables of what each changes, the
+  location loader (`$FD:E292`) and the clear (`$FD:E275`), and the animated
+  tile upload (`$FD:E022`).
+
+The 48 entries added or rewritten match over the library in shadow mode and
+pass fuzzing (PORTING.md's rows). What the part taught, for the next waves:
+
+- **Callers' liveness decides a port's size.** The field's main loop reads
+  nothing the analysis can rule out after `$FD:C2C1` returns, so X, A's high
+  byte, the carry and the overflow flag are live: the carry the window-2
+  builder's `LSR` leaves carries into the wave's sixteen `ADC`s, and the exit's
+  overflow flag is one particular `SBC`'s. The port returns those four as an
+  exit record, traced by hand where the draft traces them mechanically.
+  Liveness through the field loop's calls would drop most of it.
+- **The burndown doesn't follow call tables.** `JSR (abs,X)` targets are
+  credited only when registered, so the six builders are entries of their own
+  (which also fuzzes them apart from the dispatcher).
+- **Stack bytes a transfer reads.** Shadow mode leaves out popped stack bytes,
+  but a DMA whose source is the stack page reads them before they are popped:
+  fuzzing sent an animated tile slot there, so `$FD:E022`'s wrapper pushes what
+  the original pushes. Likewise the frame copy of palette type 1 keeps its
+  pointer in the direct page, which a count of 0 overwrites; the port reads it
+  from memory each time, and fuzzing needed `--step-limit` raised to compare
+  those states at all (the default skipped them).
+- **Declarations the check can't read**: a registry entry whose precondition
+  is a macro argument (`LINE_PIECE(..., NEEDS_M8_X16, ...)`) is a finding of
+  `tools/dontcare_check.py`; entries are written out.
+
 ### What drafts don't do yet
 
 These are the tool's next improvements, or its known limits:

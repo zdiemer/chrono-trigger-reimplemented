@@ -53,7 +53,7 @@ docstring says which way it is wrong). **83% of the code is still generated.**
 | menus, text (`$C2`) | 59.3K | 5.2K | 91% | 52 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 2.2K | 86% | 27 |
-| field graphics (`$FD`) | 15.3K | 1.5K | 90% | 9 |
+| field graphics (`$FD`) | 15.3K | 8.1K | 47% | 50 |
 | battle sprites (`$CF`) | 6.8K | 3.3K | 52% | 18 |
 | battle NMI, graphics (`$D1`) | 5.7K | 0.7K | 87% | 9 |
 | battle setup (`$CC`) | 4.9K | 4.3K | 11% | 8 |
@@ -61,7 +61,7 @@ docstring says which way it is wrong). **83% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 0.0K | 100% | 0 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 95% | 1 |
-| **total** | **268.5K** | **44.6K** | **83%** | **326** |
+| **total** | **268.5K** | **51.2K** | **81%** | **367** |
 
 The three big banks are the work; the 326 entries are concentrated in small hot
 routines, which is why the shares are so high despite the count. The burndown
@@ -139,6 +139,15 @@ which converted the sound driver to this bar:
 - **Existing ports in the early style** can be brought over the same way; the
   sound driver's 1066 emulated-register operations went to 86, all in its
   entries and stubs.
+
+**What `$FD` has left** after wave 1 (RECOMP.md, "Phase 3, wave 1"): the
+time-gate tunnel scenes event `$FF` starts with `$DF` = `$80`-`$83`
+(`$FD:DA00`-`$DD95`, their interrupt handlers `$FD:DE15`/`$DE87` and helpers
+`$FD:EAA6`-`$F2xx`, 2.6 KiB), which draw through the PPU directly and want the
+video service; the location's tile animation loader `$FD:DE98`, blocked on the
+work RAM port writes through `$217F` (TODO.md, "P1 leftovers"); and 4.2 KiB of
+battle routines at `$FD:A8A5`-`$B7EB` that `$C1` calls, which belong with the
+battle's conversion.
 
 **The ports that exist.** The early entries were written
 over months and they are not one standard. The recent ones read as source: named

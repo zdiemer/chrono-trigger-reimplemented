@@ -44,6 +44,14 @@ rest waits, is [PLAN.md](PLAN.md).
   `field_scroll_layers`); operand names for the battle script handlers;
   turning I/O register writes and the multiplier into platform calls and C
   arithmetic; stub signatures that still vary by what a call reads back.
+- **Liveness through the field's main loop.** Nothing the analysis can rule
+  out after `$FD:C2C1` returns, so its port reproduces X, A's high byte, the
+  carry and the overflow flag the table builders leave (RECOMP.md, "Phase 3,
+  wave 1"); following the loop's callees would free them, and the same holds
+  for every routine it calls.
+- **The burndown doesn't follow call tables** (`JSR (abs,X)`): a port that
+  dispatches through one is credited with its targets only when they are
+  registered (`tools/burndown.py`).
 - **Liveness where a callee leaves through its caller's frame** (RECOMP.md,
   "Before the bulk"): the sound driver's `$C7:0A39` returns past `$C7:0004` on
   its refused path, so the driver's saves of the caller's registers count as
@@ -162,7 +170,9 @@ rest waits, is [PLAN.md](PLAN.md).
   battles playing out differently once timing changes, widescreen's exposed
   assumptions (the 0-255 object window at `$C0:A88D`, map data beyond VRAM,
   single-byte battle window positions), and GBA's constraints.
-- **P1 leftovers**: `$217F` mirror writes still come from unported video code,
+- **P1 leftovers**: `$217F` mirror writes still come from unported video code
+  (the last of it in `$FD` is the location's tile animation loader `$FD:DE98`,
+  which writes `$7F:0400` through the work RAM port that way),
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
 - **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
