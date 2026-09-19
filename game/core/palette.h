@@ -15,6 +15,8 @@ void palette_animate_frames_from_table(Snes *s);
 void palette_rotate_down(Snes *s);
 void palette_rotate_up(Snes *s);
 void palette_fade_to_white(Snes *s);
+void palette_restore_after_white(Snes *s);
+void palette_restore_after_black(Snes *s);
 void palette_fade_to_black(Snes *s);
 void palette_pulse_white(Snes *s);
 void palette_pulse_black(Snes *s);

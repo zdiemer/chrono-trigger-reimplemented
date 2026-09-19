@@ -149,7 +149,7 @@ add_executable(ct_dev dev/ct_dev.c dev/io_log.c dev/misses.c dev/px_check.c dev/
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 
-add_executable(ct_fuzz dev/ct_fuzz.c)
+add_executable(ct_fuzz dev/ct_fuzz.c dev/fuzz.c)
 target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
 
 # The machine as a scriptable server, for authoring input movies from game state
@@ -171,6 +171,13 @@ add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
 add_executable(shadow_test tests/port/shadow_test.c)
 target_link_libraries(shadow_test PRIVATE ct_runtime)
+# The fuzzer's core (dev/fuzz.c) on made-up routines and ports.
+add_executable(fuzz_test tests/port/fuzz_test.c dev/fuzz.c)
+target_include_directories(fuzz_test PRIVATE dev)
+target_link_libraries(fuzz_test PRIVATE ct_runtime)
+# Time attribution (native_time_as) in shadow mode, on a made-up program.
+add_executable(time_parts_test tests/port/time_parts_test.c)
+target_link_libraries(time_parts_test PRIVATE ct_runtime)
 
 # Instruction translation (tools/recomp, docs/RECOMP.md), with C generated into
 # the build tree for every opcode and context: sst_recomp_runner runs it on the

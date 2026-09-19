@@ -244,7 +244,7 @@ void menu_draw_number(Snes *s)
     set_dp8(s, 0x92, m_lda8(s, (uint8_t)c->a & 0x03));
     set_dp8(s, 0x93, 0x00);
     m_push16(s, 0xF128);
-    menu_number_to_bcd(s);
+    NATIVE_TIME_AS(s, 0xC2F13F, menu_number_to_bcd(s));
     m_lda8(s, m_pull8(s));
     set_dp8(s, 0x8F, m_lda8(s, (uint8_t)c->a ^ 0x80));
     for (int i = 0; i < 4; i++)
@@ -344,7 +344,7 @@ static void code_number(Snes *s)
     m_lda16(s, m_read16(s, abs_y(s, 0x0002)));
     pull_index(s, &c->y);
     m_push16(s, 0xF01C);
-    menu_draw_number(s);
+    NATIVE_TIME_AS(s, 0xC2F114, menu_draw_number(s));
     pull_index(s, &c->y);
     iny2(s);
     iny2(s);
@@ -397,7 +397,7 @@ static void code_name(Snes *s)
         do {
             m_lda8(s, 0xFF);
             m_push16(s, 0xF05A);
-            menu_draw_tile(s);
+            NATIVE_TIME_AS(s, 0xC2EF97, menu_draw_tile(s));
         } while (dec_dp8(s, 0x87) != 0);
     }
     pull_index(s, &c->x);
@@ -462,7 +462,7 @@ static void code_blanks(Snes *s)
     do {
         m_lda8(s, 0xFF);
         m_push16(s, 0xF09C);
-        menu_draw_tile(s);
+        NATIVE_TIME_AS(s, 0xC2EF97, menu_draw_tile(s));
     } while (m_set_index(s, &c->y, (uint16_t)(c->y - 1)) != 0);
     pull_index(s, &c->y);
     m_pull16(s);
@@ -521,7 +521,7 @@ static void code_limited_number(Snes *s)
         m_xba(s);
         m_lda8(s, 0x11);
         m_push16(s, 0xF0F7);
-        menu_draw_number(s);
+        NATIVE_TIME_AS(s, 0xC2F114, menu_draw_number(s));
     } else {
         m_lda8(s, 0x2F);
         m_write8(s, abs_x(s, 0x0000), (uint8_t)c->a);
@@ -601,7 +601,7 @@ static void menu_draw_text_loop(Snes *s)
             continue;
         }
         m_push16(s, 0xEF91);
-        menu_draw_tile(s);
+        NATIVE_TIME_AS(s, 0xC2EF97, menu_draw_tile(s));
         if (dec_dp8(s, 0x87) == 0)
             break;
     }

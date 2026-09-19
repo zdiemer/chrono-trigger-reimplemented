@@ -28,9 +28,9 @@
  * A command the port doesn't handle -- one no script has: a store outside low
  * RAM, a register write no call expresses, a task list search that never ends
  * -- is left to the original: the port puts the script back on the command and
- * stops at the interpreter loop's head, where the original runs the rest of
- * the run. So do scripts that go on for COMMAND_LIMIT commands without
- * yielding, which would hang the original. */
+ * runs the rest of the interpreter's run as a call-out. So do scripts that go
+ * on for COMMAND_LIMIT commands without yielding, which would hang the
+ * original. */
 #include "scene/scene.h"
 
 #include "platform/audio.h"
@@ -206,7 +206,7 @@ static bool call_program(Snes *s, Flags *f, uint16_t routine)
     s->cpu.x = 0;
     set_widths16(s);
     put_flags(s, f);
-    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_A | DC_N | DC_Z | DC_C);
+    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_A | DC_N | DC_Z);
     return can_continue(s, f);
 }
 
@@ -436,10 +436,8 @@ static Step run(Snes *s, Flags *f, uint16_t *result)
 
 /* ---- Entries ----------------------------------------------------------------------- */
 
-/* The JSR at $C3:0AFF pushes this as its return address, and the loop it calls
- * starts each command at its head. */
+/* The JSR at $C3:0AFF pushes this as its return address. */
 enum { INTERPRETER_RETURN = 0x0B01 };
-enum { SEQUENCE_LOOP = 0xC30B03 };
 
 // $C3:0AFF
 /* The channel whose page is in D runs until its script yields. */
@@ -451,17 +449,20 @@ void scene_run_sequence(Snes *s)
     Step end = run(s, &f, &result);
     if (end == STOPPED)
         return;
+    m_pull16(s);
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
     put_flags(s, &f);
     if (end == CARRY_ON) {
-        /* the original's own loop goes on from the command the port left, at
-         * its head, inside the JSR's frame (shadow mode compares the pass
-         * after the commands the port ran) */
-        m_stop_at(s, SEQUENCE_LOOP, DC_A | DC_X | DC_N | DC_Z | DC_C);
-        return;
+        /* the original's own loop, from the command the port left. Not a
+         * stop at the loop's head, which shadow mode and the fuzzer could now
+         * compare at the right pass: a command the port gives up on has
+         * already written the scratch cell ($F0) and the flags the original
+         * writes only once it runs that command, so the port would have to
+         * put them back first (docs/TODO.md) */
+        m_jsr_dc(s, 0xC30AFF, 0xC30B03, DC_A | DC_X | DC_N | DC_Z);
+    } else {
+        s->cpu.a = result;
     }
-    m_pull16(s);
-    s->cpu.a = result;
     m_rtl(s);
 }
 

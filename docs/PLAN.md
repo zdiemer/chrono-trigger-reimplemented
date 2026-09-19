@@ -44,34 +44,35 @@ Nothing lands without it, and it is the same gate for every phase:
 ## Phase 3: M5 in bulk
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **78% of the code is still generated.**
+docstring says which way it is wrong). **73% of the code is still generated.**
 
-| Subsystem | Code | Ported | Left | Entries |
-|---|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 10.1K | 84% | 42 |
-| field engine, events (`$C0`) | 59.4K | 9.6K | 84% | 52 |
-| menus, text (`$C2`) | 59.3K | 5.2K | 91% | 52 |
-| scene program, RAM (`$7E`) | 24.9K | 2.8K | 89% | 54 |
-| battle frame work (`$CD`) | 15.5K | 2.2K | 86% | 27 |
-| field graphics (`$FD`) | 15.3K | 8.1K | 47% | 50 |
-| battle sprites (`$CF`) | 6.8K | 6.3K | 7% | 42 |
-| battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 17% | 52 |
-| battle setup (`$CC`) | 4.9K | 4.3K | 11% | 8 |
-| scene engine (`$C3`) | 3.9K | 3.0K | 25% | 28 |
-| scene data (`$C6`) | 3.5K | 1.1K | 68% | 25 |
-| sound driver (`$C7`) | 2.6K | 2.6K | 0% | 43 |
-| misc (`$FF`) | 1.7K | 0.1K | 95% | 1 |
-| **total** | **268.5K** | **60.1K** | **78%** | **476** |
+| Subsystem | Code | Ported | of it inlined | Left | Entries |
+|---|--:|--:|--:|--:|--:|
+| battle (`$C1`, `$CE`) | 64.9K | 10.8K | 0.7K | 83% | 42 |
+| field engine, events (`$C0`) | 59.4K | 18.7K | 0.4K | 68% | 249 |
+| menus, text (`$C2`) | 59.3K | 5.6K | 0.4K | 90% | 52 |
+| scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
+| battle frame work (`$CD`) | 15.5K | 2.7K | 0.5K | 83% | 27 |
+| field graphics (`$FD`) | 15.3K | 8.1K | 0.0K | 47% | 50 |
+| battle sprites (`$CF`) | 6.8K | 6.4K | 0.0K | 7% | 42 |
+| battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
+| battle setup (`$CC`) | 4.9K | 4.5K | 0.1K | 9% | 8 |
+| scene engine (`$C3`) | 3.9K | 3.5K | 0.5K | 10% | 28 |
+| scene data (`$C6`) | 3.5K | 1.1K | 0.0K | 68% | 25 |
+| sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
+| misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
+| **total** | **268.5K** | **71.6K** | **2.6K** | **73%** | **673** |
 
-The three big banks are the work; the 476 entries are concentrated in small hot
-routines, which is why the shares are so high despite the count. The burndown
-now follows the jump tables the analysis has sized, which a port that
-dispatches through one inlines: that alone moved 1.1 KiB (`$C2`, `$CD`, `$C3`)
-and took the sound driver from 46% left to 4% before the pilot touched it, so
-its old figure was mostly the tool's. `$CC` is the
+The three big banks are the work; the entries are concentrated in small hot
+routines (and the 180 event commands), which is why the shares are so high
+despite the count. The burndown follows the jump tables the analysis has sized,
+counts the registry's macro rows, and credits the callees a port inlines (no
+call-out at their call; RECOMP.md, "The tooling pass after wave 1: the
+analysis", has what each of those moved): helpers no longer need a registry
+entry of their own to count. `$CC` is the
 one subsystem near done. `$C3` (the scene engine) is done but for code the
-beam's counters decide, one routine nothing reaches and the edge sequence the
-field's rasterizer inlines (PORTING.md's row); `$C6` has its small object
+beam's counters decide and one routine nothing reaches (PORTING.md's row; the
+edge sequence the field's rasterizer inlines is credited to it); `$C6` has its small object
 routines and irises, and its Mode 7 map and perspective effects, table
 builders and orbit routines are left, none of which a movie reaches.
 

@@ -89,6 +89,12 @@ typedef struct SnesBus {
 
     DmaChannel dma[8];
     uint8_t mdmaen;    /* last $420B write; the system runs the transfers */
+
+    /* Optional, for tools: called before every CPU access through
+     * snes_bus_read and snes_bus_write (not a DMA transfer's own). ct_fuzz
+     * counts a port's work with it, and abandons a port whose loop runs past
+     * its budget, which nothing else can interrupt. Clones don't copy it. */
+    void (*on_access)(struct SnesBus *bus);
 } SnesBus;
 
 void snes_bus_init(SnesBus *bus, const uint8_t *rom, size_t rom_size, SnesIo io);

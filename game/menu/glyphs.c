@@ -113,7 +113,7 @@ void menu_draw_glyph_pixel(Snes *s)
 static void pixel_and_advance(Snes *s, uint16_t site)
 {
     m_push16(s, (uint16_t)(site + 2));
-    menu_draw_glyph_pixel(s);
+    NATIVE_TIME_AS(s, 0xC25E89, menu_draw_glyph_pixel(s));
     m_rep(s, CPU_FLAG_M);
     for (int i = 0; i < 2; i++) {
         static const uint8_t cells[2] = { 0x60, 0x73 };

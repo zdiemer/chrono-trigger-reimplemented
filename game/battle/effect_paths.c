@@ -106,10 +106,14 @@ static bool points_close(Snes *s, uint8_t *distance)
     return true;
 }
 
+/* The helpers below are routines of the original's that its handlers call:
+ * their time is theirs wherever a port runs them (native_time_as). */
 bool battle_points_close(Snes *s)
 {
     uint8_t distance;
-    return points_close(s, &distance);
+    bool close;
+    NATIVE_TIME_AS(s, 0xCFF957, close = points_close(s, &distance));
+    return close;
 }
 
 void battle_points_are_close(Snes *s)
@@ -123,6 +127,7 @@ void battle_points_are_close(Snes *s)
 // $CF:FA17
 uint8_t battle_multiply_scaled(Snes *s, uint8_t factor, uint16_t v)
 {
+    int was = native_time_as(s, 0xCFFA17);
     m_write8(s, 0x004202, factor);
     m_write8(s, 0x004203, (uint8_t)v);
     uint16_t low = m_read16(s, 0x004216);
@@ -131,18 +136,22 @@ uint8_t battle_multiply_scaled(Snes *s, uint8_t factor, uint16_t v)
     set_product(s, low);
     uint16_t high = (uint16_t)(m_read16(s, RAM_BATTLE_LOW_SCRATCH + 5) + m_read16(s, 0x004216));
     m_write16(s, RAM_BATTLE_LOW_SCRATCH + 5, high);
+    native_time_end(s, was);
     return (uint8_t)high;
 }
 
 // $CF:F9FB
 uint8_t battle_sine_scaled(Snes *s, uint16_t angle)
 {
+    int was = native_time_as(s, 0xCFF9FB);
     uint16_t at = (uint16_t)(angle << 2) & 0x03FF;
     uint16_t v = battle_sine_entry(s, at);
     if (at >= 0x0200)
         v = (uint16_t)-v;
     m_write16(s, RAM_BATTLE_LOW_SCRATCH + 2, v);
-    return battle_multiply_scaled(s, m_read8(s, RAM_BATTLE_LOW_SCRATCH), v);
+    uint8_t scaled = battle_multiply_scaled(s, m_read8(s, RAM_BATTLE_LOW_SCRATCH), v);
+    native_time_end(s, was);
+    return scaled;
 }
 
 /* The sine and cosine of `angle` scaled by `radius`, into cells A and B. */
@@ -565,7 +574,7 @@ static uint16_t flicker(Snes *s, uint16_t slot, uint16_t a)
 static uint8_t move_flicker(Snes *s)
 {
     uint16_t slot = cell16(s, CELL_SLOT);
-    flicker(s, slot, 0);
+    NATIVE_TIME_AS(s, 0xCFF3BA, flicker(s, slot, 0));
     uint8_t low = cell(s, CELL_SLOT);
     if (low != 3)
         return low;
@@ -631,7 +640,8 @@ static uint8_t move_chase(Snes *s, bool anchor)
         inc8(s, k.done + k.slot);
         return 1;
     }
-    uint8_t target = angle_to_target(s);
+    uint8_t target;
+    NATIVE_TIME_AS(s, 0xCFFA43, target = angle_to_target(s));
     uint8_t speed = at8(s, RAM_BATTLE_EFFECT_STEPS, k.i);
     set_radius(s, speed);
     uint8_t angle = turn(s, &k, target, speed);
@@ -727,7 +737,9 @@ static bool run_slots(Snes *s, uint16_t last, uint16_t first, uint16_t table, ui
             uint16_t target = battle_effect_handler(s, table, type_x2);
             Handler fn = handler_at(target);
             if (fn) {
+                int was = native_time_as(s, 0xCF0000 | target);   /* the handler's time, not the loop's */
                 *a = fn(s);
+                native_time_end(s, was);
             } else {
                 /* the registers and flags as ASL : TAX leave them */
                 m_set_flag(s, CPU_FLAG_C, (m_read8(s, RAM_BATTLE_EFFECT_TYPE + i) & 0x80) != 0);
@@ -792,7 +804,10 @@ void battle_step_effect_slots(Snes *s)
     uint16_t a = s->cpu.a;
     if (!m_read8(s, RAM_BATTLE_EFFECTS_RUNNING)) {
         uint8_t hold = m_read8(s, RAM_BATTLE_ORBITS_HELD);
-        a = hold ? (uint16_t)((a & 0xFF00) | hold) : step_orbits(s, a & 0xFF00);
+        if (hold)
+            a = (uint16_t)((a & 0xFF00) | hold);
+        else
+            NATIVE_TIME_AS(s, 0xCFF978, a = step_orbits(s, a & 0xFF00));   /* which the original jumps to */
     } else {
         a = (uint16_t)((a & 0xFF00) | m_read8(s, RAM_BATTLE_EFFECTS_RUNNING));
         if (!run_slots(s, COMBATANT_SLOTS - 1, 0, 0xF01E, 0xCFEFE6, &a) ||

@@ -98,6 +98,8 @@ void battle_draw_sprite_parts(Snes *s);
 void battle_draw_afterimage(Snes *s);
 void battle_copy_sprite_tiles(Snes *s);
 void battle_draw_object_underlays(Snes *s);
+void battle_draw_object_marker(Snes *s);
+void battle_copy_prepared_sprites(Snes *s);
 void battle_draw_object_overlays(Snes *s);
 void battle_draw_effect_sprites(Snes *s);
 

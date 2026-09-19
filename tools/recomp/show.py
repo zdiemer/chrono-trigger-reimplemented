@@ -148,6 +148,19 @@ def read_registry(path: Path) -> dict:
     return out
 
 
+def read_registry_widths(path: Path) -> dict:
+    """addr -> (m, x) of a registry entry's precondition (8, 16 or None each)."""
+    out = {}
+    if not path.exists():
+        return out
+    text = path.read_text(encoding="utf-8")
+    for m in re.finditer(r"\{\s*\.addr\s*=\s*0x([0-9A-Fa-f]{6}),(.*?)\}", text, re.S):
+        w = re.search(r"NEEDS_M(8|16)(?:_X(8|16))?", m.group(2))
+        if w:
+            out[int(m.group(1), 16)] = (int(w.group(1)), int(w.group(2)) if w.group(2) else None)
+    return out
+
+
 # ---- the program's knowledge ---------------------------------------------------------------
 
 
@@ -284,7 +297,7 @@ class Knowledge:
             return ALL
         # every routine it is part of: code that falls into it returns for its own callers
         live = self.lv.live_after_return(entry)
-        return self.lv.ret_live[entry] if live is None else live
+        return self.lv.after_return(entry) if live is None else live
 
     def table(self, pc: int) -> list:
         jt = self.an.tables.get(pc)
@@ -320,9 +333,13 @@ class Renderer:
             a = c.v
             reg = region(a)
             if reg == "ram" and self.namer is not None:
-                name = self.namer.name(a if a >> 16 in (0x7E, 0x7F) else 0x7E0000 | (a & 0xFFFF))
+                wram = a if a >> 16 in (0x7E, 0x7F) else 0x7E0000 | (a & 0xFFFF)
+                dp = int(c.addr[2:], 16) if c.addr.startswith("dp") else None
+                name = self.namer.name(wram, dp)
                 if name:
                     return name
+                if dp is not None:
+                    return self.namer.scratch(wram, dp)
             if reg == "io":
                 n = names_mod.io_name(a)
                 self.io.add(a & 0xFFFF)
@@ -438,7 +455,7 @@ class Draft:
         self.d = single(self.d_set)
         self.db = single(self.db_set)
         self.commands = names_mod.commands_at(addr)
-        self.subsystem = names_mod.BANK_SUBSYSTEM.get(addr >> 16)
+        self.subsystem = names_mod.routine_subsystem(k.an, addr, k.dynamic)
         if self.commands and self.commands[0][0] == "event":
             self.subsystem = "event"
         self.page = page
@@ -600,7 +617,9 @@ class Draft:
         stubs = self._stub_text(rend)
         wrapper = self._wrapper()
         head = self._header(rend)
-        return "\n".join(head + [""] + stubs + logic + [""] + wrapper) + "\n"
+        defs, undefs = self.namer.scratch_defines() if self.namer else ([], [])
+        return "\n".join(head + [""] + (defs + [""] if defs else []) + stubs + logic + [""] + wrapper
+                         + ([""] + undefs if undefs else [])) + "\n"
 
     def _ret_type(self):
         fields = [(r, reg_type(r, self.a8)) for r in self.outputs]
@@ -1163,17 +1182,25 @@ def expand(patterns, root: Path) -> list:
     return out
 
 
-def entry_widths(an: Analyzer, addr: int, m, x) -> list:
+def entry_widths(an: Analyzer, addr: int, m, x, registry_widths: dict | None = None) -> list:
     """The (m8, x8) a draft at addr is made for: those given, else those the
-    analysis entered it with, else those it decoded the instruction there with."""
-    def fits(w):
+    analysis entered it with, else those it decoded the instruction there with.
+    Where that leaves several, the registry entry's precondition (NEEDS_M8,
+    ...) narrows them, and then the widths the coverage saw the entry run
+    with: a draft registered with that precondition is only called with those."""
+    def fits(w, m, x):
         return None not in w and (m is None or w[0] == (m == 8)) and (x is None or w[1] == (x == 8))
     if m is not None and x is not None:
         return [(m == 8, x == 8)]
-    got = [k[1] for k in an.contexts if k[0] == addr and fits(k[1])]
+    got = sorted({k[1] for k in an.contexts if k[0] == addr and fits(k[1], m, x)}, key=str)
     if not got:
-        got = [w for w in an.code.get(addr, {}) if fits(w)]
-    return sorted(set(got), key=str)
+        got = sorted({w for w in an.code.get(addr, {}) if fits(w, m, x)}, key=str)
+    if len(got) > 1 and registry_widths and addr in registry_widths:
+        rm, rx = registry_widths[addr]
+        got = [w for w in got if fits(w, rm, rx)] or got
+    if len(got) > 1 and an.coverage.get(addr):
+        got = [w for w in got if w in an.coverage[addr]] or got
+    return got
 
 
 widths_at = entry_widths
@@ -1211,23 +1238,25 @@ def main(argv=None):
               "(--root, --coverage, --calls)", file=sys.stderr)
     addrs = [parse(a) for a in args.addr]
     k = Knowledge(rom, args.hints, coverage, calls, args.registry, args.ram, [(a, args.m, args.x) for a in addrs])
+    registered = read_registry_widths(args.registry)
     out = [] if args.no_preamble else [PREAMBLE]
     for a in addrs:
-        ws = widths_at(k.an, a, args.m, args.x)
+        ws = widths_at(k.an, a, args.m, args.x, registered)
         if not ws:
             raise SystemExit(f"{fmt(a)}: no routine the analysis entered there; give --m and --x")
-        if len(ws) > 1:
-            raise SystemExit(f"{fmt(a)}: entered with several widths "
-                             f"({', '.join(f'm{8 if m else 16} x{8 if x else 16}' for m, x in ws)}); "
-                             "give --m and --x")
         page = None
         if args.page:
             if k.ram is None or args.page not in k.ram.pages:
                 raise SystemExit(f"--page: no page {args.page!r} in {args.ram}")
             page = k.ram.pages[args.page]
-        d = Draft(k, a, ws[0][0], ws[0][1], args.d, args.db, page, args.asm, args.name if len(addrs) == 1 else None)
-        d.build()
-        out.append(d.render())
+        for m8, x8 in ws:
+            # several widths nothing narrows: a draft for each, named by them
+            name = args.name if len(addrs) == 1 else None
+            if len(ws) > 1:
+                name = f"{name or Draft(k, a, m8, x8).name}_m{8 if m8 else 16}_x{8 if x8 else 16}"
+            d = Draft(k, a, m8, x8, args.d, args.db, page, args.asm, name)
+            d.build()
+            out.append(d.render())
     sys.stdout.write("\n".join(out))
 
 

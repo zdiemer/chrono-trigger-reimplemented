@@ -188,27 +188,28 @@ typedef struct {
     uint8_t write;
     uint16_t scratch;
     bool green_scratch;
+    uint32_t routine;   /* the mode's loop in the original, whose time the port's is (native_time_as) */
 } FadeMode;
 
 enum { FADE_MODES = 7 };
 
 static const FadeMode darken_modes[FADE_MODES] = {
-    { RED | GREEN | BLUE, 0, WRITE_WORD, RED | BLUE, false },     /* $FD:E64F */
-    { GREEN | BLUE, RED, WRITE_WORD, RED | BLUE, false },         /* $FD:E7C0 */
-    { RED | BLUE, GREEN, WRITE_WORD, RED | BLUE, false },         /* $FD:E73A */
-    { BLUE, RED | GREEN, WRITE_WORD, BLUE, false },               /* $FD:E6A1 */
-    { RED | GREEN, BLUE, WRITE_WORD, RED | BLUE, false },         /* $FD:E779 */
-    { GREEN, RED | BLUE, WRITE_WORD, RED | BLUE, false },         /* $FD:E6D1 */
-    { RED, GREEN | BLUE, WRITE_WORD, RED, false },                /* $FD:E708, and modes past 6 */
+    { RED | GREEN | BLUE, 0, WRITE_WORD, RED | BLUE, false, 0xFDE64F },
+    { GREEN | BLUE, RED, WRITE_WORD, RED | BLUE, false, 0xFDE7C0 },
+    { RED | BLUE, GREEN, WRITE_WORD, RED | BLUE, false, 0xFDE73A },
+    { BLUE, RED | GREEN, WRITE_WORD, BLUE, false, 0xFDE6A1 },
+    { RED | GREEN, BLUE, WRITE_WORD, RED | BLUE, false, 0xFDE779 },
+    { GREEN, RED | BLUE, WRITE_WORD, RED | BLUE, false, 0xFDE6D1 },
+    { RED, GREEN | BLUE, WRITE_WORD, RED, false, 0xFDE708 },          /* and modes past 6 */
 };
 static const FadeMode lighten_modes[FADE_MODES] = {
-    { RED | GREEN | BLUE, 0, WRITE_WORD, RED | BLUE, true },      /* $FD:E8D7 */
-    { RED, GREEN | BLUE, WRITE_LOW, RED, false },                 /* $FD:E962 */
-    { GREEN, RED | BLUE, WRITE_WORD, GREEN, false },              /* $FD:E98F */
-    { RED | GREEN, 0, WRITE_WORD, RED, true },                    /* $FD:EA5C */
-    { BLUE, GREEN, WRITE_HIGH, BLUE, false },                     /* $FD:E935 */
-    { RED | BLUE, GREEN, WRITE_WORD, RED | BLUE, false },         /* $FD:E9CA */
-    { GREEN | BLUE, 0, WRITE_WORD, BLUE, true },                  /* $FD:EA11, and modes past 6 */
+    { RED | GREEN | BLUE, 0, WRITE_WORD, RED | BLUE, true, 0xFDE8D7 },
+    { RED, GREEN | BLUE, WRITE_LOW, RED, false, 0xFDE962 },
+    { GREEN, RED | BLUE, WRITE_WORD, GREEN, false, 0xFDE98F },
+    { RED | GREEN, 0, WRITE_WORD, RED, true, 0xFDEA5C },
+    { BLUE, GREEN, WRITE_HIGH, BLUE, false, 0xFDE935 },
+    { RED | BLUE, GREEN, WRITE_WORD, RED | BLUE, false, 0xFDE9CA },
+    { GREEN | BLUE, 0, WRITE_WORD, BLUE, true, 0xFDEA11 },            /* and modes past 6 */
 };
 
 /* One channel, 8-bit (blue as the color's high byte, green shifted up to the
@@ -262,13 +263,20 @@ static const FadeMode *fade_mode(Snes *s, uint16_t slot, bool lighten)
     return lighten ? &lighten_modes[mode] : &darken_modes[mode];
 }
 
-/* The slot's colors by its fade mode, with the fraction already set. */
+/* The slot's colors by its fade mode, with the fraction already set: the
+ * mode's own loop in the original, which the handlers jump to through a
+ * table. */
 static uint16_t fade_slot_colors(Snes *s, uint16_t slot, bool lighten)
 {
     uint16_t at = (uint16_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_FIRST_COLOR) * 2);
-    return fade_colors(s, at, slot8(s, slot, RAM_PALETTE_ANIMATIONS_COLOR_COUNT), fade_mode(s, slot, lighten), lighten);
+    const FadeMode *m = fade_mode(s, slot, lighten);
+    int was = native_time_as(s, m->routine);
+    at = fade_colors(s, at, slot8(s, slot, RAM_PALETTE_ANIMATIONS_COLOR_COUNT), m, lighten);
+    native_time_end(s, was);
+    return at;
 }
 
+// $FD:E8AC (toward white), $FD:E624 (toward black)
 /* End the animation with its colors as loaded. */
 static uint16_t restore_colors(Snes *s, uint16_t slot)
 {
@@ -280,6 +288,16 @@ static uint16_t restore_colors(Snes *s, uint16_t slot)
         at = (uint16_t)(at + 2);
         n--;
     } while (n != 0);
+    return at;
+}
+
+/* The restore is a path of the fade's handler that the original branches to,
+ * registered as an entry of its own so that its time, a copy of the colors,
+ * is estimated apart from the handler's (native_time_as). */
+static uint16_t restore_path(Snes *s, uint16_t slot, bool lighten)
+{
+    uint16_t at;
+    NATIVE_TIME_AS(s, lighten ? 0xFDE8AC : 0xFDE624, at = restore_colors(s, slot));
     return at;
 }
 
@@ -298,12 +316,12 @@ static uint16_t fade(Snes *s, uint16_t slot, bool lighten)
         bool arrived;
         if (level < target) {
             if (level + step > 0xFF && !lighten)
-                return restore_colors(s, slot);
+                return restore_path(s, slot, lighten);
             arrived = level + step > 0xFF || (uint8_t)(level + step) >= target;
             level = (uint8_t)(level + step);
         } else {
             if (level < step && lighten)
-                return restore_colors(s, slot);
+                return restore_path(s, slot, lighten);
             arrived = level < step || (uint8_t)(level - step) < target;
             level = (uint8_t)(level - step);
         }
@@ -335,12 +353,9 @@ static uint16_t pulse(Snes *s, uint16_t slot, bool lighten)
 
 /* ---- The frame's work ---------------------------------------------------------------- */
 
-/* Run the slot's type; returns what its handler leaves in X, or `x` if it
- * runs none. */
-static uint16_t run_slot(Snes *s, uint16_t slot, uint16_t x)
+static uint16_t run_type(Snes *s, uint16_t slot, uint8_t type)
 {
-    switch (slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND) >> 4) {
-    case 0: return x;
+    switch (type) {
     case TYPE_FRAMES: return animate_frames(s, slot);
     case TYPE_ROTATE_DOWN: return rotate(s, slot, false);
     case TYPE_ROTATE_UP: return rotate(s, slot, true);
@@ -350,6 +365,26 @@ static uint16_t run_slot(Snes *s, uint16_t slot, uint16_t x)
     case TYPE_PULSE_BLACK: return pulse(s, slot, false);
     default: return animate_frames_from_table(s, slot);
     }
+}
+
+/* Each type's handler in the original, which the loop calls through a table
+ * (types 9-15 run type 8's), and whose time the port's is (native_time_as). */
+static const uint32_t type_handlers[16] = {
+    0, 0xFDE437, 0xFDE532, 0xFDE4E8, 0xFDE82C, 0xFDE5A4, 0xFDE807, 0xFDE57C,
+    0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485,
+};
+
+/* Run the slot's type; returns what its handler leaves in X, or `x` if it
+ * runs none. */
+static uint16_t run_slot(Snes *s, uint16_t slot, uint16_t x)
+{
+    uint8_t type = slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND) >> 4;
+    if (type == 0)
+        return x;
+    int was = native_time_as(s, type_handlers[type]);
+    x = run_type(s, slot, type);
+    native_time_end(s, was);
+    return x;
 }
 
 enum { SLOTS_END = RAM_PALETTE_ANIMATIONS_COUNT * RAM_PALETTE_ANIMATIONS_STRIDE };
@@ -511,6 +546,17 @@ void palette_rotate_down(Snes *s) { handler_exit(s, rotate(s, s->cpu.y, false));
 void palette_rotate_up(Snes *s) { handler_exit(s, rotate(s, s->cpu.y, true)); }
 void palette_fade_to_white(Snes *s) { handler_exit(s, fade(s, s->cpu.y, true)); }
 void palette_fade_to_black(Snes *s) { handler_exit(s, fade(s, s->cpu.y, false)); }
+/* The fades' restore paths, entered with the slot in Y and on the stack under
+ * the return address, where the handler saved it: they pull it back and
+ * return. */
+static void restore_entry(Snes *s)
+{
+    uint16_t x = restore_colors(s, s->cpu.y);
+    s->cpu.y = m_pull16(s);
+    handler_exit(s, x);
+}
+void palette_restore_after_white(Snes *s) { restore_entry(s); }
+void palette_restore_after_black(Snes *s) { restore_entry(s); }
 void palette_pulse_white(Snes *s) { handler_exit(s, pulse(s, s->cpu.y, true)); }
 void palette_pulse_black(Snes *s) { handler_exit(s, pulse(s, s->cpu.y, false)); }
 

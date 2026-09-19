@@ -1239,6 +1239,115 @@ second. The suite at `-j 2` runs its 26 shadow movies in about 520-550 seconds
     python3 tools/timing_gate.py build/suite/shadow-*.log --table # every entry's numbers
     python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c
 
+**Dispatchers: the time of the routines a port runs** (between Phase 3's
+waves 1 and 2). The exceptions went from 11 to 27 in wave 1, and most of the
+new ones had one cause: a port that runs a dispatcher's handlers as C calls
+rather than calling out to them (`palette_animate` and its eight types, the
+battle's effect slots and its fifteen path handlers, the object drawing pass
+and the six routines it calls per object) spends its time on whichever
+handlers ran, and one `cost_milli` for the whole call can't fit that:
+`palette_animate` ran twelve delay counts one frame and a fade of 256 colors
+through the multiplier the next, and missed by 25.9% on average while each
+handler on its own fitted its own scalar within 0.3-4.4%. Wave 2's banks are
+full of dispatchers, so the fix is in the estimate rather than in more
+exceptions.
+
+A port now names the routine whose work it is doing, by its address:
+
+```c
+NATIVE_TIME_AS(s, 0xCFEDB8, draw_underlays(s));        /* $CF:EDB8's time, not the pass's */
+
+int was = native_time_as(s, type_handlers[type]);      /* around several statements */
+x = run_type(s, slot, type);
+native_time_end(s, was);
+```
+
+and the port's bus clocks in between are estimated with the `cost_milli` of
+the hand port registered at that address instead of its own
+(`runtime/port/native.c`: the running job keeps the routine it attributes to,
+closes a part when that changes, and `estimate_parts` sums DMA's time as it is
+and each part's other clocks times its routine's value). Nothing in `game/`
+says how long anything takes: the tag is an address, and the value it selects
+is calibrated like every other entry's. That works because the original runs
+the handlers as routines, so shadow mode already measures each of them on
+every call it makes, from its entry to its return, as an entry of its own
+(nested inside the dispatcher's comparison); the dispatcher's estimate is then
+the sum over the handlers it actually ran, at their own measured rates, plus
+its own loop at its rate. Scopes nest (a fade handler attributes its colors to
+its channel mode's loop), a scope naming the running port is its own time, and
+a helper that is a routine of its own can carry the tag inside it
+(`battle_sine_scaled` names `$CF:F9FB` wherever it runs) so every caller
+attributes it.
+
+The shadow report lists the attributed clocks per routine (`timing: part
+<addr> <name> native-bus N dma M cost_milli C`), and `tools/timing_gate.py`
+estimates an entry as its own clocks at its value plus each part at its
+routine's. `--calibrate` works the handlers out first, from their own calls,
+and then gives the dispatcher's own part what the handlers' new estimates
+leave of its time. An attribution to an address with no hand port counts as
+the port's own time, and the report names it; the gate fails on it with no
+exception possible, and `tests/test_timing_gate.py` checks every literal tag
+in `game/` against the registry. `tests/port/time_parts_test.c` runs a made-up
+dispatcher and two handlers in shadow mode and checks the parts' clocks, the
+handlers' own measurement and the report of a bad tag. Nothing shadow mode
+compares changes: a tag only decides which `cost_milli` a port's clocks are
+estimated with, in the report and in `on` mode's charge.
+
+A tag needs a hand port at its address to be measured. Where the part of a
+dispatcher that varies wasn't one, it became one, as an entry of its own with
+its guard, don't-care set and fuzzing (and `tools/dontcare_check.py` agrees
+with all four): the underlays' marker `$CF:EE2C` and prepared number sprites
+`$CF:EE9F`, which the original jumps to, and the fades' restore paths `$FD:E8AC`
+and `$FD:E624`, which it branches to: a fade that ends by restoring its colors
+copies up to 255 of them at a rate nothing like the level arithmetic's, which
+was the fades' and `palette_animate`'s whole worst case (30817 clocks). An
+entry can start at any instruction the original reaches, and shadow mode
+measures it from there to its return like any other.
+
+Adopted on the dispatchers behind the wave-1 exceptions: `palette_animate`'s
+types and the fades' channel modes and restore paths (`core/palette.c`), the
+battle's effect slot handlers with the flicker step, the orbit step, the sine,
+multiply, distance and angle helpers (`battle/effect_paths.c`), the object
+drawing's six routines per object, the trail's afterimages, the underlays'
+three and the tile copy (`battle/draw_objects.c`), and the menu text's tiles
+and numbers and the glyph's pixels (`menu/text.c`, `menu/glyphs.c`).
+Recalibrated over the library, the entries it changed:
+
+| Entry | mean \|error\| before | after | vblank stretches off by >= 1024, before | after | largest in vblank, before | after |
+|---|---|---|---|---|---|---|
+| `palette_animate` | 25.9% | 1.8% | 57.66% | 0.46% | 26796 | 1725 |
+| `palette_fade_to_white` | 3.3% | 0.4% | 4.45% | 0.00% | 17718 | 889 |
+| `palette_fade_to_black` | 1.1% | 0.5% | 1.07% | 0.00% | 30817 | 527 |
+| `battle_step_effect_slots` | 18.1% | 4.9% | 7.91% | 1.94% | 18133 | 2838 |
+| `battle_draw_objects` | 10.7% | 3.7% | 92.23% | 85.36% | 23882 | 7311 |
+| `battle_draw_object_underlays` | 55.4% | 12.7% | 8.96% | 8.11% | 17409 | 1855 |
+| `menu_draw_text` | 2.0% | 2.1% | 32.39% | 19.35% | 4509 | 3498 |
+| `menu_draw_glyph` | 5.1% | 5.5% | 53.89% | 59.92% | 2658 | 2932 |
+
+Over all 523 entries the estimate's error fell from 95.4 to 52.7 clocks a
+stretch on average (7.01% to 3.89% of hand-port time), and the stretches
+off by 1024 clocks or more from 1.115% to 0.512% (in vblank, 1.053% to 0.723%).
+
+**The exceptions, before and after**: 27 limits over 16 entries before, and
+18 limits over 13 entries after. Removed: all six of `palette_animate`,
+`palette_fade_to_white` and `palette_fade_to_black`, and the `vblank-worst` of
+`battle_draw_objects`, `battle_draw_object_underlays` and
+`battle_step_effect_slots`. What is left, and why each stays:
+
+| Entry | Over | Why |
+|---|---|---|
+| `decompress`, `decompress_direct` | `vblank-tail`, `vblank-worst`, `worst` | Not a dispatcher: its time follows the compressed data (literals against copies of every length) inside one routine; unchanged (above). |
+| `field_rasterize_quad` | `vblank-tail`, `vblank-worst` | Its time follows the quadrilateral's edges; the edge sequence it inlines is no routine the original calls, so there is nothing to attribute to. |
+| `menu_object_wave_hdma`, `battle_screen_wave_windows`, `scene_draw_circle`, `scene_draw_circle_jump`, `battle_step_hp_gradient` | `vblank-tail` | One routine each, its time following a path inside it (the sign of each wave step's product, the circle's midpoint steps, the gradient's rows): long calls whose error is 1-5% but over the tail's absolute 1024 clocks. |
+| `menu_draw_glyph` | `vblank-tail` | Its pixels are a routine (`$C2:5E89`) and are attributed to it, but that routine's own time follows the pixel's bits (7.1% on its own), so the sum varies as much as before. |
+| `menu_draw_text` | `vblank-tail` | Its tiles and numbers are attributed (the share off by a line fell from 32% to 19%); the control codes' handlers are no entries yet, and the code loop's own time follows the string. |
+| `battle_draw_objects` | `vblank-tail` | Every routine it runs per object is attributed (10.7% to 3.7%); what is left is its own work, building and sorting the draw list (an exchange sort whose swaps depend on the order) in 37-line calls, where 3.7% is still over a line. |
+| `battle_draw_object_underlays` | `vblank-tail` | Its three routines are attributed (55.4% to 12.7%); what is left is its own loop over the object's eight effect records, whose time follows which are set. |
+| `battle_step_effect_slots` | `vblank-tail` | Its handlers and the helpers they call are attributed (18.1% to 4.9%, and 7.9% of its vblank calls off by a line to 1.9%); what is left follows its own loop over which of the nineteen slots are active and due, and the handlers' own spread. |
+
+None of these writes a video register: they write RAM the next vblank uploads,
+and the vblank check finds no video write moved.
+
 ## Closing the interpreted remainder (M3)
 
 After M2 generated blocks ran 77-98% of the instructions; the interpreter ran
@@ -1725,9 +1834,9 @@ the instructions again, into values.
    that had that D. Interrupt vectors, coverage seeds and hints are entered from
    places nobody can see, so they, and whatever only they reach, stay unknown.
    **Which page applies** follows from that: when D is one value, a
-   direct-page access is the work RAM address D + offset, and it is named like
-   any other address, with the variables of a page of `re/ram.toml` that has
-   that D and the routine's subsystem ranked first; when D isn't known the
+   direct-page access is the work RAM address D + offset, named by a variable
+   `re/ram.toml` puts on a page with that D (step 7), or else a plain scratch
+   name; when D isn't known the
    access stays `m_dp(s, offset)` with a note in the header, and `--page NAME`
    names the offsets of a page with no fixed D (`caller`, `menu_record`)
    through their `_DP` macros. `--d`/`--db` give values by hand. A draft that
@@ -1771,7 +1880,9 @@ the instructions again, into values.
 7. **Names** (`tools/recomp/names.py`): work RAM from the RAM map, by the rules
    its coverage count uses (a name from the routine's own subsystem, `core`, or
    the subsystem sharing its page; arrays and records as `RAM_X + k *
-   RAM_X_STRIDE`); I/O registers by their conventional names in a comment
+   RAM_X_STRIDE`), the subsystem being the bank's or, in the banks several
+   share, the callers'; a direct-page cell only from a variable on that page,
+   else `SCRATCH_01DB` ("The tooling pass after wave 1: the analysis"); I/O registers by their conventional names in a comment
    (`0x002100 /* INIDISP */`); callees by their port or hint name. A routine
    that is the handler of an event command (`tools/disasm/eventscript.py`) or
    of a battle animation command, enemy condition or enemy action
@@ -2373,11 +2484,11 @@ These are the tool's next improvements, or its known limits:
 - **D or DB unknown** in 12-16% of drafts: interrupt handlers and what only
   they reach, and bank `$FD`'s palette code, whose data bank comes from callers
   the analysis doesn't connect. Those accesses stay `m_dp`/`m_abs` offsets.
-- **Names are the map's.** An address the map doesn't have stays a number, and
-  one it names for another use of the same bytes is taken as it is (the event
-  commands' scratch `$01DB` comes out as a field sprite variable); a name
-  landing deep in an array (`RAM_BATTLE_PART_OFFSETS_X + 41 * ..._STRIDE` for
-  `$9FEB`) is worth checking against the map's bounds.
+- **Names are the map's.** An address the map doesn't have stays a number (a
+  direct-page cell a `SCRATCH_` name), and an absolute one it names for
+  another use of the same bytes by the routine's subsystem is taken as it is;
+  a name landing deep in an array (`RAM_BATTLE_PART_OFFSETS_X + 41 *
+  ..._STRIDE` for `$9FEB`) is worth checking against the map's bounds.
 - **I/O stays register writes**, named in comments: turning `m_write8(s,
   0x002100 /* INIDISP */, 0x80)` into `vid_set_display` is the porter's, as is
   recognising a multiply through `$4202`/`$4216` (the multiplier and divider
@@ -2398,11 +2509,12 @@ These are the tool's next improvements, or its known limits:
 - **Stub signatures still vary by what is read back** after a call (the
   flags a callee may set), so a callee called from several places can still
   get a few stubs (`$C7:09DA`: five in `$C7:0004`'s draft).
-- **Liveness stays conservative where a callee leaves through its caller's
-  frame** (the sound driver's `$C7:0A39` returns past `$C7:0004` on its refused
-  path, so the driver's register saves count as reads of everything, for every
-  routine that sends it a command) and across the menus' task switch at
-  `$C2:821E`, which copies S. Both are "a callee reaches it" above.
+- **Liveness stays conservative where S is saved in memory**: across the
+  menus' task switch at `$C2:821E` and the menus' entry `$C2:800E`, which copy
+  S (a `PHP` there reads every flag, which is what keeps the overflow flag
+  live after the field loop's callees), and in the scene program's task lists,
+  whose tasks leave through the loop's own code rather than return ("The
+  tooling pass after wave 1: the analysis", below).
 
 ### Phase 3, wave 1: the scene engine and scene data (`$C3`, `$C6`)
 
@@ -2490,7 +2602,8 @@ it is caught at its return; on the ROM, `DC_AL` on `battle_sine_scale`'s entry
 (its callers read the result) and on the call to `$CD:3E8E` (which pushes the
 bank A holds) are findings. `--list` now says, for every declaration, what
 else liveness has dead there (`could add`): 312 declarations could add
-`DC_AL` before the ports below adopted it, 291 after.
+`DC_AL` before the ports below adopted it, 291 after (295 once merged with
+the fuzz and timing pass's new entries).
 
 **A stop's own set: `m_stop_at_own`.** An entry's set applied at its returns
 and at every stop it made, so one early exit to code that reads a register the
@@ -2553,7 +2666,15 @@ frame a port matching no pass is reported at the NMI. On the ROM,
 command: in `title-start` 235 of its 1500 calls mismatch under the first-pass
 rule and none now; the same with the script pointer one byte off, 238 mismatch
 ("... at the last: WRAM[0A20] original 3B native 3C").
-`scene_run_sequence` now stops at `$C3:0B03` in place of the workaround.
+`scene_run_sequence` stopped at `$C3:0B03` in place of the workaround, until
+the fuzzer as it is after the fuzz and timing pass found 4793 of 20000 states
+where no pass matched, and the comparison was right not to take one: a command
+the port gives up on (one no script has) has already written the scratch cell
+`$F0` and changed the flags, which the original does only once it runs the
+command, so at the loop's head, on every pass, the port's machine is one the
+original never has. The port is back to the call-out (which the fuzzer
+compares only at the return, after the original has run the command itself),
+and putting those back first is in docs/TODO.md.
 
 **An entry on another port's path.** An entry the original reached while it
 was catching up with a native routine started a comparison of its own, nested,
@@ -2613,7 +2734,189 @@ byte it set before each call is gone; the fifteen effect handlers, called by
 themselves, and `battle_place_formation` declare `DC_AL` and no longer
 reproduce what the original leaves in A's low byte; `input_read_joypad`
 declares Y and V after its return and its two stops their own sets, in place
-of its stop at the `RTS`; `scene_run_sequence` stops at its loop's head.
+of its stop at the `RTS`. (`scene_run_sequence`'s stop at its loop's head was
+taken back, above.)
+
+### The tooling pass after wave 1: the analysis
+
+Wave 1's reports (above) named what the analysis side cost the ports:
+liveness keeping every register live after bank C6's routines and carry and
+overflow live after the field loop's callees, a burndown that credits nothing
+a port inlines, and drafts that name scratch cells after unrelated variables.
+Before wave 2 takes on the three big banks, each was fixed where it could be
+made precise without claiming anything the original doesn't show.
+
+**Liveness through indirect jumps** (`tools/disasm/liveness.py`). A routine an
+indirect `JMP`/`JML` reaches counted everything as read after it returns, and
+the jump itself used only a hint's targets, not the ones derived from data.
+Now the jump goes to every target the analysis follows; a `JMP (abs)` after a
+`PER` is a call that returns to the `PER`'s address, any other a tail jump
+whose targets return for the routine making it, so their callers' liveness is
+that routine's. That holds only if nothing else reaches them, so a routine
+keeps everything live where some site that reaches it has a target set nobody
+argued complete (neither a `derive` nor a `bound` hint: a movie-only list could
+have other targets from anywhere). All eight indirect jump sites in the ROM
+are argued, so all 176 routines they reach are now precise, none kept live;
+the count is `Liveness.indirect_entries`. After the C6 routines the menu object
+scripts reach, X and the carry are what is read.
+
+**The field loop's carry and overflow.** They were the analysis being coarse,
+not the loop reading them. Following the reads back from the loop found two
+causes. The sound driver's entry `$C7:0004` saves P and X (and the rest) and
+calls `$C7:0A39`, which on its refused path pulls its own return address and
+runs the entry's exit: its saves "reached by a callee" counted as reads of
+everything, for every routine that sends a sound command. A push a callee
+reaches is now followed into the callee: where every path either returns
+normally or pulls the byte with a pull of its size and then only pulls the
+rest of the caller's frame and returns as the caller does, the push reads what
+is live after that pull, which is what the caller's callers read. A return
+below the depth a routine was entered at is a return through its caller's
+frame, and its liveness is carried apart from an ordinary return's (packed
+values have a second set of segments for it), so what follows the escape isn't
+merged into the callee's other returns. The second cause was the analysis
+walking every context's width variants at an instruction: `$FF:F9C4` runs its
+`PHX` with 8-bit X from one caller and 16-bit from another, which read as
+depths that disagree, so its reach was unbounded and every push around a call
+to it read everything. Each context now runs the widths it was traced with.
+What stays: the overflow flag, which the menus' entry `$C2:800E` saves with
+`PHP` and then copies S into `$0920` for a stack of its own (`TSX`), which no
+pairing follows (docs/TODO.md). `RTI` now reads no flag (it pulls P).
+
+**What turned out wrong, and was fixed.** Three places where liveness was *less*
+careful than the code: a `JSR (abs,X)` whose table is filled at run time
+(count 0, every target derived from data, as the scene program's task lists at
+`$7E:3998`, `$7E:39CF` and `$7E:37F6` are) called nothing at all, so the task
+loop read nothing its tasks read and the tasks' callers' liveness never
+reached them; the derived and hinted targets of any call table were left out
+of what callers read after them; and a `PER` then `JMP (abs)` was taken for a
+tail jump, dropping the code after it (it happened to return to an `RTS`). The
+task loop's register saves, which tasks leave through `JMP $39A7` without
+returning, were "paired" because the tasks weren't known; they are now "a
+callee reaches it", and a return through a caller's frame counts what is read
+after it. With the tasks known, five declarations in `game/` were wider than
+the original allows, and were narrowed, the ports changed as little as that
+needed: the scene sprite lists `$C3:0D0E`/`$C3:0D5E` now leave Y (the next
+free entry) and A (the loop's last value) as the original does, and
+`$C3:0DBC` Y, since the scene task loop carries them into the next task, and a
+task reached the field's start (through the reset), whose menu call reads Y;
+`$C3:094C`'s Y was already the original's and is no longer declared; the
+sequence interpreter's call to `$7E:37F3` passes its carry, which a task's
+chained `ADC` reads.
+
+| | Before | After |
+|---|--:|--:|
+| routines everything is live after (all 3136) | 209 | 34 |
+| of them: entered by an indirect jump | 175 | 0 |
+| register and flag bits live after returns, summed | 14677 (flags 3968) | 11731 (2192) |
+| bits read at entries, summed | 11895 (flags 2409) | 10255 (1324) |
+| routines A's low byte / X / the carry / the overflow is live after | 511 / 1032 / 1296 / 1884 | 298 / 850 / 998 / 800 |
+| routines with something dead after return | 2820 | 3092 |
+| bank C6 (41 routines): everything live after | 34 | 0 |
+| bank C6: A / Y / any flag live after (routines) | 35 / 37 / 36 | 1 / 0 / 35 (the carry) |
+| `$FD:C2C1`: live after it returns | AH X V C DB D | AH V DB D |
+| `PHP`s paired / a callee reaches it (per context) | 567 / 87 | 579 / 75 |
+| pushes paired through a callee that leaves the caller's frame | - | 12 (`$C7:0140`-`$C7:0149`) |
+
+(Pushes of any register counted per context moved from paired to "a callee
+reaches it" in 145 places, every one around the scene task loops' calls, which
+were paired only because the tasks weren't known, and the other way in 63.)
+
+**Why it is sound.** Everything the check now accepts that it rejected before
+is dead on every path the analysis knows the original takes: a tail jump's
+targets return exactly where the routine making the jump returns, and are
+reached from nowhere else unless a site whose targets aren't argued complete
+reaches them (then nothing changes); a pull in a callee is followed only where
+every path from it pulls the rest of the frame and returns as the caller would,
+so what is live after it is what the caller's callers read; an instruction runs
+in a context only with the widths the analysis traced there; and `RTI` replaces
+P. The assumptions are the ones liveness already made for `JSR` targets (that
+the analysis sees every caller; the call logs back it up for the movies'
+paths). Checked three ways: `tools/dontcare_check.py` finds nothing on
+today's `game/` (417 entries, 67 stops, 73 call-outs); a declaration the new
+liveness allows and the old one refused (`scene_object_read_mode` declaring
+`DC_A | DC_Y | DC_N | DC_V | DC_Z`) passes, and one that is wrong (the same with
+`DC_X`, which its callers read) is still a finding; and the drafts, which are
+made from liveness, match the original over the library (below).
+
+**Drafts before and after.** `tools.recomp.draftcheck` over the library (26
+movies, shadow mode), with the committed tools and with these: 194 drafts
+registered before, 197 after (three entries the analysis enters with several
+widths now pick one, below); 166 and 169 called, 39.09 and 39.10 million calls,
+none mismatching either time (84819 and 84841 interrupted), and the don't-care
+check finds nothing in the drafts' own declarations (471 entries, 124 stops,
+519 call-outs). The drafts the fixes were for: the C6 routines' headers went
+from "callers read A X Y N V Z C" to "X C" (`$C6:E237` 3 flag assignments to 1,
+registering with `DC_A | DC_Y | DC_N | DC_V | DC_Z` where it had 0), and
+`$FD:C2C1`'s from "A X V C" to "A V", its logic losing the carry (12 mentions to
+none) and X from its result. The gate passes (`suite OK` with
+`--long-routes`), and the strict player builds warning-free.
+
+**The burndown** (`tools/burndown.py`) credited a port with its routine's code
+only, so every helper a port inlined had to be a registry entry to count, and
+it read the registry with a pattern that missed its macro rows (the 180 event
+commands, the field uploads). It now reads the entries as the don't-care
+check does, and follows a call into its callee where the port inlines it:
+where the port makes no call-out at that call, by the call-outs its functions
+make, read through the file's helpers, tables and parameters the way the
+don't-care check reads declarations. The original makes that call during the
+port's call and the port doesn't, so the port does its work, which shadow
+mode would otherwise show. It doesn't over-credit where the reading can't be
+trusted: a port with a call-out (or a PC it sets) the check can't read, or
+one whose site reads as something that isn't a call (a table whose struct
+declared two fields in one declaration came out shifted, which the
+validator's pass has since fixed: "Between the waves: the validator"),
+credits no callee, and neither does a call past a place the port hands back
+(an `m_stop_at`, a PC it sets), since the original may be making it; 22 ports
+credit none for those reasons, among them the two that would otherwise claim
+50 KiB between them (`battle_run_queued_scripts`, `battle_main_loop_body`).
+Idle entries credit none either. Per bank (the wave-1 banks and the three big
+ones):
+
+| Bank | Before | The macro rows | And inlining (now) |
+|---|--:|--:|--:|
+| `$C0` | 9.6K, 84% left | 18.3K, 69% | 18.7K, 68% |
+| `$C1` | 10.0K, 84% | 10.0K, 84% | 10.7K, 83% |
+| `$C2` | 5.2K, 91% | 5.2K, 91% | 5.6K, 90% |
+| `$C3` | 3.0K, 25% | 3.0K, 23% | 3.5K, 10% |
+| `$C6` | 1.1K, 68% | 1.1K, 68% | 1.1K, 68% |
+| `$CF` | 6.3K, 7% | 6.3K, 7% | 6.4K, 7% |
+| `$D1` | 4.8K, 17% | 4.8K, 17% | 4.8K, 17% |
+| `$FD` | 8.1K, 47% | 8.1K, 47% | 8.1K, 47% |
+| total | 60.1K, 78% | 69.0K, 74% | 71.6K, 73% |
+
+`$C0` moves most, and not from inlining: 197 of its 249 entries are macro rows
+the old pattern didn't see. `$C3` drops from 25% to 10% left with the edge
+sequence `field_rasterize_quad` inlines (`$C3:0F35`), the frame work's
+controller check (`$C3:0A8E`) and song update (`$C3:09A4`) credited; its
+middle column also counts the targets of `$C3:0F32`'s indirect jump, which the
+walk now follows. `$FD`, `$CF` and `$D1` barely move because wave 1 had
+already registered what their ports inline, to get it counted.
+
+**Draft names** (`tools/recomp/names.py`). A routine's subsystem was its
+bank's, and banks `$C3`, `$C6` and `$FD` serve several (and `$FD` had none,
+so any subsystem's name was taken). In those banks it is now the one every
+caller comes back to, through the call sites, call logs and followed indirect
+jumps (none where they differ or there is no caller, and then only `core`
+names it). A direct-page access is named only by a variable the map puts on a
+page with that D: of the routine's own subsystem, or of any where the page is
+its own subsystem's (field code takes the event engine's cells on the field's
+page, event commands on the field's page don't take the field's). Any other
+cell gets a plain name, `SCRATCH_01DB`, which the draft defines and undefines.
+Over the drafts of every registered routine (194 before, 197 after): 1016
+distinct names before, 990 after, 261 scratch names, and 713 addresses left as
+numbers before against 466 after. The two that went wrong: `event_cmd_call`
+(`$C0:5FB6`) wrote `RAM_FIELD_SPRITE_RANGE_NEXT` for its `$DB`-`$DF` and
+`0x7E01D9`/`0x7E01E1`/`0x7E01E3` for the rest, and now has `SCRATCH_01D9` to
+`SCRATCH_01E3`; `scene_object_read_mode` (`$C6:E237`) wrote
+`RAM_SCENE_FRAME_READY` for the menu's `$00` and a number for `$7E:1BA9`, and
+now has `SCRATCH_0000` and `RAM_MENU_SCENE_MODE_BITS` (its subsystem is the
+menus', its callers' ). Nine drafts lost names: `$FD`'s
+`battle_clear_b328_table` a menu name it had taken for want of a subsystem,
+and the C6 irises and motion routines and `$C3:0DF3` (which nothing calls) the
+scene's circle and scaler cells, which they use on the menu's page
+(docs/TODO.md). A routine the analysis enters with several widths is drafted
+with the registry precondition's, then the widths the coverage saw it run with;
+if several remain, `show` prints one draft for each rather than stopping.
 
 ## Risks
 
