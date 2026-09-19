@@ -3,7 +3,7 @@
  *
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
  *           [--iterations N] [--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--step-limit N]
- *           [--db BB] [--apu-loopback]
+ *           [--db BB] [--d HHHH] [--apu-loopback]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -11,7 +11,9 @@
  * --long) would, or as an interrupt (--interrupt). The original runs on the interpreter until it returns; the
  * native routine runs on a copy (call-outs interpreted synchronously). The
  * machines are compared where the native routine left off, normally the
- * return, as in shadow mode and ignoring the routine's don't-care set. Nothing
+ * return, as in shadow mode: ignoring the routine's don't-care set (and what it
+ * declares dead where it stops, native_dont_care_at_stop), and the stack bytes
+ * the original pushed and pulled again (native_copy_popped_stack). Nothing
  * advances time, and interrupts don't happen. States where the native
  * routine's call-outs together run more than --step-limit instructions (default
  * 100000), or the original doesn't get back within four times that, are skipped.
@@ -26,7 +28,8 @@
  * --fill BBAAAA-BBAAAA=lo-hi gives a WRAM range random bytes from lo to hi
  * instead, for example to make a pointer in script operands point into WRAM.
  * --db sets the data bank, which the base state otherwise decides, for entries
- * that address registers through it. --apu-loopback makes reads of the APU ports
+ * that address registers through it; --d the direct page likewise, for entries
+ * guarded on the page their subsystem runs with. --apu-loopback makes reads of the APU ports
  * return what the CPU last wrote to them: the SPC700 doesn't run here, so the
  * sound driver's echo waits would otherwise never end.
  */
@@ -97,13 +100,16 @@ static void abandon_native(void)
     fiber_switch(fiber_main());
 }
 
-/* Run the interpreter until PC and S are back at the return sentinel. The
- * original gets four times the call-outs' budget: it also runs the
- * instructions the native routine did itself, so on a state where the
- * call-outs came close to the limit, the original alone can pass it. */
-static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step)
+/* Run the interpreter until PC and S are back at the return sentinel, noting
+ * the lowest S on the way. The original gets four times the call-outs' budget:
+ * it also runs the instructions the native routine did itself, so on a state
+ * where the call-outs came close to the limit, the original alone can pass it. */
+static bool run_until(Snes *s, uint32_t ret_pc, uint16_t ret_s, bool must_step, uint16_t *lowest_s)
 {
+    *lowest_s = s->cpu.s;
     for (unsigned long steps = 0; steps < 4 * step_limit; steps++) {
+        if (s->cpu.s < *lowest_s)
+            *lowest_s = s->cpu.s;
         if (cpu_pc24(&s->cpu) == ret_pc && s->cpu.s == ret_s && (steps > 0 || !must_step))
             return true;
         s->cpu.nmi_pending = false;
@@ -124,7 +130,7 @@ int main(int argc, char **argv)
     int nkeep = 0;
     unsigned fill_lo[MAX_KEEP], fill_hi[MAX_KEEP], fill_min[MAX_KEEP], fill_max[MAX_KEEP];
     int nfill = 0;
-    int data_bank = -1;
+    int data_bank = -1, direct_page = -1;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--long")) {
@@ -149,6 +155,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--seed")) seed = strtoull(v, NULL, 0);
         else if (!strcmp(a, "--step-limit")) step_limit = strtoul(v, NULL, 0);
         else if (!strcmp(a, "--db")) data_bank = (int)(strtoul(v, NULL, 16) & 0xFF);
+        else if (!strcmp(a, "--d")) direct_page = (int)(strtoul(v, NULL, 16) & 0xFFFF);
         else if (!strcmp(a, "--range") && strchr("AXY", v[0]) && v[1] == '=' &&
                  sscanf(v + 2, "%x-%x", &range_lo[strchr("AXY", v[0]) - "AXY"],
                         &range_hi[strchr("AXY", v[0]) - "AXY"]) == 2)
@@ -194,6 +201,8 @@ int main(int argc, char **argv)
     base.cpu.e = false;
     if (data_bank >= 0)
         base.cpu.db = (uint8_t)data_bank;
+    if (direct_page >= 0)
+        base.cpu.d = (uint16_t)direct_page;
     if (apu_loopback)
         base.bus.io.apu_read = apu_loopback_read;
     native_call_step_limit = step_limit;
@@ -268,6 +277,7 @@ int main(int argc, char **argv)
          * same place. */
         unsigned long timeouts = native_call_timeouts;
         native_call_steps = 0;
+        native_stop_dont_care_direct = 0;
         if (!native_fiber)
             native_fiber = fiber_create(native_fiber_main, NULL);
         fiber_switch(native_fiber);
@@ -285,7 +295,8 @@ int main(int argc, char **argv)
          * so the original has to run at least one instruction to get there. */
         bool back_at_entry = stop_pc == e->addr && stop_s == entry_s &&
                              (e->idle || native.bus.clocks != orig.bus.clocks);
-        if (!run_until(&orig, stop_pc, stop_s, back_at_entry)) {
+        uint16_t lowest_s;
+        if (!run_until(&orig, stop_pc, stop_s, back_at_entry, &lowest_s)) {
             if (stop_pc == ret_pc && stop_s == ret_s) {
                 no_return++;
             } else {
@@ -296,7 +307,8 @@ int main(int argc, char **argv)
             continue;
         }
         char why[256];
-        if (native_compare(&orig, &native, e->dont_care, why, sizeof why)) {
+        native_copy_popped_stack(&orig, &native, lowest_s);
+        if (native_compare(&orig, &native, e->dont_care | native_stop_dont_care_direct, why, sizeof why)) {
             if (mismatched++ < 10)
                 fprintf(stderr, "iteration %lu: %s\n", it, why);
         } else {
@@ -310,6 +322,6 @@ int main(int argc, char **argv)
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
                     "[--seed S] [--long | --interrupt] [--keep BBAAAA-BBAAAA]... [--range A|X|Y=lo-hi]... [--step-limit N] "
-                    "[--db BB] [--apu-loopback]\n");
+                    "[--db BB] [--d HHHH] [--apu-loopback]\n");
     return 2;
 }

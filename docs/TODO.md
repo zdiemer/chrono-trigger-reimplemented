@@ -39,6 +39,9 @@ rest waits, is [PLAN.md](PLAN.md).
 - **M4**: skip flags nobody reads, call generated blocks directly where it's
   safe. Speed only; rendering and sound dominate now.
 - **The draft tool's gaps** (RECOMP.md, "What drafts don't do yet"): liveness
+  that counts a flag `PHP` saves as read, and no liveness where a draft hands
+  back at another entry (the $C7 pilot's two costliest; PLAN.md, Phase 3);
+  the ground-truth tool not resolving a port's file-local names; liveness
   that keeps A whole (so drafts carry A's high byte and flags no caller reads);
   D and DB for code only interrupts reach, and the field's main loop after a
   battle, which the frame analysis gets wrong (a guard catches it: 432877
@@ -46,7 +49,7 @@ rest waits, is [PLAN.md](PLAN.md).
   handlers; turning I/O register writes and the multiplier into platform calls
   and C arithmetic.
 - **Gaps in the vblank check** (RECOMP.md, "Where video writes land"), which
-  the suite runs with four findings accepted (RECOMP.md, "The timing gate"): a
+  the suite runs with seven findings accepted (RECOMP.md, "The timing gate"): a
   hand port's region ends at its last service call, so the reference's work in
   code the original jumps to past it is `unmatched` (the menu loads);
   following the call stack in the reference would close that. And it names the
@@ -67,6 +70,10 @@ rest waits, is [PLAN.md](PLAN.md).
   The event scripts' leftovers (MATCHING.md, "The event scripts"): commands
   and operands named mechanically (`set_1c80`, `party_routine_6`), and the 39
   command layouts read from handlers no port has checked yet.
+  The sound driver's tables (found by the $C7 pilot, `core/sound_data.h`):
+  `$C7:1871` is typed as one song's twelve three-byte entries, but the driver
+  indexes 83 songs' worth (36 bytes each, to `$C7:241C`), and the two bytes per
+  song at `$C7:241D-24C2` are still `mixed`.
   The battle scripts' leftovers (MATCHING.md, "The battle script formats"):
   names for the commands, conditions and actions that keep their numbers, and
   deriving the action and target tables (`$C1:B85F`, `B88D`, `B8BB`) from the
@@ -150,6 +157,11 @@ rest waits, is [PLAN.md](PLAN.md).
 - **P1 leftovers**: `$217F` mirror writes still come from unported video code,
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
+- **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
+  the boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
+  the driver) and every echo wait stay loops on the machine as idle entries.
+  A backend that replaces the SPC700 driver (a native mixer behind `au_*`)
+  needs none of them; one that keeps it keeps the loops.
 
 ## Targets beyond the desktop SNES build
 

@@ -56,8 +56,11 @@ PF_API bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi);
 
 /* A JSR the driver makes to a routine that waits for the SPC700 (o: the JSR's
  * site and target). SNES backend: a call-out, so frames pass while it waits.
- * APU-direct, inside a run: the callee runs synchronously. */
-PF_API void au_driver_call(Platform *pf, PfOrigin o);
+ * APU-direct, inside a run: the callee runs synchronously. `dont_care` names
+ * the caller's registers and flags the callee doesn't read (DC_* bits,
+ * port/native.h), which shadow mode doesn't compare at the call: a port written
+ * as logic apart from the registers sets only what the callee takes. */
+PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care);
 
 /* Backends selectable at run time on the development system (host side).
  * APU-direct runs the SPC700 outside the machine's timeline

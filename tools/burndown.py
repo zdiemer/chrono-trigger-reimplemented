@@ -25,7 +25,9 @@ small enough to ignore:
 - *Under-counts* where a port inlines a callee. Ports routinely inline local
   routines with their stack bytes, and that code is credited to nobody.
 - *Stops* at an indirect jump it can't resolve, so a routine that dispatches
-  through a table is credited only up to the dispatch.
+  through a table is credited only up to the dispatch. A `JMP (abs,X)` whose
+  table the analysis has sized (a hint's count, or its heuristic) is followed
+  to every target, as a port that dispatches through it inlines them.
 
 It is a burndown, not an accounting: useful for "which subsystem is barely
 started", not for "this bank is 61.3% done".
@@ -82,13 +84,31 @@ def insn_at(an, pc):
     return max(variants.values(), key=lambda i: i.size)
 
 
-def successors(insn):
+def table_targets(an, insn):
+    """The targets of a JMP (abs,X) whose table the analysis has sized, or []."""
+    jt = an.tables.get(insn.pc)
+    if jt is None or jt.call or jt.count is None:
+        return []
+    step = 3 if jt.kind == "long" else 2
+    bank = jt.dispatcher & 0xFF0000
+    out = []
+    for i in range(jt.count):
+        at = jt.table + i * step
+        v = an.u24(at) if jt.kind == "long" else an.u16(at)
+        if v is not None:
+            out.append(v if jt.kind == "long" else bank | v)
+    return out + list(jt.extra)
+
+
+def successors(an, insn):
     """Where control can go next, not following calls."""
     name, mode = insn.name, insn.mode
     if name in RETURNS:
         return []
     if name in CALLS:
         return [insn.next_pc]           # the callee is a call-out
+    if name == "JMP" and mode == Mode.ABSXIND:
+        return table_targets(an, insn)
     if mode in (Mode.ABSIND, Mode.ABSXIND, Mode.ABSLIND):
         return []                        # indirect: not resolved here
     if name in ("JMP", "JML"):
@@ -114,7 +134,7 @@ def walk(an, entry, owners):
         if insn is None:
             continue
         reached.update(range(pc, pc + insn.size))
-        for nxt in successors(insn):
+        for nxt in successors(an, insn):
             # another port owns its own region, and its own walk will count it
             if nxt != entry and nxt in owners:
                 continue

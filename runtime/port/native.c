@@ -40,6 +40,7 @@ typedef struct Job {
     uint32_t call_ret;     /* where the callee returns to, and S after it has */
     uint16_t call_s_after;
     uint16_t call_dont_care;
+    uint16_t stop_dont_care;   /* set by native_dont_care_at_stop */
     struct Job *next_free;
 } Job;
 
@@ -146,6 +147,8 @@ typedef struct Active {
     unsigned long segment_port_clears[2];   /* apu_port_clears when the segment started */
     uint64_t segment_horizon, segment_interrupt_horizon;   /* SHADOW: at the segment's start (timing spike) */
     bool segment_interrupted, interrupted, mismatched;
+    uint16_t segment_low_s;   /* SHADOW: the lowest S the original has reached in the segment */
+    uint16_t ret_dont_care;   /* SHADOW: the native routine's native_dont_care_at_stop */
     uint32_t sync_pc;      /* ON, PH_SYNC: where the machine is while the port is suspended */
     uint16_t sync_s;
 } Active;
@@ -457,8 +460,10 @@ static bool compare_machines(const Snes *o, const Snes *c, uint16_t dont_care, u
     uint8_t ignored_flags = (uint8_t)((dont_care & DC_N ? CPU_FLAG_N : 0) | (dont_care & DC_V ? CPU_FLAG_V : 0) |
                                       (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
     uint8_t p_mask = (uint8_t)~ignored_flags;
-    if (!(dont_care & DC_A))
+    if (!(dont_care & (DC_A | DC_AH)))
         CHECK_FIELD("A", o->cpu.a, c->cpu.a)
+    if (!(dont_care & DC_A) && (dont_care & DC_AH))
+        CHECK_FIELD("A's low byte", o->cpu.a & 0xFF, c->cpu.a & 0xFF)
     if (!(dont_care & DC_X))
         CHECK_FIELD("X", o->cpu.x, c->cpu.x)
     if (!(dont_care & DC_Y))
@@ -571,6 +576,23 @@ bool native_compare(const Snes *o, const Snes *c, uint16_t dont_care, char *out,
     return compare_machines(o, c, dont_care, 0, out, n);
 }
 
+void native_copy_popped_stack(const Snes *o, Snes *c, uint16_t lowest_s)
+{
+    for (uint32_t addr = (uint32_t)lowest_s + 1; addr <= o->cpu.s && addr < 0x2000; addr++)
+        c->bus.wram[addr] = o->bus.wram[addr];
+}
+
+uint16_t native_stop_dont_care_direct;
+
+void native_dont_care_at_stop(Snes *s, uint16_t dont_care)
+{
+    Job *j = current_job;
+    if (j && j->m == s)
+        j->stop_dont_care = dont_care;
+    else
+        native_stop_dont_care_direct = dont_care;
+}
+
 /* ---- intercept -------------------------------------------------------------- */
 
 static bool interrupt_deliverable(const Snes *s)
@@ -654,6 +676,9 @@ static void compare(NativeRuntime *rt, Active *a, Snes *s, uint16_t dont_care, c
      * vblank passed while the original ran with NMI disabled. */
     if (s->frame != a->segment_frame)
         a->clone->ppu.oam_addr = s->ppu.oam_addr;
+    /* What the original pushed and pulled again since the segment began is dead
+     * (native_copy_popped_stack). */
+    native_copy_popped_stack(s, a->clone, a->segment_low_s);
     char why[200], msg[256];
     if (compare_machines(s, a->clone, dont_care, a->since, why, sizeof why)) {
         a->mismatched = true;
@@ -767,8 +792,10 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         a->segment_interrupt_horizon = snes_interrupt_horizon(s);
         memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
         a->segment_interrupted = false;
+        a->segment_low_s = s->cpu.s;
     }
     if (j->state == JOB_DONE) {
+        a->ret_dont_care = j->stop_dont_care;
         job_put(j);
         a->job = NULL;
         a->ret_s = m->cpu.s;
@@ -790,7 +817,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         if (!a->job) {
             if (s->cpu.s == a->ret_s && pc == a->ret_pc) {
                 end_segment(rt, a, s);
-                compare(rt, a, s, a->entry->dont_care, "at return");
+                compare(rt, a, s, a->entry->dont_care | a->ret_dont_care, "at return");
                 finish(rt);
                 return true;
             }
@@ -1550,6 +1577,7 @@ static bool oracle_run(NativeRuntime *rt, const NativeEntry *e, NativeStats *st,
     a->entry_s = s->cpu.s;
     a->job = job_get();
     a->job->entry = e;
+    a->job->stop_dont_care = 0;
     a->job->m = s;
     s->bus.clocks = 0;
     job_run(a->job);
@@ -1624,6 +1652,14 @@ static int32_t intercept(void *ctx, Snes *s)
             return spend;   /* the time, or -1: the interpreter takes the interrupt */
     }
 
+    if (rt->mode == NATIVE_SHADOW) {
+        for (int i = 0; i < rt->nactive; i++) {
+            Active *a = &rt->active[i];
+            if (a->phase == PH_SEGMENT && s->cpu.s < a->segment_low_s)
+                a->segment_low_s = s->cpu.s;
+        }
+    }
+
     int32_t result = -1;
     while (rt->nactive > 0 && check_top(rt, s, pc, &result)) {
         if (result >= 0)
@@ -1690,6 +1726,7 @@ static int32_t intercept(void *ctx, Snes *s)
         a->entry_s = s->cpu.s;
         a->job = job_get();
         a->job->entry = e;
+        a->job->stop_dont_care = 0;
         if (rt->mode == NATIVE_SHADOW) {
             clone_refresh(rt, a, s);
         } else {

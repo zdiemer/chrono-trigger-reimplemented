@@ -795,7 +795,7 @@ comparison allows per-segment lag.
 
 | Path | What |
 |---|---|
-| `runtime/platform/audio.h` | `au_driver_write`, `au_driver_read`, `au_driver_run_direct`, `au_driver_call` (the protocol level, below `au_command`); `AuBackend`, `au_select_backend` |
+| `runtime/platform/audio.h` | `au_driver_write`, `au_driver_read`, `au_driver_run_direct`, `au_driver_call` (the protocol level, below `au_command`; the call-out takes the callee's don't-care set since the $C7 pilot, RECOMP.md); `AuBackend`, `au_select_backend` |
 | `runtime/platform/snes/audio.h` | the SNES backend, which hands the protocol-level calls to APU-direct while one of its runs is in progress |
 | `runtime/platform/direct/` | APU-direct: synchronous runs of the driver, the APU's lead, the sample buffer |
 | `runtime/apu/apu.c` | `Apu.lead`, `apu_run_ahead` |
@@ -838,7 +838,9 @@ not, now goes through the service:
 - The driver (`core/sound_driver.c`): the upload `$C7:0000` (stops at its wait
   loops, which are idle entries, and entries `$C7:005F`, `$C7:007D`,
   `$C7:00B0`, `$C7:00FB` continue after them; the delay loop at `$C7:0118`
-  and the rest of the routine have no port access and stay in the original),
+  and the rest of the routine have no port access and stayed in the original
+  until the $C7 pilot made the countdown an idle entry, `$C7:011B`, and the
+  rest `$C7:011E`),
   the counter send `$C7:09DA` and resend `$C7:09EA`, command `$70`'s echo
   (`$C7:08FF`), command `$71`'s upload (`$C7:07AE`, inlined in the command),
   the resends after a block header, the slot moves or the `$2F00` header gets
@@ -848,7 +850,9 @@ not, now goes through the service:
   `00F6`, `060C`, `08CD`, `08D5`, `08FA`, `0912`, `091A`, `09F2`, with
   `0635`, `0A71`, `09E0`, `0A8B` from before). Every entry but `$C7:0000` and
   `$C7:0004`, which set it themselves, is guarded on a data bank that reaches
-  the registers (`sound_driver_bank_is_system`); no movie call is refused.
+  the registers (since the $C7 pilot, on the driver's data bank `$00` and
+  direct page `$1E00`, `sound_driver_frame_is_set`, as its work RAM is named
+  in bank 0); no movie call is refused.
 - The battle: the pause `$CD:3E49` (the "battle poll": `$CD:3E44` tests
   `$CD02` every frame and, while paused, sends `$F5` through `au_command`, and
   `$CD:3E65` sends it again when the pause ends; the test itself stays in the

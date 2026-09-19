@@ -24,11 +24,15 @@ typedef void (*NativeFn)(Snes *s);
 
 /* Registers and flags no caller reads after a routine returns, from
  * `python3 -m tools.disasm --calls ...` (disasm/out/liveness.json). Shadow
- * validation doesn't compare them. Bit order matches tools/disasm/liveness.py. */
+ * validation doesn't compare them. Bit order matches tools/disasm/liveness.py.
+ * DC_AH, which liveness doesn't produce, is A's high byte alone: A's low byte is
+ * still compared (code that works on an 8-bit A leaves the high byte to
+ * whatever 16-bit arithmetic last put there, and nothing reads it). */
 enum {
     DC_A = 1 << 0, DC_X = 1 << 1, DC_Y = 1 << 2,
     DC_N = 1 << 3, DC_V = 1 << 4, DC_Z = 1 << 5, DC_C = 1 << 6,
-    DC_DB = 1 << 7, DC_D = 1 << 8,
+    DC_DB = 1 << 7, DC_D = 1 << 8, DC_AH = 1 << 9,
+    DC_FLAGS = DC_N | DC_V | DC_Z | DC_C,
 };
 
 typedef struct NativeEntry {
@@ -172,6 +176,23 @@ void native_report(const NativeRuntime *rt, FILE *out);
  * in out, if the machines differ in anything CPU-side code can observe
  * (ignoring dont_care registers and flags, and state HDMA changes with time). */
 bool native_compare(const Snes *original, const Snes *native, uint16_t dont_care, char *out, size_t n);
+
+/* Stack bytes the original pushed and pulled again are dead: nothing reads
+ * below S, and the next push overwrites them. Shadow mode doesn't compare the
+ * ones between the lowest S the original reached since the last comparison
+ * and its S now, so a port need not reproduce the frames of the subroutines it
+ * inlines or the P bytes a callee saves and restores (docs/PORTING.md, Modes).
+ * This copies them from the original into the native machine, for a tool that
+ * compares the two itself (ct_fuzz). Bank 0's work RAM only. */
+void native_copy_popped_stack(const Snes *original, Snes *native, uint16_t lowest_s);
+
+/* For native routines that stop at an instruction of the original rather than
+ * returning (setting PC): registers and flags that nothing reads at that point
+ * before setting them, which SHADOW mode then doesn't compare there, on top of
+ * the entry's dont_care. Outside the runtime (ct_fuzz) the last value is kept
+ * in native_stop_dont_care_direct, which the tool clears before each call. */
+void native_dont_care_at_stop(Snes *s, uint16_t dont_care);
+extern uint16_t native_stop_dont_care_direct;
 
 /* Nonzero if any shadow comparison failed. */
 int native_failed(const NativeRuntime *rt);

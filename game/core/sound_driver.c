@@ -1,129 +1,125 @@
-/* The CPU side of the sound driver interface in bank C7.
+/* The CPU half of the sound driver, in bank C7.
  *
- * At boot the game uploads the driver to the SPC700 ($C7:0000, over the boot
- * ROM's protocol). Afterwards callers put a command in $1E00 and its parameters
- * in $1E01-$1E03 and JSL to $C7:0004. The routines run with the data bank at
- * $00 and the direct page at $1E00, so the cells below are named by their
- * direct page offset ($00 = $1E00). They talk to the SPC700 through the APU
- * ports, only through the audio service's driver calls (platform/audio.h): they
- * write parameters to ports 1-3 and a value to port 0, then wait in a loop until
- * the SPC700 echoes that value on port 0. Commands $18-$2F and $80-$FF are sent
- * that way directly; commands $10, $11, $14 and $15 send the song command and
- * then upload data blocks three bytes at a time, each write to port 0 a counter
- * kept in $84 (the `JSR $09DA` echo waits).
+ * The sound driver proper runs on the SPC700. This is the code on the CPU that
+ * uploads it at boot ($C7:0000) and then sends it commands: a caller puts a
+ * command in $1E00 and its parameters in $1E01-$1E03 and calls $C7:0004 (the
+ * audio service's au_command does exactly that). The driver
  *
- * The wait loops depend on the SPC700 running while the CPU polls, so with the
- * SNES backend they stay loops: the native routines stop with PC at a loop's
- * first instruction (or call out to the subroutines $09DA and $09EA, which
- * contain one), further entries pick up where a loop exits, and the loops are
- * idle entries taking the loop's own time per pass in ON mode. With APU-direct
- * the entries at $C7:0000 and $C7:0004 run all of that synchronously
- * (au_driver_run_direct), the waits running the SPC700 instead.
+ * - sends most commands as they are: the parameters to APU ports 3-1, the
+ *   command to port 0, then it waits for the SPC700 to echo the command;
+ * - for a song (commands $10, $11, $14 and $15), sends the song's command and
+ *   then uploads what the song needs that the SPC700 doesn't have yet: the
+ *   blocks it uses, into memory slots after the driver's own data (moving the
+ *   blocks it keeps down first), three small tables about them, its sequence,
+ *   and twelve three-byte entries;
+ * - for command $70, switches between the two data sets at SPC700 $2F00;
+ * - for command $71, uploads one block into a given slot.
  *
- * Every entry but those two addresses the ports through the data bank in the
- * original, so they are guarded on a data bank that reaches the registers
- * (sound_driver_bank_is_system); the two set it to $00 themselves. */
+ * Uploads follow Square's protocol on top of the ports. A header gives the
+ * SPC700 address on ports 3-2 and a kind on port 1; the data then goes three
+ * bytes at a time on ports 1-3. Every message ends with a counter on port 0
+ * that the SPC700 echoes; it starts at $E0 for a header and goes up by one,
+ * masked to 7 bits ($C7:09DA). The SPC700 answers a header it takes with its
+ * kind on port 1; otherwise the driver sends the counter again ($C7:09EA),
+ * which starts it over, and repeats the header.
+ *
+ * How the port is built. Each wait for the SPC700 is a loop in the original
+ * that has to keep running on the machine while the SPC700 runs, so the port
+ * stops at each one (it hands PC back to the original at the loop, which is an
+ * idle entry taking the loop's own time per pass) and the code after a loop is
+ * an entry of its own; the counter exchange, which waits, is called out to.
+ * Every access to the ports goes through the audio service's driver calls
+ * (platform/audio.h), which sync the machine first, since the SPC700 watches
+ * when the ports change; a message's port writes are attributed to the
+ * exchange that ends it (its JSR $09DA).
+ *
+ * Each routine is a C function of what it does, in values (sound_driver_* is
+ * its registered entry, at the end of the file, which only moves the original's
+ * registers in and out), and the functions it calls out to are reached through
+ * stubs that set just the registers the callee takes. Work RAM is named from
+ * game/ram.h and addressed in bank 0, where the original reaches it through the
+ * direct page $1E00 and the data bank $00; every entry but the two the game
+ * calls, which set both, is guarded on them. Scratch cells the original uses
+ * along the way are still written, since the game can see them. What the
+ * driver reads from the ROM goes through core/sound_data.h. */
 #include "core/sound_driver.h"
 
+#include "core/sound_data.h"
 #include "platform/audio.h"
 #include "port/machine.h"
+#include "ram.h"
 
-#define M8_X16 CPU_FLAG_M
-#define M16_X16 0
+/* ---- Work RAM ---------------------------------------------------------------------- */
 
-/* The driver's code: APU-direct runs it while PC stays in here. */
-#define DRIVER_FIRST 0xC70000
-#define DRIVER_LAST 0xC70FFF
+#define COMMAND RAM_ABS(RAM_SOUND_COMMAND)
+#define PARAMETERS RAM_ABS(RAM_SOUND_COMMAND_PARAMETERS)
+#define SONG RAM_ABS(RAM_SOUND_DRIVER_SONG)
+#define UNUSED_0A RAM_ABS(RAM_SOUND_DRIVER_UNUSED_0A)
+#define WORK RAM_ABS(RAM_SOUND_DRIVER_WORK)
+#define SONG_IDS_END RAM_ABS(RAM_SOUND_DRIVER_SONG_IDS_END)
+#define SET_2F00 RAM_ABS(RAM_SOUND_DRIVER_2F00_SET)
+#define SET_2F00_SENT RAM_ABS(RAM_SOUND_DRIVER_2F00_SET_SENT)
+#define DATA_POINTER RAM_ABS(RAM_SOUND_DRIVER_DATA_POINTER)
+/* While play_song sorts a song's ids, the pointer's first two bytes and the two
+ * after them are two 16-bit pointers into the lists. */
+#define LIST_POINTER (DATA_POINTER + 2)
+#define LOAD_SLOT RAM_ABS(RAM_SOUND_DRIVER_LOAD_SLOT)
+#define LOAD_INDEX RAM_ABS(RAM_SOUND_DRIVER_LOAD_INDEX)
+#define SLOT_IDS RAM_ABS(RAM_SOUND_DRIVER_SLOT_IDS)
+#define SLOT_LENGTHS RAM_ABS(RAM_SOUND_DRIVER_SLOT_LENGTHS)
+#define SLOT_ADDRESSES RAM_ABS(RAM_SOUND_DRIVER_SLOT_ADDRESSES)
+#define INDEX_SCRATCH RAM_ABS(RAM_SOUND_DRIVER_INDEX_SCRATCH)
+#define COUNTER RAM_ABS(RAM_SOUND_DRIVER_UPLOAD_COUNTER)
+#define HEADER_KIND RAM_ABS(RAM_SOUND_DRIVER_HEADER_KIND)
+#define RESERVE RAM_ABS(RAM_SOUND_DRIVER_RESERVE)
+#define UNUSED_F1 RAM_ABS(RAM_SOUND_DRIVER_UNUSED_F1)
+#define SLOT_LIMIT RAM_ABS(RAM_SOUND_DRIVER_SLOT_LIMIT)
+#define PENDING_2F00 RAM_ABS(RAM_SOUND_DRIVER_2F00_PENDING)
+#define FREE_ADDRESS RAM_ABS(RAM_SOUND_DRIVER_FREE_ADDRESS)
+#define BASE_ADDRESS RAM_ABS(RAM_SOUND_DRIVER_BASE_ADDRESS)
+#define UNUSED_FA RAM_ABS(RAM_SOUND_DRIVER_UNUSED_FA)
+#define UPLOAD_SLOT RAM_ABS(RAM_SOUND_DRIVER_UPLOAD_SLOT)
+#define SONG_IDS RAM_ABS(RAM_SOUND_DRIVER_SONG_IDS)
+#define MISSING_IDS RAM_ABS(RAM_SOUND_DRIVER_MISSING_IDS)
+#define ADDRESS_TABLE RAM_ABS(RAM_SOUND_DRIVER_ADDRESS_TABLE)
 
-bool sound_driver_bank_is_system(Snes *s) { return m_io_bank(s->cpu.db); }
+enum { DRIVER_PAGE_SIZE = 0x100 };
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
-
-/* dp,X: the direct page cell plus X, wrapping within bank 0. */
-static uint32_t dpx(Snes *s, uint8_t cell, uint16_t offset) { return (uint16_t)(s->cpu.d + cell + s->cpu.x + offset); }
-static uint8_t dpx8(Snes *s, uint8_t cell) { return m_read8(s, dpx(s, cell, 0)); }
-static void set_dpx8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, dpx(s, cell, 0), v); }
-static uint16_t dpx16(Snes *s, uint8_t cell)
+/* The slot tables hold a word per slot, and the driver indexes them with the
+ * slot number times 2, which is what a `slot` holds below. It reaches them
+ * through the direct page, so an index past the tables wraps within bank 0;
+ * the tables are 16 slots, SLOTS_END past the first. */
+enum { SLOTS_END = 16 * 2 };
+static uint16_t slot_word(Snes *s, uint16_t table, uint16_t slot) { return m_read16(s, (uint16_t)(table + slot)); }
+static void set_slot_word(Snes *s, uint16_t table, uint16_t slot, uint16_t v)
 {
-    return (uint16_t)(m_read8(s, dpx(s, cell, 0)) | m_read8(s, dpx(s, cell, 1)) << 8);
+    m_write16(s, (uint16_t)(table + slot), v);
 }
-static void set_dpx16(Snes *s, uint8_t cell, uint16_t v)
+static uint8_t slot_byte(Snes *s, uint16_t table, uint16_t at) { return m_read8(s, (uint16_t)(table + at)); }
+static void set_slot_byte(Snes *s, uint16_t table, uint16_t at, uint8_t v) { m_write8(s, (uint16_t)(table + at), v); }
+
+/* The id lists and the slot tables where the original reaches them through
+ * the data bank ($00), so an index past the end runs on into bank 1. */
+static uint16_t list_word(Snes *s, uint16_t table, uint16_t at) { return m_read16(s, (uint32_t)table + at); }
+static void set_list_word(Snes *s, uint16_t table, uint16_t at, uint16_t v) { m_write16(s, (uint32_t)table + at, v); }
+
+/* ---- The machine at the driver's edges ----------------------------------------------
+ *
+ * From here to "The protocol": the translation between the original's
+ * registers and the C, which a build for the 65816 replaces with its own
+ * calling convention. The driver runs with 16-bit index registers throughout;
+ * A is 8-bit except where a routine says. */
+
+static void set_widths(Snes *s, bool a16)
 {
-    m_write8(s, dpx(s, cell, 0), v & 0xFF);
-    m_write8(s, dpx(s, cell, 1), v >> 8);
+    s->cpu.p = (uint8_t)((s->cpu.p & ~(CPU_FLAG_M | CPU_FLAG_X)) | (a16 ? 0 : CPU_FLAG_M));
 }
+static void set_a_low(Snes *s, uint8_t v) { s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | v); }
 
-/* abs,X and abs,Y in the data bank, carrying into the next bank. */
-static uint32_t absx(Snes *s, uint16_t addr) { return m_abs(s, addr) + s->cpu.x; }
-static uint32_t absy(Snes *s, uint16_t addr) { return m_abs(s, addr) + s->cpu.y; }
-
-/* [dp],Y: the 24-bit pointer in the cell plus Y. */
-static uint32_t long_y(Snes *s, uint8_t cell)
-{
-    uint32_t p = (uint32_t)dp8(s, cell) | (uint32_t)dp8(s, (uint8_t)(cell + 1)) << 8 |
-                 (uint32_t)dp8(s, (uint8_t)(cell + 2)) << 16;
-    return (p + s->cpu.y) & 0xFFFFFF;
-}
-
-/* (dp): the 16-bit pointer in the cell, in the data bank. */
-static uint32_t ind(Snes *s, uint8_t cell) { return m_abs(s, dp16(s, cell)); }
-
-/* STA $2140+port at $C7:at, and LDA/CMP $2140+port at $C7:at. The service syncs
- * first: the SPC700 reads ports 1-3 soon after it sees port 0 change, so the
- * time the original spent before each access has to have passed by then. */
-static void port_write(Snes *s, uint16_t at, uint8_t port, uint8_t v)
-{
-    au_driver_write(m_platform(s), PF_AT(0xC70000 | at), port, v);
-}
-static uint8_t port_read(Snes *s, uint16_t at, uint8_t port)
-{
-    return au_driver_read(m_platform(s), PF_AT(0xC70000 | at), port);
-}
-
-static void clc(Snes *s) { m_set_flag(s, CPU_FLAG_C, false); }
-static void inx(Snes *s) { m_set_index(s, &s->cpu.x, (uint16_t)(s->cpu.x + 1)); }
-static void iny(Snes *s) { m_set_index(s, &s->cpu.y, (uint16_t)(s->cpu.y + 1)); }
-static void dex(Snes *s) { m_set_index(s, &s->cpu.x, (uint16_t)(s->cpu.x - 1)); }
-static void dey(Snes *s) { m_set_index(s, &s->cpu.y, (uint16_t)(s->cpu.y - 1)); }
-
-/* INC dp at 8 and 16 bits. */
-static void inc_dp8(Snes *s, uint8_t cell)
-{
-    uint8_t v = (uint8_t)(dp8(s, cell) + 1);
-    set_dp8(s, cell, v);
-    m_set_nz8(s, v);
-}
-
-static void inc_dp16(Snes *s, uint8_t cell)
-{
-    uint16_t v = (uint16_t)(dp16(s, cell) + 1);
-    set_dp16(s, cell, v);
-    m_set_nz16(s, v);
-}
-
-/* INC A, 8-bit. */
-static uint8_t inc_a8(Snes *s) { return m_lda8(s, (uint8_t)(s->cpu.a + 1)); }
-
-/* ROL A, 8-bit. */
-static uint8_t rol_a8(Snes *s)
-{
-    uint8_t a = (uint8_t)s->cpu.a;
-    uint8_t r = (uint8_t)(a << 1 | (m_flag(s, CPU_FLAG_C) ? 1 : 0));
-    m_set_flag(s, CPU_FLAG_C, a & 0x80);
-    return m_lda8(s, r);
-}
-
-static uint16_t pull16_nz(Snes *s)
-{
-    uint16_t v = m_pull16(s);
-    m_set_nz16(s, v);
-    return v;
-}
-
-static void plp(Snes *s)
+/* PHP and PLP, for a routine that saves the caller's P at entry and restores it
+ * on the way out; with 8-bit index registers, PLP truncates X and Y. */
+static void save_p(Snes *s) { m_push8(s, s->cpu.p); }
+static void restore_p(Snes *s)
 {
     s->cpu.p = m_pull8(s);
     if (s->cpu.p & CPU_FLAG_X) {
@@ -132,1657 +128,1301 @@ static void plp(Snes *s)
     }
 }
 
-/* JSR from $C7:site to $C7:target, a routine that waits for the SPC700; false
- * if the port has to stop: the callee came back with other register widths than
- * `widths` (the port then stops at the return address), or didn't come back
- * (it unwound the caller's frame, or APU-direct gave up waiting). */
-static bool jsr(Snes *s, uint16_t site, uint16_t target, uint8_t widths)
+/* Where a routine hands the machine back to the original: one of its wait
+ * loops. The loop compares port 0 with A's low byte, and a counted one gives
+ * up after X runs down from $0400. `dead`: what is left as it happens to be
+ * (the flags, which every loop sets before it tests them, and the registers
+ * the code after the loop sets before reading), which shadow mode doesn't
+ * compare there. */
+typedef enum {
+    WAIT_COMMAND_ECHO,       /* $C7:0635, then $C7:0643 or, given up, $C7:063D */
+    WAIT_SONG_ECHO,          /* $C7:0A71, then $C7:0A7B or $C7:0A79 */
+    WAIT_SONG_REFUSED,       /* $C7:0A8B: port 0 to change, then $C7:0A90 */
+    WAIT_UPLOAD_END,         /* $C7:060C, then $C7:0614 */
+    WAIT_SLOT_UPLOAD_END,    /* $C7:08CD, then the change wait $C7:08D5 */
+    WAIT_2F00_COMMAND_ECHO,  /* $C7:08FA, then $C7:08FF */
+    WAIT_2F00_END,           /* $C7:0912, then the change wait $C7:091A */
+} Wait;
+
+static const struct {
+    uint16_t loop;
+    bool counted;
+    uint16_t dead;
+} waits[] = {
+    [WAIT_COMMAND_ECHO] = { 0x0635, true, DC_AH | DC_Y },
+    [WAIT_SONG_ECHO] = { 0x0A71, true, DC_AH },
+    [WAIT_SONG_REFUSED] = { 0x0A8B, false, DC_AH | DC_X },
+    [WAIT_UPLOAD_END] = { 0x060C, true, DC_AH | DC_Y },
+    [WAIT_SLOT_UPLOAD_END] = { 0x08CD, true, DC_AH | DC_Y },
+    [WAIT_2F00_COMMAND_ECHO] = { 0x08FA, false, DC_AH | DC_X | DC_Y },
+    [WAIT_2F00_END] = { 0x0912, true, DC_AH | DC_Y },
+};
+
+enum { ECHO_TRIES = 0x0400 };
+
+static void stop_at(Snes *s, uint16_t loop, uint16_t dead)
 {
-    au_driver_call(m_platform(s), PF_CALL(0xC70000 | site, 0xC70000 | target));
-    return cpu_pc24(&s->cpu) == (0xC70000 | (uint16_t)(site + 3)) && !s->cpu.e &&
-           (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == widths;
+    s->cpu.pc = loop;
+    m_stop_dont_care(s, (uint16_t)(dead | DC_FLAGS));
 }
 
-/* LDA $84 : JSR $09DA (the call at `site`) [: STA $84] -- write the upload
- * counter to port 0 and wait for its echo; $09DA returns the next counter. */
-static bool send_counter(Snes *s, uint16_t site, bool keep)
-{
-    m_lda8(s, dp8(s, 0x84));
-    if (!jsr(s, site, 0x09DA, M8_X16))
-        return false;
-    if (keep)
-        set_dp8(s, 0x84, (uint8_t)s->cpu.a);
-    return true;
-}
+/* How a driver routine ends, which its entry carries out. */
+typedef enum {
+    END_RETURN,   /* back to the driver's caller (leave_driver) */
+    END_WAIT,     /* at `wait`, for `value` */
+    END_LOST,     /* a call-out didn't come back: leave the machine where it is */
+} EndKind;
+typedef struct {
+    EndKind kind;
+    Wait wait;
+    uint8_t value;
+} End;
 
-/* LDA #$E0 : JSR $09DA (at `site`) : STA $84 -- a block header's counter. */
-static bool send_first_counter(Snes *s, uint16_t site)
-{
-    m_lda8(s, 0xE0);
-    if (!jsr(s, site, 0x09DA, M8_X16))
-        return false;
-    set_dp8(s, 0x84, (uint8_t)s->cpu.a);
-    return true;
-}
+static End end_return(void) { return (End){ END_RETURN, 0, 0 }; }
+static End end_lost(void) { return (End){ END_LOST, 0, 0 }; }
+static End end_wait(Wait wait, uint8_t value) { return (End){ END_WAIT, wait, value }; }
 
-/* LDA [$12],Y : STA $2141 : INY, and likewise for ports 2 and 3, then the
- * counter (`site`: the JSR $09DA, $12 bytes after the first STA). */
-static bool send_three_bytes(Snes *s, uint16_t site)
-{
-    for (uint8_t port = 1; port <= 3; port++) {
-        port_write(s, (uint16_t)(site - 0x12 + (port - 1) * 6), port, m_lda8(s, m_read8(s, long_y(s, 0x12))));
-        iny(s);
-    }
-    return send_counter(s, site, true);
-}
-
-/* The same where the data may cross into the next bank: INY : BNE : INC $14
- * after each byte (the JSR $09DA $1E bytes after the first STA). */
-static bool send_three_bytes_long(Snes *s, uint16_t site)
-{
-    for (uint8_t port = 1; port <= 3; port++) {
-        port_write(s, (uint16_t)(site - 0x1E + (port - 1) * 10), port, m_lda8(s, m_read8(s, long_y(s, 0x12))));
-        iny(s);
-        if (s->cpu.y == 0)
-            inc_dp8(s, 0x14);
-    }
-    return send_counter(s, site, true);
-}
-
-/* X bytes from [$12],Y three at a time (DEX x3 after each), where the data ends
- * at or before the end of the bank (C clear after the caller's TYA : ADC $0C)
- * or not. Loops while X is nonzero, or with `while_positive` while X is
- * positive. `site` and `site_long` are the loops' JSR $09DA. */
-static bool send_data(Snes *s, uint16_t site, uint16_t site_long, bool while_positive)
-{
-    bool crosses = m_flag(s, CPU_FLAG_C);
-    do {
-        if (!(crosses ? send_three_bytes_long(s, site_long) : send_three_bytes(s, site)))
-            return false;
-        dex(s);
-        dex(s);
-        dex(s);
-    } while (while_positive ? !(s->cpu.x & 0x8000) : s->cpu.x != 0);
-    return true;
-}
-
-/* LDA [$12],Y : STA cell : INY : BNE : INC $14 */
-static uint8_t read_header_byte(Snes *s)
-{
-    uint8_t v = m_lda8(s, m_read8(s, long_y(s, 0x12)));
-    iny(s);
-    if (s->cpu.y == 0)
-        inc_dp8(s, 0x14);
-    return v;
-}
-
-/* [SEP #$20 :] LDA #hi : STA $2143 : LDA #lo : STA $2142 : LDA #cmd : STA $2141,
- * then the counter (the JSR $09DA at `site`) and LDA #cmd : CMP $2141. While the
- * SPC700 answers something else, JSR $09EA (site + $0C) to start the counter
- * over and send the header again. False if the port stops after a call-out. */
-static bool send_block_header(Snes *s, uint16_t site, uint8_t hi, uint8_t lo, uint8_t cmd)
-{
-    for (;;) {
-        m_sep(s, CPU_FLAG_M);
-        port_write(s, (uint16_t)(site - 0x0F), 3, m_lda8(s, hi));
-        port_write(s, (uint16_t)(site - 0x0A), 2, m_lda8(s, lo));
-        port_write(s, (uint16_t)(site - 0x05), 1, m_lda8(s, cmd));
-        if (!send_counter(s, site, true))
-            return false;
-        uint8_t want = m_lda8(s, cmd);
-        uint8_t got = port_read(s, (uint16_t)(site + 0x07), 1);
-        m_cmp8(s, want, got);
-        if (want == got)
-            return true;
-        if (!jsr(s, (uint16_t)(site + 0x0C), 0x09EA, M8_X16))
-            return false;
-    }
-}
-
-/* LDA #$E0 : STA $84 */
-static void reset_counter(Snes *s) { set_dp8(s, 0x84, m_lda8(s, 0xE0)); }
-
-// $C7:0192
-/* The driver's common exit: clear the command in $00, restore Y, X, A, P, the
- * direct page and the data bank, and return to the JSL. */
-static void driver_return(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x00, 0x00);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    c->y = pull16_nz(s);
-    c->x = pull16_nz(s);
-    c->a = pull16_nz(s);
-    plp(s);
-    c->d = pull16_nz(s);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    m_rtl(s);
-}
-
-/* $C7:0038 / $C7:0140: PHB : PHD : PHP : REP #$30 : PHA : PHX : PHY, then the
- * data bank $00 and the direct page $1E00. */
-static void driver_enter(Snes *s)
+// $C7:0140
+/* The prologue of the entries the game calls (and the boot's copy at
+ * $C7:0038): save the caller's data bank, direct page, P, A, X and Y on the
+ * stack, 16-bit, and set the data bank $00 and direct page $1E00 the driver
+ * runs with. The original leaves A's low byte 0 and X $1E00. */
+static void enter_driver(Snes *s)
 {
     Cpu *c = &s->cpu;
     m_push8(s, c->db);
     m_push16(s, c->d);
     m_push8(s, c->p);
-    m_rep(s, CPU_FLAG_M);
-    m_rep(s, CPU_FLAG_X);
     m_push16(s, c->a);
     m_push16(s, c->x);
     m_push16(s, c->y);
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, 0x00);
-    m_push8(s, (uint8_t)c->a);
+    set_widths(s, false);
+    set_a_low(s, 0);
+    c->db = 0x00;
+    c->d = RAM_PAGE_SOUND;
+    c->x = RAM_PAGE_SOUND;
+}
+
+// $C7:0192
+/* The driver's common exit: the command is done, so clear it, and restore the
+ * caller's registers. N and Z come out of the data bank, which is restored
+ * last. */
+static void leave_driver(Snes *s)
+{
+    Cpu *c = &s->cpu;
+    m_write8(s, COMMAND, 0);
+    c->y = m_pull16(s);
+    c->x = m_pull16(s);
+    c->a = m_pull16(s);
+    restore_p(s);
+    c->d = m_pull16(s);
     c->db = m_pull8(s);
     m_set_nz8(s, c->db);
-    m_ldx(s, 0x1E00);
-    m_push16(s, c->x);
-    c->d = pull16_nz(s);
+    m_rtl(s);
 }
 
-/* ---- boot: the driver upload ------------------------------------------------ */
-
-// $C7:0000
-/* The JSL entry for the upload (a JMP to $C7:0038): save the registers, set the
- * data bank and direct page as the command entry does, and X = $BBAA for the
- * wait for the boot ROM's announcement at $C7:0050, where the port stops. */
-void sound_driver_boot(Snes *s)
+static void finish(Snes *s, End e)
 {
-    if (au_driver_run_direct(m_platform(s), DRIVER_FIRST, DRIVER_LAST))
-        return;
-    driver_enter(s);
-    m_ldx(s, 0xBBAA);
-    s->cpu.pc = 0x0050;
-}
-
-// $C7:0050
-/* LDA #$F0 : STA $2141 : LDA #$FF : STA $2140 : CPX $2140 : BNE loop -- until
- * ports 0-1 read $BBAA. Idle entry, 8-bit A and 16-bit X; exits to $C7:005F. */
-void sound_driver_boot_wait_ready_loop(Snes *s)
-{
-    port_write(s, 0x0052, 1, m_lda8(s, 0xF0));
-    port_write(s, 0x0057, 0, m_lda8(s, 0xFF));
-    uint16_t v = port_read(s, 0x005A, 0);
-    v |= (uint16_t)(port_read(s, 0x005A, 1) << 8);
-    m_cmp16(s, s->cpu.x, v);
-    if (s->cpu.x == v)
-        s->cpu.pc = 0x005F;
-}
-
-// $C7:005F
-/* The first block's address (the word at $C7:001C) to ports 2-3, and $CC to
- * ports 1 and 0: the boot ROM's start. X = 0; stops at the echo wait at
- * $C7:0078. */
-void sound_driver_boot_start(Snes *s)
-{
-    m_ldx(s, 0x0000);
-    port_write(s, 0x0066, 2, m_lda8(s, m_read8(s, 0xC7001C)));
-    port_write(s, 0x006D, 3, m_lda8(s, m_read8(s, 0xC7001D)));
-    m_lda8(s, 0xCC);
-    port_write(s, 0x0072, 1, 0xCC);
-    port_write(s, 0x0075, 0, 0xCC);
-    s->cpu.pc = 0x0078;
-}
-
-/* LDA [$12],Y : STA $2141 : XBA : STA $2140 -- a byte of the block and its
- * index (B), then the echo wait at $C7:00AB, where the port stops. */
-static void boot_send_byte(Snes *s)
-{
-    port_write(s, 0x00A4, 1, m_lda8(s, m_read8(s, long_y(s, 0x12))));
-    m_xba(s);
-    port_write(s, 0x00A8, 0, (uint8_t)s->cpu.a);
-    s->cpu.pc = 0x00AB;
-}
-
-// $C7:007D
-/* Block X/2: B = 0 (the byte index), [$12] = the pointer at $C7:0010,X (bank
- * $C7), $0C = its 16-bit length + 2 (the length word counts), Y past the length,
- * then the first byte (boot_send_byte). */
-void sound_driver_boot_block(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_lda8(s, 0x00);
-    m_xba(s);
-    set_dp8(s, 0x12, m_lda8(s, m_read8(s, 0xC70010 + c->x)));
-    set_dp8(s, 0x13, m_lda8(s, m_read8(s, 0xC70011 + c->x)));
-    set_dp8(s, 0x14, m_lda8(s, 0xC7));
-    m_ldy(s, 0x0000);
-    m_lda8(s, m_read8(s, long_y(s, 0x12)));
-    clc(s);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0x02));
-    set_dp8(s, 0x0C, (uint8_t)c->a);
-    iny(s);
-    m_lda8(s, m_read8(s, long_y(s, 0x12)));
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0x00));
-    set_dp8(s, 0x0D, (uint8_t)c->a);
-    iny(s);
-    boot_send_byte(s);
-}
-
-// $C7:00B0
-/* The byte was echoed: INC A : XBA : INY : CPY $0C : BNE -- the next byte
- * (boot_send_byte). At the block's end, the next index + 3 (skipping 0) goes
- * with the next block's address (the word at $C7:001C,X after INX : INX) to
- * ports 1 and 0, stopping at the echo wait at $C7:00DB; after the last block
- * (X = $0C), the driver's start address $0200 to ports 2-3 and 0 to port 1,
- * stopping at the echo wait at $C7:00F6. */
-void sound_driver_boot_next_byte(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    inc_a8(s);
-    m_xba(s);
-    iny(s);
-    uint16_t end = dp16(s, 0x0C);
-    m_cmp16(s, c->y, end);
-    if (c->y != end) {
-        boot_send_byte(s);
-        return;
+    if (e.kind == END_RETURN) {
+        leave_driver(s);
+    } else if (e.kind == END_WAIT) {
+        set_widths(s, false);
+        set_a_low(s, e.value);
+        if (waits[e.wait].counted)
+            s->cpu.x = ECHO_TRIES;
+        stop_at(s, waits[e.wait].loop, waits[e.wait].dead);
     }
-    /* $C7:00B7 */
-    m_xba(s);
-    inc_a8(s);
-    inc_a8(s);
-    if (inc_a8(s) == 0)
-        inc_a8(s);
-    inx(s);
-    inx(s);
-    m_cmp16(s, c->x, 0x000C);
-    if (c->x != 0x000C) {
-        /* $C7:00C5 */
-        m_xba(s);
-        port_write(s, 0x00CA, 2, m_lda8(s, m_read8(s, 0xC7001C + c->x)));
-        port_write(s, 0x00D1, 3, m_lda8(s, m_read8(s, 0xC7001D + c->x)));
-        m_xba(s);
-        port_write(s, 0x00D5, 1, (uint8_t)c->a);
-        port_write(s, 0x00D8, 0, (uint8_t)c->a);
-        c->pc = 0x00DB;
-        return;
-    }
-    /* $C7:00E2 */
-    m_xba(s);
-    port_write(s, 0x00E5, 3, m_lda8(s, 0x02));
-    port_write(s, 0x00EA, 2, m_lda8(s, 0x00));
-    port_write(s, 0x00EF, 1, m_lda8(s, 0x00));
-    m_xba(s);
-    port_write(s, 0x00F3, 0, (uint8_t)c->a);
-    c->pc = 0x00F6;
 }
 
-// $C7:00FB
-/* The driver started: XBA : STA $2140, then fill $1E00-$1EFF with A, and put
- * $4700 plus the word at $C7:40B4 in $F8, $60 and $F6. Stops at the delay loop
- * at $C7:0118. */
-void sound_driver_boot_started(Snes *s)
+/* A JSR from $C7:site to a driver routine that waits for the SPC700: it runs on
+ * the machine (so frames pass while it waits), with A as wide as the callee
+ * expects it and set where it takes a value (`takes_a`); the rest of the
+ * registers and the flags it only saves and restores. False if it didn't come
+ * back to the instruction after the JSR with the widths it was called with
+ * (APU-direct gave up waiting): the routine then stops where the machine is. */
+static bool call_driver(Snes *s, uint16_t site, uint16_t target, bool a16, bool takes_a)
 {
-    Cpu *c = &s->cpu;
-    m_xba(s);
-    port_write(s, 0x00FC, 0, (uint8_t)c->a);
-    m_ldx(s, 0x0100);
+    set_widths(s, a16);
+    uint16_t untaken = (uint16_t)(DC_X | DC_Y | DC_FLAGS | (takes_a ? DC_AH : DC_A));
+    au_driver_call(m_platform(s), PF_CALL(0xC70000u | site, 0xC70000u | target), untaken);
+    return cpu_pc24(&s->cpu) == (0xC70000u | (uint16_t)(site + 3)) && !s->cpu.e &&
+           (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == (a16 ? 0 : CPU_FLAG_M);
+}
+
+/* $C7:09DA: send `counter` on port 0 and wait for its echo; the next counter
+ * comes back in A. */
+static bool exchange_counter(Snes *s, uint16_t site, uint8_t counter, uint8_t *next)
+{
+    set_a_low(s, counter);
+    if (!call_driver(s, site, 0x09DA, false, true))
+        return false;
+    *next = (uint8_t)s->cpu.a;
+    return true;
+}
+
+/* $C7:09EA: the SPC700 didn't take a header: send the counter again, which
+ * starts it over at $E0. */
+static bool resend_counter(Snes *s, uint16_t site) { return call_driver(s, site, 0x09EA, false, false); }
+
+/* ---- The protocol ---------------------------------------------------------------------- */
+
+enum {
+    COUNTER_FIRST = 0xE0,     /* a header's counter, and the end of an exchange */
+    COUNTER_START_SLOT = 0xFE, /* command $71's opening counter */
+    KIND_TABLE = 2,           /* header kinds: a table of words, two bytes a message */
+    KIND_DATA = 3,            /* data, three bytes a message */
+    KIND_SLOT_DATA = 5,       /* data for a slot (command $71), or the $2F00 set for command $70 */
+    KIND_MOVE = 7,            /* play_song's block moves */
+    SOUND_COMMAND_2F00 = 0xFE, /* command $70's message to the SPC700 */
+};
+
+static void port_write(Snes *s, uint16_t at, uint8_t port, uint8_t v)
+{
+    au_driver_write(m_platform(s), PF_AT(0xC70000u | at), port, v);
+}
+static uint8_t port_read(Snes *s, uint16_t at, uint8_t port)
+{
+    return au_driver_read(m_platform(s), PF_AT(0xC70000u | at), port);
+}
+
+/* A message's two data bytes on ports 1 and 2 (a word, low byte first), or on
+ * ports 2 and 3 (an SPC700 address in a header). */
+static void send_word_12(Snes *s, uint16_t at, uint16_t v)
+{
+    port_write(s, at, 1, v & 0xFF);
+    port_write(s, at, 2, v >> 8);
+}
+static void send_word_23(Snes *s, uint16_t at, uint16_t v)
+{
+    port_write(s, at, 2, v & 0xFF);
+    port_write(s, at, 3, v >> 8);
+}
+
+/* End a message with the upload counter and keep the next one. */
+static bool send_counter(Snes *s, uint16_t site)
+{
+    uint8_t next;
+    if (!exchange_counter(s, site, m_read8(s, COUNTER), &next))
+        return false;
+    m_write8(s, COUNTER, next);
+    return true;
+}
+
+/* The same, where the original doesn't keep the next counter (a header with its
+ * own first counter follows). */
+static bool send_counter_unkept(Snes *s, uint16_t site)
+{
+    uint8_t next;
+    return exchange_counter(s, site, m_read8(s, COUNTER), &next);
+}
+
+/* End a message with `first` (a header's $E0), keeping the next. */
+static bool send_first_counter(Snes *s, uint16_t site, uint8_t first)
+{
+    uint8_t next;
+    if (!exchange_counter(s, site, first, &next))
+        return false;
+    m_write8(s, COUNTER, next);
+    return true;
+}
+
+/* An exchange is over: the next starts with $E0. */
+static void end_exchange(Snes *s) { m_write8(s, COUNTER, COUNTER_FIRST); }
+
+/* A header, repeated after $C7:09EA until the SPC700 answers with `kind` on
+ * port 1. `site` is its JSR $09DA; the resend is $0C bytes on. */
+static bool send_header(Snes *s, uint16_t site, uint16_t to, uint8_t kind)
+{
+    for (;;) {
+        send_word_23(s, site, to);
+        port_write(s, site, 1, kind);
+        if (!send_counter(s, site))
+            return false;
+        if (port_read(s, site, 1) == kind)
+            return true;
+        if (!resend_counter(s, (uint16_t)(site + 0x0C)))
+            return false;
+    }
+}
+
+/* A header the SPC700 isn't asked to confirm, with its own first counter. */
+static bool send_table_header(Snes *s, uint16_t site, uint16_t to)
+{
+    send_word_23(s, site, to);
+    port_write(s, site, 1, KIND_TABLE);
+    return send_first_counter(s, site, COUNTER_FIRST);
+}
+
+/* Where an upload reads its data: the long pointer the original keeps in work
+ * RAM, plus an offset (its Y). Where the data may run into the next bank the
+ * pointer's bank goes up when the offset wraps (`carry`); the original checks
+ * that once and picks one of two loops. */
+typedef struct {
+    uint32_t pointer;
+    uint16_t offset;
+    bool carry;
+} Upload;
+
+/* Upload from `at` the way the original sets up a resource from a table: the
+ * pointer holds just the bank, and the offset the rest. */
+static Upload upload_from(Snes *s, uint32_t at)
+{
+    m_write16(s, DATA_POINTER, 0);
+    m_write8(s, DATA_POINTER + 2, (uint8_t)(at >> 16));
+    return (Upload){ at & 0xFF0000u, (uint16_t)at, true };
+}
+
+/* Upload from `at` with the whole address in the pointer (the boot blocks, the
+ * $2F00 sets and play_song's $F120 entries). */
+static Upload upload_at(Snes *s, uint32_t at, uint16_t offset)
+{
+    m_write16(s, DATA_POINTER, (uint16_t)at);
+    m_write8(s, DATA_POINTER + 2, (uint8_t)(at >> 16));
+    return (Upload){ at, offset, false };
+}
+
+static uint8_t upload_byte(Snes *s, Upload *u)
+{
+    uint8_t v = sound_data_byte(s, u->pointer + u->offset);
+    u->offset++;
+    if (u->offset == 0 && u->carry) {
+        u->pointer += 0x10000u;
+        m_write8(s, DATA_POINTER + 2, (uint8_t)(u->pointer >> 16));
+    }
+    return v;
+}
+
+/* A resource's length prefix, which the original keeps in RAM_SOUND_DRIVER_WORK. */
+static uint16_t upload_length(Snes *s, Upload *u)
+{
+    uint16_t length = upload_byte(s, u);
+    length |= (uint16_t)(upload_byte(s, u) << 8);
+    m_write16(s, WORK, length);
+    return length;
+}
+
+/* Choose the loop for `length` more bytes: the one that carries into the next
+ * bank if the data runs past this one. */
+static void upload_plan(Upload *u, uint16_t length) { u->carry = (uint32_t)u->offset + length > 0xFFFF; }
+
+/* Three bytes on ports 1-3 and the counter. */
+static bool send_three(Snes *s, Upload *u, uint16_t site)
+{
+    for (uint8_t port = 1; port <= 3; port++)
+        port_write(s, site, port, upload_byte(s, u));
+    return send_counter(s, site);
+}
+
+/* `length` bytes, three at a time while the count left isn't zero (the
+ * original's loop; a length that isn't a multiple of 3 runs on through the
+ * count's wrap). `site`, `carry_site`: the two loops' JSR $09DA. */
+static bool send_data(Snes *s, Upload *u, uint16_t length, uint16_t site, uint16_t carry_site)
+{
+    upload_plan(u, length);
+    uint16_t left = length;
     do {
-        m_write8(s, absx(s, 0x1DFF), (uint8_t)c->a);
-        dex(s);
-    } while (c->x != 0);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, m_read16(s, 0xC740B4));
-    clc(s);
-    c->a = m_adc16(s, c->a, 0x4700);
-    set_dp16(s, 0xF8, c->a);
-    set_dp16(s, 0x60, c->a);
-    set_dp16(s, 0xF6, c->a);
-    c->pc = 0x0118;
+        if (!send_three(s, u, u->carry ? carry_site : site))
+            return false;
+        left = (uint16_t)(left - 3);
+    } while (left != 0);
+    return true;
 }
 
-/* ---- commands ----------------------------------------------------------------- */
+/* ---- The reserve ------------------------------------------------------------------- */
+
+/* The SPC700's memory from page $F1 - 8 * reserve up is kept free of blocks. */
+static uint8_t slot_limit_for(uint8_t reserve) { return (uint8_t)(0xF1 - (reserve << 3)); }
 
 // $C7:0A12
-/* (JSR at `site`, inlined.) From the first of the 32 cells at $63 (every
- * other one) that is zero or at least $F2: if it is at least $F2, clear $20,
- * $40 and $62 from that cell's slot up to slot $1F. */
-static void clear_slots_from_f2(Snes *s, uint16_t site)
+/* Forget the slots from the first whose block ends at or past the slot limit
+ * (its id, its length and where it ends, a byte at a time up to the tables'
+ * end), stopping at the first slot that ends at page 0: an empty one. */
+static void forget_slots_past_limit(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push16(s, (uint16_t)(site + 2));
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    m_ldx(s, 0x0000);
-    bool clear = false;
-    do {
-        uint8_t v = m_lda8(s, dpx8(s, 0x63));
-        if (v == 0)
-            break;
-        uint8_t limit = dp8(s, 0xF2);
-        m_cmp8(s, v, limit);
-        if (v >= limit) {
-            clear = true;
-            break;
+    for (uint16_t slot = 0; slot != SLOTS_END; slot += 2) {
+        uint8_t end_page = slot_byte(s, SLOT_ADDRESSES + 3, slot);
+        if (end_page == 0)
+            return;
+        if (end_page >= m_read8(s, SLOT_LIMIT)) {
+            for (uint16_t at = slot; at != SLOTS_END; at++) {
+                set_slot_byte(s, SLOT_IDS, at, 0);
+                set_slot_byte(s, SLOT_LENGTHS, at, 0);
+                set_slot_byte(s, SLOT_ADDRESSES + 2, at, 0);
+            }
+            return;
         }
-        inx(s);
-        inx(s);
-        m_cmp16(s, c->x, 0x0020);
-    } while (c->x != 0x0020);
-    if (clear) {
-        m_lda8(s, 0x00);
-        do {
-            set_dpx8(s, 0x20, (uint8_t)c->a);
-            set_dpx8(s, 0x40, (uint8_t)c->a);
-            set_dpx8(s, 0x62, (uint8_t)c->a);
-            inx(s);
-            m_cmp16(s, c->x, 0x0020);
-        } while (c->x != 0x0020);
     }
-    plp(s);
-    m_pull16(s);
 }
 
 // $C7:09FD
-/* (JSR at `site`, inlined.) Store A in $F0 and $F1 - A * 8 in $F2, then
- * clear slots from $F2 ($C7:0A12). */
-static void set_f0(Snes *s, uint16_t site)
+/* Set the reserve and the slot limit it makes, and forget what's past it. */
+static void set_reserve(Snes *s, uint8_t reserve)
 {
-    Cpu *c = &s->cpu;
-    m_push16(s, (uint16_t)(site + 2));
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0xF0, (uint8_t)c->a);
-    for (int i = 0; i < 3; i++)
-        m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-    m_lda8(s, (uint8_t)(c->a ^ 0xFF));
-    m_lda8(s, (uint8_t)(c->a + 1));
-    clc(s);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0xF1));
-    set_dp8(s, 0xF2, (uint8_t)c->a);
-    clear_slots_from_f2(s, 0x0A0D);
-    plp(s);
-    m_pull16(s);
+    m_write8(s, RESERVE, reserve);
+    m_write8(s, SLOT_LIMIT, slot_limit_for(reserve));
+    forget_slots_past_limit(s);
 }
 
+/* ---- Commands ---------------------------------------------------------------------- */
+
 // $C7:061C
-/* Write $03, $02 and $01 to ports 3, 2 and 1 and the command $00 to port 0,
- * with X = $0400 for the echo wait at $C7:0635, where the port stops. */
-static void send_command(Snes *s)
+/* Send the command as it is: its parameters to ports 3-1, the command to
+ * port 0, and wait for the echo. */
+static End send_command(Snes *s)
 {
-    m_sep(s, CPU_FLAG_M);
-    port_write(s, 0x0620, 3, m_lda8(s, dp8(s, 0x03)));
-    port_write(s, 0x0625, 2, m_lda8(s, dp8(s, 0x02)));
-    port_write(s, 0x062A, 1, m_lda8(s, dp8(s, 0x01)));
-    m_lda8(s, dp8(s, 0x00));
-    m_ldx(s, 0x0400);
-    port_write(s, 0x0632, 0, (uint8_t)s->cpu.a);
-    s->cpu.pc = 0x0635;
+    port_write(s, 0x061C, 3, m_read8(s, PARAMETERS + 2));
+    port_write(s, 0x061C, 2, m_read8(s, PARAMETERS + 1));
+    port_write(s, 0x061C, 1, m_read8(s, PARAMETERS));
+    uint8_t command = m_read8(s, COMMAND);
+    port_write(s, 0x061C, 0, command);
+    return end_wait(WAIT_COMMAND_ECHO, command);
+}
+
+// $C7:0A5A
+/* The song's command, sent the same way ($02 and $03 from the song's table). */
+static End send_song_command(Snes *s)
+{
+    port_write(s, 0x0A5A, 3, m_read8(s, PARAMETERS + 2));
+    port_write(s, 0x0A5A, 2, m_read8(s, PARAMETERS + 1));
+    port_write(s, 0x0A5A, 1, m_read8(s, PARAMETERS));
+    uint8_t command = m_read8(s, COMMAND);
+    port_write(s, 0x0A5A, 0, command);
+    return end_wait(WAIT_SONG_ECHO, command);
+}
+
+// $C7:0A39
+/* Before a song's blocks go up: its parameter to $02 and its reserve to $03
+ * (from its entry at $C7:241D), and a new reserve set if it differs; then the
+ * song's command. */
+static End send_song(Snes *s)
+{
+    uint8_t song = m_read8(s, PARAMETERS);
+    m_write8(s, PARAMETERS + 1, sound_song_parameter(s, song));
+    uint8_t reserve = sound_song_reserve(s, song) & 0x0F;
+    m_write8(s, PARAMETERS + 2, reserve);
+    if (reserve != m_read8(s, RESERVE))
+        set_reserve(s, reserve);
+    return send_song_command(s);
+}
+
+// $C7:0A7B
+/* The SPC700 echoed the song's command. Its answer on port 1 says whether it
+ * wants the song: if so, back to play_song (true); if not, it is told so on
+ * port 0 with the next counter, and the driver waits for port 0 to move on and
+ * returns without the song ($C7:0A90). */
+static bool song_echoed(Snes *s, uint8_t echoed, End *refused)
+{
+    uint8_t counter = (echoed + 1) & 0x7F;
+    m_write8(s, COUNTER, counter);
+    if (!(port_read(s, 0x0A80, 1) & 0x80))
+        return true;
+    port_write(s, 0x0A87, 0, counter);
+    *refused = end_wait(WAIT_SONG_REFUSED, (uint8_t)(counter - 1));
+    return false;
 }
 
 // $C7:0734
-/* (JSR at $C7:01AB, inlined.) Set bit 2 of the command in $00 when it is $14
- * or above, or when the song $01 is in the list at $C7:0AD8 (ended by a
- * negative byte). */
+/* Commands $14 and up, and songs in the list at $C7:0AD8, get bit 2 of the
+ * command set. */
 static void mark_listed_song(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push16(s, 0x01AD);
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    uint8_t command = m_lda8(s, dp8(s, 0x00));
-    m_cmp8(s, command, 0x14);
-    bool set = command >= 0x14;
-    if (!set) {
-        m_ldx(s, 0x0000);
-        for (;;) {
-            uint8_t v = m_lda8(s, m_read8(s, 0xC70AD8 + c->x));
-            if (v & 0x80)
-                break;
-            uint8_t song = dp8(s, 0x01);
-            m_cmp8(s, v, song);
-            if (v == song) {
-                set = true;
-                break;
-            }
-            inx(s);
-        }
+    uint8_t command = m_read8(s, COMMAND);
+    bool mark = command >= 0x14;
+    for (uint16_t i = 0; !mark; i++) {
+        uint8_t listed = sound_marked_song(s, i);
+        if (listed & 0x80)
+            break;
+        mark = listed == m_read8(s, PARAMETERS);
     }
-    if (set)
-        set_dp8(s, 0x00, m_lda8(s, (uint8_t)(0x04 | dp8(s, 0x00))));
-    plp(s);
-    m_pull16(s);
+    if (mark)
+        m_write8(s, COMMAND, command | 0x04);
 }
 
-/* The stages of play_song after the slots are settled, each returning false
- * where the port stops. */
+/* play_song, once the slots are settled. Each returns false where a call-out
+ * didn't come back. */
+
+// $C7:0655
+/* Upload the block whose id is in slot RAM_SOUND_DRIVER_LOAD_SLOT into it:
+ * the slot's address in a data header, then the block. The slot's length is
+ * the block's, and the next slot starts where it ends. */
+static bool upload_block(Snes *s)
+{
+    uint16_t slot = m_read16(s, LOAD_SLOT);
+    uint16_t id = slot_word(s, SLOT_IDS, slot);
+    m_write16(s, INDEX_SCRATCH, (uint16_t)(id - 1));
+    Upload u = upload_from(s, sound_block(s, id));
+    uint16_t address = slot_word(s, SLOT_ADDRESSES, slot);
+    if (!send_header(s, 0x0691, address, KIND_DATA))
+        return false;
+    uint16_t length = upload_length(s, &u);
+    set_slot_word(s, SLOT_LENGTHS, slot, length);
+    set_slot_word(s, SLOT_ADDRESSES, (uint16_t)(slot + 2), (uint16_t)(address + length));
+    if (!send_data(s, &u, length, 0x070D, 0x06ED))
+        return false;
+    end_exchange(s);
+    return true;
+}
 
 // $C7:0326
-/* Load the blocks listed at $1F20 into the slots after the last used one
- * ($C7:0655 per block), then clear the rest. */
-static bool song_load_blocks(Snes *s)
+/* Load the missing blocks into the slots from the first free one (all of them,
+ * forgotten, if none is free), then clear the lengths and ends of the slots
+ * after the last one loaded; RAM_SOUND_DRIVER_FREE_ADDRESS is where it ends. */
+static bool load_missing_blocks(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x0A, 0x00);
-    m_ldx(s, 0x0000);
-    {
-        bool full = true;
-        do {
-            if (m_lda8(s, dpx8(s, 0x20)) == 0) {
-                full = false;
-                break;
-            }
-            inx(s);
-            inx(s);
-            m_cmp16(s, c->x, 0x0020);
-        } while (c->x != 0x0020);
-        if (full) {
-            m_lda8(s, 0x00);
-            do {
-                set_dpx8(s, 0x1F, (uint8_t)c->a);
-                dex(s);
-            } while (c->x != 0);
-        }
+    m_write8(s, UNUSED_0A, 0);
+    uint16_t slot = 0;
+    while (slot != SLOTS_END && slot_byte(s, SLOT_IDS, slot) != 0)   /* the id's low byte */
+        slot += 2;
+    if (slot == SLOTS_END) {
+        for (uint16_t at = SLOTS_END; at != 0; at--)
+            set_slot_byte(s, SLOT_IDS - 1, at, 0);
+        slot = 0;
     }
-    m_ldy(s, 0x0000);
-    for (;;) {
-        /* $C7:0342 */
-        m_rep(s, CPU_FLAG_M);
-        uint16_t id = m_lda16(s, m_read16(s, absy(s, 0x1F20)));
+    for (uint16_t entry = 0;;) {
+        uint16_t id = list_word(s, MISSING_IDS, entry);
         if (id == 0) {
-            /* $C7:0361: the next block's address in $F6; clear the rest */
-            m_rep(s, CPU_FLAG_M);
-            set_dp16(s, 0xF6, m_lda16(s, dpx16(s, 0x60)));
+            m_write16(s, FREE_ADDRESS, slot_word(s, SLOT_ADDRESSES, slot));
             do {
-                m_lda16(s, 0x0000);
-                set_dpx16(s, 0x62, c->a);
-                set_dpx16(s, 0x40, c->a);
-                inx(s);
-                inx(s);
-                m_cmp16(s, c->x, 0x0020);
-            } while (c->x != 0x0020);
+                set_slot_word(s, SLOT_ADDRESSES + 2, slot, 0);
+                set_slot_word(s, SLOT_LENGTHS, slot, 0);
+                slot += 2;
+            } while (slot != SLOTS_END);
             break;
         }
-        set_dpx16(s, 0x20, id);
-        set_dp16(s, 0x1C, c->x);
-        set_dp16(s, 0x1E, c->y);
-        if (!jsr(s, 0x034F, 0x0655, M16_X16))
+        set_slot_word(s, SLOT_IDS, slot, id);
+        m_write16(s, LOAD_SLOT, slot);
+        m_write16(s, LOAD_INDEX, entry);
+        if (!call_driver(s, 0x034F, 0x0655, true, false))
             return false;
-        m_ldx(s, dp16(s, 0x1C));
-        m_ldy(s, dp16(s, 0x1E));
-        iny(s);
-        iny(s);
-        inx(s);
-        inx(s);
-        m_cmp16(s, c->y, 0x0020);
-        if (c->y == 0x0020)
+        slot = (uint16_t)(m_read16(s, LOAD_SLOT) + 2);
+        entry = (uint16_t)(m_read16(s, LOAD_INDEX) + 2);
+        if (entry == SLOTS_END)
             break;
     }
-    /* $C7:0375 */
-    m_sep(s, CPU_FLAG_M);
-    reset_counter(s);
+    end_exchange(s);
     return true;
 }
 
 // $C7:037B
-/* For each of the song's ids, its slot's address and address plus the id's
- * entry at $C7:0BA4 (or two zero words) at $1F80. */
-static bool song_build_address_table(Snes *s)
+/* For each of the song's blocks, its $1E80 entry: the address of the slot it's
+ * in and that plus the block's address offset, or two zeros if it isn't
+ * loaded. The search runs over 32 words from the slot ids, into the lengths. */
+static void build_address_table(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_rep(s, CPU_FLAG_M);
-    set_dp16(s, 0x12, m_lda16(s, 0x1F80));
-    m_ldx(s, 0x0000);
-    do {
-        uint16_t id = m_lda16(s, m_read16(s, absx(s, 0x1F00)));
+    uint16_t at = ADDRESS_TABLE;
+    for (uint16_t entry = 0; entry != SLOTS_END; entry += 2) {
+        uint16_t id = list_word(s, SONG_IDS, entry);
         if (id == 0)
             break;
-        m_ldy(s, 0x0000);
-        bool loaded = false;
-        do {
-            uint16_t v = m_read16(s, absy(s, 0x1E20));
-            m_cmp16(s, id, v);
-            if (id == v) {
-                loaded = true;
-                break;
-            }
-            iny(s);
-            iny(s);
-            m_cmp16(s, c->y, 0x0040);
-        } while (c->y != 0x0040);
-        if (loaded) {
-            m_push16(s, c->x);
-            m_lda16(s, (uint16_t)(c->a - 1));
-            c->a = m_asl16(s, c->a);
-            m_tax(s);
-            m_lda16(s, m_read16(s, absy(s, 0x1E60)));
-            m_write16(s, ind(s, 0x12), c->a);
-            inc_dp16(s, 0x12);
-            inc_dp16(s, 0x12);
-            clc(s);
-            c->a = m_adc16(s, c->a, m_read16(s, 0xC70BA4 + c->x));
-            m_write16(s, ind(s, 0x12), c->a);
-            c->x = pull16_nz(s);
-        } else {
-            m_lda16(s, 0x0000);
-            m_write16(s, ind(s, 0x12), c->a);
-            inc_dp16(s, 0x12);
-            inc_dp16(s, 0x12);
-            m_write16(s, ind(s, 0x12), c->a);
+        uint16_t found = 0;
+        while (found != 2 * SLOTS_END && list_word(s, SLOT_IDS, found) != id)
+            found += 2;
+        uint16_t address = 0, second = 0;
+        if (found != 2 * SLOTS_END) {
+            address = list_word(s, SLOT_ADDRESSES, found);
+            second = (uint16_t)(address + sound_block_address_offset(s, id));
         }
-        inc_dp16(s, 0x12);
-        inc_dp16(s, 0x12);
-        inx(s);
-        inx(s);
-        m_cmp16(s, c->x, 0x0020);
-    } while (c->x != 0x0020);
-    return true;
+        m_write16(s, at, address);
+        m_write16(s, (uint16_t)(at + 2), second);
+        at = (uint16_t)(at + 4);
+    }
+    m_write16(s, DATA_POINTER, at);
 }
 
-// $C7:03C8
-/* The $40 bytes at $1F80 to SPC700 address $1E80, two at a time. */
-static bool song_send_address_table(Snes *s)
+/* The table built above to SPC700 $1E80, a word a message. */
+static bool send_address_table(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    if (!send_block_header(s, 0x03DB, 0x1E, 0x80, 0x02))
+    if (!send_header(s, 0x03DB, 0x1E80, KIND_TABLE))
         return false;
-    m_ldx(s, 0x0000);
-    do {
-        port_write(s, 0x03F2, 1, m_lda8(s, m_read8(s, absx(s, 0x1F80))));
-        port_write(s, 0x03F8, 2, m_lda8(s, m_read8(s, absx(s, 0x1F81))));
-        if (!send_counter(s, 0x03FD, true))
+    for (uint16_t at = 0; at != 0x40; at += 2) {
+        send_word_12(s, 0x03FD, m_read16(s, ADDRESS_TABLE + at));
+        if (!send_counter(s, 0x03FD))
             return false;
-        inx(s);
-        inx(s);
-        m_cmp16(s, c->x, 0x0040);
-    } while (c->x != 0x0040);
-    reset_counter(s);
+    }
+    end_exchange(s);
     return true;
 }
 
 // $C7:040D
-/* $C7:040D and $C7:045B: each id's word from $C7:0C20 to $1F40, then from
- * $C7:0C9C to $1FC0. */
-static bool song_send_id_table(Snes *s, int t)
+/* A word per block of the song, from one of the tables at $C7:0C20 and
+ * $C7:0C9C, to the SPC700's table at `to` ($1F40, $1FC0). */
+static bool send_block_words(Snes *s, uint16_t header_site, uint16_t to, uint16_t (*word)(Snes *, uint16_t),
+                             uint16_t site)
 {
-    static const struct { uint16_t header_site, table, write, site; uint8_t lo; } tables[] = {
-        { 0x0420, 0x0C20, 0x0442, 0x044B, 0x40 },
-        { 0x046E, 0x0C9C, 0x0490, 0x0499, 0xC0 },
-    };
-    Cpu *c = &s->cpu;
-    if (!send_block_header(s, tables[t].header_site, 0x1F, tables[t].lo, 0x02))
+    if (!send_header(s, header_site, to, KIND_TABLE))
         return false;
-    m_ldy(s, 0x0000);
-    do {
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, m_read16(s, absy(s, 0x1F00)));
-        m_lda16(s, (uint16_t)(c->a - 1));
-        c->a = m_asl16(s, c->a);
-        m_tax(s);
-        m_lda16(s, m_read16(s, 0xC70000 + tables[t].table + c->x));
-        m_sep(s, CPU_FLAG_M);
-        port_write(s, tables[t].write, 1, (uint8_t)c->a);
-        m_xba(s);
-        port_write(s, (uint16_t)(tables[t].write + 4), 2, (uint8_t)c->a);
-        if (!send_counter(s, tables[t].site, true))
+    for (uint16_t entry = 0; entry != SLOTS_END; entry += 2) {
+        send_word_12(s, site, word(s, list_word(s, SONG_IDS, entry)));
+        if (!send_counter(s, site))
             return false;
-        iny(s);
-        iny(s);
-        m_cmp16(s, c->y, 0x0020);
-    } while (c->y != 0x0020);
-    reset_counter(s);
+    }
+    end_exchange(s);
     return true;
 }
 
-static bool song_send_id_table_1f40(Snes *s) { return song_send_id_table(s, 0); }
-static bool song_send_id_table_1fc0(Snes *s) { return song_send_id_table(s, 1); }
-
 // $C7:04A9
-/* The slot of the first id, less 2, in $FC; when $10 changes between zero and
- * nonzero, count in $F3; while $F3 is set, upload the data at SPC700 address
- * $2F00 ($C7:0922). */
-static bool song_prepare_2f00(Snes *s)
+/* Command $71 uploads into the slot before the one holding the song's first
+ * block (compared by the id's low byte). The $2F00 set goes up again if the one
+ * asked for changed or the last song's sequence ran over it. */
+static bool prepare_2f00(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    uint8_t first = m_lda8(s, m_read8(s, m_abs(s, 0x1F00)));
+    uint8_t first = m_read8(s, SONG_IDS);
     if (first != 0) {
-        m_ldx(s, 0x0020);
-        do {
-            uint8_t v = dpx8(s, 0x1E);
-            m_cmp8(s, first, v);
-            if (first == v)
-                break;
-            dex(s);
-            dex(s);
-        } while (c->x != 0);
-        dex(s);
-        dex(s);
-        set_dp16(s, 0xFC, c->x);
+        uint16_t slot = SLOTS_END;
+        while (slot != 0 && slot_byte(s, SLOT_IDS - 2, slot) != first)
+            slot -= 2;
+        m_write16(s, UPLOAD_SLOT, (uint16_t)(slot - 2));
     }
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, dp8(s, 0x10));
-    clc(s);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0xFF));
-    m_lda8(s, 0x00);
-    uint8_t nonzero = rol_a8(s);
-    uint8_t seen = dp8(s, 0x11);
-    m_cmp8(s, nonzero, seen);
-    if (nonzero != seen) {
-        set_dp8(s, 0x10, nonzero);
-        set_dp8(s, 0x11, nonzero);
-        inc_dp8(s, 0xF3);
+    uint8_t set = m_read8(s, SET_2F00) != 0;
+    if (set != m_read8(s, SET_2F00_SENT)) {
+        m_write8(s, SET_2F00, set);
+        m_write8(s, SET_2F00_SENT, set);
+        m_write8(s, PENDING_2F00, (uint8_t)(m_read8(s, PENDING_2F00) + 1));
     }
-    return m_lda8(s, dp8(s, 0xF3)) == 0 || jsr(s, 0x04D8, 0x0922, M8_X16);
+    if (m_read8(s, PENDING_2F00) == 0)
+        return true;
+    return call_driver(s, 0x04D8, 0x0922, false, false);
 }
 
 // $C7:04DB
-/* The song's block from the table at $C7:0D18 to SPC700 address $2000 (a 16-bit
- * length, then the data); a length of $0F00 or more counts in $F3. */
-static bool song_send_sequence(Snes *s)
+/* The song's sequence to SPC700 $2000. One that reaches $2F00 overwrites the
+ * set there, which then has to go up again. The loop counts down while the
+ * count left isn't negative, so it sends a message more than the length needs. */
+static bool send_sequence(Snes *s, uint8_t song)
 {
-    Cpu *c = &s->cpu;
-    if (!send_block_header(s, 0x04EE, 0x20, 0x00, 0x03))
+    if (!send_header(s, 0x04EE, 0x2000, KIND_DATA))
         return false;
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, dp16(s, 0x05));
-    m_lda16(s, c->a & 0x00FF);
-    set_dp16(s, 0x82, c->a);
-    c->a = m_asl16(s, c->a);
-    clc(s);
-    c->a = m_adc16(s, c->a, dp16(s, 0x82));
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x12, m_lda8(s, m_read8(s, 0xC70D18 + c->x)));
-    set_dp8(s, 0x13, m_lda8(s, m_read8(s, 0xC70D19 + c->x)));
-    set_dp8(s, 0x14, m_lda8(s, m_read8(s, 0xC70D1A + c->x)));
-    m_ldy(s, dp16(s, 0x12));
-    set_dp8(s, 0x12, 0x00);
-    set_dp8(s, 0x13, 0x00);
-    set_dp8(s, 0x0C, read_header_byte(s));
-    set_dp8(s, 0x0D, read_header_byte(s));
-    m_ldx(s, dp16(s, 0x0C));
-    m_cmp16(s, c->x, 0x0F00);
-    if (c->x >= 0x0F00)
-        inc_dp8(s, 0xF3);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, c->y);
-    clc(s);
-    c->a = m_adc16(s, c->a, dp16(s, 0x0C));
-    m_sep(s, CPU_FLAG_M);
-    /* $C7:054C (the data crosses into the next bank) or $C7:0578 */
-    if (!send_data(s, 0x058C, 0x056C, true))
-        return false;
-    reset_counter(s);
+    m_write16(s, INDEX_SCRATCH, song);
+    Upload u = upload_from(s, sound_song(s, song));
+    uint16_t length = upload_length(s, &u);
+    if (length >= 0x0F00)
+        m_write8(s, PENDING_2F00, (uint8_t)(m_read8(s, PENDING_2F00) + 1));
+    upload_plan(&u, length);
+    uint16_t left = length;
+    do {
+        if (!send_three(s, &u, u.carry ? 0x056C : 0x058C))
+            return false;
+        left = (uint16_t)(left - 3);
+    } while (!(left & 0x8000));
+    end_exchange(s);
     return true;
 }
 
 // $C7:059A
-/* 12 three-byte entries from $C7:1871 + song * $24 to SPC700 address $F120,
- * then $E0 to ports 1 and 0 and the final echo wait at $C7:060C, where the port
- * stops. */
-static bool song_send_f120(Snes *s)
+/* The song's twelve entries to SPC700 $F120, and the end of the upload: $E0
+ * on ports 1 and 0. */
+static End send_f120_entries(Snes *s, uint8_t song)
 {
-    Cpu *c = &s->cpu;
-    for (;;) {
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, dp16(s, 0x05));
-        m_lda16(s, c->a & 0x00FF);
-        set_dp16(s, 0x82, c->a);
-        c->a = m_asl16(s, c->a);
-        clc(s);
-        c->a = m_adc16(s, c->a, dp16(s, 0x82));
-        c->a = m_asl16(s, c->a);
-        c->a = m_asl16(s, c->a);
-        set_dp16(s, 0x82, c->a);
-        c->a = m_asl16(s, c->a);
-        clc(s);
-        c->a = m_adc16(s, c->a, dp16(s, 0x82));
-        m_set_index(s, &c->y, c->a);
-        m_sep(s, CPU_FLAG_M);
-        set_dp8(s, 0x12, m_lda8(s, 0x71));
-        set_dp8(s, 0x13, m_lda8(s, 0x18));
-        set_dp8(s, 0x14, m_lda8(s, 0xC7));
-        port_write(s, 0x05C0, 3, m_lda8(s, 0xF1));
-        port_write(s, 0x05C5, 2, m_lda8(s, 0x20));
-        port_write(s, 0x05CA, 1, m_lda8(s, 0x03));
-        if (!send_counter(s, 0x05CF, true))
-            return false;
-        uint8_t want = m_lda8(s, 0x03);
-        uint8_t got = port_read(s, 0x05D6, 1);
-        m_cmp8(s, want, got);
-        if (want == got)
+    m_write16(s, INDEX_SCRATCH, (uint16_t)(12 * song));
+    Upload u = upload_at(s, sound_song_f120_table(), (uint16_t)(36 * song));
+    if (!send_header(s, 0x05CF, 0xF120, KIND_DATA))
+        return end_lost();
+    for (int i = 0; i < SOUND_SONG_F120_ENTRIES; i++)
+        if (!send_three(s, &u, 0x05F7))
+            return end_lost();
+    port_write(s, 0x05FF, 1, COUNTER_FIRST);
+    port_write(s, 0x05FF, 0, COUNTER_FIRST);
+    return end_wait(WAIT_UPLOAD_END, COUNTER_FIRST);
+}
+
+/* The rest of a song's upload, from the blocks on. */
+static End song_upload_from_blocks(Snes *s, uint8_t song, bool load_blocks)
+{
+    if (load_blocks && !load_missing_blocks(s))
+        return end_lost();
+    build_address_table(s);
+    if (!send_address_table(s) || !send_block_words(s, 0x0420, 0x1F40, sound_block_1f40_word, 0x044B) ||
+        !send_block_words(s, 0x046E, 0x1FC0, sound_block_1fc0_word, 0x0499) || !prepare_2f00(s) ||
+        !send_sequence(s, song))
+        return end_lost();
+    return send_f120_entries(s, song);
+}
+
+/* The SPC700 refused the first block move: send it zeros for good measure and
+ * forget every slot; all of the song's ids go to both lists, so every block is
+ * uploaded again. */
+static bool forget_all_slots(Snes *s, uint8_t song)
+{
+    send_word_23(s, 0x02F0, 0);
+    if (!send_counter_unkept(s, 0x02F0))
+        return false;
+    for (int16_t i = 15; i >= 0; i--) {
+        uint16_t id = sound_song_block_id(s, (uint8_t)(song + 1), (int16_t)(i - 16));
+        uint16_t at = (uint16_t)(2 * i);
+        set_list_word(s, SONG_IDS, at, id);
+        set_list_word(s, MISSING_IDS, at, id);
+        set_list_word(s, SLOT_IDS, at, 0);
+        set_list_word(s, SLOT_LENGTHS, at, 0);
+        set_list_word(s, SLOT_ADDRESSES + 2, at, 0);
+    }
+    return true;
+}
+
+/* Move the blocks the song keeps down into the free slots before them, telling
+ * the SPC700 each block's address, new address and length (kind 7 on port 1,
+ * whose answer after the first move says whether it agrees). */
+static bool move_blocks_down(Snes *s, uint8_t song)
+{
+    port_write(s, 0x025E, 1, KIND_MOVE);
+    m_write16(s, WORK, 0);
+    for (uint16_t free = 0; free != SLOTS_END; free += 2) {
+        if (list_word(s, SLOT_IDS, free) != 0)
+            continue;
+        uint16_t used = (uint16_t)(free + 2);
+        while (used != SLOTS_END && slot_word(s, SLOT_IDS, used) == 0)
+            used += 2;
+        if (used == SLOTS_END)
             break;
-        /* JSR $09EA : BRA $059A -- this header resends from the index */
-        if (!jsr(s, 0x05DB, 0x09EA, M8_X16))
+        send_word_23(s, 0x028B, slot_word(s, SLOT_ADDRESSES, used));
+        if (!send_counter(s, 0x028B))
+            return false;
+        if (m_read8(s, WORK) == 0) {
+            m_write8(s, WORK, 1);
+            if (port_read(s, 0x0298, 1) != KIND_MOVE) {
+                if (!forget_all_slots(s, song))
+                    return false;
+                break;
+            }
+        }
+        set_list_word(s, SLOT_IDS, free, slot_word(s, SLOT_IDS, used));
+        set_slot_word(s, SLOT_IDS, used, 0);
+        uint16_t address = list_word(s, SLOT_ADDRESSES, free);
+        send_word_23(s, 0x02BF, address);
+        set_list_word(s, SLOT_ADDRESSES + 2, free, (uint16_t)(address + slot_word(s, SLOT_LENGTHS, used)));
+        if (!send_counter(s, 0x02BF))
+            return false;
+        uint16_t length = slot_word(s, SLOT_LENGTHS, used);
+        set_list_word(s, SLOT_LENGTHS, free, length);
+        send_word_23(s, 0x02D6, length);
+        if (!send_counter(s, 0x02D6))
             return false;
     }
-    m_ldx(s, 0x000C);
-    do {
-        if (!send_three_bytes(s, 0x05F7))
-            return false;
-        dex(s);
-    } while (c->x != 0);
-    /* $C7:05FF */
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, 0xE0);
-    m_ldx(s, 0x0400);
-    port_write(s, 0x0606, 1, (uint8_t)c->a);
-    port_write(s, 0x0609, 0, (uint8_t)c->a);
-    c->pc = 0x060C;
-    return false;
-}
-
-static bool (*const song_stages[])(Snes *) = {
-    song_load_blocks, song_build_address_table, song_send_address_table, song_send_id_table_1f40,
-    song_send_id_table_1fc0, song_prepare_2f00, song_send_sequence, song_send_f120,
-};
-enum { STAGE_LOAD_BLOCKS, STAGE_ADDRESS_TABLE };
-
-static void song_stages_from(Snes *s, int first)
-{
-    for (int i = first; i < (int)(sizeof song_stages / sizeof song_stages[0]); i++)
-        if (!song_stages[i](s))
-            return;
-}
-
-// $C7:02E4
-/* The SPC700 refused the slot moves (port 1 didn't read 7): zero to ports 2-3
- * and a counter ($C7:09DA, keeping $84), then forget the slots: the song's 16
- * ids from $C7:0E11 go to both lists at $1F00 and $1F20, and slots $1E20 and
- * lengths $1E40 are cleared (and $1E60, from its second word). False if the
- * port stops. */
-static bool song_slots_refused(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, 0x00);
-    port_write(s, 0x02E8, 2, 0x00);
-    port_write(s, 0x02EB, 3, 0x00);
-    if (!send_counter(s, 0x02F0, false))
-        return false;
-    m_rep(s, CPU_FLAG_M);
-    m_ldy(s, 0x0020);
-    m_lda16(s, dp16(s, 0x05));
-    m_lda16(s, (uint16_t)(c->a + 1));
-    m_lda16(s, c->a & 0x00FF);
-    for (int i = 0; i < 5; i++)
-        c->a = m_asl16(s, c->a);
-    m_tax(s);
-    do {
-        m_lda16(s, m_read16(s, 0xC70E0F + c->x));
-        m_write16(s, absy(s, 0x1EFE), c->a);
-        m_write16(s, absy(s, 0x1F1E), c->a);
-        m_lda16(s, 0x0000);
-        m_write16(s, absy(s, 0x1E1E), c->a);
-        m_write16(s, absy(s, 0x1E3E), c->a);
-        m_write16(s, absy(s, 0x1E60), c->a);
-        dex(s);
-        dex(s);
-        dey(s);
-        dey(s);
-    } while (c->y != 0);
+    end_exchange(s);
     return true;
 }
 
 // $C7:01A1
-/* Commands $10, $11, $14 and $15: play song $01. Unless it is out of range
- * ($C7:0AE9), send the song command ($C7:0A39, a call-out), then work out
- * which of the song's 16-bit block ids ($C7:0E11, 16 per song) are loaded in
- * the 16 slots at $20 (addresses $60, lengths $40), move the loaded ones down
- * and upload the missing ones ($C7:0655), then send the tables built at $1F80
- * and from $C7:0C20 and $C7:0C9C, the block at $C7:0D18 indexed by the song,
- * and 12 three-byte entries from $C7:1871. Stops at the final echo wait
- * ($C7:060C). Headers the SPC700 answers wrongly are sent again after
- * $C7:09EA, as in the original. */
-static void play_song(Snes *s)
+/* Commands $10, $11, $14 and $15: play song `$01`. Unless it's out of range,
+ * send its command, then list its block ids ($C7:0E11) and those no slot holds.
+ * If some are missing: forget the slots it doesn't use, move the rest down, and
+ * load the missing blocks after them. Then the tables, the sequence and the
+ * entries (song_upload_from_blocks). RAM_SOUND_DRIVER_SONG holds the song
+ * meanwhile, which makes the driver ignore commands until the end. */
+static End play_song(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    uint8_t song = m_lda8(s, dp8(s, 0x01));
-    uint8_t count = m_read8(s, 0xC70AE9);
-    m_cmp8(s, song, count);
-    if (song >= count) {
-        driver_return(s);
-        return;
-    }
+    uint8_t song = m_read8(s, PARAMETERS);
+    if (song >= sound_song_count(s))
+        return end_return();
     mark_listed_song(s);
-    if (!jsr(s, 0x01AE, 0x0A39, M8_X16))
-        return;
+    if (!call_driver(s, 0x01AE, 0x0A39, false, false))
+        return end_lost();
+    m_write8(s, SONG, song);
 
-    /* $C7:01B1: clear the two lists at $1F00 and $1F20 */
-    set_dp8(s, 0x05, m_lda8(s, dp8(s, 0x01)));
-    m_rep(s, CPU_FLAG_M);
-    m_ldx(s, 0x0020);
-    do {
-        m_write16(s, absx(s, 0x1EFE), 0x0000);
-        m_write16(s, absx(s, 0x1F1E), 0x0000);
-        dex(s);
-        dex(s);
-    } while (c->x != 0);
-    /* the last nonzero slot id at $1E20 */
-    m_ldy(s, 0x0020);
-    do {
-        if (m_lda16(s, m_read16(s, absy(s, 0x1E1E))) != 0)
-            break;
-        dey(s);
-        dey(s);
-    } while (c->y != 0);
-    set_dp16(s, 0x0C, c->y);
-    set_dp16(s, 0x12, m_lda16(s, 0x1F00));
-    set_dp16(s, 0x14, m_lda16(s, 0x1F20));
-    m_lda16(s, dp16(s, 0x04));
-    m_lda16(s, c->a & 0xFF00);
-    for (int i = 0; i < 3; i++)
-        c->a = m_lsr16(s, c->a);
-    m_tax(s);
-    c->a = m_adc16(s, c->a, 0x0020);
-    set_dp16(s, 0x0E, c->a);
-    /* $C7:01EA: the song's ids go to $1F00; those not loaded also to $1F20 */
-    for (;;) {
-        uint16_t id = m_lda16(s, m_read16(s, 0xC70E11 + c->x));
+    for (uint16_t entry = 0; entry != SLOTS_END; entry += 2) {
+        set_list_word(s, SONG_IDS, entry, 0);
+        set_list_word(s, MISSING_IDS, entry, 0);
+    }
+    uint16_t used_end = SLOTS_END;
+    while (used_end != 0 && list_word(s, SLOT_IDS - 2, used_end) == 0)
+        used_end -= 2;
+    m_write16(s, WORK, used_end);
+    m_write16(s, SONG_IDS_END, (uint16_t)(32 * song + SLOTS_END));
+    uint16_t ids = SONG_IDS, missing = MISSING_IDS;
+    for (int16_t i = 0; i < 16; i++) {
+        uint16_t id = sound_song_block_id(s, song, i);
         if (id == 0)
             break;
-        m_write16(s, ind(s, 0x12), id);
-        inc_dp16(s, 0x12);
-        inc_dp16(s, 0x12);
-        bool loaded = false;
-        if (m_ldy(s, dp16(s, 0x0C)) != 0) {
-            do {
-                uint16_t v = m_read16(s, absy(s, 0x1E1E));
-                m_cmp16(s, id, v);
-                if (id == v) {
-                    loaded = true;
-                    break;
-                }
-                dey(s);
-                dey(s);
-            } while (c->y != 0);
+        m_write16(s, ids, id);
+        ids += 2;
+        uint16_t at = used_end;
+        while (at != 0 && list_word(s, SLOT_IDS - 2, at) != id)
+            at -= 2;
+        if (at == 0) {
+            m_write16(s, missing, id);
+            missing += 2;
         }
-        if (!loaded) {
-            m_write16(s, ind(s, 0x14), id);
-            inc_dp16(s, 0x14);
-            inc_dp16(s, 0x14);
-        }
-        inx(s);
-        inx(s);
-        uint16_t end = dp16(s, 0x0E);
-        m_cmp16(s, c->x, end);
-        if (c->x == end)
-            break;
     }
-    /* $C7:020F */
-    if (m_lda16(s, m_read16(s, m_abs(s, 0x1F20))) == 0) {
-        song_stages_from(s, STAGE_ADDRESS_TABLE);
-        return;
-    }
+    m_write16(s, DATA_POINTER, ids);
+    m_write16(s, LIST_POINTER, missing);
+    if (list_word(s, MISSING_IDS, 0) == 0)
+        return song_upload_from_blocks(s, song, false);
 
-    /* $C7:0217: forget slot ids at $20 the song doesn't use */
-    m_rep(s, CPU_FLAG_M);
-    m_ldx(s, 0x0000);
-    do {
-        uint16_t id = m_lda16(s, dpx16(s, 0x20));
+    for (uint16_t slot = 0; slot != SLOTS_END; slot += 2) {
+        uint16_t id = slot_word(s, SLOT_IDS, slot);
         if (id == 0)
             break;
-        m_ldy(s, 0x0000);
-        bool used = false;
-        do {
-            uint16_t v = m_read16(s, absy(s, 0x1F00));
-            m_cmp16(s, id, v);
-            if (id == v) {
-                used = true;
-                break;
-            }
-            iny(s);
-            iny(s);
-            m_cmp16(s, c->y, 0x0020);
-        } while (c->y != 0x0020);
-        if (!used)
-            set_dpx16(s, 0x20, 0x0000);
-        inx(s);
-        inx(s);
-        m_cmp16(s, c->x, 0x0020);
-    } while (c->x != 0x0020);
-    /* $C7:0238: the first free slot, and the last used one */
-    m_ldx(s, 0x0000);
-    do {
-        if (m_lda16(s, dpx16(s, 0x20)) == 0)
-            break;
-        inx(s);
-        inx(s);
-        m_cmp16(s, c->x, 0x0020);
-    } while (c->x != 0x0020);
-    set_dp16(s, 0x0C, c->x);
-    m_ldx(s, 0x0020);
-    do {
-        if (m_lda16(s, dpx16(s, 0x1E)) != 0)
-            break;
-        dex(s);
-        dex(s);
-    } while (c->x != 0);
-    {
-        uint16_t first_free = dp16(s, 0x0C);
-        m_cmp16(s, c->x, first_free);
-        if (c->x == first_free) {
-            song_stages_from(s, STAGE_LOAD_BLOCKS);
-            return;
-        }
+        uint16_t entry = 0;
+        while (entry != SLOTS_END && list_word(s, SONG_IDS, entry) != id)
+            entry += 2;
+        if (entry == SLOTS_END)
+            set_slot_word(s, SLOT_IDS, slot, 0);
     }
-
-    /* $C7:025A: move the slots still used down into the free ones, telling the
-     * SPC700 each block's old and new address (command 7) */
-    m_sep(s, CPU_FLAG_M);
-    port_write(s, 0x025E, 1, m_lda8(s, 0x07));
-    m_ldy(s, 0x0000);
-    set_dp16(s, 0x0C, c->y);
-    do {
-        m_rep(s, CPU_FLAG_M);
-        if (m_lda16(s, m_read16(s, absy(s, 0x1E20))) == 0) {
-            m_tyx(s);
-            bool found = false;
-            for (;;) {
-                inx(s);
-                inx(s);
-                m_cmp16(s, c->x, 0x0020);
-                if (c->x == 0x0020)
-                    break;
-                if (m_lda16(s, dpx16(s, 0x20)) != 0) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-                break;   /* BRL $0320 */
-            /* $C7:027E */
-            m_lda16(s, dpx16(s, 0x60));
-            m_sep(s, CPU_FLAG_M);
-            port_write(s, 0x0282, 2, (uint8_t)c->a);
-            m_xba(s);
-            port_write(s, 0x0286, 3, (uint8_t)c->a);
-            if (!send_counter(s, 0x028B, true))
-                return;
-            if (m_lda8(s, dp8(s, 0x0C)) == 0) {
-                inc_dp8(s, 0x0C);
-                uint8_t want = m_lda8(s, 0x07);
-                uint8_t got = port_read(s, 0x0298, 1);
-                m_cmp8(s, want, got);
-                if (want != got) {
-                    if (song_slots_refused(s)) {
-                        /* $C7:0320 */
-                        m_sep(s, CPU_FLAG_M);
-                        reset_counter(s);
-                        song_stages_from(s, STAGE_LOAD_BLOCKS);
-                    }
-                    return;
-                }
-            }
-            /* $C7:029D */
-            m_rep(s, CPU_FLAG_M);
-            m_write16(s, absy(s, 0x1E20), m_lda16(s, dpx16(s, 0x20)));
-            set_dpx16(s, 0x20, 0x0000);
-            m_lda16(s, m_read16(s, absy(s, 0x1E60)));
-            m_sep(s, CPU_FLAG_M);
-            port_write(s, 0x02AB, 2, (uint8_t)c->a);
-            m_xba(s);
-            port_write(s, 0x02AF, 3, (uint8_t)c->a);
-            m_xba(s);
-            m_rep(s, CPU_FLAG_M);
-            clc(s);
-            c->a = m_adc16(s, c->a, dpx16(s, 0x40));
-            m_write16(s, absy(s, 0x1E62), c->a);
-            m_sep(s, CPU_FLAG_M);
-            if (!send_counter(s, 0x02BF, true))
-                return;
-            m_rep(s, CPU_FLAG_M);
-            m_write16(s, absy(s, 0x1E40), m_lda16(s, dpx16(s, 0x40)));
-            m_sep(s, CPU_FLAG_M);
-            port_write(s, 0x02CD, 2, (uint8_t)c->a);
-            m_xba(s);
-            port_write(s, 0x02D1, 3, (uint8_t)c->a);
-            if (!send_counter(s, 0x02D6, true))
-                return;
-        }
-        /* $C7:02DB */
-        iny(s);
-        iny(s);
-        m_cmp16(s, c->y, 0x0020);
-    } while (c->y != 0x0020);
-
-    /* $C7:0320 */
-    m_sep(s, CPU_FLAG_M);
-    reset_counter(s);
-    song_stages_from(s, STAGE_LOAD_BLOCKS);
-}
-
-/* STA $2141 : XBA : STA $2142 at `write`, then LDA $84 : JSR $09DA at `site`
- * (not keeping the counter): a table entry of the $71 upload. */
-static bool send_word_entry(Snes *s, uint16_t write, uint16_t site)
-{
-    port_write(s, write, 1, (uint8_t)s->cpu.a);
-    m_xba(s);
-    port_write(s, (uint16_t)(write + 4), 2, (uint8_t)s->cpu.a);
-    return send_counter(s, site, false);
-}
-
-/* LDA #hi : STA $2143 : LDA #lo : STA $2142 : LDA #$02 : STA $2141 (the first
- * STA at `write`), then LDA #$E0 : JSR $09DA : STA $84: a table header of the
- * $71 upload. */
-static bool send_table_header(Snes *s, uint16_t write, uint8_t hi, uint8_t lo)
-{
-    port_write(s, write, 3, m_lda8(s, hi));
-    port_write(s, (uint16_t)(write + 5), 2, m_lda8(s, lo));
-    port_write(s, (uint16_t)(write + 10), 1, m_lda8(s, 0x02));
-    return send_first_counter(s, (uint16_t)(write + 15));
-}
-
-// $C7:07AE
-/* Command $71, once the block ($01 - 1, pointer at $C7:0AEA) fits its slot ($FC):
- * command $FE, then the block to the slot's address (command 5, its length
- * going to the slot's $40), then the slot's address and address plus the
- * block's entry at $C7:0BA4 to SPC700 address $1E80, its word from $C7:0C20 to
- * $1F40 and from $C7:0C9C to $1FC0, and $E0 to ports 1 and 0 with X = $0400 for
- * the echo wait at $C7:08CD, where the port stops. Nothing is resent. */
-static void upload_to_slot(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, 0xFE);
-    if (!jsr(s, 0x07B2, 0x09DA, M8_X16))
-        return;
-    set_dp8(s, 0x84, (uint8_t)c->a);
-    m_ldx(s, dp16(s, 0xFC));
-    port_write(s, 0x07BB, 2, m_lda8(s, dpx8(s, 0x60)));
-    port_write(s, 0x07C0, 3, m_lda8(s, dpx8(s, 0x61)));
-    port_write(s, 0x07C5, 1, m_lda8(s, 0x05));
-    if (!send_counter(s, 0x07CA, true))
-        return;
-    /* $C7:07CF */
-    m_rep(s, CPU_FLAG_M);
-    set_dpx16(s, 0x40, m_lda16(s, dp16(s, 0x0C)));
-    m_ldx(s, dp16(s, 0x0C));
-    m_lda16(s, c->y);
-    clc(s);
-    c->a = m_adc16(s, c->a, dp16(s, 0x0C));
-    m_sep(s, CPU_FLAG_M);
-    /* $C7:07DF (the data crosses into the next bank) or $C7:080B */
-    if (!send_data(s, 0x081F, 0x07FF, false))
-        return;
-    /* $C7:0829 */
-    if (!send_table_header(s, 0x082B, 0x1E, 0x80))
-        return;
-    m_ldx(s, dp16(s, 0xFC));
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, dpx16(s, 0x60));
-    m_sep(s, CPU_FLAG_M);
-    port_write(s, 0x0847, 1, (uint8_t)c->a);
-    m_xba(s);
-    port_write(s, 0x084B, 2, (uint8_t)c->a);
-    if (!send_counter(s, 0x0850, true))
-        return;
-    /* $C7:0855 */
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, dpx16(s, 0x60));
-    m_ldx(s, dp16(s, 0x02));
-    clc(s);
-    c->a = m_adc16(s, c->a, m_read16(s, 0xC70BA4 + c->x));
-    m_sep(s, CPU_FLAG_M);
-    if (!send_word_entry(s, 0x0862, 0x086B))
-        return;
-    /* $C7:086E */
-    if (!send_table_header(s, 0x0870, 0x1F, 0x40))
-        return;
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, m_read16(s, 0xC70C20 + c->x));
-    m_sep(s, CPU_FLAG_M);
-    if (!send_word_entry(s, 0x088C, 0x0895))
-        return;
-    /* $C7:0898 */
-    if (!send_table_header(s, 0x089A, 0x1F, 0xC0))
-        return;
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, m_read16(s, 0xC70C9C + c->x));
-    m_sep(s, CPU_FLAG_M);
-    if (!send_word_entry(s, 0x08B6, 0x08BF))
-        return;
-    /* $C7:08C2 */
-    m_lda8(s, 0xE0);
-    m_ldx(s, 0x0400);
-    port_write(s, 0x08C7, 1, (uint8_t)c->a);
-    port_write(s, 0x08CA, 0, (uint8_t)c->a);
-    c->pc = 0x08CD;
-}
-
-// $C7:0004
-/* JSL entry (a JMP to $C7:0140): save the registers, set the data bank to $00
- * and the direct page to $1E00, and dispatch on the command in $00 (returning
- * at once while bit 7 of $05 is clear): $18-$2F and $80-$FF are sent as they
- * are (stopping at the echo wait at $C7:0635), $10-$17 through the table at
- * $C7:0AD9 (play_song, or return), $30-$3F become command $10 with song
- * $00-$0F and $FF in $02-$03 ($C7:0A98), $70 sets $10/$11 to whether $01 is
- * nonzero and, if that changed, sends $FE (stopping at the wait at $C7:08FA),
- * and $71 uploads block $01 into slot $FC if it fits (upload_to_slot). With
- * APU-direct the whole command runs synchronously. */
-void sound_driver_command(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    if (au_driver_run_direct(m_platform(s), DRIVER_FIRST, DRIVER_LAST))
-        return;
-    driver_enter(s);
-
-    for (;;) {
-        /* $C7:0155 */
-        m_sep(s, CPU_FLAG_M);
-        if (!(m_lda8(s, dp8(s, 0x05)) & 0x80)) {
-            driver_return(s);
-            return;
-        }
-        uint8_t command = m_lda8(s, dp8(s, 0x00));
-        if (command == 0) {
-            driver_return(s);
-            return;
-        }
-        if (command & 0x80) {
-            send_command(s);
-            return;
-        }
-        m_cmp8(s, command, 0x10);
-        if (command < 0x10) {
-            driver_return(s);
-            return;
-        }
-        m_cmp8(s, command, 0x18);
-        if (command < 0x18) {
-            /* AND #$0F : ASL A : XBA : LDA #$00 : PHA : XBA : PHA : PLX : JMP ($0AD9,X) */
-            m_lda8(s, command & 0x0F);
-            m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-            m_xba(s);
-            m_lda8(s, 0x00);
-            m_push8(s, (uint8_t)c->a);
-            m_xba(s);
-            m_push8(s, (uint8_t)c->a);
-            c->x = pull16_nz(s);
-            uint16_t target = m_jump_table(s, 0xC7, 0x0AD9, c->x);
-            if (target == 0x01A1)
-                play_song(s);
-            else if (target == 0x0192)
-                driver_return(s);
-            else
-                c->pc = target;
-            return;
-        }
-        m_cmp8(s, command, 0x30);
-        if (command < 0x30) {
-            send_command(s);
-            return;
-        }
-        m_cmp8(s, command, 0x40);
-        if (command < 0x40) {
-            /* $C7:071D: the four bytes for song n from $C7:0A98, and dispatch again */
-            m_rep(s, CPU_FLAG_M);
-            m_lda16(s, c->a & 0x000F);
-            c->a = m_asl16(s, c->a);
-            c->a = m_asl16(s, c->a);
-            m_tax(s);
-            set_dp16(s, 0x02, m_lda16(s, m_read16(s, 0xC70A9A + c->x)));
-            set_dp16(s, 0x00, m_lda16(s, m_read16(s, 0xC70A98 + c->x)));
-            continue;
-        }
-        m_cmp8(s, command, 0x70);
-        if (command == 0x70) {
-            /* $C7:08E3 */
-            m_sep(s, CPU_FLAG_M);
-            m_lda8(s, dp8(s, 0x01));
-            clc(s);
-            m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0xFF));
-            m_lda8(s, 0x00);
-            uint8_t nonzero = rol_a8(s);
-            uint8_t seen = dp8(s, 0x11);
-            m_cmp8(s, nonzero, seen);
-            if (nonzero == seen) {
-                driver_return(s);
-                return;
-            }
-            set_dp8(s, 0x10, nonzero);
-            set_dp8(s, 0x11, nonzero);
-            port_write(s, 0x08F7, 0, m_lda8(s, 0xFE));
-            c->pc = 0x08FA;
-            return;
-        }
-        m_cmp8(s, command, 0x71);
-        if (command != 0x71) {
-            driver_return(s);
-            return;
-        }
-        /* $C7:0755 */
-        if (m_ldx(s, dp16(s, 0x20)) == 0) {
-            driver_return(s);
-            return;
-        }
-        m_sep(s, CPU_FLAG_M);
-        if (m_lda8(s, dp8(s, 0x01)) == 0) {
-            driver_return(s);
-            return;
-        }
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, (uint16_t)(c->a - 1));
-        m_lda16(s, c->a & 0x00FF);
-        set_dp16(s, 0x82, c->a);
-        c->a = m_asl16(s, c->a);
-        set_dp16(s, 0x02, c->a);
-        clc(s);
-        c->a = m_adc16(s, c->a, dp16(s, 0x82));
-        m_tax(s);
-        m_sep(s, CPU_FLAG_M);
-        set_dp8(s, 0x12, m_lda8(s, m_read8(s, 0xC70AEA + c->x)));
-        set_dp8(s, 0x13, m_lda8(s, m_read8(s, 0xC70AEB + c->x)));
-        set_dp8(s, 0x14, m_lda8(s, m_read8(s, 0xC70AEC + c->x)));
-        m_ldy(s, dp16(s, 0x12));
-        set_dp8(s, 0x12, 0x00);
-        set_dp8(s, 0x13, 0x00);
-        set_dp8(s, 0x0C, read_header_byte(s));
-        set_dp8(s, 0x0D, read_header_byte(s));
-        m_rep(s, CPU_FLAG_M);
-        m_ldx(s, dp16(s, 0xFC));
-        m_lda16(s, dp16(s, 0x0C));
-        clc(s);
-        c->a = m_adc16(s, c->a, dpx16(s, 0x60));
-        m_lda16(s, (uint16_t)(c->a - 1));
-        uint16_t end = dpx16(s, 0x62);
-        m_cmp16(s, c->a, end);
-        if (c->a >= end) {
-            driver_return(s);
-            return;
-        }
-        upload_to_slot(s);
-        return;
-    }
-}
-
-// $C7:063D
-/* The command's echo wait ran out: unless the command in $00 is now zero
- * (then return), send it again. */
-void sound_driver_command_timed_out(Snes *s)
-{
-    if (m_lda8(s, dp8(s, 0x00)) == 0)
-        driver_return(s);
-    else
-        send_command(s);
-}
-
-// $C7:0643
-/* The command was echoed (A): for command $FC, when the low nibble of $01
- * differs from $F0, set $F0 from it ($C7:09FD). Then return. */
-void sound_driver_command_echoed(Snes *s)
-{
-    uint8_t command = (uint8_t)s->cpu.a;
-    m_cmp8(s, command, 0xFC);
-    if (command == 0xFC) {
-        m_lda8(s, dp8(s, 0x01));
-        uint8_t v = m_lda8(s, (uint8_t)s->cpu.a & 0x0F);
-        uint8_t f0 = dp8(s, 0xF0);
-        m_cmp8(s, v, f0);
-        if (v != f0)
-            set_f0(s, 0x064F);
-    }
-    driver_return(s);
-}
-
-// $C7:0614
-/* After the final echo wait of play_song: store A in $05, clear slots from
- * $F2 ($C7:0A12) and return. */
-void sound_driver_upload_finished(Snes *s)
-{
-    set_dp8(s, 0x05, (uint8_t)s->cpu.a);
-    clear_slots_from_f2(s, 0x0616);
-    driver_return(s);
-}
-
-// $C7:0655
-/* Upload the block for the id in slot $1C (X, entered with 16-bit A): its
- * 24-bit pointer from $C7:0AEA + (id - 1) * 3 points to a 16-bit length and
- * the data. Command 3 with the slot's address ($60) on ports 2-3 (sent again
- * after $C7:09EA while the SPC700 answers something else), then the data three
- * bytes at a time; the slot's length goes to $40 and the address after the
- * block to $62. Returns with RTS. */
-void sound_driver_upload_block(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    for (;;) {
-        /* $C7:0656 */
-        m_rep(s, CPU_FLAG_M);
-        m_ldx(s, dp16(s, 0x1C));
-        m_lda16(s, dpx16(s, 0x20));
-        m_lda16(s, (uint16_t)(c->a - 1));
-        set_dp16(s, 0x82, c->a);
-        c->a = m_asl16(s, c->a);
-        clc(s);
-        c->a = m_adc16(s, c->a, dp16(s, 0x82));
-        m_tax(s);
-        m_sep(s, CPU_FLAG_M);
-        set_dp8(s, 0x12, m_lda8(s, m_read8(s, 0xC70AEA + c->x)));
-        set_dp8(s, 0x13, m_lda8(s, m_read8(s, 0xC70AEB + c->x)));
-        set_dp8(s, 0x14, m_lda8(s, m_read8(s, 0xC70AEC + c->x)));
-        m_ldy(s, dp16(s, 0x12));
-        set_dp8(s, 0x12, 0x00);
-        set_dp8(s, 0x13, 0x00);
-        m_ldx(s, dp16(s, 0x1C));
-        port_write(s, 0x0682, 2, m_lda8(s, dpx8(s, 0x60)));
-        port_write(s, 0x0687, 3, m_lda8(s, dpx8(s, 0x61)));
-        port_write(s, 0x068C, 1, m_lda8(s, 0x03));
-        if (!send_counter(s, 0x0691, true))
-            return;
-        uint8_t want = m_lda8(s, 0x03);
-        uint8_t got = port_read(s, 0x0698, 1);
-        m_cmp8(s, want, got);
-        if (want == got)
-            break;
-        /* JSR $09EA : BRA $0656 */
-        if (!jsr(s, 0x069D, 0x09EA, M8_X16))
-            return;
-    }
-    /* $C7:06A2 */
-    uint8_t lo = m_lda8(s, m_read8(s, long_y(s, 0x12)));
-    set_dp8(s, 0x0C, lo);
-    set_dpx8(s, 0x40, lo);
-    clc(s);
-    m_set_a8(s, m_adc8(s, lo, dpx8(s, 0x60)));
-    set_dpx8(s, 0x62, (uint8_t)c->a);
-    iny(s);
-    if (c->y == 0)
-        inc_dp8(s, 0x14);
-    uint8_t hi = m_lda8(s, m_read8(s, long_y(s, 0x12)));
-    set_dp8(s, 0x0D, hi);
-    set_dpx8(s, 0x41, hi);
-    m_set_a8(s, m_adc8(s, hi, dpx8(s, 0x61)));
-    set_dpx8(s, 0x63, (uint8_t)c->a);
-    iny(s);
-    if (c->y == 0)
-        inc_dp8(s, 0x14);
-    m_ldx(s, dp16(s, 0x0C));
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, c->y);
-    clc(s);
-    c->a = m_adc16(s, c->a, dp16(s, 0x0C));
-    m_sep(s, CPU_FLAG_M);
-    /* $C7:06CD (the data crosses into the next bank) or $C7:06F9 */
-    if (!send_data(s, 0x070D, 0x06ED, false))
-        return;
-    reset_counter(s);
-    plp(s);
-    m_rts(s);
-}
-
-/* $C7:0956 / $C7:0998: $0C = the 16-bit count at `count`, [$12] = the 24-bit
- * address `data` (in bank $C7), then the data three bytes at a time (the JSR
- * $09DA at `site`). */
-static bool upload_2f00_table(Snes *s, uint32_t count, uint32_t data, uint16_t site)
-{
-    Cpu *c = &s->cpu;
-    set_dp8(s, 0x0C, m_lda8(s, m_read8(s, count)));
-    set_dp8(s, 0x0D, m_lda8(s, m_read8(s, count + 1)));
-    set_dp8(s, 0x12, m_lda8(s, data & 0xFF));
-    set_dp8(s, 0x13, m_lda8(s, (data >> 8) & 0xFF));
-    set_dp8(s, 0x14, m_lda8(s, data >> 16));
-    m_ldx(s, dp16(s, 0x0C));
-    m_ldy(s, 0x0000);
-    do {
-        if (!send_three_bytes(s, site))
-            return false;
-        dex(s);
-        dex(s);
-        dex(s);
-    } while (c->x != 0);
-    return true;
+    uint16_t first_free = 0;
+    while (first_free != SLOTS_END && slot_word(s, SLOT_IDS, first_free) != 0)
+        first_free += 2;
+    m_write16(s, WORK, first_free);
+    uint16_t last_end = SLOTS_END;
+    while (last_end != 0 && slot_word(s, SLOT_IDS - 2, last_end) == 0)
+        last_end -= 2;
+    if (last_end != first_free && !move_blocks_down(s, song))
+        return end_lost();
+    return song_upload_from_blocks(s, song, true);
 }
 
 // $C7:0922
-/* Command 5 (when the command in $00 is $70) or 3 with address $2F00 (sent
- * again after $C7:09EA while the SPC700 answers something else), then the data
- * from $C7:430B (count at $C7:4309) when $10 is zero, or from $C7:5B0D (count
- * at $C7:5B0B); clears $F3. Returns with RTS. */
-void sound_driver_upload_2f00_data(Snes *s)
+/* The $2F00 set RAM_SOUND_DRIVER_2F00_SET asks for, to SPC700 $2F00 (in a
+ * slot-data header for command $70, a data header otherwise). */
+static bool upload_2f00_set(Snes *s)
 {
-    for (;;) {
-        m_sep(s, CPU_FLAG_M);
-        port_write(s, 0x0926, 3, m_lda8(s, 0x2F));
-        port_write(s, 0x092B, 2, m_lda8(s, 0x00));
-        uint8_t command = m_lda8(s, dp8(s, 0x00));
-        m_cmp8(s, command, 0x70);
-        uint8_t kind = m_lda8(s, command == 0x70 ? 0x05 : 0x03);
-        port_write(s, 0x093A, 1, kind);
-        set_dp8(s, 0x86, kind);
-        if (!send_counter(s, 0x0941, true))
-            return;
-        uint8_t want = m_lda8(s, dp8(s, 0x86));
-        uint8_t got = port_read(s, 0x0948, 1);
-        m_cmp8(s, want, got);
-        if (want == got)
-            break;
-        /* JSR $09EA : BRA $0922 */
-        if (!jsr(s, 0x094D, 0x09EA, M8_X16))
-            return;
-    }
-    bool done = m_lda8(s, dp8(s, 0x10)) == 0 ? upload_2f00_table(s, 0xC74309, 0xC7430B, 0x0987)
-                                             : upload_2f00_table(s, 0xC75B0B, 0xC75B0D, 0x09C9);
-    if (!done)
-        return;
-    set_dp8(s, 0xF3, 0x00);
-    reset_counter(s);
-    m_rts(s);
+    uint8_t kind = m_read8(s, COMMAND) == 0x70 ? KIND_SLOT_DATA : KIND_DATA;
+    m_write8(s, HEADER_KIND, kind);
+    if (!send_header(s, 0x0941, 0x2F00, kind))
+        return false;
+    bool second = m_read8(s, SET_2F00) != 0;
+    uint32_t set = sound_2f00_set(second);
+    uint16_t length = sound_data_length(s, set);
+    m_write16(s, WORK, length);
+    Upload u = upload_at(s, set + 2, 0);
+    uint16_t left = length;
+    do {
+        if (!send_three(s, &u, second ? 0x09C9 : 0x0987))
+            return false;
+        left = (uint16_t)(left - 3);
+    } while (left != 0);
+    m_write8(s, PENDING_2F00, 0);
+    end_exchange(s);
+    return true;
+}
+
+// $C7:08E3
+/* Command $70: choose the $2F00 set (1 if the parameter is nonzero). If that
+ * changes it, tell the SPC700 ($FE) and upload it when that's echoed. */
+static End select_2f00_set(Snes *s)
+{
+    uint8_t set = m_read8(s, PARAMETERS) != 0;
+    if (set == m_read8(s, SET_2F00_SENT))
+        return end_return();
+    m_write8(s, SET_2F00, set);
+    m_write8(s, SET_2F00_SENT, set);
+    port_write(s, 0x08F7, 0, SOUND_COMMAND_2F00);
+    return end_wait(WAIT_2F00_COMMAND_ECHO, SOUND_COMMAND_2F00);
 }
 
 // $C7:08FF
-/* Command $70's $FE was echoed (A): the next counter, A + 1 masked to 7 bits,
- * to $84; upload the data at $2F00 ($C7:0922); then $E0 to ports 1 and 0 with
- * X = $0400 for the echo wait at $C7:0912, where the port stops. */
-void sound_driver_2f00_command_echoed(Snes *s)
+/* Command $70's message was echoed: upload the set, and end with $E0. */
+static End upload_2f00_after_echo(Snes *s, uint8_t echoed)
 {
-    Cpu *c = &s->cpu;
-    inc_a8(s);
-    set_dp8(s, 0x84, m_lda8(s, (uint8_t)c->a & 0x7F));
-    if (!jsr(s, 0x0904, 0x0922, M8_X16))
+    m_write8(s, COUNTER, (echoed + 1) & 0x7F);
+    if (!call_driver(s, 0x0904, 0x0922, false, false))
+        return end_lost();
+    port_write(s, 0x0907, 1, COUNTER_FIRST);
+    port_write(s, 0x0907, 0, COUNTER_FIRST);
+    return end_wait(WAIT_2F00_END, COUNTER_FIRST);
+}
+
+// $C7:0755
+/* Command $71: upload block `$01` into slot RAM_SOUND_DRIVER_UPLOAD_SLOT, if
+ * a song is loaded and the block fits before the next slot: the block (in a
+ * slot-data header after $FE), then the slot's $1E80 entry and the block's
+ * words for $1F40 and $1FC0, each in a table of one. Nothing is sent again.
+ * $02 holds the block's index times 2 from here on. */
+static End upload_to_slot(Snes *s)
+{
+    if (slot_word(s, SLOT_IDS, 0) == 0)
+        return end_return();
+    uint8_t id = m_read8(s, PARAMETERS);
+    if (id == 0)
+        return end_return();
+    uint16_t index = (uint8_t)(id - 1);
+    m_write16(s, INDEX_SCRATCH, index);
+    m_write16(s, PARAMETERS + 1, (uint16_t)(2 * index));
+    Upload u = upload_from(s, sound_block(s, id));
+    uint16_t length = upload_length(s, &u);
+    uint16_t slot = m_read16(s, UPLOAD_SLOT);
+    if ((uint16_t)(length + slot_word(s, SLOT_ADDRESSES, slot) - 1) >= slot_word(s, SLOT_ADDRESSES, (uint16_t)(slot + 2)))
+        return end_return();
+
+    if (!send_first_counter(s, 0x07B2, COUNTER_START_SLOT))
+        return end_lost();
+    send_word_23(s, 0x07CA, slot_word(s, SLOT_ADDRESSES, slot));
+    port_write(s, 0x07CA, 1, KIND_SLOT_DATA);
+    if (!send_counter(s, 0x07CA))
+        return end_lost();
+    set_slot_word(s, SLOT_LENGTHS, slot, length);
+    if (!send_data(s, &u, length, 0x081F, 0x07FF))
+        return end_lost();
+
+    uint16_t address = slot_word(s, SLOT_ADDRESSES, slot);
+    if (!send_table_header(s, 0x083A, 0x1E80))
+        return end_lost();
+    send_word_12(s, 0x0850, address);
+    if (!send_counter(s, 0x0850))
+        return end_lost();
+    send_word_12(s, 0x086B, (uint16_t)(address + sound_block_address_offset(s, id)));
+    if (!send_counter_unkept(s, 0x086B) || !send_table_header(s, 0x087F, 0x1F40))
+        return end_lost();
+    send_word_12(s, 0x0895, sound_block_1f40_word(s, id));
+    if (!send_counter_unkept(s, 0x0895) || !send_table_header(s, 0x08A9, 0x1FC0))
+        return end_lost();
+    send_word_12(s, 0x08BF, sound_block_1fc0_word(s, id));
+    if (!send_counter_unkept(s, 0x08BF))
+        return end_lost();
+    port_write(s, 0x08C2, 1, COUNTER_FIRST);
+    port_write(s, 0x08C2, 0, COUNTER_FIRST);
+    return end_wait(WAIT_SLOT_UPLOAD_END, COUNTER_FIRST);
+}
+
+// $C7:0155
+/* Dispatch the command in $1E00. While RAM_SOUND_DRIVER_SONG has bit 7 clear
+ * (a song is going up) every command is ignored. $80-$FF and $18-$2F go as
+ * they are; $10-$17 through the table at $C7:0AD9 ($10, $11, $14 and $15 play
+ * a song, the rest nothing); $30-$3F stand for the four bytes at $C7:0A98
+ * (a song command), and go round again; $70 and $71 as above. */
+static End command(Snes *s)
+{
+    for (;;) {
+        if (!(m_read8(s, SONG) & 0x80))
+            return end_return();
+        uint8_t command = m_read8(s, COMMAND);
+        if (command >= 0x80)
+            return send_command(s);
+        if (command < 0x10)
+            return end_return();
+        if (command < 0x18)
+            return command & 0x02 ? end_return() : play_song(s);
+        if (command < 0x30)
+            return send_command(s);
+        if (command < 0x40) {
+            uint8_t n = command & 0x0F;
+            m_write16(s, PARAMETERS + 1, sound_shortcut_command_word(s, n, 1));
+            m_write16(s, COMMAND, sound_shortcut_command_word(s, n, 0));
+            continue;
+        }
+        if (command == 0x70)
+            return select_2f00_set(s);
+        if (command == 0x71)
+            return upload_to_slot(s);
+        return end_return();
+    }
+}
+
+/* ---- The boot ------------------------------------------------------------------------ */
+
+enum {
+    BOOT_ROM_READY = 0xBBAA,   /* what the SPC700's boot ROM shows on ports 0-1 */
+    BOOT_KICK = 0xCC,          /* the boot ROM's start signal */
+    DRIVER_START = 0x0200,     /* where the uploaded driver starts */
+    BOOT_DELAY = 0x0800,       /* passes of $C7:011B's countdown */
+    BOOT_RESERVE = 5,
+    SONG_READY = 0xE0,         /* RAM_SOUND_DRIVER_SONG between songs: bit 7 set */
+};
+
+// $C7:005F
+/* The boot ROM is ready: the first block's address, and the start signal. */
+static void boot_start(Snes *s)
+{
+    send_word_23(s, 0x005F, sound_boot_block_destination(s, 0));
+    port_write(s, 0x0072, 1, BOOT_KICK);
+    port_write(s, 0x0075, 0, BOOT_KICK);
+}
+
+// $C7:007D
+/* Block `block` (times 2): point the upload at it, note where it ends (its
+ * length plus the two bytes of the length), and send its first byte with index
+ * 0. Returns the offset of the byte. */
+static uint16_t boot_block(Snes *s, uint16_t block)
+{
+    uint32_t at = sound_boot_block(s, block);
+    Upload u = upload_at(s, at, 0);
+    m_write16(s, WORK, (uint16_t)(sound_data_length(s, at) + 2));
+    u.offset = 2;
+    port_write(s, 0x00A4, 1, upload_byte(s, &u));
+    port_write(s, 0x00A8, 0, 0);
+    return 2;
+}
+
+/* Where the boot goes after a byte is echoed. */
+typedef enum { BOOT_NEXT_BYTE, BOOT_NEXT_BLOCK, BOOT_JUMP } BootStep;
+
+// $C7:00B0
+/* Byte `index` of the block was echoed. Send the next with the next index, or
+ * after the block's last, start the next block at an index 3 on (never 0), or
+ * after the last block, tell the boot ROM to run the driver. */
+static BootStep boot_next_byte(Snes *s, uint8_t *index, uint16_t *block, uint16_t *offset)
+{
+    (*index)++;
+    (*offset)++;
+    if (*offset != m_read16(s, WORK)) {
+        uint32_t pointer = (uint32_t)m_read16(s, DATA_POINTER) | (uint32_t)m_read8(s, DATA_POINTER + 2) << 16;
+        port_write(s, 0x00A4, 1, sound_data_byte(s, pointer + *offset));
+        port_write(s, 0x00A8, 0, *index);
+        return BOOT_NEXT_BYTE;
+    }
+    *index = (uint8_t)(*index + 3);
+    if (*index == 0)
+        *index = 1;
+    *block += 2;
+    if (*block != 2 * SOUND_BOOT_BLOCKS) {
+        send_word_23(s, 0x00C5, sound_boot_block_destination(s, *block));
+        port_write(s, 0x00D5, 1, *index);
+        port_write(s, 0x00D8, 0, *index);
+        return BOOT_NEXT_BLOCK;
+    }
+    send_word_23(s, 0x00E2, DRIVER_START);
+    port_write(s, 0x00EF, 1, 0);
+    port_write(s, 0x00F3, 0, *index);
+    return BOOT_JUMP;
+}
+
+// $C7:00FB
+/* The driver runs: `value` (0) to port 0 and over the driver's page, and the
+ * first slot, the free space and the base all start after boot block 2. */
+static void boot_started(Snes *s, uint8_t value)
+{
+    port_write(s, 0x00FC, 0, value);
+    for (uint16_t i = 0; i < DRIVER_PAGE_SIZE; i++)
+        m_write8(s, (uint16_t)(RAM_PAGE_SOUND + i), value);
+    uint16_t base = (uint16_t)(SOUND_BOOT_BLOCK_2_DESTINATION + sound_boot_block_2_length(s));
+    m_write16(s, BASE_ADDRESS, base);
+    m_write16(s, SLOT_ADDRESSES, base);
+    m_write16(s, FREE_ADDRESS, base);
+}
+
+// $C7:011E
+/* After the countdown: the initial reserve (without forgetting slots: there
+ * are none), and ready for songs. */
+static void boot_finish(Snes *s)
+{
+    m_write16(s, UNUSED_FA, 0xC700);
+    m_write8(s, RESERVE, BOOT_RESERVE);
+    m_write8(s, SLOT_LIMIT, slot_limit_for(BOOT_RESERVE));
+    m_write8(s, UNUSED_F1, 0);
+    m_write8(s, SONG, SONG_READY);
+}
+
+/* ---- Entries ------------------------------------------------------------------------ */
+
+/* The driver's code: APU-direct runs it while PC stays in here. */
+#define DRIVER_FIRST 0xC70000
+#define DRIVER_LAST 0xC70FFF
+
+/* Every entry but the two the game calls runs with the driver's data bank and
+ * direct page, which it reaches work RAM and the ports through. */
+bool sound_driver_frame_is_set(Snes *s) { return s->cpu.db == 0x00 && s->cpu.d == RAM_PAGE_SOUND; }
+
+// $C7:0000
+/* The JSL that uploads the driver (a JMP to $C7:0038): the driver's frame, and
+ * X = what the boot ROM will show when it's ready, for the loop at $C7:0050. */
+void sound_driver_boot(Snes *s)
+{
+    if (au_driver_run_direct(m_platform(s), DRIVER_FIRST, DRIVER_LAST))
         return;
-    m_lda8(s, 0xE0);
-    m_ldx(s, 0x0400);
-    port_write(s, 0x090C, 1, (uint8_t)c->a);
-    port_write(s, 0x090F, 0, (uint8_t)c->a);
-    c->pc = 0x0912;
+    enter_driver(s);
+    s->cpu.x = BOOT_ROM_READY;
+    stop_at(s, 0x0050, DC_A);
 }
 
-// $C7:0A5A
-/* Write $03, $02, $01 and $00 to ports 3-0, with X = $0400 for the echo wait
- * at $C7:0A71, where the port stops. */
-static void send_song_command(Snes *s)
+void sound_driver_boot_start(Snes *s)
 {
-    port_write(s, 0x0A5C, 3, m_lda8(s, dp8(s, 0x03)));
-    port_write(s, 0x0A61, 2, m_lda8(s, dp8(s, 0x02)));
-    port_write(s, 0x0A66, 1, m_lda8(s, dp8(s, 0x01)));
-    port_write(s, 0x0A6B, 0, m_lda8(s, dp8(s, 0x00)));
-    m_ldx(s, 0x0400);
-    s->cpu.pc = 0x0A71;
+    boot_start(s);
+    s->cpu.x = 0;
+    set_a_low(s, BOOT_KICK);
+    stop_at(s, 0x0078, DC_AH);
 }
 
-// $C7:0A39
-/* (JSR from play_song.) Look up song $01 (bit 7 ignored) in the table at
- * $C7:241D: $02 = its second byte, $03 = the low nibble of its first; when
- * that differs from $F0, set $F0 ($C7:09FD). Then send the command; stops at
- * the echo wait. */
+void sound_driver_boot_block(Snes *s)
+{
+    s->cpu.y = boot_block(s, s->cpu.x);
+    set_a_low(s, 0);
+    stop_at(s, 0x00AB, DC_AH);
+}
+
+void sound_driver_boot_next_byte(Snes *s)
+{
+    uint8_t index = (uint8_t)s->cpu.a;
+    uint16_t block = s->cpu.x, offset = s->cpu.y;
+    BootStep step = boot_next_byte(s, &index, &block, &offset);
+    s->cpu.x = block;
+    s->cpu.y = offset;
+    if (step == BOOT_NEXT_BYTE) {
+        set_a_low(s, index);
+        stop_at(s, 0x00AB, DC_AH);
+    } else if (step == BOOT_NEXT_BLOCK) {
+        set_a_low(s, index);
+        stop_at(s, 0x00DB, DC_AH | DC_Y);
+    } else {
+        s->cpu.a = index;   /* the high byte is read after the wait */
+        stop_at(s, 0x00F6, DC_X | DC_Y);
+    }
+}
+
+void sound_driver_boot_started(Snes *s)
+{
+    boot_started(s, (uint8_t)(s->cpu.a >> 8));
+    set_widths(s, true);
+    s->cpu.x = BOOT_DELAY;
+    stop_at(s, 0x011B, DC_A | DC_Y);
+}
+
+void sound_driver_boot_finish(Snes *s)
+{
+    boot_finish(s);
+    leave_driver(s);
+}
+
+// $C7:0004
+/* The JSL the game sends every command through (a JMP to $C7:0140). With
+ * APU-direct the whole command runs synchronously. */
+void sound_driver_command(Snes *s)
+{
+    if (au_driver_run_direct(m_platform(s), DRIVER_FIRST, DRIVER_LAST))
+        return;
+    enter_driver(s);
+    finish(s, command(s));
+}
+
+// $C7:063D
+/* The command's echo didn't come: send it again, unless it's been cleared. */
+void sound_driver_command_timed_out(Snes *s)
+{
+    finish(s, m_read8(s, COMMAND) == 0 ? end_return() : send_command(s));
+}
+
+// $C7:0643
+/* The command was echoed: a $FC command's parameter sets a new reserve. */
+void sound_driver_command_echoed(Snes *s)
+{
+    if ((uint8_t)s->cpu.a == 0xFC) {
+        uint8_t reserve = m_read8(s, PARAMETERS) & 0x0F;
+        if (reserve != m_read8(s, RESERVE))
+            set_reserve(s, reserve);
+    }
+    leave_driver(s);
+}
+
+// $C7:0614
+/* The song's upload ended (echoed or not): the driver is ready again, with
+ * the value it waited for ($E0) as the song, and forgets what's past the
+ * reserve. */
+void sound_driver_upload_finished(Snes *s)
+{
+    m_write8(s, SONG, (uint8_t)s->cpu.a);
+    forget_slots_past_limit(s);
+    leave_driver(s);
+}
+
+/* The subroutines return as they were called, with P as it was. $C7:0655
+ * saves it on the stack, where it stays under the return addresses of the
+ * calls it makes. */
+void sound_driver_upload_block(Snes *s)
+{
+    save_p(s);
+    if (!upload_block(s))
+        return;
+    restore_p(s);
+    m_rts(s);
+}
+
+void sound_driver_upload_2f00_data(Snes *s)
+{
+    if (upload_2f00_set(s))
+        m_rts(s);
+}
+
+void sound_driver_mark_listed_song(Snes *s)
+{
+    uint8_t p = s->cpu.p;
+    mark_listed_song(s);
+    s->cpu.p = p;
+    m_rts(s);
+}
+
+void sound_driver_set_reserve(Snes *s)
+{
+    uint8_t p = s->cpu.p;
+    set_reserve(s, (uint8_t)s->cpu.a);
+    s->cpu.p = p;
+    m_rts(s);
+}
+
+void sound_driver_forget_slots_past_limit(Snes *s)
+{
+    uint8_t p = s->cpu.p;
+    forget_slots_past_limit(s);
+    s->cpu.p = p;
+    m_rts(s);
+}
+
+void sound_driver_2f00_command_echoed(Snes *s) { finish(s, upload_2f00_after_echo(s, (uint8_t)s->cpu.a)); }
+
+// $C7:08DA
+/* Command $71 is done: the slot holds the block (its id's low byte). */
+void sound_driver_slot_uploaded(Snes *s)
+{
+    set_slot_byte(s, SLOT_IDS, m_read16(s, UPLOAD_SLOT), m_read8(s, PARAMETERS));
+    leave_driver(s);
+}
+
+/* The song's command goes in a frame of its own: P, saved here, comes back in
+ * $C7:0A7B's return. */
 void sound_driver_send_song(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, dp16(s, 0x01));
-    m_lda16(s, c->a & 0x007F);
-    c->a = m_asl16(s, c->a);
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x02, m_lda8(s, m_read8(s, 0xC7241E + c->x)));
-    m_lda8(s, m_read8(s, 0xC7241D + c->x));
-    uint8_t nibble = m_lda8(s, (uint8_t)c->a & 0x0F);
-    set_dp8(s, 0x03, nibble);
-    uint8_t f0 = dp8(s, 0xF0);
-    m_cmp8(s, nibble, f0);
-    if (nibble != f0)
-        set_f0(s, 0x0A57);
-    send_song_command(s);
+    save_p(s);
+    finish(s, send_song(s));
 }
 
 // $C7:0A79
-/* The song command's echo wait ran out: send it again. */
-void sound_driver_song_timed_out(Snes *s) { send_song_command(s); }
+void sound_driver_song_timed_out(Snes *s) { finish(s, send_song_command(s)); }
 
-// $C7:0A7B
-/* The song command was echoed (A): the next counter, A + 1 masked to 7 bits,
- * goes to $84. If port 1 reads positive, return to play_song; otherwise write
- * the counter to port 0 and stop at the wait for port 0 to change from it
- * minus 1 ($C7:0A8B). */
 void sound_driver_song_echoed(Snes *s)
 {
-    m_lda8(s, (uint8_t)(s->cpu.a + 1));
-    set_dp8(s, 0x84, m_lda8(s, (uint8_t)s->cpu.a & 0x7F));
-    if (!(m_lda8(s, port_read(s, 0x0A80, 1)) & 0x80)) {
-        plp(s);
-        m_rts(s);
+    End refused;
+    if (!song_echoed(s, (uint8_t)s->cpu.a, &refused)) {
+        finish(s, refused);
         return;
     }
-    port_write(s, 0x0A87, 0, m_lda8(s, dp8(s, 0x84)));
-    m_lda8(s, (uint8_t)(s->cpu.a - 1));
-    s->cpu.pc = 0x0A8B;
+    restore_p(s);
+    m_stop_dont_care(s, DC_A);
+    m_rts(s);
 }
 
 // $C7:0A90
-/* The SPC700 refused the song: drop $C7:0A39's frame (PLA x3) and return from
- * the driver, skipping the rest of play_song. */
+/* Refused: drop the song's frame and play_song's return, and leave. */
 void sound_driver_song_refused(Snes *s)
 {
-    for (int i = 0; i < 3; i++)
-        m_lda8(s, m_pull8(s));
-    driver_return(s);
+    s->cpu.s = (uint16_t)(s->cpu.s + 3);
+    leave_driver(s);
 }
 
+void sound_driver_return(Snes *s) { leave_driver(s); }
+
 // $C7:09DA
-/* PHP : SEP #$20 : STA $2140 -- send the counter in A; stops at the echo wait
- * at $C7:09E0, after which the original returns A + 1 masked to 7 bits. */
+/* Send the counter in A on port 0 in a frame of its own, and wait for the
+ * echo ($C7:09E0). */
 void sound_driver_send_counter(Snes *s)
 {
-    m_push8(s, s->cpu.p);
-    m_sep(s, CPU_FLAG_M);
+    save_p(s);
+    s->cpu.p |= CPU_FLAG_M;
     port_write(s, 0x09DD, 0, (uint8_t)s->cpu.a);
-    s->cpu.pc = 0x09E0;
+    stop_at(s, 0x09E0, 0);
+}
+
+// $C7:09E5
+/* Echoed: the next counter, and back. */
+void sound_driver_counter_echoed(Snes *s)
+{
+    set_a_low(s, (uint8_t)((s->cpu.a + 1) & 0x7F));
+    restore_p(s);
+    m_rts(s);
 }
 
 // $C7:09EA
-/* PHP : SEP #$20 : LDA $84 : STA $2140 -- send the current counter again; stops
- * at the echo wait at $C7:09F2, after which the original sets $84 to $E0. */
+/* Send the current counter again, likewise ($C7:09F2). */
 void sound_driver_resend_counter(Snes *s)
 {
-    m_push8(s, s->cpu.p);
-    m_sep(s, CPU_FLAG_M);
-    port_write(s, 0x09EF, 0, m_lda8(s, dp8(s, 0x84)));
-    s->cpu.pc = 0x09F2;
+    save_p(s);
+    s->cpu.p |= CPU_FLAG_M;
+    uint8_t counter = m_read8(s, COUNTER);
+    port_write(s, 0x09EF, 0, counter);
+    set_a_low(s, counter);
+    stop_at(s, 0x09F2, 0);
 }
 
-/* CMP $2140 (at `at`) : BEQ exit : DEX : BNE loop -- one pass of a counted echo
- * wait: PC moves to `echoed` when port 0 reads A, or to `timed_out` when X runs
- * out. */
-static void counted_echo_wait(Snes *s, uint16_t at, uint16_t echoed, uint16_t timed_out)
+// $C7:09F7
+/* Echoed: the next exchange starts over. */
+void sound_driver_counter_resent(Snes *s)
 {
-    uint8_t a = (uint8_t)s->cpu.a;
-    uint8_t v = port_read(s, at, 0);
-    m_cmp8(s, a, v);
-    if (a == v) {
-        s->cpu.pc = echoed;
-        return;
-    }
-    dex(s);
-    if (s->cpu.x == 0)
-        s->cpu.pc = timed_out;
+    end_exchange(s);
+    set_a_low(s, COUNTER_FIRST);
+    restore_p(s);
+    m_rts(s);
 }
 
-/* CMP $2140 : BNE loop -- one pass of an echo wait; exits to `echoed`. */
-static void echo_wait(Snes *s, uint16_t at, uint16_t echoed)
+/* ---- Wait loops: idle entries, one pass each ----------------------------------------
+ *
+ * A pass doesn't reproduce the flags the loop's compare leaves (nor the boot
+ * ROM loop's A): the loop sets them again before testing, and the code after
+ * it, all entries here, doesn't read them (their registry entries say so). */
+
+/* Has the SPC700 put `value` on port 0? */
+static bool echoed(Snes *s, uint16_t at, uint8_t value) { return port_read(s, at, 0) == value; }
+
+/* One pass of a counted echo wait: on to `echo` when port 0 shows A's low
+ * byte, or to `given_up` when X runs out. */
+static void counted_echo_wait(Snes *s, uint16_t at, uint16_t echo, uint16_t given_up)
 {
-    uint8_t a = (uint8_t)s->cpu.a;
-    uint8_t v = port_read(s, at, 0);
-    m_cmp8(s, a, v);
-    if (a == v)
-        s->cpu.pc = echoed;
+    if (echoed(s, at, (uint8_t)s->cpu.a))
+        s->cpu.pc = echo;
+    else if (--s->cpu.x == 0)
+        s->cpu.pc = given_up;
 }
 
-/* CMP $2140 : BEQ loop -- one pass of a wait for port 0 to change from A; exits
- * to `changed`. */
+static void echo_wait(Snes *s, uint16_t at, uint16_t echo)
+{
+    if (echoed(s, at, (uint8_t)s->cpu.a))
+        s->cpu.pc = echo;
+}
+
+/* One pass of a wait for port 0 to change from A's low byte. */
 static void change_wait(Snes *s, uint16_t at, uint16_t changed)
 {
-    uint8_t a = (uint8_t)s->cpu.a;
-    uint8_t v = port_read(s, at, 0);
-    m_cmp8(s, a, v);
-    if (a != v)
+    if (!echoed(s, at, (uint8_t)s->cpu.a))
         s->cpu.pc = changed;
 }
 
-// $C7:0635
-/* The echo wait after send_command. Idle entry, 8-bit A and 16-bit X; exits
- * to $C7:0643 when echoed, or $C7:063D after $0400 passes. */
-void sound_driver_wait_command_echo_loop(Snes *s) { counted_echo_wait(s, 0x0635, 0x0643, 0x063D); }
-
-// $C7:0A71
-/* The echo wait after the song command. Idle entry, 8-bit A and 16-bit X;
- * exits to $C7:0A7B when echoed, or $C7:0A79 after $0400 passes. */
-void sound_driver_wait_song_echo_loop(Snes *s) { counted_echo_wait(s, 0x0A71, 0x0A7B, 0x0A79); }
-
-// $C7:060C
-/* The final echo wait of play_song. Idle entry, 8-bit A and 16-bit X; exits to
- * $C7:0614 when echoed or after $0400 passes. */
-void sound_driver_wait_upload_echo_loop(Snes *s) { counted_echo_wait(s, 0x060C, 0x0614, 0x0614); }
-
-// $C7:08CD
-/* The final echo wait of command $71. Idle entry, 8-bit A and 16-bit X; exits
- * to $C7:08D5 when echoed or after $0400 passes. */
-void sound_driver_wait_slot_upload_echo_loop(Snes *s) { counted_echo_wait(s, 0x08CD, 0x08D5, 0x08D5); }
-
-// $C7:0912
-/* The final echo wait of command $70. Idle entry, 8-bit A and 16-bit X; exits
- * to $C7:091A when echoed or after $0400 passes. */
-void sound_driver_wait_2f00_echo_loop(Snes *s) { counted_echo_wait(s, 0x0912, 0x091A, 0x091A); }
-
-// $C7:09E0
-/* The echo wait in $C7:09DA. Idle entry, 8-bit A; exits to $C7:09E5. */
-void sound_driver_wait_echo_loop(Snes *s) { echo_wait(s, 0x09E0, 0x09E5); }
-
-// $C7:09F2
-/* The echo wait in $C7:09EA. Idle entry, 8-bit A; exits to $C7:09F7. */
-void sound_driver_wait_resend_echo_loop(Snes *s) { echo_wait(s, 0x09F2, 0x09F7); }
-
-// $C7:08FA
-/* The echo wait for command $70's $FE. Idle entry, 8-bit A; exits to
- * $C7:08FF. */
-void sound_driver_wait_2f00_command_echo_loop(Snes *s) { echo_wait(s, 0x08FA, 0x08FF); }
-
-// $C7:0A8B
-/* Wait for port 0 to change from A after a refused song. Idle entry, 8-bit A;
- * exits to $C7:0A90. */
-void sound_driver_wait_port0_change_loop(Snes *s) { change_wait(s, 0x0A8B, 0x0A90); }
-
-// $C7:08D5
-/* After command $71's echo, wait for port 0 to change. Idle entry, 8-bit A;
- * exits to $C7:08DA. */
-void sound_driver_wait_slot_upload_change_loop(Snes *s) { change_wait(s, 0x08D5, 0x08DA); }
-
-// $C7:091A
-/* After command $70's echo, wait for port 0 to change. Idle entry, 8-bit A;
- * exits to $C7:091F. */
-void sound_driver_wait_2f00_change_loop(Snes *s) { change_wait(s, 0x091A, 0x091F); }
+// $C7:0050
+/* The boot ROM shows $BBAA (X) on ports 0-1 when it's ready; meanwhile the
+ * driver keeps writing $F0 to port 1 and $FF to port 0. */
+void sound_driver_boot_wait_ready_loop(Snes *s)
+{
+    port_write(s, 0x0052, 1, 0xF0);
+    port_write(s, 0x0057, 0, 0xFF);
+    uint16_t shown = port_read(s, 0x005A, 0);
+    shown |= (uint16_t)(port_read(s, 0x005A, 1) << 8);
+    if (shown == s->cpu.x)
+        s->cpu.pc = 0x005F;
+}
 
 // $C7:0078
-/* The boot ROM's echo of $CC. Idle entry, 8-bit A; exits to $C7:007D. */
 void sound_driver_boot_wait_start_loop(Snes *s) { echo_wait(s, 0x0078, 0x007D); }
-
 // $C7:00AB
-/* The echo of an uploaded byte's index. Idle entry, 8-bit A; exits to $C7:00B0. */
 void sound_driver_boot_wait_byte_loop(Snes *s) { echo_wait(s, 0x00AB, 0x00B0); }
-
 // $C7:00DB
-/* The echo that starts the next block. Idle entry, 8-bit A; exits to the BRA at
- * $C7:00E0. */
+/* Exits to the BRA back to $C7:007D. */
 void sound_driver_boot_wait_block_loop(Snes *s) { echo_wait(s, 0x00DB, 0x00E0); }
-
 // $C7:00F6
-/* The echo that starts the driver. Idle entry, 8-bit A; exits to $C7:00FB. */
 void sound_driver_boot_wait_jump_loop(Snes *s) { echo_wait(s, 0x00F6, 0x00FB); }
+
+// $C7:011B
+/* A countdown of $0800 passes that gives the SPC700 time to start the driver
+ * before the first command: a wait on time alone, kept as the loop so the time
+ * passes (docs/TODO.md). */
+void sound_driver_boot_delay_loop(Snes *s)
+{
+    if (--s->cpu.x == 0)
+        s->cpu.pc = 0x011E;
+}
+
+// $C7:0635
+void sound_driver_wait_command_echo_loop(Snes *s) { counted_echo_wait(s, 0x0635, 0x0643, 0x063D); }
+// $C7:0A71
+void sound_driver_wait_song_echo_loop(Snes *s) { counted_echo_wait(s, 0x0A71, 0x0A7B, 0x0A79); }
+// $C7:060C
+void sound_driver_wait_upload_echo_loop(Snes *s) { counted_echo_wait(s, 0x060C, 0x0614, 0x0614); }
+// $C7:08CD
+void sound_driver_wait_slot_upload_echo_loop(Snes *s) { counted_echo_wait(s, 0x08CD, 0x08D5, 0x08D5); }
+// $C7:0912
+void sound_driver_wait_2f00_echo_loop(Snes *s) { counted_echo_wait(s, 0x0912, 0x091A, 0x091A); }
+// $C7:09E0
+void sound_driver_wait_echo_loop(Snes *s) { echo_wait(s, 0x09E0, 0x09E5); }
+// $C7:09F2
+void sound_driver_wait_resend_echo_loop(Snes *s) { echo_wait(s, 0x09F2, 0x09F7); }
+// $C7:08FA
+void sound_driver_wait_2f00_command_echo_loop(Snes *s) { echo_wait(s, 0x08FA, 0x08FF); }
+// $C7:0A8B
+void sound_driver_wait_port0_change_loop(Snes *s) { change_wait(s, 0x0A8B, 0x0A90); }
+// $C7:08D5
+void sound_driver_wait_slot_upload_change_loop(Snes *s) { change_wait(s, 0x08D5, 0x08DA); }
+// $C7:091A
+/* Exits to the JMP to $C7:0192. */
+void sound_driver_wait_2f00_change_loop(Snes *s) { change_wait(s, 0x091A, 0x091F); }

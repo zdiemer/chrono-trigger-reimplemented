@@ -1002,7 +1002,11 @@ and others) whose original does the work in code past the port's last call
 site, where the region can't follow it.
 
 The timing gate's changes (next) cleared all of these; four findings of the
-same kind as the reference's own are accepted.
+same kind as the reference's own are accepted. The $C7 pilot's ports moved the
+shipping mode's timing again and three more were accepted, each checked in
+screenshots: two field-menu writes that land on frames the field's fade has
+already made black (or all but), and the battle's forced blank under the window
+on the lines the reference itself uses in the same fights.
 
 ### The timing gate
 
@@ -1902,6 +1906,126 @@ while the draft had tracked only the byte it needed; a truncation lost when an
 the wrong part of an expression; and busy-wait loops, which never end in native
 code.
 
+### The $C7 pilot
+
+The last item of PLAN.md's Phase 2: one subsystem converted through the
+workflow to the whole bar, to learn what Phase 3 costs. The subsystem was the
+sound driver's CPU half, bank `$C7` (`game/core/sound_driver.c`): 2.6 KiB of
+code, half of it ported before in the early style (every instruction's effect
+on A, X, Y, P and the stack reproduced: 1066 emulated-register operations by
+the count below), the rest inlined into those ports but credited to nothing.
+
+**Where it ended.** `python3 tools/burndown.py` for `$C7`: 1.4 KiB ported and
+46% left before, 2.6 KiB and 0% after; the one byte left, `$C7:0003`, is a
+`NOP` between two jumps that nothing reaches. 43 registry entries (34 before):
+the routines the old ports inlined but nothing credited (`play_song` at
+`$C7:01A1` and its stages, `$C7:0734`, `$C7:09FD`, `$C7:0A12`), and the code
+after wait loops that ran interpreted (`$C7:011E` after the boot's countdown,
+which is an idle entry now, `$C7:08DA`, `$C7:09E5`, `$C7:09F7`, the common
+exit `$C7:0192`). The file went from 1788 lines to 1416, plus 134 in
+`game/core/sound_data.h`. Every routine is a C function of what it does in
+values; the emulated-register operations left, 86, are all in the part of the
+file that moves the original's registers in and out (the entries, the idle
+passes and the call-out stubs) and none in the logic. Over the 26 movies in
+shadow mode nothing mismatches and no call is refused; all 43 entries pass
+20000 fuzzed states (PORTING.md's row has the numbers).
+
+**What the bar needed that the gate didn't allow.** A port written as logic
+apart from the registers doesn't know the flags, A's high byte after 16-bit
+index arithmetic, or the stack bytes of the subroutines it inlines, and shadow
+mode compared all three, so the first attempt had to choose between
+reproducing them (the draft tool does, with a local per flag) and a narrower
+comparison. The comparison was narrowed, to what the original's own execution
+shows is dead, and nothing else:
+
+- stack bytes the original pushed and pulled again since the last comparison
+  (between the lowest S it reached and its S now) aren't compared, in shadow
+  mode and in `ct_fuzz` (`native_copy_popped_stack`). Nothing reads below S.
+  Every subroutine in `$C7` saves P with `PHP` and restores it, and every
+  call-out's callee does, so without this each inlined subroutine and each
+  call-out needed its P byte exact;
+- a native routine can declare what is dead where it stops
+  (`m_stop_dont_care`), on top of its entry's set: an entry that hands back at
+  several wait loops leaves different registers live at each;
+- `DC_AH`, A's high byte alone;
+- `au_driver_call` takes the call-out's don't-care set, like `m_jsr_dc`.
+
+The first two only ever leave out bytes and registers the original itself
+overwrites before reading; the suite's other checks (trace identity with
+`--recomp only`, timing, vblank, routes) are untouched by them.
+
+**Per routine**, what survived of the draft (`python3 -m tools.recomp.show`,
+with the pilot's hints and the library's coverage) and what changed:
+
+| Routine | Draft / port lines | Close lines, similarity | What changed from the draft, and why |
+|---|--:|--:|---|
+| `$C7:0004` command, `play_song`, commands `$70`, `$71` | 895 / 546 | 31, 0.02 | The draft is one function with 49 gotos over the dispatch, `play_song` and its eight stages; the port is about fifteen functions, one per stage, with the slot tables as named word arrays. Its jump table became `command & 2`. The draft's register stubs (ten variants of the stub for `$C7:09DA` alone, one per register signature) became one stub that sets A and names the rest untaken. D is unknown to the draft after the first call-out, so its accesses fall back to `m_dp`; the port names them all |
+| `$C7:0655` upload a block | 128 / 121 | 1, 0.08 | The header retry, the two data loops (the one carrying into the next bank chosen once) and the length prefix became shared protocol helpers used by six routines; the pointer set-up that the retry repeats is done once, since it is idempotent |
+| `$C7:0A39` send a song | 28 / 50 | 0, 0.19 | Close to the draft; `$C7:09FD`, a call-out in the draft, is a C call |
+| `$C7:0922` upload a `$2F00` set | 91 / 101 | 2, 0.13 | The two sets' duplicated loops became one, the set chosen by an accessor |
+| `$C7:00B0` boot, next byte | 50 / 34 | 0, 0.25 | The index the boot ROM counts, which the original keeps in A's high byte across the wait (`XBA`), is a parameter and a result |
+| `$C7:0643`, `$C7:0614`, `$C7:08FF`, `$C7:0A7B`, `$C7:011E` | 15-28 / 10-56 | 0-1, 0.09-0.23 | Short; mostly the entry's register handling, now in the wrappers |
+| `$C7:0734`, `$C7:09FD`, `$C7:0A12` | 17-28 / 13-26 | 0, 0.14-0.23 | Loops the draft left as gotos |
+
+The draft was right everywhere the port could be checked against it; nothing
+in it was wrong. The port differs in text almost completely: token similarity
+0.02-0.25, 0-7% of the port's lines with a close draft line. (The ground-truth
+tool undercounts the port's memory accesses and call-outs here, since it
+doesn't resolve file-local names for `RAM_` constants or call-out stubs;
+the similarity figures stand.)
+
+**Found on the way**, each a port bug that compiled, looked right and passed
+the first checks: an inlined subroutine's P is live across its call-outs
+(`$C7:0655` saves P under the return address of the calls it makes, so the
+port pushes it); registering `play_song` on its own broke `$C7:0004`'s shadow
+comparison (PORTING.md, Call-outs); and three that only fuzzing reached, since
+no movie does: an odd boot-table index (the accessor rounded it to a block),
+P restored with 8-bit index registers without truncating X and Y, and
+`$C7:09DA`'s `SEP #$20` written as setting both widths.
+
+**The asset seam.** `game/core/sound_data.h` holds every read the driver makes
+of the ROM: MD2's `sound_block_ptrs` and `song_ptrs` by name
+(`sound_block`, `sound_song`), the hand-typed tables by what the driver does
+with them, and the bytes of any resource through `sound_data_byte`. The
+resource is still located by its ROM address, because the driver keeps its
+upload position in work RAM as a long pointer the game can see; a build that
+loads assets from files maps that address in this one header.
+
+**Effort.** Reading the subsystem and the drafts took about as long as writing
+the port, and deciding how the logic and wrapper split meets shadow mode
+(above) took longer than either: it is decided once, now. The port itself,
+1550 lines, was written in one pass from the existing port, the listing and
+the drafts; after that, two shadow iterations over one movie, one over the
+library, and three fuzz iterations. Machine time dominated the wall clock: a
+library shadow run is 6 minutes at four at a time, the fuzzing of 43 entries 3
+minutes, the full gate with every route most of an hour. Validation found five
+bugs; review of the draft against the listing found two more before the first
+run (a loop that must run at least once, an 8-bit read written 16-bit).
+
+**Sound.** The driver broke once in exactly this kind of change (a song
+upload scrambled when native time opened a gap between APU writes;
+PORTING.md, `native_sync`), so the shipping mode's audio was compared with
+`tools/audio_compare.py` (4 s segments) against the reference, `--recomp
+only`, for the pilot's build and for the build before it:
+
+| Movie | Audible segments | Spectrum correlation, median (before / after) | Segments below 0.9 (before / after) | Log-spectral distance, median (before / after) |
+|---|--:|--:|--:|--:|
+| `new-game` | 25 | 0.9990 / 0.9990 | 5 / 5 | 0.53 / 0.53 dB |
+| `field` | 43 | 1.0000 / 1.0000 | 5 / 5 | 0.36 / 0.40 dB |
+| `gato-battle` | 81 | 1.0000 / 1.0000 | 9 / 10 | 0.33 / 0.34 dB |
+| `events-jetbike-race` | 38 | 0.9970 / 0.9985 | 2 / 2 | 0.59 / 0.46 dB |
+| `battle-magus` | 69 | 0.9825 / 0.9775 | 13 / 14 | 1.73 / 1.85 dB |
+| `menus-shop-inn` | 38 | 1.0000 / 1.0000 | 6 / 6 | 0.30 / 0.35 dB |
+
+The same songs and sounds at shifted times, as before: a scrambled upload
+would put a whole song's segments far below 0.9, and no movie has more than
+one segment where one side is silent and the other isn't (the same one before
+and after, at the edge of a silence). `battle-magus` is lowest in both builds,
+where the fight plays out differently in the shipping mode. With
+`--audio direct`, `field` gives 0.9997 and 0.38 dB against the reference
+(0.9997 and 0.39 dB before), and the direct runs now interpret 5 instructions
+where they interpreted 84856, the code after the wait loops being entries.
+
 ### What drafts don't do yet
 
 These are the tool's next improvements, or its known limits:
@@ -1932,6 +2056,29 @@ These are the tool's next improvements, or its known limits:
   carry don't-care at the next call, and liveness can't know to.
 - **Structure** stays a goto where regions interleave (28% of drafts have one),
   and a `switch` over a jump table goes to its cases by label.
+
+From the $C7 pilot (above), in the order they would have saved the most:
+
+- **Liveness counts a saved flag as read.** `PHP` makes every flag live, so a
+  callee that saves and restores P "takes" the caller's flags, and the draft
+  carries `negative`, `overflow`, `zero` and `carry` through every routine that
+  calls one. Since shadow mode leaves popped stack bytes out, a `PHP ... PLP`
+  pair reads nothing the caller must provide; liveness that knew it would drop
+  most of the flag locals, and the call-out stubs could name the untaken
+  registers instead of setting them (one stub per callee, not one per register
+  signature: ten for `$C7:09DA` in one draft).
+- **No liveness at a hand-back.** A draft that stops at another entry (a wait
+  loop) doesn't say what that entry and the code after it read, which is what
+  a port declares with `m_stop_dont_care`; the porter works it out per exit.
+- **D lost after a call-out** that leaves it alone (`$C7:0004` after
+  `$C7:0734`), so the rest of the draft reaches the direct page by offset.
+- **Inlined subroutines and shared shape.** The draft of `$C7:0004` is 895
+  lines with 49 gotos because it inlines every stage of `play_song`; the six
+  copies of the header-retry and upload loops that the port shares as helpers
+  appear once per site.
+- **The ground-truth tool** doesn't resolve a port's file-local names for
+  `RAM_` constants or its call-out stubs, so on a port in the new style it
+  undercounts accesses and call-outs.
 
 ## Risks
 
