@@ -8,9 +8,10 @@ instead, with the SNES hardware model as one backend: the reference that every
 other backend (a native renderer and mixer, widescreen, a GBA build) is checked
 against.
 
-P0, P1 and P3 are implemented and P2 is under way (`runtime/platform/`); P4 and
-P5 are a design. Where a milestone had to change the sketches below, the headers
-are authoritative and its "as built" section lists what changed and why.
+P0 to P3 are implemented (`runtime/platform/`), each with the leftovers its row
+and docs/TODO.md name; P4 and P5 are a design. Where a milestone had to change
+the sketches below, the headers are authoritative and its "as built" section
+lists what changed and why.
 
 | Milestone | What | Status |
 |---|---|---|

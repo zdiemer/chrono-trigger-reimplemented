@@ -104,9 +104,10 @@ the disassembler.
    trace oracle)*
 3. **Host runtime.** SDL window, input, audio, PPU-level renderer, SPC700/DSP
    core, SRAM, and an explicit frame loop with defined NMI/IRQ points.
-   *(development system done: [RUNTIME.md](RUNTIME.md); it plays the attract
-   sequence and new-game opening with frames matching Snes9x. Native SDL host
-   still to do)*
+   *(done: [RUNTIME.md](RUNTIME.md) for the development system, which plays
+   the attract sequence and new-game opening with frames matching Snes9x, and
+   [PLAYING.md](PLAYING.md) for the SDL host `ct_play`, which plays the game
+   with sound)*
 4. **Port.** Boot → title → name entry → Millennial Fair, then field, menu,
    battle, world map and special scenes, each diffed to zero.
    *(started: [PORTING.md](PORTING.md); routines are validated call by call in
