@@ -36,8 +36,13 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **M4**: skip flags nobody reads, call generated blocks directly where it's
   safe. Speed only; rendering and sound dominate now.
-- **M5**: a workflow that turns a generated block into a readable hand port,
-  which is what PLATFORM's later milestones need.
+- **The draft tool's gaps** (RECOMP.md, "What drafts don't do yet"): liveness
+  that keeps A whole (so drafts carry A's high byte and flags no caller reads);
+  D and DB for code only interrupts reach, and the field's main loop after a
+  battle, which the frame analysis gets wrong (a guard catches it: 432877
+  calls of `field_scroll_layers`); operand names for the battle script
+  handlers; turning I/O register writes and the multiplier into platform calls
+  and C arithmetic.
 - **The vblank check into the timing gate.** `tools/vblank_check.py`
   (RECOMP.md, "Where video writes land") runs on its own; `tools/suite.py`
   should run it when the timing gate is assembled, failing on any finding not

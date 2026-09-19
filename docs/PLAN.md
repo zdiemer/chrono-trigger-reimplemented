@@ -89,18 +89,6 @@ poll), and the game code that waits on beam position, which is a game-side
 rewrite in Phase 4. The unexplained `fair` and `fair-companion` regression
 belongs with the first group and is the only one that might be a bug.
 
-**Then build the workflow.** M5 is a tooling problem, not a grinding problem.
-`tools/recomp/show` is designed but unwritten. What it needs to earn:
-
-- a draft close enough that the remaining work is naming and structure;
-- a **ground truth check**: derive a routine that is *already* hand ported and
-  compare, which says how good the drafts are without waiting for new ports to
-  be validated.
-
-`python3 tools/burndown.py` already reports the share of code the registered
-entries cover, per bank or per subsystem, which is how a conversion's progress
-is seen. It reads as an estimate for the reasons its own docstring gives.
-
 **Then set the bar against the ports that exist.** The 291 entries were written
 over months and they are not one standard. The recent ones read as source: named
 constants, service calls, a comment saying what the data means. The early ones
@@ -123,8 +111,8 @@ bar, while its behaviour is already under the gate. A sweep across all of
 it already passes.
 
 **Done when** the timing gate is done and the default flipped, and a
-subsystem's worth of routines has been converted through the workflow to the bar
-above.
+subsystem's worth of routines has been converted through the workflow
+([PORTING.md](PORTING.md), "From a draft to a port") to the bar above.
 
 ## Phase 3: M5 in bulk
 
@@ -194,7 +182,8 @@ port from generated code".
 
 This is the long haul. It is worth re-reading the burndown after the first two
 subsystems and deciding whether the workflow needs another pass before
-continuing.
+continuing; RECOMP.md's "What drafts don't do yet" lists where the draft tool
+falls short, starting with liveness that keeps A whole.
 
 ## Phase 4: the platform milestones
 

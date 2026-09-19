@@ -16,7 +16,7 @@ and its tests are what's committed.
 | M2 | Exact timing: interrupts on the interpreter's instruction boundaries, loop re-entry | done |
 | M3 | Closing the interpreted remainder: miss report, RAM code as guarded blocks, coverage feedback | done |
 | M4 | Optimizations: dead flags from liveness, direct block-to-block transfers, fast dispatch | |
-| M5 | Cleanup workflow from a generated block to a hand port | designed |
+| M5 | Cleanup workflow: drafts for hand ports, checked in shadow mode and against the ports that exist | done |
 
 ## Instruction translation (M0)
 
@@ -1391,19 +1391,310 @@ have 0 mismatched blocks and hand ports.
 
 ## Cleanup into hand ports (M5)
 
-A port starts from the generated block instead of the listing:
+A port starts from a draft, not from the listing:
 
-1. `python3 -m tools.recomp.show BB:AAAA --m 8 --x 16` prints the routine as the
-   generator builds it (to stdout, like `tools.recomp.linear`), with calls
-   rewritten as `m_jsr`/`m_jsl` call-outs, `rc_*` helpers mapped to their
-   `machine.h` equivalents, fetch and cycle accounting removed, and flag
-   updates dropped where `liveness.json` shows them dead.
-2. The port is written from that draft in `game/<subsystem>/` like any other:
-   named, structured and commented by what it does. The draft itself isn't
-   committed; like a listing, it's a mechanical image of the ROM.
-3. It's registered in `game/registry.c`, and precedence takes it from there:
-   the generator ends blocks at its address on the next build, and shadow mode
-   validates it as today.
+```sh
+python3 -m tools.recomp.show C1:423A              # widths from the analysis, or --m 8 --x 16
+python3 -m tools.recomp.show C0:62DE C0:5FB6 > <scratch file outside the repo>
+```
+
+`tools/recomp/show.py` prints the routine shaped the way the porting rules
+(CLAUDE.md, "Writing a port from generated code") ask a port to be, derived
+mechanically from the ROM. It prints to stdout like `tools.recomp.linear`: a
+draft is a mechanical image of the ROM, so it is never committed, and nothing in
+the repository contains one. What is committed is the tool, its tests on
+synthetic code, and two checks: `tools.recomp.draftcheck`, which registers
+drafts in a scratch tree to shadow them, and `tools.recomp.groundtruth`, which
+compares a draft with the hand port of the same routine. The workflow a porter
+follows is PORTING.md's "From a draft to a port"; this section is how the tool
+is built and how good its drafts are.
+
+### What a draft is
+
+Three parts, for a routine at `$BB:AAAA`:
+
+- A **logic function** that takes the registers the routine reads as C
+  parameters and returns the ones its callers read (a struct when there are
+  several), computing with C locals: `a`, `x`, `y` and the flags `negative`,
+  `overflow`, `zero`, `carry`, the last only where something reads them. Memory
+  goes through `m_read8`/`m_write16` and friends with work RAM spelled by its
+  `game/ram.h` name. It has no emulated CPU in it: no `c->x`, no `m_lda8`, no
+  `m_rep`.
+- A **wrapper**, `void name(Snes *s)` under the `// $BB:AAAA` comment, that is
+  what registers: it moves the machine's registers into the logic's parameters
+  and its results back, sets P's widths and returns as the original does
+  (`m_rts`, `m_rtl`, `m_rti`, or setting PC where it hands back). It is the thin
+  translation a 65816 build would replace with glue to the original calling
+  convention.
+- **Call-out stubs**, one per callee and register signature, that do the same
+  around each `m_jsr`/`m_jsl`: the logic says `call_battle_multiply_8x16(s,
+  0xC1429F, a, y, overflow, carry)` and never touches an emulated register. A
+  stub sets only what the callee reads (and what the draft reads back, since a
+  callee can leave a register alone), and passes the rest to shadow mode as
+  don't-care.
+
+A comment ahead of it says what the tool knows: the command it handles if it is
+a script command's handler, the entry widths, D and DB and where they came from,
+what callers read after it returns, where and why it hands back to the
+interpreter, the I/O registers it touches (which a port reaches through
+`runtime/platform/`), the machine state it sets directly (D, DB, S, P's
+interrupt and decimal bits), and the registry line it registers with. For a
+made-up routine at `$C0:8010` -- `LDA $10 : STA $20 : RTS`, called with D =
+`$0100`, whose callers reload A's low byte and the flags afterwards -- the
+logic is:
+
+```c
+static uint8_t sub_C08010_logic(Snes *s)
+{
+    uint8_t a;
+    a = m_read8(s, RAM_TEST_SOURCE);
+    m_write8(s, 0x7E0120, a);
+    return a;
+}
+```
+
+### How it is made
+
+The draft is not made from the generator's C. `tools/recomp/translate.py`
+writes what the emulated CPU does -- every flag, every bus access in order, the
+fetches and cycles -- which is what makes generated blocks exact, and none of
+which a port wants; rewriting that text into values would be parsing C back
+into meaning. The draft takes the same inputs the generator does (the
+analysis's code and widths, `tools/disasm/liveness.py`, the hints) and lifts
+the instructions again, into values.
+
+1. **The routine** is the analysis's context at the address and widths:
+   everything reachable from the entry without a call, with the widths each
+   instruction runs with, including jump-table targets. An address the analysis
+   never entered (a loop head, a mid-routine entry a port registers) gets a
+   context of its own. The draft stops -- hands back to the interpreter -- at
+   another registered entry, as generated blocks do, since that code is its own
+   port.
+2. **D and DB** (`tools/recomp/frame.py`). The analysis tracks widths, not D,
+   and a direct-page offset has a name only relative to its page. A forward
+   pass over each routine follows D, DB, the accumulator's bytes and what the
+   stack holds, so `LDA #$1D00 : TCD`, `PEA #$0300 : PLD`, `PHK : PLB` and a
+   `PHD ... PLD` pair give values; a call keeps them unless the callee's
+   returns show it sets them (a summary per callee, which can be "set on one
+   path, kept on another"). Entry values are solved for the whole program at
+   once: an entry's D is the set of values its call sites have (the static
+   call sites and the ones the call logs saw), each resolved in its caller,
+   iterated from nothing to the least fixpoint; D and DB are sets of up to four
+   values, so a callee that resets D on one path is still known in a caller
+   that had that D. Interrupt vectors, coverage seeds and hints are entered from
+   places nobody can see, so they, and whatever only they reach, stay unknown.
+   **Which page applies** follows from that: when D is one value, a
+   direct-page access is the work RAM address D + offset, and it is named like
+   any other address, with the variables of a page of `re/ram.toml` that has
+   that D and the routine's subsystem ranked first; when D isn't known the
+   access stays `m_dp(s, offset)` with a note in the header, and `--page NAME`
+   names the offsets of a page with no fixed D (`caller`, `menu_record`)
+   through their `_DP` macros. `--d`/`--db` give values by hand. A draft that
+   assumed its callers' D or DB registers with a guard on them, so a caller
+   the analysis missed falls back to the original instead of reading the
+   wrong page.
+3. **Lifting** (`tools/recomp/lift.py`): each instruction becomes statements on
+   the locals -- every flag it sets its own assignment -- with addresses as
+   constants wherever D and DB are known. The stack, D, DB, S and P's other
+   bits stay the machine's (`m_push16`, `s->cpu.d = ...`), so a call-out or the
+   interpreter continuing sees what the original would have left. ADC and SBC
+   are binary (a draft that has them registers with the `_BINARY`
+   precondition). XCE, WAI, STP, BRK, COP, instructions whose widths the
+   analysis doesn't know, and jump tables it didn't size hand back at that
+   instruction.
+4. **Cleanup** (`tools/recomp/draft.py`): basic blocks in address order;
+   liveness per flag and per byte of A, from what the routine's callers read
+   after it (`ret_live`) and what each callee reads (`live_in`); dead
+   assignments dropped (a read of an I/O register is kept for its side
+   effect); constants propagated within a block; and a value computed once and
+   read once in the same block written where it is read, when nothing between
+   changes what it reads -- which is what turns `LDA $10 : STA $20` into one
+   statement and `CMP #$05 : BCC` into `if (a < 5)`. Call-outs read back only
+   what is read after them and the callee may change (a may-def summary over
+   the callee and everything it calls, SEP #$10's truncation of X and Y
+   included). A routine that never reads or writes A's high byte itself works
+   on an 8-bit `a`: the machine's high byte then stays exactly the original's
+   (only callees change it), and the wrapper and stubs move the low byte alone.
+5. **Wait loops.** Native code runs in no time, so a loop that polls an I/O
+   register without calling out, or reads only fixed addresses and stores
+   nothing (a flag an interrupt sets), would never end in a draft; the draft
+   hands back where the loop is entered and says what it waits on, and a
+   routine that starts with one says to register it as an idle entry instead.
+6. **Structure** (`tools/recomp/structure.py`): the statements come in address
+   order with labels and gotos; loops (`do`/`while`, `for (;;)` with `break` and
+   `continue`), then `if`, then `else` are formed, smallest first, only where
+   nothing outside a region jumps into it. What matches no pattern keeps its
+   goto.
+7. **Names** (`tools/recomp/names.py`): work RAM from the RAM map, by the rules
+   its coverage count uses (a name from the routine's own subsystem, `core`, or
+   the subsystem sharing its page; arrays and records as `RAM_X + k *
+   RAM_X_STRIDE`); I/O registers by their conventional names in a comment
+   (`0x002100 /* INIDISP */`); callees by their port or hint name. A routine
+   that is the handler of an event command (`tools/disasm/eventscript.py`) or
+   of a battle animation command, enemy condition or enemy action
+   (`tools/disasm/battlescript.py`) is named after it (`event_cmd_if_var_const`)
+   with the operand layout in the header, and an event handler's reads of its
+   own operands, which go through X and Y as the command's offset plus a
+   constant, are written `RAM_EVENT_SCRIPT + cmd + 1 /* var */`, `cmd` being
+   the offset it was entered with.
+
+### Decisions
+
+**Drafts compile, and register as ports.** A draft that compiles can be
+checked the way ports are, by shadow mode, which measures the tool's
+correctness mechanically instead of by reading drafts. That shaped the output
+less than expected: the logic reads as C either way, and what compiling costs
+is at the edges -- the wrapper, the stubs, a `(a & 0xFF00) | ...` where a
+routine keeps A's high byte that its callers might read, a cast where a value
+wraps. Where exactness and readability pull apart, the draft stays exact and
+says so, since a porter can drop what a caller doesn't need once they know the
+callers, and a draft that looked cleaner but did something else would cost
+them a debugging session. Two departures are deliberate: a direct-page access
+indexed past `$1FFF` is drafted in bank `$7E` (the original would reach bank
+0's I/O area), and an event handler's operand read at an offset past `$FFFF`
+doesn't wrap. No game code does either.
+
+**The workflow gets its own gate.** `python3 -m tools.recomp.draftcheck --out
+<scratch>` exports the committed tree to a scratch directory outside the
+repository, drafts every routine `game/registry.c` registers, writes the drafts
+there and points each registry entry at its draft, with the draft's own
+precondition, don't-care set and D/DB guard. Built there and run in
+`--native shadow` over the movie library, every call to a drafted routine is
+compared with the original, at every call-out and at the return. Idle entries,
+entries with a guard of their own, routines the analysis enters with more than
+one set of widths and routines that start with a wait loop are left as they
+are. Given `BB:AAAA` addresses nothing registers yet, it adds entries for their
+drafts, which is how a porter checks a draft before rewriting it.
+
+### Results
+
+Over the 466 distinct routines the registry names that the analysis enters with
+one set of widths (25 more need `--m`/`--x`), drafted with the committed hints,
+the RAM map and the 75 coverage and call files of the movie library:
+
+| | |
+|---|---|
+| D known where the routine uses the direct page | 349 of 396 (88%) |
+| DB known where it uses absolute addressing | 301 of 357 (84%) |
+| Work RAM in the logic by name / as a number | 2017 / 1187 (distinct in each draft, summed) |
+| Drafts with no goto | 336 (72%); 577 gotos in the other 130 |
+| Loops / ifs formed | 566 / 1531 |
+| Emulated-register operations in the logic | none; stack pushes and pulls and 318 machine-state writes (D, DB, S, P) remain |
+| Script command handlers named | 180 (179 event commands) |
+
+**Shadow validation.** `draftcheck` registered 347 drafts in place of the hand
+ports (144 entries were left: 121 idle or with a guard of their own, 23 entered
+with several widths). They compiled with `-Wall -Wextra` without a
+warning, and over the whole movie library (26 movies, 762693 frames) in
+`--native shadow`,
+289 of the 347 drafts were called, 52.0 million times. 51.5 million calls
+matched the original at every call-out and at the return, 84203 were
+interrupted (not compared, as for ports), and 14 mismatched, all of them in
+`menu_nmi_work` at its call to `$C2:8473`: the carry of a CMP against `$4210`,
+whose open-bus bits read differently natively (see below). Guards and
+preconditions turned away 438811 calls to 11 drafts, 432877 of them to
+`field_scroll_layers`: the analysis has the field's main loop calling it with D
+= `$0100` and DB = `$00`, but after a battle the loop runs with D = `$0000` and
+DB = `$7E`, having been returned to along a path the analysis doesn't see. The
+guard on the D and DB the draft assumed is what kept those calls on the
+original; the rest are interrupt handlers and scene routines entered with other
+widths than the draft's. 58 drafts are never called by the movies.
+
+**Ground truth.** The ports were validated call by call against the original,
+so each is a known-correct target for the draft of its address.
+`python3 -m tools.recomp.groundtruth BB:AAAA ...` drafts routines that are
+already ported and compares, in terms that mean something to a porter: the work
+RAM addresses the port's text reads and writes (literals, `RAM_` names and
+direct-page offsets resolved with the draft's D) that the draft also accesses,
+and how many each spells by name; the port's call-outs the draft also makes;
+if/else/loops/switch/goto in each; port lines with a close line in the draft
+and a token similarity; and the emulated-register operations each has (`m_lda8`,
+`c->x`, `m_push16`, ...). A varied set:
+
+| Port | Accesses in both / port (draft) | Named: port vs draft | Call-outs in both / port (draft) | Structure: port / draft | Port lines close / similarity | Register ops: port / draft | Left in the draft |
+|---|--:|--:|--:|---|--:|--:|---|
+| `battle_multiply_8x8` `$C1:0089` | 4/4 (5) | 0/4 vs 2/5 | 0/0 (0) | - / - | 0/14, 0.42 | 6 / 0 | - | 3 unnamed |
+| `battle_clear_ad9c_table` `$FD:ACEE` | 1/1 (2) | 0/1 vs 1/2 | 0/0 (0) | 2 loop / 2 loop | 0/10, 0.44 | 9 / 0 | - | 1 unnamed |
+| `battle_find_due_animation` `$C1:423A` | 2/2 (21) | 0/4 vs 9/21 | 0/0 (2) | 3 if, 4 loop / 11 if, 1 else, 4 loop, 2 goto | 3/29, 0.16 | 28 / 0 | 4269 | 12 unnamed, 2 goto, 5 temps, 2 callouts |
+| `menu_draw_glyph` `$C2:5E36` | 2/6 (4) | 0/7 vs 3/4 | 0/0 (1) | 5 loop / 4 loop | 6/45, 0.24 | 28 / 7 | - | 1 unnamed, 3 temps, 3 machine, 4 callouts |
+| `field_compute_layer_edges` `$C0:7F9A` | 4/6 (58) | 0/12 vs 54/58 | 0/0 (4) | 2 if, 1 else, 1 loop / - | 3/67, 0.17 | 35 / 12 | - | 4 unnamed, 2 temps, 12 callouts |
+| `battle_draw_shadow` `$CF:EA8A` | 11/11 (11) | 0/12 vs 10/11 | 0/0 (0) | 1 if / 2 if | 0/30, 0.14 | 30 / 0 | - | 1 unnamed, 1 temps |
+| `battle_update_scroll_dispatch` `$CD:06B4` | 1/1 (36) | 0/1 vs 23/36 | 0/0 (1) | - / 4 if, 4 else, 4 loop, 1 switch, 5 goto | 0/5, 0.04 | 6 / 0 | - | 13 unnamed, 5 goto, 10 temps, 1 callouts, 3 handbacks |
+| `event_cmd_if_var_const` `$C0:62DE` | 1/1 (5) | 0/1 vs 3/5 | 0/0 (1) | 4 if, 2 else, 1 switch / 1 if | 2/72, 0.22 | 52 / 0 | - | 2 unnamed, 2 temps, 1 callouts |
+| `event_cmd_call` `$C0:5FB6` | 9/9 (16) | 0/12 vs 13/16 | 0/0 (0) | 7 if, 1 else, 2 loop / 6 if, 3 goto | 1/84, 0.20 | 59 / 0 | - | 3 unnamed, 3 goto, 7 temps |
+| `menu_object_nmi` `$C2:015E` | 1/2 (75) | 0/4 vs 62/75 | 3/4 (6) | 6 if, 9 loop / 2 if, 1 else | 26/161, 0.18 | 85 / 18 | - | 13 unnamed, 63 io, 6 machine, 6 callouts |
+
+What it says:
+
+- **The memory and the calls are the port's.** 36 of the 43 addresses the
+  ports' text shows are in the drafts, and where the two stop at the same
+  place, all of them are (`battle_draw_shadow` 11 of 11, `event_cmd_call` 9 of
+  9, `battle_multiply_8x8` 4 of 4); shadow mode already says the effects are
+  the same. The differences are where the port split or joined code: it inlines a
+  callee the draft calls out (`menu_draw_glyph`'s pixel routine,
+  `field_compute_layer_edges`'s four edge routines), stops early and hands back
+  (`battle_find_due_animation` at `$4269`), or is a dispatcher whose targets
+  are ports of their own (`battle_update_scroll_dispatch`, 7 lines against the
+  draft's 102 because the two targets that aren't registered are drafted
+  inline).
+- **The drafts are more named than the ports.** The ports these routines have
+  spell work RAM by number (none of the 58 port addresses above uses a `RAM_`
+  name; `game/battle/setup.c` is the one file converted so far); the drafts name
+  180 of their 233 (40-93% each), and the unnamed rest is what the map doesn't
+  have yet (scratch cells like the event commands' `$01D9`).
+- **The text isn't the port's, and that is the point.** 0-16% of a port's
+  lines have a close line in the draft and token similarity is 0.04-0.44,
+  because the ports are transcriptions: 6 to 85 emulated-register operations
+  each, against none in the drafts' logic. The draft is closer to the bar
+  CLAUDE.md sets than most existing ports are, which is also what Phase 3 of
+  PLAN.md says about bringing them up to it.
+- **Control structure** matches where the port kept the original's shape
+  (`battle_clear_ad9c_table`, two loops each); elsewhere the draft has more
+  ifs, since it keeps the early returns and branches the port folded into one
+  condition, and some gotos where loops and ifs interleave.
+
+### Found by shadow mode, while building it
+
+Each was a wrong draft that compiled and looked right, found in the first
+shadow runs, fixed, and covered by a test on synthetic code: a value
+substituted into a branch whose target still read the variable (liveness after
+a branch has to include the target's); a callee's `SEP #$10` truncating Y
+without being a "definition" of Y; the machine's A written whole at a call-out
+while the draft had tracked only the byte it needed; a truncation lost when an
+8-bit temporary was replaced by its (wider) expression; a cast rendered around
+the wrong part of an expression; and busy-wait loops, which never end in native
+code.
+
+### What drafts don't do yet
+
+These are the tool's next improvements, or its known limits:
+
+- **Liveness keeps A whole.** `tools/disasm/liveness.py` has no byte-level A, so
+  a routine whose callers reload only A's low byte still returns A, and keeps
+  its high byte where it has any 16-bit A of its own (`(a & 0xFF00) | ...`); the
+  8-bit-A mode covers the routines that never touch the high byte (136 of
+  466). The same conservatism carries flags out that no caller reads
+  (`overflow` in the event handlers).
+- **D or DB unknown** in 12-16% of drafts: interrupt handlers and what only
+  they reach, and bank `$FD`'s palette code, whose data bank comes from callers
+  the analysis doesn't connect. Those accesses stay `m_dp`/`m_abs` offsets.
+- **Names are the map's.** An address the map doesn't have stays a number, and
+  one it names for another use of the same bytes is taken as it is (the event
+  commands' scratch `$01DB` comes out as a field sprite variable); a name
+  landing deep in an array (`RAM_BATTLE_PART_OFFSETS_X + 41 * ..._STRIDE` for
+  `$9FEB`) is worth checking against the map's bounds.
+- **I/O stays register writes**, named in comments: turning `m_write8(s,
+  0x002100 /* INIDISP */, 0x80)` into `vid_set_display` is the porter's, as is
+  recognising a multiply through `$4202`/`$4216` (the multiplier and divider
+  are left as they are, which ports may do).
+- **Operand names** come only for event commands; battle animation and enemy
+  script handlers are named, but their operand reads (through a script pointer
+  rather than an index register) are not.
+- **Open bus.** `menu_nmi_work`'s acknowledge is a CMP against `$4210`, whose
+  bits 4-6 are open bus and read differently natively; its port marks the
+  carry don't-care at the next call, and liveness can't know to.
+- **Structure** stays a goto where regions interleave (28% of drafts have one),
+  and a `switch` over a jump table goes to its cases by label.
 
 ## Risks
 
