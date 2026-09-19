@@ -159,7 +159,9 @@ def check_vblank(args, ctx):
     if args.movies:
         cmd += ["--movies"] + args.movies
     rc, lines = run_tool(cmd)
-    summary = lines[-1] if lines else "no output"
+    # its verdict is the "N failing finding(s)" line; progress goes to stderr
+    verdict = [line for line in lines if "failing finding" in line]
+    summary = verdict[-1] if verdict else (lines[-1] if lines else "no output")
     return rc == 0, "vblank", summary, [] if rc == 0 else lines[-40:]
 
 
