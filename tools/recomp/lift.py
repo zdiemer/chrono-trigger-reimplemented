@@ -183,6 +183,29 @@ class Lifter:
         return Load(w, addr, pure_at(addr))
 
 
+# Instructions that leave P alone in the original and in a draft.
+_KEEPS_P = {"PHA", "PHX", "PHY", "PHB", "PHD", "PHK", "PEA", "PEI", "PER", "STA", "STX", "STY", "STZ", "NOP",
+            "JMP", "BRA", "BRL"}
+
+
+def _p_as_entered(L: Lifter, node) -> bool:
+    """Whether the machine's P at node is the original's: node is reached only
+    along a straight line from the routine's entry, which nothing jumps back
+    to, through instructions that change no flag or width. A draft keeps its
+    flags in locals, so elsewhere the machine's P is stale."""
+    preds: dict = {}
+    for n, ss in L.g.succ.items():
+        for t in ss:
+            preds.setdefault(t, []).append(n)
+    while node != L.g.entry:
+        p = preds.get(node, [])
+        if len(p) != 1 or L.g.succ.get(p[0]) != [node] or p[0] in L.g.calls \
+                or L.g.insns[p[0]].name not in _KEEPS_P:
+            return False
+        node = p[0]
+    return not preds.get(node)
+
+
 def lift_routine(lifter: Lifter) -> dict:
     """node -> Lifted for every node of the graph."""
     return {node: lift_node(lifter, node) for node in lifter.g.insns}
@@ -428,6 +451,10 @@ def lift_node(L: Lifter, node) -> Lifted:
         out.append(Push(16, Const(d, 16) if isinstance(d, int) else Mach("s->cpu.d", 16)))
     elif n == "PHK":
         out.append(Push(8, Const(pc >> 16, 8)))
+    elif n == "PHP" and _p_as_entered(L, node):
+        # The machine's P is still the original's here, flags and widths, so
+        # the byte is pushed as it is and the draft takes no flags for it
+        out.append(Push(8, Mach("s->cpu.p", 8)))
     elif n == "PHP":
         mx = (0x20 if m8 else 0) | (0x10 if x8 else 0)
         out.append(Push(8, Fn("draft_p", (Const(mx, 8), Var("n", 1), Var("v", 1), Var("z", 1), Var("c", 1)), 8,

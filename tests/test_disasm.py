@@ -203,6 +203,72 @@ class Analysis(unittest.TestCase):
         self.assertTrue(lv.ret_live[0xC08010] & X, "X is read by the next callee")
         self.assertTrue(lv.func_live_in[0xC08020] & X)
 
+    def php(self, callee: str, after_call: str = "60", extra=None):
+        """Liveness of C0:8010 (`callee`), called from C0:8000 with
+        `after_call` after the JSR; `extra` adds code elsewhere."""
+        from tools.disasm.liveness import Liveness
+        code = {0xC08000: bytes.fromhex("201080" + after_call), 0xC08010: bytes.fromhex(callee)}
+        code.update(extra or {})
+        lv = Liveness(self.run_an(code, 0xC08000))
+        lv.solve()
+        return lv
+
+    def test_php_reads_only_what_is_read_after_its_plp(self):
+        from tools.disasm.liveness import C, FLAGS, N, PAIRED, V, Z
+        # PHP ; LDA #$01 ; PLP ; BCC +0 ; RTS: the saved carry is read, nothing else
+        lv = self.php("08 A901 28 9000 60".replace(" ", ""))
+        self.assertEqual(lv.php_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
+        self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, C)
+        # PHP ; PLP ; RTS, and the caller branches on N after the call
+        lv = self.php("082860", after_call="300060")
+        self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, N)
+        self.assertFalse(lv.func_live_in[0xC08010] & (V | Z | C))
+        # PHP ; PHA ; PLA ; PLP ; RTS: the pair is found under other pushes
+        lv = self.php("08486828 60".replace(" ", ""))
+        self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, 0)
+
+    def test_php_pairs_through_calls_and_branches(self):
+        from tools.disasm.liveness import FLAGS, PAIRED, Z
+        # PHP ; JSR $8020 ; BCS +1 ; SEC ; PLP ; BEQ +0 ; RTS: Z is read after the PLP
+        lv = self.php("08 202080 B001 38 28 F000 60".replace(" ", ""), extra={0xC08020: bytes.fromhex("60")})
+        self.assertEqual(lv.php_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
+        self.assertEqual(lv.func_live_in[0xC08010] & FLAGS & ~0x40, Z)   # C is read by the BCS itself
+
+    def test_php_stays_conservative_where_the_pairing_is_unclear(self):
+        from tools.disasm.liveness import CALLEE_REACHES, FLAGS, LEAVES, READ_OTHERWISE, S_UNKNOWN
+        key = ((0xC08010, (True, True)), 0xC08010)
+        cases = [
+            ("08 68 60", READ_OTHERWISE, None),             # PHP ; PLA: pulled by something else
+            ("08 A301 28 60", READ_OTHERWISE, None),        # PHP ; LDA 1,S: read where it lies
+            ("08 3B 28 60", READ_OTHERWISE, None),          # PHP ; TSC: S itself is read
+            ("08 60", READ_OTHERWISE, None),                # PHP ; RTS: the return pulls it
+            ("08 4848 60", LEAVES, None),                   # PHP ; PHA ; PHA ; RTS: returns with it pushed
+            ("08 9A 28 60", S_UNKNOWN, None),               # PHP ; TXS: S is set to what X holds
+            ("08 9002 48 68 28 60", None, None),            # both paths pull a byte: still paired
+            ("08 9001 48 28 60", S_UNKNOWN, None),          # PHP ; BCC ; PHA ; PLP: depths differ
+            ("08 5C3080C0", LEAVES, {0xC08030: bytes.fromhex("2860")}),   # PHP ; JML: the PLP is elsewhere
+            # PHP ; JSR $8020, which pulls its return address and the byte under it
+            ("08 202080 28 60", CALLEE_REACHES, {0xC08020: bytes.fromhex("FA686860")}),
+        ]
+        for code, case, extra in cases:
+            lv = self.php(code.replace(" ", ""), extra=extra)
+            if case is None:
+                self.assertEqual(lv.php_cases[key], "paired", code)
+                continue
+            self.assertEqual(lv.php_cases[key], case, code)
+            self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, FLAGS, code)
+
+    def test_php_under_a_new_stack_is_never_read(self):
+        from tools.disasm.liveness import FLAGS, PAIRED
+        # PHP ; LDX #$FF ; TXS ; BRA *: the stack is abandoned, and the saved P with it
+        lv = self.php("08 A2FF 9A 80FE".replace(" ", ""))
+        self.assertEqual(lv.php_cases[((0xC08010, (True, True)), 0xC08010)], PAIRED)
+        self.assertEqual(lv.func_live_in[0xC08010] & FLAGS, 0)
+        # a callee that stays in its frame, or leaves it only for a new stack, reaches its return address
+        lv = self.php("08 202080 28 60".replace(" ", ""), extra={0xC08020: bytes.fromhex("48 68 60".replace(" ", ""))})
+        self.assertEqual(lv.reach[0xC08020], 2)
+        self.assertEqual(lv.pairing_stats()["paired"], (1, 1))
+
     def test_jump_table_bounded_by_following_code(self):
         # C0:8000 ASL ; TAX ; JMP ($8005,X)
         # C0:8005 table: $8009, $800A

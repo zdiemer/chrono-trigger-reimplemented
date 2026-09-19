@@ -92,10 +92,12 @@ PROGRAMS = {
     # C0:8710  SEP #$30 : REP #$10 : RTS                  (truncates Y without "writing" it)
     0xC08700: bytes.fromhex("A034122010878460 60".replace(" ", "")),
     0xC08710: bytes.fromhex("E230C21060"),
+    # C0:8C00  PHP : JSR $8310 : PLP : RTS             (saves the caller's P around a call)
+    0xC08C00: bytes.fromhex("08 201083 28 60".replace(" ", "")),
 }
 ENTRIES = [(0xC08000, True, True), (0xC08200, True, True), (0xC08210, True, True),
            (0xC08300, True, True), (0xC08500, True, True), (0xC062B5, True, False), (0xC08600, True, True),
-           (0xC08700, True, False)]
+           (0xC08700, True, False), (0xC08C00, True, True)]
 
 
 def knowledge():
@@ -180,6 +182,13 @@ class Drafts(unittest.TestCase):
         self.assertNotIn("negative", logic)
         self.assertIn("static uint8_t sub_C08010_logic(Snes *s)", text)
         self.assertIn("m_set_a8(s, out);", text)
+
+    def test_p_saved_at_the_entry_is_the_machines(self):
+        # PHP before anything changes a flag pushes the caller's P as it is, so
+        # the logic takes no flags for it
+        _, text = draft(0xC08C00)
+        self.assertIn("m_push8(s, s->cpu.p);", text)
+        self.assertNotIn("draft_p(", logic_of(text))
 
     def test_flags_that_decide_a_branch_become_its_condition(self):
         _, text = draft(0xC08400)

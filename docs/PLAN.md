@@ -50,11 +50,12 @@ mode, and it showed two things worth doing once rather than in every subsystem:
   difference from the gate and ships a wrong register. The liveness analysis
   (`tools/disasm/liveness.py`) knows what the original reads, so every
   declaration should be checked against it, in the unit tests or the gate.
-- **The draft tool's fixes**, in the pilot's order: liveness that doesn't count
-  a flag `PHP` saves as read; liveness reported at a draft's hand-backs (the
-  port's `m_stop_dont_care`, and the same data the check above needs); D kept
-  across call-outs that leave it alone; and `tools.recomp.groundtruth` resolving
-  a port's file-local names and call-out stubs.
+- **The draft tool's fixes**, in the pilot's order (liveness that doesn't count
+  a flag `PHP` saves as read is in: RECOMP.md, "Before the bulk"): liveness
+  reported at a draft's hand-backs (the port's `m_stop_dont_care`, and the same
+  data the check above needs); D kept across call-outs that leave it alone;
+  and `tools.recomp.groundtruth` resolving a port's file-local names and
+  call-out stubs.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
 docstring says which way it is wrong). **83% of the code is still generated.**
@@ -140,11 +141,10 @@ which converted the sound driver to this bar:
   subsystem minutes, the full gate with every route most of an hour.
 - **The draft is a reference more than a starting text**: its header, names
   and control flow carried over, its text almost none of it (0-7% of the
-  port's lines). Before the bulk, in this order: liveness that doesn't count a
-  flag `PHP` saves as read (most of a draft's flag locals and its per-signature
-  call-out stubs go with it); liveness at a draft's hand-backs, which is the
-  port's `m_stop_dont_care`; D kept across call-outs that leave it alone
-  (RECOMP.md, "What drafts don't do yet").
+  port's lines). Before the bulk, in this order: liveness at a draft's
+  hand-backs, which is the port's `m_stop_dont_care`; D kept across call-outs
+  that leave it alone (RECOMP.md, "What drafts don't do yet"). Liveness no
+  longer counts a flag `PHP` saves as read (RECOMP.md, "Before the bulk").
 - **Fuzzing earns its place**: it found three bugs no movie reaches, where the
   port had tidied an index or a width the original doesn't.
 - **Existing ports in the early style** can be brought over the same way; the

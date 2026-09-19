@@ -2026,6 +2026,58 @@ where the fight plays out differently in the shipping mode. With
 (0.9997 and 0.39 dB before), and the direct runs now interpret 5 instructions
 where they interpreted 84856, the code after the wait loops being entries.
 
+### Before the bulk: liveness, the don't-care check, the draft's hand-backs
+
+The pilot left three things to do once rather than in every subsystem (PLAN.md,
+Phase 3): liveness that sees through a saved P, a check that every don't-care
+set a port declares is one the original agrees with, and the draft tool's
+remaining gaps. They were done in that order, since each needed the one before.
+
+**Liveness through PHP and PLP.** `tools/disasm/liveness.py` counted `PHP` as
+reading every flag, and Chrono Trigger's subroutines save P at entry and
+restore it before returning, so nearly every routine "read" N, V, Z and C, and
+a draft carried all four through every routine that called one. Saving P
+reads nothing by itself: a flag is live at a `PHP` exactly when it is live
+after the `PLP` that pulls the byte. So for each `PHP` a walk forward counts
+the bytes pushed and pulled above its byte; where every path reaches a `PLP`
+that pulls exactly it, the `PHP` reads what is live after those `PLP`s, and
+otherwise it stays a read of every flag:
+
+- **S changes**: `TCS`, `TXS`, `XCE`, a push whose width the analysis doesn't
+  know, or paths that meet with different depths. `LDX #const : TXS` (the
+  mode loaders' new stack) and `CLC : XCE` are understood: a byte under a new
+  stack is never read again.
+- **Read otherwise**: the byte is pulled by something else or with other
+  bytes, a return pulls it, a stack-relative access reaches it, or `TSC`/`TSX`
+  copies S while it is on the stack.
+- **A callee reaches it**: every routine has a `reach`, how far above its entry
+  S it (or what it calls) pulls or reads the stack; 2609 of 3136 routines reach
+  exactly a JSR's return address, 262 a JSL's, 228 can't be bounded (tasks that
+  switch stacks, code in RAM). A call made while the byte is on the stack, to a
+  routine that reaches that far, may read it.
+- **Control leaves** with the byte on the stack: a return, a tail jump, an
+  indirect jump, a flow out of the traced code. A call that doesn't return
+  just ends the path.
+
+Of the 669 `PHP`s the analysis traces (counted once per context; 399
+addresses): 566 paired (84.6%, 321 addresses), none where S changes, 13 read
+otherwise (5 addresses: the menus' task switch at `$C2:821E` copies S, and
+`$C7:0A39`'s refused path pulls its P byte with a `PLA`), 87 where a callee
+reaches the byte (71: calls into the menus' task switch, and the sound driver's
+`$C7:0A39`, whose refused path drops its caller's frame and leaves through the
+driver's common exit), 3 where control leaves (2). Routines whose entry reads
+all four flags went from 424 of 3136 to 164; flag bits read at entries, summed,
+from 4336 to 3671; flag bits live after returns from 5400 to 5141. The
+generated blocks don't use liveness (M4's dead flags aren't built), so `python3
+-m tools.recomp` writes byte-identical C before and after (all 65 files), and
+the gate passed unchanged (`suite OK` with `--long-routes`; trace identity,
+`sst_recomp_runner` and `recomp_bus_diff` 0 failures). What changes is the
+drafts, checked by `draftcheck`. The draft of a routine that starts
+with `PHP` now pushes the machine's P as it is (a `PHP` reached only along a
+straight line from the entry through instructions that leave P alone, where the
+machine's P is still the original's), so the flags don't enter the draft at
+all.
+
 ### What drafts don't do yet
 
 These are the tool's next improvements, or its known limits:
@@ -2059,14 +2111,6 @@ These are the tool's next improvements, or its known limits:
 
 From the $C7 pilot (above), in the order they would have saved the most:
 
-- **Liveness counts a saved flag as read.** `PHP` makes every flag live, so a
-  callee that saves and restores P "takes" the caller's flags, and the draft
-  carries `negative`, `overflow`, `zero` and `carry` through every routine that
-  calls one. Since shadow mode leaves popped stack bytes out, a `PHP ... PLP`
-  pair reads nothing the caller must provide; liveness that knew it would drop
-  most of the flag locals, and the call-out stubs could name the untaken
-  registers instead of setting them (one stub per callee, not one per register
-  signature: ten for `$C7:09DA` in one draft).
 - **No liveness at a hand-back.** A draft that stops at another entry (a wait
   loop) doesn't say what that entry and the code after it read, which is what
   a port declares with `m_stop_dont_care`; the porter works it out per exit.

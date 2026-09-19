@@ -622,7 +622,8 @@ class Draft:
                 w = 8
             return [f"{c_name(s.dst)} = {self.sink(s.e, w)};"]
         if isinstance(s, Eval):
-            return [f"(void){e(s.e)};"]
+            text = e(s.e)
+            return [f"(void){text};" if isinstance(s.e, (Load, Fn, Mach, Var)) or _grouped(text) else f"(void)({text});"]
         if isinstance(s, Store):
             return [f"m_write{s.w}(s, {e(s.addr)}{rend.operand_note(s.addr)}, {self.sink(s.val, s.w)});"]
         if isinstance(s, Push):
