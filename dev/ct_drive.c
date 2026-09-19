@@ -40,8 +40,8 @@
  * Answers: run/runw/movie/save/load/savefile/loadfile/frame answer with the
  * frame number, peek and runw with hex bytes, native with "ok <mode>
  * suspended <n> replayed <n> inexact <n> lost <n> mismatched <0|1>" (the
- * routines suspended now, how loads rebuilt suspended routines so far, and
- * whether shadow mode found a mismatch), the rest with "ok".
+ * routines suspended now, how loads rebuilt the native runtime's state so far,
+ * and whether shadow mode found a mismatch), the rest with "ok".
  *
  * Native routines and machine copies (docs/MOVIES.md, "Native code"). With
  * --native on, a hand port that calls out to code that isn't ported is
@@ -49,13 +49,16 @@
  * usually is at a frame's end. A machine copy (a slot or a state file) can't
  * hold that stack, and restoring one with a fresh runtime would leave the rest
  * of the routine to the original code, which may expect registers the port
- * never set. Instead ct_drive keeps the last frame end where nothing was
- * suspended (a "base", where a fresh runtime is the runtime the run had) and
- * the buttons since. A copy made while routines are suspended keeps both, and
- * restoring it restores the base and replays the buttons, which brings the
- * routines back as they were ("replayed"; "inexact" if the replay differs from
- * the copy, see replay()). A state file keeps them beside it (state_save).
- * Only a copy with no base (after a poke) loads without its routines ("lost").
+ * never set. Nor can it hold the time ports have taken that the machine hasn't
+ * let pass yet (native_owed), which a fresh runtime would drop. Instead
+ * ct_drive keeps the last frame end where nothing was suspended or owed (a
+ * "base", where a fresh runtime is the runtime the run had) and the buttons
+ * since. A copy made anywhere else keeps both, and restoring it restores the
+ * base and replays the buttons, which brings the routines and the time owed
+ * back as they were ("replayed"; "inexact" if the replay differs from the copy,
+ * which would be a bug, see replay()). A state file keeps them beside it
+ * (state_save). Only a copy with no base (after a poke) loads without them
+ * ("lost").
  * Shadow mode runs only the original code, so a load there restarts the
  * runtime, dropping comparisons in progress, as ct_play's does.
  */
@@ -78,14 +81,14 @@ typedef struct Snap {
     int refs;
 } Snap;
 
-/* A slot: the machine, and with --native on while routines were suspended,
- * the base and buttons that rebuild them. */
+/* A slot: the machine, and with --native on away from a base (unsettled()),
+ * the base and buttons that rebuild the runtime's state. */
 typedef struct Slot {
     Snap *machine;
     Snap *base;
     uint16_t *pads;
     size_t npads;
-    bool suspended;   /* --native on: routines were suspended when it was saved */
+    bool unsettled;   /* --native on: saved away from a base (unsettled()) */
 } Slot;
 
 static Snes snes;
@@ -100,8 +103,9 @@ static NativeRuntime *natives;
 static bool shadow_failed;
 static unsigned long loads_replayed, loads_inexact, loads_lost;
 
-/* --native on: the last frame end with no routine suspended (NULL if the run
- * since can't be replayed from one), and the buttons of every frame since. */
+/* --native on: the last frame end with no routine suspended and no time owed
+ * (NULL if the run since can't be replayed from one), and the buttons of every
+ * frame since. */
 static Snap *base;
 static uint64_t base_since;   /* snes_clone_since epoch while base is ours alone */
 static uint16_t *log_pads;
@@ -168,7 +172,13 @@ static Snap *snap_take(Snap *p)
     return p;
 }
 
-static bool suspended(void) { return native_mode == NATIVE_ON && native_suspended(natives); }
+/* --native on: the runtime holds state a machine copy doesn't, routines
+ * suspended or time owed, so a fresh runtime here isn't the runtime the run
+ * has. A frame end where this is false is a base. */
+static bool unsettled(void)
+{
+    return native_mode == NATIVE_ON && (native_suspended(natives) || native_owed(natives));
+}
 
 /* A fresh runtime, after the machine was replaced. Shadow mismatches found so
  * far are reported first, since the runtime that found them goes. */
@@ -184,7 +194,7 @@ static void restart_natives(void)
     natives = natives_restart(natives, &table, native_mode, &snes);
 }
 
-/* The machine as it stands is a base: nothing is suspended, so a fresh runtime
+/* The machine as it stands is a base: nothing is suspended or owed, so a fresh runtime
  * here is the runtime the run has. Refreshed frame by frame, the copy only
  * takes the pages written since (snes_clone_since). */
 static void set_base_here(void)
@@ -228,19 +238,17 @@ static void step(uint16_t pad)
     snes_run_frame(&snes, pad);
     if (native_mode != NATIVE_ON)
         return;
-    if (!suspended())
+    if (!unsettled())
         set_base_here();
     else if (base)
         log_pad(pad);
 }
 
 /* Put `from` (a base) in place with a fresh runtime and run the buttons since:
- * the machine and its suspended routines as they were when `want` was copied
- * from them. Checked against `want`, which it matches unless the ports owed
- * time at the base (native.c's debt, which a copy doesn't hold and ct_drive
- * can't see; docs/TODO.md): then the replay is kept anyway, since its routines
- * are intact and it differs from the copy only by that time, the approximation
- * a ct_play quick load makes. */
+ * the machine, its suspended routines and the time owed as they were when
+ * `want` was copied from them. Checked against `want`, which it matches, since
+ * a fresh runtime at a base is the runtime the run had; if it didn't, the
+ * replay would be kept anyway (its routines are intact) and counted "inexact". */
 static void replay(Snap *from, const uint16_t *pads, size_t npads, const Snes *want)
 {
     size_t want_len;
@@ -259,7 +267,7 @@ static void replay(Snap *from, const uint16_t *pads, size_t npads, const Snes *w
     } else {
         loads_inexact++;
         fprintf(stderr, "ct_drive: frame %u: replaying %lu frames from the last one with no native routine suspended "
-                        "came out %s the saved machine; keeping the replay\n",
+                        "or time owed came out %s the saved machine; keeping the replay\n",
                 (unsigned)snes.frame, (unsigned long)npads,
                 memcmp(snes.bus.wram, want->bus.wram, SNES_WRAM_SIZE) ? "different in work RAM from"
                                                                        : "differing in time only from");
@@ -269,9 +277,9 @@ static void replay(Snap *from, const uint16_t *pads, size_t npads, const Snes *w
 }
 
 /* After a load that didn't replay: continue from the machine with a fresh
- * runtime. `lost` if routines were suspended when it was saved: the original
- * code finishes them. From here on a fresh runtime is exact, so this is a
- * base. */
+ * runtime. `lost` if it was saved away from a base: the original code finishes
+ * the routines suspended then, and the time owed is dropped. From here on a
+ * fresh runtime is exact, so this is a base. */
 static void settle_loaded(bool lost)
 {
     restart_natives();
@@ -279,8 +287,8 @@ static void settle_loaded(bool lost)
         return;
     if (lost) {
         loads_lost++;
-        fprintf(stderr, "ct_drive: frame %u: loaded without the native routines suspended when it was saved; "
-                        "the original code finishes them\n", (unsigned)snes.frame);
+        fprintf(stderr, "ct_drive: frame %u: loaded without the native routines suspended or the time owed "
+                        "when it was saved; the original code finishes them\n", (unsigned)snes.frame);
     }
     base_since = 0;   /* the machine's write epochs are the loaded ones */
     set_base_here();
@@ -293,7 +301,7 @@ static void slot_clear(Slot *s)
     free(s->pads);
     s->pads = NULL;
     s->npads = 0;
-    s->suspended = false;
+    s->unsettled = false;
 }
 
 static int slot_save(Slot *s)
@@ -302,8 +310,8 @@ static int slot_save(Slot *s)
     s->machine = snap_take(s->machine);
     if (!s->machine)
         return -1;
-    s->suspended = suspended();
-    if (s->suspended && base) {
+    s->unsettled = unsettled();
+    if (s->unsettled && base) {
         s->base = snap_ref(base);
         s->pads = malloc((log_len ? log_len : 1) * sizeof *s->pads);
         if (!s->pads)
@@ -323,12 +331,12 @@ static void slot_load(Slot *s)
     snes_clone(&snes, &s->machine->snes);
     snes_mark_all_written(&snes);
     restore_hooks();
-    settle_loaded(s->suspended);
+    settle_loaded(s->unsettled);
 }
 
 /* ---- state files ---------------------------------------------------------------- */
 
-/* Beside a state saved while routines were suspended: <path>.base, the state
+/* Beside a state saved away from a base: <path>.base, the state
  * at the base, and <path>.base.pads, the buttons since, one decimal per line. */
 static void sidecar_names(const char *path, char *state, char *pads, size_t size)
 {
@@ -344,7 +352,7 @@ static int state_save(const char *path)
     sidecar_names(path, state, pads, sizeof state);
     remove(state);
     remove(pads);
-    if (!suspended())
+    if (!unsettled())
         return 0;
     /* the buttons alone (no base, after a poke) mark the routines as lost */
     FILE *f = fopen(pads, "w");
@@ -585,7 +593,7 @@ int main(int argc, char **argv)
             if (native_mode == NATIVE_SHADOW) {
                 restart_natives();   /* the copies of routines in progress didn't see it */
             } else if (native_mode == NATIVE_ON) {
-                if (suspended())
+                if (unsettled())
                     set_base(NULL);   /* no base replays to this */
                 else
                     set_base_here();   /* marked all written: the whole machine is copied */
@@ -646,8 +654,8 @@ int main(int argc, char **argv)
         native_report(natives, stderr);
     }
     if (native_mode == NATIVE_ON && (loads_replayed || loads_inexact || loads_lost))
-        fprintf(stderr, "ct_drive: loads with native routines suspended: %lu replayed exactly, %lu replayed "
-                        "differing in owed time, %lu without the routines\n",
+        fprintf(stderr, "ct_drive: loads away from a base (routines suspended or time owed): %lu "
+                        "replayed exactly, %lu replayed differing, %lu without them\n",
                 loads_replayed, loads_inexact, loads_lost);
     native_destroy(natives);
     natives_free(&table);

@@ -587,6 +587,14 @@ rest are every field of `Snes` except the ROM, host pointers, hooks,
 `halted` and the write tracking shadow mode uses (below), about 300 of them in
 290 KB (work RAM, VRAM and sound RAM are most of it).
 
+Nor is the native runtime (`runtime/port/native.c`). With `--native on` a
+hand port may be suspended in a call-out at a frame's end (`native_suspended`),
+or owe estimated time the machine hasn't let pass yet (`native_owed`); a load
+restarts the runtime, so a state saved then would leave the routine to the
+original code and drop the time. The tools save where both are 0: `ct_drive`
+replays from such a frame (MOVIES.md, "Native code"), `ct_play` waits for one
+(PLAYING.md, "Saves"), and `ct_dev --save-state` warns.
+
 Write tracking isn't state. Shadow mode refreshes its machine copies with only
 the pages of work RAM and VRAM written since the last refresh
 ([PORTING.md](PORTING.md), "What shadow mode costs"), from a write epoch the

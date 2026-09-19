@@ -204,6 +204,14 @@ const NativeEntry *native_hand_entry(Snes *s);
  * nonzero can't restore those routines. */
 int native_suspended(const NativeRuntime *rt);
 
+/* ON mode: master clocks hand ports have taken and the machine hasn't let pass
+ * yet (a port's estimated time is charged after it stops, a scanline at a time;
+ * see native_call). 0 in the other modes. A save state doesn't hold this either,
+ * so a state taken while it is nonzero resumes with that time dropped: a tool
+ * that wants its states to resume exactly saves only when both this and
+ * native_suspended are 0. */
+uint64_t native_owed(const NativeRuntime *rt);
+
 /* For native routines: call the routine at `target` the way the JSR (3-byte)
  * or JSL (4-byte) instruction at `site` would, pushing the same return
  * address, and return once it has returned.

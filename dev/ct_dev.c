@@ -602,6 +602,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "--no-interpreter fallback: %lu instructions had no generated code\n", miss_steps);
     if (save_state && natives && native_suspended(natives))
         fprintf(stderr, "warning: saving with native routines in progress; they won't resume from the state\n");
+    else if (save_state && natives && native_owed(natives))
+        fprintf(stderr, "warning: saving with time the native routines owe; the state drops it\n");
     if (save_state && snes_state_save(&snes, save_state) != 0) {
         fprintf(stderr, "cannot save state %s\n", save_state);
         rc = 1;

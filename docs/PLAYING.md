@@ -238,11 +238,26 @@ one build loads in later builds too, including ones whose machine has changed
 since: the state is written field by field, and a field added since comes up at
 its power-on value ([RUNTIME.md](RUNTIME.md), "Save states"). A state that can't
 be read -- damaged, from another ROM, or from before this format -- is refused
-with a message, and the game goes on as it was. A quick save waits until no
-native routine is suspended in a call-out, since a state can't capture one.
-In the field that's immediate; in battle it can take several seconds (the
-title bar shows "saving state..." meanwhile), and it gives up after 30. Loading a quick save also restores the SRAM it held,
-which is written to the `.srm` file on the next check.
+with a message, and the game goes on as it was. A quick save waits for the end
+of a frame where the state keeps everything: no native routine suspended in a
+call-out, and no time the hand ports owe (their estimated time is charged
+after they run, so it can still be passing when a frame ends;
+`native_owed`). A state holds neither, so a routine suspended then would be
+left to the original code, and time owed would be dropped and the game resume
+slightly early. The title bar shows "saving state..." meanwhile. In the field
+that's rarely more than a few frames (over `telepod_lavos:shell`'s run, 71 at
+worst). In battle it can take seconds, and in scenes
+where a port runs all the time (the scaled Lavos and ending pictures) a frame
+end with nothing owed may never come, so after 2 seconds (`SAVE_EXACT_FRAMES`)
+a frame end with only time owed will do: the save leaves that time out and
+says how much on stderr (tens of thousands of master clocks, a scanline is
+1364). A routine suspended is never saved; the save gives up after 30 seconds.
+Measured with `ct_play --save-state` after 3000-8000 frames of three battle
+movies in the shipping mode (18 saves): 10 were exact at once, 4 exact after 8
+to 1320 frames, 2 left out time owed after about 400 frames, and 2 gave up,
+routines suspended throughout, as they did before owed time counted. Loading a
+quick save also restores the SRAM it held, which is written to the `.srm` file
+on the next check.
 
 ## Recording test movies
 
@@ -352,8 +367,9 @@ driver nothing owns the loop, sleeps, reads a clock, polls events or opens a
 device: the drivers do all of that, and take each frame's picture
 (`player_pixels`) and sound (`player_take_audio`, or `audio_fill` for a device
 with its own clock) to wherever they go. A quick save the player can't take yet
-(a native routine is suspended) is a request it carries out at the end of a
-later frame, so no driver has to wait for it.
+(a native routine is suspended, or time is owed; `player_save_ready`) is a
+request it carries out at the end of a later frame, so no driver has to wait
+for it.
 
 Nor does the player know a path. What it persists it takes and hands out as
 bytes: the cartridge save (through the save service's `sv_host_bytes`), a quick
