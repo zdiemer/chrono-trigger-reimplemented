@@ -124,7 +124,7 @@ const NativeEntry game_natives[] = {
     FIELD_UPLOAD(0xC087BF, field_upload_layer3_columns_alt, 3799),
 #undef FIELD_UPLOAD
     { .addr = 0xFDC0D7, .name = "field_init_video_mode", .fn = field_init_video_mode, NEEDS_M8_X16,
-      .cost_milli = 3629 },
+      .cost_milli = 4346, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC0A509, .name = "field_set_screens", .fn = field_set_screens, NEEDS_M8_X16, .cost_milli = 3531,
       .guard = field_display_bank_is_io },
     { .addr = 0xC02DC8, .name = "field_vram_transfer", .fn = field_vram_transfer, NEEDS_M8_X16, .cost_milli = 2808,
@@ -294,7 +294,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC285AE, .name = "play_time_tick", .fn = play_time_tick, .cost_milli = 3312 },
     { .addr = 0xC284D2, .name = "input_update", .fn = input_update, .cost_milli = 2350 },
     { .addr = 0xFDE022, .name = "tile_animation_upload", .fn = tile_animation_upload, NEEDS_M8_X16_BINARY,
-      .cost_milli = 3160 },
+      .cost_milli = 3347, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_DB | DC_D },
     { .addr = 0xC284EC, .name = "input_read_joypad", .fn = input_read_joypad, .p_mask = CPU_FLAG_X, .p_value = 0,
       .cost_milli = 2887, .dont_care = DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC28545, .name = "input_map_buttons", .fn = input_map_buttons, .cost_milli = 3767,

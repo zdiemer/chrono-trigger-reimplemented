@@ -272,18 +272,12 @@ FIELD_UPLOAD_ENTRY(field_upload_layer3_columns_alt,
 /* Set the field's video mode up: mode 1 with the BG3 priority bit, the three
  * layers' tilemaps at $6800, $7000 and $7200 (64 tiles wide) with character
  * bases at $1000, $1000 and $5000, no sprites or interlace, every scroll at 0,
- * BG1-BG3 and the sprites on the main screen, color math adding the sub screen,
- * and a black fixed color. Writes through a direct page on the registers
- * themselves; returns with RTL. */
-void field_init_video_mode(Snes *s)
+ * BG1, BG2 and the sprites on the main screen, color math adding the sub
+ * screen, and a black fixed color. The original writes through a direct page on the
+ * registers themselves and restores its caller's; nothing it leaves in the
+ * registers is read after it returns (the entry's don't-care set). */
+static void init_video_mode(Platform *pf)
 {
-    Cpu *c = &s->cpu;
-    Platform *pf = m_platform(s);
-    m_push16(s, c->d);
-    m_rep(s, CPU_FLAG_M);
-    c->d = m_lda16(s, M_DP_PPU);
-    m_sep(s, CPU_FLAG_M);
-
     vid_set_mode(pf, PF_AT(0xFDC0E2), &(VidMode){ .mode = 1, .bg3_priority = true });
     vid_set_bg_chars(pf, PF_AT(0xFDC0E6), VID_BG1, 0x1000, 0x1000);
     vid_set_bg_chars(pf, PF_AT(0xFDC0EA), VID_BG3, 0x5000, 0x0000);
@@ -300,16 +294,17 @@ void field_init_video_mode(Snes *s)
     static const uint32_t scroll_sites[3] = { 0xFDC0FE, 0xFDC106, 0xFDC10E };
     for (int bg = 0; bg < 3; bg++)
         vid_set_scroll(pf, PF_AT(scroll_sites[bg]), (VidLayer)bg, 0, 0, VID_SCROLL_H | VID_SCROLL_V);
-    m_lda8(s, 0x13);
-    vid_set_screens(pf, PF_AT(0xFDC118), 0x13, 0, VID_SCREEN_MAIN);
-    m_lda8(s, 0x02);
+    vid_set_screens(pf, PF_AT(0xFDC118), VID_LAYER_BIT(VID_BG1) | VID_LAYER_BIT(VID_BG2) | VID_LAYER_BIT(VID_OBJ), 0,
+                    VID_SCREEN_MAIN);
     VidColorMath math = { 0 };
     vid_color_math_decode(&math, VID_MATH_CONTROL, 0x02);
     vid_set_color_math(pf, PF_AT(0xFDC11C), &math, VID_MATH_CONTROL);
-    m_lda8(s, 0xE0);
     vid_set_fixed_color(pf, PF_AT(0xFDC120), VID_RED | VID_GREEN | VID_BLUE, 0);
-    c->d = m_pull16(s);
-    m_set_nz16(s, c->d);
+}
+
+void field_init_video_mode(Snes *s)
+{
+    init_video_mode(m_platform(s));
     m_rtl(s);
 }
 
