@@ -6,7 +6,6 @@
 
 #include "snes/system.h"
 
-void field_setup_line_effects(Snes *s);
 void field_upload_sprites(Snes *s);
 void field_upload_vram_queue(Snes *s);
 /* The twelve deferred uploads of tile graphics ($C0:8445-$C0:87BF). */

@@ -956,12 +956,20 @@ meaning = "Rate of a gradual fixed color change (event $F1's operand 2, written 
 source = "game/event/screen.c, event_cmd_fixed_color $C0:3D07"
 
 [[var]]
+name = "dialog_window_position"
+addr = "7E:0126"
+page = "field"
+subsystem = "field"
+meaning = "Where the dialog window opens, which picks the layout of the per-line effect tables: 0 no window, 1 the top of the screen (a band centered on line 48), 2 the bottom (centered on line 171)"
+source = "game/field/line_effects.c, field_build_line_effect_tables $FD:C2C1"
+
+[[var]]
 name = "dialog_window_state"
 addr = "7E:0127"
 page = "field"
 subsystem = "field"
-meaning = "Nonzero while a text window is open and waiting ($16, $28, $40 seen for different window kinds)"
-source = "tools/movies/addresses.py DIALOG_OPEN (found by diffing work RAM with windows open and closed)"
+meaning = "Nonzero while a text window is open and waiting ($16, $28, $40 seen for different window kinds); the per-line effects draw the window as a band twice this many lines tall"
+source = "tools/movies/addresses.py DIALOG_OPEN (found by diffing work RAM with windows open and closed); game/field/line_effects.c, field_build_line_effect_tables $FD:C2C1"
 
 [[var]]
 name = "field_line_effect_enable"
@@ -2021,15 +2029,57 @@ meaning = "Base added to each layer's tile map indexes to make the VRAM addresse
 source = "game/field/layers.c field_compute_layer_edges $C0:7F9A; game/field/nmi.c run_map_transition"
 
 [[var]]
-name = "field_scroll_fine"
+name = "field_layer_scroll"
 addr = "7E:1D87"
 page = "field_layers"
-size = 2
-count = 2
-index = "axis (X, Y)"
+count = 3
+stride = 4
+index = "layer (BG1-BG3)"
 subsystem = "field"
-meaning = "Fine scroll: the low 3 bits are the pixel offset added to the screen's 8-pixel tile origin"
-source = "game/field/object_update.c field_update_screen_position $C0:AB45; game/field/layers.c field_update_layer_scroll $C0:91AC"
+meaning = "The layers' scroll, which the per-line effect tables send every frame; the low 3 bits of BG1's are the pixel offset added to the screen's 8-pixel tile origin"
+source = "game/field/object_update.c field_update_screen_position $C0:AB45; game/field/layers.c field_update_layer_scroll $C0:91AC; game/field/line_effects.c send_scroll $FD:C5A7"
+[[var.field]]
+name = "h"
+offset = 0
+size = 2
+meaning = "Horizontal"
+[[var.field]]
+name = "v"
+offset = 2
+size = 2
+meaning = "Vertical"
+
+[[var]]
+name = "field_line_wave_bg3"
+addr = "7E:1DF9"
+size = 2
+subsystem = "field"
+meaning = "Nonzero: BG3 waves, its scroll table pointing at field_line_wave every 16 lines (the table builders test the low byte, the scroll update the word)"
+source = "game/field/line_effects.c, field_build_line_effect_tables $FD:C2C1 and send_scroll $FD:C5A7"
+
+[[var]]
+name = "field_line_wave_phase"
+addr = "7E:1DFB"
+subsystem = "field"
+meaning = "Advanced by one every frame a wave is on; its bits 1-5 pick where in the wave offsets the 16 lines start"
+source = "game/field/line_effects.c, send_scroll $FD:C5A7"
+
+[[var]]
+name = "field_line_wave_bg2"
+addr = "7E:1DFD"
+size = 2
+subsystem = "field"
+meaning = "Nonzero: BG2 waves like field_line_wave_bg3 (with BG3's scroll)"
+source = "game/field/line_effects.c, set_bg2_table $FD:C4B5"
+
+[[var]]
+name = "field_layer_map_size"
+addr = "7E:1D84"
+count = 3
+index = "layer (BG1-BG3)"
+subsystem = "field"
+meaning = "Bits ORed into the low byte of each layer's field_layer_map_base to make the tile map register value the per-line effects send"
+source = "game/field/line_effects.c, field_init_line_effect_values $FD:C124"
 
 [[var]]
 name = "field_layer_position"
@@ -2165,7 +2215,7 @@ name = "field_layer_scroll_values"
 addr = "7E:2C74"
 count = 2
 stride = 4
-index = "layer (BG1, BG2)"
+index = "layer (BG2, BG3)"
 subsystem = "field"
 meaning = "Scroll values of the self-scrolling layers, copied from their positions in bank $7F"
 source = "game/field/scroll.c, field_scroll_layers $C0:2C41"
@@ -2313,6 +2363,187 @@ meaning = "Indirect tables of the eight per-line effects (tile map addresses, BG
 source = "game/field/display.c, field_setup_line_effects $FD:C1EE ($7F:0F80 and $7F:1238, $57 apart)"
 
 [[var]]
+name = "field_line_bg_maps"
+addr = "7F:14F0"
+size = 4
+count = 2
+index = "0 outside the dialog window, 1 inside it"
+subsystem = "field"
+meaning = "Tile map register values of BG1-BG4 the tile map line effect sends; inside the dialog window BG1 and BG3 read the window's tile map"
+source = "game/field/line_effects.c, field_init_line_effect_values $FD:C124"
+
+[[var]]
+name = "field_line_window_scroll"
+addr = "7F:14F8"
+count = 4
+stride = 4
+index = "window position (0 top, 1 bottom) * 2 + layer (0 BG1, 1 BG3)"
+subsystem = "field"
+meaning = "Scroll of BG1 and BG3 inside the dialog window, which brings the window's tile map into place"
+source = "game/field/line_effects.c, field_init_line_effect_values $FD:C124"
+[[var.field]]
+name = "h"
+offset = 0
+size = 2
+meaning = "Horizontal"
+[[var.field]]
+name = "v"
+offset = 2
+size = 2
+meaning = "Vertical"
+
+[[var]]
+name = "field_line_scroll"
+addr = "7F:1508"
+count = 6
+stride = 4
+index = "layer (BG1-BG3) * 2 + table set"
+subsystem = "field"
+meaning = "The layers' scroll as the scroll line effects send it, copied from field_layer_scroll by the table set's builder"
+source = "game/field/line_effects.c, send_scroll $FD:C5A7"
+[[var.field]]
+name = "h"
+offset = 0
+size = 2
+meaning = "Horizontal"
+[[var.field]]
+name = "v"
+offset = 2
+size = 2
+meaning = "Vertical"
+
+[[var]]
+name = "field_line_screens"
+addr = "7F:1520"
+size = 4
+count = 3
+index = "0 outside the dialog window, 1 its body, 2 its top and bottom edges"
+subsystem = "field"
+meaning = "Main and sub screen layers and their window masks the screens line effect sends (field_main_screen and field_sub_screen outside the window)"
+source = "game/field/line_effects.c, field_init_line_effect_values $FD:C124"
+
+[[var]]
+name = "field_line_color_math"
+addr = "7F:152C"
+stride = 2
+count = 4
+index = "table set, + 2 inside the dialog window"
+subsystem = "field"
+meaning = "Color math layers and fixed color the color math line effect sends"
+source = "game/field/line_effects.c, send_scroll $FD:C5A7"
+[[var.field]]
+name = "layers"
+offset = 0
+meaning = "Color math layers (field_fixed_color_math_layers)"
+[[var.field]]
+name = "fixed_color"
+offset = 1
+meaning = "Fixed color (field_fixed_color outside the window)"
+
+[[var]]
+name = "field_line_window1_edges"
+addr = "7F:1534"
+size = 2
+count = 2
+index = "table set"
+subsystem = "field"
+meaning = "Window 1's left and right edge inside the dialog window: the whole line"
+source = "game/field/line_effects.c, field_init_line_effect_values $FD:C124"
+
+[[var]]
+name = "field_dialog_shading"
+addr = "7F:1538"
+stride = 2
+count = 100
+index = "line of the shading, from the window's middle out"
+subsystem = "field"
+meaning = "Per-line color math inside the dialog window, set 0's copy: a gradient of the fixed color, added then subtracted"
+source = "game/field/line_effects.c, fill_dialog_shading $FD:D52D"
+[[var.field]]
+name = "layers"
+offset = 0
+meaning = "Color math layers ($01 add to BG1, $81 subtract)"
+[[var.field]]
+name = "fixed_color"
+offset = 1
+meaning = "Fixed color"
+
+[[var]]
+name = "field_dialog_shading_copy"
+addr = "7F:1600"
+size = 2
+count = 128
+index = "line of the shading, from the window's middle out"
+subsystem = "field"
+meaning = "Table set 1's copy of field_dialog_shading"
+source = "game/field/line_effects.c, fill_dialog_shading $FD:D52D"
+
+[[var]]
+name = "field_window_edge_lines"
+addr = "7F:17C8"
+size = 2
+count = 224
+index = "line"
+subsystem = "field"
+meaning = "Window 1's left and right edge per line, for table set 0, which the event screen effects fill; window 2's per-line edge tables (a byte a line) are its two halves, $7F:17C8 and $7F:18A8"
+source = "game/field/line_effects.c, set_window2_table $FD:C439; LDX #$17C8 at $C0:2242 and on"
+
+[[var]]
+name = "field_window_edge_lines_copy"
+addr = "7F:1AC8"
+size = 2
+count = 224
+index = "line"
+subsystem = "field"
+meaning = "field_window_edge_lines for table set 1"
+source = "game/field/line_effects.c; LDX #$1AC8 at $C0:224F and on"
+
+[[var]]
+name = "field_line_wave"
+addr = "7F:1D27"
+count = 64
+stride = 4
+index = "table set * 32 + line (the second 16 of each set repeat the first)"
+subsystem = "field"
+meaning = "A wave's per-line scroll, 16 lines long, which a waving layer's scroll table points into"
+source = "game/field/line_effects.c, send_scroll $FD:C5A7"
+[[var.field]]
+name = "h"
+offset = 0
+size = 2
+meaning = "Horizontal"
+[[var.field]]
+name = "v"
+offset = 2
+size = 2
+meaning = "Vertical"
+
+[[var]]
+name = "field_bg1_scroll_position"
+addr = "7F:3467"
+stride = 4
+subsystem = "field"
+meaning = "BG1's scroll kept beside field_auto_scroll_position's BG2 and BG3; the table builders send all three instead of field_layer_scroll while field_display_flags bit 7 is set, as the field's setup has it"
+source = "game/field/line_effects.c, send_scroll $FD:C401"
+[[var.field]]
+name = "h"
+offset = 0
+size = 2
+meaning = "Horizontal"
+[[var.field]]
+name = "v"
+offset = 2
+size = 2
+meaning = "Vertical"
+
+[[var]]
+name = "field_color_math_layers_override"
+addr = "7F:22C0"
+subsystem = "field"
+meaning = "Color math layers the table builders send instead of field_fixed_color_math_layers while field_display_flags bit 7 is set"
+source = "game/field/line_effects.c, send_scroll $FD:C401"
+
+[[var]]
 name = "field_window_shape_quad"
 addr = "7F:1CEA"
 size = 0x0F
@@ -2338,7 +2569,7 @@ source = "game/event/script.h SCRIPT; game/event/calls.c (header comment); tools
 name = "field_auto_scroll"
 addr = "7F:3415"
 subsystem = "field"
-meaning = "Self-scrolling layers: bit 1 BG1, bit 2 BG2"
+meaning = "Self-scrolling layers: bit 1 BG2, bit 2 BG3 (their positions mirror to BG2's and BG3's scroll copies at $7E:2C74 and $7E:2C78)"
 source = "game/field/scroll.c, field_scroll_layers $C0:2C41"
 
 [[var]]
@@ -2346,7 +2577,7 @@ name = "field_auto_scroll_speed"
 addr = "7F:3417"
 count = 2
 stride = 2
-index = "layer (BG1, BG2)"
+index = "layer (BG2, BG3)"
 subsystem = "field"
 meaning = "Self-scrolling speed, 4.4 fixed point"
 source = "game/field/scroll.c, field_scroll_layers $C0:2C41"
@@ -2364,7 +2595,7 @@ name = "field_auto_scroll_accumulator"
 addr = "7F:341D"
 count = 2
 stride = 2
-index = "layer (BG1, BG2)"
+index = "layer (BG2, BG3)"
 subsystem = "field"
 meaning = "Self-scrolling 4.4 fixed-point accumulators; whole pixels move the position, the fraction stays"
 source = "game/field/scroll.c, field_scroll_layers $C0:2C41"
@@ -2382,7 +2613,7 @@ name = "field_auto_scroll_position"
 addr = "7F:346B"
 count = 2
 stride = 4
-index = "layer (BG1, BG2)"
+index = "layer (BG2, BG3)"
 subsystem = "field"
 meaning = "Self-scrolling layers' 16-bit scroll positions"
 source = "game/field/scroll.c, field_scroll_layers $C0:2C41"

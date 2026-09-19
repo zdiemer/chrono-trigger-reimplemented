@@ -58,10 +58,10 @@ static void accumulate(Snes *s, uint16_t speed, uint16_t acc)
 }
 
 // $C0:2C41
-/* Scroll the field layers that scroll on their own ($7F:3415 bit 1: BG1 at
- * speed $3417/$3418, bit 2: BG2 at $3419/$341A): the 4.4 accumulators at
- * $341D-$3420 move the positions at $346B-$3471, which are copied to the
- * scroll values at $7E:2C74-$2C7A. Uses direct page $0100 and data bank $7F,
+/* Scroll the field layers that scroll on their own ($7F:3415 bit 1: BG2 at
+ * speed $3417/$3418, bit 2: BG3 at $3419/$341A): the 4.4 accumulators at
+ * $341D-$3420 move the positions at $346B-$3471, which are copied to BG2's
+ * and BG3's scroll values at $7E:2C74-$2C7A. Uses direct page $0100 and data bank $7F,
  * restoring both; returns with RTL. */
 void field_scroll_layers(Snes *s)
 {
