@@ -59,8 +59,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (`tools/movies/route_check.py`; the suite runs the fast route, `--long-routes` all of them, which
   is worth doing before a change to timing or to the native runtime lands); every
   don't-care declaration in `game/` is one the liveness analysis agrees with
-  (`tools/dontcare_check.py`, run by the suite, static; docs/RECOMP.md, "Before the bulk");
-  `--native on --recomp only --misses out.txt` lists anything still interpreted;
+  (`tools/dontcare_check.py`, run by the suite, static; docs/RECOMP.md, "Before the bulk").
+  Two checks the suite doesn't run, so run them by hand when a change could move them:
+  `ct_dev --native on --recomp only --misses out.txt` lists anything still interpreted, and
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
   docs/PLATFORM.md P3).
 

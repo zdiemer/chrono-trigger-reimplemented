@@ -48,7 +48,7 @@ rest waits, is [PLAN.md](PLAN.md).
   differs. No movie reaches these; they are the port's to fix or to declare
   out of reach (`ct_fuzz --routine battle_draw_objects --range A=0000-00FF
   --db 7E`).
-- **The last of `$CF`**: `$CF:FADD` (264 bytes) and `$CF:FD9E` (231) are the
+- **The last of `$CF`**: `$CF:FAE2` (259 bytes) and `$CF:FD9E` (231) are the
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
 ## Recompiler
@@ -65,7 +65,7 @@ rest waits, is [PLAN.md](PLAN.md).
   the waves: the validator"). The draft tool writes A's low byte back wherever
   its high byte is live and gives a stop the entry's set; `DC_AL` and
   `m_stop_at_own` would let it name exactly what is dead. Among the ports,
-  `python3 tools/dontcare_check.py --list` has 295 declarations that could add
+  `python3 tools/dontcare_check.py --list` has 300 declarations that could add
   `DC_AL` (`could add`), `battle_step_effect_slots` still carrying the handlers'
   A through its loop among them, and entries whose sets a stop kept small
   (`battle_update_combatant`, `event_run_object_script`, `menu_run_objects`,
@@ -134,14 +134,15 @@ rest waits, is [PLAN.md](PLAN.md).
   decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
   round-trip on their decompressed output and would be assembled from their
   decoded form with it: MATCHING.md, "The event scripts").
-- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 32 addresses
-  the code touches without anything establishing what they mean (menu 13, field
-  6, battle 5, event 4, scene 4, core 2), named as Phase 3 reaches each
+- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 55 addresses
+  the code touches without anything establishing what they mean (battle 13,
+  menu 13, scene 11, core 9, field 5, event 4;
+  `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
   subsystem; and the menus' two modes, which reuse the same bytes while the map
   allows one owner per subsystem, so the object mode's slots at `$0B30` and part
   of its page-0 cells are unnamed until the menus get a second subsystem tag.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
-- **MD4 residue**: 90 jump tables are bounded by layout alone, the claim that
+- **MD4 residue**: 84 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
   on the enumerated sections plus the miss report.
 - **asar cross-check** of the generated source has never run (asar isn't
@@ -149,8 +150,9 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Platform
 
-- **P4** (widescreen) and **P5** (GBA feasibility) are next; P2 and P3 are done
-  but for the leftovers below.
+- **P4** (widescreen) and **P5** (GBA feasibility) are the next platform
+  milestones, deferred behind Phase 3 (PLAN.md, "Phase 4: the platform
+  milestones"); P0-P3 are done but for the leftovers below.
 - **The Epoch's flight screen** (PLATFORM.md, "P2 as built"), found once
   `--vid-check` could run from power-on: about fifteen routines between
   `$C2:6325` and `$C2:76A8` program their own tilemaps, sprite bases, uploads and
@@ -209,7 +211,10 @@ rest waits, is [PLAN.md](PLAN.md).
   single-byte battle window positions), and GBA's constraints.
 - **P1 leftovers**: `$217F` mirror writes still come from unported video code
   (the last of it in `$FD` is the location's tile animation loader `$FD:DE98`,
-  which writes `$7F:0400` through the work RAM port that way),
+  which writes `$7F:0400` through the work RAM port that way; another is the
+  battle's window quadrilateral rasterizer `$D1:F9E7`, which writes the window
+  table through the work RAM port with 16-bit stores, so each edge's low byte
+  also lands on APU port 3; RECOMP.md, "Phase 3, wave 1"),
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
 - **The scenes' waits on the beam** (`scene/`): the NMI's controller read
@@ -222,11 +227,6 @@ rest waits, is [PLAN.md](PLAN.md).
   from bank C6's `$C6:E27E`, which no movie runs): a port runs in no time, so
   it would read other counters, and fuzzing can't compare it. A native backend
   needs a source of randomness for it instead.
-  (one of them the battle's window quadrilateral rasterizer `$D1:F9E7`, which
-  writes the window table through the work RAM port with 16-bit stores, so each
-  edge's low byte also lands on APU port 3; RECOMP.md, "Phase 3, wave 1"),
-  and the APU-direct backend's audio comparison misses one measure on
-  `new-game` (PLATFORM.md, "P1 as built").
 - **The battle's screen setup `$D1:F1B0`** (609 bytes, the largest unported run
   in `$D1`) sets the line interrupt's line (`$4209`), which the timing service
   has no call for (PLATFORM.md's sketch has `tm_set_line_handler`, never
@@ -240,15 +240,15 @@ rest waits, is [PLAN.md](PLAN.md).
 ## Targets beyond the desktop SNES build
 
 Wanted, none of them scoped as milestones. Each says what the design already
-carries and what it doesn't; what they share is that the game side is still 85%
+carries and what it doesn't; what they share is that the game side is still 73%
 generated code (PLAN.md, Phase 3), so anything needing the *game* to know
 something -- a screen coordinate, a menu's shape, where a resource lives --
 waits on M5 rather than on a backend.
 
 - **A WebAssembly build.** The seam is right: `game/` reaches the host only
-  through `runtime/platform/`, and the one frontend (`frontend/ct_play.c`, SDL2)
-  is what Emscripten ports best. Four things are in the way, in order of how
-  much they cost.
+  through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
+  `window.c`) is what Emscripten ports best. Four things are in the way, in
+  order of how much they cost.
   - **Call-outs run on their own stack.** Every non-idle registry entry runs on
     a fiber (`runtime/port/fiber.c`, `job_run` in `runtime/port/native.c`), which
     is Windows fibers or POSIX `ucontext`; wasm has neither. The abstraction is
@@ -303,8 +303,8 @@ waits on M5 rather than on a backend.
   ("Assets as data files" above), because
   new maps, sprites and music have no ROM address to read from, which is exactly
   what Phase 3's named resource accessors are the seam for; and the field, event
-  and scene subsystems ported far enough to extend (`$C0` is 84% generated and
-  `$C6` 68%). Three things are worth writing down now so they
+  and scene subsystems ported far enough to extend (`$C0` and `$C6` are both
+  68% generated). Three things are worth writing down now so they
   don't surprise later: the DS and PS1 releases are a different engine and a
   different asset format, so this is re-implementation from a reference, not an
   import; their assets are as ROM-derived as ours and stay out of the repository
@@ -349,7 +349,7 @@ waits on M5 rather than on a backend.
   what the machine reads; a pointer service beside it (`in_host_point`, position
   and pressed) is additive and cheap. What it buys nothing without is a game that
   knows where its UI *is*: menus and dialogs are drawn as tilemap writes from
-  `$C2`, 92% of it still generated, so there is no element with a screen-space
+  `$C2`, 90% of it still generated, so there is no element with a screen-space
   box to hit-test against. So the order is: the pointer service, then the menu
   and dialog subsystem ported to the bar where a selectable item carries its own
   rectangle, then a policy per mode (a tap on the field: a target to walk to, or
@@ -391,9 +391,9 @@ waits on M5 rather than on a backend.
     The routines in flight at a cut would go unchecked there.
   - **Skip the shared prefix.** Every movie replays the attract sequence and
     title from power-on before reaching what it covers, about 1638 frames each
-    across 25 movies, now about 5% of the suite. A state snapshot taken once at
+    across 26 movies, now about 5% of the suite. A state snapshot taken once at
     the point a movie's own input starts would cut that, at the cost of no
-    longer validating the boot path 25 times over.
+    longer validating the boot path 26 times over.
   - **Sound RAM in the shadow copies.** A refresh still copies the 90 KB
     outside work RAM and VRAM, mostly the APU's 64 KB, which with the
     comparison is about 15% of an ending's shadow run. Stamping sound RAM

@@ -7,9 +7,11 @@ so far: the measuring tool, `tools/disasm/census.py`, milestone MD0, the naive
 split with its assembler and round trip (`tools/matching`, see
 [MD0 as built](#md0-as-built)), and most of MD1, all code in source form (see
 [MD1 as built](#md1-as-built)), most of MD4, closure checks in the build (see
-[MD4 as built](#md4-as-built)), and the first part of MD2, the resource pointer
-tables and the streams, strings and records they name (see
-[MD2 as built](#md2-as-built-first-part)).
+[MD4 as built](#md4-as-built)), and much of MD2: the resource pointer tables
+and the streams, strings and records they name (see
+[MD2 as built](#md2-as-built-first-part)), the string encodings, the event
+scripts and the battle script formats, each with a round trip (see the
+"MD2 as built" sections that follow it).
 
 The motivation is completeness. The recompiler ([RECOMP.md](RECOMP.md)) turns
 the code the analysis finds into C, and the interpreter runs whatever it
@@ -133,8 +135,9 @@ everything generated code doesn't run is listed, so it is this check. The file
 is also a coverage file, so its ROM lines can seed the analysis. Zero misses on
 every movie is necessary but not sufficient: it only covers the paths the
 movies take. C1-C6 are the sufficient part; the miss report catches a wrong
-argument in them. Since M3 it is zero over the movie library (25 movies, 561550
-frames; RECOMP.md, M3).
+argument in them. Since M3 it is zero over the movie library as it stood then
+(25 movies, 561550 frames; RECOMP.md, M3); re-running it over the movies added
+since is open (TODO.md, "Movies and coverage").
 
 ## 2. Current state, measured
 
@@ -161,8 +164,9 @@ prints aggregates only.
 
 The tables below are the MD0-era measurement, kept because they sized the work.
 Current numbers, after MD1, MD4 and the first part of MD2, are in
-[MD2 as built](#md2-as-built-first-part): 249341 bytes of code, 106951 unknown
-(2.5%), 1381381 in typed `[[data]]` regions and 2357173 in streams.
+[MD2 as built](#md2-as-built-first-part) and what followed it: 249341 bytes of
+code, 42590 unknown (1.0%), 1450193 in typed `[[data]]` regions and 2357173 in
+streams.
 
 | | Code | Tables, header | Padding | LZ streams | BRR-like | Pointer-like | Unknown |
 |---|--:|--:|--:|--:|--:|--:|--:|
@@ -1490,8 +1494,9 @@ doesn't find.
   entries). `census.py` reads the typed hints, so its unknown column is the
   progress meter for MD1 and MD2.
 - **`tools/matching`**: `emit`, `asm` and the round trip in `__main__` exist
-  (MD0); to come: typed extraction, `shift`, `lz` (decoder and encoder),
-  `formats/`.
+  (MD0), with typed extraction and the format codecs since MD2 (the codecs
+  live in `tools/disasm/dataformats.py` and `text.py`, and `lz.py` decodes);
+  to come: `shift` (MD3) and an `lz` encoder.
 - **`tools/recomp`** takes its code set from the source model instead of
   `Analyzer.code`, and the build checks the two agree (at MD4, exactly). RAM
   sections are guarded blocks since M3 (RECOMP.md).
@@ -1508,9 +1513,9 @@ No dates.
 |---|---|---|---|---|---|
 | MD0 | Naive split: toolchain and extraction | The build extracts, emits and assembles a ROM with CRC32 `2D206BF7` and the SHA-1 from APPROACH.md; code the analysis finds (238421 bytes) is instructions, everything else `incbin` from the build tree; the 10 length conflicts and overlaps are `db` with labels; assembler encodings are unit-tested for every opcode and width; with asar available, the asar build matches too; nothing ROM-derived is tracked by git | Assembler, emitter, extraction, CMake target | 1 | done, except the asar build: unchecked, asar wasn't available ([MD0 as built](#md0-as-built)) |
 | MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the partial vector installers (the code C3:09E9 generates at `$7E:B574` became a section in recompiler M3); 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
-| MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | in progress: 38 resource pointer tables type 1371 streams, 4405 strings, 145 sound blocks and 617 records; census unknown 877473 -> 106951 bytes (2.5%); left are `$D0`, `$F6:24B1-7FFF`, 379 KiB still typed `mixed`, and the battle script formats (the event scripts round-trip) ([MD2 as built](#md2-as-built-first-part)) |
+| MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | in progress: 38 resource pointer tables type 1371 streams, 4405 strings, 145 sound blocks and 617 records, and the graphics pool, sprite and exit records have reader-backed formats; census unknown 877473 -> 42590 bytes (1.0%); left are `$F6:24B1-7FFF` and the other gaps, 228.3 KiB still typed `mixed`, and re-encoding for `lz` (the event, battle and enemy scripts and the strings round-trip) ([MD2 as built](#md2-as-built-first-part)) |
 | MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 | |
-| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on all 21 movies; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | C1, C2, C3, C5, C6, C7 checks pass and fail the build; code set equal; static analysis alone reaches every executed address; left: layout-bounded tables (90) and the battle animation and enemy script parses that would bound some of them, C4 beyond the miss report ([MD4 as built](#md4-as-built)) |
+| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on every movie in the library; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | C1, C2, C3, C5, C6, C7 checks pass and fail the build; code set equal; static analysis alone reaches every executed address; left: layout-bounded tables (84) and the battle animation and enemy script parses that would bound some of them, C4 beyond the miss report ([MD4 as built](#md4-as-built)) |
 
 **Order.** MD0 and MD1 first. For the goal that motivates this (a provably
 complete code set for the recompiler), MD4's checks need only the data that

@@ -14,12 +14,15 @@ strategy and roadmap.
 ## Status
 
 Porting: the attract sequence, field, menu, event and battle systems are
-partly native, validated in shadow mode over 22 input movies
+partly native, validated in shadow mode over 26 input movies
 ([docs/PORTING.md](docs/PORTING.md)). The development runtime plays the game
 with sound ([docs/PLAYING.md](docs/PLAYING.md)). The recompiler generates C for
-all statically found code at build time, which runs 85-97% of executed
-instructions in the movies ([docs/RECOMP.md](docs/RECOMP.md)); exact timing is
-next. [docs/PLATFORM.md](docs/PLATFORM.md) designs the platform services
+all statically found code at build time, with the original's timing exactly,
+and it runs every instruction of the movie library, leaving the interpreter
+nothing ([docs/RECOMP.md](docs/RECOMP.md)); turning the generated code into
+readable hand-written C is the remaining bulk of the work
+([docs/PLAN.md](docs/PLAN.md)).
+[docs/PLATFORM.md](docs/PLATFORM.md) designs the platform services
 (video, audio, timing, input, saves) that let the game run on backends other
 than the SNES hardware model: a native renderer, widescreen, and possibly GBA.
 

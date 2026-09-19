@@ -42,7 +42,9 @@ it runs on a machine that never built it, from the binaries' own import lists:
   base system (`ldd`, `otool -L`), which is SDL2; a player's machine installs it
   from its package manager (`libsdl2-2.0-0`, `brew install sdl2`), since `dist/`
   doesn't bundle it. Neither is checked on a machine without a build yet: CI
-  builds `ct_play` on both, but nothing there runs `tools/dist.py`. The `dist/` player runs without the interpreter (below), so it needs
+  builds `ct_play` on both, but nothing there runs `tools/dist.py`.
+
+The `dist/` player runs without the interpreter (below), so it needs
 the ROM at build time (`CT_ROM`, `roms/ct-usa.sfc` by default); `tools/dist.py`
 stops if no blocks were generated. `--interpreter` builds the development
 player instead.
@@ -51,8 +53,8 @@ player instead.
 
 The development system's 65816 interpreter is the reference everything is
 checked against, not something a player needs: the code generated from the ROM
-runs every instruction of the 25 movies ([RECOMP.md](RECOMP.md), M3). The CMake
-option `CT_PLAYER_INTERPRETER` decides what `ct_play` keeps of it (`ct_dev`,
+runs every instruction of the movie library ([RECOMP.md](RECOMP.md), M3). The
+CMake option `CT_PLAYER_INTERPRETER` decides what `ct_play` keeps of it (`ct_dev`,
 `ct_fuzz` and the test runners always have it):
 
 | Value | `ct_play` | Used by |

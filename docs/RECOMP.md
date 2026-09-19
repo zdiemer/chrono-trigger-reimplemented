@@ -890,8 +890,8 @@ Timing that differs from the original is acceptable in the shipping mode
 of damage is a display update that must land in vblank or forced blank landing
 on the picture instead, because a routine ran late or long: the battle's black
 bands and missing window before the DMA timing fix (RUNTIME.md) were this.
-`tools/vblank_check.py` looks for it. It is one piece of the timing gate, not
-yet wired into `tools/suite.py`.
+`tools/vblank_check.py` looks for it. It is one piece of the timing gate, and a
+row of `tools/suite.py`'s `CHECKS` (`--no-vblank` skips it).
 
 **When a write lands.** `ct_dev --io-log` (PLATFORM.md, "I/O log") now also
 counts each access by when it landed, as the PPU sees it rather than by a rule
@@ -951,7 +951,8 @@ branched), mapped to its block through the build's generated C. The categories:
 
 **Pass/fail.** The check exits 0 only when every failing finding is listed in
 `tools/vblank_check_exceptions.txt` (`routine group category reason`), checked
-in with reasons. It lists four ("The timing gate", below).
+in with reasons. It lists seven ("The timing gate", below, has the first four;
+the $C7 pilot added three).
 
     python3 tools/vblank_check.py --ct-dev build/main/ct_dev -j 2
     python3 tools/vblank_check.py --no-run --failing-only     # re-read the logs in build/vblank
@@ -1014,8 +1015,9 @@ The timing decision (above) accepts timing *differences* in the
 shipping mode and bounds timing *errors*. This is the bound: every hand port's
 estimated time is measured against the original's over the movie library, on
 every suite run, and each entry is held to limits tied to the budgets an error
-could break. It is one check of `tools/suite.py`; the vblank check above and a
-route runner join it before `ct_play`'s default flips (PLAN.md).
+could break. It is one check of `tools/suite.py`, beside the vblank check above
+and the route runner, which joined it; `ct_play`'s default is the shipping mode
+(`--native on --recomp on`) since.
 
 | Path | What |
 |---|---|
@@ -2257,9 +2259,10 @@ the early ports reproduce every register they declared, so none of the wrong
 declarations was hiding a difference on the paths the movies reach. The one
 exception proves the mechanism: with V taken out of `input_read_joypad`'s
 set, 416 calls mismatched at the return on V, the hblank bit; declared at the
-`RTS`, none do. Today's tree: 0 findings over 284 entries with a don't-care
-set, 56 stop and 45 call-out declarations (a value per helper call and table
-row).
+`RTS`, none do. The tree as this work left it: 0 findings over 284 entries with
+a don't-care set, 56 stop and 45 call-out declarations (a value per helper call
+and table row). The counts have grown with every wave since; the check still
+reports 0.
 
 The liveness those fixes left, from the same analysis (3136 routines):
 
@@ -2388,6 +2391,7 @@ pass fuzzing (PORTING.md's rows). What the part taught, for the next waves:
 - **Declarations the check can't read**: a registry entry whose precondition
   is a macro argument (`LINE_PIECE(..., NEEDS_M8_X16, ...)`) is a finding of
   `tools/dontcare_check.py`; entries are written out.
+
 ### Phase 3, wave 1: the battle's graphics banks ($CF, $D1)
 
 The first subsystem converted in bulk after the pilot, chosen because its code
@@ -2832,8 +2836,8 @@ in a context only with the widths the analysis traced there; and `RTI` replaces
 P. The assumptions are the ones liveness already made for `JSR` targets (that
 the analysis sees every caller; the call logs back it up for the movies'
 paths). Checked three ways: `tools/dontcare_check.py` finds nothing on
-today's `game/` (417 entries, 67 stops, 73 call-outs); a declaration the new
-liveness allows and the old one refused (`scene_object_read_mode` declaring
+`game/` as the pass left it (417 entries, 67 stops, 73 call-outs); a
+declaration the new liveness allows and the old one refused (`scene_object_read_mode` declaring
 `DC_A | DC_Y | DC_N | DC_V | DC_Z`) passes, and one that is wrong (the same with
 `DC_X`, which its callers read) is still a finding; and the drafts, which are
 made from liveness, match the original over the library (below).

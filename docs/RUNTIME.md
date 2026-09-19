@@ -557,12 +557,12 @@ WRAM bytes the game has written: `ct_dev` traces carry a `WRAMW` region, and
 
 ## Next
 
-1. **Battle.** `gato-battle.ctm` reaches and wins the first battle. The battle
-   system (banks `$C1`, `$CC`, `$CD`) runs entirely on the interpreter so far;
-   it's the next large area to port, now that a movie exercises it.
-2. **Porting.** Continue replacing routines with native code; shadow mode over
-   `new-game`, `field`, `menu`, `fair`, `fair-companion` and `gato-battle` is
-   the regression check (docs/PORTING.md).
+What the development runtime itself still owes is in [TODO.md](TODO.md),
+"Correctness and accuracy": the IRQ timing simplifications, the S-DSP's KON
+poll, and re-measuring the audio comparison table, which predates the DMA and
+refresh timing fix. The game-side work the runtime exists for is
+[PLAN.md](PLAN.md); the regression check for it is the whole movie library in
+shadow mode (`python3 tools/suite.py`, docs/PORTING.md).
 
 ## Save states
 

@@ -127,7 +127,7 @@ The analysis also follows a `PER` into the `JMP (abs)` / `JMP (abs,X)` it
 precedes as a call returning after the pushed address, and treats the
 instruction starts and branch targets of `patch` sections as entries.
 
-Kinds and fields added for data typing (MD2, [MATCHING.md](MATCHING.md#md2-as-built)):
+Kinds and fields added for data typing (MD2, [MATCHING.md](MATCHING.md#md2-as-built-first-part)):
 
 | Hint | Fields | Meaning |
 |---|---|---|
@@ -280,7 +280,9 @@ Beyond the total, it names 535 distinct absolute operands of `$2000` and up
 (1289 uses). The
 32 open addresses are listed by `--open`: menu 13, field 6, battle 5, event 4,
 scene 4, core 2, each a byte whose use the code shows but whose meaning it
-doesn't (a call-out's parameters, a flag only ever tested).
+doesn't (a call-out's parameters, a flag only ever tested). (Those counts are
+from the harvest. Every wave since adds ports and addresses to both sides, so
+run `coverage` for the current ones; docs/TODO.md tracks what is still open.)
 
 `game/battle/setup.c`, the plan's example of a transcription, was renamed with
 it as the demonstration: its data-bank helpers take a work RAM address
