@@ -861,7 +861,7 @@ So readable code can run exactly where it is small, computational and short:
 counted by call, most of today's port calls are that; counted by where the
 game's time goes, and by the code Phase 3 will write, most are not.
 
-**The decision** (the user's, [PLAN.md](PLAN.md) Phase 2). Exactness was the
+**The decision** (the user's). Exactness was the
 wrong requirement. A timing *difference* from the original -- a battle that
 plays out differently -- is acceptable; a timing *error* that shows, such as a
 video write landing outside vblank where the original's was inside it, is not.
@@ -1010,7 +1010,7 @@ on the lines the reference itself uses in the same fights.
 
 ### The timing gate
 
-The timing decision (PLAN.md, Phase 2) accepts timing *differences* in the
+The timing decision (above) accepts timing *differences* in the
 shipping mode and bounds timing *errors*. This is the bound: every hand port's
 estimated time is measured against the original's over the movie library, on
 every suite run, and each entry is held to limits tied to the budgets an error
@@ -1908,7 +1908,7 @@ code.
 
 ### The $C7 pilot
 
-The last item of PLAN.md's Phase 2: one subsystem converted through the
+The last step before PLAN.md's bulk conversion: one subsystem converted through the
 workflow to the whole bar, to learn what Phase 3 costs. The subsystem was the
 sound driver's CPU half, bank `$C7` (`game/core/sound_driver.c`): 2.6 KiB of
 code, half of it ported before in the early style (every instruction's effect

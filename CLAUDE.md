@@ -107,7 +107,16 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     why, as docs/PLATFORM.md's "as built" sections do.
   - Ports don't carry cycle costs: no per-path timing numbers in `game/`. A port's time is
     its `cost_milli` estimate, and the timing gate measures and bounds the estimates' error
-    (docs/PLAN.md, Phase 2). Fuzzing is part of a port's definition of done.
+    (docs/RECOMP.md, "The timing gate"). Fuzzing is part of a port's definition of done.
+  - Declare what the original leaves dead rather than reproduce it: flags nobody reads, A's
+    high byte, a subroutine's stack frame. An entry's don't-care set, `m_stop_dont_care` where
+    a port stops, and the don't-care sets of call-outs say so, and shadow mode doesn't compare
+    them (docs/PORTING.md). A declaration is a claim about the original, so it must be one the
+    liveness analysis agrees with.
+  - Still write the scratch cells the original writes, even ones that look like temporaries:
+    other code may read them, and shadow mode compares memory.
+  - Keep the original's index arithmetic, wraparound and odd offsets included, rather than
+    tidying it: fuzzing reaches the inputs where it differs, and so can the game.
 - **Writing host-side code** (docs/PLAYING.md, "How the player is built"). `game/` is kept
   portable by the platform services; what a host that isn't a desktop runs into instead is
   the frontend, so hold the line there too. A host that calls back once a frame, with no

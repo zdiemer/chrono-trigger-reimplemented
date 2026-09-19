@@ -39,67 +39,22 @@ Nothing lands without it, and it is the same gate for every phase:
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
 
-## Phase 2: M5's foundation
-
-The question that decides whether M5 is a decade of work or a year, and it
-should be answered before any bulk conversion.
-
-**The timing decision: the readable code ships.** A hand port charges
-estimated time (`cost_milli`) and a generated block is exact. The timing spike
-([RECOMP.md](RECOMP.md), "Can a hand port be exact?") showed that a port can
-carry exact time only for short calls with no time-dependent I/O, by
-annotating its path's cycles, and that every other call would still need the
-generated block. The decision drawn from it:
-
-- **Timing differences are acceptable.** A battle that plays out differently
-  from the original is fine. So the readable code ships: `--recomp on`, with
-  generated code wherever no port exists, is `ct_play`'s default, since the
-  timing gate below.
-- **`--recomp only` stays** as the exact mode and the gate's reference. The
-  movie library stays the regression suite on it: movies desync under
-  `--recomp on` and can't test it end to end.
-- **Timing errors are measured and gated** -- the kind that makes glitches, as
-  opposed to differences (RECOMP.md, "The timing gate").
-- **Ports don't carry cycle costs.** No hand-written per-path numbers in
-  `game/`; `cost_milli` stays an estimate, calibrated by measurement.
-- **Fuzzing is part of every port's definition of done**: generated code is
-  correct on every path by construction, a hand port only on the paths the
-  movies and fuzzing reach (Phase 3's bar).
-- **Timing is deterministic per build**, not per machine: a movie recorded in a
-  build replays in that build anywhere.
-- **The shipping mode is tested end to end** by the state-driven route scripts
-  (`tools/movies/route_check.py`, docs/MOVIES.md), which `ct_drive` runs with
-  `--native on` and which survive the drift that desyncs movies.
-
-Two other timing threads exist and neither is this one, so they shouldn't be
-conflated with it: the machine's own approximations (TODO.md, "Correctness and
-accuracy" -- the IRQ trigger delay, an IRQ pending across `CLI`, the S-DSP's KON
-poll), and the game code that waits on beam position, which is a game-side
-rewrite in Phase 4. The unexplained `fair` and `fair-companion` regression
-belongs with the first group and is the only one that might be a bug.
-
-**Then set the bar against the ports that exist.** The 291 entries were written
-over months and they are not one standard. The recent ones read as source: named
-constants, service calls, a comment saying what the data means. The early ones
-read as transcription, still moving emulated A and X about and naming direct
-page bytes by their addresses (`game/battle/setup.c` is the clearest case; its
-variables now carry the RAM map's names, but its shape is still the ROM's). Both
-pass the gate, so nothing is broken; what is missing is that half of them are
-not the thing M5 is for.
-
-Two things do *not* need a pass, which is worth knowing before scoping one: the
-platform lint already covers all of `game/` bar four documented files, so
-hardware access is behind the services everywhere; and no screen geometry is
-baked in that widescreen would have to undo.
-
-So the refactor is readability only, it is cheap to defer, and it should be paid
-per subsystem in Phase 3 rather than as a sweep: converting a subsystem's
-generated code includes bringing that subsystem's existing ports to the same
-bar, while its behaviour is already under the gate. A sweep across all of
-`game/` at once would be a large diff with no behavioural check beyond the gate
-it already passes.
-
 ## Phase 3: M5 in bulk
+
+**First, before the bulk.** The pilot settled how a port's logic meets shadow
+mode, and it showed two things worth doing once rather than in every subsystem:
+
+- **Verify declared don't-cares.** Shadow mode no longer compares what a port
+  declares dead (an entry's don't-care set, `m_stop_dont_care`, the sets on
+  call-outs), and nothing checks those declarations. A wrong one hides a real
+  difference from the gate and ships a wrong register. The liveness analysis
+  (`tools/disasm/liveness.py`) knows what the original reads, so every
+  declaration should be checked against it, in the unit tests or the gate.
+- **The draft tool's fixes**, in the pilot's order: liveness that doesn't count
+  a flag `PHP` saves as read; liveness reported at a draft's hand-backs (the
+  port's `m_stop_dont_care`, and the same data the check above needs); D kept
+  across call-outs that leave it alone; and `tools.recomp.groundtruth` resolving
+  a port's file-local names and call-out stubs.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
 docstring says which way it is wrong). **83% of the code is still generated.**
@@ -134,7 +89,7 @@ been back.
 Subsystem by subsystem, each through the gate, cheapest and best understood
 first. `--uncovered BANK` lists the largest unported runs, which is how to pick
 the next routine. Taking a subsystem includes bringing its existing ports up to
-the same bar (Phase 2), so the refactor is paid where the code is already being
+the same bar (below), so the refactor is paid where the code is already being
 read rather than as a sweep. The same goes for the script formats' numbered
 commands (`cmd_6C`, `if_0A`, `set_1c80`): porting a command's handler is when
 it gets a real name in `tools/disasm/eventscript.py` or `battlescript.py`, since
@@ -169,7 +124,7 @@ what the existing ports already surround, so each conversion has neighbours to
 check it against. How to write the ports themselves is in CLAUDE.md, "Writing a
 port from generated code".
 
-**What the Phase 2 pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
+**What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:
 
 - **The bar is reachable, and the logic ends up with no emulated registers**,
@@ -195,6 +150,27 @@ which converted the sound driver to this bar:
 - **Existing ports in the early style** can be brought over the same way; the
   sound driver's 1066 emulated-register operations went to 86, all in its
   entries and stubs.
+
+**The ports that exist.** The early entries were written
+over months and they are not one standard. The recent ones read as source: named
+constants, service calls, a comment saying what the data means. The early ones
+read as transcription, still moving emulated A and X about and naming direct
+page bytes by their addresses (`game/battle/setup.c` is the clearest case; its
+variables now carry the RAM map's names, but its shape is still the ROM's). Both
+pass the gate, so nothing is broken; what is missing is that half of them are
+not the thing M5 is for.
+
+Two things do *not* need a pass, which is worth knowing before scoping one: the
+platform lint already covers all of `game/` bar four documented files, so
+hardware access is behind the services everywhere; and no screen geometry is
+baked in that widescreen would have to undo.
+
+So the refactor is readability only, it is cheap to defer, and it should be paid
+per subsystem in Phase 3 rather than as a sweep: converting a subsystem's
+generated code includes bringing that subsystem's existing ports to the same
+bar, while its behaviour is already under the gate. A sweep across all of
+`game/` at once would be a large diff with no behavioural check beyond the gate
+it already passes.
 
 This is the long haul. It is worth re-reading the burndown after the first two
 subsystems and deciding whether the workflow needs another pass before
@@ -233,7 +209,7 @@ the decompilation, so they wait behind it.
   forward if that target does. The unknown bytes are
   by definition ones no reader has been found for, so no port depends on them;
   they are proof-of-completeness work, and the formats that ports do depend on
-  moved to Phase 2.
+  were typed before the bulk conversion.
 - **The asar cross-check**, which has never run.
 - **Accuracy**: the IRQ timing simplifications, the S-DSP's KON poll, and
   re-measuring the audio comparison table, which predates the DMA and refresh

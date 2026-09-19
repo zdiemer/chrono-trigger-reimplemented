@@ -10,7 +10,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **Hand ports' time is an estimate**, so `--native on --recomp on` drifts from
   the original (battles play out differently). That difference is accepted
-  (PLAN.md, Phase 2's timing decision); the timing gate bounds the errors
+  (RECOMP.md, "Can a hand port be exact?"); the timing gate bounds the errors
   (RECOMP.md, "The timing gate"). Left open there: six entries whose time
   follows their data are on `tools/timing_exceptions.txt` (the decompressor,
   menu text and glyphs, `field_rasterize_quad`, `menu_object_wave_hdma`);
@@ -207,7 +207,7 @@ waits on M5 rather than on a backend.
     one thread, with no `-static` build to lean on.
 - **A native AYN Thor multi-screen port.** Two parts, and only one of them is a
   backend. The Android/ARM64 side is ordinary: SDL2 builds there, no screen
-  geometry is baked into `game/` (PLAN.md, Phase 2), and the handheld's pad
+  geometry is baked into `game/` (PLAN.md, Phase 3), and the handheld's pad
   arrives through `in_host_set` like any other (a binding in its driver, as
   `frontend/bindings.c` is the desktop's). The second
   screen is the real question, because `VidFrame` is one frame of one screen per
