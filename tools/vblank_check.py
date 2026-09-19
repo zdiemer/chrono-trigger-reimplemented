@@ -458,7 +458,12 @@ def main(argv=None):
         blocks_dir = args.ct_dev.resolve().parent / "recomp"
     starts = block_starts(blocks_dir) if blocks_dir and blocks_dir.is_dir() else ()
     if not starts:
-        print("no generated blocks found (--blocks): generated code is keyed by its own address", file=sys.stderr)
+        # Without the build's generated blocks, generated code is keyed by its own
+        # address instead of its block's, so findings split differently and the
+        # exceptions (keyed by block) stop matching: the verdict would silently
+        # change. A ct_dev copied away from its build directory loses them.
+        sys.exit("no generated blocks found at %s: pass --blocks <build>/recomp (the build's "
+                 "generated C), or run the ct_dev in its own build directory" % blocks_dir)
     routines = Routines([ship for _n, _r, ship in pairs], starts)
     per_movie = [(name, compare(read_log(ref), read_log(ship), routines)) for name, ref, ship in pairs]
     failing = report(per_movie, routines, read_exceptions(args.exceptions), show_info=not args.failing_only)
