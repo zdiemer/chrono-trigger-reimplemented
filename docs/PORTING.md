@@ -205,6 +205,58 @@ itself: recording every bus access and replaying the generated blocks against
 it, the interception at every instruction, and the copying and comparison per
 call, besides running the machine.
 
+## From a draft to a port
+
+The workflow for converting generated code into ports (PLAN.md, Phase 3). The
+draft tool and how good its drafts are is [RECOMP.md](RECOMP.md), "Cleanup into
+hand ports (M5)".
+
+1. **Pick.** `python3 tools/burndown.py --uncovered C1 --top 20` lists the
+   largest runs of a bank no port covers, with the routine each starts in; pick
+   by subsystem, cheapest and best understood first, next to ports that already
+   exist.
+2. **Draft.**
+
+   ```sh
+   python3 -m tools.recomp.show C1:423A > <scratch dir outside the repo>/draft.c
+   ```
+
+   It reads `traces/coverage-*.txt`, `traces/saves/cov-*.txt` and the matching
+   call logs (`--coverage`/`--calls` to change them, `--root` to look for them
+   in another checkout), so refresh those first when the movies reach code they
+   didn't (step 1 of "Writing a port"). Give `--m`/`--x` when the analysis
+   enters the routine with more than one set of widths, `--d`/`--db` when you
+   know D or DB and the tool doesn't, `--page` for a page with no fixed D, and
+   `--asm` to see each instruction as a comment above its statements. The draft
+   is ROM-derived: keep it outside the repository.
+3. **Read the header.** It says what the routine is (a script command's handler
+   is named after the command), the widths, D and DB it assumes and why, what
+   callers read after it returns, where it hands back to the interpreter (wait
+   loops, other ports' entries), which I/O registers it touches and which
+   machine state it sets. Those are the parts a port has to decide about.
+4. **Check the draft, if in doubt.** `python3 -m tools.recomp.draftcheck --out
+   <scratch> C1:423A` registers the draft in a scratch tree outside the
+   repository (a registry entry's name works too, and replaces that port);
+   built there, `ct_dev --native shadow` checks it like a port, so a question
+   about what the original does is answered before any of it is rewritten.
+5. **Write the port** in `game/<subsystem>/` from the draft's logic function:
+   name it and its locals by what they hold, give the parameters and results
+   their meaning, turn register writes into platform calls
+   ([PLATFORM.md](PLATFORM.md)), fold call-outs to routines you port as well
+   into C calls, drop the flags and registers the callers turn out not to need
+   (the header's don't-care set is what liveness proved), replace the stubs
+   with the call-outs the port still makes, and add what you learned to
+   `re/ram.toml`. Keep the wrapper's shape: the logic apart, the registers at
+   the edge (CLAUDE.md, "Writing a port from generated code"). The draft's
+   `// $BB:AAAA` stays; nothing else mechanical does.
+6. **Register, validate, fuzz, calibrate**: steps 4-7 of "Writing a port"
+   below. The header's registry line is the starting point, with its guard if
+   the draft assumed D or DB from its callers.
+
+`python3 -m tools.recomp.groundtruth BB:AAAA` compares a draft with the port of
+the same routine; it is how the tool is measured, and a quick way to see what a
+port changed from the mechanical version.
+
 ## Writing a port
 
 1. Refresh the analysis with runtime call edges, so liveness knows every caller:
@@ -214,10 +266,12 @@ call, besides running the machine.
    python3 -m tools.disasm --coverage traces/coverage.txt --calls traces/calls.txt
    ```
 
-2. Read the original with `python3 -m tools.disasm.linear BB:AAAA` and the
-   listing. Check `disasm/out/functions.json` for the M/X widths it's entered
-   with, and `disasm/out/liveness.json` for `dead_after_return`: the registers
-   and flags no caller reads after it returns.
+2. Start from the draft (`python3 -m tools.recomp.show BB:AAAA`, above), and
+   read the original with `python3 -m tools.disasm.linear BB:AAAA` and the
+   listing where the draft leaves a question. `disasm/out/functions.json` has
+   the M/X widths it's entered with, and `disasm/out/liveness.json`
+   `dead_after_return`: the registers and flags no caller reads after it
+   returns (the draft's header says both).
 3. Write readable C with the same observable effects: memory writes (including
    stack bytes from push/pull), I/O writes, and every register and flag that
    isn't dead after return. Use the data bank and direct page as the original
