@@ -133,7 +133,8 @@ target_link_libraries(ct_game PUBLIC ct_runtime)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-add_executable(ct_dev dev/ct_dev.c dev/io_log.c dev/misses.c dev/px_check.c dev/vid_check.c)
+add_executable(ct_dev dev/ct_dev.c dev/io_log.c dev/misses.c dev/px_check.c dev/vid_check.c frontend/natives.c)
+target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 
 add_executable(ct_fuzz dev/ct_fuzz.c)

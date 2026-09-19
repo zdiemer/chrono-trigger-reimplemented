@@ -42,9 +42,10 @@ build/main/ct_drive --native on --recomp on roms/ct-usa.sfc save.srm   # the shi
 ```
 
 `--native off|shadow|on` and `--recomp off|on|only` mean what they mean to
-`ct_play`: `frontend/natives.c` chooses the registered entries for both
-(generated blocks only for the ROM they came from; `--recomp only` leaves the
-ported routines out in on mode). `--recomp` defaults to `on`. Only `--native
+`ct_play`: `frontend/natives.c` chooses the registered entries for both, and
+for `ct_dev` (generated blocks only for the ROM they came from; `--recomp only`
+leaves the ported routines out in on mode, and in `ct_dev` in every mode; see
+`natives.h`). `--recomp` defaults to `on`. Only `--native
 off` is the machine movies are made on; see Native code for what the others
 change.
 
@@ -72,35 +73,40 @@ reproducible from input, so it must not become a movie.
 With `--native on`, what a run does to the machine is the same as without it —
 commands, slots and state files work as before — but two things needed care.
 
-**Suspended routines.** A hand port that calls code that isn't ported is
-suspended on a stack of its own until the callee returns
+**Suspended routines and owed time.** A hand port that calls code that isn't
+ported is suspended on a stack of its own until the callee returns
 (`native_call`). In the field that is rare at a frame's end; in battle and in
 parts of the ending it is usual (in `battle-tyrano-lair-walls`, at 33 of the 79
-frame ends sampled). A slot or a state file holds the machine, not that stack.
-`ct_play` handles it by taking a quick save only once nothing is suspended,
-which a route can't: its searches copy the machine at the frame they are at.
-Loading such a copy with a fresh runtime would leave the rest of each routine
-to the original code, which can read registers the port never set. So
-`ct_drive` keeps a *base*, the last frame end where nothing was suspended (a
-fresh runtime there is the runtime the run had; refreshed each clean frame with
-`snes_clone_since`, so it copies only the written pages), and the buttons of
-every frame since. A copy made while routines are suspended keeps the base and
+frame ends sampled). And ON mode charges a port's estimated time after it
+stops, a scanline at a time, so at a frame's end the ports may still owe time
+the machine hasn't let pass (`native_owed`). A slot or a state file holds the
+machine, neither that stack nor that debt. `ct_play` handles it by taking a
+quick save only where it can (PLAYING.md, "Saves"), which a route can't:
+its searches copy the machine at the frame they are at. Loading such a copy
+with a fresh runtime would leave the rest of each routine to the original code,
+which can read registers the port never set, and drop the time owed. So
+`ct_drive` keeps a *base*, the last frame end where nothing was suspended and
+nothing owed (a fresh runtime there is the runtime the run had; refreshed each
+such frame with `snes_clone_since`, so it copies only the written pages), and
+the buttons of every frame since. A copy made anywhere else keeps the base and
 those buttons, and loading it restores the base and replays them, which brings
-the routines back as they were. A state file keeps them beside it,
+the routines and the debt back as they were. A state file keeps them beside it,
 `<path>.base` and `<path>.base.pads`.
 
-The replay is checked against the copy (their save-state images). It matches
-unless the ports owed time at the base: ON mode charges a port's estimated time
-after it stops, a scanline at a time, and that debt is runtime state a copy
-doesn't hold and `native.h` doesn't expose (TODO.md). Then the replay is kept
-anyway ("inexact" in `native`'s answer): its routines are intact and it differs
-from the copy only by that time, the same approximation `ct_play`'s quick load
-makes. Measured on `battle-tyrano-lair-walls`: a load at every 50th frame from
-4500 to 8000, twice at each: 132 of the 140 loads had routines suspended, 126 replayed exactly and 6
-inexact; with the debt counted as suspended (a local experiment), all exact.
-Continuing 200 frames after every one of those loads matched continuing without
-the load. Only a copy with no base loads without its routines (`lost`): one
-made after a `poke` while routines were suspended.
+The replay is checked against the copy (their save-state images), and every
+one matches: over both routes in the shipping mode (`route_check --mode
+on:on`), 2507 loads in `beyond_time` and 128 in `telepod_lavos:shell` were
+away from a base, and all replayed exactly (`replayed differing` 0 in
+`ct_drive`'s exit line). A mismatch would be counted "inexact" in `native`'s
+answer and the replay kept, since its routines are intact. Before owed time
+counted, a base could hold a debt the fresh runtime dropped, and 15 of 2253
+such loads in `beyond_time` came out inexact. The price is longer replays
+where exact frame ends are rare: the scaled-bitmap scenes of the Lavos fights
+and the ending run `scene_scale_bitmap_row` row after row, so nearly every
+frame end there owes time or has a routine suspended, and `beyond_time` had
+two stretches of 18846 and 30370 frames without a base. The route took 1004 s
+rather than about 715. Only a copy with no base loads without its routines and
+debt (`lost`): one made after a `poke` away from a base.
 
 **Write tracking.** A `poke` or a load replaces memory without the bus, so it
 calls `snes_mark_all_written` as before (PORTING.md, "What shadow mode costs"),
@@ -230,11 +236,16 @@ As built, `--mode off --mode on:on -j 2` (frames at each checkpoint):
 | &nbsp; inside / form2 / core / ending | 2554 / 3762 / 27520 / 58135 | 2554 / 3802 / 27446 / 57631 |
 | &nbsp; the end | 106136 | 105640 |
 
+Since bases wait for owed time too (Native code, above), `on:on` reaches the
+same goals: `telepod_lavos:shell` at 2728 / 4016 / 5110 in 120 s,
+`beyond_time` at 2554 / 3762 / 27229 / 57331 and the end at 105334, in 1004 s.
+
 Both modes reached every goal: the same maps in the same order through the
 ending, both Lavos fights won without a single backtrack, the King found at the
 same spot. The frame counts drift by up to 500 frames, the accepted difference.
 In the shipping mode the searches and fights made 2253 loads with routines
-suspended (15 of them inexact) and the field route 56 (none). Neither route
+suspended (15 of them inexact, before owed time counted) and the field route 56
+(none). Neither route
 needed a change to survive the drift. The `off` run through the `core`
 checkpoint wrote the same input and the same state file as the `ct_drive`
 before these options.

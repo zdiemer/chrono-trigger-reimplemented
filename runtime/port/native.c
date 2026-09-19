@@ -355,6 +355,14 @@ void native_destroy(NativeRuntime *rt)
 
 int native_suspended(const NativeRuntime *rt) { return rt->nactive; }
 
+uint64_t native_owed(const NativeRuntime *rt)
+{
+    uint64_t clocks = 0;
+    for (int i = 0; i < rt->ndebts; i++)
+        clocks += rt->debts[i].clocks;
+    return clocks;
+}
+
 /* The first entry at pc (hand-written ones come first), or -1. */
 static int find_entry(const NativeRuntime *rt, uint32_t pc)
 {

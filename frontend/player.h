@@ -39,9 +39,13 @@ extern const char *const player_build_mode[3];
 
 /* Frames between writes of the movie being recorded, so a crash loses little. */
 #define RECORD_FLUSH_FRAMES 600
-/* How long a quick save waits for native routines suspended in call-outs to
- * finish before giving up (see native_suspended). In the field that's rarely
- * needed; in battle, stretches of several seconds are common. */
+/* How long a quick save waits for a frame end where the state keeps everything:
+ * no native routine suspended in a call-out and no time owed
+ * (player_save_ready). In the field that's rarely more than a few frames; in
+ * battle it can be seconds, or not come at all. After SAVE_EXACT_FRAMES a frame
+ * end with only time owed will do, and after SAVE_WAIT_FRAMES the save is
+ * given up. */
+#define SAVE_EXACT_FRAMES 120
 #define SAVE_WAIT_FRAMES 1800
 
 /* Input by frame since power-on: the replayed movie's frames, then whatever was
@@ -124,8 +128,14 @@ void player_idle_frame(Player *pl);
 /* Whether the frame about to run comes from the replayed movie. */
 bool player_replaying(const Player *pl);
 
-/* Whether a state saved now would lose native routines suspended in call-outs. */
-bool player_busy(const Player *pl);
+/* Whether to save a state now, after waiting `waited` frames: EXACT if it
+ * would keep everything, DROPS_TIME if it would lose the time ports owe
+ * (native_owed, player_owed) and waited is SAVE_EXACT_FRAMES or more, WAIT
+ * otherwise (a native routine is suspended in a call-out, which a state can
+ * never hold, or time is owed and it's early). */
+typedef enum { PLAYER_SAVE_WAIT, PLAYER_SAVE_EXACT, PLAYER_SAVE_DROPS_TIME } PlayerSaveReady;
+PlayerSaveReady player_save_ready(const Player *pl, long waited);
+uint64_t player_owed(const Player *pl);
 
 /* The last frame, RENDER_WIDTH x RENDER_HEIGHT XRGB8888. */
 static inline const uint32_t *player_pixels(const Player *pl) { return pl->pixels; }
@@ -137,8 +147,8 @@ void player_discard_audio(Player *pl);
 
 /* ---- what the driver persists ----------------------------------------------------- */
 
-/* Quick saves. A request is carried out after the first frame that ends with
- * no native routine suspended, or dropped after SAVE_WAIT_FRAMES; the state it
+/* Quick saves. A request is carried out after the first frame that ends where
+ * player_save_ready says so, or dropped after SAVE_WAIT_FRAMES; the state it
  * took is then player_take_quick_save's (malloc'd; the caller frees it). */
 void player_request_save(Player *pl);
 void player_cancel_save(Player *pl);

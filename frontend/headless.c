@@ -40,13 +40,17 @@ int run_headless(Player *pl, const HeadlessOptions *o)
     }
     if (o->save_state) {
         long waited = 0;
-        while (player_busy(pl) && waited < SAVE_WAIT_FRAMES) {
+        PlayerSaveReady ready;
+        while ((ready = player_save_ready(pl, waited)) == PLAYER_SAVE_WAIT && waited < SAVE_WAIT_FRAMES) {
             player_idle_frame(pl);
             waited++;
         }
         if (waited)
             fprintf(stderr, "waited %ld frames for native routines to finish\n", waited);
-        if (player_busy(pl)) {
+        if (ready == PLAYER_SAVE_DROPS_TIME)
+            fprintf(stderr, "the state leaves out %llu master clocks the native routines owed\n",
+                    (unsigned long long)player_owed(pl));
+        if (ready == PLAYER_SAVE_WAIT) {
             fprintf(stderr, "cannot save state: native routines stayed suspended\n");
             rc = 1;
         } else if (files_save_state(pl, o->save_state) != 0) {

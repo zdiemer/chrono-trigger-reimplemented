@@ -172,11 +172,25 @@ static void natives_start(Player *pl, NativeMode mode)
     pl->runtime_mode = mode;
 }
 
-/* In shadow mode the machine runs only the original code, so a save just drops
+/* In on mode a state can't hold routines suspended in call-outs, nor the time
+ * ports have taken that the machine hasn't let pass yet (native_owed): saved
+ * then, the routines would be left to the original code and the time dropped.
+ * The first is never acceptable; the second is, once waiting for a frame end
+ * without it has taken SAVE_EXACT_FRAMES (in a long battle there may be none).
+ * In shadow mode the machine runs only the original code, so a save just drops
  * comparisons in progress. */
-bool player_busy(const Player *pl)
+PlayerSaveReady player_save_ready(const Player *pl, long waited)
 {
-    return pl->runtime_mode == NATIVE_ON && native_suspended(pl->natives);
+    if (pl->runtime_mode != NATIVE_ON || (!native_suspended(pl->natives) && !native_owed(pl->natives)))
+        return PLAYER_SAVE_EXACT;
+    if (native_suspended(pl->natives) || waited < SAVE_EXACT_FRAMES)
+        return PLAYER_SAVE_WAIT;
+    return PLAYER_SAVE_DROPS_TIME;
+}
+
+uint64_t player_owed(const Player *pl)
+{
+    return pl->runtime_mode == NATIVE_ON ? native_owed(pl->natives) : 0;
 }
 
 uint8_t *player_save_state(Player *pl, size_t *len)
@@ -185,7 +199,8 @@ uint8_t *player_save_state(Player *pl, size_t *len)
 }
 
 /* A state holds only the machine, so native routines suspended in call-outs when
- * it was saved can't resume; the player only saves when none are. */
+ * it was saved can't resume, and time owed is lost; the player saves only where
+ * player_save_ready allows. */
 int player_load_state(Player *pl, const uint8_t *data, size_t len, char *why, size_t why_len)
 {
     Track *t = &pl->track;
@@ -320,7 +335,9 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bo
 {
     Track *t = &pl->track;
     snes_init(&pl->snes, rom, rom_size);
-    if (natives_select(&pl->table, rom, rom_size, pl->native_mode, recomp, recomp_only) != 0) {
+    NativeChoice choice = { .mode = pl->native_mode, .recomp = recomp, .recomp_only = recomp_only,
+                            .only = NATIVES_ONLY_TIMED };
+    if (natives_select(&pl->table, rom, rom_size, &choice) != 0) {
         fprintf(stderr, "out of memory\n");
         return 1;
     }
@@ -383,8 +400,13 @@ void player_step(Player *pl, uint16_t live)
     if (t->record_name)
         track_set(t, fr, pad);
     if (pl->save_pending && !pl->snes.halted) {
-        if (!player_busy(pl)) {
+        PlayerSaveReady ready = player_save_ready(pl, pl->save_wait);
+        if (ready != PLAYER_SAVE_WAIT) {
             pl->save_pending = false;
+            if (ready == PLAYER_SAVE_DROPS_TIME)
+                fprintf(stderr, "quick save: no frame ended with nothing owed in %d frames; the state leaves out "
+                                "%llu master clocks the native routines owed\n",
+                        SAVE_EXACT_FRAMES, (unsigned long long)player_owed(pl));
             quick_save(pl);
         } else if (++pl->save_wait > SAVE_WAIT_FRAMES) {
             pl->save_pending = false;
