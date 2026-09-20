@@ -134,16 +134,13 @@ rest waits, is [PLAN.md](PLAN.md).
   decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
   round-trip on their decompressed output and would be assembled from their
   decoded form with it: MATCHING.md, "The event scripts").
-- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 57 addresses
-  the code touches without anything establishing what they mean (menu 21,
+- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 53 addresses
+  the code touches without anything establishing what they mean (menu 17,
   battle 13, core 9, field 5, scene 5, event 4;
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
-  subsystem; and the menus' two modes, which reuse the same bytes while the map
-  allows one owner per subsystem, so the object mode's slots at `$0B30`, its
-  sprite bytes at `$0920` and `$0A20` and part of its page-0 cells are unnamed
-  until the menus get a second subsystem tag. The Epoch's screens
-  (`menu/epoch.c`) name them in the file instead, with what each holds in its
-  comment.
+  subsystem. The menus' three at `$7E:0D5D`, `$0D84` and `$0DC5` are the save
+  slot summary's (`menu/save_screen.c`), and lie inside the object slots' span
+  without being fields of a slot.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 84 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests

@@ -213,6 +213,16 @@ same bytes when their subsystems differ (the battle's `$7E:2000` is not the
 field's); within a subsystem the map rejects an overlap. State every mode
 shares -- the party, inventory, story flags -- is `core`.
 
+One directory holds two such modes, so it has two tags. Bank `$C2` is the menus
+proper and the sprite-object mode started at `$C2:0000`, and they reuse the same
+bytes: the mode's `$40`-byte object slots at `$7E:0B30` cover the menus'
+records at `$7E:1800`, and its palette buffer starts where the menus keep the
+caller's stack pointer. The mode's variables are `menu_object`, which is not a
+directory -- nothing in `game/` is scanned as one -- but shares with `menu`, so
+a file in `game/menu/` is named by either. A record of the *sharing* subsystem
+names only the bytes its fields cover, so the object slots' unread bytes don't
+swallow the menus' own cells inside their span.
+
 **Direct page.** A direct-page offset has no meaning of its own: `$6D` is the
 event engine's current object with D = `$0100` and something else in battle,
 where D = `$0000`. So a variable the code reaches through the direct page names

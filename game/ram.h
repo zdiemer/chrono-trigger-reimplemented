@@ -1556,6 +1556,26 @@
  * [2 bytes] */
 #define RAM_MENU_RECORD_SPRITE_OFFSETS_DP 0x22u /* page menu_record, D unknown */
 
+/* ---- menu_object --------------------------------------------------------------------------- */
+
+/* The sprite object mode's CGRAM image: the vblank handler sends all 512 bytes to colour 0 when
+ * the mode asks for it, and screens patch rows into it (the map view's sixteen map colours land
+ * at colour $80) [512 bytes] */
+#define RAM_MENU_OBJECT_PALETTE 0x7E0920u
+/* The mode's object slots, run in address order every frame by $C2:051D: a handler and the state
+ * it keeps between frames [64 x $40 bytes, by the slot's address, which the mode keeps in
+ * menu_object_current] */
+#define RAM_MENU_OBJECT_SLOTS 0x7E0B30u
+#define RAM_MENU_OBJECT_SLOTS_COUNT 64u
+#define RAM_MENU_OBJECT_SLOTS_STRIDE 0x40u
+#define RAM_MENU_OBJECT_SLOTS_HANDLER 0x7E0B30u /* The routine that runs the object each frame, called through JMP ($0050); zero for a free slot, and the handler returning carry set frees it */
+#define RAM_MENU_OBJECT_SLOTS_STEP 0x7E0B32u /* Which of the handler's steps runs next; the dispatch doubles it to index the handler's jump table */
+#define RAM_MENU_OBJECT_SLOTS_AGE 0x7E0B33u  /* Frames the object has run, counted up after every frame its handler keeps the slot */
+#define RAM_MENU_OBJECT_SLOTS_SCRIPT 0x7E0B37u /* Long pointer to the object's command script, advanced past each command $C2:0F63 runs */
+#define RAM_MENU_OBJECT_SLOTS_SPRITE_SCRIPT 0x7E0B3Bu /* Long pointer to the object's sprite script, advanced past each command $C2:0E1D runs */
+#define RAM_MENU_OBJECT_SLOTS_SCRIPT_WAIT 0x7E0B3Eu /* A command's countdown in frames: loaded from the command's operand when zero, then counted down until it is zero again */
+#define RAM_MENU_OBJECT_SLOTS_COMMAND_DONE 0x7E0B62u /* Cleared after every command the script runs, so the next command starts fresh */
+
 /* ---- battle -------------------------------------------------------------------------------- */
 
 /* Direct-page scratch the battle's routines share at $00-$1F: the multiply's operands and
