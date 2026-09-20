@@ -90,7 +90,7 @@ rest waits, is [PLAN.md](PLAN.md).
   caller's iteration, would free them (RECOMP.md, "The tooling pass after
   wave 1: the analysis").
 - **Scene cells the menu objects use.** The C6 irises and motion routines
-  (`scene/objects.c`) run on the menu's direct page and use the circle
+  (`menu/object_commands.c`) run on the menu's direct page and use the circle
   drawer's and the scaler's cells, which the map files under the scene; their
   drafts now give those cells scratch names (RECOMP.md, "The tooling pass
   after wave 1: the analysis"). Filing them where both subsystems see them (`core`, or
@@ -134,13 +134,16 @@ rest waits, is [PLAN.md](PLAN.md).
   decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
   round-trip on their decompressed output and would be assembled from their
   decoded form with it: MATCHING.md, "The event scripts").
-- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 55 addresses
-  the code touches without anything establishing what they mean (battle 13,
-  menu 13, scene 11, core 9, field 5, event 4;
+- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 57 addresses
+  the code touches without anything establishing what they mean (menu 21,
+  battle 13, core 9, field 5, scene 5, event 4;
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
   subsystem; and the menus' two modes, which reuse the same bytes while the map
-  allows one owner per subsystem, so the object mode's slots at `$0B30` and part
-  of its page-0 cells are unnamed until the menus get a second subsystem tag.
+  allows one owner per subsystem, so the object mode's slots at `$0B30`, its
+  sprite bytes at `$0920` and `$0A20` and part of its page-0 cells are unnamed
+  until the menus get a second subsystem tag. The Epoch's screens
+  (`menu/epoch.c`) name them in the file instead, with what each holds in its
+  comment.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 84 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
@@ -153,14 +156,14 @@ rest waits, is [PLAN.md](PLAN.md).
 - **P4** (widescreen) and **P5** (GBA feasibility) are the next platform
   milestones, deferred behind Phase 3 (PLAN.md, "Phase 4: the platform
   milestones"); P0-P3 are done but for the leftovers below.
-- **The Epoch's flight screen** (PLATFORM.md, "P2 as built"), found once
-  `--vid-check` could run from power-on: about fifteen routines between
-  `$C2:6325` and `$C2:76A8` program their own tilemaps, sprite bases, uploads and
-  HDMA channels, and `menus-epoch` agrees on 5505 of its 8799 frames because of
-  it. `menus-end-of-time` has a smaller one, `bg.map_size` on 565 frames.
-  Neither movie was in the set the menus were measured on, which is why neither
-  had been looked at. Same shape of work as the race: an I/O log with
-  `--recomp off` names every writer, then one entry each.
+- **The gates the event engine opens write their own registers.**
+  `saves/events-end-of-time-gate` is the one movie `--vid-check` is not close on
+  (3863 of 5599; PLATFORM.md, "P2 as built"): from frame 3864 its gate screen
+  drives the Mode 7 matrix, the screen mode and the brightness itself, and none
+  of that code is ported, so nothing tells the observer. It is a different
+  screen from the menus' gate (`menu/epoch.c`), which agrees on every frame.
+  Porting the event's version is what closes it, and it is the last movie
+  between P2 and a library that agrees from power-on.
 - **P3 leftovers** (PLATFORM.md, "P3 as built"): the observer doesn't fill in
   the per-span memory pointers the decoder now does, which it needs before the
   renderer can be fed by service calls rather than registers. The native

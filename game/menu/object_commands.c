@@ -1,8 +1,9 @@
-/* Scenes: object routines in bank C6.
+/* Menu mode: the object-script commands that live in bank C6.
  *
  * The menu mode's sprite objects (menu/objects.c) run command scripts, and
  * command $4E calls a routine by its long address (JML [$005B] at $C2:1836):
- * the ones here are in bank C6, next to the scene tables they use. They run
+ * the ones here are in bank C6, next to the scene tables they use, which is
+ * where they were first ported from. They run
  * with 8-bit A, 16-bit index registers and the menu's direct page; the object
  * running them is the $40-byte slot at the address in $4E, whose fields are
  * reached through the data bank. The Epoch's map screen also calls two of them
@@ -13,11 +14,12 @@
  * leave every register and flag as the original does; it does now, and only X
  * and the carry are read after them (docs/RECOMP.md, "The tooling pass after
  * wave 1: the analysis"). */
-#include "scene/scene.h"
+#include "menu/object_commands.h"
 
 #include "platform/video.h"
 #include "port/machine.h"
 #include "ram.h"
+#include "scene/scene.h"
 #include "scene/scene_data.h"
 
 /* An object slot's fields used here (offsets in the slot). */
@@ -74,7 +76,7 @@ static void return_sum16(Snes *s, uint16_t a, const Sum *f)
 
 // $C6:E237
 /* $00 = the mode bits 2-5 of $1BA9 (8-bit A). */
-void scene_object_read_mode(Snes *s)
+void menu_object_read_mode(Snes *s)
 {
     uint8_t v = (uint8_t)((m_read8(s, m_abs(s, RAM_ABS(RAM_MENU_SCENE_MODE_BITS))) & 0x3C) >> 2);
     set_cell8(s, 0x00, v);
@@ -95,11 +97,11 @@ static void store_page_low(Snes *s, uint32_t at)
 
 // $C6:E2AF
 /* Clear the story flag byte $7F:0062 (with the direct page's low byte, 0). */
-void scene_object_clear_7f0062(Snes *s) { store_page_low(s, RAM_EVENT_MEMORY + 0x62); }
+void menu_object_clear_7f0062(Snes *s) { store_page_low(s, RAM_EVENT_MEMORY + 0x62); }
 
 // $C6:E63D
 /* Set the story flag byte $7F:01ED to 1. */
-void scene_object_set_7f01ed(Snes *s)
+void menu_object_set_7f01ed(Snes *s)
 {
     set_a_low(s, 1);
     m_set_nz8(s, 1);
@@ -109,11 +111,11 @@ void scene_object_set_7f01ed(Snes *s)
 
 // $C6:E644
 /* Clear $7F:01ED (with the direct page's low byte, 0). */
-void scene_object_clear_7f01ed(Snes *s) { store_page_low(s, RAM_EVENT_MEMORY + 0x1ED); }
+void menu_object_clear_7f01ed(Snes *s) { store_page_low(s, RAM_EVENT_MEMORY + 0x1ED); }
 
 // $C6:E568
 /* Move both staged per-line table pointers ($7E:8A21, $7E:8A23) on by 8. */
-void scene_object_advance_line_tables(Snes *s)
+void menu_object_advance_line_tables(Snes *s)
 {
     Sum f = { false, false };
     m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS, add16(&f, m_read16(s, RAM_MENU_OBJECT_HDMA_POINTERS), 8));
@@ -128,7 +130,7 @@ void scene_object_advance_line_tables(Snes *s)
 // $C6:E583
 /* Step $28 by 2, down where the object's parameter is odd and up otherwise.
  * Leaves A the parameter halved and the carry its low bit, X the object. */
-void scene_object_step_28(Snes *s)
+void menu_object_step_28(Snes *s)
 {
     uint16_t slot = object(s);
     uint8_t parameter = m_read8(s, field_at(s, slot, OBJECT_PARAMETER));
@@ -143,7 +145,7 @@ void scene_object_step_28(Snes *s)
 
 // $C6:E590
 /* Step $28 down by 2 (the odd half of $C6:E583, entered on its own). */
-void scene_object_step_28_down(Snes *s)
+void menu_object_step_28_down(Snes *s)
 {
     uint8_t v = (uint8_t)(cell8(s, 0x28) - 2);
     set_cell8(s, 0x28, v);
@@ -161,7 +163,7 @@ static uint16_t add_reads(Snes *s, Sum *f, uint32_t a_at, uint32_t b_at)
 
 // $C6:E77F
 /* The object's 32-bit value at $1E-$21 += its 32-bit velocity at $22-$25. */
-void scene_object_add_velocity(Snes *s)
+void menu_object_add_velocity(Snes *s)
 {
     uint16_t slot = object(s);
     Sum f = { false, false };
@@ -191,7 +193,7 @@ static uint16_t add_to_field32(Snes *s, Sum *f, uint16_t slot, uint8_t field, ui
     return high;
 }
 
-void scene_object_drift(Snes *s)
+void menu_object_drift(Snes *s)
 {
     uint16_t slot = object(s);
     Sum f = { false, false };
@@ -247,7 +249,7 @@ static uint8_t outside_sides(Snes *s)
     return cell8(s, OUTSIDE);
 }
 
-void scene_epoch_outside_sides(Snes *s)
+void menu_epoch_outside_sides(Snes *s)
 {
     outside_sides(s);
     m_rtl(s);
@@ -272,7 +274,7 @@ static const struct {
 
 /* Guard: a location past the table would send the original's jump through
  * whatever follows it. */
-bool scene_epoch_on_world_map(Snes *s)
+bool menu_epoch_on_world_map(Snes *s)
 {
     uint32_t at = m_abs(s, RAM_ABS(RAM_LOCATION_ID));
     uint16_t location = (uint16_t)(snes_bus_peek(&s->bus, at) | snes_bus_peek(&s->bus, (at + 1) & 0xFFFFFF) << 8);
@@ -284,7 +286,7 @@ bool scene_epoch_on_world_map(Snes *s)
  * carry says so; its tile position is left in $00-$01, and the area in
  * $02-$05. Y ends as the object, or where there is an area, as the
  * rectangle's left and right bytes (the original's LDY #imm). */
-void scene_epoch_in_area(Snes *s)
+void menu_epoch_in_area(Snes *s)
 {
     Cpu *c = &s->cpu;
     uint16_t slot = object(s);
@@ -333,13 +335,13 @@ static void load_stream(Snes *s, uint32_t site, uint16_t dest, uint32_t table, u
 }
 
 // $C6:E028
-void scene_object_load_graphics_2(Snes *s) { load_stream(s, 0xC6E048, 0x9000, SCENE_GRAPHICS_STREAMS, 6); }
+void menu_object_load_graphics_2(Snes *s) { load_stream(s, 0xC6E048, 0x9000, SCENE_GRAPHICS_STREAMS, 6); }
 // $C6:E04D
-void scene_object_load_c3_stream_1(Snes *s) { load_stream(s, 0xC6E06D, 0x8C00, SCENE_C3_STREAMS, 3); }
+void menu_object_load_c3_stream_1(Snes *s) { load_stream(s, 0xC6E06D, 0x8C00, SCENE_C3_STREAMS, 3); }
 // $C6:E64A
-void scene_object_load_graphics_13(Snes *s) { load_stream(s, 0xC6E66A, 0x9000, SCENE_GRAPHICS_STREAMS, 0x27); }
+void menu_object_load_graphics_13(Snes *s) { load_stream(s, 0xC6E66A, 0x9000, SCENE_GRAPHICS_STREAMS, 0x27); }
 // $C6:E66F
-void scene_object_load_c3_stream_2(Snes *s) { load_stream(s, 0xC6E68F, 0x8C00, SCENE_C3_STREAMS, 6); }
+void menu_object_load_c3_stream_2(Snes *s) { load_stream(s, 0xC6E68F, 0x8C00, SCENE_C3_STREAMS, 6); }
 
 /* ---- Per-line effects --------------------------------------------------------------- */
 
@@ -397,11 +399,11 @@ static uint32_t channel_write_site(Snes *s)
 
 /* Guard: they address the channel through the data bank, which has to reach
  * the registers. */
-bool scene_object_bank_reaches_io(Snes *s) { return m_io_bank(s->cpu.db); }
+bool menu_object_bank_reaches_io(Snes *s) { return m_io_bank(s->cpu.db); }
 
 // $C6:E000, $C6:E318, $C6:E448
 /* Window 1's edges per line, on slot 1. */
-void scene_object_window1_lines(Snes *s)
+void menu_object_window1_lines(Snes *s)
 {
     start_line_effect(s, channel_write_site(s), 1, VID_LINE_WINDOW1);
     m_rtl(s);
@@ -409,7 +411,7 @@ void scene_object_window1_lines(Snes *s)
 
 // $C6:E340, $C6:E470
 /* Window 2's edges per line, on slot 2. */
-void scene_object_window2_lines(Snes *s)
+void menu_object_window2_lines(Snes *s)
 {
     start_line_effect(s, channel_write_site(s), 2, VID_LINE_WINDOW2);
     m_rtl(s);
@@ -418,7 +420,7 @@ void scene_object_window2_lines(Snes *s)
 // $C6:E595
 /* BG1's vertical scroll per line, on slot 3, and the object's parameter
  * cleared. X ends as the object. */
-void scene_object_bg1_scroll_lines(Snes *s)
+void menu_object_bg1_scroll_lines(Snes *s)
 {
     start_line_effect(s, channel_write_site(s), 3, VID_LINE_SCROLL_BG1_V);
     uint16_t slot = object(s);
@@ -619,7 +621,7 @@ static void capsule_iris(Snes *s, const Iris *iris)
     m_set_flag(s, CPU_FLAG_V, f.overflow);
 }
 
-void scene_object_squashed_iris_1(Snes *s) { squashed_iris(s, &slot1_iris); m_rtl(s); }
-void scene_object_squashed_iris_2(Snes *s) { squashed_iris(s, &slot2_iris); m_rtl(s); }
-void scene_object_capsule_iris_1(Snes *s) { capsule_iris(s, &slot1_iris); m_rtl(s); }
-void scene_object_capsule_iris_2(Snes *s) { capsule_iris(s, &slot2_iris); m_rtl(s); }
+void menu_object_squashed_iris_1(Snes *s) { squashed_iris(s, &slot1_iris); m_rtl(s); }
+void menu_object_squashed_iris_2(Snes *s) { squashed_iris(s, &slot2_iris); m_rtl(s); }
+void menu_object_capsule_iris_1(Snes *s) { capsule_iris(s, &slot1_iris); m_rtl(s); }
+void menu_object_capsule_iris_2(Snes *s) { capsule_iris(s, &slot2_iris); m_rtl(s); }
