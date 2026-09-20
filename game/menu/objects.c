@@ -14,6 +14,7 @@
 
 #include "platform/video.h"
 #include "port/machine.h"
+#include "ram.h"
 
 static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
 static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
@@ -136,41 +137,58 @@ void menu_hide_all_sprites(Snes *s)
     m_rts(s);
 }
 
+/* A field of the object slot at `slot`, reached through the data bank as the
+ * original reaches it. */
+enum {
+    SLOT_HANDLER = 0,
+    SLOT_AGE = RAM_MENU_OBJECT_SLOTS_AGE - RAM_MENU_OBJECT_SLOTS,
+    SLOT_SCRIPT = RAM_MENU_OBJECT_SLOTS_SCRIPT - RAM_MENU_OBJECT_SLOTS,
+    SLOT_COMMAND_DONE = RAM_MENU_OBJECT_SLOTS_COMMAND_DONE - RAM_MENU_OBJECT_SLOTS,
+};
+
+static uint32_t slot_field(Snes *s, uint16_t slot, uint16_t field)
+{
+    return (m_abs(s, field) + slot) & 0xFFFFFFu;
+}
+
 // $C2:051D
-/* Run every object slot's handler (the slot's first word, reached through
- * JMP ($0050) at $C2:0553 with the slot in $4E): a handler returning carry
- * set frees its slot, otherwise the slot's counter at +3 is incremented. */
+/* Run every object slot's handler once, in address order: the slot's first
+ * word, jumped to through $0050 with the slot in $4E. A handler that returns
+ * carry set frees its slot; otherwise the object's age counts up. */
 void menu_run_objects(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_ldx(s, 0x0B30);
+    enum { SLOTS_END = RAM_ABS(RAM_MENU_OBJECT_SLOTS)
+                       + RAM_MENU_OBJECT_SLOTS_COUNT * RAM_MENU_OBJECT_SLOTS_STRIDE };
+    uint16_t slot = m_ldx(s, RAM_ABS(RAM_MENU_OBJECT_SLOTS));
     for (;;) {
         m_rep(s, CPU_FLAG_M);
-        if (m_lda16(s, m_read16(s, abs_x(s, 0x0000))) != 0) {
-            set_dp16(s, 0x50, m_lda16(s, m_read16(s, abs_x(s, 0x0000))));
+        uint16_t handler = m_lda16(s, m_read16(s, slot_field(s, slot, SLOT_HANDLER)));
+        if (handler != 0) {
+            m_write16(s, m_dp(s, RAM_MENU_OBJECT_HANDLER_DP), m_lda16(s, handler));
             m_sep(s, CPU_FLAG_M);
-            set_dp16(s, 0x4E, c->x);
+            m_write16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP), slot);
             m_jsr(s, 0xC2053E, 0xC20553);
-            if (m_x8(s) || c->e) {
+            if (m_x8(s) || s->cpu.e) {
+                /* the handler left widths this loop can't carry on with */
                 m_stop_at(s, 0xC20541, 0);
                 return;
             }
-            m_ldx(s, dp16(s, 0x4E));
+            slot = m_ldx(s, m_read16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP)));
             m_rep(s, CPU_FLAG_M);
             if (m_flag(s, CPU_FLAG_C)) {
-                m_write16(s, abs_x(s, 0x0000), 0x0000);
+                m_write16(s, slot_field(s, slot, SLOT_HANDLER), 0);      /* the object is done */
             } else {
-                uint16_t v = (uint16_t)(m_read16(s, abs_x(s, 0x0003)) + 1);
-                m_write16(s, abs_x(s, 0x0003), v);
-                m_set_nz16(s, v);
+                uint16_t age = (uint16_t)(m_read16(s, slot_field(s, slot, SLOT_AGE)) + 1);
+                m_write16(s, slot_field(s, slot, SLOT_AGE), age);
+                m_set_nz16(s, age);
             }
         }
         m_txa(s);
         m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, 0x0040);
-        m_tax(s);
-        m_cmp16(s, c->x, 0x1B30);
-        if (c->x == 0x1B30)
+        m_lda16(s, m_adc16(s, slot, RAM_MENU_OBJECT_SLOTS_STRIDE));
+        slot = m_ldx(s, s->cpu.a);
+        m_cmp16(s, slot, SLOTS_END);
+        if (slot == SLOTS_END)
             break;
     }
     m_sep(s, CPU_FLAG_M);
@@ -597,40 +615,47 @@ void menu_run_sprite_script(Snes *s)
 }
 
 // $C2:0F63
-/* Run object $4E's command script from the long pointer at +$07 (bank +$09)
- * through the handler table at $C2:0F91 until a handler returns zero, saving
- * the position and clearing +$32 after each command. The handlers stay in the
- * original. */
+/* Run the object's command script from where its slot left off, command after
+ * command, until a handler hands back zero: a length moves the script on and
+ * clears the per-command word at +$32, zero leaves the object until the next
+ * frame, and a signed offset is a branch moved the same way. The handlers are
+ * in menu/object_script.c; the interpreter calls them as the original does, so
+ * one that isn't ported yet runs on the interpreter. */
 void menu_run_object_script(Snes *s)
 {
+    enum { HANDLERS = 0x0F91 };   /* the handler table the command byte indexes */
     Cpu *c = &s->cpu;
-    m_ldx(s, dp16(s, 0x4E));
+    uint16_t slot = m_ldx(s, m_read16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP)));
     m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x5A, m_lda8(s, m_read8(s, abs_x(s, 0x0009))));
+    m_write8(s, m_dp(s, RAM_MENU_OBJECT_SCRIPT_DP + 2),
+             m_lda8(s, m_read8(s, slot_field(s, slot, SLOT_SCRIPT + 2))));
     m_rep(s, CPU_FLAG_M);
-    set_dp16(s, 0x58, m_lda16(s, m_read16(s, abs_x(s, 0x0007))));
+    m_write16(s, m_dp(s, RAM_MENU_OBJECT_SCRIPT_DP),
+              m_lda16(s, m_read16(s, slot_field(s, slot, SLOT_SCRIPT))));
     for (;;) {
-        uint16_t y = c->y;
+        uint16_t was = c->y;
         c->y = 0;
-        m_lda16(s, m_read16(s, long_y(s, 0x58)));
-        c->y = y;
-        m_lda16(s, c->a & 0x00FF);
-        c->a = m_asl16(s, c->a);
+        uint8_t command = (uint8_t)m_lda16(s, m_read16(s, long_y(s, RAM_MENU_OBJECT_SCRIPT_DP)));
+        c->y = was;
+        m_lda16(s, command);
+        m_lda16(s, m_asl16(s, c->a));
         m_tax(s);
-        m_jsr(s, 0xC20F7A, 0xC20000 | m_jump_table(s, 0xC2, 0x0F91, c->x));
+        m_jsr(s, 0xC20F7A, 0xC20000 | m_jump_table(s, 0xC2, HANDLERS, c->x));
         if (!widths_are(s, 0)) {
+            /* a handler that hands back other widths: let the original carry on */
             c->pb = 0xC2;
             c->pc = 0x0F7D;
             return;
         }
         if (m_flag(s, CPU_FLAG_Z))
-            break;
+            break;                                  /* the object is done for this frame */
         m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, dp16(s, 0x58));
-        set_dp16(s, 0x58, c->a);
-        m_ldx(s, dp16(s, 0x4E));
-        m_write16(s, abs_x(s, 0x0007), c->a);
-        m_write16(s, abs_x(s, 0x0032), 0x0000);
+        uint16_t next = m_adc16(s, c->a, m_read16(s, m_dp(s, RAM_MENU_OBJECT_SCRIPT_DP)));
+        m_lda16(s, next);
+        m_write16(s, m_dp(s, RAM_MENU_OBJECT_SCRIPT_DP), next);
+        slot = m_ldx(s, m_read16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP)));
+        m_write16(s, slot_field(s, slot, SLOT_SCRIPT), next);
+        m_write16(s, slot_field(s, slot, SLOT_COMMAND_DONE), 0);
     }
     m_sep(s, CPU_FLAG_M);
     m_rts(s);

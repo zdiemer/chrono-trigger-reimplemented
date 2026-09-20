@@ -65,12 +65,10 @@ enum {
     /* $C2:7321: which source row each of the gate's tilemap rows takes. */
     GATE_TILE_ROWS = 0x7321,
     /* The sprite object mode's palette, which its vblank handler uploads to
-     * CGRAM ($C2:01AD), and the sixteen colours the map view patches into it.
-     * The menus proper keep the caller's stack pointer in the same bytes and
-     * the RAM map allows one owner per subsystem, so they are named here
-     * (docs/TODO.md, "The RAM map's leftovers"). */
-    OBJECT_PALETTE = 0x0920,
-    OBJECT_PALETTE_PATCH = 0x0A20,
+     * CGRAM ($C2:01AD), and colour $80, where the map view patches in the
+     * sixteen colours of the map it packed. */
+    OBJECT_PALETTE = (uint16_t)RAM_ABS(RAM_MENU_OBJECT_PALETTE),
+    OBJECT_PALETTE_PATCH = (uint16_t)RAM_ABS(RAM_MENU_OBJECT_PALETTE) + 2 * 0x80,
 };
 
 /* The per-line tables the time dial reads, in the mode's buffer space. Each is

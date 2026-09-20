@@ -20,7 +20,8 @@ over game/ with comments stripped:
 
 A use is named when it falls inside a map entry (any element, any byte of a
 field) of its file's subsystem, of `core`, or of the subsystem sharing its page
-(field and event, scene and attract): work RAM is reused between modes, so the
+(field and event, scene and attract, menu and menu_object): work RAM is reused
+between modes, so the
 battle's name for a byte says nothing about the field's use of it. An address
 is named when every subsystem using it has a name for it. The counts are of distinct addresses and of uses. They over-count
 what is open in one way: a four-digit literal in range is not always an
@@ -43,7 +44,12 @@ MAP = ROOT / "re" / "ram.toml"
 HEADER = ROOT / "game" / "ram.h"
 GAME = ROOT / "game"
 
-SUBSYSTEMS = ("core", "data", "event", "field", "menu", "battle", "scene", "attract")
+# game/'s directories, plus the tags for a directory whose code is two modes
+# reusing the same bytes: `menu_object` is bank $C2's sprite-object mode (the
+# one at $C2:0000), whose slots, palette and page cells lie under the menus
+# proper's. A tag is not a directory, so nothing in game/ is scanned as one;
+# it names bytes for the directory it shares with (SHARES).
+SUBSYSTEMS = ("core", "data", "event", "field", "menu", "menu_object", "battle", "scene", "attract")
 NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 ADDR = re.compile(r"^(7[EF]):([0-9A-Fa-f]{4})$")
 
@@ -500,15 +506,25 @@ def scan(m):
 
 # Which entries can name a use in a file of a subsystem: its own, the shared
 # state in core, and the subsystem that runs on the same page and objects.
-SHARES = {"event": {"field"}, "field": {"event"}, "attract": {"scene"}, "scene": {"attract"}}
+SHARES = {"event": {"field"}, "field": {"event"}, "attract": {"scene"}, "scene": {"attract"},
+          "menu": {"menu_object"}, "menu_object": {"menu"}}
 
 
 def names_use(m, a, sub):
     """True when the map names address `a` as seen from subsystem `sub`: work RAM
     is reused between modes, so another mode's entry at the same bytes doesn't
-    say what they mean here."""
-    return any(v.subsystem == sub or v.subsystem == "core" or v.subsystem in SHARES.get(sub, ())
-               for v, _ in m.lookup(a))
+    say what they mean here.
+
+    A record of the sharing subsystem names only the bytes its fields cover.
+    The rest of its elements is what nobody has read yet, and it would otherwise
+    swallow the other mode's own cells inside the array's span (the menus' state
+    at $7E:0D00, under the object mode's $40-byte slots)."""
+    for v, f in m.lookup(a):
+        if v.subsystem in (sub, "core"):
+            return True
+        if v.subsystem in SHARES.get(sub, ()) and (f is not None or not v.fields):
+            return True
+    return False
 
 
 def region(u):

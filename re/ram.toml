@@ -47,7 +47,10 @@
 #
 # name is lower_snake_case and says what the thing is, not where it is; the
 # header spells it RAM_<NAME>. subsystem is one of game/'s directories (core,
-# data, event, field, menu, battle, scene, attract). The same bytes can be two
+# data, event, field, menu, battle, scene, attract), or `menu_object`, a second
+# tag for game/menu/: bank $C2 holds two modes, the menus proper and the
+# sprite-object mode at $C2:0000, and they reuse the same bytes, so one owner
+# per subsystem would leave the second mode's nameless. The same bytes can be two
 # entries when their subsystems differ: work RAM is reused from one game mode to
 # the next. source says how the meaning was established: the port that uses it
 # (file and `$BB:AAAA`), a doc, or a measurement.
@@ -4576,6 +4579,153 @@ meaning = "The time dial's tile graphics, decompressed here and sent to VRAM $64
 source = "game/menu/epoch.c, menu_epoch_gate_graphics $C2:7389"
 
 # ==============================================================================
+# The menus' sprite-object mode (menu_object)
+# ==============================================================================
+# Bank $C2 holds two modes. The menus proper draw records and windows; the mode
+# started at $C2:0000 runs sprite objects, and the Epoch's two screens and the
+# End of Time's gate are written as objects in it. The two reuse the same bytes
+# -- the object slots cover the menus' records, and the object palette starts
+# where the menus keep the caller's stack pointer -- so the second mode's
+# variables carry this tag rather than `menu`. Both run on the `menu` page
+# (D = $0000), so the mode's page cells are `menu_object_*` entries above.
+
+[[var]]
+name = "menu_object_palette"
+addr = "7E:0920"
+size = 512
+subsystem = "menu_object"
+meaning = "The sprite object mode's CGRAM image: the vblank handler sends all 512 bytes to colour 0 when the mode asks for it, and screens patch rows into it (the map view's sixteen map colours land at colour $80)"
+source = "game/menu/display.c menu_upload_palette; the vblank DMA at $C2:01AD; game/menu/epoch.c, menu_epoch_build_map $C2:63DF"
+
+[[var]]
+name = "menu_object_slots"
+addr = "7E:0B30"
+count = 64
+stride = 0x40
+index = "the slot's address, which the mode keeps in menu_object_current"
+subsystem = "menu_object"
+meaning = "The mode's object slots, run in address order every frame by $C2:051D: a handler and the state it keeps between frames"
+source = "game/menu/objects.c, menu_run_objects $C2:051D and menu_run_object_script $C2:0F63; game/menu/epoch.c (the screens are objects in these slots)"
+
+  [[var.field]]
+  name = "handler"
+  offset = 0
+  size = 2
+  meaning = "The routine that runs the object each frame, called through JMP ($0050); zero for a free slot, and the handler returning carry set frees it"
+
+  [[var.field]]
+  name = "step"
+  offset = 0x02
+  meaning = "Which of the handler's steps runs next; the dispatch doubles it to index the handler's jump table"
+
+  [[var.field]]
+  name = "age"
+  offset = 0x03
+  size = 2
+  meaning = "Frames the object has run, counted up after every frame its handler keeps the slot"
+
+  [[var.field]]
+  name = "script"
+  offset = 0x07
+  size = 3
+  meaning = "Long pointer to the object's command script, advanced past each command $C2:0F63 runs"
+
+  [[var.field]]
+  name = "sprite_script"
+  offset = 0x0B
+  size = 3
+  meaning = "Long pointer to the object's sprite script, advanced past each command $C2:0E1D runs"
+
+  [[var.field]]
+  name = "script_wait"
+  offset = 0x0E
+  meaning = "A command's countdown in frames: loaded from the command's operand when zero, then counted down until it is zero again"
+
+  [[var.field]]
+  name = "command_done"
+  offset = 0x32
+  size = 2
+  meaning = "Cleared after every command the script runs, so the next command starts fresh"
+
+[[var]]
+name = "menu_object_sprite_script"
+addr = "7E:0052"
+size = 3
+page = "menu"
+subsystem = "menu_object"
+meaning = "Long pointer to the running object's sprite script, taken from its slot while $C2:0E1D runs it and put back after"
+source = "game/menu/objects.c, menu_run_sprite_script $C2:0E1D"
+
+[[var]]
+name = "menu_object_sprite_group"
+addr = "7E:0055"
+size = 3
+page = "menu"
+subsystem = "menu_object"
+meaning = "Long pointer to the sprite group a sprite command shows: a count of 4-byte entries, then the entries"
+source = "game/menu/objects.c, menu_insert_sprite_node $C2:0B53 and draw_node $C2:0CFE"
+
+[[var]]
+name = "menu_object_script"
+addr = "7E:0058"
+size = 3
+page = "menu"
+subsystem = "menu_object"
+meaning = "Long pointer to the running object's command script, at the command being run: the handlers read their operands through it and the interpreter moves it on by what each returns"
+source = "game/menu/object_script.c; game/menu/objects.c, menu_run_object_script $C2:0F63"
+
+[[var]]
+name = "menu_object_call_target"
+addr = "7E:005B"
+size = 3
+page = "menu"
+subsystem = "menu_object"
+meaning = "The address a script's call command puts here to be jumped through: a word for the JMP ($005B) at $C2:1819, a long address for the JML [$005B] at $C2:1836"
+source = "game/menu/object_script.c, menu_object_cmd_call_routine $C2:1807 and cmd_call_routine_long $C2:181C"
+
+[[var]]
+name = "menu_sound_request"
+addr = "7E:1BE8"
+size = 4
+subsystem = "menu"
+meaning = "The sound driver command an object script leaves for $C2:2ED9 to pass on when the driver is free: the command byte and up to three parameters, in the order the driver takes them"
+source = "game/menu/object_script.c, menu_object_cmd_sound_18 $C2:18C7, menu_object_cmd_play_song $C2:18F9, menu_object_cmd_sound_command $C2:191F; $C2:2ED9 copies them to sound_command"
+
+[[var]]
+name = "menu_sound_request_age"
+addr = "7E:1BED"
+size = 1
+subsystem = "menu"
+meaning = "Cleared whenever a script leaves a new sound request; $C2:2ED9 weighs it against the byte after it when it decides whether to pass the request on"
+source = "game/menu/object_script.c, the sound commands $C2:18C7-$C2:1946"
+
+[[var]]
+name = "menu_member_scripts"
+addr = "7E:1B3B"
+size = 2
+count = 4
+index = "0-2 the party member of that slot (party_members), 3 the object a script asks for by the number 7"
+subsystem = "menu"
+meaning = "The sprite script each of a map screen's four objects runs, which object script command $08 sets: three of them by naming a party member, the fourth by naming 7"
+source = "game/menu/object_script.c, menu_object_cmd_set_scene_script $C2:11B2"
+
+[[var]]
+name = "menu_song_playing"
+addr = "7E:02AE"
+size = 1
+subsystem = "menu"
+meaning = "The song an object script last asked the sound driver for, kept beside the request itself"
+source = "game/menu/object_script.c, menu_object_cmd_play_song $C2:18F9"
+
+[[var]]
+name = "menu_saved_location"
+addr = "7E:04FC"
+size = 4
+subsystem = "menu"
+meaning = "Where the party was when a map screen changed the location: the location number and the map position, the same three values it also copies to location_previous"
+source = "game/menu/object_script.c, menu_object_cmd_change_location $C2:1100"
+
+# ==============================================================================
 # Battle
 # ==============================================================================
 # Battle (fragment harvested from game/battle/, docs/PORTING.md, docs/MOVIES.md
@@ -8416,8 +8566,8 @@ why = "the value loaded into D (the palette_fade page's base) and the accumulato
 
 [[not_ram]]
 file = "menu/display.c"
-values = [0x0100, 0x0200, 0x0220, 0x03E0, 0x0400, 0x1200, 0x1801, 0x1809]
-why = "Mode 7's 1.0 and the second color math table's offset, transfer sizes (palette, sprite table, a work RAM clear), the tile column wrap added to a VRAM address, and DMA control/destination pairs loaded as words"
+values = [0x0100, 0x0200, 0x0220, 0x03E0, 0x0400, 0x0BF8, 0x1200, 0x1801, 0x1809]
+why = "Mode 7's 1.0 and the second color math table's offset, transfer sizes (palette, sprite table, a work RAM clear), the tile column wrap added to a VRAM address, the distance from a queue entry's count to the entry itself, and DMA control/destination pairs loaded as words"
 
 [[not_ram]]
 file = "menu/frame.c"
@@ -8443,6 +8593,16 @@ why = "screen bounds, the wave table's loop ends, scroll wrap limits and map spa
 file = "menu/objects.c"
 values = [0x0541, 0x0CFE, 0x0E36, 0x0E37, 0x0E4A, 0x0E5A, 0x0E6B, 0x0E7E, 0x0E91, 0x0EA3, 0x0ED8, 0x0EDC, 0x0F00, 0x0F35, 0x0F7D, 0x0F91]
 why = "program counters and jump table offsets in bank $C2 (the sprite script command handlers and return addresses)"
+
+[[not_ram]]
+file = "menu/object_script.c"
+values = [0x01FF, 0x03FF, 0x0600, 0x0F63, 0x1CF5, 0x1DD4]
+why = "the bits of a location number and the world map's height and width in the units the object scripts move in, and three routine addresses in bank $C2 (the object script interpreter a started object runs, and the two objects a command starts)"
+
+[[not_ram]]
+file = "menu/object_commands.c"
+values = [0x0DDB]
+why = "the horizontal acceleration the drift command adds to the object's velocity each frame"
 
 [[not_ram]]
 file = "battle/display.c"

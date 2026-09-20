@@ -5,9 +5,13 @@
   name, `RAM_<NAME>`, plus an offset or element where it falls inside one. The
   map names bytes per subsystem, since work RAM is reused between modes: a
   draft takes a name from its own subsystem, `core`, or the subsystem that
-  shares its page (field and event, scene and attract), as the map's coverage
+  shares its page (field and event, scene and attract, the menus and their
+  sprite-object mode), as the map's coverage
   count does; one from another subsystem says nothing about this use of the
-  bytes. A routine's subsystem is its bank's where the bank has one; in the
+  bytes. Where both a subsystem and the one it shares with name an address, the
+  draft takes its own subsystem's: `$C2` code is `menu`, so a draft names
+  `$7E:0920` as the menus' saved stack pointer even in the object mode, whose
+  palette starts there, and the porter picks the other. A routine's subsystem is its bank's where the bank has one; in the
   banks several subsystems share (`$C3`, `$C6`, `$FD`, `$FF`) it is the one
   every caller's comes back to (`routine_subsystem`), and where they don't
   agree, or nothing calls it, it has none, and only `core` names it.
