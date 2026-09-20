@@ -385,8 +385,14 @@ What the $C7 pilot added (RECOMP.md, "The $C7 pilot", has the measurements):
    sets open bus. A guard that read `$CD02` through the bus made shadow runs of
    the fight drift from interpreter-only runs within a few hundred frames; with
    peeks the two produce identical traces.
-5. Run `--native shadow` over the movie library. Every call must match. Then
-   run `--native on` and compare frames with the interpreter-only run.
+5. Run `--native shadow` over the **whole** movie library. Every call must
+   match. Then run `--native on` and compare frames with the interpreter-only
+   run. A subset is for iterating, never for landing, and that holds for a
+   rewrite of a working port as much as for a new one: a wave-2 rewrite of the
+   object dispatcher passed eight movies and then failed on the full library,
+   because it no longer left the address it stopped at in A. A shadow run's
+   `interrupted` count is not noise either: those calls were not compared, so
+   an entry with a non-zero count has paths only fuzzing will check.
 6. Fuzz it with `ct_fuzz` (below), especially paths the movies don't reach.
    This is part of done, not optional: generated code is correct on every path
    by construction, a hand port only on the paths the movies and fuzzing reach.

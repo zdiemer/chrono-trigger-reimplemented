@@ -175,6 +175,12 @@ def check_vblank(args, ctx):
 FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 
 
+def all_routes():
+    """Every route in tools/movies/routes, whole rather than up to a phase."""
+    return sorted(p.stem for p in (ROOT / "tools/movies/routes").glob("*.py")
+                  if not p.stem.startswith("_"))
+
+
 def check_routes(args, ctx):
     """The shipping mode end to end: state-driven routes reach their outcomes
     (tools/movies/route_check.py), which movies can't test once timing drifts."""
@@ -183,8 +189,9 @@ def check_routes(args, ctx):
         return False, "routes", "%s: not found (build it first)" % drive, []
     cmd = [sys.executable, "-m", "tools.movies.route_check", "--drive", str(drive), "--rom", str(args.rom),
            "--mode", "on:on", "-j", str(min(ctx["jobs"], 2))]
-    if not args.long_routes:
-        cmd += FAST_ROUTES
+    # --long-routes runs every route whole; route_check's own default is two of
+    # them, so naming them here is what makes it more than the fast set.
+    cmd += all_routes() if args.long_routes else FAST_ROUTES
     rc, lines = run_tool(cmd)
     passed = sum(1 for line in lines if re.match(r"^\S+\s+pass", line))
     failed = sum(1 for line in lines if re.match(r"^\S+\s+FAIL", line))
