@@ -362,6 +362,18 @@ void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32
     }
 }
 
+void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
+                              VidVramHalf half, const VidVramPort *port)
+{
+    if (port)
+        ob->port = *port;
+    if (len == 0)
+        return;
+    ob->vram_addr = vram_addr;
+    for (uint32_t i = 0; i < len; i++)
+        vram_put(ob, half == VID_VRAM_HIGH_BYTES, ob->read(ob->ctx, src.addr + i));
+}
+
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count)
 {
     if (count == 0)
@@ -454,6 +466,10 @@ static uint8_t effect_unit_len(VidLineTarget target)
     case VID_LINE_SCROLL_BG3_V: return 2;
     case VID_LINE_MODE7_AB:
     case VID_LINE_MODE7_CD: return 4;
+    case VID_LINE_MODE7_A:
+    case VID_LINE_MODE7_B:
+    case VID_LINE_MODE7_C:
+    case VID_LINE_MODE7_D: return 2;
     default: return 1;
     }
 }
@@ -561,6 +577,17 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
          * before it in the low half, so a pair of writes is one value. */
         VidMode7 *m = &ob->state.mode7;
         int16_t *value = target == VID_LINE_MODE7_AB ? (i < 2 ? &m->a : &m->b) : (i < 2 ? &m->c : &m->d);
+        *value = (int16_t)((uint16_t)v << 8 | ob->m7_latch);
+        ob->m7_latch = v;
+        break;
+    }
+    case VID_LINE_MODE7_A:
+    case VID_LINE_MODE7_B:
+    case VID_LINE_MODE7_C:
+    case VID_LINE_MODE7_D: {
+        VidMode7 *m = &ob->state.mode7;
+        int16_t *value = target == VID_LINE_MODE7_A ? &m->a : target == VID_LINE_MODE7_B ? &m->b
+                       : target == VID_LINE_MODE7_C ? &m->c : &m->d;
         *value = (int16_t)((uint16_t)v << 8 | ob->m7_latch);
         ob->m7_latch = v;
         break;

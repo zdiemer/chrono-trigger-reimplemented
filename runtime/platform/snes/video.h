@@ -392,6 +392,15 @@ PF_API void vid_upload_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData
         vid_obs_upload_vram(vid_observer, vram_addr, src, len, false, x->port);
 }
 
+PF_API void vid_upload_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
+                                 VidVramHalf half, const VidSnesXfer *x)
+{
+    pf_snes_upload(pf, o, "vid_upload_vram_half", half == VID_VRAM_HIGH_BYTES ? 0x19 : 0x18, 0x16,
+                   vram_addr, src, len, x);
+    if (vid_observer)
+        vid_obs_upload_vram_half(vid_observer, vram_addr, src, len, half, x->port);
+}
+
 PF_API void vid_fill_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len,
                           const VidSnesXfer *x)
 {
