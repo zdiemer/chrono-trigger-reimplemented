@@ -364,9 +364,38 @@ waits on M5 rather than on a backend.
 
 ## Movies and coverage
 
-- **Endings**: Reunion needs a route to Lavos from "The Time Egg" (no Epoch
-  reachable from that save); nine more endings are unrecorded but cheap now
-  (MOVIES.md).
+- **What the library doesn't reach, measured.** Over the 26 movies' coverage
+  files against the analysis's code, **22% of the ROM's code (58.7 KiB) has
+  never been executed**: battle `$C1` 16.0K (26% of the bank), menus `$C2`
+  13.5K (23%), field and events `$C0` 9.9K (17%), the scene program in `$7E`
+  7.9K (32%), scene data `$C6` 3.4K (**97%**), and less elsewhere. The largest
+  never-run runs are `$C0:11C9` (1299 bytes), `$C6:E241` (1293), `$C2:50AC`
+  (912) and `$C1:A737` (884). Recompute it by loading `traces/coverage-*.txt`
+  and `traces/saves/cov-*.txt` with `tools/disasm/coverage.py` and comparing
+  with the analysis's code addresses.
+  - **Why it matters more as Phase 3 goes on**: generated code is correct on
+    every path by construction, so unexecuted code is harmless while it stays
+    generated, but a hand port there is only as good as its fuzzing. **86 of
+    597 registry entries (14%) are never entered by any movie** -- `$C2` 28,
+    `$C6` 22, `$D1` 9, `$C3` 8, `$FD` 7, `$C7` 6 -- and those rest on fuzzing
+    alone. Each wave since the pilot has found bugs there.
+- **Endings: three of about thirteen are recorded** (Beyond Time, the telepod
+  ending, the bucket ending). Reunion needs a route to Lavos from "The Time
+  Egg" (no Epoch reachable from that save); the rest are unrecorded and cheap
+  now (MOVIES.md), since an ending is chosen by where and when Lavos is beaten
+  plus story flags, and `oracle/saves/` has 51 saves to start from.
+- **Content no movie plays at all**: most sidequests, and much of the endgame
+  beyond the Black Omen. That is the likeliest home of the dark code in `$C0`
+  and `$C2`, since sidequests are event scripts and menus. Driving them is
+  viable headlessly the way the existing routes are (`ct_drive` plus
+  `tools/movies`, which already carry `bucket_lavos` through 171005 frames to
+  the credits): walking, talking and fighting are what the routes' pathfinder,
+  `talk()` and battle bot already do. What needs bespoke code per route is
+  puzzle mechanics a search won't infer and minigames needing timed input (the
+  jet bike race is the precedent that it works). The costs are machine time
+  (100k-170k frame runs), the addresses each route needs, and re-running a
+  route when the timing model changes, since routes survive drift but the
+  movies they record don't.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest
