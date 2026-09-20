@@ -11,11 +11,12 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Hand ports' time is an estimate**, so `--native on --recomp on` drifts from
   the original (battles play out differently). That difference is accepted
   (RECOMP.md, "Can a hand port be exact?"); the timing gate bounds the errors
-  (RECOMP.md, "The timing gate"). Left open there: thirteen entries whose
+  (RECOMP.md, "The timing gate"). Left open there: fifteen entries whose
   time follows a path inside one routine, or a loop of the port's own, are on
   `tools/timing_exceptions.txt` (the decompressor, the menu's text, glyphs and
   wave table, `field_rasterize_quad`, the scene's circle, the battle's wave
-  windows and HP gradient, and the own loops of the effect slots, the object
+  windows and HP gradient, the free-slot walk that starts a menu object, and
+  the own loops of the effect slots, the object
   drawing and its underlays); a dispatcher's handlers are attributed to
   instead (RECOMP.md, "Dispatchers"), and the menu text's control codes would
   be too once their handlers are entries. Adding a movie or a port means
@@ -134,13 +135,16 @@ rest waits, is [PLAN.md](PLAN.md).
   decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
   round-trip on their decompressed output and would be assembled from their
   decoded form with it: MATCHING.md, "The event scripts").
-- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 53 addresses
-  the code touches without anything establishing what they mean (menu 17,
+- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 56 addresses
+  the code touches without anything establishing what they mean (menu 20,
   battle 13, core 9, field 5, scene 5, event 4;
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
   subsystem. The menus' three at `$7E:0D5D`, `$0D84` and `$0DC5` are the save
   slot summary's (`menu/save_screen.c`), and lie inside the object slots' span
-  without being fields of a slot.
+  without being fields of a slot. Three more bytes the object scripts read,
+  `$7E:1BA7` bit 4, `$1BAA` bit 5 and `$1BAF` bit 1, each stop the map screens'
+  scroll from following the object and nothing says what else they mean, so
+  `menu/object_script.c` names them in the file.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 84 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests

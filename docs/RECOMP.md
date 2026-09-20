@@ -3011,6 +3011,85 @@ command `$4E` handlers and two the Epoch's map screen calls, so they are
 `game/menu/object_commands.c` now, with `menu_object_`/`menu_epoch_` names. No
 behaviour changed.
 
+### Phase 3, wave 2: the menus' object scripts (`$C2`)
+
+The second slice of bank `$C2`: the instruction set of the menus' object
+scripts. Every sprite object of the mode at `$C2:0000` can run a command
+script, and `menu_run_object_script` `$C2:0F63` was ported long ago with its 83
+handlers left as call-outs. They are ports now (`game/menu/object_script.c`),
+with the five routines that start an object and make its per-frame move.
+`python3 tools/burndown.py` for `$C2`: 10.3 KiB ported and 83% left before,
+13.6 KiB and 77% after, 81 entries to 169. All of it is 1700 lines of C for
+3.5 KiB of 65816.
+
+**How the chunk was chosen.** `ct_dev --io-log --native on --recomp off` over
+`menus-field-menu` and `menus-shop-inn` says that no unported code in `$C2`
+touches a PPU, APU or DMA register at all any more: what is left of the bank's
+I/O is the multiplier and a handful of `$42xx` writes. So the io-log, which
+picked the chunk last time, said only that the display side of the bank is
+done; the chunk came from the burndown's largest run instead (`$C2:1037`, 2617
+bytes), which turned out to be 80 of the 83 handlers, and from the fact that
+they are one thing: a scripting language with an interpreter already ported.
+
+**What the commands are.** A handler hands back a length to move the script on
+by, zero to leave the object until the next frame, zero with carry to free its
+slot, or a signed byte to branch by -- which the interpreter adds the same way,
+so a branch of zero stops the object like any other zero. They reach three
+places: a byte of the running object's slot by an offset into it, a byte of low
+RAM by a 16-bit address, and their own operand bytes. On top of that they start
+objects and scripts, set a sprite's palette and priority, move and scroll the
+map, queue VRAM uploads, send the sound driver a command, load a palette row,
+copy tilemap rows through the work RAM port, and leave for another location.
+`tools/disasm/objscript.py`, which already parsed the scripts for MD4, now
+carries the name of each command beside its length, and the ports are
+`menu_object_cmd_` plus that name.
+
+**What shadow mode found** was one mistake, and it is the kind a map makes
+easier to make than to avoid: `menu_map_origin` is three words `$04` apart, not
+`$02`, so the port that saves the party's place before a location change read
+the wrong one. Everything else matched on the first run over eight movies.
+
+**What fuzzing found**, neither reached by a movie: the mode's VRAM upload queue
+is longer than a direct page, so a record's offset must not wrap in one -- the
+original reaches a record's first byte through the data bank and the rest
+through the page, and both run on past `$FF`; the port wrapped it and wrote the
+records a page early. And the queue command's second record, `$08` further on,
+had the same wrap.
+
+**What fuzzing cost to set up**, which is the part worth writing down. Three
+constraints, each for a reason the port's row records: the script pointer has
+to lie in an area whose bytes are also constrained, because a command's operands
+are slot offsets and 16-bit addresses and an unconstrained one reaches I/O
+space, where open bus holds what the interpreter's fetches left and native code
+sets nothing; the object slot has to be a real slot for the same reason; and the
+slot's position and velocity have to be small, because the map routines a scroll
+command calls out to walk a row per tile moved, so a random 32-bit velocity
+sends them past any budget. Without the last one, twelve states in five thousand
+came back as mismatches rather than as skips, and raising the budget tenfold
+moved which ones -- the tell that they were the budget and not the port.
+
+**Which calls shadow mode never compared.** Five of the new entries have
+interrupted calls in the library (`menu_object_spawn` 4, `menu_object_start_script`
+2, and the two commands that start an object, 2 and 3), so those calls were
+counted and not compared; they are the paths fuzzing covers, which is why the
+rules now say to fuzz them deliberately.
+
+**One timing exception was added, for two entries.** Starting an object walks
+the free slots until it finds one and then copies `$3B` bytes of the caller's
+state into it, so the share of a call that is the copy swings with how far the
+walk went, which one scalar can't fit; the command that loads a palette row is
+almost all one such call, and inherits the spread through the
+`NATIVE_TIME_AS` that attributes it. Both drift by 0.01% or less over fourteen
+movies, their worst call is 1.2 lines out, and the vblank check finds none of
+their writes moved.
+
+**The two dispatchers came up to the bar with the chunk**
+(PLAN.md: a subsystem's existing ports are converted with it). `menu_run_objects`
+`$C2:051D` and `menu_run_object_script` `$C2:0F63` in `game/menu/objects.c` were
+in the early style, moving emulated registers about and spelling the slot and
+the script pointer as `$0B30` and `$58`; they read as source now and take their
+names from the RAM map.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

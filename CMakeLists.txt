@@ -95,6 +95,7 @@ add_library(ct_game STATIC
   game/menu/frame.c
   game/menu/glyphs.c
   game/menu/object_commands.c
+  game/menu/object_script.c
   game/menu/objects.c
   game/menu/save_screen.c
   game/menu/sound.c

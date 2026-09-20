@@ -1273,8 +1273,13 @@
 #define RAM_MENU_OBJECTS_FROZEN 0x7E0294u
 /* The location the Epoch is parked on, which the map view shows a marker for [2 bytes] */
 #define RAM_MENU_EPOCH_LOCATION 0x7E029Fu
+/* The song an object script last asked the sound driver for, kept beside the request itself */
+#define RAM_MENU_SONG_PLAYING 0x7E02AEu
 /* The location the time dial chose to travel to, or $FFFF where the player left it [2 bytes] */
 #define RAM_MENU_TRAVEL_LOCATION 0x7E02AFu
+/* Where the party was when a map screen changed the location: the location number and the map
+ * position, the same three values it also copies to location_previous [4 bytes] */
+#define RAM_MENU_SAVED_LOCATION 0x7E04FCu
 /* The caller's stack pointer, put back when the menus return [2 bytes] */
 #define RAM_MENU_CALLER_STACK 0x7E0920u
 /* The accumulator the caller entered the menus with */
@@ -1349,6 +1354,12 @@
 #define RAM_MENU_RECORDS_SPRITE_OFFSETS 0x7E1822u /* The first sprite's (X, Y) offset pair; the other sprites' pairs follow */
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 #define RAM_MENU_RANDOM_INDEX 0x7E1B30u
+/* The sprite script each of a map screen's four objects runs, which object script command $08
+ * sets: three of them by naming a party member, the fourth by naming 7 [4 x $2 bytes, by 0-2 the
+ * party member of that slot (party_members), 3 the object a script asks for by the number 7] */
+#define RAM_MENU_MEMBER_SCRIPTS 0x7E1B3Bu
+#define RAM_MENU_MEMBER_SCRIPTS_COUNT 4u
+#define RAM_MENU_MEMBER_SCRIPTS_STRIDE 0x02u
 /* Nonzero while a sprite script is running, which stops an object handler starting another */
 #define RAM_MENU_SPRITE_SCRIPT_BUSY 0x7E1B48u
 /* How far the story has gone, which decides the map view's graphics and the time dial's set of
@@ -1390,6 +1401,13 @@
 #define RAM_MENU_GATE_EDGE_LINES 0x7E1BE2u
 #define RAM_MENU_GATE_EDGE_LINES_COUNT 3u
 #define RAM_MENU_GATE_EDGE_LINES_STRIDE 0x02u
+/* The sound driver command an object script leaves for $C2:2ED9 to pass on when the driver is
+ * free: the command byte and up to three parameters, in the order the driver takes them [4
+ * bytes] */
+#define RAM_MENU_SOUND_REQUEST 0x7E1BE8u
+/* Cleared whenever a script leaves a new sound request; $C2:2ED9 weighs it against the byte
+ * after it when it decides whether to pass the request on */
+#define RAM_MENU_SOUND_REQUEST_AGE 0x7E1BEDu
 /* Horizontal scroll the menu code leaves for BG3, which the drift routine adds and clears [2
  * bytes] */
 #define RAM_MENU_PENDING_SCROLL_X 0x7E1BF1u
@@ -1558,6 +1576,22 @@
 
 /* ---- menu_object --------------------------------------------------------------------------- */
 
+/* Long pointer to the running object's sprite script, taken from its slot while $C2:0E1D runs it
+ * and put back after [3 bytes] */
+#define RAM_MENU_OBJECT_SPRITE_SCRIPT 0x7E0052u
+#define RAM_MENU_OBJECT_SPRITE_SCRIPT_DP 0x52u /* page menu */
+/* Long pointer to the sprite group a sprite command shows: a count of 4-byte entries, then the
+ * entries [3 bytes] */
+#define RAM_MENU_OBJECT_SPRITE_GROUP 0x7E0055u
+#define RAM_MENU_OBJECT_SPRITE_GROUP_DP 0x55u /* page menu */
+/* Long pointer to the running object's command script, at the command being run: the handlers
+ * read their operands through it and the interpreter moves it on by what each returns [3 bytes] */
+#define RAM_MENU_OBJECT_SCRIPT 0x7E0058u
+#define RAM_MENU_OBJECT_SCRIPT_DP 0x58u      /* page menu */
+/* The address a script's call command puts here to be jumped through: a word for the JMP ($005B)
+ * at $C2:1819, a long address for the JML [$005B] at $C2:1836 [3 bytes] */
+#define RAM_MENU_OBJECT_CALL_TARGET 0x7E005Bu
+#define RAM_MENU_OBJECT_CALL_TARGET_DP 0x5Bu /* page menu */
 /* The sprite object mode's CGRAM image: the vblank handler sends all 512 bytes to colour 0 when
  * the mode asks for it, and screens patch rows into it (the map view's sixteen map colours land
  * at colour $80) [512 bytes] */

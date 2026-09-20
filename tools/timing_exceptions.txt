@@ -50,3 +50,11 @@ battle_step_hp_gradient vblank-tail writes three palette rows in RAM, uploaded a
 menu_epoch_build_gate_window vblank-tail rebuilds the gate's per-line window table in RAM in 250-line calls, longer than vblank; its time follows the triangle (how many lines its corners span and which edges cross each), 4.7% on average and at most 5864 clocks (22 lines) of a 250-line call
 menu_epoch_time_dial_object vblank-tail the object that drives the dial: the window rebuild is attributed to $C2:6CC1, what is left is a setup call that moves two 448-byte buffers and programs the slot against 946 calls that turn the dial or do nothing, which one scalar can't fit
 menu_epoch_time_dial_object vblank-worst as for vblank-tail: the setup call, once per screen, writing the buffers the next frame's HDMA reads
+
+# Starting an object: the free-slot walk looks at one slot or at sixty, and
+# only the call that finds one copies the caller's state into it ($3B bytes),
+# so the share of a call that is the copy swings with the walk, which one
+# scalar can't fit. Both entries drift by 0.01% or less over 14 movies and the
+# vblank check finds none of their writes moved.
+menu_object_spawn vblank-tail the walk is 1 to 60 slots and only the call that finds one copies the state; at most 1574 clocks (1.2 lines) with +0.01% drift, and the copy writes a slot, not a video register
+menu_object_cmd_load_palette_row vblank-tail its time is the spawn it attributes to $C2:048A, so it inherits that spread; at most 1681 clocks with -0.00% drift

@@ -44,13 +44,13 @@ Nothing lands without it, and it is the same gate for every phase:
 ## Phase 3: M5 in bulk
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **71% of the code is still generated.**
+docstring says which way it is wrong). **70% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 11.2K | 1.1K | 83% | 42 |
 | field engine, events (`$C0`) | 59.4K | 18.7K | 0.4K | 68% | 249 |
-| menus, text (`$C2`) | 59.3K | 10.3K | 1.2K | 83% | 81 |
+| menus, text (`$C2`) | 59.3K | 13.6K | 1.5K | 77% | 169 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 2.7K | 0.5K | 83% | 27 |
 | field graphics (`$FD`) | 15.3K | 8.1K | 0.0K | 47% | 52 |
@@ -61,7 +61,7 @@ docstring says which way it is wrong). **71% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 1.1K | 0.0K | 68% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **76.7K** | **3.8K** | **71%** | **706** |
+| **total** | **268.5K** | **80.0K** | **4.0K** | **70%** | **794** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -157,13 +157,15 @@ per bank at a time so each keeps its own directory. One thing found in wave 1
 belongs to a bank's own wave rather than to whoever finds it: the battle
 routines that live in `$FD:A8A5`-`$B7EB` but are called from `$C1`.
 
-`$C2`'s first chunk is in (RECOMP.md, "Phase 3, wave 2"): the Epoch's two Mode 7
-screens, which were also P2's last leftover. What is left of the bank is the
-menus proper -- `python3 tools/burndown.py --uncovered C2` puts the largest runs
-at `$C2:1037` (2617 bytes), `$C2:9C31` (1685), `$C2:B520` (1530) and `$C2:42F8`
-(1441) -- and bringing the bank's early ports (`menu/objects.c`,
-`menu/display.c`, `menu/text.c`) up to the per-port bar, which this chunk did
-not touch.
+`$C2`'s first two chunks are in (RECOMP.md, "Phase 3, wave 2"): the Epoch's two
+Mode 7 screens, which were also P2's last leftover, and the object scripts'
+whole instruction set. What is left of the bank is the menus proper --
+`python3 tools/burndown.py --uncovered C2` puts the largest runs at `$C2:9C31`
+(1685 bytes), `$C2:B520` (1530), `$C2:42F8` (1441), `$C2:0568` (1396, the map's
+own scrolling and redrawing, which the scroll commands still call out to) and
+`$C2:27DE` (1385) -- and bringing the rest of the bank's early ports
+(`menu/display.c`, `menu/text.c`, the sprite drawing in `menu/objects.c`) up to
+the per-port bar.
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:
