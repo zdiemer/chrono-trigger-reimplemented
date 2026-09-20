@@ -169,7 +169,12 @@ without replaying the hour before it. Delete the checkpoints to start over.
   not frames of movie. Doors that need a direction held get a second pass
   (`push`); the overworld, which moves in whole tiles, uses `ow_bfs`.
 - **Talking.** `talk()` tries the spots around an object in turn, faces it,
-  presses A and checks the flag the conversation should set.
+  presses A and checks the flag the conversation should set. An object that
+  walks is aimed at where its walk comes nearest the party as well as at where
+  it stands now: `object_path()` samples where it goes over the next few
+  seconds and puts the machine back, so what the route aims at is a property of
+  the object's script and not of the frame the route happened to look on (see
+  Routes as a test).
 - **Fighting.** `bot.py` reads the battle menus (`$7E:95D5` whose menu is open,
   `$95DB` which page, `$9609` targeting, the cursors, `$A62D` the targets,
   `$5E30 + slot * $80` the stats) and verifies every step: press, then wait for
@@ -249,3 +254,58 @@ suspended (15 of them inexact, before owed time counted) and the field route 56
 needed a change to survive the drift. The `off` run through the `core`
 checkpoint wrote the same input and the same state file as the `ct_drive`
 before these options.
+
+### A race in the route, not in the game
+
+Run whole rather than to `shell`, `telepod_lavos` failed in `on:on` and passed
+in `off`: in the development room's last scene the route spoke to four of the
+five Dream Team members and gave up on the fifth (`dream team 0F`, then
+`outcome failed AssertionError: all five of the Dream Team`). The cause was in
+`talk()`, not in a port.
+
+The fifth member is the object that paces the left aisle of the Dream Team room
+(map `$5701`): its script walks it three tiles up the aisle and back, forever,
+while the party can walk only into the aisle's near end -- a search of every
+position the party can reach in that room covers about the bottom fifth of it
+and nothing above. So a spot beside that object exists only while it is near
+that end. `talk()` sampled its position once per spot and walked to a point
+fixed before that walk began, which made reaching it a race with its own step:
+whether any of the thirteen spots could be walked to came down to where the
+object stood at the moment the route looked, which is a frame count. The
+interpreter won that race by a hair -- the tenth spot, `(0, 32, "UP")`, 12657
+frames into the attempt -- and the shipping mode's timing put the object
+elsewhere, so no spot could be reached and the route gave up.
+
+What shows it is the route and not the mode: from one and the same state in
+that room the two modes play the scene identically, frame for frame (all five
+spoken to at frames 126710, 127129, 127612, 127945 and 129762 in both), and a
+phase shifted by 40 frames of idling before the talk fails the same spots with
+the same goals in *both* modes. Nothing about the shipping mode is involved
+except that its timing picks a different phase.
+
+`talk()` now aims a walking object's spots at where its walk comes nearest the
+party as well as at where it stands (`object_path`, `aims`), so the aim is the
+near end of the aisle whatever the phase, and its press loop covers a full pass
+of a walking object rather than most of one. Measured over six phases 40 frames
+apart in that room, all five members are spoken to from every one of them, in
+2300-3400 frames each and the fifth at the first spot in 700-1800 of them;
+before the change the same measurement failed outright at the third phase, in
+both modes, and the interpreter's own passing run had needed its tenth spot and
+12657 frames for that member alone.
+
+Run whole, `telepod_lavos` now reaches the ending in both modes, the fifth
+member spoken to from the near end of the aisle in each:
+
+| Route, phase | `off` (interpreter) | `on:on` (shipping) |
+|---|---|---|
+| `telepod_lavos` | reached, 1242 s | reached, 1645 s |
+| &nbsp; fair / exhibit / shell | 2728 / 4008 / 5102 | 2728 / 4016 / 5110 |
+| &nbsp; cavern / inner / core | 16909 / 18659 / 53046 | 16948 / 18698 / 52166 |
+| &nbsp; ending / devroom / tour | 125213 / 128553 / 139606 | 151907 / 155247 / 166362 |
+| &nbsp; kokubo / credits | 140473 / 146990 | 167229 / 175453 |
+
+The `off` run ends 10347 frames earlier than the one before the change, all of
+it that one member's spot search. The frame counts of the two modes diverge far
+more here than the 500 frames of the shorter routes, because the Lavos Core
+fight's retries take different paths, which is what a route is for: what must
+match is the outcome, not the frames.

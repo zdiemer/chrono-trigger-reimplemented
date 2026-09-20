@@ -28,6 +28,7 @@ from .bot import Bot
 from .ctdrv import Machine
 
 PLAYER_SLOT = 4090      # in-memory slot used by find_player
+PATH_SLOT = 4089        # in-memory slot used by object_path
 
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -287,18 +288,54 @@ class Run:
              (0, 26, "UP"), (0, -26, "DOWN"), (-26, 0, "RIGHT"), (26, 0, "LEFT"),
              (0, 12, "UP"), (0, 32, "UP"), (0, -12, "DOWN"), (-12, 0, "RIGHT"), (12, 0, "LEFT")]
 
-    def talk(self, index, done=None, presses=5):
+    def object_path(self, index, frames=480, step=12):
+        """Where object `index` goes over the next `frames`, sampled from the
+        machine and put back: no time passes and nothing is logged. An object
+        that stands still gives one position, a walking one its whole round."""
+        machine = self.machine
+        machine.mark(PATH_SLOT)
+        path = [self.object_pos(index)]
+        for _ in range(frames // step):
+            machine.probe(step)
+            path.append(self.object_pos(index))
+        machine.restore(PATH_SLOT)
+        machine.free(PATH_SLOT)
+        return path
+
+    def aims(self, index, path):
+        """Where to stand beside object `index`: where its walk comes nearest the
+        party, then where it is now. One point when it doesn't walk."""
+        px, py = self.me()
+        near = min(path, key=lambda point: abs(point[0] - px) + abs(point[1] - py))
+        now = self.object_pos(index)
+        moves = abs(near[0] - now[0]) >= 1 or abs(near[1] - now[1]) >= 1
+        return [near, now] if moves else [now]
+
+    def talk(self, index, done=None, presses=8):
         """Stand beside object `index`, face it and press A until `done()` (or a window opens).
 
         Tries the spots around it in turn: which side an object can be spoken to
-        from depends on the map, and some need a second press.
+        from depends on the map, and some need a second press. An object that
+        walks is aimed at where its walk comes nearest the party as well as at
+        where it stands now, because the far end of a walk is often somewhere
+        the party can't stand beside: the Dream Team room's two pace aisles the
+        party can only reach the near end of, so aiming at the object's position
+        alone makes talking to them a race with their own step. Where its walk
+        goes is a property of its script; where it stands is a frame count. The
+        presses then cover a whole pass of a walking object, which can be at the
+        far end of its walk when the party arrives beside the near one.
         """
         machine = self.machine
+        self.wait_control(1200)             # objects stand still while a window is open
+        path = self.object_path(index)
         for dx, dy, facing in self.SPOTS:
             self.wait_control(1200)
-            tx, ty = self.object_pos(index)
-            gx, gy = tx + dx, ty + dy
-            if self.walk(lambda m, px, py: abs(px - gx) <= 3 and abs(py - gy) <= 3) is None:
+            for tx, ty in self.aims(index, path):
+                gx, gy = tx + dx, ty + dy
+                if self.walk(lambda m, px, py: abs(px - gx) <= 3 and abs(py - gy) <= 3) is None:
+                    continue
+                break
+            else:
                 continue
             machine.run(2, facing)
             machine.run(8)
@@ -319,7 +356,8 @@ class Run:
                     machine.run(40)
                 self.close_dialogs()
                 ok = bool(done()) if done else True
-                self.say("talk", index, "spot", (dx, dy, facing), "ok", ok, "frame", machine.frame)
+                self.say("talk", index, "spot", (dx, dy, facing), "beside", (tx, ty), "ok", ok,
+                         "frame", machine.frame)
                 if ok:
                     return True
         self.say("talk", index, "FAILED")
