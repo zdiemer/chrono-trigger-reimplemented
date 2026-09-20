@@ -27,6 +27,7 @@
 #include "field/sprites.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
+#include "menu/map.h"
 #include "menu/object_commands.h"
 #include "menu/object_script.h"
 #include "menu/menu.h"
@@ -1105,8 +1106,22 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2015E, .name = "menu_object_nmi", .fn = menu_object_nmi, .cost_milli = 3058 },
     { .addr = 0xC20405, .name = "menu_object_upload_vram_queue", .fn = menu_object_upload_vram_queue,
       NEEDS_M8_X16, .cost_milli = 3654 },
-    { .addr = 0xC20ADC, .name = "menu_object_upload_sprite_tiles", .fn = menu_object_upload_sprite_tiles,
-      NEEDS_M16_X16, .cost_milli = 3811, .guard = menu_sprite_tiles_page_is_io },
+    /* menu map: the sprite-object mode's map, scrolled and redrawn (game/menu/map.c) */
+    { .addr = 0xC22720, .name = "menu_map_centre_on_party", .fn = menu_map_centre_on_party,
+      NEEDS_M8_X16_BINARY, .cost_milli = 3502,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_map_page_is_menu },
+    { .addr = 0xC20568, .name = "menu_map_scroll_x", .fn = menu_map_scroll_x, NEEDS_M8_X16_BINARY,
+      .cost_milli = 2873, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_map_page_is_menu },
+    { .addr = 0xC2066C, .name = "menu_map_scroll_y", .fn = menu_map_scroll_y, NEEDS_M8_X16_BINARY,
+      .cost_milli = 2794, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_map_page_is_menu },
+    { .addr = 0xC209C5, .name = "menu_map_redraw", .fn = menu_map_redraw, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3174, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z,
+      .guard = menu_map_page_is_menu },
+    { .addr = 0xC20ADC, .name = "menu_map_upload_block", .fn = menu_map_upload_block,
+      NEEDS_M16_X16_BINARY, .cost_milli = 5197, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_map_page_is_io },
     { .addr = 0xC226A8, .name = "menu_clear_vram", .fn = menu_clear_vram, NEEDS_M8_X16, .cost_milli = 4439,
       .guard = menu_display_bank_is_io },
     { .addr = 0xC22D70, .name = "menu_upload_vram", .fn = menu_upload_vram, NEEDS_M16_X16, .cost_milli = 3707,

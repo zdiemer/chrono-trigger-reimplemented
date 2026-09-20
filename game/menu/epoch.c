@@ -100,8 +100,10 @@ enum {
     CELL_PTR2 = 0x13,     /* a second long pointer */
     CELL_PTR3 = 0x16,     /* a third, and the per-line table being rebuilt */
     CELL_PRODUCT = 0x19,  /* the signed multiply's 24-bit product, and a count */
-    MAP_ORIGIN_X = RAM_MENU_MAP_ORIGIN_DP,
-    MAP_ORIGIN_Y = RAM_MENU_MAP_ORIGIN_DP + RAM_MENU_MAP_ORIGIN_STRIDE,
+    /* Where the map has its top-left tile, from the second of its planes;
+     * $C2:2720 sets the first two planes to the same tile. */
+    MAP_ORIGIN_X = RAM_MENU_MAP_COLUMN_DP + RAM_MENU_MAP_COLUMN_STRIDE,
+    MAP_ORIGIN_Y = RAM_MENU_MAP_ROW_DP + RAM_MENU_MAP_ROW_STRIDE,
 };
 
 /* Shadow display bytes, reached on the menus' page. */
@@ -404,7 +406,7 @@ static void map_tile_pair(Snes *s)
 static void clear_plane_buffer(Snes *s, uint16_t count, bool word)
 {
     Cpu *c = &s->cpu;
-    uint16_t buffer = dp16(s, RAM_MENU_OBJECT_TILE_SOURCE_DP);
+    uint16_t buffer = dp16(s, RAM_MENU_OBJECT_UPLOAD_BUFFER_DP);
     set_dp16(s, CELL_OUT, buffer);
     if (word)
         m_write16(s, m_abs(s, buffer), 0);
@@ -462,8 +464,8 @@ static void build_map_plane(Snes *s)
                 VID_STEP_VRAM_PORT, VID_STEP_SOURCE_BANK, VID_STEP_START,   VID_STEP_END,
             };
             static const VidSnesXfer x = { MENU_DMA, DMA_ONE_REGISTER, steps, &high_port };
-            uint32_t source = (uint32_t)dp8(s, (uint8_t)(RAM_MENU_OBJECT_TILE_SOURCE_DP + 2)) << 16
-                              | dp16(s, RAM_MENU_OBJECT_TILE_SOURCE_DP);
+            uint32_t source = (uint32_t)dp8(s, (uint8_t)(RAM_MENU_OBJECT_UPLOAD_BUFFER_DP + 2)) << 16
+                              | dp16(s, RAM_MENU_OBJECT_UPLOAD_BUFFER_DP);
             vid_upload_vram_half(m_platform(s), PF_AT(0xC264EB), dp16(s, CELL_C), PF_GAME(source), 0x0300,
                                  VID_VRAM_HIGH_BYTES, &x);
             clear_plane_buffer(s, 0x02FE, true);

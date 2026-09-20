@@ -19,7 +19,6 @@ void menu_object_mode_start(Snes *s);
 void menu_object_init_video(Snes *s);
 void menu_object_nmi(Snes *s);
 void menu_object_upload_vram_queue(Snes *s);
-void menu_object_upload_sprite_tiles(Snes *s);
 
 /* Loading a screen's graphics */
 void menu_clear_vram(Snes *s);
@@ -37,6 +36,5 @@ void menu_window_build_line_table(Snes *s);
 
 /* Guards */
 bool menu_display_bank_is_io(Snes *s);
-bool menu_sprite_tiles_page_is_io(Snes *s);
 
 #endif

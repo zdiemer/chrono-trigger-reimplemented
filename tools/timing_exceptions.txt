@@ -58,3 +58,12 @@ menu_epoch_time_dial_object vblank-worst as for vblank-tail: the setup call, onc
 # vblank check finds none of their writes moved.
 menu_object_spawn vblank-tail the walk is 1 to 60 slots and only the call that finds one copies the state; at most 1574 clocks (1.2 lines) with +0.01% drift, and the copy writes a slot, not a video register
 menu_object_cmd_load_palette_row vblank-tail its time is the spawn it attributes to $C2:048A, so it inherits that spread; at most 1681 clocks with -0.00% drift
+
+# Scrolling the menus' map: the call moves as many tiles as the frame's move
+# covered, and only the moves that cross a tile boundary build a strip of the
+# tilemap and queue it, so a pass is a twentieth of a pass that builds one and
+# the mix decides the call. Both write work RAM only -- the strip goes into the
+# upload buffer and a record into the queue the next vblank empties -- and the
+# vblank check finds none of their writes moved.
+menu_map_scroll_x vblank-tail builds a tilemap strip into the RAM upload buffer on the moves that cross a tile boundary and nothing on the others; at most 1445 clocks (1.1 lines) with +0.14% drift, writing RAM the next vblank uploads
+menu_map_scroll_y vblank-tail as for menu_map_scroll_x, with two records a strip; at most 1346 clocks with +0.13% drift

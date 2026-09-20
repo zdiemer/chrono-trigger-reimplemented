@@ -862,6 +862,14 @@ name = "id"
 offset = 0
 size = 2
 meaning = "16-bit value whose low 9 bits are the location number"
+[[var.field]]
+name = "x"
+offset = 2
+meaning = "Where the party stands across the location, in 8x8 tiles"
+[[var.field]]
+name = "y"
+offset = 3
+meaning = "And down it"
 
 [[var]]
 name = "location_previous"
@@ -4138,13 +4146,13 @@ source = "game/menu/display.c, menu_object_upload_vram_queue $C2:0405; game/menu
   meaning = "The VRAM port setting to send them with"
 
 [[var]]
-name = "menu_object_tile_source"
+name = "menu_object_upload_buffer"
 addr = "7E:00E0"
 page = "menu"
 size = 3
 subsystem = "menu"
-meaning = "Long pointer to sprite tile data, from which a sprite's two tile columns go to VRAM; put back to $7E:F000 after each frame's queue"
-source = "game/menu/display.c, menu_object_upload_sprite_tiles $C2:0ADC, menu_object_upload_vram_queue $C2:0405"
+meaning = "Long pointer to the next free bytes of the upload buffer at $7E:F000, where the sprite object mode builds what goes to VRAM: a sprite's two tile columns, or a strip of the map's tilemap. Put back to $7E:F000 once each frame's queue is out"
+source = "game/menu/map.c, menu_map_upload_block $C2:0ADC; game/menu/display.c, menu_object_upload_vram_queue $C2:0405"
 
 [[var]]
 name = "menu_sprite_nodes"
@@ -4527,16 +4535,28 @@ meaning = "Bit 4: the sprite object mode's objects don't move this frame"
 source = "game/menu/epoch.c, menu_epoch_gate_drift $C2:7702 and the other background objects"
 
 [[var]]
-name = "menu_map_origin"
-addr = "7E:00E5"
+name = "menu_map_column"
+addr = "7E:00E3"
 size = 2
-count = 3
-stride = 4
-index = "0 the column, 1 the row"
+count = 2
+stride = 2
+index = "plane"
 page = "menu"
 subsystem = "menu"
-meaning = "The top-left tile of the world map the menus show, worked out from the party's tile at $0102 ($C2:2732)"
-source = "game/menu/epoch.c, menu_epoch_place_marker_random $C2:754D"
+meaning = "Which background tile column of the map each plane has at its left edge (0-191), set from the party's tile at $0102 ($C2:2720). A third plane's word would be menu_map_row's first, and its tile groups would be the first plane's map, so only two planes can be scrolled"
+source = "game/menu/map.c, menu_map_scroll_x $C2:0568, menu_map_redraw $C2:09C5"
+
+[[var]]
+name = "menu_map_row"
+addr = "7E:00E7"
+size = 2
+count = 3
+stride = 2
+index = "plane"
+page = "menu"
+subsystem = "menu"
+meaning = "And which tile row it has at its top edge (0-127)"
+source = "game/menu/map.c, menu_map_scroll_y $C2:066C, menu_map_redraw $C2:09C5"
 
 [[var]]
 name = "menu_map_graphics"

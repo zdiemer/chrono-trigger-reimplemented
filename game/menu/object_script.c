@@ -19,11 +19,14 @@
  * and the data bank on low RAM, and hands back A, X, the zero flag and the
  * carry; Y and the sign and overflow flags are dead after it.
  *
- * Still the original's, called out to: the map's own scrolling and redrawing
- * ($C2:0568, $C2:066C, $C2:09C5), the sound queue ($C2:2ED9), the sprite script
- * interpreter ($C2:0E1D, ported in menu/objects.c), and the two jumps a script
- * makes through an address it gives ($C2:1819, $C2:1836). */
+ * Called out to rather than run here: the map's own scrolling and redrawing
+ * ($C2:0568, $C2:066C, $C2:09C5, ported in menu/map.c), the sound queue
+ * ($C2:2ED9), the sprite script interpreter ($C2:0E1D, ported in
+ * menu/objects.c), and the two jumps a script makes through an address it
+ * gives ($C2:1819, $C2:1836). */
 #include "menu/object_script.h"
+
+#include "menu/map.h"
 
 #include "port/machine.h"
 #include "port/native.h"
@@ -424,13 +427,17 @@ static uint8_t location_leave_mode(Snes *s, uint16_t quarter)
 void menu_object_cmd_change_location(Snes *s)
 {
     enum { MENU_MODE_LEAVING = 2, MAP_WIDTH_TILES = 0xC0, MAP_HEIGHT_MASK = 0x7F,
-           MAP_CENTRE = 0x10, LOCATION_ID_BITS = 0x01FF };
+           MAP_CENTRE = 0x10, LOCATION_ID_BITS = 0x01FF,
+           /* Where the map has its top-left tile, from the second of its
+            * planes; $C2:2720 sets the first two planes to the same tile. */
+           MAP_ORIGIN_X = RAM_MENU_MAP_COLUMN_DP + RAM_MENU_MAP_COLUMN_STRIDE,
+           MAP_ORIGIN_Y = RAM_MENU_MAP_ROW_DP + RAM_MENU_MAP_ROW_STRIDE };
     uint16_t id = m_lda16(s, m_read16(s, m_abs(s, RAM_ABS(RAM_LOCATION_ID))));
     m_write16(s, m_abs(s, RAM_ABS(RAM_LOCATION_PREVIOUS_ID)), id);
     m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_SAVED_LOCATION)), id);
 
     m_set_flag(s, CPU_FLAG_C, false);
-    uint16_t x = m_lda16(s, m_adc16(s, m_read16(s, m_dp(s, RAM_MENU_MAP_ORIGIN_DP)), MAP_CENTRE));
+    uint16_t x = m_lda16(s, m_adc16(s, m_read16(s, m_dp(s, MAP_ORIGIN_X)), MAP_CENTRE));
     m_cmp16(s, x, MAP_WIDTH_TILES);
     if (m_flag(s, CPU_FLAG_C))
         x = m_lda16(s, m_sbc16(s, x, MAP_WIDTH_TILES));
@@ -438,9 +445,7 @@ void menu_object_cmd_change_location(Snes *s)
     m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_SAVED_LOCATION) + 2), x);
 
     m_set_flag(s, CPU_FLAG_C, false);
-    uint16_t y = m_lda16(s, m_adc16(s, m_read16(s, m_dp(s, RAM_MENU_MAP_ORIGIN_DP
-                                                        + RAM_MENU_MAP_ORIGIN_STRIDE)),
-                                    MAP_CENTRE));
+    uint16_t y = m_lda16(s, m_adc16(s, m_read16(s, m_dp(s, MAP_ORIGIN_Y)), MAP_CENTRE));
     m_lda16(s, y & MAP_HEIGHT_MASK);
     m_sep(s, CPU_FLAG_M);
     m_write8(s, m_abs(s, RAM_ABS(RAM_LOCATION_PREVIOUS) + 3), (uint8_t)s->cpu.a);
@@ -495,14 +500,6 @@ void menu_object_cmd_end(Snes *s)
 
 /* ---- the tables a screen builds ------------------------------------------------------------ */
 
-/* Where the screen's rows live: three tables in work RAM whose addresses are
- * words in bank $C2, the same ones the map's own scrolling reads ($C2:055C).
- * `which` is the table number already doubled. */
-static uint16_t screen_table(Snes *s, uint16_t which)
-{
-    return m_read16(s, (0xC2055Cu + which) & 0xFFFFFFu);
-}
-
 // $C2:116B
 /* Put a byte in one of the screen's row tables, at a column and a row. */
 void menu_object_cmd_write_table_byte(Snes *s)
@@ -513,7 +510,7 @@ void menu_object_cmd_write_table_byte(Snes *s)
     m_lda16(s, s->cpu.a & 0x00FFu);
     m_lda16(s, m_asl16(s, s->cpu.a));
     uint16_t which = m_tax(s);
-    m_write16(s, m_dp(s, 0x10), m_lda16(s, screen_table(s, which)));
+    m_write16(s, m_dp(s, 0x10), m_lda16(s, menu_map_data(s, which)));
     m_sep(s, CPU_FLAG_M);
     m_write8(s, m_dp(s, 0x12), m_lda8(s, 0x7E));
     m_ldy(s, 3);

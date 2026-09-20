@@ -56,6 +56,8 @@
 #define RAM_LOCATION 0x7E0100u
 #define RAM_LOCATION_DP 0x00u                /* page field */
 #define RAM_LOCATION_ID 0x7E0100u            /* 16-bit value whose low 9 bits are the location number */
+#define RAM_LOCATION_X 0x7E0102u             /* Where the party stands across the location, in 8x8 tiles */
+#define RAM_LOCATION_Y 0x7E0103u             /* And down it */
 /* The location before the last immediate location change (a location triple) [5 bytes] */
 #define RAM_LOCATION_PREVIOUS 0x7E0105u
 #define RAM_LOCATION_PREVIOUS_DP 0x05u       /* page field */
@@ -1224,16 +1226,24 @@
 /* The number's size in bytes, counted down as it is converted [2 bytes] */
 #define RAM_MENU_NUMBER_SIZE 0x7E0092u
 #define RAM_MENU_NUMBER_SIZE_DP 0x92u        /* page menu */
-/* Long pointer to sprite tile data, from which a sprite's two tile columns go to VRAM; put back
- * to $7E:F000 after each frame's queue [3 bytes] */
-#define RAM_MENU_OBJECT_TILE_SOURCE 0x7E00E0u
-#define RAM_MENU_OBJECT_TILE_SOURCE_DP 0xE0u /* page menu */
-/* The top-left tile of the world map the menus show, worked out from the party's tile at $0102
- * ($C2:2732) [3 x $4 bytes, by 0 the column, 1 the row] */
-#define RAM_MENU_MAP_ORIGIN 0x7E00E5u
-#define RAM_MENU_MAP_ORIGIN_COUNT 3u
-#define RAM_MENU_MAP_ORIGIN_STRIDE 0x04u
-#define RAM_MENU_MAP_ORIGIN_DP 0xE5u         /* page menu */
+/* Long pointer to the next free bytes of the upload buffer at $7E:F000, where the sprite object
+ * mode builds what goes to VRAM: a sprite's two tile columns, or a strip of the map's tilemap.
+ * Put back to $7E:F000 once each frame's queue is out [3 bytes] */
+#define RAM_MENU_OBJECT_UPLOAD_BUFFER 0x7E00E0u
+#define RAM_MENU_OBJECT_UPLOAD_BUFFER_DP 0xE0u /* page menu */
+/* Which background tile column of the map each plane has at its left edge (0-191), set from the
+ * party's tile at $0102 ($C2:2720). A third plane's word would be menu_map_row's first, and its
+ * tile groups would be the first plane's map, so only two planes can be scrolled [2 x $2 bytes,
+ * by plane] */
+#define RAM_MENU_MAP_COLUMN 0x7E00E3u
+#define RAM_MENU_MAP_COLUMN_COUNT 2u
+#define RAM_MENU_MAP_COLUMN_STRIDE 0x02u
+#define RAM_MENU_MAP_COLUMN_DP 0xE3u         /* page menu */
+/* And which tile row it has at its top edge (0-127) [3 x $2 bytes, by plane] */
+#define RAM_MENU_MAP_ROW 0x7E00E7u
+#define RAM_MENU_MAP_ROW_COUNT 3u
+#define RAM_MENU_MAP_ROW_STRIDE 0x02u
+#define RAM_MENU_MAP_ROW_DP 0xE7u            /* page menu */
 /* What the graphics loader at $C2:57DF is to load, on its own direct page $0200 [9 bytes] */
 #define RAM_MENU_LOAD_REQUEST 0x7E020Cu
 #define RAM_MENU_LOAD_REQUEST_ENTRY 0x7E020Cu /* Which entry of the table below to load */

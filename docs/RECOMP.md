@@ -3045,9 +3045,10 @@ carries the name of each command beside its length, and the ports are
 `menu_object_cmd_` plus that name.
 
 **What shadow mode found** was one mistake, and it is the kind a map makes
-easier to make than to avoid: `menu_map_origin` is three words `$04` apart, not
-`$02`, so the port that saves the party's place before a location change read
-the wrong one. Everything else matched on the first run over eight movies.
+easier to make than to avoid: the map's origin is not three words `$02` apart,
+so the port that saves the party's place before a location change read the
+wrong one. Three words `$04` apart was the model that fixed it; what it really
+is, two arrays of a word per plane, is in "the menus' map" below. Everything else matched on the first run over eight movies.
 
 **What fuzzing found**, neither reached by a movie: the mode's VRAM upload queue
 is longer than a direct page, so a record's offset must not wrap in one -- the
@@ -3089,6 +3090,126 @@ their writes moved.
 in the early style, moving emulated registers about and spelling the slot and
 the script pointer as `$0B30` and `$58`; they read as source now and take their
 names from the RAM map.
+
+### Phase 3, wave 2: the menus' map (`$C2`)
+
+The third slice of bank `$C2`: what the mode at `$C2:0000` shows behind its
+sprite objects. The two chunks before this one left the mode's object scripts
+calling out to three routines that scroll and redraw it (`$C2:0568`,
+`$C2:066C`, `$C2:09C5`), which the burndown also had as the bank's largest
+unported run; they are ports now, in `game/menu/map.c`, with everything only
+they call. `python3 tools/burndown.py` for `$C2`: 13.6 KiB ported and 77% left
+before, 15.0 KiB and 75% after, 169 entries to 173. 751 lines of C for 1.4 KiB
+of 65816.
+
+**What the map is.** Three planes, each 96 x 64 map tiles of 16 x 16 pixels.
+A plane's map is one byte per map tile in work RAM; the byte picks one of 256
+tile groups, four background tiles laid out two by two, also in work RAM; and
+the group's tiles go to a 64 x 32 tilemap in VRAM, which the SNES holds as two
+32 x 32 screens side by side. Three words of bank `$C2` (`$C2:0556`, `$C2:055C`
+and `$C2:0562`) say, per plane, where its groups, its map and its tilemap are;
+`$C2:055C` is the table the object scripts' write-a-map-byte command already
+read, and all three are one accessor now. Scrolling moves the plane's scroll
+shadow one 8-pixel tile at a time, carrying its top-left map tile with it, and
+whenever a whole tile column or row comes uncovered it builds the 32 tilemap
+words that fill it in the mode's upload buffer at `$7E:F000` and queues them
+for the next vblank. A redraw is the same work for the whole plane: eighteen
+blocks of sixteen map tiles, each two tilemap columns, sent straight to VRAM
+with the screen blanked.
+
+**Two things the RAM map had wrong**, both found by reading the routines that
+use them:
+
+- `menu_map_origin` was one array of three words `$04` apart at `$7E:00E5`.
+  It is two: the planes' columns at `$7E:00E3` and their rows at `$7E:00E7`, a
+  word each, indexed by the plane number doubled. The pair the Epoch's screens
+  and the change-location command read (`$E5` and `$E9`) is the same pair
+  either way, which is why the wrong model passed; but a third plane's column
+  would be the first plane's row, and a third plane's tile groups would be the
+  first plane's map (`$C2:0556`'s third word is `$C2:055C`'s first), so only
+  two of the three planes can be scrolled at all. `$C2:2720`, which puts the
+  map where the party is and came with the chunk, writes exactly those two.
+- `menu_object_tile_source` at `$7E:00E0` was "a long pointer to sprite tile
+  data". It is the mode's upload buffer cursor: the next free bytes of
+  `$7E:F000`, which sprite tile columns and map strips are both built in and
+  which `menu_object_upload_vram_queue` puts back once the queue is out. The
+  routine that reads it, `$C2:0ADC`, was `menu_object_upload_sprite_tiles` in
+  `menu/display.c`; its only caller is the redraw, so it is
+  `menu_map_upload_block` in `menu/map.c` now, rewritten out of the early style
+  (an emulated register for every step of the transfer) at the same time.
+
+**What shadow mode found** was one thing: `$C2:066C`'s callers read X, and the
+original leaves the plane number there on a pass that crosses no tile boundary
+and the queue record's offset on one that does. The port left the caller's X.
+Nothing else mismatched, on the first run over the library.
+
+**What fuzzing found**, neither reached by a movie, and both about what a
+caller can see of work the routine does through pointers the caller chose:
+
+- **A queue record's source is read after the record's own bank and port are
+  written.** The mode's upload queue is sixteen records at `$7E:0060`, and the
+  upload buffer's cursor is right past it at `$7E:00E0`, so a queue that has
+  filled up puts a record on top of the cursor; the original reads the cursor
+  for the record's source only after storing the record's bank and port, and so
+  takes the value those stores left. The port read it first. (The same fix
+  had to address the second record a row strip queues as a set of fields `$08`
+  further on rather than a record at a tail `$08` further on, so a tail near
+  `$FF` doesn't fold the second record onto the first.)
+- **The saved data bank is on the stack while the strip is written.** The four
+  strip builders put the data bank on `$7E` for their loop and pull it back
+  after, and the loop writes through the upload buffer's cursor, so a cursor
+  pointing into the stack page takes the saved byte with it and the routine
+  comes back with whatever the strip wrote over it. The port had dropped the
+  push, since it doesn't need a data bank to address bank `$7E`; it does the
+  push and the pull now, and addresses the map through the data bank like the
+  original.
+
+**What fuzzing cost to set up**: three constraints, each for a reason, and each
+one a statement about how the mode uses these routines. The upload buffer's
+cursor is kept as the state has it (`--keep 7E00E0-7E00E2`), because a random
+one sends the strip anywhere in bank `$7E` -- over the stack, where the
+original loses the return addresses of the subroutines the port inlines and
+goes somewhere the port never does, and over I/O space for the redraw's DMA
+source, where open bus holds what the interpreter's fetches left and native
+code sets nothing. The queue's tail is kept inside the queue
+(`--fill 7E005F-7E005F=00-70`), for the same reason at the other end: a tail of
+`$FF` puts records at `$7E:015F`, on the stack. And the scroll's step is kept
+small (`--fill 7E0001-7E0001=00-08`, and again `F8-FF` for the other
+direction), because the step is a count of tiles to move and each tile can
+queue a strip, so a step of `$80` walks the buffer's cursor `$2000` bytes on and
+round the bank into low RAM -- which the object scripts never ask for, since
+the step is the whole part of one frame's move. With those three, 20000 states
+each on two seeds for the two scrolls (each direction separately), the block
+upload and the map centring, and 5000 for the redraw, none mismatching; and
+5000 each of the plane number the routines refuse, which no movie reaches
+either.
+
+**The plane number is checked and then spun on.** Both scroll routines and the
+redraw take the plane in the mode's first scratch byte and answer a number that
+isn't 1, 2 or 3 with a branch to itself (`$C2:059B`, `$C2:069F`, `$C2:0A6A`).
+The ports hand those addresses back to the interpreter rather than reproduce
+the loop, declaring their own empty set there (`m_stop_at_own`), since the
+accumulator and flags the original has at that point are exact and cheap to
+keep. The redraw's stop is under the data bank byte it has already pushed,
+which is the one piece of SNES mechanics its port keeps.
+
+**What was left at the edge, and why.** The chunk is 1.4 KiB against the 6 KiB
+a wave-2 chunk aims at, and the next coherent unit -- the screen's own setup,
+`$C2:2720`-`$C2:2D90`, which the burndown puts at `$C2:27DE` (1385 bytes) --
+was not taken. Its shape is plain: about fifteen routines that each decompress
+one stream into work RAM, picked by a byte of the scene record at `$C6:FD00`
+that `$C2:274D` finds from the location (`$1F0`-`$1F7`, the world maps), out of
+ten tables of long pointers at `$C6:FDF0`-`$C6:FFFF` that `re/hints.toml`
+already types as `lz`. What is missing is what each stream *is*: two of the
+fifteen are nameable from this chunk's work (`$C2:295E` loads the first plane's
+tile groups to `$7E:3000`, `$C2:298C` its map to `$7E:4000`) and one from MD4
+(`$C2:2A16` loads the scene's object scripts to `$7F:0400`), and the rest would
+take their names from their destination addresses, which is the transcription
+M5 exists to stop. Identifying them is resource typing (MATCHING.md's MD2), not
+porting, so that run is worth taking after it rather than before. The two
+drivers at the end of it (`$C2:2C1D` and `$C2:2C93`) also run straight through
+two entries that already exist in `menu/display.c` (`$C2:2D47`, `$C2:2D70`), so
+they belong with that file's loader half, which is its own chunk.
 
 ## Risks
 
