@@ -113,7 +113,11 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     (docs/RECOMP.md, "The timing gate"). A port that runs another routine's work inline (a
     dispatcher's handlers) names that routine with `NATIVE_TIME_AS(s, 0xBBAAAA, ...)`, so the
     work is estimated at that routine's own calibrated value: a tag, never a number
-    (docs/PORTING.md, "Writing a port"). Fuzzing is part of a port's definition of done.
+    (docs/PORTING.md, "Writing a port"). Fuzzing is part of a port's definition of done,
+    and a shadow run's `interrupted` count is not noise: an interrupted call is one shadow
+    mode did **not** compare, so a new entry with a non-zero count has paths nothing has
+    checked. Fuzz those deliberately (two of the Epoch screens' five fuzz-found bugs were on
+    such paths; docs/RECOMP.md, "Phase 3, wave 2").
   - Declare what the original leaves dead rather than reproduce it: flags nobody reads,
     either byte of A (`DC_AH`, `DC_AL`), a subroutine's stack frame. An entry's don't-care
     set, `m_stop_at` where a port stops (`m_stop_at_own` where the stop's set is its own,
