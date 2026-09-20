@@ -17,7 +17,7 @@ lists what changed and why.
 |---|---|---|
 | P0 | Service headers, SNES backend, first hand ports converted | done |
 | P1 | Audio behind the API | done, except `new-game`'s log-spectral distance in the audio comparison (see P1 as built) |
-| P2 | Video behind the API, subsystem by subsystem | done for everything the milestone set out to cover: shared code, battle, field, menus and the scenes, the jet bike race included, and `--vid-check` now runs from power-on rather than from the frame a subsystem takes over. The Epoch's flight screen, which only `menus-epoch` reaches, turned out to be a slice of bank `$C2` nothing had looked at (see P2 as built) |
+| P2 | Video behind the API, subsystem by subsystem | done: shared code, battle, field, menus and the scenes, the jet bike race included, and `--vid-check` runs from power-on rather than from the frame a subsystem takes over. The Epoch's two Mode 7 screens, the last slice of bank `$C2` that wrote its own registers, went in with Phase 3's menu conversion (see P2 as built) |
 | P3 | Native renderer, pixel-identical to `render.c` | done, fed by the register decoder: every frame of all 26 movies is identical (see P3 as built) |
 | P4 | Widescreen | |
 | P5 | GBA feasibility study | |
@@ -1016,7 +1016,7 @@ mismatches; and the observer's command-built `VidFrame` equals the decoder's
 | shared | done: display blank (P0), the palette upload `$C0:712E`, the animated tiles (P0), and the register block the boot writes at power-on (`$FD:C036`), which the observer needs before it can be compared from frame 0 |
 | battle | done in `gato-battle` and `battle-magus`, where no PPU, DMA or HDMA register write is left outside `vid_*`, and the two frames agree on 2198 of the fight's 2200 frames. `$D1:F4E6`, which `battle-golem-twins-gameover` reaches on its way back to the title, is in as well |
 | field | done: over `field.ctm` no routine in banks `$C0` or `$FD` writes a register any more, and with the menus behind the API as well the two frames agree on all 5000 frames sampled from frame 4000 |
-| menus | done: both modes of bank `$C2` -- the menus proper at `$C2:800E` and the sprite objects at `$C2:0000`, whose entry `$C2:000F` sets the brightness the mode then runs at -- and the window commands. No PPU, DMA or HDMA register write is left outside `vid_*` from bank `$C2` or from `$FF:FC04` in `field.ctm`, `menus-field-menu` or `gato-battle`. Left, and found only by comparing from power-on: the Epoch's flight screen, about fifteen routines between `$C2:6325` and `$C2:76A8` that only `menus-epoch` reaches, and whatever sets the tilemap sizes in `menus-end-of-time`; both lie outside every movie the menus were measured on |
+| menus | done: both modes of bank `$C2` -- the menus proper at `$C2:800E` and the sprite objects at `$C2:0000`, whose entry `$C2:000F` sets the brightness the mode then runs at -- and the window commands. No PPU, DMA or HDMA register write is left outside `vid_*` from bank `$C2` or from `$FF:FC04` in `field.ctm`, `menus-field-menu` or `gato-battle`. The Epoch's map view and time dial, twenty-five routines between `$C2:631F` and `$C2:7758` that only `menus-epoch` reaches, and the End of Time's gate screen `$C2:CE9D`, went in with Phase 3's conversion of the menus (`menu/epoch.c`, [RECOMP.md](RECOMP.md), "Phase 3, wave 2"); both movies now agree on every frame |
 | scenes | done: the attract sequence, the title screen and the jet bike race. Twenty entries cover the program at `$7E:3000` and eighteen more the race's own code in it, with `$C3:08D0` an entry of its own, so nothing in the scenes writes a PPU, DMA or HDMA register outside the services in any movie. `$7E:59D5`, the fill the graphics loader starts without programming a source, goes through the SNES-only escape, which resolves what the call site leaves unprogrammed from the channel |
 
 **The frame, its two builders and their comparison.**
@@ -1210,9 +1210,9 @@ color three times, one channel each.
 - **`--vid-check-from N`.** The observer starts from what the calls have told
   it, so it can only be compared once every writer of every register has been
   behind the API since power-on. With the scenes and the boot in that now holds,
-  and `--vid-check` runs from frame 0; `--vid-check-from` stays for checking a
-  subsystem from the frame it takes over, and for the Epoch's flight screen,
-  which still writes registers itself.
+  and `--vid-check` runs from frame 0 over the whole library;
+  `--vid-check-from` stays for checking a subsystem from the frame it takes
+  over.
 - **Power-on video memory is seeded, the registers are not.** From frame 0 the
   calls build every register themselves, but what VRAM, CGRAM and OAM hold before
   the game writes them is the machine's: `snes_power_on` preloads CGRAM with the
@@ -1362,19 +1362,24 @@ from frame 0:
 | `saves/battle-magus.ctm` | 17977 of 17999 | `windows.w1_left` on 10, `sprite` on 8 |
 | `saves/late-omen-terramutant.ctm` | 17749 of 17761 | `windows.w1_left` and `sprite` on 6 each |
 | `saves/late-omen-battles.ctm` | 18351 of 18411 | brightness on 34, `windows.w1_left` on 20 |
-| `saves/menus-end-of-time.ctm` | 8234 of 8799 | `bg.map_size` on 565 |
-| `saves/menus-epoch.ctm` | 5505 of 8799 | the Epoch's flight screen (below) |
+| `saves/menus-end-of-time.ctm` | 8799 of 8799 | -- |
+| `saves/menus-epoch.ctm` | 8799 of 8799 | -- |
 
-Seven movies agree on every frame. What is left in the rest is two known things
-and one new one. `fixed_color` is the four frames P2 already had. The battles'
+Nine movies agree on every frame. What is left in the rest is the two known
+things. `fixed_color` is the four frames P2 already had. The battles'
 `windows.w1_left` and `sprite` frames are the shared channel P2 already had, and
 their brightness frames are the battle IRQ writing `$2100` at a line the observer
-places differently. The new one is `menus-epoch`: the Epoch's flight screen
-programs its own tilemaps, sprite bases, uploads and HDMA channels from about
-fifteen routines between `$C2:6325` and `$C2:76A8`, and `menus-end-of-time`
-writes tilemap sizes from somewhere the menus' ports don't cover. Neither movie
-was in the set the menus were measured on, so neither had ever been compared;
-they are the next slice, and they are in [TODO.md](TODO.md).
+places differently.
+
+The two menu movies were the milestone's last leftover, and Phase 3's conversion
+of bank `$C2` closed it: `menus-epoch` went from 5506 of 8799 to all of them and
+`menus-end-of-time` from 8234 to all of them, once the Epoch's map view and time
+dial and the End of Time's gate went behind the service
+([RECOMP.md](RECOMP.md), "Phase 3, wave 2"). Two calls were added for them:
+`vid_upload_vram_half`, for an upload that writes one byte of each VRAM word and
+leaves the other, which is how a Mode 7 plane's tile numbers and pixels are
+loaded separately; and the four `VID_LINE_MODE7_A`-`_D` targets, for a matrix
+value driven per line on its own rather than in pairs.
 
 Fuzzing found one real bug the movies don't reach: a deferred upload's
 transfer, when its size is large enough to read through the stack page, copies

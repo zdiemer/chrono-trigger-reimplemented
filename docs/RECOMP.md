@@ -2837,7 +2837,7 @@ P. The assumptions are the ones liveness already made for `JSR` targets (that
 the analysis sees every caller; the call logs back it up for the movies'
 paths). Checked three ways: `tools/dontcare_check.py` finds nothing on
 `game/` as the pass left it (417 entries, 67 stops, 73 call-outs); a
-declaration the new liveness allows and the old one refused (`scene_object_read_mode` declaring
+declaration the new liveness allows and the old one refused (`menu_object_read_mode` declaring
 `DC_A | DC_Y | DC_N | DC_V | DC_Z`) passes, and one that is wrong (the same with
 `DC_X`, which its callers read) is still a finding; and the drafts, which are
 made from liveness, match the original over the library (below).
@@ -2911,7 +2911,7 @@ distinct names before, 990 after, 261 scratch names, and 713 addresses left as
 numbers before against 466 after. The two that went wrong: `event_cmd_call`
 (`$C0:5FB6`) wrote `RAM_FIELD_SPRITE_RANGE_NEXT` for its `$DB`-`$DF` and
 `0x7E01D9`/`0x7E01E1`/`0x7E01E3` for the rest, and now has `SCRATCH_01D9` to
-`SCRATCH_01E3`; `scene_object_read_mode` (`$C6:E237`) wrote
+`SCRATCH_01E3`; `menu_object_read_mode` (`$C6:E237`) wrote
 `RAM_SCENE_FRAME_READY` for the menu's `$00` and a number for `$7E:1BA9`, and
 now has `SCRATCH_0000` and `RAM_MENU_SCENE_MODE_BITS` (its subsystem is the
 menus', its callers' ). Nine drafts lost names: `$FD`'s
@@ -2921,6 +2921,93 @@ scene's circle and scaler cells, which they use on the menu's page
 (docs/TODO.md). A routine the analysis enters with several widths is drafted
 with the registry precondition's, then the widths the coverage saw it run with;
 if several remain, `show` prints one draft for each rather than stopping.
+
+### Phase 3, wave 2: the menus' Mode 7 screens (`$C2`)
+
+The first slice of bank `$C2`, taken because it was also P2's last leftover
+(PLATFORM.md, "P2 as built"): the Epoch's map view and time dial, twenty-six
+routines between `$C2:631F` and `$C2:7758` that only `menus-epoch` and
+`endings-beyond-time` reach, and the End of Time's gate screen `$C2:CE9D`.
+`python3 tools/burndown.py` for `$C2`: 5.6 KiB ported and 90% left before, 10.3
+KiB and 83% after, 52 entries to 81. All of it is in `game/menu/epoch.c`, which
+is 2208 lines for 4.7 KiB of 65816. `--vid-check` went from 5506 of 8799 frames
+to all of them on `menus-epoch`, and from 8234 to all of them on
+`menus-end-of-time`, which closes P2's last leftover (PLATFORM.md).
+
+**What the two screens are.** Both run in the menus' sprite-object mode (the one
+at `$C2:0000`): they blank the screen, build a Mode 7 plane in VRAM, put one
+object in a slot to drive it and loop on the frame task until the mode byte at
+`$027C` changes. The map view packs the world map's tiles into one colour each
+at `$7E:AB25`, builds the plane from the two map layers and turns it under a
+cursor walking a fixed path, with markers for the party, the Epoch and the map
+it would land on; its one per-line effect is a blue gradient. The time dial
+spins a triangular gate with a Mode 7 matrix that changes every line, cut out of
+the screen by window 1 whose edges change every line too, and seven digit
+objects show the periods.
+
+**Two service calls were added**, both additive:
+
+- `vid_upload_vram_half`, for an upload that writes one byte of each VRAM word
+  and leaves the other. A Mode 7 plane keeps its tile numbers in the low bytes
+  and its pixels in the high ones, so the game builds and uploads each half on
+  its own (`$C2:645C` feeds `$2119` alone, `$C2:65B2` and `$C2:722C` `$2118`);
+  `vid_upload_vram` is fixed to whole words.
+- `VID_LINE_MODE7_A` through `_D`, a Mode 7 matrix value driven per line on its
+  own. The service had `VID_LINE_MODE7_AB` and `_CD`, which are the pair a
+  transfer mode 3 channel writes; the dial uses four mode 2 channels instead, one
+  per value, so the observer had no target for them and read the whole screen
+  wrong from the frame they start.
+
+**What it cost, and where.** The screens are mostly ordinary logic, and shadow
+mode's findings were all in the same three kinds:
+
+- **Register widths at each exit.** These routines are object handlers reached
+  through `JMP ($0050)` and they hand back at several places, each with `REP` or
+  `SEP` in a different state: the drift routines return 16-bit A on their working
+  path and 8-bit where the objects are frozen, and the dial's object has six
+  returns across three widths. The first shadow run's whole mismatch list was
+  `P original 4 native 24`.
+- **The dispatch leaves the step in X.** `TDC : LDA $0002,X : ASL A : TAX :
+  JMP (table,X)` means a path that doesn't load the slot again returns with X
+  at twice the step, which the callers read; and the `ASL` is what sets the
+  carry a later call-out is compared on. One `dispatch_step` helper does all of
+  it.
+- **Index registers are 16 bits wide here, so a `STY`/`LDY` swap moves a word.**
+  The gate's edge sort swaps its two corners through Y, so the byte after each
+  coordinate moves as well, which is what the original leaves at `$09` and `$0F`.
+
+Two more were plain mistakes the check caught: the map packer reaches the work
+RAM port and the multiplier long, because it runs with the data bank on the map
+(`m_abs` would have put them in bank `$7F`), and the gradient's second loop runs
+its counter all the way round rather than sixteen times, writing 1792 bytes past
+the 224 the table reads -- which the game never looks at, and shadow mode
+compares.
+
+**The don't-care check found two declarations** that liveness refuses: the sound
+command the dial sends reads A's high byte, so the call declares `DC_AL`; and the
+gate's setup ends by jumping to the object starter with the address in X, so its
+stop declares its own set (`m_stop_at_own`) rather than adding the entry's `DC_X`.
+
+**What fuzzing found**, none of it reached by a movie, and all of the same kind
+as the pilot's: a routine that takes its first operand from whichever slot the
+caller left in X and the rest from `$4E` (`$C2:6736`, the map's matrix); an `ADC`
+after three shifts with no `CLC`, so the last bit shifted out counts
+(`$C2:688A`); a period doubled with an 8-bit `ASL`, so one of `$80` or more
+indexes from the other end of its own byte (`$C2:745A`); six direction buttons
+tested one at a time, down and up in turn, rather than all the downs and then all
+the ups; a channel pair programmed the wrong way round (`$C2:6F85` puts C on
+`$211D` and D on `$211E`), whose only call in a movie was interrupted both times,
+so shadow mode had never compared it; an upload that sets the VRAM port before
+the address where every other upload on the screen does it the other way round,
+and the address latches through the port; and a count read from memory, which
+goes all the way round at 0 where a `for` loop would not run at all. Seven in
+28 entries, on a chunk that shadow mode already passed over the whole library.
+
+**Bank `$C6`'s object handlers moved.** Wave 1 ported twenty-four routines of
+bank `$C6` into `game/scene/objects.c`; they are the menu object scripts'
+command `$4E` handlers and two the Epoch's map screen calls, so they are
+`game/menu/object_commands.c` now, with `menu_object_`/`menu_epoch_` names. No
+behaviour changed.
 
 ## Risks
 
