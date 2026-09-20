@@ -272,8 +272,12 @@ hand ports (M5)".
 2. **Draft.**
 
    ```sh
-   python3 -m tools.recomp.show C1:423A > <scratch dir outside the repo>/draft.c
+   python3 -m tools.recomp.show C1:423A C1:44B0 C1:4512 > <scratch dir outside the repo>/drafts.c
    ```
+
+   Ask for every routine of a chunk at once: the analysis is solved once for
+   the whole run and is nearly all of its time, so four drafts cost the same 27
+   seconds as one and seventeen cost about the same again.
 
    It reads `traces/coverage-*.txt`, `traces/saves/cov-*.txt` and the matching
    call logs (`--coverage`/`--calls` to change them, `--root` to look for them

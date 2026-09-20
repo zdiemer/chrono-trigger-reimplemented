@@ -71,6 +71,19 @@ rest waits, is [PLAN.md](PLAN.md).
   A through its loop among them, and entries whose sets a stop kept small
   (`battle_update_combatant`, `event_run_object_script`, `menu_run_objects`,
   `field_object_in_the_way`, the event dialog and condition commands).
+- **Two answers to "what is dead after this returns", and only one is
+  authoritative.** For `$C2:0568`, `disasm/out/liveness.json` says
+  `dead_after_return: X N Z`, while the draft's suggested `.dont_care` was
+  `A X Y N V Z C` and `tools/dontcare_check.py` -- the gate -- accepted it. They
+  are answering different questions: the JSON's `after_return` adds what an
+  escaped return may read through a caller's frame, the draft's
+  `ret_live_mask` (in `tools/recomp/show.py`, not in `liveness.py`) asks
+  `live_after_return` at the entry's own contexts and falls back to
+  `after_return` only where that is unknown. Both are defensible and neither
+  says so, which cost the map chunk time and left it reproducing registers it
+  could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
+  it in the JSON beside the other, and naming in each docstring which question
+  it answers would settle it once.
 - **The scene sequence interpreter's hand-back** (`scene/sequence.c`): a
   command the port doesn't handle is given back as a call-out to the loop from
   the entry's `JSR` site, which shadow mode compares at the loop's first pass,
@@ -434,5 +447,22 @@ waits on M5 rather than on a backend.
     would cut it.
   - **A fast gate**: `--movies` and `--only` narrow a run by hand, but deriving
     the subset that can reach the subsystem a change touched would make the
-    iterating case automatic, with the full set still required to land.
+    iterating case automatic, with the full set still required to land. What
+    the map chunk asked for on top of that is a re-run against the logs a green
+    run already wrote: it paid the 45 minutes three times, twice for changes
+    that were names and comments, because there is no way to say "nothing but
+    constants moved since the run that passed".
+- **The burndown ranks by bytes, and can't say a run is blocked.** `--uncovered`
+  put `$C2:27DE` among the largest runs in the bank, but its 1385 bytes are
+  about fifteen loaders whose only real content is *which resource each stream
+  is*, so porting them to the bar needs the resources typed first (RECOMP.md,
+  "Phase 3, wave 2: the menus' map"). A chunk picked off that list can be
+  unportable for a reason that has nothing to do with porting, and the map
+  chunk lost an hour discovering it. A column saying how much of a run is calls
+  into untyped resource tables would say it in the listing.
+- **The RAM map can't say two variables alias.** `ram_map.py check` rejects
+  overlap inside a subsystem, but the ROM overlaps: the map planes' last column
+  word is the first plane's row word (`$7E:00E7`), which had to be modelled as
+  two arrays of different lengths with the alias explained in prose. An
+  `aliases` field would let an entry say what is true.
 - CI: the macOS job costs 10x minutes on a private repo.

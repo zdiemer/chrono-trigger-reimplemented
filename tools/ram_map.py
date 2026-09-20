@@ -429,6 +429,16 @@ def render_header(m):
 LITERAL = re.compile(r"\b0[xX]([0-9A-Fa-f]+)[uUlL]*\b")
 # A name, and a constant offset added to it (not a multiple of a stride).
 RAM_NAME = re.compile(r"\b(RAM_[A-Z0-9_]+)\b(?:\s*\+\s*(0[xX][0-9A-Fa-f]+|\d+)\b(?!\s*\*))?")
+# A literal an `&` reaches is a bit mask, not an address: nothing ANDs with an
+# address, and masking one to a range (`addr & 0x1FFF`) leaves the mask a mask.
+# `&&` is not it, and nor is C's address-of, which never precedes a number.
+MASK_BEFORE = re.compile(r"(?<![&|])&=?\s*$")
+MASK_AFTER = re.compile(r"^\s*&(?!&)")
+
+
+def is_mask(line, mo):
+    """Whether the literal `mo` matched in `line` is a bit mask."""
+    return bool(MASK_BEFORE.search(line[:mo.start()]) or MASK_AFTER.match(line[mo.end():]))
 
 
 def strip_comments(src):
@@ -484,6 +494,8 @@ def scan(m):
             for mo in LITERAL.finditer(line):
                 digits = mo.group(1)
                 v = int(digits, 16)
+                if is_mask(line, mo):
+                    continue
                 if v in other:
                     uses.append((v, "other", sub, p, n))
                     continue

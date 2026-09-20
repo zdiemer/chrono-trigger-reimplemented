@@ -273,7 +273,10 @@ the field's. `--open [--subsystem S]` lists what is left by the subsystem using
 it. Absolute operands of `$2000` and up are outside the total -- a literal
 `0x95D5` can't be told from a constant without reading the code -- and are
 reported beside it as the ones the map names (`--abs` lists them); most battle
-and menu variables are there. Direct-page offsets aren't counted.
+and menu variables are there. Direct-page offsets aren't counted. A literal an
+`&` reaches (`x & 0x01F8`, `addr &= 0x1FFF`) is a bit mask and is skipped
+without a `[[not_ram]]` entry: nothing ANDs with an address, and masking one to
+a range leaves the mask a mask.
 
 **As built.** The map was harvested from what the repo already said: the port
 comments in `game/`, PORTING.md's status table, MOVIES.md and

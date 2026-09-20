@@ -43,9 +43,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - `python3 tools/burndown.py`: how much of the ROM's code the hand ports cover, per bank or
   `--by subsystem`, with `--uncovered BANK` listing the largest unported runs. An estimate, for
   sequencing the port work (docs/PLAN.md); its docstring says which way it is wrong.
-- `python3 -m tools.recomp.show BB:AAAA [--m 8 --x 16]`: a routine as a draft for its hand port, to stdout,
-  never into the repo; `tools.recomp.draftcheck` shadows drafts in a scratch tree (docs/PORTING.md,
-  "From a draft to a port").
+- `python3 -m tools.recomp.show BB:AAAA... [--m 8 --x 16]`: routines as drafts for their hand ports, to
+  stdout, never into the repo. **Ask for every routine of a chunk in one run**: the analysis is solved
+  once for the whole run and is nearly all of its time, so four drafts cost the same 27 seconds as one.
+  `tools.recomp.draftcheck` shadows drafts in a scratch tree (docs/PORTING.md, "From a draft to a port").
 - Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev` runs the gate and exits 0 only when
   it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). The gate
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines;

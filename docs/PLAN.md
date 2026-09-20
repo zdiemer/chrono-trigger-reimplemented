@@ -86,7 +86,7 @@ it gets a real name in `tools/disasm/eventscript.py` or `battlescript.py`, since
 that's when someone has read what it does.
 
 Naming is part of that bar. The RAM map (`re/ram.toml`, docs/DISASSEMBLY.md)
-names 90% of the work RAM addresses `game/` spells as literals (422 of 468),
+names 91% of the work RAM addresses `game/` spells as literals (422 of 466),
 so a subsystem's
 ports switch to `game/ram.h`'s names the way `game/battle/setup.c` did
 (DISASSEMBLY.md, "The RAM map"), and each routine converted adds what it learns
