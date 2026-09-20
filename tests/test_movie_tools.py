@@ -1,8 +1,8 @@
 """The parts of tools/movies that don't need a ROM.
 
 Buttons and the .ctm encoding, the walking search against a fake machine (a grid
-with walls and a door), and the battle policies against synthetic battle state.
-The driver itself (dev/ct_drive.c) is checked against `ct_dev --native off` by
+with walls and a door), where talk() aims at a walking object, and the battle
+policies against synthetic battle state. The driver itself (dev/ct_drive.c) is checked against `ct_dev --native off` by
 hand, as docs/MOVIES.md describes; nothing here runs the machine.
 """
 import random
@@ -10,6 +10,7 @@ import unittest
 
 from tools.movies import addresses, bfs, mkmovie, policies
 from tools.movies.bot import BattleState
+from tools.movies.campaign import Run
 
 
 class TestButtons(unittest.TestCase):
@@ -180,6 +181,66 @@ class TestWalkingSearch(unittest.TestCase):
         machine = self.machine()
         bfs.bfs_walk(machine, lambda m, x, y: False, lambda m: m.position(), lambda m: m.map_id())
         self.assertEqual(machine.slots, {})
+
+
+class PacingRoom:
+    """Enough of a Run for object_path() and aims(): a party standing still and an
+    object whose position follows the machine's clock, up and down between two
+    ends (the Dream Team room's pair; docs/MOVIES.md, "A race in the route")."""
+
+    def __init__(self, party, near, far, period=240):
+        self.party, self.near, self.far, self.period = party, near, far, period
+        self.machine = self
+        self.frame = 0
+        self.saved = None
+
+    # the Machine side
+    def mark(self, slot):
+        self.saved = self.frame
+
+    def restore(self, slot):
+        self.frame = self.saved
+        return self.frame
+
+    def free(self, slot):
+        self.saved = None
+
+    def probe(self, frames, buttons=0):
+        self.frame += frames
+
+    # the Run side
+    def me(self):
+        return self.party
+
+    def object_pos(self, index):
+        half = self.period / 2
+        phase = self.frame % self.period
+        part = phase / half if phase < half else (self.period - phase) / half
+        return (88.0, self.near + (self.far - self.near) * part)
+
+
+class TestTalkAims(unittest.TestCase):
+    def test_object_path_walks_a_round_and_puts_the_machine_back(self):
+        room = PacingRoom(party=(88.0, 160.0), near=136.0, far=88.0)
+        room.frame = 5000
+        path = Run.object_path(room, 12)
+        self.assertEqual(room.frame, 5000)
+        self.assertIsNone(room.saved)
+        self.assertAlmostEqual(min(y for _, y in path), 88.0, delta=2)      # sampled, so near the ends
+        self.assertAlmostEqual(max(y for _, y in path), 136.0, delta=2)
+
+    def test_aims_puts_the_end_nearest_the_party_first(self):
+        room = PacingRoom(party=(88.0, 160.0), near=136.0, far=88.0)
+        room.frame = 120                                    # the object at the far end
+        path = Run.object_path(room, 12)
+        aims = Run.aims(room, 12, path)
+        self.assertAlmostEqual(aims[0][1], 136.0, places=1)         # the near end
+        self.assertEqual(aims[1], room.object_pos(12))              # then where it stands
+        self.assertAlmostEqual(aims[1][1], 88.0, places=1)
+
+    def test_a_still_object_gives_one_aim(self):
+        room = PacingRoom(party=(88.0, 160.0), near=120.0, far=120.0)
+        self.assertEqual(Run.aims(room, 12, Run.object_path(room, 12)), [(88.0, 120.0)])
 
 
 class FakeMemory:
