@@ -91,8 +91,10 @@ add_library(ct_game STATIC
   game/field/sprites.c
   game/field/window_shape.c
   game/menu/display.c
+  game/menu/epoch.c
   game/menu/frame.c
   game/menu/glyphs.c
+  game/menu/object_commands.c
   game/menu/objects.c
   game/menu/save_screen.c
   game/menu/sound.c
@@ -106,7 +108,6 @@ add_library(ct_game STATIC
   game/scene/matrix_code.c
   game/scene/display.c
   game/scene/nmi.c
-  game/scene/objects.c
   game/scene/program.c
   game/scene/race.c
   game/scene/sequence.c
