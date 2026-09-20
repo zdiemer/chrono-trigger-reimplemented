@@ -4050,7 +4050,7 @@ name = "menu_scene_mode_bits"
 addr = "7E:1BA9"
 subsystem = "menu"
 meaning = "Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237)"
-source = "game/scene/objects.c, scene_object_read_mode $C6:E237"
+source = "game/menu/object_commands.c, menu_object_read_mode $C6:E237"
 
 [[var]]
 name = "menu_pending_scroll_x"
@@ -4058,7 +4058,7 @@ addr = "7E:1BF1"
 size = 2
 subsystem = "menu"
 meaning = "Horizontal scroll the menu code leaves for BG3, which the drift routine adds and clears"
-source = "game/scene/objects.c, scene_object_drift $C6:E2B5"
+source = "game/menu/object_commands.c, menu_object_drift $C6:E2B5"
 
 [[var]]
 name = "menu_pending_scroll_y"
@@ -4066,7 +4066,7 @@ addr = "7E:1BF3"
 size = 2
 subsystem = "menu"
 meaning = "Vertical scroll the menu code leaves for BG3, which the drift routine adds and clears"
-source = "game/scene/objects.c, scene_object_drift $C6:E2B5"
+source = "game/menu/object_commands.c, menu_object_drift $C6:E2B5"
 
 [[var]]
 name = "menu_object_current"
@@ -4228,6 +4228,7 @@ index = "entry; the third's zero line count ends the table"
 subsystem = "menu"
 meaning = "The indirect per-line table slot 1 reads for the wave on BG3's horizontal scroll"
 source = "game/menu/objects.c, menu_object_wave_hdma $C2:7759"
+
   [[var.field]]
   name = "lines"
   offset = 0
@@ -4245,8 +4246,334 @@ size = 2
 count = 224
 index = "word: even ones the scroll position, odd ones it plus the sine wave"
 subsystem = "menu"
-meaning = "The per-line BG3 scroll values of the wave effect, rebuilt each frame from the scroll $24 and a sine phase"
-source = "game/menu/objects.c, menu_object_wave_hdma $C2:7759"
+meaning = "The first of the sprite object mode's per-line buffers: the wave effect's BG3 scroll values, rebuilt each frame from the scroll $24 and a sine phase, the map view's fixed-colour gradient, or one of the time dial's two window tables"
+source = "game/menu/objects.c, menu_object_wave_hdma $C2:7759; game/menu/epoch.c, menu_epoch_map_gradient $C2:68F4, menu_epoch_build_gate_window $C2:6CC1"
+
+[[var]]
+name = "menu_gate_matrix_tables"
+addr = "7E:8A42"
+size = 1
+count = 20
+index = "byte of the two per-line tables, which start at +0 and +$0D"
+subsystem = "menu"
+meaning = "The two indirect per-line tables the time dial's four Mode 7 matrix channels read, three bytes an entry and a 0 to end (the vblank handler fills each entry's pointer in from $8A25-$8A2C)"
+source = "game/menu/epoch.c, menu_epoch_gate_matrix_object $C2:6F85"
+
+[[var]]
+name = "menu_map_colours"
+addr = "7E:AB25"
+size = 1
+count = 896
+index = "world map tile"
+subsystem = "menu"
+meaning = "One colour per world map tile, four bits packed out of the tile's own graphics, which the map view's plane is drawn from"
+source = "game/menu/epoch.c, menu_epoch_build_map $C2:63DF ($C2:6400 packs them, $C2:653E reads them)"
+
+[[var]]
+name = "menu_map_name_table"
+addr = "7E:F000"
+size = 1
+count = 1024
+index = "byte of the Mode 7 name table"
+subsystem = "menu"
+meaning = "The map view's Mode 7 name table while it is built, before it goes to the tile half of the plane's words"
+source = "game/menu/epoch.c, menu_epoch_build_map $C2:63DF ($C2:65B2)"
+
+[[var]]
+name = "menu_gate_corners"
+addr = "7E:1BB8"
+size = 1
+count = 6
+index = "corner, an X and a Y each"
+subsystem = "menu"
+meaning = "The gate triangle's three corners on the screen, turned by the dial's angle each frame"
+source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1"
+
+[[var]]
+name = "menu_gate_edge_active"
+addr = "7E:1BC4"
+size = 2
+count = 3
+index = "edge"
+subsystem = "menu"
+meaning = "Nonzero while the edge crosses the line being filled in"
+source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1"
+
+[[var]]
+name = "menu_gate_edge_step"
+addr = "7E:1BCA"
+size = 2
+count = 3
+index = "edge"
+subsystem = "menu"
+meaning = "How far the edge moves across per line, 8.8 and signed"
+source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1"
+
+[[var]]
+name = "menu_gate_edge_top"
+addr = "7E:1BD0"
+size = 2
+count = 3
+index = "edge"
+subsystem = "menu"
+meaning = "The line the edge starts at, in the high byte"
+source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1"
+
+[[var]]
+name = "menu_gate_edge_bottom"
+addr = "7E:1BD6"
+size = 2
+count = 3
+index = "edge"
+subsystem = "menu"
+meaning = "The line the edge ends at, in the high byte"
+source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1"
+
+[[var]]
+name = "menu_gate_edge_x"
+addr = "7E:1BDC"
+size = 2
+count = 3
+index = "edge"
+subsystem = "menu"
+meaning = "Where the edge stands on the line being filled in, 8.8"
+source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1"
+
+[[var]]
+name = "menu_gate_edge_lines"
+addr = "7E:1BE2"
+size = 2
+count = 3
+index = "edge"
+subsystem = "menu"
+meaning = "Lines the edge has left, in the low byte; the edge stops when it goes negative"
+source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1"
+
+[[var]]
+name = "menu_gate_flags"
+addr = "7E:1BF5"
+size = 1
+subsystem = "menu"
+meaning = "Which half of each of the time dial's double-buffered per-line tables is being rebuilt: bit 0 the window, bit 1 the matrix, bit 2 its second pair"
+source = "game/menu/epoch.c, menu_epoch_build_gate_window $C2:6CC1, menu_epoch_gate_matrix_object $C2:6F85"
+
+[[var]]
+name = "menu_time_period"
+addr = "7E:1BB7"
+size = 1
+subsystem = "menu"
+meaning = "Which of the time dial's seven periods it stands at, which the digit objects watch"
+source = "game/menu/epoch.c, menu_epoch_time_dial_object $C2:6AC8"
+
+[[var]]
+name = "menu_gate_scroll_at"
+addr = "7E:A916"
+size = 2
+subsystem = "menu"
+meaning = "Where in the wave's circular buffer the gate screen's per-line scroll starts this frame"
+source = "game/menu/epoch.c, menu_epoch_gate_scroll_hdma $C2:7652, menu_epoch_gate_scroll_wrap $C2:75FD"
+
+[[var]]
+name = "menu_gate_scroll_table"
+addr = "7E:A918"
+size = 3
+count = 4
+index = "entry; a 0 byte at $A924 ends the table"
+subsystem = "menu"
+meaning = "The indirect per-line table the gate screen's BG3 scroll is read through, 64 lines an entry and 32 in the last"
+source = "game/menu/epoch.c, menu_epoch_gate_scroll_hdma $C2:7652"
+
+[[var]]
+name = "menu_gate_scroll"
+addr = "7E:A925"
+size = 2
+count = 64
+index = "line pair"
+subsystem = "menu"
+meaning = "The gate screen's per-line BG3 scroll, a sine over the layer's own scroll, copied on to the buffer's second half so the table can start anywhere in it"
+source = "game/menu/epoch.c, menu_epoch_gate_scroll_hdma $C2:7652"
+
+[[var]]
+name = "menu_random_index"
+addr = "7E:1B30"
+size = 1
+subsystem = "menu"
+meaning = "Where the menus' next random byte comes from in the table at $C0:FE00"
+source = "game/menu/epoch.c, menu_epoch_place_marker_random $C2:754D ($C2:2336 reads it, $C2:232D clears it)"
+
+[[var]]
+name = "menu_sprite_script_busy"
+addr = "7E:1B48"
+size = 1
+subsystem = "menu"
+meaning = "Nonzero while a sprite script is running, which stops an object handler starting another"
+source = "game/menu/epoch.c, menu_epoch_map_party_marker $C2:67FA"
+
+[[var]]
+name = "menu_mode"
+addr = "7E:027C"
+size = 1
+subsystem = "menu"
+meaning = "Which of the menus' screens is running; each screen's loop ends when it changes"
+source = "game/menu/epoch.c, menu_epoch_map_screen $C2:631F (6: the map view), menu_epoch_time_dial_screen $C2:6A34 (8: the time dial)"
+
+[[var]]
+name = "menu_travel_location"
+addr = "7E:02AF"
+size = 2
+subsystem = "menu"
+meaning = "The location the time dial chose to travel to, or $FFFF where the player left it"
+source = "game/menu/epoch.c, menu_epoch_time_dial_object $C2:6AC8"
+
+[[var]]
+name = "menu_epoch_location"
+addr = "7E:029F"
+size = 2
+subsystem = "menu"
+meaning = "The location the Epoch is parked on, which the map view shows a marker for"
+source = "game/menu/epoch.c, menu_epoch_map_epoch_marker $C2:683B"
+
+[[var]]
+name = "menu_epoch_position"
+addr = "7E:0290"
+size = 2
+count = 2
+index = "0 horizontal, 1 vertical"
+subsystem = "menu"
+meaning = "Where on its map the Epoch is parked"
+source = "game/menu/epoch.c, menu_epoch_map_epoch_marker $C2:683B"
+
+[[var]]
+name = "menu_story_progress"
+addr = "7E:1BA6"
+size = 1
+subsystem = "menu"
+meaning = "How far the story has gone, which decides the map view's graphics and the time dial's set of locations"
+source = "game/menu/epoch.c, menu_epoch_load_map_graphics $C2:6965, menu_epoch_time_dial_object $C2:6AC8"
+
+[[var]]
+name = "menu_epoch_flags"
+addr = "7E:1BAD"
+size = 1
+subsystem = "menu"
+meaning = "Bit 0 decides which graphics one of the map view's maps loads"
+source = "game/menu/epoch.c, menu_epoch_load_map_graphics $C2:6965"
+
+[[var]]
+name = "menu_gate_screen_state"
+addr = "7E:0F10"
+size = 1
+count = 13
+index = "byte; the first two are cleared and the rest come from $FF:D57A"
+subsystem = "menu"
+meaning = "The End of Time gate screen's state, set up when the screen starts"
+source = "game/menu/epoch.c, menu_start_gate_screen $C2:CE9D"
+
+[[var]]
+name = "menu_object_scratch"
+addr = "7E:0000"
+size = 1
+count = 28
+index = "byte"
+page = "menu"
+subsystem = "menu"
+meaning = "Direct-page scratch the sprite object mode's routines share at $00-$1B, below the display shadows: the Epoch's screens keep their operands, pointers and loop counts here, and the gate's window fill writes its two edge positions over $00-$03"
+source = "game/menu/epoch.c (the CELL_ names at the top say what each holds)"
+
+[[var]]
+name = "menu_load_request"
+addr = "7E:020C"
+stride = 9
+subsystem = "menu"
+meaning = "What the graphics loader at $C2:57DF is to load, on its own direct page $0200"
+source = "game/menu/epoch.c, menu_epoch_load_map_graphics $C2:6965; game/menu/save_screen.c"
+
+  [[var.field]]
+  name = "entry"
+  offset = 0
+  meaning = "Which entry of the table below to load"
+
+  [[var.field]]
+  name = "table"
+  offset = 1
+  size = 3
+  meaning = "Long pointer to the table of streams"
+
+  [[var.field]]
+  name = "dest"
+  offset = 4
+  size = 3
+  meaning = "Long pointer to where it goes"
+
+  [[var.field]]
+  name = "size"
+  offset = 7
+  meaning = "How much of it to take"
+
+  [[var.field]]
+  name = "kind"
+  offset = 8
+  meaning = "Which of the loader's ways to read it"
+
+[[var]]
+name = "menu_objects_frozen"
+addr = "7E:0294"
+size = 1
+subsystem = "menu"
+meaning = "Bit 4: the sprite object mode's objects don't move this frame"
+source = "game/menu/epoch.c, menu_epoch_gate_drift $C2:7702 and the other background objects"
+
+[[var]]
+name = "menu_map_origin"
+addr = "7E:00E5"
+size = 2
+count = 3
+stride = 4
+index = "0 the column, 1 the row"
+page = "menu"
+subsystem = "menu"
+meaning = "The top-left tile of the world map the menus show, worked out from the party's tile at $0102 ($C2:2732)"
+source = "game/menu/epoch.c, menu_epoch_place_marker_random $C2:754D"
+
+[[var]]
+name = "menu_map_graphics"
+addr = "7E:8621"
+size = 1
+count = 1024
+index = "byte"
+subsystem = "menu"
+meaning = "The map view's sprite graphics, decompressed here and sent to VRAM $6200"
+source = "game/menu/epoch.c, menu_epoch_load_map_graphics $C2:6965"
+
+[[var]]
+name = "menu_gate_palette_copy"
+addr = "7E:C000"
+size = 2
+count = 256
+index = "color"
+subsystem = "menu"
+meaning = "The time dial's palette as the mode keeps it, copied out of the loaded one at $7F:8C00, which also goes to the mode's own palette buffer with one colour set to white first"
+source = "game/menu/epoch.c, menu_epoch_gate_graphics $C2:7389"
+
+[[var]]
+name = "menu_mode7_plane"
+addr = "7F:9000"
+size = 1
+count = 2048
+index = "byte"
+subsystem = "menu"
+meaning = "The Mode 7 plane the Epoch's screens build before it goes to VRAM: the world map as it is loaded for the map view, and the gate's pixels, a nibble each, for the time dial"
+source = "game/menu/epoch.c, menu_epoch_build_map $C2:63DF, menu_epoch_expand_gate_nibbles $C2:7361, menu_epoch_upload_gate_pixels $C2:722C"
+
+[[var]]
+name = "menu_gate_tiles"
+addr = "7F:9800"
+size = 1
+count = 2048
+index = "byte"
+subsystem = "menu"
+meaning = "The time dial's tile graphics, decompressed here and sent to VRAM $6400"
+source = "game/menu/epoch.c, menu_epoch_gate_graphics $C2:7389"
 
 # ==============================================================================
 # Battle
@@ -7941,6 +8268,16 @@ meaning = "Vertical"
 # ==============================================================================
 # Literals that are not work RAM, and offsets in bank $7F
 # ==============================================================================
+
+[[not_ram]]
+file = "menu/epoch.c"
+values = [0x01BD, 0x01BF, 0x01FF, 0x0200, 0x02F0, 0x02FE, 0x0380, 0x03FE, 0x03FF]
+why = "block move counts and loop bounds: how many bytes a table or buffer is, and how many tiles the map has"
+
+[[not_ram]]
+file = "menu/epoch.c"
+values = [0x01F0, 0x01F3, 0x01F5]
+why = "location numbers: the first of the world maps, and the two whose map view drops different tiles"
 
 [[not_ram]]
 file = "data/decompress.c"

@@ -44,3 +44,9 @@ battle_draw_object_underlays vblank-tail part of battle_draw_objects' pass, into
 battle_step_effect_slots vblank-tail steps the 19 effect slots' paths in RAM; its handlers and their helpers are attributed (18.1% error to 4.9%, 7.9% of vblank calls off by a line to 1.9%), what is left follows its own loop over which slots are active and due, and the handlers' own spread; at most 2838 clocks, writing RAM the object drawing reads later in the frame
 battle_screen_wave_windows vblank-tail fills the two window line buffers in RAM in 94-line calls; 1.3% error, at most 4506 clocks
 battle_step_hp_gradient vblank-tail writes three palette rows in RAM, uploaded at the next vblank; 1.58% of calls off by 1024 clocks or more, at most 2509
+
+# The Epoch's time dial, which rebuilds a per-line window table in RAM that the
+# next frame's HDMA reads: the vblank check finds none of its writes moved.
+menu_epoch_build_gate_window vblank-tail rebuilds the gate's per-line window table in RAM in 250-line calls, longer than vblank; its time follows the triangle (how many lines its corners span and which edges cross each), 4.7% on average and at most 5864 clocks (22 lines) of a 250-line call
+menu_epoch_time_dial_object vblank-tail the object that drives the dial: the window rebuild is attributed to $C2:6CC1, what is left is a setup call that moves two 448-byte buffers and programs the slot against 946 calls that turn the dial or do nothing, which one scalar can't fit
+menu_epoch_time_dial_object vblank-worst as for vblank-tail: the setup call, once per screen, writing the buffers the next frame's HDMA reads
