@@ -2932,7 +2932,9 @@ routines between `$C2:631F` and `$C2:7758` that only `menus-epoch` and
 KiB and 83% after, 52 entries to 81. All of it is in `game/menu/epoch.c`, which
 is 2208 lines for 4.7 KiB of 65816. `--vid-check` went from 5506 of 8799 frames
 to all of them on `menus-epoch`, and from 8234 to all of them on
-`menus-end-of-time`, which closes P2's last leftover (PLATFORM.md).
+`menus-end-of-time`, which closes the menus' part of P2 (PLATFORM.md; what is
+left there is the gate screen the event engine opens, which is different code
+and reached by neither movie).
 
 **What the two screens are.** Both run in the menus' sprite-object mode (the one
 at `$C2:0000`): they blank the screen, build a Mode 7 plane in VRAM, put one

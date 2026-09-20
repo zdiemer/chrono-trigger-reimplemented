@@ -17,7 +17,7 @@ lists what changed and why.
 |---|---|---|
 | P0 | Service headers, SNES backend, first hand ports converted | done |
 | P1 | Audio behind the API | done, except `new-game`'s log-spectral distance in the audio comparison (see P1 as built) |
-| P2 | Video behind the API, subsystem by subsystem | done: shared code, battle, field, menus and the scenes, the jet bike race included, and `--vid-check` runs from power-on rather than from the frame a subsystem takes over. The Epoch's two Mode 7 screens, the last slice of bank `$C2` that wrote its own registers, went in with Phase 3's menu conversion (see P2 as built) |
+| P2 | Video behind the API, subsystem by subsystem | done: shared code, battle, field, menus and the scenes, the jet bike race included, and `--vid-check` runs from power-on rather than from the frame a subsystem takes over. The Epoch's two Mode 7 screens, the last slice of bank `$C2` that wrote its own registers, went in with Phase 3's menu conversion; what is left is the gate screen the event engine opens, which still writes its own (see P2 as built) |
 | P3 | Native renderer, pixel-identical to `render.c` | done, fed by the register decoder: every frame of all 26 movies is identical (see P3 as built) |
 | P4 | Widescreen | |
 | P5 | GBA feasibility study | |
@@ -1344,32 +1344,37 @@ from frame 0:
 | Movie | Frames equal | What differs |
 |---|---|---|
 | `title-start.ctm` | 1799 of 1799 | -- |
+| `new-game.ctm` | 7196 of 7199 | `fixed_color` on 3 |
+| `menu.ctm` | 8895 of 8899 | `fixed_color` on 4 |
+| `field.ctm` | 11396 of 11399 | `fixed_color` on 3 |
+| `fair.ctm` | 12446 of 12449 | `fixed_color` on 3 |
+| `fair-companion.ctm` | 17896 of 17899 | `fixed_color` on 3 |
+| `gato-battle.ctm` | 21596 of 21599 | `fixed_color` on 3 |
 | `saves/events-blackbird.ctm` | 4399 of 4399 | -- |
 | `saves/events-keepers-dome.ctm` | 4999 of 4999 | -- |
-| `saves/events-end-of-time-gate.ctm` | 5599 of 5599 | -- |
 | `saves/events-jetbike-race.ctm` | 9399 of 9399 | -- |
-| `saves/menus-shop-inn.ctm` | 9701 of 9701 | -- |
 | `saves/events-prison-escape.ctm` | 12899 of 12899 | -- |
-| `new-game.ctm` | 7195 of 7199 | `fixed_color` on 4 |
-| `menu.ctm` | 8894 of 8899 | `fixed_color` on 5 |
-| `field.ctm` | 11395 of 11399 | `fixed_color` on 4 |
-| `fair.ctm` | 12445 of 12449 | `fixed_color` on 4 |
-| `fair-companion.ctm` | 17895 of 17899 | `fixed_color` on 4 |
-| `gato-battle.ctm` | 21593 of 21599 | `fixed_color` on 4, `windows.w1_left` on 2 |
-| `saves/menus-field-menu.ctm` | 10594 of 10599 | `fixed_color`, `bg.hofs`, `math.layers` |
-| `saves/battle-golem-twins-gameover.ctm` | 12963 of 12968 | `windows.w1_left` on 3, `sprite` on 2 |
-| `saves/battle-tyrano-lair-walls.ctm` | 8023 of 8041 | brightness on 10, `windows.w1_left` on 7 |
-| `saves/battle-magus.ctm` | 17977 of 17999 | `windows.w1_left` on 10, `sprite` on 8 |
-| `saves/late-omen-terramutant.ctm` | 17749 of 17761 | `windows.w1_left` and `sprite` on 6 each |
-| `saves/late-omen-battles.ctm` | 18351 of 18411 | brightness on 34, `windows.w1_left` on 20 |
+| `saves/events-end-of-time-gate.ctm` | 3863 of 5599 | `mode7.d` on 1414, brightness on 271, `mode.mode` on 50 |
+| `saves/menus-shop-inn.ctm` | 9701 of 9701 | -- |
+| `saves/menus-field-menu.ctm` | 10594 of 10599 | `bg.hofs` on 4, `fixed_color` on 1 |
 | `saves/menus-end-of-time.ctm` | 8799 of 8799 | -- |
 | `saves/menus-epoch.ctm` | 8799 of 8799 | -- |
+| `saves/battle-golem-twins-gameover.ctm` | 12968 of 12968 | -- |
+| `saves/battle-tyrano-lair-walls.ctm` | 8041 of 8041 | -- |
+| `saves/battle-magus.ctm` | 17999 of 17999 | -- |
+| `saves/late-omen-terramutant.ctm` | 17761 of 17761 | -- |
+| `saves/late-omen-battles.ctm` | 18411 of 18411 | -- |
 
-Nine movies agree on every frame. What is left in the rest is the two known
-things. `fixed_color` is the four frames P2 already had. The battles'
-`windows.w1_left` and `sprite` frames are the shared channel P2 already had, and
-their brightness frames are the battle IRQ writing `$2100` at a line the observer
-places differently.
+Fifteen of the twenty-one agree on every frame, the battles included: the
+`windows.w1_left` and `sprite` frames P2 left them with, from the channel a
+transfer and a per-line effect share, are gone. `fixed_color` is the handful of
+frames P2 already had. The one movie that is not close is
+`saves/events-end-of-time-gate`, where everything after frame 3864 differs: the
+event's own gate screen drives the Mode 7 matrix and the screen's brightness
+itself and none of that code is ported yet, so the observer never hears about it
+([TODO.md](TODO.md)). It is not the menus' gate screen -- that movie calls none
+of `menu/epoch.c`'s entries -- and the same build of `main` reports the same 3863
+of 5599.
 
 The two menu movies were the milestone's last leftover, and Phase 3's conversion
 of bank `$C2` closed it: `menus-epoch` went from 5506 of 8799 to all of them and

@@ -156,6 +156,14 @@ rest waits, is [PLAN.md](PLAN.md).
 - **P4** (widescreen) and **P5** (GBA feasibility) are the next platform
   milestones, deferred behind Phase 3 (PLAN.md, "Phase 4: the platform
   milestones"); P0-P3 are done but for the leftovers below.
+- **The gates the event engine opens write their own registers.**
+  `saves/events-end-of-time-gate` is the one movie `--vid-check` is not close on
+  (3863 of 5599; PLATFORM.md, "P2 as built"): from frame 3864 its gate screen
+  drives the Mode 7 matrix, the screen mode and the brightness itself, and none
+  of that code is ported, so nothing tells the observer. It is a different
+  screen from the menus' gate (`menu/epoch.c`), which agrees on every frame.
+  Porting the event's version is what closes it, and it is the last movie
+  between P2 and a library that agrees from power-on.
 - **P3 leftovers** (PLATFORM.md, "P3 as built"): the observer doesn't fill in
   the per-span memory pointers the decoder now does, which it needs before the
   renderer can be fed by service calls rather than registers. The native
