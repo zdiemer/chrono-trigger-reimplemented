@@ -5,20 +5,90 @@ says which of them to work on and why the rest waits. Milestones themselves are
 in [APPROACH.md](APPROACH.md), [RECOMP.md](RECOMP.md), [MATCHING.md](MATCHING.md)
 and [PLATFORM.md](PLATFORM.md).
 
-## What this plan optimizes for
+## The targets
 
-1. **A readable decompilation** is the goal the order serves. The recompilation
-   runs the whole game exactly, so what is left to build is *source*: hand
-   written C, named and structured by what it does, in place of the mechanical
-   image of the ROM. That is [RECOMP.md](RECOMP.md)'s M5, and it is the largest
-   remaining task in the project by a wide margin.
-2. **A build other people can play** comes first when it breaks. Others run it
-   now ([PLAYING.md](PLAYING.md)), and it is small next to M5.
-3. **Phases in order, work within them in parallel.** A phase's items can run
-   side by side when they don't share files, each in its own worktree and each
-   through the gate before it lands, and a later phase's item can start early
-   when it depends on nothing still open. Parallel work shares one machine, so
-   each track is given a process budget.
+Four, and every ordering decision here serves them:
+
+1. **Native ports for Windows, macOS and Linux**: no emulation backend, no
+   interpreted assembly, the game fully reimplemented in C.
+2. **Experimental ports to era hardware** -- GBA, Wii, GameCube -- running this
+   code natively, not under emulation.
+3. **An experimental SNES ROM compiled from the reimplementation.**
+4. **Divergence is accepted** where the game stays structurally the same.
+
+### What that makes scaffolding
+
+Everything under `runtime/` -- the 65816 interpreter, the SPC700, the S-DSP,
+the PPU and the bus -- **must not ship**, and neither must the generated C,
+shadow mode, the oracle or the timing model. They exist to prove the
+reimplementation correct, and they are load-bearing until the subsystem they
+check is finished. But they are a means, so:
+
+- **Nothing gets refined past what validation needs.** The timing model
+  (`cost_milli`, calibration, the exceptions list) makes a port consume
+  plausible emulated cycles so interrupts land where the original puts them. A
+  native build has no cycle budget, so this is worth exactly as much as the
+  gate needs and no more.
+- **Emulator accuracy is out of scope** unless it blocks validation: the IRQ
+  trigger delay, the S-DSP's KON poll, big-endian hosts, the ZSNES state
+  import. These make the scaffolding better.
+- **So is the stack question.** Fibers exist only because a hand port must run
+  to completion while an emulated machine waits mid-instruction (`job_run`,
+  `runtime/port/fiber.h`). No emulated machine, no call-outs, no fibers. The
+  wasm backend spike is scaffolding maintenance and is not scheduled.
+- **M4** (recompiler speed) buys nothing the targets want.
+
+### What "done" means, measured
+
+Three numbers, because no one of them says it. `tools/burndown.py` counts only
+65816 code in the ROM image, so it cannot see the two items below; and a port
+it counts as done may still be transliterated or welded to the machine, which
+`tools/portstyle.py` measures instead.
+
+| | Now | Done when |
+|---|---|---|
+| ROM code reimplemented (`burndown.py`) | 70% left | 0% |
+| Ports that read as source (`portstyle.py`) | 0.33 ops/line | ~0 |
+| Ports off the machine (`portstyle.py`) | 98% take a `Snes *` | entry wrappers only |
+| ROM reads by address | 117, in 22 files | 0, all through accessors |
+| SPC700 sound driver | not started | reimplemented in C |
+| Video fed by service calls | decoded from PPU registers | `vid_*` direct |
+
+### The two gaps this list exposed
+
+**The sound driver proper is still interpreted assembly.** `game/core/sound_driver.c`
+is the CPU half only -- the code that uploads Square's driver and sends it
+commands. The driver itself runs on the emulated SPC700, feeding the emulated
+S-DSP, in the shipping path today. It is not in the burndown, not in `game/`,
+and was not in any phase. **It is now Phase 4a.** The decision taken: port the
+driver (sequencer, note handling, the command protocol) to C as game code, and
+write a native mixer that reads the same BRR samples, ADSR envelopes and echo
+settings. The mixer is the audio engine, not an emulator; the SPC700 core is
+deleted with everything else under `runtime/`.
+
+**The native renderer is fed by emulated registers.** P3 is done and
+pixel-identical, but it works by decoding PPU register writes, so the register
+file is still in the path. PLATFORM.md's P3 leftover -- spans fed by `vid_*`
+service calls instead -- was filed as serving widescreen. It does not: it gates
+"no emulation backend", and it moves to Phase 4a with the audio.
+
+### Retiring the gate, deliberately
+
+Byte-exact validation is a scaffold, and target 4 is the licence to take it
+down: the game has to stay structurally the same, not byte-identical. So a
+subsystem retires it **on purpose, in its own commit**, when it is fully ported
+and no generated code touches its state any more: its storage moves out of
+emulated work RAM, and shadow mode is replaced for that subsystem by the routes
+and the gameplay tests. Until that point the gate holds, in full. Retiring it
+early, or by accident, is the one failure this plan is most concerned with.
+
+### Working order
+
+Phases in order, work within them in parallel. A phase's items can run side by
+side when they don't share files, each in its own worktree and each through the
+gate before it lands, and a later phase's item can start early when it depends
+on nothing still open. Parallel work shares one machine, so each track is given
+a process budget.
 
 ## The validation gate
 
@@ -330,43 +400,73 @@ subsystems and deciding whether the workflow needs another pass before
 continuing; RECOMP.md's "What drafts don't do yet" lists where the draft tool
 falls short, starting with D and DB where only interrupts reach.
 
-## Phase 4: the platform milestones
+## Phase 4a: what still runs on emulation
 
-Deferred, not abandoned: these serve the native port and widescreen rather than
-the decompilation, so they wait behind it.
+Three things stand between a finished `game/` and a native build with nothing
+under it. None of them is optional for target 1, and none was scheduled before
+the audit that found them.
 
-- **P3's leftover**: the observer does not fill in the per-span memory pointers
-  the decoder now does. Until it does, the renderer cannot be fed by service
-  calls rather than registers, which is what widescreen and any GPU backend
-  need.
+- **The SPC700 sound driver.** Square's audio engine runs as interpreted SPC700
+  assembly today (`runtime/platform/direct/audio.c` runs the core; the ported
+  `game/core/sound_driver.c` is only the CPU side that uploads it and sends
+  commands). Reimplement it in C as game code: the sequencer, note and channel
+  handling, and the port protocol it answers. `tools/disasm` does not read
+  SPC700 code, so this needs its own disassembly and its own validation --
+  audio output compared against the emulated driver over the movie library,
+  which is what `tests/apu/` and the DSP tests already make possible.
+- **A native mixer behind `au_*`.** BRR decoding, ADSR envelopes, echo and
+  mixing, reading the same sample data the driver points at. This is the audio
+  engine, not an emulator: it replaces `runtime/apu/dsp.c` in the shipped
+  product. Divergence in the last bits of a sample is accepted (target 4);
+  structure -- which note, which instrument, which envelope -- is not.
+- **Video fed by service calls.** P3's leftover: the observer fills in the
+  per-span memory pointers the register decoder fills in now, so the renderer
+  takes `vid_*` calls rather than a decoded PPU register file. Widescreen and
+  any GPU backend need this too, but it is listed here because without it the
+  PPU register file is still in the path.
+
+**The asset seam comes forward to here** from where it sat behind everything.
+It is 117 ROM reads by literal address across 22 files -- days, not weeks --
+and until it is done every port reads a mapped 4 MiB ROM image, which a GBA
+cannot map at all (target 2) and which makes "load from a user's own ROM into a
+data directory" impossible (TODO.md, "Platform"). Route each through a named
+accessor for the resource, as `sound_data.h` and `scene_data.h` already do.
+The pipeline half -- a layout meant to be read rather than reassembled, the
+scripts as text -- follows in Phase 5 with MD3.
+
+## Phase 4b: the platform milestones
+
+Serving widescreen and the GPU backends rather than "no emulation", so they
+wait behind 4a.
+
 - **P4 widescreen**, and with it the answer to whether `VidFrame` holds up:
   PLATFORM.md's open questions name the assumptions it would expose.
 - **The beam-coupled routines**, the event scheduler `$C0:5A46` and the sprite
   frame queue `$C0:CA76`, which stop when the beam passes a scanline. These are
-  game-side rewrites no backend fixes.
-- **Host backends beyond SDL** (TODO.md, "Platform"): rendering on the GPU, a
-  native mixer behind `au_*`, controllers.
-- **Assets as data rather than ROM reads** (TODO.md, "Platform"). The pipeline
-  half belongs here: a layout meant to be read rather than reassembled, the
-  scripts as text (the event scripts have a readable form, MATCHING.md "The
-  event scripts"; the battle scripts need one), and a runtime that can load
-  from a user data directory instead of the ROM image. A GBA build is what
-  forces it, since it can't map a 4 MiB SNES image the way the recompilation
-  does; the seam it needs is laid in Phase 3 (below).
+  game-side rewrites no backend fixes, and they are the last places a port
+  depends on a beam existing.
+- **Host backends beyond SDL** (TODO.md, "Platform"): rendering on the GPU,
+  controllers.
 
 ## Phase 5: the long tail
 
+- **MD3**, and the asset pipeline it enables: a layout meant to be read rather
+  than reassembled, and the scripts as text. **MD3 is the prerequisite for
+  target 3**, the SNES ROM compiled from the reimplementation -- every pointer
+  symbolic, so a routine that differs in length can move -- so it comes forward
+  with that target rather than waiting here.
+- **The SNES ROM itself** (TODO.md, "A SNES ROM compiled from the hand ports"):
+  MD3, then a hybrid that links one compiled routine in place of the original's
+  and checks the ROM plays, then outward. `tests/test_port_subset.py` already
+  keeps `game/` inside what a 65816 compiler handles, and Phase 3a's decoupling
+  is what makes a routine linkable at all: the logic apart from the emulated
+  machine is exactly what a SNES build compiles.
 - **MD2's remainder**: 42590 census-unknown bytes, 228.3 KiB still `mixed`, and
-  `lz` re-encoding; then **MD3** and the **MD4 residue**. MD3 is also the
-  prerequisite for a SNES ROM compiled from the ports (TODO.md), so it comes
-  forward if that target does. The unknown bytes are
-  by definition ones no reader has been found for, so no port depends on them;
+  `lz` re-encoding, plus the **MD4 residue**. The unknown bytes are by
+  definition ones no reader has been found for, so no port depends on them;
   they are proof-of-completeness work, and the formats that ports do depend on
   were typed before the bulk conversion.
 - **The asar cross-check**, which has never run.
-- **Accuracy**: the IRQ timing simplifications, the S-DSP's KON poll, and
-  re-measuring the audio comparison table, which predates the DMA and refresh
-  timing fix.
 - **Coverage**: the unrecorded endings, the Reunion route, and re-running
   `--misses` over the whole library.
 
@@ -380,47 +480,26 @@ the decompilation, so they wait behind it.
 
 ## What this plan deprioritizes, and why
 
-- **M4** (recompiler speed): rendering and sound dominate run time, so it buys
-  little now.
-- **Big-endian hosts**: no such host is in use, and nothing else depends on it.
-- **A GBA port**: P5 is a feasibility study, and its constraints would reshape
-  the platform API. Worth pulling forward only if the GBA becomes a real target
-  rather than an interest.
-- **The other targets** (TODO.md, "Targets beyond the desktop SNES build"): a
-  wasm build, an AYN Thor multi-screen port, DS and PlayStation content in the
-  original game, native touch controls, and a SNES ROM compiled from the hand
-  ports. They are wanted, and most of them are mostly blocked on work this plan
-  already has in order -- M5's coverage and the asset seam -- so
-  scheduling them ahead of it would mean doing that work twice. The host seam
-  wasn't deferred, because it was the same work as making the desktop build
-  shippable: the player advances a frame per call and persists bytes under
-  names (PLAYING.md, "How the player is built"), so a browser build needs a
-  driver of its own rather than a fork of the player.
+The targets decide this, so the old list is gone: a GBA port and a SNES ROM
+compiled from the reimplementation are targets 2 and 3, not interests, and they
+are scheduled above (Phase 4a's asset seam, Phase 5's MD3) rather than deferred.
+What stays deprioritized is what serves the scaffolding or nothing:
 
-  What stays open is the **stack question**, and it is the one thing no phase
-  here touches. Every non-idle registry entry runs on a stack of its own: a
-  call-out is `job_run` in `runtime/port/native.c` switching to a fiber, so the
-  port can run the routine to completion while the machine it was called from
-  waits mid-instruction. The abstraction for that already exists and is in the
-  right place -- `runtime/port/fiber.h` is four functions, with Windows fibers
-  and POSIX `ucontext` behind it -- so the question is not what to abstract but
-  whether a third implementation can sit there at a price worth paying. Wasm
-  can't switch stacks on its own, and the candidates differ in kind: Asyncify
-  instruments the whole program to unwind and rewind it, which costs size and
-  speed everywhere rather than at the call-out; JSPI does it in the host, which
-  is cheaper but sets a floor on what can run the build. The alternative is to
-  stop needing a stack -- a call-out that returns to its caller instead of
-  suspending it -- which is a `native.c` redesign and would be felt by shadow
-  mode and the whole gate.
+- **M4** (recompiler speed). The generated C is a means; making it faster helps
+  no target.
+- **Emulator accuracy**: the IRQ trigger delay, the S-DSP's KON poll,
+  re-measuring the audio comparison table, big-endian hosts, the ZSNES state
+  import. Out of scope unless one of them blocks validation.
+- **The wasm stack question.** Fibers exist only to suspend an emulated machine
+  mid-instruction while a port runs; with the machine gone there are no
+  call-outs and no fibers, so a third `fiber.h` backend would be a day spent on
+  something the targets delete. A browser build, if it is wanted, is a frontend
+  on top of a finished `game/` -- which is the same thing targets 1 and 2 need.
+- **Anything that makes the hybrid modes nicer to live in.** `--recomp on` and
+  shadow mode are how the work is checked, not what is being built.
 
-  It is narrower than it looks. Generated blocks never call out and run without
-  a fiber, and `--recomp only` runs no hand ports, so a user-compiled build in
-  that mode never switches stacks: `fiber.h` needs a backend there only to
-  link. What needs a real one is a build that runs hand ports -- the public one
-  that can't carry generated code, and the default player, which runs them
-  since the timing gate made `--recomp on` its default.
-
-  So the spike is: put a third backend behind `fiber.h`, run the movie suite
-  under it, and measure. A day's answer that decides whether a browser build is
-  a frontend job or a runtime project, and it is cheap to write down either way.
-  Worth doing whenever; it doesn't wait on M5, and M5 doesn't wait on it.
+The host seam was never deferred, because it was the same work as making the
+desktop build shippable: the player advances a frame per call and persists
+bytes under names (PLAYING.md, "How the player is built"), so a new frontend
+needs a driver of its own rather than a fork of the player. That is what makes
+targets 1 and 2 a matter of writing drivers once `game/` stands alone.

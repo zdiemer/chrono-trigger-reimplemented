@@ -168,9 +168,12 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Platform
 
-- **P4** (widescreen) and **P5** (GBA feasibility) are the next platform
-  milestones, deferred behind Phase 3 (PLAN.md, "Phase 4: the platform
-  milestones"); P0-P3 are done but for the leftovers below.
+- **P3's leftover is not a leftover**: the renderer is fed by decoding PPU
+  register writes, so the register file is still in the shipping path. Feeding
+  it `vid_*` calls instead is what "no emulation backend" needs, and it is
+  scheduled with the audio in PLAN.md, "Phase 4a". **P4** (widescreen) and
+  **P5** (GBA feasibility) follow it in Phase 4b; P0-P3 are otherwise done but
+  for the leftovers below.
 - **The gates the event engine opens write their own registers.**
   `saves/events-end-of-time-gate` is the one movie `--vid-check` is not close on
   (3863 of 5599; PLATFORM.md, "P2 as built"): from frame 3864 its gate screen
@@ -198,8 +201,13 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    item is a native mixer behind `au_*` replacing the SPC700 driver, which
-    APPROACH.md calls optional and later; `--audio direct` is the halfway house.
+    items are two, and they are no longer optional or later: **port Square's
+    SPC700 driver to C** (it is interpreted assembly in the shipping path
+    today, and `game/core/sound_driver.c` is only the CPU half that uploads it),
+    and **a native mixer behind `au_*`** that decodes the same BRR samples and
+    runs the same envelopes and echo, replacing `runtime/apu/dsp.c` in the
+    shipped product. Both are PLAN.md's Phase 4a; `--audio direct` is the
+    halfway house.
   - **Controllers.** `in_host_set` is already the one host entry point per
     frame, so this is an SDL GameController call into it plus bindings (see
     Player and tooling).
@@ -252,8 +260,9 @@ rest waits, is [PLAN.md](PLAN.md).
 - **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
   the boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
   the driver) and every echo wait stay loops on the machine as idle entries.
-  A backend that replaces the SPC700 driver (a native mixer behind `au_*`)
-  needs none of them; one that keeps it keeps the loops.
+  The Phase 4a port of the driver needs none of them -- there is no SPC700 to
+  wait for once its program is C -- so these loops are deleted by that work
+  rather than fixed by it.
 
 ## Targets beyond the desktop SNES build
 
@@ -267,21 +276,15 @@ waits on M5 rather than on a backend.
   through `runtime/platform/`, and the one frontend (`frontend/`, SDL2 in
   `window.c`) is what Emscripten ports best. Four things are in the way, in
   order of how much they cost.
-  - **Call-outs run on their own stack.** Every non-idle registry entry runs on
-    a fiber (`runtime/port/fiber.c`, `job_run` in `runtime/port/native.c`), which
-    is Windows fibers or POSIX `ucontext`; wasm has neither. The abstraction is
-    already in the right place, so the question is what can sit behind it:
-    Asyncify (a whole-program cost), JSPI (cheaper, but a floor on what can run
-    the build), or a call-out that doesn't suspend its caller, which is a
-    `native.c` redesign. This decides whether the build is easy or a project --
-    but only for a build that runs hand ports. Generated blocks run on the
-    machine without a fiber (they never call out; RECOMP.md), and
-    `--recomp only` runs no hand ports, so a build the user compiles from their
-    own ROM in that mode needs no stack switching at all. The question is live
-    for the public build below, and for the default player, which runs hand
-    ports since the timing gate made `--recomp on` its default.
-    The spike, and why no phase covers it, is in PLAN.md's "What this plan
-    deprioritizes".
+  - **Call-outs run on their own stack** -- but only while there is an emulated
+    machine to suspend. Every non-idle registry entry runs on a fiber
+    (`runtime/port/fiber.c`, `job_run` in `runtime/port/native.c`), which is
+    Windows fibers or POSIX `ucontext`, and wasm has neither. The targets
+    delete the problem rather than solve it: a finished `game/` makes no
+    call-outs, so it needs no fiber and no third backend. **So this is not
+    scheduled** (PLAN.md, "What this plan deprioritizes"). It matters only for a
+    browser build of a *hybrid* -- hand ports plus the interpreter -- which is
+    a build of the scaffolding, not of the game.
   - **What the browser build is made of.** The default path generates C from the
     user's ROM at build time (RECOMP.md), and nothing ROM-derived can be shipped
     (CLAUDE.md), so a public build cannot contain it. That leaves a build the
