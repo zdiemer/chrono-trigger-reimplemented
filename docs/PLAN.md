@@ -406,14 +406,31 @@ Three things stand between a finished `game/` and a native build with nothing
 under it. None of them is optional for target 1, and none was scheduled before
 the audit that found them.
 
-- **The SPC700 sound driver.** Square's audio engine runs as interpreted SPC700
-  assembly today (`runtime/platform/direct/audio.c` runs the core; the ported
-  `game/core/sound_driver.c` is only the CPU side that uploads it and sends
-  commands). Reimplement it in C as game code: the sequencer, note and channel
-  handling, and the port protocol it answers. `tools/disasm` does not read
-  SPC700 code, so this needs its own disassembly and its own validation --
-  audio output compared against the emulated driver over the movie library,
-  which is what `tests/apu/` and the DSP tests already make possible.
+- **The SPC700 sound driver, 7151 bytes.** Square's audio engine runs as
+  interpreted SPC700 assembly today (`runtime/platform/direct/audio.c` runs the
+  core; the ported `game/core/sound_driver.c` is only the CPU side that uploads
+  it and sends commands). The boot upload (`$C7:0000`) is six blocks totalling
+  13.6 KiB, and block 0 -- 7151 bytes to SPC700 `$0200` -- is the program; the
+  rest is instrument data. Reimplement it in C as game code: the sequencer,
+  note and channel handling, and the port protocol it answers. For scale, the
+  `$C7` CPU half was 2.6 KiB of 65816 and took about a working day, so this is
+  several times that -- **and it has a prerequisite nothing else in the project
+  needs.**
+
+  **`tools/disasm` is 65816-only.** There is no SPC700 disassembler, no
+  coverage, no liveness, no draft tool, and the burndown cannot see this code
+  at all. The emulator's `runtime/apu/spc700.c` has the opcode semantics (546
+  lines, 138 cases) but nothing that reads a program. So the first question is
+  which of that pipeline this port actually needs: a linear disassembler and
+  hand reading may be enough for 7 KiB, where drafts and liveness were worth
+  building for 268 KiB. Answer that before building tooling on reflex.
+
+  Validation is also its own: shadow mode compares work RAM after a 65816 call,
+  which says nothing about a program on another processor. What it has instead
+  is the APU conformance suite (`tests/apu/`, SingleStepTests), the DSP tests,
+  and audio output compared against the emulated driver over the movie library
+  -- structurally identical note and envelope streams rather than
+  sample-identical output, which target 4 permits.
 - **A native mixer behind `au_*`.** BRR decoding, ADSR envelopes, echo and
   mixing, reading the same sample data the driver points at. This is the audio
   engine, not an emulator: it replaces `runtime/apu/dsp.c` in the shipped
