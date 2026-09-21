@@ -24,7 +24,8 @@ rest waits, is [PLAN.md](PLAN.md).
   `--recomp only` stays exact.
 - **Fuzzing coverage of existing ports.** Fuzzing is now part of every port's
   definition of done (PORTING.md); ports registered before that without a
-  recorded fuzz run should get one, subsystem by subsystem in Phase 3.
+  recorded fuzz run should get one, subsystem by subsystem as Phase 3a
+  rewrites it (PLAN.md): a rewritten port needs fuzzing anyway.
 - **IRQ timing simplifications** (RUNTIME.md, "Interrupt timing"): hardware's
   ~3.5-dot trigger delay isn't modeled, and an IRQ pending across `CLI` is
   taken one instruction early.
@@ -342,8 +343,9 @@ waits on M5 rather than on a backend.
     incremental shape the project already has carries over.
   - **Ports written for it.** The ports run against an emulated machine: they take
     a `Snes *`, read through `m_read8`, and the transcription-style ones move
-    emulated registers about (about 5800 calls to `m_lda`, `m_push`, `set_dp` and
-    the like across `game/`). A 65816 build needs each routine's logic apart from
+    emulated registers about (`python3 tools/portstyle.py`: 62 of 86 files, 76%
+    of the lines, which PLAN.md's Phase 3a rewrites before anything else). A
+    65816 build needs each routine's logic apart from
     the original's calling convention, which is also what the readability bar
     asks for; CLAUDE.md's porting rules say so, and `tests/test_port_subset.py`
     keeps `game/` inside what a 65816 compiler handles (no floating point, no

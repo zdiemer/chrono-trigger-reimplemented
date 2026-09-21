@@ -354,6 +354,45 @@ What the $C7 pilot added (RECOMP.md, "The $C7 pilot", has the measurements):
 
 ## Writing a port
 
+**The bar, before the steps.** A port is a reimplementation of a routine, not a
+translation of it. The gate measures observable behaviour; nothing requires the
+port to reach that behaviour the way the ROM does, and a good one usually
+doesn't. The test to apply to a finished port is whether someone who has never
+seen the ROM can read it and say what the game does.
+
+The failure mode has a shape, and most of `game/` written before this bar
+existed has it: a straight line of machine operations with the original's
+variables spelled as addresses.
+
+```c
+/* Transcription -- passes the gate, decompiles nothing. */
+m_lda16(s, 0xE000);
+m_write16(s, m_abs(s, 0x0740), c->a);
+m_ldx(s, 0x0740);
+m_ldy(s, 0x0742);
+m_lda16(s, 0x013D);
+m_mvn(s, 0x7E, 0x7E);
+```
+
+```c
+/* The same work, reimplemented: the fill is one named operation on a named
+ * buffer, and the reader never simulates a register. */
+oam_hide_sprites(s, MENU_FIRST_FREE_SPRITE, SPRITES);
+```
+
+Getting there means writing the vocabulary the port needs rather than working
+without it: a local helper in the port's own file, a shared one in the
+subsystem's header, a service call in `runtime/platform/` when it is the host,
+and a named accessor (`sound_data.h`, `scene_data.h`, `screen_data.h`,
+`field_data.h`, `palette_data.h`) when it is ROM data. `m_*` and the `Cpu`
+struct belong in a port's thin entry wrapper and in what has no better
+expression yet -- not in its body. A port that can't be expressed through a
+service is a finding: add the call (additively) or document the escape, as
+PLATFORM.md's "as built" sections do.
+
+`python3 tools/portstyle.py` measures this, per file and per subsystem, and the
+gate holds new and rewritten ports to it.
+
 1. Refresh the analysis with runtime call edges, so liveness knows every caller:
 
    ```sh

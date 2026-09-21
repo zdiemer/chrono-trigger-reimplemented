@@ -42,7 +42,12 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (docs/MOVIES.md). Routes survive timing changes; the movies they write don't, so re-run the route.
 - `python3 tools/burndown.py`: how much of the ROM's code the hand ports cover, per bank or
   `--by subsystem`, with `--uncovered BANK` listing the largest unported runs. An estimate, for
-  sequencing the port work (docs/PLAN.md); its docstring says which way it is wrong.
+  sequencing the port work (docs/PLAN.md); its docstring says which way it is wrong. It counts a
+  port that transliterates the assembly as done, so read it with `portstyle.py`.
+- `python3 tools/portstyle.py`: how much of each port is reimplementation and how much is
+  transliterated assembly, per subsystem and per file (`--files`, `--subsystem S`). `--check` is the
+  gate's ratchet against `tools/portstyle_baseline.txt`, the files written before the bar existed:
+  rewriting one to the bar deletes its line, and nothing may be added (docs/PLAN.md, "Phase 3a").
 - `python3 -m tools.recomp.show BB:AAAA... [--m 8 --x 16]`: routines as drafts for their hand ports, to
   stdout, never into the repo. **Ask for every routine of a chunk in one run**: the analysis is solved
   once for the whole run and is nearly all of its time, so four drafts cost the same 27 seconds as one.
@@ -60,7 +65,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (`tools/movies/route_check.py`; the suite runs the fast route, `--long-routes` all of them, which
   is worth doing before a change to timing or to the native runtime lands); every
   don't-care declaration in `game/` is one the liveness analysis agrees with
-  (`tools/dontcare_check.py`, run by the suite, static; docs/RECOMP.md, "Before the bulk").
+  (`tools/dontcare_check.py`, run by the suite, static; docs/RECOMP.md, "Before the bulk"); and no
+  port transliterates the assembly where one didn't before (`tools/portstyle.py --check`, run by the
+  suite, static; docs/PLAN.md, "Phase 3a").
   Two checks the suite doesn't run, so run them by hand when a change could move them:
   `ct_dev --native on --recomp only --misses out.txt` lists anything still interpreted, and
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
@@ -79,6 +86,26 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   goals (a native renderer, widescreen, a GBA or browser build, assets as data, a SNES ROM
   compiled from the ports themselves) are made
   easy or hard here rather than in a backend:
+  - **This is a reimplementation, not a transliteration, so the code is expected to
+    diverge from the original's shape.** What must match is observable behaviour, which
+    the gate measures; nothing requires the port to reach it the way the ROM does. A port
+    that still moves an emulated A, X and P about, spells its variables as addresses and
+    follows the original's basic blocks has translated the assembly rather than
+    reimplemented the routine, however well it passes. Judge a finished port by whether
+    someone who has never seen the ROM can read it and say what the game does.
+  - **Build a vocabulary and call it.** The routine's work belongs in named functions --
+    `draw_window_frame`, `load_slot_summary`, `hide_sprites` -- not in a run of machine
+    operations the reader has to simulate. If a port is a long straight line of
+    `m_lda16`/`m_write16`/`c->a`, the abstraction it needed hasn't been written yet: write
+    it, in the port's own file if it is local, in the subsystem's header if shared, in
+    `runtime/platform/` if it is the host. `m_*` and the CPU struct are for a port's thin
+    entry wrapper and for what genuinely has no better expression yet, not for its body.
+  - **ROM data is loaded, not addressed.** Reads of ROM go through a named accessor for the
+    resource (`sound_data.h`, `scene_data.h`, `screen_data.h`, `field_data.h`,
+    `palette_data.h`), never `m_read8(s, 0xD15E10 + i)` in the middle of a routine. Where
+    MD2 has typed the resource (docs/MATCHING.md) the accessor takes that type's name. This
+    is what lets a later build load the same asset from an extracted file or a converted
+    format without revisiting the port.
   - Write what the routine *does*, not what the draft says. Don't carry over the draft's
     shape: emulated register variables, dead flag updates, block boundaries, or a name from
     its address. Keep the `// $BB:AAAA` comment and nothing else mechanical.

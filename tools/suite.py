@@ -16,7 +16,9 @@ scripts must reach their outcomes in the shipping mode
 (tools/movies/route_check.py; the fast route by default, all of them with
 --long-routes); and every don't-care declaration in game/ must be one the
 liveness analysis agrees with (tools/dontcare_check.py, static, with the call
-logs the shadow runs just wrote). Exit status is 0 only when all of that holds.
+logs the shadow runs just wrote); and no port may transliterate the assembly
+where one didn't before (tools/portstyle.py, static, a ratchet against its
+baseline). Exit status is 0 only when all of that holds.
 
 Each movie's frame count comes from its own `# frames N` header, and a movie
 that starts from a cartridge save finds it by CRC-32 among the committed ones
@@ -214,6 +216,14 @@ def check_dontcare(args, ctx):
     return rc == 0, "dontcare", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
+def check_portstyle(args, ctx):
+    """No port transliterates the assembly where one didn't before
+    (tools/portstyle.py, static, a ratchet against its baseline)."""
+    rc, lines = run_tool([sys.executable, str(ROOT / "tools/portstyle.py"), "--check"])
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "portstyle", summary, [] if rc == 0 else lines[:-1][-40:]
+
+
 CHECKS = (
     # name, function, what --no-<name> skips
     ("trace", check_trace, "the --recomp only trace comparison"),
@@ -221,6 +231,7 @@ CHECKS = (
     ("vblank", check_vblank, "the check for video writes on the picture in the shipping mode"),
     ("routes", check_routes, "the route scripts in the shipping mode"),
     ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
+    ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
 )
 
 

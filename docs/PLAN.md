@@ -37,11 +37,62 @@ Nothing lands without it, and it is the same gate for every phase:
   `--long-routes` before a change to timing or the native runtime lands);
 - every don't-care declaration in `game/` is one liveness agrees with
   (`tools/dontcare_check.py`; RECOMP.md, "Before the bulk");
+- no port transliterates the assembly where one didn't before
+  (`tools/portstyle.py`, a ratchet against its baseline; "Phase 3a" below);
 - `--misses` stays empty;
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
 
+## Phase 3a: the transcription backlog
+
+**This comes before converting any more generated code.** The ports written
+before the reimplementation bar existed are not decompilation: they move
+emulated registers about, spell the game's variables as addresses and follow
+the original's basic blocks. They pass the gate, so nothing is broken, and that
+is the trap -- the burndown counts them as ported, so the number that paces
+Phase 3 measures the distance to *native execution* while the goal is a
+*readable decompilation*. Every bank converted on top of them widens the gap.
+
+`python3 tools/portstyle.py` measures it, counting operations on the emulated
+registers per line of a port (not memory access, call-outs or hand-backs: the
+failure mode, not talking to the machine at all). **62 of 86 files, 21,748 of
+28,543 lines (76%), are on the backlog**:
+
+| Subsystem | Files on the backlog | of | Lines | of | Worst files |
+|---|--:|--:|--:|--:|---|
+| battle | 20 | 27 | 7,779 | 10,310 | `stats.c` 0.60, `gauges.c` 0.59, `sprites.c` 0.58 |
+| menu | 10 | 12 | 5,947 | 6,936 | `save_screen.c` 0.70, `objects.c` 0.67 |
+| event | 15 | 15 | 3,451 | 3,451 | `memory.c` 0.69, `engine.c` 0.66, `facing.c` 0.60 |
+| field | 10 | 13 | 2,927 | 3,606 | `window_shape.c` 0.74, `graphics.c` 0.70 |
+| scene | 5 | 11 | 1,344 | 2,324 | |
+| core, data | 2 | 7 | 300 | 1,883 | `input.c` 0.54 |
+| **total** | **62** | **86** | **21,748** | **28,543** | |
+
+The bar is CLAUDE.md's "Writing a port from generated code", and PORTING.md's
+"Writing a port" opens with what it looks like when it's met and when it isn't.
+The substance of it: a reimplementation may diverge from the original's shape,
+because only observable behaviour has to match, and the way to get there is to
+write the vocabulary a routine needs -- named operations, named resources, a
+service call where it touches the host -- instead of working without one.
+
+**How it is run.** Per subsystem, by the wave protocol below, each subsystem's
+files taken together so shared helpers get written once. A rewrite is cheaper
+than a fresh port and much better checked: the behaviour is already under the
+gate, so shadow mode compares the rewrite against the original call for call
+over the whole library, and the entry keeps its fuzzing. Rewriting a file to
+the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
+holds every other file where it is, so the list only shrinks. Order: `event`
+and `field` first (the smallest, and the field is where the hardest remaining
+conversions will land), then `menu`, then `battle`, whose 7.8K lines are the
+largest and whose bank is also the least converted.
+
+What this phase does **not** do is add ports or coverage. The burndown's
+percentage stands still while it runs, which is the point: it was already
+counting this work as done.
+
 ## Phase 3: M5 in bulk
+
+Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
 docstring says which way it is wrong). **70% of the code is still generated.**
@@ -78,9 +129,9 @@ builders and orbit routines are left, none of which a movie reaches.
 
 Subsystem by subsystem, each through the gate, cheapest and best understood
 first. `--uncovered BANK` lists the largest unported runs, which is how to pick
-the next routine. Taking a subsystem includes bringing its existing ports up to
-the same bar (below), so the refactor is paid where the code is already being
-read rather than as a sweep. The same goes for the script formats' numbered
+the next routine. Phase 3a has already brought a subsystem's existing ports to
+the bar, so a conversion here only has to hold them there, which the gate's
+ratchet does. The same goes for the script formats' numbered
 commands (`cmd_6C`, `if_0A`, `set_1c80`): porting a command's handler is when
 it gets a real name in `tools/disasm/eventscript.py` or `battlescript.py`, since
 that's when someone has read what it does.
@@ -210,26 +261,11 @@ work RAM port writes through `$217F` (TODO.md, "P1 leftovers"); and 4.2 KiB of
 battle routines at `$FD:A8A5`-`$B7EB` that `$C1` calls, which belong with the
 battle's conversion.
 
-**The ports that exist.** The early entries were written
-over months and they are not one standard. The recent ones read as source: named
-constants, service calls, a comment saying what the data means. The early ones
-read as transcription, still moving emulated A and X about and naming direct
-page bytes by their addresses (`game/battle/setup.c` is the clearest case; its
-variables now carry the RAM map's names, but its shape is still the ROM's). Both
-pass the gate, so nothing is broken; what is missing is that half of them are
-not the thing M5 is for.
-
-Two things do *not* need a pass, which is worth knowing before scoping one: the
-platform lint already covers all of `game/` bar four documented files, so
-hardware access is behind the services everywhere; and no screen geometry is
-baked in that widescreen would have to undo.
-
-So the refactor is readability only, it is cheap to defer, and it should be paid
-per subsystem in Phase 3 rather than as a sweep: converting a subsystem's
-generated code includes bringing that subsystem's existing ports to the same
-bar, while its behaviour is already under the gate. A sweep across all of
-`game/` at once would be a large diff with no behavioural check beyond the gate
-it already passes.
+**Two things the backlog does *not* need**, worth knowing before scoping Phase
+3a: the platform lint already covers all of `game/` bar four documented files,
+so hardware access is behind the services everywhere, and no screen geometry is
+baked in that widescreen would have to undo. The rewrite is readability, not
+portability.
 
 This is the long haul. It is worth re-reading the burndown after the first two
 subsystems and deciding whether the workflow needs another pass before
