@@ -441,6 +441,21 @@ the audit that found them.
   takes `vid_*` calls rather than a decoded PPU register file. Widescreen and
   any GPU backend need this too, but it is listed here because without it the
   PPU register file is still in the path.
+- **Host backends for the other four services.** The seam is right -- each of
+  `video.h`, `audio.h`, `timing.h`, `input.h` and `save.h` picks its backend
+  with `#ifdef CT_PLATFORM_SNES` -- but **only one backend exists**, and it
+  writes SNES registers. That backend is not waste: compiled for real hardware
+  it is what target 3 runs on. What is missing is the host side of four of
+  them. Input and save are small (`in_host_set` and `frontend/player.c` already
+  carry the host's half). Audio is Phase 4a's mixer, above.
+
+  **Timing is the one with a real question in it.** `tm_set_line`,
+  `tm_enable_interrupts` and `tm_reset_beam_latch` are scanline and beam
+  concepts, and a host that calls the game once a frame has no beam. So the
+  native backend is not a translation of those calls but an answer to what the
+  routines making them are *for* -- which is the same question as the
+  beam-coupled routines in 4b (`$C0:5A46`, `$C0:CA76`). Decide it once, here,
+  and 4b becomes rewriting to that decision rather than inventing one.
 
 **The asset seam comes forward to here** from where it sat behind everything.
 It is 117 ROM reads by literal address across 22 files -- days, not weeks --
