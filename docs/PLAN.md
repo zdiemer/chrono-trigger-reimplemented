@@ -136,7 +136,7 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **62 of 86 files, 21,748 of
-28,543 lines (76%), are on the backlog**, and the whole tree is on the machine:
+28,539 lines (76%), are on the backlog**, and the whole tree is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
@@ -144,9 +144,9 @@ each subsystem's functions that take the machine. **62 of 86 files, 21,748 of
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
 | event | 15 | 15 | 3,451 | 3,451 | 0.46 | 100% |
 | field | 10 | 13 | 2,927 | 3,606 | 0.35 | 93% |
-| scene | 5 | 11 | 1,344 | 2,324 | 0.21 | 95% |
+| scene | 5 | 11 | 1,344 | 2,320 | 0.20 | 90% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
-| **total** | **62** | **86** | **21,748** | **28,543** | **0.33** | **98%** |
+| **total** | **62** | **86** | **21,748** | **28,539** | **0.33** | **97%** |
 
 ### What decoupling means here, and what it must not break
 
@@ -192,12 +192,11 @@ because only observable behaviour has to match, and the way to get there is to
 write the vocabulary a routine needs -- named operations, named resources, a
 service call where it touches the host -- instead of working without one.
 
-**Step 0, before any rewriting: the typed accessors.** `tools/ram_map.py`
-grows a generator that emits, from `re/ram.toml`, an interface `game/` includes
-(record structs and typed accessors named for the game's variables) and a
-RAM-backed implementation under `runtime/` that satisfies it, the way
-`runtime/platform/direct/` satisfies the video service. Until that exists a
-rewrite has nothing to call, so this is the one thing that must land first.
+The accessors a rewrite calls are generated from `re/ram.toml`:
+`python3 tools/ram_map.py accessors` writes `game/vars.h`, the game's variables
+as values with no layout in sight, and `runtime/port/vars_ram.c`, the backing
+that keeps them in emulated work RAM (docs/DISASSEMBLY.md, "The RAM map").
+`game/scene/circle.c` is the pilot that proved the shape.
 
 **How it is run.** Per subsystem, by the wave protocol below, each subsystem's
 files taken together so shared helpers get written once. A rewrite is cheaper
@@ -211,6 +210,11 @@ no call-outs, so it is where the accessors and the wrapper shape get proven on
 real code before four larger subsystems commit to them. Then `event` and
 `field`, then `menu`, then `battle`, whose 7.8K lines are the largest and whose
 bank is also the least converted.
+
+A rewrite that hits something the accessors can't say is a finding to report,
+not something to work around: a buffer the game locates at run time reaches
+work RAM by address through `game/wram.h`, and every use of it is a variable
+waiting for a name in the map.
 
 What this phase does **not** do is add ports or coverage. The burndown's
 percentage stands still while it runs, which is the point: it was already

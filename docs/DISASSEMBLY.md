@@ -257,10 +257,52 @@ change adds. `tests/test_ram_map.py` fails when it is out of date with the map,
 and checks that `tools/movies/addresses.py`, which reads the same memory from
 Python, names nothing the map doesn't.
 
+**The accessors.** `python3 tools/ram_map.py accessors` writes the same
+knowledge a second way, and this is the one a port uses: `game/vars.h`, the
+game's variables as values to read and write, with `runtime/port/vars_ram.c`
+backing them. A port includes `vars.h` and `state.h` and never an address:
+
+```c
+uint8_t battle_menu_member(const GameState *g);
+void set_battle_menu_member(GameState *g, uint8_t v);
+
+enum { FIELD_OBJECT_FACING_COUNT = 64 };   /* by object slot */
+uint16_t field_object_facing(const GameState *g, unsigned slot);
+void set_field_object_facing(GameState *g, unsigned slot, uint16_t v);
+```
+
+The shape follows the map: `size` 1, 2, 3 or 4 gives the C type; `count` gives
+an index parameter, which means what `index` says it means (a slot, a line) and
+never a byte offset, and a named `_COUNT` beside it; each `[[var.field]]` of a
+record is its own pair, indexed the same way; and a variable wider than four
+bytes has no one C value, so it gets `<name>_byte(g, at)` and a `_BYTES`
+constant. Each variable's `meaning` is carried through as the comment above its
+pair, which is most of what makes a call site readable. The twelve variables on
+a page whose D isn't known statically have no address, so they have no
+accessor; they wait for a shape that takes the page base from the caller.
+
+**No layout reaches `game/`** -- no address, offset or stride -- and that is the
+point: a port written against the accessors keeps working when the storage
+moves. `runtime/port/vars_ram.c` is the backing, and it reads and writes exactly
+the addresses the original's code does, so a port using the accessors writes the
+same bytes and shadow mode still compares them. The seam is the platform
+services', for state rather than hardware: the second backing, which holds the
+same values in its own storage, replaces that file per subsystem once no
+generated code touches that subsystem's state, and nothing in `game/` changes
+with it (docs/PLAN.md, "Phase 3a"). `game/ram.h` stays for generated code and
+the ports not converted yet.
+
+Both generated files are committed, for the reasons the header is, and
+`tests/test_ram_map.py` fails when either is out of date. What the map has no
+name for -- a buffer the game locates at run time, like the per-line window
+table `$C3:0077` draws into -- is reached through `game/wram.h`, which is an
+escape by address and so a finding: `grep -rn wram_ game/` is the list, and it
+is meant to empty.
+
 **Adding to it.** When a port establishes what a byte means, add the entry
-with the port as its `source`, run `python3 tools/ram_map.py header`, and use
-the name. `python3 tools/ram_map.py lookup 7E:95D5` says what the map knows
-about an address, and `check` validates the file.
+with the port as its `source`, run `python3 tools/ram_map.py header` and
+`accessors`, and use the name. `python3 tools/ram_map.py lookup 7E:95D5` says
+what the map knows about an address, and `check` validates the file.
 
 **Coverage.** `python3 tools/ram_map.py coverage` reports how much of what
 `game/` touches has a name. It counts four-digit literals `$0100-$1FFF` (low

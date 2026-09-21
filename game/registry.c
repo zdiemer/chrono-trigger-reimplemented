@@ -1555,10 +1555,10 @@ const NativeEntry game_natives[] = {
       .p_value = CPU_FLAG_X, .cost_milli = 6952, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z,
       .guard = scene_find_divisor_on_divider_page },
     { .addr = 0xC30077, .name = "scene_draw_circle", .fn = scene_draw_circle, .p_mask = CPU_FLAG_D, .p_value = 0,
-      .cost_milli = 3069 },
+      .cost_milli = 3051 },
     /* the same routine through its jump (JSL $C30008 from the field and bank C6) */
     { .addr = 0xC30008, .name = "scene_draw_circle_jump", .fn = scene_draw_circle, .p_mask = CPU_FLAG_D, .p_value = 0,
-      .cost_milli = 3070 },
+      .cost_milli = 3053 },
     { .addr = 0xC309E9, .name = "scene_write_matrix_code", .fn = scene_write_matrix_code, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 4467, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C },
     { .addr = 0xC3099C, .name = "scene_copy_data_to_7e", .fn = scene_copy_data_to_7e, .p_mask = CPU_FLAG_X,

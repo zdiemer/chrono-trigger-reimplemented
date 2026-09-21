@@ -2276,25 +2276,28 @@ source = "game/field/window_shape.c, field_rasterize_quad $C3:0011"
 [[var]]
 name = "scene_circle_center_x"
 addr = "7E:0350"
+size = 2
 page = "decompress"
 subsystem = "scene"
-meaning = "X of the center of the circle $C3:0077 draws into a per-line window table (8-bit; the routine clears the byte after it)"
+meaning = "X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair"
 source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_center_y"
 addr = "7E:0352"
+size = 2
 page = "decompress"
 subsystem = "scene"
-meaning = "Line of the circle's center (8-bit; the routine clears the byte after it)"
+meaning = "Line of the circle's center: an 8-bit value in a 16-bit cell, whose high byte the routine clears"
 source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_radius"
 addr = "7E:0354"
+size = 2
 page = "decompress"
 subsystem = "scene"
-meaning = "The circle's radius in lines (8-bit; the routine clears the byte after it); 0 closes every line"
+meaning = "The circle's radius in lines: an 8-bit value in a 16-bit cell, whose high byte the routine clears; 0 closes every line"
 source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
@@ -2312,6 +2315,45 @@ addr = "7E:0358"
 page = "decompress"
 subsystem = "scene"
 meaning = "Bit 0: the circle's table is in bank $7F rather than $7E"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+# The circle's scratch, high on the decompressor's page: the routine keeps its
+# loop state there rather than in registers, and other code on the page reuses
+# the cells, so the port writes them where the original does.
+[[var]]
+name = "scene_circle_count"
+addr = "7E:03F0"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "Scratch of the circle $C3:0077 draws: whatever it is counting or has just computed -- the octant's x, then y, then the lines left to mirror, then the byte count of a run of closed lines"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+[[var]]
+name = "scene_circle_decision"
+addr = "7E:03F2"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "Scratch of the circle: the midpoint algorithm's decision value while the outline is stepped, then the mode while the lower half is filled"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+[[var]]
+name = "scene_circle_row"
+addr = "7E:03F4"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "Scratch of the circle: the table address of the line y above the center, stepped up two bytes a time"
+source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+[[var]]
+name = "scene_circle_center_row_half"
+addr = "7E:03F6"
+size = 2
+page = "decompress"
+subsystem = "scene"
+meaning = "Scratch of the circle: half the table address of the center line, which halves the subtraction that finds the line x above it"
 source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
