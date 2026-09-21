@@ -94,6 +94,16 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     follows the original's basic blocks has translated the assembly rather than
     reimplemented the routine, however well it passes. Judge a finished port by whether
     someone who has never seen the ROM can read it and say what the game does.
+  - **Keep the machine out of the logic.** A function that takes a `Snes *` can only run on
+    an emulated SNES, however well it reads. The routine's work goes in functions that take
+    the game's own state and plain C values and return results; the translation to and from
+    the original's registers, flags and direct page lives in a thin wrapper at the registered
+    entry, and that wrapper is the only place `m_*` and the `Cpu` struct appear. Game state
+    is reached through the typed accessors generated from `re/ram.toml`, never by address:
+    they are RAM-backed while a subsystem is still half-generated, so shadow mode keeps
+    comparing bytes, and the storage swaps behind them once it is fully ported
+    (docs/PLAN.md, "Phase 3a"). A routine that calls out to still-generated code mid-body
+    keeps a machine-aware wrapper around a decoupled core until its callees are ports.
   - **Build a vocabulary and call it.** The routine's work belongs in named functions --
     `draw_window_frame`, `load_slot_summary`, `hide_sprites` -- not in a run of machine
     operations the reader has to simulate. If a port is a long straight line of

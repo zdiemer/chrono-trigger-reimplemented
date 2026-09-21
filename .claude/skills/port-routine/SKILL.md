@@ -9,8 +9,16 @@ You are writing a **reimplementation**, not a translation. The gate measures
 observable behaviour; nothing requires your port to reach that behaviour the way
 the ROM does, and a good one usually doesn't.
 
-**The test to apply to your own work**: could someone who has never seen the ROM
-read this file and say what the game does?
+**Two tests to apply to your own work:**
+
+1. Could someone who has never seen the ROM read this file and say what the game
+   does?
+2. Could this logic run on a machine that is not an emulated SNES? A function
+   taking a `Snes *` cannot, however well it reads — and 98% of `game/` does,
+   including files that score well on style. The machine belongs in a thin
+   wrapper at the registered entry; the logic belongs in functions that take the
+   game's own state and plain C values. Game state is reached through the typed
+   accessors generated from `re/ram.toml`, never by address.
 
 Read `CLAUDE.md`'s "Writing a port from generated code" and `docs/PORTING.md`'s
 "Writing a port" before writing code. This skill is the workflow around them; the
@@ -102,12 +110,13 @@ SNES escape and write down why, as docs/PLATFORM.md's "as built" sections do.
 ## Checking yourself — before you report done
 
 ```sh
-python3 tools/portstyle.py --subsystem <your subsystem>   # the bar, measured
+python3 tools/portstyle.py --subsystem <your subsystem>   # both bars, measured
 python3 tools/portstyle.py --check                        # the gate's ratchet
 ```
 
 A new or rewritten file over **0.10** operations per line has transliterated the
-assembly. Fix it before reporting, not after. If you rewrote a file that was on
+assembly. Fix it before reporting, not after. The report's "on machine" column
+is the second bar: every function but the entry wrappers should be off it. If you rewrote a file that was on
 `tools/portstyle_baseline.txt`, delete its line — the list only shrinks.
 
 Then the real validation:

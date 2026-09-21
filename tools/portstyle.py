@@ -25,6 +25,14 @@ low score doesn't make a port good, and a routine that genuinely manipulates
 the processor (an interrupt entry, a mode switch) scores high and should. Use
 it to find what needs reading, and to keep new work from adding to the pile.
 
+The report carries a second, independent number: the share of a subsystem's
+functions that take a `Snes *`, and so can only run on an emulated SNES
+whatever they look like inside. A port can read well and still be welded to the
+machine -- `game/battle/effect_paths.c` scores 0.03 with every function on the
+machine -- so the two say different things and Phase 3a has to move both. The
+goal is the machine in a thin wrapper at each entry and the logic in functions
+that take the game's own state (PLAN.md, "Phase 3a").
+
 `--check` is a ratchet against tools/portstyle_baseline.txt, which lists the
 files written before this bar existed and the score each had. It fails when a
 file not on the list scores above THRESHOLD, or a listed file gets worse.
@@ -60,6 +68,17 @@ OPS = re.compile(
 
 THRESHOLD = 0.10        # operations per line a new port may not exceed
 
+# A function that takes the machine is coupled to it: it can only run on an
+# emulated SNES, whatever it looks like inside. The logic belongs in functions
+# that take the game's own state and plain values, with the translation to and
+# from the original's registers and direct page in a thin wrapper at the entry
+# (CLAUDE.md's 65816 rule, and PLAN.md's Phase 3a). Counted separately from the
+# style score, because a port can read well and still be welded to the machine:
+# game/battle/effect_paths.c scores 0.03 and every one of its functions takes a
+# Snes *.
+DEFN = re.compile(r"^(?:static\s+)?[A-Za-z_][\w ]*\**\s*\**(\w+)\s*\(([^;{]*)\)\s*$", re.M)
+MACHINE = re.compile(r"\bSnes\s*\*")
+
 SKIP = {"game/registry.c"}
 
 
@@ -72,6 +91,12 @@ def strip_comments(src: str) -> str:
 def subsystem_of(path: pathlib.Path) -> str:
     rel = path.relative_to(GAME)
     return rel.parts[0] if len(rel.parts) > 1 else "core"
+
+
+def coupling(text: str) -> tuple:
+    """(functions taking the machine, functions defined) in stripped source."""
+    defns = DEFN.findall(text)
+    return sum(1 for _, args in defns if MACHINE.search(args)), len(defns)
 
 
 def score(path: pathlib.Path) -> tuple:
@@ -157,13 +182,28 @@ def report(rows: list, show_files: bool, only: str | None, worst: int, out=sys.s
         o, l = by_sub.get(sub, (0, 0))
         by_sub[sub] = (o + ops, l + lines)
 
-    print("%-12s %8s %8s %10s" % ("subsystem", "ops", "lines", "per line"), file=out)
+    coup: dict = {}
+    for _, _, _, path in rows:
+        sub = subsystem_of(ROOT / path)
+        if only and sub != only:
+            continue
+        machine, defns = coupling(strip_comments((ROOT / path).read_text(encoding="utf-8")))
+        m, d = coup.get(sub, (0, 0))
+        coup[sub] = (m + machine, d + defns)
+
+    print("%-12s %8s %8s %10s %9s %9s" % ("subsystem", "ops", "lines", "per line",
+                                          "fns", "on machine"), file=out)
     for sub in sorted(by_sub, key=lambda s: -by_sub[s][0] / max(by_sub[s][1], 1)):
         ops, lines = by_sub[sub]
-        print("%-12s %8d %8d %10.2f" % (sub, ops, lines, ops / max(lines, 1)), file=out)
+        m, d = coup.get(sub, (0, 0))
+        print("%-12s %8d %8d %10.2f %9d %8d%%" % (sub, ops, lines, ops / max(lines, 1),
+                                                  d, round(100 * m / max(d, 1))), file=out)
     ops = sum(o for o, _ in by_sub.values())
     lines = sum(l for _, l in by_sub.values())
-    print("%-12s %8d %8d %10.2f" % ("all", ops, lines, ops / max(lines, 1)), file=out)
+    m = sum(v[0] for v in coup.values())
+    d = sum(v[1] for v in coup.values())
+    print("%-12s %8d %8d %10.2f %9d %8d%%" % ("all", ops, lines, ops / max(lines, 1),
+                                              d, round(100 * m / max(d, 1))), file=out)
 
     shown = [r for r in rows if not only or subsystem_of(ROOT / r[3]) == only]
     if not show_files:

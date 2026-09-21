@@ -53,20 +53,67 @@ is the trap -- the burndown counts them as ported, so the number that paces
 Phase 3 measures the distance to *native execution* while the goal is a
 *readable decompilation*. Every bank converted on top of them widens the gap.
 
-`python3 tools/portstyle.py` measures it, counting operations on the emulated
-registers per line of a port (not memory access, call-outs or hand-backs: the
-failure mode, not talking to the machine at all). **62 of 86 files, 21,748 of
-28,543 lines (76%), are on the backlog**:
+There is a second failure, independent of the first and deeper: **98% of the
+functions in `game/` take a `Snes *`**. They can only run on an emulated SNES,
+whatever they look like inside. `game/battle/effect_paths.c` is the proof that
+the two are different problems -- it scores 0.03, among the best in the tree,
+and every one of its functions is on the machine. Nothing in a GBA, browser or
+SNES-ROM build has a 128 KiB work RAM at `$7E` to index, so this is what
+actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
+62 files twice would be waste.
 
-| Subsystem | Files on the backlog | of | Lines | of | Worst files |
-|---|--:|--:|--:|--:|---|
-| battle | 20 | 27 | 7,779 | 10,310 | `stats.c` 0.60, `gauges.c` 0.59, `sprites.c` 0.58 |
-| menu | 10 | 12 | 5,947 | 6,936 | `save_screen.c` 0.70, `objects.c` 0.67 |
-| event | 15 | 15 | 3,451 | 3,451 | `memory.c` 0.69, `engine.c` 0.66, `facing.c` 0.60 |
-| field | 10 | 13 | 2,927 | 3,606 | `window_shape.c` 0.74, `graphics.c` 0.70 |
-| scene | 5 | 11 | 1,344 | 2,324 | |
-| core, data | 2 | 7 | 300 | 1,883 | `input.c` 0.54 |
-| **total** | **62** | **86** | **21,748** | **28,543** | |
+`python3 tools/portstyle.py` measures both. The style score counts operations
+on the emulated registers per line (not memory access, call-outs or hand-backs:
+the failure mode, not talking to the machine at all). Beside it is the share of
+each subsystem's functions that take the machine. **62 of 86 files, 21,748 of
+28,543 lines (76%), are on the backlog**, and the whole tree is on the machine:
+
+| Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
+|---|--:|--:|--:|--:|--:|--:|
+| battle | 20 | 27 | 7,779 | 10,310 | 0.33 | 99% |
+| menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
+| event | 15 | 15 | 3,451 | 3,451 | 0.46 | 100% |
+| field | 10 | 13 | 2,927 | 3,606 | 0.35 | 93% |
+| scene | 5 | 11 | 1,344 | 2,324 | 0.21 | 95% |
+| core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
+| **total** | **62** | **86** | **21,748** | **28,543** | **0.33** | **98%** |
+
+### What decoupling means here, and what it must not break
+
+The validation gate is byte-level: `native.c` refreshes a machine copy and
+compares every written page of work RAM after **every call**, millions per
+movie. That comparison is why a port is proven rather than believed. A port
+that keeps the party's HP in a C struct instead of at `$7E:5E30 + slot * $80`
+has nothing left to compare -- and 70% of the ROM is still generated code
+reading and writing those same bytes. **Decoupling the storage now would delete
+the oracle.**
+
+So the source is decoupled now and the storage is swapped per subsystem, later:
+
+1. **The port sees only abstraction.** Typed accessors with the game's own
+   names and no addresses, plain C parameters and results, and no `Snes *` and
+   no `m_*` outside a thin wrapper at each registered entry, which is where the
+   original's registers, flags and direct page are translated. CLAUDE.md's
+   65816 rule already asks for exactly this shape; nothing measured it.
+2. **The accessors are RAM-backed while a subsystem is still half-generated**,
+   so shadow mode keeps comparing bytes and nothing is lost. The seam is the
+   one the platform services already use: an interface `game/` includes, and a
+   backend under `runtime/` that satisfies it.
+3. **The storage swaps once a subsystem is fully ported** and no generated code
+   touches its state, in one change behind unchanged accessors. That
+   subsystem's validation moves from byte diffs to the routes and the gameplay
+   tests at the same time, deliberately and in its own commit.
+
+`re/ram.toml` is already the schema this needs: 800 variables carrying `count`,
+`stride`, `index` and named `field`s. `tools/ram_map.py` emits
+`#define RAM_FOO 0x7E5E30` from it today; emitting typed accessors and record
+structs instead is a tooling change, not a rewrite, and it comes first.
+
+**What can't be decoupled yet, and why that's fine.** A routine that calls out
+to still-generated code mid-body needs the machine to make that call, so it
+keeps a machine-aware wrapper around a decoupled core until its callees are
+ported. That is rarer than it sounds: 138 call-outs across all of `game/`, and
+38 of 87 files have none. Decouple leaves first.
 
 The bar is CLAUDE.md's "Writing a port from generated code", and PORTING.md's
 "Writing a port" opens with what it looks like when it's met and when it isn't.
@@ -75,20 +122,31 @@ because only observable behaviour has to match, and the way to get there is to
 write the vocabulary a routine needs -- named operations, named resources, a
 service call where it touches the host -- instead of working without one.
 
+**Step 0, before any rewriting: the typed accessors.** `tools/ram_map.py`
+grows a generator that emits, from `re/ram.toml`, an interface `game/` includes
+(record structs and typed accessors named for the game's variables) and a
+RAM-backed implementation under `runtime/` that satisfies it, the way
+`runtime/platform/direct/` satisfies the video service. Until that exists a
+rewrite has nothing to call, so this is the one thing that must land first.
+
 **How it is run.** Per subsystem, by the wave protocol below, each subsystem's
 files taken together so shared helpers get written once. A rewrite is cheaper
 than a fresh port and much better checked: the behaviour is already under the
 gate, so shadow mode compares the rewrite against the original call for call
 over the whole library, and the entry keeps its fuzzing. Rewriting a file to
 the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
-holds every other file where it is, so the list only shrinks. Order: `event`
-and `field` first (the smallest, and the field is where the hardest remaining
-conversions will land), then `menu`, then `battle`, whose 7.8K lines are the
-largest and whose bank is also the least converted.
+holds every other file where it is, so the list only shrinks. Order: `scene`
+first -- smallest, already the least transliterated (0.21), and its leaves have
+no call-outs, so it is where the accessors and the wrapper shape get proven on
+real code before four larger subsystems commit to them. Then `event` and
+`field`, then `menu`, then `battle`, whose 7.8K lines are the largest and whose
+bank is also the least converted.
 
 What this phase does **not** do is add ports or coverage. The burndown's
 percentage stands still while it runs, which is the point: it was already
-counting this work as done.
+counting this work as done. What moves instead are portstyle's two numbers:
+0.33 operations per line toward zero, and 98% of functions on the machine
+toward the entry wrappers alone.
 
 ## Phase 3: M5 in bulk
 
