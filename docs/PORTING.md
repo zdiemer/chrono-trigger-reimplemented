@@ -495,6 +495,19 @@ new parts of the game, before relaxing a routine further.
 Shadow mode only checks the states the movies reach. `ct_fuzz` checks a
 registered routine against the original on random states:
 
+**Rewriting a port needs the predecessor's numbers, not just good ones.** A
+rewrite can reorder memory accesses in a way no movie exposes: the accessors
+pilot hoisted a table's bank read out of a loop, which moved it before a write
+that used to precede it -- identical for every table the game actually uses,
+different when the table overlaps the cell being read. Shadow mode over all 26
+movies saw nothing, because the library never aims a buffer at its own cells.
+What found it was fuzzing the rewrite and the port it replaced with the **same
+seed and the same constraints** and comparing the counts: 262 against 256. An
+absolute count says nothing on its own, since the predecessor has residual
+mismatches of its own (here, the original returning into its own output); what
+matters is whether the rewrite's are the same ones. So a rewrite records both
+counts in its row, and the comparison is part of its definition of done.
+
 ```sh
 build/main/ct_dev --rom roms/ct-usa.sfc --frames 11400 --movie oracle/movies/field.ctm --save-state traces/field.state
 build/main/ct_fuzz --rom roms/ct-usa.sfc --load-state traces/field.state --routine event_cmd_if_var_const \

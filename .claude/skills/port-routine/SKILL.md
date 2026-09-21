@@ -136,6 +136,32 @@ An `interrupted` count in a shadow run is **not noise**: those calls were never
 compared, so they are exactly what fuzzing is for. Record in your PORTING.md row
 which ones the library never reached.
 
+### Rewriting an existing port: fuzz the predecessor too
+
+A rewrite can **reorder memory accesses invisibly**. Hoisting a read out of a
+loop can move it before a write that used to precede it — identical on every
+input the game produces, different when a buffer overlaps the cell being read.
+Shadow mode over the whole library will not see it, because the movies never
+construct that overlap.
+
+What catches it is a differential count: fuzz **your rewrite and the port it
+replaces** with the *same seed and the same constraints*, and compare the
+mismatch counts. An absolute count means nothing on its own — the predecessor
+may have its own residual mismatches, and what matters is whether yours are the
+same ones. The pilot found a real reordering this way (262 against 256); it
+found nothing without the comparison.
+
+```sh
+git stash        # or a scratch build of the predecessor's tree
+build/main/ct_fuzz --load-state <state> --routine <name> --seed 1 ...   # before
+# then the same command against your rewrite, same seed, same --fill/--keep
+```
+
+Expect to **recalibrate your own `cost_milli` rows**, too: any rewrite that
+changes how many bus accesses a port makes moves its drift, and the limits are
+tight (±0.38%). Sequence the work so only the final code pays for a
+`--long-routes` run.
+
 ## Working safely
 
 - **Your own worktree and branch**, cut from `main`:

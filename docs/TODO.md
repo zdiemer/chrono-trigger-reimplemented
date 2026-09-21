@@ -465,6 +465,14 @@ waits on M5 rather than on a backend.
   unportable for a reason that has nothing to do with porting, and the map
   chunk lost an hour discovering it. A column saying how much of a run is calls
   into untyped resource tables would say it in the listing.
+- **`ram_map.py coverage` stops measuring a file once it is converted**, and
+  will drift from meaning what it says. It counts named addresses among
+  *address uses*, so a file that reaches state through `game/vars.h` has no
+  address uses at all and leaves the denominator rather than scoring 100%. As
+  Phase 3a proceeds, "91% named" quietly becomes "91% of what is left
+  unconverted is named". One converted file today, so it is not wrong yet; a
+  second column counting converted files, or a denominator that includes
+  accessor uses, would keep it honest before the big subsystems land.
 - **The RAM map can't say two variables alias.** `ram_map.py check` rejects
   overlap inside a subsystem, but the ROM overlaps: the map planes' last column
   word is the first plane's row word (`$7E:00E7`), which had to be modelled as

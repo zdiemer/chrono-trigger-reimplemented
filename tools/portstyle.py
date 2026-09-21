@@ -222,6 +222,20 @@ def report(rows: list, show_files: bool, only: str | None, worst: int, out=sys.s
         print("\n%d of %d lines (%.0f%%) are in ports on the transcription backlog."
               % (carried, total, 100.0 * carried / max(total, 1)), file=out)
 
+    # game/wram.h is the documented escape from the typed accessors, for buffers
+    # the game locates at run time. Every use is a finding and the list is meant
+    # to empty, so it is reported rather than left to be discovered by grep.
+    users = {}
+    for _, _, _, path in rows:
+        n = len(re.findall(r"\bwram_(?:read|write)(?:8|16)\b",
+                           strip_comments((ROOT / path).read_text(encoding="utf-8"))))
+        if n:
+            users[path] = n
+    if users and not only:
+        print("work RAM reached by address through game/wram.h (each a finding): %d in %d file(s): %s"
+              % (sum(users.values()), len(users),
+                 ", ".join("%s %d" % (p, n) for p, n in sorted(users.items()))), file=out)
+
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python3 tools/portstyle.py",
