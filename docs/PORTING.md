@@ -391,7 +391,9 @@ service is a finding: add the call (additively) or document the escape, as
 PLATFORM.md's "as built" sections do.
 
 `python3 tools/portstyle.py` measures this, per file and per subsystem, and the
-gate holds new and rewritten ports to it.
+gate holds new and rewritten ports to it. `.claude/skills/port-routine/` is this
+workflow packaged for an agent: the same bar with worked examples, the
+self-check to run before reporting done, and the worktree rules a wave needs.
 
 1. Refresh the analysis with runtime call edges, so liveness knows every caller:
 

@@ -77,7 +77,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `game/registry.c`, validate with `ct_dev ... --native shadow` over the movie library (0 mismatches),
   then `--native on`, and fuzz with `build/main/ct_fuzz --load-state <state> --routine <name>`. Hardware
   access in converted files goes through `runtime/platform/` (docs/PLATFORM.md; a lint test enforces
-  it). See docs/PORTING.md.
+  it). See docs/PORTING.md, and `.claude/skills/port-routine/` for the workflow an agent follows
+  (the bar with worked examples, the self-check, the worktree rules, the report).
 
 ## Rules
 
