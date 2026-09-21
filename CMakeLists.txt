@@ -45,12 +45,16 @@ add_library(ct_runtime STATIC
   runtime/snes/zst.c
   runtime/port/fiber.c
   runtime/port/native.c
+  runtime/port/vars_ram.c
   runtime/platform/snes/backend.c
   runtime/platform/direct/audio.c
   runtime/platform/observe.c
   runtime/platform/snes/decode.c
   runtime/platform/native/render.c)
-target_include_directories(ct_runtime PUBLIC runtime)
+# The game's state interface (game/vars.h, game/state.h) is game/'s, and
+# runtime/port/vars_ram.c is the backing that satisfies it against emulated work
+# RAM -- the seam the platform services use, for state rather than hardware.
+target_include_directories(ct_runtime PUBLIC runtime PRIVATE game)
 
 # Ported game code, organized by subsystem.
 add_library(ct_game STATIC

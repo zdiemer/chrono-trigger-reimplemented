@@ -2,13 +2,22 @@
 
     python3 tools/ram_map.py check                 # validate re/ram.toml
     python3 tools/ram_map.py header [--check]      # write (or compare) game/ram.h
+    python3 tools/ram_map.py accessors [--check]   # game/vars.h and its RAM backing
     python3 tools/ram_map.py coverage [--open] [--subsystem NAME]
     python3 tools/ram_map.py lookup 7E:95D5 [--page battle]
 
 `re/ram.toml` is the knowledge; its schema is at the top of the file and in
-docs/DISASSEMBLY.md ("The RAM map"). `game/ram.h` is generated from it and
-committed, so a build without a ROM (CI's) has it; tests/test_ram_map.py fails
-when the two disagree.
+docs/DISASSEMBLY.md ("The RAM map"). Two things are generated from it and
+committed, so a build without a ROM (CI's) has them, and tests/test_ram_map.py
+fails when either is out of date:
+
+- `game/ram.h`, the variables as addresses, for generated code and the ports
+  not converted yet;
+- `game/vars.h`, the variables as values a port reads and writes, with
+  `runtime/port/vars_ram.c` backing them in emulated work RAM. This is what a
+  port uses: it names state without saying where it lives, so the storage can
+  move once a subsystem no longer shares it with generated code
+  (docs/PLAN.md, "Phase 3a").
 
 **Coverage** answers "how much of what game/ touches has a name". It counts,
 over game/ with comments stripped:
@@ -299,6 +308,7 @@ class RamMap:
             raise MapError("names used twice: %s" % ", ".join(sorted(dup)))
         self._check_overlaps()
         self.macros = header_macros(self)   # also checks the generated names are unique
+        accessors(self)                     # the same, for game/vars.h
 
     def _check_overlaps(self):
         """Work RAM is reused from one game mode to the next, so two entries may
@@ -421,6 +431,232 @@ def render_header(m):
         out += ["", "/* ---- %s %s */" % (title, "-" * (86 - len(title))), ""]
         out += lines
     out += ["", "#endif", ""]
+    return "\n".join(out)
+
+
+# ---- typed accessors ------------------------------------------------------------------------
+#
+# The header a port includes to reach the game's state: a value per variable, an
+# index per array element, a pair per field of a record, and nothing about
+# layout. `runtime/port/vars_ram.c` satisfies it against emulated work RAM while
+# the gate still compares bytes; the storage swaps behind it, per subsystem, once
+# no generated code touches that subsystem's state (docs/PLAN.md, "Phase 3a").
+
+VARS_HEADER = GAME / "vars.h"
+BACKING = ROOT / "runtime" / "port" / "vars_ram.c"
+
+# A variable this wide or narrower is one C value; a wider one is a buffer, and
+# its bytes are reached one at a time.
+WIDEST = 4
+C_TYPE = {1: "uint8_t", 2: "uint16_t", 3: "uint32_t", 4: "uint32_t"}
+
+# What the map's `index` calls an element, where it uses one of these words, so
+# the accessor's parameter says what the caller passes. Most specific first.
+INDEX_WORDS = ("slot", "member", "corner", "channel", "column", "level", "line", "layer", "row")
+
+
+def index_param(index):
+    """What to call the index parameter: the word the map's `index` leads with,
+    where it is one of these, and `i` otherwise. Only the phrase's head counts --
+    what follows a bracket or a comma explains the numbering rather than naming
+    the thing ("by byte (two rows of five tiles per member)" is not by member)."""
+    head = re.split(r"[(,]", index or "")[0].lower()
+    words = set(re.findall(r"[a-z]+", head))
+    for w in INDEX_WORDS:
+        if w in words:
+            return w
+    return "i"
+
+
+class Accessor:
+    """One variable, or one field of a record: a value a port reads and writes.
+
+    A value wider than WIDEST bytes is a buffer with no one C type, so its pair
+    moves a byte at a time and says so in its name."""
+
+    def __init__(self, var, field=None):
+        self.var = var
+        base = var.name if field is None else "%s_%s" % (var.name, field.name)
+        self.addr = var.addr + (field.offset if field else 0)
+        self.size = field.size if field else var.size
+        self.meaning = field.meaning if field else var.meaning
+        self.blob = self.size > WIDEST
+        self.name = base + "_byte" if self.blob else base
+        self.type = "uint8_t" if self.blob else C_TYPE[self.size]
+        self.bytes_const = base.upper() + "_BYTES" if self.blob else None
+
+    def params(self, write):
+        """The parameter list after the state, as (declaration, argument) pairs."""
+        out = []
+        if self.var.count > 1:
+            out.append(("unsigned " + index_param(self.var.index), index_param(self.var.index)))
+        if self.blob:
+            out.append(("unsigned at", "at"))
+        if write:
+            out.append((self.type + " v", "v"))
+        return out
+
+    def signature(self, write):
+        state = "GameState *g" if write else "const GameState *g"
+        args = ", ".join([state] + [d for d, _ in self.params(write)])
+        return "%s %s%s(%s)" % ("void" if write else self.type, "set_" if write else "", self.name, args)
+
+    def address(self):
+        out = "0x%06Xu" % self.addr
+        if self.var.count > 1:
+            out += " + (uint32_t)%s * 0x%02Xu" % (index_param(self.var.index), self.var.stride)
+        if self.blob:
+            out += " + at"
+        return out
+
+    def note(self):
+        """What the accessor is, for the comment above it. What an array is
+        indexed by is on its count, once, rather than on every field."""
+        return self.meaning + (" [%d bytes, one at a time]" % self.size if self.blob else "")
+
+
+def accessors(m):
+    """[(subsystem, [(var, count constant or None, [Accessor])])], in the header's
+    order; raises on a name clash.
+
+    The variables whose page has no known D are left out: their address is the
+    caller's D plus an offset, so an accessor would need a page base nothing has
+    a shape for yet (docs/PLAN.md, "Phase 3a")."""
+    by_sub = collections.defaultdict(list)
+    names, consts = set(), set()
+
+    def take(name, seen, what):
+        if name in seen:
+            raise MapError("generated %s %s twice" % (what, name))
+        seen.add(name)
+        return name
+
+    for v in m.vars:
+        if v.addr is None:
+            continue
+        group = [Accessor(v, f) for f in v.fields] if v.fields else [Accessor(v)]
+        for a in group:
+            take(a.name, names, "accessor")
+            take("set_" + a.name, names, "accessor")
+            if a.bytes_const:
+                take(a.bytes_const, consts, "constant")
+        count = take(v.name.upper() + "_COUNT", consts, "constant") if v.count > 1 else None
+        by_sub[v.subsystem].append((v, count, group))
+    out = []
+    for sub in SUBSYSTEMS:
+        vs = by_sub.get(sub)
+        if vs:
+            out.append((sub, sorted(vs, key=lambda g: (g[0].addr, g[0].name))))
+    return out
+
+
+def render_vars_header(m):
+    out = [
+        "/* The game's state, as values a port reads and writes, generated by",
+        " * tools/ram_map.py from re/ram.toml. Don't edit this file: add to the map and",
+        " * regenerate (python3 tools/ram_map.py accessors). docs/DISASSEMBLY.md, \"The",
+        " * RAM map\".",
+        " *",
+        " * There is a value per variable, an index per element of an array -- what the",
+        " * map's `index` says selects one, never a byte offset -- and a pair per field of",
+        " * a record. Nothing here says where the state lives or how it is arranged, which",
+        " * is the point: a port written against these keeps working when the storage",
+        " * moves. runtime/port/vars_ram.c is what backs them today, with the game's",
+        " * variables in emulated work RAM so that shadow mode still compares bytes",
+        " * (docs/PLAN.md, \"Phase 3a\"). A buffer wider than %d bytes has no one C value,"
+        % WIDEST,
+        " * so its bytes are read and written one at a time (`<name>_byte`). How many",
+        " * elements an array has, and how many bytes such a buffer has, are named too,",
+        " * so that a port that walks one need not know a number.",
+        " *",
+        " * game/ram.h names the same variables as addresses, for generated code and the",
+        " * ports not converted yet. */",
+        "#ifndef CT_GAME_VARS_H",
+        "#define CT_GAME_VARS_H",
+        "",
+        "#include <stdint.h>",
+        "",
+        "#include \"state.h\"",
+    ]
+    for sub, groups in accessors(m):
+        out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub)))]
+        for v, count, group in groups:
+            out.append("")
+            if count:
+                out.append("enum { %s = %d };%s" % (count, v.count, "   /* by %s */" % v.index))
+            for a in group:
+                out += comment(a.note())
+                if a.bytes_const:
+                    out.append("enum { %s = %d };" % (a.bytes_const, a.size))
+                out.append("%s;" % a.signature(False))
+                out.append("%s;" % a.signature(True))
+    out += ["", "#endif", ""]
+    return "\n".join(out)
+
+
+def render_backing(m):
+    out = [
+        "/* The game's state kept in emulated work RAM: the backing for game/vars.h,",
+        " * generated by tools/ram_map.py from re/ram.toml. Don't edit this file: add to",
+        " * the map and regenerate (python3 tools/ram_map.py accessors).",
+        " *",
+        " * This is the seam the platform services use, for state rather than hardware: an",
+        " * interface game/ includes and a backend under runtime/ that satisfies it. Every",
+        " * accessor reads and writes the address the original's code does, so a port that",
+        " * uses them writes the same bytes and shadow mode still compares them. The",
+        " * second backing, which holds the same values in its own storage, replaces this",
+        " * file per subsystem once no generated code touches that subsystem's state",
+        " * (docs/PLAN.md, \"Phase 3a\"); nothing in game/ changes with it. */",
+        "#include \"vars.h\"",
+        "",
+        "#include \"port/machine.h\"",
+        "#include \"port/vars_ram.h\"",
+        "#include \"wram.h\"",
+        "",
+        "/* A value of the width the map gives, low byte first, as the 65816 stores it. */",
+        "static uint8_t r8(const GameState *g, uint32_t a) { return m_read8(state_snes(g), a); }",
+        "static uint16_t r16(const GameState *g, uint32_t a) { return m_read16(state_snes(g), a); }",
+        "",
+        "static uint32_t r24(const GameState *g, uint32_t a)",
+        "{",
+        "    return (uint32_t)m_read16(state_snes(g), a) | (uint32_t)m_read8(state_snes(g), a + 2) << 16;",
+        "}",
+        "",
+        "static uint32_t r32(const GameState *g, uint32_t a)",
+        "{",
+        "    return (uint32_t)m_read16(state_snes(g), a) | (uint32_t)m_read16(state_snes(g), a + 2) << 16;",
+        "}",
+        "",
+        "static void w8(GameState *g, uint32_t a, uint8_t v) { m_write8(state_snes(g), a, v); }",
+        "static void w16(GameState *g, uint32_t a, uint16_t v) { m_write16(state_snes(g), a, v); }",
+        "",
+        "static void w24(GameState *g, uint32_t a, uint32_t v)",
+        "{",
+        "    m_write16(state_snes(g), a, (uint16_t)v);",
+        "    m_write8(state_snes(g), a + 2, (uint8_t)(v >> 16));",
+        "}",
+        "",
+        "static void w32(GameState *g, uint32_t a, uint32_t v)",
+        "{",
+        "    m_write16(state_snes(g), a, (uint16_t)v);",
+        "    m_write16(state_snes(g), a + 2, (uint16_t)(v >> 16));",
+        "}",
+        "",
+        "/* The escape in game/wram.h: work RAM the game locates at run time, which the",
+        " * map has no name for yet. */",
+        "uint8_t wram_read8(const GameState *g, uint32_t at) { return r8(g, at); }",
+        "uint16_t wram_read16(const GameState *g, uint32_t at) { return r16(g, at); }",
+        "void wram_write8(GameState *g, uint32_t at, uint8_t v) { w8(g, at, v); }",
+        "void wram_write16(GameState *g, uint32_t at, uint16_t v) { w16(g, at, v); }",
+    ]
+    for sub, groups in accessors(m):
+        out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub))), ""]
+        for _, _, group in groups:
+            for a in group:
+                w = 8 if a.blob else a.size * 8
+                out.append("%s { return r%d(g, %s); }" % (a.signature(False), w, a.address()))
+                out.append("%s { w%d(g, %s, v); }" % (a.signature(True), w, a.address()))
+    out.append("")
     return "\n".join(out)
 
 
@@ -620,6 +856,8 @@ def main(argv=None):
     sub.add_parser("check", help="validate re/ram.toml")
     h = sub.add_parser("header", help="write game/ram.h")
     h.add_argument("--check", action="store_true", help="exit 1 if game/ram.h is out of date")
+    a = sub.add_parser("accessors", help="write game/vars.h and runtime/port/vars_ram.c")
+    a.add_argument("--check", action="store_true", help="exit 1 if either is out of date")
     c = sub.add_parser("coverage", help="how much of what game/ uses the map names")
     c.add_argument("--open", action="store_true", help="list the unnamed addresses")
     c.add_argument("--subsystem", help="with --open: only this subsystem")
@@ -649,6 +887,19 @@ def main(argv=None):
         else:
             HEADER.write_text(text, encoding="utf-8", newline="\n")
             print("wrote %s" % HEADER.relative_to(ROOT).as_posix())
+    elif args.cmd == "accessors":
+        want = ((VARS_HEADER, render_vars_header(m)), (BACKING, render_backing(m)))
+        for path, text in want:
+            rel = path.relative_to(ROOT).as_posix()
+            if args.check:
+                current = path.read_text(encoding="utf-8") if path.exists() else ""
+                if current != text:
+                    print("%s is out of date: python3 tools/ram_map.py accessors" % rel, file=sys.stderr)
+                    return 1
+                print("%s is up to date" % rel)
+            else:
+                path.write_text(text, encoding="utf-8", newline="\n")
+                print("wrote %s" % rel)
     elif args.cmd == "coverage":
         coverage(m, args.open, args.subsystem, args.abs)
     elif args.cmd == "lookup":

@@ -3304,15 +3304,17 @@
 #define RAM_SCENE_MATH_SCRATCH_C 0x7E00F4u   /* 32-bit product; the 8.8 quotient (low word); the 32-bit divide's divisor */
 #define RAM_SCENE_MATH_SCRATCH_QUOTIENT 0x7E00F8u /* 32-bit divide's quotient; its low word is the 8.8 divide's divisor minus one */
 #define RAM_SCENE_MATH_SCRATCH_REMAINDER 0x7E00FCu /* 32-bit divide's remainder */
-/* X of the center of the circle $C3:0077 draws into a per-line window table (8-bit; the routine
- * clears the byte after it) */
+/* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
+ * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair [2
+ * bytes] */
 #define RAM_SCENE_CIRCLE_CENTER_X 0x7E0350u
 #define RAM_SCENE_CIRCLE_CENTER_X_DP 0x50u   /* page decompress */
-/* Line of the circle's center (8-bit; the routine clears the byte after it) */
+/* Line of the circle's center: an 8-bit value in a 16-bit cell, whose high byte the routine
+ * clears [2 bytes] */
 #define RAM_SCENE_CIRCLE_CENTER_Y 0x7E0352u
 #define RAM_SCENE_CIRCLE_CENTER_Y_DP 0x52u   /* page decompress */
-/* The circle's radius in lines (8-bit; the routine clears the byte after it); 0 closes every
- * line */
+/* The circle's radius in lines: an 8-bit value in a 16-bit cell, whose high byte the routine
+ * clears; 0 closes every line [2 bytes] */
 #define RAM_SCENE_CIRCLE_RADIUS 0x7E0354u
 #define RAM_SCENE_CIRCLE_RADIUS_DP 0x54u     /* page decompress */
 /* Address of the circle's per-line table (224 lines of left and right X) [2 bytes] */
@@ -3346,6 +3348,23 @@
 #define RAM_SCENE_START_HELD 0x7E0394u
 /* Nonzero keeps L+R+Select+Start from resetting the console during a scene */
 #define RAM_SCENE_RESET_DISABLED 0x7E0396u
+/* Scratch of the circle $C3:0077 draws: whatever it is counting or has just computed -- the
+ * octant's x, then y, then the lines left to mirror, then the byte count of a run of closed
+ * lines [2 bytes] */
+#define RAM_SCENE_CIRCLE_COUNT 0x7E03F0u
+#define RAM_SCENE_CIRCLE_COUNT_DP 0xF0u      /* page decompress */
+/* Scratch of the circle: the midpoint algorithm's decision value while the outline is stepped,
+ * then the mode while the lower half is filled [2 bytes] */
+#define RAM_SCENE_CIRCLE_DECISION 0x7E03F2u
+#define RAM_SCENE_CIRCLE_DECISION_DP 0xF2u   /* page decompress */
+/* Scratch of the circle: the table address of the line y above the center, stepped up two bytes
+ * a time [2 bytes] */
+#define RAM_SCENE_CIRCLE_ROW 0x7E03F4u
+#define RAM_SCENE_CIRCLE_ROW_DP 0xF4u        /* page decompress */
+/* Scratch of the circle: half the table address of the center line, which halves the subtraction
+ * that finds the line x above it [2 bytes] */
+#define RAM_SCENE_CIRCLE_CENTER_ROW_HALF 0x7E03F6u
+#define RAM_SCENE_CIRCLE_CENTER_ROW_HALF_DP 0xF6u /* page decompress */
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence
  * scripts add and remove; the NMI copies it to $0950 and runs the copy each frame [16 x $2
  * bytes, by task slot] */

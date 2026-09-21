@@ -43,6 +43,15 @@ class TestCommittedMap(unittest.TestCase):
                          "game/ram.h is out of date with re/ram.toml: "
                          "run python3 tools/ram_map.py header")
 
+    def test_accessors_are_current(self):
+        m = ram_map.RamMap()
+        for path, text in ((ram_map.VARS_HEADER, ram_map.render_vars_header(m)),
+                           (ram_map.BACKING, ram_map.render_backing(m))):
+            with self.subTest(file=path.name):
+                self.assertEqual(path.read_text(encoding="utf-8"), text,
+                                 "%s is out of date with re/ram.toml: "
+                                 "run python3 tools/ram_map.py accessors" % path.name)
+
     def test_movie_tool_addresses_are_in_the_map(self):
         """tools/movies/addresses.py names the same memory: the two must agree."""
         m = ram_map.RamMap()
@@ -113,6 +122,70 @@ class TestRules(unittest.TestCase):
     def test_interleaved_arrays_do_not_overlap(self):
         self.load(var("x", 'addr = "7E:1800"\ncount = 4\nstride = 2\nindex = "i"')
                   + var("y", 'addr = "7E:1801"\ncount = 4\nstride = 2\nindex = "i"'))
+
+
+class TestAccessors(unittest.TestCase):
+    """game/vars.h: a value per variable, an index per element, a pair per field,
+    and no layout -- an address appears only in the backing under runtime/."""
+
+    def load(self, text):
+        return ram_map.RamMap(text=PAGES + text)
+
+    def test_shapes(self):
+        m = self.load(var("flag", 'addr = "7E:1000"')
+                      + var("counter", 'addr = "7E:1002"\nsize = 2')
+                      + var("pointer", 'addr = "7E:1004"\nsize = 3')
+                      + var("facing", 'addr = "7E:1100"\nsize = 2\ncount = 4\nstride = 2\nindex = "object slot"')
+                      + var("name", 'addr = "7E:1200"\nsize = 6')
+                      + var("combatant", 'addr = "7E:5E30"\ncount = 2\nstride = 0x80\nindex = "battle slot"\n'
+                                         '[[var.field]]\nname = "hp"\noffset = 0\nsize = 2\nmeaning = "m"\n'
+                                         '[[var.field]]\nname = "level"\noffset = 4\nmeaning = "m"', "battle"))
+        h = ram_map.render_vars_header(m)
+        for line in ("uint8_t flag(const GameState *g);",
+                     "void set_flag(GameState *g, uint8_t v);",
+                     "uint16_t counter(const GameState *g);",
+                     "uint32_t pointer(const GameState *g);",
+                     "enum { FACING_COUNT = 4 };",
+                     "uint16_t facing(const GameState *g, unsigned slot);",
+                     "void set_facing(GameState *g, unsigned slot, uint16_t v);",
+                     "enum { NAME_BYTES = 6 };",
+                     "uint8_t name_byte(const GameState *g, unsigned at);",
+                     "enum { COMBATANT_COUNT = 2 };",
+                     "uint16_t combatant_hp(const GameState *g, unsigned slot);",
+                     "uint8_t combatant_level(const GameState *g, unsigned slot);"):
+            with self.subTest(line=line):
+                self.assertIn(line, h)
+
+    def test_the_interface_has_no_layout(self):
+        """No address, offset or stride reaches game/vars.h: that is the point of it."""
+        m = self.load(var("facing", 'addr = "7E:1100"\nsize = 2\ncount = 4\nstride = 2\nindex = "object slot"'))
+        self.assertNotIn("0x7E1100", ram_map.render_vars_header(m))
+        self.assertIn("0x7E1100u", ram_map.render_backing(m))
+
+    def test_the_backing_reads_and_writes_the_original_addresses(self):
+        m = self.load(var("flag", 'addr = "7E:1000"')
+                      + var("pointer", 'addr = "7E:1004"\nsize = 3')
+                      + var("facing", 'addr = "7E:1100"\nsize = 2\ncount = 4\nstride = 2\nindex = "object slot"')
+                      + var("name", 'addr = "7E:1200"\nsize = 6'))
+        c = ram_map.render_backing(m)
+        for line in ("uint8_t flag(const GameState *g) { return r8(g, 0x7E1000u); }",
+                     "void set_pointer(GameState *g, uint32_t v) { w24(g, 0x7E1004u, v); }",
+                     "uint16_t facing(const GameState *g, unsigned slot)"
+                     " { return r16(g, 0x7E1100u + (uint32_t)slot * 0x02u); }",
+                     "uint8_t name_byte(const GameState *g, unsigned at) { return r8(g, 0x7E1200u + at); }"):
+            with self.subTest(line=line):
+                self.assertIn(line, c)
+
+    def test_variables_without_an_address_are_left_out(self):
+        """A page whose D isn't known statically has no address to back an accessor."""
+        m = self.load(var("held", 'page = "unknown"\ndp = 0xF2\nsize = 2', "core"))
+        self.assertNotIn("held(", ram_map.render_vars_header(m))
+
+    def test_a_generated_name_twice_is_an_error(self):
+        """A record's field and a variable can spell the same accessor."""
+        with self.assertRaises(ram_map.MapError):
+            self.load(var("a_b", 'addr = "7E:1000"')
+                      + var("a", 'addr = "7E:2000"\n[[var.field]]\nname = "b"\noffset = 0\nmeaning = "m"'))
 
 
 class TestScan(unittest.TestCase):
