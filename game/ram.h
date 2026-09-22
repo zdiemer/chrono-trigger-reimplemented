@@ -3286,6 +3286,18 @@
 #define RAM_SCENE_MODE7_MATRIX_B 0x7E005Cu   /* Matrix parameter B */
 #define RAM_SCENE_MODE7_MATRIX_C 0x7E005Eu   /* Matrix parameter C */
 #define RAM_SCENE_MODE7_MATRIX_D 0x7E0060u   /* Matrix parameter D */
+/* Set to $0038 when the title's task shows its layers, beside scene_title_show_cell_2 ($003A);
+ * what reads the pair isn't ported [2 bytes] */
+#define RAM_SCENE_TITLE_SHOW_CELL_1 0x7E0062u
+#define RAM_SCENE_TITLE_SHOW_CELL_1_DP 0x62u /* page scene */
+/* Set to $003A when the title's task shows its layers, beside scene_title_show_cell_1 ($0038) [2
+ * bytes] */
+#define RAM_SCENE_TITLE_SHOW_CELL_2 0x7E0064u
+#define RAM_SCENE_TITLE_SHOW_CELL_2_DP 0x64u /* page scene */
+/* The title's frame count, which its layer task reads: while it is below $72 the task shows BG1,
+ * BG2 and the sprites and hands channel 0 its next script [2 bytes] */
+#define RAM_SCENE_TITLE_TIMER 0x7E0068u
+#define RAM_SCENE_TITLE_TIMER_DP 0x68u       /* page scene */
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4000; cleared when it is
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_A_READY 0x7E00AAu
@@ -3295,15 +3307,14 @@
 #define RAM_SCENE_RACE_TILEMAP_B_READY 0x7E00ACu
 #define RAM_SCENE_RACE_TILEMAP_B_READY_DP 0xACu /* page scene */
 /* Operands and results of the scene's multiply and divide helpers, on whichever page the caller
- * has (also $0AF0 with D = $0A00); the program's own transfer and the sequence scripts' code
- * call reuse $F0 and $F2 [16 bytes] */
+ * has (also each sequence channel's, scene_channels.math_scratch, with D on the channel): two
+ * operand words at $F0 and $F2 (multiplicand and multiplier, the 8.8 divide's dividend and
+ * divisor, the 32-bit dividend), a 32-bit product or divisor at $F4, and the 32-bit quotient and
+ * remainder at $F8 and $FC. The matrix code generator keeps its offsets here, the program's own
+ * transfer its channel's mode and destination, and the sequence scripts' code call its routine's
+ * address [16 bytes] */
 #define RAM_SCENE_MATH_SCRATCH 0x7E00F0u
 #define RAM_SCENE_MATH_SCRATCH_DP 0xF0u      /* page scene */
-#define RAM_SCENE_MATH_SCRATCH_A 0x7E00F0u   /* Multiplicand; the 8.8 divide's dividend; the low word of the 32-bit divide's dividend; the transfer's channel mode byte; the address of the code a sequence script calls */
-#define RAM_SCENE_MATH_SCRATCH_B 0x7E00F2u   /* Multiplier (8-bit in the signed multiply); the 8.8 divide's divisor; the high word of the 32-bit dividend; the transfer's destination register */
-#define RAM_SCENE_MATH_SCRATCH_C 0x7E00F4u   /* 32-bit product; the 8.8 quotient (low word); the 32-bit divide's divisor */
-#define RAM_SCENE_MATH_SCRATCH_QUOTIENT 0x7E00F8u /* 32-bit divide's quotient; its low word is the 8.8 divide's divisor minus one */
-#define RAM_SCENE_MATH_SCRATCH_REMAINDER 0x7E00FCu /* 32-bit divide's remainder */
 /* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
  * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair [2
  * bytes] */
@@ -3365,6 +3376,10 @@
  * that finds the line x above it [2 bytes] */
 #define RAM_SCENE_CIRCLE_CENTER_ROW_HALF 0x7E03F6u
 #define RAM_SCENE_CIRCLE_CENTER_ROW_HALF_DP 0xF6u /* page decompress */
+/* The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y,
+ * tile, attributes) and the $20-byte high table after them, reached by the byte offsets the
+ * scene's cursors hold [544 bytes] */
+#define RAM_SCENE_SPRITE_TABLE 0x7E0700u
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence
  * scripts add and remove; the NMI copies it to $0950 and runs the copy each frame [16 x $2
  * bytes, by task slot] */

@@ -7,6 +7,34 @@
 #include <stdbool.h>
 
 #include "snes/system.h"
+#include "state.h"
+
+/* scene/scratch.c: the math scratch cells ($F0-$FF) on the caller's direct
+ * page, the scene's own or a sequence channel's, and what the helpers keep in
+ * them (re/ram.toml, scene_math_scratch). */
+typedef uint8_t ScenePage;   /* a sequence channel, or: */
+enum { SCENE_OWN_PAGE = 0xFF };
+enum {
+    SCRATCH_A = 0x0,          /* first operand word */
+    SCRATCH_B = 0x2,          /* second operand word */
+    SCRATCH_PRODUCT = 0x4,    /* 32-bit product, or divisor */
+    SCRATCH_QUOTIENT = 0x8,   /* 32-bit quotient */
+    SCRATCH_REMAINDER = 0xC,  /* 32-bit remainder */
+};
+bool scene_page_of(uint16_t d, ScenePage *page);
+uint8_t scene_scratch8(const GameState *g, ScenePage page, unsigned at);
+void set_scene_scratch8(GameState *g, ScenePage page, unsigned at, uint8_t v);
+uint16_t scene_scratch16(const GameState *g, ScenePage page, unsigned at);
+void set_scene_scratch16(GameState *g, ScenePage page, unsigned at, uint16_t v);
+uint32_t scene_scratch32(const GameState *g, ScenePage page, unsigned at);
+void set_scene_scratch32(GameState *g, ScenePage page, unsigned at, uint32_t v);
+
+/* scene/guards.c */
+bool scene_on_scene_page(Snes *s);
+bool scene_on_scene_page_low_bank(Snes *s);
+bool scene_on_scene_page_io_bank(Snes *s);
+bool scene_on_math_page(Snes *s);
+bool scene_on_math_page_io_bank(Snes *s);
 
 /* scene/sprites.c */
 void scene_load_sprite_list(Snes *s);
@@ -22,6 +50,7 @@ void scene_scale_bitmap(Snes *s);
 void scene_run_sequence(Snes *s);
 void scene_script_wait_sound_port2(Snes *s);
 bool scene_sequence_bank_is_scripts(Snes *s);
+bool scene_sequence_waits_on_channel(Snes *s);
 
 /* scene/circle.c */
 void scene_draw_circle(Snes *s);

@@ -33,6 +33,7 @@ bool scene_race_load_graphics_present(Snes *s);
 bool scene_race_move_camera_present(Snes *s);
 bool scene_race_upload_column_present(Snes *s);
 bool scene_race_upload_tilemap_present(Snes *s);
+bool scene_race_upload_strip_present(Snes *s);
 bool scene_race_upload_plane_present(Snes *s);
 
 #endif

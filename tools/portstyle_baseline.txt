@@ -60,8 +60,3 @@ game/menu/save_screen.c                      0.698
 game/menu/sound.c                            0.125
 game/menu/text.c                             0.462
 game/menu/vram.c                             0.525
-game/scene/boot.c                            0.171
-game/scene/display.c                         0.299
-game/scene/nmi.c                             0.180
-game/scene/program.c                         0.524
-game/scene/race.c                            0.338

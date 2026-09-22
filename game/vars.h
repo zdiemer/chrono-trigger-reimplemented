@@ -4209,6 +4209,20 @@ void set_scene_mode7_matrix_c(GameState *g, uint16_t v);
 uint16_t scene_mode7_matrix_d(const GameState *g);
 void set_scene_mode7_matrix_d(GameState *g, uint16_t v);
 
+/* Set to $0038 when the title's task shows its layers, beside scene_title_show_cell_2 ($003A);
+ * what reads the pair isn't ported */
+uint16_t scene_title_show_cell_1(const GameState *g);
+void set_scene_title_show_cell_1(GameState *g, uint16_t v);
+
+/* Set to $003A when the title's task shows its layers, beside scene_title_show_cell_1 ($0038) */
+uint16_t scene_title_show_cell_2(const GameState *g);
+void set_scene_title_show_cell_2(GameState *g, uint16_t v);
+
+/* The title's frame count, which its layer task reads: while it is below $72 the task shows BG1,
+ * BG2 and the sprites and hands channel 0 its next script */
+uint16_t scene_title_timer(const GameState *g);
+void set_scene_title_timer(GameState *g, uint16_t v);
+
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4000; cleared when it is
  * sent */
 uint8_t scene_race_tilemap_a_ready(const GameState *g);
@@ -4219,23 +4233,16 @@ void set_scene_race_tilemap_a_ready(GameState *g, uint8_t v);
 uint8_t scene_race_tilemap_b_ready(const GameState *g);
 void set_scene_race_tilemap_b_ready(GameState *g, uint8_t v);
 
-/* Multiplicand; the 8.8 divide's dividend; the low word of the 32-bit divide's dividend; the
- * transfer's channel mode byte; the address of the code a sequence script calls */
-uint16_t scene_math_scratch_a(const GameState *g);
-void set_scene_math_scratch_a(GameState *g, uint16_t v);
-/* Multiplier (8-bit in the signed multiply); the 8.8 divide's divisor; the high word of the
- * 32-bit dividend; the transfer's destination register */
-uint16_t scene_math_scratch_b(const GameState *g);
-void set_scene_math_scratch_b(GameState *g, uint16_t v);
-/* 32-bit product; the 8.8 quotient (low word); the 32-bit divide's divisor */
-uint32_t scene_math_scratch_c(const GameState *g);
-void set_scene_math_scratch_c(GameState *g, uint32_t v);
-/* 32-bit divide's quotient; its low word is the 8.8 divide's divisor minus one */
-uint32_t scene_math_scratch_quotient(const GameState *g);
-void set_scene_math_scratch_quotient(GameState *g, uint32_t v);
-/* 32-bit divide's remainder */
-uint32_t scene_math_scratch_remainder(const GameState *g);
-void set_scene_math_scratch_remainder(GameState *g, uint32_t v);
+/* Operands and results of the scene's multiply and divide helpers, on whichever page the caller
+ * has (also each sequence channel's, scene_channels.math_scratch, with D on the channel): two
+ * operand words at $F0 and $F2 (multiplicand and multiplier, the 8.8 divide's dividend and
+ * divisor, the 32-bit dividend), a 32-bit product or divisor at $F4, and the 32-bit quotient and
+ * remainder at $F8 and $FC. The matrix code generator keeps its offsets here, the program's own
+ * transfer its channel's mode and destination, and the sequence scripts' code call its routine's
+ * address [16 bytes, one at a time] */
+enum { SCENE_MATH_SCRATCH_BYTES = 16 };
+uint8_t scene_math_scratch_byte(const GameState *g, unsigned at);
+void set_scene_math_scratch_byte(GameState *g, unsigned at, uint8_t v);
 
 /* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
  * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair */
@@ -4323,6 +4330,13 @@ void set_scene_circle_row(GameState *g, uint16_t v);
  * that finds the line x above it */
 uint16_t scene_circle_center_row_half(const GameState *g);
 void set_scene_circle_center_row_half(GameState *g, uint16_t v);
+
+/* The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y,
+ * tile, attributes) and the $20-byte high table after them, reached by the byte offsets the
+ * scene's cursors hold [544 bytes, one at a time] */
+enum { SCENE_SPRITE_TABLE_BYTES = 544 };
+uint8_t scene_sprite_table_byte(const GameState *g, unsigned at);
+void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { SCENE_TASKS_COUNT = 16 };   /* by task slot */
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence

@@ -1,0 +1,564 @@
+# The constraints each hand port is fuzzed with, for tools/fuzz_compare.py.
+#
+# A routine's `args` are ct_fuzz's own options after --routine (docs/PORTING.md,
+# "Fuzzing"): --long for a routine entered by JSL, --interrupt for a handler,
+# --keep/--fill/--range to keep random state inside what the game can produce,
+# --d/--db for the direct page and data bank. `why` says what the constraints
+# stand for; the entry's PORTING.md row records the counts. `iterations` is the
+# default number of states (20000 when left out), which --iterations caps.
+#
+# A state is made once, with ct_dev --native off, from a movie and a frame
+# count, and kept under traces/fuzz/ (gitignored: a save state is ROM-derived).
+
+[state.attract]
+movie = "oracle/movies/new-game.ctm"
+frames = 300
+
+[state.race]
+movie = "oracle/movies/saves/events-jetbike-race.ctm"
+frames = 6200
+
+# ---- scene: bank C3 ------------------------------------------------------------------------------
+
+[[routine]]
+name = "scene_load_sprite_list"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0014-7E0014=09-09"]
+why = "the OAM index below $200 and the high-table pointer in $09xx"
+
+[[routine]]
+name = "scene_load_sprite_list"
+variant = "loose"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
+why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other"
+
+[[routine]]
+name = "scene_load_sprite_list_clipped"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0014-7E0014=09-09"]
+why = "as scene_load_sprite_list"
+
+[[routine]]
+name = "scene_load_sprite_list_clipped"
+variant = "loose"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
+why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other"
+
+[[routine]]
+name = "scene_add_sprite"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0014-7E0014=09-09"]
+why = "as scene_load_sprite_list"
+
+[[routine]]
+name = "scene_add_sprite"
+variant = "loose"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
+why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other"
+
+[[routine]]
+name = "scene_add_large_sprite"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0014-7E0014=09-09"]
+why = "as scene_load_sprite_list"
+
+[[routine]]
+name = "scene_add_large_sprite"
+variant = "loose"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
+why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other"
+
+[[routine]]
+name = "scene_scale_bitmap_row"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E001F=01-08", "--fill", "7E0020-7E0020=00-00"]
+why = "1-8 pairs of 8 pixels a row, output in bank $7F as the race draws"
+
+[[routine]]
+name = "scene_scale_bitmap"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "0000", "--db", "7F"]
+why = "clears the row accumulator"
+
+[[routine]]
+name = "scene_multiply_signed"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "0000", "--db", "00"]
+why = "the multiplier reached through the data bank"
+
+[[routine]]
+name = "scene_find_divisor"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "4200", "--db", "00"]
+why = "the divider's page, which the guard asks for"
+
+[[routine]]
+name = "scene_write_matrix_code"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--db", "00"]
+why = "the work RAM port reached through the data bank"
+
+[[routine]]
+name = "scene_draw_circle"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--fill", "7E0357-7E0357=10-70"]
+why = "the table's high byte kept off the stack"
+
+[[routine]]
+name = "scene_draw_circle_jump"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--fill", "7E0357-7E0357=10-70"]
+why = "as scene_draw_circle"
+
+[[routine]]
+name = "scene_copy_data_to_7e"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--range", "A=0000-03FF", "--range", "Y=0000-1FFF"]
+why = "a short copy, into low RAM below the stack"
+
+[[routine]]
+name = "scene_copy_data_to_7f"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--range", "A=0000-03FF"]
+why = "a short copy"
+
+[[routine]]
+name = "scene_boot"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--db", "00"]
+iterations = 200
+why = "each decompresses the whole program"
+
+[[routine]]
+name = "scene_run_sequence"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0A00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0A21-7E0A21=30-B5",
+        "--budget", "8000000"]
+why = "the program kept, a channel on its page, the script pointer inside the program"
+
+[[routine]]
+name = "scene_script_wait_sound_port2"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "7E", "--apu-loopback"]
+why = "the port read back, so the wait ends"
+
+[[routine]]
+name = "scene_frame_work"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--keep", "7E3000-7EB5FF"]
+why = "the program kept: the task lists are call-outs into it"
+
+[[routine]]
+name = "scene_nmi"
+subsystem = "scene"
+state = "attract"
+args = ["--interrupt", "--keep", "7E3000-7EB5FF"]
+why = "the program kept"
+
+[[routine]]
+name = "scene_nmi_while_working"
+subsystem = "scene"
+state = "attract"
+args = ["--interrupt"]
+
+[[routine]]
+name = "scene_line_irq_ack"
+subsystem = "scene"
+state = "attract"
+args = ["--interrupt"]
+
+[[routine]]
+name = "scene_boot_nmi"
+subsystem = "scene"
+state = "attract"
+args = ["--interrupt"]
+
+[[routine]]
+name = "scene_boot_line_irq"
+subsystem = "scene"
+state = "attract"
+args = ["--interrupt"]
+
+[[routine]]
+name = "scene_boot_line_irq_wait_hblank_end_loop"
+subsystem = "scene"
+state = "attract"
+args = []
+
+[[routine]]
+name = "scene_boot_line_irq_wait_hblank_loop"
+subsystem = "scene"
+state = "attract"
+args = []
+
+[[routine]]
+name = "scene_boot_line_irq_blank"
+subsystem = "scene"
+state = "attract"
+args = []
+
+# ---- scene: the program at $7E:3000 (guarded by a hash of its code) ------------------------------
+
+[[routine]]
+name = "scene_divide"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_divide_8_8"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_multiply"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_shift_c00_words"
+subsystem = "scene"
+state = "race"
+args = ["--db", "7E", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_run_tasks_950"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0950-7E096F=00-00"]
+why = "the task table emptied: random tasks run anywhere"
+
+[[routine]]
+name = "scene_run_tasks_950"
+variant = "kept"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--db", "7E", "--keep", "7E3000-7EB5FF", "--keep", "7E0950-7E096F"]
+iterations = 1000
+why = "the race's own task table, so the tasks run (random task data loops)"
+
+[[routine]]
+name = "scene_run_tasks_940"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0940-7E094F=00-00"]
+why = "the task table emptied"
+
+[[routine]]
+name = "scene_run_tasks_940"
+variant = "kept"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--db", "7E", "--keep", "7E3000-7EB5FF", "--keep", "7E0940-7E094F"]
+iterations = 1000
+why = "the race's own task table, so the tasks run (random task data loops)"
+
+[[routine]]
+name = "scene_wait_apu_port3_loop"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+
+[[routine]]
+name = "scene_wait_39_clear_loop"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_send_sound_command"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+
+[[routine]]
+name = "scene_send_sound_command_again"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+
+[[routine]]
+name = "scene_wait_sound_command_echo_loop"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+
+[[routine]]
+name = "scene_race_send_sound_parameter"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+
+# ---- scene: display (P2) -------------------------------------------------------------------------
+
+[[routine]]
+name = "scene_program_restart"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_clear_work_ram"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 2000
+
+[[routine]]
+name = "scene_init_video"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_upload_sprites"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_clear_sprite_table"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_upload_palette"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_transfer"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 200
+why = "a random size makes a transfer very slow"
+
+[[routine]]
+name = "scene_set_vram_4000"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_set_vram_5000"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_set_vram_0000"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_set_vram_6400"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_set_vram_6000"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_fill_graphics_tail"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 2000
+why = "fills $F00 bytes of VRAM a call"
+
+[[routine]]
+name = "scene_setup_mode7_display"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_upload_tiles_through_port"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 200
+why = "a whole title screen's tiles a call"
+
+[[routine]]
+name = "scene_set_mode7_matrix"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_show_layers"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_set_mode_2"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "D left random: a task's own page"
+
+[[routine]]
+name = "scene_expand_tile_rows"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--range", "X=0000-1FFF"]
+iterations = 2000
+why = "the source in low RAM: past it, open bus"
+
+[[routine]]
+name = "scene_upload_map_and_scroll"
+subsystem = "scene"
+state = "attract"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+# ---- scene: the jet bike race's display (P2) -----------------------------------------------------
+
+[[routine]]
+name = "scene_setup_line_effects"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--range", "Y=3D45-3D45"]
+why = "the race's own table, since the guard refuses any other"
+
+[[routine]]
+name = "scene_race_clear_buffers"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 2000
+
+[[routine]]
+name = "scene_race_setup_maps"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_fill_map"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 2000
+
+[[routine]]
+name = "scene_race_set_vram_0000"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_set_vram_0000_again"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_begin_tile_uploads"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_set_vram_7100"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_set_vram_5000"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_clear_scratch"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 2000
+
+[[routine]]
+name = "scene_race_set_vram_6800"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_set_vram_6400"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_move_camera"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_upload_column_rom"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_upload_column_ram"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_upload_tilemap"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_upload_strip"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_race_upload_plane"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+iterations = 2000

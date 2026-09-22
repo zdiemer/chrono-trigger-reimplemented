@@ -46,6 +46,7 @@ add_library(ct_runtime STATIC
   runtime/port/fiber.c
   runtime/port/native.c
   runtime/port/vars_ram.c
+  runtime/port/state_io.c
   runtime/platform/snes/backend.c
   runtime/platform/direct/audio.c
   runtime/platform/observe.c
@@ -113,9 +114,11 @@ add_library(ct_game STATIC
   game/scene/math.c
   game/scene/matrix_code.c
   game/scene/display.c
+  game/scene/guards.c
   game/scene/nmi.c
   game/scene/program.c
   game/scene/race.c
+  game/scene/scratch.c
   game/scene/sequence.c
   game/scene/sprites.c
   game/battle/animation.c

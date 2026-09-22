@@ -38,6 +38,16 @@ static inline void m_write16(Snes *s, uint32_t addr, uint16_t v)
  * them directly. */
 static inline bool m_io_bank(uint8_t bank) { return (bank & 0x40) == 0; }
 
+/* What a port that names its cells (game/vars.h) assumes of the machine it is
+ * entered on: the original reaches the same cells through D and the data bank,
+ * so the port is the same routine only where those are what the game always
+ * enters it with, and its guard says so. The data bank reaches the I/O
+ * registers, or low RAM ($0000-$1FFF: the banks that mirror it, and $7E); and
+ * the direct page, for a guard to compare. */
+static inline bool m_bank_reaches_io(const Snes *s) { return m_io_bank(s->cpu.db); }
+static inline bool m_bank_reaches_low_ram(const Snes *s) { return s->cpu.db == 0x7E || m_io_bank(s->cpu.db); }
+static inline uint16_t m_direct_page(const Snes *s) { return s->cpu.d; }
+
 /* Direct pages the original sometimes puts on the I/O block so that it can
  * reach registers with direct-page addressing. A port reproduces the value in
  * D, which is CPU state, while its own accesses go through the platform
