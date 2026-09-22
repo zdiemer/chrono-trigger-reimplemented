@@ -18,9 +18,12 @@ Four, and every ordering decision here serves them:
 
 ### What that makes scaffolding
 
-Everything under `runtime/` -- the 65816 interpreter, the SPC700, the S-DSP,
+The emulator under `runtime/` -- the 65816 interpreter, the SPC700, the S-DSP,
 the PPU and the bus -- **must not ship**, and neither must the generated C,
-shadow mode, the oracle or the timing model. They exist to prove the
+shadow mode, the oracle or the timing model. What does ship from `runtime/` is
+the platform services' interfaces (`runtime/platform/`) with their host
+backends, and `runtime/port/fiber.h` for the one coroutine the game's main
+thread runs as (below, and PLATFORM.md, "Timing without a beam"). They exist to prove the
 reimplementation correct, and they are load-bearing until the subsystem they
 check is finished. But they are a means, so:
 
