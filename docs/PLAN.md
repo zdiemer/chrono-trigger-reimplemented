@@ -32,10 +32,14 @@ check is finished. But they are a means, so:
 - **Emulator accuracy is out of scope** unless it blocks validation: the IRQ
   trigger delay, the S-DSP's KON poll, big-endian hosts, the ZSNES state
   import. These make the scaffolding better.
-- **So is the stack question.** Fibers exist only because a hand port must run
-  to completion while an emulated machine waits mid-instruction (`job_run`,
-  `runtime/port/fiber.h`). No emulated machine, no call-outs, no fibers. The
-  wasm backend spike is scaffolding maintenance and is not scheduled.
+- **So is most of the stack question.** The per-port fibers exist only
+  because a hand port must run to completion while an emulated machine waits
+  mid-instruction (`job_run`, `runtime/port/fiber.h`). No emulated machine, no
+  call-outs, no per-port fibers. What stays is one coroutine for the game's
+  main thread, whose waits for the next frame are deep in its call stack
+  (PLATFORM.md, "Timing without a beam"), unless every caller of those waits
+  is rewritten to resume. So a browser build still needs one stack switch; the
+  wasm backend spike is not scheduled, and when it is, it is for that one.
 - **M4** (recompiler speed) buys nothing the targets want.
 
 ### What "done" means, measured
@@ -453,13 +457,17 @@ the audit that found them.
   them. Input and save are small (`in_host_set` and `frontend/player.c` already
   carry the host's half). Audio is Phase 4a's mixer, above.
 
-  **Timing is the one with a real question in it.** `tm_set_line`,
-  `tm_enable_interrupts` and `tm_reset_beam_latch` are scanline and beam
-  concepts, and a host that calls the game once a frame has no beam. So the
-  native backend is not a translation of those calls but an answer to what the
-  routines making them are *for* -- which is the same question as the
-  beam-coupled routines in 4b (`$C0:5A46`, `$C0:CA76`). Decide it once, here,
-  and 4b becomes rewriting to that decision rather than inventing one.
+  **Timing is decided** (PLATFORM.md, "Timing without a beam", with the census
+  behind it: 117 instructions, 49 ported). The game has no raster effect done
+  with an interrupt: all three line handlers blank the picture after line 211
+  and upload. So the native backend is a frame of vblank handler, main thread
+  to its wait, line handler, with `tm_enable_interrupts` and `tm_set_line`
+  recording which handlers run and where the picture ends. Five timing calls
+  are added (`tm_wait_frame`, `tm_frame_time_left`, `tm_wait_line`,
+  `tm_entropy`, `tm_odd_frame`) and `in_ready` in input, and
+  `tm_video_status` has no native answer, so its six call sites are rewritten
+  to those. The work is the backend, the calls, and the rewrites TODO.md lists
+  under "Timing without a beam"; the main thread runs as one coroutine.
 
 **The asset seam comes forward to here** from where it sat behind everything.
 It is 117 ROM reads by literal address across 22 files -- days, not weeks --
@@ -478,9 +486,13 @@ wait behind 4a.
 - **P4 widescreen**, and with it the answer to whether `VidFrame` holds up:
   PLATFORM.md's open questions name the assumptions it would expose.
 - **The beam-coupled routines**, the event scheduler `$C0:5A46` and the sprite
-  frame queue `$C0:CA76`, which stop when the beam passes a scanline. These are
-  game-side rewrites no backend fixes, and they are the last places a port
-  depends on a beam existing.
+  frame queue `$C0:CA76`, which stop when the beam passes a scanline. Their
+  shape is decided (PLATFORM.md, "Timing without a beam"): the budget is
+  `tm_frame_time_left`, which a native backend answers with "all of it", so
+  the work the original defers on about 1% of frames runs a frame earlier.
+  They need nothing else from 4a, so they can come forward into Phase 3's
+  field work once the call exists; what waits for them here is only the check
+  that the routes still pass with the budgets drained.
 - **Host backends beyond SDL** (TODO.md, "Platform"): rendering on the GPU,
   controllers.
 
@@ -526,11 +538,13 @@ What stays deprioritized is what serves the scaffolding or nothing:
 - **Emulator accuracy**: the IRQ trigger delay, the S-DSP's KON poll,
   re-measuring the audio comparison table, big-endian hosts, the ZSNES state
   import. Out of scope unless one of them blocks validation.
-- **The wasm stack question.** Fibers exist only to suspend an emulated machine
-  mid-instruction while a port runs; with the machine gone there are no
-  call-outs and no fibers, so a third `fiber.h` backend would be a day spent on
-  something the targets delete. A browser build, if it is wanted, is a frontend
-  on top of a finished `game/` -- which is the same thing targets 1 and 2 need.
+- **The wasm stack question.** The per-port fibers exist only to suspend an
+  emulated machine mid-instruction while a port runs; with the machine gone
+  there are no call-outs and no per-port fibers. One coroutine stays, the
+  game's main thread (above), so a third `fiber.h` backend is worth building
+  for that alone when a browser build is wanted, not before. A browser build,
+  if it is wanted, is a frontend on top of a finished `game/` -- which is the
+  same thing targets 1 and 2 need.
 - **Anything that makes the hybrid modes nicer to live in.** `--recomp on` and
   shadow mode are how the work is checked, not what is being built.
 
