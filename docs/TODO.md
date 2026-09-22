@@ -235,14 +235,10 @@ rest waits, is [PLAN.md](PLAN.md).
   want it too. Extracted assets are ROM-derived and stay out of the repository
   wherever they live (CLAUDE.md), so a user data directory beside the saves is
   the shape.
-- **Open questions** in PLATFORM.md: code that stops when the beam passes a
-  scanline (the event scheduler `$C0:5A46`, the sprite frame queue `$C0:CA76`),
-  and code that races the NMI handler for the vblank flag (`$C0:3B71` and
-  `$C0:4181`, idle entries that wait for vblank instead; RECOMP.md, "The timing
-  gate": the shipping mode lost that race once and hung a route),
-  battles playing out differently once timing changes, widescreen's exposed
-  assumptions (the 0-255 object window at `$C0:A88D`, map data beyond VRAM,
-  single-byte battle window positions), and GBA's constraints.
+- **Open questions** in PLATFORM.md: battles playing out differently once
+  timing changes, widescreen's exposed assumptions (the 0-255 object window at
+  `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and
+  GBA's constraints.
 - **P1 leftovers**: `$217F` mirror writes still come from unported video code
   (the last of it in `$FD` is the location's tile animation loader `$FD:DE98`,
   which writes `$7F:0400` through the work RAM port that way; another is the
@@ -251,26 +247,82 @@ rest waits, is [PLAN.md](PLAN.md).
   also lands on APU port 3; RECOMP.md, "Phase 3, wave 1"),
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
-- **The scenes' waits on the beam** (`scene/`): the NMI's controller read
-  (`$C3:0A8E`) stops at its wait for the automatic read while it is busy, and
-  the boot's line interrupt (`$C3:0529`) waits for the end of one hblank and the
-  start of the next before it blanks the screen, both as the original's loops
-  (idle entries for the second). `$C3:02DD` makes random numbers from the
-  beam's position counters (`$2137`, `$213C`, `$213D`) and stays generated, as
-  does `$C3:01E4`, the scene effect that uses them (reached through `$C3:000E`
-  from bank C6's `$C6:E27E`, which no movie runs): a port runs in no time, so
-  it would read other counters, and fuzzing can't compare it. A native backend
-  needs a source of randomness for it instead.
 - **The battle's screen setup `$D1:F1B0`** (609 bytes, the largest unported run
-  in `$D1`) sets the line interrupt's line (`$4209`), which the timing service
-  has no call for (PLATFORM.md's sketch has `tm_set_line_handler`, never
-  built), and reads some 30 cells of the `$CD` frame work that aren't named yet.
+  in `$D1`) sets the line interrupt's line, 211 as the field and the scenes do,
+  which is `tm_set_line` now (the scene boot added it), and reads some 30 cells
+  of the `$CD` frame work that aren't named yet.
 - **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
   the boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
   the driver) and every echo wait stay loops on the machine as idle entries.
   The Phase 4a port of the driver needs none of them -- there is no SPC700 to
   wait for once its program is C -- so these loops are deleted by that work
   rather than fixed by it.
+
+## Timing without a beam
+
+PLATFORM.md, "Timing without a beam", is the design: the census of every use of
+the timing registers, what each is for, the native backend, and the rewrites
+below. `python3 tools/timing_census.py` re-runs the census.
+
+- **The native backend and the new calls.** Add `tm_wait_frame`,
+  `tm_frame_time_left`, `tm_wait_line`, `tm_entropy` and `tm_odd_frame` to
+  `timing.h`, and `in_ready` to `input.h`, each with a SNES backend that makes
+  the original's accesses; then the native backend: a frame of vblank handler,
+  main thread to its `tm_wait_frame`, line handler and picture, with
+  `tm_enable_interrupts` and `tm_set_line` recording which handlers run and
+  where, `VID_AT_LINE_HANDLER` resolved from the recorded line, and the
+  acknowledges answering "pending" inside their own handler. The main thread
+  runs as one coroutine through `runtime/port/fiber.h`: its frame waits are
+  deep in its call stack (the field's `$C0:EC60` has 28 call sites, the
+  battle's `$C1:007E` 20).
+- **The event scheduler `$C0:5A46` and the sprite frame queue `$C0:CA76`**:
+  port them as "run the queued work while `tm_frame_time_left(limit)`". Name
+  the event queue (`$0174`/`$0175`, linked through `$1080`) and the two line
+  limits (`$0169`, 72, set by `$C0:56A6`; `$016B`, 120, which event command
+  `$47` sets) in `re/ram.toml`. Shadow mode can disagree where the port's
+  beam read and the original's fall on either side of a line boundary; keep
+  the per-object work a call-out and measure it on the first run. Then run
+  the routes with the native backend's drained budgets.
+- **Frame waits to `tm_wait_frame`**: the races `$C0:3B71` and `$C0:4181`
+  (`field/frame.c`); the attract's `$7E:31B0`/`$7E:31B7`
+  (`attract/main_loop.c`, which reads `$4212` itself rather than through the
+  service); the idle entries on flags a handler clears
+  (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
+  `menu_wait_ready_loop`, `battle_wait_for_frame_loop`,
+  `battle_wait_for_nmi_loop`, `battle_wait_ca1f_loop`,
+  `battle_wait_setup_counter_loop`, `scene_wait_39_clear_loop`,
+  `attract_wait_loop`); and the generated `$C0:0B28` and `$FD:EADA` (vblank
+  with the handler off, then on), `$CD:044A`, `$CD:3E55`, `$CF:FCFB` and
+  `$FD:EAEB`.
+- **The line handlers' hblank waits go**: `field_irq_wait_hblank_loop`
+  (`$C0:ECEB`), `battle_irq_wait_hblank_loop` (`$D1:FEB8`) and the scene
+  boot's `$C3:0530`/`$C3:0538` exist to land the forced blank at the end of
+  line 211, which `vid_raster_display` at the handler's line already says.
+- **The controller-busy waits to `in_ready`**: `$C2:84EC` (`core/input.c`)
+  and the scene handler's `$C3:0A8E` (`scene/nmi.c`), which stop at the
+  original's loop while the automatic read is busy. With these and the waits
+  above rewritten, no caller of `tm_video_status` needs a native answer, and
+  it becomes SNES-only.
+- **The battle's wait for a line `$CD:3B82`** (`battle/wait.c`, which reads
+  `$4212` and the counters directly): `tm_wait_line`. Its purpose isn't
+  established: the frame work waits for line 64 before the screen script
+  channels run while the timed effect slots do (`$CD:09AC`), and screen script
+  command `$C1` (`$CD:1D93`, in no movie) waits for a line from the script.
+  Neither is followed by a register write. Find out when `$CD:1609` is ported;
+  if it is pacing, the wait goes.
+- **The scene program's randomness and parity**: `$C3:02DD` mixes the beam
+  counters into its seed and stays generated, with `$C3:01E4` (the noise
+  effect, called from `$7E:6844`, and from bank C6's `$C6:E27E` through
+  `$C3:000E`, which no movie runs) and `$7E:3443`. Port the mixing as game code
+  over `tm_entropy`, validated by `--native on` rather than fuzzing (a port
+  reads other counters, and the output is cosmetic). `$7E:9AB3` and
+  `$7E:9EDF` read `$213F`'s field bit (the second through a 16-bit read of
+  `$213E`) to move something every other frame: `tm_odd_frame`.
+- **The timer resets.** `$C2:0043` past `$C2:00F2`, `$C2:940D` past
+  `$C2:94B8`, `$FD:C000` and `$FD:EB13` clear `$4207-$420A` in a run of CPU
+  register writes (where the menu ports stop). Nothing enables the timers after
+  them, so natively they are nothing; for shadow mode a port needs a call that
+  writes the zeros in the original's order, or the documented SNES escape.
 
 ## Targets beyond the desktop SNES build
 
@@ -288,11 +340,13 @@ waits on M5 rather than on a backend.
     machine to suspend. Every non-idle registry entry runs on a fiber
     (`runtime/port/fiber.c`, `job_run` in `runtime/port/native.c`), which is
     Windows fibers or POSIX `ucontext`, and wasm has neither. The targets
-    delete the problem rather than solve it: a finished `game/` makes no
-    call-outs, so it needs no fiber and no third backend. **So this is not
-    scheduled** (PLAN.md, "What this plan deprioritizes"). It matters only for a
-    browser build of a *hybrid* -- hand ports plus the interpreter -- which is
-    a build of the scaffolding, not of the game.
+    delete most of the problem rather than solve it: a finished `game/` makes
+    no call-outs. One stack stays, the game's main thread, which waits for the
+    next frame from deep in its call stack (PLATFORM.md, "Timing without a
+    beam"), so a finished build still needs one stack switch per frame, or
+    Emscripten's asyncify around it. **So the third backend is not scheduled**
+    (PLAN.md, "What this plan deprioritizes"), and when a browser build is
+    wanted it is for that one coroutine.
   - **What the browser build is made of.** The default path generates C from the
     user's ROM at build time (RECOMP.md), and nothing ROM-derived can be shipped
     (CLAUDE.md), so a public build cannot contain it. That leaves a build the
