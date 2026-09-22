@@ -51,7 +51,7 @@ it counts as done may still be transliterated or welded to the machine, which
 | Ports that read as source (`portstyle.py`) | 0.33 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 98% take a `Snes *` | entry wrappers only |
 | ROM reads by address | 117, in 22 files | 0, all through accessors |
-| SPC700 sound driver | not started | reimplemented in C |
+| SPC700 sound driver | read and mapped (SOUND.md); port not started | reimplemented in C |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 
 ### The two gaps this list exposed
@@ -60,11 +60,15 @@ it counts as done may still be transliterated or welded to the machine, which
 is the CPU half only -- the code that uploads Square's driver and sends it
 commands. The driver itself runs on the emulated SPC700, feeding the emulated
 S-DSP, in the shipping path today. It is not in the burndown, not in `game/`,
-and was not in any phase. **It is now Phase 4a.** The decision taken: port the
-driver (sequencer, note handling, the command protocol) to C as game code, and
-write a native mixer that reads the same BRR samples, ADSR envelopes and echo
-settings. The mixer is the audio engine, not an emulator; the SPC700 core is
-deleted with everything else under `runtime/`.
+and was not in any phase. **It is now Phase 4a**, and it has been read
+([SOUND.md](SOUND.md)). The decision taken: port the driver (the sequencer, the
+song and effect handling, voice output) to C as game code, against a
+voice-level interface whose second implementation is a native mixer reading the
+same BRR samples, ADSR envelopes and echo settings. The upload protocol between
+the two processors is not ported: once both halves are C, commands are calls
+and song data comes from the asset accessors. The mixer is the audio engine,
+not an emulator; the SPC700 core is deleted with everything else under
+`runtime/`.
 
 **The native renderer is fed by emulated registers.** P3 is done and
 pixel-identical, but it works by decoding PPU register writes, so the register
