@@ -28,7 +28,11 @@ HDMA, or a DMA transfer ([PLATFORM.md](PLATFORM.md)). `--audio direct` (with
 `--native on`) selects the APU-direct audio backend: the sound driver's uploads
 and commands run the SPC700 ahead of the machine instead of taking CPU time
 (`Apu.lead`, absorbed from the machine's following advances; PLATFORM.md, P1).
-It changes timing, so it's never used for validation.
+It changes timing, so it's never used for validation. `--spc-coverage out.txt`
+writes every SPC700 address the sound driver executed, with counts, and
+`--dsp-log out.txt` every S-DSP register write the driver made (frame, SPC700
+cycle, register, value), through the APU's `on_insn` and `on_dsp_write` hooks;
+both are for the sound driver's port ([SOUND.md](SOUND.md)).
 
 ## Components
 

@@ -57,6 +57,9 @@ typedef struct Apu {
     /* Optional: called before each SPC700 instruction. */
     void (*on_insn)(void *ctx, const struct Apu *apu);
     void *on_insn_ctx;
+    /* Optional: called for each write the SPC700 makes to an S-DSP register
+     * (through $F3), before it takes effect; ctx is on_insn_ctx. */
+    void (*on_dsp_write)(void *ctx, const struct Apu *apu, uint8_t reg, uint8_t value);
 } Apu;
 
 /* SPC700 writes to $F1 that cleared the CPU-to-APU ports: [0] ports 0-1, [1]

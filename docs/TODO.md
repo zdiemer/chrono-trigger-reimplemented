@@ -208,6 +208,14 @@ rest waits, is [PLAN.md](PLAN.md).
     runs the same envelopes and echo, replacing `runtime/apu/dsp.c` in the
     shipped product. Both are PLAN.md's Phase 4a; `--audio direct` is the
     halfway house.
+  - **The sound driver port's harness** (SOUND.md, "Validating the port"),
+    before the port itself: a hook at the interpreted driver's tick boundary
+    (its loop leaving the timer wait at `$029C`), a record of the commands and
+    uploads it took that tick, and a comparison of the port's DSP writes and
+    status with `--dsp-log`'s, per tick. Then a command-stream driver for the
+    paths no movie reaches (commands `$88`, `$8E`, `$F4`, `$F5`, `$F8`, `$F9`,
+    `$FD`, event `$F4`, the meter mode, zero-length slides), and a note-stream
+    comparison for when the port drives the audio.
   - **Controllers.** `in_host_set` is already the one host entry point per
     frame, so this is an SDL GameController call into it plus bindings (see
     Player and tooling).

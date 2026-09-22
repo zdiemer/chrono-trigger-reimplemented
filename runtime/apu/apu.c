@@ -69,8 +69,11 @@ static void smp_write(void *ctx, uint16_t addr, uint8_t v)
         break;
     case 0x00F2: apu->dsp_addr = v; break;
     case 0x00F3:
-        if (!(apu->dsp_addr & 0x80))
+        if (!(apu->dsp_addr & 0x80)) {
+            if (apu->on_dsp_write)
+                apu->on_dsp_write(apu->on_insn_ctx, apu, apu->dsp_addr, v);
             dsp_write(&apu->dsp, apu->dsp_addr, v);
+        }
         break;
     case 0x00F4: case 0x00F5: case 0x00F6: case 0x00F7:
         apu->cpu_out[addr - 0x00F4] = v;

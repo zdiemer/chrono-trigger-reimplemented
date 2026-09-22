@@ -1781,6 +1781,7 @@ static void restore_machine(Snes *s, Snes *copy, uint64_t since)
     void (*on_access)(SnesBus *) = s->bus.on_access;
     void (*cpu_on_insn)(void *, uint32_t, uint8_t, bool) = s->cpu.on_insn;
     void (*apu_on_insn)(void *, const Apu *) = s->apu.on_insn;
+    void (*apu_on_dsp_write)(void *, const Apu *, uint8_t, uint8_t) = s->apu.on_dsp_write;
     void (*on_line)(void *, Snes *, uint16_t) = s->on_line;
     void (*on_frame_top)(void *, Snes *) = s->on_frame_top;
     int32_t (*icpt)(void *, Snes *) = s->intercept;
@@ -1790,6 +1791,7 @@ static void restore_machine(Snes *s, Snes *copy, uint64_t since)
     s->bus.on_access = on_access;
     s->cpu.on_insn = cpu_on_insn;
     s->apu.on_insn = apu_on_insn;
+    s->apu.on_dsp_write = apu_on_dsp_write;
     s->on_line = on_line;
     s->on_frame_top = on_frame_top;
     s->intercept = icpt;

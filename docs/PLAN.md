@@ -413,32 +413,43 @@ the audit that found them.
 - **The SPC700 sound driver, 7151 bytes.** Square's audio engine runs as
   interpreted SPC700 assembly today (`runtime/platform/direct/audio.c` runs the
   core; the ported `game/core/sound_driver.c` is only the CPU side that uploads
-  it and sends commands). The boot upload (`$C7:0000`) is six blocks totalling
-  13.6 KiB, and block 0 -- 7151 bytes to SPC700 `$0200` -- is the program; the
-  rest is instrument data. Reimplement it in C as game code: the sequencer,
-  note and channel handling, and the port protocol it answers. For scale, the
-  `$C7` CPU half was 2.6 KiB of 65816 and took about a working day, so this is
-  several times that -- **and it has a prerequisite nothing else in the project
-  needs.**
+  it and sends commands). Block 0 of the boot upload (`$C7:0000`), 7151 bytes
+  to SPC700 `$0200`, is the program: 3156 instructions and 0.7 KiB of tables,
+  read and mapped in [SOUND.md](SOUND.md). Reimplement it in C as game code:
+  the sequencer and its 60 events (about 40% of it), the song, effect, fade and
+  command handling (30%), and voice output (10%); the rest is the upload
+  protocol, which a build where both halves are C doesn't need. On the order of
+  2000 lines of C, a few times the `$C7` CPU half.
 
-  **`tools/disasm` is 65816-only.** There is no SPC700 disassembler, no
-  coverage, no liveness, no draft tool, and the burndown cannot see this code
-  at all. The emulator's `runtime/apu/spc700.c` has the opcode semantics (546
-  lines, 138 cases) but nothing that reads a program. So the first question is
-  which of that pipeline this port actually needs: a linear disassembler and
-  hand reading may be enough for 7 KiB, where drafts and liveness were worth
-  building for 268 KiB. Answer that before building tooling on reflex.
+  **Tooling: a linear disassembler and coverage, nothing more.** Both exist
+  (`tools/spc700dis.py`, `ct_dev --spc-coverage`); with five dispatch tables as
+  entry points the listing reaches all the code, and the movies run 90% of it,
+  with no dead subsystem. Liveness, don't-care sets and drafts don't apply: the
+  port isn't compared at routine exits, and a draft of uniform 8-bit code would
+  only transliterate it (SOUND.md, "What the port needs").
 
-  Validation is also its own: shadow mode compares work RAM after a 65816 call,
-  which says nothing about a program on another processor. What it has instead
-  is the APU conformance suite (`tests/apu/`, SingleStepTests), the DSP tests,
-  and audio output compared against the emulated driver over the movie library
-  -- structurally identical note and envelope streams rather than
-  sample-identical output, which target 4 permits.
+  **Write it against a voice-level interface** -- key on with a sample, pitch
+  and envelope; set pitch; set volume; echo and noise settings -- whose first
+  implementation writes the S-DSP registers, so it can be checked register for
+  register against the interpreted driver. The native mixer is then that
+  interface's second implementation. And drop the protocol in the native build:
+  commands become calls, the three status values the game polls become calls,
+  and a song's data is read from the asset accessors instead of uploaded.
+
+  Validation is per tick, not per call: run the port in lockstep with the
+  interpreted driver, one tick each time it starts one, fed the commands it took
+  that tick, and compare the DSP register writes and the status every tick of
+  every movie (`ct_dev --dsp-log` is the reference half). Once the port drives
+  the audio, a note stream (key ons with sample, pitch, envelope and volume)
+  compared between runs is the structural check target 4 allows (SOUND.md,
+  "Validating the port").
 - **A native mixer behind `au_*`.** BRR decoding, ADSR envelopes, echo and
   mixing, reading the same sample data the driver points at. This is the audio
   engine, not an emulator: it replaces `runtime/apu/dsp.c` in the shipped
-  product. Divergence in the last bits of a sample is accepted (target 4);
+  product. Everything the driver produces is S-DSP state (SOUND.md, "What
+  the port needs"), so its maths is `dsp.c`'s: start from that file's voice,
+  envelope and echo code behind the driver's voice-level interface, with the
+  register file and its polling cadence taken out. Divergence in the last bits of a sample is accepted (target 4);
   structure -- which note, which instrument, which envelope -- is not.
 - **Video fed by service calls.** P3's leftover: the observer fills in the
   per-span memory pointers the register decoder fills in now, so the renderer
