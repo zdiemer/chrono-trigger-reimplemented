@@ -3,6 +3,8 @@
 #ifndef CT_GAME_FIELD_H
 #define CT_GAME_FIELD_H
 
+#include <stdbool.h>
+
 #include "snes/system.h"
 
 /* field/interrupts.c */
@@ -32,6 +34,7 @@ void field_update_object_visibility(Snes *s);
 
 /* field/window_shape.c */
 void field_rasterize_quad(Snes *s);
+bool field_window_shape_table_in_place(Snes *s);
 
 /* field/scroll.c */
 void field_scroll_layers(Snes *s);

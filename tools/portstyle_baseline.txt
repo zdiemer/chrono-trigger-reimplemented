@@ -26,15 +26,11 @@ game/battle/window.c                         0.488
 game/core/input.c                            0.541
 game/data/decompress.c                       0.171
 game/field/display.c                         0.252
-game/field/graphics.c                        0.702
-game/field/layers.c                          0.409
 game/field/motion.c                          0.374
 game/field/nmi.c                             0.280
 game/field/object_update.c                   0.456
 game/field/objects.c                         0.124
-game/field/scroll.c                          0.525
 game/field/sprites.c                         0.473
-game/field/window_shape.c                    0.737
 game/menu/display.c                          0.427
 game/menu/epoch.c                            0.159
 game/menu/frame.c                            0.158

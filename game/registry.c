@@ -18,6 +18,7 @@
 #include "core/tile_animation.h"
 #include "data/decompress.h"
 #include "event/event.h"
+#include "field/bridge.h"
 #include "field/display.h"
 #include "field/field.h"
 #include "field/graphics.h"
@@ -928,9 +929,10 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0305D, .name = "field_line_up_with_tile", .fn = field_line_up_with_tile,
       NEEDS_M8_X16_BINARY, .cost_milli = 4865, .dont_care = DC_N | DC_Z },
     { .addr = 0xC30011, .name = "field_rasterize_quad", .fn = field_rasterize_quad,
-      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3016 },
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3016,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_window_shape_table_in_place },
     { .addr = 0xC02C41, .name = "field_scroll_layers", .fn = field_scroll_layers, NEEDS_M8_X16_BINARY,
-      .cost_milli = 4305, .dont_care = DC_N | DC_Z },
+      .cost_milli = 4305, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
       NEEDS_M8_X8_BINARY, .cost_milli = 5219, .dont_care = DC_X | DC_N | DC_Z },
     /* per-frame object update loop and its steps; 8-bit A and X */
@@ -963,18 +965,20 @@ const NativeEntry game_natives[] = {
       NEEDS_M8_X16_BINARY, .cost_milli = 3709, .dont_care = DC_X | DC_N | DC_Z | DC_C },
     /* layers */
     { .addr = 0xC07F9A, .name = "field_compute_layer_edges", .fn = field_compute_layer_edges,
-      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 2920, .dont_care = DC_N | DC_Z },
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 2920,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_layers_page },
     { .addr = 0xC091AC, .name = "field_update_layer_scroll", .fn = field_update_layer_scroll,
-      .p_mask = CPU_FLAG_M | CPU_FLAG_D, .p_value = CPU_FLAG_M, .cost_milli = 4339, .dont_care = DC_N | DC_Z },
+      .p_mask = CPU_FLAG_M | CPU_FLAG_D, .p_value = CPU_FLAG_M, .cost_milli = 4339,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_layers_page_low_bank },
     { .addr = 0xC0A521, .name = "field_unpack_tile_maps", .fn = field_unpack_tile_maps, NEEDS_M8_X16,
-      .cost_milli = 3963, .dont_care = DC_N | DC_Z },
+      .cost_milli = 3963, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_layers_page_io_bank },
     /* sprite graphics */
     { .addr = 0xC0E687, .name = "field_copy_sprite_tile", .fn = field_copy_sprite_tile, NEEDS_M16_X16_BINARY,
-      .cost_milli = 2926, .dont_care = DC_X | DC_N | DC_Z },
+      .cost_milli = 2926, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_on_page_io_bank },
     { .addr = 0xC0E534, .name = "field_copy_sprite_tile_flipped", .fn = field_copy_sprite_tile_flipped,
-      NEEDS_M16_X16, .cost_milli = 2809, .dont_care = DC_X | DC_N | DC_Z },
+      NEEDS_M16_X16, .cost_milli = 2809, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC0CB3A, .name = "field_read_animation_frame", .fn = field_read_animation_frame, NEEDS_M8_X8_BINARY,
-      .cost_milli = 3190, .dont_care = DC_N | DC_Z },
+      .cost_milli = 3190, .dont_care = DC_Y | DC_N | DC_Z, .guard = field_object_x_low_bank },
 
     /* menu */
     { .addr = 0xC25E89, .name = "menu_draw_glyph_pixel", .fn = menu_draw_glyph_pixel, NEEDS_M8_X16,

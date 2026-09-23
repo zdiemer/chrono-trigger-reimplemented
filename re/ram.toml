@@ -1469,10 +1469,10 @@ source = "game/event/memory.c write_through $C0:67E3"
 name = "event_scratch"
 addr = "7E:01D9"
 page = "field"
-size = 12
+size = 14
 subsystem = "event"
-meaning = "The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command keeps its operands and intermediate values there (event/script.h)"
-source = "game/event/script.h keep8, keep16"
+meaning = "The field page's scratch cells, $D9-$E6: each event command keeps its operands and intermediate values there (event/script.h), and the field's motion, sprite, layer and graphics routines their values on the way (field/scratch.h)"
+source = "game/event/script.h keep8, keep16; game/field/scratch.h"
 
 [[var]]
 name = "field_sprites_left"
@@ -1481,6 +1481,60 @@ page = "field"
 subsystem = "field"
 meaning = "Sprites of the current object still to write while the OAM table is built"
 source = "game/field/sprites.c, field_draw_object_sprites $C0:B309"
+
+[[var]]
+name = "field_work"
+addr = "7E:01C1"
+page = "field"
+size = 8
+subsystem = "field"
+meaning = "Cells the field's object, sprite and graphics routines keep values in on the way: an animation's delay entry ($C1), the view window's edges or an object's screen position ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7)"
+source = "game/field/graphics.c, game/field/objects.c, game/field/sprites.c, game/field/motion.c, game/field/object_update.c (field/scratch.h)"
+
+[[var]]
+name = "field_sprite_graphics"
+addr = "7E:01CD"
+page = "field"
+stride = 3
+subsystem = "field"
+meaning = "The graphics set the frame builder copies an object's sprite tiles from: a long pointer into the ROM's banks $D2-$D5 or bank $7F"
+source = "game/field/graphics.c, field_copy_sprite_tile $C0:E687, field_copy_sprite_tile_flipped $C0:E534"
+[[var.field]]
+name = "address"
+offset = 0
+size = 2
+meaning = "Its address in the bank"
+[[var.field]]
+name = "bank"
+offset = 2
+meaning = "The bank ($7F, or $D2-$D5)"
+
+[[var]]
+name = "field_sprite_tile_offset"
+addr = "7E:01D0"
+page = "field"
+size = 2
+subsystem = "field"
+meaning = "Where in bank $7F the frame builder puts the next sprite tile it copies"
+source = "game/field/graphics.c, field_copy_sprite_tile $C0:E687"
+
+[[var]]
+name = "field_frame_entry"
+addr = "7E:01D6"
+page = "field"
+stride = 3
+subsystem = "field"
+meaning = "A long pointer to an object's current animation frame entry: the frame read sets the address, its caller the bank"
+source = "game/field/graphics.c, field_read_animation_frame $C0:CB3A"
+[[var.field]]
+name = "address"
+offset = 0
+size = 2
+meaning = "The entry's address: the facing's frame table plus animation * 4 + frame"
+[[var.field]]
+name = "bank"
+offset = 2
+meaning = "The frame tables' bank"
 
 [[var]]
 name = "field_sprite_range_next"
@@ -2207,6 +2261,14 @@ meaning = "This frame's screen scroll step toward field_screen_scroll_target ($1
 source = "game/field/layers.c, field_update_layer_scroll $C0:91AC"
 
 [[var]]
+name = "field_layer_still"
+addr = "7E:1D36"
+page = "field_layers"
+subsystem = "field"
+meaning = "Bit 1: BG2, bit 2: BG3 stays where it is while the screen scrolls (its accumulators leave out the screen's steps and offsets)"
+source = "game/field/layers.c, field_update_layer_scroll $C0:91AC"
+
+[[var]]
 name = "field_layer_speed"
 addr = "7E:1D37"
 page = "field_layers"
@@ -2287,6 +2349,33 @@ meaning = "Horizontal"
 name = "y"
 offset = 1
 meaning = "Vertical"
+
+[[var]]
+name = "field_layer_work"
+addr = "7E:1D50"
+page = "field_layers"
+size = 14
+subsystem = "field"
+meaning = "Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and while a map unpacks its size, the row it is on and a run's three bytes (field/scratch.h: kept for the original's code and shadow mode)"
+source = "game/field/layers.c field_compute_layer_edges $C0:7F9A, field_unpack_tile_maps $C0:A521"
+
+[[var]]
+name = "field_layer_edge_wrap"
+addr = "7E:1D5E"
+page = "field_layers"
+size = 2
+subsystem = "field"
+meaning = "Where a layer's left edge column wraps round the tile map (its index less 31), set only by a layer whose left edge is the last column of a half, and read by every layer as its third VRAM address, whether it set it or not"
+source = "game/field/layers.c, field_compute_layer_edges $C0:7F9A"
+
+[[var]]
+name = "field_layer_edge_work"
+addr = "7E:1D60"
+page = "field_layers"
+size = 16
+subsystem = "field"
+meaning = "The edge helpers' cells ($62-$6F): the column and row they were given and the counts they return (field/scratch.h: kept for the original's code and shadow mode)"
+source = "game/field/layers.c, field_compute_layer_edges $C0:7F9A"
 
 [[var]]
 name = "field_layer_upload_flags"
@@ -2484,6 +2573,14 @@ meaning = "Row 0 of each layer's unpacked tile map, one byte per tile; row r lie
 source = "game/field/layers.c, field_unpack_tile_maps $C0:A521"
 
 [[var]]
+name = "field_tile_properties"
+addr = "7E:30C0"
+size = 0x40
+subsystem = "field"
+meaning = "Row 0 of the table a map unpacks from the first of its three bytes a tile, beside the two attribute tables (row r r * 256 on)"
+source = "game/field/layers.c, field_unpack_tile_maps $C0:A521"
+
+[[var]]
 name = "field_tile_attributes"
 addr = "7E:7000"
 size = 0x80
@@ -2523,10 +2620,29 @@ source = "game/field/layers.c, field_unpack_tile_maps $C0:A521"
 [[var]]
 name = "field_window_shape_table"
 addr = "7E:0350"
-size = 3
+page = "field_window_shape"
+stride = 3
 subsystem = "field"
-meaning = "24-bit pointer to the per-line table the quadrilateral is rasterized into (two bytes per line, left X then right X)"
+meaning = "Long pointer to the per-line table the quadrilateral is rasterized into (two bytes per line, left X then right X); the rasterizer moves it a byte on to draw the right-hand edges and back again"
 source = "game/field/window_shape.c, field_rasterize_quad $C3:0011"
+[[var.field]]
+name = "address"
+offset = 0
+size = 2
+meaning = "The table's address in its bank"
+[[var.field]]
+name = "bank"
+offset = 2
+meaning = "Its bank; bit 0 also picks the bank ($7E or $7F) the rasterizer fills the table's ends in"
+
+[[var]]
+name = "field_window_shape_edge"
+addr = "7E:0353"
+page = "field_window_shape"
+size = 8
+subsystem = "field"
+meaning = "The edge being drawn: the words X and Y of its start, then of its end, the start the upper end (field/scratch.h: kept for the original's code and shadow mode)"
+source = "game/field/window_shape.c, the edge routine $C3:1025"
 
 [[var]]
 name = "scene_circle_center_x"
@@ -2614,6 +2730,7 @@ source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 [[var]]
 name = "field_window_shape_corners"
 addr = "7E:0360"
+page = "field_window_shape"
 count = 4
 stride = 2
 index = "corner"
@@ -2631,6 +2748,33 @@ meaning = "Line"
 
 # ---- bank $7F -------------------------------------------------------------------
 
+
+[[var]]
+name = "field_window_shape_top"
+addr = "7E:0368"
+page = "field_window_shape"
+size = 2
+subsystem = "field"
+meaning = "The quadrilateral's top line: its topmost corner's Y. The lines above it are filled as empty"
+source = "game/field/window_shape.c, field_rasterize_quad $C3:0011"
+
+[[var]]
+name = "field_window_shape_right_start"
+addr = "7E:036A"
+page = "field_window_shape"
+size = 2
+subsystem = "field"
+meaning = "Where the quadrilateral's right-hand side starts: the lower end of the first edge drawn upward. The lines below it are filled as empty"
+source = "game/field/window_shape.c, field_rasterize_quad $C3:0011"
+
+[[var]]
+name = "field_window_shape_steps"
+addr = "7E:03F0"
+page = "field_window_shape"
+size = 14
+subsystem = "field"
+meaning = "The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC) (field/scratch.h: kept for the original's code and shadow mode)"
+source = "game/field/window_shape.c, field_rasterize_quad $C3:0011 and the edge routine $C3:1025"
 [[var]]
 name = "event_memory"
 addr = "7F:0000"

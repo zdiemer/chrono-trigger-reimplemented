@@ -3788,3 +3788,80 @@ subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
 why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+# ---- field: banks C0, C3 and FD (the field's own routines) -----------------------------------------
+#
+# The field's routines run on its page (D = $0100) or its layers' page
+# ($1D00), with the data bank $00; objects are slots doubled, in X or in the
+# current object ($016D). The rewrite's guards accept only those (an odd
+# object is turned away, and counted in the skipped column), so the plain
+# entries pin the page and the bank, and leave the rest random: pointers and
+# cursors the routines follow land where they will, on the cells they write
+# too, which is where a reordered access shows.
+
+[[routine]]
+name = "field_scroll_layers"
+subsystem = "field"
+state = "field"
+args = ["--long"]
+why = "sets its own page and bank; everything else random"
+
+[[routine]]
+name = "field_copy_sprite_tile"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and a bank reaching the work RAM port; the graphics set, the tile and the build offset random"
+
+[[routine]]
+name = "field_copy_sprite_tile_flipped"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and bank $00 (the mirror table); the port's cursor random, so the tile can land on the pointer it is read through"
+
+[[routine]]
+name = "field_read_animation_frame"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object in X random (the guard turns away odd ones), the frame table's bank random"
+
+[[routine]]
+name = "field_rasterize_quad"
+subsystem = "field"
+state = "field"
+args = ["--long", "--fill", "7E0350-7E0350=C8-C8", "--fill", "7E0351-7E0351=17-17", "--fill", "7E0352-7E0352=7F-7F", "--fill", "7E036B-7E036B=00-00"]
+iterations = 10000
+why = "the table where the game puts it ($7F:17C8) and the right-hand side's start a line; the corners random"
+
+[[routine]]
+name = "field_rasterize_quad"
+variant = "loose"
+subsystem = "field"
+state = "field"
+args = ["--long", "--fill", "7E0352-7E0352=7F-7F", "--fill", "7E036B-7E036B=00-00"]
+iterations = 10000
+why = "the table anywhere in bank $7F, where its writes can land on each other and on the corners' copy; the guard takes only a table clear of the bank's end, and a table in bank $7E, whose fill can run over the stack, is refused (field/window_shape.c)"
+
+[[routine]]
+name = "field_compute_layer_edges"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00"]
+why = "the layers' page; the positions and bases random"
+
+[[routine]]
+name = "field_update_layer_scroll"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00"]
+why = "the layers' page and a bank reaching low RAM; the scroll state random"
+
+[[routine]]
+name = "field_unpack_tile_maps"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00"]
+iterations = 2000
+why = "the layers' page and a bank reaching the work RAM port; the map sizes random, so a big map's attribute tables run over the stream still to be read and the stream wraps round the banks"

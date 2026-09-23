@@ -37,6 +37,7 @@
 #include "field/field_data.h"
 #include "platform/video.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
 #include "ram.h"
 
 /* ---- Tables ------------------------------------------------------------------------- */
@@ -291,7 +292,7 @@ static Exit send_scroll(Snes *s, uint8_t set, uint16_t x, bool carry, bool overf
         uint16_t start = phase & 0x3E;
         uint32_t lines = wave(set);
         for (uint16_t i = 0; i < WAVE_LINES; i++) {
-            uint16_t offset = field_wave_offset(s, (uint16_t)(start + i * WAVE_ENTRY));
+            uint16_t offset = field_wave_offset(state_of(s), (uint16_t)(start + i * WAVE_ENTRY));
             uint32_t sum = (uint32_t)offset + bg3_h + carry;
             uint16_t h = (uint16_t)sum;
             overflow = (~(offset ^ bg3_h) & (offset ^ h) & 0x8000) != 0;

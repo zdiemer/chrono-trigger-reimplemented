@@ -83,6 +83,7 @@ add_library(ct_game STATIC
   game/event/screen.c
   game/event/sound.c
   game/event/variables.c
+  game/field/bridge.c
   game/field/display.c
   game/field/frame.c
   game/field/graphics.c
