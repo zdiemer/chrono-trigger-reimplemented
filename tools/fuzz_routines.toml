@@ -4240,3 +4240,32 @@ subsystem = "field"
 state = "field"
 args = ["--db", "00"]
 why = "a bank reaching the registers; the column upload or the tile animation runs as a call-out"
+
+[[routine]]
+name = "field_install_nmi"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching low RAM"
+
+[[routine]]
+name = "field_install_irq"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching low RAM"
+
+[[routine]]
+name = "field_nmi"
+subsystem = "field"
+state = "field"
+args = ["--interrupt", "--db", "00", "--keep", "7E0100-7E01FF", "--keep", "7E0900-7E09FF", "--keep", "7E1D00-7E1DFF"]
+iterations = 2000
+why = "the field's cells as the field state has them (random transitions send the call-outs anywhere); the frame's work runs as call-outs"
+
+[[routine]]
+name = "field_wait_for_frame_loop"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching low RAM"

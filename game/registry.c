@@ -903,11 +903,11 @@ const NativeEntry game_natives[] = {
 
     /* field */
     { .addr = 0xC00B64, .name = "field_install_nmi", .fn = field_install_nmi,
-      NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_N | DC_Z | DC_D },
+      NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D, .guard = field_bank_low_ram },
     { .addr = 0xC00B75, .name = "field_install_irq", .fn = field_install_irq,
-      NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_N | DC_Z | DC_D },
+      NEEDS_M8_X16, .cost_milli = 3500, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D, .guard = field_bank_low_ram },
     { .addr = 0xC0EA63, .name = "field_nmi", .fn = field_nmi, .cost_milli = 4023 },
-    { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true },
+    { .addr = 0xC0EC71, .name = "field_wait_for_frame_loop", .fn = field_wait_for_frame_loop, NEEDS_M8, .idle = true, .guard = field_bank_low_ram },
     { .addr = 0xC03B71, .name = "field_change_location_wait_for_vblank_loop",
       .fn = field_change_location_wait_for_vblank_loop, NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
     { .addr = 0xC04181, .name = "field_restart_wait_for_vblank_loop", .fn = field_restart_wait_for_vblank_loop,

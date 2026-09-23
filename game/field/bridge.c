@@ -15,6 +15,8 @@ unsigned field_current_object_slot(Snes *s)
     return (unsigned)((m_x8(s) ? (uint8_t)object : object) >> 1);
 }
 
+bool field_bank_low_ram(Snes *s) { return m_bank_reaches_low_ram(s); }
+
 bool field_on_page(Snes *s) { return m_direct_page(s) == FIELD_PAGE; }
 bool field_on_page_io_bank(Snes *s) { return field_on_page(s) && m_bank_reaches_io(s); }
 bool field_on_page_low_bank(Snes *s) { return field_on_page(s) && m_bank_reaches_low_ram(s); }

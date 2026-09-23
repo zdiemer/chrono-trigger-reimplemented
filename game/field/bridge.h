@@ -46,6 +46,9 @@ bool field_machine_back(const Snes *s, bool x8, uint16_t d, uint8_t db);
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 
+/* The data bank reaches low RAM, on any page. */
+bool field_bank_low_ram(Snes *s);
+
 /* On the field's page, and the data bank reaches... */
 bool field_on_page(Snes *s);
 bool field_on_page_io_bank(Snes *s);         /* the I/O registers */
