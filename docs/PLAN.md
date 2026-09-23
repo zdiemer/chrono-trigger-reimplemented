@@ -93,6 +93,17 @@ emulated work RAM, and shadow mode is replaced for that subsystem by the routes
 and the gameplay tests. Until that point the gate holds, in full. Retiring it
 early, or by accident, is the one failure this plan is most concerned with.
 
+**A guard becomes an assertion when the gate retires.** While the emulator is
+there, a port's guard refusing a state is harmless: the original runs it, so
+the product stays exact, and the rewrites lean on that -- event's guards turned
+away 4.2 million of the 7.3 million states its fuzzing drew, all of them states
+no movie produces (per-entry shadow totals match the predecessor's on every
+entry). A native build has no original to hand a refused call to. So when a
+subsystem retires the gate, each of its guards becomes a claim that the game
+never produces that state, and it is checked as one: over the routes and the
+movie library first, then as an assertion in the build, where a refusal is a
+bug to fix in the port rather than a call to pass on.
+
 ### Working order
 
 Phases in order, work within them in parallel. A phase's items can run side by
