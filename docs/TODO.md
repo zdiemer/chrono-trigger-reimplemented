@@ -53,6 +53,41 @@ rest waits, is [PLAN.md](PLAN.md).
 - **The last of `$CF`**: `$CF:FAE2` (259 bytes) and `$CF:FD9E` (231) are the
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
+## Phase 3a work in flight
+
+- **Event's second round, from its first qualitative review** (branch
+  `event-shadow`, which has the C dispatch table and the marked scaffolding,
+  gated but not merged). The review rated `sound.c` and `movement.c`
+  translation, so the branch doesn't merge until a fresh review passes it:
+  - **Make the C table the only dispatch.** The engine still reads the ROM's
+    handler table for every command, as a timing tag, unmarked. The bridge
+    commands (moves, sound, party, tile copies, face-toward) have no rows and
+    still go through an emulated `JSR` to their ROM address. `flow.c` and
+    `movement.c` call sibling ports by ROM address.
+  - **Move the scaffolding columns** (`.parse`, `.keeps`, `.overflow`, ...) out
+    of the language's rows into a table that compiles out.
+  - **`movement.c`:** its "decisions" rebuild CPU flags (an 8-bit add's carry,
+    V returned from `rise`). The flags a still-generated callee reads belong in
+    the bridge that makes the call, naming the callee. It also uses RAM cells as
+    registers and reads operands by position.
+  - **`sound.c`:** it fabricates registers and flags before every audio call,
+    uses raw driver command bytes, and names its waits after APU ports. The
+    driver commands want names in `runtime/platform/audio.h`.
+  - **The turn loop** comes out of `Snes *` as plain C around a fallback.
+  - **About fifteen smaller findings:** duplicated flows, positional operands,
+    entry names that disagree with operation names, stale `re/ram.toml`
+    sources, register-byte tint and priority constants.
+  - Deferred to the field-object pass: one field-object vocabulary (the same
+    bits defined differently across files, a `Facing` enum, `well_on_screen`
+    written twice).
+- **Field's rewrite** (branch `field-3a`) was stopped mid-refactor by the usage
+  limit. Seven gated-in-progress commits cover the layers and rasterizer, a
+  domain module for objects' animation and motion, the object update, sprites,
+  line effects, display and the vblank handler. They are followed by a WIP
+  commit (not built or validated) of the display, NMI and line-effects work in
+  progress. It still needs finishing, the full gate, the differential fuzz, and
+  its qualitative review.
+
 ## Recompiler
 
 - **M4**: skip flags nobody reads, call generated blocks directly where it's
