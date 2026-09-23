@@ -25,4 +25,12 @@ static inline GameState *state_of(Snes *s) { return (GameState *)s; }
  * machine comes back unqualified. */
 static inline Snes *state_snes(const GameState *g) { return (Snes *)(void *)g; }
 
+/* A registry guard runs between the original's instructions, in the
+ * machine's time, and may look at the game's state to decide whether the
+ * port is the same routine there. While it does (vars_peek(true) ... false),
+ * the accessors' reads take none of that time and leave the bus as it was
+ * (snes_bus_peek): otherwise the time would land in shadow mode's record of
+ * the original's run, which the generated blocks are checked against. */
+void vars_peek(bool on);
+
 #endif

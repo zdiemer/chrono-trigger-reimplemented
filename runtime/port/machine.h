@@ -47,6 +47,10 @@ static inline bool m_io_bank(uint8_t bank) { return (bank & 0x40) == 0; }
 static inline bool m_bank_reaches_io(const Snes *s) { return m_io_bank(s->cpu.db); }
 static inline bool m_bank_reaches_low_ram(const Snes *s) { return s->cpu.db == 0x7E || m_io_bank(s->cpu.db); }
 static inline uint16_t m_direct_page(const Snes *s) { return s->cpu.d; }
+/* The data bank is $00 or its FastROM mirror $80: absolute addresses reach
+ * low RAM and the I/O registers below $8000, and the ROM's first bank ($C0)
+ * above. */
+static inline bool m_bank_is_zero(const Snes *s) { return (s->cpu.db & 0x7F) == 0; }
 
 /* Direct pages the original sometimes puts on the I/O block so that it can
  * reach registers with direct-page addressing. A port reproduces the value in

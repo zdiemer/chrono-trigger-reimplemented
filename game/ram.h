@@ -93,15 +93,26 @@
 #define RAM_LOCATION_ID 0x7E0100u            /* 16-bit value whose low 9 bits are the location number */
 #define RAM_LOCATION_X 0x7E0102u             /* Where the party stands across the location, in 8x8 tiles */
 #define RAM_LOCATION_Y 0x7E0103u             /* And down it */
+#define RAM_LOCATION_FLAGS 0x7E0104u         /* The id word's high byte, its bits 1-4 shifted down to bits 0-3 and its bit 7 kept (how the change is made) */
 /* The location before the last immediate location change (a location triple) [5 bytes] */
 #define RAM_LOCATION_PREVIOUS 0x7E0105u
 #define RAM_LOCATION_PREVIOUS_DP 0x05u       /* page field */
 #define RAM_LOCATION_PREVIOUS_ID 0x7E0105u   /* 16-bit value whose low 9 bits are the location number */
+/* A location triple event $DC keeps (the field's start reads it, $C0:02F9) [5 bytes] */
+#define RAM_LOCATION_STORED 0x7E010Au
+#define RAM_LOCATION_STORED_DP 0x0Au         /* page field */
+#define RAM_LOCATION_STORED_ID 0x7E010Au     /* 16-bit value whose low 9 bits are the location number */
+#define RAM_LOCATION_STORED_X 0x7E010Cu      /* Where the party stands across the location, in 8x8 tiles */
+#define RAM_LOCATION_STORED_Y 0x7E010Du      /* And down it */
+#define RAM_LOCATION_STORED_FLAGS 0x7E010Eu  /* The id word's high byte, its bits 1-4 shifted down to bits 0-3 and its bit 7 kept */
 /* The location a pending location change goes to (a location triple); the field main loop acts
  * on it once bit 7 of $0117 is set [5 bytes] */
 #define RAM_LOCATION_NEXT 0x7E0112u
 #define RAM_LOCATION_NEXT_DP 0x12u           /* page field */
 #define RAM_LOCATION_NEXT_ID 0x7E0112u       /* 16-bit value whose low 9 bits are the location number */
+#define RAM_LOCATION_NEXT_X 0x7E0114u        /* Where the party will stand across the location, in 8x8 tiles */
+#define RAM_LOCATION_NEXT_Y 0x7E0115u        /* And down it */
+#define RAM_LOCATION_NEXT_FLAGS 0x7E0116u    /* The id word's high byte, its bits 1-4 shifted down to bits 0-3 and its bit 7 kept (how the change is made) */
 /* The play time clock, advanced every frame by the per-frame input work; each digit wraps at its
  * limit from $C2:85D0 [6 bytes] */
 #define RAM_PLAY_TIME 0x7E0400u
@@ -382,6 +393,27 @@
 /* Object count * 2, the end of the slot loops [2 bytes] */
 #define RAM_EVENT_OBJECT_END 0x7E01BDu
 #define RAM_EVENT_OBJECT_END_DP 0xBDu        /* page field */
+/* A command's count: the bytes event $4E copies, less one; event $7A keeps its height operand in
+ * the low byte [2 bytes] */
+#define RAM_EVENT_COUNT 0x7E01C1u
+#define RAM_EVENT_COUNT_DP 0xC1u             /* page field */
+/* The offset of a comparison command's jump byte, where it goes on from [2 bytes] */
+#define RAM_EVENT_CONDITION_RESUME 0x7E01C3u
+#define RAM_EVENT_CONDITION_RESUME_DP 0xC3u  /* page field */
+/* Where a command goes on, kept across its calls into other code (the moves, sound, the party
+ * routines) [2 bytes] */
+#define RAM_EVENT_SAVED_POSITION 0x7E01C7u
+#define RAM_EVENT_SAVED_POSITION_DP 0xC7u    /* page field */
+/* The 24-bit pointer events $48 and $49 read through [3 bytes] */
+#define RAM_EVENT_SOURCE_POINTER 0x7E01CDu
+#define RAM_EVENT_SOURCE_POINTER_DP 0xCDu    /* page field */
+/* The 24-bit pointer events $4A-$4D write through [3 bytes] */
+#define RAM_EVENT_TARGET_POINTER 0x7E01D0u
+#define RAM_EVENT_TARGET_POINTER_DP 0xD0u    /* page field */
+/* The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command
+ * keeps its operands and intermediate values there (event/script.h) [12 bytes] */
+#define RAM_EVENT_SCRATCH 0x7E01D9u
+#define RAM_EVENT_SCRATCH_DP 0xD9u           /* page field */
 /* Offset in the script buffer where the object's script resumes [64 x $2 bytes, by object slot
  * (X = slot * 2)] */
 #define RAM_EVENT_OBJECT_SCRIPT_POSITION 0x7E1180u
@@ -424,8 +456,9 @@
 #define RAM_EVENT_OBJECT_RESULT_STRIDE 0x02u
 /* Number of objects in the current map's event script */
 #define RAM_EVENT_OBJECT_COUNT 0x7F2000u
-/* Start of the current map's decompressed event script: 16 function offsets per object, then the
- * code */
+/* The current map's decompressed event script: 16 function offsets per object, then the code.
+ * Script offsets are 16-bit from here, so they reach the end of the bank; the command runs the
+ * engine copies to $7F:3700 are run from here too [57343 bytes] */
 #define RAM_EVENT_SCRIPT 0x7F2001u
 
 /* ---- field --------------------------------------------------------------------------------- */
@@ -450,6 +483,14 @@
 /* Rate of a gradual brightness change (event $F0's low nibble, written to both bytes) [2 bytes] */
 #define RAM_FIELD_BRIGHTNESS_RATE 0x7E011Cu
 #define RAM_FIELD_BRIGHTNESS_RATE_DP 0x1Cu   /* page field */
+/* Set to 1 by events $DE and $DF with the location they set; cleared at $C0:2842 and $C0:2866,
+ * returned by $C0:28A7 and ANDed at $C0:7628 and on */
+#define RAM_FIELD_SETTING_1E 0x7E011Eu
+#define RAM_FIELD_SETTING_1E_DP 0x1Eu        /* page field */
+/* Nonzero while the player controls the party: only then does Start pause the field ($C0:18D9);
+ * event $E3 sets it, a battle ($D8) and a screen scroll ($E7) clear it */
+#define RAM_FIELD_PLAYER_CONTROL 0x7E011Fu
+#define RAM_FIELD_PLAYER_CONTROL_DP 0x1Fu    /* page field */
 /* Fixed color shadow (channel bits 5-7, intensity 0-4) the field NMI writes every frame */
 #define RAM_FIELD_FIXED_COLOR 0x7E0121u
 #define RAM_FIELD_FIXED_COLOR_DP 0x21u       /* page field */
@@ -487,12 +528,28 @@
 /* Dialog box position: 1 top of the screen, 2 bottom, 0 the default commands */
 #define RAM_DIALOG_BOX_POSITION 0x7E0130u
 #define RAM_DIALOG_BOX_POSITION_DP 0x30u     /* page field */
+/* The object the open dialog window is placed by: cleared when a dialog starts, then taken from
+ * dialog_speaker ($C0:9193) */
+#define RAM_DIALOG_WINDOW_OBJECT 0x7E0132u
+#define RAM_DIALOG_WINDOW_OBJECT_DP 0x32u    /* page field */
 /* Nonzero: the field NMI runs the fade step $C0:6ECB; bit 7 makes it a one-shot (cleared first) */
 #define RAM_FIELD_FADE_REQUEST 0x7E0136u
 #define RAM_FIELD_FADE_REQUEST_DP 0x36u      /* page field */
+/* Nonzero: event $B0 runs no state routine and waits (set at $C0:177F and $C0:A496) */
+#define RAM_FIELD_STATE_ROUTINE_HOLD 0x7E0138u
+#define RAM_FIELD_STATE_ROUTINE_HOLD_DP 0x38u /* page field */
 /* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left */
 #define RAM_FIELD_WINDOW2_EDGE 0x7E013Cu
 #define RAM_FIELD_WINDOW2_EDGE_DP 0x3Cu      /* page field */
+/* A copy of map tiles events $E4 and $E5 describe, which $C0:AF4E makes (now, or from the field
+ * main loop) [8 bytes] */
+#define RAM_FIELD_TILE_COPY 0x7E013Eu
+#define RAM_FIELD_TILE_COPY_DP 0x3Eu         /* page field */
+#define RAM_FIELD_TILE_COPY_FROM 0x7E013Eu   /* The source rectangle's top left tile (x, then y) */
+#define RAM_FIELD_TILE_COPY_TO 0x7E0140u     /* Its bottom right tile */
+#define RAM_FIELD_TILE_COPY_DESTINATION 0x7E0142u /* The destination's top left tile */
+#define RAM_FIELD_TILE_COPY_MAPS 0x7E0144u   /* Which maps to copy in: one bit per layer map and attribute table */
+#define RAM_FIELD_TILE_COPY_QUEUED_MAPS 0x7E0145u /* The low 3 bits of maps, for a copy queued by event $E5 */
 /* Map transition request the field NMI runs: 1-4 load a destination from field_layer_map_base
  * and $1D82, bits 3-5 other transition steps */
 #define RAM_FIELD_MAP_TRANSITION 0x7E0146u
@@ -520,15 +577,29 @@
  * IRQ's tilemap routine ($FD:FFFD instead of $C0:ED15) */
 #define RAM_FIELD_DISPLAY_FLAGS 0x7E0153u
 #define RAM_FIELD_DISPLAY_FLAGS_DP 0x53u     /* page field */
+/* Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog
+ * (and set when $C0:1F0E opens one) */
+#define RAM_FIELD_MODE_FLAGS 0x7E0154u
+#define RAM_FIELD_MODE_FLAGS_DP 0x54u        /* page field */
 /* 1 while a dialog with choices runs */
 #define RAM_DIALOG_CHOICE_ACTIVE 0x7E0162u
 #define RAM_DIALOG_CHOICE_ACTIVE_DP 0x62u    /* page field */
 /* Which of the four window tile pairs gets the alternate tiles $28FC-$28FF (0-3); $80 none */
 #define RAM_FIELD_WINDOW_TILE_SLOT 0x7E0163u
 #define RAM_FIELD_WINDOW_TILE_SLOT_DP 0x63u  /* page field */
+/* The last line of a dialog's choices (the choice cursor stops there, $C0:1B25) */
+#define RAM_DIALOG_CHOICE_LAST 0x7E0164u
+#define RAM_DIALOG_CHOICE_LAST_DP 0x64u      /* page field */
+/* The first line of a dialog's choices */
+#define RAM_DIALOG_CHOICE_FIRST 0x7E0165u
+#define RAM_DIALOG_CHOICE_FIRST_DP 0x65u     /* page field */
 /* The choice made in a dialog with choices, copied to the object's event_object_result */
 #define RAM_DIALOG_CHOICE 0x7E0166u
 #define RAM_DIALOG_CHOICE_DP 0x66u           /* page field */
+/* The scanline the objects' animation updates stop at each frame ($C0:CA99; $0078 after a map
+ * loads, $C0:56AB); event $47 sets its low byte [2 bytes] */
+#define RAM_FIELD_ANIMATION_LINE_LIMIT 0x7E016Bu
+#define RAM_FIELD_ANIMATION_LINE_LIMIT_DP 0x6Bu /* page field */
 /* Slot (* 2) of the object being run, updated or drawn: the script engine's current object and
  * the object loops' index [2 bytes] */
 #define RAM_FIELD_CURRENT_OBJECT 0x7E016Du
@@ -558,6 +629,10 @@
 #define RAM_FIELD_PARTY_OBJECTS_COUNT 3u
 #define RAM_FIELD_PARTY_OBJECTS_STRIDE 0x02u
 #define RAM_FIELD_PARTY_OBJECTS_DP 0x97u     /* page field */
+/* Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts
+ * ($C0:0BA4); what reads it isn't established */
+#define RAM_FIELD_SETTING_BC 0x7E01BCu
+#define RAM_FIELD_SETTING_BC_DP 0xBCu        /* page field */
 /* Sprites of the current object still to write while the OAM table is built */
 #define RAM_FIELD_SPRITES_LEFT 0x7E01C9u
 #define RAM_FIELD_SPRITES_LEFT_DP 0xC9u      /* page field */
@@ -568,11 +643,13 @@
 #define RAM_FIELD_SPRITE_RANGE_NEXT_COUNT 3u
 #define RAM_FIELD_SPRITE_RANGE_NEXT_STRIDE 0x02u
 #define RAM_FIELD_SPRITE_RANGE_NEXT_DP 0xDBu /* page field */
-/* Slot of the object a move approaches, or that field_object_in_the_way found blocking */
+/* Slot of the object a move approaches (doubled, a word, as the event moves keep it), or that
+ * field_object_in_the_way found blocking [2 bytes] */
 #define RAM_FIELD_TARGET_OBJECT 0x7E01E9u
 #define RAM_FIELD_TARGET_OBJECT_DP 0xE9u     /* page field */
-/* Direction ($00/$40/$80/$C0 quadrants) field_direction_to_target computes and field_start_step
- * moves in */
+/* Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) field_direction_to_target computes and
+ * field_start_step moves in; a word whose high byte field_direction_to_target clears, which the
+ * facing lookups index with [2 bytes] */
 #define RAM_FIELD_DIRECTION 0x7E01EEu
 #define RAM_FIELD_DIRECTION_DP 0xEEu         /* page field */
 /* Tile the direction is computed from [2 bytes] */
@@ -694,6 +771,12 @@
 #define RAM_FIELD_OBJECT_IN_VIEW 0x7E0F00u
 #define RAM_FIELD_OBJECT_IN_VIEW_COUNT 64u
 #define RAM_FIELD_OBJECT_IN_VIEW_STRIDE 0x02u
+/* A byte per object the field hands the battle with the party's and enemies' placement ($C0:0453
+ * into $7E:29B4, $C0:083B from $7E:29C3); event $8E sets it to $FF [64 x $2 bytes, by object
+ * slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_BATTLE_INFO 0x7E0F01u
+#define RAM_FIELD_OBJECT_BATTLE_INFO_COUNT 64u
+#define RAM_FIELD_OBJECT_BATTLE_INFO_STRIDE 0x02u
 /* Sprite priority mode: bit 7 takes the priority from the map tile, else bits 0-1 and 4-5 give
  * it; bits 2-3 pick the OAM range [64 x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_PRIORITY_MODE 0x7E0F80u
@@ -704,6 +787,12 @@
 #define RAM_FIELD_OBJECT_STEP_LENGTH 0x7E1000u
 #define RAM_FIELD_OBJECT_STEP_LENGTH_COUNT 64u
 #define RAM_FIELD_OBJECT_STEP_LENGTH_STRIDE 0x02u
+/* Set with field_object_step_length by event $87 and cleared by the party's scripted moves
+ * ($C0:31AA and on); what reads it isn't established [64 x $2 bytes, by object slot (X = slot *
+ * 2)] */
+#define RAM_FIELD_OBJECT_STEP_COUNT 0x7E1001u
+#define RAM_FIELD_OBJECT_STEP_COUNT_COUNT 64u
+#define RAM_FIELD_OBJECT_STEP_COUNT_STRIDE 0x02u
 /* Next object in the animation queue (negative: not queued) [64 x $2 bytes, by object slot (X =
  * slot * 2)] */
 #define RAM_FIELD_OBJECT_ANIMATION_LINK 0x7E1081u
@@ -1859,6 +1948,9 @@
 #define RAM_BATTLE_ENEMY_PLACEMENT_ENEMY 0x7E29C4u /* Enemy number (index of the enemy's 10-byte entry at $E4:F600); high byte negative: no enemy */
 #define RAM_BATTLE_ENEMY_PLACEMENT_KIND 0x7E29C6u /* Bits 0-2 the graphics kind, bit 7 the enemy starts hidden */
 #define RAM_BATTLE_ENEMY_PLACEMENT_PALETTE 0x7E29C7u /* Sprite palette (doubled into $9888/$993C) */
+/* Flags the event hands the battle with battle_setup_flags (event $D8's second operand): with
+ * bit 6 the battle keeps the field's song ($CD:03CC) */
+#define RAM_BATTLE_EVENT_FLAGS 0x7E2A1Fu
 /* How the battle's background behaves: bit 0 the HP gradient runs each frame, bit 1 palette
  * animation slot 7 follows the sprite palette row swap */
 #define RAM_BATTLE_BACKGROUND_FLAGS 0x7E2A21u

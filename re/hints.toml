@@ -549,7 +549,7 @@ derive = "eventscript.if_var_var"
 [[jumptable]]
 at = "C0:6433"
 count = 16
-derive = "eventscript.if_mem_const"
+derive = "eventscript.if_memory"
 
 # C0:633D, C0:63D7, table C0:6477: The same list as C0:6467 from its entry 8 on:
 # it runs up to code at C0:6487.

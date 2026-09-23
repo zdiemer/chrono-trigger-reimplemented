@@ -218,6 +218,11 @@ class Analysis(unittest.TestCase):
         # a 16-bit store after it reads both
         lv = self.php("60", after_call="C220EB853060")        # RTS ; caller REP #$20 : XBA : STA $30
         self.assertEqual(lv.ret_live[0xC08010] & AW, AW)
+        # a 16-bit AND #$00FF sets the high byte whatever it held: it reads the low byte alone
+        lv = self.php("60", after_call="C22029FF00853060")    # RTS ; caller REP #$20 : AND #$00FF : STA $30
+        self.assertEqual(lv.ret_live[0xC08010] & AW, A)
+        lv = self.php("60", after_call="C2202900FF853060")    # AND #$FF00 keeps the high byte
+        self.assertEqual(lv.ret_live[0xC08010] & AW, AW)
         # a 16-bit TAX reads both, an 8-bit one the low byte (m8 x16 then x8)
         lv = self.php("60", after_call="AA60")
         self.assertEqual(lv.ret_live[0xC08010] & AW, A)       # entered x8

@@ -1,374 +1,588 @@
-/* Event commands: moving objects around the map.
+/* Event commands: moving the running object about the map.
  *
- * Object tables, indexed by slot, as these commands use them: $1100 state
- * (negative: skip the target), $1600 facing, $1801/$1881 tile X/Y, $1000 the
- * step count a move starts with, $1A01 steps left (the command waits while
- * nonzero), $1A80 set while a counted move runs, $1C81 flags choosing an extra
- * routine on arrival.
+ * A move is a number of steps (field_object_steps_left) the field's object
+ * update makes one a frame, at the velocity field_start_step sets from the
+ * direction in field_direction; a move command stays on itself while one runs.
+ * Toward a tile or an object, a command makes one step's worth of move at a
+ * time and looks again, until it stands on the tile or next to the object;
+ * a counted move makes one move of a given number of steps. An object may
+ * turn to face the way it moves, and runs the walking and standing
+ * animations; the "keep facing" commands do neither. On arrival, the
+ * object's arrival flags can ask for it to be lined up with the tile or the
+ * object, which takes steps of its own.
  *
- * The motion routines these commands call are in field/motion.c and are
- * reached through call-outs: $C0:ABA2 (field_direction_to_target) sets $EE,
- * which indexes the facing table at $F700; $C0:5B95 (field_object_in_the_way)
- * returns carry set when another object blocks the way, and the command then
- * turns by $30; $C0:ACFD (field_start_step) sets the velocity; $C0:5614 and
- * $C0:568B pick the walking and standing animations; $C0:30B3 and $C0:305D
- * line the object up on arrival when its $1C81 flags ask for it, carry set
- * meaning a step is still needed. */
-#include "event/event.h"
+ * The motion itself is the field's, and still the original's code these
+ * commands call out to: field_direction_to_target ($C0:ABA2), which turns the
+ * own and target tiles into a direction; field_object_in_the_way ($C0:5B95),
+ * carry set when another object blocks it (the command then turns by $30);
+ * field_start_step ($C0:ACFD) and field_set_velocity ($C0:AC69);
+ * field_update_walk_animation ($C0:5614) and field_stand_animation
+ * ($C0:568B); and field_line_up_with_tile ($C0:305D) and
+ * field_line_up_with_object ($C0:30B3), carry set while a step is still
+ * needed. So these commands are bridges: the decisions are plain C over the
+ * game's state, and the calls are made with the registers the original has
+ * at each (the running object in X for the two that read it; the command's
+ * offset in Y, which the callees carry back). The command's offset after a
+ * call is the one the callee leaves in Y, as the original's is; and where
+ * the original adds or subtracts between calls, the overflow it leaves is
+ * put in V for the calls after, which carry it to the command's return. */
+#include "cpu_io.h"
+#include "event/bridge.h"
+#include "event/event_data.h"
 
-#include "event/script.h"
+enum { COUNTED_MOVE_RUNNING = 1, CROSS_TILES = 0x80 };
+enum { LINE_UP_ON_TILE = 0x01, LINE_UP_ON_OBJECT = 0x02 };   /* field_object_arrival_flags */
+enum { TURN_ASIDE = 0x30 };   /* what a blocked move turns by, a byte to a turn */
 
-enum {
-    STATE = 0x1100,
-    FACING = 0x1600,
-    STEP_LENGTH = 0x1000,
-    TILE_X = 0x1801,
-    TILE_Y = 0x1881,
-    STEPS_LEFT = 0x1A01,
-    COUNTED_MOVE = 0x1A80,
-    ARRIVAL_FLAGS = 0x1C81,
-    STEP_SPEED = 0x0B00,        /* in bank $7F */
-};
+/* ---- The decisions --------------------------------------------------------------------- */
 
-enum { DP_TARGET_X = 0xF2, DP_TARGET_Y = 0xF3, DP_OWN_X = 0xF0, DP_OWN_Y = 0xF1, DP_TARGET = 0xE9,
-       DP_DIRECTION = 0xEE, DP_SAVED_Y = 0xC7 };
+static bool disabled(const GameState *g, unsigned object) { return field_object_state_state(g, object) & 0x80; }
 
-/* Call out. False if the callee didn't return with 8-bit A and the expected X
- * width: the port then stops, at the call's return address, and the original
- * carries on from there. */
-static bool call(Snes *s, uint32_t site, uint32_t target, bool x8)
+static bool still_moving(const GameState *g) { return field_object_steps_left(g, current_object(g)) != 0; }
+
+typedef enum { MOVE_FRESH, MOVE_RUNNING, MOVE_DONE } CountedMove;
+
+/* A counted move's progress: none started, one running, or one just over
+ * (whose mark is then taken away). */
+static CountedMove counted_move(GameState *g)
 {
-    m_jsr(s, site, target);
-    return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == (CPU_FLAG_M | (x8 ? CPU_FLAG_X : 0));
+    unsigned self = current_object(g);
+    if (field_object_counted_move(g, self) == 0)
+        return MOVE_FRESH;
+    if (field_object_steps_left(g, self) != 0)
+        return MOVE_RUNNING;
+    set_field_object_counted_move(g, self, 0);
+    return MOVE_DONE;
 }
 
-/* TYX : CLC : RTS -- end the turn, staying on this command. */
-static void stay(Snes *s)
+/* The tiles field_direction_to_target works from: the running object's, and
+ * the one it heads for. */
+static void set_own_tile(GameState *g)
 {
-    m_tyx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    unsigned self = current_object(g);
+    set_field_own_tile_x(g, field_object_x_tile(g, self));
+    set_field_own_tile_y(g, field_object_y_tile(g, self));
 }
 
-/* TYX : INX x n : SEC : RTS -- continue with the command n bytes on. */
-static void advance(Snes *s, int n)
+static void set_target_tile(GameState *g, uint8_t x, uint8_t y)
 {
-    m_tyx(s);
-    while (n--)
-        m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    set_field_target_tile_x(g, x);
+    set_field_target_tile_y(g, y);
 }
 
-/* LDX $6D : LDA $1A01,X : BEQ + : TYX : CLC : RTS
- * True (having ended the turn) if the object is still in the middle of a move. */
-static bool still_moving(Snes *s)
+static bool on_target_tile(const GameState *g)
 {
-    ldx_current_object(s);
-    if (m_lda8(s, object_byte(s, STEPS_LEFT)) == 0)
-        return false;
-    stay(s);
+    return field_own_tile_y(g) == field_target_tile_y(g) && field_own_tile_x(g) == field_target_tile_x(g);
+}
+
+/* The carry the original's comparison of the two tiles leaves (row, then
+ * column): the calls made next carry it into field_object_in_the_way's
+ * answer, so the port hands it on. */
+static bool tile_compare_carry(const GameState *g)
+{
+    if (field_own_tile_y(g) != field_target_tile_y(g))
+        return field_own_tile_y(g) >= field_target_tile_y(g);
+    return field_own_tile_x(g) >= field_target_tile_x(g);
+}
+
+/* Head for another object: its tile, and the object, kept as the target. */
+static void aim_at_object(GameState *g, unsigned target)
+{
+    set_target_tile(g, field_object_x_tile(g, target), field_object_y_tile(g, target));
+    set_field_target_object(g, (uint16_t)(target * 2));
+    set_own_tile(g);
+}
+
+static bool within_one(uint8_t a, uint8_t b) { return a == b || (uint8_t)(a + 1) == b || (uint8_t)(a - 1) == b; }
+
+static bool next_to_target(const GameState *g)
+{
+    return within_one(field_own_tile_y(g), field_target_tile_y(g)) &&
+           within_one(field_own_tile_x(g), field_target_tile_x(g));
+}
+
+/* The carry its comparisons leave: set when next to the target, otherwise
+ * that of the last comparison, a tile short of the target on the row or
+ * column that isn't within one. */
+static bool next_to_carry(const GameState *g)
+{
+    if (!within_one(field_own_tile_y(g), field_target_tile_y(g)))
+        return (uint8_t)(field_own_tile_y(g) - 1) >= field_target_tile_y(g);
+    if (!within_one(field_own_tile_x(g), field_target_tile_x(g)))
+        return (uint8_t)(field_own_tile_x(g) - 1) >= field_target_tile_x(g);
     return true;
 }
 
-/* The counted moves' version:
- * LDX $6D : LDA $1A80,X : BEQ fresh : LDA $1A01,X : BEQ done : stay
- * done: STZ $1A80,X, continue after the 3-byte command.
- * True if the turn is decided; false to start a new move. */
-static bool counted_move_in_progress(Snes *s)
+static bool lines_up(const GameState *g, uint8_t flag) { return field_object_arrival_flags(g, current_object(g)) & flag; }
+
+/* A move of `steps` steps, the same many allowed across tiles. */
+static void set_steps(GameState *g, uint8_t steps)
 {
-    ldx_current_object(s);
-    if (m_lda8(s, object_byte(s, COUNTED_MOVE)) == 0)
-        return false;
-    if (m_lda8(s, object_byte(s, STEPS_LEFT)) != 0) {
-        stay(s);
+    unsigned self = current_object(g);
+    set_field_object_steps_left(g, self, steps);
+    set_field_object_move_state_tile_mode(g, self, steps);
+}
+
+static void count_move(GameState *g)
+{
+    unsigned self = current_object(g);
+    set_field_object_counted_move(g, self, (uint8_t)(field_object_counted_move(g, self) + 1));
+}
+
+/* ---- The calls ----------------------------------------------------------------------- */
+
+/* Back from a call-out, which returns to `returns_to`: true if the callee
+ * left the machine as the command runs (event_machine_back); otherwise the
+ * port stops there, declaring it, and the original carries on from the
+ * callee's machine. */
+static bool back(Snes *s, uint32_t returns_to, bool x8)
+{
+    if (event_machine_back(s, x8))
         return true;
-    }
-    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x00);
-    advance(s, 3);
-    return true;
-}
-
-/* TYX : INX : TDC : XBA : LDA script,X : TAX -- X = the object slot operand. */
-static void load_object_operand(Snes *s)
-{
-    m_tyx(s);
-    m_inx(s);
-    m_tdc(s);
-    m_xba(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_tax(s);
-}
-
-/* LDA $97,X : TAX -- X = the slot of party member X. */
-static void party_member_slot(Snes *s)
-{
-    m_lda8(s, m_read8(s, (uint16_t)(s->cpu.d + DP_PARTY + s->cpu.x)));
-    m_tax(s);
-}
-
-/* A is already loaded: CMP t : BEQ : INC A : CMP t : BEQ : DEC A : DEC A : CMP t
- * True if A is within one of t. */
-static bool within_one(Snes *s, uint8_t t)
-{
-    uint8_t a = (uint8_t)s->cpu.a;
-    for (int delta = 0; delta < 3; delta++) {
-        if (delta == 1)
-            a = m_lda8(s, (uint8_t)(a + 1));
-        else if (delta == 2)
-            a = m_lda8(s, (uint8_t)(a - 2));
-        m_cmp8(s, a, t);
-        if (a == t)
-            return true;
-    }
+    m_stop_at_own(s, returns_to, 0);
     return false;
 }
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-
-/* With X = the target slot: record the target's tile ($F2/$F3) and slot ($E9)
- * and the current object's tile ($F0/$F1), leaving X = the current object and
- * A = its tile Y. */
-static void load_positions(Snes *s)
+/* Call the field's motion routine `target` from the JSR at `site`; false if
+ * the port stopped. The routines read nothing of the registers but Y, which
+ * is the command's offset where they are made, and V, which they carry. */
+static bool call(Snes *s, uint32_t site, uint32_t target)
 {
-    set_dp8(s, DP_TARGET_X, m_lda8(s, object_byte(s, TILE_X)));
-    set_dp8(s, DP_TARGET_Y, m_lda8(s, object_byte(s, TILE_Y)));
-    m_write16(s, m_dp(s, DP_TARGET), s->cpu.x);
-    ldx_current_object(s);
-    set_dp8(s, DP_OWN_X, m_lda8(s, object_byte(s, TILE_X)));
-    set_dp8(s, DP_OWN_Y, m_lda8(s, object_byte(s, TILE_Y)));
+    m_jsr_dc(s, site, target, DC_A | DC_X | DC_N | DC_Z | DC_C);
+    return back(s, site + 3, false);
 }
 
-/* After load_positions: true if within one tile of the target on both axes. */
-static bool next_to_target(Snes *s)
+/* The same for the routines the command reads a carry from afterwards
+ * (field_direction_to_target's is carried into field_object_in_the_way's,
+ * which with the line-up routines answers in it): the carry at the call is
+ * the original's there, so it comes back as the original's. */
+static bool call_for_carry(Snes *s, uint32_t site, uint32_t target, bool carry)
 {
-    if (!within_one(s, dp8(s, DP_TARGET_Y)))
-        return false;
-    m_lda8(s, dp8(s, DP_OWN_X));
-    return within_one(s, dp8(s, DP_TARGET_X));
+    m_set_flag(s, CPU_FLAG_C, carry);
+    m_jsr_dc(s, site, target, DC_A | DC_X | DC_N | DC_Z);
+    return back(s, site + 3, false);
 }
 
-/* LDA $F700,X : LDX $6D : STA $1600,X -- face the direction indexed by X. */
-static void set_facing_from_direction(Snes *s)
+/* The same for field_start_step and field_set_velocity, which take the
+ * running object in X. */
+static bool call_with_object(Snes *s, uint32_t site, uint32_t target)
 {
-    uint8_t facing = m_lda8(s, m_read8(s, m_abs(s, 0xF700) + s->cpu.x));
-    ldx_current_object(s);
-    m_write8(s, m_abs(s, FACING) + s->cpu.x, facing);
+    s->cpu.x = field_current_object(state_of(s));
+    m_jsr_dc(s, site, target, DC_A | DC_N | DC_Z | DC_C);
+    return back(s, site + 3, false);
 }
 
-/* Code at `at`, 39 bytes, the same in each move command: call $C0:ABA2 and
- * face the direction $F700[$EE] gives; if $C0:5B95 then returns carry set, add
- * $30 to $EE and face $F700[$EE] instead. Returns false if the port stopped at
- * a call-out. */
-static bool face_target(Snes *s, uint32_t at)
+/* The flags an addition between calls leaves, for the calls after it. */
+static void leave_flags(Snes *s, bool carry, bool overflow)
 {
-    if (!call(s, at, 0xC0ABA2, false))
+    m_set_flag(s, CPU_FLAG_C, carry);
+    m_set_flag(s, CPU_FLAG_V, overflow);
+}
+
+/* Turn the blocked direction aside, as the original's 8-bit ADC does. */
+static uint8_t turn_aside(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t d = (uint8_t)field_direction(g);
+    uint8_t turned = (uint8_t)(d + TURN_ASIDE);
+    leave_flags(s, d + TURN_ASIDE > 0xFF, overflows8(d, TURN_ASIDE, turned));
+    set_field_direction(g, (uint16_t)((field_direction(g) & 0xFF00) | turned));
+    return turned;
+}
+
+/* The way to the target (field_direction_to_target, called at `direction`),
+ * faced; and if another object is in the way (field_object_in_the_way, at
+ * `blocked`), turned aside and faced that way. The original looks the turned
+ * facing up with A's high byte as the callee left it; the port goes on only
+ * when that is clear (as the game always has it), and leaves the rest to the
+ * original. `carry` is the one the command's comparison left. */
+static bool face_the_way(Snes *s, uint32_t direction, uint32_t blocked, bool carry)
+{
+    GameState *g = state_of(s);
+    if (!call_for_carry(s, direction, 0xC0ABA2, carry))
         return false;
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, m_read16(s, m_dp(s, DP_DIRECTION)));
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    set_facing_from_direction(s);
-    if (!call(s, at + 0x12, 0xC05B95, false))
+    uint8_t facing = facing_for_direction(g, (uint8_t)field_direction(g));
+    set_field_object_facing(g, current_object(g), facing);
+    s->cpu.a = facing;   /* as the original's lookup leaves A */
+    if (!call_for_carry(s, blocked, 0xC05B95, m_flag(s, CPU_FLAG_C)))
         return false;
-    if (m_flag(s, CPU_FLAG_C)) {
-        m_lda8(s, dp8(s, DP_DIRECTION));
-        m_set_flag(s, CPU_FLAG_C, false);
-        uint8_t turned = m_adc8(s, (uint8_t)s->cpu.a, 0x30);
-        m_set_a8(s, turned);
-        set_dp8(s, DP_DIRECTION, turned);
-        m_tax(s);
-        set_facing_from_direction(s);
-    }
+    if (!m_flag(s, CPU_FLAG_C))
+        return true;
+    if (s->cpu.a >> 8)
+        return false;
+    uint8_t turned = turn_aside(s);
+    set_field_object_facing(g, current_object(g), facing_for_direction(g, turned));
     return true;
 }
 
-/* Code at `at`: LDX $6D : LDA $1000,X : STA $1A01,X : STA $7F0B00,X : STY $C7 :
- * JSR $ACFD [: JSR $5614] : LDX $C7 : CLC : RTS -- start a move of the
- * object's step length, and end the turn on this command. */
-static void start_move(Snes *s, uint32_t at, bool moving_hook)
+/* The keep-facing moves' version: the way, turned aside if blocked, unfaced. */
+static bool find_the_way(Snes *s, uint32_t direction, uint32_t blocked, bool carry)
 {
-    ldx_current_object(s);
-    uint8_t length = m_lda8(s, object_byte(s, STEP_LENGTH));
-    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, length);
-    m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, length);
-    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
-    if (!call(s, at + 0x0E, 0xC0ACFD, false))
-        return;
-    if (moving_hook && !call(s, at + 0x11, 0xC05614, false))
-        return;
-    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    if (!call_for_carry(s, direction, 0xC0ABA2, carry) ||
+        !call_for_carry(s, blocked, 0xC05B95, m_flag(s, CPU_FLAG_C)))
+        return false;
+    if (m_flag(s, CPU_FLAG_C))
+        turn_aside(s);
+    return true;
 }
 
-/* JSR $568B : TYX : INX x n : SEC : RTS -- arrived; next command. */
-static void arrive(Snes *s, uint32_t site, int command_length)
+/* End the turn on the command, which the move keeps running (its offset kept
+ * in event_saved_position across the calls). */
+static void moving(Snes *s) { event_return(s, step_at(event_saved_position(state_of(s)), false, s->cpu.y)); }
+
+/* Start the move (field_start_step at `step`), and end the turn. */
+static void start_move(Snes *s, uint32_t step)
 {
-    if (call(s, site, 0xC0568B, false))
-        advance(s, command_length);
+    set_event_saved_position(state_of(s), s->cpu.y);
+    if (call_with_object(s, step, 0xC0ACFD))
+        moving(s);
 }
 
-/* JSR $5614 : TYX : CLC : RTS -- stay on the command. */
-static void keep_moving(Snes *s, uint32_t site)
+/* The same, with the walking animation (at `walk`). */
+static void start_walking(Snes *s, uint32_t step, uint32_t walk)
 {
-    if (call(s, site, 0xC05614, false))
+    set_event_saved_position(state_of(s), s->cpu.y);
+    if (call_with_object(s, step, 0xC0ACFD) && call(s, walk, 0xC05614))
+        moving(s);
+}
+
+/* Moves of the object's step length, and counted moves (marked). */
+static void start_step_move(Snes *s, uint32_t step)
+{
+    GameState *g = state_of(s);
+    set_steps(g, field_object_step_length(g, current_object(g)));
+    start_move(s, step);
+}
+
+static void start_step_walk(Snes *s, uint32_t step, uint32_t walk)
+{
+    GameState *g = state_of(s);
+    set_steps(g, field_object_step_length(g, current_object(g)));
+    start_walking(s, step, walk);
+}
+
+static void start_counted_move(Snes *s, uint32_t step)
+{
+    count_move(state_of(s));
+    start_move(s, step);
+}
+
+static void start_counted_walk(Snes *s, uint32_t step, uint32_t walk)
+{
+    count_move(state_of(s));
+    start_walking(s, step, walk);
+}
+
+static void stay(Snes *s)
+{
+    EventCommand c = event_command_at(s);
+    event_return(s, wait_here(&c, 0));
+}
+
+static void go_on(Snes *s, uint16_t length)
+{
+    EventCommand c = event_command_at(s);
+    event_return(s, next_command(&c, length, 0));
+}
+
+/* Arrived: the standing animation ($C0:568B at `stand`), and on after the
+ * command's `length` bytes. */
+static void arrive(Snes *s, uint32_t stand, uint16_t length)
+{
+    if (call(s, stand, 0xC0568B))
+        go_on(s, length);
+}
+
+/* Still lining up: the walking animation (at `walk`), and stay. */
+static void keep_walking(Snes *s, uint32_t walk)
+{
+    if (call(s, walk, 0xC05614))
         stay(s);
 }
 
-/* LDX $6D : LDA $1C81,X : BIT #bit -- whether an arrival routine applies. */
-static bool lines_up_on_arrival(Snes *s, uint8_t bit)
+/* Line up on arrival (the routine at `target`, called at `at`, with the
+ * carry of the comparison that found it there, set): false if the port
+ * stopped. `lining` says whether a step is still needed. */
+static bool line_up(Snes *s, uint32_t at, uint32_t target, bool *lining)
 {
-    ldx_current_object(s);
-    m_lda8(s, object_byte(s, ARRIVAL_FLAGS));
-    m_bit_imm8(s, bit);
-    return (uint8_t)s->cpu.a & bit;
+    if (!call_for_carry(s, at, target, true))
+        return false;
+    *lining = m_flag(s, CPU_FLAG_C);
+    return true;
 }
 
-/* $C0:5228, with X = the target's slot: move toward it one step at a time,
- * arriving when within one tile. */
-static void approach(Snes *s)
+/* ---- Toward a tile -------------------------------------------------------------------- */
+
+static void aim_at_tile(GameState *g, const EventCommand *c, bool from_variables)
 {
-    if (m_lda8(s, object_byte(s, STATE)) & 0x80) {
-        arrive(s, 0xC05273, 2);
+    if (from_variables) {
+        set_field_target_tile_x(g, var8(g, variable_operand(g, c, 1)));
+        set_field_target_tile_y(g, var8(g, variable_operand(g, c, 2)));
+    } else {
+        set_field_target_tile_x(g, operand(g, c, 1));
+        set_field_target_tile_y(g, operand(g, c, 2));
+    }
+    set_own_tile(g);
+}
+
+/* The move-to-tile commands that turn, walk and stand, and where each one's
+ * copy of the code has its calls. */
+enum { TO_TILE, TO_TILE_FROM_VARIABLES };
+static const struct {
+    bool from_variables;   /* the tile from variables rather than operands */
+    uint32_t line_up, walk_on_line, stand, direction, blocked, step, walk;
+} turning_tile_moves[] = {
+    [TO_TILE] = { false, 0xC04F97, 0xC04FA5, 0xC04F9C, 0xC04FAB, 0xC04FBD, 0xC04FE0, 0xC04FE3 },
+    [TO_TILE_FROM_VARIABLES] = { true, 0xC050D6, 0xC050E4, 0xC050DB, 0xC050EA, 0xC050FC, 0xC0511F, 0xC05122 },
+};
+
+/* And those that keep their facing, with no animations. */
+enum { TO_TILE_KEEP_FACING, TO_TILE_FROM_VARIABLES_KEEP_FACING };
+static const struct {
+    bool from_variables;
+    uint32_t line_up, direction, blocked, step;
+} keeping_tile_moves[] = {
+    [TO_TILE_KEEP_FACING] = { false, 0xC0515F, 0xC0516D, 0xC05170, 0xC0518A },
+    [TO_TILE_FROM_VARIABLES_KEEP_FACING] = { true, 0xC051E3, 0xC051F1, 0xC051F4, 0xC0520E },
+};
+
+typedef enum { ON_THE_WAY, ARRIVED, LINING_UP, STOPPED } TileArrival;
+
+/* Where a move to a tile stands, having aimed at it: on the way, or on the
+ * tile (lined up with it by `line_up` first when the object asks for that). */
+static TileArrival tile_arrival(Snes *s, uint32_t line_up_at)
+{
+    GameState *g = state_of(s);
+    if (!on_target_tile(g))
+        return ON_THE_WAY;
+    bool lining = false;
+    if (lines_up(g, LINE_UP_ON_TILE) && !line_up(s, line_up_at, 0xC0305D, &lining))
+        return STOPPED;
+    return lining ? LINING_UP : ARRIVED;
+}
+
+/* Toward a tile, a step's worth at a time, until standing on it. */
+static void move_to_tile(Snes *s, unsigned move)
+{
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    if (still_moving(g)) {
+        stay(s);
         return;
     }
-    load_positions(s);
-    if (next_to_target(s)) {
-        if (lines_up_on_arrival(s, 0x02)) {
-            if (!call(s, 0xC0526E, 0xC030B3, false))
+    aim_at_tile(g, &c, turning_tile_moves[move].from_variables);
+    switch (tile_arrival(s, turning_tile_moves[move].line_up)) {
+    case ON_THE_WAY:
+        if (face_the_way(s, turning_tile_moves[move].direction, turning_tile_moves[move].blocked,
+                         tile_compare_carry(g)))
+            start_step_walk(s, turning_tile_moves[move].step, turning_tile_moves[move].walk);
+        return;
+    case LINING_UP: keep_walking(s, turning_tile_moves[move].walk_on_line); return;
+    case ARRIVED: arrive(s, turning_tile_moves[move].stand, 3); return;
+    default: return;
+    }
+}
+
+static void move_to_tile_keeping_facing(Snes *s, unsigned move)
+{
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    if (still_moving(g)) {
+        stay(s);
+        return;
+    }
+    aim_at_tile(g, &c, keeping_tile_moves[move].from_variables);
+    switch (tile_arrival(s, keeping_tile_moves[move].line_up)) {
+    case ON_THE_WAY:
+        if (find_the_way(s, keeping_tile_moves[move].direction, keeping_tile_moves[move].blocked,
+                         tile_compare_carry(g)))
+            start_step_move(s, keeping_tile_moves[move].step);
+        return;
+    case LINING_UP: stay(s); return;
+    case ARRIVED: go_on(s, 3); return;
+    default: return;
+    }
+}
+
+// $C0:4F61
+/* $96: move to the tile at operands (X, Y). */
+void event_cmd_move_to_tile(Snes *s) { move_to_tile(s, TO_TILE); }
+
+// $C0:5084
+/* $97: move to the tile held in variables (operands 1 and 2). */
+void event_cmd_move_to_tile_from_variables(Snes *s) { move_to_tile(s, TO_TILE_FROM_VARIABLES); }
+
+// $C0:5129
+/* $A0: as $96, keeping the object's facing. */
+void event_cmd_move_to_tile_keep_facing(Snes *s) { move_to_tile_keeping_facing(s, TO_TILE_KEEP_FACING); }
+
+// $C0:5191
+/* $A1: as $97, keeping the object's facing. */
+void event_cmd_move_to_tile_from_variables_keep_facing(Snes *s)
+{
+    move_to_tile_keeping_facing(s, TO_TILE_FROM_VARIABLES_KEEP_FACING);
+}
+
+// $C0:4FEA
+/* $9A: move toward the tile at operands (X, Y) for up to operand 3 steps. */
+void event_cmd_move_to_tile_counted(Snes *s)
+{
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    unsigned self = current_object(g);
+    bool fresh = field_object_counted_move(g, self) == 0;
+    if (!fresh && field_object_steps_left(g, self) != 0) {
+        stay(s);
+        return;
+    }
+    if (fresh) {
+        aim_at_tile(g, &c, false);
+        switch (tile_arrival(s, 0xC05025)) {
+        case ON_THE_WAY:
+            if (!face_the_way(s, 0xC0503D, 0xC0504F, tile_compare_carry(g)))
                 return;
-            if (m_flag(s, CPU_FLAG_C)) {
-                keep_moving(s, 0xC0527B);
-                return;
-            }
+            c = event_command_at(s);
+            set_steps(g, operand(g, &c, 3));
+            start_counted_walk(s, 0xC0507A, 0xC0507D);
+            return;
+        case LINING_UP: keep_walking(s, 0xC05037); return;
+        case STOPPED: return;
+        default: break;
         }
+    }
+    set_field_object_counted_move(g, self, 0);
+    arrive(s, 0xC0502D, 4);
+}
+
+/* ---- Toward an object ------------------------------------------------------------------ */
+
+/* Next to the target: whether a step of lining up with it (by the routine
+ * at `line_up_at`) is still needed, when the object asks for that. */
+static TileArrival object_arrival(Snes *s, uint32_t line_up_at)
+{
+    bool lining = false;
+    if (lines_up(state_of(s), LINE_UP_ON_OBJECT) && !line_up(s, line_up_at, 0xC030B3, &lining))
+        return STOPPED;
+    return lining ? LINING_UP : ARRIVED;
+}
+
+// $C0:5228
+/* Toward the object `target` a step's worth at a time, until next to it. */
+static void approach(Snes *s, unsigned target)
+{
+    GameState *g = state_of(s);
+    if (disabled(g, target)) {
         arrive(s, 0xC05273, 2);
         return;
     }
-    if (face_target(s, 0xC05281))
-        start_move(s, 0xC052A8, true);
+    aim_at_object(g, target);
+    if (!next_to_target(g)) {
+        if (face_the_way(s, 0xC05281, 0xC05293, next_to_carry(g)))
+            start_step_walk(s, 0xC052B6, 0xC052B9);
+        return;
+    }
+    switch (object_arrival(s, 0xC0526E)) {
+    case LINING_UP: keep_walking(s, 0xC0527B); return;
+    case ARRIVED: arrive(s, 0xC05273, 2); return;
+    default: return;
+    }
 }
 
 // $C0:5215
 /* $94: move toward the object in operand 1 until next to it. */
 void event_cmd_move_toward_object(Snes *s)
 {
-    if (still_moving(s))
-        return;
-    load_object_operand(s);
-    approach(s);
+    EventCommand c = event_command_at(s);
+    if (still_moving(state_of(s)))
+        stay(s);
+    else
+        approach(s, object_operand(state_of(s), &c, 1));
 }
 
 // $C0:5410
 /* $95: move toward party member (operand 1) until next to them. */
 void event_cmd_move_toward_party_member(Snes *s)
 {
-    if (still_moving(s))
-        return;
-    load_object_operand(s);
-    party_member_slot(s);
-    approach(s);
+    EventCommand c = event_command_at(s);
+    if (still_moving(state_of(s)))
+        stay(s);
+    else
+        approach(s, member_object(state_of(s), &c, 1));
 }
 
-/* $C0:52D3, with X = the target's slot: as approach, but the object keeps its
- * facing and doesn't run the arrival and moving hooks. */
-static void approach_keeping_facing(Snes *s)
+// $C0:52D3
+/* As approach, keeping the object's facing, with no animations. */
+static void approach_keeping_facing(Snes *s, unsigned target)
 {
-    if (m_lda8(s, object_byte(s, STATE)) & 0x80) {
-        advance(s, 2);
+    GameState *g = state_of(s);
+    if (disabled(g, target)) {
+        go_on(s, 2);
         return;
     }
-    load_positions(s);
-    if (next_to_target(s)) {
-        if (lines_up_on_arrival(s, 0x02)) {
-            if (!call(s, 0xC05319, 0xC030B3, false))
-                return;
-            if (m_flag(s, CPU_FLAG_C)) {
-                stay(s);
-                return;
-            }
-        }
-        advance(s, 2);
+    aim_at_object(g, target);
+    if (!next_to_target(g)) {
+        if (find_the_way(s, 0xC05326, 0xC05329, next_to_carry(g)))
+            start_step_move(s, 0xC05343);
         return;
     }
-    if (!call(s, 0xC05326, 0xC0ABA2, false))
-        return;
-    if (!call(s, 0xC05329, 0xC05B95, false))
-        return;
-    if (m_flag(s, CPU_FLAG_C)) {
-        m_lda8(s, dp8(s, DP_DIRECTION));
-        m_set_flag(s, CPU_FLAG_C, false);
-        uint8_t turned = m_adc8(s, (uint8_t)s->cpu.a, 0x30);
-        m_set_a8(s, turned);
-        set_dp8(s, DP_DIRECTION, turned);
+    switch (object_arrival(s, 0xC05319)) {
+    case LINING_UP: stay(s); return;
+    case ARRIVED: go_on(s, 2); return;
+    default: return;
     }
-    start_move(s, 0xC05335, false);
 }
 
 // $C0:52C0
 /* $9E: as $94, keeping the object's facing. */
 void event_cmd_move_toward_object_keep_facing(Snes *s)
 {
-    if (still_moving(s))
-        return;
-    load_object_operand(s);
-    approach_keeping_facing(s);
+    EventCommand c = event_command_at(s);
+    if (still_moving(state_of(s)))
+        stay(s);
+    else
+        approach_keeping_facing(s, object_operand(state_of(s), &c, 1));
 }
 
 // $C0:54F5
 /* $9F: as $95, keeping the object's facing. */
 void event_cmd_move_toward_party_member_keep_facing(Snes *s)
 {
-    if (still_moving(s))
-        return;
-    load_object_operand(s);
-    party_member_slot(s);
-    approach_keeping_facing(s);
+    EventCommand c = event_command_at(s);
+    if (still_moving(state_of(s)))
+        stay(s);
+    else
+        approach_keeping_facing(s, member_object(state_of(s), &c, 1));
 }
 
-/* $C0:536B, with X = the target's slot: one move of operand 2 steps toward the
- * target; the command finishes when that move does, or on arrival. */
-static void approach_counted(Snes *s)
+// $C0:536B
+/* One move of operand 2 steps toward the object `target`; the command is over
+ * when the move is, or on arrival. */
+static void approach_counted(Snes *s, unsigned target)
 {
-    if (!(m_lda8(s, object_byte(s, STATE)) & 0x80)) {
-        load_positions(s);
-        if (!next_to_target(s)) {
-            if (!face_target(s, 0xC053CA))
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    switch (counted_move(g)) {
+    case MOVE_RUNNING: stay(s); return;
+    case MOVE_DONE: go_on(s, 3); return;
+    default: break;
+    }
+    if (!disabled(g, target)) {
+        aim_at_object(g, target);
+        if (!next_to_target(g)) {
+            if (!face_the_way(s, 0xC053CA, 0xC053DC, next_to_carry(g)))
                 return;
-            /* $C0:53F1 */
-            m_tyx(s);
-            m_inx(s);
-            m_inx(s);
-            uint8_t steps = m_lda8(s, script_byte(s, s->cpu.x));
-            ldx_current_object(s);
-            m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
-            m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, steps);
-            uint32_t flag = m_abs(s, COUNTED_MOVE) + s->cpu.x;
-            uint8_t v = (uint8_t)(m_read8(s, flag) + 1);
-            m_write8(s, flag, v);
-            m_set_nz8(s, v);
-            m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
-            if (!call(s, 0xC05406, 0xC0ACFD, false) || !call(s, 0xC05409, 0xC05614, false))
-                return;
-            m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_rts(s);
+            c = event_command_at(s);
+            set_steps(g, operand(g, &c, 2));
+            start_counted_walk(s, 0xC05406, 0xC05409);
             return;
         }
-        if (lines_up_on_arrival(s, 0x02)) {
-            if (!call(s, 0xC053B1, 0xC030B3, false))
-                return;
-            if (m_flag(s, CPU_FLAG_C)) {
-                keep_moving(s, 0xC053C4);
-                return;
-            }
+        switch (object_arrival(s, 0xC053B1)) {
+        case LINING_UP: keep_walking(s, 0xC053C4); return;
+        case STOPPED: return;
+        default: break;
         }
     }
-    /* $C0:53B6 */
-    ldx_current_object(s);
-    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x00);
+    set_field_object_counted_move(g, current_object(g), 0);
     arrive(s, 0xC053BB, 3);
 }
 
@@ -376,343 +590,102 @@ static void approach_counted(Snes *s)
 /* $98: move up to operand 2 steps toward the object in operand 1. */
 void event_cmd_move_toward_object_counted(Snes *s)
 {
-    if (counted_move_in_progress(s))
-        return;
-    load_object_operand(s);
-    approach_counted(s);
+    EventCommand c = event_command_at(s);
+    approach_counted(s, object_operand(state_of(s), &c, 1));
 }
 
 // $C0:550E
 /* $99: move up to operand 2 steps toward party member (operand 1). */
 void event_cmd_move_toward_party_member_counted(Snes *s)
 {
-    if (counted_move_in_progress(s))
-        return;
-    load_object_operand(s);
-    party_member_slot(s);
-    approach_counted(s);
+    EventCommand c = event_command_at(s);
+    approach_counted(s, member_object(state_of(s), &c, 1));
+}
+
+/* Whether the running object stands 2 to 13 tiles right of the screen's left
+ * edge and 2 to 12 below its top (the edges halved, into the scratch cells);
+ * the subtractions' flags are the original's. */
+static bool well_on_screen(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t left = (uint8_t)(field_screen_left(g) >> 1), top = (uint8_t)(field_screen_top(g) >> 1);
+    keep8(g, SCRATCH_DB, left);
+    keep8(g, SCRATCH_DD, top);
+    uint8_t x = field_own_tile_x(g), dx = (uint8_t)(x - left);
+    leave_flags(s, x >= left, overflows8(x, (uint8_t)~left, dx));
+    if (dx < 2 || dx >= 0x0E)
+        return false;
+    uint8_t y = field_own_tile_y(g), dy = (uint8_t)(y - top);
+    leave_flags(s, y >= top, overflows8(y, (uint8_t)~top, dy));
+    return dy >= 2 && dy < 0x0D;
 }
 
 // $C0:5429
-/* $8F: move toward party member (operand 1). Arrives when next to them, or
- * when the object's tile is 2 to 13 columns right of and 2 to 12 rows below
- * the screen origin ($1D0A/$1D0E, halved). */
+/* $8F: move toward party member (operand 1), arriving next to them or once
+ * well on the screen. */
 void event_cmd_move_toward_party_member_until_on_screen(Snes *s)
 {
-    if (still_moving(s))
-        return;
-    load_object_operand(s);
-    party_member_slot(s);
-    if (m_lda8(s, object_byte(s, STATE)) & 0x80) {
-        arrive(s, 0xC054A8, 2);
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    if (still_moving(g)) {
+        stay(s);
         return;
     }
-    load_positions(s);
-    if (!next_to_target(s)) {
-        /* $C0:547C */
-        uint8_t v = m_read8(s, m_abs(s, 0x1D0A));
-        m_set_flag(s, CPU_FLAG_C, v & 1);
-        set_dp8(s, 0xDB, m_lda8(s, v >> 1));
-        v = m_read8(s, m_abs(s, 0x1D0E));
-        m_set_flag(s, CPU_FLAG_C, v & 1);
-        set_dp8(s, 0xDD, m_lda8(s, v >> 1));
-        bool on_screen = false;
-        m_set_flag(s, CPU_FLAG_C, true);
-        uint8_t dx = m_sbc8(s, m_lda8(s, dp8(s, DP_OWN_X)), dp8(s, 0xDB));
-        m_set_a8(s, dx);
-        if (dx != 0) {
-            m_cmp8(s, dx, 0x01);
-            if (dx != 0x01) {
-                m_cmp8(s, dx, 0x0E);
-                if (dx < 0x0E) {
-                    m_set_flag(s, CPU_FLAG_C, true);
-                    uint8_t dy = m_sbc8(s, m_lda8(s, dp8(s, DP_OWN_Y)), dp8(s, 0xDD));
-                    m_set_a8(s, dy);
-                    if (dy != 0) {
-                        m_cmp8(s, dy, 0x01);
-                        if (dy != 0x01) {
-                            m_cmp8(s, dy, 0x0D);
-                            on_screen = dy < 0x0D;
-                        }
-                    }
-                }
-            }
-        }
-        if (!on_screen) {
-            if (face_target(s, 0xC054B6))
-                start_move(s, 0xC054DD, true);
+    unsigned target = member_object(g, &c, 1);
+    if (!disabled(g, target)) {
+        aim_at_object(g, target);
+        if (!next_to_target(g) && !well_on_screen(s)) {
+            /* every way off the screen's middle leaves the carry set */
+            if (face_the_way(s, 0xC054B6, 0xC054C8, true))
+                start_step_walk(s, 0xC054EB, 0xC054EE);
             return;
         }
     }
-    ldx_current_object(s);
     arrive(s, 0xC054A8, 2);
 }
 
-/* Where a move-to-tile command's code copy has its calls. */
-typedef struct TileMove {
-    bool from_variables;    /* target tile from variables rather than operands */
-    bool turns;             /* faces the way it moves and runs the move/arrival hooks */
-    uint32_t line_up;       /* JSR $305D */
-    uint32_t keep_moving;   /* JSR $5614 (turns) */
-    uint32_t arrive;        /* JSR $568B (turns) */
-    uint32_t far;           /* face_target, or JSR $ABA2 : JSR $5B95 when not turning */
-    uint32_t start;         /* start_move */
-} TileMove;
+/* ---- In a direction ------------------------------------------------------------------ */
 
-/* TYX : INX [: INX] : LDA script,X : REP #$20 : AND #$00FF : ASL A : TAX :
- * SEP #$20 : LDA $7F0200,X */
-static uint8_t variable_at(Snes *s, int extra)
-{
-    m_tyx(s);
-    m_inx(s);
-    while (extra--)
-        m_inx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    return m_lda8(s, m_read8(s, VARS + s->cpu.x));
-}
-
-/* JSR $ABA2 : JSR $5B95 : BCC + : LDA $EE : CLC : ADC #$30 : STA $EE -- the
- * direction work of the commands that keep their facing. */
-static bool turn_keeping_facing(Snes *s, uint32_t at)
-{
-    if (!call(s, at, 0xC0ABA2, false) || !call(s, at + 3, 0xC05B95, false))
-        return false;
-    if (m_flag(s, CPU_FLAG_C)) {
-        m_lda8(s, dp8(s, DP_DIRECTION));
-        m_set_flag(s, CPU_FLAG_C, false);
-        uint8_t turned = m_adc8(s, (uint8_t)s->cpu.a, 0x30);
-        m_set_a8(s, turned);
-        set_dp8(s, DP_DIRECTION, turned);
-    }
-    return true;
-}
-
-/* Load the target tile ($F2/$F3) and this object's tile ($F0/$F1) and compare:
- * true if the object stands on the target tile. */
-static bool on_target_tile(Snes *s, bool from_variables)
-{
-    if (from_variables) {
-        set_dp8(s, DP_TARGET_X, variable_at(s, 0));
-        set_dp8(s, DP_TARGET_Y, variable_at(s, 1));
-    } else {
-        m_tyx(s);
-        m_inx(s);
-        set_dp8(s, DP_TARGET_X, m_lda8(s, script_byte(s, s->cpu.x)));
-        m_inx(s);
-        set_dp8(s, DP_TARGET_Y, m_lda8(s, script_byte(s, s->cpu.x)));
-    }
-    ldx_current_object(s);
-    set_dp8(s, DP_OWN_X, m_lda8(s, object_byte(s, TILE_X)));
-    uint8_t y = m_lda8(s, object_byte(s, TILE_Y));
-    set_dp8(s, DP_OWN_Y, y);
-    uint8_t ty = dp8(s, DP_TARGET_Y);
-    m_cmp8(s, y, ty);
-    if (y != ty)
-        return false;
-    uint8_t x = m_lda8(s, dp8(s, DP_OWN_X));
-    uint8_t tx = dp8(s, DP_TARGET_X);
-    m_cmp8(s, x, tx);
-    return x == tx;
-}
-
-/* Move to a tile, one step at a time, until standing on it. */
-static void move_to_tile(Snes *s, const TileMove *m)
-{
-    if (still_moving(s))
-        return;
-    if (!on_target_tile(s, m->from_variables)) {
-        if (m->turns) {
-            if (face_target(s, m->far))
-                start_move(s, m->start, true);
-        } else if (turn_keeping_facing(s, m->far)) {
-            start_move(s, m->start, false);
-        }
-        return;
-    }
-    m_lda8(s, object_byte(s, ARRIVAL_FLAGS));
-    m_bit_imm8(s, 0x01);
-    if ((uint8_t)s->cpu.a & 0x01) {
-        if (!call(s, m->line_up, 0xC0305D, false))
-            return;
-        if (m_flag(s, CPU_FLAG_C)) {
-            if (m->turns)
-                keep_moving(s, m->keep_moving);
-            else
-                stay(s);
-            return;
-        }
-    }
-    if (m->turns)
-        arrive(s, m->arrive, 3);
-    else
-        advance(s, 3);
-}
-
-// $C0:4F61
-/* $96: move to the tile at operands (X, Y). */
-void event_cmd_move_to_tile(Snes *s)
-{
-    static const TileMove m = { false, true, 0xC04F97, 0xC04FA5, 0xC04F9C, 0xC04FAB, 0xC04FD2 };
-    move_to_tile(s, &m);
-}
-
-// $C0:5084
-/* $97: move to the tile held in variables (operands 1 and 2). */
-void event_cmd_move_to_tile_from_variables(Snes *s)
-{
-    static const TileMove m = { true, true, 0xC050D6, 0xC050E4, 0xC050DB, 0xC050EA, 0xC05111 };
-    move_to_tile(s, &m);
-}
-
-// $C0:5129
-/* $A0: as $96, keeping the object's facing and without the move and arrival hooks. */
-void event_cmd_move_to_tile_keep_facing(Snes *s)
-{
-    static const TileMove m = { false, false, 0xC0515F, 0, 0, 0xC0516D, 0xC0517C };
-    move_to_tile(s, &m);
-}
-
-// $C0:5191
-/* $A1: as $97, keeping the object's facing and without the move and arrival hooks. */
-void event_cmd_move_to_tile_from_variables_keep_facing(Snes *s)
-{
-    static const TileMove m = { true, false, 0xC051E3, 0, 0, 0xC051F1, 0xC05200 };
-    move_to_tile(s, &m);
-}
-
-/* INC $1A80,X : STY $C7 : JSR $ACFD [: JSR $5614] : LDX $C7 : CLC : RTS */
-static void begin_counted_move(Snes *s, uint32_t acfd_site, uint32_t hook_site)
-{
-    uint32_t flag = m_abs(s, COUNTED_MOVE) + s->cpu.x;
-    uint8_t v = (uint8_t)(m_read8(s, flag) + 1);
-    m_write8(s, flag, v);
-    m_set_nz8(s, v);
-    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
-    if (!call(s, acfd_site, 0xC0ACFD, false))
-        return;
-    if (hook_site && !call(s, hook_site, 0xC05614, false))
-        return;
-    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
-
-// $C0:4FEA
-/* $9A: move toward the tile at operands (X, Y) for up to operand 3 steps. */
-void event_cmd_move_to_tile_counted(Snes *s)
-{
-    ldx_current_object(s);
-    bool fresh = m_lda8(s, object_byte(s, COUNTED_MOVE)) == 0;
-    if (!fresh && m_lda8(s, object_byte(s, STEPS_LEFT)) != 0) {
-        stay(s);
-        return;
-    }
-    if (fresh) {
-        if (!on_target_tile(s, false)) {
-            if (!face_target(s, 0xC0503D))
-                return;
-            /* $C0:5064 */
-            m_tyx(s);
-            m_inx(s);
-            m_inx(s);
-            m_inx(s);
-            uint8_t steps = m_lda8(s, script_byte(s, s->cpu.x));
-            ldx_current_object(s);
-            m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
-            m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, steps);
-            begin_counted_move(s, 0xC0507A, 0xC0507D);
-            return;
-        }
-        m_lda8(s, object_byte(s, ARRIVAL_FLAGS));
-        m_bit_imm8(s, 0x01);
-        if ((uint8_t)s->cpu.a & 0x01) {
-            if (!call(s, 0xC05025, 0xC0305D, false))
-                return;
-            if (m_flag(s, CPU_FLAG_C)) {
-                keep_moving(s, 0xC05037);
-                return;
-            }
-        }
-    }
-    /* $C0:502A */
-    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x00);
-    arrive(s, 0xC0502D, 4);
-}
-
-/* LDX $6D : LDA $1A80,X : BEQ fresh : LDA $1A01,X : BEQ done : TYX : CLC : RTS
- * done: STZ $1A80,X. Returns -1 still moving (turn ended), 0 fresh, 1 done. */
-static int counted_move_state(Snes *s)
-{
-    ldx_current_object(s);
-    if (m_lda8(s, object_byte(s, COUNTED_MOVE)) == 0)
-        return 0;
-    if (m_lda8(s, object_byte(s, STEPS_LEFT)) != 0) {
-        stay(s);
-        return -1;
-    }
-    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x00);
-    return 1;
-}
+/* Head in direction `d` (a byte to a turn). */
+static void head(GameState *g, uint8_t d) { set_field_direction(g, d); }
 
 // $C0:4E73
-/* $92: move in direction (operand 1, facing from the $F700 table) for operand
- * 2 steps. */
+/* $92: move in direction (operand 1) for operand 2 steps, facing that way. */
 void event_cmd_move_in_direction(Snes *s)
 {
-    int state = counted_move_state(s);
-    if (state < 0)
-        return;
-    if (state > 0) {
-        arrive(s, 0xC04E85, 3);
-        return;
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    switch (counted_move(g)) {
+    case MOVE_RUNNING: stay(s); return;
+    case MOVE_DONE: arrive(s, 0xC04E85, 3); return;
+    default: break;
     }
-    m_tyx(s);
-    m_inx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_rep(s, CPU_FLAG_M);
-    uint16_t direction = m_lda16(s, s->cpu.a & 0x00FF);
-    m_write16(s, m_dp(s, DP_DIRECTION), direction);
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    set_facing_from_direction(s);
-    m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, m_lda8(s, 0x80));
-    m_tyx(s);
-    m_inx(s);
-    m_inx(s);
-    uint8_t steps = m_lda8(s, script_byte(s, s->cpu.x));
-    ldx_current_object(s);
-    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
-    begin_counted_move(s, 0xC04EBD, 0xC04EC0);
+    unsigned self = current_object(g);
+    uint8_t d = operand(g, &c, 1);
+    head(g, d);
+    set_field_object_facing(g, self, facing_for_direction(g, d));
+    set_field_object_move_state_tile_mode(g, self, CROSS_TILES);
+    set_field_object_steps_left(g, self, operand(g, &c, 2));
+    start_counted_walk(s, 0xC04EBD, 0xC04EC0);
 }
 
 // $C0:4EC7
 /* $9C: move in direction (operand 1) for operand 2 steps, keeping the
- * object's facing and without the move and arrival hooks. */
+ * object's facing. */
 void event_cmd_move_in_direction_keep_facing(Snes *s)
 {
-    int state = counted_move_state(s);
-    if (state < 0)
-        return;
-    if (state > 0) {
-        advance(s, 3);
-        return;
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    switch (counted_move(g)) {
+    case MOVE_RUNNING: stay(s); return;
+    case MOVE_DONE: go_on(s, 3); return;
+    default: break;
     }
-    m_tyx(s);
-    m_inx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_rep(s, CPU_FLAG_M);
-    m_write16(s, m_dp(s, DP_DIRECTION), m_lda16(s, s->cpu.a & 0x00FF));
-    m_sep(s, CPU_FLAG_M);
-    m_inx(s);
-    uint8_t steps = m_lda8(s, script_byte(s, s->cpu.x));
-    ldx_current_object(s);
-    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
-    m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, m_lda8(s, 0x80));
-    begin_counted_move(s, 0xC04F03, 0);
+    unsigned self = current_object(g);
+    head(g, operand(g, &c, 1));
+    set_field_object_steps_left(g, self, operand(g, &c, 2));
+    set_field_object_move_state_tile_mode(g, self, CROSS_TILES);
+    start_counted_move(s, 0xC04F03);
 }
 
 // $C0:4F0A
@@ -720,266 +693,212 @@ void event_cmd_move_in_direction_keep_facing(Snes *s)
  * steps in variable (operand 2). */
 void event_cmd_move_by_variables(Snes *s)
 {
-    if (counted_move_in_progress(s))
-        return;
-    m_tyx(s);
-    m_inx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
-    m_tax(s);
-    m_lda16(s, m_read16(s, VARS + s->cpu.x));
-    m_write16(s, m_dp(s, DP_DIRECTION), m_lda16(s, s->cpu.a & 0x00FF));
-    m_tyx(s);
-    m_inx(s);
-    m_inx(s);
-    m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    uint8_t steps = m_lda8(s, m_read8(s, VARS + s->cpu.x));
-    ldx_current_object(s);
-    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
-    m_lda8(s, 0x80);
-    m_write8(s, 0x7F0000u + STEP_SPEED + s->cpu.x, 0x80);
-    uint32_t flag = m_abs(s, COUNTED_MOVE) + s->cpu.x;
-    uint8_t v = (uint8_t)(m_read8(s, flag) + 1);
-    m_write8(s, flag, v);
-    m_set_nz8(s, v);
-    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
-    if (!call(s, 0xC04F5A, 0xC0ACFD, false))
-        return;
-    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    switch (counted_move(g)) {
+    case MOVE_RUNNING: stay(s); return;
+    case MOVE_DONE: go_on(s, 3); return;
+    default: break;
+    }
+    unsigned self = current_object(g);
+    head(g, (uint8_t)var16(g, variable_operand(g, &c, 1)));
+    set_field_object_steps_left(g, self, var8(g, variable_operand(g, &c, 2)));
+    set_field_object_move_state_tile_mode(g, self, CROSS_TILES);
+    start_counted_move(s, 0xC04F5A);
 }
 
-// $C0:3002
-/* $B0: run a routine chosen by the object's state ($1100,X): 0 runs
- * $C0:9E29 and then, if $C0:5B8D accepts the object's facing, $C0:3154; 1 runs
- * $C0:A26B; 2 runs $C0:A2CE; each sets $1A01,X to 1 first. Other states do
- * nothing. Does nothing while $38 is nonzero. Always ends the turn on this
- * command. */
-void event_cmd_run_state_routine(Snes *s)
+/* ---- With a velocity ------------------------------------------------------------------ */
+
+/* A velocity move running, or just over (its marks taken away, on after the
+ * command's `length` bytes); false to start one. */
+static bool velocity_move_decided(Snes *s, uint16_t length)
 {
-    if (m_lda8(s, dp8(s, 0x38)) != 0) {
-        stay(s);
-        return;
-    }
-    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
-    m_sep(s, CPU_FLAG_X);
-    ldx_current_object(s);
-    uint8_t state = m_lda8(s, object_byte(s, STATE));
-    uint32_t site, target;
-    if (state == 0) {
-        site = 0xC03047, target = 0xC09E29;
-    } else if (m_lda8(s, (uint8_t)(state - 1)) == 0) {
-        site = 0xC03037, target = 0xC0A26B;
-    } else if (m_lda8(s, (uint8_t)(state - 2)) == 0) {
-        site = 0xC03027, target = 0xC0A2CE;
-    } else {
-        m_rep(s, CPU_FLAG_X);
-        m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    m_lda8(s, 0x01);
-    ldx_current_object(s);
-    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, 0x01);
-    if (!call(s, site, target, true))
-        return;
-    if (state == 0) {
-        ldx_current_object(s);
-        m_lda8(s, object_byte(s, FACING));
-        if (!call(s, 0xC0304F, 0xC05B8D, true))
-            return;
-        if (m_flag(s, CPU_FLAG_C) && !call(s, 0xC03054, 0xC03154, true))
-            return;
-    }
-    m_rep(s, CPU_FLAG_X);
-    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
-
-/* Commands that repeat a move command every frame: STY $E3 : JSR cmd :
- * LDX $E3 [: CLC] : RTS, so the script never moves past them. */
-static void repeat_command(Snes *s, uint32_t site, uint32_t command, bool end_turn)
-{
-    m_write16(s, m_dp(s, 0xE3), s->cpu.y);
-    if (!call(s, site, command, false))
-        return;
-    m_ldx(s, m_read16(s, m_dp(s, 0xE3)));
-    if (end_turn)
-        m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
-
-// $C0:3546
-/* $B5: keep following the object in operand 1 (runs $94 every turn, and ends
- * the turn). */
-void event_cmd_follow_object(Snes *s) { repeat_command(s, 0xC03548, 0xC05215, true); }
-
-// $C0:354F
-/* $B6: keep following party member (operand 1) (runs $95 every turn; the
- * turn continues when $95 would continue). */
-void event_cmd_follow_party_member(Snes *s) { repeat_command(s, 0xC03551, 0xC05410, false); }
-
-/* LDX $6D : LDA $1A80,X : BEQ fresh : LDA $1A01,X : BEQ done : TYX : CLC : RTS
- * done: STZ $1A80,X : STZ $1B80,X : TYX : INX x n : SEC : RTS.
- * True if the command has been dealt with. */
-static bool velocity_move_in_progress(Snes *s, int command_length)
-{
-    ldx_current_object(s);
-    if (m_lda8(s, object_byte(s, COUNTED_MOVE)) == 0)
+    GameState *g = state_of(s);
+    unsigned self = current_object(g);
+    if (field_object_counted_move(g, self) == 0)
         return false;
-    if (m_lda8(s, object_byte(s, STEPS_LEFT)) != 0) {
+    if (field_object_steps_left(g, self) != 0) {
         stay(s);
         return true;
     }
-    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x00);
-    m_write8(s, m_abs(s, 0x1B80) + s->cpu.x, 0x00);
-    advance(s, command_length);
+    set_field_object_counted_move(g, self, 0);
+    set_field_object_accelerating(g, self, 0);
+    go_on(s, length);
     return true;
 }
 
-/* $C0:4E19: LDA #$01 : STA $1A80,X : STA $1B80,X : LDX $C7 : CLC : RTS */
-static void begin_velocity_move(Snes *s)
+/* Mark the object moving with 16-bit velocities, and end the turn on the
+ * command (its offset kept in event_saved_position). */
+static EventStep begin_velocity_move(GameState *g, unsigned object, uint16_t cursor)
 {
-    m_lda8(s, 0x01);
-    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.x, 0x01);
-    m_write8(s, m_abs(s, 0x1B80) + s->cpu.x, 0x01);
-    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
-
-/* EOR #$FF : INC A (8-bit) */
-static uint8_t negate8(Snes *s, uint8_t v)
-{
-    v = m_lda8(s, (uint8_t)~v);
-    return m_lda8(s, (uint8_t)(v + 1));
-}
-
-/* A = steps: STA $1A01,X : STA $4202 : LDA $C1 : STA $4203 : STA $1B81,X :
- * NOP : NOP : REP #$20 : LDA $4216 : LSR A : EOR #$FFFF : INC A : CLC :
- * ADC $1980,X : STA $1980,X : SEP #$20 -- start with $1980,X lowered by half of
- * steps * operand 3. */
-static void set_steps_and_rise(Snes *s)
-{
-    uint8_t steps = (uint8_t)s->cpu.a;
-    m_write8(s, m_abs(s, STEPS_LEFT) + s->cpu.x, steps);
-    m_write8(s, m_abs(s, 0x4202), steps);
-    uint8_t height = m_lda8(s, dp8(s, 0xC1));
-    m_write8(s, m_abs(s, 0x4203), height);
-    m_write8(s, m_abs(s, 0x1B81) + s->cpu.x, height);
-    m_rep(s, CPU_FLAG_M);
-    uint16_t v = m_lda16(s, m_read16(s, m_abs(s, 0x4216)));
-    v = m_lsr16(s, v);
-    v = m_lda16(s, (uint16_t)~v);
-    v = m_lda16(s, (uint16_t)(v + 1));
-    m_set_flag(s, CPU_FLAG_C, false);
-    uint32_t vy = m_abs(s, 0x1980) + s->cpu.x;
-    v = m_adc16(s, v, m_read16(s, vy));
-    s->cpu.a = v;
-    m_write16(s, vy, v);
-    m_sep(s, CPU_FLAG_M);
-}
-
-/* A = distance along an axis (target - own, from SBC): make it positive, then
- * steps = (distance << 8) / |velocity| using the hardware divider. Returns
- * false if the velocity byte `velocity_table`,X is zero (try the other axis). */
-static bool steps_for_axis(Snes *s, uint16_t velocity_table)
-{
-    uint8_t d = (uint8_t)s->cpu.a;
-    if (!m_flag(s, CPU_FLAG_C))
-        d = negate8(s, d);
-    m_xba(s);
-    m_lda8(s, 0x00);
-    m_rep(s, CPU_FLAG_M);
-    m_write16(s, m_abs(s, 0x4204), s->cpu.a);
-    m_sep(s, CPU_FLAG_M);
-    uint8_t velocity = m_lda8(s, object_byte(s, velocity_table));
-    if (velocity == 0)
-        return false;
-    if (velocity & 0x80)
-        velocity = negate8(s, velocity);
-    m_write8(s, m_abs(s, 0x4206), velocity);
-    m_lda8(s, m_read8(s, m_abs(s, 0x4214)));
-    set_steps_and_rise(s);
-    return true;
-}
-
-// $C0:4D06
-/* $7A: move toward the tile at operands (X, Y) with the object's velocity
- * ($1900,X/$1980,X), taking as many steps as the X distance (or, failing that,
- * the Y distance) needs at that velocity; operand 3 goes to $1B81,X and, times
- * the step count, halved, is taken off $1980-$1981,X. $C0:ABA2 and $C0:AC69
- * are called out first. */
-void event_cmd_move_to_tile_with_velocity(Snes *s)
-{
-    if (velocity_move_in_progress(s, 4))
-        return;
-    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
-    m_tyx(s);
-    m_inx(s);
-    set_dp8(s, DP_TARGET_X, m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    set_dp8(s, DP_TARGET_Y, m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    set_dp8(s, 0xC1, m_lda8(s, script_byte(s, s->cpu.x)));
-    ldx_current_object(s);
-    set_dp8(s, DP_OWN_X, m_lda8(s, object_byte(s, TILE_X)));
-    set_dp8(s, DP_OWN_Y, m_lda8(s, object_byte(s, TILE_Y)));
-    if (!call(s, 0xC04D46, 0xC0ABA2, false))
-        return;
-    ldx_current_object(s);
-    if (!call(s, 0xC04D4B, 0xC0AC69, false))
-        return;
-
-    /* $C0:4D4E: X distance, then $C0:4DA1: Y distance. */
-    uint8_t axes[2][3] = { { DP_TARGET_X, DP_OWN_X, 0 }, { DP_TARGET_Y, DP_OWN_Y, 0 } };
-    uint16_t velocity_tables[2] = { 0x1900, 0x1980 };
-    for (int axis = 0; axis < 2; axis++) {
-        uint8_t target = m_lda8(s, dp8(s, axes[axis][0]));
-        m_set_flag(s, CPU_FLAG_C, true);
-        uint8_t d = m_sbc8(s, target, dp8(s, axes[axis][1]));
-        m_set_a8(s, d);
-        if (d != 0 && steps_for_axis(s, velocity_tables[axis])) {
-            begin_velocity_move(s);
-            return;
-        }
-    }
-
-    /* $C0:4DF4: no usable distance: operand 3 steps. */
-    m_lda8(s, dp8(s, 0xC1));
-    set_steps_and_rise(s);
-    begin_velocity_move(s);
+    set_field_object_counted_move(g, object, COUNTED_MOVE_RUNNING);
+    set_field_object_accelerating(g, object, 1);
+    return step_at(event_saved_position(g), false, cursor);
 }
 
 // $C0:4E25
-/* $7B: set this object's velocity ($1900,X and $1980,X from operands 1 and
- * 2), $1B81,X (operand 3) and step count (operand 4), and start moving. Leaves
- * Y holding the object's slot. */
+/* $7B: move with velocity (operands 1 and 2, the low bytes of the X and Y
+ * velocities), acceleration (operand 3) and steps (operand 4). The parse
+ * position is left holding the object. */
+static EventStep move_with_velocity(GameState *g, const EventCommand *c)
+{
+    set_event_saved_position(g, c->at);
+    unsigned self = current_object(g);
+    set_field_object_velocity_x(g, self, (uint16_t)((field_object_velocity_x(g, self) & 0xFF00) | operand(g, c, 1)));
+    set_field_object_velocity_y(g, self, (uint16_t)((field_object_velocity_y(g, self) & 0xFF00) | operand(g, c, 2)));
+    set_field_object_acceleration(g, self, operand(g, c, 3));
+    set_field_object_steps_left(g, self, operand(g, c, 4));
+    return begin_velocity_move(g, self, field_current_object(g));
+}
+
 void event_cmd_move_with_velocity(Snes *s)
 {
-    if (velocity_move_in_progress(s, 5))
+    if (!velocity_move_decided(s, 5))
+        event_command_run(s, move_with_velocity);
+}
+
+/* The move takes `steps` steps, with the height (event_count's low byte) as
+ * its acceleration and its Y velocity lowered by half of steps * height to
+ * start with, so the object rises and comes down on the tile. The addition's
+ * overflow is the step's. */
+static bool rise(GameState *g, unsigned self, uint8_t steps)
+{
+    uint8_t height = (uint8_t)event_count(g);
+    set_field_object_steps_left(g, self, steps);
+    hw_set_multiplicand(g, steps);
+    uint16_t product = hw_multiply_by(g, height);
+    set_field_object_acceleration(g, self, height);
+    uint16_t lift = (uint16_t)(0 - (product >> 1));
+    uint16_t vy = field_object_velocity_y(g, self);
+    uint16_t sum = (uint16_t)(lift + vy);
+    set_field_object_velocity_y(g, self, sum);
+    return overflows16(lift, vy, sum);
+}
+
+/* The steps to cover `distance` along an axis (target - own, the borrow
+ * saying which way) at the object's velocity byte there: distance * 256 /
+ * |velocity|, by the divider. False if the velocity is zero. */
+static bool steps_along(GameState *g, uint8_t distance, bool borrow, uint8_t velocity, uint8_t *steps)
+{
+    if (borrow)
+        distance = (uint8_t)-distance;
+    hw_set_dividend(g, (uint16_t)(distance << 8));
+    if (velocity == 0)
+        return false;
+    if (velocity & 0x80)
+        velocity = (uint8_t)-velocity;
+    hw_divide_by(g, velocity);
+    *steps = (uint8_t)hw_quotient(g);
+    return true;
+}
+
+// $C0:4D4E
+/* After the calls: as many steps as the X distance takes at the X velocity,
+ * or failing that the Y distance at the Y velocity, or failing both the
+ * height's. `self` is the object the calls left in X. */
+static EventStep plan_velocity_move(GameState *g, unsigned self, uint16_t cursor)
+{
+    uint8_t steps = (uint8_t)event_count(g);
+    uint8_t dx = (uint8_t)(field_target_tile_x(g) - field_own_tile_x(g));
+    uint8_t dy = (uint8_t)(field_target_tile_y(g) - field_own_tile_y(g));
+    if (!(dx != 0 && steps_along(g, dx, field_target_tile_x(g) < field_own_tile_x(g),
+                                 (uint8_t)field_object_velocity_x(g, self), &steps)) &&
+        !(dy != 0 && steps_along(g, dy, field_target_tile_y(g) < field_own_tile_y(g),
+                                 (uint8_t)field_object_velocity_y(g, self), &steps)))
+        steps = (uint8_t)event_count(g);
+    bool overflow = rise(g, self, steps);
+    return with_overflow(begin_velocity_move(g, self, cursor), overflow);
+}
+
+// $C0:4D06
+/* $7A: move toward the tile at operands (X, Y) with the object's velocity,
+ * rising by operand 3 on the way (see rise). The velocity is
+ * field_set_velocity's ($C0:AC69) for the direction field_direction_to_target
+ * gives, both called out to. */
+void event_cmd_move_to_tile_with_velocity(Snes *s)
+{
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    if (velocity_move_decided(s, 4))
         return;
-    m_write16(s, m_dp(s, DP_SAVED_Y), s->cpu.y);
-    m_tyx(s);
-    static const uint16_t tables[4] = { 0x1900, 0x1980, 0x1B81, STEPS_LEFT };
-    for (int i = 0; i < 4; i++) {
-        m_inx(s);
-        uint8_t v = m_lda8(s, script_byte(s, s->cpu.x));
-        if (i == 0)
-            m_ldy(s, m_read16(s, m_dp(s, DP_OBJECT)));
-        m_write8(s, m_abs(s, tables[i]) + s->cpu.y, v);
+    set_event_saved_position(g, c.at);
+    set_target_tile(g, operand(g, &c, 1), operand(g, &c, 2));
+    set_event_count(g, (uint16_t)((event_count(g) & 0xFF00) | operand(g, &c, 3)));
+    set_own_tile(g);
+    if (!call_for_carry(s, 0xC04D46, 0xC0ABA2, m_flag(s, CPU_FLAG_C)) || !call_with_object(s, 0xC04D4B, 0xC0AC69))
+        return;
+    /* the original goes on with the object field_set_velocity leaves in X */
+    if (!event_names_object(s->cpu.x)) {
+        m_stop_at_own(s, 0xC04D4E, 0);
+        return;
     }
-    m_lda8(s, 0x01);
-    m_write8(s, m_abs(s, COUNTED_MOVE) + s->cpu.y, 0x01);
-    m_write8(s, m_abs(s, 0x1B80) + s->cpu.y, 0x01);
-    m_ldx(s, m_read16(s, m_dp(s, DP_SAVED_Y)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    event_return(s, plan_velocity_move(g, slot_of(s->cpu.x), s->cpu.y));
+}
+
+/* ---- The object's state routine, and following ---------------------------------------- */
+
+enum { STATE_ROUTINES = 3 };
+
+// $C0:3002
+/* $B0: run the routine the object's state picks -- 0 $C0:9E29 (and then, if
+ * $C0:5B8D accepts the object's facing, $C0:3154), 1 $C0:A26B, 2 $C0:A2CE --
+ * each with a step's move set up first; other states run none. Stays on the
+ * command; nothing happens while field_state_routine_hold is set. The
+ * routines are the original's, called with 8-bit index registers. */
+void event_cmd_run_state_routine(Snes *s)
+{
+    static const uint32_t sites[STATE_ROUTINES] = { 0xC03047, 0xC03037, 0xC03027 };
+    static const uint32_t routines[STATE_ROUTINES] = { 0xC09E29, 0xC0A26B, 0xC0A2CE };
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    if (field_state_routine_hold(g) != 0) {
+        stay(s);
+        return;
+    }
+    set_event_saved_position(g, c.at);
+    s->cpu.p |= CPU_FLAG_X;   /* 8-bit index registers, which clears their high bytes */
+    s->cpu.x &= 0x00FF;
+    s->cpu.y &= 0x00FF;
+    unsigned self = current_object(g);
+    uint8_t state = field_object_state_state(g, self);
+    if (state < STATE_ROUTINES) {
+        set_field_object_steps_left(g, self, 1);
+        m_jsr_dc(s, sites[state], routines[state], DC_A | DC_X | DC_N | DC_Z);
+        if (!back(s, sites[state] + 3, true))
+            return;
+        if (state == 0) {
+            m_jsr_dc(s, 0xC0304F, 0xC05B8D, DC_A | DC_X | DC_N | DC_Z);
+            if (!back(s, 0xC03052, true))
+                return;
+            if (m_flag(s, CPU_FLAG_C)) {
+                m_jsr_dc(s, 0xC03054, 0xC03154, DC_A | DC_X | DC_N | DC_Z);
+                if (!back(s, 0xC03057, true))
+                    return;
+            }
+        }
+    }
+    s->cpu.p &= (uint8_t)~CPU_FLAG_X;
+    event_return(s, step_at(event_saved_position(g), false, s->cpu.y));
+}
+
+// $C0:3546
+/* $B5: keep following the object in operand 1: run $94 every turn, and end
+ * the turn on this command. */
+void event_cmd_follow_object(Snes *s)
+{
+    keep16(state_of(s), SCRATCH_E3, s->cpu.y);
+    m_jsr_dc(s, 0xC03548, 0xC05215, DC_A | DC_X | DC_N | DC_Z);
+    if (back(s, 0xC0354B, false))
+        event_return(s, step_at(scratch16(state_of(s), SCRATCH_E3), false, s->cpu.y));
+}
+
+// $C0:354F
+/* $B6: keep following party member (operand 1): run $95 every turn, going on
+ * with the turn when it does. */
+void event_cmd_follow_party_member(Snes *s)
+{
+    keep16(state_of(s), SCRATCH_E3, s->cpu.y);
+    m_jsr_dc(s, 0xC03551, 0xC05410, DC_A | DC_X | DC_N | DC_Z);
+    if (back(s, 0xC03554, false))
+        event_return(s, step_at(scratch16(state_of(s), SCRATCH_E3), m_flag(s, CPU_FLAG_C), s->cpu.y));
 }

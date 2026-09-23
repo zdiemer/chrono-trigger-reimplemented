@@ -391,11 +391,6 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         for (int k = 0; k < o->nareas; k++)
             if (o->areas[k].base != FUZZ_AT_ADDRESS)
                 apply_area(m, base, &o->areas[k]);
-        if (e->guard && !e->guard(m)) {
-            r.guard++;
-            continue;
-        }
-
         /* Call it: return to address $0000 in the routine's bank. */
         uint16_t ret_s = m->cpu.s;
         uint32_t ret_pc = e->addr & 0xFF0000;
@@ -415,6 +410,12 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         }
         m->cpu.pb = (uint8_t)(e->addr >> 16);
         m->cpu.pc = (uint16_t)e->addr;
+        /* The guard looks at the machine as the routine is entered, the return
+         * address pushed: a guard that reads work RAM can read the stack. */
+        if (e->guard && !e->guard(m)) {
+            r.guard++;
+            continue;
+        }
         uint16_t entry_s = m->cpu.s;
         snes_clone(&native, &orig);
         native.interpreter = callout_step;

@@ -134,9 +134,10 @@ class TimingGateTest(unittest.TestCase):
         agg = tg.aggregate([parse(entry("event_cmd_x", 1000, 5500000, 1000000, 0, 5000, hist(b0=1000), 0))])
         with tempfile.TemporaryDirectory() as d:
             path = pathlib.Path(d) / "registry.c"
-            path.write_text("    EVENT_CMD(0xC062B5, event_cmd_x, 5000),\n    EVENT_CMD(0xC062CB, event_cmd_y, 5000),\n")
+            path.write_text("    EVENT_CMD(0xC062B5, event_cmd_x, 5000, a_guard),\n"
+                            "    EVENT_CMD(0xC062CB, event_cmd_y, 5000),\n")
             self.assertEqual(tg.calibrate(agg, path), [("event_cmd_x", 5000, 5500)])
-            self.assertEqual(path.read_text(), "    EVENT_CMD(0xC062B5, event_cmd_x, 5500),\n"
+            self.assertEqual(path.read_text(), "    EVENT_CMD(0xC062B5, event_cmd_x, 5500, a_guard),\n"
                                                "    EVENT_CMD(0xC062CB, event_cmd_y, 5000),\n")
             missing = tg.aggregate([parse(entry("gone", 10, 100, 10, 0, 4000, hist(b0=10), 0))])
             with self.assertRaises(SystemExit):

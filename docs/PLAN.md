@@ -55,8 +55,8 @@ it counts as done may still be transliterated or welded to the machine, which
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 70% left | 0% |
-| Ports that read as source (`portstyle.py`) | 0.31 ops/line | ~0 |
-| Ports off the machine (`portstyle.py`) | 92% take a `Snes *` | entry wrappers only |
+| Ports that read as source (`portstyle.py`) | 0.27 ops/line | ~0 |
+| Ports off the machine (`portstyle.py`) | 79% take a `Snes *` | entry wrappers only |
 | ROM reads by address | 117, in 22 files | 0, all through accessors |
 | SPC700 sound driver | read and mapped (SOUND.md); port not started | reimplemented in C |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
@@ -148,23 +148,27 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **57 of 88 files, 20,404 of
-28,624 lines (71%), are on the backlog**, and all but the scenes is on the
-machine:
+each subsystem's functions that take the machine. **42 of 89 files, 16,953 of
+27,677 lines (61%), are on the backlog**, and all but the scenes and the events
+is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 20 | 27 | 7,779 | 10,310 | 0.33 | 99% |
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
-| event | 15 | 15 | 3,451 | 3,451 | 0.46 | 100% |
+| event | 0 | 16 | 0 | 2,512 | 0.02 | 50% |
 | field | 10 | 13 | 2,927 | 3,606 | 0.35 | 93% |
-| scene | 0 | 13 | 0 | 2,405 | 0.05 | 54% |
+| scene | 0 | 13 | 0 | 2,397 | 0.05 | 54% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
-| **total** | **57** | **88** | **20,404** | **28,624** | **0.31** | **92%** |
+| **total** | **42** | **89** | **16,953** | **27,677** | **0.27** | **79%** |
 
-Scene's 54% is its entries' wrappers, their guards and the bridges around its
-call-outs, and nothing else (RECOMP.md, "Phase 3a: the scene subsystem off the
-machine", lists the 27 that are neither an entry nor a guard, and why).
+Scene's 54% and event's 50% are their entries' wrappers, their guards and the
+bridges around their call-outs, and nothing else, counted by name
+(`portstyle.py`'s own column misses one-line definitions and macro-generated
+entries; RECOMP.md, "Phase 3a: the scene subsystem off the machine" and "Phase
+3a: the event subsystem off the machine", list what is neither an entry nor a
+guard, and why). Most of event's are the move commands' calls into the field's
+motion routines, which leave with `field`'s rewrite.
 
 ### What decoupling means here, and what it must not break
 
@@ -233,9 +237,19 @@ than a fresh port and much better checked: the behaviour is already under the
 gate, so shadow mode compares the rewrite against the original call for call
 over the whole library, and the entry keeps its fuzzing. Rewriting a file to
 the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
-holds every other file where it is, so the list only shrinks. Order: `event`
-and `field` next, then `menu`, then `battle`, whose 7.8K lines are the largest
-and whose bank is also the least converted.
+holds every other file where it is, so the list only shrinks. Order: `field`
+next, then `menu`, then `battle`, whose 7.8K lines are the largest and whose
+bank is also the least converted.
+
+`field` shares event's direct page and can reuse what event's rewrite built
+(RECOMP.md, "Phase 3a: the event subsystem off the machine"): the field page's
+cells now named in the map, the guard that looks at work RAM without the
+machine's time (`vars_peek`), the pattern of a bridge that stops at a
+call-out's return when the callee leaves the machine otherwise, and the move
+commands, whose decisions are already C and wait only for the field's motion
+routines to be ports. Its own command-like dispatchers (the object update's
+states) can take event's shape: a protocol written once as C types, and one
+macro making every registered entry.
 
 **Cells on a page the caller chooses** have a generated shape: a page kind in
 `re/ram.toml` lists the pages its code runs on, as measured over the library
@@ -246,9 +260,9 @@ scratch, its own page or a sequence channel's, which `scene/scratch.c` now
 reaches through it; the menus' `menu_record` page, for `menu`'s rewrite of
 `objects.c`; and the controller input cells, which measurement put on one page,
 D = `$0000`, so they are ordinary accessors for `core/input.c` and whatever
-reads them. That leaves `event` nothing to wait for: the event engine and its
-objects run on the fixed field page (`$0100`), which ordinary accessors already
-cover, and its input conditions (`event/input.c`) read the input cells.
+reads them. The event engine and its objects run on the fixed field page
+(`$0100`), which ordinary accessors cover, and its input conditions
+(`event/input.c`) read the input cells.
 
 A rewrite that hits something the accessors can't say is a finding to report,
 not something to work around: a buffer the game locates at run time reaches
@@ -258,7 +272,7 @@ waiting for a name in the map.
 What this phase does **not** do is add ports or coverage. The burndown's
 percentage stands still while it runs, which is the point: it was already
 counting this work as done. What moves instead are portstyle's two numbers:
-0.31 operations per line toward zero, and 92% of functions on the machine
+0.27 operations per line toward zero, and 79% of functions on the machine
 toward the entry wrappers alone.
 
 ## Phase 3: M5 in bulk
@@ -303,7 +317,7 @@ first. `--uncovered BANK` lists the largest unported runs, which is how to pick
 the next routine. Phase 3a has already brought a subsystem's existing ports to
 the bar, so a conversion here only has to hold them there, which the gate's
 ratchet does. The same goes for the script formats' numbered
-commands (`cmd_6C`, `if_0A`, `set_1c80`): porting a command's handler is when
+commands (`cmd_6C`, `if_0A`, `set_bc`): porting a command's handler is when
 it gets a real name in `tools/disasm/eventscript.py` or `battlescript.py`, since
 that's when someone has read what it does.
 

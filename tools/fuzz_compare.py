@@ -34,6 +34,9 @@ it reuses them:
     iterations = 20000                  # optional; --iterations caps it
     why = "the program kept; the script pointer in the program"
 
+A rewrite that renames an entry gives its address, `at = "C0:6788"`, which
+both builds are run on (ct_fuzz takes a routine by name or by address).
+
 A routine can be listed again with `variant = "loose"` and fewer constraints:
 the tight run says the port is right on what the game produces, and the loose
 one is where a reordered access shows, since it lets buffers and cursors land on
@@ -106,7 +109,8 @@ def make_state(ct_dev, rom, states_dir, name, spec):
 
 
 def fuzz(binary, rom, state, routine, seed, iterations):
-    cmd = [str(binary), "--rom", str(rom), "--load-state", str(state), "--routine", routine["name"],
+    entry = routine["at"].replace(":", "") if "at" in routine else routine["name"]
+    cmd = [str(binary), "--rom", str(rom), "--load-state", str(state), "--routine", entry,
            "--seed", str(seed), "--iterations", str(iterations), "--details", "0"]
     cmd += [str(a) for a in routine.get("args", [])]
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)

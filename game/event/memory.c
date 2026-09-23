@@ -1,349 +1,249 @@
-/* Event commands: reading and writing memory -- through 24-bit pointers in
- * the script, and the byte-addressed area at $7F:0000 -- and copying blocks of
- * script data. */
-#include "event/event.h"
+/* Event commands: memory -- the event memory at $7F:0000 (the story flags),
+ * anything at all through a 24-bit pointer in the script, and blocks of data
+ * the script carries, copied into work RAM.
+ *
+ * The pointers are the script's to choose, so what they reach is work RAM
+ * the game locates at run time, through game/wram.h: a pointer can land on
+ * any cell, the commands' own included, so the commands keep the original's
+ * order of reads and writes. */
+#include "event/bridge.h"
+#include "event/event_data.h"
 
-#include "event/script.h"
+#include "wram.h"
 
-#define MEMORY 0x7F0000u
-
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-
-/* The 24-bit address in direct-page cells `cell`..`cell`+2 (long indirect). */
-static uint32_t pointer_at(Snes *s, uint8_t cell)
+/* Keep the 24-bit pointer at operands 1-3 a byte at a time, as the original
+ * does: an operand past the end of bank $7F is read through the mirror of low
+ * RAM, where it can be the byte just kept. */
+static uint32_t keep_pointer(GameState *g, const EventCommand *c, uint32_t (*get)(const GameState *),
+                             void (*set)(GameState *, uint32_t))
 {
-    return m_read16(s, m_dp(s, cell)) | (uint32_t)dp8(s, (uint8_t)(cell + 2)) << 16;
+    for (unsigned n = 0; n < 3; n++) {
+        uint8_t byte = operand(g, c, 1 + n);
+        set(g, (get(g) & ~(0xFFu << (8 * n))) | (uint32_t)byte << (8 * n));
+    }
+    return get(g);
 }
 
-/* $C0:67A2, called with JSR from `site`: store the pointer from operands 1-3
- * in $CD-$CF, save X (at the variable operand) in $D9, and leave X = that
- * variable's offset with M 16-bit. */
-static void source_pointer_and_variable(Snes *s, uint16_t site)
+// $C0:67A2
+/* $48 and $49 read through the pointer they keep in event_source_pointer;
+ * the scratch cell keeps the variable operand's offset. */
+static uint32_t read_through(GameState *g, const EventCommand *c, uint8_t *v)
 {
-    m_jsr_stack_bytes(s, (uint16_t)(site + 2));
-    m_tyx(s);
-    for (uint8_t cell = 0xCD; cell <= 0xCF; cell++) {
-        m_inx(s);
-        set_dp8(s, cell, m_lda8(s, script_byte(s, s->cpu.x)));
-    }
-    m_inx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_write16(s, m_dp(s, 0xD9), s->cpu.x);
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
-    m_tax(s);
+    keep_pointer(g, c, event_source_pointer, set_event_source_pointer);
+    *v = variable_operand(g, c, 4);
+    keep16(g, SCRATCH_D9, (uint16_t)(c->at + 4));
+    return event_source_pointer(g);
 }
 
 // $C0:6792
 /* $48: variable (operand 4) = the byte at the pointer in operands 1-3. */
-void event_cmd_var_from_pointer(Snes *s)
+static EventStep var_from_pointer(GameState *g, const EventCommand *c)
 {
-    source_pointer_and_variable(s, 0x6792);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, VARS + s->cpu.x, m_lda8(s, m_read8(s, pointer_at(s, 0xCD))));
-    m_ldx(s, m_read16(s, m_dp(s, 0xD9)));
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    uint8_t v;
+    uint32_t at = read_through(g, c, &v);
+    set_var8(g, v, wram_read8(g, at));
+    return next_command(c, 5, 0);
 }
 
 // $C0:67C7
-/* $49: 16-bit variable (operand 4) = the two bytes at the pointer in operands 1-3. */
-void event_cmd_var_from_pointer16(Snes *s)
+/* $49: 16-bit variable (operand 4) = the word at the pointer in operands 1-3. */
+static EventStep var_from_pointer16(GameState *g, const EventCommand *c)
 {
-    source_pointer_and_variable(s, 0x67C7);
-    m_write16(s, VARS + s->cpu.x, m_lda16(s, m_read16(s, pointer_at(s, 0xCD))));
-    m_sep(s, CPU_FLAG_M);
-    m_ldx(s, m_read16(s, m_dp(s, 0xD9)));
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    uint8_t v;
+    uint32_t at = read_through(g, c, &v);
+    set_var16(g, v, wram_read16(g, at));
+    return next_command(c, 5, 0);
 }
 
-/* $C0:67E3, called with JSR from `site`: store the pointer from operands 1-3
- * in $D0-$D2 and leave X at the next operand. */
-static void target_pointer(Snes *s, uint16_t site)
+// $C0:67E3
+/* $4A-$4D write through the pointer they keep in event_target_pointer. */
+static uint32_t write_through(GameState *g, const EventCommand *c)
 {
-    m_jsr_stack_bytes(s, (uint16_t)(site + 2));
-    m_tyx(s);
-    for (uint8_t cell = 0xD0; cell <= 0xD2; cell++) {
-        m_inx(s);
-        set_dp8(s, cell, m_lda8(s, script_byte(s, s->cpu.x)));
-    }
-    m_inx(s);
+    return keep_pointer(g, c, event_target_pointer, set_event_target_pointer);
 }
 
 // $C0:67D7
 /* $4A: store operand 4 at the pointer in operands 1-3. */
-void event_cmd_poke(Snes *s)
+static EventStep poke(GameState *g, const EventCommand *c)
 {
-    target_pointer(s, 0x67D7);
-    m_write8(s, pointer_at(s, 0xD0), m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    uint32_t at = write_through(g, c);
+    wram_write8(g, at, operand(g, c, 4));
+    return next_command(c, 5, 0);
 }
 
 // $C0:67FB
-/* $4B: store operands 4-5 (16-bit) at the pointer in operands 1-3. */
-void event_cmd_poke16(Snes *s)
+/* $4B: store operands 4-5 at the pointer in operands 1-3. */
+static EventStep poke16(GameState *g, const EventCommand *c)
 {
-    target_pointer(s, 0x67FB);
-    m_rep(s, CPU_FLAG_M);
-    m_write16(s, pointer_at(s, 0xD0), m_lda16(s, m_read16(s, SCRIPT + s->cpu.x)));
-    m_sep(s, CPU_FLAG_M);
-    m_inx(s);
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
-
-/* After target_pointer: LDA script,X : STX $D9 : REP #$20 : AND #$00FF :
- * ASL A : TAX -- X = the variable offset; leaves M 16-bit. */
-static void variable_for_poke(Snes *s)
-{
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_write16(s, m_dp(s, 0xD9), s->cpu.x);
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
-    m_tax(s);
+    uint32_t at = write_through(g, c);
+    wram_write16(g, at, operand_word(g, c, 4));
+    return next_command(c, 6, 0);
 }
 
 // $C0:680C
 /* $4C: store variable (operand 4) at the pointer in operands 1-3. */
-void event_cmd_poke_variable(Snes *s)
+static EventStep poke_variable(GameState *g, const EventCommand *c)
 {
-    target_pointer(s, 0x680C);
-    variable_for_poke(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, pointer_at(s, 0xD0), m_lda8(s, m_read8(s, VARS + s->cpu.x)));
-    m_ldx(s, m_read16(s, m_dp(s, 0xD9)));
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    uint32_t at = write_through(g, c);
+    uint8_t v = variable_operand(g, c, 4);
+    keep16(g, SCRATCH_D9, (uint16_t)(c->at + 4));
+    wram_write8(g, at, var8(g, v));
+    return next_command(c, 5, 0);
 }
 
 // $C0:6829
 /* $4D: store 16-bit variable (operand 4) at the pointer in operands 1-3. */
-void event_cmd_poke_variable16(Snes *s)
+static EventStep poke_variable16(GameState *g, const EventCommand *c)
 {
-    target_pointer(s, 0x6829);
-    variable_for_poke(s);
-    m_write16(s, pointer_at(s, 0xD0), m_lda16(s, m_read16(s, VARS + s->cpu.x)));
-    m_sep(s, CPU_FLAG_M);
-    m_ldx(s, m_read16(s, m_dp(s, 0xD9)));
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    uint32_t at = write_through(g, c);
+    uint8_t v = variable_operand(g, c, 4);
+    keep16(g, SCRATCH_D9, (uint16_t)(c->at + 4));
+    wram_write16(g, at, var16(g, v));
+    return next_command(c, 5, 0);
 }
 
+enum { SCRIPT_ADDRESS = 0x2001 };   /* where the script starts in bank $7F */
+
 // $C0:6846
-/* $4E: copy the data that follows in the script into WRAM: operands 1-2 the
- * destination address, operand 3 its bank ($7E; anything else means $7F),
- * operands 4-5 a length L, then L - 2 bytes of data, copied with MVN.
- * Continues after the data. */
-void event_cmd_copy_data(Snes *s)
+/* $4E: copy the data that follows into work RAM: operands 1-2 the address,
+ * operand 3 its bank ($7E; anything else is $7F), operands 4-5 the data's
+ * length plus 2, then the data. Goes on after it. The copy is the block move
+ * the original makes, a byte at a time with both addresses wrapping in their
+ * banks, so a copy onto itself goes as the original's does; it leaves the
+ * count in event_count, the parse position where the destination ended,
+ * and the overflow of turning the source's end back into an offset. */
+static EventStep copy_data(GameState *g, const EventCommand *c)
 {
-    m_tyx(s);
-    m_inx(s);
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.y = m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    m_set_nz16(s, s->cpu.y);
-    m_sep(s, CPU_FLAG_M);
-    m_inx(s);
-    m_inx(s);
-    uint8_t bank = m_lda8(s, script_byte(s, s->cpu.x));
-    m_cmp8(s, bank, 0x7E);
-    uint8_t dest_bank = bank == 0x7E ? 0x7E : 0x7F;
-    m_rep(s, CPU_FLAG_M);
-    m_inx(s);
-    uint16_t count = m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    for (int i = 0; i < 3; i++)
-        count = m_lda16(s, (uint16_t)(count - 1));
-    m_write16(s, m_dp(s, 0xC1), count);
-    m_inx(s);
-    m_inx(s);
-    m_txa(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    s->cpu.a = m_adc16(s, s->cpu.a, 0x2001);
-    m_tax(s);
-    m_lda16(s, m_read16(s, m_dp(s, 0xC1)));
-
-    /* PHB : MVN : PLB */
-    m_push8(s, s->cpu.db);
-    s->cpu.db = dest_bank;
+    uint16_t to = operand_word(g, c, 1);
+    uint32_t bank = operand(g, c, 3) == 0x7E ? 0x7E0000u : 0x7F0000u;
+    uint16_t count = (uint16_t)(operand_word(g, c, 4) - 3);
+    set_event_count(g, count);
+    uint16_t from = (uint16_t)(c->at + 6 + SCRIPT_ADDRESS);
     do {
-        m_write8(s, (uint32_t)dest_bank << 16 | s->cpu.y, m_read8(s, 0x7F0000u | s->cpu.x));
-        s->cpu.x++;
-        s->cpu.y++;
-        s->cpu.a--;
-    } while (s->cpu.a != 0xFFFF);
-    s->cpu.db = m_pull8(s);
-    m_set_nz8(s, s->cpu.db);
-
-    m_txa(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    s->cpu.a = m_sbc16(s, s->cpu.a, 0x2001);
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+        wram_write8(g, bank | to, wram_read8(g, 0x7F0000u | from));
+        from++, to++;
+    } while (count-- != 0);
+    uint16_t next = (uint16_t)(from - SCRIPT_ADDRESS);
+    EventStep st = step_at(next, true, to);
+    return with_overflow(st, overflows16(from, (uint16_t)~SCRIPT_ADDRESS, next));
 }
 
 // $C0:693D
-/* $53: variable (operand 3) = the byte at $7F:0000 + operands 1-2. */
-void event_cmd_var_from_memory(Snes *s)
+/* $53: variable (operand 3) = the byte of event memory at operands 1-2 (the
+ * scratch cell keeps the word there). */
+static EventStep var_from_memory(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    m_tax(s);
-    m_write16(s, m_dp(s, 0xD9), m_lda16(s, m_read16(s, MEMORY + s->cpu.x)));
-    m_iny(s);
-    m_iny(s);
-    m_tyx(s);
-    var_offset_here(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, VARS + s->cpu.x, m_lda8(s, dp8(s, 0xD9)));
-    tyx_inx_sec_rts(s, 1);
+    keep16(g, SCRATCH_D9, memory16(g, operand_word(g, c, 1)));
+    set_var8(g, variable_operand(g, c, 3), scratch8(g, SCRATCH_D9));
+    return next_command(c, 4, 3);
 }
 
 // $C0:6964
-/* $54: 16-bit variable (operand 3) = the two bytes at $7F:0000 + operands 1-2. */
-void event_cmd_var_from_memory16(Snes *s)
+/* $54: 16-bit variable (operand 3) = the word of event memory at operands 1-2. */
+static EventStep var_from_memory16(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    m_tax(s);
-    m_write16(s, m_dp(s, 0xD9), m_lda16(s, m_read16(s, MEMORY + s->cpu.x)));
-    m_iny(s);
-    m_iny(s);
-    m_tyx(s);
-    var_offset_here(s);
-    m_write16(s, VARS + s->cpu.x, m_lda16(s, m_read16(s, m_dp(s, 0xD9))));
-    m_sep(s, CPU_FLAG_M);
-    tyx_inx_sec_rts(s, 1);
+    keep16(g, SCRATCH_D9, memory16(g, operand_word(g, c, 1)));
+    set_var16(g, variable_operand(g, c, 3), scratch16(g, SCRATCH_D9));
+    return next_command(c, 4, 3);
 }
 
 // $C0:698B
-/* $55: variable (operand 1) = the byte at $7F:0000. */
-void event_cmd_var_from_memory0(Snes *s)
+/* $55: variable (operand 1) = the first byte of event memory. */
+static EventStep var_from_memory0(GameState *g, const EventCommand *c)
 {
-    var_offset_next(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, VARS + s->cpu.x, m_lda8(s, m_read8(s, MEMORY)));
-    tyx_inx_sec_rts(s, 1);
+    set_var8(g, variable_operand(g, c, 1), memory8(g, 0));
+    return next_command(c, 2, 1);
 }
 
 // $C0:69A6
-/* $56: store operand 1 at $7F:0000 + operands 2-3. */
-void event_cmd_memory_set(Snes *s)
+/* $56: store operand 1 in event memory at operands 2-3. */
+static EventStep memory_set(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    set_dp8(s, 0xD9, m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, MEMORY + s->cpu.x, m_lda8(s, dp8(s, 0xD9)));
-    m_iny(s);
-    m_iny(s);
-    iny_tyx_sec_rts(s);
-}
-
-/* Variable (operand 1) into $D9-$DA (16-bit), then X = operands 2-3; M 16-bit. */
-static void variable_then_address(Snes *s)
-{
-    var_offset_next(s);
-    m_write16(s, m_dp(s, 0xD9), m_lda16(s, m_read16(s, VARS + s->cpu.x)));
-    m_iny(s);
-    m_tyx(s);
-    m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    m_tax(s);
+    keep8(g, SCRATCH_D9, operand(g, c, 1));
+    set_memory8(g, operand_word(g, c, 2), scratch8(g, SCRATCH_D9));
+    return next_command(c, 4, 4);
 }
 
 // $C0:69C4
-/* $58: store variable (operand 1) at $7F:0000 + operands 2-3. */
-void event_cmd_memory_set_from_var(Snes *s)
+/* $58: store variable (operand 1) in event memory at operands 2-3. */
+static EventStep memory_set_from_var(GameState *g, const EventCommand *c)
 {
-    variable_then_address(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, MEMORY + s->cpu.x, m_lda8(s, dp8(s, 0xD9)));
-    m_iny(s);
-    iny_tyx_sec_rts(s);
+    keep16(g, SCRATCH_D9, var16(g, variable_operand(g, c, 1)));
+    set_memory8(g, operand_word(g, c, 2), scratch8(g, SCRATCH_D9));
+    return next_command(c, 4, 4);
 }
 
 // $C0:69EB
-/* $59: store 16-bit variable (operand 1) at $7F:0000 + operands 2-3. */
-void event_cmd_memory_set_from_var16(Snes *s)
+/* $59: store 16-bit variable (operand 1) in event memory at operands 2-3. */
+static EventStep memory_set_from_var16(GameState *g, const EventCommand *c)
 {
-    variable_then_address(s);
-    m_write16(s, MEMORY + s->cpu.x, m_lda16(s, m_read16(s, m_dp(s, 0xD9))));
-    m_sep(s, CPU_FLAG_M);
-    m_iny(s);
-    iny_tyx_sec_rts(s);
+    keep16(g, SCRATCH_D9, var16(g, variable_operand(g, c, 1)));
+    set_memory16(g, operand_word(g, c, 2), scratch16(g, SCRATCH_D9));
+    return next_command(c, 4, 4);
 }
 
 // $C0:6A12
-/* $5A: store operand 1 at $7F:0000. */
-void event_cmd_memory0_set(Snes *s)
+/* $5A: store operand 1 in the first byte of event memory. */
+static EventStep memory0_set(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_write8(s, MEMORY, m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    set_memory8(g, 0, operand(g, c, 1));
+    return next_command(c, 2, 1);
 }
 
-/* ROL A (8-bit) */
-static uint8_t rol8(Snes *s, uint8_t v)
+/* The byte of event memory a bit command names: operand 2 in the first
+ * page, or the second when bit 7 of operand 1 is set; bits 0-3 of operand 1
+ * pick the bit. The operand and the mask are kept in the scratch cells. */
+static uint16_t flag_byte(GameState *g, const EventCommand *c, uint8_t mask)
 {
-    uint8_t r = (uint8_t)(v << 1 | (m_flag(s, CPU_FLAG_C) ? 1 : 0));
-    m_set_flag(s, CPU_FLAG_C, v & 0x80);
-    m_set_nz8(s, r);
-    return r;
-}
-
-/* $C0:6B76 and $C0:6BA4: change a bit in the memory byte at $7F:0000 +
- * operand 2 (+ $100 when operand 1 has bit 7 set), with the mask for operand
- * 1's low nibble from `table`. */
-static void memory_bit(Snes *s, uint16_t table, bool set)
-{
-    m_iny(s);
-    m_tyx(s);
-    m_tdc(s);
-    m_xba(s);
-    uint8_t op = m_lda8(s, script_byte(s, s->cpu.x));
-    set_dp8(s, 0xDB, op);
-    m_lda8(s, op & 0x0F);
-    m_tax(s);
-    set_dp8(s, 0xD9, m_lda8(s, m_read8(s, m_abs(s, table) + s->cpu.x)));
-    uint8_t v = m_lda8(s, dp8(s, 0xDB));
-    v = rol8(s, v);
-    v = rol8(s, v);
-    m_set_a8(s, v);
-    m_lda8(s, v & 0x01);
-    m_xba(s);
-    m_iny(s);
-    m_tyx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_tax(s);
-    uint8_t byte = m_read8(s, MEMORY + s->cpu.x), mask = dp8(s, 0xD9);
-    m_write8(s, MEMORY + s->cpu.x, m_lda8(s, set ? (uint8_t)(byte | mask) : (uint8_t)(byte & mask)));
-    iny_tyx_sec_rts(s);
+    uint8_t which = operand(g, c, 1);
+    keep8(g, SCRATCH_DB, which);
+    keep8(g, SCRATCH_D9, mask);
+    return (uint16_t)((which & 0x80) << 1 | operand(g, c, 2));
 }
 
 // $C0:6B76
-/* $65: set a bit in memory ($7F:0000 or $7F:0100 area; see memory_bit). */
-void event_cmd_memory_set_bit(Snes *s) { memory_bit(s, 0xFF20, true); }
+/* $65: set a bit of event memory (a story flag). */
+static EventStep memory_set_bit(GameState *g, const EventCommand *c)
+{
+    uint8_t mask = bit_mask(g, operand(g, c, 1) & 0x0F);
+    uint16_t at = flag_byte(g, c, mask);
+    set_memory8(g, at, (uint8_t)(memory8(g, at) | mask));
+    return next_command(c, 3, 3);
+}
 
 // $C0:6BA4
-/* $66: clear a bit in memory. */
-void event_cmd_memory_clear_bit(Snes *s) { memory_bit(s, 0xFF28, false); }
+/* $66: clear a bit of event memory. */
+static EventStep memory_clear_bit(GameState *g, const EventCommand *c)
+{
+    uint8_t mask = bit_clear_mask(g, operand(g, c, 1) & 0x0F);
+    uint16_t at = flag_byte(g, c, mask);
+    set_memory8(g, at, (uint8_t)(memory8(g, at) & mask));
+    return next_command(c, 3, 3);
+}
+
+EVENT_COMMAND(event_cmd_var_from_pointer, var_from_pointer)
+EVENT_COMMAND(event_cmd_var_from_pointer16, var_from_pointer16)
+EVENT_COMMAND(event_cmd_poke, poke)
+EVENT_COMMAND(event_cmd_poke16, poke16)
+EVENT_COMMAND(event_cmd_poke_variable, poke_variable)
+EVENT_COMMAND(event_cmd_poke_variable16, poke_variable16)
+EVENT_COMMAND(event_cmd_var_from_memory, var_from_memory)
+EVENT_COMMAND(event_cmd_var_from_memory16, var_from_memory16)
+EVENT_COMMAND(event_cmd_var_from_memory0, var_from_memory0)
+EVENT_COMMAND(event_cmd_memory_set, memory_set)
+EVENT_COMMAND(event_cmd_memory_set_from_var, memory_set_from_var)
+EVENT_COMMAND(event_cmd_memory_set_from_var16, memory_set_from_var16)
+EVENT_COMMAND(event_cmd_memory0_set, memory0_set)
+EVENT_COMMAND(event_cmd_memory_set_bit, memory_set_bit)
+EVENT_COMMAND(event_cmd_memory_clear_bit, memory_clear_bit)
+
+/* $4E's entry: the original keeps the data bank on the stack across its block
+ * move, which a copy onto the stack changes, and so does the port. */
+void event_cmd_copy_data(Snes *s)
+{
+    m_push8(s, s->cpu.db);
+    EventCommand c = event_command_at(s);
+    EventStep st = copy_data(state_of(s), &c);
+    s->cpu.db = m_pull8(s);
+    event_return(s, st);
+}

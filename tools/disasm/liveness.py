@@ -155,6 +155,12 @@ def use_def(insn: Insn, m8: bool | None, x8: bool | None = None) -> tuple[int, i
     if n == "STZ":
         return addr, 0
     if n in ("ORA", "AND", "EOR"):
+        # A 16-bit AND #$00xx (or ORA #$FFxx) sets the high byte whatever it
+        # held -- the `AND #$00FF` that widens a byte -- so it reads the low
+        # byte alone.
+        if m8 is False and mode is Mode.IMM_M and insn.operand is not None and \
+                ((n == "AND" and insn.operand >> 8 == 0x00) or (n == "ORA" and insn.operand >> 8 == 0xFF)):
+            return A, AW | N | Z
         return addr | a_use, a_def | N | Z
     if n in ("ADC", "SBC"):
         return addr | a_use | C, a_def | N | V | Z | C

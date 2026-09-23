@@ -68,6 +68,7 @@ add_library(ct_game STATIC
   game/core/tile_animation.c
   game/data/decompress.c
   game/event/animation.c
+  game/event/bridge.c
   game/event/arithmetic.c
   game/event/calls.c
   game/event/dialog.c

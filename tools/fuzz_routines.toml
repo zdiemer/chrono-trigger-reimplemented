@@ -611,3 +611,3180 @@ subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 iterations = 2000
+
+# ---- event: bank C0 (the event script's engine and command handlers) ---------------------------------
+#
+# The handlers run on the field's page (D = $0100) with the data bank $00; the
+# running object ($016D) is a slot doubled, below $80 (its odd half is turned
+# away by the guards, which accept only what the game makes: an object is an
+# even offset); script offsets are kept in the first half of the buffer, since
+# past $DFFF they reach bank $80, which mirrors low RAM. The loose variants let
+# the offset run anywhere, so operands read through that mirror can land on the
+# cells a command writes. The entries are at their addresses: the rewrite
+# renamed several.
+
+[state.field]
+movie = "oracle/movies/field.ctm"
+frames = 11400
+
+[[routine]]
+name = "event_run_object_script"
+at = "C0:5A93"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "X=0000-007F"]
+why = "the object in X (8-bit) a slot doubled below $80; each command runs as a call-out"
+
+[[routine]]
+name = "event_run_init_scripts"
+at = "C0:58DE"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-40"]
+iterations = 2000
+why = "up to 64 objects, each running its opening's commands as call-outs"
+
+[[routine]]
+name = "event_cmd_jump_forward"
+at = "C0:62B5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_jump_forward"
+variant = "loose"
+at = "C0:62B5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_jump_back"
+at = "C0:62CB"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_jump_back"
+variant = "loose"
+at = "C0:62CB"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_var_const"
+at = "C0:62DE"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_var_const"
+variant = "loose"
+at = "C0:62DE"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_var_const16"
+at = "C0:6313"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_var_const16"
+variant = "loose"
+at = "C0:6313"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_var_var"
+at = "C0:6361"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_var_var"
+variant = "loose"
+at = "C0:6361"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_var_var16"
+at = "C0:63A4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_var_var16"
+variant = "loose"
+at = "C0:63A4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_memory"
+at = "C0:63E6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_memory"
+variant = "loose"
+at = "C0:63E6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait"
+at = "C0:2F96"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait"
+variant = "loose"
+at = "C0:2F96"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_yield"
+at = "C0:353F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_yield"
+variant = "loose"
+at = "C0:353F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_halt"
+at = "C0:3543"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_halt"
+variant = "loose"
+at = "C0:3543"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_memory0_below"
+at = "C0:6442"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_memory0_below"
+variant = "loose"
+at = "C0:6442"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_result"
+at = "C0:6568"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_result"
+variant = "loose"
+at = "C0:6568"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_object_in_view"
+at = "C0:662C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_object_in_view"
+variant = "loose"
+at = "C0:662C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_object_on_screen"
+at = "C0:6655"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_object_on_screen"
+variant = "loose"
+at = "C0:6655"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait_4"
+at = "C0:2FC6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait_4"
+variant = "loose"
+at = "C0:2FC6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait_8"
+at = "C0:2FCA"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait_8"
+variant = "loose"
+at = "C0:2FCA"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait_16"
+at = "C0:2FD2"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait_16"
+variant = "loose"
+at = "C0:2FD2"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait_32"
+at = "C0:2FCE"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait_32"
+variant = "loose"
+at = "C0:2FCE"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_run_state_routine_once"
+at = "C0:2FFD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_run_state_routine_once"
+variant = "loose"
+at = "C0:2FFD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_dialog_table"
+at = "C0:3557"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_dialog_table"
+variant = "loose"
+at = "C0:3557"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_dialog"
+at = "C0:3570"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_dialog"
+variant = "loose"
+at = "C0:3570"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_dialog_top"
+at = "C0:35B5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_dialog_top"
+variant = "loose"
+at = "C0:35B5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_dialog_bottom"
+at = "C0:35FC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_dialog_bottom"
+variant = "loose"
+at = "C0:35FC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_choice"
+at = "C0:3643"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_choice"
+variant = "loose"
+at = "C0:3643"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_choice_top"
+at = "C0:36AA"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_choice_top"
+variant = "loose"
+at = "C0:36AA"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_choice_bottom"
+at = "C0:36DD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_choice_bottom"
+variant = "loose"
+at = "C0:36DD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_loop_animation"
+at = "C0:2E67"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_loop_animation"
+variant = "loose"
+at = "C0:2E67"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_play_animation"
+at = "C0:2E9A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_play_animation"
+variant = "loose"
+at = "C0:2E9A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_static_frame"
+at = "C0:2F71"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_static_frame"
+variant = "loose"
+at = "C0:2F71"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_reset_animation"
+at = "C0:2E8F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_reset_animation"
+variant = "loose"
+at = "C0:2E8F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_loop_animation_0"
+at = "C0:2E87"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_loop_animation_0"
+variant = "loose"
+at = "C0:2E87"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_loop_animation_1"
+at = "C0:2E8B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_loop_animation_1"
+variant = "loose"
+at = "C0:2E8B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_play_animation_for"
+at = "C0:2F01"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_play_animation_for"
+variant = "loose"
+at = "C0:2F01"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_return"
+at = "C0:5F74"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_return"
+variant = "loose"
+at = "C0:5F74"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_call"
+at = "C0:5FB6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_call"
+variant = "loose"
+at = "C0:5FB6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_call_when_accepted"
+at = "C0:607E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_call_when_accepted"
+variant = "loose"
+at = "C0:607E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_call_and_wait"
+at = "C0:6109"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_call_and_wait"
+variant = "loose"
+at = "C0:6109"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_call_party_member"
+at = "C0:61E9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_call_party_member"
+variant = "loose"
+at = "C0:61E9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_call_party_member_when_accepted"
+at = "C0:61FE"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_call_party_member_when_accepted"
+variant = "loose"
+at = "C0:61FE"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_call_party_member_and_wait"
+at = "C0:6214"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_call_party_member_and_wait"
+variant = "loose"
+at = "C0:6214"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_refuse_calls"
+at = "C0:6240"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_refuse_calls"
+variant = "loose"
+at = "C0:6240"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_accept_calls"
+at = "C0:624B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_accept_calls"
+variant = "loose"
+at = "C0:624B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_disable_object"
+at = "C0:6254"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_disable_object"
+variant = "loose"
+at = "C0:6254"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_make_object_uncallable"
+at = "C0:6269"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_make_object_uncallable"
+variant = "loose"
+at = "C0:6269"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_make_object_callable"
+at = "C0:6282"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_make_object_callable"
+variant = "loose"
+at = "C0:6282"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_blocking"
+at = "C0:6295"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_blocking"
+variant = "loose"
+at = "C0:6295"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_arrival_flags"
+at = "C0:62A4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_arrival_flags"
+variant = "loose"
+at = "C0:62A4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_any_input"
+at = "C0:66A5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_any_input"
+variant = "loose"
+at = "C0:66A5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_mapped_held_bit1"
+at = "C0:66B2"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_mapped_held_bit1"
+variant = "loose"
+at = "C0:66B2"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_mapped_held_bit7"
+at = "C0:66BC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_mapped_held_bit7"
+variant = "loose"
+at = "C0:66BC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_a_held"
+at = "C0:66C6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_a_held"
+variant = "loose"
+at = "C0:66C6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_b_held"
+at = "C0:66E5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_b_held"
+variant = "loose"
+at = "C0:66E5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_x_held"
+at = "C0:66EF"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_x_held"
+variant = "loose"
+at = "C0:66EF"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_y_held"
+at = "C0:66F9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_y_held"
+variant = "loose"
+at = "C0:66F9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_l_held"
+at = "C0:6705"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_l_held"
+variant = "loose"
+at = "C0:6705"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_r_held"
+at = "C0:670F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_r_held"
+variant = "loose"
+at = "C0:670F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_mapped_pressed_bit1"
+at = "C0:6719"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_mapped_pressed_bit1"
+variant = "loose"
+at = "C0:6719"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_mapped_pressed_bit7"
+at = "C0:6724"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_mapped_pressed_bit7"
+variant = "loose"
+at = "C0:6724"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_a_pressed"
+at = "C0:6732"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_a_pressed"
+variant = "loose"
+at = "C0:6732"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_face_0"
+at = "C0:5535"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_face_0"
+variant = "loose"
+at = "C0:5535"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_face_1"
+at = "C0:5539"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_face_1"
+variant = "loose"
+at = "C0:5539"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_face_2"
+at = "C0:553D"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_face_2"
+variant = "loose"
+at = "C0:553D"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_face_3"
+at = "C0:5541"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_face_3"
+variant = "loose"
+at = "C0:5541"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_object_face_0"
+at = "C0:556C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_object_face_0"
+variant = "loose"
+at = "C0:556C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_object_face_1"
+at = "C0:5579"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_object_face_1"
+variant = "loose"
+at = "C0:5579"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_object_face_2"
+at = "C0:5586"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_object_face_2"
+variant = "loose"
+at = "C0:5586"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_object_face_3"
+at = "C0:5593"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_object_face_3"
+variant = "loose"
+at = "C0:5593"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_face_operand"
+at = "C0:5545"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_face_operand"
+variant = "loose"
+at = "C0:5545"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_face_variable"
+at = "C0:5557"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_face_variable"
+variant = "loose"
+at = "C0:5557"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_face_object"
+at = "C0:55A0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_face_object"
+variant = "loose"
+at = "C0:55A0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_face_party_member"
+at = "C0:5605"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_face_party_member"
+variant = "loose"
+at = "C0:5605"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_result_from_variable"
+at = "C0:653B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_result_from_variable"
+variant = "loose"
+at = "C0:653B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_result_from_memory"
+at = "C0:654E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_result_from_memory"
+variant = "loose"
+at = "C0:654E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_get_party_leader"
+at = "C0:658F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_get_party_leader"
+variant = "loose"
+at = "C0:658F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_get_object_tile"
+at = "C0:65AA"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_get_object_tile"
+variant = "loose"
+at = "C0:65AA"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_get_party_member_tile"
+at = "C0:65EB"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_get_party_member_tile"
+variant = "loose"
+at = "C0:65EB"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_get_object_facing"
+at = "C0:65F8"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_get_object_facing"
+variant = "loose"
+at = "C0:65F8"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_get_party_member_facing"
+at = "C0:661F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_get_party_member_facing"
+variant = "loose"
+at = "C0:661F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_toward_party_member_until_on_screen"
+at = "C0:5429"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_toward_party_member_until_on_screen"
+variant = "loose"
+at = "C0:5429"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_toward_object"
+at = "C0:5215"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_toward_object"
+variant = "loose"
+at = "C0:5215"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_toward_party_member"
+at = "C0:5410"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_toward_party_member"
+variant = "loose"
+at = "C0:5410"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_to_tile"
+at = "C0:4F61"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_to_tile"
+variant = "loose"
+at = "C0:4F61"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_toward_object_counted"
+at = "C0:534A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_toward_object_counted"
+variant = "loose"
+at = "C0:534A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_toward_party_member_counted"
+at = "C0:550E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_toward_party_member_counted"
+variant = "loose"
+at = "C0:550E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_by_variables"
+at = "C0:4F0A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_by_variables"
+variant = "loose"
+at = "C0:4F0A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_toward_object_keep_facing"
+at = "C0:52C0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_toward_object_keep_facing"
+variant = "loose"
+at = "C0:52C0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_toward_party_member_keep_facing"
+at = "C0:54F5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_toward_party_member_keep_facing"
+variant = "loose"
+at = "C0:54F5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_run_state_routine"
+at = "C0:3002"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_run_state_routine"
+variant = "loose"
+at = "C0:3002"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_follow_object"
+at = "C0:3546"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_follow_object"
+variant = "loose"
+at = "C0:3546"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_follow_party_member"
+at = "C0:354F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_follow_party_member"
+variant = "loose"
+at = "C0:354F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_in_direction"
+at = "C0:4E73"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_in_direction"
+variant = "loose"
+at = "C0:4E73"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_to_tile_from_variables"
+at = "C0:5084"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_to_tile_from_variables"
+variant = "loose"
+at = "C0:5084"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_to_tile_counted"
+at = "C0:4FEA"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_to_tile_counted"
+variant = "loose"
+at = "C0:4FEA"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_in_direction_keep_facing"
+at = "C0:4EC7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_in_direction_keep_facing"
+variant = "loose"
+at = "C0:4EC7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_to_tile_keep_facing"
+at = "C0:5129"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_to_tile_keep_facing"
+variant = "loose"
+at = "C0:5129"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_to_tile_from_variables_keep_facing"
+at = "C0:5191"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_to_tile_from_variables_keep_facing"
+variant = "loose"
+at = "C0:5191"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_to_tile_with_velocity"
+at = "C0:4D06"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_to_tile_with_velocity"
+variant = "loose"
+at = "C0:4D06"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_move_with_velocity"
+at = "C0:4E25"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_move_with_velocity"
+variant = "loose"
+at = "C0:4E25"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_show_object_sprite"
+at = "C0:4CEC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_show_object_sprite"
+variant = "loose"
+at = "C0:4CEC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_hide_object_sprite"
+at = "C0:4CF9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_hide_object_sprite"
+variant = "loose"
+at = "C0:4CF9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_no_sprite"
+at = "C0:4CE6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_no_sprite"
+variant = "loose"
+at = "C0:4CE6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_solidity"
+at = "C0:4867"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_solidity"
+variant = "loose"
+at = "C0:4867"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_step_count"
+at = "C0:4876"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_step_count"
+variant = "loose"
+at = "C0:4876"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_speed"
+at = "C0:4B49"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_speed"
+variant = "loose"
+at = "C0:4B49"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_speed_from_variable"
+at = "C0:4B58"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_speed_from_variable"
+variant = "loose"
+at = "C0:4B58"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_tile_position"
+at = "C0:4B74"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_tile_position"
+variant = "loose"
+at = "C0:4B74"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_tile_position_from_variables"
+at = "C0:4BC3"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_tile_position_from_variables"
+variant = "loose"
+at = "C0:4BC3"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_position"
+at = "C0:4C27"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_position"
+variant = "loose"
+at = "C0:4C27"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_sprite_priority"
+at = "C0:4C74"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_sprite_priority"
+variant = "loose"
+at = "C0:4C74"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_show_sprite"
+at = "C0:4CD5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_show_sprite"
+variant = "loose"
+at = "C0:4CD5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_hide_sprite"
+at = "C0:4CE0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_hide_sprite"
+variant = "loose"
+at = "C0:4CE0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_b_pressed"
+at = "C0:6740"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_b_pressed"
+variant = "loose"
+at = "C0:6740"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_x_pressed"
+at = "C0:674E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_x_pressed"
+variant = "loose"
+at = "C0:674E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_y_pressed"
+at = "C0:675C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_y_pressed"
+variant = "loose"
+at = "C0:675C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_l_pressed"
+at = "C0:676A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_l_pressed"
+variant = "loose"
+at = "C0:676A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_if_r_pressed"
+at = "C0:6778"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_r_pressed"
+variant = "loose"
+at = "C0:6778"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_animation_line_limit"
+at = "C0:6788"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_animation_line_limit"
+variant = "loose"
+at = "C0:6788"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_set"
+at = "C0:68A5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_set"
+variant = "loose"
+at = "C0:68A5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_set16"
+at = "C0:68C6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_set16"
+variant = "loose"
+at = "C0:68C6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_copy"
+at = "C0:68E9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_copy"
+variant = "loose"
+at = "C0:68E9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_copy16"
+at = "C0:6913"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_copy16"
+variant = "loose"
+at = "C0:6913"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_add"
+at = "C0:6A1F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_add"
+variant = "loose"
+at = "C0:6A1F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_add_var"
+at = "C0:6A45"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_add_var"
+variant = "loose"
+at = "C0:6A45"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_add_var16"
+at = "C0:6A74"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_add_var16"
+variant = "loose"
+at = "C0:6A74"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_subtract"
+at = "C0:6AA3"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_subtract"
+variant = "loose"
+at = "C0:6AA3"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_subtract16"
+at = "C0:6AC9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_subtract16"
+variant = "loose"
+at = "C0:6AC9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_subtract_var"
+at = "C0:6AF1"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_subtract_var"
+variant = "loose"
+at = "C0:6AF1"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_set_bit"
+at = "C0:6B20"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_set_bit"
+variant = "loose"
+at = "C0:6B20"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_clear_bit"
+at = "C0:6B4B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_clear_bit"
+variant = "loose"
+at = "C0:6B4B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_and"
+at = "C0:6BD2"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_and"
+variant = "loose"
+at = "C0:6BD2"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_or"
+at = "C0:6BF7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_or"
+variant = "loose"
+at = "C0:6BF7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_xor"
+at = "C0:6C1C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_xor"
+variant = "loose"
+at = "C0:6C1C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_shift_right"
+at = "C0:6C41"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_shift_right"
+variant = "loose"
+at = "C0:6C41"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_increment"
+at = "C0:6C69"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_increment"
+variant = "loose"
+at = "C0:6C69"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_increment16"
+at = "C0:6C85"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_increment16"
+variant = "loose"
+at = "C0:6C85"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_decrement"
+at = "C0:6CA1"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_decrement"
+variant = "loose"
+at = "C0:6CA1"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_set_1"
+at = "C0:6CBD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_set_1"
+variant = "loose"
+at = "C0:6CBD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_set16_1"
+at = "C0:6CD6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_set16_1"
+variant = "loose"
+at = "C0:6CD6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_clear"
+at = "C0:6CF0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_clear"
+variant = "loose"
+at = "C0:6CF0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_random"
+at = "C0:6D09"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_random"
+variant = "loose"
+at = "C0:6D09"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_from_pointer"
+at = "C0:6792"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_from_pointer"
+variant = "loose"
+at = "C0:6792"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_from_pointer16"
+at = "C0:67C7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_from_pointer16"
+variant = "loose"
+at = "C0:67C7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_poke"
+at = "C0:67D7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_poke"
+variant = "loose"
+at = "C0:67D7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_poke16"
+at = "C0:67FB"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_poke16"
+variant = "loose"
+at = "C0:67FB"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_poke_variable"
+at = "C0:680C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_poke_variable"
+variant = "loose"
+at = "C0:680C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_poke_variable16"
+at = "C0:6829"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_poke_variable16"
+variant = "loose"
+at = "C0:6829"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_copy_data"
+at = "C0:6846"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_copy_data"
+variant = "loose"
+at = "C0:6846"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_from_memory"
+at = "C0:693D"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_from_memory"
+variant = "loose"
+at = "C0:693D"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_from_memory16"
+at = "C0:6964"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_from_memory16"
+variant = "loose"
+at = "C0:6964"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_var_from_memory0"
+at = "C0:698B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_var_from_memory0"
+variant = "loose"
+at = "C0:698B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_memory_set"
+at = "C0:69A6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_memory_set"
+variant = "loose"
+at = "C0:69A6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_memory_set_from_var"
+at = "C0:69C4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_memory_set_from_var"
+variant = "loose"
+at = "C0:69C4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_memory_set_from_var16"
+at = "C0:69EB"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_memory_set_from_var16"
+variant = "loose"
+at = "C0:69EB"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_memory0_set"
+at = "C0:6A12"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_memory0_set"
+variant = "loose"
+at = "C0:6A12"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_memory_set_bit"
+at = "C0:6B76"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_memory_set_bit"
+variant = "loose"
+at = "C0:6B76"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_memory_clear_bit"
+at = "C0:6BA4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_memory_clear_bit"
+variant = "loose"
+at = "C0:6BA4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_play_sound"
+at = "C0:3C11"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_play_sound"
+variant = "loose"
+at = "C0:3C11"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_play_song"
+at = "C0:3C2F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_play_song"
+variant = "loose"
+at = "C0:3C2F"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_sound_81_83"
+at = "C0:3C4C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_sound_81_83"
+variant = "loose"
+at = "C0:3C4C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_sound_command"
+at = "C0:3C98"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_sound_command"
+variant = "loose"
+at = "C0:3C98"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait_apu_port1"
+at = "C0:3CBC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait_apu_port1"
+variant = "loose"
+at = "C0:3CBC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait_apu_port3"
+at = "C0:3CC5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait_apu_port3"
+variant = "loose"
+at = "C0:3CC5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_player_control"
+at = "C0:3C05"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_player_control"
+variant = "loose"
+at = "C0:3C05"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_brightness"
+at = "C0:3CD0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_brightness"
+variant = "loose"
+at = "C0:3CD0"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait_brightness"
+at = "C0:3CFD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait_brightness"
+variant = "loose"
+at = "C0:3CFD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_wait_color"
+at = "C0:3D7A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_wait_color"
+variant = "loose"
+at = "C0:3D7A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_fixed_color"
+at = "C0:3D07"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_fixed_color"
+variant = "loose"
+at = "C0:3D07"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_bc"
+at = "C0:3D84"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_bc"
+variant = "loose"
+at = "C0:3D84"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_copy_tiles"
+at = "C0:3D97"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_copy_tiles"
+variant = "loose"
+at = "C0:3D97"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_queue_tile_copy"
+at = "C0:3DC5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_queue_tile_copy"
+variant = "loose"
+at = "C0:3DC5"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_layer_extra_speed"
+at = "C0:3DF4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_layer_extra_speed"
+variant = "loose"
+at = "C0:3DF4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_scroll_screen"
+at = "C0:3E30"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_scroll_screen"
+variant = "loose"
+at = "C0:3E30"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_party_routine_6_7"
+at = "C0:3E5C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_party_routine_6_7"
+variant = "loose"
+at = "C0:3E5C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_party_routine_6"
+at = "C0:3E6E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_party_routine_6"
+variant = "loose"
+at = "C0:3E6E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_party_routine_7"
+at = "C0:3E75"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_party_routine_7"
+variant = "loose"
+at = "C0:3E75"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_party_routine_0a"
+at = "C0:3A68"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_party_routine_0a"
+variant = "loose"
+at = "C0:3A68"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_remove_from_party"
+at = "C0:3A07"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_remove_from_party"
+variant = "loose"
+at = "C0:3A07"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_start_battle"
+at = "C0:3A83"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_start_battle"
+variant = "loose"
+at = "C0:3A83"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_change_location"
+at = "C0:3AB7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_change_location"
+variant = "loose"
+at = "C0:3AB7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_store_location"
+at = "C0:3AF1"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_store_location"
+variant = "loose"
+at = "C0:3AF1"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_location"
+at = "C0:3B1B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_location"
+variant = "loose"
+at = "C0:3B1B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_set_location_with_1e"
+at = "C0:3B45"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_set_location_with_1e"
+variant = "loose"
+at = "C0:3B45"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_change_location_now"
+at = "C0:3B4B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_change_location_now"
+variant = "loose"
+at = "C0:3B4B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_change_location_now_with_1e"
+at = "C0:3B98"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_change_location_now_with_1e"
+variant = "loose"
+at = "C0:3B98"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+
+[[routine]]
+name = "event_cmd_change_location_from_variables"
+at = "C0:3B9E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_change_location_from_variables"
+variant = "loose"
+at = "C0:3B9E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"

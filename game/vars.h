@@ -92,14 +92,41 @@ void set_location_x(GameState *g, uint8_t v);
 /* And down it */
 uint8_t location_y(const GameState *g);
 void set_location_y(GameState *g, uint8_t v);
+/* The id word's high byte, its bits 1-4 shifted down to bits 0-3 and its bit 7 kept (how the
+ * change is made) */
+uint8_t location_flags(const GameState *g);
+void set_location_flags(GameState *g, uint8_t v);
 
 /* 16-bit value whose low 9 bits are the location number */
 uint16_t location_previous_id(const GameState *g);
 void set_location_previous_id(GameState *g, uint16_t v);
 
 /* 16-bit value whose low 9 bits are the location number */
+uint16_t location_stored_id(const GameState *g);
+void set_location_stored_id(GameState *g, uint16_t v);
+/* Where the party stands across the location, in 8x8 tiles */
+uint8_t location_stored_x(const GameState *g);
+void set_location_stored_x(GameState *g, uint8_t v);
+/* And down it */
+uint8_t location_stored_y(const GameState *g);
+void set_location_stored_y(GameState *g, uint8_t v);
+/* The id word's high byte, its bits 1-4 shifted down to bits 0-3 and its bit 7 kept */
+uint8_t location_stored_flags(const GameState *g);
+void set_location_stored_flags(GameState *g, uint8_t v);
+
+/* 16-bit value whose low 9 bits are the location number */
 uint16_t location_next_id(const GameState *g);
 void set_location_next_id(GameState *g, uint16_t v);
+/* Where the party will stand across the location, in 8x8 tiles */
+uint8_t location_next_x(const GameState *g);
+void set_location_next_x(GameState *g, uint8_t v);
+/* And down it */
+uint8_t location_next_y(const GameState *g);
+void set_location_next_y(GameState *g, uint8_t v);
+/* The id word's high byte, its bits 1-4 shifted down to bits 0-3 and its bit 7 kept (how the
+ * change is made) */
+uint8_t location_next_flags(const GameState *g);
+void set_location_next_flags(GameState *g, uint8_t v);
 
 /* Frames within the second */
 uint8_t play_time_frames(const GameState *g);
@@ -472,6 +499,34 @@ void set_event_commands_per_turn(GameState *g, uint8_t v);
 uint16_t event_object_end(const GameState *g);
 void set_event_object_end(GameState *g, uint16_t v);
 
+/* A command's count: the bytes event $4E copies, less one; event $7A keeps its height operand in
+ * the low byte */
+uint16_t event_count(const GameState *g);
+void set_event_count(GameState *g, uint16_t v);
+
+/* The offset of a comparison command's jump byte, where it goes on from */
+uint16_t event_condition_resume(const GameState *g);
+void set_event_condition_resume(GameState *g, uint16_t v);
+
+/* Where a command goes on, kept across its calls into other code (the moves, sound, the party
+ * routines) */
+uint16_t event_saved_position(const GameState *g);
+void set_event_saved_position(GameState *g, uint16_t v);
+
+/* The 24-bit pointer events $48 and $49 read through */
+uint32_t event_source_pointer(const GameState *g);
+void set_event_source_pointer(GameState *g, uint32_t v);
+
+/* The 24-bit pointer events $4A-$4D write through */
+uint32_t event_target_pointer(const GameState *g);
+void set_event_target_pointer(GameState *g, uint32_t v);
+
+/* The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command
+ * keeps its operands and intermediate values there (event/script.h) [12 bytes, one at a time] */
+enum { EVENT_SCRATCH_BYTES = 12 };
+uint8_t event_scratch_byte(const GameState *g, unsigned at);
+void set_event_scratch_byte(GameState *g, unsigned at, uint8_t v);
+
 enum { EVENT_OBJECT_SCRIPT_POSITION_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Offset in the script buffer where the object's script resumes */
 uint16_t event_object_script_position(const GameState *g, unsigned slot);
@@ -525,10 +580,12 @@ void set_event_object_result(GameState *g, unsigned slot, uint16_t v);
 uint8_t event_object_count(const GameState *g);
 void set_event_object_count(GameState *g, uint8_t v);
 
-/* Start of the current map's decompressed event script: 16 function offsets per object, then the
- * code */
-uint8_t event_script(const GameState *g);
-void set_event_script(GameState *g, uint8_t v);
+/* The current map's decompressed event script: 16 function offsets per object, then the code.
+ * Script offsets are 16-bit from here, so they reach the end of the bank; the command runs the
+ * engine copies to $7F:3700 are run from here too [57343 bytes, one at a time] */
+enum { EVENT_SCRIPT_BYTES = 57343 };
+uint8_t event_script_byte(const GameState *g, unsigned at);
+void set_event_script_byte(GameState *g, unsigned at, uint8_t v);
 
 /* ---- field --------------------------------------------------------------------------------- */
 
@@ -557,6 +614,16 @@ void set_field_brightness_target(GameState *g, uint8_t v);
 /* Rate of a gradual brightness change (event $F0's low nibble, written to both bytes) */
 uint16_t field_brightness_rate(const GameState *g);
 void set_field_brightness_rate(GameState *g, uint16_t v);
+
+/* Set to 1 by events $DE and $DF with the location they set; cleared at $C0:2842 and $C0:2866,
+ * returned by $C0:28A7 and ANDed at $C0:7628 and on */
+uint8_t field_setting_1e(const GameState *g);
+void set_field_setting_1e(GameState *g, uint8_t v);
+
+/* Nonzero while the player controls the party: only then does Start pause the field ($C0:18D9);
+ * event $E3 sets it, a battle ($D8) and a screen scroll ($E7) clear it */
+uint8_t field_player_control(const GameState *g);
+void set_field_player_control(GameState *g, uint8_t v);
 
 /* Fixed color shadow (channel bits 5-7, intensity 0-4) the field NMI writes every frame */
 uint8_t field_fixed_color(const GameState *g);
@@ -606,13 +673,38 @@ void set_dialog_speaker(GameState *g, uint8_t v);
 uint8_t dialog_box_position(const GameState *g);
 void set_dialog_box_position(GameState *g, uint8_t v);
 
+/* The object the open dialog window is placed by: cleared when a dialog starts, then taken from
+ * dialog_speaker ($C0:9193) */
+uint8_t dialog_window_object(const GameState *g);
+void set_dialog_window_object(GameState *g, uint8_t v);
+
 /* Nonzero: the field NMI runs the fade step $C0:6ECB; bit 7 makes it a one-shot (cleared first) */
 uint8_t field_fade_request(const GameState *g);
 void set_field_fade_request(GameState *g, uint8_t v);
 
+/* Nonzero: event $B0 runs no state routine and waits (set at $C0:177F and $C0:A496) */
+uint8_t field_state_routine_hold(const GameState *g);
+void set_field_state_routine_hold(GameState *g, uint8_t v);
+
 /* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left */
 uint8_t field_window2_edge(const GameState *g);
 void set_field_window2_edge(GameState *g, uint8_t v);
+
+/* The source rectangle's top left tile (x, then y) */
+uint16_t field_tile_copy_from(const GameState *g);
+void set_field_tile_copy_from(GameState *g, uint16_t v);
+/* Its bottom right tile */
+uint16_t field_tile_copy_to(const GameState *g);
+void set_field_tile_copy_to(GameState *g, uint16_t v);
+/* The destination's top left tile */
+uint16_t field_tile_copy_destination(const GameState *g);
+void set_field_tile_copy_destination(GameState *g, uint16_t v);
+/* Which maps to copy in: one bit per layer map and attribute table */
+uint8_t field_tile_copy_maps(const GameState *g);
+void set_field_tile_copy_maps(GameState *g, uint8_t v);
+/* The low 3 bits of maps, for a copy queued by event $E5 */
+uint8_t field_tile_copy_queued_maps(const GameState *g);
+void set_field_tile_copy_queued_maps(GameState *g, uint8_t v);
 
 /* Map transition request the field NMI runs: 1-4 load a destination from field_layer_map_base
  * and $1D82, bits 3-5 other transition steps */
@@ -651,6 +743,11 @@ void set_field_frame_pending(GameState *g, uint8_t v);
 uint8_t field_display_flags(const GameState *g);
 void set_field_display_flags(GameState *g, uint8_t v);
 
+/* Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog
+ * (and set when $C0:1F0E opens one) */
+uint8_t field_mode_flags(const GameState *g);
+void set_field_mode_flags(GameState *g, uint8_t v);
+
 /* 1 while a dialog with choices runs */
 uint8_t dialog_choice_active(const GameState *g);
 void set_dialog_choice_active(GameState *g, uint8_t v);
@@ -659,9 +756,22 @@ void set_dialog_choice_active(GameState *g, uint8_t v);
 uint8_t field_window_tile_slot(const GameState *g);
 void set_field_window_tile_slot(GameState *g, uint8_t v);
 
+/* The last line of a dialog's choices (the choice cursor stops there, $C0:1B25) */
+uint8_t dialog_choice_last(const GameState *g);
+void set_dialog_choice_last(GameState *g, uint8_t v);
+
+/* The first line of a dialog's choices */
+uint8_t dialog_choice_first(const GameState *g);
+void set_dialog_choice_first(GameState *g, uint8_t v);
+
 /* The choice made in a dialog with choices, copied to the object's event_object_result */
 uint8_t dialog_choice(const GameState *g);
 void set_dialog_choice(GameState *g, uint8_t v);
+
+/* The scanline the objects' animation updates stop at each frame ($C0:CA99; $0078 after a map
+ * loads, $C0:56AB); event $47 sets its low byte */
+uint16_t field_animation_line_limit(const GameState *g);
+void set_field_animation_line_limit(GameState *g, uint16_t v);
 
 /* Slot (* 2) of the object being run, updated or drawn: the script engine's current object and
  * the object loops' index */
@@ -694,6 +804,11 @@ enum { FIELD_PARTY_OBJECTS_COUNT = 3 };   /* by party member * 2 */
 uint8_t field_party_objects(const GameState *g, unsigned member);
 void set_field_party_objects(GameState *g, unsigned member, uint8_t v);
 
+/* Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts
+ * ($C0:0BA4); what reads it isn't established */
+uint8_t field_setting_bc(const GameState *g);
+void set_field_setting_bc(GameState *g, uint8_t v);
+
 /* Sprites of the current object still to write while the OAM table is built */
 uint8_t field_sprites_left(const GameState *g);
 void set_field_sprites_left(GameState *g, uint8_t v);
@@ -704,14 +819,16 @@ enum { FIELD_SPRITE_RANGE_NEXT_COUNT = 3 };   /* by sprite range (0 priority bit
 uint16_t field_sprite_range_next(const GameState *g, unsigned i);
 void set_field_sprite_range_next(GameState *g, unsigned i, uint16_t v);
 
-/* Slot of the object a move approaches, or that field_object_in_the_way found blocking */
-uint8_t field_target_object(const GameState *g);
-void set_field_target_object(GameState *g, uint8_t v);
+/* Slot of the object a move approaches (doubled, a word, as the event moves keep it), or that
+ * field_object_in_the_way found blocking */
+uint16_t field_target_object(const GameState *g);
+void set_field_target_object(GameState *g, uint16_t v);
 
-/* Direction ($00/$40/$80/$C0 quadrants) field_direction_to_target computes and field_start_step
- * moves in */
-uint8_t field_direction(const GameState *g);
-void set_field_direction(GameState *g, uint8_t v);
+/* Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) field_direction_to_target computes and
+ * field_start_step moves in; a word whose high byte field_direction_to_target clears, which the
+ * facing lookups index with */
+uint16_t field_direction(const GameState *g);
+void set_field_direction(GameState *g, uint16_t v);
 
 /* Tile X */
 uint8_t field_own_tile_x(const GameState *g);
@@ -871,6 +988,12 @@ enum { FIELD_OBJECT_IN_VIEW_COUNT = 64 };   /* by object slot (X = slot * 2) */
 uint8_t field_object_in_view(const GameState *g, unsigned slot);
 void set_field_object_in_view(GameState *g, unsigned slot, uint8_t v);
 
+enum { FIELD_OBJECT_BATTLE_INFO_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* A byte per object the field hands the battle with the party's and enemies' placement ($C0:0453
+ * into $7E:29B4, $C0:083B from $7E:29C3); event $8E sets it to $FF */
+uint8_t field_object_battle_info(const GameState *g, unsigned slot);
+void set_field_object_battle_info(GameState *g, unsigned slot, uint8_t v);
+
 enum { FIELD_OBJECT_PRIORITY_MODE_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Sprite priority mode: bit 7 takes the priority from the map tile, else bits 0-1 and 4-5 give
  * it; bits 2-3 pick the OAM range */
@@ -881,6 +1004,12 @@ enum { FIELD_OBJECT_STEP_LENGTH_COUNT = 64 };   /* by object slot (X = slot * 2)
 /* Steps a move starts with (event $87 sets operand + 1); bit 7 makes calls skip the object */
 uint8_t field_object_step_length(const GameState *g, unsigned slot);
 void set_field_object_step_length(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_STEP_COUNT_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Set with field_object_step_length by event $87 and cleared by the party's scripted moves
+ * ($C0:31AA and on); what reads it isn't established */
+uint8_t field_object_step_count(const GameState *g, unsigned slot);
+void set_field_object_step_count(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_ANIMATION_LINK_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Next object in the animation queue (negative: not queued) */
@@ -2387,6 +2516,11 @@ void set_battle_enemy_placement_kind(GameState *g, unsigned i, uint8_t v);
 /* Sprite palette (doubled into $9888/$993C) */
 uint8_t battle_enemy_placement_palette(const GameState *g, unsigned i);
 void set_battle_enemy_placement_palette(GameState *g, unsigned i, uint8_t v);
+
+/* Flags the event hands the battle with battle_setup_flags (event $D8's second operand): with
+ * bit 6 the battle keeps the field's song ($CD:03CC) */
+uint8_t battle_event_flags(const GameState *g);
+void set_battle_event_flags(GameState *g, uint8_t v);
 
 /* How the battle's background behaves: bit 0 the HP gradient runs each frame, bit 1 palette
  * animation slot 7 follows the sprite palette row swap */

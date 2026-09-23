@@ -1,217 +1,139 @@
-/* Event commands: object animation.
+/* Event commands: the running object's animation.
  *
- * Object tables, as these commands use them: $1680 animation number, $1780
- * animation mode (0; 1 looping; 2 during a timed play; 3 a static frame from
- * $1301), $1781 the animation a timed play was started with, $1601 and
- * $1681 cleared whenever an animation starts, and $7F:0B01 a countdown other
- * code decrements while a timed animation plays. */
-#include "event/event.h"
+ * An object animates in one of four modes: 0 not at all, 1 looping its
+ * animation, 2 playing an animation for a while (a timed play), 3 showing one
+ * static frame. A timed play keeps the animation it was started with, and
+ * counts down on the object's animation countdown, which the field's object
+ * update steps; when it is over the object goes back to looping what it
+ * looped before, or to nothing if it wasn't looping (animation $FF marks that). */
+#include "event/bridge.h"
 
-#include "event/script.h"
+enum { MODE_STILL = 0, MODE_LOOP = 1, MODE_TIMED = 2, MODE_STATIC = 3 };
+enum { NO_LOOP = 0xFF };
 
-#define COUNTDOWN 0x7F0B01u
-
-static void set8(Snes *s, uint16_t table, uint8_t v) { m_write8(s, m_abs(s, table) + s->cpu.x, v); }
-static uint8_t get8(Snes *s, uint16_t table) { return m_read8(s, m_abs(s, table) + s->cpu.x); }
-
-/* $C0:2E74, X = own slot, A = mode: STA $1780,X : STZ $1601,X : LDA #$00 :
- * STA $7F0B01,X : STZ $1681,X : TYX : INX : SEC : RTS */
-static void start_mode(Snes *s)
+/* Start the object animating in `mode` from the animation's first frame. */
+static void start_mode(GameState *g, unsigned object, uint8_t mode)
 {
-    set8(s, 0x1780, (uint8_t)s->cpu.a);
-    set8(s, 0x1601, 0x00);
-    m_lda8(s, 0x00);
-    m_write8(s, COUNTDOWN + s->cpu.x, 0x00);
-    set8(s, 0x1681, 0x00);
-    m_tyx(s);
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    set_field_object_animation_mode_mode(g, object, mode);
+    set_field_object_frame_delay(g, object, 0);
+    set_field_object_move_state_animation_count(g, object, 0);
+    set_field_object_animation_frame(g, object, 0);
 }
 
-/* $C0:2E6D, A = animation: LDX $6D : STA $1680,X : LDA #$01, then start_mode. */
-static void loop_animation(Snes *s)
+// $C0:2E6D
+static void loop(GameState *g, uint8_t animation)
 {
-    uint8_t animation = (uint8_t)s->cpu.a;
-    ldx_current_object(s);
-    set8(s, 0x1680, animation);
-    m_lda8(s, 0x01);
-    start_mode(s);
+    unsigned object = current_object(g);
+    set_field_object_animation_number(g, object, animation);
+    start_mode(g, object, MODE_LOOP);
 }
 
 // $C0:2E67
 /* $AA: loop animation (operand 1). */
-void event_cmd_loop_animation(Snes *s)
+static EventStep loop_animation(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    loop_animation(s);
+    loop(g, operand(g, c, 1));
+    return next_command(c, 2, 1);
 }
 
 // $C0:2E87
 /* $B3: loop animation 0. */
-void event_cmd_loop_animation_0(Snes *s)
+static EventStep loop_animation_0(GameState *g, const EventCommand *c)
 {
-    m_lda8(s, 0x00);
-    loop_animation(s);
+    loop(g, 0);
+    return next_command(c, 1, 0);
 }
 
 // $C0:2E8B
 /* $B4: loop animation 1. */
-void event_cmd_loop_animation_1(Snes *s)
+static EventStep loop_animation_1(GameState *g, const EventCommand *c)
 {
-    m_lda8(s, 0x01);
-    loop_animation(s);
+    loop(g, 1);
+    return next_command(c, 1, 0);
 }
 
 // $C0:2E8F
-/* $AE: reset the animation (number 0, mode 0). */
-void event_cmd_reset_animation(Snes *s)
+/* $AE: stop animating (animation 0, mode 0). */
+static EventStep reset_animation(GameState *g, const EventCommand *c)
 {
-    ldx_current_object(s);
-    m_lda8(s, 0x00);
-    set8(s, 0x1680, 0x00);
-    m_lda8(s, 0x00);
-    start_mode(s);
+    unsigned object = current_object(g);
+    set_field_object_animation_number(g, object, 0);
+    start_mode(g, object, MODE_STILL);
+    return next_command(c, 1, 0);
 }
 
-/* A = animation, X = own slot: STA $1781,X : STZ $1681,X : STZ $1601,X : if
- * mode is 0, $1680,X = $FF : mode 2. */
-static void begin_timed(Snes *s)
+/* Leave the loop for a timed play or a static frame, remembering whether
+ * there was one to go back to. */
+static void leave_loop(GameState *g, unsigned object, uint8_t mode)
 {
-    set8(s, 0x1781, (uint8_t)s->cpu.a);
-    set8(s, 0x1681, 0x00);
-    set8(s, 0x1601, 0x00);
-    if (m_lda8(s, get8(s, 0x1780)) == 0)
-        set8(s, 0x1680, m_lda8(s, 0xFF));
-    set8(s, 0x1780, m_lda8(s, 0x02));
+    set_field_object_animation_frame(g, object, 0);
+    set_field_object_frame_delay(g, object, 0);
+    if (field_object_animation_mode_mode(g, object) == MODE_STILL)
+        set_field_object_animation_number(g, object, NO_LOOP);
+    set_field_object_animation_mode_mode(g, object, mode);
 }
 
-/* The countdown reached 1: clear it, $1601 and $1681, and restore mode 1
- * (or mode 0 with animation 0 if $1680 is $FF). Continue after the command. */
-static void end_timed(Snes *s, int command_length)
+/* A timed play is over: back to the loop, or to no animation. */
+static void end_timed_play(GameState *g, unsigned object)
 {
-    m_lda8(s, 0x00);
-    m_write8(s, COUNTDOWN + s->cpu.x, 0x00);
-    set8(s, 0x1601, 0x00);
-    set8(s, 0x1681, 0x00);
-    uint8_t animation = m_lda8(s, get8(s, 0x1680));
-    m_cmp8(s, animation, 0xFF);
-    if (animation == 0xFF) {
-        set8(s, 0x1680, 0x00);
-        m_lda8(s, 0x00);
-    } else {
-        m_lda8(s, 0x01);
+    set_field_object_move_state_animation_count(g, object, 0);
+    set_field_object_frame_delay(g, object, 0);
+    set_field_object_animation_frame(g, object, 0);
+    uint8_t mode = MODE_LOOP;
+    if (field_object_animation_number(g, object) == NO_LOOP) {
+        set_field_object_animation_number(g, object, 0);
+        mode = MODE_STILL;
     }
-    set8(s, 0x1780, (uint8_t)s->cpu.a);
-    m_tyx(s);
-    while (command_length--)
-        m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    set_field_object_animation_mode_mode(g, object, mode);
 }
 
-/* LDX $6D : LDA $7F0B01,X -- the timed play's countdown (0: not playing). */
-static uint8_t countdown(Snes *s)
+/* $AB and $B7: play the animation in operand 1 for two frames, or for
+ * operand 2 + 1 (a countdown the field steps; 1 is the end), staying on the command while it plays and going
+ * on after its `length` bytes once it is over. The same command reached again
+ * while its animation plays just waits. */
+static EventStep play_timed(GameState *g, const EventCommand *c, bool for_frames, uint16_t length)
 {
-    ldx_current_object(s);
-    return m_lda8(s, m_read8(s, COUNTDOWN + s->cpu.x));
+    unsigned object = current_object(g);
+    uint8_t count = field_object_move_state_animation_count(g, object);
+    uint8_t animation = operand(g, c, 1);
+    if (count == 1) {
+        end_timed_play(g, object);
+        return next_command(c, length, 0);
+    }
+    if (count != 0 && animation == field_object_animation_mode_timed_animation(g, object))
+        return wait_here(c, 0);
+    set_field_object_animation_mode_timed_animation(g, object, animation);
+    leave_loop(g, object, MODE_TIMED);
+    uint8_t frames = for_frames ? (uint8_t)(operand(g, c, 2) + 1) : 2;
+    set_field_object_move_state_animation_count(g, object, frames);
+    return wait_here(c, 0);
 }
 
 // $C0:2E9A
-/* $AB: play animation (operand 1) until the countdown, started at 2, runs
- * out; then go back to looping (see end_timed). Stays on the command while it
- * plays. */
-void event_cmd_play_animation(Snes *s)
-{
-    uint8_t count = countdown(s);
-    if (count == 0) {
-        m_tyx(s);
-        m_inx(s);
-        m_lda8(s, script_byte(s, s->cpu.x));
-        ldx_current_object(s);
-    } else if (m_lda8(s, (uint8_t)(count - 1)) == 0) {
-        end_timed(s, 2);
-        return;
-    } else {
-        m_tyx(s);
-        m_inx(s);
-        uint8_t animation = m_lda8(s, script_byte(s, s->cpu.x));
-        ldx_current_object(s);
-        uint8_t playing = get8(s, 0x1781);
-        m_cmp8(s, animation, playing);
-        if (animation == playing) {
-            m_tyx(s);
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_rts(s);
-            return;
-        }
-    }
-    begin_timed(s);
-    m_write8(s, COUNTDOWN + s->cpu.x, m_lda8(s, 0x02));
-    m_tyx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
+/* $AB: play animation (operand 1) once through a countdown of 2. */
+static EventStep play_animation(GameState *g, const EventCommand *c) { return play_timed(g, c, false, 2); }
 
 // $C0:2F01
-/* $B7: play animation (operand 1) with the countdown started at operand 2 + 1. */
-void event_cmd_play_animation_for(Snes *s)
+/* $B7: play animation (operand 1) for operand 2 frames. */
+static EventStep play_animation_for(GameState *g, const EventCommand *c)
 {
-    uint8_t count = countdown(s);
-    if (count == 0) {
-        m_tyx(s);
-        m_inx(s);
-        m_lda8(s, script_byte(s, s->cpu.x));
-        ldx_current_object(s);
-    } else if (m_lda8(s, (uint8_t)(count - 1)) == 0) {
-        end_timed(s, 3);
-        return;
-    } else {
-        m_tyx(s);
-        m_inx(s);
-        uint8_t animation = m_lda8(s, script_byte(s, s->cpu.x));
-        ldx_current_object(s);
-        uint8_t playing = get8(s, 0x1781);
-        m_cmp8(s, animation, playing);
-        if (animation == playing) {
-            m_tyx(s);
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_rts(s);
-            return;
-        }
-    }
-    begin_timed(s);
-    m_tyx(s);
-    m_inx(s);
-    m_inx(s);
-    uint8_t frames = m_lda8(s, script_byte(s, s->cpu.x));
-    frames = m_lda8(s, (uint8_t)(frames + 1));
-    ldx_current_object(s);
-    m_write8(s, COUNTDOWN + s->cpu.x, frames);
-    m_tyx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    return play_timed(g, c, true, 3);
 }
 
 // $C0:2F71
-/* $AC: show static frame (operand 1): $1301,X = operand, mode 3. Ends the turn. */
-void event_cmd_static_frame(Snes *s)
+/* $AC: show static frame (operand 1). Ends the turn. */
+static EventStep static_frame(GameState *g, const EventCommand *c)
 {
-    m_tyx(s);
-    m_inx(s);
-    uint8_t frame = m_lda8(s, script_byte(s, s->cpu.x));
-    ldx_current_object(s);
-    set8(s, 0x1301, frame);
-    set8(s, 0x1681, 0x00);
-    set8(s, 0x1601, 0x00);
-    if (m_lda8(s, get8(s, 0x1780)) == 0)
-        set8(s, 0x1680, m_lda8(s, 0xFF));
-    set8(s, 0x1780, m_lda8(s, 0x03));
-    m_tyx(s);
-    m_inx(s);
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    unsigned object = current_object(g);
+    set_field_object_static_frame(g, object, operand(g, c, 1));
+    leave_loop(g, object, MODE_STATIC);
+    return end_turn(c, 2, 0);
 }
+
+EVENT_COMMAND(event_cmd_loop_animation, loop_animation)
+EVENT_COMMAND(event_cmd_loop_animation_0, loop_animation_0)
+EVENT_COMMAND(event_cmd_loop_animation_1, loop_animation_1)
+EVENT_COMMAND(event_cmd_reset_animation, reset_animation)
+EVENT_COMMAND(event_cmd_play_animation, play_animation)
+EVENT_COMMAND(event_cmd_play_animation_for, play_animation_for)
+EVENT_COMMAND(event_cmd_static_frame, static_frame)

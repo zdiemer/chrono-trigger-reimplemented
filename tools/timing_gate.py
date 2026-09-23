@@ -437,7 +437,8 @@ def calibrated_values(agg):
 def calibrate(agg, registry):
     """Rewrite each measured entry's cost_milli in registry to its calibrated
     value. Entries are either `{ .addr = 0x..., .name = "n", ..., .cost_milli
-    = N, ... }` or a table macro's `MACRO(0x..., n, N)`. Returns the changes,
+    = N, ... }` or a table macro's `MACRO(0x..., n, N)`, which may take more
+    arguments after N (event's guard). Returns the changes,
     [(name, old, new)]; an entry measured but not found is an error."""
     text = pathlib.Path(registry).read_text()
     changes = []
@@ -468,10 +469,10 @@ def calibrate(agg, registry):
         return body[:cm.start(1)] + str(new_value(name, int(cm.group(1)))) + body[cm.end(1):]
 
     def fix_macro(m):
-        return "%s%d)" % (m.group(1), new_value(m.group(2), int(m.group(3))))
+        return "%s%d%s)" % (m.group(1), new_value(m.group(2), int(m.group(3))), m.group(4) or "")
 
     text = re.sub(r"\{ \.addr = 0x[0-9A-F]+,.*?\}(?=,)", fix_struct, text, flags=re.S)
-    text = re.sub(r"(^    [A-Z_]+\(0x[0-9A-F]+, (\w+), )(\d+)\)", fix_macro, text, flags=re.M)
+    text = re.sub(r"(^    [A-Z_]+\(0x[0-9A-F]+, (\w+), )(\d+)((?:, \w+)*)\)", fix_macro, text, flags=re.M)
     missing = sorted(n for n in agg if measured(n) and n not in seen)
     if missing:
         raise SystemExit("measured but not found in %s: %s" % (registry, ", ".join(missing)))

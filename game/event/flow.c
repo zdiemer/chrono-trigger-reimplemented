@@ -1,468 +1,256 @@
-/* Event commands: control flow within a script. */
-#include "event/event.h"
-
-#include "event/script.h"
-
-#define MEMORY 0x7F0000u     /* byte-addressed memory tested by command $16 */
-
-/* Scratch direct-page cells the commands use. */
-enum { LHS = 0xD9, RHS = 0xDB, OPERATOR = 0xDD, RESUME = 0xC3 };
-
-/* INY : TYX : LDA script,X : REP #$20 : AND #$00FF : ASL A : TAX
- * Read an operand byte that indexes the variables; leaves M 16-bit. */
-static void load_var_index(Snes *s)
-{
-    m_iny(s);
-    m_tyx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
-    m_tax(s);
-}
-
-/* X = X +/- (A & $FF) the way the jump commands compute it (through A, with
- * the distance left in $D9-$DA). Ends with SEP #$20 : SEC : RTS. */
-static void jump_by(Snes *s, bool back)
-{
-    m_rep(s, CPU_FLAG_M);
-    uint16_t offset = m_lda16(s, s->cpu.a & 0x00FF);
-    m_write16(s, m_dp(s, LHS), offset);
-    m_txa(s);
-    m_set_flag(s, CPU_FLAG_C, back);
-    s->cpu.a = back ? m_sbc16(s, s->cpu.a, offset) : m_adc16(s, s->cpu.a, offset);
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
+/* Event commands: control flow within a script -- jumps, conditions, waits.
+ *
+ * A jump is relative to its own operand, the jump byte: forward by it, or
+ * back. A condition goes on after itself when it holds, and otherwise jumps
+ * forward by its last operand. The comparisons ($12-$16) keep their operands
+ * in the scratch cells ($D9 left, $DB right) and the offset of their jump
+ * byte in event_condition_resume, as the original does. */
+#include "event/bridge.h"
 
 // $C0:62B5
-/* Jump forward: the next command is the operand's offset plus the operand byte. */
-void event_cmd_jump_forward(Snes *s)
+/* $10: jump forward by operand 1. */
+static EventStep jump_forward(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    jump_by(s, false);
+    return jump_from(g, c, 1, operand(g, c, 1), false, 1);
 }
 
 // $C0:62CB
-/* Jump back: the next command is the operand's offset minus the operand byte. */
-void event_cmd_jump_back(Snes *s)
+/* $11: jump back by operand 1. */
+static EventStep jump_back(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    jump_by(s, true);
+    return jump_from(g, c, 1, operand(g, c, 1), true, 1);
 }
 
-/* The comparison operators, tables at $C0:6467 (8-bit) and $C0:6477
- * (16-bit), on $D9 and $DB: 0 equal, 1 not equal, 2 greater, 3 less,
- * 4 greater or equal, 5 less or equal, 6 any bits in common, 7 (8-bit only)
- * either nonzero. Each loads $D9 into A (ANDed or ORed with $DB for 6 and 7)
- * and returns carry clear if the condition holds. N and Z aren't reproduced:
- * every caller reloads X right after. */
-static bool condition_holds(Snes *s, unsigned op, bool wide)
+/* The comparison operators ($C0:6467 for bytes, $C0:6477 for words): equal,
+ * not equal, greater, less, greater or equal, less or equal, any bits in
+ * common, and (bytes only) either nonzero. The guards turn away an operator
+ * past the table, which no script has. */
+enum { EQUAL, NOT_EQUAL, GREATER, LESS, AT_LEAST, AT_MOST, ANY_COMMON, EITHER };
+
+static bool compare(unsigned op, uint16_t lhs, uint16_t rhs)
 {
-    uint16_t lhs, rhs;
-    if (wide) {
-        lhs = m_read16(s, m_dp(s, LHS));
-        rhs = m_read16(s, m_dp(s, RHS));
-    } else {
-        lhs = m_read8(s, m_dp(s, LHS));
-        rhs = m_read8(s, m_dp(s, RHS));
-    }
-    uint16_t a = lhs;
-    bool holds;
     switch (op) {
-    case 0: holds = lhs == rhs; break;
-    case 1: holds = lhs != rhs; break;
-    case 2: holds = lhs > rhs; break;
-    case 3: holds = lhs < rhs; break;
-    case 4: holds = lhs >= rhs; break;
-    case 5: holds = lhs <= rhs; break;
-    case 6: a = lhs & rhs; holds = a != 0; break;
-    default: a = lhs | rhs; holds = a != 0; break;
+    case EQUAL: return lhs == rhs;
+    case NOT_EQUAL: return lhs != rhs;
+    case GREATER: return lhs > rhs;
+    case LESS: return lhs < rhs;
+    case AT_LEAST: return lhs >= rhs;
+    case AT_MOST: return lhs <= rhs;
+    case ANY_COMMON: return (lhs & rhs) != 0;
+    default: return (lhs | rhs) != 0;
     }
-    if (wide)
-        s->cpu.a = a;
-    else
-        m_set_a8(s, (uint8_t)a);
-    return holds;
 }
 
-/* Shared end of the conditional commands, from the ASL A before the operator
- * call at `call_site` (a JSR (table,X)). A holds the operator byte, and $C3
- * the offset of the jump distance byte that follows it. If the condition
- * holds, continue after that byte; otherwise jump forward by it ($C0:6349). */
-static void finish_conditional(Snes *s, uint32_t call_site, bool wide)
+/* Compare the left and right operands the command kept, with the operator at
+ * operand `length - 2`; the jump byte after it is the last operand. The
+ * original doubles the operator into a table index with an 8-bit shift, which
+ * drops its bit 7, and calls it with 8-bit index registers, which leaves only
+ * the low byte of the parse position. */
+static EventStep compare_kept(GameState *g, const EventCommand *c, unsigned op, bool words, uint16_t length,
+                              uint16_t parsed)
 {
-    uint8_t index = m_asl8(s, (uint8_t)s->cpu.a);
-    m_set_a8(s, index);
-    m_sep(s, CPU_FLAG_X);
-    m_tax(s);
-    if (index >= (wide ? 14 : 16)) {
-        /* An operator outside the tables; leave it to the original. */
-        m_stop_at(s, call_site, 0);
-        return;
-    }
-    m_jsr_stack_bytes(s, (uint16_t)(call_site + 2));
-    bool holds = condition_holds(s, index >> 1, wide);
-    m_sep(s, CPU_FLAG_M);
-
-    m_rep(s, CPU_FLAG_X);
-    m_ldx(s, m_read16(s, m_dp(s, RESUME)));
-    if (holds) {
-        m_inx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
-    }
-    m_lda8(s, script_byte(s, s->cpu.x));
-    jump_by(s, false);
+    set_event_condition_resume(g, (uint16_t)(c->at + length - 1));
+    uint16_t lhs = words ? scratch16(g, SCRATCH_D9) : scratch8(g, SCRATCH_D9);
+    uint16_t rhs = words ? scratch16(g, SCRATCH_DB) : scratch8(g, SCRATCH_DB);
+    EventStep st = branch_unless(g, c, compare(op & 0x7F, lhs, rhs), length, parsed);
+    st.cursor &= 0x00FF;
+    return st;
 }
 
 // $C0:62DE
-/* If variable (operand 1) compares with constant byte (operand 2) under the
- * operator (operand 3), continue; otherwise jump forward by operand 4. */
-void event_cmd_if_var_const(Snes *s)
+/* $12: if variable (operand 1) compares with operand 2 under operator 3. */
+static EventStep if_var_const(GameState *g, const EventCommand *c)
 {
-    load_var_index(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, m_dp(s, LHS), m_lda8(s, m_read8(s, VARS + s->cpu.x)));
-    m_iny(s);
-    m_tyx(s);
-    m_write8(s, m_dp(s, RHS), m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_inx(s);
-    m_write16(s, m_dp(s, RESUME), s->cpu.x);
-    finish_conditional(s, 0xC06307, false);
+    keep8(g, SCRATCH_D9, var8(g, variable_operand(g, c, 1)));
+    keep8(g, SCRATCH_DB, operand(g, c, 2));
+    return compare_kept(g, c, operand(g, c, 3), false, 5, 2);
 }
 
 // $C0:6313
-/* As $12 with a 16-bit variable and a 2-byte constant. */
-void event_cmd_if_var_const16(Snes *s)
+/* $13: if 16-bit variable (operand 1) compares with operands 2-3 under operator 4. */
+static EventStep if_var_const16(GameState *g, const EventCommand *c)
 {
-    load_var_index(s);
-    m_write16(s, m_dp(s, LHS), m_lda16(s, m_read16(s, VARS + s->cpu.x)));
-    m_iny(s);
-    m_tyx(s);
-    m_write16(s, m_dp(s, RHS), m_lda16(s, m_read16(s, SCRIPT + s->cpu.x)));
-    m_inx(s);
-    m_inx(s);
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_inx(s);
-    m_write16(s, m_dp(s, RESUME), s->cpu.x);
-    finish_conditional(s, 0xC0633D, true);
+    keep16(g, SCRATCH_D9, var16(g, variable_operand(g, c, 1)));
+    keep16(g, SCRATCH_DB, operand_word(g, c, 2));
+    return compare_kept(g, c, operand(g, c, 4), true, 6, 2);
 }
 
 // $C0:6361
-/* If variable (operand 1) compares with variable (operand 2) under the
- * operator (operand 3), continue; otherwise jump forward by operand 4. */
-void event_cmd_if_var_var(Snes *s)
+/* $14: if variable (operand 1) compares with variable (operand 2) under operator 3. */
+static EventStep if_var_var(GameState *g, const EventCommand *c)
 {
-    load_var_index(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, m_dp(s, LHS), m_lda8(s, m_read8(s, VARS + s->cpu.x)));
-    load_var_index(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, m_dp(s, RHS), m_lda8(s, m_read8(s, VARS + s->cpu.x)));
-    m_iny(s);
-    m_tyx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_inx(s);
-    m_write16(s, m_dp(s, RESUME), s->cpu.x);
-    finish_conditional(s, 0xC06398, false);
+    keep8(g, SCRATCH_D9, var8(g, variable_operand(g, c, 1)));
+    keep8(g, SCRATCH_DB, var8(g, variable_operand(g, c, 2)));
+    return compare_kept(g, c, operand(g, c, 3), false, 5, 3);
 }
 
 // $C0:63A4
-/* As $14 with 16-bit variables. */
-void event_cmd_if_var_var16(Snes *s)
+/* $15: as $14 with 16-bit variables. */
+static EventStep if_var_var16(GameState *g, const EventCommand *c)
 {
-    load_var_index(s);
-    m_write16(s, m_dp(s, LHS), m_lda16(s, m_read16(s, VARS + s->cpu.x)));
-    /* The second index is read with the accumulator still 16-bit. */
-    m_iny(s);
-    m_tyx(s);
-    m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
-    m_tax(s);
-    m_write16(s, m_dp(s, RHS), m_lda16(s, m_read16(s, VARS + s->cpu.x)));
-    m_iny(s);
-    m_tyx(s);
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_inx(s);
-    m_write16(s, m_dp(s, RESUME), s->cpu.x);
-    finish_conditional(s, 0xC063D7, true);
+    keep16(g, SCRATCH_D9, var16(g, variable_operand(g, c, 1)));
+    keep16(g, SCRATCH_DB, var16(g, variable_operand(g, c, 2)));
+    return compare_kept(g, c, operand(g, c, 3), true, 5, 3);
 }
 
 // $C0:63E6
-/* If the memory byte at $7F:0000 + operand 1 compares with constant (operand
- * 2) under the operator (operand 3, bit 7 selecting $7F:0100 + operand 1
- * instead), continue; otherwise jump forward by operand 4. */
-void event_cmd_if_mem_const(Snes *s)
+/* $16: if the byte of event memory at operand 1 compares with operand 2 under
+ * operator 3, whose bit 7 picks the memory's second page. The operator is
+ * kept in the scratch cell at $DD. */
+static EventStep if_memory(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_write8(s, m_dp(s, LHS), m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    m_write8(s, m_dp(s, RHS), m_lda8(s, script_byte(s, s->cpu.x)));
-    m_inx(s);
-    uint8_t op = m_lda8(s, script_byte(s, s->cpu.x));
-    m_inx(s);
-    m_write16(s, m_dp(s, RESUME), s->cpu.x);
-    uint16_t page = 0x0000;
-    if (op & 0x80) {
-        op = m_lda8(s, op & 0x7F);
-        page = 0x0100;
-    }
-    m_write8(s, m_dp(s, OPERATOR), op);
-    m_lda8(s, m_read8(s, m_dp(s, LHS)));
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, (uint16_t)((s->cpu.a & 0x00FF) | page));
-    m_tax(s);
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, m_dp(s, LHS), m_lda8(s, m_read8(s, MEMORY + s->cpu.x)));
-    m_lda8(s, m_read8(s, m_dp(s, OPERATOR)));
-    finish_conditional(s, 0xC06433, false);
-}
-
-/* X is at a jump distance byte: X += that byte, the jump commands' way
- * (LDA script,X then jump_by). */
-static void jump_from_here(Snes *s)
-{
-    m_lda8(s, script_byte(s, s->cpu.x));
-    jump_by(s, false);
+    keep8(g, SCRATCH_D9, operand(g, c, 1));
+    keep8(g, SCRATCH_DB, operand(g, c, 2));
+    uint8_t op = operand(g, c, 3);
+    uint16_t page = op & 0x80 ? 0x0100 : 0x0000;
+    op &= 0x7F;
+    keep8(g, SCRATCH_DD, op);
+    keep8(g, SCRATCH_D9, memory8(g, (uint16_t)(page | scratch8(g, SCRATCH_D9))));
+    return compare_kept(g, c, op, false, 5, 1);
 }
 
 // $C0:6442
-/* $18: if the byte at $7F:0000 is less than operand 1, continue after
- * operand 2; otherwise jump forward by operand 2. */
-void event_cmd_if_mem0_below(Snes *s)
+/* $18: if the first byte of event memory is below operand 1. */
+static EventStep if_memory0_below(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    uint8_t value = m_lda8(s, m_read8(s, MEMORY));
-    uint8_t limit = script_byte(s, s->cpu.x);
-    m_cmp8(s, value, limit);
-    if (value < limit) {
-        m_inx(s);
-        m_inx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
-    }
-    m_inx(s);
-    jump_from_here(s);
+    return branch_unless(g, c, memory8(g, 0) < operand(g, c, 1), 3, 1);
 }
 
 // $C0:6568
-/* $1A: if the object's $7F:0A80 byte equals operand 1, continue after
- * operand 2; otherwise jump forward by operand 2. */
-void event_cmd_if_object_value(Snes *s)
+/* $1A: if this object's result value (its low byte) is operand 1. */
+static EventStep if_result(GameState *g, const EventCommand *c)
 {
-    ldx_current_object(s);
-    uint8_t value = m_lda8(s, m_read8(s, 0x7F0A80u + s->cpu.x));
-    m_iny(s);
-    m_tyx(s);
-    uint8_t expected = script_byte(s, s->cpu.x);
-    m_cmp8(s, value, expected);
-    if (value == expected) {
-        m_inx(s);
-        m_inx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
-    }
-    m_inx(s);
-    jump_from_here(s);
+    return branch_unless(g, c, (uint8_t)event_object_result(g, current_object(g)) == operand(g, c, 1), 3, 1);
 }
 
 // $C0:662C
-/* $27: if the object in operand 1 is in view ($0F00,X nonzero; see
- * field_update_object_visibility), continue after operand 2; otherwise jump
- * forward by operand 2. */
-void event_cmd_if_object_in_view(Snes *s)
+/* $27: if the object in operand 1 is in view (field_object_in_view). */
+static EventStep if_object_in_view(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_tdc(s);
-    m_xba(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_tax(s);
-    if (m_lda8(s, m_read8(s, m_abs(s, 0x0F00) + s->cpu.x)) != 0) {
-        m_tyx(s);
-        m_inx(s);
-        m_inx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
-    }
-    m_tyx(s);
-    m_inx(s);
-    jump_from_here(s);
+    return branch_unless(g, c, field_object_in_view(g, object_operand(g, c, 1)) != 0, 3, 1);
 }
 
-/* LDA v : SEC : SBC $cell : BEQ out : CMP #$01 : BEQ out : CMP #limit : BCS out
- * True if v - $cell is from 2 to limit-1. */
-static bool in_band(Snes *s, uint8_t v, uint8_t cell, uint8_t limit)
+/* How far `v` is past `from`, if that is 2 up to `limit`: the overflow of the
+ * subtraction is what the step leaves. */
+static bool within(uint8_t v, uint8_t from, uint8_t limit, bool *overflow)
 {
-    m_lda8(s, v);
-    m_set_flag(s, CPU_FLAG_C, true);
-    uint8_t d = m_sbc8(s, v, m_read8(s, m_dp(s, cell)));
-    m_set_a8(s, d);
-    if (d == 0)
-        return false;
-    m_cmp8(s, d, 0x01);
-    if (d == 0x01)
-        return false;
-    m_cmp8(s, d, limit);
-    return d < limit;
+    uint8_t d = (uint8_t)(v - from);
+    *overflow = overflows8(v, (uint8_t)~from, d);
+    return d >= 2 && d < limit;
 }
 
 // $C0:6655
-/* $28: if the object in operand 1 is well inside the screen -- its tile 2 to
- * 13 columns right of and 2 to 12 rows below the screen origin ($1D0A/$1D0E,
- * halved) -- continue after operand 2; otherwise jump forward by operand 2. */
-void event_cmd_if_object_on_screen(Snes *s)
+/* $28: if the object in operand 1 stands well inside the screen: 2 to 13
+ * tiles right of its left edge and 2 to 12 below its top (in 16-pixel tiles,
+ * the screen's edges being in 8-pixel ones). The halved edges are kept in the
+ * scratch cells. */
+static EventStep if_object_on_screen(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_tdc(s);
-    m_xba(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_tax(s);
-    uint8_t v = m_read8(s, m_abs(s, 0x1D0A));
-    m_set_flag(s, CPU_FLAG_C, v & 1);
-    m_write8(s, m_dp(s, 0xDB), m_lda8(s, v >> 1));
-    v = m_read8(s, m_abs(s, 0x1D0E));
-    m_set_flag(s, CPU_FLAG_C, v & 1);
-    m_write8(s, m_dp(s, 0xDD), m_lda8(s, v >> 1));
-    if (in_band(s, m_read8(s, m_abs(s, 0x1801) + s->cpu.x), 0xDB, 0x0E) &&
-        in_band(s, m_read8(s, m_abs(s, 0x1881) + s->cpu.x), 0xDD, 0x0D)) {
-        m_tyx(s);
-        m_inx(s);
-        m_inx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
+    unsigned object = object_operand(g, c, 1);
+    uint8_t left = (uint8_t)(field_screen_left(g) >> 1), top = (uint8_t)(field_screen_top(g) >> 1);
+    keep8(g, SCRATCH_DB, left);
+    keep8(g, SCRATCH_DD, top);
+    bool overflow;
+    bool inside = within(field_object_x_tile(g, object), left, 0x0E, &overflow) &&
+                  within(field_object_y_tile(g, object), top, 0x0D, &overflow);
+    if (inside)
+        return with_overflow(next_command(c, 3, 1), overflow);
+    return branch_unless(g, c, false, 3, 1);
+}
+
+/* Count this object's frames of a wait: `frames` counted, go on after the
+ * command's `length` bytes this frame; short of it, end the turn on the
+ * command. A count already past `frames` starts again, and the command runs
+ * again at once. */
+static EventStep count_frames(GameState *g, const EventCommand *c, uint8_t frames, uint16_t length)
+{
+    unsigned object = current_object(g);
+    uint8_t count = event_object_wait_frames(g, object);
+    if (frames > count) {
+        set_event_object_wait_frames(g, object, (uint8_t)(count + 1));
+        return wait_here(c, 0);
     }
-    m_tyx(s);
-    m_inx(s);
-    jump_from_here(s);
+    set_event_object_wait_frames(g, object, 0);
+    if (frames == count)
+        return next_command(c, length, 0);
+    return next_command(c, 0, 0);
 }
 
 // $C0:2F96
-/* Wait: end the object's turn for operand frames, counting in $7F:0A01,X
- * (X = the object's slot). When the count is reached, reset it and continue
- * with the next command this frame. A count already past the operand is reset
- * and the command runs again. */
-void event_cmd_wait(Snes *s)
-{
-    m_tyx(s);
-    m_inx(s);
-    uint8_t frames = m_lda8(s, script_byte(s, s->cpu.x));
-    ldx_current_object(s);
-    uint32_t counter = 0x7F0A01u + s->cpu.x;
-    uint8_t count = m_read8(s, counter);
-    m_cmp8(s, frames, count);
-    if (frames == count) {
-        m_lda8(s, 0x00);
-        m_write8(s, counter, 0x00);
-        m_tyx(s);
-        m_inx(s);
-        m_inx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-    } else if (frames > count) {
-        uint8_t next = (uint8_t)(count + 1);
-        m_lda8(s, count);
-        m_set_a8(s, next);
-        m_set_nz8(s, next);
-        m_write8(s, counter, next);
-        m_tyx(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-    } else {
-        m_lda8(s, 0x00);
-        m_write8(s, counter, 0x00);
-        m_tyx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-    }
-    m_rts(s);
-}
-
-/* $C0:2FD4, A = frames: the fixed-length waits, as $AD without an operand. */
-static void wait_frames(Snes *s, uint8_t frames)
-{
-    m_lda8(s, frames);
-    ldx_current_object(s);
-    uint32_t counter = 0x7F0A01u + s->cpu.x;
-    uint8_t count = m_read8(s, counter);
-    m_cmp8(s, frames, count);
-    if (frames == count) {
-        m_lda8(s, 0x00);
-        m_write8(s, counter, 0x00);
-        m_tyx(s);
-        m_inx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-    } else if (frames > count) {
-        uint8_t next = m_lda8(s, (uint8_t)(count + 1));
-        m_write8(s, counter, next);
-        m_tyx(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-    } else {
-        m_lda8(s, 0x00);
-        m_write8(s, counter, 0x00);
-        m_tyx(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-    }
-    m_rts(s);
-}
+/* $AD: wait operand 1 frames. */
+static EventStep wait_for(GameState *g, const EventCommand *c) { return count_frames(g, c, operand(g, c, 1), 2); }
 
 // $C0:2FC6
 /* $B9: wait 4 frames. */
-void event_cmd_wait_4(Snes *s) { wait_frames(s, 0x04); }
+static EventStep wait_4(GameState *g, const EventCommand *c) { return count_frames(g, c, 4, 1); }
 
 // $C0:2FCA
 /* $BA: wait 8 frames. */
-void event_cmd_wait_8(Snes *s) { wait_frames(s, 0x08); }
+static EventStep wait_8(GameState *g, const EventCommand *c) { return count_frames(g, c, 8, 1); }
 
 // $C0:2FD2
 /* $BC: wait 16 frames. */
-void event_cmd_wait_16(Snes *s) { wait_frames(s, 0x10); }
+static EventStep wait_16(GameState *g, const EventCommand *c) { return count_frames(g, c, 16, 1); }
 
 // $C0:2FCE
 /* $BD: wait 32 frames. */
-void event_cmd_wait_32(Snes *s) { wait_frames(s, 0x20); }
-
-// $C0:2FFD
-/* $AF: run $B0 (the state routine command) and continue after this command. */
-void event_cmd_run_state_routine_once(Snes *s)
-{
-    m_jsr(s, 0xC02FFD, 0xC03002);
-    if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
-        return;
-    m_inx(s);
-    m_rts(s);
-}
+static EventStep wait_32(GameState *g, const EventCommand *c) { return count_frames(g, c, 32, 1); }
 
 // $C0:353F
-/* Yield: end the object's turn; continue after the command next frame. */
-void event_cmd_yield(Snes *s)
+/* $B1: end the object's turn; its script goes on after the command next frame. */
+static EventStep yield(GameState *g, const EventCommand *c)
 {
-    m_tyx(s);
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    (void)g;
+    return end_turn(c, 1, 0);
 }
 
 // $C0:3543
-/* Halt: end the object's turn without advancing, so the script stays here. */
-void event_cmd_halt(Snes *s)
+/* $B2: end the object's turn on this command, for good. */
+static EventStep halt(GameState *g, const EventCommand *c)
 {
-    m_tyx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
+    (void)g;
+    return wait_here(c, 0);
+}
+
+/* Back from a call-out, which returns to `returns_to`: true if the callee
+ * left the machine as the command runs (event_machine_back); otherwise the
+ * port stops there, declaring it, and the original carries on. */
+static bool back(Snes *s, uint32_t returns_to, bool x8)
+{
+    if (event_machine_back(s, x8))
+        return true;
+    m_stop_at_own(s, returns_to, 0);
+    return false;
+}
+
+// $C0:2FFD
+/* $AF: run the object's state routine once ($B0), then go on after the
+ * command. $B0 is a handler with call-outs of its own (movement.c), so this
+ * calls it the original's way and moves its result on by the command. */
+void event_cmd_run_state_routine_once(Snes *s)
+{
+    m_jsr(s, 0xC02FFD, 0xC03002);
+    if (!back(s, 0xC03000, false))
+        return;
+    s->cpu.x++;
     m_rts(s);
 }
+
+EVENT_COMMAND(event_cmd_jump_forward, jump_forward)
+EVENT_COMMAND(event_cmd_jump_back, jump_back)
+EVENT_COMMAND(event_cmd_if_var_const, if_var_const)
+EVENT_COMMAND(event_cmd_if_var_const16, if_var_const16)
+EVENT_COMMAND(event_cmd_if_var_var, if_var_var)
+EVENT_COMMAND(event_cmd_if_var_var16, if_var_var16)
+EVENT_COMMAND(event_cmd_if_memory, if_memory)
+EVENT_COMMAND(event_cmd_if_memory0_below, if_memory0_below)
+EVENT_COMMAND(event_cmd_if_result, if_result)
+EVENT_COMMAND(event_cmd_if_object_in_view, if_object_in_view)
+EVENT_COMMAND(event_cmd_if_object_on_screen, if_object_on_screen)
+EVENT_COMMAND(event_cmd_wait, wait_for)
+EVENT_COMMAND(event_cmd_wait_4, wait_4)
+EVENT_COMMAND(event_cmd_wait_8, wait_8)
+EVENT_COMMAND(event_cmd_wait_16, wait_16)
+EVENT_COMMAND(event_cmd_wait_32, wait_32)
+EVENT_COMMAND(event_cmd_yield, yield)
+EVENT_COMMAND(event_cmd_halt, halt)

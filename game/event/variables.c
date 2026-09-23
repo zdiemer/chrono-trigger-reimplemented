@@ -1,150 +1,86 @@
-/* Event commands: copying values into script variables and object data. */
-#include "event/event.h"
-
-#include "event/script.h"
-
-/* INY : TYX : LDA script,X : REP #$20 : AND #$00FF : ASL A : TAX
- * X = variable index (operand) * 2; leaves M 16-bit. */
-static void load_var_index(Snes *s)
-{
-    m_iny(s);
-    m_tyx(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-    m_rep(s, CPU_FLAG_M);
-    s->cpu.a = m_asl16(s, m_lda16(s, s->cpu.a & 0x00FF));
-    m_tax(s);
-}
-
-/* $C0:655C, A 16-bit: LDX $6D : STA $7F0A80,X : SEP #$20 : TYX : INX : SEC : RTS */
-static void store_object_value(Snes *s)
-{
-    ldx_current_object(s);
-    m_write16(s, 0x7F0A80u + s->cpu.x, s->cpu.a);
-    m_sep(s, CPU_FLAG_M);
-    m_tyx(s);
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
-}
+/* Event commands: reading what the game knows into the script -- the running
+ * object's result value, and an object's tile or facing into variables. */
+#include "event/bridge.h"
 
 // $C0:653B
-/* $19: set the object's 16-bit $7F:0A80 value from variable (operand 1). */
-void event_cmd_set_object_value_from_var(Snes *s)
+/* $19: set this object's result value from 16-bit variable (operand 1). */
+static EventStep set_result_from_variable(GameState *g, const EventCommand *c)
 {
-    load_var_index(s);
-    m_lda16(s, m_read16(s, VARS + s->cpu.x));
-    store_object_value(s);
+    set_event_object_result(g, current_object(g), var16(g, variable_operand(g, c, 1)));
+    return next_command(c, 2, 1);
 }
 
 // $C0:654E
-/* $1C: set the object's 16-bit $7F:0A80 value from the two bytes at $7F:0000
- * + the 16-bit operand. */
-void event_cmd_set_object_value_from_memory(Snes *s)
+/* $1C: set this object's result value from the word of event memory at
+ * operands 1-2. */
+static EventStep set_result_from_memory(GameState *g, const EventCommand *c)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, m_read16(s, SCRIPT + s->cpu.x));
-    m_iny(s);
-    m_tax(s);
-    m_lda16(s, m_read16(s, 0x7F0000u + s->cpu.x));
-    store_object_value(s);
+    set_event_object_result(g, current_object(g), memory16(g, operand_word(g, c, 1)));
+    return next_command(c, 3, 2);
 }
 
 // $C0:658F
-/* $20: set variable (operand 1) to the byte at $7E:2980. */
-void event_cmd_set_var_from_2980(Snes *s)
+/* $20: variable (operand 1) = the character leading the party. */
+static EventStep get_party_leader(GameState *g, const EventCommand *c)
 {
-    load_var_index(s);
-    m_sep(s, CPU_FLAG_M);
-    uint8_t v = m_lda8(s, m_read8(s, 0x7E2980));
-    m_write8(s, VARS + s->cpu.x, v);
-    m_iny(s);
-    m_tyx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    set_var8(g, variable_operand(g, c, 1), party_members(g, 0));
+    return next_command(c, 2, 2);
 }
 
-/* Y at the operand before a variable index: store `value` into that
- * variable. Leaves Y at the index operand. */
-static void store_var(Snes *s, uint8_t value)
+// $C0:65B2
+/* Variables (operands 2 and 3) = the tile the object stands on. */
+static EventStep get_tile(GameState *g, const EventCommand *c, unsigned object)
 {
-    load_var_index(s);
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, value);
-    m_write8(s, VARS + s->cpu.x, value);
-}
-
-/* INY : TYX : TDC : XBA : LDA script,X -- the object operand, in A. */
-static void load_object_operand(Snes *s)
-{
-    m_iny(s);
-    m_tyx(s);
-    m_tdc(s);
-    m_xba(s);
-    m_lda8(s, script_byte(s, s->cpu.x));
-}
-
-/* $C0:65B2, A = slot: variables (operand 2, operand 3) = the object's tile. */
-static void store_tile(Snes *s)
-{
-    m_tax(s);
-    m_write8(s, m_dp(s, 0xD9), m_lda8(s, object_byte(s, 0x1801)));
-    m_write8(s, m_dp(s, 0xDB), m_lda8(s, object_byte(s, 0x1881)));
-    store_var(s, m_read8(s, m_dp(s, 0xD9)));
-    store_var(s, m_read8(s, m_dp(s, 0xDB)));
-    m_iny(s);
-    m_tyx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    uint8_t x = field_object_x_tile(g, object), y = field_object_y_tile(g, object);
+    keep8(g, SCRATCH_D9, x);
+    keep8(g, SCRATCH_DB, y);
+    set_var8(g, variable_operand(g, c, 2), x);
+    set_var8(g, variable_operand(g, c, 3), y);
+    return next_command(c, 4, 4);
 }
 
 // $C0:65AA
-/* $21: store the tile X and Y of the object in operand 1 into variables
- * (operands 2 and 3). */
-void event_cmd_get_object_tile(Snes *s)
+/* $21: the tile of the object in operand 1. */
+static EventStep get_object_tile(GameState *g, const EventCommand *c)
 {
-    load_object_operand(s);
-    store_tile(s);
+    return get_tile(g, c, object_operand(g, c, 1));
 }
 
 // $C0:65EB
-/* $22: store the tile X and Y of party member (operand 1) into variables
- * (operands 2 and 3). */
-void event_cmd_get_party_member_tile(Snes *s)
+/* $22: the tile of party member (operand 1). */
+static EventStep get_party_member_tile(GameState *g, const EventCommand *c)
 {
-    load_object_operand(s);
-    m_tax(s);
-    m_lda8(s, m_read8(s, (uint16_t)(s->cpu.d + DP_PARTY + s->cpu.x)));
-    store_tile(s);
+    return get_tile(g, c, member_object(g, c, 1));
 }
 
-/* $C0:6600, A = slot: variable (operand 2) = the object's facing. */
-static void store_facing(Snes *s)
+// $C0:6600
+/* Variable (operand 2) = the way the object faces. */
+static EventStep get_facing(GameState *g, const EventCommand *c, unsigned object)
 {
-    m_tax(s);
-    m_write8(s, m_dp(s, 0xD9), m_lda8(s, object_byte(s, 0x1600)));
-    store_var(s, m_read8(s, m_dp(s, 0xD9)));
-    m_iny(s);
-    m_tyx(s);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_rts(s);
+    uint8_t facing = field_object_facing(g, object);
+    keep8(g, SCRATCH_D9, facing);
+    set_var8(g, variable_operand(g, c, 2), facing);
+    return next_command(c, 3, 3);
 }
 
 // $C0:65F8
-/* $23: store the facing of the object in operand 1 into variable (operand 2). */
-void event_cmd_get_object_facing(Snes *s)
+/* $23: the facing of the object in operand 1. */
+static EventStep get_object_facing(GameState *g, const EventCommand *c)
 {
-    load_object_operand(s);
-    store_facing(s);
+    return get_facing(g, c, object_operand(g, c, 1));
 }
 
 // $C0:661F
-/* $24: store the facing of party member (operand 1) into variable (operand 2). */
-void event_cmd_get_party_member_facing(Snes *s)
+/* $24: the facing of party member (operand 1). */
+static EventStep get_party_member_facing(GameState *g, const EventCommand *c)
 {
-    load_object_operand(s);
-    m_tax(s);
-    m_lda8(s, m_read8(s, (uint16_t)(s->cpu.d + DP_PARTY + s->cpu.x)));
-    store_facing(s);
+    return get_facing(g, c, member_object(g, c, 1));
 }
+
+EVENT_COMMAND(event_cmd_set_result_from_variable, set_result_from_variable)
+EVENT_COMMAND(event_cmd_set_result_from_memory, set_result_from_memory)
+EVENT_COMMAND(event_cmd_get_party_leader, get_party_leader)
+EVENT_COMMAND(event_cmd_get_object_tile, get_object_tile)
+EVENT_COMMAND(event_cmd_get_party_member_tile, get_party_member_tile)
+EVENT_COMMAND(event_cmd_get_object_facing, get_object_facing)
+EVENT_COMMAND(event_cmd_get_party_member_facing, get_party_member_facing)

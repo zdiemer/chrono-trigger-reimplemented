@@ -16,7 +16,7 @@ by what it does; move routines when their purpose becomes clearer.
 |---|---|
 | `game/core/` | System code shared by every mode (display and interrupt control, the palette and tile animations, the sound driver interface and its data accessors, the block move stub the menus and save code write to RAM) |
 | `game/data/` | Data handling (the decompressor) |
-| `game/event/` | Event scripts: the engine loops and command handlers, grouped by kind (`flow.c`: jumps, conditionals, waits; `calls.c`: calling functions in other objects; `dialog.c`: dialog boxes; `animation.c`: object animation; `input.c`: input conditions; `movement.c`, `facing.c`, `properties.c`: objects; `variables.c`: object data into variables; `arithmetic.c`: variable arithmetic; `memory.c`: memory and pointers; `sound.c`, `screen.c`: sound and screen effects; `locations.c`: location changes) |
+| `game/event/` | Event scripts: the protocol every command handler works to (`script.h`: the command, the step it returns), the one translation to the original's registers and the guards (`bridge.c`), the ROM tables (`event_data.h`), the engine loops (`engine.c`) and the command handlers, grouped by kind (`flow.c`: jumps, conditionals, waits; `calls.c`: calling functions in other objects; `dialog.c`: dialog boxes; `animation.c`: object animation; `input.c`: input conditions; `movement.c`, `facing.c`, `properties.c`: objects; `variables.c`: object data into variables; `arithmetic.c`: variable arithmetic; `memory.c`: memory and pointers; `sound.c`, `screen.c`: sound and screen effects; `locations.c`: location changes) |
 | `game/field/` | Field mode: interrupt handlers, frame sync, objects and their motion, the per-frame object update loop, the sprite table, sprite tile graphics, the layers' scroll arithmetic, the per-line effects' tables and the quadrilateral rasterizer in bank C3 |
 | `game/menu/` | Menu mode: frame sync, font glyphs, text and numbers, the VRAM upload queue, the save file screen, sprite objects with their scripts (the commands in bank C6 among them), the map they scroll and redraw, and the Epoch's map view and time dial |
 | `game/battle/` | Battle mode: setup of a battle's tables, the main loop, display synchronization, the NMI handler, drawing battle objects' sprites, scroll tables, timers, per-frame work buffers, the window tilemap, the menu window and combatant animations (so far) |
@@ -539,7 +539,10 @@ build/main/ct_fuzz --rom roms/ct-usa.sfc --load-state traces/field.state --routi
 
 Each iteration randomizes A, X, Y, the arithmetic flags and all of work RAM
 except the stack page, applies the entry precondition, and calls the routine
-as a JSR would (`--long` for JSL, `--interrupt` for interrupt handlers, which return with RTI). The original runs on the interpreter, and the
+as a JSR would (`--long` for JSL, `--interrupt` for interrupt handlers, which return with RTI). The entry's
+guard is asked with the return address pushed, as the runtime asks it, since a
+guard that reads work RAM can read the stack (the event handlers' operands can
+land there). The original runs on the interpreter, and the
 native routine on a copy with call-outs interpreted in place. The machines are
 compared where the native routine stopped: normally the return, or the
 instruction where it handed back to the interpreter, at the first pass of the

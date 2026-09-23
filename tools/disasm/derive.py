@@ -483,7 +483,7 @@ EVENT_SITES = {
     0xC04009: (0xFF, "mode", 0xC0400E, 20),
 }
 EVENT_PARTS = {0xC06307: "if_var_const", 0xC0633D: "if_var_const16", 0xC06398: "if_var_var",
-               0xC063D7: "if_var_var16", 0xC06433: "if_mem_const", 0xC04009: "mode"}
+               0xC063D7: "if_var_var16", 0xC06433: "if_memory", 0xC04009: "mode"}
 
 
 def event_scripts(rom):

@@ -1157,9 +1157,10 @@ logs. The analysis takes about 1.5 s longer (one parse per ROM).
 **Left for the event scripts:**
 
 - Assembling the streams from their decoded form waits on the `lz` encoder.
-- Names: the command and operand names say what the handler does to the
-  machine (`set_1c80`, `set_54_bit2`, `party_routine_6`); they get better
-  names as Phase 3 ports and names the RAM they touch. The layouts of the 39
+- Names: some command and operand names say what the handler does to the
+  machine (`set_bc`, `set_54_bit2`, `party_routine_6`); they get better
+  names as Phase 3 ports and names the RAM they touch (event's rewrite named
+  36, RECOMP.md, "Phase 3a: the event subsystem off the machine"). The layouts of the 39
   unported commands rest on their handlers and on the parse's consistency
   over 144503 commands, not on a trace.
 - The dispatch on the command byte (`$C0:5910` and its copies) keeps its guard

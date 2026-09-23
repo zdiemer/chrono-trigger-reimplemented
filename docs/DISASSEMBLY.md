@@ -338,6 +338,15 @@ the jet bike race's multiplies with nothing to show for it but a drop in a
 shadow count (RECOMP.md, "Phase 3a: the scene subsystem off the machine"); the
 refusal is now a line in the log, and a gate failure.
 
+A guard that looks at the game's state itself -- whether an operand names an
+object, whether a table is set -- does it between `vars_peek(true)` and
+`vars_peek(false)` (`vars_ram.h`): the backing's reads then go through
+`snes_bus_peek`, taking none of the machine's time and leaving the bus as it
+was. A guard runs between the original's instructions, and a timed read there
+lands in shadow mode's record of the original's run, which the generated blocks
+are checked against (RECOMP.md, "Phase 3a: the event subsystem off the
+machine").
+
 **No layout reaches `game/`** -- no address, offset or stride -- and that is the
 point: a port written against the accessors keeps working when the storage
 moves. `runtime/port/vars_ram.c` is the backing, and it reads and writes exactly

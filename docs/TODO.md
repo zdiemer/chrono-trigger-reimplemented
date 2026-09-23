@@ -136,7 +136,7 @@ rest waits, is [PLAN.md](PLAN.md).
   encodings"): the dialog tables at `$FF:D3FE` and `$CC:3A09`, whose extents
   aren't settled, and the menu strings passed to `$C2:EF65` by address in code.
   The event scripts' leftovers (MATCHING.md, "The event scripts"): commands
-  and operands named mechanically (`set_1c80`, `party_routine_6`), and the 39
+  and operands named mechanically (`set_bc`, `party_routine_6`), and the 39
   command layouts read from handlers no port has checked yet.
   The sound driver's tables (found by the $C7 pilot, `core/sound_data.h`):
   `$C7:1871` is typed as one song's twelve three-byte entries, but the driver
@@ -149,9 +149,9 @@ rest waits, is [PLAN.md](PLAN.md).
   decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
   round-trip on their decompressed output and would be assembled from their
   decoded form with it: MATCHING.md, "The event scripts").
-- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 56 addresses
+- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 46 addresses
   the code touches without anything establishing what they mean (menu 20,
-  battle 13, core 9, field 5, scene 5, event 4;
+  battle 11, core 9, field 3, scene 3;
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
   subsystem. The menus' three at `$7E:0D5D`, `$0D84` and `$0DC5` are the save
   slot summary's (`menu/save_screen.c`), and lie inside the object slots' span
@@ -275,11 +275,37 @@ below. `python3 tools/timing_census.py` re-runs the census.
   runs as one coroutine through `runtime/port/fiber.h`: its frame waits are
   deep in its call stack (the field's `$C0:EC60` has 28 call sites, the
   battle's `$C1:007E` 20).
+- **The event commands still on the machine** (RECOMP.md, "Phase 3a: the
+  event subsystem off the machine"): 44 bridge helpers, 29 of them the move
+  commands' calls into the field's motion routines (`$C0:ABA2`, `$C0:5B95`,
+  `$C0:ACFD`, `$C0:AC69`, `$C0:5614`, `$C0:568B`, `$C0:30B3`, `$C0:305D`).
+  Once `field`'s rewrite makes those C over the game's state, the move
+  commands' decisions call them directly and `movement.c` leaves the machine;
+  the carry they hand each other (`tile_compare_carry`, `next_to_carry`) is
+  then a return value. The rest wait on the sound driver (`sound.c`), the
+  menus' party routines (`$C2:8004`), the tile copy `$C0:AF4E` and the
+  location change from `$C0:3B71`. When the engine itself runs its handlers as
+  C, `EventStep`'s `cursor` and `overflow` (the Y and V the original's callers
+  can see) go.
+- **Fuzzing half the event states.** The event handlers' guards turn away an
+  odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
+  every tight run is skipped (more for the comparisons, whose operator must be
+  in its table). A `--fill` form for even values (or a step) would double what
+  each run compares.
+- **`dontcare_check.py` takes a helper's parameters as a cross product.** A
+  call-out's or stop's address passed down through helpers is evaluated over
+  every value every caller passes, so a helper shared by two kinds of caller
+  (the turning and the keep-facing moves) is checked at addresses no call
+  makes, and a site read from a struct through a pointer isn't read at all.
+  Event's movement bridges were reshaped around it (tables of rows, no zero
+  sites); following a table row's index through the callers would let them
+  say it plainly.
 - **The event scheduler `$C0:5A46` and the sprite frame queue `$C0:CA76`**:
   port them as "run the queued work while `tm_frame_time_left(limit)`". Name
-  the event queue (`$0174`/`$0175`, linked through `$1080`) and the two line
-  limits (`$0169`, 72, set by `$C0:56A6`; `$016B`, 120, which event command
-  `$47` sets) in `re/ram.toml`. Shadow mode can disagree where the port's
+  the event queue (`$0174`/`$0175`, linked through `$1080`) and the scripts'
+  line limit (`$0169`, 72, set by `$C0:56A6`) in `re/ram.toml`, beside the
+  animation updates' (`field_animation_line_limit`, 120, which event command
+  `$47` sets). Shadow mode can disagree where the port's
   beam read and the original's fall on either side of a line boundary; keep
   the per-object work a call-out and measure it on the first run. Then run
   the routes with the native backend's drained budgets.

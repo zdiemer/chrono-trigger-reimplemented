@@ -1,130 +1,134 @@
 /* Event commands: sound. Commands for the sound driver go through the audio
  * service (platform/audio.h), which on the development system writes them to
- * $1E00-$1E03 and calls $C7:0004 (core/sound_driver.c). Registered with a guard
- * that the data bank reaches $1E00 and the APU ports the way the service does. */
-#include "event/event.h"
+ * $1E00-$1E03 and calls the driver's entry at $C7:0004, the original's code;
+ * so the commands that send one are bridges that check what the driver left
+ * before going on, and keep the command's end in event_saved_position across
+ * it, as the original does. Registered with a guard that the data bank reaches
+ * $1E00 and the APU ports the way the service does. */
+#include "event/bridge.h"
 
-#include "event/script.h"
 #include "platform/audio.h"
 
-/* The registry guard: absolute addressing reaches $00:1E00 and the APU ports. */
-bool event_sound_bank_is_system(Snes *s) { return m_io_bank(s->cpu.db); }
-
-/* True if the callee came back with 8-bit A and 16-bit X; otherwise the port
- * stops at the return address and the original carries on. */
-static bool widths_ok(Snes *s) { return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M; }
-
-/* LDX $C7 : INX : CLC : RTS */
-static void finish(Snes *s)
+static void load_command(Snes *s, uint8_t command)
 {
-    m_ldx(s, m_read16(s, m_dp(s, 0xC7)));
-    m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | command);
+    m_set_nz8(s, command);
+}
+
+static void registers_at_call(Snes *s, uint8_t command, uint16_t x, uint16_t y)
+{
+    event_set_registers(s, s->cpu.a, x, y);
+    load_command(s, command);
+}
+
+/* Back from a call-out, which returns to `returns_to`: true if the callee
+ * left the machine as the command runs (event_machine_back); otherwise the
+ * port stops there, declaring it, and the original carries on. */
+static bool back(Snes *s, uint32_t returns_to, bool x8)
+{
+    if (event_machine_back(s, x8))
+        return true;
+    m_stop_at_own(s, returns_to, 0);
+    return false;
+}
+
+/* Send a driver command from the JSL at `site`; false if the driver came back
+ * other than the command expects, and the original then carries on. */
+static bool send(Snes *s, uint32_t site, AudioCommand command)
+{
+    au_command(m_platform(s), PF_CALL(site, 0xC70004), command);
+    return back(s, site + 4, false);
+}
+
+/* Go on at the offset kept in event_saved_position, plus `past`, ending the
+ * turn; the driver leaves Y. */
+static void finish(Snes *s, uint16_t past)
+{
+    event_return(s, step_at((uint16_t)(event_saved_position(state_of(s)) + past), false, s->cpu.y));
 }
 
 // $C0:3C11
-/* $E8: play sound effect (operand 1): driver command $18 with $80. */
+/* $E8: play sound effect (operand 1). */
 void event_cmd_play_sound(Snes *s)
 {
-    m_iny(s);
-    m_tyx(s);
-    m_write16(s, m_dp(s, 0xC7), s->cpu.y);
-    uint8_t effect = m_lda8(s, script_byte(s, s->cpu.x));
-    m_lda8(s, 0x80);
-    m_lda8(s, 0x18);
-    au_command(m_platform(s), PF_CALL(0xC03C26, 0xC70004),
-               (AudioCommand){ .command = 0x18, .p1 = effect, .p2 = 0x80, .count = 2 });
-    if (widths_ok(s))
-        finish(s);
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    set_event_saved_position(g, (uint16_t)(c.at + 1));
+    registers_at_call(s, 0x18, (uint16_t)(c.at + 1), (uint16_t)(c.at + 1));
+    if (send(s, 0xC03C26, (AudioCommand){ .command = 0x18, .p1 = operand(g, &c, 1), .p2 = 0x80, .count = 2 }))
+        finish(s, 1);
 }
 
 // $C0:3C2F
-/* $EA: play song (operand 1): driver command $10; the song is also kept in
- * $7E:29AE. */
+/* $EA: play song (operand 1), which the game keeps as the current song. */
 void event_cmd_play_song(Snes *s)
 {
-    m_iny(s);
-    m_tyx(s);
-    uint8_t song = m_lda8(s, script_byte(s, s->cpu.x));
-    m_write8(s, 0x7E29AE, song);
-    m_lda8(s, 0x10);
-    m_write16(s, m_dp(s, 0xC7), s->cpu.x);
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    uint8_t song = operand(g, &c, 1);
+    set_current_song(g, song);
+    set_event_saved_position(g, (uint16_t)(c.at + 1));
+    registers_at_call(s, 0x10, (uint16_t)(c.at + 1), (uint16_t)(c.at + 1));
     au_play_song(m_platform(s), PF_CALL(0xC03C43, 0xC70004), song);
-    if (widths_ok(s))
-        finish(s);
+    if (back(s, 0xC03C47, false))
+        finish(s, 1);
 }
 
 // $C0:3C4C
-/* $EB: send driver command $81 with operands 1 and 2 (and $FF), then
- * commands $82 and $83 with $00, $FF. */
+/* $EB: driver command $81 with operands 1 and 2, then $82 and $83. */
 void event_cmd_sound_81_83(Snes *s)
 {
-    Platform *pf = m_platform(s);
-    m_iny(s);
-    m_tyx(s);
-    uint8_t p1 = m_lda8(s, script_byte(s, s->cpu.x));
-    m_inx(s);
-    uint8_t p2 = m_lda8(s, script_byte(s, s->cpu.x));
-    m_lda8(s, 0xFF);
-    m_lda8(s, 0x81);
-    m_write16(s, m_dp(s, 0xC7), s->cpu.x);
-    au_command(pf, PF_CALL(0xC03C69, 0xC70004), (AudioCommand){ .command = 0x81, .p1 = p1, .p2 = p2, .p3 = 0xFF, .count = 3 });
-    static const struct { uint32_t site; uint8_t command; } rest[] = { { 0xC03C7C, 0x82 }, { 0xC03C8F, 0x83 } };
-    for (int i = 0; i < 2; i++) {
-        if (!widths_ok(s) || !event_sound_bank_is_system(s))
-            return;
-        m_lda8(s, rest[i].command);
-        au_command(pf, PF_CALL(rest[i].site, 0xC70004),
-                   (AudioCommand){ .command = rest[i].command, .p1 = 0x00, .p2 = 0xFF, .count = 2 });
-    }
-    if (!widths_ok(s))
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    set_event_saved_position(g, (uint16_t)(c.at + 2));
+    registers_at_call(s, 0x81, (uint16_t)(c.at + 2), (uint16_t)(c.at + 1));
+    if (!send(s, 0xC03C69, (AudioCommand){ .command = 0x81, .p1 = operand(g, &c, 1), .p2 = operand(g, &c, 2),
+                                            .p3 = 0xFF, .count = 3 }))
         return;
-    finish(s);
+    load_command(s, 0x82);
+    if (!send(s, 0xC03C7C, (AudioCommand){ .command = 0x82, .p1 = 0x00, .p2 = 0xFF, .count = 2 }))
+        return;
+    load_command(s, 0x83);
+    au_command(m_platform(s), PF_CALL(0xC03C8F, 0xC70004),
+               (AudioCommand){ .command = 0x83, .p1 = 0x00, .p2 = 0xFF, .count = 2 });
+    if (back(s, 0xC03C93, false))
+        finish(s, 1);
 }
 
 // $C0:3C98
-/* $EC: send a driver command with two parameters (operands 1-3). */
+/* $EC: a driver command (operand 1) with two parameters (operands 2-3). */
 void event_cmd_sound_command(Snes *s)
 {
-    m_iny(s);
-    m_tyx(s);
-    uint8_t bytes[3];
-    for (int i = 0; i < 3; i++) {
-        if (i != 0)
-            m_inx(s);
-        bytes[i] = m_lda8(s, script_byte(s, s->cpu.x));
-    }
-    m_inx(s);
-    m_write16(s, m_dp(s, 0xC7), s->cpu.x);
+    GameState *g = state_of(s);
+    EventCommand c = event_command_at(s);
+    set_event_saved_position(g, (uint16_t)(c.at + 4));
+    registers_at_call(s, operand(g, &c, 3), (uint16_t)(c.at + 4), (uint16_t)(c.at + 1));
+    m_set_nz16(s, s->cpu.x);   /* the INX after the last load */
     au_command(m_platform(s), PF_CALL(0xC03CB4, 0xC70004),
-               (AudioCommand){ .command = bytes[0], .p1 = bytes[1], .p2 = bytes[2], .count = 2 });
-    if (!widths_ok(s))
-        return;
-    m_ldx(s, m_read16(s, m_dp(s, 0xC7)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+               (AudioCommand){ .command = operand(g, &c, 1), .p1 = operand(g, &c, 2), .p2 = operand(g, &c, 3),
+                               .count = 2 });
+    if (back(s, 0xC03CB8, false))
+        finish(s, 0);
 }
 
+/* Stay on the command until the driver's status reads `idle`. */
+static EventStep wait_status(const EventCommand *c, bool idle) { return end_turn(c, idle ? 1 : 0, 0); }
+
 // $C0:3CBC
-/* $ED: wait until the driver's status on APU port 1 reads zero. */
-void event_cmd_wait_apu_port1(Snes *s)
+/* $ED: wait until the driver's status on port 1 reads zero. */
+static EventStep wait_sound_port1(GameState *g, Platform *pf, const EventCommand *c)
 {
-    m_tyx(s);
-    if (m_lda8(s, au_status(m_platform(s), PF_AT(0xC03CBD), 1)) == 0)
-        m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    (void)g;
+    return wait_status(c, au_status(pf, PF_AT(0xC03CBD), 1) == 0);
 }
 
 // $C0:3CC5
-/* $EE: wait until the low nibble of the driver's status on APU port 3 reads zero. */
-void event_cmd_wait_apu_port3(Snes *s)
+/* $EE: wait until the low nibble of the driver's status on port 3 reads zero. */
+static EventStep wait_sound_port3(GameState *g, Platform *pf, const EventCommand *c)
 {
-    m_tyx(s);
-    uint8_t v = au_status(m_platform(s), PF_AT(0xC03CC6), 3);
-    if (m_lda8(s, v & 0x0F) == 0)
-        m_inx(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    (void)g;
+    return wait_status(c, (au_status(pf, PF_AT(0xC03CC6), 3) & 0x0F) == 0);
 }
+
+EVENT_PLATFORM_COMMAND(event_cmd_wait_apu_port1, wait_sound_port1)
+EVENT_PLATFORM_COMMAND(event_cmd_wait_apu_port3, wait_sound_port3)

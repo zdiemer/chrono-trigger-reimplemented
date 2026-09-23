@@ -9,7 +9,7 @@
 #include "port/machine.h"
 #include "port/vars_ram.h"
 
-enum { WRMPYA = 0x004202, WRMPYB = 0x004203, WRDIVB = 0x004206, RDDIV = 0x004214, RDMPY = 0x004216 };
+enum { WRMPYA = 0x004202, WRMPYB = 0x004203, WRDIVL = 0x004204, WRDIVB = 0x004206, RDDIV = 0x004214, RDMPY = 0x004216 };
 enum { WMDATA = 0x002180, WMADDL = 0x002181, WMADDB = 0x002183 };
 
 void hw_set_multiplicand(GameState *g, uint8_t a) { m_write8(state_snes(g), WRMPYA, a); }
@@ -19,6 +19,8 @@ uint16_t hw_multiply_by(GameState *g, uint8_t b)
     m_write8(state_snes(g), WRMPYB, b);
     return m_read16(state_snes(g), RDMPY);
 }
+
+void hw_set_dividend(GameState *g, uint16_t dividend) { m_write16(state_snes(g), WRDIVL, dividend); }
 
 uint16_t hw_quotient(const GameState *g) { return m_read16(state_snes(g), RDDIV); }
 
