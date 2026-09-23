@@ -292,6 +292,31 @@ meaning.** Once both have landed, one pass does two things:
 fixed. Doing this before `menu` and `battle` means it is paid on 4.5K lines of
 call sites rather than 20K.
 
+**Scene fails the qualitative review, and its rework joins that pass.** The
+review's first run, on `scene` (merged under the older bar), rated three files
+translation:
+- `program.c` emulates the arithmetic unit, with add-with-carry and
+  rotate-left as C functions and a divide done as 32 rounds of rotate and
+  subtract;
+- `circle.c`, the Phase 3a pilot, runs the original's X and Y through RAM cells
+  and chains the carry through every edge;
+- `bitmap.c` passes a struct that is the CPU (`carry, overflow, x, y, bank`)
+  through its logic.
+
+Most of the rest rated mostly. The review's five changes:
+- C arithmetic, with flags derived in the wrappers;
+- loop state in locals, with final values written once as scaffolding;
+- the sequence script decoded into an operation enum;
+- display state in the video service's vocabulary, not literal register bytes
+  fed to decoders;
+- the subsystem's own concepts (a task page kind, one `scene_flags`
+  definition, named scratch fields, entries named for what they do, and files
+  grouped by title, race, script and frame rather than by where the code sits
+  in the ROM).
+
+The last of those touches the RAM map the way the naming pass does, so scene's
+rework runs with it, and it closes when scene passes a fresh review.
+
 **Cells on a page the caller chooses** have a generated shape: a page kind in
 `re/ram.toml` lists the pages its code runs on, as measured over the library
 (`ct_dev --page-report`), and its variables' accessors take which of them a

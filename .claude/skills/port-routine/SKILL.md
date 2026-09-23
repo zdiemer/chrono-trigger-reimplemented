@@ -143,6 +143,17 @@ What makes that mechanical, and what to do instead:
   reproduces them, with why. A file's header says what part of the game it is
   and how its pieces fit together.
 
+The same trap has two more forms, both found in `game/scene/` by the first
+qualitative review:
+- **Emulating the arithmetic unit.** `add_carry`, `rotate_left`, a divide as 32
+  rounds of rotate-and-subtract. Write `n / d` and `a * b`. Derive any carry,
+  overflow or leftover the callers read in the wrapper, from the results.
+- **Using RAM cells as registers.** A loop that stores its counter in a cell and
+  reads it back. Keep the loop's state in locals, and write the cells' final
+  values once, as scaffolding.
+
+The pilot `circle.c` did both, while having no `Snes *` in its logic.
+
 **portstyle can't see any of this.** Its operation count and machine coupling
 measure syntax. Read your own file before reporting. If a function is a run of
 setters in the original's order, if there's a function per opcode that differs

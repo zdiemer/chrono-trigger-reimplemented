@@ -168,6 +168,19 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Platform
 
+- **Ports feed the video service literal register bytes.** Scene's review
+  found setup code building display state as `vid_mode_decode(0x07)`,
+  `vid_set_screens(pf, at, 0x13, 0x04, ...)` and `vid_windows_decode(&w,
+  field, 0x00)`: the decoders exist for bytes the game computes at run time,
+  and a constant fed to one is the register value with a function around it.
+  The ports should write the structs' fields and named constants
+  (`VID_LAYER_BIT`, `.mode = 7`). Where there's no call for what a setup
+  routine means (a whole display reset, `display.c`'s `init_video`, which is
+  about 25 register-group writes), the service gains one. And uploads the
+  service models (`vid_upload_oam`, `vid_upload_palette`, `vid_upload_vram`)
+  still take a per-call array of the original's write order, which `game/`
+  should never have to spell out.
+
 - **P3's leftover is not a leftover**: the renderer is fed by decoding PPU
   register writes, so the register file is still in the shipping path. Feeding
   it `vid_*` calls instead is what "no emulation backend" needs, and it is

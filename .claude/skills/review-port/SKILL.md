@@ -81,6 +81,51 @@ Each of these is a finding. Every example here comes from this repo.
     a slot handle or a count with a unit. Types are part of the vocabulary.
 11. **The wrong level.** A file whose functions operate on tables and bytes when
     the game concept exists (or should) one level up.
+12. **The arithmetic unit emulated in the logic.** An add-with-carry or a
+    rotate-left written as C functions (`add_carry`, `rotate_left`, `adc`/`sbc`),
+    a divide done as 32 rounds of rotate-and-subtract, a multiply as partial
+    products with a chained carry. A hand-written version writes
+    `quotient = n / d`, `product = a * b`, and any carry, overflow or leftover
+    the callers read is derived *in the wrapper* from those results. Where the
+    original's rounding really moves a pixel, that is one named function
+    (`edge_rounding(...)`) with a comment saying what the player sees, not the
+    shape of the whole routine. A struct of `carry, overflow, x, y, bank` passed
+    through the logic is the CPU; name it that way in the finding.
+13. **Memory used as registers.** A loop counter or temporary kept in a RAM cell
+    and read back (`set_scene_circle_count(g, x); ... x = scene_circle_count(g);`),
+    or bytes shifted in place in scratch. CLAUDE.md requires writing the cells the
+    original leaves, but only their *final values*, once, in marked scaffolding.
+    The working state belongs in locals.
+14. **Semantic values built by decoding the original's literal bytes.**
+    `vid_mode_decode(0x07)`, `vid_set_screens(pf, at, 0x13, 0x04, ...)`,
+    `vid_windows_decode(&w, field, 0x00)`. The decoders exist for bytes the game
+    computes at run time; a constant fed to one is the register value with a
+    function around it. Write the struct's fields and the named constants
+    (`(VidMode){ .mode = 7 }`, `VID_LAYER_BIT(VID_BG1)`, `.cy = -64`). A setup
+    routine that is 25 register-group writes in the original's order is smell 1
+    on the display side: build the state as one value and apply it, or add the
+    service call that would.
+15. **Assembly quoted in comments.** `/* STX $2102 : STZ $4374 : STA $420B */`
+    is the most blatant form of smell 8. Also a finding: a per-call array
+    spelling out the original's write order for a transfer the service already
+    models.
+16. **Stop-point fragments.** Entries that exist only because a routine is
+    half-ported, named for the address or constant at the stop
+    (`scene_set_vram_6400`, `scene_race_set_vram_0000_again`). Port the routine
+    they're fragments of (`load_title_graphics`), or at least name each for what
+    it holds.
+17. **Admitted ignorance.** "presumably", "a history of values, presumably",
+    "what reads the pair isn't ported". This always fails the one-sentence test
+    and is always a finding. Its fix has an owner: find the reader and name the
+    value, or record it in `docs/TODO.md`.
+18. **One field, several private definitions.** The same bit defined in
+    several files, under different names or meanings (`SCENE_FLAG_LINE_IRQ` and
+    `SCENE_FLAG_TITLE_AGAIN`, both `0x80` of `scene_flags`). One definition, in
+    the subsystem's header, named for everything it means.
+19. **Branch-shaped compares.** `!((uint16_t)(x - LIMIT) & 0x8000)` is a
+    BMI/BPL spelled out. Write the comparison the logic means (`(int16_t)(x -
+    LIMIT) < 0`, or `x < LIMIT` where the range allows it), with a comment only
+    where wraparound really changes the result.
 
 ## What is legitimately machine-shaped
 
@@ -93,11 +138,31 @@ exists:
 - bridges around a call to still-generated code;
 - a deliberate reproduction of an original quirk the gate or the game can see
   (a wraparound, an odd order, a scratch write), with a comment saying why;
-- marked scaffolding (docs/PORTING.md);
-- `// $BB:AAAA` origin comments.
+- marked scaffolding: writes and values that exist only for still-generated
+  code or shadow mode, going through the scaffolding mechanism
+  (docs/PORTING.md). Until that exists in the tree, the convention is one
+  helper per file with a comment saying the write is for the original's code
+  or shadow mode. A scaffolding write inline among the logic's own writes is
+  smell 9;
+- `// $BB:AAAA` origin comments, and `PF_AT(...)` / `PF_CALL(...)` origin tags
+  on service calls.
 
 A wrapper that has grown logic, or a "deliberate reproduction" with no comment
-saying why, **is** a finding.
+saying why, **is** a finding. So is a bridge that builds fake register state
+beyond what its call needs (`c->a = 0xFFFF; c->x = 0x0940; ...` "the registers
+the block move leaves").
+
+## The subsystem as a whole
+
+Per-file verdicts can all pass while the subsystem is still organised by ROM
+location ("the RAM program", "bank C3 routines") instead of by the game. So also
+answer:
+- **Where would a reader look for each part of the game this subsystem
+  covers** (the title screen, the race, the endings, the script language)?
+  If the answer is "several files, none named for it", that's a finding.
+- **What are the subsystem's concepts** (tasks, scripts, objects, the frame)?
+  Is each one a type or module with operations, or only implied by how bytes
+  are used?
 
 ## Report
 
@@ -105,12 +170,21 @@ saying why, **is** a finding.
    - **hand-written:** a reader would not guess it was ported;
    - **mostly:** reads as hand-written with specific lapses;
    - **translation:** the original's structure shows through the whole.
+     Any logic function that emulates the arithmetic unit (smell 12) or passes
+     a register-shaped struct through the logic rates its file **translation**,
+     however good the header is. Otherwise, the share of logic functions that
+     fail the one-sentence test decides between mostly and translation.
+   Then a paragraph on the subsystem as a whole (above).
 2. **Findings**, most important first. Each finding gives `file:line`, which
    smell it is (by number above, or say it's new), and what a hand-written
    version would do instead, concretely, in a sentence or a few lines of code.
    Don't pad: three findings that matter beat thirty nits. Group repeated
    instances ("the same in 14 handlers: ...").
 3. **The five changes that would do the most** for how the subsystem reads.
+   Where a finding is really a gap in a platform service or the RAM map (a
+   service with no call for what the port needs, a decoder only reachable
+   through literal bytes), say so: it goes to the platform or the map, not
+   to the port.
 4. **Anything the rubric missed.** New ways the code still reads as a
    translation belong in this skill.
 
