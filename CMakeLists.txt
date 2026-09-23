@@ -95,6 +95,7 @@ add_library(ct_game STATIC
   game/field/layers.c
   game/field/line_effects.c
   game/field/motion.c
+  game/field/object.c
   game/field/nmi.c
   game/field/object_update.c
   game/field/object_view.c

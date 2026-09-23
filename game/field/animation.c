@@ -10,7 +10,7 @@
  * (object_animate_movement), and the object update advances the animation
  * once a frame (object_animation_tick): when the frame's time is up the
  * object is queued for the frame builder, which draws the new frame's tiles
- * and asks this file which frame that is (object_current_frame).
+ * and asks this file which frame that is (object_next_frame_to_draw).
  *
  * An animation is four entries a facing in the object's frame table, frame
  * numbers ending in an end marker, and beside it a table of how long each
@@ -98,8 +98,10 @@ enum { BEFORE_THE_FIRST_FRAME = 0xFF };
 void object_restart_animation(GameState *g, FieldObject obj)
 {
     set_field_object_animation_frame(g, obj, 0);
-    set_field_object_frame_delay(g, obj, 0);
+    object_end_frame_time(g, obj);
 }
+
+void object_end_frame_time(GameState *g, FieldObject obj) { set_field_object_frame_delay(g, obj, 0); }
 
 /* ---- What a script does with it ------------------------------------------------------- */
 
@@ -119,9 +121,8 @@ static void interrupt_with(GameState *g, FieldObject obj, ObjectAnimationMode mo
 static void start_afresh(GameState *g, FieldObject obj, ObjectAnimationMode mode)
 {
     set_mode(g, obj, mode);
-    set_field_object_frame_delay(g, obj, 0);
     set_half_passes_left(g, obj, NO_ONE_OFF);
-    set_field_object_animation_frame(g, obj, 0);
+    object_restart_animation(g, obj);
 }
 
 /* Loop an animation from its first frame, dropping whatever the object was
@@ -140,13 +141,15 @@ void object_stop_animating(GameState *g, FieldObject obj)
     start_afresh(g, obj, ANIMATE_WITH_MOVEMENT);
 }
 
-/* Play a one-off animation (a gesture, a reaction) `passes` times through;
- * then it holds its last frame until the script that started it finishes it. */
-void object_play_animation(GameState *g, FieldObject obj, uint8_t animation, uint8_t passes)
+/* Play a one-off animation (a gesture, a reaction) for `half_passes` half
+ * passes; then it holds its last frame until the script that started it
+ * finishes it. The count runs down two a pass and one where the frame table
+ * ends first, and the one-off is played out on its last half pass. */
+void object_play_animation(GameState *g, FieldObject obj, uint8_t animation, uint8_t half_passes)
 {
     set_field_object_animation_mode_timed_animation(g, obj, animation);
     interrupt_with(g, obj, ANIMATE_PLAY);
-    set_half_passes_left(g, obj, (uint8_t)(passes * HALF_PASSES_PER_PASS));
+    set_half_passes_left(g, obj, half_passes);
 }
 
 bool object_playing_animation(const GameState *g, FieldObject obj, uint8_t animation)
@@ -265,24 +268,37 @@ static bool frame_due(GameState *g, FieldObject obj)
 }
 
 /* The frame builder's queue of objects whose frame is due, a list of links
- * from its head to its tail. */
+ * from its head to its tail. Its storage: */
+static FieldLink queue_head(const GameState *g) { return field_link_stored(field_animation_queue_head(g)); }
+static FieldLink queue_tail(const GameState *g) { return field_link_stored(field_animation_queue_tail(g)); }
+static void set_queue_head(GameState *g, FieldLink l) { set_field_animation_queue_head(g, field_link_byte(l)); }
+static void set_queue_tail(GameState *g, FieldLink l) { set_field_animation_queue_tail(g, field_link_byte(l)); }
+static FieldLink queued_after(const GameState *g, FieldObject obj)
+{
+    return field_link_stored(field_object_animation_link(g, obj));
+}
+static void set_queued_after(GameState *g, FieldObject obj, FieldLink l)
+{
+    set_field_object_animation_link(g, obj, field_link_byte(l));
+}
+
 static void start_queue_with(GameState *g, FieldObject obj)
 {
-    set_field_animation_queue_tail(g, field_object_link(obj));
-    set_field_animation_queue_head(g, field_object_link(obj));
+    set_queue_tail(g, field_link_to(obj));
+    set_queue_head(g, field_link_to(obj));
 }
 
 /* Put the object at the front of the queue. False if it is there already. */
 static bool queue_first(GameState *g, FieldObject obj)
 {
-    FieldLink head = field_animation_queue_head(g);
-    if (head == field_object_link(obj))
+    FieldLink head = queue_head(g);
+    if (field_same_link(head, field_link_to(obj)))
         return false;
     if (!field_link_is_object(head)) {
         start_queue_with(g, obj);
     } else {
-        set_field_object_animation_link(g, obj, head);
-        set_field_animation_queue_head(g, field_object_link(obj));
+        set_queued_after(g, obj, head);
+        set_queue_head(g, field_link_to(obj));
     }
     return true;
 }
@@ -290,16 +306,16 @@ static bool queue_first(GameState *g, FieldObject obj)
 /* Put the object at the back of the queue. False if it is queued already. */
 static bool queue_last(GameState *g, FieldObject obj)
 {
-    FieldLink tail = field_animation_queue_tail(g);
-    if (tail == field_object_link(obj))
+    FieldLink tail = queue_tail(g);
+    if (field_same_link(tail, field_link_to(obj)))
         return false;
-    if (field_link_is_object(tail) && field_link_is_object(field_object_animation_link(g, obj)))
+    if (field_link_is_object(tail) && field_link_is_object(queued_after(g, obj)))
         return false;
     if (!field_link_is_object(tail)) {
         start_queue_with(g, obj);
     } else {
-        set_field_object_animation_link(g, field_object_of_link(tail), field_object_link(obj));
-        set_field_animation_queue_tail(g, field_object_link(obj));
+        set_queued_after(g, field_linked_object(tail), field_link_to(obj));
+        set_queue_tail(g, field_link_to(obj));
     }
     return true;
 }
@@ -429,7 +445,7 @@ static void record_started_over(void) { frame_read_leaves.started_over = true; }
  * reads it from is kept in field_frame_entry_address, where the builder goes
  * on from. At the end of the frame table, a one-off counts half a pass and
  * there is no frame; any other animation starts over. */
-ObjectFrame object_current_frame(GameState *g, FieldObject obj)
+ObjectFrame object_next_frame_to_draw(GameState *g, FieldObject obj)
 {
     uint16_t table = facing_frame_table(g, obj);
     uint8_t frame = field_object_animation_frame(g, obj);
@@ -484,12 +500,12 @@ void field_stand_animation(Snes *s)
  * one. */
 enum { BANK_SIZE = 0x10000 };
 
-static bool link_or_none(FieldLink link) { return !field_link_is_object(link) || !(link & 1); }
+static bool link_or_none(FieldLink link) { return !field_link_is_object(link) || field_names_object(field_link_byte(link)); }
 
 bool field_tick_is_exact(const GameState *g, unsigned obj)
 {
-    return first_time_entry(g, (FieldObject)obj) < BANK_SIZE && link_or_none(field_animation_queue_head(g)) &&
-           link_or_none(field_animation_queue_tail(g));
+    return first_time_entry(g, (FieldObject)obj) < BANK_SIZE && link_or_none(queue_head(g)) &&
+           link_or_none(queue_tail(g));
 }
 
 bool field_object_delays_in_bank(Snes *s)
@@ -533,7 +549,7 @@ void field_read_animation_frame(Snes *s)
     uint8_t frame_before = field_object_animation_frame(g, obj);
     uint8_t half_passes_before = half_passes_left(g, obj);
     frame_read_leaves.started_over = false;
-    ObjectFrame r = object_current_frame(g, obj);
+    ObjectFrame r = object_next_frame_to_draw(g, obj);
     uint16_t entry = field_frame_entry_address(g);
     uint8_t shown = r.has_frame ? r.frame : (uint8_t)(half_passes_before - 1);
     s->cpu.a = (uint16_t)((entry & 0xFF00) | shown);

@@ -52,7 +52,15 @@ static inline uint8_t field_direction_factor(const GameState *g, uint8_t directi
     return rom_read8(g, 0xC0F800u + direction);
 }
 
-/* 256 random directions, at $C0:FE00, which a blocked object tries in turn. */
-static inline uint8_t field_random_direction(const GameState *g, uint8_t index) { return rom_read8(g, 0xC0FE00u + index); }
+/* The facing (0-3) an object moving in each of the 256 directions takes, at
+ * $C0:F700. */
+static inline uint8_t field_facing_of_direction(const GameState *g, uint8_t direction)
+{
+    return rom_read8(g, 0xC0F700u + direction);
+}
+
+/* The game's 256 random bytes, at $C0:FE00, which it steps through
+ * (field_draw_random): a blocked object's new direction, a script's dice. */
+static inline uint8_t field_random_byte(const GameState *g, uint8_t index) { return rom_read8(g, 0xC0FE00u + index); }
 
 #endif

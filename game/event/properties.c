@@ -20,7 +20,6 @@
  * as the hardware's sprite attribute bits (4-5), the lower half's first. */
 typedef uint8_t SpritePriority;
 
-enum { AMONG_THE_MAP = 2, IN_FRONT_OF_THE_MAP = 3 };
 enum { FOLLOWS_THE_MAP = 0x80 };   /* in the object's layering */
 
 static void set_priorities(GameState *g, EventObject object, SpritePriority upper, SpritePriority lower)
@@ -243,7 +242,7 @@ EVENT_OPCODES(event_properties_opcodes,
     { 0x8E, set_layering, .layering = OPERAND(1), .length = 2, .routine = 0xC04C74 },
     { 0x90, set_sprite, .object = SELF, .sprite = CONSTANT(SPRITE_SHOWN), .length = 1, .routine = 0xC04CD5 },
     { 0x91, set_sprite, .object = SELF, .sprite = CONSTANT(SPRITE_HIDDEN), .length = 1, .routine = 0xC04CE0 },
-    { 0x7E, set_sprite, .object = SELF, .sprite = CONSTANT(NO_SPRITE), .length = 1, .routine = 0xC04CE6 },
+    { 0x7E, set_sprite, .object = SELF, .sprite = CONSTANT(SPRITE_NONE), .length = 1, .routine = 0xC04CE6 },
     { 0x7C, set_sprite, .object = OBJECT(1), .sprite = CONSTANT(SPRITE_SHOWN), .length = 2, .routine = 0xC04CEC },
     { 0x7D, set_sprite, .object = OBJECT(1), .sprite = CONSTANT(SPRITE_HIDDEN), .length = 2, .routine = 0xC04CF9 },
     { 0x21, note_tile, .column = VARIABLE(2), .row = VARIABLE(3), .object = OBJECT(1), .length = 4,

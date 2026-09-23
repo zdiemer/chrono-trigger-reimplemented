@@ -100,7 +100,6 @@ typedef struct {
  * the story's are event/variables.h's). */
 typedef uint32_t Address;     /* anywhere in memory: bank << 16 | offset */
 typedef enum { WINDOW_ANYWHERE = 0, WINDOW_TOP = 1, WINDOW_BOTTOM = 2 } WindowPlace;   /* a dialog's */
-typedef enum { SPRITE_HIDDEN = 0x00, SPRITE_SHOWN = 0x01, NO_SPRITE = 0x80 } SpriteState;
 /* The game's three records of a location: where the party is, where it goes
  * next, and one put aside for later. */
 typedef enum { WHERE_THE_PARTY_IS, WHERE_IT_GOES_NEXT, PUT_ASIDE } LocationRecord;
@@ -125,7 +124,7 @@ typedef enum { WHERE_THE_PARTY_IS, WHERE_IT_GOES_NEXT, PUT_ASIDE } LocationRecor
     X(bool, takes) X(Facing, facing) X(EventVariable, column) X(EventVariable, row)             \
     X(uint8_t, speed) X(uint8_t, solid) X(uint8_t, blocked_by) X(uint8_t, arrival)              \
     X(uint8_t, move_length) X(uint8_t, tile_x) X(uint8_t, tile_y) X(bool, centred)              \
-    X(uint16_t, x) X(uint16_t, y) X(uint8_t, layering) X(SpriteState, sprite)                   \
+    X(uint16_t, x) X(uint16_t, y) X(uint8_t, layering) X(ObjectSprite, sprite)                   \
     X(uint8_t, velocity_x) X(uint8_t, velocity_y) X(uint8_t, acceleration) X(uint8_t, steps)    \
     X(uint8_t, direction) X(uint8_t, height)                                                     \
     /* the party */                                                                              \

@@ -94,34 +94,24 @@ rest waits, is [PLAN.md](PLAN.md).
     - the table build loops on a local row, not the original's Y;
     - `bring_records_up_to_date` stops setting `cpu.x`;
     - choose C or a call by a step enum, not by comparing ROM addresses.
-  - **`object_update.c`:** pass the object as a parameter, not through
-    `field_current_object`, and mark `set_event_object_end`'s write as
-    scaffolding.
   - **One bridge vocabulary in `bridge.h`**, replacing `JSR_SIZE` and the
     call-out helper copied into four files. One table per object-update step,
     in place of the parallel site arrays; `nmi.c`'s `uploads[]` should share
     `display.c`'s edge-run table.
   - **Duplicated definitions:** `link_or_none` means different things in two
-    files, `TileAttributes` has two shapes, and `SPRITE_TABLE`,
-    `LEAVE_ROW`/`JOIN_ROW` and `AXIS_X` are each defined twice.
-  - **Dead or duplicated stores:** `motion.c`'s `stand_still` is overwritten,
-    and `animation.c`'s `start_afresh` should call `object_restart_animation`.
-    `nmi.c`'s three map-transition branches should be one table.
+    files, and `SPRITE_TABLE`, `LEAVE_ROW`/`JOIN_ROW` and `AXIS_X` are each
+    defined twice.
+  - **`nmi.c`'s three map-transition branches** should be one table.
   - **`animation.c`'s frame-read half:** `object_current_frame` mutates under a
     reader's name, and callers compute ROM addresses for frame entries. It
     could replace the review skill's illustration once that is fixed.
-  - **`object.h`:**
-    - hide `FieldLink`'s encoding;
-    - merge `object_in_view` and `object_marked_in_view`;
-    - an enum for `ObjectRole.kind`;
-    - `object_make_current` belongs in `bridge.h`.
   - **The two prediction guards** (`field_view_changes`,
     `every_draw_is_own`): accepted while shadow mode pairs a bridge's calls in
     order; restructure them if that pairing changes.
   - **Smaller:**
     - `line_effects.c`: `wave_part`'s return exists only for the wrapper, and
       `after_shading`'s fake `A = $FFFF`;
-    - window widenings as literals, and layers as `0/1/2`;
+    - window widenings as literals;
     - staging buffers as raw addresses;
     - graphics banks `$D2-$D5` as a fixed bank layout;
     - `event_variables(g, 0xA8)`, which is window 2's table choice;

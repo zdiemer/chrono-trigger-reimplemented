@@ -19,10 +19,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "port/machine.h"
 #include "field/object.h"
+#include "port/machine.h"
 #include "port/vars_ram.h"
 #include "state.h"
+#include "vars.h"
 
 enum { FIELD_PAGE = 0x0100, FIELD_LAYERS_PAGE = 0x1D00 };
 
@@ -83,10 +84,18 @@ bool field_rows_are_exact(const GameState *g, unsigned obj);
  * on the field's page): the move (field/motion.c), the view and the
  * window-only check (field/object_view.c). They leave the flags the entries
  * leave; the view step is a bridge, and false where it stopped. */
-void field_move_current_object(Snes *s, bool party_member);
-bool field_update_visibility(Snes *s);
+void field_move_object_step(Snes *s, FieldObject obj, bool party_member);
+bool field_update_visibility(Snes *s, FieldObject obj);
 bool field_view_changes(const GameState *g, unsigned obj);
-void field_update_in_window(Snes *s);
+void field_update_in_window(Snes *s, FieldObject obj);
+
+/* The object the original's routines work on (field_current_object, a word
+ * whose low byte is the object's link), which the field sets before it calls
+ * one of them. */
+static inline void object_make_current(GameState *g, FieldObject obj)
+{
+    set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | field_link_byte(field_link_to(obj))));
+}
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 

@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "snes/system.h"
+#include "state.h"
 
 /* field_display_flags, which the line effects' builders, the vblank handler
  * and the line interrupt share. */
@@ -35,9 +36,28 @@ static inline uint8_t field_scroll_fraction(int8_t accumulator)
     return accumulator < 0 ? (uint8_t)(accumulator | 0xF0) : (uint8_t)(accumulator & 0x0F);
 }
 
+/* A screen coordinate as the original keeps it, for an object and for a
+ * sprite: nine bits, the ninth set where it is negative. The game's screen,
+ * 256 pixels, reads it as a signed number of nine bits. */
+enum { SCREEN_NINE_BITS = 0x1FF, SCREEN_NEGATIVE = 0x100 };
+
+static inline int16_t screen_coordinate_of(uint16_t stored)
+{
+    uint16_t nine = stored & SCREEN_NINE_BITS;
+    return (int16_t)((nine & SCREEN_NEGATIVE) ? (int16_t)nine - 2 * SCREEN_NEGATIVE : (int16_t)nine);
+}
+static inline uint16_t stored_screen_coordinate(int16_t v)
+{
+    return (uint16_t)(((uint16_t)v & SCREEN_NINE_BITS) | (v < 0 ? SCREEN_NEGATIVE : 0));
+}
+
 /* A layer's tile map size, beside its base in the line effects' values: two
  * screens wide. */
 enum { FIELD_MAP_TWO_SCREENS_WIDE = 0x01 };
+
+/* The field's random numbers: a fixed table of 256 bytes stepped through, a
+ * step a number (field/motion.c). */
+uint8_t field_draw_random(GameState *g);
 
 /* field/interrupts.c */
 void field_install_nmi(Snes *s);

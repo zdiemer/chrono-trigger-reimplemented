@@ -24,6 +24,7 @@
  * an object's, not a range's: a range's would be up to 128 sprites of locals,
  * more than a build for the 65816 can keep. */
 #include "field/sprites.h"
+#include "field/field.h"
 #include "field/object.h"
 
 #include "cpu_io.h"
@@ -539,8 +540,8 @@ enum { MOST_DRAWS = FIELD_OBJECTS };
 
 static bool draw_is_own(const GameState *g, FieldLink link)
 {
-    FieldObject obj = field_object_of_link(link);
-    return field_names_object(link) && records_in_bank(g, obj) && records_work_is_own(g, obj);
+    FieldObject obj = field_linked_object(link);
+    return field_names_object(field_link_byte(link)) && records_in_bank(g, obj) && records_work_is_own(g, obj);
 }
 
 static bool every_draw_is_own(const GameState *g)
@@ -548,7 +549,7 @@ static bool every_draw_is_own(const GameState *g)
     unsigned draws = 0;
     for (int row = FIELD_ROWS - 1; row >= 0; row--)
         for (FieldLink link = row_first_object(g, (unsigned)row); field_link_is_object(link);
-             link = object_next_in_row(g, field_object_of_link(link)))
+             link = object_next_in_row(g, field_linked_object(link)))
             if (++draws > MOST_DRAWS || !draw_is_own(g, link))
                 return false;
     return true;
@@ -612,7 +613,7 @@ void field_build_sprite_table(Snes *s)
     do {
         FieldLink link = row_first_object(g, row_y / 2);
         for (unsigned site = 0; field_link_is_object(link); site = 1) {
-            FieldObject obj = field_object_of_link(link);
+            FieldObject obj = field_linked_object(link);
             if (!draw(s, obj, &row_y, site, as_c))
                 return;
             link = object_next_in_row(g, obj);

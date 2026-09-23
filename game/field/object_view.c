@@ -47,13 +47,50 @@ static void leave_window(GameState *g, ViewWindow w)
     original_cell8(g, 0xC6, w.bottom);
 }
 
-/* An object that can be in view: not disabled, and with a sprite. */
-static bool can_be_seen(const GameState *g, FieldObject obj)
+/* ---- The in-view flag: its storage ---------------------------------------------------------- */
+
+/* The original keeps a flag byte, $80 in view and 0 out of it; a row's link
+ * can overwrite it (object.h). */
+enum { IN_VIEW_BIT = 0x80, IN_VIEW_BYTE = 0x80, OUT_OF_VIEW_BYTE = 0x00 };
+
+ObjectView object_view(const GameState *g, FieldObject obj)
 {
-    if (object_disabled(g, obj))
-        return false;
-    return (int8_t)field_object_sprite_flag(g, obj) > 0;
+    uint8_t stored = field_object_in_view(g, obj);
+    if (stored & IN_VIEW_BIT)
+        return IN_VIEW;
+    return stored == OUT_OF_VIEW_BYTE ? OUT_OF_VIEW : OVERWRITTEN_BY_A_LINK;
 }
+
+void object_set_in_view(GameState *g, FieldObject obj, bool in_view)
+{
+    set_field_object_in_view(g, obj, in_view ? IN_VIEW_BYTE : OUT_OF_VIEW_BYTE);
+}
+
+/* ---- The screen ------------------------------------------------------------------------------ */
+
+/* The screen's left and top edges, in the objects' tiles (the field keeps
+ * them in 8-pixel tiles, objects stand on 16-pixel ones). */
+static uint8_t screen_left_tile(const GameState *g) { return (uint8_t)(field_screen_left(g) >> 1); }
+static uint8_t screen_top_tile(const GameState *g) { return (uint8_t)(field_screen_top(g) >> 1); }
+
+/* How far in from the screen's edges a tile must be to be well on screen:
+ * past the first two tiles, short of the last two or three. The distances
+ * are bytes, so a tile left of the screen is far past its right. */
+enum { WELL_IN = 2, WELL_ACROSS = 14, WELL_DOWN = 13 };
+
+static bool well_inside(uint8_t tile, uint8_t edge, uint8_t extent)
+{
+    uint8_t in = (uint8_t)(tile - edge);
+    return in >= WELL_IN && in < extent;
+}
+
+// $C0:6655
+bool tile_well_on_screen(const GameState *g, MapTile tile)
+{
+    return well_inside(tile.x, screen_left_tile(g), WELL_ACROSS) && well_inside(tile.y, screen_top_tile(g), WELL_DOWN);
+}
+
+/* ---- Coming into view and leaving it ------------------------------------------------------ */
 
 /* The window objects come into view in: four tiles either side of the
  * screen, two above and five below, held to the map's edges. */
@@ -72,7 +109,7 @@ static bool in_window(const GameState *g, ViewWindow w, FieldObject obj)
 /* Whether the object belongs in view now. */
 static bool belongs_in_view(const GameState *g, FieldObject obj)
 {
-    return can_be_seen(g, obj) && in_window(g, view_window(g), obj);
+    return object_can_be_seen(g, obj) && in_window(g, view_window(g), obj);
 }
 
 /* Coming into view: it is in view, in no row yet, with its animation
@@ -157,8 +194,8 @@ static bool call_out(Snes *s, uint32_t site, uint32_t routine)
 static bool rows_step(Snes *s, uint32_t site, bool join)
 {
     GameState *g = state_of(s);
-    FieldLink link = (FieldLink)field_current_object(g);
-    FieldObject obj = field_object_of_link(link);
+    uint8_t link = (uint8_t)field_current_object(g);
+    FieldObject obj = field_linked_object(field_link_stored(link));
     if (!field_names_object(link) || !field_rows_are_exact(g, obj))
         return join ? call_out(s, site, JOIN_ROW) : call_out(s, site, LEAVE_ROW);
     if (join)
@@ -175,13 +212,12 @@ bool field_view_changes(const GameState *g, unsigned obj)
 
 // $C0:A88D
 /* The carry says whether the object is in view. False where the bridge
- * stopped. */
-bool field_update_visibility(Snes *s)
+ * stopped. The object is the current one, which the routines it calls read. */
+bool field_update_visibility(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
     bool inside = belongs_in_view(g, obj);
-    if (can_be_seen(g, obj)) {
+    if (object_can_be_seen(g, obj)) {
         leave_window(g, view_window(g));
         m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, 5));
     }
@@ -208,23 +244,24 @@ bool field_update_visibility(Snes *s)
     return true;
 }
 
+/* The current object's (8-bit X). */
 void field_update_object_visibility(Snes *s)
 {
-    if (field_update_visibility(s))
+    if (field_update_visibility(s, (FieldObject)field_current_object_slot(s)))
         m_rts(s);
 }
 
 /* The carry says whether the object is on screen; the overflow is that of the
  * lower edge's sum. */
-void field_update_in_window(Snes *s)
+void field_update_in_window(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, check_on_screen(g, (FieldObject)field_current_object_slot(s)));
+    m_set_flag(s, CPU_FLAG_C, check_on_screen(g, obj));
     m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, 5));
 }
 
 void field_update_object_in_window(Snes *s)
 {
-    field_update_in_window(s);
+    field_update_in_window(s, (FieldObject)field_current_object_slot(s));
     m_rts(s);
 }

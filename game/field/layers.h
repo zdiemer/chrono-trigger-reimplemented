@@ -53,6 +53,14 @@ typedef struct {
 } TileAttributes;
 enum { TILE_RAISES_SPRITES = 0x40, TILE_BLOCKED = 0x80 };
 
+/* The priority a sprite's half takes on a tile (object.h's 0-3): in front of
+ * the map where the tile raises it, among the map's layers otherwise. */
+enum { AMONG_THE_MAP = 2, IN_FRONT_OF_THE_MAP = 3 };
+static inline uint8_t tile_priority(uint8_t attributes)
+{
+    return (attributes & TILE_RAISES_SPRITES) ? IN_FRONT_OF_THE_MAP : AMONG_THE_MAP;
+}
+
 TileAttributes map_tile_attributes(const GameState *g, MapPlace p);
 
 /* field/layers.c */
