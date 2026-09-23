@@ -262,6 +262,36 @@ routines to be ports. Its own command-like dispatchers (the object update's
 states) can take event's shape: a protocol written once as C types, and one
 macro making every registered entry.
 
+**The bar grew after event, and event is being brought up to it.** Reading
+event's rewrite, it still read as a translation: the accessors had taken the
+addresses out and left the original's structure in, with one function per ROM
+routine, the same sequence of per-byte stores, and positional operands. So
+CLAUDE.md and the port-routine skill now also require three things:
+- the game's concepts modelled above the accessors, which are storage, not
+  vocabulary;
+- interpreters that dispatch through a C table, where each opcode family is one
+  operation, rather than through the ROM's pointer table and an emulated `JSR`;
+- comments that say what a function is for in the game's terms.
+
+Event's engine and handlers are being reworked to that bar now, together with
+separating the gate's scaffolding from the logic. `field` is building the
+domain layer for field objects (their animation as a state machine, their
+position, facing and movement), which event's handlers will then call.
+
+**Before `menu`: event onto field's object model, and the RAM map named by
+meaning.** Once both have landed, one pass does two things:
+- It moves event's object-state helpers onto field's object module.
+- It renames the accessors whose names follow the original's layout rather than
+  meaning. `field_object_animation_mode_mode` stutters, and
+  `field_object_move_state_animation_count` files an animation countdown under
+  "move state" only because the two bytes sit side by side. The map's records
+  were grouped by where bytes are; a field should be named for its concept, and
+  field's domain layer says which concept each belongs to.
+
+`tools/ram_map.py` should report stuttering and layout-shaped names so they stay
+fixed. Doing this before `menu` and `battle` means it is paid on 4.5K lines of
+call sites rather than 20K.
+
 **Cells on a page the caller chooses** have a generated shape: a page kind in
 `re/ram.toml` lists the pages its code runs on, as measured over the library
 (`ct_dev --page-report`), and its variables' accessors take which of them a

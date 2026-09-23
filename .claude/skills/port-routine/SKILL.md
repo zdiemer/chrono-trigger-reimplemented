@@ -84,6 +84,70 @@ genuinely has no better expression yet — not in its body. A port that can't be
 expressed through a service is a **finding**: add the call, or use the documented
 SNES escape and write down why, as docs/PLATFORM.md's "as built" sections do.
 
+## The second trap: memory mechanics instead of register mechanics
+
+Taking the machine out of a port is not enough. The event rewrite scored 0.02
+ops per line with no `Snes *` in its logic, and it **still read as mechanical**,
+because the accessors took the addresses out and left the original's structure
+in. This came from `game/event/animation.c`:
+
+```c
+/* Translation with better names: four stores, in the original's order. */
+static void start_mode(GameState *g, unsigned object, uint8_t mode) {
+    set_field_object_animation_mode_mode(g, object, mode);
+    set_field_object_frame_delay(g, object, 0);
+    set_field_object_move_state_animation_count(g, object, 0);
+    set_field_object_animation_frame(g, object, 0);
+}
+
+// $C0:2E67
+/* $AA: loop animation (operand 1). */
+static EventStep loop_animation(GameState *g, const EventCommand *c)
+{ loop(g, operand(g, c, 1)); return next_command(c, 2, 1); }
+
+// $C0:2E87
+/* $B3: loop animation 0. */
+static EventStep loop_animation_0(GameState *g, const EventCommand *c)
+{ loop(g, 0); return next_command(c, 1, 0); }
+```
+
+What makes that mechanical, and what to do instead:
+
+- **The accessors are the storage, not the vocabulary.** Model the game's concept:
+  an object's animation is a state machine (still, looping, playing a one-off
+  for N frames then going back, holding a frame). Write it as a module with
+  operations in game terms, such as `object_loop_animation(g, obj, anim)` and
+  `object_play_animation(g, obj, anim, frames)`, and call those. The per-byte
+  writes the gate still needs go **inside** the operations, in one place per
+  concept, and that is where the storage moves when the gate retires. A
+  sentinel the original stores in-band (`$FF` for "nothing to go back to")
+  becomes a named state inside the implementation.
+- **One function per ROM routine is a smell.** `loop_animation_0` exists only
+  because the engine dispatched through the ROM's handler table with an emulated
+  `JSR`, so every opcode had to be its own function reachable by address. `$B3`
+  is a one-byte short form of `$AA` with the animation fixed. Likewise
+  `play_animation`/`play_animation_for` (`$AB`/`$B7`) are one operation with the
+  frame count fixed or read. **An interpreter dispatches through a C table**:
+  each opcode family is one operation, with table rows saying how each opcode's
+  operands decode. The table decodes operands into typed, named parameters
+  (`animation`, `frames`), not `operand(g, c, 1)`, and the engine passes what
+  every handler needs (the running object) instead of each looking it up.
+  Inlined handlers keep their time with `NATIVE_TIME_AS` and stay registered, so
+  each can still be fuzzed alone.
+- **Comments say what a function is for, in the game's terms.** "$B3: loop
+  animation 0" restates the encoding. "$AB: play animation (operand 1) once
+  through a countdown of 2" restates the mechanics. Say what the game is doing:
+  "Play a one-off animation on the object (a gesture, a reaction) and hold the
+  script until it finishes; the object then goes back to what it was looping."
+  The original's mechanics belong in a comment only where the port deliberately
+  reproduces them, with why. A file's header says what part of the game it is
+  and how its pieces fit together.
+
+**portstyle can't see any of this.** Its operation count and machine coupling
+measure syntax. Read your own file before reporting. If a function is a run of
+setters in the original's order, if there's a function per opcode that differs
+only in operands, or if a comment restates a name or an encoding, it isn't done.
+
 ## Workflow
 
 1. **Scope the chunk** from the call graph: the routines named in the task, plus

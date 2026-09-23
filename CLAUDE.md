@@ -113,6 +113,25 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     it, in the port's own file if it is local, in the subsystem's header if shared, in
     `runtime/platform/` if it is the host. `m_*` and the CPU struct are for a port's thin
     entry wrapper and for what genuinely has no better expression yet, not for its body.
+  - **The accessors are the storage, not the vocabulary.** A function that is a run of
+    `set_field_object_*` calls in the original's order has renamed the addresses and kept
+    the translation. Model the game's concepts above the accessors -- an object's animation
+    as a state machine with named states, its movement, the story flags, the party -- as
+    modules whose operations are named in game terms, and have ports call those. The per-byte
+    writes the byte-exact gate still needs live inside the operations, one place per concept,
+    which is also where the storage moves when the gate retires. An in-band encoding the
+    original uses (`$FF` for "none") becomes a named state inside the implementation.
+  - **An interpreter dispatches through a C table**, never through the ROM's pointer table
+    and an emulated `JSR`. Opcodes that differ only in how their operands are encoded (a short
+    form, a constant against an operand, 8- and 16-bit) are one operation and several table
+    rows, and the table decodes operands into typed, named parameters, so a handler reads
+    `play_animation(g, obj, animation, frames)`, not `operand(g, c, 1)`. Inlined handlers
+    keep their time with `NATIVE_TIME_AS` and stay registered, so each can be fuzzed alone.
+  - **Comments say what a function is for, in the game's terms**: what it does to the game,
+    when and why it happens, what it changes. Not the function's name again, not the opcode's
+    encoding, not the original's mechanics. The mechanics belong in a comment only where the
+    port deliberately reproduces them, and then the comment says why. A file's header says
+    what part of the game it is and how its pieces fit together.
   - **ROM data is loaded, not addressed.** Reads of ROM go through a named accessor for the
     resource (`sound_data.h`, `scene_data.h`, `screen_data.h`, `field_data.h`,
     `palette_data.h`), never `m_read8(s, 0xD15E10 + i)` in the middle of a routine. Where
