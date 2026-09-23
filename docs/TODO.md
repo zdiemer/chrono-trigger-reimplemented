@@ -106,6 +106,22 @@ rest waits, is [PLAN.md](PLAN.md).
   16 details, and timing calibration rewrites other subsystems' rows, which each
   rewrite then reverts by hand.
 
+- **Generated accessors don't check their index.** `vars_ram.c` computes
+  `base + index * stride` with no bound, so slot 64 of a 64-slot table silently
+  writes the next table. Field's row code did exactly that (`object_update.c`,
+  unlinking with no neighbour lands on `field_object_in_view`), and its review
+  found two more places with the same risk. It works only while storage is the
+  original's layout. A bounds check in the generated backing, on in `ct_dev`
+  and the fuzzer and off in the player, would make every such alias a loud
+  failure over the library, before the storage moves.
+- **Field's review deferred three platform gaps**: there is no sprite-list
+  video service, so the 9-bit X, the `$E0` hide line and the screen-half
+  wrapping sit in `game/field/sprites.c`, against the widescreen rule; the
+  upload and line-effect services still take a per-call array of the original's
+  write order; and `vid_set_line_effect` takes raw register bytes (the color
+  math and window encodings in `line_effects.c`). These join the video service
+  item under "Platform".
+
 ## Recompiler
 
 - **M4**: skip flags nobody reads, call generated blocks directly where it's

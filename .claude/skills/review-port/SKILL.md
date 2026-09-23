@@ -144,6 +144,32 @@ Each of these is a finding. Every example here comes from this repo.
     interpreter; decode into a named struct.
 25. **Stale provenance.** `re/ram.toml` `source` lines and header declarations
     naming files or functions that no longer exist.
+26. **Traces as out-parameters, with twin functions.** A public logic function
+    that wraps a private one taking `SomethingTrace *` or `bool *x_for_wrapper`
+    only so the entry wrapper can rebuild registers (`FrameTrace { plays_counted
+    /* A */, started_over /* V */ }`). This is smell 6 moved into a parameter, and
+    it counts as a register-shaped struct for the verdict threshold. Wrappers
+    derive registers from the state after the call. Anything they can't derive
+    is recorded through the scaffolding mechanism, not through the logic's
+    signature.
+27. **A domain module with no callers.** A header of good operations beside
+    code that still reaches the same bytes directly. Grep for each operation's
+    callers; don't only read the header.
+28. **Out-of-range indices that alias the next table.** Slot 64 of a 64-slot
+    accessor, "the word after BG3's", a loop running to `& 0x7F` over a
+    64-entry table. It works only because of the original's memory layout, it
+    hides behind a clean accessor name, and it breaks the moment storage goes
+    native. A deliberate stray write the gate needs is an explicit, marked
+    scaffolding write.
+29. **Guards that duplicate the logic.** A guard that re-runs the routine to
+    predict it (`field_view_unchanged`, `draws_as_c`) is shadow mode's structure
+    leaking into the file's shape.
+30. **Call-site arithmetic.** `first + 3`, `site + 3`, "the party's copy of the
+    loop": the ROM's code layout used as control data. Name each target for
+    what it does.
+31. **Registers or RAM cells as a bridge's own loop variables.** A row counter
+    in `s->cpu.y`, or `field_current_object` as the loop index. A bridge's own
+    loop runs on locals and sets the machine only at the call.
 
 ## What is legitimately machine-shaped
 
