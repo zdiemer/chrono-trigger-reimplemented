@@ -6,9 +6,9 @@
 
 /* field/object_update.c */
 void field_update_objects(Snes *s);
-void field_update_object_in_window(Snes *s);
 void field_unlink_object_row(Snes *s);
 void field_link_object_row(Snes *s);
+bool field_object_rows_linked(Snes *s);
 void field_update_screen_position(Snes *s);
 
 #endif

@@ -1,307 +1,311 @@
-/* Field mode: the per-frame object update loop and the per-object steps it
- * runs.
+/* Field objects, every frame: the object update, and where each object is on
+ * the screen.
  *
- * Objects are slots X = 0, 2, 4, ... up to twice $7F:2000. $1100,X is an
- * object's state, positions are 16-bit at $1800,X (X) and $1880,X (Y) with
- * the tile in the high byte, velocities $1900,X and $1980,X. $0A00,X and
- * $0A80,X hold the screen position the sprites are drawn at. Objects on
- * screen are kept in doubly linked rows by screen Y, so the sprite builder
- * can draw them in order: $0E00,Y is the first object of row Y ($0A80,X / 4,
- * doubled), $0E80,X and $0E81,X the previous and next object, $0E01,X
- * negative while the object isn't linked. A negative link means none. */
+ * Every frame the field updates each object slot in turn (the current object,
+ * field_current_object, is the one being updated): it takes its step
+ * (field/motion.c), is brought into or out of view (field/object_view.c),
+ * and while in view has its animation ticked (field/animation.c), its screen
+ * position worked out and its place in the rows moved to where it now is.
+ *
+ * The rows are how the sprite table draws objects in order of depth: an
+ * object in view is linked into the row for its screen position's Y (four
+ * pixels a row), a doubly linked list whose first object the row keeps, and
+ * the sprite table walks the rows from the bottom of the screen up. Objects
+ * are linked by their slot doubled; a negative link is none, and an object
+ * that isn't in a row has its "unlinked" mark set (negative). */
 #include "field/object_update.h"
+#include "field/object.h"
 
+#include "field/bridge.h"
+#include "field/field.h"
+#include "field/scratch.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
-static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
-static uint16_t abs16(Snes *s, uint16_t addr) { return m_read16(s, m_abs(s, addr)); }
-static uint8_t obj8(Snes *s, uint16_t table) { return m_read8(s, m_abs(s, table) + s->cpu.x); }
-static void set_obj8(Snes *s, uint16_t table, uint8_t v) { m_write8(s, m_abs(s, table) + s->cpu.x, v); }
-static uint16_t obj16(Snes *s, uint16_t table) { return m_read16(s, m_abs(s, table) + s->cpu.x); }
-static void set_obj16(Snes *s, uint16_t table, uint16_t v) { m_write16(s, m_abs(s, table) + s->cpu.x, v); }
+/* field_object_state_state: how the update treats the object. */
+enum { STATE_PARTY_END = 3, STATE_WINDOW_ONLY = 7, STATE_SKIPPED = 8 };
 
-/* INC/DEC table,X on an 8-bit byte, setting N and Z; returns the new value. */
-static uint8_t step_obj8(Snes *s, uint16_t table, int delta)
+/* ---- Screen positions --------------------------------------------------------------------- */
+
+enum { SCREEN_FINE = 0x07, TILE_PIXELS = 8, POSITION_PIXEL = 16, SCREEN_BITS = 0x1FF, SCREEN_NEGATIVE = 0x100 };
+
+/* The screen's top left corner on the map, in pixels: its tile, and the
+ * layer's fine scroll within it. */
+typedef struct {
+    uint16_t x, y, fine_x, fine_y;
+} ScreenOrigin;
+
+static ScreenOrigin screen_origin(const GameState *g)
 {
-    uint8_t v = (uint8_t)(obj8(s, table) + delta);
-    set_obj8(s, table, v);
-    m_set_nz8(s, v);
-    return v;
+    ScreenOrigin o;
+    o.fine_x = field_layer_scroll_h(g, 0) & SCREEN_FINE;
+    o.fine_y = field_layer_scroll_v(g, 0) & SCREEN_FINE;
+    o.x = (uint16_t)(field_screen_left(g) * TILE_PIXELS + o.fine_x);
+    o.y = (uint16_t)(field_screen_top(g) * TILE_PIXELS + o.fine_y);
+    return o;
 }
 
-/* SEC : SBC v and CLC : ADC v on the 8-bit accumulator. */
-static uint8_t sec_sbc(Snes *s, uint8_t v)
+/* A position's place on the screen: nine bits, the ninth set where it is off
+ * the screen's left or top edge. */
+static uint16_t on_screen(uint16_t position, uint16_t origin)
 {
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_set_a8(s, m_sbc8(s, (uint8_t)s->cpu.a, v));
-    return (uint8_t)s->cpu.a;
+    uint16_t pixels = (uint16_t)(position / POSITION_PIXEL);
+    uint16_t at = (uint16_t)(pixels - origin);
+    if (pixels < origin)
+        at |= SCREEN_NEGATIVE;
+    return at & SCREEN_BITS;
 }
 
-static uint8_t clc_adc(Snes *s, uint8_t v)
+/* For the original's code and shadow mode (field/scratch.h): the screen's
+ * fine scroll ($D9, $DB) and its origin ($DD, $DF), as it works them out. */
+static void leave_screen_origin(GameState *g, ScreenOrigin o)
 {
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)s->cpu.a, v));
-    return (uint8_t)s->cpu.a;
-}
-
-/* EOR #$FF : INC A */
-static uint8_t negate8(Snes *s, uint8_t v)
-{
-    uint8_t inverted = m_lda8(s, (uint8_t)~v);
-    return m_lda8(s, (uint8_t)(inverted + 1));
-}
-
-/* TAY at the current index width. */
-static void tay(Snes *s) { m_set_index(s, &s->cpu.y, s->cpu.a); }
-
-/* JSR out, expecting 8-bit A and X back; false if the callee left other
- * widths (the port then stops at the return address). */
-static bool call8(Snes *s, uint32_t site, uint32_t target)
-{
-    m_jsr(s, site, target);
-    return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == (CPU_FLAG_M | CPU_FLAG_X);
-}
-
-/* One object of $C0:A810's loop (slot in $6D and X). States below 3 move
- * through $C0:AAFD and return from the loop's own copy of its tail (`simple`);
- * 7 checks the window through $C0:A947; 8 is skipped. Returns false if a
- * callee left unexpected widths. */
-static bool update_one(Snes *s, bool *simple)
-{
-    uint8_t state = m_lda8(s, obj8(s, 0x1100));
-    m_cmp8(s, state, 0x03);
-    *simple = state < 0x03;
-    if (!*simple) {
-        m_cmp8(s, state, 0x08);
-        if (state == 0x08)
-            return true;
-        m_cmp8(s, state, 0x07);
-        if (state == 0x07)
-            return call8(s, 0xC0A86B, 0xC0A947);
-    }
-    uint32_t site = *simple ? 0xC0A870 : 0xC0A82A;
-    if (!call8(s, site, *simple ? 0xC0AAFD : 0xC0AA07) || !call8(s, site + 0x03, 0xC0A88D))
-        return false;
-    if (!m_flag(s, CPU_FLAG_C))
-        return true;
-    return call8(s, site + 0x08, 0xC0C98A) && call8(s, site + 0x0B, 0xC0A98A) &&
-           call8(s, site + 0x0E, 0xC0AB45) && call8(s, site + 0x11, 0xC0A9CD);
-}
-
-// $C0:A810
-/* Update every object slot: move it ($C0:AA07, or $C0:AAFD for states below
- * 3), activate or deactivate it by the screen window ($C0:A88D, native), and
- * for objects in view step the animation ($C0:C98A), recompute the screen
- * position ($C0:AB45) and move it to its row ($C0:A98A then $C0:A9CD). Then
- * the objects in $99 and $97, when set and in view, are moved to their rows
- * again, unless the last slot took the states-below-3 path, whose copy of the
- * loop's end returns directly. */
-void field_update_objects(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    uint8_t count = m_asl8(s, m_lda8(s, m_read8(s, 0x7F2000)));
-    m_set_a8(s, count);
-    set_dp8(s, 0xBD, count);
-    m_ldx(s, 0x00);
-    bool simple;
-    do {
-        set_dp8(s, 0x6D, (uint8_t)c->x);
-        if (!update_one(s, &simple))
-            return;
-        m_ldx(s, dp8(s, 0x6D));
-        m_inx(s);
-        m_inx(s);
-        m_cmp8(s, (uint8_t)c->x, dp8(s, 0xBD));
-    } while (m_flag(s, CPU_FLAG_N));
-    if (simple) {
-        m_rts(s);
-        return;
-    }
-    static const struct { uint8_t cell; uint32_t site; } extra[2] = { { 0x99, 0xC0A852 }, { 0x97, 0xC0A864 } };
-    for (int i = 0; i < 2; i++) {
-        if (m_lda8(s, dp8(s, extra[i].cell)) & 0x80)
-            continue;
-        m_tax(s);
-        if (m_lda8(s, obj8(s, 0x0F00)) == 0)
-            continue;
-        set_dp8(s, 0x6D, (uint8_t)c->x);
-        if (!call8(s, extra[i].site, 0xC0A98A) || !call8(s, extra[i].site + 3, 0xC0A9CD))
-            return;
-    }
-    m_rts(s);
-}
-
-// $C0:A947
-/* For state-7 objects: set $0F00,X to $80 (carry set) when the doubled
- * position ($1801,X, $1881,X) is inside the screen bounds at $1D0A-$1D10
- * widened by 4 pixels on the sides and 5 at the bottom, compared as signed
- * bytes; otherwise clear it (carry clear). Bounds go to $C3-$C6. */
-void field_update_object_in_window(Snes *s)
-{
-    m_lda8(s, abs8(s, 0x1D0A));
-    set_dp8(s, 0xC3, sec_sbc(s, 0x04));
-    m_lda8(s, abs8(s, 0x1D0C));
-    set_dp8(s, 0xC4, clc_adc(s, 0x04));
-    set_dp8(s, 0xC5, m_lda8(s, abs8(s, 0x1D0E)));
-    m_lda8(s, abs8(s, 0x1D10));
-    set_dp8(s, 0xC6, clc_adc(s, 0x05));
-    m_ldx(s, dp8(s, 0x6D));
-
-    bool inside = false;
-    uint8_t x2 = m_asl8(s, m_lda8(s, obj8(s, 0x1801)));
-    m_set_a8(s, x2);
-    m_cmp8(s, x2, dp8(s, 0xC3));
-    if (!m_flag(s, CPU_FLAG_N)) {
-        m_cmp8(s, x2, dp8(s, 0xC4));
-        if (m_flag(s, CPU_FLAG_N)) {
-            uint8_t y2 = m_asl8(s, m_lda8(s, obj8(s, 0x1881)));
-            m_set_a8(s, y2);
-            m_cmp8(s, y2, dp8(s, 0xC5));
-            if (!m_flag(s, CPU_FLAG_N)) {
-                m_cmp8(s, y2, dp8(s, 0xC6));
-                inside = m_flag(s, CPU_FLAG_N);
-            }
-        }
-    }
-    if (inside)
-        set_obj8(s, 0x0F00, m_lda8(s, 0x80));
-    else
-        set_obj8(s, 0x0F00, 0x00);
-    m_set_flag(s, CPU_FLAG_C, inside);
-    m_rts(s);
-}
-
-/* LDA $0A80,X : LSR A : AND #$FE : TAY -- the object's row. */
-static void load_row(Snes *s)
-{
-    uint8_t v = m_lsr8(s, m_lda8(s, obj8(s, 0x0A80)));
-    m_lda8(s, v & 0xFE);
-    tay(s);
-}
-
-// $C0:A98A
-/* Take object $6D out of its row list if it's linked ($0E01,X not negative):
- * the row's first object or the previous object's next link, and the next
- * object's previous link, skip it; its own links and $0E01,X become $80. As in
- * the original, an object with a previous object but no next one writes the
- * previous link of "object $80" ($0F00). Sets 8-bit A and X itself. */
-void field_unlink_object_row(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_ldx(s, dp8(s, 0x6D));
-    if (m_lda8(s, obj8(s, 0x0E01)) & 0x80) {
-        m_rts(s);
-        return;
-    }
-    if (m_lda8(s, obj8(s, 0x0E80)) & 0x80) {
-        load_row(s);
-        uint8_t next = m_lda8(s, obj8(s, 0x0E81));
-        m_write8(s, m_abs(s, 0x0E00) + c->y, next);
-        if (!(next & 0x80)) {
-            tay(s);
-            m_lda8(s, 0x80);
-            m_write8(s, m_abs(s, 0x0E80) + c->y, 0x80);
-        }
-        set_obj8(s, 0x0E81, (uint8_t)c->a);
-        set_obj8(s, 0x0E01, (uint8_t)c->a);
-        m_rts(s);
-        return;
-    }
-    /* $C0:A9B4 */
-    tay(s);
-    m_xba(s);
-    uint8_t next = m_lda8(s, obj8(s, 0x0E81));
-    m_write8(s, m_abs(s, 0x0E81) + c->y, next);
-    tay(s);
-    m_xba(s);
-    m_write8(s, m_abs(s, 0x0E80) + c->y, (uint8_t)c->a);
-    m_lda8(s, 0x80);
-    set_obj8(s, 0x0E80, 0x80);
-    set_obj8(s, 0x0E81, 0x80);
-    set_obj8(s, 0x0E01, 0x80);
-    m_rts(s);
-}
-
-// $C0:A9CD
-/* Put object $6D at the front of its row list ($0A80,X) if it isn't linked
- * ($0E01,X negative): it becomes the row's first object, linked before the old
- * first one, and $0E01,X is cleared. Uses $C5. Sets 8-bit A and X itself. */
-void field_link_object_row(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_ldx(s, dp8(s, 0x6D));
-    if (!(m_lda8(s, obj8(s, 0x0E01)) & 0x80)) {
-        m_rts(s);
-        return;
-    }
-    load_row(s);
-    if (m_lda8(s, m_read8(s, m_abs(s, 0x0E00) + c->y)) & 0x80) {
-        m_txa(s);
-        m_write8(s, m_abs(s, 0x0E00) + c->y, (uint8_t)c->a);
-        set_obj8(s, 0x0E01, 0x00);
-        m_lda8(s, 0x80);
-        set_obj8(s, 0x0E80, 0x80);
-        set_obj8(s, 0x0E81, 0x80);
-        m_rts(s);
-        return;
-    }
-    /* $C0:A9F2 */
-    set_dp8(s, 0xC5, (uint8_t)c->y);
-    tay(s);
-    m_txa(s);
-    m_write8(s, m_abs(s, 0x0E80) + c->y, (uint8_t)c->a);
-    m_lda8(s, (uint8_t)c->y);
-    set_obj8(s, 0x0E81, (uint8_t)c->a);
-    m_ldy(s, dp8(s, 0xC5));
-    m_txa(s);
-    m_write8(s, m_abs(s, 0x0E00) + c->y, (uint8_t)c->a);
-    set_obj8(s, 0x0E01, 0x00);
-    m_rts(s);
-}
-
-/* One axis of $C0:AB45: the position in pixels (/16) minus the screen origin
- * in `origin`, as a 9-bit value into `out`,X. */
-static void screen_axis(Snes *s, uint16_t pos, uint8_t origin, uint16_t out)
-{
-    Cpu *c = &s->cpu;
-    m_lda16(s, obj16(s, pos));
-    for (int i = 0; i < 4; i++)
-        c->a = m_lsr16(s, c->a);
-    m_set_flag(s, CPU_FLAG_C, true);
-    c->a = m_sbc16(s, c->a, dp16(s, origin));
-    if (!m_flag(s, CPU_FLAG_C))
-        m_lda16(s, (uint16_t)(c->a | 0x0100));
-    set_obj16(s, out, m_lda16(s, (uint16_t)(c->a & 0x01FF)));
+    original_cell16(g, 0xD9, o.fine_x);
+    original_cell16(g, 0xDB, o.fine_y);
+    original_cell16(g, 0xDD, o.x);
+    original_cell16(g, 0xDF, o.y);
 }
 
 // $C0:AB45
-/* Object $6D's screen position: its position in pixels minus the screen
- * origin (screen tile at $1D0A/$1D0E times 8 plus the low 3 bits of
- * $1D87/$1D89, in $DD/$DF), 9 bits, into $0A00,X and $0A80,X. */
+void object_update_screen_position(GameState *g, FieldObject obj)
+{
+    ScreenOrigin o = screen_origin(g);
+    leave_screen_origin(g, o);
+    FieldPosition at = object_position(g, obj);
+    set_field_object_screen_x(g, obj, on_screen(at.x, o.x));
+    set_field_object_screen_y(g, obj, on_screen(at.y, o.y));
+}
+
+/* ---- Rows --------------------------------------------------------------------------------- */
+
+enum { ROW_PIXELS = 4 };
+
+static unsigned row_of(const GameState *g, FieldObject obj)
+{
+    return (uint8_t)field_object_screen_y(g, obj) / ROW_PIXELS;
+}
+
+static bool in_a_row(const GameState *g, FieldObject obj)
+{
+    return field_link_is_object(field_object_unlinked(g, obj));
+}
+
+/* For the original's code and shadow mode (field/scratch.h): joining a row
+ * that has objects keeps the row at $C5. */
+static void leave_row(GameState *g, unsigned row) { original_cell8(g, 0xC5, (uint8_t)(row * 2)); }
+
+// $C0:A98A
+/* Take the object out of its row: the objects either side of it are linked
+ * to each other. An object with one before it and none after links "the one
+ * after" all the same, which writes the in-view mark of the slot the none
+ * link names; the port writes it too. */
+void object_leave_row(GameState *g, FieldObject obj)
+{
+    if (!in_a_row(g, obj))
+        return;
+    uint8_t before = field_object_row_link_previous(g, obj);
+    uint8_t after = field_object_row_link_next(g, obj);
+    if (!field_link_is_object(before)) {
+        set_field_row_first_object(g, row_of(g, obj), after);
+        if (field_link_is_object(after))
+            set_field_object_row_link_previous(g, field_object_of_link(after), FIELD_NO_LINK);
+        uint8_t mark = field_link_is_object(after) ? FIELD_NO_LINK : after;
+        set_field_object_row_link_next(g, obj, mark);
+        set_field_object_unlinked(g, obj, mark);
+        return;
+    }
+    set_field_object_row_link_next(g, field_object_of_link(before), after);
+    set_field_object_row_link_previous(g, field_object_of_link(after), before);
+    set_field_object_row_link_previous(g, obj, FIELD_NO_LINK);
+    set_field_object_row_link_next(g, obj, FIELD_NO_LINK);
+    set_field_object_unlinked(g, obj, FIELD_NO_LINK);
+}
+
+// $C0:A9CD
+/* Put the object at the front of the row for where it is on the screen. It
+ * keeps whatever link before it it had: nothing reads it at the front. */
+void object_join_row(GameState *g, FieldObject obj)
+{
+    if (in_a_row(g, obj))
+        return;
+    unsigned row = row_of(g, obj);
+    uint8_t first = field_row_first_object(g, row);
+    if (!field_link_is_object(first)) {
+        set_field_row_first_object(g, row, field_object_link(obj));
+        set_field_object_unlinked(g, obj, 0);
+        set_field_object_row_link_previous(g, obj, FIELD_NO_LINK);
+        set_field_object_row_link_next(g, obj, FIELD_NO_LINK);
+        return;
+    }
+    leave_row(g, row);
+    set_field_object_row_link_previous(g, field_object_of_link(first), field_object_link(obj));
+    set_field_object_row_link_next(g, obj, first);
+    set_field_row_first_object(g, row, field_object_link(obj));
+    set_field_object_unlinked(g, obj, 0);
+}
+
+/* ---- The update --------------------------------------------------------------------------- */
+
+typedef enum { UPDATE_SKIP, UPDATE_WINDOW_ONLY, UPDATE_PARTY, UPDATE_OBJECT } UpdateKind;
+
+/* The party's members step freely; objects that only appear while on screen
+ * are checked against the screen and nothing else; some are left alone. */
+static UpdateKind update_kind(const GameState *g, FieldObject obj)
+{
+    uint8_t state = field_object_state_state(g, obj);
+    if (state < STATE_PARTY_END)
+        return UPDATE_PARTY;
+    if (state == STATE_SKIPPED)
+        return UPDATE_SKIP;
+    return state == STATE_WINDOW_ONLY ? UPDATE_WINDOW_ONLY : UPDATE_OBJECT;
+}
+
+/* The object after the current one, and whether the update goes on to it:
+ * while the difference from the end is negative as a byte, as the original
+ * compares, which a count past 64 objects wraps. */
+static bool next_object(const GameState *g, FieldObject *obj)
+{
+    uint8_t link = (uint8_t)(field_current_object(g) + 2);
+    *obj = field_object_of_link(link);
+    return (int8_t)(link - (uint8_t)event_object_end(g)) < 0;
+}
+
+/* ---- Where the update meets the original ------------------------------------------------ */
+
+/* The object update's steps are entries of their own (the original calls
+ * them), so the update calls them as the original does: a bridge, which goes
+ * on after each only where the step came back with the machine as it runs
+ * (8-bit A and X, the field's page and the data bank it had), and otherwise
+ * stops at the call's return. Nothing the steps are entered with is read but
+ * the overflow, which they carry through. Whether the view step left the
+ * object in view is read from the object, not from the carry it answers in:
+ * shadow mode gives a call's don't-care flag back to the port where the
+ * callee leaves it as it was. */
+enum { STEP_ENTRY_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+
+static bool call_step(Snes *s, uint32_t site, uint32_t routine)
+{
+    uint8_t bank = s->cpu.db;
+    m_jsr_dc(s, site, routine, STEP_ENTRY_DONT_CARE);
+    if (field_machine_back(s, true, FIELD_PAGE, bank))
+        return true;
+    m_stop_at_own(s, site + 3, 0);
+    return false;
+}
+
+/* The steps of one object in view, from the party's copy of the loop or the
+ * other objects' (their calls lie the same distances from `first`). False
+ * where the port stopped. */
+static bool update_in_view(Snes *s, uint32_t first, uint32_t move)
+{
+    if (!call_step(s, first, move) || !call_step(s, first + 3, 0xC0A88D))
+        return false;
+    GameState *g = state_of(s);
+    if (!(field_object_in_view(g, field_object_of_link((uint8_t)field_current_object(g))) & 0x80))
+        return true;
+    return call_step(s, first + 8, 0xC0C98A) && call_step(s, first + 11, 0xC0A98A) &&
+           call_step(s, first + 14, 0xC0AB45) && call_step(s, first + 17, 0xC0A9CD);
+}
+
+/* The party members' objects re-sorted into their rows after the update, the
+ * second and then the first, where they are in view. */
+static bool resort_party(Snes *s)
+{
+    GameState *g = state_of(s);
+    static const struct { unsigned member; uint32_t leave_row, join_row; } members[2] = {
+        { 1, 0xC0A852, 0xC0A855 }, { 0, 0xC0A864, 0xC0A867 },
+    };
+    for (unsigned i = 0; i < 2; i++) {
+        uint8_t link = field_party_objects(g, members[i].member);
+        if (!field_link_is_object(link) || field_object_in_view(g, field_object_of_link(link)) == 0)
+            continue;
+        set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | link));
+        if (!call_step(s, members[i].leave_row, 0xC0A98A) || !call_step(s, members[i].join_row, 0xC0A9CD))
+            return false;
+    }
+    return true;
+}
+
+// $C0:A810
+/* Every frame: update each object slot up to the event's object count. */
+void field_update_objects(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_event_object_end(g, (uint16_t)((event_object_end(g) & 0xFF00) | (uint8_t)(event_object_count(g) * 2)));
+    FieldObject obj = 0;
+    UpdateKind kind;
+    do {
+        set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | field_object_link(obj)));
+        kind = update_kind(g, obj);
+        bool ok = true;
+        if (kind == UPDATE_WINDOW_ONLY)
+            ok = call_step(s, 0xC0A86B, 0xC0A947);
+        else if (kind == UPDATE_PARTY)
+            ok = update_in_view(s, 0xC0A870, 0xC0AAFD);
+        else if (kind == UPDATE_OBJECT)
+            ok = update_in_view(s, 0xC0A82A, 0xC0AA07);
+        if (!ok)
+            return;
+    } while (next_object(g, &obj));
+    /* The party's copy of the loop returns without re-sorting the party. */
+    if (kind == UPDATE_PARTY || resort_party(s))
+        m_rts(s);
+}
+
+/* ---- Entries ------------------------------------------------------------------------------ */
+
+/* The current object's (8-bit X). The overflow of the vertical position's
+ * difference from the screen's is read after. */
 void field_update_screen_position(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_rep(s, CPU_FLAG_M);
-    m_ldx(s, dp8(s, 0x6D));
-    set_dp16(s, 0xD9, m_lda16(s, (uint16_t)(abs16(s, 0x1D87) & 0x0007)));
-    set_dp16(s, 0xDB, m_lda16(s, (uint16_t)(abs16(s, 0x1D89) & 0x0007)));
-    static const struct { uint16_t tile; uint8_t fine, out; } origins[2] = { { 0x1D0A, 0xD9, 0xDD }, { 0x1D0E, 0xDB, 0xDF } };
-    for (int i = 0; i < 2; i++) {
-        m_lda16(s, (uint16_t)(abs16(s, origins[i].tile) & 0x00FF));
-        for (int k = 0; k < 3; k++)
-            c->a = m_asl16(s, c->a);
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, dp16(s, origins[i].fine));
-        set_dp16(s, origins[i].out, c->a);
-    }
-    screen_axis(s, 0x1800, 0xDD, 0x0A00);
-    screen_axis(s, 0x1880, 0xDF, 0x0A80);
-    m_sep(s, CPU_FLAG_M);
+    GameState *g = state_of(s);
+    FieldObject obj = (FieldObject)field_current_object_slot(s);
+    object_update_screen_position(g, obj);
+    uint16_t pixels = (uint16_t)(object_position(g, obj).y / POSITION_PIXEL), origin = screen_origin(g).y;
+    uint16_t d = (uint16_t)(pixels - origin);
+    m_set_flag(s, CPU_FLAG_V, ((pixels ^ origin) & (pixels ^ d) & 0x8000) != 0);
+    m_set_flag(s, CPU_FLAG_M, true);
     m_rts(s);
+}
+
+void field_unlink_object_row(Snes *s)
+{
+    object_leave_row(state_of(s), field_object_of_link((uint8_t)field_current_object(state_of(s))));
+    m_set_flag(s, CPU_FLAG_M, true);
+    m_set_flag(s, CPU_FLAG_X, true);
+    s->cpu.x &= 0x00FF;
+    s->cpu.y &= 0x00FF;
+    m_rts(s);
+}
+
+void field_link_object_row(Snes *s)
+{
+    object_join_row(state_of(s), field_object_of_link((uint8_t)field_current_object(state_of(s))));
+    m_set_flag(s, CPU_FLAG_M, true);
+    m_set_flag(s, CPU_FLAG_X, true);
+    s->cpu.x &= 0x00FF;
+    s->cpu.y &= 0x00FF;
+    m_rts(s);
+}
+
+/* The rows' guard: the object and the objects it is linked to are named by
+ * their slots doubled (any other link is one the rows never hold). */
+static bool link_or_none(uint8_t link) { return !(link & 1); }
+
+bool field_object_rows_linked(Snes *s)
+{
+    if (!field_on_page_low_bank(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint8_t current = (uint8_t)field_current_object(g);
+    bool ok = !(current & 1);
+    if (ok) {
+        FieldObject obj = field_object_of_link(current);
+        ok = link_or_none(field_object_row_link_previous(g, obj)) && link_or_none(field_object_row_link_next(g, obj)) &&
+             link_or_none(field_row_first_object(g, row_of(g, obj)));
+    }
+    vars_peek(false);
+    return ok;
 }

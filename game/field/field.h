@@ -40,8 +40,9 @@ void field_read_animation_frame(Snes *s);
 bool field_object_delays_in_bank(Snes *s);
 bool field_object_frames_in_bank(Snes *s);
 
-/* field/objects.c */
+/* field/object_view.c */
 void field_update_object_visibility(Snes *s);
+void field_update_object_in_window(Snes *s);
 
 /* field/window_shape.c */
 void field_rasterize_quad(Snes *s);

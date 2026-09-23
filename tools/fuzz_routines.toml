@@ -3942,3 +3942,46 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00"]
 why = "as field_move_object"
+
+[[routine]]
+name = "field_update_objects"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0A00-7E1CFF", "--keep", "7F0A00-7F0BFF", "--keep", "7F2000-7F2000"]
+iterations = 2000
+why = "the objects as the field state has them (random objects send the steps' call-outs anywhere); each step runs as a call-out"
+
+[[routine]]
+name = "field_update_object_visibility"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object random (odd ones turned away by the guard), its view and the screen random"
+
+[[routine]]
+name = "field_update_object_in_window"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_update_object_visibility"
+
+[[routine]]
+name = "field_unlink_object_row"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0E00-7E0EFF"]
+why = "the field's page and data bank; the rows as the field state has them, the object and its screen place random (odd objects turned away by the guard)"
+
+[[routine]]
+name = "field_link_object_row"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0E00-7E0EFF"]
+why = "as field_unlink_object_row"
+
+[[routine]]
+name = "field_update_screen_position"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object and the screen random"

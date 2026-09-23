@@ -145,6 +145,14 @@ void object_show_frame(GameState *g, FieldObject obj, uint8_t frame)
     interrupt_with(g, obj, ANIMATE_SHOW_FRAME);
 }
 
+/* An object that leaves view while playing a one-off animation is cut to its
+ * last play. */
+void object_hurry_animation(GameState *g, FieldObject obj)
+{
+    if (plays_left(g, obj) != PLAYS_NONE)
+        set_plays_left(g, obj, 2);
+}
+
 /* ---- Animating with movement ------------------------------------------------------------ */
 
 /* For the original's code and shadow mode (field/scratch.h): the speed's sum

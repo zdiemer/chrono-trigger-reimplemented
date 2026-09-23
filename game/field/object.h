@@ -62,6 +62,7 @@ bool object_playing_animation(const GameState *g, FieldObject obj, uint8_t anima
 bool object_animation_played(const GameState *g, FieldObject obj);
 void object_finish_animation(GameState *g, FieldObject obj);
 void object_show_frame(GameState *g, FieldObject obj, uint8_t frame);
+void object_hurry_animation(GameState *g, FieldObject obj);
 
 /* The movement animations: the one its speed calls for, or standing, unless
  * a script has taken the animation over. */
@@ -156,5 +157,15 @@ typedef struct {
 } Step;
 Step object_take_step(GameState *g, FieldObject obj);
 Step party_member_take_step(GameState *g, FieldObject obj);
+
+/* ---- On the screen (field/object_update.c) ------------------------------------------------ */
+
+/* Where on the screen the object is drawn, from its position and the
+ * screen's. */
+void object_update_screen_position(GameState *g, FieldObject obj);
+
+/* The object's place in the rows the sprite table is drawn from. */
+void object_leave_row(GameState *g, FieldObject obj);
+void object_join_row(GameState *g, FieldObject obj);
 
 #endif

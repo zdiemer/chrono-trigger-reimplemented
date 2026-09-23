@@ -94,7 +94,7 @@ add_library(ct_game STATIC
   game/field/motion.c
   game/field/nmi.c
   game/field/object_update.c
-  game/field/objects.c
+  game/field/object_view.c
   game/field/scroll.c
   game/field/sprites.c
   game/field/window_shape.c
