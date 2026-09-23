@@ -126,6 +126,24 @@ Each of these is a finding. Every example here comes from this repo.
     BMI/BPL spelled out. Write the comparison the logic means (`(int16_t)(x -
     LIMIT) < 0`, or `x < LIMIT` where the range allows it), with a comment only
     where wraparound really changes the result.
+20. **Scaffolding as table data.** `ORIGINAL_EFFECT` compiles out *writes*, not
+    *columns*. A language's row struct carrying the original's Y, scratch
+    layout or flags (`.parse`, `.keeps = 0x80|n`, `.overflow`) is smell 9 even
+    when every use is marked. The original's leftovers go in a parallel table
+    that compiles out with the mechanism.
+21. **Two vocabularies, or dead address columns.** Registered entry names that
+    disagree with the operation names for the same command (`reset_animation`
+    and `stop_animating`), or a column holding ROM addresses that no code reads.
+22. **Calling a sibling port through its ROM address.** An emulated `JSR` into
+    your own subsystem's port, instead of a C call.
+23. **The scaffolding switch used as a value.** `return ORIGINAL_EFFECTS &&
+    overflows16(...)`: the switch has leaked into what a function means.
+24. **Adapters that reorder positional arguments.** A dispatch table whose rows
+    list operands in one order while the operation takes them in another
+    (`(arg[2], arg[0], arg[1], arg[3])`). This is smell 3 moved into the
+    interpreter; decode into a named struct.
+25. **Stale provenance.** `re/ram.toml` `source` lines and header declarations
+    naming files or functions that no longer exist.
 
 ## What is legitimately machine-shaped
 
