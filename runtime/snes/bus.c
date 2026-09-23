@@ -80,6 +80,8 @@ static uint8_t *wram_port_byte(SnesBus *bus)
 
 void (*snes_bus_io_observer)(void *ctx, const SnesBus *bus, uint16_t addr, uint8_t value, unsigned flags);
 void *snes_bus_io_observer_ctx;
+void (*snes_bus_wram_observer)(void *ctx, const SnesBus *bus, uint32_t index, uint8_t value, unsigned flags);
+void *snes_bus_wram_observer_ctx;
 
 /* Inside a DMA transfer (they don't nest). */
 static bool in_dma;
@@ -299,7 +301,11 @@ uint8_t snes_bus_read(void *ctx, uint32_t addr)
     bus->clocks += access_clocks(bus, addr);
     switch (decode(bus, addr, &i)) {
     case REGION_ROM: v = bus->rom[i]; break;
-    case REGION_WRAM: v = bus->wram[i]; break;
+    case REGION_WRAM:
+        v = bus->wram[i];
+        if (snes_bus_wram_observer)
+            snes_bus_wram_observer(snes_bus_wram_observer_ctx, bus, (uint32_t)i, v, in_dma ? SNES_IO_DMA : 0);
+        break;
     case REGION_SRAM: v = bus->sram[i]; break;
     case REGION_IO: v = read_io(bus, (uint16_t)i); break;
     default: v = bus->open_bus; break;
@@ -319,6 +325,9 @@ void snes_bus_write(void *ctx, uint32_t addr, uint8_t value)
     bus->open_bus = value;
     switch (decode(bus, addr, &i)) {
     case REGION_WRAM:
+        if (snes_bus_wram_observer)
+            snes_bus_wram_observer(snes_bus_wram_observer_ctx, bus, (uint32_t)i, value,
+                                   SNES_IO_WRITE | (in_dma ? SNES_IO_DMA : 0));
         bus->wram[i] = value;
         bus->wram_page_epoch[i >> SNES_TRACK_PAGE_BITS] = bus->write_epoch;
         if (bus->wram_written)

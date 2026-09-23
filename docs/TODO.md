@@ -284,9 +284,44 @@ below. `python3 tools/timing_census.py` re-runs the census.
   the carry they hand each other (`tile_compare_carry`, `next_to_carry`) is
   then a return value. The rest wait on the sound driver (`sound.c`), the
   menus' party routines (`$C2:8004`), the tile copy `$C0:AF4E` and the
-  location change from `$C0:3B71`. When the engine itself runs its handlers as
-  C, `EventStep`'s `cursor` and `overflow` (the Y and V the original's callers
-  can see) go.
+  location change from `$C0:3B71`. The engine still runs these through the
+  original's table and an emulated call; each that becomes C gets a row in
+  the language's table and leaves that path. `movement.c` still reads its
+  operands by position, through a local shim: its commands become rows (and
+  their families -- to a tile, toward an object or a member, turning or
+  keeping the facing, counted -- one operation each) once they stop calling
+  out.
+- **Event's scaffolding, and what would let liveness drop it** (RECOMP.md,
+  "The event language"). 62 `ORIGINAL_EFFECT`s and the table's Y, V and
+  scratch columns reproduce what nothing in the library reads but shadow mode:
+  - *V* is never read after a command (1.5 million commands over the
+    library); the only read of it is a PLA in the sound driver's error path
+    (`$C7:0A90`) that discards a pushed P. Liveness keeps it live because the
+    field loop leaves through JMLs it can't follow. Following those JMLs (a
+    hint per site, or the runtime's call log carrying JML edges) would let
+    `DC_V` be declared at the engine's entries and every handler's, and the
+    whole V column and its derivations go.
+  - *Y* is read in one place, `STY $C0` at `$C2:8C36` (the menus' dispatcher,
+    after the openings at map setup and the `$C0:595C` run of object 0),
+    which stores its low byte at `$04C0`; nothing the library runs reads
+    `$04C0` afterwards. If the menus' port establishes that function `$0B`
+    ignores it, `DC_Y` holds at `$C0:9DC3` and the parse column goes, but only
+    once `$C0:595C`/`$C0:597D` are ported too (they reach the handlers' entries
+    as the original's code).
+  - *The scratch cells* (`$D9-$E4`) and the command cells (`$C1-$D2`) are read
+    only by the command that wrote them -- with one exception, below. They go
+    when the gate does.
+- **The menus' wave phase starts from event's scratch cell.** The wave handler
+  at `$C2:77C7` (`menus-end-of-time`) reads and advances `$01E2` as its phase
+  without setting it first, so it starts from whatever event's calls (`$02`)
+  or `$B5` last left there. A native build without event's scaffolding would
+  start it elsewhere: the menus' port should give the phase a start of its own
+  (a line or two of the wave, a frame).
+- **What three things the scripts set are for isn't established:**
+  `field_setting_1e` (events `$DE`/`$DF`, read at `$C0:28A7` and `$C0:7628`),
+  `field_setting_bc` (event `$F4`), and what the menus' party routines 6, 7
+  and `$0A` (events `$F8`-`$FA`, `$D5`) do for the party. Each is named for
+  its address until it is.
 - **Fuzzing half the event states.** The event handlers' guards turn away an
   odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
   every tight run is skipped (more for the comparisons, whose operator must be

@@ -3695,6 +3695,207 @@ all the motion routines those bridges call; once they are ports, the move
 commands' decisions can call them as C and most of `movement.c` leaves the
 machine.
 
+### Phase 3a: the event language, and its scaffolding
+
+A review of the rewrite above found it scoring 0.02 and still reading as the
+ROM: one function per opcode (`loop_animation`, `loop_animation_0`,
+`loop_animation_1`), operands read by position (`operand(g, c, 1)`), an engine
+that found its handlers through the ROM's pointer table and an emulated `JSR`,
+and emulation carried through every result -- a parse position as the third
+number of all ~136 `next_command(c, 3, 2)`s, the V flag in `with_overflow`,
+and 84 writes to scratch cells named for their addresses (`SCRATCH_D9`),
+"because other code may read them". `portstyle.py` counts operations on
+emulated registers, which none of these are. This change settled what reads
+each of them, separated what nothing but the gate reads, and reshaped the
+subsystem around a language table.
+
+**The evidence.** `ct_dev --event-reads` (dev/event_reads.h, off by default)
+follows what a command leaves beyond X and the carry, on the interpreter
+(`--native off --recomp off`, so everything that runs is the original's): Y
+and V from the handler's return until something overwrites them, through
+pushes and pulls, and into memory when Y is stored; and every byte of the
+field page's event cells (`$C1-$E4`) a command writes, until code outside a
+command writes it again, each read classed by who makes it (the writing
+routine, a routine it calls or that called it, a later command, code outside
+any command, an interrupt). The call stack is followed from the calls and the
+stack pointer; interrupt handlers are skipped for Y and V (they save and
+restore what they touch). It needed one hook the bus didn't have, a work-RAM
+observer beside the I/O one (`snes_bus_wram_observer`). Over the 26 movies,
+1,546,991 commands:
+
+- *Y* is read in one place: `STY $C0` in the menus' dispatcher (`$C2:8C36`),
+  after the openings at map setup (99 times, after 20 different opcodes; 60
+  following the port's engine at `$C0:5910`, 39 following `$C0:595C`, still
+  the original's). It stores the low byte at `$04C0`, which nothing in the
+  library reads afterwards. After the per-frame turns (`$C0:5AB1`) and
+  `$C0:597D` nothing reads it at all.
+- *V* is never tested after a command. Its only read is a `PLA` at
+  `$C7:0A90`, the sound driver's error path discarding a pushed P, 69 times.
+  Liveness keeps it live (the field loop leaves through JMLs it can't follow).
+- *The event cells* are read by the command that wrote them -- its handler,
+  or its own subroutines (the comparisons' operator routines at
+  `$C0:6487-$64C1`, the pointer helpers `$C0:67A2`/`$C0:67E3`, each part of
+  one C operation now) -- and by nothing else, with two exceptions: `$02`
+  reads the high byte of `$DD` a `$96` left, and masks it away; and the
+  menus' wave handler at `$C2:77C7` (`menus-end-of-time`, 182 reads) advances
+  `$01E2` as a phase it never sets, and so starts from what `$02` or `$B5`
+  last left there. That is a reader without a reason: a native menus port
+  must give its phase a start (TODO.md).
+
+**The classification**, then: none of the three has a meaning to name. The
+parse position, the V flag, the scratch cells, the comparisons' resume offset
+(`event_condition_resume`), the pointers `$48`-`$4D` keep, and the saved
+position the commands that don't call out keep, are all scaffolding: kept
+while the gate is byte-exact, and marked. The saved position the bridges keep
+across their call-outs stays real (the original's code runs between the write
+and the read), as does `$D6`'s go-on flag, which is the original's carry but
+is what the engine goes on by.
+
+**The mechanism** (`game/original_effects.h`, PORTING.md "Scaffolding"):
+`ORIGINAL_EFFECT(expr)`, which the default build evaluates and a build with
+`CT_WITHOUT_ORIGINAL_EFFECTS` compiles without evaluating.
+`ct_game_native_shape` builds every port that way in every build and in CI.
+Event's vocabulary for it is `event/leaves.h`: the record of the Y and V a
+command leaves, which whoever runs it owns, and the scratch cells by the order
+the original fills them (`KEPT_FIRST` ...), each file saying what its commands
+keep there. Where the value is static per opcode it is a column of the row --
+the parse position, the operand kept in the first cells, the overflow derived
+from the parameters and the result after an addition -- and the engine and the
+entries reproduce it around the operation, which never mentions it. Where it
+varies with a path it is one marked call on that path (`$06`'s absent member
+leaves its parse on the operand; `$E6` leaves the speed in Y). Arithmetic
+computes `variable + amount`; the V it leaves is derived at the boundary from
+the amount and the variable after, not by ALU helpers in the operations. The
+multiplier and divider the calls and jumps drive are the same: the operations
+compute the product, and the hardware is left holding it as scaffolding.
+`tools/portstyle.py` reports the count: event had 0 marked before (and 59 uses
+of names taken from addresses, 45 of them `SCRATCH_D9`), 62 marked after (and
+8 such names, all `field_setting_1e` and the menus' routine `$0A`, whose
+meanings aren't established; TODO.md).
+
+**The language table.** Each file ends with its rows: opcode, operation, how
+each operand decodes into a typed parameter (`BYTE(1)`, `VARIABLE_WORD(1)`,
+`OBJECT(1)`, `MEMBER_OBJECT(1)`, `STORY_WORD(1)`, `BIT(1)`, `SELF`,
+`CONSTANT(k)` ...), length, jump operand, the guard's extra check, the
+handler's address, and the scaffolding columns. Operations take typed
+parameters -- `loop_animation(g, self, animation)`,
+`call_function(g, target, there, call)` -- and say what happens next
+(`next_command()`, `end_turn()`, `stay()`, `take_jump()`, `go_to(at)`); the
+engine does the jumping. Opcodes that differ only in how an operand is
+encoded became one operation each:
+
+| Family | Opcodes | Operations |
+|---|---|--:|
+| loop an animation (given, 0, 1) | `$AA $B3 $B4` | 1 |
+| play a one-off (2 frames, n frames) | `$AB $B7` | 1 |
+| assign a variable (number, variable, story, 1, 0; byte, word) | `$4F-$55 $75-$77` | 1 |
+| add, subtract (number, variable; byte, word) | `$5B $5D-$61` | 2 |
+| count up, down | `$71-$73` | 1 |
+| set, keep, toggle flags (bit number or mask) | `$63 $64 $67 $69 $6B` | 3 |
+| record in the story (number, variable; byte, word; progress) | `$56 $58-$5A` | 1 |
+| raise, lower a story flag | `$65 $66` | 1 |
+| peek, poke (byte, word; number, variable) | `$48-$4D` | 2 |
+| compare (variable with number or variable; byte, word) | `$12-$15` | 1 |
+| wait (n, 4, 8, 16, 32 frames) | `$AD $B9-$BD` | 1 |
+| buttons held, remapped held, pressed | `$2D-$44` (17) | 3 |
+| face (self or an object; a direction, operand, variable) | `$0F $17 $1B $1D $1E $1F $25 $26 $A6 $A7` | 1 |
+| where an object stands, which way it faces (object or member) | `$21-$24` | 2 |
+| call (object or member; now, when taken, and wait) | `$02-$07` | 3 |
+| take calls, refuse them | `$08 $09` | 1 |
+| speed (number, variable) | `$89 $8A` | 1 |
+| stand on a tile (numbers, centred; variables) | `$8B $8C` | 1 |
+| sprite shown, hidden, none (self or an object) | `$7C-$7E $90 $91` | 1 |
+| say a line, ask a question (where the window goes) | `$BB $C1 $C2`, `$C0 $C3 $C4` | 2 |
+| set the result (variable, story) | `$19 $1C` | 1 |
+| where the party is, or a place put aside | `$DC-$DE` | 1 |
+| wait for the fade, for the tint | `$F2 $F3` | 1 |
+| wait for the sound driver (port 1, port 3) | `$ED $EE` | 1 |
+
+149 opcodes are rows, over 69 operations. The subsystem's concepts have files
+of their own: the language (`script.h`, `engine.c`), the scripts' variables
+and the story (`variables.h`, `variables.c`, `story.c`), the party
+(`party.h`, `party.c`), dialog (`dialog.c`), calls between objects
+(`calls.c`). Where a command changes a field object's state -- animation,
+position, layering, whether calls reach it -- it goes through small local
+helpers named for what they do, grouped at the top of each file
+(`restart_animation`, `interrupt_loop`, `back_to_loop`, `put_on_tile`,
+`put_at`, `relayer`, `set_steps_per_move`, `layer_as_the_map`, `calls_skip`,
+`take_off_the_map`, `stop_moving`, `turn`), which field's object module
+replaces when it lands. The move commands (`movement.c`) stay bridges of the
+original's shape, reading operands through a local shim, until the field's
+motion they call out to is C.
+
+**The engine** runs a command by its row, as C, its time named with
+`native_time_as` at the handler's address, when the row exists and
+`event_runs_here` takes the state: the running object one, the command at
+least 8 bytes from the buffer's end (so no operand is read through bank
+`$80`'s mirror of low RAM, which also lets the rows decode every operand up
+front), what the operands' kinds say (an object operand even, a member's
+object one, a bit number whose mask stays in its bank) and the row's own
+check. Otherwise -- the 36 bridges, the unported opcodes, and the states the
+port refuses -- it goes through the original's table as before. After each
+command it hands the machine the X, carry, Y and V the original's handler
+would have left (scaffolding). Each row's handler stays registered, with a
+generic entry that runs it by the same row: `$C0:595C` and `$C0:597D`, still
+the original's, reach the handlers through the table, and `ct_fuzz`
+exercises each alone. No other code reaches a handler: the call logs show
+only the four dispatch sites and the handlers' own calls (`$AF` into `$B0`,
+`$B5`/`$B6` into `$94`/`$95`).
+
+**What shadow mode found.** Per-handler shadow totals were expected to change
+shape, since the engine no longer enters its handlers through the runtime.
+They don't: shadow mode runs the *original* engine and compares every
+registered routine's calls, so each handler is still entered through its
+registered entry on the original's side and compared call by call, and the
+engine's port is compared at its own boundary on top. Over the library the
+per-entry totals (calls, matched, mismatched, interrupted, skipped, abandoned)
+are identical to `main`'s for all 798 hand ports, and nothing mismatches.
+
+**Differential fuzzing.** `tools/fuzz_compare.py` against `main`'s `ct_fuzz`, every
+event entry, seed 1, both variants (372 runs, 7,422,000 states):
+
+| Variant | Entries | States | Mismatched before | of | Mismatched after | of |
+|---|--:|--:|--:|--:|--:|--:|
+| tight | 187 | 3,722,000 | 0 | 1,595,786 | 0 | 1,595,786 |
+| loose | 185 | 3,700,000 | 0 | 1,589,672 | 0 | 1,396,820 |
+
+The tight runs compare exactly the states they compared before. The loose
+runs compare 192,852 fewer: the commands within 8 bytes of the buffer's end,
+which the guard now refuses (their operands would come through bank `$80`'s
+mirror of low RAM). The first run found one real difference: `$07` (call a
+party member and wait) had been guarded strictly, since the waiting path goes
+on with the member's place even when it is empty, and the row had taken the
+looser check of `$05`/`$06`; 1,262 of its states and 6 of the engine's
+mismatched, and with the row strict again both agree.
+
+**What it cost.** The engine now spends its time on its commands' work, attributed
+to each command's handler (`native_time_as` at the address the original's
+table gives, which the engine reads as the original does, so its own part is
+the same whichever way a command runs), and the entries that run by rows make
+different bus traffic from the handlers they replaced. So event's rows were
+recalibrated (`timing_gate.py --calibrate`, event's rows only): 87 of the 185
+handlers' `cost_milli` moved -- `yield` 4750 to 2375 and `halt` 4000 to 2000,
+which now touch the bus only to decode, `var_add` 4341 to 3183, `call` 4599 to
+5270 -- the per-frame turn 3256 to 3916, and the openings at map setup 4173 to
+5750. The openings needed the handler lookup to be shared by both paths: with
+the C path skipping the original's table, the engine's own bus traffic
+depended on how many of an opening's commands ran as C, which one scalar
+can't fit (a 3.15% vblank tail against the 1% limit). With it shared the tail fell to 1.57%, and what is
+left is the openings' own walk over the object slots (every object cleared,
+only some run), at map load with the screen blanked, writing RAM: an entry in
+`tools/timing_exceptions.txt`, and the vblank check finds none of its writes
+moved. Every other event entry is within the limits at its calibrated value.
+
+**What liveness could still take down.** V would be declarable dead at every
+event entry if the analysis followed the field loop's JMLs (a hint per site,
+or JML edges in the runtime's call log): 1.5 million commands never test it.
+Y at the openings' end is stored by the menus' dispatcher and never read,
+which a ported menus dispatcher that establishes it dead for routine `$0B`
+would settle -- but `$C0:595C` and `$C0:597D` must be ported too, since they
+reach the handlers' entries. The scratch cells can't be declared at all
+(don't-cares are registers and flags); they go when the gate does (TODO.md,
+PLAN.md "Retiring the gate").
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

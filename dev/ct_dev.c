@@ -9,7 +9,7 @@
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
  *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
- *          [--page-report]
+ *          [--page-report] [--event-reads out.txt]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -36,6 +36,9 @@
  * page instances in re/ram.toml (docs/DISASSEMBLY.md, "The accessors"). Every
  * run prints a "page refused" line for each page kind whose <page>_page_of
  * turned a D away (runtime/port/vars_pages.h).
+ * --event-reads writes every read of what an event command leaves beyond its
+ * protocol -- Y, the V flag, the field page's event cells $C1-$E4 -- by the command
+ * and the reader (dev/event_reads.h; meaningful with --native off --recomp off).
  * --insn-stats reports how many instructions the interpreter and generated
  * blocks executed.
  * --io-log writes every hardware register access counted by what made it
@@ -70,6 +73,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "event_reads.h"
 #include "io_log.h"
 #include "misses.h"
 #include "px_check.h"
@@ -95,6 +99,7 @@
 #endif
 
 static IoLog *io_log;
+static EventReads *event_reads;
 static Misses *misses;
 static VidCheck *vid_check;
 static PxCheck *px_check;
@@ -178,6 +183,8 @@ static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
     Coverage *cov = ctx;
     if (io_log)
         io_log_note_instruction(io_log, pc);
+    if (event_reads)
+        event_reads_note_instruction(event_reads, pc);
     if (misses)
         misses_note(misses, pc, p, e);
     bool m = e || (p & CPU_FLAG_M), x = e || (p & CPU_FLAG_X);
@@ -317,7 +324,7 @@ int main(int argc, char **argv)
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
-    const char *spc_coverage_path = NULL, *dsp_log_path = NULL;
+    const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
     bool want_vid_check = false, want_px_check = false;
     long vid_check_from = 0;
     long start_frame = -1;
@@ -372,6 +379,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--spc-coverage")) spc_coverage_path = v;
         else if (!strcmp(a, "--dsp-log")) dsp_log_path = v;
         else if (!strcmp(a, "--io-log")) io_log_path = v;
+        else if (!strcmp(a, "--event-reads")) event_reads_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
         else if (!strcmp(a, "--vid-check")) { vid_check_path = v; want_vid_check = true; }
         else if (!strcmp(a, "--vid-check-from")) { vid_check_from = strtol(v, NULL, 10); want_vid_check = true; }
@@ -440,7 +448,7 @@ int main(int argc, char **argv)
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--include name-prefix]... "
                         "[--recomp off|on|only] [--port-timing estimate|oracle] [--port-horizon strict|interrupts] "
-                        "[--timing-report] [--page-report] "
+                        "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
                         "[--vid-check-from N] [--px-check [out.txt]]\n");
@@ -566,7 +574,9 @@ int main(int argc, char **argv)
         io_log = io_log_create(&snes);
     if (misses_path)
         misses = misses_create(&snes);
-    if (coverage_path || calls_path || insn_stats || io_log_path || misses_path) {
+    if (event_reads_path)
+        event_reads = event_reads_create(&snes);
+    if (coverage_path || calls_path || insn_stats || io_log_path || misses_path || event_reads_path) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -699,6 +709,11 @@ int main(int argc, char **argv)
         rc = 1;
     }
     misses_destroy(misses);
+    if (event_reads && event_reads_write(event_reads, event_reads_path, stderr) != 0) {
+        fprintf(stderr, "cannot write %s\n", event_reads_path);
+        rc = 1;
+    }
+    event_reads_destroy(event_reads);
     native_destroy(natives);
     natives_free(&table);
     if (ct_trace_close(trace) != 0)

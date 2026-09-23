@@ -84,6 +84,29 @@ genuinely has no better expression yet — not in its body. A port that can't be
 expressed through a service is a **finding**: add the call, or use the documented
 SNES escape and write down why, as docs/PLATFORM.md's "as built" sections do.
 
+## Scaffolding is marked, not mixed in
+
+A scratch write the original makes, a register or flag its callers might
+read, a hardware register it leaves holding a product: when only shadow mode
+or the original's still-generated code looks at it, it is scaffolding, and it
+goes through `ORIGINAL_EFFECT(...)` (`game/original_effects.h`; docs/PORTING.md,
+"Scaffolding"). Find the reader first -- evidence over the movie library, not
+"other code may read it". Keep working state in locals and write the cell's
+final value once; never read a scratch cell back. Where the value is the same
+every time for a command (a parse position), make it a column of the command's
+table row, not an argument every return carries. Derive a flag from the
+operands where it is handed back, not with ALU helpers in the logic. The
+native-shape build (`ct_game_native_shape`) compiles your logic with all of it
+switched off, and must still build; `portstyle.py` counts what you marked.
+
+A dispatcher over opcodes is a C table of rows -- operation, how each operand
+decodes into a typed parameter, length, jump -- calling operations as C, with
+`NATIVE_TIME_AS` naming each handler's address. Opcodes that differ only in
+operand encoding (a short form, a byte and a word form, a constant and a
+variable form) are rows of one operation, never separate functions. Keep the
+handlers registered too (a generic entry per opcode), so fuzzing and callers
+that reach them by address still find them. `game/event/` is the example.
+
 ## Workflow
 
 1. **Scope the chunk** from the call graph: the routines named in the task, plus

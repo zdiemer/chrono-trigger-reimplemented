@@ -1471,8 +1471,8 @@ addr = "7E:01D9"
 page = "field"
 size = 12
 subsystem = "event"
-meaning = "The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command keeps its operands and intermediate values there (event/script.h)"
-source = "game/event/script.h keep8, keep16"
+meaning = "The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command keeps its operands and intermediate values there, and only that command reads them back (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7 reads $E2 as a phase it never sets)"
+source = "game/event/leaves.h keep_byte, keep_word (scaffolding: ORIGINAL_EFFECT)"
 
 [[var]]
 name = "field_sprites_left"

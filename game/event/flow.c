@@ -1,215 +1,166 @@
-/* Event commands: control flow within a script -- jumps, conditions, waits.
+/* How a script finds its way: jumps, the conditions it branches on, and
+ * waiting.
  *
- * A jump is relative to its own operand, the jump byte: forward by it, or
- * back. A condition goes on after itself when it holds, and otherwise jumps
- * forward by its last operand. The comparisons ($12-$16) keep their operands
- * in the scratch cells ($D9 left, $DB right) and the offset of their jump
- * byte in event_condition_resume, as the original does. */
+ * A condition goes on after itself when it holds and otherwise jumps ahead by
+ * its last operand; a jump goes forward or back by its own. The engine does
+ * the jumping (event/engine.c); the operations here only say whether a
+ * condition holds, or how long to wait. The conditions on the story, the
+ * party, dialog and the controller are with those, in their own files. */
 #include "event/bridge.h"
+#include "event/leaves.h"
+#include "event/variables.h"
 
 // $C0:62B5
-/* $10: jump forward by operand 1. */
-static EventStep jump_forward(GameState *g, const EventCommand *c)
+/* Jump: to another part of the script, forward or back by the distance in
+ * the command (the row says which). */
+static EventFlow jump(GameState *g, const EventArgs *a)
 {
-    return jump_from(g, c, 1, operand(g, c, 1), false, 1);
+    (void)g, (void)a;
+    return take_jump();
 }
 
-// $C0:62CB
-/* $11: jump back by operand 1. */
-static EventStep jump_back(GameState *g, const EventCommand *c)
-{
-    return jump_from(g, c, 1, operand(g, c, 1), true, 1);
-}
+/* ---- Comparing values -------------------------------------------------------------------- */
 
-/* The comparison operators ($C0:6467 for bytes, $C0:6477 for words): equal,
- * not equal, greater, less, greater or equal, less or equal, any bits in
- * common, and (bytes only) either nonzero. The guards turn away an operator
- * past the table, which no script has. */
-enum { EQUAL, NOT_EQUAL, GREATER, LESS, AT_LEAST, AT_MOST, ANY_COMMON, EITHER };
+/* How two values compare: the scripts' operators, shared by every comparison. */
+typedef enum {
+    EQUAL, NOT_EQUAL, GREATER, LESS, AT_LEAST, AT_MOST, SHARE_A_BIT, EITHER_NONZERO,
+    BYTE_OPERATORS = 8,   /* the word comparisons have all but the last */
+    WORD_OPERATORS = 7,
+} Comparison;
 
-static bool compare(unsigned op, uint16_t lhs, uint16_t rhs)
+/* The operator byte: the original turns it into its table's index with an
+ * 8-bit doubling, which drops bit 7, so a script's operator means the same
+ * with or without it. */
+static Comparison comparison(uint8_t operator_byte) { return (Comparison)(operator_byte & 0x7F); }
+
+static bool holds(Comparison how, uint16_t left, uint16_t right)
 {
-    switch (op) {
-    case EQUAL: return lhs == rhs;
-    case NOT_EQUAL: return lhs != rhs;
-    case GREATER: return lhs > rhs;
-    case LESS: return lhs < rhs;
-    case AT_LEAST: return lhs >= rhs;
-    case AT_MOST: return lhs <= rhs;
-    case ANY_COMMON: return (lhs & rhs) != 0;
-    default: return (lhs | rhs) != 0;
+    switch (how) {
+    case EQUAL: return left == right;
+    case NOT_EQUAL: return left != right;
+    case GREATER: return left > right;
+    case LESS: return left < right;
+    case AT_LEAST: return left >= right;
+    case AT_MOST: return left <= right;
+    case SHARE_A_BIT: return (left & right) != 0;
+    default: return (left | right) != 0;
     }
-}
-
-/* Compare the left and right operands the command kept, with the operator at
- * operand `length - 2`; the jump byte after it is the last operand. The
- * original doubles the operator into a table index with an 8-bit shift, which
- * drops its bit 7, and calls it with 8-bit index registers, which leaves only
- * the low byte of the parse position. */
-static EventStep compare_kept(GameState *g, const EventCommand *c, unsigned op, bool words, uint16_t length,
-                              uint16_t parsed)
-{
-    set_event_condition_resume(g, (uint16_t)(c->at + length - 1));
-    uint16_t lhs = words ? scratch16(g, SCRATCH_D9) : scratch8(g, SCRATCH_D9);
-    uint16_t rhs = words ? scratch16(g, SCRATCH_DB) : scratch8(g, SCRATCH_DB);
-    EventStep st = branch_unless(g, c, compare(op & 0x7F, lhs, rhs), length, parsed);
-    st.cursor &= 0x00FF;
-    return st;
 }
 
 // $C0:62DE
-/* $12: if variable (operand 1) compares with operand 2 under operator 3. */
-static EventStep if_var_const(GameState *g, const EventCommand *c)
+/* If a variable compares with a number or another variable. */
+static EventFlow if_compares(GameState *g, uint16_t left, uint16_t right, uint8_t operator_byte)
 {
-    keep8(g, SCRATCH_D9, var8(g, variable_operand(g, c, 1)));
-    keep8(g, SCRATCH_DB, operand(g, c, 2));
-    return compare_kept(g, c, operand(g, c, 3), false, 5, 2);
+    (void)g;
+    return unless_jump(holds(comparison(operator_byte), left, right));
 }
 
-// $C0:6313
-/* $13: if 16-bit variable (operand 1) compares with operands 2-3 under operator 4. */
-static EventStep if_var_const16(GameState *g, const EventCommand *c)
+/* The byte of the story memory a story comparison names: the operator's bit 7
+ * picks the second page. */
+static StoryOffset story_offset(uint8_t offset, uint8_t operator_byte)
 {
-    keep16(g, SCRATCH_D9, var16(g, variable_operand(g, c, 1)));
-    keep16(g, SCRATCH_DB, operand_word(g, c, 2));
-    return compare_kept(g, c, operand(g, c, 4), true, 6, 2);
+    return (StoryOffset)((operator_byte & 0x80 ? STORY_SECOND_PAGE : 0) | offset);
 }
 
-// $C0:6361
-/* $14: if variable (operand 1) compares with variable (operand 2) under operator 3. */
-static EventStep if_var_var(GameState *g, const EventCommand *c)
+/* What the original keeps of a story comparison: the byte compared, the
+ * value it is compared with and the operator. */
+static void keep_story_comparison(GameState *g, uint8_t byte, uint8_t value, uint8_t how)
 {
-    keep8(g, SCRATCH_D9, var8(g, variable_operand(g, c, 1)));
-    keep8(g, SCRATCH_DB, var8(g, variable_operand(g, c, 2)));
-    return compare_kept(g, c, operand(g, c, 3), false, 5, 3);
-}
-
-// $C0:63A4
-/* $15: as $14 with 16-bit variables. */
-static EventStep if_var_var16(GameState *g, const EventCommand *c)
-{
-    keep16(g, SCRATCH_D9, var16(g, variable_operand(g, c, 1)));
-    keep16(g, SCRATCH_DB, var16(g, variable_operand(g, c, 2)));
-    return compare_kept(g, c, operand(g, c, 3), true, 5, 3);
+    keep_byte(g, KEPT_FIRST, byte);
+    keep_byte(g, KEPT_SECOND, value);
+    keep_byte(g, KEPT_THIRD, how);
 }
 
 // $C0:63E6
-/* $16: if the byte of event memory at operand 1 compares with operand 2 under
- * operator 3, whose bit 7 picks the memory's second page. The operator is
- * kept in the scratch cell at $DD. */
-static EventStep if_memory(GameState *g, const EventCommand *c)
+/* If a byte of the story -- an event seen, a chest opened -- compares with a
+ * value. */
+static EventFlow if_story(GameState *g, uint8_t offset, uint8_t value, uint8_t operator_byte)
 {
-    keep8(g, SCRATCH_D9, operand(g, c, 1));
-    keep8(g, SCRATCH_DB, operand(g, c, 2));
-    uint8_t op = operand(g, c, 3);
-    uint16_t page = op & 0x80 ? 0x0100 : 0x0000;
-    op &= 0x7F;
-    keep8(g, SCRATCH_DD, op);
-    keep8(g, SCRATCH_D9, memory8(g, (uint16_t)(page | scratch8(g, SCRATCH_D9))));
-    return compare_kept(g, c, op, false, 5, 1);
+    uint8_t byte = story_byte(g, story_offset(offset, operator_byte));
+    ORIGINAL_EFFECT(keep_story_comparison(g, byte, value, comparison(operator_byte)));
+    return unless_jump(holds(comparison(operator_byte), byte, value));
 }
 
 // $C0:6442
-/* $18: if the first byte of event memory is below operand 1. */
-static EventStep if_memory0_below(GameState *g, const EventCommand *c)
+/* If the story hasn't yet reached a point: its progress counter is below it. */
+static EventFlow if_story_before(GameState *g, uint8_t progress, uint8_t point)
 {
-    return branch_unless(g, c, memory8(g, 0) < operand(g, c, 1), 3, 1);
+    (void)g;
+    return unless_jump(progress < point);
 }
 
-// $C0:6568
-/* $1A: if this object's result value (its low byte) is operand 1. */
-static EventStep if_result(GameState *g, const EventCommand *c)
-{
-    return branch_unless(g, c, (uint8_t)event_object_result(g, current_object(g)) == operand(g, c, 1), 3, 1);
-}
+/* ---- Where an object is ------------------------------------------------------------------- */
 
 // $C0:662C
-/* $27: if the object in operand 1 is in view (field_object_in_view). */
-static EventStep if_object_in_view(GameState *g, const EventCommand *c)
+/* If an object is in view (the field decides that as it draws). */
+static EventFlow if_in_view(GameState *g, EventObject object)
 {
-    return branch_unless(g, c, field_object_in_view(g, object_operand(g, c, 1)) != 0, 3, 1);
+    return unless_jump(field_object_in_view(g, object) != 0);
 }
 
-/* How far `v` is past `from`, if that is 2 up to `limit`: the overflow of the
- * subtraction is what the step leaves. */
-static bool within(uint8_t v, uint8_t from, uint8_t limit, bool *overflow)
+/* How far in from the screen's left and top edges an object must stand, in
+ * tiles, to be well on screen: past the first two, short of the last two or
+ * three. The field keeps the edges in 8-pixel tiles, and objects in 16. */
+enum { MARGIN = 2, ACROSS = 14, DOWN = 13 };
+
+static bool well_inside(uint8_t tile, uint8_t edge, uint8_t extent)
 {
-    uint8_t d = (uint8_t)(v - from);
-    *overflow = overflows8(v, (uint8_t)~from, d);
-    return d >= 2 && d < limit;
+    uint8_t in = (uint8_t)(tile - edge);
+    return in >= MARGIN && in < extent;
+}
+
+/* What the original keeps of the screen's edges, in 16-pixel tiles. */
+static void keep_screen_edges(GameState *g, uint8_t left, uint8_t top)
+{
+    keep_byte(g, KEPT_SECOND, left);
+    keep_byte(g, KEPT_THIRD, top);
 }
 
 // $C0:6655
-/* $28: if the object in operand 1 stands well inside the screen: 2 to 13
- * tiles right of its left edge and 2 to 12 below its top (in 16-pixel tiles,
- * the screen's edges being in 8-pixel ones). The halved edges are kept in the
- * scratch cells. */
-static EventStep if_object_on_screen(GameState *g, const EventCommand *c)
+/* If an object stands well on screen, clear of its edges: where a cutscene
+ * can start without the camera moving. */
+static EventFlow if_well_on_screen(GameState *g, EventObject object)
 {
-    unsigned object = object_operand(g, c, 1);
     uint8_t left = (uint8_t)(field_screen_left(g) >> 1), top = (uint8_t)(field_screen_top(g) >> 1);
-    keep8(g, SCRATCH_DB, left);
-    keep8(g, SCRATCH_DD, top);
-    bool overflow;
-    bool inside = within(field_object_x_tile(g, object), left, 0x0E, &overflow) &&
-                  within(field_object_y_tile(g, object), top, 0x0D, &overflow);
+    ORIGINAL_EFFECT(keep_screen_edges(g, left, top));
+    uint8_t x = field_object_x_tile(g, object), y = field_object_y_tile(g, object);
+    bool inside = well_inside(x, left, ACROSS) && well_inside(y, top, DOWN);
     if (inside)
-        return with_overflow(next_command(c, 3, 1), overflow);
-    return branch_unless(g, c, false, 3, 1);
+        ORIGINAL_EFFECT(leave_overflow_of_subtracting8(y, top));
+    return unless_jump(inside);
 }
 
-/* Count this object's frames of a wait: `frames` counted, go on after the
- * command's `length` bytes this frame; short of it, end the turn on the
- * command. A count already past `frames` starts again, and the command runs
- * again at once. */
-static EventStep count_frames(GameState *g, const EventCommand *c, uint8_t frames, uint16_t length)
-{
-    unsigned object = current_object(g);
-    uint8_t count = event_object_wait_frames(g, object);
-    if (frames > count) {
-        set_event_object_wait_frames(g, object, (uint8_t)(count + 1));
-        return wait_here(c, 0);
-    }
-    set_event_object_wait_frames(g, object, 0);
-    if (frames == count)
-        return next_command(c, length, 0);
-    return next_command(c, 0, 0);
-}
+/* ---- Waiting ------------------------------------------------------------------------------ */
 
 // $C0:2F96
-/* $AD: wait operand 1 frames. */
-static EventStep wait_for(GameState *g, const EventCommand *c) { return count_frames(g, c, operand(g, c, 1), 2); }
-
-// $C0:2FC6
-/* $B9: wait 4 frames. */
-static EventStep wait_4(GameState *g, const EventCommand *c) { return count_frames(g, c, 4, 1); }
-
-// $C0:2FCA
-/* $BA: wait 8 frames. */
-static EventStep wait_8(GameState *g, const EventCommand *c) { return count_frames(g, c, 8, 1); }
-
-// $C0:2FD2
-/* $BC: wait 16 frames. */
-static EventStep wait_16(GameState *g, const EventCommand *c) { return count_frames(g, c, 16, 1); }
-
-// $C0:2FCE
-/* $BD: wait 32 frames. */
-static EventStep wait_32(GameState *g, const EventCommand *c) { return count_frames(g, c, 32, 1); }
+/* Wait a number of frames: the object's turn ends here each frame until they
+ * have passed. A count already past the wait, left by a longer one, starts it
+ * again at once. */
+static EventFlow wait_frames(GameState *g, EventObject self, uint8_t frames)
+{
+    uint8_t waited = event_object_wait_frames(g, self);
+    if (waited < frames) {
+        set_event_object_wait_frames(g, self, (uint8_t)(waited + 1));
+        return stay();
+    }
+    set_event_object_wait_frames(g, self, 0);
+    return waited == frames ? next_command() : run_again();
+}
 
 // $C0:353F
-/* $B1: end the object's turn; its script goes on after the command next frame. */
-static EventStep yield(GameState *g, const EventCommand *c)
+/* Give up the rest of this frame's turn; the script goes on next frame. */
+static EventFlow wait_for_next_frame(GameState *g, const EventArgs *a)
 {
-    (void)g;
-    return end_turn(c, 1, 0);
+    (void)g, (void)a;
+    return end_turn();
 }
 
 // $C0:3543
-/* $B2: end the object's turn on this command, for good. */
-static EventStep halt(GameState *g, const EventCommand *c)
+/* Stop here for good: the object's script runs no further. */
+static EventFlow stop_here(GameState *g, const EventArgs *a)
 {
-    (void)g;
-    return wait_here(c, 0);
+    (void)g, (void)a;
+    return stay();
 }
 
 /* Back from a call-out, which returns to `returns_to`: true if the callee
@@ -224,9 +175,10 @@ static bool back(Snes *s, uint32_t returns_to, bool x8)
 }
 
 // $C0:2FFD
-/* $AF: run the object's state routine once ($B0), then go on after the
- * command. $B0 is a handler with call-outs of its own (movement.c), so this
- * calls it the original's way and moves its result on by the command. */
+/* Run the object's state routine for one step ($B0), then go on after the
+ * command. $B0 calls out to the field's routines (movement.c), so this is a
+ * bridge that calls it the original's way and moves its result on past its
+ * own byte. */
 void event_cmd_run_state_routine_once(Snes *s)
 {
     m_jsr(s, 0xC02FFD, 0xC03002);
@@ -236,21 +188,68 @@ void event_cmd_run_state_routine_once(Snes *s)
     m_rts(s);
 }
 
-EVENT_COMMAND(event_cmd_jump_forward, jump_forward)
-EVENT_COMMAND(event_cmd_jump_back, jump_back)
-EVENT_COMMAND(event_cmd_if_var_const, if_var_const)
-EVENT_COMMAND(event_cmd_if_var_const16, if_var_const16)
-EVENT_COMMAND(event_cmd_if_var_var, if_var_var)
-EVENT_COMMAND(event_cmd_if_var_var16, if_var_var16)
-EVENT_COMMAND(event_cmd_if_memory, if_memory)
-EVENT_COMMAND(event_cmd_if_memory0_below, if_memory0_below)
-EVENT_COMMAND(event_cmd_if_result, if_result)
-EVENT_COMMAND(event_cmd_if_object_in_view, if_object_in_view)
-EVENT_COMMAND(event_cmd_if_object_on_screen, if_object_on_screen)
-EVENT_COMMAND(event_cmd_wait, wait_for)
-EVENT_COMMAND(event_cmd_wait_4, wait_4)
-EVENT_COMMAND(event_cmd_wait_8, wait_8)
-EVENT_COMMAND(event_cmd_wait_16, wait_16)
-EVENT_COMMAND(event_cmd_wait_32, wait_32)
-EVENT_COMMAND(event_cmd_yield, yield)
-EVENT_COMMAND(event_cmd_halt, halt)
+static EventFlow run_if_compares(GameState *g, const EventArgs *a)
+{
+    return if_compares(g, a->arg[0], a->arg[1], a->arg[2]);
+}
+static EventFlow run_if_story(GameState *g, const EventArgs *a) { return if_story(g, a->arg[0], a->arg[1], a->arg[2]); }
+static EventFlow run_if_story_before(GameState *g, const EventArgs *a)
+{
+    return if_story_before(g, a->arg[0], a->arg[1]);
+}
+static EventFlow run_if_in_view(GameState *g, const EventArgs *a) { return if_in_view(g, a->arg[0]); }
+static EventFlow run_if_well_on_screen(GameState *g, const EventArgs *a) { return if_well_on_screen(g, a->arg[0]); }
+static EventFlow run_wait_frames(GameState *g, const EventArgs *a) { return wait_frames(g, a->self, a->arg[0]); }
+
+/* The comparisons' operator must be one of their table's (the guard's part):
+ * the byte comparisons' eight, the word comparisons' seven. */
+static bool byte_operator(uint8_t op) { return comparison(op) < BYTE_OPERATORS; }
+static bool word_operator(uint8_t op) { return comparison(op) < WORD_OPERATORS; }
+static bool operand3_compares_bytes(const GameState *g, uint16_t at)
+{
+    return byte_operator(script_byte(g, (uint16_t)(at + 3)));
+}
+static bool operand3_compares_words(const GameState *g, uint16_t at)
+{
+    return word_operator(script_byte(g, (uint16_t)(at + 3)));
+}
+static bool operand4_compares_words(const GameState *g, uint16_t at)
+{
+    return word_operator(script_byte(g, (uint16_t)(at + 4)));
+}
+
+/* Columns past the operands: the jump (a condition's is its last operand),
+ * and what the original leaves (event/leaves.h): its parse position, the
+ * compared values it keeps, and for $12-$16 the comparison routine they
+ * share. */
+EVENT_OPCODES(event_flow_opcodes,
+    { 0x10, jump, { { 0 } }, 2, 1, .routine = 0xC062B5, .parse = 1, .parse_on_jump = 1 },
+    { 0x11, jump, { { 0 } }, 2, 1, .back = true, .routine = 0xC062CB, .parse = 1, .parse_on_jump = 1 },
+
+    { 0x12, run_if_compares, { VARIABLE_BYTE(1), BYTE(2), BYTE(3) }, 5, 4, .accepts = operand3_compares_bytes,
+      .routine = 0xC062DE, .parse = 2, .parse_on_jump = 2, .shared_comparison = true, .keeps = KEEPS_BYTE(0),
+      .keeps_second = KEEPS_BYTE(1) },
+    { 0x13, run_if_compares, { VARIABLE_WORD(1), WORD(2), BYTE(4) }, 6, 5, .accepts = operand4_compares_words,
+      .routine = 0xC06313, .parse = 2, .parse_on_jump = 2, .shared_comparison = true, .keeps = KEEPS_WORD(0),
+      .keeps_second = KEEPS_WORD(1) },
+    { 0x14, run_if_compares, { VARIABLE_BYTE(1), VARIABLE_BYTE(2), BYTE(3) }, 5, 4,
+      .accepts = operand3_compares_bytes, .routine = 0xC06361, .parse = 3, .parse_on_jump = 3,
+      .shared_comparison = true, .keeps = KEEPS_BYTE(0), .keeps_second = KEEPS_BYTE(1) },
+    { 0x15, run_if_compares, { VARIABLE_WORD(1), VARIABLE_WORD(2), BYTE(3) }, 5, 4,
+      .accepts = operand3_compares_words, .routine = 0xC063A4, .parse = 3, .parse_on_jump = 3,
+      .shared_comparison = true, .keeps = KEEPS_WORD(0), .keeps_second = KEEPS_WORD(1) },
+    { 0x16, run_if_story, { BYTE(1), BYTE(2), BYTE(3) }, 5, 4, .accepts = operand3_compares_bytes,
+      .routine = 0xC063E6, .parse = 1, .parse_on_jump = 1, .shared_comparison = true },
+    { 0x18, run_if_story_before, { STORY_PROGRESS, BYTE(1) }, 3, 2, .routine = 0xC06442, .parse = 1,
+      .parse_on_jump = 1 },
+
+    { 0x27, run_if_in_view, { OBJECT(1) }, 3, 2, .routine = 0xC0662C, .parse = 1, .parse_on_jump = 1 },
+    { 0x28, run_if_well_on_screen, { OBJECT(1) }, 3, 2, .routine = 0xC06655, .parse = 1, .parse_on_jump = 1 },
+
+    { 0xAD, run_wait_frames, { BYTE(1) }, 2, .routine = 0xC02F96 },
+    { 0xB9, run_wait_frames, { CONSTANT(4) }, 1, .routine = 0xC02FC6 },
+    { 0xBA, run_wait_frames, { CONSTANT(8) }, 1, .routine = 0xC02FCA },
+    { 0xBC, run_wait_frames, { CONSTANT(16) }, 1, .routine = 0xC02FD2 },
+    { 0xBD, run_wait_frames, { CONSTANT(32) }, 1, .routine = 0xC02FCE },
+    { 0xB1, wait_for_next_frame, { { 0 } }, 1, .routine = 0xC0353F },
+    { 0xB2, stop_here, { { 0 } }, 1, .routine = 0xC03543 });

@@ -33,6 +33,18 @@ machine -- so the two say different things and Phase 3a has to move both. The
 goal is the machine in a thin wrapper at each entry and the logic in functions
 that take the game's own state (PLAN.md, "Phase 3a").
 
+Two more counts are reported, neither of them a failure yet. Scaffolding: the
+writes and values a port reproduces only for shadow mode or for the
+original's still-generated code, which go through ORIGINAL_EFFECT
+(game/original_effects.h) so that they are marked, counted here, and removed
+by a switch (docs/PORTING.md, "Scaffolding"); a port whose scaffolding isn't
+marked is what a review has to find by reading, which this number is for.
+And names taken from addresses or from the original's layout (`SCRATCH_D9`,
+`cmd_6C`, `set_1c80`): identifiers with a part that is a hex number with both a
+digit and a letter in it. That test is rough -- it misses names whose hex
+number is all letters or all digits, and takes in the odd word that happens to
+look like one -- so it is a number to read, not a gate.
+
 `--check` is a ratchet against tools/portstyle_baseline.txt, which lists the
 files written before this bar existed and the score each had. It fails when a
 file not on the list scores above THRESHOLD, or a listed file gets worse.
@@ -80,6 +92,29 @@ DEFN = re.compile(r"^(?:static\s+)?[A-Za-z_][\w ]*\**\s*\**(\w+)\s*\(([^;{]*)\)\
 MACHINE = re.compile(r"\bSnes\s*\*")
 
 SKIP = {"game/registry.c"}
+
+# Scaffolding, marked (game/original_effects.h).
+SCAFFOLDING = re.compile(r"\bORIGINAL_EFFECT\s*\(")
+
+# A name with a part that is a hex number, a digit and a letter in it: an
+# address or an offset (SCRATCH_D9, sub_C0A2B4, cmd_6C, set_1c80).
+IDENTIFIER = re.compile(r"\b[A-Za-z_]\w*\b")
+HEX_PART = re.compile(r"^(?=[0-9A-Fa-f]*[0-9])(?=[0-9A-Fa-f]*[A-Fa-f])[0-9A-Fa-f]{2,6}$")
+# Parts that look like hex but name a register width or an instruction (m_set_a8,
+# m_adc16): the machine helpers' names, counted by the operations measure instead.
+NOT_ADDRESSES = {"a8", "a16", "adc8", "adc16"}
+
+
+def address_names(text: str) -> dict:
+    """{identifier: uses} for the names in stripped source that look like addresses."""
+    text = re.sub(r'"(?:\\.|[^"\\])*"', '""', text)
+    found: dict = {}
+    for name in IDENTIFIER.findall(text):
+        if name.startswith("0x") or name[0].isdigit():
+            continue
+        if any(HEX_PART.match(part) and part not in NOT_ADDRESSES for part in name.split("_")[1:] if part):
+            found[name] = found.get(name, 0) + 1
+    return found
 
 
 def strip_comments(src: str) -> str:
@@ -183,27 +218,34 @@ def report(rows: list, show_files: bool, only: str | None, worst: int, out=sys.s
         by_sub[sub] = (o + ops, l + lines)
 
     coup: dict = {}
+    marked: dict = {}
     for _, _, _, path in rows:
         sub = subsystem_of(ROOT / path)
         if only and sub != only:
             continue
-        machine, defns = coupling(strip_comments((ROOT / path).read_text(encoding="utf-8")))
+        text = strip_comments((ROOT / path).read_text(encoding="utf-8"))
+        machine, defns = coupling(text)
         m, d = coup.get(sub, (0, 0))
         coup[sub] = (m + machine, d + defns)
+        sc, an = marked.get(sub, (0, 0))
+        marked[sub] = (sc + len(SCAFFOLDING.findall(text)), an + sum(address_names(text).values()))
 
-    print("%-12s %8s %8s %10s %9s %9s" % ("subsystem", "ops", "lines", "per line",
-                                          "fns", "on machine"), file=out)
+    print("%-12s %8s %8s %10s %9s %9s %11s %9s" % ("subsystem", "ops", "lines", "per line", "fns",
+                                                   "on machine", "scaffolding", "addr names"), file=out)
     for sub in sorted(by_sub, key=lambda s: -by_sub[s][0] / max(by_sub[s][1], 1)):
         ops, lines = by_sub[sub]
         m, d = coup.get(sub, (0, 0))
-        print("%-12s %8d %8d %10.2f %9d %8d%%" % (sub, ops, lines, ops / max(lines, 1),
-                                                  d, round(100 * m / max(d, 1))), file=out)
+        sc, an = marked.get(sub, (0, 0))
+        print("%-12s %8d %8d %10.2f %9d %8d%% %11d %9d" % (sub, ops, lines, ops / max(lines, 1),
+                                                          d, round(100 * m / max(d, 1)), sc, an), file=out)
     ops = sum(o for o, _ in by_sub.values())
     lines = sum(l for _, l in by_sub.values())
     m = sum(v[0] for v in coup.values())
     d = sum(v[1] for v in coup.values())
-    print("%-12s %8d %8d %10.2f %9d %8d%%" % ("all", ops, lines, ops / max(lines, 1),
-                                              d, round(100 * m / max(d, 1))), file=out)
+    sc = sum(v[0] for v in marked.values())
+    an = sum(v[1] for v in marked.values())
+    print("%-12s %8d %8d %10.2f %9d %8d%% %11d %9d" % ("all", ops, lines, ops / max(lines, 1),
+                                                      d, round(100 * m / max(d, 1)), sc, an), file=out)
 
     shown = [r for r in rows if not only or subsystem_of(ROOT / r[3]) == only]
     if not show_files:
@@ -211,10 +253,22 @@ def report(rows: list, show_files: bool, only: str | None, worst: int, out=sys.s
         print("\nthe %d furthest from the bar:" % len(shown), file=out)
     else:
         print("\nevery port:", file=out)
-    print("%-44s %8s %8s %10s  %s" % ("file", "ops", "lines", "per line", "backlog"), file=out)
+    print("%-44s %8s %8s %10s %11s %9s  %s" % ("file", "ops", "lines", "per line", "scaffolding",
+                                                "addr names", "backlog"), file=out)
     for rate, ops, lines, path in shown:
-        print("%-44s %8d %8d %10.2f  %s"
-              % (path, ops, lines, rate, "yes" if path in base else ""), file=out)
+        text = strip_comments((ROOT / path).read_text(encoding="utf-8"))
+        print("%-44s %8d %8d %10.2f %11d %9d  %s"
+              % (path, ops, lines, rate, len(SCAFFOLDING.findall(text)), sum(address_names(text).values()),
+                 "yes" if path in base else ""), file=out)
+    if only:
+        names: dict = {}
+        for _, _, _, path in shown:
+            for name, n in address_names(strip_comments((ROOT / path).read_text(encoding="utf-8"))).items():
+                names[name] = names.get(name, 0) + n
+        if names:
+            print("\nnames that look like addresses: " +
+                  ", ".join("%s %d" % (k, v) for k, v in sorted(names.items(), key=lambda kv: -kv[1])),
+                  file=out)
 
     carried = sum(l for rate, _, l, p in rows if p in base)
     total = sum(l for _, _, l, _ in rows)

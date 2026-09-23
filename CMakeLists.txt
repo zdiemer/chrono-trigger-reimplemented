@@ -69,19 +69,21 @@ add_library(ct_game STATIC
   game/data/decompress.c
   game/event/animation.c
   game/event/bridge.c
-  game/event/arithmetic.c
   game/event/calls.c
   game/event/dialog.c
   game/event/engine.c
+  game/event/entries.c
   game/event/facing.c
   game/event/flow.c
   game/event/input.c
   game/event/locations.c
   game/event/memory.c
   game/event/movement.c
+  game/event/party.c
   game/event/properties.c
   game/event/screen.c
   game/event/sound.c
+  game/event/story.c
   game/event/variables.c
   game/field/display.c
   game/field/frame.c
@@ -152,11 +154,26 @@ add_library(ct_game STATIC
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 
+# The ports' scaffolding (game/original_effects.h): what they write only because
+# the original does and shadow mode or the original's still-generated code
+# looks. -DCT_ORIGINAL_EFFECTS=OFF builds without it, which is the shape of a
+# native build and is not expected to pass the gate. Either way the game's code
+# is also compiled once without it (ct_game_native_shape, objects only), so a
+# port whose logic leans on its scaffolding fails to build.
+option(CT_ORIGINAL_EFFECTS "Reproduce the original's effects the gate compares (scaffolding)" ON)
+if(NOT CT_ORIGINAL_EFFECTS)
+  target_compile_definitions(ct_game PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
+endif()
+get_target_property(CT_GAME_SOURCES ct_game SOURCES)
+add_library(ct_game_native_shape OBJECT ${CT_GAME_SOURCES})
+target_compile_definitions(ct_game_native_shape PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
+target_link_libraries(ct_game_native_shape PRIVATE ct_game)
+
 # Trace and movie formats and PNG/WAV capture, shared with the oracle harness.
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-add_executable(ct_dev dev/ct_dev.c dev/io_log.c dev/misses.c dev/px_check.c dev/vid_check.c frontend/natives.c)
+add_executable(ct_dev dev/ct_dev.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/vid_check.c frontend/natives.c)
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 

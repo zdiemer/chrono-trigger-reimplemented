@@ -411,7 +411,9 @@
 #define RAM_EVENT_TARGET_POINTER 0x7E01D0u
 #define RAM_EVENT_TARGET_POINTER_DP 0xD0u    /* page field */
 /* The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command
- * keeps its operands and intermediate values there (event/script.h) [12 bytes] */
+ * keeps its operands and intermediate values there, and only that command reads them back
+ * (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7 reads $E2 as a
+ * phase it never sets) [12 bytes] */
 #define RAM_EVENT_SCRATCH 0x7E01D9u
 #define RAM_EVENT_SCRATCH_DP 0xD9u           /* page field */
 /* Offset in the script buffer where the object's script resumes [64 x $2 bytes, by object slot

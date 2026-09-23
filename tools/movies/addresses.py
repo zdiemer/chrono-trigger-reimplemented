@@ -43,7 +43,7 @@ world-map searches use whole-tile moves (bfs.ow_bfs)."""
 
 EVENT_MEMORY = 0x7F0000
 """Story flags: the event engine's memory, addressed as $7F:0000 + offset by the
-script commands ported in game/event/memory.c ($53-$5A read and write it, $65
+script commands ported in game/event/story.c and variables.c ($53-$5A read and write it, $65
 and $66 set and clear bits). Two flags the ending routes use:
 
     $7F:0055 bit 7   the Millennial Fair telepod exhibit is open ("They're still

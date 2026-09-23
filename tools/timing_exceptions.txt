@@ -67,3 +67,13 @@ menu_object_cmd_load_palette_row vblank-tail its time is the spawn it attributes
 # vblank check finds none of their writes moved.
 menu_map_scroll_x vblank-tail builds a tilemap strip into the RAM upload buffer on the moves that cross a tile boundary and nothing on the others; at most 1445 clocks (1.1 lines) with +0.14% drift, writing RAM the next vblank uploads
 menu_map_scroll_y vblank-tail as for menu_map_scroll_x, with two records a strip; at most 1346 clocks with +0.13% drift
+
+# The event engine's openings at map setup, which run every object's script up
+# to its first zero byte at once, while the location change has the screen
+# blanked, writing work RAM only. Its commands run inline and are attributed to
+# their handlers (12.6% error to 8.8%); what is left is its own walk over the
+# object slots, which clears four cells of every object and reads and keeps a
+# script position only for the ones with a script, against openings of 0 to 30
+# commands, a mix one scalar can't fit. The vblank check finds none of its
+# writes moved.
+event_run_init_scripts vblank-tail runs the map's openings at load, screen blanked, writing RAM; commands attributed to their handlers (12.6% error to 8.8%), the rest its own walk over the slots, which clears every object and runs only some; 1.57% of calls off by a line or more, at most 3217 clocks (2.4 lines)
