@@ -4,7 +4,19 @@
 
 #include <stdbool.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
+#include "state.h"
+
+/* What the vblank handler sends every frame (field/nmi.c): the sprite table,
+ * the queued sprite tile transfers, and the layers' tile map edges their
+ * upload flags ask for (FIELD_EDGE_UPLOADS of them, in the flags' order),
+ * whose parts' sizes must fit an edge run for the port to send them. */
+enum { FIELD_EDGE_UPLOADS = 12 };
+void field_upload_sprite_table(Platform *pf);
+void field_upload_queued_transfers(GameState *g, Platform *pf);
+void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload);
+bool field_layer_edges_fit(const GameState *g);
 
 void field_upload_sprites(Snes *s);
 void field_upload_vram_queue(Snes *s);

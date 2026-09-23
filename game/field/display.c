@@ -16,6 +16,7 @@
 #include "field/display.h"
 
 #include "field/bridge.h"
+#include "field/field.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -37,7 +38,7 @@ static const VidVramPort column_port = { .step = 32, .after_high = true };
 
 // $C0:ECA3
 /* The sprite table, all of it, from the first sprite. */
-static void upload_sprites(Platform *pf)
+void field_upload_sprite_table(Platform *pf)
 {
     static const uint8_t steps[] = {
         VID_STEP_TARGET_LO, VID_STEP_TARGET_HI,   VID_STEP_CONTROL, VID_STEP_DEST,   VID_STEP_SOURCE_LO,
@@ -53,7 +54,7 @@ static void upload_sprites(Platform *pf)
  * two, a VRAM address, a source and a size each (a size of 0 is 64 KiB, as
  * the hardware reads it), up to the first unused entry; then the queue is
  * emptied. */
-static void upload_vram_queue(GameState *g, Platform *pf)
+void field_upload_queued_transfers(GameState *g, Platform *pf)
 {
     static const uint8_t channel_steps[] = { VID_STEP_DEST, VID_STEP_CONTROL, VID_STEP_SOURCE_BANK, VID_STEP_END };
     static const uint8_t steps[] = {
@@ -99,8 +100,40 @@ static uint16_t edge_word(const GameState *g, uint8_t (*byte)(const GameState *,
     return (uint16_t)(byte(g, layer, 2 * word + 1) << 8 | low);
 }
 
-static void upload_edge_run(GameState *g, Platform *pf, const EdgeRun *r)
+/* The runs, in the order of the layers' upload flags: each layer's row of
+ * tiles, the same with its parts' VRAM addresses from the layer's first
+ * address word rather than its fourth, each layer's column, and the same
+ * from the seventh address word rather than the ninth. */
+static const EdgeRun edge_runs[FIELD_EDGE_UPLOADS] = {
+    /* $C0:8445 */ { .layer = 0, .parts = 3, .first_size = 0, .first_vram = 3, .base = 0xC800,
+                   .down_a_column = false, .site = { 0xC0844D, 0xC08468, 0xC0848A } },
+    /* $C0:84C1 */ { .layer = 1, .parts = 3, .first_size = 0, .first_vram = 3, .base = 0xD000,
+                   .down_a_column = false, .site = { 0xC084C9, 0xC084E4, 0xC08506 } },
+    /* $C0:8523 */ { .layer = 2, .parts = 3, .first_size = 0, .first_vram = 3, .base = 0xD800,
+                   .down_a_column = false, .site = { 0xC0852B, 0xC08546, 0xC08568 } },
+    /* $C0:8585 */ { .layer = 0, .parts = 3, .first_size = 0, .first_vram = 0, .base = 0xC800,
+                   .down_a_column = false, .site = { 0xC0858D, 0xC085A8, 0xC085CA } },
+    /* $C0:85E7 */ { .layer = 1, .parts = 3, .first_size = 0, .first_vram = 0, .base = 0xD000,
+                   .down_a_column = false, .site = { 0xC085EF, 0xC0860A, 0xC0862C } },
+    /* $C0:8649 */ { .layer = 2, .parts = 3, .first_size = 0, .first_vram = 0, .base = 0xD800,
+                   .down_a_column = false, .site = { 0xC08651, 0xC0866C, 0xC0868E } },
+    /* $C0:86AB */ { .layer = 0, .parts = 2, .first_size = 3, .first_vram = 8, .base = 0xC880,
+                   .down_a_column = true, .site = { 0xC086AF, 0xC086C4 } },
+    /* $C0:86F7 */ { .layer = 1, .parts = 2, .first_size = 3, .first_vram = 8, .base = 0xD080,
+                   .down_a_column = true, .site = { 0xC086FB, 0xC08710 } },
+    /* $C0:8729 */ { .layer = 2, .parts = 2, .first_size = 3, .first_vram = 8, .base = 0xD880,
+                   .down_a_column = true, .site = { 0xC0872D, 0xC08742 } },
+    /* $C0:875B */ { .layer = 0, .parts = 2, .first_size = 3, .first_vram = 6, .base = 0xC880,
+                   .down_a_column = true, .site = { 0xC0875F, 0xC08774 } },
+    /* $C0:878D */ { .layer = 1, .parts = 2, .first_size = 3, .first_vram = 6, .base = 0xD080,
+                   .down_a_column = true, .site = { 0xC08791, 0xC087A6 } },
+    /* $C0:87BF */ { .layer = 2, .parts = 2, .first_size = 3, .first_vram = 6, .base = 0xD880,
+                   .down_a_column = true, .site = { 0xC087C3, 0xC087D8 } },
+};
+
+void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload)
 {
+    const EdgeRun *r = &edge_runs[upload];
     static const uint8_t steps[] = {
         VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI, VID_STEP_TARGET_LO,   VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO,
         VID_STEP_SOURCE_HI, VID_STEP_VRAM_PORT, VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_SOURCE_BANK,
@@ -122,53 +155,46 @@ static void upload_edge_run(GameState *g, Platform *pf, const EdgeRun *r)
  * can't reach round the bank to the stack page (where the original's
  * transfer would copy the return address its call left there, which the
  * port doesn't reproduce). The game's parts are a row or a column of tiles. */
-enum { LARGEST_PART = 0x3000, EDGE_SIZE_WORDS = 5, LAYERS = 3 };
+enum { LARGEST_PART = 0x3000, EDGE_SIZE_WORDS = 5 };
+
+bool field_layer_edges_fit(const GameState *g)
+{
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
+        for (unsigned w = 0; w < EDGE_SIZE_WORDS; w++)
+            if (edge_word(g, field_layer_edge_sizes_byte, layer, w) >= LARGEST_PART)
+                return false;
+    return true;
+}
 
 bool field_edge_runs_small(Snes *s)
 {
     if (m_direct_page(s) != FIELD_LAYERS_PAGE || !m_bank_reaches_io(s))
         return false;
     vars_peek(true);
-    bool ok = true;
-    for (unsigned layer = 0; layer < LAYERS && ok; layer++)
-        for (unsigned w = 0; w < EDGE_SIZE_WORDS && ok; w++)
-            ok = edge_word(state_of(s), field_layer_edge_sizes_byte, layer, w) < LARGEST_PART;
+    bool ok = field_layer_edges_fit(state_of(s));
     vars_peek(false);
     return ok;
 }
 
-#define EDGE_RUN_ENTRY(name, ...)                                                                                      \
+#define EDGE_RUN_ENTRY(name, upload)                                                                                   \
     void name(Snes *s)                                                                                                 \
     {                                                                                                                  \
-        static const EdgeRun run = __VA_ARGS__;                                                                        \
-        upload_edge_run(state_of(s), m_platform(s), &run);                                                             \
+        field_upload_layer_edge(state_of(s), m_platform(s), (upload));                                                   \
         m_rts(s);                                                                                                      \
     }
 
-// $C0:8445
-EDGE_RUN_ENTRY(field_upload_layer1_tiles, { 0, 3, 0, 3, 0xC800, false, { 0xC0844D, 0xC08468, 0xC0848A } })
-// $C0:84C1
-EDGE_RUN_ENTRY(field_upload_layer2_tiles, { 1, 3, 0, 3, 0xD000, false, { 0xC084C9, 0xC084E4, 0xC08506 } })
-// $C0:8523
-EDGE_RUN_ENTRY(field_upload_layer3_tiles, { 2, 3, 0, 3, 0xD800, false, { 0xC0852B, 0xC08546, 0xC08568 } })
-// $C0:8585
-EDGE_RUN_ENTRY(field_upload_layer1_tiles_alt, { 0, 3, 0, 0, 0xC800, false, { 0xC0858D, 0xC085A8, 0xC085CA } })
-// $C0:85E7
-EDGE_RUN_ENTRY(field_upload_layer2_tiles_alt, { 1, 3, 0, 0, 0xD000, false, { 0xC085EF, 0xC0860A, 0xC0862C } })
-// $C0:8649
-EDGE_RUN_ENTRY(field_upload_layer3_tiles_alt, { 2, 3, 0, 0, 0xD800, false, { 0xC08651, 0xC0866C, 0xC0868E } })
-// $C0:86AB
-EDGE_RUN_ENTRY(field_upload_layer1_columns, { 0, 2, 3, 8, 0xC880, true, { 0xC086AF, 0xC086C4 } })
-// $C0:86F7
-EDGE_RUN_ENTRY(field_upload_layer2_columns, { 1, 2, 3, 8, 0xD080, true, { 0xC086FB, 0xC08710 } })
-// $C0:8729
-EDGE_RUN_ENTRY(field_upload_layer3_columns, { 2, 2, 3, 8, 0xD880, true, { 0xC0872D, 0xC08742 } })
-// $C0:875B
-EDGE_RUN_ENTRY(field_upload_layer1_columns_alt, { 0, 2, 3, 6, 0xC880, true, { 0xC0875F, 0xC08774 } })
-// $C0:878D
-EDGE_RUN_ENTRY(field_upload_layer2_columns_alt, { 1, 2, 3, 6, 0xD080, true, { 0xC08791, 0xC087A6 } })
-// $C0:87BF
-EDGE_RUN_ENTRY(field_upload_layer3_columns_alt, { 2, 2, 3, 6, 0xD880, true, { 0xC087C3, 0xC087D8 } })
+EDGE_RUN_ENTRY(field_upload_layer1_tiles, 0)
+EDGE_RUN_ENTRY(field_upload_layer2_tiles, 1)
+EDGE_RUN_ENTRY(field_upload_layer3_tiles, 2)
+EDGE_RUN_ENTRY(field_upload_layer1_tiles_alt, 3)
+EDGE_RUN_ENTRY(field_upload_layer2_tiles_alt, 4)
+EDGE_RUN_ENTRY(field_upload_layer3_tiles_alt, 5)
+EDGE_RUN_ENTRY(field_upload_layer1_columns, 6)
+EDGE_RUN_ENTRY(field_upload_layer2_columns, 7)
+EDGE_RUN_ENTRY(field_upload_layer3_columns, 8)
+EDGE_RUN_ENTRY(field_upload_layer1_columns_alt, 9)
+EDGE_RUN_ENTRY(field_upload_layer2_columns_alt, 10)
+EDGE_RUN_ENTRY(field_upload_layer3_columns_alt, 11)
 
 /* ---- Setting a map's display up -------------------------------------------------------- */
 
@@ -317,12 +343,10 @@ static void refresh_window_corners(GameState *g, Platform *pf)
  * what came. Acknowledging it is part of asking. */
 static bool line_interrupt_for_field(const GameState *g, Platform *pf)
 {
-    if (field_irq_disabled(g) & 0x80)
+    if ((int8_t)field_irq_disabled(g) < 0)
         return false;
     return tm_ack_line_irq(pf, PF_AT(0xC0ECDB)) & TM_LINE_IRQ_PENDING;
 }
-
-enum { UPLOAD_TILE_ANIMATION = 0x01 };   /* field_display_flags */
 
 // $C0:ECF2
 /* The picture ends: the rest of the frame blanked, and the line effects off. */
@@ -345,7 +369,7 @@ bool field_window_tiles_dp_is_ppu(Snes *s) { return s->cpu.d == M_DP_PPU; }
  * sets). */
 void field_upload_sprites(Snes *s)
 {
-    upload_sprites(m_platform(s));
+    field_upload_sprite_table(m_platform(s));
     m_rts(s);
 }
 
@@ -358,7 +382,7 @@ void field_upload_vram_queue(Snes *s)
         entries++;
     if (entries != 0)
         s->cpu.y = field_vram_queue_size2(g, entries - 1);
-    upload_vram_queue(g, m_platform(s));
+    field_upload_queued_transfers(g, m_platform(s));
     m_rts(s);
 }
 
@@ -461,17 +485,18 @@ void field_irq_wait_hblank_loop(Snes *s)
 }
 
 /* The rest of the line interrupt, from hblank: the picture ends, then the
- * time to vblank uploads the tile map's columns ($C0:ED15), or in a map with
- * animated tiles those ($FD:FFFD), both the original's code; and back to what
+ * time to vblank goes to one of two jobs, which alternate with the line
+ * effects' table set: the tile map's patches and column uploads ($C0:ED15),
+ * or bank $FD's work ($FD:FFFD), both the original's code; and back to what
  * it interrupted. */
 void field_irq_after_hblank(Snes *s)
 {
     GameState *g = state_of(s);
     end_picture(m_platform(s));
-    uint8_t animated = field_display_flags(g) & UPLOAD_TILE_ANIMATION;
-    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | animated);
-    m_set_nz8(s, animated);
-    if (!animated)
+    uint8_t second_set = field_display_flags(g) & FIELD_SECOND_TABLE_SET;
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | second_set);
+    m_set_nz8(s, second_set);
+    if (!second_set)
         m_jsr(s, 0xC0ED03, 0xC0ED15);
     else
         m_jsl(s, 0xC0ED08, 0xFDFFFD);

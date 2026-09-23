@@ -20,11 +20,9 @@
 #include "field/field.h"
 #include "field/scratch.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
-
-/* field_object_state_state: how the update treats the object. */
-enum { STATE_PARTY_END = 3, STATE_WINDOW_ONLY = 7, STATE_SKIPPED = 8 };
 
 /* ---- Screen positions --------------------------------------------------------------------- */
 
@@ -93,7 +91,7 @@ static bool in_a_row(const GameState *g, FieldObject obj)
 
 /* For the original's code and shadow mode (field/scratch.h): joining a row
  * that has objects keeps the row at $C5. */
-static void leave_row(GameState *g, unsigned row) { original_cell8(g, 0xC5, (uint8_t)(row * 2)); }
+static void leave_joined_row(GameState *g, unsigned row) { original_cell8(g, 0xC5, (uint8_t)(row * 2)); }
 
 // $C0:A98A
 /* Take the object out of its row: the objects either side of it are linked
@@ -138,7 +136,7 @@ void object_join_row(GameState *g, FieldObject obj)
         set_field_object_row_link_next(g, obj, FIELD_NO_LINK);
         return;
     }
-    leave_row(g, row);
+    leave_joined_row(g, row);
     set_field_object_row_link_previous(g, field_object_of_link(first), field_object_link(obj));
     set_field_object_row_link_next(g, obj, first);
     set_field_row_first_object(g, row, field_object_link(obj));
@@ -153,12 +151,12 @@ typedef enum { UPDATE_SKIP, UPDATE_WINDOW_ONLY, UPDATE_PARTY, UPDATE_OBJECT } Up
  * are checked against the screen and nothing else; some are left alone. */
 static UpdateKind update_kind(const GameState *g, FieldObject obj)
 {
-    uint8_t state = field_object_state_state(g, obj);
-    if (state < STATE_PARTY_END)
+    uint8_t role = object_role(g, obj);
+    if (role < ROLE_PARTY_END)
         return UPDATE_PARTY;
-    if (state == STATE_SKIPPED)
+    if (role == ROLE_LEFT_ALONE)
         return UPDATE_SKIP;
-    return state == STATE_WINDOW_ONLY ? UPDATE_WINDOW_ONLY : UPDATE_OBJECT;
+    return role == ROLE_WINDOW_ONLY ? UPDATE_WINDOW_ONLY : UPDATE_OBJECT;
 }
 
 /* The object after the current one, and whether the update goes on to it:
@@ -173,15 +171,24 @@ static bool next_object(const GameState *g, FieldObject *obj)
 
 /* ---- Where the update meets the original ------------------------------------------------ */
 
-/* The object update's steps are entries of their own (the original calls
- * them), so the update calls them as the original does: a bridge, which goes
- * on after each only where the step came back with the machine as it runs
- * (8-bit A and X, the field's page and the data bank it had), and otherwise
- * stops at the call's return. Nothing the steps are entered with is read but
- * the overflow, which they carry through. Whether the view step left the
- * object in view is read from the object, not from the carry it answers in:
- * shadow mode gives a call's don't-care flag back to the port where the
- * callee leaves it as it was. */
+/* The overflow of the object's vertical position's difference from the
+ * screen's, which placing it on the screen leaves for the original's code. */
+static bool screen_position_overflow(const GameState *g, FieldObject obj)
+{
+    uint16_t pixels = (uint16_t)(object_position(g, obj).y / POSITION_PIXEL);
+    return field_subtract_overflows16(pixels, screen_origin(g).y);
+}
+
+/* The object update's steps are this module's own (the move, the view, the
+ * animation's tick, the rows, the screen position), run as C and timed as the
+ * routines they are. The update is still a bridge: the view step calls the
+ * original's routines as an object comes into view or leaves it, so there it
+ * is called as its entry; and where the state is one the tick's or the rows'
+ * entries' guards would turn away, the entry is called instead, and the
+ * original runs it, the update going on only where it came back with 8-bit A
+ * and X, the field's page and the data bank it had. Nothing the steps are entered with is read but the
+ * overflow, which they carry through. Whether the view step left the object
+ * in view is read from the object, not from the carry it answers in. */
 enum { STEP_ENTRY_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 static bool call_step(Snes *s, uint32_t site, uint32_t routine)
@@ -194,18 +201,81 @@ static bool call_step(Snes *s, uint32_t site, uint32_t routine)
     return false;
 }
 
-/* The steps of one object in view, from the party's copy of the loop or the
- * other objects' (their calls lie the same distances from `first`). False
- * where the port stopped. */
-static bool update_in_view(Snes *s, uint32_t first, uint32_t move)
+enum { TICK = 0xC0C98A, LEAVE_ROW = 0xC0A98A, PLACE_ON_SCREEN = 0xC0AB45, JOIN_ROW = 0xC0A9CD };
+
+static bool tick(Snes *s, uint32_t site, FieldObject obj)
 {
-    if (!call_step(s, first, move) || !call_step(s, first + 3, 0xC0A88D))
+    GameState *g = state_of(s);
+    if (!field_tick_is_exact(g, obj))
+        return call_step(s, site, TICK);
+    NATIVE_TIME_AS(s, TICK, object_animation_tick(g, obj));
+    return true;
+}
+
+static bool leave_row(Snes *s, uint32_t site, FieldObject obj)
+{
+    GameState *g = state_of(s);
+    if (!field_rows_are_exact(g, obj))
+        return call_step(s, site, LEAVE_ROW);
+    NATIVE_TIME_AS(s, LEAVE_ROW, object_leave_row(g, obj));
+    return true;
+}
+
+static bool join_row(Snes *s, uint32_t site, FieldObject obj)
+{
+    GameState *g = state_of(s);
+    if (!field_rows_are_exact(g, obj))
+        return call_step(s, site, JOIN_ROW);
+    NATIVE_TIME_AS(s, JOIN_ROW, object_join_row(g, obj));
+    return true;
+}
+
+static bool place_on_screen(Snes *s, FieldObject obj)
+{
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, PLACE_ON_SCREEN, object_update_screen_position(g, obj));
+    m_set_flag(s, CPU_FLAG_V, screen_position_overflow(g, obj));
+    return true;
+}
+
+enum { MOVE = 0xC0AA07, MOVE_PARTY_MEMBER = 0xC0AAFD, VIEW = 0xC0A88D, WINDOW_ONLY = 0xC0A947 };
+
+static void move(Snes *s, bool party_member)
+{
+    if (party_member)
+        NATIVE_TIME_AS(s, MOVE_PARTY_MEMBER, field_move_current_object(s, true));
+    else
+        NATIVE_TIME_AS(s, MOVE, field_move_current_object(s, false));
+}
+
+/* An object's step and, in view, the rest of its update, from the party's
+ * copy of the loop or the other objects' (their calls lie the same distances
+ * from `first`). False where the port stopped. */
+/* The view step, as C where the object stays in or out of view (it calls
+ * nothing then), and called otherwise: coming into view and leaving it call
+ * the original's routines, which shadow mode compares as the view's own
+ * calls, not the update's. */
+static bool view(Snes *s, uint32_t site)
+{
+    GameState *g = state_of(s);
+    if (!field_view_unchanged(g, (FieldObject)field_current_object_slot(s)))
+        return call_step(s, site, VIEW);
+    bool done;
+    NATIVE_TIME_AS(s, VIEW, done = field_update_visibility(s));
+    return done;
+}
+
+static bool update_object(Snes *s, uint32_t first, bool party_member)
+{
+    move(s, party_member);
+    if (!view(s, first + 3))
         return false;
     GameState *g = state_of(s);
-    if (!(field_object_in_view(g, field_object_of_link((uint8_t)field_current_object(g))) & 0x80))
+    FieldObject obj = field_object_of_link((uint8_t)field_current_object(g));
+    if (!object_in_view(g, obj))
         return true;
-    return call_step(s, first + 8, 0xC0C98A) && call_step(s, first + 11, 0xC0A98A) &&
-           call_step(s, first + 14, 0xC0AB45) && call_step(s, first + 17, 0xC0A9CD);
+    return tick(s, first + 8, obj) && leave_row(s, first + 11, obj) && place_on_screen(s, obj) &&
+           join_row(s, first + 17, obj);
 }
 
 /* The party members' objects re-sorted into their rows after the update, the
@@ -218,10 +288,11 @@ static bool resort_party(Snes *s)
     };
     for (unsigned i = 0; i < 2; i++) {
         uint8_t link = field_party_objects(g, members[i].member);
-        if (!field_link_is_object(link) || field_object_in_view(g, field_object_of_link(link)) == 0)
+        if (!field_link_is_object(link) || field_object_in_view(g, field_object_of_link(link)) == OBJECT_OUT_OF_VIEW)
             continue;
-        set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | link));
-        if (!call_step(s, members[i].leave_row, 0xC0A98A) || !call_step(s, members[i].join_row, 0xC0A9CD))
+        field_make_link_current(g, link);
+        FieldObject obj = field_object_of_link(link);
+        if (!leave_row(s, members[i].leave_row, obj) || !join_row(s, members[i].join_row, obj))
             return false;
     }
     return true;
@@ -236,15 +307,15 @@ void field_update_objects(Snes *s)
     FieldObject obj = 0;
     UpdateKind kind;
     do {
-        set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | field_object_link(obj)));
+        object_make_current(g, obj);
         kind = update_kind(g, obj);
         bool ok = true;
         if (kind == UPDATE_WINDOW_ONLY)
-            ok = call_step(s, 0xC0A86B, 0xC0A947);
+            NATIVE_TIME_AS(s, WINDOW_ONLY, field_update_in_window(s));
         else if (kind == UPDATE_PARTY)
-            ok = update_in_view(s, 0xC0A870, 0xC0AAFD);
+            ok = update_object(s, 0xC0A870, true);
         else if (kind == UPDATE_OBJECT)
-            ok = update_in_view(s, 0xC0A82A, 0xC0AA07);
+            ok = update_object(s, 0xC0A82A, false);
         if (!ok)
             return;
     } while (next_object(g, &obj));
@@ -262,14 +333,12 @@ void field_update_screen_position(Snes *s)
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
     object_update_screen_position(g, obj);
-    uint16_t pixels = (uint16_t)(object_position(g, obj).y / POSITION_PIXEL), origin = screen_origin(g).y;
-    uint16_t d = (uint16_t)(pixels - origin);
-    m_set_flag(s, CPU_FLAG_V, ((pixels ^ origin) & (pixels ^ d) & 0x8000) != 0);
+    m_set_flag(s, CPU_FLAG_V, screen_position_overflow(g, obj));
     m_set_flag(s, CPU_FLAG_M, true);
     m_rts(s);
 }
 
-void field_unlink_object_row(Snes *s)
+void field_leave_object_row(Snes *s)
 {
     object_leave_row(state_of(s), field_object_of_link((uint8_t)field_current_object(state_of(s))));
     m_set_flag(s, CPU_FLAG_M, true);
@@ -279,7 +348,7 @@ void field_unlink_object_row(Snes *s)
     m_rts(s);
 }
 
-void field_link_object_row(Snes *s)
+void field_join_object_row(Snes *s)
 {
     object_join_row(state_of(s), field_object_of_link((uint8_t)field_current_object(state_of(s))));
     m_set_flag(s, CPU_FLAG_M, true);
@@ -293,6 +362,13 @@ void field_link_object_row(Snes *s)
  * their slots doubled (any other link is one the rows never hold). */
 static bool link_or_none(uint8_t link) { return !(link & 1); }
 
+bool field_rows_are_exact(const GameState *g, unsigned obj)
+{
+    return link_or_none(field_object_row_link_previous(g, (FieldObject)obj)) &&
+           link_or_none(field_object_row_link_next(g, (FieldObject)obj)) &&
+           link_or_none(field_row_first_object(g, row_of(g, (FieldObject)obj)));
+}
+
 bool field_object_rows_linked(Snes *s)
 {
     if (!field_on_page_low_bank(s))
@@ -300,12 +376,7 @@ bool field_object_rows_linked(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     uint8_t current = (uint8_t)field_current_object(g);
-    bool ok = !(current & 1);
-    if (ok) {
-        FieldObject obj = field_object_of_link(current);
-        ok = link_or_none(field_object_row_link_previous(g, obj)) && link_or_none(field_object_row_link_next(g, obj)) &&
-             link_or_none(field_row_first_object(g, row_of(g, obj)));
-    }
+    bool ok = !(current & 1) && field_rows_are_exact(g, field_object_of_link(current));
     vars_peek(false);
     return ok;
 }

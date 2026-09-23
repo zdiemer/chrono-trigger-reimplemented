@@ -574,8 +574,10 @@
  * and clears it */
 #define RAM_FIELD_FRAME_PENDING 0x7E0152u
 #define RAM_FIELD_FRAME_PENDING_DP 0x52u     /* page field */
-/* Low nibble set: the per-line effects use the second set of tables; bit 0 also picks the field
- * IRQ's tilemap routine ($FD:FFFD instead of $C0:ED15) */
+/* Bit 0: the line effects read table set 1 (the builders build the other and flip it every
+ * frame; the vblank programs set 1 for any bit of the low nibble), and the line interrupt's late
+ * work alternates with it ($FD:FFFD instead of $C0:ED15). Bit 7: the field's setup builds both
+ * sets from its own scroll and color math */
 #define RAM_FIELD_DISPLAY_FLAGS 0x7E0153u
 #define RAM_FIELD_DISPLAY_FLAGS_DP 0x53u     /* page field */
 /* Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog
@@ -639,8 +641,9 @@
 #define RAM_FIELD_PARTY_OBJECTS_COUNT 3u
 #define RAM_FIELD_PARTY_OBJECTS_STRIDE 0x02u
 #define RAM_FIELD_PARTY_OBJECTS_DP 0x97u     /* page field */
-/* Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts
- * ($C0:0BA4); what reads it isn't established */
+/* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
+ * except against the map's left or top edge. Set by event $F4 (zero also clears
+ * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
 #define RAM_FIELD_SETTING_BC 0x7E01BCu
 #define RAM_FIELD_SETTING_BC_DP 0xBCu        /* page field */
 /* Cells the field's object, sprite and graphics routines keep values in on the way: an

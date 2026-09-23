@@ -29,17 +29,18 @@ enum { FRAMES_PER_ANIMATION = 4 };
 enum { END_OF_FRAMES = 0xFF, END_OF_DELAYS = 0 };
 
 /* After a one-off animation or a held frame, the object goes back to looping
- * its animation, or where it had none, to animating with its movement: kept
- * as this in place of the loop's animation. */
+ * its animation, or where it had none, to animating with its movement: the
+ * game keeps that as this in place of the loop's animation. */
 enum { RESUME_MOVEMENT = 0xFF };
 
-/* The countdown of a one-off animation: each end it reaches takes one off,
- * and at 1 it has played out. 0 is none playing. */
-enum { PLAYS_NONE = 0, PLAYS_DONE = 1 };
+/* The countdown of a one-off animation, in the units the scripts give it: the
+ * end of the frame table takes one off, the end of the delays two, and at
+ * PLAYS_DONE it has played out and holds its last frame; PLAYS_LAST plays out
+ * at the next end of its delays. PLAYS_NONE is none playing. */
+enum { PLAYS_NONE = 0, PLAYS_DONE = 1, PLAYS_LAST = 2, PLAYS_PER_DELAY_END = 2 };
 
 /* The objects the field's queue puts first when their frame is due: the
  * party's leader always, the other two when the frame builder asks. */
-enum { STATE_LEADER = 0, STATE_PARTY_1 = 1, STATE_PARTY_2 = 2, STATE_DISABLED = 0x80 };
 enum { QUEUE_PARTY_FIRST = 2 };   /* field_animation_queue_front */
 
 /* ---- The object's animation state ------------------------------------------------------- */
@@ -56,6 +57,10 @@ static void set_mode(GameState *g, FieldObject obj, ObjectAnimationMode mode)
 
 /* The animation it loops, or animates its movement with. */
 static uint8_t looped_animation(const GameState *g, FieldObject obj) { return field_object_animation_number(g, obj); }
+
+/* Whether it goes back to its movement after a one-off or a held frame,
+ * rather than to a loop. */
+static bool resumes_movement(const GameState *g, FieldObject obj) { return looped_animation(g, obj) == RESUME_MOVEMENT; }
 static uint8_t one_off_animation(const GameState *g, FieldObject obj)
 {
     return field_object_animation_mode_timed_animation(g, obj);
@@ -132,7 +137,7 @@ void object_finish_animation(GameState *g, FieldObject obj)
     set_field_object_frame_delay(g, obj, 0);
     set_field_object_animation_frame(g, obj, 0);
     ObjectAnimationMode back = ANIMATE_LOOP;
-    if (looped_animation(g, obj) == RESUME_MOVEMENT) {
+    if (resumes_movement(g, obj)) {
         set_field_object_animation_number(g, obj, ANIMATION_STAND);
         back = ANIMATE_WITH_MOVEMENT;
     }
@@ -150,7 +155,7 @@ void object_show_frame(GameState *g, FieldObject obj, uint8_t frame)
 void object_hurry_animation(GameState *g, FieldObject obj)
 {
     if (plays_left(g, obj) != PLAYS_NONE)
-        set_plays_left(g, obj, 2);
+        set_plays_left(g, obj, PLAYS_LAST);
 }
 
 /* ---- Animating with movement ------------------------------------------------------------ */
@@ -180,7 +185,6 @@ static uint8_t movement_speed(const GameState *g, FieldObject obj)
 }
 
 enum { RUNNING_SPEED = 0x20 };
-enum { STATE_WALKS_ONLY = 4 };   /* objects in this state or later never run */
 
 // $C0:5614
 /* A held frame gives way to the loop the object had, or to its movement; a
@@ -190,7 +194,7 @@ MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
 {
     ObjectAnimationMode mode = object_animation_mode(g, obj);
     if (mode == ANIMATE_SHOW_FRAME) {
-        if (looped_animation(g, obj) != RESUME_MOVEMENT) {
+        if (!resumes_movement(g, obj)) {
             set_mode(g, obj, ANIMATE_LOOP);
             return MOVEMENT_KEPT_BY_SCRIPT;
         }
@@ -201,7 +205,7 @@ MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
     leave_speed_part(g, magnitude((uint8_t)field_object_velocity_x(g, obj)));
     uint8_t speed = movement_speed(g, obj);
     MovementAnimation choice = speed == 0 ? MOVEMENT_STAND
-                               : speed >= RUNNING_SPEED && field_object_state_state(g, obj) < STATE_WALKS_ONLY
+                               : speed >= RUNNING_SPEED && object_role(g, obj) < ROLE_WALKS_ONLY
                                    ? MOVEMENT_RUN
                                    : MOVEMENT_WALK;
     static const uint8_t animations[] = { 0, ANIMATION_STAND, ANIMATION_WALK, ANIMATION_RUN };
@@ -282,32 +286,29 @@ static bool queue_last(GameState *g, FieldObject obj)
  * the party first when the builder has asked; a disabled object not at all. */
 static bool queue_for_frame(GameState *g, FieldObject obj)
 {
-    uint8_t state = field_object_state_state(g, obj);
-    if (state & STATE_DISABLED)
+    if (object_disabled(g, obj))
         return false;
-    bool first = state == STATE_LEADER;
-    if ((state == STATE_PARTY_1 || state == STATE_PARTY_2) && field_animation_queue_front(g) == QUEUE_PARTY_FIRST) {
+    uint8_t role = object_role(g, obj);
+    bool first = role == ROLE_LEADER;
+    if ((role == ROLE_PARTY_1 || role == ROLE_PARTY_2) && field_animation_queue_front(g) == QUEUE_PARTY_FIRST) {
         set_field_animation_queue_front(g, 0);
         first = true;
     }
     return first ? queue_first(g, obj) : queue_last(g, obj);
 }
 
-/* A one-off animation reached the end of its delays: one play less, or on
- * the last, hold the frame it is on. */
+/* A one-off animation reached the end of its delays: another play from its
+ * first frame, or on the last, hold the frame it is on. */
 static void count_a_play(GameState *g, FieldObject obj)
 {
     uint8_t plays = plays_left(g, obj);
-    if (plays == PLAYS_DONE) {
-        set_field_object_animation_frame(g, obj, (uint8_t)(field_object_animation_frame(g, obj) - 1));
-        return;
-    }
-    if ((uint8_t)(plays - 2) != 0) {
-        set_plays_left(g, obj, (uint8_t)(plays - 2));
+    if (plays != PLAYS_DONE && plays != PLAYS_LAST) {
+        set_plays_left(g, obj, (uint8_t)(plays - PLAYS_PER_DELAY_END));
         set_field_object_animation_frame(g, obj, 0);
         return;
     }
-    set_plays_left(g, obj, PLAYS_DONE);
+    if (plays == PLAYS_LAST)
+        set_plays_left(g, obj, PLAYS_DONE);
     set_field_object_animation_frame(g, obj, (uint8_t)(field_object_animation_frame(g, obj) - 1));
 }
 
@@ -365,58 +366,63 @@ static uint16_t facing_frame_table(const GameState *g, FieldObject obj)
     return on == 0 ? table : (uint16_t)(on * field_object_facing_table_size(g, obj) + table);
 }
 
-static uint8_t frame_entry(const GameState *g)
+/* The frame table's entry at an address in the bank the frame builder set. */
+static uint8_t frame_entry(const GameState *g, uint16_t address)
 {
-    uint16_t address = field_frame_entry_address(g);
-    uint32_t pointer = (uint32_t)field_frame_entry_bank(g) << 16 | address;
-    return field_animation_frame_entry(g, pointer);
+    return field_animation_frame_entry(g, (uint32_t)field_frame_entry_bank(g) << 16 | address);
 }
 
-// $C0:CB3A
-/* The frame at the object's place in its animation, through the entry
- * pointer (the frame builder has set its bank). At the animation's end, a
- * one-off counts a play and there is no frame; any other animation starts
- * over. */
-ObjectFrame object_current_frame(GameState *g, FieldObject obj)
+/* What reading the frame leaves for the entry's wrapper: the plays left where
+ * a one-off counted one (the original returns them where the frame would
+ * be), and whether the animation started over. */
+typedef struct {
+    uint8_t plays_counted;
+    bool started_over;
+} FrameTrace;
+
+/* The frame at the object's place in its animation. The entry's address is
+ * kept in field_frame_entry_address, where the frame builder goes on from. At
+ * the animation's end, a one-off counts a play and there is no frame; any
+ * other animation starts over, its frame set one before the first so that the
+ * tick's next frame is the first. */
+static ObjectFrame current_frame(GameState *g, FieldObject obj, FrameTrace *t)
 {
+    *t = (FrameTrace){ 0, false };
     if (tables_on(field_object_facing(g, obj)) == 3)
         leave_frame_sum_part(g, field_object_facing_table_size(g, obj));
     uint16_t table = facing_frame_table(g, obj);
-    set_field_frame_entry_address(g, table);
     uint8_t frame = field_object_animation_frame(g, obj);
     leave_frame_sum_part(g, frame);
     bool one_off = object_animation_mode(g, obj) == ANIMATE_PLAY;
     uint8_t animation = one_off ? one_off_animation(g, obj) : looped_animation(g, obj);
     uint16_t entry = (uint16_t)(animation * FRAMES_PER_ANIMATION + frame + table);
-    set_field_frame_entry_address(g, entry);
-    ObjectFrame r = { .frame = frame_entry(g), .has_frame = true };
-    if (r.frame != END_OF_FRAMES)
-        return r;
-    if (one_off) {
-        r.frame = (uint8_t)(plays_left(g, obj) - 1);
-        if (r.frame != PLAYS_NONE)
-            set_plays_left(g, obj, r.frame);
-        r.has_frame = false;
-        return r;
+    ObjectFrame r = { true, frame_entry(g, entry) };
+    if (r.frame != END_OF_FRAMES) {
+        set_field_frame_entry_address(g, entry);
+    } else if (one_off) {
+        set_field_frame_entry_address(g, entry);
+        t->plays_counted = (uint8_t)(plays_left(g, obj) - 1);
+        if (t->plays_counted != PLAYS_NONE)
+            set_plays_left(g, obj, t->plays_counted);
+        r = (ObjectFrame){ false, 0 };
+    } else {
+        uint16_t first = (uint16_t)(entry - frame);
+        set_field_frame_entry_address(g, first);
+        set_field_object_animation_frame(g, obj, END_OF_FRAMES);
+        r.frame = frame_entry(g, first);
+        t->started_over = true;
     }
-    set_field_frame_entry_address(g, (uint16_t)(entry - frame));
-    set_field_object_animation_frame(g, obj, END_OF_FRAMES);
-    r.frame = frame_entry(g);
-    r.started_over = true;
     return r;
 }
 
-/* ---- Entries --------------------------------------------------------------------------- */
-
-/* The flags the original's arithmetic leaves, which callers of these entries
- * read: the overflow of a byte sum, and of a 16-bit sum or difference. */
-static bool byte_sum_overflows(uint8_t a, uint8_t b)
+// $C0:CB3A
+ObjectFrame object_current_frame(GameState *g, FieldObject obj)
 {
-    uint8_t sum = (uint8_t)(a + b);
-    return (~(a ^ b) & (a ^ sum) & 0x80) != 0;
+    FrameTrace t;
+    return current_frame(g, obj, &t);
 }
-static bool sum_overflows(uint16_t a, uint16_t b, uint16_t sum) { return (~(a ^ b) & (a ^ sum) & 0x8000) != 0; }
-static bool difference_overflows(uint16_t a, uint16_t b, uint16_t d) { return ((a ^ b) & (a ^ d) & 0x8000) != 0; }
+
+/* ---- Entries --------------------------------------------------------------------------- */
 
 /* On the field's page, the current object's (16-bit X). The overflow of the
  * speed's sum is read after, where the speed was looked at. */
@@ -425,8 +431,8 @@ void field_update_walk_animation(Snes *s)
     GameState *g = state_of(s);
     FieldObject obj = field_current_object_slot(s);
     if (object_animate_movement(g, obj) != MOVEMENT_KEPT_BY_SCRIPT)
-        m_set_flag(s, CPU_FLAG_V, byte_sum_overflows(magnitude((uint8_t)field_object_velocity_y(g, obj)),
-                                                     magnitude((uint8_t)field_object_velocity_x(g, obj))));
+        m_set_flag(s, CPU_FLAG_V, field_add_overflows8(magnitude((uint8_t)field_object_velocity_y(g, obj)),
+                                                       magnitude((uint8_t)field_object_velocity_x(g, obj))));
     m_rts(s);
 }
 
@@ -446,14 +452,18 @@ enum { BANK_SIZE = 0x10000 };
 
 static bool link_or_none(uint8_t link) { return !field_link_is_object(link) || !(link & 1); }
 
+bool field_tick_is_exact(const GameState *g, unsigned obj)
+{
+    return first_delay_entry(g, (FieldObject)obj) < BANK_SIZE && link_or_none(field_animation_queue_head(g)) &&
+           link_or_none(field_animation_queue_tail(g));
+}
+
 bool field_object_delays_in_bank(Snes *s)
 {
     if (!field_current_object_low_bank(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = first_delay_entry(g, (FieldObject)field_current_object_slot(s)) < BANK_SIZE &&
-              link_or_none(field_animation_queue_head(g)) && link_or_none(field_animation_queue_tail(g));
+    bool ok = field_tick_is_exact(state_of(s), field_current_object_slot(s));
     vars_peek(false);
     return ok;
 }
@@ -471,7 +481,7 @@ bool field_object_frames_in_bank(Snes *s)
 }
 
 /* The current object's (8-bit X). */
-void field_step_object_animation(Snes *s)
+void field_tick_object_animation(Snes *s)
 {
     object_animation_tick(state_of(s), field_current_object_slot(s));
     m_rts(s);
@@ -485,17 +495,18 @@ void field_read_animation_frame(Snes *s)
 {
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_object_in_x(s);
-    ObjectFrame r = object_current_frame(g, obj);
+    FrameTrace t;
+    ObjectFrame r = current_frame(g, obj, &t);
     uint16_t entry = field_frame_entry_address(g);
-    s->cpu.a = (uint16_t)((entry & 0xFF00) | r.frame);
+    s->cpu.a = (uint16_t)((entry & 0xFF00) | (r.has_frame ? r.frame : t.plays_counted));
     m_set_flag(s, CPU_FLAG_C, r.has_frame);
     bool overflow;
-    if (r.started_over) {
+    if (t.started_over) {
         uint16_t frame = original_cell_value16(g, 0xD9);
-        overflow = difference_overflows((uint16_t)(entry + frame), frame, entry);
+        overflow = field_subtract_overflows16((uint16_t)(entry + frame), frame);
     } else {
         uint16_t table = facing_frame_table(g, obj);
-        overflow = sum_overflows((uint16_t)(entry - table), table, entry);
+        overflow = field_add_overflows16((uint16_t)(entry - table), table);
     }
     m_set_flag(s, CPU_FLAG_V, overflow);
     m_rts(s);

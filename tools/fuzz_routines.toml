@@ -3881,7 +3881,8 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00"]
 why = "as field_update_walk_animation"
 
 [[routine]]
-name = "field_step_object_animation"
+name = "field_tick_object_animation"
+at = "C0:C98A"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00"]
@@ -3949,7 +3950,7 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--keep", "7E0A00-7E1CFF", "--keep", "7F0A00-7F0BFF", "--keep", "7F2000-7F2000"]
 iterations = 2000
-why = "the objects as the field state has them (random objects send the steps' call-outs anywhere); each step runs as a call-out"
+why = "the objects as the field state has them (random objects send the steps' call-outs anywhere); the move and view steps run as call-outs, the tick, the rows and the screen position inline where their entries' guards would take the state and as call-outs where not"
 
 [[routine]]
 name = "field_update_object_visibility"
@@ -3966,18 +3967,20 @@ args = ["--d", "0100", "--db", "00"]
 why = "as field_update_object_visibility"
 
 [[routine]]
-name = "field_unlink_object_row"
+name = "field_leave_object_row"
+at = "C0:A98A"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--keep", "7E0E00-7E0EFF"]
 why = "the field's page and data bank; the rows as the field state has them, the object and its screen place random (odd objects turned away by the guard)"
 
 [[routine]]
-name = "field_link_object_row"
+name = "field_join_object_row"
+at = "C0:A9CD"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--keep", "7E0E00-7E0EFF"]
-why = "as field_unlink_object_row"
+why = "as field_leave_object_row"
 
 [[routine]]
 name = "field_update_screen_position"
@@ -4126,7 +4129,7 @@ name = "field_send_scroll_0"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "7F"]
-why = "the field's page and the tables' bank; the carry in random"
+why = "the field's page and the tables' bank; the carry in random (its guard turns away a carry other than window 2's table choice, which is what the builders enter it with and what the port takes the wave's first line from)"
 
 [[routine]]
 name = "field_send_scroll_1"
@@ -4239,7 +4242,7 @@ name = "field_irq_after_hblank"
 subsystem = "field"
 state = "field"
 args = ["--db", "00"]
-why = "a bank reaching the registers; the column upload or the tile animation runs as a call-out"
+why = "a bank reaching the registers; either of the frame's late jobs runs as a call-out"
 
 [[routine]]
 name = "field_install_nmi"

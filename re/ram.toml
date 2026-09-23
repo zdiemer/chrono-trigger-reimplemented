@@ -1077,7 +1077,7 @@ addr = "7E:0128"
 page = "field"
 subsystem = "field"
 meaning = "Per-line effect (HDMA) enable shadow the field NMI restores every frame"
-source = "game/field/nmi.c field_nmi $C0:EA63; game/field/display.c field_setup_line_effects $FD:C1EE"
+source = "game/field/nmi.c field_nmi $C0:EA63; game/field/line_effects.c field_setup_line_effects $FD:C1EE"
 
 [[var]]
 name = "dialog_state"
@@ -1085,7 +1085,7 @@ addr = "7E:0129"
 page = "field"
 subsystem = "field"
 meaning = "Dialog request and state: event dialog commands set 1 to start one and wait while it is nonzero; $0D is set when the waiting object leaves view"
-source = "game/event/dialog.c $C0:3570; game/field/objects.c field_update_object_visibility $C0:A88D"
+source = "game/event/dialog.c $C0:3570; game/field/object_view.c field_update_object_visibility $C0:A88D"
 
 [[var]]
 name = "dialog_string"
@@ -1134,7 +1134,7 @@ addr = "7E:013C"
 page = "field"
 subsystem = "field"
 meaning = "Bit 0: the eighth per-line effect drives window 2's right edge instead of its left"
-source = "game/field/display.c, field_setup_line_effects $FD:C1EE"
+source = "game/field/line_effects.c, field_setup_line_effects $FD:C1EE"
 
 [[var]]
 name = "field_map_transition"
@@ -1202,8 +1202,8 @@ name = "field_display_flags"
 addr = "7E:0153"
 page = "field"
 subsystem = "field"
-meaning = "Low nibble set: the per-line effects use the second set of tables; bit 0 also picks the field IRQ's tilemap routine ($FD:FFFD instead of $C0:ED15)"
-source = "game/field/display.c, field_setup_line_effects $FD:C1EE, field_irq_after_hblank $C0:ECF2"
+meaning = "Bit 0: the line effects read table set 1 (the builders build the other and flip it every frame; the vblank programs set 1 for any bit of the low nibble), and the line interrupt's late work alternates with it ($FD:FFFD instead of $C0:ED15). Bit 7: the field's setup builds both sets from its own scroll and color math"
+source = "game/field/line_effects.c, field_setup_line_effects $FD:C1EE, field_build_line_effect_tables $FD:C2C1; game/field/display.c, field_irq_after_hblank $C0:ECF2"
 
 [[var]]
 name = "dialog_choice_active"
@@ -1261,7 +1261,7 @@ page = "field"
 stride = 2
 subsystem = "field"
 meaning = "Queue of objects due a new animation frame, which the frame builder works through, linked through field_object_animation_link (objects as links: slots doubled, negative none)"
-source = "game/field/animation.c, field_step_object_animation $C0:C98A"
+source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
 [[var.field]]
 name = "head"
 offset = 0
@@ -1277,7 +1277,7 @@ addr = "7E:0178"
 page = "field"
 subsystem = "field"
 meaning = "2: the next object in state 1 or 2 due a frame goes to the front of the animation queue (then cleared)"
-source = "game/field/object_update.c, field_step_object_animation $C0:C98A"
+source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
 
 [[var]]
 name = "field_sprite_range_spare"
@@ -1445,8 +1445,8 @@ name = "field_setting_bc"
 addr = "7E:01BC"
 page = "field"
 subsystem = "field"
-meaning = "Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts ($C0:0BA4); what reads it isn't established"
-source = "game/event/screen.c event_cmd_set_bc $C0:3D84"
+meaning = "While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames, except against the map's left or top edge. Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts ($C0:0BA4)"
+source = "game/event/screen.c event_cmd_set_bc $C0:3D84; game/field/layers.c $C0:91AC"
 
 [[var]]
 name = "event_count"
@@ -1517,7 +1517,7 @@ page = "field"
 size = 8
 subsystem = "field"
 meaning = "Cells the field's object, sprite and graphics routines keep values in on the way: an animation's delay entry ($C1), the view window's edges or an object's screen position ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7)"
-source = "game/field/graphics.c, game/field/objects.c, game/field/sprites.c, game/field/motion.c, game/field/object_update.c (field/scratch.h)"
+source = "game/field/graphics.c, game/field/object_view.c, game/field/sprites.c, game/field/motion.c, game/field/object_update.c (field/scratch.h)"
 
 [[var]]
 name = "field_sprite_graphics"
@@ -1553,7 +1553,7 @@ page = "field"
 stride = 3
 subsystem = "field"
 meaning = "A long pointer to an object's current animation frame entry: the frame read sets the address, its caller the bank"
-source = "game/field/graphics.c, field_read_animation_frame $C0:CB3A"
+source = "game/field/animation.c, field_read_animation_frame $C0:CB3A"
 [[var.field]]
 name = "address"
 offset = 0
@@ -1776,7 +1776,7 @@ stride = 2
 index = "screen row (screen Y / 4, even)"
 subsystem = "field"
 meaning = "First object of each screen row's list, negative for none"
-source = "game/field/object_update.c field_link_object_row $C0:A9CD; game/field/sprites.c field_build_sprite_table $C0:B271"
+source = "game/field/object_update.c field_join_object_row $C0:A9CD; game/field/sprites.c field_build_sprite_table $C0:B271"
 
 [[var]]
 name = "field_object_unlinked"
@@ -1786,7 +1786,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Negative while the object isn't in a row list, 0 while it is"
-source = "game/field/object_update.c, field_unlink_object_row $C0:A98A, field_link_object_row $C0:A9CD"
+source = "game/field/object_update.c, field_leave_object_row $C0:A98A, field_join_object_row $C0:A9CD"
 
 [[var]]
 name = "field_object_row_link"
@@ -1796,7 +1796,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "The object's links in its screen row's doubly linked list (negative: none)"
-source = "game/field/object_update.c, field_unlink_object_row $C0:A98A, field_link_object_row $C0:A9CD"
+source = "game/field/object_update.c, field_leave_object_row $C0:A98A, field_join_object_row $C0:A9CD"
 [[var.field]]
 name = "previous"
 offset = 0
@@ -1814,7 +1814,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "$80 while the object is inside the window around the screen (active), 0 outside"
-source = "game/field/objects.c field_update_object_visibility $C0:A88D; game/field/object_update.c field_update_object_in_window $C0:A947; game/event/flow.c event_cmd_if_object_in_view $C0:662C"
+source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game/field/object_view.c field_update_object_in_window $C0:A947; game/event/flow.c event_cmd_if_object_in_view $C0:662C"
 
 [[var]]
 name = "field_object_priority_mode"
@@ -1844,7 +1844,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Next object in the animation queue (negative: not queued)"
-source = "game/field/object_update.c, field_step_object_animation $C0:C98A"
+source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
 
 [[var]]
 name = "field_object_step_count"
@@ -1924,7 +1924,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Size of one facing's part of the object's animation frame table (facing 1-3 add it 1-3 times to field_object_frame_table)"
-source = "game/field/graphics.c, field_read_animation_frame $C0:CB3A"
+source = "game/field/animation.c, field_read_animation_frame $C0:CB3A"
 
 [[var]]
 name = "field_object_frame_table"
@@ -1935,7 +1935,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Address of the object's animation frame table (4 entries per animation)"
-source = "game/field/graphics.c, field_read_animation_frame $C0:CB3A"
+source = "game/field/animation.c, field_read_animation_frame $C0:CB3A"
 
 [[var]]
 name = "field_object_delay_table"
@@ -1946,7 +1946,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Address in bank $E4 of the object's animation delay table (4 entries per animation)"
-source = "game/field/object_update.c, field_step_object_animation $C0:C98A"
+source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
 
 [[var]]
 name = "field_object_facing"
@@ -1956,7 +1956,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Which way the object faces (0-3)"
-source = "game/event/facing.c set_facing $C0:554D; game/field/graphics.c field_read_animation_frame $C0:CB3A"
+source = "game/event/facing.c set_facing $C0:554D; game/field/animation.c field_read_animation_frame $C0:CB3A"
 
 [[var]]
 name = "field_object_frame_delay"
@@ -1966,7 +1966,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Frames left before the object's next animation frame; cleared to restart an animation"
-source = "game/field/object_update.c, field_step_object_animation $C0:C98A"
+source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
 
 [[var]]
 name = "field_object_animation"
@@ -1976,7 +1976,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "The object's animation"
-source = "game/event/animation.c, $C0:2E6D; game/field/motion.c field_update_walk_animation"
+source = "game/event/animation.c, $C0:2E6D; game/field/animation.c field_update_walk_animation"
 [[var.field]]
 name = "number"
 offset = 0
@@ -2060,7 +2060,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "X velocity added to the position each step, sign-extended to 16 bits"
-source = "game/field/motion.c field_set_velocity; game/field/object_update.c field_move_object $C0:AA07"
+source = "game/field/motion.c field_set_velocity; game/field/motion.c field_move_object $C0:AA07"
 
 [[var]]
 name = "field_object_velocity_y"
@@ -2071,7 +2071,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Y velocity added to the position each step, sign-extended to 16 bits"
-source = "game/field/motion.c field_set_velocity; game/field/object_update.c field_move_object $C0:AA07"
+source = "game/field/motion.c field_set_velocity; game/field/motion.c field_move_object $C0:AA07"
 
 [[var]]
 name = "field_object_speed"
@@ -2111,7 +2111,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "1: the object has a sprite; 0 or negative ($80): none (counts as out of view)"
-source = "game/event/properties.c set_sprite_flag $C0:4CD9; game/field/objects.c field_update_object_visibility $C0:A88D"
+source = "game/event/properties.c set_sprite_flag $C0:4CD9; game/field/object_view.c field_update_object_visibility $C0:A88D"
 
 [[var]]
 name = "field_object_sprite_state"
@@ -2232,7 +2232,7 @@ addr = "7E:1D0A"
 page = "field_layers"
 subsystem = "field"
 meaning = "The screen's left edge in 8-pixel tiles (with the fine scroll, the screen origin's X)"
-source = "game/field/objects.c field_update_object_visibility $C0:A88D; game/field/object_update.c field_update_screen_position $C0:AB45"
+source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game/field/object_update.c field_update_screen_position $C0:AB45"
 
 [[var]]
 name = "field_screen_right"
@@ -2240,7 +2240,7 @@ addr = "7E:1D0C"
 page = "field_layers"
 subsystem = "field"
 meaning = "The screen's right edge in 8-pixel tiles"
-source = "game/field/objects.c, field_update_object_visibility $C0:A88D"
+source = "game/field/object_view.c, field_update_object_visibility $C0:A88D"
 
 [[var]]
 name = "field_screen_top"
@@ -2248,7 +2248,7 @@ addr = "7E:1D0E"
 page = "field_layers"
 subsystem = "field"
 meaning = "The screen's top edge in 8-pixel tiles (with the fine scroll, the screen origin's Y)"
-source = "game/field/objects.c field_update_object_visibility $C0:A88D; game/field/object_update.c field_update_screen_position $C0:AB45"
+source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game/field/object_update.c field_update_screen_position $C0:AB45"
 
 [[var]]
 name = "field_screen_bottom"
@@ -2256,7 +2256,7 @@ addr = "7E:1D10"
 page = "field_layers"
 subsystem = "field"
 meaning = "The screen's bottom edge in 8-pixel tiles"
-source = "game/field/objects.c, field_update_object_visibility $C0:A88D"
+source = "game/field/object_view.c, field_update_object_visibility $C0:A88D"
 
 [[var]]
 name = "field_map_index_mask"
@@ -2887,7 +2887,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Per-object movement and animation counters"
-source = "game/field/object_update.c field_move_object $C0:AA07; game/event/animation.c COUNTDOWN"
+source = "game/field/motion.c field_move_object $C0:AA07; game/event/animation.c COUNTDOWN"
 [[var.field]]
 name = "tile_mode"
 offset = 0
@@ -2905,7 +2905,7 @@ count = 16
 index = "table set * 8 + effect slot"
 subsystem = "field"
 meaning = "Indirect tables of the eight per-line effects (tile map addresses, BG1-BG3 scroll, screens, window 1, color math, window 2 edge), two sets, the second picked by field_display_flags"
-source = "game/field/display.c, field_setup_line_effects $FD:C1EE ($7F:0F80 and $7F:1238, $57 apart)"
+source = "game/field/line_effects.c, field_setup_line_effects $FD:C1EE ($7F:0F80 and $7F:1238, $57 apart)"
 
 [[var]]
 name = "field_line_bg_maps"

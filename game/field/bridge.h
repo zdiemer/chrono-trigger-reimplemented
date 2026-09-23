@@ -25,9 +25,8 @@
 
 enum { FIELD_PAGE = 0x0100, FIELD_LAYERS_PAGE = 0x1D00 };
 
-/* The object an index register names: its slot, the register halved. */
+/* The object X names: its slot, the register halved. */
 static inline unsigned field_object_in_x(const Snes *s) { return s->cpu.x >> 1; }
-static inline unsigned field_object_in_y(const Snes *s) { return s->cpu.y >> 1; }
 
 /* The current object's slot, read as the entry's index registers read it:
  * its low byte with 8-bit X, the word with 16-bit X. */
@@ -43,6 +42,50 @@ static inline bool field_names_object(uint16_t doubled) { return !(doubled & 1) 
  * were. Otherwise the port stops at the call's return address and the
  * original carries on from the callee's machine. */
 bool field_machine_back(const Snes *s, bool x8, uint16_t d, uint8_t db);
+
+/* The overflow flag the original's last addition or subtraction leaves, for
+ * the entry wrappers whose callers read it: whether a + b (or a - b), taken
+ * as signed 8- or 16-bit numbers, left the signed range. The game's logic
+ * never looks at it; only the original's code after the call does. */
+static inline bool field_add_overflows8(uint8_t a, uint8_t b)
+{
+    uint8_t sum = (uint8_t)(a + b);
+    return ((~(a ^ b) & (a ^ sum)) & 0x80) != 0;
+}
+static inline bool field_subtract_overflows8(uint8_t a, uint8_t b)
+{
+    uint8_t difference = (uint8_t)(a - b);
+    return (((a ^ b) & (a ^ difference)) & 0x80) != 0;
+}
+static inline bool field_add_with_carry_overflows16(uint16_t a, uint16_t b, bool carry)
+{
+    uint16_t sum = (uint16_t)(a + b + carry);
+    return ((~(a ^ b) & (a ^ sum)) & 0x8000) != 0;
+}
+static inline bool field_add_overflows16(uint16_t a, uint16_t b) { return field_add_with_carry_overflows16(a, b, false); }
+static inline bool field_subtract_overflows16(uint16_t a, uint16_t b)
+{
+    uint16_t difference = (uint16_t)(a - b);
+    return (((a ^ b) & (a ^ difference)) & 0x8000) != 0;
+}
+
+/* What the guards of the object update's steps check, over the game's state,
+ * so that the update can run those steps inline where they hold and call
+ * their entries (and so the original) where they don't: the tick's delay
+ * entry inside its bank and the frame queue's links objects or none; the
+ * rows' links even. */
+bool field_tick_is_exact(const GameState *g, unsigned obj);
+bool field_rows_are_exact(const GameState *g, unsigned obj);
+
+/* The object update's steps that are entries of their own, for the update to
+ * run as C calls on the machine the entries would have (the current object
+ * on the field's page): the move (field/motion.c), the view and the
+ * window-only check (field/object_view.c). They leave the flags the entries
+ * leave; the view step is a bridge, and false where it stopped. */
+void field_move_current_object(Snes *s, bool party_member);
+bool field_update_visibility(Snes *s);
+bool field_view_unchanged(const GameState *g, unsigned obj);
+void field_update_in_window(Snes *s);
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 

@@ -17,12 +17,12 @@
 
 #include "cpu_io.h"
 #include "field/bridge.h"
+#include "field/field.h"
 #include "field/scratch.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { LAYERS = 3, BG1 = 0 };
 enum { HALF_COLUMNS = 32, MAP_COLUMNS = 64, MAP_ROWS = 32, SECOND_HALF = 0x0400, LAST_ROW_OF_HALF = 0x03E0 };
 enum { COLUMN_MASK = MAP_COLUMNS - 1, ROW_MASK = MAP_ROWS - 1 };
 enum { SCREEN_ROWS = 28 };   /* the row below the screen's is 28 on from its top */
@@ -139,7 +139,7 @@ static void leave_for_original(GameState *g, const LayerEdges *last)
 static void compute_layer_edges(GameState *g)
 {
     LayerEdges e;
-    for (unsigned layer = 0; layer < LAYERS; layer++) {
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         uint8_t x = field_layer_position_x(g, layer), y = field_layer_position_y(g, layer);
         uint16_t left = (uint16_t)((x - 1) & COLUMN_MASK), top = (uint16_t)((y - 1) & ROW_MASK);
         left_edge(g, &e, left, (uint16_t)(y & ROW_MASK));
@@ -176,7 +176,7 @@ static uint8_t scroll_target(const GameState *g, unsigned axis)
 /* BG1's fine scroll on the axis, which says whether the screen is on a tile. */
 static uint8_t fine_scroll(const GameState *g, unsigned axis)
 {
-    return (uint8_t)(axis == AXIS_X ? field_layer_scroll_h(g, BG1) : field_layer_scroll_v(g, BG1));
+    return (uint8_t)(axis == AXIS_X ? field_layer_scroll_h(g, FIELD_BG1) : field_layer_scroll_v(g, FIELD_BG1));
 }
 
 // $C0:91B0
@@ -234,7 +234,7 @@ static uint8_t screen_motion(const GameState *g, unsigned axis)
 static void accumulate(GameState *g, unsigned layer, unsigned axis)
 {
     uint8_t sum = (uint8_t)(accumulator(g, layer, axis) + extra_speed(g, layer, axis));
-    if (layer == BG1) {
+    if (layer == FIELD_BG1) {
         sum = (uint8_t)(sum + screen_motion(g, axis));
     } else {
         uint8_t speed = axis == AXIS_X ? field_layer_speed_x(g, layer - 1) : field_layer_speed_y(g, layer - 1);
@@ -243,14 +243,6 @@ static void accumulate(GameState *g, unsigned layer, unsigned axis)
             sum = (uint8_t)(sum + screen_motion(g, axis));
     }
     set_accumulator(g, layer, axis, sum);
-}
-
-/* A 4.4 accumulator's fraction, sign-extended to the byte. */
-static uint8_t fraction_of(int8_t v)
-{
-    if ((v & 0x0F) == 0)
-        return 0;
-    return v < 0 ? (uint8_t)(v | 0xF0) : (uint8_t)(v & 0x0F);
 }
 
 /* The accumulator's whole pixels become this frame's move (rounded toward
@@ -266,7 +258,7 @@ static void take_pixels(GameState *g, unsigned layer, unsigned axis)
         set_field_layer_move_negative(g, k, (uint8_t)(-v >> 4));
         set_field_layer_move_positive(g, k, 0);
     }
-    set_accumulator(g, layer, axis, fraction_of((int8_t)accumulator(g, layer, axis)));
+    set_accumulator(g, layer, axis, field_scroll_fraction((int8_t)accumulator(g, layer, axis)));
 }
 
 // $C0:91AC
@@ -293,17 +285,17 @@ static void update_layer_scroll(GameState *g)
         if (field_screen_top(g) == 0)
             set_field_scroll_offset_y(g, 0);
     }
-    for (unsigned layer = 0; layer < LAYERS; layer++)
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
         for (unsigned axis = 0; axis < AXES; axis++)
             accumulate(g, layer, axis);
-    for (unsigned layer = 0; layer < LAYERS; layer++)
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
         for (unsigned axis = 0; axis < AXES; axis++)
             take_pixels(g, layer, axis);
     uint8_t time = field_layer_extra_speed_time(g);
     if (time != 0) {
         set_field_layer_extra_speed_time(g, (uint8_t)(time - 1));
         if (time == 1)
-            for (unsigned layer = 0; layer < LAYERS; layer++) {
+            for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
                 set_field_layer_extra_speed_x(g, layer, 0);
                 set_field_layer_extra_speed_y(g, layer, 0);
             }
@@ -409,7 +401,7 @@ static void leave_for_original_unpack(GameState *g, const UnpackLeftovers *l)
  * after them, 0 meaning 256. */
 static void unpack_attributes(GameState *g, UnpackLeftovers *l)
 {
-    MapSize size = layer_size(g, BG1);
+    MapSize size = layer_size(g, FIELD_BG1);
     MapPlace p = { 0, 0 };
     l->size = size;
     for (;;) {
@@ -483,11 +475,11 @@ void field_compute_layer_edges(Snes *s)
 {
     GameState *g = state_of(s);
     compute_layer_edges(g);
-    uint16_t base = field_layer_map_base(g, LAYERS - 1);
-    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, LAYERS - 1, 16) |
-                              field_layer_edge_vram_byte(g, LAYERS - 1, 17) << 8);
+    uint16_t base = field_layer_map_base(g, FIELD_BG3);
+    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, FIELD_BG3, 16) |
+                              field_layer_edge_vram_byte(g, FIELD_BG3, 17) << 8);
     uint16_t index = (uint16_t)(sum - base);
-    m_set_flag(s, CPU_FLAG_V, (~(index ^ base) & (index ^ sum) & 0x8000) != 0);
+    m_set_flag(s, CPU_FLAG_V, field_add_overflows16(index, base));
     m_set_flag(s, CPU_FLAG_M, true);
     m_rts(s);
 }

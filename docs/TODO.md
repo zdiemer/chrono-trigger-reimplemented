@@ -11,10 +11,13 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Hand ports' time is an estimate**, so `--native on --recomp on` drifts from
   the original (battles play out differently). That difference is accepted
   (RECOMP.md, "Can a hand port be exact?"); the timing gate bounds the errors
-  (RECOMP.md, "The timing gate"). Left open there: fifteen entries whose
+  (RECOMP.md, "The timing gate"). Left open there: 25 entries whose
   time follows a path inside one routine, or a loop of the port's own, are on
   `tools/timing_exceptions.txt` (the decompressor, the menu's text, glyphs and
-  wave table, `field_rasterize_quad`, the scene's circle, the battle's wave
+  wave table, `field_rasterize_quad`, the field's sprite table, line-effect
+  builders and map unpacker, whose rewrites no longer make the index steps
+  the original's time follows, the field's object update, whose steps now
+  run in its own call, the scene's circle, the battle's wave
   windows and HP gradient, the free-slot walk that starts a menu object, and
   the own loops of the effect slots, the object
   drawing and its underlays); a dispatcher's handlers are attributed to
@@ -149,9 +152,9 @@ rest waits, is [PLAN.md](PLAN.md).
   decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
   round-trip on their decompressed output and would be assembled from their
   decoded form with it: MATCHING.md, "The event scripts").
-- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 46 addresses
+- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 43 addresses
   the code touches without anything establishing what they mean (menu 20,
-  battle 11, core 9, field 3, scene 3;
+  battle 11, core 9, scene 3;
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
   subsystem. The menus' three at `$7E:0D5D`, `$0D84` and `$0DC5` are the save
   slot summary's (`menu/save_screen.c`), and lie inside the object slots' span
@@ -279,14 +282,34 @@ below. `python3 tools/timing_census.py` re-runs the census.
   event subsystem off the machine"): 44 bridge helpers, 29 of them the move
   commands' calls into the field's motion routines (`$C0:ABA2`, `$C0:5B95`,
   `$C0:ACFD`, `$C0:AC69`, `$C0:5614`, `$C0:568B`, `$C0:30B3`, `$C0:305D`).
-  Once `field`'s rewrite makes those C over the game's state, the move
-  commands' decisions call them directly and `movement.c` leaves the machine;
-  the carry they hand each other (`tile_compare_carry`, `next_to_carry`) is
-  then a return value. The rest wait on the sound driver (`sound.c`), the
-  menus' party routines (`$C2:8004`), the tile copy `$C0:AF4E` and the
-  location change from `$C0:3B71`. When the engine itself runs its handlers as
-  C, `EventStep`'s `cursor` and `overflow` (the Y and V the original's callers
-  can see) go.
+  The field's rewrite made those C over the game's state, in `field/object.h`
+  (`direction_between`, `object_in_the_way`, `object_start_step`,
+  `object_head`, `object_animate_movement`, `object_stand`,
+  `object_line_up_with`, `object_line_up_with_tile`); what is left is event's
+  side: the move commands' decisions calling them directly, so `movement.c`
+  leaves the machine and the carry they hand each other
+  (`tile_compare_carry`, `next_to_carry`) becomes a return value, and the
+  animation commands (`event/animation.c`) calling `object_loop_animation`,
+  `object_play_animation` and the rest instead of keeping their own copy of
+  the animation's modes. The rest wait on the sound driver (`sound.c`), the
+  menus' party routines (`$C2:8004`), the tile copy `$C0:AF4E`, the location
+  change from `$C0:3B71`, and `$B0`'s state routines (PLAN.md, "What event's
+  bridges still call in the original"). When the engine itself runs its
+  handlers as C, `EventStep`'s `cursor` and `overflow` (the Y and V the
+  original's callers can see) go.
+- **What the field's rewrite left** (RECOMP.md, "Phase 3a: the field subsystem
+  off the machine"). The deferred uploads' edge runs are word arrays in the
+  map (`field_layer_edge_sizes`, `field_layer_edge_vram`) that `layers.c`
+  fills and `display.c` reads by index; a typed record for a layer's runs
+  would say which word is which, and what the alternate row and column
+  (the `_alt` uploads) are for. A one-off
+  animation's plays keep the scripts' units (the frame table's end takes one,
+  the delays' two), which `object_play_animation` takes as they are. The
+  sprite table is still written through the work RAM port (`field/sprites.c`),
+  whose address and bank are the hardware's state at entry. And
+  `field_setting_bc` turned out to be the screen's shake (the layer scroll
+  reads it; the map says so now), so event `$F4`, `set_bc` in
+  `tools/disasm/eventscript.py` and `event_cmd_set_bc`, wants that name.
 - **Fuzzing half the event states.** The event handlers' guards turn away an
   odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
   every tight run is skipped (more for the comparisons, whose operator must be
@@ -569,9 +592,10 @@ waits on M5 rather than on a backend.
   (RECOMP.md lists them by name). Matching definitions properly, and splitting
   the column into registered entries, guards and the rest, would make the rest
   the number to drive to zero.
-- **`tools/fuzz_routines.toml` has only the scene's entries.** Each subsystem's
-  Phase 3a rewrite adds its own from its PORTING.md rows as it goes; a check
-  that every registered entry has one would say when the file is complete.
+- **`tools/fuzz_routines.toml` has the scene's, the events' and the field's
+  entries.** Each subsystem's Phase 3a rewrite adds its own from its PORTING.md
+  rows as it goes; a check that every registered entry has one would say when
+  the file is complete.
 - **The scene sprite writers accept inputs they diverge on.** With the entry
   offset or the high-table pointer past `$2000`, the named sprite table writes
   bank `$7E` where the original, through a data bank of 0, reaches I/O space

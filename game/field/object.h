@@ -29,6 +29,7 @@
 #include <stdint.h>
 
 #include "state.h"
+#include "vars.h"
 
 typedef uint8_t FieldObject;
 enum { FIELD_OBJECTS = 64 };
@@ -39,6 +40,50 @@ static inline FieldObject field_object_of_link(uint8_t link) { return (FieldObje
 static inline uint8_t field_object_link(FieldObject obj) { return (uint8_t)(obj << 1); }
 static inline bool field_link_is_object(uint8_t link) { return !(link & 0x80); }
 enum { FIELD_NO_LINK = 0x80 };
+
+/* The object the field is working on (field_current_object, a word whose low
+ * byte is the object's link), which the original's routines take it from;
+ * by the object, or by a link as the rows and queues hold it. */
+static inline void field_make_link_current(GameState *g, uint8_t link);
+static inline void object_make_current(GameState *g, FieldObject obj);
+
+static inline void field_make_link_current(GameState *g, uint8_t link)
+{
+    set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | link));
+}
+static inline void object_make_current(GameState *g, FieldObject obj) { field_make_link_current(g, field_object_link(obj)); }
+
+/* ---- Role ------------------------------------------------------------------------------ */
+
+/* What the object is to the field, which decides how the object update treats
+ * it: the party's leader and the two members following it, who move freely;
+ * other objects; objects that only come and go with the view; and objects
+ * left alone. The party runs where its speed says; objects from
+ * ROLE_WALKS_ONLY on only ever walk. A disabled object (ROLE_DISABLED set) is
+ * out of the view, the checks for what is in the way and the animation. */
+enum {
+    ROLE_LEADER = 0,
+    ROLE_PARTY_1 = 1,
+    ROLE_PARTY_2 = 2,
+    ROLE_PARTY_END = 3,
+    ROLE_WALKS_ONLY = 4,
+    ROLE_WINDOW_ONLY = 7,
+    ROLE_LEFT_ALONE = 8,
+    ROLE_DISABLED = 0x80,
+};
+
+static inline uint8_t object_role(const GameState *g, FieldObject obj) { return field_object_state_state(g, obj); }
+static inline bool object_disabled(const GameState *g, FieldObject obj) { return object_role(g, obj) & ROLE_DISABLED; }
+
+/* Whether the object is inside the window around the screen, where the field
+ * updates, animates and draws it (field/object_view.c). The flag is
+ * OBJECT_IN_VIEW or OBJECT_OUT_OF_VIEW; the object update tests its top bit,
+ * the other readers the whole byte. */
+enum { OBJECT_OUT_OF_VIEW = 0x00, OBJECT_IN_VIEW = 0x80 };
+static inline bool object_in_view(const GameState *g, FieldObject obj)
+{
+    return field_object_in_view(g, obj) & OBJECT_IN_VIEW;
+}
 
 /* ---- Animation (field/animation.c) --------------------------------------------------- */
 
@@ -75,12 +120,11 @@ void object_stand(GameState *g, FieldObject obj);
 void object_animation_tick(GameState *g, FieldObject obj);
 
 /* The frame the object shows now, for the frame builder, and whether there
- * is one (a one-off animation that has played out has none; its plays left
- * are in `frame`). An animation at its end starts over at its first frame. */
+ * is one: a one-off animation at its end counts a play and has none. Any
+ * other animation at its end starts over at its first frame. */
 typedef struct {
-    uint8_t frame;
     bool has_frame;
-    bool started_over;
+    uint8_t frame;
 } ObjectFrame;
 ObjectFrame object_current_frame(GameState *g, FieldObject obj);
 
@@ -126,18 +170,15 @@ typedef enum {
 typedef struct {
     StartOutcome outcome;
     Direction direction;      /* the direction it heads in the end */
-    int8_t probe_step_y;      /* the vertical step it last looked ahead with */
 } StepStart;
 StepStart object_start_step(GameState *g, FieldObject obj, Direction direction);
 
 /* Whether another solid object in view stands within 256 sixteenths of a
  * pixel ahead of the object, the way it faces (only for an object in view
- * that minds other objects): the object in the way, and what the check last
- * measured, the distance ahead or across. */
+ * that minds other objects), and which. */
 typedef struct {
-    bool looked, blocked, measured;
-    FieldObject last;           /* the last object measured against: the one in the way where blocked */
-    uint16_t last_distance;
+    bool blocked;
+    FieldObject blocker;
 } ObjectsAhead;
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj);
 
@@ -151,12 +192,8 @@ bool object_line_up_with(GameState *g, FieldObject obj, FieldObject target);
  * within its tile unless the move lets it cross. The party's members step
  * freely. */
 typedef enum { STEP_NONE, STEP_FALLING, STEP_TAKEN } StepKind;
-typedef struct {
-    StepKind kind;
-    bool held_at_edge_y;   /* within its tile, the vertical step would have left it */
-} Step;
-Step object_take_step(GameState *g, FieldObject obj);
-Step party_member_take_step(GameState *g, FieldObject obj);
+StepKind object_take_step(GameState *g, FieldObject obj);
+StepKind party_member_take_step(GameState *g, FieldObject obj);
 
 /* ---- On the screen (field/object_update.c) ------------------------------------------------ */
 

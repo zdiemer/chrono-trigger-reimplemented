@@ -4,7 +4,13 @@
 
 #include <stdbool.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
+#include "state.h"
+
+/* Program the field's eight line effects from the table set the frame's
+ * builder finished (field/nmi.c, every vblank); returns the set. */
+uint8_t field_set_up_line_effects(GameState *g, Platform *pf);
 
 void field_setup_line_effects(Snes *s);
 void field_init_line_effect_values(Snes *s);
@@ -32,6 +38,7 @@ void field_fill_dialog_shading(Snes *s);
 bool field_line_effects_page_is_field(Snes *s);
 bool field_line_effects_bank_is_7f(Snes *s);
 bool field_line_effects_page_and_bank(Snes *s);
+bool field_line_effects_scroll_after_choice(Snes *s);
 bool field_line_effects_page_reaches_ram(Snes *s);
 bool field_line_effects_can_build(Snes *s);
 

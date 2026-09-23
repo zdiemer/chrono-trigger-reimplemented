@@ -83,9 +83,6 @@ static void copy_sprite_tile_flipped(GameState *g, uint16_t tile)
 
 /* ---- Entries: the frame builder's calls, on the field's page ------------------------------ */
 
-/* The overflow a 16-bit sum or difference leaves, which the callers see. */
-static bool sum_overflows(uint16_t a, uint16_t b, uint16_t sum) { return (~(a ^ b) & (a ^ sum) & 0x8000) != 0; }
-
 /* 16-bit A, the tile. Y comes back from the cell the copy saved it in, where
  * the original reads it. The straight copy leaves A its cursor, and the
  * overflow of its sum. */
@@ -98,8 +95,7 @@ static void tile_copy_entry(Snes *s, bool mirrored)
         copy_sprite_tile_flipped(g, tile);
     } else {
         uint16_t cursor = copy_sprite_tile(g, tile);
-        uint16_t to = (uint16_t)(cursor - TILE_BYTES);
-        m_set_flag(s, CPU_FLAG_V, sum_overflows(to, TILE_BYTES, cursor));
+        m_set_flag(s, CPU_FLAG_V, field_add_overflows16((uint16_t)(cursor - TILE_BYTES), TILE_BYTES));
         tile = cursor;
     }
     s->cpu.a = tile;

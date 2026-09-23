@@ -159,27 +159,28 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **42 of 89 files, 16,953 of
-27,677 lines (61%), are on the backlog**, and all but the scenes and the events
-is on the machine:
+each subsystem's functions that take the machine. **32 of 91 files, 14,026 of
+27,612 lines (51%), are on the backlog**, and all but the scenes, the events
+and the field is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 20 | 27 | 7,779 | 10,310 | 0.33 | 99% |
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
-| event | 0 | 16 | 0 | 2,512 | 0.02 | 50% |
-| field | 10 | 13 | 2,927 | 3,606 | 0.35 | 93% |
+| event | 0 | 16 | 0 | 2,545 | 0.02 | 29% |
+| field | 0 | 15 | 0 | 3,508 | 0.03 | 30% |
 | scene | 0 | 13 | 0 | 2,397 | 0.05 | 54% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
-| **total** | **42** | **89** | **16,953** | **27,677** | **0.27** | **79%** |
+| **total** | **32** | **91** | **14,026** | **27,612** | **0.23** | **69%** |
 
-Scene's 54% and event's 50% are their entries' wrappers, their guards and the
-bridges around their call-outs, and nothing else, counted by name
-(`portstyle.py`'s own column misses one-line definitions and macro-generated
-entries; RECOMP.md, "Phase 3a: the scene subsystem off the machine" and "Phase
-3a: the event subsystem off the machine", list what is neither an entry nor a
-guard, and why). Most of event's are the move commands' calls into the field's
-motion routines, which leave with `field`'s rewrite.
+Scene's 54%, event's 29% and field's 30% are their entries' wrappers, their
+guards and the bridges around their call-outs, and nothing else, counted by
+name (`portstyle.py`'s own column misses one-line definitions and
+macro-generated entries; RECOMP.md's "Phase 3a" sections for the three list
+what is neither an entry nor a guard, and why). Most of event's are the move
+commands' calls into the field's motion routines, which `field`'s rewrite made
+C over the game's state (`field/object.h`); calling them as C is event's next
+change (TODO.md).
 
 ### What decoupling means here, and what it must not break
 
@@ -248,19 +249,21 @@ than a fresh port and much better checked: the behaviour is already under the
 gate, so shadow mode compares the rewrite against the original call for call
 over the whole library, and the entry keeps its fuzzing. Rewriting a file to
 the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
-holds every other file where it is, so the list only shrinks. Order: `field`
-next, then `menu`, then `battle`, whose 7.8K lines are the largest and whose
-bank is also the least converted.
+holds every other file where it is, so the list only shrinks. Order: `menu`
+next, then `battle`, whose 7.8K lines are the largest and whose bank is also
+the least converted.
 
-`field` shares event's direct page and can reuse what event's rewrite built
-(RECOMP.md, "Phase 3a: the event subsystem off the machine"): the field page's
-cells now named in the map, the guard that looks at work RAM without the
-machine's time (`vars_peek`), the pattern of a bridge that stops at a
-call-out's return when the callee leaves the machine otherwise, and the move
-commands, whose decisions are already C and wait only for the field's motion
-routines to be ports. Its own command-like dispatchers (the object update's
-states) can take event's shape: a protocol written once as C types, and one
-macro making every registered entry.
+What `menu` can take from the field's rewrite (RECOMP.md, "Phase 3a: the field
+subsystem off the machine"): a domain module written before the files that use
+it (`field/object.h`), with a register-shaped result kept out of its types by
+a trace out-parameter only the entry's wrapper passes; a bridge that runs a
+ported step inline, timed as that routine (`NATIVE_TIME_AS`), and calls its
+entry instead where the state is one the entry's guard would refuse; the
+scaffolding writes in one helper per file, with final values only; the flags
+a caller reads derived in the wrapper through one set of helpers; and the work
+RAM port through `game/cpu_io.h` instead of a direct page on the registers,
+which `menu/display.c`'s fills and copies still use. Menu's objects are its own
+(the object scripts at `$C2`), not the field's.
 
 **Cells on a page the caller chooses** have a generated shape: a page kind in
 `re/ram.toml` lists the pages its code runs on, as measured over the library
@@ -419,6 +422,31 @@ at `$C6:FD00`, and without knowing what each stream holds their ports would be
 named after their destination addresses (RECOMP.md, "Phase 3, wave 2: the
 menus' map").
 
+**What event's bridges still call in the original.** Of the event commands'
+44 bridge helpers, most call the field's motion and animation, which are hand
+ports and, since the field's rewrite, C in `field/object.h` (`$C0:ABA2`,
+`$C0:5B95`, `$C0:ACFD`, `$C0:AC69`, `$C0:5614`, `$C0:568B`, `$C0:305D`,
+`$C0:30B3`), and the sound driver (`$C7:0004`, a port). What is still generated
+behind them, with the instructions each reaches and its bytes to the next
+label (`functions.json`):
+
+| Routine | Called from | Instructions | Bytes |
+|---|---|--:|--:|
+| `$C0:9E29` | `$B0`, an object in state 0 | 33 | 91 |
+| `$C0:A26B` | `$B0`, state 1 | 215 | 99 |
+| `$C0:A2CE` | `$B0`, state 2 | 219 | 109 |
+| `$C0:5B8D` | `$B0` after `$C0:9E29`, whose carry decides whether `$C0:3154` runs | 6 | 8 |
+| `$C0:3154` | `$B0` when it does | 42 | 93 |
+| `$C0:AF4E` | `$E4`'s tile copy | 167 | 328 |
+| `$C2:8004` | the menus' party routines (`$D5`, `$F8`-`$FA`), through their dispatcher | 3 | 146 |
+
+The three state routines share code past their labels (215 and 219
+instructions in about 100 bytes each), and `$C0:3154` lies in a 1003-byte
+unported run, `$C0:9E29` in one of 462 and `$C0:A26B`/`$C0:A2CE` in the 1168
+bytes from `$C0:A079`: those runs, with `$C0:AF4E`, are the `$C0` chunk that
+would take the move and state commands off the machine entirely. `$C2:8004` is
+the menus' and goes with `$C2`.
+
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:
 
@@ -458,7 +486,7 @@ battle routines at `$FD:A8A5`-`$B7EB` that `$C1` calls, which belong with the
 battle's conversion.
 
 **Two things the backlog does *not* need**, worth knowing before scoping Phase
-3a: the platform lint already covers all of `game/` bar four documented files,
+3a: the platform lint already covers all of `game/` bar three documented files,
 so hardware access is behind the services everywhere, and no screen geometry is
 baked in that widescreen would have to undo. The rewrite is readability, not
 portability.

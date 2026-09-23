@@ -739,8 +739,10 @@ void set_field_input_latched(GameState *g, uint16_t v);
 uint8_t field_frame_pending(const GameState *g);
 void set_field_frame_pending(GameState *g, uint8_t v);
 
-/* Low nibble set: the per-line effects use the second set of tables; bit 0 also picks the field
- * IRQ's tilemap routine ($FD:FFFD instead of $C0:ED15) */
+/* Bit 0: the line effects read table set 1 (the builders build the other and flip it every
+ * frame; the vblank programs set 1 for any bit of the low nibble), and the line interrupt's late
+ * work alternates with it ($FD:FFFD instead of $C0:ED15). Bit 7: the field's setup builds both
+ * sets from its own scroll and color math */
 uint8_t field_display_flags(const GameState *g);
 void set_field_display_flags(GameState *g, uint8_t v);
 
@@ -813,8 +815,9 @@ enum { FIELD_PARTY_OBJECTS_COUNT = 3 };   /* by party member * 2 */
 uint8_t field_party_objects(const GameState *g, unsigned member);
 void set_field_party_objects(GameState *g, unsigned member, uint8_t v);
 
-/* Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts
- * ($C0:0BA4); what reads it isn't established */
+/* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
+ * except against the map's left or top edge. Set by event $F4 (zero also clears
+ * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
 uint8_t field_setting_bc(const GameState *g);
 void set_field_setting_bc(GameState *g, uint8_t v);
 

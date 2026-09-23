@@ -61,6 +61,11 @@ typedef struct {
     uint8_t height;
 } Leftovers;
 
+/* The original steps through the edges from a jump table of its own code;
+ * where the right side is still to come, $F6 holds the step that looks for
+ * it, the edge routine at $C3:0F35. */
+enum { STEP_FIND_RIGHT_SIDE = 0x0F35 };
+
 static void leave_step_cell(GameState *g, uint8_t cell, uint16_t v)
 {
     set_field_window_shape_steps_byte(g, (unsigned)(cell - 0xF0), (uint8_t)v);
@@ -74,7 +79,7 @@ static void leave_for_original(GameState *g, const Leftovers *l)
         set_field_window_shape_edge_byte(g, i, ends[i]);
     leave_step_cell(g, 0xF0, l->fill_length);
     leave_step_cell(g, 0xF4, 0);
-    leave_step_cell(g, 0xF6, l->right_side_found ? 0 : 0x0F35);
+    leave_step_cell(g, 0xF6, l->right_side_found ? 0 : STEP_FIND_RIGHT_SIDE);
     set_field_window_shape_steps_byte(g, 0xFB - 0xF0, 0);
     if (l->sloped) {
         set_field_window_shape_steps_byte(g, 0xF2 - 0xF0, 0);
@@ -181,14 +186,13 @@ static void repeat_line(GameState *g, uint8_t bank, uint16_t from, uint32_t byte
  * whatever the table's bank; and a shape whose edges never went up leaves the
  * table's pointer a byte back, where the next shape is drawn. Returns the
  * fill's length. */
-static uint16_t empty_outside_lines(GameState *g, Column column)
+static uint16_t empty_outside_lines(GameState *g, Column column, uint16_t top, uint16_t right_start)
 {
     uint8_t bank = (column.bank & 1) ? FILL_BANK_ODD : FILL_BANK;
     uint16_t table = (uint16_t)(column.address - RIGHT_COLUMN);
     set_field_window_shape_table_address(g, table);
-    uint16_t start = field_window_shape_right_start(g);
-    uint16_t below = (uint16_t)((LAST_LINE - start) * LINE_BYTES - 1);
-    uint16_t at = (uint16_t)(start * LINE_BYTES + table);
+    uint16_t below = (uint16_t)((LAST_LINE - right_start) * LINE_BYTES - 1);
+    uint16_t at = (uint16_t)(right_start * LINE_BYTES + table);
     uint32_t first = (uint32_t)column.bank << 16 | table;
     wram_write8(g, first, EMPTY_LEFT);
     wram_write8(g, first + 1, EMPTY_RIGHT);
@@ -198,7 +202,6 @@ static uint16_t empty_outside_lines(GameState *g, Column column)
     if (below == 0)
         return below;
     repeat_line(g, bank, at, (uint32_t)below + 1);
-    uint16_t top = field_window_shape_top(g);
     if (top != 0)
         repeat_line(g, bank, table, (uint32_t)(uint16_t)(top * LINE_BYTES - 1) + 1);
     return below;
@@ -209,19 +212,22 @@ static uint16_t empty_outside_lines(GameState *g, Column column)
 static void rasterize_quad(GameState *g)
 {
     unsigned first = topmost_corner(g);
-    set_field_window_shape_top(g, corner(g, first).y);
+    uint16_t top = corner(g, first).y;
+    set_field_window_shape_top(g, top);
+    uint16_t right_start = field_window_shape_right_start(g);
     Column column = { field_window_shape_table_bank(g), field_window_shape_table_address(g) };
     Leftovers l = { 0 };
     for (unsigned k = 0; k < EDGES; k++) {
         Edge e = { corner(g, (first + k) % CORNERS), corner(g, (first + k + 1) % CORNERS) };
         if (e.to.y < e.from.y && !l.right_side_found) {
             column.address = (uint16_t)(column.address + RIGHT_COLUMN);
-            set_field_window_shape_right_start(g, e.from.y);
+            right_start = e.from.y;
+            set_field_window_shape_right_start(g, right_start);
             l.right_side_found = true;
         }
         draw_edge(g, column, e, &l);
     }
-    l.fill_length = empty_outside_lines(g, column);
+    l.fill_length = empty_outside_lines(g, column, top, right_start);
     leave_for_original(g, &l);
 }
 

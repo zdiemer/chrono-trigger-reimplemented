@@ -16,11 +16,10 @@
 #include "field/bridge.h"
 #include "field/scratch.h"
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { IN_VIEW = 0x80, NOT_IN_VIEW = 0 };
-enum { DISABLED = 0x80 };
 enum { NO_BATTLE_PLACE = 0xFF };   /* field_object_battle_info */
 enum { DIALOG_ENDED_BY_LEAVING = 0x0D };   /* dialog_state */
 
@@ -45,7 +44,7 @@ static void leave_window(GameState *g, ViewWindow w)
 
 static bool enabled_with_sprite(const GameState *g, FieldObject obj)
 {
-    if (field_object_state_state(g, obj) & DISABLED)
+    if (object_disabled(g, obj))
         return false;
     int8_t sprite = (int8_t)field_object_sprite_flag(g, obj);
     return sprite > 0;
@@ -76,7 +75,7 @@ static void come_into_view(GameState *g, FieldObject obj)
 {
     set_field_object_row_link_previous(g, obj, FIELD_NO_LINK);
     set_field_object_row_link_next(g, obj, FIELD_NO_LINK);
-    set_field_object_in_view(g, obj, IN_VIEW);
+    set_field_object_in_view(g, obj, OBJECT_IN_VIEW);
     set_field_object_animation_frame(g, obj, 0);
     set_field_object_frame_delay(g, obj, 0);
     set_field_object_sprite_state(g, obj, 0);
@@ -104,7 +103,7 @@ static bool check_on_screen(GameState *g, FieldObject obj)
     uint8_t x = tile_x2(g, obj), y = tile_y2(g, obj);
     bool inside = (int8_t)(x - w.left) >= 0 && (int8_t)(x - w.right) < 0 && (int8_t)(y - w.top) >= 0 &&
                   (int8_t)(y - w.bottom) < 0;
-    set_field_object_in_view(g, obj, inside ? IN_VIEW : NOT_IN_VIEW);
+    set_field_object_in_view(g, obj, inside ? OBJECT_IN_VIEW : OBJECT_OUT_OF_VIEW);
     return inside;
 }
 
@@ -114,8 +113,7 @@ static bool check_on_screen(GameState *g, FieldObject obj)
  * nothing after it sets one. */
 static bool bottom_overflows(const GameState *g, uint8_t by)
 {
-    uint8_t bottom = field_screen_bottom(g), sum = (uint8_t)(bottom + by);
-    return (~(bottom ^ by) & (bottom ^ sum) & 0x80) != 0;
+    return field_add_overflows8(field_screen_bottom(g), by);
 }
 
 /* Setting up and releasing an object's sprites and palette are still the
@@ -135,8 +133,40 @@ static bool call_out(Snes *s, uint32_t site, uint32_t routine)
     return false;
 }
 
+/* The current object joins or leaves the rows (field/object_update.c), run
+ * as C and timed as the routine it is; where the rows' links are ones its
+ * entry's guard would turn away, the entry is called, and the original runs
+ * it. */
+enum { LEAVE_ROW = 0xC0A98A, JOIN_ROW = 0xC0A9CD };
+
+static bool rows_step(Snes *s, uint32_t site, bool join)
+{
+    GameState *g = state_of(s);
+    uint8_t link = (uint8_t)field_current_object(g);
+    FieldObject obj = field_object_of_link(link);
+    if ((link & 1) || !field_rows_are_exact(g, obj))
+        return join ? call_out(s, site, JOIN_ROW) : call_out(s, site, LEAVE_ROW);
+    if (join)
+        NATIVE_TIME_AS(s, JOIN_ROW, object_join_row(g, obj));
+    else
+        NATIVE_TIME_AS(s, LEAVE_ROW, object_leave_row(g, obj));
+    return true;
+}
+
+/* Whether the view step leaves the object as it was, in view or out of it:
+ * then it calls none of the original's routines. */
+bool field_view_unchanged(const GameState *g, unsigned obj)
+{
+    bool enabled = enabled_with_sprite(g, obj);
+    ViewWindow w = { widen_down(field_screen_left(g), 4), widen_up(field_screen_right(g), 4),
+                     widen_down(field_screen_top(g), 2), widen_up(field_screen_bottom(g), 5) };
+    uint8_t x = tile_x2(g, obj), y = tile_y2(g, obj);
+    bool inside = enabled && x >= w.left && x < w.right && y >= w.top && y < w.bottom;
+    return inside == object_in_view(g, obj);
+}
+
 // $C0:A88D
-void field_update_object_visibility(Snes *s)
+bool field_update_visibility(Snes *s)
 {
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
@@ -144,37 +174,47 @@ void field_update_object_visibility(Snes *s)
     bool inside = inside_view_window(g, obj);
     if (checked)
         m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, 5));
-    bool was_in_view = field_object_in_view(g, obj) & IN_VIEW;
+    bool was_in_view = object_in_view(g, obj);
     if (inside) {
         if (!was_in_view) {
             come_into_view(g, obj);
-            if (!call_out(s, 0xC0A905, 0xC07170) || !call_out(s, 0xC0A908, 0xC06F9A) ||
-                !call_out(s, 0xC0A90B, 0xC0A9CD))
-                return;
+            if (!call_out(s, 0xC0A905, 0xC07170) || !call_out(s, 0xC0A908, 0xC06F9A) || !rows_step(s, 0xC0A90B, true))
+                return false;
         }
         m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
+        return true;
     }
     if (was_in_view) {
-        set_field_object_in_view(g, obj, NOT_IN_VIEW);
+        set_field_object_in_view(g, obj, OBJECT_OUT_OF_VIEW);
         if (!call_out(s, 0xC0A918, 0xC0EA42) || !call_out(s, 0xC0A91B, 0xC0734C) ||
-            !call_out(s, 0xC0A91E, 0xC07056) || !call_out(s, 0xC0A921, 0xC0A98A))
-            return;
+            !call_out(s, 0xC0A91E, 0xC07056) || !rows_step(s, 0xC0A921, false))
+            return false;
         obj = (FieldObject)field_current_object_slot(s);
         after_leaving_view(g, obj);
     }
     object_hurry_animation(g, obj);
     m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    return true;
+}
+
+void field_update_object_visibility(Snes *s)
+{
+    if (field_update_visibility(s))
+        m_rts(s);
+}
+
+// $C0:A947
+void field_update_in_window(Snes *s)
+{
+    GameState *g = state_of(s);
+    m_set_flag(s, CPU_FLAG_C, check_on_screen(g, (FieldObject)field_current_object_slot(s)));
+    m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, 5));
 }
 
 /* The carry says whether the object is on screen; the overflow is that of the
  * lower edge's sum. */
 void field_update_object_in_window(Snes *s)
 {
-    GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, check_on_screen(g, (FieldObject)field_current_object_slot(s)));
-    m_set_flag(s, CPU_FLAG_V, bottom_overflows(g, 5));
+    field_update_in_window(s);
     m_rts(s);
 }

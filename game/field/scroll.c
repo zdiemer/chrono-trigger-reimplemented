@@ -13,16 +13,8 @@
 #include "vars.h"
 
 enum { SCROLL_BG2 = 0x02, SCROLL_BG3 = 0x04 };   /* field_auto_scroll */
-enum { LAYER_BG2, LAYER_BG3 };
+enum { AUTO_BG2, AUTO_BG3 };   /* the auto-scroll tables have BG2 and BG3 only */
 enum { AXIS_X, AXIS_Y };
-
-/* A 4.4 accumulator's fraction, sign-extended to the byte. */
-static uint8_t fraction_of(uint8_t accumulator)
-{
-    if ((accumulator & 0x0F) == 0)
-        return 0;
-    return (accumulator & 0x80) ? (uint8_t)(accumulator | 0xF0) : (uint8_t)(accumulator & 0x0F);
-}
 
 static uint8_t accumulator(const GameState *g, unsigned layer, unsigned axis)
 {
@@ -63,7 +55,7 @@ static int8_t scroll_axis(GameState *g, unsigned layer, unsigned axis)
 {
     int8_t accumulated = (int8_t)accumulator(g, layer, axis);
     move_position(g, layer, axis, whole_pixels(accumulated));
-    set_accumulator(g, layer, axis, fraction_of(accumulator(g, layer, axis)));
+    set_accumulator(g, layer, axis, field_scroll_fraction((int8_t)accumulator(g, layer, axis)));
     return accumulated;
 }
 
@@ -94,15 +86,15 @@ static void scroll_layers(GameState *g)
 {
     int8_t last_backward = 0;
     if (field_auto_scroll(g) & SCROLL_BG2) {
-        accumulate(g, LAYER_BG2);
-        if (field_auto_scroll_accumulator_x(g, LAYER_BG2) != 0)
-            last_backward = backward(last_backward, scroll_axis(g, LAYER_BG2, AXIS_X));
-        last_backward = backward(last_backward, scroll_axis(g, LAYER_BG2, AXIS_Y));
+        accumulate(g, AUTO_BG2);
+        if (field_auto_scroll_accumulator_x(g, AUTO_BG2) != 0)
+            last_backward = backward(last_backward, scroll_axis(g, AUTO_BG2, AXIS_X));
+        last_backward = backward(last_backward, scroll_axis(g, AUTO_BG2, AXIS_Y));
     }
     if (field_auto_scroll(g) & SCROLL_BG3) {
-        accumulate(g, LAYER_BG3);
-        last_backward = backward(last_backward, scroll_axis(g, LAYER_BG3, AXIS_X));
-        last_backward = backward(last_backward, scroll_axis(g, LAYER_BG3, AXIS_Y));
+        accumulate(g, AUTO_BG3);
+        last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_X));
+        last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_Y));
     }
     leave_for_original(g, last_backward);
 }
