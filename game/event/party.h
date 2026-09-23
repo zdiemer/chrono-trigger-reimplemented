@@ -20,25 +20,27 @@ enum { PARTY_PLACES = FIELD_PARTY_OBJECTS_COUNT, NOBODY = 0x80 };
  * the absent member, the marker's slot: 64, one past the objects' tables.
  * The commands that don't check take it as it is, and where the original
  * reads that object's state it reads the tables' neighbours in its memory,
- * which the port reads too, through the objects' accessors (docs/TODO.md:
+ * which the port reads too, through the objects' operations (docs/TODO.md:
  * a build without the original's memory has no object 64). */
-static inline EventObject member_object(const GameState *g, PartyPlace place)
+static inline FieldObject member_object(const GameState *g, PartyPlace place)
 {
-    return slot_of(field_party_objects(g, place));
+    return field_linked_object(party_member_link(g, place));
 }
 
 static inline bool place_taken(const GameState *g, PartyPlace place)
 {
-    return !(field_party_objects(g, place) & NOBODY);
+    return field_link_is_object(party_member_link(g, place));
 }
 
 /* The character leading the party. */
 static inline uint8_t party_leader(const GameState *g) { return party_members(g, 0); }
 
-/* Someone leaves the party: their place is empty, on the map and in the party. */
+/* Someone leaves the party: their place is empty, on the map and in the party
+ * (whose places the original keeps as a none link and a character byte with
+ * its top bit set). */
 static inline void empty_place(GameState *g, PartyPlace place)
 {
-    set_field_party_objects(g, place, NOBODY);
+    set_field_party_objects(g, place, field_link_byte(field_no_link()));
     set_party_members(g, place, NOBODY);
 }
 

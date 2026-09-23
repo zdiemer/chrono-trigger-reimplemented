@@ -208,6 +208,13 @@ goes in it. The schema is at the top of the file:
 | `[[not_ram]]` | `file`, `values`, `why` | literals in one `game/` file that look like work RAM and aren't (SPC700 addresses, program counters, VRAM word addresses, counts), for the count only |
 | `[[offset]]` | `file`, `values`, `bank`, `why` | four-digit literals the file adds to a bank's base (`0x7F0000u + 0x0980`), which the count reads as that bank's addresses |
 
+A name says what a variable holds, not where it is or what sits beside it: the
+map rejects a generated name that says a word twice (a record's field named for
+the record, `field_object_animation_mode_mode`), and `ram_map.py check` lists
+the names still shaped like an address or a byte (`field_setting_1e`), which
+wait for a meaning. A record whose fields are separate concepts is two
+variables (`field_object_role` and `field_object_character`, a byte apart).
+
 Work RAM is reused from one game mode to the next, so two entries may cover the
 same bytes when their subsystems differ (the battle's `$7E:2000` is not the
 field's); within a subsystem the map rejects an overlap. State every mode

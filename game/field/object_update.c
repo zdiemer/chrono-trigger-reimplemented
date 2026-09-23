@@ -74,7 +74,7 @@ ScreenPoint object_screen_position(const GameState *g, FieldObject obj)
 void object_update_screen_position(GameState *g, FieldObject obj)
 {
     ScreenOrigin o = screen_origin(g);
-    leave_screen_origin(g, o);
+    ORIGINAL_EFFECT(leave_screen_origin(g, o));
     FieldPosition at = object_position(g, obj);
     set_field_object_screen_x(g, obj, stored_screen_coordinate(on_screen(at.x, o.x)));
     set_field_object_screen_y(g, obj, stored_screen_coordinate(on_screen(at.y, o.y)));
@@ -109,13 +109,13 @@ static void set_row_first(GameState *g, unsigned row, FieldLink l) { set_field_r
 
 static bool in_a_row(const GameState *g, FieldObject obj)
 {
-    return field_link_is_object(field_link_stored(field_object_unlinked(g, obj)));
+    return field_link_is_object(field_link_stored(field_object_row_mark(g, obj)));
 }
 enum { IN_A_ROW = 0 };
-static void mark_in_a_row(GameState *g, FieldObject obj) { set_field_object_unlinked(g, obj, IN_A_ROW); }
+static void mark_in_a_row(GameState *g, FieldObject obj) { set_field_object_row_mark(g, obj, IN_A_ROW); }
 static void mark_out_of_rows(GameState *g, FieldObject obj, FieldLink none)
 {
-    set_field_object_unlinked(g, obj, field_link_byte(none));
+    set_field_object_row_mark(g, obj, field_link_byte(none));
 }
 
 void object_out_of_rows(GameState *g, FieldObject obj)
@@ -184,7 +184,7 @@ void object_join_row(GameState *g, FieldObject obj)
         object_out_of_rows(g, obj);
         return;
     }
-    leave_joined_row(g, row);
+    ORIGINAL_EFFECT(leave_joined_row(g, row));
     set_previous_in_row(g, field_linked_object(first), field_link_to(obj));
     set_next_in_row(g, obj, first);
     set_row_first(g, row, field_link_to(obj));
@@ -229,16 +229,10 @@ static bool screen_position_overflow(const GameState *g, FieldObject obj)
  * through. Whether the view step left the object in view is read from the
  * object, not from the carry it answers in. */
 enum { STEP_ENTRY_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
-enum { JSR_SIZE = 3 };   /* a call's return is the instruction after it */
 
 static bool call_step(Snes *s, uint32_t site, uint32_t routine)
 {
-    uint8_t bank = s->cpu.db;
-    m_jsr_dc(s, site, routine, STEP_ENTRY_DONT_CARE);
-    if (field_machine_back(s, true, FIELD_PAGE, bank))
-        return true;
-    m_stop_at_own(s, site + JSR_SIZE, 0);
-    return false;
+    return bridge_call(s, site, routine, STEP_ENTRY_DONT_CARE, on_the_field_page(s, true));
 }
 
 /* The steps' entries, which the update runs as C and calls where it can't. */
@@ -248,49 +242,52 @@ enum {
     VIEW = 0xC0A88D,
     WINDOW_ONLY = 0xC0A947,
     TICK = 0xC0C98A,
-    LEAVE_ROW = 0xC0A98A,
     PLACE_ON_SCREEN = 0xC0AB45,
-    JOIN_ROW = 0xC0A9CD,
 };
 
-/* Where the update calls each step from: the other objects' update, and the
- * party members'. */
+/* Where the update calls each step from, by update: the other objects', and
+ * the party members'; and where the party's re-sort calls the rows, for the
+ * second member and the first. */
 enum { OBJECTS_UPDATE, PARTY_UPDATE };
-static const uint32_t view_sites[2] = { 0xC0A82D, 0xC0A873 };
-static const uint32_t tick_sites[2] = { 0xC0A832, 0xC0A878 };
-static const uint32_t leave_row_sites[2] = { 0xC0A835, 0xC0A87B };
-static const uint32_t join_row_sites[2] = { 0xC0A83B, 0xC0A881 };
-
-/* And where the party's re-sort calls the rows, for the second member and
- * the first. */
-static const uint32_t resort_leave_sites[2] = { 0xC0A852, 0xC0A864 };
-static const uint32_t resort_join_sites[2] = { 0xC0A855, 0xC0A867 };
+static const struct {
+    uint32_t view, tick, leave_row, join_row;
+} update_sites[] = {
+    [OBJECTS_UPDATE] = { 0xC0A82D, 0xC0A832, 0xC0A835, 0xC0A83B },
+    [PARTY_UPDATE] = { 0xC0A873, 0xC0A878, 0xC0A87B, 0xC0A881 },
+};
+static const struct {
+    uint32_t leave_row, join_row;
+} resort_sites[] = { { 0xC0A852, 0xC0A855 }, { 0xC0A864, 0xC0A867 } };
 
 static bool tick(Snes *s, unsigned update, FieldObject obj)
 {
     GameState *g = state_of(s);
     if (!field_tick_is_exact(g, obj))
-        return call_step(s, tick_sites[update], TICK);
+        return call_step(s, update_sites[update].tick, TICK);
     NATIVE_TIME_AS(s, TICK, object_animation_tick(g, obj));
+    return true;
+}
+
+bool field_rows_step_as_c(Snes *s, FieldObject obj, bool join)
+{
+    GameState *g = state_of(s);
+    if (!field_rows_are_exact(g, obj))
+        return false;
+    if (join)
+        NATIVE_TIME_AS(s, FIELD_JOIN_ROW_ENTRY, object_join_row(g, obj));
+    else
+        NATIVE_TIME_AS(s, FIELD_LEAVE_ROW_ENTRY, object_leave_row(g, obj));
     return true;
 }
 
 static bool leave_row(Snes *s, uint32_t site, FieldObject obj)
 {
-    GameState *g = state_of(s);
-    if (!field_rows_are_exact(g, obj))
-        return call_step(s, site, LEAVE_ROW);
-    NATIVE_TIME_AS(s, LEAVE_ROW, object_leave_row(g, obj));
-    return true;
+    return field_rows_step_as_c(s, obj, false) || call_step(s, site, FIELD_LEAVE_ROW_ENTRY);
 }
 
 static bool join_row(Snes *s, uint32_t site, FieldObject obj)
 {
-    GameState *g = state_of(s);
-    if (!field_rows_are_exact(g, obj))
-        return call_step(s, site, JOIN_ROW);
-    NATIVE_TIME_AS(s, JOIN_ROW, object_join_row(g, obj));
-    return true;
+    return field_rows_step_as_c(s, obj, true) || call_step(s, site, FIELD_JOIN_ROW_ENTRY);
 }
 
 static void place_on_screen(Snes *s, FieldObject obj)
@@ -315,7 +312,7 @@ static void move(Snes *s, unsigned update, FieldObject obj)
 static bool view(Snes *s, unsigned update, FieldObject obj)
 {
     if (field_view_changes(state_of(s), obj))
-        return call_step(s, view_sites[update], VIEW);
+        return call_step(s, update_sites[update].view, VIEW);
     bool done;
     NATIVE_TIME_AS(s, VIEW, done = field_update_visibility(s, obj));
     return done;
@@ -330,10 +327,10 @@ static bool update_object(Snes *s, unsigned update, FieldObject obj)
         return false;
     if (!object_in_view(state_of(s), obj))
         return true;
-    if (!tick(s, update, obj) || !leave_row(s, leave_row_sites[update], obj))
+    if (!tick(s, update, obj) || !leave_row(s, update_sites[update].leave_row, obj))
         return false;
     place_on_screen(s, obj);
-    return join_row(s, join_row_sites[update], obj);
+    return join_row(s, update_sites[update].join_row, obj);
 }
 
 /* After everyone has moved: the second party member and then the first,
@@ -349,17 +346,12 @@ static bool resort_party(Snes *s)
             continue;
         FieldObject obj = field_linked_object(link);
         object_make_current(g, obj);
-        if (!leave_row(s, resort_leave_sites[i], obj) || !join_row(s, resort_join_sites[i], obj))
+        if (!leave_row(s, resort_sites[i].leave_row, obj) || !join_row(s, resort_sites[i].join_row, obj))
             return false;
     }
     return true;
 }
 
-// $C0:A810
-/* Every frame: update each object slot up to the event's object count, and
- * re-sort the party. A map whose last object is a party member leaves the
- * party as it is: the original's party members' update returns from the
- * loop without the re-sort. */
 /* For the original's code and shadow mode: the update keeps where its loop
  * ends, the object count doubled, in the byte event_object_end's low byte
  * is. */
@@ -368,6 +360,11 @@ static void leave_loop_end(GameState *g, uint8_t count)
     set_event_object_end(g, (uint16_t)((event_object_end(g) & 0xFF00) | (uint8_t)(count * 2)));
 }
 
+// $C0:A810
+/* Every frame: update each object slot up to the event's object count, and
+ * re-sort the party. A map whose last object is a party member leaves the
+ * party as it is: the original's party members' update returns from the
+ * loop without the re-sort. */
 void field_update_objects(Snes *s)
 {
     GameState *g = state_of(s);
@@ -439,13 +436,16 @@ void field_join_object_row(Snes *s)
 }
 
 /* The rows' guard: the object and the objects it is linked to are named by
- * their slots doubled (any other link is one the rows never hold). */
-static bool link_or_none(FieldLink link) { return !(field_link_byte(link) & 1); }
+ * their slots doubled, and a none link is even too: the original indexes the
+ * tables with a none link where there is no object after (the stray write,
+ * above), and an odd one would index a byte the port doesn't. */
+static bool indexes_as_the_port_does(FieldLink link) { return !(field_link_byte(link) & 1); }
 
 bool field_rows_are_exact(const GameState *g, unsigned obj)
 {
-    return link_or_none(previous_in_row(g, (FieldObject)obj)) && link_or_none(object_next_in_row(g, (FieldObject)obj)) &&
-           link_or_none(row_first_object(g, row_of(g, (FieldObject)obj)));
+    return indexes_as_the_port_does(previous_in_row(g, (FieldObject)obj)) &&
+           indexes_as_the_port_does(object_next_in_row(g, (FieldObject)obj)) &&
+           indexes_as_the_port_does(row_first_object(g, row_of(g, (FieldObject)obj)));
 }
 
 bool field_object_rows_linked(Snes *s)

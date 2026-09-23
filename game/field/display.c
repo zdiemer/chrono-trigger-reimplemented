@@ -12,6 +12,7 @@
  * The line interrupt comes at line 211: the picture ends there, the rest of
  * the frame is blanked, and the time to vblank goes to one of two jobs. */
 #include "field/display.h"
+#include "field/sprites.h"
 
 #include "field/bridge.h"
 #include "field/field.h"
@@ -30,7 +31,7 @@ enum { FIELD_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01, DMA_FROM_REGIST
 
 /* Where the sprite table and the layers' tile maps are, as the transfers'
  * sources. */
-enum { SPRITE_TABLE = 0x000700, TILE_MAP_BANK = 0x7E, QUEUE_BANK = 0x7F };
+enum { TILE_MAP_BANK = 0x7E, QUEUE_BANK = 0x7F };
 
 static const VidVramPort word_port = { .step = 1, .after_high = true };
 static const VidVramPort column_port = { .step = 32, .after_high = true };
@@ -45,7 +46,7 @@ void field_upload_sprite_table(Platform *pf)
         VID_STEP_END,
     };
     static const VidSnesXfer x = { FIELD_DMA, DMA_ONE_REGISTER, steps, NULL };
-    vid_upload_oam(pf, PF_AT(0xC0ECA5), PF_GAME(SPRITE_TABLE), &x);
+    vid_upload_oam(pf, PF_AT(0xC0ECA5), PF_GAME(FIELD_SPRITE_TABLE_ADDRESS), &x);
 }
 
 // $C0:B1B2

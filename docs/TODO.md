@@ -58,64 +58,22 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Phase 3a work in flight
 
-- **Event's follow-up after its second review** (merged with these accepted;
-  RECOMP.md, "Phase 3a: the event language, and its scaffolding"). Fix on
-  main, checked by the gate:
-  - refresh the `re/ram.toml` `source` lines that name functions `game/event/`
-    no longer defines (`event_cmd_fight`, `event_cmd_tint`,
-    `event_cmd_set_speed`, ...; about 17);
-  - delete `FLOW_RESUME_AT`/`resume_at()` and `event_leave_y`;
-  - `animation.c`'s `back_to_loop` and `interrupt_loop`: choose the mode, then
-    `restart_animation`;
-  - `calls.c`'s `finds_a_level` re-runs `return_from_function`'s search: bound
-    the search, give it a "nothing to resume" outcome, and share `place_of`;
-  - comment or remove the openings loop's restart from `field_current_object`
-    (`engine.c:284`), and use one spelling of the object guard;
-  - `party.c`'s `last_member_at_least` and its carry: one named decision;
-  - `memory.c:94` reads the script through `wram_read8`: use the script
-    accessor;
-  - decode packed operands in the rows into typed parameters (a fade's
-    brightness and rate, a tint's mix, a call's level and function,
-    `Location`, a story flag's page and bit, the choice range; enums or bools
-    for solid, blocking, arrival and control);
-  - move `.routine` and `.bridge` out of the language's rows, and compile out
-    `EventParameter`/`event_parameter()` with the scaffolding;
-  - give `back()` and "keep the offset across the call" one home in
-    `bridge.h`, where five files each have a copy;
-  - operations take the parameters they read (explicitly, or a small struct per
-    family), not the whole ~80-field `EventCommand`.
-- **Field's follow-up after its review** (merged with these accepted;
-  RECOMP.md, "Phase 3a: the field subsystem off the machine"). Fix on main,
-  checked by the gate:
-  - **`sprites.c`:**
-    - a `SpriteRecord` type with storage functions, so `place_sprites` works
-      on records rather than byte offsets;
-    - drop `place_sprites`' `high_of`;
-    - the table build loops on a local row, not the original's Y;
-    - `bring_records_up_to_date` stops setting `cpu.x`;
-    - choose C or a call by a step enum, not by comparing ROM addresses.
-  - **One bridge vocabulary in `bridge.h`**, replacing `JSR_SIZE` and the
-    call-out helper copied into four files. One table per object-update step,
-    in place of the parallel site arrays; `nmi.c`'s `uploads[]` should share
-    `display.c`'s edge-run table.
-  - **Duplicated definitions:** `link_or_none` means different things in two
-    files, and `SPRITE_TABLE`, `LEAVE_ROW`/`JOIN_ROW` and `AXIS_X` are each
-    defined twice.
-  - **`nmi.c`'s three map-transition branches** should be one table.
-  - **`animation.c`'s frame-read half:** `object_current_frame` mutates under a
-    reader's name, and callers compute ROM addresses for frame entries. It
-    could replace the review skill's illustration once that is fixed.
-  - **The two prediction guards** (`field_view_changes`,
-    `every_draw_is_own`): accepted while shadow mode pairs a bridge's calls in
-    order; restructure them if that pairing changes.
-  - **Smaller:**
-    - `line_effects.c`: `wave_part`'s return exists only for the wrapper, and
-      `after_shading`'s fake `A = $FFFF`;
-    - window widenings as literals;
-    - staging buffers as raw addresses;
-    - graphics banks `$D2-$D5` as a fixed bank layout;
-    - `event_variables(g, 0xA8)`, which is window 2's table choice;
-    - six stale `re/ram.toml` sources.
+- **What event's and field's combined pass left** (RECOMP.md, "Phase 3a: event
+  onto the field's objects"):
+  - a location is still decoded from its two words in the operation
+    (`location_of` in `event/locations.c`): the rows decode an operand into
+    one number, and a `Location` wants the decoder to build a struct;
+  - `nmi.c`'s `uploads[]` repeats `display.c`'s edge runs' routines:
+    `tools/dontcare_check.py` reads a call-out's site and routine only from the
+    file that makes the call, so sharing the table needs the check to follow a
+    table in a header;
+  - the two prediction guards (`field_view_changes`, `every_draw_is_own`),
+    accepted while shadow mode pairs a bridge's calls in order; restructure
+    them if that pairing changes;
+  - the staging buffers the field's transfers read are addresses in bank
+    `$7E` (`display.c`'s edge runs, the VRAM queue), which a transfer service
+    that takes a named buffer would replace (the video service item under
+    "Platform").
 - **Coverage that field's rewrite thinned.** Inlining the object update's
   steps into their callers' time left more of their calls interrupted, and
   shadow mode compares none of those: `field_update_object_sprites` went from 78
@@ -125,14 +83,6 @@ rest waits, is [PLAN.md](PLAN.md).
   `field_build_sprite_table` compares 0 fuzz states on either side (its draws run
   past the call-out budget), so it has shadow mode's uninterrupted calls and
   nothing else. A fuzz setup that bounds its draws would close that.
-- **Shadow mode's call matching isn't written down where a porter looks.** A
-  bridge's calls are matched to the original's in order and by site, which
-  decides what a rewrite can inline: a step can be inlined only if it makes no
-  call-outs itself, and draws from a shared site must all inline or none. The
-  field rewrite learned it from 105923 mismatched draws. It belongs in
-  PORTING.md's "Call-outs". Also from that rewrite: the mismatch report stops at
-  16 details, and timing calibration rewrites other subsystems' rows, which each
-  rewrite then reverts by hand.
 
 - **What only the original's memory has, past the object tables.** The
   stray accesses are explicit and marked now (RECOMP.md, "Phase 3a: event onto
@@ -398,31 +348,20 @@ below. `python3 tools/timing_census.py` re-runs the census.
   runs as one coroutine through `runtime/port/fiber.h`: its frame waits are
   deep in its call stack (the field's `$C0:EC60` has 28 call sites, the
   battle's `$C1:007E` 20).
-- **The event commands still on the machine** (RECOMP.md, "Phase 3a: the
-  event language, and its scaffolding"): 36 bridges, rows of the language's
-  table that call out to code still the original's. 20 are the moves
-  (`movement.c`), calling the field's motion (`$C0:ABA2`, `$C0:5B95`,
-  `$C0:ACFD`, `$C0:AC69`, `$C0:5614`, `$C0:568B`, `$C0:30B3`, `$C0:305D`) and
-  its state routines (`$C0:9E29`, `$C0:A26B`, `$C0:A2CE`, `$C0:5B8D`,
-  `$C0:3154`). `field`'s rewrite made the motion C over the game's state, in
-  `field/object.h` (`direction_between`, `object_in_the_way`,
-  `object_start_step`, `object_head`, `object_animate_movement`,
-  `object_stand`, `object_line_up_with`, `object_line_up_with_tile`), and the
-  animation commands (`event/animation.c`) can call `object_loop_animation`,
-  `object_play_animation` and the rest instead of keeping their own copy of
-  the modes. So the moves become operations: the carries they hand each other
-  (`carry_after_tile_test`, `carry_after_next_to_test`) become return values,
-  the A the facing lookup hands `$C0:5B95` goes, and their families -- to a
-  tile, toward an object or a member, turning or keeping the facing, counted --
-  one operation each. The rest wait on the sound driver (`sound.c`), the
-  menus' party routines (`$C2:8004`), the tile copy `$C0:AF4E`, the location
-  change from `$C0:3B71`, the facing aim `$C0:ABA2`, and `$4E`'s stack.
+- **The event commands still on the machine** (RECOMP.md, "Phase 3a: event
+  onto the field's objects"): 15 bridges, rows of the language's table that
+  call out to code still the original's: letting an object behave as its state
+  says (`$B0`, and `$AF` which runs it once; the field's state routines
+  `$C0:9E29`, `$C0:A26B`, `$C0:A2CE`, `$C0:5B8D`, `$C0:3154`), the sound
+  driver (`sound.c`), the menus' party routines (`$C2:8004`) and `$D6`'s
+  carry, the tile copy `$C0:AF4E`, the location change from `$C0:3B71`, and
+  `$4E`'s stack.
 - **Bridges called from the engine are compared at the engine's boundary.**
   The engine calls a bridge directly, so shadow mode sees its call-outs as
   the engine's and abandons the bridge's own comparison ("started inside the
-  engine's stretch"): per entry, 26,000-odd bridge calls over the library are
-  now counted abandoned rather than matched, while the engine's entries match
-  on every call. They are still checked (every call-out's registers, the
+  engine's stretch"): `event_cmd_behave`'s 250,698 calls over the library are
+  counted abandoned rather than matched, while the engine's entries match on
+  every call. They are still checked (every call-out's registers, the
   engine's state at its end), and fuzzing covers them one by one; a way for
   shadow mode to compare a nested port's stretch would count them again.
 - **Event's scaffolding, and what would let liveness drop it** (RECOMP.md,
@@ -457,64 +396,22 @@ below. `python3 tools/timing_census.py` re-runs the census.
   - `field_setting_1e` (events `$DE`/`$DF` raise it with the location they
     set; cleared at `$C0:2842` and `$C0:2866`, returned by `$C0:28A7`, ANDed
     at `$C0:7628`). The field's rewrite reads those routines.
-  - `field_setting_bc` is the screen's shake (the field's rewrite found the
-    layer scroll reading it; event `$F4` sets it); the name waits for the
-    naming pass.
   - The menus' party routines 6, 7 and `$0A` (events `$F8`-`$FA`, `$D5`),
     through the dispatcher `$C2:8C36`: the menus' port names them.
   - The player's button assignments the scripts ask about, the first and the
     fourth (events `$30`/`$31`, `$3B`/`$3C`): which command each is (dash,
     confirm, ...) is the menus' settings screen's to say.
   Each is named for its address or its position until it is.
-- **The field's shadows hold hardware bytes, so event writes them.** The tint
-  (event `$F1`) is written as the fixed colour's register byte and a
-  colour-math setting ($17 / $97), and the objects' sprite priorities as OAM
-  attribute bits: the field's interrupt hands them to the hardware as they
-  are. When the field keeps a tint and a sprite priority as values
-  (`VidColorMath`, a priority 0-3) and converts them at its video calls, event
-  writes those instead (`screen.c` `tint_math`, `properties.c`
-  `set_priorities`).
-- **One field-object vocabulary, after the field and event merges.** Event
-  keeps local helpers for the field's objects (the list in RECOMP.md), and a
-  review of the event rewrite found these definitions duplicated or at odds,
-  which the pass that moves event onto field's object module settles:
-  - `field_requests`: `TILE_COPY_QUEUED = 0x20` (`screen.c`) and
-    `BATTLE_STARTING = 0x21` (`locations.c`, bit 5 with the battle bit 0), and
-    `LOCATION_CHANGE = 0x80`; one set of request bits for the field.
-  - Bit 7 of an object's state and of its step length: `DISABLED` (`calls.c`,
-    `facing.c`, `movement.c`) and `CALLS_SKIP` (`properties.c`) name the same
-    kind of flag three ways.
-  - The sprite flag: `NO_SPRITE_SHOWN` (`calls.c`) and
-    `SPRITE_HIDDEN`/`SPRITE_SHOWN`/`NO_SPRITE` (`properties.c`).
-  - "Well on screen" twice with different margins: `flow.c` (the object's
-    tile, 2-13 across and 2-12 down) and `movement.c` (the running object's
-    own tile as aimed, the same bounds) -- one test on field's screen.
-  - Facing as `uint8_t` 0-3 (`Facing` in `facing.c`) where the field will
-    have an enum; the animation modes (`AnimationMode`, `animation.c`); the
-    arrival and blocking bits (`movement.c`, `properties.c`).
-  - The accessor names shaped by the map's layout
-    (`field_object_animation_mode_mode`, `field_object_move_state_animation_count`,
-    `field_object_move_state_tile_mode`, `field_object_state_state`), in the
-    map's naming pass.
-- **What the field's rewrite left** (RECOMP.md, "Phase 3a: the field subsystem
-  off the machine").
-  - The map's stuttering names for the object tables' fields
-    (`field_object_animation_mode_mode`, `field_object_move_state_animation_count`,
-    `field_object_state_state`) and `field_setting_bc`, which is the screen's
-    shake (the layer scroll reads it; the map says so now); event `$F4`,
-    `set_bc` in `tools/disasm/eventscript.py` and `event_cmd_set_bc` want that
-    name too. A naming pass over the map, not the ports.
-  - A sprite service in `runtime/platform/`: `field/sprites.c` writes the OAM
-    image through the work RAM port, whose cursor the original leaves, where a
-    sprite list handed to the platform would do; the line effects likewise
-    hand the video service register bytes (`field/line_effects.c`) and the
-    transfers' write order (`steps`) rather than `Vid*` fields.
-  - `object_play_animation` counts whole passes; event `$B7` starts a one-off
-    with an odd countdown (its operand plus one, in the half passes the
-    storage keeps), which the operation can't express yet. When event moves
-    onto `field/object.h`, it wants a form that takes the half pass.
-  - The four windows' corner tiles (`field/window_corners.c`) aren't known to
-    be the party's windows: what they frame is still to be read.
+- **The field's shadows hold hardware bytes.** The tint (event `$F1`) is
+  written as the fixed colour's register byte and a colour-math setting
+  ($17 / $97), and the objects' sprite priorities are kept as OAM attribute
+  bits: the field's interrupt hands them to the hardware as they are. The
+  priorities are values (0-3) everywhere but their storage function
+  (`field/object.c`, `object_set_sprite_priorities`); the tint is still
+  written in the hardware's terms (`event/screen.c`, `tint_math`), until the
+  field keeps it as a `VidColorMath` and converts it at its video calls.
+- **The four windows' corner tiles** (`field/window_corners.c`) aren't known
+  to be the party's windows: what they frame is still to be read.
 - **Fuzzing half the event states.** The event handlers' guards turn away an
   odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
   every tight run is skipped (more for the comparisons, whose operator must be

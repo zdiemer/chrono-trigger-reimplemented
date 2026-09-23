@@ -106,8 +106,8 @@ bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
 #undef CHECK_PARAMETER
     if (!row->accepts)
         return true;
-    EventCommand c = event_decode(g, NULL, row, at);
-    return row->accepts(g, &c);
+    EventCommand command = event_decode(g, NULL, row, at);
+    return row->accepts(g, &command);
 }
 
 /* ---- Running a command -------------------------------------------------------------------- */
@@ -118,7 +118,10 @@ static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
     switch (arg->kind) {
     case ARG_CONSTANT: return arg->constant;
     case ARG_BYTE: return script_byte(g, operand);
+    case ARG_BYTE_PLUS_ONE: return (uint8_t)(script_byte(g, operand) + 1);
+    case ARG_BITS: return (uint32_t)(script_byte(g, operand) >> arg->shift) & arg->constant;
     case ARG_WORD: return script_word(g, operand);
+    case ARG_WORD_BITS: return (uint32_t)(script_word(g, operand) >> arg->shift) & arg->constant;
     case ARG_ADDRESS: return script_word(g, operand) | (uint32_t)script_byte(g, (uint16_t)(operand + 2)) << 16;
     case ARG_VARIABLE: return script_byte(g, operand);
     case ARG_VARIABLE_BYTE: return variable_byte(g, script_byte(g, operand));
@@ -155,14 +158,13 @@ static EventStep follow(GameState *g, const EventOpcode *row, uint16_t at, Event
     case FLOW_AGAIN: return (EventStep){ at, true };
     case FLOW_JUMP: return jump(g, row, at);
     case FLOW_NEXT_AFTER: return (EventStep){ (uint16_t)(at + flow.to), true };
-    case FLOW_GO_TO: return (EventStep){ flow.to, true };
-    default: return (EventStep){ flow.to, false };
+    default: return (EventStep){ flow.to, true };
     }
 }
 
 EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
-    EventCommand c = { .self = running_object(g), .platform = pf };
+    EventCommand c = { .self = running_object(g), .at = at, .platform = pf };
 #define DECODE_PARAMETER(type, name) c.name = (type)decode(g, &row->name, at);
     EVENT_PARAMETERS(DECODE_PARAMETER)
 #undef DECODE_PARAMETER
@@ -176,16 +178,6 @@ EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint
     EventFlow flow = row->run(g, &c);
     ORIGINAL_EFFECT(original_leaves_after(g, row->opcode, &c));
     return follow(g, row, at, flow);
-}
-
-uint32_t event_parameter(const EventCommand *c, EventParameter which)
-{
-    switch (which) {
-#define PARAMETER_VALUE(type, name) case PARAMETER_##name: return (uint32_t)c->name;
-    EVENT_PARAMETERS(PARAMETER_VALUE)
-#undef PARAMETER_VALUE
-    default: return 0;
-    }
 }
 
 /* ---- Turns ------------------------------------------------------------------------------ */
@@ -232,7 +224,7 @@ EventTurnEnd event_run_turn(GameState *g, uint8_t object, const EventRunner *r, 
 
 /* An object's opening: its script up to its first zero byte, after which the
  * per-frame turns carry on. */
-static EventTurnEnd run_opening(GameState *g, EventObject slot, const EventRunner *r, uint16_t *stopped_at)
+static EventTurnEnd run_opening(GameState *g, FieldObject slot, const EventRunner *r, uint16_t *stopped_at)
 {
     uint16_t at = event_object_script_position(g, slot);
     set_field_current_object(g, (uint16_t)(slot * 2));
@@ -256,27 +248,6 @@ static EventTurnEnd run_opening(GameState *g, EventObject slot, const EventRunne
     return TURN_OVER;
 }
 
-/* For the original's memory and shadow mode: the original clears the last
- * slot's solidity with a word, whose second byte is past the objects' tables,
- * where its memory has the first object's falling flag. */
-static void leave_stray_clear_past_the_last(GameState *g) { set_field_object_accelerating(g, 0, 0); }
-
-/* A map's objects, before their scripts first run: none solid, none
- * accelerating. The original clears each one's solidity with a word, and so
- * the next object's sprite records' state with it: nothing to draw. */
-static void settle(GameState *g, EventObject slot)
-{
-    set_field_object_solid(g, slot, 0);
-    if (slot + 1 < FIELD_OBJECTS)
-        set_field_object_sprite_state(g, slot + 1, 0);
-    else
-        ORIGINAL_EFFECT(leave_stray_clear_past_the_last(g));
-    set_field_object_accelerating(g, slot, 0);
-    set_field_object_acceleration(g, slot, 0);
-}
-
-enum { NO_SCRIPT = 0x80 };   /* an object whose character has this bit runs no script */
-
 // $C0:58DE (inside the map setup routine)
 EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, uint16_t *object, uint16_t *stopped_at)
 {
@@ -287,12 +258,15 @@ EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, uint16_t *ob
          * command the original ran may have left elsewhere */
         if (!r->state_is_ours(r->ctx))
             return TURN_NOT_OURS_BEFORE;
-        EventObject slot = slot_of(*object);
-        settle(g, slot);
-        if (!(field_object_state_character(g, slot) & NO_SCRIPT)) {
+        FieldObject slot = slot_of(*object);
+        object_start_on_the_map(g, slot);
+        if (object_runs_a_script(g, slot)) {
             EventTurnEnd e = run_opening(g, slot, r, stopped_at);
             if (e != TURN_OVER)
                 return e;
+            /* the original's loop goes on from the object its opening left
+             * running, which a command could have changed (none the game
+             * runs does; the opening kept its place, above) */
             *object = field_current_object(g);
         }
         *object = (uint16_t)(*object + 2);

@@ -2074,7 +2074,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_move_by_variables"
+name = "event_cmd_move_in_direction_from_variables_keep_facing"
 at = "C0:4F0A"
 subsystem = "event"
 state = "field"
@@ -2082,7 +2082,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_move_by_variables"
+name = "event_cmd_move_in_direction_from_variables_keep_facing"
 variant = "loose"
 at = "C0:4F0A"
 subsystem = "event"
@@ -2363,7 +2363,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_solid"
+name = "event_cmd_set_solidity"
 at = "C0:4867"
 subsystem = "event"
 state = "field"
@@ -2371,7 +2371,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_solid"
+name = "event_cmd_set_solidity"
 variant = "loose"
 at = "C0:4867"
 subsystem = "event"
@@ -3485,7 +3485,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_bc"
+name = "event_cmd_shake_screen"
 at = "C0:3D84"
 subsystem = "event"
 state = "field"
@@ -3493,7 +3493,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_bc"
+name = "event_cmd_shake_screen"
 variant = "loose"
 at = "C0:3D84"
 subsystem = "event"

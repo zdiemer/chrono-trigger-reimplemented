@@ -6,8 +6,6 @@
 #include "event/event_data.h"
 #include "port/native.h"
 
-enum { FIELD_PAGE = 0x0100 };
-
 EventLeaves *event_leaves;
 
 /* ---- The registers a command leaves --------------------------------------------------- */
@@ -35,16 +33,27 @@ void event_return(Snes *s, EventStep st)
     m_rts(s);
 }
 
-void event_set_registers(Snes *s, uint16_t a, uint16_t x, uint16_t y)
+/* ---- The handlers: where the original's are, and the bridges ------------------------------
+ *
+ * Each opcode's handler is at the address the original's table ($C0:5D6E)
+ * gives it, which names the command's time (native_time_as) and its
+ * registered entry. It is read without the machine's time: the original's
+ * dispatch reads it too, but only once, where the port has already. */
+
+static uint32_t handler_of(Snes *s, uint8_t opcode)
 {
-    s->cpu.a = a;
-    s->cpu.x = x;
-    s->cpu.y = y;
+    uint32_t entry = 0xC05D6Eu + 2u * opcode;
+    return 0xC00000u | snes_bus_peek(&s->bus, entry) | (uint32_t)snes_bus_peek(&s->bus, entry + 1) << 8;
 }
 
-bool event_machine_back(const Snes *s, bool x8)
+static EventBridge bridge_of(uint8_t opcode)
 {
-    return !s->cpu.e && m_m8(s) && m_x8(s) == x8 && m_direct_page(s) == FIELD_PAGE && m_bank_is_zero(s);
+    switch (opcode) {
+#define EVENT_BRIDGE_CASE(name, op) case op: return name;
+    EVENT_BRIDGES(EVENT_BRIDGE_CASE)
+#undef EVENT_BRIDGE_CASE
+    default: return NULL;
+    }
 }
 
 /* ---- Guards ---------------------------------------------------------------------------
@@ -115,7 +124,7 @@ bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bri
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
     NATIVE_TIME_AS(s, routine, bridge(s));
-    return s->cpu.s == s_before && s->cpu.pb == (uint8_t)(site >> 16) && s->cpu.pc == (uint16_t)(site + 3);
+    return s->cpu.s == s_before && s->cpu.pb == (uint8_t)(site >> 16) && s->cpu.pc == (uint16_t)(site + JSR_SIZE);
 }
 
 /* ---- Running a turn's commands on the machine ------------------------------------------------ */
@@ -126,17 +135,6 @@ typedef enum { IN_A_TURN, IN_AN_OPENING } Dispatch;
 static const uint32_t dispatch_site[] = { 0xC05AB1, 0xC05910 };     /* by Dispatch */
 static const uint32_t dispatch_return[] = { 0xC05AB4, 0xC05913 };   /* by Dispatch */
 
-/* Back from a command run on the machine: true if it left the machine as the
- * engine runs (event_machine_back); otherwise the port stops where the
- * dispatch returns to, and the original carries on. */
-static bool back(Snes *s, Dispatch d)
-{
-    if (event_machine_back(s, false))
-        return true;
-    m_stop_at_own(s, dispatch_return[d], 0);
-    return false;
-}
-
 /* The registers the original's dispatch leaves a handler: the opcode doubled
  * in A and X (the table's index, with the flags its making leaves: its
  * 16-bit shift clears the carry), the command's offset in Y. The handlers the
@@ -145,7 +143,9 @@ static bool back(Snes *s, Dispatch d)
 static void enter_as_the_table_does(Snes *s, uint8_t opcode, uint16_t at)
 {
     uint16_t index = (uint16_t)(opcode * 2);
-    event_set_registers(s, index, index, at);
+    s->cpu.a = index;
+    s->cpu.x = index;
+    s->cpu.y = at;
     m_set_flag(s, CPU_FLAG_C, false);
     m_set_nz16(s, index);
 }
@@ -155,15 +155,23 @@ typedef struct {
     Dispatch dispatch;
 } OnTheMachine;
 
+/* Back from a command run on the machine: it came back as the engine runs
+ * (event/bridge.h), or the port stops where the dispatch returns to, and the
+ * original carries on. */
+static bool back(OnTheMachine *m, BridgeMachine as)
+{
+    return bridge_back(m->s, dispatch_return[m->dispatch], as);
+}
+
 /* A command the port doesn't run: the original's handler, from its table. */
 static bool through_the_table(OnTheMachine *m, uint16_t at, EventStep *st)
 {
     Snes *s = m->s;
-    GameState *g = state_of(s);
-    uint8_t opcode = script_byte(g, at);
+    uint8_t opcode = script_byte(state_of(s), at);
+    BridgeMachine as = event_machine(s, false);
     enter_as_the_table_does(s, opcode, at);
-    m_jsr(s, dispatch_site[m->dispatch], 0xC00000u | command_handler(g, opcode));
-    if (!back(s, m->dispatch))
+    m_jsr(s, dispatch_site[m->dispatch], 0xC00000u | command_handler(state_of(s), opcode));
+    if (!back(m, as))
         return false;
     *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
     return true;
@@ -179,16 +187,18 @@ static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
     const EventOpcode *row = event_opcode(opcode);
     if (!row || !takes(s, row, at))
         return through_the_table(m, at, st);
-    if (row->bridge) {
+    uint32_t handler = handler_of(s, opcode);
+    if (!row->run) {
+        BridgeMachine as = event_machine(s, false);
         enter_as_the_table_does(s, opcode, at);
-        if (!event_call_bridge(s, dispatch_site[m->dispatch], row->routine, row->bridge) || !back(s, m->dispatch))
+        if (!event_call_bridge(s, dispatch_site[m->dispatch], handler, bridge_of(opcode)) || !back(m, as))
             return false;
         *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
         return true;
     }
     EventLeaves left = event_leaves_of(s, at);
     ORIGINAL_EFFECT(leave_into(&left));
-    NATIVE_TIME_AS(s, row->routine, *st = event_perform(g, m_platform(s), row, at));
+    NATIVE_TIME_AS(s, handler, *st = event_perform(g, m_platform(s), row, at));
     /* X and the carry, as the handler returns them: where the original's loop
      * reads them if it takes over after this command */
     s->cpu.x = st->next;

@@ -648,8 +648,8 @@
 /* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
  * except against the map's left or top edge. Set by event $F4 (zero also clears
  * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
-#define RAM_FIELD_SETTING_BC 0x7E01BCu
-#define RAM_FIELD_SETTING_BC_DP 0xBCu        /* page field */
+#define RAM_FIELD_SCREEN_SHAKE 0x7E01BCu
+#define RAM_FIELD_SCREEN_SHAKE_DP 0xBCu      /* page field */
 /* Cells the field's object, sprite and graphics routines keep values in on the way: an
  * animation's delay entry ($C1), the view window's edges or an object's screen position
  * ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7) [8 bytes] */
@@ -822,11 +822,11 @@
 #define RAM_FIELD_ROW_FIRST_OBJECT 0x7E0E00u
 #define RAM_FIELD_ROW_FIRST_OBJECT_COUNT 64u
 #define RAM_FIELD_ROW_FIRST_OBJECT_STRIDE 0x02u
-/* Negative while the object isn't in a row list, 0 while it is [64 x $2 bytes, by object slot (X
- * = slot * 2)] */
-#define RAM_FIELD_OBJECT_UNLINKED 0x7E0E01u
-#define RAM_FIELD_OBJECT_UNLINKED_COUNT 64u
-#define RAM_FIELD_OBJECT_UNLINKED_STRIDE 0x02u
+/* Whether the object is in a screen row's list: 0 while it is, and out of one the none link
+ * (negative) it was left with [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_ROW_MARK 0x7E0E01u
+#define RAM_FIELD_OBJECT_ROW_MARK_COUNT 64u
+#define RAM_FIELD_OBJECT_ROW_MARK_STRIDE 0x02u
 /* The object's links in its screen row's doubly linked list (negative: none) [64 x $2 bytes, by
  * object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_ROW_LINK 0x7E0E80u
@@ -866,13 +866,18 @@
 #define RAM_FIELD_OBJECT_ANIMATION_LINK 0x7E1081u
 #define RAM_FIELD_OBJECT_ANIMATION_LINK_COUNT 64u
 #define RAM_FIELD_OBJECT_ANIMATION_LINK_STRIDE 0x02u
-/* The object's state (negative: disabled); a record of state and character [64 x $2 bytes, by
+/* What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below
+ * it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the
+ * party, 7 checked against the screen window only, 8 left alone by the update [64 x $2 bytes, by
  * object slot (X = slot * 2)] */
-#define RAM_FIELD_OBJECT_STATE 0x7E1100u
-#define RAM_FIELD_OBJECT_STATE_COUNT 64u
-#define RAM_FIELD_OBJECT_STATE_STRIDE 0x02u
-#define RAM_FIELD_OBJECT_STATE_STATE 0x7E1100u /* Negative disabled; below 3 moved without tile checks, 3 set when leaving the party, 7 checked against the screen window, 8 skipped by the update loop */
-#define RAM_FIELD_OBJECT_STATE_CHARACTER 0x7E1101u /* The character the object is (matched by event $D6 when removing one from the party) */
+#define RAM_FIELD_OBJECT_ROLE 0x7E1100u
+#define RAM_FIELD_OBJECT_ROLE_COUNT 64u
+#define RAM_FIELD_OBJECT_ROLE_STRIDE 0x02u
+/* The character the object is (event $D6 takes the first party member who is one out of the
+ * party); bit 7: the object runs no script [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_CHARACTER 0x7E1101u
+#define RAM_FIELD_OBJECT_CHARACTER_COUNT 64u
+#define RAM_FIELD_OBJECT_CHARACTER_STRIDE 0x02u
 /* Bits 0-1: how many sprite records the object draws (4, 8, 12 or 24) [64 x $2 bytes, by object
  * slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_SPRITE_LAYOUT 0x7E1201u
@@ -907,23 +912,32 @@
 #define RAM_FIELD_OBJECT_FRAME_DELAY 0x7E1601u
 #define RAM_FIELD_OBJECT_FRAME_DELAY_COUNT 64u
 #define RAM_FIELD_OBJECT_FRAME_DELAY_STRIDE 0x02u
-/* The object's animation [64 x $2 bytes, by object slot (X = slot * 2)] */
-#define RAM_FIELD_OBJECT_ANIMATION 0x7E1680u
-#define RAM_FIELD_OBJECT_ANIMATION_COUNT 64u
-#define RAM_FIELD_OBJECT_ANIMATION_STRIDE 0x02u
-#define RAM_FIELD_OBJECT_ANIMATION_NUMBER 0x7E1680u /* Animation number ($FF: none to go back to after a timed play) */
-#define RAM_FIELD_OBJECT_ANIMATION_FRAME 0x7E1681u /* Frame within the animation */
+/* The animation the object loops, or animates its movement with ($FF while a one-off or a held
+ * frame has nothing to go back to) [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_LOOPED_ANIMATION 0x7E1680u
+#define RAM_FIELD_OBJECT_LOOPED_ANIMATION_COUNT 64u
+#define RAM_FIELD_OBJECT_LOOPED_ANIMATION_STRIDE 0x02u
+/* Where the object is in its animation: a frame number ($FF, a frame before the first, where it
+ * starts over) [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_ANIMATION_FRAME 0x7E1681u
+#define RAM_FIELD_OBJECT_ANIMATION_FRAME_COUNT 64u
+#define RAM_FIELD_OBJECT_ANIMATION_FRAME_STRIDE 0x02u
 /* Offset of the object's 8-byte sprite records at $7F:4BC0 (and its frame data at $7F:4800) [64
  * x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_SPRITE_RECORDS 0x7E1700u
 #define RAM_FIELD_OBJECT_SPRITE_RECORDS_COUNT 64u
 #define RAM_FIELD_OBJECT_SPRITE_RECORDS_STRIDE 0x02u
-/* How the object animates [64 x $2 bytes, by object slot (X = slot * 2)] */
+/* How the object animates (field/object.h, ObjectAnimationMode): 0 with its movement, 1 looping
+ * an animation, 2 playing a one-off, 3 holding a frame [64 x $2 bytes, by object slot (X = slot
+ * * 2)] */
 #define RAM_FIELD_OBJECT_ANIMATION_MODE 0x7E1780u
 #define RAM_FIELD_OBJECT_ANIMATION_MODE_COUNT 64u
 #define RAM_FIELD_OBJECT_ANIMATION_MODE_STRIDE 0x02u
-#define RAM_FIELD_OBJECT_ANIMATION_MODE_MODE 0x7E1780u /* 0 none, 1 looping, 2 a timed play, 3 a static frame */
-#define RAM_FIELD_OBJECT_ANIMATION_MODE_TIMED_ANIMATION 0x7E1781u /* The animation a timed play runs */
+/* The one-off animation the object plays (or last played: a held frame keeps timing it) [64 x $2
+ * bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_ONE_OFF_ANIMATION 0x7E1781u
+#define RAM_FIELD_OBJECT_ONE_OFF_ANIMATION_COUNT 64u
+#define RAM_FIELD_OBJECT_ONE_OFF_ANIMATION_STRIDE 0x02u
 /* 16-bit X position in 1/16 pixel, the tile in the high byte ($FF00 off screen) [64 x $2 bytes,
  * by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_X 0x7E1800u
@@ -1180,12 +1194,21 @@
 #define RAM_FIELD_TILE_LOWER_ATTRIBUTES_ROW_STRIDE 0x100u
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 #define RAM_FIELD_MAP_DATA 0x7EB506u
-/* Per-object movement and animation counters [64 x $2 bytes, by object slot (X = slot * 2)] */
-#define RAM_FIELD_OBJECT_MOVE_STATE 0x7F0B00u
-#define RAM_FIELD_OBJECT_MOVE_STATE_COUNT 64u
-#define RAM_FIELD_OBJECT_MOVE_STATE_STRIDE 0x02u
-#define RAM_FIELD_OBJECT_MOVE_STATE_TILE_MODE 0x7F0B00u /* 0 keeps moves inside the current tile, positive allows one step across (then cleared), negative crossing every step */
-#define RAM_FIELD_OBJECT_MOVE_STATE_ANIMATION_COUNT 0x7F0B01u /* Countdown of a timed animation (loops left for a scripted one; 0 none playing) */
+/* Bit 0 swaps which of the two per-line window tables window 2 reads in each set of the line
+ * effects' tables; the scripts set it as the high byte of their variable $A8 (event_variables),
+ * through which the original reads it */
+#define RAM_FIELD_WINDOW_2_SECOND_TABLE 0x7F0351u
+/* Whether the object's move may take it out of its tile (field/object.h, TileCrossing): 0 never,
+ * positive on its next step only (then cleared), negative on every step [64 x $2 bytes, by
+ * object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_TILE_CROSSING 0x7F0B00u
+#define RAM_FIELD_OBJECT_TILE_CROSSING_COUNT 64u
+#define RAM_FIELD_OBJECT_TILE_CROSSING_STRIDE 0x02u
+/* How much of a one-off animation is left to play, in half passes (0 none playing; 1 played out,
+ * holding its last frame) [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES 0x7F0B01u
+#define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES_COUNT 64u
+#define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES_STRIDE 0x02u
 /* Indirect tables of the eight per-line effects (tile map addresses, BG1-BG3 scroll, screens,
  * window 1, color math, window 2 edge), two sets, the second picked by field_display_flags [16 x
  * $57 bytes, by table set * 8 + effect slot] */
@@ -1292,8 +1315,10 @@
 #define RAM_FIELD_AUTO_SCROLL_POSITION_STRIDE 0x04u
 #define RAM_FIELD_AUTO_SCROLL_POSITION_X 0x7F346Bu /* Horizontal */
 #define RAM_FIELD_AUTO_SCROLL_POSITION_Y 0x7F346Du /* Vertical */
-/* Start of the objects' sprite frame data (offsets, tile and attribute words per sprite), at the
- * object's field_object_sprite_records offset [8 bytes] */
+/* The objects' sprites as their frames give them, 8 bytes a sprite at the object's
+ * field_object_sprite_records offset, as the records keep them (the X offset a word, the Y
+ * offset, the tile and the attributes at the records' places), which a rebuild takes the records
+ * from [832 bytes] */
 #define RAM_FIELD_SPRITE_FRAME_DATA 0x7F4800u
 /* The object's third and fourth OAM high table bytes (12- and 24-sprite layouts) [64 x $2 bytes,
  * by object slot (X = slot * 2)] */

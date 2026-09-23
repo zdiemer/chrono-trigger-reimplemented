@@ -185,12 +185,11 @@ static void compute_layer_edges(GameState *g)
         right_column(&e, right, above);
         store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);
     }
-    leave_for_original(g, right, above, &e);
+    ORIGINAL_EFFECT(leave_for_original(g, right, above, &e));
 }
 
 /* ---- Scrolling -------------------------------------------------------------------------- */
 
-enum { AXIS_X, AXIS_Y, AXES };
 enum { STEP_FORWARD = 0x10, STEP_BACK = 0xF0 };   /* a pixel a frame, in 4.4 */
 enum { SCROLL_IDLE = 0, SCROLL_DONE = 0x02, ARRIVED_BOTH = 0x03 };   /* field_screen_scroll_state, _arrived */
 enum { STILL_BG2 = 0x02, STILL_BG3 = 0x04 };   /* field_layer_still */
@@ -309,7 +308,7 @@ static void update_layer_scroll(GameState *g)
             set_field_screen_scroll_arrived(g, 0);
         }
     }
-    if (field_setting_bc(g) != 0) {
+    if (field_screen_shake(g) != 0) {
         uint8_t frames = play_time_frames(g);
         set_field_scroll_offset_x(g, shake(frames, SHAKE_X, 2));
         set_field_scroll_offset_y(g, shake(frames, SHAKE_Y, 3));
@@ -468,7 +467,7 @@ static void unpack_tile_maps(GameState *g)
     MapSize size = layer_size(g, FIELD_BG1);
     unpack_leaves.had_run = false;
     unpack_attributes(g, size);
-    leave_for_original_unpack(g, size);
+    ORIGINAL_EFFECT(leave_for_original_unpack(g, size));
 }
 
 /* ---- Entries: on the layers' page ------------------------------------------------------- */

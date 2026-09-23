@@ -70,6 +70,20 @@ class MapError(Exception):
     pass
 
 
+# A word of a name that reads as an address or a byte rather than a meaning:
+# two to four hex digits with a digit among them, or a pair of hex letters.
+ADDRESS_WORD = re.compile(r"^(?=[0-9a-f]*[0-9])[0-9a-f]{2,4}$|^[a-f]{2}$")
+
+
+def stuttering(name):
+    """The word a generated name says twice in a row (`..._mode_mode`), or None."""
+    words = name.split("_")
+    for a, b in zip(words, words[1:]):
+        if a == b:
+            return a
+    return None
+
+
 def parse_addr(text, where):
     m = ADDR.match(text) if isinstance(text, str) else None
     if not m:
@@ -467,7 +481,18 @@ class RamMap:
             raise MapError("names used twice: %s" % ", ".join(sorted(dup)))
         self._check_overlaps()
         self.macros = header_macros(self)   # also checks the generated names are unique
-        accessors(self)                     # the same, for game/vars.h
+        for _, groups in accessors(self):   # the same, for game/vars.h; and no name says a word twice
+            for _, _, group in groups:
+                for a in group:
+                    stutter = stuttering(a.name)
+                    if stutter:
+                        raise MapError("%s: says %r twice; name a record's field for its concept, not for "
+                                       "the record it sits in" % (a.name, stutter))
+
+    def address_shaped(self):
+        """The variables whose names carry a word shaped like an address or a
+        byte ($1E, $BC): named for where they are, not for what they hold."""
+        return [v.name for v in self.vars if any(ADDRESS_WORD.match(w) for w in v.name.split("_"))]
 
     def _check_overlaps(self):
         """Work RAM is reused from one game mode to the next, so two entries may
@@ -1270,6 +1295,9 @@ def main(argv=None):
     if args.cmd == "check":
         print("%s: %d pages, %d variables, %d images, not-RAM literals in %d files"
               % (args.map, len(m.pages), len(m.vars), len(m.images), len(m.not_ram)))
+        shaped = m.address_shaped()
+        if shaped:
+            print("%d names shaped like addresses, waiting for a meaning: %s" % (len(shaped), ", ".join(shaped)))
     elif args.cmd == "header":
         text = render_header(m)
         if args.check:

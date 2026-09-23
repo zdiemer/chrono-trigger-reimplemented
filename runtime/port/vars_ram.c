@@ -467,8 +467,8 @@ uint16_t field_sprite_range_spare(const GameState *g, unsigned i) { return r16(g
 void set_field_sprite_range_spare(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0183u + (uint32_t)i * 0x04u, v); }
 uint8_t field_party_objects(const GameState *g, unsigned member) { return r8(g, 0x7E0197u + (uint32_t)member * 0x02u); }
 void set_field_party_objects(GameState *g, unsigned member, uint8_t v) { w8(g, 0x7E0197u + (uint32_t)member * 0x02u, v); }
-uint8_t field_setting_bc(const GameState *g) { return r8(g, 0x7E01BCu); }
-void set_field_setting_bc(GameState *g, uint8_t v) { w8(g, 0x7E01BCu, v); }
+uint8_t field_screen_shake(const GameState *g) { return r8(g, 0x7E01BCu); }
+void set_field_screen_shake(GameState *g, uint8_t v) { w8(g, 0x7E01BCu, v); }
 uint8_t field_work_byte(const GameState *g, unsigned at) { return r8(g, 0x7E01C1u + at); }
 void set_field_work_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E01C1u + at, v); }
 uint8_t field_sprites_left(const GameState *g) { return r8(g, 0x7E01C9u); }
@@ -565,8 +565,8 @@ uint16_t field_object_sprite_priority(const GameState *g, unsigned slot) { retur
 void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0C00u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_row_first_object(const GameState *g, unsigned row) { return r8(g, 0x7E0E00u + (uint32_t)row * 0x02u); }
 void set_field_row_first_object(GameState *g, unsigned row, uint8_t v) { w8(g, 0x7E0E00u + (uint32_t)row * 0x02u, v); }
-uint8_t field_object_unlinked(const GameState *g, unsigned slot) { return r8(g, 0x7E0E01u + (uint32_t)slot * 0x02u); }
-void set_field_object_unlinked(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0E01u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_row_mark(const GameState *g, unsigned slot) { return r8(g, 0x7E0E01u + (uint32_t)slot * 0x02u); }
+void set_field_object_row_mark(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0E01u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_row_link_previous(const GameState *g, unsigned slot) { return r8(g, 0x7E0E80u + (uint32_t)slot * 0x02u); }
 void set_field_object_row_link_previous(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0E80u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_row_link_next(const GameState *g, unsigned slot) { return r8(g, 0x7E0E81u + (uint32_t)slot * 0x02u); }
@@ -583,10 +583,10 @@ uint8_t field_object_step_count(const GameState *g, unsigned slot) { return r8(g
 void set_field_object_step_count(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1001u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_animation_link(const GameState *g, unsigned slot) { return r8(g, 0x7E1081u + (uint32_t)slot * 0x02u); }
 void set_field_object_animation_link(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1081u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_state_state(const GameState *g, unsigned slot) { return r8(g, 0x7E1100u + (uint32_t)slot * 0x02u); }
-void set_field_object_state_state(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_state_character(const GameState *g, unsigned slot) { return r8(g, 0x7E1101u + (uint32_t)slot * 0x02u); }
-void set_field_object_state_character(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1101u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_role(const GameState *g, unsigned slot) { return r8(g, 0x7E1100u + (uint32_t)slot * 0x02u); }
+void set_field_object_role(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_character(const GameState *g, unsigned slot) { return r8(g, 0x7E1101u + (uint32_t)slot * 0x02u); }
+void set_field_object_character(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1101u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_sprite_layout(const GameState *g, unsigned slot) { return r8(g, 0x7E1201u + (uint32_t)slot * 0x02u); }
 void set_field_object_sprite_layout(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1201u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_static_frame(const GameState *g, unsigned slot) { return r8(g, 0x7E1301u + (uint32_t)slot * 0x02u); }
@@ -601,16 +601,16 @@ uint8_t field_object_facing(const GameState *g, unsigned slot) { return r8(g, 0x
 void set_field_object_facing(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1600u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_frame_delay(const GameState *g, unsigned slot) { return r8(g, 0x7E1601u + (uint32_t)slot * 0x02u); }
 void set_field_object_frame_delay(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1601u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_animation_number(const GameState *g, unsigned slot) { return r8(g, 0x7E1680u + (uint32_t)slot * 0x02u); }
-void set_field_object_animation_number(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1680u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_looped_animation(const GameState *g, unsigned slot) { return r8(g, 0x7E1680u + (uint32_t)slot * 0x02u); }
+void set_field_object_looped_animation(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1680u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_animation_frame(const GameState *g, unsigned slot) { return r8(g, 0x7E1681u + (uint32_t)slot * 0x02u); }
 void set_field_object_animation_frame(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1681u + (uint32_t)slot * 0x02u, v); }
 uint16_t field_object_sprite_records(const GameState *g, unsigned slot) { return r16(g, 0x7E1700u + (uint32_t)slot * 0x02u); }
 void set_field_object_sprite_records(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1700u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_animation_mode_mode(const GameState *g, unsigned slot) { return r8(g, 0x7E1780u + (uint32_t)slot * 0x02u); }
-void set_field_object_animation_mode_mode(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1780u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_animation_mode_timed_animation(const GameState *g, unsigned slot) { return r8(g, 0x7E1781u + (uint32_t)slot * 0x02u); }
-void set_field_object_animation_mode_timed_animation(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1781u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_animation_mode(const GameState *g, unsigned slot) { return r8(g, 0x7E1780u + (uint32_t)slot * 0x02u); }
+void set_field_object_animation_mode(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1780u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_one_off_animation(const GameState *g, unsigned slot) { return r8(g, 0x7E1781u + (uint32_t)slot * 0x02u); }
+void set_field_object_one_off_animation(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1781u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_x_fine(const GameState *g, unsigned slot) { return r8(g, 0x7E1800u + (uint32_t)slot * 0x02u); }
 void set_field_object_x_fine(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1800u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_x_tile(const GameState *g, unsigned slot) { return r8(g, 0x7E1801u + (uint32_t)slot * 0x02u); }
@@ -733,10 +733,12 @@ uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned c
 void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E7040u + (uint32_t)row * 0x100u + column, v); }
 uint8_t field_map_data(const GameState *g) { return r8(g, 0x7EB506u); }
 void set_field_map_data(GameState *g, uint8_t v) { w8(g, 0x7EB506u, v); }
-uint8_t field_object_move_state_tile_mode(const GameState *g, unsigned slot) { return r8(g, 0x7F0B00u + (uint32_t)slot * 0x02u); }
-void set_field_object_move_state_tile_mode(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0B00u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_move_state_animation_count(const GameState *g, unsigned slot) { return r8(g, 0x7F0B01u + (uint32_t)slot * 0x02u); }
-void set_field_object_move_state_animation_count(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0B01u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_window_2_second_table(const GameState *g) { return r8(g, 0x7F0351u); }
+void set_field_window_2_second_table(GameState *g, uint8_t v) { w8(g, 0x7F0351u, v); }
+uint8_t field_object_tile_crossing(const GameState *g, unsigned slot) { return r8(g, 0x7F0B00u + (uint32_t)slot * 0x02u); }
+void set_field_object_tile_crossing(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0B00u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_one_off_half_passes(const GameState *g, unsigned slot) { return r8(g, 0x7F0B01u + (uint32_t)slot * 0x02u); }
+void set_field_object_one_off_half_passes(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0B01u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_line_effect_tables_byte(const GameState *g, unsigned slot, unsigned at) { return r8(g, 0x7F0F80u + (uint32_t)slot * 0x57u + at); }
 void set_field_line_effect_tables_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { w8(g, 0x7F0F80u + (uint32_t)slot * 0x57u + at, v); }
 uint32_t field_line_bg_maps(const GameState *g, unsigned i) { return r32(g, 0x7F14F0u + (uint32_t)i * 0x04u); }

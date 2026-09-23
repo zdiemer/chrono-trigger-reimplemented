@@ -2,8 +2,10 @@
  * machine: the registered entries of the engine and of the commands, the
  * guards, the translation to and from the original's registers, and what the
  * bridges -- the commands that still call out to the original's code -- share.
- * Nothing outside this file and the bridges takes a `Snes *`; a build without
- * the original's engine replaces them.
+ * Nothing outside this file, event/bridge.c and the bridges takes a `Snes *`;
+ * a build without the original's engine replaces them. The bridges call the
+ * original through the field's bridge vocabulary (field/bridge.h), the one
+ * the field's own bridges use.
  *
  * Every command handler has the same calling convention in the original:
  * entered through the table at $C0:5D6E with 8-bit A, 16-bit X and Y, Y the
@@ -17,8 +19,15 @@
 #include "event/event.h"
 #include "event/leaves.h"
 #include "event/script.h"
+#include "field/bridge.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+
+/* A command that calls out to code still the original's (the sound driver,
+ * the menus' party routines, the field's state routines): its row has no
+ * operation, and it runs on the machine, as its registered entry, from the
+ * handler's calling convention. event/event.h lists them (EVENT_BRIDGES). */
+typedef void (*EventBridge)(Snes *s);
 
 /* The registered entry of an opcode's row, and its guard: the port runs the
  * command at Y by its row and returns as the original does. */
@@ -44,18 +53,9 @@ static inline uint16_t event_command_offset(const Snes *s) { return s->cpu.y; }
 EventCommand event_command_of(Snes *s, uint8_t opcode);
 void event_return(Snes *s, EventStep st);
 
-/* Y as the original leaves it, for a bridge whose command leaves it other
- * than as its callee did (scaffolding: event/leaves.h). */
-static inline void event_leave_y(Snes *s, uint16_t y) { s->cpu.y = y; }
-
-/* After a call-out: true if the callee came back with the machine as the
- * command runs: 8-bit A, 16-bit X (`x8` for the calls made with 8-bit X), D
- * on the field page and the data bank $00 or $80, where the port's accessors
- * reach what the original's code does. If not, the port stops at the call's
- * return address (each file's `back`) and the original carries on. */
-bool event_machine_back(const Snes *s, bool x8);
-
-/* Set A (all 16 bits), X and Y for a call-out. */
-void event_set_registers(Snes *s, uint16_t a, uint16_t x, uint16_t y);
+/* How a command runs on the machine: 8-bit A, 16-bit X and Y (`x8` for the
+ * calls made with 8-bit index registers), on the field's page, with the data
+ * bank it has. A bridge's calls must come back as it (field/bridge.h). */
+static inline BridgeMachine event_machine(const Snes *s, bool x8) { return on_the_field_page(s, x8); }
 
 #endif

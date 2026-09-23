@@ -25,12 +25,12 @@ enum { ROLE_DISABLED_BIT = 0x80, NO_SCRIPT_BIT = 0x80 };
 
 static void set_role(GameState *g, FieldObject obj, ObjectRole role)
 {
-    set_field_object_state_state(g, obj, (uint8_t)(role.kind | (role.disabled ? ROLE_DISABLED_BIT : 0)));
+    set_field_object_role(g, obj, (uint8_t)(role.kind | (role.disabled ? ROLE_DISABLED_BIT : 0)));
 }
 
 ObjectRole object_role(const GameState *g, FieldObject obj)
 {
-    uint8_t stored = field_object_state_state(g, obj);
+    uint8_t stored = field_object_role(g, obj);
     return (ObjectRole){ (stored & ROLE_DISABLED_BIT) != 0, (ObjectKind)(stored & ~ROLE_DISABLED_BIT) };
 }
 
@@ -51,11 +51,11 @@ bool object_may_run(const GameState *g, FieldObject obj)
 // $C0:3A07
 void object_leave_the_party(GameState *g, FieldObject obj) { set_role(g, obj, (ObjectRole){ false, ROLE_LEFT_THE_PARTY }); }
 
-uint8_t object_character(const GameState *g, FieldObject obj) { return field_object_state_character(g, obj); }
+uint8_t object_character(const GameState *g, FieldObject obj) { return field_object_character(g, obj); }
 
 bool object_runs_a_script(const GameState *g, FieldObject obj)
 {
-    return !(field_object_state_character(g, obj) & NO_SCRIPT_BIT);
+    return !(field_object_character(g, obj) & NO_SCRIPT_BIT);
 }
 
 /* An unreachable object's mark is kept as the top bit of its move length

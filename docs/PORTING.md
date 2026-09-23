@@ -180,6 +180,34 @@ that point for itself and the enclosing one reported "original returned
 without the call": `play_song` at `$C7:01A1` in the $C7 pilot, `$C3:0C28` in
 the scenes.)
 
+**How a bridge's calls are paired with the original's decides what it can
+run inline.** Shadow mode matches a port's call-outs to the calls the original
+makes, in order and by site. So a port that runs another routine's work as C
+(the field's object update running its steps, the sprite table's building
+running its draws) can do so only where that work makes no call-outs of its
+own: the callee's calls, made from the caller, don't line up with the calls the
+original makes from inside the callee. And where several calls come from one
+shared site (every draw of a frame is made from the same two), they must all
+be inlined or none, or a call the port makes would be paired with the
+original's call for another object. The field rewrite learned this from
+105,923 mismatched draws (RECOMP.md, "Phase 3a: the field subsystem off the
+machine"); `every_draw_is_own` and `field_view_changes` exist for it. Two
+practical notes from the same work: the mismatch report stops at 16 details
+per entry, so a count is the thing to watch; and timing calibration rewrites
+every measured row, so a rewrite puts back the rows of subsystems it didn't
+touch.
+
+**The bridges' vocabulary** is `game/field/bridge.h`'s, for the field's
+bridges and the event commands': `bridge_call(s, site, routine, dont_care,
+machine)` (and `bridge_call_long`) make the call with its don't-care set and
+go on only where the callee came back as `machine` says the bridge runs (8-bit
+A, the index registers' width, the direct page and the data bank); otherwise
+they stop at the call's return, where the original carries on. `bridge_back`
+is the same test after a call made another way (a service's call-out, a
+sibling bridge called as the original's JSR would). `tools/dontcare_check.py`
+reads `bridge_call` as it reads `m_jsr_dc`, with the arguments where it is
+called.
+
 If a callee unwinds past its return address (discarding its caller's frame),
 the native routine is abandoned, since the original's continuation never runs
 either. The report counts these.

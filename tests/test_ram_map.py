@@ -169,6 +169,16 @@ class TestRules(unittest.TestCase):
             self.load(var("maps", 'addr = "7E:3000"\nsize = 0x40\nrows = 4\nrow_stride = 0x100')
                       + var("more", 'addr = "7E:3130"\nsize = 0x20\nrows = 4\nrow_stride = 0x100'))
 
+    def test_names_by_meaning(self):
+        """A record's field named for the record it sits in stutters, and is
+        rejected; names carrying an address are listed for a meaning."""
+        with self.assertRaises(ram_map.MapError):
+            self.load(var("object_mode", 'addr = "7E:1000"\ncount = 2\nstride = 2\nindex = "slot"\n'
+                                         '[[var.field]]\nname = "mode"\noffset = 0\nmeaning = "m"'))
+        m = self.load(var("setting_1e", 'addr = "7E:1000"') + var("setting_bc", 'addr = "7E:1001"')
+                      + var("screen_shake", 'addr = "7E:1002"') + var("bg3_scroll", 'addr = "7E:1003"'))
+        self.assertEqual(m.address_shaped(), ["setting_1e", "setting_bc"])
+
     def test_table_of_rows_errors(self):
         bad = {
             "rows without row_stride": var("x", 'addr = "7E:1000"\nsize = 4\nrows = 2'),

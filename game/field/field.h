@@ -24,8 +24,29 @@ enum {
     FIELD_DISPLAY_SETUP = 0x80,
 };
 
+/* field_requests: what the event scripts ask of the field's main loop. A
+ * battle is asked for with a tile copy: the main loop copies the queued
+ * tiles (as the last queued copy described them) along with it. */
+enum {
+    FIELD_REQUEST_BATTLE = 0x01,
+    FIELD_REQUEST_TILE_COPY = 0x20,         /* copy the queued tiles into the maps */
+    FIELD_REQUEST_LOCATION_CHANGE = 0x80,   /* go where location_next says */
+};
+
+/* field_effect_status: what the field has running, or has finished, that a
+ * script waits on. */
+enum {
+    FIELD_BATTLE_OVER = 0x01,
+    FIELD_FADING = 0x02,                    /* the brightness moves to its target */
+    FIELD_TINTING = 0x08,                   /* the tint moves to its target */
+    FIELD_TINT_CHANGES = 0x18,              /* what a tint with a rate sets running */
+};
+
 /* The field's three layers, as the tables of layers index them. */
 enum { FIELD_BG1, FIELD_BG2, FIELD_BG3, FIELD_LAYERS };
+
+/* The screen's two axes, as the tables of scrolls index them. */
+typedef enum { AXIS_X, AXIS_Y, AXES } Axis;
 
 /* The part of a 4.4 fixed-point scroll accumulator below a pixel, kept with
  * the accumulator's sign so that a negative one goes on counting down. */

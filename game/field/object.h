@@ -140,7 +140,7 @@ typedef struct {
  * scene can play without the camera moving. */
 bool tile_well_on_screen(const GameState *g, MapTile tile);
 
-/* ---- Place and look (field/object.c) --------------------------------------------------- */
+/* ---- Place and look (field/motion.c, field/object.c) ----------------------------------- */
 
 /* An object's position: 1/16 pixel, the tile in the high byte. */
 typedef struct {
@@ -151,8 +151,8 @@ FieldPosition object_position(const GameState *g, FieldObject obj);
 MapTile object_tile(const GameState *g, FieldObject obj);
 void object_place(GameState *g, FieldObject obj, FieldPosition at);
 
-/* Put the object on a tile, at its bottom edge: at its left edge, keeping its
- * place across it, or `centred`. */
+/* Put the object on a tile, at the tile's bottom: `centred` across it, or
+ * where across its tile it was. */
 void object_put_on_tile(GameState *g, FieldObject obj, MapTile tile, bool centred);
 
 /* Which way an object faces. */
@@ -228,14 +228,14 @@ void object_stand(GameState *g, FieldObject obj);
  * it is due, queue the object for the frame builder and move to the frame. */
 void object_animation_tick(GameState *g, FieldObject obj);
 
-/* The frame the object shows now, for the frame builder, and whether there
- * is one: a one-off animation at the end of its frames counts half a pass and
- * has none; any other animation at its end starts over at its first frame. */
+/* The frame builder takes the object's next frame to draw, if there is one:
+ * a one-off animation at the end of its frames counts half a pass and has
+ * none; any other animation at its end starts over at its first frame. */
 typedef struct {
     bool has_frame;
     uint8_t frame;
 } ObjectFrame;
-ObjectFrame object_next_frame_to_draw(GameState *g, FieldObject obj);
+ObjectFrame object_take_next_frame(GameState *g, FieldObject obj);
 
 /* ---- Motion (field/motion.c, field/object.c) ------------------------------------------- */
 
@@ -288,6 +288,10 @@ uint8_t object_move_length(const GameState *g, FieldObject obj);
 /* Whether a move's steps may take the object out of its tile: never, once
  * (the move's first step may cross), or always. */
 typedef enum { STAY_IN_TILE, CROSS_ONCE, CROSS_ALWAYS } TileCrossing;
+
+/* A step's worth of move, for the field's own routines to move the object in
+ * (its crossing as the last move left it). */
+void object_start_one_step(GameState *g, FieldObject obj);
 
 /* Start a move of `steps` steps, at the velocity the object heads with. */
 void object_start_move(GameState *g, FieldObject obj, uint8_t steps, TileCrossing crossing);

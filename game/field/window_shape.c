@@ -230,7 +230,7 @@ static void rasterize_quad(GameState *g)
         last = draw_edge(g, column, e);
     }
     uint16_t fill_length = empty_outside_lines(g, column, top, right_start);
-    leave_for_original(g, last, fill_length, right_side_found);
+    ORIGINAL_EFFECT(leave_for_original(g, last, fill_length, right_side_found));
 }
 
 /* The guard: the table where the game puts it, in bank $7F far enough from

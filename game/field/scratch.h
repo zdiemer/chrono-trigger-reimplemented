@@ -29,11 +29,57 @@
 #ifndef CT_GAME_FIELD_SCRATCH_H
 #define CT_GAME_FIELD_SCRATCH_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
+#include "field/object.h"
 #include "original_effects.h"
 #include "state.h"
 #include "vars.h"
+
+/* The overflow flag the original's last addition or subtraction leaves, for
+ * the entry wrappers and the commands whose callers read it: whether a + b (or
+ * a - b), taken as signed 8- or 16-bit numbers, left the signed range. The
+ * game's logic never looks at it; only the original's code after the call
+ * does. */
+static inline bool field_add_overflows8(uint8_t a, uint8_t b)
+{
+    uint8_t sum = (uint8_t)(a + b);
+    return ((~(a ^ b) & (a ^ sum)) & 0x80) != 0;
+}
+static inline bool field_subtract_overflows8(uint8_t a, uint8_t b)
+{
+    uint8_t difference = (uint8_t)(a - b);
+    return (((a ^ b) & (a ^ difference)) & 0x80) != 0;
+}
+static inline bool field_add_with_carry_overflows16(uint16_t a, uint16_t b, bool carry)
+{
+    uint16_t sum = (uint16_t)(a + b + carry);
+    return ((~(a ^ b) & (a ^ sum)) & 0x8000) != 0;
+}
+static inline bool field_add_overflows16(uint16_t a, uint16_t b) { return field_add_with_carry_overflows16(a, b, false); }
+static inline bool field_subtract_overflows16(uint16_t a, uint16_t b)
+{
+    uint16_t difference = (uint16_t)(a - b);
+    return (((a ^ b) & (a ^ difference)) & 0x8000) != 0;
+}
+
+/* What the motion's routines leave the original's code and shadow mode, for a
+ * caller that runs them as C where the original called them (event's moves,
+ * whose commands hand on a Y and a V; event/leaves.h): the cells the
+ * direction routine works from and leaves (field_leave_aim,
+ * field_leave_direction) and its overflow; the check for objects in the way
+ * keeping its caller's Y; the Y and the overflow a step's start leaves; and
+ * the overflow animating with the movement leaves where it did. Each is what
+ * that routine's entry leaves too (field/motion.c, field/animation.c). */
+void field_leave_aim(GameState *g, Aim aim);
+void field_leave_direction(GameState *g, Aim aim, Direction d);
+bool field_direction_overflow(Aim aim, Direction d);
+void field_leave_in_the_way_check(GameState *g, FieldObject obj, uint16_t callers_y);
+uint16_t field_step_start_y(const GameState *g, StepStart r, uint16_t callers_y);
+bool field_step_start_overflow(const GameState *g, FieldObject obj, StepStart r);
+bool field_walk_overflow(const GameState *g, FieldObject obj);
+bool field_jump_overflow(const GameState *g, FieldObject obj, uint8_t steps, uint8_t height);
 
 enum { FIELD_WORK_CELLS = 0xC1, FIELD_SCRATCH_CELLS = 0xD9, FIELD_LAYER_WORK_CELLS = 0x50, FIELD_LAYER_EDGE_CELLS = 0x60 };
 enum { SHAPE_EDGE_CELLS = 0x53, SHAPE_STEP_CELLS = 0xF0 };

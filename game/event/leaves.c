@@ -6,8 +6,48 @@
 
 #if ORIGINAL_EFFECTS
 
+/* The language's parameters by name, for what the table keeps of one. */
+#define EVENT_PARAMETER_ID(type, name) PARAMETER_##name,
+typedef enum { EVENT_PARAMETERS(EVENT_PARAMETER_ID) EVENT_PARAMETER_COUNT } EventParameter;
+#undef EVENT_PARAMETER_ID
+
+static uint32_t parameter(const EventCommand *c, EventParameter which)
+{
+    switch (which) {
+#define PARAMETER_VALUE(type, name) case PARAMETER_##name: return (uint32_t)c->name;
+    EVENT_PARAMETERS(PARAMETER_VALUE)
+#undef PARAMETER_VALUE
+    default: return 0;
+    }
+}
+
+/* A value the original keeps in a scratch cell before the operation runs: one
+ * of the operation's parameters, as a byte or a word; one of the command's
+ * operand bytes as it is; or where one of its operands is. */
+typedef enum { KEEP_NOTHING, KEEP_BYTE, KEEP_WORD, KEEP_OPERAND_BYTE, KEEP_OPERAND_OFFSET } KeptAs;
+
+typedef struct {
+    KeptAs as;
+    EventParameter parameter;   /* KEEP_BYTE, KEEP_WORD */
+    uint8_t operand;            /* KEEP_OPERAND_BYTE, KEEP_OPERAND_OFFSET */
+} Kept;
+
+/* The V flag the command leaves: as it found it, or the overflow of adding
+ * the amount to the variable (or taking it away), in the command's width. */
+typedef enum { V_AS_IT_WAS, V_OF_ADDING, V_OF_SUBTRACTING } OverflowLeft;
+
+typedef struct {
+    uint8_t parse;            /* the operand the original's parse stops at, going on: its Y */
+    uint8_t parse_on_jump;    /* ... and taking its jump */
+    bool shared_comparison;   /* made by the original's comparison routine, which notes where the jump
+                               * byte is and runs with 8-bit index registers (Y keeps its low byte) */
+    Kept first, second;       /* what it keeps in its first two scratch cells */
+    OverflowLeft overflow;
+} OriginalLeaves;
+
 #define PARSE(n) .parse = (n), .parse_on_jump = (n)
 #define KEEP(how, parameter) { KEEP_##how, PARAMETER_##parameter, 0 }
+#define KEEP_OPERAND(n) { KEEP_OPERAND_BYTE, 0, (n) }
 #define KEEP_OPERAND_AT(n) { KEEP_OPERAND_OFFSET, 0, (n) }
 
 static const OriginalLeaves by_opcode[256] = {
@@ -89,7 +129,7 @@ static const OriginalLeaves by_opcode[256] = {
     [0x47] = { .parse = 2 },
     [0xE3] = { .parse = 2 },
     [0xE6] = { .first = KEEP(BYTE, layers), .second = KEEP(WORD, drift) },
-    [0xF0] = { .first = KEEP(BYTE, fade_to) },
+    [0xF0] = { .first = KEEP_OPERAND(1) },
     /* the story */
     [0x56] = { .parse = 4, .first = KEEP(BYTE, value) },
     [0x58] = { .parse = 4, .first = KEEP(WORD, value) },
@@ -127,7 +167,7 @@ static const OriginalLeaves by_opcode[256] = {
     [0x7F] = { .parse = 2 },
 };
 
-const OriginalLeaves *original_leaves(uint8_t opcode) { return &by_opcode[opcode]; }
+static const OriginalLeaves *original_leaves(uint8_t opcode) { return &by_opcode[opcode]; }
 
 static uint16_t parse_stop(const OriginalLeaves *l, uint16_t at, uint8_t operand)
 {
@@ -138,8 +178,9 @@ static uint16_t parse_stop(const OriginalLeaves *l, uint16_t at, uint8_t operand
 static void keep(GameState *g, unsigned cell, Kept k, const EventCommand *c, uint16_t at)
 {
     switch (k.as) {
-    case KEEP_BYTE: keep_byte(g, cell, (uint8_t)event_parameter(c, k.parameter)); break;
-    case KEEP_WORD: keep_word(g, cell, (uint16_t)event_parameter(c, k.parameter)); break;
+    case KEEP_BYTE: keep_byte(g, cell, (uint8_t)parameter(c, k.parameter)); break;
+    case KEEP_WORD: keep_word(g, cell, (uint16_t)parameter(c, k.parameter)); break;
+    case KEEP_OPERAND_BYTE: keep_byte(g, cell, script_byte(g, (uint16_t)(at + k.operand))); break;
     case KEEP_OPERAND_OFFSET: keep_word(g, cell, (uint16_t)(at + k.operand)); break;
     default: break;
     }
@@ -165,19 +206,22 @@ void original_leaves_after(const GameState *g, uint8_t opcode, const EventComman
         return;
     Width w = c->width;
     uint16_t amount = c->amount, now = variable(g, c->variable, w);
-    bool subtracting = l->overflow == V_OF_SUBTRACTING;
-    uint16_t before = subtracting ? (uint16_t)(now + amount) : (uint16_t)(now - amount);
-    uint16_t added = subtracting ? (uint16_t)~amount : amount;
-    leave_overflow(w == AS_BYTE ? overflows8((uint8_t)before, (uint8_t)added, (uint8_t)now)
-                                : overflows16(before, added, now));
+    if (l->overflow == V_OF_SUBTRACTING) {
+        uint16_t before = (uint16_t)(now + amount);
+        leave_overflow(w == AS_BYTE ? field_subtract_overflows8((uint8_t)before, (uint8_t)amount)
+                                    : field_subtract_overflows16(before, amount));
+    } else {
+        uint16_t before = (uint16_t)(now - amount);
+        leave_overflow(w == AS_BYTE ? field_add_overflows8((uint8_t)before, (uint8_t)amount)
+                                    : field_add_overflows16(before, amount));
+    }
 }
 
 void original_leaves_on_jump(GameState *g, uint8_t opcode, uint16_t at, uint16_t from, uint8_t distance, bool back)
 {
     const OriginalLeaves *l = original_leaves(opcode);
-    uint16_t to = back ? (uint16_t)(from - distance) : (uint16_t)(from + distance);
     keep_word(g, KEPT_FIRST, distance);
-    leave_overflow(back ? overflows16(from, (uint16_t)~distance, to) : overflows16(from, distance, to));
+    leave_overflow(back ? field_subtract_overflows16(from, distance) : field_add_overflows16(from, distance));
     leave_y(parse_stop(l, at, l->parse_on_jump));
 }
 

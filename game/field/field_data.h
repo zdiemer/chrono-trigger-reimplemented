@@ -26,18 +26,45 @@ static inline uint8_t field_mirrored_byte(const GameState *g, uint8_t b) { retur
  * banks $D2-$D5, or graphics built in bank $7F. `at` is a 24-bit address,
  * carried into the next bank as the original's indexed reads carry. */
 static inline uint8_t field_sprite_graphics_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
+
+/* The ROM's banks of sprite graphics, which a graphics set's bank names: the
+ * original copies from each of the four with a routine of its own, and a bank
+ * past them (or before) from the last. */
+enum { FIELD_SPRITE_GRAPHICS_FIRST_BANK = 0xD2, FIELD_SPRITE_GRAPHICS_LAST_BANK = 0xD5 };
+static inline uint8_t field_sprite_graphics_rom_bank(uint8_t named)
+{
+    return named >= FIELD_SPRITE_GRAPHICS_FIRST_BANK && named < FIELD_SPRITE_GRAPHICS_LAST_BANK
+               ? named
+               : (uint8_t)FIELD_SPRITE_GRAPHICS_LAST_BANK;
+}
 static inline uint16_t field_sprite_graphics_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
 
-/* An animation's frame numbers, four entries an animation, in the bank its
- * object's frame table pointer names; $FF ends the animation. */
-static inline uint8_t field_animation_frame_entry(const GameState *g, uint32_t at) { return rom_read8(g, at); }
+/* An object's animations as the ROM keeps them: four frame numbers an
+ * animation, ending in $FF, in the object's frame table for its facing, in
+ * the bank the frame builder names; and four frame times an animation,
+ * ending in 0, in its table of times in bank $E4. A frame's place in either
+ * is the table's offset plus animation * 4 plus the frame, summed in 16
+ * bits as the original does. */
+enum { FIELD_FRAMES_A_ANIMATION = 4, FIELD_ANIMATION_TIMES_BANK = 0xE4 };
 
-/* An animation's frame delays in bank $E4, at the object's delay table plus
- * animation * 4 + frame; 0 ends the animation. */
-enum { FIELD_ANIMATION_DELAY_BANK = 0xE4 };
-static inline uint8_t field_animation_delay(const GameState *g, uint16_t at)
+typedef struct {
+    uint8_t bank;
+    uint16_t offset;
+} FieldFrameTable;
+
+static inline uint16_t field_animation_place(uint16_t table, uint8_t animation, uint8_t frame)
 {
-    return rom_read8(g, (uint32_t)FIELD_ANIMATION_DELAY_BANK << 16 | at);
+    return (uint16_t)(table + animation * FIELD_FRAMES_A_ANIMATION + frame);
+}
+
+static inline uint8_t field_animation_frame_number(const GameState *g, FieldFrameTable t, uint16_t place)
+{
+    return rom_read8(g, (uint32_t)t.bank << 16 | place);
+}
+
+static inline uint8_t field_animation_frame_time(const GameState *g, uint16_t place)
+{
+    return rom_read8(g, (uint32_t)FIELD_ANIMATION_TIMES_BANK << 16 | place);
 }
 
 /* A direction's angle within its quadrant, at $C0:F300, looked up by the two

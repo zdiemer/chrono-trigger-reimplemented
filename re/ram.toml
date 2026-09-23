@@ -891,7 +891,7 @@ page = "field"
 stride = 5
 subsystem = "core"
 meaning = "The current location, a 5-byte location triple as the event commands store it"
-source = "tools/movies/addresses.py MAP_ID (changes exactly at map changes); game/event/locations.c set_location, event_cmd_set_location $C0:3B1B"
+source = "tools/movies/addresses.py MAP_ID (changes exactly at map changes); game/event/locations.c set_location, set_location $C0:3B1B"
 [[var.field]]
 name = "id"
 offset = 0
@@ -917,7 +917,7 @@ page = "field"
 stride = 5
 subsystem = "core"
 meaning = "The location before the last immediate location change (a location triple)"
-source = "game/event/locations.c, event_cmd_go_to_location_now $C0:3B4B (the previous location moves to $05-$09)"
+source = "game/event/locations.c, go_to_location_now $C0:3B4B (the previous location moves to $05-$09)"
 [[var.field]]
 name = "id"
 offset = 0
@@ -931,7 +931,7 @@ page = "field"
 stride = 5
 subsystem = "core"
 meaning = "The location a pending location change goes to (a location triple); the field main loop acts on it once bit 7 of $0117 is set"
-source = "game/event/locations.c, event_cmd_go_to_location $C0:3AB7, event_cmd_go_to_worked_out_location $C0:3B9E"
+source = "game/event/locations.c, go_to_location $C0:3AB7, go_to_worked_out_location $C0:3B9E"
 [[var.field]]
 name = "id"
 offset = 0
@@ -957,7 +957,7 @@ page = "field"
 stride = 5
 subsystem = "core"
 meaning = "A location triple event $DC keeps (the field's start reads it, $C0:02F9)"
-source = "game/event/locations.c, event_cmd_set_location_put_aside $C0:3AF1"
+source = "game/event/locations.c, set_location $C0:3AF1"
 [[var.field]]
 name = "id"
 offset = 0
@@ -990,7 +990,7 @@ addr = "7E:0117"
 page = "field"
 subsystem = "field"
 meaning = "Requests to the field main loop: bit 7 a location change (location_next), bit 0 a battle (set with bit 5 by event $D8), bit 5 also a queued tile copy (event $E5)"
-source = "game/event/locations.c request_change, event_cmd_fight $C0:3A83; game/event/screen.c event_cmd_queue_tile_copy $C0:3DC5"
+source = "game/event/locations.c request_change, fight $C0:3A83; game/event/screen.c queue_tile_copy $C0:3DC5"
 
 [[var]]
 name = "field_effect_status"
@@ -998,7 +998,7 @@ addr = "7E:0118"
 page = "field"
 subsystem = "field"
 meaning = "Status bits: bit 0 the battle event $D8 started is over, bit 1 a brightness change is running, bits 3-4 a fixed color change is running"
-source = "game/event/screen.c event_cmd_fade $C0:3CD0, event_cmd_tint $C0:3D07, wait_for_screen; game/event/locations.c event_cmd_fight $C0:3A83"
+source = "game/event/screen.c fade $C0:3CD0, tint $C0:3D07, wait_for_screen; game/event/locations.c fight $C0:3A83"
 
 [[var]]
 name = "field_brightness"
@@ -1006,7 +1006,7 @@ addr = "7E:0119"
 page = "field"
 subsystem = "field"
 meaning = "Brightness shadow the field NMI writes to the display every frame (0: forced blank)"
-source = "game/field/nmi.c field_nmi $C0:EA63; game/event/screen.c event_cmd_fade $C0:3CD0"
+source = "game/field/nmi.c field_nmi $C0:EA63; game/event/screen.c fade $C0:3CD0"
 
 [[var]]
 name = "field_brightness_target"
@@ -1014,7 +1014,7 @@ addr = "7E:011B"
 page = "field"
 subsystem = "field"
 meaning = "Brightness a gradual change started by event $F0 moves toward"
-source = "game/event/screen.c, event_cmd_fade $C0:3CD0"
+source = "game/event/screen.c, fade $C0:3CD0"
 
 [[var]]
 name = "field_brightness_rate"
@@ -1023,7 +1023,7 @@ page = "field"
 size = 2
 subsystem = "field"
 meaning = "Rate of a gradual brightness change (event $F0's low nibble, written to both bytes)"
-source = "game/event/screen.c, event_cmd_fade $C0:3CD0"
+source = "game/event/screen.c, fade $C0:3CD0"
 
 [[var]]
 name = "field_fixed_color"
@@ -1031,7 +1031,7 @@ addr = "7E:0121"
 page = "field"
 subsystem = "field"
 meaning = "Fixed color shadow (channel bits 5-7, intensity 0-4) the field NMI writes every frame"
-source = "game/field/nmi.c field_nmi $C0:EA63; game/event/screen.c event_cmd_tint $C0:3D07"
+source = "game/field/nmi.c field_nmi $C0:EA63; game/event/screen.c tint $C0:3D07"
 
 [[var]]
 name = "field_fixed_color_target"
@@ -1039,7 +1039,7 @@ addr = "7E:0122"
 page = "field"
 subsystem = "field"
 meaning = "Fixed color a gradual change started by event $F1 moves toward"
-source = "game/event/screen.c, event_cmd_tint $C0:3D07"
+source = "game/event/screen.c, tint $C0:3D07"
 
 [[var]]
 name = "field_fixed_color_rate"
@@ -1048,7 +1048,7 @@ page = "field"
 size = 2
 subsystem = "field"
 meaning = "Rate of a gradual fixed color change (event $F1's operand 2, written to both bytes)"
-source = "game/event/screen.c, event_cmd_tint $C0:3D07"
+source = "game/event/screen.c, tint $C0:3D07"
 
 [[var]]
 name = "location_record_offset"
@@ -1096,7 +1096,7 @@ addr = "7E:012A"
 page = "field"
 subsystem = "field"
 meaning = "Index of the dialog string being shown, from the dialog command's operand"
-source = "game/event/dialog.c, event_cmd_say $C0:3570"
+source = "game/event/dialog.c, say $C0:3570"
 
 [[var]]
 name = "dialog_string_table"
@@ -1105,7 +1105,7 @@ page = "field"
 size = 3
 subsystem = "field"
 meaning = "24-bit pointer to the dialog string table (zero bank: none, an error)"
-source = "game/event/dialog.c, event_cmd_use_text $C0:3557"
+source = "game/event/dialog.c, use_text $C0:3557"
 
 [[var]]
 name = "dialog_speaker"
@@ -1222,7 +1222,7 @@ addr = "7E:0163"
 page = "field"
 subsystem = "field"
 meaning = "Which of the four window tile pairs gets the alternate tiles $28FC-$28FF (0-3); $80 none"
-source = "game/field/display.c, field_patch_window_tiles $C0:F05E"
+source = "game/field/window_corners.c, field_refresh_window_corners $C0:F05E"
 
 [[var]]
 name = "dialog_choice"
@@ -1335,7 +1335,7 @@ stride = 2
 index = "party member * 2"
 subsystem = "field"
 meaning = "Object slot of each active party member, negative for none"
-source = "game/event/party.h; game/event/party.c event_cmd_take_out_of_party $C0:3A07; game/field/object_update.c field_update_objects $C0:A810"
+source = "game/event/party.h; game/event/party.c take_out_of_party $C0:3A07; game/field/object_update.c field_update_objects $C0:A810"
 
 [[var]]
 name = "event_object_end"
@@ -1352,7 +1352,7 @@ addr = "7E:011E"
 page = "field"
 subsystem = "field"
 meaning = "Set to 1 by events $DE and $DF with the location they set; cleared at $C0:2842 and $C0:2866, returned by $C0:28A7 and ANDed at $C0:7628 and on"
-source = "game/event/locations.c, event_cmd_set_location_raising_1e $C0:3B45, event_cmd_go_to_location_now_raising_1e $C0:3B98"
+source = "game/event/locations.c, set_location $C0:3B45, go_to_location_now_raising_1e $C0:3B98"
 
 [[var]]
 name = "field_player_control"
@@ -1360,7 +1360,7 @@ addr = "7E:011F"
 page = "field"
 subsystem = "field"
 meaning = "Nonzero while the player controls the party: only then does Start pause the field ($C0:18D9); event $E3 sets it, a battle ($D8) and a screen scroll ($E7) clear it"
-source = "game/event/screen.c, event_cmd_set_player_control $C0:3C05, event_cmd_scroll_camera $C0:3E30; game/event/locations.c event_cmd_fight $C0:3A83; $C0:18E4"
+source = "game/event/screen.c, set_player_control $C0:3C05, scroll_camera $C0:3E30; game/event/locations.c fight $C0:3A83; $C0:18E4"
 
 [[var]]
 name = "dialog_window_object"
@@ -1376,7 +1376,7 @@ addr = "7E:0138"
 page = "field"
 subsystem = "field"
 meaning = "Nonzero: event $B0 runs no state routine and waits (set at $C0:177F and $C0:A496)"
-source = "game/event/movement.c, event_cmd_behave $C0:3002"
+source = "game/event/movement.c, behave $C0:3002"
 
 [[var]]
 name = "field_tile_copy"
@@ -1385,7 +1385,7 @@ page = "field"
 stride = 8
 subsystem = "field"
 meaning = "A copy of map tiles events $E4 and $E5 describe, which $C0:AF4E makes (now, or from the field main loop)"
-source = "game/event/screen.c describe_tile_copy, event_cmd_copy_tiles $C0:3D97, event_cmd_queue_tile_copy $C0:3DC5; $C0:AF4E, $C0:B096"
+source = "game/event/screen.c describe_tile_copy, copy_tiles $C0:3D97, queue_tile_copy $C0:3DC5; $C0:AF4E, $C0:B096"
 [[var.field]]
 name = "from"
 offset = 0
@@ -1441,15 +1441,15 @@ page = "field"
 size = 2
 subsystem = "field"
 meaning = "The scanline the objects' animation updates stop at each frame ($C0:CA99; $0078 after a map loads, $C0:56AB); event $47 sets its low byte"
-source = "game/event/screen.c event_cmd_set_animation_line_limit $C0:6788; $C0:CA99"
+source = "game/event/screen.c set_animation_line_limit $C0:6788; $C0:CA99"
 
 [[var]]
-name = "field_setting_bc"
+name = "field_screen_shake"
 addr = "7E:01BC"
 page = "field"
 subsystem = "field"
 meaning = "While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames, except against the map's left or top edge. Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts ($C0:0BA4)"
-source = "game/event/screen.c event_cmd_set_bc $C0:3D84; game/field/layers.c $C0:91AC"
+source = "game/event/screen.c shake_screen $C0:3D84; game/field/layers.c update_layer_scroll $C0:91AC"
 
 [[var]]
 name = "event_count"
@@ -1458,7 +1458,7 @@ page = "field"
 size = 2
 subsystem = "event"
 meaning = "A command's count: the bytes event $4E copies, less one; event $7A keeps its height operand in the low byte. Read back only by the command that wrote it (scaffolding)"
-source = "game/event/memory.c keep_count $C0:6846; game/event/movement.c keep_height $C0:4D06"
+source = "game/event/memory.c keep_count $C0:6846; game/event/movement.c leave_jump $C0:4D06"
 
 [[var]]
 name = "event_condition_resume"
@@ -1520,7 +1520,7 @@ page = "field"
 size = 8
 subsystem = "field"
 meaning = "Cells the field's object, sprite and graphics routines keep values in on the way: an animation's delay entry ($C1), the view window's edges or an object's screen position ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7)"
-source = "game/field/graphics.c, game/field/object_view.c, game/field/sprites.c, game/field/motion.c, game/field/object_update.c (field/scratch.h)"
+source = "game/field/scratch.h; the leave_ helpers of game/field/graphics.c, object_view.c, sprites.c, motion.c and object_update.c"
 
 [[var]]
 name = "field_sprite_graphics"
@@ -1758,7 +1758,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Screen Y the object's sprites are drawn at, 9 bits; / 4 picks its row list"
-source = "game/field/object_update.c, field_update_screen_position $C0:AB45, load_row"
+source = "game/field/object_update.c, object_update_screen_position $C0:AB45, row_of"
 
 [[var]]
 name = "field_object_sprite_priority"
@@ -1769,7 +1769,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Two sprite priority bytes ($20/$30, bits 4-5): +0 from the map's $7E:7040 attribute or the priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5"
-source = "game/event/properties.c layer_as_the_map, event_cmd_set_layering $C0:4C74; game/field/motion.c update_priority"
+source = "game/field/object.c object_set_sprite_priorities, object_layer_as_the_map $C0:4BA3, object_set_layering $C0:4C74; game/field/motion.c take_priorities_for_the_step"
 
 [[var]]
 name = "field_row_first_object"
@@ -1782,14 +1782,14 @@ meaning = "First object of each screen row's list, negative for none"
 source = "game/field/object_update.c field_join_object_row $C0:A9CD; game/field/sprites.c field_build_sprite_table $C0:B271"
 
 [[var]]
-name = "field_object_unlinked"
+name = "field_object_row_mark"
 addr = "7E:0E01"
 count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "Negative while the object isn't in a row list, 0 while it is"
-source = "game/field/object_update.c, field_leave_object_row $C0:A98A, field_join_object_row $C0:A9CD"
+meaning = "Whether the object is in a screen row's list: 0 while it is, and out of one the none link (negative) it was left with"
+source = "game/field/object_update.c in_a_row, object_leave_row $C0:A98A, object_join_row $C0:A9CD"
 
 [[var]]
 name = "field_object_row_link"
@@ -1817,7 +1817,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "$80 while the object is inside the window around the screen (active), 0 outside"
-source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game/field/object_view.c field_update_object_in_window $C0:A947; game/event/flow.c event_cmd_if_in_view $C0:662C"
+source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game/field/object_view.c field_update_object_in_window $C0:A947; game/event/flow.c if_in_view $C0:662C"
 
 [[var]]
 name = "field_object_priority_mode"
@@ -1827,7 +1827,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Sprite priority mode: bit 7 takes the priority from the map tile, else bits 0-1 and 4-5 give it; bits 2-3 pick the OAM range"
-source = "game/event/properties.c event_cmd_set_layering $C0:4C74; game/field/sprites.c field_draw_object_sprites $C0:B309"
+source = "game/event/properties.c set_layering $C0:4C74; game/field/sprites.c field_draw_object_sprites $C0:B309"
 
 [[var]]
 name = "field_object_step_length"
@@ -1837,7 +1837,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Steps a move starts with (event $87 sets operand + 1); bit 7 makes calls skip the object"
-source = "game/event/properties.c event_cmd_set_move_length $C0:4876; game/event/movement.c set_steps; game/event/calls.c event_cmd_make_unreachable $C0:6269"
+source = "game/field/object.c object_set_move_length $C0:4876, object_move_length, object_set_unreachable $C0:6269"
 
 [[var]]
 name = "field_object_animation_link"
@@ -1857,7 +1857,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Set with field_object_step_length by event $87 and cleared by the party's scripted moves ($C0:31AA and on); what reads it isn't established"
-source = "game/event/properties.c event_cmd_set_move_length $C0:4876"
+source = "game/event/properties.c set_move_length $C0:4876"
 
 [[var]]
 name = "field_object_battle_info"
@@ -1867,25 +1867,27 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "A byte per object the field hands the battle with the party's and enemies' placement ($C0:0453 into $7E:29B4, $C0:083B from $7E:29C3); event $8E sets it to $FF"
-source = "game/event/properties.c event_cmd_set_layering $C0:4C74"
+source = "game/event/properties.c set_layering $C0:4C74"
 
 [[var]]
-name = "field_object_state"
+name = "field_object_role"
 addr = "7E:1100"
 count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "The object's state (negative: disabled); a record of state and character"
-source = "game/field/object_update.c field_update_objects $C0:A810; game/event/calls.c event_cmd_disable_object $C0:6254; game/event/party.c event_cmd_take_out_of_party $C0:3A07"
-[[var.field]]
-name = "state"
-offset = 0
-meaning = "Negative disabled; below 3 moved without tile checks, 3 set when leaving the party, 7 checked against the screen window, 8 skipped by the update loop"
-[[var.field]]
-name = "character"
-offset = 1
-meaning = "The character the object is (matched by event $D6 when removing one from the party)"
+meaning = "What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the party, 7 checked against the screen window only, 8 left alone by the update"
+source = "game/field/object.c object_role, set_role; game/field/object_update.c field_update_objects $C0:A810"
+
+[[var]]
+name = "field_object_character"
+addr = "7E:1101"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "The character the object is (event $D6 takes the first party member who is one out of the party); bit 7: the object runs no script"
+source = "game/field/object.c object_character, object_runs_a_script; game/event/party.c take_out_of_party $C0:3A07; game/event/engine.c event_run_openings $C0:58DE"
 
 [[var]]
 name = "field_object_sprite_layout"
@@ -1916,7 +1918,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "The frame shown in animation mode 3 (static frame)"
-source = "game/event/animation.c, event_cmd_hold_frame $C0:2F71"
+source = "game/field/animation.c, object_show_frame; game/event/animation.c hold_frame $C0:2F71"
 
 [[var]]
 name = "field_object_facing_table_size"
@@ -1972,22 +1974,24 @@ meaning = "Frames left before the object's next animation frame; cleared to rest
 source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
 
 [[var]]
-name = "field_object_animation"
+name = "field_object_looped_animation"
 addr = "7E:1680"
 count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "The object's animation"
-source = "game/event/animation.c, $C0:2E6D; game/field/animation.c field_update_walk_animation"
-[[var.field]]
-name = "number"
-offset = 0
-meaning = "Animation number ($FF: none to go back to after a timed play)"
-[[var.field]]
-name = "frame"
-offset = 1
-meaning = "Frame within the animation"
+meaning = "The animation the object loops, or animates its movement with ($FF while a one-off or a held frame has nothing to go back to)"
+source = "game/field/animation.c looped_animation, object_loop_animation $C0:2E6D, object_animate_movement $C0:5614"
+
+[[var]]
+name = "field_object_animation_frame"
+addr = "7E:1681"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "Where the object is in its animation: a frame number ($FF, a frame before the first, where it starts over)"
+source = "game/field/animation.c object_restart_animation, next_frame, object_next_frame_to_draw $C0:CB3A"
 
 [[var]]
 name = "field_object_sprite_records"
@@ -2007,16 +2011,18 @@ count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "How the object animates"
-source = "game/event/animation.c (header comment), $C0:2E74"
-[[var.field]]
-name = "mode"
-offset = 0
-meaning = "0 none, 1 looping, 2 a timed play, 3 a static frame"
-[[var.field]]
-name = "timed_animation"
-offset = 1
-meaning = "The animation a timed play runs"
+meaning = "How the object animates (field/object.h, ObjectAnimationMode): 0 with its movement, 1 looping an animation, 2 playing a one-off, 3 holding a frame"
+source = "game/field/animation.c object_animation_mode, set_mode"
+
+[[var]]
+name = "field_object_one_off_animation"
+addr = "7E:1781"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "The one-off animation the object plays (or last played: a held frame keeps timing it)"
+source = "game/field/animation.c object_play_animation $C0:2E9A, one_off_animation"
 
 [[var]]
 name = "field_object_x"
@@ -2084,7 +2090,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "The object's speed, multiplied by the direction factors into its velocity"
-source = "game/field/motion.c (header comment), field_set_velocity; game/event/properties.c event_cmd_set_speed $C0:4B49"
+source = "game/field/motion.c (header comment), field_set_velocity; game/field/object.c object_set_speed $C0:4B49"
 
 [[var]]
 name = "field_object_steps_left"
@@ -2094,7 +2100,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Steps left in the current move (move commands wait while nonzero)"
-source = "game/field/object_update.c count_step ($C0:AA07); game/event/movement.c still_moving"
+source = "game/field/motion.c count_step ($C0:AA07), object_moving, object_start_move, object_start_walk"
 
 [[var]]
 name = "field_object_counted_move"
@@ -2104,7 +2110,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Set while a counted move command runs"
-source = "game/event/movement.c, counted_move, approach_counted $C0:536B"
+source = "game/field/object.c object_mark_scripted_move, object_scripted_move_marked; game/event/movement.c counted_move $C0:536B"
 
 [[var]]
 name = "field_object_sprite_flag"
@@ -2124,7 +2130,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "State of the object's sprite records: 0 nothing to draw, $80 current (only the position to update), other values a rebuild"
-source = "game/field/sprites.c, field_update_object_sprites $C0:B701, reload_records"
+source = "game/field/sprites.c, field_update_object_sprites $C0:B701, records_state, mark_records_built"
 
 [[var]]
 name = "field_object_solid"
@@ -2134,7 +2140,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Bit 0: the object blocks other objects' moves"
-source = "game/field/motion.c field_object_in_the_way $C0:5B95; game/event/properties.c event_cmd_set_solid $C0:4867"
+source = "game/field/motion.c field_object_in_the_way $C0:5B95; game/field/object.c object_set_solidity $C0:4867"
 
 [[var]]
 name = "field_object_accelerating"
@@ -2144,7 +2150,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Nonzero: the object moves with 16-bit velocities, its Y velocity accelerating each step"
-source = "game/field/object_update.c move_accelerating $C0:AAC7; game/event/movement.c launch $C0:4E25"
+source = "game/field/motion.c fall $C0:AAC7, object_launch $C0:4E25, object_land"
 
 [[var]]
 name = "field_object_acceleration"
@@ -2154,7 +2160,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Added to the Y velocity each step of an accelerating move"
-source = "game/field/object_update.c, move_accelerating $C0:AAC7"
+source = "game/field/motion.c, fall $C0:AAC7, object_launch, object_jump"
 
 [[var]]
 name = "event_object_call_state"
@@ -2182,7 +2188,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Bit 0: the map's blocked tiles stop the object; bit 1: other objects in the way stop it"
-source = "game/field/motion.c field_start_step $C0:ACFD, field_object_in_the_way $C0:5B95; game/event/properties.c event_cmd_set_blocked_by $C0:6295"
+source = "game/field/motion.c field_start_step $C0:ACFD, field_object_in_the_way $C0:5B95; game/field/object.c object_set_blocked_by $C0:6295"
 
 [[var]]
 name = "field_object_arrival_flags"
@@ -2192,7 +2198,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Flags choosing an extra routine on arrival: bit 1 lines the object up with its target"
-source = "game/event/movement.c lines_up; game/event/properties.c event_cmd_set_arrival $C0:62A4"
+source = "game/field/object.c object_set_arrival $C0:62A4, object_lines_up"
 
 # ---- the field layers' page ($1D00) --------------------------------------------
 
@@ -2202,7 +2208,7 @@ addr = "7E:1D00"
 page = "field_layers"
 subsystem = "field"
 meaning = "The screen scroll event $E7 runs: 0 idle (starts one), 1 scrolling, 2 arrived"
-source = "game/event/screen.c event_cmd_scroll_camera $C0:3E30; game/field/layers.c field_update_layer_scroll $C0:91AC"
+source = "game/event/screen.c scroll_camera $C0:3E30; game/field/layers.c field_update_layer_scroll $C0:91AC"
 
 [[var]]
 name = "field_screen_scroll_arrived"
@@ -2219,7 +2225,7 @@ page = "field_layers"
 stride = 2
 subsystem = "field"
 meaning = "Where event $E7 scrolls the screen to, in 8-pixel tiles (its operands doubled)"
-source = "game/event/screen.c event_cmd_scroll_camera $C0:3E30; game/field/layers.c field_update_layer_scroll $C0:91AC"
+source = "game/event/screen.c scroll_camera $C0:3E30; game/field/layers.c field_update_layer_scroll $C0:91AC"
 [[var.field]]
 name = "x"
 offset = 0
@@ -2279,7 +2285,7 @@ stride = 2
 index = "layer (BG1-BG3)"
 subsystem = "field"
 meaning = "Extra scroll speed per layer, 4.4 fixed point, set by event $E6 and cleared when field_layer_extra_speed_time runs out"
-source = "game/event/screen.c event_cmd_drift_layers $C0:3DF4; game/field/layers.c field_update_layer_scroll $C0:91AC"
+source = "game/event/screen.c drift_layers $C0:3DF4; game/field/layers.c field_update_layer_scroll $C0:91AC"
 [[var.field]]
 name = "x"
 offset = 0
@@ -2371,7 +2377,7 @@ addr = "7E:1D4D"
 page = "field_layers"
 subsystem = "field"
 meaning = "Frames left of field_layer_extra_speed (0: no limit)"
-source = "game/event/screen.c event_cmd_drift_layers $C0:3DF4; game/field/layers.c field_update_layer_scroll $C0:91AC"
+source = "game/event/screen.c drift_layers $C0:3DF4; game/field/layers.c field_update_layer_scroll $C0:91AC"
 
 [[var]]
 name = "field_scroll_offset"
@@ -2380,7 +2386,7 @@ page = "field_layers"
 stride = 2
 subsystem = "field"
 meaning = "Per-frame scroll offsets taken from $7E:0400's bits 1-2 while $01BC is set (zero on an axis whose target is 0); event $F4 with 0 clears them"
-source = "game/field/layers.c field_update_layer_scroll $C0:91AC; game/event/screen.c event_cmd_set_bc $C0:3D84"
+source = "game/field/layers.c field_update_layer_scroll $C0:91AC; game/event/screen.c shake_screen $C0:3D84"
 [[var.field]]
 name = "x"
 offset = 0
@@ -2425,7 +2431,7 @@ index = "upload group (tiles, tiles alt, columns, columns alt)"
 subsystem = "field"
 page = "field_layers"
 meaning = "Deferred tile map uploads for the field NMI: bits 0-2 one per layer, cleared after they run"
-source = "game/field/nmi.c, run_video_uploads ($C0:EA63)"
+source = "game/field/nmi.c, run_edge_uploads ($C0:EA63)"
 
 [[var]]
 name = "field_transition_map_base"
@@ -2609,7 +2615,7 @@ name = "field_fixed_color_math_layers"
 addr = "7E:0BE0"
 subsystem = "field"
 meaning = "Color math layers for event $F1's fixed color: $17 add, $97 subtract, back to field_color_math_layers when the color is cleared"
-source = "game/event/screen.c event_cmd_tint $C0:3D07; docs/PLATFORM.md (Color math)"
+source = "game/event/screen.c tint $C0:3D07; docs/PLATFORM.md (Color math)"
 
 [[var]]
 name = "field_layer_maps"
@@ -2847,7 +2853,14 @@ addr = "7F:0000"
 size = 0x200
 subsystem = "event"
 meaning = "The event engine's byte-addressed memory, where the story flags live; the compare and bit commands reach $000-$1FF, the 16-bit-offset ones any offset"
-source = "game/event/variables.c ($53-$55), game/event/story.c ($56-$5A, $65, $66), game/event/flow.c if_story $C0:63E6; tools/movies/addresses.py EVENT_MEMORY"
+source = "game/event/variables.h story_byte; game/event/variables.c ($53-$55), game/event/story.c ($56-$5A, $65, $66), game/event/flow.c if_story $C0:63E6; tools/movies/addresses.py EVENT_MEMORY"
+
+[[var]]
+name = "field_window_2_second_table"
+addr = "7F:0351"
+subsystem = "field"
+meaning = "Bit 0 swaps which of the two per-line window tables window 2 reads in each set of the line effects' tables; the scripts set it as the high byte of their variable $A8 (event_variables), through which the original reads it"
+source = "game/field/line_effects.c window2_choice $FD:C439, $FD:C477"
 
 [[var]]
 name = "event_variables"
@@ -2867,7 +2880,7 @@ count = 512
 index = "level * 64 + object slot (offset level * $80 + slot * 2)"
 subsystem = "event"
 meaning = "Saved script position per object and call level (0: none), resumed when a higher-priority call returns"
-source = "game/event/calls.c place_of, interrupt, event_cmd_return_from_function $C0:5F74 (levels 0-7)"
+source = "game/event/calls.c place_of, interrupt, return_from_function $C0:5F74 (levels 0-7)"
 
 [[var]]
 name = "event_call_waiting"
@@ -2887,7 +2900,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "event"
 meaning = "Per-object waiting state"
-source = "game/event/dialog.c open_dialog; game/event/flow.c event_cmd_wait_frames $C0:2F96"
+source = "game/event/dialog.c open_dialog; game/event/flow.c wait_frames $C0:2F96"
 [[var.field]]
 name = "dialog"
 offset = 0
@@ -2909,22 +2922,24 @@ meaning = "A value per object: the choice made in its last dialog with choices, 
 source = "game/event/dialog.c set_result $C0:653B, ask, if_answer $C0:6568"
 
 [[var]]
-name = "field_object_move_state"
+name = "field_object_tile_crossing"
 addr = "7F:0B00"
 count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "Per-object movement and animation counters"
-source = "game/field/motion.c field_move_object $C0:AA07; game/event/animation.c COUNTDOWN"
-[[var.field]]
-name = "tile_mode"
-offset = 0
-meaning = "0 keeps moves inside the current tile, positive allows one step across (then cleared), negative crossing every step"
-[[var.field]]
-name = "animation_count"
-offset = 1
-meaning = "Countdown of a timed animation (loops left for a scripted one; 0 none playing)"
+meaning = "Whether the object's move may take it out of its tile (field/object.h, TileCrossing): 0 never, positive on its next step only (then cleared), negative on every step"
+source = "game/field/motion.c tile_crossing, object_take_step $C0:AA07, object_start_move, object_start_walk"
+
+[[var]]
+name = "field_object_one_off_half_passes"
+addr = "7F:0B01"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "How much of a one-off animation is left to play, in half passes (0 none playing; 1 played out, holding its last frame)"
+source = "game/field/animation.c half_passes_left, object_play_animation $C0:2E9A, count_a_pass, object_next_frame_to_draw $C0:CB3A"
 
 [[var]]
 name = "field_line_effect_tables"
@@ -3206,10 +3221,10 @@ meaning = "Vertical"
 [[var]]
 name = "field_sprite_frame_data"
 addr = "7F:4800"
-size = 8
+size = 0x340
 subsystem = "field"
-meaning = "Start of the objects' sprite frame data (offsets, tile and attribute words per sprite), at the object's field_object_sprite_records offset"
-source = "game/field/sprites.c, field_load_and_position_sprites $C0:B8CA"
+meaning = "The objects' sprites as their frames give them, 8 bytes a sprite at the object's field_object_sprite_records offset, as the records keep them (the X offset a word, the Y offset, the tile and the attributes at the records' places), which a rebuild takes the records from"
+source = "game/field/sprites.c place_sprites, field_load_and_position_sprites $C0:B8CA"
 
 [[var]]
 name = "field_sprite_records"
@@ -3261,14 +3276,14 @@ count = 3
 index = "party slot"
 subsystem = "core"
 meaning = "The three active party members as character ids, $80 for an empty slot"
-source = "tools/movies/addresses.py PARTY_MEMBERS; game/event/party.c event_cmd_take_out_of_party $C0:3A07"
+source = "tools/movies/addresses.py PARTY_MEMBERS; game/event/party.c take_out_of_party $C0:3A07"
 
 [[var]]
 name = "current_song"
 addr = "7E:29AE"
 subsystem = "core"
 meaning = "The song the last play-song event command started"
-source = "game/event/sound.c, event_cmd_play_song $C0:3C2F"
+source = "game/event/sound.c, play_song $C0:3C2F"
 
 # ==============================================================================
 # Menus, and state every mode shares (core)
@@ -5575,7 +5590,7 @@ name = "battle_event_flags"
 addr = "7E:2A1F"
 subsystem = "battle"
 meaning = "Flags the event hands the battle with battle_setup_flags (event $D8's second operand): with bit 6 the battle keeps the field's song ($CD:03CC)"
-source = "game/event/locations.c event_cmd_fight $C0:3A83; game/battle/sound.c battle_wait_sound_port1_or_2a1f $CD:042B"
+source = "game/event/locations.c fight $C0:3A83; game/battle/sound.c battle_wait_sound_port1_or_2a1f $CD:042B"
 
 [[var]]
 name = "battle_party_placement"

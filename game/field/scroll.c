@@ -14,7 +14,6 @@
 
 enum { SCROLL_BG2 = 0x02, SCROLL_BG3 = 0x04 };   /* field_auto_scroll */
 enum { AUTO_BG2, AUTO_BG3 };   /* the auto-scroll tables have BG2 and BG3 only */
-enum { AXIS_X, AXIS_Y };
 
 static uint8_t accumulator(const GameState *g, unsigned layer, unsigned axis)
 {
@@ -96,7 +95,7 @@ static void scroll_layers(GameState *g)
         last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_X));
         last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_Y));
     }
-    leave_for_original(g, last_backward);
+    ORIGINAL_EFFECT(leave_for_original(g, last_backward));
 }
 
 /* It sets its own direct page and data bank, and restores the caller's;

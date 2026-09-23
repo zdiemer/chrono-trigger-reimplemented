@@ -4,9 +4,29 @@
 
 #include "vars.h"
 
-bool field_machine_back(const Snes *s, bool x8, uint16_t d, uint8_t db)
+static bool came_back(const Snes *s, BridgeMachine m)
 {
-    return !s->cpu.e && m_m8(s) && m_x8(s) == x8 && m_direct_page(s) == d && s->cpu.db == db;
+    return !s->cpu.e && m_m8(s) && m_x8(s) == m.x8 && m_direct_page(s) == m.page && s->cpu.db == m.bank;
+}
+
+bool bridge_back(Snes *s, uint32_t returns_to, BridgeMachine m)
+{
+    if (came_back(s, m))
+        return true;
+    m_stop_at_own(s, returns_to, 0);
+    return false;
+}
+
+bool bridge_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m)
+{
+    m_jsr_dc(s, site, routine, dont_care);
+    return bridge_back(s, site + JSR_SIZE, m);
+}
+
+bool bridge_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m)
+{
+    m_jsl_dc(s, site, routine, dont_care);
+    return bridge_back(s, site + JSL_SIZE, m);
 }
 
 unsigned field_current_object_slot(Snes *s)

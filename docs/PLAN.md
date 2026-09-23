@@ -168,28 +168,29 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **32 of 95 files, 14,026 of
-28,051 lines (50%), are on the backlog**, and all but the scenes, the events
+each subsystem's functions that take the machine. **32 of 96 files, 14,026 of
+27,926 lines (50%), are on the backlog**, and all but the scenes, the events
 and the field is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 20 | 27 | 7,779 | 10,310 | 0.33 | 99% |
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
-| event | 0 | 19 | 0 | 2,693 | 0.01 | 29% |
-| field | 0 | 16 | 0 | 3,799 | 0.02 | 30% |
+| event | 0 | 19 | 0 | 2,233 | 0.01 | 14% |
+| field | 0 | 17 | 0 | 4,134 | 0.02 | 26% |
 | scene | 0 | 13 | 0 | 2,397 | 0.05 | 54% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
-| **total** | **32** | **95** | **14,026** | **28,051** | **0.22** | **69%** |
+| **total** | **32** | **96** | **14,026** | **27,926** | **0.22** | **65%** |
 
-Scene's 54%, event's 29% and field's 30% are their entries' wrappers, their
+Scene's 54%, event's 14% and field's 26% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
 name (`portstyle.py`'s own column misses one-line definitions and
 macro-generated entries; RECOMP.md's "Phase 3a" sections for the three list
-what is neither an entry nor a guard, and why). Most of event's are the move
-commands' calls into the field's motion routines, which `field`'s rewrite made
-C over the game's state (`field/object.h`); calling them as C is event's next
-change (TODO.md).
+what is neither an entry nor a guard, and why). Event's moves call the field's
+motion as C now (RECOMP.md, "Phase 3a: event onto the field's objects"); its
+bridges left are the commands whose callees are still the original's (the
+sound driver, the menus' party routines, the field's state routines, the tile
+copy and the location change).
 
 ### What decoupling means here, and what it must not break
 
@@ -285,24 +286,13 @@ CLAUDE.md and the port-routine skill now also require three things:
   operation, rather than through the ROM's pointer table and an emulated `JSR`;
 - comments that say what a function is for in the game's terms.
 
-Event's engine and handlers are being reworked to that bar now, together with
-separating the gate's scaffolding from the logic. `field` is building the
-domain layer for field objects (their animation as a state machine, their
-position, facing and movement), which event's handlers will then call.
-
-**Before `menu`: event onto field's object model, and the RAM map named by
-meaning.** Once both have landed, one pass does two things:
-- It moves event's object-state helpers onto field's object module.
-- It renames the accessors whose names follow the original's layout rather than
-  meaning. `field_object_animation_mode_mode` stutters, and
-  `field_object_move_state_animation_count` files an animation countdown under
-  "move state" only because the two bytes sit side by side. The map's records
-  were grouped by where bytes are; a field should be named for its concept, and
-  field's domain layer says which concept each belongs to.
-
-`tools/ram_map.py` should report stuttering and layout-shaped names so they stay
-fixed. Doing this before `menu` and `battle` means it is paid on 4.5K lines of
-call sites rather than 20K.
+Event and field are at that bar, event's commands on the field's object
+module (`field/object.h`, the only way to an object's state) and the RAM map's
+object tables named by concept rather than by the bytes beside them
+(RECOMP.md, "Phase 3a: event onto the field's objects"). `tools/ram_map.py`
+rejects a stuttering name and `check` lists the names still shaped like
+addresses, so the rest of the map can be brought to it as `menu` and `battle`
+are rewritten.
 
 **Scene fails the qualitative review, and its rework joins that pass.** The
 review's first run, on `scene` (merged under the older bar), rated three files

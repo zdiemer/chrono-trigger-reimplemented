@@ -19,11 +19,11 @@ enum { DIALOG_FROM_THE_FIELD = 0x20 };
 static bool dialog_on_screen(const GameState *g) { return dialog_state(g) != DIALOG_IDLE; }
 
 /* Open the window on a line for an object, which waits on it. */
-static void open_dialog(GameState *g, EventObject speaker, uint8_t line, WindowPlace where)
+static void open_dialog(GameState *g, FieldObject speaker, uint8_t line, WindowPlace where)
 {
     set_event_object_wait_dialog(g, speaker, 1);
     set_dialog_string(g, line);
-    set_dialog_speaker(g, (uint8_t)(speaker * 2));
+    set_dialog_speaker(g, field_link_byte(field_link_to(speaker)));
     set_dialog_window_object(g, 0);   /* the dialog places its window by the speaker once it starts */
     set_dialog_state(g, DIALOG_OPENING);
     set_dialog_box_position(g, where);
@@ -32,7 +32,7 @@ static void open_dialog(GameState *g, EventObject speaker, uint8_t line, WindowP
 
 /* Whether the object's dialog has been read and closed: it opened one and
  * the window is gone. The object stops waiting on it then. */
-static bool finished_reading(GameState *g, EventObject speaker)
+static bool finished_reading(GameState *g, FieldObject speaker)
 {
     if (!event_object_wait_dialog(g, speaker))
         return false;
@@ -40,18 +40,17 @@ static bool finished_reading(GameState *g, EventObject speaker)
     return true;
 }
 
-/* The choices a question offers, as the script gives them: its first choice
- * line in bits 0-1, its last in bits 2-3. */
-static void offer_choices(GameState *g, uint8_t lines)
+/* The choices a question offers: its first choice line and its last. */
+static void offer_choices(GameState *g, uint8_t first_choice, uint8_t last_choice)
 {
-    set_dialog_choice_first(g, lines & 0x03);
-    set_dialog_choice_last(g, (lines >> 2) & 0x03);
+    set_dialog_choice_first(g, first_choice);
+    set_dialog_choice_last(g, last_choice);
     set_dialog_choice_active(g, 1);
 }
 
 /* An object's result: the last answer given to its question, or a value a
  * script set. A byte of it is the answer. */
-static void set_answer(GameState *g, EventObject object, uint8_t answer)
+static void set_answer(GameState *g, FieldObject object, uint8_t answer)
 {
     set_event_object_result(g, object, (uint16_t)((event_object_result(g, object) & 0xFF00) | answer));
 }
@@ -61,79 +60,90 @@ static void set_answer(GameState *g, EventObject object, uint8_t answer)
 // $C0:3557
 /* Choose the text the map's lines come from: a table of strings anywhere in
  * the ROM, which the dialog commands name lines of. */
-static EventFlow use_text(GameState *g, const EventCommand *c)
+static EventFlow use_text(GameState *g, Address text)
 {
-    set_dialog_string_table(g, c->text);
+    set_dialog_string_table(g, text);
     return next_command();
 }
+EVENT_OPERATION(use_text, text)
 
 // $C0:3570
 /* Show a line of dialog, and wait until it has been read. */
-static EventFlow say(GameState *g, const EventCommand *c)
+static EventFlow say(GameState *g, FieldObject self, uint8_t line, WindowPlace window)
 {
     if (dialog_on_screen(g))
         return stay();
-    if (finished_reading(g, c->self))
+    if (finished_reading(g, self))
         return next_command();
-    open_dialog(g, c->self, c->line, c->window);
+    open_dialog(g, self, line, window);
     return stay();
 }
+EVENT_OPERATION(say, self, line, window)
+
+/* For the original's code and shadow mode: the original keeps the choices'
+ * operand byte in its first scratch cell as it opens the window. */
+static void keep_choices(GameState *g) { keep_byte(g, KEPT_FIRST, script_byte(g, (uint16_t)(event_leaves->at + 2))); }
 
 // $C0:3643
 /* Ask a question: a line with choices, and wait for the answer, which
  * becomes the object's result. */
-static EventFlow ask(GameState *g, const EventCommand *c)
+static EventFlow ask(GameState *g, FieldObject self, uint8_t line, uint8_t first_choice, uint8_t last_choice,
+                     WindowPlace window)
 {
     if (dialog_on_screen(g))
         return stay();
-    if (finished_reading(g, c->self)) {
-        set_answer(g, c->self, dialog_choice(g));
+    if (finished_reading(g, self)) {
+        set_answer(g, self, dialog_choice(g));
         set_dialog_choice_active(g, 0);
         return next_command();
     }
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, c->choices));
-    offer_choices(g, c->choices);
-    open_dialog(g, c->self, c->line, c->window);
+    ORIGINAL_EFFECT(keep_choices(g));
+    offer_choices(g, first_choice, last_choice);
+    open_dialog(g, self, line, window);
     return stay();
 }
+EVENT_OPERATION(ask, self, line, first_choice, last_choice, window)
 
 // $C0:653B
 /* Set the object's result, from a variable or from the story. */
-static EventFlow set_result(GameState *g, const EventCommand *c)
+static EventFlow set_result(GameState *g, FieldObject self, uint16_t value)
 {
-    set_event_object_result(g, c->self, c->value);
+    set_event_object_result(g, self, value);
     return next_command();
 }
+EVENT_OPERATION(set_result, self, value)
 
 // $C0:6568
 /* If the object's answer is the one given. */
-static EventFlow if_answer(GameState *g, const EventCommand *c)
+static EventFlow if_answer(GameState *g, FieldObject self, uint8_t answer)
 {
-    return unless_jump((uint8_t)event_object_result(g, c->self) == c->answer);
+    return unless_jump((uint8_t)event_object_result(g, self) == answer);
 }
+EVENT_OPERATION(if_answer, self, answer)
 
 /* The guard's part: without a table of text the original goes to an error
  * handler, which is its own business. */
-static bool text_chosen(const GameState *g, const EventCommand *c)
+static bool text_chosen(const GameState *g)
 {
-    (void)c;
     return (dialog_string_table(g) >> 16) != 0;
 }
+EVENT_CHECK_TAKING_NOTHING(text_chosen)
+
+/* A question's choices, as the script gives them: its first choice line in
+ * bits 0-1 of the operand, its last in bits 2-3. */
+#define CHOICES .first_choice = OPERAND_BITS(2, 0, 0x03), .last_choice = OPERAND_BITS(2, 2, 0x03)
 
 EVENT_OPCODES(event_dialog_opcodes,
-    { 0xB8, use_text, .text = OPERAND_ADDRESS(1), .length = 4, .routine = 0xC03557 },
-    { 0xBB, say, .line = OPERAND(1), .window = CONSTANT(WINDOW_ANYWHERE), .length = 2, .accepts = text_chosen,
-      .routine = 0xC03570 },
-    { 0xC1, say, .line = OPERAND(1), .window = CONSTANT(WINDOW_TOP), .length = 2, .accepts = text_chosen,
-      .routine = 0xC035B5 },
-    { 0xC2, say, .line = OPERAND(1), .window = CONSTANT(WINDOW_BOTTOM), .length = 2, .accepts = text_chosen,
-      .routine = 0xC035FC },
-    { 0xC0, ask, .line = OPERAND(1), .choices = OPERAND(2), .window = CONSTANT(WINDOW_ANYWHERE), .length = 3,
-      .accepts = text_chosen, .routine = 0xC03643 },
-    { 0xC3, ask, .line = OPERAND(1), .choices = OPERAND(2), .window = CONSTANT(WINDOW_TOP), .length = 3,
-      .accepts = text_chosen, .routine = 0xC036AA },
-    { 0xC4, ask, .line = OPERAND(1), .choices = OPERAND(2), .window = CONSTANT(WINDOW_BOTTOM), .length = 3,
-      .accepts = text_chosen, .routine = 0xC036DD },
-    { 0x19, set_result, .value = VARIABLE_WORD(1), .length = 2, .routine = 0xC0653B },
-    { 0x1C, set_result, .value = STORY_WORD(1), .length = 3, .routine = 0xC0654E },
-    { 0x1A, if_answer, .answer = OPERAND(1), .length = 3, .jump = 2, .routine = 0xC06568 });
+    { 0xB8, OPERATION(use_text), .text = OPERAND_ADDRESS(1), .length = 4 },
+    { 0xBB, OPERATION(say), .line = OPERAND(1), .window = CONSTANT(WINDOW_ANYWHERE), .length = 2, CHECK(text_chosen) },
+    { 0xC1, OPERATION(say), .line = OPERAND(1), .window = CONSTANT(WINDOW_TOP), .length = 2, CHECK(text_chosen) },
+    { 0xC2, OPERATION(say), .line = OPERAND(1), .window = CONSTANT(WINDOW_BOTTOM), .length = 2, CHECK(text_chosen) },
+    { 0xC0, OPERATION(ask), .line = OPERAND(1), CHOICES, .window = CONSTANT(WINDOW_ANYWHERE), .length = 3,
+      CHECK(text_chosen) },
+    { 0xC3, OPERATION(ask), .line = OPERAND(1), CHOICES, .window = CONSTANT(WINDOW_TOP), .length = 3,
+      CHECK(text_chosen) },
+    { 0xC4, OPERATION(ask), .line = OPERAND(1), CHOICES, .window = CONSTANT(WINDOW_BOTTOM), .length = 3,
+      CHECK(text_chosen) },
+    { 0x19, OPERATION(set_result), .value = VARIABLE_WORD(1), .length = 2 },
+    { 0x1C, OPERATION(set_result), .value = STORY_WORD(1), .length = 3 },
+    { 0x1A, OPERATION(if_answer), .answer = OPERAND(1), .length = 3, .jump = 2 });

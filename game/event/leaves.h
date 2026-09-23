@@ -42,6 +42,7 @@
 #include "vars.h"
 
 #include "event/script.h"
+#include "field/scratch.h"
 
 typedef struct {
     uint16_t at;      /* the command's offset */
@@ -59,70 +60,27 @@ static inline void leave_y(uint16_t y) { event_leaves->y = y; }
 static inline void leave_parse_at(unsigned n) { event_leaves->y = (uint16_t)(event_leaves->at + n); }
 static inline void leave_overflow(bool v) { event_leaves->overflow = v; }
 
-/* The original keeps a command's offset (plus n) as where it goes on, and
- * reads it back itself. */
-static inline void keep_resume_point(GameState *g, unsigned n)
-{
-    set_event_saved_position(g, (uint16_t)(event_leaves->at + n));
-}
+/* The original keeps a command's offset (or where it goes on) in
+ * event_saved_position across its calls, and reads it back itself: at an
+ * offset, or n bytes on from the command running. */
+static inline void event_keep_offset(GameState *g, uint16_t at) { set_event_saved_position(g, at); }
+static inline void keep_resume_point(GameState *g, unsigned n) { event_keep_offset(g, (uint16_t)(event_leaves->at + n)); }
 
-/* The V flag an 8- or 16-bit addition a + b = sum leaves (a subtraction
- * adds the complement and a carry): signed overflow. */
-static inline bool overflows8(uint8_t a, uint8_t b, uint8_t sum) { return ((a ^ sum) & (b ^ sum) & 0x80) != 0; }
-static inline bool overflows16(uint16_t a, uint16_t b, uint16_t sum)
-{
-    return ((a ^ sum) & (b ^ sum) & 0x8000) != 0;
-}
-
-/* The V flag the original leaves after it computes a + b, or a - b. */
-static inline void leave_overflow_of_adding16(uint16_t a, uint16_t b)
-{
-    leave_overflow(overflows16(a, b, (uint16_t)(a + b)));
-}
-
-static inline void leave_overflow_of_subtracting8(uint8_t a, uint8_t b)
-{
-    leave_overflow(overflows8(a, (uint8_t)~b, (uint8_t)(a - b)));
-}
-
+/* The V flag the original leaves after it computes a + b, or a - b
+ * (field/scratch.h). */
+static inline void leave_overflow_of_adding16(uint16_t a, uint16_t b) { leave_overflow(field_add_overflows16(a, b)); }
+static inline void leave_overflow_of_subtracting8(uint8_t a, uint8_t b) { leave_overflow(field_subtract_overflows8(a, b)); }
 static inline void leave_overflow_of_subtracting16(uint16_t a, uint16_t b)
 {
-    leave_overflow(overflows16(a, (uint16_t)~b, (uint16_t)(a - b)));
+    leave_overflow(field_subtract_overflows16(a, b));
 }
 
 /* ---- What each command leaves, by opcode (event/leaves.c) --------------------------------
  *
  * The part that is the same every time a command runs, which the engine and
  * the entries reproduce around the operation: a table parallel to the
- * language's, which the build without the original's effects leaves out. */
-
-/* A value the original keeps in a scratch cell before the operation runs: one
- * of the operation's parameters, as a byte or a word, or where one of the
- * command's operands is. */
-typedef enum { KEEP_NOTHING, KEEP_BYTE, KEEP_WORD, KEEP_OPERAND_OFFSET } KeptAs;
-
-typedef struct {
-    KeptAs as;
-    EventParameter parameter;   /* KEEP_BYTE, KEEP_WORD */
-    uint8_t operand;            /* KEEP_OPERAND_OFFSET */
-} Kept;
-
-/* The V flag the command leaves: as it found it, or the overflow of adding
- * the amount to the variable (or taking it away), in the command's width. */
-typedef enum { V_AS_IT_WAS, V_OF_ADDING, V_OF_SUBTRACTING } OverflowLeft;
-
-typedef struct {
-    uint8_t parse;            /* the operand the original's parse stops at, going on: its Y */
-    uint8_t parse_on_jump;    /* ... and taking its jump */
-    bool shared_comparison;   /* made by the original's comparison routine, which notes where the jump
-                               * byte is and runs with 8-bit index registers (Y keeps its low byte) */
-    Kept first, second;       /* what it keeps in its first two scratch cells */
-    OverflowLeft overflow;
-} OriginalLeaves;
-
-const OriginalLeaves *original_leaves(uint8_t opcode);
-
-/* Around a command the language's table runs (event/engine.c): before the
+ * language's, which the build without the original's effects leaves out.
+ * Around a command the language's table runs (event/engine.c): before the
  * operation, Y where the parse stops and what is kept in the scratch cells
  * (from the command's parameters; `jump` the row's jump operand); after it,
  * the V an addition leaves, which follows from the amount and the variable as
