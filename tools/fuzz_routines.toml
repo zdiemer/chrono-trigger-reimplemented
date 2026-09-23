@@ -4029,3 +4029,143 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
 why = "as field_position_sprites"
+
+[[routine]]
+name = "field_setup_line_effects"
+subsystem = "field"
+state = "field"
+args = ["--long", "--db", "00"]
+why = "a bank reaching the registers; the flags random"
+
+[[routine]]
+name = "field_init_line_effect_values"
+subsystem = "field"
+state = "field"
+args = ["--long", "--d", "0100", "--db", "7F"]
+why = "the field's page and the tables' bank"
+
+[[routine]]
+name = "field_build_line_effect_tables"
+subsystem = "field"
+state = "field"
+args = ["--long", "--d", "0100", "--db", "00", "--fill", "7E0126-7E0126=00-02"]
+why = "the field's page; the window, the waves and the flags random (positions past the three turned away by the guard)"
+
+[[routine]]
+name = "field_build_no_window_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and a bank reaching low RAM; the waves and scroll random"
+
+[[routine]]
+name = "field_build_no_window_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_no_window_0"
+
+[[routine]]
+name = "field_build_top_window_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_no_window_0, the window's size random"
+
+[[routine]]
+name = "field_build_top_window_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_top_window_0"
+
+[[routine]]
+name = "field_build_bottom_window_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_top_window_0"
+
+[[routine]]
+name = "field_build_bottom_window_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_top_window_0"
+
+[[routine]]
+name = "field_set_window2_table_0"
+subsystem = "field"
+state = "field"
+args = ["--db", "7F"]
+why = "the tables' bank"
+
+[[routine]]
+name = "field_set_window2_table_1"
+subsystem = "field"
+state = "field"
+args = ["--db", "7F"]
+why = "the tables' bank"
+
+[[routine]]
+name = "field_set_bg2_table_0"
+subsystem = "field"
+state = "field"
+args = ["--db", "7F"]
+why = "the tables' bank"
+
+[[routine]]
+name = "field_set_bg2_table_1"
+subsystem = "field"
+state = "field"
+args = ["--db", "7F"]
+why = "the tables' bank"
+
+[[routine]]
+name = "field_send_scroll_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F"]
+why = "the field's page and the tables' bank; the carry in random"
+
+[[routine]]
+name = "field_send_scroll_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F"]
+why = "as field_send_scroll_0"
+
+[[routine]]
+name = "field_start_wave_table"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100"]
+why = "the field's page"
+
+[[routine]]
+name = "field_put_wave_part_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F", "--range", "Y=0000-0050"]
+why = "the field's page and the tables' bank, the entry's offset inside the table"
+
+[[routine]]
+name = "field_put_wave_part_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F", "--range", "Y=0000-0050"]
+why = "as field_put_wave_part_0"
+
+[[routine]]
+name = "field_skip_wave_lines"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100"]
+why = "the field's page"
+
+[[routine]]
+name = "field_fill_dialog_shading"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F"]
+why = "the field's page and the tables' bank"
