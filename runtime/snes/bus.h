@@ -119,6 +119,12 @@ enum { SNES_IO_WRITE = 1, SNES_IO_DMA = 2 };
 extern void (*snes_bus_io_observer)(void *ctx, const SnesBus *bus, uint16_t addr, uint8_t value, unsigned flags);
 extern void *snes_bus_io_observer_ctx;
 
+/* The same for work RAM, for ct_dev --event-reads: every CPU or DMA access to a
+ * byte of work RAM through snes_bus_read and snes_bus_write (not the $2180
+ * port), by its index in wram[], with the flags above. */
+extern void (*snes_bus_wram_observer)(void *ctx, const SnesBus *bus, uint32_t index, uint8_t value, unsigned flags);
+extern void *snes_bus_wram_observer_ctx;
+
 /* Latch pad[] into the $4218-$421F registers, as auto-joypad read does at vblank. */
 void snes_bus_auto_joypad(SnesBus *bus);
 

@@ -1,211 +1,252 @@
-/* Event commands: the running object's properties -- speed, solidity, step
- * length, where it stands, the priority its sprites are drawn with, and
- * whether it has a sprite at all. */
-#include "event/bridge.h"
+/* Scripts setting up their objects: how fast one walks, whether others can
+ * walk through it, what blocks it, how far its moves go, where it stands, how
+ * its sprite is layered against the map, and whether it has a sprite at all;
+ * and asking where an object stands.
+ *
+ * These are the field's objects (game/field/): the helpers at the top are
+ * the few words of the field's object state event needs, until the field's
+ * object module lands. */
+#include "event/leaves.h"
+#include "event/script.h"
+#include "event/variables.h"
 
-enum { PRIORITY_FROM_MAP = 0x80 };
+/* ---- The field's objects ----------------------------------------------------------------- */
+
+/* Where a sprite is drawn against the map's layers: a priority, 0 (behind
+ * everything) to 3 (in front of everything), for the upper and the lower half
+ * of the object's sprite. An object can follow the map instead, taking the
+ * priorities the map's tiles give where it stands. The field keeps the two
+ * as the hardware's sprite attribute bits (4-5), the lower half's first. */
+typedef uint8_t SpritePriority;
+
+enum { AMONG_THE_MAP = 2, IN_FRONT_OF_THE_MAP = 3 };
+enum { FOLLOWS_THE_MAP = 0x80 };   /* in the object's layering */
+
+static void set_priorities(GameState *g, EventObject object, SpritePriority upper, SpritePriority lower)
+{
+    set_field_object_sprite_priority(g, object, (uint16_t)((lower << 4) | (upper << 4) << 8));
+}
 
 /* The map's two attribute tables are interleaved a row at a time, the second
- * $40 bytes after the first (field_tile_attributes). */
-enum { SECOND_ATTRIBUTE_TABLE = 0x40 };
+ * $40 bytes after the first (field_tile_attributes). A tile raises a sprite
+ * over it in front of the map. */
+enum { SECOND_ATTRIBUTE_TABLE = 0x40, RAISES_SPRITES = 0x40 };
+
+static SpritePriority priority_from(uint8_t attributes)
+{
+    return attributes & RAISES_SPRITES ? IN_FRONT_OF_THE_MAP : AMONG_THE_MAP;
+}
+
+typedef uint16_t Tile;   /* row << 8 | column */
+
+static Tile tile_of(const GameState *g, EventObject object)
+{
+    return (Tile)(field_object_y_tile(g, object) << 8 | field_object_x_tile(g, object));
+}
+
+// $C0:4BA3
+/* The object takes its priorities from the map where it stands: its upper
+ * half's from the first attribute table, its lower half's from the second.
+ * (The original keeps the upper one in its scratch cell, as the field does.) */
+static void layer_as_the_map(GameState *g, EventObject object, Tile tile)
+{
+    SpritePriority upper = priority_from(field_tile_attributes_byte(g, tile));
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, (uint8_t)(upper << 4)));
+    SpritePriority lower = priority_from(field_tile_attributes_byte(g, (unsigned)tile + SECOND_ATTRIBUTE_TABLE));
+    set_priorities(g, object, upper, lower);
+}
+
+static bool follows_the_map(const GameState *g, EventObject object)
+{
+    return field_object_priority_mode(g, object) & FOLLOWS_THE_MAP;
+}
+
+/* Where an object stands: a tile, and where on it in sixteenths of a pixel. */
+enum { TILE_MIDDLE = 0x80, TILE_BOTTOM = 0xFF };
+
+static void put_on_tile(GameState *g, EventObject object, uint8_t x, uint8_t y, bool centred)
+{
+    set_field_object_x_tile(g, object, x);
+    if (centred)
+        set_field_object_x_fine(g, object, TILE_MIDDLE);
+    set_field_object_y_tile(g, object, y);
+    set_field_object_y_fine(g, object, TILE_BOTTOM);
+}
+
+/* A position as the scripts give one: the tile in the high byte, the place
+ * on it in the low. */
+static void put_at(GameState *g, EventObject object, uint16_t x, uint16_t y)
+{
+    set_field_object_x_fine(g, object, (uint8_t)x);
+    set_field_object_x_tile(g, object, (uint8_t)(x >> 8));
+    set_field_object_y_fine(g, object, (uint8_t)y);
+    set_field_object_y_tile(g, object, (uint8_t)(y >> 8));
+}
+
+/* How many steps the object's moves take; whether calls skip it (bit 7) is
+ * kept with it. */
+enum { CALLS_SKIP = 0x80 };
+
+static void set_steps_per_move(GameState *g, EventObject object, uint8_t steps)
+{
+    steps |= field_object_step_length(g, object) & CALLS_SKIP;
+    set_field_object_step_length(g, object, steps);
+    set_field_object_step_count(g, object, steps);
+}
+
+/* The sprite's layering set by a script: its placement for a battle is left
+ * to the battle ($FF), and its animation's frame timing starts again. */
+enum { BATTLE_PLACES_IT = 0xFF };
+
+/* The object's layering, as a script gives it: following the map (bit 7),
+ * or its lower half's priority in bits 0-1 and its upper half's in bits 4-5. */
+static void relayer(GameState *g, EventObject object, uint8_t how)
+{
+    set_field_object_priority_mode(g, object, how);
+    if (!(how & FOLLOWS_THE_MAP))
+        set_priorities(g, object, (SpritePriority)((how >> 4) & 3), (SpritePriority)(how & 3));
+}
+
+static void after_relayering(GameState *g, EventObject object)
+{
+    set_field_object_battle_info(g, object, BATTLE_PLACES_IT);
+    set_field_object_frame_delay(g, object, 0);
+}
+
+/* ---- The commands ------------------------------------------------------------------------ */
 
 // $C0:4B49
-/* $89: set this object's speed to operand 1. */
-static EventStep set_speed(GameState *g, const EventCommand *c)
+/* How fast the object walks. */
+static EventFlow set_speed(GameState *g, const EventCommand *c)
 {
-    set_field_object_speed(g, current_object(g), operand(g, c, 1));
-    return next_command(c, 2, 1);
+    set_field_object_speed(g, c->self, c->speed);
+    return next_command();
 }
 
-// $C0:4B58
-/* $8A: set this object's speed from variable (operand 1). */
-static EventStep set_speed_from_variable(GameState *g, const EventCommand *c)
-{
-    set_field_object_speed(g, current_object(g), var8(g, variable_operand(g, c, 1)));
-    return next_command(c, 2, 1);
-}
+/* What an object's solidity says: whether it stands in other objects' way. */
+enum { IN_OTHERS_WAY = 0x01 };
+
+/* What stops an object's moves. */
+enum { STOPPED_BY_WALLS = 0x01, STOPPED_BY_OBJECTS = 0x02 };
 
 // $C0:4867
-/* $84: set whether this object blocks other objects' moves (operand 1). */
-static EventStep set_solidity(GameState *g, const EventCommand *c)
+/* Whether other objects bump into this one (IN_OTHERS_WAY) or pass through it. */
+static EventFlow set_solid(GameState *g, const EventCommand *c)
 {
-    set_field_object_solid(g, current_object(g), operand(g, c, 1));
-    return next_command(c, 2, 2);
+    set_field_object_solid(g, c->self, c->solid);
+    return next_command();
+}
+
+// $C0:6295
+/* What stops the object's moves: the map's walls (STOPPED_BY_WALLS), other
+ * objects (STOPPED_BY_OBJECTS), both or neither. */
+static EventFlow set_blocked_by(GameState *g, const EventCommand *c)
+{
+    set_field_object_blocking(g, c->self, c->blocked_by);
+    return next_command();
+}
+
+// $C0:62A4
+/* What the object does on arriving at a move's end: line itself up with the
+ * tile, or with the object it went to. */
+static EventFlow set_arrival(GameState *g, const EventCommand *c)
+{
+    set_field_object_arrival_flags(g, c->self, c->arrival);
+    return next_command();
 }
 
 // $C0:4876
-/* $87: set the steps this object's moves take to operand 1 + 1, keeping the
- * flag that makes calls skip it (bit 7). */
-static EventStep set_step_count(GameState *g, const EventCommand *c)
+/* How many steps the object's moves take: the count given plus one. Whether
+ * calls skip the object (bit 7) is kept. */
+static EventFlow set_move_length(GameState *g, const EventCommand *c)
 {
-    unsigned object = current_object(g);
-    uint8_t steps = (uint8_t)(operand(g, c, 1) + 1);
-    keep8(g, SCRATCH_D9, steps);
-    steps |= field_object_step_length(g, object) & 0x80;
-    set_field_object_step_length(g, object, steps);
-    set_field_object_step_count(g, object, steps);
-    return next_command(c, 2, 1);
-}
-
-/* The sprite priority an attribute byte of the map gives: its bit 6 picks
- * priority 3 over 2 (bits 4-5). */
-static uint8_t priority_of(uint8_t attributes) { return (uint8_t)((attributes & 0x40) >> 2 | 0x20); }
-
-// $C0:4BA3
-/* Take the object's two sprite priorities from the map's attributes at the
- * tile it stands on (row << 8 | column): the second from the first attribute
- * table, the first from the second. */
-static void priority_from_map(GameState *g, unsigned object, uint16_t tile)
-{
-    uint8_t second = priority_of(field_tile_attributes_byte(g, tile));
-    keep8(g, SCRATCH_D9, second);
-    uint8_t first = priority_of(field_tile_attributes_byte(g, (unsigned)tile + SECOND_ATTRIBUTE_TABLE));
-    set_field_object_sprite_priority(g, object, (uint16_t)(first | second << 8));
-}
-
-static uint16_t tile_of(const GameState *g, unsigned object)
-{
-    return (uint16_t)(field_object_y_tile(g, object) << 8 | field_object_x_tile(g, object));
-}
-
-/* Stand the object on a tile: at the tile's top left, a sixteenth of a pixel
- * short of it vertically, taking the map's priorities there if its priority
- * follows the map. The tile is kept in the scratch cells. */
-static void place_on_tile(GameState *g, unsigned object, uint8_t x, uint8_t (*y_of)(const GameState *, const EventCommand *),
-                          const EventCommand *c)
-{
-    set_field_object_x_tile(g, object, x);
-    keep8(g, SCRATCH_D9, x);
-    uint8_t y = y_of(g, c);
-    set_field_object_y_tile(g, object, y);
-    keep8(g, SCRATCH_DA, y);
-    set_field_object_y_fine(g, object, 0xFF);
-    if (field_object_priority_mode(g, object) & PRIORITY_FROM_MAP)
-        priority_from_map(g, object, scratch16(g, SCRATCH_D9));
+    uint8_t steps = (uint8_t)(c->move_length + 1);
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, steps));
+    set_steps_per_move(g, c->self, steps);
+    return next_command();
 }
 
 // $C0:4B74
-/* $8B: stand this object on the tile at operands (X, Y). */
-static uint8_t second_operand(const GameState *g, const EventCommand *c) { return operand(g, c, 2); }
-
-static EventStep set_tile_position(GameState *g, const EventCommand *c)
+/* Put the object on a tile: at its left edge, or its middle, and a
+ * sixteenth of a pixel above its bottom; layered as the map is there if it
+ * follows the map. */
+static EventFlow stand_on_tile(GameState *g, const EventCommand *c)
 {
-    unsigned object = current_object(g);
-    uint8_t x = operand(g, c, 1);
-    set_field_object_x_tile(g, object, x);
-    set_field_object_x_fine(g, object, 0x80);
-    place_on_tile(g, object, x, second_operand, c);
-    return next_command(c, 3, 2);
-}
-
-// $C0:4BC3
-/* $8C: as $8B with the tile from variables (operands 1 and 2), leaving the
- * object's fine X as it is. */
-static uint8_t second_variable(const GameState *g, const EventCommand *c)
-{
-    return var8(g, variable_operand(g, c, 2));
-}
-
-static EventStep set_tile_position_from_variables(GameState *g, const EventCommand *c)
-{
-    place_on_tile(g, current_object(g), var8(g, variable_operand(g, c, 1)), second_variable, c);
-    return next_command(c, 3, 2);
+    put_on_tile(g, c->self, c->tile_x, c->tile_y, c->centred);
+    /* the original keeps the tile in its scratch cell, before the map's
+     * priority takes the low byte's place */
+    if (follows_the_map(g, c->self))
+        layer_as_the_map(g, c->self, (Tile)(c->tile_y << 8 | c->tile_x));
+    else
+        ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, c->tile_x));
+    ORIGINAL_EFFECT(keep_high_byte(g, KEPT_FIRST, c->tile_y));
+    return next_command();
 }
 
 // $C0:4C27
-/* $8D: set this object's position (operands 1-2 and 3-4, 1/16 pixel, the
- * tile in the high byte), taking the map's priorities there if its priority
- * follows the map. */
-static EventStep set_position(GameState *g, const EventCommand *c)
+/* Put the object at a position (in sixteenths of a pixel, the tile in the
+ * high byte); layered as the map is there if it follows the map. */
+static EventFlow place(GameState *g, const EventCommand *c)
 {
-    unsigned object = current_object(g);
-    uint16_t x = operand_word(g, c, 1);
-    set_field_object_x_fine(g, object, (uint8_t)x);
-    set_field_object_x_tile(g, object, (uint8_t)(x >> 8));
-    uint16_t y = operand_word(g, c, 3);
-    set_field_object_y_fine(g, object, (uint8_t)y);
-    set_field_object_y_tile(g, object, (uint8_t)(y >> 8));
-    if (field_object_priority_mode(g, object) & PRIORITY_FROM_MAP)
-        priority_from_map(g, object, tile_of(g, object));
-    return next_command(c, 5, 3);
+    put_at(g, c->self, c->x, c->y);
+    if (follows_the_map(g, c->self))
+        layer_as_the_map(g, c->self, tile_of(g, c->self));
+    return next_command();
 }
 
 // $C0:4C74
-/* $8E: set how this object's sprites are prioritized (operand 1): with bit 7
- * from the map where it stands, otherwise the upper half at bits 4-5's
- * priority and the lower at bits 0-1's. */
-static EventStep set_sprite_priority(GameState *g, const EventCommand *c)
+/* Layer the object's sprite against the map: following the map where it
+ * stands (bit 7), or with its upper half at bits 4-5's priority and its lower
+ * at bits 0-1's. */
+static EventFlow set_layering(GameState *g, const EventCommand *c)
 {
-    unsigned object = current_object(g);
-    uint8_t mode = operand(g, c, 1);
-    set_field_object_priority_mode(g, object, mode);
-    if (mode & PRIORITY_FROM_MAP) {
-        priority_from_map(g, object, tile_of(g, object));
-    } else {
-        keep8(g, SCRATCH_D9, mode);
-        set_field_object_sprite_priority(g, object, (uint16_t)(((mode << 4) & 0x30) | ((mode & 0x30) << 8)));
-    }
-    set_field_object_battle_info(g, object, 0xFF);
-    set_field_object_frame_delay(g, object, 0);
-    return next_command(c, 2, 1);
+    relayer(g, c->self, c->layering);
+    if (c->layering & FOLLOWS_THE_MAP)
+        layer_as_the_map(g, c->self, tile_of(g, c->self));
+    else
+        ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, c->layering));
+    after_relayering(g, c->self);
+    return next_command();
 }
-
-/* Whether an object has a sprite: 1 it has, 0 or $80 it hasn't. Ends the turn. */
-enum { SPRITE_SHOWN = 0x01, SPRITE_HIDDEN = 0x00, SPRITE_NONE = 0x80 };
 
 // $C0:4CD9
-static void set_sprite(GameState *g, unsigned object, uint8_t flag) { set_field_object_sprite_flag(g, object, flag); }
-
-// $C0:4CD5
-/* $90: give this object a sprite. */
-static EventStep show_sprite(GameState *g, const EventCommand *c)
+/* Show an object's sprite, hide it, or take it away. Ends the turn. */
+static EventFlow set_sprite(GameState *g, const EventCommand *c)
 {
-    set_sprite(g, current_object(g), SPRITE_SHOWN);
-    return end_turn(c, 1, 0);
+    set_field_object_sprite_flag(g, c->object, c->sprite);
+    return end_turn();
 }
 
-// $C0:4CE0
-/* $91: take this object's sprite away. */
-static EventStep hide_sprite(GameState *g, const EventCommand *c)
+// $C0:65B2
+/* Variables learn the tile an object stands on. */
+static EventFlow note_tile(GameState *g, const EventCommand *c)
 {
-    set_sprite(g, current_object(g), SPRITE_HIDDEN);
-    return end_turn(c, 1, 0);
+    uint8_t x = field_object_x_tile(g, c->object), y = field_object_y_tile(g, c->object);
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, x));
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_SECOND, y));
+    set_variable_byte(g, c->column, x);
+    set_variable_byte(g, c->row, y);
+    return next_command();
 }
 
-// $C0:4CE6
-/* $7E: this object has no sprite ($80). */
-static EventStep set_no_sprite(GameState *g, const EventCommand *c)
-{
-    set_sprite(g, current_object(g), SPRITE_NONE);
-    return end_turn(c, 1, 0);
-}
-
-// $C0:4CEC
-/* $7C: give the object in operand 1 a sprite. */
-static EventStep show_object_sprite(GameState *g, const EventCommand *c)
-{
-    set_sprite(g, object_operand(g, c, 1), SPRITE_SHOWN);
-    return end_turn(c, 2, 1);
-}
-
-// $C0:4CF9
-/* $7D: take the sprite of the object in operand 1 away. */
-static EventStep hide_object_sprite(GameState *g, const EventCommand *c)
-{
-    set_sprite(g, object_operand(g, c, 1), SPRITE_HIDDEN);
-    return end_turn(c, 2, 1);
-}
-
-EVENT_COMMAND(event_cmd_set_speed, set_speed)
-EVENT_COMMAND(event_cmd_set_speed_from_variable, set_speed_from_variable)
-EVENT_COMMAND(event_cmd_set_solidity, set_solidity)
-EVENT_COMMAND(event_cmd_set_step_count, set_step_count)
-EVENT_COMMAND(event_cmd_set_tile_position, set_tile_position)
-EVENT_COMMAND(event_cmd_set_tile_position_from_variables, set_tile_position_from_variables)
-EVENT_COMMAND(event_cmd_set_position, set_position)
-EVENT_COMMAND(event_cmd_set_sprite_priority, set_sprite_priority)
-EVENT_COMMAND(event_cmd_show_sprite, show_sprite)
-EVENT_COMMAND(event_cmd_hide_sprite, hide_sprite)
-EVENT_COMMAND(event_cmd_set_no_sprite, set_no_sprite)
-EVENT_COMMAND(event_cmd_show_object_sprite, show_object_sprite)
-EVENT_COMMAND(event_cmd_hide_object_sprite, hide_object_sprite)
+EVENT_OPCODES(event_properties_opcodes,
+    { 0x89, set_speed, .speed = OPERAND(1), .length = 2, .routine = 0xC04B49 },
+    { 0x8A, set_speed, .speed = VARIABLE_BYTE(1), .length = 2, .routine = 0xC04B58 },
+    { 0x84, set_solid, .solid = OPERAND(1), .length = 2, .routine = 0xC04867 },
+    { 0x0D, set_blocked_by, .blocked_by = OPERAND(1), .length = 2, .routine = 0xC06295 },
+    { 0x0E, set_arrival, .arrival = OPERAND(1), .length = 2, .routine = 0xC062A4 },
+    { 0x87, set_move_length, .move_length = OPERAND(1), .length = 2, .routine = 0xC04876 },
+    { 0x8B, stand_on_tile, .tile_x = OPERAND(1), .tile_y = OPERAND(2), .centred = CONSTANT(true), .length = 3,
+      .routine = 0xC04B74 },
+    { 0x8C, stand_on_tile, .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2), .length = 3, .routine = 0xC04BC3 },
+    { 0x8D, place, .x = OPERAND_WORD(1), .y = OPERAND_WORD(3), .length = 5, .routine = 0xC04C27 },
+    { 0x8E, set_layering, .layering = OPERAND(1), .length = 2, .routine = 0xC04C74 },
+    { 0x90, set_sprite, .object = SELF, .sprite = CONSTANT(SPRITE_SHOWN), .length = 1, .routine = 0xC04CD5 },
+    { 0x91, set_sprite, .object = SELF, .sprite = CONSTANT(SPRITE_HIDDEN), .length = 1, .routine = 0xC04CE0 },
+    { 0x7E, set_sprite, .object = SELF, .sprite = CONSTANT(NO_SPRITE), .length = 1, .routine = 0xC04CE6 },
+    { 0x7C, set_sprite, .object = OBJECT(1), .sprite = CONSTANT(SPRITE_SHOWN), .length = 2, .routine = 0xC04CEC },
+    { 0x7D, set_sprite, .object = OBJECT(1), .sprite = CONSTANT(SPRITE_HIDDEN), .length = 2, .routine = 0xC04CF9 },
+    { 0x21, note_tile, .column = VARIABLE(2), .row = VARIABLE(3), .object = OBJECT(1), .length = 4,
+      .routine = 0xC065AA },
+    { 0x22, note_tile, .column = VARIABLE(2), .row = VARIABLE(3), .object = MEMBER_OBJECT(1), .length = 4,
+      .routine = 0xC065EB });

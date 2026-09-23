@@ -1,18 +1,32 @@
-/* Event commands: the running object's animation.
+/* Scripts animating their own object: a looping animation (walking on the
+ * spot, a flickering torch), a one-off animation played for a while (a nod,
+ * a jump of surprise) after which the object goes back to what it looped, and
+ * a single frame held still (a pose in a cutscene).
  *
- * An object animates in one of four modes: 0 not at all, 1 looping its
- * animation, 2 playing an animation for a while (a timed play), 3 showing one
- * static frame. A timed play keeps the animation it was started with, and
- * counts down on the object's animation countdown, which the field's object
- * update steps; when it is over the object goes back to looping what it
- * looped before, or to nothing if it wasn't looping (animation $FF marks that). */
-#include "event/bridge.h"
+ * The animation itself runs in the field's object update; a script only
+ * chooses what it runs. */
+#include "event/leaves.h"
+#include "event/script.h"
 
-enum { MODE_STILL = 0, MODE_LOOP = 1, MODE_TIMED = 2, MODE_STATIC = 3 };
-enum { NO_LOOP = 0xFF };
+/* ---- The object's animation state ----------------------------------------------------
+ *
+ * The field's (game/field/), which will own these once its object module
+ * lands; until then they are the few words event needs, over the field's
+ * accessors. */
 
-/* Start the object animating in `mode` from the animation's first frame. */
-static void start_mode(GameState *g, unsigned object, uint8_t mode)
+typedef enum { NOT_ANIMATING = 0, LOOPING = 1, PLAYING_ONCE = 2, HOLDING_A_FRAME = 3 } AnimationMode;
+
+/* The field keeps "nothing to go back to after a one-off" as this animation
+ * number, in the looping animation's place. */
+enum { NOTHING_TO_LOOP = 0xFF };
+
+static AnimationMode animation_mode(const GameState *g, EventObject object)
+{
+    return (AnimationMode)field_object_animation_mode_mode(g, object);
+}
+
+/* Start the object's animation from its first frame, in `mode`. */
+static void restart_animation(GameState *g, EventObject object, AnimationMode mode)
 {
     set_field_object_animation_mode_mode(g, object, mode);
     set_field_object_frame_delay(g, object, 0);
@@ -20,120 +34,103 @@ static void start_mode(GameState *g, unsigned object, uint8_t mode)
     set_field_object_animation_frame(g, object, 0);
 }
 
-// $C0:2E6D
-static void loop(GameState *g, uint8_t animation)
+static void set_looping_animation(GameState *g, EventObject object, uint8_t animation)
 {
-    unsigned object = current_object(g);
     set_field_object_animation_number(g, object, animation);
-    start_mode(g, object, MODE_LOOP);
 }
+
+/* Frames left of a one-off animation: 0 when none is playing, 1 on its last. */
+static uint8_t one_off_frames_left(const GameState *g, EventObject object)
+{
+    return field_object_move_state_animation_count(g, object);
+}
+
+static uint8_t one_off_animation(const GameState *g, EventObject object)
+{
+    return field_object_animation_mode_timed_animation(g, object);
+}
+
+/* Break off the loop for a one-off or a still frame, noting whether there was
+ * a loop to go back to. */
+static void interrupt_loop(GameState *g, EventObject object, AnimationMode mode)
+{
+    set_field_object_animation_frame(g, object, 0);
+    set_field_object_frame_delay(g, object, 0);
+    if (animation_mode(g, object) == NOT_ANIMATING)
+        set_looping_animation(g, object, NOTHING_TO_LOOP);
+    set_field_object_animation_mode_mode(g, object, mode);
+}
+
+/* A one-off is over: back to the loop it broke off, or to standing still. */
+static void back_to_loop(GameState *g, EventObject object)
+{
+    set_field_object_move_state_animation_count(g, object, 0);
+    set_field_object_frame_delay(g, object, 0);
+    set_field_object_animation_frame(g, object, 0);
+    AnimationMode mode = LOOPING;
+    if (field_object_animation_number(g, object) == NOTHING_TO_LOOP) {
+        set_looping_animation(g, object, 0);
+        mode = NOT_ANIMATING;
+    }
+    set_field_object_animation_mode_mode(g, object, mode);
+}
+
+/* ---- The commands ---------------------------------------------------------------------- */
 
 // $C0:2E67
-/* $AA: loop animation (operand 1). */
-static EventStep loop_animation(GameState *g, const EventCommand *c)
+/* The object loops an animation from its start: its idle, a walk on the spot. */
+static EventFlow loop_animation(GameState *g, const EventCommand *c)
 {
-    loop(g, operand(g, c, 1));
-    return next_command(c, 2, 1);
-}
-
-// $C0:2E87
-/* $B3: loop animation 0. */
-static EventStep loop_animation_0(GameState *g, const EventCommand *c)
-{
-    loop(g, 0);
-    return next_command(c, 1, 0);
-}
-
-// $C0:2E8B
-/* $B4: loop animation 1. */
-static EventStep loop_animation_1(GameState *g, const EventCommand *c)
-{
-    loop(g, 1);
-    return next_command(c, 1, 0);
+    set_looping_animation(g, c->self, c->animation);
+    restart_animation(g, c->self, LOOPING);
+    return next_command();
 }
 
 // $C0:2E8F
-/* $AE: stop animating (animation 0, mode 0). */
-static EventStep reset_animation(GameState *g, const EventCommand *c)
+/* The object stops animating, on its first frame of animation 0. */
+static EventFlow stop_animating(GameState *g, const EventCommand *c)
 {
-    unsigned object = current_object(g);
-    set_field_object_animation_number(g, object, 0);
-    start_mode(g, object, MODE_STILL);
-    return next_command(c, 1, 0);
-}
-
-/* Leave the loop for a timed play or a static frame, remembering whether
- * there was one to go back to. */
-static void leave_loop(GameState *g, unsigned object, uint8_t mode)
-{
-    set_field_object_animation_frame(g, object, 0);
-    set_field_object_frame_delay(g, object, 0);
-    if (field_object_animation_mode_mode(g, object) == MODE_STILL)
-        set_field_object_animation_number(g, object, NO_LOOP);
-    set_field_object_animation_mode_mode(g, object, mode);
-}
-
-/* A timed play is over: back to the loop, or to no animation. */
-static void end_timed_play(GameState *g, unsigned object)
-{
-    set_field_object_move_state_animation_count(g, object, 0);
-    set_field_object_frame_delay(g, object, 0);
-    set_field_object_animation_frame(g, object, 0);
-    uint8_t mode = MODE_LOOP;
-    if (field_object_animation_number(g, object) == NO_LOOP) {
-        set_field_object_animation_number(g, object, 0);
-        mode = MODE_STILL;
-    }
-    set_field_object_animation_mode_mode(g, object, mode);
-}
-
-/* $AB and $B7: play the animation in operand 1 for two frames, or for
- * operand 2 + 1 (a countdown the field steps; 1 is the end), staying on the command while it plays and going
- * on after its `length` bytes once it is over. The same command reached again
- * while its animation plays just waits. */
-static EventStep play_timed(GameState *g, const EventCommand *c, bool for_frames, uint16_t length)
-{
-    unsigned object = current_object(g);
-    uint8_t count = field_object_move_state_animation_count(g, object);
-    uint8_t animation = operand(g, c, 1);
-    if (count == 1) {
-        end_timed_play(g, object);
-        return next_command(c, length, 0);
-    }
-    if (count != 0 && animation == field_object_animation_mode_timed_animation(g, object))
-        return wait_here(c, 0);
-    set_field_object_animation_mode_timed_animation(g, object, animation);
-    leave_loop(g, object, MODE_TIMED);
-    uint8_t frames = for_frames ? (uint8_t)(operand(g, c, 2) + 1) : 2;
-    set_field_object_move_state_animation_count(g, object, frames);
-    return wait_here(c, 0);
+    set_looping_animation(g, c->self, 0);
+    restart_animation(g, c->self, NOT_ANIMATING);
+    return next_command();
 }
 
 // $C0:2E9A
-/* $AB: play animation (operand 1) once through a countdown of 2. */
-static EventStep play_animation(GameState *g, const EventCommand *c) { return play_timed(g, c, false, 2); }
-
-// $C0:2F01
-/* $B7: play animation (operand 1) for operand 2 frames. */
-static EventStep play_animation_for(GameState *g, const EventCommand *c)
+/* The object plays a one-off animation for a number of frames -- a gesture, a
+ * reaction -- and its script waits for it to finish; the object then goes
+ * back to what it was looping. Met again while that animation plays, the
+ * command just waits on. */
+static EventFlow play_animation(GameState *g, const EventCommand *c)
 {
-    return play_timed(g, c, true, 3);
+    uint8_t left = one_off_frames_left(g, c->self);
+    if (left == 1) {
+        back_to_loop(g, c->self);
+        return next_command();
+    }
+    if (left != 0 && c->animation == one_off_animation(g, c->self))
+        return stay();
+    set_field_object_animation_mode_timed_animation(g, c->self, c->animation);
+    interrupt_loop(g, c->self, PLAYING_ONCE);
+    /* the field counts down to 1, so the count starts one past the frames */
+    set_field_object_move_state_animation_count(g, c->self, (uint8_t)(c->frames + 1));
+    return stay();
 }
 
 // $C0:2F71
-/* $AC: show static frame (operand 1). Ends the turn. */
-static EventStep static_frame(GameState *g, const EventCommand *c)
+/* The object holds one frame of its sprite -- a pose for a cutscene -- until
+ * a script animates it again. */
+static EventFlow hold_frame(GameState *g, const EventCommand *c)
 {
-    unsigned object = current_object(g);
-    set_field_object_static_frame(g, object, operand(g, c, 1));
-    leave_loop(g, object, MODE_STATIC);
-    return end_turn(c, 2, 0);
+    set_field_object_static_frame(g, c->self, c->frame);
+    interrupt_loop(g, c->self, HOLDING_A_FRAME);
+    return end_turn();
 }
 
-EVENT_COMMAND(event_cmd_loop_animation, loop_animation)
-EVENT_COMMAND(event_cmd_loop_animation_0, loop_animation_0)
-EVENT_COMMAND(event_cmd_loop_animation_1, loop_animation_1)
-EVENT_COMMAND(event_cmd_reset_animation, reset_animation)
-EVENT_COMMAND(event_cmd_play_animation, play_animation)
-EVENT_COMMAND(event_cmd_play_animation_for, play_animation_for)
-EVENT_COMMAND(event_cmd_static_frame, static_frame)
+EVENT_OPCODES(event_animation_opcodes,
+    { 0xAA, loop_animation, .animation = OPERAND(1), .length = 2, .routine = 0xC02E67 },
+    { 0xB3, loop_animation, .animation = CONSTANT(0), .length = 1, .routine = 0xC02E87 },
+    { 0xB4, loop_animation, .animation = CONSTANT(1), .length = 1, .routine = 0xC02E8B },
+    { 0xAE, stop_animating, .length = 1, .routine = 0xC02E8F },
+    { 0xAB, play_animation, .animation = OPERAND(1), .frames = CONSTANT(1), .length = 2, .routine = 0xC02E9A },
+    { 0xB7, play_animation, .animation = OPERAND(1), .frames = OPERAND(2), .length = 3, .routine = 0xC02F01 },
+    { 0xAC, hold_frame, .frame = OPERAND(1), .length = 2, .routine = 0xC02F71 });

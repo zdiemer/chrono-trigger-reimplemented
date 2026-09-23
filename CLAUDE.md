@@ -193,7 +193,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     constants, or from a helper's parameters, locals or a table in the same file, so the check
     can read them.
   - Still write the scratch cells the original writes, even ones that look like temporaries:
-    other code may read them, and shadow mode compares memory.
+    other code may read them, and shadow mode compares memory. Find the reader first. What
+    only shadow mode or still-generated code reads is scaffolding: write its final value once
+    through `ORIGINAL_EFFECT(...)` (`game/original_effects.h`, docs/PORTING.md "Scaffolding"),
+    which the native-shape build compiles out, and never use the cell as working state.
   - Keep the original's index arithmetic, wraparound and odd offsets included, rather than
     tidying it: fuzzing reaches the inputs where it differs, and so can the game.
 - **Writing host-side code** (docs/PLAYING.md, "How the player is built"). `game/` is kept

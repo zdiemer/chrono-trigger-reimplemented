@@ -26,9 +26,15 @@ typedef struct Platform Platform;
  * `// $BB:AAAA` traceable below the routine level. */
 typedef struct {
     uint32_t site, target;
+    uint16_t dont_care;   /* PF_CALL_DC: registers and flags the callee doesn't read */
 } PfOrigin;
-#define PF_AT(addr) ((PfOrigin){ (addr), 0 })
-#define PF_CALL(site, target) ((PfOrigin){ (site), (target) })
+#define PF_AT(addr) ((PfOrigin){ (addr), 0, 0 })
+#define PF_CALL(site, target) ((PfOrigin){ (site), (target), 0 })
+/* A call whose callee doesn't read the registers and flags in `dont_care`
+ * (DC_* bits, port/native.h), which shadow mode then doesn't compare at the
+ * call: a port written as logic apart from the registers sets only what the
+ * callee takes. tools/dontcare_check.py checks the set against liveness. */
+#define PF_CALL_DC(site, target, dont_care) ((PfOrigin){ (site), (target), (dont_care) })
 
 /* The data a call refers to: a 24-bit game address while the WRAM layout is
  * kept, a host pointer once a subsystem owns its memory. The SNES backend only

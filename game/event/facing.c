@@ -1,81 +1,53 @@
-/* Event commands: which way objects face (0-3). Setting a facing restarts
- * the object's animation frame delay, and ends the turn. */
+/* Which way objects face: turning an object to a direction, to face another
+ * object or a party member, and asking which way one faces.
+ *
+ * A facing is one of four directions (0-3), the way the object's sprite
+ * looks; turning restarts its animation's frame timing, and ends the turn so
+ * the new facing shows before the script goes on. */
 #include "event/bridge.h"
 #include "event/event_data.h"
+#include "event/variables.h"
 
 // $C0:554D
-static void set_facing(GameState *g, unsigned object, uint8_t facing)
+/* The object turns: its sprite shows the new direction from the next frame. */
+static void turn(GameState *g, EventObject object, Facing facing)
 {
     set_field_object_facing(g, object, facing);
     set_field_object_frame_delay(g, object, 0);
 }
 
-/* The running object faces `facing`. */
-static EventStep face(GameState *g, const EventCommand *c, uint8_t facing, uint16_t length)
-{
-    set_facing(g, current_object(g), facing);
-    return end_turn(c, length, length - 1);
-}
-
 // $C0:5535
-/* $0F: face direction 0. */
-static EventStep face_0(GameState *g, const EventCommand *c) { return face(g, c, 0, 1); }
-
-// $C0:5539
-/* $17: face direction 1. */
-static EventStep face_1(GameState *g, const EventCommand *c) { return face(g, c, 1, 1); }
-
-// $C0:553D
-/* $1B: face direction 2. */
-static EventStep face_2(GameState *g, const EventCommand *c) { return face(g, c, 2, 1); }
-
-// $C0:5541
-/* $1D: face direction 3. */
-static EventStep face_3(GameState *g, const EventCommand *c) { return face(g, c, 3, 1); }
-
-// $C0:5545
-/* $A6: face the direction in operand 1. */
-static EventStep face_operand(GameState *g, const EventCommand *c) { return face(g, c, operand(g, c, 1), 2); }
-
-// $C0:5557
-/* $A7: face the direction in variable (operand 1). */
-static EventStep face_variable(GameState *g, const EventCommand *c)
+/* Turn an object -- this one, or another -- to a direction. */
+static EventFlow face(GameState *g, const EventCommand *c)
 {
-    return face(g, c, var8(g, variable_operand(g, c, 1)), 2);
+    turn(g, c->object, c->facing);
+    return end_turn();
 }
 
-/* The object in operand 1 faces `facing`. */
-static EventStep object_face(GameState *g, const EventCommand *c, uint8_t facing)
+// $C0:6600
+/* A variable learns which way an object faces. */
+static EventFlow note_facing(GameState *g, const EventCommand *c)
 {
-    set_facing(g, object_operand(g, c, 1), facing);
-    return end_turn(c, 2, 1);
+    Facing facing = field_object_facing(g, c->object);
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, facing));
+    set_variable_byte(g, c->variable, facing);
+    return next_command();
 }
 
-// $C0:556C
-/* $1E: make the object in operand 1 face direction 0. */
-static EventStep object_face_0(GameState *g, const EventCommand *c) { return object_face(g, c, 0); }
+/* ---- Facing another object, through the field's aim --------------------------------------
+ *
+ * Which way one object sees another is the field's to work out
+ * (field_direction_to_target, $C0:ABA2, still the original's code), from the
+ * tiles the two stand on, or, on the same tile, their places within it. So
+ * facing an object is a bridge: set the tiles, call out, turn. */
 
-// $C0:5579
-/* $1F: make the object in operand 1 face direction 1. */
-static EventStep object_face_1(GameState *g, const EventCommand *c) { return object_face(g, c, 1); }
-
-// $C0:5586
-/* $25: make the object in operand 1 face direction 2. */
-static EventStep object_face_2(GameState *g, const EventCommand *c) { return object_face(g, c, 2); }
-
-// $C0:5593
-/* $26: make the object in operand 1 face direction 3. */
-static EventStep object_face_3(GameState *g, const EventCommand *c) { return object_face(g, c, 3); }
-
-/* Set up the tiles field_direction_to_target works from: the running
- * object's and the target's, or where both stand on the same tile, their
- * positions within it. The target is kept in the scratch cell. */
-static void aim_at(GameState *g, unsigned target)
+/* Set up the tiles field_direction_to_target works from. The target is kept
+ * in the scratch cell. */
+static void aim_at(GameState *g, EventObject self, EventObject target)
 {
-    unsigned self = current_object(g);
     uint8_t target_x = field_object_x_tile(g, target), target_y = field_object_y_tile(g, target);
     uint8_t own_x = field_object_x_tile(g, self), own_y = field_object_y_tile(g, self);
-    keep16(g, SCRATCH_D9, (uint16_t)(target * 2));
+    ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, (uint16_t)(target * 2)));
     if (own_x == target_x && own_y == target_y) {
         own_x = field_object_x_fine(g, self), own_y = field_object_y_fine(g, self);
         target_x = field_object_x_fine(g, target), target_y = field_object_y_fine(g, target);
@@ -97,52 +69,48 @@ static bool back(Snes *s, uint32_t returns_to, bool x8)
     return false;
 }
 
+enum { FACE_TOWARD_LENGTH = 2, DISABLED = 0x80 };
+
 // $C0:55A9
-/* Face the object `target`, unless it is disabled, which skips the command.
- * The direction is field_direction_to_target's ($C0:ABA2), which the port
- * calls out to; it leaves the direction's high byte clear, so the facing is
- * the table's for its low byte. The command's offset after the call is the
+/* Turn to face an object, unless it is disabled, which skips the command.
+ * The direction's high byte is clear as the callee leaves it, so the facing
+ * is the table's for its low byte. The command's offset after the call is the
  * one the callee leaves in Y, as the original's is. */
-static void face_toward(Snes *s, unsigned target)
+static void face_toward(Snes *s, EventObject target)
 {
     GameState *g = state_of(s);
-    EventCommand c = event_command_at(s);
-    if (field_object_state_state(g, target) & 0x80) {
-        event_return(s, next_command(&c, 2, 0));
+    if (field_object_state_state(g, target) & DISABLED) {
+        event_return(s, (EventStep){ (uint16_t)(event_command_offset(s) + FACE_TOWARD_LENGTH), true });
         return;
     }
-    aim_at(g, target);
+    aim_at(g, running_object(g), target);
     m_jsr_dc(s, 0xC055E6, 0xC0ABA2, DC_A | DC_X | DC_N | DC_Z | DC_C);
     if (!back(s, 0xC055E9, false))
         return;
-    c = event_command_at(s);
-    set_facing(g, current_object(g), facing_for_direction(g, field_direction(g)));
-    event_return(s, end_turn(&c, 2, 0));
+    turn(g, running_object(g), facing_for_direction(g, (uint8_t)field_direction(g)));
+    event_return(s, (EventStep){ (uint16_t)(event_command_offset(s) + FACE_TOWARD_LENGTH), false });
 }
 
 // $C0:55A0
-/* $A8: face the object in operand 1. */
-void event_cmd_face_object(Snes *s)
-{
-    EventCommand c = event_command_at(s);
-    face_toward(s, object_operand(state_of(s), &c, 1));
-}
+/* Face the object the command names. */
+void event_cmd_face_toward_object(Snes *s) { face_toward(s, event_command_of(s, 0xA8).target); }
 
 // $C0:5605
-/* $A9: face party member (operand 1). */
-void event_cmd_face_party_member(Snes *s)
-{
-    EventCommand c = event_command_at(s);
-    face_toward(s, member_object(state_of(s), &c, 1));
-}
+/* Face the party member the command names. */
+void event_cmd_face_toward_member(Snes *s) { face_toward(s, event_command_of(s, 0xA9).target); }
 
-EVENT_COMMAND(event_cmd_face_0, face_0)
-EVENT_COMMAND(event_cmd_face_1, face_1)
-EVENT_COMMAND(event_cmd_face_2, face_2)
-EVENT_COMMAND(event_cmd_face_3, face_3)
-EVENT_COMMAND(event_cmd_face_operand, face_operand)
-EVENT_COMMAND(event_cmd_face_variable, face_variable)
-EVENT_COMMAND(event_cmd_object_face_0, object_face_0)
-EVENT_COMMAND(event_cmd_object_face_1, object_face_1)
-EVENT_COMMAND(event_cmd_object_face_2, object_face_2)
-EVENT_COMMAND(event_cmd_object_face_3, object_face_3)
+EVENT_OPCODES(event_facing_opcodes,
+    { 0x0F, face, .object = SELF, .facing = CONSTANT(0), .length = 1, .routine = 0xC05535 },
+    { 0x17, face, .object = SELF, .facing = CONSTANT(1), .length = 1, .routine = 0xC05539 },
+    { 0x1B, face, .object = SELF, .facing = CONSTANT(2), .length = 1, .routine = 0xC0553D },
+    { 0x1D, face, .object = SELF, .facing = CONSTANT(3), .length = 1, .routine = 0xC05541 },
+    { 0xA6, face, .object = SELF, .facing = OPERAND(1), .length = 2, .routine = 0xC05545 },
+    { 0xA7, face, .object = SELF, .facing = VARIABLE_BYTE(1), .length = 2, .routine = 0xC05557 },
+    { 0x1E, face, .object = OBJECT(1), .facing = CONSTANT(0), .length = 2, .routine = 0xC0556C },
+    { 0x1F, face, .object = OBJECT(1), .facing = CONSTANT(1), .length = 2, .routine = 0xC05579 },
+    { 0x25, face, .object = OBJECT(1), .facing = CONSTANT(2), .length = 2, .routine = 0xC05586 },
+    { 0x26, face, .object = OBJECT(1), .facing = CONSTANT(3), .length = 2, .routine = 0xC05593 },
+    { 0x23, note_facing, .variable = VARIABLE(2), .object = OBJECT(1), .length = 3, .routine = 0xC065F8 },
+    { 0x24, note_facing, .variable = VARIABLE(2), .object = MEMBER_OBJECT(1), .length = 3, .routine = 0xC0661F },
+    { 0xA8, .bridge = event_cmd_face_toward_object, .target = OBJECT(1), .length = 2, .routine = 0xC055A0 },
+    { 0xA9, .bridge = event_cmd_face_toward_member, .target = MEMBER_OBJECT(1), .length = 2, .routine = 0xC05605 });

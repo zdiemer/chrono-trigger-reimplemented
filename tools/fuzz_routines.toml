@@ -619,9 +619,10 @@ iterations = 2000
 # away by the guards, which accept only what the game makes: an object is an
 # even offset); script offsets are kept in the first half of the buffer, since
 # past $DFFF they reach bank $80, which mirrors low RAM. The loose variants let
-# the offset run anywhere, so operands read through that mirror can land on the
-# cells a command writes. The entries are at their addresses: the rewrite
-# renamed several.
+# the offset run anywhere; the guards refuse a command whose operands could run
+# past the buffer's end (event/engine.c, event_runs_here), which no script
+# reaches, so those states show as skips. The entries are at their addresses:
+# the rewrite renamed several.
 
 [state.field]
 movie = "oracle/movies/field.ctm"
@@ -633,7 +634,7 @@ at = "C0:5A93"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "X=0000-007F"]
-why = "the object in X (8-bit) a slot doubled below $80; each command runs as a call-out"
+why = "the object in X (8-bit) a slot doubled below $80; each command runs by its row, or through the table"
 
 [[routine]]
 name = "event_run_init_scripts"
@@ -642,10 +643,10 @@ subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-40"]
 iterations = 2000
-why = "up to 64 objects, each running its opening's commands as call-outs"
+why = "up to 64 objects, each running its opening's commands by their rows, or through the table"
 
 [[routine]]
-name = "event_cmd_jump_forward"
+name = "event_cmd_jump"
 at = "C0:62B5"
 subsystem = "event"
 state = "field"
@@ -653,13 +654,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_jump_forward"
+name = "event_cmd_jump"
 variant = "loose"
 at = "C0:62B5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_jump_back"
@@ -676,10 +677,10 @@ at = "C0:62CB"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_var_const"
+name = "event_cmd_if_compares"
 at = "C0:62DE"
 subsystem = "event"
 state = "field"
@@ -687,16 +688,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_var_const"
+name = "event_cmd_if_compares"
 variant = "loose"
 at = "C0:62DE"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_var_const16"
+name = "event_cmd_if_compares_word"
 at = "C0:6313"
 subsystem = "event"
 state = "field"
@@ -704,16 +705,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_var_const16"
+name = "event_cmd_if_compares_word"
 variant = "loose"
 at = "C0:6313"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_var_var"
+name = "event_cmd_if_compares_variable"
 at = "C0:6361"
 subsystem = "event"
 state = "field"
@@ -721,16 +722,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_var_var"
+name = "event_cmd_if_compares_variable"
 variant = "loose"
 at = "C0:6361"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_var_var16"
+name = "event_cmd_if_compares_variable_word"
 at = "C0:63A4"
 subsystem = "event"
 state = "field"
@@ -738,16 +739,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_var_var16"
+name = "event_cmd_if_compares_variable_word"
 variant = "loose"
 at = "C0:63A4"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_memory"
+name = "event_cmd_if_story"
 at = "C0:63E6"
 subsystem = "event"
 state = "field"
@@ -755,16 +756,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_memory"
+name = "event_cmd_if_story"
 variant = "loose"
 at = "C0:63E6"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait"
+name = "event_cmd_wait_frames"
 at = "C0:2F96"
 subsystem = "event"
 state = "field"
@@ -772,16 +773,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait"
+name = "event_cmd_wait_frames"
 variant = "loose"
 at = "C0:2F96"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_yield"
+name = "event_cmd_wait_for_next_frame"
 at = "C0:353F"
 subsystem = "event"
 state = "field"
@@ -789,16 +790,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_yield"
+name = "event_cmd_wait_for_next_frame"
 variant = "loose"
 at = "C0:353F"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_halt"
+name = "event_cmd_stop_here"
 at = "C0:3543"
 subsystem = "event"
 state = "field"
@@ -806,16 +807,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_halt"
+name = "event_cmd_stop_here"
 variant = "loose"
 at = "C0:3543"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_memory0_below"
+name = "event_cmd_if_story_before"
 at = "C0:6442"
 subsystem = "event"
 state = "field"
@@ -823,16 +824,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_memory0_below"
+name = "event_cmd_if_story_before"
 variant = "loose"
 at = "C0:6442"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_result"
+name = "event_cmd_if_answer"
 at = "C0:6568"
 subsystem = "event"
 state = "field"
@@ -840,16 +841,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_result"
+name = "event_cmd_if_answer"
 variant = "loose"
 at = "C0:6568"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_object_in_view"
+name = "event_cmd_if_in_view"
 at = "C0:662C"
 subsystem = "event"
 state = "field"
@@ -857,16 +858,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_object_in_view"
+name = "event_cmd_if_in_view"
 variant = "loose"
 at = "C0:662C"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_object_on_screen"
+name = "event_cmd_if_well_on_screen"
 at = "C0:6655"
 subsystem = "event"
 state = "field"
@@ -874,16 +875,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_object_on_screen"
+name = "event_cmd_if_well_on_screen"
 variant = "loose"
 at = "C0:6655"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_4"
+name = "event_cmd_wait_frames_4"
 at = "C0:2FC6"
 subsystem = "event"
 state = "field"
@@ -891,16 +892,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_4"
+name = "event_cmd_wait_frames_4"
 variant = "loose"
 at = "C0:2FC6"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_8"
+name = "event_cmd_wait_frames_8"
 at = "C0:2FCA"
 subsystem = "event"
 state = "field"
@@ -908,16 +909,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_8"
+name = "event_cmd_wait_frames_8"
 variant = "loose"
 at = "C0:2FCA"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_16"
+name = "event_cmd_wait_frames_16"
 at = "C0:2FD2"
 subsystem = "event"
 state = "field"
@@ -925,16 +926,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_16"
+name = "event_cmd_wait_frames_16"
 variant = "loose"
 at = "C0:2FD2"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_32"
+name = "event_cmd_wait_frames_32"
 at = "C0:2FCE"
 subsystem = "event"
 state = "field"
@@ -942,16 +943,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_32"
+name = "event_cmd_wait_frames_32"
 variant = "loose"
 at = "C0:2FCE"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_run_state_routine_once"
+name = "event_cmd_behave_once"
 at = "C0:2FFD"
 subsystem = "event"
 state = "field"
@@ -959,16 +960,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_run_state_routine_once"
+name = "event_cmd_behave_once"
 variant = "loose"
 at = "C0:2FFD"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_dialog_table"
+name = "event_cmd_use_text"
 at = "C0:3557"
 subsystem = "event"
 state = "field"
@@ -976,16 +977,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_dialog_table"
+name = "event_cmd_use_text"
 variant = "loose"
 at = "C0:3557"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_dialog"
+name = "event_cmd_say"
 at = "C0:3570"
 subsystem = "event"
 state = "field"
@@ -993,16 +994,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_dialog"
+name = "event_cmd_say"
 variant = "loose"
 at = "C0:3570"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_dialog_top"
+name = "event_cmd_say_top"
 at = "C0:35B5"
 subsystem = "event"
 state = "field"
@@ -1010,16 +1011,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_dialog_top"
+name = "event_cmd_say_top"
 variant = "loose"
 at = "C0:35B5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_dialog_bottom"
+name = "event_cmd_say_bottom"
 at = "C0:35FC"
 subsystem = "event"
 state = "field"
@@ -1027,16 +1028,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_dialog_bottom"
+name = "event_cmd_say_bottom"
 variant = "loose"
 at = "C0:35FC"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_choice"
+name = "event_cmd_ask"
 at = "C0:3643"
 subsystem = "event"
 state = "field"
@@ -1044,16 +1045,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_choice"
+name = "event_cmd_ask"
 variant = "loose"
 at = "C0:3643"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_choice_top"
+name = "event_cmd_ask_top"
 at = "C0:36AA"
 subsystem = "event"
 state = "field"
@@ -1061,16 +1062,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_choice_top"
+name = "event_cmd_ask_top"
 variant = "loose"
 at = "C0:36AA"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_choice_bottom"
+name = "event_cmd_ask_bottom"
 at = "C0:36DD"
 subsystem = "event"
 state = "field"
@@ -1078,13 +1079,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_choice_bottom"
+name = "event_cmd_ask_bottom"
 variant = "loose"
 at = "C0:36DD"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_loop_animation"
@@ -1101,7 +1102,7 @@ at = "C0:2E67"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_play_animation"
@@ -1118,10 +1119,10 @@ at = "C0:2E9A"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_static_frame"
+name = "event_cmd_hold_frame"
 at = "C0:2F71"
 subsystem = "event"
 state = "field"
@@ -1129,16 +1130,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_static_frame"
+name = "event_cmd_hold_frame"
 variant = "loose"
 at = "C0:2F71"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_reset_animation"
+name = "event_cmd_stop_animating"
 at = "C0:2E8F"
 subsystem = "event"
 state = "field"
@@ -1146,13 +1147,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_reset_animation"
+name = "event_cmd_stop_animating"
 variant = "loose"
 at = "C0:2E8F"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_loop_animation_0"
@@ -1169,7 +1170,7 @@ at = "C0:2E87"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_loop_animation_1"
@@ -1186,7 +1187,7 @@ at = "C0:2E8B"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_play_animation_for"
@@ -1203,10 +1204,10 @@ at = "C0:2F01"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_return"
+name = "event_cmd_return_from_function"
 at = "C0:5F74"
 subsystem = "event"
 state = "field"
@@ -1214,16 +1215,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_return"
+name = "event_cmd_return_from_function"
 variant = "loose"
 at = "C0:5F74"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_call"
+name = "event_cmd_call_function"
 at = "C0:5FB6"
 subsystem = "event"
 state = "field"
@@ -1231,16 +1232,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_call"
+name = "event_cmd_call_function"
 variant = "loose"
 at = "C0:5FB6"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_call_when_accepted"
+name = "event_cmd_call_when_taken"
 at = "C0:607E"
 subsystem = "event"
 state = "field"
@@ -1248,13 +1249,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_call_when_accepted"
+name = "event_cmd_call_when_taken"
 variant = "loose"
 at = "C0:607E"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_call_and_wait"
@@ -1271,10 +1272,10 @@ at = "C0:6109"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_call_party_member"
+name = "event_cmd_call_function_member"
 at = "C0:61E9"
 subsystem = "event"
 state = "field"
@@ -1282,16 +1283,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_call_party_member"
+name = "event_cmd_call_function_member"
 variant = "loose"
 at = "C0:61E9"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_call_party_member_when_accepted"
+name = "event_cmd_call_when_taken_member"
 at = "C0:61FE"
 subsystem = "event"
 state = "field"
@@ -1299,16 +1300,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_call_party_member_when_accepted"
+name = "event_cmd_call_when_taken_member"
 variant = "loose"
 at = "C0:61FE"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_call_party_member_and_wait"
+name = "event_cmd_call_and_wait_member"
 at = "C0:6214"
 subsystem = "event"
 state = "field"
@@ -1316,16 +1317,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_call_party_member_and_wait"
+name = "event_cmd_call_and_wait_member"
 variant = "loose"
 at = "C0:6214"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_refuse_calls"
+name = "event_cmd_take_no_calls"
 at = "C0:6240"
 subsystem = "event"
 state = "field"
@@ -1333,16 +1334,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_refuse_calls"
+name = "event_cmd_take_no_calls"
 variant = "loose"
 at = "C0:6240"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_accept_calls"
+name = "event_cmd_take_calls"
 at = "C0:624B"
 subsystem = "event"
 state = "field"
@@ -1350,13 +1351,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_accept_calls"
+name = "event_cmd_take_calls"
 variant = "loose"
 at = "C0:624B"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_disable_object"
@@ -1373,10 +1374,10 @@ at = "C0:6254"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_make_object_uncallable"
+name = "event_cmd_make_unreachable"
 at = "C0:6269"
 subsystem = "event"
 state = "field"
@@ -1384,16 +1385,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_make_object_uncallable"
+name = "event_cmd_make_unreachable"
 variant = "loose"
 at = "C0:6269"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_make_object_callable"
+name = "event_cmd_make_reachable"
 at = "C0:6282"
 subsystem = "event"
 state = "field"
@@ -1401,16 +1402,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_make_object_callable"
+name = "event_cmd_make_reachable"
 variant = "loose"
 at = "C0:6282"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_blocking"
+name = "event_cmd_set_blocked_by"
 at = "C0:6295"
 subsystem = "event"
 state = "field"
@@ -1418,16 +1419,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_blocking"
+name = "event_cmd_set_blocked_by"
 variant = "loose"
 at = "C0:6295"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_arrival_flags"
+name = "event_cmd_set_arrival"
 at = "C0:62A4"
 subsystem = "event"
 state = "field"
@@ -1435,16 +1436,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_arrival_flags"
+name = "event_cmd_set_arrival"
 variant = "loose"
 at = "C0:62A4"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_any_input"
+name = "event_cmd_if_assignment_held_any"
 at = "C0:66A5"
 subsystem = "event"
 state = "field"
@@ -1452,16 +1453,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_any_input"
+name = "event_cmd_if_assignment_held_any"
 variant = "loose"
 at = "C0:66A5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_mapped_held_bit1"
+name = "event_cmd_if_assignment_held_fourth"
 at = "C0:66B2"
 subsystem = "event"
 state = "field"
@@ -1469,16 +1470,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_mapped_held_bit1"
+name = "event_cmd_if_assignment_held_fourth"
 variant = "loose"
 at = "C0:66B2"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_mapped_held_bit7"
+name = "event_cmd_if_assignment_held_first"
 at = "C0:66BC"
 subsystem = "event"
 state = "field"
@@ -1486,16 +1487,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_mapped_held_bit7"
+name = "event_cmd_if_assignment_held_first"
 variant = "loose"
 at = "C0:66BC"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_a_held"
+name = "event_cmd_if_held_a"
 at = "C0:66C6"
 subsystem = "event"
 state = "field"
@@ -1503,16 +1504,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_a_held"
+name = "event_cmd_if_held_a"
 variant = "loose"
 at = "C0:66C6"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_b_held"
+name = "event_cmd_if_held_b"
 at = "C0:66E5"
 subsystem = "event"
 state = "field"
@@ -1520,16 +1521,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_b_held"
+name = "event_cmd_if_held_b"
 variant = "loose"
 at = "C0:66E5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_x_held"
+name = "event_cmd_if_held_x"
 at = "C0:66EF"
 subsystem = "event"
 state = "field"
@@ -1537,16 +1538,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_x_held"
+name = "event_cmd_if_held_x"
 variant = "loose"
 at = "C0:66EF"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_y_held"
+name = "event_cmd_if_held_y"
 at = "C0:66F9"
 subsystem = "event"
 state = "field"
@@ -1554,16 +1555,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_y_held"
+name = "event_cmd_if_held_y"
 variant = "loose"
 at = "C0:66F9"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_l_held"
+name = "event_cmd_if_held_l"
 at = "C0:6705"
 subsystem = "event"
 state = "field"
@@ -1571,16 +1572,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_l_held"
+name = "event_cmd_if_held_l"
 variant = "loose"
 at = "C0:6705"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_r_held"
+name = "event_cmd_if_held_r"
 at = "C0:670F"
 subsystem = "event"
 state = "field"
@@ -1588,16 +1589,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_r_held"
+name = "event_cmd_if_held_r"
 variant = "loose"
 at = "C0:670F"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_mapped_pressed_bit1"
+name = "event_cmd_if_pressed_fourth_assignment"
 at = "C0:6719"
 subsystem = "event"
 state = "field"
@@ -1605,16 +1606,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_mapped_pressed_bit1"
+name = "event_cmd_if_pressed_fourth_assignment"
 variant = "loose"
 at = "C0:6719"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_mapped_pressed_bit7"
+name = "event_cmd_if_pressed_first_assignment"
 at = "C0:6724"
 subsystem = "event"
 state = "field"
@@ -1622,16 +1623,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_mapped_pressed_bit7"
+name = "event_cmd_if_pressed_first_assignment"
 variant = "loose"
 at = "C0:6724"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_a_pressed"
+name = "event_cmd_if_pressed_a"
 at = "C0:6732"
 subsystem = "event"
 state = "field"
@@ -1639,13 +1640,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_a_pressed"
+name = "event_cmd_if_pressed_a"
 variant = "loose"
 at = "C0:6732"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_face_0"
@@ -1662,7 +1663,7 @@ at = "C0:5535"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_face_1"
@@ -1679,7 +1680,7 @@ at = "C0:5539"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_face_2"
@@ -1696,7 +1697,7 @@ at = "C0:553D"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_face_3"
@@ -1713,10 +1714,10 @@ at = "C0:5541"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_object_face_0"
+name = "event_cmd_face_object_0"
 at = "C0:556C"
 subsystem = "event"
 state = "field"
@@ -1724,16 +1725,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_object_face_0"
+name = "event_cmd_face_object_0"
 variant = "loose"
 at = "C0:556C"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_object_face_1"
+name = "event_cmd_face_object_1"
 at = "C0:5579"
 subsystem = "event"
 state = "field"
@@ -1741,16 +1742,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_object_face_1"
+name = "event_cmd_face_object_1"
 variant = "loose"
 at = "C0:5579"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_object_face_2"
+name = "event_cmd_face_object_2"
 at = "C0:5586"
 subsystem = "event"
 state = "field"
@@ -1758,16 +1759,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_object_face_2"
+name = "event_cmd_face_object_2"
 variant = "loose"
 at = "C0:5586"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_object_face_3"
+name = "event_cmd_face_object_3"
 at = "C0:5593"
 subsystem = "event"
 state = "field"
@@ -1775,16 +1776,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_object_face_3"
+name = "event_cmd_face_object_3"
 variant = "loose"
 at = "C0:5593"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_face_operand"
+name = "event_cmd_face"
 at = "C0:5545"
 subsystem = "event"
 state = "field"
@@ -1792,13 +1793,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_face_operand"
+name = "event_cmd_face"
 variant = "loose"
 at = "C0:5545"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_face_variable"
@@ -1815,10 +1816,10 @@ at = "C0:5557"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_face_object"
+name = "event_cmd_face_toward_object"
 at = "C0:55A0"
 subsystem = "event"
 state = "field"
@@ -1826,16 +1827,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_face_object"
+name = "event_cmd_face_toward_object"
 variant = "loose"
 at = "C0:55A0"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_face_party_member"
+name = "event_cmd_face_toward_member"
 at = "C0:5605"
 subsystem = "event"
 state = "field"
@@ -1843,16 +1844,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_face_party_member"
+name = "event_cmd_face_toward_member"
 variant = "loose"
 at = "C0:5605"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_result_from_variable"
+name = "event_cmd_set_result"
 at = "C0:653B"
 subsystem = "event"
 state = "field"
@@ -1860,16 +1861,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_result_from_variable"
+name = "event_cmd_set_result"
 variant = "loose"
 at = "C0:653B"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_result_from_memory"
+name = "event_cmd_set_result_story"
 at = "C0:654E"
 subsystem = "event"
 state = "field"
@@ -1877,16 +1878,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_result_from_memory"
+name = "event_cmd_set_result_story"
 variant = "loose"
 at = "C0:654E"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_get_party_leader"
+name = "event_cmd_note_leader"
 at = "C0:658F"
 subsystem = "event"
 state = "field"
@@ -1894,16 +1895,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_get_party_leader"
+name = "event_cmd_note_leader"
 variant = "loose"
 at = "C0:658F"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_get_object_tile"
+name = "event_cmd_note_tile"
 at = "C0:65AA"
 subsystem = "event"
 state = "field"
@@ -1911,16 +1912,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_get_object_tile"
+name = "event_cmd_note_tile"
 variant = "loose"
 at = "C0:65AA"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_get_party_member_tile"
+name = "event_cmd_note_tile_member"
 at = "C0:65EB"
 subsystem = "event"
 state = "field"
@@ -1928,16 +1929,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_get_party_member_tile"
+name = "event_cmd_note_tile_member"
 variant = "loose"
 at = "C0:65EB"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_get_object_facing"
+name = "event_cmd_note_facing"
 at = "C0:65F8"
 subsystem = "event"
 state = "field"
@@ -1945,16 +1946,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_get_object_facing"
+name = "event_cmd_note_facing"
 variant = "loose"
 at = "C0:65F8"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_get_party_member_facing"
+name = "event_cmd_note_facing_member"
 at = "C0:661F"
 subsystem = "event"
 state = "field"
@@ -1962,13 +1963,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_get_party_member_facing"
+name = "event_cmd_note_facing_member"
 variant = "loose"
 at = "C0:661F"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_until_on_screen"
@@ -1985,7 +1986,7 @@ at = "C0:5429"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_toward_object"
@@ -2002,7 +2003,7 @@ at = "C0:5215"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member"
@@ -2019,7 +2020,7 @@ at = "C0:5410"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_to_tile"
@@ -2036,7 +2037,7 @@ at = "C0:4F61"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_toward_object_counted"
@@ -2053,7 +2054,7 @@ at = "C0:534A"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_counted"
@@ -2070,7 +2071,7 @@ at = "C0:550E"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_by_variables"
@@ -2087,7 +2088,7 @@ at = "C0:4F0A"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_toward_object_keep_facing"
@@ -2104,7 +2105,7 @@ at = "C0:52C0"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_keep_facing"
@@ -2121,10 +2122,10 @@ at = "C0:54F5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_run_state_routine"
+name = "event_cmd_behave"
 at = "C0:3002"
 subsystem = "event"
 state = "field"
@@ -2132,13 +2133,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_run_state_routine"
+name = "event_cmd_behave"
 variant = "loose"
 at = "C0:3002"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_follow_object"
@@ -2155,7 +2156,7 @@ at = "C0:3546"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_follow_party_member"
@@ -2172,7 +2173,7 @@ at = "C0:354F"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_in_direction"
@@ -2189,7 +2190,7 @@ at = "C0:4E73"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_to_tile_from_variables"
@@ -2206,7 +2207,7 @@ at = "C0:5084"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_to_tile_counted"
@@ -2223,7 +2224,7 @@ at = "C0:4FEA"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_in_direction_keep_facing"
@@ -2240,7 +2241,7 @@ at = "C0:4EC7"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_to_tile_keep_facing"
@@ -2257,7 +2258,7 @@ at = "C0:5129"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_move_to_tile_from_variables_keep_facing"
@@ -2274,10 +2275,10 @@ at = "C0:5191"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_move_to_tile_with_velocity"
+name = "event_cmd_jump_to_tile"
 at = "C0:4D06"
 subsystem = "event"
 state = "field"
@@ -2285,16 +2286,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_move_to_tile_with_velocity"
+name = "event_cmd_jump_to_tile"
 variant = "loose"
 at = "C0:4D06"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_move_with_velocity"
+name = "event_cmd_launch"
 at = "C0:4E25"
 subsystem = "event"
 state = "field"
@@ -2302,16 +2303,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_move_with_velocity"
+name = "event_cmd_launch"
 variant = "loose"
 at = "C0:4E25"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_show_object_sprite"
+name = "event_cmd_set_sprite_shown_object"
 at = "C0:4CEC"
 subsystem = "event"
 state = "field"
@@ -2319,16 +2320,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_show_object_sprite"
+name = "event_cmd_set_sprite_shown_object"
 variant = "loose"
 at = "C0:4CEC"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_hide_object_sprite"
+name = "event_cmd_set_sprite_hidden_object"
 at = "C0:4CF9"
 subsystem = "event"
 state = "field"
@@ -2336,16 +2337,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_hide_object_sprite"
+name = "event_cmd_set_sprite_hidden_object"
 variant = "loose"
 at = "C0:4CF9"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_no_sprite"
+name = "event_cmd_set_sprite_none"
 at = "C0:4CE6"
 subsystem = "event"
 state = "field"
@@ -2353,16 +2354,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_no_sprite"
+name = "event_cmd_set_sprite_none"
 variant = "loose"
 at = "C0:4CE6"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_solidity"
+name = "event_cmd_set_solid"
 at = "C0:4867"
 subsystem = "event"
 state = "field"
@@ -2370,16 +2371,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_solidity"
+name = "event_cmd_set_solid"
 variant = "loose"
 at = "C0:4867"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_step_count"
+name = "event_cmd_set_move_length"
 at = "C0:4876"
 subsystem = "event"
 state = "field"
@@ -2387,13 +2388,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_step_count"
+name = "event_cmd_set_move_length"
 variant = "loose"
 at = "C0:4876"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_set_speed"
@@ -2410,10 +2411,10 @@ at = "C0:4B49"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_speed_from_variable"
+name = "event_cmd_set_speed_variable"
 at = "C0:4B58"
 subsystem = "event"
 state = "field"
@@ -2421,16 +2422,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_speed_from_variable"
+name = "event_cmd_set_speed_variable"
 variant = "loose"
 at = "C0:4B58"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_tile_position"
+name = "event_cmd_stand_on_tile"
 at = "C0:4B74"
 subsystem = "event"
 state = "field"
@@ -2438,16 +2439,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_tile_position"
+name = "event_cmd_stand_on_tile"
 variant = "loose"
 at = "C0:4B74"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_tile_position_from_variables"
+name = "event_cmd_stand_on_tile_variables"
 at = "C0:4BC3"
 subsystem = "event"
 state = "field"
@@ -2455,16 +2456,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_tile_position_from_variables"
+name = "event_cmd_stand_on_tile_variables"
 variant = "loose"
 at = "C0:4BC3"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_position"
+name = "event_cmd_place"
 at = "C0:4C27"
 subsystem = "event"
 state = "field"
@@ -2472,16 +2473,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_position"
+name = "event_cmd_place"
 variant = "loose"
 at = "C0:4C27"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_sprite_priority"
+name = "event_cmd_set_layering"
 at = "C0:4C74"
 subsystem = "event"
 state = "field"
@@ -2489,16 +2490,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_sprite_priority"
+name = "event_cmd_set_layering"
 variant = "loose"
 at = "C0:4C74"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_show_sprite"
+name = "event_cmd_set_sprite_shown"
 at = "C0:4CD5"
 subsystem = "event"
 state = "field"
@@ -2506,16 +2507,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_show_sprite"
+name = "event_cmd_set_sprite_shown"
 variant = "loose"
 at = "C0:4CD5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_hide_sprite"
+name = "event_cmd_set_sprite_hidden"
 at = "C0:4CE0"
 subsystem = "event"
 state = "field"
@@ -2523,16 +2524,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_hide_sprite"
+name = "event_cmd_set_sprite_hidden"
 variant = "loose"
 at = "C0:4CE0"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_b_pressed"
+name = "event_cmd_if_pressed_b"
 at = "C0:6740"
 subsystem = "event"
 state = "field"
@@ -2540,16 +2541,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_b_pressed"
+name = "event_cmd_if_pressed_b"
 variant = "loose"
 at = "C0:6740"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_x_pressed"
+name = "event_cmd_if_pressed_x"
 at = "C0:674E"
 subsystem = "event"
 state = "field"
@@ -2557,16 +2558,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_x_pressed"
+name = "event_cmd_if_pressed_x"
 variant = "loose"
 at = "C0:674E"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_y_pressed"
+name = "event_cmd_if_pressed_y"
 at = "C0:675C"
 subsystem = "event"
 state = "field"
@@ -2574,16 +2575,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_y_pressed"
+name = "event_cmd_if_pressed_y"
 variant = "loose"
 at = "C0:675C"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_l_pressed"
+name = "event_cmd_if_pressed_l"
 at = "C0:676A"
 subsystem = "event"
 state = "field"
@@ -2591,16 +2592,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_l_pressed"
+name = "event_cmd_if_pressed_l"
 variant = "loose"
 at = "C0:676A"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_r_pressed"
+name = "event_cmd_if_pressed_r"
 at = "C0:6778"
 subsystem = "event"
 state = "field"
@@ -2608,13 +2609,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_r_pressed"
+name = "event_cmd_if_pressed_r"
 variant = "loose"
 at = "C0:6778"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_set_animation_line_limit"
@@ -2631,10 +2632,10 @@ at = "C0:6788"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_set"
+name = "event_cmd_assign"
 at = "C0:68A5"
 subsystem = "event"
 state = "field"
@@ -2642,16 +2643,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_set"
+name = "event_cmd_assign"
 variant = "loose"
 at = "C0:68A5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_set16"
+name = "event_cmd_assign_word"
 at = "C0:68C6"
 subsystem = "event"
 state = "field"
@@ -2659,16 +2660,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_set16"
+name = "event_cmd_assign_word"
 variant = "loose"
 at = "C0:68C6"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_copy"
+name = "event_cmd_assign_variable"
 at = "C0:68E9"
 subsystem = "event"
 state = "field"
@@ -2676,16 +2677,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_copy"
+name = "event_cmd_assign_variable"
 variant = "loose"
 at = "C0:68E9"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_copy16"
+name = "event_cmd_assign_variable_word"
 at = "C0:6913"
 subsystem = "event"
 state = "field"
@@ -2693,16 +2694,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_copy16"
+name = "event_cmd_assign_variable_word"
 variant = "loose"
 at = "C0:6913"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_add"
+name = "event_cmd_add"
 at = "C0:6A1F"
 subsystem = "event"
 state = "field"
@@ -2710,16 +2711,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_add"
+name = "event_cmd_add"
 variant = "loose"
 at = "C0:6A1F"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_add_var"
+name = "event_cmd_add_variable"
 at = "C0:6A45"
 subsystem = "event"
 state = "field"
@@ -2727,16 +2728,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_add_var"
+name = "event_cmd_add_variable"
 variant = "loose"
 at = "C0:6A45"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_add_var16"
+name = "event_cmd_add_variable_word"
 at = "C0:6A74"
 subsystem = "event"
 state = "field"
@@ -2744,16 +2745,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_add_var16"
+name = "event_cmd_add_variable_word"
 variant = "loose"
 at = "C0:6A74"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_subtract"
+name = "event_cmd_subtract"
 at = "C0:6AA3"
 subsystem = "event"
 state = "field"
@@ -2761,16 +2762,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_subtract"
+name = "event_cmd_subtract"
 variant = "loose"
 at = "C0:6AA3"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_subtract16"
+name = "event_cmd_subtract_word"
 at = "C0:6AC9"
 subsystem = "event"
 state = "field"
@@ -2778,16 +2779,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_subtract16"
+name = "event_cmd_subtract_word"
 variant = "loose"
 at = "C0:6AC9"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_subtract_var"
+name = "event_cmd_subtract_variable"
 at = "C0:6AF1"
 subsystem = "event"
 state = "field"
@@ -2795,16 +2796,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_subtract_var"
+name = "event_cmd_subtract_variable"
 variant = "loose"
 at = "C0:6AF1"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_set_bit"
+name = "event_cmd_set_flags_by_number"
 at = "C0:6B20"
 subsystem = "event"
 state = "field"
@@ -2812,16 +2813,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_set_bit"
+name = "event_cmd_set_flags_by_number"
 variant = "loose"
 at = "C0:6B20"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_clear_bit"
+name = "event_cmd_keep_only_flags_by_number"
 at = "C0:6B4B"
 subsystem = "event"
 state = "field"
@@ -2829,16 +2830,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_clear_bit"
+name = "event_cmd_keep_only_flags_by_number"
 variant = "loose"
 at = "C0:6B4B"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_and"
+name = "event_cmd_keep_only_flags"
 at = "C0:6BD2"
 subsystem = "event"
 state = "field"
@@ -2846,16 +2847,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_and"
+name = "event_cmd_keep_only_flags"
 variant = "loose"
 at = "C0:6BD2"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_or"
+name = "event_cmd_set_flags"
 at = "C0:6BF7"
 subsystem = "event"
 state = "field"
@@ -2863,16 +2864,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_or"
+name = "event_cmd_set_flags"
 variant = "loose"
 at = "C0:6BF7"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_xor"
+name = "event_cmd_toggle_flags"
 at = "C0:6C1C"
 subsystem = "event"
 state = "field"
@@ -2880,16 +2881,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_xor"
+name = "event_cmd_toggle_flags"
 variant = "loose"
 at = "C0:6C1C"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_shift_right"
+name = "event_cmd_halve"
 at = "C0:6C41"
 subsystem = "event"
 state = "field"
@@ -2897,16 +2898,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_shift_right"
+name = "event_cmd_halve"
 variant = "loose"
 at = "C0:6C41"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_increment"
+name = "event_cmd_add_1"
 at = "C0:6C69"
 subsystem = "event"
 state = "field"
@@ -2914,16 +2915,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_increment"
+name = "event_cmd_add_1"
 variant = "loose"
 at = "C0:6C69"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_increment16"
+name = "event_cmd_add_word_1"
 at = "C0:6C85"
 subsystem = "event"
 state = "field"
@@ -2931,16 +2932,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_increment16"
+name = "event_cmd_add_word_1"
 variant = "loose"
 at = "C0:6C85"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_decrement"
+name = "event_cmd_subtract_1"
 at = "C0:6CA1"
 subsystem = "event"
 state = "field"
@@ -2948,16 +2949,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_decrement"
+name = "event_cmd_subtract_1"
 variant = "loose"
 at = "C0:6CA1"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_set_1"
+name = "event_cmd_assign_1"
 at = "C0:6CBD"
 subsystem = "event"
 state = "field"
@@ -2965,16 +2966,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_set_1"
+name = "event_cmd_assign_1"
 variant = "loose"
 at = "C0:6CBD"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_set16_1"
+name = "event_cmd_assign_word_1"
 at = "C0:6CD6"
 subsystem = "event"
 state = "field"
@@ -2982,16 +2983,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_set16_1"
+name = "event_cmd_assign_word_1"
 variant = "loose"
 at = "C0:6CD6"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_clear"
+name = "event_cmd_assign_0"
 at = "C0:6CF0"
 subsystem = "event"
 state = "field"
@@ -2999,16 +3000,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_clear"
+name = "event_cmd_assign_0"
 variant = "loose"
 at = "C0:6CF0"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_random"
+name = "event_cmd_roll"
 at = "C0:6D09"
 subsystem = "event"
 state = "field"
@@ -3016,16 +3017,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_random"
+name = "event_cmd_roll"
 variant = "loose"
 at = "C0:6D09"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_from_pointer"
+name = "event_cmd_peek"
 at = "C0:6792"
 subsystem = "event"
 state = "field"
@@ -3033,16 +3034,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_from_pointer"
+name = "event_cmd_peek"
 variant = "loose"
 at = "C0:6792"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_from_pointer16"
+name = "event_cmd_peek_word"
 at = "C0:67C7"
 subsystem = "event"
 state = "field"
@@ -3050,13 +3051,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_from_pointer16"
+name = "event_cmd_peek_word"
 variant = "loose"
 at = "C0:67C7"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_poke"
@@ -3073,10 +3074,10 @@ at = "C0:67D7"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_poke16"
+name = "event_cmd_poke_word"
 at = "C0:67FB"
 subsystem = "event"
 state = "field"
@@ -3084,13 +3085,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_poke16"
+name = "event_cmd_poke_word"
 variant = "loose"
 at = "C0:67FB"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_poke_variable"
@@ -3107,10 +3108,10 @@ at = "C0:680C"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_poke_variable16"
+name = "event_cmd_poke_variable_word"
 at = "C0:6829"
 subsystem = "event"
 state = "field"
@@ -3118,13 +3119,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_poke_variable16"
+name = "event_cmd_poke_variable_word"
 variant = "loose"
 at = "C0:6829"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_copy_data"
@@ -3141,10 +3142,10 @@ at = "C0:6846"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_from_memory"
+name = "event_cmd_assign_story"
 at = "C0:693D"
 subsystem = "event"
 state = "field"
@@ -3152,16 +3153,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_from_memory"
+name = "event_cmd_assign_story"
 variant = "loose"
 at = "C0:693D"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_from_memory16"
+name = "event_cmd_assign_story_word"
 at = "C0:6964"
 subsystem = "event"
 state = "field"
@@ -3169,16 +3170,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_from_memory16"
+name = "event_cmd_assign_story_word"
 variant = "loose"
 at = "C0:6964"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_var_from_memory0"
+name = "event_cmd_assign_story_progress"
 at = "C0:698B"
 subsystem = "event"
 state = "field"
@@ -3186,16 +3187,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_var_from_memory0"
+name = "event_cmd_assign_story_progress"
 variant = "loose"
 at = "C0:698B"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_memory_set"
+name = "event_cmd_record"
 at = "C0:69A6"
 subsystem = "event"
 state = "field"
@@ -3203,16 +3204,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_memory_set"
+name = "event_cmd_record"
 variant = "loose"
 at = "C0:69A6"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_memory_set_from_var"
+name = "event_cmd_record_variable"
 at = "C0:69C4"
 subsystem = "event"
 state = "field"
@@ -3220,16 +3221,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_memory_set_from_var"
+name = "event_cmd_record_variable"
 variant = "loose"
 at = "C0:69C4"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_memory_set_from_var16"
+name = "event_cmd_record_variable_word"
 at = "C0:69EB"
 subsystem = "event"
 state = "field"
@@ -3237,16 +3238,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_memory_set_from_var16"
+name = "event_cmd_record_variable_word"
 variant = "loose"
 at = "C0:69EB"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_memory0_set"
+name = "event_cmd_record_progress"
 at = "C0:6A12"
 subsystem = "event"
 state = "field"
@@ -3254,16 +3255,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_memory0_set"
+name = "event_cmd_record_progress"
 variant = "loose"
 at = "C0:6A12"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_memory_set_bit"
+name = "event_cmd_mark_story_flag_raised"
 at = "C0:6B76"
 subsystem = "event"
 state = "field"
@@ -3271,16 +3272,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_memory_set_bit"
+name = "event_cmd_mark_story_flag_raised"
 variant = "loose"
 at = "C0:6B76"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_memory_clear_bit"
+name = "event_cmd_mark_story_flag_lowered"
 at = "C0:6BA4"
 subsystem = "event"
 state = "field"
@@ -3288,16 +3289,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_memory_clear_bit"
+name = "event_cmd_mark_story_flag_lowered"
 variant = "loose"
 at = "C0:6BA4"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_play_sound"
+name = "event_cmd_play_effect"
 at = "C0:3C11"
 subsystem = "event"
 state = "field"
@@ -3305,13 +3306,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_play_sound"
+name = "event_cmd_play_effect"
 variant = "loose"
 at = "C0:3C11"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_play_song"
@@ -3328,10 +3329,10 @@ at = "C0:3C2F"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_sound_81_83"
+name = "event_cmd_fade_music"
 at = "C0:3C4C"
 subsystem = "event"
 state = "field"
@@ -3339,16 +3340,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_sound_81_83"
+name = "event_cmd_fade_music"
 variant = "loose"
 at = "C0:3C4C"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_sound_command"
+name = "event_cmd_send_sound_command"
 at = "C0:3C98"
 subsystem = "event"
 state = "field"
@@ -3356,16 +3357,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_sound_command"
+name = "event_cmd_send_sound_command"
 variant = "loose"
 at = "C0:3C98"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_apu_port1"
+name = "event_cmd_wait_for_music_fade"
 at = "C0:3CBC"
 subsystem = "event"
 state = "field"
@@ -3373,16 +3374,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_apu_port1"
+name = "event_cmd_wait_for_music_fade"
 variant = "loose"
 at = "C0:3CBC"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_apu_port3"
+name = "event_cmd_wait_for_song_marker"
 at = "C0:3CC5"
 subsystem = "event"
 state = "field"
@@ -3390,13 +3391,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_apu_port3"
+name = "event_cmd_wait_for_song_marker"
 variant = "loose"
 at = "C0:3CC5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_set_player_control"
@@ -3413,10 +3414,10 @@ at = "C0:3C05"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_brightness"
+name = "event_cmd_fade"
 at = "C0:3CD0"
 subsystem = "event"
 state = "field"
@@ -3424,16 +3425,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_brightness"
+name = "event_cmd_fade"
 variant = "loose"
 at = "C0:3CD0"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_brightness"
+name = "event_cmd_wait_for_screen_fade"
 at = "C0:3CFD"
 subsystem = "event"
 state = "field"
@@ -3441,16 +3442,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_brightness"
+name = "event_cmd_wait_for_screen_fade"
 variant = "loose"
 at = "C0:3CFD"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_color"
+name = "event_cmd_wait_for_screen_tint"
 at = "C0:3D7A"
 subsystem = "event"
 state = "field"
@@ -3458,16 +3459,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_color"
+name = "event_cmd_wait_for_screen_tint"
 variant = "loose"
 at = "C0:3D7A"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_fixed_color"
+name = "event_cmd_tint"
 at = "C0:3D07"
 subsystem = "event"
 state = "field"
@@ -3475,13 +3476,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_fixed_color"
+name = "event_cmd_tint"
 variant = "loose"
 at = "C0:3D07"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_set_bc"
@@ -3498,7 +3499,7 @@ at = "C0:3D84"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_copy_tiles"
@@ -3515,7 +3516,7 @@ at = "C0:3D97"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_queue_tile_copy"
@@ -3532,10 +3533,10 @@ at = "C0:3DC5"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_layer_extra_speed"
+name = "event_cmd_drift_layers"
 at = "C0:3DF4"
 subsystem = "event"
 state = "field"
@@ -3543,16 +3544,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_layer_extra_speed"
+name = "event_cmd_drift_layers"
 variant = "loose"
 at = "C0:3DF4"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_scroll_screen"
+name = "event_cmd_scroll_camera"
 at = "C0:3E30"
 subsystem = "event"
 state = "field"
@@ -3560,13 +3561,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_scroll_screen"
+name = "event_cmd_scroll_camera"
 variant = "loose"
 at = "C0:3E30"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_party_routine_6_7"
@@ -3583,7 +3584,7 @@ at = "C0:3E5C"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_party_routine_6"
@@ -3600,7 +3601,7 @@ at = "C0:3E6E"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_party_routine_7"
@@ -3617,7 +3618,7 @@ at = "C0:3E75"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_party_routine_0a"
@@ -3634,10 +3635,10 @@ at = "C0:3A68"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_remove_from_party"
+name = "event_cmd_take_out_of_party"
 at = "C0:3A07"
 subsystem = "event"
 state = "field"
@@ -3645,16 +3646,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_remove_from_party"
+name = "event_cmd_take_out_of_party"
 variant = "loose"
 at = "C0:3A07"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_start_battle"
+name = "event_cmd_fight"
 at = "C0:3A83"
 subsystem = "event"
 state = "field"
@@ -3662,16 +3663,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_start_battle"
+name = "event_cmd_fight"
 variant = "loose"
 at = "C0:3A83"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_change_location"
+name = "event_cmd_go_to_location"
 at = "C0:3AB7"
 subsystem = "event"
 state = "field"
@@ -3679,16 +3680,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_change_location"
+name = "event_cmd_go_to_location"
 variant = "loose"
 at = "C0:3AB7"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_store_location"
+name = "event_cmd_set_location_put_aside"
 at = "C0:3AF1"
 subsystem = "event"
 state = "field"
@@ -3696,13 +3697,13 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_store_location"
+name = "event_cmd_set_location_put_aside"
 variant = "loose"
 at = "C0:3AF1"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
 name = "event_cmd_set_location"
@@ -3719,10 +3720,10 @@ at = "C0:3B1B"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_location_with_1e"
+name = "event_cmd_set_location_raising_1e"
 at = "C0:3B45"
 subsystem = "event"
 state = "field"
@@ -3730,16 +3731,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_location_with_1e"
+name = "event_cmd_set_location_raising_1e"
 variant = "loose"
 at = "C0:3B45"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_change_location_now"
+name = "event_cmd_go_to_location_now"
 at = "C0:3B4B"
 subsystem = "event"
 state = "field"
@@ -3747,16 +3748,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_change_location_now"
+name = "event_cmd_go_to_location_now"
 variant = "loose"
 at = "C0:3B4B"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_change_location_now_with_1e"
+name = "event_cmd_go_to_location_now_raising_1e"
 at = "C0:3B98"
 subsystem = "event"
 state = "field"
@@ -3764,16 +3765,16 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_change_location_now_with_1e"
+name = "event_cmd_go_to_location_now_raising_1e"
 variant = "loose"
 at = "C0:3B98"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_change_location_from_variables"
+name = "event_cmd_go_to_worked_out_location"
 at = "C0:3B9E"
 subsystem = "event"
 state = "field"
@@ -3781,10 +3782,10 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_change_location_from_variables"
+name = "event_cmd_go_to_worked_out_location"
 variant = "loose"
 at = "C0:3B9E"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: operands past $DFFF are read through bank $80's mirror of low RAM"
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"

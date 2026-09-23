@@ -319,6 +319,15 @@ Each of these is a finding. Every example here comes from this repo.
 31. **Registers or RAM cells as a bridge's own loop variables.** A row counter
     in `s->cpu.y`, or `field_current_object` as the loop index. A bridge's own
     loop runs on locals and sets the machine only at the call.
+32. **Operations that take a bag.** An operation whose signature is
+    `(GameState *g, const EventCommand *c)`, where `EventCommand` holds every
+    parameter of the language (about 80 fields). Its fields are named, but the
+    signature no longer says what the operation reads. Take the parameters
+    explicitly, as the illustration does (`loop_animation(g, self, animation)`),
+    or a small struct per operation family.
+33. **Constants that type nothing.** Enums declared so a comment can mention
+    them (`IN_OTHERS_WAY`, `STOPPED_BY_*`) while the parameter stays `uint8_t`.
+    The type is the vocabulary.
 
 ## What is legitimately machine-shaped
 

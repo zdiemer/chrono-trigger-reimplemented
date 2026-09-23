@@ -394,14 +394,16 @@
 #define RAM_EVENT_OBJECT_END 0x7E01BDu
 #define RAM_EVENT_OBJECT_END_DP 0xBDu        /* page field */
 /* A command's count: the bytes event $4E copies, less one; event $7A keeps its height operand in
- * the low byte [2 bytes] */
+ * the low byte. Read back only by the command that wrote it (scaffolding) [2 bytes] */
 #define RAM_EVENT_COUNT 0x7E01C1u
 #define RAM_EVENT_COUNT_DP 0xC1u             /* page field */
-/* The offset of a comparison command's jump byte, where it goes on from [2 bytes] */
+/* The offset of a comparison command's jump byte, which the comparisons' shared routine notes
+ * and reads back itself (scaffolding) [2 bytes] */
 #define RAM_EVENT_CONDITION_RESUME 0x7E01C3u
 #define RAM_EVENT_CONDITION_RESUME_DP 0xC3u  /* page field */
-/* Where a command goes on, kept across its calls into other code (the moves, sound, the party
- * routines) [2 bytes] */
+/* Where a command goes on, which the original keeps across its calls into other code (the moves,
+ * sound, the party routines) and reads back itself: nothing else reads it (ct_dev
+ * --event-reads), so the port keeps it in a local and writes the cell as scaffolding [2 bytes] */
 #define RAM_EVENT_SAVED_POSITION 0x7E01C7u
 #define RAM_EVENT_SAVED_POSITION_DP 0xC7u    /* page field */
 /* The 24-bit pointer events $48 and $49 read through [3 bytes] */
@@ -411,7 +413,9 @@
 #define RAM_EVENT_TARGET_POINTER 0x7E01D0u
 #define RAM_EVENT_TARGET_POINTER_DP 0xD0u    /* page field */
 /* The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command
- * keeps its operands and intermediate values there (event/script.h) [12 bytes] */
+ * keeps its operands and intermediate values there, and only that command reads them back
+ * (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7 reads $E2 as a
+ * phase it never sets) [12 bytes] */
 #define RAM_EVENT_SCRATCH 0x7E01D9u
 #define RAM_EVENT_SCRATCH_DP 0xD9u           /* page field */
 /* Offset in the script buffer where the object's script resumes [64 x $2 bytes, by object slot

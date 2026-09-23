@@ -1,144 +1,72 @@
-/* Event commands: conditions on the controller.
+/* Scripts reading the controller: a cutscene waiting for a button, a
+ * minigame reading the pad.
  *
- * They read the controller cells the joypad reader keeps (game/core/input.c):
- * the buttons held this frame, in the game's order (A X L R B Y Select Start),
- * and the same remapped through the player's button assignments. And the
- * field's latches (field_input_latched), which the field main loop ORs the
- * newly pressed buttons into every frame, remapped in its low byte and in the
- * game's order in its high byte: a latched button stays set until a command
- * that tests it takes it.
+ * Two views of the buttons: as held this frame, in the game's order
+ * (A X L R B Y Select Start) or through the player's own button assignments
+ * (input_mapped); and as pressed, which the field latches as presses arrive
+ * (field_input_latched: the assignments in its low byte, the game's order in
+ * its high byte) and a script takes, so that one press answers one question.
  *
- * Each takes one operand, a jump distance: if the condition holds the script
- * goes on after it, otherwise it jumps forward by it from the operand. */
-#include "event/bridge.h"
+ * Each is a condition: on after it if the button is down, otherwise its jump. */
+#include "event/script.h"
 
-/* The game's order, in the low byte of the button words. */
+/* The buttons, in the game's order, as the held buttons have them. */
 enum { BUTTON_A = 0x80, BUTTON_X = 0x40, BUTTON_L = 0x20, BUTTON_R = 0x10, BUTTON_B = 0x08, BUTTON_Y = 0x04 };
 
-enum { HELD = 1 };   /* input_mapped: the held buttons, remapped */
+/* The player's button assignments, as the remapped buttons have them: each
+ * bit is set while all the buttons of one assignment are down. The scripts
+ * ask about the first assignment and the fourth (game/core/input.c orders
+ * them); what each is for in the game isn't established (docs/TODO.md). */
+enum { FIRST_ASSIGNMENT = 0x80, FOURTH_ASSIGNMENT = 0x02, ANYTHING = 0xFFFF };
 
-// $C0:66D0
-/* Held: on after the operand, the parse having stepped onto it; otherwise
- * jump by it. */
-static EventStep branch(GameState *g, const EventCommand *c, bool holds)
-{
-    if (holds)
-        return next_command(c, 2, 2);
-    return jump_from(g, c, 1, operand(g, c, 1), false, 1);
-}
+/* A press as the field latches it: the game's order in the high byte. */
+#define PRESSED(button) ((uint16_t)((button) << 8))
 
-static EventStep if_held(GameState *g, const EventCommand *c, uint8_t button)
-{
-    return branch(g, c, (uint8_t)input_held(g) & button);
-}
+enum { HELD = 1 };   /* input_mapped: the held buttons, through the assignments */
 
-static EventStep if_mapped_held(GameState *g, const EventCommand *c, uint8_t bit)
+// $C0:66C6
+/* If a button is held. */
+static EventFlow if_held(GameState *g, const EventCommand *c)
 {
-    return branch(g, c, (uint8_t)input_mapped(g, HELD) & bit);
-}
-
-/* Takes a latched button (clearing it) if it is set. */
-static bool take_latched(GameState *g, uint16_t bit)
-{
-    uint16_t latched = field_input_latched(g);
-    if (!(latched & bit))
-        return false;
-    set_field_input_latched(g, (uint16_t)(latched & ~bit));
-    return true;
-}
-
-static EventStep if_latched_mapped(GameState *g, const EventCommand *c, uint8_t bit)
-{
-    return branch(g, c, take_latched(g, bit));
-}
-
-static EventStep if_pressed(GameState *g, const EventCommand *c, uint8_t button)
-{
-    return branch(g, c, take_latched(g, (uint16_t)(button << 8)));
+    return unless_jump((input_held(g) & c->buttons) != 0);
 }
 
 // $C0:66A5
-/* $2D: if any button is held, remapped or on the direction pad. */
-static EventStep if_any_input(GameState *g, const EventCommand *c) { return branch(g, c, input_mapped(g, HELD) != 0); }
-
-// $C0:66B2
-/* $30: if the remapped held buttons' bit 1 is set. */
-static EventStep if_mapped_held_bit1(GameState *g, const EventCommand *c) { return if_mapped_held(g, c, 0x02); }
-
-// $C0:66BC
-/* $31: if the remapped held buttons' bit 7 is set. */
-static EventStep if_mapped_held_bit7(GameState *g, const EventCommand *c) { return if_mapped_held(g, c, 0x80); }
-
-// $C0:66C6
-/* $34: if A is held. */
-static EventStep if_a_held(GameState *g, const EventCommand *c) { return if_held(g, c, BUTTON_A); }
-
-// $C0:66E5
-/* $35: if B is held. */
-static EventStep if_b_held(GameState *g, const EventCommand *c) { return if_held(g, c, BUTTON_B); }
-
-// $C0:66EF
-/* $36: if X is held. */
-static EventStep if_x_held(GameState *g, const EventCommand *c) { return if_held(g, c, BUTTON_X); }
-
-// $C0:66F9
-/* $37: if Y is held. */
-static EventStep if_y_held(GameState *g, const EventCommand *c) { return if_held(g, c, BUTTON_Y); }
-
-// $C0:6705
-/* $38: if L is held. */
-static EventStep if_l_held(GameState *g, const EventCommand *c) { return if_held(g, c, BUTTON_L); }
-
-// $C0:670F
-/* $39: if R is held. */
-static EventStep if_r_held(GameState *g, const EventCommand *c) { return if_held(g, c, BUTTON_R); }
-
-// $C0:6719
-/* $3B: take a latched press of the remapped bit 1. */
-static EventStep if_mapped_pressed_bit1(GameState *g, const EventCommand *c) { return if_latched_mapped(g, c, 0x02); }
-
-// $C0:6724
-/* $3C: take a latched press of the remapped bit 7. */
-static EventStep if_mapped_pressed_bit7(GameState *g, const EventCommand *c) { return if_latched_mapped(g, c, 0x80); }
+/* If an assignment's buttons are held (or, for any, anything at all, the
+ * direction pad included). */
+static EventFlow if_assignment_held(GameState *g, const EventCommand *c)
+{
+    return unless_jump((input_mapped(g, HELD) & c->buttons) != 0);
+}
 
 // $C0:6732
-/* $3F: take a latched press of A. */
-static EventStep if_a_pressed(GameState *g, const EventCommand *c) { return if_pressed(g, c, BUTTON_A); }
+/* If a button was pressed since a script last asked: the press is taken, so
+ * the next question needs a new one. */
+static EventFlow if_pressed(GameState *g, const EventCommand *c)
+{
+    uint16_t latched = field_input_latched(g);
+    if (!(latched & c->buttons))
+        return take_jump();
+    set_field_input_latched(g, (uint16_t)(latched & ~c->buttons));
+    return next_command();
+}
 
-// $C0:6740
-/* $40: take a latched press of B. */
-static EventStep if_b_pressed(GameState *g, const EventCommand *c) { return if_pressed(g, c, BUTTON_B); }
-
-// $C0:674E
-/* $41: take a latched press of X. */
-static EventStep if_x_pressed(GameState *g, const EventCommand *c) { return if_pressed(g, c, BUTTON_X); }
-
-// $C0:675C
-/* $42: take a latched press of Y. */
-static EventStep if_y_pressed(GameState *g, const EventCommand *c) { return if_pressed(g, c, BUTTON_Y); }
-
-// $C0:676A
-/* $43: take a latched press of L. */
-static EventStep if_l_pressed(GameState *g, const EventCommand *c) { return if_pressed(g, c, BUTTON_L); }
-
-// $C0:6778
-/* $44: take a latched press of R. */
-static EventStep if_r_pressed(GameState *g, const EventCommand *c) { return if_pressed(g, c, BUTTON_R); }
-
-EVENT_COMMAND(event_cmd_if_any_input, if_any_input)
-EVENT_COMMAND(event_cmd_if_mapped_held_bit1, if_mapped_held_bit1)
-EVENT_COMMAND(event_cmd_if_mapped_held_bit7, if_mapped_held_bit7)
-EVENT_COMMAND(event_cmd_if_a_held, if_a_held)
-EVENT_COMMAND(event_cmd_if_b_held, if_b_held)
-EVENT_COMMAND(event_cmd_if_x_held, if_x_held)
-EVENT_COMMAND(event_cmd_if_y_held, if_y_held)
-EVENT_COMMAND(event_cmd_if_l_held, if_l_held)
-EVENT_COMMAND(event_cmd_if_r_held, if_r_held)
-EVENT_COMMAND(event_cmd_if_mapped_pressed_bit1, if_mapped_pressed_bit1)
-EVENT_COMMAND(event_cmd_if_mapped_pressed_bit7, if_mapped_pressed_bit7)
-EVENT_COMMAND(event_cmd_if_a_pressed, if_a_pressed)
-EVENT_COMMAND(event_cmd_if_b_pressed, if_b_pressed)
-EVENT_COMMAND(event_cmd_if_x_pressed, if_x_pressed)
-EVENT_COMMAND(event_cmd_if_y_pressed, if_y_pressed)
-EVENT_COMMAND(event_cmd_if_l_pressed, if_l_pressed)
-EVENT_COMMAND(event_cmd_if_r_pressed, if_r_pressed)
+/* Each has one operand, its jump. */
+EVENT_OPCODES(event_input_opcodes,
+    { 0x2D, if_assignment_held, .buttons = CONSTANT(ANYTHING), .length = 2, .jump = 1, .routine = 0xC066A5 },
+    { 0x30, if_assignment_held, .buttons = CONSTANT(FOURTH_ASSIGNMENT), .length = 2, .jump = 1, .routine = 0xC066B2 },
+    { 0x31, if_assignment_held, .buttons = CONSTANT(FIRST_ASSIGNMENT), .length = 2, .jump = 1, .routine = 0xC066BC },
+    { 0x34, if_held, .buttons = CONSTANT(BUTTON_A), .length = 2, .jump = 1, .routine = 0xC066C6 },
+    { 0x35, if_held, .buttons = CONSTANT(BUTTON_B), .length = 2, .jump = 1, .routine = 0xC066E5 },
+    { 0x36, if_held, .buttons = CONSTANT(BUTTON_X), .length = 2, .jump = 1, .routine = 0xC066EF },
+    { 0x37, if_held, .buttons = CONSTANT(BUTTON_Y), .length = 2, .jump = 1, .routine = 0xC066F9 },
+    { 0x38, if_held, .buttons = CONSTANT(BUTTON_L), .length = 2, .jump = 1, .routine = 0xC06705 },
+    { 0x39, if_held, .buttons = CONSTANT(BUTTON_R), .length = 2, .jump = 1, .routine = 0xC0670F },
+    { 0x3B, if_pressed, .buttons = CONSTANT(FOURTH_ASSIGNMENT), .length = 2, .jump = 1, .routine = 0xC06719 },
+    { 0x3C, if_pressed, .buttons = CONSTANT(FIRST_ASSIGNMENT), .length = 2, .jump = 1, .routine = 0xC06724 },
+    { 0x3F, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_A)), .length = 2, .jump = 1, .routine = 0xC06732 },
+    { 0x40, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_B)), .length = 2, .jump = 1, .routine = 0xC06740 },
+    { 0x41, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_X)), .length = 2, .jump = 1, .routine = 0xC0674E },
+    { 0x42, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_Y)), .length = 2, .jump = 1, .routine = 0xC0675C },
+    { 0x43, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_L)), .length = 2, .jump = 1, .routine = 0xC0676A },
+    { 0x44, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_R)), .length = 2, .jump = 1, .routine = 0xC06778 });

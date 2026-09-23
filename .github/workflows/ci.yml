@@ -128,6 +128,11 @@ jobs:
           -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON -DCT_ROM= ${{ matrix.configure }}
       - name: Build
         run: cmake --build build/ci
+      # The ports compiled with their scaffolding switched off (game/original_effects.h,
+      # docs/PORTING.md "Scaffolding"): the logic must not lean on it. Part of the
+      # default build too; named here so a failure says what it is.
+      - name: Build the ports without their scaffolding
+        run: cmake --build build/ci --target ct_game_native_shape
       - name: Check that ct_play was built
         run: test -f build/ci/ct_play || test -f build/ci/ct_play.exe
       - name: Check that the interpreter isn't linked into ct_play

@@ -1,120 +1,181 @@
-/* Event commands: the screen -- brightness and the fixed color (which the
- * field NMI sends from their shadows every frame, stepping a gradual change
- * toward its target), copying map tiles, the layers' extra scroll speed and
- * scrolling the screen -- and the calls into the menus' party routines.
+/* Scripts directing the screen: fading it in and out, tinting it with a
+ * colour (a flash, a red alert, a dream's haze), changing the map's tiles
+ * (a door opening, a bridge appearing), drifting the layers, scrolling the
+ * camera, and handing the party to the player or taking it away.
  *
- * field_effect_status marks the gradual changes running: bit 1 brightness,
- * bits 3 and 4 the fixed color. */
+ * The fades and tints are gradual when a rate is given: the field's
+ * interrupt steps them a frame at a time toward their target, and marks them
+ * running in field_effect_status (bit 1 the brightness, bits 3-4 the tint)
+ * until they arrive. */
 #include "event/bridge.h"
 
-enum { BRIGHTNESS_CHANGING = 0x02, COLOR_CHANGING = 0x08, COLOR_CHANGES = 0x18 };
-enum { TILE_COPY_QUEUED = 0x20 };   /* field_requests */
+enum { FADING = 0x02, TINTING = 0x08, TINT_CHANGES = 0x18 };   /* field_effect_status */
+enum { TILE_COPY_QUEUED = 0x20 };                              /* field_requests */
+enum { ALL_MAPS = 0x07 };   /* a tile copy's maps: one bit each */
 
 // $C0:3C05
-/* $E3: give the player control of the party (operand 1 nonzero) or take it
- * away. */
-static EventStep set_player_control(GameState *g, const EventCommand *c)
+/* Give the player control of the party (nonzero), or take it away for a
+ * cutscene. */
+static EventFlow set_player_control(GameState *g, const EventCommand *c)
 {
-    set_field_player_control(g, operand(g, c, 1));
-    return next_command(c, 2, 2);
+    set_field_player_control(g, c->control);
+    return next_command();
 }
 
 // $C0:3CD0
-/* $F0: brightness: operand 1's high nibble, at once, or with a nonzero low
- * nibble a gradual change to it at that rate. The operand is kept in the
- * scratch cell. Ends the turn. */
-static EventStep brightness(GameState *g, const EventCommand *c)
+/* Fade the screen to a brightness (the high nibble, 0 black to 15 full): at
+ * once, or at the rate in the low nibble. Ends the turn. */
+static EventFlow fade(GameState *g, const EventCommand *c)
 {
-    uint8_t op = operand(g, c, 1);
-    keep8(g, SCRATCH_D9, op);
-    uint8_t level = (uint8_t)(op >> 4), rate = op & 0x0F;
+    uint8_t level = (uint8_t)(c->fade_to >> 4), rate = c->fade_to & 0x0F;
     if (rate != 0) {
         set_field_brightness_rate(g, (uint16_t)(rate << 8 | rate));
         set_field_brightness_target(g, level);
-        set_field_effect_status(g, field_effect_status(g) | BRIGHTNESS_CHANGING);
+        set_field_effect_status(g, field_effect_status(g) | FADING);
     } else {
         set_field_brightness(g, level);
     }
-    return end_turn(c, 2, 0);
-}
-
-/* Stay on the command while a gradual change runs. */
-static EventStep wait_while(GameState *g, const EventCommand *c, uint8_t changing)
-{
-    return end_turn(c, (field_effect_status(g) & changing) ? 0 : 1, 0);
+    return end_turn();
 }
 
 // $C0:3CFD
-/* $F2: wait for a brightness change to finish. */
-static EventStep wait_brightness(GameState *g, const EventCommand *c) { return wait_while(g, c, BRIGHTNESS_CHANGING); }
-
-// $C0:3D7A
-/* $F3: wait for a fixed color change to finish. */
-static EventStep wait_color(GameState *g, const EventCommand *c) { return wait_while(g, c, COLOR_CHANGING); }
-
-/* The fixed color takes the target's color channels (bits 5-7), keeping its
- * intensity; the channels are kept in the scratch cell. */
-static void take_channels(GameState *g)
+/* Wait for a fade, or a tint, to arrive. */
+static EventFlow wait_for_screen(GameState *g, const EventCommand *c)
 {
-    uint8_t channels = field_fixed_color_target(g) & 0xE0;
-    keep8(g, SCRATCH_D9, channels);
-    set_field_fixed_color(g, (uint8_t)((field_fixed_color(g) & 0x1F) | channels));
+    return (field_effect_status(g) & c->changes) ? stay() : end_turn();
 }
 
-enum { COLOR_MATH_ADD = 0x17, COLOR_MATH_SUBTRACT = 0x97, NO_COLOR = 0xE0 };
+/* A tint: a colour mixed into the whole picture, added to it or taken away.
+ * The field keeps it as the hardware has it -- the fixed colour's shadow
+ * (which colour channels in bits 5-7, the strength in bits 0-4) and the
+ * colour-math setting it applies with -- and its interrupt hands both on each
+ * frame; so for now the tint is written in those terms here, the field's
+ * vocabulary for it still to come (docs/TODO.md). */
+typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
+
+enum { CHANNELS = 0xE0, STRENGTH = 0x1F };
+enum { NO_TINT = CHANNELS };   /* every channel, no strength */
+enum { TAKE_AWAY = 0x80 };     /* in the command's rate: the tint is taken away from the picture */
+
+/* The colour-math setting a tint applies with: over every layer and the
+ * sprites, added or taken away. */
+static uint8_t tint_math(TintMix mix) { return mix == TINT_ADDED ? 0x17 : 0x97; }
+
+/* The tint's colour channels become the target's, its strength stays. The
+ * original keeps the channels in its scratch cell. */
+static void take_target_channels(GameState *g)
+{
+    uint8_t channels = field_fixed_color_target(g) & CHANNELS;
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, channels));
+    set_field_fixed_color(g, (uint8_t)((field_fixed_color(g) & STRENGTH) | channels));
+}
 
 // $C0:3D07
-/* $F1: the fixed color. Operand 1 zero: none, and the color math layers back
- * to the field's own. Otherwise operand 1 is the color, added (or with bit 7
- * of operand 2, subtracted) at once, or with operand 2's low bits nonzero
- * changed to gradually at that rate, which ends the turn. */
-static EventStep fixed_color(GameState *g, const EventCommand *c)
+/* Tint the screen with a colour, added to the picture or (bit 7 of the rate)
+ * taken away from it: at once, or at the rate given, which ends the turn.
+ * No colour takes the tint away and gives the picture back its own colour
+ * layers; that form of the command has no rate, and is a byte shorter. */
+static EventFlow tint(GameState *g, const EventCommand *c)
 {
-    uint8_t color = operand(g, c, 1);
-    if (color == 0) {
-        set_field_fixed_color_target(g, NO_COLOR);
-        set_field_fixed_color(g, NO_COLOR);
+    if (c->colour == 0) {
+        set_field_fixed_color_target(g, NO_TINT);
+        set_field_fixed_color(g, NO_TINT);
         set_field_fixed_color_math_layers(g, field_color_math_layers(g));
-        return next_command(c, 2, 0);
+        return next_command_after(2);
     }
-    set_field_fixed_color_target(g, color);
-    take_channels(g);
-    uint8_t rate = operand(g, c, 2);
-    uint8_t math = rate & 0x80 ? COLOR_MATH_SUBTRACT : COLOR_MATH_ADD;
-    rate &= 0x7F;
+    set_field_fixed_color_target(g, c->colour);
+    take_target_channels(g);
+    TintMix mix = c->rate & TAKE_AWAY ? TINT_TAKEN_AWAY : TINT_ADDED;
+    uint8_t rate = c->rate & (uint8_t)~TAKE_AWAY;
     if (rate == 0) {
         set_field_fixed_color(g, field_fixed_color_target(g));
-        set_field_fixed_color_math_layers(g, math);
-        return next_command(c, 3, 0);
+        set_field_fixed_color_math_layers(g, tint_math(mix));
+        return next_command();
     }
     set_field_fixed_color_rate(g, (uint16_t)(rate << 8 | rate));
-    set_field_fixed_color_math_layers(g, math);
-    take_channels(g);
-    set_field_effect_status(g, field_effect_status(g) | COLOR_CHANGES);
-    return end_turn(c, 3, 0);
+    set_field_fixed_color_math_layers(g, tint_math(mix));
+    set_field_effect_status(g, field_effect_status(g) | TINT_CHANGES);
+    return end_turn();
 }
 
 // $C0:3D84
-/* $F4: set field_setting_bc to operand 1; zero also clears the scroll offsets. */
-static EventStep set_bc(GameState *g, const EventCommand *c)
+/* Set field_setting_bc; zero also puts the layers' scroll offsets back. What
+ * the field makes of it isn't established (docs/TODO.md). */
+static EventFlow set_bc(GameState *g, const EventCommand *c)
 {
-    uint8_t v = operand(g, c, 1);
-    set_field_setting_bc(g, v);
-    if (v == 0) {
+    set_field_setting_bc(g, c->setting);
+    if (c->setting == 0) {
         set_field_scroll_offset_x(g, 0);
         set_field_scroll_offset_y(g, 0);
     }
-    return next_command(c, 2, 0);
+    return next_command();
 }
 
-/* A tile copy's parameters, operands 1-7: the source rectangle's top left
- * and bottom right tiles, the destination's top left, and which maps. */
-static void load_tile_copy(GameState *g, const EventCommand *c)
+/* A change to the map's tiles: a rectangle of tiles (its top left and bottom
+ * right) copied to another place on the maps chosen. */
+static void describe_tile_copy(GameState *g, uint16_t from, uint16_t to, uint16_t destination, uint8_t maps)
 {
-    set_field_tile_copy_from(g, operand_word(g, c, 1));
-    set_field_tile_copy_to(g, operand_word(g, c, 3));
-    set_field_tile_copy_destination(g, operand_word(g, c, 5));
-    set_field_tile_copy_maps(g, operand(g, c, 7));
+    set_field_tile_copy_from(g, from);
+    set_field_tile_copy_to(g, to);
+    set_field_tile_copy_destination(g, destination);
+    set_field_tile_copy_maps(g, maps);
+}
+
+// $C0:3DC5
+/* Change the map's tiles on the field's next pass: a door opens, a bridge
+ * appears. Ends the turn. */
+static EventFlow queue_tile_copy(GameState *g, const EventCommand *c)
+{
+    describe_tile_copy(g, c->from, c->to, c->destination, c->maps);
+    set_field_tile_copy_queued_maps(g, field_tile_copy_maps(g) & ALL_MAPS);
+    set_field_requests(g, field_requests(g) | TILE_COPY_QUEUED);
+    return end_turn();
+}
+
+// $C0:3DF4
+/* Drift the layers chosen (bits 0-2) at a speed (x in the low byte, y in the
+ * high) for a number of frames: clouds, water, a quake. */
+static EventFlow drift_layers(GameState *g, const EventCommand *c)
+{
+    set_field_layer_extra_speed_time(g, c->frames);
+    for (unsigned layer = 0; layer < FIELD_LAYER_EXTRA_SPEED_COUNT; layer++) {
+        if (c->layers & 1u << layer) {
+            set_field_layer_extra_speed_x(g, layer, (uint8_t)c->drift);
+            set_field_layer_extra_speed_y(g, layer, (uint8_t)(c->drift >> 8));
+            ORIGINAL_EFFECT(leave_y(c->drift));   /* the original loads Y with the speed to store it */
+        }
+    }
+    return next_command();
+}
+
+enum { SCROLL_IDLE = 0, SCROLL_RUNNING = 1 };
+
+// $C0:3E30
+/* Scroll the camera to a tile (in 16-pixel tiles), with the party out of the
+ * player's hands, and wait until it gets there. */
+static EventFlow scroll_camera(GameState *g, const EventCommand *c)
+{
+    uint8_t state = field_screen_scroll_state(g);
+    if (state == SCROLL_RUNNING)
+        return stay();
+    if (state != SCROLL_IDLE) {
+        set_field_screen_scroll_state(g, SCROLL_IDLE);
+        return next_command();
+    }
+    set_field_screen_scroll_target_x(g, (uint8_t)(c->scroll_x << 1));
+    set_field_screen_scroll_target_y(g, (uint8_t)(c->scroll_y << 1));
+    set_field_screen_scroll_state(g, SCROLL_RUNNING);
+    set_field_player_control(g, 0);
+    return stay();
+}
+
+// $C0:6788
+/* How far down the screen the objects' animations may be updated each frame
+ * (the scanline the update stops at): a busy map trades animation for time. */
+static EventFlow set_animation_line_limit(GameState *g, const EventCommand *c)
+{
+    set_field_animation_line_limit(g, (uint16_t)((field_animation_line_limit(g) & 0xFF00) | c->scanline));
+    return next_command();
 }
 
 /* Back from a call-out, which returns to `returns_to`: true if the callee
@@ -128,118 +189,38 @@ static bool back(Snes *s, uint32_t returns_to, bool x8)
     return false;
 }
 
+
 // $C0:3D97
-/* $E4: copy map tiles now ($C0:AF4E, called out to). Ends the turn. */
+/* Change the map's tiles now (the field's copy, $C0:AF4E, still the
+ * original's code, called out to). Ends the turn. */
 void event_cmd_copy_tiles(Snes *s)
 {
+    enum { LENGTH = 8 };
     GameState *g = state_of(s);
-    EventCommand c = event_command_at(s);
-    load_tile_copy(g, &c);
-    set_event_saved_position(g, (uint16_t)(c.at + 7));
+    uint16_t at = event_command_offset(s);
+    EventCommand c = event_command_of(s, 0xE4);
+    describe_tile_copy(g, c.from, c.to, c.destination, c.maps);
+    /* the command's last byte, kept across the copy in event_saved_position:
+     * the copy's indexed stores can land on it, and the command goes on from
+     * what it holds after, as the original's does */
+    set_event_saved_position(g, (uint16_t)(at + LENGTH - 1));
     m_jsr_dc(s, 0xC03DBD, 0xC0AF4E, DC_A | DC_X | DC_N | DC_Z | DC_C);
-    if (!back(s, 0xC03DC0, false))
-        return;
-    event_return(s, step_at((uint16_t)(event_saved_position(g) + 1), false, s->cpu.y));
+    if (back(s, 0xC03DC0, false))
+        event_return(s, (EventStep){ (uint16_t)(event_saved_position(g) + 1), false });
 }
 
-// $C0:3DC5
-/* $E5: queue the same tile copy for the field main loop, for the maps in the
- * low 3 bits. Ends the turn. */
-static EventStep queue_tile_copy(GameState *g, const EventCommand *c)
-{
-    load_tile_copy(g, c);
-    set_field_tile_copy_queued_maps(g, field_tile_copy_maps(g) & 0x07);
-    set_field_requests(g, field_requests(g) | TILE_COPY_QUEUED);
-    return end_turn(c, 8, 0);
-}
-
-// $C0:3DF4
-/* $E6: set the extra scroll speed (operands 1-2, x and y) of the layers in
- * operand 3's bits 0-2, for operand 4 frames. The speed and the layers are
- * kept in the scratch cells; the parse position is left holding the speed
- * when any layer is set. */
-static EventStep set_layer_extra_speed(GameState *g, const EventCommand *c)
-{
-    keep16(g, SCRATCH_DB, operand_word(g, c, 1));
-    keep8(g, SCRATCH_D9, operand(g, c, 3));
-    set_field_layer_extra_speed_time(g, operand(g, c, 4));
-    uint16_t speed = scratch16(g, SCRATCH_DB);
-    uint8_t layers = scratch8(g, SCRATCH_D9);
-    EventStep st = next_command(c, 5, 0);
-    for (unsigned layer = 0; layer < FIELD_LAYER_EXTRA_SPEED_COUNT; layer++) {
-        if (layers & 1u << layer) {
-            set_field_layer_extra_speed_x(g, layer, (uint8_t)speed);
-            set_field_layer_extra_speed_y(g, layer, (uint8_t)(speed >> 8));
-            st.cursor = speed;
-        }
-    }
-    return st;
-}
-
-enum { SCROLL_IDLE = 0, SCROLL_RUNNING = 1 };
-
-// $C0:3E30
-/* $E7: scroll the screen to the tile at operands 1-2 (16-pixel tiles). The
- * first run starts the scroll (taking the player's control away), and the
- * command stays until the field has finished it. */
-static EventStep scroll_screen(GameState *g, const EventCommand *c)
-{
-    uint8_t state = field_screen_scroll_state(g);
-    if (state == SCROLL_RUNNING)
-        return wait_here(c, 0);
-    if (state != SCROLL_IDLE) {
-        set_field_screen_scroll_state(g, SCROLL_IDLE);
-        return next_command(c, 3, 0);
-    }
-    set_field_screen_scroll_target_x(g, (uint8_t)(operand(g, c, 1) << 1));
-    set_field_screen_scroll_target_y(g, (uint8_t)(operand(g, c, 2) << 1));
-    set_field_screen_scroll_state(g, (uint8_t)(state + 1));
-    set_field_player_control(g, 0);
-    return wait_here(c, 0);
-}
-
-/* The menus' party routines at $C2:8004 (A the function, X and Y its
- * arguments; 6 and 7 run as $F8-$FA ask, and others through $D5), called out
- * to. The command goes on at the offset it kept in event_saved_position, with
- * what the routine leaves in Y and the carry. */
-static bool call_party_routine(Snes *s, uint32_t site, uint8_t function)
-{
-    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | function);
-    m_set_nz8(s, function);
-    m_jsl(s, site, 0xC28004);
-    return back(s, site + 4, false);
-}
-
-static void party_routines(Snes *s, uint32_t first_site, uint8_t first, bool then_7)
-{
-    GameState *g = state_of(s);
-    s->cpu.y++;
-    set_event_saved_position(g, s->cpu.y);
-    if (!call_party_routine(s, first_site, first))
-        return;
-    if (then_7 && !call_party_routine(s, 0xC03E67, 7))
-        return;
-    event_return(s, step_at(event_saved_position(g), m_flag(s, CPU_FLAG_C), s->cpu.y));
-}
-
-// $C0:3E5C
-/* $F8: party routines 6 and 7. */
-void event_cmd_party_routine_6_7(Snes *s) { party_routines(s, 0xC03E61, 6, true); }
-
-// $C0:3E6E
-/* $F9: party routine 6. */
-void event_cmd_party_routine_6(Snes *s) { party_routines(s, 0xC03E67, 6, false); }
-
-// $C0:3E75
-/* $FA: party routine 7. */
-void event_cmd_party_routine_7(Snes *s) { party_routines(s, 0xC03E67, 7, false); }
-
-EVENT_COMMAND(event_cmd_set_player_control, set_player_control)
-EVENT_COMMAND(event_cmd_brightness, brightness)
-EVENT_COMMAND(event_cmd_wait_brightness, wait_brightness)
-EVENT_COMMAND(event_cmd_wait_color, wait_color)
-EVENT_COMMAND(event_cmd_fixed_color, fixed_color)
-EVENT_COMMAND(event_cmd_set_bc, set_bc)
-EVENT_COMMAND(event_cmd_queue_tile_copy, queue_tile_copy)
-EVENT_COMMAND(event_cmd_set_layer_extra_speed, set_layer_extra_speed)
-EVENT_COMMAND(event_cmd_scroll_screen, scroll_screen)
+EVENT_OPCODES(event_screen_opcodes,
+    { 0xE3, set_player_control, .control = OPERAND(1), .length = 2, .routine = 0xC03C05 },
+    { 0xF0, fade, .fade_to = OPERAND(1), .length = 2, .routine = 0xC03CD0 },
+    { 0xF2, wait_for_screen, .changes = CONSTANT(FADING), .length = 1, .routine = 0xC03CFD },
+    { 0xF3, wait_for_screen, .changes = CONSTANT(TINTING), .length = 1, .routine = 0xC03D7A },
+    { 0xF1, tint, .colour = OPERAND(1), .rate = OPERAND(2), .length = 3, .routine = 0xC03D07 },
+    { 0xF4, set_bc, .setting = OPERAND(1), .length = 2, .routine = 0xC03D84 },
+    { 0xE5, queue_tile_copy, .from = OPERAND_WORD(1), .to = OPERAND_WORD(3), .destination = OPERAND_WORD(5),
+      .maps = OPERAND(7), .length = 8, .routine = 0xC03DC5 },
+    { 0xE6, drift_layers, .drift = OPERAND_WORD(1), .layers = OPERAND(3), .frames = OPERAND(4), .length = 5,
+      .routine = 0xC03DF4 },
+    { 0xE7, scroll_camera, .scroll_x = OPERAND(1), .scroll_y = OPERAND(2), .length = 3, .routine = 0xC03E30 },
+    { 0x47, set_animation_line_limit, .scanline = OPERAND(1), .length = 2, .routine = 0xC06788 },
+    { 0xE4, .bridge = event_cmd_copy_tiles, .from = OPERAND_WORD(1), .to = OPERAND_WORD(3),
+      .destination = OPERAND_WORD(5), .maps = OPERAND(7), .length = 8, .routine = 0xC03D97 });
