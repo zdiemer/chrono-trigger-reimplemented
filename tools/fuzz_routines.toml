@@ -2095,8 +2095,8 @@ name = "event_cmd_move_toward_object_keep_facing"
 at = "C0:52C0"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c)"
 
 [[routine]]
 name = "event_cmd_move_toward_object_keep_facing"
@@ -2104,16 +2104,16 @@ variant = "loose"
 at = "C0:52C0"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_keep_facing"
 at = "C0:54F5"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_keep_facing"
@@ -2121,8 +2121,8 @@ variant = "loose"
 at = "C0:54F5"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c)"
 
 [[routine]]
 name = "event_cmd_behave"
@@ -2248,8 +2248,8 @@ name = "event_cmd_move_to_tile_keep_facing"
 at = "C0:5129"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_keep_facing"
@@ -2257,16 +2257,16 @@ variant = "loose"
 at = "C0:5129"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_from_variables_keep_facing"
 at = "C0:5191"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_from_variables_keep_facing"
@@ -2274,8 +2274,8 @@ variant = "loose"
 at = "C0:5191"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c)"
 
 [[routine]]
 name = "event_cmd_jump_to_tile"
@@ -4016,22 +4016,22 @@ why = "the object below $100 with its records below $3000; the records' routines
 name = "field_position_sprites"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
-why = "the object in X a slot below $40 with its records below $3000 (past there they reach bank $80's I/O)"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+why = "the object in X the current one, as the game always has it and the guard requires (field/sprites.c; the fuzzer can't tie the current object's cell to X, so both are slot 8), with its records below $3000 (past there they reach bank $80's I/O)"
 
 [[routine]]
 name = "field_position_sprites"
 variant = "loose"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0004-0004"]
-why = "the records anywhere: those that would run past bank $7F into bank $80, where low RAM and the I/O registers are, the guard turns away (field/sprites.c)"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--range", "X=0004-0004"]
+why = "the object in X the current one (slot 2), its records anywhere: those that would run past bank $7F into bank $80, where low RAM and the I/O registers are, the guard turns away (field/sprites.c)"
 
 [[routine]]
 name = "field_load_and_position_sprites"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
 why = "as field_position_sprites"
 
 [[routine]]

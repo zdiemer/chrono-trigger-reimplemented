@@ -385,7 +385,7 @@ first. `--uncovered BANK` lists the largest unported runs, which is how to pick
 the next routine. Phase 3a has already brought a subsystem's existing ports to
 the bar, so a conversion here only has to hold them there, which the gate's
 ratchet does. The same goes for the script formats' numbered
-commands (`cmd_6C`, `if_0A`, `set_bc`): porting a command's handler is when
+commands (`cmd_6C`, `if_0A`): porting a command's handler is when
 it gets a real name in `tools/disasm/eventscript.py` or `battlescript.py`, since
 that's when someone has read what it does.
 

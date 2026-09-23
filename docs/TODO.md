@@ -196,7 +196,7 @@ rest waits, is [PLAN.md](PLAN.md).
   encodings"): the dialog tables at `$FF:D3FE` and `$CC:3A09`, whose extents
   aren't settled, and the menu strings passed to `$C2:EF65` by address in code.
   The event scripts' leftovers (MATCHING.md, "The event scripts"): commands
-  and operands named mechanically (`set_bc`, `party_routine_6`), and the 39
+  and operands named mechanically (`party_routine_6`), and the 39
   command layouts read from handlers no port has checked yet.
   The sound driver's tables (found by the $C7 pilot, `core/sound_data.h`):
   `$C7:1871` is typed as one song's twelve three-byte entries, but the driver

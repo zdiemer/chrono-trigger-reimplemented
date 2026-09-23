@@ -32,7 +32,6 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-
 /* The end markers of an animation's two tables. */
 enum { END_OF_FRAMES = 0xFF, END_OF_TIMES = 0 };
 
@@ -430,8 +429,11 @@ static FieldFrameTable facing_frame_table(const GameState *g, FieldObject obj)
 
 /* What the object shows next, found without changing anything: the frame
  * at its place in its animation; or at the end of the frame table, a one-off
- * with none, and any other animation its first frame, starting over. `place`
- * is where in the frame table that is. */
+ * with none, and any other animation starting over. `place` is where in the
+ * frame table that is, the first frame's place for an animation starting
+ * over, whose frame the taker reads once the animation is put back before
+ * its start (the original's order: a table in work RAM can hold the frame
+ * number it rewinds). */
 typedef enum { A_FRAME, END_OF_A_ONE_OFF, STARTING_OVER } FrameFound;
 typedef struct {
     FrameFound found;
@@ -441,18 +443,20 @@ typedef struct {
 
 static NextFrame find_next_frame(const GameState *g, FieldObject obj)
 {
-    FieldFrameTable table = facing_frame_table(g, obj);
     uint8_t frame = field_object_animation_frame(g, obj);
     bool one_off = object_animation_mode(g, obj) == ANIMATE_PLAY;
     uint8_t animation = one_off ? one_off_animation(g, obj) : looped_animation(g, obj);
+    /* Looked up last, just before its frame is read, as the original does: a
+     * table pointing where nothing answers reads the last byte on the bus,
+     * the table's bank (fuzzing found it; no object the game makes does). */
+    FieldFrameTable table = facing_frame_table(g, obj);
     uint16_t place = field_animation_place(table.offset, animation, frame);
     uint8_t shown = field_animation_frame_number(g, table, place);
     if (shown != END_OF_FRAMES)
         return (NextFrame){ A_FRAME, shown, place };
     if (one_off)
         return (NextFrame){ END_OF_A_ONE_OFF, 0, place };
-    uint16_t first = (uint16_t)(place - frame);
-    return (NextFrame){ STARTING_OVER, field_animation_frame_number(g, table, first), first };
+    return (NextFrame){ STARTING_OVER, 0, (uint16_t)(place - frame) };
 }
 
 /* For the entry's wrapper (field/scratch.h, "What a wrapper can't work out"):
@@ -485,7 +489,7 @@ ObjectFrame object_take_next_frame(GameState *g, FieldObject obj)
     case STARTING_OVER:
         set_field_object_animation_frame(g, obj, BEFORE_THE_FIRST_FRAME);
         record_started_over();
-        return (ObjectFrame){ true, next.frame };
+        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj), next.place) };
     default:
         return (ObjectFrame){ true, next.frame };
     }

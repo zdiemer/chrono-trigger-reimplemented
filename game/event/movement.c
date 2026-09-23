@@ -443,7 +443,9 @@ void event_cmd_behave(Snes *s)
 
 /* The keep-facing moves turn aside from an object in the way by the check
  * that looks the way the object faces, which the original looks up in a
- * table of four facings (object_in_the_way). */
+ * table of four facings (object_in_the_way). An object facing none of them
+ * would read past the table; no object the game makes does, and the guard
+ * turns those away. */
 static bool faces_its_way(const GameState *g, FieldObject self)
 {
     return (uint8_t)(object_facing(g, self) << 1) < 8;
