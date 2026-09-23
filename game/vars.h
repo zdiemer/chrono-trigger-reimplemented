@@ -1422,24 +1422,32 @@ uint16_t field_layer_scroll_values_y(const GameState *g, unsigned layer);
 void set_field_layer_scroll_values_y(GameState *g, unsigned layer, uint16_t v);
 
 enum { FIELD_LAYER_MAPS_COUNT = 3 };   /* by layer (BG1-BG3) */
-/* Row 0 of each layer's unpacked tile map, one byte per tile; row r lies r * 256 bytes on [64
- * bytes, one at a time] */
-enum { FIELD_LAYER_MAPS_BYTES = 64 };
-uint8_t field_layer_maps_byte(const GameState *g, unsigned layer, unsigned at);
-void set_field_layer_maps_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+/* Each layer's unpacked tile map, a byte a tile, 64 columns a row; a row of the three layers and
+ * of field_tile_properties every 256 bytes [a byte by row and column] */
+enum { FIELD_LAYER_MAPS_ROWS = 64, FIELD_LAYER_MAPS_COLUMNS = 64 };
+uint8_t field_layer_maps(const GameState *g, unsigned layer, unsigned row, unsigned column);
+void set_field_layer_maps(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v);
 
-/* Row 0 of the table a map unpacks from the first of its three bytes a tile, beside the two
- * attribute tables (row r r * 256 on) [64 bytes, one at a time] */
-enum { FIELD_TILE_PROPERTIES_BYTES = 64 };
-uint8_t field_tile_properties_byte(const GameState *g, unsigned at);
-void set_field_tile_properties_byte(GameState *g, unsigned at, uint8_t v);
+/* The first of the three bytes a map gives each tile, beside the layers' rows [a byte by row and
+ * column] */
+enum { FIELD_TILE_PROPERTIES_ROWS = 64, FIELD_TILE_PROPERTIES_COLUMNS = 64 };
+uint8_t field_tile_properties(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint8_t v);
 
-/* Row 0 of the map attribute tables (row r r * 256 on, index row << 8 | column): +$00 bit 6 the
- * sprite priority for field_object_sprite_priority +1; +$40 bit 7 blocks movement, bit 6 the
- * priority for +0 [128 bytes, one at a time] */
-enum { FIELD_TILE_ATTRIBUTES_BYTES = 128 };
-uint8_t field_tile_attributes_byte(const GameState *g, unsigned at);
-void set_field_tile_attributes_byte(GameState *g, unsigned at, uint8_t v);
+/* The second of the three bytes a map gives each tile (a row every 256 bytes, beside
+ * field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the
+ * map (field_object_sprite_priority +1, where the object takes its priority from the map) [a
+ * byte by row and column] */
+enum { FIELD_TILE_UPPER_ATTRIBUTES_ROWS = 64, FIELD_TILE_UPPER_ATTRIBUTES_COLUMNS = 64 };
+uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
+
+/* The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it,
+ * bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)
+ * [a byte by row and column] */
+enum { FIELD_TILE_LOWER_ATTRIBUTES_ROWS = 64, FIELD_TILE_LOWER_ATTRIBUTES_COLUMNS = 64 };
+uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 uint8_t field_map_data(const GameState *g);

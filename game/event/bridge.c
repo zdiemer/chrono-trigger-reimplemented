@@ -83,15 +83,16 @@ bool event_runs_an_object(Snes *s)
     return machine_as_the_engine_keeps_it(s) && event_names_object((uint8_t)s->cpu.x);
 }
 
-/* And the map setup's: there are objects. */
+/* And the map setup's: there are objects, and no more than the tables hold
+ * (past them the openings would clear and read the tables' neighbours). */
 bool event_has_objects(Snes *s)
 {
     if (!machine_as_the_engine_keeps_it(s))
         return false;
     vars_peek(true);
-    bool some = event_object_count(state_of(s)) != 0;
+    uint8_t count = event_object_count(state_of(s));
     vars_peek(false);
-    return some;
+    return count != 0 && count <= FIELD_OBJECTS;
 }
 
 /* ---- The commands' entries --------------------------------------------------------------- */

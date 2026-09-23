@@ -27,15 +27,18 @@
 #       ones, an index for a lone array, or a {kind, index} pair for a mix
 #       (docs/DISASSEMBLY.md, "The accessors").
 #
-#   [[var]]    name, addr | dp, [size], [count, stride, index], [page],
-#              subsystem, meaning, source, [[var.field]]
+#   [[var]]    name, addr | dp, [size], [count, stride, index], [rows, row_stride],
+#              [page], subsystem, meaning, source, [[var.field]]
 #       A variable. addr is "7E:AAAA" or "7F:AAAA" (low RAM $0000-$1FFF is
 #       $7E:0000-$1FFF, which banks $00-$3F mirror). size is the element's width
 #       in bytes (default 1); an array has count elements `stride` bytes apart
 #       (default: size) and `index` says what selects one ("object slot * 2",
-#       "battle slot"). With `page`, the code reaches it through that direct
-#       page: give addr when the page's D is fixed (the offset is derived), dp
-#       when the page is a page kind.
+#       "battle slot"). With rows and row_stride it is a table of rows: what
+#       the rest describes is one row, `size` bytes a column, and the table
+#       has `rows` of them `row_stride` bytes apart (other tables' rows may
+#       lie between); its accessor takes a row and a column. With `page`, the
+#       code reaches it through that direct page: give addr when the page's D
+#       is fixed (the offset is derived), dp when the page is a page kind.
 #
 #   [[var.field]]  name, offset, [size], meaning
 #       A record: the element is `stride` bytes and the fields are at these
@@ -2613,26 +2616,43 @@ name = "field_layer_maps"
 addr = "7E:3000"
 size = 0x40
 count = 3
+stride = 0x40
 index = "layer (BG1-BG3)"
+rows = 64
+row_stride = 0x100
 subsystem = "field"
-meaning = "Row 0 of each layer's unpacked tile map, one byte per tile; row r lies r * 256 bytes on"
+meaning = "Each layer's unpacked tile map, a byte a tile, 64 columns a row; a row of the three layers and of field_tile_properties every 256 bytes"
 source = "game/field/layers.c, field_unpack_tile_maps $C0:A521"
 
 [[var]]
 name = "field_tile_properties"
 addr = "7E:30C0"
 size = 0x40
+rows = 64
+row_stride = 0x100
 subsystem = "field"
-meaning = "Row 0 of the table a map unpacks from the first of its three bytes a tile, beside the two attribute tables (row r r * 256 on)"
+meaning = "The first of the three bytes a map gives each tile, beside the layers' rows"
 source = "game/field/layers.c, field_unpack_tile_maps $C0:A521"
 
 [[var]]
-name = "field_tile_attributes"
+name = "field_tile_upper_attributes"
 addr = "7E:7000"
-size = 0x80
+size = 0x40
+rows = 64
+row_stride = 0x100
 subsystem = "field"
-meaning = "Row 0 of the map attribute tables (row r r * 256 on, index row << 8 | column): +$00 bit 6 the sprite priority for field_object_sprite_priority +1; +$40 bit 7 blocks movement, bit 6 the priority for +0"
-source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c field_start_step $C0:ACFD; game/event/properties.c layer_as_the_map"
+meaning = "The second of the three bytes a map gives each tile (a row every 256 bytes, beside field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the map (field_object_sprite_priority +1, where the object takes its priority from the map)"
+source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c object_start_step $C0:ACFD; game/field/object.c object_layer_as_the_map $C0:4BA3"
+
+[[var]]
+name = "field_tile_lower_attributes"
+addr = "7E:7040"
+size = 0x40
+rows = 64
+row_stride = 0x100
+subsystem = "field"
+meaning = "The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it, bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)"
+source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c object_start_step $C0:ACFD; game/field/object.c object_layer_as_the_map $C0:4BA3"
 
 [[var]]
 name = "field_layer_scroll_values"

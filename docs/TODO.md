@@ -87,21 +87,6 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Field's follow-up after its review** (merged with these accepted;
   RECOMP.md, "Phase 3a: the field subsystem off the machine"). Fix on main,
   checked by the gate:
-  - **Stray accesses past a table, first, because they break when storage
-    goes native.** Each should be an explicit, marked scaffolding access, the
-    way `leave_stray_in_view_write` already is:
-    - an object above the screen's top writes a fifth sprite record's Y
-      (`sprites.c:282-290`);
-    - the high-table cursor can run past `field_sprite_table`'s 0x220 bytes
-      (`sprites.c:101`);
-    - `stray_slot_can_block` reads slots 64-127 through the clean accessors
-      (`motion.c:366`);
-    - `field_layer_maps`, `field_tile_properties` and `field_tile_attributes`
-      are declared as their first 256-byte row and indexed across 64 KiB.
-      Declare them as row-strided 2-D variables in the map, with accessors
-      taking a layer and a map place.
-
-    The accessor bounds check (below) would catch the rest.
   - **`sprites.c`:**
     - a `SpriteRecord` type with storage functions, so `place_sprites` works
       on records rather than byte offsets;
@@ -159,6 +144,19 @@ rest waits, is [PLAN.md](PLAN.md).
   16 details, and timing calibration rewrites other subsystems' rows, which each
   rewrite then reverts by hand.
 
+- **What only the original's memory has, past the object tables.** The
+  stray accesses are explicit and marked now (RECOMP.md, "Phase 3a: event onto
+  the field's objects"), and a build without the original's memory has to
+  decide each: the in-the-way search's slots past 64 (`motion.c`,
+  `stray_slot_can_block`, which reads the next tables by their names), the
+  sprite table's high part running on past its end (`sprites.c`, by address
+  through `game/wram.h`), the fifth sprite's Y above the screen, the openings'
+  clear of the first object's falling flag, and the row removal's in-view
+  write. One is the game's: a command that names a party member without
+  checking (`$07`, `$22`, `$95`, `$B6`) takes an empty place's marker as
+  object 64, and the scripts do that (52,898 of `$95`'s calls over the
+  library, a scene following a party of two), reading the tables' neighbours
+  through the objects' accessors. The bounds check below would stop there.
 - **Generated accessors don't check their index.** `vars_ram.c` computes
   `base + index * stride` with no bound, so slot 64 of a 64-slot table silently
   writes the next table. Field's row code did exactly that (`object_update.c`,

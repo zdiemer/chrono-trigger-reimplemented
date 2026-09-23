@@ -1152,18 +1152,32 @@
 #define RAM_FIELD_LAYER_SCROLL_VALUES_STRIDE 0x04u
 #define RAM_FIELD_LAYER_SCROLL_VALUES_X 0x7E2C74u /* Horizontal */
 #define RAM_FIELD_LAYER_SCROLL_VALUES_Y 0x7E2C76u /* Vertical */
-/* Row 0 of each layer's unpacked tile map, one byte per tile; row r lies r * 256 bytes on [3 x
- * $40 bytes, by layer (BG1-BG3)] */
+/* Each layer's unpacked tile map, a byte a tile, 64 columns a row; a row of the three layers and
+ * of field_tile_properties every 256 bytes [3 x $40 bytes, by layer (BG1-BG3)] [64 rows, $100
+ * bytes apart] */
 #define RAM_FIELD_LAYER_MAPS 0x7E3000u
 #define RAM_FIELD_LAYER_MAPS_COUNT 3u
 #define RAM_FIELD_LAYER_MAPS_STRIDE 0x40u
-/* Row 0 of the table a map unpacks from the first of its three bytes a tile, beside the two
- * attribute tables (row r r * 256 on) [64 bytes] */
+#define RAM_FIELD_LAYER_MAPS_ROWS 64u
+#define RAM_FIELD_LAYER_MAPS_ROW_STRIDE 0x100u
+/* The first of the three bytes a map gives each tile, beside the layers' rows [64 bytes] [64
+ * rows, $100 bytes apart] */
 #define RAM_FIELD_TILE_PROPERTIES 0x7E30C0u
-/* Row 0 of the map attribute tables (row r r * 256 on, index row << 8 | column): +$00 bit 6 the
- * sprite priority for field_object_sprite_priority +1; +$40 bit 7 blocks movement, bit 6 the
- * priority for +0 [128 bytes] */
-#define RAM_FIELD_TILE_ATTRIBUTES 0x7E7000u
+#define RAM_FIELD_TILE_PROPERTIES_ROWS 64u
+#define RAM_FIELD_TILE_PROPERTIES_ROW_STRIDE 0x100u
+/* The second of the three bytes a map gives each tile (a row every 256 bytes, beside
+ * field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the
+ * map (field_object_sprite_priority +1, where the object takes its priority from the map) [64
+ * bytes] [64 rows, $100 bytes apart] */
+#define RAM_FIELD_TILE_UPPER_ATTRIBUTES 0x7E7000u
+#define RAM_FIELD_TILE_UPPER_ATTRIBUTES_ROWS 64u
+#define RAM_FIELD_TILE_UPPER_ATTRIBUTES_ROW_STRIDE 0x100u
+/* The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it,
+ * bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)
+ * [64 bytes] [64 rows, $100 bytes apart] */
+#define RAM_FIELD_TILE_LOWER_ATTRIBUTES 0x7E7040u
+#define RAM_FIELD_TILE_LOWER_ATTRIBUTES_ROWS 64u
+#define RAM_FIELD_TILE_LOWER_ATTRIBUTES_ROW_STRIDE 0x100u
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 #define RAM_FIELD_MAP_DATA 0x7EB506u
 /* Per-object movement and animation counters [64 x $2 bytes, by object slot (X = slot * 2)] */

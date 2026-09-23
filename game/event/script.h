@@ -35,6 +35,7 @@
 #include "vars.h"
 
 #include "event/variables.h"
+#include "field/object.h"
 
 /* ---- The script -------------------------------------------------------------------- */
 
@@ -97,7 +98,6 @@ typedef struct {
 
 /* The language's own types for what its commands name (the variables' and
  * the story's are event/variables.h's). */
-typedef uint8_t Facing;       /* one of the four directions a sprite looks, 0-3 */
 typedef uint32_t Address;     /* anywhere in memory: bank << 16 | offset */
 typedef enum { WINDOW_ANYWHERE = 0, WINDOW_TOP = 1, WINDOW_BOTTOM = 2 } WindowPlace;   /* a dialog's */
 typedef enum { SPRITE_HIDDEN = 0x00, SPRITE_SHOWN = 0x01, NO_SPRITE = 0x80 } SpriteState;

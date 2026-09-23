@@ -33,6 +33,7 @@
 #include "port/native.h"
 #include "port/vars_ram.h"
 #include "vars.h"
+#include "wram.h"
 
 /* A sprite as the table shows it. Its Y is already in the table's form (the
  * records hold it that way, a line at $E0 or past hiding it); its X is a
@@ -85,6 +86,26 @@ static void leave_sprites_left(GameState *g) { set_field_sprites_left(g, 0); }
 /* The table's entries are streamed through the work RAM port, in bank $7E. */
 static void open_table_stream(GameState *g) { hw_port_seek_bank(g, 0); }
 
+/* For the original's memory and shadow mode: a range that more sprites fill
+ * than it has room for runs its high table cursor on past the table's end,
+ * and the original writes the high bits there too, into whatever low RAM
+ * follows the table (the table's entries run on the same way, through the
+ * port). The port writes the same bytes, by address, since they are no
+ * variable's. A build without the original's memory has nothing past the
+ * table, and a range that full loses its last sprites' high bits. */
+static void leave_stray_high_bits(GameState *g, uint16_t at, uint8_t bits)
+{
+    wram_write8(g, 0x7E0000u | (uint16_t)(SPRITE_TABLE + at), bits);
+}
+
+static void set_high_bits(GameState *g, uint16_t at, uint8_t bits)
+{
+    if (at < FIELD_SPRITE_TABLE_BYTES)
+        set_field_sprite_table_byte(g, at, bits);
+    else
+        ORIGINAL_EFFECT(leave_stray_high_bits(g, at, bits));
+}
+
 /* Write an object's sprites into its range: their high table bits at the
  * range's high table cursor, and their entries from its next entry; and move
  * the range on past them. */
@@ -98,7 +119,7 @@ static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, u
             uint8_t pair = (uint8_t)((((uint16_t)s->x >> 8) & X_NINTH_BIT) | (s->large ? LARGE_BIT : 0));
             bits = (uint8_t)(bits | pair << (BITS_A_SPRITE * i));
         }
-        set_field_sprite_table_byte(g, (uint16_t)(high + b), bits);
+        set_high_bits(g, (uint16_t)(high + b), bits);
     }
     set_range_high(g, range, (uint16_t)(high + count / SPRITES_A_HIGH_BYTE));
 
@@ -215,8 +236,7 @@ enum { ALL_LARGE = 0xAA, SPRITES_PLACED = 4 };
  * is: an object above the screen's top edge shows only the sprites whose Y
  * came round past 0 and to $E0 or more; one in the screen's lower half hides
  * the sprites that came round; one in its upper half hides those whose Y went
- * past $7F to below $E0. The original writes a fifth sprite's Y for an object
- * above the top, which the port writes too. */
+ * past $7F to below $E0. */
 typedef enum { SCREEN_OFF_TOP, SCREEN_LOWER, SCREEN_UPPER } ScreenHalf;
 
 enum { LOWER_HALF = 0x80 };
@@ -257,6 +277,18 @@ static void leave_place(GameState *g, FieldObject obj, uint8_t ninth_bits)
     original_cell8(g, 0xE6, (uint8_t)(ninth_bits & X_NINTH_BIT));
 }
 
+/* For the original's memory and shadow mode: for an object above the screen's
+ * top the original places a fifth sprite's Y, in the record after the
+ * object's four, which is the next block's first record (another object's,
+ * placed again when that object is drawn) or past the records. The port writes
+ * the same byte; the object's own sprites don't read it. */
+static void leave_stray_fifth_sprite_y(GameState *g, FieldObject obj, int16_t screen_y)
+{
+    unsigned record = record_of(g, obj, SPRITES_PLACED);
+    uint8_t offset = field_sprite_records_byte(g, record + RECORD_Y_OFFSET);
+    set_field_sprite_records_byte(g, record + RECORD_Y, sprite_y(SCREEN_OFF_TOP, offset, (uint8_t)screen_y));
+}
+
 // $C0:B788, $C0:B8CA
 /* Place the object's four sprites at its screen position: each sprite's X
  * and Y are its offset from the object plus the object's screen position,
@@ -279,15 +311,16 @@ static void place_sprites(GameState *g, FieldObject obj, FieldObject high_of, bo
                                  (uint16_t)((field_object_sprite_high(g, high_of) & 0xFF00) | (ninth_bits | ALL_LARGE)));
 
     ScreenHalf half = screen_half(at.y);
-    unsigned count = half == SCREEN_OFF_TOP ? SPRITES_PLACED + 1 : SPRITES_PLACED;
-    for (unsigned n = 0; n < count; n++) {
+    for (unsigned n = 0; n < SPRITES_PLACED; n++) {
         unsigned record = record_of(g, obj, n);
-        if (reload && n < SPRITES_PLACED)
+        if (reload)
             set_field_sprite_records_byte(g, record + RECORD_Y_OFFSET,
                                           field_sprite_frame_data_byte(g, record + RECORD_Y_OFFSET));
         uint8_t offset = field_sprite_records_byte(g, record + RECORD_Y_OFFSET);
         set_field_sprite_records_byte(g, record + RECORD_Y, sprite_y(half, offset, (uint8_t)at.y));
     }
+    if (half == SCREEN_OFF_TOP)
+        ORIGINAL_EFFECT(leave_stray_fifth_sprite_y(g, obj, at.y));
     if (reload)
         for (unsigned n = 0; n < SPRITES_PLACED; n++) {
             unsigned record = record_of(g, obj, n);

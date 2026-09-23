@@ -7,6 +7,7 @@
  * the few words of the field's object state event needs, until the field's
  * object module lands. */
 #include "event/leaves.h"
+#include "field/layers.h"
 #include "event/script.h"
 #include "event/variables.h"
 
@@ -27,10 +28,8 @@ static void set_priorities(GameState *g, EventObject object, SpritePriority uppe
     set_field_object_sprite_priority(g, object, (uint16_t)((lower << 4) | (upper << 4) << 8));
 }
 
-/* The map's two attribute tables are interleaved a row at a time, the second
- * $40 bytes after the first (field_tile_attributes). A tile raises a sprite
- * over it in front of the map. */
-enum { SECOND_ATTRIBUTE_TABLE = 0x40, RAISES_SPRITES = 0x40 };
+/* A tile raises a sprite over it in front of the map. */
+enum { RAISES_SPRITES = TILE_RAISES_SPRITES };
 
 static SpritePriority priority_from(uint8_t attributes)
 {
@@ -50,9 +49,10 @@ static Tile tile_of(const GameState *g, EventObject object)
  * (The original keeps the upper one in its scratch cell, as the field does.) */
 static void layer_as_the_map(GameState *g, EventObject object, Tile tile)
 {
-    SpritePriority upper = priority_from(field_tile_attributes_byte(g, tile));
+    TileAttributes there = map_tile_attributes(g, map_place_at(tile));
+    SpritePriority upper = priority_from(there.upper);
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, (uint8_t)(upper << 4)));
-    SpritePriority lower = priority_from(field_tile_attributes_byte(g, (unsigned)tile + SECOND_ATTRIBUTE_TABLE));
+    SpritePriority lower = priority_from(there.lower);
     set_priorities(g, object, upper, lower);
 }
 

@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "port/machine.h"
+#include "field/object.h"
 #include "port/vars_ram.h"
 #include "state.h"
 
@@ -33,9 +34,9 @@ static inline unsigned field_object_in_x(const Snes *s) { return s->cpu.x >> 1; 
 unsigned field_current_object_slot(Snes *s);
 
 /* Whether a doubled slot names an object the accessors reach as the original
- * does: even, and below $100 (the tables are $80 bytes, and the original's
- * 8-bit index can't go further). */
-static inline bool field_names_object(uint16_t doubled) { return !(doubled & 1) && doubled < 0x100; }
+ * does: even, and inside the tables ($80 bytes, 64 objects). Past them the
+ * original's index reads the tables' neighbours. */
+static inline bool field_names_object(uint16_t doubled) { return !(doubled & 1) && doubled < 2 * FIELD_OBJECTS; }
 
 /* After a call-out: true if the callee came back with the widths the port
  * goes on with (8-bit A; 8-bit X for `x8`) and D and the data bank as they

@@ -723,12 +723,14 @@ uint16_t field_layer_scroll_values_x(const GameState *g, unsigned layer) { retur
 void set_field_layer_scroll_values_x(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E2C74u + (uint32_t)layer * 0x04u, v); }
 uint16_t field_layer_scroll_values_y(const GameState *g, unsigned layer) { return r16(g, 0x7E2C76u + (uint32_t)layer * 0x04u); }
 void set_field_layer_scroll_values_y(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E2C76u + (uint32_t)layer * 0x04u, v); }
-uint8_t field_layer_maps_byte(const GameState *g, unsigned layer, unsigned at) { return r8(g, 0x7E3000u + (uint32_t)layer * 0x40u + at); }
-void set_field_layer_maps_byte(GameState *g, unsigned layer, unsigned at, uint8_t v) { w8(g, 0x7E3000u + (uint32_t)layer * 0x40u + at, v); }
-uint8_t field_tile_properties_byte(const GameState *g, unsigned at) { return r8(g, 0x7E30C0u + at); }
-void set_field_tile_properties_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E30C0u + at, v); }
-uint8_t field_tile_attributes_byte(const GameState *g, unsigned at) { return r8(g, 0x7E7000u + at); }
-void set_field_tile_attributes_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E7000u + at, v); }
+uint8_t field_layer_maps(const GameState *g, unsigned layer, unsigned row, unsigned column) { return r8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column); }
+void set_field_layer_maps(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column, v); }
+uint8_t field_tile_properties(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E30C0u + (uint32_t)row * 0x100u + column); }
+void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E30C0u + (uint32_t)row * 0x100u + column, v); }
+uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E7000u + (uint32_t)row * 0x100u + column); }
+void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E7000u + (uint32_t)row * 0x100u + column, v); }
+uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E7040u + (uint32_t)row * 0x100u + column); }
+void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E7040u + (uint32_t)row * 0x100u + column, v); }
 uint8_t field_map_data(const GameState *g) { return r8(g, 0x7EB506u); }
 void set_field_map_data(GameState *g, uint8_t v) { w8(g, 0x7EB506u, v); }
 uint8_t field_object_move_state_tile_mode(const GameState *g, unsigned slot) { return r8(g, 0x7F0B00u + (uint32_t)slot * 0x02u); }

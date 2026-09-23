@@ -159,7 +159,7 @@ static bool rows_step(Snes *s, uint32_t site, bool join)
     GameState *g = state_of(s);
     FieldLink link = (FieldLink)field_current_object(g);
     FieldObject obj = field_object_of_link(link);
-    if ((link & 1) || !field_rows_are_exact(g, obj))
+    if (!field_names_object(link) || !field_rows_are_exact(g, obj))
         return join ? call_out(s, site, JOIN_ROW) : call_out(s, site, LEAVE_ROW);
     if (join)
         NATIVE_TIME_AS(s, JOIN_ROW, object_join_row(g, obj));

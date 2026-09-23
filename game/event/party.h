@@ -16,8 +16,12 @@ typedef uint8_t PartyPlace;   /* 0 the leader, 1 and 2 the others */
 
 enum { PARTY_PLACES = FIELD_PARTY_OBJECTS_COUNT, NOBODY = 0x80 };
 
-/* The object a place in the party walks the map as; for an empty place this
- * is the marker's slot, which the commands that don't check take as it is. */
+/* The object a place in the party walks the map as. For an empty place it is
+ * the absent member, the marker's slot: 64, one past the objects' tables.
+ * The commands that don't check take it as it is, and where the original
+ * reads that object's state it reads the tables' neighbours in its memory,
+ * which the port reads too, through the objects' accessors (docs/TODO.md:
+ * a build without the original's memory has no object 64). */
 static inline EventObject member_object(const GameState *g, PartyPlace place)
 {
     return slot_of(field_party_objects(g, place));

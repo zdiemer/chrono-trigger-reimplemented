@@ -203,7 +203,7 @@ goes in it. The schema is at the top of the file:
 | Entry | Fields | Meaning |
 |---|---|---|
 | `[[page]]` | `name`, `d` or `instances`, `subsystem`, `meaning`, `source`, [`why`] | a direct page: D while that code runs; or a page kind, whose code runs on more than one page, with a `why` and the `instances` it runs on |
-| `[[var]]` | `name`, `addr` or `dp`, [`size`], [`count`, `stride`, `index`], [`page`], `subsystem`, `meaning`, `source` | a variable, an array (`count` elements `stride` bytes apart, selected by `index`), or with `[[var.field]]`s (`name`, `offset`, [`size`], `meaning`) an array of records |
+| `[[var]]` | `name`, `addr` or `dp`, [`size`], [`count`, `stride`, `index`], [`rows`, `row_stride`], [`page`], `subsystem`, `meaning`, `source` | a variable, an array (`count` elements `stride` bytes apart, selected by `index`), or with `[[var.field]]`s (`name`, `offset`, [`size`], `meaning`) an array of records; with `rows` and `row_stride`, a table of rows (the rest describes one row, `size` bytes a column, and the rows are `row_stride` bytes apart, other tables' rows between), whose accessor takes a row and a column |
 | `[[image]]` | `name`, `start`, `end`, `subsystem` (a list), `meaning`, `source` | work RAM holding a program the game runs from there (the attract program at `$7E:3000`): routines, named by their origin like ROM code, and left out of the count |
 | `[[not_ram]]` | `file`, `values`, `why` | literals in one `game/` file that look like work RAM and aren't (SPC700 addresses, program counters, VRAM word addresses, counts), for the count only |
 | `[[offset]]` | `file`, `values`, `bank`, `why` | four-digit literals the file adds to a bank's base (`0x7F0000u + 0x0980`), which the count reads as that bank's addresses |

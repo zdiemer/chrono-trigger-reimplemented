@@ -23,6 +23,7 @@
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field_data.h"
+#include "field/layers.h"
 #include "field/scratch.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -34,8 +35,6 @@ enum { QUARTER_TURN = 0x40, HALF_TURN = 0x80 };
 enum { MINDS_THE_MAP = 0x01, MINDS_OBJECTS = 0x02 };
 /* field_object_solid */
 enum { SOLID = 0x01 };
-/* A tile's second attribute: blocked */
-enum { TILE_BLOCKED = 0x80 };
 /* field_object_priority_mode: bit 7 takes the priority from the map, else
  * its bits give the two halves' priority */
 enum { PRIORITY_FROM_MAP = 0x80, PRIORITY_BITS = 0x30, MAP_PRIORITY_BIT = 0x40, BASE_PRIORITY = 0x20 };
@@ -193,23 +192,12 @@ void object_head(GameState *g, FieldObject obj, Direction direction)
 /* ---- Starting a step --------------------------------------------------------------------- */
 
 /* The tile a step would take the object onto: the position plus the steps as
- * words. */
-static uint16_t tile_ahead(const GameState *g, FieldObject obj, uint16_t across, uint16_t down)
+ * words, the map's place masked as the map's size says. */
+static MapPlace tile_ahead(const GameState *g, FieldObject obj, uint16_t across, uint16_t down)
 {
     uint16_t x = (uint16_t)(position_x(g, obj) + across);
     uint16_t y = (uint16_t)(position_y(g, obj) + down);
-    return (uint16_t)((y & 0xFF00) | x >> 8) & field_map_index_mask(g);
-}
-
-/* A tile's two attribute bytes: the first's bit 6 the priority of an object's
- * upper half there, the second's its lower half's and bit 7 blocked. */
-typedef struct {
-    uint8_t first, second;
-} TileAttributes;
-
-static TileAttributes tile_attributes(const GameState *g, uint16_t tile)
-{
-    return (TileAttributes){ field_tile_attributes_byte(g, tile), field_tile_attributes_byte(g, tile + 0x40) };
+    return map_place_at((uint16_t)(((y & 0xFF00) | x >> 8) & field_map_index_mask(g)));
 }
 
 /* The priority of the object's sprites' two halves: from the map's tile, or
@@ -219,8 +207,8 @@ static void set_sprite_priority(GameState *g, FieldObject obj, TileAttributes ah
     uint8_t mode = field_object_priority_mode(g, obj);
     uint8_t upper, lower;
     if (mode & PRIORITY_FROM_MAP) {
-        upper = (uint8_t)(((ahead.first & MAP_PRIORITY_BIT) >> 2) | BASE_PRIORITY);
-        lower = (uint8_t)(((ahead.second & MAP_PRIORITY_BIT) >> 2) | BASE_PRIORITY);
+        upper = (uint8_t)(((ahead.upper & MAP_PRIORITY_BIT) >> 2) | BASE_PRIORITY);
+        lower = (uint8_t)(((ahead.lower & MAP_PRIORITY_BIT) >> 2) | BASE_PRIORITY);
     } else {
         upper = (uint8_t)((mode << 4) & PRIORITY_BITS);
         lower = (uint8_t)(mode & PRIORITY_BITS);
@@ -253,7 +241,7 @@ typedef struct {
 static Look look_ahead(const GameState *g, FieldObject obj, uint16_t across, int8_t down)
 {
     return (Look){ (uint16_t)(position_x(g, obj) + across),
-                   tile_attributes(g, tile_ahead(g, obj, across, sign_extended(down))) };
+                   map_tile_attributes(g, tile_ahead(g, obj, across, sign_extended(down))) };
 }
 
 static uint8_t sign_byte(int8_t v) { return v < 0 ? 0xFF : 0x00; }
@@ -276,8 +264,8 @@ static void leave_start(GameState *g, FieldObject obj, Velocity steps, Velocity 
         original_cell8(g, 0xDC, sign_byte(first.y));
     if (look) {
         original_cell16(g, 0xDF, look->x);
-        original_cell8(g, 0xE1, look->tile.first);
-        original_cell8(g, 0xE5, look->tile.second);
+        original_cell8(g, 0xE1, look->tile.upper);
+        original_cell8(g, 0xE5, look->tile.lower);
     }
     if (own_priority)
         original_cell8(g, 0xD9, field_object_priority_mode(g, obj));
@@ -290,12 +278,12 @@ StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
     stand_still(g, obj);
     Velocity first = velocity_for(g, obj, direction), retry = { 0, 0 }, steps = first;
     bool retried = false, looked = false;
-    Look look = { 0, { 0, 0 } };
+    Look look = { 0, { 0, 0, 0 } };
     if (moves(first)) {
         r.outcome = START_MOVING;
         look = look_ahead(g, obj, sign_extended(first.x), first.y);
         looked = true;
-        if ((field_object_blocking(g, obj) & MINDS_THE_MAP) && (look.tile.second & TILE_BLOCKED)) {
+        if ((field_object_blocking(g, obj) & MINDS_THE_MAP) && (look.tile.lower & TILE_BLOCKED)) {
             uint8_t index = (uint8_t)(field_random_index(g) + 1);
             set_field_random_index(g, index);
             r.direction = field_random_direction(g, index);
@@ -306,7 +294,7 @@ StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
             if (moves(retry)) {
                 r.outcome = START_TURNED_MOVING;
                 look = look_ahead(g, obj, retry_look_across(first, retry), retry.y);
-                if (look.tile.second & TILE_BLOCKED) {
+                if (look.tile.lower & TILE_BLOCKED) {
                     r.outcome = START_BLOCKED;
                     steps = (Velocity){ 0, 0 };
                 }
@@ -359,13 +347,19 @@ static bool can_block(const GameState *g, FieldObject other, FieldObject obj)
 
 /* The search starts at the slot after the last object, which with 64 objects
  * is past the tables, and with a count past 64 (the original takes it modulo
- * 128) more of them: it reads what follows each table there, the next
- * table's entries. No map has 64 objects; the port reads the same bytes,
- * through the tables' accessors past their end, so that shadow mode and
- * fuzzing see what the original sees. A native build has no such bytes. */
-static bool stray_slot_can_block(const GameState *g, unsigned slot, FieldObject obj)
+ * 128) more of them. There the original reads on past each table into the one
+ * after it in its memory, at the same place: the in-view flags into the
+ * objects' priority modes, the roles into the scripts' positions, and the
+ * solidity into the accelerations. No map has 64 objects; the port reads the
+ * same bytes, by their own names, so that shadow mode and fuzzing see what
+ * the original sees. A build without the original's memory has no slots
+ * there (docs/TODO.md). */
+static bool stray_slot_can_block(const GameState *g, unsigned slot)
 {
-    return can_block(g, (FieldObject)slot, obj);
+    unsigned past = slot - FIELD_OBJECTS;
+    bool in_view = field_object_priority_mode(g, past) != 0;
+    bool disabled = (event_object_script_position(g, past) & ROLE_DISABLED_BIT) != 0;
+    return in_view && !disabled && (field_object_acceleration(g, past) & SOLID);
 }
 
 /* For the original's code and shadow mode (field/scratch.h): the blocking
@@ -427,7 +421,7 @@ ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
     bool looking_back = facing == FACING_UP || facing == FACING_LEFT;
     unsigned slot = event_object_count(g) % SLOTS_IN_A_BYTE;
     do {
-        bool blocks = slot < FIELD_OBJECTS ? can_block(g, (FieldObject)slot, obj) : stray_slot_can_block(g, slot, obj);
+        bool blocks = slot < FIELD_OBJECTS ? can_block(g, (FieldObject)slot, obj) : stray_slot_can_block(g, slot);
         if (blocks) {
             FieldObject other = (FieldObject)slot;
             set_field_target_object(g, field_object_link(other));

@@ -417,7 +417,7 @@ bool field_object_rows_linked(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     FieldLink current = (FieldLink)field_current_object(g);
-    bool ok = !(current & 1) && field_rows_are_exact(g, field_object_of_link(current));
+    bool ok = field_names_object(current) && field_rows_are_exact(g, field_object_of_link(current));
     vars_peek(false);
     return ok;
 }

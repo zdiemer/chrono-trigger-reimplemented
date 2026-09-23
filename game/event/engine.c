@@ -51,26 +51,30 @@ const EventOpcode *event_opcode(uint8_t opcode)
  *
  * The operations reach the object tables by slot, where the original indexes
  * them with the object doubled; the two agree for the objects the game makes,
- * which are all even offsets into tables below $2000. And they read operands
- * from the script buffer, which ends with the bank: a command in its last
- * bytes would read its operands through the next bank's mirror of low RAM,
- * where they could be the cells it writes. No script is that long, and no
- * game object odd, so everything else is the original's to run (and would be
- * an assertion in a build without it; docs/PLAN.md). */
+ * which are all even offsets inside the tables (64 objects, $80 bytes a
+ * table). An odd offset, or one past a table, reads the tables' neighbours in
+ * the original's memory. And they read operands from the script buffer, which
+ * ends with the bank: a command in its last bytes would read its operands
+ * through the next bank's mirror of low RAM, where they could be the cells it
+ * writes. No script is that long, and no game object odd or past the 64, so
+ * everything else is the original's to run (and would be an assertion in a
+ * build without it; docs/PLAN.md). */
 
-enum { OBJECT_OFFSET_END = 0x0100 };
 enum { SCRIPT_SIZE = 0xDFFF, LONGEST_COMMAND = 8 };
 
-bool event_names_object(uint16_t doubled) { return !(doubled & 1) && doubled < OBJECT_OFFSET_END; }
+bool event_names_object(uint16_t doubled) { return !(doubled & 1) && doubled < 2 * FIELD_OBJECTS; }
 
 /* The party member at `place` (doubled): the place even, and their object
- * one; or, where the command checks first, nobody there. */
+ * one; or, where the command checks first, nobody there. A command that
+ * doesn't check takes an empty place's marker as the object it would name,
+ * the absent member (event/party.h), which the game does: a scene following a
+ * party of two. */
 static bool member_named(const GameState *g, uint8_t place, bool may_be_absent)
 {
     if (place & 1)
         return false;
     uint8_t object = field_party_objects(g, place >> 1);
-    return (may_be_absent && (object & NOBODY)) || event_names_object(object);
+    return (object & NOBODY) ? may_be_absent || object == NOBODY : event_names_object(object);
 }
 
 /* The bit tables hold 8 masks each, and a bit number past them reads on
@@ -246,19 +250,27 @@ static EventTurnEnd run_opening(GameState *g, EventObject slot, const EventRunne
     /* the commands may have named another object running, or left a state the
      * port doesn't reach as the original does */
     uint16_t object = field_current_object(g);
-    if ((object & 1) || !r->state_is_ours(r->ctx))
+    if (!event_names_object(object) || !r->state_is_ours(r->ctx))
         return TURN_NOT_OURS;
     set_event_object_script_position(g, slot_of(object), (uint16_t)(at + 1));
     return TURN_OVER;
 }
 
+/* For the original's memory and shadow mode: the original clears the last
+ * slot's solidity with a word, whose second byte is past the objects' tables,
+ * where its memory has the first object's falling flag. */
+static void leave_stray_clear_past_the_last(GameState *g) { set_field_object_accelerating(g, 0, 0); }
+
 /* A map's objects, before their scripts first run: none solid, none
- * accelerating (and, by the original's 16-bit clears, the sprite state of the
- * object after each cleared too). */
+ * accelerating. The original clears each one's solidity with a word, and so
+ * the next object's sprite records' state with it: nothing to draw. */
 static void settle(GameState *g, EventObject slot)
 {
     set_field_object_solid(g, slot, 0);
-    set_field_object_sprite_state(g, slot + 1, 0);
+    if (slot + 1 < FIELD_OBJECTS)
+        set_field_object_sprite_state(g, slot + 1, 0);
+    else
+        ORIGINAL_EFFECT(leave_stray_clear_past_the_last(g));
     set_field_object_accelerating(g, slot, 0);
     set_field_object_acceleration(g, slot, 0);
 }

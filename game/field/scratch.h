@@ -31,6 +31,7 @@
 
 #include <stdint.h>
 
+#include "original_effects.h"
 #include "state.h"
 #include "vars.h"
 
