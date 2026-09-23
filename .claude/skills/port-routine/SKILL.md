@@ -298,6 +298,13 @@ In the same commit as the work:
 Commit to your branch; do not push or merge. **No `Co-Authored-By` and no
 `Claude-Session` trailers** — this repo's rule.
 
+**Your work is reviewed before it merges, by a reader who hasn't seen your
+report** (`.claude/skills/review-port/`). The reader judges whether each file
+reads as a hand reimplementation or as a translation, against a concrete rubric.
+Read that rubric before you start, not after: every item on it is something a
+port in this repo has already done wrong. A file rated "translation" doesn't
+merge.
+
 ## Report
 
 What you ported (entries and bytes), the burndown and portstyle scores before

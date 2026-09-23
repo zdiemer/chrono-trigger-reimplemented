@@ -80,7 +80,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   then `--native on`, and fuzz with `build/main/ct_fuzz --load-state <state> --routine <name>`. Hardware
   access in converted files goes through `runtime/platform/` (docs/PLATFORM.md; a lint test enforces
   it). See docs/PORTING.md, and `.claude/skills/port-routine/` for the workflow an agent follows
-  (the bar with worked examples, the self-check, the worktree rules, the report).
+  (the bar with worked examples, the self-check, the worktree rules, the report). A subsystem merges
+  only after a **qualitative review** by a reader who hasn't seen the author's report
+  (`.claude/skills/review-port/`): the gate and `portstyle.py` prove behaviour and syntax, and neither
+  can tell a hand reimplementation from a translation with good names.
 
 ## Rules
 

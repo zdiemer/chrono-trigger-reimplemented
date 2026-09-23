@@ -421,6 +421,15 @@ because the merge costs, not the porting, are what a new wave gets wrong.
   with `--long-routes` on the merged tree**, because a tree combining two
   branches is one nobody has gated. Doc conflicts are usually both sides
   appended; a status row two agents changed takes both edits.
+- **A change is reviewed for how it reads before it merges.** A reader
+  who hasn't seen the author's report reads every file of the subsystem against
+  the rubric in `.claude/skills/review-port/`, and rates each file hand-written,
+  mostly, or translation, with findings by line. A file rated translation
+  doesn't merge; a "mostly" finding is fixed, or accepted with a reason in the
+  subsystem's RECOMP.md section. The gate proves behaviour and `portstyle.py`
+  measures syntax, so this is the only check that sees whether the code reads
+  as a hand reimplementation, which is the goal. Event scored 0.02 on
+  portstyle and still read as a translation.
 - **A wave ends with a review**: each agent reports where the workflow and the
   tools still hurt, and those answers decide whether the next thing is another
   wave or a tooling pass. Wave 1's review produced the tooling pass recorded in
