@@ -7,6 +7,5 @@
 /* field/graphics.c */
 void field_copy_sprite_tile(Snes *s);
 void field_copy_sprite_tile_flipped(Snes *s);
-void field_read_animation_frame(Snes *s);
 
 #endif

@@ -2,11 +2,14 @@
 #ifndef CT_GAME_FIELD_LAYERS_H
 #define CT_GAME_FIELD_LAYERS_H
 
+#include <stdbool.h>
+
 #include "snes/system.h"
 
 /* field/layers.c */
 void field_compute_layer_edges(Snes *s);
 void field_update_layer_scroll(Snes *s);
 void field_unpack_tile_maps(Snes *s);
+bool field_unpack_stays_clear(Snes *s);
 
 #endif

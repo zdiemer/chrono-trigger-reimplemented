@@ -779,10 +779,12 @@ void set_field_animation_line_limit(GameState *g, uint16_t v);
 uint16_t field_current_object(const GameState *g);
 void set_field_current_object(GameState *g, uint16_t v);
 
-/* Queue of objects due a new animation frame, linked through field_object_animation_link: +0 the
- * head, +1 the tail (negative: empty) */
-uint16_t field_animation_queue(const GameState *g);
-void set_field_animation_queue(GameState *g, uint16_t v);
+/* The first object queued (negative: the queue is empty) */
+uint8_t field_animation_queue_head(const GameState *g);
+void set_field_animation_queue_head(GameState *g, uint8_t v);
+/* The last object queued (negative: the queue is empty) */
+uint8_t field_animation_queue_tail(const GameState *g);
+void set_field_animation_queue_tail(GameState *g, uint8_t v);
 
 /* 2: the next object in state 1 or 2 due a frame goes to the front of the animation queue (then
  * cleared) */
@@ -870,6 +872,12 @@ void set_field_target_tile_x(GameState *g, uint8_t v);
 /* Tile Y */
 uint8_t field_target_tile_y(const GameState *g);
 void set_field_target_tile_y(GameState *g, uint8_t v);
+
+/* The direction's working cells: the angle table index's low part ($F4, a word) and the two
+ * distances turned into the quadrant ($F6, $F7) (field/scratch.h: kept for the original's code
+ * and shadow mode) */
+uint32_t field_direction_work(const GameState *g);
+void set_field_direction_work(GameState *g, uint32_t v);
 
 /* Index into the random byte table at $FE00, stepped before each use */
 uint8_t field_random_index(const GameState *g);

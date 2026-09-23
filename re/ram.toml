@@ -1258,10 +1258,18 @@ source = "game/event/script.h DP_OBJECT; game/event/engine.c $C0:5A93; game/fiel
 name = "field_animation_queue"
 addr = "7E:0176"
 page = "field"
-size = 2
+stride = 2
 subsystem = "field"
-meaning = "Queue of objects due a new animation frame, linked through field_object_animation_link: +0 the head, +1 the tail (negative: empty)"
-source = "game/field/object_update.c, field_step_object_animation $C0:C98A"
+meaning = "Queue of objects due a new animation frame, which the frame builder works through, linked through field_object_animation_link (objects as links: slots doubled, negative none)"
+source = "game/field/animation.c, field_step_object_animation $C0:C98A"
+[[var.field]]
+name = "head"
+offset = 0
+meaning = "The first object queued (negative: the queue is empty)"
+[[var.field]]
+name = "tail"
+offset = 1
+meaning = "The last object queued (negative: the queue is empty)"
 
 [[var]]
 name = "field_animation_queue_front"
@@ -1599,6 +1607,15 @@ meaning = "Tile X"
 name = "y"
 offset = 1
 meaning = "Tile Y"
+
+[[var]]
+name = "field_direction_work"
+addr = "7E:01F4"
+page = "field"
+size = 4
+subsystem = "field"
+meaning = "The direction's working cells: the angle table index's low part ($F4, a word) and the two distances turned into the quadrant ($F6, $F7) (field/scratch.h: kept for the original's code and shadow mode)"
+source = "game/field/motion.c, field_direction_to_target $C0:ABA2"
 
 [[var]]
 name = "field_random_index"

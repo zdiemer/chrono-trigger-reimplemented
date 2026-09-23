@@ -29,6 +29,10 @@ enum { FIELD_PAGE = 0x0100, FIELD_LAYERS_PAGE = 0x1D00 };
 static inline unsigned field_object_in_x(const Snes *s) { return s->cpu.x >> 1; }
 static inline unsigned field_object_in_y(const Snes *s) { return s->cpu.y >> 1; }
 
+/* The current object's slot, read as the entry's index registers read it:
+ * its low byte with 8-bit X, the word with 16-bit X. */
+unsigned field_current_object_slot(Snes *s);
+
 /* Whether a doubled slot names an object the accessors reach as the original
  * does: even, and below $100 (the tables are $80 bytes, and the original's
  * 8-bit index can't go further). */

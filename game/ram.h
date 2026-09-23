@@ -605,10 +605,12 @@
  * the object loops' index [2 bytes] */
 #define RAM_FIELD_CURRENT_OBJECT 0x7E016Du
 #define RAM_FIELD_CURRENT_OBJECT_DP 0x6Du    /* page field */
-/* Queue of objects due a new animation frame, linked through field_object_animation_link: +0 the
- * head, +1 the tail (negative: empty) [2 bytes] */
+/* Queue of objects due a new animation frame, which the frame builder works through, linked
+ * through field_object_animation_link (objects as links: slots doubled, negative none) [2 bytes] */
 #define RAM_FIELD_ANIMATION_QUEUE 0x7E0176u
 #define RAM_FIELD_ANIMATION_QUEUE_DP 0x76u   /* page field */
+#define RAM_FIELD_ANIMATION_QUEUE_HEAD 0x7E0176u /* The first object queued (negative: the queue is empty) */
+#define RAM_FIELD_ANIMATION_QUEUE_TAIL 0x7E0177u /* The last object queued (negative: the queue is empty) */
 /* 2: the next object in state 1 or 2 due a frame goes to the front of the animation queue (then
  * cleared) */
 #define RAM_FIELD_ANIMATION_QUEUE_FRONT 0x7E0178u
@@ -683,6 +685,11 @@
 #define RAM_FIELD_TARGET_TILE_DP 0xF2u       /* page field */
 #define RAM_FIELD_TARGET_TILE_X 0x7E01F2u    /* Tile X */
 #define RAM_FIELD_TARGET_TILE_Y 0x7E01F3u    /* Tile Y */
+/* The direction's working cells: the angle table index's low part ($F4, a word) and the two
+ * distances turned into the quadrant ($F6, $F7) (field/scratch.h: kept for the original's code
+ * and shadow mode) [4 bytes] */
+#define RAM_FIELD_DIRECTION_WORK 0x7E01F4u
+#define RAM_FIELD_DIRECTION_WORK_DP 0xF4u    /* page field */
 /* Index into the random byte table at $FE00, stepped before each use */
 #define RAM_FIELD_RANDOM_INDEX 0x7E01F8u
 #define RAM_FIELD_RANDOM_INDEX_DP 0xF8u      /* page field */

@@ -3865,3 +3865,80 @@ state = "field"
 args = ["--d", "1D00", "--db", "00"]
 iterations = 2000
 why = "the layers' page and a bank reaching the work RAM port; the map sizes random, so a big map's attribute tables run over the stream still to be read and the stream wraps round the banks"
+
+[[routine]]
+name = "field_update_walk_animation"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the current object below $100 (the guard turns away odd ones)"
+
+[[routine]]
+name = "field_stand_animation"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00"]
+why = "as field_update_walk_animation"
+
+[[routine]]
+name = "field_step_object_animation"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object and its animation state random, so the queue's links land anywhere"
+
+[[routine]]
+name = "field_direction_to_target"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and bank $00 (the angle table); the tiles random"
+
+[[routine]]
+name = "field_set_velocity"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--range", "X=0004-0004"]
+why = "the current object and X the same object, as the game calls it (the guard takes nothing else); its speed and the direction random"
+
+[[routine]]
+name = "field_start_step"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--range", "X=0004-0004"]
+why = "as field_set_velocity; the map attributes, the direction and the random index random"
+
+[[routine]]
+name = "field_object_in_the_way"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1600,1=00-03"]
+why = "the field's page and data bank, the current object below $100 facing one of its four ways (odd objects turned away by the guard)"
+
+[[routine]]
+name = "field_line_up_with_object"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "7E01EA-7E01EA=00-00"]
+why = "the current object and the target below $100 (the guard turns away odd ones)"
+
+[[routine]]
+name = "field_line_up_with_tile"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00"]
+why = "the current object below $100"
+
+[[routine]]
+name = "field_move_object"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object's motion random"
+
+[[routine]]
+name = "field_move_object_unbounded"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_move_object"

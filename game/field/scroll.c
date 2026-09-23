@@ -37,10 +37,6 @@ static void set_accumulator(GameState *g, unsigned layer, unsigned axis, uint8_t
         set_field_auto_scroll_accumulator_y(g, layer, v);
 }
 
-/* For the original's code and shadow mode (field/scratch.h): a move back
- * keeps its pixel count at $D9 for its subtraction. */
-static void leave_pixels_back(GameState *g, uint8_t pixels) { original_cell16(g, 0xD9, pixels); }
-
 /* The layer's position on the axis moves, and its scroll value follows. */
 static void move_position(GameState *g, unsigned layer, unsigned axis, int16_t by)
 {
@@ -55,18 +51,20 @@ static void move_position(GameState *g, unsigned layer, unsigned axis, int16_t b
     }
 }
 
-/* One axis: the accumulator's whole pixels move the layer. */
-static void scroll_axis(GameState *g, unsigned layer, unsigned axis)
+/* A 4.4 accumulator's whole pixels, rounded toward zero. */
+static int16_t whole_pixels(int8_t accumulated)
 {
-    uint8_t acc = accumulator(g, layer, axis);
-    if (!(acc & 0x80)) {
-        move_position(g, layer, axis, (int16_t)(acc >> 4));
-    } else {
-        uint8_t back = (uint8_t)((uint8_t)-acc >> 4);
-        leave_pixels_back(g, back);
-        move_position(g, layer, axis, (int16_t)-back);
-    }
+    return accumulated < 0 ? (int16_t)-(int16_t)(-accumulated >> 4) : (int16_t)(accumulated >> 4);
+}
+
+/* One axis: the accumulator's whole pixels move the layer, and its fraction
+ * stays. Returns the accumulated speed it moved by. */
+static int8_t scroll_axis(GameState *g, unsigned layer, unsigned axis)
+{
+    int8_t accumulated = (int8_t)accumulator(g, layer, axis);
+    move_position(g, layer, axis, whole_pixels(accumulated));
     set_accumulator(g, layer, axis, fraction_of(accumulator(g, layer, axis)));
+    return accumulated;
 }
 
 /* The speeds add into the accumulators, 8 bits each, wrapping. */
@@ -78,22 +76,35 @@ static void accumulate(GameState *g, unsigned layer)
         g, layer, (uint8_t)(field_auto_scroll_speed_y(g, layer) + field_auto_scroll_accumulator_y(g, layer)));
 }
 
+/* For the original's code and shadow mode (field/scratch.h): a move back
+ * leaves its whole pixels at $D9 of the field's page, the last one's. */
+static void leave_for_original(GameState *g, int8_t last_backward)
+{
+    if (last_backward < 0)
+        original_cell16(g, 0xD9, (uint16_t)-whole_pixels(last_backward));
+}
+
+static int8_t backward(int8_t before, int8_t accumulated) { return accumulated < 0 ? accumulated : before; }
+
 // $C0:2C41
-/* BG2's horizontal accumulator does nothing at all while it is 0 (the other
- * three axes write their unchanged position back). */
+/* Every frame, for a map that scrolls a layer by itself. BG2's horizontal
+ * accumulator does nothing at all while it is 0 (the other axes write their
+ * unchanged position back). */
 static void scroll_layers(GameState *g)
 {
+    int8_t last_backward = 0;
     if (field_auto_scroll(g) & SCROLL_BG2) {
         accumulate(g, LAYER_BG2);
         if (field_auto_scroll_accumulator_x(g, LAYER_BG2) != 0)
-            scroll_axis(g, LAYER_BG2, AXIS_X);
-        scroll_axis(g, LAYER_BG2, AXIS_Y);
+            last_backward = backward(last_backward, scroll_axis(g, LAYER_BG2, AXIS_X));
+        last_backward = backward(last_backward, scroll_axis(g, LAYER_BG2, AXIS_Y));
     }
     if (field_auto_scroll(g) & SCROLL_BG3) {
         accumulate(g, LAYER_BG3);
-        scroll_axis(g, LAYER_BG3, AXIS_X);
-        scroll_axis(g, LAYER_BG3, AXIS_Y);
+        last_backward = backward(last_backward, scroll_axis(g, LAYER_BG3, AXIS_X));
+        last_backward = backward(last_backward, scroll_axis(g, LAYER_BG3, AXIS_Y));
     }
+    leave_for_original(g, last_backward);
 }
 
 /* It sets its own direct page and data bank, and restores the caller's;

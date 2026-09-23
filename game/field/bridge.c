@@ -9,6 +9,12 @@ bool field_machine_back(const Snes *s, bool x8, uint16_t d, uint8_t db)
     return !s->cpu.e && m_m8(s) && m_x8(s) == x8 && m_direct_page(s) == d && s->cpu.db == db;
 }
 
+unsigned field_current_object_slot(Snes *s)
+{
+    uint16_t object = field_current_object(state_of(s));
+    return (unsigned)((m_x8(s) ? (uint8_t)object : object) >> 1);
+}
+
 bool field_on_page(Snes *s) { return m_direct_page(s) == FIELD_PAGE; }
 bool field_on_page_io_bank(Snes *s) { return field_on_page(s) && m_bank_reaches_io(s); }
 bool field_on_page_low_bank(Snes *s) { return field_on_page(s) && m_bank_reaches_low_ram(s); }

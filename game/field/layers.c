@@ -1,14 +1,18 @@
-/* Field mode: the three background layers' per-frame arithmetic, and their
- * tile maps' unpacking when a map loads.
+/* Field mode: the three background layers. Every frame, how far each layer
+ * scrolls and which of its tile map's columns and rows come into view; and
+ * when a map loads, its tile maps and tile attributes unpacked from the map's
+ * data.
  *
  * A layer's tile map in VRAM is 64 tiles wide and 32 high, in two halves of
- * 32 columns side by side ($400 words apart), indexed row * 32 + column. As a
- * layer scrolls, the deferred uploads send the column and row that come into
- * view at the screen's edges; field_compute_layer_edges works out where those
- * runs are for each layer's position, and how they split where a run crosses
- * from one half to the other. field_update_layer_scroll turns the screen's
- * scroll toward its target, the layers' own speeds and a few effects into the
- * pixels each layer moves this frame. These run on the layers' page. */
+ * 32 columns side by side ($400 words apart), indexed row * 32 + column. The
+ * screen scrolls a pixel a frame toward a target tile when the field asks it
+ * to (a scene's pan), the other layers follow at their own speeds or stay
+ * still, and a setting can shake it; each layer's move is kept in 4.4 fixed
+ * point, whose whole pixels are the frame's move. As a layer scrolls, the
+ * deferred uploads send the column and row that come into view at the
+ * screen's edges, and the edge runs worked out here say where those are and
+ * how they split where a run crosses from one half to the other. These run
+ * on the layers' page. */
 #include "field/layers.h"
 
 #include "cpu_io.h"
@@ -18,26 +22,10 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { LAYERS = 3 };
+enum { LAYERS = 3, BG1 = 0 };
 enum { HALF_COLUMNS = 32, MAP_COLUMNS = 64, MAP_ROWS = 32, SECOND_HALF = 0x0400, LAST_ROW_OF_HALF = 0x03E0 };
 enum { COLUMN_MASK = MAP_COLUMNS - 1, ROW_MASK = MAP_ROWS - 1 };
 enum { SCREEN_ROWS = 28 };   /* the row below the screen's is 28 on from its top */
-
-/* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
-
-/* The edge helpers keep the column and row they were given, the row's start
- * and the counts they return in cells of the layers' page. */
-static void leave_edge_helper(GameState *g, uint16_t column, uint16_t row)
-{
-    original_layer_cell16(g, 0x62, column);
-    original_layer_cell16(g, 0x52, (uint16_t)(row * HALF_COLUMNS));
-}
-
-static void leave_edge_counts(GameState *g, uint16_t first, uint16_t rest)
-{
-    original_layer_cell16(g, 0x6C, first);
-    original_layer_cell16(g, 0x6E, rest);
-}
 
 /* ---- The edges -------------------------------------------------------------------------- */
 
@@ -63,42 +51,39 @@ static uint16_t column_in_last_row(uint16_t column)
 }
 
 /* One layer's edge runs: ten VRAM addresses (the tile map index plus the
- * layer's base) and five sizes, both as words, in the order the uploads read
- * them. */
+ * layer's base) and five sizes in bytes, in the order the uploads read them;
+ * and where the top and bottom runs were taken. */
 typedef struct {
     uint16_t vram[10], sizes[5];
+    uint16_t bottom_column, top_row;
 } LayerEdges;
 
 // $C0:813D
-/* The column entering at the left: its index, the row's start in the other
- * half, and the columns to its half's end and past it (doubled, as the
- * uploads count bytes). Where it is its half's last column, the run is the
- * one column and a whole row of the other half, and the wrap is marked. */
+/* The column coming into view at the left: its index, the row's start in the
+ * other half, and the columns to its half's end and past it. Where it is its
+ * half's last column, the run is that column and a whole row of the other
+ * half, and where the run wraps round is kept for the uploads (every layer
+ * sends the last one kept). */
 static void left_edge(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
 {
-    leave_edge_helper(g, column, row);
     uint16_t index = map_index(column, row);
     uint16_t to_half_end = (uint16_t)((column < HALF_COLUMNS ? HALF_COLUMNS : MAP_COLUMNS) - column);
-    uint16_t past = (uint16_t)(HALF_COLUMNS + 2 - to_half_end);
-    bool wraps = past >= HALF_COLUMNS + 1;
+    bool wraps = to_half_end == 1;
     e->vram[0] = index;
     e->vram[1] = other_half_row(column, row);
     e->sizes[0] = (uint16_t)(to_half_end * 2);
-    e->sizes[1] = (uint16_t)((wraps ? HALF_COLUMNS : past) * 2);
+    e->sizes[1] = (uint16_t)((wraps ? HALF_COLUMNS : HALF_COLUMNS + 2 - to_half_end) * 2);
     e->sizes[2] = wraps ? 2 : 0;
     if (wraps)
         set_field_layer_edge_wrap(g, (uint16_t)(index - (HALF_COLUMNS - 1)));
     e->vram[2] = field_layer_edge_wrap(g);
-    leave_edge_counts(g, e->sizes[0], e->sizes[1]);
-    original_layer_cell16(g, 0x6A, e->sizes[2]);
 }
 
 // $C0:81A1
-/* The column entering at the right: its index, 31 columns back, and the
- * row's start in the other half. */
-static void right_edge(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
+/* The column coming into view at the right: its index, 31 columns back, and
+ * the row's start in the other half. */
+static void right_edge(LayerEdges *e, uint16_t column, uint16_t row)
 {
-    leave_edge_helper(g, column, row);
     uint16_t index = map_index(column, row);
     e->vram[3] = index;
     e->vram[4] = other_half_row(column, row);
@@ -106,28 +91,25 @@ static void right_edge(GameState *g, LayerEdges *e, uint16_t column, uint16_t ro
 }
 
 // $C0:81D6
-/* The row entering at the top: its index, the column in its half's last
- * row, and the rows to the map's end and before the row (doubled). */
-static void top_edge(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
+/* The row coming into view at the top: its index, the column in its half's
+ * last row, and the rows from it to the map's end and before it. */
+static void top_edge(LayerEdges *e, uint16_t column, uint16_t row)
 {
-    leave_edge_helper(g, column, row);
-    original_layer_cell16(g, 0x64, row);
     e->vram[6] = map_index(column, row);
     e->vram[7] = column_in_last_row(column);
-    uint16_t below = (uint16_t)(MAP_ROWS - row);
-    e->sizes[3] = (uint16_t)(below * 2);
-    e->sizes[4] = (uint16_t)((MAP_ROWS - below) * 2);
-    leave_edge_counts(g, e->sizes[3], e->sizes[4]);
+    e->sizes[3] = (uint16_t)((MAP_ROWS - row) * 2);
+    e->sizes[4] = (uint16_t)(row * 2);
+    e->top_row = row;
 }
 
 // $C0:8218
-/* The row entering at the bottom: its index, and the column in its half's
- * last row. */
-static void bottom_edge(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
+/* The row coming into view at the bottom: its index, and the column in its
+ * half's last row. */
+static void bottom_edge(LayerEdges *e, uint16_t column, uint16_t row)
 {
-    leave_edge_helper(g, column, row);
     e->vram[8] = map_index(column, row);
     e->vram[9] = column_in_last_row(column);
+    e->bottom_column = column;
 }
 
 static void set_word(GameState *g, void (*set)(GameState *, unsigned, unsigned, uint8_t), unsigned layer,
@@ -137,34 +119,49 @@ static void set_word(GameState *g, void (*set)(GameState *, unsigned, unsigned, 
     set(g, layer, 2 * word + 1, (uint8_t)(v >> 8));
 }
 
+/* For the original's code and shadow mode (field/scratch.h): the edge helpers
+ * leave the column and row they were last given, the row's start and their
+ * last counts in cells of the layers' page. Nothing the port reads. */
+static void leave_for_original(GameState *g, const LayerEdges *last)
+{
+    original_layer_cell16(g, 0x52, (uint16_t)(last->top_row * HALF_COLUMNS));
+    original_layer_cell16(g, 0x62, last->bottom_column);
+    original_layer_cell16(g, 0x64, last->top_row);
+    original_layer_cell16(g, 0x6A, last->sizes[2]);
+    original_layer_cell16(g, 0x6C, last->sizes[3]);
+    original_layer_cell16(g, 0x6E, last->sizes[4]);
+}
+
 // $C0:7F9A
-/* Every layer's edge runs around its position: the columns one left of it and
- * 32 right of that, the rows one above it and 28 below that. */
+/* Every frame: each layer's edge runs around its position, the columns one
+ * left of it and 32 right of that, the rows one above it and 28 below that,
+ * which the uploads send when the layer has moved onto them. */
 static void compute_layer_edges(GameState *g)
 {
+    LayerEdges e;
     for (unsigned layer = 0; layer < LAYERS; layer++) {
         uint8_t x = field_layer_position_x(g, layer), y = field_layer_position_y(g, layer);
         uint16_t left = (uint16_t)((x - 1) & COLUMN_MASK), top = (uint16_t)((y - 1) & ROW_MASK);
-        LayerEdges e;
         left_edge(g, &e, left, (uint16_t)(y & ROW_MASK));
-        right_edge(g, &e, left, (uint16_t)((y + SCREEN_ROWS) & ROW_MASK));
-        top_edge(g, &e, (uint16_t)(x & COLUMN_MASK), top);
-        bottom_edge(g, &e, (uint16_t)((x + HALF_COLUMNS) & COLUMN_MASK), top);
+        right_edge(&e, left, (uint16_t)((y + SCREEN_ROWS) & ROW_MASK));
+        top_edge(&e, (uint16_t)(x & COLUMN_MASK), top);
+        bottom_edge(&e, (uint16_t)((x + HALF_COLUMNS) & COLUMN_MASK), top);
         uint16_t base = field_layer_map_base(g, layer);
         for (unsigned k = 0; k < 10; k++)
             set_word(g, set_field_layer_edge_vram_byte, layer, k, (uint16_t)(e.vram[k] + base));
         for (unsigned k = 0; k < 5; k++)
             set_word(g, set_field_layer_edge_sizes_byte, layer, k, e.sizes[k]);
     }
+    leave_for_original(g, &e);
 }
 
 /* ---- Scrolling -------------------------------------------------------------------------- */
 
 enum { AXIS_X, AXIS_Y, AXES };
-enum { STEP_FORWARD = 0x10, STEP_BACK = 0xF0 };   /* a 4.4 step of one pixel */
+enum { STEP_FORWARD = 0x10, STEP_BACK = 0xF0 };   /* a pixel a frame, in 4.4 */
 enum { SCROLL_IDLE = 0, SCROLL_DONE = 0x02, ARRIVED_BOTH = 0x03 };   /* field_screen_scroll_state, _arrived */
 enum { STILL_BG2 = 0x02, STILL_BG3 = 0x04 };   /* field_layer_still */
-enum { WOBBLE_NEGATIVE = 0x01, WOBBLE_Y = 0x02, WOBBLE_X = 0x04 };   /* the frame counter's bits */
+enum { SHAKE_BACK = 0x01, SHAKE_Y = 0x02, SHAKE_X = 0x04 };   /* the frame counter's bits */
 
 static uint8_t screen_edge(const GameState *g, unsigned axis)
 {
@@ -179,14 +176,14 @@ static uint8_t scroll_target(const GameState *g, unsigned axis)
 /* BG1's fine scroll on the axis, which says whether the screen is on a tile. */
 static uint8_t fine_scroll(const GameState *g, unsigned axis)
 {
-    return (uint8_t)(axis == AXIS_X ? field_layer_scroll_h(g, 0) : field_layer_scroll_v(g, 0));
+    return (uint8_t)(axis == AXIS_X ? field_layer_scroll_h(g, BG1) : field_layer_scroll_v(g, BG1));
 }
 
 // $C0:91B0
-/* One axis of the screen's scroll toward its target tile: a pixel forward or
+/* One axis of the screen's pan toward its target tile: a pixel forward or
  * back each frame, and once on the tile, back until the fine scroll is on it
- * too, when the axis is marked arrived. True if it arrived now. */
-static bool scroll_toward_target(GameState *g, unsigned axis)
+ * too, when the axis has arrived. True if it arrived now. */
+static bool pan_toward_target(GameState *g, unsigned axis)
 {
     uint8_t target = scroll_target(g, axis), at = screen_edge(g, axis);
     if (target == at && (fine_scroll(g, axis) & 0x0F) == 0) {
@@ -197,15 +194,14 @@ static bool scroll_toward_target(GameState *g, unsigned axis)
     return false;
 }
 
-/* A wobble offset from the frame counter: its bit `bit` shifted to a pixel
- * step, negated on odd frames. */
-static uint8_t wobble(uint8_t frames, uint8_t bit, uint8_t shift)
+/* The shake's offset on an axis this frame: a bit of the frame counter as
+ * pixels, backward on odd frames. */
+static uint8_t shake(uint8_t frames, uint8_t bit, uint8_t shift)
 {
     uint8_t v = (uint8_t)((frames & bit) << shift);
-    return (frames & WOBBLE_NEGATIVE) ? (uint8_t)-v : v;
+    return (frames & SHAKE_BACK) ? (uint8_t)-v : v;
 }
 
-/* An accumulator's 8-bit sum of the cells that move it. */
 static uint8_t accumulator(const GameState *g, unsigned layer, unsigned axis)
 {
     return axis == AXIS_X ? field_layer_scroll_accumulator_x(g, layer) : field_layer_scroll_accumulator_y(g, layer);
@@ -224,7 +220,7 @@ static uint8_t extra_speed(const GameState *g, unsigned layer, unsigned axis)
     return axis == AXIS_X ? field_layer_extra_speed_x(g, layer) : field_layer_extra_speed_y(g, layer);
 }
 
-/* The screen's own motion on the axis: its step and its wobble. */
+/* The screen's own motion on the axis: its pan and its shake. */
 static uint8_t screen_motion(const GameState *g, unsigned axis)
 {
     uint8_t offset = axis == AXIS_X ? field_scroll_offset_x(g) : field_scroll_offset_y(g);
@@ -233,11 +229,12 @@ static uint8_t screen_motion(const GameState *g, unsigned axis)
 
 // $C0:9238
 /* BG1 moves with the screen; BG2 and BG3 at their own speeds, and with the
- * screen too unless they stay still. */
+ * screen too unless they stay still; any of them faster for a while. The sums
+ * are bytes and wrap. */
 static void accumulate(GameState *g, unsigned layer, unsigned axis)
 {
     uint8_t sum = (uint8_t)(accumulator(g, layer, axis) + extra_speed(g, layer, axis));
-    if (layer == 0) {
+    if (layer == BG1) {
         sum = (uint8_t)(sum + screen_motion(g, axis));
     } else {
         uint8_t speed = axis == AXIS_X ? field_layer_speed_x(g, layer - 1) : field_layer_speed_y(g, layer - 1);
@@ -249,47 +246,48 @@ static void accumulate(GameState *g, unsigned layer, unsigned axis)
 }
 
 /* A 4.4 accumulator's fraction, sign-extended to the byte. */
-static uint8_t fraction_of(uint8_t v)
+static uint8_t fraction_of(int8_t v)
 {
     if ((v & 0x0F) == 0)
         return 0;
-    return (v & 0x80) ? (uint8_t)(v | 0xF0) : (uint8_t)(v & 0x0F);
+    return v < 0 ? (uint8_t)(v | 0xF0) : (uint8_t)(v & 0x0F);
 }
 
-/* The accumulator's whole pixels become this frame's move, and the fraction
- * stays. */
+/* The accumulator's whole pixels become this frame's move (rounded toward
+ * zero), and the fraction stays. */
 static void take_pixels(GameState *g, unsigned layer, unsigned axis)
 {
     unsigned k = layer * AXES + axis;
-    uint8_t v = accumulator(g, layer, axis);
-    if (!(v & 0x80)) {
+    int8_t v = (int8_t)accumulator(g, layer, axis);
+    if (v >= 0) {
         set_field_layer_move_positive(g, k, (uint8_t)(v >> 4));
         set_field_layer_move_negative(g, k, 0);
     } else {
-        set_field_layer_move_negative(g, k, (uint8_t)((uint8_t)-v >> 4));
+        set_field_layer_move_negative(g, k, (uint8_t)(-v >> 4));
         set_field_layer_move_positive(g, k, 0);
     }
-    set_accumulator(g, layer, axis, fraction_of(accumulator(g, layer, axis)));
+    set_accumulator(g, layer, axis, fraction_of((int8_t)accumulator(g, layer, axis)));
 }
 
 // $C0:91AC
-/* This frame's scroll: the screen steps toward its target while it scrolls
- * (field_screen_scroll_state), done once both axes arrive; the wobble, when
- * set; then each layer's accumulators, whose whole pixels are the layers'
- * moves; and the extra speeds run out with their countdown. */
+/* Every frame: the screen pans toward its target while the field has asked it
+ * to, and is done once both axes arrive; it shakes while the setting is on
+ * (but not on an axis where its edge is at the map's edge); each layer's
+ * accumulators move, and their whole pixels are the layers' moves; and the
+ * layers' extra speeds run out with their countdown. */
 static void update_layer_scroll(GameState *g)
 {
     if (field_screen_scroll_state(g) != SCROLL_IDLE) {
-        scroll_toward_target(g, AXIS_X);
-        if (scroll_toward_target(g, AXIS_Y) && field_screen_scroll_arrived(g) == ARRIVED_BOTH) {
+        pan_toward_target(g, AXIS_X);
+        if (pan_toward_target(g, AXIS_Y) && field_screen_scroll_arrived(g) == ARRIVED_BOTH) {
             set_field_screen_scroll_state(g, SCROLL_DONE);
             set_field_screen_scroll_arrived(g, 0);
         }
     }
     if (field_setting_bc(g) != 0) {
         uint8_t frames = play_time_frames(g);
-        set_field_scroll_offset_x(g, wobble(frames, WOBBLE_X, 2));
-        set_field_scroll_offset_y(g, wobble(frames, WOBBLE_Y, 3));
+        set_field_scroll_offset_x(g, shake(frames, SHAKE_X, 2));
+        set_field_scroll_offset_y(g, shake(frames, SHAKE_Y, 3));
         if (field_screen_left(g) == 0)
             set_field_scroll_offset_x(g, 0);
         if (field_screen_top(g) == 0)
@@ -319,113 +317,127 @@ static void update_layer_scroll(GameState *g)
 enum { MAP_DATA = 0xB506, MAP_DATA_BANK = 0 };
 enum { MAP_HAS_BG3 = 0x01 };   /* field_map_flags */
 
-/* A tile map's size as the stream gives it: the rows, and the columns of each.
+/* A tile map's size as the map gives it: the rows, and the columns of each.
  * The unpacking always writes a first row and a first column. */
 typedef struct {
     uint8_t rows, columns;
 } MapSize;
-
-/* For the original's code and shadow mode: the unpacking keeps the map's
- * size and the row it is on in cells of the layers' page, which the stream
- * it reads could reach. */
-static void leave_map_size(GameState *g, MapSize size)
-{
-    original_layer_cell16(g, 0x52, (uint16_t)(size.rows << 8));
-    original_layer_cell16(g, 0x54, size.columns);
-}
-
-static void leave_row(GameState *g, uint8_t row) { original_layer_cell8(g, 0x55, row); }
-
-static void leave_run_byte(GameState *g, unsigned k, uint8_t v) { original_layer_cell8(g, (uint8_t)(0x58 + 2 * k), v); }
 
 static MapSize layer_size(const GameState *g, unsigned layer)
 {
     return (MapSize){ field_map_layer_sizes_height(g, layer), field_map_layer_sizes_width(g, layer) };
 }
 
-/* The tile after (row, column): false past the map's last row. */
-static bool next_tile(GameState *g, MapSize size, uint8_t *row, uint8_t *column)
+/* A place in a tile map. */
+typedef struct {
+    uint8_t row, column;
+} MapPlace;
+
+static unsigned map_offset(MapPlace p) { return (unsigned)(p.row << 8 | p.column); }
+
+/* The next tile: false past the map's last row. */
+static bool next_tile(MapSize size, MapPlace *p)
 {
-    if (++*column < size.columns)
+    if (++p->column < size.columns)
         return true;
-    *column = 0;
-    ++*row;
-    leave_row(g, *row);
-    return *row < size.rows;
+    p->column = 0;
+    return ++p->row < size.rows;
 }
 
 /* A layer's tile map, a byte a tile from the stream. */
 static void unpack_layer_map(GameState *g, unsigned layer)
 {
     MapSize size = layer_size(g, layer);
-    leave_map_size(g, size);
-    uint8_t row = 0, column = 0;
+    MapPlace p = { 0, 0 };
     do
-        set_field_layer_maps_byte(g, layer, (unsigned)(row << 8 | column), hw_port_read(g));
-    while (next_tile(g, size, &row, &column));
+        set_field_layer_maps_byte(g, layer, map_offset(p), hw_port_read(g));
+    while (next_tile(size, &p));
 }
 
-static void set_tile_attributes(GameState *g, uint8_t row, uint8_t column, const uint8_t bytes[3])
+/* A tile's three attribute bytes. */
+typedef struct {
+    uint8_t properties, attributes, more_attributes;
+} TileAttributes;
+
+static void set_tile_attributes(GameState *g, MapPlace p, TileAttributes a)
 {
-    unsigned at = (unsigned)(row << 8 | column);
-    set_field_tile_properties_byte(g, at, bytes[0]);
-    set_field_tile_attributes_byte(g, at, bytes[1]);
-    set_field_tile_attributes_byte(g, at + MAP_COLUMNS, bytes[2]);
+    set_field_tile_properties_byte(g, map_offset(p), a.properties);
+    set_field_tile_attributes_byte(g, map_offset(p), a.attributes);
+    set_field_tile_attributes_byte(g, map_offset(p) + MAP_COLUMNS, a.more_attributes);
 }
 
-/* A tile's three bytes, each written as it is read: a big map's attribute
- * tables reach the stream's bytes still to come, and change them as the
- * original does (and a run's bytes are kept as they come, for the same
- * reason, where the stream has come round to the layers' page). */
-static void read_tile_attributes(GameState *g, uint8_t row, uint8_t column, uint8_t bytes[3], bool run)
+/* A tile's bytes from the stream, each written as it is read: a big map's
+ * attribute tables reach the stream's bytes still to come, and change them
+ * as the original does. */
+static TileAttributes read_tile_attributes(GameState *g, MapPlace p, uint8_t properties)
 {
-    unsigned at = (unsigned)(row << 8 | column);
-    if (run)
-        leave_run_byte(g, 0, bytes[0]);
-    set_field_tile_properties_byte(g, at, bytes[0]);
-    bytes[1] = hw_port_read(g);
-    if (run)
-        leave_run_byte(g, 1, bytes[1]);
-    set_field_tile_attributes_byte(g, at, bytes[1]);
-    bytes[2] = hw_port_read(g);
-    if (run)
-        leave_run_byte(g, 2, bytes[2]);
-    set_field_tile_attributes_byte(g, at + MAP_COLUMNS, bytes[2]);
+    TileAttributes a = { .properties = properties };
+    set_field_tile_properties_byte(g, map_offset(p), a.properties);
+    a.attributes = hw_port_read(g);
+    set_field_tile_attributes_byte(g, map_offset(p), a.attributes);
+    a.more_attributes = hw_port_read(g);
+    set_field_tile_attributes_byte(g, map_offset(p) + MAP_COLUMNS, a.more_attributes);
+    return a;
 }
 
 enum { RUN = 0x80, RUN_OF_256 = 0x00 };
 
-/* The attributes: three bytes a tile, BG1's size. A first byte with RUN set
- * starts a run: its three bytes (RUN taken off) repeat for the count after
- * them, 0 meaning 256. */
-static void unpack_attributes(GameState *g)
+/* What the unpacking leaves for the original's code and shadow mode
+ * (field/scratch.h): the attributes' size, the row it stopped on and the
+ * last run's bytes, in cells of the layers' page. Nothing the port reads. */
+typedef struct {
+    MapSize size;
+    uint8_t stopped_row;
+    bool had_run;
+    TileAttributes last_run;
+} UnpackLeftovers;
+
+static void leave_for_original_unpack(GameState *g, const UnpackLeftovers *l)
 {
-    MapSize size = layer_size(g, 0);
-    leave_map_size(g, size);
-    uint8_t row = 0, column = 0;
+    original_layer_cell16(g, 0x52, (uint16_t)(l->size.rows << 8));
+    original_layer_cell8(g, 0x54, l->size.columns);
+    original_layer_cell8(g, 0x55, l->stopped_row);
+    if (l->had_run) {
+        original_layer_cell8(g, 0x58, l->last_run.properties);
+        original_layer_cell8(g, 0x5A, l->last_run.attributes);
+        original_layer_cell8(g, 0x5C, l->last_run.more_attributes);
+    }
+}
+
+/* The attributes: three bytes a tile, over BG1's size. A first byte with RUN
+ * set starts a run: the tile's bytes (RUN taken off) repeat for the count
+ * after them, 0 meaning 256. */
+static void unpack_attributes(GameState *g, UnpackLeftovers *l)
+{
+    MapSize size = layer_size(g, BG1);
+    MapPlace p = { 0, 0 };
+    l->size = size;
     for (;;) {
-        uint8_t bytes[3];
-        bytes[0] = hw_port_read(g);
-        bool run = bytes[0] & RUN;
-        bytes[0] &= (uint8_t)~RUN;
-        read_tile_attributes(g, row, column, bytes, run);
-        if (run) {
+        uint8_t first = hw_port_read(g);
+        TileAttributes a = read_tile_attributes(g, p, (uint8_t)(first & ~RUN));
+        if (first & RUN) {
+            l->had_run = true;
+            l->last_run = a;
             uint8_t count = hw_port_read(g);
-            for (unsigned left = count == RUN_OF_256 ? 0x100 : count; --left != 0;) {
-                if (!next_tile(g, size, &row, &column))
+            for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
+                if (!next_tile(size, &p)) {
+                    l->stopped_row = p.row;
                     return;
-                set_tile_attributes(g, row, column, bytes);
+                }
+                set_tile_attributes(g, p, a);
             }
         }
-        if (!next_tile(g, size, &row, &column))
+        if (!next_tile(size, &p)) {
+            l->stopped_row = p.row;
             return;
+        }
     }
 }
 
 // $C0:A521
-/* Unpack a map's tile maps from the decompressed map data, through the work
- * RAM port: BG1's and BG2's, BG3's where the map has one, then the tile
- * attributes. */
+/* When a map loads: unpack its tile maps from the decompressed map data,
+ * through the work RAM port: BG1's and BG2's, BG3's where the map has one,
+ * then the tile attributes. */
 static void unpack_tile_maps(GameState *g)
 {
     hw_port_seek(g, MAP_DATA, MAP_DATA_BANK);
@@ -433,27 +445,55 @@ static void unpack_tile_maps(GameState *g)
     unpack_layer_map(g, 1);
     if (field_map_flags(g) & MAP_HAS_BG3)
         unpack_layer_map(g, 2);
-    unpack_attributes(g);
+    UnpackLeftovers l = { 0 };
+    unpack_attributes(g, &l);
+    leave_for_original_unpack(g, &l);
 }
 
 /* ---- Entries: on the layers' page ------------------------------------------------------- */
 
-/* Nothing else they leave in the registers is read after (the entries'
- * don't-care sets); the edges' entry leaves A 8-bit, whatever it came with. */
+/* The unpacking's guard: a map whose data can't come round the banks to the
+ * layers' page before it is unpacked. The data starts at MAP_DATA in bank
+ * $7E and the stream runs on through bank $7F and back into $7E; the port
+ * leaves its cells on the layers' page when it is done, where the original
+ * writes them as it goes, so a stream long enough to read them back would
+ * differ. A tile takes a byte of each layer's map and at most four of
+ * attributes (a run of one). The guard is a claim about every map the game
+ * loads, which the movies check: none is turned away. */
+enum { STREAM_REACHES_LAYERS_PAGE = 0x10000 - MAP_DATA + 0x10000 + 0x1D50 };
+
+static uint32_t tiles(MapSize s) { return (uint32_t)(s.rows ? s.rows : 1) * (s.columns ? s.columns : 1); }
+
+bool field_unpack_stays_clear(Snes *s)
+{
+    if (!field_on_layers_page(s) || !m_bank_reaches_io(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint32_t bytes = tiles(layer_size(g, 0)) * 5 + tiles(layer_size(g, 1));
+    if (field_map_flags(g) & MAP_HAS_BG3)
+        bytes += tiles(layer_size(g, 2));
+    vars_peek(false);
+    return bytes < STREAM_REACHES_LAYERS_PAGE;
+}
+
 /* The overflow of BG3's bottom edge's address, the last sum, is the one
- * thing its callers read. */
+ * thing its callers read; and it leaves A 8-bit, whatever it came with. */
 void field_compute_layer_edges(Snes *s)
 {
     GameState *g = state_of(s);
     compute_layer_edges(g);
     uint16_t base = field_layer_map_base(g, LAYERS - 1);
-    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, LAYERS - 1, 16) | field_layer_edge_vram_byte(g, LAYERS - 1, 17) << 8);
+    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, LAYERS - 1, 16) |
+                              field_layer_edge_vram_byte(g, LAYERS - 1, 17) << 8);
     uint16_t index = (uint16_t)(sum - base);
     m_set_flag(s, CPU_FLAG_V, (~(index ^ base) & (index ^ sum) & 0x8000) != 0);
     m_set_flag(s, CPU_FLAG_M, true);
     m_rts(s);
 }
 
+/* Nothing they leave in the registers is read after (the entries' don't-care
+ * sets). */
 void field_update_layer_scroll(Snes *s)
 {
     update_layer_scroll(state_of(s));
