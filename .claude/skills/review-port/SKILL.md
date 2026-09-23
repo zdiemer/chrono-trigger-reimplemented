@@ -328,6 +328,31 @@ Each of these is a finding. Every example here comes from this repo.
 33. **Constants that type nothing.** Enums declared so a comment can mention
     them (`IN_OTHERS_WAY`, `STOPPED_BY_*`) while the parameter stays `uint8_t`.
     The type is the vocabulary.
+34. **Emulating inputs no game state produces.** A bit-serial division kept
+    "for a divisor of 0, or one with its top bit set, which no scene uses". The
+    remedy is a guard that refuses those inputs, so the original runs them;
+    the logic keeps only the arithmetic the game actually needs (`n / d`). An
+    emulation with a comment explaining that nothing reaches it is still an
+    emulation.
+35. **Leftover records that carry the CPU.** A file-static `*_leaves` record is
+    acceptable for a value the wrapper can't derive from the inputs and the
+    final state. A register-shaped record (carry, overflow, A) that the logic
+    writes all the way through, even inside `ORIGINAL_EFFECT`, is item 26
+    moved into a global: the signatures look clean and the CPU is still
+    threaded through. For each field of a leftover record, the review asks
+    whether the wrapper could derive it.
+36. **Timing shaping the logic.** A loop kept byte by byte, or a step kept in
+    the original's order, because that shape is what the timing estimate
+    charges. Time is charged through scaffolding (`NATIVE_TIME_AS`, or a
+    block-move charge of N bytes in one call), never by keeping a shape.
+37. **Hardware helpers used as the computation.** The divider, the
+    multiplier or the work RAM port used to *compute* (`quotient =
+    hw_quotient_by(...)`, a list read through the port with a word's high byte
+    "dropped"). Compute in C, and leave the hardware's final state as
+    scaffolding.
+38. **Machine counting conventions as parameters.** A block move's "count
+    minus one", or "A + 1 bytes", passed into logic as a parameter. Say how
+    many bytes, or which range, in the game's terms.
 
 ## What is legitimately machine-shaped
 
