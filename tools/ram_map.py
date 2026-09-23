@@ -9,15 +9,18 @@
 `re/ram.toml` is the knowledge; its schema is at the top of the file and in
 docs/DISASSEMBLY.md ("The RAM map"). Two things are generated from it and
 committed, so a build without a ROM (CI's) has them, and tests/test_ram_map.py
-fails when either is out of date:
+fails when one is out of date:
 
 - `game/ram.h`, the variables as addresses, for generated code and the ports
   not converted yet;
 - `game/vars.h`, the variables as values a port reads and writes, with
-  `runtime/port/vars_ram.c` backing them in emulated work RAM. This is what a
-  port uses: it names state without saying where it lives, so the storage can
-  move once a subsystem no longer shares it with generated code
-  (docs/PLAN.md, "Phase 3a").
+  `runtime/port/vars_ram.c` backing them in emulated work RAM and
+  `runtime/port/vars_pages.h` mapping a direct page to the instance of a page
+  kind it is, for entry wrappers. This is what a port uses: it names state
+  without saying where it lives, so the storage can move once a subsystem no
+  longer shares it with generated code (docs/PLAN.md, "Phase 3a"). A variable
+  on a page kind (a page whose code runs with D on any of its instances) takes
+  which instance the port means, never a D.
 
 **Coverage** answers "how much of what game/ touches has a name". It counts,
 over game/ with comments stripped:
@@ -78,15 +81,65 @@ def fmt_addr(a):
     return "$%02X:%04X" % (a >> 16, a & 0xFFFF)
 
 
+def camel(name):
+    return "".join(w.capitalize() for w in name.split("_"))
+
+
+# The highest D a page of work RAM can have: its 256 bytes end at $1FFF.
+LAST_D = 0x1F00
+
+
+class Instance:
+    """One place a page kind's cells are: a named page at a fixed D
+    (`{ name, d }`), or an array of `count` pages from `base`, `stride` bytes
+    apart (`{ name, base, count, stride }`), whose index the name says."""
+
+    def __init__(self, raw, where):
+        if not isinstance(raw, dict) or not isinstance(raw.get("name"), str):
+            raise MapError("%s: an instance is { name, d } or { name, base, count, stride }" % where)
+        self.name = raw["name"]
+        where = "%s instance %r" % (where, self.name)
+        if not NAME.match(self.name):
+            raise MapError("%s: name is not lower_snake_case" % where)
+        keys = set(raw)
+        if keys == {"name", "d"}:
+            self.d, self.base, self.count, self.stride = raw["d"], None, None, None
+            self.array = False
+        elif keys == {"name", "base", "count", "stride"}:
+            self.d = None
+            self.base, self.count, self.stride = raw["base"], raw["count"], raw["stride"]
+            self.array = True
+            for key in ("count", "stride"):
+                if not (isinstance(raw[key], int) and raw[key] > 0):
+                    raise MapError("%s: %s must be a positive integer" % (where, key))
+        else:
+            raise MapError("%s: give d, or base, count and stride" % where)
+        for d in (self.ds()[0], self.ds()[-1]) if self.array else (self.d,):
+            if not (isinstance(d, int) and 0 <= d <= LAST_D):
+                raise MapError("%s: D must be in $0000-$%04X (work RAM)" % (where, LAST_D))
+
+    def ds(self):
+        """Every D this instance is, in index order."""
+        if not self.array:
+            return [self.d]
+        return [self.base + i * self.stride for i in range(self.count)]
+
+    def describe(self):
+        if not self.array:
+            return "%s (D = $%04X)" % (self.name, self.d)
+        return "%s 0-%d (D = $%04X + $%X each)" % (self.name, self.count - 1, self.base, self.stride)
+
+
 class Page:
-    """A direct page the game sets while some code runs: D = `d`, or unknown."""
+    """A direct page the game sets while some code runs: D = `d`; or a page
+    kind, whose code runs with D on any of its `instances`."""
 
     def __init__(self, raw):
         where = "page %r" % raw.get("name")
         for key in ("name", "subsystem", "meaning", "source"):
             if not raw.get(key):
                 raise MapError("%s: missing %s" % (where, key))
-        unknown = set(raw) - {"name", "d", "subsystem", "meaning", "source", "why"}
+        unknown = set(raw) - {"name", "d", "instances", "subsystem", "meaning", "source", "why"}
         if unknown:
             raise MapError("%s: unknown keys %s" % (where, sorted(unknown)))
         self.name = raw["name"]
@@ -96,14 +149,75 @@ class Page:
         if self.subsystem not in SUBSYSTEMS:
             raise MapError("%s: subsystem %r is not one of %s" % (where, self.subsystem, SUBSYSTEMS))
         self.d = raw.get("d")
+        self.instances = []
         if self.d is None:
             if not raw.get("why"):
-                raise MapError("%s: a page whose D isn't known needs `why`" % where)
-        elif not (isinstance(self.d, int) and 0 <= self.d <= 0x1F00):
-            raise MapError("%s: d must be an integer in $0000-$1F00 (work RAM)" % where)
+                raise MapError("%s: a page whose D isn't fixed needs `why`" % where)
+            if not isinstance(raw.get("instances"), list) or not raw["instances"]:
+                raise MapError("%s: a page whose D isn't fixed lists its instances" % where)
+            self.instances = [Instance(i, where) for i in raw["instances"]]
+            if len(self.instances) == 1 and not self.instances[0].array:
+                raise MapError("%s: one page is a fixed page, not a page kind: give d" % where)
+            seen, at = set(), {}
+            for i in self.instances:
+                if i.name in seen:
+                    raise MapError("%s: instance %r twice" % (where, i.name))
+                seen.add(i.name)
+                for d in i.ds():
+                    if d in at:
+                        # Name the bytes once: two instances at one D are one set of cells.
+                        raise MapError("%s: instances %r and %r are both D = $%04X"
+                                       % (where, at[d], i.name, d))
+                    at[d] = i.name
+        else:
+            if "instances" in raw:
+                raise MapError("%s: a page with a fixed d has no instances" % where)
+            if not (isinstance(self.d, int) and 0 <= self.d <= LAST_D):
+                raise MapError("%s: d must be an integer in $0000-$%04X (work RAM)" % (where, LAST_D))
         self.meaning = raw["meaning"]
         self.source = raw["source"]
         self.why = raw.get("why")
+
+    # ---- the handle a variable on a page kind is reached by ----------------------------------
+    #
+    # Named instances only: an enum. One array and nothing else: its index. A mix:
+    # a struct of which instance and, for an array, which element of it.
+
+    def shape(self):
+        if not self.instances:
+            return None
+        if all(not i.array for i in self.instances):
+            return "named"
+        if len(self.instances) == 1:
+            return "array"
+        return "mixed"
+
+    def type_name(self):
+        return None if self.shape() == "array" else camel(self.name) + "Page"
+
+    def param(self):
+        """The handle's parameter name."""
+        return self.instances[0].name if self.shape() == "array" else "page"
+
+    def handle_decl(self):
+        return ("unsigned " if self.shape() == "array" else self.type_name() + " ") + self.param()
+
+    def constant(self, inst):
+        """The enum constant of a named instance, or of an instance's kind in a mix."""
+        return "%s_%s" % (self.name.upper(), inst.name.upper())
+
+    def count_constant(self, inst):
+        return self.name.upper() + "_COUNT" if self.shape() == "array" else self.constant(inst) + "_COUNT"
+
+    def of_name(self):
+        return self.name + "_page_of"
+
+    def maker(self, inst):
+        """In a mix, the function that makes the handle of an instance."""
+        return "%s_%s" % (self.name, inst.name)
+
+    def ds(self):
+        return [d for i in self.instances for d in i.ds()]
 
 
 class Image:
@@ -236,14 +350,17 @@ class Var:
                 raise MapError("%s: no page %r" % (where, raw["page"]))
             self.page = pages[raw["page"]]
         if self.page is not None and self.page.d is None:
-            # D isn't known statically: the variable has an offset, not an address.
+            # D is one of the page's instances: the variable has an offset, and
+            # an address in each instance.
             if "addr" in raw:
-                raise MapError("%s: page %r has no known D, so the variable can't have an address"
+                raise MapError("%s: page %r has no fixed D, so the variable can't have an address"
                                % (where, self.page.name))
             if not (isinstance(raw.get("dp"), int) and 0 <= raw["dp"] <= 0xFF):
                 raise MapError("%s: needs dp, an offset $00-$FF in page %r" % (where, self.page.name))
             self.addr = None
             self.dp = raw["dp"]
+            if self.dp + self.span() > 0x100:
+                raise MapError("%s: runs past the end of page %r" % (where, self.page.name))
         else:
             if "dp" in raw:
                 raise MapError("%s: dp is derived from addr and the page's D; give addr" % where)
@@ -264,17 +381,29 @@ class Var:
     def end(self):
         return self.addr + self.span()
 
+    def on_instances(self):
+        """Whether the variable is on a page kind, at an offset in each instance."""
+        return self.addr is None
+
+    def bases(self):
+        """Where the variable is: its address, or its address in every instance."""
+        if not self.on_instances():
+            return [self.addr]
+        return [0x7E0000 | (d + self.dp) for d in self.page.ds()]
+
     def contains(self, a):
         """The field (or None) when address `a` is inside this variable, else False."""
-        if self.addr is None or not self.addr <= a < self.end():
-            return False
-        off = (a - self.addr) % self.stride
-        if off >= self.size:
-            return False
-        for f in self.fields:
-            if f.offset <= off < f.offset + f.size:
-                return f
-        return None
+        for base in self.bases():
+            if not base <= a < base + self.span():
+                continue
+            off = (a - base) % self.stride
+            if off >= self.size:
+                continue
+            for f in self.fields:
+                if f.offset <= off < f.offset + f.size:
+                    return f
+            return None
+        return False
 
 
 class RamMap:
@@ -313,22 +442,36 @@ class RamMap:
     def _check_overlaps(self):
         """Work RAM is reused from one game mode to the next, so two entries may
         cover the same bytes when their subsystems differ (the battle's use of
-        $7E:2000 is not the field's). Within one subsystem that is a mistake."""
-        placed = sorted((v for v in self.vars if v.addr is not None), key=lambda v: v.addr)
-        for i, a in enumerate(placed):
-            for b in placed[i + 1:]:
-                if b.addr >= a.end():
+        $7E:2000 is not the field's). Within one subsystem that is a mistake.
+
+        A variable on a page kind is at its offset in every instance. Those
+        instances may be the elements of a record array of the same subsystem
+        (a sequence channel's page is its record, `scene_channels`), so against
+        one, only a record's named fields count: the rest of its element is
+        what the page kind's variables name."""
+        placed = sorted(((base, v) for v in self.vars for base in v.bases()), key=lambda p: p[0])
+
+        def claims(v, x, other):
+            f = v.contains(x)
+            if f is None and v.fields and other.on_instances():
+                return False
+            return f is not False
+
+        for i, (a_base, a) in enumerate(placed):
+            a_end = a_base + a.span()
+            for b_base, b in placed[i + 1:]:
+                if b_base >= a_end:
                     break
-                if a.subsystem != b.subsystem:
+                if a.subsystem != b.subsystem or a is b:
                     continue
-                if any(a.contains(x) is not False and b.contains(x) is not False
-                       for x in range(b.addr, min(a.end(), b.end()))):
+                if any(claims(a, x, b) and claims(b, x, a)
+                       for x in range(b_base, min(a_end, b_base + b.span()))):
                     raise MapError("%s and %s overlap (both %s)" % (a.name, b.name, a.subsystem))
 
     def lookup(self, a, subsystem=None):
         """Entries naming address `a`, as (var, field); `subsystem` first."""
         hits = [(v, v.contains(a)) for v in self.vars if v.contains(a) is not False]
-        hits.sort(key=lambda h: (h[0].subsystem != subsystem, h[0].addr))
+        hits.sort(key=lambda h: (h[0].subsystem != subsystem, min(h[0].bases())))
         return hits
 
 
@@ -368,7 +511,8 @@ def header_macros(m):
     for p in sorted(m.pages.values(), key=lambda p: (p.d is None, p.d or 0, p.name)):
         lines += comment("%s: %s" % (p.name, p.meaning))
         if p.d is None:
-            lines += comment("D is not known statically: %s" % p.why)
+            lines += comment("D is not fixed: %s. Instances: %s"
+                             % (p.why.rstrip("."), "; ".join(i.describe() for i in p.instances)))
             lines.append("/* (no RAM_PAGE_%s: variables in it have offsets only) */" % p.name.upper())
         else:
             define(lines, "RAM_PAGE_" + p.name.upper(), "0x%04Xu" % p.d)
@@ -395,7 +539,7 @@ def header_macros(m):
                 define(lines, macro(v.name, "count"), "%du" % v.count)
                 define(lines, macro(v.name, "stride"), "0x%02Xu" % v.stride)
             if v.page is not None:
-                where = ("page %s, D unknown" % v.page.name if v.page.d is None
+                where = ("page %s, D per instance" % v.page.name if v.page.d is None
                          else "page %s" % v.page.name)
                 define(lines, macro(v.name, "dp"), "0x%02Xu" % v.dp, where)
             for f in v.fields:
@@ -477,7 +621,8 @@ class Accessor:
     def __init__(self, var, field=None):
         self.var = var
         base = var.name if field is None else "%s_%s" % (var.name, field.name)
-        self.addr = var.addr + (field.offset if field else 0)
+        self.offset = field.offset if field else 0
+        self.addr = None if var.on_instances() else var.addr + self.offset
         self.size = field.size if field else var.size
         self.meaning = field.meaning if field else var.meaning
         self.blob = self.size > WIDEST
@@ -488,6 +633,8 @@ class Accessor:
     def params(self, write):
         """The parameter list after the state, as (declaration, argument) pairs."""
         out = []
+        if self.var.on_instances():
+            out.append((self.var.page.handle_decl(), self.var.page.param()))
         if self.var.count > 1:
             out.append(("unsigned " + index_param(self.var.index), index_param(self.var.index)))
         if self.blob:
@@ -502,7 +649,11 @@ class Accessor:
         return "%s %s%s(%s)" % ("void" if write else self.type, "set_" if write else "", self.name, args)
 
     def address(self):
-        out = "0x%06Xu" % self.addr
+        if self.var.on_instances():
+            p = self.var.page
+            out = "%s(%s) + 0x%02Xu" % (page_base_name(p), p.param(), self.var.dp + self.offset)
+        else:
+            out = "0x%06Xu" % self.addr
         if self.var.count > 1:
             out += " + (uint32_t)%s * 0x%02Xu" % (index_param(self.var.index), self.var.stride)
         if self.blob:
@@ -515,13 +666,21 @@ class Accessor:
         return self.meaning + (" [%d bytes, one at a time]" % self.size if self.blob else "")
 
 
+def page_kinds(m):
+    """The pages whose variables take an instance handle, in the map's order."""
+    return [p for p in m.pages.values() if p.instances]
+
+
+def page_base_name(p):
+    return p.name + "_page_base"
+
+
 def accessors(m):
     """[(subsystem, [(var, count constant or None, [Accessor])])], in the header's
     order; raises on a name clash.
 
-    The variables whose page has no known D are left out: their address is the
-    caller's D plus an offset, so an accessor would need a page base nothing has
-    a shape for yet (docs/PLAN.md, "Phase 3a")."""
+    A variable on a page kind takes the instance as its first parameter
+    (Page.handle_decl): which of the page's places the caller means, never a D."""
     by_sub = collections.defaultdict(list)
     names, consts = set(), set()
 
@@ -531,9 +690,20 @@ def accessors(m):
         seen.add(name)
         return name
 
+    for p in page_kinds(m):
+        take(p.of_name(), names, "function")
+        if p.type_name():
+            take(p.type_name(), names, "type")
+        for i in p.instances:
+            if p.shape() == "mixed":
+                take(p.maker(i), names, "function")
+            if p.shape() != "array":
+                take(p.constant(i), consts, "constant")
+            if i.array:
+                take(p.count_constant(i), consts, "constant")
     for v in m.vars:
-        if v.addr is None:
-            continue
+        if v.on_instances() and v.count > 1 and index_param(v.index) == v.page.param():
+            raise MapError("%s: its index and its page's instance are both called %r" % (v.name, v.page.param()))
         group = [Accessor(v, f) for f in v.fields] if v.fields else [Accessor(v)]
         for a in group:
             take(a.name, names, "accessor")
@@ -546,7 +716,44 @@ def accessors(m):
     for sub in SUBSYSTEMS:
         vs = by_sub.get(sub)
         if vs:
-            out.append((sub, sorted(vs, key=lambda g: (g[0].addr, g[0].name))))
+            out.append((sub, sorted(vs, key=lambda g: (g[0].on_instances(), g[0].addr or 0,
+                                                       g[0].page.name if g[0].on_instances() else "",
+                                                       g[0].dp or 0, g[0].name))))
+    return out
+
+
+def render_handles(m):
+    """game/vars.h's handle types: how a port names an instance of each page kind."""
+    out = []
+    for p in page_kinds(m):
+        title = "page kind %s" % p.name
+        out += ["", "/* ---- %s %s */" % (title, "-" * (86 - len(title))), ""]
+        out += comment("%s. The instances: %s." % (p.meaning.rstrip("."),
+                                                    "; ".join(i.name for i in p.instances)))
+        shape = p.shape()
+        if shape == "named":
+            out.append("typedef enum { %s } %s;" % (", ".join(p.constant(i) for i in p.instances), p.type_name()))
+        elif shape == "array":
+            i = p.instances[0]
+            out.append("enum { %s = %d };   /* by %s */" % (p.count_constant(i), i.count, i.name))
+        else:
+            kind = p.type_name() + "Kind"
+            out.append("typedef enum { %s } %s;" % (", ".join(p.constant(i) for i in p.instances), kind))
+            out.append("typedef struct {")
+            out.append("    %s kind;" % kind)
+            out.append("    uint8_t index;   /* which one, for %s */"
+                       % " and ".join(i.name for i in p.instances if i.array))
+            out.append("} %s;" % p.type_name())
+            for i in p.instances:
+                if i.array:
+                    out.append("enum { %s = %d };" % (p.count_constant(i), i.count))
+            for i in p.instances:
+                if i.array:
+                    out.append("static inline %s %s(unsigned %s) { return (%s){ %s, (uint8_t)%s }; }"
+                               % (p.type_name(), p.maker(i), i.name, p.type_name(), p.constant(i), i.name))
+                else:
+                    out.append("static inline %s %s(void) { return (%s){ %s, 0 }; }"
+                               % (p.type_name(), p.maker(i), p.type_name(), p.constant(i)))
     return out
 
 
@@ -569,6 +776,12 @@ def render_vars_header(m):
         " * elements an array has, and how many bytes such a buffer has, are named too,",
         " * so that a port that walks one need not know a number.",
         " *",
+        " * Some cells are on a direct page the caller chooses: the same offsets on more",
+        " * than one page (a page kind). Their accessors take which instance of the page",
+        " * the port means -- a named one, an element of an array of pages, or either --",
+        " * never a D or an offset. The handle types come first; an entry wrapper finds",
+        " * the instance its caller's D is with <page>_page_of (runtime/port/vars_pages.h).",
+        " *",
         " * game/ram.h names the same variables as addresses, for generated code and the",
         " * ports not converted yet. */",
         "#ifndef CT_GAME_VARS_H",
@@ -578,6 +791,7 @@ def render_vars_header(m):
         "",
         "#include \"state.h\"",
     ]
+    out += render_handles(m)
     for sub, groups in accessors(m):
         out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub)))]
         for v, count, group in groups:
@@ -610,6 +824,7 @@ def render_backing(m):
         "#include \"vars.h\"",
         "",
         "#include \"port/machine.h\"",
+        "#include \"port/vars_pages.h\"",
         "#include \"port/vars_ram.h\"",
         "#include \"wram.h\"",
         "",
@@ -649,6 +864,7 @@ def render_backing(m):
         "void wram_write8(GameState *g, uint32_t at, uint8_t v) { w8(g, at, v); }",
         "void wram_write16(GameState *g, uint32_t at, uint16_t v) { w16(g, at, v); }",
     ]
+    out += render_page_backing(m)
     for sub, groups in accessors(m):
         out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub))), ""]
         for _, _, group in groups:
@@ -658,6 +874,134 @@ def render_backing(m):
                 out.append("%s { w%d(g, %s, v); }" % (a.signature(True), w, a.address()))
     out.append("")
     return "\n".join(out)
+
+
+PAGES_HEADER = ROOT / "runtime" / "port" / "vars_pages.h"
+
+
+def of_signature(p):
+    out = "%s *%s" % ("unsigned" if p.shape() == "array" else p.type_name(), p.param())
+    return "bool %s(uint16_t d, %s)" % (p.of_name(), out)
+
+
+def render_pages_header(m):
+    out = [
+        "/* Which instance of a page kind a D is: the mapping an entry wrapper uses to",
+        " * turn its caller's direct page into the handle game/vars.h's accessors take,",
+        " * generated by tools/ram_map.py from re/ram.toml's page instances. Don't edit",
+        " * this file: add to the map and regenerate (python3 tools/ram_map.py",
+        " * accessors). docs/DISASSEMBLY.md, \"The accessors\".",
+        " *",
+        " * Each <page>_page_of returns false for a D that is no declared instance, and",
+        " * counts it: vars_page_refusals is what ct_dev reports, so a guard that turns",
+        " * away a call the game makes is seen rather than showing only as a drop in a",
+        " * shadow count. The instances are measured, not assumed (the map's `source`).",
+        " *",
+        " * Only a wrapper uses these; the port's logic is given the handle. */",
+        "#ifndef CT_PORT_VARS_PAGES_H",
+        "#define CT_PORT_VARS_PAGES_H",
+        "",
+        "#include <stdbool.h>",
+        "#include <stdint.h>",
+        "",
+        "#include \"vars.h\"",
+    ]
+    for p in page_kinds(m):
+        out.append("")
+        out += comment("%s: %s" % (p.name, "; ".join(i.describe() for i in p.instances)))
+        out.append("%s;" % of_signature(p))
+    out += [
+        "",
+        "/* The D values each page kind's <page>_page_of refused, in this process. */",
+        "typedef struct {",
+        "    const char *page;",
+        "    unsigned long refused;",
+        "    uint16_t last_d;   /* the latest one */",
+        "} VarsPageRefusals;",
+        "const VarsPageRefusals *vars_page_refusals(unsigned *count);",
+        "",
+        "#endif",
+        "",
+    ]
+    return "\n".join(out)
+
+
+def render_page_backing(m):
+    kinds = page_kinds(m)
+    out = ["", "/* ---- page kinds %s */" % ("-" * 72)]
+    if not kinds:
+        out += ["", "const VarsPageRefusals *vars_page_refusals(unsigned *count)", "{",
+                "    *count = 0;", "    return 0;", "}"]
+        return out
+    out += ["",
+            "/* The D values each <page>_page_of turned away. */",
+            "static VarsPageRefusals refusals[] = {"]
+    out += ["    { \"%s\", 0, 0 }," % p.name for p in kinds]
+    out += ["};",
+            "",
+            "static bool refuse(unsigned kind, uint16_t d)",
+            "{",
+            "    refusals[kind].refused++;",
+            "    refusals[kind].last_d = d;",
+            "    return false;",
+            "}",
+            "",
+            "const VarsPageRefusals *vars_page_refusals(unsigned *count)",
+            "{",
+            "    *count = %d;" % len(kinds),
+            "    return refusals;",
+            "}"]
+
+    def matches(i):
+        """The C condition that D is instance i (an element of it, for an array)."""
+        if not i.array:
+            return "d == 0x%04Xu" % i.d
+        last = i.ds()[-1]
+        rel = "(unsigned)(d - 0x%04Xu)" % i.base if i.base else "d"
+        parts = ([] if i.base == 0 else ["d >= 0x%04Xu" % i.base]) + ["d <= 0x%04Xu" % last]
+        if i.stride > 1 and i.count > 1:
+            parts.append("%s %% 0x%02Xu == 0" % (rel, i.stride))
+        return " && ".join(parts)
+
+    def element(i):
+        rel = "(unsigned)(d - 0x%04Xu)" % i.base if i.base else "(unsigned)d"
+        return "%s / 0x%02Xu" % (rel, i.stride) if i.count > 1 else "0"
+
+    used = {v.page.name for v in m.vars if v.on_instances()}
+    for k, p in enumerate(kinds):
+        shape, param = p.shape(), p.param()
+        out += ["", "/* %s */" % p.name]
+        if p.name not in used:
+            pass   # no variable on it yet, so nothing needs its base
+        elif shape == "array":
+            i = p.instances[0]
+            out += ["static uint32_t %s(unsigned %s) { return 0x7E%04Xu + (uint32_t)%s * 0x%02Xu; }"
+                    % (page_base_name(p), param, i.base, param, i.stride)]
+        else:
+            out += ["static uint32_t %s(%s %s)" % (page_base_name(p), p.type_name(), param), "{",
+                    "    switch (%s) {" % (param if shape == "named" else param + ".kind")]
+            for i in p.instances:
+                out.append("    case %s:" % p.constant(i))
+                if i.array:
+                    out.append("        return 0x7E%04Xu + (uint32_t)%s.index * 0x%02Xu;" % (i.base, param, i.stride))
+                else:
+                    out.append("        return 0x7E%04Xu;" % i.d)
+            out += ["    }", "    return 0x7E%04Xu;   /* no instance: the first's */" % p.ds()[0], "}"]
+        # which instance a D is
+        out += ["", "%s" % of_signature(p), "{"]
+        for i in p.instances:
+            out.append("    if (%s) {" % matches(i))
+            if shape == "array":
+                out.append("        *%s = %s;" % (param, element(i)))
+            elif shape == "named":
+                out.append("        *%s = %s;" % (param, p.constant(i)))
+            else:
+                out.append("        *%s = (%s){ %s, %s };" % (
+                    param, p.type_name(), p.constant(i),
+                    "(uint8_t)(%s)" % element(i) if i.array else "0"))
+            out += ["        return true;", "    }"]
+        out += ["    return refuse(%d, d);" % k, "}"]
+    return out
 
 
 # ---- coverage -------------------------------------------------------------------------------
@@ -856,7 +1200,7 @@ def main(argv=None):
     sub.add_parser("check", help="validate re/ram.toml")
     h = sub.add_parser("header", help="write game/ram.h")
     h.add_argument("--check", action="store_true", help="exit 1 if game/ram.h is out of date")
-    a = sub.add_parser("accessors", help="write game/vars.h and runtime/port/vars_ram.c")
+    a = sub.add_parser("accessors", help="write game/vars.h, runtime/port/vars_pages.h and vars_ram.c")
     a.add_argument("--check", action="store_true", help="exit 1 if either is out of date")
     c = sub.add_parser("coverage", help="how much of what game/ uses the map names")
     c.add_argument("--open", action="store_true", help="list the unnamed addresses")
@@ -888,7 +1232,8 @@ def main(argv=None):
             HEADER.write_text(text, encoding="utf-8", newline="\n")
             print("wrote %s" % HEADER.relative_to(ROOT).as_posix())
     elif args.cmd == "accessors":
-        want = ((VARS_HEADER, render_vars_header(m)), (BACKING, render_backing(m)))
+        want = ((VARS_HEADER, render_vars_header(m)), (PAGES_HEADER, render_pages_header(m)),
+                (BACKING, render_backing(m)))
         for path, text in want:
             rel = path.relative_to(ROOT).as_posix()
             if args.check:
@@ -911,8 +1256,11 @@ def main(argv=None):
         if not hits:
             print("%s: not in the map" % fmt_addr(a))
         for v, f in hits:
-            off = a - v.addr
+            base = max(b for b in v.bases() if b <= a)
+            off = a - base
             elem = " element %d" % (off // v.stride) if v.count > 1 else ""
+            if v.on_instances():
+                elem += " (page %s, D = $%04X)" % (v.page.name, (base & 0xFFFF) - v.dp)
             print("%s: %s%s%s (%s) -- %s [%s]" % (fmt_addr(a), v.name, "." + f.name if f else "",
                                                  elem, v.subsystem, f.meaning if f else v.meaning, v.source))
     return 0

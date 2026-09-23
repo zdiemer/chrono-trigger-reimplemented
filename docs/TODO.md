@@ -546,15 +546,6 @@ waits on M5 rather than on a backend.
 - **`tools/fuzz_routines.toml` has only the scene's entries.** Each subsystem's
   Phase 3a rewrite adds its own from its PORTING.md rows as it goes; a check
   that every registered entry has one would say when the file is complete.
-- **Cells on a page the caller chooses have no accessor.** The scene's math
-  helpers work on `$F0-$FF` of whichever page D is on (the scene's own, or a
-  sequence channel's), so `scene/scratch.c` maps a page and an offset onto two
-  byte-buffer accessors by hand, and the map's twelve `caller`-page variables
-  have no accessor at all (DISASSEMBLY.md, "The accessors"). A generated shape
-  that takes the page -- a record per page kind, or a page base in the handle --
-  would replace the hand mapping; the event engine's object pages and the
-  menus' `menu_record` page are the next to need it (RECOMP.md, "Phase 3a: the
-  scene subsystem off the machine").
 - **The scene sprite writers accept inputs they diverge on.** With the entry
   offset or the high-table pointer past `$2000`, the named sprite table writes
   bank `$7E` where the original, through a data bank of 0, reaches I/O space

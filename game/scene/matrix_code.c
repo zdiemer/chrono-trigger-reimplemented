@@ -90,12 +90,12 @@ static bool write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
     }
     hw_port_write(g, OP_RTS);
 
-    set_scene_scratch16(g, SCENE_OWN_PAGE, TABLE_OFFSET, o.table);
-    set_scene_scratch16(g, SCENE_OWN_PAGE, STEP_4_OFFSET, o.step4);
-    set_scene_scratch16(g, SCENE_OWN_PAGE, STEP_2_OFFSET, o.step2);
-    set_scene_scratch16(g, SCENE_OWN_PAGE, STEP_20_OFFSET, o.step20);
-    set_scene_scratch16(g, SCENE_OWN_PAGE, SOURCE_BASE, source);
-    set_scene_scratch16(g, SCENE_OWN_PAGE, DESTINATION, (uint16_t)((destination & 0x00FF) | page << 8));
+    set_scene_scratch16(g, scene_math_scene(), TABLE_OFFSET, o.table);
+    set_scene_scratch16(g, scene_math_scene(), STEP_4_OFFSET, o.step4);
+    set_scene_scratch16(g, scene_math_scene(), STEP_2_OFFSET, o.step2);
+    set_scene_scratch16(g, scene_math_scene(), STEP_20_OFFSET, o.step20);
+    set_scene_scratch16(g, scene_math_scene(), SOURCE_BASE, source);
+    set_scene_scratch16(g, scene_math_scene(), DESTINATION, (uint16_t)((destination & 0x00FF) | page << 8));
     return overflow;
 }
 

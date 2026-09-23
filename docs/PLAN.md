@@ -105,7 +105,9 @@ a process budget.
 
 Nothing lands without it, and it is the same gate for every phase:
 
-- every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines;
+- every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines
+  and no `page refused` lines (a guard that turned away a call on a direct
+  page the map declares no instance for; DISASSEMBLY.md, "The accessors");
 - `--native on --recomp only` traces identically to `--native off`;
 - every hand port's estimated time stays within the timing gate's limits over
   the shadow runs, or is on its exceptions list with a reason
@@ -217,8 +219,8 @@ that keeps them in emulated work RAM (docs/DISASSEMBLY.md, "The RAM map").
 subsystem off the machine"). What that added for the subsystems after it:
 `game/cpu_io.h` for the multiplier, divider and work RAM port;
 `game/rom.h` for the `*_data.h` accessors; the page guards in
-`runtime/port/machine.h`; `scene/scratch.c`'s shape for cells on a page the
-caller chooses, which the map has no accessor for; and
+`runtime/port/machine.h`; page kinds in the map, for cells on a page the
+caller chooses (below); and
 `tools/fuzz_compare.py`, which fuzzes a rewrite and the port it replaces side by
 side from constraints kept in `tools/fuzz_routines.toml`, where each subsystem
 adds its entries. The rewrite's first step is the largest don't-care set
@@ -235,18 +237,18 @@ holds every other file where it is, so the list only shrinks. Order: `event`
 and `field` next, then `menu`, then `battle`, whose 7.8K lines are the largest
 and whose bank is also the least converted.
 
-**Before `event`: a generated accessor for cells on the caller's page.** Scene
-found that some routines work on whichever direct page their caller is on --
-5412 of the race's 19842 multiplies run on a sequence channel's page, not the
-scene's -- and the accessors have no shape for that, so `scene/scratch.c` maps a
-page and an offset by hand, and a guard that assumed one page refused those
-calls silently. The event engine's object pages and the menus' `menu_record`
-page are made of exactly such cells, so without it event would hand-write more
-of the same. It is to `event` what step 0 was to scene: the thing the rewrite
-calls, which has to exist first. `tools/ram_map.py accessors` grows a shape that
-takes the page (a record per page kind, or a page base in the handle), the
-twelve `caller`-page variables get accessors, and `scene/scratch.c` moves onto
-it (TODO.md, "Cells on a page the caller chooses have no accessor").
+**Cells on a page the caller chooses** have a generated shape: a page kind in
+`re/ram.toml` lists the pages its code runs on, as measured over the library
+(`ct_dev --page-report`), and its variables' accessors take which of them a
+port means, never a D (DISASSEMBLY.md, "The accessors"; RECOMP.md, "Page
+kinds"). It covers the three sets of such cells the map knew: scene's math
+scratch, its own page or a sequence channel's, which `scene/scratch.c` now
+reaches through it; the menus' `menu_record` page, for `menu`'s rewrite of
+`objects.c`; and the controller input cells, which measurement put on one page,
+D = `$0000`, so they are ordinary accessors for `core/input.c` and whatever
+reads them. That leaves `event` nothing to wait for: the event engine and its
+objects run on the fixed field page (`$0100`), which ordinary accessors already
+cover, and its input conditions (`event/input.c`) read the input cells.
 
 A rewrite that hits something the accessors can't say is a finding to report,
 not something to work around: a buffer the game locates at run time reaches

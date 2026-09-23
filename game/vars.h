@@ -14,6 +14,12 @@
  * elements an array has, and how many bytes such a buffer has, are named too,
  * so that a port that walks one need not know a number.
  *
+ * Some cells are on a direct page the caller chooses: the same offsets on more
+ * than one page (a page kind). Their accessors take which instance of the page
+ * the port means -- a named one, an element of an array of pages, or either --
+ * never a D or an offset. The handle types come first; an entry wrapper finds
+ * the instance its caller's D is with <page>_page_of (runtime/port/vars_pages.h).
+ *
  * game/ram.h names the same variables as addresses, for generated code and the
  * ports not converted yet. */
 #ifndef CT_GAME_VARS_H
@@ -23,7 +29,59 @@
 
 #include "state.h"
 
+/* ---- page kind menu_record ----------------------------------------------------------------- */
+
+/* A menu record's own page: the $40-byte records the task at $C2:F657 runs with the direct page
+ * on each, drawing their sprites. The instances: record. */
+enum { MENU_RECORD_COUNT = 8 };   /* by record */
+
+/* ---- page kind scene_math ------------------------------------------------------------------ */
+
+/* The page the scene's multiply and divide helpers keep their operands and results on: their
+ * caller's. The instances: scene; channel. */
+typedef enum { SCENE_MATH_SCENE, SCENE_MATH_CHANNEL } SceneMathPageKind;
+typedef struct {
+    SceneMathPageKind kind;
+    uint8_t index;   /* which one, for channel */
+} SceneMathPage;
+enum { SCENE_MATH_CHANNEL_COUNT = 2 };
+static inline SceneMathPage scene_math_scene(void) { return (SceneMathPage){ SCENE_MATH_SCENE, 0 }; }
+static inline SceneMathPage scene_math_channel(unsigned channel) { return (SceneMathPage){ SCENE_MATH_CHANNEL, (uint8_t)channel }; }
+
 /* ---- core ---------------------------------------------------------------------------------- */
+
+/* Buttons newly pressed this frame, in the game's order (A X L R B Y Select Start in the low
+ * byte, the direction pad in the high byte) */
+uint16_t input_pressed(const GameState *g);
+void set_input_pressed(GameState *g, uint16_t v);
+
+/* Buttons held this frame, in the game's order (A X L R B Y Select Start in the low byte, the
+ * direction pad in the high byte) */
+uint16_t input_held(const GameState *g);
+void set_input_held(GameState *g, uint16_t v);
+
+/* Buttons newly pressed, plus held ones repeating each time the repeat countdown runs out */
+uint16_t input_repeat(const GameState *g);
+void set_input_repeat(GameState *g, uint16_t v);
+
+enum { INPUT_MAPPED_COUNT = 3 };   /* by new, held, repeating (the words at $F0, $F2 and $F4 remapped) */
+/* The new, held and repeating buttons remapped through the player's button assignments: each bit
+ * of the low byte set when all the buttons of one assignment are down, the direction pad copied
+ * as is */
+uint16_t input_mapped(const GameState *g, unsigned i);
+void set_input_mapped(GameState *g, unsigned i, uint16_t v);
+
+/* Frames between repeats of a held button, reloaded into the countdown */
+uint8_t input_repeat_delay(const GameState *g);
+void set_input_repeat_delay(GameState *g, uint8_t v);
+
+/* Frames until held buttons next repeat into the repeating word */
+uint8_t input_repeat_countdown(const GameState *g);
+void set_input_repeat_countdown(GameState *g, uint8_t v);
+
+/* The held buttons of the previous frame, to find the newly pressed ones */
+uint16_t input_previous(const GameState *g);
+void set_input_previous(GameState *g, uint16_t v);
 
 /* 16-bit value whose low 9 bits are the location number */
 uint16_t location_id(const GameState *g);
@@ -1680,23 +1738,6 @@ enum { MENU_GATE_SCREEN_STATE_COUNT = 13 };   /* by byte; the first two are clea
 uint8_t menu_gate_screen_state(const GameState *g, unsigned i);
 void set_menu_gate_screen_state(GameState *g, unsigned i, uint8_t v);
 
-enum { MENU_RECORDS_COUNT = 8 };   /* by record (the direct page walks $1800-$19C0) */
-/* Low nibble: how many sprites the record draws */
-uint8_t menu_records_sprite_count(const GameState *g, unsigned i);
-void set_menu_records_sprite_count(GameState *g, unsigned i, uint8_t v);
-/* Y position */
-uint8_t menu_records_y(const GameState *g, unsigned i);
-void set_menu_records_y(GameState *g, unsigned i, uint8_t v);
-/* X position */
-uint16_t menu_records_x(const GameState *g, unsigned i);
-void set_menu_records_x(GameState *g, unsigned i, uint16_t v);
-/* Tile and attributes of the first sprite; each next sprite's tile is 2 more */
-uint16_t menu_records_tile(const GameState *g, unsigned i);
-void set_menu_records_tile(GameState *g, unsigned i, uint16_t v);
-/* The first sprite's (X, Y) offset pair; the other sprites' pairs follow */
-uint16_t menu_records_sprite_offsets(const GameState *g, unsigned i);
-void set_menu_records_sprite_offsets(GameState *g, unsigned i, uint16_t v);
-
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 uint8_t menu_random_index(const GameState *g);
 void set_menu_random_index(GameState *g, uint8_t v);
@@ -1989,6 +2030,26 @@ enum { MENU_GATE_TILES_COUNT = 2048 };   /* by byte */
 /* The time dial's tile graphics, decompressed here and sent to VRAM $6400 */
 uint8_t menu_gate_tiles(const GameState *g, unsigned i);
 void set_menu_gate_tiles(GameState *g, unsigned i, uint8_t v);
+
+/* Low nibble: how many sprites the record draws */
+uint8_t menu_record_sprite_count(const GameState *g, unsigned record);
+void set_menu_record_sprite_count(GameState *g, unsigned record, uint8_t v);
+
+/* The record's Y position */
+uint8_t menu_record_y(const GameState *g, unsigned record);
+void set_menu_record_y(GameState *g, unsigned record, uint8_t v);
+
+/* The record's X position */
+uint16_t menu_record_x(const GameState *g, unsigned record);
+void set_menu_record_x(GameState *g, unsigned record, uint16_t v);
+
+/* Tile and attributes of the record's first sprite; each next sprite's tile is 2 more */
+uint16_t menu_record_tile(const GameState *g, unsigned record);
+void set_menu_record_tile(GameState *g, unsigned record, uint16_t v);
+
+/* The first sprite's (X, Y) offset from the record's position; the other sprites' pairs follow */
+uint16_t menu_record_sprite_offsets(const GameState *g, unsigned record);
+void set_menu_record_sprite_offsets(GameState *g, unsigned record, uint16_t v);
 
 /* ---- menu_object --------------------------------------------------------------------------- */
 
@@ -4233,17 +4294,6 @@ void set_scene_race_tilemap_a_ready(GameState *g, uint8_t v);
 uint8_t scene_race_tilemap_b_ready(const GameState *g);
 void set_scene_race_tilemap_b_ready(GameState *g, uint8_t v);
 
-/* Operands and results of the scene's multiply and divide helpers, on whichever page the caller
- * has (also each sequence channel's, scene_channels.math_scratch, with D on the channel): two
- * operand words at $F0 and $F2 (multiplicand and multiplier, the 8.8 divide's dividend and
- * divisor, the 32-bit dividend), a 32-bit product or divisor at $F4, and the 32-bit quotient and
- * remainder at $F8 and $FC. The matrix code generator keeps its offsets here, the program's own
- * transfer its channel's mode and destination, and the sequence scripts' code call its routine's
- * address [16 bytes, one at a time] */
-enum { SCENE_MATH_SCRATCH_BYTES = 16 };
-uint8_t scene_math_scratch_byte(const GameState *g, unsigned at);
-void set_scene_math_scratch_byte(GameState *g, unsigned at, uint8_t v);
-
 /* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
  * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair */
 uint16_t scene_circle_center_x(const GameState *g);
@@ -4372,11 +4422,6 @@ void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsig
 /* Where the script's call command ($A3) returns to */
 uint16_t scene_channels_return_address(const GameState *g, unsigned channel);
 void set_scene_channels_return_address(GameState *g, unsigned channel, uint16_t v);
-/* The multiply and divide helpers' cells when called with D on the channel [16 bytes, one at a
- * time] */
-enum { SCENE_CHANNELS_MATH_SCRATCH_BYTES = 16 };
-uint8_t scene_channels_math_scratch_byte(const GameState *g, unsigned channel, unsigned at);
-void set_scene_channels_math_scratch_byte(GameState *g, unsigned channel, unsigned at, uint8_t v);
 
 /* Tilemap the scene builds in work RAM for vblank: $80 bytes of it go to VRAM $7000 each frame,
  * and in the race all $800 to whichever half of the plane tilemap is ready; its words at
@@ -4437,5 +4482,16 @@ void set_scene_race_scaler_output_byte(GameState *g, unsigned at, uint8_t v);
 enum { SCENE_RACE_PLANE_MAP_BYTES = 8192 };
 uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at);
 void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v);
+
+/* Operands and results of the scene's multiply and divide helpers, on whichever page the caller
+ * has, the scene's own or a sequence channel's: two operand words at $F0 and $F2 (multiplicand
+ * and multiplier, the 8.8 divide's dividend and divisor, the 32-bit dividend), a 32-bit product
+ * or divisor at $F4, and the 32-bit quotient and remainder at $F8 and $FC. The matrix code
+ * generator keeps its offsets here, the program's own transfer its channel's mode and
+ * destination, and the sequence scripts' code call its routine's address [16 bytes, one at a
+ * time] */
+enum { SCENE_MATH_SCRATCH_BYTES = 16 };
+uint8_t scene_math_scratch_byte(const GameState *g, SceneMathPage page, unsigned at);
+void set_scene_math_scratch_byte(GameState *g, SceneMathPage page, unsigned at, uint8_t v);
 
 #endif

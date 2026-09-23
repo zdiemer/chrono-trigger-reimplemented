@@ -151,7 +151,9 @@ class RamNamer:
     def name(self, a: int, dp: int | None = None) -> str | None:
         """The name of work RAM address a; for a direct-page access (`dp` the
         D it was made with), only from a variable on a page with that D."""
-        hits = [(v, f) for v, f in self.map.lookup(a, self.subsystem) if self.allowed(v)]
+        # a variable on a page kind has no address to name it by here (its
+        # accessors take the instance; dp_name gives its offset)
+        hits = [(v, f) for v, f in self.map.lookup(a, self.subsystem) if self.allowed(v) and v.addr is not None]
         if dp is not None:
             # a page's cells are scratch as much as variables: code on its own
             # subsystem's page takes what the map puts there (the sharing

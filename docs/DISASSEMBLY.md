@@ -202,7 +202,7 @@ goes in it. The schema is at the top of the file:
 
 | Entry | Fields | Meaning |
 |---|---|---|
-| `[[page]]` | `name`, [`d`], `subsystem`, `meaning`, `source`, [`why`] | a direct page: D while that code runs, or no `d` and a `why` when D isn't known statically |
+| `[[page]]` | `name`, `d` or `instances`, `subsystem`, `meaning`, `source`, [`why`] | a direct page: D while that code runs; or a page kind, whose code runs on more than one page, with a `why` and the `instances` it runs on |
 | `[[var]]` | `name`, `addr` or `dp`, [`size`], [`count`, `stride`, `index`], [`page`], `subsystem`, `meaning`, `source` | a variable, an array (`count` elements `stride` bytes apart, selected by `index`), or with `[[var.field]]`s (`name`, `offset`, [`size`], `meaning`) an array of records |
 | `[[image]]` | `name`, `start`, `end`, `subsystem` (a list), `meaning`, `source` | work RAM holding a program the game runs from there (the attract program at `$7E:3000`): routines, named by their origin like ROM code, and left out of the count |
 | `[[not_ram]]` | `file`, `values`, `why` | literals in one `game/` file that look like work RAM and aren't (SPC700 addresses, program counters, VRAM word addresses, counts), for the count only |
@@ -232,12 +232,39 @@ logged over the whole movie library, agree with the constant `TCD` and
 `PEA`/`PLD` sites listed in each page's `source` (field and events `$0100`;
 battle, menus and scenes `$0000`; `$1D00` scratch pages in field and battle;
 the menus' `$0D00` and `$0200`; the sound driver's `$1E00`; the decompressor's
-`$0300`). Two pages have no D, and the map says so rather than choose one:
-`caller`, the controller reader's cells, which run on whichever page the caller
-set (five different ones are measured), and `menu_record`, where the menus
-point D at the `$40`-byte record being drawn. Variables on those pages have an
-offset (`dp`) and no address. The I/O pages (`$2100`, `$4200`, `$4300`) are
-registers, which the platform services own, and aren't in the map.
+`$0300`; the controller reader's `$0000`). The I/O pages (`$2100`, `$4200`,
+`$4300`) are registers, which the platform services own, and aren't in the map.
+
+**Page kinds.** Some code has no page of its own: it works on the same offsets
+of whichever page its caller has, or D walks a table. Such a page is a page
+kind, and the map lists its `instances`, each a named page (`{ name, d }`) or
+an array of pages (`{ name, base, count, stride }`):
+
+```toml
+[[page]]
+name = "scene_math"
+...
+instances = [
+  { name = "scene", d = 0x0000 },
+  { name = "channel", base = 0x0A00, count = 2, stride = 0x100 },
+]
+```
+
+The instances come from evidence, not inference. `ct_dev --page-report` prints,
+under each hand port in the native report, the D values its calls were made with
+and how many of each; `tools/suite.py` passes it, so every gate run's shadow
+logs hold the measurement, and a page kind declares exactly the D values those
+show, plus any the code proves (a table's length), with its `source` saying
+which. An instance is named for where its cells are, not for the code that uses
+it: two modes on one D share one set of bytes, so the map rejects two instances
+at one D, and a kind with a single named instance is just a fixed page. Two
+page kinds are in the map: `scene_math`, the scene's multiply and divide
+helpers' cells, on the scene's own page or a sequence channel's; and
+`menu_record`, the eight `$40`-byte records at `$1800` the menus point D at to
+draw each. Variables on a page kind have an offset (`dp`) and no address. The
+controller reader's cells were thought to be a third, since the reader is
+entered with eight different D's; it sets D = `$0000` itself, and the measurement
+agrees (RECOMP.md, "Page kinds"), so they are on the fixed page `input`.
 
 **The header.** `python3 tools/ram_map.py header` writes `game/ram.h`, which
 ports include (`#include "ram.h"`):
@@ -277,9 +304,39 @@ never a byte offset, and a named `_COUNT` beside it; each `[[var.field]]` of a
 record is its own pair, indexed the same way; and a variable wider than four
 bytes has no one C value, so it gets `<name>_byte(g, at)` and a `_BYTES`
 constant. Each variable's `meaning` is carried through as the comment above its
-pair, which is most of what makes a call site readable. The twelve variables on
-a page whose D isn't known statically have no address, so they have no
-accessor; they wait for a shape that takes the page base from the caller.
+pair, which is most of what makes a call site readable.
+
+A variable on a page kind takes, before anything else, which instance of the
+page the port means, and nothing says where that is. The handle's type follows
+the instances: an enum where they are all named, an index where they are one
+array, and where they mix, a `{kind, index}` pair with a function that makes
+each:
+
+```c
+enum { MENU_RECORD_COUNT = 8 };   /* by record */
+uint8_t menu_record_y(const GameState *g, unsigned record);
+
+typedef enum { SCENE_MATH_SCENE, SCENE_MATH_CHANNEL } SceneMathPageKind;
+typedef struct {
+    SceneMathPageKind kind;
+    uint8_t index;   /* which one, for channel */
+} SceneMathPage;
+enum { SCENE_MATH_CHANNEL_COUNT = 2 };
+static inline SceneMathPage scene_math_scene(void) { ... }
+static inline SceneMathPage scene_math_channel(unsigned channel) { ... }
+uint8_t scene_math_scratch_byte(const GameState *g, SceneMathPage page, unsigned at);
+```
+
+Only an entry wrapper knows the caller's D, so turning it into the handle is
+the backing's: `runtime/port/vars_pages.h`, generated with the rest, has a
+`<page>_page_of(d, &handle)` per page kind, which `vars_ram.h` includes for the
+wrappers. It returns false for a D that is no declared instance, which is what a
+guard refuses, and counts it: `ct_dev` prints a `page refused: <page> <count>
+(last D $XXXX)` line for each kind that refused any, and `tools/suite.py` fails
+a movie that prints one. A guard that assumed one page once turned away 5412 of
+the jet bike race's multiplies with nothing to show for it but a drop in a
+shadow count (RECOMP.md, "Phase 3a: the scene subsystem off the machine"); the
+refusal is now a line in the log, and a gate failure.
 
 **No layout reaches `game/`** -- no address, offset or stride -- and that is the
 point: a port written against the accessors keeps working when the storage
@@ -292,24 +349,24 @@ generated code touches that subsystem's state, and nothing in `game/` changes
 with it (docs/PLAN.md, "Phase 3a"). `game/ram.h` stays for generated code and
 the ports not converted yet.
 
-Both generated files are committed, for the reasons the header is, and
-`tests/test_ram_map.py` fails when either is out of date. What the map has no
+The generated files (`vars.h`, `vars_pages.h`, `vars_ram.c`) are committed, for
+the reasons the header is, and `tests/test_ram_map.py` fails when one is out of
+date; `tests/port/vars_test.c` checks on a machine with no ROM that the
+accessors reach the bytes the original does, each page kind's instances
+included, and that `<page>_page_of` maps and refuses as declared. What the map has no
 name for -- a buffer the game locates at run time, like the per-line window
 table `$C3:0077` draws into -- is reached through `game/wram.h`, which is an
 escape by address and so a finding: `grep -rn wram_ game/` is the list, and it
 is meant to empty.
 
-Three more seams, found by the first subsystem rewritten against the accessors
+Two more seams, found by the first subsystem rewritten against the accessors
 (`game/scene/`, RECOMP.md, "Phase 3a: the scene subsystem off the machine"),
 sit beside `vars.h` with the same backing arrangement, in
 `runtime/port/state_io.c`: `game/cpu_io.h`, the multiplier, divider and work RAM
 port as the game drives them (registers, not variables, but an operand or a
-cursor one routine leaves for the next is state all the same);
+cursor one routine leaves for the next is state all the same), and
 `game/rom.h`, the cartridge by address, which only the named resource
-accessors of the `*_data.h` headers call; and, for the twelve variables above
-and their kind, nothing generated yet -- `scene/scratch.c` maps a page and an
-offset onto the accessors of each page it knows, by hand (docs/TODO.md). A
-record the game indexes by a byte offset rather than an element number (the
+accessors of the `*_data.h` headers call. A record the game indexes by a byte offset rather than an element number (the
 OAM buffer, as the scene's sprite writers see it) gets a second, byte-buffer
 entry in the subsystem that uses it that way (`scene_sprite_table`), since an
 index parameter can't carry an odd offset.

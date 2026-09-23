@@ -21,10 +21,10 @@
 /* ---- Arithmetic -------------------------------------------------------------------------- */
 
 /* The page the caller has D on, which the guards have checked is one. */
-static ScenePage caller_page(const Snes *s)
+static SceneMathPage caller_page(const Snes *s)
 {
-    ScenePage page = SCENE_OWN_PAGE;
-    scene_page_of(m_direct_page(s), &page);
+    SceneMathPage page = scene_math_scene();
+    scene_math_page_of(m_direct_page(s), &page);
     return page;
 }
 
@@ -64,7 +64,7 @@ bool scene_divide_present(Snes *s)
  * rounds. The dividend is shifted left as it goes, taking in the bit each
  * round's quotient shift lets out (and the caller's carry in the first), and is
  * left that way. */
-static void divide(GameState *g, ScenePage page, bool carry)
+static void divide(GameState *g, SceneMathPage page, bool carry)
 {
     uint32_t dividend = scene_scratch32(g, page, SCRATCH_A);
     uint32_t divisor = scene_scratch32(g, page, SCRATCH_PRODUCT);
@@ -107,7 +107,7 @@ bool scene_divide_8_8_present(Snes *s)
  * subtraction uses with the carry the shift lets out, so a remainder whose top
  * bit was shifted out subtracts one less. Returns the last shift's carry,
  * which the caller reads. */
-static bool divide_8_8(GameState *g, ScenePage page, uint16_t dividend, bool carry)
+static bool divide_8_8(GameState *g, SceneMathPage page, uint16_t dividend, bool carry)
 {
     set_scene_scratch16(g, page, SCRATCH_A, dividend);
     uint16_t divisor = scene_scratch16(g, page, SCRATCH_B);
@@ -155,7 +155,7 @@ bool scene_multiply_present(Snes *s)
  * goes into the product's top byte by a 16-bit rotate, which also shifts the
  * byte after the product (the quotient cell's first) left, as the original
  * does, and its top bit becomes the carry into the next sum. */
-static void multiply(GameState *g, ScenePage page)
+static void multiply(GameState *g, SceneMathPage page)
 {
     uint16_t a = scene_scratch16(g, page, SCRATCH_A), b = scene_scratch16(g, page, SCRATCH_B);
     hw_set_multiplicand(g, (uint8_t)b);

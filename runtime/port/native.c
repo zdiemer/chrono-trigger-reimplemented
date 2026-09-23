@@ -279,6 +279,7 @@ struct NativeRuntime {
     PortTiming port_timing;
     bool port_horizon_interrupts;
     bool timing_report;
+    bool page_report;
     uint64_t step_master, prev_step_master;   /* SHADOW: master clock at the latest two steps */
     Snes *timing_copy;                        /* the machine as it was before a port ran, to put it back */
     uint64_t timing_copy_since;
@@ -288,6 +289,23 @@ struct NativeRuntime {
 
 void native_set_port_timing(NativeRuntime *rt, PortTiming timing) { rt->port_timing = timing; }
 void native_set_timing_report(NativeRuntime *rt, bool on) { rt->timing_report = on; }
+void native_set_page_report(NativeRuntime *rt, bool on) { rt->page_report = on; }
+
+/* A call of a hand port made with D = d (native_set_page_report). */
+static void count_page(NativeStats *st, uint16_t d)
+{
+    for (unsigned k = 0; k < st->page_nd; k++)
+        if (st->page_d[k] == d) {
+            st->page_calls[k]++;
+            return;
+        }
+    if (st->page_nd == NATIVE_PAGE_SLOTS) {
+        st->page_other++;
+        return;
+    }
+    st->page_d[st->page_nd] = d;
+    st->page_calls[st->page_nd++] = 1;
+}
 void native_set_port_horizon(NativeRuntime *rt, bool interrupts_only) { rt->port_horizon_interrupts = interrupts_only; }
 
 /* I/O accesses rc_io_sync saw that depend on or change the time (the timing
@@ -2034,6 +2052,8 @@ static int32_t intercept(void *ctx, Snes *s)
         }
 
         st->calls++;
+        if (rt->page_report)
+            count_page(st, s->cpu.d);
         if (!entry_applies(e, s)) {
             st->skipped++;
             continue;
@@ -2263,6 +2283,14 @@ void native_report(const NativeRuntime *rt, FILE *out)
         if (st->skipped)
             fprintf(out, "  skipped %u", st->skipped);
         fprintf(out, "\n");
+        if (rt->page_report && st->page_nd) {
+            fprintf(out, "    pages:");
+            for (unsigned k = 0; k < st->page_nd; k++)
+                fprintf(out, " $%04X x%u", st->page_d[k], st->page_calls[k]);
+            if (st->page_other)
+                fprintf(out, " other x%u", st->page_other);
+            fprintf(out, "\n");
+        }
         if (rt->timing_report && st->t_stretches) {
             double orig = (double)st->t_original_clocks;
             /* The calibrated cost_milli is the one for the port's own clocks:

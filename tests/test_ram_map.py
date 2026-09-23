@@ -1,8 +1,10 @@
-"""The RAM map (re/ram.toml) and the header generated from it (game/ram.h).
+"""The RAM map (re/ram.toml) and what is generated from it (game/ram.h,
+game/vars.h, runtime/port/vars_pages.h and runtime/port/vars_ram.c).
 
-The header is committed so that a build without a ROM has it; these tests fail
-when it is out of date with the map (regenerate with `python3 tools/ram_map.py
-header`), and check the map's own rules on synthetic maps.
+The generated files are committed so that a build without a ROM has them; these
+tests fail when they are out of date with the map (regenerate with `python3
+tools/ram_map.py header` and `accessors`), and check the map's own rules on
+synthetic maps.
 """
 import unittest
 
@@ -24,6 +26,34 @@ subsystem = "core"
 meaning = "m"
 source = "s"
 why = "w"
+instances = [{ name = "low", d = 0x0000 }, { name = "high", d = 0x1E00 }]
+"""
+
+# Page kinds of each shape: named instances only, one array, and a mix.
+KINDS = """
+[[page]]
+name = "input"
+subsystem = "core"
+meaning = "Controller cells"
+source = "s"
+why = "w"
+instances = [{ name = "low", d = 0x0000 }, { name = "sound", d = 0x1E00 }]
+
+[[page]]
+name = "record"
+subsystem = "menu"
+meaning = "A record's page"
+source = "s"
+why = "w"
+instances = [{ name = "slot", base = 0x1800, count = 8, stride = 0x40 }]
+
+[[page]]
+name = "math"
+subsystem = "scene"
+meaning = "The helpers' page"
+source = "s"
+why = "w"
+instances = [{ name = "own", d = 0x0000 }, { name = "channel", base = 0x0A00, count = 2, stride = 0x100 }]
 """
 
 
@@ -46,6 +76,7 @@ class TestCommittedMap(unittest.TestCase):
     def test_accessors_are_current(self):
         m = ram_map.RamMap()
         for path, text in ((ram_map.VARS_HEADER, ram_map.render_vars_header(m)),
+                           (ram_map.PAGES_HEADER, ram_map.render_pages_header(m)),
                            (ram_map.BACKING, ram_map.render_backing(m))):
             with self.subTest(file=path.name):
                 self.assertEqual(path.read_text(encoding="utf-8"), text,
@@ -95,6 +126,7 @@ class TestRules(unittest.TestCase):
         self.assertIn("#define RAM_PAD_DP 0xF2u", text)
         self.assertNotIn("#define RAM_PAD ", text)
         self.assertNotIn("RAM_PAGE_UNKNOWN ", text)
+        self.assertIn("low (D = $0000); high (D = $1E00)", text)
 
     def test_errors(self):
         bad = {
@@ -111,6 +143,7 @@ class TestRules(unittest.TestCase):
             "field outside the stride": var("x", 'addr = "7E:1000"\nstride = 4\n'
                                                  '[[var.field]]\nname = "f"\noffset = 3\nsize = 2\nmeaning = "m"'),
             "unknown key": var("x", 'addr = "7E:1000"\nwidth = 2'),
+            "past the end of a page kind": var("x", 'page = "unknown"\ndp = 0xFF\nsize = 2', "core"),
         }
         for why, text in bad.items():
             with self.subTest(why=why), self.assertRaises(ram_map.MapError):
@@ -176,16 +209,127 @@ class TestAccessors(unittest.TestCase):
             with self.subTest(line=line):
                 self.assertIn(line, c)
 
-    def test_variables_without_an_address_are_left_out(self):
-        """A page whose D isn't known statically has no address to back an accessor."""
+    def test_variables_on_a_page_kind_take_the_instance(self):
         m = self.load(var("held", 'page = "unknown"\ndp = 0xF2\nsize = 2', "core"))
-        self.assertNotIn("held(", ram_map.render_vars_header(m))
+        self.assertIn("uint16_t held(const GameState *g, UnknownPage page);", ram_map.render_vars_header(m))
 
     def test_a_generated_name_twice_is_an_error(self):
         """A record's field and a variable can spell the same accessor."""
         with self.assertRaises(ram_map.MapError):
             self.load(var("a_b", 'addr = "7E:1000"')
                       + var("a", 'addr = "7E:2000"\n[[var.field]]\nname = "b"\noffset = 0\nmeaning = "m"'))
+
+
+class TestPageKinds(unittest.TestCase):
+    """Cells on a page the caller chooses: the accessor takes which instance of
+    the page is meant, and only the backing knows where each instance is."""
+
+    def load(self, text=""):
+        return ram_map.RamMap(text=PAGES + KINDS + text)
+
+    VARS = (var("pressed", 'page = "input"\ndp = 0xF0\nsize = 2', "core")
+            + var("mapped", 'page = "input"\ndp = 0xF6\nsize = 2\ncount = 3\nindex = "new, held, repeating"', "core")
+            + var("record_y", 'page = "record"\ndp = 0x0E', "menu")
+            + var("scratch", 'page = "math"\ndp = 0xF0\nsize = 16', "scene"))
+
+    def test_handles(self):
+        h = ram_map.render_vars_header(self.load(self.VARS))
+        for line in ("typedef enum { INPUT_LOW, INPUT_SOUND } InputPage;",
+                     "enum { RECORD_COUNT = 8 };   /* by slot */",
+                     "typedef enum { MATH_OWN, MATH_CHANNEL } MathPageKind;",
+                     "} MathPage;",
+                     "enum { MATH_CHANNEL_COUNT = 2 };",
+                     "static inline MathPage math_own(void) { return (MathPage){ MATH_OWN, 0 }; }",
+                     "static inline MathPage math_channel(unsigned channel)"
+                     " { return (MathPage){ MATH_CHANNEL, (uint8_t)channel }; }"):
+            with self.subTest(line=line):
+                self.assertIn(line, h)
+
+    def test_accessors_take_the_instance(self):
+        h = ram_map.render_vars_header(self.load(self.VARS))
+        for line in ("uint16_t pressed(const GameState *g, InputPage page);",
+                     "void set_pressed(GameState *g, InputPage page, uint16_t v);",
+                     "uint16_t mapped(const GameState *g, InputPage page, unsigned i);",
+                     "uint8_t record_y(const GameState *g, unsigned slot);",
+                     "void set_record_y(GameState *g, unsigned slot, uint8_t v);",
+                     "uint8_t scratch_byte(const GameState *g, MathPage page, unsigned at);"):
+            with self.subTest(line=line):
+                self.assertIn(line, h)
+
+    def test_the_interface_has_no_d(self):
+        """Neither a D nor an offset reaches game/vars.h; the D -> instance
+        mapping is in the backing, for entry wrappers."""
+        h = ram_map.render_vars_header(self.load(self.VARS))
+        for layout in ("0x1E00", "0x1800", "0x0A00", "0x40", "0xF0", "_page_of("):
+            with self.subTest(layout=layout):
+                self.assertNotIn(layout, h)
+
+    def test_the_backing_reaches_each_instance(self):
+        c = ram_map.render_backing(self.load(self.VARS))
+        for line in ("    case INPUT_SOUND:\n        return 0x7E1E00u;",
+                     "static uint32_t record_page_base(unsigned slot) { return 0x7E1800u + (uint32_t)slot * 0x40u; }",
+                     "    case MATH_CHANNEL:\n        return 0x7E0A00u + (uint32_t)page.index * 0x100u;",
+                     "uint16_t pressed(const GameState *g, InputPage page) { return r16(g, input_page_base(page) + 0xF0u); }",
+                     "uint16_t mapped(const GameState *g, InputPage page, unsigned i)"
+                     " { return r16(g, input_page_base(page) + 0xF6u + (uint32_t)i * 0x02u); }",
+                     "uint8_t record_y(const GameState *g, unsigned slot) { return r8(g, record_page_base(slot) + 0x0Eu); }",
+                     "uint8_t scratch_byte(const GameState *g, MathPage page, unsigned at)"
+                     " { return r8(g, math_page_base(page) + 0xF0u + at); }"):
+            with self.subTest(line=line):
+                self.assertIn(line, c)
+
+    def test_the_mapping_from_d(self):
+        m = self.load(self.VARS)
+        h = ram_map.render_pages_header(m)
+        for line in ("bool input_page_of(uint16_t d, InputPage *page);",
+                     "bool record_page_of(uint16_t d, unsigned *slot);",
+                     "bool math_page_of(uint16_t d, MathPage *page);",
+                     "const VarsPageRefusals *vars_page_refusals(unsigned *count);"):
+            with self.subTest(line=line):
+                self.assertIn(line, h)
+        c = ram_map.render_backing(m)
+        for line in ("    if (d == 0x1E00u) {\n        *page = INPUT_SOUND;",
+                     "    if (d >= 0x1800u && d <= 0x19C0u && (unsigned)(d - 0x1800u) % 0x40u == 0) {\n"
+                     "        *slot = (unsigned)(d - 0x1800u) / 0x40u;",
+                     "        *page = (MathPage){ MATH_CHANNEL, (uint8_t)((unsigned)(d - 0x0A00u) / 0x100u) };",
+                     "    return refuse(2, d);"):
+            with self.subTest(line=line):
+                self.assertIn(line, c)
+
+    def test_lookup_finds_every_instance(self):
+        m = self.load(self.VARS)
+        for a in (0x7E00F4, 0x7E0AF4, 0x7E0BF4):
+            with self.subTest(addr=hex(a)):
+                self.assertEqual([v.name for v, _ in m.lookup(a, "scene")][0], "scratch")
+        self.assertEqual(m.lookup(0x7E18CE)[0][0].name, "record_y")   # slot 3
+        self.assertFalse(m.lookup(0x7E0CF4, "scene"))
+
+    def test_errors(self):
+        page = '\n[[page]]\nname = "p"\nsubsystem = "core"\nmeaning = "m"\nsource = "s"\n%s\n'
+        bad = {
+            "no instances without d": page % 'why = "w"',
+            "one named instance is a fixed page": page % 'why = "w"\ninstances = [{ name = "a", d = 0 }]',
+            "instances with a fixed d": page % 'd = 0\ninstances = [{ name = "a", d = 0 }]',
+            "one D twice": page % ('why = "w"\ninstances = [{ name = "a", d = 0x0B00 },'
+                                   ' { name = "b", base = 0x0A00, count = 2, stride = 0x100 }]'),
+            "an instance twice": page % 'why = "w"\ninstances = [{ name = "a", d = 0 }, { name = "a", d = 0x100 }]',
+            "neither d nor an array": page % 'why = "w"\ninstances = [{ name = "a", base = 0 }]',
+            "past work RAM": page % 'why = "w"\ninstances = [{ name = "a", base = 0x1E00, count = 3, stride = 0x100 }]',
+            "a page kind's cells on a record's field":
+                var("rec", 'addr = "7E:1800"\nstride = 0x40\ncount = 8\nindex = "slot"\n'
+                           '[[var.field]]\nname = "y"\noffset = 0x0E\nmeaning = "m"', "menu")
+                + var("record_y", 'page = "record"\ndp = 0x0E', "menu"),
+        }
+        for why, text in bad.items():
+            with self.subTest(why=why), self.assertRaises(ram_map.MapError):
+                self.load(text)
+
+    def test_a_page_kind_may_name_a_records_unnamed_bytes(self):
+        """A channel's page is its record: the record's fields and the page
+        kind's cells split it between them."""
+        self.load(var("channels", 'addr = "7E:0A00"\nstride = 0x100\ncount = 2\nindex = "channel"\n'
+                                  '[[var.field]]\nname = "script"\noffset = 0x20\nsize = 2\nmeaning = "m"', "scene")
+                  + var("scratch", 'page = "math"\ndp = 0xF0\nsize = 16', "scene"))
 
 
 class TestScan(unittest.TestCase):

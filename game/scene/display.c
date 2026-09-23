@@ -307,8 +307,8 @@ static void transfer(const GameState *g, Platform *pf)
         VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,   VID_STEP_START,
         VID_STEP_END,
     };
-    uint8_t control = scene_scratch8(g, SCENE_OWN_PAGE, SCRATCH_A);
-    uint8_t dest = scene_scratch8(g, SCENE_OWN_PAGE, SCRATCH_B);
+    uint8_t control = scene_scratch8(g, scene_math_scene(), SCRATCH_A);
+    uint8_t dest = scene_scratch8(g, scene_math_scene(), SCRATCH_B);
     const VidSnesXfer x = { SCENE_DMA, control, steps, NULL };
     const VidSnesTransfer t = { .dest = dest, .source = decompress_dest(g), .size = decompress_length(g) };
     vid_snes_transfer(pf, PF_AT(0x7E38EA), &t, &x);

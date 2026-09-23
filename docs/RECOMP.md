@@ -705,7 +705,7 @@ What was kept is the measurement, off by default:
 | `runtime/port/native.c` | Shadow mode's timing counters for every hand-port entry; `PORT_TIMING_ORACLE` in `on` mode |
 | `runtime/port/native.h` | The counters (`NativeStats.t_*`), `native_set_port_timing`, `native_set_port_horizon`, `native_set_timing_report` |
 | `runtime/snes/system.c` | `snes_interrupt_horizon`, `snes_span_bound` (the oracle's interrupt horizon) |
-| `dev/ct_dev.c` | `--include PREFIX`, `--timing-report`, `--port-timing estimate\|oracle`, `--port-horizon strict\|interrupts` |
+| `dev/ct_dev.c` | `--include PREFIX`, `--timing-report`, `--port-timing estimate\|oracle`, `--port-horizon strict\|interrupts`; later `--page-report` ("Page kinds", below) |
 
 `--timing-report` adds per hand-port entry, in shadow mode, over the stretches
 (calls, or parts of calls between call-outs) no interrupt fell in: how many,
@@ -1840,8 +1840,8 @@ the instructions again, into values.
    `re/ram.toml` puts on a page with that D (step 7), or else a plain scratch
    name; when D isn't known the
    access stays `m_dp(s, offset)` with a note in the header, and `--page NAME`
-   names the offsets of a page with no fixed D (`caller`, `menu_record`)
-   through their `_DP` macros. `--d`/`--db` give values by hand. A draft that
+   names the offsets of a page kind, whose D is not fixed (`scene_math`,
+   `menu_record`), through their `_DP` macros. `--d`/`--db` give values by hand. A draft that
    assumed its callers' D or DB registers with a guard on them, so a caller
    the analysis missed falls back to the original instead of reading the
    wrong page.
@@ -3254,7 +3254,8 @@ A's high byte and the M flag; the eight race stops leave nothing.
   The first guard written for these (`D = 0`) turned those 5412 calls away,
   which is how it was found: a guard's refusals show only as a drop in the
   entry's shadow count, so every rewritten entry's count was compared with the
-  predecessor's, movie by movie.
+  predecessor's, movie by movie. The map has that shape now, and the hand
+  mapping is gone ("Page kinds", below).
 - *The multiplier, divider and work RAM port.* These are CPU registers, not a
   platform service (PLATFORM.md, "Not services"), and not variables either;
   `game/cpu_io.h` names them as the game drives them (`hw_set_multiplicand`,
@@ -3351,6 +3352,103 @@ its limit through the data bank; in one iteration's run of the race movie one
 call came with a data bank that doesn't reach low RAM, where that cell isn't
 the scene's, and its guard left it to the original (the suite's runs, and the
 predecessor's, had none).
+
+### Page kinds: cells on a page the caller chooses
+
+The accessor shape scene's rewrite found missing, built before `event`'s
+(PLAN.md, "Phase 3a"). A page in `re/ram.toml` either has a fixed `d` or, as a
+page kind, lists the `instances` its code runs on -- named pages, arrays of
+pages, or both -- and the variables on it take which instance a port means
+(DISASSEMBLY.md, "The accessors"). `tools/ram_map.py accessors` writes the
+handle types into `game/vars.h`, the per-instance addresses into
+`runtime/port/vars_ram.c`, and `runtime/port/vars_pages.h`, a
+`<page>_page_of(d, &handle)` per kind for the entry wrappers, which refuses a D
+that is no declared instance and counts it.
+
+**The measurement.** `ct_dev --page-report` counts, per hand port, the D each
+call was made with, before the guard; `tools/suite.py` passes it, so every gate
+run's shadow logs hold the evidence. Over the 26 movies:
+
+| Page | Routine | D at entry (calls) |
+|---|---|---|
+| `scene_math` | `scene_multiply` `$7E:31BF` | `$0000` 146235, `$0A00` 23842, `$0B00` 1920 |
+| | `scene_divide` `$7E:339F` | `$0000` 20115 |
+| | `scene_divide_8_8` `$7E:32E2` | `$0000` 16225 |
+| | `scene_multiply_signed` `$C3:094C` | `$0000` 21120 |
+| | `scene_run_sequence` `$C3:0AFF` | `$0A00` 61680, `$0B00` 18316 |
+| | `scene_script_wait_sound_port2` `$C3:0C2A` | `$0A00` 5041, `$0B00` 102 |
+| `menu_record` | `menu_draw_record_sprites` `$C2:F871` | `$1800` 3744, `$1840` 3497, `$1880` 3545, `$18C0`-`$1980` 1868 each, `$19C0` 1259 |
+| (input) | `input_read_joypad` `$C2:84EC` | `$0000` 453397, `$0100` 195982, `$0D00` 35169, `$1E00` 1596, `$2100` 246, `$1D00` 173, `$0300` 102, `$0500` 1 |
+| | `input_map_buttons` `$C2:8545` | `$0000` 651497 |
+
+So `scene_math` is the scene's own page and the two channel pages, which is
+also every page the code allows (the attract program has two channels,
+`scene_channels`); `$0B00` is reached only in `endings-beyond-time` (multiplies
+and sequences) and the race (sequences). The divides and the signed
+multiply are only ever called on `$0000`, but their guards accept either
+channel, as the predecessor's did. `menu_record` is all eight records of the
+table at `$1800`, every one reached (all eight in `menus-end-of-time`).
+
+**The controller cells are one set of bytes.** The map had them on a `caller`
+page with no D, from `input_read_joypad`'s entries on five different pages.
+Measured, it is entered with eight -- and it sets D = `$0000` itself
+(`PEA #$0000 : PLD` at `$C2:84EC`), and `input_map_buttons`, which works on the
+caller's page, runs only from `input_update` after it, on `$0000` in all 651497
+calls. The event engine's input conditions read the same cells at `$00F2` and
+`$00F8` through the data bank. They are on the fixed page `input`, D =
+`$0000`, and their accessors are ordinary ones (`input_held(g)`); the menus'
+epoch screens and `core/input.c` keep `game/ram.h`'s form until their rewrites.
+
+**Scene's scratch on the generated shape.** `scene_math_scratch` is the
+`scene_math` kind's 16 bytes at `$F0`; `scene_channels` lost its `math_scratch`
+field, which named the same bytes on the channel pages. `scene/scratch.c` keeps
+only the widths the helpers use (8, 16 and 32 bits, byte by byte, low first, as
+before), and its hand mapping from D to a page -- `scene_page_of`, `ScenePage`
+and the dispatch between two accessors -- is deleted: the guards call
+`scene_math_page_of`, the sequence interpreter takes its channel from the
+handle's index, and the ports name the scene's own page `scene_math_scene()`
+and a channel's `scene_math_channel(ch)`. The per-entry shadow totals over the
+26 movies (calls, matched, mismatched, interrupted, skipped) are identical to
+`main`'s for every hand port, not only the scene's, and no run printed a `page
+refused` line. `tools/fuzz_compare.py`, predecessor against rewrite on seed 1,
+with channel-page variants added to `tools/fuzz_routines.toml` for the
+arithmetic and the interpreter and a variant on a page that is no instance:
+
+| Routine | States | Mismatched before | after |
+|---|--:|--:|--:|
+| `scene_multiply` | 20000 | 0 | 0 |
+| `scene_multiply` (channel, D = `$0B00`) | 20000 | 0 | 0 |
+| `scene_multiply` (other page, D = `$0A80`) | 20000 | all refused by the guard | all refused by the guard |
+| `scene_multiply_signed` | 20000 | 0 | 0 |
+| `scene_multiply_signed` (channel) | 20000 | 0 | 0 |
+| `scene_divide` | 20000 | 0 | 0 |
+| `scene_divide` (channel) | 20000 | 0 | 0 |
+| `scene_divide_8_8` | 20000 | 0 | 0 |
+| `scene_divide_8_8` (channel) | 20000 | 0 | 0 |
+| `scene_find_divisor` | 20000 | 0 | 0 |
+| `scene_write_matrix_code` | 20000 | 0 | 0 |
+| `scene_transfer` | 200 | 0 | 0 |
+| `scene_race_begin_tile_uploads` | 20000 | 0 | 0 |
+| `scene_run_sequence` | 20000 | 0 of 14061 compared | 0 of 14061 |
+| `scene_run_sequence` (channel 1) | 20000 | 0 of 14049 compared | 0 of 14049 |
+| `scene_script_wait_sound_port2` | 20000 | 0 | 0 |
+
+The accessors read and write the same bytes in the same order as the hand
+mapping did, so no `cost_milli` moved.
+
+**Refusals are visible.** Each `<page>_page_of` counts the D values it turns
+away; `ct_dev` prints `page refused: <page> <count> (last D $XXXX)` for a kind
+that refused any, and `tools/suite.py` fails a movie whose log has one. That is
+the check the scene rewrite did by hand, comparing every entry's shadow count
+with its predecessor's movie by movie, after a guard that assumed one page
+turned away 5412 of the race's multiplies. `tests/port/vars_test.c` checks the
+mapping and the accessors on a machine with no ROM.
+
+**What it unblocks.** `event`: the event engine and its objects are on the
+fixed field page (`$0100`), not a page kind, so the only cells it needed were
+the input conditions' (`event/input.c`), which now have accessors. `menu`: the
+record page, for `objects.c`'s record sprites (whose wrapper's
+`menu_record_page_of` gives the record). `core`: `input.c`'s reader and mapper.
 
 ## Risks
 

@@ -5,13 +5,16 @@
  * never dereferenced, in game/ or here, so `struct GameState` has no definition
  * and one machine is one state. A wrapper takes the `Snes *` the runtime calls
  * it with, turns it into a GameState and calls the port's logic, which is where
- * the machine stops.
+ * the machine stops. Where the routine's cells are on a page the caller
+ * chooses, the wrapper also turns the caller's D into the instance of that page
+ * kind the accessors take (port/vars_pages.h, generated with them).
  *
  * When the second backing arrives this header goes with it (docs/PLAN.md,
  * "Phase 3a"): game/ never includes it outside an entry wrapper. */
 #ifndef CT_PORT_VARS_RAM_H
 #define CT_PORT_VARS_RAM_H
 
+#include "port/vars_pages.h"
 #include "snes/system.h"
 #include "state.h"
 

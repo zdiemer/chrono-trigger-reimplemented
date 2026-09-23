@@ -274,8 +274,8 @@ void scene_race_set_vram_0000_again(Snes *s) { set_vram_address(s, 0x0000, 0x7E3
 static void begin_tile_uploads(GameState *g, Platform *pf)
 {
     vid_begin_vram_uploads(pf, PF_AT(0x7E3E03), &word_port, PF_GAME(0), NULL);
-    set_scene_scratch8(g, SCENE_OWN_PAGE, SCRATCH_A, DMA_WORDS);
-    set_scene_scratch8(g, SCENE_OWN_PAGE, SCRATCH_B, VRAM_DATA);
+    set_scene_scratch8(g, scene_math_scene(), SCRATCH_A, DMA_WORDS);
+    set_scene_scratch8(g, scene_math_scene(), SCRATCH_B, VRAM_DATA);
 }
 
 void scene_race_begin_tile_uploads(Snes *s)

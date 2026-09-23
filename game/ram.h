@@ -19,6 +19,9 @@
 
 /* battle: Battle mode's direct page (with the data bank at $7E) */
 #define RAM_PAGE_BATTLE 0x0000u
+/* input: The controller reader's direct page: it sets D = $0000 itself, whatever page its caller
+ * has */
+#define RAM_PAGE_INPUT 0x0000u
 /* menu: Menu mode's direct page */
 #define RAM_PAGE_MENU 0x0000u
 /* scene: The scene engine's and scene program's direct page */
@@ -41,17 +44,49 @@
 #define RAM_PAGE_FIELD_LAYERS 0x1D00u
 /* sound: The sound driver interface's direct page */
 #define RAM_PAGE_SOUND 0x1E00u
-/* caller: The controller reader's cells, on whichever page its caller set */
-/* D is not known statically: the routine has no page of its own: each mode keeps its own copy of
- * these cells on its own page, so an offset has a meaning but not an address */
-/* (no RAM_PAGE_CALLER: variables in it have offsets only) */
-/* menu_record: A menu record's own page: D points at the record ($1800, $1840, ... $1980) */
-/* D is not known statically: D walks a table of $40-byte records, so an offset names a field of
- * whichever record is current; the records themselves are the array at $7E:1800 */
+/* menu_record: A menu record's own page: the $40-byte records the task at $C2:F657 runs with the
+ * direct page on each, drawing their sprites */
+/* D is not fixed: D walks a table of records, so an offset names a field of whichever record is
+ * current. Instances: record 0-7 (D = $1800 + $40 each) */
 /* (no RAM_PAGE_MENU_RECORD: variables in it have offsets only) */
+/* scene_math: The page the scene's multiply and divide helpers keep their operands and results
+ * on: their caller's */
+/* D is not fixed: the helpers have no page of their own: they work on the cells of whichever
+ * page they are called on, the scene's own, or a sequence channel's (its record in
+ * scene_channels) when a channel's script calls a routine of the program. Instances: scene (D =
+ * $0000); channel 0-1 (D = $0A00 + $100 each) */
+/* (no RAM_PAGE_SCENE_MATH: variables in it have offsets only) */
 
 /* ---- core ---------------------------------------------------------------------------------- */
 
+/* Buttons newly pressed this frame, in the game's order (A X L R B Y Select Start in the low
+ * byte, the direction pad in the high byte) [2 bytes] */
+#define RAM_INPUT_PRESSED 0x7E00F0u
+#define RAM_INPUT_PRESSED_DP 0xF0u           /* page input */
+/* Buttons held this frame, in the game's order (A X L R B Y Select Start in the low byte, the
+ * direction pad in the high byte) [2 bytes] */
+#define RAM_INPUT_HELD 0x7E00F2u
+#define RAM_INPUT_HELD_DP 0xF2u              /* page input */
+/* Buttons newly pressed, plus held ones repeating each time the repeat countdown runs out [2
+ * bytes] */
+#define RAM_INPUT_REPEAT 0x7E00F4u
+#define RAM_INPUT_REPEAT_DP 0xF4u            /* page input */
+/* The new, held and repeating buttons remapped through the player's button assignments: each bit
+ * of the low byte set when all the buttons of one assignment are down, the direction pad copied
+ * as is [3 x $2 bytes, by new, held, repeating (the words at $F0, $F2 and $F4 remapped)] */
+#define RAM_INPUT_MAPPED 0x7E00F6u
+#define RAM_INPUT_MAPPED_COUNT 3u
+#define RAM_INPUT_MAPPED_STRIDE 0x02u
+#define RAM_INPUT_MAPPED_DP 0xF6u            /* page input */
+/* Frames between repeats of a held button, reloaded into the countdown */
+#define RAM_INPUT_REPEAT_DELAY 0x7E00FCu
+#define RAM_INPUT_REPEAT_DELAY_DP 0xFCu      /* page input */
+/* Frames until held buttons next repeat into the repeating word */
+#define RAM_INPUT_REPEAT_COUNTDOWN 0x7E00FDu
+#define RAM_INPUT_REPEAT_COUNTDOWN_DP 0xFDu  /* page input */
+/* The held buttons of the previous frame, to find the newly pressed ones [2 bytes] */
+#define RAM_INPUT_PREVIOUS 0x7E00FEu
+#define RAM_INPUT_PREVIOUS_DP 0xFEu          /* page input */
 /* The current location, a 5-byte location triple as the event commands store it [5 bytes] */
 #define RAM_LOCATION 0x7E0100u
 #define RAM_LOCATION_DP 0x00u                /* page field */
@@ -306,27 +341,6 @@
 #define RAM_TILE_ANIMATION_TABLES_STRIDE 0x20u
 #define RAM_TILE_ANIMATION_TABLES_STEPS 0x7F0400u /* Accumulator step for each of the eight frames, one word per frame */
 #define RAM_TILE_ANIMATION_TABLES_SOURCES 0x7F0410u /* Source address of each of the eight frames' tiles, one word per frame */
-/* Buttons newly pressed this frame, in the game's order (A X L R B Y Select Start in the low
- * byte, the direction pad in the high byte) [2 bytes] */
-#define RAM_INPUT_PRESSED_DP 0xF0u           /* page caller, D unknown */
-/* Buttons held this frame, in the game's order (A X L R B Y Select Start in the low byte, the
- * direction pad in the high byte) [2 bytes] */
-#define RAM_INPUT_HELD_DP 0xF2u              /* page caller, D unknown */
-/* Buttons newly pressed, plus held ones repeating each time the repeat countdown runs out [2
- * bytes] */
-#define RAM_INPUT_REPEAT_DP 0xF4u            /* page caller, D unknown */
-/* The new, held and repeating buttons remapped through the player's button assignments: each bit
- * of the low byte set when all the buttons of one assignment are down, the direction pad copied
- * as is [3 x $2 bytes, by new, held, repeating (the words at $F0, $F2 and $F4 remapped)] */
-#define RAM_INPUT_MAPPED_COUNT 3u
-#define RAM_INPUT_MAPPED_STRIDE 0x02u
-#define RAM_INPUT_MAPPED_DP 0xF6u            /* page caller, D unknown */
-/* Frames between repeats of a held button, reloaded into the countdown */
-#define RAM_INPUT_REPEAT_DELAY_DP 0xFCu      /* page caller, D unknown */
-/* Frames until held buttons next repeat into the repeating word */
-#define RAM_INPUT_REPEAT_COUNTDOWN_DP 0xFDu  /* page caller, D unknown */
-/* The held buttons of the previous frame, to find the newly pressed ones [2 bytes] */
-#define RAM_INPUT_PREVIOUS_DP 0xFEu          /* page caller, D unknown */
 
 /* ---- data ---------------------------------------------------------------------------------- */
 
@@ -1352,16 +1366,6 @@
 #define RAM_MENU_GATE_SCREEN_STATE 0x7E0F10u
 #define RAM_MENU_GATE_SCREEN_STATE_COUNT 13u
 #define RAM_MENU_GATE_SCREEN_STATE_STRIDE 0x01u
-/* The $40-byte records the task at $C2:F657 runs with the direct page on each, drawing their
- * sprites [8 x $40 bytes, by record (the direct page walks $1800-$19C0)] */
-#define RAM_MENU_RECORDS 0x7E1800u
-#define RAM_MENU_RECORDS_COUNT 8u
-#define RAM_MENU_RECORDS_STRIDE 0x40u
-#define RAM_MENU_RECORDS_SPRITE_COUNT 0x7E1802u /* Low nibble: how many sprites the record draws */
-#define RAM_MENU_RECORDS_Y 0x7E180Eu         /* Y position */
-#define RAM_MENU_RECORDS_X 0x7E180Fu         /* X position */
-#define RAM_MENU_RECORDS_TILE 0x7E1819u      /* Tile and attributes of the first sprite; each next sprite's tile is 2 more */
-#define RAM_MENU_RECORDS_SPRITE_OFFSETS 0x7E1822u /* The first sprite's (X, Y) offset pair; the other sprites' pairs follow */
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 #define RAM_MENU_RANDOM_INDEX 0x7E1B30u
 /* The sprite script each of a map screen's four objects runs, which object script command $08
@@ -1573,16 +1577,16 @@
 #define RAM_MENU_GATE_TILES_COUNT 2048u
 #define RAM_MENU_GATE_TILES_STRIDE 0x01u
 /* Low nibble: how many sprites the record draws */
-#define RAM_MENU_RECORD_SPRITE_COUNT_DP 0x02u /* page menu_record, D unknown */
+#define RAM_MENU_RECORD_SPRITE_COUNT_DP 0x02u /* page menu_record, D per instance */
 /* The record's Y position */
-#define RAM_MENU_RECORD_Y_DP 0x0Eu           /* page menu_record, D unknown */
+#define RAM_MENU_RECORD_Y_DP 0x0Eu           /* page menu_record, D per instance */
 /* The record's X position [2 bytes] */
-#define RAM_MENU_RECORD_X_DP 0x0Fu           /* page menu_record, D unknown */
+#define RAM_MENU_RECORD_X_DP 0x0Fu           /* page menu_record, D per instance */
 /* Tile and attributes of the record's first sprite; each next sprite's tile is 2 more [2 bytes] */
-#define RAM_MENU_RECORD_TILE_DP 0x19u        /* page menu_record, D unknown */
+#define RAM_MENU_RECORD_TILE_DP 0x19u        /* page menu_record, D per instance */
 /* The first sprite's (X, Y) offset from the record's position; the other sprites' pairs follow
  * [2 bytes] */
-#define RAM_MENU_RECORD_SPRITE_OFFSETS_DP 0x22u /* page menu_record, D unknown */
+#define RAM_MENU_RECORD_SPRITE_OFFSETS_DP 0x22u /* page menu_record, D per instance */
 
 /* ---- menu_object --------------------------------------------------------------------------- */
 
@@ -3306,15 +3310,6 @@
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_B_READY 0x7E00ACu
 #define RAM_SCENE_RACE_TILEMAP_B_READY_DP 0xACu /* page scene */
-/* Operands and results of the scene's multiply and divide helpers, on whichever page the caller
- * has (also each sequence channel's, scene_channels.math_scratch, with D on the channel): two
- * operand words at $F0 and $F2 (multiplicand and multiplier, the 8.8 divide's dividend and
- * divisor, the 32-bit dividend), a 32-bit product or divisor at $F4, and the 32-bit quotient and
- * remainder at $F8 and $FC. The matrix code generator keeps its offsets here, the program's own
- * transfer its channel's mode and destination, and the sequence scripts' code call its routine's
- * address [16 bytes] */
-#define RAM_SCENE_MATH_SCRATCH 0x7E00F0u
-#define RAM_SCENE_MATH_SCRATCH_DP 0xF0u      /* page scene */
 /* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
  * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair [2
  * bytes] */
@@ -3406,7 +3401,6 @@
 #define RAM_SCENE_CHANNELS_SCRIPT 0x7E0A20u  /* Pointer to the channel's next script command in bank $7E; a store to it is a goto */
 #define RAM_SCENE_CHANNELS_LOOP_COUNTERS 0x7E0A22u /* Counters of the loop commands $80-$9F, a word each at $22 + 2n (n = 7 is the return address) */
 #define RAM_SCENE_CHANNELS_RETURN_ADDRESS 0x7E0A30u /* Where the script's call command ($A3) returns to */
-#define RAM_SCENE_CHANNELS_MATH_SCRATCH 0x7E0AF0u /* The multiply and divide helpers' cells when called with D on the channel */
 /* Tilemap the scene builds in work RAM for vblank: $80 bytes of it go to VRAM $7000 each frame,
  * and in the race all $800 to whichever half of the plane tilemap is ready; its words at
  * $0C40-$0C7F are shifted up a slot at the start of a task [2048 bytes] */
@@ -3436,5 +3430,12 @@
 /* Half of the race's 128x128 Mode 7 name table, sent into the low byte of VRAM words; the loader
  * sends it twice to cover the whole table [8192 bytes] */
 #define RAM_SCENE_RACE_PLANE_MAP 0x7F2200u
+/* Operands and results of the scene's multiply and divide helpers, on whichever page the caller
+ * has, the scene's own or a sequence channel's: two operand words at $F0 and $F2 (multiplicand
+ * and multiplier, the 8.8 divide's dividend and divisor, the 32-bit dividend), a 32-bit product
+ * or divisor at $F4, and the 32-bit quotient and remainder at $F8 and $FC. The matrix code
+ * generator keeps its offsets here, the program's own transfer its channel's mode and
+ * destination, and the sequence scripts' code call its routine's address [16 bytes] */
+#define RAM_SCENE_MATH_SCRATCH_DP 0xF0u      /* page scene_math, D per instance */
 
 #endif

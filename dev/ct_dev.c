@@ -8,7 +8,8 @@
  *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
  *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
- *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt]
+ *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
+ *          [--page-report]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -30,6 +31,11 @@
  * registers the generated blocks after the ported routines (docs/RECOMP.md);
  * --recomp only registers the generated blocks without the ported routines, for
  * checking that --native on produces the same traces as --native off.
+ * --page-report prints, under each hand port in the native report, the direct
+ * pages (D) its calls were made with and how many of each: the evidence for the
+ * page instances in re/ram.toml (docs/DISASSEMBLY.md, "The accessors"). Every
+ * run prints a "page refused" line for each page kind whose <page>_page_of
+ * turned a D away (runtime/port/vars_pages.h).
  * --insn-stats reports how many instructions the interpreter and generated
  * blocks executed.
  * --io-log writes every hardware register access counted by what made it
@@ -74,6 +80,7 @@
 #include "sram_find.h"
 #include "platform/audio.h"
 #include "port/machine.h"
+#include "port/vars_pages.h"
 #include "snes/render.h"
 #include "snes/system.h"
 #include "snes/zst.h"
@@ -290,6 +297,20 @@ static uint8_t *read_file(const char *path, size_t *len)
     return data;
 }
 
+/* A D that a <page>_page_of refused: a guard turned a call away because its
+ * direct page is no instance re/ram.toml declares. In a movie that is a call
+ * the game makes, so either the map is missing an instance or the port runs on
+ * a page it shouldn't; tools/suite.py fails a movie that prints one. */
+static void report_page_refusals(void)
+{
+    unsigned n;
+    const VarsPageRefusals *r = vars_page_refusals(&n);
+    for (unsigned i = 0; i < n; i++)
+        if (r[i].refused)
+            fprintf(stderr, "page refused: %s %lu (last D $%04X)\n", r[i].page, r[i].refused,
+                    (unsigned)r[i].last_d);
+}
+
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
@@ -306,11 +327,15 @@ int main(int argc, char **argv)
     const char *excludes[64], *includes[64];
     int nexcludes = 0, nincludes = 0;
     PortTiming port_timing = PORT_TIMING_ESTIMATE;
-    bool timing_report = false, port_horizon_interrupts = false;
+    bool timing_report = false, page_report = false, port_horizon_interrupts = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--timing-report")) {
             timing_report = true;
+            continue;
+        }
+        if (!strcmp(a, "--page-report")) {
+            page_report = true;
             continue;
         }
         if (!strcmp(a, "--insn-stats")) {
@@ -415,7 +440,7 @@ int main(int argc, char **argv)
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--include name-prefix]... "
                         "[--recomp off|on|only] [--port-timing estimate|oracle] [--port-horizon strict|interrupts] "
-                        "[--timing-report] "
+                        "[--timing-report] [--page-report] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
                         "[--vid-check-from N] [--px-check [out.txt]]\n");
@@ -512,6 +537,7 @@ int main(int argc, char **argv)
     native_set_port_timing(natives, port_timing);
     native_set_port_horizon(natives, port_horizon_interrupts);
     native_set_timing_report(natives, timing_report);
+    native_set_page_report(natives, page_report);
     if (audio_direct) {
         /* the sound driver's registry entries run the backend */
         if (native_mode != NATIVE_ON || recomp_only) {
@@ -641,6 +667,7 @@ int main(int argc, char **argv)
         if (native_failed(natives))
             rc = 1;
     }
+    report_page_refusals();
     au_direct_report(stderr);
     if (insn_stats) {
         uint64_t generated = native_generated_instructions();

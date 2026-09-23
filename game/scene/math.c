@@ -18,7 +18,7 @@ static bool negative16(uint16_t v) { return v & 0x8000; }
  * product to the product's bytes 1-2 as they stand, and byte 2 is still what the
  * caller left there, so it is added in too, as the original does. Returns the
  * first partial product, which the original leaves in X. */
-static uint16_t multiply_signed(GameState *g, ScenePage page)
+static uint16_t multiply_signed(GameState *g, SceneMathPage page)
 {
     uint16_t a = scene_scratch16(g, page, SCRATCH_A);
     uint8_t b = scene_scratch8(g, page, SCRATCH_B);
@@ -37,8 +37,8 @@ static uint16_t multiply_signed(GameState *g, ScenePage page)
 /* Entered with 16-bit index registers; P comes back as it was. */
 void scene_multiply_signed(Snes *s)
 {
-    ScenePage page = SCENE_OWN_PAGE;
-    scene_page_of(m_direct_page(s), &page);
+    SceneMathPage page = scene_math_scene();
+    scene_math_page_of(m_direct_page(s), &page);   /* the guard has checked it is one */
     s->cpu.x = multiply_signed(state_of(s), page);
     m_rtl(s);
 }
@@ -71,7 +71,7 @@ typedef struct {
  * pass, which is where it would be after 256. */
 static Divisor find_divisor(GameState *g, uint8_t divisor)
 {
-    uint16_t limit = scene_scratch16(g, SCENE_OWN_PAGE, SCRATCH_PRODUCT);
+    uint16_t limit = scene_scratch16(g, scene_math_scene(), SCRATCH_PRODUCT);
     Divisor first = { false, (uint8_t)(divisor + 1), 0 };
     first.quotient = next_divisor(g, first.divisor);
     Divisor d = first;

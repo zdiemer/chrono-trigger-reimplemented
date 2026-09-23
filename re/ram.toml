@@ -8,11 +8,24 @@
 # lives, how wide it is, what it holds -- worked out from the code that uses
 # it. Nothing here is ROM data: no initial values, no table contents.
 #
-#   [[page]]   name, [d], subsystem, meaning, source, [why]
+#   [[page]]   name, d | instances, subsystem, meaning, source, [why]
 #       A direct page: while the subsystem's code runs, D = d, so direct-page
-#       offset o is $7E:(d + o). Without d, D isn't known statically (it is the
-#       caller's, or it walks along a table) and `why` says so; variables in
-#       such a page have an offset and no address.
+#       offset o is $7E:(d + o). Or a page kind, whose code runs on more than
+#       one page (the caller's, or one that walks along a table), with `why`
+#       saying so and `instances` listing every page it runs on:
+#           instances = [
+#             { name = "scene", d = 0x0000 },                             # a named page
+#             { name = "channel", base = 0x0A00, count = 2, stride = 0x100 },  # an array of pages
+#           ]
+#       Name an instance for where its cells are, not for the code that uses
+#       it: two modes on the same D share one set of bytes, and the map rejects
+#       two instances at one D. The instances are the D values measured at the
+#       routines' entry over the movie library (ct_dev --page-report, which
+#       tools/suite.py passes), plus any the code proves (a table's length), and
+#       `source` says which. Variables on a page kind have an offset (dp) and no
+#       address, and their accessors take the instance: an enum of the named
+#       ones, an index for a lone array, or a {kind, index} pair for a mix
+#       (docs/DISASSEMBLY.md, "The accessors").
 #
 #   [[var]]    name, addr | dp, [size], [count, stride, index], [page],
 #              subsystem, meaning, source, [[var.field]]
@@ -21,8 +34,8 @@
 #       in bytes (default 1); an array has count elements `stride` bytes apart
 #       (default: size) and `index` says what selects one ("object slot * 2",
 #       "battle slot"). With `page`, the code reaches it through that direct
-#       page: give addr when the page's D is known (the offset is derived), dp
-#       when it isn't.
+#       page: give addr when the page's D is fixed (the offset is derived), dp
+#       when the page is a page kind.
 #
 #   [[var.field]]  name, offset, [size], meaning
 #       A record: the element is `stride` bytes and the fields are at these
@@ -124,9 +137,12 @@ source = "LDA #$0200 : TCD at $C2:57E6 and $C2:582A; menu_draw_glyph entered wit
 [[page]]
 name = "menu_record"
 subsystem = "menu"
-meaning = "A menu record's own page: D points at the record ($1800, $1840, ... $1980)"
-source = "PEA #$1800/#$1980/#$19C0 : PLD at $C2:F3CF, $C2:CE2F, $C2:BA1F and more, and TCD after ADC #$0040 / SBC #$0040; menu_draw_record_sprites and menu_queue_vram_upload_7e entered with D = $1800-$1980 in steps of $40"
-why = "D walks a table of $40-byte records, so an offset names a field of whichever record is current; the records themselves are the array at $7E:1800"
+meaning = "A menu record's own page: the $40-byte records the task at $C2:F657 runs with the direct page on each, drawing their sprites"
+source = "PEA #$1800/#$1980/#$19C0 : PLD at $C2:F3CF, $C2:CE2F, $C2:BA1F and more, and TCD after ADC #$0040 / SBC #$0040. Measured over the 26 movies (ct_dev --page-report): menu_draw_record_sprites ($C2:F871) entered with D on each of the eight records and nothing else ($1800 3744 calls, $1840 3497, $1880 3545, $18C0, $1900, $1940 and $1980 1868 each, $19C0 1259; all eight in menus-end-of-time)"
+why = "D walks a table of records, so an offset names a field of whichever record is current"
+instances = [
+  { name = "record", base = 0x1800, count = 8, stride = 0x40 },
+]
 
 [[page]]
 name = "sound"
@@ -157,11 +173,22 @@ meaning = "The scene engine's and scene program's direct page"
 source = "LDA #$0000 : TCD at $C3:09EE; every scene_ port but scene_set_mode_2 entered with D = $0000"
 
 [[page]]
-name = "caller"
+name = "scene_math"
+subsystem = "scene"
+meaning = "The page the scene's multiply and divide helpers keep their operands and results on: their caller's"
+source = "Measured over the 26 movies (ct_dev --page-report): scene_multiply ($7E:31BF) entered with D = $0000 146235 times, $0A00 23842 (5412 of them in events-jetbike-race) and $0B00 1920 (endings-beyond-time); scene_divide ($7E:339F, 20115 calls), scene_divide_8_8 ($7E:32E2, 16225) and scene_multiply_signed ($C3:094C, 21120) only with $0000; the sequence interpreter ($C3:0AFF) on $0A00 61680 times and $0B00 18316, never another page. Two channels because the attract program has two (scene_channels); every instance is reached"
+why = "the helpers have no page of their own: they work on the cells of whichever page they are called on, the scene's own, or a sequence channel's (its record in scene_channels) when a channel's script calls a routine of the program"
+instances = [
+  { name = "scene", d = 0x0000 },
+  { name = "channel", base = 0x0A00, count = 2, stride = 0x100 },
+]
+
+[[page]]
+name = "input"
+d = 0x0000
 subsystem = "core"
-meaning = "The controller reader's cells, on whichever page its caller set"
-source = "input_read_joypad entered with D = $0000, $0100, $0D00, $1D00 and $1E00; input_update with $0000, $0100, $1D00 and $1E00"
-why = "the routine has no page of its own: each mode keeps its own copy of these cells on its own page, so an offset has a meaning but not an address"
+meaning = "The controller reader's direct page: it sets D = $0000 itself, whatever page its caller has"
+source = "PEA #$0000 : PLD at $C2:84EC (input_read_joypad, game/core/input.c), which input_update ($C2:84D2) calls before input_map_buttons ($C2:8545). Measured over the 26 movies (ct_dev --page-report): input_read_joypad entered with eight different D's ($0000 453397 calls, $0100 195982, $0D00 35169, $1E00 1596, $2100 246, $1D00 173, $0300 102, $0500 1), all of which it replaces, and input_map_buttons with D = $0000 in all 651497 of its calls; the event engine's input conditions read the cells at $00F2 and $00F8 through the data bank (game/event/input.c)"
 
 # ==============================================================================
 # Program images
@@ -572,11 +599,11 @@ source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221"
 
 [[var]]
 name = "scene_math_scratch"
-addr = "7E:00F0"
+page = "scene_math"
+dp = 0xF0
 size = 16
-page = "scene"
 subsystem = "scene"
-meaning = "Operands and results of the scene's multiply and divide helpers, on whichever page the caller has (also each sequence channel's, scene_channels.math_scratch, with D on the channel): two operand words at $F0 and $F2 (multiplicand and multiplier, the 8.8 divide's dividend and divisor, the 32-bit dividend), a 32-bit product or divisor at $F4, and the 32-bit quotient and remainder at $F8 and $FC. The matrix code generator keeps its offsets here, the program's own transfer its channel's mode and destination, and the sequence scripts' code call its routine's address"
+meaning = "Operands and results of the scene's multiply and divide helpers, on whichever page the caller has, the scene's own or a sequence channel's: two operand words at $F0 and $F2 (multiplicand and multiplier, the 8.8 divide's dividend and divisor, the 32-bit dividend), a 32-bit product or divisor at $F4, and the 32-bit quotient and remainder at $F8 and $FC. The matrix code generator keeps its offsets here, the program's own transfer its channel's mode and destination, and the sequence scripts' code call its routine's address"
 source = "game/scene/program.c, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply $7E:31BF; game/scene/math.c, scene_multiply_signed $C3:094C; game/scene/matrix_code.c, scene_write_matrix_code $C3:09E9; game/scene/display.c, scene_transfer $7E:38E7; tools/disasm/seqscript.py (command $A0)"
 
 # ---- the scene's absolute work RAM ---------------------------------------------
@@ -713,11 +740,6 @@ name = "return_address"
 offset = 0x30
 size = 2
 meaning = "Where the script's call command ($A3) returns to"
-[[var.field]]
-name = "math_scratch"
-offset = 0xF0
-size = 0x10
-meaning = "The multiply and divide helpers' cells when called with D on the channel"
 
 [[var]]
 name = "scene_tilemap_buffer"
@@ -2846,8 +2868,8 @@ source = "game/event/sound.c, event_cmd_play_song $C0:3C2F"
 
 [[var]]
 name = "input_pressed"
-page = "caller"
-dp = 0xF0
+addr = "7E:00F0"
+page = "input"
 size = 2
 subsystem = "core"
 meaning = "Buttons newly pressed this frame, in the game's order (A X L R B Y Select Start in the low byte, the direction pad in the high byte)"
@@ -2855,8 +2877,8 @@ source = "game/core/input.c, input_read_joypad $C2:84EC"
 
 [[var]]
 name = "input_held"
-page = "caller"
-dp = 0xF2
+addr = "7E:00F2"
+page = "input"
 size = 2
 subsystem = "core"
 meaning = "Buttons held this frame, in the game's order (A X L R B Y Select Start in the low byte, the direction pad in the high byte)"
@@ -2864,8 +2886,8 @@ source = "game/core/input.c, input_read_joypad $C2:84EC"
 
 [[var]]
 name = "input_repeat"
-page = "caller"
-dp = 0xF4
+addr = "7E:00F4"
+page = "input"
 size = 2
 subsystem = "core"
 meaning = "Buttons newly pressed, plus held ones repeating each time the repeat countdown runs out"
@@ -2873,8 +2895,8 @@ source = "game/core/input.c, input_read_joypad $C2:84EC"
 
 [[var]]
 name = "input_mapped"
-page = "caller"
-dp = 0xF6
+addr = "7E:00F6"
+page = "input"
 size = 2
 count = 3
 index = "new, held, repeating (the words at $F0, $F2 and $F4 remapped)"
@@ -2884,24 +2906,24 @@ source = "game/core/input.c, input_map_buttons $C2:8545"
 
 [[var]]
 name = "input_repeat_delay"
-page = "caller"
-dp = 0xFC
+addr = "7E:00FC"
+page = "input"
 subsystem = "core"
 meaning = "Frames between repeats of a held button, reloaded into the countdown"
 source = "game/core/input.c, input_read_joypad $C2:84EC"
 
 [[var]]
 name = "input_repeat_countdown"
-page = "caller"
-dp = 0xFD
+addr = "7E:00FD"
+page = "input"
 subsystem = "core"
 meaning = "Frames until held buttons next repeat into the repeating word"
 source = "game/core/input.c, input_read_joypad $C2:84EC"
 
 [[var]]
 name = "input_previous"
-page = "caller"
-dp = 0xFE
+addr = "7E:00FE"
+page = "input"
 size = 2
 subsystem = "core"
 meaning = "The held buttons of the previous frame, to find the newly pressed ones"
@@ -3692,39 +3714,6 @@ size = 2
 subsystem = "menu"
 meaning = "The number's size in bytes, counted down as it is converted"
 source = "game/menu/text.c, menu_draw_number $C2:F114, menu_number_to_bcd $C2:F13F"
-
-[[var]]
-name = "menu_records"
-addr = "7E:1800"
-stride = 0x40
-count = 8
-index = "record (the direct page walks $1800-$19C0)"
-subsystem = "menu"
-meaning = "The $40-byte records the task at $C2:F657 runs with the direct page on each, drawing their sprites"
-source = "game/menu/objects.c, menu_draw_record_sprites $C2:F871; re/ram.toml page menu_record"
-  [[var.field]]
-  name = "sprite_count"
-  offset = 0x02
-  meaning = "Low nibble: how many sprites the record draws"
-  [[var.field]]
-  name = "y"
-  offset = 0x0E
-  meaning = "Y position"
-  [[var.field]]
-  name = "x"
-  offset = 0x0F
-  size = 2
-  meaning = "X position"
-  [[var.field]]
-  name = "tile"
-  offset = 0x19
-  size = 2
-  meaning = "Tile and attributes of the first sprite; each next sprite's tile is 2 more"
-  [[var.field]]
-  name = "sprite_offsets"
-  offset = 0x22
-  size = 2
-  meaning = "The first sprite's (X, Y) offset pair; the other sprites' pairs follow"
 
 [[var]]
 name = "menu_record_sprite_count"

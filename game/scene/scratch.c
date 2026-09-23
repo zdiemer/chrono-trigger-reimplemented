@@ -1,61 +1,44 @@
-/* Scenes: the math scratch cells on the caller's direct page.
+/* Scenes: the math scratch cells, as the helpers use them.
  *
- * The scene's multiply and divide helpers work on sixteen bytes at $F0-$FF of
- * whichever direct page their caller has: the scene's own (D = $0000,
- * scene_math_scratch) or a sequence channel's (D = $0A00 or $0B00, when a
- * script calls a routine of the program; scene_channels.math_scratch). The map
- * has no shape for a variable on a page the caller chooses, so the helpers name
- * the page and the offset, and these reach the cells through whichever
- * accessor that page's are. */
+ * The scene's multiply and divide helpers keep their operands and results in
+ * sixteen bytes on whichever page their caller has: the scene's own, or a
+ * sequence channel's when a script calls a routine of the program. The map
+ * names that as a page kind with both as instances (re/ram.toml,
+ * scene_math_scratch), so a port says which page it means with a
+ * SceneMathPage and the generated accessor knows where that is. What is left
+ * here is the widths: the helpers read and write the cells as bytes, words and
+ * 32-bit pairs of words, low byte first as the 65816 stores them. */
 #include "scene/scene.h"
 
 #include "vars.h"
 
-enum { SCENE_OWN_PAGE_D = 0x0000, CHANNEL_PAGES_D = 0x0A00, PAGE_SIZE = 0x0100 };
-
-bool scene_page_of(uint16_t d, ScenePage *page)
+uint8_t scene_scratch8(const GameState *g, SceneMathPage page, unsigned at)
 {
-    if (d == SCENE_OWN_PAGE_D) {
-        *page = SCENE_OWN_PAGE;
-        return true;
-    }
-    uint16_t channel = (uint16_t)((d - CHANNEL_PAGES_D) / PAGE_SIZE);
-    if (d < CHANNEL_PAGES_D || d % PAGE_SIZE || channel >= SCENE_CHANNELS_COUNT)
-        return false;
-    *page = (ScenePage)channel;
-    return true;
+    return scene_math_scratch_byte(g, page, at);
 }
 
-uint8_t scene_scratch8(const GameState *g, ScenePage page, unsigned at)
+void set_scene_scratch8(GameState *g, SceneMathPage page, unsigned at, uint8_t v)
 {
-    return page == SCENE_OWN_PAGE ? scene_math_scratch_byte(g, at) : scene_channels_math_scratch_byte(g, page, at);
+    set_scene_math_scratch_byte(g, page, at, v);
 }
 
-void set_scene_scratch8(GameState *g, ScenePage page, unsigned at, uint8_t v)
-{
-    if (page == SCENE_OWN_PAGE)
-        set_scene_math_scratch_byte(g, at, v);
-    else
-        set_scene_channels_math_scratch_byte(g, page, at, v);
-}
-
-uint16_t scene_scratch16(const GameState *g, ScenePage page, unsigned at)
+uint16_t scene_scratch16(const GameState *g, SceneMathPage page, unsigned at)
 {
     return (uint16_t)(scene_scratch8(g, page, at) | scene_scratch8(g, page, at + 1) << 8);
 }
 
-void set_scene_scratch16(GameState *g, ScenePage page, unsigned at, uint16_t v)
+void set_scene_scratch16(GameState *g, SceneMathPage page, unsigned at, uint16_t v)
 {
     set_scene_scratch8(g, page, at, (uint8_t)v);
     set_scene_scratch8(g, page, at + 1, (uint8_t)(v >> 8));
 }
 
-uint32_t scene_scratch32(const GameState *g, ScenePage page, unsigned at)
+uint32_t scene_scratch32(const GameState *g, SceneMathPage page, unsigned at)
 {
     return scene_scratch16(g, page, at) | (uint32_t)scene_scratch16(g, page, at + 2) << 16;
 }
 
-void set_scene_scratch32(GameState *g, ScenePage page, unsigned at, uint32_t v)
+void set_scene_scratch32(GameState *g, SceneMathPage page, unsigned at, uint32_t v)
 {
     set_scene_scratch16(g, page, at, (uint16_t)v);
     set_scene_scratch16(g, page, at + 2, (uint16_t)(v >> 16));

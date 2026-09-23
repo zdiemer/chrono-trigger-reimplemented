@@ -188,6 +188,10 @@ target_link_libraries(fuzz_test PRIVATE ct_runtime)
 # Time attribution (native_time_as) in shadow mode, on a made-up program.
 add_executable(time_parts_test tests/port/time_parts_test.c)
 target_link_libraries(time_parts_test PRIVATE ct_runtime)
+# The accessors generated from re/ram.toml, and the page kinds' D mapping.
+add_executable(vars_test tests/port/vars_test.c)
+target_include_directories(vars_test PRIVATE game)
+target_link_libraries(vars_test PRIVATE ct_runtime)
 
 # Instruction translation (tools/recomp, docs/RECOMP.md), with C generated into
 # the build tree for every opcode and context: sst_recomp_runner runs it on the

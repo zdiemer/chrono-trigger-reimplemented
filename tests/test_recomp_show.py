@@ -44,6 +44,7 @@ subsystem = "field"
 meaning = "cells on whichever page the caller set"
 source = "test"
 why = "the caller's"
+instances = [{ name = "low", d = 0x0000 }, { name = "high", d = 0x1E00 }]
 
 [[var]]
 name = "test_cell"

@@ -95,6 +95,7 @@ typedef struct RecompIndexEntry {
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
 
 #define NATIVE_ERROR_BUCKETS 24
+#define NATIVE_PAGE_SLOTS 16
 
 typedef struct NativeStats {
     unsigned calls, matched, mismatched, interrupted, skipped;
@@ -152,6 +153,14 @@ typedef struct NativeStats {
     unsigned t_nparts;
     unsigned t_bad_tags, t_part_overflows;
     uint32_t t_bad_tag;            /* the latest address that named no hand port */
+    /* With native_set_page_report: the direct page (D) the routine's calls
+     * were made with, before its guard, as up to NATIVE_PAGE_SLOTS distinct
+     * values and how many calls each (page_other: calls with any further D).
+     * The evidence for re/ram.toml's page instances (docs/DISASSEMBLY.md,
+     * "The accessors"). */
+    uint16_t page_d[NATIVE_PAGE_SLOTS];
+    unsigned page_calls[NATIVE_PAGE_SLOTS];
+    unsigned page_nd, page_other;
 } NativeStats;
 
 /* A port's bus clocks attributed to the routine at table index `entry`. */
@@ -187,6 +196,8 @@ void native_set_port_timing(NativeRuntime *rt, PortTiming timing);
 void native_set_port_horizon(NativeRuntime *rt, bool interrupts_only);
 /* Print the timing counters per routine in native_report. */
 void native_set_timing_report(NativeRuntime *rt, bool on);
+/* Count and print, per hand port, the direct pages its calls were made with. */
+void native_set_page_report(NativeRuntime *rt, bool on);
 
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);

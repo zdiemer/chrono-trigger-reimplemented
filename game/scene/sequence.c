@@ -71,33 +71,33 @@ static uint16_t add16(Flags *f, uint16_t a, uint16_t b)
 
 /* ---- The channel ------------------------------------------------------------------ */
 
-static uint16_t script(const GameState *g, ScenePage ch) { return scene_channels_script(g, ch); }
-static void set_script(GameState *g, ScenePage ch, uint16_t at) { set_scene_channels_script(g, ch, at); }
-static void advance(GameState *g, ScenePage ch, uint16_t n) { set_script(g, ch, (uint16_t)(script(g, ch) + n)); }
+static uint16_t script(const GameState *g, unsigned ch) { return scene_channels_script(g, ch); }
+static void set_script(GameState *g, unsigned ch, uint16_t at) { set_scene_channels_script(g, ch, at); }
+static void advance(GameState *g, unsigned ch, uint16_t n) { set_script(g, ch, (uint16_t)(script(g, ch) + n)); }
 
 /* The script's bytes, in the program in bank $7E. */
 static uint16_t script_word(const GameState *g, uint16_t at) { return wram_read16(g, (uint32_t)SCRIPT_BANK << 16 | at); }
-static uint16_t operand(const GameState *g, ScenePage ch) { return script_word(g, script(g, ch)); }
+static uint16_t operand(const GameState *g, unsigned ch) { return script_word(g, script(g, ch)); }
 
 /* Register n (0-15), and loop counter n. */
-static uint16_t reg(const GameState *g, ScenePage ch, unsigned n)
+static uint16_t reg(const GameState *g, unsigned ch, unsigned n)
 {
     return (uint16_t)(scene_channels_registers_byte(g, ch, 2 * n) | scene_channels_registers_byte(g, ch, 2 * n + 1) << 8);
 }
 
-static void set_reg(GameState *g, ScenePage ch, unsigned n, uint16_t v)
+static void set_reg(GameState *g, unsigned ch, unsigned n, uint16_t v)
 {
     set_scene_channels_registers_byte(g, ch, 2 * n, (uint8_t)v);
     set_scene_channels_registers_byte(g, ch, 2 * n + 1, (uint8_t)(v >> 8));
 }
 
-static uint16_t counter(const GameState *g, ScenePage ch, unsigned n)
+static uint16_t counter(const GameState *g, unsigned ch, unsigned n)
 {
     return (uint16_t)(scene_channels_loop_counters_byte(g, ch, 2 * n) |
                       scene_channels_loop_counters_byte(g, ch, 2 * n + 1) << 8);
 }
 
-static void set_counter(GameState *g, ScenePage ch, unsigned n, uint16_t v)
+static void set_counter(GameState *g, unsigned ch, unsigned n, uint16_t v)
 {
     set_scene_channels_loop_counters_byte(g, ch, 2 * n, (uint8_t)v);
     set_scene_channels_loop_counters_byte(g, ch, 2 * n + 1, (uint8_t)(v >> 8));
@@ -191,12 +191,12 @@ typedef struct {
 /* $00-$7F: register n (the low nibble) is assigned or added to. The command
  * leaves the register's address on the page's scratch cell (whose sum sets the
  * carry and overflow). */
-static void assign(GameState *g, ScenePage ch, Flags *f, uint8_t command)
+static void assign(GameState *g, unsigned ch, Flags *f, uint8_t command)
 {
     uint8_t form = command & 0xF0;
     unsigned n = command & 0x0F;
     uint16_t page = (uint16_t)(CHANNEL_PAGES + ch * CHANNEL_PAGE_SIZE);
-    set_scene_scratch16(g, ch, SCRATCH_A, add16(f, page, (uint16_t)(2 * n)));
+    set_scene_scratch16(g, scene_math_channel(ch), SCRATCH_A, add16(f, page, (uint16_t)(2 * n)));
     uint16_t word = operand(g, ch);
     uint16_t value;
     if (!(form & 0x20)) {
@@ -217,7 +217,7 @@ static void assign(GameState *g, ScenePage ch, Flags *f, uint8_t command)
  * short of it the script jumps to the word after, and when it gets there the
  * counter is cleared and the script carries on after the command. Returns the
  * new script pointer, which the original leaves in A. */
-static uint16_t count_loop(GameState *g, ScenePage ch, Flags *f, uint8_t command)
+static uint16_t count_loop(GameState *g, unsigned ch, Flags *f, uint8_t command)
 {
     unsigned n = command & 0x0F;
     uint16_t count = counter(g, ch, n);
@@ -242,7 +242,7 @@ static uint16_t count_loop(GameState *g, ScenePage ch, Flags *f, uint8_t command
 }
 
 /* $A0-$FF, by the low nibble `n`. */
-static Command command_a0(GameState *g, Platform *pf, ScenePage ch, Flags *f, uint8_t n)
+static Command command_a0(GameState *g, Platform *pf, unsigned ch, Flags *f, uint8_t n)
 {
     f->carry = false;   /* the ASL of the table index */
     uint16_t word = operand(g, ch);
@@ -323,7 +323,7 @@ static Command command_a0(GameState *g, Platform *pf, ScenePage ch, Flags *f, ui
 }
 
 /* One command. */
-static Command step(GameState *g, Platform *pf, ScenePage ch, Flags *f)
+static Command step(GameState *g, Platform *pf, unsigned ch, Flags *f)
 {
     uint16_t word = operand(g, ch);   /* the command and the byte after it */
     uint8_t command = (uint8_t)word;
@@ -332,7 +332,7 @@ static Command step(GameState *g, Platform *pf, ScenePage ch, Flags *f)
         assign(g, ch, f, command);
         return (Command){ NEXT, 0 };
     }
-    set_scene_scratch16(g, ch, SCRATCH_A, word);
+    set_scene_scratch16(g, scene_math_channel(ch), SCRATCH_A, word);
     switch (command & 0xF0) {
     case 0x80:
         count_loop(g, ch, f, command);
@@ -357,18 +357,28 @@ static void put_flags(Snes *s, const Flags *f)
     m_set_flag(s, CPU_FLAG_V, f->overflow);
 }
 
+/* The channel whose page D is on: a channel's page is the channel instance of
+ * the math helpers' page kind (re/ram.toml, scene_math). */
+static bool on_channel(uint16_t d, unsigned *ch)
+{
+    SceneMathPage page;
+    if (!scene_math_page_of(d, &page) || page.kind != SCENE_MATH_CHANNEL)
+        return false;
+    *ch = page.index;
+    return true;
+}
+
 /* Where the interpreter runs as the port has it: native mode, 16-bit index
  * registers, binary adds, the scripts' data bank and D on a channel's page. */
-static bool machine_as_expected(Snes *s, ScenePage *ch)
+static bool machine_as_expected(Snes *s, unsigned *ch)
 {
-    return !s->cpu.e && !(s->cpu.p & (CPU_FLAG_X | CPU_FLAG_D)) && s->cpu.db == SCRIPT_BANK &&
-           scene_page_of(s->cpu.d, ch) && *ch != SCENE_OWN_PAGE;
+    return !s->cpu.e && !(s->cpu.p & (CPU_FLAG_X | CPU_FLAG_D)) && s->cpu.db == SCRIPT_BANK && on_channel(s->cpu.d, ch);
 }
 
 /* After a call-out: the port carries on if the callee left the machine as
  * expected (on whichever channel's page it left D); otherwise the original
  * does, with the carry and overflow the callee left. */
-static bool can_continue(Snes *s, Flags *f, ScenePage *ch)
+static bool can_continue(Snes *s, Flags *f, unsigned *ch)
 {
     f->carry = m_flag(s, CPU_FLAG_C);
     f->overflow = m_flag(s, CPU_FLAG_V);
@@ -377,9 +387,9 @@ static bool can_continue(Snes *s, Flags *f, ScenePage *ch)
 
 /* Command $A0: the program's routine, which $7E:37F3 calls through the address
  * the scratch cell holds. X is the command's table index, 0. */
-static bool call_program(Snes *s, Flags *f, ScenePage *ch, uint16_t routine)
+static bool call_program(Snes *s, Flags *f, unsigned *ch, uint16_t routine)
 {
-    set_scene_scratch16(state_of(s), SCENE_OWN_PAGE, SCRATCH_A, routine);
+    set_scene_scratch16(state_of(s), scene_math_scene(), SCRATCH_A, routine);
     s->cpu.a = routine;
     s->cpu.x = 0;
     set_widths16(s);
@@ -390,7 +400,7 @@ static bool call_program(Snes *s, Flags *f, ScenePage *ch, uint16_t routine)
 
 /* Command $A6: the sound driver command in its buffer, with the registers at
  * the original's JSL: A from the load of the sending flag, X the table index. */
-static bool send_sound(Snes *s, Flags *f, ScenePage *ch, uint16_t tail)
+static bool send_sound(Snes *s, Flags *f, unsigned *ch, uint16_t tail)
 {
     GameState *g = state_of(s);
     s->cpu.a = tail & 0xFF00;
@@ -411,7 +421,7 @@ static bool send_sound(Snes *s, Flags *f, ScenePage *ch, uint16_t tail)
  * the callee left in D: a channel's, or, where the callee left the machine
  * other than the port expects, wherever D is, as the original's does. */
 enum { SCRIPT_CELL = 0x20 };
-static bool past_call(Snes *s, ScenePage *ch, bool go_on)
+static bool past_call(Snes *s, unsigned *ch, bool go_on)
 {
     if (go_on) {
         advance(state_of(s), *ch, 2);
@@ -430,7 +440,7 @@ typedef enum { RUN_YIELDED, RUN_STOPPED, RUN_CARRY_ON } RunEnd;
  * script is left on the command the original is to carry on from
  * (RUN_CARRY_ON), with the carry and overflow it starts with, or the port has
  * stopped at the sound wait (RUN_STOPPED). */
-static RunEnd run(Snes *s, Flags *f, ScenePage ch)
+static RunEnd run(Snes *s, Flags *f, unsigned ch)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
@@ -477,7 +487,7 @@ enum { INTERPRETER_RETURN = 0x0B01 };
 void scene_run_sequence(Snes *s)
 {
     Flags f = { m_flag(s, CPU_FLAG_C), m_flag(s, CPU_FLAG_V) };
-    ScenePage ch = 0;
+    unsigned ch = 0;
     machine_as_expected(s, &ch);
     m_push16(s, INTERPRETER_RETURN);   /* the JSR's frame, there at every call-out */
     RunEnd end = run(s, &f, ch);
@@ -500,15 +510,15 @@ void scene_run_sequence(Snes *s)
 
 bool scene_sequence_bank_is_scripts(Snes *s)
 {
-    ScenePage ch;
+    unsigned ch;
     return machine_as_expected(s, &ch);
 }
 
 /* The wait reads the script through the data bank, on the channel D is on. */
 bool scene_sequence_waits_on_channel(Snes *s)
 {
-    ScenePage ch;
-    return s->cpu.db == SCRIPT_BANK && scene_page_of(s->cpu.d, &ch) && ch != SCENE_OWN_PAGE;
+    unsigned ch;
+    return s->cpu.db == SCRIPT_BANK && on_channel(s->cpu.d, &ch);
 }
 
 /* $C3:0C28, where the wait for the sound driver goes on, isn't an entry, so
@@ -525,7 +535,7 @@ typedef struct {
     uint8_t first, second, level, wanted;
 } SoundWait;
 
-static SoundWait read_sound_level(const GameState *g, Platform *pf, ScenePage ch)
+static SoundWait read_sound_level(const GameState *g, Platform *pf, unsigned ch)
 {
     SoundWait w;
     w.first = au_status(pf, PF_AT(0xC30C2C), 2);
@@ -548,8 +558,8 @@ static void compare8(Snes *s, uint8_t a, uint8_t b)
 void scene_script_wait_sound_port2(Snes *s)
 {
     GameState *g = state_of(s);
-    ScenePage ch = 0;
-    scene_page_of(s->cpu.d, &ch);
+    unsigned ch = 0;
+    on_channel(s->cpu.d, &ch);   /* the guard has checked it is */
     s->cpu.p |= CPU_FLAG_M;
     SoundWait w = read_sound_level(g, m_platform(s), ch);
     m_set_a8(s, w.first);

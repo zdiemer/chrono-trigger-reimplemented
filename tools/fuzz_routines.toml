@@ -102,6 +102,14 @@ args = ["--long", "--d", "0000", "--db", "00"]
 why = "the multiplier reached through the data bank"
 
 [[routine]]
+name = "scene_multiply_signed"
+variant = "channel"
+subsystem = "scene"
+state = "race"
+args = ["--long", "--d", "0B00", "--db", "00"]
+why = "on the second sequence channel's page, the other instance of the math helpers' page kind (re/ram.toml, scene_math)"
+
+[[routine]]
 name = "scene_find_divisor"
 subsystem = "scene"
 state = "race"
@@ -158,6 +166,15 @@ state = "attract"
 args = ["--long", "--d", "0A00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0A21-7E0A21=30-B5",
         "--budget", "8000000"]
 why = "the program kept, a channel on its page, the script pointer inside the program"
+
+[[routine]]
+name = "scene_run_sequence"
+variant = "channel"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0B00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0B21-7E0B21=30-B5",
+        "--budget", "8000000"]
+why = "as the plain entry, on the second channel's page"
 
 [[routine]]
 name = "scene_script_wait_sound_port2"
@@ -231,16 +248,48 @@ state = "race"
 args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
+name = "scene_divide"
+variant = "channel"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0B00", "--keep", "7E3000-7EB5FF"]
+why = "on the second sequence channel's page, the other instance of the math helpers' page kind (re/ram.toml, scene_math)"
+
+[[routine]]
 name = "scene_divide_8_8"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
+name = "scene_divide_8_8"
+variant = "channel"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0B00", "--keep", "7E3000-7EB5FF"]
+why = "on the second sequence channel's page, the other instance of the math helpers' page kind (re/ram.toml, scene_math)"
+
+[[routine]]
 name = "scene_multiply"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
+
+[[routine]]
+name = "scene_multiply"
+variant = "channel"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0B00", "--keep", "7E3000-7EB5FF"]
+why = "on the second sequence channel's page, the other instance of the math helpers' page kind (re/ram.toml, scene_math)"
+
+[[routine]]
+name = "scene_multiply"
+variant = "other_page"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0A80", "--keep", "7E3000-7EB5FF"]
+why = "D inside a channel's page but on no instance: the guard refuses every state, before and after"
 
 [[routine]]
 name = "scene_shift_c00_words"

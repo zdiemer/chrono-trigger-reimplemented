@@ -11,6 +11,7 @@
 #include "scene/scene.h"
 
 #include "port/machine.h"
+#include "port/vars_ram.h"
 
 bool scene_on_scene_page(Snes *s) { return m_direct_page(s) == 0x0000; }
 
@@ -20,11 +21,12 @@ bool scene_on_scene_page_low_bank(Snes *s) { return scene_on_scene_page(s) && m_
 bool scene_on_scene_page_io_bank(Snes *s) { return scene_on_scene_page(s) && m_bank_reaches_io(s); }
 
 /* The math helpers work on the scratch cells of whichever page they're
- * called on: the scene's own or a sequence channel's (scene/scratch.c). */
+ * called on: the scene's own or a sequence channel's, the instances re/ram.toml
+ * declares for them (a D that is neither is refused, and counted). */
 bool scene_on_math_page(Snes *s)
 {
-    ScenePage page;
-    return scene_page_of(m_direct_page(s), &page);
+    SceneMathPage page;
+    return scene_math_page_of(m_direct_page(s), &page);
 }
 
 bool scene_on_math_page_io_bank(Snes *s) { return scene_on_math_page(s) && m_bank_reaches_io(s); }

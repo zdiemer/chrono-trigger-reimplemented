@@ -6,7 +6,10 @@
     python3 tools/suite.py --ct-dev build/main/ct_dev --no-trace --no-timing -j 6
 
 This is the validation gate (CLAUDE.md, "Validation"): every movie run with
-`--native shadow` must exit 0 with no `mismatched [1-9]` line; then the checks
+`--native shadow` must exit 0 with no `mismatched [1-9]` line and no `page
+refused` line (a guard that turned away a call whose direct page is no instance
+re/ram.toml declares, which would otherwise show only as a drop in a shadow
+count; docs/DISASSEMBLY.md, "The accessors"); then the checks
 in CHECKS run, each printing one line: `--native on --recomp only` must produce
 a trace identical to `--native off`; every hand port's estimated time must
 stay within the timing gate's limits over the shadow runs' `--timing-report`
@@ -44,6 +47,7 @@ if __package__ in (None, ""):
 from tools import timing_gate  # noqa: E402
 
 MISMATCH = re.compile(rb"mismatched [1-9]")
+REFUSED = re.compile(rb"^page refused: .*$", re.M)
 FRAMES = re.compile(r"^# frames (\d+)", re.M)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -79,15 +83,19 @@ def run_movie(binary, rom, out, name, path, frames):
     """One shadow run. Returns (name, ok, detail)."""
     log = out / ("shadow-%s.log" % name)
     cmd = [str(binary), "--rom", str(rom), "--movie", str(path),
-           "--frames", str(frames), "--native", "shadow", "--timing-report",
+           "--frames", str(frames), "--native", "shadow", "--timing-report", "--page-report",
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name))]
     started = time.time()
     with open(log, "wb") as fh:
         rc = subprocess.call(cmd, stdout=fh, stderr=subprocess.STDOUT)
-    bad = len(MISMATCH.findall(log.read_bytes()))
-    ok = rc == 0 and bad == 0
+    text = log.read_bytes()
+    bad = len(MISMATCH.findall(text))
+    refused = [r.decode(errors="replace") for r in REFUSED.findall(text)]
+    ok = rc == 0 and bad == 0 and not refused
     detail = "rc=%d mismatching=%d %.0fs" % (rc, bad, time.time() - started)
+    if refused:
+        detail += " " + "; ".join(refused)
     (out / ("status-%s.txt" % name)).write_text("%s %s\n" % (name, detail))
     return name, ok, detail
 
