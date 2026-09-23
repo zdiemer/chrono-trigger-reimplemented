@@ -9,12 +9,15 @@
  * variable" a constant or another variable, a byte or a word -- so the
  * language is two things:
  *
- * - operations, written as C functions over the game's state with typed,
- *   named parameters: `loop_animation(g, self, animation)`;
+ * - operations, written as C functions over the game's state that read the
+ *   command's parameters by name: `loop_animation` reads `c->animation`;
  * - a table, one row per opcode, saying which operation it is and how its
- *   operands decode into the operation's parameters (a constant, an operand
+ *   operands decode into the parameters it reads (a constant, an operand
  *   byte or word, the value of the variable an operand names, the object an
- *   operand names...), how long it is, and for a condition where its jump is.
+ *   operand names...), how long it is, and for a condition where its jump is:
+ *
+ *       { 0xAA, loop_animation, .animation = OPERAND(1), .length = 2 },
+ *       { 0xB3, loop_animation, .animation = CONSTANT(0), .length = 1 },
  *
  * Each file of game/event/ ends with its rows. The engine decodes a command
  * once, by its row, and calls the operation; an operation says what happens
@@ -30,6 +33,8 @@
 #include "platform/platform.h"
 #include "state.h"
 #include "vars.h"
+
+#include "event/variables.h"
 
 /* ---- The script -------------------------------------------------------------------- */
 
@@ -88,9 +93,81 @@ typedef struct {
     bool go_on;
 } EventStep;
 
-/* ---- A command's operands, decoded ----------------------------------------------------- */
+/* ---- What a command is called with --------------------------------------------------- */
 
-/* How an operand becomes an operation's parameter. */
+/* The language's own types for what its commands name (the variables' and
+ * the story's are event/variables.h's). */
+typedef uint8_t Facing;       /* one of the four directions a sprite looks, 0-3 */
+typedef uint32_t Address;     /* anywhere in memory: bank << 16 | offset */
+typedef enum { WINDOW_ANYWHERE = 0, WINDOW_TOP = 1, WINDOW_BOTTOM = 2 } WindowPlace;   /* a dialog's */
+typedef enum { SPRITE_HIDDEN = 0x00, SPRITE_SHOWN = 0x01, NO_SPRITE = 0x80 } SpriteState;
+/* The game's three records of a location: where the party is, where it goes
+ * next, and one put aside for later. */
+typedef enum { WHERE_THE_PARTY_IS, WHERE_IT_GOES_NEXT, PUT_ASIDE } LocationRecord;
+
+/* Every parameter an operation of the language takes, by type and name. A
+ * row of the table says how the command's operands decode into the ones its
+ * operation reads (`.animation = OPERAND(1)`, `.animation = CONSTANT(0)`);
+ * the engine decodes them into an EventCommand, and the operation reads them
+ * by name (`c->animation`). */
+#define EVENT_PARAMETERS(X)                                                                      \
+    /* animation */                                                                              \
+    X(uint8_t, animation) X(uint8_t, frames) X(uint8_t, frame)                                  \
+    /* the scripts' variables and the story */                                                   \
+    X(EventVariable, variable) X(uint16_t, value) X(uint16_t, amount) X(Width, width)           \
+    X(uint8_t, flags) X(uint8_t, times) X(StoryOffset, story_at) X(uint8_t, flag)               \
+    X(uint8_t, offset) X(bool, raise) X(Address, address)                                       \
+    /* conditions */                                                                             \
+    X(uint16_t, left) X(uint16_t, right) X(uint8_t, comparison) X(uint8_t, progress)            \
+    X(uint8_t, point) X(uint16_t, buttons)                                                       \
+    /* objects */                                                                                \
+    X(EventObject, object) X(EventObject, target) X(bool, there) X(uint8_t, call)               \
+    X(bool, takes) X(Facing, facing) X(EventVariable, column) X(EventVariable, row)             \
+    X(uint8_t, speed) X(uint8_t, solid) X(uint8_t, blocked_by) X(uint8_t, arrival)              \
+    X(uint8_t, move_length) X(uint8_t, tile_x) X(uint8_t, tile_y) X(bool, centred)              \
+    X(uint16_t, x) X(uint16_t, y) X(uint8_t, layering) X(SpriteState, sprite)                   \
+    X(uint8_t, velocity_x) X(uint8_t, velocity_y) X(uint8_t, acceleration) X(uint8_t, steps)    \
+    X(uint8_t, direction) X(uint8_t, height)                                                     \
+    /* the party */                                                                              \
+    X(uint8_t, character) X(uint8_t, first_argument) X(uint8_t, second_argument)                \
+    /* sound */                                                                                  \
+    X(uint8_t, effect) X(uint8_t, song) X(uint8_t, volume) X(uint8_t, sound_command)            \
+    /* memory */                                                                                 \
+    X(uint8_t, bank) X(uint16_t, size)                                                           \
+    /* dialog */                                                                                 \
+    X(Address, text) X(uint8_t, line) X(uint8_t, choices) X(WindowPlace, window)                \
+    X(uint8_t, answer)                                                                           \
+    /* places and battles */                                                                     \
+    X(uint16_t, map_and_how) X(uint16_t, tile) X(uint16_t, map) X(uint8_t, how)                 \
+    X(LocationRecord, record) X(bool, raise_1e) X(uint8_t, setup) X(uint8_t, terms)             \
+    /* the screen */                                                                             \
+    X(uint8_t, control) X(uint8_t, fade_to) X(uint8_t, changes) X(uint8_t, colour)              \
+    X(uint8_t, rate) X(uint8_t, setting) X(uint16_t, from) X(uint16_t, to)                      \
+    X(uint16_t, destination) X(uint8_t, maps) X(uint16_t, drift) X(uint8_t, layers)             \
+    X(uint8_t, scroll_x) X(uint8_t, scroll_y) X(uint8_t, scanline)
+
+/* The parameters by name, for what refers to one (event/leaves.c). */
+#define EVENT_PARAMETER_ID(type, name) PARAMETER_##name,
+typedef enum { EVENT_PARAMETERS(EVENT_PARAMETER_ID) EVENT_PARAMETER_COUNT } EventParameter;
+#undef EVENT_PARAMETER_ID
+
+/* What an operation is called with: the object whose script is running, the
+ * host (for the commands that wait on the sound driver), and its parameters. */
+typedef struct {
+    EventObject self;
+    Platform *platform;
+#define EVENT_PARAMETER_FIELD(type, name) type name;
+    EVENT_PARAMETERS(EVENT_PARAMETER_FIELD)
+#undef EVENT_PARAMETER_FIELD
+} EventCommand;
+
+/* A parameter's value by its name's enum, as a number (event/engine.c). */
+uint32_t event_parameter(const EventCommand *c, EventParameter which);
+
+typedef EventFlow (*EventOperation)(GameState *g, const EventCommand *c);
+
+/* ---- How an operand becomes a parameter ------------------------------------------------ */
+
 typedef enum {
     ARG_NONE,
     ARG_CONSTANT,        /* fixed by the opcode (a short form's) */
@@ -108,7 +185,6 @@ typedef enum {
     ARG_STORY_PROGRESS,  /* the story's progress counter */
     ARG_BIT,             /* the operand is a bit number: the byte with that bit set */
     ARG_ALL_BUT_BIT,     /* the operand is a bit number: the byte with every other bit set */
-    ARG_HERE,            /* where the command is in the script */
 } EventArgKind;
 
 typedef struct {
@@ -118,9 +194,9 @@ typedef struct {
 } EventArg;
 
 #define CONSTANT(k) { ARG_CONSTANT, 0, (k) }
-#define BYTE(n) { ARG_BYTE, (n), 0 }
-#define WORD(n) { ARG_WORD, (n), 0 }
-#define ADDRESS(n) { ARG_ADDRESS, (n), 0 }
+#define OPERAND(n) { ARG_BYTE, (n), 0 }
+#define OPERAND_WORD(n) { ARG_WORD, (n), 0 }
+#define OPERAND_ADDRESS(n) { ARG_ADDRESS, (n), 0 }
 #define VARIABLE(n) { ARG_VARIABLE, (n), 0 }
 #define VARIABLE_BYTE(n) { ARG_VARIABLE_BYTE, (n), 0 }
 #define VARIABLE_WORD(n) { ARG_VARIABLE_WORD, (n), 0 }
@@ -132,23 +208,15 @@ typedef struct {
 #define STORY_PROGRESS { ARG_STORY_PROGRESS, 0, 0 }
 #define BIT(n) { ARG_BIT, (n), 0 }
 #define ALL_BUT_BIT(n) { ARG_ALL_BUT_BIT, (n), 0 }
-#define HERE { ARG_HERE, 0, 0 }
 
-enum { EVENT_ARGS = 4 };
-
-/* What an operation is called with. */
-typedef struct {
-    EventObject self;            /* the object whose script is running */
-    uint32_t arg[EVENT_ARGS];    /* its parameters, in the row's order */
-    Platform *platform;          /* the host, for the commands that wait on the sound driver */
-} EventArgs;
-
-typedef EventFlow (*EventOperation)(GameState *g, const EventArgs *a);
+/* The widths, as a row gives them. */
+#define BYTES CONSTANT(AS_BYTE)
+#define WORDS CONSTANT(AS_WORD)
 
 /* What the port needs of the game's state before it runs a command, beyond
- * what its operands' kinds imply (event/engine.c); `at` is the command's
- * offset. Looked at without the machine's time (a guard's peek). */
-typedef bool (*EventCheck)(const GameState *g, uint16_t at);
+ * what its operands' kinds imply (event/engine.c), given the command as its
+ * row decodes it. Looked at without the machine's time (a guard's peek). */
+typedef bool (*EventCheck)(const GameState *g, const EventCommand *c);
 
 /* ---- The table ------------------------------------------------------------------------ */
 
@@ -161,7 +229,11 @@ typedef void (*EventBridge)(struct Snes *s);
 typedef struct {
     uint8_t opcode;
     EventOperation run;    /* the operation, or NULL for a bridge */
-    EventArg args[EVENT_ARGS];
+    struct {               /* how each parameter the operation reads is decoded; the rest are ARG_NONE */
+#define EVENT_PARAMETER_SPEC(type, name) EventArg name;
+        EVENT_PARAMETERS(EVENT_PARAMETER_SPEC)
+#undef EVENT_PARAMETER_SPEC
+    };
     uint8_t length;        /* the command's bytes, its opcode's included */
     uint8_t jump;          /* the operand holding the jump's distance (conditions, jumps), or 0 */
     bool back;             /* the jump goes back */
@@ -177,7 +249,9 @@ typedef struct {
     unsigned count;
 } EventOpcodes;
 
-#define EVENT_OPCODES(name, ...)                                                       static const EventOpcode name##_rows[] = { __VA_ARGS__ };                          const EventOpcodes name = { name##_rows, sizeof name##_rows / sizeof name##_rows[0] }
+#define EVENT_OPCODES(name, ...)                                  \
+    static const EventOpcode name##_rows[] = { __VA_ARGS__ };     \
+    const EventOpcodes name = { name##_rows, sizeof name##_rows / sizeof name##_rows[0] }
 
 /* Every file's rows (event/engine.c indexes them). */
 extern const EventOpcodes event_animation_opcodes, event_calls_opcodes, event_dialog_opcodes,
@@ -192,6 +266,9 @@ const EventOpcode *event_opcode(uint8_t opcode);
  * object is one, the command is inside the script buffer, its operands name
  * what their kinds say, and its row's own check holds. */
 bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at);
+
+/* The command at `at`, decoded by its row. */
+EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at);
 
 /* Run the command at `at` by its row: decode, operate, and where next. */
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at);

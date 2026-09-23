@@ -11,9 +11,9 @@
 
 // $C0:658F
 /* A variable learns who leads the party. */
-static EventFlow note_leader(GameState *g, EventVariable v)
+static EventFlow note_leader(GameState *g, const EventCommand *c)
 {
-    set_variable_byte(g, v, party_leader(g));
+    set_variable_byte(g, c->variable, party_leader(g));
     return next_command();
 }
 
@@ -79,7 +79,7 @@ void event_cmd_take_out_of_party(Snes *s)
     enum { LENGTH = 2 };
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
-    uint8_t character = script_byte(g, (uint16_t)(at + 1));
+    uint8_t character = event_command_of(s, 0xD6).character;
     ORIGINAL_EFFECT(keep_offset_across_calls(g, (uint16_t)(at + LENGTH)));
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, character));
     bool any, before_or_found = last_member_at_least(g, character, &any);
@@ -108,7 +108,8 @@ void event_cmd_party_routine_0a(Snes *s)
     uint16_t at = event_command_offset(s);
     uint16_t resume = (uint16_t)(at + LENGTH);
     ORIGINAL_EFFECT(keep_offset_across_calls(g, resume));
-    event_set_registers(s, 0, script_byte(g, (uint16_t)(at + 2)), script_byte(g, (uint16_t)(at + 1)));
+    EventCommand c = event_command_of(s, 0xD5);
+    event_set_registers(s, 0, c.second_argument, c.first_argument);
     if (call_party_routine(s, 0xC03A7C, ROUTINE))
         event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
@@ -138,13 +139,11 @@ void event_cmd_party_routine_6(Snes *s) { party_routines(s, 0xC03E67, 6, false);
 // $C0:3E75
 void event_cmd_party_routine_7(Snes *s) { party_routines(s, 0xC03E67, 7, false); }
 
-static EventFlow run_note_leader(GameState *g, const EventArgs *a) { return note_leader(g, a->arg[0]); }
-
 /* $D6's guard: every party member's object is one the port reaches, or there
  * is nobody in the place. */
-static bool members_are_objects(const GameState *g, uint16_t at)
+static bool members_are_objects(const GameState *g, const EventCommand *c)
 {
-    (void)at;
+    (void)c;
     for (PartyPlace place = 0; place < PARTY_PLACES; place++)
         if (place_taken(g, place) && (field_party_objects(g, place) & 1))
             return false;
@@ -152,10 +151,12 @@ static bool members_are_objects(const GameState *g, uint16_t at)
 }
 
 EVENT_OPCODES(event_party_opcodes,
-    { 0x20, run_note_leader, { VARIABLE(1) }, 2, .routine = 0xC0658F },
-    { 0xD6, .bridge = event_cmd_take_out_of_party, .length = 2, .accepts = members_are_objects,
+    { 0x20, note_leader, .variable = VARIABLE(1), .length = 2, .routine = 0xC0658F },
+    { 0xD6, .bridge = event_cmd_take_out_of_party, .character = OPERAND(1), .length = 2,
+      .accepts = members_are_objects,
       .routine = 0xC03A07 },
-    { 0xD5, .bridge = event_cmd_party_routine_0a, .length = 3, .routine = 0xC03A68 },
+    { 0xD5, .bridge = event_cmd_party_routine_0a, .first_argument = OPERAND(1), .second_argument = OPERAND(2),
+      .length = 3, .routine = 0xC03A68 },
     { 0xF8, .bridge = event_cmd_party_routine_6_7, .length = 1, .routine = 0xC03E5C },
     { 0xF9, .bridge = event_cmd_party_routine_6, .length = 1, .routine = 0xC03E6E },
     { 0xFA, .bridge = event_cmd_party_routine_7, .length = 1, .routine = 0xC03E75 });

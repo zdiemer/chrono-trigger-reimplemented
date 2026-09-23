@@ -3780,18 +3780,30 @@ names, all `field_setting_1e` and the menus' routine `$0A`, whose meanings
 aren't established; TODO.md).
 
 **The language table.** Each file ends with its rows: opcode, operation, how
-each operand decodes into a typed parameter (`BYTE(1)`, `VARIABLE_WORD(1)`,
-`OBJECT(1)`, `MEMBER_OBJECT(1)`, `STORY_WORD(1)`, `BIT(1)`, `SELF`,
-`CONSTANT(k)` ...), length, jump operand, the guard's extra check, and the
-handler's address, which names the command's time and its registered entry.
-Operations take typed parameters, in the order the row lists them --
-`loop_animation(g, self, animation)`, `call_function(g, target, there, call)`
--- and say what happens next (`next_command()`, `end_turn()`, `stay()`,
+its operands decode into the parameters the operation reads, by name
+(`.animation = OPERAND(1)`, `.animation = CONSTANT(0)`, `.value =
+VARIABLE_WORD(1)`, `.target = MEMBER_OBJECT(1)`, `.flags = BIT(1)`,
+`.object = SELF` ...), length, jump operand, the guard's extra check, and the
+handler's address, which names the command's time and its registered entry:
+
+    { 0xAA, loop_animation, .animation = OPERAND(1), .length = 2, .routine = 0xC02E67 },
+    { 0xB3, loop_animation, .animation = CONSTANT(0), .length = 1, .routine = 0xC02E87 },
+
+The parameters are one list in `script.h` (`EVENT_PARAMETERS`: each a type and
+a name -- `EventVariable variable`, `Width width`, `EventObject target`,
+`WindowPlace window`, `LocationRecord record` ...), from which the row's
+fields, the decoded `EventCommand` and the engine's decoding and checking
+loops are generated. An operation takes the command and reads what it needs
+by name (`c->animation`, `c->self`), with no adapter between the row and it,
+and says what happens next (`next_command()`, `end_turn()`, `stay()`,
 `take_jump()`, `go_to(at)`); the engine does the jumping. A command that
 still calls out to the original's code is a row too, whose operation takes the
-machine (`.bridge`): the table is where every ported command is, 185 rows.
-Opcodes that differ only in how an operand is encoded became one operation
-each:
+machine (`.bridge`), and its operands are named in its row the same way: a
+bridge reads them decoded by its row (`event_command_of(s, 0x94).target`),
+never by offset. The guard's extra checks get the decoded command too
+(`compares_bytes` reads `c->comparison`). The table is where every ported
+command is, 185 rows. Opcodes that differ only in how an operand is encoded
+became one operation each:
 
 | Family | Opcodes | Operations |
 |---|---|--:|
@@ -3900,7 +3912,10 @@ rows were recalibrated (`timing_gate.py --calibrate`, event's rows only):
 over the two reviews 87 of the 185 handlers' `cost_milli` moved -- `yield`
 4750 to 2375 and `halt` 4000 to 2000, which touch the bus only to decode,
 `var_add` 4341 to 3183, `call` 4599 to 5270 -- the per-frame turn 3256 to
-4491, and the openings at map setup 4173 to 5934. The openings' own walk over
+4500, and the openings at map setup 4173 to 5936. Decoding the bridges'
+operands by their rows, before their first call-out, moved 22 more, all down
+(`move_in_direction` 2968 to 2414, `play_effect` 3373 to 2768,
+`jump_to_tile` 2606 to 1519, `move_toward_party_member` 4469 to 4151). The openings' own walk over
 the object slots (every object cleared, only some run), and the commands they
 hand to the original's table, which they look up, are a mix one scalar can't
 fit: 3.15% of calls off by a line or more against the 1% vblank-tail limit, at
@@ -3941,14 +3956,20 @@ What changed for each:
   (4 of 6,823 turns differed).
 - *The turn loop as plain C* (`event_run_turn`, `event_run_openings`), the
   machine behind a runner the entry wrappers supply.
+- *Rows name their parameters* (review-port's item 24, from the review's
+  follow-up): the positional `args` column and the adapters that shuffled
+  `a->arg[n]` into each operation's parameters went; a row says
+  `.animation = OPERAND(1)`, the operation reads `c->animation`, and the
+  bridges and the guard's checks read the same decoded command, so no command
+  of the subsystem reads an operand by its offset outside the engine. The
+  scaffolding table names the parameters it keeps (`KEEP(WORD, amount)`).
 - *The rest*: one flow for the call commands (`take_the_call`), the tint's
   channels taken once, `count` folded into `add` (and `subtract`), locations
   through `set_location_as`, calls' places as entries of the table rather than
   the original's byte offsets, `copy_data` decoded into a `DataBlock` (and its
   Y as scaffolding), `$D6`'s carry computed in its bridge from the search the
   logic makes, typed operand kinds, named blocking and solidity bits, the
-  waiting mark a bool, adapters in their operations' order, entry names that
-  are the operations', a typed tint and sprite priority (the field's
+  waiting mark a bool, entry names that are the operations', a typed tint and sprite priority (the field's
   shadows still hold hardware bytes; TODO.md), the dialog flag named for what
   sets it, and `re/ram.toml`'s event sources brought up to date.
 

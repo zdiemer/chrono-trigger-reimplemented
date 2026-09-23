@@ -79,19 +79,19 @@ static void back_to_loop(GameState *g, EventObject object)
 
 // $C0:2E67
 /* The object loops an animation from its start: its idle, a walk on the spot. */
-static EventFlow loop_animation(GameState *g, EventObject self, uint8_t animation)
+static EventFlow loop_animation(GameState *g, const EventCommand *c)
 {
-    set_looping_animation(g, self, animation);
-    restart_animation(g, self, LOOPING);
+    set_looping_animation(g, c->self, c->animation);
+    restart_animation(g, c->self, LOOPING);
     return next_command();
 }
 
 // $C0:2E8F
 /* The object stops animating, on its first frame of animation 0. */
-static EventFlow stop_animating(GameState *g, EventObject self)
+static EventFlow stop_animating(GameState *g, const EventCommand *c)
 {
-    set_looping_animation(g, self, 0);
-    restart_animation(g, self, NOT_ANIMATING);
+    set_looping_animation(g, c->self, 0);
+    restart_animation(g, c->self, NOT_ANIMATING);
     return next_command();
 }
 
@@ -100,45 +100,37 @@ static EventFlow stop_animating(GameState *g, EventObject self)
  * reaction -- and its script waits for it to finish; the object then goes
  * back to what it was looping. Met again while that animation plays, the
  * command just waits on. */
-static EventFlow play_animation(GameState *g, EventObject self, uint8_t animation, uint8_t frames)
+static EventFlow play_animation(GameState *g, const EventCommand *c)
 {
-    uint8_t left = one_off_frames_left(g, self);
+    uint8_t left = one_off_frames_left(g, c->self);
     if (left == 1) {
-        back_to_loop(g, self);
+        back_to_loop(g, c->self);
         return next_command();
     }
-    if (left != 0 && animation == one_off_animation(g, self))
+    if (left != 0 && c->animation == one_off_animation(g, c->self))
         return stay();
-    set_field_object_animation_mode_timed_animation(g, self, animation);
-    interrupt_loop(g, self, PLAYING_ONCE);
+    set_field_object_animation_mode_timed_animation(g, c->self, c->animation);
+    interrupt_loop(g, c->self, PLAYING_ONCE);
     /* the field counts down to 1, so the count starts one past the frames */
-    set_field_object_move_state_animation_count(g, self, (uint8_t)(frames + 1));
+    set_field_object_move_state_animation_count(g, c->self, (uint8_t)(c->frames + 1));
     return stay();
 }
 
 // $C0:2F71
 /* The object holds one frame of its sprite -- a pose for a cutscene -- until
  * a script animates it again. */
-static EventFlow hold_frame(GameState *g, EventObject self, uint8_t frame)
+static EventFlow hold_frame(GameState *g, const EventCommand *c)
 {
-    set_field_object_static_frame(g, self, frame);
-    interrupt_loop(g, self, HOLDING_A_FRAME);
+    set_field_object_static_frame(g, c->self, c->frame);
+    interrupt_loop(g, c->self, HOLDING_A_FRAME);
     return end_turn();
 }
 
-static EventFlow run_loop_animation(GameState *g, const EventArgs *a) { return loop_animation(g, a->self, a->arg[0]); }
-static EventFlow run_stop_animating(GameState *g, const EventArgs *a) { return stop_animating(g, a->self); }
-static EventFlow run_play_animation(GameState *g, const EventArgs *a)
-{
-    return play_animation(g, a->self, a->arg[0], a->arg[1]);
-}
-static EventFlow run_hold_frame(GameState *g, const EventArgs *a) { return hold_frame(g, a->self, a->arg[0]); }
-
 EVENT_OPCODES(event_animation_opcodes,
-    { 0xAA, run_loop_animation, { BYTE(1) }, 2, .routine = 0xC02E67 },
-    { 0xB3, run_loop_animation, { CONSTANT(0) }, 1, .routine = 0xC02E87 },
-    { 0xB4, run_loop_animation, { CONSTANT(1) }, 1, .routine = 0xC02E8B },
-    { 0xAE, run_stop_animating, { { 0 } }, 1, .routine = 0xC02E8F },
-    { 0xAB, run_play_animation, { BYTE(1), CONSTANT(1) }, 2, .routine = 0xC02E9A },
-    { 0xB7, run_play_animation, { BYTE(1), BYTE(2) }, 3, .routine = 0xC02F01 },
-    { 0xAC, run_hold_frame, { BYTE(1) }, 2, .routine = 0xC02F71 });
+    { 0xAA, loop_animation, .animation = OPERAND(1), .length = 2, .routine = 0xC02E67 },
+    { 0xB3, loop_animation, .animation = CONSTANT(0), .length = 1, .routine = 0xC02E87 },
+    { 0xB4, loop_animation, .animation = CONSTANT(1), .length = 1, .routine = 0xC02E8B },
+    { 0xAE, stop_animating, .length = 1, .routine = 0xC02E8F },
+    { 0xAB, play_animation, .animation = OPERAND(1), .frames = CONSTANT(1), .length = 2, .routine = 0xC02E9A },
+    { 0xB7, play_animation, .animation = OPERAND(1), .frames = OPERAND(2), .length = 3, .routine = 0xC02F01 },
+    { 0xAC, hold_frame, .frame = OPERAND(1), .length = 2, .routine = 0xC02F71 });

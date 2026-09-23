@@ -8,8 +8,6 @@
 #include "event/event_data.h"
 #include "event/variables.h"
 
-typedef uint8_t Facing;   /* 0-3 */
-
 // $C0:554D
 /* The object turns: its sprite shows the new direction from the next frame. */
 static void turn(GameState *g, EventObject object, Facing facing)
@@ -20,19 +18,19 @@ static void turn(GameState *g, EventObject object, Facing facing)
 
 // $C0:5535
 /* Turn an object -- this one, or another -- to a direction. */
-static EventFlow face(GameState *g, EventObject object, Facing facing)
+static EventFlow face(GameState *g, const EventCommand *c)
 {
-    turn(g, object, facing);
+    turn(g, c->object, c->facing);
     return end_turn();
 }
 
 // $C0:6600
 /* A variable learns which way an object faces. */
-static EventFlow note_facing(GameState *g, EventVariable v, EventObject object)
+static EventFlow note_facing(GameState *g, const EventCommand *c)
 {
-    Facing facing = field_object_facing(g, object);
+    Facing facing = field_object_facing(g, c->object);
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, facing));
-    set_variable_byte(g, v, facing);
+    set_variable_byte(g, c->variable, facing);
     return next_command();
 }
 
@@ -95,34 +93,24 @@ static void face_toward(Snes *s, EventObject target)
 
 // $C0:55A0
 /* Face the object the command names. */
-void event_cmd_face_toward_object(Snes *s)
-{
-    face_toward(s, slot_of(script_byte(state_of(s), (uint16_t)(event_command_offset(s) + 1))));
-}
+void event_cmd_face_toward_object(Snes *s) { face_toward(s, event_command_of(s, 0xA8).target); }
 
 // $C0:5605
 /* Face the party member the command names. */
-void event_cmd_face_toward_member(Snes *s)
-{
-    GameState *g = state_of(s);
-    face_toward(s, slot_of(field_party_objects(g, script_byte(g, (uint16_t)(event_command_offset(s) + 1)) >> 1)));
-}
-
-static EventFlow run_face(GameState *g, const EventArgs *a) { return face(g, a->arg[0], a->arg[1]); }
-static EventFlow run_note_facing(GameState *g, const EventArgs *a) { return note_facing(g, a->arg[0], a->arg[1]); }
+void event_cmd_face_toward_member(Snes *s) { face_toward(s, event_command_of(s, 0xA9).target); }
 
 EVENT_OPCODES(event_facing_opcodes,
-    { 0x0F, run_face, { SELF, CONSTANT(0) }, 1, .routine = 0xC05535 },
-    { 0x17, run_face, { SELF, CONSTANT(1) }, 1, .routine = 0xC05539 },
-    { 0x1B, run_face, { SELF, CONSTANT(2) }, 1, .routine = 0xC0553D },
-    { 0x1D, run_face, { SELF, CONSTANT(3) }, 1, .routine = 0xC05541 },
-    { 0xA6, run_face, { SELF, BYTE(1) }, 2, .routine = 0xC05545 },
-    { 0xA7, run_face, { SELF, VARIABLE_BYTE(1) }, 2, .routine = 0xC05557 },
-    { 0x1E, run_face, { OBJECT(1), CONSTANT(0) }, 2, .routine = 0xC0556C },
-    { 0x1F, run_face, { OBJECT(1), CONSTANT(1) }, 2, .routine = 0xC05579 },
-    { 0x25, run_face, { OBJECT(1), CONSTANT(2) }, 2, .routine = 0xC05586 },
-    { 0x26, run_face, { OBJECT(1), CONSTANT(3) }, 2, .routine = 0xC05593 },
-    { 0x23, run_note_facing, { VARIABLE(2), OBJECT(1) }, 3, .routine = 0xC065F8 },
-    { 0x24, run_note_facing, { VARIABLE(2), MEMBER_OBJECT(1) }, 3, .routine = 0xC0661F },
-    { 0xA8, .bridge = event_cmd_face_toward_object, .args = { OBJECT(1) }, .length = 2, .routine = 0xC055A0 },
-    { 0xA9, .bridge = event_cmd_face_toward_member, .args = { MEMBER_OBJECT(1) }, .length = 2, .routine = 0xC05605 });
+    { 0x0F, face, .object = SELF, .facing = CONSTANT(0), .length = 1, .routine = 0xC05535 },
+    { 0x17, face, .object = SELF, .facing = CONSTANT(1), .length = 1, .routine = 0xC05539 },
+    { 0x1B, face, .object = SELF, .facing = CONSTANT(2), .length = 1, .routine = 0xC0553D },
+    { 0x1D, face, .object = SELF, .facing = CONSTANT(3), .length = 1, .routine = 0xC05541 },
+    { 0xA6, face, .object = SELF, .facing = OPERAND(1), .length = 2, .routine = 0xC05545 },
+    { 0xA7, face, .object = SELF, .facing = VARIABLE_BYTE(1), .length = 2, .routine = 0xC05557 },
+    { 0x1E, face, .object = OBJECT(1), .facing = CONSTANT(0), .length = 2, .routine = 0xC0556C },
+    { 0x1F, face, .object = OBJECT(1), .facing = CONSTANT(1), .length = 2, .routine = 0xC05579 },
+    { 0x25, face, .object = OBJECT(1), .facing = CONSTANT(2), .length = 2, .routine = 0xC05586 },
+    { 0x26, face, .object = OBJECT(1), .facing = CONSTANT(3), .length = 2, .routine = 0xC05593 },
+    { 0x23, note_facing, .variable = VARIABLE(2), .object = OBJECT(1), .length = 3, .routine = 0xC065F8 },
+    { 0x24, note_facing, .variable = VARIABLE(2), .object = MEMBER_OBJECT(1), .length = 3, .routine = 0xC0661F },
+    { 0xA8, .bridge = event_cmd_face_toward_object, .target = OBJECT(1), .length = 2, .routine = 0xC055A0 },
+    { 0xA9, .bridge = event_cmd_face_toward_member, .target = MEMBER_OBJECT(1), .length = 2, .routine = 0xC05605 });

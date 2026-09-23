@@ -23,6 +23,11 @@ void event_hand_back(Snes *s, const EventLeaves *left)
     m_set_flag(s, CPU_FLAG_V, left->overflow);
 }
 
+EventCommand event_command_of(Snes *s, uint8_t opcode)
+{
+    return event_decode(state_of(s), m_platform(s), event_opcode(opcode), event_command_offset(s));
+}
+
 void event_return(Snes *s, EventStep st)
 {
     s->cpu.x = st.next;

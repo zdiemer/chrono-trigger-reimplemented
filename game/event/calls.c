@@ -163,15 +163,15 @@ static void queue(GameState *g, EventObject target, uint8_t call)
 /* Call a function of another object and go on: it interrupts the target or
  * waits its turn, unless the target refuses calls or is skipped. A call to a
  * party member who isn't there is no call. */
-static EventFlow call_function(GameState *g, EventObject target, bool there, uint8_t call)
+static EventFlow call_function(GameState *g, const EventCommand *c)
 {
-    if (!there || answer(g, target) != TAKES_CALLS)
+    if (!c->there || answer(g, c->target) != TAKES_CALLS)
         return next_command();
-    int order = urgency(g, target, call);
+    int order = urgency(g, c->target, c->call);
     if (order > 0)
-        queue(g, target, call);
+        queue(g, c->target, c->call);
     else if (order < 0)
-        interrupt(g, target, call);
+        interrupt(g, c->target, c->call);
     return next_command();
 }
 
@@ -200,9 +200,9 @@ static Taking take_the_call(GameState *g, EventObject target, bool there, uint8_
 
 // $C0:6086
 /* Call, waiting until the target takes the call. */
-static EventFlow call_when_taken(GameState *g, EventObject target, bool there, uint8_t call)
+static EventFlow call_when_taken(GameState *g, const EventCommand *c)
 {
-    return take_the_call(g, target, there, call) == NOT_YET ? stay() : next_command();
+    return take_the_call(g, c->target, c->there, c->call) == NOT_YET ? stay() : next_command();
 }
 
 static bool waiting(const GameState *g, EventObject self) { return event_call_waiting(g, self) != 0; }
@@ -212,19 +212,19 @@ static void set_waiting(GameState *g, EventObject self, bool on) { set_event_cal
 /* Call and wait until the function has run: the caller waits for the target
  * to take the call, then marks itself waiting and stays until the target has
  * come back down from the call's level (or been skipped). */
-static EventFlow call_and_wait(GameState *g, EventObject self, EventObject target, bool there, uint8_t call)
+static EventFlow call_and_wait(GameState *g, const EventCommand *c)
 {
-    if (waiting(g, self)) {
-        ORIGINAL_EFFECT(keep_target(g, target));
-        if (!calls_skip(g, target) && urgency(g, target, call) >= 0)
+    if (waiting(g, c->self)) {
+        ORIGINAL_EFFECT(keep_target(g, c->target));
+        if (!calls_skip(g, c->target) && urgency(g, c->target, c->call) >= 0)
             return stay();
-        set_waiting(g, self, false);
+        set_waiting(g, c->self, false);
         return next_command();
     }
-    switch (take_the_call(g, target, there, call)) {
+    switch (take_the_call(g, c->target, c->there, c->call)) {
     case NO_CALL: return next_command();
     case NOT_YET: return stay();
-    default: set_waiting(g, self, true); return stay();
+    default: set_waiting(g, c->self, true); return stay();
     }
 }
 
@@ -233,14 +233,14 @@ static EventFlow call_and_wait(GameState *g, EventObject self, EventObject targe
  * resumes the most urgent unfinished thing below it. At the lowest level
  * there is nothing below, and the script stays here. (The guard has checked
  * that there is something to resume before the search would come round.) */
-static EventFlow return_from_function(GameState *g, EventObject self)
+static EventFlow return_from_function(GameState *g, const EventCommand *c)
 {
-    uint8_t level = event_object_call_state_level(g, self);
+    uint8_t level = event_object_call_state_level(g, c->self);
     if (level == LOWEST_LEVEL)
         return stay();
     ORIGINAL_EFFECT(hw_set_multiplicand(g, level));
     ORIGINAL_EFFECT(hw_multiply_by(g, BYTES_PER_LEVEL));   /* the original multiplies in hardware */
-    Place p = (Place)(level * OBJECTS_PER_LEVEL + self);
+    Place p = (Place)(level * OBJECTS_PER_LEVEL + c->self);
     set_place(g, p, 0);
     uint16_t resume;
     do {
@@ -249,94 +249,75 @@ static EventFlow return_from_function(GameState *g, EventObject self)
         level++;
         resume = place(g, p);
     } while (resume == 0);
-    set_event_object_call_state_level(g, self, level);
+    set_event_object_call_state_level(g, c->self, level);
     return go_to(resume);
 }
 
 // $C0:6240
 /* The object stops, or starts again, taking calls. */
-static EventFlow take_calls(GameState *g, EventObject self, bool takes)
+static EventFlow take_calls(GameState *g, const EventCommand *c)
 {
-    set_event_object_call_state_refusing(g, self, !takes);
+    set_event_object_call_state_refusing(g, c->self, !c->takes);
     return next_command();
 }
 
 // $C0:6254
 /* Take an object off the map: disabled, and its sprite gone. */
-static EventFlow disable_object(GameState *g, EventObject object)
+static EventFlow disable_object(GameState *g, const EventCommand *c)
 {
-    take_off_the_map(g, object);
+    take_off_the_map(g, c->object);
     return next_command();
 }
 
 // $C0:6269
 /* Calls skip an object from now on; if that is the object running, its turn ends. */
-static EventFlow make_unreachable(GameState *g, EventObject self, EventObject object)
+static EventFlow make_unreachable(GameState *g, const EventCommand *c)
 {
-    set_calls_skip(g, object, true);
-    return object == self ? end_turn() : next_command();
+    set_calls_skip(g, c->object, true);
+    return c->object == c->self ? end_turn() : next_command();
 }
 
 // $C0:6282
 /* Calls reach an object again. */
-static EventFlow make_reachable(GameState *g, EventObject object)
+static EventFlow make_reachable(GameState *g, const EventCommand *c)
 {
-    set_calls_skip(g, object, false);
+    set_calls_skip(g, c->object, false);
     return next_command();
 }
 
 /* The finding the guard makes for a return: counting up from the object's
  * level, a place with something to resume turns up before the search comes
  * round to where it started (the original never stops otherwise). */
-static bool finds_a_level(const GameState *g, uint16_t at)
+static bool finds_a_level(const GameState *g, const EventCommand *c)
 {
-    (void)at;
-    EventObject self = running_object(g);
-    uint8_t level = event_object_call_state_level(g, self);
+    uint8_t level = event_object_call_state_level(g, c->self);
     if (level == LOWEST_LEVEL)
         return true;
-    Place p = (Place)(level * OBJECTS_PER_LEVEL + self);
+    Place p = (Place)(level * OBJECTS_PER_LEVEL + c->self);
     for (unsigned k = 1; k < PLACES / OBJECTS_PER_LEVEL; k++)
         if (place(g, p = place_below(p)) != 0)
             return true;
     return false;
 }
 
-static EventFlow run_call(GameState *g, const EventArgs *a) { return call_function(g, a->arg[0], a->arg[1], a->arg[2]); }
-static EventFlow run_call_when_taken(GameState *g, const EventArgs *a)
-{
-    return call_when_taken(g, a->arg[0], a->arg[1], a->arg[2]);
-}
-static EventFlow run_call_and_wait(GameState *g, const EventArgs *a)
-{
-    return call_and_wait(g, a->self, a->arg[0], a->arg[1], a->arg[2]);
-}
-static EventFlow run_return(GameState *g, const EventArgs *a) { return return_from_function(g, a->self); }
-static EventFlow run_take_calls(GameState *g, const EventArgs *a) { return take_calls(g, a->self, a->arg[0]); }
-static EventFlow run_disable_object(GameState *g, const EventArgs *a) { return disable_object(g, a->arg[0]); }
-static EventFlow run_make_unreachable(GameState *g, const EventArgs *a)
-{
-    return make_unreachable(g, a->self, a->arg[0]);
-}
-static EventFlow run_make_reachable(GameState *g, const EventArgs *a) { return make_reachable(g, a->arg[0]); }
-
-#define THERE CONSTANT(true)
-
 /* A call's target is an object, or a party member, who may not be there. */
+#define TO_AN_OBJECT .target = OBJECT(1), .there = CONSTANT(true)
+#define TO_A_MEMBER .target = MEMBER_OBJECT(1), .there = MEMBER_PRESENT(1)
+
 EVENT_OPCODES(event_calls_opcodes,
-    { 0x02, run_call, { OBJECT(1), THERE, BYTE(2) }, 3, .routine = 0xC05FB6 },
-    { 0x05, run_call, { MEMBER_OBJECT(1), MEMBER_PRESENT(1), BYTE(2) }, 3, .member_may_be_absent = true,
+    { 0x02, call_function, TO_AN_OBJECT, .call = OPERAND(2), .length = 3, .routine = 0xC05FB6 },
+    { 0x05, call_function, TO_A_MEMBER, .call = OPERAND(2), .length = 3, .member_may_be_absent = true,
       .routine = 0xC061E9 },
-    { 0x03, run_call_when_taken, { OBJECT(1), THERE, BYTE(2) }, 3, .routine = 0xC0607E },
-    { 0x06, run_call_when_taken, { MEMBER_OBJECT(1), MEMBER_PRESENT(1), BYTE(2) }, 3,
-      .member_may_be_absent = true, .routine = 0xC061FE },
-    { 0x04, run_call_and_wait, { OBJECT(1), THERE, BYTE(2) }, 3, .routine = 0xC06109 },
+    { 0x03, call_when_taken, TO_AN_OBJECT, .call = OPERAND(2), .length = 3, .routine = 0xC0607E },
+    { 0x06, call_when_taken, TO_A_MEMBER, .call = OPERAND(2), .length = 3, .member_may_be_absent = true,
+      .routine = 0xC061FE },
+    { 0x04, call_and_wait, TO_AN_OBJECT, .call = OPERAND(2), .length = 3, .routine = 0xC06109 },
     /* the wait goes on with the member's place even when it is empty, so the
      * marker there must name an object as the original indexes it */
-    { 0x07, run_call_and_wait, { MEMBER_OBJECT(1), MEMBER_PRESENT(1), BYTE(2) }, 3, .routine = 0xC06214 },
-    { 0x00, run_return, { { 0 } }, 1, .accepts = finds_a_level, .routine = 0xC05F74 },
-    { 0x08, run_take_calls, { CONSTANT(false) }, 1, .routine = 0xC06240 },
-    { 0x09, run_take_calls, { CONSTANT(true) }, 1, .routine = 0xC0624B },
-    { 0x0A, run_disable_object, { OBJECT(1) }, 2, .routine = 0xC06254 },
-    { 0x0B, run_make_unreachable, { OBJECT(1) }, 2, .routine = 0xC06269 },
-    { 0x0C, run_make_reachable, { OBJECT(1) }, 2, .routine = 0xC06282 });
+    { 0x07, call_and_wait, TO_A_MEMBER, .call = OPERAND(2), .length = 3, .routine = 0xC06214 },
+    { 0x00, return_from_function, .length = 1, .accepts = finds_a_level, .routine = 0xC05F74 },
+    { 0x08, take_calls, .takes = CONSTANT(false), .length = 1, .routine = 0xC06240 },
+    { 0x09, take_calls, .takes = CONSTANT(true), .length = 1, .routine = 0xC0624B },
+    { 0x0A, disable_object, .object = OBJECT(1), .length = 2, .routine = 0xC06254 },
+    { 0x0B, make_unreachable, .object = OBJECT(1), .length = 2, .routine = 0xC06269 },
+    { 0x0C, make_reachable, .object = OBJECT(1), .length = 2, .routine = 0xC06282 });

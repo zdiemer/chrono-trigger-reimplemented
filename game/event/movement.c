@@ -114,12 +114,12 @@ typedef struct {
     uint8_t steps;     /* a counted move's */
 } TileMove;
 
-static TileMove tile_move(const GameState *g, uint16_t at, bool from_variables)
+/* The move the command at Y says, decoded by the row of the opcode given
+ * (the command's own, or the one whose handler the original calls). */
+static TileMove tile_move(Snes *s, uint8_t opcode)
 {
-    uint8_t x = script_byte(g, (uint16_t)(at + 1)), y = script_byte(g, (uint16_t)(at + 2));
-    if (from_variables)
-        x = variable_byte(g, x), y = variable_byte(g, y);
-    return (TileMove){ at, x, y, script_byte(g, (uint16_t)(at + 3)) };
+    EventCommand c = event_command_of(s, opcode);
+    return (TileMove){ event_command_offset(s), c.tile_x, c.tile_y, c.steps };
 }
 
 typedef struct {
@@ -128,11 +128,10 @@ typedef struct {
     uint8_t steps;
 } ObjectMove;
 
-static ObjectMove object_move(const GameState *g, uint16_t at, bool member)
+static ObjectMove object_move(Snes *s, uint8_t opcode)
 {
-    uint8_t named = script_byte(g, (uint16_t)(at + 1));
-    EventObject target = member ? member_object(g, (PartyPlace)(named >> 1)) : slot_of(named);
-    return (ObjectMove){ at, target, script_byte(g, (uint16_t)(at + 2)) };
+    EventCommand c = event_command_of(s, opcode);
+    return (ObjectMove){ event_command_offset(s), c.target, c.steps };
 }
 
 typedef struct {
@@ -140,12 +139,10 @@ typedef struct {
     uint8_t direction, steps;
 } DirectionMove;
 
-static DirectionMove direction_move(const GameState *g, uint16_t at, bool from_variables)
+static DirectionMove direction_move(Snes *s, uint8_t opcode)
 {
-    uint8_t direction = script_byte(g, (uint16_t)(at + 1)), steps = script_byte(g, (uint16_t)(at + 2));
-    if (from_variables)
-        direction = (uint8_t)variable_word(g, direction), steps = variable_byte(g, steps);
-    return (DirectionMove){ at, direction, steps };
+    EventCommand c = event_command_of(s, opcode);
+    return (DirectionMove){ event_command_offset(s), c.direction, c.steps };
 }
 
 /* ---- The decisions --------------------------------------------------------------------- */
@@ -438,20 +435,20 @@ static Arrival object_arrival(Snes *s, EventObject self, uint32_t line_up_at)
  * calls: those that turn, walk and stand, and those that keep their facing. */
 enum { TO_TILE, TO_TILE_FROM_VARIABLES };
 static const struct {
-    bool from_variables;   /* the tile from variables rather than operands */
+    uint8_t opcode;   /* whose row decodes the tile: from operands, or from variables */
     uint32_t line_up, walk_on_line, stand, direction, blocked, step, walk;
 } turning_tile_moves[] = {
-    [TO_TILE] = { false, 0xC04F97, 0xC04FA5, 0xC04F9C, 0xC04FAB, 0xC04FBD, 0xC04FE0, 0xC04FE3 },
-    [TO_TILE_FROM_VARIABLES] = { true, 0xC050D6, 0xC050E4, 0xC050DB, 0xC050EA, 0xC050FC, 0xC0511F, 0xC05122 },
+    [TO_TILE] = { 0x96, 0xC04F97, 0xC04FA5, 0xC04F9C, 0xC04FAB, 0xC04FBD, 0xC04FE0, 0xC04FE3 },
+    [TO_TILE_FROM_VARIABLES] = { 0x97, 0xC050D6, 0xC050E4, 0xC050DB, 0xC050EA, 0xC050FC, 0xC0511F, 0xC05122 },
 };
 
 enum { TO_TILE_KEEP_FACING, TO_TILE_FROM_VARIABLES_KEEP_FACING };
 static const struct {
-    bool from_variables;
+    uint8_t opcode;
     uint32_t line_up, direction, blocked, step;
 } keeping_tile_moves[] = {
-    [TO_TILE_KEEP_FACING] = { false, 0xC0515F, 0xC0516D, 0xC05170, 0xC0518A },
-    [TO_TILE_FROM_VARIABLES_KEEP_FACING] = { true, 0xC051E3, 0xC051F1, 0xC051F4, 0xC0520E },
+    [TO_TILE_KEEP_FACING] = { 0xA0, 0xC0515F, 0xC0516D, 0xC05170, 0xC0518A },
+    [TO_TILE_FROM_VARIABLES_KEEP_FACING] = { 0xA1, 0xC051E3, 0xC051F1, 0xC051F4, 0xC0520E },
 };
 
 enum { TILE_MOVE_LENGTH = 3, COUNTED_TILE_MOVE_LENGTH = 4, OBJECT_MOVE_LENGTH = 2,
@@ -462,7 +459,7 @@ static void move_to_tile(Snes *s, unsigned move)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    TileMove m = tile_move(g, event_command_offset(s), turning_tile_moves[move].from_variables);
+    TileMove m = tile_move(s, turning_tile_moves[move].opcode);
     if (still_moving(g, self)) {
         hold(s, m.at);
         return;
@@ -486,7 +483,7 @@ static void move_to_tile_keeping_facing(Snes *s, unsigned move)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    TileMove m = tile_move(g, event_command_offset(s), keeping_tile_moves[move].from_variables);
+    TileMove m = tile_move(s, keeping_tile_moves[move].opcode);
     if (still_moving(g, self)) {
         hold(s, m.at);
         return;
@@ -533,7 +530,7 @@ void event_cmd_move_to_tile_counted(Snes *s)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    TileMove m = tile_move(g, event_command_offset(s), false);
+    TileMove m = tile_move(s, 0x9A);
     bool fresh = field_object_counted_move(g, self) == 0;
     if (!fresh && still_moving(g, self)) {
         hold(s, m.at);
@@ -585,11 +582,11 @@ static void approach(Snes *s, EventObject self, ObjectMove m)
     }
 }
 
-static void approach_unless_moving(Snes *s, bool member)
+static void approach_unless_moving(Snes *s, uint8_t opcode)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    ObjectMove m = object_move(g, event_command_offset(s), member);
+    ObjectMove m = object_move(s, opcode);
     if (still_moving(g, self))
         hold(s, m.at);
     else
@@ -598,19 +595,19 @@ static void approach_unless_moving(Snes *s, bool member)
 
 // $C0:5215
 /* Walk up to another object, and wait until next to it. */
-void event_cmd_move_toward_object(Snes *s) { approach_unless_moving(s, false); }
+void event_cmd_move_toward_object(Snes *s) { approach_unless_moving(s, 0x94); }
 
 // $C0:5410
 /* Walk up to a party member, and wait until next to them. */
-void event_cmd_move_toward_party_member(Snes *s) { approach_unless_moving(s, true); }
+void event_cmd_move_toward_party_member(Snes *s) { approach_unless_moving(s, 0x95); }
 
 // $C0:52D3
 /* As approach, keeping the object's facing, with no animations. */
-static void approach_keeping_facing(Snes *s, bool member)
+static void approach_keeping_facing(Snes *s, uint8_t opcode)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    ObjectMove m = object_move(g, event_command_offset(s), member);
+    ObjectMove m = object_move(s, opcode);
     uint16_t after = (uint16_t)(m.at + OBJECT_MOVE_LENGTH);
     if (still_moving(g, self)) {
         hold(s, m.at);
@@ -637,20 +634,20 @@ static void approach_keeping_facing(Snes *s, bool member)
 
 // $C0:52C0
 /* Slide up to another object without turning or animating. */
-void event_cmd_move_toward_object_keep_facing(Snes *s) { approach_keeping_facing(s, false); }
+void event_cmd_move_toward_object_keep_facing(Snes *s) { approach_keeping_facing(s, 0x9E); }
 
 // $C0:54F5
 /* Slide up to a party member without turning or animating. */
-void event_cmd_move_toward_party_member_keep_facing(Snes *s) { approach_keeping_facing(s, true); }
+void event_cmd_move_toward_party_member_keep_facing(Snes *s) { approach_keeping_facing(s, 0x9F); }
 
 // $C0:536B
 /* One move of a limited number of steps toward the object; the command is
  * over when the move is, or on arrival. */
-static void approach_counted(Snes *s, bool member)
+static void approach_counted(Snes *s, uint8_t opcode)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    ObjectMove m = object_move(g, event_command_offset(s), member);
+    ObjectMove m = object_move(s, opcode);
     uint16_t after = (uint16_t)(m.at + COUNTED_OBJECT_MOVE_LENGTH);
     switch (counted_move(g, self)) {
     case MOVE_RUNNING: hold(s, m.at); return;
@@ -679,11 +676,11 @@ static void approach_counted(Snes *s, bool member)
 
 // $C0:534A
 /* Walk a limited number of steps toward another object. */
-void event_cmd_move_toward_object_counted(Snes *s) { approach_counted(s, false); }
+void event_cmd_move_toward_object_counted(Snes *s) { approach_counted(s, 0x98); }
 
 // $C0:550E
 /* Walk a limited number of steps toward a party member. */
-void event_cmd_move_toward_party_member_counted(Snes *s) { approach_counted(s, true); }
+void event_cmd_move_toward_party_member_counted(Snes *s) { approach_counted(s, 0x99); }
 
 /* What the original keeps of the screen test: the screen's edges. */
 static void keep_screen_edges(GameState *g)
@@ -699,7 +696,7 @@ void event_cmd_move_toward_party_member_until_on_screen(Snes *s)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    ObjectMove m = object_move(g, event_command_offset(s), true);
+    ObjectMove m = object_move(s, 0x8F);
     if (still_moving(g, self)) {
         hold(s, m.at);
         return;
@@ -731,7 +728,7 @@ void event_cmd_move_in_direction(Snes *s)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    DirectionMove m = direction_move(g, event_command_offset(s), false);
+    DirectionMove m = direction_move(s, 0x92);
     switch (counted_move(g, self)) {
     case MOVE_RUNNING: hold(s, m.at); return;
     case MOVE_DONE: arrive(s, 0xC04E85, (uint16_t)(m.at + DIRECTION_MOVE_LENGTH)); return;
@@ -744,11 +741,11 @@ void event_cmd_move_in_direction(Snes *s)
 }
 
 /* Slide a number of steps in a direction without turning. */
-static void slide(Snes *s, bool from_variables, uint32_t step)
+static void slide(Snes *s, uint8_t opcode, uint32_t step)
 {
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    DirectionMove m = direction_move(g, event_command_offset(s), from_variables);
+    DirectionMove m = direction_move(s, opcode);
     switch (counted_move(g, self)) {
     case MOVE_RUNNING: hold(s, m.at); return;
     case MOVE_DONE: go_on(s, (uint16_t)(m.at + DIRECTION_MOVE_LENGTH)); return;
@@ -762,11 +759,11 @@ static void slide(Snes *s, bool from_variables, uint32_t step)
 // $C0:4EC7
 /* Slide a number of steps in a direction without turning: backing away,
  * being pushed. */
-void event_cmd_move_in_direction_keep_facing(Snes *s) { slide(s, false, 0xC04F03); }
+void event_cmd_move_in_direction_keep_facing(Snes *s) { slide(s, 0x9C, 0xC04F03); }
 
 // $C0:4F0A
 /* The same, the direction and the steps worked out in variables. */
-void event_cmd_move_by_variables(Snes *s) { slide(s, true, 0xC04F5A); }
+void event_cmd_move_by_variables(Snes *s) { slide(s, 0x9D, 0xC04F5A); }
 
 /* ---- With a velocity ------------------------------------------------------------------ */
 
@@ -796,27 +793,21 @@ static void mark_launched(GameState *g, EventObject self)
 /* Launch the object at a speed (the low bytes of its velocities), with an
  * acceleration, for a number of steps: a fall, a throw, a leap. Waits until
  * it lands. */
-static EventFlow launch(GameState *g, EventObject self, uint8_t vx, uint8_t vy, uint8_t acceleration,
-                        uint8_t steps)
+static EventFlow launch(GameState *g, const EventCommand *c)
 {
-    switch (launch_state(g, self)) {
+    switch (launch_state(g, c->self)) {
     case LAUNCHED: return stay();
     case LANDED: return next_command();
     default: break;
     }
     ORIGINAL_EFFECT(keep_resume_point(g, 0));
-    set_field_object_velocity_x(g, self, (uint16_t)((field_object_velocity_x(g, self) & 0xFF00) | vx));
-    set_field_object_velocity_y(g, self, (uint16_t)((field_object_velocity_y(g, self) & 0xFF00) | vy));
-    set_field_object_acceleration(g, self, acceleration);
-    set_field_object_steps_left(g, self, steps);
-    mark_launched(g, self);
+    set_field_object_velocity_x(g, c->self, (uint16_t)((field_object_velocity_x(g, c->self) & 0xFF00) | c->velocity_x));
+    set_field_object_velocity_y(g, c->self, (uint16_t)((field_object_velocity_y(g, c->self) & 0xFF00) | c->velocity_y));
+    set_field_object_acceleration(g, c->self, c->acceleration);
+    set_field_object_steps_left(g, c->self, c->steps);
+    mark_launched(g, c->self);
     ORIGINAL_EFFECT(leave_y(field_current_object(g)));   /* the original's parse ends on the object */
     return stay();
-}
-
-static EventFlow run_launch(GameState *g, const EventArgs *a)
-{
-    return launch(g, a->self, a->arg[0], a->arg[1], a->arg[2], a->arg[3]);
 }
 
 /* The original keeps the jump's height in event_count's low byte across its
@@ -835,8 +826,8 @@ void event_cmd_jump_to_tile(Snes *s)
     enum { LENGTH = 4 };
     GameState *g = state_of(s);
     EventObject self = running_object(g);
-    TileMove m = tile_move(g, event_command_offset(s), false);
-    uint8_t height = m.steps;
+    TileMove m = tile_move(s, 0x7A);
+    uint8_t height = event_command_of(s, 0x7A).height;
     switch (launch_state(g, self)) {
     case LAUNCHED: hold(s, m.at); return;
     case LANDED: go_on(s, (uint16_t)(m.at + LENGTH)); return;
@@ -937,30 +928,40 @@ void event_cmd_follow_party_member(Snes *s)
 /* The moves' guards are their operands': an object, or a party member whose
  * object is one. */
 EVENT_OPCODES(event_movement_opcodes,
-    { 0x96, .bridge = event_cmd_move_to_tile, .length = 3, .routine = 0xC04F61 },
-    { 0x97, .bridge = event_cmd_move_to_tile_from_variables, .length = 3, .routine = 0xC05084 },
-    { 0xA0, .bridge = event_cmd_move_to_tile_keep_facing, .length = 3, .routine = 0xC05129 },
-    { 0xA1, .bridge = event_cmd_move_to_tile_from_variables_keep_facing, .length = 3, .routine = 0xC05191 },
-    { 0x9A, .bridge = event_cmd_move_to_tile_counted, .length = 4, .routine = 0xC04FEA },
-    { 0x94, .bridge = event_cmd_move_toward_object, .args = { OBJECT(1) }, .length = 2, .routine = 0xC05215 },
-    { 0x95, .bridge = event_cmd_move_toward_party_member, .args = { MEMBER_OBJECT(1) }, .length = 2,
+    { 0x96, .bridge = event_cmd_move_to_tile, .tile_x = OPERAND(1), .tile_y = OPERAND(2), .length = 3,
+      .routine = 0xC04F61 },
+    { 0x97, .bridge = event_cmd_move_to_tile_from_variables, .tile_x = VARIABLE_BYTE(1),
+      .tile_y = VARIABLE_BYTE(2), .length = 3, .routine = 0xC05084 },
+    { 0xA0, .bridge = event_cmd_move_to_tile_keep_facing, .tile_x = OPERAND(1), .tile_y = OPERAND(2),
+      .length = 3, .routine = 0xC05129 },
+    { 0xA1, .bridge = event_cmd_move_to_tile_from_variables_keep_facing, .tile_x = VARIABLE_BYTE(1),
+      .tile_y = VARIABLE_BYTE(2), .length = 3, .routine = 0xC05191 },
+    { 0x9A, .bridge = event_cmd_move_to_tile_counted, .tile_x = OPERAND(1), .tile_y = OPERAND(2),
+      .steps = OPERAND(3), .length = 4, .routine = 0xC04FEA },
+    { 0x94, .bridge = event_cmd_move_toward_object, .target = OBJECT(1), .length = 2, .routine = 0xC05215 },
+    { 0x95, .bridge = event_cmd_move_toward_party_member, .target = MEMBER_OBJECT(1), .length = 2,
       .routine = 0xC05410 },
-    { 0x9E, .bridge = event_cmd_move_toward_object_keep_facing, .args = { OBJECT(1) }, .length = 2,
+    { 0x9E, .bridge = event_cmd_move_toward_object_keep_facing, .target = OBJECT(1), .length = 2,
       .routine = 0xC052C0 },
-    { 0x9F, .bridge = event_cmd_move_toward_party_member_keep_facing, .args = { MEMBER_OBJECT(1) }, .length = 2,
+    { 0x9F, .bridge = event_cmd_move_toward_party_member_keep_facing, .target = MEMBER_OBJECT(1), .length = 2,
       .routine = 0xC054F5 },
-    { 0x98, .bridge = event_cmd_move_toward_object_counted, .args = { OBJECT(1) }, .length = 3,
+    { 0x98, .bridge = event_cmd_move_toward_object_counted, .target = OBJECT(1), .steps = OPERAND(2), .length = 3,
       .routine = 0xC0534A },
-    { 0x99, .bridge = event_cmd_move_toward_party_member_counted, .args = { MEMBER_OBJECT(1) }, .length = 3,
-      .routine = 0xC0550E },
-    { 0x8F, .bridge = event_cmd_move_toward_party_member_until_on_screen, .args = { MEMBER_OBJECT(1) },
+    { 0x99, .bridge = event_cmd_move_toward_party_member_counted, .target = MEMBER_OBJECT(1),
+      .steps = OPERAND(2), .length = 3, .routine = 0xC0550E },
+    { 0x8F, .bridge = event_cmd_move_toward_party_member_until_on_screen, .target = MEMBER_OBJECT(1),
       .length = 2, .routine = 0xC05429 },
-    { 0x92, .bridge = event_cmd_move_in_direction, .length = 3, .routine = 0xC04E73 },
-    { 0x9C, .bridge = event_cmd_move_in_direction_keep_facing, .length = 3, .routine = 0xC04EC7 },
-    { 0x9D, .bridge = event_cmd_move_by_variables, .length = 3, .routine = 0xC04F0A },
-    { 0x7A, .bridge = event_cmd_jump_to_tile, .length = 4, .routine = 0xC04D06 },
-    { 0x7B, run_launch, { BYTE(1), BYTE(2), BYTE(3), BYTE(4) }, 5, .routine = 0xC04E25 },
+    { 0x92, .bridge = event_cmd_move_in_direction, .direction = OPERAND(1), .steps = OPERAND(2), .length = 3,
+      .routine = 0xC04E73 },
+    { 0x9C, .bridge = event_cmd_move_in_direction_keep_facing, .direction = OPERAND(1), .steps = OPERAND(2),
+      .length = 3, .routine = 0xC04EC7 },
+    { 0x9D, .bridge = event_cmd_move_by_variables, .direction = VARIABLE_BYTE(1), .steps = VARIABLE_BYTE(2),
+      .length = 3, .routine = 0xC04F0A },
+    { 0x7A, .bridge = event_cmd_jump_to_tile, .tile_x = OPERAND(1), .tile_y = OPERAND(2), .height = OPERAND(3),
+      .length = 4, .routine = 0xC04D06 },
+    { 0x7B, launch, .velocity_x = OPERAND(1), .velocity_y = OPERAND(2), .acceleration = OPERAND(3),
+      .steps = OPERAND(4), .length = 5, .routine = 0xC04E25 },
     { 0xB0, .bridge = event_cmd_behave, .length = 1, .routine = 0xC03002 },
-    { 0xB5, .bridge = event_cmd_follow_object, .args = { OBJECT(1) }, .length = 2, .routine = 0xC03546 },
-    { 0xB6, .bridge = event_cmd_follow_party_member, .args = { MEMBER_OBJECT(1) }, .length = 2,
+    { 0xB5, .bridge = event_cmd_follow_object, .target = OBJECT(1), .length = 2, .routine = 0xC03546 },
+    { 0xB6, .bridge = event_cmd_follow_party_member, .target = MEMBER_OBJECT(1), .length = 2,
       .routine = 0xC0354F });

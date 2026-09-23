@@ -50,7 +50,7 @@ void event_cmd_play_effect(Snes *s)
 {
     uint16_t at = event_command_offset(s);
     uint16_t resume = (uint16_t)(at + 2);
-    uint8_t effect = script_byte(state_of(s), (uint16_t)(at + 1));
+    uint8_t effect = event_command_of(s, 0xE8).effect;
     ORIGINAL_EFFECT(keep_resume_point_across(state_of(s), (uint16_t)(resume - 1)));
     ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
     au_play_effect(m_platform(s), PF_CALL_DC(0xC03C26, 0xC70004, DRIVER_IGNORES), effect, AU_CENTRE);
@@ -65,7 +65,7 @@ void event_cmd_play_song(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint16_t resume = (uint16_t)(at + 2);
-    uint8_t song = script_byte(g, (uint16_t)(at + 1));
+    uint8_t song = event_command_of(s, 0xEA).song;
     set_current_song(g, song);
     ORIGINAL_EFFECT(keep_resume_point_across(g, (uint16_t)(resume - 1)));
     ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
@@ -81,15 +81,14 @@ void event_cmd_fade_music(Snes *s)
 {
     uint16_t at = event_command_offset(s);
     uint16_t resume = (uint16_t)(at + 3);
-    uint8_t steps = script_byte(state_of(s), (uint16_t)(at + 1));
-    uint8_t volume = script_byte(state_of(s), (uint16_t)(at + 2));
+    EventCommand c = event_command_of(s, 0xEB);
     Platform *pf = m_platform(s);
     ORIGINAL_EFFECT(keep_resume_point_across(state_of(s), (uint16_t)(resume - 1)));
     ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
     /* the original also leaves $FF as the third parameter, which the fade
      * doesn't read */
-    au_command(pf, PF_CALL_DC(0xC03C69, 0xC70004, DRIVER_IGNORES),
-               (AudioCommand){ .command = AU_FADE_MUSIC, .p1 = steps, .p2 = volume, .p3 = AU_FULL_VOLUME, .count = 3 });
+    AudioCommand fade = { .command = AU_FADE_MUSIC, .p1 = c.steps, .p2 = c.volume, .p3 = AU_FULL_VOLUME, .count = 3 };
+    au_command(pf, PF_CALL_DC(0xC03C69, 0xC70004, DRIVER_IGNORES), fade);
     if (!back(s, 0xC03C6D, false))
         return;
     au_fade(pf, PF_CALL_DC(0xC03C7C, 0xC70004, DRIVER_IGNORES), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
@@ -108,36 +107,38 @@ void event_cmd_send_sound_command(Snes *s)
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint16_t resume = (uint16_t)(at + 4);
-    AudioCommand c = { .command = script_byte(g, (uint16_t)(at + 1)), .p1 = script_byte(g, (uint16_t)(at + 2)),
-                       .p2 = script_byte(g, (uint16_t)(at + 3)), .count = 2 };
+    EventCommand c = event_command_of(s, 0xEC);
+    AudioCommand command = { .command = c.sound_command, .p1 = c.first_argument, .p2 = c.second_argument, .count = 2 };
     ORIGINAL_EFFECT(keep_resume_point_across(g, resume));
     ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
-    au_command(m_platform(s), PF_CALL_DC(0xC03CB4, 0xC70004, DRIVER_IGNORES), c);
+    au_command(m_platform(s), PF_CALL_DC(0xC03CB4, 0xC70004, DRIVER_IGNORES), command);
     if (back(s, 0xC03CB8, false))
         finish(s, resume);
 }
 
 // $C0:3CBC
 /* Wait until the music has faded as far as it was told to. */
-static EventFlow wait_for_music_fade(GameState *g, const EventArgs *a)
+static EventFlow wait_for_music_fade(GameState *g, const EventCommand *c)
 {
     (void)g;
-    return au_music_fade_left(a->platform, PF_AT(0xC03CBD)) == 0 ? end_turn() : stay();
+    return au_music_fade_left(c->platform, PF_AT(0xC03CBD)) == 0 ? end_turn() : stay();
 }
 
 // $C0:3CC5
 /* Wait until the song reaches the marker a scene keeps time by (the marker
  * back to zero). */
-static EventFlow wait_for_song_marker(GameState *g, const EventArgs *a)
+static EventFlow wait_for_song_marker(GameState *g, const EventCommand *c)
 {
     (void)g;
-    return au_song_marker(a->platform, PF_AT(0xC03CC6)) == 0 ? end_turn() : stay();
+    return au_song_marker(c->platform, PF_AT(0xC03CC6)) == 0 ? end_turn() : stay();
 }
 
 EVENT_OPCODES(event_sound_opcodes,
-    { 0xE8, .bridge = event_cmd_play_effect, .length = 2, .routine = 0xC03C11 },
-    { 0xEA, .bridge = event_cmd_play_song, .length = 2, .routine = 0xC03C2F },
-    { 0xEB, .bridge = event_cmd_fade_music, .length = 3, .routine = 0xC03C4C },
-    { 0xEC, .bridge = event_cmd_send_sound_command, .length = 4, .routine = 0xC03C98 },
+    { 0xE8, .bridge = event_cmd_play_effect, .effect = OPERAND(1), .length = 2, .routine = 0xC03C11 },
+    { 0xEA, .bridge = event_cmd_play_song, .song = OPERAND(1), .length = 2, .routine = 0xC03C2F },
+    { 0xEB, .bridge = event_cmd_fade_music, .steps = OPERAND(1), .volume = OPERAND(2), .length = 3,
+      .routine = 0xC03C4C },
+    { 0xEC, .bridge = event_cmd_send_sound_command, .sound_command = OPERAND(1), .first_argument = OPERAND(2),
+      .second_argument = OPERAND(3), .length = 4, .routine = 0xC03C98 },
     { 0xED, wait_for_music_fade, .length = 1, .routine = 0xC03CBC },
     { 0xEE, wait_for_song_marker, .length = 1, .routine = 0xC03CC5 });

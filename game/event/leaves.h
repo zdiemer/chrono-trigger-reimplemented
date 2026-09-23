@@ -41,6 +41,8 @@
 #include "state.h"
 #include "vars.h"
 
+#include "event/script.h"
+
 typedef struct {
     uint16_t at;      /* the command's offset */
     uint16_t y;       /* the original's Y */
@@ -101,12 +103,12 @@ typedef enum { KEEP_NOTHING, KEEP_BYTE, KEEP_WORD, KEEP_OPERAND_OFFSET } KeptAs;
 
 typedef struct {
     KeptAs as;
-    uint8_t which;   /* the parameter, or the operand */
+    EventParameter parameter;   /* KEEP_BYTE, KEEP_WORD */
+    uint8_t operand;            /* KEEP_OPERAND_OFFSET */
 } Kept;
 
 /* The V flag the command leaves: as it found it, or the overflow of adding
- * parameter 1 to the variable in parameter 0 (or taking it away), in
- * parameter 2's width. */
+ * the amount to the variable (or taking it away), in the command's width. */
 typedef enum { V_AS_IT_WAS, V_OF_ADDING, V_OF_SUBTRACTING } OverflowLeft;
 
 typedef struct {
@@ -122,11 +124,11 @@ const OriginalLeaves *original_leaves(uint8_t opcode);
 
 /* Around a command the language's table runs (event/engine.c): before the
  * operation, Y where the parse stops and what is kept in the scratch cells
- * (the operation's parameters in `args`; `jump` the row's jump operand); after
- * it, the V an addition leaves, which follows from the amount and the
- * variable as it now is; and on the command's jump, what the jump leaves. */
-void original_leaves_before(GameState *g, uint8_t opcode, uint16_t at, uint8_t jump, const uint32_t *args);
-void original_leaves_after(const GameState *g, uint8_t opcode, const uint32_t *args);
+ * (from the command's parameters; `jump` the row's jump operand); after it,
+ * the V an addition leaves, which follows from the amount and the variable as
+ * it now is; and on the command's jump, what the jump leaves. */
+void original_leaves_before(GameState *g, uint8_t opcode, uint16_t at, uint8_t jump, const EventCommand *c);
+void original_leaves_after(const GameState *g, uint8_t opcode, const EventCommand *c);
 void original_leaves_on_jump(GameState *g, uint8_t opcode, uint16_t at, uint16_t from, uint8_t distance, bool back);
 
 /* The scratch cells, as byte offsets into event_scratch: six words, which the

@@ -77,35 +77,33 @@ static bool member_named(const GameState *g, uint8_t place, bool may_be_absent)
  * through the bank; one that would leave it is the original's. */
 enum { LAST_BIT_READ = 0xDF, LAST_CLEAR_BIT_READ = 0xD7 };
 
+/* Whether one of the command's operands names what its kind says. */
+static bool names_what_it_says(const GameState *g, const EventOpcode *row, const EventArg *arg, uint16_t at)
+{
+    uint8_t operand = script_byte(g, (uint16_t)(at + arg->operand));
+    switch (arg->kind) {
+    case ARG_OBJECT: return event_names_object(operand);
+    case ARG_MEMBER_OBJECT:
+    case ARG_MEMBER_PRESENT: return member_named(g, operand, row->member_may_be_absent);
+    case ARG_BIT: return operand <= LAST_BIT_READ;
+    case ARG_ALL_BUT_BIT: return operand <= LAST_CLEAR_BIT_READ;
+    default: return true;
+    }
+}
+
 bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
 {
     if (!event_names_object(field_current_object(g)) || at > SCRIPT_SIZE - LONGEST_COMMAND)
         return false;
-    for (unsigned i = 0; i < EVENT_ARGS; i++) {
-        uint8_t operand = script_byte(g, (uint16_t)(at + row->args[i].operand));
-        switch (row->args[i].kind) {
-        case ARG_OBJECT:
-            if (!event_names_object(operand))
-                return false;
-            break;
-        case ARG_MEMBER_OBJECT:
-        case ARG_MEMBER_PRESENT:
-            if (!member_named(g, operand, row->member_may_be_absent))
-                return false;
-            break;
-        case ARG_BIT:
-            if (operand > LAST_BIT_READ)
-                return false;
-            break;
-        case ARG_ALL_BUT_BIT:
-            if (operand > LAST_CLEAR_BIT_READ)
-                return false;
-            break;
-        default:
-            break;
-        }
-    }
-    return !row->accepts || row->accepts(g, at);
+#define CHECK_PARAMETER(type, name)                   \
+    if (!names_what_it_says(g, row, &row->name, at)) \
+        return false;
+    EVENT_PARAMETERS(CHECK_PARAMETER)
+#undef CHECK_PARAMETER
+    if (!row->accepts)
+        return true;
+    EventCommand c = event_decode(g, NULL, row, at);
+    return row->accepts(g, &c);
 }
 
 /* ---- Running a command -------------------------------------------------------------------- */
@@ -129,7 +127,6 @@ static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
     case ARG_STORY_PROGRESS: return story_progress(g);
     case ARG_BIT: return bit_mask(g, script_byte(g, operand));
     case ARG_ALL_BUT_BIT: return bit_clear_mask(g, script_byte(g, operand));
-    case ARG_HERE: return at;
     default: return 0;
     }
 }
@@ -159,15 +156,32 @@ static EventStep follow(GameState *g, const EventOpcode *row, uint16_t at, Event
     }
 }
 
+EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
+{
+    EventCommand c = { .self = running_object(g), .platform = pf };
+#define DECODE_PARAMETER(type, name) c.name = (type)decode(g, &row->name, at);
+    EVENT_PARAMETERS(DECODE_PARAMETER)
+#undef DECODE_PARAMETER
+    return c;
+}
+
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
-    EventArgs a = { running_object(g), { 0 }, pf };
-    for (unsigned i = 0; i < EVENT_ARGS; i++)
-        a.arg[i] = decode(g, &row->args[i], at);
-    ORIGINAL_EFFECT(original_leaves_before(g, row->opcode, at, row->jump, a.arg));
-    EventFlow flow = row->run(g, &a);
-    ORIGINAL_EFFECT(original_leaves_after(g, row->opcode, a.arg));
+    EventCommand c = event_decode(g, pf, row, at);
+    ORIGINAL_EFFECT(original_leaves_before(g, row->opcode, at, row->jump, &c));
+    EventFlow flow = row->run(g, &c);
+    ORIGINAL_EFFECT(original_leaves_after(g, row->opcode, &c));
     return follow(g, row, at, flow);
+}
+
+uint32_t event_parameter(const EventCommand *c, EventParameter which)
+{
+    switch (which) {
+#define PARAMETER_VALUE(type, name) case PARAMETER_##name: return (uint32_t)c->name;
+    EVENT_PARAMETERS(PARAMETER_VALUE)
+#undef PARAMETER_VALUE
+    default: return 0;
+    }
 }
 
 /* ---- Turns ------------------------------------------------------------------------------ */

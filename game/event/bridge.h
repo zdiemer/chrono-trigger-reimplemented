@@ -36,10 +36,12 @@ bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bri
 EventLeaves event_leaves_of(const Snes *s, uint16_t at);
 void event_hand_back(Snes *s, const EventLeaves *left);
 
-/* For the bridges: the command's offset (Y at entry), and a return as the
- * original makes it, with X and the carry from the step and Y and V as the
- * machine has them. */
+/* For the bridges: the command's offset (Y at entry); the command there,
+ * decoded by `opcode`'s row (a bridge reads its operands by name, as the
+ * operations do); and a return as the original makes it, with X and the
+ * carry from the step and Y and V as the machine has them. */
 static inline uint16_t event_command_offset(const Snes *s) { return s->cpu.y; }
+EventCommand event_command_of(Snes *s, uint8_t opcode);
 void event_return(Snes *s, EventStep st);
 
 /* Y as the original leaves it, for a bridge whose command leaves it other

@@ -1,13 +1,14 @@
 /* What each command leaves for the original's sake (event/leaves.h), by
- * opcode: the column of the language's table that isn't the language's. The
- * build without the original's effects has none of it. */
+ * opcode: a table parallel to the language's, of what isn't the language's.
+ * The build without the original's effects has none of it. */
 #include "event/leaves.h"
 #include "event/variables.h"
 
 #if ORIGINAL_EFFECTS
 
 #define PARSE(n) .parse = (n), .parse_on_jump = (n)
-#define KEEP(how, n) { KEEP_##how, (n) }
+#define KEEP(how, parameter) { KEEP_##how, PARAMETER_##parameter, 0 }
+#define KEEP_OPERAND_AT(n) { KEEP_OPERAND_OFFSET, 0, (n) }
 
 static const OriginalLeaves by_opcode[256] = {
     /* animation */
@@ -34,10 +35,10 @@ static const OriginalLeaves by_opcode[256] = {
     /* jumps and conditions */
     [0x10] = { PARSE(1) },
     [0x11] = { PARSE(1) },
-    [0x12] = { PARSE(2), .shared_comparison = true, .first = KEEP(BYTE, 0), .second = KEEP(BYTE, 1) },
-    [0x13] = { PARSE(2), .shared_comparison = true, .first = KEEP(WORD, 0), .second = KEEP(WORD, 1) },
-    [0x14] = { PARSE(3), .shared_comparison = true, .first = KEEP(BYTE, 0), .second = KEEP(BYTE, 1) },
-    [0x15] = { PARSE(3), .shared_comparison = true, .first = KEEP(WORD, 0), .second = KEEP(WORD, 1) },
+    [0x12] = { PARSE(2), .shared_comparison = true, .first = KEEP(BYTE, left), .second = KEEP(BYTE, right) },
+    [0x13] = { PARSE(2), .shared_comparison = true, .first = KEEP(WORD, left), .second = KEEP(WORD, right) },
+    [0x14] = { PARSE(3), .shared_comparison = true, .first = KEEP(BYTE, left), .second = KEEP(BYTE, right) },
+    [0x15] = { PARSE(3), .shared_comparison = true, .first = KEEP(WORD, left), .second = KEEP(WORD, right) },
     [0x16] = { PARSE(1), .shared_comparison = true },
     [0x18] = { PARSE(1) },
     [0x27] = { PARSE(1) },
@@ -61,14 +62,14 @@ static const OriginalLeaves by_opcode[256] = {
     [0x43] = { .parse = 2, .parse_on_jump = 1 },
     [0x44] = { .parse = 2, .parse_on_jump = 1 },
     /* places */
-    [0xDC] = { .first = KEEP(WORD, 0) },
-    [0xDD] = { .first = KEEP(WORD, 0) },
-    [0xDE] = { .first = KEEP(WORD, 0) },
+    [0xDC] = { .first = KEEP(WORD, map_and_how) },
+    [0xDD] = { .first = KEEP(WORD, map_and_how) },
+    [0xDE] = { .first = KEEP(WORD, map_and_how) },
     /* memory by address */
-    [0x48] = { .first = KEEP(OPERAND_OFFSET, 4) },
-    [0x49] = { .first = KEEP(OPERAND_OFFSET, 4) },
-    [0x4C] = { .first = KEEP(OPERAND_OFFSET, 4) },
-    [0x4D] = { .first = KEEP(OPERAND_OFFSET, 4) },
+    [0x48] = { .first = KEEP_OPERAND_AT(4) },
+    [0x49] = { .first = KEEP_OPERAND_AT(4) },
+    [0x4C] = { .first = KEEP_OPERAND_AT(4) },
+    [0x4D] = { .first = KEEP_OPERAND_AT(4) },
     /* object properties */
     [0x0D] = { .parse = 1 },
     [0x0E] = { .parse = 1 },
@@ -87,35 +88,35 @@ static const OriginalLeaves by_opcode[256] = {
     /* the screen */
     [0x47] = { .parse = 2 },
     [0xE3] = { .parse = 2 },
-    [0xE6] = { .first = KEEP(BYTE, 1), .second = KEEP(WORD, 0) },
-    [0xF0] = { .first = KEEP(BYTE, 0) },
+    [0xE6] = { .first = KEEP(BYTE, layers), .second = KEEP(WORD, drift) },
+    [0xF0] = { .first = KEEP(BYTE, fade_to) },
     /* the story */
-    [0x56] = { .parse = 4, .first = KEEP(BYTE, 1) },
-    [0x58] = { .parse = 4, .first = KEEP(WORD, 1) },
-    [0x59] = { .parse = 4, .first = KEEP(WORD, 1) },
+    [0x56] = { .parse = 4, .first = KEEP(BYTE, value) },
+    [0x58] = { .parse = 4, .first = KEEP(WORD, value) },
+    [0x59] = { .parse = 4, .first = KEEP(WORD, value) },
     [0x5A] = { .parse = 1 },
     [0x65] = { .parse = 3 },
     [0x66] = { .parse = 3 },
     /* variables, and the party leader */
     [0x20] = { .parse = 2 },
-    [0x4F] = { .parse = 1, .first = KEEP(BYTE, 1) },
-    [0x50] = { .parse = 1, .first = KEEP(WORD, 1) },
-    [0x51] = { .parse = 2, .first = KEEP(WORD, 1) },
-    [0x52] = { .parse = 2, .first = KEEP(WORD, 1) },
-    [0x53] = { .parse = 3, .first = KEEP(WORD, 1) },
-    [0x54] = { .parse = 3, .first = KEEP(WORD, 1) },
+    [0x4F] = { .parse = 1, .first = KEEP(BYTE, value) },
+    [0x50] = { .parse = 1, .first = KEEP(WORD, value) },
+    [0x51] = { .parse = 2, .first = KEEP(WORD, value) },
+    [0x52] = { .parse = 2, .first = KEEP(WORD, value) },
+    [0x53] = { .parse = 3, .first = KEEP(WORD, value) },
+    [0x54] = { .parse = 3, .first = KEEP(WORD, value) },
     [0x55] = { .parse = 1 },
-    [0x5B] = { .parse = 3, .first = KEEP(BYTE, 1), .overflow = V_OF_ADDING },
-    [0x5D] = { .parse = 3, .first = KEEP(WORD, 1), .overflow = V_OF_ADDING },
-    [0x5E] = { .parse = 3, .first = KEEP(WORD, 1), .overflow = V_OF_ADDING },
-    [0x5F] = { .parse = 3, .first = KEEP(BYTE, 1), .overflow = V_OF_SUBTRACTING },
-    [0x60] = { .parse = 4, .first = KEEP(WORD, 1), .overflow = V_OF_SUBTRACTING },
-    [0x61] = { .parse = 3, .first = KEEP(WORD, 1), .overflow = V_OF_SUBTRACTING },
-    [0x63] = { .parse = 3, .first = KEEP(BYTE, 1) },
-    [0x64] = { .parse = 3, .first = KEEP(BYTE, 1) },
-    [0x67] = { .parse = 3, .first = KEEP(BYTE, 1) },
-    [0x69] = { .parse = 3, .first = KEEP(BYTE, 1) },
-    [0x6B] = { .parse = 3, .first = KEEP(BYTE, 1) },
+    [0x5B] = { .parse = 3, .first = KEEP(BYTE, amount), .overflow = V_OF_ADDING },
+    [0x5D] = { .parse = 3, .first = KEEP(WORD, amount), .overflow = V_OF_ADDING },
+    [0x5E] = { .parse = 3, .first = KEEP(WORD, amount), .overflow = V_OF_ADDING },
+    [0x5F] = { .parse = 3, .first = KEEP(BYTE, amount), .overflow = V_OF_SUBTRACTING },
+    [0x60] = { .parse = 4, .first = KEEP(WORD, amount), .overflow = V_OF_SUBTRACTING },
+    [0x61] = { .parse = 3, .first = KEEP(WORD, amount), .overflow = V_OF_SUBTRACTING },
+    [0x63] = { .parse = 3, .first = KEEP(BYTE, flags) },
+    [0x64] = { .parse = 3, .first = KEEP(BYTE, flags) },
+    [0x67] = { .parse = 3, .first = KEEP(BYTE, flags) },
+    [0x69] = { .parse = 3, .first = KEEP(BYTE, flags) },
+    [0x6B] = { .parse = 3, .first = KEEP(BYTE, flags) },
     [0x6F] = { .parse = 3 },
     [0x71] = { .parse = 2 },
     [0x72] = { .parse = 2 },
@@ -134,36 +135,36 @@ static uint16_t parse_stop(const OriginalLeaves *l, uint16_t at, uint8_t operand
     return l->shared_comparison ? (uint16_t)(y & 0x00FF) : y;
 }
 
-static void keep(GameState *g, unsigned cell, Kept k, const uint32_t *args, uint16_t at)
+static void keep(GameState *g, unsigned cell, Kept k, const EventCommand *c, uint16_t at)
 {
     switch (k.as) {
-    case KEEP_BYTE: keep_byte(g, cell, (uint8_t)args[k.which]); break;
-    case KEEP_WORD: keep_word(g, cell, (uint16_t)args[k.which]); break;
-    case KEEP_OPERAND_OFFSET: keep_word(g, cell, (uint16_t)(at + k.which)); break;
+    case KEEP_BYTE: keep_byte(g, cell, (uint8_t)event_parameter(c, k.parameter)); break;
+    case KEEP_WORD: keep_word(g, cell, (uint16_t)event_parameter(c, k.parameter)); break;
+    case KEEP_OPERAND_OFFSET: keep_word(g, cell, (uint16_t)(at + k.operand)); break;
     default: break;
     }
 }
 
-void original_leaves_before(GameState *g, uint8_t opcode, uint16_t at, uint8_t jump, const uint32_t *args)
+void original_leaves_before(GameState *g, uint8_t opcode, uint16_t at, uint8_t jump, const EventCommand *c)
 {
     const OriginalLeaves *l = original_leaves(opcode);
     event_leaves->at = at;
     event_leaves->y = parse_stop(l, at, l->parse);
-    keep(g, KEPT_FIRST, l->first, args, at);
-    keep(g, KEPT_SECOND, l->second, args, at);
+    keep(g, KEPT_FIRST, l->first, c, at);
+    keep(g, KEPT_SECOND, l->second, c, at);
     /* the comparisons' shared routine notes where the jump byte is, and
      * reads it back itself */
     if (l->shared_comparison)
         set_event_condition_resume(g, (uint16_t)(at + jump));
 }
 
-void original_leaves_after(const GameState *g, uint8_t opcode, const uint32_t *args)
+void original_leaves_after(const GameState *g, uint8_t opcode, const EventCommand *c)
 {
     const OriginalLeaves *l = original_leaves(opcode);
     if (l->overflow == V_AS_IT_WAS)
         return;
-    Width w = (Width)args[2];
-    uint16_t amount = (uint16_t)args[1], now = variable(g, (EventVariable)args[0], w);
+    Width w = c->width;
+    uint16_t amount = c->amount, now = variable(g, c->variable, w);
     bool subtracting = l->overflow == V_OF_SUBTRACTING;
     uint16_t before = subtracting ? (uint16_t)(now + amount) : (uint16_t)(now - amount);
     uint16_t added = subtracting ? (uint16_t)~amount : amount;
