@@ -4189,18 +4189,20 @@ iterations = 200
 why = "the queue with at most one entry (a random entry can ask for a 64 KiB transfer, which makes longer runs very slow)"
 
 [[routine]]
-name = "field_upload_layer1_tiles"
+name = "field_upload_layer1_bottom_row"
+at = "C0:8445"
 subsystem = "field"
 state = "field"
 args = ["--d", "1D00", "--db", "00", "--fill", "7E1DDC-7E1DDC=00-00", "--fill", "7E1DDE-7E1DDE=00-00", "--fill", "7E1DE0-7E1DE0=00-00", "--fill", "7E1DE2-7E1DE2=00-00", "--fill", "7E1DE4-7E1DE4=00-00", "--fill", "7E1DE6-7E1DE6=00-00", "--fill", "7E1DE8-7E1DE8=00-00", "--fill", "7E1DEA-7E1DEA=00-00", "--fill", "7E1DEC-7E1DEC=00-00", "--fill", "7E1DEE-7E1DEE=00-00", "--fill", "7E1DF0-7E1DF0=00-00", "--fill", "7E1DF2-7E1DF2=00-00", "--fill", "7E1DF4-7E1DF4=00-00", "--fill", "7E1DF6-7E1DF6=00-00", "--fill", "7E1DF8-7E1DF8=00-00"]
 why = "the layers' page and a bank reaching the registers; the edge runs' sizes below 256 bytes (the guard takes runs below $3000)"
 
 [[routine]]
-name = "field_upload_layer3_columns_alt"
+name = "field_upload_layer3_left_column"
+at = "C0:87BF"
 subsystem = "field"
 state = "field"
 args = ["--d", "1D00", "--db", "00", "--fill", "7E1DDC-7E1DDC=00-00", "--fill", "7E1DDE-7E1DDE=00-00", "--fill", "7E1DE0-7E1DE0=00-00", "--fill", "7E1DE2-7E1DE2=00-00", "--fill", "7E1DE4-7E1DE4=00-00", "--fill", "7E1DE6-7E1DE6=00-00", "--fill", "7E1DE8-7E1DE8=00-00", "--fill", "7E1DEA-7E1DEA=00-00", "--fill", "7E1DEC-7E1DEC=00-00", "--fill", "7E1DEE-7E1DEE=00-00", "--fill", "7E1DF0-7E1DF0=00-00", "--fill", "7E1DF2-7E1DF2=00-00", "--fill", "7E1DF4-7E1DF4=00-00", "--fill", "7E1DF6-7E1DF6=00-00", "--fill", "7E1DF8-7E1DF8=00-00"]
-why = "as field_upload_layer1_tiles, for a run down a column of BG3"
+why = "as field_upload_layer1_bottom_row, for BG3's left column"
 
 [[routine]]
 name = "field_init_video_mode"
@@ -4231,7 +4233,8 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E014B-7E014D=7F-7F", "--fill", 
 why = "the field's page; the memory cleared in bank $7F, below 512 bytes (clearing low RAM would clear the stack)"
 
 [[routine]]
-name = "field_patch_window_tiles"
+name = "field_refresh_window_corners"
+at = "C0:F05E"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00"]

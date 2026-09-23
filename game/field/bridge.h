@@ -84,7 +84,7 @@ bool field_rows_are_exact(const GameState *g, unsigned obj);
  * leave; the view step is a bridge, and false where it stopped. */
 void field_move_current_object(Snes *s, bool party_member);
 bool field_update_visibility(Snes *s);
-bool field_view_unchanged(const GameState *g, unsigned obj);
+bool field_view_changes(const GameState *g, unsigned obj);
 void field_update_in_window(Snes *s);
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */

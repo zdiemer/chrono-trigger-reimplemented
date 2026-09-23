@@ -1089,12 +1089,16 @@
 #define RAM_FIELD_LAYER_UPLOAD_FLAGS_STRIDE 0x01u
 #define RAM_FIELD_LAYER_UPLOAD_FLAGS_DP 0x78u /* page field_layers */
 /* Base added to each layer's tile map indexes to make the VRAM addresses the deferred uploads
- * use; map transitions 1, 2 and 4 load their destination from it [3 x $2 bytes, by layer
- * (BG1-BG3)] */
+ * use; map transitions 1, 2 and 4 load their destination from it (3 from
+ * field_transition_map_base) [3 x $2 bytes, by layer (BG1-BG3)] */
 #define RAM_FIELD_LAYER_MAP_BASE 0x7E1D7Cu
 #define RAM_FIELD_LAYER_MAP_BASE_COUNT 3u
 #define RAM_FIELD_LAYER_MAP_BASE_STRIDE 0x02u
 #define RAM_FIELD_LAYER_MAP_BASE_DP 0x7Cu    /* page field_layers */
+/* VRAM address the map transition's third move sends the staged tile map to (the others go to
+ * BG1's, BG2's or BG3's field_layer_map_base) [2 bytes] */
+#define RAM_FIELD_TRANSITION_MAP_BASE 0x7E1D82u
+#define RAM_FIELD_TRANSITION_MAP_BASE_DP 0x82u /* page field_layers */
 /* Bits ORed into the low byte of each layer's field_layer_map_base to make the tile map register
  * value the per-line effects send [3 x $1 bytes, by layer (BG1-BG3)] */
 #define RAM_FIELD_LAYER_MAP_SIZE 0x7E1D84u

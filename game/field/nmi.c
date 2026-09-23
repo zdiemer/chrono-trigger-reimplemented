@@ -55,12 +55,14 @@ enum {
 /* The first two moves also set BG1's tile map in the line effects' values,
  * two screens wide, from the destination's. */
 
+/* The destinations: BG1's and BG2's tile maps for the first two, the one the
+ * map loader chose for the third, BG3's for the fourth. */
 static void start_map_move(GameState *g, uint8_t move)
 {
-    /* The destinations: BG1's and BG2's tile map bases for the first two,
-     * the word after BG3's for the third, BG3's for the fourth. */
-    static const uint8_t base_of[MAP_MOVES] = { 0, 1, 3, 2 };
-    uint16_t destination = field_layer_map_base(g, base_of[move - 1]);
+    uint16_t destination = move == 1   ? field_layer_map_base(g, FIELD_BG1)
+                           : move == 2 ? field_layer_map_base(g, FIELD_BG2)
+                           : move == 3 ? field_transition_map_base(g)
+                                       : field_layer_map_base(g, FIELD_BG3);
     set_field_transfer_vram(g, destination);
 }
 
@@ -69,16 +71,18 @@ static void finish_map_move(GameState *g, uint8_t move)
     set_field_map_transition(g, 0);
     if (move <= 2) {
         uint32_t maps = field_line_bg_maps(g, 0);
-        uint8_t bg1 = (uint8_t)((field_layer_map_base(g, 0) >> 8) | FIELD_MAP_TWO_SCREENS_WIDE);
+        uint8_t bg1 = (uint8_t)((field_layer_map_base(g, FIELD_BG1) >> 8) | FIELD_MAP_TWO_SCREENS_WIDE);
         set_field_line_bg_maps(g, 0, (maps & 0xFFFFFF00u) | bg1);
     }
 }
 
-/* A fade the frame asked for: a request with bit 7 is taken once. */
+/* A fade the frame asked for: a request with FADE_ONCE is taken once. */
+enum { FADE_ONCE = 0x80 };   /* field_fade_request */
+
 static bool fade_asked(GameState *g)
 {
     uint8_t fade = field_fade_request(g);
-    if (fade & 0x80)
+    if (fade & FADE_ONCE)
         set_field_fade_request(g, 0);
     return fade != 0;
 }
@@ -121,6 +125,18 @@ static void apply_display_shadows(const GameState *g, Platform *pf)
 /* ---- Where it meets the original ------------------------------------------------------- */
 
 enum { NMI_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { JSR_SIZE = 3, JSL_SIZE = 4 };   /* a call's return is the instruction after it */
+
+/* The routines the frame's work calls that are still the original's. */
+enum {
+    SEND_STAGED_MAP = 0xC07F62,       /* a map move: the staged tile map to field_transfer_vram */
+    SEND_BG2_LEFT = 0xC07F5D,         /* the staged half screen to BG2's left screen */
+    SEND_BG2_RIGHT = 0xC07F58,        /* the same to its right screen */
+    SEND_BG3_PIECE = 0xC0EC77,
+    FADE_STEP = 0xC06ECB,
+    UPLOAD_PALETTE = 0xC0712E,        /* core/palette.c's */
+    MENUS_FRAME = 0xC28002,           /* the menus' and the controller's per-frame routine */
+};
 
 /* A call of the frame's work, from its call site, as the original makes it:
  * on the field's page (or the layers', for the deferred uploads; the bank
@@ -134,7 +150,7 @@ static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t page)
     m_jsr_dc(s, site, routine, NMI_DONT_CARE);
     if (field_machine_back(s, false, page, 0))
         return true;
-    m_stop_at_own(s, site + 3, 0);
+    m_stop_at_own(s, site + JSR_SIZE, 0);
     return false;
 }
 
@@ -144,7 +160,7 @@ static bool call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     m_jsl_dc(s, site, routine, dont_care);
     if (field_machine_back(s, false, page, 0))
         return true;
-    m_stop_at_own(s, site + 4, 0);
+    m_stop_at_own(s, site + JSL_SIZE, 0);
     return false;
 }
 
@@ -153,14 +169,15 @@ static bool call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
  * are. */
 enum { PROGRAM_LINE_EFFECTS = 0xFDC1EE, SEND_SPRITE_TABLE = 0xC0ECA3, SEND_QUEUED_TRANSFERS = 0xC0B1B2 };
 
-static bool finish_frame(Snes *s)
+static void finish_frame(Snes *s)
 {
     GameState *g = state_of(s);
     NATIVE_TIME_AS(s, PROGRAM_LINE_EFFECTS, field_set_up_line_effects(g, m_platform(s)));
     set_field_frame_pending(g, 0);
-    return true;
 }
 
+/* The screen transition's jobs, one for each bit of field_screen_transition,
+ * all the original's, and where the handler calls each. */
 static bool run_screen_transition(Snes *s, int step)
 {
     static const uint32_t transition_sites[SCREEN_TRANSITION_STEPS] = { 0xC0EA9E, 0xC0EAAC, 0xC0EABA, 0xC0EAC8 };
@@ -180,26 +197,29 @@ static bool run_map_transition(Snes *s, uint8_t asked, bool *finished)
     *finished = true;
     if (asked >= 1 && asked <= MAP_MOVES) {
         start_map_move(g, asked);
-        if (!call(s, move_sites[asked - 1], 0xC07F62, FIELD_PAGE))
+        if (!call(s, move_sites[asked - 1], SEND_STAGED_MAP, FIELD_PAGE))
             return false;
         finish_map_move(g, asked);
-        return finish_frame(s);
+        finish_frame(s);
+        return true;
     }
     if (asked & MAP_SEND_BG2_LEFT) {
-        if (!call(s, 0xC0EB4A, 0xC07F5D, FIELD_PAGE))
+        if (!call(s, 0xC0EB4A, SEND_BG2_LEFT, FIELD_PAGE))
             return false;
         set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~MAP_SEND_BG2_LEFT));
-        return finish_frame(s);
+        finish_frame(s);
+        return true;
     }
     if (asked & MAP_SEND_BG2_RIGHT) {
-        if (!call(s, 0xC0EB5E, 0xC07F58, FIELD_PAGE))
+        if (!call(s, 0xC0EB5E, SEND_BG2_RIGHT, FIELD_PAGE))
             return false;
         set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~MAP_SEND_BG2_RIGHT));
-        return finish_frame(s);
+        finish_frame(s);
+        return true;
     }
     *finished = false;
     if (asked & MAP_SEND_BG3_PIECE) {
-        if (!call(s, 0xC0EB72, 0xC0EC77, FIELD_PAGE))
+        if (!call(s, 0xC0EB72, SEND_BG3_PIECE, FIELD_PAGE))
             return false;
         set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~MAP_SEND_BG3_PIECE));
     }
@@ -220,29 +240,30 @@ static bool run_edge_uploads(Snes *s)
                                                           0xC085E7, 0xC08649, 0xC086AB, 0xC086F7,
                                                           0xC08729, 0xC0875B, 0xC0878D, 0xC087BF };
     GameState *g = state_of(s);
-    s->cpu.d = FIELD_LAYERS_PAGE;
     for (unsigned k = 0; k < FIELD_EDGE_UPLOADS; k++) {
         if (!(field_layer_upload_flags(g, k / 3) & (1u << (k % 3))))
             continue;
-        if (field_layer_edges_fit(g))
+        if (field_layer_edges_fit(g)) {
             NATIVE_TIME_AS(s, uploads[k], field_upload_layer_edge(g, m_platform(s), k));
-        else if (!call(s, upload_sites[k], uploads[k], FIELD_LAYERS_PAGE))
+            continue;
+        }
+        s->cpu.d = FIELD_LAYERS_PAGE;
+        if (!call(s, upload_sites[k], uploads[k], FIELD_LAYERS_PAGE))
             return false;
+        s->cpu.d = FIELD_PAGE;
     }
     for (unsigned group = 0; group < 4; group++)
         set_field_layer_upload_flags(g, group, 0);
-    s->cpu.d = FIELD_PAGE;
     return true;
 }
 
-/* The original's queue loop leaves Y the last entry's second size, which the
- * bank C2 routine the handler calls later reads. */
-static uint16_t y_after_queue(const GameState *g, uint16_t y)
+/* The menus' per-frame routine reads Y, which the original's upload of the
+ * sprite tile queue leaves its last entry's second size (and which the edge
+ * uploads the original runs may move on): given to it here, where the
+ * original sets it. */
+static void hand_on_queue_y(Snes *s)
 {
-    unsigned entries = 0;
-    while (field_vram_queue_used(g, entries) != 0)
-        entries++;
-    return entries != 0 ? field_vram_queue_size2(g, entries - 1) : y;
+    s->cpu.y = field_queue_last_second_size(state_of(s), s->cpu.y);
 }
 
 /* The frame's vblank work: a screen transition step, or a map transition's
@@ -265,42 +286,32 @@ static bool frame_work(Snes *s)
             if (finished)
                 return true;
         }
-        if (fade_asked(g) && !call(s, 0xC0EB81, 0xC06ECB, FIELD_PAGE))
+        if (fade_asked(g) && !call(s, 0xC0EB81, FADE_STEP, FIELD_PAGE))
             return false;
     }
-    if (!call(s, 0xC0EB86, 0xC0712E, FIELD_PAGE))
+    if (!call(s, 0xC0EB86, UPLOAD_PALETTE, FIELD_PAGE))
         return false;
     NATIVE_TIME_AS(s, SEND_SPRITE_TABLE, field_upload_sprite_table(m_platform(s)));
-    s->cpu.y = y_after_queue(g, s->cpu.y);
+    hand_on_queue_y(s);
     NATIVE_TIME_AS(s, SEND_QUEUED_TRANSFERS, field_upload_queued_transfers(g, m_platform(s)));
-    return run_edge_uploads(s) && finish_frame(s);
+    if (!run_edge_uploads(s))
+        return false;
+    finish_frame(s);
+    return true;
 }
 
 // $C0:EA63 (installed at the $0500 NMI stub by field_install_nmi)
 void field_nmi(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_push16(s, c->a);
-    m_push16(s, c->x);
-    m_push16(s, c->y);
-    m_push16(s, c->d);
-    m_push8(s, c->db);
-    m_sep(s, CPU_FLAG_M);
-    c->db = 0x00;
+    m_save_interrupted_registers(s);
+    s->cpu.db = 0x00;
     Platform *pf = m_platform(s);
     GameState *g = state_of(s);
     start_vblank(pf);
     if (field_frame_pending(g) != 0 && !frame_work(s))
         return;
-    if (!call_long(s, 0xC0EC15, 0xC28002, NMI_DONT_CARE & ~DC_Y))
+    if (!call_long(s, 0xC0EC15, MENUS_FRAME, NMI_DONT_CARE & ~DC_Y))
         return;
     apply_display_shadows(g, pf);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    c->db = m_pull8(s);
-    c->d = m_pull16(s);
-    c->y = m_pull16(s);
-    c->x = m_pull16(s);
-    c->a = m_pull16(s);
-    m_rti(s);
+    m_return_to_interrupted(s);
 }

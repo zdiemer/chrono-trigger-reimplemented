@@ -50,68 +50,81 @@ static uint16_t column_in_last_row(uint16_t column)
     return column < HALF_COLUMNS ? column : (uint16_t)(column + LAST_ROW_OF_HALF);
 }
 
-/* One layer's edge runs: ten VRAM addresses (the tile map index plus the
- * layer's base) and five sizes in bytes, in the order the uploads read them;
- * and where the top and bottom runs were taken. */
+/* A row run: its tile map indexes from its start, from the row's start in
+ * the other half, and from where it wraps; and the parts' sizes in bytes. */
 typedef struct {
-    uint16_t vram[10], sizes[5];
-    uint16_t bottom_column, top_row;
+    uint16_t start, other_half, wrap;
+} RowRun;
+
+typedef struct {
+    uint16_t to_half_end, across, wrapped;
+} RowSizes;
+
+/* A column run: its tile map indexes from its start, and from the top of the
+ * map where it wraps; and the parts' sizes. */
+typedef struct {
+    uint16_t start, wrap;
+} ColumnRun;
+
+typedef struct {
+    uint16_t to_map_end, from_map_top;
+} ColumnSizes;
+
+typedef struct {
+    RowRun top_row, bottom_row;
+    RowSizes row_sizes;
+    ColumnRun left_column, right_column;
+    ColumnSizes column_sizes;
 } LayerEdges;
 
 // $C0:813D
-/* The column coming into view at the left: its index, the row's start in the
- * other half, and the columns to its half's end and past it. Where it is its
- * half's last column, the run is that column and a whole row of the other
- * half, and where the run wraps round is kept for the uploads (every layer
- * sends the last one kept). */
-static void left_edge(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
+/* The view's top row, from a column left of the screen: its start, the row's
+ * start in the other half, and the columns to its half's end and past it.
+ * Where it starts on its half's last column, it is that column and a whole
+ * row of the other half, and where the run wraps round is kept for the
+ * uploads (every layer sends the last one kept). */
+static void top_row(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
 {
     uint16_t index = map_index(column, row);
     uint16_t to_half_end = (uint16_t)((column < HALF_COLUMNS ? HALF_COLUMNS : MAP_COLUMNS) - column);
     bool wraps = to_half_end == 1;
-    e->vram[0] = index;
-    e->vram[1] = other_half_row(column, row);
-    e->sizes[0] = (uint16_t)(to_half_end * 2);
-    e->sizes[1] = (uint16_t)((wraps ? HALF_COLUMNS : HALF_COLUMNS + 2 - to_half_end) * 2);
-    e->sizes[2] = wraps ? 2 : 0;
+    e->row_sizes = (RowSizes){ (uint16_t)(to_half_end * 2),
+                               (uint16_t)((wraps ? HALF_COLUMNS : HALF_COLUMNS + 2 - to_half_end) * 2),
+                               wraps ? 2 : 0 };
     if (wraps)
         set_field_layer_edge_wrap(g, (uint16_t)(index - (HALF_COLUMNS - 1)));
-    e->vram[2] = field_layer_edge_wrap(g);
+    e->top_row = (RowRun){ index, other_half_row(column, row), field_layer_edge_wrap(g) };
 }
 
 // $C0:81A1
-/* The column coming into view at the right: its index, 31 columns back, and
- * the row's start in the other half. */
-static void right_edge(LayerEdges *e, uint16_t column, uint16_t row)
+/* The row below the view's bottom, from the same column: its start, the
+ * row's start in the other half, and 31 columns back. */
+static void bottom_row(LayerEdges *e, uint16_t column, uint16_t row)
 {
     uint16_t index = map_index(column, row);
-    e->vram[3] = index;
-    e->vram[4] = other_half_row(column, row);
-    e->vram[5] = (uint16_t)(index - (HALF_COLUMNS - 1));
+    e->bottom_row = (RowRun){ index, other_half_row(column, row), (uint16_t)(index - (HALF_COLUMNS - 1)) };
 }
 
 // $C0:81D6
-/* The row coming into view at the top: its index, the column in its half's
- * last row, and the rows from it to the map's end and before it. */
-static void top_edge(LayerEdges *e, uint16_t column, uint16_t row)
+/* The view's left column, from the row above the screen: its start, the
+ * column in its half's last row, and the rows from it to the map's end and
+ * before it. */
+static void left_column(LayerEdges *e, uint16_t column, uint16_t row)
 {
-    e->vram[6] = map_index(column, row);
-    e->vram[7] = column_in_last_row(column);
-    e->sizes[3] = (uint16_t)((MAP_ROWS - row) * 2);
-    e->sizes[4] = (uint16_t)(row * 2);
-    e->top_row = row;
+    e->left_column = (ColumnRun){ map_index(column, row), column_in_last_row(column) };
+    e->column_sizes = (ColumnSizes){ (uint16_t)((MAP_ROWS - row) * 2), (uint16_t)(row * 2) };
 }
 
 // $C0:8218
-/* The row coming into view at the bottom: its index, and the column in its
- * half's last row. */
-static void bottom_edge(LayerEdges *e, uint16_t column, uint16_t row)
+/* The column right of the view, from the same row: its start, and the
+ * column in its half's last row. */
+static void right_column(LayerEdges *e, uint16_t column, uint16_t row)
 {
-    e->vram[8] = map_index(column, row);
-    e->vram[9] = column_in_last_row(column);
-    e->bottom_column = column;
+    e->right_column = (ColumnRun){ map_index(column, row), column_in_last_row(column) };
 }
 
+/* The runs as the uploads read them: VRAM addresses (the tile map index plus
+ * the layer's base) and sizes, a word each, in the words layers.h names. */
 static void set_word(GameState *g, void (*set)(GameState *, unsigned, unsigned, uint8_t), unsigned layer,
                      unsigned word, uint16_t v)
 {
@@ -119,40 +132,60 @@ static void set_word(GameState *g, void (*set)(GameState *, unsigned, unsigned, 
     set(g, layer, 2 * word + 1, (uint8_t)(v >> 8));
 }
 
-/* For the original's code and shadow mode (field/scratch.h): the edge helpers
- * leave the column and row they were last given, the row's start and their
- * last counts in cells of the layers' page. Nothing the port reads. */
-static void leave_for_original(GameState *g, const LayerEdges *last)
+static void store_layer_edges(GameState *g, unsigned layer, uint16_t base, const LayerEdges *e)
 {
-    original_layer_cell16(g, 0x52, (uint16_t)(last->top_row * HALF_COLUMNS));
-    original_layer_cell16(g, 0x62, last->bottom_column);
-    original_layer_cell16(g, 0x64, last->top_row);
-    original_layer_cell16(g, 0x6A, last->sizes[2]);
-    original_layer_cell16(g, 0x6C, last->sizes[3]);
-    original_layer_cell16(g, 0x6E, last->sizes[4]);
+    const uint16_t addresses[EDGE_ADDRESSES] = {
+        [EDGE_TOP_ROW] = e->top_row.start,           [EDGE_TOP_ROW + 1] = e->top_row.other_half,
+        [EDGE_TOP_ROW + 2] = e->top_row.wrap,        [EDGE_BOTTOM_ROW] = e->bottom_row.start,
+        [EDGE_BOTTOM_ROW + 1] = e->bottom_row.other_half, [EDGE_BOTTOM_ROW + 2] = e->bottom_row.wrap,
+        [EDGE_LEFT_COLUMN] = e->left_column.start,   [EDGE_LEFT_COLUMN + 1] = e->left_column.wrap,
+        [EDGE_RIGHT_COLUMN] = e->right_column.start, [EDGE_RIGHT_COLUMN + 1] = e->right_column.wrap,
+    };
+    const uint16_t sizes[EDGE_SIZES] = {
+        [EDGE_ROW_SIZES] = e->row_sizes.to_half_end,        [EDGE_ROW_SIZES + 1] = e->row_sizes.across,
+        [EDGE_ROW_SIZES + 2] = e->row_sizes.wrapped,        [EDGE_COLUMN_SIZES] = e->column_sizes.to_map_end,
+        [EDGE_COLUMN_SIZES + 1] = e->column_sizes.from_map_top,
+    };
+    for (unsigned k = 0; k < EDGE_ADDRESSES; k++)
+        set_word(g, set_field_layer_edge_vram_byte, layer, k, (uint16_t)(addresses[k] + base));
+    for (unsigned k = 0; k < EDGE_SIZES; k++)
+        set_word(g, set_field_layer_edge_sizes_byte, layer, k, sizes[k]);
+}
+
+/* For the original's code and shadow mode (field/scratch.h): the last
+ * layer's runs leave the right column's column and the row above the screen
+ * they were taken from, that row's start, and the sizes of the top row's
+ * wrap and the columns' parts, in cells of the layers' page. */
+static void leave_for_original(GameState *g, uint16_t right_column_at, uint16_t row_above, const LayerEdges *last)
+{
+    original_layer_cell16(g, 0x52, (uint16_t)(row_above * HALF_COLUMNS));
+    original_layer_cell16(g, 0x62, right_column_at);
+    original_layer_cell16(g, 0x64, row_above);
+    original_layer_cell16(g, 0x6A, last->row_sizes.wrapped);
+    original_layer_cell16(g, 0x6C, last->column_sizes.to_map_end);
+    original_layer_cell16(g, 0x6E, last->column_sizes.from_map_top);
 }
 
 // $C0:7F9A
-/* Every frame: each layer's edge runs around its position, the columns one
- * left of it and 32 right of that, the rows one above it and 28 below that,
- * which the uploads send when the layer has moved onto them. */
+/* Every frame: each layer's edge runs around its position (the tile at the
+ * screen's top left), which the uploads send when the layer has moved onto
+ * them. */
 static void compute_layer_edges(GameState *g)
 {
     LayerEdges e;
+    uint16_t right = 0, above = 0;
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         uint8_t x = field_layer_position_x(g, layer), y = field_layer_position_y(g, layer);
-        uint16_t left = (uint16_t)((x - 1) & COLUMN_MASK), top = (uint16_t)((y - 1) & ROW_MASK);
-        left_edge(g, &e, left, (uint16_t)(y & ROW_MASK));
-        right_edge(&e, left, (uint16_t)((y + SCREEN_ROWS) & ROW_MASK));
-        top_edge(&e, (uint16_t)(x & COLUMN_MASK), top);
-        bottom_edge(&e, (uint16_t)((x + HALF_COLUMNS) & COLUMN_MASK), top);
-        uint16_t base = field_layer_map_base(g, layer);
-        for (unsigned k = 0; k < 10; k++)
-            set_word(g, set_field_layer_edge_vram_byte, layer, k, (uint16_t)(e.vram[k] + base));
-        for (unsigned k = 0; k < 5; k++)
-            set_word(g, set_field_layer_edge_sizes_byte, layer, k, e.sizes[k]);
+        uint16_t left_of_screen = (uint16_t)((x - 1) & COLUMN_MASK);
+        above = (uint16_t)((y - 1) & ROW_MASK);
+        right = (uint16_t)((x + HALF_COLUMNS) & COLUMN_MASK);
+        top_row(g, &e, left_of_screen, (uint16_t)(y & ROW_MASK));
+        bottom_row(&e, left_of_screen, (uint16_t)((y + SCREEN_ROWS) & ROW_MASK));
+        left_column(&e, (uint16_t)(x & COLUMN_MASK), above);
+        right_column(&e, right, above);
+        store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);
     }
-    leave_for_original(g, &e);
+    leave_for_original(g, right, above, &e);
 }
 
 /* ---- Scrolling -------------------------------------------------------------------------- */
@@ -374,55 +407,56 @@ static TileAttributes read_tile_attributes(GameState *g, MapPlace p, uint8_t pro
 
 enum { RUN = 0x80, RUN_OF_256 = 0x00 };
 
-/* What the unpacking leaves for the original's code and shadow mode
- * (field/scratch.h): the attributes' size, the row it stopped on and the
- * last run's bytes, in cells of the layers' page. Nothing the port reads. */
-typedef struct {
-    MapSize size;
-    uint8_t stopped_row;
+/* The last run the unpacking repeated, which it leaves in cells of the
+ * layers' page for the original's code and shadow mode (field/scratch.h, "What
+ * a wrapper can't work out"): written only by record_run, read only by
+ * leave_for_original_unpack. */
+static struct {
     bool had_run;
     TileAttributes last_run;
-} UnpackLeftovers;
+} unpack_leaves;
 
-static void leave_for_original_unpack(GameState *g, const UnpackLeftovers *l)
+static void record_run(TileAttributes a)
 {
-    original_layer_cell16(g, 0x52, (uint16_t)(l->size.rows << 8));
-    original_layer_cell8(g, 0x54, l->size.columns);
-    original_layer_cell8(g, 0x55, l->stopped_row);
-    if (l->had_run) {
-        original_layer_cell8(g, 0x58, l->last_run.properties);
-        original_layer_cell8(g, 0x5A, l->last_run.attributes);
-        original_layer_cell8(g, 0x5C, l->last_run.more_attributes);
+    unpack_leaves.had_run = true;
+    unpack_leaves.last_run = a;
+}
+
+/* For the original's code and shadow mode (field/scratch.h): the attributes'
+ * size, the row the unpacking stopped on (past the last, which a map of no
+ * rows puts at the second), and the last run's bytes. */
+static void leave_for_original_unpack(GameState *g, MapSize size)
+{
+    original_layer_cell16(g, 0x52, (uint16_t)(size.rows << 8));
+    original_layer_cell8(g, 0x54, size.columns);
+    original_layer_cell8(g, 0x55, size.rows ? size.rows : 1);
+    if (unpack_leaves.had_run) {
+        original_layer_cell8(g, 0x58, unpack_leaves.last_run.properties);
+        original_layer_cell8(g, 0x5A, unpack_leaves.last_run.attributes);
+        original_layer_cell8(g, 0x5C, unpack_leaves.last_run.more_attributes);
     }
 }
 
 /* The attributes: three bytes a tile, over BG1's size. A first byte with RUN
  * set starts a run: the tile's bytes (RUN taken off) repeat for the count
  * after them, 0 meaning 256. */
-static void unpack_attributes(GameState *g, UnpackLeftovers *l)
+static void unpack_attributes(GameState *g, MapSize size)
 {
-    MapSize size = layer_size(g, FIELD_BG1);
     MapPlace p = { 0, 0 };
-    l->size = size;
     for (;;) {
         uint8_t first = hw_port_read(g);
         TileAttributes a = read_tile_attributes(g, p, (uint8_t)(first & ~RUN));
         if (first & RUN) {
-            l->had_run = true;
-            l->last_run = a;
+            record_run(a);
             uint8_t count = hw_port_read(g);
             for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
-                if (!next_tile(size, &p)) {
-                    l->stopped_row = p.row;
+                if (!next_tile(size, &p))
                     return;
-                }
                 set_tile_attributes(g, p, a);
             }
         }
-        if (!next_tile(size, &p)) {
-            l->stopped_row = p.row;
+        if (!next_tile(size, &p))
             return;
-        }
     }
 }
 
@@ -437,9 +471,10 @@ static void unpack_tile_maps(GameState *g)
     unpack_layer_map(g, 1);
     if (field_map_flags(g) & MAP_HAS_BG3)
         unpack_layer_map(g, 2);
-    UnpackLeftovers l = { 0 };
-    unpack_attributes(g, &l);
-    leave_for_original_unpack(g, &l);
+    MapSize size = layer_size(g, FIELD_BG1);
+    unpack_leaves.had_run = false;
+    unpack_attributes(g, size);
+    leave_for_original_unpack(g, size);
 }
 
 /* ---- Entries: on the layers' page ------------------------------------------------------- */
@@ -469,15 +504,15 @@ bool field_unpack_stays_clear(Snes *s)
     return bytes < STREAM_REACHES_LAYERS_PAGE;
 }
 
-/* The overflow of BG3's bottom edge's address, the last sum, is the one
+/* The overflow of BG3's right column's address, the last sum, is the one
  * thing its callers read; and it leaves A 8-bit, whatever it came with. */
 void field_compute_layer_edges(Snes *s)
 {
     GameState *g = state_of(s);
     compute_layer_edges(g);
     uint16_t base = field_layer_map_base(g, FIELD_BG3);
-    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, FIELD_BG3, 16) |
-                              field_layer_edge_vram_byte(g, FIELD_BG3, 17) << 8);
+    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN) |
+                              field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN + 1) << 8);
     uint16_t index = (uint16_t)(sum - base);
     m_set_flag(s, CPU_FLAG_V, field_add_overflows16(index, base));
     m_set_flag(s, CPU_FLAG_M, true);

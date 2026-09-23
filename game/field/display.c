@@ -6,17 +6,16 @@
  * layers' edge runs, which bring the rows and columns scrolling into view onto
  * the layers' tile maps (field/layers.c works out where they are). When a map
  * loads it sets the video mode up, copies its screens' settings, fills memory
- * and makes the transfers a screen transition describes. The four party
- * windows' corner tiles are kept up to date in VRAM, one of them marked as the
- * selected one.
+ * and makes the transfers a screen transition describes. (The four windows'
+ * corner tiles are field/window_corners.c.)
  *
  * The line interrupt comes at line 211: the picture ends there, the rest of
- * the frame is blanked, and the time to vblank uploads the tile map's columns
- * (or, in some maps, animated tiles). */
+ * the frame is blanked, and the time to vblank goes to one of two jobs. */
 #include "field/display.h"
 
 #include "field/bridge.h"
 #include "field/field.h"
+#include "field/layers.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -77,20 +76,20 @@ void field_upload_queued_transfers(GameState *g, Platform *pf)
 
 /* ---- The layers' edge runs ------------------------------------------------------------ */
 
-/* The deferred uploads the vblank handler runs from each layer's upload flags:
- * twelve of one shape, each sending two or three parts of an edge run of the
- * layer's tile map, built in bank $7E, to VRAM. A part's size and VRAM address
- * are among the layer's edge runs (field_layer_edge_sizes and _vram, words);
- * a part of size 0 isn't sent; a run's parts follow one another in memory from
- * its base. The runs along a row step VRAM by a word, those down a column by
- * 32 words. */
+/* The deferred uploads the vblank handler runs from each layer's upload flags
+ * (field/layers.h has the runs): as the screen scrolls down, a layer's row
+ * below the view; up, its top row; right, the column right of the view;
+ * left, its left column. Each sends the run's two or three parts, staged in
+ * bank $7E, to VRAM: a part of size 0 isn't sent, and a run's parts follow one
+ * another in memory from its staging buffer. The rows step VRAM by a word,
+ * the columns by 32 words. */
 typedef struct {
     uint8_t layer;
     uint8_t parts;
-    uint8_t first_size, first_vram;   /* word indexes into the layer's edge sizes and addresses */
-    uint16_t base;                    /* where the run's first part lies in bank $7E */
+    uint8_t sizes, addresses;   /* the run's first size and first address, as field/layers.h names them */
+    uint16_t staged;            /* where the run's first part lies in bank $7E */
     bool down_a_column;
-    uint32_t site[3];                 /* each part's transfer, for its origin tag */
+    uint32_t site[3];           /* each part's transfer, for its origin tag */
 } EdgeRun;
 
 static uint16_t edge_word(const GameState *g, uint8_t (*byte)(const GameState *, unsigned, unsigned), unsigned layer,
@@ -100,35 +99,35 @@ static uint16_t edge_word(const GameState *g, uint8_t (*byte)(const GameState *,
     return (uint16_t)(byte(g, layer, 2 * word + 1) << 8 | low);
 }
 
-/* The runs, in the order of the layers' upload flags: each layer's row of
- * tiles, the same with its parts' VRAM addresses from the layer's first
- * address word rather than its fourth, each layer's column, and the same
- * from the seventh address word rather than the ninth. */
+/* The runs, in the order of the layers' upload flags: each layer's row
+ * below the view, its top row, the column right of the view, and its left
+ * column. A layer's two rows share its row buffer, and its two columns its
+ * column buffer. */
 static const EdgeRun edge_runs[FIELD_EDGE_UPLOADS] = {
-    /* $C0:8445 */ { .layer = 0, .parts = 3, .first_size = 0, .first_vram = 3, .base = 0xC800,
-                   .down_a_column = false, .site = { 0xC0844D, 0xC08468, 0xC0848A } },
-    /* $C0:84C1 */ { .layer = 1, .parts = 3, .first_size = 0, .first_vram = 3, .base = 0xD000,
-                   .down_a_column = false, .site = { 0xC084C9, 0xC084E4, 0xC08506 } },
-    /* $C0:8523 */ { .layer = 2, .parts = 3, .first_size = 0, .first_vram = 3, .base = 0xD800,
-                   .down_a_column = false, .site = { 0xC0852B, 0xC08546, 0xC08568 } },
-    /* $C0:8585 */ { .layer = 0, .parts = 3, .first_size = 0, .first_vram = 0, .base = 0xC800,
-                   .down_a_column = false, .site = { 0xC0858D, 0xC085A8, 0xC085CA } },
-    /* $C0:85E7 */ { .layer = 1, .parts = 3, .first_size = 0, .first_vram = 0, .base = 0xD000,
-                   .down_a_column = false, .site = { 0xC085EF, 0xC0860A, 0xC0862C } },
-    /* $C0:8649 */ { .layer = 2, .parts = 3, .first_size = 0, .first_vram = 0, .base = 0xD800,
-                   .down_a_column = false, .site = { 0xC08651, 0xC0866C, 0xC0868E } },
-    /* $C0:86AB */ { .layer = 0, .parts = 2, .first_size = 3, .first_vram = 8, .base = 0xC880,
-                   .down_a_column = true, .site = { 0xC086AF, 0xC086C4 } },
-    /* $C0:86F7 */ { .layer = 1, .parts = 2, .first_size = 3, .first_vram = 8, .base = 0xD080,
-                   .down_a_column = true, .site = { 0xC086FB, 0xC08710 } },
-    /* $C0:8729 */ { .layer = 2, .parts = 2, .first_size = 3, .first_vram = 8, .base = 0xD880,
-                   .down_a_column = true, .site = { 0xC0872D, 0xC08742 } },
-    /* $C0:875B */ { .layer = 0, .parts = 2, .first_size = 3, .first_vram = 6, .base = 0xC880,
-                   .down_a_column = true, .site = { 0xC0875F, 0xC08774 } },
-    /* $C0:878D */ { .layer = 1, .parts = 2, .first_size = 3, .first_vram = 6, .base = 0xD080,
-                   .down_a_column = true, .site = { 0xC08791, 0xC087A6 } },
-    /* $C0:87BF */ { .layer = 2, .parts = 2, .first_size = 3, .first_vram = 6, .base = 0xD880,
-                   .down_a_column = true, .site = { 0xC087C3, 0xC087D8 } },
+    /* $C0:8445 */ { .layer = FIELD_BG1, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_BOTTOM_ROW,
+                   .staged = 0xC800, .down_a_column = false, .site = { 0xC0844D, 0xC08468, 0xC0848A } },
+    /* $C0:84C1 */ { .layer = FIELD_BG2, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_BOTTOM_ROW,
+                   .staged = 0xD000, .down_a_column = false, .site = { 0xC084C9, 0xC084E4, 0xC08506 } },
+    /* $C0:8523 */ { .layer = FIELD_BG3, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_BOTTOM_ROW,
+                   .staged = 0xD800, .down_a_column = false, .site = { 0xC0852B, 0xC08546, 0xC08568 } },
+    /* $C0:8585 */ { .layer = FIELD_BG1, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_TOP_ROW,
+                   .staged = 0xC800, .down_a_column = false, .site = { 0xC0858D, 0xC085A8, 0xC085CA } },
+    /* $C0:85E7 */ { .layer = FIELD_BG2, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_TOP_ROW,
+                   .staged = 0xD000, .down_a_column = false, .site = { 0xC085EF, 0xC0860A, 0xC0862C } },
+    /* $C0:8649 */ { .layer = FIELD_BG3, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_TOP_ROW,
+                   .staged = 0xD800, .down_a_column = false, .site = { 0xC08651, 0xC0866C, 0xC0868E } },
+    /* $C0:86AB */ { .layer = FIELD_BG1, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_RIGHT_COLUMN,
+                   .staged = 0xC880, .down_a_column = true, .site = { 0xC086AF, 0xC086C4 } },
+    /* $C0:86F7 */ { .layer = FIELD_BG2, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_RIGHT_COLUMN,
+                   .staged = 0xD080, .down_a_column = true, .site = { 0xC086FB, 0xC08710 } },
+    /* $C0:8729 */ { .layer = FIELD_BG3, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_RIGHT_COLUMN,
+                   .staged = 0xD880, .down_a_column = true, .site = { 0xC0872D, 0xC08742 } },
+    /* $C0:875B */ { .layer = FIELD_BG1, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_LEFT_COLUMN,
+                   .staged = 0xC880, .down_a_column = true, .site = { 0xC0875F, 0xC08774 } },
+    /* $C0:878D */ { .layer = FIELD_BG2, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_LEFT_COLUMN,
+                   .staged = 0xD080, .down_a_column = true, .site = { 0xC08791, 0xC087A6 } },
+    /* $C0:87BF */ { .layer = FIELD_BG3, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_LEFT_COLUMN,
+                   .staged = 0xD880, .down_a_column = true, .site = { 0xC087C3, 0xC087D8 } },
 };
 
 void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload)
@@ -140,11 +139,11 @@ void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload)
         VID_STEP_START,     VID_STEP_END,
     };
     const VidSnesXfer x = { FIELD_DMA, DMA_WORDS, steps, r->down_a_column ? &column_port : &word_port };
-    uint16_t source = r->base;
+    uint16_t source = r->staged;
     for (unsigned k = 0; k < r->parts; k++) {
-        uint16_t size = edge_word(g, field_layer_edge_sizes_byte, r->layer, r->first_size + k);
+        uint16_t size = edge_word(g, field_layer_edge_sizes_byte, r->layer, r->sizes + k);
         if (size != 0) {
-            uint16_t vram = edge_word(g, field_layer_edge_vram_byte, r->layer, r->first_vram + k);
+            uint16_t vram = edge_word(g, field_layer_edge_vram_byte, r->layer, r->addresses + k);
             vid_upload_vram(pf, PF_AT(r->site[k]), vram, PF_GAME((uint32_t)TILE_MAP_BANK << 16 | source), size, &x);
         }
         source = (uint16_t)(source + size);
@@ -155,12 +154,12 @@ void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload)
  * can't reach round the bank to the stack page (where the original's
  * transfer would copy the return address its call left there, which the
  * port doesn't reproduce). The game's parts are a row or a column of tiles. */
-enum { LARGEST_PART = 0x3000, EDGE_SIZE_WORDS = 5 };
+enum { LARGEST_PART = 0x3000 };
 
 bool field_layer_edges_fit(const GameState *g)
 {
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
-        for (unsigned w = 0; w < EDGE_SIZE_WORDS; w++)
+        for (unsigned w = 0; w < EDGE_SIZES; w++)
             if (edge_word(g, field_layer_edge_sizes_byte, layer, w) >= LARGEST_PART)
                 return false;
     return true;
@@ -183,18 +182,18 @@ bool field_edge_runs_small(Snes *s)
         m_rts(s);                                                                                                      \
     }
 
-EDGE_RUN_ENTRY(field_upload_layer1_tiles, 0)
-EDGE_RUN_ENTRY(field_upload_layer2_tiles, 1)
-EDGE_RUN_ENTRY(field_upload_layer3_tiles, 2)
-EDGE_RUN_ENTRY(field_upload_layer1_tiles_alt, 3)
-EDGE_RUN_ENTRY(field_upload_layer2_tiles_alt, 4)
-EDGE_RUN_ENTRY(field_upload_layer3_tiles_alt, 5)
-EDGE_RUN_ENTRY(field_upload_layer1_columns, 6)
-EDGE_RUN_ENTRY(field_upload_layer2_columns, 7)
-EDGE_RUN_ENTRY(field_upload_layer3_columns, 8)
-EDGE_RUN_ENTRY(field_upload_layer1_columns_alt, 9)
-EDGE_RUN_ENTRY(field_upload_layer2_columns_alt, 10)
-EDGE_RUN_ENTRY(field_upload_layer3_columns_alt, 11)
+EDGE_RUN_ENTRY(field_upload_layer1_bottom_row, 0)
+EDGE_RUN_ENTRY(field_upload_layer2_bottom_row, 1)
+EDGE_RUN_ENTRY(field_upload_layer3_bottom_row, 2)
+EDGE_RUN_ENTRY(field_upload_layer1_top_row, 3)
+EDGE_RUN_ENTRY(field_upload_layer2_top_row, 4)
+EDGE_RUN_ENTRY(field_upload_layer3_top_row, 5)
+EDGE_RUN_ENTRY(field_upload_layer1_right_column, 6)
+EDGE_RUN_ENTRY(field_upload_layer2_right_column, 7)
+EDGE_RUN_ENTRY(field_upload_layer3_right_column, 8)
+EDGE_RUN_ENTRY(field_upload_layer1_left_column, 9)
+EDGE_RUN_ENTRY(field_upload_layer2_left_column, 10)
+EDGE_RUN_ENTRY(field_upload_layer3_left_column, 11)
 
 /* ---- Setting a map's display up -------------------------------------------------------- */
 
@@ -273,77 +272,15 @@ static void fill_memory(const GameState *g, Platform *pf)
     vid_snes_transfer(pf, PF_AT(0xC02E01), &t, &x);
 }
 
-/* ---- The party windows' corners ------------------------------------------------------- */
-
-/* The four party windows at the screen's top each have a pair of corner
- * tiles in VRAM (at $1C02 + $40 * slot and $1C22 + $40 * slot), two words
- * each; the selected window's pair is the marked one. */
-enum { WINDOWS = 4, NO_WINDOW_SELECTED = 0x80 };
-enum { CORNER_VRAM = 0x1C02, CORNER_TILE = 0x2902, SELECTED_TILE = 0x28FC, WINDOW_STRIDE = 0x40, SECOND_CORNER = 0x20 };
-
-typedef struct {
-    uint32_t address, first, second;   /* the origin tags of the three writes of a corner */
-} CornerSites;
-
-static void write_corner(Platform *pf, uint16_t vram, uint16_t tile, CornerSites at)
-{
-    vid_set_vram_address(pf, PF_AT(at.address), vram);
-    vid_write_vram(pf, PF_AT(at.first), tile);
-    vid_write_vram(pf, PF_AT(at.second), (uint16_t)(tile + 1));
-}
-
-/* A window's two corners with its own tiles, or the marked ones. */
-static void write_window_corners(Platform *pf, unsigned window, bool selected, const CornerSites at[2])
-{
-    uint16_t vram = (uint16_t)(CORNER_VRAM + WINDOW_STRIDE * window);
-    uint16_t own = (uint16_t)(CORNER_TILE + WINDOW_STRIDE * window);
-    write_corner(pf, vram, selected ? SELECTED_TILE : own, at[0]);
-    write_corner(pf, (uint16_t)(vram + SECOND_CORNER), selected ? (uint16_t)(SELECTED_TILE + 2) : (uint16_t)(own + 0x10),
-                 at[1]);
-}
-
-/* Each window's corners as its own routine writes them ($C0:F159, $F142,
- * $F12B, $F110). */
-static const CornerSites own_corners[WINDOWS][2] = {
-    { { 0xC0F15C, 0xC0F161, 0xC0F164 }, { 0xC0F169, 0xC0F16E, 0xC0F128 } },
-    { { 0xC0F145, 0xC0F14A, 0xC0F14D }, { 0xC0F152, 0xC0F157, 0xC0F128 } },
-    { { 0xC0F12E, 0xC0F133, 0xC0F136 }, { 0xC0F13B, 0xC0F140, 0xC0F128 } },
-    { { 0xC0F113, 0xC0F118, 0xC0F11B }, { 0xC0F120, 0xC0F125, 0xC0F128 } },
-};
-
-/* And the marked ones, as the refresh writes them for the selected window. */
-static const CornerSites marked_corners[WINDOWS][2] = {
-    { { 0xC0F097, 0xC0F09C, 0xC0F09F }, { 0xC0F0A4, 0xC0F0C9, 0xC0F0CC } },
-    { { 0xC0F0FC, 0xC0F101, 0xC0F104 }, { 0xC0F109, 0xC0F0C9, 0xC0F0CC } },
-    { { 0xC0F0DC, 0xC0F0E1, 0xC0F0E4 }, { 0xC0F0E9, 0xC0F0C9, 0xC0F0CC } },
-    { { 0xC0F0B7, 0xC0F0BC, 0xC0F0BF }, { 0xC0F0C4, 0xC0F0C9, 0xC0F0CC } },
-};
-
-// $C0:F05E
-/* Refresh the four windows' corners: the selected window's marked, the rest
- * their own; with no window selected (field_window_tile_slot past the four),
- * all their own, and the selection is cleared. The windows the refresh
- * writes with their own routines are written in the routines' order. */
-static void refresh_window_corners(GameState *g, Platform *pf)
-{
-    vid_begin_vram_uploads(pf, PF_AT(0xC0F069), VID_VRAM_WORD_PORT, PF_GAME(0), NULL);
-    unsigned selected = field_window_tile_slot(g);
-    for (unsigned w = 0; w < WINDOWS; w++)
-        if (w != selected)
-            write_window_corners(pf, w, false, own_corners[w]);
-    if (selected < WINDOWS)
-        write_window_corners(pf, selected, true, marked_corners[selected]);
-    else
-        set_field_window_tile_slot(g, NO_WINDOW_SELECTED);
-}
-
 /* ---- The line interrupt ---------------------------------------------------------------- */
 
 /* A line interrupt the field takes: it isn't turned off, and the line one is
  * what came. Acknowledging it is part of asking. */
+enum { LINE_INTERRUPT_OFF = 0x80 };   /* field_irq_disabled */
+
 static bool line_interrupt_for_field(const GameState *g, Platform *pf)
 {
-    if ((int8_t)field_irq_disabled(g) < 0)
+    if (field_irq_disabled(g) & LINE_INTERRUPT_OFF)
         return false;
     return tm_ack_line_irq(pf, PF_AT(0xC0ECDB)) & TM_LINE_IRQ_PENDING;
 }
@@ -360,11 +297,6 @@ static void end_picture(Platform *pf)
 
 bool field_display_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
 
-/* The window corner writers are entered with the direct page on the video
- * registers, which they write through; on any other page they write memory,
- * which stays the original's. */
-bool field_window_tiles_dp_is_ppu(Snes *s) { return s->cpu.d == M_DP_PPU; }
-
 /* Nothing these leave in the registers is read after (the entries' don't-care
  * sets). */
 void field_upload_sprites(Snes *s)
@@ -373,15 +305,19 @@ void field_upload_sprites(Snes *s)
     m_rts(s);
 }
 
+uint16_t field_queue_last_second_size(const GameState *g, uint16_t none)
+{
+    unsigned entries = 0;
+    while (field_vram_queue_used(g, entries) != 0)
+        entries++;
+    return entries != 0 ? field_vram_queue_size2(g, entries - 1) : none;
+}
+
 /* Y is left the last entry's second size, which the callers read. */
 void field_upload_vram_queue(Snes *s)
 {
     GameState *g = state_of(s);
-    unsigned entries = 0;
-    while (field_vram_queue_used(g, entries) != 0)
-        entries++;
-    if (entries != 0)
-        s->cpu.y = field_vram_queue_size2(g, entries - 1);
+    s->cpu.y = field_queue_last_second_size(g, s->cpu.y);
     field_upload_queued_transfers(g, m_platform(s));
     m_rts(s);
 }
@@ -414,43 +350,6 @@ void field_fill_memory(Snes *s)
     m_rts(s);
 }
 
-// $C0:F159, $C0:F142, $C0:F12B, $C0:F110
-void field_write_window_tiles_0(Snes *s) { write_window_corners(m_platform(s), 0, false, own_corners[0]); m_rts(s); }
-void field_write_window_tiles_1(Snes *s) { write_window_corners(m_platform(s), 1, false, own_corners[1]); m_rts(s); }
-void field_write_window_tiles_2(Snes *s) { write_window_corners(m_platform(s), 2, false, own_corners[2]); m_rts(s); }
-void field_write_window_tiles_3(Snes *s) { write_window_corners(m_platform(s), 3, false, own_corners[3]); m_rts(s); }
-
-void field_patch_window_tiles(Snes *s)
-{
-    refresh_window_corners(state_of(s), m_platform(s));
-    m_rts(s);
-}
-
-/* The registers the interrupted code had, saved on its stack and given back:
- * the handler stops to wait for hblank with them there. */
-static void save_interrupted(Snes *s)
-{
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_push16(s, s->cpu.a);
-    m_push16(s, s->cpu.x);
-    m_push16(s, s->cpu.y);
-    m_push16(s, s->cpu.d);
-    m_push8(s, s->cpu.db);
-    m_sep(s, CPU_FLAG_M);
-}
-
-static void return_to_interrupted(Snes *s)
-{
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    s->cpu.db = m_pull8(s);
-    s->cpu.d = m_pull16(s);
-    s->cpu.y = m_pull16(s);
-    s->cpu.x = m_pull16(s);
-    s->cpu.a = m_pull16(s);
-    m_set_nz16(s, s->cpu.a);
-    m_rti(s);
-}
-
 // $C0:ECCC (installed at the $0504 line-interrupt stub by field_install_irq)
 /* The field's line interrupt: where it is the field's, it leaves only the
  * vblank and controller interrupts on for the rest of the frame and waits for
@@ -459,10 +358,10 @@ static void return_to_interrupted(Snes *s)
  * beam"). */
 void field_irq(Snes *s)
 {
-    save_interrupted(s);
+    m_save_interrupted_registers(s);
     Platform *pf = m_platform(s);
     if (!line_interrupt_for_field(state_of(s), pf)) {
-        return_to_interrupted(s);
+        m_return_to_interrupted(s);
         return;
     }
     tm_enable_interrupts(pf, PF_AT(0xC0ECE3), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
@@ -486,9 +385,12 @@ void field_irq_wait_hblank_loop(Snes *s)
 
 /* The rest of the line interrupt, from hblank: the picture ends, then the
  * time to vblank goes to one of two jobs, which alternate with the line
- * effects' table set: the tile map's patches and column uploads ($C0:ED15),
- * or bank $FD's work ($FD:FFFD), both the original's code; and back to what
- * it interrupted. */
+ * effects' table set: the windows' corner tiles among other work
+ * ($C0:ED15), or bank $FD's work ($FD:FFFD), both the original's code; and
+ * back to what it interrupted. A and the flags hold the table set's bit as
+ * the choice leaves them: nothing reads them after a job that comes back as
+ * the field runs, but one that doesn't hands its machine, those included, to
+ * the original's code as it is. */
 void field_irq_after_hblank(Snes *s)
 {
     GameState *g = state_of(s);
@@ -502,5 +404,5 @@ void field_irq_after_hblank(Snes *s)
         m_jsl(s, 0xC0ED08, 0xFDFFFD);
     if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
         return;
-    return_to_interrupted(s);
+    m_return_to_interrupted(s);
 }

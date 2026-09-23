@@ -2425,6 +2425,15 @@ meaning = "Deferred tile map uploads for the field NMI: bits 0-2 one per layer, 
 source = "game/field/nmi.c, run_video_uploads ($C0:EA63)"
 
 [[var]]
+name = "field_transition_map_base"
+addr = "7E:1D82"
+page = "field_layers"
+size = 2
+subsystem = "field"
+meaning = "VRAM address the map transition's third move sends the staged tile map to (the others go to BG1's, BG2's or BG3's field_layer_map_base)"
+source = "game/field/nmi.c, start_map_move ($C0:EA63)"
+
+[[var]]
 name = "field_layer_map_base"
 addr = "7E:1D7C"
 page = "field_layers"
@@ -2432,7 +2441,7 @@ size = 2
 count = 3
 index = "layer (BG1-BG3)"
 subsystem = "field"
-meaning = "Base added to each layer's tile map indexes to make the VRAM addresses the deferred uploads use; map transitions 1, 2 and 4 load their destination from it"
+meaning = "Base added to each layer's tile map indexes to make the VRAM addresses the deferred uploads use; map transitions 1, 2 and 4 load their destination from it (3 from field_transition_map_base)"
 source = "game/field/layers.c field_compute_layer_edges $C0:7F9A; game/field/nmi.c run_map_transition"
 
 [[var]]

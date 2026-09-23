@@ -42,3 +42,4 @@ bool field_current_object_io_bank(Snes *s) { return field_on_page_io_bank(s) && 
 bool field_on_layers_page(Snes *s) { return m_direct_page(s) == FIELD_LAYERS_PAGE; }
 bool field_on_layers_page_low_bank(Snes *s) { return field_on_layers_page(s) && m_bank_reaches_low_ram(s); }
 bool field_on_layers_page_io_bank(Snes *s) { return field_on_layers_page(s) && m_bank_reaches_io(s); }
+

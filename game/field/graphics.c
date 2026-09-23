@@ -44,8 +44,9 @@ static uint8_t source_bank(uint8_t bank)
 
 /* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
 
-/* The tile copies save the caller's Y at $C5 and give it back from there. */
-static void leave_saved_y(GameState *g, uint16_t y) { original_cell16(g, 0xC5, y); }
+/* The tile copies save the caller's Y at $C5 (and give it back from there). */
+enum { SAVED_Y_CELL = 0xC5 };
+static void leave_saved_y(GameState *g, uint16_t y) { original_cell16(g, SAVED_Y_CELL, y); }
 
 // $C0:E687
 /* Copy sprite tile `tile` of the graphics set to the build offset, a word at
@@ -83,14 +84,14 @@ static void copy_sprite_tile_flipped(GameState *g, uint16_t tile)
 
 /* ---- Entries: the frame builder's calls, on the field's page ------------------------------ */
 
-/* 16-bit A, the tile. Y comes back from the cell the copy saved it in, where
- * the original reads it. The straight copy leaves A its cursor, and the
- * overflow of its sum. */
+/* 16-bit A, the tile. Y comes back as it came, from the cell the copy saved
+ * it in (the mirrored copy's guard keeps its writes off the cell). The
+ * straight copy leaves A its cursor, and the overflow of its sum. */
 static void tile_copy_entry(Snes *s, bool mirrored)
 {
     GameState *g = state_of(s);
-    uint16_t tile = s->cpu.a;
-    leave_saved_y(g, s->cpu.y);
+    uint16_t tile = s->cpu.a, y = s->cpu.y;
+    leave_saved_y(g, y);
     if (mirrored) {
         copy_sprite_tile_flipped(g, tile);
     } else {
@@ -99,9 +100,28 @@ static void tile_copy_entry(Snes *s, bool mirrored)
         tile = cursor;
     }
     s->cpu.a = tile;
-    s->cpu.y = original_cell_value16(g, 0xC5);
+    s->cpu.y = y;
     m_rts(s);
 }
 
 void field_copy_sprite_tile(Snes *s) { tile_copy_entry(s, false); }
 void field_copy_sprite_tile_flipped(Snes *s) { tile_copy_entry(s, true); }
+
+/* The mirrored copy's guard: on the field's page with the data bank $00, and
+ * the work RAM port's 32 bytes clear of the cell the copy saves Y in, which
+ * it would otherwise write over before the original reads Y back. The frame
+ * builder places the port on the tiles it builds in bank $7F. */
+enum { PORT_SPACE = 0x20000, SAVED_Y_AT = 0x00100 + SAVED_Y_CELL };
+
+bool field_tile_copy_keeps_saved_y(Snes *s)
+{
+    if (!field_on_page_bank_zero(s))
+        return false;
+    uint32_t port = s->bus.wram_port_addr;
+    for (uint32_t k = 0; k < TILE_BYTES; k++) {
+        uint32_t at = (port + k) % PORT_SPACE;
+        if (at == SAVED_Y_AT || at == SAVED_Y_AT + 1)
+            return false;
+    }
+    return true;
+}

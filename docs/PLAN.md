@@ -159,8 +159,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **32 of 91 files, 14,026 of
-27,612 lines (51%), are on the backlog**, and all but the scenes, the events
+each subsystem's functions that take the machine. **32 of 92 files, 14,026 of
+27,901 lines (50%), are on the backlog**, and all but the scenes, the events
 and the field is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
@@ -168,10 +168,10 @@ and the field is on the machine:
 | battle | 20 | 27 | 7,779 | 10,310 | 0.33 | 99% |
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
 | event | 0 | 16 | 0 | 2,545 | 0.02 | 29% |
-| field | 0 | 15 | 0 | 3,508 | 0.03 | 30% |
+| field | 0 | 16 | 0 | 3,797 | 0.02 | 30% |
 | scene | 0 | 13 | 0 | 2,397 | 0.05 | 54% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
-| **total** | **32** | **91** | **14,026** | **27,612** | **0.23** | **69%** |
+| **total** | **32** | **92** | **14,026** | **27,901** | **0.22** | **68%** |
 
 Scene's 54%, event's 29% and field's 30% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by

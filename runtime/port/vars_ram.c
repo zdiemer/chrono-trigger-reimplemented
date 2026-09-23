@@ -697,6 +697,8 @@ uint8_t field_layer_upload_flags(const GameState *g, unsigned i) { return r8(g, 
 void set_field_layer_upload_flags(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1D78u + (uint32_t)i * 0x01u, v); }
 uint16_t field_layer_map_base(const GameState *g, unsigned layer) { return r16(g, 0x7E1D7Cu + (uint32_t)layer * 0x02u); }
 void set_field_layer_map_base(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E1D7Cu + (uint32_t)layer * 0x02u, v); }
+uint16_t field_transition_map_base(const GameState *g) { return r16(g, 0x7E1D82u); }
+void set_field_transition_map_base(GameState *g, uint16_t v) { w16(g, 0x7E1D82u, v); }
 uint8_t field_layer_map_size(const GameState *g, unsigned layer) { return r8(g, 0x7E1D84u + (uint32_t)layer * 0x01u); }
 void set_field_layer_map_size(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D84u + (uint32_t)layer * 0x01u, v); }
 uint16_t field_layer_scroll_h(const GameState *g, unsigned layer) { return r16(g, 0x7E1D87u + (uint32_t)layer * 0x04u); }

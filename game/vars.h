@@ -1349,9 +1349,15 @@ void set_field_layer_upload_flags(GameState *g, unsigned i, uint8_t v);
 
 enum { FIELD_LAYER_MAP_BASE_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Base added to each layer's tile map indexes to make the VRAM addresses the deferred uploads
- * use; map transitions 1, 2 and 4 load their destination from it */
+ * use; map transitions 1, 2 and 4 load their destination from it (3 from
+ * field_transition_map_base) */
 uint16_t field_layer_map_base(const GameState *g, unsigned layer);
 void set_field_layer_map_base(GameState *g, unsigned layer, uint16_t v);
+
+/* VRAM address the map transition's third move sends the staged tile map to (the others go to
+ * BG1's, BG2's or BG3's field_layer_map_base) */
+uint16_t field_transition_map_base(const GameState *g);
+void set_field_transition_map_base(GameState *g, uint16_t v);
 
 enum { FIELD_LAYER_MAP_SIZE_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Bits ORed into the low byte of each layer's field_layer_map_base to make the tile map register

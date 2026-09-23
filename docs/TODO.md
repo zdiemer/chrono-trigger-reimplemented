@@ -298,18 +298,24 @@ below. `python3 tools/timing_census.py` re-runs the census.
   handlers as C, `EventStep`'s `cursor` and `overflow` (the Y and V the
   original's callers can see) go.
 - **What the field's rewrite left** (RECOMP.md, "Phase 3a: the field subsystem
-  off the machine"). The deferred uploads' edge runs are word arrays in the
-  map (`field_layer_edge_sizes`, `field_layer_edge_vram`) that `layers.c`
-  fills and `display.c` reads by index; a typed record for a layer's runs
-  would say which word is which, and what the alternate row and column
-  (the `_alt` uploads) are for. A one-off
-  animation's plays keep the scripts' units (the frame table's end takes one,
-  the delays' two), which `object_play_animation` takes as they are. The
-  sprite table is still written through the work RAM port (`field/sprites.c`),
-  whose address and bank are the hardware's state at entry. And
-  `field_setting_bc` turned out to be the screen's shake (the layer scroll
-  reads it; the map says so now), so event `$F4`, `set_bc` in
-  `tools/disasm/eventscript.py` and `event_cmd_set_bc`, wants that name.
+  off the machine").
+  - The map's stuttering names for the object tables' fields
+    (`field_object_animation_mode_mode`, `field_object_move_state_animation_count`,
+    `field_object_state_state`) and `field_setting_bc`, which is the screen's
+    shake (the layer scroll reads it; the map says so now); event `$F4`,
+    `set_bc` in `tools/disasm/eventscript.py` and `event_cmd_set_bc` want that
+    name too. A naming pass over the map, not the ports.
+  - A sprite service in `runtime/platform/`: `field/sprites.c` writes the OAM
+    image through the work RAM port, whose cursor the original leaves, where a
+    sprite list handed to the platform would do; the line effects likewise
+    hand the video service register bytes (`field/line_effects.c`) and the
+    transfers' write order (`steps`) rather than `Vid*` fields.
+  - `object_play_animation` counts whole passes; event `$B7` starts a one-off
+    with an odd countdown (its operand plus one, in the half passes the
+    storage keeps), which the operation can't express yet. When event moves
+    onto `field/object.h`, it wants a form that takes the half pass.
+  - The four windows' corner tiles (`field/window_corners.c`) aren't known to
+    be the party's windows: what they frame is still to be read.
 - **Fuzzing half the event states.** The event handlers' guards turn away an
   odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
   every tight run is skipped (more for the comparisons, whose operator must be

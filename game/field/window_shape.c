@@ -20,6 +20,7 @@
 #include "field/field.h"
 
 #include "field/bridge.h"
+#include "field/scratch.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -47,45 +48,49 @@ static Point corner(const GameState *g, unsigned c)
 
 /* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
 
-/* What the original leaves in its working cells when it is done: the last
- * edge drawn, upper end first ($53-$5A); the fill's length ($F0) and no edges
- * left ($F4); whether the right side was still to come ($F6); and the last
- * sloped edge's lines left, width, height and error ($F2, $F8, $FA, $FC).
- * Nothing the port reads. */
-typedef struct {
-    Edge last;
-    uint16_t fill_length;
-    bool right_side_found;
-    bool sloped;              /* an edge with height was drawn */
+/* The last sloped edge drawn, as the original leaves it in its cells (field/
+ * scratch.h, "What a wrapper can't work out"): its width, height and the
+ * error its stepping ended on. Written only by record_sloped_edge, read only
+ * by leave_for_original. */
+static struct {
+    bool sloped;
     uint16_t width, error;
     uint8_t height;
-} Leftovers;
+} shape_leaves;
+
+static void record_sloped_edge(uint16_t width, uint8_t height, uint16_t error)
+{
+    shape_leaves.sloped = true;
+    shape_leaves.width = width;
+    shape_leaves.height = height;
+    shape_leaves.error = error;
+}
 
 /* The original steps through the edges from a jump table of its own code;
  * where the right side is still to come, $F6 holds the step that looks for
  * it, the edge routine at $C3:0F35. */
 enum { STEP_FIND_RIGHT_SIDE = 0x0F35 };
 
-static void leave_step_cell(GameState *g, uint8_t cell, uint16_t v)
+/* For the original's code and shadow mode (field/scratch.h): the last edge
+ * drawn, upper end first ($53-$5A, a word each); the fill's length ($F0) and
+ * no edges left ($F4); whether the right side was still to come ($F6); and
+ * the last sloped edge's lines left, width, height and error ($F2, $F8, $FA,
+ * $FC). */
+static void leave_for_original(GameState *g, Edge last, uint16_t fill_length, bool right_side_found)
 {
-    set_field_window_shape_steps_byte(g, (unsigned)(cell - 0xF0), (uint8_t)v);
-    set_field_window_shape_steps_byte(g, (unsigned)(cell - 0xF0 + 1), (uint8_t)(v >> 8));
-}
-
-static void leave_for_original(GameState *g, const Leftovers *l)
-{
-    const uint8_t ends[8] = { l->last.from.x, 0, l->last.from.y, 0, l->last.to.x, 0, l->last.to.y, 0 };
-    for (unsigned i = 0; i < 8; i++)
-        set_field_window_shape_edge_byte(g, i, ends[i]);
-    leave_step_cell(g, 0xF0, l->fill_length);
-    leave_step_cell(g, 0xF4, 0);
-    leave_step_cell(g, 0xF6, l->right_side_found ? 0 : STEP_FIND_RIGHT_SIDE);
-    set_field_window_shape_steps_byte(g, 0xFB - 0xF0, 0);
-    if (l->sloped) {
-        set_field_window_shape_steps_byte(g, 0xF2 - 0xF0, 0);
-        leave_step_cell(g, 0xF8, l->width);
-        set_field_window_shape_steps_byte(g, 0xFA - 0xF0, l->height);
-        leave_step_cell(g, 0xFC, l->error);
+    original_shape_cell16(g, 0x53, last.from.x);
+    original_shape_cell16(g, 0x55, last.from.y);
+    original_shape_cell16(g, 0x57, last.to.x);
+    original_shape_cell16(g, 0x59, last.to.y);
+    original_shape_cell16(g, 0xF0, fill_length);
+    original_shape_cell16(g, 0xF4, 0);
+    original_shape_cell16(g, 0xF6, right_side_found ? 0 : STEP_FIND_RIGHT_SIDE);
+    original_shape_cell8(g, 0xFB, 0);
+    if (shape_leaves.sloped) {
+        original_shape_cell8(g, 0xF2, 0);
+        original_shape_cell16(g, 0xF8, shape_leaves.width);
+        original_shape_cell8(g, 0xFA, shape_leaves.height);
+        original_shape_cell16(g, 0xFC, shape_leaves.error);
     }
 }
 
@@ -121,7 +126,7 @@ static int16_t edge_start_error(bool rightward, int16_t width, int16_t height)
 // $C3:1025
 /* A sloped edge: its X on each line from its upper end down, the X moving a
  * pixel at a time while the error lasts. */
-static void draw_sloped_edge(GameState *g, Column column, Edge e, Leftovers *l)
+static void draw_sloped_edge(GameState *g, Column column, Edge e)
 {
     int16_t height = (int16_t)(e.to.y - e.from.y);
     int16_t dx = (int16_t)(e.to.x - e.from.x);
@@ -139,24 +144,20 @@ static void draw_sloped_edge(GameState *g, Column column, Edge e, Leftovers *l)
         wram_write8(g, (uint32_t)column.bank << 16 | at, (uint8_t)x);
         at = (uint16_t)(at + LINE_BYTES);
     }
-    l->last = e;
-    l->sloped = true;
-    l->width = (uint16_t)width;
-    l->height = (uint8_t)height;
-    l->error = (uint16_t)error;
+    record_sloped_edge((uint16_t)width, (uint8_t)height, (uint16_t)error);
 }
 
-/* An edge, upper end first. */
-static void draw_edge(GameState *g, Column column, Edge e, Leftovers *l)
+/* An edge, upper end first (a level edge as it comes). Returns it as drawn. */
+static Edge draw_edge(GameState *g, Column column, Edge e)
 {
     if (e.to.y == e.from.y) {
         draw_level_edge(g, column, e);
-        l->last = e;
-        return;
+        return e;
     }
     if (e.to.y < e.from.y)
         e = (Edge){ e.to, e.from };
-    draw_sloped_edge(g, column, e, l);
+    draw_sloped_edge(g, column, e);
+    return e;
 }
 
 /* The corner the drawing starts from: the topmost, the last of equals. */
@@ -216,19 +217,20 @@ static void rasterize_quad(GameState *g)
     set_field_window_shape_top(g, top);
     uint16_t right_start = field_window_shape_right_start(g);
     Column column = { field_window_shape_table_bank(g), field_window_shape_table_address(g) };
-    Leftovers l = { 0 };
+    bool right_side_found = false;
+    Edge last = { { 0, 0 }, { 0, 0 } };
     for (unsigned k = 0; k < EDGES; k++) {
         Edge e = { corner(g, (first + k) % CORNERS), corner(g, (first + k + 1) % CORNERS) };
-        if (e.to.y < e.from.y && !l.right_side_found) {
+        if (e.to.y < e.from.y && !right_side_found) {
             column.address = (uint16_t)(column.address + RIGHT_COLUMN);
             right_start = e.from.y;
             set_field_window_shape_right_start(g, right_start);
-            l.right_side_found = true;
+            right_side_found = true;
         }
-        draw_edge(g, column, e, &l);
+        last = draw_edge(g, column, e);
     }
-    l.fill_length = empty_outside_lines(g, column, top, right_start);
-    leave_for_original(g, &l);
+    uint16_t fill_length = empty_outside_lines(g, column, top, right_start);
+    leave_for_original(g, last, fill_length, right_side_found);
 }
 
 /* The guard: the table where the game puts it, in bank $7F far enough from
@@ -255,6 +257,7 @@ bool field_window_shape_table_in_place(Snes *s)
  * read after (the entry's don't-care set). */
 void field_rasterize_quad(Snes *s)
 {
+    shape_leaves.sloped = false;
     rasterize_quad(state_of(s));
     m_rtl(s);
 }

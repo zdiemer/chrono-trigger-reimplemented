@@ -331,6 +331,31 @@ static inline void m_rti(Snes *s)
     native_note_return(s);
 }
 
+/* An interrupt handler that saves the interrupted code's registers on its
+ * stack: 16-bit A, X and Y, D and the data bank, leaving 8-bit A and 16-bit
+ * index registers; and gives them back and returns (RTI restores P). */
+static inline void m_save_interrupted_registers(Snes *s)
+{
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_push16(s, s->cpu.a);
+    m_push16(s, s->cpu.x);
+    m_push16(s, s->cpu.y);
+    m_push16(s, s->cpu.d);
+    m_push8(s, s->cpu.db);
+    m_sep(s, CPU_FLAG_M);
+}
+
+static inline void m_return_to_interrupted(Snes *s)
+{
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    s->cpu.db = m_pull8(s);
+    s->cpu.d = m_pull16(s);
+    s->cpu.y = m_pull16(s);
+    s->cpu.x = m_pull16(s);
+    s->cpu.a = m_pull16(s);
+    m_rti(s);
+}
+
 /* True if the `len` bytes at `addr` hash (64-bit FNV-1a) to `hash`. For guards
  * on routines the game copies or decompresses into RAM: the hash identifies the
  * code a port was written for without keeping any of its bytes. No side effects. */

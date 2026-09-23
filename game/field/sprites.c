@@ -2,19 +2,27 @@
  *
  * Every frame the field builds the OAM image (field_sprite_table, which the
  * vblank uploads) from the objects in view, walking the rows from the bottom
- * of the screen up (field/object_update.c) so that nearer objects come first.
- * The table is in three ranges by an object's priority: the objects drawn in
- * front of everything, the ordinary ones, and those drawn behind; each range
- * has its next entry and its next byte of the high table, and entries a range
- * used last frame and not this one are hidden.
+ * of the screen up (field/object_update.c) so that nearer objects come first
+ * and are drawn over the ones behind them. The table is kept in three ranges
+ * by an object's priority: the objects drawn in front of everything, the
+ * ordinary ones, and those drawn behind. Each range fills from its start, and
+ * the entries a range used last frame and not this one are hidden.
  *
- * An object's sprites are 8-byte records (field_sprite_records, from the
- * object's offset): its sprite's X and Y on the screen, its offset from the
- * object's screen position, and its tile and attributes. There are 4, 8, 12
- * or 24 of them by the object's layout. Before it is drawn an object brings
- * its records up to date: only their screen positions where only the object
- * moved, or rebuilt from its frame's data after a new frame was built. The
- * entries go into the table through the work RAM port. */
+ * An object's sprites are its sprite records (field_sprite_records, from the
+ * object's offset): 4, 8, 12 or 24 of them by the object's layout, each a
+ * sprite's place on the screen, its offset from the object's, and its tile and
+ * attributes. Before it is drawn an object brings its records up to date:
+ * only their screen positions where only the object moved, or rebuilt from
+ * its frame's data after the frame builder drew a new frame. The 4-sprite
+ * layout's placing is this file's (place_sprites); the rebuilding, and the
+ * larger layouts' placing, are still the original's routines.
+ *
+ * An object's sprites are read into a list of Sprite, whose X is a signed
+ * screen coordinate, and one function writes a list into the table
+ * (write_sprites): it alone knows the table's form, a byte of X and a ninth
+ * bit apart, and streams the entries through the work RAM port. The lists are
+ * an object's, not a range's: a range's would be up to 128 sprites of locals,
+ * more than a build for the 65816 can keep. */
 #include "field/sprites.h"
 #include "field/object.h"
 
@@ -26,108 +34,117 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { SPRITE_TABLE = 0x0700, OAM_ENTRY = 4, HIDDEN_Y = 0xE0 };
-/* The ranges' cursors reach the table through a data bank of 0, which reaches
- * low RAM up to LOW_RAM_END; a draw writes at most LARGEST_DRAW bytes. */
-enum { LOW_RAM_END = 0x2000, LARGEST_DRAW = 24 * OAM_ENTRY };
-enum { RECORD = 8, RECORD_X = 0, RECORD_Y = 1, RECORD_X_OFFSET = 2, RECORD_Y_OFFSET = 4, RECORD_TILE = 6, RECORD_ATTRIBUTES = 7 };
-enum { FRAME_X_OFFSET = 2, FRAME_Y_OFFSET = 4, FRAME_TILE = 6 };   /* a frame's sprites, in field_sprite_frame_data */
-enum { MIDDLE, BACK, FRONT, RANGES };   /* the ranges, as field_sprite_range_* index them */
-enum { PRIORITY_RANGE = 0x0C, PRIORITY_BACK = 0x04 };   /* field_object_priority_mode */
+/* A sprite as the table shows it. Its Y is already in the table's form (the
+ * records hold it that way, a line at $E0 or past hiding it); its X is a
+ * screen coordinate. */
+typedef struct {
+    int16_t x;
+    uint8_t y, tile, attributes;
+    bool large;
+} Sprite;
 
-/* The high table bytes of an object's sprites, two bits a sprite: X's ninth
- * bit and large size. Every field sprite is large. */
-enum { ALL_LARGE = 0xAA };
+enum { MOST_SPRITES = 24 };
 
-/* The layouts: how many sprites, and high table bytes. */
+/* The layouts: how many sprites, and high table bytes (four sprites a byte). */
 typedef struct {
     uint8_t sprites, high_bytes;
 } Layout;
+enum { LAYOUT_4, LAYOUT_8, LAYOUT_12, LAYOUT_24 };
 static const Layout layouts[4] = { { 4, 1 }, { 8, 2 }, { 12, 3 }, { 24, 6 } };
 
-static Layout layout_of(const GameState *g, FieldObject obj) { return layouts[field_object_sprite_layout(g, obj) & 3]; }
+static unsigned layout_kind(const GameState *g, FieldObject obj) { return field_object_sprite_layout(g, obj) & 3; }
+static Layout layout_of(const GameState *g, FieldObject obj) { return layouts[layout_kind(g, obj)]; }
 
-enum { FIELD_ROWS = 64 };
+/* ---- The table's storage: the only code that knows its form ------------------------------ */
+
+/* The table is in low RAM at SPRITE_TABLE: 128 entries of four bytes (X's low
+ * byte, Y, tile, attributes), then the high table, two bits a sprite (X's
+ * ninth bit, and large). The ranges' cursors are kept as the table's
+ * addresses; here they are offsets into it. */
+enum { SPRITE_TABLE = 0x0700, OAM_ENTRY = 4, ENTRY_Y = 1, HIDDEN_Y = 0xE0 };
+enum { X_NINTH_BIT = 0x01, LARGE_BIT = 0x02, BITS_A_SPRITE = 2, SPRITES_A_HIGH_BYTE = 4 };
+
+enum { MIDDLE, BACK, FRONT, RANGES };   /* the ranges, as field_sprite_range_* index them */
+
+/* Each range's first entry and the entry after its last, and its first high
+ * table byte, as offsets into the table: the front range entries 4-27, the
+ * middle 28-103, the back 104-127. */
+static const uint16_t range_first_entry[RANGES] = { 0x070, 0x1A0, 0x010 };
+static const uint16_t range_limit[RANGES] = { 0x1A0, 0x200, 0x070 };
+static const uint16_t range_first_high[RANGES] = { 0x207, 0x21A, 0x201 };
+
+static uint16_t range_next(const GameState *g, unsigned r) { return (uint16_t)(field_sprite_range_next(g, r) - SPRITE_TABLE); }
+static void set_range_next(GameState *g, unsigned r, uint16_t at) { set_field_sprite_range_next(g, r, (uint16_t)(at + SPRITE_TABLE)); }
+static uint16_t range_high(const GameState *g, unsigned r) { return (uint16_t)(field_sprite_range_high(g, r) - SPRITE_TABLE); }
+static void set_range_high(GameState *g, unsigned r, uint16_t at) { set_field_sprite_range_high(g, r, (uint16_t)(at + SPRITE_TABLE)); }
 
 /* For the original's code and shadow mode (field/scratch.h): the object's
  * sprite count, which it counts down in field_sprites_left as it sends them. */
 static void leave_sprites_left(GameState *g) { set_field_sprites_left(g, 0); }
 
-/* ---- Building the table ------------------------------------------------------------------ */
+/* The table's entries are streamed through the work RAM port, in bank $7E. */
+static void open_table_stream(GameState *g) { hw_port_seek_bank(g, 0); }
 
-/* Where each range starts: its first entry, and its first high table byte. */
-static const uint16_t range_first_entry[RANGES] = { 0x0770, 0x08A0, 0x0710 };
-static const uint16_t range_first_high[RANGES] = { 0x0907, 0x091A, 0x0901 };
-/* The entry after each range's last. */
-static const uint16_t range_limit[RANGES] = { 0x08A0, 0x0900, 0x0770 };
-
-static void start_ranges(GameState *g)
+/* Write an object's sprites into its range: their high table bits at the
+ * range's high table cursor, and their entries from its next entry; and move
+ * the range on past them. */
+static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, unsigned count)
 {
-    static const unsigned order[RANGES] = { FRONT, MIDDLE, BACK };
-    for (unsigned i = 0; i < RANGES; i++) {
-        unsigned r = order[i];
-        set_field_sprite_range_high(g, r, range_first_high[r]);
-        set_field_sprite_range_spare(g, r, 0);
+    uint16_t high = range_high(g, range);
+    for (unsigned b = 0; b < count / SPRITES_A_HIGH_BYTE; b++) {
+        uint8_t bits = 0;
+        for (unsigned i = 0; i < SPRITES_A_HIGH_BYTE; i++) {
+            const Sprite *s = &sprites[b * SPRITES_A_HIGH_BYTE + i];
+            uint8_t pair = (uint8_t)((((uint16_t)s->x >> 8) & X_NINTH_BIT) | (s->large ? LARGE_BIT : 0));
+            bits = (uint8_t)(bits | pair << (BITS_A_SPRITE * i));
+        }
+        set_field_sprite_table_byte(g, (uint16_t)(high + b), bits);
     }
-    set_field_sprite_range_next(g, FRONT, range_first_entry[FRONT]);
-    set_field_sprite_range_next(g, MIDDLE, range_first_entry[MIDDLE]);
-    hw_port_seek_bank(g, 0);
-    set_field_current_object(g, (uint16_t)(field_current_object(g) & 0x00FF));
-    set_field_sprite_range_next(g, BACK, range_first_entry[BACK]);
+    set_range_high(g, range, (uint16_t)(high + count / SPRITES_A_HIGH_BYTE));
+
+    uint16_t entry = range_next(g, range);
+    hw_port_seek_address(g, (uint16_t)(entry + SPRITE_TABLE));
+    set_range_next(g, range, (uint16_t)(entry + count * OAM_ENTRY));
+    for (unsigned n = 0; n < count; n++) {
+        hw_port_write(g, (uint8_t)sprites[n].x);
+        hw_port_write(g, sprites[n].y);
+        hw_port_write(g, sprites[n].tile);
+        hw_port_write(g, sprites[n].attributes);
+    }
+    leave_sprites_left(g);
 }
 
 /* Hide the entries each range used last frame beyond this frame's last, and
- * remember where this frame's ended. */
+ * remember where this frame's ended. (The cursors are compared as the
+ * addresses they are kept as.) */
 static void hide_leftovers(GameState *g)
 {
     for (unsigned r = 0; r < RANGES; r++) {
         uint16_t next = field_sprite_range_next(g, r);
+        uint16_t limit = (uint16_t)(range_limit[r] + SPRITE_TABLE);
         for (uint16_t entry = next; entry < field_sprite_range_end(g, r); entry = (uint16_t)(entry + OAM_ENTRY)) {
-            set_field_sprite_table_byte(g, (unsigned)(uint16_t)(entry - SPRITE_TABLE) + 1, HIDDEN_Y);
-            if ((uint16_t)(entry + OAM_ENTRY) >= range_limit[r])
+            set_field_sprite_table_byte(g, (uint16_t)(entry - SPRITE_TABLE + ENTRY_Y), HIDDEN_Y);
+            if ((uint16_t)(entry + OAM_ENTRY) >= limit)
                 break;
         }
         set_field_sprite_range_end(g, r, next);
     }
 }
 
-// $C0:B309
-/* Draw the object into its range: its high table bytes at the range's high
- * table pointer, and its sprites' X, Y, tile and attributes through the work
- * RAM port from the range's next entry. */
-/* The range an object's sprites go in, by its priority. */
-static unsigned range_of(const GameState *g, FieldObject obj)
+/* ---- The records' storage ----------------------------------------------------------------- */
+
+/* A record is 8 bytes: the sprite's screen X (its low byte), its screen Y in
+ * the table's form, its X offset from the object's screen position (a word),
+ * its Y offset, and its tile and attributes. The object's sprites' high table
+ * bits are kept apart, in three words for up to 24 sprites. The frame data
+ * the records are rebuilt from lies at the same offsets. */
+enum { RECORD = 8, RECORD_X = 0, RECORD_Y = 1, RECORD_X_OFFSET = 2, RECORD_Y_OFFSET = 4, RECORD_TILE = 6,
+       RECORD_ATTRIBUTES = 7 };
+
+static unsigned record_of(const GameState *g, FieldObject obj, unsigned n)
 {
-    uint8_t priority = field_object_priority_mode(g, obj) & PRIORITY_RANGE;
-    return priority == 0 ? MIDDLE : (priority & PRIORITY_BACK) ? BACK : FRONT;
+    return (uint16_t)(field_object_sprite_records(g, obj) + n * RECORD);
 }
-
-static void draw_object(GameState *g, FieldObject obj)
-{
-    Layout layout = layout_of(g, obj);
-    unsigned range = range_of(g, obj);
-
-    uint16_t high[3] = { field_object_sprite_high(g, obj), field_object_sprite_high_more(g, obj),
-                         field_object_sprite_high_last(g, obj) };
-    uint16_t at = field_sprite_range_high(g, range);
-    for (unsigned k = 0; k < layout.high_bytes; k++)
-        set_field_sprite_table_byte(g, (unsigned)(uint16_t)(at + k - SPRITE_TABLE), (uint8_t)(high[k / 2] >> (8 * (k & 1))));
-    set_field_sprite_range_high(g, range, (uint16_t)(at + layout.high_bytes));
-
-    uint16_t entry = field_sprite_range_next(g, range);
-    hw_port_seek_address(g, entry);
-    set_field_sprite_range_next(g, range, (uint16_t)(entry + layout.sprites * OAM_ENTRY));
-
-    uint16_t record = field_object_sprite_records(g, obj);
-    for (unsigned n = 0; n < layout.sprites; n++, record = (uint16_t)(record + RECORD)) {
-        static const uint8_t sent[4] = { RECORD_X, RECORD_Y, RECORD_TILE, RECORD_ATTRIBUTES };
-        for (unsigned k = 0; k < 4; k++)
-            hw_port_write(g, field_sprite_records_byte(g, (unsigned)record + sent[k]));
-    }
-    leave_sprites_left(g);
-}
-
-/* ---- The records -------------------------------------------------------------------------- */
 
 static uint16_t record_word(const GameState *g, unsigned at)
 {
@@ -147,208 +164,236 @@ static uint16_t frame_word(const GameState *g, unsigned at)
     return (uint16_t)(field_sprite_frame_data_byte(g, at + 1) << 8 | low);
 }
 
-/* The object's screen position's rows: whether its sprites that are drawn
- * where their Y wraps round the screen show. An object below the screen's
- * top edge (its screen Y past 255, as the nine-bit position is kept) shows
- * only the sprites whose Y came round past 0 and to $E0 or more; one in the
- * screen's lower half hides the sprites that came round; one in its upper
- * half hides those whose Y went past $7F to below $E0. The original writes a
- * fifth sprite's Y for an object off the top, which the port writes too. */
+static uint16_t object_high_word(const GameState *g, FieldObject obj, unsigned w)
+{
+    return w == 0 ? field_object_sprite_high(g, obj) : w == 1 ? field_object_sprite_high_more(g, obj)
+                                                             : field_object_sprite_high_last(g, obj);
+}
+
+/* The object's sprites as a list, from its records and its high bits. */
+static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)
+{
+    Layout layout = layout_of(g, obj);
+    for (unsigned n = 0; n < layout.sprites; n++) {
+        unsigned record = record_of(g, obj, n);
+        uint8_t high = (uint8_t)(object_high_word(g, obj, n / 8) >> (8 * ((n / 4) & 1)));
+        uint8_t pair = (uint8_t)(high >> (BITS_A_SPRITE * (n % SPRITES_A_HIGH_BYTE)));
+        uint16_t nine = (uint16_t)(field_sprite_records_byte(g, record + RECORD_X) | (pair & X_NINTH_BIT) << 8);
+        out[n] = (Sprite){ screen_coordinate_of(nine), field_sprite_records_byte(g, record + RECORD_Y),
+                           field_sprite_records_byte(g, record + RECORD_TILE),
+                           field_sprite_records_byte(g, record + RECORD_ATTRIBUTES), (pair & LARGE_BIT) != 0 };
+    }
+    return layout.sprites;
+}
+
+/* ---- Drawing an object --------------------------------------------------------------------- */
+
+enum { PRIORITY_RANGE = 0x0C, PRIORITY_BACK = 0x04 };   /* field_object_priority_mode */
+
+/* The range an object's sprites go in, by its priority. */
+static unsigned range_of(const GameState *g, FieldObject obj)
+{
+    uint8_t priority = field_object_priority_mode(g, obj) & PRIORITY_RANGE;
+    return priority == 0 ? MIDDLE : (priority & PRIORITY_BACK) ? BACK : FRONT;
+}
+
+// $C0:B309
+/* Draw the object's sprites into its range. */
+static void draw_object(GameState *g, FieldObject obj)
+{
+    Sprite sprites[MOST_SPRITES];
+    unsigned count = object_sprites(g, obj, sprites);
+    write_sprites(g, range_of(g, obj), sprites, count);
+}
+
+/* ---- Placing the 4-sprite layout ------------------------------------------------------------ */
+
+/* Every field sprite is large. */
+enum { ALL_LARGE = 0xAA, SPRITES_PLACED = 4 };
+
+/* Whether a sprite whose Y comes round the screen shows, by where the object
+ * is: an object above the screen's top edge shows only the sprites whose Y
+ * came round past 0 and to $E0 or more; one in the screen's lower half hides
+ * the sprites that came round; one in its upper half hides those whose Y went
+ * past $7F to below $E0. The original writes a fifth sprite's Y for an object
+ * above the top, which the port writes too. */
 typedef enum { SCREEN_OFF_TOP, SCREEN_LOWER, SCREEN_UPPER } ScreenHalf;
 
-static ScreenHalf screen_half(uint16_t screen_y)
+enum { LOWER_HALF = 0x80 };
+
+static ScreenHalf screen_half(int16_t screen_y)
 {
-    if (screen_y >> 8)
+    if (screen_y < 0)
         return SCREEN_OFF_TOP;
-    return (screen_y & 0x80) ? SCREEN_LOWER : SCREEN_UPPER;
+    return (screen_y & LOWER_HALF) ? SCREEN_LOWER : SCREEN_UPPER;
 }
 
 static uint8_t sprite_y(ScreenHalf half, uint8_t offset, uint8_t screen_y)
 {
     uint16_t sum = (uint16_t)(offset + screen_y);
     uint8_t y = (uint8_t)sum;
-    bool wrapped = sum > 0xFF;
+    bool came_round = sum > 0xFF;
     switch (half) {
     case SCREEN_OFF_TOP:
-        return wrapped && y >= HIDDEN_Y ? y : HIDDEN_Y;
+        return came_round && y >= HIDDEN_Y ? y : HIDDEN_Y;
     case SCREEN_LOWER:
-        return wrapped && y >= HIDDEN_Y ? HIDDEN_Y : y;
+        return came_round && y >= HIDDEN_Y ? HIDDEN_Y : y;
     case SCREEN_UPPER:
-        return (y & 0x80) && y < HIDDEN_Y ? HIDDEN_Y : y;
+        return y >= LOWER_HALF && y < HIDDEN_Y ? HIDDEN_Y : y;
     }
     return y;
 }
 
-/* What placing an object's sprites leaves for the original's code and shadow
- * mode (field/scratch.h): its screen position ($C3, $C5), its records'
- * offset ($D9) and the high bits it gathered ($E5, $E6). */
-typedef struct {
-    uint16_t screen_x, screen_y, records;
-    uint8_t high_but_first, first_x9;
-} PlaceLeftovers;
-
-static void leave_place(GameState *g, const PlaceLeftovers *l)
+/* For the original's code and shadow mode (field/scratch.h): placing leaves
+ * the object's screen position ($C3, $C5, as the object's table keeps it),
+ * its records' offset ($D9), and the ninth bits it gathered: all but the
+ * first sprite's ($E5) and the first's ($E6). */
+static void leave_place(GameState *g, FieldObject obj, uint8_t ninth_bits)
 {
-    original_cell16(g, 0xC3, l->screen_x);
-    original_cell16(g, 0xC5, l->screen_y);
-    original_cell16(g, 0xD9, l->records);
-    original_cell8(g, 0xE5, l->high_but_first);
-    original_cell8(g, 0xE6, l->first_x9);
+    original_cell16(g, 0xC3, field_object_screen_x(g, obj));
+    original_cell16(g, 0xC5, (uint16_t)(field_object_screen_y(g, obj) & SCREEN_NINE_BITS));
+    original_cell16(g, 0xD9, field_object_sprite_records(g, obj));
+    original_cell8(g, 0xE5, (uint8_t)(ninth_bits >> BITS_A_SPRITE));
+    original_cell8(g, 0xE6, (uint8_t)(ninth_bits & X_NINTH_BIT));
 }
-
-enum { SPRITES_PLACED = 4 };
 
 // $C0:B788, $C0:B8CA
 /* Place the object's four sprites at its screen position: each sprite's X
  * and Y are its offset from the object plus the object's screen position,
- * and the X's ninth bits go into the object's high table byte. `reload`
- * first takes the offsets, tiles and attributes from the object's new frame. */
+ * and the X's ninth bits go into the high bits `high_of`'s table keeps.
+ * `reload` first takes the offsets, tiles and attributes from the object's
+ * new frame. */
 static void place_sprites(GameState *g, FieldObject obj, FieldObject high_of, bool reload)
 {
-    PlaceLeftovers l = { field_object_screen_x(g, obj), (uint16_t)(field_object_screen_y(g, obj) & 0x01FF),
-                         field_object_sprite_records(g, obj), 0, 0 };
-    uint8_t high = 0;
+    ScreenPoint at = object_screen_position(g, obj);
+    uint8_t ninth_bits = 0;
     for (int n = SPRITES_PLACED - 1; n >= 0; n--) {
-        unsigned record = (uint16_t)(l.records + n * RECORD);
+        unsigned record = record_of(g, obj, (unsigned)n);
         if (reload)
-            set_record_word(g, record + RECORD_X_OFFSET, frame_word(g, record + FRAME_X_OFFSET));
-        uint16_t x = (uint16_t)(record_word(g, record + RECORD_X_OFFSET) + l.screen_x);
+            set_record_word(g, record + RECORD_X_OFFSET, frame_word(g, record + RECORD_X_OFFSET));
+        uint16_t x = (uint16_t)(record_word(g, record + RECORD_X_OFFSET) + (uint16_t)at.x);
         set_field_sprite_records_byte(g, record + RECORD_X, (uint8_t)x);
-        high = (uint8_t)(high << 2 | ((x >> 8) & 1));
-        if (n == 1)
-            l.high_but_first = high;
-        if (n == 0)
-            l.first_x9 = (uint8_t)((x >> 8) & 1);
+        ninth_bits = (uint8_t)(ninth_bits << BITS_A_SPRITE | ((x >> 8) & X_NINTH_BIT));
     }
-    set_field_object_sprite_high(g, high_of, (uint16_t)((field_object_sprite_high(g, high_of) & 0xFF00) | (high | ALL_LARGE)));
+    set_field_object_sprite_high(g, high_of,
+                                 (uint16_t)((field_object_sprite_high(g, high_of) & 0xFF00) | (ninth_bits | ALL_LARGE)));
 
-    ScreenHalf half = screen_half(l.screen_y);
+    ScreenHalf half = screen_half(at.y);
     unsigned count = half == SCREEN_OFF_TOP ? SPRITES_PLACED + 1 : SPRITES_PLACED;
     for (unsigned n = 0; n < count; n++) {
-        unsigned record = (uint16_t)(l.records + n * RECORD);
+        unsigned record = record_of(g, obj, n);
         if (reload && n < SPRITES_PLACED)
-            set_field_sprite_records_byte(g, record + RECORD_Y_OFFSET, field_sprite_frame_data_byte(g, record + FRAME_Y_OFFSET));
+            set_field_sprite_records_byte(g, record + RECORD_Y_OFFSET,
+                                          field_sprite_frame_data_byte(g, record + RECORD_Y_OFFSET));
         uint8_t offset = field_sprite_records_byte(g, record + RECORD_Y_OFFSET);
-        set_field_sprite_records_byte(g, record + RECORD_Y, sprite_y(half, offset, (uint8_t)l.screen_y));
+        set_field_sprite_records_byte(g, record + RECORD_Y, sprite_y(half, offset, (uint8_t)at.y));
     }
     if (reload)
         for (unsigned n = 0; n < SPRITES_PLACED; n++) {
-            unsigned record = (uint16_t)(l.records + n * RECORD);
-            set_record_word(g, record + RECORD_TILE, frame_word(g, record + FRAME_TILE));
+            unsigned record = record_of(g, obj, n);
+            set_record_word(g, record + RECORD_TILE, frame_word(g, record + RECORD_TILE));
         }
-    leave_place(g, &l);
+    leave_place(g, obj, ninth_bits);
+}
+
+/* ---- What an object's records need ------------------------------------------------------- */
+
+/* The records' state, as field_object_sprite_state keeps it: whether they
+ * have been built since the object came into view, and a count of the
+ * frame's sprites the frame builder has changed since (the original keeps
+ * the first as the byte's top bit). */
+typedef struct {
+    bool built;
+    uint8_t changed;
+} RecordsState;
+
+enum { RECORDS_BUILT_BIT = 0x80 };
+
+static RecordsState records_state(const GameState *g, FieldObject obj)
+{
+    uint8_t stored = field_object_sprite_state(g, obj);
+    return (RecordsState){ (stored & RECORDS_BUILT_BIT) != 0, (uint8_t)(stored & ~RECORDS_BUILT_BIT) };
+}
+
+static void mark_records_built(GameState *g, FieldObject obj) { set_field_object_sprite_state(g, obj, RECORDS_BUILT_BIT); }
+
+typedef enum { RECORDS_NOTHING, RECORDS_PLACE, RECORDS_REBUILD } RecordsWork;
+
+/* What an object's records need: nothing to draw, only placing, or a
+ * rebuild. The 4-sprite layout places when nothing changed, rebuilds
+ * otherwise; the 8- and 12-sprite ones rebuild once at least 2 or 3 of their
+ * sprites changed, and place with fewer (or where not built yet, draw
+ * nothing). */
+static uint8_t rebuild_after(unsigned layout) { return layout == LAYOUT_4 ? 1 : layout == LAYOUT_8 ? 2 : 3; }
+
+static RecordsWork records_work(const GameState *g, FieldObject obj)
+{
+    RecordsState st = records_state(g, obj);
+    uint8_t at_least = rebuild_after(layout_kind(g, obj));
+    if (!st.built && st.changed == 0)
+        return RECORDS_NOTHING;
+    if (st.built)
+        return st.changed < at_least ? RECORDS_PLACE : RECORDS_REBUILD;
+    return st.changed < at_least ? RECORDS_NOTHING : RECORDS_REBUILD;
+}
+
+/* Whether bringing the records up to date calls nothing of the original's:
+ * they need nothing, or only placing, which is this file's own for the
+ * 4-sprite layout. */
+static bool records_work_is_own(const GameState *g, FieldObject obj)
+{
+    RecordsWork work = records_work(g, obj);
+    switch (layout_kind(g, obj)) {
+    case LAYOUT_4: return work != RECORDS_REBUILD;
+    case LAYOUT_8:
+    case LAYOUT_12: return work == RECORDS_NOTHING;
+    default: return false;
+    }
 }
 
 /* ---- Where it meets the original ---------------------------------------------------------- */
 
-/* The sprite table's steps that are entries of their own, and the records'
- * rebuilding for 8 and 12 sprites, which is the original's code: called as
- * the original calls them, going on where each came back with 8-bit A and
- * 16-bit X on the field's page and the bank it had, and stopping at the
- * call's return otherwise. */
+/* The records' routines, and the sprite table's steps that are entries of
+ * their own: called as the original calls them, going on where each came
+ * back with 8-bit A and 16-bit X on the field's page and the bank it had,
+ * and stopping at the call's return otherwise. */
+enum { JSR_SIZE = 3 };   /* a call's return is the instruction after it */
+
 static bool call_out(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
     uint8_t bank = s->cpu.db;
     m_jsr_dc(s, site, routine, dont_care);
     if (field_machine_back(s, false, FIELD_PAGE, bank))
         return true;
-    m_stop_at_own(s, site + 3, 0);
+    m_stop_at_own(s, site + JSR_SIZE, 0);
     return false;
-}
-
-/* The rows are read by the rows' first objects and their links: the object
- * each names is drawn. The draw reads Y and the carry through (the original
- * keeps the row in Y); nothing else it is entered with. */
-enum { DRAW_DONT_CARE = DC_A | DC_X | DC_N | DC_Z };
-
-static void draw_inline(Snes *s);
-
-/* Draw the object a row's link names, as the current object, from one of
- * the two call sites (the row's first object, the rest): as C, or by calling
- * the draw's entry. */
-static bool draw(Snes *s, uint8_t link, uint16_t *row, uint32_t site, bool as_c)
-{
-    GameState *g = state_of(s);
-    field_make_link_current(g, link);
-    s->cpu.y = *row;
-    if (as_c) {
-        draw_inline(s);
-        return true;
-    }
-    if (!call_out(s, site, 0xC0B309, DRAW_DONT_CARE))
-        return false;
-    *row = s->cpu.y;
-    return true;
-}
-
-static bool draws_as_c(const GameState *g);
-
-static uint8_t next_in_row(const GameState *g)
-{
-    return field_object_row_link_next(g, field_object_of_link((uint8_t)field_current_object(g)));
-}
-
-// $C0:B271
-void field_build_sprite_table(Snes *s)
-{
-    GameState *g = state_of(s);
-    start_ranges(g);
-    bool as_c = draws_as_c(g);
-    /* The row is the original's Y, which the draw carries through. */
-    uint16_t row = 2 * (FIELD_ROWS - 1);
-    do {
-        uint8_t link = field_row_first_object(g, row / 2);
-        if (field_link_is_object(link)) {
-            if (!draw(s, link, &row, 0xC0B2AF, as_c))
-                return;
-            while (field_link_is_object(link = next_in_row(g)))
-                if (!draw(s, link, &row, 0xC0B2BB, as_c))
-                    return;
-        }
-        row = (uint16_t)(row - 2);
-    } while ((int16_t)row >= 0);
-    hide_leftovers(g);
-    m_rts(s);
 }
 
 /* The rebuilding and placing routines read the object in X. */
 enum { RECORDS_DONT_CARE = DC_A | DC_N | DC_Z | DC_C };
 
-typedef enum { RECORDS_NOTHING, RECORDS_PLACE, RECORDS_REBUILD } RecordsWork;
-
-/* What an object's records need: nothing to draw, only placing, or a
- * rebuild. The 4-sprite layout places when only moved, rebuilds otherwise;
- * the 8- and 12-sprite ones need a count of rebuilt sprites of at least 2 or
- * 3 to rebuild, and place (or where the records weren't moved, draw nothing)
- * with fewer. */
-enum { RECORDS_CURRENT = 0x80, RECORDS_COUNT = 0x7F };
-
-static RecordsWork records_work(const GameState *g, FieldObject obj, uint8_t at_least)
-{
-    uint8_t state = field_object_sprite_state(g, obj);
-    if (state == 0)
-        return RECORDS_NOTHING;
-    if (state & RECORDS_CURRENT) {
-        uint8_t count = state & RECORDS_COUNT;
-        if (at_least == 0)
-            return count == 0 ? RECORDS_PLACE : RECORDS_REBUILD;
-        return count < at_least ? RECORDS_PLACE : RECORDS_REBUILD;
-    }
-    return state < at_least ? RECORDS_NOTHING : RECORDS_REBUILD;
-}
-
-static bool records_in_bank(const GameState *g, FieldObject obj);
-static void place_and_leave_overflow(Snes *s, FieldObject obj, FieldObject high_of, bool reload);
-
+/* Each layout's routines, and where the records' update calls them from: the
+ * placing, the rebuilding, and the release of the old frame's sprites after
+ * a rebuild (at the rebuild's call site plus a call). The 4-sprite layout's
+ * placing and rebuilding are entries of this file. */
+static const uint32_t place_sites[3] = { 0xC0B732, 0xC0B759, 0xC0B780 };
+static const uint32_t place_routines[3] = { 0xC0B788, 0xC0BA65, 0xC0BFF2 };
+static const uint32_t rebuild_sites[3] = { 0xC0B71F, 0xC0B744, 0xC0B76B };
+static const uint32_t rebuild_routines[3] = { 0xC0B8CA, 0xC0BCDC, 0xC0C2BF };
+static const uint32_t release_sites[3] = { 0xC0B722, 0xC0B747, 0xC0B76E };
+static const uint32_t release_routines[3] = { 0xC0E9E2, 0xC0E9FF, 0xC0EA1F };
 enum { POSITION_SPRITES = 0xC0B788 };
 
-/* A layout's placing or rebuilding routine. Placing the 4-sprite layout is
- * this file's own (place_sprites), run as C and timed as the routine it is
- * where its entry's guard would take the object, and called as the entry
- * otherwise. Its rebuild is an entry too, but the release after it reads the
- * X the original's rebuild leaves, which the port doesn't make, so it is
- * called as the original calls it; so are the 8- and 12-sprite layouts'
- * routines, which are the original's. */
+/* The object in X (16-bit); its high table bits are the current object's.
+ * The overflow is that of the last sprite's Y, which the callers read. */
+static void place_and_leave_overflow(Snes *s, FieldObject obj, FieldObject high_of, bool reload);
+
+static bool records_in_bank(const GameState *g, FieldObject obj);
+
+/* Placing, as C and timed as the entry it is where the entry's guard would
+ * take the object, and called otherwise; the rest are the original's (the
+ * 4-sprite rebuild is an entry too, but the release after it reads the X the
+ * original's rebuild leaves, which the port doesn't make). */
 static bool records_step(Snes *s, uint32_t site, uint32_t routine)
 {
     GameState *g = state_of(s);
@@ -363,27 +408,6 @@ static bool records_step(Snes *s, uint32_t site, uint32_t routine)
 /* What bringing the records up to date came to. */
 typedef enum { RECORDS_STOPPED, RECORDS_NONE_TO_DRAW, RECORDS_READY } RecordsOutcome;
 
-/* The records' work, done by the layout's routines: place them, or rebuild
- * them and release the object's old sprites (the original's code). */
-static RecordsOutcome do_records_work(Snes *s, RecordsWork work, uint32_t place_site, uint32_t place,
-                                      uint32_t rebuild_site, uint32_t rebuild, uint32_t release)
-{
-    GameState *g = state_of(s);
-    s->cpu.x = field_current_object(g);
-    if (work == RECORDS_PLACE && !records_step(s, place_site, place))
-        return RECORDS_STOPPED;
-    if (work == RECORDS_REBUILD) {
-        if (!records_step(s, rebuild_site, rebuild) || !call_out(s, rebuild_site + 3, release, RECORDS_DONT_CARE))
-            return RECORDS_STOPPED;
-        set_field_object_sprite_state(g, (FieldObject)field_current_object_slot(s), RECORDS_CURRENT);
-    }
-    return work == RECORDS_NOTHING ? RECORDS_NONE_TO_DRAW : RECORDS_READY;
-}
-
-enum { LAYOUT_4, LAYOUT_8, LAYOUT_12, LAYOUT_24 };
-
-static unsigned layout_kind(const GameState *g, FieldObject obj) { return field_object_sprite_layout(g, obj) & 3; }
-
 // $C0:B701
 /* Bring the current object's records up to date for drawing, for the 4-, 8-
  * and 12-sprite layouts (the 24-sprite one is still the original's, from
@@ -392,14 +416,18 @@ static RecordsOutcome bring_records_up_to_date(Snes *s)
 {
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
-    switch (layout_kind(g, obj)) {
-    case LAYOUT_4:
-        return do_records_work(s, records_work(g, obj, 0), 0xC0B732, 0xC0B788, 0xC0B71F, 0xC0B8CA, 0xC0E9E2);
-    case LAYOUT_8:
-        return do_records_work(s, records_work(g, obj, 2), 0xC0B759, 0xC0BA65, 0xC0B744, 0xC0BCDC, 0xC0E9FF);
-    default:
-        return do_records_work(s, records_work(g, obj, 3), 0xC0B780, 0xC0BFF2, 0xC0B76B, 0xC0C2BF, 0xC0EA1F);
+    unsigned layout = layout_kind(g, obj);
+    RecordsWork work = records_work(g, obj);
+    s->cpu.x = field_current_object(g);
+    if (work == RECORDS_PLACE && !records_step(s, place_sites[layout], place_routines[layout]))
+        return RECORDS_STOPPED;
+    if (work == RECORDS_REBUILD) {
+        if (!records_step(s, rebuild_sites[layout], rebuild_routines[layout]) ||
+            !call_out(s, release_sites[layout], release_routines[layout], RECORDS_DONT_CARE))
+            return RECORDS_STOPPED;
+        mark_records_built(g, (FieldObject)field_current_object_slot(s));
     }
+    return work == RECORDS_NOTHING ? RECORDS_NONE_TO_DRAW : RECORDS_READY;
 }
 
 /* The carry says there was nothing to draw. */
@@ -426,18 +454,27 @@ static bool records_end_overflow(const GameState *g, FieldObject obj)
     return field_add_overflows16(last, RECORD);
 }
 
-static bool records_work_inline(const GameState *g, FieldObject obj);
+/* The records, brought up to date as the original's draw does: as C where
+ * that calls nothing, and by calling the records' entry otherwise. */
+enum { UPDATE_RECORDS = 0xC0B701, DRAW = 0xC0B309 };
 
-/* The records, brought up to date as the original's draw does from $C0:B309:
- * as C where that calls nothing, and by calling the routine otherwise. */
 static RecordsOutcome records_for_draw(Snes *s)
 {
     GameState *g = state_of(s);
-    if (records_work_inline(g, (FieldObject)field_current_object_slot(s)))
+    if (records_work_is_own(g, (FieldObject)field_current_object_slot(s)))
         return bring_records_up_to_date(s);
-    if (!call_out(s, 0xC0B309, 0xC0B701, DC_A | DC_X | DC_N | DC_Z))
+    if (!call_out(s, DRAW, UPDATE_RECORDS, DC_A | DC_X | DC_N | DC_Z))
         return RECORDS_STOPPED;
     return m_flag(s, CPU_FLAG_C) ? RECORDS_NONE_TO_DRAW : RECORDS_READY;
+}
+
+/* A draw's flags: the carry says there was nothing to draw, and after a
+ * draw the overflow is that of the records' end. */
+static void leave_draw_flags(Snes *s, RecordsOutcome r, FieldObject obj)
+{
+    if (r == RECORDS_READY)
+        m_set_flag(s, CPU_FLAG_V, records_end_overflow(state_of(s), obj));
+    m_set_flag(s, CPU_FLAG_C, r == RECORDS_NONE_TO_DRAW);
 }
 
 // $C0:B309
@@ -447,83 +484,110 @@ void field_draw_object_sprites(Snes *s)
     RecordsOutcome r = records_for_draw(s);
     if (r == RECORDS_STOPPED)
         return;
-    if (r == RECORDS_READY) {
-        GameState *g = state_of(s);
-        FieldObject obj = (FieldObject)field_current_object_slot(s);
-        draw_object(g, obj);
-        m_set_flag(s, CPU_FLAG_V, records_end_overflow(g, obj));
-    }
-    m_set_flag(s, CPU_FLAG_C, r == RECORDS_NONE_TO_DRAW);
+    FieldObject obj = (FieldObject)field_current_object_slot(s);
+    if (r == RECORDS_READY)
+        draw_object(state_of(s), obj);
+    leave_draw_flags(s, r, obj);
     m_rts(s);
 }
 
-static bool cursors_in_table(const GameState *g);
-
 /* The table's building draws its objects as C, each timed as the draw it is,
- * where every draw of the frame is one the draw's entry's guard would take
- * and whose records need no routine but placing; otherwise it calls the
- * draw's entry for every object, as the original does. It is all or none
- * because shadow mode matches the building's calls to the original's by call
- * site, and every draw is made from the same two. */
-enum { DRAW = 0xC0B309, MOST_DRAWS = 2 * FIELD_OBJECTS };
+ * where no object's draw calls anything of the original's; otherwise it
+ * calls the draw's entry for every object, as the original does. It is all
+ * or none because shadow mode matches a bridge's calls to the original's in
+ * order: drawing one object as C and calling the next would pair that call
+ * with the original's draw of the first. So the rows are walked once first,
+ * to see whether every draw is one of this file's. The ranges start at
+ * their first entries every frame, and no layout this file draws can run a
+ * range's cursors out of low RAM: 64 objects of 12 sprites from the back
+ * range's start end at $14A0. Rows that name more draws than there are
+ * objects (a link round in a circle) are left to the original. */
+enum { MOST_DRAWS = FIELD_OBJECTS };
 
-/* Whether bringing the records up to date calls nothing: they need nothing,
- * or only placing, which is this file's own for the 4-sprite layout. */
-static bool records_work_inline(const GameState *g, FieldObject obj)
+static bool draw_is_own(const GameState *g, FieldLink link)
 {
-    switch (layout_kind(g, obj)) {
-    case LAYOUT_4: return records_work(g, obj, 0) != RECORDS_REBUILD;
-    case LAYOUT_8: return records_work(g, obj, 2) == RECORDS_NOTHING;
-    case LAYOUT_12: return records_work(g, obj, 3) == RECORDS_NOTHING;
-    default: return false;
+    FieldObject obj = field_object_of_link(link);
+    return field_names_object(link) && records_in_bank(g, obj) && records_work_is_own(g, obj);
+}
+
+static bool every_draw_is_own(const GameState *g)
+{
+    unsigned draws = 0;
+    for (int row = FIELD_ROWS - 1; row >= 0; row--)
+        for (FieldLink link = row_first_object(g, (unsigned)row); field_link_is_object(link);
+             link = object_next_in_row(g, field_object_of_link(link)))
+            if (++draws > MOST_DRAWS || !draw_is_own(g, link))
+                return false;
+    return true;
+}
+
+static void draw_as_c(Snes *s, FieldObject obj)
+{
+    RecordsOutcome r = bring_records_up_to_date(s);
+    if (r == RECORDS_READY)
+        NATIVE_TIME_AS(s, DRAW, draw_object(state_of(s), obj));
+    leave_draw_flags(s, r, obj);
+}
+
+/* The draw's call sites: a row's first object, and the rest. The draw reads
+ * Y and the carry through; nothing else it is entered with. */
+enum { DRAW_DONT_CARE = DC_A | DC_X | DC_N | DC_Z };
+static const uint32_t draw_sites[2] = { 0xC0B2AF, 0xC0B2BB };
+
+/* The original counts the rows in Y, a row's number doubled, and a draw it
+ * calls can move Y on; the building goes on from what the draw left. */
+static bool draw(Snes *s, FieldObject obj, uint16_t *row_y, unsigned site, bool as_c)
+{
+    object_make_current(state_of(s), obj);
+    if (as_c) {
+        draw_as_c(s, obj);
+        return true;
+    }
+    s->cpu.y = *row_y;
+    if (!call_out(s, draw_sites[site], DRAW, DRAW_DONT_CARE))
+        return false;
+    *row_y = s->cpu.y;
+    return true;
+}
+
+/* For the original's code and shadow mode (field/scratch.h): the building
+ * keeps the current object as a byte in its word, whose high byte it clears. */
+static void leave_current_object_as_byte(GameState *g)
+{
+    set_field_current_object(g, (uint16_t)(field_current_object(g) & 0x00FF));
+}
+
+/* The ranges start over each frame at their first entries. */
+static void start_ranges(GameState *g)
+{
+    for (unsigned r = 0; r < RANGES; r++) {
+        set_range_high(g, r, range_first_high[r]);
+        set_field_sprite_range_spare(g, r, 0);
+        set_range_next(g, r, range_first_entry[r]);
     }
 }
 
-static void draw_inline(Snes *s)
+// $C0:B271
+void field_build_sprite_table(Snes *s)
 {
     GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
-    RecordsOutcome r = bring_records_up_to_date(s);
-    if (r == RECORDS_READY) {
-        NATIVE_TIME_AS(s, DRAW, draw_object(g, obj));
-        m_set_flag(s, CPU_FLAG_V, records_end_overflow(g, obj));
-    }
-    m_set_flag(s, CPU_FLAG_C, r == RECORDS_NONE_TO_DRAW);
-}
-
-static bool in_table(uint16_t cursor) { return cursor >= SPRITE_TABLE && cursor <= LOW_RAM_END - LARGEST_DRAW; }
-
-/* Whether this frame's draws can all be C: the rows walked as the building
- * walks them, each object's draw checked as its guard would check it, with
- * the ranges' cursors moved on as its draw will move them. */
-static bool draws_as_c(const GameState *g)
-{
-    uint16_t high[RANGES], next[RANGES];
-    for (unsigned r = 0; r < RANGES; r++) {
-        high[r] = field_sprite_range_high(g, r);
-        next[r] = field_sprite_range_next(g, r);
-    }
-    unsigned draws = 0;
-    for (int row = FIELD_ROWS - 1; row >= 0; row--) {
-        for (uint8_t link = field_row_first_object(g, (unsigned)row); field_link_is_object(link);
-             link = field_object_row_link_next(g, field_object_of_link(link))) {
+    start_ranges(g);
+    open_table_stream(g);
+    leave_current_object_as_byte(g);
+    bool as_c = every_draw_is_own(g);
+    uint16_t row_y = 2 * (FIELD_ROWS - 1);
+    do {
+        FieldLink link = row_first_object(g, row_y / 2);
+        for (unsigned site = 0; field_link_is_object(link); site = 1) {
             FieldObject obj = field_object_of_link(link);
-            if (++draws > MOST_DRAWS || !field_names_object(link) || !records_in_bank(g, obj) ||
-                !records_work_inline(g, obj))
-                return false;
-            for (unsigned r = 0; r < RANGES; r++)
-                if (!in_table(high[r]) || !in_table(next[r]))
-                    return false;
-            unsigned work = layout_kind(g, obj) == LAYOUT_4 ? 0 : layout_kind(g, obj) == LAYOUT_8 ? 2 : 3;
-            if (records_work(g, obj, (uint8_t)work) == RECORDS_NOTHING)
-                continue;
-            unsigned range = range_of(g, obj);
-            Layout layout = layout_of(g, obj);
-            high[range] = (uint16_t)(high[range] + layout.high_bytes);
-            next[range] = (uint16_t)(next[range] + layout.sprites * OAM_ENTRY);
+            if (!draw(s, obj, &row_y, site, as_c))
+                return;
+            link = object_next_in_row(g, obj);
         }
-    }
-    return true;
+        row_y = (uint16_t)(row_y - 2);
+    } while ((int16_t)row_y >= 0);
+    hide_leftovers(g);
+    m_rts(s);
 }
 
 /* Placing, and the overflow of the last sprite's Y, which the callers read. */
@@ -531,13 +595,12 @@ static void place_and_leave_overflow(Snes *s, FieldObject obj, FieldObject high_
 {
     GameState *g = state_of(s);
     place_sprites(g, obj, high_of, reload);
-    unsigned count = screen_half((uint16_t)(field_object_screen_y(g, obj) & 0x01FF)) == SCREEN_OFF_TOP ? 5 : 4;
-    uint8_t offset = field_sprite_records_byte(g, (uint16_t)(field_object_sprite_records(g, obj) + (count - 1) * RECORD) +
-                                                      RECORD_Y_OFFSET);
-    m_set_flag(s, CPU_FLAG_V, field_add_overflows8(offset, (uint8_t)field_object_screen_y(g, obj)));
+    ScreenPoint at = object_screen_position(g, obj);
+    unsigned last = screen_half(at.y) == SCREEN_OFF_TOP ? SPRITES_PLACED : SPRITES_PLACED - 1;
+    uint8_t offset = field_sprite_records_byte(g, record_of(g, obj, last) + RECORD_Y_OFFSET);
+    m_set_flag(s, CPU_FLAG_V, field_add_overflows8(offset, (uint8_t)at.y));
 }
 
-/* The object in X (16-bit); its high table byte is the current object's. */
 static void place_entry(Snes *s, bool reload)
 {
     place_and_leave_overflow(s, (FieldObject)field_object_in_x(s), (FieldObject)field_current_object_slot(s), reload);
@@ -553,7 +616,11 @@ void field_load_and_position_sprites(Snes *s) { place_entry(s, true); }
  * reached through a data bank of 0 the same as in bank $7E (a busy frame
  * runs a range's cursors past the table's end, which the port writes as the
  * original does). Below it they would land on the building's own cells, and
- * past low RAM on the I/O registers; no frame has them there. */
+ * past low RAM on the I/O registers; no frame has them there. A draw writes
+ * at most LARGEST_DRAW bytes. */
+enum { LOW_RAM_END = 0x2000, LARGEST_DRAW = MOST_SPRITES * OAM_ENTRY };
+
+static bool in_table(uint16_t cursor) { return cursor >= SPRITE_TABLE && cursor <= LOW_RAM_END - LARGEST_DRAW; }
 
 static bool cursors_in_table(const GameState *g)
 {
@@ -567,7 +634,7 @@ static bool cursors_in_table(const GameState *g)
  * the original reads bank $80, whose low half is low RAM and the I/O
  * registers, and reading those takes what the bus last held. The game puts
  * every object's records well inside it. */
-enum { RECORDS_ROOM = 0x10000 - 0x4BC0, LARGEST_LAYOUT = 24 * RECORD };
+enum { RECORDS_ROOM = 0x10000 - 0x4BC0, LARGEST_LAYOUT = MOST_SPRITES * RECORD };
 
 static bool records_in_bank(const GameState *g, FieldObject obj)
 {
