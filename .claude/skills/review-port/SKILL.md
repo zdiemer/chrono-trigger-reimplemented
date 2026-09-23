@@ -35,6 +35,155 @@ concepts (objects that animate, walk and face each other; a party; story
 flags; a screen that fades), or as a list of routines operating on tables of
 bytes?
 
+## What hand-written looks like
+
+A complete file first, so there is a picture of the target and not only a list
+of ways to miss it. **This is an illustration of the shape to aim for, not a
+file in the tree.** It covers the concept the rubric's worst examples come from
+(field objects' animation; compare smells 1, 2 and 5 below). When a real file
+passes a review with no findings of its own, it replaces this, and the
+illustration goes.
+
+```c
+/* Field objects: how an object animates.
+ *
+ * Everything on the map shows one of four things at any moment: it stands still
+ * on its current frame; it loops an animation (a character's idle bob, a torch
+ * flickering); it plays a one-off animation for a number of frames (a nod, a
+ * jump of surprise) and then goes back to what it was looping; or it holds a
+ * single frame a script chose. Scripts start and stop these (event/animation.c),
+ * and the object update advances them once a frame (object_animation_tick).
+ *
+ * The state is kept in the object tables, and part of it the original encodes
+ * in-band: while a one-off plays, "was it looping before?" is the animation
+ * number $FF. That encoding lives in this file's storage functions and nowhere
+ * else; the rest of the game sees an AnimationMode and a bool. */
+#include "field/object.h"
+
+/* ---- Storage: the only code that knows how the state sits in the tables ---- */
+
+enum { NOTHING_TO_GO_BACK_TO = 0xFF };   /* the original's in-band marker */
+
+static void restart_from_first_frame(GameState *g, FieldObject obj)
+{
+    set_object_frame(g, obj, 0);
+    set_object_frame_delay(g, obj, 0);
+}
+
+static bool was_looping(const GameState *g, FieldObject obj)
+{
+    return object_animation_mode(g, obj) != STANDING_STILL;
+}
+
+static void remember_nothing_to_go_back_to(GameState *g, FieldObject obj)
+{
+    set_object_looped_animation(g, obj, NOTHING_TO_GO_BACK_TO);
+}
+
+static bool has_something_to_go_back_to(const GameState *g, FieldObject obj)
+{
+    return object_looped_animation(g, obj) != NOTHING_TO_GO_BACK_TO;
+}
+
+/* ---- What the game does with it ---------------------------------------------- */
+
+// $C0:2E6D
+/* Loop an animation from its first frame, dropping whatever the object was
+ * doing. */
+void object_loop_animation(GameState *g, FieldObject obj, uint8_t animation)
+{
+    set_object_looped_animation(g, obj, animation);
+    set_object_animation_mode(g, obj, LOOPING);
+    restart_from_first_frame(g, obj);
+}
+
+// $C0:2E9A
+/* Play a one-off animation for `frames` frames. The object goes back to the
+ * animation it was looping when it's over, or stands still if it wasn't
+ * looping anything. */
+void object_play_animation(GameState *g, FieldObject obj, uint8_t animation, uint8_t frames)
+{
+    if (!was_looping(g, obj))
+        remember_nothing_to_go_back_to(g, obj);
+    set_object_one_off(g, obj, animation, frames);
+    set_object_animation_mode(g, obj, PLAYING_ONCE);
+    restart_from_first_frame(g, obj);
+}
+
+/* A one-off is over: back to the loop, or to standing still. */
+static void finish_one_off(GameState *g, FieldObject obj)
+{
+    if (has_something_to_go_back_to(g, obj)) {
+        set_object_animation_mode(g, obj, LOOPING);
+    } else {
+        set_object_looped_animation(g, obj, 0);
+        set_object_animation_mode(g, obj, STANDING_STILL);
+    }
+    restart_from_first_frame(g, obj);
+}
+
+// $C0:5614
+/* Once a frame, from the object update: a one-off counts down, and ends. */
+void object_animation_tick(GameState *g, FieldObject obj)
+{
+    if (object_animation_mode(g, obj) != PLAYING_ONCE)
+        return;
+    uint8_t left = object_one_off_frames_left(g, obj);
+    if (left <= 1)
+        finish_one_off(g, obj);
+    else
+        set_object_one_off_frames_left(g, obj, left - 1);
+}
+```
+
+And a script command using it. One operation serves an opcode family,
+because the table (not a function per opcode) says how each opcode's operands
+decode:
+
+```c
+/* Make the object running the script loop an animation. Scripts use one-byte
+ * forms for the two most common ones. */
+static EventFlow loop_animation(GameState *g, FieldObject self, uint8_t animation)
+{
+    object_loop_animation(g, self, animation);
+    return next_command();
+}
+
+EVENT_OPCODES(event_animation_opcodes,
+    { 0xAA, loop_animation, .animation = OPERAND(1), .length = 2 },
+    { 0xB3, loop_animation, .animation = CONSTANT(0), .length = 1 },
+    { 0xB4, loop_animation, .animation = CONSTANT(1), .length = 1 });
+```
+
+Why this reads as hand-written:
+
+- **The header teaches the concept before any code.** A reader who has never
+  seen the ROM learns the four things an object can be doing, who changes
+  them, and who advances them.
+- **The original's encoding is confined and named.** `$FF` appears once, as
+  `NOTHING_TO_GO_BACK_TO`, inside four small storage functions. Everything
+  above them reads in the game's terms (`was_looping`,
+  `has_something_to_go_back_to`), and nothing outside the file sees the byte.
+- **Operations are named for what the game does**, and each comment says what
+  the player sees, not how the original stored it.
+- **There is still a setter sequence in each operation, and that's fine.** It
+  sits inside the operation that means it, in one place per concept, not
+  scattered through every caller in the original's order. It is also where
+  the storage changes when the gate retires.
+- **The gate is still satisfied.** The operations write the same bytes the
+  original writes, so shadow mode compares them as before. Nothing in the
+  shape needs a machine.
+- **Short forms are table rows**, not functions. `$B3` and `$B4` are the same
+  operation as `$AA`, and the reader sees that at a glance.
+- **What's absent is as telling:** no `Snes *`, no `m_*`, no register or flag
+  values carried through, no positional `operand(g, c, 1)`, no `SCRATCH_D9`, no
+  "presumably".
+
+A registered entry around such code stays the thin shape the rubric describes:
+it reads the original's registers into these parameters, calls the operation,
+and derives any register a caller reads from the state afterwards. Anything it
+can't derive is recorded through the scaffolding mechanism, in one marked line.
+
 ## What reads as a translation
 
 Each of these is a finding. Every example here comes from this repo.
