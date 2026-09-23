@@ -30,9 +30,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_recomp_runner tests/cpu/data/*.bin`,
   `build/main/recomp_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test` and `bindings_test` need no data.
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test`, `bindings_test` and `vars_test` need no data.
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
-  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test`, `bindings_test`,
+  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`,
   the conformance runners (test data cached) and builds `ct_play` and the oracle. Code must build
   warning-free on all four and tests must pass without a ROM. Docs-only changes don't trigger it.
 - Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
@@ -54,7 +54,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `tools.recomp.draftcheck` shadows drafts in a scratch tree (docs/PORTING.md, "From a draft to a port").
 - Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev` runs the gate and exits 0 only when
   it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). The gate
-  is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines;
+  is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines and no `page refused` line (a
+  guard that turned away a call whose direct page is no instance `re/ram.toml` declares; docs/DISASSEMBLY.md,
+  "The accessors");
   `--native on --recomp only` produces traces identical to `--native off` (`python3 tools/trace.py
   diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
   or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after

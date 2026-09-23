@@ -100,6 +100,15 @@ SNES escape and write down why, as docs/PLATFORM.md's "as built" sections do.
 3. **Write the port**, to the bar above. Name work RAM from `game/ram.h` and add
    what you learn to `re/ram.toml` (`python3 tools/ram_map.py coverage --open
    --subsystem S`, then `python3 tools/ram_map.py header`).
+   A routine that runs on whichever direct page its caller has reaches its cells
+   through a **page kind**: an accessor taking which instance, and a generated
+   `<page>_page_of(d, ...)` for the entry wrapper (DISASSEMBLY.md, "The
+   accessors"). Declare a page kind's instances from evidence
+   (`ct_dev --page-report` over the library), and read the code before trusting
+   it: D at entry is not the page a routine uses when it sets D itself. The
+   joypad reader is entered with eight different D values and sets D = `$0000`
+   before touching anything, so its "caller's page" turned out to be one fixed
+   page.
 4. **Declare what the original leaves dead** rather than reproducing it. This is
    what buys you plain C. `python3 tools/dontcare_check.py --list` shows what
    each declaration could still add; the gate verifies every one against
