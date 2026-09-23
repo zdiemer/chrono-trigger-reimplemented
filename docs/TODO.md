@@ -555,6 +555,15 @@ waits on M5 rather than on a backend.
   would replace the hand mapping; the event engine's object pages and the
   menus' `menu_record` page are the next to need it (RECOMP.md, "Phase 3a: the
   scene subsystem off the machine").
+- **The scene sprite writers accept inputs they diverge on.** With the entry
+  offset or the high-table pointer past `$2000`, the named sprite table writes
+  bank `$7E` where the original, through a data bank of 0, reaches I/O space
+  (19569 of 20000 fuzzed states against the predecessor's 22). No game state
+  points them there -- the lists always write the OAM buffer at `$0700` -- and
+  the loose fuzz runs were narrowed to low RAM, recorded in PORTING.md and
+  RECOMP.md but not in the port. A guard refusing a cursor that could run past
+  low RAM would make the four entries exact on every input they accept
+  (`game/scene/sprites.c`, `scene_load_sprite_list` and its three siblings).
 - **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 22 uses,
   18 of them from the Phase 3a rewrite. The sequence scripts' bytes and the
   race's line-effect descriptor table are fixed parts of the program image at

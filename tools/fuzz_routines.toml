@@ -33,7 +33,7 @@ variant = "loose"
 subsystem = "scene"
 state = "attract"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
-why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other"
+why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other. Kept to low RAM because the port diverges past $2000 (an accepted divergence, stated in game/scene/sprites.c)"
 
 [[routine]]
 name = "scene_load_sprite_list_clipped"
@@ -48,7 +48,7 @@ variant = "loose"
 subsystem = "scene"
 state = "attract"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
-why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other"
+why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other. Kept to low RAM because the port diverges past $2000 (an accepted divergence, stated in game/scene/sprites.c)"
 
 [[routine]]
 name = "scene_add_sprite"
@@ -63,7 +63,7 @@ variant = "loose"
 subsystem = "scene"
 state = "attract"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
-why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other"
+why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other. Kept to low RAM because the port diverges past $2000 (an accepted divergence, stated in game/scene/sprites.c)"
 
 [[routine]]
 name = "scene_add_large_sprite"
@@ -78,7 +78,7 @@ variant = "loose"
 subsystem = "scene"
 state = "attract"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
-why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other"
+why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other. Kept to low RAM because the port diverges past $2000 (an accepted divergence, stated in game/scene/sprites.c)"
 
 [[routine]]
 name = "scene_scale_bitmap_row"

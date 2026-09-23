@@ -16,7 +16,15 @@
  * callers can read afterwards is Y, the next free entry, and (after a list) A,
  * which the scene program's task loop carries into the next task: the lists and
  * the small sprite leave those as the original does, the clipped list its
- * overflow too, and the other registers as they are. */
+ * overflow too, and the other registers as they are.
+ *
+ * A precondition the port assumes and the original doesn't: the entry offset
+ * and the high-table pointer stay in low RAM. The original reaches the buffer
+ * through a data bank of 0, so a cursor run past $2000 would write I/O
+ * registers there; the named table writes bank $7E instead. No game state does
+ * this -- the lists always fill the buffer at $0700 -- and the fuzz runs are
+ * kept to low RAM for that reason (tools/fuzz_routines.toml). Until a guard
+ * refuses such a cursor, this is an accepted divergence (docs/TODO.md). */
 #include "scene/scene.h"
 
 #include "cpu_io.h"

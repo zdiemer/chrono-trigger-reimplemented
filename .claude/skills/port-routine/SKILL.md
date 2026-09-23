@@ -169,6 +169,24 @@ the predecessor's, which is where a guard that refuses real calls shows.
 Declare each entry's largest don't-care set first (`tools/dontcare_check.py
 --list`): it is what takes the register traffic out of the wrappers.
 
+**When the counts disagree, fix the port, not the fuzz.** If your rewrite
+mismatches where its predecessor didn't, narrowing the fuzz domain until the
+counts agree only stops the tool from looking; the rewrite still diverges on
+those inputs. There are two honest answers:
+- **A guard** that refuses the states where the port would diverge. The
+  original then runs them, the port stays exact everywhere it accepts, and the
+  refusals show in the skipped column.
+- **An accepted divergence** (target 4), written in the port at the entry's
+  `// $BB:AAAA`, saying which inputs diverge and why no game state reaches them.
+
+Either way, the narrowed `fuzz_routines.toml` entry's `why` names the guard or
+the comment. Your report says which of the two you chose, for every routine
+whose domain you narrowed. The scene rewrite's sprite writers are the example:
+with their cursors free, the named sprite table wrote bank `$7E` where the
+original, through a data bank of 0, reaches I/O past `$2000` (19,569 mismatches
+against 22). The loose runs were narrowed to low RAM, and the only record of
+that was in the docs.
+
 Expect to **recalibrate your own `cost_milli` rows**, too: any rewrite that
 changes how many bus accesses a port makes moves its drift, and the limits are
 tight (±0.38%). Sequence the work so only the final code pays for a

@@ -235,6 +235,19 @@ holds every other file where it is, so the list only shrinks. Order: `event`
 and `field` next, then `menu`, then `battle`, whose 7.8K lines are the largest
 and whose bank is also the least converted.
 
+**Before `event`: a generated accessor for cells on the caller's page.** Scene
+found that some routines work on whichever direct page their caller is on --
+5412 of the race's 19842 multiplies run on a sequence channel's page, not the
+scene's -- and the accessors have no shape for that, so `scene/scratch.c` maps a
+page and an offset by hand, and a guard that assumed one page refused those
+calls silently. The event engine's object pages and the menus' `menu_record`
+page are made of exactly such cells, so without it event would hand-write more
+of the same. It is to `event` what step 0 was to scene: the thing the rewrite
+calls, which has to exist first. `tools/ram_map.py accessors` grows a shape that
+takes the page (a record per page kind, or a page base in the handle), the
+twelve `caller`-page variables get accessors, and `scene/scratch.c` moves onto
+it (TODO.md, "Cells on a page the caller chooses have no accessor").
+
 A rewrite that hits something the accessors can't say is a finding to report,
 not something to work around: a buffer the game locates at run time reaches
 work RAM by address through `game/wram.h`, and every use of it is a variable
