@@ -87,24 +87,25 @@ static void copy_sprite_tile_flipped(GameState *g, uint16_t tile)
 static bool sum_overflows(uint16_t a, uint16_t b, uint16_t sum) { return (~(a ^ b) & (a ^ sum) & 0x8000) != 0; }
 
 /* 16-bit A, the tile. Y comes back from the cell the copy saved it in, where
- * the original reads it. */
-void field_copy_sprite_tile(Snes *s)
+ * the original reads it. The straight copy leaves A its cursor, and the
+ * overflow of its sum. */
+static void tile_copy_entry(Snes *s, bool mirrored)
 {
     GameState *g = state_of(s);
+    uint16_t tile = s->cpu.a;
     leave_saved_y(g, s->cpu.y);
-    uint16_t cursor = copy_sprite_tile(g, s->cpu.a);
-    s->cpu.a = cursor;
+    if (mirrored) {
+        copy_sprite_tile_flipped(g, tile);
+    } else {
+        uint16_t cursor = copy_sprite_tile(g, tile);
+        uint16_t to = (uint16_t)(cursor - TILE_BYTES);
+        m_set_flag(s, CPU_FLAG_V, sum_overflows(to, TILE_BYTES, cursor));
+        tile = cursor;
+    }
+    s->cpu.a = tile;
     s->cpu.y = original_cell_value16(g, 0xC5);
-    uint16_t to = (uint16_t)(cursor - TILE_BYTES);
-    m_set_flag(s, CPU_FLAG_V, sum_overflows(to, TILE_BYTES, cursor));
     m_rts(s);
 }
 
-void field_copy_sprite_tile_flipped(Snes *s)
-{
-    GameState *g = state_of(s);
-    leave_saved_y(g, s->cpu.y);
-    copy_sprite_tile_flipped(g, s->cpu.a);
-    s->cpu.y = original_cell_value16(g, 0xC5);
-    m_rts(s);
-}
+void field_copy_sprite_tile(Snes *s) { tile_copy_entry(s, false); }
+void field_copy_sprite_tile_flipped(Snes *s) { tile_copy_entry(s, true); }

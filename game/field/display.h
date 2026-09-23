@@ -34,6 +34,7 @@ void field_irq_wait_hblank_loop(Snes *s);
 void field_irq_after_hblank(Snes *s);
 void field_fill_memory(Snes *s);
 bool field_display_bank_is_io(Snes *s);
+bool field_edge_runs_small(Snes *s);
 bool field_window_tiles_dp_is_ppu(Snes *s);
 
 #endif
