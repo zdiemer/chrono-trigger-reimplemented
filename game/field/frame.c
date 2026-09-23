@@ -3,13 +3,15 @@
 
 #include "platform/timing.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
 /* $C0:EC71 (loop head inside the wait-for-next-frame routine at $C0:EC60)
- * Spins until the NMI handler clears the pending-frame flag at $0152, then
- * returns. Idle entry: one pass of the loop. */
+ * The main loop waits here for the vblank handler to take the frame it
+ * finished (field_frame_pending). Idle entry: one pass of the loop. */
 void field_wait_for_frame_loop(Snes *s)
 {
-    uint8_t pending = m_read8(s, m_abs(s, 0x0152));
+    uint8_t pending = field_frame_pending(state_of(s));
     m_set_a8(s, pending);
     m_set_nz8(s, pending);
     if (pending != 0)

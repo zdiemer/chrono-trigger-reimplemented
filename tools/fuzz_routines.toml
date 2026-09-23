@@ -3789,3 +3789,490 @@ subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+
+# ---- field: banks C0, C3 and FD (the field's own routines) -----------------------------------------
+#
+# The field's routines run on its page (D = $0100) or its layers' page
+# ($1D00), with the data bank $00; objects are slots doubled, in X or in the
+# current object ($016D). The rewrite's guards accept only those (an odd
+# object is turned away, and counted in the skipped column), so the plain
+# entries pin the page and the bank, and leave the rest random: pointers and
+# cursors the routines follow land where they will, on the cells they write
+# too, which is where a reordered access shows.
+
+[[routine]]
+name = "field_scroll_layers"
+subsystem = "field"
+state = "field"
+args = ["--long"]
+why = "sets its own page and bank; everything else random"
+
+[[routine]]
+name = "field_copy_sprite_tile"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and a bank reaching the work RAM port; the graphics set, the tile and the build offset random"
+
+[[routine]]
+name = "field_copy_sprite_tile_flipped"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and bank $00 (the mirror table); the port's cursor random, so the tile can land on the pointer it is read through"
+
+[[routine]]
+name = "field_read_animation_frame"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object in X random (the guard turns away odd ones), the frame table's bank random"
+
+[[routine]]
+name = "field_rasterize_quad"
+subsystem = "field"
+state = "field"
+args = ["--long", "--fill", "7E0350-7E0350=C8-C8", "--fill", "7E0351-7E0351=17-17", "--fill", "7E0352-7E0352=7F-7F", "--fill", "7E036B-7E036B=00-00"]
+iterations = 10000
+why = "the table where the game puts it ($7F:17C8) and the right-hand side's start a line; the corners random"
+
+[[routine]]
+name = "field_rasterize_quad"
+variant = "loose"
+subsystem = "field"
+state = "field"
+args = ["--long", "--fill", "7E0352-7E0352=7F-7F", "--fill", "7E036B-7E036B=00-00"]
+iterations = 10000
+why = "the table anywhere in bank $7F, where its writes can land on each other and on the corners' copy; the guard takes only a table clear of the bank's end, and a table in bank $7E, whose fill can run over the stack, is refused (field/window_shape.c)"
+
+[[routine]]
+name = "field_compute_layer_edges"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00"]
+why = "the layers' page; the positions and bases random"
+
+[[routine]]
+name = "field_update_layer_scroll"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00"]
+why = "the layers' page and a bank reaching low RAM; the scroll state random"
+
+[[routine]]
+name = "field_unpack_tile_maps"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00"]
+iterations = 2000
+why = "the layers' page and a bank reaching the work RAM port; the map sizes random, so a big map's attribute tables run over the stream still to be read and the stream wraps round the banks"
+
+[[routine]]
+name = "field_update_walk_animation"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the current object below $100 (the guard turns away odd ones)"
+
+[[routine]]
+name = "field_stand_animation"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00"]
+why = "as field_update_walk_animation"
+
+[[routine]]
+name = "field_tick_object_animation"
+at = "C0:C98A"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object and its animation state random, so the queue's links land anywhere"
+
+[[routine]]
+name = "field_direction_to_target"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and bank $00 (the angle table); the tiles random"
+
+[[routine]]
+name = "field_set_velocity"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--range", "X=0004-0004"]
+why = "the current object and X the same object, as the game calls it (the guard takes nothing else); its speed and the direction random"
+
+[[routine]]
+name = "field_start_step"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--range", "X=0004-0004"]
+why = "as field_set_velocity; the map attributes, the direction and the random index random"
+
+[[routine]]
+name = "field_object_in_the_way"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1600,1=00-03"]
+why = "the field's page and data bank, the current object below $100 facing one of its four ways (odd objects turned away by the guard)"
+
+[[routine]]
+name = "field_line_up_with_object"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "7E01EA-7E01EA=00-00"]
+why = "the current object and the target below $100 (the guard turns away odd ones)"
+
+[[routine]]
+name = "field_line_up_with_tile"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00"]
+why = "the current object below $100"
+
+[[routine]]
+name = "field_move_object"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object's motion random"
+
+[[routine]]
+name = "field_move_object_unbounded"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_move_object"
+
+[[routine]]
+name = "field_update_objects"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0A00-7E1CFF", "--keep", "7F0A00-7F0BFF", "--keep", "7F2000-7F2000"]
+iterations = 2000
+why = "the objects as the field state has them (random objects send the steps' call-outs anywhere); the move and view steps run as call-outs, the tick, the rows and the screen position inline where their entries' guards would take the state and as call-outs where not"
+
+[[routine]]
+name = "field_update_object_visibility"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object random (odd ones turned away by the guard), its view and the screen random"
+
+[[routine]]
+name = "field_update_object_in_window"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_update_object_visibility"
+
+[[routine]]
+name = "field_leave_object_row"
+at = "C0:A98A"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0E00-7E0EFF"]
+why = "the field's page and data bank; the rows as the field state has them, the object and its screen place random (odd objects turned away by the guard)"
+
+[[routine]]
+name = "field_join_object_row"
+at = "C0:A9CD"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0E00-7E0EFF"]
+why = "as field_leave_object_row"
+
+[[routine]]
+name = "field_update_screen_position"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and data bank; the object and the screen random"
+
+[[routine]]
+name = "field_build_sprite_table"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0A00-7E1CFF", "--keep", "7F4800-7F4FFF"]
+iterations = 2000
+why = "the objects and their sprites as the field state has them (random objects send the draws' call-outs anywhere); each object's draw runs as a call-out"
+
+[[routine]]
+name = "field_draw_object_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--keep", "7E0181-7E018C", "--keep", "7E01DB-7E01E0", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-2F"]
+why = "the ranges' cursors as the field state has them (the guard takes only cursors in the table), the object below $100 with its records below $3000"
+
+[[routine]]
+name = "field_update_object_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-2F"]
+why = "the object below $100 with its records below $3000; the records' routines run as call-outs"
+
+[[routine]]
+name = "field_position_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+why = "the object in X a slot below $40 with its records below $3000 (past there they reach bank $80's I/O)"
+
+[[routine]]
+name = "field_position_sprites"
+variant = "loose"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0004-0004"]
+why = "the records anywhere: those that would run past bank $7F into bank $80, where low RAM and the I/O registers are, the guard turns away (field/sprites.c)"
+
+[[routine]]
+name = "field_load_and_position_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+why = "as field_position_sprites"
+
+[[routine]]
+name = "field_setup_line_effects"
+subsystem = "field"
+state = "field"
+args = ["--long", "--db", "00"]
+why = "a bank reaching the registers; the flags random"
+
+[[routine]]
+name = "field_init_line_effect_values"
+subsystem = "field"
+state = "field"
+args = ["--long", "--d", "0100", "--db", "7F"]
+why = "the field's page and the tables' bank"
+
+[[routine]]
+name = "field_build_line_effect_tables"
+subsystem = "field"
+state = "field"
+args = ["--long", "--d", "0100", "--db", "00", "--fill", "7E0126-7E0126=00-02"]
+why = "the field's page; the window, the waves and the flags random (positions past the three turned away by the guard)"
+
+[[routine]]
+name = "field_build_no_window_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page and a bank reaching low RAM; the waves and scroll random"
+
+[[routine]]
+name = "field_build_no_window_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_no_window_0"
+
+[[routine]]
+name = "field_build_top_window_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_no_window_0, the window's size random"
+
+[[routine]]
+name = "field_build_top_window_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_top_window_0"
+
+[[routine]]
+name = "field_build_bottom_window_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_top_window_0"
+
+[[routine]]
+name = "field_build_bottom_window_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "as field_build_top_window_0"
+
+[[routine]]
+name = "field_set_window2_table_0"
+subsystem = "field"
+state = "field"
+args = ["--db", "7F"]
+why = "the tables' bank"
+
+[[routine]]
+name = "field_set_window2_table_1"
+subsystem = "field"
+state = "field"
+args = ["--db", "7F"]
+why = "the tables' bank"
+
+[[routine]]
+name = "field_set_bg2_table_0"
+subsystem = "field"
+state = "field"
+args = ["--db", "7F"]
+why = "the tables' bank"
+
+[[routine]]
+name = "field_set_bg2_table_1"
+subsystem = "field"
+state = "field"
+args = ["--db", "7F"]
+why = "the tables' bank"
+
+[[routine]]
+name = "field_send_scroll_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F"]
+why = "the field's page and the tables' bank; the carry in random (its guard turns away a carry other than window 2's table choice, which is what the builders enter it with and what the port takes the wave's first line from)"
+
+[[routine]]
+name = "field_send_scroll_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F"]
+why = "as field_send_scroll_0"
+
+[[routine]]
+name = "field_start_wave_table"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100"]
+why = "the field's page"
+
+[[routine]]
+name = "field_put_wave_part_0"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F", "--range", "Y=0000-0050"]
+why = "the field's page and the tables' bank, the entry's offset inside the table"
+
+[[routine]]
+name = "field_put_wave_part_1"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F", "--range", "Y=0000-0050"]
+why = "as field_put_wave_part_0"
+
+[[routine]]
+name = "field_skip_wave_lines"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100"]
+why = "the field's page"
+
+[[routine]]
+name = "field_fill_dialog_shading"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "7F"]
+why = "the field's page and the tables' bank"
+
+[[routine]]
+name = "field_upload_sprites"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching the registers"
+
+[[routine]]
+name = "field_upload_vram_queue"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E09A2-7E09AF=00-00"]
+iterations = 200
+why = "the queue with at most one entry (a random entry can ask for a 64 KiB transfer, which makes longer runs very slow)"
+
+[[routine]]
+name = "field_upload_layer1_bottom_row"
+at = "C0:8445"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E1DDC-7E1DDC=00-00", "--fill", "7E1DDE-7E1DDE=00-00", "--fill", "7E1DE0-7E1DE0=00-00", "--fill", "7E1DE2-7E1DE2=00-00", "--fill", "7E1DE4-7E1DE4=00-00", "--fill", "7E1DE6-7E1DE6=00-00", "--fill", "7E1DE8-7E1DE8=00-00", "--fill", "7E1DEA-7E1DEA=00-00", "--fill", "7E1DEC-7E1DEC=00-00", "--fill", "7E1DEE-7E1DEE=00-00", "--fill", "7E1DF0-7E1DF0=00-00", "--fill", "7E1DF2-7E1DF2=00-00", "--fill", "7E1DF4-7E1DF4=00-00", "--fill", "7E1DF6-7E1DF6=00-00", "--fill", "7E1DF8-7E1DF8=00-00"]
+why = "the layers' page and a bank reaching the registers; the edge runs' sizes below 256 bytes (the guard takes runs below $3000)"
+
+[[routine]]
+name = "field_upload_layer3_left_column"
+at = "C0:87BF"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E1DDC-7E1DDC=00-00", "--fill", "7E1DDE-7E1DDE=00-00", "--fill", "7E1DE0-7E1DE0=00-00", "--fill", "7E1DE2-7E1DE2=00-00", "--fill", "7E1DE4-7E1DE4=00-00", "--fill", "7E1DE6-7E1DE6=00-00", "--fill", "7E1DE8-7E1DE8=00-00", "--fill", "7E1DEA-7E1DEA=00-00", "--fill", "7E1DEC-7E1DEC=00-00", "--fill", "7E1DEE-7E1DEE=00-00", "--fill", "7E1DF0-7E1DF0=00-00", "--fill", "7E1DF2-7E1DF2=00-00", "--fill", "7E1DF4-7E1DF4=00-00", "--fill", "7E1DF6-7E1DF6=00-00", "--fill", "7E1DF8-7E1DF8=00-00"]
+why = "as field_upload_layer1_bottom_row, for BG3's left column"
+
+[[routine]]
+name = "field_init_video_mode"
+subsystem = "field"
+state = "field"
+args = ["--long", "--db", "00"]
+why = "no state read"
+
+[[routine]]
+name = "field_set_screens"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching the registers; the shadows random"
+
+[[routine]]
+name = "field_vram_transfer"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E014F-7E014F=00-01"]
+why = "the field's page and a bank reaching the registers; the transfer below 512 bytes"
+
+[[routine]]
+name = "field_fill_memory"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E014B-7E014D=7F-7F", "--fill", "7E014F-7E014F=00-01"]
+why = "the field's page; the memory cleared in bank $7F, below 512 bytes (clearing low RAM would clear the stack)"
+
+[[routine]]
+name = "field_refresh_window_corners"
+at = "C0:F05E"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "a bank reaching the registers; the selected window random"
+
+[[routine]]
+name = "field_irq_after_hblank"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching the registers; either of the frame's late jobs runs as a call-out"
+
+[[routine]]
+name = "field_install_nmi"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching low RAM"
+
+[[routine]]
+name = "field_install_irq"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching low RAM"
+
+[[routine]]
+name = "field_nmi"
+subsystem = "field"
+state = "field"
+args = ["--interrupt", "--db", "00", "--keep", "7E0100-7E01FF", "--keep", "7E0900-7E09FF", "--keep", "7E1D00-7E1DFF"]
+iterations = 2000
+why = "the field's cells as the field state has them (random transitions send the call-outs anywhere); the frame's work runs as call-outs"
+
+[[routine]]
+name = "field_wait_for_frame_loop"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching low RAM"

@@ -11,10 +11,13 @@ rest waits, is [PLAN.md](PLAN.md).
 - **Hand ports' time is an estimate**, so `--native on --recomp on` drifts from
   the original (battles play out differently). That difference is accepted
   (RECOMP.md, "Can a hand port be exact?"); the timing gate bounds the errors
-  (RECOMP.md, "The timing gate"). Left open there: fifteen entries whose
+  (RECOMP.md, "The timing gate"). Left open there: 25 entries whose
   time follows a path inside one routine, or a loop of the port's own, are on
   `tools/timing_exceptions.txt` (the decompressor, the menu's text, glyphs and
-  wave table, `field_rasterize_quad`, the scene's circle, the battle's wave
+  wave table, `field_rasterize_quad`, the field's sprite table, line-effect
+  builders and map unpacker, whose rewrites no longer make the index steps
+  the original's time follows, the field's object update, whose steps now
+  run in its own call, the scene's circle, the battle's wave
   windows and HP gradient, the free-slot walk that starts a menu object, and
   the own loops of the effect slots, the object
   drawing and its underlays); a dispatcher's handlers are attributed to
@@ -81,14 +84,63 @@ rest waits, is [PLAN.md](PLAN.md).
     `bridge.h`, where five files each have a copy;
   - operations take the parameters they read (explicitly, or a small struct per
     family), not the whole ~80-field `EventCommand`.
-- **Field's rewrite** (branch `field-3a`) was stopped mid-refactor by the usage
-  limit. Seven gated-in-progress commits cover the layers and rasterizer, a
-  domain module for objects' animation and motion, the object update, sprites,
-  line effects, display and the vblank handler. They are followed by a WIP
-  commit (not built or validated) of the display, NMI and line-effects work in
-  progress. It still needs finishing, the full gate, the differential fuzz, and
-  its qualitative review.
+- **Field's follow-up after its review** (merged with these accepted;
+  RECOMP.md, "Phase 3a: the field subsystem off the machine"). Fix on main,
+  checked by the gate:
+  - **Stray accesses past a table, first, because they break when storage
+    goes native.** Each should be an explicit, marked scaffolding access, the
+    way `leave_stray_in_view_write` already is:
+    - an object above the screen's top writes a fifth sprite record's Y
+      (`sprites.c:282-290`);
+    - the high-table cursor can run past `field_sprite_table`'s 0x220 bytes
+      (`sprites.c:101`);
+    - `stray_slot_can_block` reads slots 64-127 through the clean accessors
+      (`motion.c:366`);
+    - `field_layer_maps`, `field_tile_properties` and `field_tile_attributes`
+      are declared as their first 256-byte row and indexed across 64 KiB.
+      Declare them as row-strided 2-D variables in the map, with accessors
+      taking a layer and a map place.
 
+    The accessor bounds check (below) would catch the rest.
+  - **`sprites.c`:**
+    - a `SpriteRecord` type with storage functions, so `place_sprites` works
+      on records rather than byte offsets;
+    - drop `place_sprites`' `high_of`;
+    - the table build loops on a local row, not the original's Y;
+    - `bring_records_up_to_date` stops setting `cpu.x`;
+    - choose C or a call by a step enum, not by comparing ROM addresses.
+  - **`object_update.c`:** pass the object as a parameter, not through
+    `field_current_object`, and mark `set_event_object_end`'s write as
+    scaffolding.
+  - **One bridge vocabulary in `bridge.h`**, replacing `JSR_SIZE` and the
+    call-out helper copied into four files. One table per object-update step,
+    in place of the parallel site arrays; `nmi.c`'s `uploads[]` should share
+    `display.c`'s edge-run table.
+  - **Duplicated definitions:** `link_or_none` means different things in two
+    files, `TileAttributes` has two shapes, and `SPRITE_TABLE`,
+    `LEAVE_ROW`/`JOIN_ROW` and `AXIS_X` are each defined twice.
+  - **Dead or duplicated stores:** `motion.c`'s `stand_still` is overwritten,
+    and `animation.c`'s `start_afresh` should call `object_restart_animation`.
+    `nmi.c`'s three map-transition branches should be one table.
+  - **`animation.c`'s frame-read half:** `object_current_frame` mutates under a
+    reader's name, and callers compute ROM addresses for frame entries. It
+    could replace the review skill's illustration once that is fixed.
+  - **`object.h`:**
+    - hide `FieldLink`'s encoding;
+    - merge `object_in_view` and `object_marked_in_view`;
+    - an enum for `ObjectRole.kind`;
+    - `object_make_current` belongs in `bridge.h`.
+  - **The two prediction guards** (`field_view_changes`,
+    `every_draw_is_own`): accepted while shadow mode pairs a bridge's calls in
+    order; restructure them if that pairing changes.
+  - **Smaller:**
+    - `line_effects.c`: `wave_part`'s return exists only for the wrapper, and
+      `after_shading`'s fake `A = $FFFF`;
+    - window widenings as literals, and layers as `0/1/2`;
+    - staging buffers as raw addresses;
+    - graphics banks `$D2-$D5` as a fixed bank layout;
+    - `event_variables(g, 0xA8)`, which is window 2's table choice;
+    - six stale `re/ram.toml` sources.
 - **Coverage that field's rewrite thinned.** Inlining the object update's
   steps into their callers' time left more of their calls interrupted, and
   shadow mode compares none of those: `field_update_object_sprites` went from 78
@@ -219,9 +271,9 @@ rest waits, is [PLAN.md](PLAN.md).
   decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
   round-trip on their decompressed output and would be assembled from their
   decoded form with it: MATCHING.md, "The event scripts").
-- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 46 addresses
+- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 43 addresses
   the code touches without anything establishing what they mean (menu 20,
-  battle 11, core 9, field 3, scene 3;
+  battle 11, core 9, scene 3;
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
   subsystem. The menus' three at `$7E:0D5D`, `$0D84` and `$0DC5` are the save
   slot summary's (`menu/save_screen.c`), and lie inside the object slots' span
@@ -364,8 +416,13 @@ below. `python3 tools/timing_census.py` re-runs the census.
   (`movement.c`), calling the field's motion (`$C0:ABA2`, `$C0:5B95`,
   `$C0:ACFD`, `$C0:AC69`, `$C0:5614`, `$C0:568B`, `$C0:30B3`, `$C0:305D`) and
   its state routines (`$C0:9E29`, `$C0:A26B`, `$C0:A2CE`, `$C0:5B8D`,
-  `$C0:3154`). Once `field`'s rewrite makes those C over the game's state, the
-  moves become operations: the carries they hand each other
+  `$C0:3154`). `field`'s rewrite made the motion C over the game's state, in
+  `field/object.h` (`direction_between`, `object_in_the_way`,
+  `object_start_step`, `object_head`, `object_animate_movement`,
+  `object_stand`, `object_line_up_with`, `object_line_up_with_tile`), and the
+  animation commands (`event/animation.c`) can call `object_loop_animation`,
+  `object_play_animation` and the rest instead of keeping their own copy of
+  the modes. So the moves become operations: the carries they hand each other
   (`carry_after_tile_test`, `carry_after_next_to_test`) become return values,
   the A the facing lookup hands `$C0:5B95` goes, and their families -- to a
   tile, toward an object or a member, turning or keeping the facing, counted --
@@ -412,9 +469,9 @@ below. `python3 tools/timing_census.py` re-runs the census.
   - `field_setting_1e` (events `$DE`/`$DF` raise it with the location they
     set; cleared at `$C0:2842` and `$C0:2866`, returned by `$C0:28A7`, ANDed
     at `$C0:7628`). The field's rewrite reads those routines.
-  - `field_setting_bc` (event `$F4`; zero also resets the layers' scroll
-    offsets; cleared when the field starts at `$C0:0BA4`); no reader found in
-    the library's runs of the field.
+  - `field_setting_bc` is the screen's shake (the field's rewrite found the
+    layer scroll reading it; event `$F4` sets it); the name waits for the
+    naming pass.
   - The menus' party routines 6, 7 and `$0A` (events `$F8`-`$FA`, `$D5`),
     through the dispatcher `$C2:8C36`: the menus' port names them.
   - The player's button assignments the scripts ask about, the first and the
@@ -451,6 +508,25 @@ below. `python3 tools/timing_census.py` re-runs the census.
     (`field_object_animation_mode_mode`, `field_object_move_state_animation_count`,
     `field_object_move_state_tile_mode`, `field_object_state_state`), in the
     map's naming pass.
+- **What the field's rewrite left** (RECOMP.md, "Phase 3a: the field subsystem
+  off the machine").
+  - The map's stuttering names for the object tables' fields
+    (`field_object_animation_mode_mode`, `field_object_move_state_animation_count`,
+    `field_object_state_state`) and `field_setting_bc`, which is the screen's
+    shake (the layer scroll reads it; the map says so now); event `$F4`,
+    `set_bc` in `tools/disasm/eventscript.py` and `event_cmd_set_bc` want that
+    name too. A naming pass over the map, not the ports.
+  - A sprite service in `runtime/platform/`: `field/sprites.c` writes the OAM
+    image through the work RAM port, whose cursor the original leaves, where a
+    sprite list handed to the platform would do; the line effects likewise
+    hand the video service register bytes (`field/line_effects.c`) and the
+    transfers' write order (`steps`) rather than `Vid*` fields.
+  - `object_play_animation` counts whole passes; event `$B7` starts a one-off
+    with an odd countdown (its operand plus one, in the half passes the
+    storage keeps), which the operation can't express yet. When event moves
+    onto `field/object.h`, it wants a form that takes the half pass.
+  - The four windows' corner tiles (`field/window_corners.c`) aren't known to
+    be the party's windows: what they frame is still to be read.
 - **Fuzzing half the event states.** The event handlers' guards turn away an
   odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
   every tight run is skipped (more for the comparisons, whose operator must be
@@ -733,9 +809,10 @@ waits on M5 rather than on a backend.
   (RECOMP.md lists them by name). Matching definitions properly, and splitting
   the column into registered entries, guards and the rest, would make the rest
   the number to drive to zero.
-- **`tools/fuzz_routines.toml` has only the scene's entries.** Each subsystem's
-  Phase 3a rewrite adds its own from its PORTING.md rows as it goes; a check
-  that every registered entry has one would say when the file is complete.
+- **`tools/fuzz_routines.toml` has the scene's, the events' and the field's
+  entries.** Each subsystem's Phase 3a rewrite adds its own from its PORTING.md
+  rows as it goes; a check that every registered entry has one would say when
+  the file is complete.
 - **The scene sprite writers accept inputs they diverge on.** With the entry
   offset or the high-table pointer past `$2000`, the named sprite table writes
   bank `$7E` where the original, through a data bank of 0, reaches I/O space

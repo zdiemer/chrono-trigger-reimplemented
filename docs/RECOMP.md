@@ -4017,6 +4017,352 @@ after its second review". In short:
   - the map's layout-shaped names.
 - **The platform:** a color-math vocabulary for `tint_math`.
 
+### Phase 3a: the field subsystem off the machine
+
+The third subsystem of PLAN.md's Phase 3a: all of `game/field/`, 82
+registered entries (70 in the table and the twelve deferred uploads one macro
+makes), 15 files of which ten were on the transcription backlog (16 files
+now: the windows' corner tiles are a file of their own). Before, field scored
+0.35 operations per line and 93% of its functions took a `Snes *`
+(portstyle's count); `display.c` reached the PPU through a direct page of
+`$2100`, `sprites.c` wrote the sprite table through the work RAM port with the
+direct page on the port's registers, and the object routines were one
+function per ROM routine over `c->a` and `c->x`. After, it scores 0.02, no
+file is on the backlog, and portstyle's column says 30%. Counted by name,
+148 of its 588 functions take the machine: 98 are the entries' functions and
+their guards, and the other 50 are listed at the end.
+
+**Objects as a module.** The object routines were rewritten as a domain
+module, `field/object.h`, before the files that use it: the part of the game
+an event script, the object update and later `event/` itself talk to. An
+object is a `FieldObject` (a slot); its state is kept as four concepts, each
+with operations that do their bytes' writes inside:
+
+- *its role* (`ObjectRole`, a kind and a disabled flag; `object_is_party_member`,
+  `object_may_run`) and whether it is in view (a `bool`): the party's leader
+  and members, other objects, objects that only come and go with the view,
+  objects left alone -- one definition where four files had their own copy
+  of the state byte's values;
+- *its animation* (`field/animation.c`): the four modes a script chooses
+  between (`ObjectAnimationMode`: with its movement, a loop, a one-off played a
+  number of times, a held frame) and the operations a script uses
+  (`object_loop_animation`, `object_play_animation`,
+  `object_finish_animation`, `object_show_frame`, `object_stop_animating`,
+  `object_hurry_animation`), the movement animation the field picks
+  (`object_animate_movement`, `object_stand`), and every frame's tick and the
+  frame builder's read (`object_animation_tick`, `object_current_frame`);
+- *its motion* (`field/motion.c`): `Facing`, `Direction` (a byte to a turn),
+  `MapTile`, `FieldPosition`; `direction_between`, `object_head`,
+  `object_start_step` (with its `StartOutcome`), `object_in_the_way`,
+  `object_line_up_with_tile`/`_with`, and the step every frame
+  (`object_take_step`, `party_member_take_step`);
+- *its place on the screen* (`field/object_update.c`):
+  `object_update_screen_position`, `object_leave_row`, `object_join_row`.
+
+The map's records don't group that way, which is the point of the module:
+`field_object_move_state` holds both the one-off animation's plays
+(`animation_count`, the animation's) and whether a move may cross its tile
+(`tile_mode`, the motion's); `field_object_animation_mode` holds the mode and
+the one-off's animation, while the loop's animation is
+`field_object_animation_number` and the frame, its delay and the tables are
+five more variables; the role is `field_object_state`'s `state`; and the
+position is four bytes (`x_fine`, `x_tile`, `y_fine`, `y_tile`) the module
+reads as a `FieldPosition`. The accessors keep the map's names (an awkward
+one, `field_object_animation_mode_mode`, included); the module is where the
+concepts are named. The operations the scripts' commands need are there, but
+`game/event/` still has its own copies of the animation's state machine and
+still calls the motion routines as call-outs: moving it onto the module is
+event's next change (TODO.md).
+
+No register-shaped value is in the module's signatures. Where an entry's
+callers read something the original leaves in a register, the wrapper
+derives it from the game's state around the call: the fine position before a
+step, the plays before a one-off's frame table ended, the direction a blocked
+start last looked in. Where it follows only from a value the routine had on
+the way (the last distance the in-the-way check measured, whether reading a
+frame started the animation over, the wave's last line's sum, the unpacker's
+last run, the rasterizer's last sloped edge), the routine records it in a
+file-static record (`in_the_way_leaves`, `frame_read_leaves`, `wave_leaves`,
+`unpack_leaves`, `shape_leaves`), written only by a `record_...` helper and
+read only by the wrapper or a `leave_...` helper (field/scratch.h). It is the
+shape of event's `event_leaves`, and moves onto the scaffolding mechanism when
+that is in the tree.
+
+**Calling its own ports as C.** The object update, the sprite table's
+building and the vblank handler called the field's own ports through their
+ROM addresses, as the original does. They now run them as C, each timed as
+the routine it is (`NATIVE_TIME_AS`, so the calibrated estimates still
+apply): the update's move, view, tick, rows and screen position; the
+building's draws and their placing; the vblank's sprite table, sprite tile
+queue, the twelve edge uploads and the line effects' programming. Two rules
+decide where an entry is still called by address, and both come from how
+shadow mode checks a bridge. Where the state is one the entry's guard would
+turn away, the entry is called, so the original runs it
+(`field_tick_is_exact`, `field_rows_are_exact`, `field_layer_edges_fit`, the
+draw's cursors and records). And where the inlined work would itself call the
+original's code (an object coming into view or leaving it, a rebuild of an
+object's records, the 24-sprite layout), the entry is called too: shadow mode
+compares a bridge's calls with the calls the original makes itself, and a
+callee's calls made from the caller don't line up with them. The building's
+draws go further: every draw of a frame is made from the same two call sites,
+so shadow mode can only match them if the port inlines all of a frame's
+draws or none (`every_draw_is_own` walks the rows first, asking of each
+object only what its draw's guard would). With those rules the
+shadow totals stayed the predecessor's; the first try, which inlined a
+rebuild and the view's coming and going, mismatched in 105923 draws.
+
+**The machine, replaced.**
+
+- *The direct page on the registers.* `sprites.c` wrote the sprite table
+  through `$2180` with D = `$2100`; it now seeks and writes the work RAM port
+  through `game/cpu_io.h` (`hw_port_seek_address`, the new
+  `hw_port_seek_bank`, `hw_port_write`), and the table and the records are
+  byte buffers in the map (`field_sprite_table`, `field_sprite_records`).
+  `field/sprites.c` left the platform lint's `UNCONVERTED` list: `game/` is
+  now all behind the services bar three documented files. The four windows'
+  corner-tile writers (`field/window_corners.c`), which the original runs
+  with the direct page on the PPU's registers, write through the video
+  service. An object's sprites are read into a list of `Sprite` (a signed
+  screen X, the ninth bit made only by the one function that writes a list
+  into the table, `write_sprites`); the lists are an object's, not a range's,
+  since a range's would be up to 128 sprites of locals.
+- *`$0900`,* the sprite table's high part, is `field_sprite_table`'s last
+  `$20` bytes, reached by offset.
+- *The arithmetic units.* The velocity is `speed * factor >> 8` and the
+  shading's step `40 / 8` in C; the multiplier's and divider's registers,
+  which the original leaves holding its last operation, are written once in
+  a marked helper (`leave_multiplier`, `leave_shading`); `cpu_io.h` gained
+  `hw_remainder`.
+- *The rasterizer* (`field/window_shape.c`, `$C3:0011`) was a transcript of
+  the edge routine with its stack bytes, over 16-bit A and the flags; it is
+  now the scan conversion it is: an edge from its upper end down, the X
+  moving a pixel at a time while an error term lasts, a level edge writing
+  both ends, and the lines outside the shape copied down from the first.
+  The one place the original's rounding shows is one named function,
+  `edge_start_error`: an edge running left starts a step behind the mirror of
+  one running right, so the two sides of the Black Omen's light cone lean a
+  pixel. Its guard keeps the table in bank `$7F` clear of the bank's end.
+- *The wave.* The line effects' BG3 wave adds its 16 lines as one running
+  sum, so a line whose sum wraps the scroll's range moves the next a pixel,
+  and the first line moves a pixel while window 2 reads its second table;
+  that is one named function (`fill_wave_scroll`), and `send_scroll`'s entry
+  is guarded on the carry it is entered with being that choice (the builders
+  always enter it so). The wave's line was kept in `field_direction` from
+  part to part; it is a local now, and the cell gets its final value.
+- *The flags callers read.* Carries and overflows are derived in the entry
+  wrappers from the logic's results, through one set of helpers in
+  `field/bridge.h` (`field_add_overflows8`, ...), where five files had their
+  own.
+
+**Scaffolding.** The cells the original writes for itself (the field page's
+`$C1-$C8` and `$D9-$E6`, the layers' page's `$1D50-$1D6F`) are reached through
+`field/scratch.h`, and every write of one is in a small helper per file named
+for what it leaves (`leave_screen_origin`, `leave_start`, `leave_shading`,
+`leave_wave_line`, ...), written once with the final value where the original
+wrote a cell several times on the way; the working state is in locals. Two
+cells were named by meaning because code reads them (`field_layer_edge_wrap`,
+`field_direction_work`); the rest have no reader but the original's own later
+instructions.
+
+**What the map gained**: `field_work`, `field_sprite_graphics`,
+`field_sprite_tile_offset`, `field_frame_entry`, the layers' work cells, the
+window shape's table, edges, top, right side's start and steps,
+`field_animation_queue` as a record, `field_direction_work`,
+`field_layer_still`, `field_tile_properties`, the sprite table and records as
+buffers; `event_scratch` grew to `$E6`. The field's three open addresses are
+closed (43 left in the tree). `game/wram.h` is used in two places: the
+rasterizer's table, which the caller locates in bank `$7E` or `$7F`, and the
+sprite graphics' build buffer.
+
+**What shadow mode found**, beyond the open-bus order of a long pointer (read
+its address before its bank, or a pointer to nothing reads another bus
+value): the stale-carry rule again (a call-out's don't-care carry comes back
+as the port's own where the callee leaves it, so the object update reads
+whether the view step left the object in view from the object), the
+unpacker's run bytes, the object rows' links read as the 8-bit `$6D`, and a
+guard that refused real sprite draws. Over the 26 movies every entry matches,
+no page is refused, and the per-entry totals (calls, mismatched, skipped,
+abandoned) are the predecessor's for every one of the 619 entries; so are
+matched and interrupted, but for four entries, whose calls an interrupt now
+lands in more often, since work that ran in a nested entry's call runs in the
+caller's time: `field_update_objects` 6 interrupted of 193199 to 17,
+`field_build_sprite_table` 267 of 193483 to 336, `field_draw_object_sprites`
+837 of 974055 to 1713, and `field_update_object_sprites` 78 to 855. An
+interrupted call is one shadow mode didn't compare, so those are what their
+fuzzing (below) covers. No guard refuses a call the game makes: the skipped
+counts are the predecessor's.
+
+**Differential fuzzing.** Every entry is in `tools/fuzz_routines.toml`, and
+all 66 routines listed there (two with a loose variant) were fuzzed against
+the port each replaced (`tools/fuzz_compare.py`, seed 1; 20000 states, 10000
+for the rasterizer, 2000 for the update loops, the unpacker and the vblank
+handler, 200 for the VRAM queue). The rewrite mismatches nowhere. 65 agree
+with the predecessor on every compared state; where the rewrite compares
+fewer, the rest are its guards' refusals, counted as skipped (an odd object
+or link, a delay or frame table past its bank, a stream that would reach the
+layers' page, a table at the end of bank `$7F`, the other carry into sending
+the scroll), and each PORTING.md row gives both counts. The one that differs
+is `field_position_sprites` loose, with the records anywhere: 3452 of 19995
+mismatched before, 0 of 13878 after, the records that would run past bank
+`$7F` into bank `$80`'s low RAM and I/O turned away by a guard (the
+predecessor diverged there). `field_build_sprite_table` compares nothing on
+either side: every state's draws run past the call-out budget. Getting there
+found the open-bus order of the frame table's pointer, the rasterizer's
+stack clobbered by a table in bank `$7E` (now guarded), and carry-chain
+quirks at facing 3's tables and the delay entry, now guards.
+
+**What it cost.** Recalibrating field's `cost_milli` rows moved 60 of
+them: the rewrite's bus accesses are the game's reads and writes, where the
+transcripts' were every operand of the original's, so ports that read words
+where the original read bytes cost less per access (`field_line_up_with_tile`
+4865 to 2313) and ports that keep their working state in locals cost more
+(`field_compute_layer_edges` 2920 to 11237, `field_direction_to_target` 4731
+to 8132, `field_position_sprites` 4002 to 4751, `field_nmi` 4023 to 4520).
+The bridges that now run their steps as C are timed as those steps plus their
+own loops (`field_update_objects` 4165 to 4309, `field_build_sprite_table`
+6699 to 4736). Six entries went onto `tools/timing_exceptions.txt` and
+`field_rasterize_quad` gained a third limit: their time follows loops whose index steps the original's time
+follows and the rewrite doesn't make (the sprite table's leftover-hiding, the
+line-effect builders' bands, the unpacker's runs, the rasterizer's pixel
+steps), so one scalar fits their average but not each call. All of them write
+RAM the next frame reads, the vblank check finds none of their writes moved,
+and the errors are at most two lines where they end in vblank
+(`field_build_line_effect_tables` 2252 clocks), but for the sprite table's
+building, whose draws now run in its own call (7352); the unpacker runs at a map's load, 2.5 frames a call. The sixth is
+the object update itself, whose call is now the whole frame's object work
+(30848 clocks on average, where its own stretches between call-outs were 115)
+and follows how many objects there are: 3% of its calls reach vblank, off by
+at most 1915 clocks there, writing object state the next frame's sprite
+table reads.
+
+**The review rubric, two rounds.** Checked against
+`.claude/skills/review-port` by reviewers who hadn't seen the change. The
+first rated `line_effects.c` a translation (the wave's carry chain threaded
+through the builders, the wave's line kept in `field_direction`, the wrappers
+working the logic backward) and the rest "mostly". What was changed for it:
+the wave's line a local and its carry one function (`fill_wave_scroll`,
+above); one definition of `field_display_flags`' bits (`field/field.h`), of
+the 4.4 scroll fraction, and of the layers (`FIELD_BG1`-`FIELD_BG3`); the
+arithmetic units' results computed in C; the map transition's steps named for
+what they send; entries renamed where their words disagreed with the
+operations' (`field_leave_object_row`, `field_join_object_row`,
+`field_tick_object_animation`); and `field_setting_bc` found to be the
+screen's shake, which the map now says (its accessor keeps its name).
+
+The second rated `animation.c` and `motion.c` translations by the threshold
+rule (their twin functions passing traces to the wrappers, rubric item 26)
+and `sprites.c` a translation (its row counter the original's Y, its ranges
+and records addresses and byte offsets, its start in the original's write
+order). What was changed for it:
+
+- *Traces out of the signatures* (item 26): the twin functions are gone, the
+  wrappers derive what they can from the state, and the rest is recorded as
+  above. `StartLeftovers`, `PlaceLeftovers` and the rasterizer's and the
+  unpacker's leftovers, which the logic filled as it went, are gone too: the
+  `leave_...` helpers take the final values once.
+- *A start's sign bytes* (`KeptSteps`) are one named quirk,
+  `retry_look_across`: a retry with no horizontal step looks a tile left
+  where the first try went left. The in-the-way check's borrow is
+  `earlier_slot_measured_nearer`, with what the player sees.
+- *The sprite table* is rebuilt around `Sprite` and one serializer (above).
+  The building's row counter is a local set on the machine only at a call,
+  taking back what the original's draw leaves (the original counts rows in Y,
+  and its draws can move it); the ranges are offsets into the table,
+  converted to the addresses the original keeps only in their storage
+  functions; the records' fields are named in one place. The all-or-none
+  walk stays (item 29): shadow mode pairs a bridge's calls with the
+  original's in order, so drawing one object as C and calling the next would
+  pair that call with the original's draw of the first. It shrank to asking
+  of each object what its draw's guard asks; the ranges' cursors, which it
+  simulated, can't leave low RAM for the layouts it takes.
+- *Aliases past the tables* (item 28) are explicit: taking an object out of
+  the middle of its row writes the in-view flag of slot `(link - $80) / 2`
+  when none follows, in `leave_stray_in_view_write`; the in-the-way search's
+  slots past 64 go through `stray_slot_can_block`; the map transition's third
+  destination is its own variable, `field_transition_map_base`, not "the word
+  after BG3's"; and the object update's guard now turns away a count past 64,
+  which would run its loop into the tables beyond.
+- *Loop state and call sites* (items 13, 30, 31): the object update's loop
+  runs on locals; its call sites are tables by step and by which update
+  (`view_sites`, `tick_sites`, ...); the call-outs are named for what they do
+  (`GIVE_PALETTE`, `FREE_SPRITE_RECORDS`, `SEND_STAGED_MAP`, `MENUS_FRAME`,
+  ...); a call's return is `site + JSR_SIZE`.
+- *Scaffolding out of the logic* (items 9, 13): `field_target_object`'s high
+  byte, the port's bank and the current object's high byte at the sprite
+  table's start, the queue's Y, the placing's ninth bits, all in named
+  helpers; `scratch.h`'s value readers are gone (the tile copies' Y is the Y
+  they came with, now that the mirrored copy's guard keeps the port's writes
+  off the cell it saves Y in; the shading's overflow follows from its
+  constants); the rasterizer's cells go through `scratch.h` like the rest.
+- *In-band encodings* (items 5, 10): in `animation.c` the `$FF` "nothing to go
+  back to" and the half-pass countdown are confined to storage functions, and
+  the public count is in passes; the role is a kind and a disabled flag, in
+  view a `bool`, the records' state a struct, a move's tile crossing an enum,
+  an object's screen position an `int16_t` pair (nine bits only in storage and
+  in the sprite table), a row or queue link a `FieldLink`, and a started-over
+  animation's frame `BEFORE_THE_FIRST_FRAME`.
+- *Structure*: coming into view calls the animation's and the rows'
+  operations; `view_window` is shared by the view and its guard; one
+  vocabulary for the dialog window's position in `line_effects.c`; the edge
+  runs are named fields (`field/layers.h`), and the twelve uploads are named
+  for which run they send (`field_upload_layerN_bottom_row`, `_top_row`,
+  `_right_column`, `_left_column`, which were `_tiles`, `_tiles_alt`,
+  `_columns` and `_columns_alt`); the windows' corner tiles left `display.c`
+  for `window_corners.c` (with entries renamed `field_write_window_corners_N`
+  and `field_refresh_window_corners`); the interrupt handlers' register save
+  is one helper in `runtime/port/machine.h`.
+
+What a reader can still see of the original: the scaffolding helpers name
+the cells they leave by the original's direct-page offsets (`$D9`, `$DB`),
+since the cells have no reader but the original; the sprite table is still
+written through the work RAM port, until a platform sprite service exists;
+and `game/event/` still keeps its own copy of the animation state machine
+(TODO.md). Deferred: renaming the map's stuttering fields, and the platform's
+sprite and line-effect services.
+
+**Left on the machine, and why** (the 50 functions that are neither an entry
+nor a guard): the shared pieces of the guards and the entry wrappers in
+`bridge.c` (8: which object the registers name, whether a callee came back as
+expected, the page and bank checks the guards compose); the frame wait's
+pass (1); the wrapper pieces the line effects' and the tile copies' entries
+share (9); the steps the object update runs as C where their entries would
+run them, which set the flags the entries leave (4: the move, the view, the
+window-only check, and the rows' entries' return); and the bridges around the
+original's code: the vblank handler's (`nmi.c`, 8: a frame's transitions,
+fade and palette are the original's), the object update's (9) and the view's
+(2), and the sprite table's (9: an object's records are rebuilt for 8, 12 and
+24 sprites by the original's code).
+
+
+**The fresh review, and what merged with it.** A reader who hadn't seen this
+account read the branch at `4972e5d` against the rubric's 33 items, and rated
+no file translation. `window_shape.c`, `window_corners.c`, `scroll.c`, `frame.c`
+and `interrupts.c` rated hand-written. `animation.c`'s storage and script
+operations reach the shape of the review skill's illustration; its frame-read
+half does not yet. No logic function passes a register-shaped struct. The
+five `*_leaves` records are written only by their record helpers, and the
+object update's stray in-view write is the explicit, marked model the other
+aliases should follow.
+
+The "mostly" findings were accepted for the merge, on the same terms as
+event's: merge now, fix on main as a follow-up checked by the gate (TODO.md,
+"Field's follow-up after its review"). The most important are stray accesses
+past a table that are still hidden behind clean accessors: a fifth sprite's Y,
+the high-table cursor's spill, map tables declared as their first 256-byte
+row and indexed across 64 KiB, and the stray-slot reads. They are no problem
+while storage is the original's layout, and a hazard the moment it isn't. The
+rest are reading:
+- sprite records addressed by offset;
+- bridge loops that run on the original's Y or on the current-object cell;
+- dispatch that compares ROM addresses;
+- the bridge helpers copied into four files;
+- two guards that re-run what they guard, which shadow mode's call pairing
+  forces;
+- `object.h`'s link encoding showing through its interface.
+
+The platform gaps (a sprite service, typed line effects, transfers without
+write-order arrays) and the map's renames are deferred, as before.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

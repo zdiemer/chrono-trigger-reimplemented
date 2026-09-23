@@ -1,96 +1,109 @@
-/* Field: automatic layer scrolling. */
+/* Field: layers that scroll on their own.
+ *
+ * A map can set BG2 or BG3 scrolling by itself (field_auto_scroll bits 1 and
+ * 2), each axis at a signed speed in 1/16 pixel a frame. The speed adds into
+ * an accumulator every frame; its whole pixels move the layer's 16-bit scroll
+ * position, which is copied to the layer's scroll values, and the fraction
+ * stays, sign-extended so that a negative accumulator keeps counting down. */
 #include "field/field.h"
 
+#include "field/scratch.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
-static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
-static void set_abs8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr), v); }
+enum { SCROLL_BG2 = 0x02, SCROLL_BG3 = 0x04 };   /* field_auto_scroll */
+enum { AUTO_BG2, AUTO_BG3 };   /* the auto-scroll tables have BG2 and BG3 only */
+enum { AXIS_X, AXIS_Y };
 
-/* One axis: move the 16-bit scroll position `pos` by the whole pixels in the
- * signed 4.4 accumulator `acc` (mirroring it to `mirror` in $7E), keeping the
- * fraction, sign-extended. With `skip_zero`, a zero accumulator does nothing. */
-static void scroll_axis(Snes *s, uint16_t acc, uint16_t pos, uint32_t mirror, bool skip_zero)
+static uint8_t accumulator(const GameState *g, unsigned layer, unsigned axis)
 {
-    Cpu *c = &s->cpu;
-    uint8_t v = m_lda8(s, abs8(s, acc));
-    if (skip_zero && v == 0)
-        return;
-    if (!(v & 0x80)) {
-        for (int i = 0; i < 4; i++)
-            v = m_lsr8(s, v);
-        m_set_a8(s, v);
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, c->a & 0x00FF);
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, m_read16(s, m_abs(s, pos)));
+    return axis == AXIS_X ? field_auto_scroll_accumulator_x(g, layer) : field_auto_scroll_accumulator_y(g, layer);
+}
+
+static void set_accumulator(GameState *g, unsigned layer, unsigned axis, uint8_t v)
+{
+    if (axis == AXIS_X)
+        set_field_auto_scroll_accumulator_x(g, layer, v);
+    else
+        set_field_auto_scroll_accumulator_y(g, layer, v);
+}
+
+/* The layer's position on the axis moves, and its scroll value follows. */
+static void move_position(GameState *g, unsigned layer, unsigned axis, int16_t by)
+{
+    if (axis == AXIS_X) {
+        uint16_t at = (uint16_t)(field_auto_scroll_position_x(g, layer) + by);
+        set_field_auto_scroll_position_x(g, layer, at);
+        set_field_layer_scroll_values_x(g, layer, at);
     } else {
-        v = m_lda8(s, (uint8_t)((v ^ 0xFF) + 1));
-        for (int i = 0; i < 4; i++)
-            v = m_lsr8(s, v);
-        m_set_a8(s, v);
-        m_write8(s, m_dp(s, 0xD9), v);
-        m_write8(s, m_dp(s, 0xDA), 0x00);
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, m_read16(s, m_abs(s, pos)));
-        m_set_flag(s, CPU_FLAG_C, true);
-        c->a = m_sbc16(s, c->a, m_read16(s, m_dp(s, 0xD9)));
+        uint16_t at = (uint16_t)(field_auto_scroll_position_y(g, layer) + by);
+        set_field_auto_scroll_position_y(g, layer, at);
+        set_field_layer_scroll_values_y(g, layer, at);
     }
-    m_write16(s, m_abs(s, pos), c->a);
-    m_write16(s, mirror, c->a);
-    m_sep(s, CPU_FLAG_M);
-    uint8_t frac = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, acc)) & 0x0F));
-    if (frac != 0) {
-        uint8_t a = m_lda8(s, abs8(s, acc));
-        frac = (a & 0x80) ? m_lda8(s, (uint8_t)(a | 0xF0)) : m_lda8(s, (uint8_t)(a & 0x0F));
-    }
-    set_abs8(s, acc, frac);
 }
 
-/* Add a layer group's speeds to its accumulators (8-bit, CLC each). */
-static void accumulate(Snes *s, uint16_t speed, uint16_t acc)
+/* A 4.4 accumulator's whole pixels, rounded toward zero. */
+static int16_t whole_pixels(int8_t accumulated)
 {
-    for (uint16_t i = 0; i < 2; i++) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        uint8_t v = m_adc8(s, m_lda8(s, abs8(s, (uint16_t)(speed + i))), abs8(s, (uint16_t)(acc + i)));
-        m_set_a8(s, v);
-        set_abs8(s, (uint16_t)(acc + i), v);
-    }
+    return accumulated < 0 ? (int16_t)-(int16_t)(-accumulated >> 4) : (int16_t)(accumulated >> 4);
 }
+
+/* One axis: the accumulator's whole pixels move the layer, and its fraction
+ * stays. Returns the accumulated speed it moved by. */
+static int8_t scroll_axis(GameState *g, unsigned layer, unsigned axis)
+{
+    int8_t accumulated = (int8_t)accumulator(g, layer, axis);
+    move_position(g, layer, axis, whole_pixels(accumulated));
+    set_accumulator(g, layer, axis, field_scroll_fraction((int8_t)accumulator(g, layer, axis)));
+    return accumulated;
+}
+
+/* The speeds add into the accumulators, 8 bits each, wrapping. */
+static void accumulate(GameState *g, unsigned layer)
+{
+    set_field_auto_scroll_accumulator_x(
+        g, layer, (uint8_t)(field_auto_scroll_speed_x(g, layer) + field_auto_scroll_accumulator_x(g, layer)));
+    set_field_auto_scroll_accumulator_y(
+        g, layer, (uint8_t)(field_auto_scroll_speed_y(g, layer) + field_auto_scroll_accumulator_y(g, layer)));
+}
+
+/* For the original's code and shadow mode (field/scratch.h): a move back
+ * leaves its whole pixels at $D9 of the field's page, the last one's. */
+static void leave_for_original(GameState *g, int8_t last_backward)
+{
+    if (last_backward < 0)
+        original_cell16(g, 0xD9, (uint16_t)-whole_pixels(last_backward));
+}
+
+static int8_t backward(int8_t before, int8_t accumulated) { return accumulated < 0 ? accumulated : before; }
 
 // $C0:2C41
-/* Scroll the field layers that scroll on their own ($7F:3415 bit 1: BG2 at
- * speed $3417/$3418, bit 2: BG3 at $3419/$341A): the 4.4 accumulators at
- * $341D-$3420 move the positions at $346B-$3471, which are copied to BG2's
- * and BG3's scroll values at $7E:2C74-$2C7A. Uses direct page $0100 and data bank $7F,
- * restoring both; returns with RTL. */
+/* Every frame, for a map that scrolls a layer by itself. BG2's horizontal
+ * accumulator does nothing at all while it is 0 (the other axes write their
+ * unchanged position back). */
+static void scroll_layers(GameState *g)
+{
+    int8_t last_backward = 0;
+    if (field_auto_scroll(g) & SCROLL_BG2) {
+        accumulate(g, AUTO_BG2);
+        if (field_auto_scroll_accumulator_x(g, AUTO_BG2) != 0)
+            last_backward = backward(last_backward, scroll_axis(g, AUTO_BG2, AXIS_X));
+        last_backward = backward(last_backward, scroll_axis(g, AUTO_BG2, AXIS_Y));
+    }
+    if (field_auto_scroll(g) & SCROLL_BG3) {
+        accumulate(g, AUTO_BG3);
+        last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_X));
+        last_backward = backward(last_backward, scroll_axis(g, AUTO_BG3, AXIS_Y));
+    }
+    leave_for_original(g, last_backward);
+}
+
+/* It sets its own direct page and data bank, and restores the caller's;
+ * nothing it leaves in the registers is read after (the entry's don't-care
+ * set). */
 void field_scroll_layers(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push16(s, c->d);
-    m_push8(s, c->db);
-    m_rep(s, CPU_FLAG_M);
-    c->d = m_lda16(s, 0x0100);
-    m_sep(s, CPU_FLAG_M);
-    m_push8(s, m_lda8(s, 0x7F));
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    m_lda8(s, abs8(s, 0x3415));
-    m_bit_imm8(s, 0x02);
-    if (c->a & 0x02) {
-        accumulate(s, 0x3417, 0x341D);
-        scroll_axis(s, 0x341D, 0x346B, 0x7E2C74, true);
-        scroll_axis(s, 0x341E, 0x346D, 0x7E2C76, false);
-    }
-    m_lda8(s, abs8(s, 0x3415));
-    m_bit_imm8(s, 0x04);
-    if (c->a & 0x04) {
-        accumulate(s, 0x3419, 0x341F);
-        scroll_axis(s, 0x341F, 0x346F, 0x7E2C78, false);
-        scroll_axis(s, 0x3420, 0x3471, 0x7E2C7A, false);
-    }
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    c->d = m_pull16(s);
-    m_set_nz16(s, c->d);
+    scroll_layers(state_of(s));
     m_rtl(s);
 }

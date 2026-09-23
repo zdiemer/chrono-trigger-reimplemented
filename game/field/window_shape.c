@@ -1,285 +1,263 @@
-/* Field: a quadrilateral's outline rasterized into a per-line table of left and
- * right X positions (the field copies the corners from $7F:1CEA-$7F:1CF8 and
- * points the table at $7F:17C8 or $7F:1AC8), presumably for a window HDMA
- * shape. The code lives in bank C3. */
+/* Field: window shapes. A quadrilateral rasterized into the per-line table the
+ * field's window line effect reads, so that a four-cornered shape of light or
+ * shadow can cover part of the map: the searchlight cones in the Black Omen.
+ * The field copies the corners in from field_window_shape_quad and points the
+ * table at field_window_edge_lines or its copy. The code lives in bank C3,
+ * beside the scene engine's circle, and this port stands in for the edge
+ * drawing it runs too ($C3:0F35-$C3:1025).
+ *
+ * The table has two bytes a line, the window's left and right X. The four
+ * edges are drawn in order round the shape from its topmost corner: the edges
+ * going down are its left side and write the left column, and from the first
+ * edge going up (whose lower end is where the right side starts) they are its
+ * right side and write the right column. An edge writes its X on each line
+ * from its upper end down to the line before its lower end, stepped with an
+ * error term as Bresenham's line is. Then every line below the right side's
+ * start, and above the top, is marked empty.
+ *
+ * The table is a buffer the caller locates (its pointer is
+ * field_window_shape_table), so it is reached by address. */
 #include "field/field.h"
 
+#include "field/bridge.h"
+#include "field/scratch.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
+#include "wram.h"
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
+enum { CORNERS = 4, EDGES = 4 };
+enum { LINE_BYTES = 2, RIGHT_COLUMN = 1 };
+enum { LAST_LINE = 0xFF };
+enum { EMPTY_LEFT = 1, EMPTY_RIGHT = 0 };   /* a line the window doesn't cover: right of its left */
+enum { FILL_BANK = 0x7E, FILL_BANK_ODD = 0x7F };
 
-/* The 24-bit pointer in dp $50-$52 plus Y, as [dp],Y addresses it. */
-static uint32_t table_y(Snes *s)
+typedef struct {
+    uint8_t x, y;
+} Point;
+
+/* An edge, from its start to its end round the shape. */
+typedef struct {
+    Point from, to;
+} Edge;
+
+static Point corner(const GameState *g, unsigned c)
 {
-    uint32_t base = (uint32_t)dp8(s, 0x52) << 16 | dp16(s, 0x50);
-    return base + s->cpu.y;
+    return (Point){ field_window_shape_corners_x(g, c), field_window_shape_corners_y(g, c) };
 }
 
-/* PEA #$0300 : PLD */
-static void set_dp_0300(Snes *s)
+/* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
+
+/* The last sloped edge drawn, as the original leaves it in its cells (field/
+ * scratch.h, "What a wrapper can't work out"): its width, height and the
+ * error its stepping ended on. Written only by record_sloped_edge, read only
+ * by leave_for_original. */
+static struct {
+    bool sloped;
+    uint16_t width, error;
+    uint8_t height;
+} shape_leaves;
+
+static void record_sloped_edge(uint16_t width, uint8_t height, uint16_t error)
 {
-    m_push16(s, 0x0300);
-    s->cpu.d = m_pull16(s);
-    m_set_nz16(s, s->cpu.d);
+    shape_leaves.sloped = true;
+    shape_leaves.width = width;
+    shape_leaves.height = height;
+    shape_leaves.error = error;
 }
 
-/* TRB on a direct-page word with 16-bit A. */
-static void trb_dp16(Snes *s, uint8_t cell)
-{
-    uint16_t v = dp16(s, cell);
-    m_set_flag(s, CPU_FLAG_Z, (v & s->cpu.a) == 0);
-    set_dp16(s, cell, (uint16_t)(v & ~s->cpu.a));
-}
+/* The original steps through the edges from a jump table of its own code;
+ * where the right side is still to come, $F6 holds the step that looks for
+ * it, the edge routine at $C3:0F35. */
+enum { STEP_FIND_RIGHT_SIDE = 0x0F35 };
 
-/* One edge's X positions for each line (the edge-stepping loops of $C3:1025),
- * written one byte per line from Y upward by 2; `step` is +1 or -1. */
-static void step_edge(Snes *s, int step)
+/* For the original's code and shadow mode (field/scratch.h): the last edge
+ * drawn, upper end first ($53-$5A, a word each); the fill's length ($F0) and
+ * no edges left ($F4); whether the right side was still to come ($F6); and
+ * the last sloped edge's lines left, width, height and error ($F2, $F8, $FA,
+ * $FC). */
+static void leave_for_original(GameState *g, Edge last, uint16_t fill_length, bool right_side_found)
 {
-    Cpu *c = &s->cpu;
-    do {
-        if (!(m_lda16(s, dp16(s, 0xFC)) & 0x8000)) {
-            do {
-                m_ldx16(s, (uint16_t)(c->x + step));
-                m_lda16(s, m_sbc16(s, c->a, dp16(s, 0xFA)));
-            } while (!(c->a & 0x8000));
-        }
-        m_lda16(s, m_adc16(s, c->a, dp16(s, 0xF8)));
-        set_dp16(s, 0xFC, c->a);
-        m_txa(s);
-        m_sep(s, CPU_FLAG_M);
-        m_write8(s, m_abs(s, 0x0000) + c->y, (uint8_t)c->a);
-        m_iny(s);
-        m_iny(s);
-        uint8_t left = (uint8_t)(dp8(s, 0xF2) - 1);
-        set_dp8(s, 0xF2, left);
-        m_set_nz8(s, left);
-        m_rep(s, CPU_FLAG_M);
-    } while (!m_flag(s, CPU_FLAG_Z));
-}
-
-/* $C3:1025, entered with its JSL's return address pushed and 16-bit A: one
- * edge from (dp $53, $55) to (dp $57, $59). */
-static void draw_edge(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_push16(s, c->d);
-    m_push8(s, c->db);
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    set_dp_0300(s);
-    m_lda8(s, dp8(s, 0x52));
-    m_push8(s, (uint8_t)c->a);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    set_dp8(s, 0x54, 0x00);
-    set_dp8(s, 0x58, 0x00);
-    set_dp8(s, 0x56, 0x00);
-    set_dp8(s, 0x5A, 0x00);
-    set_dp8(s, 0xFB, 0x00);
-    m_lda8(s, dp8(s, 0x59));
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_set_a8(s, m_sbc8(s, (uint8_t)c->a, dp8(s, 0x55)));
-
-    if (m_flag(s, CPU_FLAG_Z)) {
-        /* $C3:1001: a horizontal edge sets both ends of its line. */
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, dp16(s, 0x55));
-        m_lda16(s, c->a & 0x00FF);
-        c->a = m_asl16(s, c->a);
-        m_set_index(s, &c->y, c->a);
-        m_sep(s, CPU_FLAG_M);
-        m_lda8(s, dp8(s, 0x53));
-        m_cmp8(s, (uint8_t)c->a, dp8(s, 0x57));
-        if (!m_flag(s, CPU_FLAG_N)) {
-            m_lda8(s, dp8(s, 0x57));
-            m_write8(s, table_y(s), (uint8_t)c->a);
-            m_lda8(s, dp8(s, 0x53));
-        } else {
-            m_write8(s, table_y(s), (uint8_t)c->a);
-            m_lda8(s, dp8(s, 0x57));
-        }
-        m_iny(s);
-        m_iny(s);
-        m_write8(s, table_y(s), (uint8_t)c->a);
-    } else {
-        if (!m_flag(s, CPU_FLAG_C)) {
-            /* Going up: swap the ends. */
-            uint16_t y = dp16(s, 0x57), x = dp16(s, 0x53);
-            m_ldy(s, y);
-            m_ldx(s, x);
-            set_dp16(s, 0x53, y);
-            set_dp16(s, 0x57, x);
-            y = m_ldy(s, dp16(s, 0x59));
-            x = m_ldx(s, dp16(s, 0x55));
-            set_dp16(s, 0x55, y);
-            set_dp16(s, 0x59, x);
-            m_lda8(s, (uint8_t)c->x);
-            m_set_flag(s, CPU_FLAG_C, true);
-            m_set_a8(s, m_sbc8(s, (uint8_t)c->a, dp8(s, 0x55)));
-        }
-        set_dp8(s, 0xFA, (uint8_t)c->a);
-        set_dp8(s, 0xF2, (uint8_t)c->a);
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, dp16(s, 0x55));
-        c->a = m_asl16(s, c->a);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_lda16(s, m_adc16(s, c->a, dp16(s, 0x50)));
-        m_set_index(s, &c->y, c->a);
-        m_ldx(s, dp16(s, 0x53));
-        m_lda16(s, dp16(s, 0x57));
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_lda16(s, m_sbc16(s, c->a, dp16(s, 0x53)));
-        if (!(c->a & 0x8000)) {
-            set_dp16(s, 0xF8, c->a);
-            m_set_flag(s, CPU_FLAG_C, true);
-            m_lda16(s, m_sbc16(s, c->a, dp16(s, 0xFA)));
-            set_dp16(s, 0xFC, c->a);
-            step_edge(s, +1);
-        } else {
-            m_lda16(s, (uint16_t)((c->a ^ 0xFFFF) + 1));
-            set_dp16(s, 0xF8, c->a);
-            m_lda16(s, dp16(s, 0xFA));
-            m_lda16(s, m_sbc16(s, c->a, dp16(s, 0xF8)));
-            set_dp16(s, 0xFC, c->a);
-            step_edge(s, -1);
-        }
+    original_shape_cell16(g, 0x53, last.from.x);
+    original_shape_cell16(g, 0x55, last.from.y);
+    original_shape_cell16(g, 0x57, last.to.x);
+    original_shape_cell16(g, 0x59, last.to.y);
+    original_shape_cell16(g, 0xF0, fill_length);
+    original_shape_cell16(g, 0xF4, 0);
+    original_shape_cell16(g, 0xF6, right_side_found ? 0 : STEP_FIND_RIGHT_SIDE);
+    original_shape_cell8(g, 0xFB, 0);
+    if (shape_leaves.sloped) {
+        original_shape_cell8(g, 0xF2, 0);
+        original_shape_cell16(g, 0xF8, shape_leaves.width);
+        original_shape_cell8(g, 0xFA, shape_leaves.height);
+        original_shape_cell16(g, 0xFC, shape_leaves.error);
     }
+}
 
-    /* $C3:10BA: TDC : XBA : PLP : PLB : PLD : RTL */
-    m_tdc(s);
-    m_xba(s);
-    c->p = m_pull8(s);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    c->d = m_pull16(s);
-    m_set_nz16(s, c->d);
+/* ---- The rasterizer ----------------------------------------------------------------------- */
+
+/* The column the edges write: the table's address, a byte on for the right
+ * side, in the table's bank. */
+typedef struct {
+    uint8_t bank;
+    uint16_t address;
+} Column;
+
+// $C3:1001
+/* A horizontal edge: its two ends' X on its line and the next, the smaller
+ * first where the ends' difference is negative as a signed byte (a shape
+ * wider than half the screen puts them the other way round). */
+static void draw_level_edge(GameState *g, Column column, Edge e)
+{
+    uint32_t line = ((uint32_t)column.bank << 16 | column.address) + (uint16_t)(e.from.y * LINE_BYTES);
+    bool from_first = (int8_t)(e.from.x - e.to.x) < 0;
+    wram_write8(g, line, from_first ? e.from.x : e.to.x);
+    wram_write8(g, line + LINE_BYTES, from_first ? e.to.x : e.from.x);
+}
+
+/* The error an edge's stepping starts from. An edge running left starts one
+ * step behind the mirror of one running right, so the two sides of a
+ * symmetric shape don't round alike: the cones lean a pixel. */
+static int16_t edge_start_error(bool rightward, int16_t width, int16_t height)
+{
+    return rightward ? (int16_t)(width - height) : (int16_t)(height - width - 1);
+}
+
+// $C3:1025
+/* A sloped edge: its X on each line from its upper end down, the X moving a
+ * pixel at a time while the error lasts. */
+static void draw_sloped_edge(GameState *g, Column column, Edge e)
+{
+    int16_t height = (int16_t)(e.to.y - e.from.y);
+    int16_t dx = (int16_t)(e.to.x - e.from.x);
+    bool rightward = dx >= 0;
+    int16_t width = rightward ? dx : (int16_t)-dx;
+    int16_t error = edge_start_error(rightward, width, height);
+    int16_t x = e.from.x;
+    uint16_t at = (uint16_t)(e.from.y * LINE_BYTES + column.address);
+    for (int16_t line = 0; line < height; line++) {
+        while (error >= 0) {
+            x = (int16_t)(rightward ? x + 1 : x - 1);
+            error = (int16_t)(error - height);
+        }
+        error = (int16_t)(error + width);
+        wram_write8(g, (uint32_t)column.bank << 16 | at, (uint8_t)x);
+        at = (uint16_t)(at + LINE_BYTES);
+    }
+    record_sloped_edge((uint16_t)width, (uint8_t)height, (uint16_t)error);
+}
+
+/* An edge, upper end first (a level edge as it comes). Returns it as drawn. */
+static Edge draw_edge(GameState *g, Column column, Edge e)
+{
+    if (e.to.y == e.from.y) {
+        draw_level_edge(g, column, e);
+        return e;
+    }
+    if (e.to.y < e.from.y)
+        e = (Edge){ e.to, e.from };
+    draw_sloped_edge(g, column, e);
+    return e;
+}
+
+/* The corner the drawing starts from: the topmost, the last of equals. */
+static unsigned topmost_corner(const GameState *g)
+{
+    unsigned first = 0;
+    for (unsigned c = 1; c < CORNERS; c++)
+        if (corner(g, c).y <= corner(g, first).y)
+            first = c;
+    return first;
+}
+
+/* Copy the line at `from` down the table, `bytes` bytes a byte at a time, so
+ * that it repeats line after line, in the bank the fill uses. */
+static void repeat_line(GameState *g, uint8_t bank, uint16_t from, uint32_t bytes)
+{
+    for (uint32_t i = 0; i < bytes; i++) {
+        uint16_t at = (uint16_t)(from + i);
+        wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(at + LINE_BYTES), wram_read8(g, (uint32_t)bank << 16 | at));
+    }
+}
+
+// $C3:0FA5
+/* Mark the lines outside the shape empty: from the right side's start to the
+ * last line, and from the first line to the top. The empty lines are copied
+ * down from the first, in bank $7E or $7F by the table bank's low bit,
+ * whatever the table's bank; and a shape whose edges never went up leaves the
+ * table's pointer a byte back, where the next shape is drawn. Returns the
+ * fill's length. */
+static uint16_t empty_outside_lines(GameState *g, Column column, uint16_t top, uint16_t right_start)
+{
+    uint8_t bank = (column.bank & 1) ? FILL_BANK_ODD : FILL_BANK;
+    uint16_t table = (uint16_t)(column.address - RIGHT_COLUMN);
+    set_field_window_shape_table_address(g, table);
+    uint16_t below = (uint16_t)((LAST_LINE - right_start) * LINE_BYTES - 1);
+    uint16_t at = (uint16_t)(right_start * LINE_BYTES + table);
+    uint32_t first = (uint32_t)column.bank << 16 | table;
+    wram_write8(g, first, EMPTY_LEFT);
+    wram_write8(g, first + 1, EMPTY_RIGHT);
+    uint32_t line = ((uint32_t)bank << 16) + at;
+    wram_write8(g, line, EMPTY_LEFT);
+    wram_write8(g, line + 1, EMPTY_RIGHT);
+    if (below == 0)
+        return below;
+    repeat_line(g, bank, at, (uint32_t)below + 1);
+    if (top != 0)
+        repeat_line(g, bank, table, (uint32_t)(uint16_t)(top * LINE_BYTES - 1) + 1);
+    return below;
 }
 
 // $C3:0011
-/* Rasterizes the quadrilateral with corners (X, Y) at dp $0360/$0361, $0362/
- * $0363, $0364/$0365 and $0366/$0367 into the table at the 24-bit pointer in
- * $0350: two bytes per line, left X then right X. Starting from the topmost
- * corner (its line in $0368, its entry point in $03F0) it draws the four edges
- * in order through $C3:1025; the first edge going up moves the table pointer
- * to the right-hand bytes and records its line in $036A. Then it fills the
- * lines below $036A with 1, 0 and those above $0368 with the first entry
- * (MVN in bank $7E or $7F, by the table's bank). Entered with 16-bit X
- * through the JMP at $C3:0011; returns with RTL. */
+/* Rasterize the quadrilateral in field_window_shape_corners into the table. */
+static void rasterize_quad(GameState *g)
+{
+    unsigned first = topmost_corner(g);
+    uint16_t top = corner(g, first).y;
+    set_field_window_shape_top(g, top);
+    uint16_t right_start = field_window_shape_right_start(g);
+    Column column = { field_window_shape_table_bank(g), field_window_shape_table_address(g) };
+    bool right_side_found = false;
+    Edge last = { { 0, 0 }, { 0, 0 } };
+    for (unsigned k = 0; k < EDGES; k++) {
+        Edge e = { corner(g, (first + k) % CORNERS), corner(g, (first + k + 1) % CORNERS) };
+        if (e.to.y < e.from.y && !right_side_found) {
+            column.address = (uint16_t)(column.address + RIGHT_COLUMN);
+            right_start = e.from.y;
+            set_field_window_shape_right_start(g, right_start);
+            right_side_found = true;
+        }
+        last = draw_edge(g, column, e);
+    }
+    uint16_t fill_length = empty_outside_lines(g, column, top, right_start);
+    leave_for_original(g, last, fill_length, right_side_found);
+}
+
+/* The guard: the table where the game puts it, in bank $7F far enough from
+ * the bank's end that neither the table nor the fill leaves it, and the right
+ * side starting on a line. Where else a table can be, the fill (which can
+ * repeat 64 KiB) runs over the stack the original's registers are saved on,
+ * and the port writes the table but doesn't reproduce the registers that
+ * would come back from it. The game points the table at
+ * field_window_edge_lines or its copy. */
+enum { TABLE_BANK = 0x7F, TABLE_END = 0xFC00, LINES = 0x100 };
+
+bool field_window_shape_table_in_place(Snes *s)
+{
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = field_window_shape_table_bank(g) == TABLE_BANK && field_window_shape_table_address(g) < TABLE_END &&
+              field_window_shape_right_start(g) < LINES;
+    vars_peek(false);
+    return ok;
+}
+
+/* Entered through the JMP at $C3:0011 with 16-bit X; it sets its own direct
+ * page and restores the caller's, and nothing it leaves in the registers is
+ * read after (the entry's don't-care set). */
 void field_rasterize_quad(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push16(s, c->d);
-    m_push8(s, c->db);
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    set_dp_0300(s);
-    set_dp8(s, 0x69, 0x00);
-    m_ldy(s, 0x0F35);
-    set_dp16(s, 0xF6, c->y);
-    int first = 0;
-    m_lda8(s, dp8(s, 0x61));
-    for (int corner = 1; corner < 4; corner++) {
-        m_cmp8(s, (uint8_t)c->a, dp8(s, (uint8_t)(0x61 + 2 * corner)));
-        if (m_flag(s, CPU_FLAG_C)) {
-            first = corner;
-            m_ldy(s, (uint16_t)(0x0F35 + 0x13 * corner));
-            m_lda8(s, dp8(s, (uint8_t)(0x61 + 2 * corner)));
-        }
-    }
-    set_dp8(s, 0x68, (uint8_t)c->a);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, 0x0004);
-    set_dp16(s, 0xF4, c->a);
-    set_dp16(s, 0xF0, c->y);
-    /* JMP ($03F0) to the corner's entry in the edge sequence at $C3:0F35. */
-
-    for (int edge = first;; edge = (edge + 1) & 3) {
-        uint8_t from = (uint8_t)(0x60 + 2 * edge), to = (uint8_t)(0x60 + 2 * ((edge + 1) & 3));
-        set_dp16(s, 0x53, m_lda16(s, dp16(s, from)));
-        set_dp16(s, 0x55, m_lda16(s, dp16(s, (uint8_t)(from + 1))));
-        set_dp16(s, 0x57, m_lda16(s, dp16(s, to)));
-        set_dp16(s, 0x59, m_lda16(s, dp16(s, (uint8_t)(to + 1))));
-        m_push16(s, (uint16_t)(0x0F47 + 0x13 * edge));   /* JSR $0F83 */
-
-        /* $C3:0F83 */
-        m_lda16(s, 0xFF00);
-        trb_dp16(s, 0x55);
-        trb_dp16(s, 0x59);
-        m_lda16(s, dp16(s, 0x59));
-        m_cmp16(s, c->a, dp16(s, 0x55));
-        if (m_flag(s, CPU_FLAG_N) && m_lda16(s, dp16(s, 0xF6)) != 0) {
-            uint16_t ptr = (uint16_t)(dp16(s, 0x50) + 1);
-            set_dp16(s, 0x50, ptr);
-            m_set_nz16(s, ptr);
-            set_dp16(s, 0x6A, m_lda16(s, dp16(s, 0x55)));
-            set_dp16(s, 0xF6, 0x0000);
-        }
-        m_push8(s, 0xC3);                                /* JSL $C31025 */
-        m_push16(s, 0x0F9F);
-        draw_edge(s);
-        m_pull16(s);                                     /* RTL */
-        m_pull8(s);
-        uint16_t left = (uint16_t)(dp16(s, 0xF4) - 1);
-        set_dp16(s, 0xF4, left);
-        m_set_nz16(s, left);
-        if (left != 0) {
-            m_pull16(s);                                 /* RTS */
-            continue;
-        }
-        break;
-    }
-
-    /* $C3:0FA5 */
-    m_lda16(s, m_pull16(s));
-    m_lda16(s, dp16(s, 0x52));
-    c->a = m_lsr16(s, c->a);
-    m_push8(s, c->p);
-    uint16_t ptr = (uint16_t)(dp16(s, 0x50) - 1);
-    set_dp16(s, 0x50, ptr);
-    m_set_nz16(s, ptr);
-    m_lda16(s, 0x0100);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_lda16(s, m_sbc16(s, c->a, dp16(s, 0x6A)));
-    c->a = m_asl16(s, c->a);
-    m_lda16(s, (uint16_t)(c->a - 1));
-    set_dp16(s, 0xF0, c->a);
-    m_lda16(s, dp16(s, 0x6A));
-    c->a = m_asl16(s, c->a);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_lda16(s, m_adc16(s, c->a, dp16(s, 0x50)));
-    m_set_index(s, &c->y, c->a);
-    m_tax(s);
-    m_lda16(s, 0x0001);
-    uint32_t base = (uint32_t)dp8(s, 0x52) << 16 | dp16(s, 0x50);
-    m_write16(s, base, c->a);
-    c->p = m_pull8(s);
-    uint8_t bank = m_flag(s, CPU_FLAG_C) ? 0x7F : 0x7E;
-    m_write16(s, ((uint32_t)bank << 16) + c->x, c->a);
-    m_iny(s);
-    m_iny(s);
-    if (m_lda16(s, dp16(s, 0xF0)) != 0) {
-        m_mvn(s, bank, bank);
-        m_ldx(s, dp16(s, 0x50));
-        m_txy(s);
-        m_iny(s);
-        m_iny(s);
-        if (m_lda16(s, dp16(s, 0x68)) != 0) {
-            c->a = m_asl16(s, c->a);
-            m_lda16(s, (uint16_t)(c->a - 1));
-            m_mvn(s, bank, bank);
-        }
-    }
-
-    /* $C3:10BA */
-    m_tdc(s);
-    m_xba(s);
-    c->p = m_pull8(s);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    c->d = m_pull16(s);
-    m_set_nz16(s, c->d);
+    shape_leaves.sloped = false;
+    rasterize_quad(state_of(s));
     m_rtl(s);
 }

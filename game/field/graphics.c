@@ -1,202 +1,127 @@
 /* Field mode: building object sprite graphics when an animation frame changes.
  *
  * The frame builder (reached from the queue $C0:CA76 works through each frame)
- * assembles an object's sprite tiles, 32 bytes each, into $7F:0000 + $D0 from
- * the graphics set whose bank is $CF and base $CD ($CD-$CF also serve as a
- * long pointer), through the WRAM data port $2180-$2183. */
+ * assembles an object's sprite tiles, 32 bytes each, in bank $7F at the
+ * offset field_sprite_tile_offset holds, from the graphics set
+ * field_sprite_graphics points at (the ROM's banks $D2-$D5, or graphics built
+ * in $7F). A tile is copied straight, or mirrored left to right through the
+ * work RAM port, whose cursor the builder has already placed. These are the
+ * builder's two tile copies; the frame it builds is read in field/animation.c. */
 #include "field/graphics.h"
 
+#include "cpu_io.h"
+#include "field/bridge.h"
+#include "field/field_data.h"
+#include "field/scratch.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
+#include "wram.h"
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
-static uint8_t obj8(Snes *s, uint16_t table) { return m_read8(s, m_abs(s, table) + s->cpu.x); }
-static void set_obj8(Snes *s, uint16_t table, uint8_t v) { m_write8(s, m_abs(s, table) + s->cpu.x, v); }
-static uint16_t obj16(Snes *s, uint16_t table) { return m_read16(s, m_abs(s, table) + s->cpu.x); }
+enum { TILE_BYTES = 32, TILE_NUMBER_MASK = 0x07FF };
+enum { BUILD_BANK = 0x7F };
 
-/* The 24-bit address a long pointer on the direct page holds. */
-static uint32_t long_ptr(Snes *s, uint8_t cell)
+/* The graphics set's pointer, read low byte first as a long pointer is: a
+ * pointer to nothing reads what the bus last held, its bank byte. */
+static uint32_t graphics_set(const GameState *g)
 {
-    return m_read16(s, m_dp(s, cell)) | (uint32_t)m_read8(s, m_dp(s, (uint8_t)(cell + 2))) << 16;
+    uint16_t address = field_sprite_graphics_address(g);
+    return (uint32_t)field_sprite_graphics_bank(g) << 16 | address;
 }
 
-/* AND #$07FF : ASL A x5 : STY $C5 -- the tile number (16-bit A) to its
- * offset, saving Y. */
-static void tile_offset(Snes *s)
+/* A tile's offset in its graphics set. */
+static uint16_t tile_offset(uint16_t tile) { return (uint16_t)((tile & TILE_NUMBER_MASK) * TILE_BYTES); }
+
+/* The graphics set's bank, as the copy reads it: bank $7F where the builder
+ * made the graphics, else one of the ROM's $D2-$D5 (any other bank reads
+ * $D5). */
+static uint8_t source_bank(uint8_t bank)
 {
-    Cpu *c = &s->cpu;
-    m_lda16(s, (uint16_t)(c->a & 0x07FF));
-    for (int i = 0; i < 5; i++)
-        c->a = m_asl16(s, c->a);
-    set_dp16(s, 0xC5, c->y);
+    if (bank == BUILD_BANK || (bank >= 0xD2 && bank <= 0xD4))
+        return bank;
+    return 0xD5;
 }
+
+/* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
+
+/* The tile copies save the caller's Y at $C5 (and give it back from there). */
+enum { SAVED_Y_CELL = 0xC5 };
+static void leave_saved_y(GameState *g, uint16_t y) { original_cell16(g, SAVED_Y_CELL, y); }
 
 // $C0:E687
-/* Copy sprite tile A (16-bit) of the graphics set to $7F:0000 + $D0: 32 bytes
- * from $CD + A * 32 in bank $D2, $D3, $D4 or $7F by $CF (any other bank reads
- * $D5), a word at a time with the data bank at $7F. The WRAM port address
- * $2181 is then set past the copy, and Y restored from $C5. */
-void field_copy_sprite_tile(Snes *s)
+/* Copy sprite tile `tile` of the graphics set to the build offset, a word at
+ * a time, then point the work RAM port's cursor past it. The tile is at the
+ * set's address plus its offset, in 16 bits, in the bank the copy reads. The
+ * addresses carry into the next bank past $FFFF, as the original's indexed
+ * accesses do. Returns where the cursor now is. */
+static uint16_t copy_sprite_tile(GameState *g, uint16_t tile)
 {
-    Cpu *c = &s->cpu;
-    tile_offset(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, dp16(s, 0xCD));
-    m_tax(s);
-    m_ldy(s, dp16(s, 0xD0));
-    m_sep(s, CPU_FLAG_M);
-    uint8_t bank = m_lda8(s, dp8(s, 0xCF));
-    m_cmp8(s, bank, 0x7F);
-    uint8_t source = 0x7F;
-    if (bank != 0x7F) {
-        m_set_flag(s, CPU_FLAG_C, true);
-        uint8_t v = m_sbc8(s, bank, 0xD2);
-        m_set_a8(s, v);
-        source = 0xD2;
-        if (v != 0) {
-            source = 0xD3;
-            if (m_lda8(s, (uint8_t)(v - 1)) != 0) {
-                source = 0xD4;
-                if (m_lda8(s, (uint8_t)(c->a - 1)) != 0)
-                    source = 0xD5;
-            }
-        }
+    uint32_t graphics = graphics_set(g);
+    uint16_t from = (uint16_t)(tile_offset(tile) + graphics);
+    uint16_t to = field_sprite_tile_offset(g);
+    uint32_t source = (uint32_t)source_bank((uint8_t)(graphics >> 16)) << 16;
+    for (uint16_t k = 0; k < TILE_BYTES; k += 2) {
+        uint32_t at = source + k + from;
+        uint16_t word = (source >> 16) == BUILD_BANK ? wram_read16(g, at) : field_sprite_graphics_word(g, at);
+        wram_write16(g, ((uint32_t)BUILD_BANK << 16) + k + to, word);
     }
-    m_push8(s, c->db);
-    m_push8(s, m_lda8(s, 0x7F));
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    m_rep(s, CPU_FLAG_M);
-    for (uint16_t k = 0; k < 0x20; k += 2) {
-        /* bank $7F reads abs,X in the data bank, the others long,X */
-        uint32_t from = source == 0x7F ? m_abs(s, k) + c->x : ((uint32_t)source << 16 | k) + c->x;
-        m_lda16(s, m_read16(s, from));
-        m_write16(s, m_abs(s, k) + c->y, c->a);
-    }
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    m_lda16(s, c->y);
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, 0x0020);
-    m_write16(s, m_abs(s, 0x2181), c->a);
-    m_ldy(s, dp16(s, 0xC5));
-    m_rts(s);
+    uint16_t cursor = (uint16_t)(to + TILE_BYTES);
+    hw_port_seek_address(g, cursor);
+    return cursor;
 }
 
 // $C0:E534
-/* Write sprite tile A (16-bit) mirrored horizontally to the WRAM port: each
- * of its 32 bytes, read through the long pointer at $CD + A * 32, goes
- * through the bit reversal table at $FD00 in the data bank. Y is restored
- * from $C5. */
-void field_copy_sprite_tile_flipped(Snes *s)
+/* Write sprite tile `tile` mirrored left to right to the work RAM port: each
+ * of its 32 bytes, from the graphics set's pointer plus the tile's offset,
+ * bit-reversed. (The pointer is read for every byte: the port's cursor can
+ * reach it.) */
+static void copy_sprite_tile_flipped(GameState *g, uint16_t tile)
 {
-    Cpu *c = &s->cpu;
-    tile_offset(s);
-    m_set_index(s, &c->y, c->a);
-    m_sep(s, CPU_FLAG_M);
-    m_tdc(s);
-    m_xba(s);
-    for (int i = 0; i < 32; i++) {
-        if (i != 0)
-            m_iny(s);
-        m_lda8(s, m_read8(s, long_ptr(s, 0xCD) + c->y));
-        m_tax(s);
-        m_lda8(s, m_read8(s, m_abs(s, 0xFD00) + c->x));
-        m_write8(s, m_abs(s, 0x2180), (uint8_t)c->a);
-    }
-    m_rep(s, CPU_FLAG_M);
-    m_ldy(s, dp16(s, 0xC5));
-    m_rts(s);
+    uint16_t at = tile_offset(tile);
+    for (uint16_t k = 0; k < TILE_BYTES; k++)
+        hw_port_write(g, field_mirrored_byte(g, field_sprite_graphics_byte(g, graphics_set(g) + (uint16_t)(at + k))));
 }
 
-/* ASL A : ASL A : CLC : ADC $D9 : ADC $D6 : STA $D6 -- the entry for frame
- * $D9 of animation A in the table at $D6 (4 frames per animation). */
-static void frame_entry(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    c->a = m_asl16(s, c->a);
-    c->a = m_asl16(s, c->a);
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, dp16(s, 0xD9));
-    c->a = m_adc16(s, c->a, dp16(s, 0xD6));
-    set_dp16(s, 0xD6, c->a);
-    m_sep(s, CPU_FLAG_M);
-}
+/* ---- Entries: the frame builder's calls, on the field's page ------------------------------ */
 
-// $C0:CB3A
-/* Object X's current animation frame number into A, read through the long
- * pointer $D6/$D8 (the caller sets the bank). The table is $1500,X plus
- * $1480,X times 0-3 by the facing $1600,X (0, 1 or negative, 2, 3 up to
- * $81 by the signed compare), and the entry animation * 4 + frame ($1681,X),
- * the animation from $1781,X during a scripted animation ($1780,X = 2) or
- * $1680,X. An entry of $FF ends the animation: a scripted one counts down
- * $7F:0B01,X (not below 1) and returns carry clear; otherwise the frame goes
- * back to the animation's first entry ($1681,X = $FF). Carry set with a frame. */
-void field_read_animation_frame(Snes *s)
+/* 16-bit A, the tile. Y comes back as it came, from the cell the copy saved
+ * it in (the mirrored copy's guard keeps its writes off the cell). The
+ * straight copy leaves A its cursor, and the overflow of its sum. */
+static void tile_copy_entry(Snes *s, bool mirrored)
 {
-    Cpu *c = &s->cpu;
-    uint8_t facing = m_lda8(s, obj8(s, 0x1600));
-    m_rep(s, CPU_FLAG_M);
-    if (facing == 0) {
-        m_lda16(s, obj16(s, 0x1500));
+    GameState *g = state_of(s);
+    uint16_t tile = s->cpu.a, y = s->cpu.y;
+    leave_saved_y(g, y);
+    if (mirrored) {
+        copy_sprite_tile_flipped(g, tile);
     } else {
-        m_cmp8(s, facing, 0x02);
-        bool negative = m_flag(s, CPU_FLAG_N);
-        m_lda16(s, obj16(s, 0x1480));
-        if (facing == 0x02) {
-            c->a = m_asl16(s, c->a);
-        } else if (!negative) {
-            set_dp16(s, 0xD9, c->a);
-            m_set_flag(s, CPU_FLAG_C, false);
-            c->a = m_adc16(s, c->a, dp16(s, 0xD9));
-            c->a = m_adc16(s, c->a, dp16(s, 0xD9));
-            c->a = m_adc16(s, c->a, obj16(s, 0x1500));
-            set_dp16(s, 0xD6, c->a);
-            goto entry;
-        }
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, obj16(s, 0x1500));
+        uint16_t cursor = copy_sprite_tile(g, tile);
+        m_set_flag(s, CPU_FLAG_V, field_add_overflows16((uint16_t)(cursor - TILE_BYTES), TILE_BYTES));
+        tile = cursor;
     }
-    set_dp16(s, 0xD6, c->a);
-entry:
-    /* $C0:CB7A */
-    set_dp16(s, 0xD9, m_lda16(s, (uint16_t)(obj16(s, 0x1681) & 0x00FF)));
-    uint16_t mode = m_lda16(s, (uint16_t)(obj16(s, 0x1780) & 0x00FF));
-    m_cmp16(s, mode, 0x0002);
-    if (mode == 0x0002) {
-        m_lda16(s, (uint16_t)(obj16(s, 0x1781) & 0x00FF));
-        frame_entry(s);
-        uint8_t frame = m_lda8(s, m_read8(s, long_ptr(s, 0xD6)));
-        m_cmp8(s, frame, 0xFF);
-        if (frame != 0xFF) {
-            m_set_flag(s, CPU_FLAG_C, true);
-            m_rts(s);
-            return;
-        }
-        uint8_t loops = m_lda8(s, m_read8(s, 0x7F0B01u + c->x));
-        loops = m_lda8(s, (uint8_t)(loops - 1));
-        if (loops != 0)
-            m_write8(s, 0x7F0B01u + c->x, loops);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    /* $C0:CBB1 */
-    m_lda16(s, (uint16_t)(obj16(s, 0x1680) & 0x00FF));
-    frame_entry(s);
-    uint8_t frame = m_lda8(s, m_read8(s, long_ptr(s, 0xD6)));
-    m_cmp8(s, frame, 0xFF);
-    if (frame == 0xFF) {
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, dp16(s, 0xD6));
-        m_set_flag(s, CPU_FLAG_C, true);
-        c->a = m_sbc16(s, c->a, dp16(s, 0xD9));
-        set_dp16(s, 0xD6, c->a);
-        m_sep(s, CPU_FLAG_M);
-        set_obj8(s, 0x1681, m_lda8(s, 0xFF));
-        m_lda8(s, m_read8(s, long_ptr(s, 0xD6)));
-    }
-    m_set_flag(s, CPU_FLAG_C, true);
+    s->cpu.a = tile;
+    s->cpu.y = y;
     m_rts(s);
+}
+
+void field_copy_sprite_tile(Snes *s) { tile_copy_entry(s, false); }
+void field_copy_sprite_tile_flipped(Snes *s) { tile_copy_entry(s, true); }
+
+/* The mirrored copy's guard: on the field's page with the data bank $00, and
+ * the work RAM port's 32 bytes clear of the cell the copy saves Y in, which
+ * it would otherwise write over before the original reads Y back. The frame
+ * builder places the port on the tiles it builds in bank $7F. */
+enum { PORT_SPACE = 0x20000, SAVED_Y_AT = 0x00100 + SAVED_Y_CELL };
+
+bool field_tile_copy_keeps_saved_y(Snes *s)
+{
+    if (!field_on_page_bank_zero(s))
+        return false;
+    uint32_t port = s->bus.wram_port_addr;
+    for (uint32_t k = 0; k < TILE_BYTES; k++) {
+        uint32_t at = (port + k) % PORT_SPACE;
+        if (at == SAVED_Y_AT || at == SAVED_Y_AT + 1)
+            return false;
+    }
+    return true;
 }

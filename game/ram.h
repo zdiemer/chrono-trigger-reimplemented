@@ -412,10 +412,11 @@
 /* The 24-bit pointer events $4A-$4D write through [3 bytes] */
 #define RAM_EVENT_TARGET_POINTER 0x7E01D0u
 #define RAM_EVENT_TARGET_POINTER_DP 0xD0u    /* page field */
-/* The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command
- * keeps its operands and intermediate values there, and only that command reads them back
- * (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7 reads $E2 as a
- * phase it never sets) [12 bytes] */
+/* The field page's scratch cells, $D9-$E6. Each event command keeps its operands and
+ * intermediate values in the words at $D9, $DB, $DD, $DF, $E1 and $E3, and only that command
+ * reads them back (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7
+ * reads $E2 as a phase it never sets); the field's motion, sprite, layer and graphics routines
+ * leave their values there on the way (field/scratch.h) [14 bytes] */
 #define RAM_EVENT_SCRATCH 0x7E01D9u
 #define RAM_EVENT_SCRATCH_DP 0xD9u           /* page field */
 /* Offset in the script buffer where the object's script resumes [64 x $2 bytes, by object slot
@@ -577,8 +578,10 @@
  * and clears it */
 #define RAM_FIELD_FRAME_PENDING 0x7E0152u
 #define RAM_FIELD_FRAME_PENDING_DP 0x52u     /* page field */
-/* Low nibble set: the per-line effects use the second set of tables; bit 0 also picks the field
- * IRQ's tilemap routine ($FD:FFFD instead of $C0:ED15) */
+/* Bit 0: the line effects read table set 1 (the builders build the other and flip it every
+ * frame; the vblank programs set 1 for any bit of the low nibble), and the line interrupt's late
+ * work alternates with it ($FD:FFFD instead of $C0:ED15). Bit 7: the field's setup builds both
+ * sets from its own scroll and color math */
 #define RAM_FIELD_DISPLAY_FLAGS 0x7E0153u
 #define RAM_FIELD_DISPLAY_FLAGS_DP 0x53u     /* page field */
 /* Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog
@@ -608,10 +611,12 @@
  * the object loops' index [2 bytes] */
 #define RAM_FIELD_CURRENT_OBJECT 0x7E016Du
 #define RAM_FIELD_CURRENT_OBJECT_DP 0x6Du    /* page field */
-/* Queue of objects due a new animation frame, linked through field_object_animation_link: +0 the
- * head, +1 the tail (negative: empty) [2 bytes] */
+/* Queue of objects due a new animation frame, which the frame builder works through, linked
+ * through field_object_animation_link (objects as links: slots doubled, negative none) [2 bytes] */
 #define RAM_FIELD_ANIMATION_QUEUE 0x7E0176u
 #define RAM_FIELD_ANIMATION_QUEUE_DP 0x76u   /* page field */
+#define RAM_FIELD_ANIMATION_QUEUE_HEAD 0x7E0176u /* The first object queued (negative: the queue is empty) */
+#define RAM_FIELD_ANIMATION_QUEUE_TAIL 0x7E0177u /* The last object queued (negative: the queue is empty) */
 /* 2: the next object in state 1 or 2 due a frame goes to the front of the animation queue (then
  * cleared) */
 #define RAM_FIELD_ANIMATION_QUEUE_FRONT 0x7E0178u
@@ -628,18 +633,46 @@
 #define RAM_FIELD_SPRITE_RANGE_HIGH_COUNT 3u
 #define RAM_FIELD_SPRITE_RANGE_HIGH_STRIDE 0x04u
 #define RAM_FIELD_SPRITE_RANGE_HIGH_DP 0x81u /* page field */
+/* A word beside each range's high table pointer, cleared as the sprite table is built; nothing
+ * in the field reads it (field/scratch.h: kept for shadow mode) [3 x $4 bytes, by sprite range
+ * (0 priority bits clear, 1 bit 2 set, 2 bit 3 set)] */
+#define RAM_FIELD_SPRITE_RANGE_SPARE 0x7E0183u
+#define RAM_FIELD_SPRITE_RANGE_SPARE_COUNT 3u
+#define RAM_FIELD_SPRITE_RANGE_SPARE_STRIDE 0x04u
+#define RAM_FIELD_SPRITE_RANGE_SPARE_DP 0x83u /* page field */
 /* Object slot of each active party member, negative for none [3 x $2 bytes, by party member * 2] */
 #define RAM_FIELD_PARTY_OBJECTS 0x7E0197u
 #define RAM_FIELD_PARTY_OBJECTS_COUNT 3u
 #define RAM_FIELD_PARTY_OBJECTS_STRIDE 0x02u
 #define RAM_FIELD_PARTY_OBJECTS_DP 0x97u     /* page field */
-/* Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts
- * ($C0:0BA4); what reads it isn't established */
+/* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
+ * except against the map's left or top edge. Set by event $F4 (zero also clears
+ * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
 #define RAM_FIELD_SETTING_BC 0x7E01BCu
 #define RAM_FIELD_SETTING_BC_DP 0xBCu        /* page field */
+/* Cells the field's object, sprite and graphics routines keep values in on the way: an
+ * animation's delay entry ($C1), the view window's edges or an object's screen position
+ * ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7) [8 bytes] */
+#define RAM_FIELD_WORK 0x7E01C1u
+#define RAM_FIELD_WORK_DP 0xC1u              /* page field */
 /* Sprites of the current object still to write while the OAM table is built */
 #define RAM_FIELD_SPRITES_LEFT 0x7E01C9u
 #define RAM_FIELD_SPRITES_LEFT_DP 0xC9u      /* page field */
+/* The graphics set the frame builder copies an object's sprite tiles from: a long pointer into
+ * the ROM's banks $D2-$D5 or bank $7F [3 bytes] */
+#define RAM_FIELD_SPRITE_GRAPHICS 0x7E01CDu
+#define RAM_FIELD_SPRITE_GRAPHICS_DP 0xCDu   /* page field */
+#define RAM_FIELD_SPRITE_GRAPHICS_ADDRESS 0x7E01CDu /* Its address in the bank */
+#define RAM_FIELD_SPRITE_GRAPHICS_BANK 0x7E01CFu /* The bank ($7F, or $D2-$D5) */
+/* Where in bank $7F the frame builder puts the next sprite tile it copies [2 bytes] */
+#define RAM_FIELD_SPRITE_TILE_OFFSET 0x7E01D0u
+#define RAM_FIELD_SPRITE_TILE_OFFSET_DP 0xD0u /* page field */
+/* A long pointer to an object's current animation frame entry: the frame read sets the address,
+ * its caller the bank [3 bytes] */
+#define RAM_FIELD_FRAME_ENTRY 0x7E01D6u
+#define RAM_FIELD_FRAME_ENTRY_DP 0xD6u       /* page field */
+#define RAM_FIELD_FRAME_ENTRY_ADDRESS 0x7E01D6u /* The entry's address: the facing's frame table plus animation * 4 + frame */
+#define RAM_FIELD_FRAME_ENTRY_BANK 0x7E01D8u /* The frame tables' bank */
 /* Next free OAM entry of each sprite range while the sprite table is built (the cells are
  * scratch at other times) [3 x $2 bytes, by sprite range (0 priority bits clear, 1 bit 2 set, 2
  * bit 3 set)] */
@@ -666,6 +699,11 @@
 #define RAM_FIELD_TARGET_TILE_DP 0xF2u       /* page field */
 #define RAM_FIELD_TARGET_TILE_X 0x7E01F2u    /* Tile X */
 #define RAM_FIELD_TARGET_TILE_Y 0x7E01F3u    /* Tile Y */
+/* The direction's working cells: the angle table index's low part ($F4, a word) and the two
+ * distances turned into the quadrant ($F6, $F7) (field/scratch.h: kept for the original's code
+ * and shadow mode) [4 bytes] */
+#define RAM_FIELD_DIRECTION_WORK 0x7E01F4u
+#define RAM_FIELD_DIRECTION_WORK_DP 0xF4u    /* page field */
 /* Index into the random byte table at $FE00, stepped before each use */
 #define RAM_FIELD_RANDOM_INDEX 0x7E01F8u
 #define RAM_FIELD_RANDOM_INDEX_DP 0xF8u      /* page field */
@@ -676,15 +714,41 @@
 #define RAM_WORLD_POSITION 0x7E0283u
 #define RAM_WORLD_POSITION_X 0x7E0283u       /* Horizontal */
 #define RAM_WORLD_POSITION_Y 0x7E0285u       /* Vertical */
-/* 24-bit pointer to the per-line table the quadrilateral is rasterized into (two bytes per line,
- * left X then right X) [3 bytes] */
+/* Long pointer to the per-line table the quadrilateral is rasterized into (two bytes per line,
+ * left X then right X); the rasterizer moves it a byte on to draw the right-hand edges and back
+ * again [3 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_TABLE 0x7E0350u
+#define RAM_FIELD_WINDOW_SHAPE_TABLE_DP 0x50u /* page field_window_shape */
+#define RAM_FIELD_WINDOW_SHAPE_TABLE_ADDRESS 0x7E0350u /* The table's address in its bank */
+#define RAM_FIELD_WINDOW_SHAPE_TABLE_BANK 0x7E0352u /* Its bank; bit 0 also picks the bank ($7E or $7F) the rasterizer fills the table's ends in */
+/* The edge being drawn: the words X and Y of its start, then of its end, the start the upper end
+ * (field/scratch.h: kept for the original's code and shadow mode) [8 bytes] */
+#define RAM_FIELD_WINDOW_SHAPE_EDGE 0x7E0353u
+#define RAM_FIELD_WINDOW_SHAPE_EDGE_DP 0x53u /* page field_window_shape */
 /* The quadrilateral's corners, in drawing order [4 x $2 bytes, by corner] */
 #define RAM_FIELD_WINDOW_SHAPE_CORNERS 0x7E0360u
 #define RAM_FIELD_WINDOW_SHAPE_CORNERS_COUNT 4u
 #define RAM_FIELD_WINDOW_SHAPE_CORNERS_STRIDE 0x02u
+#define RAM_FIELD_WINDOW_SHAPE_CORNERS_DP 0x60u /* page field_window_shape */
 #define RAM_FIELD_WINDOW_SHAPE_CORNERS_X 0x7E0360u /* X */
 #define RAM_FIELD_WINDOW_SHAPE_CORNERS_Y 0x7E0361u /* Line */
+/* The quadrilateral's top line: its topmost corner's Y. The lines above it are filled as empty
+ * [2 bytes] */
+#define RAM_FIELD_WINDOW_SHAPE_TOP 0x7E0368u
+#define RAM_FIELD_WINDOW_SHAPE_TOP_DP 0x68u  /* page field_window_shape */
+/* Where the quadrilateral's right-hand side starts: the lower end of the first edge drawn
+ * upward. The lines below it are filled as empty [2 bytes] */
+#define RAM_FIELD_WINDOW_SHAPE_RIGHT_START 0x7E036Au
+#define RAM_FIELD_WINDOW_SHAPE_RIGHT_START_DP 0x6Au /* page field_window_shape */
+/* The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's
+ * length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is
+ * still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC)
+ * (field/scratch.h: kept for the original's code and shadow mode) [14 bytes] */
+#define RAM_FIELD_WINDOW_SHAPE_STEPS 0x7E03F0u
+#define RAM_FIELD_WINDOW_SHAPE_STEPS_DP 0xF0u /* page field_window_shape */
+/* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
+ * Y, tile and attributes, then the high table's 32 bytes [544 bytes] */
+#define RAM_FIELD_SPRITE_TABLE 0x7E0700u
 /* Queued VRAM uploads from bank $7F, two transfers per entry, run by field_upload_vram_queue:
  * the first transfer's source [8 x $2 bytes, by queue entry] */
 #define RAM_FIELD_VRAM_QUEUE_SOURCE 0x7E0940u
@@ -973,6 +1037,10 @@
 #define RAM_FIELD_SCREEN_SCROLL_STEP_COUNT 2u
 #define RAM_FIELD_SCREEN_SCROLL_STEP_STRIDE 0x02u
 #define RAM_FIELD_SCREEN_SCROLL_STEP_DP 0x2Eu /* page field_layers */
+/* Bit 1: BG2, bit 2: BG3 stays where it is while the screen scrolls (its accumulators leave out
+ * the screen's steps and offsets) */
+#define RAM_FIELD_LAYER_STILL 0x7E1D36u
+#define RAM_FIELD_LAYER_STILL_DP 0x36u       /* page field_layers */
 /* Scroll speed of layers 2 and 3, 4.4 fixed point [2 x $2 bytes, by layer - 2 (BG2, BG3)] */
 #define RAM_FIELD_LAYER_SPEED 0x7E1D37u
 #define RAM_FIELD_LAYER_SPEED_COUNT 2u
@@ -1004,6 +1072,20 @@
 #define RAM_FIELD_SCROLL_OFFSET_DP 0x4Eu     /* page field_layers */
 #define RAM_FIELD_SCROLL_OFFSET_X 0x7E1D4Eu  /* Horizontal */
 #define RAM_FIELD_SCROLL_OFFSET_Y 0x7E1D4Fu  /* Vertical */
+/* Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and
+ * while a map unpacks its size, the row it is on and a run's three bytes (field/scratch.h: kept
+ * for the original's code and shadow mode) [14 bytes] */
+#define RAM_FIELD_LAYER_WORK 0x7E1D50u
+#define RAM_FIELD_LAYER_WORK_DP 0x50u        /* page field_layers */
+/* Where a layer's left edge column wraps round the tile map (its index less 31), set only by a
+ * layer whose left edge is the last column of a half, and read by every layer as its third VRAM
+ * address, whether it set it or not [2 bytes] */
+#define RAM_FIELD_LAYER_EDGE_WRAP 0x7E1D5Eu
+#define RAM_FIELD_LAYER_EDGE_WRAP_DP 0x5Eu   /* page field_layers */
+/* The edge helpers' cells ($62-$6F): the column and row they were given and the counts they
+ * return (field/scratch.h: kept for the original's code and shadow mode) [16 bytes] */
+#define RAM_FIELD_LAYER_EDGE_WORK 0x7E1D60u
+#define RAM_FIELD_LAYER_EDGE_WORK_DP 0x60u   /* page field_layers */
 /* Deferred tile map uploads for the field NMI: bits 0-2 one per layer, cleared after they run [4
  * x $1 bytes, by upload group (tiles, tiles alt, columns, columns alt)] */
 #define RAM_FIELD_LAYER_UPLOAD_FLAGS 0x7E1D78u
@@ -1011,12 +1093,16 @@
 #define RAM_FIELD_LAYER_UPLOAD_FLAGS_STRIDE 0x01u
 #define RAM_FIELD_LAYER_UPLOAD_FLAGS_DP 0x78u /* page field_layers */
 /* Base added to each layer's tile map indexes to make the VRAM addresses the deferred uploads
- * use; map transitions 1, 2 and 4 load their destination from it [3 x $2 bytes, by layer
- * (BG1-BG3)] */
+ * use; map transitions 1, 2 and 4 load their destination from it (3 from
+ * field_transition_map_base) [3 x $2 bytes, by layer (BG1-BG3)] */
 #define RAM_FIELD_LAYER_MAP_BASE 0x7E1D7Cu
 #define RAM_FIELD_LAYER_MAP_BASE_COUNT 3u
 #define RAM_FIELD_LAYER_MAP_BASE_STRIDE 0x02u
 #define RAM_FIELD_LAYER_MAP_BASE_DP 0x7Cu    /* page field_layers */
+/* VRAM address the map transition's third move sends the staged tile map to (the others go to
+ * BG1's, BG2's or BG3's field_layer_map_base) [2 bytes] */
+#define RAM_FIELD_TRANSITION_MAP_BASE 0x7E1D82u
+#define RAM_FIELD_TRANSITION_MAP_BASE_DP 0x82u /* page field_layers */
 /* Bits ORed into the low byte of each layer's field_layer_map_base to make the tile map register
  * value the per-line effects send [3 x $1 bytes, by layer (BG1-BG3)] */
 #define RAM_FIELD_LAYER_MAP_SIZE 0x7E1D84u
@@ -1071,6 +1157,9 @@
 #define RAM_FIELD_LAYER_MAPS 0x7E3000u
 #define RAM_FIELD_LAYER_MAPS_COUNT 3u
 #define RAM_FIELD_LAYER_MAPS_STRIDE 0x40u
+/* Row 0 of the table a map unpacks from the first of its three bytes a tile, beside the two
+ * attribute tables (row r r * 256 on) [64 bytes] */
+#define RAM_FIELD_TILE_PROPERTIES 0x7E30C0u
 /* Row 0 of the map attribute tables (row r r * 256 on, index row << 8 | column): +$00 bit 6 the
  * sprite priority for field_object_sprite_priority +1; +$40 bit 7 blocks movement, bit 6 the
  * priority for +0 [128 bytes] */
@@ -1197,14 +1286,10 @@
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE 0x7F4B40u
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT 64u
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_STRIDE 0x02u
-/* The objects' 8-byte sprite records, at each object's field_object_sprite_records offset [8
- * bytes] */
+/* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
+ * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
+ * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes] */
 #define RAM_FIELD_SPRITE_RECORDS 0x7F4BC0u
-#define RAM_FIELD_SPRITE_RECORDS_X 0x7F4BC0u /* Screen X */
-#define RAM_FIELD_SPRITE_RECORDS_Y 0x7F4BC1u /* Screen Y ($E0 hidden) */
-#define RAM_FIELD_SPRITE_RECORDS_X_OFFSET 0x7F4BC2u /* X offset from the object's screen position */
-#define RAM_FIELD_SPRITE_RECORDS_Y_OFFSET 0x7F4BC4u /* Y offset from the object's screen position */
-#define RAM_FIELD_SPRITE_RECORDS_TILE 0x7F4BC6u /* Tile and attribute bytes */
 /* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) [64 x
  * $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_SPRITE_HIGH 0x7F4F00u

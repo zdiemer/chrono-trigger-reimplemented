@@ -22,7 +22,6 @@ UNCONVERTED = {
     "attract/main_loop.c",   # $4212 polls in RAM wait loops
     "battle/main_loop.c",    # the debug path's second controller
     "battle/wait.c",         # $4212 and counter polls in idle entries
-    "field/sprites.c",       # direct page $2100 for the WRAM port at $2180
 }
 
 # Uses of the SNES-only escapes, per file.

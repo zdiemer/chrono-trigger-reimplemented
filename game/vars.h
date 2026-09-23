@@ -523,11 +523,12 @@ void set_event_source_pointer(GameState *g, uint32_t v);
 uint32_t event_target_pointer(const GameState *g);
 void set_event_target_pointer(GameState *g, uint32_t v);
 
-/* The event commands' scratch cells, words at $D9, $DB, $DD, $DF, $E1 and $E3: each command
- * keeps its operands and intermediate values there, and only that command reads them back
- * (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7 reads $E2 as a
- * phase it never sets) [12 bytes, one at a time] */
-enum { EVENT_SCRATCH_BYTES = 12 };
+/* The field page's scratch cells, $D9-$E6. Each event command keeps its operands and
+ * intermediate values in the words at $D9, $DB, $DD, $DF, $E1 and $E3, and only that command
+ * reads them back (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7
+ * reads $E2 as a phase it never sets); the field's motion, sprite, layer and graphics routines
+ * leave their values there on the way (field/scratch.h) [14 bytes, one at a time] */
+enum { EVENT_SCRATCH_BYTES = 14 };
 uint8_t event_scratch_byte(const GameState *g, unsigned at);
 void set_event_scratch_byte(GameState *g, unsigned at, uint8_t v);
 
@@ -742,8 +743,10 @@ void set_field_input_latched(GameState *g, uint16_t v);
 uint8_t field_frame_pending(const GameState *g);
 void set_field_frame_pending(GameState *g, uint8_t v);
 
-/* Low nibble set: the per-line effects use the second set of tables; bit 0 also picks the field
- * IRQ's tilemap routine ($FD:FFFD instead of $C0:ED15) */
+/* Bit 0: the line effects read table set 1 (the builders build the other and flip it every
+ * frame; the vblank programs set 1 for any bit of the low nibble), and the line interrupt's late
+ * work alternates with it ($FD:FFFD instead of $C0:ED15). Bit 7: the field's setup builds both
+ * sets from its own scroll and color math */
 uint8_t field_display_flags(const GameState *g);
 void set_field_display_flags(GameState *g, uint8_t v);
 
@@ -782,10 +785,12 @@ void set_field_animation_line_limit(GameState *g, uint16_t v);
 uint16_t field_current_object(const GameState *g);
 void set_field_current_object(GameState *g, uint16_t v);
 
-/* Queue of objects due a new animation frame, linked through field_object_animation_link: +0 the
- * head, +1 the tail (negative: empty) */
-uint16_t field_animation_queue(const GameState *g);
-void set_field_animation_queue(GameState *g, uint16_t v);
+/* The first object queued (negative: the queue is empty) */
+uint8_t field_animation_queue_head(const GameState *g);
+void set_field_animation_queue_head(GameState *g, uint8_t v);
+/* The last object queued (negative: the queue is empty) */
+uint8_t field_animation_queue_tail(const GameState *g);
+void set_field_animation_queue_tail(GameState *g, uint8_t v);
 
 /* 2: the next object in state 1 or 2 due a frame goes to the front of the animation queue (then
  * cleared) */
@@ -803,19 +808,52 @@ enum { FIELD_SPRITE_RANGE_HIGH_COUNT = 3 };   /* by sprite range (0 priority bit
 uint16_t field_sprite_range_high(const GameState *g, unsigned i);
 void set_field_sprite_range_high(GameState *g, unsigned i, uint16_t v);
 
+enum { FIELD_SPRITE_RANGE_SPARE_COUNT = 3 };   /* by sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set) */
+/* A word beside each range's high table pointer, cleared as the sprite table is built; nothing
+ * in the field reads it (field/scratch.h: kept for shadow mode) */
+uint16_t field_sprite_range_spare(const GameState *g, unsigned i);
+void set_field_sprite_range_spare(GameState *g, unsigned i, uint16_t v);
+
 enum { FIELD_PARTY_OBJECTS_COUNT = 3 };   /* by party member * 2 */
 /* Object slot of each active party member, negative for none */
 uint8_t field_party_objects(const GameState *g, unsigned member);
 void set_field_party_objects(GameState *g, unsigned member, uint8_t v);
 
-/* Set by event $F4 (zero also clears field_scroll_offset) and cleared when the field starts
- * ($C0:0BA4); what reads it isn't established */
+/* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
+ * except against the map's left or top edge. Set by event $F4 (zero also clears
+ * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
 uint8_t field_setting_bc(const GameState *g);
 void set_field_setting_bc(GameState *g, uint8_t v);
+
+/* Cells the field's object, sprite and graphics routines keep values in on the way: an
+ * animation's delay entry ($C1), the view window's edges or an object's screen position
+ * ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7) [8 bytes, one
+ * at a time] */
+enum { FIELD_WORK_BYTES = 8 };
+uint8_t field_work_byte(const GameState *g, unsigned at);
+void set_field_work_byte(GameState *g, unsigned at, uint8_t v);
 
 /* Sprites of the current object still to write while the OAM table is built */
 uint8_t field_sprites_left(const GameState *g);
 void set_field_sprites_left(GameState *g, uint8_t v);
+
+/* Its address in the bank */
+uint16_t field_sprite_graphics_address(const GameState *g);
+void set_field_sprite_graphics_address(GameState *g, uint16_t v);
+/* The bank ($7F, or $D2-$D5) */
+uint8_t field_sprite_graphics_bank(const GameState *g);
+void set_field_sprite_graphics_bank(GameState *g, uint8_t v);
+
+/* Where in bank $7F the frame builder puts the next sprite tile it copies */
+uint16_t field_sprite_tile_offset(const GameState *g);
+void set_field_sprite_tile_offset(GameState *g, uint16_t v);
+
+/* The entry's address: the facing's frame table plus animation * 4 + frame */
+uint16_t field_frame_entry_address(const GameState *g);
+void set_field_frame_entry_address(GameState *g, uint16_t v);
+/* The frame tables' bank */
+uint8_t field_frame_entry_bank(const GameState *g);
+void set_field_frame_entry_bank(GameState *g, uint8_t v);
 
 enum { FIELD_SPRITE_RANGE_NEXT_COUNT = 3 };   /* by sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set) */
 /* Next free OAM entry of each sprite range while the sprite table is built (the cells are
@@ -848,6 +886,12 @@ void set_field_target_tile_x(GameState *g, uint8_t v);
 uint8_t field_target_tile_y(const GameState *g);
 void set_field_target_tile_y(GameState *g, uint8_t v);
 
+/* The direction's working cells: the angle table index's low part ($F4, a word) and the two
+ * distances turned into the quadrant ($F6, $F7) (field/scratch.h: kept for the original's code
+ * and shadow mode) */
+uint32_t field_direction_work(const GameState *g);
+void set_field_direction_work(GameState *g, uint32_t v);
+
 /* Index into the random byte table at $FE00, stepped before each use */
 uint8_t field_random_index(const GameState *g);
 void set_field_random_index(GameState *g, uint8_t v);
@@ -864,10 +908,18 @@ void set_world_position_x(GameState *g, uint16_t v);
 uint16_t world_position_y(const GameState *g);
 void set_world_position_y(GameState *g, uint16_t v);
 
-/* 24-bit pointer to the per-line table the quadrilateral is rasterized into (two bytes per line,
- * left X then right X) */
-uint32_t field_window_shape_table(const GameState *g);
-void set_field_window_shape_table(GameState *g, uint32_t v);
+/* The table's address in its bank */
+uint16_t field_window_shape_table_address(const GameState *g);
+void set_field_window_shape_table_address(GameState *g, uint16_t v);
+/* Its bank; bit 0 also picks the bank ($7E or $7F) the rasterizer fills the table's ends in */
+uint8_t field_window_shape_table_bank(const GameState *g);
+void set_field_window_shape_table_bank(GameState *g, uint8_t v);
+
+/* The edge being drawn: the words X and Y of its start, then of its end, the start the upper end
+ * (field/scratch.h: kept for the original's code and shadow mode) [8 bytes, one at a time] */
+enum { FIELD_WINDOW_SHAPE_EDGE_BYTES = 8 };
+uint8_t field_window_shape_edge_byte(const GameState *g, unsigned at);
+void set_field_window_shape_edge_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { FIELD_WINDOW_SHAPE_CORNERS_COUNT = 4 };   /* by corner */
 /* X */
@@ -876,6 +928,29 @@ void set_field_window_shape_corners_x(GameState *g, unsigned corner, uint8_t v);
 /* Line */
 uint8_t field_window_shape_corners_y(const GameState *g, unsigned corner);
 void set_field_window_shape_corners_y(GameState *g, unsigned corner, uint8_t v);
+
+/* The quadrilateral's top line: its topmost corner's Y. The lines above it are filled as empty */
+uint16_t field_window_shape_top(const GameState *g);
+void set_field_window_shape_top(GameState *g, uint16_t v);
+
+/* Where the quadrilateral's right-hand side starts: the lower end of the first edge drawn
+ * upward. The lines below it are filled as empty */
+uint16_t field_window_shape_right_start(const GameState *g);
+void set_field_window_shape_right_start(GameState *g, uint16_t v);
+
+/* The rasterizer's working cells, $F0-$FD: where the edge sequence is entered, then the fill's
+ * length ($F0), an edge's lines left ($F2), the edges left ($F4), whether the right-hand side is
+ * still to come ($F6), an edge's width and height ($F8, $FA) and its step error ($FC)
+ * (field/scratch.h: kept for the original's code and shadow mode) [14 bytes, one at a time] */
+enum { FIELD_WINDOW_SHAPE_STEPS_BYTES = 14 };
+uint8_t field_window_shape_steps_byte(const GameState *g, unsigned at);
+void set_field_window_shape_steps_byte(GameState *g, unsigned at, uint8_t v);
+
+/* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
+ * Y, tile and attributes, then the high table's 32 bytes [544 bytes, one at a time] */
+enum { FIELD_SPRITE_TABLE_BYTES = 544 };
+uint8_t field_sprite_table_byte(const GameState *g, unsigned at);
+void set_field_sprite_table_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { FIELD_VRAM_QUEUE_SOURCE_COUNT = 8 };   /* by queue entry */
 /* Queued VRAM uploads from bank $7F, two transfers per entry, run by field_upload_vram_queue:
@@ -1211,6 +1286,11 @@ enum { FIELD_SCREEN_SCROLL_STEP_COUNT = 2 };   /* by axis (X, Y) */
 uint8_t field_screen_scroll_step(const GameState *g, unsigned i);
 void set_field_screen_scroll_step(GameState *g, unsigned i, uint8_t v);
 
+/* Bit 1: BG2, bit 2: BG3 stays where it is while the screen scrolls (its accumulators leave out
+ * the screen's steps and offsets) */
+uint8_t field_layer_still(const GameState *g);
+void set_field_layer_still(GameState *g, uint8_t v);
+
 enum { FIELD_LAYER_SPEED_COUNT = 2 };   /* by layer - 2 (BG2, BG3) */
 /* Horizontal */
 uint8_t field_layer_speed_x(const GameState *g, unsigned layer);
@@ -1246,6 +1326,26 @@ void set_field_scroll_offset_x(GameState *g, uint8_t v);
 uint8_t field_scroll_offset_y(const GameState *g);
 void set_field_scroll_offset_y(GameState *g, uint8_t v);
 
+/* Cells the layer routines keep values in on the way ($52-$5C): a row's start in a tile map, and
+ * while a map unpacks its size, the row it is on and a run's three bytes (field/scratch.h: kept
+ * for the original's code and shadow mode) [14 bytes, one at a time] */
+enum { FIELD_LAYER_WORK_BYTES = 14 };
+uint8_t field_layer_work_byte(const GameState *g, unsigned at);
+void set_field_layer_work_byte(GameState *g, unsigned at, uint8_t v);
+
+/* Where a layer's left edge column wraps round the tile map (its index less 31), set only by a
+ * layer whose left edge is the last column of a half, and read by every layer as its third VRAM
+ * address, whether it set it or not */
+uint16_t field_layer_edge_wrap(const GameState *g);
+void set_field_layer_edge_wrap(GameState *g, uint16_t v);
+
+/* The edge helpers' cells ($62-$6F): the column and row they were given and the counts they
+ * return (field/scratch.h: kept for the original's code and shadow mode) [16 bytes, one at a
+ * time] */
+enum { FIELD_LAYER_EDGE_WORK_BYTES = 16 };
+uint8_t field_layer_edge_work_byte(const GameState *g, unsigned at);
+void set_field_layer_edge_work_byte(GameState *g, unsigned at, uint8_t v);
+
 enum { FIELD_LAYER_UPLOAD_FLAGS_COUNT = 4 };   /* by upload group (tiles, tiles alt, columns, columns alt) */
 /* Deferred tile map uploads for the field NMI: bits 0-2 one per layer, cleared after they run */
 uint8_t field_layer_upload_flags(const GameState *g, unsigned i);
@@ -1253,9 +1353,15 @@ void set_field_layer_upload_flags(GameState *g, unsigned i, uint8_t v);
 
 enum { FIELD_LAYER_MAP_BASE_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Base added to each layer's tile map indexes to make the VRAM addresses the deferred uploads
- * use; map transitions 1, 2 and 4 load their destination from it */
+ * use; map transitions 1, 2 and 4 load their destination from it (3 from
+ * field_transition_map_base) */
 uint16_t field_layer_map_base(const GameState *g, unsigned layer);
 void set_field_layer_map_base(GameState *g, unsigned layer, uint16_t v);
+
+/* VRAM address the map transition's third move sends the staged tile map to (the others go to
+ * BG1's, BG2's or BG3's field_layer_map_base) */
+uint16_t field_transition_map_base(const GameState *g);
+void set_field_transition_map_base(GameState *g, uint16_t v);
 
 enum { FIELD_LAYER_MAP_SIZE_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Bits ORed into the low byte of each layer's field_layer_map_base to make the tile map register
@@ -1321,6 +1427,12 @@ enum { FIELD_LAYER_MAPS_COUNT = 3 };   /* by layer (BG1-BG3) */
 enum { FIELD_LAYER_MAPS_BYTES = 64 };
 uint8_t field_layer_maps_byte(const GameState *g, unsigned layer, unsigned at);
 void set_field_layer_maps_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+
+/* Row 0 of the table a map unpacks from the first of its three bytes a tile, beside the two
+ * attribute tables (row r r * 256 on) [64 bytes, one at a time] */
+enum { FIELD_TILE_PROPERTIES_BYTES = 64 };
+uint8_t field_tile_properties_byte(const GameState *g, unsigned at);
+void set_field_tile_properties_byte(GameState *g, unsigned at, uint8_t v);
 
 /* Row 0 of the map attribute tables (row r r * 256 on, index row << 8 | column): +$00 bit 6 the
  * sprite priority for field_object_sprite_priority +1; +$40 bit 7 blocks movement, bit 6 the
@@ -1481,21 +1593,13 @@ enum { FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT = 64 };   /* by object slot (X = slot
 uint16_t field_object_sprite_high_more(const GameState *g, unsigned slot);
 void set_field_object_sprite_high_more(GameState *g, unsigned slot, uint16_t v);
 
-/* Screen X */
-uint8_t field_sprite_records_x(const GameState *g);
-void set_field_sprite_records_x(GameState *g, uint8_t v);
-/* Screen Y ($E0 hidden) */
-uint8_t field_sprite_records_y(const GameState *g);
-void set_field_sprite_records_y(GameState *g, uint8_t v);
-/* X offset from the object's screen position */
-uint16_t field_sprite_records_x_offset(const GameState *g);
-void set_field_sprite_records_x_offset(GameState *g, uint16_t v);
-/* Y offset from the object's screen position */
-uint8_t field_sprite_records_y_offset(const GameState *g);
-void set_field_sprite_records_y_offset(GameState *g, uint8_t v);
-/* Tile and attribute bytes */
-uint16_t field_sprite_records_tile(const GameState *g);
-void set_field_sprite_records_tile(GameState *g, uint16_t v);
+/* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
+ * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
+ * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes, one at a
+ * time] */
+enum { FIELD_SPRITE_RECORDS_BYTES = 832 };
+uint8_t field_sprite_records_byte(const GameState *g, unsigned at);
+void set_field_sprite_records_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { FIELD_OBJECT_SPRITE_HIGH_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) */

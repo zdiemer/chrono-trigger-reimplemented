@@ -1,35 +1,36 @@
-/* Field mode: installing its interrupt handlers. */
+/* Field mode: taking over the interrupts.
+ *
+ * The ROM's interrupt vectors jump through two stubs in work RAM (nmi_vector
+ * and irq_vector), each a long jump the running mode points at its own
+ * handler. Entering the field points them at the field's vblank handler
+ * (field/nmi.c) and its line interrupt (field/display.c). */
 #include "field/field.h"
 
 #include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
-/* Writes a JML opcode and a 24-bit target into one of the RAM interrupt stubs
- * the ROM vectors jump through ($0500 NMI, $0504 IRQ), the way the originals
- * do: A = $5C, X = target address (16-bit), A = target bank. */
-static void install_vector_stub(Snes *s, uint16_t stub, uint32_t target)
-{
-    m_write8(s, m_abs(s, stub), 0x5C);                       /* JML */
-    s->cpu.x = target & 0xFFFF;
-    m_write16(s, m_abs(s, stub + 1), s->cpu.x);
-    m_set_a8(s, target >> 16);
-    m_write8(s, m_abs(s, stub + 3), target >> 16);
-    m_set_nz8(s, target >> 16);
-}
+enum { LONG_JUMP = 0x5C };
+enum { FIELD_VBLANK_HANDLER = 0xC0EA63, FIELD_LINE_HANDLER = 0xC0ECCC };
 
-/* $C0:0B64
- * Point the NMI stub at the field NMI handler (field_nmi, $C0:EA63).
- * Entry: 8-bit A, 16-bit X. */
+static uint32_t jump_to(uint32_t handler) { return LONG_JUMP | handler << 8; }
+
+// $C0:0B64
+static void install_nmi(GameState *g) { set_nmi_vector(g, jump_to(FIELD_VBLANK_HANDLER)); }
+
+// $C0:0B75
+static void install_irq(GameState *g) { set_irq_vector(g, jump_to(FIELD_LINE_HANDLER)); }
+
+/* Nothing they leave in the registers is read after (the entries' don't-care
+ * sets). */
 void field_install_nmi(Snes *s)
 {
-    install_vector_stub(s, 0x0500, 0xC0EA63);
+    install_nmi(state_of(s));
     m_rts(s);
 }
 
-/* $C0:0B75
- * Point the IRQ stub at the field IRQ handler ($C0:ECCC).
- * Entry: 8-bit A, 16-bit X. */
 void field_install_irq(Snes *s)
 {
-    install_vector_stub(s, 0x0504, 0xC0ECCC);
+    install_irq(state_of(s));
     m_rts(s);
 }

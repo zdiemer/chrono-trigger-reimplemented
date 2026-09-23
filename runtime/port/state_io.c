@@ -24,6 +24,8 @@ void hw_set_dividend(GameState *g, uint16_t dividend) { m_write16(state_snes(g),
 
 uint16_t hw_quotient(const GameState *g) { return m_read16(state_snes(g), RDDIV); }
 
+uint16_t hw_remainder(const GameState *g) { return m_read16(state_snes(g), RDMPY); }
+
 void hw_divide_by(GameState *g, uint8_t divisor) { m_write8(state_snes(g), WRDIVB, divisor); }
 
 void hw_port_seek(GameState *g, uint16_t at, uint8_t bank)
@@ -33,6 +35,8 @@ void hw_port_seek(GameState *g, uint16_t at, uint8_t bank)
 }
 
 void hw_port_seek_address(GameState *g, uint16_t at) { m_write16(state_snes(g), WMADDL, at); }
+
+void hw_port_seek_bank(GameState *g, uint8_t bank) { m_write8(state_snes(g), WMADDB, bank); }
 
 uint8_t hw_port_read(GameState *g) { return m_read8(state_snes(g), WMDATA); }
 

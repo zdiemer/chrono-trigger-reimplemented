@@ -1,544 +1,534 @@
-/* Field mode: per-frame arithmetic for the three background layers.
+/* Field mode: the three background layers. Every frame, how far each layer
+ * scrolls and which of its tile map's columns and rows come into view; and
+ * when a map loads, its tile maps and tile attributes unpacked from the map's
+ * data.
  *
- * Positions and offsets live on the field's direct page: $99-$9E hold each
- * layer's position in tiles (X then Y), $7C/$7E/$80 base values added to the
- * tile map offsets computed from them. Tile maps are indexed as row * 32 +
- * column, with columns from $20 in a second half at $0400. */
+ * A layer's tile map in VRAM is 64 tiles wide and 32 high, in two halves of
+ * 32 columns side by side ($400 words apart), indexed row * 32 + column. The
+ * screen scrolls a pixel a frame toward a target tile when the field asks it
+ * to (a scene's pan), the other layers follow at their own speeds or stay
+ * still, and a setting can shake it; each layer's move is kept in 4.4 fixed
+ * point, whose whole pixels are the frame's move. As a layer scrolls, the
+ * deferred uploads send the column and row that come into view at the
+ * screen's edges, and the edge runs worked out here say where those are and
+ * how they split where a run crosses from one half to the other. These run
+ * on the layers' page. */
 #include "field/layers.h"
 
+#include "cpu_io.h"
+#include "field/bridge.h"
+#include "field/field.h"
+#include "field/scratch.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
+enum { HALF_COLUMNS = 32, MAP_COLUMNS = 64, MAP_ROWS = 32, SECOND_HALF = 0x0400, LAST_ROW_OF_HALF = 0x03E0 };
+enum { COLUMN_MASK = MAP_COLUMNS - 1, ROW_MASK = MAP_ROWS - 1 };
+enum { SCREEN_ROWS = 28 };   /* the row below the screen's is 28 on from its top */
 
-/* 16-bit accumulator arithmetic as CLC : ADC / SEC : SBC. */
-static void clc_adc16(Snes *s, uint16_t v)
+/* ---- The edges -------------------------------------------------------------------------- */
+
+/* The tile map index of a column on a row. */
+static uint16_t map_index(uint16_t column, uint16_t row)
 {
-    m_set_flag(s, CPU_FLAG_C, false);
-    s->cpu.a = m_adc16(s, s->cpu.a, v);
+    uint16_t start = (uint16_t)(row * HALF_COLUMNS);
+    return column < HALF_COLUMNS ? (uint16_t)(start + column) : (uint16_t)(column - HALF_COLUMNS + start + SECOND_HALF);
 }
 
-static void sec_sbc16(Snes *s, uint16_t v)
+/* Where the same row starts in the other half. */
+static uint16_t other_half_row(uint16_t column, uint16_t row)
 {
-    m_set_flag(s, CPU_FLAG_C, true);
-    s->cpu.a = m_sbc16(s, s->cpu.a, v);
+    uint16_t start = (uint16_t)(row * HALF_COLUMNS);
+    return column < HALF_COLUMNS ? (uint16_t)(start + SECOND_HALF) : start;
 }
 
-static void tay16(Snes *s) { m_set_index(s, &s->cpu.y, s->cpu.a); }
-static void tya16(Snes *s) { m_lda16(s, s->cpu.y); }
-
-/* ASL on a 16-bit direct-page word. */
-static void asl_dp16(Snes *s, uint8_t cell)
+/* A column's index as the top and bottom edges use it: the column's own, in
+ * the last row of its half. */
+static uint16_t column_in_last_row(uint16_t column)
 {
-    set_dp16(s, cell, m_asl16(s, dp16(s, cell)));
+    return column < HALF_COLUMNS ? column : (uint16_t)(column + LAST_ROW_OF_HALF);
 }
 
-/* STA $62 : TYA : ASL A x5 : STA $52 : LDA $62 : CMP #$0020 -- the start of
- * each helper: row Y * 32 into $52, the column (A) into $62. Returns true if
- * the column is in the second half ($20 or more). */
-static bool helper_start(Snes *s, bool save_row)
+/* A row run: its tile map indexes from its start, from the row's start in
+ * the other half, and from where it wraps; and the parts' sizes in bytes. */
+typedef struct {
+    uint16_t start, other_half, wrap;
+} RowRun;
+
+typedef struct {
+    uint16_t to_half_end, across, wrapped;
+} RowSizes;
+
+/* A column run: its tile map indexes from its start, and from the top of the
+ * map where it wraps; and the parts' sizes. */
+typedef struct {
+    uint16_t start, wrap;
+} ColumnRun;
+
+typedef struct {
+    uint16_t to_map_end, from_map_top;
+} ColumnSizes;
+
+typedef struct {
+    RowRun top_row, bottom_row;
+    RowSizes row_sizes;
+    ColumnRun left_column, right_column;
+    ColumnSizes column_sizes;
+} LayerEdges;
+
+// $C0:813D
+/* The view's top row, from a column left of the screen: its start, the row's
+ * start in the other half, and the columns to its half's end and past it.
+ * Where it starts on its half's last column, it is that column and a whole
+ * row of the other half, and where the run wraps round is kept for the
+ * uploads (every layer sends the last one kept). */
+static void top_row(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
 {
-    set_dp16(s, 0x62, s->cpu.a);
-    tya16(s);
-    if (save_row)
-        set_dp16(s, 0x64, s->cpu.a);
-    for (int i = 0; i < 5; i++)
-        s->cpu.a = m_asl16(s, s->cpu.a);
-    set_dp16(s, 0x52, s->cpu.a);
-    m_lda16(s, dp16(s, 0x62));
-    m_cmp16(s, s->cpu.a, 0x0020);
-    return m_flag(s, CPU_FLAG_C);
+    uint16_t index = map_index(column, row);
+    uint16_t to_half_end = (uint16_t)((column < HALF_COLUMNS ? HALF_COLUMNS : MAP_COLUMNS) - column);
+    bool wraps = to_half_end == 1;
+    e->row_sizes = (RowSizes){ (uint16_t)(to_half_end * 2),
+                               (uint16_t)((wraps ? HALF_COLUMNS : HALF_COLUMNS + 2 - to_half_end) * 2),
+                               wraps ? 2 : 0 };
+    if (wraps)
+        set_field_layer_edge_wrap(g, (uint16_t)(index - (HALF_COLUMNS - 1)));
+    e->top_row = (RowRun){ index, other_half_row(column, row), field_layer_edge_wrap(g) };
 }
 
-/* SEC : SBC #$0020 : CLC : ADC $52 : CLC : ADC #$0400 -- the second half's
- * index of the column in A on row $52. */
-static void second_half_index(Snes *s)
+// $C0:81A1
+/* The row below the view's bottom, from the same column: its start, the
+ * row's start in the other half, and 31 columns back. */
+static void bottom_row(LayerEdges *e, uint16_t column, uint16_t row)
 {
-    sec_sbc16(s, 0x0020);
-    clc_adc16(s, dp16(s, 0x52));
-    clc_adc16(s, 0x0400);
+    uint16_t index = map_index(column, row);
+    e->bottom_row = (RowRun){ index, other_half_row(column, row), (uint16_t)(index - (HALF_COLUMNS - 1)) };
 }
 
-/* $C0:813D: X = the index of column A on row Y, Y = the matching index in
- * the other half's row, $6C = the columns left to the half's end, doubled,
- * $6E = the rest of 34 columns, doubled; with 33 or more ($6A = 2) the rest
- * is 32 columns and $5E = X - 31. */
-static void edge_left(Snes *s)
+// $C0:81D6
+/* The view's left column, from the row above the screen: its start, the
+ * column in its half's last row, and the rows from it to the map's end and
+ * before it. */
+static void left_column(LayerEdges *e, uint16_t column, uint16_t row)
 {
-    Cpu *c = &s->cpu;
-    if (!helper_start(s, false)) {
-        clc_adc16(s, dp16(s, 0x52));
-        m_tax(s);
-        m_lda16(s, dp16(s, 0x52));
-        clc_adc16(s, 0x0400);
-        tay16(s);
-        m_lda16(s, 0x0020);
-    } else {
-        second_half_index(s);
-        m_tax(s);
-        m_ldy(s, dp16(s, 0x52));
-        m_lda16(s, 0x0040);
-    }
-    sec_sbc16(s, dp16(s, 0x62));
-    set_dp16(s, 0x6C, c->a);
-    /* $C0:8179 */
-    m_lda16(s, 0x0022);
-    sec_sbc16(s, dp16(s, 0x6C));
-    m_cmp16(s, c->a, 0x0021);
-    if (m_flag(s, CPU_FLAG_C)) {
-        m_lda16(s, 0x0020);
-        c->a = m_asl16(s, c->a);
-        set_dp16(s, 0x6E, c->a);
-        asl_dp16(s, 0x6C);
-        set_dp16(s, 0x6A, m_lda16(s, 0x0002));
-        m_txa(s);
-        sec_sbc16(s, 0x001F);
-        set_dp16(s, 0x5E, c->a);
-        return;
-    }
-    c->a = m_asl16(s, c->a);
-    set_dp16(s, 0x6E, c->a);
-    asl_dp16(s, 0x6C);
-    set_dp16(s, 0x6A, 0x0000);
+    e->left_column = (ColumnRun){ map_index(column, row), column_in_last_row(column) };
+    e->column_sizes = (ColumnSizes){ (uint16_t)((MAP_ROWS - row) * 2), (uint16_t)(row * 2) };
 }
 
-/* $C0:81A1: X = the index of column A on row Y, Y = X - 31, A = the row's
- * start in the other half. */
-static void edge_right(Snes *s)
+// $C0:8218
+/* The column right of the view, from the same row: its start, and the
+ * column in its half's last row. */
+static void right_column(LayerEdges *e, uint16_t column, uint16_t row)
 {
-    if (!helper_start(s, false)) {
-        clc_adc16(s, dp16(s, 0x52));
-        m_tax(s);
-        sec_sbc16(s, 0x001F);
-        tay16(s);
-        m_lda16(s, dp16(s, 0x52));
-        clc_adc16(s, 0x0400);
-        return;
-    }
-    second_half_index(s);
-    m_tax(s);
-    sec_sbc16(s, 0x001F);
-    tay16(s);
-    m_lda16(s, dp16(s, 0x52));
+    e->right_column = (ColumnRun){ map_index(column, row), column_in_last_row(column) };
 }
 
-/* $C0:81D6: X = the index of column A on row Y, Y = the column (plus $03E0 in
- * the second half), $6C = (32 - row) doubled, $6E = the row doubled. */
-static void edge_top(Snes *s)
+/* The runs as the uploads read them: VRAM addresses (the tile map index plus
+ * the layer's base) and sizes, a word each, in the words layers.h names. */
+static void set_word(GameState *g, void (*set)(GameState *, unsigned, unsigned, uint8_t), unsigned layer,
+                     unsigned word, uint16_t v)
 {
-    Cpu *c = &s->cpu;
-    if (!helper_start(s, true)) {
-        clc_adc16(s, dp16(s, 0x52));
-        m_tax(s);
-        m_ldy(s, dp16(s, 0x62));
-    } else {
-        second_half_index(s);
-        m_tax(s);
-        m_lda16(s, dp16(s, 0x62));
-        clc_adc16(s, 0x03E0);
-        tay16(s);
-    }
-    /* $C0:8204 */
-    m_lda16(s, 0x0020);
-    sec_sbc16(s, dp16(s, 0x64));
-    set_dp16(s, 0x6C, c->a);
-    m_lda16(s, 0x0020);
-    sec_sbc16(s, dp16(s, 0x6C));
-    c->a = m_asl16(s, c->a);
-    set_dp16(s, 0x6E, c->a);
-    asl_dp16(s, 0x6C);
+    set(g, layer, 2 * word, (uint8_t)v);
+    set(g, layer, 2 * word + 1, (uint8_t)(v >> 8));
 }
 
-/* $C0:8218: X = the index of column A on row Y, A = the column (plus $03E0 in
- * the second half). */
-static void edge_bottom(Snes *s)
+static void store_layer_edges(GameState *g, unsigned layer, uint16_t base, const LayerEdges *e)
 {
-    if (!helper_start(s, false)) {
-        clc_adc16(s, dp16(s, 0x52));
-        m_tax(s);
-        m_lda16(s, dp16(s, 0x62));
-        return;
-    }
-    second_half_index(s);
-    m_tax(s);
-    m_lda16(s, dp16(s, 0x62));
-    clc_adc16(s, 0x03E0);
+    const uint16_t addresses[EDGE_ADDRESSES] = {
+        [EDGE_TOP_ROW] = e->top_row.start,           [EDGE_TOP_ROW + 1] = e->top_row.other_half,
+        [EDGE_TOP_ROW + 2] = e->top_row.wrap,        [EDGE_BOTTOM_ROW] = e->bottom_row.start,
+        [EDGE_BOTTOM_ROW + 1] = e->bottom_row.other_half, [EDGE_BOTTOM_ROW + 2] = e->bottom_row.wrap,
+        [EDGE_LEFT_COLUMN] = e->left_column.start,   [EDGE_LEFT_COLUMN + 1] = e->left_column.wrap,
+        [EDGE_RIGHT_COLUMN] = e->right_column.start, [EDGE_RIGHT_COLUMN + 1] = e->right_column.wrap,
+    };
+    const uint16_t sizes[EDGE_SIZES] = {
+        [EDGE_ROW_SIZES] = e->row_sizes.to_half_end,        [EDGE_ROW_SIZES + 1] = e->row_sizes.across,
+        [EDGE_ROW_SIZES + 2] = e->row_sizes.wrapped,        [EDGE_COLUMN_SIZES] = e->column_sizes.to_map_end,
+        [EDGE_COLUMN_SIZES + 1] = e->column_sizes.from_map_top,
+    };
+    for (unsigned k = 0; k < EDGE_ADDRESSES; k++)
+        set_word(g, set_field_layer_edge_vram_byte, layer, k, (uint16_t)(addresses[k] + base));
+    for (unsigned k = 0; k < EDGE_SIZES; k++)
+        set_word(g, set_field_layer_edge_sizes_byte, layer, k, sizes[k]);
 }
 
-/* JSR to one of the helpers above, inlined with its stack bytes. */
-static void local_call(Snes *s, uint32_t site, void (*helper)(Snes *))
+/* For the original's code and shadow mode (field/scratch.h): the last
+ * layer's runs leave the right column's column and the row above the screen
+ * they were taken from, that row's start, and the sizes of the top row's
+ * wrap and the columns' parts, in cells of the layers' page. */
+static void leave_for_original(GameState *g, uint16_t right_column_at, uint16_t row_above, const LayerEdges *last)
 {
-    m_push16(s, (uint16_t)(site + 2));
-    helper(s);
-    m_pull16(s);
-}
-
-/* CLC : ADC base : STA cell */
-static void store_offset(Snes *s, uint8_t base, uint8_t cell)
-{
-    clc_adc16(s, dp16(s, base));
-    set_dp16(s, cell, s->cpu.a);
-}
-
-/* LDA cell : DEC A (optional) or CLC : ADC add : AND mask */
-static void masked(Snes *s, uint8_t cell, int add, uint16_t mask)
-{
-    m_lda16(s, dp16(s, cell));
-    if (add < 0)
-        m_lda16(s, (uint16_t)(s->cpu.a - 1));
-    else if (add > 0)
-        clc_adc16(s, (uint16_t)add);
-    m_lda16(s, (uint16_t)(s->cpu.a & mask));
+    original_layer_cell16(g, 0x52, (uint16_t)(row_above * HALF_COLUMNS));
+    original_layer_cell16(g, 0x62, right_column_at);
+    original_layer_cell16(g, 0x64, row_above);
+    original_layer_cell16(g, 0x6A, last->row_sizes.wrapped);
+    original_layer_cell16(g, 0x6C, last->column_sizes.to_map_end);
+    original_layer_cell16(g, 0x6E, last->column_sizes.from_map_top);
 }
 
 // $C0:7F9A
-/* For each of the three layers (position $99/$9A, $9B/$9C, $9D/$9E), the tile
- * map indexes of the screen's edges around its position -- left column,
- * right column, top row and bottom row, through the local helpers $C0:813D,
- * $C0:81A1, $C0:81D6 and $C0:8218 (inlined with their stack bytes) -- plus
- * the layer's base ($7C/$7E/$80), into $9F-$B2, $B3-$C6 and $C7-$DA, and
- * the helpers' counts ($6C, $6E, $6A) into $DB-$E4, $E5-$EE and $EF-$F8. */
-void field_compute_layer_edges(Snes *s)
+/* Every frame: each layer's edge runs around its position (the tile at the
+ * screen's top left), which the uploads send when the layer has moved onto
+ * them. */
+static void compute_layer_edges(GameState *g)
 {
-    Cpu *c = &s->cpu;
-    m_rep(s, CPU_FLAG_M);
-    for (int layer = 0; layer < 3; layer++) {
-        const uint8_t px = (uint8_t)(0x99 + 2 * layer), py = (uint8_t)(0x9A + 2 * layer);
-        const uint8_t base = (uint8_t)(0x7C + 2 * layer), out = (uint8_t)(0x9F + 0x14 * layer);
-        const uint8_t counts = (uint8_t)(0xDB + 0x0A * layer);
-        const uint32_t site = 0xC07FA9u + 0x8Au * (uint32_t)layer;
-
-        masked(s, py, 0, 0x001F);
-        tay16(s);
-        masked(s, px, -1, 0x003F);
-        m_push16(s, c->a);
-        local_call(s, site, edge_left);
-        m_txa(s);
-        store_offset(s, base, out);
-        tya16(s);
-        store_offset(s, base, (uint8_t)(out + 2));
-        m_lda16(s, dp16(s, 0x5E));
-        store_offset(s, base, (uint8_t)(out + 4));
-        set_dp16(s, counts, m_lda16(s, dp16(s, 0x6C)));
-        set_dp16(s, (uint8_t)(counts + 2), m_lda16(s, dp16(s, 0x6E)));
-        set_dp16(s, (uint8_t)(counts + 4), m_lda16(s, dp16(s, 0x6A)));
-
-        masked(s, py, 0x1C, 0x001F);
-        tay16(s);
-        m_lda16(s, m_pull16(s));
-        local_call(s, site + 0x2D, edge_right);
-        store_offset(s, base, (uint8_t)(out + 8));
-        m_txa(s);
-        store_offset(s, base, (uint8_t)(out + 6));
-        tya16(s);
-        store_offset(s, base, (uint8_t)(out + 10));
-
-        masked(s, py, -1, 0x001F);
-        m_push16(s, c->a);
-        tay16(s);
-        masked(s, px, 0, 0x003F);
-        local_call(s, site + 0x4E, edge_top);
-        m_txa(s);
-        store_offset(s, base, (uint8_t)(out + 12));
-        tya16(s);
-        store_offset(s, base, (uint8_t)(out + 14));
-        set_dp16(s, (uint8_t)(counts + 6), m_lda16(s, dp16(s, 0x6C)));
-        set_dp16(s, (uint8_t)(counts + 8), m_lda16(s, dp16(s, 0x6E)));
-
-        m_ldy(s, m_pull16(s));
-        masked(s, px, 0x20, 0x003F);
-        local_call(s, site + 0x6F, edge_bottom);
-        store_offset(s, base, (uint8_t)(out + 18));
-        m_txa(s);
-        store_offset(s, base, (uint8_t)(out + 16));
+    LayerEdges e;
+    uint16_t right = 0, above = 0;
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
+        uint8_t x = field_layer_position_x(g, layer), y = field_layer_position_y(g, layer);
+        uint16_t left_of_screen = (uint16_t)((x - 1) & COLUMN_MASK);
+        above = (uint16_t)((y - 1) & ROW_MASK);
+        right = (uint16_t)((x + HALF_COLUMNS) & COLUMN_MASK);
+        top_row(g, &e, left_of_screen, (uint16_t)(y & ROW_MASK));
+        bottom_row(&e, left_of_screen, (uint16_t)((y + SCREEN_ROWS) & ROW_MASK));
+        left_column(&e, (uint16_t)(x & COLUMN_MASK), above);
+        right_column(&e, right, above);
+        store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);
     }
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
+    leave_for_original(g, right, above, &e);
 }
 
-/* 8-bit accumulator: CLC : ADC dp */
-static uint8_t clc_adc_dp(Snes *s, uint8_t cell)
+/* ---- Scrolling -------------------------------------------------------------------------- */
+
+enum { AXIS_X, AXIS_Y, AXES };
+enum { STEP_FORWARD = 0x10, STEP_BACK = 0xF0 };   /* a pixel a frame, in 4.4 */
+enum { SCROLL_IDLE = 0, SCROLL_DONE = 0x02, ARRIVED_BOTH = 0x03 };   /* field_screen_scroll_state, _arrived */
+enum { STILL_BG2 = 0x02, STILL_BG3 = 0x04 };   /* field_layer_still */
+enum { SHAKE_BACK = 0x01, SHAKE_Y = 0x02, SHAKE_X = 0x04 };   /* the frame counter's bits */
+
+static uint8_t screen_edge(const GameState *g, unsigned axis)
 {
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)s->cpu.a, dp8(s, cell)));
-    return (uint8_t)s->cpu.a;
+    return axis == AXIS_X ? field_screen_left(g) : field_screen_top(g);
 }
 
-/* ASL A (8-bit) n times. */
-static void asl_a(Snes *s, int n)
+static uint8_t scroll_target(const GameState *g, unsigned axis)
 {
-    for (int i = 0; i < n; i++)
-        m_set_a8(s, m_asl8(s, (uint8_t)s->cpu.a));
+    return axis == AXIS_X ? field_screen_scroll_target_x(g) : field_screen_scroll_target_y(g);
 }
 
-/* LSR A (8-bit) n times. */
-static void lsr_a(Snes *s, int n)
+/* BG1's fine scroll on the axis, which says whether the screen is on a tile. */
+static uint8_t fine_scroll(const GameState *g, unsigned axis)
 {
-    for (int i = 0; i < n; i++)
-        m_set_a8(s, m_lsr8(s, (uint8_t)s->cpu.a));
+    return (uint8_t)(axis == AXIS_X ? field_layer_scroll_h(g, FIELD_BG1) : field_layer_scroll_v(g, FIELD_BG1));
 }
 
-/* EOR #$FF : INC A */
-static void negate_a(Snes *s)
+// $C0:91B0
+/* One axis of the screen's pan toward its target tile: a pixel forward or
+ * back each frame, and once on the tile, back until the fine scroll is on it
+ * too, when the axis has arrived. True if it arrived now. */
+static bool pan_toward_target(GameState *g, unsigned axis)
 {
-    m_lda8(s, (uint8_t)~s->cpu.a);
-    m_lda8(s, (uint8_t)(s->cpu.a + 1));
-}
-
-/* LDA cells[2] : CLC : ADC cells[3] ... : STA cells[0] (cells[1] cells in all). */
-static void add_cells(Snes *s, const uint8_t cells[7])
-{
-    m_lda8(s, dp8(s, cells[2]));
-    for (int i = 1; i < cells[1]; i++)
-        clc_adc_dp(s, cells[2 + i]);
-    set_dp8(s, cells[0], (uint8_t)s->cpu.a);
-}
-
-/* One axis of the scroll target check at $C0:91B0: compare `pos` with
- * `target`; the step `step` becomes $10 below it, $F0 above, and on it $F0
- * until the fine position `fine` is aligned, then `bit` is set in $01.
- * Returns true if the bit was set. */
-static bool approach(Snes *s, uint8_t pos, uint8_t target, uint8_t fine, uint8_t step, uint8_t bit)
-{
-    uint8_t v = m_lda8(s, dp8(s, pos));
-    uint8_t t = dp8(s, target);
-    m_cmp8(s, v, t);
-    if (v == t) {
-        if (m_lda8(s, (uint8_t)(dp8(s, fine) & 0x0F)) == 0) {
-            m_lda8(s, bit);
-            m_tsb8(s, m_dp(s, 0x01));
-            return true;
-        }
-        set_dp8(s, step, m_lda8(s, 0xF0));
-        return false;
+    uint8_t target = scroll_target(g, axis), at = screen_edge(g, axis);
+    if (target == at && (fine_scroll(g, axis) & 0x0F) == 0) {
+        set_field_screen_scroll_arrived(g, (uint8_t)(field_screen_scroll_arrived(g) | (1u << axis)));
+        return true;
     }
-    set_dp8(s, step, m_lda8(s, v > t ? 0x10 : 0xF0));
+    set_field_screen_scroll_step(g, axis, target > at ? STEP_FORWARD : STEP_BACK);
     return false;
 }
 
-/* One of the offsets at $C0:91FD: (bits of $0400 & mask) shifted left
- * `shift` times, negated when `negate`. */
-static void bit_offset(Snes *s, uint8_t mask, int shift, bool negate, uint8_t cell)
+/* The shake's offset on an axis this frame: a bit of the frame counter as
+ * pixels, backward on odd frames. */
+static uint8_t shake(uint8_t frames, uint8_t bit, uint8_t shift)
 {
-    m_lda8(s, (uint8_t)(m_read8(s, m_abs(s, 0x0400)) & mask));
-    asl_a(s, shift);
-    if (negate)
-        negate_a(s);
-    set_dp8(s, cell, (uint8_t)s->cpu.a);
+    uint8_t v = (uint8_t)((frames & bit) << shift);
+    return (frames & SHAKE_BACK) ? (uint8_t)-v : v;
+}
+
+static uint8_t accumulator(const GameState *g, unsigned layer, unsigned axis)
+{
+    return axis == AXIS_X ? field_layer_scroll_accumulator_x(g, layer) : field_layer_scroll_accumulator_y(g, layer);
+}
+
+static void set_accumulator(GameState *g, unsigned layer, unsigned axis, uint8_t v)
+{
+    if (axis == AXIS_X)
+        set_field_layer_scroll_accumulator_x(g, layer, v);
+    else
+        set_field_layer_scroll_accumulator_y(g, layer, v);
+}
+
+static uint8_t extra_speed(const GameState *g, unsigned layer, unsigned axis)
+{
+    return axis == AXIS_X ? field_layer_extra_speed_x(g, layer) : field_layer_extra_speed_y(g, layer);
+}
+
+/* The screen's own motion on the axis: its pan and its shake. */
+static uint8_t screen_motion(const GameState *g, unsigned axis)
+{
+    uint8_t offset = axis == AXIS_X ? field_scroll_offset_x(g) : field_scroll_offset_y(g);
+    return (uint8_t)(field_screen_scroll_step(g, axis) + offset);
+}
+
+// $C0:9238
+/* BG1 moves with the screen; BG2 and BG3 at their own speeds, and with the
+ * screen too unless they stay still; any of them faster for a while. The sums
+ * are bytes and wrap. */
+static void accumulate(GameState *g, unsigned layer, unsigned axis)
+{
+    uint8_t sum = (uint8_t)(accumulator(g, layer, axis) + extra_speed(g, layer, axis));
+    if (layer == FIELD_BG1) {
+        sum = (uint8_t)(sum + screen_motion(g, axis));
+    } else {
+        uint8_t speed = axis == AXIS_X ? field_layer_speed_x(g, layer - 1) : field_layer_speed_y(g, layer - 1);
+        sum = (uint8_t)(sum + speed);
+        if (!(field_layer_still(g) & (layer == 1 ? STILL_BG2 : STILL_BG3)))
+            sum = (uint8_t)(sum + screen_motion(g, axis));
+    }
+    set_accumulator(g, layer, axis, sum);
+}
+
+/* The accumulator's whole pixels become this frame's move (rounded toward
+ * zero), and the fraction stays. */
+static void take_pixels(GameState *g, unsigned layer, unsigned axis)
+{
+    unsigned k = layer * AXES + axis;
+    int8_t v = (int8_t)accumulator(g, layer, axis);
+    if (v >= 0) {
+        set_field_layer_move_positive(g, k, (uint8_t)(v >> 4));
+        set_field_layer_move_negative(g, k, 0);
+    } else {
+        set_field_layer_move_negative(g, k, (uint8_t)(-v >> 4));
+        set_field_layer_move_positive(g, k, 0);
+    }
+    set_accumulator(g, layer, axis, field_scroll_fraction((int8_t)accumulator(g, layer, axis)));
 }
 
 // $C0:91AC
-/* Per-frame scroll steps for the three layers. While $00 is set, the steps
- * $2E (X) and $30 (Y) are $10 or $F0 toward the target tile in $0A/$0E from
- * $02/$03, and on it $F0 until the fine position ($87/$89) is aligned, when
- * bit 0 or 1 of $01 is set; with both, $00 becomes 2 and $01 is cleared.
- * With $01BC set, offsets from $0400's bits 2 and 1 go to $4E and $4F
- * (negated when bit 0 is set, zero on an axis whose target is 0). Each
- * layer's 4.4 fixed-point accumulators ($3B-$40) then add the steps and
- * offsets (for layers 2 and 3 only while bit 1 or 2 of $36 is clear), the
- * speeds $37-$3A of layers 2 and 3 and the extra speeds $24-$29; the whole
- * pixels go to the positive or negative move counts ($41-$4C) and the
- * fractions stay, sign-extended. When the countdown $4D runs out, the extra
- * speeds are cleared. */
-void field_update_layer_scroll(Snes *s)
+/* Every frame: the screen pans toward its target while the field has asked it
+ * to, and is done once both axes arrive; it shakes while the setting is on
+ * (but not on an axis where its edge is at the map's edge); each layer's
+ * accumulators move, and their whole pixels are the layers' moves; and the
+ * layers' extra speeds run out with their countdown. */
+static void update_layer_scroll(GameState *g)
 {
-    if (m_lda8(s, dp8(s, 0x00)) != 0) {
-        approach(s, 0x02, 0x0A, 0x87, 0x2E, 0x01);
-        if (approach(s, 0x03, 0x0E, 0x89, 0x30, 0x02)) {
-            uint8_t both = m_lda8(s, dp8(s, 0x01));
-            m_cmp8(s, both, 0x03);
-            if (both == 0x03) {
-                set_dp8(s, 0x00, m_lda8(s, 0x02));
-                set_dp8(s, 0x01, 0x00);
+    if (field_screen_scroll_state(g) != SCROLL_IDLE) {
+        pan_toward_target(g, AXIS_X);
+        if (pan_toward_target(g, AXIS_Y) && field_screen_scroll_arrived(g) == ARRIVED_BOTH) {
+            set_field_screen_scroll_state(g, SCROLL_DONE);
+            set_field_screen_scroll_arrived(g, 0);
+        }
+    }
+    if (field_setting_bc(g) != 0) {
+        uint8_t frames = play_time_frames(g);
+        set_field_scroll_offset_x(g, shake(frames, SHAKE_X, 2));
+        set_field_scroll_offset_y(g, shake(frames, SHAKE_Y, 3));
+        if (field_screen_left(g) == 0)
+            set_field_scroll_offset_x(g, 0);
+        if (field_screen_top(g) == 0)
+            set_field_scroll_offset_y(g, 0);
+    }
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
+        for (unsigned axis = 0; axis < AXES; axis++)
+            accumulate(g, layer, axis);
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
+        for (unsigned axis = 0; axis < AXES; axis++)
+            take_pixels(g, layer, axis);
+    uint8_t time = field_layer_extra_speed_time(g);
+    if (time != 0) {
+        set_field_layer_extra_speed_time(g, (uint8_t)(time - 1));
+        if (time == 1)
+            for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
+                set_field_layer_extra_speed_x(g, layer, 0);
+                set_field_layer_extra_speed_y(g, layer, 0);
+            }
+    }
+}
+
+/* ---- Unpacking a map's tile maps --------------------------------------------------------- */
+
+/* Where the map loader leaves the map's decompressed data (field_map_data),
+ * which the unpacking streams through the work RAM port. */
+enum { MAP_DATA = 0xB506, MAP_DATA_BANK = 0 };
+enum { MAP_HAS_BG3 = 0x01 };   /* field_map_flags */
+
+/* A tile map's size as the map gives it: the rows, and the columns of each.
+ * The unpacking always writes a first row and a first column. */
+typedef struct {
+    uint8_t rows, columns;
+} MapSize;
+
+static MapSize layer_size(const GameState *g, unsigned layer)
+{
+    return (MapSize){ field_map_layer_sizes_height(g, layer), field_map_layer_sizes_width(g, layer) };
+}
+
+/* A place in a tile map. */
+typedef struct {
+    uint8_t row, column;
+} MapPlace;
+
+static unsigned map_offset(MapPlace p) { return (unsigned)(p.row << 8 | p.column); }
+
+/* The next tile: false past the map's last row. */
+static bool next_tile(MapSize size, MapPlace *p)
+{
+    if (++p->column < size.columns)
+        return true;
+    p->column = 0;
+    return ++p->row < size.rows;
+}
+
+/* A layer's tile map, a byte a tile from the stream. */
+static void unpack_layer_map(GameState *g, unsigned layer)
+{
+    MapSize size = layer_size(g, layer);
+    MapPlace p = { 0, 0 };
+    do
+        set_field_layer_maps_byte(g, layer, map_offset(p), hw_port_read(g));
+    while (next_tile(size, &p));
+}
+
+/* A tile's three attribute bytes. */
+typedef struct {
+    uint8_t properties, attributes, more_attributes;
+} TileAttributes;
+
+static void set_tile_attributes(GameState *g, MapPlace p, TileAttributes a)
+{
+    set_field_tile_properties_byte(g, map_offset(p), a.properties);
+    set_field_tile_attributes_byte(g, map_offset(p), a.attributes);
+    set_field_tile_attributes_byte(g, map_offset(p) + MAP_COLUMNS, a.more_attributes);
+}
+
+/* A tile's bytes from the stream, each written as it is read: a big map's
+ * attribute tables reach the stream's bytes still to come, and change them
+ * as the original does. */
+static TileAttributes read_tile_attributes(GameState *g, MapPlace p, uint8_t properties)
+{
+    TileAttributes a = { .properties = properties };
+    set_field_tile_properties_byte(g, map_offset(p), a.properties);
+    a.attributes = hw_port_read(g);
+    set_field_tile_attributes_byte(g, map_offset(p), a.attributes);
+    a.more_attributes = hw_port_read(g);
+    set_field_tile_attributes_byte(g, map_offset(p) + MAP_COLUMNS, a.more_attributes);
+    return a;
+}
+
+enum { RUN = 0x80, RUN_OF_256 = 0x00 };
+
+/* The last run the unpacking repeated, which it leaves in cells of the
+ * layers' page for the original's code and shadow mode (field/scratch.h, "What
+ * a wrapper can't work out"): written only by record_run, read only by
+ * leave_for_original_unpack. */
+static struct {
+    bool had_run;
+    TileAttributes last_run;
+} unpack_leaves;
+
+static void record_run(TileAttributes a)
+{
+    unpack_leaves.had_run = true;
+    unpack_leaves.last_run = a;
+}
+
+/* For the original's code and shadow mode (field/scratch.h): the attributes'
+ * size, the row the unpacking stopped on (past the last, which a map of no
+ * rows puts at the second), and the last run's bytes. */
+static void leave_for_original_unpack(GameState *g, MapSize size)
+{
+    original_layer_cell16(g, 0x52, (uint16_t)(size.rows << 8));
+    original_layer_cell8(g, 0x54, size.columns);
+    original_layer_cell8(g, 0x55, size.rows ? size.rows : 1);
+    if (unpack_leaves.had_run) {
+        original_layer_cell8(g, 0x58, unpack_leaves.last_run.properties);
+        original_layer_cell8(g, 0x5A, unpack_leaves.last_run.attributes);
+        original_layer_cell8(g, 0x5C, unpack_leaves.last_run.more_attributes);
+    }
+}
+
+/* The attributes: three bytes a tile, over BG1's size. A first byte with RUN
+ * set starts a run: the tile's bytes (RUN taken off) repeat for the count
+ * after them, 0 meaning 256. */
+static void unpack_attributes(GameState *g, MapSize size)
+{
+    MapPlace p = { 0, 0 };
+    for (;;) {
+        uint8_t first = hw_port_read(g);
+        TileAttributes a = read_tile_attributes(g, p, (uint8_t)(first & ~RUN));
+        if (first & RUN) {
+            record_run(a);
+            uint8_t count = hw_port_read(g);
+            for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
+                if (!next_tile(size, &p))
+                    return;
+                set_tile_attributes(g, p, a);
             }
         }
+        if (!next_tile(size, &p))
+            return;
     }
-    /* $C0:91F8 */
-    if (m_lda8(s, m_read8(s, m_abs(s, 0x01BC))) != 0) {
-        uint8_t bits = m_lda8(s, m_read8(s, m_abs(s, 0x0400)));
-        m_bit_imm8(s, 0x01);
-        bool negative = bits & 0x01;
-        /* the first read of $0400 is reused for $4E */
-        m_lda8(s, (uint8_t)(bits & 0x04));
-        asl_a(s, 2);
-        if (negative)
-            negate_a(s);
-        set_dp8(s, 0x4E, (uint8_t)s->cpu.a);
-        bit_offset(s, 0x02, 3, negative, 0x4F);
-        if (m_lda8(s, dp8(s, 0x0A)) == 0)
-            set_dp8(s, 0x4E, 0x00);
-        if (m_lda8(s, dp8(s, 0x0E)) == 0)
-            set_dp8(s, 0x4F, 0x00);
-    }
-    /* $C0:9238 */
-    static const uint8_t sums[10][7] = {
-        /* destination, count, cells */
-        { 0x3B, 4, 0x2E, 0x3B, 0x24, 0x4E }, { 0x3C, 4, 0x30, 0x3C, 0x25, 0x4F },
-        { 0x3D, 3, 0x37, 0x3D, 0x26 }, { 0x3E, 3, 0x38, 0x3E, 0x27 },
-        { 0x3D, 5, 0x2E, 0x37, 0x3D, 0x26, 0x4E }, { 0x3E, 5, 0x30, 0x38, 0x3E, 0x27, 0x4F },
-        { 0x3F, 3, 0x39, 0x3F, 0x28 }, { 0x40, 3, 0x3A, 0x40, 0x29 },
-        { 0x3F, 5, 0x2E, 0x39, 0x3F, 0x28, 0x4E }, { 0x40, 5, 0x30, 0x3A, 0x40, 0x29, 0x4F },
-    };
-    add_cells(s, sums[0]);
-    add_cells(s, sums[1]);
-    for (int layer = 0; layer < 2; layer++) {
-        m_lda8(s, dp8(s, 0x36));
-        m_bit_imm8(s, layer == 0 ? 0x02 : 0x04);
-        const int row = m_flag(s, CPU_FLAG_Z) ? 4 + 4 * layer : 2 + 4 * layer;
-        add_cells(s, sums[row]);
-        add_cells(s, sums[row + 1]);
-    }
-    /* $C0:92CA */
-    for (uint8_t k = 0; k < 6; k++) {
-        const uint8_t acc = (uint8_t)(0x3B + k), positive = (uint8_t)(0x42 + 2 * k), negative = (uint8_t)(0x41 + 2 * k);
-        uint8_t v = m_lda8(s, dp8(s, acc));
-        if (!(v & 0x80)) {
-            lsr_a(s, 4);
-            set_dp8(s, positive, (uint8_t)s->cpu.a);
-            set_dp8(s, negative, 0x00);
-        } else {
-            negate_a(s);
-            lsr_a(s, 4);
-            set_dp8(s, negative, (uint8_t)s->cpu.a);
-            set_dp8(s, positive, 0x00);
-        }
-        if (m_lda8(s, (uint8_t)(dp8(s, acc) & 0x0F)) != 0) {
-            v = m_lda8(s, dp8(s, acc));
-            m_lda8(s, (v & 0x80) ? (uint8_t)(v | 0xF0) : (uint8_t)(v & 0x0F));
-        }
-        set_dp8(s, acc, (uint8_t)s->cpu.a);
-    }
-    /* $C0:93CC */
-    if (m_lda8(s, dp8(s, 0x4D)) != 0) {
-        uint8_t n = (uint8_t)(dp8(s, 0x4D) - 1);
-        set_dp8(s, 0x4D, n);
-        m_set_nz8(s, n);
-        if (n == 0) {
-            for (uint8_t cell = 0x24; cell <= 0x29; cell++)
-                set_dp8(s, cell, 0x00);
-        }
-    }
-    m_rts(s);
-}
-
-/* LDA rows : REP #$20 : XBA : AND #$FF00 : STA $52 : SEP #$20 : LDA width :
- * REP #$20 : AND #$00FF : STA $54 : SEP #$20 -- a tile map's size, the row
- * count in $53 and the width in $54 (row counter $55 cleared). */
-static void map_size(Snes *s, uint16_t rows, uint16_t width)
-{
-    Cpu *c = &s->cpu;
-    m_lda8(s, m_read8(s, m_abs(s, rows)));
-    m_rep(s, CPU_FLAG_M);
-    m_xba(s);
-    set_dp16(s, 0x52, m_lda16(s, (uint16_t)(c->a & 0xFF00)));
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, m_read8(s, m_abs(s, width)));
-    m_rep(s, CPU_FLAG_M);
-    set_dp16(s, 0x54, m_lda16(s, (uint16_t)(c->a & 0x00FF)));
-    m_sep(s, CPU_FLAG_M);
-}
-
-/* LDA $2180 -- the next byte from the WRAM data port. */
-static uint8_t port_byte(Snes *s) { return m_lda8(s, m_read8(s, m_abs(s, 0x2180))); }
-
-/* INX : CPX $54 -- true at the end of the row. */
-static bool next_column(Snes *s)
-{
-    m_inx(s);
-    m_cmp16(s, s->cpu.x, dp16(s, 0x54));
-    return m_flag(s, CPU_FLAG_C);
-}
-
-/* LDA $55 : INC A : STA $55 : XBA : LDA #$00 : TAX : CPX $52 -- X to the
- * start of the next row; true after the last one. */
-static bool next_row(Snes *s)
-{
-    uint8_t row = m_lda8(s, dp8(s, 0x55));
-    set_dp8(s, 0x55, m_lda8(s, (uint8_t)(row + 1)));
-    m_xba(s);
-    m_lda8(s, 0x00);
-    m_tax(s);
-    m_cmp16(s, s->cpu.x, dp16(s, 0x52));
-    return m_flag(s, CPU_FLAG_C);
-}
-
-/* One byte per tile from the port into `dest` + row * 256 + column. */
-static void unpack_map(Snes *s, uint32_t dest)
-{
-    m_ldx(s, 0x0000);
-    do {
-        do
-            m_write8(s, dest + s->cpu.x, port_byte(s));
-        while (!next_column(s));
-    } while (!next_row(s));
 }
 
 // $C0:A521
-/* Unpack a map's tile layers from the decompressed data at $7E:B506, read
- * through the WRAM data port: layer maps into $7E:3000 and $7E:3040 (sized
- * by $0BCB/$0BCD and $0BCF/$0BD1), a third into $7E:3080 when $0BCA bit 0 is
- * set ($0BD3/$0BD5), then per tile three bytes into $7E:30C0, $7E:7000 and
- * $7E:7040 (the map attributes), where a first byte with bit 7 set starts a
- * run: its three bytes (bit 7 cleared, kept in $58/$5A/$5C) repeat for the
- * count in the next byte (0 meaning 256). Rows are 256 apart. */
+/* When a map loads: unpack its tile maps from the decompressed map data,
+ * through the work RAM port: BG1's and BG2's, BG3's where the map has one,
+ * then the tile attributes. */
+static void unpack_tile_maps(GameState *g)
+{
+    hw_port_seek(g, MAP_DATA, MAP_DATA_BANK);
+    unpack_layer_map(g, 0);
+    unpack_layer_map(g, 1);
+    if (field_map_flags(g) & MAP_HAS_BG3)
+        unpack_layer_map(g, 2);
+    MapSize size = layer_size(g, FIELD_BG1);
+    unpack_leaves.had_run = false;
+    unpack_attributes(g, size);
+    leave_for_original_unpack(g, size);
+}
+
+/* ---- Entries: on the layers' page ------------------------------------------------------- */
+
+/* The unpacking's guard: a map whose data can't come round the banks to the
+ * layers' page before it is unpacked. The data starts at MAP_DATA in bank
+ * $7E and the stream runs on through bank $7F and back into $7E; the port
+ * leaves its cells on the layers' page when it is done, where the original
+ * writes them as it goes, so a stream long enough to read them back would
+ * differ. A tile takes a byte of each layer's map and at most four of
+ * attributes (a run of one). The guard is a claim about every map the game
+ * loads, which the movies check: none is turned away. */
+enum { STREAM_REACHES_LAYERS_PAGE = 0x10000 - MAP_DATA + 0x10000 + 0x1D50 };
+
+static uint32_t tiles(MapSize s) { return (uint32_t)(s.rows ? s.rows : 1) * (s.columns ? s.columns : 1); }
+
+bool field_unpack_stays_clear(Snes *s)
+{
+    if (!field_on_layers_page(s) || !m_bank_reaches_io(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint32_t bytes = tiles(layer_size(g, 0)) * 5 + tiles(layer_size(g, 1));
+    if (field_map_flags(g) & MAP_HAS_BG3)
+        bytes += tiles(layer_size(g, 2));
+    vars_peek(false);
+    return bytes < STREAM_REACHES_LAYERS_PAGE;
+}
+
+/* The overflow of BG3's right column's address, the last sum, is the one
+ * thing its callers read; and it leaves A 8-bit, whatever it came with. */
+void field_compute_layer_edges(Snes *s)
+{
+    GameState *g = state_of(s);
+    compute_layer_edges(g);
+    uint16_t base = field_layer_map_base(g, FIELD_BG3);
+    uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN) |
+                              field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN + 1) << 8);
+    uint16_t index = (uint16_t)(sum - base);
+    m_set_flag(s, CPU_FLAG_V, field_add_overflows16(index, base));
+    m_set_flag(s, CPU_FLAG_M, true);
+    m_rts(s);
+}
+
+/* Nothing they leave in the registers is read after (the entries' don't-care
+ * sets). */
+void field_update_layer_scroll(Snes *s)
+{
+    update_layer_scroll(state_of(s));
+    m_rts(s);
+}
+
 void field_unpack_tile_maps(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_write16(s, m_abs(s, 0x2181), m_ldx(s, 0xB506));
-    m_write8(s, m_abs(s, 0x2183), m_lda8(s, 0x00));
-    map_size(s, 0x0BCD, 0x0BCB);
-    unpack_map(s, 0x7E3000);
-    map_size(s, 0x0BD1, 0x0BCF);
-    unpack_map(s, 0x7E3040);
-    if (m_lda8(s, (uint8_t)(m_read8(s, m_abs(s, 0x0BCA)) & 0x01)) != 0) {
-        map_size(s, 0x0BD5, 0x0BD3);
-        unpack_map(s, 0x7E3080);
-    }
-    /* $C0:A5D2 */
-    map_size(s, 0x0BCD, 0x0BCB);
-    m_ldx(s, 0x0000);
-    m_tdc(s);
-    m_xba(s);
-    for (;;) {
-        uint8_t first = port_byte(s);
-        if (!(first & 0x80)) {
-            m_write8(s, 0x7E30C0u + c->x, first);
-            m_write8(s, 0x7E7000u + c->x, port_byte(s));
-            m_write8(s, 0x7E7040u + c->x, port_byte(s));
-        } else {
-            /* $C0:A61A */
-            uint8_t v = m_lda8(s, first & 0x7F);
-            set_dp8(s, 0x58, v);
-            m_write8(s, 0x7E30C0u + c->x, v);
-            set_dp8(s, 0x5A, v = port_byte(s));
-            m_write8(s, 0x7E7000u + c->x, v);
-            set_dp8(s, 0x5C, v = port_byte(s));
-            m_write8(s, 0x7E7040u + c->x, v);
-            m_tdc(s);
-            m_xba(s);
-            if (port_byte(s) != 0)
-                m_set_index(s, &c->y, c->a);
-            else
-                m_ldy(s, 0x0100);
-            for (;;) {
-                /* $C0:A641 */
-                if (m_ldy(s, (uint16_t)(c->y - 1)) == 0)
-                    break;
-                if (next_column(s) && next_row(s)) {
-                    m_rts(s);
-                    return;
-                }
-                m_write8(s, 0x7E30C0u + c->x, m_lda8(s, dp8(s, 0x58)));
-                m_write8(s, 0x7E7000u + c->x, m_lda8(s, dp8(s, 0x5A)));
-                m_write8(s, 0x7E7040u + c->x, m_lda8(s, dp8(s, 0x5C)));
-            }
-        }
-        /* $C0:A607 */
-        if (next_column(s) && next_row(s)) {
-            m_rts(s);
-            return;
-        }
-    }
+    unpack_tile_maps(state_of(s));
+    m_rts(s);
 }

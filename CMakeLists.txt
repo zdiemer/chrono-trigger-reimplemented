@@ -86,6 +86,8 @@ add_library(ct_game STATIC
   game/event/sound.c
   game/event/story.c
   game/event/variables.c
+  game/field/animation.c
+  game/field/bridge.c
   game/field/display.c
   game/field/frame.c
   game/field/graphics.c
@@ -95,7 +97,8 @@ add_library(ct_game STATIC
   game/field/motion.c
   game/field/nmi.c
   game/field/object_update.c
-  game/field/objects.c
+  game/field/object_view.c
+  game/field/window_corners.c
   game/field/scroll.c
   game/field/sprites.c
   game/field/window_shape.c
