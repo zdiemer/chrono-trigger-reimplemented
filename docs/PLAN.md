@@ -48,8 +48,8 @@ it counts as done may still be transliterated or welded to the machine, which
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 70% left | 0% |
-| Ports that read as source (`portstyle.py`) | 0.33 ops/line | ~0 |
-| Ports off the machine (`portstyle.py`) | 98% take a `Snes *` | entry wrappers only |
+| Ports that read as source (`portstyle.py`) | 0.31 ops/line | ~0 |
+| Ports off the machine (`portstyle.py`) | 92% take a `Snes *` | entry wrappers only |
 | ROM reads by address | 117, in 22 files | 0, all through accessors |
 | SPC700 sound driver | not started | reimplemented in C |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
@@ -135,8 +135,9 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **62 of 86 files, 21,748 of
-28,539 lines (76%), are on the backlog**, and the whole tree is on the machine:
+each subsystem's functions that take the machine. **57 of 88 files, 20,404 of
+28,624 lines (71%), are on the backlog**, and all but the scenes is on the
+machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
@@ -144,9 +145,13 @@ each subsystem's functions that take the machine. **62 of 86 files, 21,748 of
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
 | event | 15 | 15 | 3,451 | 3,451 | 0.46 | 100% |
 | field | 10 | 13 | 2,927 | 3,606 | 0.35 | 93% |
-| scene | 5 | 11 | 1,344 | 2,320 | 0.20 | 90% |
+| scene | 0 | 13 | 0 | 2,405 | 0.05 | 54% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
-| **total** | **62** | **86** | **21,748** | **28,539** | **0.33** | **97%** |
+| **total** | **57** | **88** | **20,404** | **28,624** | **0.31** | **92%** |
+
+Scene's 54% is its entries' wrappers, their guards and the bridges around its
+call-outs, and nothing else (RECOMP.md, "Phase 3a: the scene subsystem off the
+machine", lists the 27 that are neither an entry nor a guard, and why).
 
 ### What decoupling means here, and what it must not break
 
@@ -196,7 +201,18 @@ The accessors a rewrite calls are generated from `re/ram.toml`:
 `python3 tools/ram_map.py accessors` writes `game/vars.h`, the game's variables
 as values with no layout in sight, and `runtime/port/vars_ram.c`, the backing
 that keeps them in emulated work RAM (docs/DISASSEMBLY.md, "The RAM map").
-`game/scene/circle.c` is the pilot that proved the shape.
+`game/scene/circle.c` is the pilot that proved the shape, and the rest of
+`game/scene/` the first subsystem done to it (RECOMP.md, "Phase 3a: the scene
+subsystem off the machine"). What that added for the subsystems after it:
+`game/cpu_io.h` for the multiplier, divider and work RAM port;
+`game/rom.h` for the `*_data.h` accessors; the page guards in
+`runtime/port/machine.h`; `scene/scratch.c`'s shape for cells on a page the
+caller chooses, which the map has no accessor for; and
+`tools/fuzz_compare.py`, which fuzzes a rewrite and the port it replaces side by
+side from constraints kept in `tools/fuzz_routines.toml`, where each subsystem
+adds its entries. The rewrite's first step is the largest don't-care set
+`tools/dontcare_check.py --list` accepts for every entry: that is what takes the
+register traffic out of the wrappers rather than moving it.
 
 **How it is run.** Per subsystem, by the wave protocol below, each subsystem's
 files taken together so shared helpers get written once. A rewrite is cheaper
@@ -204,12 +220,9 @@ than a fresh port and much better checked: the behaviour is already under the
 gate, so shadow mode compares the rewrite against the original call for call
 over the whole library, and the entry keeps its fuzzing. Rewriting a file to
 the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
-holds every other file where it is, so the list only shrinks. Order: `scene`
-first -- smallest, already the least transliterated (0.21), and its leaves have
-no call-outs, so it is where the accessors and the wrapper shape get proven on
-real code before four larger subsystems commit to them. Then `event` and
-`field`, then `menu`, then `battle`, whose 7.8K lines are the largest and whose
-bank is also the least converted.
+holds every other file where it is, so the list only shrinks. Order: `event`
+and `field` next, then `menu`, then `battle`, whose 7.8K lines are the largest
+and whose bank is also the least converted.
 
 A rewrite that hits something the accessors can't say is a finding to report,
 not something to work around: a buffer the game locates at run time reaches
@@ -219,7 +232,7 @@ waiting for a name in the map.
 What this phase does **not** do is add ports or coverage. The burndown's
 percentage stands still while it runs, which is the point: it was already
 counting this work as done. What moves instead are portstyle's two numbers:
-0.33 operations per line toward zero, and 98% of functions on the machine
+0.31 operations per line toward zero, and 92% of functions on the machine
 toward the entry wrappers alone.
 
 ## Phase 3: M5 in bulk

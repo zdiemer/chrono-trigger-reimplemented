@@ -1,9 +1,10 @@
-/* The backings for the parts of game/cpu_io.h that are the
- * machine's own registers rather than work RAM, while the game's state lives in
- * emulated work RAM: the multiplier and divider, and the work RAM port. Each is
- * written and read through the bus in bank 0, as the original's code reaches it,
- * so shadow mode and the fuzzer see the same register state. */
+/* The backings for game/cpu_io.h and game/rom.h while the game's state lives in
+ * emulated work RAM: the multiplier and divider and the work RAM port, written
+ * and read through the bus in bank 0 as the original's code reaches them, so
+ * shadow mode and the fuzzer see the same register state; and the cartridge,
+ * read on the bus. */
 #include "cpu_io.h"
+#include "rom.h"
 
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -34,3 +35,6 @@ void hw_port_seek_address(GameState *g, uint16_t at) { m_write16(state_snes(g), 
 uint8_t hw_port_read(GameState *g) { return m_read8(state_snes(g), WMDATA); }
 
 void hw_port_write(GameState *g, uint8_t v) { m_write8(state_snes(g), WMDATA, v); }
+
+uint8_t rom_read8(const GameState *g, uint32_t at) { return m_read8(state_snes(g), at); }
+uint16_t rom_read16(const GameState *g, uint32_t at) { return m_read16(state_snes(g), at); }

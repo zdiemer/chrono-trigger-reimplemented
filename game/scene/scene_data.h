@@ -3,16 +3,14 @@
  * data from files maps these addresses and nothing else.
  *
  * The scene ports' logic reads the data with the game's state in hand, not the
- * machine: the ROM is the game's data, and while the state lives in emulated
- * work RAM the same handle reaches the cartridge on the bus. The menu mode's
- * stream tables are still read by a port on the machine (menu/object_commands.c),
- * so theirs take the machine until that port is rewritten. */
+ * machine (game/rom.h). The menu mode's stream tables are still read by a port
+ * on the machine (menu/object_commands.c), so theirs take the machine until
+ * that port is rewritten. */
 #ifndef CT_GAME_SCENE_DATA_H
 #define CT_GAME_SCENE_DATA_H
 
 #include "port/machine.h"
-#include "port/vars_ram.h"
-#include "state.h"
+#include "rom.h"
 
 /* The scene programs' resource table at $FE:0000 (MD2: 73 24-bit stream
  * pointers). Entry 1 is the program itself, whose stream the boot decompresses
@@ -22,7 +20,7 @@ enum { SCENE_PROGRAM_STREAM_BANK = 0xC3 };
 
 static inline uint16_t scene_program_stream_offset(const GameState *g)
 {
-    return m_read16(state_snes(g), SCENE_RESOURCES + SCENE_RESOURCE_PROGRAM * SCENE_RESOURCE_SIZE);
+    return rom_read16(g, SCENE_RESOURCES + SCENE_RESOURCE_PROGRAM * SCENE_RESOURCE_SIZE);
 }
 
 /* Bank $FE's data (the resource table and what the scene program copies out
@@ -31,7 +29,7 @@ enum { SCENE_DATA_BANK = 0xFE };
 
 static inline uint8_t scene_data_byte(const GameState *g, uint16_t addr)
 {
-    return m_read8(state_snes(g), (uint32_t)SCENE_DATA_BANK << 16 | addr);
+    return rom_read8(g, (uint32_t)SCENE_DATA_BANK << 16 | addr);
 }
 
 /* The race's matrix code generator's table ($C3:09D9): eight words, the
@@ -40,7 +38,7 @@ enum { SCENE_MATRIX_TABLE = 0xC309D9 };
 
 static inline uint16_t scene_matrix_offset(const GameState *g, uint16_t index)
 {
-    return m_read16(state_snes(g), SCENE_MATRIX_TABLE + index * 2u);
+    return rom_read16(g, SCENE_MATRIX_TABLE + index * 2u);
 }
 
 /* The menu mode's scene stream tables in bank C6 (MD2 resources, 24-bit

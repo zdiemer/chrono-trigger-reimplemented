@@ -455,7 +455,10 @@ the host side unchanged.
 `$4214-$4217`) are arithmetic. Ports keep writing them while their register
 state is compared (a `machine.h` helper can name the pattern), and native code
 computes directly once the compatibility layer goes. The WRAM port
-`$2180-$2183` is memory access.
+`$2180-$2183` is memory access. A port whose logic holds the game's state
+rather than the machine (Phase 3a) drives both through `game/cpu_io.h`, which
+takes the state, as `game/vars.h` does; the scenes were the first
+(docs/DISASSEMBLY.md, "The RAM map").
 
 ## Adopting it in ported code
 

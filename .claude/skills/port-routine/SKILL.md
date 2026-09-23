@@ -157,6 +157,18 @@ build/main/ct_fuzz --load-state <state> --routine <name> --seed 1 ...   # before
 # then the same command against your rewrite, same seed, same --fill/--keep
 ```
 
+For a whole subsystem, `tools/fuzz_compare.py` does this for every routine
+listed in `tools/fuzz_routines.toml` (add your subsystem's entries there, with
+the constraints its PORTING.md rows record, and a `variant = "loose"` entry
+where a rewrite names a buffer or reorders reads): build `main` in a scratch
+tree outside the repo, then
+`python3 tools/fuzz_compare.py --before <scratch>/build/main/ct_fuzz --after build/main/ct_fuzz --ct-dev build/main/ct_dev --subsystem <s> -j 3`.
+A guard you add turns states away rather than mismatching, so read its skipped
+column as well; and compare the per-entry shadow totals over the library with
+the predecessor's, which is where a guard that refuses real calls shows.
+Declare each entry's largest don't-care set first (`tools/dontcare_check.py
+--list`): it is what takes the register traffic out of the wrappers.
+
 Expect to **recalibrate your own `cost_milli` rows**, too: any rewrite that
 changes how many bus accesses a port makes moves its drift, and the limits are
 tight (±0.38%). Sequence the work so only the final code pays for a
