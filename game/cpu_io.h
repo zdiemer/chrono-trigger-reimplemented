@@ -34,9 +34,11 @@ void hw_divide_by(GameState *g, uint8_t divisor);
 
 /* The work RAM port: a cursor into work RAM that steps on with every byte read
  * or written through it, which the game uses to stream a list or to write code.
- * `seek_address` moves the cursor within the bank it is already in. */
+ * `seek_address` moves the cursor within the bank it is already in, and
+ * `seek_bank` to the other bank at the address it is already at. */
 void hw_port_seek(GameState *g, uint16_t at, uint8_t bank);
 void hw_port_seek_address(GameState *g, uint16_t at);
+void hw_port_seek_bank(GameState *g, uint8_t bank);
 uint8_t hw_port_read(GameState *g);
 void hw_port_write(GameState *g, uint8_t v);
 

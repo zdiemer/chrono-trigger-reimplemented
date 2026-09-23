@@ -627,6 +627,13 @@
 #define RAM_FIELD_SPRITE_RANGE_HIGH_COUNT 3u
 #define RAM_FIELD_SPRITE_RANGE_HIGH_STRIDE 0x04u
 #define RAM_FIELD_SPRITE_RANGE_HIGH_DP 0x81u /* page field */
+/* A word beside each range's high table pointer, cleared as the sprite table is built; nothing
+ * in the field reads it (field/scratch.h: kept for shadow mode) [3 x $4 bytes, by sprite range
+ * (0 priority bits clear, 1 bit 2 set, 2 bit 3 set)] */
+#define RAM_FIELD_SPRITE_RANGE_SPARE 0x7E0183u
+#define RAM_FIELD_SPRITE_RANGE_SPARE_COUNT 3u
+#define RAM_FIELD_SPRITE_RANGE_SPARE_STRIDE 0x04u
+#define RAM_FIELD_SPRITE_RANGE_SPARE_DP 0x83u /* page field */
 /* Object slot of each active party member, negative for none [3 x $2 bytes, by party member * 2] */
 #define RAM_FIELD_PARTY_OBJECTS 0x7E0197u
 #define RAM_FIELD_PARTY_OBJECTS_COUNT 3u
@@ -732,6 +739,9 @@
  * (field/scratch.h: kept for the original's code and shadow mode) [14 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_STEPS 0x7E03F0u
 #define RAM_FIELD_WINDOW_SHAPE_STEPS_DP 0xF0u /* page field_window_shape */
+/* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
+ * Y, tile and attributes, then the high table's 32 bytes [544 bytes] */
+#define RAM_FIELD_SPRITE_TABLE 0x7E0700u
 /* Queued VRAM uploads from bank $7F, two transfers per entry, run by field_upload_vram_queue:
  * the first transfer's source [8 x $2 bytes, by queue entry] */
 #define RAM_FIELD_VRAM_QUEUE_SOURCE 0x7E0940u
@@ -1265,14 +1275,10 @@
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE 0x7F4B40u
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT 64u
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_STRIDE 0x02u
-/* The objects' 8-byte sprite records, at each object's field_object_sprite_records offset [8
- * bytes] */
+/* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
+ * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
+ * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes] */
 #define RAM_FIELD_SPRITE_RECORDS 0x7F4BC0u
-#define RAM_FIELD_SPRITE_RECORDS_X 0x7F4BC0u /* Screen X */
-#define RAM_FIELD_SPRITE_RECORDS_Y 0x7F4BC1u /* Screen Y ($E0 hidden) */
-#define RAM_FIELD_SPRITE_RECORDS_X_OFFSET 0x7F4BC2u /* X offset from the object's screen position */
-#define RAM_FIELD_SPRITE_RECORDS_Y_OFFSET 0x7F4BC4u /* Y offset from the object's screen position */
-#define RAM_FIELD_SPRITE_RECORDS_TILE 0x7F4BC6u /* Tile and attribute bytes */
 /* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) [64 x
  * $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_SPRITE_HIGH 0x7F4F00u

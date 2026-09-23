@@ -802,6 +802,12 @@ enum { FIELD_SPRITE_RANGE_HIGH_COUNT = 3 };   /* by sprite range (0 priority bit
 uint16_t field_sprite_range_high(const GameState *g, unsigned i);
 void set_field_sprite_range_high(GameState *g, unsigned i, uint16_t v);
 
+enum { FIELD_SPRITE_RANGE_SPARE_COUNT = 3 };   /* by sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set) */
+/* A word beside each range's high table pointer, cleared as the sprite table is built; nothing
+ * in the field reads it (field/scratch.h: kept for shadow mode) */
+uint16_t field_sprite_range_spare(const GameState *g, unsigned i);
+void set_field_sprite_range_spare(GameState *g, unsigned i, uint16_t v);
+
 enum { FIELD_PARTY_OBJECTS_COUNT = 3 };   /* by party member * 2 */
 /* Object slot of each active party member, negative for none */
 uint8_t field_party_objects(const GameState *g, unsigned member);
@@ -932,6 +938,12 @@ void set_field_window_shape_right_start(GameState *g, uint16_t v);
 enum { FIELD_WINDOW_SHAPE_STEPS_BYTES = 14 };
 uint8_t field_window_shape_steps_byte(const GameState *g, unsigned at);
 void set_field_window_shape_steps_byte(GameState *g, unsigned at, uint8_t v);
+
+/* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
+ * Y, tile and attributes, then the high table's 32 bytes [544 bytes, one at a time] */
+enum { FIELD_SPRITE_TABLE_BYTES = 544 };
+uint8_t field_sprite_table_byte(const GameState *g, unsigned at);
+void set_field_sprite_table_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { FIELD_VRAM_QUEUE_SOURCE_COUNT = 8 };   /* by queue entry */
 /* Queued VRAM uploads from bank $7F, two transfers per entry, run by field_upload_vram_queue:
@@ -1568,21 +1580,13 @@ enum { FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT = 64 };   /* by object slot (X = slot
 uint16_t field_object_sprite_high_more(const GameState *g, unsigned slot);
 void set_field_object_sprite_high_more(GameState *g, unsigned slot, uint16_t v);
 
-/* Screen X */
-uint8_t field_sprite_records_x(const GameState *g);
-void set_field_sprite_records_x(GameState *g, uint8_t v);
-/* Screen Y ($E0 hidden) */
-uint8_t field_sprite_records_y(const GameState *g);
-void set_field_sprite_records_y(GameState *g, uint8_t v);
-/* X offset from the object's screen position */
-uint16_t field_sprite_records_x_offset(const GameState *g);
-void set_field_sprite_records_x_offset(GameState *g, uint16_t v);
-/* Y offset from the object's screen position */
-uint8_t field_sprite_records_y_offset(const GameState *g);
-void set_field_sprite_records_y_offset(GameState *g, uint8_t v);
-/* Tile and attribute bytes */
-uint16_t field_sprite_records_tile(const GameState *g);
-void set_field_sprite_records_tile(GameState *g, uint16_t v);
+/* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
+ * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
+ * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes, one at a
+ * time] */
+enum { FIELD_SPRITE_RECORDS_BYTES = 832 };
+uint8_t field_sprite_records_byte(const GameState *g, unsigned at);
+void set_field_sprite_records_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { FIELD_OBJECT_SPRITE_HIGH_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) */

@@ -34,6 +34,8 @@ void hw_port_seek(GameState *g, uint16_t at, uint8_t bank)
 
 void hw_port_seek_address(GameState *g, uint16_t at) { m_write16(state_snes(g), WMADDL, at); }
 
+void hw_port_seek_bank(GameState *g, uint8_t bank) { m_write8(state_snes(g), WMADDB, bank); }
+
 uint8_t hw_port_read(GameState *g) { return m_read8(state_snes(g), WMDATA); }
 
 void hw_port_write(GameState *g, uint8_t v) { m_write8(state_snes(g), WMDATA, v); }

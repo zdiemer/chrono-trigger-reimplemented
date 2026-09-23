@@ -3985,3 +3985,47 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00"]
 why = "the field's page and data bank; the object and the screen random"
+
+[[routine]]
+name = "field_build_sprite_table"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0A00-7E1CFF", "--keep", "7F4800-7F4FFF"]
+iterations = 2000
+why = "the objects and their sprites as the field state has them (random objects send the draws' call-outs anywhere); each object's draw runs as a call-out"
+
+[[routine]]
+name = "field_draw_object_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--keep", "7E0181-7E018C", "--keep", "7E01DB-7E01E0", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-2F"]
+why = "the ranges' cursors as the field state has them (the guard takes only cursors in the table), the object below $100 with its records below $3000"
+
+[[routine]]
+name = "field_update_object_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-2F"]
+why = "the object below $100 with its records below $3000; the records' routines run as call-outs"
+
+[[routine]]
+name = "field_position_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+why = "the object in X a slot below $40 with its records below $3000 (past there they reach bank $80's I/O)"
+
+[[routine]]
+name = "field_position_sprites"
+variant = "loose"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0004-0004"]
+why = "the records anywhere: those that would run past bank $7F into bank $80, where low RAM and the I/O registers are, the guard turns away (field/sprites.c)"
+
+[[routine]]
+name = "field_load_and_position_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+why = "as field_position_sprites"

@@ -1280,6 +1280,26 @@ meaning = "2: the next object in state 1 or 2 due a frame goes to the front of t
 source = "game/field/object_update.c, field_step_object_animation $C0:C98A"
 
 [[var]]
+name = "field_sprite_range_spare"
+addr = "7E:0183"
+page = "field"
+size = 2
+count = 3
+stride = 4
+index = "sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set)"
+subsystem = "field"
+meaning = "A word beside each range's high table pointer, cleared as the sprite table is built; nothing in the field reads it (field/scratch.h: kept for shadow mode)"
+source = "game/field/sprites.c, field_build_sprite_table $C0:B271"
+
+[[var]]
+name = "field_sprite_table"
+addr = "7E:0700"
+size = 0x220
+subsystem = "field"
+meaning = "The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X, Y, tile and attributes, then the high table's 32 bytes"
+source = "game/field/sprites.c, field_build_sprite_table $C0:B271, field_draw_object_sprites $C0:B309"
+
+[[var]]
 name = "field_sprite_range_end"
 addr = "7E:017B"
 page = "field"
@@ -3165,32 +3185,10 @@ source = "game/field/sprites.c, field_load_and_position_sprites $C0:B8CA"
 [[var]]
 name = "field_sprite_records"
 addr = "7F:4BC0"
-stride = 8
+size = 0x340
 subsystem = "field"
-meaning = "The objects' 8-byte sprite records, at each object's field_object_sprite_records offset"
-source = "game/field/sprites.c (header comment), field_position_sprites $C0:B788"
-[[var.field]]
-name = "x"
-offset = 0
-meaning = "Screen X"
-[[var.field]]
-name = "y"
-offset = 1
-meaning = "Screen Y ($E0 hidden)"
-[[var.field]]
-name = "x_offset"
-offset = 2
-size = 2
-meaning = "X offset from the object's screen position"
-[[var.field]]
-name = "y_offset"
-offset = 4
-meaning = "Y offset from the object's screen position"
-[[var.field]]
-name = "tile"
-offset = 6
-size = 2
-meaning = "Tile and attribute bytes"
+meaning = "The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's screen position (a word), the Y offset, then the tile and attribute bytes"
+source = "game/field/sprites.c, field_position_sprites $C0:B788, field_draw_object_sprites $C0:B309"
 
 [[var]]
 name = "field_object_sprite_high"
