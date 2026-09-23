@@ -169,7 +169,7 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **32 of 95 files, 14,026 of
-28,264 lines (50%), are on the backlog**, and all but the scenes, the events
+28,295 lines (50%), are on the backlog**, and all but the scenes, the events
 and the field is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
@@ -178,7 +178,7 @@ and the field is on the machine:
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
 | event | 0 | 19 | 0 | 2,693 | 0.01 | 29% |
 | field | 0 | 16 | 0 | 3,799 | 0.02 | 30% |
-| scene | 0 | 13 | 0 | 2,610 | 0.04 | 51% |
+| scene | 0 | 13 | 0 | 2,641 | 0.04 | 51% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
 | **total** | **32** | **95** | **14,026** | **28,051** | **0.22** | **69%** |
 

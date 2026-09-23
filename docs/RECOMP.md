@@ -4505,6 +4505,45 @@ task list's copy leaves (A, X and Y past the lists) before the controller read,
 whose stops and call-out the don't-care check says see them; that is the one
 piece of register state it makes up, in one named function.
 
+**Fuzzing against the predecessor** (`tools/fuzz_compare.py`, seed 1, every
+scene entry and variant in `tools/fuzz_routines.toml`, 87 runs): the counts
+agree for every one. The first runs of the rewrite didn't, and each was the
+rewrite's to fix: the unsigned multiply's byte-too-low carry (7 and 11
+states), the scaler's samples read past the bank into its own scratch (24),
+and sprite lists read over the cell the original counts them down in (2 and
+15). What the guards now turn away shows in the skipped column: the sprite
+lists too long for the table from where the cursor stands (9907 and 10074 of
+20000 in the tight runs, 15320 and 15783 in the loose ones, whose cursors are
+anywhere in the table and whose lists are anywhere in low RAM), the single
+sprites whose high-table byte is past the table (112 of 20000, loose), and 8 of
+2000 plane tiles over the scratch; everything each accepts matches as it did.
+The tight sprite runs now start the cursor where each frame's first list finds
+it and the scaler's keeps its source's base and limit where its samples stay in
+the bank, both narrowed to what the guards take, with the guard named in the
+entry's `why`. The plane tiles mismatch in 5 of 2000 states before the
+rework and after it: a residue of the predecessor's, not the rework's.
+
+**Time.** Fifteen of the scene's `cost_milli` rows moved: most by a few
+percent where an accessor reads a word or a wrapper stopped setting a dead
+register, and the ones whose work is now C by more (`scene_multiply` 6178 to
+9267, `scene_divide_8_8` 32485 to 38982, `scene_title_expand_plane_tile` 3723 to
+27517, `scene_scale_bitmap_row` 2877 to 15136, `scene_draw_circle` 3051 to
+15928). Two needed more than a scalar. The circle and the scaler copy and clear
+memory a byte at a time, as the original's block moves do, and do the rest of
+their work in locals where the original works in memory, so one scalar left
+the scaler's rows up to 289550 clocks out (a large clear at a bitmap's end) and
+the circle 20253 in vblank. A block move's time is per byte whatever routine
+makes it, so theirs is attributed to the block move stub, `$7E:9690`, whose own
+calls calibrate it (`scene_time_block_move`, scaffolding the entry's wrapper
+arms and a C caller doesn't): the scaler's worst is then 6891 clocks, within
+the limits, and the circle's 9810 in vblank, which its existing vblank-tail
+exception covers with the new figure (`tools/timing_exceptions.txt`). The
+divisor search, made plain C division at first, estimated a long search at the
+cost of one pass (1514% drift); dividing through the divider a pass at a time,
+as `cpu_io.h`'s `hw_quotient_by`, put its time back on its passes.
+The whole gate, every route included (`--long-routes`), passes.
+
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,
