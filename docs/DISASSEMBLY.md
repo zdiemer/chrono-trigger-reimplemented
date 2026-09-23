@@ -299,6 +299,21 @@ table `$C3:0077` draws into -- is reached through `game/wram.h`, which is an
 escape by address and so a finding: `grep -rn wram_ game/` is the list, and it
 is meant to empty.
 
+Three more seams, found by the first subsystem rewritten against the accessors
+(`game/scene/`, RECOMP.md, "Phase 3a: the scene subsystem off the machine"),
+sit beside `vars.h` with the same backing arrangement, in
+`runtime/port/state_io.c`: `game/cpu_io.h`, the multiplier, divider and work RAM
+port as the game drives them (registers, not variables, but an operand or a
+cursor one routine leaves for the next is state all the same);
+`game/rom.h`, the cartridge by address, which only the named resource
+accessors of the `*_data.h` headers call; and, for the twelve variables above
+and their kind, nothing generated yet -- `scene/scratch.c` maps a page and an
+offset onto the accessors of each page it knows, by hand (docs/TODO.md). A
+record the game indexes by a byte offset rather than an element number (the
+OAM buffer, as the scene's sprite writers see it) gets a second, byte-buffer
+entry in the subsystem that uses it that way (`scene_sprite_table`), since an
+index parameter can't carry an odd offset.
+
 **Adding to it.** When a port establishes what a byte means, add the entry
 with the port as its `source`, run `python3 tools/ram_map.py header` and
 `accessors`, and use the name. `python3 tools/ram_map.py lookup 7E:95D5` says

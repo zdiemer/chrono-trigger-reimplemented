@@ -8,39 +8,39 @@
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
-#include "ram.h"
+#include "port/vars_ram.h"
 #include "scene/scene_data.h"
+#include "vars.h"
+#include "wram.h"
 
-/* RAM_SCENE_FLAGS bit 7: the scene uses the line interrupt, which the boot
- * starts at LINE_IRQ_LINE, and leaves interrupts enabled while the NMI works. */
+/* scene_flags bit 7: the scene uses the line interrupt, which the boot starts
+ * at LINE_IRQ_LINE, and leaves interrupts enabled while the NMI works. */
 enum { SCENE_FLAG_LINE_IRQ = 0x80 };
 enum { LINE_IRQ_LINE = 0xD3 };
 enum { FULL_BRIGHTNESS = 15 };
 
-/* Where the program runs, and the decompressor's cells (the page at $0300). */
+/* Where the program runs, in bank $7E. */
 enum { PROGRAM_START = 0x7E3000 };
 enum { PROGRAM_ADDRESS = 0x3000 };
 
-/* The stubs at $0500 (NMI) and $0504 (IRQ) are a JML and its 24-bit target. */
+/* An interrupt stub is a JML and its 24-bit target. */
 enum { JML = 0x5C };
-static void set_stub(Snes *s, uint16_t stub, uint32_t target)
-{
-    m_write8(s, m_abs(s, stub), JML);
-    m_write16(s, m_abs(s, (uint16_t)(stub + 1)), (uint16_t)target);
-    m_write8(s, m_abs(s, (uint16_t)(stub + 3)), (uint8_t)(target >> 16));
-}
+static uint32_t jump_to(uint32_t target) { return JML | target << 8; }
 
 /* The handlers the boot installs until the program installs its own. */
 enum { BOOT_NMI = 0xC30548, BOOT_IRQ = 0xC30529 };
 
-/* True where interrupts end up enabled (the CLI). */
-static bool boot(Snes *s, uint8_t flags)
+// $C3:0000
+/* Point the interrupts at the boot's handlers, keep the scene's mode bits,
+ * start the line interrupt where they ask for it, and set the decompressor
+ * on the program's stream. True where the scene uses the line interrupt, and
+ * interrupts end up enabled. */
+static bool boot(GameState *g, Platform *pf, uint8_t flags)
 {
-    Platform *pf = m_platform(s);
-    set_stub(s, RAM_ABS(RAM_NMI_VECTOR), BOOT_NMI);
-    set_stub(s, RAM_ABS(RAM_IRQ_VECTOR), BOOT_IRQ);
+    set_nmi_vector(g, jump_to(BOOT_NMI));
+    set_irq_vector(g, jump_to(BOOT_IRQ));
     tm_enable_interrupts(pf, PF_AT(0xC30034), TM_INT_AUTO_JOYPAD);
-    m_write8(s, m_abs(s, RAM_ABS(RAM_SCENE_FLAGS)), flags);
+    set_scene_flags(g, flags);
     bool line_irq = flags & SCENE_FLAG_LINE_IRQ;
     if (line_irq) {
         vid_set_display(pf, PF_AT(0xC30041), &(VidDisplay){ .brightness = FULL_BRIGHTNESS });
@@ -49,61 +49,48 @@ static bool boot(Snes *s, uint8_t flags)
         tm_set_line(pf, PF_AT(0xC3004F), LINE_IRQ_LINE);
         tm_ack_line_irq(pf, PF_AT(0xC30052));
     }
-    /* the decompressor's source (the program's stream) and destination */
-    m_write16(s, m_abs(s, RAM_ABS(RAM_DECOMPRESS_SOURCE)), scene_program_stream_offset(s));
-    m_write16(s, m_abs(s, RAM_ABS(RAM_DECOMPRESS_DEST)), PROGRAM_ADDRESS);
-    m_write8(s, m_abs(s, RAM_ABS(RAM_DECOMPRESS_DEST) + 2), 0x00);
-    m_write8(s, m_abs(s, RAM_ABS(RAM_DECOMPRESS_SOURCE) + 2), SCENE_PROGRAM_STREAM_BANK);
+    set_decompress_dest(g, PROGRAM_ADDRESS);   /* with a bank byte of 0, as the original writes it */
+    set_decompress_source(g, (uint32_t)SCENE_PROGRAM_STREAM_BANK << 16 | scene_program_stream_offset(g));
     return line_irq;
 }
 
-bool scene_boot_bank_reaches_io(Snes *s) { return m_io_bank(s->cpu.db); }
+/* The stubs, the flags and the decompressor's cells are reached through the
+ * data bank. */
+bool scene_boot_bank_reaches_io(Snes *s) { return m_bank_reaches_io(s); }
 
-// $C3:0000
 /* Start the scene program: the mode bits in A. The decompressor is a call-out,
  * and the port stops at the program's first instruction. */
 void scene_boot(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    uint8_t flags = (uint8_t)c->a;
-    c->p |= CPU_FLAG_I;   /* SEI */
-    bool line_irq = boot(s, flags);
-    if (line_irq)
-        c->p &= (uint8_t)~CPU_FLAG_I;   /* CLI */
-    /* the registers at the JSL: the last values loaded */
-    c->a = (uint16_t)(PROGRAM_ADDRESS & 0xFF00) | SCENE_PROGRAM_STREAM_BANK;
-    c->x = line_irq ? LINE_IRQ_LINE : (uint16_t)BOOT_NMI;
-    m_jsl_dc(s, 0xC3006F, 0xC30557, DC_N | DC_Z | DC_C);
-    m_stop_at(s, PROGRAM_START, DC_N | DC_Z | DC_C);
+    m_set_flag(s, CPU_FLAG_I, true);   /* SEI */
+    bool line_irq = boot(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
+    m_set_flag(s, CPU_FLAG_I, !line_irq);   /* CLI where the scene uses the line interrupt */
+    m_jsl_dc(s, 0xC3006F, 0xC30557, DC_A | DC_X | DC_N | DC_Z | DC_C);
+    m_stop_at(s, PROGRAM_START, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
 }
 
-/* MVN from bank $FE: A + 1 bytes from $FE:X to `bank`:Y, leaving A $FFFF, X and
- * Y past the bytes and the data bank the destination's. */
-static void copy_from_data_bank(Snes *s, uint8_t bank)
+// $C3:099C, $C3:09A0
+/* `count` bytes of bank $FE's data from `from` to `to` in `bank`, a byte at a
+ * time counting up. The destination is wherever the caller says. */
+static void copy_data(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count)
 {
-    Cpu *c = &s->cpu;
-    uint32_t count = (uint32_t)c->a + 1;
-    for (uint32_t i = 0; i < count; i++) {
-        m_write8(s, (uint32_t)bank << 16 | c->y, scene_data_byte(s, c->x));
-        c->x++;
-        c->y++;
-    }
-    c->a = 0xFFFF;
-    c->db = bank;
+    for (uint32_t i = 0; i < count; i++)
+        wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(to + i), scene_data_byte(g, (uint16_t)(from + i)));
 }
 
-// $C3:099C
+/* MVN from bank $FE: A + 1 bytes from X to `bank`:Y. Of what it leaves, the
+ * callers read only Y, past the bytes. */
+static void copy_entry(Snes *s, uint8_t bank)
+{
+    uint16_t from = s->cpu.x, to = s->cpu.y;
+    uint32_t count = (uint32_t)s->cpu.a + 1;
+    copy_data(state_of(s), bank, from, to, count);
+    s->cpu.y = (uint16_t)(to + count);
+    m_rtl(s);
+}
+
 /* Copy A + 1 bytes of bank $FE's data from X to $7E:Y. */
-void scene_copy_data_to_7e(Snes *s)
-{
-    copy_from_data_bank(s, 0x7E);
-    m_rtl(s);
-}
+void scene_copy_data_to_7e(Snes *s) { copy_entry(s, 0x7E); }
 
-// $C3:09A0
 /* Copy A + 1 bytes of bank $FE's data from X to $7F:Y. */
-void scene_copy_data_to_7f(Snes *s)
-{
-    copy_from_data_bank(s, 0x7F);
-    m_rtl(s);
-}
+void scene_copy_data_to_7f(Snes *s) { copy_entry(s, 0x7F); }

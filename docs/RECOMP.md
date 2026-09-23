@@ -3211,6 +3211,147 @@ drivers at the end of it (`$C2:2C1D` and `$C2:2C93`) also run straight through
 two entries that already exist in `menu/display.c` (`$C2:2D47`, `$C2:2D70`), so
 they belong with that file's loader half, which is its own chunk.
 
+### Phase 3a: the scene subsystem off the machine
+
+The first whole subsystem of PLAN.md's Phase 3a, after the circle pilot
+(`game/scene/circle.c`): the other ten files of `game/scene/`, 73 entries, taken
+together so the vocabulary they share was written once (75 registered
+entries in all, the circle's two among them). Nothing was added to
+the burndown; what moved is portstyle's two numbers. Before, scene scored 0.20
+operations per line with five files on the transcription backlog (`program.c`
+0.52, `race.c` 0.34, `display.c` 0.30, `nmi.c` 0.18, `boot.c` 0.17), and 196 of
+its 215 functions took a `Snes *`. After, it scores 0.05, no file is on the
+backlog, and 143 of 254 functions take the machine: the 74 functions the 75
+entries run, 42 guards, and 27 functions that are either shared pieces of the entry
+wrappers (setting the widths, the flags a compare leaves, the page the caller
+is on) or bridges around call-outs, all listed below. (`portstyle.py`'s own
+column says 90% to 54%; its function matcher misses one-line definitions, so
+those are counted here by name.)
+
+**The shape.** Each routine's work is a static function of `GameState *` and,
+where it touches the host, `Platform *` -- the two handles apart, as decided
+before the rewrite began -- with plain C parameters and results. The entry
+wrapper turns the machine into those (`state_of`, `m_platform`), reads the
+registers the routine takes, calls it, and puts back only what liveness says
+the callers read. That last part is what made most wrappers thin: every entry
+now declares the largest don't-care set `tools/dontcare_check.py` accepts, which
+for the program's display and race entries is everything but a register or two
+(the RAM program's callers are in the analysis since the M3 image work), so the
+`LDA #$80 : LDX #$0400 ...` register traffic the display ports reproduced to be
+compared is gone rather than moved. `scene_setup_mode7_display`, which
+reproduced every load the original made on the way to each store, now leaves
+A's high byte and the M flag; the eight race stops leave nothing.
+
+**What the accessors couldn't say, and what was added.**
+
+- *Cells on the caller's page.* The multiply and divide helpers work on
+  `$F0-$FF` of whichever page D is on: the scene's own, or a sequence channel's
+  when a script calls the program (5412 of the race's 19842 multiplies). The map
+  has no accessor shape for a variable on a caller-chosen page, so
+  `scene_math_scratch` became a 16-byte buffer and `scene/scratch.c` takes the
+  page (`ScenePage`: a channel, or the scene's own) and an offset, reaching the
+  bytes through `scene_math_scratch_byte` or `scene_channels_math_scratch_byte`.
+  The first guard written for these (`D = 0`) turned those 5412 calls away,
+  which is how it was found: a guard's refusals show only as a drop in the
+  entry's shadow count, so every rewritten entry's count was compared with the
+  predecessor's, movie by movie.
+- *The multiplier, divider and work RAM port.* These are CPU registers, not a
+  platform service (PLATFORM.md, "Not services"), and not variables either;
+  `game/cpu_io.h` names them as the game drives them (`hw_set_multiplicand`,
+  `hw_multiply_by`, `hw_quotient`, `hw_divide_by`, `hw_port_seek`,
+  `hw_port_read`, `hw_port_write`), taking the state because an operand or a
+  cursor left for the next routine is state, with `runtime/port/state_io.c` the
+  backing. Every subsystem's arithmetic has the same need (`battle/math.c`,
+  `menu/epoch.c`).
+- *ROM data from logic that has no machine.* `scene/scene_data.h`'s accessors
+  took the machine. They take the state now, through `game/rom.h`
+  (`rom_read8`/`rom_read16`, backed in `state_io.c`), which only a `*_data.h`
+  accessor is meant to call; the menu's two stream-table readers keep the
+  machine until `menu/object_commands.c` is rewritten.
+- *Buffers the game locates at run time.* 18 new uses of `game/wram.h`, 22 in
+  the subsystem: the scaler's source and output rows (the data bank says where,
+  `$7F` in the race), the bank `$FE` copies' destination, the tile source
+  `$7E:5E54` reads through the data bank, the next step of a task whose page is
+  the caller's (`$7E:5DA7`), the race's line-effect descriptor table, the
+  sequence scripts' bytes and their store command's target, and the sprites'
+  four-byte sources. Each is data a caller points at, not a cell; the map could
+  name the script area and the race's descriptor table as fixed buffers of the
+  program image, which is the next step for most of them.
+- *Byte offsets into a record.* The sprite writers index the OAM buffer by a
+  byte offset and a high-table pointer, not a sprite number, and fuzzing puts
+  odd offsets there; the core's `oam_buffer` record can't take them, so the map
+  has `scene_sprite_table` over the same bytes (`$0700-$091F`) for the scene.
+
+**The guards.** A port that names its cells through `game/vars.h` knows them
+where the scene keeps them, while the original reaches them through D and the
+data bank; so every such entry now says, in its guard, that it runs on the
+page and bank the game always enters it with (`scene/guards.c`, and the
+predicates `m_bank_reaches_low_ram`, `m_bank_reaches_io` and `m_direct_page`
+added to `runtime/port/machine.h` for every subsystem's page guards). With the
+movies' per-entry counts compared against the predecessor's, none turns a call
+away except the one noted below.
+
+**What shadow mode found**, over the attract sequence and the race while the
+files were rewritten, before the library: the task lists' call-outs push P after the load that finds
+the task (so its N and Z are the task word's), and carry the loop's compare's
+carry from one task into the next (both only when a task runs, which the fuzz
+constraints that empty the tables never let happen); and `scene_frame_work`'s
+callers read A's high byte, which the 16-bit task list leaves as the frame work
+set it before the call. Then the full library, clean.
+
+**Differential fuzzing, and a tool for it.** Every rewritten entry was fuzzed
+against the port it replaced with the same state, seed and constraints
+(PORTING.md, "Fuzzing"): `tools/fuzz_compare.py` runs two `ct_fuzz` builds side
+by side and reports both counts per routine, from constraints kept in
+`tools/fuzz_routines.toml` (one entry per registered routine, with the reason
+for each constraint; the ones PORTING.md's rows recorded for the scene's
+entries, made exact). A routine can also be listed with `variant = "loose"`,
+fewer constraints, which is where a reordered access shows: the sprite writers'
+loose runs, with the entry offset and the high-table pointer anywhere in low RAM
+a list can't run past, caught the first form of the rewrite -- the named table
+wrote to bank `$7E` where the original, through a data bank of 0, reaches I/O
+space past `$2000` (19569 of 20000 states against 22, until the cursors were
+kept in low RAM, where both agree). Every entry's predecessor and rewrite counts
+are in its PORTING.md row; all agree.
+
+**What it cost.** Recalibrating the scene's `cost_milli` rows: a port that
+reads a byte cell as the word the accessor has, or writes a result once
+instead of a step at a time, makes a different number of bus accesses.
+Sixteen of the scene's rows moved. The arithmetic moved most, because it
+now keeps its rounds in C variables and touches the scratch cells once at
+each end: `scene_divide` 2053 to 140438 (32 rounds of shifts and subtracts in
+about 40 bus accesses), `scene_divide_8_8` 2372 to 32485, `scene_multiply` 2866
+to 6178, `scene_multiply_signed` 3813 to 5708, and `scene_write_matrix_code`
+4467 to 19279, whose 5153 port writes are now nearly all its accesses. The
+rest moved by a few hundred where the wrappers stopped reproducing dead
+registers or an accessor reads a word where the original read a byte
+(`scene_frame_work` 3393 to 3006, the display and race rows, the sprite writers,
+the task lists). Nothing needed an exception: one scalar fits each of them, since
+every one of these does the same work on every call or scales it with the same
+loop the original has. The whole suite over the library, with the shadow logs
+of the first run calibrated from, then passes; and the per-entry shadow totals
+over the 26 movies -- calls, compared, interrupted, skipped -- are identical to
+the predecessor's, entry for entry.
+
+**Left on the machine, and why** (the 27): the bridges around call-outs --
+the frame work and the NMI (`run_frame_work`, `read_pause_button`,
+`update_song`, `run_task_list`, `send_pause_sound`, `can_continue`), the task
+lists (`run_tasks`, `call_task`: the tasks are the program's code), and the
+sequence interpreter's loop (`run`, `call_program`, `send_sound`, `past_call`,
+`machine_as_expected`, `can_continue`), whose commands are logic but whose
+program calls and driver sends are the original's; the pieces the entry
+wrappers share (`set_m8`, `load_status`, `set_widths16`, `put_flags`,
+`compare8`, `caller_page`, `copy_entry`, the two files' `set_vram_address`,
+`upload_column_entry`); two guards that other guards call; and the pilot's
+`scene_circle_draw`, the C call `menu/object_commands.c` makes into the circle
+while that port is on the machine.
+
+**One call the guards can leave to the original.** `scene_find_divisor` reads
+its limit through the data bank; in one iteration's run of the race movie one
+call came with a data bank that doesn't reach low RAM, where that cell isn't
+the scene's, and its guard left it to the original (the suite's runs, and the
+predecessor's, had none).
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

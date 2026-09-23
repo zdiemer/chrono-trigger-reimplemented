@@ -348,6 +348,14 @@ meaning = "Count byte of the sprite list being copied, decremented per entry (th
 source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E"
 
 [[var]]
+name = "scene_sprite_table"
+addr = "7E:0700"
+size = 0x220
+subsystem = "scene"
+meaning = "The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y, tile, attributes) and the $20-byte high table after them, reached by the byte offsets the scene's cursors hold"
+source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC (the entry offset and the high-table pointer are byte offsets and addresses, not sprite numbers)"
+
+[[var]]
 name = "scene_scaler_pairs"
 addr = "7E:001F"
 size = 2
@@ -520,6 +528,33 @@ size = 2
 meaning = "Matrix parameter D"
 
 [[var]]
+name = "scene_title_show_cell_1"
+addr = "7E:0062"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Set to $0038 when the title's task shows its layers, beside scene_title_show_cell_2 ($003A); what reads the pair isn't ported"
+source = "game/scene/display.c, scene_show_layers $7E:5C98"
+
+[[var]]
+name = "scene_title_show_cell_2"
+addr = "7E:0064"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Set to $003A when the title's task shows its layers, beside scene_title_show_cell_1 ($0038)"
+source = "game/scene/display.c, scene_show_layers $7E:5C98"
+
+[[var]]
+name = "scene_title_timer"
+addr = "7E:0068"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "The title's frame count, which its layer task reads: while it is below $72 the task shows BG1, BG2 and the sprites and hands channel 0 its next script"
+source = "game/scene/display.c, scene_show_layers $7E:5C98"
+
+[[var]]
 name = "scene_race_tilemap_a_ready"
 addr = "7E:00AA"
 page = "scene"
@@ -538,36 +573,11 @@ source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221"
 [[var]]
 name = "scene_math_scratch"
 addr = "7E:00F0"
-stride = 16
+size = 16
 page = "scene"
 subsystem = "scene"
-meaning = "Operands and results of the scene's multiply and divide helpers, on whichever page the caller has (also $0AF0 with D = $0A00); the program's own transfer and the sequence scripts' code call reuse $F0 and $F2"
-source = "game/scene/program.c, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply $7E:31BF; game/scene/math.c, scene_multiply_signed $C3:094C; game/scene/display.c, scene_transfer $7E:38E7; tools/disasm/seqscript.py (command $A0)"
-[[var.field]]
-name = "a"
-offset = 0
-size = 2
-meaning = "Multiplicand; the 8.8 divide's dividend; the low word of the 32-bit divide's dividend; the transfer's channel mode byte; the address of the code a sequence script calls"
-[[var.field]]
-name = "b"
-offset = 2
-size = 2
-meaning = "Multiplier (8-bit in the signed multiply); the 8.8 divide's divisor; the high word of the 32-bit dividend; the transfer's destination register"
-[[var.field]]
-name = "c"
-offset = 4
-size = 4
-meaning = "32-bit product; the 8.8 quotient (low word); the 32-bit divide's divisor"
-[[var.field]]
-name = "quotient"
-offset = 8
-size = 4
-meaning = "32-bit divide's quotient; its low word is the 8.8 divide's divisor minus one"
-[[var.field]]
-name = "remainder"
-offset = 12
-size = 4
-meaning = "32-bit divide's remainder"
+meaning = "Operands and results of the scene's multiply and divide helpers, on whichever page the caller has (also each sequence channel's, scene_channels.math_scratch, with D on the channel): two operand words at $F0 and $F2 (multiplicand and multiplier, the 8.8 divide's dividend and divisor, the 32-bit dividend), a 32-bit product or divisor at $F4, and the 32-bit quotient and remainder at $F8 and $FC. The matrix code generator keeps its offsets here, the program's own transfer its channel's mode and destination, and the sequence scripts' code call its routine's address"
+source = "game/scene/program.c, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply $7E:31BF; game/scene/math.c, scene_multiply_signed $C3:094C; game/scene/matrix_code.c, scene_write_matrix_code $C3:09E9; game/scene/display.c, scene_transfer $7E:38E7; tools/disasm/seqscript.py (command $A0)"
 
 # ---- the scene's absolute work RAM ---------------------------------------------
 

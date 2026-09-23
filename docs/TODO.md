@@ -532,9 +532,41 @@ waits on M5 rather than on a backend.
   *address uses*, so a file that reaches state through `game/vars.h` has no
   address uses at all and leaves the denominator rather than scoring 100%. As
   Phase 3a proceeds, "91% named" quietly becomes "91% of what is left
-  unconverted is named". One converted file today, so it is not wrong yet; a
-  second column counting converted files, or a denominator that includes
-  accessor uses, would keep it honest before the big subsystems land.
+  unconverted is named". All of `game/scene/` is converted now, so the scene's
+  column already means only what is left elsewhere; a second column counting
+  converted files, or a denominator that includes accessor uses, would keep it
+  honest before the big subsystems land.
+- **`portstyle.py`'s function count** misses one-line definitions (its
+  matcher wants the parameter list's closing parenthesis at the end of a line)
+  and counts guards and entry wrappers with everything else, so "54% on the
+  machine" for scene reads as a backlog when it is entries, guards and bridges
+  (RECOMP.md lists them by name). Matching definitions properly, and splitting
+  the column into registered entries, guards and the rest, would make the rest
+  the number to drive to zero.
+- **`tools/fuzz_routines.toml` has only the scene's entries.** Each subsystem's
+  Phase 3a rewrite adds its own from its PORTING.md rows as it goes; a check
+  that every registered entry has one would say when the file is complete.
+- **Cells on a page the caller chooses have no accessor.** The scene's math
+  helpers work on `$F0-$FF` of whichever page D is on (the scene's own, or a
+  sequence channel's), so `scene/scratch.c` maps a page and an offset onto two
+  byte-buffer accessors by hand, and the map's twelve `caller`-page variables
+  have no accessor at all (DISASSEMBLY.md, "The accessors"). A generated shape
+  that takes the page -- a record per page kind, or a page base in the handle --
+  would replace the hand mapping; the event engine's object pages and the
+  menus' `menu_record` page are the next to need it (RECOMP.md, "Phase 3a: the
+  scene subsystem off the machine").
+- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 22 uses,
+  18 of them from the Phase 3a rewrite. The sequence scripts' bytes and the
+  race's line-effect descriptor table are fixed parts of the program image at
+  `$7E:3000` and could be named buffers of it; the scaler's rows, the bank `$FE`
+  copies' destination, the tile rows `$7E:5E54` reads, a task's next-step cell
+  and the sprites' sources are wherever the caller points, and want the caller
+  ported to say what they are. The circle's table is the pilot's.
+- **`scene_find_divisor` on a bank that isn't low RAM.** Its limit is read
+  through the data bank, and its guard now leaves the rare call whose data bank
+  doesn't reach low RAM (one in some runs of `events-jetbike-race`) to the
+  original, since the cell it reads there isn't the scene's. Which caller makes
+  it, and what that cell is, isn't known.
 - **The RAM map can't say two variables alias.** `ram_map.py check` rejects
   overlap inside a subsystem, but the ROM overlaps: the map planes' last column
   word is the first plane's row word (`$7E:00E7`), which had to be modelled as

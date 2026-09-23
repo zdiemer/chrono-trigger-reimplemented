@@ -1,65 +1,45 @@
-/* Scenes: arithmetic helpers. */
+/* Scenes: arithmetic helpers of bank C3, on the math scratch cells of the
+ * caller's page (scene/scratch.c) and the CPU's multiplier and divider
+ * (game/cpu_io.h). */
 #include "scene/scene.h"
 
+#include "cpu_io.h"
 #include "port/machine.h"
-#include "ram.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
-/* The hardware multiplier: 8 x 8 bits, the product in RDMPY. The scene reaches
- * it through the data bank, as the original does. */
-enum { WRMPYA = 0x4202, WRMPYB = 0x4203, RDMPY = 0x4216 };
-/* And the divider: the dividend in WRDIV divided by WRDIVB, the quotient in
- * RDDIV. */
-enum { WRDIVB = 0x4206, RDDIV = 0x4214 };
-
-enum {
-    MULTIPLICAND = RAM_SCENE_MATH_SCRATCH_A - RAM_SCENE_MATH_SCRATCH + RAM_SCENE_MATH_SCRATCH_DP,
-    MULTIPLIER = RAM_SCENE_MATH_SCRATCH_B - RAM_SCENE_MATH_SCRATCH + RAM_SCENE_MATH_SCRATCH_DP,
-    PRODUCT = RAM_SCENE_MATH_SCRATCH_C - RAM_SCENE_MATH_SCRATCH + RAM_SCENE_MATH_SCRATCH_DP,
-};
-
-static uint16_t cell16(Snes *s, uint8_t dp) { return m_read16(s, m_dp(s, dp)); }
-static void set_cell16(Snes *s, uint8_t dp, uint16_t v) { m_write16(s, m_dp(s, dp), v); }
-
-static uint16_t multiply(Snes *s, uint8_t b)
-{
-    m_write8(s, m_abs(s, WRMPYB), b);
-    return m_read16(s, m_abs(s, RDMPY));
-}
+static bool negative16(uint16_t v) { return v & 0x8000; }
 
 // $C3:094C
-/* The signed 16-bit multiplicand at $F0 times the signed 8-bit multiplier at
- * $F2, into the 32-bit product at $F4-$F7: the magnitudes through the hardware
- * multiplier, a byte of the multiplicand at a time, and the product negated
- * when the signs differ. The middle word adds the second partial product to
- * what is at $F5-$F6, which includes $F6 as it was before, as the original
- * does. Returns the first partial product, which the original leaves in X. */
-static uint16_t multiply_signed(Snes *s)
+/* The signed 16-bit multiplicand times the signed 8-bit multiplier (the second
+ * operand's low byte), into the 32-bit product: the magnitudes
+ * through the multiplier a byte of the multiplicand at a time, and the product
+ * negated when the signs differ. The middle word adds the second partial
+ * product to the product's bytes 1-2 as they stand, and byte 2 is still what the
+ * caller left there, so it is added in too, as the original does. Returns the
+ * first partial product, which the original leaves in X. */
+static uint16_t multiply_signed(GameState *g, ScenePage page)
 {
-    uint16_t a = cell16(s, MULTIPLICAND);
-    uint8_t b = m_read8(s, m_dp(s, MULTIPLIER));
-    bool negative = (m_read8(s, m_dp(s, (uint8_t)(MULTIPLICAND + 1))) ^ b) & 0x80;
-    uint8_t b_size = (b & 0x80) ? (uint8_t)-b : b;
-    uint16_t a_size = (a & 0x8000) ? (uint16_t)-a : a;
-    m_write8(s, m_abs(s, WRMPYA), b_size);
-    uint16_t low = multiply(s, (uint8_t)a_size);
-    m_write8(s, m_dp(s, (uint8_t)(PRODUCT + 3)), 0);
-    uint16_t high = multiply(s, (uint8_t)(a_size >> 8));
-    set_cell16(s, PRODUCT, low);
-    set_cell16(s, (uint8_t)(PRODUCT + 1), (uint16_t)(high + cell16(s, (uint8_t)(PRODUCT + 1))));
-    if (negative) {
-        uint16_t product_low = cell16(s, PRODUCT);
-        uint16_t negated_low = (uint16_t)(~product_low + 1);
-        set_cell16(s, PRODUCT, negated_low);
-        uint16_t borrow = negated_low == 0 ? 1 : 0;
-        set_cell16(s, (uint8_t)(PRODUCT + 2), (uint16_t)(~cell16(s, (uint8_t)(PRODUCT + 2)) + borrow));
-    }
+    uint16_t a = scene_scratch16(g, page, SCRATCH_A);
+    uint8_t b = scene_scratch8(g, page, SCRATCH_B);
+    uint8_t leftover = scene_scratch8(g, page, SCRATCH_PRODUCT + 2);
+    bool negative = ((a >> 8) ^ b) & 0x80;
+    uint16_t a_size = negative16(a) ? (uint16_t)-a : a;
+    hw_set_multiplicand(g, (b & 0x80) ? (uint8_t)-b : b);
+    uint16_t low = hw_multiply_by(g, (uint8_t)a_size);
+    uint16_t high = hw_multiply_by(g, (uint8_t)(a_size >> 8));
+    uint16_t middle = (uint16_t)(((low >> 8) | leftover << 8) + high);
+    uint32_t product = (uint32_t)(low & 0xFF) | (uint32_t)middle << 8;
+    set_scene_scratch32(g, page, SCRATCH_PRODUCT, negative ? (uint32_t)-product : product);
     return low;
 }
 
-/* Entered with 16-bit index registers; saves P and restores it. */
+/* Entered with 16-bit index registers; P comes back as it was. */
 void scene_multiply_signed(Snes *s)
 {
-    s->cpu.x = multiply_signed(s);
+    ScenePage page = SCENE_OWN_PAGE;
+    scene_page_of(m_direct_page(s), &page);
+    s->cpu.x = multiply_signed(state_of(s), page);
     m_rtl(s);
 }
 
@@ -69,56 +49,62 @@ enum { DIVISORS = 0x100 };
 
 /* One pass of the loop: the quotient of the division started last, and the
  * next divisor started. */
-static uint16_t next_divisor(Snes *s, uint8_t divisor)
+static uint16_t next_divisor(GameState *g, uint8_t divisor)
 {
-    uint16_t quotient = m_read16(s, RDDIV);
-    m_write8(s, WRDIVB, divisor);
+    uint16_t quotient = hw_quotient(g);
+    hw_divide_by(g, divisor);
     return quotient;
 }
 
+typedef struct {
+    bool found;
+    uint8_t divisor;
+    uint16_t quotient;
+} Divisor;
+
 // $C3:0E29
-/* Count the divisor up from X until the quotient of the dividend falls below
- * the limit at $F4 (through the data bank): each pass reads the quotient of
- * the division started before (the caller starts the first) and starts the
- * next one. Returns true with X the divisor it stopped on and A the quotient;
- * false, after the first pass, when no divisor gets there and the original
- * loops forever. */
-static bool find_divisor(Snes *s, uint8_t *x, uint16_t *quotient)
+/* Count the divisor up from `divisor` until the quotient of the dividend falls
+ * below the limit (the scene's own product cell, reached through the data
+ * bank): each pass reads the quotient of the
+ * division started before (the caller starts the first) and starts the next
+ * one. Not found, the original loops forever; the port stops after the first
+ * pass, which is where it would be after 256. */
+static Divisor find_divisor(GameState *g, uint8_t divisor)
 {
-    uint16_t limit = m_read16(s, m_abs(s, RAM_ABS(RAM_SCENE_MATH_SCRATCH_C)));
-    uint8_t first = (uint8_t)(*x + 1);
-    uint16_t first_quotient = next_divisor(s, first);
-    *x = first;
-    *quotient = first_quotient;
-    for (uint16_t i = 0; i < DIVISORS && *quotient >= limit; i++) {
-        *x = (uint8_t)(*x + 1);
-        *quotient = next_divisor(s, *x);
+    uint16_t limit = scene_scratch16(g, SCENE_OWN_PAGE, SCRATCH_PRODUCT);
+    Divisor first = { false, (uint8_t)(divisor + 1), 0 };
+    first.quotient = next_divisor(g, first.divisor);
+    Divisor d = first;
+    for (uint16_t i = 0; i < DIVISORS && d.quotient >= limit; i++) {
+        d.divisor = (uint8_t)(d.divisor + 1);
+        d.quotient = next_divisor(g, d.divisor);
     }
-    if (*quotient < limit)
-        return true;
-    /* as after the first pass */
-    m_write8(s, WRDIVB, first);
-    *x = first;
-    *quotient = first_quotient;
-    return false;
+    if (d.quotient < limit) {
+        d.found = true;
+        return d;
+    }
+    hw_divide_by(g, first.divisor);   /* as after the first pass */
+    return first;
 }
 
-bool scene_find_divisor_on_divider_page(Snes *s) { return s->cpu.d == M_DP_CPU; }
+/* The original reaches the divider through the direct page. */
+bool scene_find_divisor_on_divider_page(Snes *s)
+{
+    return m_direct_page(s) == M_DP_CPU && m_bank_reaches_low_ram(s);
+}
 
-/* Entered with 16-bit A and 8-bit index registers; the carry is clear where it
- * returns (the loop's BCS not taken). */
+/* Entered with 16-bit A and 8-bit index registers: X the divisor before the
+ * first, and back X the divisor and A the quotient. The carry is clear where
+ * it returns (the loop's BCS not taken). */
 void scene_find_divisor(Snes *s)
 {
-    uint8_t x = (uint8_t)s->cpu.x;
-    uint16_t quotient;
-    bool found = find_divisor(s, &x, &quotient);
-    s->cpu.x = x;
-    s->cpu.a = quotient;
-    if (!found) {
-        m_set_flag(s, CPU_FLAG_C, true);
+    Divisor d = find_divisor(state_of(s), (uint8_t)s->cpu.x);
+    s->cpu.x = d.divisor;
+    s->cpu.a = d.quotient;
+    m_set_flag(s, CPU_FLAG_C, !d.found);
+    if (!d.found) {
         m_stop_at(s, 0xC30E29, DC_N | DC_Z);
         return;
     }
-    m_set_flag(s, CPU_FLAG_C, false);
     m_rtl(s);
 }
