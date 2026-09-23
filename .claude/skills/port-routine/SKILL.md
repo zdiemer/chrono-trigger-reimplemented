@@ -93,8 +93,9 @@ goes through `ORIGINAL_EFFECT(...)` (`game/original_effects.h`; docs/PORTING.md,
 "Scaffolding"). Find the reader first -- evidence over the movie library, not
 "other code may read it". Keep working state in locals and write the cell's
 final value once; never read a scratch cell back. Where the value is the same
-every time for a command (a parse position), make it a column of the command's
-table row, not an argument every return carries. Derive a flag from the
+every time for a command (a parse position), put it in a table parallel to the
+command table (`event/leaves.c`), never in the language's rows and never an
+argument every return carries. Derive a flag from the
 operands where it is handed back, not with ALU helpers in the logic. The
 native-shape build (`ct_game_native_shape`) compiles your logic with all of it
 switched off, and must still build; `portstyle.py` counts what you marked.
@@ -105,7 +106,13 @@ decodes into a typed parameter, length, jump -- calling operations as C, with
 operand encoding (a short form, a byte and a word form, a constant and a
 variable form) are rows of one operation, never separate functions. Keep the
 handlers registered too (a generic entry per opcode), so fuzzing and callers
-that reach them by address still find them. `game/event/` is the example.
+that reach them by address still find them. The table is the only dispatch: a
+command that still calls out to the original's code is a row too, whose
+operation takes the machine (a bridge), and the ROM's own table is only the
+fallback for what has no row. Operations take named, typed parameters in the
+order the row lists them, and the running object; each is named for what it
+does in the game, and its registered entries share its name. `game/event/` is
+the example.
 
 ## Workflow
 

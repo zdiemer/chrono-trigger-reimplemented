@@ -12,18 +12,30 @@
 
 /* ---- The field's objects ----------------------------------------------------------------- */
 
-/* Where a sprite is drawn against the map's layers: behind or in front of
- * the parts of the map it overlaps, a priority for its upper and its lower
- * half. An object can follow the map instead, taking the priorities the map's
- * tiles give where it stands. */
-enum { FOLLOWS_THE_MAP = 0x80 };
+/* Where a sprite is drawn against the map's layers: a priority, 0 (behind
+ * everything) to 3 (in front of everything), for the upper and the lower half
+ * of the object's sprite. An object can follow the map instead, taking the
+ * priorities the map's tiles give where it stands. The field keeps the two
+ * as the hardware's sprite attribute bits (4-5), the lower half's first. */
+typedef uint8_t SpritePriority;
+
+enum { AMONG_THE_MAP = 2, IN_FRONT_OF_THE_MAP = 3 };
+enum { FOLLOWS_THE_MAP = 0x80 };   /* in the object's layering */
+
+static void set_priorities(GameState *g, EventObject object, SpritePriority upper, SpritePriority lower)
+{
+    set_field_object_sprite_priority(g, object, (uint16_t)((lower << 4) | (upper << 4) << 8));
+}
 
 /* The map's two attribute tables are interleaved a row at a time, the second
- * $40 bytes after the first (field_tile_attributes). */
-enum { SECOND_ATTRIBUTE_TABLE = 0x40 };
+ * $40 bytes after the first (field_tile_attributes). A tile raises a sprite
+ * over it in front of the map. */
+enum { SECOND_ATTRIBUTE_TABLE = 0x40, RAISES_SPRITES = 0x40 };
 
-/* The sprite priority a tile's attributes give: bit 6 raises it. */
-static uint8_t priority_from(uint8_t attributes) { return (uint8_t)((attributes & 0x40) >> 2 | 0x20); }
+static SpritePriority priority_from(uint8_t attributes)
+{
+    return attributes & RAISES_SPRITES ? IN_FRONT_OF_THE_MAP : AMONG_THE_MAP;
+}
 
 typedef uint16_t Tile;   /* row << 8 | column */
 
@@ -33,15 +45,15 @@ static Tile tile_of(const GameState *g, EventObject object)
 }
 
 // $C0:4BA3
-/* The object takes its priorities from the map where it stands: its lower
- * half's from the first attribute table, its upper half's from the second.
- * (The original keeps the lower one in its scratch cell.) */
+/* The object takes its priorities from the map where it stands: its upper
+ * half's from the first attribute table, its lower half's from the second.
+ * (The original keeps the upper one in its scratch cell, as the field does.) */
 static void layer_as_the_map(GameState *g, EventObject object, Tile tile)
 {
-    uint8_t lower = priority_from(field_tile_attributes_byte(g, tile));
-    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, lower));
-    uint8_t upper = priority_from(field_tile_attributes_byte(g, (unsigned)tile + SECOND_ATTRIBUTE_TABLE));
-    set_field_object_sprite_priority(g, object, (uint16_t)(upper | lower << 8));
+    SpritePriority upper = priority_from(field_tile_attributes_byte(g, tile));
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, (uint8_t)(upper << 4)));
+    SpritePriority lower = priority_from(field_tile_attributes_byte(g, (unsigned)tile + SECOND_ATTRIBUTE_TABLE));
+    set_priorities(g, object, upper, lower);
 }
 
 static bool follows_the_map(const GameState *g, EventObject object)
@@ -89,11 +101,13 @@ static void set_steps_per_move(GameState *g, EventObject object, uint8_t steps)
  * to the battle ($FF), and its animation's frame timing starts again. */
 enum { BATTLE_PLACES_IT = 0xFF };
 
+/* The object's layering, as a script gives it: following the map (bit 7),
+ * or its lower half's priority in bits 0-1 and its upper half's in bits 4-5. */
 static void relayer(GameState *g, EventObject object, uint8_t how)
 {
     set_field_object_priority_mode(g, object, how);
     if (!(how & FOLLOWS_THE_MAP))
-        set_field_object_sprite_priority(g, object, (uint16_t)(((how << 4) & 0x30) | ((how & 0x30) << 8)));
+        set_priorities(g, object, (SpritePriority)((how >> 4) & 3), (SpritePriority)(how & 3));
 }
 
 static void after_relayering(GameState *g, EventObject object)
@@ -112,8 +126,14 @@ static EventFlow set_speed(GameState *g, EventObject self, uint8_t speed)
     return next_command();
 }
 
+/* What an object's solidity says: whether it stands in other objects' way. */
+enum { IN_OTHERS_WAY = 0x01 };
+
+/* What stops an object's moves. */
+enum { STOPPED_BY_WALLS = 0x01, STOPPED_BY_OBJECTS = 0x02 };
+
 // $C0:4867
-/* Whether other objects bump into this one or pass through it. */
+/* Whether other objects bump into this one (IN_OTHERS_WAY) or pass through it. */
 static EventFlow set_solid(GameState *g, EventObject self, uint8_t solid)
 {
     set_field_object_solid(g, self, solid);
@@ -121,7 +141,8 @@ static EventFlow set_solid(GameState *g, EventObject self, uint8_t solid)
 }
 
 // $C0:6295
-/* What stops the object's moves: bit 0 the map's walls, bit 1 other objects. */
+/* What stops the object's moves: the map's walls (STOPPED_BY_WALLS), other
+ * objects (STOPPED_BY_OBJECTS), both or neither. */
 static EventFlow set_blocked_by(GameState *g, EventObject self, uint8_t what)
 {
     set_field_object_blocking(g, self, what);
@@ -226,21 +247,20 @@ static EventFlow run_set_sprite(GameState *g, const EventArgs *a) { return set_s
 static EventFlow run_note_tile(GameState *g, const EventArgs *a) { return note_tile(g, a->arg[0], a->arg[1], a->arg[2]); }
 
 EVENT_OPCODES(event_properties_opcodes,
-    { 0x89, run_set_speed, { BYTE(1) }, 2, .routine = 0xC04B49, .parse = 1 },
-    { 0x8A, run_set_speed, { VARIABLE_BYTE(1) }, 2, .routine = 0xC04B58, .parse = 1 },
-    { 0x84, run_set_solid, { BYTE(1) }, 2, .routine = 0xC04867, .parse = 2 },
-    { 0x0D, run_set_blocked_by, { BYTE(1) }, 2, .routine = 0xC06295, .parse = 1 },
-    { 0x0E, run_set_arrival, { BYTE(1) }, 2, .routine = 0xC062A4, .parse = 1 },
-    { 0x87, run_set_move_length, { BYTE(1) }, 2, .routine = 0xC04876, .parse = 1 },
-    { 0x8B, run_stand_on_tile, { BYTE(1), BYTE(2), CONSTANT(true) }, 3, .routine = 0xC04B74, .parse = 2 },
-    { 0x8C, run_stand_on_tile, { VARIABLE_BYTE(1), VARIABLE_BYTE(2), CONSTANT(false) }, 3, .routine = 0xC04BC3,
-      .parse = 2 },
-    { 0x8D, run_place, { WORD(1), WORD(3) }, 5, .routine = 0xC04C27, .parse = 3 },
-    { 0x8E, run_set_layering, { BYTE(1) }, 2, .routine = 0xC04C74, .parse = 1 },
+    { 0x89, run_set_speed, { BYTE(1) }, 2, .routine = 0xC04B49 },
+    { 0x8A, run_set_speed, { VARIABLE_BYTE(1) }, 2, .routine = 0xC04B58 },
+    { 0x84, run_set_solid, { BYTE(1) }, 2, .routine = 0xC04867 },
+    { 0x0D, run_set_blocked_by, { BYTE(1) }, 2, .routine = 0xC06295 },
+    { 0x0E, run_set_arrival, { BYTE(1) }, 2, .routine = 0xC062A4 },
+    { 0x87, run_set_move_length, { BYTE(1) }, 2, .routine = 0xC04876 },
+    { 0x8B, run_stand_on_tile, { BYTE(1), BYTE(2), CONSTANT(true) }, 3, .routine = 0xC04B74 },
+    { 0x8C, run_stand_on_tile, { VARIABLE_BYTE(1), VARIABLE_BYTE(2), CONSTANT(false) }, 3, .routine = 0xC04BC3 },
+    { 0x8D, run_place, { WORD(1), WORD(3) }, 5, .routine = 0xC04C27 },
+    { 0x8E, run_set_layering, { BYTE(1) }, 2, .routine = 0xC04C74 },
     { 0x90, run_set_sprite, { SELF, CONSTANT(SPRITE_SHOWN) }, 1, .routine = 0xC04CD5 },
     { 0x91, run_set_sprite, { SELF, CONSTANT(SPRITE_HIDDEN) }, 1, .routine = 0xC04CE0 },
     { 0x7E, run_set_sprite, { SELF, CONSTANT(NO_SPRITE) }, 1, .routine = 0xC04CE6 },
-    { 0x7C, run_set_sprite, { OBJECT(1), CONSTANT(SPRITE_SHOWN) }, 2, .routine = 0xC04CEC, .parse = 1 },
-    { 0x7D, run_set_sprite, { OBJECT(1), CONSTANT(SPRITE_HIDDEN) }, 2, .routine = 0xC04CF9, .parse = 1 },
-    { 0x21, run_note_tile, { VARIABLE(2), VARIABLE(3), OBJECT(1) }, 4, .routine = 0xC065AA, .parse = 4 },
-    { 0x22, run_note_tile, { VARIABLE(2), VARIABLE(3), MEMBER_OBJECT(1) }, 4, .routine = 0xC065EB, .parse = 4 });
+    { 0x7C, run_set_sprite, { OBJECT(1), CONSTANT(SPRITE_SHOWN) }, 2, .routine = 0xC04CEC },
+    { 0x7D, run_set_sprite, { OBJECT(1), CONSTANT(SPRITE_HIDDEN) }, 2, .routine = 0xC04CF9 },
+    { 0x21, run_note_tile, { VARIABLE(2), VARIABLE(3), OBJECT(1) }, 4, .routine = 0xC065AA },
+    { 0x22, run_note_tile, { VARIABLE(2), VARIABLE(3), MEMBER_OBJECT(1) }, 4, .routine = 0xC065EB });

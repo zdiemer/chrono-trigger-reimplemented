@@ -22,8 +22,9 @@ applies it:
   entry's isn't added there (shadow mode leaves out `set` alone), so `set` alone
   must be dead at `at`, and the entry's set only where the port returns or makes
   a stop that isn't its own;
-- `m_jsr_dc(s, site, target, set)`, `m_jsl_dc(...)`, and the platform's
-  `au_driver_call(pf, PF_CALL(site, target), set)`: the machines are compared
+- `m_jsr_dc(s, site, target, set)`, `m_jsl_dc(...)`, the platform's
+  `au_driver_call(pf, PF_CALL(site, target), set)`, and a service call made
+  from `PF_CALL_DC(site, target, set)`: the machines are compared
   when the original reaches `target` from `site`, and the port's registers
   are what the callee runs with, so the set must be dead at the callee's entry
   for that call: neither the callee nor the caller after it returns may read
@@ -61,8 +62,8 @@ HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
-DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call") + STOPS
-CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call")
+DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS
+CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC")
 RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
 RETURN_OPCODES = {0x60: "RTS", 0x6B: "RTL", 0x40: "RTI"}
 MAX_DEPTH = 6
@@ -766,6 +767,10 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
                     if origin[0] != "call" or origin[1] != "PF_CALL":
                         raise Unreadable("au_driver_call's origin isn't PF_CALL(site, target)")
                     nodes = [origin[2][0], origin[2][1], parse(call.args[2])]
+                elif call.name == "PF_CALL_DC":
+                    if len(call.args) != 3:
+                        raise Unreadable("PF_CALL_DC takes (site, target, dont_care)")
+                    nodes = [parse(a) for a in call.args]
                 else:
                     nodes = [parse(a) for a in call.args[1:4]]
                 try:
@@ -852,6 +857,8 @@ def call_out_targets(src: Source, funcs, ev: Evaluator) -> set:
                 if origin[0] != "call" or origin[1] != "PF_CALL":
                     raise Unreadable("not PF_CALL")
                 node = origin[2][1]
+            elif call.name == "PF_CALL_DC":
+                node = parse(call.args[1])
             else:
                 node = parse(call.args[2])
             out |= {v[0] & 0xFFFFFF for v, _ in ev.values([node], src, f)}

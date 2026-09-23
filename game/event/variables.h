@@ -51,6 +51,15 @@ typedef uint16_t StoryOffset;   /* where in the story memory */
 
 enum { STORY_SECOND_PAGE = 0x0100 };
 
+/* A story byte a command names by its offset in a page: a flag with the
+ * offset (bit 7 of a flag or an operator byte) says it is on the second. */
+enum { ON_THE_SECOND_PAGE = 0x80 };
+
+static inline StoryOffset story_offset_in(uint8_t offset, uint8_t marked)
+{
+    return (StoryOffset)((marked & ON_THE_SECOND_PAGE ? STORY_SECOND_PAGE : 0) | offset);
+}
+
 static inline uint8_t story_byte(const GameState *g, StoryOffset at) { return event_memory_byte(g, at); }
 static inline void set_story_byte(GameState *g, StoryOffset at, uint8_t v) { set_event_memory_byte(g, at, v); }
 

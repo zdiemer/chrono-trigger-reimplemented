@@ -55,12 +55,6 @@ static EventFlow if_compares(GameState *g, uint16_t left, uint16_t right, uint8_
     return unless_jump(holds(comparison(operator_byte), left, right));
 }
 
-/* The byte of the story memory a story comparison names: the operator's bit 7
- * picks the second page. */
-static StoryOffset story_offset(uint8_t offset, uint8_t operator_byte)
-{
-    return (StoryOffset)((operator_byte & 0x80 ? STORY_SECOND_PAGE : 0) | offset);
-}
 
 /* What the original keeps of a story comparison: the byte compared, the
  * value it is compared with and the operator. */
@@ -76,7 +70,7 @@ static void keep_story_comparison(GameState *g, uint8_t byte, uint8_t value, uin
  * value. */
 static EventFlow if_story(GameState *g, uint8_t offset, uint8_t value, uint8_t operator_byte)
 {
-    uint8_t byte = story_byte(g, story_offset(offset, operator_byte));
+    uint8_t byte = story_byte(g, story_offset_in(offset, operator_byte));
     ORIGINAL_EFFECT(keep_story_comparison(g, byte, value, comparison(operator_byte)));
     return unless_jump(holds(comparison(operator_byte), byte, value));
 }
@@ -163,26 +157,13 @@ static EventFlow stop_here(GameState *g, const EventArgs *a)
     return stay();
 }
 
-/* Back from a call-out, which returns to `returns_to`: true if the callee
- * left the machine as the command runs (event_machine_back); otherwise the
- * port stops there, declaring it, and the original carries on. */
-static bool back(Snes *s, uint32_t returns_to, bool x8)
-{
-    if (event_machine_back(s, x8))
-        return true;
-    m_stop_at_own(s, returns_to, 0);
-    return false;
-}
-
 // $C0:2FFD
-/* Run the object's state routine for one step ($B0), then go on after the
- * command. $B0 calls out to the field's routines (movement.c), so this is a
- * bridge that calls it the original's way and moves its result on past its
- * own byte. */
-void event_cmd_run_state_routine_once(Snes *s)
+/* Let the object behave as its state says for one step (the command after
+ * it, event_cmd_behave in movement.c), then go on. The original calls that
+ * command's handler and moves its result past its own opcode. */
+void event_cmd_behave_once(Snes *s)
 {
-    m_jsr(s, 0xC02FFD, 0xC03002);
-    if (!back(s, 0xC03000, false))
+    if (!event_call_bridge(s, 0xC02FFD, 0xC03002, event_cmd_behave))
         return;
     s->cpu.x++;
     m_rts(s);
@@ -223,33 +204,29 @@ static bool operand4_compares_words(const GameState *g, uint16_t at)
  * compared values it keeps, and for $12-$16 the comparison routine they
  * share. */
 EVENT_OPCODES(event_flow_opcodes,
-    { 0x10, jump, { { 0 } }, 2, 1, .routine = 0xC062B5, .parse = 1, .parse_on_jump = 1 },
-    { 0x11, jump, { { 0 } }, 2, 1, .back = true, .routine = 0xC062CB, .parse = 1, .parse_on_jump = 1 },
+    { 0x10, jump, { { 0 } }, 2, 1, .routine = 0xC062B5 },
+    { 0x11, jump, { { 0 } }, 2, 1, .back = true, .routine = 0xC062CB },
 
     { 0x12, run_if_compares, { VARIABLE_BYTE(1), BYTE(2), BYTE(3) }, 5, 4, .accepts = operand3_compares_bytes,
-      .routine = 0xC062DE, .parse = 2, .parse_on_jump = 2, .shared_comparison = true, .keeps = KEEPS_BYTE(0),
-      .keeps_second = KEEPS_BYTE(1) },
+      .routine = 0xC062DE },
     { 0x13, run_if_compares, { VARIABLE_WORD(1), WORD(2), BYTE(4) }, 6, 5, .accepts = operand4_compares_words,
-      .routine = 0xC06313, .parse = 2, .parse_on_jump = 2, .shared_comparison = true, .keeps = KEEPS_WORD(0),
-      .keeps_second = KEEPS_WORD(1) },
+      .routine = 0xC06313 },
     { 0x14, run_if_compares, { VARIABLE_BYTE(1), VARIABLE_BYTE(2), BYTE(3) }, 5, 4,
-      .accepts = operand3_compares_bytes, .routine = 0xC06361, .parse = 3, .parse_on_jump = 3,
-      .shared_comparison = true, .keeps = KEEPS_BYTE(0), .keeps_second = KEEPS_BYTE(1) },
+      .accepts = operand3_compares_bytes, .routine = 0xC06361 },
     { 0x15, run_if_compares, { VARIABLE_WORD(1), VARIABLE_WORD(2), BYTE(3) }, 5, 4,
-      .accepts = operand3_compares_words, .routine = 0xC063A4, .parse = 3, .parse_on_jump = 3,
-      .shared_comparison = true, .keeps = KEEPS_WORD(0), .keeps_second = KEEPS_WORD(1) },
+      .accepts = operand3_compares_words, .routine = 0xC063A4 },
     { 0x16, run_if_story, { BYTE(1), BYTE(2), BYTE(3) }, 5, 4, .accepts = operand3_compares_bytes,
-      .routine = 0xC063E6, .parse = 1, .parse_on_jump = 1, .shared_comparison = true },
-    { 0x18, run_if_story_before, { STORY_PROGRESS, BYTE(1) }, 3, 2, .routine = 0xC06442, .parse = 1,
-      .parse_on_jump = 1 },
+      .routine = 0xC063E6 },
+    { 0x18, run_if_story_before, { STORY_PROGRESS, BYTE(1) }, 3, 2, .routine = 0xC06442 },
 
-    { 0x27, run_if_in_view, { OBJECT(1) }, 3, 2, .routine = 0xC0662C, .parse = 1, .parse_on_jump = 1 },
-    { 0x28, run_if_well_on_screen, { OBJECT(1) }, 3, 2, .routine = 0xC06655, .parse = 1, .parse_on_jump = 1 },
+    { 0x27, run_if_in_view, { OBJECT(1) }, 3, 2, .routine = 0xC0662C },
+    { 0x28, run_if_well_on_screen, { OBJECT(1) }, 3, 2, .routine = 0xC06655 },
 
     { 0xAD, run_wait_frames, { BYTE(1) }, 2, .routine = 0xC02F96 },
     { 0xB9, run_wait_frames, { CONSTANT(4) }, 1, .routine = 0xC02FC6 },
     { 0xBA, run_wait_frames, { CONSTANT(8) }, 1, .routine = 0xC02FCA },
     { 0xBC, run_wait_frames, { CONSTANT(16) }, 1, .routine = 0xC02FD2 },
     { 0xBD, run_wait_frames, { CONSTANT(32) }, 1, .routine = 0xC02FCE },
+    { 0xAF, .bridge = event_cmd_behave_once, .length = 1, .routine = 0xC02FFD },
     { 0xB1, wait_for_next_frame, { { 0 } }, 1, .routine = 0xC0353F },
     { 0xB2, stop_here, { { 0 } }, 1, .routine = 0xC03543 });

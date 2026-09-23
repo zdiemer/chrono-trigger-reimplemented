@@ -87,10 +87,7 @@ static EventFlow go_to_worked_out_location(GameState *g, uint16_t map, uint8_t x
     if (change_pending(g))
         return stay();
     ORIGINAL_EFFECT(keep_resume_point(g, 0));
-    set_location_next_id(g, map);
-    set_location_next_x(g, x);
-    set_location_next_y(g, y);
-    set_location_next_flags(g, how);
+    set_location_as(g, WHERE_IT_GOES_NEXT, (Location){ map, x, y, how });
     request_change(g);
     ORIGINAL_EFFECT(leave_parse_at(4));
     return stay();
@@ -99,7 +96,7 @@ static EventFlow go_to_worked_out_location(GameState *g, uint16_t map, uint8_t x
 // $C0:3AF1
 /* Set where the party is, or put a place aside for later (the map's word is
  * kept in the scratch cell, a column of the rows). */
-static EventFlow set_location(GameState *g, Which which, uint16_t map_and_how, uint16_t tile, bool raise_1e)
+static EventFlow set_location(GameState *g, uint16_t map_and_how, uint16_t tile, Which which, bool raise_1e)
 {
     if (raise_1e)
         raise_setting_1e(g);
@@ -139,13 +136,14 @@ static void go_now(Snes *s)
     uint16_t map_and_how = script_word(g, (uint16_t)(at + 1));
     ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, map_and_how));
     set_location_as(g, WHERE_IT_GOES_NEXT, location_of(map_and_how, script_word(g, (uint16_t)(at + 3))));
-    m_stop_at(s, 0xC03B71, DC_A | DC_X | DC_Y | DC_V | DC_C);
+    m_stop_at_own(s, 0xC03B71, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
 }
 
-void event_cmd_change_location_now(Snes *s) { go_now(s); }
+void event_cmd_go_to_location_now(Snes *s) { go_now(s); }
 
 // $C0:3B98
-void event_cmd_change_location_now_with_1e(Snes *s)
+/* The same, raising field_setting_1e. */
+void event_cmd_go_to_location_now_raising_1e(Snes *s)
 {
     raise_setting_1e(state_of(s));
     go_now(s);
@@ -158,7 +156,7 @@ static EventFlow run_go_to_worked_out_location(GameState *g, const EventArgs *a)
 }
 static EventFlow run_set_location(GameState *g, const EventArgs *a)
 {
-    return set_location(g, a->arg[2], a->arg[0], a->arg[1], a->arg[3]);
+    return set_location(g, a->arg[0], a->arg[1], a->arg[2], a->arg[3]);
 }
 static EventFlow run_fight(GameState *g, const EventArgs *a) { return fight(g, a->arg[0], a->arg[1]); }
 
@@ -166,10 +164,11 @@ EVENT_OPCODES(event_locations_opcodes,
     { 0xE0, run_go_to_location, { WORD(1), WORD(3) }, 5, .routine = 0xC03AB7 },
     { 0xE2, run_go_to_worked_out_location, { VARIABLE_WORD(1), VARIABLE_BYTE(2), VARIABLE_BYTE(3), VARIABLE_BYTE(4) },
       5, .routine = 0xC03B9E },
-    { 0xDC, run_set_location, { WORD(1), WORD(3), CONSTANT(PUT_ASIDE), CONSTANT(false) }, 5, .routine = 0xC03AF1,
-      .keeps = KEEPS_WORD(0) },
+    { 0xDC, run_set_location, { WORD(1), WORD(3), CONSTANT(PUT_ASIDE), CONSTANT(false) }, 5, .routine = 0xC03AF1 },
     { 0xDD, run_set_location, { WORD(1), WORD(3), CONSTANT(WHERE_THE_PARTY_IS), CONSTANT(false) }, 5,
-      .routine = 0xC03B1B, .keeps = KEEPS_WORD(0) },
+      .routine = 0xC03B1B },
     { 0xDE, run_set_location, { WORD(1), WORD(3), CONSTANT(WHERE_THE_PARTY_IS), CONSTANT(true) }, 5,
-      .routine = 0xC03B45, .keeps = KEEPS_WORD(0) },
-    { 0xD8, run_fight, { BYTE(1), BYTE(2) }, 3, .routine = 0xC03A83 });
+      .routine = 0xC03B45 },
+    { 0xD8, run_fight, { BYTE(1), BYTE(2) }, 3, .routine = 0xC03A83 },
+    { 0xE1, .bridge = event_cmd_go_to_location_now, .length = 5, .routine = 0xC03B4B },
+    { 0xDF, .bridge = event_cmd_go_to_location_now_raising_1e, .length = 5, .routine = 0xC03B98 });

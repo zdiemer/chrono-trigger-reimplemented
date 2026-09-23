@@ -14,7 +14,9 @@
 typedef enum { WINDOW_ANYWHERE = 0, WINDOW_TOP = 1, WINDOW_BOTTOM = 2 } WindowPlace;
 
 enum { DIALOG_IDLE = 0, DIALOG_OPENING = 1 };
-enum { DIALOG_STARTED_BY_EVENT = 0x20 };   /* field_mode_flags */
+/* field_mode_flags: set when the field opens a dialog itself ($C0:1F0E), and
+ * cleared when a script does. */
+enum { DIALOG_FROM_THE_FIELD = 0x20 };
 
 static bool dialog_on_screen(const GameState *g) { return dialog_state(g) != DIALOG_IDLE; }
 
@@ -24,10 +26,10 @@ static void open_dialog(GameState *g, EventObject speaker, uint8_t line, WindowP
     set_event_object_wait_dialog(g, speaker, 1);
     set_dialog_string(g, line);
     set_dialog_speaker(g, (uint8_t)(speaker * 2));
-    set_dialog_window_object(g, 0);
+    set_dialog_window_object(g, 0);   /* the dialog places its window by the speaker once it starts */
     set_dialog_state(g, DIALOG_OPENING);
     set_dialog_box_position(g, where);
-    set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) & ~DIALOG_STARTED_BY_EVENT));
+    set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) & ~DIALOG_FROM_THE_FIELD));
 }
 
 /* Whether the object's dialog has been read and closed: it opened one and
@@ -136,6 +138,6 @@ EVENT_OPCODES(event_dialog_opcodes,
     { 0xC3, run_ask, { BYTE(1), BYTE(2), CONSTANT(WINDOW_TOP) }, 3, .accepts = text_chosen, .routine = 0xC036AA },
     { 0xC4, run_ask, { BYTE(1), BYTE(2), CONSTANT(WINDOW_BOTTOM) }, 3, .accepts = text_chosen,
       .routine = 0xC036DD },
-    { 0x19, run_set_result, { VARIABLE_WORD(1) }, 2, .routine = 0xC0653B, .parse = 1 },
-    { 0x1C, run_set_result, { STORY_WORD(1) }, 3, .routine = 0xC0654E, .parse = 2 },
-    { 0x1A, run_if_answer, { BYTE(1) }, 3, 2, .routine = 0xC06568, .parse = 1, .parse_on_jump = 1 });
+    { 0x19, run_set_result, { VARIABLE_WORD(1) }, 2, .routine = 0xC0653B },
+    { 0x1C, run_set_result, { STORY_WORD(1) }, 3, .routine = 0xC0654E },
+    { 0x1A, run_if_answer, { BYTE(1) }, 3, 2, .routine = 0xC06568 });

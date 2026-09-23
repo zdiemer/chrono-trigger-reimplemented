@@ -76,6 +76,7 @@ add_library(ct_game STATIC
   game/event/facing.c
   game/event/flow.c
   game/event/input.c
+  game/event/leaves.c
   game/event/locations.c
   game/event/memory.c
   game/event/movement.c

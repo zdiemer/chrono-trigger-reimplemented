@@ -394,14 +394,16 @@
 #define RAM_EVENT_OBJECT_END 0x7E01BDu
 #define RAM_EVENT_OBJECT_END_DP 0xBDu        /* page field */
 /* A command's count: the bytes event $4E copies, less one; event $7A keeps its height operand in
- * the low byte [2 bytes] */
+ * the low byte. Read back only by the command that wrote it (scaffolding) [2 bytes] */
 #define RAM_EVENT_COUNT 0x7E01C1u
 #define RAM_EVENT_COUNT_DP 0xC1u             /* page field */
-/* The offset of a comparison command's jump byte, where it goes on from [2 bytes] */
+/* The offset of a comparison command's jump byte, which the comparisons' shared routine notes
+ * and reads back itself (scaffolding) [2 bytes] */
 #define RAM_EVENT_CONDITION_RESUME 0x7E01C3u
 #define RAM_EVENT_CONDITION_RESUME_DP 0xC3u  /* page field */
-/* Where a command goes on, kept across its calls into other code (the moves, sound, the party
- * routines) [2 bytes] */
+/* Where a command goes on, which the original keeps across its calls into other code (the moves,
+ * sound, the party routines) and reads back itself: nothing else reads it (ct_dev
+ * --event-reads), so the port keeps it in a local and writes the cell as scaffolding [2 bytes] */
 #define RAM_EVENT_SAVED_POSITION 0x7E01C7u
 #define RAM_EVENT_SAVED_POSITION_DP 0xC7u    /* page field */
 /* The 24-bit pointer events $48 and $49 read through [3 bytes] */

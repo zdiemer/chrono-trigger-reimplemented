@@ -95,14 +95,14 @@ static void face_toward(Snes *s, EventObject target)
 
 // $C0:55A0
 /* Face the object the command names. */
-void event_cmd_face_object(Snes *s)
+void event_cmd_face_toward_object(Snes *s)
 {
     face_toward(s, slot_of(script_byte(state_of(s), (uint16_t)(event_command_offset(s) + 1))));
 }
 
 // $C0:5605
 /* Face the party member the command names. */
-void event_cmd_face_party_member(Snes *s)
+void event_cmd_face_toward_member(Snes *s)
 {
     GameState *g = state_of(s);
     face_toward(s, slot_of(field_party_objects(g, script_byte(g, (uint16_t)(event_command_offset(s) + 1)) >> 1)));
@@ -116,11 +116,13 @@ EVENT_OPCODES(event_facing_opcodes,
     { 0x17, run_face, { SELF, CONSTANT(1) }, 1, .routine = 0xC05539 },
     { 0x1B, run_face, { SELF, CONSTANT(2) }, 1, .routine = 0xC0553D },
     { 0x1D, run_face, { SELF, CONSTANT(3) }, 1, .routine = 0xC05541 },
-    { 0xA6, run_face, { SELF, BYTE(1) }, 2, .routine = 0xC05545, .parse = 1 },
-    { 0xA7, run_face, { SELF, VARIABLE_BYTE(1) }, 2, .routine = 0xC05557, .parse = 1 },
-    { 0x1E, run_face, { OBJECT(1), CONSTANT(0) }, 2, .routine = 0xC0556C, .parse = 1 },
-    { 0x1F, run_face, { OBJECT(1), CONSTANT(1) }, 2, .routine = 0xC05579, .parse = 1 },
-    { 0x25, run_face, { OBJECT(1), CONSTANT(2) }, 2, .routine = 0xC05586, .parse = 1 },
-    { 0x26, run_face, { OBJECT(1), CONSTANT(3) }, 2, .routine = 0xC05593, .parse = 1 },
-    { 0x23, run_note_facing, { VARIABLE(2), OBJECT(1) }, 3, .routine = 0xC065F8, .parse = 3 },
-    { 0x24, run_note_facing, { VARIABLE(2), MEMBER_OBJECT(1) }, 3, .routine = 0xC0661F, .parse = 3 });
+    { 0xA6, run_face, { SELF, BYTE(1) }, 2, .routine = 0xC05545 },
+    { 0xA7, run_face, { SELF, VARIABLE_BYTE(1) }, 2, .routine = 0xC05557 },
+    { 0x1E, run_face, { OBJECT(1), CONSTANT(0) }, 2, .routine = 0xC0556C },
+    { 0x1F, run_face, { OBJECT(1), CONSTANT(1) }, 2, .routine = 0xC05579 },
+    { 0x25, run_face, { OBJECT(1), CONSTANT(2) }, 2, .routine = 0xC05586 },
+    { 0x26, run_face, { OBJECT(1), CONSTANT(3) }, 2, .routine = 0xC05593 },
+    { 0x23, run_note_facing, { VARIABLE(2), OBJECT(1) }, 3, .routine = 0xC065F8 },
+    { 0x24, run_note_facing, { VARIABLE(2), MEMBER_OBJECT(1) }, 3, .routine = 0xC0661F },
+    { 0xA8, .bridge = event_cmd_face_toward_object, .args = { OBJECT(1) }, .length = 2, .routine = 0xC055A0 },
+    { 0xA9, .bridge = event_cmd_face_toward_member, .args = { MEMBER_OBJECT(1) }, .length = 2, .routine = 0xC05605 });

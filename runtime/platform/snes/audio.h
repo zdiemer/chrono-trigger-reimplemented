@@ -16,7 +16,7 @@ PF_API void au_command(Platform *pf, PfOrigin o, AudioCommand c)
     for (int i = 0; i < c.count && i < 3; i++)
         m_write8(s, 0x001E01 + (uint32_t)i, params[i]);
     m_write8(s, 0x001E00, c.command);
-    m_jsl(s, o.site, o.target);
+    m_jsl_dc(s, o.site, o.target, o.dont_care);
 }
 
 PF_API uint8_t au_status(Platform *pf, PfOrigin o, uint8_t port)

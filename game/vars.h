@@ -500,16 +500,18 @@ uint16_t event_object_end(const GameState *g);
 void set_event_object_end(GameState *g, uint16_t v);
 
 /* A command's count: the bytes event $4E copies, less one; event $7A keeps its height operand in
- * the low byte */
+ * the low byte. Read back only by the command that wrote it (scaffolding) */
 uint16_t event_count(const GameState *g);
 void set_event_count(GameState *g, uint16_t v);
 
-/* The offset of a comparison command's jump byte, where it goes on from */
+/* The offset of a comparison command's jump byte, which the comparisons' shared routine notes
+ * and reads back itself (scaffolding) */
 uint16_t event_condition_resume(const GameState *g);
 void set_event_condition_resume(GameState *g, uint16_t v);
 
-/* Where a command goes on, kept across its calls into other code (the moves, sound, the party
- * routines) */
+/* Where a command goes on, which the original keeps across its calls into other code (the moves,
+ * sound, the party routines) and reads back itself: nothing else reads it (ct_dev
+ * --event-reads), so the port keeps it in a local and writes the cell as scaffolding */
 uint16_t event_saved_position(const GameState *g);
 void set_event_saved_position(GameState *g, uint16_t v);
 

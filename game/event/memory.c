@@ -46,40 +46,60 @@ static EventFlow run_poke(GameState *g, const EventArgs *a) { return poke(g, a->
 /* The original keeps the variable operand's offset in its scratch cell,
  * where it has one; its parse stops on the opcode. */
 EVENT_OPCODES(event_memory_opcodes,
-    { 0x48, run_peek, { VARIABLE(4), ADDRESS(1), BYTES }, 5, .routine = 0xC06792, .keeps = KEEPS_OFFSET(4) },
-    { 0x49, run_peek, { VARIABLE(4), ADDRESS(1), WORDS }, 5, .routine = 0xC067C7, .keeps = KEEPS_OFFSET(4) },
+    { 0x48, run_peek, { VARIABLE(4), ADDRESS(1), BYTES }, 5, .routine = 0xC06792 },
+    { 0x49, run_peek, { VARIABLE(4), ADDRESS(1), WORDS }, 5, .routine = 0xC067C7 },
     { 0x4A, run_poke, { ADDRESS(1), BYTE(4), BYTES }, 5, .routine = 0xC067D7 },
     { 0x4B, run_poke, { ADDRESS(1), WORD(4), WORDS }, 6, .routine = 0xC067FB },
-    { 0x4C, run_poke, { ADDRESS(1), VARIABLE_WORD(4), BYTES }, 5, .routine = 0xC0680C, .keeps = KEEPS_OFFSET(4) },
-    { 0x4D, run_poke, { ADDRESS(1), VARIABLE_WORD(4), WORDS }, 5, .routine = 0xC06829, .keeps = KEEPS_OFFSET(4) });
+    { 0x4C, run_poke, { ADDRESS(1), VARIABLE_WORD(4), BYTES }, 5, .routine = 0xC0680C },
+    { 0x4D, run_poke, { ADDRESS(1), VARIABLE_WORD(4), WORDS }, 5, .routine = 0xC06829 },
+    { 0x4E, .bridge = event_cmd_copy_data, .length = 6, .routine = 0xC06846 });
 
 /* ---- Copying data out of the script --------------------------------------------------------- */
 
 enum { SCRIPT_ADDRESS = 0x2001 };   /* where the script starts in bank $7F */
+enum { FIRST_BANK = 0x7E };            /* of work RAM; a block names it, or it goes to the second */
+#define BANK(b) ((uint32_t)(b) << 16)
 
-// $C0:6846
-/* Copy the data that follows the command into work RAM, and go on after it:
- * the operands are the destination (an address in bank $7E, or $7F for any
- * other bank byte) and the data's length plus 2. The copy goes a byte at a
- * time with both addresses wrapping in their banks, as the original's block
- * move does, so a copy onto itself comes out the same. It leaves the count in
- * event_count, Y where the destination ended, and V the overflow of turning
- * the source's end back into an offset. */
-static EventStep copy_data(GameState *g, uint16_t at, uint16_t *destination_end)
+/* A block of data carried in the script, and where it goes: an address in
+ * bank $7E, or $7F for any other bank byte. */
+typedef struct {
+    uint32_t bank;
+    uint16_t to;
+    uint16_t length;    /* the data's bytes */
+    uint16_t from;      /* where the data is in the script */
+} DataBlock;
+
+static DataBlock data_block_at(const GameState *g, uint16_t at)
 {
     uint16_t to = script_word(g, (uint16_t)(at + 1));
-    uint32_t bank = script_byte(g, (uint16_t)(at + 3)) == 0x7E ? 0x7E0000u : 0x7F0000u;
-    uint16_t count = (uint16_t)(script_word(g, (uint16_t)(at + 4)) - 3);
-    set_event_count(g, count);
-    uint16_t from = (uint16_t)(at + 6 + SCRIPT_ADDRESS);
-    do {
-        wram_write8(g, bank | to, wram_read8(g, 0x7F0000u | from));
+    uint32_t bank = script_byte(g, (uint16_t)(at + 3)) == FIRST_BANK ? BANK(FIRST_BANK) : BANK(FIRST_BANK + 1);
+    uint16_t length = (uint16_t)(script_word(g, (uint16_t)(at + 4)) - 2);   /* the script counts the length word */
+    return (DataBlock){ bank, to, length, (uint16_t)(at + 6) };
+}
+
+/* The original counts the copy in event_count, as its block move takes it:
+ * one less than the bytes. */
+static void keep_count(GameState *g, uint16_t length) { set_event_count(g, (uint16_t)(length - 1)); }
+
+// $C0:6846
+/* Copy the data that follows the command into work RAM (a table of positions
+ * for a cutscene, a patch to some state), and go on after it. The copy goes a
+ * byte at a time with both addresses wrapping in their banks, as the
+ * original's block move does, so a copy onto itself comes out the same. */
+static EventStep copy_data(GameState *g, uint16_t at)
+{
+    DataBlock b = data_block_at(g, at);
+    ORIGINAL_EFFECT(keep_count(g, b.length));
+    uint16_t from = (uint16_t)(b.from + SCRIPT_ADDRESS), to = b.to, left = b.length;
+    do {   /* as the block move counts: no length is the whole bank */
+        wram_write8(g, b.bank | to, wram_read8(g, BANK(FIRST_BANK + 1) | from));
         from++, to++;
-    } while (count-- != 0);
-    *destination_end = to;
-    uint16_t next = (uint16_t)(from - SCRIPT_ADDRESS);
+    } while (--left != 0);
+    /* the block move leaves Y where the destination ended, and turning the
+     * source's end back into an offset leaves V */
+    ORIGINAL_EFFECT(leave_y(to));
     ORIGINAL_EFFECT(leave_overflow_of_subtracting16(from, SCRIPT_ADDRESS));
-    return (EventStep){ next, true };
+    return (EventStep){ (uint16_t)(from - SCRIPT_ADDRESS), true };
 }
 
 /* $4E's entry, a bridge for the stack: the original keeps the data bank on
@@ -91,10 +111,8 @@ void event_cmd_copy_data(Snes *s)
     uint16_t at = event_command_offset(s);
     EventLeaves left = event_leaves_of(s, at);
     ORIGINAL_EFFECT(leave_into(&left));
-    uint16_t destination_end;
-    EventStep st = copy_data(state_of(s), at, &destination_end);
-    ORIGINAL_EFFECT(leave_y(destination_end));
+    EventStep st = copy_data(state_of(s), at);
     s->cpu.db = m_pull8(s);
-    ORIGINAL_EFFECT(event_hand_back(s, &left, st));
+    ORIGINAL_EFFECT(event_hand_back(s, &left));
     event_return(s, st);
 }

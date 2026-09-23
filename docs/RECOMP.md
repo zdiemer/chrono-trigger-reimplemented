@@ -3745,11 +3745,11 @@ observer beside the I/O one (`snes_bus_wram_observer`). Over the 26 movies,
 **The classification**, then: none of the three has a meaning to name. The
 parse position, the V flag, the scratch cells, the comparisons' resume offset
 (`event_condition_resume`), the pointers `$48`-`$4D` keep, and the saved
-position the commands that don't call out keep, are all scaffolding: kept
-while the gate is byte-exact, and marked. The saved position the bridges keep
-across their call-outs stays real (the original's code runs between the write
-and the read), as does `$D6`'s go-on flag, which is the original's carry but
-is what the engine goes on by.
+position the commands keep, are all scaffolding: kept while the gate is
+byte-exact, and marked. What stays real: `$E4`'s saved position, which the
+tile copy it calls can overwrite; the turn's budget, which commands the
+original runs can spend; and `$D6`'s go-on flag, which is the original's
+carry but is what the engine goes on by.
 
 **The mechanism** (`game/original_effects.h`, PORTING.md "Scaffolding"):
 `ORIGINAL_EFFECT(expr)`, which the default build evaluates and a build with
@@ -3758,46 +3758,54 @@ is what the engine goes on by.
 Event's vocabulary for it is `event/leaves.h`: the record of the Y and V a
 command leaves, which whoever runs it owns, and the scratch cells by the order
 the original fills them (`KEPT_FIRST` ...), each file saying what its commands
-keep there. Where the value is static per opcode it is a column of the row --
-the parse position, the operand kept in the first cells, the overflow derived
-from the parameters and the result after an addition -- and the engine and the
-entries reproduce it around the operation, which never mentions it. Where it
-varies with a path it is one marked call on that path (`$06`'s absent member
-leaves its parse on the operand; `$E6` leaves the speed in Y). Arithmetic
-computes `variable + amount`; the V it leaves is derived at the boundary from
-the amount and the variable after, not by ALU helpers in the operations. The
-multiplier and divider the calls and jumps drive are the same: the operations
-compute the product, and the hardware is left holding it as scaffolding.
-`tools/portstyle.py` reports the count: event had 0 marked before (and 59 uses
-of names taken from addresses, 45 of them `SCRATCH_D9`), 62 marked after (and
-8 such names, all `field_setting_1e` and the menus' routine `$0A`, whose
-meanings aren't established; TODO.md).
+keep there. What is the same every time a command runs -- the parse position,
+the operands kept in the first cells, which additions leave their V -- is a
+table of its own, `event/leaves.c`, by opcode, beside the language's and not
+in it; the build without the original's effects compiles it out, and the
+engine and the entries reproduce it around the operation, which never
+mentions it. Where it varies with a path it is one marked call on that path
+(`$06`'s absent member leaves its parse on the operand; `$E6` leaves the speed
+in Y). Arithmetic computes `variable + amount`; the V it leaves is derived
+after the operation from the amount and the variable as it is then, not by
+ALU helpers in the operations. The multiplier and divider the calls, the
+return and the jumps drive are the same: the operations compute the product,
+and the hardware is left holding it as scaffolding. A service call-out whose
+callee doesn't read some registers now says so, `PF_CALL_DC(site, target,
+set)` (`runtime/platform/platform.h`), which `tools/dontcare_check.py` checks
+like `m_jsr_dc`: the sound commands declare what the driver doesn't read
+instead of loading A, X and the flags for it. `tools/portstyle.py` reports
+the count: event had 0 marked before (and 59 uses of names taken from
+addresses, 45 of them `SCRATCH_D9`), 75 marked after (and 10 such
+names, all `field_setting_1e` and the menus' routine `$0A`, whose meanings
+aren't established; TODO.md).
 
 **The language table.** Each file ends with its rows: opcode, operation, how
 each operand decodes into a typed parameter (`BYTE(1)`, `VARIABLE_WORD(1)`,
 `OBJECT(1)`, `MEMBER_OBJECT(1)`, `STORY_WORD(1)`, `BIT(1)`, `SELF`,
-`CONSTANT(k)` ...), length, jump operand, the guard's extra check, the
-handler's address, and the scaffolding columns. Operations take typed
-parameters -- `loop_animation(g, self, animation)`,
-`call_function(g, target, there, call)` -- and say what happens next
-(`next_command()`, `end_turn()`, `stay()`, `take_jump()`, `go_to(at)`); the
-engine does the jumping. Opcodes that differ only in how an operand is
-encoded became one operation each:
+`CONSTANT(k)` ...), length, jump operand, the guard's extra check, and the
+handler's address, which names the command's time and its registered entry.
+Operations take typed parameters, in the order the row lists them --
+`loop_animation(g, self, animation)`, `call_function(g, target, there, call)`
+-- and say what happens next (`next_command()`, `end_turn()`, `stay()`,
+`take_jump()`, `go_to(at)`); the engine does the jumping. A command that
+still calls out to the original's code is a row too, whose operation takes the
+machine (`.bridge`): the table is where every ported command is, 185 rows.
+Opcodes that differ only in how an operand is encoded became one operation
+each:
 
 | Family | Opcodes | Operations |
 |---|---|--:|
 | loop an animation (given, 0, 1) | `$AA $B3 $B4` | 1 |
 | play a one-off (2 frames, n frames) | `$AB $B7` | 1 |
 | assign a variable (number, variable, story, 1, 0; byte, word) | `$4F-$55 $75-$77` | 1 |
-| add, subtract (number, variable; byte, word) | `$5B $5D-$61` | 2 |
-| count up, down | `$71-$73` | 1 |
+| add, subtract (number, variable, one; byte, word) | `$5B $5D-$61 $71-$73` | 2 |
 | set, keep, toggle flags (bit number or mask) | `$63 $64 $67 $69 $6B` | 3 |
 | record in the story (number, variable; byte, word; progress) | `$56 $58-$5A` | 1 |
 | raise, lower a story flag | `$65 $66` | 1 |
 | peek, poke (byte, word; number, variable) | `$48-$4D` | 2 |
 | compare (variable with number or variable; byte, word) | `$12-$15` | 1 |
 | wait (n, 4, 8, 16, 32 frames) | `$AD $B9-$BD` | 1 |
-| buttons held, remapped held, pressed | `$2D-$44` (17) | 3 |
+| buttons held, assignments held, pressed | `$2D-$44` (17) | 3 |
 | face (self or an object; a direction, operand, variable) | `$0F $17 $1B $1D $1E $1F $25 $26 $A6 $A7` | 1 |
 | where an object stands, which way it faces (object or member) | `$21-$24` | 2 |
 | call (object or member; now, when taken, and wait) | `$02-$07` | 3 |
@@ -3809,82 +3817,140 @@ encoded became one operation each:
 | set the result (variable, story) | `$19 $1C` | 1 |
 | where the party is, or a place put aside | `$DC-$DE` | 1 |
 | wait for the fade, for the tint | `$F2 $F3` | 1 |
-| wait for the sound driver (port 1, port 3) | `$ED $EE` | 1 |
 
-149 opcodes are rows, over 69 operations. The subsystem's concepts have files
-of their own: the language (`script.h`, `engine.c`), the scripts' variables
-and the story (`variables.h`, `variables.c`, `story.c`), the party
-(`party.h`, `party.c`), dialog (`dialog.c`), calls between objects
-(`calls.c`). Where a command changes a field object's state -- animation,
+150 of the rows are operations, over 70 functions; 35 are bridges. Each
+registered entry is named for its operation, with what tells a family's
+opcodes apart (`event_cmd_loop_animation_0`, `event_cmd_wait_frames_16`,
+`event_cmd_if_pressed_a`). The subsystem's concepts have files of their own:
+the language (`script.h`, `engine.h`, `engine.c`), the scripts' variables and
+the story (`variables.h`, `variables.c`, `story.c`), the party (`party.h`,
+`party.c`), dialog (`dialog.c`), calls between objects (`calls.c`), the moves
+(`movement.c`). Where a command changes a field object's state -- animation,
 position, layering, whether calls reach it -- it goes through small local
 helpers named for what they do, grouped at the top of each file
 (`restart_animation`, `interrupt_loop`, `back_to_loop`, `put_on_tile`,
-`put_at`, `relayer`, `set_steps_per_move`, `layer_as_the_map`, `calls_skip`,
-`take_off_the_map`, `stop_moving`, `turn`), which field's object module
-replaces when it lands. The move commands (`movement.c`) stay bridges of the
-original's shape, reading operands through a local shim, until the field's
-motion they call out to is C.
+`put_at`, `relayer`, `set_priorities`, `set_steps_per_move`,
+`layer_as_the_map`, `calls_skip`, `take_off_the_map`, `stop_moving`, `turn`,
+`aim`, `aim_at_object`, `head`, `set_steps`, `count_move`, `mark_launched`),
+which field's object module replaces when it lands (TODO.md lists the
+definitions a review found duplicated between them).
 
-**The engine** runs a command by its row, as C, its time named with
-`native_time_as` at the handler's address, when the row exists and
-`event_runs_here` takes the state: the running object one, the command at
+**The engine** (`engine.c`) is plain C: a turn, with its budget and its stop
+at the script's last offset, keeping where the script stopped; and the map's
+openings. It runs each command through a runner the caller gives it; on the
+development system that is `event/bridge.c`'s, which runs a row's operation
+as C, a row's bridge on the machine -- called directly, with the return
+address the original's `JSR` would push, and its time named with
+`native_time_as` at the row's handler -- and only what has no row, or a state
+the port refuses, through the original's table and an emulated call. A bridge
+that calls another port of the subsystem calls it the same way
+(`event_call_bridge`: `$AF` runs `$B0`'s, `$B5` and `$B6` the moves toward an
+object and a party member), never through its ROM address. The port takes a
+command when `event_runs_here` does: the running object one, the command at
 least 8 bytes from the buffer's end (so no operand is read through bank
 `$80`'s mirror of low RAM, which also lets the rows decode every operand up
 front), what the operands' kinds say (an object operand even, a member's
 object one, a bit number whose mask stays in its bank) and the row's own
-check. Otherwise -- the 36 bridges, the unported opcodes, and the states the
-port refuses -- it goes through the original's table as before. After each
-command it hands the machine the X, carry, Y and V the original's handler
-would have left (scaffolding). Each row's handler stays registered, with a
-generic entry that runs it by the same row: `$C0:595C` and `$C0:597D`, still
-the original's, reach the handlers through the table, and `ct_fuzz`
-exercises each alone. No other code reaches a handler: the call logs show
-only the four dispatch sites and the handlers' own calls (`$AF` into `$B0`,
-`$B5`/`$B6` into `$94`/`$95`).
+check. After each command it hands the machine the X and carry the command
+returns and, as scaffolding, the Y and V the original's handler would have
+left. Each row's handler stays registered: an operation's by a generic entry
+that runs its row, a bridge's by the bridge itself, each with its row's
+guard. `$C0:595C` and `$C0:597D`, still the original's, reach the handlers
+through the table, and `ct_fuzz` exercises each alone; the call logs show no
+other code reaching a handler.
 
-**What shadow mode found.** Per-handler shadow totals were expected to change
-shape, since the engine no longer enters its handlers through the runtime.
-They don't: shadow mode runs the *original* engine and compares every
-registered routine's calls, so each handler is still entered through its
-registered entry on the original's side and compared call by call, and the
-engine's port is compared at its own boundary on top. Over the library the
-per-entry totals (calls, matched, mismatched, interrupted, skipped, abandoned)
-are identical to `main`'s for all 798 hand ports, and nothing mismatches.
+**What shadow mode found.** Over the library nothing mismatches, the engine's
+two entries match on every call, and the per-entry totals of every hand port
+but the bridges are identical to `main`'s. The bridges' change shape:
+shadow mode runs the original's engine, which calls each handler at its
+entry, and compares the port's registered entry for it; a handler with no
+call-outs is compared there as before, but a bridge the port's engine calls
+directly makes its call-outs as the engine's, so shadow mode abandons the
+bridge's own comparison ("started inside the engine's stretch"). 506,381 of 518,396
+bridge calls over the library are counted abandoned where they were matched
+(`event_cmd_behave` 250,698 of 251,565, the moves toward the party 72,101 of
+72,121, ...), still checked at every call-out they make and at the end of the
+engine's turn, and fuzzed one by one below. What the review expected to find
+in the handlers' totals is here, in the bridges'.
 
 **Differential fuzzing.** `tools/fuzz_compare.py` against `main`'s `ct_fuzz`, every
 event entry, seed 1, both variants (372 runs, 7,422,000 states):
 
 | Variant | Entries | States | Mismatched before | of | Mismatched after | of |
 |---|--:|--:|--:|--:|--:|--:|
-| tight | 187 | 3,722,000 | 0 | 1,595,786 | 0 | 1,595,786 |
+| tight | 187 | 3,722,000 | 0 | 1,595,786 | 0 | 1,595,919 |
 | loose | 185 | 3,700,000 | 0 | 1,589,672 | 0 | 1,396,820 |
 
-The tight runs compare exactly the states they compared before. The loose
-runs compare 192,852 fewer: the commands within 8 bytes of the buffer's end,
-which the guard now refuses (their operands would come through bank `$80`'s
-mirror of low RAM). The first run found one real difference: `$07` (call a
-party member and wait) had been guarded strictly, since the waiting path goes
-on with the member's place even when it is empty, and the row had taken the
-looser check of `$05`/`$06`; 1,262 of its states and 6 of the engine's
-mismatched, and with the row strict again both agree.
+The loose runs compare 192,852 fewer states: the commands within 8 bytes of
+the buffer's end, which the guard now refuses (their operands would come
+through bank `$80`'s mirror of low RAM). The engine's runs compare a few more
+(6,823 turns against 6,695, 79 openings against 74), since a bridge it calls
+directly no longer runs past the fuzzer's budget as a call-out. The first
+runs found three real differences, each fixed: `$07` (call a party member and
+wait) had taken the looser guard of `$05`/`$06`, where its waiting path goes on
+with an empty place's marker (1,262 states); `$E4` kept its saved position in
+a local where the tile copy's indexed stores can overwrite the cell (274); and
+the turn counted its budget in a local where a command the original runs can
+spend it (4 of the engine's).
 
-**What it cost.** The engine now spends its time on its commands' work, attributed
-to each command's handler (`native_time_as` at the address the original's
-table gives, which the engine reads as the original does, so its own part is
-the same whichever way a command runs), and the entries that run by rows make
-different bus traffic from the handlers they replaced. So event's rows were
-recalibrated (`timing_gate.py --calibrate`, event's rows only): 87 of the 185
-handlers' `cost_milli` moved -- `yield` 4750 to 2375 and `halt` 4000 to 2000,
-which now touch the bus only to decode, `var_add` 4341 to 3183, `call` 4599 to
-5270 -- the per-frame turn 3256 to 3916, and the openings at map setup 4173 to
-5750. The openings needed the handler lookup to be shared by both paths: with
-the C path skipping the original's table, the engine's own bus traffic
-depended on how many of an opening's commands ran as C, which one scalar
-can't fit (a 3.15% vblank tail against the 1% limit). With it shared the tail fell to 1.57%, and what is
-left is the openings' own walk over the object slots (every object cleared,
-only some run), at map load with the screen blanked, writing RAM: an entry in
+**What it cost.** The engine spends its time on its commands' work, each
+attributed to its row's handler (`native_time_as`, the bridges' as well
+now), and the rows run differently from the handlers they replaced. So event's
+rows were recalibrated (`timing_gate.py --calibrate`, event's rows only):
+over the two reviews 87 of the 185 handlers' `cost_milli` moved -- `yield`
+4750 to 2375 and `halt` 4000 to 2000, which touch the bus only to decode,
+`var_add` 4341 to 3183, `call` 4599 to 5270 -- the per-frame turn 3256 to
+4491, and the openings at map setup 4173 to 5934. The openings' own walk over
+the object slots (every object cleared, only some run), and the commands they
+hand to the original's table, which they look up, are a mix one scalar can't
+fit: 3.15% of calls off by a line or more against the 1% vblank-tail limit, at
+map load with the screen blanked, writing RAM. That is an entry in
 `tools/timing_exceptions.txt`, and the vblank check finds none of its writes
 moved. Every other event entry is within the limits at its calibrated value.
+
+**The second review**, of the language table above, rated `sound.c` and
+`movement.c` translations and the rest hand-written or nearly, and found what
+reads as the original in the rest; its items became review-port's 20-25.
+What changed for each:
+- *The C table is the only dispatch.* The bridges became rows; the engine
+  reads the ROM's handler table only for what has no row; the time tag is the
+  row's; `$AF`, `$B5` and `$B6` call their siblings as C.
+- *Scaffolding out of the language's rows* into `event/leaves.c`: the parse
+  positions, the kept operands (an enum and an index, not `0x80|n`), the V an
+  addition leaves.
+- *`sound.c`*: the driver's commands are named in `platform/audio.h`
+  (`au_play_effect`, `au_fade`, `AU_FADE_MUSIC` ..., `au_music_fade_left`,
+  `au_song_marker`), the waits named for what they wait on, and the registers
+  the driver doesn't read declared with `PF_CALL_DC` rather than loaded; what
+  it hands back to the command's caller (A's high byte, Y) stays, and says so.
+- *`movement.c`*: the decisions return plain values; the carries the field's
+  motion reads are computed in the helpers that make those calls, each naming
+  the callee (`carry_after_tile_test`: what `$C0:ABA2` passes to `$C0:5B95`);
+  the V the turn aside, the screen test and the jump's rise leave is
+  scaffolding derived from their operands; each move's operands are decoded
+  once into a struct (`TileMove`, `ObjectMove`, `DirectionMove`); `$7B`
+  became an operation (`launch`).
+- *Cells used as registers*: the saved positions the moves, the sound
+  commands, the party routines and `$D6` keep across their calls, `$7A`'s
+  height in `event_count`, and `$4E`'s count are locals now, written once as
+  scaffolding. Two stay cells, for reasons fuzzing found: `$E4`'s saved
+  position, which the tile copy's indexed stores can overwrite (the command
+  goes on from what it holds after, as the original's does: 274 of 5,001
+  states differed with a local), and the turn's budget
+  (`event_commands_left`), which commands the original still runs can spend
+  (4 of 6,823 turns differed).
+- *The turn loop as plain C* (`event_run_turn`, `event_run_openings`), the
+  machine behind a runner the entry wrappers supply.
+- *The rest*: one flow for the call commands (`take_the_call`), the tint's
+  channels taken once, `count` folded into `add` (and `subtract`), locations
+  through `set_location_as`, calls' places as entries of the table rather than
+  the original's byte offsets, `copy_data` decoded into a `DataBlock` (and its
+  Y as scaffolding), `$D6`'s carry computed in its bridge from the search the
+  logic makes, typed operand kinds, named blocking and solidity bits, the
+  waiting mark a bool, adapters in their operations' order, entry names that
+  are the operations', a typed tint and sprite priority (the field's
+  shadows still hold hardware bytes; TODO.md), the dialog flag named for what
+  sets it, and `re/ram.toml`'s event sources brought up to date.
 
 **What liveness could still take down.** V would be declarable dead at every
 event entry if the analysis followed the field loop's JMLs (a hint per site,

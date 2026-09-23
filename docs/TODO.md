@@ -276,24 +276,31 @@ below. `python3 tools/timing_census.py` re-runs the census.
   deep in its call stack (the field's `$C0:EC60` has 28 call sites, the
   battle's `$C1:007E` 20).
 - **The event commands still on the machine** (RECOMP.md, "Phase 3a: the
-  event subsystem off the machine"): 44 bridge helpers, 29 of them the move
-  commands' calls into the field's motion routines (`$C0:ABA2`, `$C0:5B95`,
-  `$C0:ACFD`, `$C0:AC69`, `$C0:5614`, `$C0:568B`, `$C0:30B3`, `$C0:305D`).
-  Once `field`'s rewrite makes those C over the game's state, the move
-  commands' decisions call them directly and `movement.c` leaves the machine;
-  the carry they hand each other (`tile_compare_carry`, `next_to_carry`) is
-  then a return value. The rest wait on the sound driver (`sound.c`), the
-  menus' party routines (`$C2:8004`), the tile copy `$C0:AF4E` and the
-  location change from `$C0:3B71`. The engine still runs these through the
-  original's table and an emulated call; each that becomes C gets a row in
-  the language's table and leaves that path. `movement.c` still reads its
-  operands by position, through a local shim: its commands become rows (and
-  their families -- to a tile, toward an object or a member, turning or
-  keeping the facing, counted -- one operation each) once they stop calling
-  out.
+  event language, and its scaffolding"): 36 bridges, rows of the language's
+  table that call out to code still the original's. 20 are the moves
+  (`movement.c`), calling the field's motion (`$C0:ABA2`, `$C0:5B95`,
+  `$C0:ACFD`, `$C0:AC69`, `$C0:5614`, `$C0:568B`, `$C0:30B3`, `$C0:305D`) and
+  its state routines (`$C0:9E29`, `$C0:A26B`, `$C0:A2CE`, `$C0:5B8D`,
+  `$C0:3154`). Once `field`'s rewrite makes those C over the game's state, the
+  moves become operations: the carries they hand each other
+  (`carry_after_tile_test`, `carry_after_next_to_test`) become return values,
+  the A the facing lookup hands `$C0:5B95` goes, and their families -- to a
+  tile, toward an object or a member, turning or keeping the facing, counted --
+  one operation each. The rest wait on the sound driver (`sound.c`), the
+  menus' party routines (`$C2:8004`), the tile copy `$C0:AF4E`, the location
+  change from `$C0:3B71`, the facing aim `$C0:ABA2`, and `$4E`'s stack.
+- **Bridges called from the engine are compared at the engine's boundary.**
+  The engine calls a bridge directly, so shadow mode sees its call-outs as
+  the engine's and abandons the bridge's own comparison ("started inside the
+  engine's stretch"): per entry, 26,000-odd bridge calls over the library are
+  now counted abandoned rather than matched, while the engine's entries match
+  on every call. They are still checked (every call-out's registers, the
+  engine's state at its end), and fuzzing covers them one by one; a way for
+  shadow mode to compare a nested port's stretch would count them again.
 - **Event's scaffolding, and what would let liveness drop it** (RECOMP.md,
-  "The event language"). 62 `ORIGINAL_EFFECT`s and the table's Y, V and
-  scratch columns reproduce what nothing in the library reads but shadow mode:
+  "The event language"). The `ORIGINAL_EFFECT`s and the parallel table
+  `event/leaves.c` reproduce what nothing in the library reads but shadow
+  mode:
   - *V* is never read after a command (1.5 million commands over the
     library); the only read of it is a PLA in the sound driver's error path
     (`$C7:0A90`) that discards a pushed P. Liveness keeps it live because the
@@ -307,21 +314,60 @@ below. `python3 tools/timing_census.py` re-runs the census.
     `$04C0` afterwards. If the menus' port establishes that function `$0B`
     ignores it, `DC_Y` holds at `$C0:9DC3` and the parse column goes, but only
     once `$C0:595C`/`$C0:597D` are ported too (they reach the handlers' entries
-    as the original's code).
-  - *The scratch cells* (`$D9-$E4`) and the command cells (`$C1-$D2`) are read
-    only by the command that wrote them -- with one exception, below. They go
-    when the gate does.
+    as the original's code). The sound commands' calls to the driver keep Y
+    and A's high byte for the same reason.
+  - *The scratch cells* (`$D9-$E4`) and the command cells (`$C1-$D2`, the
+    saved position among them) are read only by the command that wrote them --
+    with one exception, below. They go when the gate does.
 - **The menus' wave phase starts from event's scratch cell.** The wave handler
   at `$C2:77C7` (`menus-end-of-time`) reads and advances `$01E2` as its phase
   without setting it first, so it starts from whatever event's calls (`$02`)
   or `$B5` last left there. A native build without event's scaffolding would
   start it elsewhere: the menus' port should give the phase a start of its own
   (a line or two of the wave, a frame).
-- **What three things the scripts set are for isn't established:**
-  `field_setting_1e` (events `$DE`/`$DF`, read at `$C0:28A7` and `$C0:7628`),
-  `field_setting_bc` (event `$F4`), and what the menus' party routines 6, 7
-  and `$0A` (events `$F8`-`$FA`, `$D5`) do for the party. Each is named for
-  its address until it is.
+- **What the scripts set that isn't established:**
+  - `field_setting_1e` (events `$DE`/`$DF` raise it with the location they
+    set; cleared at `$C0:2842` and `$C0:2866`, returned by `$C0:28A7`, ANDed
+    at `$C0:7628`). The field's rewrite reads those routines.
+  - `field_setting_bc` (event `$F4`; zero also resets the layers' scroll
+    offsets; cleared when the field starts at `$C0:0BA4`); no reader found in
+    the library's runs of the field.
+  - The menus' party routines 6, 7 and `$0A` (events `$F8`-`$FA`, `$D5`),
+    through the dispatcher `$C2:8C36`: the menus' port names them.
+  - The player's button assignments the scripts ask about, the first and the
+    fourth (events `$30`/`$31`, `$3B`/`$3C`): which command each is (dash,
+    confirm, ...) is the menus' settings screen's to say.
+  Each is named for its address or its position until it is.
+- **The field's shadows hold hardware bytes, so event writes them.** The tint
+  (event `$F1`) is written as the fixed colour's register byte and a
+  colour-math setting ($17 / $97), and the objects' sprite priorities as OAM
+  attribute bits: the field's interrupt hands them to the hardware as they
+  are. When the field keeps a tint and a sprite priority as values
+  (`VidColorMath`, a priority 0-3) and converts them at its video calls, event
+  writes those instead (`screen.c` `tint_math`, `properties.c`
+  `set_priorities`).
+- **One field-object vocabulary, after the field and event merges.** Event
+  keeps local helpers for the field's objects (the list in RECOMP.md), and a
+  review of the event rewrite found these definitions duplicated or at odds,
+  which the pass that moves event onto field's object module settles:
+  - `field_requests`: `TILE_COPY_QUEUED = 0x20` (`screen.c`) and
+    `BATTLE_STARTING = 0x21` (`locations.c`, bit 5 with the battle bit 0), and
+    `LOCATION_CHANGE = 0x80`; one set of request bits for the field.
+  - Bit 7 of an object's state and of its step length: `DISABLED` (`calls.c`,
+    `facing.c`, `movement.c`) and `CALLS_SKIP` (`properties.c`) name the same
+    kind of flag three ways.
+  - The sprite flag: `NO_SPRITE_SHOWN` (`calls.c`) and
+    `SPRITE_HIDDEN`/`SPRITE_SHOWN`/`NO_SPRITE` (`properties.c`).
+  - "Well on screen" twice with different margins: `flow.c` (the object's
+    tile, 2-13 across and 2-12 down) and `movement.c` (the running object's
+    own tile as aimed, the same bounds) -- one test on field's screen.
+  - Facing as `uint8_t` 0-3 (`Facing` in `facing.c`) where the field will
+    have an enum; the animation modes (`AnimationMode`, `animation.c`); the
+    arrival and blocking bits (`movement.c`, `properties.c`).
+  - The accessor names shaped by the map's layout
+    (`field_object_animation_mode_mode`, `field_object_move_state_animation_count`,
+    `field_object_move_state_tile_mode`, `field_object_state_state`), in the
+    map's naming pass.
 - **Fuzzing half the event states.** The event handlers' guards turn away an
   odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
   every tight run is skipped (more for the comparisons, whose operator must be

@@ -112,7 +112,7 @@ typedef enum {
 } EventArgKind;
 
 typedef struct {
-    uint8_t kind;        /* EventArgKind */
+    EventArgKind kind;
     uint8_t operand;     /* which: 1 is the byte after the opcode */
     uint16_t constant;
 } EventArg;
@@ -152,50 +152,37 @@ typedef bool (*EventCheck)(const GameState *g, uint16_t at);
 
 /* ---- The table ------------------------------------------------------------------------ */
 
+/* A command that calls out to code still the original's (the field's motion,
+ * the sound driver, the menus' party routines): it runs on the machine, from
+ * its registered entry's calling convention (event/bridge.h). */
+struct Snes;
+typedef void (*EventBridge)(struct Snes *s);
+
 typedef struct {
     uint8_t opcode;
-    EventOperation run;
+    EventOperation run;    /* the operation, or NULL for a bridge */
     EventArg args[EVENT_ARGS];
     uint8_t length;        /* the command's bytes, its opcode's included */
     uint8_t jump;          /* the operand holding the jump's distance (conditions, jumps), or 0 */
     bool back;             /* the jump goes back */
     bool member_may_be_absent;   /* a party member operand may name an empty place */
     EventCheck accepts;    /* NULL, or what else the port needs (the guard's part) */
-    uint32_t routine;      /* the original's handler, whose registered entry runs this row */
-    /* The rest is scaffolding: what the original leaves for its callers and
-     * for shadow mode, which the engine and the entries reproduce around the
-     * operation (event/leaves.h). None of it is the operation's business. */
-    uint8_t parse, parse_on_jump;   /* the operand the original's parse stopped at, in Y */
-    bool shared_comparison;         /* made by the original's comparison routine, which notes
-                                     * the jump byte's offset and runs with 8-bit index
-                                     * registers (so Y keeps only its low byte) */
-    uint8_t keeps, keeps_second;    /* KEEPS_*: a parameter it keeps in its first scratch cells */
-    uint8_t overflow;               /* OVERFLOW_*: the V flag its addition leaves */
+    uint32_t routine;      /* the original's handler: the address its entry is registered at, which
+                            * the engine names the command's time by */
+    EventBridge bridge;    /* the bridge, for a command that calls out */
 } EventOpcode;
-
-/* `keeps`: parameter n, as a byte or as a word; or the offset of operand n,
- * as a word. */
-#define KEEPS_BYTE(n) (0x80 | (n))
-#define KEEPS_WORD(n) (0xC0 | (n))
-#define KEEPS_OFFSET(n) (0x20 | (n))
-
-/* `overflow`: none (V as it was), or that of the addition or subtraction of
- * parameter 1 to or from the variable in parameter 0, in parameter 2's width. */
-enum { OVERFLOW_NONE, OVERFLOW_OF_ADDING, OVERFLOW_OF_SUBTRACTING };
 
 typedef struct {
     const EventOpcode *rows;
     unsigned count;
 } EventOpcodes;
 
-#define EVENT_OPCODES(name, ...)                                                   \
-    static const EventOpcode name##_rows[] = { __VA_ARGS__ };                      \
-    const EventOpcodes name = { name##_rows, sizeof name##_rows / sizeof name##_rows[0] }
+#define EVENT_OPCODES(name, ...)                                                       static const EventOpcode name##_rows[] = { __VA_ARGS__ };                          const EventOpcodes name = { name##_rows, sizeof name##_rows / sizeof name##_rows[0] }
 
 /* Every file's rows (event/engine.c indexes them). */
-extern const EventOpcodes event_animation_opcodes, event_arithmetic_opcodes, event_calls_opcodes,
-    event_dialog_opcodes, event_facing_opcodes, event_flow_opcodes, event_input_opcodes, event_locations_opcodes,
-    event_memory_opcodes, event_party_opcodes, event_properties_opcodes, event_screen_opcodes,
+extern const EventOpcodes event_animation_opcodes, event_calls_opcodes, event_dialog_opcodes,
+    event_facing_opcodes, event_flow_opcodes, event_input_opcodes, event_locations_opcodes, event_memory_opcodes,
+    event_movement_opcodes, event_party_opcodes, event_properties_opcodes, event_screen_opcodes,
     event_sound_opcodes, event_story_opcodes, event_variables_opcodes;
 
 /* The row of an opcode, or NULL for one with no port (event/engine.c). */

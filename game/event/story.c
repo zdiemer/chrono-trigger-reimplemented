@@ -25,10 +25,7 @@ static EventFlow record(GameState *g, StoryOffset at, uint16_t value, Width w)
  * the second page if bit 7 of this one is set) and the bit in bits 0-3. The
  * original looks the bit up in a table of eight masks, so bits 8-15 read on
  * into what follows it: the table of the masks with one bit clear. */
-static StoryOffset flag_byte(uint8_t flag, uint8_t offset)
-{
-    return (StoryOffset)((flag & 0x80 ? STORY_SECOND_PAGE : 0) | offset);
-}
+static StoryOffset flag_byte(uint8_t flag, uint8_t offset) { return story_offset_in(offset, flag); }
 
 /* What the original keeps of a flag: how the script named it, and its mask. */
 static void keep_flag(GameState *g, uint8_t flag, uint8_t mask)
@@ -39,7 +36,7 @@ static void keep_flag(GameState *g, uint8_t flag, uint8_t mask)
 
 // $C0:6B76
 /* Raise a story flag, or lower it. */
-static EventFlow mark(GameState *g, uint8_t flag, uint8_t offset, bool raise)
+static EventFlow mark_story_flag(GameState *g, uint8_t flag, uint8_t offset, bool raise)
 {
     uint8_t bit = flag & 0x0F;
     uint8_t mask = raise ? bit_mask(g, bit) : bit_clear_mask(g, bit);
@@ -51,17 +48,15 @@ static EventFlow mark(GameState *g, uint8_t flag, uint8_t offset, bool raise)
 }
 
 static EventFlow run_record(GameState *g, const EventArgs *a) { return record(g, a->arg[0], a->arg[1], a->arg[2]); }
-static EventFlow run_mark(GameState *g, const EventArgs *a) { return mark(g, a->arg[0], a->arg[1], a->arg[2]); }
+static EventFlow run_mark(GameState *g, const EventArgs *a) { return mark_story_flag(g, a->arg[0], a->arg[1], a->arg[2]); }
 
 #define BYTES CONSTANT(AS_BYTE)
 #define WORDS CONSTANT(AS_WORD)
 
 EVENT_OPCODES(event_story_opcodes,
-    { 0x56, run_record, { WORD(2), BYTE(1), BYTES }, 4, .routine = 0xC069A6, .parse = 4, .keeps = KEEPS_BYTE(1) },
-    { 0x58, run_record, { WORD(2), VARIABLE_WORD(1), BYTES }, 4, .routine = 0xC069C4, .parse = 4,
-      .keeps = KEEPS_WORD(1) },
-    { 0x59, run_record, { WORD(2), VARIABLE_WORD(1), WORDS }, 4, .routine = 0xC069EB, .parse = 4,
-      .keeps = KEEPS_WORD(1) },
-    { 0x5A, run_record, { CONSTANT(0), BYTE(1), BYTES }, 2, .routine = 0xC06A12, .parse = 1 },
-    { 0x65, run_mark, { BYTE(1), BYTE(2), CONSTANT(true) }, 3, .routine = 0xC06B76, .parse = 3 },
-    { 0x66, run_mark, { BYTE(1), BYTE(2), CONSTANT(false) }, 3, .routine = 0xC06BA4, .parse = 3 });
+    { 0x56, run_record, { WORD(2), BYTE(1), BYTES }, 4, .routine = 0xC069A6 },
+    { 0x58, run_record, { WORD(2), VARIABLE_WORD(1), BYTES }, 4, .routine = 0xC069C4 },
+    { 0x59, run_record, { WORD(2), VARIABLE_WORD(1), WORDS }, 4, .routine = 0xC069EB },
+    { 0x5A, run_record, { CONSTANT(0), BYTE(1), BYTES }, 2, .routine = 0xC06A12 },
+    { 0x65, run_mark, { BYTE(1), BYTE(2), CONSTANT(true) }, 3, .routine = 0xC06B76 },
+    { 0x66, run_mark, { BYTE(1), BYTE(2), CONSTANT(false) }, 3, .routine = 0xC06BA4 });

@@ -1,6 +1,10 @@
-/* The event commands on the original's machine (event/bridge.h): their
- * registered entries, the guards, and the registers they leave. */
+/* The event engine and commands on the original's machine (event/bridge.h):
+ * the engine's two entries and how they run each command, the commands'
+ * entries, the guards, and the registers they leave. */
 #include "event/bridge.h"
+#include "event/engine.h"
+#include "event/event_data.h"
+#include "port/native.h"
 
 enum { FIELD_PAGE = 0x0100 };
 
@@ -13,10 +17,8 @@ EventLeaves event_leaves_of(const Snes *s, uint16_t at)
     return (EventLeaves){ at, s->cpu.y, m_flag(s, CPU_FLAG_V) };
 }
 
-void event_hand_back(Snes *s, const EventLeaves *left, EventStep st)
+void event_hand_back(Snes *s, const EventLeaves *left)
 {
-    s->cpu.x = st.next;
-    m_set_flag(s, CPU_FLAG_C, st.go_on);
     s->cpu.y = left->y;
     m_set_flag(s, CPU_FLAG_V, left->overflow);
 }
@@ -40,21 +42,6 @@ bool event_machine_back(const Snes *s, bool x8)
     return !s->cpu.e && m_m8(s) && m_x8(s) == x8 && m_direct_page(s) == FIELD_PAGE && m_bank_is_zero(s);
 }
 
-/* ---- The entries ----------------------------------------------------------------------- */
-
-void event_command_entry(Snes *s, uint8_t opcode)
-{
-    const EventOpcode *row = event_opcode(opcode);
-    uint16_t at = event_command_offset(s);
-    EventLeaves left = event_leaves_of(s, at);
-    ORIGINAL_EFFECT(leave_into(&left));
-    EventStep st = event_perform(state_of(s), m_platform(s), row, at);
-    s->cpu.x = st.next;
-    m_set_flag(s, CPU_FLAG_C, st.go_on);
-    ORIGINAL_EFFECT(event_hand_back(s, &left, st));
-    m_rts(s);
-}
-
 /* ---- Guards ---------------------------------------------------------------------------
  *
  * The operations name their cells through game/vars.h, which knows them where
@@ -72,7 +59,7 @@ static bool machine_as_the_engine_keeps_it(const Snes *s)
     return m_direct_page(s) == FIELD_PAGE && m_bank_is_zero(s);
 }
 
-bool event_takes(Snes *s, const EventOpcode *row, uint16_t at)
+static bool takes(Snes *s, const EventOpcode *row, uint16_t at)
 {
     vars_peek(true);
     bool ok = event_runs_here(state_of(s), row, at);
@@ -82,41 +69,8 @@ bool event_takes(Snes *s, const EventOpcode *row, uint16_t at)
 
 bool event_command_accepts(Snes *s, uint8_t opcode)
 {
-    return machine_as_the_engine_keeps_it(s) && event_takes(s, event_opcode(opcode), event_command_offset(s));
+    return machine_as_the_engine_keeps_it(s) && takes(s, event_opcode(opcode), event_command_offset(s));
 }
-
-/* A bridge's: the machine, the running object, the command inside the
- * buffer (a row with no operands says that much), and `holds`. */
-bool event_guard(Snes *s, EventCheck holds)
-{
-    static const EventOpcode no_operands = { 0 };
-    if (!machine_as_the_engine_keeps_it(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    uint16_t at = event_command_offset(s);
-    bool ok = event_runs_here(g, &no_operands, at) && (!holds || holds(g, at));
-    vars_peek(false);
-    return ok;
-}
-
-bool event_machine_as_expected(Snes *s) { return event_guard(s, NULL); }
-
-/* The object operand names an object. */
-static bool object_operand_is_one(const GameState *g, uint16_t at)
-{
-    return event_names_object(script_byte(g, (uint16_t)(at + 1)));
-}
-
-/* The party member operand names a member whose object is one. */
-static bool member_object_is_one(const GameState *g, uint16_t at)
-{
-    uint8_t place = script_byte(g, (uint16_t)(at + 1));
-    return !(place & 1) && event_names_object(field_party_objects(g, place >> 1));
-}
-
-bool event_takes_object(Snes *s) { return event_guard(s, object_operand_is_one); }
-bool event_takes_member(Snes *s) { return event_guard(s, member_object_is_one); }
 
 /* The engine's: the object the per-frame turn is for (X, 8-bit) is one. */
 bool event_runs_an_object(Snes *s)
@@ -135,21 +89,167 @@ bool event_has_objects(Snes *s)
     return some;
 }
 
-/* $D6's: every party member's object is one, or there is no one there. */
-static bool party_objects_are_objects(const GameState *g, uint16_t at)
+/* ---- The commands' entries --------------------------------------------------------------- */
+
+void event_command_entry(Snes *s, uint8_t opcode)
 {
-    (void)at;
-    for (unsigned place = 0; place < FIELD_PARTY_OBJECTS_COUNT; place++) {
-        uint8_t object = field_party_objects(g, place);
-        if (!(object & 0x80) && (object & 1))
-            return false;
-    }
+    const EventOpcode *row = event_opcode(opcode);
+    uint16_t at = event_command_offset(s);
+    EventLeaves left = event_leaves_of(s, at);
+    ORIGINAL_EFFECT(leave_into(&left));
+    EventStep st = event_perform(state_of(s), m_platform(s), row, at);
+    ORIGINAL_EFFECT(event_hand_back(s, &left));
+    event_return(s, st);
+}
+
+bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bridge)
+{
+    uint16_t s_before = s->cpu.s;
+    m_push16(s, (uint16_t)(site + 2));
+    s->cpu.pb = (uint8_t)(routine >> 16);
+    s->cpu.pc = (uint16_t)routine;
+    NATIVE_TIME_AS(s, routine, bridge(s));
+    return s->cpu.s == s_before && s->cpu.pb == (uint8_t)(site >> 16) && s->cpu.pc == (uint16_t)(site + 3);
+}
+
+/* ---- Running a turn's commands on the machine ------------------------------------------------ */
+
+/* The original's two dispatches the engine stands in for: its JSR ($5D6E,X)
+ * in the per-frame turn and in the openings, and where each returns to. */
+typedef enum { IN_A_TURN, IN_AN_OPENING } Dispatch;
+static const uint32_t dispatch_site[] = { 0xC05AB1, 0xC05910 };     /* by Dispatch */
+static const uint32_t dispatch_return[] = { 0xC05AB4, 0xC05913 };   /* by Dispatch */
+
+/* Back from a command run on the machine: true if it left the machine as the
+ * engine runs (event_machine_back); otherwise the port stops where the
+ * dispatch returns to, and the original carries on. */
+static bool back(Snes *s, Dispatch d)
+{
+    if (event_machine_back(s, false))
+        return true;
+    m_stop_at_own(s, dispatch_return[d], 0);
+    return false;
+}
+
+/* The registers the original's dispatch leaves a handler: the opcode doubled
+ * in A and X (the table's index, with the flags its making leaves: its
+ * 16-bit shift clears the carry), the command's offset in Y. The handlers the
+ * port doesn't have read them as the original's do; the bridges read Y, and
+ * pass A's high byte and the carry on to the original's code they call. */
+static void enter_as_the_table_does(Snes *s, uint8_t opcode, uint16_t at)
+{
+    uint16_t index = (uint16_t)(opcode * 2);
+    event_set_registers(s, index, index, at);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_set_nz16(s, index);
+}
+
+typedef struct {
+    Snes *s;
+    Dispatch dispatch;
+} OnTheMachine;
+
+/* A command the port doesn't run: the original's handler, from its table. */
+static bool through_the_table(OnTheMachine *m, uint16_t at, EventStep *st)
+{
+    Snes *s = m->s;
+    GameState *g = state_of(s);
+    uint8_t opcode = script_byte(g, at);
+    enter_as_the_table_does(s, opcode, at);
+    m_jsr(s, dispatch_site[m->dispatch], 0xC00000u | command_handler(g, opcode));
+    if (!back(s, m->dispatch))
+        return false;
+    *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
     return true;
 }
 
-bool event_party_objects_are_objects(Snes *s) { return event_guard(s, party_objects_are_objects); }
+/* A command by its row: its operation as C, or its bridge on the machine. */
+static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
+{
+    OnTheMachine *m = ctx;
+    Snes *s = m->s;
+    GameState *g = state_of(s);
+    uint8_t opcode = script_byte(g, at);
+    const EventOpcode *row = event_opcode(opcode);
+    if (!row || !takes(s, row, at))
+        return through_the_table(m, at, st);
+    if (row->bridge) {
+        enter_as_the_table_does(s, opcode, at);
+        if (!event_call_bridge(s, dispatch_site[m->dispatch], row->routine, row->bridge) || !back(s, m->dispatch))
+            return false;
+        *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
+        return true;
+    }
+    EventLeaves left = event_leaves_of(s, at);
+    ORIGINAL_EFFECT(leave_into(&left));
+    NATIVE_TIME_AS(s, row->routine, *st = event_perform(g, m_platform(s), row, at));
+    /* X and the carry, as the handler returns them: where the original's loop
+     * reads them if it takes over after this command */
+    s->cpu.x = st->next;
+    m_set_flag(s, CPU_FLAG_C, st->go_on);
+    ORIGINAL_EFFECT(event_hand_back(s, &left));
+    return true;
+}
 
-/* The sound commands': the audio service addresses the driver's command
- * buffer at $00:1E00 and the APU ports, which the data bank every command
- * runs with reaches. */
-bool event_sound_bank_is_system(Snes *s) { return event_machine_as_expected(s); }
+static bool bank_reaches_low_ram(void *ctx) { return m_bank_reaches_low_ram(((OnTheMachine *)ctx)->s); }
+
+/* Hand the rest to the original at `where`, with the script's offset (or the
+ * object's) in X as its loop has it there. */
+static void hand_over(Snes *s, uint16_t x, uint32_t where, uint16_t dont_care)
+{
+    s->cpu.x = x;
+    m_stop_at_own(s, where, dont_care);
+}
+
+// $C0:5A93
+/* One object's turn (the object in X, its slot doubled, 8-bit): the engine
+ * (event/engine.c) on the machine. Returns with 8-bit index registers; A, X,
+ * Y and the flags but V are dead there. */
+void event_run_object_script(Snes *s)
+{
+    OnTheMachine m = { s, IN_A_TURN };
+    EventRunner r = { run_on_the_machine, bank_reaches_low_ram, &m };
+    uint8_t object = (uint8_t)s->cpu.x;
+    m_rep(s, CPU_FLAG_X);
+    uint16_t at;
+    switch (event_run_turn(state_of(s), object, &r, &at)) {
+    case TURN_HANDED_BACK:
+        return;
+    case TURN_OFF_THE_SCRIPT:
+        hand_over(s, at, 0xC05AA3, DC_A | DC_Y | DC_N | DC_Z | DC_C);
+        return;
+    case TURN_OVER:
+        m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
+        m_rts(s);
+        return;
+    default:
+        hand_over(s, at, 0xC05ABA, DC_A | DC_Y | DC_N | DC_Z | DC_C);
+        return;
+    }
+}
+
+// $C0:58DE (inside the map setup routine)
+/* The map's openings, on the machine; goes on at $C0:9DC3 rather than
+ * returning. */
+void event_run_init_scripts(Snes *s)
+{
+    OnTheMachine m = { s, IN_AN_OPENING };
+    EventRunner r = { run_on_the_machine, bank_reaches_low_ram, &m };
+    uint16_t object, at = 0;
+    switch (event_run_openings(state_of(s), &r, &object, &at)) {
+    case TURN_HANDED_BACK:
+        return;
+    case TURN_NOT_OURS_BEFORE:
+        hand_over(s, object, 0xC058ED, 0);
+        return;
+    case TURN_OFF_THE_SCRIPT:
+        hand_over(s, at, 0xC05900, 0);
+        return;
+    case TURN_NOT_OURS:
+        hand_over(s, at, 0xC05915, 0);
+        return;
+    default:
+        m_stop_at(s, 0xC09DC3, DC_A | DC_X | DC_N | DC_Z | DC_C);
+        return;
+    }
+}

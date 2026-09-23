@@ -1,29 +1,34 @@
-/* Scripts and sound: playing a sound effect or a song, sending the sound
- * driver a command of its own (a fade, a change of tempo), and waiting for it
- * to be done.
+/* Scripts and sound: a sound effect, a song, the music fading, a command of
+ * the script's own to the sound driver, and waiting on the driver -- for the
+ * music's fade to end, or for the song to reach a marker a scene keeps time
+ * by.
  *
  * Commands to the driver go through the audio service (platform/audio.h),
- * which on the development system writes them to $1E00-$1E03 and calls the
- * driver's entry at $C7:0004, the original's code; so the commands that send
- * one are bridges, which check what the driver left before going on, and
- * keep the command's end in event_saved_position across the call, as the
- * original does. The waits only read the driver's status, and are
- * operations like any other. */
+ * which on the development system hands them to the driver's CPU half at
+ * $C7:0004, the original's code; so the commands that send one are bridges,
+ * which check what the driver left before going on. The waits only read the
+ * driver's status, and are operations like any other. */
 #include "event/bridge.h"
 
 #include "platform/audio.h"
 
-static void load_command(Snes *s, uint8_t command)
-{
-    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | command);
-    m_set_nz8(s, command);
-}
+/* What the driver's command routine reads of the registers it is called
+ * with: nothing (it takes the command from its buffer), and nothing reads X,
+ * A's low byte or the flags after it returns either (checked against
+ * liveness by tools/dontcare_check.py). A's high byte and Y it hands back as
+ * it found them, and the command leaves them to its caller: the dispatch's,
+ * and the original's parse position (event/leaves.h). */
+#define DRIVER_IGNORES (DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C)
 
-static void registers_at_call(Snes *s, uint8_t command, uint16_t x, uint16_t y)
-{
-    event_set_registers(s, s->cpu.a, x, y);
-    load_command(s, command);
-}
+/* Y as the original's handler has it at the driver's call: where its parse
+ * of the operands stopped, which the driver hands back and the command
+ * leaves its caller (after the openings at map setup, the menus' dispatcher
+ * at $C2:8C36 stores it). */
+static void leave_parse_at_the_call(Snes *s, uint16_t y) { s->cpu.y = y; }
+
+/* The original keeps where the command goes on in event_saved_position across
+ * the driver's call, and reads it back itself. */
+static void keep_resume_point_across(GameState *g, uint16_t at) { set_event_saved_position(g, at); }
 
 /* Back from a call-out, which returns to `returns_to`: true if the callee
  * left the machine as the command runs (event_machine_back); otherwise the
@@ -36,32 +41,21 @@ static bool back(Snes *s, uint32_t returns_to, bool x8)
     return false;
 }
 
-/* Send a driver command from the JSL at `site`; false if the driver came back
- * other than the command expects, and the original then carries on. */
-static bool send(Snes *s, uint32_t site, AudioCommand command)
-{
-    au_command(m_platform(s), PF_CALL(site, 0xC70004), command);
-    return back(s, site + 4, false);
-}
-
-/* Go on at the offset kept in event_saved_position, plus `past`, ending the
- * turn; the driver leaves Y. */
-static void finish(Snes *s, uint16_t past)
-{
-    event_return(s, (EventStep){ (uint16_t)(event_saved_position(state_of(s)) + past), false });
-}
+/* The script goes on at `resume`, the object's turn over for this frame. */
+static void finish(Snes *s, uint16_t resume) { event_return(s, (EventStep){ resume, false }); }
 
 // $C0:3C11
-/* Play a sound effect. */
-void event_cmd_play_sound(Snes *s)
+/* Play a sound effect, from the middle. */
+void event_cmd_play_effect(Snes *s)
 {
-    GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
-    set_event_saved_position(g, (uint16_t)(at + 1));
-    registers_at_call(s, 0x18, (uint16_t)(at + 1), (uint16_t)(at + 1));
-    uint8_t effect = script_byte(g, (uint16_t)(at + 1));
-    if (send(s, 0xC03C26, (AudioCommand){ .command = 0x18, .p1 = effect, .p2 = 0x80, .count = 2 }))
-        finish(s, 1);
+    uint16_t resume = (uint16_t)(at + 2);
+    uint8_t effect = script_byte(state_of(s), (uint16_t)(at + 1));
+    ORIGINAL_EFFECT(keep_resume_point_across(state_of(s), (uint16_t)(resume - 1)));
+    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
+    au_play_effect(m_platform(s), PF_CALL_DC(0xC03C26, 0xC70004, DRIVER_IGNORES), effect, AU_CENTRE);
+    if (back(s, 0xC03C2A, false))
+        finish(s, resume);
 }
 
 // $C0:3C2F
@@ -70,73 +64,80 @@ void event_cmd_play_song(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
+    uint16_t resume = (uint16_t)(at + 2);
     uint8_t song = script_byte(g, (uint16_t)(at + 1));
     set_current_song(g, song);
-    set_event_saved_position(g, (uint16_t)(at + 1));
-    registers_at_call(s, 0x10, (uint16_t)(at + 1), (uint16_t)(at + 1));
-    au_play_song(m_platform(s), PF_CALL(0xC03C43, 0xC70004), song);
+    ORIGINAL_EFFECT(keep_resume_point_across(g, (uint16_t)(resume - 1)));
+    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
+    au_play_song(m_platform(s), PF_CALL_DC(0xC03C43, 0xC70004, DRIVER_IGNORES), song);
     if (back(s, 0xC03C47, false))
-        finish(s, 1);
+        finish(s, resume);
 }
 
 // $C0:3C4C
-/* Driver command $81 with the command's two operands, then $82 and $83. */
-void event_cmd_sound_81_83(Snes *s)
+/* Fade the music to a volume over a number of steps, and bring both pairs
+ * of effect voices to full volume at once. */
+void event_cmd_fade_music(Snes *s)
 {
-    GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
-    set_event_saved_position(g, (uint16_t)(at + 2));
-    registers_at_call(s, 0x81, (uint16_t)(at + 2), (uint16_t)(at + 1));
-    if (!send(s, 0xC03C69, (AudioCommand){ .command = 0x81, .p1 = script_byte(g, (uint16_t)(at + 1)),
-                                            .p2 = script_byte(g, (uint16_t)(at + 2)), .p3 = 0xFF, .count = 3 }))
+    uint16_t resume = (uint16_t)(at + 3);
+    uint8_t steps = script_byte(state_of(s), (uint16_t)(at + 1));
+    uint8_t volume = script_byte(state_of(s), (uint16_t)(at + 2));
+    Platform *pf = m_platform(s);
+    ORIGINAL_EFFECT(keep_resume_point_across(state_of(s), (uint16_t)(resume - 1)));
+    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
+    /* the original also leaves $FF as the third parameter, which the fade
+     * doesn't read */
+    au_command(pf, PF_CALL_DC(0xC03C69, 0xC70004, DRIVER_IGNORES),
+               (AudioCommand){ .command = AU_FADE_MUSIC, .p1 = steps, .p2 = volume, .p3 = AU_FULL_VOLUME, .count = 3 });
+    if (!back(s, 0xC03C6D, false))
         return;
-    load_command(s, 0x82);
-    if (!send(s, 0xC03C7C, (AudioCommand){ .command = 0x82, .p1 = 0x00, .p2 = 0xFF, .count = 2 }))
+    au_fade(pf, PF_CALL_DC(0xC03C7C, 0xC70004, DRIVER_IGNORES), AU_FADE_EFFECTS, 0, AU_FULL_VOLUME);
+    if (!back(s, 0xC03C80, false))
         return;
-    load_command(s, 0x83);
-    au_command(m_platform(s), PF_CALL(0xC03C8F, 0xC70004),
-               (AudioCommand){ .command = 0x83, .p1 = 0x00, .p2 = 0xFF, .count = 2 });
+    au_fade(pf, PF_CALL_DC(0xC03C8F, 0xC70004, DRIVER_IGNORES), AU_FADE_MORE_EFFECTS, 0, AU_FULL_VOLUME);
     if (back(s, 0xC03C93, false))
-        finish(s, 1);
+        finish(s, resume);
 }
 
 // $C0:3C98
-/* Send the driver a command of the script's choosing, with two parameters. */
-void event_cmd_sound_command(Snes *s)
+/* Send the driver a command of the script's choosing, with two parameters:
+ * whatever the language has no command for (a tempo slide, a mute). */
+void event_cmd_send_sound_command(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
-    uint8_t command = script_byte(g, (uint16_t)(at + 1)), first = script_byte(g, (uint16_t)(at + 2));
-    uint8_t second = script_byte(g, (uint16_t)(at + 3));
-    set_event_saved_position(g, (uint16_t)(at + 4));
-    registers_at_call(s, second, (uint16_t)(at + 4), (uint16_t)(at + 1));
-    m_set_nz16(s, s->cpu.x);   /* the INX after the last load */
-    au_command(m_platform(s), PF_CALL(0xC03CB4, 0xC70004),
-               (AudioCommand){ .command = command, .p1 = first, .p2 = second, .count = 2 });
+    uint16_t resume = (uint16_t)(at + 4);
+    AudioCommand c = { .command = script_byte(g, (uint16_t)(at + 1)), .p1 = script_byte(g, (uint16_t)(at + 2)),
+                       .p2 = script_byte(g, (uint16_t)(at + 3)), .count = 2 };
+    ORIGINAL_EFFECT(keep_resume_point_across(g, resume));
+    ORIGINAL_EFFECT(leave_parse_at_the_call(s, (uint16_t)(at + 1)));
+    au_command(m_platform(s), PF_CALL_DC(0xC03CB4, 0xC70004, DRIVER_IGNORES), c);
     if (back(s, 0xC03CB8, false))
-        finish(s, 0);
+        finish(s, resume);
 }
 
 // $C0:3CBC
-/* Wait until the driver says it is idle: its status on a port, masked, reads
- * zero. */
-static EventFlow wait_for_sound(Platform *pf, PfOrigin at, uint8_t port, uint8_t mask)
-{
-    return (au_status(pf, at, port) & mask) == 0 ? end_turn() : stay();
-}
-
-static EventFlow run_wait_for_port_1(GameState *g, const EventArgs *a)
+/* Wait until the music has faded as far as it was told to. */
+static EventFlow wait_for_music_fade(GameState *g, const EventArgs *a)
 {
     (void)g;
-    return wait_for_sound(a->platform, PF_AT(0xC03CBD), 1, 0xFF);
+    return au_music_fade_left(a->platform, PF_AT(0xC03CBD)) == 0 ? end_turn() : stay();
 }
 
-static EventFlow run_wait_for_port_3(GameState *g, const EventArgs *a)
+// $C0:3CC5
+/* Wait until the song reaches the marker a scene keeps time by (the marker
+ * back to zero). */
+static EventFlow wait_for_song_marker(GameState *g, const EventArgs *a)
 {
     (void)g;
-    return wait_for_sound(a->platform, PF_AT(0xC03CC6), 3, 0x0F);
+    return au_song_marker(a->platform, PF_AT(0xC03CC6)) == 0 ? end_turn() : stay();
 }
 
 EVENT_OPCODES(event_sound_opcodes,
-    { 0xED, run_wait_for_port_1, { { 0 } }, 1, .routine = 0xC03CBC },
-    { 0xEE, run_wait_for_port_3, { { 0 } }, 1, .routine = 0xC03CC5 });
+    { 0xE8, .bridge = event_cmd_play_effect, .length = 2, .routine = 0xC03C11 },
+    { 0xEA, .bridge = event_cmd_play_song, .length = 2, .routine = 0xC03C2F },
+    { 0xEB, .bridge = event_cmd_fade_music, .length = 3, .routine = 0xC03C4C },
+    { 0xEC, .bridge = event_cmd_send_sound_command, .length = 4, .routine = 0xC03C98 },
+    { 0xED, wait_for_music_fade, .length = 1, .routine = 0xC03CBC },
+    { 0xEE, wait_for_song_marker, .length = 1, .routine = 0xC03CC5 });

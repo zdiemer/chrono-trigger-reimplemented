@@ -22,15 +22,42 @@ typedef struct {
  * without main-CPU time passing. */
 PF_API void au_command(Platform *pf, PfOrigin o, AudioCommand c);
 
+/* The driver's commands the game sends (docs/SOUND.md, "Commands from the CPU"). */
+enum {
+    AU_START_SONG = 0x10,       /* p1 the song */
+    AU_START_EFFECT = 0x18,     /* p1 the effect, p2 where it is panned (0x80 the middle) */
+    AU_FADE_ALL = 0x80,         /* p1 steps, p2 the volume faded to: everything */
+    AU_FADE_MUSIC = 0x81,       /* ... the music */
+    AU_FADE_EFFECTS = 0x82,     /* ... the effects on voices 6-7 */
+    AU_FADE_MORE_EFFECTS = 0x83 /* ... the effects on voices 4-5 */
+};
+enum { AU_CENTRE = 0x80, AU_FULL_VOLUME = 0xFF };
+
 static inline void au_play_song(Platform *pf, PfOrigin o, uint8_t song)
 {
-    au_command(pf, o, (AudioCommand){ .command = 0x10, .p1 = song, .count = 1 });
+    au_command(pf, o, (AudioCommand){ .command = AU_START_SONG, .p1 = song, .count = 1 });
 }
 
-/* Driver status the game polls: the byte the driver shows on port 1-3. Named
- * by port until its meaning is known (event $ED: port 1 zero; $EE: port 3's low
- * nibble). Doesn't sync: when a poll happens is the caller's business. */
+static inline void au_play_effect(Platform *pf, PfOrigin o, uint8_t effect, uint8_t pan)
+{
+    au_command(pf, o, (AudioCommand){ .command = AU_START_EFFECT, .p1 = effect, .p2 = pan, .count = 2 });
+}
+
+/* Fade `what` (AU_FADE_*) to `volume` over `steps` steps (0: at once). */
+static inline void au_fade(Platform *pf, PfOrigin o, uint8_t what, uint8_t steps, uint8_t volume)
+{
+    au_command(pf, o, (AudioCommand){ .command = what, .p1 = steps, .p2 = volume, .count = 2 });
+}
+
+/* Driver status the game polls: the byte the driver shows on port 1-3. Doesn't
+ * sync: when a poll happens is the caller's business. */
 PF_API uint8_t au_status(Platform *pf, PfOrigin o, uint8_t port);
+
+/* What the status says (docs/SOUND.md, "What the game reads back"): the steps
+ * the music's fade has left, and the marker the playing song last set (its
+ * sequence's event $F9), which a scene waits on to keep in time with it. */
+static inline uint8_t au_music_fade_left(Platform *pf, PfOrigin o) { return au_status(pf, o, 1); }
+static inline uint8_t au_song_marker(Platform *pf, PfOrigin o) { return au_status(pf, o, 3) & 0x0F; }
 
 /* Host side: up to max_frames stereo frames at 32000 Hz; returns how many. */
 PF_API size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames);

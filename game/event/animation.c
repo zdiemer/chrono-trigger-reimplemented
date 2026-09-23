@@ -135,7 +135,7 @@ static EventFlow run_play_animation(GameState *g, const EventArgs *a)
 static EventFlow run_hold_frame(GameState *g, const EventArgs *a) { return hold_frame(g, a->self, a->arg[0]); }
 
 EVENT_OPCODES(event_animation_opcodes,
-    { 0xAA, run_loop_animation, { BYTE(1) }, 2, .routine = 0xC02E67, .parse = 1 },
+    { 0xAA, run_loop_animation, { BYTE(1) }, 2, .routine = 0xC02E67 },
     { 0xB3, run_loop_animation, { CONSTANT(0) }, 1, .routine = 0xC02E87 },
     { 0xB4, run_loop_animation, { CONSTANT(1) }, 1, .routine = 0xC02E8B },
     { 0xAE, run_stop_animating, { { 0 } }, 1, .routine = 0xC02E8F },

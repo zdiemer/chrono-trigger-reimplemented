@@ -34,13 +34,6 @@ static EventFlow subtract(GameState *g, EventVariable v, uint16_t amount, Width 
     return next_command();
 }
 
-// $C0:6C69
-/* Count a variable up or down by one: a counter, with no overflow to speak of. */
-static EventFlow count(GameState *g, EventVariable v, uint16_t step, Width w)
-{
-    set_variable(g, v, (uint16_t)(variable(g, v, w) + step), w);
-    return next_command();
-}
 
 /* A byte variable as a set of flags: raise some, keep only some, or turn
  * some over. */
@@ -99,7 +92,6 @@ static EventFlow roll(GameState *g, EventVariable v)
 static EventFlow run_assign(GameState *g, const EventArgs *a) { return assign(g, a->arg[0], a->arg[1], a->arg[2]); }
 static EventFlow run_add(GameState *g, const EventArgs *a) { return add(g, a->arg[0], a->arg[1], a->arg[2]); }
 static EventFlow run_subtract(GameState *g, const EventArgs *a) { return subtract(g, a->arg[0], a->arg[1], a->arg[2]); }
-static EventFlow run_count(GameState *g, const EventArgs *a) { return count(g, a->arg[0], a->arg[1], a->arg[2]); }
 static EventFlow run_set_flags(GameState *g, const EventArgs *a) { return set_flags(g, a->arg[0], a->arg[1]); }
 static EventFlow run_keep_only_flags(GameState *g, const EventArgs *a) { return keep_only_flags(g, a->arg[0], a->arg[1]); }
 static EventFlow run_toggle_flags(GameState *g, const EventArgs *a) { return toggle_flags(g, a->arg[0], a->arg[1]); }
@@ -108,50 +100,37 @@ static EventFlow run_roll(GameState *g, const EventArgs *a) { return roll(g, a->
 
 #define BYTES CONSTANT(AS_BYTE)
 #define WORDS CONSTANT(AS_WORD)
-#define DOWN 0xFFFF
 
 /* The original keeps its first operand in a scratch cell (event/leaves.h),
  * and its additions leave their overflow: both are columns here, not the
  * operations' business. */
 EVENT_OPCODES(event_variables_opcodes,
-    { 0x4F, run_assign, { VARIABLE(2), BYTE(1), BYTES }, 3, .routine = 0xC068A5, .parse = 1, .keeps = KEEPS_BYTE(1) },
-    { 0x50, run_assign, { VARIABLE(3), WORD(1), WORDS }, 4, .routine = 0xC068C6, .parse = 1, .keeps = KEEPS_WORD(1) },
-    { 0x51, run_assign, { VARIABLE(2), VARIABLE_WORD(1), BYTES }, 3, .routine = 0xC068E9, .parse = 2,
-      .keeps = KEEPS_WORD(1) },
-    { 0x52, run_assign, { VARIABLE(2), VARIABLE_WORD(1), WORDS }, 3, .routine = 0xC06913, .parse = 2,
-      .keeps = KEEPS_WORD(1) },
-    { 0x53, run_assign, { VARIABLE(3), STORY_WORD(1), BYTES }, 4, .routine = 0xC0693D, .parse = 3,
-      .keeps = KEEPS_WORD(1) },
-    { 0x54, run_assign, { VARIABLE(3), STORY_WORD(1), WORDS }, 4, .routine = 0xC06964, .parse = 3,
-      .keeps = KEEPS_WORD(1) },
-    { 0x55, run_assign, { VARIABLE(1), STORY_PROGRESS, BYTES }, 2, .routine = 0xC0698B, .parse = 1 },
-    { 0x75, run_assign, { VARIABLE(1), CONSTANT(1), BYTES }, 2, .routine = 0xC06CBD, .parse = 2 },
-    { 0x76, run_assign, { VARIABLE(1), CONSTANT(1), WORDS }, 2, .routine = 0xC06CD6, .parse = 2 },
-    { 0x77, run_assign, { VARIABLE(1), CONSTANT(0), BYTES }, 2, .routine = 0xC06CF0, .parse = 2 },
+    { 0x4F, run_assign, { VARIABLE(2), BYTE(1), BYTES }, 3, .routine = 0xC068A5 },
+    { 0x50, run_assign, { VARIABLE(3), WORD(1), WORDS }, 4, .routine = 0xC068C6 },
+    { 0x51, run_assign, { VARIABLE(2), VARIABLE_WORD(1), BYTES }, 3, .routine = 0xC068E9 },
+    { 0x52, run_assign, { VARIABLE(2), VARIABLE_WORD(1), WORDS }, 3, .routine = 0xC06913 },
+    { 0x53, run_assign, { VARIABLE(3), STORY_WORD(1), BYTES }, 4, .routine = 0xC0693D },
+    { 0x54, run_assign, { VARIABLE(3), STORY_WORD(1), WORDS }, 4, .routine = 0xC06964 },
+    { 0x55, run_assign, { VARIABLE(1), STORY_PROGRESS, BYTES }, 2, .routine = 0xC0698B },
+    { 0x75, run_assign, { VARIABLE(1), CONSTANT(1), BYTES }, 2, .routine = 0xC06CBD },
+    { 0x76, run_assign, { VARIABLE(1), CONSTANT(1), WORDS }, 2, .routine = 0xC06CD6 },
+    { 0x77, run_assign, { VARIABLE(1), CONSTANT(0), BYTES }, 2, .routine = 0xC06CF0 },
 
-    { 0x5B, run_add, { VARIABLE(2), BYTE(1), BYTES }, 3, .routine = 0xC06A1F, .parse = 3, .keeps = KEEPS_BYTE(1),
-      .overflow = OVERFLOW_OF_ADDING },
-    { 0x5D, run_add, { VARIABLE(2), VARIABLE_WORD(1), BYTES }, 3, .routine = 0xC06A45, .parse = 3,
-      .keeps = KEEPS_WORD(1), .overflow = OVERFLOW_OF_ADDING },
-    { 0x5E, run_add, { VARIABLE(2), VARIABLE_WORD(1), WORDS }, 3, .routine = 0xC06A74, .parse = 3,
-      .keeps = KEEPS_WORD(1), .overflow = OVERFLOW_OF_ADDING },
-    { 0x5F, run_subtract, { VARIABLE(2), BYTE(1), BYTES }, 3, .routine = 0xC06AA3, .parse = 3,
-      .keeps = KEEPS_BYTE(1), .overflow = OVERFLOW_OF_SUBTRACTING },
-    { 0x60, run_subtract, { VARIABLE(3), WORD(1), WORDS }, 4, .routine = 0xC06AC9, .parse = 4,
-      .keeps = KEEPS_WORD(1), .overflow = OVERFLOW_OF_SUBTRACTING },
-    { 0x61, run_subtract, { VARIABLE(2), VARIABLE_WORD(1), BYTES }, 3, .routine = 0xC06AF1, .parse = 3,
-      .keeps = KEEPS_WORD(1), .overflow = OVERFLOW_OF_SUBTRACTING },
+    { 0x5B, run_add, { VARIABLE(2), BYTE(1), BYTES }, 3, .routine = 0xC06A1F },
+    { 0x5D, run_add, { VARIABLE(2), VARIABLE_WORD(1), BYTES }, 3, .routine = 0xC06A45 },
+    { 0x5E, run_add, { VARIABLE(2), VARIABLE_WORD(1), WORDS }, 3, .routine = 0xC06A74 },
+    { 0x5F, run_subtract, { VARIABLE(2), BYTE(1), BYTES }, 3, .routine = 0xC06AA3 },
+    { 0x60, run_subtract, { VARIABLE(3), WORD(1), WORDS }, 4, .routine = 0xC06AC9 },
+    { 0x61, run_subtract, { VARIABLE(2), VARIABLE_WORD(1), BYTES }, 3, .routine = 0xC06AF1 },
 
-    { 0x71, run_count, { VARIABLE(1), CONSTANT(1), BYTES }, 2, .routine = 0xC06C69, .parse = 2 },
-    { 0x72, run_count, { VARIABLE(1), CONSTANT(1), WORDS }, 2, .routine = 0xC06C85, .parse = 2 },
-    { 0x73, run_count, { VARIABLE(1), CONSTANT(DOWN), BYTES }, 2, .routine = 0xC06CA1, .parse = 2 },
+    { 0x71, run_add, { VARIABLE(1), CONSTANT(1), BYTES }, 2, .routine = 0xC06C69 },
+    { 0x72, run_add, { VARIABLE(1), CONSTANT(1), WORDS }, 2, .routine = 0xC06C85 },
+    { 0x73, run_subtract, { VARIABLE(1), CONSTANT(1), BYTES }, 2, .routine = 0xC06CA1 },
 
-    { 0x63, run_set_flags, { VARIABLE(2), BIT(1) }, 3, .routine = 0xC06B20, .parse = 3, .keeps = KEEPS_BYTE(1) },
-    { 0x69, run_set_flags, { VARIABLE(2), BYTE(1) }, 3, .routine = 0xC06BF7, .parse = 3, .keeps = KEEPS_BYTE(1) },
-    { 0x64, run_keep_only_flags, { VARIABLE(2), ALL_BUT_BIT(1) }, 3, .routine = 0xC06B4B, .parse = 3,
-      .keeps = KEEPS_BYTE(1) },
-    { 0x67, run_keep_only_flags, { VARIABLE(2), BYTE(1) }, 3, .routine = 0xC06BD2, .parse = 3,
-      .keeps = KEEPS_BYTE(1) },
-    { 0x6B, run_toggle_flags, { VARIABLE(2), BYTE(1) }, 3, .routine = 0xC06C1C, .parse = 3, .keeps = KEEPS_BYTE(1) },
-    { 0x6F, run_halve, { VARIABLE(2), BYTE(1) }, 3, .routine = 0xC06C41, .parse = 3 },
-    { 0x7F, run_roll, { VARIABLE(1) }, 2, .routine = 0xC06D09, .parse = 2 });
+    { 0x63, run_set_flags, { VARIABLE(2), BIT(1) }, 3, .routine = 0xC06B20 },
+    { 0x69, run_set_flags, { VARIABLE(2), BYTE(1) }, 3, .routine = 0xC06BF7 },
+    { 0x64, run_keep_only_flags, { VARIABLE(2), ALL_BUT_BIT(1) }, 3, .routine = 0xC06B4B },
+    { 0x67, run_keep_only_flags, { VARIABLE(2), BYTE(1) }, 3, .routine = 0xC06BD2 },
+    { 0x6B, run_toggle_flags, { VARIABLE(2), BYTE(1) }, 3, .routine = 0xC06C1C },
+    { 0x6F, run_halve, { VARIABLE(2), BYTE(1) }, 3, .routine = 0xC06C41 },
+    { 0x7F, run_roll, { VARIABLE(1) }, 2, .routine = 0xC06D09 });

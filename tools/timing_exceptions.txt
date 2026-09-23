@@ -70,10 +70,10 @@ menu_map_scroll_y vblank-tail as for menu_map_scroll_x, with two records a strip
 
 # The event engine's openings at map setup, which run every object's script up
 # to its first zero byte at once, while the location change has the screen
-# blanked, writing work RAM only. Its commands run inline and are attributed to
-# their handlers (12.6% error to 8.8%); what is left is its own walk over the
-# object slots, which clears four cells of every object and reads and keeps a
-# script position only for the ones with a script, against openings of 0 to 30
-# commands, a mix one scalar can't fit. The vblank check finds none of its
-# writes moved.
-event_run_init_scripts vblank-tail runs the map's openings at load, screen blanked, writing RAM; commands attributed to their handlers (12.6% error to 8.8%), the rest its own walk over the slots, which clears every object and runs only some; 1.57% of calls off by a line or more, at most 3217 clocks (2.4 lines)
+# blanked, writing work RAM only. Its commands run inline -- as C, or as bridges
+# called directly -- and are attributed to their handlers; what is left is its
+# own walk over the object slots, which clears four cells of every object and
+# runs a script only for some, against openings of 0 to 30 commands, and the
+# commands it hands to the original's table, which it looks up; a mix one
+# scalar can't fit. The vblank check finds none of its writes moved.
+event_run_init_scripts vblank-tail runs the map's openings at load, screen blanked, writing RAM; commands attributed to their handlers, the rest its own walk over the slots, which clears every object and runs only some; 3.15% of calls off by a line or more, at most 4615 clocks (3.4 lines)

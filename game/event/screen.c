@@ -11,6 +11,7 @@
 
 enum { FADING = 0x02, TINTING = 0x08, TINT_CHANGES = 0x18 };   /* field_effect_status */
 enum { TILE_COPY_QUEUED = 0x20 };                              /* field_requests */
+enum { ALL_MAPS = 0x07 };   /* a tile copy's maps: one bit each */
 
 // $C0:3C05
 /* Give the player control of the party (nonzero), or take it away for a
@@ -44,16 +45,30 @@ static EventFlow wait_for_screen(GameState *g, uint8_t changes)
     return (field_effect_status(g) & changes) ? stay() : end_turn();
 }
 
-/* The tint's colour channels (bits 5-7) become the target's, its strength
- * stays. The original keeps the channels in its scratch cell. */
+/* A tint: a colour mixed into the whole picture, added to it or taken away.
+ * The field keeps it as the hardware has it -- the fixed colour's shadow
+ * (which colour channels in bits 5-7, the strength in bits 0-4) and the
+ * colour-math setting it applies with -- and its interrupt hands both on each
+ * frame; so for now the tint is written in those terms here, the field's
+ * vocabulary for it still to come (docs/TODO.md). */
+typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
+
+enum { CHANNELS = 0xE0, STRENGTH = 0x1F };
+enum { NO_TINT = CHANNELS };   /* every channel, no strength */
+enum { TAKE_AWAY = 0x80 };     /* in the command's rate: the tint is taken away from the picture */
+
+/* The colour-math setting a tint applies with: over every layer and the
+ * sprites, added or taken away. */
+static uint8_t tint_math(TintMix mix) { return mix == TINT_ADDED ? 0x17 : 0x97; }
+
+/* The tint's colour channels become the target's, its strength stays. The
+ * original keeps the channels in its scratch cell. */
 static void take_target_channels(GameState *g)
 {
-    uint8_t channels = field_fixed_color_target(g) & 0xE0;
+    uint8_t channels = field_fixed_color_target(g) & CHANNELS;
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, channels));
-    set_field_fixed_color(g, (uint8_t)((field_fixed_color(g) & 0x1F) | channels));
+    set_field_fixed_color(g, (uint8_t)((field_fixed_color(g) & STRENGTH) | channels));
 }
-
-enum { TINT_ADDS = 0x17, TINT_SUBTRACTS = 0x97, NO_TINT = 0xE0 };
 
 // $C0:3D07
 /* Tint the screen with a colour, added to the picture or (bit 7 of the rate)
@@ -70,16 +85,15 @@ static EventFlow tint(GameState *g, uint8_t colour, uint8_t rate)
     }
     set_field_fixed_color_target(g, colour);
     take_target_channels(g);
-    uint8_t how = rate & 0x80 ? TINT_SUBTRACTS : TINT_ADDS;
-    rate &= 0x7F;
+    TintMix mix = rate & TAKE_AWAY ? TINT_TAKEN_AWAY : TINT_ADDED;
+    rate &= (uint8_t)~TAKE_AWAY;
     if (rate == 0) {
         set_field_fixed_color(g, field_fixed_color_target(g));
-        set_field_fixed_color_math_layers(g, how);
+        set_field_fixed_color_math_layers(g, tint_math(mix));
         return next_command();
     }
     set_field_fixed_color_rate(g, (uint16_t)(rate << 8 | rate));
-    set_field_fixed_color_math_layers(g, how);
-    take_target_channels(g);
+    set_field_fixed_color_math_layers(g, tint_math(mix));
     set_field_effect_status(g, field_effect_status(g) | TINT_CHANGES);
     return end_turn();
 }
@@ -113,7 +127,7 @@ static void describe_tile_copy(GameState *g, uint16_t from, uint16_t to, uint16_
 static EventFlow queue_tile_copy(GameState *g, uint16_t from, uint16_t to, uint16_t destination, uint8_t maps)
 {
     describe_tile_copy(g, from, to, destination, maps);
-    set_field_tile_copy_queued_maps(g, field_tile_copy_maps(g) & 0x07);
+    set_field_tile_copy_queued_maps(g, field_tile_copy_maps(g) & ALL_MAPS);
     set_field_requests(g, field_requests(g) | TILE_COPY_QUEUED);
     return end_turn();
 }
@@ -175,6 +189,7 @@ static bool back(Snes *s, uint32_t returns_to, bool x8)
     return false;
 }
 
+
 // $C0:3D97
 /* Change the map's tiles now (the field's copy, $C0:AF4E, still the
  * original's code, called out to). Ends the turn. */
@@ -185,11 +200,13 @@ void event_cmd_copy_tiles(Snes *s)
     uint16_t at = event_command_offset(s);
     describe_tile_copy(g, script_word(g, (uint16_t)(at + 1)), script_word(g, (uint16_t)(at + 3)),
                        script_word(g, (uint16_t)(at + 5)), script_byte(g, (uint16_t)(at + 7)));
+    /* the command's last byte, kept across the copy in event_saved_position:
+     * the copy's indexed stores can land on it, and the command goes on from
+     * what it holds after, as the original's does */
     set_event_saved_position(g, (uint16_t)(at + LENGTH - 1));
     m_jsr_dc(s, 0xC03DBD, 0xC0AF4E, DC_A | DC_X | DC_N | DC_Z | DC_C);
-    if (!back(s, 0xC03DC0, false))
-        return;
-    event_return(s, (EventStep){ (uint16_t)(event_saved_position(g) + 1), false });
+    if (back(s, 0xC03DC0, false))
+        event_return(s, (EventStep){ (uint16_t)(event_saved_position(g) + 1), false });
 }
 
 static EventFlow run_set_player_control(GameState *g, const EventArgs *a) { return set_player_control(g, a->arg[0]); }
@@ -212,14 +229,14 @@ static EventFlow run_set_animation_line_limit(GameState *g, const EventArgs *a)
 }
 
 EVENT_OPCODES(event_screen_opcodes,
-    { 0xE3, run_set_player_control, { BYTE(1) }, 2, .routine = 0xC03C05, .parse = 2 },
-    { 0xF0, run_fade, { BYTE(1) }, 2, .routine = 0xC03CD0, .keeps = KEEPS_BYTE(0) },
+    { 0xE3, run_set_player_control, { BYTE(1) }, 2, .routine = 0xC03C05 },
+    { 0xF0, run_fade, { BYTE(1) }, 2, .routine = 0xC03CD0 },
     { 0xF2, run_wait_for_screen, { CONSTANT(FADING) }, 1, .routine = 0xC03CFD },
     { 0xF3, run_wait_for_screen, { CONSTANT(TINTING) }, 1, .routine = 0xC03D7A },
     { 0xF1, run_tint, { BYTE(1), BYTE(2) }, 3, .routine = 0xC03D07 },
     { 0xF4, run_set_bc, { BYTE(1) }, 2, .routine = 0xC03D84 },
     { 0xE5, run_queue_tile_copy, { WORD(1), WORD(3), WORD(5), BYTE(7) }, 8, .routine = 0xC03DC5 },
-    { 0xE6, run_drift_layers, { WORD(1), BYTE(3), BYTE(4) }, 5, .routine = 0xC03DF4, .keeps = KEEPS_BYTE(1),
-      .keeps_second = KEEPS_WORD(0) },
+    { 0xE6, run_drift_layers, { WORD(1), BYTE(3), BYTE(4) }, 5, .routine = 0xC03DF4 },
     { 0xE7, run_scroll_camera, { BYTE(1), BYTE(2) }, 3, .routine = 0xC03E30 },
-    { 0x47, run_set_animation_line_limit, { BYTE(1) }, 2, .routine = 0xC06788, .parse = 2 });
+    { 0x47, run_set_animation_line_limit, { BYTE(1) }, 2, .routine = 0xC06788 },
+    { 0xE4, .bridge = event_cmd_copy_tiles, .length = 8, .routine = 0xC03D97 });
