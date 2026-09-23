@@ -18,6 +18,7 @@
 
 #include "platform/video.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
 #include "ram.h"
 #include "scene/scene.h"
 #include "scene/scene_data.h"
@@ -492,7 +493,7 @@ static void squashed_iris(Snes *s, const Iris *iris)
     m_write8(s, circle_cell(s, RAM_SCENE_CIRCLE_CENTER_Y), m_read8(s, field_at(s, slot, OBJECT_Y)));
     m_write8(s, circle_cell(s, RAM_SCENE_CIRCLE_RADIUS), m_read8(s, field_at(s, slot, OBJECT_PARAMETER)));
     m_write8(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE_BANK), TABLE_BANK_7E);
-    scene_circle_draw(s, (uint8_t)c->d);   /* TDC: the mode is the direct page's low byte */
+    scene_circle_draw(state_of(s), (uint8_t)c->d);   /* TDC: the mode is the direct page's low byte */
 
     enter_table_bank(s);
     slot = object(s);
@@ -568,7 +569,7 @@ static void capsule_iris(Snes *s, const Iris *iris)
     m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_CENTER_Y), field16(s, slot, OBJECT_Y));
     m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_RADIUS), field16(s, slot, OBJECT_PARAMETER));
     m_write16(s, circle_cell(s, RAM_SCENE_CIRCLE_TABLE_BANK), TABLE_BANK_7E);
-    scene_circle_draw(s, (uint8_t)c->d);
+    scene_circle_draw(state_of(s), (uint8_t)c->d);
 
     enter_table_bank(s);
     slot = object(s);

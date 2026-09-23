@@ -115,19 +115,19 @@ add_library(ct_game STATIC
   game/menu/text.c
   game/menu/vram.c
   game/attract/main_loop.c
-  game/scene/bitmap.c
   game/scene/boot.c
   game/scene/circle.c
-  game/scene/math.c
-  game/scene/matrix_code.c
-  game/scene/display.c
+  game/scene/frame.c
   game/scene/guards.c
-  game/scene/nmi.c
-  game/scene/program.c
+  game/scene/math.c
   game/scene/race.c
-  game/scene/scratch.c
-  game/scene/sequence.c
+  game/scene/race_matrix.c
+  game/scene/scaler.c
+  game/scene/screen.c
+  game/scene/script.c
+  game/scene/sound.c
   game/scene/sprites.c
+  game/scene/title.c
   game/battle/animation.c
   game/battle/buffers.c
   game/battle/display.c

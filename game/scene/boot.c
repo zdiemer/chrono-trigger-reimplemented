@@ -1,8 +1,14 @@
-/* Scenes: starting a scene program, and the copies it makes out of bank $FE.
+/* Scenes: starting a scene program, and copying its resources.
  *
- * The field and the game over start a scene by jumping to $C3:0000 with the
- * scene's mode bits in A: the boot points the interrupt stubs at bank C3's
- * handlers, decompresses the program to $7E:3000 and jumps there. */
+ * The field starts a scene -- the race, an ending -- and the game comes back
+ * to the title the same way: by jumping to $C3:0000 with the scene's flags in
+ * A (scene.h). The boot points the interrupts at its own handlers, which keep
+ * the screen on until the program installs its frame's work, starts the line
+ * interrupt for a scene that uses it, and decompresses the program into work
+ * RAM, where it runs.
+ *
+ * A program loads its resources from the table in bank $FE, compressed or not;
+ * the uncompressed ones are copied from the bank as they are. */
 #include "scene/scene.h"
 
 #include "platform/timing.h"
@@ -13,35 +19,43 @@
 #include "vars.h"
 #include "wram.h"
 
-/* scene_flags bit 7: the scene uses the line interrupt, which the boot starts
- * at LINE_IRQ_LINE, and leaves interrupts enabled while the NMI works. */
-enum { SCENE_FLAG_LINE_IRQ = 0x80 };
-enum { LINE_IRQ_LINE = 0xD3 };
+enum { LINE_IRQ_LINE = 0xD3 };   /* the line the title's line interrupt fires on: the picture's last */
 enum { FULL_BRIGHTNESS = 15 };
 
-/* Where the program runs, in bank $7E. */
-enum { PROGRAM_START = 0x7E3000 };
-enum { PROGRAM_ADDRESS = 0x3000 };
-
-/* An interrupt stub is a JML and its 24-bit target. */
-enum { JML = 0x5C };
-static uint32_t jump_to(uint32_t target) { return JML | target << 8; }
+/* Where the program runs, in the first bank of work RAM. */
+enum { PROGRAM_START = 0x7E3000, PROGRAM_ADDRESS = 0x3000 };
 
 /* The handlers the boot installs until the program installs its own. */
 enum { BOOT_NMI = 0xC30548, BOOT_IRQ = 0xC30529 };
 
+/* An interrupt stub is a jump to its handler: installing a handler writes the
+ * jump and the handler's address. */
+enum { JUMP_LONG = 0x5C };
+
+static void install_nmi_handler(GameState *g, uint32_t handler)
+{
+    set_scene_nmi_stub_jump(g, JUMP_LONG);
+    set_scene_nmi_stub_handler(g, handler);
+}
+
+static void install_irq_handler(GameState *g, uint32_t handler)
+{
+    set_scene_irq_stub_jump(g, JUMP_LONG);
+    set_scene_irq_stub_handler(g, handler);
+}
+
 // $C3:0000
-/* Point the interrupts at the boot's handlers, keep the scene's mode bits,
- * start the line interrupt where they ask for it, and set the decompressor
- * on the program's stream. True where the scene uses the line interrupt, and
- * interrupts end up enabled. */
+/* Point the interrupts at the boot's handlers, keep the scene's flags, start
+ * the line interrupt where the scene uses it, and set the decompressor on the
+ * program. True where the scene uses the line interrupt, and interrupts end up
+ * enabled. */
 static bool boot(GameState *g, Platform *pf, uint8_t flags)
 {
-    set_nmi_vector(g, jump_to(BOOT_NMI));
-    set_irq_vector(g, jump_to(BOOT_IRQ));
+    install_nmi_handler(g, BOOT_NMI);
+    install_irq_handler(g, BOOT_IRQ);
     tm_enable_interrupts(pf, PF_AT(0xC30034), TM_INT_AUTO_JOYPAD);
     set_scene_flags(g, flags);
-    bool line_irq = flags & SCENE_FLAG_LINE_IRQ;
+    bool line_irq = flags & SCENE_FLAG_TITLE_WITH_LINE_IRQ;
     if (line_irq) {
         vid_set_display(pf, PF_AT(0xC30041), &(VidDisplay){ .brightness = FULL_BRIGHTNESS });
         vid_enable_line_effects(pf, PF_AT(0xC30044), 0);
@@ -58,39 +72,117 @@ static bool boot(GameState *g, Platform *pf, uint8_t flags)
  * data bank. */
 bool scene_boot_bank_reaches_io(Snes *s) { return m_bank_reaches_io(s); }
 
-/* Start the scene program: the mode bits in A. The decompressor is a call-out,
- * and the port stops at the program's first instruction. */
+/* Start the scene program, the flags in A. The decompressor is a call-out, and
+ * the port stops at the program's first instruction. */
 void scene_boot(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);   /* SEI */
     bool line_irq = boot(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
-    m_set_flag(s, CPU_FLAG_I, !line_irq);   /* CLI where the scene uses the line interrupt */
+    m_set_flag(s, CPU_FLAG_I, !line_irq);   /* interrupts on where the scene uses the line interrupt */
     m_jsl_dc(s, 0xC3006F, 0xC30557, DC_A | DC_X | DC_N | DC_Z | DC_C);
     m_stop_at(s, PROGRAM_START, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
 }
 
+/* ---- The boot's interrupt handlers ---------------------------------------------------------- */
+
+// $C3:0548
+/* The boot's NMI: acknowledge it, and the screen on at full brightness. */
+static void boot_vblank(Platform *pf)
+{
+    tm_ack_vblank(pf, PF_AT(0xC3054B));
+    vid_set_display(pf, PF_AT(0xC30551), &(VidDisplay){ .brightness = FULL_BRIGHTNESS });
+}
+
+void scene_boot_nmi(Snes *s)
+{
+    boot_vblank(m_platform(s));
+    m_rti(s);
+}
+
+// $C3:0529
+/* The boot's line interrupt: acknowledge it, then blank the screen at the
+ * start of the next hblank. The two waits for the beam are the original's
+ * loops, idle entries, and the blank the entry after them (docs/TODO.md). The
+ * handler saves A's low byte, which is on the stack across the waits. */
+void scene_boot_line_irq(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_M, true);
+    m_push8(s, (uint8_t)s->cpu.a);
+    /* A holds the acknowledge's status until the wait reloads it; its other
+     * bits are open bus, which the original reads as the load's last operand
+     * byte, 0 */
+    uint8_t ack = tm_ack_line_irq(m_platform(s), PF_AT(0xC3052C));
+    m_set_a8(s, ack & TM_LINE_IRQ_PENDING);
+    m_stop_at(s, 0xC30530, DC_N | DC_Z);
+}
+
+/* The status the waits load into A: bits 1-5 are open bus, which the original
+ * reads as the load's last operand byte, 0. The load sets N, and the test of
+ * hblank Z. */
+enum { STATUS_BITS = TM_STATUS_VBLANK | TM_STATUS_HBLANK | TM_STATUS_JOYPAD_BUSY };
+static void load_status(Snes *s, uint8_t status)
+{
+    m_set_a8(s, status & STATUS_BITS);
+    m_set_flag(s, CPU_FLAG_N, status & TM_STATUS_VBLANK);
+    m_set_flag(s, CPU_FLAG_Z, !(status & TM_STATUS_HBLANK));
+}
+
+// $C3:0530
+/* One pass of the wait for the current hblank to end. Idle entry. */
+void scene_boot_line_irq_wait_hblank_end_loop(Snes *s)
+{
+    uint8_t status = tm_video_status(m_platform(s), PF_AT(0xC30530));
+    load_status(s, status);
+    if (!(status & TM_STATUS_HBLANK))
+        s->cpu.pc = 0x0538;
+}
+
+// $C3:0538
+/* One pass of the wait for the next hblank to start. Idle entry. */
+void scene_boot_line_irq_wait_hblank_loop(Snes *s)
+{
+    uint8_t status = tm_video_status(m_platform(s), PF_AT(0xC30538));
+    load_status(s, status);
+    if (status & TM_STATUS_HBLANK)
+        s->cpu.pc = 0x0540;
+}
+
+// $C3:0540
+/* In hblank: blank the screen, A's low byte back, and return. */
+void scene_boot_line_irq_blank(Snes *s)
+{
+    vid_set_display(m_platform(s), PF_AT(0xC30542), &(VidDisplay){ .blank = true });
+    m_set_a8(s, m_pull8(s));
+    m_rti(s);
+}
+
+/* ---- Resources copied as they are ------------------------------------------------------------ */
+
+/* The two banks of work RAM a resource can go to. */
+enum { WORK_RAM_LOWER = 0x7E, WORK_RAM_UPPER = 0x7F };
+
 // $C3:099C, $C3:09A0
-/* `count` bytes of bank $FE's data from `from` to `to` in `bank`, a byte at a
- * time counting up. The destination is wherever the caller says. */
-static void copy_data(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count)
+/* `count` bytes of a resource in bank $FE from `from` to `to`, a byte at a time
+ * forward. */
+static void copy_resource(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++)
         wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(to + i), scene_data_byte(g, (uint16_t)(from + i)));
 }
 
-/* MVN from bank $FE: A + 1 bytes from X to `bank`:Y. Of what it leaves, the
+/* A + 1 bytes from X in bank $FE to Y; of what the block move leaves, the
  * callers read only Y, past the bytes. */
-static void copy_entry(Snes *s, uint8_t bank)
+static void copy_resource_entry(Snes *s, uint8_t bank)
 {
     uint16_t from = s->cpu.x, to = s->cpu.y;
     uint32_t count = (uint32_t)s->cpu.a + 1;
-    copy_data(state_of(s), bank, from, to, count);
+    copy_resource(state_of(s), bank, from, to, count);
     s->cpu.y = (uint16_t)(to + count);
     m_rtl(s);
 }
 
-/* Copy A + 1 bytes of bank $FE's data from X to $7E:Y. */
-void scene_copy_data_to_7e(Snes *s) { copy_entry(s, 0x7E); }
+/* A resource into the first bank of work RAM. */
+void scene_copy_resource(Snes *s) { copy_resource_entry(s, WORK_RAM_LOWER); }
 
-/* Copy A + 1 bytes of bank $FE's data from X to $7F:Y. */
-void scene_copy_data_to_7f(Snes *s) { copy_entry(s, 0x7F); }
+/* A resource into the second bank of work RAM. */
+void scene_copy_resource_to_upper_ram(Snes *s) { copy_resource_entry(s, WORK_RAM_UPPER); }

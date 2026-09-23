@@ -207,14 +207,16 @@ rest waits, is [PLAN.md](PLAN.md).
   could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
   it in the JSON beside the other, and naming in each docstring which question
   it answers would settle it once.
-- **The scene sequence interpreter's hand-back** (`scene/sequence.c`): a
-  command the port doesn't handle is given back as a call-out to the loop from
+- **The scene sequence interpreter's hand-back** (`scene/script.c`): a
+  command the port doesn't take is given back as a call-out to the loop from
   the entry's `JSR` site, which shadow mode compares at the loop's first pass,
   right only when no command ran before it (no movie has such a command).
   Stopping at the loop's head `$C3:0B03` instead is what shadow mode can now
-  compare at the right pass, once the port puts back what the given-up command
-  already wrote: the scratch cell `$F0` and the flags (RECOMP.md, "Between the
-  waves: the validator").
+  compare at the right pass (RECOMP.md, "Between the waves: the validator"),
+  and since the rework the port decides whether it takes a command before it
+  writes anything, and keeps the flags the machine should have there in its
+  record of what the original leaves; so the stop is what is left to try, with
+  a fuzz comparison against the call-out.
 - **Liveness across a saved stack pointer.** The overflow flag is still live
   after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
   no longer are): the menus' entry `$C2:800E` saves P and then copies S to
@@ -556,7 +558,7 @@ below. `python3 tools/timing_census.py` re-runs the census.
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
   `menu_wait_ready_loop`, `battle_wait_for_frame_loop`,
   `battle_wait_for_nmi_loop`, `battle_wait_ca1f_loop`,
-  `battle_wait_setup_counter_loop`, `scene_wait_39_clear_loop`,
+  `battle_wait_setup_counter_loop`, `scene_race_wait_for_tilemap_upload_loop`,
   `attract_wait_loop`); and the generated `$C0:0B28` and `$FD:EADA` (vblank
   with the handler off, then on), `$CD:044A`, `$CD:3E55`, `$CF:FCFB` and
   `$FD:EAEB`.
@@ -565,7 +567,7 @@ below. `python3 tools/timing_census.py` re-runs the census.
   boot's `$C3:0530`/`$C3:0538` exist to land the forced blank at the end of
   line 211, which `vid_raster_display` at the handler's line already says.
 - **The controller-busy waits to `in_ready`**: `$C2:84EC` (`core/input.c`)
-  and the scene handler's `$C3:0A8E` (`scene/nmi.c`), which stop at the
+  and the scene handler's `$C3:0A8E` (`scene/frame.c`), which stop at the
   original's loop while the automatic read is busy. With these and the waits
   above rewritten, no caller of `tm_video_status` needs a native answer, and
   it becomes SNES-only.
@@ -804,7 +806,7 @@ waits on M5 rather than on a backend.
   honest before the big subsystems land.
 - **`portstyle.py`'s function count** misses one-line definitions (its
   matcher wants the parameter list's closing parenthesis at the end of a line)
-  and counts guards and entry wrappers with everything else, so "54% on the
+  and counts guards and entry wrappers with everything else, so "51% on the
   machine" for scene reads as a backlog when it is entries, guards and bridges
   (RECOMP.md lists them by name). Matching definitions properly, and splitting
   the column into registered entries, guards and the rest, would make the rest
@@ -813,22 +815,22 @@ waits on M5 rather than on a backend.
   entries.** Each subsystem's Phase 3a rewrite adds its own from its PORTING.md
   rows as it goes; a check that every registered entry has one would say when
   the file is complete.
-- **The scene sprite writers accept inputs they diverge on.** With the entry
-  offset or the high-table pointer past `$2000`, the named sprite table writes
-  bank `$7E` where the original, through a data bank of 0, reaches I/O space
-  (19569 of 20000 fuzzed states against the predecessor's 22). No game state
-  points them there -- the lists always write the OAM buffer at `$0700` -- and
-  the loose fuzz runs were narrowed to low RAM, recorded in PORTING.md and
-  RECOMP.md but not in the port. A guard refusing a cursor that could run past
-  low RAM would make the four entries exact on every input they accept
-  (`game/scene/sprites.c`, `scene_load_sprite_list` and its three siblings).
-- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 22 uses,
-  18 of them from the Phase 3a rewrite. The sequence scripts' bytes and the
-  race's line-effect descriptor table are fixed parts of the program image at
-  `$7E:3000` and could be named buffers of it; the scaler's rows, the bank `$FE`
-  copies' destination, the tile rows `$7E:5E54` reads, a task's next-step cell
-  and the sprites' sources are wherever the caller points, and want the caller
-  ported to say what they are. The circle's table is the pilot's.
+- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 24 uses
+  in 7 files. The sequence scripts' bytes and the race's line-effect descriptor
+  table are fixed parts of the program image at `$7E:3000` and could be named
+  buffers of it; the scaler's rows, the bank `$FE` copies' destination, the
+  title's plane tiles, the sprites' sources and a store command's target are
+  wherever the caller points, and want the caller ported to say what they are;
+  the circle's table is the pilot's. The title loader's tile list at `$7E:0200`,
+  which it reads through the work RAM port, overlaps the sprite table, so the
+  map can't name it in the scene's subsystem (`ram_map.py coverage --open`).
+- **The scene loaders are fragments.** The title's graphics loader
+  (`$7E:5978`-`$7E:5A00`) and the race's (`$7E:3DB3`-`$7E:3EB6`) are registered
+  a block at a time (`scene_title_load_*`, `scene_race_load_*`), each named for
+  what it puts in VRAM, because the loader around them calls the decompressor
+  and the program's own routines (`$7E:3691`, `$7E:37A6`, `$7E:38AF`,
+  `$7E:89ED`, `$7E:5E3C`). Porting each loader whole, as one routine that loads a
+  list of resources to VRAM addresses, would retire twelve entries.
 - **`scene_find_divisor` on a bank that isn't low RAM.** Its limit is read
   through the data bank, and its guard now leaves the rare call whose data bank
   doesn't reach low RAM (one in some runs of `events-jetbike-race`) to the

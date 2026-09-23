@@ -96,12 +96,15 @@ static void check_scene_math(GameState *g)
     CHECK(!scene_math_page_of(0x0100, &page), "D $0100 is the field's page");
     CHECK(refused("scene_math", &last) == before + 3 && last == 0x0100, "the three refusals are counted");
 
-    set_scene_math_scratch_byte(g, scene_math_scene(), 3, 0x11);
-    set_scene_math_scratch_byte(g, scene_math_channel(0), 3, 0x22);
-    set_scene_math_scratch_byte(g, scene_math_channel(1), 3, 0x33);
+    set_scene_math_scratch_second(g, scene_math_scene(), 0x1111);
+    set_scene_math_scratch_second(g, scene_math_channel(0), 0x2222);
+    set_scene_math_scratch_second(g, scene_math_channel(1), 0x3333);
     CHECK(wram(0x7E00F3) == 0x11 && wram(0x7E0AF3) == 0x22 && wram(0x7E0BF3) == 0x33,
-          "each page's scratch byte 3 is at $F3 of that page");
-    CHECK(scene_math_scratch_byte(g, scene_math_channel(1), 3) == 0x33, "channel 1's reads back");
+          "each page's second operand is at $F2 of that page");
+    CHECK(scene_math_scratch_second(g, scene_math_channel(1)) == 0x3333, "channel 1's reads back");
+    set_scene_math_scratch_quotient_first_byte(g, scene_math_channel(0), 0x44);
+    CHECK(wram(0x7E0AF8) == 0x44 && (scene_math_scratch_quotient(g, scene_math_channel(0)) & 0xFF) == 0x44,
+          "a field overlapping another reads the same bytes");
 }
 
 int main(void)

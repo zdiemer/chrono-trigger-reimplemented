@@ -24,22 +24,25 @@ frames = 6200
 name = "scene_load_sprite_list"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0014-7E0014=09-09"]
-why = "the OAM index below $200 and the high-table pointer in $09xx"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00",
+        "--fill", "7E0014-7E0014=09-09"]
+why = "the cursor at the start of the sprite table, as each frame's first list finds it: the guard takes only a cursor whose sprites stay in the table (game/scene/sprites.c), so a list of up to 128 runs"
 
 [[routine]]
 name = "scene_load_sprite_list"
 variant = "loose"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
-why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other. Kept to low RAM because the port diverges past $2000 (an accepted divergence, stated in game/scene/sprites.c)"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0013-7E0013=00-1F",
+        "--fill", "7E0014-7E0014=09-09", "--range", "A=0000-1FFF"]
+why = "the cursor anywhere in the sprite table and the list anywhere in low RAM, so lists land on the table they are copied into; the guard (game/scene/sprites.c) refuses a cursor whose sprites would leave the table, which the original writes wherever it points (the scene's own cells, and the I/O registers past $2000), and a clipped list over the table"
 
 [[routine]]
 name = "scene_load_sprite_list_clipped"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0014-7E0014=09-09"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00",
+        "--fill", "7E0014-7E0014=09-09"]
 why = "as scene_load_sprite_list"
 
 [[routine]]
@@ -47,14 +50,16 @@ name = "scene_load_sprite_list_clipped"
 variant = "loose"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
-why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other. Kept to low RAM because the port diverges past $2000 (an accepted divergence, stated in game/scene/sprites.c)"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0013-7E0013=00-1F",
+        "--fill", "7E0014-7E0014=09-09", "--range", "A=0000-1FFF"]
+why = "the cursor anywhere in the sprite table and the list anywhere in low RAM, so lists land on the table they are copied into; the guard (game/scene/sprites.c) refuses a cursor whose sprites would leave the table, which the original writes wherever it points (the scene's own cells, and the I/O registers past $2000), and a clipped list over the table"
 
 [[routine]]
 name = "scene_add_sprite"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0014-7E0014=09-09"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00",
+        "--fill", "7E0014-7E0014=09-09"]
 why = "as scene_load_sprite_list"
 
 [[routine]]
@@ -62,14 +67,16 @@ name = "scene_add_sprite"
 variant = "loose"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
-why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other. Kept to low RAM because the port diverges past $2000 (an accepted divergence, stated in game/scene/sprites.c)"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0013-7E0013=00-1F",
+        "--fill", "7E0014-7E0014=09-09", "--range", "A=0000-1FFF"]
+why = "the cursor anywhere in the sprite table and the list anywhere in low RAM, so lists land on the table they are copied into; the guard (game/scene/sprites.c) refuses a cursor whose sprites would leave the table, which the original writes wherever it points (the scene's own cells, and the I/O registers past $2000), and a clipped list over the table"
 
 [[routine]]
 name = "scene_add_large_sprite"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0014-7E0014=09-09"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00",
+        "--fill", "7E0014-7E0014=09-09"]
 why = "as scene_load_sprite_list"
 
 [[routine]]
@@ -77,8 +84,9 @@ name = "scene_add_large_sprite"
 variant = "loose"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-13", "--fill", "7E0014-7E0014=00-1D"]
-why = "the cursors anywhere in low RAM that a list can't run past: entries and lists can land on the cells and on each other. Kept to low RAM because the port diverges past $2000 (an accepted divergence, stated in game/scene/sprites.c)"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0013-7E0013=00-1F",
+        "--fill", "7E0014-7E0014=09-09", "--range", "A=0000-1FFF"]
+why = "the cursor anywhere in the sprite table and the list anywhere in low RAM, so lists land on the table they are copied into; the guard (game/scene/sprites.c) refuses a cursor whose sprites would leave the table, which the original writes wherever it points (the scene's own cells, and the I/O registers past $2000), and a clipped list over the table"
 
 [[routine]]
 name = "scene_scale_bitmap_row"
@@ -138,14 +146,16 @@ args = ["--long", "--fill", "7E0357-7E0357=10-70"]
 why = "as scene_draw_circle"
 
 [[routine]]
-name = "scene_copy_data_to_7e"
+name = "scene_copy_resource"
+at = "C3:099C"
 subsystem = "scene"
 state = "attract"
 args = ["--long", "--range", "A=0000-03FF", "--range", "Y=0000-1FFF"]
 why = "a short copy, into low RAM below the stack"
 
 [[routine]]
-name = "scene_copy_data_to_7f"
+name = "scene_copy_resource_to_upper_ram"
+at = "C3:09A0"
 subsystem = "scene"
 state = "attract"
 args = ["--long", "--range", "A=0000-03FF"]
@@ -177,7 +187,8 @@ args = ["--long", "--d", "0B00", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fil
 why = "as the plain entry, on the second channel's page"
 
 [[routine]]
-name = "scene_script_wait_sound_port2"
+name = "scene_script_wait_for_sound"
+at = "C3:0C2A"
 subsystem = "scene"
 state = "attract"
 args = ["--d", "0A00", "--db", "7E", "--apu-loopback"]
@@ -292,20 +303,23 @@ args = ["--d", "0A80", "--keep", "7E3000-7EB5FF"]
 why = "D inside a channel's page but on no instance: the guard refuses every state, before and after"
 
 [[routine]]
-name = "scene_shift_c00_words"
+name = "scene_title_ripple_columns"
+at = "7E:5FFE"
 subsystem = "scene"
 state = "race"
 args = ["--db", "7E", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_run_tasks_950"
+name = "scene_run_frame_tasks"
+at = "7E:398A"
 subsystem = "scene"
 state = "race"
 args = ["--long", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0950-7E096F=00-00"]
 why = "the task table emptied: random tasks run anywhere"
 
 [[routine]]
-name = "scene_run_tasks_950"
+name = "scene_run_frame_tasks"
+at = "7E:398A"
 variant = "kept"
 subsystem = "scene"
 state = "race"
@@ -314,14 +328,16 @@ iterations = 1000
 why = "the race's own task table, so the tasks run (random task data loops)"
 
 [[routine]]
-name = "scene_run_tasks_940"
+name = "scene_run_vblank_tasks"
+at = "7E:39BE"
 subsystem = "scene"
 state = "race"
 args = ["--long", "--db", "7E", "--keep", "7E3000-7EB5FF", "--fill", "7E0940-7E094F=00-00"]
 why = "the task table emptied"
 
 [[routine]]
-name = "scene_run_tasks_940"
+name = "scene_run_vblank_tasks"
+at = "7E:39BE"
 variant = "kept"
 subsystem = "scene"
 state = "race"
@@ -330,13 +346,15 @@ iterations = 1000
 why = "the race's own task table, so the tasks run (random task data loops)"
 
 [[routine]]
-name = "scene_wait_apu_port3_loop"
+name = "scene_wait_for_song_marker_loop"
+at = "7E:5AAA"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
 
 [[routine]]
-name = "scene_wait_39_clear_loop"
+name = "scene_race_wait_for_tilemap_upload_loop"
+at = "7E:5211"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--keep", "7E3000-7EB5FF"]
@@ -360,7 +378,8 @@ state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
 
 [[routine]]
-name = "scene_race_send_sound_parameter"
+name = "scene_race_set_engine_pitch"
+at = "7E:4BD2"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
@@ -413,37 +432,43 @@ iterations = 200
 why = "a random size makes a transfer very slow"
 
 [[routine]]
-name = "scene_set_vram_4000"
+name = "scene_title_load_sprite_graphics"
+at = "7E:597B"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_set_vram_5000"
+name = "scene_title_load_layer_tiles"
+at = "7E:59A0"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_set_vram_0000"
+name = "scene_title_load_plane_graphics"
+at = "7E:59AA"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_set_vram_6400"
+name = "scene_title_load_bg1_map"
+at = "7E:59BC"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_set_vram_6000"
+name = "scene_title_load_bg2_map"
+at = "7E:59CC"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_fill_graphics_tail"
+name = "scene_title_fill_bg1_map"
+at = "7E:59D5"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
@@ -451,13 +476,15 @@ iterations = 2000
 why = "fills $F00 bytes of VRAM a call"
 
 [[routine]]
-name = "scene_setup_mode7_display"
+name = "scene_title_set_up_pendulum"
+at = "7E:5A59"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_upload_tiles_through_port"
+name = "scene_title_load_plane_map"
+at = "7E:5AB6"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
@@ -465,26 +492,30 @@ iterations = 200
 why = "a whole title screen's tiles a call"
 
 [[routine]]
-name = "scene_set_mode7_matrix"
+name = "scene_title_place_pendulum"
+at = "7E:5C57"
 subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_show_layers"
+name = "scene_title_move_logo"
+at = "7E:5C98"
 subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_set_mode_2"
+name = "scene_title_start_ripple"
+at = "7E:5DA7"
 subsystem = "scene"
 state = "attract"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-why = "D left random: a task's own page"
+args = ["--d", "0A00", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "on channel 0's page, which the title's script calls it from and its guard asks for (a channel's page)"
 
 [[routine]]
-name = "scene_expand_tile_rows"
+name = "scene_title_expand_plane_tile"
+at = "7E:5E54"
 subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--range", "X=0000-1FFF"]
@@ -492,7 +523,8 @@ iterations = 2000
 why = "the source in low RAM: past it, open bus"
 
 [[routine]]
-name = "scene_upload_map_and_scroll"
+name = "scene_title_upload_ripple"
+at = "7E:6212"
 subsystem = "scene"
 state = "attract"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
@@ -527,50 +559,58 @@ args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 iterations = 2000
 
 [[routine]]
-name = "scene_race_set_vram_0000"
+name = "scene_race_load_plane_graphics"
+at = "7E:3DC8"
 subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_race_set_vram_0000_again"
+name = "scene_race_load_plane_map"
+at = "7E:3DE1"
 subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_race_begin_tile_uploads"
+name = "scene_race_load_layer_tiles"
+at = "7E:3E01"
 subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_race_set_vram_7100"
+name = "scene_race_load_more_layer_tiles"
+at = "7E:3E20"
 subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_race_set_vram_5000"
+name = "scene_race_load_sprite_graphics"
+at = "7E:3E30"
 subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_race_clear_scratch"
+name = "scene_race_load_bg1_map"
+at = "7E:3E58"
 subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 iterations = 2000
 
 [[routine]]
-name = "scene_race_set_vram_6800"
+name = "scene_race_load_bg3_map"
+at = "7E:3E8A"
 subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
-name = "scene_race_set_vram_6400"
+name = "scene_race_load_bg2_map"
+at = "7E:3EA0"
 subsystem = "scene"
 state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]

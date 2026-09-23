@@ -169,7 +169,7 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **32 of 95 files, 14,026 of
-28,051 lines (50%), are on the backlog**, and all but the scenes, the events
+28,264 lines (50%), are on the backlog**, and all but the scenes, the events
 and the field is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
@@ -178,11 +178,11 @@ and the field is on the machine:
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
 | event | 0 | 19 | 0 | 2,693 | 0.01 | 29% |
 | field | 0 | 16 | 0 | 3,799 | 0.02 | 30% |
-| scene | 0 | 13 | 0 | 2,397 | 0.05 | 54% |
+| scene | 0 | 13 | 0 | 2,610 | 0.04 | 51% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
 | **total** | **32** | **95** | **14,026** | **28,051** | **0.22** | **69%** |
 
-Scene's 54%, event's 29% and field's 30% are their entries' wrappers, their
+Scene's 51%, event's 29% and field's 30% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
 name (`portstyle.py`'s own column misses one-line definitions and
 macro-generated entries; RECOMP.md's "Phase 3a" sections for the three list
@@ -304,38 +304,27 @@ meaning.** Once both have landed, one pass does two things:
 fixed. Doing this before `menu` and `battle` means it is paid on 4.5K lines of
 call sites rather than 20K.
 
-**Scene fails the qualitative review, and its rework joins that pass.** The
-review's first run, on `scene` (merged under the older bar), rated three files
-translation:
-- `program.c` emulates the arithmetic unit, with add-with-carry and
-  rotate-left as C functions and a divide done as 32 rounds of rotate and
-  subtract;
-- `circle.c`, the Phase 3a pilot, runs the original's X and Y through RAM cells
-  and chains the carry through every edge;
-- `bitmap.c` passes a struct that is the CPU (`carry, overflow, x, y, bank`)
-  through its logic.
-
-Most of the rest rated mostly. The review's five changes:
-- C arithmetic, with flags derived in the wrappers;
-- loop state in locals, with final values written once as scaffolding;
-- the sequence script decoded into an operation enum;
-- display state in the video service's vocabulary, not literal register bytes
-  fed to decoders;
-- the subsystem's own concepts (a task page kind, one `scene_flags`
-  definition, named scratch fields, entries named for what they do, and files
-  grouped by title, race, script and frame rather than by where the code sits
-  in the ROM).
-
-The last of those touches the RAM map the way the naming pass does, so scene's
-rework runs with it, and it closes when scene passes a fresh review.
+**Scene has been reworked to the review's bar, and waits for a fresh review.**
+The first qualitative review rated three of its files translation (the
+arithmetic unit emulated, loop state in RAM cells, a CPU-shaped struct through
+the scaler) and most of the rest mostly. Its rework (RECOMP.md, "Phase 3a: scene
+reworked to the review") put the arithmetic in C with the original's rounding in
+named functions, the loops' state in locals with the cells' final values as
+scaffolding, the sequence scripts in a table of rows decoded into named
+parameters, the display state in the video service's vocabulary, and the
+subsystem's concepts in its header (one `scene_flags` definition, tasks and
+their lists, the math scratch's fields in the map, entries named for what they
+do); and it regrouped the files by the game: the title screen, the race, the
+script, the frame, the screen, and the shared pieces. It closes when a fresh
+review passes it.
 
 **Cells on a page the caller chooses** have a generated shape: a page kind in
 `re/ram.toml` lists the pages its code runs on, as measured over the library
 (`ct_dev --page-report`), and its variables' accessors take which of them a
 port means, never a D (DISASSEMBLY.md, "The accessors"; RECOMP.md, "Page
 kinds"). It covers the three sets of such cells the map knew: scene's math
-scratch, its own page or a sequence channel's, which `scene/scratch.c` now
-reaches through it; the menus' `menu_record` page, for `menu`'s rewrite of
+scratch, its own page or a sequence channel's, whose uses are the fields of
+`scene_math_scratch`; the menus' `menu_record` page, for `menu`'s rewrite of
 `objects.c`; and the controller input cells, which measurement put on one page,
 D = `$0000`, so they are ordinary accessors for `core/input.c` and whatever
 reads them. The event engine and its objects run on the fixed field page
