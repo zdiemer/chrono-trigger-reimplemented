@@ -45,7 +45,7 @@ menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 
 menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; its tiles and numbers are attributed (19% of vblank calls off by a line, from 32%), the control codes' handlers are no entries and the loop follows the string; at most 3498 clocks (2.6 lines) in vblank
 
 # The scene engine's circle, a RAM window table the next frame's HDMA reads.
-scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls; its time follows the radius (the midpoint steps and the fills); at most 1883 clocks (1.4 lines)
+scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls, longer than vblank, writing only RAM; its closed lines are attributed to the block move stub, and what is left follows the radius in the outline's steps and the lower half's copies, which one scalar fits only on average; at most 9810 clocks (7.2 lines), which moves only when its RAM writes end
 scene_draw_circle_jump vblank-tail the same routine through its jump at $C3:0008: as scene_draw_circle
 battle_draw_objects vblank-tail draws the battle objects into the OAM buffer in RAM in 37-line calls, longer than vblank; the routines it runs per object are attributed (10.7% error to 3.7%), what is left is its own draw list build and exchange sort, whose swaps follow the order; at most 7311 clocks (5.4 lines)
 battle_draw_object_underlays vblank-tail part of battle_draw_objects' pass, into the OAM buffer in RAM; its marker, number sprites and effect sprites are attributed (55.4% error to 12.7%), what is left is its own loop over the object's eight effect records, whose time follows which are set; at most 1855 clocks

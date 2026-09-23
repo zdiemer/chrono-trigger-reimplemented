@@ -213,18 +213,16 @@ static bool run_task_list(Snes *s, SceneTaskList list)
 {
     bool vblank = list == SCENE_VBLANK_TASKS;
     m_set_flag(s, CPU_FLAG_M, vblank);
-    s->cpu.a = 0x0000;   /* the pause flag the frame's work tested, which was 0 */
+    s->cpu.a = 0x0000;   /* the pause flag the frame's work tested, which was 0: a task can leave it there */
     m_jsl_dc(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
              DC_X | DC_N | DC_Z | (vblank ? DC_A | DC_Y : 0));
     return can_continue(s);
 }
 
-/* The registers the task list's copy leaves (a block move of it: A run down to
- * $FFFF, X and Y past the two lists), which the controller read's stops and its
- * call-out see. */
+/* The index registers the task list's copy leaves (a block move of it: X and Y
+ * past the two lists), which the controller read's stops and its call-out see. */
 static void leave_registers_of_the_copy(Snes *s)
 {
-    s->cpu.a = 0xFFFF;
     s->cpu.x = 0x0940;
     s->cpu.y = 0x0970;
 }

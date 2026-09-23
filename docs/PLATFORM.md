@@ -661,7 +661,7 @@ within run-to-run noise.
 `battle_upload_vram`, `battle_vram_transfer`, `battle_setup_window_hdma`, and
 with them `battle_upload_alternating_vram` `$CD:0607` and the controller reads of
 `battle_frame_update` `$CF:E58A`), `game/core/tile_animation.c`,
-`game/core/input.c` (`input_read_joypad`) and `game/scene/nmi.c`. The
+`game/core/input.c` (`input_read_joypad`) and `game/scene/frame.c`. The
 multiplier and divider stay direct (not a service).
 
 **What changed from the sketch, and why.**
@@ -813,11 +813,11 @@ comparison allows per-segment lag.
 | `runtime/apu/apu.c` | `Apu.lead`, `apu_run_ahead` |
 | `runtime/port/native.c` | `native_hand_entry`, for running registered code synchronously |
 | `game/core/sound_driver.c` | the rest of the driver's CPU half: the upload at `$C7:0000`, `$C7:09DA`, `$C7:09EA`, command `$70`'s and `$71`'s paths, retries, data crossing a bank, and every wait loop, all through the service |
-| `game/battle/sound.c`, `game/menu/sound.c`, `game/scene/sequence.c`, `game/scene/program.c` | the other code that touches the ports or the command buffer around them |
+| `game/battle/sound.c`, `game/menu/sound.c`, `game/scene/script.c`, `game/scene/sound.c` | the other code that touches the ports or the command buffer around them |
 | `dev/io_log.c` | idle entries through services; the port mirrors `$2144-$217F` as their own group |
 | `dev/ct_dev.c`, `frontend/ct_play.c` | `--audio snes|direct` |
 | `dev/ct_fuzz.c` | `--apu-loopback`; idle entries can be fuzzed |
-| `tests/test_platform_lint.py` | `core/sound_driver.c` and `scene/program.c` converted; `au_driver_*` allowed only in those two |
+| `tests/test_platform_lint.py` | `core/sound_driver.c`, `scene/sound.c` and `scene/race.c` converted; `au_driver_*` allowed only in those three |
 
 **Inventory.** `ct_dev --native on --io-log` over the 25 movies (the six main
 movies, the 16 save movies and three save movies of the endings, `endings-*`,

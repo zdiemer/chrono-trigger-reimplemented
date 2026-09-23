@@ -65,8 +65,10 @@ static void copy_line(GameState *g, const Circle *c, uint16_t from, uint16_t to)
 static void close_lines(GameState *g, const Circle *c, uint16_t at, uint16_t bytes)
 {
     wram_write16(g, in_table(c, at), CLOSED_LINE);
+    ORIGINAL_EFFECT(scene_time_block_move(true));
     for (uint32_t i = 0; i <= bytes; i++)
         wram_write8(g, in_table(c, (uint16_t)(at + 2 + i)), wram_read8(g, in_table(c, (uint16_t)(at + i))));
+    ORIGINAL_EFFECT(scene_time_block_move(false));
 }
 
 /* The byte count close_lines takes to reach from the line `first` lines into
@@ -259,7 +261,9 @@ bool scene_circle_table_is_clear(Snes *s)
  * too except N and Z, which the last pull (PLB) sets from the data bank. */
 void scene_draw_circle(Snes *s)
 {
+    scene_time_entry(s);
     draw_circle(state_of(s), (uint8_t)s->cpu.a);
+    scene_time_entry(NULL);
     m_set_nz8(s, s->cpu.db);
     m_rtl(s);
 }

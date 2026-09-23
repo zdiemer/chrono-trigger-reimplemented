@@ -533,16 +533,14 @@ static bool can_continue(Snes *s, SceneChannel *ch)
 }
 
 // $C3:0C51
-/* A routine of the program, which $7E:37F3 calls through the scene's scratch;
- * X is the command's place in the interpreter's table, 0. */
+/* A routine of the program, which $7E:37F3 calls through the scene's scratch. */
 static bool call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
 {
     set_scene_math_scratch_script_scratch(state_of(s), scene_math_scene(), routine);
     s->cpu.a = routine;
-    s->cpu.x = 0;
     set_widths16(s);
     put_flags(s);
-    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_A | DC_N | DC_Z);
+    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z);
     return can_continue(s, ch);
 }
 

@@ -43,13 +43,10 @@ static uint32_t in_scaler_bank(uint16_t at, uint16_t offset) { return ((uint32_t
 /* ---- What the original leaves in its registers, for the entry's wrapper -------------------- */
 
 typedef struct {
-    uint16_t y;            /* the last output pointer it held */
     bool carry, overflow;  /* the flags of the last subtraction, where the bitmap ends */
 } ScalerLeaves;
 
 static ScalerLeaves *scaler_leaves;
-
-static void leave_y(uint16_t y) { scaler_leaves->y = y; }
 
 /* The flags the subtraction that measures what is left to clear leaves. */
 static void leave_flags_of_measuring(uint16_t end, uint16_t output, bool one_short)
@@ -114,7 +111,6 @@ static void sample_row(GameState *g, uint16_t source, bool round_up)
             for (unsigned i = 0; i < GROUP; i++)
                 samples[i] = wram_read16(g, in_scaler_bank(source, (uint16_t)(next_sample(&s, step) >> 8)));
             pack_planes(g, planes, samples);
-            ORIGINAL_EFFECT(leave_y(planes));
             uint32_t next = (uint32_t)planes + PLANES;
             s.round_up = next > 0xFFFF;
             planes = (uint16_t)next;
@@ -126,10 +122,11 @@ static void sample_row(GameState *g, uint16_t source, bool round_up)
 /* The row the same as the last one: its 32 bytes copied. */
 static void repeat_last_row(GameState *g, uint16_t output)
 {
+    ORIGINAL_EFFECT(scene_time_block_move(true));
     for (uint16_t i = 0; i < ROW_BYTES; i++)
         wram_write8(g, in_scaler_bank(0, (uint16_t)(output + i)),
                     wram_read8(g, in_scaler_bank(0, (uint16_t)(output - ROW_BYTES + i))));
-    ORIGINAL_EFFECT(leave_y((uint16_t)(output + ROW_BYTES)));
+    ORIGINAL_EFFECT(scene_time_block_move(false));
 }
 
 /* ---- Rows ------------------------------------------------------------------------------------ */
@@ -144,10 +141,13 @@ static void end_bitmap(GameState *g, bool one_short)
     int16_t left = (int16_t)(end - output - (one_short ? 1 : 0));
     ORIGINAL_EFFECT(leave_flags_of_measuring(end, output, one_short));
     if (left > 0) {
+        /* a zero word, copied on a byte at a time */
         wram_write16(g, in_scaler_bank(0, output), 0);
-        for (uint16_t i = 2; i <= (uint16_t)left + 1; i++)
-            wram_write8(g, in_scaler_bank(0, (uint16_t)(output + i)), 0);
-        ORIGINAL_EFFECT(leave_y((uint16_t)(output + left + 2)));
+        ORIGINAL_EFFECT(scene_time_block_move(true));
+        for (uint16_t i = 0; i <= (uint16_t)left; i++)
+            wram_write8(g, in_scaler_bank(0, (uint16_t)(output + i + 1)),
+                        wram_read8(g, in_scaler_bank(0, (uint16_t)(output + i))));
+        ORIGINAL_EFFECT(scene_time_block_move(false));
     }
     set_scene_scaler_output_end(g, output);
 }
@@ -195,19 +195,40 @@ static RowOutcome scale_row(GameState *g, bool *round_up)
 /* ---- Entries: 16-bit A and index registers, on the scene's page, bank $7F ------------------- */
 
 /* The scene programs draw their bitmaps in the second bank of work RAM, and
- * the port reaches them there. */
-bool scene_scaler_in_its_bank(Snes *s) { return scene_on_scene_page(s) && s->cpu.db == SCALER_BANK; }
+ * the port reaches them there. It keeps its samples in locals where the original
+ * writes each to the scene's scratch as it reads it, which is the same only
+ * while no sample is read from past the end of the bank, where the original's
+ * reads reach low RAM and its own scratch: the rows' reach, from the source's
+ * base through the last row the limit lets it take and a row's 256 samples, has
+ * to stay in the bank. The race's reaches $0EFF. */
+enum { LAST_ROW_BEFORE_ANY_LIMIT = 0x7FC0, SAMPLES_REACH = 0x0101 };
+
+bool scene_scaler_in_its_bank(Snes *s)
+{
+    if (!scene_on_scene_page(s) || s->cpu.db != SCALER_BANK)
+        return false;
+    vars_peek(true);
+    GameState *g = state_of(s);
+    uint16_t base = scene_scaler_source_base(g), limit = scene_scaler_source_limit(g);
+    vars_peek(false);
+    if (limit == 0)
+        return true;   /* every row is past it: nothing is sampled */
+    uint32_t last_row = limit <= 0x8000 ? (uint32_t)(limit - 1) : LAST_ROW_BEFORE_ANY_LIMIT;
+    return (uint32_t)base + last_row + SAMPLES_REACH <= 0x10000;
+}
 
 /* One row per call (see the top of the file), with the carry the rounding the
- * last row left. Back at the row loop's head (the port's stop) or at the
- * return, Y and the flags are what the original leaves. */
+ * last row left, and back at the row loop's head (the port's stop) with the
+ * rounding this one leaves. At the return, the flags are what the original
+ * leaves; Y isn't read after either. */
 void scene_scale_bitmap_row(Snes *s)
 {
-    ScalerLeaves leaves = { s->cpu.y, m_flag(s, CPU_FLAG_C), m_flag(s, CPU_FLAG_V) };
+    ScalerLeaves leaves = { m_flag(s, CPU_FLAG_C), m_flag(s, CPU_FLAG_V) };
     scaler_leaves = &leaves;
     bool round_up = m_flag(s, CPU_FLAG_C);
+    scene_time_entry(s);
     RowOutcome outcome = scale_row(state_of(s), &round_up);
-    s->cpu.y = leaves.y;
+    scene_time_entry(NULL);
     if (outcome == BITMAP_ENDED) {
         m_set_flag(s, CPU_FLAG_C, leaves.carry);
         m_set_flag(s, CPU_FLAG_V, leaves.overflow);

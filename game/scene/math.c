@@ -17,7 +17,7 @@
  * Each is C arithmetic. What the original's way of computing them leaves in the
  * result is reproduced where a caller can see it, each in a function of its own
  * that says what it is: a carry that reaches the product from the byte after
- * it, a byte the signed multiply takes from the product cell as the caller left
+ * it and one it adds a byte too low, a byte the signed multiply takes from the product cell as the caller left
  * it, and the long divisions' 16- and 32-bit remainders, which differ from exact
  * division only for divisors no scene uses. The CPU's multiplier and divider
  * are left as the original leaves them, for its own code and shadow mode
@@ -52,12 +52,26 @@ static void leave_multiplier(GameState *g, uint8_t multiplicand, uint8_t multipl
     hw_multiply_by(g, multiplier);
 }
 
+/* The original multiplies a byte at a time and adds the two middle partial
+ * products, with the high byte of the low one (and the carry above), in 16
+ * bits. When that sum overflows, it adds the overflow into the product's third
+ * byte, where it belongs in the fourth: the product comes out $FF0000 short. */
+enum { CARRIED_A_BYTE_LOW = 0xFF0000 };
+
+static uint32_t middle_sum_carried_low(uint16_t a, uint16_t b, uint32_t carried)
+{
+    uint32_t middle = (((uint32_t)(a & 0xFF) * (b >> 8) + (uint32_t)(a >> 8) * (b & 0xFF)) & 0xFFFF) +
+                      ((uint32_t)(a & 0xFF) * (b & 0xFF) >> 8) + (carried ? 1 : 0);
+    return middle > 0xFFFF ? CARRIED_A_BYTE_LOW : 0;
+}
+
 // $7E:31BF
 /* The product of the two operands. */
 static void multiply(GameState *g, SceneMathPage page)
 {
     uint16_t a = scene_math_scratch_first(g, page), b = scene_math_scratch_second(g, page);
-    uint32_t product = (uint32_t)a * b + carry_from_the_byte_after(g, page);
+    uint32_t carried = carry_from_the_byte_after(g, page);
+    uint32_t product = (uint32_t)a * b + carried - middle_sum_carried_low(a, b, carried);
     set_scene_math_scratch_product(g, page, product);
     ORIGINAL_EFFECT(leave_multiplier(g, (uint8_t)(b >> 8), (uint8_t)(a >> 8)));
 }
@@ -189,9 +203,6 @@ static void leave_dividend_high_byte_shifted_out(GameState *g, SceneMathPage pag
 
 /* ---- find_divisor --------------------------------------------------------------------------- */
 
-/* A divisor through the CPU's 16/8 divider, where 0 gives $FFFF. */
-static uint16_t quotient_by(uint16_t dividend, uint8_t divisor) { return divisor ? dividend / divisor : 0xFFFF; }
-
 typedef struct {
     bool found;
     uint8_t after;      /* the divisor after the one found */
@@ -210,7 +221,6 @@ enum { DIVISORS = 0x100 };
 static FoundDivisor find_divisor(GameState *g, uint8_t tried)
 {
     uint16_t limit = scene_math_scratch_quotient_limit(g, scene_math_scene());
-    uint16_t dividend = hw_dividend(g);
     uint16_t quotient = hw_quotient(g);
     FoundDivisor f = { false, (uint8_t)(tried + 1), quotient };
     for (unsigned n = 0; n < DIVISORS; n++) {
@@ -219,7 +229,7 @@ static FoundDivisor find_divisor(GameState *g, uint8_t tried)
             f = (FoundDivisor){ true, next, quotient };
             break;
         }
-        quotient = quotient_by(dividend, next);
+        quotient = hw_quotient_by(g, next);
         tried = next;
     }
     ORIGINAL_EFFECT(hw_divide_by(g, f.after));

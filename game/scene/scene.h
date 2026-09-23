@@ -84,6 +84,11 @@ bool scene_on_math_page(Snes *s);
 bool scene_on_math_page_io_bank(Snes *s);
 bool scene_on_channel_page(Snes *s);
 SceneMathPage scene_math_page_at_entry(const Snes *s);
+/* The timing gate's estimate of a block move a port makes byte by byte: the
+ * entry's wrapper names its machine (NULL when it is done), and the logic marks
+ * the move, through ORIGINAL_EFFECT. */
+void scene_time_entry(Snes *s);
+void scene_time_block_move(bool starting);
 
 /* scene/boot.c */
 void scene_boot(Snes *s);

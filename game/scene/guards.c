@@ -45,3 +45,33 @@ SceneMathPage scene_math_page_at_entry(const Snes *s)
     scene_math_page_of(m_direct_page(s), &page);
     return page;
 }
+
+/* ---- The timing gate's estimate of a port's block moves --------------------------------------
+ *
+ * A port's time is estimated from its bus accesses times one scalar, calibrated
+ * over its calls (docs/RECOMP.md, "The timing gate"). The circle and the scaler
+ * copy and clear memory a byte at a time, as the original's block moves do, and
+ * do their other work in locals where the original works in memory, so no one
+ * scalar fits both. A block move's time is per byte whatever routine makes it,
+ * so theirs is attributed to the block move stub ($7E:9690, core/memory.c),
+ * whose own calls calibrate it. Only an entry's own wrapper names its machine
+ * for this; a C caller (the menus' iris) leaves it unnamed, and the logic's
+ * calls, which go through ORIGINAL_EFFECT, are gone from a native build. */
+#include "port/native.h"
+
+enum { BLOCK_MOVE_STUB = 0x7E9690 };
+
+static Snes *timed_machine;
+static int time_was;
+
+void scene_time_entry(Snes *s) { timed_machine = s; }
+
+void scene_time_block_move(bool starting)
+{
+    if (!timed_machine)
+        return;
+    if (starting)
+        time_was = native_time_as(timed_machine, BLOCK_MOVE_STUB);
+    else
+        native_time_end(timed_machine, time_was);
+}

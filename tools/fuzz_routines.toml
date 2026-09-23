@@ -92,8 +92,9 @@ why = "the cursor anywhere in the sprite table and the list anywhere in low RAM,
 name = "scene_scale_bitmap_row"
 subsystem = "scene"
 state = "race"
-args = ["--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E001F=01-08", "--fill", "7E0020-7E0020=00-00"]
-why = "1-8 pairs of 8 pixels a row, output in bank $7F as the race draws"
+args = ["--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E001F=01-08", "--fill", "7E0020-7E0020=00-00",
+        "--fill", "7E0024-7E0024=00-70", "--fill", "7E002C-7E002C=00-0F"]
+why = "1-8 pairs of 8 pixels a row, output in bank $7F as the race draws; the source's base and limit kept where its samples stay in the bank, as the guard asks (game/scene/scaler.c: past it the original's reads reach its own scratch in low RAM)"
 
 [[routine]]
 name = "scene_scale_bitmap"

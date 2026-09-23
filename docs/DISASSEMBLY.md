@@ -324,7 +324,7 @@ typedef struct {
 enum { SCENE_MATH_CHANNEL_COUNT = 2 };
 static inline SceneMathPage scene_math_scene(void) { ... }
 static inline SceneMathPage scene_math_channel(unsigned channel) { ... }
-uint8_t scene_math_scratch_byte(const GameState *g, SceneMathPage page, unsigned at);
+uint16_t scene_math_scratch_first(const GameState *g, SceneMathPage page);   /* a record's field */
 ```
 
 Only an entry wrapper knows the caller's D, so turning it into the handle is

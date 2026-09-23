@@ -4363,6 +4363,148 @@ rest are reading:
 The platform gaps (a sprite service, typed line effects, transfers without
 write-order arrays) and the map's renames are deferred, as before.
 
+### Phase 3a: scene reworked to the review
+
+The first qualitative review (`.claude/skills/review-port/`) rated three of
+scene's files translation -- `program.c` emulated the arithmetic unit,
+`circle.c` kept its X and Y in RAM cells and chained the carry through every
+edge, `bitmap.c` passed a struct that was the CPU (`carry, overflow, x, y,
+bank`) -- and most of the rest mostly. This rework takes each of its findings
+and regroups the subsystem by the game. Nothing was added to the burndown, and
+the behaviour is the predecessor's: the per-entry shadow totals over the 26
+movies (calls, matched, mismatched, interrupted, skipped, abandoned, and the
+pages each entry was called on) are identical to `main`'s for every hand port,
+not only the scene's.
+
+**The files, by the game.** `title.c` (the title screen: the pendulum, the
+logo, the ripple, and the loader's blocks), `race.c` (the jet bike race's
+display and its engine's pitch), `race_matrix.c` (the race's generated matrix
+code), `script.c` (the sequence scripts), `frame.c` (the NMI, pause, the song,
+the task lists), `screen.c` (every scene's first screen, the per-frame uploads,
+the program's transfer and the line effects), `boot.c` (starting a scene, its
+interrupt handlers, the resource copies), `sound.c` (the program's own sends to
+the sound driver and its wait for the song's marker), and what the scenes
+share: `sprites.c`, `circle.c`, `scaler.c` (was `bitmap.c`), `math.c`.
+`scene.h` says where each part of the game is. The endings have no routines of
+their own: they are the program's scripts, using the iris, the scaler and the
+arithmetic. `display.c`, `display.h`, `race.h`, `sound.h`, `program.c`,
+`nmi.c`, `sequence.c`, `matrix_code.c` and `scratch.c` are gone.
+
+**The arithmetic is C** (`math.c`). The 32-bit divide is `n / d` and `n % d`;
+the 8.8 divide `(dividend & $FF00) / divisor`; the multiplies `a * b`. What
+the original's way of computing them leaves in the result is a named function
+each, found by comparing the formulas over random operands and by fuzzing: the
+unsigned multiply's rotate brings the top bit of the byte after the product
+into it (`carry_from_the_byte_after`), and adds the overflow of its 16-bit
+middle sum a byte too low, so such a product comes out `$FF0000` short
+(`middle_sum_carried_low`: fuzzing found it, 7 and 11 of 20000 states, where
+the first formula was right only while that sum didn't overflow); the signed
+multiply adds the product cell's third byte as the caller left it
+(`magnitude_with_leftover`); a divisor of 0 or with its top bit set runs the
+original's long division with its 32-bit remainder
+(`long_division_in_32_bits`), and the 8.8 divide's divisor of 0 or past
+`$8000` its 16-bit one (`fraction_in_16_bits`). The dividend cells the divides
+leave shifted out with the caller's carry, and the multiplier and divider as
+the original leaves them, are scaffolding (`ORIGINAL_EFFECT`); the 8.8
+divide's divisor less one stays in the logic, because the next multiply's
+rounding reads it. The wrappers derive what the callers read: the 8.8 divide's
+carry is always clear, the signed multiply's X is its first partial product.
+The divisor search divides through `cpu_io.h`'s new `hw_quotient_by` a pass at
+a time, so its time still follows its passes.
+
+**The circle** keeps the outline in locals (`Octant`: x, y, the decision, the
+near line) and writes its four cells once, at the end, as scaffolding. The
+original's chained carries move pixels, and they are two named functions:
+`edge_rounding` (the top line a line higher, the far lines' right edge a pixel
+further right unless their left edge is off screen, a near line's left edge a
+pixel in when the far line reached the right of the screen) and
+`decision_step` (the midpoint step, with `y - x` one less while the near
+line's right edge is on screen, and one or two more near the diagonal). A
+table that could reach the cells the original reads back is refused by a guard
+(`scene_circle_table_is_clear`); no table the game or the fuzzing makes comes
+near them. `scene_circle_draw` takes the `GameState`, which the menus' one call
+site now passes.
+
+**The scaler** (`scaler.c`) has no CPU struct. A row is `scale_row(g,
+&round_up)`, where `round_up` is the one piece of state that carries from sum
+to sum -- in the picture, a sample nudged 1/256 of a pixel on -- and rides in
+the carry flag between the per-row calls. Samples are locals; the scratch the
+original packs them in, its pair count, and the Y and flags it leaves go
+through a record of the original's leftovers that only `ORIGINAL_EFFECT`
+writes. Its guard asks for the scaler's bank, `$7F`, and a source whose samples
+stay in it: fuzzing found 24 of 20000 states where they ran past the bank's
+end into low RAM, where the original reads back its own scratch.
+
+**The script** (`script.c`) is a table of rows, each a mask and match over the
+opcode, an operation (SET, ADD, LOOP, CALL_ROUTINE, STORE, GOSUB, RETURN,
+WAIT_SOUND, SOUND, ADD_TASK, REMOVE_TASK, VIDEO, END_TURN, JUMP, STOP) and how
+its operands decode; a command is decoded once into a `ScriptCommand` of named
+fields, and the port decides whether it takes it before it writes anything.
+The flags the program reads after the interpreter, the A a turn ends with and
+the word each command keeps in its channel's scratch are computed from the
+operands where they are handed back (`leave_before`,
+`leave_a_at_end_of_turn`), all scaffolding. The video settings a script names
+by their register are an enum. A store to the script's own pointer is a jump,
+as it is in the original.
+
+**Tasks and pages.** `SceneTask` and `SceneTaskList` (the vblank tasks at
+`$0940`, the frame's at `$0920`) are types with operations (`scene_add_task`,
+`scene_remove_task`, `scene_task_listed`). The review expected a task page
+kind for `$7E:5DA7`'s "task's next step"; the page report says it is called
+only on `$0A00`, channel 0's page, from a script's call, and the cell it
+writes is that channel's register 2, where the title keeps BG1's vertical
+scroll (`scene_title_start_ripple`). So there is no task page: the routine
+writes a channel register, and its guard asks for a channel's page.
+
+**Vocabulary in the map.** `scene_math_scratch` is a record of named,
+overlapping fields, one per use (the operands, product, quotient, remainder,
+the 8.8 fraction, the transfer's mode and register, the matrix generator's
+offsets, the script's scratch); `scene_nmi_stub` and `scene_irq_stub` name the
+stubs' jump and target, so installing a handler is two writes and no bit
+surgery. Named by finding their readers: `$62`/`$64` are the title logo's X
+and Y (the sprite offsets its lists are drawn at, `$7E:5D01`; the review found
+"cell 1" and "cell 2"); `$4B` is the race's engine pitch (the sound driver's
+command `$89`, the effect voices' pitch; the review found "presumably a
+parameter"); the words the old `shift_history` moved are BG3's second row,
+which in mode 2 are the columns' vertical offsets: the title's ripple.
+`scene_flags`' bit 7 has one definition, named for both its meanings.
+
+**The display** writes the video service's structs: `(VidMode){ .mode = 7 }`,
+`VID_LAYER_BIT(...)` sets, `.cy = -64`; `init_video` is one value, the first
+screen every scene starts from, applied by one function; the race's line-effect
+descriptors decode into a `LineEffectDescriptor`. The transfers through the
+SNES-only escape name their registers (`VID_SNES_VRAM_DATA_LOW` and the rest,
+added to `platform/video.h`); their per-call `steps` stay (TODO.md). No
+assembly is quoted in a comment.
+
+**Entries named for what they do**: 30 renames, among them
+`scene_title_ripple_columns` (was `scene_shift_c00_words`),
+`scene_run_frame_tasks` and `scene_run_vblank_tasks` (`_950`, `_940`),
+`scene_wait_for_song_marker_loop` (`scene_wait_apu_port3_loop`),
+`scene_race_wait_for_tilemap_upload_loop` (`scene_wait_39_clear_loop`),
+`scene_script_wait_for_sound` (`scene_script_wait_sound_port2`),
+`scene_copy_resource` and `_to_upper_ram` (`_to_7e`, `_to_7f`), and the
+loaders' blocks by what they put in VRAM (`scene_title_load_sprite_graphics`
+for `scene_set_vram_4000`, `scene_race_load_bg3_map` for
+`scene_race_set_vram_6800`, ...). The loaders themselves aren't ported
+(TODO.md).
+
+**The sprite writers** are one loader with a `clipped` parameter and no
+in-band X: a sprite past the right edge is at X 257, and the word `$9801` the
+original stores there only feeds the A its callers read. Their guard, which
+TODO.md asked for, takes a cursor whose sprites stay in the sprite table, a
+list clear of the cell the original counts it down in (fuzzing found 2 and 15
+lists of 20000 read over that cell), and a clipped list clear of the table.
+The fuzz runs start the cursor where each frame's first list finds it; the
+guard turns away the random lists too long for the table, about half.
+
+**The frame** (`frame.c`) names the controller's buttons and the reset
+combination, pauses by flipping the pause flag's bit, and installs its
+handlers through the stub's fields. Its bridge still sets the registers the
+task list's copy leaves (A, X and Y past the lists) before the controller read,
+whose stops and call-out the don't-care check says see them; that is the one
+piece of register state it makes up, in one named function.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

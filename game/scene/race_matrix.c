@@ -91,14 +91,13 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
 
 /* Entered with 16-bit index registers: X the first destination page's
  * address, Y the source base. The routine sets the direct page and the data
- * bank to 0 itself; Y ends at the table's end (16), which callers read, and the
- * overflow is its last sum's, the row step's 28 + 4, which is clear. */
+ * bank to 0 itself, and the overflow is its last sum's, the row step's 28 + 4,
+ * which is clear. */
 void scene_write_matrix_code(Snes *s)
 {
     write_matrix_code(state_of(s), s->cpu.x, s->cpu.y);
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
-    s->cpu.y = TABLE_ENTRIES * 2;
     m_set_flag(s, CPU_FLAG_V, false);
     s->cpu.p |= CPU_FLAG_M;
     m_rtl(s);

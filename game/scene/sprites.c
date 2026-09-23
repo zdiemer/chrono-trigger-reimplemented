@@ -26,6 +26,7 @@
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -91,24 +92,17 @@ static uint8_t moved_y(const GameState *g, uint8_t y) { return (uint8_t)(y + sce
 /* ---- What a list leaves in the original's registers, for the entries' wrappers -------------- */
 
 typedef struct {
-    uint8_t a_high, a_low;
+    uint8_t a_high;
     bool overflow;
 } SpriteLeaves;
 
 static SpriteLeaves *sprite_leaves;
 
-/* A: its low byte the count for a list with no entries, else the last entry's
- * place in its high-table byte (the loop's test); its high byte the list's
- * address's for a small list, and for a clipped one the last sprite's X shifted
- * left -- where an X past the right edge is the word $9801, as the original
- * stores it (its high byte overwritten by the Y). */
-static void leave_a(uint8_t high, uint8_t low)
-{
-    sprite_leaves->a_high = high;
-    sprite_leaves->a_low = low;
-}
-
-static void leave_a_low(uint8_t low) { sprite_leaves->a_low = low; }
+/* A's high byte (its low byte isn't read): the list's address's for a small
+ * list, and for a clipped one the last sprite's X shifted left -- where an X
+ * past the right edge is the word $9801, as the original stores it (its high
+ * byte overwritten by the Y). */
+static void leave_a_high(uint8_t high) { sprite_leaves->a_high = high; }
 
 static void leave_a_high_from_x(uint16_t x, bool off_the_right)
 {
@@ -148,7 +142,7 @@ static void load_sprite_list(GameState *g, uint16_t list, bool clipped)
     hw_port_seek(g, list, 0);
     uint8_t count = hw_port_read(g);
     SpriteCursor c = cursor(g);
-    ORIGINAL_EFFECT(leave_a((uint8_t)(list >> 8), count));
+    ORIGINAL_EFFECT(leave_a_high((uint8_t)(list >> 8)));
     for (uint8_t left = (uint8_t)(count - 1); left != 0; left--) {
         set_entry(g, c.entry, ENTRY_TILE, hw_port_read(g));
         set_entry(g, c.entry, ENTRY_ATTRIBUTES, hw_port_read(g));
@@ -164,7 +158,6 @@ static void load_sprite_list(GameState *g, uint16_t list, bool clipped)
         }
         if (next_entry(&c.entry))
             c.high++;
-        ORIGINAL_EFFECT(leave_a_low((uint8_t)(c.entry % (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE))));
     }
     set_scene_sprite_high_pointer(g, c.high);
     set_scene_sprite_index(g, c.entry);
@@ -200,10 +193,11 @@ static void add_sprite(GameState *g, uint16_t source, bool large)
  * (the entries in its first $200 bytes, the high bytes in its high table). The
  * original reaches the table through a data bank of 0, so a cursor anywhere else
  * writes wherever it points, the scene's own cells and the I/O registers past
- * $2000 among them; those calls are the original's. A clipped list also stays
- * clear of the table: the original stores its X as a word whose high byte lands
- * in the Y a moment before the Y does, which a list read from the table could
- * see. */
+ * $2000 among them; those calls are the original's. A list stays clear of the
+ * cell the original counts its entries down in, which the port counts in a
+ * local; and a clipped list clear of the table too, since the original stores
+ * its X as a word whose high byte lands in the Y a moment before the Y does,
+ * which a list read from the table could see. */
 static bool fits_in_table(uint16_t entry, uint16_t high, unsigned sprites)
 {
     if (sprites == 0)
@@ -224,6 +218,9 @@ static bool cursor_fits(Snes *s, unsigned sprites)
     return scene_on_scene_page_io_bank(s) && fits_in_table(c.entry, c.high, sprites);
 }
 
+/* Where the original counts a list's entries down. */
+enum { COUNT_CELL = RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF };
+
 static bool list_fits(Snes *s, bool clipped)
 {
     uint16_t list = s->cpu.a;
@@ -231,10 +228,10 @@ static bool list_fits(Snes *s, bool clipped)
     unsigned sprites = (uint8_t)(count - 1);
     if (!cursor_fits(s, sprites))
         return false;
-    if (!clipped)
-        return true;
     uint32_t end = (uint32_t)list + 1 + sprites * ENTRY_BYTES;
-    return end <= SPRITE_TABLE || list >= HIGH_TABLE_END;
+    if (list <= COUNT_CELL && end > COUNT_CELL)
+        return false;
+    return !clipped || end <= SPRITE_TABLE || list >= HIGH_TABLE_END;
 }
 
 bool scene_sprite_list_fits(Snes *s) { return list_fits(s, false); }
@@ -246,10 +243,10 @@ bool scene_sprite_fits(Snes *s) { return cursor_fits(s, 1); }
 /* The list at A, small sprites; back, Y is the next free entry. */
 void scene_load_sprite_list(Snes *s)
 {
-    SpriteLeaves leaves = { 0, 0, m_flag(s, CPU_FLAG_V) };
+    SpriteLeaves leaves = { 0, m_flag(s, CPU_FLAG_V) };
     sprite_leaves = &leaves;
     load_sprite_list(state_of(s), s->cpu.a, false);
-    s->cpu.a = (uint16_t)(leaves.a_high << 8 | leaves.a_low);
+    s->cpu.a = (uint16_t)(leaves.a_high << 8 | (s->cpu.a & 0xFF));
     s->cpu.y = scene_sprite_index(state_of(s));
     m_rtl(s);
 }
@@ -258,10 +255,10 @@ void scene_load_sprite_list(Snes *s)
  * free entry, and the overflow the last Y's. */
 void scene_load_sprite_list_clipped(Snes *s)
 {
-    SpriteLeaves leaves = { 0, 0, m_flag(s, CPU_FLAG_V) };
+    SpriteLeaves leaves = { 0, m_flag(s, CPU_FLAG_V) };
     sprite_leaves = &leaves;
     load_sprite_list(state_of(s), s->cpu.a, true);
-    s->cpu.a = (uint16_t)(leaves.a_high << 8 | leaves.a_low);
+    s->cpu.a = (uint16_t)(leaves.a_high << 8 | (s->cpu.a & 0xFF));
     m_set_flag(s, CPU_FLAG_V, leaves.overflow);
     s->cpu.y = scene_sprite_index(state_of(s));
     m_rtl(s);

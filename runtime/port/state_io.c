@@ -22,15 +22,17 @@ uint16_t hw_multiply_by(GameState *g, uint8_t b)
 
 void hw_set_dividend(GameState *g, uint16_t dividend) { m_write16(state_snes(g), WRDIVL, dividend); }
 
-/* The register is write-only on the machine, so the backing peeks at what the
- * emulated divider holds; it costs no bus access. */
-uint16_t hw_dividend(const GameState *g) { return state_snes(g)->bus.wrdiv; }
-
 uint16_t hw_quotient(const GameState *g) { return m_read16(state_snes(g), RDDIV); }
 
 uint16_t hw_remainder(const GameState *g) { return m_read16(state_snes(g), RDMPY); }
 
 void hw_divide_by(GameState *g, uint8_t divisor) { m_write8(state_snes(g), WRDIVB, divisor); }
+
+uint16_t hw_quotient_by(GameState *g, uint8_t divisor)
+{
+    hw_divide_by(g, divisor);
+    return hw_quotient(g);
+}
 
 void hw_port_seek(GameState *g, uint16_t at, uint8_t bank)
 {
