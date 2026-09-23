@@ -88,6 +88,24 @@ rest waits, is [PLAN.md](PLAN.md).
   progress. It still needs finishing, the full gate, the differential fuzz, and
   its qualitative review.
 
+- **Coverage that field's rewrite thinned.** Inlining the object update's
+  steps into their callers' time left more of their calls interrupted, and
+  shadow mode compares none of those: `field_update_object_sprites` went from 78
+  interrupted calls to 855, `field_draw_object_sprites` from 837 to 1713,
+  `field_build_sprite_table` from 267 to 336 and `field_update_objects` from 6
+  to 17. The fuzzer covers what shadow mode skips, except that
+  `field_build_sprite_table` compares 0 fuzz states on either side (its draws run
+  past the call-out budget), so it has shadow mode's uninterrupted calls and
+  nothing else. A fuzz setup that bounds its draws would close that.
+- **Shadow mode's call matching isn't written down where a porter looks.** A
+  bridge's calls are matched to the original's in order and by site, which
+  decides what a rewrite can inline: a step can be inlined only if it makes no
+  call-outs itself, and draws from a shared site must all inline or none. The
+  field rewrite learned it from 105923 mismatched draws. It belongs in
+  PORTING.md's "Call-outs". Also from that rewrite: the mismatch report stops at
+  16 details, and timing calibration rewrites other subsystems' rows, which each
+  rewrite then reverts by hand.
+
 ## Recompiler
 
 - **M4**: skip flags nobody reads, call generated blocks directly where it's

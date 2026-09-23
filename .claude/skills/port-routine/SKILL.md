@@ -289,7 +289,12 @@ tight (±0.38%). Sequence the work so only the final code pays for a
   `re/ram.toml`, the exception lists) are edited **in place, in your subsystem's
   part**, never reorganised. Calibration rewrites every measured `cost_milli`;
   commit only your subsystem's rows.
-- **At most 3 heavy processes** (builds, movies, fuzz runs) at once.
+- **At most 3 heavy processes** (builds, movies, fuzz runs) at once, unless your
+  brief gives you a different number.
+- **Stop your own processes by PID, never by image name.** Other agents run
+  `ct_dev` and `ct_fuzz` on the same machine: `taskkill /IM ct_dev.exe` (or
+  `pkill ct_dev`) kills theirs too, silently cutting short a shadow run whose
+  result they will then trust. Keep the PIDs you start, and kill only those.
 - **Never commit ROM bytes or anything derived from them**: drafts, traces,
   listings with data bytes, extracted assets, save states. Keep them in scratch.
 
