@@ -72,19 +72,11 @@ static uint32_t in_work_ram(uint16_t at) { return (uint32_t)WORK_RAM_BANK << 16 
  * 128 by 128 tile numbers the low halves of the first 16384. */
 enum { MODE7_TILE_PIXELS = 64, MODE7_MAP_ROW = 128 };
 
-/* How the screens' uploads program the channel on the SNES (channel 7, in
- * the order of the steps), and how VRAM steps as they go. */
-enum { EPOCH_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01 };
+/* How VRAM steps as the screens' uploads go: a word at a time, stepping
+ * after its high byte, or (the plane's tile numbers, the low halves alone)
+ * after its low byte. */
 static const VidVramPort after_high = { .step = 1, .after_high = true };
 static const VidVramPort after_low = { .step = 1, .after_high = false };
-static const uint8_t upload_steps[] = {
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_VRAM_PORT, VID_STEP_CONTROL,
-    VID_STEP_DEST,      VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-    VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-};
-static const VidSnesXfer word_upload = { EPOCH_DMA, DMA_WORDS, upload_steps, &after_high };
-static const VidSnesXfer high_byte_upload = { EPOCH_DMA, DMA_ONE_REGISTER, upload_steps, &after_high };
-static const VidSnesXfer low_byte_upload = { EPOCH_DMA, DMA_ONE_REGISTER, upload_steps, &after_low };
 
 /* The mode's frame: bit 0 has the vblank handler send the frame and run the
  * objects, bit 1 send the palette too. */
@@ -248,15 +240,9 @@ static uint16_t draw_map_picture(GameState *g, Platform *pf)
         if ((row + 1) % MAP_ROWS_A_TILE_ROW == 0) {
             unsigned tile_row = row / MAP_ROWS_A_TILE_ROW;
             uint16_t first_tile = (uint16_t)(FIRST_PICTURE_TILE + tile_row * PICTURE_TILES_ACROSS);
-            static const uint8_t steps[] = {
-                VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-                VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_CONTROL,   VID_STEP_DEST,
-                VID_STEP_VRAM_PORT, VID_STEP_SOURCE_BANK, VID_STEP_START,   VID_STEP_END,
-            };
-            static const VidSnesXfer tile_row_upload = { EPOCH_DMA, DMA_ONE_REGISTER, steps, &after_high };
-            vid_upload_vram_half(pf, PF_AT(0xC264EB), (uint16_t)(first_tile * MODE7_TILE_PIXELS),
+            vid_send_vram_half(pf, PF_AT(0xC264EB), (uint16_t)(first_tile * MODE7_TILE_PIXELS),
                                  PF_GAME(menu_object_upload_buffer(g)), TILE_ROW_BYTES, VID_VRAM_HIGH_BYTES,
-                                 &tile_row_upload);
+                                 &after_high);
             buffer = start_tile_row(g, TILE_ROW_BYTES);
         }
     }
@@ -281,9 +267,9 @@ static void place_map_picture(GameState *g, Platform *pf)
         for (unsigned column = 0; column < PICTURE_TILES_ACROSS; column++)
             set_menu_map_name_table(g, (PICTURE_ROW + row) * NAME_ROWS_SENT + PICTURE_COLUMN + column, tile++);
     for (unsigned row = 0; row < NAME_ROWS_SENT; row++)
-        vid_upload_vram_half(pf, PF_AT(0xC2662F), (uint16_t)(row * MODE7_MAP_ROW),
-                             PF_GAME(RAM_MENU_MAP_NAME_TABLE + row * NAME_ROWS_SENT), NAME_ROWS_SENT,
-                             VID_VRAM_LOW_BYTES, &low_byte_upload);
+        vid_send_vram_half(pf, PF_AT(0xC2662F), (uint16_t)(row * MODE7_MAP_ROW),
+                           PF_GAME(RAM_MENU_MAP_NAME_TABLE + row * NAME_ROWS_SENT), NAME_ROWS_SENT,
+                           VID_VRAM_LOW_BYTES, &after_low);
 }
 
 /* What building the view leaves in the mode's cells: the name table's last
@@ -1162,8 +1148,8 @@ static void upload_gate_tiles(GameState *g, Platform *pf)
     for (unsigned row = 0; row < GATE_TILE_ROWS; row++) {
         uint16_t vram = menu_gate_tile_row(g, row);
         for (unsigned piece = 0; piece < GATE_PIECES; piece++)
-            vid_upload_vram(pf, PF_AT(0xC2726D), (uint16_t)(vram + piece * GATE_PIECE_WORDS),
-                            PF_GAME(RAM_MENU_MODE7_PLANE + piece * GATE_PIECE_BYTES), GATE_PIECE_BYTES, &word_upload);
+            vid_send_vram(pf, PF_AT(0xC2726D), (uint16_t)(vram + piece * GATE_PIECE_WORDS),
+                            PF_GAME(RAM_MENU_MODE7_PLANE + piece * GATE_PIECE_BYTES), GATE_PIECE_BYTES, &after_high);
     }
 }
 
@@ -1195,18 +1181,12 @@ static void leave_rows_asked_for(GameState *g, uint32_t picks, uint32_t source)
  * in a table, and goes to the next row of VRAM. A count of 0 is 65536. */
 static void upload_gate_rows(GameState *g, Platform *pf, uint16_t rows, uint32_t picks, uint32_t source, uint16_t vram)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_VRAM_PORT, VID_STEP_TARGET_LO,
-        VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-    };
-    static const VidSnesXfer row_upload = { EPOCH_DMA, DMA_WORDS, steps, &after_high };
     uint16_t left = rows;
     do {
         uint8_t pick = menu_gate_row_pick(g, picks);
         picks = (picks & 0xFF0000u) | (uint16_t)(picks + 1);
         uint32_t from = (source & 0xFF0000u) | (uint16_t)(pick * TILEMAP_ROW_BYTES + source);
-        vid_upload_vram(pf, PF_AT(0xC272EE), vram, PF_GAME(from), TILEMAP_ROW_BYTES, &row_upload);
+        vid_send_vram(pf, PF_AT(0xC272EE), vram, PF_GAME(from), TILEMAP_ROW_BYTES, &after_high);
         vram = (uint16_t)(vram + TILEMAP_ROW_WORDS);
         ORIGINAL_EFFECT(leave_cell16(g, 0x0A, (uint16_t)from));
     } while (--left != 0);
@@ -1234,8 +1214,8 @@ static void unpack_gate_pixels(GameState *g)
 /* The gate's picture to the plane's first tiles. */
 static void upload_gate_pixels(Platform *pf)
 {
-    vid_upload_vram_half(pf, PF_AT(0xC2722F), 0x0000, PF_GAME(RAM_MENU_MODE7_PLANE), 2 * GATE_PIXEL_PAIRS,
-                         VID_VRAM_HIGH_BYTES, &high_byte_upload);
+    vid_send_vram_half(pf, PF_AT(0xC2722F), 0x0000, PF_GAME(RAM_MENU_MODE7_PLANE), 2 * GATE_PIXEL_PAIRS,
+                       VID_VRAM_HIGH_BYTES, &after_high);
 }
 
 /* The dial's palette: kept as the mode loaded it, and sent with one colour
@@ -1401,7 +1381,7 @@ static void load_map_view_graphics(Snes *s)
     m_jsl_dc(s, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);   /* the loader */
     set_menu_load_request_size(g, MAP_VIEW_GRAPHICS_BYTES);
     m_jsl_dc(s, 0xC269C4, 0xC25823, READS_NOTHING | DC_D);
-    vid_upload_vram(m_platform(s), PF_AT(0xC269C8), 0x6200, PF_GAME(RAM_MENU_MAP_GRAPHICS), 0x0400, &word_upload);
+    vid_send_vram(m_platform(s), PF_AT(0xC269C8), 0x6200, PF_GAME(RAM_MENU_MAP_GRAPHICS), 0x0400, &after_high);
 }
 
 // $C2:63DF
@@ -1493,8 +1473,8 @@ void menu_epoch_map_screen(Snes *s)
     build_map_view_on_the_machine(s);
     pull_return(s);
 
-    vid_upload_vram(pf, PF_AT(0xC26340), 0x6000, PF_GAME(MENU_MAP_VIEW_TILES), 0x0020, &word_upload);
-    vid_upload_vram(pf, PF_AT(0xC26367), 0x6020, PF_GAME(MENU_MAP_VIEW_MORE_TILES), 0x0020, &word_upload);
+    vid_send_vram(pf, PF_AT(0xC26340), 0x6000, PF_GAME(MENU_MAP_VIEW_TILES), 0x0020, &after_high);
+    vid_send_vram(pf, PF_AT(0xC26367), 0x6020, PF_GAME(MENU_MAP_VIEW_MORE_TILES), 0x0020, &after_high);
     enum { VIEW_COLOURS = 0x100, VIEW_COLOUR_BYTES = 0x21 };
     set_menu_object_palette_byte(g, 0, 0);
     set_menu_object_palette_byte(g, 1, 0);
@@ -1547,7 +1527,7 @@ static void build_the_dial(Snes *s)
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     load_gate_stream_as_the_original(s, 0xC2738D, GATE_TILES_STREAM, 0xC3);
-    vid_upload_vram(pf, PF_AT(0xC27393), GATE_TILE_VRAM, PF_GAME(RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &word_upload);
+    vid_send_vram(pf, PF_AT(0xC27393), GATE_TILE_VRAM, PF_GAME(RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &after_high);
     ORIGINAL_EFFECT(leave_rows_asked_for(g, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE));
     NATIVE_TIME_AS(s, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
                                                  GATE_TILEMAP_VRAM));

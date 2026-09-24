@@ -48,9 +48,6 @@ ESCAPES = {
 WRITE_ORDER = {
     "battle/display.c",
     "battle/frame.c",
-    "menu/epoch.c",
-    "menu/line_effects.c",
-    "menu/map.c",
 }
 
 # Files allowed to use the driver-level audio calls (au_driver_*).

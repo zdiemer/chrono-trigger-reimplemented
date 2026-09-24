@@ -47,13 +47,9 @@ uint16_t menu_line_values(uint8_t slot, unsigned which)
 
 void menu_program_line_channel(Platform *pf, uint32_t site, uint8_t channel, VidLineTarget target, uint32_t table)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,     VID_STEP_DEST,          VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SOURCE_BANK, VID_STEP_INDIRECT_BANK, VID_STEP_END,
-    };
     const VidLineEffect effect = { .target = target, .table = PF_GAME(table), .indirect = true,
                                    .indirect_bank = LINE_TABLE_BANK };
-    vid_set_line_effect(pf, PF_AT(site), channel, &effect, steps);
+    vid_set_line_slot(pf, PF_AT(site), channel, &effect);
 }
 
 void menu_start_line_effect(GameState *g, Platform *pf, uint32_t site, uint8_t slot, VidLineTarget target)

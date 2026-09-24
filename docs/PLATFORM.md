@@ -1546,10 +1546,13 @@ register writes went with its arrays), `scene/screen.c`, `scene/race.c` and
 `scene/title.c`; `scene/scene.h` no longer names a DMA channel or mode. The
 menus' queue at `$C2:8663` programmed its channel's mode inside the loop's
 first pass; that is a `vid_start_vram_uploads` at the instruction that does
-(`$C2:867A`) now, the same writes in the same order. **Not moved:** the battle
+(`$C2:867A`) now, the same writes in the same order. The menus' pass
+after it moved the other three menu files (`menu/epoch.c`, `menu/map.c`,
+`menu/line_effects.c`): the Epoch's Mode 7 uploads, the map's strip uploads
+and every per-line slot the sprite-object mode starts, 25 sites (RECOMP.md,
+"Phase 3a: the menus' follow-ups and the Epoch"). **Not moved:** the battle
 (`battle/display.c`, `battle/frame.c`, `battle/nmi.c`), which a rewrite is
-changing, and three of the menus' files (`menu/epoch.c`, `menu/map.c`,
-`menu/line_effects.c`); docs/TODO.md lists their calls.
+changing; docs/TODO.md lists its calls.
 
 **Checked** by the gate (shadow mode over the library, 0 mismatches; the
 trace, timing, vblank, route, don't-care and port-style checks), `--px-check`

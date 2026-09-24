@@ -389,15 +389,14 @@ rest waits, is [PLAN.md](PLAN.md).
 ## Platform
 
 - **The ports still on the older video forms** (PLATFORM.md, "The services'
-  gaps the reviews found, closed"). The battle and three of the menus' files
-  still hand the SNES backend their write order (`VID_STEP_*` in a
-  `VidSnesXfer`) at the call. Moving a call to `vid_send_*`,
+  gaps the reviews found, closed"). The battle's files still hand the SNES
+  backend their write order (`VID_STEP_*` in a `VidSnesXfer`) at the call. Moving a call to `vid_send_*`,
   `vid_set_line_slot` or `vid_snes_copy` means adding its site's sequence to
   `runtime/platform/snes/encodings.c` and, once a file has none left,
   deleting it from the lint's `WRITE_ORDER`. When none is left, the older
   forms (`vid_upload_*`, `vid_fill_vram`, `vid_begin_vram_uploads`,
   `vid_set_line_effect`, `vid_snes_transfer`) and `VidSnesXfer` leave the
-  service. What is left, for the battle rewrite and the menus' next pass:
+  service. What is left, for the battle rewrite:
   - `battle/display.c`: the palette (`$CD:09CE`), the seven per-line slots
     (`$CD:09F1`), and the graphics load's and the tile rows' uploads
     (`$CC:E000`, `$D1:E8D9`);
@@ -406,12 +405,7 @@ rest waits, is [PLAN.md](PLAN.md).
     palette and the upload list), the flushed transfer (`$CD:3E95`), the
     sliding window's fill (`$CD:066F`) and the window slot (`$CD:0AF0`);
   - `battle/nmi.c`: `vid_begin_vram_uploads` at `$D1:E7D7`, which programs no
-    channel and becomes `vid_start_vram_uploads` as it is;
-  - `menu/epoch.c`: the Epoch's screens' and the gate's line slots
-    (`vid_set_line_effect`) and their Mode 7 transfers (`vid_upload_vram`,
-    `vid_upload_vram_half`);
-  - `menu/map.c`: the two strip uploads (`$C2:0AF6`, `$C2:0B22`);
-    `menu/line_effects.c`: the irises' slot.
+    channel and becomes `vid_start_vram_uploads` as it is.
   The field's own screen setup (`$FD:C0D7`) sets part of a screen, which
   `VidScreen` doesn't express; it is a run of setters with values, which is
   enough until a partial screen is wanted elsewhere.

@@ -437,30 +437,16 @@ static uint16_t build_block(GameState *g, const MapPlane *p, uint16_t map, uint1
 // $C2:0ADC
 /* Send a block's two tilemap columns from the upload buffer to the plane's
  * tilemap at the block's place across it, the VRAM port stepping a tilemap
- * row at a time; the SNES backend programs the channel in the order the
- * steps give. */
+ * row at a time. */
 static uint16_t block_vram(uint16_t tilemap, uint16_t x) { return (uint16_t)(tilemap_column(x / TILE_PIXELS) + tilemap); }
 
 static void upload_block(GameState *g, Platform *pf, uint16_t vram)
 {
     static const VidVramPort column_port = { .step = 32, .after_high = true };
-    static const uint8_t first_steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_VRAM_PORT, VID_STEP_CONTROL,
-        VID_STEP_DEST,      VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-    };
-    static const uint8_t second_steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SOURCE_BANK, VID_STEP_VRAM_PORT, VID_STEP_CONTROL, VID_STEP_DEST,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-    };
-    enum { MAP_DMA = 7, DMA_WORDS = 0x01 };
     uint32_t buffer = menu_object_upload_buffer(g);
-    const VidSnesXfer first = { MAP_DMA, DMA_WORDS, first_steps, &column_port };
-    vid_upload_vram(pf, PF_AT(0xC20AF6), vram, PF_GAME(buffer), STRIP_BYTES, &first);
-    const VidSnesXfer second = { MAP_DMA, DMA_WORDS, second_steps, &column_port };
-    vid_upload_vram(pf, PF_AT(0xC20B22), (uint16_t)(vram + 1),
-                    PF_GAME((buffer & 0xFF0000u) | (uint16_t)(buffer + STRIP_BYTES)), STRIP_BYTES, &second);
+    vid_send_vram(pf, PF_AT(0xC20AF6), vram, PF_GAME(buffer), STRIP_BYTES, &column_port);
+    vid_send_vram(pf, PF_AT(0xC20B22), (uint16_t)(vram + 1),
+                  PF_GAME((buffer & 0xFF0000u) | (uint16_t)(buffer + STRIP_BYTES)), STRIP_BYTES, &column_port);
 }
 
 /* Where the redraw got to, for the original's cells. */
