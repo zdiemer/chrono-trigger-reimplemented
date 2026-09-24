@@ -83,9 +83,49 @@ rest waits, is [PLAN.md](PLAN.md).
     call sites computed), `display.c` (the power-on setup as register bytes
     through the decoders, in the original's order) and `memory.c` (the block
     move stub as `m_mvn`);
-  - the button names other subsystems still define privately: `event/input.c`
-    (the game's order, `core/input.h`'s `BUTTON_*`), `battle/nmi.c` and
-    `battle/frame.c` (the controller's, `platform/input.h`'s `IN_BUTTON_*`).
+  - the button names `event/input.c` still defines privately (the game's
+    order, `core/input.h`'s `BUTTON_*`).
+
+- **What battle's rewrite left** (RECOMP.md, "Phase 3a: the battle off the
+  machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
+  - The original's routines the battle still calls out to: the battle steps
+    (`$C1:0003`) and nearly all of the turn's work (an enemy's turn `$C1:8CF9`,
+    a member's `$FD:AB30`, carrying out an action `$C1:B967`, the scripts'
+    conditions and their handlers, the rewards `$FD:B201`/`$C1:D0A2`/
+    `$C1:F93E`/`$FD:AD17`); the pose's setup `$C1:308C`, the target search
+    `$C1:2986`, the direction `$C1:0222`, the enemy animation effects' nine
+    handlers `$C1:3760`, the position modes `$C1:762E`; an effect's next
+    frame `$CC:F2A9`; the window rasterizer `$D1:F9E7`; the decompressor and
+    `$CD:3ECE` from the effect graphics loader; `$CF:FD9E`, `$C1:0A88`,
+    `$C1:1115`, `$CD:0027`/`$002D`/`$0030`, `$FD:A95F` from the menu window;
+    the name converter `$C1:01A9` from the setup; the Lavos scroll modes
+    `$CD:07E2`/`$CD:07B9`, the slide's line moves `$CD:053C`/`$CD:0577`,
+    `$CE:EE6E`, `$CE:E18E`, `$CD:1609`, `$CD:0B1E` and the wait tail's
+    callees from the frame work.
+  - Meanings not worked out: `battle_tech_records.menu_detail`; the setup's
+    `battle_start_mark`, `battle_menu_mark`, `battle_action_queue_end`,
+    `battle_menu_slot_mark`, `battle_list_cursors_shown`, the first ten
+    `battle_number_marks`, `battle_slot_draw_bits` and the sprite drawers'
+    page's unnamed bytes; `battle_enemy_rule`'s rules 1 and 2;
+    `battle_stats.worn_item` (named from one use); the rest of
+    `battle_fight_flags`; the script commands' per-combatant and per-effect
+    cells (`battle_animation_wait_cells`, `battle_script_command_cells`,
+    `battle_effect_command_cells`); the five window tile blocks the frame
+    loads and what reads `battle_block_uploads_made`; what the marker sprite
+    is to the player; why the upload lets enemies in slots 4 and 6+ through.
+  - Quirks reproduced on purpose, for a native build to decide on: the chase's
+    angle index spilling into `battle_numbers_rising`; a combatant of 1-14
+    parts copying eight tile groups; the homing jump lifting twice; an
+    afterimage past the right or bottom edge drawn back on screen; the party
+    step keeping its list places in the scheduler's entry 0; the weak pose
+    restarting frames every step; the pose's restart for an enemy writing past
+    the party's frame table; the colour rotation from colour 0 storing a bank on.
+  - The accepted divergences, each at its routine: the drawing pass past 128
+    sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
+    or the stack (`$C1:1C55`).
+  - Number commands `$54`/`$55` would read records past the 44 the map
+    declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
+    written twice, in `numbers.c` and `scripts.c`.
 
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
   machine"):
@@ -428,24 +468,15 @@ rest waits, is [PLAN.md](PLAN.md).
 ## Platform
 
 - **The ports still on the older video forms** (PLATFORM.md, "The services'
-  gaps the reviews found, closed"). The battle and three of the menus' files
-  still hand the SNES backend their write order (`VID_STEP_*` in a
+  gaps the reviews found, closed"). Three of the menus' files still
+  hand the SNES backend their write order (`VID_STEP_*` in a
   `VidSnesXfer`) at the call. Moving a call to `vid_send_*`,
   `vid_set_line_slot` or `vid_snes_copy` means adding its site's sequence to
   `runtime/platform/snes/encodings.c` and, once a file has none left,
   deleting it from the lint's `WRITE_ORDER`. When none is left, the older
   forms (`vid_upload_*`, `vid_fill_vram`, `vid_begin_vram_uploads`,
   `vid_set_line_effect`, `vid_snes_transfer`) and `VidSnesXfer` leave the
-  service. What is left, for the battle rewrite and the menus' next pass:
-  - `battle/display.c`: the palette (`$CD:09CE`), the seven per-line slots
-    (`$CD:09F1`), and the graphics load's and the tile rows' uploads
-    (`$CC:E000`, `$D1:E8D9`);
-  - `battle/frame.c`: the vblank's uploads at `$CF:E300` (the queued pair, the
-    sprite table, the escape at `$CF:E33B`, the window frames' tilemap, the
-    palette and the upload list), the flushed transfer (`$CD:3E95`), the
-    sliding window's fill (`$CD:066F`) and the window slot (`$CD:0AF0`);
-  - `battle/nmi.c`: `vid_begin_vram_uploads` at `$D1:E7D7`, which programs no
-    channel and becomes `vid_start_vram_uploads` as it is;
+  service. What is left, for the menus' next pass:
   - `menu/epoch.c`: the Epoch's screens' and the gate's line slots
     (`vid_set_line_effect`) and their Mode 7 transfers (`vid_upload_vram`,
     `vid_upload_vram_half`);
@@ -704,8 +735,8 @@ below. `python3 tools/timing_census.py` re-runs the census.
   service); the idle entries on flags a handler clears
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
   `menu_wait_ready_loop`, `battle_wait_for_frame_loop`,
-  `battle_wait_for_nmi_loop`, `battle_wait_ca1f_loop`,
-  `battle_wait_setup_counter_loop`, `scene_race_wait_for_tilemap_upload_loop`,
+  `battle_wait_for_nmi_loop`, `battle_wait_window_slide_loop`,
+  `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
   `attract_wait_loop`); and the generated `$C0:0B28` and `$FD:EADA` (vblank
   with the handler off, then on), `$CD:044A`, `$CD:3E55`, `$CF:FCFB` and
   `$FD:EAEB`.
