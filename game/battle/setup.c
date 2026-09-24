@@ -41,7 +41,6 @@ static bool convert_names(Snes *s, NameTable table, uint8_t count, uint32_t site
             return false;
         setup_keep_name_tiles(g, table, n);
     }
-    setup_names_converted(g, count);
     return true;
 }
 

@@ -42,7 +42,6 @@ typedef enum { CHARACTER_NAMES, PARTY_NAMES } NameTable;
 void setup_copy_character_names(GameState *g);
 void setup_name_to_convert(GameState *g, NameTable table, uint8_t n);
 void setup_keep_name_tiles(GameState *g, NameTable table, uint8_t n);
-void setup_names_converted(GameState *g, uint8_t count);
 bool setup_enemy_kind_present(const GameState *g, uint8_t kind);
 void setup_enemy_name_to_convert(GameState *g, uint8_t kind);
 void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind);

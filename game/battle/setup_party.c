@@ -52,11 +52,9 @@ static void keep_frogs_slot_as_record(GameState *g)
     set_battle_frog_slot(g, (uint16_t)((slot & 0xFF00) | (uint8_t)(slot * MEMBER_CARRIED_BYTES)));
 }
 
-static void leave_slots_read(GameState *g)
-{
-    setup_leave_word(g, 0x80, BATTLE_PARTY_SIZE);
-    setup_leave_word(g, 0x82, BATTLE_PARTY_SIZE * NAME_CHARACTERS);
-}
+/* The original steps through the members' names five bytes at a time in its
+ * working cells, which the names' conversion finds them at. */
+static void leave_slots_read(GameState *g) { setup_leave_word(g, 0x82, BATTLE_PARTY_SIZE * NAME_CHARACTERS); }
 
 // $CC:E5F3
 void setup_party_slots(GameState *g)

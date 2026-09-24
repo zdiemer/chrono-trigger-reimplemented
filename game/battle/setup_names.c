@@ -60,8 +60,6 @@ void setup_keep_name_tiles(GameState *g, NameTable table, uint8_t n)
     }
 }
 
-void setup_names_converted(GameState *g, uint8_t count) { ORIGINAL_EFFECT(setup_leave_word(g, 0x80, count)); }
-
 /* ---- The enemies' kinds ------------------------------------------------------------------- */
 
 enum { NO_KIND = 0x8000 };
