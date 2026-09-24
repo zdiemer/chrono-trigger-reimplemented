@@ -2019,8 +2019,8 @@ void set_battle_result(GameState *g, uint8_t v) { w8(g, 0x7F01ECu, v); }
 
 /* ---- scene --------------------------------------------------------------------------------- */
 
-uint16_t scene_frame_ready(const GameState *g) { return r16(g, 0x7E0000u); }
-void set_scene_frame_ready(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
+uint16_t scene_program_over(const GameState *g) { return r16(g, 0x7E0000u); }
+void set_scene_program_over(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
 uint16_t scene_joypad(const GameState *g) { return r16(g, 0x7E0002u); }
 void set_scene_joypad(GameState *g, uint16_t v) { w16(g, 0x7E0002u, v); }
 uint16_t scene_frame_counter(const GameState *g) { return r16(g, 0x7E0008u); }
@@ -2137,6 +2137,8 @@ uint32_t scene_irq_stub_handler(const GameState *g) { return r24(g, 0x7E0505u); 
 void set_scene_irq_stub_handler(GameState *g, uint32_t v) { w24(g, 0x7E0505u, v); }
 uint8_t scene_sprite_table_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0700u + at); }
 void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0700u + at, v); }
+uint8_t scene_sprite_high_table_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0900u + at); }
+void set_scene_sprite_high_table_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0900u + at, v); }
 uint16_t scene_tasks(const GameState *g, unsigned slot) { return r16(g, 0x7E0920u + (uint32_t)slot * 0x02u); }
 void set_scene_tasks(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0920u + (uint32_t)slot * 0x02u, v); }
 uint16_t scene_early_tasks(const GameState *g, unsigned slot) { return r16(g, 0x7E0940u + (uint32_t)slot * 0x02u); }

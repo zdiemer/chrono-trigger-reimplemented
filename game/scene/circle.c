@@ -141,8 +141,10 @@ static int16_t decision_step(const Octant *o, int near_right)
     return (int16_t)(4 * dx + 10 + (dx < 0 ? 1 : 0) + (dx == -1 || dx == -2 ? 1 : 0));
 }
 
-/* Draw the upper half, stepping toward the diagonal. Returns where the near
- * line ended, and the decision value, which the original leaves in its cells. */
+/* Draw the upper half, stepping toward the diagonal. Returns where it ended:
+ * the near line, its x and y and the decision value there, which the lower
+ * half starts from (the cells the original leaves hold the mode, not the
+ * decision: leave_cells). */
 static Octant draw_upper_half(GameState *g, const Circle *c)
 {
     Octant o = { c->radius, 0, (int16_t)(2 - 2 * c->radius), c->center_row, true };

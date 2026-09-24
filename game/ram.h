@@ -3375,9 +3375,10 @@
 
 /* ---- scene --------------------------------------------------------------------------------- */
 
-/* Flag the scene NMI work sets and the program's main loop waits on (16-bit) [2 bytes] */
-#define RAM_SCENE_FRAME_READY 0x7E0000u
-#define RAM_SCENE_FRAME_READY_DP 0x00u       /* page scene */
+/* Nonzero once a sequence script has reached its stop: the program's main loop, which waits for
+ * it, then ends the scene (16-bit) [2 bytes] */
+#define RAM_SCENE_PROGRAM_OVER 0x7E0000u
+#define RAM_SCENE_PROGRAM_OVER_DP 0x00u      /* page scene */
 /* Controller 1 as read in the scene NMI; bit 4 of the high byte ($0003) is Start, which toggles
  * pause [2 bytes] */
 #define RAM_SCENE_JOYPAD 0x7E0002u
@@ -3393,8 +3394,8 @@
  * each upload [2 bytes] */
 #define RAM_SCENE_SPRITE_INDEX 0x7E0011u
 #define RAM_SCENE_SPRITE_INDEX_DP 0x11u      /* page scene */
-/* Pointer to the OAM high-table byte the next sprite's bits go into; back to $0900 after each
- * upload [2 bytes] */
+/* Address of the OAM high-table byte the next sprite's bits go into ($0900 + the byte's place in
+ * scene_sprite_high_table); back to the first after each upload [2 bytes] */
 #define RAM_SCENE_SPRITE_HIGH_POINTER 0x7E0013u
 #define RAM_SCENE_SPRITE_HIGH_POINTER_DP 0x13u /* page scene */
 /* X added to every sprite of a list as it is copied (16-bit in the clipped copy, where 256 or
@@ -3566,10 +3567,13 @@
 #define RAM_SCENE_IRQ_STUB 0x7E0504u
 #define RAM_SCENE_IRQ_STUB_JUMP 0x7E0504u    /* The jump's opcode, which installing a handler writes */
 #define RAM_SCENE_IRQ_STUB_HANDLER 0x7E0505u /* The handler's long address */
-/* The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y,
- * tile, attributes) and the $20-byte high table after them, reached by the byte offsets the
- * scene's cursors hold [544 bytes] */
+/* The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y,
+ * tile, attributes), reached by the byte offset the scene's cursor holds [512 bytes] */
 #define RAM_SCENE_SPRITE_TABLE 0x7E0700u
+/* The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites'
+ * two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its
+ * own at the top [32 bytes] */
+#define RAM_SCENE_SPRITE_HIGH_TABLE 0x7E0900u
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence
  * scripts add and remove; the NMI copies it to $0950 and runs the copy each frame [16 x $2
  * bytes, by task slot] */

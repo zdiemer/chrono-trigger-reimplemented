@@ -297,13 +297,13 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_TEMP)"
 # ---- the scene page ($0000) ----------------------------------------------------
 
 [[var]]
-name = "scene_frame_ready"
+name = "scene_program_over"
 addr = "7E:0000"
 size = 2
 page = "scene"
 subsystem = "scene"
-meaning = "Flag the scene NMI work sets and the program's main loop waits on (16-bit)"
-source = "game/attract/main_loop.c, attract_wait_loop $7E:3023"
+meaning = "Nonzero once a sequence script has reached its stop: the program's main loop, which waits for it, then ends the scene (16-bit)"
+source = "game/scene/script.c, stop (command $AF, $C3:0B95); game/attract/main_loop.c, attract_wait_loop $7E:3023"
 
 [[var]]
 name = "scene_joypad"
@@ -346,7 +346,7 @@ addr = "7E:0013"
 size = 2
 page = "scene"
 subsystem = "scene"
-meaning = "Pointer to the OAM high-table byte the next sprite's bits go into; back to $0900 after each upload"
+meaning = "Address of the OAM high-table byte the next sprite's bits go into ($0900 + the byte's place in scene_sprite_high_table); back to the first after each upload"
 source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC; game/scene/screen.c, scene_init_video $7E:30F9, scene_upload_sprites $7E:380E"
 
 [[var]]
@@ -377,10 +377,18 @@ source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E"
 [[var]]
 name = "scene_sprite_table"
 addr = "7E:0700"
-size = 0x220
+size = 0x200
 subsystem = "scene"
-meaning = "The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y, tile, attributes) and the $20-byte high table after them, reached by the byte offsets the scene's cursors hold"
-source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC (the entry offset and the high-table pointer are byte offsets and addresses, not sprite numbers)"
+meaning = "The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y, tile, attributes), reached by the byte offset the scene's cursor holds"
+source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC (the entry cursor is a byte offset, not a sprite number)"
+
+[[var]]
+name = "scene_sprite_high_table"
+addr = "7E:0900"
+size = 0x20
+subsystem = "scene"
+meaning = "The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites' two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its own at the top"
+source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC"
 
 [[var]]
 name = "scene_scaler_pairs"

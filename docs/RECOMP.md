@@ -3281,7 +3281,8 @@ A's high byte and the M flag; the eight race stops leave nothing.
 - *Byte offsets into a record.* The sprite writers index the OAM buffer by a
   byte offset and a high-table pointer, not a sprite number, and fuzzing puts
   odd offsets there; the core's `oam_buffer` record can't take them, so the map
-  has `scene_sprite_table` over the same bytes (`$0700-$091F`) for the scene.
+  has `scene_sprite_table` and `scene_sprite_high_table` over the same bytes
+  (`$0700-$08FF`, `$0900-$091F`) for the scene.
 
 **The guards.** A port that names its cells through `game/vars.h` knows them
 where the scene keeps them, while the original reaches them through D and the
@@ -4444,8 +4445,10 @@ game or the fuzzing makes comes near them. `scene_circle_draw` takes the
 original never clears the carry between its sums; two of them move what the
 player sees, and they are named: a row's samples start 1/256 of a pixel further
 on when its source row lies further along the bitmap than the last row's
-(`sample_nudge`), and a row's source is picked 1/256 of a row further on when
-the call before left the carry set (the entry's carry, `row_nudge`). The rest
+(`sample_nudge`), and a row's source is picked 1/128 of a row further on when
+the call before left the carry set (the entry's carry, `row_nudge`): the
+positions are fixed point, a sample's in 1/256ths of a pixel (`PIXEL_UNITS`)
+and a row's in 1/128ths of a row (`ROW_UNITS`). The rest
 come from sums that wrap past the end of the bank -- a sample's position along
 its row, the plane pointer -- and the entry's guard hands those bitmaps to the
 original, with a source limit a row's position compares with either way and a
@@ -4469,11 +4472,24 @@ The script pointer's moves across the original's code are named: while a routine
 of the program runs, the script stays on the routine's address (a routine can
 move it) and goes on past it from there; a store to the script's own pointer is
 a jump; a sound goes unsent, and unheard, while a song is on its way to the
-driver, which takes one message at a time. The carry and overflow the program
-reads after the interpreter are a two-flag record only `ORIGINAL_EFFECT` writes
-(the overflow can be one a command several before left, which nothing in the
-final state says); the A a turn ends with and the word each command keeps in
-its channel's scratch are derived from the command that ended the turn. The
+driver, which takes one message at a time. The operations leave nothing for
+the original: each row has a kind (set, add, loop, ...), and after each command
+the bridge leaves, through `ORIGINAL_EFFECT`, what the original's code for that
+kind leaves -- the word it keeps in its channel's scratch (an assignment its
+register's address, any other command itself), and its carry and overflow, from
+a table of the flags per kind worked out from the command's register and loop
+counter before and after it (`note_flags`). The flags live in P, so a call-out's
+are the callee's with no copy. They are left because they are read: the attract
+and title programs run their channels at `$7E:54B4` and go straight on to
+`$7E:5777`, whose `$7E:3443` calls the random number mixer at `$C3:02DD`, which
+starts with a `ROL A`; and `$7E:62F0` reaches the `ADC #$40` at `$7E:65B3` with the
+carry the run left, `$7E:3448` between them saving and restoring P. No code in
+either program or in bank C3 branches on the overflow, but the liveness
+analysis counts it as read, so it is left too. A set's flags are both clear,
+not the original's sum of the channel's page and the register's place they
+come from, which carries and overflows on no channel's page. The A a turn ends
+with is the ending command's kind's: the script's place after a loop or a jump,
+1 after the stop, the plain end of turn's handler's place otherwise. The
 video settings a script names by their register are a table of the scripts'
 encoding. The wait for the music is `scene_music_status`/`scene_music_reached`
 (`sound.c`), with its flags derived in the idle entry.
@@ -4529,7 +4545,17 @@ for `scene_set_vram_4000`, `scene_race_load_bg3_map` for
 
 **The sprite writers** are one loader with a `clipped` parameter and no
 in-band X: a sprite past the right edge is at X 257, and the word `$9801` the
-original stores there only feeds the A its callers read. Their guard, which
+original stores there only feeds the A its callers read. The loader leaves no
+register record: a small list's A already has the list's high byte, and the
+clipped entry's wrapper works out A's high byte and the overflow after the call
+from the list's last entry, which the guard keeps clear of every cell the call
+writes. The lists are read from work RAM (`wram_read8`), and the port the
+original streams them through is left where its reads would leave it, once,
+through `ORIGINAL_EFFECT` (the title's plane tiles, the same). The sprite table
+is two views in the map, `scene_sprite_table` (the $200 bytes of entries) and
+`scene_sprite_high_table` (its $20), with `SCENE_SPRITE_TABLE` and
+`SCENE_SPRITE_HIGH_TABLE` in `scene.h`, and the port's high-table cursor is the
+byte's place in the table, 0-31. Their guard, which
 TODO.md asked for, takes a cursor whose sprites stay in the sprite table, a
 list clear of the cell the original counts it down in (fuzzing found 2 and 15
 lists of 20000 read over that cell), and a clipped list clear of the table.
@@ -4558,9 +4584,13 @@ the division its caller made (211: the fuzzer's states don't keep the two
 consistent, the game's do), and a routine a script calls reading the A the
 original loads it with (60 and 64, which the call-out's don't-care set had
 declared dead: liveness can't see into the program's RAM routines, so A is set
-and no longer declared). What the guards turn away shows in the skipped column:
+and no longer declared). The third round's two: a small list read from work RAM
+must read each sprite's Y before shifting its high-table bits, as the original
+does, since a list can lie over the high table (7 and 3 states); and a loop's
+flags must be worked out from the limit as it was before the loop ran, since a
+script a jump sends into its channel's page can lie over the counter (1). What the guards turn away shows in the skipped column:
 the sprite lists too long for the table from where the cursor stands (9907 and
-10074 of 20000 in the tight runs, 15320 and 15783 in the loose ones, whose
+10074 of 20000 in the tight runs, 15320 and 15785 in the loose ones, whose
 cursors are anywhere in the table and whose lists anywhere in low RAM), the
 single sprites whose high-table byte is past the table (112 of 20000, loose),
 8 of 2000 plane tiles over the scratch, the 32-bit divides by 0 or past
@@ -4590,6 +4620,23 @@ two rounds: most by a few percent, the ones whose work is now C by more
 clocks, which its vblank-tail exception covers with the new figure
 (`tools/timing_exceptions.txt`). The whole gate, every route included
 (`--long-routes`), passes.
+
+**The second review's follow-ups** (the third round took its must-fix items,
+above; these it accepted as later work, each in TODO.md): the scaler's carry
+into the leftover's measure, threaded through three functions, a block move
+charged as `bytes - 1` without saying why, and `in_scaler_bank`'s two
+arguments whose roles its callers mix; the iris's `mode` byte across the
+menus' call, which wants an `IrisShape` and a `leave_outside` flag, and a
+`count` local that exists only for scaffolding; one `scene_queue_sound` for the
+frame's and the script's copies; the controller's carry derived twice; the
+button names, which belong in `platform/input.h`; `SCENE_VBLANK_TASKS` against
+the map's `scene_early_tasks`; the script's register encoding and its operand
+offsets in the adapters; the divisor search's `tried`, and `divide_8_8` as
+`fraction_along`; `race_matrix.c`'s accumulators; the bank `$FE` resource
+accessor; `init_video`'s sites and computed `PF_AT`, which wait for
+`vid_apply_screen`; the transfers' `steps[]`, the platform's; the title's logo
+sweep and ripple, the program's code still; and `game/attract/`, which is the
+same program and belongs here (the two headers now point at each other).
 
 
 ## Risks

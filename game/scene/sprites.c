@@ -1,25 +1,27 @@
 /* Scenes: sprites into the frame's sprite table.
  *
  * The scene programs build each frame's sprites in the sprite table the frame
- * work uploads (scene_sprite_table: 128 four-byte entries -- X, Y, tile,
- * attributes -- and a high table of two bits a sprite, X's 9th bit and the
- * large size). A scene places its sprites through a cursor: the next free
- * entry, and the high-table byte the next sprite's bits go into. Each sprite
- * shifts that byte right two bits and puts its own bits at the top, so four
- * sprites fill a byte and the first ends in the low bits; after every fourth
- * the cursor moves to the next byte. A small sprite with X's 9th bit clear
- * leaves a byte that is already 0 alone. Every sprite is moved by the scene's
- * offset (scene_sprite_offset_x/_y), which is how a scene scrolls its sprites.
+ * work uploads: 128 four-byte entries -- X, Y, tile, attributes
+ * (scene_sprite_table) -- and a high table of two bits a sprite, X's 9th bit
+ * and the large size (scene_sprite_high_table). A scene places its sprites
+ * through a cursor: the next free entry, and the high-table byte the next
+ * sprite's bits go into. Each sprite shifts that byte right two bits and puts
+ * its own bits at the top, so four sprites fill a byte and the first ends in
+ * the low bits; after every fourth the cursor moves to the next byte. A small
+ * sprite with X's 9th bit clear leaves a byte that is already 0 alone. Every
+ * sprite is moved by the scene's offset (scene_sprite_offset_x/_y), which is
+ * how a scene scrolls its sprites.
  *
  * Sprites come one at a time, or as a list in the program: a count byte (one
  * more than the entries; 0 is 256) and four bytes an entry -- tile, attributes,
- * X and Y -- streamed through the work RAM port. A list is placed small, or large
- * and clipped at the right edge, where a sprite that would start past it is put
- * off screen (the race's racers leaving the picture).
+ * X and Y -- which the original streams through the work RAM port. A list is
+ * placed small, or large and clipped at the right edge, where a sprite that
+ * would start past it is put off screen (the race's racers leaving the picture).
  *
  * The original's registers leave the callers the next free entry, and after a
- * list the A its loop ends with and the overflow of its last Y; the entries'
- * wrappers give them back. */
+ * clipped list the A its loop ends with and the overflow of its last Y; the
+ * entries' wrappers give them back, working the last two out from the list's
+ * last entry, which stays where it is. */
 #include "scene/scene.h"
 
 #include "cpu_io.h"
@@ -30,9 +32,8 @@
 #include "vars.h"
 #include "wram.h"
 
-/* An entry's bytes, and where the table and its high table are. */
+/* An entry's bytes, and how the entries share the high table's bytes. */
 enum { ENTRY_X = 0, ENTRY_Y = 1, ENTRY_TILE = 2, ENTRY_ATTRIBUTES = 3, ENTRY_BYTES = 4 };
-enum { SPRITE_TABLE = 0x0700, SPRITE_ENTRIES_BYTES = 0x200, HIGH_TABLE = 0x0900, HIGH_TABLE_END = 0x0920 };
 enum { SPRITES_PER_HIGH_BYTE = 4 };
 
 /* A sprite's two high-table bits, at the top of the byte it shifts in. */
@@ -47,12 +48,20 @@ enum { SCREEN_RIGHT = 0x100, OFF_THE_RIGHT = 0x101 };
 
 typedef struct {
     uint16_t entry;   /* the next free entry, a byte offset in the table */
-    uint16_t high;    /* the address of the high-table byte its bits go into */
+    uint8_t high;     /* the high-table byte its bits go into, 0-31 */
 } SpriteCursor;
 
+/* The game keeps the high-table cursor as an address; the port, as the byte's
+ * place in the table. The guards keep it inside. */
 static SpriteCursor cursor(const GameState *g)
 {
-    return (SpriteCursor){ scene_sprite_index(g), scene_sprite_high_pointer(g) };
+    return (SpriteCursor){ scene_sprite_index(g), (uint8_t)(scene_sprite_high_pointer(g) - SCENE_SPRITE_HIGH_TABLE) };
+}
+
+static void set_cursor(GameState *g, SpriteCursor c)
+{
+    set_scene_sprite_index(g, c.entry);
+    set_scene_sprite_high_pointer(g, (uint16_t)(SCENE_SPRITE_HIGH_TABLE + c.high));
 }
 
 static void set_entry(GameState *g, uint16_t entry, uint8_t field, uint8_t v)
@@ -60,77 +69,61 @@ static void set_entry(GameState *g, uint16_t entry, uint8_t field, uint8_t v)
     set_scene_sprite_table_byte(g, (unsigned)entry + field, v);
 }
 
-/* The high-table byte the cursor holds the address of. */
-static unsigned high_byte(uint16_t high) { return (unsigned)(high - SPRITE_TABLE); }
-
 /* A sprite that is small with X's 9th bit clear: its bits are 0, so a byte
  * that is 0 already stays as it is. */
-static void shift_in_small(GameState *g, uint16_t high)
+static void shift_in_small(GameState *g, uint8_t high)
 {
-    uint8_t bits = scene_sprite_table_byte(g, high_byte(high));
+    uint8_t bits = scene_sprite_high_table_byte(g, high);
     if (bits)
-        set_scene_sprite_table_byte(g, high_byte(high), (uint8_t)(bits >> 2));
+        set_scene_sprite_high_table_byte(g, high, (uint8_t)(bits >> 2));
 }
 
-static void shift_in(GameState *g, uint16_t high, uint8_t sprite_bits)
+static void shift_in(GameState *g, uint8_t high, uint8_t sprite_bits)
 {
-    set_scene_sprite_table_byte(g, high_byte(high),
-                                (uint8_t)(sprite_bits | scene_sprite_table_byte(g, high_byte(high)) >> 2));
+    set_scene_sprite_high_table_byte(g, high, (uint8_t)(sprite_bits | scene_sprite_high_table_byte(g, high) >> 2));
 }
 
-/* On to the next entry: true when it starts a new high-table byte. */
-static bool next_entry(uint16_t *entry)
+/* On to the next entry, and the next high-table byte after every fourth. */
+static void next_entry(SpriteCursor *c)
 {
-    *entry = (uint16_t)(*entry + ENTRY_BYTES);
-    return *entry % (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE) == 0;
+    c->entry = (uint16_t)(c->entry + ENTRY_BYTES);
+    if (c->entry % (ENTRY_BYTES * SPRITES_PER_HIGH_BYTE) == 0)
+        c->high++;
 }
 
 /* The scene's offset added to a sprite's X and Y (8-bit, wrapping). */
 static uint8_t moved_x(const GameState *g, uint8_t x) { return (uint8_t)(x + scene_sprite_offset_x(g)); }
 static uint8_t moved_y(const GameState *g, uint8_t y) { return (uint8_t)(y + scene_sprite_offset_y(g)); }
 
-/* ---- What a list leaves in the original's registers, for the entries' wrappers -------------- */
-
-typedef struct {
-    uint8_t a_high;
-    bool overflow;
-} SpriteLeaves;
-
-static SpriteLeaves *sprite_leaves;
-
-/* A's high byte (its low byte isn't read): the list's address's for a small
- * list, and for a clipped one the last sprite's X shifted left -- where an X
- * past the right edge is the word $9801, as the original stores it (its high
- * byte overwritten by the Y). */
-static void leave_a_high(uint8_t high) { sprite_leaves->a_high = high; }
-
-static void leave_a_high_from_x(uint16_t x, bool off_the_right)
-{
-    sprite_leaves->a_high = (uint8_t)((uint16_t)((off_the_right ? 0x9801 : x) << 1) >> 8);
-}
-
-/* The overflow of adding the scene's offset to a sprite's Y. */
-static void leave_overflow_of_y(uint8_t y, uint8_t offset)
-{
-    uint8_t sum = (uint8_t)(y + offset);
-    sprite_leaves->overflow = (~(y ^ offset) & (y ^ sum) & 0x80) != 0;
-}
-
 /* ---- Lists ------------------------------------------------------------------------------------ */
+
+/* A list: its count byte, then its entries. */
+static uint32_t list_address(uint16_t list) { return (uint32_t)SOURCE_BANK << 16 | list; }
+static uint32_t list_entry(uint16_t list, unsigned n) { return list_address(list) + 1 + n * ENTRY_BYTES; }
+static uint8_t list_sprites(const GameState *g, uint16_t list) { return (uint8_t)(wram_read8(g, list_address(list)) - 1); }
+
+/* The original reads a list through the work RAM port, which it leaves just
+ * past the list's last byte (in the port's second bank, if the list runs over). */
+static void leave_port_past(GameState *g, uint16_t list, uint8_t sprites)
+{
+    uint32_t past = (uint32_t)list + 1 + (uint32_t)sprites * ENTRY_BYTES;
+    hw_port_seek(g, (uint16_t)past, (uint8_t)(past >> 16));
+}
 
 /* A clipped sprite's X: the list's X plus the scene's 16-bit offset. At or past
  * the right edge -- compared by the sign of the difference, as the original
  * does, so $8000-$80FF counts as past it -- it goes off the right. Left of the
  * screen, X's 9th bit is set and the sprite shows as far in from the left edge
  * as the low byte says. */
-static void place_clipped_x(GameState *g, uint16_t entry, uint16_t high, uint8_t list_x)
+static uint16_t clipped_x(const GameState *g, uint8_t list_x) { return (uint16_t)(list_x + scene_sprite_offset_x(g)); }
+static bool past_the_right(uint16_t x) { return (int16_t)(x - SCREEN_RIGHT) >= 0; }
+
+static void place_clipped_x(GameState *g, SpriteCursor c, uint8_t list_x)
 {
-    uint16_t x = (uint16_t)(list_x + scene_sprite_offset_x(g));
-    bool off_the_right = (int16_t)(x - SCREEN_RIGHT) >= 0;
-    uint16_t placed = off_the_right ? OFF_THE_RIGHT : x;
-    set_entry(g, entry, ENTRY_X, (uint8_t)placed);
-    shift_in(g, high, (uint8_t)(HIGH_LARGE | ((off_the_right || (x & 0x8000)) ? HIGH_X9 : 0)));
-    ORIGINAL_EFFECT(leave_a_high_from_x(x, off_the_right));
+    uint16_t x = clipped_x(g, list_x);
+    bool off_the_right = past_the_right(x);
+    set_entry(g, c.entry, ENTRY_X, (uint8_t)(off_the_right ? OFF_THE_RIGHT : x));
+    shift_in(g, c.high, (uint8_t)(HIGH_LARGE | ((off_the_right || (x & 0x8000)) ? HIGH_X9 : 0)));
 }
 
 // $C3:0D0E, $C3:0D5E
@@ -139,35 +132,32 @@ static void place_clipped_x(GameState *g, uint16_t entry, uint16_t high, uint8_t
  * them. */
 static void load_sprite_list(GameState *g, uint16_t list, bool clipped)
 {
-    hw_port_seek(g, list, 0);
-    uint8_t count = hw_port_read(g);
+    uint8_t sprites = list_sprites(g, list);
     SpriteCursor c = cursor(g);
-    ORIGINAL_EFFECT(leave_a_high((uint8_t)(list >> 8)));
-    for (uint8_t left = (uint8_t)(count - 1); left != 0; left--) {
-        set_entry(g, c.entry, ENTRY_TILE, hw_port_read(g));
-        set_entry(g, c.entry, ENTRY_ATTRIBUTES, hw_port_read(g));
+    for (unsigned n = 0; n < sprites; n++) {
+        uint32_t at = list_entry(list, n);
+        set_entry(g, c.entry, ENTRY_TILE, wram_read8(g, at));
+        set_entry(g, c.entry, ENTRY_ATTRIBUTES, wram_read8(g, at + 1));
+        /* in the order the original reads and writes them, since a list can
+         * lie over the tables it fills */
         if (clipped) {
-            place_clipped_x(g, c.entry, c.high, hw_port_read(g));
-            uint8_t y = hw_port_read(g);
-            ORIGINAL_EFFECT(leave_overflow_of_y(y, scene_sprite_offset_y(g)));
-            set_entry(g, c.entry, ENTRY_Y, moved_y(g, y));
+            place_clipped_x(g, c, wram_read8(g, at + 2));
+            set_entry(g, c.entry, ENTRY_Y, moved_y(g, wram_read8(g, at + 3)));
         } else {
-            set_entry(g, c.entry, ENTRY_X, moved_x(g, hw_port_read(g)));
-            set_entry(g, c.entry, ENTRY_Y, moved_y(g, hw_port_read(g)));
+            set_entry(g, c.entry, ENTRY_X, moved_x(g, wram_read8(g, at + 2)));
+            set_entry(g, c.entry, ENTRY_Y, moved_y(g, wram_read8(g, at + 3)));
             shift_in_small(g, c.high);
         }
-        if (next_entry(&c.entry))
-            c.high++;
+        next_entry(&c);
     }
-    set_scene_sprite_high_pointer(g, c.high);
-    set_scene_sprite_index(g, c.entry);
+    set_cursor(g, c);
+    ORIGINAL_EFFECT(leave_port_past(g, list, sprites));
     ORIGINAL_EFFECT(set_scene_sprite_list_left(g, 0));
 }
 
 // $C3:0DBC, $C3:0DF3
 /* One sprite from the four bytes at `source` (tile, attributes, X, Y), small
- * or large, with X's 9th bit clear. The high-table cursor moves on within its
- * page. */
+ * or large, with X's 9th bit clear. */
 static void add_sprite(GameState *g, uint16_t source, bool large)
 {
     SpriteCursor c = cursor(g);
@@ -181,23 +171,22 @@ static void add_sprite(GameState *g, uint16_t source, bool large)
         shift_in(g, c.high, HIGH_LARGE);
     else
         shift_in_small(g, c.high);
-    if (next_entry(&c.entry))
-        set_scene_sprite_high_pointer(g, (uint16_t)((c.high & 0xFF00) | (uint8_t)(c.high + 1)));
-    set_scene_sprite_index(g, c.entry);
+    next_entry(&c);
+    set_cursor(g, c);
 }
 
 /* ---- Guards --------------------------------------------------------------------------------- */
 
-/* The port writes through the named sprite table, so it takes only what the
- * game does: a cursor in the table, which the sprites it places stay inside
- * (the entries in its first $200 bytes, the high bytes in its high table). The
- * original reaches the table through a data bank of 0, so a cursor anywhere else
- * writes wherever it points, the scene's own cells and the I/O registers past
- * $2000 among them; those calls are the original's. A list stays clear of the
- * cell the original counts its entries down in, which the port counts in a
- * local; and a clipped list clear of the table too, since the original stores
- * its X as a word whose high byte lands in the Y a moment before the Y does,
- * which a list read from the table could see. */
+/* The port writes through the named sprite tables, so it takes only what the
+ * game does: a cursor in them, which the sprites it places stay inside. The
+ * original reaches the tables through a data bank of 0, so a cursor anywhere
+ * else writes wherever it points, the scene's own cells and the I/O registers
+ * past $2000 among them; those calls are the original's. A list stays clear of
+ * the cell the original counts its entries down in, which the port counts in a
+ * local; and a clipped list clear of the tables and of all the scene's sprite
+ * cells: the original stores its X as a word whose high byte lands in the Y a
+ * moment before the Y does, which a list read from the table could see, and the
+ * entry's wrapper reads the list's last entry back after the call. */
 static bool fits_in_table(uint16_t entry, uint16_t high, unsigned sprites)
 {
     if (sprites == 0)
@@ -206,32 +195,38 @@ static bool fits_in_table(uint16_t entry, uint16_t high, unsigned sprites)
     unsigned last_high = high;
     if (entry % ENTRY_BYTES == 0)
         last_high += (entry / ENTRY_BYTES % SPRITES_PER_HIGH_BYTE + sprites - 1) / SPRITES_PER_HIGH_BYTE;
-    return (unsigned)entry + sprites * ENTRY_BYTES <= SPRITE_ENTRIES_BYTES && high >= HIGH_TABLE &&
-           last_high < HIGH_TABLE_END;
+    return (unsigned)entry + sprites * ENTRY_BYTES <= SCENE_SPRITE_TABLE_BYTES && high >= SCENE_SPRITE_HIGH_TABLE &&
+           last_high < SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES;
 }
 
 static bool cursor_fits(Snes *s, unsigned sprites)
 {
     vars_peek(true);
-    SpriteCursor c = cursor(state_of(s));
+    const GameState *g = state_of(s);
+    bool fits = fits_in_table(scene_sprite_index(g), scene_sprite_high_pointer(g), sprites);
     vars_peek(false);
-    return scene_on_scene_page_io_bank(s) && fits_in_table(c.entry, c.high, sprites);
+    return scene_on_scene_page_io_bank(s) && fits;
 }
 
-/* Where the original counts a list's entries down. */
-enum { COUNT_CELL = RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF };
+/* Where the original counts a list's entries down, the first of the scene's
+ * sprite cells before it, and the end of the high table. */
+enum {
+    COUNT_CELL = RAM_SCENE_SPRITE_LIST_LEFT & 0xFFFF,
+    FIRST_SPRITE_CELL = RAM_SCENE_SPRITE_INDEX & 0xFFFF,
+    SPRITE_TABLES_END = SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES,
+};
 
 static bool list_fits(Snes *s, bool clipped)
 {
     uint16_t list = s->cpu.a;
-    uint8_t count = snes_bus_peek(&s->bus, (uint32_t)SOURCE_BANK << 16 | list);
-    unsigned sprites = (uint8_t)(count - 1);
+    unsigned sprites = (uint8_t)(snes_bus_peek(&s->bus, list_address(list)) - 1);
     if (!cursor_fits(s, sprites))
         return false;
     uint32_t end = (uint32_t)list + 1 + sprites * ENTRY_BYTES;
-    if (list <= COUNT_CELL && end > COUNT_CELL)
+    uint16_t first_kept_clear = clipped ? FIRST_SPRITE_CELL : COUNT_CELL;
+    if (list <= COUNT_CELL && end > first_kept_clear)
         return false;
-    return !clipped || end <= SPRITE_TABLE || list >= HIGH_TABLE_END;
+    return !clipped || end <= SCENE_SPRITE_TABLE || list >= SPRITE_TABLES_END;
 }
 
 bool scene_sprite_list_fits(Snes *s) { return list_fits(s, false); }
@@ -240,26 +235,44 @@ bool scene_sprite_fits(Snes *s) { return cursor_fits(s, 1); }
 
 /* ---- Entries: 16-bit A and index registers, on the scene's page ------------------------- */
 
-/* The list at A, small sprites; back, Y is the next free entry. */
+/* The list at A, small sprites; back, Y is the next free entry. The original's
+ * A ends with the list's high byte, which it already has (its low byte isn't
+ * read). */
 void scene_load_sprite_list(Snes *s)
 {
-    SpriteLeaves leaves = { 0, m_flag(s, CPU_FLAG_V) };
-    sprite_leaves = &leaves;
     load_sprite_list(state_of(s), s->cpu.a, false);
-    s->cpu.a = (uint16_t)(leaves.a_high << 8 | (s->cpu.a & 0xFF));
     s->cpu.y = scene_sprite_index(state_of(s));
     m_rtl(s);
 }
 
+/* What a clipped list leaves, from its last entry: A's high byte is that
+ * sprite's X shifted left -- where an X past the right edge is the word $9801,
+ * as the original stores it (its high byte overwritten by the Y) -- and V the
+ * overflow of adding the scene's offset to its Y. An empty list leaves both. */
+static void leave_after_clipped_list(Snes *s, uint16_t list)
+{
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint8_t sprites = (uint8_t)(snes_bus_peek(&s->bus, list_address(list)) - 1);
+    if (sprites) {
+        uint32_t last = list_entry(list, sprites - 1u);
+        uint16_t x = clipped_x(g, snes_bus_peek(&s->bus, last + 2));
+        uint16_t stored = past_the_right(x) ? 0x9801 : x;
+        uint8_t y = snes_bus_peek(&s->bus, last + 3), offset = (uint8_t)scene_sprite_offset_y(g);
+        uint8_t sum = (uint8_t)(y + offset);
+        s->cpu.a = (uint16_t)(((uint16_t)(stored << 1) & 0xFF00) | (s->cpu.a & 0xFF));
+        m_set_flag(s, CPU_FLAG_V, (~(y ^ offset) & (y ^ sum) & 0x80) != 0);
+    }
+    vars_peek(false);
+}
+
 /* The list at A, large sprites clipped at the right edge; back, Y is the next
- * free entry, and the overflow the last Y's. */
+ * free entry, and A and V as above. */
 void scene_load_sprite_list_clipped(Snes *s)
 {
-    SpriteLeaves leaves = { 0, m_flag(s, CPU_FLAG_V) };
-    sprite_leaves = &leaves;
-    load_sprite_list(state_of(s), s->cpu.a, true);
-    s->cpu.a = (uint16_t)(leaves.a_high << 8 | (s->cpu.a & 0xFF));
-    m_set_flag(s, CPU_FLAG_V, leaves.overflow);
+    uint16_t list = s->cpu.a;
+    load_sprite_list(state_of(s), list, true);
+    leave_after_clipped_list(s, list);
     s->cpu.y = scene_sprite_index(state_of(s));
     m_rtl(s);
 }

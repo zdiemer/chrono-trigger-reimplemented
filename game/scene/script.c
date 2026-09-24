@@ -85,50 +85,6 @@ static uint16_t script_word(const GameState *g, uint16_t at)
     return wram_read16(g, (uint32_t)SCRIPT_BANK << 16 | at);
 }
 
-/* ---- What the commands leave for the original -------------------------------------------------
- *
- * The program's code after the interpreter reads the carry and overflow of the
- * last addition or compare a command made; the overflow in particular can be
- * one a command several before left, which nothing in the final state says. A
- * record of the two, which only ORIGINAL_EFFECT writes and the bridge hands
- * over, and none of it in a native build. */
-
-typedef struct {
-    bool carry, overflow;
-} ScriptFlags;
-
-static ScriptFlags *flags_left;
-
-static bool overflows16(uint16_t a, uint16_t b, uint16_t sum) { return ((a ^ sum) & (b ^ sum) & 0x8000) != 0; }
-
-/* The flags of a sum, a + b. */
-static void leave_flags_of_adding(uint16_t a, uint16_t b)
-{
-    flags_left->carry = (uint32_t)a + b > 0xFFFF;
-    flags_left->overflow = overflows16(a, b, (uint16_t)(a + b));
-}
-
-/* A command of $80 and up finds its handler through a doubled index, which
- * clears the carry; the flags of what it compares or adds follow. */
-static void leave_carry_clear(void) { flags_left->carry = false; }
-static void leave_carry(bool carry) { flags_left->carry = carry; }
-static void leave_overflow_clear(void) { flags_left->overflow = false; }
-
-/* Every command keeps a word in its channel's scratch, which only it reads: an
- * assignment the address of its register, any other command itself and the
- * byte after it. What is left there is the last command's. */
-enum { CHANNEL_PAGES = 0x0A00, CHANNEL_PAGE_BYTES = 0x100 };
-
-static uint16_t register_address(SceneChannel ch, unsigned reg)
-{
-    return (uint16_t)(CHANNEL_PAGES + ch * CHANNEL_PAGE_BYTES + 2 * reg);
-}
-
-static void keep_word(GameState *g, SceneChannel ch, uint16_t word)
-{
-    set_scene_call_script_scratch(g, scene_program_channel(ch), word);
-}
-
 /* ---- The operations -------------------------------------------------------------------------- */
 
 /* How a command ends. */
@@ -151,10 +107,6 @@ static ScriptFlow end_of_turn(void) { return (ScriptFlow){ END_OF_TURN, 0 }; }
 static void assign(GameState *g, SceneChannel ch, unsigned reg, uint16_t value, bool add)
 {
     uint16_t was = scene_channel_register(g, ch, reg);
-    ORIGINAL_EFFECT(keep_word(g, ch, register_address(ch, reg)));
-    ORIGINAL_EFFECT(leave_flags_of_adding((uint16_t)(CHANNEL_PAGES + ch * CHANNEL_PAGE_BYTES), (uint16_t)(2 * reg)));
-    if (add)
-        ORIGINAL_EFFECT(leave_flags_of_adding(was, value));
     set_scene_channel_register(g, ch, reg, add ? (uint16_t)(was + value) : value);
 }
 
@@ -170,10 +122,6 @@ static void count_loop(GameState *g, SceneChannel ch, unsigned counter, uint16_t
 {
     uint16_t count = loop_counter(g, ch, counter);
     bool done = loop_done(count, limit);
-    if (!done)
-        ORIGINAL_EFFECT(leave_carry(count != 0 && count >= limit));
-    else
-        ORIGINAL_EFFECT(leave_flags_of_adding((uint16_t)(after - 4), 4));
     set_loop_counter(g, ch, counter, done ? 0 : (uint16_t)(count + 1));
     set_script(g, ch, done ? after : back_to);
 }
@@ -292,7 +240,7 @@ static void make_video_setting(Platform *pf, ScriptVideoSetting setting, uint8_t
 static void stop(GameState *g, SceneChannel ch, uint16_t at)
 {
     set_script(g, ch, at);
-    set_scene_frame_ready(g, 1);
+    set_scene_program_over(g, 1);
 }
 
 /* ---- The table --------------------------------------------------------------------------------- */
@@ -318,12 +266,20 @@ typedef bool (*ScriptTakes)(const Command *c, const struct ScriptRow *row);
 /* Where an assignment's value is. */
 typedef enum { VALUE_WORD, VALUE_REGISTER } ValueFrom;
 
+/* What a row's commands are, which the bridge reads for what the original
+ * leaves after them. */
+typedef enum {
+    KIND_SET, KIND_ADD, KIND_LOOP, KIND_CALL_ROUTINE, KIND_STORE, KIND_GOSUB, KIND_RETURN, KIND_WAIT_FOR_MUSIC,
+    KIND_SOUND, KIND_TASK, KIND_VIDEO, KIND_END_TURN, KIND_JUMP, KIND_STOP,
+} ScriptKind;
+
 typedef struct ScriptRow {
     uint8_t mask, match;   /* the opcodes the row covers: those whose bits under the mask are `match` */
+    ScriptKind kind;
     ScriptRun run;
     ScriptTakes takes;     /* what the port needs of the state to run it, or NULL */
     ValueFrom value;       /* assignments */
-    bool add;              /* assignments */
+    bool add;              /* tasks: put on the list, not taken off */
     bool ends_turn;        /* loops, jumps */
     bool word;             /* stores */
     SceneTaskList list;    /* tasks */
@@ -338,7 +294,7 @@ static ScriptFlow run_assign(const Command *c, const ScriptRow *row)
 {
     bool from_word = row->value == VALUE_WORD;
     uint16_t value = from_word ? operand16(c, 1) : scene_channel_register(c->g, c->ch, (operand8(c, 1) & 0x1E) / 2);
-    assign(c->g, c->ch, low_nibble(c), value, row->add);
+    assign(c->g, c->ch, low_nibble(c), value, row->kind == KIND_ADD);
     set_script(c->g, c->ch, after(c, from_word ? 3 : 2));
     return go_on();
 }
@@ -430,7 +386,6 @@ static ScriptFlow run_video(const Command *c, const ScriptRow *row)
 {
     (void)row;
     make_video_setting(c->pf, video_setting_named(operand8(c, 2)), operand8(c, 1));
-    ORIGINAL_EFFECT(leave_overflow_clear());
     set_script(c->g, c->ch, after(c, 3));
     return go_on();
 }
@@ -457,33 +412,33 @@ static ScriptFlow run_stop(const Command *c, const ScriptRow *row)
 
 /* The first row that covers an opcode is its. */
 static const ScriptRow rows[] = {
-    { .mask = 0xF0, .match = 0x00, .run = run_assign, .value = VALUE_WORD },
-    { .mask = 0xF0, .match = 0x20, .run = run_assign, .value = VALUE_REGISTER },
-    { .mask = 0xF0, .match = 0x10, .run = run_assign, .value = VALUE_WORD, .add = true },
-    { .mask = 0xF0, .match = 0x40, .run = run_assign, .value = VALUE_WORD, .add = true },
-    { .mask = 0xF0, .match = 0x50, .run = run_assign, .value = VALUE_WORD, .add = true },
-    { .mask = 0xF0, .match = 0x30, .run = run_assign, .value = VALUE_REGISTER, .add = true },
-    { .mask = 0xF0, .match = 0x60, .run = run_assign, .value = VALUE_REGISTER, .add = true },
-    { .mask = 0xF0, .match = 0x70, .run = run_assign, .value = VALUE_REGISTER, .add = true },
-    { .mask = 0xF0, .match = 0x80, .run = run_loop },
-    { .mask = 0xF0, .match = 0x90, .run = run_loop, .ends_turn = true },
+    { .mask = 0xF0, .match = 0x00, .kind = KIND_SET, .run = run_assign, .value = VALUE_WORD },
+    { .mask = 0xF0, .match = 0x20, .kind = KIND_SET, .run = run_assign, .value = VALUE_REGISTER },
+    { .mask = 0xF0, .match = 0x10, .kind = KIND_ADD, .run = run_assign, .value = VALUE_WORD },
+    { .mask = 0xF0, .match = 0x40, .kind = KIND_ADD, .run = run_assign, .value = VALUE_WORD },
+    { .mask = 0xF0, .match = 0x50, .kind = KIND_ADD, .run = run_assign, .value = VALUE_WORD },
+    { .mask = 0xF0, .match = 0x30, .kind = KIND_ADD, .run = run_assign, .value = VALUE_REGISTER },
+    { .mask = 0xF0, .match = 0x60, .kind = KIND_ADD, .run = run_assign, .value = VALUE_REGISTER },
+    { .mask = 0xF0, .match = 0x70, .kind = KIND_ADD, .run = run_assign, .value = VALUE_REGISTER },
+    { .mask = 0xF0, .match = 0x80, .kind = KIND_LOOP, .run = run_loop },
+    { .mask = 0xF0, .match = 0x90, .kind = KIND_LOOP, .run = run_loop, .ends_turn = true },
     /* $A0-$FF: the low nibble */
-    { .mask = 0x0F, .match = 0x00, .run = run_call_routine },
-    { .mask = 0x0F, .match = 0x01, .run = run_store, .takes = store_takes },
-    { .mask = 0x0F, .match = 0x02, .run = run_store, .takes = store_takes, .word = true },
-    { .mask = 0x0F, .match = 0x03, .run = run_gosub },
-    { .mask = 0x0F, .match = 0x04, .run = run_return },
-    { .mask = 0x0F, .match = 0x05, .run = run_wait_for_music },
-    { .mask = 0x0F, .match = 0x06, .run = run_sound },
-    { .mask = 0x0F, .match = 0x07, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS },
-    { .mask = 0x0F, .match = 0x08, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS, .add = true },
-    { .mask = 0x0F, .match = 0x09, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS },
-    { .mask = 0x0F, .match = 0x0A, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS, .add = true },
-    { .mask = 0x0F, .match = 0x0B, .run = run_video, .takes = video_takes },
-    { .mask = 0x0F, .match = 0x0C, .run = run_end_turn },
-    { .mask = 0x0F, .match = 0x0D, .run = run_jump, .ends_turn = true },
-    { .mask = 0x0F, .match = 0x0E, .run = run_jump },
-    { .mask = 0x0F, .match = 0x0F, .run = run_stop },
+    { .mask = 0x0F, .match = 0x00, .kind = KIND_CALL_ROUTINE, .run = run_call_routine },
+    { .mask = 0x0F, .match = 0x01, .kind = KIND_STORE, .run = run_store, .takes = store_takes },
+    { .mask = 0x0F, .match = 0x02, .kind = KIND_STORE, .run = run_store, .takes = store_takes, .word = true },
+    { .mask = 0x0F, .match = 0x03, .kind = KIND_GOSUB, .run = run_gosub },
+    { .mask = 0x0F, .match = 0x04, .kind = KIND_RETURN, .run = run_return },
+    { .mask = 0x0F, .match = 0x05, .kind = KIND_WAIT_FOR_MUSIC, .run = run_wait_for_music },
+    { .mask = 0x0F, .match = 0x06, .kind = KIND_SOUND, .run = run_sound },
+    { .mask = 0x0F, .match = 0x07, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS },
+    { .mask = 0x0F, .match = 0x08, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS, .add = true },
+    { .mask = 0x0F, .match = 0x09, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS },
+    { .mask = 0x0F, .match = 0x0A, .kind = KIND_TASK, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS, .add = true },
+    { .mask = 0x0F, .match = 0x0B, .kind = KIND_VIDEO, .run = run_video, .takes = video_takes },
+    { .mask = 0x0F, .match = 0x0C, .kind = KIND_END_TURN, .run = run_end_turn },
+    { .mask = 0x0F, .match = 0x0D, .kind = KIND_JUMP, .run = run_jump, .ends_turn = true },
+    { .mask = 0x0F, .match = 0x0E, .kind = KIND_JUMP, .run = run_jump },
+    { .mask = 0x0F, .match = 0x0F, .kind = KIND_STOP, .run = run_stop },
 };
 
 static const ScriptRow *row_of(uint8_t opcode)
@@ -494,16 +449,6 @@ static const ScriptRow *row_of(uint8_t opcode)
     return NULL;
 }
 
-static bool is_assignment(const ScriptRow *row) { return row->run == run_assign; }
-
-/* Before a command of $80 and up runs, the original keeps the command itself
- * and the byte after it in the channel's scratch, and clears the carry. */
-static void leave_before_dispatch(GameState *g, SceneChannel ch, uint16_t at)
-{
-    keep_word(g, ch, script_word(g, at));
-    leave_carry_clear();
-}
-
 /* ---- Where the port meets the original's registers ------------------------------------------
  *
  * The loop and its call-outs: they set what the original has there, and a build
@@ -511,10 +456,96 @@ static void leave_before_dispatch(GameState *g, SceneChannel ch, uint16_t at)
 
 static void set_widths16(Snes *s) { s->cpu.p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG_X); }
 
-static void put_flags(Snes *s)
+/* ---- What the original leaves after a command ------------------------------------------------
+ *
+ * Scaffolding: the original's interpreter leaves behind a word in the channel's
+ * scratch and its carry and overflow, which nothing in the scripts' language
+ * means but some of the program's code reads. The bridge leaves them after
+ * each command, from the command's kind and what it changed, the way the
+ * original's code for that kind of command leaves them; a native build leaves
+ * nothing.
+ *
+ * The word: every command keeps one in its channel's scratch, which only it
+ * reads -- an assignment the address of its register, any other command itself
+ * and the byte after it. What is left there is the last command's. */
+enum { CHANNEL_PAGES = 0x0A00, CHANNEL_PAGE_BYTES = 0x100 };
+
+static uint16_t kept_word(const Command *c, const ScriptRow *row)
 {
-    m_set_flag(s, CPU_FLAG_C, flags_left->carry);
-    m_set_flag(s, CPU_FLAG_V, flags_left->overflow);
+    if (row->kind == KIND_SET || row->kind == KIND_ADD)
+        return (uint16_t)(CHANNEL_PAGES + c->ch * CHANNEL_PAGE_BYTES + 2 * low_nibble(c));
+    return operand16(c, 0);
+}
+
+static void keep_word(const Command *c, const ScriptRow *row)
+{
+    set_scene_call_script_scratch(c->g, scene_program_channel(c->ch), kept_word(c, row));
+}
+
+/* The flags. What reads them is the program's code after a sequence run, not
+ * the scripts: the attract and title programs run their channels at $7E:54B4
+ * and go straight on to $7E:5777, whose $7E:3443 calls the random number mixer
+ * at $C3:02DD, which starts with a ROL of A and so mixes the carry into the
+ * number; and $7E:62F0 reaches the ADC #$40 at $7E:65B3 with the carry the
+ * sequence run left, since $7E:3448 between them saves and restores P. So the
+ * carry is read. Nothing in either program or in bank C3 branches on the
+ * overflow (no BVS or BVC), but the liveness analysis can't see that far and
+ * counts it as read, so it is left too.
+ *
+ * Per kind of command, as the original's code for it leaves them:
+ * - a set: both clear (the original's sum of the channel's page and the
+ *   register's place, which carries and overflows on no channel's page);
+ * - an add: the add's;
+ * - a loop, dispatched through a doubled index that clears the carry: done, the
+ *   flags of its step past the command, (at + 1) + 4; not done, the carry of
+ *   comparing the counter (unsigned) with the limit, where a counter at 0 is
+ *   short of it, and the overflow as it was;
+ * - a video setting: both clear;
+ * - any other command: the carry clear from the dispatch, the overflow as it
+ *   was; and a call to the original's code leaves the callee's. */
+
+/* What the flags are worked out from, before the command runs: an add's
+ * register, a loop's counter and its limit (read before the loop runs, since a
+ * script can lie over the counters it counts). */
+typedef struct {
+    uint16_t value, limit;
+} Before;
+
+static Before before(const Command *c, const ScriptRow *row)
+{
+    switch (row->kind) {
+    case KIND_ADD: return (Before){ scene_channel_register(c->g, c->ch, low_nibble(c)), 0 };
+    case KIND_LOOP: return (Before){ loop_counter(c->g, c->ch, low_nibble(c)), operand16(c, 1) };
+    default: return (Before){ 0, 0 };
+    }
+}
+
+static bool overflows16(uint16_t a, uint16_t b, uint16_t sum) { return ((a ^ sum) & (b ^ sum) & 0x8000) != 0; }
+
+/* A loop's step past the command when it is done, (at + 1) + 4. */
+enum { LOOP_STEP = 4 };
+
+static void note_flags(Snes *s, const Command *c, const ScriptRow *row, Before before)
+{
+    uint16_t was = before.value, limit = before.limit;
+    bool carry = false, overflow = m_flag(s, CPU_FLAG_V);
+    if (row->kind == KIND_ADD) {
+        uint16_t now = scene_channel_register(c->g, c->ch, low_nibble(c));
+        carry = now < was;
+        overflow = overflows16(was, (uint16_t)(now - was), now);
+    } else if (row->kind == KIND_LOOP) {
+        uint16_t step_from = (uint16_t)(c->at + 1);
+        if (loop_done(was, limit)) {
+            carry = (uint32_t)step_from + LOOP_STEP > 0xFFFF;
+            overflow = overflows16(step_from, LOOP_STEP, (uint16_t)(step_from + LOOP_STEP));
+        } else {
+            carry = was != 0 && was >= limit;
+        }
+    } else if (row->kind == KIND_SET || row->kind == KIND_VIDEO) {
+        overflow = false;
+    }
+    m_set_flag(s, CPU_FLAG_C, carry);
+    m_set_flag(s, CPU_FLAG_V, overflow);
 }
 
 /* Where the interpreter runs as the port has it: native mode, 16-bit index
@@ -528,12 +559,7 @@ static bool machine_as_expected(Snes *s, SceneChannel *ch)
 /* After a call-out: the port carries on if the callee left the machine as
  * expected (on whichever channel's page it left D); otherwise the original
  * does. Either way the flags are the callee's. */
-static bool can_continue(Snes *s, SceneChannel *ch)
-{
-    flags_left->carry = m_flag(s, CPU_FLAG_C);
-    flags_left->overflow = m_flag(s, CPU_FLAG_V);
-    return machine_as_expected(s, ch);
-}
+static bool can_continue(Snes *s, SceneChannel *ch) { return machine_as_expected(s, ch); }
 
 // $C3:0C51
 /* A routine of the program, which $7E:37F3 calls through the scene's own page:
@@ -543,7 +569,6 @@ static bool call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
     set_scene_call_script_scratch(state_of(s), scene_program_own(), routine);
     s->cpu.a = routine;   /* as the original loaded it: some routines read it */
     set_widths16(s);
-    put_flags(s);
     m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_X | DC_Y | DC_N | DC_V | DC_Z);
     return can_continue(s, ch);
 }
@@ -558,7 +583,6 @@ static bool send_sound(Snes *s, SceneChannel *ch)
     GameState *g = state_of(s);
     set_widths16(s);
     s->cpu.p |= CPU_FLAG_M;
-    put_flags(s);
     s->cpu.a = (uint16_t)(sound_command_parameters(g, 2) << 8);
     au_command(m_platform(s), PF_CALL_DC(0xC30BE9, 0xC70004, DC_AL | DC_X | DC_N | DC_Z),
                (AudioCommand){ .command = sound_command(g), .p1 = sound_command_parameters(g, 0),
@@ -591,9 +615,12 @@ enum { END_TURN_INDEX = 0x18, STOPPED = 1 };
 
 static uint16_t a_at_end_of_turn(const GameState *g, SceneChannel ch, const ScriptRow *row)
 {
-    if (row->run == run_loop || row->run == run_jump)
-        return script(g, ch);
-    return row->run == run_stop ? STOPPED : END_TURN_INDEX;
+    switch (row->kind) {
+    case KIND_LOOP:
+    case KIND_JUMP: return script(g, ch);
+    case KIND_STOP: return STOPPED;
+    default: return END_TURN_INDEX;
+    }
 }
 
 /* How the run ends. */
@@ -616,9 +643,11 @@ static RunEnd run(Snes *s, SceneChannel ch)
         const ScriptRow *row = row_of(c.opcode);
         if (row->takes && !row->takes(&c, row))
             return RUN_HANDED_BACK;
-        if (!is_assignment(row))
-            ORIGINAL_EFFECT(leave_before_dispatch(g, ch, at));
+        ORIGINAL_EFFECT(keep_word(&c, row));
+        Before was = { 0, 0 };
+        ORIGINAL_EFFECT(was = before(&c, row));
         ScriptFlow flow = row->run(&c, row);
+        ORIGINAL_EFFECT(note_flags(s, &c, row, was));
         switch (flow.kind) {
         case GO_ON:
             continue;
@@ -629,7 +658,6 @@ static RunEnd run(Snes *s, SceneChannel ch)
             s->cpu.a = WAIT_TABLE_INDEX;
             s->cpu.x = WAIT_TABLE_INDEX;
             set_widths16(s);
-            put_flags(s);
             m_stop_at(s, 0xC30C2A, DC_X | DC_N | DC_Z | DC_C);
             return RUN_WAITING;
         case ROUTINE_CALL:
@@ -652,8 +680,6 @@ enum { INTERPRETER_RETURN = 0x0B01 };
 /* The channel whose page is in D runs until its script ends its turn. */
 void scene_run_sequence(Snes *s)
 {
-    ScriptFlags flags = { m_flag(s, CPU_FLAG_C), m_flag(s, CPU_FLAG_V) };
-    flags_left = &flags;
     SceneChannel ch = 0;
     machine_as_expected(s, &ch);
     m_push16(s, INTERPRETER_RETURN);   /* the JSR's frame, there at every call-out */
@@ -662,7 +688,6 @@ void scene_run_sequence(Snes *s)
         return;
     m_pull16(s);
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    put_flags(s);
     if (end == RUN_HANDED_BACK) {
         /* the original's own loop, from the command the port left. Not a
          * stop at the loop's head, which shadow mode and the fuzzer could now

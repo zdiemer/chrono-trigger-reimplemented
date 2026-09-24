@@ -1,5 +1,6 @@
 /* Code the game decompresses to $7E:3000 and runs from RAM during the attract
- * sequence and title screen. Every entry here has a guard that checks, by
+ * sequence and title screen: the scene program, whose ports are in game/scene/
+ * (scene/scene.h says where; these belong with them). Every entry here has a guard that checks, by
  * hash, that RAM holds the code the port was written for: the same addresses
  * hold other code and data at other times. */
 #include "attract/attract.h"
@@ -14,8 +15,9 @@ bool attract_wait_loop_present(Snes *s)
 }
 
 /* $7E:3023 (attract/title main loop)
- * Waits for the NMI handler to set the 16-bit flag at direct page $00, calling
- * an empty routine on each pass. Idle entry: one pass of the loop, entered
+ * Waits for a sequence script to stop, which sets the 16-bit flag at direct
+ * page $00 (scene_program_over; scene/script.c), calling an empty routine on
+ * each pass. Idle entry: one pass of the loop, entered
  * with 16-bit A. Exits to $7E:302A. */
 void attract_wait_loop(Snes *s)
 {

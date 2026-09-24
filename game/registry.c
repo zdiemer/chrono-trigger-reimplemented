@@ -1042,7 +1042,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0x7E5A59, .name = "scene_title_set_up_pendulum", .fn = scene_title_set_up_pendulum, NEEDS_M16_X16,
       .cost_milli = 6208, .guard = scene_title_set_up_pendulum_present },
     { .addr = 0x7E5AB6, .name = "scene_title_load_plane_map", .fn = scene_title_load_plane_map,
-      NEEDS_M8_X16, .cost_milli = 9067, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = scene_title_load_plane_map_present },
+      NEEDS_M8_X16, .cost_milli = 8163, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = scene_title_load_plane_map_present },
     { .addr = 0x7E5C57, .name = "scene_title_place_pendulum", .fn = scene_title_place_pendulum, NEEDS_M8_X16,
       .cost_milli = 3924, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = scene_title_place_pendulum_present },
     { .addr = 0x7E5C98, .name = "scene_title_move_logo", .fn = scene_title_move_logo, NEEDS_M16_X16,
@@ -1527,12 +1527,12 @@ const NativeEntry game_natives[] = {
 
     /* scenes run from RAM: the bank C3 routines they call */
     { .addr = 0xC30D0E, .name = "scene_load_sprite_list", .fn = scene_load_sprite_list, NEEDS_M16_X16_BINARY,
-      .cost_milli = 5090, .dont_care = DC_X | DC_N | DC_V | DC_Z | DC_C | DC_AL,
+      .cost_milli = 4707, .dont_care = DC_X | DC_N | DC_V | DC_Z | DC_C | DC_AL,
       .guard = scene_sprite_list_fits },
     { .addr = 0xC30D5E, .name = "scene_load_sprite_list_clipped", .fn = scene_load_sprite_list_clipped,
-      NEEDS_M16_X16_BINARY, .cost_milli = 5651, .dont_care = DC_X | DC_N | DC_Z | DC_C | DC_AL,
+      NEEDS_M16_X16_BINARY, .cost_milli = 5641, .dont_care = DC_X | DC_N | DC_Z | DC_C | DC_AL,
       .guard = scene_clipped_sprite_list_fits },
-    { .addr = 0xC30DBC, .name = "scene_add_sprite", .fn = scene_add_sprite, NEEDS_M16_X16_BINARY, .cost_milli = 2907,
+    { .addr = 0xC30DBC, .name = "scene_add_sprite", .fn = scene_add_sprite, NEEDS_M16_X16_BINARY, .cost_milli = 2735,
       .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
       .guard = scene_sprite_fits },
     { .addr = 0xC30DF3, .name = "scene_add_large_sprite", .fn = scene_add_large_sprite, NEEDS_M16_X16_BINARY,
@@ -1576,7 +1576,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC309A0, .name = "scene_copy_resource_to_upper_ram", .fn = scene_copy_resource_to_upper_ram, .p_mask = CPU_FLAG_X,
       .p_value = 0, .cost_milli = 4000, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB },
     { .addr = 0xC30AFF, .name = "scene_run_sequence", .fn = scene_run_sequence, NEEDS_M16_X16_BINARY,
-      .cost_milli = 3914, .dont_care = DC_X | DC_N | DC_Z, .guard = scene_sequence_bank_is_scripts },
+      .cost_milli = 3530, .dont_care = DC_X | DC_N | DC_Z, .guard = scene_sequence_bank_is_scripts },
     /* per waiting pass: SEP (18), two long reads (30 each), BNE taken (18) */
     { .addr = 0xC30C2A, .name = "scene_script_wait_for_sound", .fn = scene_script_wait_for_sound, .idle = true,
       .idle_clocks = 96,

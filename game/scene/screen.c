@@ -27,8 +27,8 @@
 #include "vars.h"
 #include "wram.h"
 
-/* The sprite table and the working palette, in the first bank of work RAM. */
-enum { SPRITE_TABLE = 0x000700, SPRITE_TABLE_BYTES = 0x0200, HIGH_TABLE = 0x0900, WORKING_PALETTE = 0x7E2200 };
+/* The working palette, in the first bank of work RAM. */
+enum { WORKING_PALETTE = 0x7E2200 };
 enum { COLORS = 256 };
 
 /* Where the scene keeps the sprites' graphics. */
@@ -155,7 +155,7 @@ enum {
 static void init_video(GameState *g, Platform *pf)
 {
     const SceneScreen *s = &first_screen;
-    set_scene_sprite_high_pointer(g, HIGH_TABLE);
+    set_scene_sprite_high_pointer(g, SCENE_SPRITE_HIGH_TABLE);
     vid_set_display(pf, PF_AT(0x7E3108), &(VidDisplay){ .blank = true });
     vid_set_obj_config(pf, PF_AT(0x7E310C), &s->sprites);
     vid_set_fixed_color(pf, PF_AT(0x7E3110), VID_RED | VID_GREEN | VID_BLUE, 0);
@@ -215,10 +215,10 @@ static void upload_sprites(GameState *g, Platform *pf)
         VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
     };
     static const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_ONE_REGISTER, steps, NULL };
-    vid_upload_oam(pf, PF_AT(0x7E3811), PF_GAME(SPRITE_TABLE), &x);
+    vid_upload_oam(pf, PF_AT(0x7E3811), PF_GAME(SCENE_SPRITE_TABLE), &x);
     vid_set_oam_address(pf, PF_AT(0x7E3830), scene_sprite_priority_start(g), true);
     set_scene_sprite_index(g, 0);
-    set_scene_sprite_high_pointer(g, HIGH_TABLE);
+    set_scene_sprite_high_pointer(g, SCENE_SPRITE_HIGH_TABLE);
 }
 
 /* Nothing it leaves in the registers is read. */
@@ -247,7 +247,7 @@ static void clear_sprite_table(Platform *pf)
     static const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_FROM_REGISTER, steps, NULL };
     vid_set_mode7(pf, PF_AT(0x7E3845), &(VidMode7){ .a = 1 }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E384D), &(VidMode7){ .b = BELOW_THE_PICTURE * 256 }, VID_M7_MATRIX_B_HIGH);
-    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = SPRITE_TABLE, .size = SPRITE_TABLE_BYTES };
+    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = SCENE_SPRITE_TABLE, .size = SCENE_SPRITE_TABLE_BYTES };
     vid_snes_transfer(pf, PF_AT(0x7E3850), &t, &x);
     vid_set_mode7(pf, PF_AT(0x7E386C), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B_HIGH);
 }

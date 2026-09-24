@@ -52,7 +52,7 @@ subsystem = "scene"
 state = "attract"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=00-01", "--fill", "7E0013-7E0013=00-1F",
         "--fill", "7E0014-7E0014=09-09", "--range", "A=0000-1FFF"]
-why = "the cursor anywhere in the sprite table and the list anywhere in low RAM, so lists land on the table they are copied into; the guard (game/scene/sprites.c) refuses a cursor whose sprites would leave the table, which the original writes wherever it points (the scene's own cells, and the I/O registers past $2000), and a clipped list over the table"
+why = "the cursor anywhere in the sprite table and the list anywhere in low RAM, so lists land on the table they are copied into; the guard (game/scene/sprites.c) refuses a cursor whose sprites would leave the table, which the original writes wherever it points (the scene's own cells, and the I/O registers past $2000), and a clipped list over the table or the scene's sprite cells, since the entry reads the list's last sprite back after the call"
 
 [[routine]]
 name = "scene_add_sprite"

@@ -24,7 +24,12 @@
  *   guards.c      what the ports assume of the machine they're entered on
  *
  * The endings have no routines of their own here: they are the program's
- * scripts, and they use the iris, the scaler and the arithmetic. */
+ * scripts, and they use the iris, the scaler and the arithmetic.
+ *
+ * game/attract/ holds more of the same program: its main loop ($7E:3023, which
+ * waits for scene_program_over) and the ports of its idle waits, written
+ * before this subsystem was. They belong here and move when attract is next
+ * reworked (docs/TODO.md). */
 #ifndef CT_GAME_SCENE_H
 #define CT_GAME_SCENE_H
 
@@ -55,6 +60,12 @@ enum { SCENE_LOWER_WORK_RAM = 0x7E, SCENE_UPPER_WORK_RAM = 0x7F };
 /* The tilemap the scene builds for vblank (scene_tilemap_buffer), where the
  * uploads read it: low RAM, through bank 0. */
 enum { SCENE_TILEMAP_BUFFER = 0x000C00 };
+
+/* The frame's sprite table, in low RAM through bank 0 as the uploads read it:
+ * the 128 entries (scene_sprite_table) and the high table after them
+ * (scene_sprite_high_table), whose byte scene_sprite_high_pointer holds the
+ * address of. */
+enum { SCENE_SPRITE_TABLE = 0x000700, SCENE_SPRITE_HIGH_TABLE = 0x000900 };
 
 /* A word of the program the loaders fill a map's unused space with: the tile a
  * layer shows where nothing is drawn. */

@@ -304,11 +304,13 @@ meaning.** Once both have landed, one pass does two things:
 fixed. Doing this before `menu` and `battle` means it is paid on 4.5K lines of
 call sites rather than 20K.
 
-**Scene has been reworked to the review's bar, and waits for a fresh review.**
+**Scene has been reworked to the review's bar, and waits for a scoped re-review.**
 The first qualitative review rated three of its files translation (the
 arithmetic unit emulated, loop state in RAM cells, a CPU-shaped struct through
 the scaler); the second, of the first rework, still two (the scaler's carry
-chain, and arithmetic kept for inputs no scene gives it). The rework now
+chain, and arithmetic kept for inputs no scene gives it); the third, the
+script's and the sprites' records of the registers they leave, written from
+inside the operations. The rework now
 (RECOMP.md, "Phase 3a: scene reworked to the review") has the arithmetic in C,
 with guards for what the game never gives it and named inputs for what it does;
 no carry chain, the two nudges the player sees named and the wrapping sums
@@ -318,7 +320,10 @@ subsystem can use (`game/charge.h`); the sequence scripts as rows whose
 handlers take named parameters; the display state in the video service's
 vocabulary; and the subsystem's concepts in its header and map. The files are
 grouped by the game: the title screen, the race, the script, the frame, the
-screen, and the shared pieces. It closes when a fresh review passes it.
+screen, and the shared pieces. What the script and the sprites leave for the
+original is now the bridges', worked out after the call from what the command
+changed, with the reader of each flag named. It closes when a re-review of
+`script.c` and `sprites.c` passes them; the accepted follow-ups are in TODO.md.
 
 **Cells on a page the caller chooses** have a generated shape: a page kind in
 `re/ram.toml` lists the pages its code runs on, as measured over the library

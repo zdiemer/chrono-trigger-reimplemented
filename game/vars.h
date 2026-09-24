@@ -4385,9 +4385,10 @@ void set_battle_result(GameState *g, uint8_t v);
 
 /* ---- scene --------------------------------------------------------------------------------- */
 
-/* Flag the scene NMI work sets and the program's main loop waits on (16-bit) */
-uint16_t scene_frame_ready(const GameState *g);
-void set_scene_frame_ready(GameState *g, uint16_t v);
+/* Nonzero once a sequence script has reached its stop: the program's main loop, which waits for
+ * it, then ends the scene (16-bit) */
+uint16_t scene_program_over(const GameState *g);
+void set_scene_program_over(GameState *g, uint16_t v);
 
 /* Controller 1 as read in the scene NMI; bit 4 of the high byte ($0003) is Start, which toggles
  * pause */
@@ -4408,8 +4409,8 @@ void set_scene_sprite_priority_start(GameState *g, uint8_t v);
 uint16_t scene_sprite_index(const GameState *g);
 void set_scene_sprite_index(GameState *g, uint16_t v);
 
-/* Pointer to the OAM high-table byte the next sprite's bits go into; back to $0900 after each
- * upload */
+/* Address of the OAM high-table byte the next sprite's bits go into ($0900 + the byte's place in
+ * scene_sprite_high_table); back to the first after each upload */
 uint16_t scene_sprite_high_pointer(const GameState *g);
 void set_scene_sprite_high_pointer(GameState *g, uint16_t v);
 
@@ -4644,12 +4645,19 @@ void set_scene_irq_stub_jump(GameState *g, uint8_t v);
 uint32_t scene_irq_stub_handler(const GameState *g);
 void set_scene_irq_stub_handler(GameState *g, uint32_t v);
 
-/* The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y,
- * tile, attributes) and the $20-byte high table after them, reached by the byte offsets the
- * scene's cursors hold [544 bytes, one at a time] */
-enum { SCENE_SPRITE_TABLE_BYTES = 544 };
+/* The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y,
+ * tile, attributes), reached by the byte offset the scene's cursor holds [512 bytes, one at a
+ * time] */
+enum { SCENE_SPRITE_TABLE_BYTES = 512 };
 uint8_t scene_sprite_table_byte(const GameState *g, unsigned at);
 void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v);
+
+/* The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites'
+ * two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its
+ * own at the top [32 bytes, one at a time] */
+enum { SCENE_SPRITE_HIGH_TABLE_BYTES = 32 };
+uint8_t scene_sprite_high_table_byte(const GameState *g, unsigned at);
+void set_scene_sprite_high_table_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { SCENE_TASKS_COUNT = 16 };   /* by task slot */
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence

@@ -377,7 +377,8 @@ cursor one routine leaves for the next is state all the same), and
 `game/rom.h`, the cartridge by address, which only the named resource
 accessors of the `*_data.h` headers call. A record the game indexes by a byte offset rather than an element number (the
 OAM buffer, as the scene's sprite writers see it) gets a second, byte-buffer
-entry in the subsystem that uses it that way (`scene_sprite_table`), since an
+entry in the subsystem that uses it that way (`scene_sprite_table` and
+`scene_sprite_high_table`), since an
 index parameter can't carry an odd offset.
 
 **Adding to it.** When a port establishes what a byte means, add the entry

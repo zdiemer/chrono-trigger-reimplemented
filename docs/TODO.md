@@ -214,8 +214,8 @@ rest waits, is [PLAN.md](PLAN.md).
   Stopping at the loop's head `$C3:0B03` instead is what shadow mode can now
   compare at the right pass (RECOMP.md, "Between the waves: the validator"),
   and since the rework the port decides whether it takes a command before it
-  writes anything, and keeps the flags the machine should have there in its
-  record of what the original leaves; so the stop is what is left to try, with
+  writes anything, and the flags the machine should have there are in P after
+  every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
 - **Liveness across a saved stack pointer.** The overflow flag is still live
   after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
@@ -813,15 +813,16 @@ waits on M5 rather than on a backend.
   entries.** Each subsystem's Phase 3a rewrite adds its own from its PORTING.md
   rows as it goes; a check that every registered entry has one would say when
   the file is complete.
-- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 24 uses
+- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 32 uses
   in 7 files. The sequence scripts' bytes and the race's line-effect descriptor
   table are fixed parts of the program image at `$7E:3000` and could be named
   buffers of it; the scaler's rows, the bank `$FE` copies' destination, the
-  title's plane tiles, the sprites' sources and a store command's target are
+  title's plane tiles, the sprites' sources and lists and a store command's target are
   wherever the caller points, and want the caller ported to say what they are;
-  the circle's table is the pilot's. The title loader's tile list at `$7E:0200`,
-  which it reads through the work RAM port, overlaps the sprite table, so the
-  map can't name it in the scene's subsystem (`ram_map.py coverage --open`).
+  the circle's table is the pilot's. The title loader's tile list at `$7F:0200`,
+  which the original reads through the work RAM port, overlaps the race's scaler
+  output (and the event variables), so the map can't name it in the scene's
+  subsystem (`ram_map.py coverage --open`).
 - **The scene loaders are fragments.** The title's graphics loader
   (`$7E:5978`-`$7E:5A00`) and the race's (`$7E:3DB3`-`$7E:3EB6`) are registered
   a block at a time (`scene_title_load_*`, `scene_race_load_*`), each named for
@@ -834,6 +835,41 @@ waits on M5 rather than on a backend.
   stops) and the ripple's new first offset each frame (`$7E:600E`, where
   `scene_title_ripple_columns` stops) are the program's code; porting them
   would end two stops mid-routine.
+- **What scene's second review accepted as later work** (RECOMP.md, "Phase
+  3a: scene reworked to the review"). None changes behaviour; each is a
+  reading the code should give and doesn't yet:
+  - `scaler.c`: the carry into the leftover's measure is threaded through
+    three functions (`scale_row`, `end_bitmap` and the entry's flags) where one
+    named input would say it; `charge_block_move(bytes - 1)` needs its reason
+    at the call (the original clears the first byte and block-moves it over the
+    rest, so the move is a byte short of the fill); and `in_scaler_bank(at,
+    offset)` has callers that pass 0 as the base and the address as the offset.
+  - `circle.c`: the menus pass `mode` as an untyped byte (`scene_circle_draw`),
+    which wants an `IrisShape` and a `bool leave_outside`; the `count` local
+    exists only for the scaffolding that leaves the original's count cell.
+  - One `scene_queue_sound` for the two copies of "into the sound command
+    buffer, sent unless a song is on its way" (`frame.c`'s song and
+    `script.c`'s `queue_sound`).
+  - `frame.c` derives the controller's carry (its compare with the reset
+    buttons) twice, at the pause sound's call and at the task lists'; once,
+    named, would do.
+  - The button names `frame.c` defines belong in `platform/input.h`, where a
+    second subsystem's would find them.
+  - `SCENE_VBLANK_TASKS` is the map's `scene_early_tasks`: one name for both.
+  - `script.c`: the register encoding (`(operand & 0x1E) / 2`) and the operand
+    offsets the adapters spell out want the table to decode typed operands.
+  - `math.c`: `FoundDivisor.tried` is the search's leftover, not what it
+    found; and `divide_8_8` computes where a value lies along a range, so
+    `fraction_along`.
+  - `race_matrix.c`'s generator keeps running accumulators where each row's
+    offset could be computed from its index.
+  - The bank `$FE` resources (above) and `init_video`'s `map_sites` and
+    computed `PF_AT` (Platform, `vid_apply_screen`), and the transfers'
+    `steps[]` (the same item), wait for the platform.
+  - The title's logo sweep and ripple (above) wait for their Phase 3 ports.
+  - `game/attract/` is the same scene program (its main loop and idle waits)
+    and belongs in `game/scene/`; the two headers point at each other until
+    attract is next reworked.
 - **An endings concept.** The endings have no routines in `game/scene/` of
   their own -- they are the program's scripts, using the iris, the scaler and
   the arithmetic -- so there is nothing to hold one yet; when their script

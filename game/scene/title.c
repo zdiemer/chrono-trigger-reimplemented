@@ -182,11 +182,12 @@ bool scene_title_load_plane_map_present(Snes *s)
 }
 
 /* The plane's name table is 128 tiles a row. The title's picture is 32 rows of
- * 32, which the loader has put in work RAM as words whose low bytes are the
- * tile numbers; the rest of each row is tile 0, and the rest of the table the
- * blank tile. */
+ * 32, which the loader has put at $0200 in a bank of work RAM (the second, in
+ * the game) as words whose low bytes are the tile numbers; the rest of each row
+ * is tile 0, and the rest of the table the blank tile. */
 enum { PLANE_ROW = 128, PICTURE_ROWS = 32, PICTURE_COLUMNS = 32 };
-enum { PICTURE_TILES = 0x0200, REST_OF_PLANE_BYTES = 0x1000 };
+enum { PICTURE_TILES = 0x0200, PICTURE_BYTES = PICTURE_ROWS * PICTURE_COLUMNS * 2 };
+enum { REST_OF_PLANE_BYTES = 0x1000 };
 
 // $7E:5AB6
 /* The plane's name table: the picture's rows, a tile at a time through the
@@ -194,7 +195,7 @@ enum { PICTURE_TILES = 0x0200, REST_OF_PLANE_BYTES = 0x1000 };
  * the rows left the VRAM address, and repeats its two bytes into the data
  * port's low half alone, which the upload calls model as words, so it goes
  * through the SNES-only escape. */
-static void load_plane_map(GameState *g, Platform *pf)
+static void load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
 {
     static const uint8_t steps[] = {
         VID_STEP_CONTROL,     VID_STEP_DEST,    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
@@ -202,13 +203,13 @@ static void load_plane_map(GameState *g, Platform *pf)
         VID_STEP_END,
     };
     static const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_FIXED_SOURCE, steps, NULL };
-    hw_port_seek_address(g, PICTURE_TILES);
     vid_begin_vram_uploads(pf, PF_AT(0x7E5ABE), SCENE_VRAM_LOW_BYTES, PF_GAME(0), NULL);
     vid_set_vram_address(pf, PF_AT(0x7E5AC4), PLANE_VRAM);
     for (int row = 0; row < PICTURE_ROWS; row++) {
         for (int column = 0; column < PICTURE_COLUMNS; column++) {
-            vid_write_vram_byte(pf, PF_AT(0x7E5ACE), false, hw_port_read(g));
-            hw_port_read(g);   /* the word's high byte, dropped */
+            uint32_t at = (uint32_t)picture_bank << 16 | (uint16_t)(PICTURE_TILES + (row * PICTURE_COLUMNS + column) * 2);
+            uint16_t word = wram_read16(g, at);
+            vid_write_vram_byte(pf, PF_AT(0x7E5ACE), false, (uint8_t)word);
         }
         for (int column = PICTURE_COLUMNS; column < PLANE_ROW; column++)
             vid_write_vram_byte(pf, PF_AT(0x7E5ADC), false, 0);
@@ -216,12 +217,17 @@ static void load_plane_map(GameState *g, Platform *pf)
     const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE,
                                 .size = REST_OF_PLANE_BYTES };
     vid_snes_transfer(pf, PF_AT(0x7E5AEB), &t, &x);
+    /* the port, where the original's reads of the picture leave it */
+    ORIGINAL_EFFECT(hw_port_seek_address(g, (uint16_t)(PICTURE_TILES + PICTURE_BYTES)));
 }
 
-/* A comes back with the transfer's start in its low byte. */
+/* The original reads the picture through the work RAM port, setting its
+ * address and not its bank: the picture is in the bank the loader left the
+ * port in. A comes back with the transfer's start in its low byte. */
 void scene_title_load_plane_map(Snes *s)
 {
-    load_plane_map(state_of(s), m_platform(s));
+    uint8_t picture_bank = (s->bus.wram_port_addr & 0x10000) ? SCENE_UPPER_WORK_RAM : SCENE_LOWER_WORK_RAM;
+    load_plane_map(state_of(s), m_platform(s), picture_bank);
     m_set_a8(s, 0x80);
     m_rts(s);
 }

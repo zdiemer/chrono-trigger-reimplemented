@@ -18,7 +18,7 @@
  * The original never clears the carry between its sums, and two of them move
  * what the player sees: a row's samples start 1/256 of a pixel further on when
  * its source row lies further along the bitmap than the last row's
- * (sample_nudge), and a row's source is picked 1/256 of a row further on when
+ * (sample_nudge), and a row's source is picked 1/128 of a row further on when
  * the call before left the carry set (the entry's `row_nudge`). The rest of its
  * carries come from sums that wrap past the end of the bank, which no scene's
  * bitmap reaches, and the entry's guard hands such bitmaps to the original. */
@@ -32,7 +32,10 @@
 #include "wram.h"
 
 enum { ROW_BYTES = 0x20, PLANES = 4, GROUP = 8, GROUPS_PER_PAIR = 2, SAMPLES_PER_PAIR = GROUP * GROUPS_PER_PAIR };
-enum { SOURCE_ROW_POSITION = 0xFFC0 };   /* a source row is $40 bytes: the accumulator's row part */
+/* The positions are fixed point: a sample's along its row in 1/256ths of a
+ * pixel, a row's down the bitmap in 1/128ths of a row, whose source is $40
+ * bytes. */
+enum { PIXEL_UNITS = 256, ROW_UNITS = 128, SOURCE_ROW_BYTES = 0x40 };
 
 /* The row loop's head, where the port stops after each row. */
 enum { ROW_LOOP = 0xC30309 };
@@ -51,10 +54,10 @@ static uint32_t in_scaler_bank(uint16_t at, uint16_t offset)
  * the two carries into the first step). */
 static uint16_t sample_nudge(bool row_moved_on) { return row_moved_on ? 1 : 0; }
 
-/* The pixel at `position` (8.8) along the source row at `source`. */
+/* The pixel at `position` (in PIXEL_UNITS) along the source row at `source`. */
 static uint8_t pixel(const GameState *g, uint16_t source, uint16_t position)
 {
-    return wram_read8(g, in_scaler_bank(source, (uint16_t)(position >> 8)));
+    return wram_read8(g, in_scaler_bank(source, (uint16_t)(position / PIXEL_UNITS)));
 }
 
 /* Eight pixels into four bytes of planar graphics at `planes`: plane p's byte
@@ -98,7 +101,7 @@ static void sample_row(GameState *g, uint16_t source, bool row_moved_on)
             planes = (uint16_t)(planes + PLANES);
         }
     }
-    ORIGINAL_EFFECT(leave_samples(g, pixels, wram_read8(g, in_scaler_bank(source, (uint16_t)((position >> 8) + 1)))));
+    ORIGINAL_EFFECT(leave_samples(g, pixels, wram_read8(g, in_scaler_bank(source, (uint16_t)(position / PIXEL_UNITS + 1)))));
 }
 
 /* The row the same as the last one: its 32 bytes copied. */
@@ -138,7 +141,7 @@ typedef enum { ROW_DRAWN, BITMAP_ENDED } RowOutcome;
 
 // $C3:0309
 /* The next output row, or the end of the bitmap. `row_nudge` picks the row's
- * source 1/256 of a row further on (see the top of the file); where the rows
+ * source 1/128 of a row further on (see the top of the file); where the rows
  * have run out, it is what the measure of the leftover borrows against. */
 static RowOutcome scale_row(GameState *g, bool row_nudge)
 {
@@ -150,7 +153,7 @@ static RowOutcome scale_row(GameState *g, bool row_nudge)
     }
     uint16_t accumulator = (uint16_t)(scene_scaler_row_position(g) + scene_scaler_row_step(g) + (row_nudge ? 1 : 0));
     set_scene_scaler_row_position(g, accumulator);
-    uint16_t source_row = (accumulator >> 1) & SOURCE_ROW_POSITION;
+    uint16_t source_row = (uint16_t)(accumulator / ROW_UNITS * SOURCE_ROW_BYTES);
     if (source_row >= scene_scaler_source_limit(g)) {
         end_bitmap(g, false);
         return BITMAP_ENDED;
