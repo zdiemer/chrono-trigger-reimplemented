@@ -3993,6 +3993,11 @@ source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C (slot $79 * $40 
   offset = 0
   size = 0x30
   meaning = "Three $10-byte party member records, the first byte the member (negative: empty)"
+  [[var.field]]
+  name = "header"
+  offset = 0x30
+  size = 0x10
+  meaning = "The slot's header: where the party is (the location, a word at $32) and what the load screen shows of it"
 
 # ------------------------------------------------------------------------------
 # menu: the mode at $C2:800E (the menus proper)
@@ -4097,11 +4102,178 @@ meaning = "A frame countdown the vblank handler decrements until it reaches zero
 source = "game/menu/display.c, menu_nmi_work $C2:842A"
 
 [[var]]
-name = "menu_save_slot_palette_set"
+name = "menu_save_slot_era"
 addr = "7E:0D77"
 subsystem = "menu"
-meaning = "The palette set loaded for the save slot shown, reloaded (through $C2:F90C) when the next slot needs another"
+meaning = "The era whose label the load screen has loaded (the ROM's table at $FF:D296 gives a location's era), loaded again (through $C2:F90C) when a slot shows another"
 source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+[[var]]
+name = "menu_save_header_taken"
+addr = "7E:0D84"
+size = 2
+subsystem = "menu"
+meaning = "Nonzero while the load screen uses the slot header's place for something else ($C2:E841 loads another graphic there and sets it, $C2:E6FC clears it): a slot is then drawn without its header and era label"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+[[var]]
+name = "menu_member_marked"
+addr = "7E:0D5D"
+subsystem = "menu"
+meaning = "Set to 4 by $C2:A1EF when the character a status window shows ($7E:9A90's low bits) has reached the value the table at $7E:0D38 holds for it, which the window then draws in another palette ($C2:B02B); a save slot's drawing clears it"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+[[var]]
+name = "menu_load_destination"
+addr = "7E:0DC5"
+size = 2
+subsystem = "menu"
+meaning = "Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it loads"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C; $C2:F914"
+
+[[var]]
+name = "menu_loaded_graphic_width"
+addr = "7E:0234"
+subsystem = "menu"
+meaning = "How wide, in pixels, the graphic the menus' loader last loaded is (the load screen draws that many tiles, rounded up, of an era label)"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+[[var]]
+name = "menu_save_member"
+addr = "7E:0000"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "The character of the party member the load screen is drawing a row for (its record's first byte; the portrait clears the high byte)"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C, menu_draw_member_portrait $C2:D466"
+
+[[var]]
+name = "menu_save_member_record"
+addr = "7E:0002"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "Where the record of the party member the load screen is drawing a row for is, in the save summary"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+[[var]]
+name = "menu_save_member_row"
+addr = "7E:0024"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "Which of the save summary's three member rows the load screen is drawing (the portrait's palette is 4 on from it)"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C, menu_draw_member_portrait $C2:D466"
+
+[[var]]
+name = "menu_save_era_width"
+addr = "7E:0026"
+page = "menu"
+subsystem = "menu"
+meaning = "How wide, in pixels, the era label the load screen shows is"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+[[var]]
+name = "menu_cursor_places"
+addr = "7E:9380"
+stride = 6
+count = 42
+index = "cursor position of the current menu (the table runs up to the palette at $9480)"
+subsystem = "menu"
+meaning = "Where the cursor sprite goes for each cursor position of the current menu; the load screen moves its fourth row's between two choices"
+source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D, menu_show_save_slot $C2:E743"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  meaning = "The cursor's X"
+  [[var.field]]
+  name = "y"
+  offset = 1
+  meaning = "The cursor's Y"
+  [[var.field]]
+  name = "right"
+  offset = 2
+  meaning = "The position right of this one ($80 set: none, leave the menu that way)"
+  [[var.field]]
+  name = "left"
+  offset = 3
+  meaning = "The position left of it"
+  [[var.field]]
+  name = "down"
+  offset = 4
+  meaning = "The position below it"
+  [[var.field]]
+  name = "up"
+  offset = 5
+  meaning = "The position above it"
+
+[[var]]
+name = "menu_cursor_moves"
+addr = "7E:005A"
+page = "menu"
+subsystem = "menu"
+meaning = "The directions pressed this frame, as the controller's high byte has them (bit 0 right, 1 left, 2 down, 3 up), taken by the cursor's move ($C2:E9E2); bit 7 set where the move left the menu's positions"
+source = "$C2:E9F2, $C2:EA4E; game/menu/save_screen.c, menu_show_save_slot $C2:E743"
+
+[[var]]
+name = "menu_slot_row_values"
+addr = "7E:9720"
+size = 0x21
+subsystem = "menu"
+meaning = "The values the load screen's per-line effect gives its rows, a byte a line, as $C2:D044 has them: 16 lines of one, 16 of another, then a last that a row of its own reads"
+source = "game/menu/save_screen.c, menu_load_slot_rows_effect $C2:CFFB"
+
+[[var]]
+name = "menu_slot_row_template"
+addr = "7E:9710"
+stride = 3
+count = 5
+index = "band, as menu_slot_row_table"
+subsystem = "menu"
+meaning = "The load screen's per-line table as its setup builds it, before a slot's row is marked"
+source = "game/menu/save_screen.c, menu_load_slot_rows_effect $C2:CFFB"
+  [[var.field]]
+  name = "lines"
+  offset = 0
+  meaning = "How many lines the band lasts"
+  [[var.field]]
+  name = "values"
+  offset = 1
+  size = 2
+  meaning = "Where in bank $7E the band's values are"
+
+[[var]]
+name = "menu_slot_row_template_end"
+addr = "7E:971F"
+subsystem = "menu"
+meaning = "The byte after the template's bands, copied with them"
+source = "game/menu/save_screen.c, menu_load_slot_rows_effect $C2:CFFB"
+
+[[var]]
+name = "menu_slot_row_table"
+addr = "7E:969A"
+stride = 3
+count = 5
+index = "band: the band above the rows, then a save slot's row each"
+subsystem = "menu"
+meaning = "The load screen's per-line table, staged for the vblank's block move to $7E:9300, where its per-line channel reads it: a band of lines each, and where the band's values are"
+source = "game/menu/save_screen.c, menu_load_slot_rows_effect $C2:CFFB"
+  [[var.field]]
+  name = "lines"
+  offset = 0
+  meaning = "How many lines the band lasts"
+  [[var.field]]
+  name = "values"
+  offset = 1
+  size = 2
+  meaning = "Where in bank $7E the band's values are"
+
+[[var]]
+name = "menu_slot_row_table_end"
+addr = "7E:96A9"
+subsystem = "menu"
+meaning = "The byte after the load screen's per-line table's bands, copied with them"
+source = "game/menu/save_screen.c, menu_load_slot_rows_effect $C2:CFFB"
 
 [[var]]
 name = "menu_cursor_hidden"
@@ -4118,7 +4290,7 @@ count = 32
 index = "queue entry (the byte count in $0D11, 8 per entry, reaches $0D00)"
 subsystem = "menu"
 meaning = "The menus' queue of VRAM uploads, sent in vblank from the last entry down"
-source = "game/menu/vram.c, menu_queue_vram_upload $C2:8385; game/menu/display.c, menu_upload_vram_queue $C2:8663"
+source = "game/menu/vram.c, menu_queue_vram_upload $C2:8385, menu_queue_built_vram_upload $C2:838E; game/menu/display.c, menu_upload_vram_queue $C2:8663"
   [[var.field]]
   name = "vram"
   offset = 0
@@ -4138,6 +4310,10 @@ source = "game/menu/vram.c, menu_queue_vram_upload $C2:8385; game/menu/display.c
   offset = 5
   size = 2
   meaning = "Bytes to send; 0 means 64 KiB"
+  [[var.field]]
+  name = "spare"
+  offset = 7
+  meaning = "Copied with the record the queue takes it from; nothing reads it"
 
 [[var]]
 name = "menu_caller_stack"
@@ -4245,13 +4421,41 @@ meaning = "Text flags: bit 7 set turns off the blank tile written a row above ti
 source = "game/menu/text.c, menu_draw_tile $C2:EF97, new line control code $C2:EFF4"
 
 [[var]]
-name = "menu_number_bcd"
+name = "menu_text_work"
 addr = "7E:008A"
 page = "menu"
-size = 4
+stride = 4
 subsystem = "menu"
-meaning = "The number being drawn, converted to binary-coded decimal"
-source = "game/menu/text.c, menu_number_to_bcd $C2:F13F"
+meaning = "The text drawer's work: the number being drawn, in decimal digits; the control codes' dispatch leaves the handler's address in its first word"
+source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispatch $C2:EFBE"
+  [[var.field]]
+  name = "number"
+  offset = 0
+  size = 4
+  meaning = "The number being drawn: eight decimal digits, four bits each, the units in the low bits (a hex number's four bytes as they are)"
+  [[var.field]]
+  name = "code_handler"
+  offset = 0
+  size = 2
+  meaning = "The last control code's handler, which its dispatch jumps through; nothing else reads it"
+
+[[var]]
+name = "menu_draw_origin"
+addr = "7E:0061"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "The place in a tilemap buffer in bank $7E the menus draw relative to: the text's move code puts the pen at an offset from it, and the save screen draws a member's summary and portrait there"
+source = "game/menu/text.c, the move control code $C2:F005; game/menu/save_screen.c, menu_draw_save_slot $C2:D36C, menu_draw_member_portrait $C2:D466"
+
+[[var]]
+name = "menu_text_line_start"
+addr = "7E:0065"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "Where the line of text being drawn starts in bank $7E: a new line goes back there a row or two down, and the move code puts it anywhere"
+source = "game/menu/text.c, menu_draw_text $C2:EF65, the new line and move control codes $C2:EFF4, $C2:F005"
 
 [[var]]
 name = "menu_number_digits"
@@ -4331,38 +4535,55 @@ meaning = "The first sprite's (X, Y) offset from the record's position; the othe
 source = "game/menu/objects.c, menu_draw_record_sprites $C2:F871"
 
 [[var]]
-name = "menu_glyph_pixel"
+name = "menu_glyph_byte"
 addr = "7E:0260"
 page = "menu_glyph"
 size = 2
 subsystem = "menu"
-meaning = "The pixel row of the glyph being drawn, an offset into both bitplanes"
-source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36, menu_draw_glyph_pixel $C2:5E89"
+meaning = "Which byte of the glyph is being drawn, 0-23: its twelve lines, two bitplanes a line"
+source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36, menu_draw_glyph_line $C2:5E89"
 
 [[var]]
-name = "menu_glyph_plane_mode"
+name = "menu_glyph_number"
 addr = "7E:0262"
 page = "menu_glyph"
 subsystem = "menu"
-meaning = "Bit 0: take the second plane's low nibble (shifted up) rather than its high nibble"
-source = "game/menu/glyphs.c, menu_draw_glyph_pixel $C2:5E89"
+meaning = "The glyph being drawn (the text engine's $35); bit 0 says which half of a shared byte holds its right four pixels: the low nibble for an odd glyph"
+source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5E0E"
 
 [[var]]
-name = "menu_glyph_packing"
+name = "menu_glyph_spill"
+addr = "7E:0263"
+page = "menu_glyph"
+size = 2
+subsystem = "menu"
+meaning = "Where a glyph line drawn 5-7 pixels into a tile keeps the part that lands in the pen's own tile; 0 for a line that spills into no third tile. Nothing reads it after the line is drawn"
+source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89"
+
+[[var]]
+name = "menu_glyph_lines_left"
+addr = "7E:0268"
+page = "menu_glyph"
+subsystem = "menu"
+meaning = "The glyph drawer's count of line pairs left in the band of tiles it is drawing (4, then 8)"
+source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36"
+
+[[var]]
+name = "menu_glyph_pen_offset"
 addr = "7E:026A"
 page = "menu_glyph"
 subsystem = "menu"
-meaning = "How a glyph's pixels are packed into the tile (0-7: stored, shifted right 1-4, or shifted left 3-1 into three bytes)"
-source = "game/menu/glyphs.c, menu_draw_glyph_pixel $C2:5E89, menu_glyph_mode_is_valid"
+meaning = "How many pixels into its tile the pen is, 0-7 (the pen's X, $34, AND 7)"
+source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5DEC"
 
 [[var]]
-name = "menu_glyph_layout"
+name = "menu_glyph_pen_column"
 addr = "7E:026E"
 page = "menu_glyph"
 size = 2
 subsystem = "menu"
-meaning = "Index into the byte offset tables at $C2:5FE6 that place a pixel row in the tile"
-source = "game/menu/glyphs.c, menu_draw_glyph_pixel $C2:5E89"
+meaning = "Which tile column of the text line the pen is in, doubled (the pen's X, $34, AND $F8, shifted right twice): an index into the column table at $C2:5FE6"
+source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5E08"
 
 [[var]]
 name = "menu_glyph_dest"
@@ -4370,26 +4591,26 @@ addr = "7E:0273"
 page = "menu_glyph"
 size = 3
 subsystem = "menu"
-meaning = "Long pointer to where in the tile buffer the glyph's pixels go"
-source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36, menu_draw_glyph_pixel $C2:5E89"
+meaning = "Long pointer to where the glyph's next line goes in the text's tiles: the pen's tile row, four lines down"
+source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36, menu_draw_glyph_line $C2:5E89; set at $C2:5DF4"
 
 [[var]]
-name = "menu_glyph_plane0"
+name = "menu_glyph_left_pixels"
 addr = "7E:0276"
 page = "menu_glyph"
 size = 3
 subsystem = "menu"
-meaning = "Long pointer to the glyph's first bitplane"
-source = "game/menu/glyphs.c, menu_draw_glyph_pixel $C2:5E89"
+meaning = "Long pointer to the glyph's left eight pixels in the font: $FF:2060 + 24 a glyph"
+source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5DD4"
 
 [[var]]
-name = "menu_glyph_plane1"
+name = "menu_glyph_right_pixels"
 addr = "7E:0279"
 page = "menu_glyph"
 size = 3
 subsystem = "menu"
-meaning = "Long pointer to the glyph's second bitplane"
-source = "game/menu/glyphs.c, menu_draw_glyph_pixel $C2:5E89"
+meaning = "Long pointer to the glyph's right four pixels in the font, which two glyphs share a byte of: $FF:3860 + 24 a pair of glyphs"
+source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5DE5"
 
 [[var]]
 name = "menu_window_shadows"
@@ -4539,6 +4760,40 @@ meaning = "The tilemap buffer the load screen draws a save slot's contents into,
 source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, menu_draw_save_slot $C2:D36C"
 
 [[var]]
+name = "menu_era_label_tiles"
+addr = "7E:5248"
+size = 0x12
+rows = 2
+row_stride = 0x40
+subsystem = "menu"
+meaning = "Where the load screen draws the era label's tiles in its tilemap: two rows of nine tile words, cleared before each slot is shown"
+source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, menu_draw_save_slot $C2:D36C ($C2:FB97 draws them)"
+
+[[var]]
+name = "menu_status_record_head"
+addr = "7E:9A90"
+size = 9
+subsystem = "menu"
+meaning = "The character record a status window draws ($C2:ED31's command lists read it): its first nine bytes, the character in the first's low bits. Its fields aren't named yet"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C; $C2:A1EF"
+
+[[var]]
+name = "menu_status_record_tail"
+addr = "7E:9AE0"
+size = 6
+subsystem = "menu"
+meaning = "The same record's next six bytes"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+[[var]]
+name = "menu_status_record_last"
+addr = "7E:9AA2"
+size = 2
+subsystem = "menu"
+meaning = "The same record's last byte, as a word with the byte after it"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+[[var]]
 name = "menu_save_summary"
 addr = "7E:9890"
 size = 0x40
@@ -4564,7 +4819,7 @@ name = "menu_object_shadows"
 addr = "7E:001E"
 page = "menu"
 stride = 0x2C
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "The sprite object mode's display shadows, copied to the registers byte by byte in vblank"
 source = "game/menu/display.c, menu_object_copy_shadows ($C2:01CE-$C2:02AF); docs/PLATFORM.md, What the block copies turned out to mean"
   [[var.field]]
@@ -4731,7 +4986,7 @@ name = "menu_object_vram_queue"
 addr = "7E:0060"
 page = "menu"
 stride = 8
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "The first of the sprite object mode's queued VRAM upload records; the others follow up to the queue end"
 source = "game/menu/display.c, menu_object_upload_vram_queue $C2:0405; game/menu/objects.c, sprite command $C2:0F00"
   [[var.field]]
@@ -5100,7 +5355,7 @@ size = 1
 count = 28
 index = "byte"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Direct-page scratch the sprite object mode's routines share at $00-$1B, below the display shadows: the Epoch's screens keep their operands, pointers and loop counts here, and the gate's window fill writes its two edge positions over $00-$03"
 source = "game/menu/epoch.c (the CELL_ names at the top say what each holds)"
 

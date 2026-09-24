@@ -27,11 +27,5 @@ game/core/input.c                            0.541
 game/data/decompress.c                       0.171
 game/menu/display.c                          0.427
 game/menu/epoch.c                            0.159
-game/menu/frame.c                            0.158
-game/menu/glyphs.c                           0.456
 game/menu/object_script.c                    0.459
 game/menu/objects.c                          0.669
-game/menu/save_screen.c                      0.698
-game/menu/sound.c                            0.125
-game/menu/text.c                             0.462
-game/menu/vram.c                             0.525

@@ -1,409 +1,599 @@
-/* Menu: the save file screen's slot display, and the sprite reset the menu
- * runs each frame.
+/* The load screen: the save slots, and the menus' sprites each frame.
  *
- * $0D49-$0D4B are nonzero for save slots holding a game, $54 is the selected
- * slot, and $7E:7600 + slot * $40 holds each slot's summary, which the screen
- * copies to $9890: three $10-byte party member records, a negative first byte
- * marking an empty one. The slot's contents are drawn into the tilemap buffer
- * at $3200 through window command lists run by $C2:ED31. */
+ * The load screen lists the save slots, and shows the summary of the one the
+ * cursor is on: its header (the time played and where the party is, drawn by
+ * the menus' window command lists), a label for the era it was saved in, and
+ * a row for each party member with the member's portrait. Moving the cursor
+ * skips the slots that hold no game. Once the game has been finished, a
+ * fourth row offers two choices, which left and right flip between. Behind
+ * the rows a per-line effect sets the slot rows apart, and the row of the
+ * slot after the one shown is marked in it.
+ *
+ * The summaries are kept for every slot ($7E:7600, save_slot_summaries); the
+ * screen copies the one shown to its working copy and draws from that. The
+ * window command lists ($C2:ED31), the location name ($C2:F28D), the loader
+ * of the era label's graphic ($C2:F90C), the drawing of its tiles ($C2:FB97)
+ * and the fourth row's redraw ($C2:EAC2) are still the original's, so the two
+ * routines that call them are bridges: the logic here, and the calls made
+ * with the registers the original has at each.
+ *
+ * Every frame the menus also put the sprites back: most are hidden, and the
+ * cursor goes where the current menu's cursor position says. */
 #include "menu/save_screen.h"
 
+#include "menu/menu_data.h"
 #include "menu/vram.h"
+#include "original_effects.h"
 #include "port/machine.h"
+#include "port/native.h"
+#include "port/vars_ram.h"
+#include "ram.h"
+#include "vars.h"
+#include "wram.h"
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
-static uint32_t abs_x(Snes *s, uint16_t offset) { return m_abs(s, offset) + s->cpu.x; }
-static uint32_t abs_y(Snes *s, uint16_t offset) { return m_abs(s, offset) + s->cpu.y; }
+/* ---- The sprites --------------------------------------------------------------------------- */
 
-static void plp(Snes *s)
+/* The menus own sprites 16-95; those they aren't using wait below the screen,
+ * large, with nothing drawn. The cursor is sprite 28. */
+enum { FIRST_MENU_SPRITE = 16, MENU_SPRITES = 80, CURSOR_SPRITE = 28 };
+enum { HIDDEN_Y = 0xE0, HIDDEN_ATTRIBUTES = 0xE0, ALL_LARGE = 0xAA, SPRITES_A_HIGH_BYTE = 4 };
+enum { FLIPPED = 0x40 };
+
+static void hide_menu_sprites(GameState *g)
+{
+    for (unsigned i = FIRST_MENU_SPRITE; i < FIRST_MENU_SPRITE + MENU_SPRITES; i++) {
+        set_oam_buffer_x(g, i, 0);
+        set_oam_buffer_y(g, i, HIDDEN_Y);
+        set_oam_buffer_tile(g, i, 0);
+        set_oam_buffer_attributes(g, i, HIDDEN_ATTRIBUTES);
+    }
+    for (unsigned i = FIRST_MENU_SPRITE; i < FIRST_MENU_SPRITE + MENU_SPRITES; i += SPRITES_A_HIGH_BYTE)
+        set_oam_high_table_byte(g, i / SPRITES_A_HIGH_BYTE, ALL_LARGE);
+}
+
+/* The cursor at the current menu's cursor position: its sprite's tile and
+ * attributes, flipped where the menu says. */
+static void place_cursor(GameState *g)
+{
+    uint8_t at = menu_cursor_index(g);
+    set_oam_buffer_x(g, CURSOR_SPRITE, menu_cursor_places_x(g, at));
+    set_oam_buffer_y(g, CURSOR_SPRITE, menu_cursor_places_y(g, at));
+    uint16_t sprite = menu_cursor_sprite(g);
+    set_oam_buffer_tile(g, CURSOR_SPRITE, (uint8_t)sprite);
+    set_oam_buffer_attributes(g, CURSOR_SPRITE, (uint8_t)(sprite >> 8));
+    if (menu_cursor_flip(g) != 0)
+        set_oam_buffer_attributes(g, CURSOR_SPRITE, (uint8_t)(oam_buffer_attributes(g, CURSOR_SPRITE) | FLIPPED));
+}
+
+// $C2:E92D
+/* The menus' sprites each frame: all hidden, then the cursor placed, unless
+ * the menu hid it for this one frame. */
+static void reset_sprites(GameState *g)
+{
+    hide_menu_sprites(g);
+    bool hidden = menu_cursor_hidden(g) != 0;
+    set_menu_cursor_hidden(g, 0);
+    if (!hidden)
+        place_cursor(g);
+}
+
+/* ---- The slot rows' per-line effect ------------------------------------------------------------ */
+
+/* The slot rows' values ($C2:D044, 33 bytes), where the channel reads its
+ * table from, and the marked row's band: 32 lines of the values' last. */
+enum { ROW_VALUES = 0x21, EFFECT_TABLE = 0x9300, MARKED_LINES = 0x20, MARKED_VALUES = 0x9740 };
+enum { TABLE_BANDS = 5 };
+/* menu_line_effects: the block move the vblank makes, and the channel of the
+ * load screen's per-line effect. */
+enum { BLOCK_MOVE = 0x80, SLOT_ROWS_CHANNEL = 0x40 };
+
+// $C2:CFFB
+/* Set the per-line effect up for the next frame: the rows' values, the table
+ * as the screen's setup built it with the row of the slot after the one shown
+ * marked, and the vblank asked to move the table into place. */
+static void load_slot_rows_effect(GameState *g)
+{
+    for (unsigned i = 0; i < ROW_VALUES; i++)
+        set_menu_slot_row_values_byte(g, i, menu_slot_row_value(g, i));
+    for (unsigned band = 0; band < TABLE_BANDS; band++) {
+        set_menu_slot_row_table_lines(g, band, menu_slot_row_template_lines(g, band));
+        set_menu_slot_row_table_values(g, band, menu_slot_row_template_values(g, band));
+    }
+    set_menu_slot_row_table_end(g, menu_slot_row_template_end(g));
+    set_menu_block_move_source(g, RAM_ABS(RAM_MENU_SLOT_ROW_TABLE));
+    set_menu_block_move_dest(g, EFFECT_TABLE);
+    set_menu_block_move_size(g, TABLE_BANDS * 3 + 1);
+    unsigned marked = menu_save_slot_next(g) + 1u;
+    set_menu_slot_row_table_lines(g, marked, MARKED_LINES);
+    set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | BLOCK_MOVE | SLOT_ROWS_CHANNEL));
+    set_menu_slot_row_table_values(g, marked, MARKED_VALUES);
+}
+
+/* ---- A member's row ---------------------------------------------------------------------------- */
+
+/* The tilemaps the load screen draws are in bank $7E. */
+static void put_tilemap_byte(GameState *g, uint16_t origin, uint16_t offset, uint8_t v)
+{
+    wram_write8(g, 0x7E0000u + origin + offset, v);
+}
+
+/* A member's row is three tilemap rows ($C0 bytes); its portrait is two tiles
+ * square, a row down and fifteen tiles in, in the palette four on from the
+ * row (and the tiles' upper half), from the portraits' tiles and colours
+ * (menu_data.h). */
+enum { TILEMAP_ROW = 0x40, MEMBER_ROW_BYTES = 0xC0, PORTRAIT_AT = 0x5E };
+enum { PALETTE_SHIFT = 2, FIRST_PORTRAIT_PALETTE = 4 << PALETTE_SHIFT, UPPER_TILES = 0x01, COLOURS = 16 };
+enum { PORTRAIT_PALETTE_COLOURS = 4 * COLOURS };
+
+// $C2:D466
+/* The member's portrait on its row: its tiles, and its colours in the row's
+ * palette. */
+static void draw_member_portrait(GameState *g)
+{
+    static const uint16_t corners[4] = { 0, 2, TILEMAP_ROW, TILEMAP_ROW + 2 };
+    uint16_t origin = menu_draw_origin(g);
+    uint16_t row = menu_save_member_row(g);
+    uint8_t attribute = (uint8_t)((uint8_t)(row << PALETTE_SHIFT) | FIRST_PORTRAIT_PALETTE | UPPER_TILES);
+    for (unsigned i = 0; i < 4; i++)
+        put_tilemap_byte(g, origin, (uint16_t)(PORTRAIT_AT + corners[i] + 1), attribute);
+    uint8_t character = (uint8_t)menu_save_member(g);
+    ORIGINAL_EFFECT(set_menu_save_member(g, character));
+    uint8_t tile = menu_portrait_first_tile(g, character);
+    for (unsigned i = 0; i < 4; i++)
+        put_tilemap_byte(g, origin, (uint16_t)(PORTRAIT_AT + corners[i]), (uint8_t)(tile + i));
+    for (unsigned i = 0; i < COLOURS; i++)
+        set_menu_palette(g, PORTRAIT_PALETTE_COLOURS + row * COLOURS + i, menu_portrait_colour(g, character, i));
+}
+
+/* ---- A slot's summary ------------------------------------------------------------------------- */
+
+/* The summary: three member records of 16 bytes, the first byte the member's
+ * character (none, with its top bit set), and the slot's header after them:
+ * where the party is, and the location's name. */
+enum { SUMMARY_BYTES = 0x40, MEMBER_ROWS = 3, MEMBER_RECORD_BYTES = 0x10, NO_MEMBER = 0x80 };
+enum { SUMMARY_LOCATION = 0x32 };
+
+/* What a status window draws a member from: the record's first nine bytes,
+ * its next six, and its last with the byte after it (the next record's first,
+ * or the header's), which the window reads as a word. */
+enum { STATUS_FIRST_BYTES = 9, STATUS_NEXT_BYTES = 6, STATUS_LAST = STATUS_FIRST_BYTES + STATUS_NEXT_BYTES };
+
+/* The slots the load screen can show: the fourth row is a choice, not a slot. */
+enum { SAVE_SLOTS = 3 };
+
+enum { SUMMARY_MEMBER_BYTES = MEMBER_ROWS * MEMBER_RECORD_BYTES };
+
+static void copy_summary(GameState *g, uint8_t slot)
+{
+    for (unsigned i = 0; i < SUMMARY_MEMBER_BYTES; i++)
+        set_menu_save_summary_byte(g, i, save_slot_summaries_members_byte(g, slot, i));
+    for (unsigned i = SUMMARY_MEMBER_BYTES; i < SUMMARY_BYTES; i++)
+        set_menu_save_summary_byte(g, i, save_slot_summaries_header_byte(g, slot, i - SUMMARY_MEMBER_BYTES));
+}
+
+static bool member_present(const GameState *g, unsigned row)
+{
+    return (menu_save_summary_byte(g, row * MEMBER_RECORD_BYTES) & NO_MEMBER) == 0;
+}
+
+/* The member's record where a status window draws it from. */
+static void show_member(GameState *g, unsigned row)
+{
+    unsigned record = row * MEMBER_RECORD_BYTES;
+    for (unsigned i = 0; i < STATUS_FIRST_BYTES; i++)
+        set_menu_status_record_head_byte(g, i, menu_save_summary_byte(g, record + i));
+    for (unsigned i = 0; i < STATUS_NEXT_BYTES; i++)
+        set_menu_status_record_tail_byte(g, i, menu_save_summary_byte(g, record + STATUS_FIRST_BYTES + i));
+    set_menu_status_record_last(g, (uint16_t)(menu_save_summary_byte(g, record + STATUS_LAST)
+                                              | menu_save_summary_byte(g, record + STATUS_LAST + 1) << 8));
+}
+
+/* The era the slot was saved in, which the load screen shows a label for. */
+static uint8_t slot_era(const GameState *g)
+{
+    uint16_t location = (uint16_t)(menu_save_summary_byte(g, SUMMARY_LOCATION)
+                                   | menu_save_summary_byte(g, SUMMARY_LOCATION + 1) << 8);
+    return menu_era_of_location(g, location);
+}
+
+/* The era label's graphic goes to $7E:5E00, and its tiles two tilemap rows at
+ * $7E:5248 and the row below. */
+enum { ERA_LABEL_GRAPHIC = 0x5E00, ERA_LABEL_TILES = 0x5248, ERA_LABEL_FIRST_TILE = 1 };
+
+/* Ask the menus' graphics loader for an era's label. */
+static void request_era_label(GameState *g, uint8_t era)
+{
+    set_menu_save_slot_era(g, era);
+    set_menu_load_request_entry(g, era);
+    set_menu_load_destination(g, ERA_LABEL_GRAPHIC);
+    set_menu_load_request_table(g, MENU_ERA_LABELS);
+}
+
+/* How many tiles wide an era label of `width` pixels is. */
+static uint16_t tiles_across(uint8_t width) { return (uint16_t)((width + 7) / 8); }
+
+/* ---- The bridges: the original's routines the load screen calls ------------------------------- */
+
+/* The bridges below run on the menus' page with the data bank on work RAM's
+ * ($7E), which the summary's copy leaves it on, and call the original's
+ * routines with the widths the original has at each call. The original saves
+ * P when it starts, and its code after a call the port can't go on from pulls
+ * it at its end, so the bridges save it the same way: where a callee comes
+ * back as the port doesn't expect, the port stops at the call's return and
+ * the original goes on with its own frame. */
+enum { JSR_SIZE = 3, WORK_RAM_BANK = 0x7E };
+
+static void set_widths(Snes *s, bool a8, bool x8)
+{
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_sep(s, (uint8_t)((a8 ? CPU_FLAG_M : 0) | (x8 ? CPU_FLAG_X : 0)));
+}
+
+static bool call_original(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8)
+{
+    set_widths(s, a8, x8);
+    m_jsr_dc(s, site, routine, dont_care);
+    if (!s->cpu.e && m_m8(s) == a8 && m_x8(s) == x8 && s->cpu.db == WORK_RAM_BANK && m_direct_page(s) == 0)
+        return true;
+    m_stop_at(s, site + JSR_SIZE, 0);
+    return false;
+}
+
+/* Registers the callees don't read (tools/dontcare_check.py checks each). */
+enum {
+    WINDOW_LIST_IGNORES = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,         /* $C2:ED31 */
+    LOCATION_NAME_IGNORES = DC_A | DC_N | DC_V | DC_Z | DC_C,                       /* $C2:F28D */
+    LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D,         /* $C2:F90C */
+    TILE_STRIP_IGNORES = DC_N | DC_V | DC_Z | DC_C | DC_D | DC_AH,                  /* $C2:FB97 */
+    FOURTH_ROW_IGNORES = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D | DC_AL,    /* $C2:EAC2 */
+};
+
+/* The window command lists the load screen draws with: the slot's header, and
+ * a member's row. */
+enum { HEADER_LIST = 0xC15E, MEMBER_ROW_LIST = 0xC168 };
+/* Where the location's name is drawn, and where it is read from. */
+enum { LOCATION_NAME_TILES = 0x3310, LOCATION_NAME = 0x98C9 };
+/* Where the member rows start in the slot's tilemap, and the summary. */
+enum { MEMBER_ROWS_AT = 0x3200, SUMMARY_AT = 0x9890 };
+
+static void queue_upload(Snes *s, uint16_t record)
+{
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
+}
+
+// $C2:D36C, from $C2:D39E
+/* The slot's header: the window command list's, the location's name, and
+ * the era label, loaded when it isn't the one already there, drawn and
+ * queued. */
+static bool draw_header(Snes *s)
+{
+    GameState *g = state_of(s);
+    s->cpu.x = HEADER_LIST;
+    if (!call_original(s, 0xC2D3A1, 0xC2ED31, WINDOW_LIST_IGNORES, false, false))
+        return false;
+    s->cpu.x = LOCATION_NAME_TILES;
+    s->cpu.y = LOCATION_NAME;
+    if (!call_original(s, 0xC2D3AA, 0xC2F28D, LOCATION_NAME_IGNORES, false, false))
+        return false;
+    uint8_t era = slot_era(g);
+    if (era != menu_save_slot_era(g)) {
+        request_era_label(g, era);
+        if (!call_original(s, 0xC2D3DF, 0xC2F90C, LOADER_IGNORES, true, false))
+            return false;
+        set_menu_save_era_width(g, menu_loaded_graphic_width(g));
+    }
+    uint8_t width = menu_save_era_width(g);
+    if (width != 0) {
+        s->cpu.a = ERA_LABEL_FIRST_TILE;
+        s->cpu.x = ERA_LABEL_TILES;
+        s->cpu.y = tiles_across(width);
+        if (!call_original(s, 0xC2D3FB, 0xC2FB97, TILE_STRIP_IGNORES, true, false))
+            return false;
+    }
+    queue_upload(s, MENU_UPLOAD_ERA_LABEL);
+    return true;
+}
+
+// $C2:D36C, from $C2:D404
+/* A row for each member in the party: the member's record where the window
+ * command list draws it from, and the portrait. The rows' cells are what the
+ * command list and the portrait read. */
+static bool draw_member_rows(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_menu_draw_origin(g, MEMBER_ROWS_AT);
+    set_menu_save_member_record(g, SUMMARY_AT);
+    set_menu_save_member_row(g, 0);
+    for (unsigned row = 0; row < MEMBER_ROWS; row++) {
+        uint8_t member = menu_save_summary_byte(g, row * MEMBER_RECORD_BYTES);
+        set_menu_save_member(g, (uint16_t)((menu_save_member(g) & 0xFF00) | member));
+        if (member_present(g, row)) {
+            show_member(g, row);
+            s->cpu.x = MEMBER_ROW_LIST;
+            if (!call_original(s, 0xC2D43A, 0xC2ED31, WINDOW_LIST_IGNORES, false, false))
+                return false;
+            NATIVE_TIME_AS(s, 0xC2D466, draw_member_portrait(g));
+            set_menu_draw_origin(g, (uint16_t)(menu_draw_origin(g) + MEMBER_ROW_BYTES));
+        }
+        set_menu_save_member_record(g, (uint16_t)(SUMMARY_AT + (row + 1) * MEMBER_RECORD_BYTES));
+        set_menu_save_member_row(g, (uint16_t)(row + 1));
+    }
+    return true;
+}
+
+/* The drawn slot asks for the palette's upload: the portraits are in it. */
+static void palette_changed(GameState *g) { set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1)); }
+
+// $C2:D36C
+/* Draw the summary of the slot shown, a slot that holds a game: nothing for
+ * the fourth row or an empty slot. */
+static bool draw_save_slot(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_menu_member_marked(g, 0);
+    uint8_t slot = menu_save_slot_shown(g);
+    if (slot >= SAVE_SLOTS || menu_save_slot_in_use(g, slot) == 0)
+        return true;
+    copy_summary(g, slot);
+    s->cpu.db = WORK_RAM_BANK;   /* the copy's block move leaves it there */
+    if (menu_save_header_taken(g) == 0 && !draw_header(s))
+        return false;
+    if (!draw_member_rows(s))
+        return false;
+    palette_changed(g);
+    return true;
+}
+
+/* The slots the cursor moves between, and the cursor's moves this frame. */
+enum { SLOT_ROWS = 4, ROW_MASK = SLOT_ROWS - 1, FOURTH_ROW = 3 };
+enum { MOVED_RIGHT = 0x01, MOVED_LEFT = 0x02, MOVED_UP = 0x08 };
+/* The fourth row's two choices are $70 apart across the screen. */
+enum { FOURTH_ROW_CHOICES_APART = 0x70 };
+
+/* The P the slot's drawing saves as it starts: the original's compare with
+ * the fourth row leaves its carry there (where the game is finished), and its
+ * last load before the call its zero and negative clear. */
+static void leave_fourth_row_compare(Snes *s, uint8_t slot) { m_set_flag(s, CPU_FLAG_C, slot >= FOURTH_ROW); }
+static void leave_last_load(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_N, false);
+    m_set_flag(s, CPU_FLAG_Z, false);
+}
+
+/* Off an empty slot: back up the list when the cursor moved up, and down it
+ * otherwise, round the four rows. */
+static uint8_t skip_empty_slots(GameState *g, uint8_t slot)
+{
+    bool up = (menu_cursor_moves(g) & MOVED_UP) != 0;
+    while (menu_save_slot_in_use(g, slot) == 0)
+        slot = (uint8_t)((up ? slot - 1 : slot + 1) & ROW_MASK);
+    return slot;
+}
+
+/* The slot's tilemap and the era label's tiles cleared for the slot shown. */
+enum { SLOT_TILEMAP_BYTES = 0x240, ERA_LABEL_ROWS = 2, ERA_LABEL_ROW_BYTES = 0x12 };
+
+static void clear_slot_tilemap(GameState *g)
+{
+    for (unsigned i = 0; i < SLOT_TILEMAP_BYTES; i++)
+        set_menu_save_slot_tilemap_byte(g, i, 0);
+    for (unsigned row = 0; row < ERA_LABEL_ROWS; row++)
+        for (unsigned i = 0; i < ERA_LABEL_ROW_BYTES; i++)
+            set_menu_era_label_tiles(g, row, i, 0);
+}
+
+// $C2:E743
+/* Show the slot the cursor is on: off the empty slots; on the fourth row, left
+ * or right flips between its choices; then the slot rows' effect, and the
+ * slot's summary drawn and queued. */
+static bool show_save_slot(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_widths(s, true, true);   /* its own widths, which cut the index registers to a byte */
+    uint8_t slot = skip_empty_slots(g, menu_cursor_index(g));
+    set_menu_cursor_index(g, slot);
+    bool finished = menu_saves_finished_game(g);
+    if (finished)
+        ORIGINAL_EFFECT(leave_fourth_row_compare(s, slot));
+    if (finished && slot == FOURTH_ROW && (menu_cursor_moves(g) & (MOVED_RIGHT | MOVED_LEFT))) {
+        uint8_t x = (uint8_t)(menu_cursor_places_x(g, FOURTH_ROW) ^ FOURTH_ROW_CHOICES_APART);
+        set_menu_cursor_places_x(g, FOURTH_ROW, x);
+        m_set_a8(s, x);
+        s->cpu.x = slot;
+        if (!call_original(s, 0xC2E777, 0xC2EAC2, FOURTH_ROW_IGNORES, true, true))
+            return false;
+    }
+    set_menu_save_slot_shown(g, slot);
+    set_menu_save_slot_next(g, (uint8_t)((slot + 1) & ROW_MASK));
+    NATIVE_TIME_AS(s, 0xC2CFFB, load_slot_rows_effect(g));
+    clear_slot_tilemap(g);
+    s->cpu.db = WORK_RAM_BANK;   /* the clearing's block moves leave it there */
+    set_widths(s, false, false);
+    ORIGINAL_EFFECT(leave_last_load(s));
+    return true;
+}
+
+/* ---- The entries ------------------------------------------------------------------------------ */
+
+/* The original's frame: the P each routine saves as it starts and pulls as it
+ * ends (which puts its caller's widths back). */
+static void save_p(Snes *s) { m_push8(s, s->cpu.p); }
+static void restore_p(Snes *s)
 {
     s->cpu.p = m_pull8(s);
-    if (s->cpu.p & CPU_FLAG_X) {
+    if (m_x8(s)) {
         s->cpu.x &= 0xFF;
         s->cpu.y &= 0xFF;
     }
 }
 
-/* After a call-out: true if the widths are as the code that follows assumes. */
-static bool widths_are(Snes *s, uint8_t mx)
+/* What the queue's block move leaves after the last upload a routine queued
+ * (menu/vram.c): the data bank on work RAM's, A's high byte $FF and its low
+ * the queue's count, X past the record and Y past the queue's entry. */
+static void leave_last_upload(Snes *s, uint16_t record)
 {
-    return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == mx;
+    uint8_t queued = menu_vram_queue_bytes(state_of(s));
+    s->cpu.db = WORK_RAM_BANK;
+    s->cpu.a = (uint16_t)(0xFF00 | queued);
+    s->cpu.x = (uint16_t)(record + 8);
+    s->cpu.y = (uint16_t)(RAM_ABS(RAM_MENU_VRAM_QUEUE) + queued);
 }
 
-/* Stop at `pc` in bank $C2, handing the rest to the original. */
-static void stop_at(Snes *s, uint16_t pc) { m_stop_at(s, 0xC20000u | pc, 0); }
+/* The block moves leave the data bank on work RAM's. */
+static void leave_block_move_bank(Snes *s) { s->cpu.db = WORK_RAM_BANK; }
 
-/* STZ abs (16-bit) : LDX #from : LDY #from+2 : LDA #count : MVN $7E,$7E,
- * filling count+2 bytes with zeros. */
-static void clear_block(Snes *s, uint16_t from, uint16_t count)
+/* Where the sprite reset leaves X and Y: past the high table's fill, or with
+ * the cursor placed, X at its place's entry. */
+static void leave_sprite_reset(Snes *s, bool placed)
 {
-    m_write16(s, m_abs(s, from), 0x0000);
-    m_ldx(s, from);
-    m_ldy(s, (uint16_t)(from + 2));
-    m_lda16(s, count);
-    m_mvn(s, 0x7E, 0x7E);
+    GameState *g = state_of(s);
+    s->cpu.db = WORK_RAM_BANK;
+    uint16_t x = placed ? (uint16_t)(menu_cursor_index(g) * 6) : 0x0916;
+    s->cpu.x = m_x8(s) ? (uint8_t)x : x;
+    s->cpu.y = m_x8(s) ? 0x18 : 0x0918;
 }
 
 // $C2:E92D
-/* Hide sprites 16-95 of the OAM buffer ($0740: Y = $E0) and set their size
- * bits ($0904-$0917 = $AA), then, unless $0D9B was nonzero (it is cleared),
- * place the cursor sprite at $0770: position from the word at $9380 + $54 * 6,
- * tile and attributes from $58, and attribute bit 6 when $56 is nonzero. */
 void menu_reset_sprites(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_lda16(s, 0xE000);
-    m_write16(s, m_abs(s, 0x0740), c->a);
-    m_ldx(s, 0x0740);
-    m_ldy(s, 0x0742);
-    m_lda16(s, 0x013D);
-    m_mvn(s, 0x7E, 0x7E);
-    m_lda16(s, 0xAAAA);
-    m_write16(s, m_abs(s, 0x0904), c->a);
-    m_ldx(s, 0x0904);
-    m_ldy(s, 0x0906);
-    m_lda16(s, 0x0011);
-    m_mvn(s, 0x7E, 0x7E);
-    /* $C2:E954 */
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, 0xFF);
-    m_trb8(s, m_abs(s, 0x0D9B));
-    if (m_flag(s, CPU_FLAG_Z)) {
-        m_lda8(s, dp8(s, 0x54));
-        /* JSR $EA27: X = A * 6 */
-        m_push16(s, 0xE961);
-        m_push8(s, c->p);
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-        m_lda16(s, c->a & 0x00FF);
-        c->a = m_asl16(s, c->a);
-        m_push16(s, c->a);
-        c->a = m_asl16(s, c->a);
-        c->a = m_adc16(s, c->a, m_read16(s, (uint16_t)(c->s + 1)));
-        m_tax(s);
-        m_lda16(s, m_pull16(s));
-        plp(s);
-        m_pull16(s);
-
-        m_rep(s, CPU_FLAG_M);
-        m_write16(s, m_abs(s, 0x0770), m_lda16(s, m_read16(s, abs_x(s, 0x9380))));
-        m_write16(s, m_abs(s, 0x0772), m_lda16(s, dp16(s, 0x58)));
-        m_sep(s, CPU_FLAG_M);
-        if (m_lda8(s, dp8(s, 0x56)) != 0) {
-            m_lda8(s, 0x40);
-            m_tsb8(s, m_abs(s, 0x0773));
-        }
-    }
-    plp(s);
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool placed = menu_cursor_hidden(g) == 0;
+    vars_peek(false);
+    reset_sprites(g);
+    ORIGINAL_EFFECT(leave_sprite_reset(s, placed));
     m_rts(s);
 }
 
 // $C2:CFFB
-/* Load the row table at $9720 from $C2:D044 ($21 bytes), copy $9710-$971F
- * to $969A with its pointers at $9694-$9699 ($969A, $9300, $10 entries), and
- * mark row $7F's 3-byte entry at $969C: $20 and pointer $9740. Sets $0D13 bits
- * 6-7. */
-void menu_load_row_table(Snes *s)
+void menu_load_slot_rows_effect(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_ldx(s, 0xD044);
-    m_ldy(s, 0x9720);
-    m_lda16(s, 0x0020);
-    m_mvn(s, 0x7E, 0xC2);
-    m_ldx(s, 0x9710);
-    m_ldy(s, 0x969A);
-    m_lda16(s, 0x000F);
-    m_mvn(s, 0x7E, 0x7E);
-    m_write16(s, m_abs(s, 0x9694), m_lda16(s, 0x969A));
-    m_write16(s, m_abs(s, 0x9696), m_lda16(s, 0x9300));
-    m_write16(s, m_abs(s, 0x9698), m_lda16(s, 0x0010));
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_lda8(s, dp8(s, 0x7F));
-    m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x7F)));
-    m_tax(s);
-    m_write8(s, abs_x(s, 0x969D), m_lda8(s, 0x20));
-    m_lda8(s, 0xC0);
-    m_tsb8(s, m_abs(s, 0x0D13));
-    m_rep(s, CPU_FLAG_M);
-    m_write16(s, abs_x(s, 0x969E), m_lda16(s, 0x9740));
-    plp(s);
+    load_slot_rows_effect(state_of(s));
+    ORIGINAL_EFFECT(leave_block_move_bank(s));
     m_rts(s);
 }
 
 // $C2:D466
-/* Draw party member record $24's portrait: a 2x2 block of tiles at the
- * tilemap position in $61 (offsets $5E, $60, $9E, $A0), tiles from $C2:D4B4
- * indexed by the member in $00 and attributes $11 + $24 * 4, then its 16
- * colors from $FF:CC84 + member * $20 to $9500 + $24 * $20. */
 void menu_draw_member_portrait(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    m_ldy(s, dp16(s, 0x61));
-    m_lda8(s, dp8(s, 0x24));
-    m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-    m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-    m_lda8(s, (uint8_t)c->a | 0x11);
-    static const uint16_t attr[4] = { 0x005F, 0x0061, 0x009F, 0x00A1 };
-    for (int i = 0; i < 4; i++)
-        m_write8(s, abs_y(s, attr[i]), (uint8_t)c->a);
-    set_dp8(s, 0x01, 0x00);
-    m_ldx(s, dp16(s, 0x00));
-    m_lda8(s, m_read8(s, 0xC2D4B4 + c->x));
-    static const uint16_t tile[4] = { 0x005E, 0x0060, 0x009E, 0x00A0 };
-    for (int i = 0; i < 4; i++) {
-        if (i > 0)
-            m_lda8(s, (uint8_t)(c->a + 1));
-        m_write8(s, abs_y(s, tile[i]), (uint8_t)c->a);
-    }
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_lda16(s, dp16(s, 0x00));
-    for (int i = 0; i < 5; i++)
-        c->a = m_asl16(s, c->a);
-    c->a = m_adc16(s, c->a, 0xCC84);
-    m_tax(s);
-    m_lda16(s, dp16(s, 0x24));
-    for (int i = 0; i < 5; i++)
-        c->a = m_asl16(s, c->a);
-    c->a = m_adc16(s, c->a, 0x9500);
-    m_ldy(s, c->a);
-    m_lda16(s, 0x001F);
-    m_mvn(s, 0x7E, 0xFF);
-    plp(s);
+    draw_member_portrait(state_of(s));
     m_rts(s);
 }
 
 // $C2:D36C
-/* Draw the summary of save slot $79 (nothing for slot 3 or an empty slot):
- * copy its $40 bytes to $9890, draw the slot's header through the command
- * list $C2:C15E and $C2:F28D, update the palette set $0D77 (through $C2:F90C)
- * and a row of $26 bits (through $C2:FB97) when $0D84 is clear, then each
- * member's record through the list $C2:C168 and its portrait, three rows of
- * $C0 bytes apart in the tilemap from $3200. Increments $0D15. */
 void menu_draw_save_slot(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_write8(s, m_abs(s, 0x0D5D), 0x00);
-    m_ldx(s, dp8(s, 0x79));
-    m_cmp8(s, (uint8_t)c->x, 0x03);
-    if ((uint8_t)c->x == 0x03 || m_lda8(s, m_read8(s, abs_x(s, 0x0D49))) == 0) {
-        plp(s);
-        m_rts(s);
+    save_p(s);
+    if (!draw_save_slot(s))
         return;
-    }
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_lda16(s, dp16(s, 0x78));
-    m_lda16(s, c->a & 0xFF00);
-    c->a = m_lsr16(s, c->a);
-    c->a = m_lsr16(s, c->a);
-    c->a = m_adc16(s, c->a, 0x7600);
-    m_tax(s);
-    m_ldy(s, 0x9890);
-    m_lda16(s, 0x003F);
-    m_mvn(s, 0x7E, 0x7E);
-    if (m_lda16(s, m_read16(s, m_abs(s, 0x0D84))) == 0) {
-        m_ldx(s, 0xC15E);
-        m_jsr(s, 0xC2D3A1, 0xC2ED31);
-        if (!widths_are(s, 0)) {
-            stop_at(s, 0xD3A4);
-            return;
-        }
-        m_ldx(s, 0x3310);
-        m_ldy(s, 0x98C9);
-        m_jsr(s, 0xC2D3AA, 0xC2F28D);
-        if (!widths_are(s, 0)) {
-            stop_at(s, 0xD3AD);
-            return;
-        }
-        m_lda16(s, m_read16(s, m_abs(s, 0x98C2)));
-        c->a = m_lsr16(s, c->a);
-        m_tax(s);
-        m_lda16(s, m_read16(s, 0xFFD296 + c->x));
-        m_lda16(s, c->a & 0x01FF);
-        if (m_flag(s, CPU_FLAG_C)) {
-            for (int i = 0; i < 4; i++)
-                c->a = m_lsr16(s, c->a);
-        }
-        m_sep(s, CPU_FLAG_M);
-        m_lda8(s, (uint8_t)c->a & 0x0F);
-        m_cmp8(s, (uint8_t)c->a, m_read8(s, m_abs(s, 0x0D77)));
-        if (!m_flag(s, CPU_FLAG_Z)) {
-            m_write8(s, m_abs(s, 0x0D77), (uint8_t)c->a);
-            m_write8(s, m_abs(s, 0x020C), (uint8_t)c->a);
-            m_write16(s, m_abs(s, 0x0DC5), m_ldx(s, 0x5E00));
-            m_write16(s, m_abs(s, 0x020D), m_ldx(s, 0xD396));
-            m_write8(s, m_abs(s, 0x020F), m_lda8(s, 0xFF));
-            m_jsr(s, 0xC2D3DF, 0xC2F90C);
-            if (!widths_are(s, CPU_FLAG_M)) {
-                stop_at(s, 0xD3E2);
-                return;
-            }
-            set_dp8(s, 0x26, m_lda8(s, m_read8(s, m_abs(s, 0x0234))));
-        }
-        m_ldx(s, 0x5248);
-        m_tdc(s);
-        if (m_lda8(s, dp8(s, 0x26)) != 0) {
-            for (int i = 0; i < 3; i++) {
-                m_set_a8(s, m_lsr8(s, (uint8_t)c->a));
-                m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0x00));
-            }
-            m_ldy(s, c->a);
-            m_lda8(s, 0x01);
-            m_jsr(s, 0xC2D3FB, 0xC2FB97);
-            if (!widths_are(s, CPU_FLAG_M)) {
-                stop_at(s, 0xD3FE);
-                return;
-            }
-        }
-        m_ldx(s, 0xD45F);
-        m_jsr(s, 0xC2D401, 0xC28385);
-        if (!widths_are(s, CPU_FLAG_M)) {
-            stop_at(s, 0xD404);
-            return;
-        }
-    }
-    /* $C2:D404 */
-    set_dp16(s, 0x61, m_ldx(s, 0x3200));
-    set_dp16(s, 0x02, m_ldx(s, 0x9890));
-    if (m_m8(s)) {
-        set_dp8(s, 0x24, 0x00);
-        set_dp8(s, 0x25, 0x00);
-    } else {
-        set_dp16(s, 0x24, 0x0000);
-        set_dp16(s, 0x25, 0x0000);
-    }
-    for (;;) {
-        m_sep(s, CPU_FLAG_M);
-        m_ldx(s, dp16(s, 0x02));
-        set_dp8(s, 0x00, m_lda8(s, m_read8(s, abs_x(s, 0x0000))));
-        if (!(c->a & 0x80)) {
-            m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-            m_ldy(s, 0x9A90);
-            m_lda16(s, 0x0008);
-            m_mvn(s, 0x7E, 0x7E);
-            m_ldy(s, 0x9AE0);
-            m_lda16(s, 0x0005);
-            m_mvn(s, 0x7E, 0x7E);
-            m_write16(s, m_abs(s, 0x9AA2), m_lda16(s, m_read16(s, abs_x(s, 0x0000))));
-            m_ldx(s, 0xC168);
-            m_jsr(s, 0xC2D43A, 0xC2ED31);
-            if (!widths_are(s, 0)) {
-                stop_at(s, 0xD43D);
-                return;
-            }
-            m_push16(s, 0xD43F);
-            menu_draw_member_portrait(s);
-            m_lda16(s, dp16(s, 0x61));
-            m_set_flag(s, CPU_FLAG_C, false);
-            c->a = m_adc16(s, c->a, 0x00C0);
-            set_dp16(s, 0x61, c->a);
-        }
-        /* $C2:D448 */
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-        m_lda16(s, dp16(s, 0x02));
-        c->a = m_adc16(s, c->a, 0x0010);
-        set_dp16(s, 0x02, c->a);
-        uint16_t row = (uint16_t)(dp16(s, 0x24) + 1);
-        set_dp16(s, 0x24, row);
-        m_lda16(s, row);
-        m_cmp16(s, c->a, 0x0003);
-        if (row >= 0x0003)
-            break;
-    }
-    uint16_t count = (uint16_t)(m_read16(s, m_abs(s, 0x0D15)) + 1);
-    m_write16(s, m_abs(s, 0x0D15), count);
-    m_set_nz16(s, count);
-    plp(s);
+    restore_p(s);
     m_rts(s);
 }
 
 // $C2:E743
-/* Show save slot $54: move off empty slots (back when $5A bit 3 is set,
- * forward otherwise, wrapping within 0-3), flip $9392 bits $70 with a sound
- * on slot 3 when SRAM byte $30:7FE2 is set and $5A has bits 0-1, remember the
- * slot in $79 and the next in $7F, load the row table ($C2:CFFB), clear the
- * tilemap buffer $3200-$343F and the rows at $5248 and $5288, draw the slot
- * ($C2:D36C) and queue three uploads. */
 void menu_show_save_slot(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    /* With no slot in use the original searches forever: leave that to it. */
-    bool any = false;
-    for (uint16_t i = 0; i < 4; i++)
-        any |= snes_bus_peek(&s->bus, m_abs(s, (uint16_t)(0x0D49 + i))) != 0;
-    if (!any && snes_bus_peek(&s->bus, m_abs(s, 0x0D49) + snes_bus_peek(&s->bus, m_dp(s, 0x54))) == 0) {
-        stop_at(s, 0xE746);
+    save_p(s);
+    if (!show_save_slot(s))
         return;
-    }
-    for (;;) {
-        m_ldx(s, dp8(s, 0x54));
-        if (m_lda8(s, m_read8(s, abs_x(s, 0x0D49))) != 0)
-            break;
-        m_lda8(s, dp8(s, 0x5A));
-        if (m_lda8(s, (uint8_t)c->a & 0x08) == 0) {
-            m_inx(s);
-            m_inx(s);
-        }
-        m_set_index(s, &c->x, (uint16_t)(c->x - 1));
-        m_txa(s);
-        set_dp8(s, 0x54, m_lda8(s, (uint8_t)c->a & 0x03));
-    }
-    if (m_lda8(s, m_read8(s, 0x307FE2)) != 0) {
-        m_lda8(s, dp8(s, 0x54));
-        m_cmp8(s, (uint8_t)c->a, 0x03);
-        if ((uint8_t)c->a == 0x03) {
-            m_lda8(s, dp8(s, 0x5A));
-            if (m_lda8(s, (uint8_t)c->a & 0x03) != 0) {
-                m_lda8(s, m_read8(s, m_abs(s, 0x9392)));
-                m_write8(s, m_abs(s, 0x9392), m_lda8(s, (uint8_t)c->a ^ 0x70));
-                m_jsr(s, 0xC2E777, 0xC2EAC2);
-                if (!widths_are(s, CPU_FLAG_M | CPU_FLAG_X)) {
-                    stop_at(s, 0xE77A);
-                    return;
-                }
-            }
-        }
-    }
-    set_dp8(s, 0x79, m_lda8(s, dp8(s, 0x54)));
-    m_lda8(s, (uint8_t)(c->a + 1));
-    set_dp8(s, 0x7F, m_lda8(s, (uint8_t)c->a & 0x03));
-    m_jsr(s, 0xC2E783, 0xC2CFFB);
-    if (!widths_are(s, CPU_FLAG_M | CPU_FLAG_X)) {
-        stop_at(s, 0xE786);
+    m_push16(s, 0xE7AC + 2);   /* the JSR to the slot's drawing, called as C */
+    NATIVE_TIME_AS(s, 0xC2D36C, menu_draw_save_slot(s));
+    if (s->cpu.pb != 0xC2 || s->cpu.pc != 0xE7AF)
         return;
-    }
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    clear_block(s, 0x3200, 0x023D);
-    m_ldx(s, 0x3200);
-    m_ldy(s, 0x5248);
-    m_lda16(s, 0x0011);
-    m_mvn(s, 0x7E, 0x7E);
-    m_ldy(s, 0x5288);
-    m_lda16(s, 0x0011);
-    m_mvn(s, 0x7E, 0x7E);
-    m_jsr(s, 0xC2E7AC, 0xC2D36C);
-    static const uint16_t sites[3] = { 0xE7AF, 0xE7B5, 0xE7BB };
-    static const uint16_t records[3] = { 0xFBDC, 0xFC0D, 0xFC29 };
-    for (int i = 0; i < 3; i++) {
-        if (m_x8(s) || s->cpu.e) {
-            stop_at(s, sites[i]);
-            return;
-        }
-        m_ldx(s, records[i]);
-        m_jsr(s, 0xC20000 | (uint16_t)(sites[i] + 3), 0xC28385);
-    }
-    plp(s);
+    queue_upload(s, MENU_UPLOAD_SLOT_TILEMAP);
+    queue_upload(s, MENU_UPLOAD_SLOT_TILEMAP_2);
+    queue_upload(s, MENU_UPLOAD_SLOT_TILEMAP_3);
+    ORIGINAL_EFFECT(leave_last_upload(s, MENU_UPLOAD_SLOT_TILEMAP_3));
+    restore_p(s);
     m_rts(s);
+}
+
+/* ---- The guards ------------------------------------------------------------------------------- */
+
+/* The load screen's routines run on the menus' page, reaching the slot flags
+ * and the queue through a data bank on low RAM. What the game gives them
+ * besides: a cursor on one of the four rows and at least one slot with a game
+ * (else the skip of empty slots goes round for ever), whole records in the
+ * upload queue, a palette change the drawing can count, and summaries whose
+ * members are characters. Looked at without the machine's time. */
+static bool on_the_menus_page(Snes *s) { return m_direct_page(s) == 0x0000; }
+
+static bool members_are_characters(const GameState *g, uint8_t slot)
+{
+    for (unsigned row = 0; row < MEMBER_ROWS; row++) {
+        uint8_t member = save_slot_summaries_members_byte(g, slot, row * MEMBER_RECORD_BYTES);
+        if (!(member & NO_MEMBER) && member >= MENU_PORTRAITS)
+            return false;
+    }
+    return true;
+}
+
+static bool slot_is_drawable(const GameState *g, uint8_t slot)
+{
+    return slot >= SAVE_SLOTS || menu_save_slot_in_use(g, slot) == 0 || members_are_characters(g, slot);
+}
+
+static bool drawing_counts(const GameState *g)
+{
+    return menu_vram_queue_bytes(g) % 8 == 0 && menu_palette_changed(g) != 0xFF;
+}
+
+bool menu_save_slot_is_drawable(Snes *s)
+{
+    if (!on_the_menus_page(s) || !m_bank_reaches_low_ram(s))
+        return false;
+    GameState *g = state_of(s);
+    vars_peek(true);
+    uint8_t slot = menu_save_slot_shown(g);
+    bool ok = slot < SLOT_ROWS && slot_is_drawable(g, slot) && drawing_counts(g);
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_save_slots_are_showable(Snes *s)
+{
+    if (!on_the_menus_page(s) || !m_bank_reaches_low_ram(s))
+        return false;
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool any = false, drawable = true;
+    for (uint8_t slot = 0; slot < SLOT_ROWS; slot++) {
+        any = any || menu_save_slot_in_use(g, slot) != 0;
+        drawable = drawable && slot_is_drawable(g, slot);
+    }
+    bool ok = menu_cursor_index(g) < SLOT_ROWS && any && drawable && drawing_counts(g);
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_portrait_is_drawable(Snes *s)
+{
+    if (!on_the_menus_page(s) || s->cpu.db != WORK_RAM_BANK)
+        return false;
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool ok = menu_save_member_row(g) < MEMBER_ROWS && (uint8_t)menu_save_member(g) < MENU_PORTRAITS;
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_slot_rows_effect_is_loadable(Snes *s)
+{
+    if (!on_the_menus_page(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_save_slot_next(state_of(s)) < SLOT_ROWS;
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_sprites_are_resettable(Snes *s)
+{
+    if (!on_the_menus_page(s) || s->cpu.db != WORK_RAM_BANK)
+        return false;
+    vars_peek(true);
+    bool ok = menu_cursor_index(state_of(s)) < RAM_MENU_CURSOR_PLACES_COUNT;
+    vars_peek(false);
+    return ok;
 }
