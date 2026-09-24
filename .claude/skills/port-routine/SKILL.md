@@ -184,6 +184,16 @@ operands where it is handed back, not with ALU helpers in the logic. The
 native-shape build (`ct_game_native_shape`) compiles your logic with all of it
 switched off, and must still build; `portstyle.py` counts what you marked.
 
+An index past a variable's count, bytes, rows or columns is an alias of
+whatever follows it in the original's memory: `ct_dev` counts it (`accessor
+out of range`) and the gate fails. Where the gate needs the original's stray
+access, make it a marked scaffolding function that calls the variable's
+`_unchecked` pair (declare `unchecked = "<why>"` on the variable in
+`re/ram.toml`; `field/sprites.c`'s `leave_stray_fifth_sprite_y` is the
+example). Otherwise guard the state away, and if the movies make it, it is
+unported work (below). `ct_fuzz` lists the accessors random states drive out
+of range: a guard is usually missing there.
+
 A dispatcher over opcodes is a C table of rows -- operation, how each operand
 decodes into a typed parameter, length, jump -- calling operations as C, with
 `NATIVE_TIME_AS` naming each handler's address. Opcodes that differ only in

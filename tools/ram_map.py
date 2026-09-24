@@ -20,7 +20,10 @@ fails when one is out of date:
   without saying where it lives, so the storage can move once a subsystem no
   longer shares it with generated code (docs/PLAN.md, "Phase 3a"). A variable
   on a page kind (a page whose code runs with D on any of its instances) takes
-  which instance the port means, never a D.
+  which instance the port means, never a D. The backing checks every index an
+  accessor takes against the map's count, bytes, rows and columns, and counts
+  what is out of range, when it is built with CT_ACCESSOR_CHECKS; a variable
+  with `unchecked` also gets an `_unchecked` pair for marked scaffolding.
 
 **Coverage** answers "how much of what game/ touches has a name". It counts,
 over game/ with comments stripped:
@@ -317,7 +320,7 @@ class Var:
     """A variable, an array of them, or an array of records."""
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
-            "subsystem", "meaning", "source", "field", "rows", "row_stride"}
+            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -407,6 +410,23 @@ class Var:
                 if self.addr >> 16 != 0x7E or not 0 <= self.dp <= 0xFF:
                     raise MapError("%s: %s is not in page %r (D = $%04X)"
                                    % (where, fmt_addr(self.addr), self.page.name, self.page.d))
+
+        # A variable some marked scaffolding reaches out of range on purpose
+        # (a `leave_stray_*` write the gate needs): it gets a second, unchecked
+        # pair of accessors, and says why.
+        self.unchecked = raw.get("unchecked")
+        if self.unchecked is not None:
+            if not (isinstance(self.unchecked, str) and self.unchecked.strip()):
+                raise MapError("%s: unchecked says why, as a sentence" % where)
+            if not self.indexed():
+                raise MapError("%s: unchecked, but nothing indexes it" % where)
+
+    def indexed(self):
+        """Whether an accessor of this variable takes anything it could be out of
+        range in: an element, a byte, a row and column, or an array of pages."""
+        return (self.count > 1 or self.rows is not None or (self.size > WIDEST and not self.fields)
+                or any(f.size > WIDEST for f in self.fields)
+                or (self.on_instances() and self.page.shape() != "named"))
 
     def row_span(self):
         """The bytes one row takes, from its first element's start."""
@@ -678,9 +698,10 @@ class Accessor:
     A value wider than WIDEST bytes is a buffer with no one C type, so its pair
     moves a byte at a time and says so in its name."""
 
-    def __init__(self, var, field=None):
+    def __init__(self, var, field=None, unchecked=False):
         self.var = var
         base = var.name if field is None else "%s_%s" % (var.name, field.name)
+        self.unchecked = unchecked
         self.offset = field.offset if field else 0
         self.addr = None if var.on_instances() else var.addr + self.offset
         self.size = field.size if field else var.size
@@ -688,11 +709,13 @@ class Accessor:
         # A table of rows is a byte by row and column, whatever its row's size.
         self.table = var.rows is not None
         self.blob = self.size > WIDEST and not self.table
-        self.name = base + "_byte" if self.blob else base
+        self.name = (base + "_byte" if self.blob else base) + ("_unchecked" if unchecked else "")
         self.type = "uint8_t" if self.blob or self.table else C_TYPE[self.size]
-        self.bytes_const = base.upper() + "_BYTES" if self.blob else None
-        self.rows_const = base.upper() + "_ROWS" if self.table else None
-        self.columns_const = base.upper() + "_COLUMNS" if self.table else None
+        # The unchecked pair shares the checked one's constants.
+        named = not unchecked
+        self.bytes_const = base.upper() + "_BYTES" if self.blob and named else None
+        self.rows_const = base.upper() + "_ROWS" if self.table and named else None
+        self.columns_const = base.upper() + "_COLUMNS" if self.table and named else None
 
     def params(self, write):
         """The parameter list after the state, as (declaration, argument) pairs."""
@@ -728,12 +751,39 @@ class Accessor:
             out += " + (uint32_t)row * 0x%02Xu + column" % self.var.row_stride
         return out
 
+    def bounds(self):
+        """What each index the accessor takes must be below, as (argument, limit,
+        what the limit is): the page kind's instances, the array's count, a
+        buffer's bytes, a table's rows and columns. The backing checks them
+        (CT_ACCESSOR_CHECKS) unless the accessor is the unchecked pair."""
+        out = []
+        if self.unchecked:
+            return out
+        v = self.var
+        if v.on_instances():
+            p, shape = v.page, v.page.shape()
+            if shape == "array":
+                out.append((p.param(), "%du" % p.instances[0].count, "instances"))
+            elif shape == "mixed":
+                out.append((p.param() + ".index", "%s(%s)" % (page_count_name(p), p.param()), "instances"))
+        if v.count > 1:
+            out.append((index_param(v.index), "%du" % v.count, "count"))
+        if self.blob:
+            out.append(("at", "%du" % self.size, "bytes"))
+        if self.table:
+            out += [("row", "%du" % v.rows, "rows"), ("column", "%du" % self.size, "columns")]
+        return out
+
     def note(self):
         """What the accessor is, for the comment above it. What an array is
         indexed by is on its count, once, rather than on every field."""
         if self.table:
-            return self.meaning + " [a byte by row and column]"
-        return self.meaning + (" [%d bytes, one at a time]" % self.size if self.blob else "")
+            out = self.meaning + " [a byte by row and column]"
+        else:
+            out = self.meaning + (" [%d bytes, one at a time]" % self.size if self.blob else "")
+        if self.unchecked:
+            out += " Unchecked, for marked scaffolding only: %s" % self.var.unchecked
+        return out
 
 
 def page_kinds(m):
@@ -743,6 +793,10 @@ def page_kinds(m):
 
 def page_base_name(p):
     return p.name + "_page_base"
+
+
+def page_count_name(p):
+    return p.name + "_page_count"
 
 
 def accessors(m):
@@ -775,12 +829,14 @@ def accessors(m):
         if v.on_instances() and v.count > 1 and index_param(v.index) == v.page.param():
             raise MapError("%s: its index and its page's instance are both called %r" % (v.name, v.page.param()))
         group = [Accessor(v, f) for f in v.fields] if v.fields else [Accessor(v)]
+        if v.unchecked:
+            group += [Accessor(v, f, unchecked=True) for f in v.fields] if v.fields else [Accessor(v, unchecked=True)]
         for a in group:
             take(a.name, names, "accessor")
             take("set_" + a.name, names, "accessor")
             if a.bytes_const:
                 take(a.bytes_const, consts, "constant")
-            if a.table:
+            if a.rows_const:
                 take(a.rows_const, consts, "constant")
                 take(a.columns_const, consts, "constant")
         count = take(v.name.upper() + "_COUNT", consts, "constant") if v.count > 1 else None
@@ -875,7 +931,7 @@ def render_vars_header(m):
                 out += comment(a.note())
                 if a.bytes_const:
                     out.append("enum { %s = %d };" % (a.bytes_const, a.size))
-                if a.table:
+                if a.rows_const:
                     out.append("enum { %s = %d, %s = %d };" % (a.rows_const, a.var.rows, a.columns_const, a.size))
                 out.append("%s;" % a.signature(False))
                 out.append("%s;" % a.signature(True))
@@ -899,6 +955,7 @@ def render_backing(m):
         "#include \"vars.h\"",
         "",
         "#include \"port/machine.h\"",
+        "#include \"port/native.h\"",
         "#include \"port/vars_pages.h\"",
         "#include \"port/vars_ram.h\"",
         "#include \"wram.h\"",
@@ -934,22 +991,107 @@ def render_backing(m):
         "}",
         "",
         "/* The escape in game/wram.h: work RAM the game locates at run time, which the",
-        " * map has no name for yet. */",
+        " * map has no name for yet. It has no bound to check. */",
         "uint8_t wram_read8(const GameState *g, uint32_t at) { return r8(g, at); }",
         "uint16_t wram_read16(const GameState *g, uint32_t at) { return r16(g, at); }",
         "void wram_write8(GameState *g, uint32_t at, uint8_t v) { w8(g, at, v); }",
         "void wram_write16(GameState *g, uint32_t at, uint16_t v) { w16(g, at, v); }",
     ]
     out += render_page_backing(m)
+    checked = checked_vars(m)
+    out += render_range_checks(m, checked)
+    ids = {v.name: k for k, v in enumerate(checked)}
     for sub, groups in accessors(m):
         out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub))), ""]
         for _, _, group in groups:
             for a in group:
                 w = 8 if a.blob or a.table else a.size * 8
-                out.append("%s { return r%d(g, %s); }" % (a.signature(False), w, a.address()))
-                out.append("%s { w%d(g, %s, v); }" % (a.signature(True), w, a.address()))
+                for write in (False, True):
+                    name = ("set_" if write else "") + a.name
+                    checks = "".join("IN_RANGE(g, %d, \"%s\", \"%s\", %s, %s); "
+                                     % (ids[a.var.name], name, what, arg, limit)
+                                     for arg, limit, what in a.bounds())
+                    body = ("w%d(g, %s, v);" if write else "return r%d(g, %s);") % (w, a.address())
+                    out.append("%s { %s%s }" % (a.signature(write), checks, body))
     out.append("")
     return "\n".join(out)
+
+
+def checked_vars(m):
+    """The variables with an accessor whose index the backing checks, in the
+    header's order: the rows of the out-of-range counts."""
+    return [v for _, groups in accessors(m) for v, _, group in groups if any(a.bounds() for a in group)]
+
+
+def render_range_checks(m, checked):
+    """The bounds check every indexed accessor makes, and the counts it keeps."""
+    out = ["", "/* ---- bounds %s */" % ("-" * 76), ""]
+    out += comment("An accessor's index past what re/ram.toml declares reaches whatever comes next in "
+                   "work RAM, which works only while the storage is the original's layout. With "
+                   "CT_ACCESSOR_CHECKS (ct_dev, ct_fuzz, the tests) each is counted, per variable, "
+                   "with the first few indices and where the port was, and the access still happens "
+                   "as it did, so shadow mode compares the same bytes; ct_dev reports the counts and "
+                   "the gate fails a movie with any. Without it (ct_play) the check is not compiled. "
+                   "Marked scaffolding that goes out of range on purpose uses a variable's "
+                   "`_unchecked` pair, which the map declares with a reason, or game/wram.h.")
+    out += ["#ifdef CT_ACCESSOR_CHECKS", "",
+            "static VarsRangeFault range_faults[] = {"]
+    out += ["    { .var = \"%s\" }," % v.name for v in checked] or ["    { .var = 0 },"]
+    out += ["};",
+            "",
+            "static void out_of_range(const GameState *g, unsigned var, const char *accessor, const char *bound,",
+            "                         unsigned index, unsigned limit)",
+            "{",
+            "    VarsRangeFault *f = &range_faults[var];",
+            "    if (f->kept < VARS_RANGE_HITS_KEPT) {",
+            "        const NativeEntry *e = native_running_entry();",
+            "        uint32_t pc = e ? e->addr : cpu_pc24(&state_snes(g)->cpu);",
+            "        f->first[f->kept++] = (VarsRangeHit){ accessor, bound, index, limit, pc };",
+            "    }",
+            "    f->count++;",
+            "}",
+            "",
+            "#define IN_RANGE(g, var, accessor, bound, index, limit) \\",
+            "    ((unsigned)(index) < (unsigned)(limit) ? (void)0 \\",
+            "                                           : out_of_range(g, var, accessor, bound, (unsigned)(index), (unsigned)(limit)))",
+            "",
+            "const VarsRangeFault *vars_range_faults(unsigned *count)",
+            "{",
+            "    *count = %d;" % len(checked),
+            "    return range_faults;",
+            "}",
+            "",
+            "void vars_range_reset(void)",
+            "{",
+            "    for (unsigned i = 0; i < sizeof range_faults / sizeof range_faults[0]; i++) {",
+            "        range_faults[i].count = 0;",
+            "        range_faults[i].kept = 0;",
+            "    }",
+            "}"]
+    counted = [p for p in page_kinds(m) if p.shape() == "mixed"
+               and any(v.on_instances() and v.page is p for v in m.vars)]
+    for p in counted:
+        out += ["", "/* How many instances the kind of a %s handle has. */" % p.name,
+                "static unsigned %s(%s %s)" % (page_count_name(p), p.type_name(), p.param()), "{",
+                "    switch (%s.kind) {" % p.param()]
+        for i in p.instances:
+            out += ["    case %s:" % p.constant(i), "        return %du;" % (i.count if i.array else 1)]
+        out += ["    }", "    return 0u;", "}"]
+    out += ["",
+            "#else",
+            "",
+            "#define IN_RANGE(g, var, accessor, bound, index, limit) ((void)0)",
+            "",
+            "const VarsRangeFault *vars_range_faults(unsigned *count)",
+            "{",
+            "    *count = 0;",
+            "    return 0;",
+            "}",
+            "",
+            "void vars_range_reset(void) {}",
+            "",
+            "#endif"]
+    return out
 
 
 PAGES_HEADER = ROOT / "runtime" / "port" / "vars_pages.h"

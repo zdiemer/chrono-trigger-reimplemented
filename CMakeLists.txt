@@ -45,18 +45,28 @@ add_library(ct_runtime STATIC
   runtime/snes/zst.c
   runtime/port/fiber.c
   runtime/port/native.c
-  runtime/port/vars_ram.c
-  runtime/port/state_io.c
   runtime/platform/snes/backend.c
   runtime/platform/direct/audio.c
   runtime/platform/observe.c
   runtime/platform/voices_dsp.c
   runtime/platform/snes/decode.c
   runtime/platform/native/render.c)
-# The game's state interface (game/vars.h, game/state.h) is game/'s, and
-# runtime/port/vars_ram.c is the backing that satisfies it against emulated work
-# RAM -- the seam the platform services use, for state rather than hardware.
 target_include_directories(ct_runtime PUBLIC runtime PRIVATE game)
+
+# The game's state interface (game/vars.h, game/state.h, game/cpu_io.h,
+# game/rom.h) is game/'s, and runtime/port/vars_ram.c and state_io.c are the
+# backing that satisfies it against emulated work RAM -- the seam the platform
+# services use, for state rather than hardware. It is built twice: ct_vars_checked
+# counts every accessor called with an index past what re/ram.toml declares
+# (CT_ACCESSOR_CHECKS; docs/DISASSEMBLY.md, "The accessors"), for ct_dev, ct_fuzz
+# and the tests; ct_vars has no check at all, for ct_play and ct_drive. Every
+# executable that links ct_game links one of them.
+foreach(vars ct_vars ct_vars_checked)
+  add_library(${vars} STATIC runtime/port/vars_ram.c runtime/port/state_io.c)
+  target_include_directories(${vars} PRIVATE game)
+  target_link_libraries(${vars} PUBLIC ct_runtime)
+endforeach()
+target_compile_definitions(ct_vars_checked PRIVATE CT_ACCESSOR_CHECKS)
 
 # Ported game code, organized by subsystem.
 add_library(ct_game STATIC
@@ -184,20 +194,20 @@ target_link_libraries(ct_game_native_shape PRIVATE ct_game)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-add_executable(ct_dev dev/ct_dev.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/sound_compare.c
-  dev/sound_lockstep.c dev/sound_state.c dev/vid_check.c frontend/natives.c)
+add_executable(ct_dev dev/ct_dev.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/range_report.c
+  dev/sound_compare.c dev/sound_lockstep.c dev/sound_state.c dev/vid_check.c frontend/natives.c)
 target_include_directories(ct_dev PRIVATE frontend)
-target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
+target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_recomp ct_runtime ct_trace)
 
-add_executable(ct_fuzz dev/ct_fuzz.c dev/fuzz.c)
-target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
+add_executable(ct_fuzz dev/ct_fuzz.c dev/fuzz.c dev/range_report.c)
+target_link_libraries(ct_fuzz PRIVATE ct_game ct_vars_checked ct_runtime)
 
 # The C sound driver against the original on random command streams
 # (docs/SOUND.md, "Validating the port").
 add_executable(ct_sound_fuzz dev/ct_sound_fuzz.c dev/sound_lockstep.c dev/sound_compare.c dev/sound_state.c
   frontend/sound_host.c)
 target_include_directories(ct_sound_fuzz PRIVATE frontend)
-target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_runtime)
+target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_vars_checked ct_runtime)
 
 # The machine as a scriptable server, for authoring input movies from game state
 # and testing the shipping mode with the routes that do (tools/movies,
@@ -205,7 +215,7 @@ target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_runtime)
 # and --recomp choose native code the way ct_play does (frontend/natives.c).
 add_executable(ct_drive dev/ct_drive.c frontend/natives.c)
 target_include_directories(ct_drive PRIVATE frontend)
-target_link_libraries(ct_drive PRIVATE ct_game ct_recomp ct_runtime ct_trace)
+target_link_libraries(ct_drive PRIVATE ct_game ct_vars ct_recomp ct_runtime ct_trace)
 
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c)
@@ -229,11 +239,11 @@ target_link_libraries(time_parts_test PRIVATE ct_runtime)
 # the lockstep harness's comparison (docs/SOUND.md).
 add_executable(sound_test tests/port/sound_test.c dev/sound_compare.c)
 target_include_directories(sound_test PRIVATE dev)
-target_link_libraries(sound_test PRIVATE ct_game ct_runtime)
+target_link_libraries(sound_test PRIVATE ct_game ct_vars_checked ct_runtime)
 # The accessors generated from re/ram.toml, and the page kinds' D mapping.
 add_executable(vars_test tests/port/vars_test.c)
 target_include_directories(vars_test PRIVATE game)
-target_link_libraries(vars_test PRIVATE ct_runtime)
+target_link_libraries(vars_test PRIVATE ct_vars_checked ct_runtime)
 
 # Instruction translation (tools/recomp, docs/RECOMP.md), with C generated into
 # the build tree for every opcode and context: sst_recomp_runner runs it on the
@@ -311,7 +321,7 @@ if(CT_SDL2)
       CT_PLAYER_NO_INTERPRETER=$<IF:$<STREQUAL:${CT_PLAYER_INTERPRETER_MODE},OFF>,2,1>)
   endif()
   message(STATUS "ct_play: interpreter ${CT_PLAYER_INTERPRETER_MODE} (CT_PLAYER_INTERPRETER)")
-  target_link_libraries(ct_play PRIVATE ct_game ct_recomp ct_runtime ct_trace ${CT_SDL2})
+  target_link_libraries(ct_play PRIVATE ct_game ct_vars ct_recomp ct_runtime ct_trace ${CT_SDL2})
   if(MINGW)
     target_link_options(ct_play PRIVATE -static-libgcc)
   endif()

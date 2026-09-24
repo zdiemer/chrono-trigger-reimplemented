@@ -5053,6 +5053,78 @@ sweep and ripple, the program's code still; and `game/attract/`, which is the
 same program and belongs here (the two headers now point at each other).
 
 
+### The accessor bounds checks
+
+The generated backing computed `base + index * stride` with no bound, so an
+index past a variable's `count` reached whatever came next in work RAM, and
+worked only because the storage is still the original's layout. Code-reading
+reviews had found four such aliases; nothing found them otherwise. Every
+indexed accessor in `runtime/port/vars_ram.c` now checks each index -- the
+element against `count`, a buffer's byte against its size, a table's row and
+column, a page kind's instance -- and records a violation without changing the
+access, so shadow mode compares the same bytes (DISASSEMBLY.md, "The
+accessors"). The check is compiled only with `CT_ACCESSOR_CHECKS`: the backing
+is built twice (`ct_vars_checked` for `ct_dev`, `ct_fuzz` and `vars_test`,
+`ct_vars` for `ct_play` and `ct_drive`), and `game/` is compiled the same
+either way. `ct_dev` prints an `accessor out of range` line per variable, and
+the gate fails a movie that prints one; `ct_fuzz` prints the same after its
+counts, and `tools/fuzz_compare.py` lists them by routine. The deliberate
+stray accesses have a sanctioned path: a variable declares `unchecked = "<why>"`
+in the map and gets an `<name>_unchecked` pair with no check, which marked
+scaffolding calls; `game/wram.h` has no count and isn't checked.
+
+**What the library found.** Over the 26 movies, before any fix, three
+variables' families went out of range, in 26, 12 and 2 movies. None was a
+map size error, and none traced to generated code or the runtime (which the
+checks don't cover: only the accessors are checked).
+
+| Variable, index (bound) | Where | Movies, accesses | What it was | What was done |
+|---|---|---|---|---|
+| `field_dialog_shading[100]`, `[101]`... (count 100) | `field_fill_dialog_shading` `$FD:D52D`, run by `$FD:C124` | all 26, 448-3696 accesses each | A hidden alias. The copy for table set 1 is a 256-byte block move from the shading's start into the copy, which lies right after the shading's 100 lines, so its lines 100-127 are read from the copy's own first 28. The port read them as "shading lines 100-127". | Made explicit, not stray: `copy_dialog_shading` reads the copy's own lines past the shading's. Byte-identical; the per-entry totals don't move. |
+| `field_sprite_records[at 833]`, `[at 836]` (832 bytes) | the 4-sprite placing `$C0:B788`/`$C0:B8CA`, run inline by the draws `$C0:B271`, `$C0:B309`, `$C0:B701` | 12, 27-837 accesses each | The known stray (`leave_stray_fifth_sprite_y`): an object above the screen gets a fifth sprite's Y, one record past its four, which for the last object's records is past the table, in the objects' high bits. A second read the review hadn't named was found with it: the placing's entry leaves the overflow of that same fifth sum in V, reading the fifth record's Y offset. | The deliberate stray kept, through the new path: `field_sprite_records` declares `unchecked` in the map, and both the write and the V flag's read go through `stray_fifth_y_offset` and the `_unchecked` pair. |
+| `field_tile_properties`, `_upper_attributes`, `_lower_attributes`: `[column 64]`, and `[row 255]`/`[column 255]` (64x64) | the event commands that put an object on a tile `$C0:4B74`, `$C0:4C27` on their own and inline under the openings `$C0:58DE` | `endings-beyond-time` 2 commands, `events-prison-escape` 18 | A hidden alias, on calls the game makes: a script puts an object that follows the map at tile column 64, or at (255, 255) to take it out of the way, and the original layers its sprite from the tables' neighbours (another row's tile maps, the other attribute table). | A guard (`tile_on_the_map`, in the rows' checks) leaves those commands to the original: 20 real calls, an unported path in TODO.md. `$C0:4B74` goes from 1013 matched to 1004 matched and 9 skipped, `$C0:4C27` from 520 to 519 and 1; the 10 run inline are handed to the original's handler through the table. |
+
+With those, the gate passes with the checks on, and no other entry's shadow
+totals move (798 entries compared with `main`'s). The sprite records' new
+bound needs each object's layout, which the build's walk to see whether every
+draw is its own now reads once and hands to the check and to the records'
+work, rather than reading it again: an extra timed read there had moved three
+sprite entries past the timing gate's drift limit (+0.7% to +1.3%).
+
+**What fuzzing found.** `tools/fuzz_compare.py` over all 525 fuzz entries
+(`main`'s `ct_fuzz` against this one, 5000 states each, then the event and
+field subsystems at full length) found no new mismatch, and listed the
+accessors random states drive out of range. The clear-cut ones got guards,
+each refusing only what the game never makes, and the fuzz entries' domains
+were narrowed to match (so the tight variants compare as many states as
+before, and all match; the loose variants show the refusals):
+
+| Routines | Out of range | Guard |
+|---|---|---|
+| the story commands `$1C`, `$53`, `$54`, `$56`, `$58`, `$59` (`$C0:654E`, `$C0:693D`, `$C0:6964`, `$C0:69A6`, `$C0:69C4`, `$C0:69EB`), and the engine running them | `event_memory` (512 bytes) at any 16-bit offset | `story_holds`: the offset's byte or word inside the story memory. The map was right: every event script the ROM can load (`derive.event_scripts`) gives these commands an offset below `$1EE`. |
+| the follows `$B5`, `$B6` (`$C0:3546`, `$C0:354F`) | `field_object_*` up to `[236]` (count 64) | the other moves' `can_look_its_way`: the search for an object in the way runs from the object count down, which random states make past 64 |
+| `field_unpack_tile_maps` `$C0:A521` | `field_layer_maps`, `field_tile_*` columns past 64 | `fits_the_tables`: each layer at most 64 tiles each way |
+| the sprite records' draw, update and placing (`$C0:B309`, `$C0:B701`, `$C0:B788`, `$C0:B8CA`, and the build's own-draw check) | `field_sprite_records`, `field_sprite_frame_data` at offsets to `$7FFF` | `records_in_the_tables`: the object's records, for its layout, inside the records (it was: inside bank `$7F`) |
+
+Three families are left, listed in TODO.md: the tile ahead of a moving object
+off the map (the event moves and `field_start_step`), the line effect tables'
+builders past a table's 87 bytes, and the event engine reading the script past
+its buffer (widening the off-the-script hand-over mismatched on the openings'
+path at `$C0:5900`, so it waits).
+
+**Cost.** Measured a movie at a time, the builds alternating: `gato-battle`
+in shadow mode took 41.8 s with `main`'s `ct_dev`, 42.2-42.3 s with the checks
+and 41.9 s with this tree linked without them (about 1%);
+`battle-golem-twins-gameover` and `fair`, with the suite's own arguments, and
+`fair` four at a time, were within their run-to-run noise either way. The
+whole gate with `--long-routes -j 5` took 31m38s against `main`'s 32m17s run
+straight after it, most of it the routes, which run `ct_drive` and have no
+checks. Its shadow movies took 393 s against 317 s in those two runs (and 398 s
+against 327 s in an earlier pair); the controlled runs above don't reproduce
+that gap, so it is left as an open question in TODO.md rather than put down to
+the checks.
+
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

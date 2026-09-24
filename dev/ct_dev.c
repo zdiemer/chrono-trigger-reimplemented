@@ -86,6 +86,7 @@
 #include "io_log.h"
 #include "misses.h"
 #include "px_check.h"
+#include "range_report.h"
 #include "sound_lockstep.h"
 #include "vid_check.h"
 #include "media.h"
@@ -718,6 +719,10 @@ int main(int argc, char **argv)
             rc = 1;
     }
     report_page_refusals();
+    /* An accessor called past what re/ram.toml declares: the port reached the
+     * next variable in work RAM, which only the original's layout makes work.
+     * tools/suite.py fails a movie that prints one. */
+    range_report(stderr);
     au_direct_report(stderr);
     if (insn_stats) {
         uint64_t generated = native_generated_instructions();

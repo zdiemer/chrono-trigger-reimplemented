@@ -472,8 +472,18 @@ static void unpack_tile_maps(GameState *g)
 
 /* ---- Entries: on the layers' page ------------------------------------------------------- */
 
-/* The unpacking's guard: a map whose data can't come round the banks to the
- * layers' page before it is unpacked. The data starts at MAP_DATA in bank
+/* Whether a layer of that size fits the tables it unpacks into, 64 tiles
+ * each way. A wider or taller map would run on into the tables' neighbours
+ * (the next row's other layers, the other attribute table); no map the game
+ * loads is one, so it is the original's to unpack. */
+static bool fits_the_tables(MapSize s)
+{
+    return s.rows <= FIELD_LAYER_MAPS_ROWS && s.columns <= FIELD_LAYER_MAPS_COLUMNS;
+}
+
+/* The unpacking's guard: every layer it unpacks fits the tables, and a map
+ * whose data can't come round the banks to the layers' page before it is
+ * unpacked. The data starts at MAP_DATA in bank
  * $7E and the stream runs on through bank $7F and back into $7E; the port
  * leaves its cells on the layers' page when it is done, where the original
  * writes them as it goes, so a stream long enough to read them back would
@@ -490,11 +500,14 @@ bool field_unpack_stays_clear(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
+    bool bg3 = field_map_flags(g) & MAP_HAS_BG3;
+    bool fits = fits_the_tables(layer_size(g, FIELD_BG1)) && fits_the_tables(layer_size(g, FIELD_BG2)) &&
+                (!bg3 || fits_the_tables(layer_size(g, FIELD_BG3)));
     uint32_t bytes = tiles(layer_size(g, FIELD_BG1)) * 5 + tiles(layer_size(g, FIELD_BG2));
-    if (field_map_flags(g) & MAP_HAS_BG3)
+    if (bg3)
         bytes += tiles(layer_size(g, FIELD_BG3));
     vars_peek(false);
-    return bytes < STREAM_REACHES_LAYERS_PAGE;
+    return fits && bytes < STREAM_REACHES_LAYERS_PAGE;
 }
 
 /* The overflow of BG3's right column's address, the last sum, is the one

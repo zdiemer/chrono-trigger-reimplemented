@@ -60,6 +60,16 @@ static inline StoryOffset story_offset_in(uint8_t offset, uint8_t marked)
     return (StoryOffset)((marked & ON_THE_SECOND_PAGE ? STORY_SECOND_PAGE : 0) | offset);
 }
 
+/* Whether a byte or a word at `at` is inside the story memory. The commands
+ * that name a story byte by a 16-bit offset could name any in the bank, and
+ * past the memory are the engine's other tables; no script names one there
+ * (every offset the game's scripts give is below $1EE), so those are the
+ * original's to run. */
+static inline bool story_holds(StoryOffset at, Width width)
+{
+    return (unsigned)at + (width == AS_WORD ? 2u : 1u) <= EVENT_MEMORY_BYTES;
+}
+
 static inline uint8_t story_byte(const GameState *g, StoryOffset at) { return event_memory_byte(g, at); }
 static inline void set_story_byte(GameState *g, StoryOffset at, uint8_t v) { set_event_memory_byte(g, at, v); }
 

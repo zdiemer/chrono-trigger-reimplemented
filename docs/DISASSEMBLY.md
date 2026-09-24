@@ -345,6 +345,33 @@ the jet bike race's multiplies with nothing to show for it but a drop in a
 shadow count (RECOMP.md, "Phase 3a: the scene subsystem off the machine"); the
 refusal is now a line in the log, and a gate failure.
 
+**Bounds.** Every accessor that takes an index -- an element, a buffer's
+byte, a table's row and column, an instance of a page kind -- checks it
+against the map's `count`, `size` or `rows` before forming the address. An
+index past them reaches whatever variable follows in work RAM, which works
+only while the storage is the original's layout and corrupts state the moment
+it isn't; code-reading reviews had found four such aliases before the check
+existed (slot 64 of a 64-slot table, a 512-level search through 8 levels per
+object, a fifth sprite record's Y, map tables declared as one row and indexed
+across 64 KiB). A violation is recorded, not fatal: the access happens exactly
+as before, so shadow mode compares the same bytes, and the backing counts it
+per variable with the first four indices, bounds and entry addresses
+(`vars_range_faults`, `runtime/port/vars_ram.h`). `ct_dev` prints one line per
+variable that went out of range, `accessor out of range: <var>[<index>]
+(<bound> <limit>) x<count> (first at $BB:AAAA in <accessor>; ...)`, and
+`tools/suite.py` fails a movie that prints one; `ct_fuzz` prints the same lines
+after its counts, and `tools/fuzz_compare.py` lists them by routine. The check
+is compiled only with `CT_ACCESSOR_CHECKS`: the backing is built twice
+(`ct_vars_checked` for `ct_dev`, `ct_fuzz` and `vars_test`; `ct_vars`, with no
+check at all, for `ct_play` and `ct_drive`), and `game/` is compiled the same
+either way, so the native-shape build is untouched. `game/wram.h` has no count
+and is not checked. Marked scaffolding that reaches past a variable on
+purpose (a `leave_stray_*` write the gate needs) says so twice: the variable
+declares `unchecked = "<why>"` in the map, which generates a second pair,
+`<name>_unchecked` and `set_<name>_unchecked`, with no check, and the
+scaffolding calls that pair, so a deliberate stray access reads differently
+from an accidental one; `grep -rn _unchecked game/` is the list.
+
 A guard that looks at the game's state itself -- whether an operand names an
 object, whether a table is set -- does it between `vars_peek(true)` and
 `vars_peek(false)` (`vars_ram.h`): the backing's reads then go through
@@ -369,7 +396,9 @@ The generated files (`vars.h`, `vars_pages.h`, `vars_ram.c`) are committed, for
 the reasons the header is, and `tests/test_ram_map.py` fails when one is out of
 date; `tests/port/vars_test.c` checks on a machine with no ROM that the
 accessors reach the bytes the original does, each page kind's instances
-included, and that `<page>_page_of` maps and refuses as declared. What the map has no
+included, that `<page>_page_of` maps and refuses as declared, and that an
+index past a bound still reaches the same byte and is counted against its
+variable (it is built with the checks). What the map has no
 name for -- a buffer the game locates at run time, like the per-line window
 table `$C3:0077` draws into -- is reached through `game/wram.h`, which is an
 escape by address and so a finding: `grep -rn wram_ game/` is the list, and it

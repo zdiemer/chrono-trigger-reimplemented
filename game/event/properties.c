@@ -118,13 +118,37 @@ static EventFlow set_layering(GameState *g, FieldObject self, uint8_t layering)
 }
 EVENT_OPERATION(set_layering, self, layering)
 
-/* The guard's part: the byte is a layering (field/object.h). */
-static bool a_layering(const GameState *g, uint8_t layering)
+/* The guards' part for the three: an object that follows the map is layered
+ * as the map is where it ends up, and that must be on the map. A script that
+ * puts such an object off it (the game does: a tile column of 64, or 255 to
+ * take it out of the way) has the original read the layering tables'
+ * neighbours, which is the original's to run (field/object.h,
+ * tile_on_the_map; docs/TODO.md). */
+static bool layered_on_the_map(const GameState *g, FieldObject self, MapTile tile)
 {
-    (void)g;
-    return layering_byte_is_one(layering);
+    return !object_follows_the_map(g, self) || tile_on_the_map(tile);
 }
-EVENT_CHECK(a_layering, layering)
+
+static bool stands_on_the_map(const GameState *g, FieldObject self, uint8_t tile_x, uint8_t tile_y)
+{
+    return layered_on_the_map(g, self, (MapTile){ tile_x, tile_y });
+}
+EVENT_CHECK(stands_on_the_map, self, tile_x, tile_y)
+
+static bool placed_on_the_map(const GameState *g, FieldObject self, uint16_t x, uint16_t y)
+{
+    return layered_on_the_map(g, self, (MapTile){ (uint8_t)(x >> 8), (uint8_t)(y >> 8) });   /* the tile's the high byte */
+}
+EVENT_CHECK(placed_on_the_map, self, x, y)
+
+/* And the byte is a layering (field/object.h). */
+static bool a_layering(const GameState *g, FieldObject self, uint8_t layering)
+{
+    if (!layering_byte_is_one(layering))
+        return false;
+    return !layering_of_byte(layering).follows_the_map || tile_on_the_map(object_tile(g, self));
+}
+EVENT_CHECK(a_layering, self, layering)
 
 // $C0:4CD9
 /* Show an object's sprite, hide it, or take it away. Ends the turn. */
@@ -156,9 +180,10 @@ EVENT_OPCODES(event_properties_opcodes,
     { 0x0E, OPERATION(set_arrival), .arrival = OPERAND(1), .length = 2 },
     { 0x87, OPERATION(set_move_length), .move_length = OPERAND(1), .length = 2 },
     { 0x8B, OPERATION(stand_on_tile), .tile_x = OPERAND(1), .tile_y = OPERAND(2), .centred = CONSTANT(true),
-      .length = 3 },
-    { 0x8C, OPERATION(stand_on_tile), .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2), .length = 3 },
-    { 0x8D, OPERATION(place), .x = OPERAND_WORD(1), .y = OPERAND_WORD(3), .length = 5 },
+      .length = 3, CHECK(stands_on_the_map) },
+    { 0x8C, OPERATION(stand_on_tile), .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2), .length = 3,
+      CHECK(stands_on_the_map) },
+    { 0x8D, OPERATION(place), .x = OPERAND_WORD(1), .y = OPERAND_WORD(3), .length = 5, CHECK(placed_on_the_map) },
     { 0x8E, OPERATION(set_layering), .layering = OPERAND(1), .length = 2, CHECK(a_layering) },
     { 0x90, OPERATION(set_sprite), .object = SELF, .sprite = CONSTANT(SPRITE_SHOWN), .length = 1 },
     { 0x91, OPERATION(set_sprite), .object = SELF, .sprite = CONSTANT(SPRITE_HIDDEN), .length = 1 },

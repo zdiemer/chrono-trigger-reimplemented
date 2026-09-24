@@ -48,6 +48,12 @@ traces/fuzz/, which is gitignored) the first time a routine needs one; a save
 movie finds its cartridge save by the CRC in its header, as ct_dev always does.
 At most `-j` fuzz processes run at once (two per routine, one per binary), so
 `-j 3` is three heavy processes.
+
+A `ct_fuzz` built with the accessor checks (docs/DISASSEMBLY.md, "The accessors")
+prints an `accessor out of range` line for each variable a port reached past
+what re/ram.toml declares on the random states. Those of the `--after` binary are
+listed after the table, by routine: a random state reaching an index no movie
+does is usually a missing guard. They don't change the verdict.
 """
 import argparse
 import concurrent.futures
@@ -65,6 +71,7 @@ RESULT = re.compile(
     r"^(?P<name>\w+): (?P<iterations>\d+) iterations, matched (?P<matched>\d+), "
     r"mismatched (?P<mismatched>\d+) \(the port looping where the original returns (?P<looped>\d+)\), "
     r"skipped (?P<skipped>\d+) \(guard (?P<guard>\d+)", re.M)
+OUT_OF_RANGE = re.compile(r"^accessor out of range: (.*)$", re.M)
 
 
 def load(path=ROUTINES):
@@ -117,7 +124,9 @@ def fuzz(binary, rom, state, routine, seed, iterations):
     m = RESULT.search(p.stdout)
     if not m:
         return {"error": (p.stdout.strip().splitlines() or ["exit %d" % p.returncode])[-1]}
-    return {k: (v if k == "name" else int(v)) for k, v in m.groupdict().items()}
+    out = {k: (v if k == "name" else int(v)) for k, v in m.groupdict().items()}
+    out["out_of_range"] = [line.strip() for line in OUT_OF_RANGE.findall(p.stdout)]
+    return out
 
 
 def verdict(before, after):
@@ -195,6 +204,12 @@ def main(argv=None):
             print("| `%s` | %d | %s | %s | %s |" % (label(r), n, cell(before), cell(after), v))
         else:
             print("%-52s %6d  before %-38s after %-38s %s" % (label(r), n, cell(before), cell(after), v))
+    strays = [(r, after["out_of_range"]) for r, _, _, after in rows if after.get("out_of_range")]
+    if strays:
+        print("accessors out of range on the fuzzed states (--after):")
+        for r, lines in strays:
+            for line in lines:
+                print("  %-50s %s" % (label(r), line))
     print("fuzz_compare: %d routine%s, %d differ%s (seed %d)"
           % (len(rows), "" if len(rows) == 1 else "s", bad, "" if bad == 1 else "", args.seed))
     return 1 if bad else 0

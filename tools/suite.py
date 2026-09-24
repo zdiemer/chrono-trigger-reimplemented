@@ -6,10 +6,13 @@
     python3 tools/suite.py --ct-dev build/main/ct_dev --no-trace --no-timing -j 6
 
 This is the validation gate (CLAUDE.md, "Validation"): every movie run with
-`--native shadow` must exit 0 with no `mismatched [1-9]` line and no `page
+`--native shadow` must exit 0 with no `mismatched [1-9]` line, no `page
 refused` line (a guard that turned away a call whose direct page is no instance
 re/ram.toml declares, which would otherwise show only as a drop in a shadow
-count; docs/DISASSEMBLY.md, "The accessors"); then the checks
+count) and no `accessor out of range` line (a port that called an accessor with
+an index past what re/ram.toml declares, reaching the next variable in work RAM,
+which only the original's layout makes work; both in docs/DISASSEMBLY.md, "The
+accessors"); then the checks
 in CHECKS run, each printing one line: `--native on --recomp only` must produce
 a trace identical to `--native off`; every hand port's estimated time must
 stay within the timing gate's limits over the shadow runs' `--timing-report`
@@ -48,6 +51,7 @@ from tools import timing_gate  # noqa: E402
 
 MISMATCH = re.compile(rb"mismatched [1-9]")
 REFUSED = re.compile(rb"^page refused: .*$", re.M)
+OUT_OF_RANGE = re.compile(rb"^accessor out of range: .*$", re.M)
 FRAMES = re.compile(r"^# frames (\d+)", re.M)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -91,11 +95,12 @@ def run_movie(binary, rom, out, name, path, frames):
         rc = subprocess.call(cmd, stdout=fh, stderr=subprocess.STDOUT)
     text = log.read_bytes()
     bad = len(MISMATCH.findall(text))
-    refused = [r.decode(errors="replace") for r in REFUSED.findall(text)]
-    ok = rc == 0 and bad == 0 and not refused
+    refused = [r.decode(errors="replace").strip() for r in REFUSED.findall(text)]
+    strays = [r.decode(errors="replace").strip() for r in OUT_OF_RANGE.findall(text)]
+    ok = rc == 0 and bad == 0 and not refused and not strays
     detail = "rc=%d mismatching=%d %.0fs" % (rc, bad, time.time() - started)
-    if refused:
-        detail += " " + "; ".join(refused)
+    if refused or strays:
+        detail += " " + "; ".join(refused + strays)
     (out / ("status-%s.txt" % name)).write_text("%s %s\n" % (name, detail))
     return name, ok, detail
 

@@ -253,8 +253,14 @@ bool layering_byte_is_one(uint8_t byte);
  * its frame shows again at once. */
 void object_set_layering(GameState *g, FieldObject obj, ObjectLayering layering);
 bool object_follows_the_map(const GameState *g, FieldObject obj);
-/* Its halves take the map's priorities on a tile. */
+/* Its halves take the map's priorities on a tile, which must be on the map. */
 void object_layer_as_the_map(GameState *g, FieldObject obj, MapTile tile);
+/* Whether a tile is on the map: inside the tables that say how each of its
+ * tiles is layered. The original, layering an object on a tile off the map,
+ * reads those tables' neighbours in its memory (another row's tile maps, the
+ * other attribute table), which a script that puts an object off the map
+ * has it do; that is the original's to run (docs/TODO.md). */
+bool tile_on_the_map(MapTile tile);
 /* Its halves' priorities, 0-3; or those its own layering gives. */
 void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, uint8_t lower);
 void object_take_own_priorities(GameState *g, FieldObject obj);
