@@ -1,986 +1,962 @@
-/* Battle: timed effect slots -- the paths combatants and anchor points move on.
+/* Battle: the paths that move the combatants and the anchors while effects
+ * play (battle/effects.h).
  *
- * Nineteen slots run on a timer each (battle_effect_active, _delay, _period,
- * _type): slots 0-10 move the combatants of battle slots 0-10 (object $0C +
- * slot), slots 11-18 the eight anchor points effects are drawn at
- * (battle_anchor_x/_y). When a slot's delay runs out its handler runs, by its
- * type, from one of two tables of eight ($CF:F01E, $CF:F02E):
+ * Nineteen movers run a path each: the eleven combatants and the eight
+ * anchors. A mover's path runs on a timer, a step every so many frames, and
+ * the kind of path decides what a step does:
  *
- *   0 a straight line: an 8.8 position stepping by a velocity for a count
- *   1 a jump: the line, plus a height that rises and falls under gravity
- *   2 a spiral out: a growing radius at an angle, until the point leaves the
- *     middle of the screen
- *   3 an orbit: the combatant's sprite offset, or the anchor, circling
- *   4 a jump onto a target, until it is near it
- *   5 an orbit with half the height (combatants), or with the object's facing
- *     following the angle (anchors)
- *   6 a flicker of the sprite offset, on and off
- *   7 a chase: toward a target, turning a step at a time
+ *   a line          an 8.8 position stepping by a velocity, from a base
+ *                   point, for a number of steps;
+ *   a jump          the line, with a height that rises and falls under
+ *                   gravity lifting the mover (a combatant's sprite, or the
+ *                   anchor itself), bouncing back up when its fall is fast;
+ *   a spiral out    a growing distance from the base point along an angle,
+ *                   until the point comes to the edge of the screen;
+ *   an orbit        round a center at a radius, the angle stepping, for a
+ *                   number of steps: a combatant's sprite round where it
+ *                   stands, an anchor round a center of its own;
+ *   a jump onto a target
+ *                   the jump, four substeps a step, until it lands near its
+ *                   target;
+ *   a flat orbit    the orbit at half the height, and an anchor's also turns
+ *                   the effect it carries in front of the combatant it circles
+ *                   or behind it, by which half of the circle it is in;
+ *   a flicker       a combatant's sprite jumping between where it stands and
+ *                   a point off it, every few frames;
+ *   a chase         toward a target, turning a few steps of angle a step and
+ *                   moving at a speed along the angle, until it is near.
  *
- * The per-slot variables are arrays of 19 (the anchors' are elements 11-18),
- * so a handler takes the slot's index in them. The handlers run with the
- * battle page and data bank $7E (the entries' guard) and A's high byte 0, as
- * the loop leaves it; they return what they leave in A, which the loop hands
- * on (battle_step_effect_slots still reproduces it). Called by themselves they
- * leave A's low byte as it is: their callers don't read it (DC_AL). */
-#include "battle/entries.h"
+ * A path that ends marks its mover done, which the animation scripts wait
+ * on. The frame's update steps the movers (battle_step_effect_slots) while
+ * effects play; otherwise it steps the enemies' drifts from a center
+ * (battle_step_orbits) and the formation, which keeps the enemies at their
+ * places round a leader.
+ *
+ * The movers' tables hold the combatants' eleven entries and then the
+ * anchors' eight. Angles are 256 steps a turn, and a point's distance along
+ * an angle is its radius times the sine, rounded down to a whole pixel. */
 #include "battle/effects.h"
 
-#include "port/machine.h"
-#include "ram.h"
+#include "battle/bridge.h"
+#include "battle/entries.h"
+#include "battle/sprite_data.h"
+#include "cpu_io.h"
+#include "original_effects.h"
+#include "vars.h"
 
-enum {
-    COMBATANT_SLOTS = 11,
-    ANCHOR_SLOTS = 8,
-    FIRST_ANCHOR = COMBATANT_SLOTS,
-    COMBATANT_OBJECT = 0x0C,   /* battle object of battle slot 0 */
-    QUARTER_TURN = 0x40,
-};
+/* ---- Movers --------------------------------------------------------------------------- */
 
-/* ---- The loop's cells (battle_effect_cells, $C6 up) ----------------------------------- */
+enum { COMBATANT_MOVERS = BATTLE_COMBATANTS, ANCHOR_MOVERS = BATTLE_ANCHORS, FIRST_ANCHOR_MOVER = COMBATANT_MOVERS };
 
-enum { CELL_SLOT = 0x00, CELL_SLOT_X2 = 0x02, CELL_SLOT_X4 = 0x04, CELL_A = 0x06, CELL_B = 0x07, CELL_C = 0x08,
-       CELL_D = 0x09, CELL_CLOSE = 0x0A, CELL_LIMIT = 0x0B };
+typedef enum { MOVES_COMBATANT, MOVES_ANCHOR } MoverKind;
 
-static uint8_t cell(Snes *s, uint8_t c) { return m_read8(s, RAM_BATTLE_EFFECT_CELLS + c); }
-static void set_cell(Snes *s, uint8_t c, uint8_t v) { m_write8(s, RAM_BATTLE_EFFECT_CELLS + c, v); }
-static uint16_t cell16(Snes *s, uint8_t c) { return m_read16(s, RAM_BATTLE_EFFECT_CELLS + c); }
-static void set_cell16(Snes *s, uint8_t c, uint16_t v) { m_write16(s, RAM_BATTLE_EFFECT_CELLS + c, v); }
+/* A mover: a combatant (its battle slot) or an anchor. */
+typedef struct {
+    MoverKind kind;
+    uint8_t index;
+} Mover;
 
-/* The low scratch the multiply uses: the radius at $00, the product at $04. */
-static void set_radius(Snes *s, uint8_t r) { m_write8(s, RAM_BATTLE_LOW_SCRATCH, r); }
-static void set_product(Snes *s, uint16_t v) { m_write16(s, RAM_BATTLE_LOW_SCRATCH + 4, v); }
+static bool is_anchor(Mover m) { return m.kind == MOVES_ANCHOR; }
 
-/* An element of one of the 19-slot arrays, at the index the original uses
- * (the slot, twice it for words, four times it for the jump's 32-bit values,
- * each read from the loop's cells). */
-static uint8_t at8(Snes *s, uint32_t array, uint32_t i) { return m_read8(s, array + i); }
-static void set_at8(Snes *s, uint32_t array, uint32_t i, uint8_t v) { m_write8(s, array + i, v); }
-static uint16_t at16(Snes *s, uint32_t array, uint32_t i) { return m_read16(s, array + i); }
-static void set_at16(Snes *s, uint32_t array, uint32_t i, uint16_t v) { m_write16(s, array + i, v); }
-static uint8_t inc8(Snes *s, uint32_t addr)
+/* The mover's entry in the movers' tables. */
+static unsigned entry_of(Mover m) { return m.index + (is_anchor(m) ? FIRST_ANCHOR_MOVER : 0); }
+
+static bool path_done(const GameState *g, Mover m)
 {
-    uint8_t v = (uint8_t)(m_read8(s, addr) + 1);
-    m_write8(s, addr, v);
-    return v;
-}
-static uint8_t dec8(Snes *s, uint32_t addr)
-{
-    uint8_t v = (uint8_t)(m_read8(s, addr) - 1);
-    m_write8(s, addr, v);
-    return v;
+    return (is_anchor(m) ? battle_anchor_done(g, m.index) : battle_effect_done(g, m.index)) != 0;
 }
 
-/* A combatant's object position, by effect slot. */
-static uint32_t object_x(uint16_t slot) { return RAM_BATTLE_OBJECT_X + COMBATANT_OBJECT + slot; }
-static uint32_t object_y(uint16_t slot) { return RAM_BATTLE_OBJECT_Y + COMBATANT_OBJECT + slot; }
-
-/* Count a slot's 16-bit frame count down (the original's two 8-bit SBCs):
- * returns the OR of its two bytes, zero when it ran out. */
-static uint8_t count_down16(Snes *s, uint32_t array, uint32_t i)
+/* The done flag counts: a path that ends sets it, and the homing jump counts
+ * its arrivals on it. */
+static void set_done_count(GameState *g, Mover m, uint8_t n)
 {
-    uint16_t v = (uint16_t)(at16(s, array, i) - 1);
-    set_at16(s, array, i, v);
-    return (uint8_t)((v >> 8) | (v & 0xFF));
+    if (is_anchor(m))
+        set_battle_anchor_done(g, m.index, n);
+    else
+        set_battle_effect_done(g, m.index, n);
+}
+static uint8_t done_count(const GameState *g, Mover m)
+{
+    return is_anchor(m) ? battle_anchor_done(g, m.index) : battle_effect_done(g, m.index);
 }
 
-/* ---- Shared arithmetic ($CF:F957, $CF:F9FB, $CF:FA17, $CF:FA43) --------------------- */
+static void end_path(GameState *g, Mover m) { set_done_count(g, m, 1); }
+static void count_done(GameState *g, Mover m) { set_done_count(g, m, (uint8_t)(done_count(g, m) + 1)); }
+
+/* The homing jump counts the top of its jump with a word increment of the
+ * flag, as the original does: a flag at $FF carries into the next byte, the
+ * next mover's, or for the last past the table (re/ram.toml). No battle makes
+ * $FF; the fuzzer's random states do. */
+static void count_turn(GameState *g, Mover m)
+{
+    count_done(g, m);
+    if (done_count(g, m) != 0)
+        return;
+    unsigned next = m.index + 1u;
+    if (is_anchor(m))
+        set_battle_anchor_done_unchecked(g, next, (uint8_t)(battle_anchor_done_unchecked(g, next) + 1));
+    else
+        set_battle_effect_done_unchecked(g, next, (uint8_t)(battle_effect_done_unchecked(g, next) + 1));
+}
+
+/* ---- Where a mover is ------------------------------------------------------------------- */
+
+typedef struct {
+    uint8_t x, y;
+} Point;
+
+typedef struct {
+    int8_t dx, dy;
+} Offset;
+
+/* Where the mover is, as a point on the battlefield: an anchor's coordinates'
+ * low bytes. */
+static Point position_of(const GameState *g, Mover m)
+{
+    if (is_anchor(m))
+        return (Point){ (uint8_t)anchor_x(g, m.index), (uint8_t)anchor_y(g, m.index) };
+    return (Point){ combatant_x(g, m.index), combatant_y(g, m.index) };
+}
+
+/* Put the mover at a point on the battlefield. */
+static void place(GameState *g, Mover m, Point p)
+{
+    if (is_anchor(m)) {
+        place_anchor(g, m.index, p.x, p.y);
+    } else {
+        place_combatant_x(g, m.index, p.x);
+        place_combatant_y(g, m.index, p.y);
+    }
+}
+
+static Point moved(Point p, Offset o) { return (Point){ (uint8_t)(p.x + o.dx), (uint8_t)(p.y + o.dy) }; }
+
+/* ---- What the original leaves in its cells ------------------------------------------ */
+
+/* The effect loops' cells ($C6-$D1) and the multiply's ($00-$06): the
+ * original works in them, and the ports leave their last values there for
+ * shadow mode. `cell` is the original's direct-page address. */
+static void leave_cell(GameState *g, uint8_t cell, uint8_t v) { set_battle_effect_cells(g, (unsigned)(cell - 0xC6), v); }
+static void leave_cell16(GameState *g, uint8_t cell, uint16_t v)
+{
+    leave_cell(g, cell, (uint8_t)v);
+    leave_cell(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
+}
+static void leave_offset_cells(GameState *g, Offset o)
+{
+    leave_cell(g, 0xCC, (uint8_t)o.dy);
+    leave_cell(g, 0xCD, (uint8_t)o.dx);
+}
+
+/* The loop's cells while a mover's step runs: the mover, and twice and four
+ * times it (its word and long entries' offsets); and what a count down past
+ * the first mover leaves. */
+static void leave_loop_cells(GameState *g, unsigned index)
+{
+    leave_cell16(g, 0xC6, (uint16_t)index);
+    leave_cell16(g, 0xC8, (uint16_t)(index * 2));
+    leave_cell16(g, 0xCA, (uint16_t)(index * 4));
+}
+static void leave_loop_ended(GameState *g) { leave_cell16(g, 0xC6, 0x00FF); }
+
+/* The multiply: the factor at $00, the word at $02 and the product (24-bit)
+ * at $04, and the CPU's multiplier holding the factor times the word's high
+ * byte. */
+static void leave_product(GameState *g, uint8_t factor, uint16_t word, uint32_t product)
+{
+    set_battle_low_scratch(g, 0, factor);
+    set_battle_low_scratch(g, 2, (uint8_t)word);
+    set_battle_low_scratch(g, 3, (uint8_t)(word >> 8));
+    set_battle_low_scratch(g, 4, (uint8_t)product);
+    set_battle_low_scratch(g, 5, (uint8_t)(product >> 8));
+    set_battle_low_scratch(g, 6, (uint8_t)(product >> 16));
+    hw_set_multiplicand(g, factor);
+    hw_multiply_by(g, (uint8_t)(word >> 8));
+}
+
+/* ---- Shared arithmetic --------------------------------------------------------------- */
+
+// $CF:FA17
+/* A word scaled by a factor in 256ths: the middle byte of their product. */
+static uint8_t scaled(GameState *g, uint8_t factor, uint16_t word)
+{
+    uint32_t product = (uint32_t)factor * word;
+    ORIGINAL_EFFECT(leave_product(g, factor, word, product));
+    return (uint8_t)(product >> 8);
+}
+
+enum { QUARTER_TURN = 0x40, HALF_TURN = 0x80 };
+
+// $CF:F9FB
+/* How far along an axis a point `radius` pixels away at `angle` is: the
+ * radius times the sine, rounded down to a whole pixel (so a point a little
+ * above the axis is a pixel above). */
+static int8_t scaled_sine(GameState *g, uint8_t angle, uint8_t radius)
+{
+    int16_t sine = battle_sine_magnitude(g, angle);
+    if (angle >= HALF_TURN)
+        sine = (int16_t)-sine;
+    return (int8_t)scaled(g, radius, (uint16_t)sine);
+}
+
+/* The offset of a point at an angle, `across` pixels away horizontally and
+ * `down` vertically (an ellipse when they differ). */
+static Offset polar(GameState *g, uint8_t angle, uint8_t across, uint8_t down)
+{
+    int8_t dy = scaled_sine(g, angle, down);
+    int8_t dx = scaled_sine(g, (uint8_t)(angle + QUARTER_TURN), across);
+    return (Offset){ dx, dy };
+}
+
+/* How far apart two coordinates are, as the original measures it: their
+ * difference as a signed byte, made positive (a difference of 128 stays
+ * 128). */
+static uint8_t distance(uint8_t a, uint8_t b)
+{
+    int8_t d = (int8_t)(a - b);
+    return (uint8_t)(d < 0 ? -d : d);
+}
 
 // $CF:F957
-/* Are the points in cells A, B and C, D less than the limit in cell F apart
- * on both axes? The answer also goes to cell E. `distance` gets the last
- * distance measured, which the original leaves in A. */
-static bool points_close(Snes *s, uint8_t *distance)
+/* Whether two points are less than `limit` apart on both axes. */
+static bool points_close(Point a, Point b, uint8_t limit)
 {
-    set_cell(s, CELL_CLOSE, 0);
-    uint8_t limit = cell(s, CELL_LIMIT);
-    for (int axis = 0; axis < 2; axis++) {
-        uint8_t d = (uint8_t)(cell(s, (uint8_t)(CELL_A + axis)) - cell(s, (uint8_t)(CELL_C + axis)));
-        if (d & 0x80)
-            d = (uint8_t)-d;
-        *distance = d;
-        if (d >= limit)
-            return false;
-    }
-    set_cell(s, CELL_CLOSE, 1);
-    return true;
+    return distance(a.x, b.x) < limit && distance(a.y, b.y) < limit;
 }
 
-/* The helpers below are routines of the original's that its handlers call:
- * their time is theirs wherever a port runs them (native_time_as). */
-bool battle_points_close(Snes *s)
+static void leave_proximity_test(GameState *g, Point a, Point b, uint8_t limit, bool close)
 {
-    uint8_t distance;
-    bool close;
-    NATIVE_TIME_AS(s, 0xCFF957, close = points_close(s, &distance));
+    leave_cell(g, 0xCC, a.x);
+    leave_cell(g, 0xCD, a.y);
+    leave_cell(g, 0xCE, b.x);
+    leave_cell(g, 0xCF, b.y);
+    leave_cell(g, 0xD1, limit);
+    leave_cell(g, 0xD0, close);
+}
+
+static bool close_to(GameState *g, Point a, Point b, uint8_t limit)
+{
+    bool close = points_close(a, b, limit);
+    ORIGINAL_EFFECT(leave_proximity_test(g, a, b, limit, close));
     return close;
 }
 
-void battle_points_are_close(Snes *s)
+/* The chase gives the angle's computation its two points in its cells. */
+static void leave_chase_points(GameState *g, Point from, Point to)
 {
-    uint8_t distance = 0;
-    points_close(s, &distance);
-    m_set_a8(s, distance);
-    m_rts(s);
+    set_battle_chase_cells(g, 0, from.x);
+    set_battle_chase_cells(g, 1, from.y);
+    set_battle_chase_cells(g, 2, to.x);
+    set_battle_chase_cells(g, 3, to.y);
 }
 
-// $CF:FA17
-uint8_t battle_multiply_scaled(Snes *s, uint8_t factor, uint16_t v)
+/* What the angle's computation leaves in its cells: the two points, their
+ * differences as bytes with the signs, the angle, the distances and their
+ * steps in the table. */
+static void leave_angle_cells(GameState *g, Point from, Point to, uint8_t across, uint8_t down, uint8_t angle)
 {
-    int was = native_time_as(s, 0xCFFA17);
-    m_write8(s, 0x004202, factor);
-    m_write8(s, 0x004203, (uint8_t)v);
-    uint16_t low = m_read16(s, 0x004216);
-    m_write8(s, RAM_BATTLE_LOW_SCRATCH + 6, 0);
-    m_write8(s, 0x004203, (uint8_t)(v >> 8));
-    set_product(s, low);
-    uint16_t high = (uint16_t)(m_read16(s, RAM_BATTLE_LOW_SCRATCH + 5) + m_read16(s, 0x004216));
-    m_write16(s, RAM_BATTLE_LOW_SCRATCH + 5, high);
-    native_time_end(s, was);
-    return (uint8_t)high;
-}
-
-// $CF:F9FB
-uint8_t battle_sine_scaled(Snes *s, uint16_t angle)
-{
-    int was = native_time_as(s, 0xCFF9FB);
-    uint16_t at = (uint16_t)(angle << 2) & 0x03FF;
-    uint16_t v = battle_sine_entry(s, at);
-    if (at >= 0x0200)
-        v = (uint16_t)-v;
-    m_write16(s, RAM_BATTLE_LOW_SCRATCH + 2, v);
-    uint8_t scaled = battle_multiply_scaled(s, m_read8(s, RAM_BATTLE_LOW_SCRATCH), v);
-    native_time_end(s, was);
-    return scaled;
-}
-
-/* The sine and cosine of `angle` scaled by `radius`, into cells A and B. */
-static void polar(Snes *s, uint8_t radius_y, uint8_t radius_x, uint8_t angle, uint8_t *dy, uint8_t *dx)
-{
-    set_radius(s, radius_y);
-    *dy = battle_sine_scaled(s, angle);
-    set_radius(s, radius_x);
-    *dx = battle_sine_scaled(s, (uint8_t)(angle + QUARTER_TURN));
+    uint8_t cells[BATTLE_CHASE_CELLS_COUNT] = {
+        from.x, from.y, to.x, to.y,
+        (uint8_t)(from.x - to.x), from.x < to.x ? 0xFF : 0x00,
+        (uint8_t)(from.y - to.y), from.y < to.y ? 0xFF : 0x00,
+        angle, (uint8_t)(across / BATTLE_ARCTANGENT_STEP), 0, across, 0, down, 0, (uint8_t)battle_arctangent_index(across, down),
+    };
+    for (unsigned i = 0; i < BATTLE_CHASE_CELLS_COUNT; i++)
+        set_battle_chase_cells(g, i, cells[i]);
 }
 
 // $CF:FA43
-/* The angle (256 steps a turn) from the chase's point to its target
- * (battle_chase_cells: from X, Y, to X, Y), through the arctangent table at
- * $C0:F300 by the distances in eighths, into the chase's target angle. The
- * original keeps its working values in the cells after them. Returns the
- * target angle, or what the original leaves in A. */
-static uint8_t angle_to_target(Snes *s)
-{
-    uint32_t c = RAM_BATTLE_CHASE_CELLS;
-    uint8_t dx = (uint8_t)(m_read8(s, c + 0) - m_read8(s, c + 2));
-    uint8_t dx_sign = m_read8(s, c + 0) < m_read8(s, c + 2) ? 0xFF : 0x00;
-    m_write8(s, c + 4, dx);
-    m_write8(s, c + 5, dx_sign);
-    uint8_t dy = (uint8_t)(m_read8(s, c + 1) - m_read8(s, c + 3));
-    uint8_t dy_sign = m_read8(s, c + 1) < m_read8(s, c + 3) ? 0xFF : 0x00;
-    m_write8(s, c + 6, dy);
-    m_write8(s, c + 7, dy_sign);
-    /* magnitudes: EOR with the sign, less the sign */
-    m_write8(s, c + 0x0B, (uint8_t)((dx ^ dx_sign) - dx_sign));
-    m_write8(s, c + 0x0C, 0);
-    m_write8(s, c + 0x0D, (uint8_t)((dy ^ dy_sign) - dy_sign));
-    m_write8(s, c + 0x0E, 0);
-    uint16_t column = (uint16_t)(m_read16(s, c + 0x0B) >> 3);
-    m_write16(s, c + 0x09, column);
-    uint16_t index = (uint16_t)(((m_read16(s, c + 0x0D) & 0xFFF8) << 2) + column);
-    m_write16(s, c + 0x0F, index);
-    uint8_t angle = battle_arctangent(s, index);
-    m_write8(s, c + 0x08, angle);
-    if (!(dx_sign & 0x80)) {
-        angle = (dy_sign & 0x80) ? (uint8_t)(0x80 - angle) : (uint8_t)(0x80 + angle);
-        m_write8(s, c + 0x08, angle);
-        return angle;
-    }
-    if (!(dy_sign & 0x80)) {
-        angle = (uint8_t)(0 - angle);
-        m_write8(s, c + 0x08, angle);
-    }
-    return m_read8(s, c + 0x08);
-}
-
-
-/* ---- The handlers --------------------------------------------------------------------
+/* The angle from one point toward another. The table gives the angle within a
+ * quarter turn; which quarter the target is in turns it round.
  *
- * A handler takes its slot from the loop's cells as the original does: the
- * slot at $C6 and twice and four times it at $C8 and $CA. For the anchors'
- * table the same offsets reach elements 11-18 of the arrays, as the
- * original's bases are 11 elements further on. */
-
-typedef struct {
-    bool anchor;
-    uint16_t slot, w, l;   /* $C6, $C8, $CA */
-    uint32_t i, wi, li;    /* the offsets into the 19-slot arrays, which run on into bank $7F */
-    uint32_t done;         /* battle_effect_done or battle_anchor_done */
-} Slot;
-
-static Slot slot_of(Snes *s, bool anchor)
+ * The original keeps the table's index as a word in its cells, the last of
+ * which is followed by the damage numbers' rising flag: the index's high
+ * byte lands on it, so a target 64 pixels or more below or above the point
+ * sets the numbers rising, and a nearer one stops them (docs/TODO.md). The
+ * game sees that, so it is kept. */
+static uint8_t angle_toward(GameState *g, Point from, Point to)
 {
-    Slot k = { anchor, cell16(s, CELL_SLOT), cell16(s, CELL_SLOT_X2), cell16(s, CELL_SLOT_X4), 0, 0, 0,
-               anchor ? RAM_BATTLE_ANCHOR_DONE : RAM_BATTLE_EFFECT_DONE };
-    k.i = (uint32_t)k.slot + (anchor ? FIRST_ANCHOR : 0);
-    k.wi = (uint32_t)k.w + (anchor ? 2 * FIRST_ANCHOR : 0);
-    k.li = (uint32_t)k.l + (anchor ? 4 * FIRST_ANCHOR : 0);
-    return k;
-}
-
-static uint8_t done_of(Snes *s, const Slot *k) { return at8(s, k->done, k->slot); }
-static uint8_t finish(Snes *s, const Slot *k)
-{
-    set_at8(s, k->done, k->slot, 1);
-    return 1;
-}
-
-/* Step the slot's 8.8 position by its velocity. */
-static void step_position(Snes *s, const Slot *k)
-{
-    uint32_t w = k->wi;
-    set_at16(s, RAM_BATTLE_EFFECT_POSITION_X, w,
-             (uint16_t)(at16(s, RAM_BATTLE_EFFECT_POSITION_X, w) + at16(s, RAM_BATTLE_EFFECT_VELOCITY_X, w)));
-    set_at16(s, RAM_BATTLE_EFFECT_POSITION_Y, w,
-             (uint16_t)(at16(s, RAM_BATTLE_EFFECT_POSITION_Y, w) + at16(s, RAM_BATTLE_EFFECT_VELOCITY_Y, w)));
-}
-
-/* The position's whole part plus the slot's base. */
-static uint8_t placed_x(Snes *s, const Slot *k)
-{
-    return (uint8_t)(at8(s, RAM_BATTLE_EFFECT_POSITION_X + 1, k->wi) + at8(s, RAM_BATTLE_EFFECT_BASE_X, k->i));
-}
-static uint8_t placed_y(Snes *s, const Slot *k)
-{
-    return (uint8_t)(at8(s, RAM_BATTLE_EFFECT_POSITION_Y + 1, k->wi) + at8(s, RAM_BATTLE_EFFECT_BASE_Y, k->i));
-}
-
-/* An anchor's coordinate: the byte, and 0 above it. */
-static void set_anchor(Snes *s, uint32_t anchor, uint16_t w, uint8_t v)
-{
-    set_at8(s, anchor, w, v);
-    set_at8(s, anchor + 1, w, 0);
-}
-
-/* The jump's height: `steps` substeps (a 16-bit count kept in cell A, which
- * runs 65536 times for 0) of a speed falling under gravity while the height
- * rises and growing while it falls. When the speed runs out the jump turns
- * (and the homing jump counts that as arriving: `turn_done`), and when it
- * passes the bounce speed it turns back. Speed and height are 32-bit, their
- * whole parts in the high words. Leaves the height's whole part in $04 and
- * returns it. */
-static uint16_t step_jump(Snes *s, const Slot *k, uint16_t steps, bool turn_done)
-{
-    uint32_t w = k->wi, l = k->li;
-    uint32_t falling = RAM_BATTLE_EFFECT_JUMP_FALLING, speed = RAM_BATTLE_EFFECT_JUMP_SPEED;
-    uint32_t height = RAM_BATTLE_EFFECT_JUMP_HEIGHT;
-    set_cell16(s, CELL_A, steps);
-    do {
-        if (at16(s, falling, w) == 0) {
-            uint16_t v = at16(s, speed, l), g = at16(s, RAM_BATTLE_EFFECT_JUMP_GRAVITY, w);
-            set_at16(s, speed, l, (uint16_t)(v - g));
-            if (v < g) {
-                set_at16(s, speed, l, 0);
-                set_at16(s, speed + 2, l, 0);
-                set_at16(s, falling, w, 1);
-                if (turn_done)   /* a 16-bit INC: it carries into the next slot's byte */
-                    m_write16(s, k->done + k->slot, (uint16_t)(m_read16(s, k->done + k->slot) + 1));
-            }
-        } else {
-            uint32_t v = (uint32_t)at16(s, speed, l) + at16(s, RAM_BATTLE_EFFECT_JUMP_GRAVITY, w);
-            set_at16(s, speed, l, (uint16_t)v);
-            if (v > 0xFFFF) {
-                set_at16(s, speed, l, at16(s, RAM_BATTLE_EFFECT_JUMP_BOUNCE, w));
-                set_at16(s, speed + 2, l, 0);
-                set_at16(s, falling, w, 0);
-            }
-        }
-        uint32_t sp = (uint32_t)at16(s, speed, l) | (uint32_t)at16(s, speed + 2, l) << 16;
-        uint32_t h = (uint32_t)at16(s, height, l) | (uint32_t)at16(s, height + 2, l) << 16;
-        h = at16(s, falling, w) == 0 ? h + sp : h - sp;
-        set_at16(s, height, l, (uint16_t)h);
-        set_at16(s, height + 2, l, (uint16_t)(h >> 16));
-        set_cell16(s, CELL_A, (uint16_t)(cell16(s, CELL_A) - 1));
-    } while (cell16(s, CELL_A) != 0);
-    uint16_t whole = at16(s, height + 2, l);
-    set_product(s, whole);
-    return whole;
-}
-
-/* A coordinate moved up or down by the height, once or twice (the original's
- * chains of 8-bit ADC and SBC). */
-static uint8_t lifted(uint8_t base, uint8_t h, bool up, bool single)
-{
-    if (up)
-        return single ? (uint8_t)(base + h) : (uint8_t)(base + h + h);
-    return single ? (uint8_t)(base - h) : (uint8_t)(base - h - h);
-}
-
-/* Whether a coordinate has left the middle of the screen: its 16-pixel column
- * or row is the first, or `last`. */
-static bool off_middle(uint8_t v, uint8_t last) { return (v >> 4) == 0 || (v >> 4) == last; }
-
-// $CF:F03E, $CF:F4B2
-/* A straight line, for a count of frames. */
-static uint8_t move_line(Snes *s, bool anchor)
-{
-    Slot k = slot_of(s, anchor);
-    uint8_t d = done_of(s, &k);
-    if (d)
-        return d;
-    uint32_t frames = RAM_BATTLE_EFFECT_LINE_FRAMES + k.i;
-    if (m_read8(s, frames) == 0)
-        return finish(s, &k);
-    step_position(s, &k);
-    uint8_t a;
-    if (anchor) {
-        set_anchor(s, RAM_BATTLE_ANCHOR_X, k.w, placed_x(s, &k));
-        set_anchor(s, RAM_BATTLE_ANCHOR_Y, k.w, placed_y(s, &k));
-        a = 0;
-    } else {
-        m_write8(s, object_x(k.slot), placed_x(s, &k));
-        a = placed_y(s, &k);
-        m_write8(s, object_y(k.slot), a);
-    }
-    return dec8(s, frames) == 0 ? finish(s, &k) : a;
-}
-
-// $CF:F087, $CF:F503
-/* A jump: the line, with the height (the slot's substeps a frame) lifting
- * the combatant's sprite or the anchor, for a count of frames. A combatant's
- * sprite offset goes back to 0 when it ends. */
-static uint8_t move_jump(Snes *s, bool anchor)
-{
-    Slot k = slot_of(s, anchor);
-    uint8_t d = done_of(s, &k);
-    if (d)
-        return d;
-    uint32_t frames = RAM_BATTLE_EFFECT_JUMP_FRAMES + k.i;
-    if (m_read8(s, frames) != 0) {
-        step_position(s, &k);
-        uint8_t h = (uint8_t)step_jump(s, &k, at8(s, RAM_BATTLE_EFFECT_STEPS, k.i), false);
-        bool up = at8(s, RAM_BATTLE_EFFECT_JUMP_UP, k.i);
-        bool single = at8(s, RAM_BATTLE_EFFECT_JUMP_SINGLE, k.wi);
-        uint8_t a;
-        if (anchor) {
-            set_anchor(s, RAM_BATTLE_ANCHOR_X, k.w, placed_x(s, &k));
-            set_anchor(s, RAM_BATTLE_ANCHOR_Y, k.w, lifted(placed_y(s, &k), h, up, single));
-            a = 0;
-        } else {
-            m_write8(s, object_x(k.slot), placed_x(s, &k));
-            m_write8(s, object_y(k.slot), placed_y(s, &k));
-            a = lifted(0, h, up, single);
-            m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + k.slot, a);
-        }
-        if (dec8(s, frames) != 0)
-            return a;
-    }
-    if (!anchor)
-        m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + k.slot, 0);
-    return finish(s, &k);
-}
-
-// $CF:F194, $CF:F61F
-/* A spiral out from the slot's base: the radius grows by the slot's step
- * each frame at the slot's angle, until the point leaves the middle of the
- * screen or a count of frames runs out. */
-static uint8_t move_spiral(Snes *s, bool anchor)
-{
-    Slot k = slot_of(s, anchor);
-    uint8_t d = done_of(s, &k);
-    if (d)
-        return d;
-    uint8_t y = anchor ? m_read8(s, RAM_BATTLE_ANCHOR_Y + k.w) : m_read8(s, object_y(k.slot));
-    uint8_t x = anchor ? m_read8(s, RAM_BATTLE_ANCHOR_X + k.w) : m_read8(s, object_x(k.slot));
-    if (off_middle(y, 0x0E) || off_middle(x, 0x0F) || dec8(s, RAM_BATTLE_EFFECT_SPIRAL_FRAMES + k.i) == 0)
-        return finish(s, &k);
-    uint8_t radius = (uint8_t)(at8(s, RAM_BATTLE_EFFECT_RADIUS, k.i) + at8(s, RAM_BATTLE_EFFECT_STEPS, k.i));
-    set_at8(s, RAM_BATTLE_EFFECT_RADIUS, k.i, radius);
-    uint8_t angle = at8(s, RAM_BATTLE_EFFECT_ANGLE, k.i);
-    set_at8(s, RAM_BATTLE_EFFECT_ANGLE_USED, k.i, angle);
-    uint8_t dy, dx;
-    polar(s, radius, radius, angle, &dy, &dx);
-    set_cell(s, CELL_A, dy);
-    set_cell(s, CELL_B, dx);
-    y = (uint8_t)(at8(s, RAM_BATTLE_EFFECT_BASE_Y, k.i) + dy);
-    x = (uint8_t)(at8(s, RAM_BATTLE_EFFECT_BASE_X, k.i) + dx);
-    if (anchor) {
-        set_anchor(s, RAM_BATTLE_ANCHOR_Y, k.w, y);
-        set_anchor(s, RAM_BATTLE_ANCHOR_X, k.w, x);
-    } else {
-        m_write8(s, object_y(k.slot), y);
-        m_write8(s, object_x(k.slot), x);
-    }
-    return x;
-}
-
-// $CF:F1F8, $CF:F354, $CF:F68D
-/* An orbit for a 16-bit count of frames: the angle steps each frame and the
- * point is the radius away (the vertical radius halved for the flat one): a
- * combatant's sprite offset, or an anchor around its center. */
-static uint8_t move_orbit(Snes *s, bool anchor, bool flat)
-{
-    Slot k = slot_of(s, anchor);
-    uint8_t d = done_of(s, &k);
-    if (d)
-        return d;
-    uint8_t radius = at8(s, RAM_BATTLE_EFFECT_ORBIT_RADIUS, k.i);
-    uint8_t angle = (uint8_t)(at8(s, RAM_BATTLE_EFFECT_ORBIT_ANGLE, k.i) + at8(s, RAM_BATTLE_EFFECT_ORBIT_STEP, k.i));
-    set_at8(s, RAM_BATTLE_EFFECT_ORBIT_ANGLE, k.i, angle);
-    uint8_t dy, dx;
-    polar(s, flat ? (uint8_t)(radius >> 1) : radius, radius, angle, &dy, &dx);
-    if (anchor) {
-        set_cell(s, CELL_A, dy);
-        set_cell(s, CELL_B, dx);
-        m_write8(s, RAM_BATTLE_ANCHOR_X + k.w, (uint8_t)(at8(s, RAM_BATTLE_ANCHOR_ORBIT_CENTER_X, k.slot) + dx));
-        m_write8(s, RAM_BATTLE_ANCHOR_Y + k.w, (uint8_t)(at8(s, RAM_BATTLE_ANCHOR_ORBIT_CENTER_Y, k.slot) + dy));
-    } else {
-        m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + k.slot, dy);
-        m_write8(s, RAM_BATTLE_SPRITE_OFFSET_X + k.slot, dx);
-    }
-    uint8_t left = count_down16(s, RAM_BATTLE_EFFECT_ORBIT_FRAMES, k.wi);
-    if (left == 0)
-        inc8(s, k.done + k.slot);
-    return left;
-}
-
-// $CF:F7FC
-/* The anchors' flat orbit with a facing: the facing bits of the anchor's
- * object record (the slot's 11 bytes, plus the anchor's offset) follow which
- * half of the turn the angle is in. */
-static uint8_t move_orbit_facing(Snes *s)
-{
-    Slot k = slot_of(s, true);
-    uint8_t slot = (uint8_t)k.slot;
-    m_write8(s, RAM_BATTLE_LOW_SCRATCH, slot);
-    uint8_t d = at8(s, k.done, slot);
-    if (d)
-        return d;
-    m_write8(s, RAM_BATTLE_LOW_SCRATCH + 2, 0x0B);
-    m_write8(s, RAM_BATTLE_LOW_SCRATCH + 3, 0);
-    battle_multiply_scaled(s, slot, 0x000B);
-    uint8_t record = (uint8_t)(m_read8(s, RAM_BATTLE_LOW_SCRATCH + 4) + at8(s, RAM_BATTLE_ANCHOR_FACING_RECORD, slot));
-    uint8_t bits = at8(s, RAM_BATTLE_OBJECT_EFFECT_SLOTS, record) & 0x3F;
-    bits |= at8(s, RAM_BATTLE_EFFECT_ORBIT_ANGLE, k.i) < 0x80 ? 0x80 : 0x40;
-    set_at8(s, RAM_BATTLE_OBJECT_EFFECT_SLOTS, record, bits);
-    uint8_t radius = at8(s, RAM_BATTLE_EFFECT_ORBIT_RADIUS, k.i);
-    uint8_t angle = (uint8_t)(at8(s, RAM_BATTLE_EFFECT_ORBIT_ANGLE, k.i) + at8(s, RAM_BATTLE_EFFECT_ORBIT_STEP, k.i));
-    set_at8(s, RAM_BATTLE_EFFECT_ORBIT_ANGLE, k.i, angle);
-    uint8_t dy, dx;
-    polar(s, (uint8_t)(radius >> 1), radius, angle, &dy, &dx);
-    set_cell(s, CELL_A, dy);
-    set_cell(s, CELL_B, dx);
-    m_write8(s, RAM_BATTLE_ANCHOR_X + k.w, (uint8_t)(at8(s, RAM_BATTLE_ANCHOR_ORBIT_CENTER_X, slot) + dx));
-    m_write8(s, RAM_BATTLE_ANCHOR_Y + k.w, (uint8_t)(at8(s, RAM_BATTLE_ANCHOR_ORBIT_CENTER_Y, slot) + dy));
-    uint8_t left = count_down16(s, RAM_BATTLE_EFFECT_ORBIT_FRAMES, k.wi);
-    if (left == 0)
-        inc8(s, k.done + slot);
-    return left;
-}
-
-/* Is the point near the slot's target, within `limit` on both axes? The
- * point and the target go to cells A-D for the test. */
-static bool near_target(Snes *s, const Slot *k, uint8_t x, uint8_t y, uint8_t limit)
-{
-    set_cell(s, CELL_A, x);
-    set_cell(s, CELL_B, y);
-    set_cell(s, CELL_C, at8(s, RAM_BATTLE_EFFECT_TARGET_X, k->i));
-    set_cell(s, CELL_D, at8(s, RAM_BATTLE_EFFECT_TARGET_Y, k->i));
-    set_cell(s, CELL_LIMIT, limit);
-    return battle_points_close(s);
-}
-
-// $CF:F23D, $CF:F6E2
-/* A jump onto the target, four substeps a frame. While falling it ends when
- * the point is near the target: the first time within 16 pixels with the
- * combatant's sprite lifted at least 24 (for an anchor within 24), after
- * that within 1. The fall's start also counts as arriving. */
-static uint8_t move_jump_to_target(Snes *s, bool anchor)
-{
-    Slot k = slot_of(s, anchor);
-    if (at8(s, RAM_BATTLE_EFFECT_JUMP_FALLING, k.wi) != 0) {
-        uint8_t x = anchor ? m_read8(s, RAM_BATTLE_ANCHOR_X + k.w) : m_read8(s, object_x(k.slot));
-        uint8_t y = anchor ? m_read8(s, RAM_BATTLE_ANCHOR_Y + k.w) : m_read8(s, object_y(k.slot));
-        uint32_t stage = RAM_BATTLE_EFFECT_HOME_STAGE + k.i;
-        if (m_read8(s, stage) != 0) {
-            if (near_target(s, &k, x, y, 1)) {
-                inc8(s, k.done + k.slot);
-                return 1;
-            }
-        } else if (near_target(s, &k, x, y, anchor ? 0x18 : 0x10)) {
-            uint8_t lift = anchor ? 1 : m_read8(s, RAM_BATTLE_SPRITE_OFFSET_Y + k.slot);
-            if (anchor || lift >= 0xE8) {
-                inc8(s, k.done + k.slot);
-                inc8(s, stage);
-                return lift;
-            }
-        }
-    }
-    step_position(s, &k);
-    uint8_t h = (uint8_t)step_jump(s, &k, 4, true);
-    bool single = at8(s, RAM_BATTLE_EFFECT_JUMP_SINGLE, k.wi);
-    if (anchor) {
-        set_anchor(s, RAM_BATTLE_ANCHOR_X, k.w, placed_x(s, &k));
-        set_anchor(s, RAM_BATTLE_ANCHOR_Y, k.w, lifted(placed_y(s, &k), h, false, single));
-        return 0;
-    }
-    m_write8(s, object_x(k.slot), placed_x(s, &k));
-    m_write8(s, object_y(k.slot), placed_y(s, &k));
-    /* a single height is written, and then the double one over it */
-    if (single)
-        m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + k.slot, lifted(0, h, false, true));
-    uint8_t a = lifted(0, h, false, false);
-    m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + k.slot, a);
-    return a;
-}
-
-// $CF:F3BA
-/* The flicker: for a count of frames, every period frames the combatant's
- * sprite offset turns off, or on at the radius and the angle the spiral last
- * used. When the count runs out the offset clears and the slot stops (the
- * combatants' slot of the same number, whichever table it runs from).
- * Returns what the original leaves in A, from `a` on the paths that don't
- * load it. */
-static uint16_t flicker(Snes *s, uint16_t slot, uint16_t a)
-{
-    if (dec8(s, RAM_BATTLE_EFFECT_FLICKER_FRAMES + slot) == 0) {
-        m_write8(s, RAM_BATTLE_SPRITE_OFFSET_X + slot, 0);
-        m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + slot, 0);
-        m_write8(s, RAM_BATTLE_EFFECT_ACTIVE + slot, 0);
-        return a;
-    }
-    if (dec8(s, RAM_BATTLE_EFFECT_FLICKER_COUNT + slot) != 0)
-        return a;
-    m_write8(s, RAM_BATTLE_EFFECT_FLICKER_COUNT + slot, m_read8(s, RAM_BATTLE_EFFECT_FLICKER_PERIOD + slot));
-    uint8_t radius = m_read8(s, RAM_BATTLE_EFFECT_FLICKER_RADIUS + slot);
-    set_radius(s, radius);
-    uint8_t hidden = (uint8_t)(m_read8(s, RAM_BATTLE_EFFECT_FLICKER_HIDDEN + slot) ^ 1);
-    m_write8(s, RAM_BATTLE_EFFECT_FLICKER_HIDDEN + slot, hidden);
-    if (hidden) {
-        m_write8(s, RAM_BATTLE_SPRITE_OFFSET_X + slot, 0);
-        m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + slot, 0);
-        return hidden;
-    }
-    uint8_t dy, dx;
-    polar(s, radius, radius, m_read8(s, RAM_BATTLE_EFFECT_ANGLE_USED + slot), &dy, &dx);
-    m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + slot, dy);
-    m_write8(s, RAM_BATTLE_SPRITE_OFFSET_X + slot, dx);
-    return dx;
-}
-
-// $CF:F39F
-/* The flicker, and while slot 3 flickers with the mirror flag set, slot 9's
- * offset copies slot 3's. */
-static uint8_t move_flicker(Snes *s)
-{
-    uint16_t slot = cell16(s, CELL_SLOT);
-    NATIVE_TIME_AS(s, 0xCFF3BA, flicker(s, slot, 0));
-    uint8_t low = cell(s, CELL_SLOT);
-    if (low != 3)
-        return low;
-    if (!m_read8(s, RAM_BATTLE_EFFECT_MIRROR_SLOT3))
-        return 0;
-    m_write8(s, RAM_BATTLE_SPRITE_OFFSET_X + 9, m_read8(s, RAM_BATTLE_SPRITE_OFFSET_X + 3));
-    uint8_t y = m_read8(s, RAM_BATTLE_SPRITE_OFFSET_Y + 3);
-    m_write8(s, RAM_BATTLE_SPRITE_OFFSET_Y + 9, y);
-    return y;
-}
-
-/* Turn the chase's angle toward the target angle by up to `steps` steps
- * (a 16-bit count: 0 runs 65536), in the slot's direction; reaching it marks
- * the chase aligned, after which it follows the target angle at once. */
-static uint8_t turn(Snes *s, const Slot *k, uint8_t target, uint16_t steps)
-{
-    uint32_t aligned = RAM_BATTLE_EFFECT_CHASE_ALIGNED + k->i;
-    if (m_read8(s, aligned))
-        return target;
-    uint8_t angle = at8(s, RAM_BATTLE_EFFECT_CHASE_ANGLE, k->i);
-    if (angle == target)
-        return angle;
-    int8_t dir = at8(s, RAM_BATTLE_EFFECT_CHASE_TURN, k->i) ? -1 : 1;
-    do {
-        angle = (uint8_t)(angle + dir);
-        if (angle == target) {
-            inc8(s, aligned);
-            break;
-        }
-        steps--;
-    } while (steps != 0);
+    bool right = from.x < to.x, below = from.y < to.y;
+    uint8_t across = right ? (uint8_t)(to.x - from.x) : (uint8_t)(from.x - to.x);
+    uint8_t down = below ? (uint8_t)(to.y - from.y) : (uint8_t)(from.y - to.y);
+    uint8_t angle = battle_arctangent(g, across, down);
+    if (!right)
+        angle = below ? (uint8_t)(HALF_TURN - angle) : (uint8_t)(HALF_TURN + angle);
+    else if (!below)
+        angle = (uint8_t)-angle;
+    ORIGINAL_EFFECT(leave_angle_cells(g, from, to, across, down, angle));
+    set_battle_numbers_rising(g, (uint8_t)(battle_arctangent_index(across, down) >> 8));
     return angle;
 }
 
-// $CF:F405, $CF:F884
-/* A chase: until the point is within 16 pixels of the target, turn toward it
- * (the angle from $CF:FA43), face the angle, and move the speed along it. A
- * combatant's facing is its object's; an anchor's goes to its own facing
- * table, and its move is added to its 16-bit position, sign-extended (the
- * position counts as 0 where it is negative). */
-static uint8_t move_chase(Snes *s, bool anchor)
+/* ---- The line and the jump ----------------------------------------------------------- */
+
+/* Move the mover's position along its line by its velocity, and return where
+ * that puts it: the base point plus the position's whole part. */
+static Point advance_along_line(GameState *g, Mover m)
 {
-    Slot k = slot_of(s, anchor);
-    uint32_t chase = RAM_BATTLE_CHASE_CELLS;
-    /* each coordinate goes to its cell and the chase's as it is read, which
-     * matters where a stray slot offset makes them overlap */
-    uint8_t x = anchor ? ((m_read8(s, RAM_BATTLE_ANCHOR_X + 1 + k.w) & 0x80) ? 0 : m_read8(s, RAM_BATTLE_ANCHOR_X + k.w))
-                       : m_read8(s, object_x(k.slot));
-    set_cell(s, CELL_A, x);
-    m_write8(s, chase + 0, x);
-    uint8_t y = anchor ? ((m_read8(s, RAM_BATTLE_ANCHOR_Y + 1 + k.w) & 0x80) ? 0 : m_read8(s, RAM_BATTLE_ANCHOR_Y + k.w))
-                       : m_read8(s, object_y(k.slot));
-    set_cell(s, CELL_B, y);
-    m_write8(s, chase + 1, y);
-    uint8_t tx = at8(s, RAM_BATTLE_EFFECT_TARGET_X, k.i);
-    set_cell(s, CELL_C, tx);
-    m_write8(s, chase + 2, tx);
-    uint8_t ty = at8(s, RAM_BATTLE_EFFECT_TARGET_Y, k.i);
-    set_cell(s, CELL_D, ty);
-    m_write8(s, chase + 3, ty);
-    set_cell(s, CELL_LIMIT, 0x10);
-    if (battle_points_close(s)) {
-        inc8(s, k.done + k.slot);
-        return 1;
-    }
-    uint8_t target;
-    NATIVE_TIME_AS(s, 0xCFFA43, target = angle_to_target(s));
-    uint8_t speed = at8(s, RAM_BATTLE_EFFECT_STEPS, k.i);
-    set_radius(s, speed);
-    uint8_t angle = turn(s, &k, target, speed);
-    set_at8(s, RAM_BATTLE_EFFECT_CHASE_ANGLE, k.i, angle);
-    uint8_t facing = battle_facing_for_angle(s, angle);
-    if (anchor)
-        m_write8(s, RAM_BATTLE_ANCHOR_FACING + k.slot, facing);
-    else
-        m_write8(s, RAM_BATTLE_OBJECT_FACING + k.slot, facing);
-    if (!anchor) {
-        uint8_t dy = battle_sine_scaled(s, angle);
-        set_cell(s, CELL_A, dy);
-        uint8_t dx = battle_sine_scaled(s, (uint8_t)(angle + QUARTER_TURN));
-        set_cell(s, CELL_B, dx);
-        m_write8(s, object_y(k.slot), (uint8_t)(m_read8(s, object_y(k.slot)) + dy));
-        uint8_t nx = (uint8_t)(m_read8(s, object_x(k.slot)) + dx);
-        m_write8(s, object_x(k.slot), nx);
-        return nx;
-    }
-    /* the move goes to cells $CA-$CD, sign-extended, over the slot offset */
-    set_cell16(s, CELL_SLOT_X4, 0);
-    set_cell(s, CELL_B, 0);
-    uint8_t dy = battle_sine_scaled(s, angle);
-    set_cell(s, CELL_SLOT_X4, dy);
-    if (dy & 0x80)
-        set_cell(s, CELL_SLOT_X4 + 1, 0xFF);
-    uint8_t dx = battle_sine_scaled(s, (uint8_t)(angle + QUARTER_TURN));
-    set_cell(s, CELL_A, dx);
-    if (dx & 0x80)
-        set_cell(s, CELL_B, 0xFF);
-    m_write16(s, RAM_BATTLE_ANCHOR_Y + k.w, (uint16_t)(m_read16(s, RAM_BATTLE_ANCHOR_Y + k.w) + cell16(s, CELL_SLOT_X4)));
-    m_write16(s, RAM_BATTLE_ANCHOR_X + k.w, (uint16_t)(m_read16(s, RAM_BATTLE_ANCHOR_X + k.w) + cell16(s, CELL_A)));
-    return 0;
+    unsigned e = entry_of(m);
+    uint16_t x = (uint16_t)(battle_effect_position_x(g, e) + battle_effect_velocity_x(g, e));
+    uint16_t y = (uint16_t)(battle_effect_position_y(g, e) + battle_effect_velocity_y(g, e));
+    set_battle_effect_position_x(g, e, x);
+    set_battle_effect_position_y(g, e, y);
+    return (Point){ (uint8_t)((x >> 8) + battle_effect_base_x(g, e)), (uint8_t)((y >> 8) + battle_effect_base_y(g, e)) };
 }
 
-/* ---- The loop ------------------------------------------------------------------------- */
+/* A jump's speed and height are 16.16 pixels; gravity takes from the speed's
+ * fraction while it rises and adds to it while it falls. At the top (the
+ * speed gone) the jump turns and falls; a fall whose speed runs past a whole
+ * pixel a substep bounces back up at the bounce speed. */
+typedef struct {
+    uint32_t speed, height;
+    bool falling, turned;
+} Jump;
 
-typedef uint8_t (*Handler)(Snes *s);
+enum { WHOLE_PIXEL = 0x10000 };
 
-static uint8_t combatant_line(Snes *s) { return move_line(s, false); }
-static uint8_t combatant_jump(Snes *s) { return move_jump(s, false); }
-static uint8_t combatant_spiral(Snes *s) { return move_spiral(s, false); }
-static uint8_t combatant_orbit(Snes *s) { return move_orbit(s, false, false); }
-static uint8_t combatant_jump_to_target(Snes *s) { return move_jump_to_target(s, false); }
-static uint8_t combatant_orbit_flat(Snes *s) { return move_orbit(s, false, true); }
-static uint8_t combatant_chase(Snes *s) { return move_chase(s, false); }
-static uint8_t anchor_line(Snes *s) { return move_line(s, true); }
-static uint8_t anchor_jump(Snes *s) { return move_jump(s, true); }
-static uint8_t anchor_spiral(Snes *s) { return move_spiral(s, true); }
-static uint8_t anchor_orbit(Snes *s) { return move_orbit(s, true, false); }
-static uint8_t anchor_jump_to_target(Snes *s) { return move_jump_to_target(s, true); }
-static uint8_t anchor_chase(Snes *s) { return move_chase(s, true); }
-
-/* The handlers by their address in the two tables. */
-static const struct {
-    uint16_t addr;
-    Handler fn;
-} handlers[] = {
-    { 0xF03E, combatant_line },   { 0xF087, combatant_jump },      { 0xF194, combatant_spiral },
-    { 0xF1F8, combatant_orbit },  { 0xF23D, combatant_jump_to_target }, { 0xF354, combatant_orbit_flat },
-    { 0xF39F, move_flicker },     { 0xF405, combatant_chase },     { 0xF4B2, anchor_line },
-    { 0xF503, anchor_jump },      { 0xF61F, anchor_spiral },       { 0xF68D, anchor_orbit },
-    { 0xF6E2, anchor_jump_to_target }, { 0xF7FC, move_orbit_facing }, { 0xF884, anchor_chase },
-};
-
-static Handler handler_at(uint16_t addr)
+/* Run the jump `substeps` substeps (a count of 0 runs 65536), counting its
+ * turns at the top on the mover's done flag where `count_turns`. The falling
+ * flag is written where the jump turns. Returns the height's whole part. */
+static uint16_t run_jump(GameState *g, Mover m, uint16_t substeps, bool count_turns)
 {
-    for (size_t i = 0; i < sizeof handlers / sizeof handlers[0]; i++)
-        if (handlers[i].addr == addr)
-            return handlers[i].fn;
-    return NULL;
-}
-
-/* One of the two loops: from `last` down to 0, count an active slot's delay
- * down and, when it runs out, reload it and run the handler for its type.
- * `first` is the table's first slot in the 19-slot arrays, `table` the
- * handler table, `site` its JSR. Returns false when a handler was called out
- * to and didn't come back as the loop needs; `a` tracks what the original
- * leaves in A. */
-static bool run_slots(Snes *s, uint16_t last, uint16_t first, uint16_t table, uint32_t site, uint16_t *a)
-{
-    set_cell16(s, CELL_SLOT, last);
+    unsigned e = entry_of(m);
+    uint16_t gravity = battle_effect_jump_gravity(g, e);
+    Jump j = { battle_effect_jump_speed(g, e), battle_effect_jump_height(g, e), battle_effect_jump_falling(g, e) != 0, false };
     do {
-        uint16_t slot = cell16(s, CELL_SLOT);
-        uint32_t i = first + (uint32_t)slot;
-        uint8_t active = m_read8(s, RAM_BATTLE_EFFECT_ACTIVE + i);
-        *a = (uint16_t)((*a & 0xFF00) | active);
-        if (active && dec8(s, RAM_BATTLE_EFFECT_DELAY + i) == 0) {
-            m_write8(s, RAM_BATTLE_EFFECT_DELAY + i, m_read8(s, RAM_BATTLE_EFFECT_PERIOD + i));
-            set_cell16(s, CELL_SLOT_X2, (uint16_t)(slot << 1));
-            set_cell16(s, CELL_SLOT_X4, (uint16_t)(slot << 2));
-            uint8_t type_x2 = (uint8_t)(m_read8(s, RAM_BATTLE_EFFECT_TYPE + i) << 1);
-            uint16_t target = battle_effect_handler(s, table, type_x2);
-            Handler fn = handler_at(target);
-            if (fn) {
-                int was = native_time_as(s, 0xCF0000 | target);   /* the handler's time, not the loop's */
-                *a = fn(s);
-                native_time_end(s, was);
+        uint16_t fraction = (uint16_t)j.speed;
+        if (!j.falling) {
+            if (fraction < gravity) {
+                j.speed = 0;
+                j.falling = j.turned = true;
+                if (count_turns)
+                    count_turn(g, m);
             } else {
-                /* the registers and flags as ASL : TAX leave them */
-                m_set_flag(s, CPU_FLAG_C, (m_read8(s, RAM_BATTLE_EFFECT_TYPE + i) & 0x80) != 0);
-                m_set_nz8(s, type_x2);
-                s->cpu.a = type_x2;
-                s->cpu.x = type_x2;
-                s->cpu.p |= CPU_FLAG_M;
-                s->cpu.p &= (uint8_t)~CPU_FLAG_X;
-                m_jsr(s, site, 0xCF0000 | target);
-                if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
-                    return false;
-                *a = s->cpu.a;
+                j.speed = (j.speed & ~0xFFFFu) | (uint16_t)(fraction - gravity);
             }
+        } else if (fraction + gravity >= WHOLE_PIXEL) {
+            j.speed = battle_effect_jump_bounce(g, e);
+            j.falling = false;
+            j.turned = true;
+        } else {
+            j.speed = (j.speed & ~0xFFFFu) | (uint16_t)(fraction + gravity);
         }
-        set_cell(s, CELL_SLOT, (uint8_t)(cell(s, CELL_SLOT) - 1));
-    } while (!(cell(s, CELL_SLOT) & 0x80));
+        j.height = j.falling ? j.height - j.speed : j.height + j.speed;
+    } while (--substeps != 0);
+    set_battle_effect_jump_speed(g, e, j.speed);
+    set_battle_effect_jump_height(g, e, j.height);
+    if (j.turned)
+        set_battle_effect_jump_falling(g, e, j.falling);
+    uint16_t whole = (uint16_t)(j.height >> 16);
+    ORIGINAL_EFFECT(leave_cell16(g, 0xCC, 0));
+    ORIGINAL_EFFECT(set_battle_low_scratch(g, 4, (uint8_t)whole));
+    ORIGINAL_EFFECT(set_battle_low_scratch(g, 5, (uint8_t)(whole >> 8)));
+    return whole;
+}
+
+/* A coordinate moved by the jump's height: up the screen, or down it for a
+ * jump that goes downward; by the height, or by twice it. */
+static uint8_t lifted(uint8_t y, uint8_t height, bool downward, bool single)
+{
+    uint8_t by = single ? height : (uint8_t)(2 * height);
+    return downward ? (uint8_t)(y + by) : (uint8_t)(y - by);
+}
+
+/* Whether the jump lifts by its height once rather than twice: the flag's
+ * low byte, which is all the original looks at. */
+static bool lifts_once(const GameState *g, Mover m) { return (uint8_t)battle_effect_jump_single(g, entry_of(m)) != 0; }
+
+// $CF:F03E, $CF:F4B2
+/* A straight line for its number of steps. */
+static void line(GameState *g, Mover m)
+{
+    if (path_done(g, m))
+        return;
+    unsigned e = entry_of(m);
+    uint8_t left = battle_effect_line_frames(g, e);
+    if (left != 0) {
+        place(g, m, advance_along_line(g, m));
+        set_battle_effect_line_frames(g, e, --left);
+    }
+    if (left == 0)
+        end_path(g, m);
+}
+
+// $CF:F087, $CF:F503
+/* A jump along the line for its number of steps, its height lifting a
+ * combatant's sprite or the anchor itself. A combatant's sprite comes back
+ * down to it when the jump ends. */
+static void jump(GameState *g, Mover m)
+{
+    if (path_done(g, m))
+        return;
+    unsigned e = entry_of(m);
+    uint8_t left = battle_effect_jump_frames(g, e);
+    if (left != 0) {
+        Point p = advance_along_line(g, m);
+        uint8_t height = (uint8_t)run_jump(g, m, battle_effect_steps(g, e), false);
+        bool downward = battle_effect_jump_downward(g, e) != 0, once = lifts_once(g, m);
+        if (is_anchor(m)) {
+            place(g, m, (Point){ p.x, lifted(p.y, height, downward, once) });
+        } else {
+            place(g, m, p);
+            set_combatant_sprite_offset_y(g, m.index, lifted(0, height, downward, once));
+        }
+        set_battle_effect_jump_frames(g, e, --left);
+    }
+    if (left != 0)
+        return;
+    if (!is_anchor(m))
+        set_combatant_sprite_offset_y(g, m.index, 0);
+    end_path(g, m);
+}
+
+/* ---- Jumping onto a target ------------------------------------------------------------- */
+
+/* How near the homing jump must fall to its target to land: at first within
+ * 16 pixels (24 for an anchor), with a combatant's sprite at most 24 pixels
+ * off the ground; after that, on it. */
+enum { LANDING_REACH = 16, ANCHOR_LANDING_REACH = 24, LANDING_HEIGHT = 24, ON_TARGET = 1 };
+enum { HOMING_SUBSTEPS = 4 };
+
+static Point target_of(const GameState *g, Mover m)
+{
+    return (Point){ battle_effect_target_x(g, entry_of(m)), battle_effect_target_y(g, entry_of(m)) };
+}
+
+static bool about_to_land(const GameState *g, Mover m)
+{
+    int8_t lift = combatant_sprite_offset_y(g, m.index);
+    return is_anchor(m) || (lift < 0 && lift >= -LANDING_HEIGHT);
+}
+
+/* Whether the jump has landed: near the target while falling. The first time
+ * it comes near counts as landing and starts its second stage, and a landing
+ * counts on the done flag. The original looks only at the falling flag's low
+ * byte here. */
+static bool landed(GameState *g, Mover m)
+{
+    unsigned e = entry_of(m);
+    if ((uint8_t)battle_effect_jump_falling(g, e) == 0)
+        return false;
+    Point p = position_of(g, m);
+    bool second_stage = battle_effect_home_stage(g, e) != 0;
+    if (second_stage) {
+        if (!close_to(g, p, target_of(g, m), ON_TARGET))
+            return false;
+    } else {
+        if (!close_to(g, p, target_of(g, m), is_anchor(m) ? ANCHOR_LANDING_REACH : LANDING_REACH) || !about_to_land(g, m))
+            return false;
+        set_battle_effect_home_stage(g, e, (uint8_t)(battle_effect_home_stage(g, e) + 1));
+    }
+    count_done(g, m);
     return true;
 }
 
-// $CF:F978
-/* Up to eight enemies moving in circles (slots 0-7, the enemies' battle
- * slots 3-10): every period frames the radius grows by the step (the orbit
- * ends when it reaches 8), and the object sits at the center plus the radius
- * along its angle. Returns what the original leaves in A. */
-static uint16_t step_orbits(Snes *s, uint16_t a)
+// $CF:F23D, $CF:F6E2
+/* A jump onto a target: along the line, four substeps a step, lifted by the
+ * height (twice it for a combatant's sprite: the original writes the single
+ * lift and then the double over it), until it lands. */
+static void jump_to_target(GameState *g, Mover m)
 {
-    set_cell16(s, CELL_SLOT, 7);
-    do {
-        uint16_t i = cell16(s, CELL_SLOT);
-        uint8_t on = m_read8(s, RAM_BATTLE_ORBIT_ACTIVE + i);
-        a = (uint16_t)((a & 0xFF00) | on);
-        if (on && dec8(s, RAM_BATTLE_ORBIT_COUNTDOWN + i) == 0) {
-            m_write8(s, RAM_BATTLE_ORBIT_COUNTDOWN + i, m_read8(s, RAM_BATTLE_ORBIT_PERIOD + i));
-            uint8_t radius = (uint8_t)(m_read8(s, RAM_BATTLE_ORBIT_RADIUS + i) + m_read8(s, RAM_BATTLE_ORBIT_RADIUS_STEP + i));
-            m_write8(s, RAM_BATTLE_ORBIT_RADIUS + i, radius);
-            set_radius(s, radius);
-            if (radius == 8) {
-                m_write8(s, RAM_BATTLE_ORBIT_ACTIVE + i, 0);
-                m_write8(s, RAM_BATTLE_ORBIT_RADIUS + i, 0);
-            }
-            uint8_t angle = m_read8(s, RAM_BATTLE_ORBIT_ANGLE + i);
-            uint8_t dy = battle_sine_scaled(s, angle);
-            set_cell(s, CELL_SLOT_X2, dy);
-            uint8_t dx = battle_sine_scaled(s, (uint8_t)(angle + QUARTER_TURN));
-            set_cell(s, CELL_SLOT_X2 + 1, dx);
-            m_write8(s, object_y(3 + i), (uint8_t)(m_read8(s, RAM_BATTLE_ORBIT_CENTER_Y + i) + dy));
-            uint8_t x = (uint8_t)(m_read8(s, RAM_BATTLE_ORBIT_CENTER_X + i) + dx);
-            m_write8(s, object_x(3 + i), x);
-            a = x;
-        }
-        set_cell(s, CELL_SLOT, (uint8_t)(cell(s, CELL_SLOT) - 1));
-    } while (!(cell(s, CELL_SLOT) & 0x80));
-    return a;
-}
-
-// $CF:EFAF
-/* Step the timed effect slots: while effects run (battle_effects_running),
- * the combatants' eleven and the anchors' eight; otherwise, unless orbits are
- * held off ($A0FD), the enemies' orbits. */
-void battle_step_effect_slots(Snes *s)
-{
-    uint16_t a = s->cpu.a;
-    if (!m_read8(s, RAM_BATTLE_EFFECTS_RUNNING)) {
-        uint8_t hold = m_read8(s, RAM_BATTLE_ORBITS_HELD);
-        if (hold)
-            a = (uint16_t)((a & 0xFF00) | hold);
-        else
-            NATIVE_TIME_AS(s, 0xCFF978, a = step_orbits(s, a & 0xFF00));   /* which the original jumps to */
+    if (landed(g, m))
+        return;
+    Point p = advance_along_line(g, m);
+    uint8_t height = (uint8_t)run_jump(g, m, HOMING_SUBSTEPS, true);
+    if (is_anchor(m)) {
+        place(g, m, (Point){ p.x, lifted(p.y, height, false, lifts_once(g, m)) });
     } else {
-        a = (uint16_t)((a & 0xFF00) | m_read8(s, RAM_BATTLE_EFFECTS_RUNNING));
-        if (!run_slots(s, COMBATANT_SLOTS - 1, 0, 0xF01E, 0xCFEFE6, &a) ||
-            !run_slots(s, ANCHOR_SLOTS - 1, FIRST_ANCHOR, 0xF02E, 0xCFF016, &a))
-            return;
+        place(g, m, p);
+        set_combatant_sprite_offset_y(g, m.index, lifted(0, height, false, false));
     }
-    s->cpu.a = a;
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
 }
 
-void battle_step_orbits(Snes *s)
+/* ---- The spiral --------------------------------------------------------------------- */
+
+/* The screen's edge, as the spiral finds it: the outermost 16-pixel columns
+ * and the top row of the original's 256 by 224 screen, and the row just
+ * below it. */
+enum { EDGE = 16, SCREEN_WIDTH = 256, SCREEN_HEIGHT = 224 };
+
+static bool at_screen_edge(Point p)
 {
-    s->cpu.a = step_orbits(s, s->cpu.a);
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
+    return p.y / EDGE == 0 || p.y / EDGE == SCREEN_HEIGHT / EDGE || p.x / EDGE == 0 || p.x / EDGE == SCREEN_WIDTH / EDGE - 1;
+}
+
+// $CF:F194, $CF:F61F
+/* A spiral out from the base point: each step the distance grows by the
+ * mover's step, at its angle, until the mover comes to the edge of the
+ * screen or its steps run out. */
+static void spiral(GameState *g, Mover m)
+{
+    if (path_done(g, m))
+        return;
+    unsigned e = entry_of(m);
+    if (at_screen_edge(position_of(g, m))) {
+        end_path(g, m);
+        return;
+    }
+    uint8_t left = (uint8_t)(battle_effect_spiral_frames(g, e) - 1);
+    set_battle_effect_spiral_frames(g, e, left);
+    if (left == 0) {
+        end_path(g, m);
+        return;
+    }
+    uint8_t radius = (uint8_t)(battle_effect_radius(g, e) + battle_effect_steps(g, e));
+    set_battle_effect_radius(g, e, radius);
+    uint8_t angle = battle_effect_angle(g, e);
+    set_battle_effect_angle_used(g, e, angle);
+    Offset o = polar(g, angle, radius, radius);
+    ORIGINAL_EFFECT(leave_offset_cells(g, o));
+    place(g, m, moved((Point){ battle_effect_base_x(g, e), battle_effect_base_y(g, e) }, o));
+}
+
+/* ---- Orbits ------------------------------------------------------------------------- */
+
+/* The flat orbit's effect goes in front of the combatant it circles on the
+ * near half of the circle and behind it on the far half: the side its record
+ * names (battle/effects.h). The record keeps the rest of its bits. */
+enum { RECORD_KEEPS = 0x3F };
+
+/* The record of the anchor's effect whose side the flat orbit turns: its row
+ * is the anchor's, and the column the anchor's record names (the combatant),
+ * as the original indexes it, a byte. */
+static unsigned facing_record(const GameState *g, unsigned anchor)
+{
+    return (uint8_t)battle_record_of(battle_anchor_facing_record(g, anchor), anchor);
+}
+
+static void turn_effect_by_side(GameState *g, Mover m, uint8_t angle)
+{
+    unsigned record = facing_record(g, m.index);
+    uint8_t side = angle < HALF_TURN ? BATTLE_RECORD_IN_FRONT : BATTLE_RECORD_BEHIND;
+    set_battle_object_effect_slots(g, record, (uint8_t)((battle_object_effect_slots(g, record) & RECORD_KEEPS) | side));
+}
+
+/* An anchor's orbit moves it within the 256 pixels its coordinates' high
+ * bytes put it in. */
+static void orbit_anchor_to(GameState *g, unsigned anchor, Point p)
+{
+    place_anchor(g, anchor, (int16_t)(((uint16_t)anchor_x(g, anchor) & 0xFF00) | p.x),
+                 (int16_t)(((uint16_t)anchor_y(g, anchor) & 0xFF00) | p.y));
+}
+
+/* Take the orbit's next step: the angle steps on, and the mover goes the
+ * radius from its center (half the radius vertically for a flat orbit). The
+ * orbit ends when its steps (a word) run out. */
+static void orbit_step(GameState *g, Mover m, bool flat)
+{
+    unsigned e = entry_of(m);
+    uint8_t radius = battle_effect_orbit_radius(g, e);
+    uint8_t angle = (uint8_t)(battle_effect_orbit_angle(g, e) + battle_effect_orbit_step(g, e));
+    set_battle_effect_orbit_angle(g, e, angle);
+    Offset o = polar(g, angle, radius, flat ? (uint8_t)(radius / 2) : radius);
+    if (is_anchor(m)) {
+        ORIGINAL_EFFECT(leave_offset_cells(g, o));
+        Point center = { battle_anchor_orbit_center_x(g, m.index), battle_anchor_orbit_center_y(g, m.index) };
+        orbit_anchor_to(g, m.index, moved(center, o));
+    } else {
+        set_combatant_sprite_offset(g, m.index, o.dx, o.dy);
+    }
+    uint16_t left = (uint16_t)(battle_effect_orbit_frames(g, e) - 1);
+    set_battle_effect_orbit_frames(g, e, left);
+    if (left == 0)
+        count_done(g, m);
+}
+
+// $CF:F1F8, $CF:F68D
+/* An orbit: a combatant's sprite round where it stands, or an anchor round
+ * its center. */
+static void orbit(GameState *g, Mover m)
+{
+    if (!path_done(g, m))
+        orbit_step(g, m, false);
+}
+
+// $CF:F354, $CF:F7FC
+/* A flat orbit; an anchor's turns its effect in front of the combatant it
+ * circles or behind it, by where it was on the circle. */
+static void orbit_flat(GameState *g, Mover m)
+{
+    if (is_anchor(m))
+        ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, m.index));
+    if (path_done(g, m))
+        return;
+    if (is_anchor(m))
+        turn_effect_by_side(g, m, battle_effect_orbit_angle(g, entry_of(m)));
+    orbit_step(g, m, true);
+}
+
+/* ---- The flicker -------------------------------------------------------------------- */
+
+/* The flicker moves a combatant: the one whose battle slot is the mover's
+ * index, whichever of the movers runs it (an anchor's flicker moves the
+ * combatant with the anchor's number). */
+enum { MIRRORED_SLOT = 3, MIRRORING_SLOT = 9 };
+
+// $CF:F3BA
+/* For its number of steps, every few steps, the combatant's sprite jumps
+ * between where the combatant stands and the point the flicker's radius
+ * away at the angle the spiral last used. When the steps run out the sprite
+ * goes back and the combatant's path stops. */
+static void flicker_step(GameState *g, unsigned slot)
+{
+    uint8_t left = (uint8_t)(battle_effect_flicker_frames(g, slot) - 1);
+    set_battle_effect_flicker_frames(g, slot, left);
+    if (left == 0) {
+        set_combatant_sprite_offset(g, slot, 0, 0);
+        set_battle_effect_active(g, slot, false);
+        return;
+    }
+    uint8_t wait = (uint8_t)(battle_effect_flicker_count(g, slot) - 1);
+    set_battle_effect_flicker_count(g, slot, wait ? wait : battle_effect_flicker_period(g, slot));
+    if (wait != 0)
+        return;
+    uint8_t radius = battle_effect_flicker_radius(g, slot);
+    ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, radius));
+    uint8_t hidden = battle_effect_flicker_hidden(g, slot) ^ 1;
+    set_battle_effect_flicker_hidden(g, slot, hidden);
+    Offset o = hidden ? (Offset){ 0, 0 } : polar(g, battle_effect_angle_used(g, slot), radius, radius);
+    set_combatant_sprite_offset(g, slot, o.dx, o.dy);
+}
+
+// $CF:F39F
+/* The flicker; and a combatant in slot 9 marked to mirror slot 3 shows slot
+ * 3's flicker too. */
+static void flicker(GameState *g, Mover m)
+{
+    flicker_step(g, m.index);
+    if (m.index == MIRRORED_SLOT && battle_effect_mirror_slot3(g))
+        set_combatant_sprite_offset(g, MIRRORING_SLOT, combatant_sprite_offset_x(g, MIRRORED_SLOT),
+                                    combatant_sprite_offset_y(g, MIRRORED_SLOT));
+}
+
+/* ---- The chase ---------------------------------------------------------------------- */
+
+enum { CHASE_REACH = 16 };
+
+/* Where a chasing anchor is: off the left or top edge (a negative
+ * coordinate) counts as 0. */
+static Point chaser_position(const GameState *g, Mover m)
+{
+    if (!is_anchor(m))
+        return position_of(g, m);
+    int16_t x = anchor_x(g, m.index), y = anchor_y(g, m.index);
+    return (Point){ x < 0 ? 0 : (uint8_t)x, y < 0 ? 0 : (uint8_t)y };
+}
+
+/* Turn the chase's heading toward the target's angle, in its turning
+ * direction, by up to `speed` steps of angle (0: all the way). Reaching it
+ * marks the chase lined up, and from then on it heads straight at the
+ * target. */
+static uint8_t turn_toward(GameState *g, Mover m, uint8_t target, uint8_t speed)
+{
+    unsigned e = entry_of(m);
+    if (battle_effect_chase_aligned(g, e))
+        return target;
+    uint8_t heading = battle_effect_chase_angle(g, e);
+    if (heading == target)
+        return heading;
+    bool down = battle_effect_chase_turn(g, e) != 0;
+    uint8_t apart = down ? (uint8_t)(heading - target) : (uint8_t)(target - heading);
+    if (speed != 0 && apart > speed)
+        return down ? (uint8_t)(heading - speed) : (uint8_t)(heading + speed);
+    set_battle_effect_chase_aligned(g, e, (uint8_t)(battle_effect_chase_aligned(g, e) + 1));
+    return target;
+}
+
+/* A chasing anchor moves by the step as words: it can leave the
+ * battlefield's 256 pixels. */
+static void leave_anchor_step_cells(GameState *g, Offset o)
+{
+    leave_cell16(g, 0xCA, (uint16_t)(int16_t)o.dy);
+    leave_cell16(g, 0xCC, (uint16_t)(int16_t)o.dx);
+}
+
+// $CF:F405, $CF:F884
+/* A chase: until the mover is within 16 pixels of its target, it turns
+ * toward the target, faces its heading, and moves its speed along it. */
+static void chase(GameState *g, Mover m)
+{
+    unsigned e = entry_of(m);
+    Point from = chaser_position(g, m), to = target_of(g, m);
+    ORIGINAL_EFFECT(leave_chase_points(g, from, to));
+    if (close_to(g, from, to, CHASE_REACH)) {
+        count_done(g, m);
+        return;
+    }
+    uint8_t speed = battle_effect_steps(g, e);
+    uint8_t heading = turn_toward(g, m, angle_toward(g, from, to), speed);
+    set_battle_effect_chase_angle(g, e, heading);
+    uint8_t facing = battle_facing_for_angle(g, heading);
+    Offset o = polar(g, heading, speed, speed);
+    if (is_anchor(m)) {
+        set_battle_anchor_facing(g, m.index, facing);
+        ORIGINAL_EFFECT(leave_anchor_step_cells(g, o));
+        place_anchor(g, m.index, (int16_t)(anchor_x(g, m.index) + o.dx), (int16_t)(anchor_y(g, m.index) + o.dy));
+    } else {
+        set_battle_object_facing(g, m.index, facing);
+        ORIGINAL_EFFECT(leave_offset_cells(g, o));
+        place(g, m, moved(position_of(g, m), o));
+    }
+}
+
+/* ---- The movers' timers and their paths ------------------------------------------------ */
+
+typedef enum {
+    PATH_LINE, PATH_JUMP, PATH_SPIRAL, PATH_ORBIT, PATH_JUMP_TO_TARGET, PATH_ORBIT_FLAT, PATH_FLICKER, PATH_CHASE,
+    PATH_KINDS
+} PathKind;
+
+/* Each kind of path, and the original's routines for it, a combatant's and
+ * an anchor's, whose time its step is. An anchor's flicker is the
+ * combatants' routine (it moves a combatant). */
+typedef void PathStep(GameState *g, Mover m);
+
+static const struct {
+    PathStep *step;
+    uint32_t combatant_routine, anchor_routine;
+} paths[PATH_KINDS] = {
+    [PATH_LINE] = { line, 0xCFF03E, 0xCFF4B2 },
+    [PATH_JUMP] = { jump, 0xCFF087, 0xCFF503 },
+    [PATH_SPIRAL] = { spiral, 0xCFF194, 0xCFF61F },
+    [PATH_ORBIT] = { orbit, 0xCFF1F8, 0xCFF68D },
+    [PATH_JUMP_TO_TARGET] = { jump_to_target, 0xCFF23D, 0xCFF6E2 },
+    [PATH_ORBIT_FLAT] = { orbit_flat, 0xCFF354, 0xCFF7FC },
+    [PATH_FLICKER] = { flicker, 0xCFF39F, 0xCFF39F },
+    [PATH_CHASE] = { chase, 0xCFF405, 0xCFF884 },
+};
+
+static bool mover_running(const GameState *g, Mover m) { return battle_effect_active(g, entry_of(m)) != 0; }
+static PathKind path_kind(const GameState *g, Mover m) { return (PathKind)battle_effect_type(g, entry_of(m)); }
+
+/* A running mover's timer counts down a frame; when it runs out it starts
+ * again and the path takes a step. */
+static bool path_due(GameState *g, Mover m)
+{
+    if (!mover_running(g, m))
+        return false;
+    unsigned e = entry_of(m);
+    uint8_t left = (uint8_t)(battle_effect_delay(g, e) - 1);
+    set_battle_effect_delay(g, e, left ? left : battle_effect_period(g, e));
+    return left == 0;
+}
+
+/* ---- The enemies' drifts and the formation ---------------------------------------------- */
+
+/* An enemy's drift: every few frames its distance from a center changes by a
+ * step, along a fixed angle, until the distance comes to 8, which ends it. */
+enum { DRIFT_ENDS_AT = 8 };
+
+static unsigned enemy_slot(unsigned enemy) { return BATTLE_FIRST_ENEMY + enemy; }
+
+static bool drift_due(GameState *g, unsigned enemy)
+{
+    if (!battle_orbit_active(g, enemy))
+        return false;
+    uint8_t left = (uint8_t)(battle_orbit_countdown(g, enemy) - 1);
+    set_battle_orbit_countdown(g, enemy, left ? left : battle_orbit_period(g, enemy));
+    return left == 0;
+}
+
+// $CF:F978
+/* Step the enemies' drifts, the last enemy first. */
+static void step_drifts(GameState *g)
+{
+    for (int enemy = BATTLE_ENEMIES - 1; enemy >= 0; enemy--) {
+        if (!drift_due(g, (unsigned)enemy))
+            continue;
+        uint8_t radius = (uint8_t)(battle_orbit_radius(g, (unsigned)enemy) + battle_orbit_radius_step(g, (unsigned)enemy));
+        set_battle_orbit_radius(g, (unsigned)enemy, radius);
+        if (radius == DRIFT_ENDS_AT) {
+            set_battle_orbit_active(g, (unsigned)enemy, false);
+            set_battle_orbit_radius(g, (unsigned)enemy, 0);
+        }
+        Offset o = polar(g, battle_orbit_angle(g, (unsigned)enemy), radius, radius);
+        ORIGINAL_EFFECT(leave_cell(g, 0xC8, (uint8_t)o.dy));
+        ORIGINAL_EFFECT(leave_cell(g, 0xC9, (uint8_t)o.dx));
+        Point center = { battle_orbit_center_x(g, (unsigned)enemy), battle_orbit_center_y(g, (unsigned)enemy) };
+        Point p = moved(center, o);
+        place_combatant_y(g, enemy_slot((unsigned)enemy), p.y);
+        place_combatant_x(g, enemy_slot((unsigned)enemy), p.x);
+    }
+    ORIGINAL_EFFECT(leave_loop_ended(g));
 }
 
 // $CF:F9D3
-/* Place the enemies of the formation around the leader enemy's object
- * ($A002, a battle slot less 3), each at its own offset. */
+/* Keep the enemies of the formation at their places round its leader: each
+ * enemy on the battlefield, the last first, at its place's offset from where
+ * the leader is then (the leader moves to its own place too, and the enemies
+ * before it follow it there). */
+static void place_formation(GameState *g)
+{
+    unsigned leader = enemy_slot(battle_formation_leader(g));
+    for (int enemy = BATTLE_ENEMIES - 1; enemy >= 0; enemy--) {
+        unsigned slot = enemy_slot((unsigned)enemy);
+        if (!battle_slot_present(g, slot))
+            continue;
+        place_combatant_x(g, slot, (uint8_t)(combatant_x(g, leader) + battle_formation_offset_x(g, (unsigned)enemy)));
+        place_combatant_y(g, slot, (uint8_t)(combatant_y(g, leader) + battle_formation_offset_y(g, (unsigned)enemy)));
+    }
+}
+
+/* ---- The entries ------------------------------------------------------------------------ */
+
+bool battle_effect_page(Snes *s) { return battle_on_page(s); }
+bool battle_effect_handler_ready(Snes *s) { return battle_on_page_a_high_clear(s); }
+
+/* The movers' loops: each running mover's timer counts down, the combatants
+ * from the last to the first and then the anchors, and a mover whose timer
+ * ran out takes its path's step, in the time of the original's routine for
+ * it. */
+static void step_movers(Snes *s, MoverKind kind, unsigned movers)
+{
+    GameState *g = state_of(s);
+    for (int index = (int)movers - 1; index >= 0; index--) {
+        Mover m = { kind, (uint8_t)index };
+        if (!path_due(g, m))
+            continue;
+        ORIGINAL_EFFECT(leave_loop_cells(g, (unsigned)index));
+        PathKind k = path_kind(g, m);
+        NATIVE_TIME_AS(s, is_anchor(m) ? paths[k].anchor_routine : paths[k].combatant_routine, paths[k].step(g, m));
+    }
+    ORIGINAL_EFFECT(leave_loop_ended(g));
+}
+
+// $CF:EFAF
+/* The frame's paths: while effects play, every mover's; otherwise, unless
+ * they are held, the enemies' drifts ($CF:F978, which the original jumps
+ * to). */
+void battle_step_effect_slots(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (battle_effects_running(g)) {
+        step_movers(s, MOVES_COMBATANT, COMBATANT_MOVERS);
+        step_movers(s, MOVES_ANCHOR, ANCHOR_MOVERS);
+    } else if (!battle_orbits_held(g)) {
+        NATIVE_TIME_AS(s, 0xCFF978, step_drifts(g));
+    }
+    m_rts(s);
+}
+
+/* The game gives a running mover one of the eight kinds of path. */
+static bool paths_known(Snes *s)
+{
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool known = true;
+    for (unsigned e = 0; e < COMBATANT_MOVERS + ANCHOR_MOVERS; e++)
+        if (battle_effect_active(g, e) && battle_effect_type(g, e) >= PATH_KINDS)
+            known = false;
+    vars_peek(false);
+    return known;
+}
+
+bool battle_effect_paths_ready(Snes *s) { return battle_effect_handler_ready(s) && paths_known(s); }
+
+void battle_step_orbits(Snes *s)
+{
+    step_drifts(state_of(s));
+    m_rts(s);
+}
+
 void battle_place_formation(Snes *s)
 {
-    uint8_t leader = m_read8(s, RAM_BATTLE_FORMATION_LEADER);
-    uint16_t lead = (uint16_t)((s->cpu.a & 0xFF00) | leader);
-    for (int i = 7; i >= 0; i--) {
-        if (!m_read8(s, RAM_BATTLE_SLOT_PRESENT + 3 + (unsigned)i))
-            continue;
-        m_write8(s, object_x(3 + (unsigned)i), (uint8_t)(m_read8(s, object_x(3) + lead) + m_read8(s, RAM_BATTLE_FORMATION_OFFSET_X + (unsigned)i)));
-        uint8_t y = (uint8_t)(m_read8(s, object_y(3) + lead) + m_read8(s, RAM_BATTLE_FORMATION_OFFSET_Y + (unsigned)i));
-        m_write8(s, object_y(3 + (unsigned)i), y);
-    }
-    s->cpu.x = 0xFFFF;
-    s->cpu.y = lead;
+    place_formation(state_of(s));
     m_rts(s);
 }
 
-bool battle_effect_page(Snes *s) { return s->cpu.d == 0x0000 && s->cpu.db == 0x7E; }
-
-/* ---- The handlers as entries of their own ------------------------------------------- *
- *
- * Guarded on A's high byte being 0, as the loop leaves it (the handlers pass
- * it on through their TAX and 16-bit loads). */
-
-bool battle_effect_handler_ready(Snes *s) { return battle_effect_page(s) && (s->cpu.a & 0xFF00) == 0; }
-
-static void return_a(Snes *s, uint8_t a)
+/* A path's routine on its own takes its mover from the loop's cells: the
+ * mover, and twice and four times it, which its word and long tables are
+ * indexed by. The guards take the cells as the loop sets them. */
+static uint16_t cell_word(Snes *s, uint8_t cell)
 {
-    s->cpu.a = a;
-    s->cpu.p |= CPU_FLAG_M;
+    GameState *g = state_of(s);
+    return (uint16_t)(battle_effect_cells(g, (unsigned)(cell - 0xC6))
+                      | battle_effect_cells(g, (unsigned)(cell - 0xC6 + 1)) << 8);
+}
+
+static bool loop_cells_name(Snes *s, unsigned movers)
+{
+    vars_peek(true);
+    uint16_t index = cell_word(s, 0xC6);
+    bool named = index < movers && cell_word(s, 0xC8) == index * 2 && cell_word(s, 0xCA) == index * 4;
+    vars_peek(false);
+    return named;
+}
+
+bool battle_path_cells_name_combatant(Snes *s) { return battle_effect_handler_ready(s) && loop_cells_name(s, COMBATANT_MOVERS); }
+bool battle_path_cells_name_anchor(Snes *s) { return battle_effect_handler_ready(s) && loop_cells_name(s, ANCHOR_MOVERS); }
+
+static Mover mover_in_cells(Snes *s, MoverKind kind) { return (Mover){ kind, (uint8_t)cell_word(s, 0xC6) }; }
+
+static void run_path(Snes *s, MoverKind kind, PathStep *step)
+{
+    step(state_of(s), mover_in_cells(s, kind));
     m_rts(s);
 }
 
-/* A handler's return: 8-bit A, whose low byte nothing reads after (DC_AL) and
- * whose high byte is still the 0 it was entered with. */
-static void return_from_handler(Snes *s)
-{
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
-}
-
-void battle_effect_combatant_line(Snes *s)
-{
-    move_line(s, false);
-    return_from_handler(s);
-}
-
-void battle_effect_combatant_jump(Snes *s)
-{
-    move_jump(s, false);
-    return_from_handler(s);
-}
-
-void battle_effect_combatant_spiral(Snes *s)
-{
-    move_spiral(s, false);
-    return_from_handler(s);
-}
-
-void battle_effect_combatant_orbit(Snes *s)
-{
-    move_orbit(s, false, false);
-    return_from_handler(s);
-}
-
-void battle_effect_combatant_jump_to_target(Snes *s)
-{
-    move_jump_to_target(s, false);
-    return_from_handler(s);
-}
-
-void battle_effect_combatant_orbit_flat(Snes *s)
-{
-    move_orbit(s, false, true);
-    return_from_handler(s);
-}
-
-void battle_effect_flicker(Snes *s)
-{
-    move_flicker(s);
-    return_from_handler(s);
-}
-
-void battle_effect_combatant_chase(Snes *s)
-{
-    move_chase(s, false);
-    return_from_handler(s);
-}
-
-void battle_effect_anchor_line(Snes *s)
-{
-    move_line(s, true);
-    return_from_handler(s);
-}
-
-void battle_effect_anchor_jump(Snes *s)
-{
-    move_jump(s, true);
-    return_from_handler(s);
-}
-
-void battle_effect_anchor_spiral(Snes *s)
-{
-    move_spiral(s, true);
-    return_from_handler(s);
-}
-
-void battle_effect_anchor_orbit(Snes *s)
-{
-    move_orbit(s, true, false);
-    return_from_handler(s);
-}
-
-void battle_effect_anchor_jump_to_target(Snes *s)
-{
-    move_jump_to_target(s, true);
-    return_from_handler(s);
-}
-
-void battle_effect_anchor_orbit_facing(Snes *s)
-{
-    move_orbit_facing(s);
-    return_from_handler(s);
-}
-
-void battle_effect_anchor_chase(Snes *s)
-{
-    move_chase(s, true);
-    return_from_handler(s);
-}
+void battle_effect_combatant_line(Snes *s) { run_path(s, MOVES_COMBATANT, line); }
+void battle_effect_combatant_jump(Snes *s) { run_path(s, MOVES_COMBATANT, jump); }
+void battle_effect_combatant_spiral(Snes *s) { run_path(s, MOVES_COMBATANT, spiral); }
+void battle_effect_combatant_orbit(Snes *s) { run_path(s, MOVES_COMBATANT, orbit); }
+void battle_effect_combatant_jump_to_target(Snes *s) { run_path(s, MOVES_COMBATANT, jump_to_target); }
+void battle_effect_combatant_orbit_flat(Snes *s) { run_path(s, MOVES_COMBATANT, orbit_flat); }
+void battle_effect_flicker(Snes *s) { run_path(s, MOVES_COMBATANT, flicker); }
+void battle_effect_combatant_chase(Snes *s) { run_path(s, MOVES_COMBATANT, chase); }
+void battle_effect_anchor_line(Snes *s) { run_path(s, MOVES_ANCHOR, line); }
+void battle_effect_anchor_jump(Snes *s) { run_path(s, MOVES_ANCHOR, jump); }
+void battle_effect_anchor_spiral(Snes *s) { run_path(s, MOVES_ANCHOR, spiral); }
+void battle_effect_anchor_orbit(Snes *s) { run_path(s, MOVES_ANCHOR, orbit); }
+void battle_effect_anchor_jump_to_target(Snes *s) { run_path(s, MOVES_ANCHOR, jump_to_target); }
+void battle_effect_anchor_orbit_facing(Snes *s) { run_path(s, MOVES_ANCHOR, orbit_flat); }
+void battle_effect_anchor_chase(Snes *s) { run_path(s, MOVES_ANCHOR, chase); }
 
 void battle_effect_flicker_step(Snes *s)
 {
-    s->cpu.a = flicker(s, cell16(s, CELL_SLOT), s->cpu.a);
-    s->cpu.p |= CPU_FLAG_M;
+    flicker_step(state_of(s), cell_word(s, 0xC6));
+    m_rts(s);
+}
+
+/* The arithmetic on its own: its operands are in the cells the handlers
+ * leave them in, and the callers read the result in A (its high byte 0, as
+ * the original's clear leaves it) and its sign, or in the proximity test's
+ * cell. */
+static void return_byte(Snes *s, uint8_t v)
+{
+    s->cpu.a = v;
+    m_set_nz8(s, v);
+    m_rts(s);
+}
+
+static uint8_t cell(Snes *s, uint8_t cell) { return battle_effect_cells(state_of(s), (unsigned)(cell - 0xC6)); }
+
+/* The two points at $CC and $CE and the limit at $D1; the answer at $D0. */
+void battle_points_are_close(Snes *s)
+{
+    Point a = { cell(s, 0xCC), cell(s, 0xCD) }, b = { cell(s, 0xCE), cell(s, 0xCF) };
+    set_battle_effect_cells(state_of(s), 0xD0 - 0xC6, points_close(a, b, cell(s, 0xD1)));
     m_rts(s);
 }
 
 void battle_sine_scale(Snes *s)
 {
-    uint8_t v = battle_sine_scaled(s, s->cpu.a);
-    m_set_nz8(s, v);
-    return_a(s, v);
+    GameState *g = state_of(s);
+    return_byte(s, (uint8_t)scaled_sine(g, (uint8_t)s->cpu.a, battle_low_scratch(g, 0)));
 }
 
 void battle_multiply_scale(Snes *s)
 {
-    uint8_t v = battle_multiply_scaled(s, m_read8(s, RAM_BATTLE_LOW_SCRATCH), m_read16(s, RAM_BATTLE_LOW_SCRATCH + 2));
-    m_set_nz8(s, v);
-    return_a(s, v);
+    GameState *g = state_of(s);
+    uint16_t word = (uint16_t)(battle_low_scratch(g, 2) | battle_low_scratch(g, 3) << 8);
+    return_byte(s, scaled(g, battle_low_scratch(g, 0), word));
 }
 
 void battle_chase_angle(Snes *s)
 {
-    return_a(s, angle_to_target(s));
+    GameState *g = state_of(s);
+    Point from = { battle_chase_cells(g, 0), battle_chase_cells(g, 1) };
+    Point to = { battle_chase_cells(g, 2), battle_chase_cells(g, 3) };
+    angle_toward(g, from, to);
+    s->cpu.a &= 0x00FF;
+    m_rts(s);
 }
