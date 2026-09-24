@@ -5205,8 +5205,8 @@ on the machine. The rewrite takes all of them but `menu/epoch.c` (the Epoch's tw
 Mode 7 screens and the End of Time's gate, 1,827 lines and a chunk of its own)
 to the bar, in the field's order: a domain module written first, then the files
 that use it, and each entry's widest don't-care set declared before its wrapper
-is written. Nothing was added to the burndown. The subsystem now scores 0.08
-operations a line with 46% of its functions on the machine (the entries'
+is written. Nothing was added to the burndown. The subsystem now scores 0.07
+operations a line with 40% of its functions on the machine (the entries'
 wrappers, the guards, and the bridges round the call-outs); every rewritten file
 is under the bar and off the baseline.
 
@@ -5294,7 +5294,8 @@ seed and domains: 197 runs, 12,863 of 430,672 compared states mismatched
 before and 12,362 of 258,516 after. All but 105 of the after's are the
 predecessors' own, on the same states in `epoch.c`, `map.c`, the irises of
 `object_commands.c`, `menu_init_video_memory` and
-`menu_window_set_line_effect`; the 105 are the two accepted divergences
+`menu_window_set_line_effect` (those of `map.c` and the irises are gone since:
+below, "After the review"); the 105 are the two accepted divergences
 (`menu_draw_text`'s 97 and the load screen's 8, below). Fewer states are
 compared after because the guards turn away what the game never makes, which
 is the point of them; where that left an entry with few or none, the domain
@@ -5333,9 +5334,10 @@ control code past `$0C`, or one included deeper than four, draws nothing where
 the original jumps or recurses (97 of 1,503); and the load screen's member
 rows keep their own place where the original reads it back from its cells
 after the window list and the portrait, which a list run over random memory
-changes (8 of 3,394). The map's strips part from the original's where the
-upload buffer is near the bank's end, in `map.c`'s port before this rewrite as
-after, so the command fuzzing keeps the buffer where the game has it.
+changes (8 of 3,394). The map's strips parted from the original's where the
+upload buffer was near the bank's end, in `map.c`'s port before this rewrite
+and in its first pass, so the command fuzzing keeps the buffer where the game
+has it; the map module's guards now say so.
 
 **The guards refuse only what the game never makes.** Each is a claim about the
 game, checked against the library's totals (none refuses a real call but
@@ -5365,11 +5367,49 @@ carry and overflow on a poisoned fuzz run (`dc-evidence`: 500 states, 3,340
 call-outs scrambled, 0 mismatched); the idle waits stop with `m_stop_at` at
 their loop's head.
 
-**What is left** is in TODO.md, "What menu's rewrite left": `epoch.c`; `map.c`
-and `object_commands.c`, under the style bar but on the machine throughout; the
-two accepted divergences and the map's strips near the bank's end; the save
-RAM flag read through the ROM accessor; and the glyph drawer's font addresses,
-which come from the still-original text engine.
+**After the review.** A qualitative review by a reader who hadn't seen this
+section rated two files translation, both outside the first pass because they
+were under the style bar: `map.c` kept its loop counters in direct-page cells,
+multiplied a row by 96 with the original's swaps and shifts and queued its
+strips with its own copy of the queue's code; `object_commands.c` emulated
+`ADC` with a carry-and-overflow struct and named routines by their addresses
+(`clear_7f0062`, `step_28`). Both were rewritten:
+- `map.c` is a module over the game's state: `scroll_plane(g, plane, axis,
+  step)` moves a plane a pixel at a time and builds each strip that comes into
+  view from one table of strip shapes (a column down the map, a row along
+  it), `redraw_plane` builds and sends the eighteen blocks, the strips are
+  queued through `vram.h` (which gained `MenuObjectUpload` and
+  `menu_queue_object_uploads`), the plane tables come from `menu_data.h`, and
+  a row starts at `row * MAP_COLUMNS`. The original's cells get their final
+  values once, as scaffolding; the thin entries read the plane and step cells
+  and set X as the scripts read it. Its guards (the page, a plane that
+  scrolls, the tiles on the map, the buffer in work RAM above low RAM, room
+  in the queue) refuse none of the library's calls.
+- the per-line effects and the irises moved to `menu/line_effects.c`, which
+  the wave shares: a slot's table set up in one place, the tables' addresses
+  named, the irises' copies as loops over lines. `object_commands.c` keeps
+  the scene routines, named for what they do (`read_scene_mode`,
+  `clear_scene_flag`, `keep_song`, `bob_second_plane`, `accelerate`, `drift`,
+  `load_scene_graphics`), as plain C over `object.h`'s place and velocity:
+  a sum is `a + b`, and the only carries are the ones the scripts read, derived
+  in the wrappers. Every entry declares all but X and the carry dead (the
+  liveness analysis agrees), and the story byte at `$7F:0062` has a name in
+  the map, if not yet a meaning.
+- `epoch.c`'s gate matrix tables have their name back.
+Shadow totals over the library are unchanged, entry by entry. Fuzzed against
+`main`'s ports, same seed: the map's entries on a domain their guards take
+(scroll across 0 of 1,989, down 0 of 1,012, the redraw 0 of 2,000, the block
+upload the predecessor's 2 of 1,998); every bank C6 entry 0 mismatched, the
+irises on a new domain (their centre and radius on the screen), where the
+predecessor's squashed irises mismatched 11 and 9 on radii under 2 that the
+guard now refuses. Fuzzing found one ordering: the block upload's entry wrote
+its VRAM cell after sending the block, where the original writes it first,
+which only a buffer on the direct page can see.
+
+**What is left** is in TODO.md, "What menu's rewrite left": `epoch.c`; what
+the review rated "mostly"; the two accepted divergences; the save RAM flag
+read through the ROM accessor; and the glyph drawer's font addresses, which
+come from the still-original text engine.
 
 **Timing.** The rewritten ports make far fewer bus accesses than their
 predecessors, so the menus' measured `cost_milli` rows were recalibrated from

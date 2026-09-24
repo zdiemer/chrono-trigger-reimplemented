@@ -175,15 +175,26 @@ void menu_set_object_upload_size(GameState *g, unsigned at, uint16_t size)
         set_menu_object_vram_queue_size_unchecked(g, object_record(at), size);
 }
 
+uint8_t menu_queue_object_uploads(GameState *g, const MenuObjectUpload *uploads, unsigned count)
+{
+    uint8_t first = menu_hold_object_queue(g);
+    unsigned at = first;
+    for (unsigned i = 0; i < count; i++, at += OBJECT_RECORD_BYTES) {
+        const MenuObjectUpload *u = &uploads[i];
+        menu_set_object_upload_bank(g, at, (uint8_t)(u->source >> 16));
+        menu_set_object_upload_port(g, at, u->port);
+        menu_set_object_upload_source(g, at, (uint16_t)u->source);
+        menu_set_object_upload_vram(g, at, u->vram);
+        menu_set_object_upload_size(g, at, u->size);
+    }
+    menu_release_object_queue(g, (uint8_t)at);
+    return first;
+}
+
 void menu_queue_object_upload(GameState *g, uint32_t source, uint16_t vram, uint16_t size)
 {
-    uint8_t at = menu_hold_object_queue(g);
-    menu_set_object_upload_bank(g, at, (uint8_t)(source >> 16));
-    menu_set_object_upload_port(g, at, MENU_PORT_WORDS);
-    menu_set_object_upload_source(g, at, (uint16_t)source);
-    menu_set_object_upload_vram(g, at, vram);
-    menu_set_object_upload_size(g, at, size);
-    menu_release_object_queue(g, (uint8_t)(at + OBJECT_RECORD_BYTES));
+    const MenuObjectUpload u = { source, vram, size, MENU_PORT_WORDS };
+    menu_queue_object_uploads(g, &u, 1);
 }
 
 bool menu_object_queue_is_whole(const GameState *g) { return menu_object_vram_queue_end(g) % OBJECT_RECORD_BYTES == 0; }

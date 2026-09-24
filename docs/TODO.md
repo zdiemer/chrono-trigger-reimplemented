@@ -79,10 +79,32 @@ rest waits, is [PLAN.md](PLAN.md).
     gate, each a machine-level port of its own. It is the next piece, and the
     object mode's module (`menu/object.h`) is what its object handlers should
     be rewritten onto;
-  - `menu/map.c` and `menu/object_commands.c` are under the style bar but take
-    the machine throughout (the map's strips, and bank C6's routines the
-    scripts call by address); the script commands reach the map through a
-    service (`ScriptServices`) so that its port can move under it;
+  - what the qualitative review rated "mostly", to finish:
+    - `menu/display.c`: about a dozen comments quote the original's register
+      writes; and its two screen setups decode register bytes where named
+      `Vid*` values would say what the screen is (partly a platform gap: there
+      is no `VidBg` from a tilemap's address and size, and no screen-mask
+      helper);
+    - `menu/script_bridge.h`: entry names that disagree with their operations
+      (`reset_state` for `forget_everything`, `sound_18`/`sound_19`, and
+      others), and the bridge switching on opcode literals (`0x3B`/`0x3C`/
+      `0x4B`, `0x33`) rather than on the rows;
+    - `menu/sprites.c`: the sprite-script interpreter is a switch with
+      positional operands and a second table of lengths, where a table of rows
+      would do (as `object_script.c`'s);
+    - `menu/vram.h`: the object queue is still also set field by field by
+      offset (`menu_set_object_upload_*`, which `object_script.c`'s tile
+      groups use); `MenuObjectUpload` should be the only way in, with the
+      ports as a named type;
+    - `menu/object_script.c`: the look bits `0xF1`/`0x4F` belong in
+      `object.h`, once; the story bits in `top_layer_stays` and the sounds
+      `0x18`/`0x19` need names; `load_palette_row` keeps its parameters in
+      `command_state`/`move_target`; `word`/`second_word` should be the
+      parameters' names;
+    - `menu/save_screen.c`: the portrait's character goes round through
+      `ORIGINAL_EFFECT` and back; its inputs should be parameters; and the
+      return site (`0xE7AC + 2`, `pc == 0xE7AF`) should be named;
+    - `menu/text.c`: control codes decode their operands by offset;
   - a divergence the rewrite accepts, on inputs no game state makes: a
     string's control code past `$0C`, or one included deeper than four, draws
     nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
@@ -92,9 +114,10 @@ rest waits, is [PLAN.md](PLAN.md).
     still the original's) have run: a list run over random memory that
     changes those cells is where the two part (8 of about 3,400 fuzzed
     slots); the lists' port closes it;
-  - the map's strips, built in the upload buffer, part from the original's
-    where the buffer is near the bank's end (`map.c`, before this rewrite as
-    after): the command fuzzing keeps the buffer where the game has it;
+  - the map's strips are built in the upload buffer where the game keeps it:
+    `map.c`'s guards hand a buffer outside work RAM above low RAM, a plane
+    whose top-left tile is off the map, or a queue without room for a
+    scroll's strips to the original, none of which the library makes;
   - the load screen's slot is drawn as C from `menu_show_save_slot`, so shadow
     mode compares `menu_draw_save_slot` only where the original's own code
     calls it (1,139 of 15,708 calls; the rest are inside its caller's

@@ -1891,6 +1891,11 @@ void set_menu_song_playing(GameState *g, uint8_t v);
 uint16_t menu_travel_location(const GameState *g);
 void set_menu_travel_location(GameState *g, uint16_t v);
 
+/* The byte after the circle's table bank, which the capsule iris clears as it writes the bank as
+ * a word */
+uint8_t menu_circle_bank_high(const GameState *g);
+void set_menu_circle_bank_high(GameState *g, uint8_t v);
+
 /* The location */
 uint16_t menu_saved_location_id(const GameState *g);
 void set_menu_saved_location_id(GameState *g, uint16_t v);
@@ -2376,6 +2381,11 @@ enum { MENU_MAP_NAME_TABLE_COUNT = 1024 };   /* by byte of the Mode 7 name table
 uint8_t menu_map_name_table(const GameState *g, unsigned i);
 void set_menu_map_name_table(GameState *g, unsigned i, uint8_t v);
 
+/* A story byte the menus' scenes clear through the object scripts' routine at $C6:E2AF; what
+ * else reads it isn't known yet */
+uint8_t menu_scene_flag(const GameState *g);
+void set_menu_scene_flag(GameState *g, uint8_t v);
+
 /* Set while a map screen keeps the song that is playing: the object scripts' command that starts
  * a screen's song ($C2:18F1) leaves it be */
 uint8_t menu_song_kept(const GameState *g);
@@ -2510,6 +2520,131 @@ void set_menu_object_scratch_pointer(GameState *g, uint32_t v);
 /* The copy: where to; showing a group: where in VRAM */
 uint32_t menu_object_scratch_second_pointer(const GameState *g);
 void set_menu_object_scratch_second_pointer(GameState *g, uint32_t v);
+/* The map's scroll: where the last strip's map bytes start (the map plus its column, or its
+ * row's offset) */
+uint16_t menu_object_scratch_map_strip_map(const GameState *g);
+void set_menu_object_scratch_map_strip_map(GameState *g, uint16_t v);
+/* The map's scroll: how far into the map the last strip had got */
+uint16_t menu_object_scratch_map_strip_at(const GameState *g);
+void set_menu_object_scratch_map_strip_at(GameState *g, uint16_t v);
+/* The map's scroll: where in the upload buffer the last strip was built */
+uint16_t menu_object_scratch_map_strip_buffer(const GameState *g);
+void set_menu_object_scratch_map_strip_buffer(GameState *g, uint16_t v);
+/* The map's scroll: the VRAM word the last strip went to */
+uint16_t menu_object_scratch_map_strip_vram(const GameState *g);
+void set_menu_object_scratch_map_strip_vram(GameState *g, uint16_t v);
+/* The map's scroll: where a column strip's last word went in its 32 (a row strip: the VRAM word
+ * of its second half) */
+uint16_t menu_object_scratch_map_strip_end(const GameState *g);
+void set_menu_object_scratch_map_strip_end(GameState *g, uint16_t v);
+/* The map's scroll: tiles left to move by (0 once done) */
+uint16_t menu_object_scratch_map_tiles_left(const GameState *g);
+void set_menu_object_scratch_map_tiles_left(GameState *g, uint16_t v);
+/* The map's scroll: the plane scrolled, doubled as the plane tables index it */
+uint16_t menu_object_scratch_map_plane_index(const GameState *g);
+void set_menu_object_scratch_map_plane_index(GameState *g, uint16_t v);
+/* The map's scroll: where the plane's tile groups are in bank $7E */
+uint16_t menu_object_scratch_map_groups(const GameState *g);
+void set_menu_object_scratch_map_groups(GameState *g, uint16_t v);
+/* The map's scroll: where its map bytes are */
+uint16_t menu_object_scratch_map_data(const GameState *g);
+void set_menu_object_scratch_map_data(GameState *g, uint16_t v);
+/* The map's scroll: where its tilemap is in VRAM */
+uint16_t menu_object_scratch_map_tilemap(const GameState *g);
+void set_menu_object_scratch_map_tilemap(GameState *g, uint16_t v);
+/* The map's scroll: tiles left in the strip being built (0 once built) */
+uint16_t menu_object_scratch_map_strip_tiles_left(const GameState *g);
+void set_menu_object_scratch_map_strip_tiles_left(GameState *g, uint16_t v);
+/* The map's redraw: map tiles left in the block (0 once done) */
+uint16_t menu_object_scratch_redraw_tiles_left(const GameState *g);
+void set_menu_object_scratch_redraw_tiles_left(GameState *g, uint16_t v);
+/* The map's redraw: blocks left (0 once done) */
+uint16_t menu_object_scratch_redraw_blocks_left(const GameState *g);
+void set_menu_object_scratch_redraw_blocks_left(GameState *g, uint16_t v);
+/* The map's redraw: how far into the map the last block had got */
+uint16_t menu_object_scratch_redraw_at(const GameState *g);
+void set_menu_object_scratch_redraw_at(GameState *g, uint16_t v);
+/* The map's redraw: where in the block's strip the next tile goes */
+uint16_t menu_object_scratch_redraw_out(const GameState *g);
+void set_menu_object_scratch_redraw_out(GameState *g, uint16_t v);
+/* The map's redraw: the map column after the last block's */
+uint16_t menu_object_scratch_redraw_column(const GameState *g);
+void set_menu_object_scratch_redraw_column(GameState *g, uint16_t v);
+/* The map's redraw: the map row the blocks start at */
+uint16_t menu_object_scratch_redraw_row(const GameState *g);
+void set_menu_object_scratch_redraw_row(GameState *g, uint16_t v);
+/* The map's redraw: the next block's place across the tilemap, in pixels */
+uint16_t menu_object_scratch_redraw_x(const GameState *g);
+void set_menu_object_scratch_redraw_x(GameState *g, uint16_t v);
+/* The map's redraw: the blocks' place down it */
+uint16_t menu_object_scratch_redraw_y(const GameState *g);
+void set_menu_object_scratch_redraw_y(GameState *g, uint16_t v);
+/* The map's redraw: where the plane's tilemap is in VRAM */
+uint16_t menu_object_scratch_redraw_tilemap(const GameState *g);
+void set_menu_object_scratch_redraw_tilemap(GameState *g, uint16_t v);
+/* The map's redraw: the VRAM word the last block went to */
+uint16_t menu_object_scratch_redraw_vram(const GameState *g);
+void set_menu_object_scratch_redraw_vram(GameState *g, uint16_t v);
+/* The map's redraw: where the plane's tile groups are */
+uint16_t menu_object_scratch_redraw_groups(const GameState *g);
+void set_menu_object_scratch_redraw_groups(GameState *g, uint16_t v);
+/* The map's redraw: where its map bytes are */
+uint16_t menu_object_scratch_redraw_data(const GameState *g);
+void set_menu_object_scratch_redraw_data(GameState *g, uint16_t v);
+/* The map's redraw: the last block's map column in the map */
+uint16_t menu_object_scratch_redraw_map(const GameState *g);
+void set_menu_object_scratch_redraw_map(GameState *g, uint16_t v);
+/* The map's redraw: a quarter of the first row's map offset, which the original's multiply by 96
+ * leaves */
+uint16_t menu_object_scratch_redraw_row_quarter(const GameState *g);
+void set_menu_object_scratch_redraw_row_quarter(GameState *g, uint16_t v);
+/* The scene's mode (bits 2-5 of menu_story_flags' scene_mode_bits), copied here for the object
+ * scripts to test ($C6:E237) */
+uint8_t menu_object_scratch_scene_mode(const GameState *g);
+void set_menu_object_scratch_scene_mode(GameState *g, uint8_t v);
+/* The Epoch's area check: the object's column in tiles */
+uint8_t menu_object_scratch_area_tile_x(const GameState *g);
+void set_menu_object_scratch_area_tile_x(GameState *g, uint8_t v);
+/* The Epoch's area check: its row in tiles (a word: the high byte over area_top) */
+uint8_t menu_object_scratch_area_tile_y(const GameState *g);
+void set_menu_object_scratch_area_tile_y(GameState *g, uint8_t v);
+/* The Epoch's area check: the area's first row */
+uint8_t menu_object_scratch_area_top(const GameState *g);
+void set_menu_object_scratch_area_top(GameState *g, uint8_t v);
+/* The Epoch's area check: the row past its last */
+uint8_t menu_object_scratch_area_bottom(const GameState *g);
+void set_menu_object_scratch_area_bottom(GameState *g, uint8_t v);
+/* The Epoch's area check: its first column */
+uint8_t menu_object_scratch_area_left(const GameState *g);
+void set_menu_object_scratch_area_left(GameState *g, uint8_t v);
+/* The Epoch's area check: the column past its last */
+uint8_t menu_object_scratch_area_right(const GameState *g);
+void set_menu_object_scratch_area_right(GameState *g, uint8_t v);
+/* The Epoch's area check: the sides the tile is outside of (1 left, 2 right, 4 above, 8 below),
+ * 0 inside; the map screen reads it */
+uint8_t menu_object_scratch_area_outside(const GameState *g);
+void set_menu_object_scratch_area_outside(GameState *g, uint8_t v);
+/* The irises: lines left to copy (0 once done) */
+uint16_t menu_object_scratch_iris_lines_left(const GameState *g);
+void set_menu_object_scratch_iris_lines_left(GameState *g, uint16_t v);
+/* The squashed iris: its radius halved */
+uint16_t menu_object_scratch_iris_half(const GameState *g);
+void set_menu_object_scratch_iris_half(GameState *g, uint16_t v);
+/* The capsule iris: the centre line's address (with no radius: the stretch) */
+uint16_t menu_object_scratch_iris_centre(const GameState *g);
+void set_menu_object_scratch_iris_centre(GameState *g, uint16_t v);
+/* The squashed iris: the line its upper half starts copying from */
+uint16_t menu_object_scratch_iris_upper_from(const GameState *g);
+void set_menu_object_scratch_iris_upper_from(GameState *g, uint16_t v);
+/* The squashed iris: the line its upper half starts copying to */
+uint16_t menu_object_scratch_iris_upper_to(const GameState *g);
+void set_menu_object_scratch_iris_upper_to(GameState *g, uint16_t v);
+/* The squashed iris: the line its lower half starts copying from */
+uint16_t menu_object_scratch_iris_lower_from(const GameState *g);
+void set_menu_object_scratch_iris_lower_from(GameState *g, uint16_t v);
+/* The squashed iris: the centre line, where its lower half starts */
+uint16_t menu_object_scratch_iris_lower_to(const GameState *g);
+void set_menu_object_scratch_iris_lower_to(GameState *g, uint16_t v);
 
 /* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
  * brightness); while bit 7 of the first is set the wave handler also turns its effect off */
@@ -2777,6 +2912,21 @@ void set_menu_object_slots_velocity_y(GameState *g, unsigned slot, uint32_t v);
 /* A handler's own count: the wave's phase, the Epoch's screens' angles and steps */
 uint16_t menu_object_slots_phase(const GameState *g, unsigned slot);
 void set_menu_object_slots_phase(GameState *g, unsigned slot, uint16_t v);
+/* How much a falling object's speed down grows each frame, 16.16 fixed point ($C6:E77F) */
+uint32_t menu_object_slots_acceleration(const GameState *g, unsigned slot);
+void set_menu_object_slots_acceleration(GameState *g, unsigned slot, uint32_t v);
+/* An iris's radius in lines */
+uint16_t menu_object_slots_iris_radius(const GameState *g, unsigned slot);
+void set_menu_object_slots_iris_radius(GameState *g, unsigned slot, uint16_t v);
+/* The squashed iris's frame count, which picks the pair of tables it draws into */
+uint16_t menu_object_slots_iris_frames(const GameState *g, unsigned slot);
+void set_menu_object_slots_iris_frames(GameState *g, unsigned slot, uint16_t v);
+/* The capsule iris's stretch: the lines its lower half is moved down by */
+uint16_t menu_object_slots_iris_stretch(const GameState *g, unsigned slot);
+void set_menu_object_slots_iris_stretch(GameState *g, unsigned slot, uint16_t v);
+/* The capsule iris's frame count, which picks the pair of tables it draws into */
+uint16_t menu_object_slots_capsule_frames(const GameState *g, unsigned slot);
+void set_menu_object_slots_capsule_frames(GameState *g, unsigned slot, uint16_t v);
 /* What the running command keeps between frames, cleared after every command the script
  * finishes: a move's started flag, the palette loader's row */
 uint16_t menu_object_slots_command_state(const GameState *g, unsigned slot);

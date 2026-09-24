@@ -5626,6 +5626,198 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c; game/
   size = 3
   meaning = "The copy: where to; showing a group: where in VRAM"
 
+  [[var.field]]
+  name = "map_strip_map"
+  offset = 0x02
+  size = 2
+  meaning = "The map's scroll: where the last strip's map bytes start (the map plus its column, or its row's offset)"
+  [[var.field]]
+  name = "map_strip_at"
+  offset = 0x04
+  size = 2
+  meaning = "The map's scroll: how far into the map the last strip had got"
+  [[var.field]]
+  name = "map_strip_buffer"
+  offset = 0x06
+  size = 2
+  meaning = "The map's scroll: where in the upload buffer the last strip was built"
+  [[var.field]]
+  name = "map_strip_vram"
+  offset = 0x08
+  size = 2
+  meaning = "The map's scroll: the VRAM word the last strip went to"
+  [[var.field]]
+  name = "map_strip_end"
+  offset = 0x0A
+  size = 2
+  meaning = "The map's scroll: where a column strip's last word went in its 32 (a row strip: the VRAM word of its second half)"
+  [[var.field]]
+  name = "map_tiles_left"
+  offset = 0x0C
+  size = 2
+  meaning = "The map's scroll: tiles left to move by (0 once done)"
+  [[var.field]]
+  name = "map_plane_index"
+  offset = 0x0E
+  size = 2
+  meaning = "The map's scroll: the plane scrolled, doubled as the plane tables index it"
+  [[var.field]]
+  name = "map_groups"
+  offset = 0x10
+  size = 2
+  meaning = "The map's scroll: where the plane's tile groups are in bank $7E"
+  [[var.field]]
+  name = "map_data"
+  offset = 0x13
+  size = 2
+  meaning = "The map's scroll: where its map bytes are"
+  [[var.field]]
+  name = "map_tilemap"
+  offset = 0x16
+  size = 2
+  meaning = "The map's scroll: where its tilemap is in VRAM"
+  [[var.field]]
+  name = "map_strip_tiles_left"
+  offset = 0x19
+  size = 2
+  meaning = "The map's scroll: tiles left in the strip being built (0 once built)"
+  [[var.field]]
+  name = "redraw_tiles_left"
+  offset = 0x00
+  size = 2
+  meaning = "The map's redraw: map tiles left in the block (0 once done)"
+  [[var.field]]
+  name = "redraw_blocks_left"
+  offset = 0x02
+  size = 2
+  meaning = "The map's redraw: blocks left (0 once done)"
+  [[var.field]]
+  name = "redraw_at"
+  offset = 0x04
+  size = 2
+  meaning = "The map's redraw: how far into the map the last block had got"
+  [[var.field]]
+  name = "redraw_out"
+  offset = 0x06
+  size = 2
+  meaning = "The map's redraw: where in the block's strip the next tile goes"
+  [[var.field]]
+  name = "redraw_column"
+  offset = 0x08
+  size = 2
+  meaning = "The map's redraw: the map column after the last block's"
+  [[var.field]]
+  name = "redraw_row"
+  offset = 0x0A
+  size = 2
+  meaning = "The map's redraw: the map row the blocks start at"
+  [[var.field]]
+  name = "redraw_x"
+  offset = 0x0C
+  size = 2
+  meaning = "The map's redraw: the next block's place across the tilemap, in pixels"
+  [[var.field]]
+  name = "redraw_y"
+  offset = 0x0E
+  size = 2
+  meaning = "The map's redraw: the blocks' place down it"
+  [[var.field]]
+  name = "redraw_tilemap"
+  offset = 0x10
+  size = 2
+  meaning = "The map's redraw: where the plane's tilemap is in VRAM"
+  [[var.field]]
+  name = "redraw_vram"
+  offset = 0x12
+  size = 2
+  meaning = "The map's redraw: the VRAM word the last block went to"
+  [[var.field]]
+  name = "redraw_groups"
+  offset = 0x14
+  size = 2
+  meaning = "The map's redraw: where the plane's tile groups are"
+  [[var.field]]
+  name = "redraw_data"
+  offset = 0x16
+  size = 2
+  meaning = "The map's redraw: where its map bytes are"
+  [[var.field]]
+  name = "redraw_map"
+  offset = 0x18
+  size = 2
+  meaning = "The map's redraw: the last block's map column in the map"
+  [[var.field]]
+  name = "redraw_row_quarter"
+  offset = 0x1A
+  size = 2
+  meaning = "The map's redraw: a quarter of the first row's map offset, which the original's multiply by 96 leaves"
+  [[var.field]]
+  name = "scene_mode"
+  offset = 0x00
+  meaning = "The scene's mode (bits 2-5 of menu_story_flags' scene_mode_bits), copied here for the object scripts to test ($C6:E237)"
+  [[var.field]]
+  name = "area_tile_x"
+  offset = 0x00
+  meaning = "The Epoch's area check: the object's column in tiles"
+  [[var.field]]
+  name = "area_tile_y"
+  offset = 0x01
+  meaning = "The Epoch's area check: its row in tiles (a word: the high byte over area_top)"
+  [[var.field]]
+  name = "area_top"
+  offset = 0x02
+  meaning = "The Epoch's area check: the area's first row"
+  [[var.field]]
+  name = "area_bottom"
+  offset = 0x03
+  meaning = "The Epoch's area check: the row past its last"
+  [[var.field]]
+  name = "area_left"
+  offset = 0x04
+  meaning = "The Epoch's area check: its first column"
+  [[var.field]]
+  name = "area_right"
+  offset = 0x05
+  meaning = "The Epoch's area check: the column past its last"
+  [[var.field]]
+  name = "area_outside"
+  offset = 0x06
+  meaning = "The Epoch's area check: the sides the tile is outside of (1 left, 2 right, 4 above, 8 below), 0 inside; the map screen reads it"
+  [[var.field]]
+  name = "iris_lines_left"
+  offset = 0x00
+  size = 2
+  meaning = "The irises: lines left to copy (0 once done)"
+  [[var.field]]
+  name = "iris_half"
+  offset = 0x02
+  size = 2
+  meaning = "The squashed iris: its radius halved"
+  [[var.field]]
+  name = "iris_centre"
+  offset = 0x08
+  size = 2
+  meaning = "The capsule iris: the centre line's address (with no radius: the stretch)"
+  [[var.field]]
+  name = "iris_upper_from"
+  offset = 0x10
+  size = 2
+  meaning = "The squashed iris: the line its upper half starts copying from"
+  [[var.field]]
+  name = "iris_upper_to"
+  offset = 0x13
+  size = 2
+  meaning = "The squashed iris: the line its upper half starts copying to"
+  [[var.field]]
+  name = "iris_lower_from"
+  offset = 0x16
+  size = 2
+  meaning = "The squashed iris: the line its lower half starts copying from"
+  [[var.field]]
+  name = "iris_lower_to"
+  offset = 0x19
+  size = 2
+  meaning = "The squashed iris: the centre line, where its lower half starts"
 [[var]]
 name = "menu_load_request"
 addr = "7E:020C"
@@ -5895,6 +6087,36 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   offset = 0x22
   size = 2
   meaning = "A handler's own count: the wave's phase, the Epoch's screens' angles and steps"
+
+  [[var.field]]
+  name = "acceleration"
+  offset = 0x22
+  size = 4
+  meaning = "How much a falling object's speed down grows each frame, 16.16 fixed point ($C6:E77F)"
+
+  [[var.field]]
+  name = "iris_radius"
+  offset = 0x22
+  size = 2
+  meaning = "An iris's radius in lines"
+
+  [[var.field]]
+  name = "iris_frames"
+  offset = 0x24
+  size = 2
+  meaning = "The squashed iris's frame count, which picks the pair of tables it draws into"
+
+  [[var.field]]
+  name = "iris_stretch"
+  offset = 0x24
+  size = 2
+  meaning = "The capsule iris's stretch: the lines its lower half is moved down by"
+
+  [[var.field]]
+  name = "capsule_frames"
+  offset = 0x26
+  size = 2
+  meaning = "The capsule iris's frame count, which picks the pair of tables it draws into"
 
   [[var.field]]
   name = "command_state"
@@ -9953,6 +10175,20 @@ addr = "7F:01ED"
 subsystem = "menu"
 meaning = "Set while a map screen keeps the song that is playing: the object scripts' command that starts a screen's song ($C2:18F1) leaves it be"
 source = "game/menu/object_script.c, play_song $C2:18F1; game/menu/object_commands.c ($C6:E63D and $C6:E644, which the scenes call, set and clear it)"
+
+[[var]]
+name = "menu_scene_flag"
+addr = "7F:0062"
+subsystem = "menu"
+meaning = "A story byte the menus' scenes clear through the object scripts' routine at $C6:E2AF; what else reads it isn't known yet"
+source = "game/menu/object_commands.c, menu_object_clear_scene_flag $C6:E2AF"
+
+[[var]]
+name = "menu_circle_bank_high"
+addr = "7E:0359"
+subsystem = "menu"
+meaning = "The byte after the circle's table bank, which the capsule iris clears as it writes the bank as a word"
+source = "game/menu/line_effects.c, the capsule iris $C6:E498"
 
 [[var]]
 name = "menu_wave_phase"

@@ -1504,6 +1504,9 @@
 #define RAM_MENU_SONG_PLAYING 0x7E02AEu
 /* The location the time dial chose to travel to, or $FFFF where the player left it [2 bytes] */
 #define RAM_MENU_TRAVEL_LOCATION 0x7E02AFu
+/* The byte after the circle's table bank, which the capsule iris clears as it writes the bank as
+ * a word */
+#define RAM_MENU_CIRCLE_BANK_HIGH 0x7E0359u
 /* Where the party was when a map screen changed the location: the location number and the map
  * position, the same three values it also copies to location_previous [4 bytes] */
 #define RAM_MENU_SAVED_LOCATION 0x7E04FCu
@@ -1827,6 +1830,9 @@
 #define RAM_MENU_MAP_NAME_TABLE 0x7EF000u
 #define RAM_MENU_MAP_NAME_TABLE_COUNT 1024u
 #define RAM_MENU_MAP_NAME_TABLE_STRIDE 0x01u
+/* A story byte the menus' scenes clear through the object scripts' routine at $C6:E2AF; what
+ * else reads it isn't known yet */
+#define RAM_MENU_SCENE_FLAG 0x7F0062u
 /* Set while a map screen keeps the song that is playing: the object scripts' command that starts
  * a screen's song ($C2:18F1) leaves it be */
 #define RAM_MENU_SONG_KEPT 0x7F01EDu
@@ -1893,6 +1899,46 @@
 #define RAM_MENU_OBJECT_SCRATCH_SECOND_POINTER_ADDRESS 0x7E0013u /* Showing a tile group: where in VRAM they go */
 #define RAM_MENU_OBJECT_SCRATCH_POINTER 0x7E0010u /* The script commands that reach a map, a table or a group: where (and, for the copy, where from) */
 #define RAM_MENU_OBJECT_SCRATCH_SECOND_POINTER 0x7E0013u /* The copy: where to; showing a group: where in VRAM */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_MAP 0x7E0002u /* The map's scroll: where the last strip's map bytes start (the map plus its column, or its row's offset) */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_AT 0x7E0004u /* The map's scroll: how far into the map the last strip had got */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_BUFFER 0x7E0006u /* The map's scroll: where in the upload buffer the last strip was built */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_VRAM 0x7E0008u /* The map's scroll: the VRAM word the last strip went to */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_END 0x7E000Au /* The map's scroll: where a column strip's last word went in its 32 (a row strip: the VRAM word of its second half) */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_TILES_LEFT 0x7E000Cu /* The map's scroll: tiles left to move by (0 once done) */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_PLANE_INDEX 0x7E000Eu /* The map's scroll: the plane scrolled, doubled as the plane tables index it */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_GROUPS 0x7E0010u /* The map's scroll: where the plane's tile groups are in bank $7E */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_DATA 0x7E0013u /* The map's scroll: where its map bytes are */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_TILEMAP 0x7E0016u /* The map's scroll: where its tilemap is in VRAM */
+#define RAM_MENU_OBJECT_SCRATCH_MAP_STRIP_TILES_LEFT 0x7E0019u /* The map's scroll: tiles left in the strip being built (0 once built) */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_TILES_LEFT 0x7E0000u /* The map's redraw: map tiles left in the block (0 once done) */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_BLOCKS_LEFT 0x7E0002u /* The map's redraw: blocks left (0 once done) */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_AT 0x7E0004u /* The map's redraw: how far into the map the last block had got */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_OUT 0x7E0006u /* The map's redraw: where in the block's strip the next tile goes */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_COLUMN 0x7E0008u /* The map's redraw: the map column after the last block's */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_ROW 0x7E000Au /* The map's redraw: the map row the blocks start at */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_X 0x7E000Cu /* The map's redraw: the next block's place across the tilemap, in pixels */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_Y 0x7E000Eu /* The map's redraw: the blocks' place down it */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_TILEMAP 0x7E0010u /* The map's redraw: where the plane's tilemap is in VRAM */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_VRAM 0x7E0012u /* The map's redraw: the VRAM word the last block went to */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_GROUPS 0x7E0014u /* The map's redraw: where the plane's tile groups are */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_DATA 0x7E0016u /* The map's redraw: where its map bytes are */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_MAP 0x7E0018u /* The map's redraw: the last block's map column in the map */
+#define RAM_MENU_OBJECT_SCRATCH_REDRAW_ROW_QUARTER 0x7E001Au /* The map's redraw: a quarter of the first row's map offset, which the original's multiply by 96 leaves */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_MODE 0x7E0000u /* The scene's mode (bits 2-5 of menu_story_flags' scene_mode_bits), copied here for the object scripts to test ($C6:E237) */
+#define RAM_MENU_OBJECT_SCRATCH_AREA_TILE_X 0x7E0000u /* The Epoch's area check: the object's column in tiles */
+#define RAM_MENU_OBJECT_SCRATCH_AREA_TILE_Y 0x7E0001u /* The Epoch's area check: its row in tiles (a word: the high byte over area_top) */
+#define RAM_MENU_OBJECT_SCRATCH_AREA_TOP 0x7E0002u /* The Epoch's area check: the area's first row */
+#define RAM_MENU_OBJECT_SCRATCH_AREA_BOTTOM 0x7E0003u /* The Epoch's area check: the row past its last */
+#define RAM_MENU_OBJECT_SCRATCH_AREA_LEFT 0x7E0004u /* The Epoch's area check: its first column */
+#define RAM_MENU_OBJECT_SCRATCH_AREA_RIGHT 0x7E0005u /* The Epoch's area check: the column past its last */
+#define RAM_MENU_OBJECT_SCRATCH_AREA_OUTSIDE 0x7E0006u /* The Epoch's area check: the sides the tile is outside of (1 left, 2 right, 4 above, 8 below), 0 inside; the map screen reads it */
+#define RAM_MENU_OBJECT_SCRATCH_IRIS_LINES_LEFT 0x7E0000u /* The irises: lines left to copy (0 once done) */
+#define RAM_MENU_OBJECT_SCRATCH_IRIS_HALF 0x7E0002u /* The squashed iris: its radius halved */
+#define RAM_MENU_OBJECT_SCRATCH_IRIS_CENTRE 0x7E0008u /* The capsule iris: the centre line's address (with no radius: the stretch) */
+#define RAM_MENU_OBJECT_SCRATCH_IRIS_UPPER_FROM 0x7E0010u /* The squashed iris: the line its upper half starts copying from */
+#define RAM_MENU_OBJECT_SCRATCH_IRIS_UPPER_TO 0x7E0013u /* The squashed iris: the line its upper half starts copying to */
+#define RAM_MENU_OBJECT_SCRATCH_IRIS_LOWER_FROM 0x7E0016u /* The squashed iris: the line its lower half starts copying from */
+#define RAM_MENU_OBJECT_SCRATCH_IRIS_LOWER_TO 0x7E0019u /* The squashed iris: the centre line, where its lower half starts */
 /* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
  * brightness); while bit 7 of the first is set the wave handler also turns its effect off [2
  * bytes] */
@@ -2016,6 +2062,11 @@
 #define RAM_MENU_OBJECT_SLOTS_VELOCITY_X 0x7E0B4Au /* How far it moves across each frame, signed 16.16 fixed point */
 #define RAM_MENU_OBJECT_SLOTS_VELOCITY_Y 0x7E0B4Eu /* How far it moves down each frame, signed 16.16 fixed point */
 #define RAM_MENU_OBJECT_SLOTS_PHASE 0x7E0B52u /* A handler's own count: the wave's phase, the Epoch's screens' angles and steps */
+#define RAM_MENU_OBJECT_SLOTS_ACCELERATION 0x7E0B52u /* How much a falling object's speed down grows each frame, 16.16 fixed point ($C6:E77F) */
+#define RAM_MENU_OBJECT_SLOTS_IRIS_RADIUS 0x7E0B52u /* An iris's radius in lines */
+#define RAM_MENU_OBJECT_SLOTS_IRIS_FRAMES 0x7E0B54u /* The squashed iris's frame count, which picks the pair of tables it draws into */
+#define RAM_MENU_OBJECT_SLOTS_IRIS_STRETCH 0x7E0B54u /* The capsule iris's stretch: the lines its lower half is moved down by */
+#define RAM_MENU_OBJECT_SLOTS_CAPSULE_FRAMES 0x7E0B56u /* The capsule iris's frame count, which picks the pair of tables it draws into */
 #define RAM_MENU_OBJECT_SLOTS_COMMAND_STATE 0x7E0B62u /* What the running command keeps between frames, cleared after every command the script finishes: a move's started flag, the palette loader's row */
 #define RAM_MENU_OBJECT_SLOTS_MOVE_TARGET 0x7E0B64u /* Where a move command's object is going; the palette loader's hand-over flag in the low byte */
 #define RAM_MENU_OBJECT_SLOTS_PALETTE_SOURCE 0x7E0B65u /* The palette loader's long pointer to its colours */

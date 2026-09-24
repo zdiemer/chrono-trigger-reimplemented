@@ -160,6 +160,18 @@ static inline uint16_t menu_plane_groups(const GameState *g, uint8_t plane) { re
 static inline uint16_t menu_plane_map(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC2055Cu, plane); }
 static inline uint16_t menu_plane_tilemap(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC20562u, plane); }
 
+/* The scenes' resources the object scripts load (MD2 resources in bank C6,
+ * 24-bit pointers to streams in bank C3): graphics, decompressed to the Mode 7
+ * plane's buffer, and palettes, to the loaded palette's. A resource is named
+ * by its number in its table. */
+typedef enum { MENU_SCENE_GRAPHICS, MENU_SCENE_PALETTES } MenuSceneResource;
+enum { MENU_SCENE_POINTER_BYTES = 3 };
+static inline uint32_t menu_scene_stream(const GameState *g, MenuSceneResource kind, uint8_t number)
+{
+    uint32_t at = (kind == MENU_SCENE_GRAPHICS ? 0xC6FDF0u : 0xC6FEA0u) + MENU_SCENE_POINTER_BYTES * number;
+    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+}
+
 /* How the game goes back to the world map from a location a map screen sends
  * the party to, by the location's kind ($C2:2509, four bytes). */
 static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind) { return rom_read8(g, 0xC22509u + kind); }

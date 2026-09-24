@@ -4532,27 +4532,27 @@ name = "menu_map_scroll_x"
 at = "C2:0568"
 subsystem = "menu"
 state = "objects"
-args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E0000-7E0000=01-02", "--fill", "7E00E3-7E00E3=00-BF", "--fill", "7E00E4-7E00E4=00-00", "--fill", "7E00E5-7E00E5=00-BF", "--fill", "7E00E6-7E00E6=00-00", "--fill", "7E00E7-7E00E7=00-7F", "--fill", "7E00E8-7E00E8=00-00", "--fill", "7E00E9-7E00E9=00-7F", "--fill", "7E00EA-7E00EA=00-00", "--fill", "7E00EB-7E00EB=00-7F", "--fill", "7E00EC-7E00EC=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E", "--fill", "7E005F-7E005F=00-00"]
 iterations = 2000
-why = "the object mode's page, a data bank of 0 and the running object a slot"
+why = "the object mode's page, the plane cell naming a scrolling plane and the step random, each plane's top-left tile on the map, the upload buffer where the game keeps it ($7E:F000-$F3FF) and the object queue empty (map.c's guards)"
 
 [[routine]]
 name = "menu_map_scroll_y"
 at = "C2:066C"
 subsystem = "menu"
 state = "objects"
-args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E0000-7E0000=01-02", "--fill", "7E00E3-7E00E3=00-BF", "--fill", "7E00E4-7E00E4=00-00", "--fill", "7E00E5-7E00E5=00-BF", "--fill", "7E00E6-7E00E6=00-00", "--fill", "7E00E7-7E00E7=00-7F", "--fill", "7E00E8-7E00E8=00-00", "--fill", "7E00E9-7E00E9=00-7F", "--fill", "7E00EA-7E00EA=00-00", "--fill", "7E00EB-7E00EB=00-7F", "--fill", "7E00EC-7E00EC=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E", "--fill", "7E005F-7E005F=00-00"]
 iterations = 2000
-why = "the object mode's page, a data bank of 0 and the running object a slot"
+why = "the object mode's page, the plane cell naming a scrolling plane and the step random, each plane's top-left tile on the map, the upload buffer where the game keeps it ($7E:F000-$F3FF) and the object queue empty (map.c's guards)"
 
 [[routine]]
 name = "menu_map_redraw"
 at = "C2:09C5"
 subsystem = "menu"
 state = "objects"
-args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E0000-7E0000=01-03", "--fill", "7E00E3-7E00E3=00-BF", "--fill", "7E00E4-7E00E4=00-00", "--fill", "7E00E5-7E00E5=00-BF", "--fill", "7E00E6-7E00E6=00-00", "--fill", "7E00E7-7E00E7=00-7F", "--fill", "7E00E8-7E00E8=00-00", "--fill", "7E00E9-7E00E9=00-7F", "--fill", "7E00EA-7E00EA=00-00", "--fill", "7E00EB-7E00EB=00-7F", "--fill", "7E00EC-7E00EC=00-00", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
 iterations = 2000
-why = "the object mode's page, a data bank of 0 and the running object a slot"
+why = "the object mode's page, the plane cell naming a plane and the step random, each plane's top-left tile on the map, the upload buffer where the game keeps it ($7E:F000-$F3FF) (map.c's guards)"
 
 [[routine]]
 name = "menu_map_upload_block"
@@ -5889,7 +5889,7 @@ iterations = 2000
 why = "the menus' page and data bank"
 
 [[routine]]
-name = "menu_object_read_mode"
+name = "menu_object_read_scene_mode"
 at = "C6:E237"
 subsystem = "menu"
 state = "objects"
@@ -5898,7 +5898,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_clear_7f0062"
+name = "menu_object_clear_scene_flag"
 at = "C6:E2AF"
 subsystem = "menu"
 state = "objects"
@@ -5907,7 +5907,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_set_7f01ed"
+name = "menu_object_keep_song"
 at = "C6:E63D"
 subsystem = "menu"
 state = "objects"
@@ -5916,7 +5916,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_clear_7f01ed"
+name = "menu_object_let_song_go"
 at = "C6:E644"
 subsystem = "menu"
 state = "objects"
@@ -5934,7 +5934,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_step_28"
+name = "menu_object_bob_second_plane"
 at = "C6:E583"
 subsystem = "menu"
 state = "objects"
@@ -5943,7 +5943,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_step_28_down"
+name = "menu_object_raise_second_plane"
 at = "C6:E590"
 subsystem = "menu"
 state = "objects"
@@ -5952,7 +5952,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_add_velocity"
+name = "menu_object_accelerate"
 at = "C6:E77F"
 subsystem = "menu"
 state = "objects"
@@ -5974,18 +5974,18 @@ name = "menu_epoch_outside_sides"
 at = "C6:E74E"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--long", "--d", "0000", "--db", "00"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "called by JSL from the Epoch's map screen on the object mode's page, the tile and the area random in its cells"
 
 [[routine]]
 name = "menu_epoch_in_area"
 at = "C6:E797"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "7E0100-7E0100=F0-F7", "--fill", "7E0101-7E0101=01-01"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "called by JSL from the Epoch's map screen on the object mode's page, the running object a slot and the party on one of the world maps (locations $1F0-$1F7)"
 
 [[routine]]
 name = "menu_object_window1_lines"
@@ -6046,39 +6046,39 @@ name = "menu_object_squashed_iris_1"
 at = "C6:E368"
 subsystem = "menu"
 state = "objects"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=01-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
 iterations = 2000
-why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
 name = "menu_object_squashed_iris_2"
 at = "C6:E391"
 subsystem = "menu"
 state = "objects"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=01-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
 iterations = 2000
-why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
 name = "menu_object_capsule_iris_1"
 at = "C6:E498"
 subsystem = "menu"
 state = "objects"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=01-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
 iterations = 2000
-why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
 name = "menu_object_capsule_iris_2"
 at = "C6:E4BE"
 subsystem = "menu"
 state = "objects"
-args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--fill", "[7E004E]+18,1=01-DF", "--fill", "[7E004E]+19,1=00-00", "--fill", "[7E004E]+22,1=00-60", "--fill", "[7E004E]+23,1=00-00", "--fill", "[7E004E]+24,1=00-40", "--fill", "[7E004E]+25,1=00-00"]
 iterations = 2000
-why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
-name = "menu_object_load_graphics_2"
+name = "menu_object_load_scene_graphics_2"
 at = "C6:E028"
 subsystem = "menu"
 state = "objects"
@@ -6087,7 +6087,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_load_c3_stream_1"
+name = "menu_object_load_scene_palette_1"
 at = "C6:E04D"
 subsystem = "menu"
 state = "objects"
@@ -6096,7 +6096,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_load_graphics_13"
+name = "menu_object_load_scene_graphics_13"
 at = "C6:E64A"
 subsystem = "menu"
 state = "objects"
@@ -6105,7 +6105,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_load_c3_stream_2"
+name = "menu_object_load_scene_palette_2"
 at = "C6:E66F"
 subsystem = "menu"
 state = "objects"

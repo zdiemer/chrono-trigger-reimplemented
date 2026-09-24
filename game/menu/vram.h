@@ -42,6 +42,14 @@ void menu_set_object_upload_source(GameState *g, unsigned at, uint16_t source);
 void menu_set_object_upload_vram(GameState *g, unsigned at, uint16_t vram);
 void menu_set_object_upload_size(GameState *g, unsigned at, uint16_t size);
 void menu_queue_object_upload(GameState *g, uint32_t source, uint16_t vram, uint16_t size);
+/* An upload for the object mode's queue, and a run of them queued in one
+ * hold of the queue; the first's place in the queue comes back. */
+typedef struct {
+    uint32_t source;
+    uint16_t vram, size;
+    uint8_t port;
+} MenuObjectUpload;
+uint8_t menu_queue_object_uploads(GameState *g, const MenuObjectUpload *uploads, unsigned count);
 /* Whether the queue's end is on a record (the game's always is). */
 bool menu_object_queue_is_whole(const GameState *g);
 

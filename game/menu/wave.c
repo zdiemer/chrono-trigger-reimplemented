@@ -11,6 +11,7 @@
  * are held still. */
 #include "menu/objects.h"
 
+#include "menu/line_effects.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "original_effects.h"
@@ -19,15 +20,13 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
+/* The wave is line effect slot 1, the layer's horizontal scroll, from the
+ * slot's first table of values (menu/line_effects.h). */
+enum { WAVE_SLOT = 1 };
+
 /* The display's bit that turns the screen off, the line effect's bit among
  * the mode's line effects, and the objects' held bit. */
-enum { SCREEN_OFF = 0x80, WAVE_EFFECT = 0x02, OBJECTS_HELD = 0x10 };
-
-/* The wave's line table: two runs of lines, each read from its half of the
- * scroll values, and its end. */
-enum { WAVE_RUN_LINES = 0xF0, WAVE_TABLE_END = 0 };
-enum { WAVE_FIRST_HALF = 0x8B56, WAVE_SECOND_HALF = 0x8C36 };
-enum { WAVE_SLOT = 1, WAVE_TABLE = WAVE_SLOT - 1 };
+enum { SCREEN_OFF = 0x80, WAVE_EFFECT = 1 << WAVE_SLOT, OBJECTS_HELD = 0x10 };
 
 /* The sine's steps a turn, and how far the wave moves on a frame. */
 enum { SINE_STEPS = 0x400, HALF_TURN = 0x200, WAVE_SPEED = 4 };
@@ -41,19 +40,8 @@ static int16_t sine(const GameState *g, uint16_t phase)
 
 static void set_up_line_effect(GameState *g, Platform *pf)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,     VID_STEP_DEST,          VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SOURCE_BANK, VID_STEP_INDIRECT_BANK, VID_STEP_END,
-    };
-    static const VidLineEffect wave = { .target = VID_LINE_SCROLL_BG3_H, .table = PF_GAME(0x7E8A35),
-                                        .indirect = true, .indirect_bank = 0x7E };
-    set_menu_object_line_slots_first_lines(g, WAVE_TABLE, WAVE_RUN_LINES);
-    set_menu_object_line_slots_second_lines(g, WAVE_TABLE, WAVE_RUN_LINES);
-    set_menu_object_line_slots_end(g, WAVE_TABLE, WAVE_TABLE_END);
-    set_menu_object_hdma_pointers(g, 0, WAVE_FIRST_HALF);
-    set_menu_object_hdma_pointers(g, 1, WAVE_SECOND_HALF);
-    vid_set_line_effect(pf, PF_AT(0xC2779E), WAVE_SLOT, &wave, steps);
-    set_menu_object_line_effects(g, (uint8_t)(menu_object_line_effects(g) | WAVE_EFFECT));
+    menu_start_line_effect(g, pf, 0xC2779E, WAVE_SLOT, VID_LINE_SCROLL_BG3_H);
+    menu_show_line_values(g, WAVE_SLOT, menu_line_values(WAVE_SLOT, 0));
 }
 
 // $C2:7759
