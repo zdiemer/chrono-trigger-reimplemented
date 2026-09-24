@@ -5706,6 +5706,226 @@ lines. The load screen's portrait is timed as before: the check whether it is
 the port's to draw stays outside its `NATIVE_TIME_AS`, since inside it charged
 the portrait's time to the rows it hands to the original.
 
+### Phase 3a: the battle off the machine
+
+`game/battle/` was the largest backlog: twenty of its twenty-seven files on
+`tools/portstyle_baseline.txt`, 3,367 operations in 10,310 lines (0.33 a
+line), 99% of its functions on the machine and 53 names shaped like addresses.
+The rewrite takes every file to the bar. The subsystem now scores 0.02
+operations a line with 31% of its functions on the machine -- the
+entries' wrappers, the guards, and the bridges round the call-outs to the
+original's code that is still generated -- and none of its files is on the
+baseline. It was done in six groups on branches cut from `battle-3a` and
+merged back one by one, each shadow-clean over the library before its merge:
+the combatants, timers, arithmetic, scripts, main loop, handlers, waits and
+sound first (they set the pattern the others follow), then the objects'
+drawing and effects' motion, the screen effects, the windows, the combatants'
+animation and graphics, the setup, and the frame's display work.
+
+**The foundation.** `battle/battle.h` is the subsystem's vocabulary (the
+eleven battle slots, the party and the enemies, where a combatant stands);
+`battle/entries.h` holds every registered entry's prototype, which is what the
+old `battle.h` was. `battle/bridge.h` is the machine side, and says so: the
+guards the entries run under (the battle's page, D = 0 with the data bank at
+`$7E`; the sprite drawers' page `$1D00`; a combatant's stat block in X; A's
+high byte clear where the original indexes with all of A) and `battle_call` /
+`battle_call_long`, the one way a port calls the original's code: the call with
+its dead set (which `tools/dontcare_check.py` reads as it reads `m_jsr_dc`),
+and a check that the callee came back as the battle runs (8-bit A, 16-bit index
+registers, binary, the same page and bank), stopping at the call's return for
+the original to carry on where it didn't. `battle_run` does the same for a
+sibling port run as the original's `JSR` runs it, its return pushed. Each
+group's shared concepts have a header of their own: `combatant.h` (a
+combatant's statuses as a set, the kept ones beside them), `timers.h` (the
+thirteen timer kinds: run, stopped, followed, run out), `arith.h`, `effects.h`
+(the eight effects, the eight anchors, the movers the paths move, the effect
+records' encoding), `animation.h`, `window.h` (a tilemap cell, the layouts, a
+member's line, digits, the menu's "nobody"), `screen.h`, `frame.h`; and every
+ROM read is a named accessor in a `*_data.h` (`sprite_data.h`,
+`animation_data.h`, `window_data.h`, `screen_data.h`, `setup_data.h`,
+`frame_data.h`), on `game/rom.h`.
+
+**The files, by the game.**
+- *The fight* -- `combatants.c` (was `stats.c`: a combatant's statuses followed
+  every pass, its low HP noted, its script restarted or its turn stopped as its
+  statuses say), `timers.c` (the timers counted down and the run-out ones
+  handed to their kinds' handlers through a C table), `main_loop.c` (the
+  battle's start, drawing the timers' and the enemies' orders from a pool; a
+  pass: the damage cleared, the combatants updated, the battle lost, won or run
+  from, then the timers or the turn; the turn: an enemy's script picks its
+  action, a member's menu opens or its status picks for it, the party's queued
+  actions carried out one at a time, and the enemies it hit react through
+  their scripts' reaction blocks; the rewards), `damage.c`, `battlefield.c`
+  (the grid rebuilt with the combatants' cells marked), `reset.c` (what
+  animates the battlefield put back to nothing at the start: the scripts, the
+  animations, the effects and anchors, the trails, the palette animations, the
+  rising numbers), `arith.c` (was `math.c`: multiply and divide as C, the
+  hardware unit's registers left as scaffolding), `buttons.c`, `scripts.c`
+  (the animation script channels, the commands through a C table).
+- *The combatants on the battlefield* -- `animation.c` (a combatant's pose
+  chosen from its statuses, its animation stepped a frame at a time, three
+  combatants a frame by group, the party turning to face its nearest enemy),
+  `objects.c` (screen bounds, the animation scheduler's search), `sprites.c`
+  (a frame's tile list built into the object's tiles, the palette animations,
+  the effect animations' index, the bitmap shapes), `tiles.c` (the
+  battlefield's tiles decoded), `draw_objects.c` (the drawing pass: the
+  combatants sorted by how far down they stand, then each one's front effects,
+  tiles, frame, back effects, shadow and afterimages, a leaf per part
+  returning the next free sprite), `object_motion.c` (the damage numbers
+  rising, scripted moves, anchors following, trails, the party's colour
+  cycles), `effect_paths.c` (the nineteen movers' paths, one operation per kind
+  in a C table: line, jump, spiral, orbit, homing jump, flat orbit, flicker,
+  chase; the arithmetic plain C), `effect_animation.c`.
+- *The screen effects in bank D1* -- `screen_palette.c`, `screen_gradient.c`
+  (the HP gradient), `screen_graphics.c` (an effect's graphics loaded),
+  `screen_window.c` (the window line table as a concept: the top border, the
+  coming and shown buffers, bands, the wipe, waves, nudges, fills through a C
+  table), `screen_beam.c` (the beam's two window quadrilaterals),
+  `screen_motion.c` (jitter, swing, the effect settings as a C table),
+  `screen_setup.c` (the fade tables as rising and falling pairs).
+- *The windows* -- `window.c` (the whole battle window redrawn: the members'
+  lines by layout, the enemies' names, the command windows and their frames),
+  `status.c` (a member's HP and MP a frame, the gauges), `digits.c`,
+  `menu_window.c` (the command and tech pages, the cursors over the
+  battlefield, whose combination techs are called off, the frames' reset),
+  `numbers.c` (the script's number commands), `window_leaves.c` (the carries
+  the original's callers read, worked out beside the wrappers).
+- *The setup* -- `setup.c` (the two entries and the one call-out left, the
+  name converter), `setup_reset.c`, `setup_screen.c`, `setup_names.c`,
+  `setup_party.c`, `setup_enemies.c` (an enemy from its record and its
+  `EnemyHeader`, the formation, the enemies' rules, the kinds).
+- *The frame* -- `frame.c` (the vblank's frame work and the main loop's frame
+  update: the dispatch on the battle's mode a C table, the window's shadows,
+  the slide as a state -- still, starting in, sliding in, sliding out -- the
+  sprites hidden, the blink, the cursors' animated colour, the palette
+  rotation, the frame count, a demo's exit, L and R held to run), `scroll.c`
+  (the layers' per-line scroll over a `LayerScroll` a layer, the scroll mode's
+  dispatch, the screen shake per axis), `uploads.c` (everything the vblank
+  sends: the palette, a queued transfer, a requested block, a message's tiles,
+  the sprite table, the window's rows, the rotating queued uploads, a
+  combatant's built graphics), `display.c` (the display setup, the window's
+  line table, the graphics load, the last vblank handler). Every upload and
+  line slot is on the value calls (`vid_send_*`, `vid_set_line_slot`), the
+  write orders in `runtime/platform/snes/encodings.c`, so no battle file is on
+  the lint's `WRITE_ORDER` any more.
+- *The handlers and waits* -- `nmi.c` (the vblank handler's frame count,
+  message countdown, pause and frame advance, and the line handler's
+  alternating-frame setting, on the game's state; the interrupted code's
+  registers, direct-page scratch and math operands saved and put back in the
+  entries, through `m_save_interrupted_registers_bank_first` and
+  `m_block_move`, two additions to `machine.h`), `wait.c` and `sound.c` (the
+  waits by what they wait for, the pause's silence and the music's fade on the
+  audio service; `tm_beam_line`, the beam's line, is a new timing call).
+
+**The RAM map.** About two hundred battle variables were added or reshaped,
+by the groups as they needed them: the stat block's fields, the timers as
+blobs by kind, the scripts' variables, marks, point and per-combatant and
+per-effect command cells, the direct-page work cells (`battle_work`, `$80-$9D`,
+"each routine's own", written only through named leave helpers), the tech
+records (sixty, twenty a member), the setup's cells, the sprite drawers' page.
+Stray accesses the original makes past a table -- an actor or a turn that
+names no combatant, a partner past the three menu slots, Magus's slot (a word),
+the grid's marking with the party off the grid, the effects' done flags that a
+word increment carries into -- go through `_unchecked` accessors, each variable
+saying why.
+
+**Shadow mode.** Every group was merged shadow-clean over the library (26
+movies, none mismatched, no page refused, no accessor out of range), and the
+per-entry totals equal `main`'s for every battle entry in calls: no guard
+refuses a call the game makes. Matched moves only with interrupted, where work
+that was a chain of call-outs is now C with fewer comparison points:
+`battle_draw_menu_window` 489 to 7,231 interrupted of 104,644 (it runs the
+redraw, the party status and the frames' reset inline), the party status 60
+to 437, the combination check 896 to 1,373, the combatants' step 10 to 124,
+`battle_build_object_graphics_checked` 0 to 786 (it now runs the build as C); and `battle_frame_work`, `battle_frame_update` and
+`battle_setup_display` (431,221, 431,221 and 1,174 calls) now run inside the
+frame dispatch's own native run through its C table, so the original entering
+them starts a nested comparison that is set aside when the dispatch reaches
+its next point: the dispatch compares their work.
+Those entries are fuzzed alone. What shadow found, each fixed in the port:
+- the main loop: the Y the enemies' script start reads (the enemies placed),
+  the carry the step to an enemy's stat block leaves before its statuses are
+  followed and the one `slot - 3` leaves before an enemy's turn, the members'
+  checks as a subroutine whose return sits under its calls, and the flags the
+  rewards' callees don't read (`late-omen-zeal` gives an item);
+- the menu window's inline frames reset leaves the carry its compare sets;
+- the map's extents were too small where the game reads further
+  (`battle_effect_sprite_data` to 48 sets, `battle_bitmap_counts`,
+  `battle_object_sprite_entries`);
+- the effect graphics loader's callers read the carry and overflow the
+  decompressor and the transfer pass back (the endings movies).
+
+**Fuzzing** (`tools/fuzz_routines.toml`, the battle section, on one base
+state, `gato-battle` at frame 20,000). `tools/fuzz_compare.py` ran every battle
+entry against `main`'s ports with the same seed: in the tight constraints no routine differs, and every
+mismatch left is on a loose variant, one of the accepted divergences below;
+the predecessor's own 225 of 20,000 on `battle_load_graphics` (it wrote its
+inlined `JSR`'s return address into the stack) are gone. The per-entry counts
+are in PORTING.md's battle row. What it found,
+fixed or refused:
+- the actor's status and chosen action read past their tables for an actor
+  that names no combatant (the chosen action at four times the actor, a byte):
+  now read as the original indexes them; a turn's place in the timers' order
+  that names no combatant is refused;
+- A's random high byte feeding the original's indexes (the party status, the
+  cursors, the pose choice, the builds, the effects' paths): guarded, as every
+  game call has it clear;
+- a tech list entry past a member's twenty records, a slot's member past the
+  party, Frog's slot off a member's: refused; a tech record's partner past the
+  three slots, Magus's slot and a target entry past the combatants: read as
+  the original indexes them;
+- the anchor chase leaves its points in the angle's cells when it is already
+  close; a wrapped cursor request leaves a partial offset in `$80`; the
+  enemies' step leaves its place at each enemy, where a frame list read over
+  it sees it;
+- BG2's scroll took BG1's extra offset (20,000 of 20,000 on both fills; the
+  movies always have the offset 0): only BG1 takes it; the colour rotation
+  from colour 0 stores a bank on, at `$7F:2200`, reproduced through the
+  working palette's unchecked accessors.
+The accepted divergences, on inputs no battle makes, are each written at their
+routine: the drawing pass past the sprite buffer's 128 sprites (the order of
+writes shows there; 20 of 5,000 random states, `main` 7), and a graphics set
+built over the direct page's working cells or the stack (the loose variants
+only).
+
+**The guards refuse only what the game never makes**, and each says so at its
+definition: the battle's page and bank; A's high byte where the original
+indexes with all of A; a combatant in X, in Y, or in the cell the caller
+leaves; the turn's place naming a combatant; a divisor over `$8000` (the
+original's bit-serial division loses the remainder's top bit); the window's
+menu state (members, slots, cursors, targets, tech lists as the menus build
+them); the setup's inputs (party characters 0-6, enemy slots empty, at most
+three kinds of enemy in view, parts that fit in the eleven slots); the effect
+paths' kinds; the drawing pass's sprite places. None refuses a call of the
+library's.
+
+**Don't-care declarations.** Every entry's set was widened to what
+`tools/dontcare_check.py --list` offered before its wrapper was written, and
+each call-out's to its callee's; the check agrees with every one (0 findings).
+Where liveness has a register dead only by trusting a target table the game
+fills at run time (the turn's `$C1:B762` and `$C1:AC5E`, which reach the
+scripts' handlers), the call passes the overflow as the original has it.
+
+**Timing.** The rewritten ports make far fewer bus accesses than their
+predecessors (locals where the original re-read its cells, arithmetic in C
+where it drove the multiplier, a loop's work in one place), so the battle's
+119 measured `cost_milli` rows were recalibrated from shadow runs over the
+library (`tools/timing_gate.py --calibrate`), and only those rows were taken.
+A port that runs a sibling's work inline names it (`NATIVE_TIME_AS`): the
+frame dispatch its three routines, the drawing pass each part, the movers'
+loop each path by kind, the menu window the redraw, the party status and the
+frames' reset. Three entries went into `tools/timing_exceptions.txt` with their
+numbers, all writing RAM, with the vblank check finding no write moved:
+`battle_draw_objects`' vblank-worst (25,095 clocks, a sort of the full list),
+`battle_effect_combatant_jump`'s vblank tail (4.61%, at most 2,562 clocks) and
+the frame dispatch's drift (+0.83%, the table step's share, at `cost_milli`
+1); `battle_draw_object_underlays`' exception left, its successor
+`battle_draw_in_front` within the limits.
+
+**What is left** is in TODO.md, "What battle's rewrite left": the original's
+routines the battle still calls out to, the meanings not worked out, the
+quirks reproduced on purpose, and the accepted divergences.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,
