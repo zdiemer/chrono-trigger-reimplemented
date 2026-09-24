@@ -264,7 +264,7 @@ over the whole library, and the entry keeps its fuzzing. Rewriting a file to
 the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
 holds every other file where it is, so the list only shrinks. `menu` is
 rewritten but for `menu/epoch.c` (RECOMP.md, "Phase 3a: the menus off the
-machine") and waits for its qualitative review; `battle` is next, whose 7.8K
+machine"); `battle` is next, whose 7.8K
 lines are the largest and whose bank is also the least converted, with
 `epoch.c` beside it on the object mode's module.
 
