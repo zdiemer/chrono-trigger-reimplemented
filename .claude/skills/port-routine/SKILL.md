@@ -87,11 +87,11 @@ SNES escape and write down why, as docs/PLATFORM.md's "as built" sections do.
 ## The shape to aim for
 
 `.claude/skills/review-port/SKILL.md`, "What hand-written looks like", has a
-complete annotated file: field objects' animation as a small module, with the
-original's in-band encoding confined to four storage functions, operations
-named for what the game does, and a script command whose opcode family is table
-rows. Read it before you write anything; it is the same concept as the "before"
-examples below.
+real file, annotated: field objects' animation (`game/field/animation.c`) as a
+small module, with the original's in-band encodings confined to its storage
+functions, operations named for what the game does, and a script command whose
+opcode family is table rows. Read it before you write anything; it is the same
+concept as the "before" examples below.
 
 ## The second trap: memory mechanics instead of register mechanics
 

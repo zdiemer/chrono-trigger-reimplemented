@@ -191,6 +191,28 @@ class Check(unittest.TestCase):
         self.assertEqual(counts["calls"], 7)   # a value per target and per helper call
         self.assertTrue(any(": ok" in r for r in rows))
 
+    def test_bridge_calls(self):
+        """The bridges' vocabulary declares its call where it is called, and its
+        own bodies, whose arguments are parameters, declare nothing."""
+        lv, opcode_at = liveness()
+        bridge = dc.Source(dc.BRIDGE_FILE, """
+bool bridge_back(Snes *s, uint32_t returns_to, BridgeMachine m) { m_stop_at_own(s, returns_to, 0); return true; }
+bool bridge_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m)
+{ m_jsr_dc(s, site, routine, dont_care); return bridge_back(s, site + JSR_SIZE, m); }
+""")
+        port = dc.Source("game/port.c", """
+void calls(Snes *s) { bridge_call(s, 0xC08003, 0xC08020, DC_X, bridge_machine_now(s)); }
+void carries(Snes *s) { bridge_call(s, 0xC08003, 0xC08020, DC_Y, bridge_machine_now(s)); }
+""")
+        registry = dc.Source("game/registry.c", REGISTRY)
+        found, _, counts = dc.run_sources([registry, bridge, port], [dc.Source("runtime/port/native.h", NATIVE_H)],
+                                          lv, opcode_at)
+        text = "\n".join(f.text() for f in found)
+        self.assertIn("game/port.c:2: the call from $C0:8003 to $C0:8020 declares DC_X,", text)
+        self.assertNotIn("declares DC_Y", text)
+        self.assertNotIn(dc.BRIDGE_FILE, text)
+        self.assertEqual(counts["calls"], 2)
+
     def test_a_high_byte(self):
         # DC_AH claims A's high byte alone, which C0:8010's LDA #$01 (8-bit) leaves
         # as it was: dead after the return here, as is all of A

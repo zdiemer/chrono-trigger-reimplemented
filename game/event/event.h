@@ -121,7 +121,7 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_set_sprite_shown_object, 0x7C) \
     X(event_cmd_set_sprite_hidden_object, 0x7D) \
     X(event_cmd_set_sprite_none, 0x7E) \
-    X(event_cmd_set_solid, 0x84) \
+    X(event_cmd_set_solidity, 0x84) \
     X(event_cmd_set_move_length, 0x87) \
     X(event_cmd_set_speed, 0x89) \
     X(event_cmd_set_speed_variable, 0x8A) \
@@ -140,7 +140,7 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_tint, 0xF1) \
     X(event_cmd_wait_for_screen_fade, 0xF2) \
     X(event_cmd_wait_for_screen_tint, 0xF3) \
-    X(event_cmd_set_bc, 0xF4) \
+    X(event_cmd_shake_screen, 0xF4) \
     X(event_cmd_wait_for_music_fade, 0xED) \
     X(event_cmd_wait_for_song_marker, 0xEE) \
     X(event_cmd_record, 0x56) \
@@ -174,15 +174,9 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_assign_1, 0x75) \
     X(event_cmd_assign_word_1, 0x76) \
     X(event_cmd_assign_0, 0x77) \
-    X(event_cmd_roll, 0x7F)
-
-#define EVENT_BRIDGES(X) \
+    X(event_cmd_roll, 0x7F) \
     X(event_cmd_face_toward_object, 0xA8) \
     X(event_cmd_face_toward_member, 0xA9) \
-    X(event_cmd_behave_once, 0xAF) \
-    X(event_cmd_go_to_location_now_raising_1e, 0xDF) \
-    X(event_cmd_go_to_location_now, 0xE1) \
-    X(event_cmd_copy_data, 0x4E) \
     X(event_cmd_jump_to_tile, 0x7A) \
     X(event_cmd_move_toward_party_member_until_on_screen, 0x8F) \
     X(event_cmd_move_in_direction, 0x92) \
@@ -194,14 +188,20 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_move_toward_party_member_counted, 0x99) \
     X(event_cmd_move_to_tile_counted, 0x9A) \
     X(event_cmd_move_in_direction_keep_facing, 0x9C) \
-    X(event_cmd_move_by_variables, 0x9D) \
+    X(event_cmd_move_in_direction_from_variables_keep_facing, 0x9D) \
     X(event_cmd_move_toward_object_keep_facing, 0x9E) \
     X(event_cmd_move_toward_party_member_keep_facing, 0x9F) \
     X(event_cmd_move_to_tile_keep_facing, 0xA0) \
     X(event_cmd_move_to_tile_from_variables_keep_facing, 0xA1) \
-    X(event_cmd_behave, 0xB0) \
     X(event_cmd_follow_object, 0xB5) \
-    X(event_cmd_follow_party_member, 0xB6) \
+    X(event_cmd_follow_party_member, 0xB6)
+
+#define EVENT_BRIDGES(X) \
+    X(event_cmd_behave_once, 0xAF) \
+    X(event_cmd_go_to_location_now_raising_1e, 0xDF) \
+    X(event_cmd_go_to_location_now, 0xE1) \
+    X(event_cmd_copy_data, 0x4E) \
+    X(event_cmd_behave, 0xB0) \
     X(event_cmd_party_routine_0a, 0xD5) \
     X(event_cmd_take_out_of_party, 0xD6) \
     X(event_cmd_party_routine_6_7, 0xF8) \

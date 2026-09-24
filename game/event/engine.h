@@ -26,14 +26,14 @@ typedef enum {
     TURN_NOT_OURS_BEFORE,  /* the same, before an object's opening */
 } EventTurnEnd;
 
-/* One object's turn this frame (the object its slot doubled): commands from
+/* One object's turn this frame: commands from
  * where its script left off until one ends the turn or the turn's budget
  * (event_commands_per_turn) is spent. `stopped_at` is where the script got
  * to. */
-EventTurnEnd event_run_turn(GameState *g, uint8_t object, const EventRunner *r, uint16_t *stopped_at);
+EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at);
 
 /* A map's openings, as it loads: every object's script up to its first zero
- * byte, all at once. `object` is the one (doubled) the openings got to. */
-EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, uint16_t *object, uint16_t *stopped_at);
+ * byte, all at once. `object` is the one the openings got to. */
+EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject *object, uint16_t *stopped_at);
 
 #endif

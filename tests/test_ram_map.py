@@ -156,6 +156,41 @@ class TestRules(unittest.TestCase):
         self.load(var("x", 'addr = "7E:1800"\ncount = 4\nstride = 2\nindex = "i"')
                   + var("y", 'addr = "7E:1801"\ncount = 4\nstride = 2\nindex = "i"'))
 
+    def test_tables_of_rows_interleave(self):
+        """Tables whose rows lie between each other's, a row every 256 bytes (the
+        field's map tables), don't overlap; one that reaches into another's row does."""
+        m = self.load(var("maps", 'addr = "7E:3000"\nsize = 0x40\ncount = 3\nstride = 0x40\nindex = "layer"\n'
+                                  'rows = 64\nrow_stride = 0x100')
+                      + var("props", 'addr = "7E:30C0"\nsize = 0x40\nrows = 64\nrow_stride = 0x100'))
+        self.assertEqual(m.lookup(0x7E3141)[0][0].name, "maps")     # row 1, the second layer's column 1
+        self.assertEqual(m.lookup(0x7E31C5)[0][0].name, "props")    # row 1, column 5
+        self.assertFalse(m.lookup(0x7E7000))                       # past the last row
+        with self.assertRaises(ram_map.MapError):
+            self.load(var("maps", 'addr = "7E:3000"\nsize = 0x40\nrows = 4\nrow_stride = 0x100')
+                      + var("more", 'addr = "7E:3130"\nsize = 0x20\nrows = 4\nrow_stride = 0x100'))
+
+    def test_names_by_meaning(self):
+        """A record's field named for the record it sits in stutters, and is
+        rejected; names carrying an address are listed for a meaning."""
+        with self.assertRaises(ram_map.MapError):
+            self.load(var("object_mode", 'addr = "7E:1000"\ncount = 2\nstride = 2\nindex = "slot"\n'
+                                         '[[var.field]]\nname = "mode"\noffset = 0\nmeaning = "m"'))
+        m = self.load(var("setting_1e", 'addr = "7E:1000"') + var("setting_bc", 'addr = "7E:1001"')
+                      + var("screen_shake", 'addr = "7E:1002"') + var("bg3_scroll", 'addr = "7E:1003"'))
+        self.assertEqual(m.address_shaped(), ["setting_1e", "setting_bc"])
+
+    def test_table_of_rows_errors(self):
+        bad = {
+            "rows without row_stride": var("x", 'addr = "7E:1000"\nsize = 4\nrows = 2'),
+            "a row wider than its stride": var("x", 'addr = "7E:1000"\nsize = 0x80\nrows = 2\nrow_stride = 0x40'),
+            "fields": var("x", 'addr = "7E:1000"\nstride = 4\nrows = 2\nrow_stride = 0x10\n'
+                              '[[var.field]]\nname = "f"\noffset = 0\nmeaning = "m"'),
+            "past the bank": var("x", 'addr = "7E:F000"\nsize = 0x40\nrows = 64\nrow_stride = 0x100'),
+        }
+        for why, text in bad.items():
+            with self.subTest(why=why), self.assertRaises(ram_map.MapError):
+                self.load(text)
+
 
 class TestAccessors(unittest.TestCase):
     """game/vars.h: a value per variable, an index per element, a pair per field,
@@ -188,6 +223,18 @@ class TestAccessors(unittest.TestCase):
                      "uint8_t combatant_level(const GameState *g, unsigned slot);"):
             with self.subTest(line=line):
                 self.assertIn(line, h)
+
+    def test_a_table_of_rows_is_a_byte_by_row_and_column(self):
+        m = self.load(var("maps", 'addr = "7E:3000"\nsize = 0x40\ncount = 3\nstride = 0x40\nindex = "layer"\n'
+                                  'rows = 64\nrow_stride = 0x100'))
+        h = ram_map.render_vars_header(m)
+        for line in ("enum { MAPS_ROWS = 64, MAPS_COLUMNS = 64 };",
+                     "uint8_t maps(const GameState *g, unsigned layer, unsigned row, unsigned column);",
+                     "void set_maps(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v);"):
+            with self.subTest(line=line):
+                self.assertIn(line, h)
+        self.assertIn("{ return r8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column); }",
+                      ram_map.render_backing(m))
 
     def test_the_interface_has_no_layout(self):
         """No address, offset or stride reaches game/vars.h: that is the point of it."""

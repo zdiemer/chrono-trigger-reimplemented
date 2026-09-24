@@ -5,7 +5,7 @@
  * update takes a step a frame until the steps run out. A direction is a byte
  * to a turn; the velocity on each axis is the speed times the direction's
  * factor on that axis, from a table in the ROM. A step keeps the object inside
- * its tile unless the move lets it cross (field_object_move_state_tile_mode:
+ * its tile unless the move lets it cross (field_object_tile_crossing:
  * never, once, or always); the party's members step freely. An object that
  * falls accelerates downward instead.
  *
@@ -23,24 +23,16 @@
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field_data.h"
+#include "field/layers.h"
+#include "field/parts.h"
 #include "field/scratch.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { QUARTER_TURN = 0x40, HALF_TURN = 0x80 };
+enum { HALF_TURN = 0x80 };
 
-/* field_object_blocking */
-enum { MINDS_THE_MAP = 0x01, MINDS_OBJECTS = 0x02 };
-/* field_object_solid */
-enum { SOLID = 0x01 };
-/* A tile's second attribute: blocked */
-enum { TILE_BLOCKED = 0x80 };
-/* field_object_priority_mode: bit 7 takes the priority from the map, else
- * its bits give the two halves' priority */
-enum { PRIORITY_FROM_MAP = 0x80, PRIORITY_BITS = 0x30, MAP_PRIORITY_BIT = 0x40, BASE_PRIORITY = 0x20 };
-
-/* ---- Positions --------------------------------------------------------------------------- */
+/* ---- Positions: the storage ------------------------------------------------------------- */
 
 static uint16_t position_x(const GameState *g, FieldObject obj)
 {
@@ -71,6 +63,30 @@ FieldPosition object_position(const GameState *g, FieldObject obj)
     return (FieldPosition){ position_x(g, obj), position_y(g, obj) };
 }
 
+MapTile object_tile(const GameState *g, FieldObject obj)
+{
+    return (MapTile){ field_object_x_tile(g, obj), field_object_y_tile(g, obj) };
+}
+
+// $C0:4C27
+void object_place(GameState *g, FieldObject obj, FieldPosition at)
+{
+    set_position_x(g, obj, at.x);
+    set_position_y(g, obj, at.y);
+}
+
+enum { TILE_MIDDLE = 0x80, TILE_BOTTOM = 0xFF };
+
+// $C0:4B74
+void object_put_on_tile(GameState *g, FieldObject obj, MapTile tile, bool centred)
+{
+    set_field_object_x_tile(g, obj, tile.x);
+    if (centred)
+        set_field_object_x_fine(g, obj, TILE_MIDDLE);
+    set_field_object_y_tile(g, obj, tile.y);
+    set_field_object_y_fine(g, obj, TILE_BOTTOM);
+}
+
 /* A step on an axis, as the velocity keeps it: the step in the low byte, and
  * where it was set with one, its sign in the high byte. */
 static int8_t step_x(const GameState *g, FieldObject obj) { return (int8_t)field_object_velocity_x(g, obj); }
@@ -94,16 +110,11 @@ static void stand_still(GameState *g, FieldObject obj)
     set_step_y(g, obj, 0);
 }
 
+Velocity object_velocity(const GameState *g, FieldObject obj) { return (Velocity){ step_x(g, obj), step_y(g, obj) }; }
+
 /* ---- Directions -------------------------------------------------------------------------- */
 
-/* The quarter of the turn a move from one tile toward another is in, and the
- * two distances turned into it: across it, and along it. */
-typedef struct {
-    Direction quarter;
-    uint8_t across, along;
-} Quarter;
-
-static Quarter quarter_between(MapTile from, MapTile to)
+Quarter field_quarter_between(MapTile from, MapTile to)
 {
     bool down = to.y >= from.y, right = to.x >= from.x;
     uint8_t dy = down ? (uint8_t)(to.y - from.y) : (uint8_t)(from.y - to.y);
@@ -113,27 +124,44 @@ static Quarter quarter_between(MapTile from, MapTile to)
     return right ? (Quarter){ DIRECTION_RIGHT, dy, dx } : (Quarter){ DIRECTION_UP, dx, dy };
 }
 
-/* The distances scaled down to five bits for the angle table, keeping their
- * ratio: by the first power of two that brings both under 32, as far as 4
- * (a distance of 128 or more is taken as its low seven bits). */
-static unsigned angle_scale(Quarter q)
+unsigned field_angle_scale(Quarter q)
 {
     if ((q.across | q.along) & 0x40)
         return 2;
     return ((q.across | q.along) & 0x20) ? 1 : 0;
 }
 
-enum { DISTANCE_BITS = 0x1F };
-
 // $C0:ABA2
 /* The direction from one tile toward another: the quarter it is in, and the
  * angle within it the ROM's table gives for the two distances. */
 Direction direction_between(const GameState *g, MapTile from, MapTile to)
 {
-    Quarter q = quarter_between(from, to);
-    unsigned scale = angle_scale(q);
-    uint16_t index = (uint16_t)(((q.along >> scale) & DISTANCE_BITS) << 5 | ((q.across >> scale) & DISTANCE_BITS));
+    Quarter q = field_quarter_between(from, to);
+    unsigned scale = field_angle_scale(q);
+    uint16_t along = (q.along >> scale) & FIELD_DISTANCE_BITS, across = (q.across >> scale) & FIELD_DISTANCE_BITS;
+    uint16_t index = (uint16_t)(along << 5 | across);
     return (Direction)(field_quadrant_angle(g, index) + q.quarter);
+}
+
+// $C0:55A9
+Aim aim_toward_object(const GameState *g, FieldObject obj, FieldObject target)
+{
+    MapTile from = object_tile(g, obj), to = object_tile(g, target);
+    if (from.x == to.x && from.y == to.y) {
+        from = (MapTile){ field_object_x_fine(g, obj), field_object_y_fine(g, obj) };
+        to = (MapTile){ field_object_x_fine(g, target), field_object_y_fine(g, target) };
+    }
+    return (Aim){ from, to };
+}
+
+/* The field's random numbers: a fixed table of 256 bytes stepped through, a
+ * step a number, which both a blocked object's turn and the scripts' dice
+ * draw from. */
+uint8_t field_draw_random(GameState *g)
+{
+    uint8_t step = (uint8_t)(field_random_index(g) + 1);
+    set_field_random_index(g, step);
+    return field_random_byte(g, step);
 }
 
 /* ---- Velocity ----------------------------------------------------------------------------- */
@@ -156,14 +184,10 @@ static int8_t axis_step(const GameState *g, uint8_t speed, Direction direction)
 
 /* The two axes' steps: down from the direction, across from a quarter turn
  * on. */
-typedef struct {
-    int8_t x, y;
-} Velocity;
-
-static Velocity velocity_for(const GameState *g, FieldObject obj, Direction direction)
+Velocity field_velocity_for(const GameState *g, FieldObject obj, Direction direction)
 {
     uint8_t speed = field_object_speed(g, obj);
-    return (Velocity){ axis_step(g, speed, (Direction)(direction + QUARTER_TURN)), axis_step(g, speed, direction) };
+    return (Velocity){ axis_step(g, speed, (Direction)(direction + FIELD_QUARTER_TURN)), axis_step(g, speed, direction) };
 }
 
 /* For the original's code and shadow mode: the original multiplies on the
@@ -172,7 +196,7 @@ static Velocity velocity_for(const GameState *g, FieldObject obj, Direction dire
 static void leave_multiplier(GameState *g, FieldObject obj, Direction last)
 {
     hw_set_multiplicand(g, field_object_speed(g, obj));
-    hw_multiply_by(g, factor_magnitude(g, (Direction)(last + QUARTER_TURN)));
+    hw_multiply_by(g, factor_magnitude(g, (Direction)(last + FIELD_QUARTER_TURN)));
 }
 
 /* For the original's code and shadow mode (field/scratch.h): setting a
@@ -182,10 +206,9 @@ static void leave_step_y(GameState *g, int8_t y) { original_cell8(g, 0xDB, (uint
 // $C0:AC69
 void object_head(GameState *g, FieldObject obj, Direction direction)
 {
-    stand_still(g, obj);
-    Velocity v = velocity_for(g, obj, direction);
-    leave_multiplier(g, obj, direction);
-    leave_step_y(g, v.y);
+    Velocity v = field_velocity_for(g, obj, direction);
+    ORIGINAL_EFFECT(leave_multiplier(g, obj, direction));
+    ORIGINAL_EFFECT(leave_step_y(g, v.y));
     set_field_object_velocity_y(g, obj, sign_extended(v.y));
     set_field_object_velocity_x(g, obj, sign_extended(v.x));
 }
@@ -193,39 +216,26 @@ void object_head(GameState *g, FieldObject obj, Direction direction)
 /* ---- Starting a step --------------------------------------------------------------------- */
 
 /* The tile a step would take the object onto: the position plus the steps as
- * words. */
-static uint16_t tile_ahead(const GameState *g, FieldObject obj, uint16_t across, uint16_t down)
+ * words, the map's place masked as the map's size says. */
+static MapPlace tile_ahead(const GameState *g, FieldObject obj, uint16_t across, uint16_t down)
 {
     uint16_t x = (uint16_t)(position_x(g, obj) + across);
     uint16_t y = (uint16_t)(position_y(g, obj) + down);
-    return (uint16_t)((y & 0xFF00) | x >> 8) & field_map_index_mask(g);
+    return map_place_at((uint16_t)(((y & 0xFF00) | x >> 8) & field_map_index_mask(g)));
 }
 
-/* A tile's two attribute bytes: the first's bit 6 the priority of an object's
- * upper half there, the second's its lower half's and bit 7 blocked. */
-typedef struct {
-    uint8_t first, second;
-} TileAttributes;
-
-static TileAttributes tile_attributes(const GameState *g, uint16_t tile)
+/* The priority of the object's sprites' two halves as it starts a step: from
+ * the tile ahead where it follows the map, or its own layering's. From the
+ * tile, the step takes them the other way round from a script's layering
+ * (object_layer_as_the_map): the tile's upper attributes give the lower
+ * half's priority, and its lower attributes the upper half's. The port does
+ * as the original does. */
+static void take_priorities_for_the_step(GameState *g, FieldObject obj, TileAttributes ahead)
 {
-    return (TileAttributes){ field_tile_attributes_byte(g, tile), field_tile_attributes_byte(g, tile + 0x40) };
-}
-
-/* The priority of the object's sprites' two halves: from the map's tile, or
- * its own. */
-static void set_sprite_priority(GameState *g, FieldObject obj, TileAttributes ahead)
-{
-    uint8_t mode = field_object_priority_mode(g, obj);
-    uint8_t upper, lower;
-    if (mode & PRIORITY_FROM_MAP) {
-        upper = (uint8_t)(((ahead.first & MAP_PRIORITY_BIT) >> 2) | BASE_PRIORITY);
-        lower = (uint8_t)(((ahead.second & MAP_PRIORITY_BIT) >> 2) | BASE_PRIORITY);
-    } else {
-        upper = (uint8_t)((mode << 4) & PRIORITY_BITS);
-        lower = (uint8_t)(mode & PRIORITY_BITS);
-    }
-    set_field_object_sprite_priority(g, obj, (uint16_t)(lower << 8 | upper));
+    if (object_follows_the_map(g, obj))
+        object_set_sprite_priorities(g, obj, tile_priority(ahead.lower), tile_priority(ahead.upper));
+    else
+        object_take_own_priorities(g, obj);
 }
 
 static bool moves(Velocity v) { return v.x != 0 || v.y != 0; }
@@ -253,10 +263,18 @@ typedef struct {
 static Look look_ahead(const GameState *g, FieldObject obj, uint16_t across, int8_t down)
 {
     return (Look){ (uint16_t)(position_x(g, obj) + across),
-                   tile_attributes(g, tile_ahead(g, obj, across, sign_extended(down))) };
+                   map_tile_attributes(g, tile_ahead(g, obj, across, sign_extended(down))) };
 }
 
 static uint8_t sign_byte(int8_t v) { return v < 0 ? 0xFF : 0x00; }
+
+/* For the original's code and shadow mode: a blocked object's new direction
+ * is left in the field's direction cell, where the original's routine reads
+ * the direction it starts a step in (the port hands it on as a value). */
+static void leave_turned_direction(GameState *g, Direction d)
+{
+    set_field_direction(g, (uint16_t)((field_direction(g) & 0xFF00) | d));
+}
 
 /* For the original's code and shadow mode (field/scratch.h): a start leaves
  * the steps it set ($DB, $DD), the sign bytes it kept beside them ($DE the
@@ -276,8 +294,8 @@ static void leave_start(GameState *g, FieldObject obj, Velocity steps, Velocity 
         original_cell8(g, 0xDC, sign_byte(first.y));
     if (look) {
         original_cell16(g, 0xDF, look->x);
-        original_cell8(g, 0xE1, look->tile.first);
-        original_cell8(g, 0xE5, look->tile.second);
+        original_cell8(g, 0xE1, look->tile.upper);
+        original_cell8(g, 0xE5, look->tile.lower);
     }
     if (own_priority)
         original_cell8(g, 0xD9, field_object_priority_mode(g, obj));
@@ -287,26 +305,23 @@ static void leave_start(GameState *g, FieldObject obj, Velocity steps, Velocity 
 StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
 {
     StepStart r = { START_STILL, direction };
-    stand_still(g, obj);
-    Velocity first = velocity_for(g, obj, direction), retry = { 0, 0 }, steps = first;
+    Velocity first = field_velocity_for(g, obj, direction), retry = { 0, 0 }, steps = first;
     bool retried = false, looked = false;
-    Look look = { 0, { 0, 0 } };
+    Look look = { 0, { 0, 0, 0 } };
     if (moves(first)) {
         r.outcome = START_MOVING;
         look = look_ahead(g, obj, sign_extended(first.x), first.y);
         looked = true;
-        if ((field_object_blocking(g, obj) & MINDS_THE_MAP) && (look.tile.second & TILE_BLOCKED)) {
-            uint8_t index = (uint8_t)(field_random_index(g) + 1);
-            set_field_random_index(g, index);
-            r.direction = field_random_direction(g, index);
-            set_field_direction(g, (uint16_t)((field_direction(g) & 0xFF00) | r.direction));
+        if ((field_object_blocking(g, obj) & BLOCKED_BY_THE_MAP) && (look.tile.lower & TILE_BLOCKED)) {
+            r.direction = field_draw_random(g);
+            ORIGINAL_EFFECT(leave_turned_direction(g, r.direction));
             retried = true;
-            retry = steps = velocity_for(g, obj, r.direction);
+            retry = steps = field_velocity_for(g, obj, r.direction);
             r.outcome = START_TURNED_STILL;
             if (moves(retry)) {
                 r.outcome = START_TURNED_MOVING;
                 look = look_ahead(g, obj, retry_look_across(first, retry), retry.y);
-                if (look.tile.second & TILE_BLOCKED) {
+                if (look.tile.lower & TILE_BLOCKED) {
                     r.outcome = START_BLOCKED;
                     steps = (Velocity){ 0, 0 };
                 }
@@ -315,12 +330,12 @@ StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
     }
     bool moving = r.outcome == START_MOVING || r.outcome == START_TURNED_MOVING;
     if (moving)
-        set_sprite_priority(g, obj, look.tile);
+        take_priorities_for_the_step(g, obj, look.tile);
     set_step_x(g, obj, steps.x);
     set_step_y(g, obj, steps.y);
-    leave_multiplier(g, obj, r.direction);
-    leave_start(g, obj, steps, first, retried ? &retry : NULL, looked ? &look : NULL,
-                moving && !(field_object_priority_mode(g, obj) & PRIORITY_FROM_MAP));
+    ORIGINAL_EFFECT(leave_multiplier(g, obj, r.direction));
+    ORIGINAL_EFFECT(leave_start(g, obj, steps, first, retried ? &retry : NULL, looked ? &look : NULL,
+                                moving && !object_follows_the_map(g, obj)));
     return r;
 }
 
@@ -353,98 +368,93 @@ static uint16_t distance_across(uint16_t other, uint16_t own)
 
 static bool can_block(const GameState *g, FieldObject other, FieldObject obj)
 {
-    return object_marked_in_view(g, other) && !object_disabled(g, other) && other != obj &&
-           (field_object_solid(g, other) & SOLID);
+    return object_view(g, other) != OUT_OF_VIEW && !object_disabled(g, other) && other != obj &&
+           object_solid(g, other);
 }
 
-/* The search starts at the slot after the last object, which with 64 objects
- * is past the tables, and with a count past 64 (the original takes it modulo
- * 128) more of them: it reads what follows each table there, the next
- * table's entries. No map has 64 objects; the port reads the same bytes,
- * through the tables' accessors past their end, so that shadow mode and
- * fuzzing see what the original sees. A native build has no such bytes. */
-static bool stray_slot_can_block(const GameState *g, unsigned slot, FieldObject obj)
+/* The search starts at the slot after the last object and runs down to the
+ * second. With no objects, or as many as the tables have slots, the original
+ * would go on into slots past the tables (it counts round 128); no map has
+ * either, and the entries' guards leave those to the original. */
+bool object_search_fits(const GameState *g)
 {
-    return can_block(g, (FieldObject)slot, obj);
+    uint8_t count = event_object_count(g);
+    return count != 0 && count < FIELD_OBJECTS;
 }
 
 /* For the original's code and shadow mode (field/scratch.h): the blocking
  * check keeps the facing doubled ($D9) and the object's position ($DB, $DD);
  * the entry keeps the caller's Y ($C7). */
-static void leave_blocking_check(GameState *g, uint8_t facing, FieldPosition at)
+static void leave_blocking_check(GameState *g, Facing facing, FieldPosition at)
 {
     original_cell8(g, 0xD9, (uint8_t)(facing * 2));
     original_cell16(g, 0xDB, at.x);
     original_cell16(g, 0xDD, at.y);
 }
 
-enum { SLOTS_IN_A_BYTE = 0x80 };   /* an object count doubled wraps round a byte */
+/* How another object stands from this one, the way this one faces: whether
+ * it is on the side it looks, how far along the way, and how far across. */
+typedef struct {
+    bool ahead;
+    uint16_t along, across;
+} Measure;
 
-/* For the entry's wrapper (field/scratch.h, "What a wrapper can't work out"):
- * the last distance the check measured, ahead or across, whose high byte the
- * original leaves in A. Written only by record_measured, read only by
- * field_object_in_the_way. */
-static struct {
-    bool measured;
-    uint16_t last_distance;
-} in_the_way_leaves;
-
-static void record_measured(uint16_t distance)
+static Measure measure(FieldPosition at, FieldPosition there, Facing facing, bool earlier_slot)
 {
-    in_the_way_leaves.measured = true;
-    in_the_way_leaves.last_distance = distance;
+    bool vertical = facing == FACING_UP || facing == FACING_DOWN;
+    bool looking_back = facing == FACING_UP || facing == FACING_LEFT;
+    Measure m;
+    m.ahead = distance_ahead(vertical ? there.y : there.x, vertical ? at.y : at.x, earlier_slot, looking_back,
+                             &m.along);
+    m.across = distance_across(vertical ? there.x : there.y, vertical ? at.x : at.y);
+    return m;
 }
 
-/* For the original's code and shadow mode: the check stores the object it
- * finds as a byte into the word field_target_object, whose high byte it
- * clears first, whether or not it looks. */
-static void leave_target_as_byte(GameState *g)
+static bool close_ahead(Measure m) { return m.ahead && m.along < REACH; }
+
+/* For the original's code and shadow mode: the check keeps each object it
+ * measures as a byte in the word field_target_object, whose high byte it
+ * clears first, whether or not it looks; so the word is left the last object
+ * measured, or its low byte as it was. */
+static void leave_target(GameState *g, ObjectsAhead r)
 {
-    set_field_target_object(g, (uint16_t)(field_target_object(g) & 0x00FF));
+    if (r.measured)
+        field_leave_target_object(g, r.object);
+    else
+        set_field_target_object(g, (uint16_t)(field_target_object(g) & 0x00FF));
 }
 
-static bool looks_for_objects(const GameState *g, FieldObject obj)
+bool field_looks_for_objects(const GameState *g, FieldObject obj)
 {
-    return object_marked_in_view(g, obj) && (field_object_blocking(g, obj) & MINDS_OBJECTS);
+    return object_view(g, obj) != OUT_OF_VIEW && (field_object_blocking(g, obj) & BLOCKED_BY_OBJECTS);
+}
+
+/* The objects are looked at from the one past the last down to the second
+ * (the first is the party's leader), until one is found in the way. */
+static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj)
+{
+    ObjectsAhead r = { false, false, 0 };
+    if (!field_looks_for_objects(g, obj))
+        return r;
+    Facing facing = object_facing(g, obj);
+    FieldPosition at = object_position(g, obj);
+    ORIGINAL_EFFECT(leave_blocking_check(g, facing, at));
+    for (FieldObject other = (FieldObject)event_object_count(g); other != 0; other--) {
+        if (can_block(g, other, obj)) {
+            r = (ObjectsAhead){ false, true, other };
+            Measure m = measure(at, object_position(g, other), facing, other < obj);
+            if (close_ahead(m) && m.across < REACH)
+                return (ObjectsAhead){ true, true, other };
+        }
+    }
+    return r;
 }
 
 // $C0:5B95
-/* The objects are looked at from the one past the last down to the second
- * (the first is the party's leader), until one is found in the way. The
- * object found (or the last looked at) is kept in field_target_object, where
- * the scripts' movement reads it. */
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
 {
-    ObjectsAhead r = { false, 0 };
-    leave_target_as_byte(g);
-    if (!looks_for_objects(g, obj))
-        return r;
-    uint8_t faces = field_object_facing(g, obj);
-    Facing facing = (Facing)(faces & 0x03);
-    FieldPosition at = object_position(g, obj);
-    leave_blocking_check(g, faces, at);
-    bool vertical = facing == FACING_UP || facing == FACING_DOWN;
-    bool looking_back = facing == FACING_UP || facing == FACING_LEFT;
-    unsigned slot = event_object_count(g) % SLOTS_IN_A_BYTE;
-    do {
-        bool blocks = slot < FIELD_OBJECTS ? can_block(g, (FieldObject)slot, obj) : stray_slot_can_block(g, slot, obj);
-        if (blocks) {
-            FieldObject other = (FieldObject)slot;
-            set_field_target_object(g, field_object_link(other));
-            FieldPosition there = object_position(g, other);
-            uint16_t along;
-            bool ahead = distance_ahead(vertical ? there.y : there.x, vertical ? at.y : at.x, other < obj,
-                                        looking_back, &along);
-            record_measured(along);
-            if (ahead && along < REACH) {
-                uint16_t across = distance_across(vertical ? there.x : there.y, vertical ? at.x : at.y);
-                record_measured(across);
-                if (across < REACH)
-                    return (ObjectsAhead){ true, other };
-            }
-        }
-        slot = (slot - 1) & (SLOTS_IN_A_BYTE - 1);
-    } while (slot != 0);
+    ObjectsAhead r = look_for_objects_ahead(g, obj);
+    ORIGINAL_EFFECT(leave_target(g, r));
     return r;
 }
 
@@ -457,15 +467,13 @@ enum { ONE_PIXEL = 0x10 };   /* a pixel, as a step */
 /* A step toward something on one axis: a pixel forward, or back. */
 static int8_t step_toward(bool forward) { return forward ? ONE_PIXEL : -ONE_PIXEL; }
 
-/* Whether a move's steps may take the object out of its tile: never, once
- * (the move's first crossing ends it), or always. The original keeps it in a
- * byte: 0, a positive number, or a negative one. */
-typedef enum { STAY_IN_TILE, CROSS_ONCE, CROSS_ALWAYS } TileCrossing;
+/* A move's tile crossing (object.h): the original keeps it in a byte, 0, a
+ * positive number, or a negative one. */
 enum { STORED_STAY = 0, STORED_CROSS_ONCE = 1, STORED_CROSS_ALWAYS = 0x80 };
 
 static TileCrossing tile_crossing(const GameState *g, FieldObject obj)
 {
-    uint8_t stored = field_object_move_state_tile_mode(g, obj);
+    uint8_t stored = field_object_tile_crossing(g, obj);
     if (stored == STORED_STAY)
         return STAY_IN_TILE;
     return (int8_t)stored < 0 ? CROSS_ALWAYS : CROSS_ONCE;
@@ -475,15 +483,81 @@ static void set_tile_crossing(GameState *g, FieldObject obj, TileCrossing crossi
 {
     static const uint8_t stored[] = { [STAY_IN_TILE] = STORED_STAY, [CROSS_ONCE] = STORED_CROSS_ONCE,
                                       [CROSS_ALWAYS] = STORED_CROSS_ALWAYS };
-    set_field_object_move_state_tile_mode(g, obj, stored[crossing]);
+    set_field_object_tile_crossing(g, obj, stored[crossing]);
 }
 
-/* A move of one step, which may cross into the next tile (or not). */
+/* A move of one step, which may cross into the next tile (or not: then the
+ * crossing is the last move's). */
 static void one_step(GameState *g, FieldObject obj, bool crossing)
 {
     set_field_object_steps_left(g, obj, 1);
     if (crossing)
         set_tile_crossing(g, obj, CROSS_ONCE);
+}
+
+/* ---- Moves a script starts --------------------------------------------------------------- */
+
+/* A move of one step, its crossing as the last move left it: a step's worth
+ * for the field's own routines to move the object in (event/movement.c's
+ * behaving as its state says). */
+void object_start_one_step(GameState *g, FieldObject obj) { one_step(g, obj, false); }
+
+void object_start_move(GameState *g, FieldObject obj, uint8_t steps, TileCrossing crossing)
+{
+    set_field_object_steps_left(g, obj, steps);
+    set_tile_crossing(g, obj, crossing);
+}
+
+/* The original stores the walk's step count itself as its crossing. */
+void object_start_walk(GameState *g, FieldObject obj, uint8_t steps)
+{
+    set_field_object_steps_left(g, obj, steps);
+    set_field_object_tile_crossing(g, obj, steps);
+}
+
+bool object_moving(const GameState *g, FieldObject obj) { return field_object_steps_left(g, obj) != 0; }
+
+// $C0:5FBE (a call interrupting the object)
+void object_stop_moving(GameState *g, FieldObject obj)
+{
+    object_unmark_scripted_move(g, obj);
+    set_field_object_steps_left(g, obj, 0);
+}
+
+/* Falling is kept as a flag byte, 1 while it falls. */
+enum { FALLING = 1 };
+
+static void mark_launched(GameState *g, FieldObject obj)
+{
+    object_mark_scripted_move(g, obj);
+    set_field_object_accelerating(g, obj, FALLING);
+}
+
+// $C0:4E25
+void object_launch(GameState *g, FieldObject obj, uint8_t velocity_x, uint8_t velocity_y, uint8_t acceleration,
+                   uint8_t steps)
+{
+    set_step_x(g, obj, (int8_t)velocity_x);
+    set_step_y(g, obj, (int8_t)velocity_y);
+    set_field_object_acceleration(g, obj, acceleration);
+    set_field_object_steps_left(g, obj, steps);
+    mark_launched(g, obj);
+}
+
+// $C0:4D06
+void object_jump(GameState *g, FieldObject obj, uint8_t steps, uint8_t height)
+{
+    set_field_object_steps_left(g, obj, steps);
+    set_field_object_acceleration(g, obj, height);
+    uint16_t rise = (uint16_t)((steps * height) >> 1);
+    set_field_object_velocity_y(g, obj, (uint16_t)(field_object_velocity_y(g, obj) - rise));
+    mark_launched(g, obj);
+}
+
+void object_land(GameState *g, FieldObject obj)
+{
+    object_unmark_scripted_move(g, obj);
+    set_field_object_accelerating(g, obj, 0);
 }
 
 // $C0:305D
@@ -515,7 +589,7 @@ bool object_line_up_with(GameState *g, FieldObject obj, FieldObject target)
     stand_still(g, obj);
     uint16_t own_x = position_x(g, obj) & ON_TILE, other_x = position_x(g, target) & ON_TILE;
     uint16_t own_y = position_y(g, obj) & ON_TILE, other_y = position_y(g, target) & ON_TILE;
-    leave_own_position(g, own_y);
+    ORIGINAL_EFFECT(leave_own_position(g, own_y));
     if (other_x == own_x && other_y == own_y)
         return false;
     if (other_x != own_x)
@@ -598,7 +672,7 @@ StepKind object_take_step(GameState *g, FieldObject obj)
     int8_t x = step_x(g, obj), y = step_y(g, obj);
     step_axis(g, obj, false, x, stay);
     step_axis(g, obj, true, y, stay);
-    leave_backward_step(g, backward(backward(0, x), y));
+    ORIGINAL_EFFECT(leave_backward_step(g, backward(backward(0, x), y)));
     return STEP_TAKEN;
 }
 
@@ -618,28 +692,16 @@ StepKind party_member_take_step(GameState *g, FieldObject obj)
 
 /* ---- Entries ------------------------------------------------------------------------------ */
 
-/* For the original's code and shadow mode (field/scratch.h): the direction's
- * working cells, the angle table index's low part and the two distances. */
-static void leave_direction_work(GameState *g, Quarter q)
-{
-    unsigned scale = angle_scale(q);
-    uint16_t across = (uint16_t)((q.across >> scale) & DISTANCE_BITS);
-    set_field_direction_work(g, (uint32_t)across | (uint32_t)q.across << 16 | (uint32_t)q.along << 24);
-}
-
 /* The direction from field_own_tile to field_target_tile, into
  * field_direction. The overflow of the angle's sum with its quarter is read
  * after. */
 void field_direction_to_target(Snes *s)
 {
     GameState *g = state_of(s);
-    MapTile from = { field_own_tile_x(g), field_own_tile_y(g) };
-    MapTile to = { field_target_tile_x(g), field_target_tile_y(g) };
-    Quarter q = quarter_between(from, to);
-    leave_direction_work(g, q);
-    Direction d = direction_between(g, from, to);
-    set_field_direction(g, d);
-    m_set_flag(s, CPU_FLAG_V, field_add_overflows8((uint8_t)(d - q.quarter), q.quarter));
+    Aim aim = { { field_own_tile_x(g), field_own_tile_y(g) }, { field_target_tile_x(g), field_target_tile_y(g) } };
+    Direction d = direction_between(g, aim.from, aim.to);
+    field_leave_direction(g, aim, d);
+    m_set_flag(s, CPU_FLAG_V, field_direction_overflow(aim, d));
     m_rts(s);
 }
 
@@ -650,7 +712,7 @@ void field_set_velocity(Snes *s)
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
     object_head(g, obj, (Direction)field_direction(g));
-    s->cpu.x = field_object_link(obj);
+    s->cpu.x = field_object_offset(obj);
     s->cpu.y &= 0x00FF;
     m_rts(s);
 }
@@ -664,13 +726,8 @@ void field_start_step(Snes *s)
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
     StepStart r = object_start_step(g, obj, (Direction)field_direction(g));
-    s->cpu.y = r.outcome != START_STILL ? field_current_object(g) : (uint16_t)(s->cpu.y & 0x00FF);
-    bool no_step = r.outcome == START_STILL || r.outcome == START_TURNED_STILL;
-    /* The vertical step it last looked ahead with: the one it set, or where
-     * it stayed blocked, its last direction's. */
-    int8_t looked_ahead_y = r.outcome == START_BLOCKED ? velocity_for(g, obj, r.direction).y : step_y(g, obj);
-    m_set_flag(s, CPU_FLAG_V, no_step ? field_add_overflows8(r.direction, QUARTER_TURN)
-                                      : field_add_overflows16(position_y(g, obj), sign_extended(looked_ahead_y)));
+    s->cpu.y = field_step_start_y(g, r, s->cpu.y);
+    m_set_flag(s, CPU_FLAG_V, field_step_start_overflow(g, obj, r));
     m_rts(s);
 }
 
@@ -682,14 +739,19 @@ void field_object_in_the_way(Snes *s)
 {
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
-    bool looked = looks_for_objects(g, obj);
-    in_the_way_leaves.measured = false;
+    bool looked = field_looks_for_objects(g, obj);
     ObjectsAhead r = object_in_the_way(g, obj);
-    if (looked)
-        original_cell16(g, 0xC7, s->cpu.y);
-    if (in_the_way_leaves.measured)
-        s->cpu.a = (uint16_t)((in_the_way_leaves.last_distance & 0xFF00) | (s->cpu.a & 0x00FF));
-    else if (looked)
+    field_leave_in_the_way_check(g, obj, s->cpu.y);
+    if (r.measured) {
+        /* the last distance it measured: along the way, and across where the
+         * object was close ahead */
+        vars_peek(true);
+        Measure m = measure(object_position(g, obj), object_position(g, r.object),
+                            object_facing(g, obj), r.object < obj);
+        vars_peek(false);
+        uint16_t last = close_ahead(m) ? m.across : m.along;
+        s->cpu.a = (uint16_t)((last & 0xFF00) | (s->cpu.a & 0x00FF));
+    } else if (looked)
         s->cpu.a = (uint16_t)((position_y(g, obj) & 0xFF00) | (s->cpu.a & 0x00FF));
     m_set_flag(s, CPU_FLAG_C, r.blocked);
     m_rts(s);
@@ -700,7 +762,7 @@ void field_line_up_with_object(Snes *s)
 {
     GameState *g = state_of(s);
     bool moving = object_line_up_with(g, (FieldObject)field_current_object_slot(s),
-                                      field_object_of_link((uint8_t)field_target_object(g)));
+                                      field_linked_object(field_link_stored((uint8_t)field_target_object(g))));
     m_set_flag(s, CPU_FLAG_C, moving);
     m_rts(s);
 }
@@ -733,25 +795,25 @@ static bool overflow_after_step(const GameState *g, FieldObject obj, StepKind ki
     return y < 0 ? field_subtract_overflows8(fine_y_before, (uint8_t)-y) : field_add_overflows8((uint8_t)y, fine_y_before);
 }
 
-/* The current object (8-bit X) takes its step: a party member's freely. */
-void field_move_current_object(Snes *s, bool party_member)
+/* The object takes its step: a party member's freely. */
+void field_move_object_step(Snes *s, FieldObject obj, bool party_member)
 {
     GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
     uint8_t fine_y_before = field_object_y_fine(g, obj);
     StepKind kind = party_member ? party_member_take_step(g, obj) : object_take_step(g, obj);
     m_set_flag(s, CPU_FLAG_V, overflow_after_step(g, obj, kind, fine_y_before, party_member, m_flag(s, CPU_FLAG_V)));
 }
 
+/* The current object's (8-bit X). */
 void field_move_object(Snes *s)
 {
-    field_move_current_object(s, false);
+    field_move_object_step(s, (FieldObject)field_current_object_slot(s), false);
     m_rts(s);
 }
 
 void field_move_object_unbounded(Snes *s)
 {
-    field_move_current_object(s, true);
+    field_move_object_step(s, (FieldObject)field_current_object_slot(s), true);
     m_rts(s);
 }
 
@@ -778,9 +840,9 @@ bool field_object_checks_its_way(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool faces = (uint8_t)(field_object_facing(g, (FieldObject)field_current_object_slot(s)) << 1) < 8;
+    bool ok = object_facing_is_one(g, (FieldObject)field_current_object_slot(s)) && object_search_fits(g);
     vars_peek(false);
-    return faces;
+    return ok;
 }
 
 /* Lining up with another object: that object is one. */

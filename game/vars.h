@@ -822,8 +822,8 @@ void set_field_party_objects(GameState *g, unsigned member, uint8_t v);
 /* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
  * except against the map's left or top edge. Set by event $F4 (zero also clears
  * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
-uint8_t field_setting_bc(const GameState *g);
-void set_field_setting_bc(GameState *g, uint8_t v);
+uint8_t field_screen_shake(const GameState *g);
+void set_field_screen_shake(GameState *g, uint8_t v);
 
 /* Cells the field's object, sprite and graphics routines keep values in on the way: an
  * animation's delay entry ($C1), the view window's edges or an object's screen position
@@ -1049,10 +1049,11 @@ enum { FIELD_ROW_FIRST_OBJECT_COUNT = 64 };   /* by screen row (screen Y / 4, ev
 uint8_t field_row_first_object(const GameState *g, unsigned row);
 void set_field_row_first_object(GameState *g, unsigned row, uint8_t v);
 
-enum { FIELD_OBJECT_UNLINKED_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* Negative while the object isn't in a row list, 0 while it is */
-uint8_t field_object_unlinked(const GameState *g, unsigned slot);
-void set_field_object_unlinked(GameState *g, unsigned slot, uint8_t v);
+enum { FIELD_OBJECT_ROW_MARK_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Whether the object is in a screen row's list: 0 while it is, and out of one the none link
+ * (negative) it was left with */
+uint8_t field_object_row_mark(const GameState *g, unsigned slot);
+void set_field_object_row_mark(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_ROW_LINK_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Previous object in the row */
@@ -1095,14 +1096,18 @@ enum { FIELD_OBJECT_ANIMATION_LINK_COUNT = 64 };   /* by object slot (X = slot *
 uint8_t field_object_animation_link(const GameState *g, unsigned slot);
 void set_field_object_animation_link(GameState *g, unsigned slot, uint8_t v);
 
-enum { FIELD_OBJECT_STATE_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* Negative disabled; below 3 moved without tile checks, 3 set when leaving the party, 7 checked
- * against the screen window, 8 skipped by the update loop */
-uint8_t field_object_state_state(const GameState *g, unsigned slot);
-void set_field_object_state_state(GameState *g, unsigned slot, uint8_t v);
-/* The character the object is (matched by event $D6 when removing one from the party) */
-uint8_t field_object_state_character(const GameState *g, unsigned slot);
-void set_field_object_state_character(GameState *g, unsigned slot, uint8_t v);
+enum { FIELD_OBJECT_ROLE_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below
+ * it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the
+ * party, 7 checked against the screen window only, 8 left alone by the update */
+uint8_t field_object_role(const GameState *g, unsigned slot);
+void set_field_object_role(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_CHARACTER_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The character the object is (event $D6 takes the first party member who is one out of the
+ * party); bit 7: the object runs no script */
+uint8_t field_object_character(const GameState *g, unsigned slot);
+void set_field_object_character(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_SPRITE_LAYOUT_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Bits 0-1: how many sprite records the object draws (4, 8, 12 or 24) */
@@ -1140,11 +1145,15 @@ enum { FIELD_OBJECT_FRAME_DELAY_COUNT = 64 };   /* by object slot (X = slot * 2)
 uint8_t field_object_frame_delay(const GameState *g, unsigned slot);
 void set_field_object_frame_delay(GameState *g, unsigned slot, uint8_t v);
 
-enum { FIELD_OBJECT_ANIMATION_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* Animation number ($FF: none to go back to after a timed play) */
-uint8_t field_object_animation_number(const GameState *g, unsigned slot);
-void set_field_object_animation_number(GameState *g, unsigned slot, uint8_t v);
-/* Frame within the animation */
+enum { FIELD_OBJECT_LOOPED_ANIMATION_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The animation the object loops, or animates its movement with ($FF while a one-off or a held
+ * frame has nothing to go back to) */
+uint8_t field_object_looped_animation(const GameState *g, unsigned slot);
+void set_field_object_looped_animation(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_ANIMATION_FRAME_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Where the object is in its animation: a frame number ($FF, a frame before the first, where it
+ * starts over) */
 uint8_t field_object_animation_frame(const GameState *g, unsigned slot);
 void set_field_object_animation_frame(GameState *g, unsigned slot, uint8_t v);
 
@@ -1154,12 +1163,15 @@ uint16_t field_object_sprite_records(const GameState *g, unsigned slot);
 void set_field_object_sprite_records(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_OBJECT_ANIMATION_MODE_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* 0 none, 1 looping, 2 a timed play, 3 a static frame */
-uint8_t field_object_animation_mode_mode(const GameState *g, unsigned slot);
-void set_field_object_animation_mode_mode(GameState *g, unsigned slot, uint8_t v);
-/* The animation a timed play runs */
-uint8_t field_object_animation_mode_timed_animation(const GameState *g, unsigned slot);
-void set_field_object_animation_mode_timed_animation(GameState *g, unsigned slot, uint8_t v);
+/* How the object animates (field/object.h, ObjectAnimationMode): 0 with its movement, 1 looping
+ * an animation, 2 playing a one-off, 3 holding a frame */
+uint8_t field_object_animation_mode(const GameState *g, unsigned slot);
+void set_field_object_animation_mode(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_ONE_OFF_ANIMATION_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The one-off animation the object plays (or last played: a held frame keeps timing it) */
+uint8_t field_object_one_off_animation(const GameState *g, unsigned slot);
+void set_field_object_one_off_animation(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_X_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Position within the tile ($80 its middle) */
@@ -1422,37 +1434,54 @@ uint16_t field_layer_scroll_values_y(const GameState *g, unsigned layer);
 void set_field_layer_scroll_values_y(GameState *g, unsigned layer, uint16_t v);
 
 enum { FIELD_LAYER_MAPS_COUNT = 3 };   /* by layer (BG1-BG3) */
-/* Row 0 of each layer's unpacked tile map, one byte per tile; row r lies r * 256 bytes on [64
- * bytes, one at a time] */
-enum { FIELD_LAYER_MAPS_BYTES = 64 };
-uint8_t field_layer_maps_byte(const GameState *g, unsigned layer, unsigned at);
-void set_field_layer_maps_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+/* Each layer's unpacked tile map, a byte a tile, 64 columns a row; a row of the three layers and
+ * of field_tile_properties every 256 bytes [a byte by row and column] */
+enum { FIELD_LAYER_MAPS_ROWS = 64, FIELD_LAYER_MAPS_COLUMNS = 64 };
+uint8_t field_layer_maps(const GameState *g, unsigned layer, unsigned row, unsigned column);
+void set_field_layer_maps(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v);
 
-/* Row 0 of the table a map unpacks from the first of its three bytes a tile, beside the two
- * attribute tables (row r r * 256 on) [64 bytes, one at a time] */
-enum { FIELD_TILE_PROPERTIES_BYTES = 64 };
-uint8_t field_tile_properties_byte(const GameState *g, unsigned at);
-void set_field_tile_properties_byte(GameState *g, unsigned at, uint8_t v);
+/* The first of the three bytes a map gives each tile, beside the layers' rows [a byte by row and
+ * column] */
+enum { FIELD_TILE_PROPERTIES_ROWS = 64, FIELD_TILE_PROPERTIES_COLUMNS = 64 };
+uint8_t field_tile_properties(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint8_t v);
 
-/* Row 0 of the map attribute tables (row r r * 256 on, index row << 8 | column): +$00 bit 6 the
- * sprite priority for field_object_sprite_priority +1; +$40 bit 7 blocks movement, bit 6 the
- * priority for +0 [128 bytes, one at a time] */
-enum { FIELD_TILE_ATTRIBUTES_BYTES = 128 };
-uint8_t field_tile_attributes_byte(const GameState *g, unsigned at);
-void set_field_tile_attributes_byte(GameState *g, unsigned at, uint8_t v);
+/* The second of the three bytes a map gives each tile (a row every 256 bytes, beside
+ * field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the
+ * map (field_object_sprite_priority +1, where the object takes its priority from the map) [a
+ * byte by row and column] */
+enum { FIELD_TILE_UPPER_ATTRIBUTES_ROWS = 64, FIELD_TILE_UPPER_ATTRIBUTES_COLUMNS = 64 };
+uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
+
+/* The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it,
+ * bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)
+ * [a byte by row and column] */
+enum { FIELD_TILE_LOWER_ATTRIBUTES_ROWS = 64, FIELD_TILE_LOWER_ATTRIBUTES_COLUMNS = 64 };
+uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 uint8_t field_map_data(const GameState *g);
 void set_field_map_data(GameState *g, uint8_t v);
 
-enum { FIELD_OBJECT_MOVE_STATE_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* 0 keeps moves inside the current tile, positive allows one step across (then cleared),
- * negative crossing every step */
-uint8_t field_object_move_state_tile_mode(const GameState *g, unsigned slot);
-void set_field_object_move_state_tile_mode(GameState *g, unsigned slot, uint8_t v);
-/* Countdown of a timed animation (loops left for a scripted one; 0 none playing) */
-uint8_t field_object_move_state_animation_count(const GameState *g, unsigned slot);
-void set_field_object_move_state_animation_count(GameState *g, unsigned slot, uint8_t v);
+/* Bit 0 swaps which of the two per-line window tables window 2 reads in each set of the line
+ * effects' tables; the scripts set it as the high byte of their variable $A8 (event_variables),
+ * through which the original reads it */
+uint8_t field_window_2_second_table(const GameState *g);
+void set_field_window_2_second_table(GameState *g, uint8_t v);
+
+enum { FIELD_OBJECT_TILE_CROSSING_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Whether the object's move may take it out of its tile (field/object.h, TileCrossing): 0 never,
+ * positive on its next step only (then cleared), negative on every step */
+uint8_t field_object_tile_crossing(const GameState *g, unsigned slot);
+void set_field_object_tile_crossing(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_ONE_OFF_HALF_PASSES_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* How much of a one-off animation is left to play, in half passes (0 none playing; 1 played out,
+ * holding its last frame) */
+uint8_t field_object_one_off_half_passes(const GameState *g, unsigned slot);
+void set_field_object_one_off_half_passes(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_LINE_EFFECT_TABLES_COUNT = 16 };   /* by table set * 8 + effect slot */
 /* Indirect tables of the eight per-line effects (tile map addresses, BG1-BG3 scroll, screens,
@@ -1582,9 +1611,11 @@ void set_field_auto_scroll_position_x(GameState *g, unsigned layer, uint16_t v);
 uint16_t field_auto_scroll_position_y(const GameState *g, unsigned layer);
 void set_field_auto_scroll_position_y(GameState *g, unsigned layer, uint16_t v);
 
-/* Start of the objects' sprite frame data (offsets, tile and attribute words per sprite), at the
- * object's field_object_sprite_records offset [8 bytes, one at a time] */
-enum { FIELD_SPRITE_FRAME_DATA_BYTES = 8 };
+/* The objects' sprites as their frames give them, 8 bytes a sprite at the object's
+ * field_object_sprite_records offset, as the records keep them (the X offset a word, the Y
+ * offset, the tile and the attributes at the records' places), which a rebuild takes the records
+ * from [832 bytes, one at a time] */
+enum { FIELD_SPRITE_FRAME_DATA_BYTES = 832 };
 uint8_t field_sprite_frame_data_byte(const GameState *g, unsigned at);
 void set_field_sprite_frame_data_byte(GameState *g, unsigned at, uint8_t v);
 

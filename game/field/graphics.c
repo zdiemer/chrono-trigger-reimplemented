@@ -33,13 +33,11 @@ static uint32_t graphics_set(const GameState *g)
 static uint16_t tile_offset(uint16_t tile) { return (uint16_t)((tile & TILE_NUMBER_MASK) * TILE_BYTES); }
 
 /* The graphics set's bank, as the copy reads it: bank $7F where the builder
- * made the graphics, else one of the ROM's $D2-$D5 (any other bank reads
- * $D5). */
+ * made the graphics, else the ROM's bank of sprite graphics it names
+ * (field_data.h). */
 static uint8_t source_bank(uint8_t bank)
 {
-    if (bank == BUILD_BANK || (bank >= 0xD2 && bank <= 0xD4))
-        return bank;
-    return 0xD5;
+    return bank == BUILD_BANK ? bank : field_sprite_graphics_rom_bank(bank);
 }
 
 /* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
@@ -91,7 +89,7 @@ static void tile_copy_entry(Snes *s, bool mirrored)
 {
     GameState *g = state_of(s);
     uint16_t tile = s->cpu.a, y = s->cpu.y;
-    leave_saved_y(g, y);
+    ORIGINAL_EFFECT(leave_saved_y(g, y));
     if (mirrored) {
         copy_sprite_tile_flipped(g, tile);
     } else {

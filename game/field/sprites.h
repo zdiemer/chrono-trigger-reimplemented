@@ -6,6 +6,10 @@
 
 #include "snes/system.h"
 
+/* Where the sprite table is in low RAM (field_sprite_table), which the
+ * vblank sends and whose ranges' cursors the building keeps as addresses. */
+enum { FIELD_SPRITE_TABLE_ADDRESS = 0x0700 };
+
 /* field/sprites.c */
 void field_build_sprite_table(Snes *s);
 void field_draw_object_sprites(Snes *s);

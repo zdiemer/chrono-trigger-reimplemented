@@ -4363,6 +4363,420 @@ rest are reading:
 The platform gaps (a sprite service, typed line effects, transfers without
 write-order arrays) and the map's renames are deferred, as before.
 
+### Phase 3a: event onto the field's objects
+
+The pass PLAN.md scheduled once event's language and field's objects had both
+landed: it finishes what the two subsystems' reviews left (TODO.md's lists,
+each item deleted as it was done), moves event's commands onto
+`field/object.h`, and names the object tables in the RAM map by what they
+hold. Five steps, each committed with shadow mode clean over the library.
+
+**1. The stray accesses past a table, made explicit.** Each is one marked
+access, the way `leave_stray_in_view_write` already was, and is listed in
+TODO.md for the build without the original's memory:
+- an object above the screen places a fifth sprite's Y, in the record after
+  its four (`leave_stray_fifth_sprite_y`, `ORIGINAL_EFFECT`);
+- a range full enough runs its high table cursor past `field_sprite_table`'s
+  $220 bytes, and the original writes the high bits there too
+  (`leave_stray_high_bits`, by address through `game/wram.h`, since those
+  bytes are no variable's);
+- the in-the-way search's slots past 64, which the original reaches with no
+  objects or 64 of them (it counts round 128), are the original's: no map has
+  either, and the guards of the check and of the moves that set off refuse
+  them (`object_search_fits`), where step 1 first read the tables after each
+  table by their own names (item 34 of review-port's rubric, "emulating inputs
+  no game state produces", which came after);
+- the openings' word clear of the last slot's solidity clears the first
+  object's falling flag (`object_start_on_the_map`);
+- `field_layer_maps`, `field_tile_properties` and the two tile attribute
+  tables are tables of rows: `tools/ram_map.py` has a new shape for them
+  (`rows`, `row_stride`: the variable is one row, repeated a row stride apart
+  with other tables' rows between), whose accessors take a row and a column,
+  with tests. The attributes are two variables now, the upper and the lower
+  (`field_tile_upper_attributes`, `field_tile_lower_attributes`), and a map's
+  tile is one `TileAttributes` (`field/layers.h`), where two files had their
+  own.
+
+The object guards take only slots inside the tables (`field_names_object`:
+below `$80` doubled, where they took anything below `$100`). One exception the
+game makes: a command that names a party member without checking takes an
+empty place's marker as object 64 (`$95`'s 52,898 calls over the library
+include a scene following a party of two; the member's place is empty). This
+step first took the marker as "the absent member" and let the port read the
+tables' neighbours through the objects' accessors; the fresh reviews asked for
+an explicit path instead, and the guards now leave those calls to the
+original (below, "The fresh reviews' must-fix items").
+
+**2. `field/object.h`, the only way to an object's state.** The header gained
+the operations event needed, each with its storage in one place
+(`field/object.c` for what a script sets, `motion.c` for position and moves,
+`animation.c` for the animation, `object_view.c` for the view):
+- role, reachability and sprite: `object_take_off_the_map`,
+  `object_leave_the_party`, `object_character`, `object_runs_a_script`,
+  `object_unreachable`/`object_set_unreachable` (the mark is the top bit of the
+  move length, which a walk's step count then carries), `object_set_sprite`
+  (`ObjectSprite`), `object_can_be_seen`, `object_start_on_the_map`;
+- place and look: `object_tile`, `object_place`, `object_put_on_tile`,
+  `object_facing`, `object_set_facing`, `object_turn`, `facing_of_direction`,
+  `object_set_layering` (`ObjectLayering`), `object_layer_as_the_map`,
+  `object_set_sprite_priorities`, `object_take_own_priorities`;
+- what a script sets about moves: `object_set_speed`, `object_set_blocked_by`
+  (`ObjectBlocking`), `object_set_solidity` (`ObjectSolidity`),
+  `object_set_arrival`/`object_lines_up` (`ObjectArrival`),
+  `object_set_move_length`/`object_move_length`;
+- moves: `object_start_move` (with a `TileCrossing`), `object_start_walk` (the
+  scripts' walks store their step count as the crossing, so an unreachable
+  object's 128-step walk crosses on every step), `object_start_one_step`,
+  `object_moving`, `object_stop_moving`, `object_mark_scripted_move` and its
+  pair, `object_launch`, `object_jump`, `object_land`, `object_velocity`,
+  `aim_toward_object`;
+- animation: `object_play_animation` takes the half-pass countdown `$B7`
+  gives (`$AB` passes two), `object_end_frame_time` (a turn shows at once),
+  and the frame read split into a finder and a taker
+  (`object_take_next_frame`, below);
+- the screen: `tile_well_on_screen`, one test where two files had it.
+
+And the four the review asked for: `FieldLink` is a value whose byte only the
+storage functions and the guards see (`field_link_to`, `field_linked_object`,
+`field_link_is_object`, `field_same_link`); the in-view flag is one
+`ObjectView`, since the row removal's stray write can leave a link in the
+first object's flag, which the object update reads as out of view and the
+in-the-way check, the party's re-sort and `$27` as in view
+(`OVERWRITTEN_BY_A_LINK`); `ObjectRole.kind` is an `ObjectKind`; and
+`object_make_current`, the original's calling convention, is in
+`field/bridge.h`. The step's start takes a tile's two priorities the other
+way round from a script's layering (the original's two routines disagree
+about which table is which half), one named function
+(`take_priorities_for_the_step`). The object update's steps take the object
+as a parameter, and its loop end is marked scaffolding.
+
+**3. Event onto the object model.** No file of `game/event/` reaches an
+object table's accessor any more; "the field's objects" sections are gone.
+`event/animation.c` is four operations over the field's state machine.
+`event/movement.c`'s twenty bridges became five operations and a bridge:
+
+| Operation | Opcodes | What the rows say |
+|---|---|---|
+| `move_to_tile` | `$96 $97 $A0 $A1 $9A` | walking or sliding (`MoveStyle`), the tile from operands or variables, counted |
+| `move_toward` | `$94 $95 $9E $9F $98 $99 $8F` | an object or a member, walking or sliding, counted, until next to it or well on screen (`WalkEnd`) |
+| `move_in_direction` | `$92 $9C $9D` | walking or sliding, from operands or variables |
+| `jump_to_tile`, `launch`, `follow`, `follow_party_member` | `$7A $7B $B5 $B6` | |
+| (bridge) `event_cmd_behave` | `$B0` | the field's state routines, still the original's |
+
+They call the field's motion as C (`direction_between`, `object_in_the_way`,
+`object_start_walk`, `object_start_step`, `object_animate_movement`,
+`object_stand`, `object_line_up_with*`, `object_head`, `object_jump`), and
+the carries they handed each other, `s->cpu.a = facing`, the jumper from X and
+the call-site tables are gone with the calls. `$A8`/`$A9` (face toward an
+object) are operations too. What the original's handlers leave in Y and V is
+now the field's routines' own, recorded as scaffolding where the move ends
+(`leave_set_off`, `leave_jump`), from the field's record of what each routine
+leaves (`field/scratch.h`: `field_leave_aim`, `field_leave_direction`,
+`field_step_start_y`/`_overflow`, `field_walk_overflow`, `field_jump_overflow`,
+which the field's own wrappers now use too). Only the final Y and V of a path
+matter, since shadow mode compares them where the command returns.
+
+**Operations take the parameters they read** (review-port's item 32): an
+operation is `static EventFlow loop_animation(GameState *g, FieldObject self,
+uint8_t animation)`, and `EVENT_OPERATION(loop_animation, self, animation)`
+after it makes the form the table calls, which hands it those of the decoded
+command, in its order; a row says `OPERATION(loop_animation)`. The guards'
+checks are the same (`EVENT_CHECK`, `CHECK`). `EventCommand` is the engine's
+alone. The rows lost `.routine` (the handler's address is the original's
+table's, read by the machine side, `handler_of`, which all 185 rows agreed
+with) and `.bridge` (`event.h`'s `EVENT_BRIDGES` list is the table of
+bridges); `EventParameter`, which only the scaffolding table used, is
+`leaves.c`'s and compiles out with it. New operand kinds decode packed
+operands into typed parameters: `OPERAND_BITS`/`OPERAND_WORD_BITS` (a fade's
+brightness and rate, a tint's `TintMix` and rate, a call's level and
+function, a story flag's page and bit, a question's first and last choice)
+and `OPERAND_PLUS_ONE` (`$B7`'s count); solidity, blocking, arrival, layering
+and the sprite are the field's types. Two stayed bytes on purpose:
+`set_player_control` stores the script's byte, which the field tests as
+nonzero, and a location's two words are decoded by `location_of` in the
+operation (TODO.md).
+
+**One vocabulary.** The bridges of both subsystems call the original through
+`field/bridge.h`: `bridge_call`, `bridge_call_long`, `bridge_back` and
+`BridgeMachine` (how the bridge runs: A's width, X's, the direct page, the data
+bank), with `JSR_SIZE`; the five copies of `back()` and the four of the field's
+call-out helper are gone, and `tools/dontcare_check.py` reads `bridge_call` as
+it reads `m_jsr_dc` (with a test). The duplicated definitions went:
+`DISABLED`/`CALLS_SKIP` (the object's `disabled` and `unreachable`),
+`NO_SPRITE_SHOWN`/`SPRITE_HIDDEN` (`ObjectSprite`), `well_on_screen`
+(`tile_well_on_screen`), the three aim helpers (`aim_toward_object`,
+`field_leave_aim`), `field_requests`' bits (`field/field.h`: a battle is asked
+for with a tile copy, `FIELD_REQUEST_BATTLE | FIELD_REQUEST_TILE_COPY`, which
+the main loop's `$C0:1770` runs), the field's effect bits, `link_or_none`
+(two guards named for what each checks), `TileAttributes`, `JSR_SIZE`,
+`SPRITE_TABLE` (`FIELD_SPRITE_TABLE_ADDRESS`), `LEAVE_ROW`/`JOIN_ROW`
+(`FIELD_*_ROW_ENTRY`, with the rows' step shared by the update and the view),
+`AXIS_X` (`field/field.h`), the random table and its draw
+(`field_draw_random`, which a blocked object's turn and `$7F` share), the
+overflow helpers (`field/scratch.h`), and "keep the offset across the call"
+(`event_keep_offset`).
+
+**4. The RAM map by meaning.** The object tables' records grouped by where
+their bytes sit became variables named for what they hold:
+`field_object_animation_mode_mode` is `field_object_animation_mode`,
+`..._animation_mode_timed_animation` is `field_object_one_off_animation`,
+`field_object_animation_number` is `field_object_looped_animation`,
+`field_object_move_state_tile_mode` is `field_object_tile_crossing`,
+`..._move_state_animation_count` is `field_object_one_off_half_passes`,
+`field_object_state_state` is `field_object_role` (and `_character`
+`field_object_character`), `field_object_unlinked` (0 meaning in a row) is
+`field_object_row_mark`, `field_setting_bc` is `field_screen_shake` (and event
+`$F4`'s operation `shake_screen`, in `tools/disasm/eventscript.py` too), and
+the byte of script variable `$A8` window 2 reads is
+`field_window_2_second_table`. `field_sprite_frame_data` is its $340 bytes, not
+its first record. `tools/ram_map.py` rejects a generated name that says a word
+twice, and `check` lists the names still shaped like addresses (seven:
+`field_setting_1e`, whose meaning isn't cheap to find, and six of the sound
+driver's). Every stale `source` line of event's and field's was fixed: 57
+named functions that had moved or been renamed.
+
+**5. The rest of the follow-ups.**
+- `sprites.c`: a `SpriteRecord` with storage functions (the record's X, Y,
+  offsets and look, and the same sprite in the frame's data), which
+  `place_sprites` works on; no `high_of` (the placing entry's guard takes the
+  object in X only where it is the current one, which the game always has);
+  the table's building loops on a local row, hands the draw its row in Y and
+  stops where a draw came back with another; the records' steps are a
+  `RecordsStep` over one table of each layout's routines, X set only for the
+  calls that read it.
+- `animation.c`'s frame read is a finder that changes nothing
+  (`find_next_frame`) and a taker (`object_take_next_frame`), over
+  `field_data.h`'s typed frame tables (`FieldFrameTable`,
+  `field_animation_place`, `field_animation_frame_number`,
+  `field_animation_frame_time`), where callers built ROM addresses.
+- The object update's call sites are one table of the update's steps, and
+  `nmi.c`'s three map-transition sends one table.
+- Smaller: `wave_part` returns nothing (the wrapper works out the last
+  entry's pointer), the view window's widenings are named, the layers are
+  `FIELD_BG1`-`FIELD_BG3`, and the sprite graphics' ROM banks are
+  `field_data.h`'s (`field_sprite_graphics_rom_bank`).
+- The field's scaffolding helpers are called through `ORIGINAL_EFFECT`, as
+  event's are, so the native-shape build compiles them out.
+- PORTING.md's "Call-outs" says how a bridge's calls are paired with the
+  original's, and the bridges' vocabulary.
+
+**Against the rubric's later items** (review-port 34-38, which grew from
+scene's review while this pass ran). The leftover records went where the
+wrapper can derive the value (item 35): the in-the-way check returns the
+object it measured last as well as whether it was blocked, and the wrapper
+measures it again for the distance whose high byte the original leaves in A;
+the wave's last carry comes from the table the wave wrote and the offsets'
+table; whether the frame read started the animation over from the frame and
+entry it left. What the wrapper looks at again it reads under `vars_peek`,
+which the cartridge's accessors now honour too (`runtime/port/state_io.c`), so
+it costs the port no time. Two records stay, for cells whose values follow the
+path taken and are nowhere in the final state (the last run the tile
+unpacking repeated, the last sloped edge of a window shape), written through
+`ORIGINAL_EFFECT`; `field/scratch.h` says which. The in-the-way search's stray
+slots are a guard now (item 34, above). No step is kept in the original's
+order for the timing estimate's sake (item 36): the orders this pass kept (the
+frame table looked up last, the copy of script data a byte at a time) are
+behaviour, a read of open bus and a copy onto itself.
+
+Deferred, each in TODO.md with why: the location's decoding, `nmi.c` sharing
+`display.c`'s edge runs (the don't-care check reads a call's site only from
+its own file), the staging buffers (a transfer service's), the prediction
+guards, and the platform's sprite and line-effect services.
+
+**What shadow mode found.** Over the 26 movies nothing mismatches and no page
+is refused. The totals of every hand port are `main`'s but for the commands
+that stopped being bridges, whose calls the engine used to make as call-outs
+(so shadow mode abandoned them) and now runs as C (so it compares them):
+
+| Entry | Calls | Matched before | Matched after |
+|---|---:|---:|---:|
+| `event_cmd_move_toward_party_member` | 72,121 | 20 | 72,121 |
+| `event_cmd_follow_party_member` | 70,971 | 20 | 70,971 |
+| `event_cmd_move_to_tile` | 38,113 | 451 | 38,113 |
+| `event_cmd_move_toward_object` | 33,893 | 9 | 33,893 |
+| `event_cmd_follow_object` | 33,893 | 9 | 33,893 |
+| `event_cmd_move_in_direction_keep_facing` | 7,287 | 6,330 | 7,287 |
+| `event_cmd_move_to_tile_keep_facing` | 3,074 | 112 | 3,074 |
+| `event_cmd_move_in_direction` | 2,661 | 2,362 | 2,661 |
+| `event_cmd_jump_to_tile` | 1,932 | 1,810 | 1,932 |
+| `event_cmd_face_toward_member` | 1,543 | 0 | 1,543 |
+| `event_cmd_face_toward_object` | 251 | 0 | 251 |
+| `event_cmd_move_to_tile_from_variables_keep_facing` | 127 | 0 | 127 |
+| `event_cmd_move_to_tile_from_variables` | 100 | 0 | 100 |
+| `event_cmd_move_toward_party_member_until_on_screen` | 10 | 0 | 10 |
+
+Every call before that didn't match was abandoned, never compared; none
+mismatched, before or after. (The reviews' fixes, below, later handed the
+calls on an empty party place to the original: 52,898 each of `$95`'s and
+`$B6`'s.) `event_cmd_behave`, the one move still a bridge,
+keeps its 250,698 abandoned calls.
+
+The field's motion entries (`field_direction_to_target`, `field_start_step`,
+...) keep their totals: shadow mode counts an entry where the original reaches
+it, and the original still calls them from its own handlers. Renamed entries
+(`event_cmd_set_bc`, `event_cmd_set_solid`, `event_cmd_move_by_variables`)
+carry their predecessors' totals under their new names.
+
+**What fuzzing found.** `tools/fuzz_compare.py` over event's and field's 438
+runs (seed 1, `main`'s `ct_fuzz` against this one's) found one divergence, in
+the rewritten frame read: `field_read_animation_frame` mismatched 517 of 3,326
+states in A. The finder looked up the frame table (its bank last) before the
+animation's number, and where the table points at nothing that answers (bank
+`$3C`, `$4600`), the read returns the last byte on the bus: the bank in the
+original, the animation's number in the port. The finder now looks the table up
+last, as the original does, and reads a restarting animation's first frame
+after putting it back before its start (a table in work RAM can hold the frame
+number it rewinds; that took two more states). 0 then. Every other run has the
+predecessor's mismatches, none, and three kinds of run compare fewer states,
+each for a guard, which the skipped column shows:
+- every entry whose operand or X names an object compares about half as many
+  (`event_cmd_if_in_view` 5,055 to 2,513, `field_move_object` 10,065 to 5,060,
+  `field_line_up_with_object` 5,000 to 1,283 with two objects): the guards take
+  slots inside the tables, below `$80`, where they took anything below `$100`;
+- `event_cmd_copy_data` 9,987 to 6,139: the operation reads the data through
+  the script's accessor, and its guard turns away a block that runs past the
+  script's end or has no length (the original's block move takes the whole
+  bank then); no script has either;
+- the sliding moves toward an object or a member (`$9E`, `$9F`) and
+  `field_position_sprites`/`field_load_and_position_sprites` compared 55 to
+  156 states before their entries were changed: the first check the object
+  faces one of the four facings (the in-the-way check reads a table of four),
+  the second take the object in X only where it is the current one, which the
+  high table bits are the current object's (the game always places the current
+  object). Their entries now fill the facings with the four and make the object
+  in X the current one: the moves compare half their predecessor's states,
+  the object guard's share (2,498 and 1,317), and the placing all 20,000
+  (loose 13,878), before and after.
+- the moves that set off and `field_object_in_the_way`, once the search's
+  stray slots became a guard, compared a quarter of the states: the fuzzer
+  randomizes the map's object count, which sits before the script. Their
+  entries now keep it 1 to 63, and they compare their predecessors' states
+  (the object guard's half where an operand names an object).
+
+**The timing gate.** Event's and field's `cost_milli` rows were recalibrated
+over this pass's shadow runs, 57 rows (the two of menu's that the calibration
+also moved were put back). The largest moves: `field_set_velocity` 4,384 to
+6,305 (122 calls in three movies), `field_update_object_sprites` 3,228 to
+4,353, the window table choices `field_set_window2_table_0`/`_1` 2,567 to
+3,208 and 2,617 to 3,271, `field_update_objects` 4,309 to 4,963, and among
+event's the rows that stopped calling out (`event_cmd_play_animation` 5,323 to
+4,737). Three entries went over the vblank tail's limit and are in
+`tools/timing_exceptions.txt`: `event_cmd_move_to_tile` (2.24% of its calls in
+vblank off by 1024 clocks or more) and `event_cmd_move_toward_party_member`
+(5.76%), whose time follows the field's motion they now run inline as C over
+the game's state, with no machine at hand to name those routines' time, and
+`field_object_in_the_way` (1.08%), whose time follows how far its search over
+the slots goes. All three write object state in work RAM, and the vblank check
+finds none of their writes moved.
+
+**The fresh reviews' must-fix items.** A reader who hadn't seen this account
+read the branch against the rubric, which the reviews grew to 48 items, and
+rated no file translation; `object.h` was credited as a domain module the
+rest uses. What they would not accept for a merge was fixed on the branch:
+
+- *Accesses past a table* (item 28). The resumption search of `$00` walked 512
+  levels of `event_saved_positions`, which holds eight; it searches the levels
+  below the object's to the lowest now, and the return's guard refuses an
+  object with nothing to resume there (and any level past the eight), so the
+  original runs its wrap. A call's level and its target's are checked to be
+  among the eight too. An empty party place no longer becomes object 64: it
+  names no object (`member_object`), the commands that allow one decode
+  `there` false and don't look, and the guards leave the ones that don't to
+  the original (`member_named`), the wait of `$07` included.
+- *The Y/V record written from inside the logic* (items 26, 35, 39). The
+  operations no longer see the record or the command's offset. `event/leaves.c`
+  runs the command (`event_perform_leaving`) and works out around it, from its
+  parameters, the state before (a `note`) and after (a `derive`), what the
+  original leaves: the calls' V (clear wherever the call reached the places,
+  whose index additions can't overflow), the absent member's Y, the return's
+  V, the face-toward's direction overflow, both screen tests' V, the jump's Y
+  and V, the launch's Y, the change of location's Y and kept offset, the
+  question's kept choices, the drift's Y, the follows' kept offset and the
+  story flag's operand (table entries), and the jump's leftovers, which the
+  engine made in `follow` before. `copy_data`'s Y and V are its bridge's,
+  from the block. What stays said where it happens, through three functions of
+  `leaves.h` that take no offset: how a move set off (the step's start is the
+  field's, and nothing after the move says whether it stepped, turned or
+  stayed), whether it looked for objects in the way on its way (which keeps
+  the offset in a cell), and the walking animation's overflow while it lines
+  up. The engine takes no pointer from the runner, and the two screen-test
+  helpers are one (`keep_screen_edges`, beside `field_screen_test_overflow`).
+- *The object encoding in `field/object.h`* (item 18). `event_names_object`,
+  `slot_of`, the engine's copy of `object_make_current`, `handler_of`'s own
+  read of the table and `SCRIPT_SIZE` are gone; `field_names_object`,
+  `field_link_names_object`, `object_current`, `object_current_is_one` and
+  `object_make_current` are `object.h`'s; the party's link and the dialog's
+  speaker are operations (`party_place_left_empty`, `dialog_set_speaker`), the
+  character byte's empty marker is `NO_CHARACTER`, and scaffolding keeps an
+  object through `field_object_offset`. The engine counts `FieldObject`s. The
+  openings keep `event_object_end` once, as scaffolding, and loop to the
+  count; they store the current object as a word, as the original's map
+  setup does with 16-bit index registers ($C0:58FB), which the review read as
+  a slip: `leave_current_as_a_word` says so.
+- *`object.h` as the field's whole vocabulary.* `sprites.c` reads no object
+  byte: the layout, the range, the records and their state, and the high bits
+  are operations, and the records' state has one definition. The battle's
+  placement byte has one name, and a true one (`object_let_the_battle_place`:
+  $FF leaves the place to the battle). Solidity is a `bool` (decoded by a new
+  operand kind, `FLAG`, which the guard holds to 0 or 1), the layering a
+  struct the script's byte decodes into (`layering_of_byte`; a byte with bit 6
+  set is the original's), and the facing is decoded once, in storage, with a
+  guard (`object_facing_is_one`) where a facing past the four would read past
+  a table.
+- *`animation.c`.* Half passes are the scripts' unit as well as the storage's,
+  and the header says so; "which animation is current" is one function (the
+  tick times the last one-off through a held frame, the frame builder reads
+  the loop's frames, which the one function says); the frame table for a
+  facing takes the decoded facing; and the frame read's overflow is worked
+  out in `field/leaves.c`. The file then read with no finding of its own, and
+  its first half, with `event/animation.c`'s command, replaced the review
+  skill's illustration.
+- *Window 2's tables* are named for what they are, the two halves of
+  `field_window_edge_lines` read a byte a line (`window2_edge_table`), and the
+  comments that called them a copy are fixed.
+- *The word clear's spill* is one marked helper for every slot
+  (`leave_word_clear_spill`). The game doesn't depend on it: a build that
+  skips it, run with the ports in the shipping mode over `new-game`, `field`,
+  `events-prison-escape` and `late-omen-zeal` (68,422 frames with their map
+  loads), left every byte of WRAM, VRAM, CGRAM, OAM and SRAM identical to the
+  original's, every frame; the next slot's state is already 0 when the
+  openings run.
+- *Small ones.* The in-the-way search keeps the object it measured once,
+  after the search (`leave_target`). The flag derivations exported from the
+  logic files moved to `field/leaves.c`, beside the wrappers, with
+  `field/parts.h` naming the few parts of the motion and the animation they
+  work from. `cpu_io.h` says the port and the math units are for the
+  original's leftovers, not for computing. The walk animation of a move is a
+  statement of its own, not inside the expression only scaffolding read
+  (item 40).
+
+The rest of the reviews' findings are in TODO.md with why they wait.
+
+**What they moved.** Shadow mode over the 26 movies: nothing mismatches. Three
+entries' totals moved, all to the guards on an empty party place:
+`event_cmd_move_toward_party_member` and `event_cmd_follow_party_member` hand
+52,898 calls each to the original (a scene following a party of two, where the
+third place is empty; 19,223 and 18,073 still match), and
+`event_cmd_note_tile_member` 2,735 of 38,500. Every other entry's total is the
+same, the calls, layering, solidity and facing guards refusing no call the
+game makes.
+
+Fuzzing against `main` (seed 1, the 438 runs) found three things on the way,
+each fixed in the port: the one "current animation" function first took an
+animation mode past the four as looping where the tick takes it as a one-off
+(10 of 2,898 states; each reader keeps its own test of the stored mode now),
+the noted facing wrote the decoded facing where the original notes whatever
+byte is kept (now the guard's), and through those the engine (10 of 6,823).
+Then 0 differ. The entries the new guards narrow fill what the guards
+require, so they compare again: the party's places and the operand that
+names one (the member commands, about 2,000 of 20,000 each, where the random
+operand named a place past the party's three before), the facings (the noted
+facing, 2,498; the frame read, 4,089), the call levels (1,289, the refusing
+flags sharing the rows) and the solidity operand (10,035). The derivations
+look at the state without the machine's time (`vars_peek`), so an estimate
+still counts only what the operation does, and event's and field's rows were
+recalibrated.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

@@ -26,47 +26,50 @@ enum { HELD = 1 };   /* input_mapped: the held buttons, through the assignments 
 
 // $C0:66C6
 /* If a button is held. */
-static EventFlow if_held(GameState *g, const EventCommand *c)
+static EventFlow if_held(GameState *g, uint16_t buttons)
 {
-    return unless_jump((input_held(g) & c->buttons) != 0);
+    return unless_jump((input_held(g) & buttons) != 0);
 }
+EVENT_OPERATION(if_held, buttons)
 
 // $C0:66A5
 /* If an assignment's buttons are held (or, for any, anything at all, the
  * direction pad included). */
-static EventFlow if_assignment_held(GameState *g, const EventCommand *c)
+static EventFlow if_assignment_held(GameState *g, uint16_t buttons)
 {
-    return unless_jump((input_mapped(g, HELD) & c->buttons) != 0);
+    return unless_jump((input_mapped(g, HELD) & buttons) != 0);
 }
+EVENT_OPERATION(if_assignment_held, buttons)
 
 // $C0:6732
 /* If a button was pressed since a script last asked: the press is taken, so
  * the next question needs a new one. */
-static EventFlow if_pressed(GameState *g, const EventCommand *c)
+static EventFlow if_pressed(GameState *g, uint16_t buttons)
 {
     uint16_t latched = field_input_latched(g);
-    if (!(latched & c->buttons))
+    if (!(latched & buttons))
         return take_jump();
-    set_field_input_latched(g, (uint16_t)(latched & ~c->buttons));
+    set_field_input_latched(g, (uint16_t)(latched & ~buttons));
     return next_command();
 }
+EVENT_OPERATION(if_pressed, buttons)
 
 /* Each has one operand, its jump. */
 EVENT_OPCODES(event_input_opcodes,
-    { 0x2D, if_assignment_held, .buttons = CONSTANT(ANYTHING), .length = 2, .jump = 1, .routine = 0xC066A5 },
-    { 0x30, if_assignment_held, .buttons = CONSTANT(FOURTH_ASSIGNMENT), .length = 2, .jump = 1, .routine = 0xC066B2 },
-    { 0x31, if_assignment_held, .buttons = CONSTANT(FIRST_ASSIGNMENT), .length = 2, .jump = 1, .routine = 0xC066BC },
-    { 0x34, if_held, .buttons = CONSTANT(BUTTON_A), .length = 2, .jump = 1, .routine = 0xC066C6 },
-    { 0x35, if_held, .buttons = CONSTANT(BUTTON_B), .length = 2, .jump = 1, .routine = 0xC066E5 },
-    { 0x36, if_held, .buttons = CONSTANT(BUTTON_X), .length = 2, .jump = 1, .routine = 0xC066EF },
-    { 0x37, if_held, .buttons = CONSTANT(BUTTON_Y), .length = 2, .jump = 1, .routine = 0xC066F9 },
-    { 0x38, if_held, .buttons = CONSTANT(BUTTON_L), .length = 2, .jump = 1, .routine = 0xC06705 },
-    { 0x39, if_held, .buttons = CONSTANT(BUTTON_R), .length = 2, .jump = 1, .routine = 0xC0670F },
-    { 0x3B, if_pressed, .buttons = CONSTANT(FOURTH_ASSIGNMENT), .length = 2, .jump = 1, .routine = 0xC06719 },
-    { 0x3C, if_pressed, .buttons = CONSTANT(FIRST_ASSIGNMENT), .length = 2, .jump = 1, .routine = 0xC06724 },
-    { 0x3F, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_A)), .length = 2, .jump = 1, .routine = 0xC06732 },
-    { 0x40, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_B)), .length = 2, .jump = 1, .routine = 0xC06740 },
-    { 0x41, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_X)), .length = 2, .jump = 1, .routine = 0xC0674E },
-    { 0x42, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_Y)), .length = 2, .jump = 1, .routine = 0xC0675C },
-    { 0x43, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_L)), .length = 2, .jump = 1, .routine = 0xC0676A },
-    { 0x44, if_pressed, .buttons = CONSTANT(PRESSED(BUTTON_R)), .length = 2, .jump = 1, .routine = 0xC06778 });
+    { 0x2D, OPERATION(if_assignment_held), .buttons = CONSTANT(ANYTHING), .length = 2, .jump = 1 },
+    { 0x30, OPERATION(if_assignment_held), .buttons = CONSTANT(FOURTH_ASSIGNMENT), .length = 2, .jump = 1 },
+    { 0x31, OPERATION(if_assignment_held), .buttons = CONSTANT(FIRST_ASSIGNMENT), .length = 2, .jump = 1 },
+    { 0x34, OPERATION(if_held), .buttons = CONSTANT(BUTTON_A), .length = 2, .jump = 1 },
+    { 0x35, OPERATION(if_held), .buttons = CONSTANT(BUTTON_B), .length = 2, .jump = 1 },
+    { 0x36, OPERATION(if_held), .buttons = CONSTANT(BUTTON_X), .length = 2, .jump = 1 },
+    { 0x37, OPERATION(if_held), .buttons = CONSTANT(BUTTON_Y), .length = 2, .jump = 1 },
+    { 0x38, OPERATION(if_held), .buttons = CONSTANT(BUTTON_L), .length = 2, .jump = 1 },
+    { 0x39, OPERATION(if_held), .buttons = CONSTANT(BUTTON_R), .length = 2, .jump = 1 },
+    { 0x3B, OPERATION(if_pressed), .buttons = CONSTANT(FOURTH_ASSIGNMENT), .length = 2, .jump = 1 },
+    { 0x3C, OPERATION(if_pressed), .buttons = CONSTANT(FIRST_ASSIGNMENT), .length = 2, .jump = 1 },
+    { 0x3F, OPERATION(if_pressed), .buttons = CONSTANT(PRESSED(BUTTON_A)), .length = 2, .jump = 1 },
+    { 0x40, OPERATION(if_pressed), .buttons = CONSTANT(PRESSED(BUTTON_B)), .length = 2, .jump = 1 },
+    { 0x41, OPERATION(if_pressed), .buttons = CONSTANT(PRESSED(BUTTON_X)), .length = 2, .jump = 1 },
+    { 0x42, OPERATION(if_pressed), .buttons = CONSTANT(PRESSED(BUTTON_Y)), .length = 2, .jump = 1 },
+    { 0x43, OPERATION(if_pressed), .buttons = CONSTANT(PRESSED(BUTTON_L)), .length = 2, .jump = 1 },
+    { 0x44, OPERATION(if_pressed), .buttons = CONSTANT(PRESSED(BUTTON_R)), .length = 2, .jump = 1 });

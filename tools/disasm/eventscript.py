@@ -345,7 +345,7 @@ COMMANDS = {
     0xF1: C("fixed_color", 0x3D07, _k("color", B)),     # variable: a rate unless the color is 0
     0xF2: C("wait_brightness", 0x3CFD),
     0xF3: C("wait_color", 0x3D7A),
-    0xF4: C("set_bc", 0x3D84, _k("value", B)),
+    0xF4: C("shake_screen", 0x3D84, _k("shaking", B)),
     0xF8: C("party_routine_6_7", 0x3E5C),
     0xF9: C("party_routine_6", 0x3E6E),
     0xFA: C("party_routine_7", 0x3E75),

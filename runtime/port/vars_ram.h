@@ -30,7 +30,10 @@ static inline Snes *state_snes(const GameState *g) { return (Snes *)(void *)g; }
  * port is the same routine there. While it does (vars_peek(true) ... false),
  * the accessors' reads take none of that time and leave the bus as it was
  * (snes_bus_peek): otherwise the time would land in shadow mode's record of
- * the original's run, which the generated blocks are checked against. */
+ * the original's run, which the generated blocks are checked against. The
+ * cartridge's accessors (game/rom.h) peek too, so an entry's wrapper can
+ * look again at ROM data its logic read. */
 void vars_peek(bool on);
+bool vars_peeking(void);
 
 #endif

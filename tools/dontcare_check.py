@@ -23,8 +23,9 @@ applies it:
   must be dead at `at`, and the entry's set only where the port returns or makes
   a stop that isn't its own;
 - `m_jsr_dc(s, site, target, set)`, `m_jsl_dc(...)`, the platform's
-  `au_driver_call(pf, PF_CALL(site, target), set)`, and a service call made
-  from `PF_CALL_DC(site, target, set)`: the machines are compared
+  `au_driver_call(pf, PF_CALL(site, target), set)`, a service call made from
+  `PF_CALL_DC(site, target, set)`, and the bridges' `bridge_call(s, site,
+  target, set, machine)` and `bridge_call_long`: the machines are compared
   when the original reaches `target` from `site`, and the port's registers
   are what the callee runs with, so the set must be dead at the callee's entry
   for that call: neither the callee nor the caller after it returns may read
@@ -62,8 +63,15 @@ HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
-DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS
-CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC")
+# The bridges' vocabulary (game/field/bridge.h): bridge_call(s, site, target,
+# set, machine) and bridge_call_long(...) are m_jsr_dc and m_jsl_dc and a stop
+# of the bridge's own with no set at the call's return; their arguments are
+# read where they are called, and the helpers' own bodies (BRIDGE_FILE) aren't
+# declarations of their own.
+DELEGATES = ("bridge_call", "bridge_call_long")
+BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", ("bridge_call", "bridge_call_long", "bridge_back")
+DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES
+CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + DELEGATES
 RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
 RETURN_OPCODES = {0x60: "RTS", 0x6B: "RTL", 0x40: "RTI"}
 MAX_DEPTH = 6
@@ -756,6 +764,8 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
     for src in sources:
         for call in src.calls(DECLARATIONS):
             f = src.func_at(call.offset)
+            if src.path == BRIDGE_FILE and f is not None and f.name in BRIDGE_BODIES:
+                continue
             where = f"{src.path}:{src.line(call.offset)}"
             try:
                 if call.name in STOPS:

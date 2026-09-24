@@ -185,12 +185,11 @@ static void compute_layer_edges(GameState *g)
         right_column(&e, right, above);
         store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);
     }
-    leave_for_original(g, right, above, &e);
+    ORIGINAL_EFFECT(leave_for_original(g, right, above, &e));
 }
 
 /* ---- Scrolling -------------------------------------------------------------------------- */
 
-enum { AXIS_X, AXIS_Y, AXES };
 enum { STEP_FORWARD = 0x10, STEP_BACK = 0xF0 };   /* a pixel a frame, in 4.4 */
 enum { SCROLL_IDLE = 0, SCROLL_DONE = 0x02, ARRIVED_BOTH = 0x03 };   /* field_screen_scroll_state, _arrived */
 enum { STILL_BG2 = 0x02, STILL_BG3 = 0x04 };   /* field_layer_still */
@@ -309,7 +308,7 @@ static void update_layer_scroll(GameState *g)
             set_field_screen_scroll_arrived(g, 0);
         }
     }
-    if (field_setting_bc(g) != 0) {
+    if (field_screen_shake(g) != 0) {
         uint8_t frames = play_time_frames(g);
         set_field_scroll_offset_x(g, shake(frames, SHAKE_X, 2));
         set_field_scroll_offset_y(g, shake(frames, SHAKE_Y, 3));
@@ -353,13 +352,6 @@ static MapSize layer_size(const GameState *g, unsigned layer)
     return (MapSize){ field_map_layer_sizes_height(g, layer), field_map_layer_sizes_width(g, layer) };
 }
 
-/* A place in a tile map. */
-typedef struct {
-    uint8_t row, column;
-} MapPlace;
-
-static unsigned map_offset(MapPlace p) { return (unsigned)(p.row << 8 | p.column); }
-
 /* The next tile: false past the map's last row. */
 static bool next_tile(MapSize size, MapPlace *p)
 {
@@ -375,20 +367,21 @@ static void unpack_layer_map(GameState *g, unsigned layer)
     MapSize size = layer_size(g, layer);
     MapPlace p = { 0, 0 };
     do
-        set_field_layer_maps_byte(g, layer, map_offset(p), hw_port_read(g));
+        set_field_layer_maps(g, layer, p.row, p.column, hw_port_read(g));
     while (next_tile(size, &p));
 }
 
-/* A tile's three attribute bytes. */
-typedef struct {
-    uint8_t properties, attributes, more_attributes;
-} TileAttributes;
-
 static void set_tile_attributes(GameState *g, MapPlace p, TileAttributes a)
 {
-    set_field_tile_properties_byte(g, map_offset(p), a.properties);
-    set_field_tile_attributes_byte(g, map_offset(p), a.attributes);
-    set_field_tile_attributes_byte(g, map_offset(p) + MAP_COLUMNS, a.more_attributes);
+    set_field_tile_properties(g, p.row, p.column, a.properties);
+    set_field_tile_upper_attributes(g, p.row, p.column, a.upper);
+    set_field_tile_lower_attributes(g, p.row, p.column, a.lower);
+}
+
+TileAttributes map_tile_attributes(const GameState *g, MapPlace p)
+{
+    return (TileAttributes){ field_tile_properties(g, p.row, p.column), field_tile_upper_attributes(g, p.row, p.column),
+                             field_tile_lower_attributes(g, p.row, p.column) };
 }
 
 /* A tile's bytes from the stream, each written as it is read: a big map's
@@ -397,11 +390,11 @@ static void set_tile_attributes(GameState *g, MapPlace p, TileAttributes a)
 static TileAttributes read_tile_attributes(GameState *g, MapPlace p, uint8_t properties)
 {
     TileAttributes a = { .properties = properties };
-    set_field_tile_properties_byte(g, map_offset(p), a.properties);
-    a.attributes = hw_port_read(g);
-    set_field_tile_attributes_byte(g, map_offset(p), a.attributes);
-    a.more_attributes = hw_port_read(g);
-    set_field_tile_attributes_byte(g, map_offset(p) + MAP_COLUMNS, a.more_attributes);
+    set_field_tile_properties(g, p.row, p.column, a.properties);
+    a.upper = hw_port_read(g);
+    set_field_tile_upper_attributes(g, p.row, p.column, a.upper);
+    a.lower = hw_port_read(g);
+    set_field_tile_lower_attributes(g, p.row, p.column, a.lower);
     return a;
 }
 
@@ -432,8 +425,8 @@ static void leave_for_original_unpack(GameState *g, MapSize size)
     original_layer_cell8(g, 0x55, size.rows ? size.rows : 1);
     if (unpack_leaves.had_run) {
         original_layer_cell8(g, 0x58, unpack_leaves.last_run.properties);
-        original_layer_cell8(g, 0x5A, unpack_leaves.last_run.attributes);
-        original_layer_cell8(g, 0x5C, unpack_leaves.last_run.more_attributes);
+        original_layer_cell8(g, 0x5A, unpack_leaves.last_run.upper);
+        original_layer_cell8(g, 0x5C, unpack_leaves.last_run.lower);
     }
 }
 
@@ -447,7 +440,7 @@ static void unpack_attributes(GameState *g, MapSize size)
         uint8_t first = hw_port_read(g);
         TileAttributes a = read_tile_attributes(g, p, (uint8_t)(first & ~RUN));
         if (first & RUN) {
-            record_run(a);
+            ORIGINAL_EFFECT(record_run(a));
             uint8_t count = hw_port_read(g);
             for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
                 if (!next_tile(size, &p))
@@ -467,14 +460,14 @@ static void unpack_attributes(GameState *g, MapSize size)
 static void unpack_tile_maps(GameState *g)
 {
     hw_port_seek(g, MAP_DATA, MAP_DATA_BANK);
-    unpack_layer_map(g, 0);
-    unpack_layer_map(g, 1);
+    unpack_layer_map(g, FIELD_BG1);
+    unpack_layer_map(g, FIELD_BG2);
     if (field_map_flags(g) & MAP_HAS_BG3)
-        unpack_layer_map(g, 2);
+        unpack_layer_map(g, FIELD_BG3);
     MapSize size = layer_size(g, FIELD_BG1);
-    unpack_leaves.had_run = false;
+    ORIGINAL_EFFECT(unpack_leaves.had_run = false);
     unpack_attributes(g, size);
-    leave_for_original_unpack(g, size);
+    ORIGINAL_EFFECT(leave_for_original_unpack(g, size));
 }
 
 /* ---- Entries: on the layers' page ------------------------------------------------------- */
@@ -497,9 +490,9 @@ bool field_unpack_stays_clear(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    uint32_t bytes = tiles(layer_size(g, 0)) * 5 + tiles(layer_size(g, 1));
+    uint32_t bytes = tiles(layer_size(g, FIELD_BG1)) * 5 + tiles(layer_size(g, FIELD_BG2));
     if (field_map_flags(g) & MAP_HAS_BG3)
-        bytes += tiles(layer_size(g, 2));
+        bytes += tiles(layer_size(g, FIELD_BG3));
     vars_peek(false);
     return bytes < STREAM_REACHES_LAYERS_PAGE;
 }

@@ -70,6 +70,20 @@ class MapError(Exception):
     pass
 
 
+# A word of a name that reads as an address or a byte rather than a meaning:
+# two to four hex digits with a digit among them, or a pair of hex letters.
+ADDRESS_WORD = re.compile(r"^(?=[0-9a-f]*[0-9])[0-9a-f]{2,4}$|^[a-f]{2}$")
+
+
+def stuttering(name):
+    """The word a generated name says twice in a row (`..._mode_mode`), or None."""
+    words = name.split("_")
+    for a, b in zip(words, words[1:]):
+        if a == b:
+            return a
+    return None
+
+
 def parse_addr(text, where):
     m = ADDR.match(text) if isinstance(text, str) else None
     if not m:
@@ -303,7 +317,7 @@ class Var:
     """A variable, an array of them, or an array of records."""
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
-            "subsystem", "meaning", "source", "field"}
+            "subsystem", "meaning", "source", "field", "rows", "row_stride"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -332,6 +346,25 @@ class Var:
             raise MapError("%s: an array needs `index` (what selects an element)" % where)
         if self.stride < self.size:
             raise MapError("%s: stride $%X is smaller than size $%X" % (where, self.stride, self.size))
+        # A table of rows: the variable (its elements, if an array) is one row
+        # of `size` bytes, a byte a column, repeated `rows` times `row_stride`
+        # bytes apart, the way the field keeps a map's tables a row of 256
+        # bytes apart with other tables' rows between.
+        self.rows = raw.get("rows")
+        self.row_stride = raw.get("row_stride")
+        if (self.rows is None) != (self.row_stride is None):
+            raise MapError("%s: a table of rows needs both rows and row_stride" % where)
+        if self.rows is not None:
+            for key, v in (("rows", self.rows), ("row_stride", self.row_stride)):
+                if not (isinstance(v, int) and v > 0):
+                    raise MapError("%s: %s must be a positive integer" % (where, key))
+            if "field" in raw:
+                raise MapError("%s: a table of rows has columns of bytes, not fields" % where)
+            if self.stride * (self.count - 1) + self.size > self.row_stride:
+                raise MapError("%s: a row ($%X bytes) is wider than row_stride $%X"
+                               % (where, self.stride * (self.count - 1) + self.size, self.row_stride))
+            if self.count > 1 and index_param(self.index) in ("row", "column"):
+                raise MapError("%s: the index of a table of rows can't be called row or column" % where)
         self.fields = [Field(f, self) for f in raw.get("field", [])]
         if self.fields and "size" in raw:
             raise MapError("%s: a record's size is its stride; give fields instead" % where)
@@ -375,8 +408,14 @@ class Var:
                     raise MapError("%s: %s is not in page %r (D = $%04X)"
                                    % (where, fmt_addr(self.addr), self.page.name, self.page.d))
 
-    def span(self):
+    def row_span(self):
+        """The bytes one row takes, from its first element's start."""
         return self.stride * (self.count - 1) + self.size
+
+    def span(self):
+        if self.rows is None:
+            return self.row_span()
+        return self.row_stride * (self.rows - 1) + self.row_span()
 
     def end(self):
         return self.addr + self.span()
@@ -396,7 +435,12 @@ class Var:
         for base in self.bases():
             if not base <= a < base + self.span():
                 continue
-            off = (a - base) % self.stride
+            off = a - base
+            if self.rows is not None:
+                off %= self.row_stride
+                if off >= self.row_span():
+                    continue
+            off %= self.stride
             if off >= self.size:
                 continue
             for f in self.fields:
@@ -437,7 +481,18 @@ class RamMap:
             raise MapError("names used twice: %s" % ", ".join(sorted(dup)))
         self._check_overlaps()
         self.macros = header_macros(self)   # also checks the generated names are unique
-        accessors(self)                     # the same, for game/vars.h
+        for _, groups in accessors(self):   # the same, for game/vars.h; and no name says a word twice
+            for _, _, group in groups:
+                for a in group:
+                    stutter = stuttering(a.name)
+                    if stutter:
+                        raise MapError("%s: says %r twice; name a record's field for its concept, not for "
+                                       "the record it sits in" % (a.name, stutter))
+
+    def address_shaped(self):
+        """The variables whose names carry a word shaped like an address or a
+        byte ($1E, $BC): named for where they are, not for what they hold."""
+        return [v.name for v in self.vars if any(ADDRESS_WORD.match(w) for w in v.name.split("_"))]
 
     def _check_overlaps(self):
         """Work RAM is reused from one game mode to the next, so two entries may
@@ -532,12 +587,17 @@ def header_macros(m):
                 desc += " [%d x $%X bytes, by %s]" % (v.count, v.stride, v.index)
             elif v.size > 1:
                 desc += " [%d bytes]" % v.size
+            if v.rows is not None:
+                desc += " [%d rows, $%X bytes apart]" % (v.rows, v.row_stride)
             lines += comment(desc)
             if v.addr is not None:
                 define(lines, macro(v.name), "0x%06Xu" % v.addr)
             if v.count > 1:
                 define(lines, macro(v.name, "count"), "%du" % v.count)
                 define(lines, macro(v.name, "stride"), "0x%02Xu" % v.stride)
+            if v.rows is not None:
+                define(lines, macro(v.name, "rows"), "%du" % v.rows)
+                define(lines, macro(v.name, "row_stride"), "0x%02Xu" % v.row_stride)
             if v.page is not None:
                 where = ("page %s, D per instance" % v.page.name if v.page.d is None
                          else "page %s" % v.page.name)
@@ -625,10 +685,14 @@ class Accessor:
         self.addr = None if var.on_instances() else var.addr + self.offset
         self.size = field.size if field else var.size
         self.meaning = field.meaning if field else var.meaning
-        self.blob = self.size > WIDEST
+        # A table of rows is a byte by row and column, whatever its row's size.
+        self.table = var.rows is not None
+        self.blob = self.size > WIDEST and not self.table
         self.name = base + "_byte" if self.blob else base
-        self.type = "uint8_t" if self.blob else C_TYPE[self.size]
+        self.type = "uint8_t" if self.blob or self.table else C_TYPE[self.size]
         self.bytes_const = base.upper() + "_BYTES" if self.blob else None
+        self.rows_const = base.upper() + "_ROWS" if self.table else None
+        self.columns_const = base.upper() + "_COLUMNS" if self.table else None
 
     def params(self, write):
         """The parameter list after the state, as (declaration, argument) pairs."""
@@ -639,6 +703,8 @@ class Accessor:
             out.append(("unsigned " + index_param(self.var.index), index_param(self.var.index)))
         if self.blob:
             out.append(("unsigned at", "at"))
+        if self.table:
+            out += [("unsigned row", "row"), ("unsigned column", "column")]
         if write:
             out.append((self.type + " v", "v"))
         return out
@@ -658,11 +724,15 @@ class Accessor:
             out += " + (uint32_t)%s * 0x%02Xu" % (index_param(self.var.index), self.var.stride)
         if self.blob:
             out += " + at"
+        if self.table:
+            out += " + (uint32_t)row * 0x%02Xu + column" % self.var.row_stride
         return out
 
     def note(self):
         """What the accessor is, for the comment above it. What an array is
         indexed by is on its count, once, rather than on every field."""
+        if self.table:
+            return self.meaning + " [a byte by row and column]"
         return self.meaning + (" [%d bytes, one at a time]" % self.size if self.blob else "")
 
 
@@ -710,6 +780,9 @@ def accessors(m):
             take("set_" + a.name, names, "accessor")
             if a.bytes_const:
                 take(a.bytes_const, consts, "constant")
+            if a.table:
+                take(a.rows_const, consts, "constant")
+                take(a.columns_const, consts, "constant")
         count = take(v.name.upper() + "_COUNT", consts, "constant") if v.count > 1 else None
         by_sub[v.subsystem].append((v, count, group))
     out = []
@@ -802,6 +875,8 @@ def render_vars_header(m):
                 out += comment(a.note())
                 if a.bytes_const:
                     out.append("enum { %s = %d };" % (a.bytes_const, a.size))
+                if a.table:
+                    out.append("enum { %s = %d, %s = %d };" % (a.rows_const, a.var.rows, a.columns_const, a.size))
                 out.append("%s;" % a.signature(False))
                 out.append("%s;" % a.signature(True))
     out += ["", "#endif", ""]
@@ -831,6 +906,7 @@ def render_backing(m):
         "/* Reads while a guard looks (vars_peek): they take none of the machine's time. */",
         "static bool peeking;",
         "void vars_peek(bool on) { peeking = on; }",
+        "bool vars_peeking(void) { return peeking; }",
         "",
         "/* A value of the width the map gives, low byte first, as the 65816 stores it. */",
         "static uint8_t r8(const GameState *g, uint32_t a)",
@@ -869,7 +945,7 @@ def render_backing(m):
         out += ["", "/* ---- %s %s */" % (sub, "-" * (86 - len(sub))), ""]
         for _, _, group in groups:
             for a in group:
-                w = 8 if a.blob else a.size * 8
+                w = 8 if a.blob or a.table else a.size * 8
                 out.append("%s { return r%d(g, %s); }" % (a.signature(False), w, a.address()))
                 out.append("%s { w%d(g, %s, v); }" % (a.signature(True), w, a.address()))
     out.append("")
@@ -1220,6 +1296,9 @@ def main(argv=None):
     if args.cmd == "check":
         print("%s: %d pages, %d variables, %d images, not-RAM literals in %d files"
               % (args.map, len(m.pages), len(m.vars), len(m.images), len(m.not_ram)))
+        shaped = m.address_shaped()
+        if shaped:
+            print("%d names shaped like addresses, waiting for a meaning: %s" % (len(shaped), ", ".join(shaped)))
     elif args.cmd == "header":
         text = render_header(m)
         if args.check:

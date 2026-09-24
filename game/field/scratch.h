@@ -18,21 +18,79 @@
  *   operand spells it: these are addresses on purpose, since they are the
  *   original's.
  *
- * - What a wrapper can't work out. An entry's wrapper gives the original's
- *   callers the registers they read, derived from the game's state after the
- *   call. Where one follows from a value the routine had on the way and
- *   nowhere else (the last distance a search measured, whether an animation
- *   started over), the routine records it in a file-static record named
- *   `..._leaves`, written only by a `record_...` helper and read only by the
- *   entry's wrapper, which clears it before the call. The logic's signatures
- *   never carry it. */
+ * - What a wrapper works out. An entry's wrapper gives the original's callers
+ *   the registers they read, derived from the call's inputs, its result and
+ *   the game's state after it: the last distance the in-the-way search
+ *   measured from the object it names, the wave's last carry from the table
+ *   it wrote. What it looks at again it reads under vars_peek, so it takes
+ *   none of the machine's time. Only cells the original leaves whose values
+ *   follow the path the routine took and are nowhere in the final state (the
+ *   last run the tile unpacking repeated, the last sloped edge a window shape
+ *   drew) are recorded on the way, in a file-static record named
+ *   `..._leaves`, through a `record_...` helper called as an ORIGINAL_EFFECT
+ *   and read only by the helper that leaves the cells. The logic's
+ *   signatures never carry any of it. */
 #ifndef CT_GAME_FIELD_SCRATCH_H
 #define CT_GAME_FIELD_SCRATCH_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
+#include "field/object.h"
+#include "original_effects.h"
 #include "state.h"
 #include "vars.h"
+
+/* The overflow flag the original's last addition or subtraction leaves, for
+ * the entry wrappers and the commands whose callers read it: whether a + b (or
+ * a - b), taken as signed 8- or 16-bit numbers, left the signed range. The
+ * game's logic never looks at it; only the original's code after the call
+ * does. */
+static inline bool field_add_overflows8(uint8_t a, uint8_t b)
+{
+    uint8_t sum = (uint8_t)(a + b);
+    return ((~(a ^ b) & (a ^ sum)) & 0x80) != 0;
+}
+static inline bool field_subtract_overflows8(uint8_t a, uint8_t b)
+{
+    uint8_t difference = (uint8_t)(a - b);
+    return (((a ^ b) & (a ^ difference)) & 0x80) != 0;
+}
+static inline bool field_add_with_carry_overflows16(uint16_t a, uint16_t b, bool carry)
+{
+    uint16_t sum = (uint16_t)(a + b + carry);
+    return ((~(a ^ b) & (a ^ sum)) & 0x8000) != 0;
+}
+static inline bool field_add_overflows16(uint16_t a, uint16_t b) { return field_add_with_carry_overflows16(a, b, false); }
+static inline bool field_subtract_overflows16(uint16_t a, uint16_t b)
+{
+    uint16_t difference = (uint16_t)(a - b);
+    return (((a ^ b) & (a ^ difference)) & 0x8000) != 0;
+}
+
+/* What the motion's routines leave the original's code and shadow mode, for
+ * their entries' wrappers and for a caller that runs them as C where the
+ * original called them (event's moves, whose commands hand on a Y and a V;
+ * event/leaves.h), worked out in field/leaves.c: the cells the direction
+ * routine works from and leaves (field_leave_aim, field_leave_direction) and
+ * its overflow; the check for objects in the way keeping its caller's Y, and
+ * the object it (or a move) keeps as its target; the Y and the overflow a
+ * step's start leaves; a jump's overflow; the overflow animating with the
+ * movement leaves where it did; and the screen test's. */
+void field_leave_aim(GameState *g, Aim aim);
+void field_leave_direction(GameState *g, Aim aim, Direction d);
+bool field_direction_overflow(Aim aim, Direction d);
+void field_leave_in_the_way_check(GameState *g, FieldObject obj, uint16_t callers_y);
+void field_leave_target_object(GameState *g, FieldObject obj);
+uint16_t field_step_start_y(const GameState *g, StepStart r, uint16_t callers_y);
+bool field_step_start_overflow(const GameState *g, FieldObject obj, StepStart r);
+bool field_walk_overflow(const GameState *g, FieldObject obj);
+bool field_jump_overflow(const GameState *g, FieldObject obj);
+bool field_screen_test_overflow(const GameState *g, MapTile tile);
+
+/* The frame read's overflow (field/animation.c's entry): from whether it
+ * took a frame and the frame the object was on before. */
+bool field_frame_read_overflow(const GameState *g, FieldObject obj, bool took_a_frame, uint8_t frame_before);
 
 enum { FIELD_WORK_CELLS = 0xC1, FIELD_SCRATCH_CELLS = 0xD9, FIELD_LAYER_WORK_CELLS = 0x50, FIELD_LAYER_EDGE_CELLS = 0x60 };
 enum { SHAPE_EDGE_CELLS = 0x53, SHAPE_STEP_CELLS = 0xF0 };

@@ -1211,8 +1211,8 @@ name = "event_cmd_return_from_function"
 at = "C0:5F74"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_return_from_function"
@@ -1220,16 +1220,16 @@ variant = "loose"
 at = "C0:5F74"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_function"
 at = "C0:5FB6"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_function"
@@ -1237,16 +1237,16 @@ variant = "loose"
 at = "C0:5FB6"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_when_taken"
 at = "C0:607E"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_when_taken"
@@ -1254,16 +1254,16 @@ variant = "loose"
 at = "C0:607E"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_and_wait"
 at = "C0:6109"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_and_wait"
@@ -1271,16 +1271,16 @@ variant = "loose"
 at = "C0:6109"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_function_member"
 at = "C0:61E9"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_function_member"
@@ -1288,16 +1288,16 @@ variant = "loose"
 at = "C0:61E9"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_when_taken_member"
 at = "C0:61FE"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_when_taken_member"
@@ -1305,16 +1305,16 @@ variant = "loose"
 at = "C0:61FE"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_and_wait_member"
 at = "C0:6214"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_call_and_wait_member"
@@ -1322,8 +1322,8 @@ variant = "loose"
 at = "C0:6214"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); the objects' call levels among the eight the places hold (and their refusing flags 0-7, which share the rows), which the guard requires (event/calls.c)"
 
 [[routine]]
 name = "event_cmd_take_no_calls"
@@ -1840,8 +1840,8 @@ name = "event_cmd_face_toward_member"
 at = "C0:5605"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_face_toward_member"
@@ -1849,8 +1849,8 @@ variant = "loose"
 at = "C0:5605"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_set_result"
@@ -1925,8 +1925,8 @@ name = "event_cmd_note_tile_member"
 at = "C0:65EB"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_note_tile_member"
@@ -1934,16 +1934,16 @@ variant = "loose"
 at = "C0:65EB"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_note_facing"
 at = "C0:65F8"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), which the guard requires (field/object.h, object_facing_is_one)"
 
 [[routine]]
 name = "event_cmd_note_facing"
@@ -1951,16 +1951,16 @@ variant = "loose"
 at = "C0:65F8"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), which the guard requires (field/object.h, object_facing_is_one)"
 
 [[routine]]
 name = "event_cmd_note_facing_member"
 at = "C0:661F"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7E1600-7E167F=00-03", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); the objects' facings one of the four (and their frame delays below 4, which share the rows), which the guard requires (field/object.h, object_facing_is_one)"
 
 [[routine]]
 name = "event_cmd_note_facing_member"
@@ -1968,16 +1968,16 @@ variant = "loose"
 at = "C0:661F"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7E1600-7E167F=00-03", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); the objects' facings one of the four (and their frame delays below 4, which share the rows), which the guard requires (field/object.h, object_facing_is_one)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_until_on_screen"
 at = "C0:5429"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_until_on_screen"
@@ -1985,16 +1985,16 @@ variant = "loose"
 at = "C0:5429"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_move_toward_object"
 at = "C0:5215"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_toward_object"
@@ -2002,16 +2002,16 @@ variant = "loose"
 at = "C0:5215"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member"
 at = "C0:5410"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member"
@@ -2019,16 +2019,16 @@ variant = "loose"
 at = "C0:5410"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_move_to_tile"
 at = "C0:4F61"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_to_tile"
@@ -2036,16 +2036,16 @@ variant = "loose"
 at = "C0:4F61"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_toward_object_counted"
 at = "C0:534A"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_toward_object_counted"
@@ -2053,16 +2053,16 @@ variant = "loose"
 at = "C0:534A"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_counted"
 at = "C0:550E"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_counted"
@@ -2070,11 +2070,11 @@ variant = "loose"
 at = "C0:550E"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
-name = "event_cmd_move_by_variables"
+name = "event_cmd_move_in_direction_from_variables_keep_facing"
 at = "C0:4F0A"
 subsystem = "event"
 state = "field"
@@ -2082,7 +2082,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_move_by_variables"
+name = "event_cmd_move_in_direction_from_variables_keep_facing"
 variant = "loose"
 at = "C0:4F0A"
 subsystem = "event"
@@ -2095,8 +2095,8 @@ name = "event_cmd_move_toward_object_keep_facing"
 at = "C0:52C0"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_toward_object_keep_facing"
@@ -2104,16 +2104,16 @@ variant = "loose"
 at = "C0:52C0"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7F2000-7F2000=01-3F"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_keep_facing"
 at = "C0:54F5"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_move_toward_party_member_keep_facing"
@@ -2121,8 +2121,8 @@ variant = "loose"
 at = "C0:54F5"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_behave"
@@ -2163,8 +2163,8 @@ name = "event_cmd_follow_party_member"
 at = "C0:354F"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_follow_party_member"
@@ -2172,8 +2172,8 @@ variant = "loose"
 at = "C0:354F"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
 
 [[routine]]
 name = "event_cmd_move_in_direction"
@@ -2197,8 +2197,8 @@ name = "event_cmd_move_to_tile_from_variables"
 at = "C0:5084"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_from_variables"
@@ -2206,16 +2206,16 @@ variant = "loose"
 at = "C0:5084"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_counted"
 at = "C0:4FEA"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_counted"
@@ -2223,8 +2223,8 @@ variant = "loose"
 at = "C0:4FEA"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_in_direction_keep_facing"
@@ -2248,8 +2248,8 @@ name = "event_cmd_move_to_tile_keep_facing"
 at = "C0:5129"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_keep_facing"
@@ -2257,16 +2257,16 @@ variant = "loose"
 at = "C0:5129"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7F2000-7F2000=01-3F"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_from_variables_keep_facing"
 at = "C0:5191"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_move_to_tile_from_variables_keep_facing"
@@ -2274,8 +2274,8 @@ variant = "loose"
 at = "C0:5191"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7F2000-7F2000=01-3F"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "event_cmd_jump_to_tile"
@@ -2363,21 +2363,21 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_solid"
+name = "event_cmd_set_solidity"
 at = "C0:4867"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-01"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the solidity operand 0 or 1, which the FLAG operand's guard requires (event/engine.c)"
 
 [[routine]]
-name = "event_cmd_set_solid"
+name = "event_cmd_set_solidity"
 variant = "loose"
 at = "C0:4867"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-01"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the solidity operand 0 or 1, which the FLAG operand's guard requires (event/engine.c)"
 
 [[routine]]
 name = "event_cmd_set_move_length"
@@ -3485,7 +3485,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_set_bc"
+name = "event_cmd_shake_screen"
 at = "C0:3D84"
 subsystem = "event"
 state = "field"
@@ -3493,7 +3493,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_set_bc"
+name = "event_cmd_shake_screen"
 variant = "loose"
 at = "C0:3D84"
 subsystem = "event"
@@ -3825,8 +3825,8 @@ why = "the field's page and bank $00 (the mirror table); the port's cursor rando
 name = "field_read_animation_frame"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00"]
-why = "the field's page and data bank; the object in X random (the guard turns away odd ones), the frame table's bank random"
+args = ["--d", "0100", "--db", "00", "--fill", "7E1600-7E167F=00-03"]
+why = "the field's page and data bank; the object in X random (the guard turns away odd ones), the frame table's bank random; the objects' facings one of the four (and their frame delays below 4, which share the rows), which the guard requires (field/object.h, object_facing_is_one)"
 
 [[routine]]
 name = "field_rasterize_quad"
@@ -3914,8 +3914,8 @@ why = "as field_set_velocity; the map attributes, the direction and the random i
 name = "field_object_in_the_way"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1600,1=00-03"]
-why = "the field's page and data bank, the current object below $100 facing one of its four ways (odd objects turned away by the guard)"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1600,1=00-03", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the current object below $100 facing one of its four ways (odd objects turned away by the guard); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits)"
 
 [[routine]]
 name = "field_line_up_with_object"
@@ -4016,22 +4016,22 @@ why = "the object below $100 with its records below $3000; the records' routines
 name = "field_position_sprites"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
-why = "the object in X a slot below $40 with its records below $3000 (past there they reach bank $80's I/O)"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+why = "the object in X the current one, as the game always has it and the guard requires (field/sprites.c; the fuzzer can't tie the current object's cell to X, so both are slot 8), with its records below $3000 (past there they reach bank $80's I/O)"
 
 [[routine]]
 name = "field_position_sprites"
 variant = "loose"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0004-0004"]
-why = "the records anywhere: those that would run past bank $7F into bank $80, where low RAM and the I/O registers are, the guard turns away (field/sprites.c)"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--range", "X=0004-0004"]
+why = "the object in X the current one (slot 2), its records anywhere: those that would run past bank $7F into bank $80, where low RAM and the I/O registers are, the guard turns away (field/sprites.c)"
 
 [[routine]]
 name = "field_load_and_position_sprites"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016E=00-00", "--range", "X=0000-007E", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
 why = "as field_position_sprites"
 
 [[routine]]

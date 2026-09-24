@@ -1,10 +1,13 @@
-/* Field mode: per-frame arithmetic for the three background layers' scrolling. */
+/* Field mode: the three background layers -- their scrolling and edges each frame,
+ * and a map's tables of tiles. */
 #ifndef CT_GAME_FIELD_LAYERS_H
 #define CT_GAME_FIELD_LAYERS_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "snes/system.h"
+#include "state.h"
 
 /* A layer's edge runs: the stretches of its tile map that come into view as
  * the layer scrolls, which field/layers.c works out every frame and the
@@ -29,6 +32,36 @@ enum {
     EDGE_COLUMN_SIZES = 3,     /* two, the columns' */
     EDGE_SIZES = 5,
 };
+
+/* ---- A map's tiles ----------------------------------------------------------------------- */
+
+/* A place in a map's tables, a row and a column: the unpacked tile maps, and
+ * the three bytes the map gives each tile. The original indexes them by
+ * row << 8 | column. */
+typedef struct {
+    uint8_t row, column;
+} MapPlace;
+
+static inline MapPlace map_place_at(uint16_t index) { return (MapPlace){ (uint8_t)(index >> 8), (uint8_t)index }; }
+
+/* What the map says of a tile: a byte of properties, and two of attributes.
+ * The upper attributes' bit 6 raises the upper half of an object standing
+ * there in front of the map; the lower attributes' bit 7 blocks moves onto
+ * the tile, and bit 6 raises an object's lower half. */
+typedef struct {
+    uint8_t properties, upper, lower;
+} TileAttributes;
+enum { TILE_RAISES_SPRITES = 0x40, TILE_BLOCKED = 0x80 };
+
+/* The priority a sprite's half takes on a tile (object.h's 0-3): in front of
+ * the map where the tile raises it, among the map's layers otherwise. */
+enum { AMONG_THE_MAP = 2, IN_FRONT_OF_THE_MAP = 3 };
+static inline uint8_t tile_priority(uint8_t attributes)
+{
+    return (attributes & TILE_RAISES_SPRITES) ? IN_FRONT_OF_THE_MAP : AMONG_THE_MAP;
+}
+
+TileAttributes map_tile_attributes(const GameState *g, MapPlace p);
 
 /* field/layers.c */
 void field_compute_layer_edges(Snes *s);

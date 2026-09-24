@@ -125,7 +125,6 @@ static void apply_display_shadows(const GameState *g, Platform *pf)
 /* ---- Where it meets the original ------------------------------------------------------- */
 
 enum { NMI_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-enum { JSR_SIZE = 3, JSL_SIZE = 4 };   /* a call's return is the instruction after it */
 
 /* The routines the frame's work calls that are still the original's. */
 enum {
@@ -147,21 +146,12 @@ enum {
  * stops at the call's return otherwise. */
 static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t page)
 {
-    m_jsr_dc(s, site, routine, NMI_DONT_CARE);
-    if (field_machine_back(s, false, page, 0))
-        return true;
-    m_stop_at_own(s, site + JSR_SIZE, 0);
-    return false;
+    return bridge_call(s, site, routine, NMI_DONT_CARE, (BridgeMachine){ false, page, 0 });
 }
 
 static bool call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
-    uint16_t page = m_direct_page(s);
-    m_jsl_dc(s, site, routine, dont_care);
-    if (field_machine_back(s, false, page, 0))
-        return true;
-    m_stop_at_own(s, site + JSL_SIZE, 0);
-    return false;
+    return bridge_call_long(s, site, routine, dont_care, (BridgeMachine){ false, m_direct_page(s), 0 });
 }
 
 /* The frame is done: the per-line effects are set up for it, and it is
@@ -203,26 +193,30 @@ static bool run_map_transition(Snes *s, uint8_t asked, bool *finished)
         finish_frame(s);
         return true;
     }
-    if (asked & MAP_SEND_BG2_LEFT) {
-        if (!call(s, 0xC0EB4A, SEND_BG2_LEFT, FIELD_PAGE))
+    /* The transition's sends, in the order the handler looks at them: each
+     * where its bit is asked for, and a half screen of BG2 ends the frame's
+     * work with it. */
+    static const struct {
+        uint8_t asked;
+        uint32_t site, routine;
+        bool ends_the_frame;
+    } sends[] = {
+        { MAP_SEND_BG2_LEFT, 0xC0EB4A, SEND_BG2_LEFT, true },
+        { MAP_SEND_BG2_RIGHT, 0xC0EB5E, SEND_BG2_RIGHT, true },
+        { MAP_SEND_BG3_PIECE, 0xC0EB72, SEND_BG3_PIECE, false },
+    };
+    for (unsigned k = 0; k < sizeof sends / sizeof sends[0]; k++) {
+        if (!(asked & sends[k].asked))
+            continue;
+        if (!call(s, sends[k].site, sends[k].routine, FIELD_PAGE))
             return false;
-        set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~MAP_SEND_BG2_LEFT));
-        finish_frame(s);
-        return true;
-    }
-    if (asked & MAP_SEND_BG2_RIGHT) {
-        if (!call(s, 0xC0EB5E, SEND_BG2_RIGHT, FIELD_PAGE))
-            return false;
-        set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~MAP_SEND_BG2_RIGHT));
-        finish_frame(s);
-        return true;
+        set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~sends[k].asked));
+        if (sends[k].ends_the_frame) {
+            finish_frame(s);
+            return true;
+        }
     }
     *finished = false;
-    if (asked & MAP_SEND_BG3_PIECE) {
-        if (!call(s, 0xC0EB72, SEND_BG3_PIECE, FIELD_PAGE))
-            return false;
-        set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~MAP_SEND_BG3_PIECE));
-    }
     return true;
 }
 

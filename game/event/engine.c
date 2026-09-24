@@ -49,28 +49,32 @@ const EventOpcode *event_opcode(uint8_t opcode)
 
 /* ---- What the port takes -----------------------------------------------------------------
  *
- * The operations reach the object tables by slot, where the original indexes
- * them with the object doubled; the two agree for the objects the game makes,
- * which are all even offsets into tables below $2000. And they read operands
- * from the script buffer, which ends with the bank: a command in its last
- * bytes would read its operands through the next bank's mirror of low RAM,
- * where they could be the cells it writes. No script is that long, and no
- * game object odd, so everything else is the original's to run (and would be
- * an assertion in a build without it; docs/PLAN.md). */
+ * The operations reach the object tables by object, where the original
+ * indexes them with the object's offset (field/object.h); the two agree for
+ * the objects the game makes, which are all even offsets inside the tables.
+ * An odd offset, or one past a table, reads the tables' neighbours in the
+ * original's memory. And they read operands from the script buffer, which
+ * ends with the bank: a command in its last bytes would read its operands
+ * through the next bank's mirror of low RAM, where they could be the cells it
+ * writes. No script is that long, and no game object odd or past the 64, so
+ * everything else is the original's to run (and would be an assertion in a
+ * build without it; docs/PLAN.md). */
 
-enum { OBJECT_OFFSET_END = 0x0100 };
-enum { SCRIPT_SIZE = 0xDFFF, LONGEST_COMMAND = 8 };
+enum { LONGEST_COMMAND = 8 };
 
-bool event_names_object(uint16_t doubled) { return !(doubled & 1) && doubled < OBJECT_OFFSET_END; }
-
-/* The party member at `place` (doubled): the place even, and their object
- * one; or, where the command checks first, nobody there. */
+/* The party member at `place` (doubled, as scripts write it): a place of the
+ * party, and their object one the tables hold; or, where the command checks
+ * first, nobody there. An empty place names no object. A command that doesn't
+ * check would take its marker as an object past the tables (the absent
+ * member, which the game does: a scene following a party of two), and read
+ * the tables' neighbours there: those calls are the original's
+ * (docs/TODO.md). */
 static bool member_named(const GameState *g, uint8_t place, bool may_be_absent)
 {
-    if (place & 1)
+    if ((place & 1) || (place >> 1) >= PARTY_PLACES)
         return false;
-    uint8_t object = field_party_objects(g, place >> 1);
-    return (may_be_absent && (object & NOBODY)) || event_names_object(object);
+    FieldLink link = party_member_link(g, place >> 1);
+    return field_link_is_object(link) ? field_link_names_object(link) : may_be_absent;
 }
 
 /* The bit tables hold 8 masks each, and a bit number past them reads on
@@ -82,18 +86,19 @@ static bool names_what_it_says(const GameState *g, const EventOpcode *row, const
 {
     uint8_t operand = script_byte(g, (uint16_t)(at + arg->operand));
     switch (arg->kind) {
-    case ARG_OBJECT: return event_names_object(operand);
+    case ARG_OBJECT: return field_names_object(operand);
     case ARG_MEMBER_OBJECT:
     case ARG_MEMBER_PRESENT: return member_named(g, operand, row->member_may_be_absent);
     case ARG_BIT: return operand <= LAST_BIT_READ;
     case ARG_ALL_BUT_BIT: return operand <= LAST_CLEAR_BIT_READ;
+    case ARG_FLAG: return operand <= 1;
     default: return true;
     }
 }
 
 bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
 {
-    if (!event_names_object(field_current_object(g)) || at > SCRIPT_SIZE - LONGEST_COMMAND)
+    if (!object_current_is_one(g) || at > EVENT_SCRIPT_BYTES - LONGEST_COMMAND)
         return false;
 #define CHECK_PARAMETER(type, name)                   \
     if (!names_what_it_says(g, row, &row->name, at)) \
@@ -102,8 +107,8 @@ bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
 #undef CHECK_PARAMETER
     if (!row->accepts)
         return true;
-    EventCommand c = event_decode(g, NULL, row, at);
-    return row->accepts(g, &c);
+    EventCommand command = event_decode(g, NULL, row, at);
+    return row->accepts(g, &command);
 }
 
 /* ---- Running a command -------------------------------------------------------------------- */
@@ -114,19 +119,23 @@ static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
     switch (arg->kind) {
     case ARG_CONSTANT: return arg->constant;
     case ARG_BYTE: return script_byte(g, operand);
+    case ARG_BYTE_PLUS_ONE: return (uint8_t)(script_byte(g, operand) + 1);
+    case ARG_BITS: return (uint32_t)(script_byte(g, operand) >> arg->shift) & arg->constant;
     case ARG_WORD: return script_word(g, operand);
+    case ARG_WORD_BITS: return (uint32_t)(script_word(g, operand) >> arg->shift) & arg->constant;
     case ARG_ADDRESS: return script_word(g, operand) | (uint32_t)script_byte(g, (uint16_t)(operand + 2)) << 16;
     case ARG_VARIABLE: return script_byte(g, operand);
     case ARG_VARIABLE_BYTE: return variable_byte(g, script_byte(g, operand));
     case ARG_VARIABLE_WORD: return variable_word(g, script_byte(g, operand));
-    case ARG_OBJECT: return slot_of(script_byte(g, operand));
-    case ARG_SELF: return running_object(g);
+    case ARG_OBJECT: return field_linked_object(field_link_stored(script_byte(g, operand)));
+    case ARG_SELF: return object_current(g);
     case ARG_MEMBER_OBJECT: return member_object(g, (PartyPlace)(script_byte(g, operand) >> 1));
     case ARG_MEMBER_PRESENT: return place_taken(g, (PartyPlace)(script_byte(g, operand) >> 1));
     case ARG_STORY_WORD: return story_word(g, script_word(g, operand));
     case ARG_STORY_PROGRESS: return story_progress(g);
     case ARG_BIT: return bit_mask(g, script_byte(g, operand));
     case ARG_ALL_BUT_BIT: return bit_clear_mask(g, script_byte(g, operand));
+    case ARG_FLAG: return script_byte(g, operand) != 0;
     default: return 0;
     }
 }
@@ -137,11 +146,10 @@ static EventStep jump(GameState *g, const EventOpcode *row, uint16_t at)
     uint16_t from = (uint16_t)(at + row->jump);
     uint8_t distance = script_byte(g, from);
     uint16_t to = row->back ? (uint16_t)(from - distance) : (uint16_t)(from + distance);
-    ORIGINAL_EFFECT(original_leaves_on_jump(g, row->opcode, at, from, distance, row->back));
     return (EventStep){ to, true };
 }
 
-static EventStep follow(GameState *g, const EventOpcode *row, uint16_t at, EventFlow flow)
+EventStep event_follow(GameState *g, const EventOpcode *row, uint16_t at, EventFlow flow)
 {
     uint16_t after = (uint16_t)(at + row->length);
     switch (flow.kind) {
@@ -151,14 +159,13 @@ static EventStep follow(GameState *g, const EventOpcode *row, uint16_t at, Event
     case FLOW_AGAIN: return (EventStep){ at, true };
     case FLOW_JUMP: return jump(g, row, at);
     case FLOW_NEXT_AFTER: return (EventStep){ (uint16_t)(at + flow.to), true };
-    case FLOW_GO_TO: return (EventStep){ flow.to, true };
-    default: return (EventStep){ flow.to, false };
+    default: return (EventStep){ flow.to, true };
     }
 }
 
 EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
-    EventCommand c = { .self = running_object(g), .platform = pf };
+    EventCommand c = { .self = object_current(g), .at = at, .platform = pf };
 #define DECODE_PARAMETER(type, name) c.name = (type)decode(g, &row->name, at);
     EVENT_PARAMETERS(DECODE_PARAMETER)
 #undef DECODE_PARAMETER
@@ -168,20 +175,7 @@ EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *r
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
     EventCommand c = event_decode(g, pf, row, at);
-    ORIGINAL_EFFECT(original_leaves_before(g, row->opcode, at, row->jump, &c));
-    EventFlow flow = row->run(g, &c);
-    ORIGINAL_EFFECT(original_leaves_after(g, row->opcode, &c));
-    return follow(g, row, at, flow);
-}
-
-uint32_t event_parameter(const EventCommand *c, EventParameter which)
-{
-    switch (which) {
-#define PARAMETER_VALUE(type, name) case PARAMETER_##name: return (uint32_t)c->name;
-    EVENT_PARAMETERS(PARAMETER_VALUE)
-#undef PARAMETER_VALUE
-    default: return 0;
-    }
+    return event_follow(g, row, at, row->run(g, &c));
 }
 
 /* ---- Turns ------------------------------------------------------------------------------ */
@@ -203,11 +197,11 @@ static bool spend_command(GameState *g)
 }
 
 // $C0:5A93
-EventTurnEnd event_run_turn(GameState *g, uint8_t object, const EventRunner *r, uint16_t *stopped_at)
+EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at)
 {
     set_event_commands_left(g, event_commands_per_turn(g));
-    uint16_t at = event_object_script_position(g, slot_of(object));
-    set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | object));
+    uint16_t at = event_object_script_position(g, object);
+    object_make_current(g, object);
     EventStep st;
     do {
         *stopped_at = at;
@@ -220,18 +214,26 @@ EventTurnEnd event_run_turn(GameState *g, uint8_t object, const EventRunner *r, 
     *stopped_at = at;
     /* the commands may have named another object running, or left a state
      * the port doesn't reach as the original does */
-    if (!event_names_object(field_current_object(g)) || !r->state_is_ours(r->ctx))
+    if (!object_current_is_one(g) || !r->state_is_ours(r->ctx))
         return TURN_NOT_OURS;
-    set_event_object_script_position(g, running_object(g), at);
+    set_event_object_script_position(g, object_current(g), at);
     return TURN_OVER;
 }
 
+/* For the original's code and shadow mode: the map setup keeps the current
+ * object as a word (it runs with 16-bit index registers, $C0:58FB), which
+ * clears the byte after the link; and it keeps the openings' end, the
+ * object count doubled, in event_object_end. */
+static void leave_current_as_a_word(GameState *g) { set_field_current_object(g, (uint8_t)field_current_object(g)); }
+static void leave_openings_end(GameState *g, uint8_t count) { set_event_object_end(g, (uint16_t)(count * 2)); }
+
 /* An object's opening: its script up to its first zero byte, after which the
  * per-frame turns carry on. */
-static EventTurnEnd run_opening(GameState *g, EventObject slot, const EventRunner *r, uint16_t *stopped_at)
+static EventTurnEnd run_opening(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at)
 {
-    uint16_t at = event_object_script_position(g, slot);
-    set_field_current_object(g, (uint16_t)(slot * 2));
+    uint16_t at = event_object_script_position(g, object);
+    object_make_current(g, object);
+    ORIGINAL_EFFECT(leave_current_as_a_word(g));
     EventStep st;
     for (;;) {
         *stopped_at = at;
@@ -245,45 +247,35 @@ static EventTurnEnd run_opening(GameState *g, EventObject slot, const EventRunne
     }
     /* the commands may have named another object running, or left a state the
      * port doesn't reach as the original does */
-    uint16_t object = field_current_object(g);
-    if ((object & 1) || !r->state_is_ours(r->ctx))
+    if (!object_current_is_one(g) || !r->state_is_ours(r->ctx))
         return TURN_NOT_OURS;
-    set_event_object_script_position(g, slot_of(object), (uint16_t)(at + 1));
+    set_event_object_script_position(g, object_current(g), (uint16_t)(at + 1));
     return TURN_OVER;
 }
 
-/* A map's objects, before their scripts first run: none solid, none
- * accelerating (and, by the original's 16-bit clears, the sprite state of the
- * object after each cleared too). */
-static void settle(GameState *g, EventObject slot)
-{
-    set_field_object_solid(g, slot, 0);
-    set_field_object_sprite_state(g, slot + 1, 0);
-    set_field_object_accelerating(g, slot, 0);
-    set_field_object_acceleration(g, slot, 0);
-}
-
-enum { NO_SCRIPT = 0x80 };   /* an object whose character has this bit runs no script */
-
 // $C0:58DE (inside the map setup routine)
-EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, uint16_t *object, uint16_t *stopped_at)
+EventTurnEnd event_run_openings(GameState *g, const EventRunner *r, FieldObject *object, uint16_t *stopped_at)
 {
-    set_event_object_end(g, (uint16_t)(event_object_count(g) * 2));
-    *object = 0;
+    uint8_t count = event_object_count(g);
+    ORIGINAL_EFFECT(leave_openings_end(g, count));
+    FieldObject next = 0;
     do {
+        *object = next;
         /* the object's cells are reached through the data bank, which a
          * command the original ran may have left elsewhere */
         if (!r->state_is_ours(r->ctx))
             return TURN_NOT_OURS_BEFORE;
-        EventObject slot = slot_of(*object);
-        settle(g, slot);
-        if (!(field_object_state_character(g, slot) & NO_SCRIPT)) {
-            EventTurnEnd e = run_opening(g, slot, r, stopped_at);
+        object_start_on_the_map(g, next);
+        if (object_runs_a_script(g, next)) {
+            EventTurnEnd e = run_opening(g, next, r, stopped_at);
             if (e != TURN_OVER)
                 return e;
-            *object = field_current_object(g);
+            /* the original's loop goes on from the object its opening left
+             * running, which a command could have changed (none the game
+             * runs does; the opening kept its place, above) */
+            next = object_current(g);
         }
-        *object = (uint16_t)(*object + 2);
-    } while (*object != event_object_end(g));
+        next++;
+    } while (next != count);
     return TURN_OVER;
 }
