@@ -223,14 +223,37 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Recompiler
 
-- **Liveness can't see into code the game runs from RAM, and the don't-care
-  check trusts it there.** Scene's rework declared A dead at a call-out into
-  the scene program's RAM routines. Liveness agreed and
-  `tools/dontcare_check.py` accepted it, but one of those routines reads the A
-  the original loads. Only fuzzing caught it (60 of 64 states mismatched).
-  Until liveness follows the program images (`[[ramcode]]`), a declaration at
-  a call-out into RAM code is a claim the check can't support. The check
-  should refuse it, or flag it as unverified, instead of passing it.
+- **Stops and entries don't get the strict solve yet.** The don't-care check
+  holds call-outs to liveness that trusts no target set the machine picks at
+  run time (RECOMP.md, "Call-outs into targets the machine picks"), but not a
+  registry entry's set after its return or a stop's. Held to it, 132 would be
+  findings: 108 menu entries (the menus' `JMP (abs)` through RAM, `$C2:0553`,
+  `$C2:1819`, `$C2:1836`, `$C2:8203`, `$C2:828E`, `$C2:EFD0`, in the callers
+  they return to), 15 scene entries and 9 scene stops (the task lists at
+  `$7E:39CF`/`$7E:3998` and `$00F0`'s dispatch after the return). Unlike the
+  call-outs, there the dispatch runs on the game's own state after the port
+  has finished, so the trusting solve is sound for any state the game makes;
+  what it isn't sound for is a port that leaves a task list or pointer the
+  original wouldn't, which shadow mode compares in memory anyway. Deciding
+  whether to fuzz them with the rule (and scrambling the entry's own set at
+  its return, as `--poison-dc` does at call-outs) is the open part.
+- **Code the program writes over itself.** A `[[ramcode]]` section with `over`
+  or `patch` has an image per alternative, and liveness reads the patched
+  one. A call-out into such a section is checked against that image only; one
+  whose callee differs between the images needs both summaries joined, or the
+  call counted as dynamic.
+- **`scene_frame_work`'s fuzz states rarely reach its task lists' call-outs.**
+  Random task lists at `$0940`/`$0920` send the call-outs past the budget in
+  about half the states, and in 20000 the rest scramble only a handful of
+  call-outs (`ct_fuzz --poison-dc` reports how many). The two calls are proven
+  by the strict solve, so nothing rests on it, but a constraint that keeps the
+  lists' entries inside the program's tasks would fuzz what the tasks do with
+  the registers the port passes.
+- **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
+  comparison runs without `--poison-dc`, so a declaration the rewrite widened
+  shows only if the port also stopped passing the original's value. Passing the
+  flag to both builds needs the predecessor to have it too; until every
+  predecessor does, run `ct_fuzz --poison-dc` on the rewrite alone.
 - **"No game state produces it", checked by a tool.** Rubric item 34 says to
   guard inputs the game never produces instead of emulating them, and each
   such claim has to be checked. Scene's rework checked each one by adding the

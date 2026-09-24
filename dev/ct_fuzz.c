@@ -4,7 +4,7 @@
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
  *           [--iterations N] [--seed S] [--long | --interrupt] [--budget N]
  *           [--keep AREA]... [--fill AREA=lo-hi]... [--range A|X|Y=lo-hi]...
- *           [--db BB] [--d HHHH] [--apu-loopback] [--details N]
+ *           [--db BB] [--d HHHH] [--apu-loopback] [--poison-dc] [--details N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -56,6 +56,17 @@
  * would otherwise never end. --details N describes the first N mismatches
  * (default 10). Accessors the port called out of range (port/vars_ram.h) are
  * listed after the counts, one `accessor out of range` line per variable.
+ *
+ * --poison-dc scrambles, at every call-out the port makes with a don't-care
+ * set (m_jsr_dc, bridge_call, PF_CALL_DC and the rest), the registers and flags
+ * the set names before the callee runs (native_call_poison). A callee that
+ * reads one runs on a value other than the original's, and the state
+ * mismatches: without it, a port that happens to leave the original's value
+ * there hides a wrong declaration. It is the evidence a don't-care
+ * declaration liveness can't prove carries (docs/PORTING.md, "Declarations
+ * liveness can't prove"). The states are those of the same seed without it.
+ * --poison-site BBAAAA scrambles only at the call-outs made from that site
+ * (the original's JSR or JSL), to tell which declaration a mismatch is in.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,6 +123,10 @@ int main(int argc, char **argv)
             apu_loopback = true;
             continue;
         }
+        if (!strcmp(a, "--poison-dc")) {
+            o.poison_dc = true;
+            continue;
+        }
         if (!v)
             goto usage;
         i++;
@@ -123,6 +138,10 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--budget")) o.budget = strtoul(v, NULL, 0);
         else if (!strcmp(a, "--step-limit")) o.budget = 4 * strtoul(v, NULL, 0);
         else if (!strcmp(a, "--details")) o.details = (int)strtol(v, NULL, 0);
+        else if (!strcmp(a, "--poison-site")) {
+            o.poison_dc = true;
+            o.poison_site = (uint32_t)strtoul(v, NULL, 16);
+        }
         else if (!strcmp(a, "--db")) data_bank = (int)(strtoul(v, NULL, 16) & 0xFF);
         else if (!strcmp(a, "--d")) direct_page = (int)(strtoul(v, NULL, 16) & 0xFFFF);
         else if (!strcmp(a, "--range") && strchr("AXY", v[0]) && v[1] == '=' &&
@@ -178,6 +197,8 @@ int main(int argc, char **argv)
            "long %lu, the original past its budget %lu)\n",
            e->name, o.iterations, r.matched, r.mismatched, r.looped,
            r.guard + r.callout + r.both_long + r.original_long, r.guard, r.callout, r.both_long, r.original_long);
+    if (o.poison_dc)
+        printf("%s: scrambled the don't-care set of %lu call-outs in the states compared\n", e->name, r.scrambled);
     /* Random states reach indices no movie does: an accessor called past what
      * re/ram.toml declares, usually where no guard turns the state away. */
     range_report(stdout);
@@ -186,7 +207,8 @@ int main(int argc, char **argv)
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
                     "[--seed S] [--long | --interrupt] [--budget N] [--keep AREA]... [--fill AREA=lo-hi]... "
-                    "[--range A|X|Y=lo-hi]... [--db BB] [--d HHHH] [--apu-loopback] [--details N]\n"
+                    "[--range A|X|Y=lo-hi]... [--db BB] [--d HHHH] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
+                    "  [--details N]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");
     return 2;

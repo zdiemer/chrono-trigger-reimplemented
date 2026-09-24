@@ -2114,35 +2114,12 @@ unsigned long native_call_step_limit = 50000000ul;
 unsigned long native_call_steps;
 unsigned long native_call_timeouts;
 void (*native_call_timeout_hook)(void);
+bool (*native_call_poison)(uint32_t site, uint32_t target, uint64_t *bits);
 
-void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
+/* Interpret a call-out's callee in place, up to its return (ret, with S back
+ * at s_after), interrupts held off and no time passing. */
+static void call_in_place(Snes *s, uint32_t site, uint32_t target, uint32_t ret, uint16_t s_after)
 {
-    uint16_t s_after = s->cpu.s;
-    uint32_t ret;
-    if (long_call) {
-        push8_raw(s, site >> 16);
-        push16_raw(s, (uint16_t)(site + 3));
-        ret = (site & 0xFF0000) | (uint16_t)(site + 4);
-    } else {
-        push16_raw(s, (uint16_t)(site + 2));
-        ret = (site & 0xFF0000) | (uint16_t)(site + 3);
-    }
-    s->cpu.pb = target >> 16;
-    s->cpu.pc = target & 0xFFFF;
-
-    Job *j = current_job;
-    if (j && j->m == s) {
-        j->state = JOB_CALLING;
-        j->call_target = target;
-        j->call_ret = ret;
-        j->call_s_after = s_after;
-        j->call_dont_care = dont_care;
-        fiber_switch(fiber_main());
-        return;
-    }
-
-    /* Not inside the runtime (tests, tools): interpret the callee right here,
-     * interrupts held off and no time passing. */
     bool nmi = s->cpu.nmi_pending, irq = s->cpu.irq_line;
     s->cpu.nmi_pending = false;
     s->cpu.irq_line = false;
@@ -2179,6 +2156,130 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
     }
     s->cpu.nmi_pending = nmi;
     s->cpu.irq_line = irq;
+}
+
+/* native_call_poison: the registers and flags `dont_care` names, each made to
+ * differ from the caller's (a byte of A, X, Y, D or DB xored with a value that
+ * isn't 0, a flag inverted). */
+static void scramble(Cpu *c, uint16_t dont_care, uint64_t bits)
+{
+    uint8_t k[6];
+    for (int i = 0; i < 6; i++) {
+        k[i] = (uint8_t)(bits >> (8 * i));
+        if (!k[i])
+            k[i] = 0xA5;
+    }
+    bool index8 = (c->p & CPU_FLAG_X) != 0;
+    if (dont_care & (DC_A | DC_AL))
+        c->a ^= k[0];
+    if (dont_care & (DC_A | DC_AH))
+        c->a ^= (uint16_t)(k[1] << 8);
+    if (dont_care & DC_X)
+        c->x ^= (uint16_t)(index8 ? k[2] : k[2] | k[3] << 8);
+    if (dont_care & DC_Y)
+        c->y ^= (uint16_t)(index8 ? k[4] : k[4] | k[5] << 8);
+    if (dont_care & DC_D)
+        c->d ^= (uint16_t)(k[3] | k[0] << 8);
+    if (dont_care & DC_DB)
+        c->db ^= k[5];
+    c->p ^= (uint8_t)((dont_care & DC_N ? CPU_FLAG_N : 0) | (dont_care & DC_V ? CPU_FLAG_V : 0) |
+                      (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
+}
+
+/* After a scrambled call: what the callee left alone is the caller's own
+ * again, as shadow mode and the shipping mode have it. The callee ran twice
+ * from the same machine, with the caller's values (clean) and scrambled. Left
+ * alone, a register (a byte of A, a flag) ends with the caller's value in the
+ * first run and the scrambled one in the second; written without being read,
+ * with the same value in both, which can't be both, since the two differ. */
+static uint16_t untouched(uint16_t out, uint16_t mine, uint16_t scrambled, uint16_t clean, uint16_t mask)
+{
+    if ((out & mask) == (scrambled & mask) && (clean & mask) == (mine & mask))
+        return (uint16_t)((out & ~mask) | (mine & mask));
+    return out;
+}
+
+static void keep_untouched_scrambled(Cpu *out, const Cpu *mine, const Cpu *scrambled, const Cpu *clean,
+                                     uint16_t dont_care)
+{
+    if (dont_care & (DC_A | DC_AL))
+        out->a = untouched(out->a, mine->a, scrambled->a, clean->a, 0x00FF);
+    if (dont_care & (DC_A | DC_AH))
+        out->a = untouched(out->a, mine->a, scrambled->a, clean->a, 0xFF00);
+    if (dont_care & DC_X)
+        out->x = untouched(out->x, mine->x, scrambled->x, clean->x, 0xFFFF);
+    if (dont_care & DC_Y)
+        out->y = untouched(out->y, mine->y, scrambled->y, clean->y, 0xFFFF);
+    if (dont_care & DC_D)
+        out->d = untouched(out->d, mine->d, scrambled->d, clean->d, 0xFFFF);
+    if (dont_care & DC_DB)
+        out->db = (uint8_t)untouched(out->db, mine->db, scrambled->db, clean->db, 0xFF);
+    static const struct { uint16_t dc; uint8_t flag; } flags[] = {
+        { DC_N, CPU_FLAG_N }, { DC_V, CPU_FLAG_V }, { DC_Z, CPU_FLAG_Z }, { DC_C, CPU_FLAG_C },
+    };
+    for (int i = 0; i < 4; i++)
+        if (dont_care & flags[i].dc)
+            out->p = (uint8_t)untouched(out->p, mine->p, scrambled->p, clean->p, flags[i].flag);
+}
+
+/* The clean run's machine, and whether a scrambled call is under way (a
+ * call-out the callee's own ports make isn't scrambled: the port being fuzzed
+ * is the one whose declarations are in question). */
+static Snes *poison_trial;
+static bool poisoning;
+
+void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
+{
+    uint16_t s_after = s->cpu.s;
+    uint32_t ret;
+    if (long_call) {
+        push8_raw(s, site >> 16);
+        push16_raw(s, (uint16_t)(site + 3));
+        ret = (site & 0xFF0000) | (uint16_t)(site + 4);
+    } else {
+        push16_raw(s, (uint16_t)(site + 2));
+        ret = (site & 0xFF0000) | (uint16_t)(site + 3);
+    }
+    s->cpu.pb = target >> 16;
+    s->cpu.pc = target & 0xFFFF;
+
+    Job *j = current_job;
+    if (j && j->m == s) {
+        j->state = JOB_CALLING;
+        j->call_target = target;
+        j->call_ret = ret;
+        j->call_s_after = s_after;
+        j->call_dont_care = dont_care;
+        fiber_switch(fiber_main());
+        return;
+    }
+
+    /* Not inside the runtime (tests, tools): interpret the callee right here. */
+    uint64_t bits;
+    if (!dont_care || poisoning || !native_call_poison || !native_call_poison(site, target, &bits)) {
+        call_in_place(s, site, target, ret, s_after);
+        return;
+    }
+    if (!poison_trial && !(poison_trial = malloc(sizeof *poison_trial))) {
+        call_in_place(s, site, target, ret, s_after);
+        return;
+    }
+    /* A callee that runs past the budget abandons the port here (the tool's
+     * timeout hook), so the flag is cleared again before every call. */
+    poisoning = true;
+    snes_clone(poison_trial, s);
+    call_in_place(poison_trial, site, target, ret, s_after);
+    Cpu clean = poison_trial->cpu, mine = s->cpu;
+    scramble(&s->cpu, dont_care, bits);
+    Cpu scrambled = s->cpu;
+    call_in_place(s, site, target, ret, s_after);
+    keep_untouched_scrambled(&s->cpu, &mine, &scrambled, &clean, dont_care);
+    poisoning = false;
+}
+
+void native_call_poison_reset(void)
+{
+    poisoning = false;
 }
 
 void native_sync(Snes *s)

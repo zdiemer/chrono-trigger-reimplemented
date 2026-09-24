@@ -31,6 +31,31 @@ applies it:
   for that call: neither the callee nor the caller after it returns may read
   it (`Liveness.live_into_call`).
 
+A call-out's claim must also hold without trusting a target set the machine
+decides at run time. Where the callee reaches a transfer whose targets are read
+from work RAM (a table or pointer there, an operand the program writes) or come
+from data (a `derive` hint), liveness follows the set it was argued to be for
+the game's own data; but a caller that puts the target there itself (the scene
+port stores a script's operand and calls the program's dispatcher) can put
+anything there, and the fuzzer does. So each call-out declaration is checked a
+second time against liveness solved with every such transfer keeping everything
+live (`Liveness(strict=True)`), as is a call whose target the port computes at
+a site that is such a transfer. A declaration only the trusting solve supports
+is a finding, unless the comment beside it names a fuzz run that scrambled what
+it declares at its call-outs and found no difference:
+
+    /* dc-evidence: ct_fuzz --poison-dc ROUTINE[:VARIANT], seed S: N states,
+       M call-outs scrambled, 0 mismatched */
+
+(the run's routine, seed and counts in place of the capitals; `--poison-site
+BBAAAA` for a run that scrambled one site's call-outs.) The note goes in the
+comment block just above the statement that makes the declaration, or on its
+lines. The check reads it: the routine (and variant)
+must be one tools/fuzz_routines.toml lists and a registered entry that reaches
+the declaration, the run must have compared states and scrambled at least
+MIN_SCRAMBLED call-outs, and found 0 mismatched. A note where liveness proves
+the set without one is a finding too (it would outlive what it stood for).
+
 The declarations are read from the source, not run: their arguments must be
 constants, or built from the parameters of the function they are in (every
 call of it in the same file is followed), its locals, and the rows of a table
@@ -42,7 +67,8 @@ With `--list`, a declaration that could leave out more than it does says what
 
 Needs the ROM and the analysis's inputs (coverage and call logs, as for
 tools.recomp.show): more call logs only make liveness more conservative. Exit
-status is 0 when every declaration is readable and agrees with liveness.
+status is 0 when every declaration is readable and agrees with liveness (and
+every call-out's, with the strict solve or a fuzz note).
 """
 
 import argparse
@@ -50,6 +76,7 @@ import glob
 import pathlib
 import re
 import sys
+import tomllib
 from dataclasses import dataclass, field
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -75,6 +102,17 @@ CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CAL
 RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
 RETURN_OPCODES = {0x60: "RTS", 0x6B: "RTL", 0x40: "RTI"}
 MAX_DEPTH = 6
+FUZZ_ROUTINES = "tools/fuzz_routines.toml"
+# The evidence a call-out declaration liveness can't prove carries beside it
+# (the module's docstring; docs/PORTING.md, "Declarations liveness can't prove").
+EVIDENCE_TAG = "dc-evidence:"
+EVIDENCE = re.compile(
+    r"dc-evidence:\s*ct_fuzz\s+--poison-(?:dc|site\s+[0-9A-Fa-f]{6})\s+(?P<routine>\w+)(?::(?P<variant>\w+))?,"
+    r"\s*seed\s+(?P<seed>\d+):\s*(?P<states>\d+)\s+states,\s*(?P<scrambled>\d+)\s+call-outs\s+scrambled,"
+    r"\s*(?P<mismatched>\d+)\s+mismatched\b")
+# The fewest call-outs a run must have scrambled to count: a run whose states
+# mostly stop before the call (a callee past the budget) says little.
+MIN_SCRAMBLED = 100
 
 
 class Unreadable(Exception):
@@ -284,6 +322,32 @@ class Source:
                 continue      # its definition or a prototype
             out.append(Call(m.group(1), split_args(self.text[open_ + 1:close]), m.start()))
         return out
+
+    def notes_at(self, offset: int) -> str:
+        """The comment text beside the call at offset: the comment block just
+        above the statement it is in, and comments on the statement's lines,
+        joined into one line."""
+        t = self.text
+        start = max(t.rfind(";", 0, offset), t.rfind("{", 0, offset), t.rfind("}", 0, offset)) + 1
+        while start < offset and t[start].isspace():
+            start += 1
+        try:
+            end = matching(t, t.index("(", offset))
+        except ValueError:
+            end = offset
+        lines = self.raw.split("\n")
+        first, last = self.line(start), self.line(end)
+        block = lines[first - 1:last]
+        k = first - 2
+        while k >= 0:
+            stripped = lines[k].strip()
+            if not (stripped.startswith(("//", "/*", "*")) or stripped.endswith("*/")):
+                break
+            block.insert(0, lines[k])
+            k -= 1
+        text = " ".join(block)
+        text = re.sub(r"/\*|\*/|//|^\s*\*|\s\*\s", " ", text)
+        return " ".join(text.split())
 
     def called_names(self, f: Func) -> set:
         return set(re.findall(r"\b(\w+)\s*\(", self.text[f.start:f.end])) - KEYWORDS
@@ -676,6 +740,7 @@ class Decl:
     site: int = 0       # call: the JSR/JSL and its target
     target: int = 0
     own: bool = False   # stop: the set is the stop's own (m_stop_at_own), the entry's not added
+    offset: int = 0     # where the declaring call is in its source (for the notes beside it)
 
 
 @dataclass
@@ -798,10 +863,11 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
             for v, _ in vals:
                 if call.name in STOPS:
                     decls.append(Decl("stop", src.path, src.line(call.offset), f.name if f else None, v[1] & 0xFFFF,
-                                      at=v[0] & 0xFFFFFF, own=call.name == "m_stop_at_own"))
+                                      at=v[0] & 0xFFFFFF, own=call.name == "m_stop_at_own", offset=call.offset))
                 else:
                     decls.append(Decl("call", src.path, src.line(call.offset), f.name if f else None, v[2] & 0xFFFF,
-                                      site=v[0] & 0xFFFFFF, target=None if v[1] is None else v[1] & 0xFFFFFF))
+                                      site=v[0] & 0xFFFFFF, target=None if v[1] is None else v[1] & 0xFFFFFF,
+                                      offset=call.offset))
     return decls, findings
 
 
@@ -888,14 +954,56 @@ def site_targets(lv, site: int) -> list:
     return sorted(out)
 
 
-def check(entries: list, decls: list, sources: list, lv, opcode_at) -> tuple:
-    """(findings, rows): rows describe every declaration checked, for --list."""
+def site_dynamic(lv, site: int) -> str | None:
+    """Why the original's instruction at site has targets the machine decides
+    at run time (Liveness.dynamic_transfer), or None."""
+    for insn in lv.an.code.get(site, {}).values():
+        why = lv.dynamic_transfer(site, insn)
+        if why is not None:
+            return why
+    return None
+
+
+def evidence_problem(note, d, entries: list, reach: dict, sources: list, fuzz_routines: set) -> str | None:
+    """Why a dc-evidence note doesn't stand for the declaration d, or None."""
+    m = EVIDENCE.search(note)
+    if not m:
+        return ("its dc-evidence note isn't in the form `dc-evidence: ct_fuzz --poison-dc ROUTINE[:VARIANT], "
+                "seed S: N states, M call-outs scrambled, 0 mismatched`")
+    routine, variant = m.group("routine"), m.group("variant") or ""
+    if (routine, variant) not in fuzz_routines:
+        return f"its dc-evidence names {routine}{':' + variant if variant else ''}, which {FUZZ_ROUTINES} doesn't list"
+    named = [e for e in entries if e.name == routine]
+    if not named:
+        return f"its dc-evidence names {routine}, which isn't a registered entry"
+    for e in named:
+        if e.name not in reach:
+            reach[e.name] = reaching(sources, e.fn)
+    if not any((d.path, d.func) in reach[e.name] for e in named):
+        return f"its dc-evidence names {routine}, which doesn't reach {d.func}"
+    if int(m.group("mismatched")):
+        return f"its dc-evidence run mismatched {m.group('mismatched')} state(s)"
+    if not int(m.group("states")):
+        return "its dc-evidence run compared no states"
+    if int(m.group("scrambled")) < MIN_SCRAMBLED:
+        return (f"its dc-evidence run scrambled {m.group('scrambled')} call-outs, fewer than {MIN_SCRAMBLED} "
+                "(most of its states stop before the call: narrow them)")
+    return None
+
+
+def check(entries: list, decls: list, sources: list, lv, opcode_at, strict=None,
+          fuzz_routines: set | None = None) -> tuple:
+    """(findings, rows): rows describe every declaration checked, for --list.
+    With `strict` (liveness solved with Liveness(strict=True)), a call-out's
+    set must hold there too, or carry a dc-evidence note."""
     findings, rows = [], []
     reach = {}
     for e in entries:
         if e.idle or e.generated:
             continue
         reach[e.name] = reaching(sources, e.fn)
+    by_source = {src.path: src for src in sources}
+    noted = {}          # (path, offset) -> whether some value of the declaration needed its note
 
     def entry_ok(e, point_live, where, what):
         bad = excess(e.dont_care, point_live)
@@ -927,14 +1035,50 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at) -> tuple:
                 findings.append(Finding(where, f"the call from {fmt(d.site)}: its target is computed, and the "
                                                "original's instruction there isn't a call the analysis resolved"))
                 continue
+            src = by_source.get(d.path)
+            note = src.notes_at(d.offset) if src is not None else ""
+            has_note = EVIDENCE_TAG in note
+            if has_note:
+                noted.setdefault((d.path, d.offset), False)
+            computed_why = site_dynamic(lv, d.site) if d.target is None else None
             for target in targets:
                 live = lv.callee_reads(target)
                 bad = excess(d.dont_care, live)
-                rows.append(f"{where}: call {fmt(d.site)} -> {fmt(target)} {dc_text(d.dont_care)}: "
-                            + verdict(d.dont_care, live))
+                row = f"{where}: call {fmt(d.site)} -> {fmt(target)} {dc_text(d.dont_care)}: "
                 if bad:
+                    rows.append(row + verdict(d.dont_care, live))
                     findings.append(Finding(where, f"the call from {fmt(d.site)} to {fmt(target)} declares "
                                                    f"{dc_text(d.dont_care)}, where liveness has {describe(bad)} read"))
+                    continue
+                strict_live = None if strict is None else (ALL if computed_why else strict.callee_reads(target))
+                strict_bad = 0 if strict_live is None else excess(d.dont_care, strict_live)
+                if not strict_bad:
+                    rows.append(row + verdict(d.dont_care, live if strict_live is None else live | strict_live))
+                    continue
+                if computed_why:
+                    how = f"the port computes the target of the transfer at {fmt(d.site)}: {computed_why}"
+                else:
+                    sites = lv.dynamic_sites(target)
+                    pc = min(sites) if sites else None
+                    how = (f"the callee reaches {fmt(pc)}: {sites[pc]}" if pc is not None
+                           else "the callee reaches a transfer whose targets are decided at run time")
+                unproven = (f"liveness has it dead only by trusting a target set decided at run time ({how}); "
+                            f"without that, {describe(strict_bad)} may be read")
+                if has_note:
+                    noted[(d.path, d.offset)] = True
+                    problem = evidence_problem(note, d, entries, reach, sources, fuzz_routines or set())
+                    if problem is None:
+                        rows.append(row + f"ok by fuzz evidence ({unproven})")
+                        continue
+                    rows.append(row + "unproven: " + problem)
+                    findings.append(Finding(where, f"the call from {fmt(d.site)} to {fmt(target)} declares "
+                                                   f"{dc_text(d.dont_care)}: {unproven}, and {problem}"))
+                    continue
+                rows.append(row + f"unproven ({unproven})")
+                findings.append(Finding(where, f"the call from {fmt(d.site)} to {fmt(target)} declares "
+                                               f"{dc_text(d.dont_care)}: {unproven}. Pass what may be read, or fuzz "
+                                               "the call-out with ct_fuzz --poison-dc and note the run beside it "
+                                               "(dc-evidence, docs/PORTING.md)"))
             continue
         # a stop: the entries that reach it add their own sets, unless it is the stop's own
         owners = [] if d.own else [e for e in entries if e.name in reach and (d.path, d.func) in reach[e.name]]
@@ -957,7 +1101,22 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at) -> tuple:
             if bad:
                 findings.append(Finding(where, f"the stop declares {dc_text(d.dont_care)}{who} {what}, "
                                                f"where liveness has {describe(bad)} read"))
+    if strict is not None:
+        for (path, offset), needed in noted.items():
+            if not needed:
+                findings.append(Finding(f"{path}:{by_source[path].line(offset)}",
+                                        "a dc-evidence note on a call-out whose set liveness proves without it: "
+                                        "remove the note"))
     return findings, rows
+
+
+def load_fuzz_routines(path: pathlib.Path) -> set:
+    """(name, variant) of every routine the fuzz constraints file lists."""
+    if not path.exists():
+        return set()
+    with open(path, "rb") as fh:
+        data = tomllib.load(fh)
+    return {(r.get("name", ""), r.get("variant", "")) for r in data.get("routine", [])}
 
 
 def load_sources(root: pathlib.Path) -> tuple:
@@ -970,18 +1129,20 @@ def load_sources(root: pathlib.Path) -> tuple:
     return sources, headers + game_headers
 
 
-def run(root: pathlib.Path, lv, opcode_at) -> tuple:
+def run(root: pathlib.Path, lv, opcode_at, strict=None) -> tuple:
     """(findings, rows, counts) for the tree at root."""
-    return run_sources(*load_sources(root), lv, opcode_at)
+    return run_sources(*load_sources(root), lv, opcode_at, strict=strict,
+                       fuzz_routines=load_fuzz_routines(root / FUZZ_ROUTINES))
 
 
-def run_sources(sources: list, globals_: list, lv, opcode_at) -> tuple:
-    """(findings, rows, counts) for these sources, one of them game/registry.c."""
+def run_sources(sources: list, globals_: list, lv, opcode_at, strict=None, fuzz_routines: set | None = None) -> tuple:
+    """(findings, rows, counts) for these sources, one of them game/registry.c.
+    With `strict`, call-outs are checked against it too (check)."""
     ev = Evaluator(sources, globals_)
     registry = next(s for s in sources if s.path == "game/registry.c")
     entries, f1 = registry_entries(registry, ev)
     decls, f2 = declarations([s for s in sources if s.path.endswith(".c")], ev)
-    findings, rows = check(entries, decls, sources, lv, opcode_at)
+    findings, rows = check(entries, decls, sources, lv, opcode_at, strict, fuzz_routines)
     counts = {"entries": sum(1 for e in entries if e.dont_care and not e.idle and not e.generated),
               "stops": sum(1 for d in decls if d.kind == "stop"), "calls": sum(1 for d in decls if d.kind == "call")}
     unique = list(dict.fromkeys(f.text() for f in f1 + f2 + findings))
@@ -1022,14 +1183,17 @@ def main(argv=None) -> int:
     calls = expand(DEFAULT_CALLS, args.root) + expand(args.calls, pathlib.Path.cwd())
     an = Analyzer(rom, hints_mod.load(args.hints), coverage=coverage_mod.load(coverage) if coverage else None)
     an.run()
-    lv = Liveness(an, coverage_mod.load_calls(calls) if calls else {})
+    dynamic = coverage_mod.load_calls(calls) if calls else {}
+    lv = Liveness(an, dynamic)
     lv.solve()
+    strict = Liveness(an, dynamic, strict=True)
+    strict.solve()
 
     def opcode_at(addr):
         off = bus_to_offset(addr)
         return rom.data[off] if off is not None else None
 
-    findings, rows, counts = run(args.tree, lv, opcode_at)
+    findings, rows, counts = run(args.tree, lv, opcode_at, strict)
     if args.list:
         for r in rows:
             print(r)

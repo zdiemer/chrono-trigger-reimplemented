@@ -88,6 +88,23 @@ reproducing values nobody reads (docs/PORTING.md), and
 `tools/dontcare_check.py` checks every don't-care set they declare against it;
 `liveness.json` gives each function's as `dont_care`, in `DC_*` terms.
 
+"Unknown control flow" means a transfer the analysis has no targets for. A
+transfer whose targets it does follow is taken at its word, and some of those
+sets are decided by the machine at run time: a jump table or pointer in work
+RAM (the scene program's `JSR ($00F0,X)` at `$7E:37F6`, its task lists at
+`$7E:39CF` and `$7E:3998`, the menus' `JMP (abs)` through RAM), a call whose
+operand the program writes (`$7E:3023`, `$7E:35FC`, `$7E:5E43`), and a table
+whose extent comes from data (`derive` hints: the event conditionals, the
+battle script handlers). The set followed there is the one argued for the
+game's own data, which is sound for the original but not for a port that puts
+the target in place itself: the scene interpreter stores a script's routine at
+`$00F0` and calls `$7E:37F3`, and a routine no script names can read what none
+of the named ones do. `Liveness.dynamic_transfer` says which transfers these
+are (29 sites in the traced code), `dynamic_sites` which ones a routine reaches,
+and `Liveness(an, calls, strict=True)` solves with each keeping everything live;
+the don't-care check holds call-outs to that solve too (RECOMP.md, "Call-outs
+into targets the machine picks").
+
 ## Hints (`re/hints.toml`)
 
 Hints are the committed knowledge base: facts the tracer can't infer. The

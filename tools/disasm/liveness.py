@@ -60,6 +60,7 @@ from collections import defaultdict
 
 from .analyze import Analyzer
 from .cpu import CONDITIONAL_BRANCHES, RETURNS, SUSPICIOUS, Insn, Mode
+from .memmap import bus_to_offset
 
 # Bit order matches runtime/port/native.h's DC_* bits, except that DC_A means
 # the whole of A, so A and AH dead together is DC_A and AH alone DC_AH.
@@ -336,9 +337,13 @@ def _pull_dest(name: str, widths) -> tuple:
 
 
 class Liveness:
-    def __init__(self, an: Analyzer, dynamic_calls: dict[int, set] | None = None):
-        """dynamic_calls: target -> call sites observed at runtime (ct_dev --calls)."""
+    def __init__(self, an: Analyzer, dynamic_calls: dict[int, set] | None = None, strict: bool = False):
+        """dynamic_calls: target -> call sites observed at runtime (ct_dev --calls).
+        strict: a transfer whose targets are read from memory at run time or
+        derived from data (dynamic_transfer) keeps everything live, instead
+        of taking the target set the analysis follows as complete."""
         self.an = an
+        self.strict = strict
         self.live_in: dict[tuple, dict[int, int]] = {}     # ctx key -> pc -> live-in mask
         self.func_live_in: dict[int, int] = defaultdict(int)
         self.ret_live: dict[int, int] = defaultdict(int)
@@ -421,6 +426,65 @@ class Liveness:
         variants = self.an.code[pc]
         mine = [(w, variants[w]) for w in sorted(ws.get(pc, ()), key=str) if w in variants]
         return mine or list(variants.items())
+
+    def dynamic_transfer(self, pc: int, insn: Insn) -> str | None:
+        """Why the targets of the transfer at pc aren't fixed by code and ROM
+        alone, or None: they are read from work RAM at run time (a table or
+        pointer in RAM, a call whose operand the program writes), or the set
+        the analysis follows comes from data (a `derive` hint) or from what the
+        movies ran. The analysis still follows such a site where its set is
+        argued complete for the game's own data; strict mode doesn't, since a
+        caller that puts the target there itself (a port that stores a
+        script's operand and calls the dispatcher) can put anything there."""
+        an = self.an
+        name, mode = insn.name, insn.mode
+        if name in ("JSR", "JSL", "JML") and mode in (Mode.ABS, Mode.LONG):
+            if pc in an.hints.indirect or pc in an.hints.derive:
+                return "its operand is written at run time"
+            return None
+        if mode is Mode.ABSXIND:
+            table = (pc & 0xFF0000) | insn.operand
+            if bus_to_offset(table) is None:
+                return f"its table (${table >> 16:02X}:{table & 0xFFFF:04X}) is in RAM"
+            jt = an.tables.get(pc)
+            if jt is not None and (jt.extra or an.derived.get(pc) or pc in an.hints.derive):
+                return "its table is filled out from data or a hint"
+            return None
+        if mode in (Mode.ABSIND, Mode.ABSLIND):
+            if bus_to_offset(insn.operand) is None:
+                return f"its pointer (${insn.operand:04X}) is in RAM"
+            if an.derived.get(pc) or pc in an.hints.derive or pc in an.hints.indirect:
+                return "its targets come from data or a hint"
+            return None
+        return None
+
+    def dynamic_sites(self, target: int) -> dict:
+        """The transfers with dynamic targets (dynamic_transfer) the routine at
+        target runs or reaches through the calls and jumps the analysis
+        follows: pc -> why."""
+        an = self.an
+        out, seen, work = {}, set(), [target]
+        while work:
+            entry = work.pop()
+            if entry in seen:
+                continue
+            seen.add(entry)
+            for key in self._entries_at(entry):
+                for pc in an.contexts[key].insns:
+                    for _, insn in self._code(key, pc):
+                        why = self.dynamic_transfer(pc, insn)
+                        if why is not None:
+                            out.setdefault(pc, why)
+                        work += [t for t in self._callees(pc, insn) if t is not None]
+                        if insn.name == "JML" and insn.mode is Mode.LONG:
+                            work.append(insn.operand)
+                        elif insn.mode in (Mode.ABSIND, Mode.ABSLIND):
+                            work += self.indirect_targets(pc)
+                        elif insn.mode is Mode.ABSXIND:
+                            jt = an.tables.get(pc)
+                            if jt is not None and jt.count is not None:
+                                work += self._table_targets(jt)
+        return out
 
     def _all_live(self, entry: int, why: str):
         self.all_live_returns.add(entry)
@@ -926,6 +990,8 @@ class Liveness:
         bank = pc & 0xFF0000
 
         if name in SUSPICIOUS or name == "STP":
+            return ALL
+        if self.strict and self.dynamic_transfer(pc, insn) is not None:
             return ALL
         if name == "RTI":
             return ALL & ~FLAGS     # the interrupted code's registers; its P comes off the stack
