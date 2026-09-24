@@ -553,6 +553,31 @@ static void run_sprite_script(GameState *g)
 
 void menu_object_animate(GameState *g) { run_sprite_script(g); }
 
+/* Whether an object's sprite script is one the language reads: every command
+ * it can reach from where it is is one of the eight, before it stops or goes
+ * round. The game's scripts all are; the original jumps through the words
+ * after its table on any other. A show or a wait may go on to the next
+ * command, so the walk goes on past each. */
+bool menu_sprite_script_is_well_formed(const GameState *g, MenuObject o)
+{
+    enum { WALK = 64 };
+    static const uint8_t lengths[SPRITE_COMMANDS] = { 2, 2, 2, 0, 4, 2, 8, 0 };
+    uint32_t script = menu_object_slots_sprite_script(g, o);
+    SpritePlace p = { (uint8_t)(script >> 16), (uint16_t)script };
+    for (unsigned step = 0; step < WALK; step++) {
+        uint8_t command = sprite_script_byte(g, p, 0);
+        if (command >= SPRITE_COMMANDS)
+            return false;
+        if (command == SPRITE_STOP)
+            return true;
+        int8_t by = command == SPRITE_JUMP ? (int8_t)sprite_script_byte(g, p, 1) : (int8_t)lengths[command];
+        if (by == 0)
+            return true;   /* a jump to itself: it goes round */
+        p.at = (uint16_t)(p.at + by);
+    }
+    return true;   /* round and round within the walk's reach */
+}
+
 // $C2:1CDA
 void menu_give_sprite_script(GameState *g, MenuObject o, uint8_t script)
 {
@@ -661,6 +686,8 @@ static bool peek(Snes *s, bool (*check)(const GameState *))
 
 static bool can_show(const GameState *g) { return running_object_is_one(g) && list_is_sound(g) && free_node_there(g); }
 
+bool menu_sprite_list_is_sound(const GameState *g) { return list_is_sound(g) && free_node_there(g); }
+
 static bool links_are_laid_out(const GameState *g)
 {
     for (unsigned n = 0; n < NODES; n++)
@@ -673,9 +700,15 @@ bool menu_sprites_on_page(Snes *s) { return on_the_mode_page(s); }
 bool menu_sprite_list_takes_a_group(Snes *s) { return on_the_mode_page(s) && peek(s, can_show); }
 bool menu_sprite_list_is_drawable(Snes *s) { return on_the_mode_page(s) && peek(s, list_is_sound); }
 bool menu_sprite_list_is_resettable(Snes *s) { return on_the_mode_page(s) && peek(s, links_are_laid_out); }
+static bool running_script_is_well_formed(const GameState *g)
+{
+    return menu_sprite_script_is_well_formed(g, menu_object_running(g));
+}
+
 bool menu_sprite_script_is_runnable(Snes *s)
 {
-    return on_the_mode_page(s) && peek(s, can_show) && peek(s, menu_object_queue_is_whole);
+    return on_the_mode_page(s) && peek(s, can_show) && peek(s, menu_object_queue_is_whole)
+           && peek(s, running_script_is_well_formed);
 }
 
 bool menu_record_sprites_are_drawable(Snes *s)

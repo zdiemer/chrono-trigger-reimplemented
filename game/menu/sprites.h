@@ -16,4 +16,12 @@ void menu_give_sprite_script(GameState *g, MenuObject o, uint8_t script);
  * object's sprites where the object is. */
 void menu_object_animate(GameState *g);
 
+/* Whether the object's sprite script reads as the language: every command it
+ * can reach one of its eight. */
+bool menu_sprite_script_is_well_formed(const GameState *g, MenuObject o);
+
+/* Whether the list the sprites are shown on is as the mode's start lays it
+ * out: every link a node or a head, and a node free to show a group with. */
+bool menu_sprite_list_is_sound(const GameState *g);
+
 #endif

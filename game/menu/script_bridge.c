@@ -6,6 +6,7 @@
 
 #include "menu/menu_data.h"
 #include "menu/script.h"
+#include "menu/sprites.h"
 #include "menu/vram.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -157,7 +158,7 @@ static bool call_routine(void *ctx, uint32_t routine, bool far)
  * command did, by a table parallel to the language's. */
 typedef enum {
     X_AS_ENTERED,      /* the doubled opcode */
-    X_SLOT,            /* the running object's slot */
+    X_SLOT,            /* the running object's slot, as its cell has it after the command */
     X_BYTE,            /* the byte the command names: its offset, or the cell's address */
     X_FROM,            /* the byte it copies from */
     X_COPIED,          /* the value it copied */
@@ -302,7 +303,7 @@ static bool compared(const ScriptCommand *c, ScriptFlow f, uint8_t found)
 static uint16_t x_left(const GameState *g, const OnTheMachine *m, const ScriptCommand *c, const Noted *n, uint16_t x)
 {
     switch (LEFT[m->opcode].x) {
-    case X_SLOT: return menu_object_address(c->self);
+    case X_SLOT: return menu_object_current(g);
     case X_BYTE: return c->byte.at;
     case X_FROM: return c->from.at;
     case X_COPIED: return n->found;
@@ -480,7 +481,8 @@ bool menu_object_script_runs(Snes *s)
     vars_peek(true);
     GameState *g = state_of(s);
     bool ok = menu_object_address_names_one(menu_object_current(g))
-              && script_bank_holds_scripts((uint8_t)(menu_object_slots_script(g, menu_object_running(g)) >> 16));
+              && script_bank_holds_scripts((uint8_t)(menu_object_slots_script(g, menu_object_running(g)) >> 16))
+              && menu_sprite_script_is_well_formed(g, menu_object_running(g)) && menu_sprite_list_is_sound(g);
     vars_peek(false);
     return ok;
 }
@@ -537,7 +539,8 @@ static bool command_accepts(Snes *s, uint8_t opcode)
         uint32_t at = menu_object_script(g);
         ScriptCommand c = menu_script_decode(g, row, menu_object_running(g), at, NULL);
         ok = script_bank_holds_scripts((uint8_t)(at >> 16)) && menu_script_opcode(menu_script_byte(g, at)) == row
-             && menu_script_runs_here(g, row, &c);
+             && menu_script_runs_here(g, row, &c) && menu_sprite_script_is_well_formed(g, menu_object_running(g))
+             && menu_sprite_list_is_sound(g);
     }
     vars_peek(false);
     return ok;
