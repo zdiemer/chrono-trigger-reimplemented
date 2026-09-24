@@ -442,6 +442,7 @@ there are few of them and each needs a decision per backend.
 ```c
 /* runtime/platform/input.h */
 typedef uint16_t PadBits;   /* JOY1 order: B Y Select Start Up Down Left Right A X L R */
+enum { IN_BUTTON_B = 0x8000, /* ... */ IN_BUTTON_R = 0x0010 };   /* each button by name */
 
 bool in_ready(Platform *pf, PfOrigin o);                 /* SNES: $4212 bit 0 clear */
 PadBits in_read(Platform *pf, PfOrigin o, uint8_t pad);   /* SNES: $4218/$4219 */

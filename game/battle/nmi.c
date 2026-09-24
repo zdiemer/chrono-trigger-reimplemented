@@ -27,8 +27,10 @@
 #include "platform/video.h"
 #include "vars.h"
 
-/* The Start button in the joypad's high byte; R and L in its low byte. */
-enum { BUTTON_START = 0x10, BUTTON_R = 0x10, BUTTON_L = 0x20 };
+/* The handler reads the controller a half at a time, as the original does:
+ * Start from its high byte, R and L from its low. */
+static bool start_held(Platform *pf, PfOrigin o) { return (in_read_high(pf, o, 0) & (IN_BUTTON_START >> 8)) != 0; }
+static bool low_held(Platform *pf, PfOrigin o, uint16_t button) { return (in_read_low(pf, o, 0) & button) != 0; }
 
 /* The battle's setup can forbid the pause; it is taken only in the fight. */
 enum { SETUP_NO_PAUSE = 0x20, MODE_FIGHT = 1 };
@@ -76,7 +78,7 @@ static void take_pause(GameState *g, Platform *pf)
 {
     if (battle_mode(g) == MODE_FIGHT && !pause_allowed(g))
         set_battle_paused(g, 0);
-    else if (pause_allowed(g) && (in_read_high(pf, PF_AT(0xD1E81E), 0) & BUTTON_START)) {
+    else if (pause_allowed(g) && start_held(pf, PF_AT(0xD1E81E))) {
         if (!battle_pause_held(g)) {
             set_battle_paused(g, (uint8_t)((battle_paused(g) + 1) & 0x01));
             set_battle_pause_held(g, 1);
@@ -92,7 +94,7 @@ static void take_frame_advance(GameState *g, Platform *pf)
 {
     if (!battle_debug_frame_advance(g))
         return;
-    if (in_read_low(pf, PF_AT(0xD1E84B), 0) & BUTTON_R) {
+    if (low_held(pf, PF_AT(0xD1E84B), IN_BUTTON_R)) {
         set_battle_paused(g, 0);
         set_battle_pause_held(g, 0);
         return;
@@ -101,7 +103,7 @@ static void take_frame_advance(GameState *g, Platform *pf)
         return;
     uint8_t count = (uint8_t)(battle_frame_advance_count(g) + 1);
     set_battle_frame_advance_count(g, count);
-    bool runs = (count & 0x03) == 0 && (in_read_low(pf, PF_AT(0xD1E86A), 0) & BUTTON_L);
+    bool runs = (count & 0x03) == 0 && low_held(pf, PF_AT(0xD1E86A), IN_BUTTON_L);
     set_battle_paused(g, (count & 0x03) ? (count & 0x03) : !runs);
 }
 
