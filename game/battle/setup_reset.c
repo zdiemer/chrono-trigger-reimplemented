@@ -17,6 +17,13 @@
 
 /* ---- The settings --------------------------------------------------------------------------- */
 
+/* The window's layout is a byte, which the window reads as a word with the
+ * byte after it (0 as the game goes): the setup sets the byte alone. */
+static void choose_window_layout(GameState *g, uint8_t layout)
+{
+    set_battle_window_layout(g, (uint16_t)((battle_window_layout(g) & 0xFF00) | layout));
+}
+
 /* The flags keep the setting's bit as it is: the menus test them for being
  * set. In wait mode (active time off) the timers hold while a tech or item
  * list is open. */
@@ -25,7 +32,7 @@ static void take_settings(GameState *g)
     uint8_t time_and_info = game_settings(g, SETTINGS_TIME_AND_INFO);
     uint8_t memory = game_settings(g, SETTINGS_MEMORY);
     set_battle_lists_hold_timers(g, (time_and_info & ACTIVE_TIME) ^ ACTIVE_TIME);
-    set_battle_window_layout(g, setup_window_layout_for_gauge(g, game_settings(g, SETTINGS_GAUGE)));
+    choose_window_layout(g, setup_window_layout_for_gauge(g, game_settings(g, SETTINGS_GAUGE)));
     set_battle_remembers_commands(g, memory & REMEMBER_COMMANDS);
     set_battle_remembers_lists(g, memory & REMEMBER_LISTS);
     set_battle_show_descriptions(g, time_and_info & SHOW_DESCRIPTIONS);

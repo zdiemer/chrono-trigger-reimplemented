@@ -1,7 +1,7 @@
 /* Battle: the battlefield grid.
  *
  * The battlefield is a grid of 16 by 16 cells, a cell 16 pixels square. The
- * battle builds it at its start from the location's cells (battle/setup.c,
+ * battle builds it at its start from the location's cells (battle/setup_screen.c,
  * battle_base_grid), and rebuilds it whenever objects have moved: the base
  * grid, with each combatant's cell marked as taken. A battle can leave the
  * party off the grid; the original then marks eleven slots from the first
