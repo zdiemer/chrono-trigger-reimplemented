@@ -2038,6 +2038,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the party, 7 checked against the screen window only, 8 left alone by the update"
 source = "game/field/object.c object_role, set_role; game/field/object_update.c field_update_objects $C0:A810"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library)"
 
 [[var]]
 name = "field_object_character"
@@ -2193,6 +2194,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "16-bit X position in 1/16 pixel, the tile in the high byte ($FF00 off screen)"
 source = "game/field/object_update.c (header comment); tools/movies/addresses.py OBJECT_X"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library)"
 [[var.field]]
 name = "fine"
 offset = 0
@@ -2211,6 +2213,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "16-bit Y position in 1/16 pixel, the tile in the high byte"
 source = "game/field/object_update.c (header comment); tools/movies/addresses.py OBJECT_Y"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library)"
 [[var.field]]
 name = "fine"
 offset = 0
@@ -2809,6 +2812,7 @@ row_stride = 0x100
 subsystem = "field"
 meaning = "The second of the three bytes a map gives each tile (a row every 256 bytes, beside field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the map (field_object_sprite_priority +1, where the object takes its priority from the map)"
 source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c object_start_step $C0:ACFD; game/field/object.c object_layer_as_the_map $C0:4BA3"
+unchecked = "an object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map; 20 real calls over the movie library)"
 
 [[var]]
 name = "field_tile_lower_attributes"
@@ -2819,6 +2823,7 @@ row_stride = 0x100
 subsystem = "field"
 meaning = "The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it, bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)"
 source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c object_start_step $C0:ACFD; game/field/object.c object_layer_as_the_map $C0:4BA3"
+unchecked = "an object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map; 20 real calls over the movie library)"
 
 [[var]]
 name = "field_layer_scroll_values"

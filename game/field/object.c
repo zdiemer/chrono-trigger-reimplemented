@@ -58,6 +58,17 @@ bool object_runs_a_script(const GameState *g, FieldObject obj)
     return !(field_object_character(g, obj) & NO_SCRIPT_BIT);
 }
 
+/* ---- Past the tables: the original's effects only (field/object.h) ------------------------ */
+
+ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot)
+{
+    FieldPosition at = {
+        (uint16_t)(field_object_x_tile_unchecked(g, slot) << 8 | field_object_x_fine_unchecked(g, slot)),
+        (uint16_t)(field_object_y_tile_unchecked(g, slot) << 8 | field_object_y_fine_unchecked(g, slot)),
+    };
+    return (ObjectPastTheTables){ (field_object_role_unchecked(g, slot) & ROLE_DISABLED_BIT) != 0, at };
+}
+
 /* An unreachable object's mark is kept as the top bit of its move length
  * (below). */
 enum { UNREACHABLE_BIT = 0x80 };
@@ -227,11 +238,25 @@ bool tile_on_the_map(MapTile tile)
     return tile.x < FIELD_TILE_PROPERTIES_COLUMNS && tile.y < FIELD_TILE_PROPERTIES_ROWS;
 }
 
+static void layer_as(GameState *g, FieldObject obj, TileAttributes there)
+{
+    object_set_sprite_priorities(g, obj, tile_priority(there.upper), tile_priority(there.lower));
+}
+
+/* For shadow mode: off the map, the original layers the object from the
+ * bytes past the attribute tables' rows (field/layers.h). */
+static void layer_as_past_the_map(GameState *g, FieldObject obj, MapTile tile)
+{
+    layer_as(g, obj, map_tile_attributes_past_the_map(g, (MapPlace){ tile.y, tile.x }));
+}
+
 // $C0:4BA3
 void object_layer_as_the_map(GameState *g, FieldObject obj, MapTile tile)
 {
-    TileAttributes there = map_tile_attributes(g, (MapPlace){ tile.y, tile.x });
-    object_set_sprite_priorities(g, obj, tile_priority(there.upper), tile_priority(there.lower));
+    if (tile_on_the_map(tile))
+        layer_as(g, obj, map_tile_attributes(g, (MapPlace){ tile.y, tile.x }));
+    else
+        ORIGINAL_EFFECT(layer_as_past_the_map(g, obj, tile));
 }
 
 void object_take_own_priorities(GameState *g, FieldObject obj)
