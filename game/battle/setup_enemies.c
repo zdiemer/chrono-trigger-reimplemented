@@ -6,7 +6,7 @@
  * graphics. The enemy number picks the enemy's header in the ROM, which says
  * how it animates, where its cursor points and how big it is, how it moves,
  * and flags: drawn on top of the others, the one a formation keeps its
- * places around, aimed at at its cursor point, and one the battle's rule
+ * places around, its numbers shown at its cursor point, and one the battle's rule
  * applies to. The battle sets up each enemy's object and state from these,
  * works out the formation's places around its leader, takes in any rule an
  * enemy brings into the battle (a battle the party can't run from, a
@@ -20,7 +20,7 @@
 #include "original_effects.h"
 #include "vars.h"
 
-enum { FIRST_COMBATANT_OBJECT = 12, TILE_PIXELS = 16, ENEMY_RECORD_BYTES = 12 };
+enum { TILE_PIXELS = 16, ENEMY_RECORD_BYTES = 12 };
 
 /* The enemy record's kind byte: the graphics kind, and whether the enemy
  * starts hidden. An enemy number with its top bit set is no enemy. */
@@ -29,7 +29,7 @@ enum { KIND_BITS = 0x07, STARTS_HIDDEN = 0x80, NO_ENEMY = 0x8000 };
 /* An enemy header's flags. */
 enum {
     DRAWN_ON_TOP = 0x80,      /* a second, topmost entry in the draw list */
-    AIMED_AT_CURSOR = 0x20,   /* effects aimed at it go to its cursor point */
+    NUMBERS_AT_CURSOR = 0x20, /* its numbers show at its cursor point */
     LEADS_FORMATION = 0x08,   /* the formation keeps its places around it */
     UNDER_THE_RULE = 0x04,    /* the battle's rule applies to it */
 };
@@ -92,8 +92,8 @@ static void take_flags(GameState *g, uint8_t enemy, uint8_t flags)
         set_battle_formation(g, (uint8_t)(battle_formation(g) + 1));
         set_battle_formation_leader(g, enemy);
     }
-    if (flags & AIMED_AT_CURSOR)
-        set_battle_aim_at_cursor(g, slot, (uint8_t)(battle_aim_at_cursor(g, slot) + 1));
+    if (flags & NUMBERS_AT_CURSOR)
+        set_battle_number_at_cursor(g, slot, (uint8_t)(battle_number_at_cursor(g, slot) + 1));
     set_battle_rule_applies(g, slot, flags & UNDER_THE_RULE);
 }
 
@@ -120,7 +120,7 @@ static void take_motion(GameState *g, uint8_t enemy, uint8_t motion)
 // $CC:EA6A
 static void set_up_enemy(GameState *g, uint8_t enemy, unsigned record)
 {
-    unsigned slot = BATTLE_FIRST_ENEMY + enemy, object = FIRST_COMBATANT_OBJECT + slot;
+    unsigned slot = BATTLE_FIRST_ENEMY + enemy, object = battle_object_of(slot);
     uint8_t kind_byte = battle_enemy_placement_kind(g, record);
     uint8_t kind = kind_byte & KIND_BITS;
     set_battle_object_kind(g, slot, kind);
@@ -156,10 +156,10 @@ static void set_up_enemy(GameState *g, uint8_t enemy, unsigned record)
 // $CC:EC31
 static void place_formation(GameState *g)
 {
-    unsigned leader = FIRST_COMBATANT_OBJECT + BATTLE_FIRST_ENEMY + battle_formation_leader(g);
+    unsigned leader = battle_object_of(BATTLE_FIRST_ENEMY + battle_formation_leader(g));
     uint8_t x = battle_object_x(g, leader), y = battle_object_y(g, leader);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
-        unsigned object = FIRST_COMBATANT_OBJECT + BATTLE_FIRST_ENEMY + enemy;
+        unsigned object = battle_object_of(BATTLE_FIRST_ENEMY + enemy);
         if (!battle_slot_present(g, BATTLE_FIRST_ENEMY + enemy))
             continue;
         set_battle_formation_offset_x(g, enemy, (uint8_t)(battle_object_x(g, object) - x));

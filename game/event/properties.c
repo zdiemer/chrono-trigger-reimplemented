@@ -4,6 +4,7 @@
  * and asking where an object stands. Each is the field's object's
  * (field/object.h). */
 #include "event/leaves.h"
+#include "event/party.h"
 #include "event/script.h"
 #include "event/variables.h"
 #include "field/layers.h"
@@ -60,11 +61,14 @@ EVENT_OPERATION(set_move_length, self, move_length)
 
 /* For the original's code and shadow mode: layering an object as the map is
  * where it stands, the original keeps its upper half's priority, as the
- * hardware's bits, in its first scratch cell. */
+ * hardware's bits, in its first scratch cell -- off the map, from the bytes
+ * it reads there (field/object.h, object_layer_as_the_map). */
 static void keep_upper_priority(GameState *g, MapTile tile)
 {
-    uint8_t upper = tile_priority(map_tile_attributes(g, (MapPlace){ tile.y, tile.x }).upper);
-    keep_byte(g, KEPT_FIRST, (uint8_t)(upper << 4));
+    MapPlace place = { tile.y, tile.x };
+    TileAttributes there =
+        tile_on_the_map(tile) ? map_tile_attributes(g, place) : map_tile_attributes_past_the_map(g, place);
+    keep_byte(g, KEPT_FIRST, (uint8_t)(tile_priority(there.upper) << 4));
 }
 
 // $C0:4B74
@@ -118,37 +122,13 @@ static EventFlow set_layering(GameState *g, FieldObject self, uint8_t layering)
 }
 EVENT_OPERATION(set_layering, self, layering)
 
-/* The guards' part for the three: an object that follows the map is layered
- * as the map is where it ends up, and that must be on the map. A script that
- * puts such an object off it (the game does: a tile column of 64, or 255 to
- * take it out of the way) has the original read the layering tables'
- * neighbours, which is the original's to run (field/object.h,
- * tile_on_the_map; docs/TODO.md). */
-static bool layered_on_the_map(const GameState *g, FieldObject self, MapTile tile)
+/* The layering's guard: the byte is a layering (field/object.h). */
+static bool a_layering(const GameState *g, uint8_t layering)
 {
-    return !object_follows_the_map(g, self) || tile_on_the_map(tile);
+    (void)g;
+    return layering_byte_is_one(layering);
 }
-
-static bool stands_on_the_map(const GameState *g, FieldObject self, uint8_t tile_x, uint8_t tile_y)
-{
-    return layered_on_the_map(g, self, (MapTile){ tile_x, tile_y });
-}
-EVENT_CHECK(stands_on_the_map, self, tile_x, tile_y)
-
-static bool placed_on_the_map(const GameState *g, FieldObject self, uint16_t x, uint16_t y)
-{
-    return layered_on_the_map(g, self, (MapTile){ (uint8_t)(x >> 8), (uint8_t)(y >> 8) });   /* the tile's the high byte */
-}
-EVENT_CHECK(placed_on_the_map, self, x, y)
-
-/* And the byte is a layering (field/object.h). */
-static bool a_layering(const GameState *g, FieldObject self, uint8_t layering)
-{
-    if (!layering_byte_is_one(layering))
-        return false;
-    return !layering_of_byte(layering).follows_the_map || tile_on_the_map(object_tile(g, self));
-}
-EVENT_CHECK(a_layering, self, layering)
+EVENT_CHECK(a_layering, layering)
 
 // $C0:4CD9
 /* Show an object's sprite, hide it, or take it away. Ends the turn. */
@@ -159,18 +139,35 @@ static EventFlow set_sprite(GameState *g, FieldObject object, ObjectSprite sprit
 }
 EVENT_OPERATION(set_sprite, object, sprite)
 
-// $C0:65B2
-/* Variables learn the tile an object stands on. */
-static EventFlow note_tile(GameState *g, FieldObject object, EventVariable column, EventVariable row)
+static void note(GameState *g, MapTile tile, EventVariable column, EventVariable row)
 {
-    MapTile tile = object_tile(g, object);
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, tile.x));
     ORIGINAL_EFFECT(keep_byte(g, KEPT_SECOND, tile.y));
     set_variable_byte(g, column, tile.x);
     set_variable_byte(g, row, tile.y);
+}
+
+// $C0:65B2
+/* Variables learn the tile an object stands on. */
+static EventFlow note_tile(GameState *g, FieldObject object, EventVariable column, EventVariable row)
+{
+    note(g, object_tile(g, object), column, row);
     return next_command();
 }
 EVENT_OPERATION(note_tile, object, column, row)
+
+// $C0:65EB
+/* Variables learn the tile a party member stands on; a member who isn't in
+ * the party stands on none, and the variables keep what they held. */
+static EventFlow note_member_tile(GameState *g, FieldObject self, PartyPlace member, EventVariable column,
+                                  EventVariable row)
+{
+    Someone m = member_in_place(g, member, self);
+    if (m.there)
+        note(g, tile_at(m.at), column, row);
+    return next_command();
+}
+EVENT_OPERATION(note_member_tile, self, member, column, row)
 
 EVENT_OPCODES(event_properties_opcodes,
     { 0x89, OPERATION(set_speed), .speed = OPERAND(1), .length = 2 },
@@ -180,10 +177,9 @@ EVENT_OPCODES(event_properties_opcodes,
     { 0x0E, OPERATION(set_arrival), .arrival = OPERAND(1), .length = 2 },
     { 0x87, OPERATION(set_move_length), .move_length = OPERAND(1), .length = 2 },
     { 0x8B, OPERATION(stand_on_tile), .tile_x = OPERAND(1), .tile_y = OPERAND(2), .centred = CONSTANT(true),
-      .length = 3, CHECK(stands_on_the_map) },
-    { 0x8C, OPERATION(stand_on_tile), .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2), .length = 3,
-      CHECK(stands_on_the_map) },
-    { 0x8D, OPERATION(place), .x = OPERAND_WORD(1), .y = OPERAND_WORD(3), .length = 5, CHECK(placed_on_the_map) },
+      .length = 3 },
+    { 0x8C, OPERATION(stand_on_tile), .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2), .length = 3 },
+    { 0x8D, OPERATION(place), .x = OPERAND_WORD(1), .y = OPERAND_WORD(3), .length = 5 },
     { 0x8E, OPERATION(set_layering), .layering = OPERAND(1), .length = 2, CHECK(a_layering) },
     { 0x90, OPERATION(set_sprite), .object = SELF, .sprite = CONSTANT(SPRITE_SHOWN), .length = 1 },
     { 0x91, OPERATION(set_sprite), .object = SELF, .sprite = CONSTANT(SPRITE_HIDDEN), .length = 1 },
@@ -191,5 +187,5 @@ EVENT_OPCODES(event_properties_opcodes,
     { 0x7C, OPERATION(set_sprite), .object = OBJECT(1), .sprite = CONSTANT(SPRITE_SHOWN), .length = 2 },
     { 0x7D, OPERATION(set_sprite), .object = OBJECT(1), .sprite = CONSTANT(SPRITE_HIDDEN), .length = 2 },
     { 0x21, OPERATION(note_tile), .column = VARIABLE(2), .row = VARIABLE(3), .object = OBJECT(1), .length = 4 },
-    { 0x22, OPERATION(note_tile), .column = VARIABLE(2), .row = VARIABLE(3), .object = MEMBER_OBJECT(1),
+    { 0x22, OPERATION(note_member_tile), .member = MEMBER(1), .column = VARIABLE(2), .row = VARIABLE(3),
       .length = 4 });

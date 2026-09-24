@@ -63,6 +63,13 @@ static inline uint8_t tile_priority(uint8_t attributes)
 
 TileAttributes map_tile_attributes(const GameState *g, MapPlace p);
 
+/* For the original's effects only (original_effects.h): the attributes the
+ * original reads for a place off the map, whose row and column it indexes
+ * the tables by all the same -- the next bytes of the row (column 64's upper
+ * attributes are column 0's lower ones), or bank $7F's past the last row for
+ * (255, 255). Only the two attribute bytes, which is what layering reads. */
+TileAttributes map_tile_attributes_past_the_map(const GameState *g, MapPlace p);
+
 /* field/layers.c */
 void field_compute_layer_edges(Snes *s);
 void field_update_layer_scroll(Snes *s);

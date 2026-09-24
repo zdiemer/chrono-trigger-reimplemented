@@ -269,9 +269,10 @@ void setup_tiles(GameState *g)
 }
 
 /* The first four sprites are the cursors': at the corner, small, with tile 0
- * in front of everything in palette 1, until the menus place them. */
+ * in front of everything in palette 1, until the menus place them. The number
+ * sprites' colors are kept for the number commands to put back. */
 enum { CURSOR_SPRITES = 4, CURSOR_ATTRIBUTES = 0x32, CURSORS_HIGH_BITS = 0xFF };
-enum { KEPT_SPRITE_COLORS = 8, CURSOR_COLORS = 3 };
+enum { NUMBER_COLORS = 8, CURSOR_COLORS = 3 };
 static const uint8_t cursor_palette_first[2] = { 173, 189 };
 
 // $CC:EED0
@@ -284,8 +285,8 @@ void setup_cursor_sprites_and_colors(GameState *g)
         set_oam_buffer_attributes(g, sprite, CURSOR_ATTRIBUTES);
     }
     set_oam_high_table_byte(g, 0, CURSORS_HIGH_BITS);
-    for (unsigned color = 0; color < KEPT_SPRITE_COLORS; color++)
-        set_battle_kept_sprite_colors(g, color, setup_kept_sprite_color(g, color));
+    for (unsigned color = 0; color < NUMBER_COLORS; color++)
+        set_battle_number_colors(g, color, setup_number_color(g, color));
     for (unsigned palette = 0; palette < 2; palette++)
         for (unsigned color = 0; color < CURSOR_COLORS; color++)
             set_palette_working(g, cursor_palette_first[palette] + color, setup_cursor_color(g, palette, color));
@@ -334,7 +335,7 @@ void setup_uploads(GameState *g)
     ORIGINAL_EFFECT(setup_leave_word(g, 0x80, BATTLE_COMBATANTS));
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (shows_enemy_hp(battle_stats_worn_item(g, member))) {
-            set_battle_sees_enemy_hp(g, (uint8_t)(battle_sees_enemy_hp(g) + 1));
+            set_battle_enemy_hp_seen(g, (uint8_t)(battle_enemy_hp_seen(g) + 1));
             break;
         }
     set_battle_graphics_load_step(g, (uint8_t)(battle_graphics_load_step(g) + 1));

@@ -28,15 +28,12 @@ static void take_settings(GameState *g)
     set_battle_window_layout(g, setup_window_layout_for_gauge(g, game_settings(g, SETTINGS_GAUGE)));
     set_battle_remembers_commands(g, memory & REMEMBER_COMMANDS);
     set_battle_remembers_lists(g, memory & REMEMBER_LISTS);
-    set_battle_shows_descriptions(g, time_and_info & SHOW_DESCRIPTIONS);
+    set_battle_show_descriptions(g, time_and_info & SHOW_DESCRIPTIONS);
 }
 
 /* ---- The menus ------------------------------------------------------------------------------ */
 
 enum { MENU_QUEUE = 4, ACTIONS_QUEUED = 3, MENU_SLOTS = 3, LIST_CURSORS_SHOWN = 6, TECH_LIST_BYTES = 0x81 };
-/* The chosen tech's partners: none. */
-enum { SELECTED_TECH_PARTNERS = 4 };
-static void choose_no_partners(GameState *g) { set_battle_selected_tech(g, SELECTED_TECH_PARTNERS, SETUP_NONE); }
 enum { BLINK_FRAMES = 8, CURSOR_PRIORITY_START = 2 };
 
 /* No member's menu open or waiting to, no action waiting, no tech chosen, and
@@ -49,7 +46,7 @@ static void close_the_menus(GameState *g)
     for (unsigned i = 0; i < ACTIONS_QUEUED; i++)
         set_battle_action_queue(g, i, SETUP_NONE);
     set_battle_action_queue_end(g, SETUP_NONE);
-    choose_no_partners(g);
+    set_battle_selected_tech_partners(g, SETUP_NONE);
     for (unsigned i = 0; i < TECH_LIST_BYTES; i++) {
         set_battle_tech_list_ids(g, i, SETUP_NONE);
         set_battle_tech_list(g, i, SETUP_NONE);

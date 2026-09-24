@@ -119,14 +119,9 @@ static unsigned tech_record(const GameState *g, uint8_t member, uint8_t entry)
     return setup_member_tech_records_at(g, member) / TECH_RECORD_BYTES + entry;
 }
 
-/* The records' map names only the first member's twenty (the window's
- * rewrite names all sixty). */
-enum { FIRST_MEMBERS_RECORDS = 19 };
-
 static uint8_t tech_id(const GameState *g, uint8_t member, uint8_t entry)
 {
-    unsigned record = tech_record(g, member, entry);
-    return record < FIRST_MEMBERS_RECORDS ? battle_tech_records_id(g, record) : battle_tech_records_id_unchecked(g, record);
+    return battle_tech_records_id(g, tech_record(g, member, entry));
 }
 
 static bool has_tech(const GameState *g, uint8_t member, uint8_t entry) { return !(tech_id(g, member, entry) & NO_TECH); }
@@ -291,9 +286,8 @@ void setup_remembered_cursors(GameState *g)
 
 /* ---- The members on the battlefield --------------------------------------------------------- */
 
-/* The objects after the battle's first twelve are the combatants'. A party
- * member is drawn with fifteen sprites. */
-enum { FIRST_COMBATANT_OBJECT = 12, MEMBER_SPRITES = 0x0F, TILE_PIXELS = 16 };
+/* A party member is drawn with fifteen sprites. */
+enum { MEMBER_SPRITES = 0x0F, TILE_PIXELS = 16 };
 
 /* Where the combatant starts, in pixels, from its tile and its place in it. */
 static uint8_t start_x(const GameState *g, unsigned slot)
@@ -319,8 +313,8 @@ static void set_start_frame(GameState *g, unsigned slot, uint8_t frame)
 
 void setup_place_combatant(GameState *g, unsigned slot)
 {
-    set_battle_object_x(g, FIRST_COMBATANT_OBJECT + slot, start_x(g, slot));
-    set_battle_object_y(g, FIRST_COMBATANT_OBJECT + slot, start_y(g, slot));
+    set_battle_object_x(g, battle_object_of(slot), start_x(g, slot));
+    set_battle_object_y(g, battle_object_of(slot), start_y(g, slot));
     set_start_frame(g, slot, battle_start_positions_frame(g, slot));
     set_battle_object_facing(g, slot, 0);
 }
@@ -370,7 +364,7 @@ void setup_party_objects(GameState *g)
     }
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
         setup_place_combatant(g, member);
-        set_battle_object_part_count(g, FIRST_COMBATANT_OBJECT + member, MEMBER_SPRITES);
+        set_battle_object_part_count(g, battle_object_of(member), MEMBER_SPRITES);
     }
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         load_member_graphics(g, member, member == BATTLE_PARTY_SIZE - 1);

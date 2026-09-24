@@ -79,12 +79,12 @@ static inline uint8_t setup_member_color_set(const GameState *g, uint8_t carried
 static inline uint16_t setup_member_color(const GameState *g, uint16_t at) { return rom_read16(g, 0xD14B00u + at); }
 
 /* The colors the cursors' sprite palettes start with ($D1:38F2, $D1:38FA),
- * and the sprite colors the battle keeps to put back ($D1:4D80). */
+ * and the number sprites' colors ($D1:4D80). */
 static inline uint16_t setup_cursor_color(const GameState *g, unsigned palette, unsigned color)
 {
     return rom_read16(g, (palette ? 0xD138FAu : 0xD138F2u) + 2 * color);
 }
-static inline uint16_t setup_kept_sprite_color(const GameState *g, unsigned color) { return rom_read16(g, 0xD14D80u + 2 * color); }
+static inline uint16_t setup_number_color(const GameState *g, unsigned color) { return rom_read16(g, 0xD14D80u + 2 * color); }
 
 /* ---- The party's techs ---------------------------------------------------------------------- */
 

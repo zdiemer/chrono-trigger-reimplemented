@@ -1,967 +1,927 @@
-/* Battle: the menu window.
+/* Battle: the menu window, the cursors over the battlefield, and which
+ * members' combination techs still stand.
  *
- * The window's tilemap is built in a buffer of (tile, attribute) pairs at
- * $A6E1 (rows of $40 bytes); $95D5 is the party member whose menu is open
- * (negative: none), $95DB the menu page (0 and 1 are drawn here, presumably
- * the command list and the tech list). The cursor sprites are four 4-byte
- * entries at $0700 (x, y, tile, attributes) with their size and visibility
- * bits in $0900. */
-#include "battle/menu_window.h"
+ * The menu window shows the page of the battle menu that is open for the
+ * member choosing (battle_menu_member, battle_menu_page). On the command page
+ * it is the battle window with the members' command windows (window.c):
+ * moving on to another member rebuilds it, and otherwise each frame keeps the
+ * party's numbers current and redraws the command cursor when asked. The
+ * tech page lists the member's techs three rows at a time, shaded where one
+ * can't be used now; beside the list, each member's MP and what the selected
+ * tech costs each of them; the hand at the selected row; and, where the
+ * settings ask for it, the tech's description. The item page's list is the
+ * original's; here only its cursor and scroll arrows.
+ *
+ * The cursors over the battlefield are four sprites: on the targets being
+ * chosen (a lone target also named, with its HP where the party can see it),
+ * or on the members of the selected combination tech.
+ *
+ * Between menus the battle calls off a member's combination tech when one of
+ * the members in it can no longer act.
+ *
+ * Much around these is still the original's (laying out the lists, the
+ * descriptions, the target's name, asking for the tilemaps' uploads), which
+ * the entries call between their own parts. */
+#include "battle/window.h"
 
-#include "port/machine.h"
+#include "battle/bridge.h"
+#include "battle/combatant.h"
+#include "battle/entries.h"
+#include "battle/window_data.h"
+#include "battle/window_leaves.h"
+#include "original_effects.h"
+#include "port/native.h"
+#include "vars.h"
 
-static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
-static void set_abs8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr), v); }
-static uint8_t absx8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.x); }
-static void set_absx8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.x, v); }
-static void set_absy8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.y, v); }
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
 
-/* INC abs / INC dp, 8-bit. */
-static void inc_abs8(Snes *s, uint16_t addr)
+/* ---- The menu window's tilemap ---------------------------------------------------------- */
+
+static void menu_set_tile(GameState *g, WindowCell cell, uint8_t tile) { set_battle_menu_tilemap_tile(g, cell, tile); }
+static void menu_set_attributes(GameState *g, WindowCell cell, uint8_t attributes)
 {
-    uint8_t v = (uint8_t)(abs8(s, addr) + 1);
-    set_abs8(s, addr, v);
-    m_set_nz8(s, v);
+    set_battle_menu_tilemap_attributes(g, cell, attributes);
 }
 
-static void inc_dp8(Snes *s, uint8_t cell)
+void menu_put_cursor(GameState *g, WindowCell cell)
 {
-    uint8_t v = (uint8_t)(dp8(s, cell) + 1);
-    set_dp8(s, cell, v);
-    m_set_nz8(s, v);
+    menu_set_tile(g, cell, TILE_CURSOR);
+    menu_set_tile(g, (WindowCell)(cell + 1), TILE_CURSOR + 1);
+    menu_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS), TILE_CURSOR + 2);
+    menu_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS + 1), TILE_CURSOR + 3);
 }
 
-/* ADC / SBC with the 8-bit accumulator. */
-static void adc_a(Snes *s, uint8_t v) { m_set_a8(s, m_adc8(s, (uint8_t)s->cpu.a, v)); }
-static void sbc_a(Snes *s, uint8_t v) { m_set_a8(s, m_sbc8(s, (uint8_t)s->cpu.a, v)); }
+/* ---- Partners ------------------------------------------------------------------------ */
 
-/* ASL A, 8-bit. */
-static void asl_a(Snes *s) { m_set_a8(s, m_asl8(s, (uint8_t)s->cpu.a)); }
+/* A combination tech's partners, and those a member's action chose, are a
+ * party slot in each half of a byte: the second $F where there is none (and
+ * the whole byte $FF for a tech of one). */
+enum { NO_PARTNER = 0x0F };
 
-/* TAY at the current X width. */
-static void tay(Snes *s) { m_set_index(s, &s->cpu.y, s->cpu.a); }
+static uint8_t first_partner(uint8_t partners) { return partners & 0x0F; }
+static uint8_t second_partner(uint8_t partners) { return partners >> 4; }
+static bool has_second_partner(uint8_t partners) { return second_partner(partners) != NO_PARTNER; }
 
-static bool m8_x16(Snes *s) { return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M; }
+/* ---- Which techs can be used now -------------------------------------------------------- */
 
-/* JSR / JSL out; false if the callee didn't come back with 8-bit A and 16-bit X. */
-static bool call(Snes *s, uint32_t site, uint32_t target)
+/* Each member has twenty tech records and a list of twenty entries naming
+ * them, shown three rows at a time from its scroll. Entries whose id's top
+ * four bits are all set are marks: the start of the double techs, of the
+ * triple techs, or a blank row. */
+enum { TECHS_PER_MEMBER = 20, TECH_ROWS = 3 };
+enum { LIST_MARK = 0xF0, DOUBLE_TECHS_START = 0xFC, TRIPLE_TECHS_START = 0xFD, BLANK_ROW = 0xFF };
+enum { TECH_DIMMED = 0x80, NO_COST = 0x80 };
+
+/* The list entry of a member's row: its list's start, its scroll and the row,
+ * counted in a byte as the original counts them. */
+static uint8_t list_entry(const GameState *g, unsigned member, unsigned row)
 {
-    m_jsr(s, site, target);
-    return m8_x16(s);
+    return (uint8_t)(member * TECHS_PER_MEMBER + battle_tech_scroll(g, member) + row);
 }
 
-static bool call_long(Snes *s, uint32_t site, uint32_t target)
-{
-    m_jsl(s, site, target);
-    return m8_x16(s);
-}
+/* The record a member's list entry names. (The original finds its place in
+ * a table of the records' offsets, which an entry past the twenty would read
+ * past its end; no list has one, and the entry's guard holds to that.) */
+static unsigned tech_record(unsigned member, uint8_t entry) { return member * TECHS_PER_MEMBER + entry; }
 
-/* A local subroutine the JSR at `site` calls: its return address is pushed,
- * and pulled again by the RTS that ends `body`. */
-static void local_call(Snes *s, uint16_t site, void (*body)(Snes *))
+/* What the tech costs the member in each party slot. */
+static uint8_t cost_to(const GameState *g, unsigned record, unsigned slot)
 {
-    m_push16(s, (uint16_t)(site + 2));
-    body(s);
-    m_pull16(s);
-}
-
-// $C1:0EBA
-/* Put tile $FF in the twelve cells $A6E3/$A6E5 + $40 * row, rows 0-5. */
-static void clear_cursor_column(Snes *s)
-{
-    m_lda8(s, 0xFF);
-    for (uint16_t row = 0; row < 6; row++) {
-        set_abs8(s, (uint16_t)(0xA6E3 + 0x40 * row), 0xFF);
-        set_abs8(s, (uint16_t)(0xA6E5 + 0x40 * row), 0xFF);
+    switch (slot) {
+    case 0: return battle_tech_records_cost(g, record);
+    case 1: return battle_tech_records_second_cost(g, record);
+    default: return battle_tech_records_third_cost(g, record);
     }
 }
 
-// $C1:011A
-/* LSR A four times. */
-static void shift_right_4(Snes *s)
+static bool affordable(uint8_t cost, uint16_t mp) { return (cost & NO_COST) || mp >= cost; }
+
+/* One tech needs Frog to hold one sword: the first of the bytes the battle
+ * keeps for him (battle_frog_slot counts them, five a member). */
+enum { TECH_NEEDING_FROGS_SWORD = 0x74, FROGS_SWORD = 0x42, MEMBER_CARRIED_BYTES = 5 };
+
+/* The original's work cells for the check: where the record is (bytes), the
+ * partners, and the partner it looked at last. */
+enum { RECORD_PLACE = 0x88, PARTNERS = 0x81, PARTNER = 0x80, TECH_RECORD_BYTES = 7, MEMBER_RECORDS_BYTES = 140 };
+
+static bool partner_out(GameState *g, uint8_t partner)
 {
-    for (int i = 0; i < 4; i++)
-        m_set_a8(s, m_lsr8(s, (uint8_t)s->cpu.a));
+    ORIGINAL_EFFECT(battle_leave_work8(g, PARTNER, partner));
+    uint8_t member = battle_menu_slot_members(g, partner);
+    return menu_nobody(member) || battle_member_disabled(g, member);
 }
 
-// $C1:103E
-/* Z clear if party slot $80 ($A6D9 + $80) is empty (negative) or its member's
- * $A0D1 is set. */
-static void member_unavailable(Snes *s)
+/* A tech can be used when every member it costs MP has enough, its partners
+ * are choosing and free to act, the member itself is free to use techs, and
+ * Frog holds the sword the one tech needs. */
+static bool tech_usable(GameState *g, unsigned member, unsigned record)
 {
-    m_lda8(s, dp8(s, 0x80));
-    m_tax(s);
-    uint8_t member = m_lda8(s, absx8(s, 0xA6D9));
-    if (member & 0x80)
-        return;
-    m_tax(s);
-    if (m_lda8(s, absx8(s, 0xA0D1)) != 0)
-        return;
-    m_tdc(s);
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
+        if (!affordable(cost_to(g, record, slot), battle_stats_mp(g, slot)))
+            return false;
+    uint8_t partners = battle_tech_records_partners(g, record);
+    ORIGINAL_EFFECT(battle_leave_work8(g, PARTNERS, partners));
+    if (partners != BLANK_ROW) {
+        if (partner_out(g, first_partner(partners)))
+            return false;
+        if (has_second_partner(partners) && partner_out(g, second_partner(partners)))
+            return false;
+    }
+    if (battle_member_disabled(g, member))
+        return false;
+    return battle_tech_records_id(g, record) != TECH_NEEDING_FROGS_SWORD
+           || battle_member_carried(g, battle_frog_slot(g) / MEMBER_CARRIED_BYTES) == FROGS_SWORD;
+}
+
+/* A section of combination techs can be used when enough members are
+ * choosing. */
+static bool section_usable(const GameState *g, uint8_t mark)
+{
+    switch (mark) {
+    case DOUBLE_TECHS_START: return battle_menu_member_count(g) >= 2;
+    case TRIPLE_TECHS_START: return battle_menu_member_count(g) >= 3;
+    default: return true;
+    }
+}
+
+/* A row of the list is two lines of the menu window, eighteen cells from the
+ * list's column. */
+enum { TECH_LIST_COLUMN = 3, TECH_ROW_CELLS = 18 };
+
+static WindowCell tech_row_cell(unsigned row, unsigned line) { return window_cell(2 * row + line, TECH_LIST_COLUMN); }
+
+static void shade_tech_row(GameState *g, unsigned row, uint8_t attributes)
+{
+    for (unsigned line = 0; line < 2; line++)
+        for (unsigned i = 0; i < TECH_ROW_CELLS; i++)
+            menu_set_attributes(g, (WindowCell)(tech_row_cell(row, line) + i), attributes);
+}
+
+/* The original's cells: where the member's records start, a word, and its
+ * party's MP, a word a slot; then a row at a time, the row's place (bytes),
+ * its attributes, the next entry and the rows done. */
+enum { PARTY_MP = 0x96, ROW_PLACE = 0x84, ROW_ATTRIBUTES = 0x94, ENTRY = 0x86, ROWS_DONE = 0x82 };
+
+static void leave_tech_check_cells(GameState *g, unsigned member)
+{
+    set_battle_product(g, (uint16_t)(member * MEMBER_RECORDS_BYTES));   /* the multiplier's cell, reused */
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
+        battle_leave_work16(g, (uint8_t)(PARTY_MP + 2 * slot), battle_stats_mp(g, slot));
+}
+
+static void leave_row_cells(GameState *g, unsigned row, uint8_t entry, uint8_t attributes)
+{
+    battle_leave_work16(g, ROW_PLACE, (uint16_t)(2 * tech_row_cell(row, 0)));
+    battle_leave_work8(g, ROW_ATTRIBUTES, attributes);
+    battle_leave_work16(g, ENTRY, (uint8_t)(entry + 1));
+    battle_leave_work16(g, ROWS_DONE, (uint16_t)(row + 1));
 }
 
 // $C1:0EE1
-/* Tech list attributes: for the three entries of member $95D5's list on the
- * page ($CC:F38C + member, plus $95EB + member), whose tech data are 7-byte
- * records at $1A80 ($CC:F395 + 2 * member plus $CC:F3A1 + tech), dim the row
- * (attribute $2D, and bit 7 of the record's $1A82) when any cost byte
- * ($1A83, $1A85, $1A86, unless negative) exceeds the matching party member's
- * $5E34 (presumably MP), when a partner named by $1A84's nibbles is missing
- * or has $A0D1 set, when $A0D1 + $95D5 is set, or when the record's $1A80 is
- * $74 and $1C48 + $A0FF isn't $42. Entries $FC and $FD (list markers,
- * $94D0 >= $F0) are dimmed depending on $A6DE. The attribute goes into the
- * 18 cells of both lines of the row at $CC:F39B. Sets $A099 at the end. */
-static void mark_tech_list(Snes *s)
+/* Shade the rows of the member's techs that can't be used now, and mark their
+ * records so. */
+static void shade_unusable_techs(GameState *g)
 {
-    Cpu *c = &s->cpu;
-    m_lda8(s, abs8(s, 0x95D5));
-    asl_a(s);
-    m_tax(s);
-    set_dp8(s, 0xAF, m_lda8(s, m_read8(s, 0xCCF395 + c->x)));
-    set_dp8(s, 0xB0, m_lda8(s, m_read8(s, 0xCCF396 + c->x)));
-    m_lda8(s, abs8(s, 0x95D5));
-    m_tax(s);
-    tay(s);
-    set_dp8(s, 0x86, m_lda8(s, m_read8(s, 0xCCF38C + c->x)));
-    m_lda8(s, m_read8(s, m_abs(s, 0x95EB) + c->y));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x86)));
-    m_tax(s);
-    set_dp16(s, 0x86, c->x);
-    for (uint16_t i = 0; i < 3; i++) {
-        set_dp8(s, (uint8_t)(0x96 + 2 * i), m_lda8(s, abs8(s, (uint16_t)(0x5E34 + 0x80 * i))));
-        set_dp8(s, (uint8_t)(0x97 + 2 * i), m_lda8(s, abs8(s, (uint16_t)(0x5E35 + 0x80 * i))));
-    }
-    m_tdc(s);
-    m_tax(s);
-    set_dp16(s, 0x82, c->x);
-
-    static const struct { uint16_t cost; uint8_t mp; } costs[3] = { { 0x1A83, 0x96 }, { 0x1A85, 0x98 }, { 0x1A86, 0x9A } };
-    uint8_t row;
-    do {
-        /* $C1:0F28 */
-        m_lda8(s, dp8(s, 0x82));
-        asl_a(s);
-        m_tax(s);
-        set_dp8(s, 0x84, m_lda8(s, m_read8(s, 0xCCF39B + c->x)));
-        set_dp8(s, 0x85, m_lda8(s, m_read8(s, 0xCCF39C + c->x)));
-        set_dp8(s, 0x94, m_lda8(s, 0x29));
-        m_ldx16(s, dp16(s, 0x86));
-        uint8_t kind = m_lda8(s, (uint8_t)(m_lda8(s, absx8(s, 0x94D0)) & 0xF0));
-        m_cmp8(s, kind, 0xF0);
-        if (kind == 0xF0) {
-            uint8_t entry = m_lda8(s, absx8(s, 0x94D0));
-            bool dim = false;
-            m_cmp8(s, entry, 0xFC);
-            if (entry == 0xFC) {
-                uint8_t n = m_lda8(s, abs8(s, 0xA6DE));
-                m_cmp8(s, n, 0x02);
-                dim = n < 0x02;
-            } else {
-                m_cmp8(s, entry, 0xFD);
-                if (entry == 0xFD) {
-                    uint8_t n = m_lda8(s, abs8(s, 0xA6DE));
-                    m_cmp8(s, n, 0x03);
-                    dim = n < 0x03;
-                }
-            }
-            if (dim)
-                set_dp8(s, 0x94, m_lda8(s, 0x2D));
+    unsigned member = battle_menu_member(g);
+    ORIGINAL_EFFECT(leave_tech_check_cells(g, member));
+    for (unsigned row = 0; row < TECH_ROWS; row++) {
+        uint8_t entry = list_entry(g, member, row);
+        uint8_t id = battle_tech_list_ids(g, entry);
+        bool usable;
+        if ((id & LIST_MARK) == LIST_MARK) {
+            usable = section_usable(g, id);
         } else {
-            /* $C1:0F69 */
-            m_lda8(s, absx8(s, 0x9551));
-            m_tax(s);
-            m_lda8(s, m_read8(s, 0xCCF3A1 + c->x));
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0xAF)));
-            set_dp8(s, 0x88, (uint8_t)c->a);
-            m_lda8(s, dp8(s, 0xB0));
-            m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0x00));
-            set_dp8(s, 0x89, (uint8_t)c->a);
-            m_ldx16(s, dp16(s, 0x88));
-            bool dim = false;
-            for (int i = 0; i < 3 && !dim; i++) {
-                if (m_lda8(s, absx8(s, costs[i].cost)) & 0x80)
-                    continue;
-                m_set_flag(s, CPU_FLAG_C, true);
-                m_lda8(s, dp8(s, costs[i].mp));
-                sbc_a(s, absx8(s, costs[i].cost));
-                m_lda8(s, dp8(s, (uint8_t)(costs[i].mp + 1)));
-                sbc_a(s, 0x00);
-                dim = !m_flag(s, CPU_FLAG_C);
-            }
-            if (!dim) {
-                /* $C1:0FB1 */
-                uint8_t partners = m_lda8(s, absx8(s, 0x1A84));
-                set_dp8(s, 0x81, partners);
-                m_cmp8(s, partners, 0xFF);
-                if (partners != 0xFF) {
-                    set_dp8(s, 0x80, m_lda8(s, partners & 0x0F));
-                    local_call(s, 0x0FBE, member_unavailable);
-                    if (!m_flag(s, CPU_FLAG_Z)) {
-                        dim = true;
-                    } else {
-                        uint8_t high = m_lda8(s, (uint8_t)(m_lda8(s, dp8(s, 0x81)) & 0xF0));
-                        m_cmp8(s, high, 0xF0);
-                        if (high != 0xF0) {
-                            local_call(s, 0x0FCB, shift_right_4);
-                            set_dp8(s, 0x80, (uint8_t)c->a);
-                            local_call(s, 0x0FD0, member_unavailable);
-                            dim = !m_flag(s, CPU_FLAG_Z);
-                        }
-                    }
-                }
-            }
-            if (!dim) {
-                /* $C1:0FD5 */
-                m_lda8(s, abs8(s, 0x95D5));
-                m_tax(s);
-                if (m_lda8(s, absx8(s, 0xA0D1)) != 0) {
-                    dim = true;
-                } else {
-                    m_ldx16(s, dp16(s, 0x88));
-                    uint8_t id = m_lda8(s, absx8(s, 0x1A80));
-                    m_cmp8(s, id, 0x74);
-                    if (id == 0x74) {
-                        m_ldx16(s, m_read16(s, m_abs(s, 0xA0FF)));
-                        uint8_t v = m_lda8(s, absx8(s, 0x1C48));
-                        m_cmp8(s, v, 0x42);
-                        dim = v != 0x42;
-                    }
-                }
-            }
-            m_ldx16(s, dp16(s, 0x88));
-            uint8_t flags = m_lda8(s, absx8(s, 0x1A82));
-            if (dim) {
-                set_absx8(s, 0x1A82, m_lda8(s, flags | 0x80));
-                set_dp8(s, 0x94, m_lda8(s, 0x2D));
-            } else {
-                set_absx8(s, 0x1A82, m_lda8(s, flags & 0x7F));
-                set_dp8(s, 0x94, m_lda8(s, 0x29));
-            }
+            unsigned record = tech_record(member, battle_tech_list(g, entry));
+            ORIGINAL_EFFECT(battle_leave_work16(g, RECORD_PLACE, (uint16_t)(TECH_RECORD_BYTES * record)));
+            usable = tech_usable(g, member, record);
+            uint8_t flags = battle_tech_records_flags(g, record) & (uint8_t)~TECH_DIMMED;
+            set_battle_tech_records_flags(g, record, usable ? flags : flags | TECH_DIMMED);
         }
-
-        /* $C1:100F */
-        static const uint16_t lines[2] = { 0xA6E2, 0xA722 };
-        for (int l = 0; l < 2; l++) {
-            m_ldx16(s, dp16(s, 0x84));
-            m_ldy(s, 0x0012);
-            if (l == 0)
-                m_lda8(s, dp8(s, 0x94));
-            do {
-                set_absx8(s, lines[l], (uint8_t)c->a);
-                m_inx(s);
-                m_inx(s);
-                m_set_index(s, &c->y, (uint16_t)(c->y - 1));
-            } while (c->y != 0);
-        }
-        inc_dp8(s, 0x86);
-        inc_dp8(s, 0x82);
-        row = m_lda8(s, dp8(s, 0x82));
-        m_cmp8(s, row, 0x03);
-    } while (row != 0x03);
-    set_abs8(s, 0xA099, m_lda8(s, 0x01));
-}
-
-// $C1:0872
-/* Clear party member $95D5's cells in the six lines of the tilemap at $0CC0
- * ($0CC0/$0CC2 + $40 * line + 12 * member); then, when $A43F is set and
- * $9609 clear, put tiles $60-$63 at the position for the member in menu slot
- * $A6DD ($CC:FADD by its $95DC, plus 12 * slot). Clears $A43F. */
-static void clear_member_cells(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_lda8(s, abs8(s, 0x95D5));
-    asl_a(s);
-    asl_a(s);
-    set_dp8(s, 0x80, (uint8_t)c->a);
-    asl_a(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x80)));
-    m_tax(s);
-    for (uint16_t k = 0; k < 4; k += 2)
-        for (uint16_t line = 0; line < 6; line++)
-            set_absx8(s, (uint16_t)(0x0CC0 + k + 0x40 * line), 0x00);
-    if (m_lda8(s, abs8(s, 0xA43F)) != 0) {
-        m_lda8(s, abs8(s, 0xA6DD));
-        m_tax(s);
-        asl_a(s);
-        asl_a(s);
-        set_dp8(s, 0x80, (uint8_t)c->a);
-        asl_a(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x80)));
-        tay(s);
-        set_dp16(s, 0x80, c->y);
-        m_lda8(s, absx8(s, 0xA6D9));
-        m_tax(s);
-        m_lda8(s, absx8(s, 0x95DC));
-        asl_a(s);
-        m_tax(s);
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-        c->a = m_adc16(s, m_lda16(s, m_read16(s, 0xCCFADD + c->x)), dp16(s, 0x80));
-        m_tax(s);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        if (m_lda8(s, abs8(s, 0x9609)) == 0) {
-            static const uint16_t cells[4] = { 0x0CC0, 0x0CC2, 0x0D00, 0x0D02 };
-            for (int i = 0; i < 4; i++)
-                set_absx8(s, cells[i], m_lda8(s, (uint8_t)(0x60 + i)));
-        }
+        uint8_t attributes = usable ? TEXT_PLAIN : TEXT_SHADED;
+        shade_tech_row(g, row, attributes);
+        ORIGINAL_EFFECT(leave_row_cells(g, row, entry, attributes));
     }
-    set_abs8(s, 0xA43F, 0x00);
+    set_battle_tech_list_dimmed(g, 1);
 }
 
-/* $C1:0C49: page 0. */
-static void draw_command_page(Snes *s)
+/* ---- The tech page ------------------------------------------------------------------------ */
+
+/* Beside the list, a column nine cells wide: each member's MP on its line, and
+ * what the selected tech costs it. */
+enum { COLUMN_START = 21, COLUMN_CELLS = 9, PAGE_ROWS = 6, MENU_CELLS = PAGE_ROWS * WINDOW_COLUMNS };
+enum { MP_COLUMN = 24, SEPARATOR_COLUMN = 27, COST_COLUMN = 29 };
+
+static WindowCell slot_line_cell(unsigned slot, unsigned column) { return window_cell(1 + 2 * slot, column); }
+
+/* The original counts the column's rows and cells in two work cells. */
+enum { ROWS_COUNTED = 0x80, CELLS_COUNTED = 0x81 };
+
+static void leave_column_cells(GameState *g)
 {
-    if (m_lda8(s, abs8(s, 0x95DB)) != 0) {
-        m_rts(s);
+    battle_leave_work8(g, ROWS_COUNTED, PAGE_ROWS);
+    battle_leave_work8(g, CELLS_COUNTED, COLUMN_CELLS);
+}
+
+/* The list the original laid out, and the column beside it. */
+static void show_tech_list(GameState *g)
+{
+    for (WindowCell cell = 0; cell < MENU_CELLS; cell++)
+        menu_set_tile(g, cell, battle_menu_list_tiles(g, cell));
+    for (unsigned row = 0; row < PAGE_ROWS; row++)
+        for (unsigned i = 0; i < COLUMN_CELLS; i++)
+            menu_set_tile(g, window_cell(row, COLUMN_START + i), battle_tech_page_column_tile(g, row, i));
+    ORIGINAL_EFFECT(leave_column_cells(g));
+}
+
+/* Each member's MP, its cost cells cleared; a slot with nobody has the mark
+ * between the MP and the cost cleared instead. */
+static void show_party_mp(GameState *g)
+{
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++) {
+        if (!battle_slot_present(g, slot)) {
+            menu_set_tile(g, slot_line_cell(slot, SEPARATOR_COLUMN), TILE_BLANK);
+            continue;
+        }
+        Digits d = battle_digits_blanked(g, battle_digits_of(g, battle_stats_mp(g, slot), 2));
+        menu_set_tile(g, slot_line_cell(slot, MP_COLUMN), d.tens);
+        menu_set_tile(g, slot_line_cell(slot, MP_COLUMN + 1), d.ones);
+        menu_set_tile(g, slot_line_cell(slot, COST_COLUMN), TILE_BLANK);
+        menu_set_tile(g, slot_line_cell(slot, COST_COLUMN + 1), TILE_BLANK);
+    }
+}
+
+/* The selected tech: a copy of its record, or every byte $FF on a blank row. */
+static void select_tech(GameState *g, unsigned record)
+{
+    set_battle_selected_tech_id(g, battle_tech_records_id(g, record));
+    set_battle_selected_tech_menu_detail(g, battle_tech_records_menu_detail(g, record));
+    set_battle_selected_tech_flags(g, battle_tech_records_flags(g, record));
+    set_battle_selected_tech_cost(g, battle_tech_records_cost(g, record));
+    set_battle_selected_tech_partners(g, battle_tech_records_partners(g, record));
+    set_battle_selected_tech_second_cost(g, battle_tech_records_second_cost(g, record));
+    set_battle_selected_tech_third_cost(g, battle_tech_records_third_cost(g, record));
+}
+
+static void select_no_tech(GameState *g)
+{
+    set_battle_selected_tech_id(g, BLANK_ROW);
+    set_battle_selected_tech_menu_detail(g, BLANK_ROW);
+    set_battle_selected_tech_flags(g, BLANK_ROW);
+    set_battle_selected_tech_cost(g, BLANK_ROW);
+    set_battle_selected_tech_partners(g, BLANK_ROW);
+    set_battle_selected_tech_second_cost(g, BLANK_ROW);
+    set_battle_selected_tech_third_cost(g, BLANK_ROW);
+}
+
+static uint8_t selected_cost_to(const GameState *g, unsigned slot)
+{
+    switch (slot) {
+    case 0: return battle_selected_tech_cost(g);
+    case 1: return battle_selected_tech_second_cost(g);
+    default: return battle_selected_tech_third_cost(g);
+    }
+}
+
+/* A cost shows in two cells from the left: its tens and ones, or a lone ones
+ * digit and a blank. */
+static void show_cost(GameState *g, unsigned slot, uint8_t cost)
+{
+    Digits d = battle_digits_of(g, cost, 2);
+    bool one_digit = digit_is_zero(d.tens);
+    menu_set_tile(g, slot_line_cell(slot, COST_COLUMN), one_digit ? d.ones : d.tens);
+    menu_set_tile(g, slot_line_cell(slot, COST_COLUMN + 1), one_digit ? TILE_BLANK : d.ones);
+}
+
+/* Where the original works out the record: the place of the member's
+ * records, or the record's (bytes, in the multiplier's cell again), and the
+ * record's among the member's. */
+enum { RECORD_OFFSET = 0x80 };
+
+static void leave_selected_cells(GameState *g, unsigned member, bool blank, uint8_t entry)
+{
+    uint16_t records = (uint16_t)(member * MEMBER_RECORDS_BYTES);
+    if (blank) {   /* only the list's start, over the low byte */
+        set_battle_product(g, (uint16_t)((records & 0xFF00) | (uint8_t)(member * TECHS_PER_MEMBER)));
         return;
     }
-    uint8_t slot = m_lda8(s, abs8(s, 0xA6DD));
-    uint8_t shown = abs8(s, 0xA6DF);
-    m_cmp8(s, slot, shown);
-    if (slot != shown) {
-        set_abs8(s, 0xA6DF, slot);
-        if (!call(s, 0xC10C59, 0xC11C3A) || !call(s, 0xC10C5C, 0xC10299))
-            return;
+    set_battle_product(g, (uint16_t)(records + entry * TECH_RECORD_BYTES));
+    battle_leave_work8(g, RECORD_OFFSET, (uint8_t)(entry * TECH_RECORD_BYTES));
+}
+
+/* The tech under the member's cursor, and what it costs each member. A blank
+ * row selects no tech (and clears the second member's costs). */
+static void show_tech_costs(GameState *g, unsigned member)
+{
+    uint8_t entry = battle_tech_list(g, (uint8_t)(list_entry(g, member, 0) + battle_tech_cursor(g, member)));
+    if (entry == BLANK_ROW) {
+        ORIGINAL_EFFECT(leave_selected_cells(g, member, true, entry));
+        menu_set_tile(g, slot_line_cell(1, COST_COLUMN), TILE_BLANK);
+        menu_set_tile(g, slot_line_cell(1, COST_COLUMN + 1), TILE_BLANK);
+        select_no_tech(g);
+        return;
+    }
+    ORIGINAL_EFFECT(leave_selected_cells(g, member, false, entry));
+    select_tech(g, tech_record(member, entry));
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++) {
+        uint8_t cost = selected_cost_to(g, slot);
+        if (!(cost & NO_COST))
+            show_cost(g, slot, cost);
+    }
+}
+
+/* The hand points at the member's selected row, in the list's cursor column,
+ * unless a target is being chosen. */
+enum { TECH_CURSOR_COLUMN = 1, CURSOR_ROW = 0x80 };
+
+static void clear_tech_cursor_column(GameState *g)
+{
+    for (unsigned row = 0; row < PAGE_ROWS; row++) {
+        menu_set_tile(g, window_cell(row, TECH_CURSOR_COLUMN), TILE_BLANK);
+        menu_set_tile(g, window_cell(row, TECH_CURSOR_COLUMN + 1), TILE_BLANK);
+    }
+}
+
+static void show_tech_cursor(GameState *g, unsigned member)
+{
+    uint8_t row = battle_tech_cursor(g, member);
+    ORIGINAL_EFFECT(battle_leave_work8(g, CURSOR_ROW, row));
+    clear_tech_cursor_column(g);
+    if (!battle_targeting(g))
+        menu_put_cursor(g, window_cell(2 * row, TECH_CURSOR_COLUMN));
+}
+
+/* Ask for the frames tilemap to be sent in the next vblank. */
+static void request_frames_upload(GameState *g)
+{
+    set_battle_frames_upload_request(g, (uint8_t)(battle_frames_upload_request(g) + 1));
+}
+
+/* The frames tilemap as the tech page wants it, when asked, and sent. */
+static void reload_tech_page_frames(GameState *g)
+{
+    for (WindowCell cell = 0; cell < MENU_CELLS; cell++) {
+        set_battle_window_frames_tilemap_tile(g, cell, battle_tech_page_frames_tile(g, cell));
+        set_battle_window_frames_tilemap_attributes(g, cell, battle_tech_page_frames_attributes(g, cell));
+    }
+    request_frames_upload(g);
+    set_battle_frames_reload_request(g, 0);
+}
+
+/* ---- The pages, with the original's parts ------------------------------------------------ */
+
+/* The calls to the original's code: the frames' reset ($C1:1C3A), the tech
+ * list's layout ($C1:0A88), a tech's description ($CD:0027), and the uploads
+ * of the window's tilemaps ($CF:FD02, $CF:FD36). Each reads what the window
+ * left in memory; only the description takes a register, the tech in A. */
+enum { CALLEE_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+/* The settings' bit that asks for the descriptions. */
+enum { DESCRIPTIONS_ON = 0x80 };
+
+// $C1:0C49
+/* The window's upload request passes the carry on to the menu's callers, so
+ * it is handed the carry the original has there: the redraw's, the party
+ * status's, or the command cursor's (clear) (window_leaves.h). */
+static bool show_command_page(Snes *s, GameState *g)
+{
+    bool carry;
+    if (battle_menu_slot(g) != battle_menu_slot_shown(g)) {
+        set_battle_menu_slot_shown(g, battle_menu_slot(g));
+        if (!battle_call(s, 0xC10C59, 0xC11C3A, CALLEE_READS_NOTHING))
+            return false;
+        vars_peek(true);
+        carry = window_redraw_carry(g);
+        vars_peek(false);
+        NATIVE_TIME_AS(s, 0xC10299, battle_redraw_window(g));
     } else {
-        if (!call(s, 0xC10C61, 0xC105A7))
-            return;
-        if (m_lda8(s, abs8(s, 0xA43F)) != 0 && !(m_lda8(s, abs8(s, 0xA6DD)) & 0x80))
-            local_call(s, 0x0C6E, clear_member_cells);
-    }
-    if ((m_lda8(s, abs8(s, 0x95D5)) & 0x80) && !call(s, 0xC10C76, 0xC11C3A))
-        return;
-    if (!call_long(s, 0xC10C79, 0xCFFD02))
-        return;
-    inc_abs8(s, 0x99E2);
-    m_rts(s);
-}
-
-/* $C1:0C83: page 1. */
-static void draw_tech_page(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    if (!call(s, 0xC10C83, 0xC10A88))
-        return;
-    m_tdc(s);
-    tay(s);
-    m_tax(s);
-    do {
-        set_absy8(s, 0xA6E1, m_lda8(s, absx8(s, 0x99E3)));
-        m_inx(s);
-        m_inx(s);
-        m_iny(s);
-        m_iny(s);
-        m_cmp16(s, c->y, 0x0180);
-    } while (c->y != 0x0180);
-
-    /* $C1:0C98: nine attribute bytes per row from $CC:FA95 */
-    m_tdc(s);
-    m_tax(s);
-    tay(s);
-    set_dp16(s, 0x80, c->x);
-    uint8_t n;
-    do {
-        set_dp8(s, 0x81, 0x00);
-        do {
-            set_absy8(s, 0xA70B, m_lda8(s, m_read8(s, 0xCCFA95 + c->x)));
-            m_inx(s);
-            m_iny(s);
-            m_iny(s);
-            inc_dp8(s, 0x81);
-            n = m_lda8(s, dp8(s, 0x81));
-            m_cmp8(s, n, 0x09);
-        } while (n != 0x09);
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-        m_lda16(s, c->y);
-        c->a = m_adc16(s, c->a, 0x002E);
-        tay(s);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        inc_dp8(s, 0x80);
-        n = m_lda8(s, dp8(s, 0x80));
-        m_cmp8(s, n, 0x06);
-    } while (n != 0x06);
-
-    /* $C1:0CC3: each party member's $5E34 as two digits, or a blank */
-    static const struct {
-        uint16_t present, value, tens, ones, blank1, blank2, absent;
-        uint32_t digits_site, blank_site;
-    } members[3] = {
-        { 0x96F5, 0x5E34, 0xA751, 0xA753, 0xA75B, 0xA75D, 0xA757, 0xC10CD0, 0xC10CD3 },
-        { 0x96F6, 0x5EB4, 0xA7D1, 0xA7D3, 0xA7DB, 0xA7DD, 0xA7D7, 0xC10CFE, 0xC10D01 },
-        { 0x96F7, 0x5F34, 0xA851, 0xA853, 0xA85B, 0xA85D, 0xA857, 0xC10D2C, 0xC10D2F },
-    };
-    for (int i = 0; i < 3; i++) {
-        if (m_lda8(s, abs8(s, members[i].present)) != 0) {
-            m_rep(s, CPU_FLAG_M);
-            m_write16(s, m_abs(s, 0x9499), m_lda16(s, m_read16(s, m_abs(s, members[i].value))));
-            if (!call(s, members[i].digits_site, 0xC10174) || !call(s, members[i].blank_site, 0xC1104E))
-                return;
-            set_abs8(s, members[i].tens, m_lda8(s, abs8(s, 0x949E)));
-            set_abs8(s, members[i].ones, m_lda8(s, abs8(s, 0x949F)));
-            m_lda8(s, 0xFF);
-            set_abs8(s, members[i].blank1, 0xFF);
-            set_abs8(s, members[i].blank2, 0xFF);
-        } else {
-            m_lda8(s, 0xFF);
-            set_abs8(s, members[i].absent, 0xFF);
+        vars_peek(true);
+        PartyStatusNote note = note_party_status(g);
+        vars_peek(false);
+        NATIVE_TIME_AS(s, 0xC105A7, battle_show_party_status(g));
+        vars_peek(true);
+        carry = party_status_carry(g, note);
+        vars_peek(false);
+        if (battle_member_cells_redraw(g) && !menu_nobody(battle_menu_slot(g))) {
+            battle_redraw_command_cursor(g);
+            carry = false;
         }
     }
-
-    /* $C1:0D4D: the costs of the tech at the list position */
-    m_lda8(s, abs8(s, 0x95D5));
-    m_tax(s);
-    set_dp8(s, 0xAF, m_lda8(s, m_read8(s, 0xCCF38C + c->x)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_lda8(s, absx8(s, 0x95EB));
-    adc_a(s, absx8(s, 0x95DF));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0xAF)));
-    m_tax(s);
-    uint8_t tech = m_lda8(s, absx8(s, 0x9551));
-    m_cmp8(s, tech, 0xFF);
-    if (tech == 0xFF) {
-        set_abs8(s, 0xA7DB, 0xFF);
-        set_abs8(s, 0xA7DD, 0xFF);
-        for (uint16_t k = 0; k < 7; k++)
-            set_abs8(s, (uint16_t)(0x9EE3 + k), 0xFF);
-    } else {
-        /* $C1:0D87 */
-        set_dp8(s, 0x80, tech);
-        m_lda8(s, abs8(s, 0x95D5));
-        asl_a(s);
-        m_tax(s);
-        set_dp8(s, 0xAF, m_lda8(s, m_read8(s, 0xCCF395 + c->x)));
-        set_dp8(s, 0xB0, m_lda8(s, m_read8(s, 0xCCF396 + c->x)));
-        m_lda8(s, dp8(s, 0x80));
-        m_tax(s);
-        set_dp8(s, 0x80, m_lda8(s, m_read8(s, 0xCCF3A1 + c->x)));
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_lda8(s, dp8(s, 0xAF));
-        adc_a(s, dp8(s, 0x80));
-        set_dp8(s, 0xAF, (uint8_t)c->a);
-        m_lda8(s, dp8(s, 0xB0));
-        adc_a(s, 0x00);
-        set_dp8(s, 0xB0, (uint8_t)c->a);
-        m_ldx16(s, dp16(s, 0xAF));
-        for (uint16_t k = 0; k < 7; k++)
-            set_abs8(s, (uint16_t)(0x9EE3 + k), m_lda8(s, absx8(s, (uint16_t)(0x1A80 + k))));
-        static const struct { uint16_t cost; uint32_t site; uint16_t right, left; } costs[3] = {
-            { 0x9EE6, 0xC10DE6, 0xA75D, 0xA75B },
-            { 0x9EE8, 0xC10E10, 0xA7DD, 0xA7DB },
-            { 0x9EE9, 0xC10E3A, 0xA85D, 0xA85B },
-        };
-        for (int i = 0; i < 3; i++) {
-            if (m_lda8(s, abs8(s, costs[i].cost)) & 0x80)
-                continue;
-            m_rep(s, CPU_FLAG_M);
-            m_write16(s, m_abs(s, 0x9499), c->a);
-            if (!call(s, costs[i].site, 0xC10174))
-                return;
-            uint8_t tens = m_lda8(s, abs8(s, 0x949E));
-            m_cmp8(s, tens, 0x73);
-            if (tens == 0x73) {
-                set_abs8(s, costs[i].right, m_lda8(s, 0xFF));
-                set_abs8(s, costs[i].left, m_lda8(s, abs8(s, 0x949F)));
-            } else {
-                set_abs8(s, costs[i].left, tens);
-                set_abs8(s, costs[i].right, m_lda8(s, abs8(s, 0x949F)));
-            }
-        }
-    }
-
-    /* $C1:0E5A */
-    m_lda8(s, abs8(s, 0x95D5));
-    m_tax(s);
-    set_dp8(s, 0x80, m_lda8(s, absx8(s, 0x95DF)));
-    local_call(s, 0x0E63, clear_cursor_column);
-    if (m_lda8(s, abs8(s, 0x9609)) == 0) {
-        m_lda8(s, dp8(s, 0x80));
-        asl_a(s);
-        m_tax(s);
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, m_read16(s, 0xCCFAE3 + c->x));
-        tay(s);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        static const uint16_t cells[4] = { 0xA6E1, 0xA6E3, 0xA721, 0xA723 };
-        for (int i = 0; i < 4; i++)
-            set_absy8(s, cells[i], m_lda8(s, (uint8_t)(0x60 + i)));
-    }
-    if (m_lda8(s, abs8(s, 0xA0DB)) & 0x80) {
-        m_lda8(s, abs8(s, 0x9EE3));
-        if (!call_long(s, 0xC10E95, 0xCD0027))
-            return;
-    }
-    if (!call_long(s, 0xC10E99, 0xCFFD36))
-        return;
-    if (m_lda8(s, abs8(s, 0xA86A)) != 0) {
-        m_tdc(s);
-        m_tax(s);
-        do {
-            set_absx8(s, 0x0B40, m_lda8(s, m_read8(s, 0xD15A50 + c->x)));
-            m_inx(s);
-            m_cmp16(s, c->x, 0x0180);
-        } while (c->x != 0x0180);
-        inc_abs8(s, 0x99E2);
-        set_abs8(s, 0xA86A, 0x00);
-    }
-    m_rts(s);
+    m_set_flag(s, CPU_FLAG_C, carry);
+    if (menu_nobody(battle_menu_member(g)) && !battle_call(s, 0xC10C76, 0xC11C3A, CALLEE_READS_NOTHING))
+        return false;
+    if (!battle_call_long(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING))
+        return false;
+    request_frames_upload(g);
+    return true;
 }
 
-// $C1:0C2D
-/* Draw the menu window for party member $95D5 after $CF:FD9E. Page 0 ($95DB):
- * when the menu slot $A6DD differs from $A6DF, remember it and rebuild the
- * window ($C1:1C3A, $C1:0299); otherwise redraw the party status ($C1:05A7)
- * and, with $A43F set, the member's cells ($C1:0872); then $CF:FD02. Page 1:
- * the tech list ($C1:0A88 and $C1:0EE1 lay it out and set its attributes),
- * the three members' $5E34 in two digits, the costs of the tech under the
- * cursor ($9EE3-$9EE9 copied from its record), the cursor tiles, then
- * $CD:0027 (when $A0DB is negative) and $CF:FD36, and, when $A86A is set, a
- * reload of $0B40-$0CBF from $D1:5A50. Other pages draw nothing. */
-void battle_draw_menu_window(Snes *s)
+/* The carry the original has after the page's own drawing, which the
+ * description and the upload request pass on: clear from placing the hand,
+ * or where a target is being chosen, set on a blank row and else the last
+ * cost's tens compared with the zero (clear where no cost shows). */
+static bool tech_page_carry(const GameState *g, unsigned member)
 {
-    m_lda8(s, abs8(s, 0x95D5));
-    if (!call_long(s, 0xC10C30, 0xCFFD9E))
-        return;
-    uint8_t page = m_lda8(s, abs8(s, 0x95DB));
-    if (page == 0) {
-        draw_command_page(s);
-        return;
+    if (!battle_targeting(g))
+        return false;
+    if (battle_tech_list(g, (uint8_t)(list_entry(g, member, 0) + battle_tech_cursor(g, member))) == BLANK_ROW)
+        return true;
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
+        if (!(selected_cost_to(g, slot) & NO_COST))
+            return battle_digits(g, BATTLE_DIGIT_TENS) >= TILE_DIGIT_ZERO;
+    return false;
+}
+
+// $C1:0C83
+static bool show_tech_page(Snes *s, GameState *g)
+{
+    shade_unusable_techs(g);
+    s->cpu.a = 0;
+    if (!battle_call(s, 0xC10C83, 0xC10A88, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
+        return false;
+    unsigned member = battle_menu_member(g);
+    show_tech_list(g);
+    show_party_mp(g);
+    show_tech_costs(g, member);
+    show_tech_cursor(g, member);
+    vars_peek(true);
+    m_set_flag(s, CPU_FLAG_C, tech_page_carry(g, member));
+    vars_peek(false);
+    if (battle_show_descriptions(g) & DESCRIPTIONS_ON) {
+        s->cpu.a = battle_selected_tech_id(g);
+        if (!battle_call_long(s, 0xC10E95, 0xCD0027, DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
+            return false;
     }
-    m_cmp8(s, page, 0x01);
-    if (page != 0x01) {
-        m_rts(s);
-        return;
-    }
-    local_call(s, 0x0C40, mark_tech_list);
-    draw_tech_page(s);
-}
-
-/* CLC : LDA $1D0C,X : ADC $9708,X : SEC : SBC #$10 : STA x_cell : CLC :
- * LDA $1D23,X : ADC $9713,X : STA x_cell+1 -- a cursor at object X. */
-static void place_at_object(Snes *s, uint32_t x_cell)
-{
-    Cpu *c = &s->cpu;
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_lda8(s, absx8(s, 0x1D0C));
-    adc_a(s, absx8(s, 0x9708));
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_set_a8(s, m_sbc8(s, (uint8_t)c->a, 0x10));
-    m_write8(s, x_cell, (uint8_t)c->a);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_lda8(s, absx8(s, 0x1D23));
-    adc_a(s, absx8(s, 0x9713));
-    m_write8(s, x_cell + 1, (uint8_t)c->a);
-}
-
-/* LDA $0900 : AND #mask : STA $0900 */
-static void and_0900(Snes *s, uint8_t mask)
-{
-    set_abs8(s, 0x0900, m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x0900)) & mask)));
-}
-
-/* LDA $0900 : AND long : STA $0900 */
-static void and_0900_long(Snes *s, uint32_t addr)
-{
-    uint8_t v = m_lda8(s, abs8(s, 0x0900));
-    set_abs8(s, 0x0900, m_lda8(s, (uint8_t)(v & m_read8(s, addr))));
-}
-
-/* LDA $0900 : ORA #$55 : STA $0900 */
-static void hide_cursors(Snes *s)
-{
-    set_abs8(s, 0x0900, m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x0900)) | 0x55)));
-}
-
-/* $C1:17FE: page 1, a combination tech's cursors on its members. */
-static bool place_tech_cursors(Snes *s)
-{
-    uint8_t v = m_lda8(s, abs8(s, 0x9EE3));
-    m_cmp8(s, v, 0x39);
-    bool single = v < 0x39;
-    if (!single) {
-        uint8_t partners = m_lda8(s, abs8(s, 0x9EE7));
-        m_cmp8(s, partners, 0xFF);
-        single = partners == 0xFF;
-    }
-    if (single)
-        return call(s, 0xC118AA, 0xC11115);
-    hide_cursors(s);
-    m_lda8(s, 0xF0);
-    for (uint16_t i = 0; i < 4; i++)
-        set_abs8(s, (uint16_t)(0x0701 + 4 * i), 0xF0);
-    m_lda8(s, 0x32);
-    for (uint16_t i = 0; i < 3; i++)
-        set_abs8(s, (uint16_t)(0x0703 + 4 * i), 0x32);
-    for (uint16_t i = 0; i < 3; i++)
-        set_abs8(s, (uint16_t)(0x0702 + 4 * i), 0x00);
-    m_lda8(s, abs8(s, 0x95D5));
-    m_tax(s);
-    place_at_object(s, m_abs(s, 0x0700));
-    m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x9EE7)) & 0x0F));
-    m_tax(s);
-    place_at_object(s, m_abs(s, 0x0704));
-    set_abs8(s, 0x0900, m_lda8(s, (uint8_t)(m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x0900)) & 0xFE)) & 0xFB)));
-    uint8_t high = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x9EE7)) & 0xF0));
-    m_cmp8(s, high, 0xF0);
-    if (high != 0xF0) {
-        local_call(s, 0x1884, shift_right_4);
-        m_tax(s);
-        place_at_object(s, m_abs(s, 0x0708));
-        and_0900(s, 0xEF);
+    if (!battle_call_long(s, 0xC10E99, 0xCFFD36, CALLEE_READS_NOTHING))
+        return false;
+    if (battle_frames_reload_request(g)) {
+        reload_tech_page_frames(g);
+        m_set_flag(s, CPU_FLAG_C, true);   /* the reload's last count, and its A */
+        s->cpu.a = 0;
     }
     return true;
 }
 
-/* $C1:18B0: other pages, the tiles at $0EFC/$0EFD and $0FFC/$0FFD by $95E6
- * and the cursor tiles at the window position for $95E5 ($CC:FAE9), moved
- * when either changed; then $CF:FD6A when anything was drawn. */
-static bool place_list_cursor(Snes *s)
+/* The tech lists as the game keeps them, which the tech page takes on trust:
+ * each member's scroll leaves its three rows, and the cursor's, inside its
+ * twenty entries, and each entry names one of its records, or is blank on a
+ * row marked so. */
+static bool tech_lists_kept(const GameState *g)
 {
-    Cpu *c = &s->cpu;
-    set_dp8(s, 0x80, 0x00);
-    uint8_t arrows = m_lda8(s, abs8(s, 0x95E6));
-    uint8_t shown = abs8(s, 0x9920);
-    m_cmp8(s, arrows, shown);
-    if (arrows != shown) {
-        arrows = m_lda8(s, abs8(s, 0x95E6));
-        if (arrows == 0) {
-            set_abs8(s, 0x0EFC, m_lda8(s, 0xFF));
-            set_abs8(s, 0x0FFC, m_lda8(s, 0x7F));
-            m_lda8(s, 0xA9);
-            set_abs8(s, 0x0EFD, 0xA9);
-            set_abs8(s, 0x0FFD, 0xA9);
-        } else {
-            arrows = m_lda8(s, abs8(s, 0x95E6));
-            m_cmp8(s, arrows, 0xFA);
-            if (arrows != 0xFA) {
-                m_lda8(s, 0x7F);
-                set_abs8(s, 0x0EFC, 0x7F);
-                set_abs8(s, 0x0FFC, 0x7F);
-                set_abs8(s, 0x0EFD, m_lda8(s, 0x29));
-                set_abs8(s, 0x0FFD, m_lda8(s, 0xA9));
-            } else {
-                set_abs8(s, 0x0EFC, m_lda8(s, 0x7F));
-                set_abs8(s, 0x0FFC, m_lda8(s, 0xFF));
-                m_lda8(s, 0x29);
-                set_abs8(s, 0x0EFD, 0x29);
-                set_abs8(s, 0x0FFD, 0x29);
-            }
-        }
-        inc_dp8(s, 0x80);
-    }
-
-    /* $C1:1905 */
-    uint8_t item = m_lda8(s, abs8(s, 0x95E5));
-    uint8_t item_shown = abs8(s, 0x991F);
-    m_cmp8(s, item, item_shown);
-    bool move = item != item_shown;
-    if (!move) {
-        arrows = m_lda8(s, abs8(s, 0x95E6));
-        shown = abs8(s, 0x9920);
-        m_cmp8(s, arrows, shown);
-        if (arrows != shown) {
-            set_abs8(s, 0x9920, arrows);
-            move = true;
-        }
-    }
-    if (move) {
-        /* $C1:1918 */
-        if (m_lda8(s, abs8(s, 0x991F)) & 0x80)
-            m_tdc(s);
-        asl_a(s);
-        m_tax(s);
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, m_read16(s, 0xCCFAE9 + c->x));
-        m_tax(s);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        m_lda8(s, 0xFF);
-        static const uint16_t cells[4] = { 0x0E80, 0x0E82, 0x0EC0, 0x0EC2 };
-        for (int i = 0; i < 4; i++)
-            set_absx8(s, cells[i], 0xFF);
-        set_abs8(s, 0x991F, m_lda8(s, abs8(s, 0x95E5)));
-        asl_a(s);
-        m_tax(s);
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, m_read16(s, 0xCCFAE9 + c->x));
-        m_tax(s);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        for (int i = 0; i < 4; i++)
-            set_absx8(s, cells[i], m_lda8(s, (uint8_t)(0x60 + i)));
-        m_lda8(s, 0x29);
-        for (int i = 0; i < 4; i++)
-            set_absx8(s, (uint16_t)(cells[i] + 1), 0x29);
-        inc_dp8(s, 0x80);
-    }
-    if (m_lda8(s, dp8(s, 0x80)) != 0)
-        return call_long(s, 0xC11972, 0xCFFD6A);
-    return true;
-}
-
-/* $C1:1979: while $9609 is set (presumably choosing a target), cursors on
- * the targets in $A62D-$A632. */
-static bool place_target_cursors(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    if (m_lda8(s, abs8(s, 0x9613)) & 0x80)
-        return true;
-    m_lda8(s, abs8(s, 0x95DB));
-    uint8_t page = (uint8_t)(c->a - 1);
-    m_set_a8(s, page);
-    m_set_nz8(s, page);
-    if (page == 0)
-        local_call(s, 0x1987, clear_cursor_column);
-    hide_cursors(s);
-    m_lda8(s, 0x32);
-    for (uint16_t i = 0; i < 4; i++)
-        set_abs8(s, (uint16_t)(0x0703 + 4 * i), 0x32);
-    for (uint16_t i = 0; i < 4; i++)
-        set_abs8(s, (uint16_t)(0x0702 + 4 * i), 0x00);
-
-    if (!(m_lda8(s, abs8(s, 0xA62E)) & 0x80)) {
-        /* $C1:1A7B: several targets */
-        uint8_t first = m_lda8(s, abs8(s, 0xA62D));
-        if (!(first & 0x80)) {
-            m_tax(s);
-            place_at_object(s, m_abs(s, 0x0700));
-            and_0900_long(s, 0xCCFB8D);
-        }
-        m_ldy(s, 0x0001);
-        set_dp16(s, 0x82, c->y);
-        m_lda8(s, abs8(s, 0x960B));
-        tay(s);
-        set_dp16(s, 0x80, c->y);
-        uint8_t n;
-        for (;;) {
-            m_set_index(s, &c->y, dp16(s, 0x80));
-            if (!(m_lda8(s, m_read8(s, m_abs(s, 0xA62D) + c->y)) & 0x80)) {
-                m_tax(s);
-                m_lda8(s, dp8(s, 0x82));
-                asl_a(s);
-                asl_a(s);
-                tay(s);
-                place_at_object(s, m_abs(s, 0x0700) + c->y);
-                m_ldx16(s, dp16(s, 0x82));
-                and_0900_long(s, 0xCCFB8D + c->x);
-            }
-            inc_dp8(s, 0x80);
-            n = m_lda8(s, dp8(s, 0x80));
-            m_cmp8(s, n, 0x03);
-            if (n == 0x03)
-                break;
-            m_cmp8(s, n, 0x06);
-            if (n == 0x06)
-                break;
-            inc_dp8(s, 0x82);
-            uint8_t k = m_lda8(s, dp8(s, 0x82));
-            m_cmp8(s, k, 0x04);
-            if (k == 0x04)
-                break;
-        }
-        n = m_lda8(s, dp8(s, 0x80));
-        m_cmp8(s, n, 0x06);
-        if (n == 0x06)
-            m_tdc(s);
-        set_abs8(s, 0x960B, (uint8_t)c->a);
-        return true;
-    }
-
-    /* $C1:19B4: one target */
-    uint8_t target = m_lda8(s, abs8(s, 0xA62D));
-    if (target & 0x80)
-        return true;
-    set_abs8(s, 0xA64E, target);
-    m_tax(s);
-    place_at_object(s, m_abs(s, 0x0700));
-    if (m_lda8(s, abs8(s, 0x95DB)) == 0) {
-        target = m_lda8(s, abs8(s, 0xA64E));
-        m_cmp8(s, target, 0x03);
-        if (target >= 0x03) {
-            asl_a(s);
-            m_tax(s);
-            set_abs8(s, 0x0200, m_lda8(s, absx8(s, 0x984D)));
-            set_dp8(s, 0x80, m_lda8(s, m_read8(s, 0xCCF8ED + c->x)));
-            set_dp8(s, 0x81, m_lda8(s, m_read8(s, 0xCCF8EE + c->x)));
-            bool stats = false;
-            if (m_lda8(s, abs8(s, 0x9F34)) != 0) {
-                m_lda8(s, abs8(s, 0xA64E));
-                tay(s);
-                stats = m_lda8(s, m_read8(s, m_abs(s, 0x9F29) + c->y)) != 0;
-            }
-            if (stats) {
-                /* $C1:1A1C */
-                m_ldx16(s, dp16(s, 0x80));
-                for (uint16_t k = 0; k < 4; k++)
-                    set_abs8(s, (uint16_t)(0x0201 + k), m_lda8(s, absx8(s, (uint16_t)(0x5E30 + k))));
-            }
-            m_lda8(s, abs8(s, 0x0200));
-            m_tax(s);
-            if (m_lda8(s, m_read8(s, 0xE1DE80 + c->x)) != 0)
-                m_lda8(s, 0xFF);
-            else
-                m_lda8(s, abs8(s, 0xA64E));
-            if (!call_long(s, stats ? 0xC11A47 : 0xC11A16, stats ? 0xCD002D : 0xCD0030))
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
+        if (battle_tech_scroll(g, member) > TECHS_PER_MEMBER - TECH_ROWS)
+            return false;
+        for (unsigned i = 0; i < TECHS_PER_MEMBER; i++) {
+            unsigned at = member * TECHS_PER_MEMBER + i;
+            uint8_t entry = battle_tech_list(g, at);
+            bool marked = (battle_tech_list_ids(g, at) & LIST_MARK) == LIST_MARK;
+            if (entry >= TECHS_PER_MEMBER && !(entry == BLANK_ROW && marked))
                 return false;
         }
     }
-
-    /* $C1:1A4B */
-    and_0900(s, 0xFE);
-    if (m_lda8(s, abs8(s, 0xA4EE)) != 0) {
-        set_abs8(s, 0xA4EE, 0x00);
-        if (m_lda8(s, abs8(s, 0x960A)) != 0) {
-            if (m_lda8(s, dp8(s, 0xEC)) == 0) {
-                uint8_t top = m_lda8(s, abs8(s, 0x0701));
-                m_cmp8(s, top, 0x2D);
-                if (top < 0x2D)
-                    inc_dp8(s, 0xEC);
-            } else {
-                uint8_t top = m_lda8(s, abs8(s, 0x0701));
-                m_cmp8(s, top, 0x9C);
-                if (top >= 0x9C)
-                    set_dp8(s, 0xEC, 0x00);
-            }
-        }
-    }
     return true;
 }
 
-// $C1:17DD
-/* Place the menu's cursor sprites: with no menu open ($95D5 negative), hide
- * them; while $9609 is set, on the chosen targets ($C1:1979); on page 1 on a
- * combination tech's members (or through $C1:1115 for other techs); on pages
- * other than 0 and 1, the list cursor tiles. Clears $EE and $EF. */
-void battle_place_menu_cursors(Snes *s)
+bool battle_menu_window_ready(Snes *s)
 {
-    bool ok = true;
-    if (m_lda8(s, abs8(s, 0x95D5)) & 0x80) {
-        /* $C1:1AFE */
-        hide_cursors(s);
-        m_lda8(s, 0xF0);
-        for (uint16_t i = 0; i < 4; i++)
-            set_abs8(s, (uint16_t)(0x0701 + 4 * i), 0xF0);
-    } else if (m_lda8(s, abs8(s, 0x9609)) != 0) {
-        ok = place_target_cursors(s);
-    } else {
-        uint8_t page = m_lda8(s, abs8(s, 0x95DB));
-        if (page != 0) {
-            page = (uint8_t)(page - 1);
-            m_set_a8(s, page);
-            m_set_nz8(s, page);
-            ok = page == 0 ? place_tech_cursors(s) : place_list_cursor(s);
-        }
-    }
-    if (!ok)
+    if (!battle_window_ready(s))
+        return false;
+    vars_peek(true);
+    bool kept = tech_lists_kept(state_of(s));
+    vars_peek(false);
+    return kept;
+}
+
+// $C1:0C2D
+/* Draw the menu window for the page that is open. The original notes the
+ * member's stat block first ($CF:FD9E, from the member in A). A page past the
+ * techs leaves the carry of comparing it with the tech page's. */
+void battle_draw_menu_window(Snes *s)
+{
+    GameState *g = state_of(s);
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | battle_menu_member(g));
+    if (!battle_call_long(s, 0xC10C30, 0xCFFD9E, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
         return;
-    /* $C1:1B14 */
-    set_dp8(s, 0xEE, 0x00);
-    set_dp8(s, 0xEF, 0x00);
+    switch (battle_menu_page(g)) {
+    case PAGE_COMMANDS:
+        if (!show_command_page(s, g))
+            return;
+        break;
+    case PAGE_TECHS:
+        if (!show_tech_page(s, g))
+            return;
+        break;
+    default:
+        m_set_flag(s, CPU_FLAG_C, true);
+        break;
+    }
     m_rts(s);
 }
 
-/* ---- (moved from stats.c, being rewritten) ---- */
+/* ---- The cursors over the battlefield --------------------------------------------------- */
 
+/* Four sprites, the first four of the OAM buffer, a hand each. A cursor
+ * points at a combatant's cursor point from its left. The high table's bit
+ * that puts a sprite past the screen's right edge hides it. */
+enum { CURSORS = 4, CURSOR_SPRITE_TILE = 0x00, CURSOR_SPRITE_ATTRIBUTES = 0x32, CURSOR_OFF_SCREEN_Y = 0xF0 };
+enum { HAND_WIDTH = 16, CURSORS_HIGH_BYTE = 0, ALL_CURSORS_PAST_THE_EDGE = 0x55 };
 
-/* LDA $abs : AND #mask : CMP #mask : BEQ -- then the nibble (shifted down for
- * the high one) selects which of two table cells gets it. */
-static void pair_nibble(Snes *s, uint16_t source, bool high, uint8_t first, uint16_t first_cell, uint8_t second,
-                        uint16_t second_cell)
+static void hide_cursors(GameState *g)
 {
-    uint8_t mask = high ? 0xF0 : 0x0F;
-    uint8_t v = m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, m_abs(s, source))) & mask));
-    m_cmp8(s, v, mask);
-    if (v == mask)
-        return;
-    if (high) {
-        for (int i = 0; i < 4; i++)
-            v = m_lsr8(s, v);
-        m_set_a8(s, v);
+    set_oam_high_table_byte(g, CURSORS_HIGH_BYTE, oam_high_table_byte(g, CURSORS_HIGH_BYTE) | ALL_CURSORS_PAST_THE_EDGE);
+}
+
+static void show_cursor(GameState *g, unsigned cursor)
+{
+    set_oam_high_table_byte(g, CURSORS_HIGH_BYTE,
+                            oam_high_table_byte(g, CURSORS_HIGH_BYTE) & (uint8_t)~(1u << (2 * cursor)));
+}
+
+static void set_cursor_look(GameState *g, unsigned cursor)
+{
+    set_oam_buffer_tile(g, cursor, CURSOR_SPRITE_TILE);
+    set_oam_buffer_attributes(g, cursor, CURSOR_SPRITE_ATTRIBUTES);
+}
+
+static void point_cursor_at(GameState *g, unsigned cursor, unsigned slot)
+{
+    set_oam_buffer_x(g, cursor, (uint8_t)(combatant_cursor_x(g, slot) - HAND_WIDTH));
+    set_oam_buffer_y(g, cursor, combatant_cursor_y(g, slot));
+}
+
+static void move_cursors_away(GameState *g)
+{
+    hide_cursors(g);
+    for (unsigned cursor = 0; cursor < CURSORS; cursor++)
+        set_oam_buffer_y(g, cursor, CURSOR_OFF_SCREEN_Y);
+}
+
+// $C1:17FE
+/* A combination tech's members: the member choosing and its one or two
+ * partners, a cursor each; the fourth stays away. */
+static void place_combo_cursors(GameState *g)
+{
+    uint8_t partners = battle_selected_tech_partners(g);
+    move_cursors_away(g);
+    for (unsigned cursor = 0; cursor < BATTLE_PARTY_SIZE; cursor++)
+        set_cursor_look(g, cursor);
+    point_cursor_at(g, 0, battle_menu_member(g));
+    point_cursor_at(g, 1, first_partner(partners));
+    show_cursor(g, 0);
+    show_cursor(g, 1);
+    if (has_second_partner(partners)) {
+        point_cursor_at(g, 2, second_partner(partners));
+        show_cursor(g, 2);
     }
-    m_cmp8(s, v, first);
-    if (v == first) {
-        m_write8(s, m_abs(s, first_cell), v);
-        return;
+}
+
+/* The single techs' ids are below the combination techs', and a tech with no
+ * partners is the member's own too. */
+enum { FIRST_COMBINATION_TECH = 0x39, NO_PARTNERS = 0xFF };
+
+static bool combination_tech_selected(const GameState *g)
+{
+    return battle_selected_tech_id(g) >= FIRST_COMBINATION_TECH && battle_selected_tech_partners(g) != NO_PARTNERS;
+}
+
+/* The target entries, and how many of them a round of the group's cursors
+ * takes. */
+enum { TARGETS_A_ROUND = 3 };
+
+/* The original counts the targets and the cursors in two work cells. */
+enum { TARGET_COUNTED = 0x80, CURSOR_COUNTED = 0x82 };
+
+static void leave_group_cells(GameState *g, unsigned target, unsigned cursor)
+{
+    battle_leave_work16(g, TARGET_COUNTED, (uint16_t)target);
+    battle_leave_work16(g, CURSOR_COUNTED, (uint16_t)cursor);
+}
+
+// $C1:1A7B
+/* A group of targets: the first always has a cursor, and the other three go
+ * round the rest from where they stopped last time, a round at a time, so a
+ * group larger than the cursors has each shown in turn. */
+static void place_group_cursors(GameState *g)
+{
+    uint8_t first = battle_targets(g, 0);
+    if (!menu_nobody(first)) {
+        point_cursor_at(g, 0, first);
+        show_cursor(g, 0);
     }
-    m_cmp8(s, v, second);
-    if (v == second)
-        m_write8(s, m_abs(s, second_cell), v);
+    unsigned target = battle_target_cursor(g), cursor = 1;
+    for (;;) {
+        uint8_t slot = battle_targets(g, target);
+        if (!menu_nobody(slot)) {
+            point_cursor_at(g, cursor, slot);
+            show_cursor(g, cursor);
+        }
+        target++;
+        if (target == TARGETS_A_ROUND || target == BATTLE_TARGET_ENTRIES || ++cursor == CURSORS)
+            break;
+    }
+    ORIGINAL_EFFECT(leave_group_cells(g, target, cursor));
+    set_battle_target_cursor(g, (uint8_t)(target == BATTLE_TARGET_ENTRIES ? 0 : target));
+}
+
+/* A lone enemy target is named ($CD:0030), with its HP where the party can
+ * see it ($CD:002D, from battle_target_display); some enemies go unnamed. */
+enum { UNNAMED = 0xFF, TARGET_STAT_BLOCK = 0x80 };
+
+static bool enemy_hp_shown(const GameState *g, unsigned slot)
+{
+    return battle_enemy_hp_seen(g) && battle_enemy_hp_visible(g, slot - BATTLE_FIRST_ENEMY);
+}
+
+/* Set out what the target display shows; the name to show. */
+static uint8_t describe_target(GameState *g, unsigned slot)
+{
+    uint8_t enemy = (uint8_t)battle_enemy_numbers(g, slot - BATTLE_FIRST_ENEMY);
+    set_battle_target_display(g, 0, enemy);
+    ORIGINAL_EFFECT(battle_leave_work16(g, TARGET_STAT_BLOCK, (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES)));
+    if (enemy_hp_shown(g, slot)) {
+        uint16_t hp = battle_stats_hp(g, slot), max_hp = battle_stats_max_hp(g, slot);
+        set_battle_target_display(g, 1, (uint8_t)hp);
+        set_battle_target_display(g, 2, (uint8_t)(hp >> 8));
+        set_battle_target_display(g, 3, (uint8_t)max_hp);
+        set_battle_target_display(g, 4, (uint8_t)(max_hp >> 8));
+    }
+    return battle_enemy_name_hidden(g, enemy) ? UNNAMED : (uint8_t)slot;
+}
+
+/* When the player moves a lone target and the frame may change, a cursor near
+ * the screen's top brings the other frame on and one near its bottom takes it
+ * off. */
+enum { NEAR_THE_TOP = 0x2D, NEAR_THE_BOTTOM = 0x9C };
+
+static void follow_moved_target(GameState *g)
+{
+    if (!battle_targets_changed(g))
+        return;
+    set_battle_targets_changed(g, 0);
+    if (!battle_target_moves_frame(g))
+        return;
+    uint8_t y = oam_buffer_y(g, 0);
+    if (!battle_alternate_frame(g)) {
+        if (y < NEAR_THE_TOP)
+            set_battle_alternate_frame(g, 1);
+    } else if (y >= NEAR_THE_BOTTOM) {
+        set_battle_alternate_frame(g, 0);
+    }
+}
+
+/* ---- The item list's cursor --------------------------------------------------------------- */
+
+/* The item list is in the battle window from its eighth row, with a scroll
+ * arrow at each end of its right edge: the upper one blank at the list's
+ * top, the lower one at its end. */
+enum { ITEM_LIST_ROW = 7, ITEM_LIST_TOP = 0, ITEM_LIST_END = 0xFA, TILE_ARROW = 0x7F };
+enum { ARROW_COLUMN = 30, UP_ARROW_ROW = 8, DOWN_ARROW_ROW = 12 };
+
+static void show_scroll_arrows(GameState *g, uint8_t top)
+{
+    bool at_top = top == ITEM_LIST_TOP, at_end = top == ITEM_LIST_END;
+    window_put(g, window_cell(UP_ARROW_ROW, ARROW_COLUMN), at_top ? TILE_BLANK : TILE_ARROW,
+               at_top ? TEXT_PLAIN_UPSIDE_DOWN : TEXT_PLAIN);
+    window_put(g, window_cell(DOWN_ARROW_ROW, ARROW_COLUMN), at_end ? TILE_BLANK : TILE_ARROW,
+               at_end ? TEXT_PLAIN : TEXT_PLAIN_UPSIDE_DOWN);
+}
+
+static WindowCell item_cursor_cell(const GameState *g, uint8_t row)
+{
+    return (WindowCell)(window_cell(ITEM_LIST_ROW, 0) + battle_item_cursor_cell(g, row));
+}
+
+static void clear_item_cursor(GameState *g, WindowCell cell)
+{
+    for (unsigned i = 0; i < 4; i++)
+        window_set_tile(g, (WindowCell)(cell + i / 2 * WINDOW_COLUMNS + i % 2), TILE_BLANK);
+}
+
+static void draw_item_cursor(GameState *g, WindowCell cell)
+{
+    window_put_cursor(g, cell);
+    for (unsigned i = 0; i < 4; i++)
+        window_set_attributes(g, (WindowCell)(cell + i / 2 * WINDOW_COLUMNS + i % 2), TEXT_PLAIN);
+}
+
+/* The original counts what it drew in a work cell. */
+enum { DRAWN = 0x80 };
+
+// $C1:18B0
+/* Redraw the scroll arrows when the list scrolled and the cursor when it moved
+ * (or the list scrolled under it); true if anything was drawn, for the
+ * window's upload. The list's top is noted as shown only when the cursor
+ * stayed on its row, so a scroll that also moved the cursor has the arrows
+ * drawn again next time. */
+static bool show_item_cursor(GameState *g)
+{
+    uint8_t drawn = 0;
+    uint8_t top = battle_item_top(g), row = battle_item_row(g);
+    if (top != battle_item_arrows_shown(g)) {
+        show_scroll_arrows(g, top);
+        drawn++;
+    }
+    bool move = row != battle_item_cursor_shown(g);
+    if (!move && top != battle_item_arrows_shown(g)) {
+        set_battle_item_arrows_shown(g, top);
+        move = true;
+    }
+    if (move) {
+        uint8_t shown = battle_item_cursor_shown(g);
+        clear_item_cursor(g, item_cursor_cell(g, menu_nobody(shown) ? 0 : shown));
+        set_battle_item_cursor_shown(g, row);
+        draw_item_cursor(g, item_cursor_cell(g, row));
+        drawn++;
+    }
+    ORIGINAL_EFFECT(battle_leave_work8(g, DRAWN, drawn));
+    return drawn != 0;
+}
+
+/* ---- Placing the cursors, with the original's parts --------------------------------------- */
+
+/* The carry the original leaves from placing a cursor: adding the
+ * combatant's cursor offset to its Y. */
+static bool cursor_carry(const GameState *g, unsigned slot)
+{
+    return combatant_y(g, slot) + battle_cursor_offset_y(g, slot) > 0xFF;
+}
+
+/* What the callees read of the machine: $CD:002D and $CD:0030 the name in
+ * A's low byte; $C1:1115 (a single tech's cursor) and $CF:FD6A (the window's
+ * upload) nothing. */
+enum { CALLEE_READS_NOTHING_HERE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+       CALLEE_READS_A = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+// $C1:19B4
+/* A lone target: its cursor, and on the command page an enemy's name. The
+ * carry the original leaves is its last compare's: of the cursor's height
+ * where the moved target's frame is followed, else the callee's where the
+ * name was shown, else of the target against the enemies on the command page,
+ * else of placing the cursor. */
+static bool place_lone_target_cursor(Snes *s, GameState *g, uint8_t target)
+{
+    set_battle_single_target(g, target);
+    point_cursor_at(g, 0, target);
+    bool carry = cursor_carry(g, target), named = false;
+    if (battle_menu_page(g) == PAGE_COMMANDS) {
+        carry = !battle_slot_is_party(target);
+        if (carry) {
+            bool with_hp = enemy_hp_shown(g, target);
+            s->cpu.a = describe_target(g, target);
+            m_set_flag(s, CPU_FLAG_C, false);   /* the original's doubling of the target, passed on */
+            if (!battle_call_long(s, with_hp ? 0xC11A47 : 0xC11A16, with_hp ? 0xCD002D : 0xCD0030, CALLEE_READS_A))
+                return false;
+            named = true;
+        }
+    }
+    show_cursor(g, 0);
+    bool followed = battle_targets_changed(g) && battle_target_moves_frame(g);
+    bool frame_on = battle_alternate_frame(g) != 0;
+    follow_moved_target(g);
+    if (followed)
+        m_set_flag(s, CPU_FLAG_C, oam_buffer_y(g, 0) >= (frame_on ? NEAR_THE_BOTTOM : NEAR_THE_TOP));
+    else if (!named)
+        m_set_flag(s, CPU_FLAG_C, carry);
+    return true;
+}
+
+// $C1:1979
+/* While targets are chosen the cursors go on them, unless there were none to
+ * choose; on the tech page the list's hand goes first. A group's round leaves
+ * the carry set, and A clear, where it went round. */
+static bool place_target_cursors(Snes *s, GameState *g)
+{
+    if (menu_nobody(battle_no_targets(g)))
+        return true;
+    if (battle_menu_page(g) == PAGE_TECHS)
+        clear_tech_cursor_column(g);
+    hide_cursors(g);
+    for (unsigned cursor = 0; cursor < CURSORS; cursor++)
+        set_cursor_look(g, cursor);
+    if (!menu_nobody(battle_targets(g, 1))) {
+        place_group_cursors(g);
+        bool went_round = battle_target_cursor(g) == 0;
+        m_set_flag(s, CPU_FLAG_C, went_round);
+        if (went_round)
+            s->cpu.a = 0;
+        return true;
+    }
+    uint8_t target = battle_targets(g, 0);
+    if (menu_nobody(target))
+        return true;
+    return place_lone_target_cursor(s, g, target);
+}
+
+// $C1:17DD
+/* Place the cursors for what the member is choosing: none without a member,
+ * the targets while they are chosen, a combination tech's members on the tech
+ * page (a single tech's cursor is the original's), and the item list's cursor,
+ * sending the window when it changed. Placing them takes the buttons the menu
+ * gathered. The carry the original leaves: set where a combination has two
+ * members (from its end mark), the third's placing where it has three, and
+ * set where the item list was left as it was. */
+void battle_place_menu_cursors(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (menu_nobody(battle_menu_member(g))) {
+        move_cursors_away(g);
+    } else if (battle_targeting(g)) {
+        if (!place_target_cursors(s, g))
+            return;
+    } else if (battle_menu_page(g) == PAGE_TECHS) {
+        if (combination_tech_selected(g)) {
+            place_combo_cursors(g);
+            uint8_t partners = battle_selected_tech_partners(g);
+            m_set_flag(s, CPU_FLAG_C, !has_second_partner(partners) || cursor_carry(g, second_partner(partners)));
+        } else if (!battle_call(s, 0xC118AA, 0xC11115, CALLEE_READS_NOTHING_HERE)) {
+            return;
+        }
+    } else if (battle_menu_page(g) != PAGE_COMMANDS) {
+        if (show_item_cursor(g)) {
+            m_set_flag(s, CPU_FLAG_C, false);   /* the cursor row's doubling, passed on */
+            if (!battle_call_long(s, 0xC11972, 0xCFFD6A, CALLEE_READS_NOTHING_HERE))
+                return;
+        } else {
+            m_set_flag(s, CPU_FLAG_C, true);
+        }
+    }
+    set_battle_menu_buttons(g, 0);
+    m_rts(s);
+}
+
+/* ---- Combination techs called off ------------------------------------------------------- */
+
+/* Each member's row of the combination table: the member itself, then the
+ * others in turn, each in its own column where the member chose it as a
+ * partner (in either half of its action's partners). */
+enum { COMBO_COLUMNS = 3, NOT_IN_IT = 0xFF };
+
+static unsigned member_in_column(unsigned member, unsigned column) { return (member + column) % BATTLE_PARTY_SIZE; }
+
+static void set_combo_pair(GameState *g, unsigned member, unsigned column, uint8_t v)
+{
+    set_battle_combo_pairs(g, member * COMBO_COLUMNS + column, v);
+}
+static bool in_combo(const GameState *g, unsigned member, unsigned column)
+{
+    return !menu_nobody(battle_combo_pairs(g, member * COMBO_COLUMNS + column));
+}
+
+static bool chose_partner(const GameState *g, unsigned member, unsigned partner)
+{
+    uint8_t partners = battle_member_actions_partners(g, member);
+    return first_partner(partners) == partner || second_partner(partners) == partner;
+}
+
+static void find_combo_partners(GameState *g)
+{
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
+        set_combo_pair(g, member, 0, (uint8_t)member);
+        for (unsigned column = 1; column < COMBO_COLUMNS; column++) {
+            unsigned partner = member_in_column(member, column);
+            set_combo_pair(g, member, column, chose_partner(g, member, partner) ? (uint8_t)partner : NOT_IN_IT);
+        }
+        set_battle_combo_called_off(g, member, 0);
+    }
+}
+
+/* A member can't take part while it is knocked out, or has a status that
+ * keeps it from acting: no turns, stopped, the one that restarts its script,
+ * or the fourth status byte's top one (the original's $FD:A8A5, which the
+ * check calls for each). */
+static const Statuses CANT_JOIN = STATUS_NO_TURNS | STATUS_RESTARTS_SCRIPT | STATUS_STOP | 0x80000000u;
+
+static bool cant_join(GameState *g, unsigned member)
+{
+    bool out = combatant_knocked_out(g, member) || (combatant_statuses(g, member) & CANT_JOIN);
+    ORIGINAL_EFFECT(set_battle_combo_member_out(g, out));
+    return out;
+}
+
+/* A member's combination tech is called off, for it and the members in it,
+ * as soon as one of them can't take part. */
+static void call_off_combos(GameState *g)
+{
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
+        for (unsigned column = 0; column < COMBO_COLUMNS; column++) {
+            if (!in_combo(g, member, column) || !cant_join(g, member_in_column(member, column)))
+                continue;
+            for (unsigned other = 0; other < COMBO_COLUMNS; other++)
+                if (in_combo(g, member, other))
+                    set_battle_combo_called_off(g, member_in_column(member, other), 1);
+            break;
+        }
 }
 
 // $C1:B575
-/* Work out which party members can join a combination tech: fill the 3x3
- * table at $B3EB from the members' pairing nibbles ($93F3, $93FA, $9401: low
- * then high nibble naming a partner), then for each member check its row
- * through $FD:A8A5 (result in $B3EA) and, on success, flag it and its
- * partners in $B3E7-$B3E9. Finishes with $FD:A95F. */
+/* Work out whose combination techs are called off; the original's $FD:A95F
+ * then drops what they had queued. A's high byte is clear, as the check's
+ * calls leave it. */
 void battle_update_combo_members(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_tax(s);
-    m_lda8(s, 0xFF);
-    do {
-        m_write8(s, m_abs(s, 0xB3EB) + c->x, 0xFF);
-        m_inx(s);
-        m_cmp16(s, c->x, 0x0009);
-    } while (c->x < 0x0009);
-    m_tdc(s);
-    m_write8(s, m_abs(s, 0xB3EB), (uint8_t)c->a);
-    m_write8(s, m_abs(s, 0xB3EE), m_lda8(s, (uint8_t)((uint8_t)c->a + 1)));
-    m_write8(s, m_abs(s, 0xB3F1), m_lda8(s, (uint8_t)((uint8_t)c->a + 1)));
-    for (uint16_t i = 0; i < 3; i++)
-        m_write8(s, m_abs(s, (uint16_t)(0xB3E7 + i)), 0x00);
-    for (int pass = 0; pass < 2; pass++) {
-        bool high = pass == 1;
-        pair_nibble(s, 0x93F3, high, 0x01, 0xB3EC, 0x02, 0xB3ED);
-        pair_nibble(s, 0x93FA, high, 0x00, 0xB3F0, 0x02, 0xB3EF);
-        pair_nibble(s, 0x9401, high, 0x00, 0xB3F2, 0x01, 0xB3F3);
-    }
-
-    /* $C1:B639: each member's row */
-    static const struct {
-        uint16_t row;
-        uint32_t site;
-        uint16_t self, partner1_cell, partner1_flag, partner2_cell, partner2_flag;
-    } rows[3] = {
-        { 0xB3EB, 0xC1B640, 0xB3E7, 0xB3EC, 0xB3E8, 0xB3ED, 0xB3E9 },
-        { 0xB3EE, 0xC1B671, 0xB3E8, 0xB3EF, 0xB3E9, 0xB3F0, 0xB3E7 },
-        { 0xB3F1, 0xC1B6A2, 0xB3E9, 0xB3F2, 0xB3E7, 0xB3F3, 0xB3E8 },
-    };
-    for (int r = 0; r < 3; r++) {
-        m_tdc(s);
-        m_tax(s);
-        do {
-            if (!(m_lda8(s, m_read8(s, m_abs(s, rows[r].row) + c->x)) & 0x80)) {
-                m_jsl(s, rows[r].site, 0xFDA8A5);
-                if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
-                    return;
-                if (m_lda8(s, m_read8(s, m_abs(s, 0xB3EA))) != 0) {
-                    m_write8(s, m_abs(s, rows[r].self), m_lda8(s, 0x01));
-                    if (!(m_lda8(s, m_read8(s, m_abs(s, rows[r].partner1_cell))) & 0x80))
-                        m_write8(s, m_abs(s, rows[r].partner1_flag), m_lda8(s, 0x01));
-                    if (!(m_lda8(s, m_read8(s, m_abs(s, rows[r].partner2_cell))) & 0x80))
-                        m_write8(s, m_abs(s, rows[r].partner2_flag), m_lda8(s, 0x01));
-                    break;
-                }
-            }
-            m_inx(s);
-            m_cmp16(s, c->x, 0x0003);
-        } while (c->x < 0x0003);
-    }
-    m_jsl(s, 0xC1B6CC, 0xFDA95F);
-    if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+    GameState *g = state_of(s);
+    find_combo_partners(g);
+    call_off_combos(g);
+    s->cpu.a = 0;
+    if (!battle_call_long(s, 0xC1B6CC, 0xFDA95F, CALLEE_READS_NOTHING_HERE))
         return;
     m_rts(s);
 }
-

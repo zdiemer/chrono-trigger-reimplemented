@@ -14,7 +14,7 @@
  *     and the timers counted down and the run-out ones handled
  *     (battle/timers.c), the turn's handler among them: the turn below.
  *
- * A turn (the handler of the turn timer, battle_run_queued_scripts) gives the
+ * A turn (the handler of the turn timer, battle_give_turn) gives the
  * combatant whose timer ran out its turn: an enemy picks its action from its
  * script, a party member's command menu opens (or, in a demo battle or under a
  * status that decides for it, its action is picked for it). The party's
@@ -141,8 +141,13 @@ static void set_demo_aside(GameState *g)
     set_battle_setup_flags(g, flags & (uint8_t)~SETUP_DEMO);
 }
 
-/* The draw's entries are a battle slot plus one; a place drawn is emptied. */
+/* The orders are drawn from a pool, which the battle keeps where the enemies'
+ * foes will be: its entries are a battle slot plus one (or an enemy's id),
+ * and a place drawn is emptied. */
 enum { DRAWN = 0xFF };
+
+static uint8_t pool(const GameState *g, unsigned place) { return battle_foes(g, place); }
+static void set_pool(GameState *g, unsigned place, uint8_t entry) { set_battle_foes(g, place, entry); }
 
 /* The combatants to be drawn into the timers' order: the party members in
  * the fight, by the slot each character fights in, then the enemies, last to
@@ -151,7 +156,7 @@ static void list_combatants_for_the_order(GameState *g)
 {
     for (unsigned i = 0; i < BATTLE_TIMER_ORDER_COUNT; i++) {
         set_battle_timer_order(g, i, DRAWN);
-        set_battle_foes(g, i, DRAWN);
+        set_pool(g, i, DRAWN);
     }
     set_battle_timer_kinds_due(g, 0);
     unsigned listed = 0;
@@ -159,10 +164,10 @@ static void list_combatants_for_the_order(GameState *g)
         uint8_t character = battle_combatant_fighting(g, member);
         if (character & 0x80)
             continue;
-        set_battle_foes(g, listed++, (uint8_t)(battle_character_slot(g, character) + 1));
+        set_pool(g, listed++, (uint8_t)(battle_character_slot(g, character) + 1));
     }
     for (uint8_t slot = (uint8_t)(battle_enemy_count(g) + BATTLE_FIRST_ENEMY); slot != BATTLE_FIRST_ENEMY; slot--)
-        set_battle_foes(g, listed++, slot);
+        set_pool(g, listed++, slot);
     ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, BATTLE_PARTY_SIZE));
     ORIGINAL_EFFECT(set_battle_low_scratch(g, 1, 0));
 }
@@ -192,11 +197,11 @@ static bool draw_timer_order(Snes *s)
         if (!draw_random(s, 0xC1807B, length, &drawn))
             return false;
         m_pull16(s);
-        uint8_t entry = battle_foes(g, drawn);
+        uint8_t entry = pool(g, drawn);
         if (entry == DRAWN)
             continue;
         set_battle_timer_order(g, placed++, (uint8_t)(entry - 1));
-        set_battle_foes(g, drawn, DRAWN);
+        set_pool(g, drawn, DRAWN);
     } while (placed < length);
     return true;
 }
@@ -208,19 +213,19 @@ static bool draw_enemy_order(Snes *s)
     GameState *g = state_of(s);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_enemy_order(g, enemy, DRAWN);
-        set_battle_foes(g, enemy, battle_combatant_id(g, BATTLE_FIRST_ENEMY + enemy));
+        set_pool(g, enemy, battle_combatant_id(g, BATTLE_FIRST_ENEMY + enemy));
     }
     unsigned placed = 0;
     for (;;) {
         uint8_t drawn;
         if (!draw_random(s, 0xC180B1, BATTLE_ENEMIES, &drawn))
             return false;
-        if (battle_foes(g, drawn) == DRAWN)
+        if (pool(g, drawn) == DRAWN)
             continue;
-        set_battle_foes(g, drawn, DRAWN);
+        set_pool(g, drawn, DRAWN);
         set_battle_enemy_order(g, placed++, drawn);
         unsigned left = 0;
-        while (battle_foes(g, left) == DRAWN && ++left < battle_enemy_count(g))
+        while (pool(g, left) == DRAWN && ++left < battle_enemy_count(g))
             ;
         if (left >= battle_enemy_count(g)) {
             /* the enemies' scripts are started with the count placed in Y */
@@ -919,8 +924,67 @@ static bool react(Snes *s, unsigned entry, uint8_t target)
 
 enum { FORGET_LEAVES_Y = 4 };
 
-/* Forget the actor's chosen action. */
-static void forget_actors_action(GameState *g) { set_battle_chosen_actions(g, battle_actor(g), 0); }
+/* Forget the actor's chosen action. The original finds it at four times the
+ * actor, a byte, so an actor past the combatants lands in the tables after. */
+static void forget_actors_action(GameState *g)
+{
+    unsigned at = (uint8_t)(battle_actor(g) * 4) / 4;
+    if (battle_names_combatant((uint16_t)at))
+        set_battle_chosen_actions(g, at, 0);
+    else
+        set_battle_chosen_actions_unchecked(g, at, 0);
+}
+
+/* A status that keeps the actor's script from its reactions, read wherever the
+ * actor's cell points. */
+static bool actor_silenced(const GameState *g, uint8_t actor)
+{
+    if (battle_slot_is_party(actor))
+        return false;
+    uint32_t status = battle_names_combatant(actor) ? battle_stats_status(g, actor) : battle_stats_status_unchecked(g, actor);
+    return (status & STATUS_RESTARTS_SCRIPT) != 0;
+}
+
+/* Each enemy the action hit, in the order of the action's targets, reacts;
+ * between them the actor's chosen action is forgotten again, and the party's
+ * combination techs are looked at after each. */
+static bool enemies_react(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_battle_enemy_turn(g, 0);
+    set_battle_reaction_entry(g, 0);
+    set_battle_second_condition(g, false);
+    set_battle_script_outcome(g, CONDITIONS_HELD);
+    for (unsigned entry = 0; entry < BATTLE_ENEMIES; entry++) {
+        set_battle_reaction_entry(g, (uint8_t)entry);
+        if (entry > 0) {
+            forget_actors_action(g);
+            /* the original forgets it with a loop whose count it leaves in
+             * Y, which the conditions' handlers read */
+            ORIGINAL_EFFECT(s->cpu.y = FORGET_LEAVES_Y);
+        }
+        uint8_t target = battle_reaction_targets(g, entry);
+        if (target >= BATTLE_FIRST_ENEMY && target != NOBODY && !react(s, entry, target))
+            return false;
+        if (!battle_call(s, 0xC18809, CHECK_COMBINATIONS, READS_NOTHING))
+            return false;
+    }
+    set_battle_reaction_entry(g, BATTLE_ENEMIES);
+    return true;
+}
+
+/* What an action draws after it (none in a demo): the party's counters when
+ * it hit no enemy; else the reactions of the enemies it hit, unless a status
+ * keeps the enemy that acted from them. */
+static bool follow_up(Snes *s, uint8_t actor)
+{
+    GameState *g = state_of(s);
+    if (battle_setup_flags(g) & SETUP_DEMO)
+        return true;
+    if (!battle_action_hit_enemy(g))
+        return battle_call_long(s, 0xC18650, PARTY_COUNTERS, READS_NOTHING);
+    return actor_silenced(g, actor) || enemies_react(s);
+}
 
 // $C1:8626 (to the end)
 /* After the turn: every combatant updated, the action's targets and actor
@@ -941,32 +1005,8 @@ static bool after_action(Snes *s, bool skip_to_end)
         if (!battle_call(s, 0xC1863D, AFTER_ACTION, READS_NOTHING))
             return false;
         uint8_t actor = battle_last_actor(g);
-        bool silenced = !battle_slot_is_party(actor) && (battle_stats_status(g, actor) & STATUS_RESTARTS_SCRIPT);
-        if (battle_setup_flags(g) & SETUP_DEMO) {
-        } else if (!battle_action_hit_enemy(g)) {
-            if (!battle_call_long(s, 0xC18650, PARTY_COUNTERS, READS_NOTHING))
-                return false;
-        } else if (!silenced) {
-            set_battle_enemy_turn(g, 0);
-            set_battle_reaction_entry(g, 0);
-            set_battle_second_condition(g, false);
-            set_battle_script_outcome(g, CONDITIONS_HELD);
-            for (unsigned entry = 0; entry < BATTLE_ENEMIES; entry++) {
-                set_battle_reaction_entry(g, (uint8_t)entry);
-                if (entry > 0) {
-                    forget_actors_action(g);
-                    /* the original forgets it with a loop whose count it
-                     * leaves in Y, which the conditions' handlers read */
-                    ORIGINAL_EFFECT(s->cpu.y = FORGET_LEAVES_Y);
-                }
-                uint8_t target = battle_reaction_targets(g, entry);
-                if (target >= BATTLE_FIRST_ENEMY && target != NOBODY && !react(s, entry, target))
-                    return false;
-                if (!battle_call(s, 0xC18809, CHECK_COMBINATIONS, READS_NOTHING))
-                    return false;
-            }
-            set_battle_reaction_entry(g, BATTLE_ENEMIES);
-        }
+        if (!follow_up(s, actor))
+            return false;
     }
     if (!battle_call(s, 0xC1881C, FINISH_BEATEN, READS_NOTHING))
         return false;
@@ -1003,7 +1043,7 @@ static bool take_turns(Snes *s)
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
-void battle_run_queued_scripts(Snes *s)
+void battle_give_turn(Snes *s)
 {
     if (take_turns(s))
         m_rts(s);
@@ -1030,6 +1070,17 @@ static bool peek_rom_byte(Snes *s, uint32_t at)
     uint8_t v = rom_read8(state_of(s), at);
     vars_peek(false);
     return v;
+}
+
+/* The turn is given to the combatant the timers' order names at the turn's
+ * place: the guard takes the states where that is a combatant, as every
+ * battle has it. */
+bool battle_turn_names_combatant(Snes *s)
+{
+    vars_peek(true);
+    bool named = battle_names_combatant(combatant_whose_turn(state_of(s)));
+    vars_peek(false);
+    return battle_on_page(s) && named;
 }
 
 bool battle_pass_ends_plainly(Snes *s) { return battle_on_page(s) && peek_rom_byte(s, 0xC1FFFF) == 0; }

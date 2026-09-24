@@ -2038,6 +2038,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the party, 7 checked against the screen window only, 8 left alone by the update"
 source = "game/field/object.c object_role, set_role; game/field/object_update.c field_update_objects $C0:A810"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library)"
 
 [[var]]
 name = "field_object_character"
@@ -2193,6 +2194,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "16-bit X position in 1/16 pixel, the tile in the high byte ($FF00 off screen)"
 source = "game/field/object_update.c (header comment); tools/movies/addresses.py OBJECT_X"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library)"
 [[var.field]]
 name = "fine"
 offset = 0
@@ -2211,6 +2213,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "16-bit Y position in 1/16 pixel, the tile in the high byte"
 source = "game/field/object_update.c (header comment); tools/movies/addresses.py OBJECT_Y"
+unchecked = "an empty party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves toward a member, following one and noting one's tile, which read the slot it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library)"
 [[var.field]]
 name = "fine"
 offset = 0
@@ -2809,6 +2812,7 @@ row_stride = 0x100
 subsystem = "field"
 meaning = "The second of the three bytes a map gives each tile (a row every 256 bytes, beside field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the map (field_object_sprite_priority +1, where the object takes its priority from the map)"
 source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c object_start_step $C0:ACFD; game/field/object.c object_layer_as_the_map $C0:4BA3"
+unchecked = "an object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map; 20 real calls over the movie library)"
 
 [[var]]
 name = "field_tile_lower_attributes"
@@ -2819,6 +2823,7 @@ row_stride = 0x100
 subsystem = "field"
 meaning = "The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it, bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)"
 source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c object_start_step $C0:ACFD; game/field/object.c object_layer_as_the_map $C0:4BA3"
+unchecked = "an object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map; 20 real calls over the movie library)"
 
 [[var]]
 name = "field_layer_scroll_values"
@@ -6407,6 +6412,15 @@ meaning = "Cycles 0-3: which of the four queued VRAM uploads runs this frame, an
 source = "game/battle/frame.c battle_upload_vram $CF:E300; game/battle/animation.c battle_step_combatant_animations $C1:2D9F"
 
 [[var]]
+name = "battle_member_stat_block"
+addr = "7E:00A2"
+page = "battle"
+size = 2
+subsystem = "battle"
+meaning = "The stat block ($80 times the battle slot) of the party member the window is drawing, or whose menu is open ($CF:FD9E notes it there)"
+source = "game/battle/window.c draw_member_status $C1:0311; game/battle/status.c battle_draw_party_status $C1:05A7; $CF:FD9E, called from game/battle/menu_window.c"
+
+[[var]]
 name = "battle_queued_uploads_on"
 addr = "7E:00E5"
 page = "battle"
@@ -6607,17 +6621,20 @@ source = "game/battle/setup.c fill_11b0_table and fill_enemy_rows in battle_setu
 [[var]]
 name = "battle_tech_records"
 addr = "7E:1A80"
-count = 19
+count = 60
 stride = 7
-index = "tech entry (from the member's record base at $CC:F395 + member * 2)"
-unchecked = "the second and third members' records, twenty a member, lie past the first's (game/battle/setup_party.c tech_id; the window group's count of 60 replaces this)"
+index = "party member * 20 + the entry the member's tech list names (battle_tech_list)"
 subsystem = "battle"
-meaning = "Seven-byte records of the techs the party members can use in battle (a member's entries 0-7, 10-15 and 18 fill its tech list)"
-source = "game/battle/setup.c build_member_lists in battle_setup_state $CC:E2E4; game/battle/menu_window.c mark_tech_list $C1:0EE1 and draw_tech_page"
+meaning = "Seven-byte records of the techs the party members can use in battle, twenty a member (a member's entries 0-7, 10-15 and 18 fill its tech list)"
+source = "game/battle/setup.c build_member_lists in battle_setup_state $CC:E2E4; game/battle/menu_window.c dim_unusable_techs $C1:0EE1, show_tech_costs"
   [[var.field]]
   name = "id"
   offset = 0
   meaning = "Tech id ($FF: none); what the member's tech list shows"
+  [[var.field]]
+  name = "menu_detail"
+  offset = 1
+  meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md)"
   [[var.field]]
   name = "flags"
   offset = 2
@@ -6625,16 +6642,19 @@ source = "game/battle/setup.c build_member_lists in battle_setup_state $CC:E2E4;
   [[var.field]]
   name = "cost"
   offset = 3
-  meaning = "MP cost for the first member ($FF or negative: none)"
+  meaning = "MP the tech costs the party member in the first slot (negative: none)"
   [[var.field]]
   name = "partners"
   offset = 4
   meaning = "Combination partners, one party slot per nibble ($F: none, $FF: single tech)"
   [[var.field]]
-  name = "partner_costs"
+  name = "second_cost"
   offset = 5
-  size = 2
-  meaning = "MP costs for the second and third members"
+  meaning = "MP it costs the member in the second slot (negative: none)"
+  [[var.field]]
+  name = "third_cost"
+  offset = 6
+  meaning = "MP it costs the member in the third slot (negative: none)"
 
 [[var]]
 name = "battle_object_graphics"
@@ -6860,6 +6880,7 @@ addr = "7E:5E2F"
 count = 11
 stride = 0x80
 index = "battle slot (0-2 the party, 3-10 enemies)"
+unchecked = "the turn's end reads the status of the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667)"
 subsystem = "battle"
 meaning = "Per-combatant stat blocks ($80 bytes each; the record is placed at the lowest byte the ports index by slot * $80)"
 source = "tools/movies/addresses.py BATTLE_STATS; game/battle/stats.c header, battle_update_low_hp_flag $C1:B093, battle_update_status_flags $C1:B0B6; game/battle/window.c draw_member $C1:0311"
@@ -6908,7 +6929,7 @@ source = "tools/movies/addresses.py BATTLE_STATS; game/battle/stats.c header, ba
   [[var.field]]
   name = "worn_item"
   offset = 0x28
-  meaning = "An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP (battle_sees_enemy_hp)"
+  meaning = "An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP (battle_enemy_hp_seen)"
 
 # ---- the battlefield grid and setup tables -------------------------------------
 
@@ -7067,17 +7088,17 @@ name = "battle_number"
 addr = "7E:9499"
 size = 2
 subsystem = "battle"
-meaning = "The number being turned into digit tiles (left holding it modulo 100)"
-source = "game/battle/gauges.c battle_number_to_digits $C1:011F, battle_number_to_2_digits $C1:0174"
+meaning = "The number the original's callers hand the digit routines; they leave it holding its ones digit less ten"
+source = "game/battle/digits.c battle_number_to_digits $C1:011F, battle_number_to_2_digits $C1:0174; game/battle/numbers.c ($CF:FDAD)"
 
 [[var]]
 name = "battle_digits"
-addr = "7E:949C"
-count = 4
-index = "digit ($949C blank, then hundreds, tens, ones)"
+addr = "7E:949B"
+count = 5
+index = "place, the most significant first: ten thousands, thousands, hundreds, tens, ones"
 subsystem = "battle"
-meaning = "The number's digit tiles ($73 zero digit, blanked when leading; $FF blank)"
-source = "game/battle/gauges.c battle_number_to_digits $C1:011F, battle_number_to_2_digits $C1:0174, battle_blank_leading_zeros $C1:104E"
+meaning = "A number's digit tiles, where the digit routines leave them for the original's callers: the window's (the last three; $73 the zero, $FF blank) and the number sprites' (the last four; $90 the zero, and a miss fills all five)"
+source = "game/battle/digits.c battle_number_to_digits $C1:011F, battle_number_to_2_digits $C1:0174, battle_blank_leading_zeros $C1:104E; game/battle/numbers.c ($CF:FDAD)"
 
 [[var]]
 name = "battle_name_buffer"
@@ -7187,6 +7208,48 @@ meaning = "The party member each menu window slot belongs to; negative: no membe
 source = "game/battle/window.c battle_draw_window $C1:0299, draw_window_frames $C1:081E; game/battle/menu_window.c member_unavailable $C1:103E"
 
 [[var]]
+name = "battle_menu_member_count"
+addr = "7E:A6DE"
+subsystem = "battle"
+meaning = "How many of the menu's slots hold a party member (battle_menu_slot_members): 0 while nobody chooses, and a double tech wants two, a triple tech three"
+source = "game/battle/window.c battle_redraw_window $C1:0299; game/battle/menu_window.c dim_unusable_techs $C1:0EE1"
+
+[[var]]
+name = "battle_combos_offered"
+addr = "7E:95F1"
+subsystem = "battle"
+meaning = "The menu's member count less one, as the window was last redrawn: nonzero when the command windows may offer combination techs"
+source = "game/battle/window.c battle_redraw_window $C1:0299, offers_combos $C1:0785"
+
+[[var]]
+name = "battle_ally_target_page"
+addr = "7E:A86B"
+subsystem = "battle"
+meaning = "Nonzero while an action is aimed at a party member: the menu page to go back to, plus one; the window then marks the targeted member's name instead of showing the command windows"
+source = "$C1:1F79 (sets it); game/battle/window.c battle_redraw_window $C1:0299"
+
+[[var]]
+name = "battle_ally_target_marked"
+addr = "7E:A0D7"
+subsystem = "battle"
+meaning = "The party member the window marks as the target while an action is aimed at a party member; a redraw marks the first target's name when it is another"
+source = "$C1:127D (sets it); game/battle/window.c battle_redraw_window $C1:0299"
+
+[[var]]
+name = "battle_ally_target_window"
+addr = "7E:A09A"
+subsystem = "battle"
+meaning = "Set when the window was rebuilt for aiming at a party member; while it is clear, a window in the second layout with a member in the third menu slot redraws only its gauges between turns"
+source = "$C1:1F79 (sets it); game/battle/status.c battle_show_party_status $C1:05A7"
+
+[[var]]
+name = "battle_tech_list_dimmed"
+addr = "7E:A099"
+subsystem = "battle"
+meaning = "Set once the tech page has worked out which of the member's techs can't be used now"
+source = "game/battle/menu_window.c dim_unusable_techs $C1:0EE1; read at $C1:1369"
+
+[[var]]
 name = "battle_menu_slot"
 addr = "7E:A6DD"
 subsystem = "battle"
@@ -7238,11 +7301,38 @@ source = "game/battle/menu_window.c draw_tech_page ($C1:0A88 lays it out); game/
 [[var]]
 name = "battle_selected_tech"
 addr = "7E:9EE3"
-count = 7
-index = "byte of the tech record"
+stride = 7
 subsystem = "battle"
-meaning = "Copy of the record of the tech under the tech list cursor ($FF when none): id at +0, costs at +3, +5 and +6, partners at +4"
-source = "game/battle/menu_window.c draw_tech_page in battle_draw_menu_window $C1:0C2D, place_tech_cursors $C1:17FE"
+meaning = "Copy of the record (battle_tech_records) of the tech under the tech list's cursor, every byte $FF when the row is blank"
+source = "game/battle/menu_window.c show_tech_costs in battle_draw_menu_window $C1:0C2D, place_combo_cursors $C1:17FE"
+  [[var.field]]
+  name = "id"
+  offset = 0
+  meaning = "Tech id ($FF: none); what the member's tech list shows"
+  [[var.field]]
+  name = "menu_detail"
+  offset = 1
+  meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md)"
+  [[var.field]]
+  name = "flags"
+  offset = 2
+  meaning = "Bit 7 set while the tech is dimmed (can't be used now)"
+  [[var.field]]
+  name = "cost"
+  offset = 3
+  meaning = "MP the tech costs the party member in the first slot (negative: none)"
+  [[var.field]]
+  name = "partners"
+  offset = 4
+  meaning = "Combination partners, one party slot per nibble ($F: none, $FF: single tech)"
+  [[var.field]]
+  name = "second_cost"
+  offset = 5
+  meaning = "MP it costs the member in the second slot (negative: none)"
+  [[var.field]]
+  name = "third_cost"
+  offset = 6
+  meaning = "MP it costs the member in the third slot (negative: none)"
 
 [[var]]
 name = "battle_targets"
@@ -7252,6 +7342,36 @@ index = "target entry"
 subsystem = "battle"
 meaning = "The chosen targets, one battle slot per byte, negative for unused entries; a second entry means the action hits a group"
 source = "tools/movies/addresses.py BATTLE_TARGETS; game/battle/menu_window.c place_target_cursors $C1:1979"
+
+[[var]]
+name = "battle_no_targets"
+addr = "7E:9613"
+subsystem = "battle"
+meaning = "Negative when choosing targets found none (the last target entry's $FF); the target cursors are left alone then"
+source = "$C1:1F79 (sets it); game/battle/menu_window.c place_target_cursors $C1:1979"
+
+[[var]]
+name = "battle_targets_changed"
+addr = "7E:A4EE"
+subsystem = "battle"
+meaning = "Set when the player moves the target; placing the target cursors takes it"
+source = "$C1:12B3 and the other target moves (set it); game/battle/menu_window.c place_target_cursors $C1:1979"
+
+[[var]]
+name = "battle_target_moves_frame"
+addr = "7E:960A"
+subsystem = "battle"
+meaning = "Nonzero while the target being chosen may bring the other frame on: a single target's cursor near the screen's top turns battle_alternate_frame on, and near its bottom off"
+source = "$C1:2042 and $C1:1F79 (set and clear it); game/battle/menu_window.c place_target_cursors $C1:1979"
+
+[[var]]
+name = "battle_target_display"
+addr = "7E:0200"
+count = 5
+index = "byte: the enemy ($0200), its HP ($0201, a word) and maximum HP ($0203, a word)"
+subsystem = "battle"
+meaning = "The enemy the single target cursor is on, for $CD:002D and $CD:0030, which show its name and, where the party can see it, its HP"
+source = "game/battle/menu_window.c show_target $C1:19B4"
 
 [[var]]
 name = "battle_single_target"
@@ -7284,23 +7404,25 @@ source = "game/battle/menu_window.c place_list_cursor $C1:18B0"
 [[var]]
 name = "battle_window_layout"
 addr = "7E:9F20"
+size = 2
 subsystem = "battle"
-meaning = "Which of three battle window layouts is used (0, 1, 2): positions of names, HP, MP and gauges, and whether max HP is shown (layout 0)"
-source = "game/battle/window.c header and battle_draw_window $C1:0299; game/battle/gauges.c battle_draw_party_status $C1:05A7; game/battle/setup.c reset_battle_tables (from $CC:FBC5 by $2992)"
+meaning = "Which of three battle window layouts the settings chose (0, 1, 2; past 2 as 2): positions of names, HP, MP and gauges, and whether max HP is shown (layout 0). Setup writes a byte; the window's code reads it as a byte in some places and a word in others, so the byte after it is 0 as the game goes"
+source = "game/battle/window.c battle_window_layout_now, battle_redraw_window $C1:0299; game/battle/status.c battle_show_party_status $C1:05A7; game/battle/setup.c reset_battle_tables (from $CC:FBC5 by $2992)"
 
 [[var]]
 name = "battle_digit_highlight"
 addr = "7E:A10F"
 subsystem = "battle"
-meaning = "Nonzero while the member being drawn is at 0 HP or low HP on a blink frame: its digits get attribute $2D"
-source = "game/battle/window.c draw_member $C1:0311, digit_attribute; game/battle/gauges.c battle_draw_party_status $C1:05A7"
+meaning = "Where the window's routines keep, while they draw a member's numbers, whether they are shaded (at 0 HP, or low on a blink frame); only they read it"
+source = "game/battle/window.c draw_member_status $C1:0311; game/battle/status.c battle_draw_party_status $C1:05A7"
 
 [[var]]
 name = "battle_blink"
 addr = "7E:A110"
+size = 2
 subsystem = "battle"
-meaning = "Blink phase for low HP digits, toggled every 12 frames"
-source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/window.c draw_member $C1:0311"
+meaning = "Blink phase for low HP digits, toggled every 12 frames (its low byte; the window reads a word)"
+source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/window.c member_numbers_shaded"
 
 [[var]]
 name = "battle_blink_timer"
@@ -7317,6 +7439,13 @@ index = "party slot"
 subsystem = "battle"
 meaning = "Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination techs naming it, are dimmed"
 source = "game/battle/stats.c battle_update_status_flags $C1:B0B6; game/battle/menu_window.c member_unavailable $C1:103E, mark_tech_list $C1:0EE1"
+
+[[var]]
+name = "battle_show_descriptions"
+addr = "7E:A0DB"
+subsystem = "battle"
+meaning = "Bit 7 set when the game's settings show a tech's description as the tech list's cursor moves ($CD:0027 shows it)"
+source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4 (game_settings); game/battle/menu_window.c show_tech_page $C1:0C83"
 
 [[var]]
 name = "battle_frog_slot"
@@ -7360,6 +7489,32 @@ meaning = "Set when the member's tech list has a triple tech section (the $FD ma
 source = "game/battle/setup.c mark_member_records and build_member_lists in battle_setup_state $CC:E2E4"
 
 [[var]]
+name = "battle_member_carried"
+addr = "7E:1C48"
+count = 3
+stride = 5
+index = "party member"
+subsystem = "battle"
+meaning = "Five bytes the battle keeps for each party member; the first goes back into its stat block when the battle ends"
+source = "game/battle/main_loop.c $C1:8443"
+
+[[var]]
+name = "battle_enemy_hp_seen"
+addr = "7E:9F34"
+subsystem = "battle"
+meaning = "Nonzero when a party member's equipment lets the party see enemies' HP (from the stat blocks' byte $57 at setup); the single target cursor then shows it for enemies battle_enemy_hp_visible allows"
+source = "game/battle/setup_screen.c setup_uploads in battle_setup_graphics $CC:ED87 (battle_stats.worn_item); game/battle/menu_window.c show_target $C1:19B4"
+
+[[var]]
+name = "battle_enemy_hp_visible"
+addr = "7E:9F2C"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Nonzero for an enemy whose HP the target display may show"
+source = "game/battle/menu_window.c show_target $C1:19B4"
+
+[[var]]
 name = "battle_tech_list_length"
 addr = "7E:A02A"
 count = 3
@@ -7369,13 +7524,13 @@ meaning = "Number of entries in the member's tech list (up to the first $FF, at 
 source = "game/battle/setup.c build_member_lists in battle_setup_state $CC:E2E4"
 
 [[var]]
-name = "battle_combo_ready"
+name = "battle_combo_called_off"
 addr = "7E:B3E7"
 count = 3
 index = "party slot"
 subsystem = "battle"
-meaning = "Set when the member can take part in a combination tech now"
-source = "game/battle/stats.c battle_update_combo_members $C1:B575"
+meaning = "Set when the member's combination tech is called off: it, or a member it chose as a partner or that chose it, can't act; $FD:A95F then drops what the member had queued"
+source = "game/battle/menu_window.c battle_update_combo_members $C1:B575"
 
 [[var]]
 name = "battle_combo_pairs"
@@ -7383,8 +7538,15 @@ addr = "7E:B3EB"
 count = 9
 index = "member * 3 + member"
 subsystem = "battle"
-meaning = "3x3 pairing table filled from the members' partner nibbles ($FF: not paired)"
-source = "game/battle/stats.c battle_update_combo_members $C1:B575"
+meaning = "Who is in each member's combination tech: a row of three per member, the member itself first, then the members it or they chose as partners, each in its own column ($FF: none)"
+source = "game/battle/menu_window.c battle_update_combo_members $C1:B575"
+
+[[var]]
+name = "battle_combo_member_out"
+addr = "7E:B3EA"
+subsystem = "battle"
+meaning = "Where $FD:A8A5 leaves whether the member it was asked about can't act now (knocked out, or a status that keeps it from combination techs); the combination check reads it after each call"
+source = "game/battle/menu_window.c call_off_combos in battle_update_combo_members $C1:B575"
 
 # ---- gauges and timers -----------------------------------------------------------
 
@@ -7608,16 +7770,6 @@ index = "party member"
 subsystem = "battle"
 meaning = "The party's maximum HP as the battle began, put back when it ends"
 source = "game/battle/main_loop.c $C1:83BB, $C1:8423; $C1:FD2C"
-
-[[var]]
-name = "battle_member_carried"
-addr = "7E:1C48"
-count = 3
-stride = 5
-index = "party member"
-subsystem = "battle"
-meaning = "Five bytes the battle keeps for each party member; the first goes back into its stat block when the battle ends"
-source = "game/battle/main_loop.c $C1:8443"
 
 [[var]]
 name = "battle_rewards_held"
@@ -7882,6 +8034,7 @@ addr = "7E:B192"
 size = 4
 count = 11
 index = "battle slot"
+unchecked = "the turn's end forgets the actor's chosen action at four times the actor's cell, a byte (game/battle/main_loop.c, $C1:8862)"
 subsystem = "battle"
 meaning = "Each combatant's chosen action (four bytes), forgotten once it is carried out"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461 ($C1:8862)"
@@ -8677,16 +8830,6 @@ meaning = "The six bytes before battle_item_cursor_shown, set to $FF with it at 
 source = "game/battle/setup_reset.c close_the_menus in battle_setup_state $CC:E2E4"
 
 [[var]]
-name = "battle_kept_sprite_colors"
-addr = "7E:999F"
-size = 2
-count = 8
-index = "color"
-subsystem = "battle"
-meaning = "Two sets of four sprite colors the battle puts back into sprite palettes 0 and 4 ($C1:5B05)"
-source = "game/battle/setup_screen.c setup_cursor_sprites_and_colors in battle_setup_graphics $CC:ED87; $C1:5B05"
-
-[[var]]
 name = "battle_enemy_rule"
 addr = "7E:99D2"
 subsystem = "battle"
@@ -8725,13 +8868,6 @@ meaning = "The attributes of battle_menu_list_tiles' tiles, the second byte of e
 source = "game/battle/setup_screen.c setup_tilemaps in battle_setup_state $CC:E2E4"
 
 [[var]]
-name = "battle_sees_enemy_hp"
-addr = "7E:9F34"
-subsystem = "battle"
-meaning = "Nonzero when a party member wears an item that lets the party see an enemy's HP; the cursor on an enemy then shows it ($C1:19F7)"
-source = "game/battle/setup_screen.c setup_uploads in battle_setup_graphics $CC:ED87; $C1:19F7"
-
-[[var]]
 name = "battle_attribute_bits_start"
 addr = "7E:9F3B"
 count = 11
@@ -8739,15 +8875,6 @@ index = "battle slot"
 subsystem = "battle"
 meaning = "The attribute bits a combatant's sprites go back to (battle_object_attribute_bits, $C1:7592)"
 source = "game/battle/setup_reset.c rest_the_objects in battle_setup_state $CC:E2E4; $C1:7592"
-
-[[var]]
-name = "battle_aim_at_cursor"
-addr = "7E:A003"
-count = 11
-index = "battle slot"
-subsystem = "battle"
-meaning = "Nonzero when effects aimed at the combatant go to its cursor point (its position plus battle_cursor_offset) rather than its position ($C1:5B4D); counted up for an enemy with flag bit 5 in its header"
-source = "game/battle/setup_enemies.c take_flags in battle_setup_state $CC:E2E4; $C1:5B4D"
 
 [[var]]
 name = "battle_rule_applies"
@@ -8787,13 +8914,6 @@ index = "party slot"
 subsystem = "battle"
 meaning = "The tech under each member's tech list cursor as the battle remembers it"
 source = "game/battle/setup_party.c setup_remembered_cursors $CC:E8D2; $C1:1653; $CF:FC9B"
-
-[[var]]
-name = "battle_shows_descriptions"
-addr = "7E:A0DB"
-subsystem = "battle"
-meaning = "Bit 7 set when the settings show a tech's or item's description as the list cursor meets it ($C1:0E8D)"
-source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4; $C1:0E8D"
 
 [[var]]
 name = "battle_slot_draw_bits"
@@ -9332,9 +9452,9 @@ name = "battle_number_records"
 addr = "7E:AD9C"
 count = 44
 stride = 4
-index = "record (by combatant through $CC:F829)"
+index = "set * 11 + battle slot (the animation script's number commands $50-$53 show sets 0-3)"
 subsystem = "battle"
-meaning = "The numbers shown over the combatants"
+meaning = "The numbers shown over the combatants, a set per number command of the animation script, one a combatant"
 source = "game/battle/numbers.c header; game/battle/damage.c battle_clear_numbers $FD:ACEE"
   [[var.field]]
   name = "value"
@@ -9344,11 +9464,37 @@ source = "game/battle/numbers.c header; game/battle/damage.c battle_clear_number
   [[var.field]]
   name = "kind"
   offset = 2
-  meaning = "Its kind"
+  meaning = "How it shows: 0 not at all, 5 as a miss, otherwise as a number (1 and 2 in the second palette; 2, 4 and up rise the second way)"
   [[var.field]]
   name = "last_byte"
   offset = 3
   meaning = "The record's last byte, which the number display doesn't read; cleared with the rest"
+
+[[var]]
+name = "battle_numbers_set"
+addr = "7E:A3D3"
+subsystem = "battle"
+meaning = "The set of numbers (battle_number_records) the script's number command last showed"
+source = "game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB"
+
+[[var]]
+name = "battle_number_at_cursor"
+addr = "7E:A003"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Nonzero for a combatant whose numbers show at its cursor point (its object's position plus battle_cursor_offset_x and _y) rather than at its object's position"
+source = "game/battle/numbers.c number_position in battle_script_build_number_sprites $C1:5ADB; game/battle/setup_enemies.c take_flags in battle_setup_state $CC:E2E4 (counted up for an enemy with flag bit 5 of its header)"
+
+[[var]]
+name = "battle_number_colors"
+addr = "7E:999F"
+size = 2
+count = 8
+index = "color: the first four of sprite palette 0, then of sprite palette 4"
+subsystem = "battle"
+meaning = "The number sprites' colors, loaded at setup; each number command puts them back in the working palette"
+source = "game/battle/setup_screen.c setup_cursor_sprites_and_colors in battle_setup_graphics ($CC:EF09); game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB"
 
 [[var]]
 name = "battle_palette_anim_on"
@@ -9782,26 +9928,6 @@ meaning = "Which scroll table routine runs each frame (through $CD:06BC)"
 source = "game/battle/frame.c battle_update_scroll_dispatch $CD:06B4"
 
 [[var]]
-name = "battle_bg3_scroll"
-addr = "7E:CA5A"
-size = 2
-count = 2
-index = "axis (X, Y)"
-subsystem = "battle"
-meaning = "BG3's moving scroll position, used instead of its base scroll in the moving mode"
-source = "game/battle/display.c battle_update_scroll_tables_bg3_moving $CD:076C"
-
-[[var]]
-name = "battle_bg3_scroll_offset"
-addr = "7E:CA5E"
-size = 2
-count = 2
-index = "axis (X, Y)"
-subsystem = "battle"
-meaning = "Offset added to BG3's moving scroll"
-source = "game/battle/display.c battle_update_scroll_tables_bg3_moving $CD:076C"
-
-[[var]]
 name = "battle_shake_offsets"
 addr = "7E:CCA4"
 size = 2
@@ -9863,11 +9989,48 @@ source = "game/battle/frame.c battle_update_screen_shake $CD:0B51"
 [[var]]
 name = "battle_palette_slot_presets"
 addr = "7E:CCC1"
-count = 36
-index = "byte (two slots, then one)"
+count = 3
+stride = 0x0C
+index = "preset slot (two for animation slots 8-9, then one for slot 10)"
 subsystem = "battle"
-meaning = "Palette animation slots copied over slots 8-9 (24 bytes) or slot 10 (12 bytes at $CCD9) on request"
-source = "game/battle/frame.c battle_update_screen_shake $CD:0B51"
+meaning = "Palette animation slots copied over slots 8-9 or slot 10 on request, laid out as those slots are (palette_animations)"
+source = "game/battle/frame.c battle_update_screen_shake $CD:0B51; game/battle/screen_motion.c battle_set_palette_preset $D1:F74D"
+  [[var.field]]
+  name = "kind"
+  offset = 0
+  meaning = "Animation type in the high nibble, as palette_animations' kind (4 fade to white, 5 to black)"
+  [[var.field]]
+  name = "first_color"
+  offset = 1
+  meaning = "First palette entry the animation changes"
+  [[var.field]]
+  name = "color_count"
+  offset = 2
+  meaning = "Number of palette entries it changes"
+  [[var.field]]
+  name = "step"
+  offset = 3
+  meaning = "The amount a fade's level moves per step"
+  [[var.field]]
+  name = "delay"
+  offset = 4
+  meaning = "Frame counter toward the period"
+  [[var.field]]
+  name = "period"
+  offset = 5
+  meaning = "Frames between steps"
+  [[var.field]]
+  name = "fade_mode"
+  offset = 6
+  meaning = "Which color channels the fade changes (core/palette.c's table)"
+  [[var.field]]
+  name = "fade_level"
+  offset = 7
+  meaning = "Fade level the animation starts from"
+  [[var.field]]
+  name = "fade_target"
+  offset = 8
+  meaning = "Level the fade moves toward"
 
 [[var]]
 name = "battle_palette_preset_request"
@@ -9983,7 +10146,7 @@ count = 0x17
 index = "byte"
 subsystem = "battle"
 meaning = "Direct-page scratch the battle's routines share ($45-$5B): counts, thresholds, operands and table offsets, each routine's own"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c"
 
 [[var]]
 name = "battle_background_flags"
@@ -9997,7 +10160,7 @@ name = "battle_screen_scripts_running"
 addr = "7E:5D9B"
 subsystem = "battle"
 meaning = "Set while the screen script channels run; cleared when both have ended. The HP gradient waits for it"
-source = "$CD:1609 ($CD:164D); game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "$CD:1609 ($CD:164D); game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_sprite_palettes_flipped"
@@ -10012,7 +10175,7 @@ addr = "7E:CD3D"
 size = 2
 subsystem = "battle"
 meaning = "Offset of the next block id in the effect's list of four ($D1:ECDB)"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3"
 
 [[var]]
 name = "battle_effect_graphics_vram"
@@ -10020,28 +10183,28 @@ addr = "7E:CD3F"
 size = 2
 subsystem = "battle"
 meaning = "VRAM word address the next effect graphics block goes to ($2000 on, $800 apart)"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3"
 
 [[var]]
 name = "battle_effect_graphics_block"
 addr = "7E:CD41"
 subsystem = "battle"
 meaning = "Which of the effect's four graphics blocks is being loaded"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3"
 
 [[var]]
 name = "battle_effect_graphics_id"
 addr = "7E:CD42"
 subsystem = "battle"
 meaning = "The effect whose graphics are being loaded"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3"
 
 [[var]]
 name = "battle_effect_graphics_loading"
 addr = "7E:CD43"
 subsystem = "battle"
 meaning = "Set while an effect's graphics load, which waits for frames; the frame wait tail doesn't start another meanwhile"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3; game/battle/frame.c battle_frame_wait_tail $CD:04AA"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3; game/battle/frame.c battle_frame_wait_tail $CD:04AA"
 
 [[var]]
 name = "battle_palette_rows_moved"
@@ -10055,7 +10218,7 @@ name = "battle_gradient_phase"
 addr = "7E:CDC9"
 subsystem = "battle"
 meaning = "Rotation phase of the HP gradient's rows (13 down to 0 and around), which picks each row's rotation"
-source = "game/battle/screen_palette.c battle_find_gradient_phase $D1:EA01, battle_step_hp_gradient $D1:EA4B; game/battle/frame.c battle_step_cdc9 $CD:0ADE"
+source = "game/battle/screen_gradient.c battle_find_gradient_phase $D1:EA01, battle_step_hp_gradient $D1:EA4B; game/battle/frame.c battle_step_cdc9 $CD:0ADE"
 
 [[var]]
 name = "battle_gradient_colors"
@@ -10065,49 +10228,49 @@ count = 28
 index = "color (14, then the same 14 again)"
 subsystem = "battle"
 meaning = "The HP gradient's 14 colors as they fade, followed by a copy, so that 14 colors from any rotation run on without wrapping"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_fading"
 addr = "7E:CE0A"
 subsystem = "battle"
 meaning = "Nonzero while the HP gradient fades from one level's colors to the next's"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_level"
 addr = "7E:CE0B"
 subsystem = "battle"
 meaning = "HP level (1-8, eighths of the first enemy's maximum HP) the gradient fades toward"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_level_shown"
 addr = "7E:CE0C"
 subsystem = "battle"
 meaning = "HP level whose colors the gradient shows; it follows the level one step per fade"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_fade_frames"
 addr = "7E:CE0D"
 subsystem = "battle"
 meaning = "Frames left in the gradient's fade ($20 at the start)"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_level_override"
 addr = "7E:CE0E"
 subsystem = "battle"
 meaning = "With bit 7 set, the HP level the gradient takes (bits 0-6) instead of the enemy's, in one fade"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_reversed"
 addr = "7E:CE10"
 subsystem = "battle"
 meaning = "Nonzero to rotate the gradient's rows the other way"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B; $CD:2AA1 sets it, $CD:17FB clears it"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B; $CD:2AA1 sets it, $CD:17FB clears it"
 
 [[var]]
 name = "battle_window_lines"
@@ -10134,6 +10297,36 @@ source = "game/battle/screen_window.c header; game/battle/frame.c battle_setup_w
   name = "w2_right"
   offset = 3
   meaning = "Window 2's right edge"
+  [[var.field]]
+  name = "w1"
+  offset = 0
+  size = 2
+  meaning = "Window 1's edges as one word, the left in the low byte"
+  [[var.field]]
+  name = "w2"
+  offset = 2
+  size = 2
+  meaning = "Window 2's edges as one word, the left in the low byte"
+
+[[var]]
+name = "battle_window_top_lines"
+addr = "7E:C151"
+count = 4
+stride = 4
+index = "line (the four above the first buffer's first)"
+subsystem = "battle"
+meaning = "The top border's lines of the window table, just before battle_window_lines: the window effects that start a line early (the waves, the wipe) write into the last of them"
+source = "game/battle/screen_window.c battle_screen_wave_windows $D1:EEC4, battle_screen_wipe_from_left $D1:EEA5; $D1:F1B0 fills them"
+  [[var.field]]
+  name = "w1"
+  offset = 0
+  size = 2
+  meaning = "Window 1's edges as one word, the left in the low byte"
+  [[var.field]]
+  name = "w2"
+  offset = 2
+  size = 2
+  meaning = "Window 2's edges as one word, the left in the low byte"
 
 [[var]]
 name = "battle_window_line_deltas"
@@ -10181,34 +10374,51 @@ source = "game/battle/screen_window.c battle_screen_move_column_band $D1:FB68, b
 [[var]]
 name = "battle_window_quads"
 addr = "7E:CD0D"
-count = 8
-stride = 2
-index = "coordinate (X0, Y0, X1, Y1, X2, Y2, X3, Y3)"
+count = 16
+index = "coordinate * 2 + quadrilateral (two, their bytes interleaved; the coordinates X0, Y0, X1, Y1, X2, Y2, X3, Y3)"
 subsystem = "battle"
-meaning = "The corners of a window quadrilateral $D1:F9AF rasterizes into the window table (the beam's: its top edge, then its bottom edge)"
-source = "game/battle/screen_window.c battle_screen_draw_beam $D1:EBFF; $D1:F9AF"
+meaning = "The corners of the two window quadrilaterals $D1:F9AF rasterizes into the window table (the beam's: its top edge, then its foot)"
+source = "game/battle/screen_beam.c battle_screen_draw_beam $D1:EBFF, battle_draw_window_quad $D1:F9AF; $CD:2495"
 
 [[var]]
-name = "battle_screen_motion_direction"
+name = "battle_screen_layer"
 addr = "7E:CA52"
-size = 2
 count = 2
 stride = 0x10
 index = "screen script channel"
 subsystem = "battle"
-meaning = "Direction of the channel's swing: nonzero while its speed grows and its position falls"
-source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
-
-[[var]]
-name = "battle_screen_motion_base"
-addr = "7E:CA54"
-size = 2
-count = 2
-stride = 0x10
-index = "screen script channel"
-subsystem = "battle"
-meaning = "Offset the channel's swing moves around"
-source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
+meaning = "The layer a screen script channel moves, as its commands jitter and swing it; channel 0's position and offset are BG3's moving scroll, used instead of its base scroll in the moving mode"
+source = "game/battle/screen_motion.c battle_screen_jitter $D1:F47C, battle_screen_swing $D1:F559; game/battle/display.c battle_update_scroll_tables_bg3_moving $CD:076C"
+  [[var.field]]
+  name = "swing_rising"
+  offset = 0
+  size = 2
+  meaning = "Nonzero while the channel's swing gathers speed back up the screen; 0 while it slows moving down"
+  [[var.field]]
+  name = "swing_center"
+  offset = 2
+  size = 2
+  meaning = "The vertical offset the swing moves the layer about"
+  [[var.field]]
+  name = "x"
+  offset = 8
+  size = 2
+  meaning = "The layer's position across"
+  [[var.field]]
+  name = "y"
+  offset = 0x0A
+  size = 2
+  meaning = "The layer's position down"
+  [[var.field]]
+  name = "offset_x"
+  offset = 0x0C
+  size = 2
+  meaning = "Offset added to the position across"
+  [[var.field]]
+  name = "offset_y"
+  offset = 0x0E
+  size = 2
+  meaning = "Offset added to the position down, which the swing sets"
 
 [[var]]
 name = "battle_screen_swing_speed"
@@ -10269,14 +10479,14 @@ count = 0x20
 index = "byte ($00-$1F)"
 subsystem = "battle"
 meaning = "Direct-page scratch the battle's routines share at $00-$1F: the multiply's operands and product ($00 by $02-$03 into $04-$06), and the window quadrilateral rasterizer's four edge slopes (8.8, words at $03-$09), a slope's end and start column and lines ($0B-$0D), the top line ($0F) and the corners sorted by line (X, Y at $12-$19)"
-source = "game/battle/screen_window.c battle_draw_window_quad $D1:F9AF, battle_quad_edge_slopes $D1:F91D; $D1:F9E7; game/battle/effect_paths.c $CF:F9FB"
+source = "game/battle/screen_beam.c battle_draw_window_quad $D1:F9AF, battle_quad_edge_slopes $D1:F91D (screen_beam.c); $D1:F9E7; game/battle/effect_paths.c $CF:F9FB"
 
 [[var]]
 name = "battle_window_quad_index"
 addr = "7E:CC64"
 subsystem = "battle"
 meaning = "Which window quadrilateral is being rasterized; its bit 0 picks the table half $CD:38B6 points the work RAM port at"
-source = "game/battle/screen_window.c battle_draw_window_quad $D1:F9AF; $CD:38B6"
+source = "game/battle/screen_beam.c battle_draw_window_quad $D1:F9AF; $CD:38B6"
 
 [[var]]
 name = "battle_split_line_values"
@@ -11214,21 +11424,6 @@ why = "a table length"
 file = "battle/main_loop.c"
 values = [0x0180]
 why = "an offset (three $80-byte stat blocks) added to an enemy index"
-
-[[not_ram]]
-file = "battle/menu_window.c"
-values = [0x0180, 0x0C40, 0x0C6E, 0x0E63, 0x0FBE, 0x0FCB, 0x0FD0, 0x1884, 0x1987]
-why = "a table length, and the JSR sites of local subroutines whose return addresses are pushed"
-
-[[not_ram]]
-file = "battle/window.c"
-values = [0x036B, 0x059A, 0x05A5, 0x082C, 0x0847, 0x0864, 0x086E]
-why = "return addresses of inlined JSRs"
-
-[[not_ram]]
-file = "battle/gauges.c"
-values = [0x0618, 0x0717, 0x071F, 0x0726]
-why = "return addresses of inlined JSRs"
 
 [[not_ram]]
 file = "battle/wait.c"
