@@ -546,6 +546,11 @@ Each of these is a finding. Every example here comes from this repo.
     `second_word`, `first`) lets every operation take them without saying what
     they are. The signature looks explicit and isn't: `place(g, o, x, y)`, not
     `place(g, o, word, second_word)`.
+56. **A machine idiom's side effect used as the computation.** An overlapping
+    block move that copies a buffer onto itself one byte on, so its first byte
+    repeats (`repeat_forward(g, row, row + 1, n)`), stands for "fill these
+    lines with X". Write the fill; keep the idiom only where the gate needs
+    its exact bytes, and say so.
 
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the

@@ -94,8 +94,8 @@ rest waits, is [PLAN.md](PLAN.md).
       would do (as `object_script.c`'s);
     - `menu/vram.h`: the object queue is still also set field by field by
       offset (`menu_set_object_upload_*`, which `object_script.c`'s tile
-      groups use); `MenuObjectUpload` should be the only way in, with the
-      ports as a named type;
+      groups use); `MenuObjectUpload` should be the only way in, with its
+      `port` an enum rather than a byte;
     - `menu/object_script.c`: the look bits `0xF1`/`0x4F` belong in
       `object.h`, once; the story bits in `top_layer_stays` and the sounds
       `0x18`/`0x19` need names; `load_palette_row` keeps its parameters in
@@ -105,6 +105,23 @@ rest waits, is [PLAN.md](PLAN.md).
       `ORIGINAL_EFFECT` and back; its inputs should be parameters; and the
       return site (`0xE7AC + 2`, `pc == 0xE7AF`) should be named;
     - `menu/text.c`: control codes decode their operands by offset;
+    - `menu/map.c`: the logic's results are shaped by the entry and the
+      scaffolding (`Strip`, `MapScroll` and the strip queues' `at`
+      out-parameter exist for X and the leftover cells); the wrapper can
+      derive X from the final state, leaving one scaffolding record;
+      `redraw_plane` takes `Snes *` only for its timing tag and the platform;
+    - `menu/line_effects.c`: the irises' bars and the capsule's gap are filled
+      by an overlapping forward copy (`repeat_forward`), where a fill of
+      lines says what they are; the iris tables at `$8DF6`/`$9176`/`$9416` are
+      literals, not in `re/ram.toml`; the channel-write site is computed from
+      PB:PC where a literal per entry belongs; the squashed iris steps byte
+      addresses rather than lines;
+    - `menu/object_commands.c`: still a file of "bank C6's routines" (the
+      Epoch area check belongs beside the Epoch's screen), the scene loaders
+      are named for resource numbers, the mode mask `0x3C` is unnamed, and a
+      16-bit scaffolding store into the area's top cell has no comment;
+    - `menu/epoch.c`: the gate matrix sets line slots 2 and 3 by offset from
+      `GATE_MATRIX_TABLES`, where `line_effects.h`'s operations belong;
   - a divergence the rewrite accepts, on inputs no game state makes: a
     string's control code past `$0C`, or one included deeper than four, draws
     nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
