@@ -9984,7 +9984,7 @@ source = "game/menu/display.c, menu_build_math_line_table $C2:86DD"
 [[var]]
 name = "menu_window_line_table"
 addr = "7E:6E00"
-size = 0x94
+size = 0x95
 subsystem = "menu"
 meaning = "The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value, then sixteen groups of three lines from the table at $FF:FC57, and an end"
 source = "game/menu/display.c, menu_window_build_line_table $FF:FC04"

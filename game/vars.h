@@ -2134,9 +2134,9 @@ uint8_t menu_era_label_tiles(const GameState *g, unsigned row, unsigned column);
 void set_menu_era_label_tiles(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
- * then sixteen groups of three lines from the table at $FF:FC57, and an end [148 bytes, one at a
+ * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes, one at a
  * time] */
-enum { MENU_WINDOW_LINE_TABLE_BYTES = 148 };
+enum { MENU_WINDOW_LINE_TABLE_BYTES = 149 };
 uint8_t menu_window_line_table_byte(const GameState *g, unsigned at);
 void set_menu_window_line_table_byte(GameState *g, unsigned at, uint8_t v);
 

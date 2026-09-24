@@ -36,5 +36,8 @@ void menu_window_build_line_table(Snes *s);
 
 /* Guards */
 bool menu_display_bank_is_io(Snes *s);
+bool menu_vram_queue_is_whole(Snes *s);
+bool menu_object_queue_is_sendable(Snes *s);
+bool menu_window_line_table_is_buildable(Snes *s);
 
 #endif

@@ -1666,7 +1666,7 @@
 #define RAM_MENU_ERA_LABEL_TILES_ROWS 2u
 #define RAM_MENU_ERA_LABEL_TILES_ROW_STRIDE 0x40u
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
- * then sixteen groups of three lines from the table at $FF:FC57, and an end [148 bytes] */
+ * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes] */
 #define RAM_MENU_WINDOW_LINE_TABLE 0x7E6E00u
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 [1024 x $1 bytes, by
  * byte] */

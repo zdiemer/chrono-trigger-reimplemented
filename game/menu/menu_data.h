@@ -168,4 +168,13 @@ static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind) { retu
  * step, 1024 steps a turn, of which the second half is read below zero. */
 static inline uint8_t menu_wave_size(const GameState *g, uint16_t step) { return rom_read8(g, 0xC0F900u + step); }
 
+/* ---- The menus' display ------------------------------------------------------------------- */
+
+/* The colors the menus' color math ramps step through ($C2:8771, sixteen
+ * words), copied into work RAM before each table is built. */
+static inline uint16_t menu_math_ramp_color(const GameState *g, unsigned i) { return rom_read16(g, 0xC28771u + 2u * i); }
+
+/* The values of the window line table's sixteen groups ($FF:FC57). */
+static inline uint8_t menu_window_line_value(const GameState *g, unsigned group) { return rom_read8(g, 0xFFFC57u + group); }
+
 #endif

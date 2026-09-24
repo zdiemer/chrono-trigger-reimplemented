@@ -20,7 +20,8 @@ typedef struct {
     uint8_t spare;
 } MenuUpload;
 
-/* Queue an upload for the next vblank (the queue holds 32). */
+/* Queue an upload for the next vblank (the queue holds 32, 8 bytes each). */
+enum { MENU_UPLOAD_BYTES = 8 };
 void menu_queue_upload(GameState *g, MenuUpload u);
 
 /* The sprite-object mode's queue (its own, on its direct page): uploads from

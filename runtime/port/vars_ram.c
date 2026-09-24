@@ -1554,8 +1554,8 @@ uint8_t menu_save_slot_tilemap_byte(const GameState *g, unsigned at) { IN_RANGE(
 void set_menu_save_slot_tilemap_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 149, "set_menu_save_slot_tilemap_byte", "bytes", at, 576u); w8(g, 0x7E3200u + at, v); }
 uint8_t menu_era_label_tiles(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 150, "menu_era_label_tiles", "rows", row, 2u); IN_RANGE(g, 150, "menu_era_label_tiles", "columns", column, 18u); return r8(g, 0x7E5248u + (uint32_t)row * 0x40u + column); }
 void set_menu_era_label_tiles(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 150, "set_menu_era_label_tiles", "rows", row, 2u); IN_RANGE(g, 150, "set_menu_era_label_tiles", "columns", column, 18u); w8(g, 0x7E5248u + (uint32_t)row * 0x40u + column, v); }
-uint8_t menu_window_line_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 151, "menu_window_line_table_byte", "bytes", at, 148u); return r8(g, 0x7E6E00u + at); }
-void set_menu_window_line_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 151, "set_menu_window_line_table_byte", "bytes", at, 148u); w8(g, 0x7E6E00u + at, v); }
+uint8_t menu_window_line_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 151, "menu_window_line_table_byte", "bytes", at, 149u); return r8(g, 0x7E6E00u + at); }
+void set_menu_window_line_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 151, "set_menu_window_line_table_byte", "bytes", at, 149u); w8(g, 0x7E6E00u + at, v); }
 uint8_t menu_map_graphics(const GameState *g, unsigned i) { IN_RANGE(g, 152, "menu_map_graphics", "count", i, 1024u); return r8(g, 0x7E8621u + (uint32_t)i * 0x01u); }
 void set_menu_map_graphics(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 152, "set_menu_map_graphics", "count", i, 1024u); w8(g, 0x7E8621u + (uint32_t)i * 0x01u, v); }
 uint16_t menu_object_hdma_pointers(const GameState *g, unsigned i) { IN_RANGE(g, 153, "menu_object_hdma_pointers", "count", i, 10u); return r16(g, 0x7E8A21u + (uint32_t)i * 0x02u); }
