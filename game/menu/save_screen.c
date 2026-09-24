@@ -163,6 +163,12 @@ enum { SAVE_SLOTS = 3 };
 
 enum { SUMMARY_MEMBER_BYTES = MEMBER_ROWS * MEMBER_RECORD_BYTES };
 
+/* A portrait is of one of the three rows and a character that has one. */
+static bool portrait_is_drawable(const GameState *g)
+{
+    return menu_save_member_row(g) < MEMBER_ROWS && (uint8_t)menu_scratch_save_member(g) < MENU_PORTRAITS;
+}
+
 static void copy_summary(GameState *g, uint8_t slot)
 {
     for (unsigned i = 0; i < SUMMARY_MEMBER_BYTES; i++)
@@ -262,6 +268,7 @@ enum {
     LOCATION_NAME_IGNORES = DC_A | DC_N | DC_V | DC_Z | DC_C,                       /* $C2:F28D */
     LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D,         /* $C2:F90C */
     TILE_STRIP_IGNORES = DC_N | DC_V | DC_Z | DC_C | DC_D | DC_AH,                  /* $C2:FB97 */
+    PORTRAIT_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,              /* $C2:D466 */
     FOURTH_ROW_IGNORES = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D | DC_AL,    /* $C2:EAC2 */
 };
 
@@ -315,7 +322,12 @@ static bool draw_header(Snes *s)
 // $C2:D36C, from $C2:D404
 /* A row for each member in the party: the member's record where the window
  * command list draws it from, and the portrait. The rows' cells are what the
- * command list and the portrait read. */
+ * command list and the portrait read. The loop keeps its own place, where
+ * the original reads it back from those cells after each row: the game's
+ * lists and portraits leave them be, and a list run over random memory that
+ * changes them is the one input where the two part (accepted; RECOMP.md, the
+ * menus' Phase 3a section). A portrait the entry's guard would refuse is
+ * drawn by the original's. */
 static bool draw_member_rows(Snes *s)
 {
     GameState *g = state_of(s);
@@ -330,7 +342,10 @@ static bool draw_member_rows(Snes *s)
             s->cpu.x = MEMBER_ROW_LIST;
             if (!draw_window_list(s, 0xC2D43A))
                 return false;
-            NATIVE_TIME_AS(s, 0xC2D466, draw_member_portrait(g));
+            if (portrait_is_drawable(g))
+                NATIVE_TIME_AS(s, 0xC2D466, draw_member_portrait(g));
+            else if (!call_original(s, 0xC2D43D, 0xC2D466, PORTRAIT_IGNORES, false, false))
+                return false;
             set_menu_draw_origin(g, (uint16_t)(menu_draw_origin(g) + MEMBER_ROW_BYTES));
         }
         set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + (row + 1) * MEMBER_RECORD_BYTES));
@@ -338,6 +353,12 @@ static bool draw_member_rows(Snes *s)
     }
     return true;
 }
+
+// $C2:D410
+/* A slot drawn without its header forgets the era label's width, so the
+ * next header drawn over the same era draws no label until one is loaded:
+ * the original clears the row count a word wide, over the width after it. */
+static void forget_era_label(GameState *g) { set_menu_save_era_width(g, 0); }
 
 /* The drawn slot asks for the palette's upload: the portraits are in it. */
 static void palette_changed(GameState *g) { set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1)); }
@@ -354,8 +375,12 @@ static bool draw_save_slot(Snes *s)
         return true;
     copy_summary(g, slot);
     s->cpu.db = WORK_RAM_BANK;   /* the copy's block move leaves it there */
-    if (menu_save_header_taken(g) == 0 && !draw_header(s))
-        return false;
+    if (menu_save_header_taken(g) == 0) {
+        if (!draw_header(s))
+            return false;
+    } else {
+        forget_era_label(g);
+    }
     if (!draw_member_rows(s))
         return false;
     palette_changed(g);
@@ -588,9 +613,8 @@ bool menu_portrait_is_drawable(Snes *s)
 {
     if (!on_the_menus_page(s) || s->cpu.db != WORK_RAM_BANK)
         return false;
-    GameState *g = state_of(s);
     vars_peek(true);
-    bool ok = menu_save_member_row(g) < MEMBER_ROWS && (uint8_t)menu_scratch_save_member(g) < MENU_PORTRAITS;
+    bool ok = portrait_is_drawable(state_of(s));
     vars_peek(false);
     return ok;
 }

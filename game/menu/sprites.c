@@ -529,10 +529,10 @@ static SpriteStep jump(const GameState *g, SpritePlace p)
 // $C2:0E1D
 /* Run the running object's sprite script until it shows a group, waits or
  * stops, and keep where it got to for next frame. A command past the
- * language's eight stops the script here; the original jumps through the
- * words after its table, into code. The game's sprite scripts have none, and
- * only fuzzing with a sprite script pointer anywhere reaches one (divergence
- * accepted; docs/RECOMP.md, the menus' Phase 3a section). */
+ * language's eight stops the script here, where the original jumps through
+ * the words after its table into code: the game's sprite scripts have none,
+ * and the guards hand a script that has one to the original
+ * (menu_sprite_script_is_well_formed). */
 static void run_sprite_script(GameState *g)
 {
     MenuObject o = menu_object_running(g);

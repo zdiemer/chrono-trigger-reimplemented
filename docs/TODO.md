@@ -83,13 +83,13 @@ rest waits, is [PLAN.md](PLAN.md).
     the machine throughout (the map's strips, and bank C6's routines the
     scripts call by address); the script commands reach the map through a
     service (`ScriptServices`) so that its port can move under it;
-  - two divergences the rewrite accepts, both on inputs no game state makes:
-    a sprite script command past the language's eight stops the script, where
-    the original jumps through the words after its table into code (fuzzing
-    with a sprite script anywhere reaches it: the animating commands'
-    mismatches in PORTING.md); and a string's control code past `$0C`, or one
-    included deeper than four, draws nothing, where the original jumps or
-    recurses;
+  - a divergence the rewrite accepts, on inputs no game state makes: a
+    string's control code past `$0C`, or one included deeper than four, draws
+    nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
+    mismatches in PORTING.md);
+  - the map's strips, built in the upload buffer, part from the original's
+    where the buffer is near the bank's end (`map.c`, before this rewrite as
+    after): the command fuzzing keeps the buffer where the game has it;
   - the load screen's slot is drawn as C from `menu_show_save_slot`, so shadow
     mode compares `menu_draw_save_slot` only where the original's own code
     calls it (1,139 of 15,708 calls; the rest are inside its caller's
