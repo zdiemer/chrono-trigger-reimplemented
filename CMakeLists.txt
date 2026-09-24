@@ -177,6 +177,11 @@ add_library(ct_game STATIC
   game/battle/screen_window.c
   game/battle/scripts.c
   game/battle/setup.c
+  game/battle/setup_enemies.c
+  game/battle/setup_names.c
+  game/battle/setup_party.c
+  game/battle/setup_reset.c
+  game/battle/setup_screen.c
   game/battle/sound.c
   game/battle/sprite_table.c
   game/battle/sprites.c
