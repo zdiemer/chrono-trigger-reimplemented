@@ -221,7 +221,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC18345, .name = "battle_main_loop_tail", .fn = battle_main_loop_tail, NEEDS_M8_X16,
       .cost_milli = 9571, .guard = battle_pass_ends_plainly },
     { .addr = 0xC18461, .name = "battle_give_turn", .fn = battle_give_turn,
-      NEEDS_M8_X16_BINARY, .cost_milli = 5081, .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS, .guard = battle_turn_names_combatants },
+      NEEDS_M8_X16_BINARY, .cost_milli = 5081, .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS, .guard = battle_turn_names_combatant },
     { .addr = 0xC18231, .name = "battle_tick_timers", .fn = battle_tick_timers, .p_mask = CPU_FLAG_X,
       .p_value = 0, .cost_milli = 3737, .guard = battle_on_page },
     { .addr = 0xC18290, .name = "battle_dispatch_expired_timers", .fn = battle_dispatch_expired_timers,

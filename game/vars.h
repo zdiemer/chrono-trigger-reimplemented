@@ -3497,6 +3497,50 @@ void set_battle_stats_carried(GameState *g, unsigned slot, uint8_t v);
  * bits ($5E52-$5E53 for slot 0) */
 uint16_t battle_stats_status_kept(const GameState *g, unsigned slot);
 void set_battle_stats_status_kept(GameState *g, unsigned slot, uint16_t v);
+/* Bit 0 set while HP is at most an eighth of max HP Unchecked, for marked scaffolding only: the
+ * turn's end reads the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
+uint8_t battle_stats_low_hp_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_low_hp_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* Current HP Unchecked, for marked scaffolding only: the turn's end reads the status of the
+ * combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+uint16_t battle_stats_hp_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_hp_unchecked(GameState *g, unsigned slot, uint16_t v);
+/* Maximum HP Unchecked, for marked scaffolding only: the turn's end reads the status of the
+ * combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+uint16_t battle_stats_max_hp_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_max_hp_unchecked(GameState *g, unsigned slot, uint16_t v);
+/* Current MP (what tech costs are checked against) Unchecked, for marked scaffolding only: the
+ * turn's end reads the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
+uint16_t battle_stats_mp_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_mp_unchecked(GameState *g, unsigned slot, uint16_t v);
+/* Maximum MP Unchecked, for marked scaffolding only: the turn's end reads the status of the
+ * combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+uint16_t battle_stats_max_mp_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_max_mp_unchecked(GameState *g, unsigned slot, uint16_t v);
+/* Bit 7 set while the combatant is knocked out ($5E4A for slot 0) Unchecked, for marked
+ * scaffolding only: the turn's end reads the status of the combatant that acted, whatever the
+ * actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+uint8_t battle_stats_condition_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_condition_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its
+ * timed statuses' bits, which its status timers follow, and the bits the pose table tests
+ * Unchecked, for marked scaffolding only: the turn's end reads the status of the combatant that
+ * acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+uint32_t battle_stats_status_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_status_unchecked(GameState *g, unsigned slot, uint32_t v);
+/* A byte the battle carries over from the member's record (battle_member_carried) when it ends
+ * ($5E56 for slot 0) Unchecked, for marked scaffolding only: the turn's end reads the status of
+ * the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+uint8_t battle_stats_carried_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_carried_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes'
+ * bits ($5E52-$5E53 for slot 0) Unchecked, for marked scaffolding only: the turn's end reads the
+ * status of the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c,
+ * $C1:8667) */
+uint16_t battle_stats_status_kept_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_status_kept_unchecked(GameState *g, unsigned slot, uint16_t v);
 
 enum { BATTLE_BASE_GRID_COUNT = 256 };   /* by cell (Y tile * 16 + X tile) */
 /* The battlefield grid as built at setup, from ROM rows and the $2A23/$2B23 cell bits */
@@ -4955,6 +4999,11 @@ enum { BATTLE_CHOSEN_ACTIONS_COUNT = 11 };   /* by battle slot */
 /* Each combatant's chosen action (four bytes), forgotten once it is carried out */
 uint32_t battle_chosen_actions(const GameState *g, unsigned slot);
 void set_battle_chosen_actions(GameState *g, unsigned slot, uint32_t v);
+/* Each combatant's chosen action (four bytes), forgotten once it is carried out Unchecked, for
+ * marked scaffolding only: the turn's end forgets the actor's chosen action at four times the
+ * actor's cell, a byte (game/battle/main_loop.c, $C1:8862) */
+uint32_t battle_chosen_actions_unchecked(const GameState *g, unsigned slot);
+void set_battle_chosen_actions_unchecked(GameState *g, unsigned slot, uint32_t v);
 
 enum { BATTLE_CHARACTER_SLOT_COUNT = 7 };   /* by character */
 /* The battle slot each character fights in, as the timers' order is drawn */

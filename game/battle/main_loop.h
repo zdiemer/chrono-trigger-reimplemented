@@ -9,7 +9,7 @@ void battle_main_loop(Snes *s);
 void battle_main_loop_body(Snes *s);
 void battle_main_loop_tail(Snes *s);
 void battle_give_turn(Snes *s);
-bool battle_turn_names_combatants(Snes *s);
+bool battle_turn_names_combatant(Snes *s);
 bool battle_pass_ends_plainly(Snes *s);
 
 #endif

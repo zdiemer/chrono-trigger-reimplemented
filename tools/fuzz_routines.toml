@@ -6318,9 +6318,20 @@ name = "battle_give_turn"
 at = "C1:8461"
 subsystem = "battle"
 state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=01-0B",
+        "--fill", "7EB185-7EB185=00-0B"]
+iterations = 5000
+why = "the turns taken while an action runs over passes, on the battle's page; each action is a call-out. The timers' order holds combatants, and its length and the turn's place in it are the battle's, as every battle has them; the guard refuses a turn's place that names no combatant"
+
+[[routine]]
+name = "battle_give_turn"
+at = "C1:8461"
+variant = "loose"
+subsystem = "battle"
+state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 iterations = 5000
-why = "the turns taken while an action runs over passes, on the battle's page; each action is a call-out. The guard takes the states whose timers' order names a combatant at the turn's place and whose actor is one, as every battle has them"
+why = "the timers' order random: the guard turns away the states whose turn's place names no combatant"
 
 [[routine]]
 name = "battle_mark_object_grid"
