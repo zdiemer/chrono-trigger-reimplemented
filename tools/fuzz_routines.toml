@@ -7226,3 +7226,11 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EA3D1-7EA3D1=00-03",
         "--fill", "7E9895-7E9895=50-55"]
 why = "on the battle's page with A's high byte clear (the guard's), each of the command's steps, the number commands $50-$55"
+
+[[routine]]
+name = "battle_reset_window_frames"
+at = "C1:1C3A"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "the frames tilemap put back, on the battle's page (the window's calls)"

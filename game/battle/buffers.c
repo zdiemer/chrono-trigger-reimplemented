@@ -3,22 +3,6 @@
 
 #include "port/machine.h"
 
-// $C1:1C3A
-/* Reset the 384-byte table at $0B40 from its initial contents at $D1:5800. */
-void battle_reset_0b40_table(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_set_index(s, &c->x, c->a);
-    do {
-        uint8_t v = m_lda8(s, m_read8(s, 0xD15800 + c->x));
-        m_write8(s, m_abs(s, 0x0B40) + c->x, v);
-        m_set_index(s, &c->x, (uint16_t)(c->x + 1));
-        m_cmp16(s, c->x, 0x0180);
-    } while (c->x != 0x0180);
-    m_rts(s);
-}
-
 /* LDX #last : (writes) : DEX : BPL -- run `body` for X = last down to 0. */
 static void for_each_down(Snes *s, uint16_t last, void (*body)(Snes *))
 {

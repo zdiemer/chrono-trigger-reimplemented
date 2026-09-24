@@ -18,7 +18,7 @@ void battle_wait_graphics_loaded_loop(Snes *s);
 /* battle/buffers.c */
 void battle_clear_oam_buffer(Snes *s);
 void battle_mark_object_grid(Snes *s);
-void battle_reset_0b40_table(Snes *s);
+void battle_reset_window_frames(Snes *s);
 void battle_clear_damage(Snes *s);
 void battle_clear_numbers(Snes *s);
 void battle_reset_object_state(Snes *s);

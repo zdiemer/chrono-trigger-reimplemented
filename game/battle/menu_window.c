@@ -366,10 +366,20 @@ static void reload_tech_page_frames(GameState *g)
     set_battle_frames_reload_request(g, 0);
 }
 
+// $C1:1C3A
+/* The frames tilemap put back as the battle starts it, around the command
+ * page. */
+static void reset_frames(GameState *g)
+{
+    for (unsigned cell = 0; cell < BATTLE_WINDOW_FRAMES_TILEMAP_COUNT; cell++) {
+        set_battle_window_frames_tilemap_tile(g, cell, battle_first_frames_tile(g, cell));
+        set_battle_window_frames_tilemap_attributes(g, cell, battle_first_frames_attributes(g, cell));
+    }
+}
+
 /* ---- The pages, with the original's parts ------------------------------------------------ */
 
-/* The calls to the original's code: the frames' reset ($C1:1C3A), the tech
- * list's layout ($C1:0A88), a tech's description ($CD:0027), and the uploads
+/* The calls to the original's code: the tech list's layout ($C1:0A88), a tech's description ($CD:0027), and the uploads
  * of the window's tilemaps ($CF:FD02, $CF:FD36). Each reads what the window
  * left in memory; only the description takes a register, the tech in A. */
 enum { CALLEE_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
@@ -386,8 +396,7 @@ static bool show_command_page(Snes *s, GameState *g)
     bool carry;
     if (battle_menu_slot(g) != battle_menu_slot_shown(g)) {
         set_battle_menu_slot_shown(g, battle_menu_slot(g));
-        if (!battle_call(s, 0xC10C59, 0xC11C3A, CALLEE_READS_NOTHING))
-            return false;
+        NATIVE_TIME_AS(s, 0xC11C3A, reset_frames(g));
         vars_peek(true);
         carry = window_redraw_carry(g);
         vars_peek(false);
@@ -406,8 +415,8 @@ static bool show_command_page(Snes *s, GameState *g)
         }
     }
     m_set_flag(s, CPU_FLAG_C, carry);
-    if (menu_nobody(battle_menu_member(g)) && !battle_call(s, 0xC10C76, 0xC11C3A, CALLEE_READS_NOTHING))
-        return false;
+    if (menu_nobody(battle_menu_member(g)))
+        NATIVE_TIME_AS(s, 0xC11C3A, reset_frames(g));
     if (!battle_call_long(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING))
         return false;
     request_frames_upload(g);
@@ -923,5 +932,18 @@ void battle_update_combo_members(Snes *s)
     s->cpu.a = 0;
     if (!battle_call_long(s, 0xC1B6CC, 0xFDA95F, CALLEE_READS_NOTHING_HERE))
         return;
+    m_rts(s);
+}
+
+/* It leaves X past the table, A the direct page's high byte (a TDC) with the
+ * last byte copied, and the carry of the loop's last compare. */
+void battle_reset_window_frames(Snes *s)
+{
+    GameState *g = state_of(s);
+    reset_frames(g);
+    unsigned last = BATTLE_WINDOW_FRAMES_TILEMAP_COUNT - 1;
+    s->cpu.x = 2 * BATTLE_WINDOW_FRAMES_TILEMAP_COUNT;
+    s->cpu.a = (uint16_t)((m_direct_page(s) & 0xFF00) | battle_window_frames_tilemap_attributes(g, last));
+    m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);
 }

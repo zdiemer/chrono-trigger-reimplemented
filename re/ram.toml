@@ -6553,7 +6553,7 @@ stride = 2
 index = "row * 32 + column (6 rows)"
 subsystem = "battle"
 meaning = "Second window tilemap, the party members' window frames; reset from $D1:5800 and uploaded to VRAM $7A00 when $99E2 is set"
-source = "game/battle/window.c header and copy_window_frame $C1:0929; game/battle/buffers.c battle_reset_0b40_table $C1:1C3A; game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/window.c header and copy_window_frame $C1:0929; game/battle/menu_window.c battle_reset_window_frames $C1:1C3A; game/battle/frame.c battle_upload_vram $CF:E300"
   [[var.field]]
   name = "tile"
   offset = 0

@@ -364,7 +364,7 @@ static bool leave_with_rewards(Snes *s)
         if (!battle_call_long(s, 0xC183E0, SHARE_EXPERIENCE, READS_NOTHING))
             return false;
         s->cpu.y = battle_gold_won(g);
-        if (!battle_call(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_N | DC_Z))
+        if (!battle_call(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_FLAGS))
             return false;
         set_battle_reward_flags(g, battle_reward_flags(g) | REWARDS_GIVEN);
         s->cpu.a = battle_reward_flags(g);
@@ -385,7 +385,7 @@ static bool leave_with_rewards(Snes *s)
         if (won == 0)
             continue;
         s->cpu.y = won;
-        if (!battle_call(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_N | DC_Z))
+        if (!battle_call(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_FLAGS))
             return false;
         set_battle_reward_flags(g, battle_reward_flags(g) | ITEMS_GIVEN);
     }

@@ -471,7 +471,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,
       .p_mask = CPU_FLAG_X, .p_value = 0, .cost_milli = 3106, .dont_care = DC_X | DC_Y | DC_FLAGS | DC_AL,
       .guard = battle_on_page },
-    { .addr = 0xC11C3A, .name = "battle_reset_0b40_table", .fn = battle_reset_0b40_table, NEEDS_M8_X16,
+    { .addr = 0xC11C3A, .name = "battle_reset_window_frames", .fn = battle_reset_window_frames, NEEDS_M8_X16,
       .cost_milli = 7845, .dont_care = DC_N | DC_Z },
     { .addr = 0xC10C2D, .name = "battle_draw_menu_window", .fn = battle_draw_menu_window, NEEDS_M8_X16_BINARY,
       .guard = battle_menu_window_ready, .cost_milli = 5920, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
