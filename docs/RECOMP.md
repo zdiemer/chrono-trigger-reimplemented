@@ -5626,8 +5626,11 @@ stack); `palette_animate` 0 where `main`'s port mismatched 47 and 44 (a frame
 slot with a count of 0 over its own return address), refusing the count-0
 states; the block move 0 where `main`'s mismatched 14 and 16 (moves over the
 stub), refusing 67 and 74. `palette_animate` and `palette_lighten_all` are in `tools/timing_exceptions.txt` for their vblank tail (3.9% and 3.6% of vblank calls off by a line or more, writing the working palette in RAM). The rows of the rewritten entries were
-recalibrated, and `scene_draw_circle`'s two, whose closed lines are charged at
-the block move's rate, which the rewrite moved.
+recalibrated, and those whose work is charged at the block move's rate,
+which the rewrite moved: `scene_draw_circle`'s two and three of the Epoch's
+(`menu_epoch_build_map`, `menu_epoch_build_gate_window`,
+`menu_epoch_time_dial_object`); the time dial's setup call keeps a vblank tail
+of 1.58% on that account, and is in `tools/timing_exceptions.txt`.
 
 ### Phase 3a: the menus' follow-ups and the Epoch
 
