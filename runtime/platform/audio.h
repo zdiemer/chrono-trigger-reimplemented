@@ -54,10 +54,10 @@ static inline void au_fade(Platform *pf, PfOrigin o, uint8_t what, uint8_t steps
 PF_API uint8_t au_status(Platform *pf, PfOrigin o, uint8_t port);
 
 /* What the status says (docs/SOUND.md, "What the game reads back"): the steps
- * the music's fade has left, and the marker the playing song last set (its
- * sequence's event $F9), which a scene waits on to keep in time with it. */
+ * the music's fade has left, and which of the music's tracks are playing,
+ * folded into four bits (none once the song has ended). */
 static inline uint8_t au_music_fade_left(Platform *pf, PfOrigin o) { return au_status(pf, o, 1); }
-static inline uint8_t au_song_marker(Platform *pf, PfOrigin o) { return au_status(pf, o, 3) & 0x0F; }
+static inline uint8_t au_music_playing(Platform *pf, PfOrigin o) { return au_status(pf, o, 3) & 0x0F; }
 
 /* Host side: up to max_frames stereo frames at 32000 Hz; returns how many. */
 PF_API size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames);

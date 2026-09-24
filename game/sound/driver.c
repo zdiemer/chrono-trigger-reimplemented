@@ -21,6 +21,7 @@ enum { TICKS_PER_FADE_STEP = 7 };
 
 /* ---- Slides --------------------------------------------------------------------------- */
 
+// SPC $0E5F
 uint16_t slide_step(uint8_t from, uint8_t to, uint8_t steps, Signedness values)
 {
     bool up = values == SIGNED ? (int8_t)to >= (int8_t)from : to >= from;
@@ -29,6 +30,7 @@ uint16_t slide_step(uint8_t from, uint8_t to, uint8_t steps, Signedness values)
     return up ? step : (uint16_t)-step;
 }
 
+// SPC $1492, $04C7, $07AF
 bool slide_advance(SoundSlide *s)
 {
     if (!s->steps_left)
@@ -39,6 +41,7 @@ bool slide_advance(SoundSlide *s)
     return slide_whole(s) != before;
 }
 
+// SPC $0E2F, $0E82, $0EAA
 /* Move a fade or a modifier from its whole value to `target` over `steps`
  * steps, or there at once. */
 static void slide_to(SoundSlide *s, uint8_t steps, uint8_t target, Signedness values)
@@ -57,6 +60,7 @@ static void slide_to(SoundSlide *s, uint8_t steps, uint8_t target, Signedness va
 
 static const AuVoiceSet fade_voices[SOUND_FADES] = { 0, EFFECT_PAIR_67, EFFECT_PAIR_45 };
 
+// SPC $1492
 static AuVoiceSet voices_faded(const SoundDriver *d, uint8_t fade)
 {
     return fade == FADE_MUSIC ? d->song.music_tracks : fade_voices[fade];
@@ -66,12 +70,14 @@ static AuVoiceSet voices_faded(const SoundDriver *d, uint8_t fade)
  * does (the voice's volume catches up at its next change). */
 enum { MUSIC_FADE_MARKS = 0x7F };
 
+// SPC $0E1A, $0E22, $0E2A
 static void fade(SoundDriver *d, uint8_t which, uint8_t steps, uint8_t volume)
 {
     d->volume_changed |= which == FADE_MUSIC ? MUSIC_FADE_MARKS : fade_voices[which];
     slide_to(&d->fades[which].volume, steps, volume, UNSIGNED);
 }
 
+// SPC $1492
 /* A step of each fade; one that has just reached silence stops what it
  * faded. The music's keeps the song the save holds, to resume. */
 static void advance_fades(SoundDriver *d)
@@ -121,18 +127,21 @@ struct CommandRow {
     MuteHow mute;
 };
 
+// SPC $0BD8, $0BDB, $0BE0, $0BE3
 static void play_song(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     uint8_t song = c.p1, volume = c.p2, echo_delay = c.p3;
     start_song(d, song, volume, echo_delay, row->track_set, row->save_first);
 }
 
+// SPC $0D45, $0D51
 static void play_effect(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     uint8_t effect = c.p1, pan = c.p2;
     start_effect(d, effect, pan, row->pair);
 }
 
+// SPC $0E11, $0E1A, $0E22, $0E2A
 static void fade_to(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     uint8_t steps = c.p1, volume = c.p2;
@@ -144,6 +153,7 @@ static void fade_to(SoundDriver *d, const CommandRow *row, SoundCommand c)
         fade(d, which, steps, volume);
 }
 
+// SPC $0E7F, $0E82, $0EAA
 /* Slow the music down or speed it up, bend its pitch, or both, reaching the
  * modifier over `steps` steps: 1-127 up to twice as fast or high, 128-255
  * down to a fraction, 0 as written. */
@@ -158,6 +168,7 @@ static void bend(SoundDriver *d, const CommandRow *row, SoundCommand c)
         slide_to(&d->tempo_modifier, steps, modifier, SIGNED);
 }
 
+// SPC $12B6
 /* The value a song's conditional branches look at (event $FA). */
 static void set_condition(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
@@ -165,6 +176,7 @@ static void set_condition(SoundDriver *d, const CommandRow *row, SoundCommand c)
     d->condition = c.p1 & 0x0F;
 }
 
+// SPC $0ED6
 /* Bend the pitch of the effects on voices 6-7. */
 static void bend_effects(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
@@ -178,6 +190,7 @@ static void bend_effects(SoundDriver *d, const CommandRow *row, SoundCommand c)
 
 enum { HALF_MASTER_VOLUME = 0x40, FULL_MASTER_VOLUME = 0x7F };
 
+// SPC $0EE6
 static void set_master_volume(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     (void)row;
@@ -186,6 +199,7 @@ static void set_master_volume(SoundDriver *d, const CommandRow *row, SoundComman
     au_master_volume(d->voices, volume, volume);
 }
 
+// SPC $0F0E, $0F17, $0F3C
 /* Stop the music, the effects, or both; or one pair of effects, the one
  * the parameter's low bit names. */
 static void stop(SoundDriver *d, const CommandRow *row, SoundCommand c)
@@ -200,6 +214,7 @@ static void stop(SoundDriver *d, const CommandRow *row, SoundCommand c)
     }
 }
 
+// SPC $0F00
 static void set_mono(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     (void)row;
@@ -207,6 +222,7 @@ static void set_mono(SoundDriver *d, const CommandRow *row, SoundCommand c)
     d->volume_changed = ALL_VOICES;
 }
 
+// SPC $0FA5, $0FAC, $0FB5
 /* Silence some of the music's voices: only these, these as well, or these
  * no longer. */
 static void mute(SoundDriver *d, const CommandRow *row, SoundCommand c)
@@ -221,6 +237,7 @@ static void mute(SoundDriver *d, const CommandRow *row, SoundCommand c)
     d->volume_changed |= voices;
 }
 
+// SPC $0FBE
 /* Pause: every voice holds its envelope where it is and falls silent, and
  * the ticks do nothing but the mix and the status until it resumes. */
 static void pause_or_resume(SoundDriver *d, const CommandRow *row, SoundCommand c)
@@ -241,6 +258,7 @@ static void pause_or_resume(SoundDriver *d, const CommandRow *row, SoundCommand 
     }
 }
 
+// SPC $129D
 /* Fast forward: the timer ticks at every count, and every tick steps the
  * tracks whatever the tempo. A song's start ends the second but not the
  * first. */
@@ -251,6 +269,7 @@ static void fast_forward(SoundDriver *d, const CommandRow *row, SoundCommand c)
     d->stepping_every_tick = d->fast;
 }
 
+// SPC $132E
 /* A new delay for the echo; with no music playing once its buffer is ready,
  * the echo falls silent. */
 static void set_echo_delay(SoundDriver *d, uint8_t delay)
@@ -265,12 +284,14 @@ static void set_echo_delay(SoundDriver *d, uint8_t delay)
         sound_echo_ready(d);
 }
 
+// SPC $132E
 static void echo_delay(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     (void)row;
     set_echo_delay(d, c.p1);
 }
 
+// SPC $1397
 void sound_echo_drained(SoundDriver *d)
 {
     if (d->echo_draining)
@@ -278,6 +299,7 @@ void sound_echo_drained(SoundDriver *d)
     d->echo_draining = false;
 }
 
+// SPC $0CE5, $134B
 void sound_echo_ready(SoundDriver *d)
 {
     sound_echo_drained(d);
@@ -292,6 +314,7 @@ void sound_echo_ready(SoundDriver *d)
     }
 }
 
+// SPC $12F2
 static void write_register(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     (void)row;
@@ -304,6 +327,7 @@ static void write_register(SoundDriver *d, const CommandRow *row, SoundCommand c
  * (p1 $F0). */
 enum { METER = 0x01, RELOAD = 0xF0 };
 
+// SPC $12BD
 static void meter_or_reload(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     (void)row;
@@ -315,6 +339,7 @@ static void meter_or_reload(SoundDriver *d, const CommandRow *row, SoundCommand 
     }
 }
 
+// SPC $100E
 /* The CPU half's loads ($FE) leave nothing for the driver to do: what they
  * load comes through sound_load_*. */
 static void loading(SoundDriver *d, const CommandRow *row, SoundCommand c)
@@ -326,38 +351,40 @@ static void loading(SoundDriver *d, const CommandRow *row, SoundCommand c)
 
 #define RUN(op) .run = op
 
+/* Each row with the address of the command's handler in the original. */
 static const CommandRow commands[] = {
-    { 0x10, RUN(play_song), .track_set = FIRST_TRACK_SET },
-    { 0x11, RUN(play_song), .track_set = SECOND_TRACK_SET },
-    { 0x14, RUN(play_song), .track_set = FIRST_TRACK_SET, .save_first = true },
-    { 0x15, RUN(play_song), .track_set = SECOND_TRACK_SET, .save_first = true },
-    { 0x18, RUN(play_effect), .pair = EFFECT_PAIR_67 },
-    { 0x19, RUN(play_effect), .pair = EFFECT_PAIR_45 },
-    { 0x80, RUN(fade_to), .fade = ALL_FADES },
-    { 0x81, RUN(fade_to), .fade = FADE_MUSIC },
-    { 0x82, RUN(fade_to), .fade = FADE_EFFECTS_67 },
-    { 0x83, RUN(fade_to), .fade = FADE_EFFECTS_45 },
-    { 0x85, RUN(bend), .pitch = true, .tempo = true },
-    { 0x86, RUN(bend), .tempo = true },
-    { 0x87, RUN(bend), .pitch = true },
-    { 0x88, RUN(set_condition) },
-    { 0x89, RUN(bend_effects) },
-    { 0x8E, RUN(set_master_volume) },
-    { 0xF0, RUN(stop), .music = true, .effects = true },
-    { 0xF1, RUN(stop), .music = true },
-    { 0xF2, RUN(stop) },
-    { 0xF3, RUN(set_mono) },
-    { 0xF4, RUN(mute), .mute = MUTE_ONLY },
-    { 0xF5, RUN(pause_or_resume) },
-    { 0xF6, RUN(fast_forward) },
-    { 0xF8, RUN(mute), .mute = MUTE_NO_LONGER },
-    { 0xF9, RUN(mute), .mute = MUTE_ALSO },
-    { 0xFC, RUN(echo_delay) },
-    { 0xFD, RUN(write_register) },
-    { 0xFE, RUN(loading) },
-    { 0xFF, RUN(meter_or_reload) },
+    { 0x10, RUN(play_song), .track_set = FIRST_TRACK_SET }, // SPC $0BDB
+    { 0x11, RUN(play_song), .track_set = SECOND_TRACK_SET }, // SPC $0BE3
+    { 0x14, RUN(play_song), .track_set = FIRST_TRACK_SET, .save_first = true }, // SPC $0BD8
+    { 0x15, RUN(play_song), .track_set = SECOND_TRACK_SET, .save_first = true }, // SPC $0BE0
+    { 0x18, RUN(play_effect), .pair = EFFECT_PAIR_67 }, // SPC $0D45
+    { 0x19, RUN(play_effect), .pair = EFFECT_PAIR_45 }, // SPC $0D51
+    { 0x80, RUN(fade_to), .fade = ALL_FADES }, // SPC $0E11
+    { 0x81, RUN(fade_to), .fade = FADE_MUSIC }, // SPC $0E1A
+    { 0x82, RUN(fade_to), .fade = FADE_EFFECTS_67 }, // SPC $0E22
+    { 0x83, RUN(fade_to), .fade = FADE_EFFECTS_45 }, // SPC $0E2A
+    { 0x85, RUN(bend), .pitch = true, .tempo = true }, // SPC $0E7F
+    { 0x86, RUN(bend), .tempo = true }, // SPC $0E82
+    { 0x87, RUN(bend), .pitch = true }, // SPC $0EAA
+    { 0x88, RUN(set_condition) }, // SPC $12B6
+    { 0x89, RUN(bend_effects) }, // SPC $0ED6
+    { 0x8E, RUN(set_master_volume) }, // SPC $0EE6
+    { 0xF0, RUN(stop), .music = true, .effects = true }, // SPC $0F0E
+    { 0xF1, RUN(stop), .music = true }, // SPC $0F17
+    { 0xF2, RUN(stop) }, // SPC $0F3C
+    { 0xF3, RUN(set_mono) }, // SPC $0F00
+    { 0xF4, RUN(mute), .mute = MUTE_ONLY }, // SPC $0FA5
+    { 0xF5, RUN(pause_or_resume) }, // SPC $0FBE
+    { 0xF6, RUN(fast_forward) }, // SPC $129D
+    { 0xF8, RUN(mute), .mute = MUTE_NO_LONGER }, // SPC $0FAC
+    { 0xF9, RUN(mute), .mute = MUTE_ALSO }, // SPC $0FB5
+    { 0xFC, RUN(echo_delay) }, // SPC $132E
+    { 0xFD, RUN(write_register) }, // SPC $12F2
+    { 0xFE, RUN(loading) }, // SPC $100E
+    { 0xFF, RUN(meter_or_reload) }, // SPC $12BD
 };
 
+// SPC $0BAC, $0DFB
 void sound_run_command(SoundDriver *d, SoundCommand c)
 {
     for (unsigned i = 0; i < sizeof commands / sizeof commands[0]; i++) {
@@ -368,6 +395,7 @@ void sound_run_command(SoundDriver *d, SoundCommand c)
     }
 }
 
+// SPC $0892
 /* A full queue takes a new command in place of its last. */
 void sound_queue_command(SoundDriver *d, SoundCommand c)
 {
@@ -376,6 +404,7 @@ void sound_queue_command(SoundDriver *d, SoundCommand c)
     d->queue[d->queued < SOUND_QUEUE ? d->queued++ : SOUND_QUEUE - 1] = c;
 }
 
+// SPC $08CD
 static void run_queued_commands(SoundDriver *d)
 {
     for (uint8_t i = 0; i < d->queued; i++)
@@ -391,6 +420,7 @@ static void run_queued_commands(SoundDriver *d)
  * 4, 1 or 5, ...), and the effects' voices. Port 0 is the driver's own. */
 enum { MUSIC_FADE_PORT = 1, MARKER_PORT = 2, PLAYING_PORT = 3 };
 
+// SPC $02C2
 static void show_status(SoundDriver *d)
 {
     if (d->meter) {
@@ -428,12 +458,14 @@ enum {
     OWN_SAMPLE_ENVELOPE = 0xE0FF
 };
 
+// SPC $0B5C
 static void flip_high_nibble(SoundDriver *d, uint8_t at)
 {
     d->own_sample[at] ^= 0x70;
     au_sample_write(d->voices, OWN_SAMPLE, at, d->own_sample[at]);
 }
 
+// SPC $0B5C
 static void flip_nibble(SoundDriver *d, uint8_t nibble)
 {
     uint8_t at = (uint8_t)(SOUND_OWN_SAMPLE_LOOP + nibble / 2);
@@ -441,6 +473,7 @@ static void flip_nibble(SoundDriver *d, uint8_t nibble)
     au_sample_write(d->voices, OWN_SAMPLE, at, d->own_sample[at]);
 }
 
+// SPC $0B5C
 static void animate_own_sample(SoundDriver *d)
 {
     uint8_t nibble = d->own_sample_nibble;
@@ -459,6 +492,7 @@ static void animate_own_sample(SoundDriver *d)
 
 enum { INITIAL_ECHO_DELAY = 5 };
 
+// SPC $0205
 /* The boot starts the driver's variables afresh. What the driver keeps in its
  * tables it leaves: the tracks' settings and their loops, the filter's steps,
  * the song saved, the data loaded, and the fades' fractions and steps. So a
@@ -503,6 +537,7 @@ static void forget_variables(SoundDriver *d)
     }
 }
 
+// SPC $0200
 /* The host zeroes the driver before its first boot, as power-on leaves sound
  * memory. */
 void sound_boot(SoundDriver *d, const GameState *game, AuVoices *voices)
@@ -527,6 +562,7 @@ void sound_boot(SoundDriver *d, const GameState *game, AuVoices *voices)
     d->own_sample_nibble = FIRST_NIBBLE;
 }
 
+// SPC $02A0
 void sound_tick_begin(SoundDriver *d)
 {
     if (d->stopped)
@@ -543,6 +579,7 @@ void sound_tick_begin(SoundDriver *d)
     sequence(d);
 }
 
+// SPC $02F5
 void sound_tick_voices(SoundDriver *d)
 {
     if (d->stopped || d->paused)
@@ -551,6 +588,7 @@ void sound_tick_voices(SoundDriver *d)
     d->volume_changed = d->pitch_changed = 0;
 }
 
+// SPC $036E
 /* The end of a tick that got past its voices: a pause that came with the
  * last commands doesn't stop it. */
 void sound_tick_end(SoundDriver *d)
@@ -560,6 +598,7 @@ void sound_tick_end(SoundDriver *d)
     animate_own_sample(d);
 }
 
+// SPC $02A0
 void sound_tick(SoundDriver *d)
 {
     sound_tick_begin(d);
@@ -573,6 +612,7 @@ void sound_tick(SoundDriver *d)
     sound_tick_end(d);
 }
 
+// SPC $0415
 void sound_tick_while_loading(SoundDriver *d)
 {
     if (d->stopped || d->paused)

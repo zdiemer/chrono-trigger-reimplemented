@@ -422,10 +422,54 @@ rest waits, is [PLAN.md](PLAN.md).
     other run each other for ever; song `$3F`, the one long enough to run over
     the effect table, leaves an effect or a set switch playing its bytes as
     addresses anywhere in sound memory, which the port doesn't keep; and a set
-    switch under a track that has run on into the effects. Names that still
-    follow the status ports swapped: `au_song_marker` (`platform/audio.h`)
-    reads port 3, the music playing, and so does the scene program's
-    `MARKER_PORT`.
+    switch under a track that has run on into the effects.
+  - **Sound driver follow-ups after its review.** The qualitative review of
+    `game/sound/` rated no file a translation (`driver.h` hand-written, the
+    rest mostly), so it merged with these as follow-ups rather than blockers,
+    the user's rule for "mostly" findings. Each is a place where the original's
+    storage still shows through the model:
+    - Per-track facts kept as the original's per-voice bitsets in
+      `SoundVoiceFlags` (echo, noise, pitch modulation, sounding, held, slur,
+      roll): they want to be bools on `SoundTrack`, with the voice sets the mix
+      needs derived from the tracks.
+    - Signed values in unsigned storage: `falling(step) { return step & 0x8000; }`,
+      `(uint16_t)-step`, the 24-bit pitch-slide step in a `uint32_t`
+      (`SLIDE_STEP_BITS`).
+    - Packed bytes stored raw and decoded at every use: a wave's `depth` and
+      its shape, an instrument's `tuning`, `pan_sweep`, and `octave` holding
+      semitones rather than an octave.
+    - `pan_sweep`'s bit tricks in `sequencer.c` (the event's setup of period,
+      step and phase).
+    - The look-ahead re-implements the loop, jump and branch control flow
+      beside the events', reads operands by position, and changes state as it
+      looks (it is the only thing that ends a slur or roll, which is why
+      events `$E5` and `$E7` are no-ops): it wants to share the events'
+      decoding and flow, and leave the ending of articulation to the events.
+    - Four versions of "set a value or slide it there" (`slide_to`,
+      `slide_toward`, the fades', the filter's), and the resumed song's fade
+      step hard-coded (`RESUME_FADE_STEP = 0x0EF0`) rather than computed from
+      its steps.
+    - `start_effect` finds the effect's tracks by a byte scan that ends on an
+      8-bit index wrapping.
+    - `SILENT_TRACK`, the stopped effect's sentinel, points into the driver's
+      program (`$1DC1`, an end-of-track byte) rather than being a state.
+    - Unexplained adjustments to `ticks_left` and a loop's `counts_left`.
+    - The instrument and percussion tables are kept by their sound-memory
+      addresses, because the original's tables alias (the index is `2n & $FF`).
+    - The status is stored as the four port bytes rather than as the three
+      values the game reads.
+    - Smaller: `OWN_SAMPLE_ENVELOPE = 0xE0FF` is a raw ADSR register pair;
+      `(uint8_t)~pan`; `phase >> 7` with no unit; a literal `8` for the echo's
+      taps (`SOUND_ECHO_TAPS`); `update_voices` and its loading-tick copy
+      duplicate each other; `stop_music` followed by restoring the song ids it
+      cleared (the music fade's end).
+  - **`au_mixer` and `au_echo_writes` overlap** (`platform/audio.h`, "The
+    voices"). Both set the echo-write switch, so the C driver's every-tick
+    `au_mixer` call (to set the noise clock) also turns echo writes on and
+    `muted`/`reset` off without saying so; it matches the original, which
+    writes FLG whole from its shadow, but the interface hides it. Give the noise
+    clock a call of its own, or document that `au_mixer` sets all four
+    switches.
   - **Controllers.** `in_host_set` is already the one host entry point per
     frame, so this is an SDL GameController call into it plus bindings (see
     Player and tooling).

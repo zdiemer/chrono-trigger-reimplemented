@@ -24,6 +24,7 @@
 enum { WAVE_DEPTH = 0x3F, WAVE_RAMP = 7 };
 typedef enum { GROWS_RISING, GROWS_FALLING, GROWS_BOTH_WAYS } WaveShape;
 
+// SPC $0ADE, $1908
 static WaveShape shape_of(uint8_t depth)
 {
     if (depth >= 0xC0)
@@ -33,6 +34,7 @@ static WaveShape shape_of(uint8_t depth)
 
 static bool falling(uint16_t step) { return step & 0x8000; }
 
+// SPC $18DE
 /* The step a wave `depth` deep takes to cover it in `rate` ticks, in 256ths,
  * rounded down to a multiple of 4 and at least 4. */
 uint16_t wave_base_step(uint8_t rate, uint8_t depth)
@@ -45,6 +47,7 @@ uint16_t wave_base_step(uint8_t rate, uint8_t depth)
     return (uint16_t)(step << 2);
 }
 
+// SPC $1908
 /* Start a wave over: a delayed one starts at a quarter of its step and grows
  * to it over its ramp. The falling shape starts downward. */
 static void start_wave(SoundWave *w, bool delayed)
@@ -59,6 +62,7 @@ static void start_wave(SoundWave *w, bool delayed)
     w->ramp = delayed ? WAVE_RAMP : 0;
 }
 
+// SPC $18A2
 void restart_vibrato(SoundDriver *d, uint8_t track)
 {
     SoundTrack *t = &d->song.tracks[track];
@@ -67,6 +71,7 @@ void restart_vibrato(SoundDriver *d, uint8_t track)
     start_wave(&t->vibrato, t->vibrato.delay_left != 0);
 }
 
+// SPC $1960
 void restart_tremolo(SoundDriver *d, uint8_t track)
 {
     SoundTrack *t = &d->song.tracks[track];
@@ -74,6 +79,7 @@ void restart_tremolo(SoundDriver *d, uint8_t track)
     start_wave(&t->tremolo, t->tremolo.delay_left != 0);
 }
 
+// SPC $0ADE
 /* The end of a half wave: the step turns round, and while the ramp lasts it
  * grows by a quarter of the base step, on each turn upward, each turn
  * downward, or every turn, as the shape says. */
@@ -107,6 +113,7 @@ static void turn(SoundWave *w)
     w->step = step;
 }
 
+// SPC $0916, $09A1
 /* A tick of a wave; true if its phase's whole part moved. */
 static bool move_wave(SoundWave *w)
 {
@@ -120,6 +127,7 @@ static bool move_wave(SoundWave *w)
     return moved;
 }
 
+// SPC $0936
 /* `swing`/256 of `depth`, rounded down. */
 static int16_t swing_of(int8_t swing, uint16_t depth)
 {
@@ -127,6 +135,7 @@ static int16_t swing_of(int8_t swing, uint16_t depth)
     return (int16_t)(product >= 0 ? product / 256 : -((-product + 255) / 256));
 }
 
+// SPC $0903
 /* The vibrato waits out its delay on the music; the tremolo on both. */
 static void move_waves(SoundDriver *d, uint8_t track)
 {
@@ -149,6 +158,7 @@ static void move_waves(SoundDriver *d, uint8_t track)
 
 static uint8_t scaled(uint8_t level, uint8_t by) { return (uint8_t)((level * by) >> 8); }
 
+// SPC $0A0A
 /* The pan, 0 left to 255 right, with the pan sweep's swing, held to that range. */
 static uint8_t pan_of(const SoundTrack *t)
 {
@@ -159,6 +169,7 @@ static uint8_t pan_of(const SoundTrack *t)
 /* The volume's share on the left: in mono, half on each side. */
 enum { MONO_LEFT_SHARE = 0x80 };
 
+// SPC $09FB
 static void put_volume(SoundDriver *d, uint8_t track, uint8_t fade)
 {
     SoundTrack *t = &d->song.tracks[track];
@@ -177,6 +188,7 @@ static void put_volume(SoundDriver *d, uint8_t track, uint8_t fade)
     au_voice_volume(d->voices, voice, (int8_t)left, (int8_t)right);
 }
 
+// SPC $0A78
 /* A pitch bent by a modifier: up to twice as high (0-127), or down to a
  * fraction of it (128-255, the music's only). */
 static uint16_t bent(uint16_t pitch, uint8_t modifier, bool can_lower)
@@ -187,6 +199,7 @@ static uint16_t bent(uint16_t pitch, uint8_t modifier, bool can_lower)
     return (uint16_t)(pitch + 2 * part);
 }
 
+// SPC $0A70
 void put_pitch_on_voice(SoundDriver *d, uint8_t track)
 {
     SoundTrack *t = &d->song.tracks[track];
@@ -198,6 +211,7 @@ void put_pitch_on_voice(SoundDriver *d, uint8_t track)
     au_voice_pitch(d->voices, voice_of(track), pitch);
 }
 
+// SPC $09F6
 static void put_voice(SoundDriver *d, uint8_t track, uint8_t fade)
 {
     AuVoiceSet voice = voice_bit(track);
@@ -214,6 +228,7 @@ static AuVoiceSet music_voices_heard(const SoundDriver *d)
     return (AuVoiceSet)(~d->effect_voices & d->song.music_tracks & d->song.music.sounding);
 }
 
+// SPC $02F5
 /* The music's waves stand still while any effect plays. */
 void update_voices(SoundDriver *d)
 {
@@ -236,6 +251,7 @@ void update_voices(SoundDriver *d)
     }
 }
 
+// SPC $0439
 void update_music_voices_while_loading(SoundDriver *d)
 {
     AuVoiceSet music = music_voices_heard(d);
@@ -250,6 +266,7 @@ void update_music_voices_while_loading(SoundDriver *d)
 
 /* ---- The song's settings and the mix ------------------------------------------------------- */
 
+// SPC $04C7
 /* The tempo, the echo's volume and feedback, and its filter slide with the
  * music's steps. */
 void slide_song_settings(SoundDriver *d)
@@ -265,6 +282,7 @@ void slide_song_settings(SoundDriver *d)
     }
 }
 
+// SPC $02A2
 /* The echo's volume as the mix hears it, worked out at the start of each
  * tick: at full master volume twice as loud, and a negative one at its
  * loudest. The ticks while data loads mix with the last tick's. */
@@ -276,6 +294,7 @@ void hear_echo_volume(SoundDriver *d)
     d->echo_volume_heard = (int8_t)volume;
 }
 
+// SPC $02A0
 void flush_mix(SoundDriver *d)
 {
     SoundSong *s = &d->song;
@@ -294,6 +313,7 @@ void flush_mix(SoundDriver *d)
     s->key_off = s->key_on = 0;
 }
 
+// SPC $1438
 /* The meter: in place of the status, four voices' levels a tick, the lower
  * four then the upper: the output's level scaled by the left volume in the
  * high nibble, by the right in the low, and the top bit for the upper four. */

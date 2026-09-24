@@ -246,8 +246,8 @@ void scene_race_set_engine_pitch(Snes *s);
 void scene_write_matrix_code(Snes *s);
 
 /* scene/sound.c (the program in RAM) */
-bool scene_wait_for_song_marker_present(Snes *s);
-void scene_wait_for_song_marker_loop(Snes *s);
+bool scene_wait_for_music_present(Snes *s);
+void scene_wait_for_music_loop(Snes *s);
 bool scene_send_sound_command_present(Snes *s);
 void scene_send_sound_command(Snes *s);
 void scene_send_sound_command_again(Snes *s);

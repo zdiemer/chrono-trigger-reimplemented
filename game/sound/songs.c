@@ -47,6 +47,7 @@ uint16_t sound_memory_word(SoundDriver *d, uint16_t at)
 
 /* ---- Loading ---------------------------------------------------------------------------- */
 
+// SPC $10EC
 static void load_effect_set(SoundDriver *d, uint8_t set)
 {
     uint16_t length = sound_effect_set_length(d->game, set);
@@ -54,6 +55,7 @@ static void load_effect_set(SoundDriver *d, uint8_t set)
         d->sequences[SOUND_EFFECTS - SOUND_SEQUENCES + i] = sound_effect_set_byte(d->game, set, i);
 }
 
+// SPC $1044, $10EC
 void sound_load_effects(SoundDriver *d, uint8_t set)
 {
     stop_effects(d, EFFECT_PAIR_67);
@@ -61,6 +63,7 @@ void sound_load_effects(SoundDriver *d, uint8_t set)
     load_effect_set(d, set);
 }
 
+// SPC $107C
 /* A song's sequence goes up three bytes at a time and one message more than
  * it needs, so the bytes after it in the cartridge come with it. */
 static void load_song(SoundDriver *d, uint8_t song)
@@ -79,6 +82,7 @@ static void load_song(SoundDriver *d, uint8_t song)
     }
 }
 
+// SPC $0200
 void load_boot_data(SoundDriver *d)
 {
     const GameState *g = d->game;
@@ -108,6 +112,7 @@ void load_boot_data(SoundDriver *d)
  * the first in the low byte. */
 enum { INSTRUMENT_TUNINGS = SOUND_INSTRUMENT_TABLES, INSTRUMENT_ENVELOPES = SOUND_INSTRUMENT_TABLES + 0x80 };
 
+// SPC $0276
 void store_instrument(SoundDriver *d, uint8_t instrument, uint16_t tuning, uint16_t envelope)
 {
     uint8_t at = (uint8_t)(2 * instrument);
@@ -119,11 +124,13 @@ void store_instrument(SoundDriver *d, uint8_t instrument, uint16_t tuning, uint1
     envelopes[at + 1] = (uint8_t)(envelope >> 8);
 }
 
+// SPC $10EC
 void sound_load_instrument(SoundDriver *d, uint8_t instrument, uint16_t block)
 {
     store_instrument(d, instrument, sound_instrument_tuning(d->game, block), sound_instrument_envelope(d->game, block));
 }
 
+// SPC $1ACF
 static AuEnvelope envelope_of(uint16_t adsr)
 {
     return (AuEnvelope){ .adsr = adsr & 0x80,
@@ -133,11 +140,13 @@ static AuEnvelope envelope_of(uint16_t adsr)
                          .sustain_rate = (adsr >> 8) & 0x1F };
 }
 
+// SPC $1B5F
 AuEnvelope instrument_envelope(SoundDriver *d, uint8_t instrument)
 {
     return envelope_of(sound_memory_word(d, (uint16_t)(INSTRUMENT_ENVELOPES + (uint8_t)(2 * instrument))));
 }
 
+// SPC $1ACF
 void set_instrument(SoundDriver *d, uint8_t track, uint8_t instrument)
 {
     SoundTrack *t = &d->song.tracks[track];
@@ -146,6 +155,7 @@ void set_instrument(SoundDriver *d, uint8_t track, uint8_t instrument)
     t->envelope = instrument_envelope(d, instrument);
 }
 
+// SPC $1B0C
 /* The envelope goes on the voice unless an effect has taken it from the
  * music. */
 void put_envelope_on_voice(SoundDriver *d, uint8_t track)
@@ -155,6 +165,7 @@ void put_envelope_on_voice(SoundDriver *d, uint8_t track)
     au_voice_envelope(d->voices, voice_of(track), d->song.tracks[track].envelope);
 }
 
+// SPC $1AED
 void put_instrument_on_voice(SoundDriver *d, uint8_t track)
 {
     au_voice_sample(d->voices, voice_of(track), d->song.tracks[track].instrument);
@@ -163,22 +174,26 @@ void put_instrument_on_voice(SoundDriver *d, uint8_t track)
 
 /* ---- Echo, noise and pitch modulation voices -------------------------------------------------- */
 
+// SPC $1A21, $1A48, $1AAA
 /* The music's voices the effects haven't taken, and the effects' own. */
 static AuVoiceSet music_and_effects(const SoundDriver *d, AuVoiceSet music, AuVoiceSet effects)
 {
     return (AuVoiceSet)((music & ~d->effect_voices) | effects);
 }
 
+// SPC $1A21
 void update_echo_voices(SoundDriver *d)
 {
     d->echo_voices = music_and_effects(d, d->song.music.echo, d->song.effects.echo);
 }
 
+// SPC $1AAA
 void update_pitch_modulation(SoundDriver *d)
 {
     d->pitch_modulation_voices = music_and_effects(d, d->song.music.pitch_modulation, d->song.effects.pitch_modulation);
 }
 
+// SPC $1A48
 /* One noise clock plays: the effects' while any effect plays noise. */
 void update_noise(SoundDriver *d)
 {
@@ -187,6 +202,7 @@ void update_noise(SoundDriver *d)
     d->noise_voices = music_and_effects(d, s->music.noise, s->effects.noise);
 }
 
+// SPC $1D4C
 /* A track that ends lets go of what it set: the song forgets it started once
  * its last track ends (so it can be started again), and an effect gives its
  * voice back to the music. */
@@ -213,6 +229,7 @@ void release_track(SoundDriver *d, uint8_t track)
 
 /* ---- Stopping ----------------------------------------------------------------------------- */
 
+// SPC $0F17
 void stop_music(SoundDriver *d)
 {
     SoundSong *s = &d->song;
@@ -227,6 +244,7 @@ void stop_music(SoundDriver *d)
     d->last_song_started = d->song_id = d->saved_song_id = NO_SONG;
 }
 
+// SPC $0F3F, $0F71
 /* The pair's voices are released at once; their tracks end at their next
  * step, which gives the voices back. */
 void stop_effects(SoundDriver *d, AuVoiceSet pair)
@@ -249,6 +267,7 @@ void stop_effects(SoundDriver *d, AuVoiceSet pair)
 
 /* ---- The echo's delay ------------------------------------------------------------------------ */
 
+// SPC $1352
 /* The echo is silenced and its writes stopped while its buffer changes size:
  * the S-DSP goes on with the old delay until its buffer wraps, and writing it
  * from the new start would run past the buffer's end. The original then
@@ -278,6 +297,7 @@ enum {
     SONG_HEADER_BYTES = 0x24
 };
 
+// SPC $13A9
 static void save_song(SoundDriver *d)
 {
     d->saved_song_id = d->song_id;
@@ -287,6 +307,7 @@ static void save_song(SoundDriver *d)
 /* A resumed song fades back in over 16 steps. */
 enum { RESUME_FADE_STEPS = 16, RESUME_FADE_FROM = 0x10, RESUME_FADE_STEP = 0x0EF0 };
 
+// SPC $13E5
 static void restore_song(SoundDriver *d)
 {
     d->saved_song_id = NO_SONG;
@@ -294,6 +315,7 @@ static void restore_song(SoundDriver *d)
     d->fades[FADE_MUSIC].volume = (SoundSlide){ .level = RESUME_FADE_FROM << 8, .step = RESUME_FADE_STEP, .steps_left = RESUME_FADE_STEPS };
 }
 
+// SPC $0C1B
 /* Take the song up where it was saved: every music voice is set up again,
  * silent, with its instrument and pitch, and the notes that were sounding are
  * keyed on at the next tick. */
@@ -321,6 +343,7 @@ static void resume_song(SoundDriver *d)
  * volume scale. */
 enum { SLOWEST_TEMPO = 1, BEAT_DUE = 0xFF, FULL_SCALE = 0xFF };
 
+// SPC $0C5E
 static void begin_song(SoundDriver *d, uint8_t track_set)
 {
     SoundSong *s = &d->song;
@@ -353,6 +376,7 @@ static void begin_song(SoundDriver *d, uint8_t track_set)
     d->volume_changed = 0;
 }
 
+// SPC $0BE6, $0D29
 void start_song(SoundDriver *d, uint8_t song, uint8_t volume, uint8_t echo_delay, uint8_t track_set, bool save_first)
 {
     bool again = song == d->last_song_started;
@@ -391,6 +415,7 @@ void start_song(SoundDriver *d, uint8_t song, uint8_t volume, uint8_t echo_delay
         take_song_voices(d);
 }
 
+// SPC $0CE5
 /* The song's echo, noise and pitch modulation voices: the music's, whatever
  * the effects have (they have none when a song starts). */
 void take_song_voices(SoundDriver *d)
@@ -406,6 +431,7 @@ void take_song_voices(SoundDriver *d)
  * effect starts with, panned where the game asks. */
 enum { EFFECT_VOLUME = 0x46, EFFECT_OCTAVE = 6 * 12, EFFECT_INSTRUMENT = 2 };
 
+// SPC $0D7E
 static void begin_effect_track(SoundDriver *d, uint8_t track, uint16_t at, uint8_t pan)
 {
     SoundTrack *t = &d->song.tracks[track];
@@ -424,6 +450,7 @@ static void begin_effect_track(SoundDriver *d, uint8_t track, uint16_t at, uint8
  * one track gives it in either half. */
 enum { EFFECT_ENTRY_BYTES = 4 };
 
+// SPC $0D5B
 void start_effect(SoundDriver *d, uint8_t effect, uint8_t pan, AuVoiceSet pair)
 {
     if (d->paused)

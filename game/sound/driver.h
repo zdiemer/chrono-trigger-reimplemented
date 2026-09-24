@@ -1,5 +1,11 @@
 /* The sound driver's parts, as they call each other (game/sound/sound.h says
- * what the driver is). */
+ * what the driver is).
+ *
+ * Each function that stands for code of the original carries its address on
+ * the sound CPU, `// SPC $xxxx`, several where it stands for more than one
+ * routine (docs/SOUND.md, "The driver in a paragraph", and the listing
+ * tools/spc700dis.py prints). The command and event tables name each row's
+ * handler the same way. */
 #ifndef CT_GAME_SOUND_DRIVER_H
 #define CT_GAME_SOUND_DRIVER_H
 

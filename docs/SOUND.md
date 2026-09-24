@@ -241,9 +241,9 @@ The driver's status, put on the ports each tick (`$02C2-$02DB`) and read through
 - **Port 0**: the echo of the last command; the CPU half's handshake.
 
 (Ports 2 and 3 are written with one word store, the marker in port 2. This
-page first had them the other way round, which the port's lockstep found; two
-names still follow the old reading: `au_song_marker` and the scene program's
-`MARKER_PORT` both read port 3, the music playing. TODO.md.)
+page first had them the other way round, which the port's lockstep found; the
+names that followed the old reading are now `au_music_playing`, event `$EE`'s
+`wait_for_music_to_end` and the scene program's `scene_wait_for_music_loop`.)
 
 So the game-facing interface is small: the commands above, and three status
 values. The protocol under them (echoes, counters, uploads) exists because two

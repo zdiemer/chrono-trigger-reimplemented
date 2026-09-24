@@ -348,7 +348,7 @@ iterations = 1000
 why = "the race's own task table, so the tasks run (random task data loops)"
 
 [[routine]]
-name = "scene_wait_for_song_marker_loop"
+name = "scene_wait_for_music_loop"
 at = "7E:5AAA"
 subsystem = "scene"
 state = "attract"
@@ -3425,7 +3425,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_wait_for_song_marker"
+name = "event_cmd_wait_for_music_to_end"
 at = "C0:3CC5"
 subsystem = "event"
 state = "field"
@@ -3433,7 +3433,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_wait_for_song_marker"
+name = "event_cmd_wait_for_music_to_end"
 variant = "loose"
 at = "C0:3CC5"
 subsystem = "event"

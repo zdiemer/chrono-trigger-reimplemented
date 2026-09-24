@@ -34,6 +34,7 @@ typedef enum { TRACK_GOES_ON, TRACK_ENDED } TrackFlow;
 
 static SoundTrack *track_of(SoundDriver *d, uint8_t track) { return &d->song.tracks[track]; }
 
+// SPC $0753
 static uint8_t next_byte(SoundDriver *d, SoundTrack *t)
 {
     uint8_t b = sound_memory_byte(d, t->at);
@@ -47,6 +48,7 @@ static uint16_t in_song(const SoundDriver *d, uint16_t address) { return (uint16
 /* A track's vibrato takes its depth from its note: until the first, this. */
 enum { DEPTH_UNTIL_A_NOTE = 0x1000 };
 
+// SPC $0CF6
 void reset_track(SoundTrack *t)
 {
     t->loop_level = 0;
@@ -70,6 +72,7 @@ void reset_track(SoundTrack *t)
  * the high byte raises it further, by 1/65536ths. Octave 4 is the table's. */
 enum { FRACTION_TAKEN_TO = 0x80, SLIDE_STEP_BITS = 0xFFFFFF };
 
+// SPC $06BD
 uint16_t pitch_of_note(const SoundDriver *d, const SoundTrack *t, uint8_t note)
 {
     uint8_t octave = note / 12;
@@ -86,6 +89,7 @@ uint16_t pitch_of_note(const SoundDriver *d, const SoundTrack *t, uint8_t note)
     return (uint16_t)(pitch >> (4 - octave));
 }
 
+// SPC $064B
 /* A pitch slide set up by event $C8 runs from the note just started to the
  * one `slide_semitones` away, over the ticks it gave, as a 16.8 step. */
 static void begin_pitch_slide(SoundDriver *d, SoundTrack *t)
@@ -129,6 +133,7 @@ static bool last_pass(const SoundLoop *l) { return l->counts_left == 1; }
  * (its level is then left). */
 static bool loop_goes_back(const SoundLoop *l) { return l->counts_left == 0 || !last_pass(l); }
 
+// SPC $1BBC
 /* One of an effect's two tracks, by the effect set's table; 0 if it has none
  * (its high byte is 0). */
 static uint16_t effect_track_address(SoundDriver *d, uint8_t effect, uint8_t which)
@@ -138,6 +143,7 @@ static uint16_t effect_track_address(SoundDriver *d, uint8_t effect, uint8_t whi
 
 static bool no_track(uint16_t address) { return (address >> 8) == 0; }
 
+// SPC $1B86
 static void clear_articulation(SoundDriver *d, uint8_t track)
 {
     SoundVoiceFlags *f = flags_of(d, track);
@@ -151,6 +157,7 @@ static uint8_t event_operands(const EventRow *row);
 static LookAhead event_look_ahead(const EventRow *row);
 static uint8_t event_effect_track(const EventRow *row);
 
+// SPC $075E, $1B86, $1BD9, $1BDD, $1BFC, $1C39, $1CC9, $1D2A
 /* What comes after the note: the next note, tie or rest, or END_OF_TRACK. */
 static uint8_t look_ahead(SoundDriver *d, uint8_t track)
 {
@@ -215,6 +222,7 @@ static uint8_t look_ahead(SoundDriver *d, uint8_t track)
  * its top bit says to keep the track's. */
 enum { KEEP_PAN = 0x80 };
 
+// SPC $0720
 static void play_percussion(SoundDriver *d, uint8_t track, uint8_t entry, uint8_t *note)
 {
     SoundTrack *t = track_of(d, track);
@@ -226,6 +234,7 @@ static void play_percussion(SoundDriver *d, uint8_t track, uint8_t entry, uint8_
     set_instrument(d, track, sound_memory_byte(d, at));
 }
 
+// SPC $05C1
 /* Whether the note keys its voice on: a roll always does; a slur only for
  * its first note. */
 static bool keys_on(SoundVoiceFlags *f, AuVoiceSet voice)
@@ -240,6 +249,7 @@ static bool keys_on(SoundVoiceFlags *f, AuVoiceSet voice)
     return true;
 }
 
+// SPC $052F
 static void start_note(SoundDriver *d, uint8_t track, uint8_t semitone)
 {
     SoundTrack *t = track_of(d, track);
@@ -272,6 +282,7 @@ static void start_note(SoundDriver *d, uint8_t track, uint8_t semitone)
     put_instrument_on_voice(d, track);
 }
 
+// SPC $0601
 /* After a note or tie: whether it is held into what comes next, and a pitch
  * slide set up for it. */
 static void follow_note(SoundDriver *d, uint8_t track)
@@ -293,6 +304,7 @@ static void follow_note(SoundDriver *d, uint8_t track)
         begin_pitch_slide(d, t);
 }
 
+// SPC $0513
 /* A note, tie or rest: its length (unless event $E8 gave the next one), and
  * what it does. */
 static void play(SoundDriver *d, uint8_t track, uint8_t b)
@@ -311,6 +323,7 @@ static void play(SoundDriver *d, uint8_t track, uint8_t b)
 
 static TrackFlow run_event(SoundDriver *d, uint8_t track, uint8_t event);
 
+// SPC $0507
 /* Read events up to the track's next note, and play it. */
 static TrackFlow step_track(SoundDriver *d, uint8_t track)
 {
@@ -325,6 +338,7 @@ static TrackFlow step_track(SoundDriver *d, uint8_t track)
     }
 }
 
+// SPC $07AF
 /* The slides a step moves on. */
 static void slide_track(SoundDriver *d, uint8_t track)
 {
@@ -359,6 +373,7 @@ static void slide_track(SoundDriver *d, uint8_t track)
     }
 }
 
+// SPC $03A3
 /* A track's tick when its part of the song steps: a note that isn't held is
  * released a little before its end, and one that has ended is followed by
  * the next. */
@@ -380,6 +395,7 @@ static void advance_track(SoundDriver *d, uint8_t track)
     slide_track(d, track);
 }
 
+// SPC $0377
 /* The music's beat: the tempo, bent by the tempo modifier. */
 static uint8_t music_beat(const SoundDriver *d)
 {
@@ -394,6 +410,7 @@ static uint8_t music_beat(const SoundDriver *d)
     return faster > 0xFF ? 0xFF : (uint8_t)faster;
 }
 
+// SPC $0377
 static bool music_steps(SoundDriver *d)
 {
     uint16_t beat = (uint16_t)(d->song.music_beat + music_beat(d));
@@ -401,6 +418,7 @@ static bool music_steps(SoundDriver *d)
     return beat > 0xFF;
 }
 
+// SPC $0399
 static void step_music_tracks(SoundDriver *d)
 {
     AuVoiceSet playing = d->song.music_tracks;
@@ -409,6 +427,7 @@ static void step_music_tracks(SoundDriver *d)
             advance_track(d, track);
 }
 
+// SPC $0377
 void sequence(SoundDriver *d)
 {
     if (d->stepping_every_tick || music_steps(d)) {
@@ -429,6 +448,7 @@ void sequence(SoundDriver *d)
             advance_track(d, effect_track_of(voice));
 }
 
+// SPC $0464
 void sequence_music_while_loading(SoundDriver *d)
 {
     if (!music_steps(d))
@@ -442,6 +462,7 @@ void sequence_music_while_loading(SoundDriver *d)
 /* Envelope parts events $DD-$E0 set. */
 typedef enum { ENVELOPE_ATTACK, ENVELOPE_DECAY, ENVELOPE_SUSTAIN_LEVEL, ENVELOPE_SUSTAIN_RATE } EnvelopePart;
 
+// SPC $0E5F, called from $1732, $1770, $179A, $17CE, $1805, $1826
 /* Head for `target` over `steps` steps from where the slide is, its
  * fraction and all; a slide already there stops. */
 static void slide_toward(SoundSlide *s, uint8_t steps, uint8_t target, Signedness values)
@@ -453,6 +474,7 @@ static void slide_toward(SoundSlide *s, uint8_t steps, uint8_t target, Signednes
 
 enum { LOUDEST = 0x7F };
 
+// SPC $175F, $1770
 /* Volume, 0-127: now, or sliding there over `steps` steps. */
 static TrackFlow volume(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t level)
 {
@@ -467,6 +489,7 @@ static TrackFlow volume(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t le
     return TRACK_GOES_ON;
 }
 
+// SPC $17BA
 /* Pan, 0 left to 127 right in the stream (0-254 as the driver keeps it):
  * the music's tracks only, since an effect's pan is where the game started
  * it. */
@@ -480,6 +503,7 @@ static TrackFlow set_pan(SoundDriver *d, uint8_t track, uint8_t pan)
     return TRACK_GOES_ON;
 }
 
+// SPC $17CE
 /* A pan slide. On an effect's track it only sets how many steps the slide it
  * already had takes (the original's). */
 static TrackFlow slide_pan(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t pan)
@@ -495,6 +519,7 @@ static TrackFlow slide_pan(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t
     return TRACK_GOES_ON;
 }
 
+// SPC $17F2
 /* A pitch slide for the next note, to `semitones` away over `ticks`. */
 static TrackFlow slide_pitch(SoundDriver *d, uint8_t track, uint8_t ticks, int8_t semitones)
 {
@@ -504,6 +529,7 @@ static TrackFlow slide_pitch(SoundDriver *d, uint8_t track, uint8_t ticks, int8_
     return TRACK_GOES_ON;
 }
 
+// SPC $186E
 /* Vibrato: after `delay` steps (music), a wave `depth` deep at `rate` ticks a
  * half wave; an effect's first operand chooses its depth's scale instead. */
 static TrackFlow vibrato(SoundDriver *d, uint8_t track, uint8_t delay, uint8_t rate, uint8_t depth)
@@ -521,6 +547,7 @@ static TrackFlow vibrato(SoundDriver *d, uint8_t track, uint8_t delay, uint8_t r
     return TRACK_GOES_ON;
 }
 
+// SPC $192E
 static TrackFlow vibrato_off(SoundDriver *d, uint8_t track)
 {
     SoundTrack *t = track_of(d, track);
@@ -529,6 +556,7 @@ static TrackFlow vibrato_off(SoundDriver *d, uint8_t track)
     return TRACK_GOES_ON;
 }
 
+// SPC $1938
 static TrackFlow tremolo(SoundDriver *d, uint8_t track, uint8_t delay, uint8_t rate, uint8_t depth)
 {
     SoundTrack *t = track_of(d, track);
@@ -541,6 +569,7 @@ static TrackFlow tremolo(SoundDriver *d, uint8_t track, uint8_t delay, uint8_t r
     return TRACK_GOES_ON;
 }
 
+// SPC $198E
 static TrackFlow tremolo_off(SoundDriver *d, uint8_t track)
 {
     SoundTrack *t = track_of(d, track);
@@ -549,6 +578,7 @@ static TrackFlow tremolo_off(SoundDriver *d, uint8_t track)
     return TRACK_GOES_ON;
 }
 
+// SPC $1998
 /* Pan sweep: the pan swings back and forth, turning every `period` steps (a
  * half of it the first time); `depth`'s top bit starts it to the left. */
 static TrackFlow pan_sweep(SoundDriver *d, uint8_t track, uint8_t period, uint8_t depth)
@@ -577,6 +607,7 @@ static TrackFlow pan_sweep(SoundDriver *d, uint8_t track, uint8_t period, uint8_
     return TRACK_GOES_ON;
 }
 
+// SPC $19EE
 static TrackFlow pan_sweep_off(SoundDriver *d, uint8_t track)
 {
     SoundTrack *t = track_of(d, track);
@@ -585,6 +616,7 @@ static TrackFlow pan_sweep_off(SoundDriver *d, uint8_t track)
     return TRACK_GOES_ON;
 }
 
+// SPC $1A78
 /* Noise's clock: set, or (an operand past 31) moved by its low five bits. */
 static TrackFlow noise_clock(SoundDriver *d, uint8_t track, uint8_t clock)
 {
@@ -597,6 +629,7 @@ static TrackFlow noise_clock(SoundDriver *d, uint8_t track, uint8_t clock)
     return TRACK_GOES_ON;
 }
 
+// SPC $1A3C, $1A68
 static TrackFlow noise(SoundDriver *d, uint8_t track, bool on)
 {
     SoundVoiceFlags *f = flags_of(d, track);
@@ -608,6 +641,7 @@ static TrackFlow noise(SoundDriver *d, uint8_t track, bool on)
 /* Pitch modulation: an effect on voice 4 or 6 can't have it. */
 enum { EFFECT_VOICES_NOT_MODULATED = 1 << 4 | 1 << 6 };
 
+// SPC $1A98, $1AB5
 static TrackFlow pitch_modulation(SoundDriver *d, uint8_t track, bool on)
 {
     SoundVoiceFlags *f = flags_of(d, track);
@@ -620,6 +654,7 @@ static TrackFlow pitch_modulation(SoundDriver *d, uint8_t track, bool on)
     return TRACK_GOES_ON;
 }
 
+// SPC $1A15, $1A2C
 static TrackFlow echo(SoundDriver *d, uint8_t track, bool on)
 {
     SoundVoiceFlags *f = flags_of(d, track);
@@ -628,12 +663,14 @@ static TrackFlow echo(SoundDriver *d, uint8_t track, bool on)
     return TRACK_GOES_ON;
 }
 
+// SPC $1A0E
 static TrackFlow set_octave(SoundDriver *d, uint8_t track, uint8_t octave)
 {
     track_of(d, track)->octave = (uint8_t)(octave * 12);
     return TRACK_GOES_ON;
 }
 
+// SPC $19FA, $1A04
 static TrackFlow shift_octave(SoundDriver *d, uint8_t track, int8_t octaves)
 {
     SoundTrack *t = track_of(d, track);
@@ -641,12 +678,14 @@ static TrackFlow shift_octave(SoundDriver *d, uint8_t track, int8_t octaves)
     return TRACK_GOES_ON;
 }
 
+// SPC $1801
 static TrackFlow set_transpose(SoundDriver *d, uint8_t track, int8_t semitones)
 {
     track_of(d, track)->transpose = semitones;
     return TRACK_GOES_ON;
 }
 
+// SPC $17FD
 static TrackFlow add_transpose(SoundDriver *d, uint8_t track, int8_t semitones)
 {
     SoundTrack *t = track_of(d, track);
@@ -654,18 +693,21 @@ static TrackFlow add_transpose(SoundDriver *d, uint8_t track, int8_t semitones)
     return TRACK_GOES_ON;
 }
 
+// SPC $1CF2
 static TrackFlow detune(SoundDriver *d, uint8_t track, uint8_t amount)
 {
     track_of(d, track)->detune = amount;
     return TRACK_GOES_ON;
 }
 
+// SPC $1ACF
 static TrackFlow instrument(SoundDriver *d, uint8_t track, uint8_t number)
 {
     set_instrument(d, track, number);
     return TRACK_GOES_ON;
 }
 
+// SPC $1AFC, $1B2A, $1B3D, $1B4F
 /* A part of the envelope: an attack or decay rate turns the ADSR on. */
 static TrackFlow envelope_part(SoundDriver *d, uint8_t track, EnvelopePart part, uint8_t value)
 {
@@ -690,6 +732,7 @@ static TrackFlow envelope_part(SoundDriver *d, uint8_t track, EnvelopePart part,
     return TRACK_GOES_ON;
 }
 
+// SPC $1B5F
 /* Back to the instrument's own envelope. */
 static TrackFlow instrument_envelope_again(SoundDriver *d, uint8_t track)
 {
@@ -699,6 +742,7 @@ static TrackFlow instrument_envelope_again(SoundDriver *d, uint8_t track)
     return TRACK_GOES_ON;
 }
 
+// SPC $1C64
 /* A loop around what follows, `count` more times (0 for ever), on the
  * track's next level: there are four, reused in turn. */
 static TrackFlow loop_start(SoundDriver *d, uint8_t track, uint8_t count)
@@ -713,6 +757,7 @@ static TrackFlow loop_start(SoundDriver *d, uint8_t track, uint8_t count)
     return TRACK_GOES_ON;
 }
 
+// SPC $1C94
 static TrackFlow loop_end(SoundDriver *d, uint8_t track)
 {
     SoundTrack *t = track_of(d, track);
@@ -728,6 +773,7 @@ static TrackFlow loop_end(SoundDriver *d, uint8_t track)
     return TRACK_GOES_ON;
 }
 
+// SPC $1C09
 /* Leave for `address` on the loop's pass `pass`, and the loop with it if the
  * pass is its last. */
 static TrackFlow loop_exit(SoundDriver *d, uint8_t track, uint8_t pass, uint16_t address)
@@ -742,6 +788,7 @@ static TrackFlow loop_exit(SoundDriver *d, uint8_t track, uint8_t pass, uint16_t
     return TRACK_GOES_ON;
 }
 
+// SPC $1B72
 static TrackFlow slur(SoundDriver *d, uint8_t track)
 {
     SoundVoiceFlags *f = flags_of(d, track);
@@ -750,12 +797,14 @@ static TrackFlow slur(SoundDriver *d, uint8_t track)
     return TRACK_GOES_ON;
 }
 
+// SPC $1B9A
 static TrackFlow roll(SoundDriver *d, uint8_t track)
 {
     flags_of(d, track)->roll |= voice_bit(track);
     return TRACK_GOES_ON;
 }
 
+// SPC $12DD, $1B86
 /* Slur and roll end by the look-ahead's meeting them (LOOK_ARTICULATION). */
 static TrackFlow articulation_ends(SoundDriver *d, uint8_t track)
 {
@@ -764,12 +813,14 @@ static TrackFlow articulation_ends(SoundDriver *d, uint8_t track)
     return TRACK_GOES_ON;
 }
 
+// SPC $1CEF
 static TrackFlow next_length(SoundDriver *d, uint8_t track, uint8_t ticks)
 {
     track_of(d, track)->ticks_left = ticks;
     return TRACK_GOES_ON;
 }
 
+// SPC $1BA8, $1BAC
 /* Carry on in one of an effect's tracks; the track ends if it has none. */
 static TrackFlow effect_track(SoundDriver *d, uint8_t track, uint8_t effect, uint8_t which)
 {
@@ -781,6 +832,7 @@ static TrackFlow effect_track(SoundDriver *d, uint8_t track, uint8_t effect, uin
     return TRACK_ENDED;
 }
 
+// SPC $1D4A
 static TrackFlow end_track(SoundDriver *d, uint8_t track)
 {
     release_track(d, track);
@@ -790,6 +842,7 @@ static TrackFlow end_track(SoundDriver *d, uint8_t track)
 /* The tempo: the song's number scaled by 1 + 20/256, the beat's step a
  * tick; set, or reached over `steps` steps. */
 enum { TEMPO_SCALE = 20 };
+// SPC $1722, $1732
 static TrackFlow tempo(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t value)
 {
     (void)track;
@@ -802,6 +855,7 @@ static TrackFlow tempo(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t val
     return TRACK_GOES_ON;
 }
 
+// SPC $1791, $179A
 /* The echo's volume, signed: set, or reached over `steps` steps. */
 static TrackFlow echo_volume(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t level)
 {
@@ -814,6 +868,7 @@ static TrackFlow echo_volume(SoundDriver *d, uint8_t track, uint8_t steps, uint8
     return TRACK_GOES_ON;
 }
 
+// SPC $1751
 static TrackFlow song_volume(SoundDriver *d, uint8_t track, uint8_t level)
 {
     (void)track;
@@ -822,12 +877,14 @@ static TrackFlow song_volume(SoundDriver *d, uint8_t track, uint8_t level)
     return TRACK_GOES_ON;
 }
 
+// SPC $1BEE
 static TrackFlow jump(SoundDriver *d, uint8_t track, uint16_t address)
 {
     track_of(d, track)->at = in_song(d, address);
     return TRACK_GOES_ON;
 }
 
+// SPC $1805
 /* Echo feedback: set (its fraction kept), or reached over `steps` steps. */
 static TrackFlow echo_feedback(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t level)
 {
@@ -841,6 +898,7 @@ static TrackFlow echo_feedback(SoundDriver *d, uint8_t track, uint8_t steps, uin
     return TRACK_GOES_ON;
 }
 
+// SPC $1826
 /* One of the four echo filters: set (the fractions kept), or reached over
  * `steps` steps, tap by tap. */
 static TrackFlow echo_filter(SoundDriver *d, uint8_t track, uint8_t steps, uint8_t which)
@@ -861,6 +919,7 @@ static TrackFlow echo_filter(SoundDriver *d, uint8_t track, uint8_t steps, uint8
     return TRACK_GOES_ON;
 }
 
+// SPC $1CF6
 /* The marker the game waits on to keep a scene in time with the music. */
 static TrackFlow marker(SoundDriver *d, uint8_t track, uint8_t value)
 {
@@ -869,6 +928,7 @@ static TrackFlow marker(SoundDriver *d, uint8_t track, uint8_t value)
     return TRACK_GOES_ON;
 }
 
+// SPC $1CFB
 /* Branch to `address` if the value the game set (command $88) has reached
  * `condition`; the highest condition met or not is shown to the game. */
 static TrackFlow branch_on_condition(SoundDriver *d, uint8_t track, uint8_t condition, uint16_t address)
@@ -881,6 +941,7 @@ static TrackFlow branch_on_condition(SoundDriver *d, uint8_t track, uint8_t cond
     return TRACK_GOES_ON;
 }
 
+// SPC $1AC5, $1AC9
 static TrackFlow percussion(SoundDriver *d, uint8_t track, bool on)
 {
     AuVoiceSet voice = voice_bit(track);
@@ -888,6 +949,7 @@ static TrackFlow percussion(SoundDriver *d, uint8_t track, bool on)
     return TRACK_GOES_ON;
 }
 
+// SPC $1757
 static TrackFlow volume_scale(SoundDriver *d, uint8_t track, uint8_t scale)
 {
     track_of(d, track)->volume_scale = (uint8_t)(scale << 1);
@@ -980,68 +1042,69 @@ struct EventRow {
 };
 #define RUN(op) .run = op##_event
 
-/* A row for each event, $C4 on, in order. */
+/* A row for each event, $C4 on, in order, with the address of its handler in the
+ * original (and of what its look-ahead runs, where that is its own). */
 static const EventRow rows[] = {
-    /* $C4 */ { RUN(volume), 1, LOOK_PAST, { .steps = CONSTANT(0), .level = OPERAND(1) } },
-    /* $C5 */ { RUN(volume), 2, LOOK_PAST, { .steps = OPERAND(1), .level = OPERAND(2) } },
-    /* $C6 */ { RUN(set_pan), 1, LOOK_PAST, { .pan = OPERAND(1) } },
-    /* $C7 */ { RUN(slide_pan), 2, LOOK_PAST, { .steps = OPERAND(1), .pan = OPERAND(2) } },
-    /* $C8 */ { RUN(slide_pitch), 2, LOOK_PAST, { .ticks = OPERAND(1), .semitones = OPERAND(2) } },
-    /* $C9 */ { RUN(vibrato), 3, LOOK_PAST, { .delay = OPERAND(1), .rate = OPERAND(2), .depth = OPERAND(3) } },
-    /* $CA */ { RUN(vibrato_off), 0, LOOK_PAST },
-    /* $CB */ { RUN(tremolo), 3, LOOK_PAST, { .delay = OPERAND(1), .rate = OPERAND(2), .depth = OPERAND(3) } },
-    /* $CC */ { RUN(tremolo_off), 0, LOOK_PAST },
-    /* $CD */ { RUN(pan_sweep), 2, LOOK_PAST, { .period = OPERAND(1), .depth = OPERAND(2) } },
-    /* $CE */ { RUN(pan_sweep_off), 0, LOOK_PAST },
-    /* $CF */ { RUN(noise_clock), 1, LOOK_PAST, { .clock = OPERAND(1) } },
-    /* $D0 */ { RUN(noise), 0, LOOK_PAST, { .on = CONSTANT(true) } },
-    /* $D1 */ { RUN(noise), 0, LOOK_PAST, { .on = CONSTANT(false) } },
-    /* $D2 */ { RUN(pitch_modulation), 0, LOOK_PAST, { .on = CONSTANT(true) } },
-    /* $D3 */ { RUN(pitch_modulation), 0, LOOK_PAST, { .on = CONSTANT(false) } },
-    /* $D4 */ { RUN(echo), 0, LOOK_PAST, { .on = CONSTANT(true) } },
-    /* $D5 */ { RUN(echo), 0, LOOK_PAST, { .on = CONSTANT(false) } },
-    /* $D6 */ { RUN(set_octave), 1, LOOK_PAST, { .octave = OPERAND(1) } },
-    /* $D7 */ { RUN(shift_octave), 0, LOOK_PAST, { .octaves = CONSTANT(1) } },
-    /* $D8 */ { RUN(shift_octave), 0, LOOK_PAST, { .octaves = CONSTANT(-1) } },
-    /* $D9 */ { RUN(set_transpose), 1, LOOK_PAST, { .semitones = OPERAND(1) } },
-    /* $DA */ { RUN(add_transpose), 1, LOOK_PAST, { .semitones = OPERAND(1) } },
-    /* $DB */ { RUN(detune), 1, LOOK_PAST, { .amount = OPERAND(1) } },
-    /* $DC */ { RUN(instrument), 1, LOOK_ARTICULATION, { .number = OPERAND(1) } },
-    /* $DD */ { RUN(envelope_part), 1, LOOK_PAST, { .part = CONSTANT(ENVELOPE_ATTACK), .value = OPERAND(1) } },
-    /* $DE */ { RUN(envelope_part), 1, LOOK_PAST, { .part = CONSTANT(ENVELOPE_DECAY), .value = OPERAND(1) } },
-    /* $DF */ { RUN(envelope_part), 1, LOOK_PAST, { .part = CONSTANT(ENVELOPE_SUSTAIN_LEVEL), .value = OPERAND(1) } },
-    /* $E0 */ { RUN(envelope_part), 1, LOOK_PAST, { .part = CONSTANT(ENVELOPE_SUSTAIN_RATE), .value = OPERAND(1) } },
-    /* $E1 */ { RUN(instrument_envelope_again), 0, LOOK_PAST },
-    /* $E2 */ { RUN(loop_start), 1, LOOK_PAST, { .count = OPERAND(1) } },
-    /* $E3 */ { RUN(loop_end), 0, LOOK_LOOP_END },
-    /* $E4 */ { RUN(slur), 0, LOOK_ARTICULATION },
-    /* $E5 */ { RUN(articulation_ends), 0, LOOK_ARTICULATION },
-    /* $E6 */ { RUN(roll), 0, LOOK_ARTICULATION },
-    /* $E7 */ { RUN(articulation_ends), 0, LOOK_ARTICULATION },
-    /* $E8 */ { RUN(next_length), 1, LOOK_PAST, { .ticks = OPERAND(1) } },
-    /* $E9 */ { RUN(effect_track), 1, LOOK_EFFECT_TRACK, { .effect = OPERAND(1), .which = CONSTANT(0) } },
-    /* $EA */ { RUN(effect_track), 1, LOOK_EFFECT_TRACK, { .effect = OPERAND(1), .which = CONSTANT(1) } },
-    /* $EB */ { RUN(end_track), 0, LOOK_PAST },
-    /* $EC */ { RUN(end_track), 0, LOOK_PAST },
-    /* $ED */ { RUN(end_track), 0, LOOK_PAST },
-    /* $EE */ { RUN(end_track), 0, LOOK_PAST },
-    /* $EF */ { RUN(end_track), 0, LOOK_PAST },
-    /* $F0 */ { RUN(tempo), 1, LOOK_PAST, { .steps = CONSTANT(0), .value = OPERAND(1) } },
-    /* $F1 */ { RUN(tempo), 2, LOOK_PAST, { .steps = OPERAND(1), .value = OPERAND(2) } },
-    /* $F2 */ { RUN(echo_volume), 1, LOOK_PAST, { .steps = CONSTANT(0), .level = OPERAND(1) } },
-    /* $F3 */ { RUN(echo_volume), 2, LOOK_PAST, { .steps = OPERAND(1), .level = OPERAND(2) } },
-    /* $F4 */ { RUN(song_volume), 1, LOOK_PAST, { .level = OPERAND(1) } },
-    /* $F5 */ { RUN(loop_exit), 3, LOOK_LOOP_EXIT, { .pass = OPERAND(1), .address = WORD(2) } },
-    /* $F6 */ { RUN(jump), 2, LOOK_JUMP, { .address = WORD(1) } },
-    /* $F7 */ { RUN(echo_feedback), 2, LOOK_PAST, { .steps = OPERAND(1), .level = OPERAND(2) } },
-    /* $F8 */ { RUN(echo_filter), 2, LOOK_PAST, { .steps = OPERAND(1), .which = OPERAND(2) } },
-    /* $F9 */ { RUN(marker), 1, LOOK_PAST, { .value = OPERAND(1) } },
-    /* $FA */ { RUN(branch_on_condition), 3, LOOK_CONDITION, { .condition = OPERAND(1), .address = WORD(2) } },
-    /* $FB */ { RUN(percussion), 0, LOOK_PAST, { .on = CONSTANT(true) } },
-    /* $FC */ { RUN(percussion), 0, LOOK_PAST, { .on = CONSTANT(false) } },
-    /* $FD */ { RUN(volume_scale), 1, LOOK_PAST, { .scale = OPERAND(1) } },
-    /* $FE */ { RUN(end_track), 0, LOOK_PAST },
-    /* $FF */ { RUN(end_track), 0, LOOK_PAST },
+    /* $C4 */ { RUN(volume), 1, LOOK_PAST, { .steps = CONSTANT(0), .level = OPERAND(1) } }, // SPC $175F
+    /* $C5 */ { RUN(volume), 2, LOOK_PAST, { .steps = OPERAND(1), .level = OPERAND(2) } }, // SPC $1770
+    /* $C6 */ { RUN(set_pan), 1, LOOK_PAST, { .pan = OPERAND(1) } }, // SPC $17BA
+    /* $C7 */ { RUN(slide_pan), 2, LOOK_PAST, { .steps = OPERAND(1), .pan = OPERAND(2) } }, // SPC $17CE
+    /* $C8 */ { RUN(slide_pitch), 2, LOOK_PAST, { .ticks = OPERAND(1), .semitones = OPERAND(2) } }, // SPC $17F2
+    /* $C9 */ { RUN(vibrato), 3, LOOK_PAST, { .delay = OPERAND(1), .rate = OPERAND(2), .depth = OPERAND(3) } }, // SPC $186E
+    /* $CA */ { RUN(vibrato_off), 0, LOOK_PAST }, // SPC $192E
+    /* $CB */ { RUN(tremolo), 3, LOOK_PAST, { .delay = OPERAND(1), .rate = OPERAND(2), .depth = OPERAND(3) } }, // SPC $1938
+    /* $CC */ { RUN(tremolo_off), 0, LOOK_PAST }, // SPC $198E
+    /* $CD */ { RUN(pan_sweep), 2, LOOK_PAST, { .period = OPERAND(1), .depth = OPERAND(2) } }, // SPC $1998
+    /* $CE */ { RUN(pan_sweep_off), 0, LOOK_PAST }, // SPC $19EE
+    /* $CF */ { RUN(noise_clock), 1, LOOK_PAST, { .clock = OPERAND(1) } }, // SPC $1A78
+    /* $D0 */ { RUN(noise), 0, LOOK_PAST, { .on = CONSTANT(true) } }, // SPC $1A3C
+    /* $D1 */ { RUN(noise), 0, LOOK_PAST, { .on = CONSTANT(false) } }, // SPC $1A68
+    /* $D2 */ { RUN(pitch_modulation), 0, LOOK_PAST, { .on = CONSTANT(true) } }, // SPC $1A98
+    /* $D3 */ { RUN(pitch_modulation), 0, LOOK_PAST, { .on = CONSTANT(false) } }, // SPC $1AB5
+    /* $D4 */ { RUN(echo), 0, LOOK_PAST, { .on = CONSTANT(true) } }, // SPC $1A15
+    /* $D5 */ { RUN(echo), 0, LOOK_PAST, { .on = CONSTANT(false) } }, // SPC $1A2C
+    /* $D6 */ { RUN(set_octave), 1, LOOK_PAST, { .octave = OPERAND(1) } }, // SPC $1A0E
+    /* $D7 */ { RUN(shift_octave), 0, LOOK_PAST, { .octaves = CONSTANT(1) } }, // SPC $19FA
+    /* $D8 */ { RUN(shift_octave), 0, LOOK_PAST, { .octaves = CONSTANT(-1) } }, // SPC $1A04
+    /* $D9 */ { RUN(set_transpose), 1, LOOK_PAST, { .semitones = OPERAND(1) } }, // SPC $1801
+    /* $DA */ { RUN(add_transpose), 1, LOOK_PAST, { .semitones = OPERAND(1) } }, // SPC $17FD
+    /* $DB */ { RUN(detune), 1, LOOK_PAST, { .amount = OPERAND(1) } }, // SPC $1CF2
+    /* $DC */ { RUN(instrument), 1, LOOK_ARTICULATION, { .number = OPERAND(1) } }, // SPC $1ACF, look-ahead $1B86
+    /* $DD */ { RUN(envelope_part), 1, LOOK_PAST, { .part = CONSTANT(ENVELOPE_ATTACK), .value = OPERAND(1) } }, // SPC $1AFC
+    /* $DE */ { RUN(envelope_part), 1, LOOK_PAST, { .part = CONSTANT(ENVELOPE_DECAY), .value = OPERAND(1) } }, // SPC $1B2A
+    /* $DF */ { RUN(envelope_part), 1, LOOK_PAST, { .part = CONSTANT(ENVELOPE_SUSTAIN_LEVEL), .value = OPERAND(1) } }, // SPC $1B3D
+    /* $E0 */ { RUN(envelope_part), 1, LOOK_PAST, { .part = CONSTANT(ENVELOPE_SUSTAIN_RATE), .value = OPERAND(1) } }, // SPC $1B4F
+    /* $E1 */ { RUN(instrument_envelope_again), 0, LOOK_PAST }, // SPC $1B5F
+    /* $E2 */ { RUN(loop_start), 1, LOOK_PAST, { .count = OPERAND(1) } }, // SPC $1C64
+    /* $E3 */ { RUN(loop_end), 0, LOOK_LOOP_END }, // SPC $1C94, look-ahead $1CC9
+    /* $E4 */ { RUN(slur), 0, LOOK_ARTICULATION }, // SPC $1B72, look-ahead $1B86
+    /* $E5 */ { RUN(articulation_ends), 0, LOOK_ARTICULATION }, // SPC $12DD, look-ahead $1B86
+    /* $E6 */ { RUN(roll), 0, LOOK_ARTICULATION }, // SPC $1B9A, look-ahead $1B86
+    /* $E7 */ { RUN(articulation_ends), 0, LOOK_ARTICULATION }, // SPC $12DD, look-ahead $1B86
+    /* $E8 */ { RUN(next_length), 1, LOOK_PAST, { .ticks = OPERAND(1) } }, // SPC $1CEF
+    /* $E9 */ { RUN(effect_track), 1, LOOK_EFFECT_TRACK, { .effect = OPERAND(1), .which = CONSTANT(0) } }, // SPC $1BA8, look-ahead $1BD9
+    /* $EA */ { RUN(effect_track), 1, LOOK_EFFECT_TRACK, { .effect = OPERAND(1), .which = CONSTANT(1) } }, // SPC $1BAC, look-ahead $1BDD
+    /* $EB */ { RUN(end_track), 0, LOOK_PAST }, // SPC $1D4A
+    /* $EC */ { RUN(end_track), 0, LOOK_PAST }, // SPC $1D4A
+    /* $ED */ { RUN(end_track), 0, LOOK_PAST }, // SPC $1D4A
+    /* $EE */ { RUN(end_track), 0, LOOK_PAST }, // SPC $1D4A
+    /* $EF */ { RUN(end_track), 0, LOOK_PAST }, // SPC $1D4A
+    /* $F0 */ { RUN(tempo), 1, LOOK_PAST, { .steps = CONSTANT(0), .value = OPERAND(1) } }, // SPC $1722
+    /* $F1 */ { RUN(tempo), 2, LOOK_PAST, { .steps = OPERAND(1), .value = OPERAND(2) } }, // SPC $1732
+    /* $F2 */ { RUN(echo_volume), 1, LOOK_PAST, { .steps = CONSTANT(0), .level = OPERAND(1) } }, // SPC $1791
+    /* $F3 */ { RUN(echo_volume), 2, LOOK_PAST, { .steps = OPERAND(1), .level = OPERAND(2) } }, // SPC $179A
+    /* $F4 */ { RUN(song_volume), 1, LOOK_PAST, { .level = OPERAND(1) } }, // SPC $1751
+    /* $F5 */ { RUN(loop_exit), 3, LOOK_LOOP_EXIT, { .pass = OPERAND(1), .address = WORD(2) } }, // SPC $1C09, look-ahead $1C39
+    /* $F6 */ { RUN(jump), 2, LOOK_JUMP, { .address = WORD(1) } }, // SPC $1BEE, look-ahead $1BFC
+    /* $F7 */ { RUN(echo_feedback), 2, LOOK_PAST, { .steps = OPERAND(1), .level = OPERAND(2) } }, // SPC $1805
+    /* $F8 */ { RUN(echo_filter), 2, LOOK_PAST, { .steps = OPERAND(1), .which = OPERAND(2) } }, // SPC $1826
+    /* $F9 */ { RUN(marker), 1, LOOK_PAST, { .value = OPERAND(1) } }, // SPC $1CF6
+    /* $FA */ { RUN(branch_on_condition), 3, LOOK_CONDITION, { .condition = OPERAND(1), .address = WORD(2) } }, // SPC $1CFB, look-ahead $1D2A
+    /* $FB */ { RUN(percussion), 0, LOOK_PAST, { .on = CONSTANT(true) } }, // SPC $1AC5
+    /* $FC */ { RUN(percussion), 0, LOOK_PAST, { .on = CONSTANT(false) } }, // SPC $1AC9
+    /* $FD */ { RUN(volume_scale), 1, LOOK_PAST, { .scale = OPERAND(1) } }, // SPC $1757
+    /* $FE */ { RUN(end_track), 0, LOOK_PAST }, // SPC $1D4A
+    /* $FF */ { RUN(end_track), 0, LOOK_PAST }, // SPC $1D4A
 };
 
 _Static_assert(sizeof rows / sizeof rows[0] == 0x100 - FIRST_EVENT, "a row for every event");
@@ -1065,6 +1128,7 @@ static int16_t decode(ArgSpec spec, const uint8_t *operands)
     }
 }
 
+// SPC $073D
 static TrackFlow run_event(SoundDriver *d, uint8_t track, uint8_t event)
 {
     const EventRow *row = event_row(event);

@@ -142,7 +142,7 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_wait_for_screen_tint, 0xF3) \
     X(event_cmd_shake_screen, 0xF4) \
     X(event_cmd_wait_for_music_fade, 0xED) \
-    X(event_cmd_wait_for_song_marker, 0xEE) \
+    X(event_cmd_wait_for_music_to_end, 0xEE) \
     X(event_cmd_record, 0x56) \
     X(event_cmd_record_variable, 0x58) \
     X(event_cmd_record_variable_word, 0x59) \
