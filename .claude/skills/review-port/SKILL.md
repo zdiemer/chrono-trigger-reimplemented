@@ -566,6 +566,11 @@ Each of these is a finding. Every example here comes from this repo.
     screen's setup, a table's fill) are logic, and belong in `GameState`/
     `Platform` functions the bridge calls.
 
+60. **A member of a finer enum passed to select a coarser case.** A callee
+    that only branches on a family (`slot_fits(s, ROTATE_DOWN)` covering both
+    rotations, `FADE_TO_WHITE` standing for every fade) reads as if it cared
+    which member. Give the coarser case its own type.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"

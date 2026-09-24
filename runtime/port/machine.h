@@ -318,6 +318,17 @@ static inline void m_mvn(Snes *s, uint8_t dst_bank, uint8_t src_bank)
     } while (s->cpu.a != 0xFFFF);
 }
 
+/* What an MVN leaves in the registers, for a port that moves the bytes itself
+ * (entered with A+1 = `bytes`): A $FFFF, X and Y past the bytes, and the data
+ * bank the one moved to. */
+static inline void m_leave_mvn(Snes *s, uint32_t bytes, uint8_t dst_bank)
+{
+    s->cpu.x = (uint16_t)(s->cpu.x + bytes);
+    s->cpu.y = (uint16_t)(s->cpu.y + bytes);
+    s->cpu.a = 0xFFFF;
+    s->cpu.db = dst_bank;
+}
+
 /* Returns from an interrupt, native mode: P, PC, program bank. */
 static inline void m_rti(Snes *s)
 {

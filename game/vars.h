@@ -224,6 +224,10 @@ void set_palette_animations_fade_target(GameState *g, unsigned slot, uint8_t v);
 /* Types 1 and 8: offset of the animation's frames in the ROM's palette frames ($F6:0000) */
 uint16_t palette_animations_frames(const GameState *g, unsigned slot);
 void set_palette_animations_frames(GameState *g, unsigned slot, uint16_t v);
+/* Types 1 and 8: the bank of the frames, loaded with them ($F6 in the ROM's sets); the animation
+ * reads bank $F6 whatever it holds */
+uint8_t palette_animations_frames_bank(const GameState *g, unsigned slot);
+void set_palette_animations_frames_bank(GameState *g, unsigned slot, uint8_t v);
 /* Type 8: long pointer to the frame numbers, indexed by the current frame */
 uint32_t palette_animations_frame_table(const GameState *g, unsigned slot);
 void set_palette_animations_frame_table(GameState *g, unsigned slot, uint32_t v);
@@ -440,7 +444,7 @@ enum { GAME_SETTINGS_COUNT = 3 };   /* by byte */
 uint8_t game_settings(const GameState *g, unsigned i);
 void set_game_settings(GameState *g, unsigned i, uint8_t v);
 
-enum { BUTTON_ASSIGNMENTS_COUNT = 8 };   /* by assignment: $2998, $2996, $2997, $2994, $2999, $299A, $2995 and $2993 give bits 0-7 of the remapped byte */
+enum { BUTTON_ASSIGNMENTS_COUNT = 8 };   /* by assignment: which of the game's buttons it stands for, in the order A, B, X, Select, Y, Start, R, L */
 /* The player's button assignments: each a mask of buttons that must all be down to set one bit
  * of the remapped buttons */
 uint8_t button_assignments(const GameState *g, unsigned i);
@@ -2298,8 +2302,9 @@ void set_menu_window_shadows_math_layers(GameState *g, uint8_t v);
 uint8_t menu_window_shadows_fixed_color(const GameState *g);
 void set_menu_window_shadows_fixed_color(GameState *g, uint8_t v);
 
-/* The code the menus' vblank runs a frame's block move through: MVN $7E,$7E and RTL, written
- * there each time */
+/* The game's block move (core/memory.c): MVN and RTL, with the banks to and from its callers
+ * write before each call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the
+ * save code, save RAM's) */
 uint32_t menu_block_move_stub(const GameState *g);
 void set_menu_block_move_stub(GameState *g, uint32_t v);
 

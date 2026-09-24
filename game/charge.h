@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 
+#include "original_effects.h"
 #include "state.h"
 
 /* The time of `accesses` memory accesses of the routine at `routine` (a hand
@@ -26,6 +27,11 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
  * spends where a port fills or copies with wram_fill8, wram_fill16 or
  * wram_copy (wram.h), which take none of the port's own time. */
 void charge_block_move(GameState *g, uint32_t bytes);
+
+/* Accesses left out of the estimate: scaffolding that writes once what the
+ * original writes over and over, whose time a charge already stands for. */
+uint32_t charge_uncounted_begin(GameState *g);
+void charge_uncounted_end(GameState *g, uint32_t mark);
 
 /* The time of the work a statement does, estimated as the routine at
  * `routine`'s, for logic that runs another routine's work inline: the same

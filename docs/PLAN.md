@@ -171,7 +171,7 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **1 of 124 files, 117 of
-28,903 lines, is on the backlog**: `data/decompress.c`. What is still on the
+29,062 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -179,12 +179,12 @@ round the call-outs to the original's code:
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
 | menu | 0 | 18 | 0 | 6,486 | 0.04 | 34% |
-| event | 0 | 19 | 0 | 2,455 | 0.01 | 12% |
+| event | 0 | 19 | 0 | 2,454 | 0.01 | 12% |
 | field | 0 | 18 | 0 | 4,198 | 0.02 | 26% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
-| core, data, attract | 1 | 8 | 117 | 1,879 | 0.07 | 93% |
+| core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |
-| **total** | **1** | **124** | **117** | **28,903** | **0.03** | **32%** |
+| **total** | **1** | **124** | **117** | **29,062** | **0.03** | **31%** |
 
 Scene's 45%, event's 13% and field's 26% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by

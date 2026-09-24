@@ -1,72 +1,119 @@
-/* Animated background tiles, uploaded from every mode's interrupt handlers.
+/* Animated background tiles: a waterfall falling, a light flickering, in every
+ * game mode, sent from its interrupt handler.
  *
- * Twelve slots (tile_animations) each send 128 bytes of their current frame
- * to VRAM: a 16-bit accumulator, stepped every upload, whose bits 9-11 pick
- * one of eight frames; the frame's step and source address are in the slot's
- * table (tile_animation_tables). Six slots go on even frames of
- * tile_animation_frame, the other six on odd ones. */
+ * Twelve slots (tile_animations) each animate 128 bytes of tiles in VRAM
+ * through eight frames. A slot keeps an accumulator whose bits 9-11 say which
+ * frame it is on; each time the slot is sent it steps on by that frame's step,
+ * so a frame lasts as long as its step makes it, and the frame's tiles go to
+ * the slot's place in VRAM from where the slot's table says they are
+ * (tile_animation_tables, a step and a source for each frame). The slots take
+ * turns: 0-5 are sent on even frames of the count (tile_animation_frame), 6-11
+ * on odd ones. A slot whose VRAM address has its top bit set is unused. */
 #include "core/tile_animation.h"
 
 #include "platform/video.h"
 #include "port/machine.h"
-#include "ram.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
-/* What a slot sends a frame: 128 bytes of tiles. */
-enum { TILE_BYTES = 0x80 };
-enum { SLOTS_PER_FRAME = 6, VRAM_UNUSED = 0x8000, FRAME_BITS = 0x0E00 };
+/* What a slot sends: 128 bytes of tiles. */
+enum { TILE_BYTES = 0x80, UNUSED_SLOT = 0x8000 };
 
-/* One slot: when in use, step its accumulator and send 128 bytes of the frame
- * it was on. */
-static void upload_slot(Snes *s, uint8_t slot, uint32_t site)
+static bool in_use(const GameState *g, unsigned slot) { return !(tile_animations_vram(g, slot) & UNUSED_SLOT); }
+
+/* The frame a slot is on, 0-7: its accumulator's bits 9-11. */
+enum { FRAME_SHIFT = 9, FRAMES = 8 };
+static uint8_t current_frame(const GameState *g, unsigned slot)
 {
-    uint32_t at = RAM_TILE_ANIMATIONS + slot * RAM_TILE_ANIMATIONS_STRIDE;
-    uint16_t vram = m_read16(s, at + (RAM_TILE_ANIMATIONS_VRAM - RAM_TILE_ANIMATIONS));
-    if (vram & VRAM_UNUSED)
-        return;
-    uint32_t table = RAM_TILE_ANIMATION_TABLES + slot * RAM_TILE_ANIMATION_TABLES_STRIDE;
-    uint16_t accumulator = m_read16(s, at);
-    uint8_t frame = (uint8_t)((accumulator & FRAME_BITS) >> 8);    /* frame * 2 */
-    m_write16(s, at, (uint16_t)(accumulator + m_read16(s, table + frame)));
-    uint16_t source = m_read16(s, table + (RAM_TILE_ANIMATION_TABLES_SOURCES - RAM_TILE_ANIMATION_TABLES) + frame);
-    uint8_t bank = m_read8(s, at + (RAM_TILE_ANIMATIONS_BANK - RAM_TILE_ANIMATIONS));
-    vid_send_vram(m_platform(s), PF_AT(site), vram, PF_GAME((uint32_t)bank << 16 | source), TILE_BYTES, NULL);
+    return (uint8_t)((tile_animations_accumulator(g, slot) >> FRAME_SHIFT) % FRAMES);
 }
 
-// $FD:E022
-/* Upload animated tiles: count the frame on, and send slots 0-5 on even frames
- * and 6-11 on odd ones. Each slot's code in the original is a copy of the
- * others', which is where the call sites come from. */
-static void upload(Snes *s)
+/* A frame's step and its tiles' address, a word each in the slot's table. */
+static uint16_t table_word(uint8_t (*byte)(const GameState *, unsigned, unsigned), const GameState *g, unsigned slot,
+                           uint8_t frame)
 {
-    vid_start_vram_uploads(m_platform(s), PF_AT(0xFDE02B), VID_VRAM_WORD_PORT);
-    uint8_t count = (uint8_t)(m_read8(s, RAM_TILE_ANIMATION_FRAME) + 1);
-    m_write8(s, RAM_TILE_ANIMATION_FRAME, count);
-    bool odd = count & 1;
-    for (uint8_t k = 0; k < SLOTS_PER_FRAME; k++) {
-        uint32_t site = (odd ? 0xFDE166 : 0xFDE051) + 0x2C * (uint32_t)k;
-        upload_slot(s, (uint8_t)(k + (odd ? SLOTS_PER_FRAME : 0)), site);
+    return (uint16_t)(byte(g, slot, frame * 2u) | byte(g, slot, frame * 2u + 1) << 8);
+}
+static uint16_t frame_step(const GameState *g, unsigned slot, uint8_t frame)
+{
+    return table_word(tile_animation_tables_steps_byte, g, slot, frame);
+}
+static uint32_t frame_tiles(const GameState *g, unsigned slot, uint8_t frame)
+{
+    return (uint32_t)tile_animations_bank(g, slot) << 16 | table_word(tile_animation_tables_sources_byte, g, slot, frame);
+}
+
+/* A slot in use sends the frame it is on and steps on. `at` is the copy of the
+ * original's code that sends this slot: it has one for each. */
+static void send_slot(GameState *g, Platform *pf, unsigned slot, PfOrigin at)
+{
+    if (!in_use(g, slot))
+        return;
+    uint8_t frame = current_frame(g, slot);
+    set_tile_animations_accumulator(g, slot, (uint16_t)(tile_animations_accumulator(g, slot) + frame_step(g, slot, frame)));
+    vid_send_vram(pf, at, tile_animations_vram(g, slot), PF_GAME(frame_tiles(g, slot, frame)), TILE_BYTES, NULL);
+}
+
+static bool odd_frame(uint8_t count) { return count & 1; }
+
+// $FD:E022
+/* Count the frame on, and send this frame's half of the slots. */
+static void send_animated_tiles(GameState *g, Platform *pf)
+{
+    vid_start_vram_uploads(pf, PF_AT(0xFDE02B), VID_VRAM_WORD_PORT);
+    uint8_t count = (uint8_t)(tile_animation_frame(g) + 1);
+    set_tile_animation_frame(g, count);
+    if (!odd_frame(count)) {
+        send_slot(g, pf, 0, PF_AT(0xFDE051));
+        send_slot(g, pf, 1, PF_AT(0xFDE07D));
+        send_slot(g, pf, 2, PF_AT(0xFDE0A9));
+        send_slot(g, pf, 3, PF_AT(0xFDE0D5));
+        send_slot(g, pf, 4, PF_AT(0xFDE101));
+        send_slot(g, pf, 5, PF_AT(0xFDE12D));
+    } else {
+        send_slot(g, pf, 6, PF_AT(0xFDE166));
+        send_slot(g, pf, 7, PF_AT(0xFDE192));
+        send_slot(g, pf, 8, PF_AT(0xFDE1BE));
+        send_slot(g, pf, 9, PF_AT(0xFDE1EA));
+        send_slot(g, pf, 10, PF_AT(0xFDE216));
+        send_slot(g, pf, 11, PF_AT(0xFDE242));
     }
 }
 
-/* The original saves the caller's P, direct page and data bank on the stack
- * and restores them, and sets the data bank ($00) and the direct page ($0500)
- * by pushing and pulling them; what it leaves in A, X and Y nobody reads (the
- * entry's don't-care set). Those stack bytes are written as the original
- * writes them, since a slot whose source is the stack page sends them to VRAM
- * (fuzzing finds it). */
+/* ---- The entry ------------------------------------------------------------------------------ */
+
+/* The original saves its caller's flags, direct page and data bank on the
+ * stack and sets its own there, so a slot whose tiles are read from the top of
+ * the stack would send those bytes. No slot the game makes reads the stack: the
+ * guard refuses one that would, and the original runs it. */
+static bool reads_the_stack(const Snes *s, uint32_t tiles)
+{
+    enum { LOW_RAM_END = 0x2000, PUSHED = 7 };
+    uint8_t bank = (uint8_t)(tiles >> 16);
+    uint16_t at = (uint16_t)tiles;
+    bool low_ram = bank == 0x7E || (bank & 0x40) == 0;
+    uint16_t top = s->cpu.s;
+    return low_ram && at < LOW_RAM_END && at <= top && at + TILE_BYTES > top - PUSHED;
+}
+
+bool tile_animation_upload_runs(Snes *s)
+{
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool odd = odd_frame((uint8_t)(tile_animation_frame(g) + 1));
+    bool ok = true;
+    for (unsigned k = 0; k < TILE_ANIMATIONS_COUNT / 2 && ok; k++) {
+        unsigned slot = odd ? k + TILE_ANIMATIONS_COUNT / 2 : k;
+        ok = !in_use(g, slot) || !reads_the_stack(s, frame_tiles(g, slot, current_frame(g, slot)));
+    }
+    vars_peek(false);
+    return ok;
+}
+
+/* It gives its caller's flags, direct page and data bank back; what it leaves
+ * in A, X and Y nobody reads (the entry's set). */
 void tile_animation_upload(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_push16(s, c->d);
-    m_push8(s, c->db);
-    m_push8(s, 0x00);
-    m_pull8(s);
-    m_push16(s, RAM_PAGE_PALETTE_FADE);
-    m_pull16(s);
-    upload(s);
-    m_pull8(s);
-    m_pull16(s);
-    m_pull8(s);
+    send_animated_tiles(state_of(s), m_platform(s));
     m_rtl(s);
 }

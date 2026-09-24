@@ -1,4 +1,4 @@
-/* Palette animation shared by every game mode, and the palette upload. */
+/* Palette animation shared by every game mode, and the palette upload (core/palette.c). */
 #ifndef CT_GAME_CORE_PALETTE_H
 #define CT_GAME_CORE_PALETTE_H
 
@@ -35,8 +35,13 @@ void palette_lighten_red_green(Snes *s);
 void palette_lighten_blue(Snes *s);
 void palette_lighten_red_blue(Snes *s);
 void palette_lighten_green_blue(Snes *s);
-bool palette_animate_page_is_whole(Snes *s);
-bool palette_handler_can_run(Snes *s);
+/* Their guards. */
+bool palette_animate_runs(Snes *s);
+bool palette_frames_can_run(Snes *s);
+bool palette_table_frames_can_run(Snes *s);
+bool palette_rotation_can_run(Snes *s);
+bool palette_fade_can_run(Snes *s);
+bool palette_fade_loop_can_run(Snes *s);
 
 void palette_upload(Snes *s);
 bool palette_bank_is_io(Snes *s);

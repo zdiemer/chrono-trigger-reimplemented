@@ -1,4 +1,4 @@
-/* Display and interrupt control shared by every game mode. */
+/* Display and interrupt control shared by every game mode (core/display.c). */
 #ifndef CT_GAME_CORE_DISPLAY_H
 #define CT_GAME_CORE_DISPLAY_H
 

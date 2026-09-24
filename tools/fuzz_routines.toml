@@ -7619,3 +7619,222 @@ subsystem = "battle"
 state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E967C-7E9681=00-FF", "--fill", "7E9682-7E9686=00-00"]
 why = "any graphics kind in the first six slots, whose parts (up to five more) still end within the slots; the guard turns away the states where they wouldn't"
+
+# ---- core: palette animation and the block move ------------------------------------------------
+
+[[routine]]
+name = "palette_animate"
+subsystem = "core"
+state = "field"
+args = ["--long", "--d", "0000", "--fill", "7E0520-7E05AF=00-7F", "--fill", "7E0524-7E0525=00-01", "--fill", "7E0530-7E0531=00-01", "--fill", "7E053C-7E053D=00-01", "--fill", "7E0548-7E0549=00-01", "--fill", "7E0554-7E0555=00-01", "--fill", "7E0560-7E0561=00-01", "--fill", "7E056C-7E056D=00-01", "--fill", "7E0520-7E0520=80-FF", "--fill", "7E052B-7E052B=C0-FF", "--fill", "7E052C-7E052C=80-FF", "--fill", "7E0537-7E0537=C0-FF"]
+why = "the slots' bytes under $80, so every slot's colors lie in the palette (a count of 0 aside, which the guard refuses: game/core/palette.c, slot_fits); slots 0-6 with a delay and period of 0 or 1, so a quarter of them run each call; slots 0 and 1 playing frames from a table in the cartridge. The original runs a count of 0 over 65536 colors and on past the palette, which the game never makes"
+
+[[routine]]
+name = "palette_clear_animations"
+subsystem = "core"
+state = "field"
+args = ["--long"]
+why = "any state"
+
+[[routine]]
+name = "palette_load_animations"
+subsystem = "core"
+state = "field"
+args = ["--long"]
+why = "any state: the location record picks a set, and a set from anywhere in the ROM loads"
+
+[[routine]]
+name = "palette_animate_frames"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_animate_frames_from_table"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_rotate_down"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_rotate_up"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_fade_to_white"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_fade_to_black"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_pulse_white"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_pulse_black"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_restore_after_white"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_restore_after_black"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--fill", "7E0545-7E0545=00-7F", "--fill", "7E0546-7E0546=01-7F", "--fill", "7E054F-7E054F=C0-FF"]
+why = "the handler on slot 3, on its page and data bank with A's high byte clear, the slot's colors in the palette with a count and a table in the cartridge (its guard)"
+
+[[routine]]
+name = "palette_darken_all"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_darken_green_blue"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_darken_red_blue"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_darken_blue"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_darken_red_green"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_darken_green"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_darken_red"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_lighten_all"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_lighten_red"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_lighten_green"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_lighten_red_green"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_lighten_blue"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_lighten_red_blue"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "palette_lighten_green_blue"
+subsystem = "core"
+state = "field"
+args = ["--d", "0500", "--db", "00", "--range", "A=0000-00FF", "--range", "Y=0024-0024", "--range", "X=0020-0020", "--fill", "7E0545-7E0545=10-10", "--fill", "7E0546-7E0546=01-7F"]
+why = "the mode's loop on slot 3, entered with X its first color as its handler gives it (the first color fixed at $10), a count of 1-127 (its guard)"
+
+[[routine]]
+name = "memory_move_stub"
+subsystem = "core"
+state = "menus"
+args = ["--long", "--fill", "7E9690-7E9690=54-54", "--fill", "7E9693-7E9693=6B-6B", "--fill", "7E9691-7E9692=7E-7F", "--range", "A=0000-03FF"]
+why = "the stub in place (its guard), moving up to 1 KiB between the work RAM banks, as the menus and the save code do"
+
+[[routine]]
+name = "tile_animation_upload"
+subsystem = "core"
+state = "field"
+args = ["--long"]
+why = "any state: it sets its own pages; the guard refuses a slot whose tiles would be read from the top of the stack, where the original's saved registers are"
+
+[[routine]]
+name = "display_blank_and_stop_interrupts"
+subsystem = "core"
+state = "field"
+args = []
+why = "any state"
+
+[[routine]]
+name = "display_init_registers"
+subsystem = "core"
+state = "field"
+args = []
+why = "any state: the power-on block writes every register it sets and hands over to the boot"

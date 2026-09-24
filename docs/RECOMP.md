@@ -5565,6 +5565,73 @@ vblank calls off by 1024 clocks or more to none, so their three exceptions
 left `tools/timing_exceptions.txt`. `event_run_init_scripts` keeps its own:
 its error follows its walk over the slots, which this doesn't touch.
 
+### Phase 3a: the rest of core -- palette animation, animated tiles, the block move, the display
+
+After the controller, the rest of `game/core/` was off the baseline but read
+as translation: `palette.c` took the machine in every function, reached its
+slots as byte offsets through the original's Y, used the hardware multiplier
+to compute and re-read its scratch pointer every color; `tile_animation.c`
+did offset arithmetic into the slot records and computed its call sites;
+`memory.c` was the block move as `m_mvn`; `display.c`'s blanking mixed its
+register work into the logic. All four are rewritten; `sound_driver.c` is
+left, since it is the original driver's upload protocol and goes when the C
+sound driver becomes the default. Core scores 0.03-0.08 operations a line
+per file, and only the entries' wrappers and guards take the machine.
+
+**Palette animation** is a module over the slots: an `AnimationType` for what
+a slot does (cycle frames in order or from a table, rotate either way, fade
+or pulse toward white or black), named operations (`show_frame`,
+`rotate_colors`, `fade_step`, `pulse_step`, `restore_colors`), and the
+fourteen fade modes as two tables of what each changes (`FadeChannels`: the
+channels it scales, those it keeps, and the byte of the working color the two
+one-byte modes leave). A channel is scaled in C at the place in a byte where
+the original holds it (blue two bits up, green three), since that sets the
+rounding the player sees. The location's animations load from the ROM's sets
+through a `SetStream`; `palette_data.h` takes the game's state. What the
+original leaves for nobody but shadow mode -- its scratch cells, its long
+pointer, the multiplier's operands, the work RAM port's address -- is written
+once, as scaffolding, from a table parallel to the game's (`FadeLoop`), and
+the handlers' X comes from the slot afterwards in the wrappers (`run_end`,
+with `palette_animate` noting which slot ran last). The dispatcher and the
+fades keep their time per handler and per mode's loop through a new
+`TIMED_AS` (charge.h),
+and a mode's loop charges per color what the original spends there on its
+scratch and the multiplier, which the port does once (the scaffolding's own
+accesses uncounted: `charge_uncounted_begin`). The multiplier's first operand,
+which a mode's loop is entered with, is read through `hw_multiplicand`
+(cpu_io.h). Each entry is guarded to the slots the game makes (a count of at
+least 1, the colors in the palette, a rotation's and a frame's count under
+128, a frame table in the cartridge; a mode's loop entered with X its slot's
+first color): the original's loops take a count of 0 as 65536 and run on past
+the palette, which no game state does. `re/ram.toml` gained `frames_bank`.
+
+**Animated tiles** send a slot's current frame through `vid_send_vram`, with
+each slot's copy of the original's code named at its call, and the stack
+bytes the original's saves leave are no longer written: a guard refuses the
+one state that could send them (a slot reading its tiles from the top of the
+stack). **The block move** is a copy through `wram.h` charged per byte at the
+stub's own rate, with the registers an `MVN` leaves (`m_leave_mvn`); its guard
+also refuses a move over the stub itself. **The display**: blanking and
+stopping is a function of the platform, and both entries declare what their
+callers don't read (A, and the power-on block's direct page and registers at
+the boot), so the wrappers set only the data bank and the interrupt mask.
+
+**Measured.** Over the library every call of every entry matches with the
+same counts as before, so no guard refuses a call the game makes. Fuzzed
+against `main`'s ports (`tools/fuzz_compare.py`, the `core` entries in
+`tools/fuzz_routines.toml`), seeds 1 and 2, 20000 states each: the handlers,
+modes, loader, clear, the display entries and the tile upload 0 mismatched
+before and after (the tile guard refusing 64 and 59 states that read the
+stack); `palette_animate` 0 where `main`'s port mismatched 47 and 44 (a frame
+slot with a count of 0 over its own return address), refusing the count-0
+states; the block move 0 where `main`'s mismatched 14 and 16 (moves over the
+stub), refusing 67 and 74. `palette_animate` and `palette_lighten_all` are in `tools/timing_exceptions.txt` for their vblank tail (3.9% and 3.6% of vblank calls off by a line or more, writing the working palette in RAM). The rows of the rewritten entries were
+recalibrated, and those whose work is charged at the block move's rate,
+which the rewrite moved: `scene_draw_circle`'s two and three of the Epoch's
+(`menu_epoch_build_map`, `menu_epoch_build_gate_window`,
+`menu_epoch_time_dial_object`); the time dial's setup call keeps a vblank tail
+of 1.58% on that account, and is in `tools/timing_exceptions.txt`.
+
 ### Phase 3a: the menus' follow-ups and the Epoch
 
 The menus' rewrite left two things (TODO.md, "What menu's rewrite left"): what

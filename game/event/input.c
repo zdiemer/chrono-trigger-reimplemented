@@ -10,8 +10,7 @@
  * Each is a condition: on after it if the button is down, otherwise its jump. */
 #include "event/script.h"
 
-/* The buttons, in the game's order, as the held buttons have them. */
-enum { BUTTON_A = 0x80, BUTTON_X = 0x40, BUTTON_L = 0x20, BUTTON_R = 0x10, BUTTON_B = 0x08, BUTTON_Y = 0x04 };
+#include "core/input.h"
 
 /* The player's button assignments, as the remapped buttons have them: each
  * bit is set while all the buttons of one assignment are down. The scripts
@@ -21,8 +20,6 @@ enum { FIRST_ASSIGNMENT = 0x80, FOURTH_ASSIGNMENT = 0x02, ANYTHING = 0xFFFF };
 
 /* A press as the field latches it: the game's order in the high byte. */
 #define PRESSED(button) ((uint16_t)((button) << 8))
-
-enum { HELD = 1 };   /* input_mapped: the held buttons, through the assignments */
 
 // $C0:66C6
 /* If a button is held. */
@@ -37,7 +34,7 @@ EVENT_OPERATION(if_held, buttons)
  * direction pad included). */
 static EventFlow if_assignment_held(GameState *g, uint16_t buttons)
 {
-    return unless_jump((input_mapped(g, HELD) & buttons) != 0);
+    return unless_jump((input_mapped(g, ASSIGNED_HELD) & buttons) != 0);
 }
 EVENT_OPERATION(if_assignment_held, buttons)
 

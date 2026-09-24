@@ -802,6 +802,8 @@ uint8_t palette_animations_fade_target(const GameState *g, unsigned slot) { IN_R
 void set_palette_animations_fade_target(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_fade_target", "count", slot, 12u); w8(g, 0x7E0528u + (uint32_t)slot * 0x0Cu, v); }
 uint16_t palette_animations_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_frames", "count", slot, 12u); return r16(g, 0x7E0526u + (uint32_t)slot * 0x0Cu); }
 void set_palette_animations_frames(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 2, "set_palette_animations_frames", "count", slot, 12u); w16(g, 0x7E0526u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_frames_bank(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_frames_bank", "count", slot, 12u); return r8(g, 0x7E0528u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_frames_bank(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_frames_bank", "count", slot, 12u); w8(g, 0x7E0528u + (uint32_t)slot * 0x0Cu, v); }
 uint32_t palette_animations_frame_table(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_frame_table", "count", slot, 12u); return r24(g, 0x7E0529u + (uint32_t)slot * 0x0Cu); }
 void set_palette_animations_frame_table(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 2, "set_palette_animations_frame_table", "count", slot, 12u); w24(g, 0x7E0529u + (uint32_t)slot * 0x0Cu, v); }
 uint16_t tile_animations_accumulator(const GameState *g, unsigned slot) { IN_RANGE(g, 3, "tile_animations_accumulator", "count", slot, 12u); return r16(g, 0x7E05B0u + (uint32_t)slot * 0x05u); }

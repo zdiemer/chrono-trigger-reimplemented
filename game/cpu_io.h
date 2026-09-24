@@ -29,6 +29,10 @@
  * second operand starts a product. */
 void hw_set_multiplicand(GameState *g, uint8_t a);
 uint16_t hw_multiply_by(GameState *g, uint8_t b);
+/* The first operand a caller left in the multiplier, for a routine that
+ * multiplies by it itself (as hw_dividend: no time, the register can't be
+ * read on the machine). */
+uint8_t hw_multiplicand(const GameState *g);
 
 /* The divider: the dividend a division starts from (which stays until it is
  * set again, so a routine can divide it by one divisor after another), the
