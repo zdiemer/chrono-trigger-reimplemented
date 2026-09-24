@@ -1018,8 +1018,9 @@ its mechanics: eight voices, each a sample from the directory
 (`au_voice_sample`) at a pitch in 4096ths of the sample's rate
 (`au_voice_pitch`), shaped by an ADSR envelope (`AuEnvelope`) or a gain
 (`AuGain`), at a volume on each side; key on and key off by voice set
-(`AuVoiceSet`); the master volume; the mixer's switches (`AuMixer`: the noise
-clock, echo writes, mute, reset); noise and pitch modulation by voice set; the
+(`AuVoiceSet`); the master volume; the noise's clock (`au_noise_clock`); the
+whole output stopped (`au_output_stopped`: silent, every voice keyed off and
+held); noise and pitch modulation by voice set; the
 echo's voices, volume, feedback, eight filter taps, delay and writes; a hold
 of every envelope (the driver's pause); a voice's current output (the
 driver's meter mode reads it); and the driver's own sample, defined and
@@ -1027,6 +1028,18 @@ rewritten a byte at a time (`au_sample_define`, `au_sample_write`). No call
 names a register or implies a write order. The one escape is
 `au_voices_snes_register`, for the command whose meaning is "write this
 S-DSP register" (`$FD`), which the game never sends.
+
+The S-DSP keeps the noise clock, the echo's writes and the output's two
+switches in one register (FLG), which a single `au_mixer` call first set whole:
+the driver's every-tick call for the noise clock also turned the echo's writes
+on and the output on without saying so. Each is a call of its own now, and the
+S-DSP implementation changes only its own bits of the register. What the
+original does is still said: its flush writes FLG whole from its shadow every
+tick, so the driver's flush sets all three -- the noise at its clock, the echo
+writing, the output on -- undoing whatever changed them since (a `$FD` write),
+and the stop for a reload sets them the other way with the clock at 0. The
+register file after each tick is the same byte, which is what the lockstep
+compares.
 
 The handle, `AuVoices`, is opaque to game code. Its first implementation,
 `runtime/platform/voices_dsp.{h,c}`, turns each call into the register writes
@@ -1457,6 +1470,97 @@ counts and the constraints each needs are in [PORTING.md](PORTING.md).
 `--native on --recomp only` still produces traces identical to `--native off`
 (3600 frames of `new-game`, no divergence in WRAM, VRAM, SRAM, CGRAM or OAM),
 so the block boundaries the new registry entries move change nothing.
+
+#### The services' gaps the reviews found, closed
+
+The Phase 3a reviews of scene, field and the menus found ports spelling out
+SNES mechanics because the video service had no call for what they meant:
+setups decoding literal register bytes (`vid_mode_decode(0x09)`,
+`vid_bg_map_decode(&b, 0x5A)`), a per-call array of the original's write order
+for every transfer and line effect (`VID_STEP_*` in a `VidSnesXfer`) with the
+DMA channel and mode beside it, line tables built from raw color math and
+window bytes, and the sprite table's ninth X bit, 8-bit Y and hide line in
+`field/sprites.c`. Four additions close them, all additive: the older forms
+stay for the ports not moved yet (below).
+
+- **A whole screen as one value.** `VidScreen` holds what a mode sets up when
+  it starts -- the display (or none, to keep it), the sprites' sizes and tiles,
+  the BG mode and mosaic, each layer's tilemap, tiles and scroll, the Mode 7
+  plane, the windows, the main and sub screens' layers, color math and its
+  fixed color (`vid_fixed_color` builds the BGR555 value), the video settings
+  and the VRAM port -- and `vid_apply_screen(pf, o, &screen)` sets it. The
+  four whole-screen routines are one static value and one call each: the
+  power-on register block `$FD:C036` (`core/display.c`), a scene's first
+  screen `$7E:30F9` (`scene/screen.c`), and the menus' two, `$C2:0043` and
+  `$C2:940D` (`menu/display.c`). The field's `$FD:C0D7` sets part of a
+  screen, not all, so it stays a run of setters, which already said what they
+  set. Layer sets have names (`VID_BG1_BIT` ... `VID_OBJ_BIT`, `VID_BACK_BIT`,
+  `VID_ALL_LAYERS`) and a tilemap its initializer (`VID_TILEMAP`).
+- **Uploads and line effects that say what moves where.** `vid_send_vram`,
+  `vid_send_vram_half`, `vid_send_vram_fill`, `vid_send_palette`,
+  `vid_send_oam`, `vid_start_vram_uploads`, `vid_set_line_slot`, a
+  `vid_set_line_table` without steps, and `vid_snes_copy` for the SNES-only
+  escape. An upload takes the VRAM port it sets as a value (NULL: as the port
+  was left), which is semantic -- a column steps 32 words -- and nothing else
+  of the SNES's. `vid_send_vram_in_mode` is the one call that takes a transfer
+  mode, for the field's screen transitions, whose mode is game data.
+- **Line tables' values from what they set.** A line effect's table is game
+  data in the form its target reads, so `vid_line_bg_map`,
+  `vid_line_math_layers`, `vid_line_fixed_color` and `vid_line_window_edges`
+  give a value that form from what it means; the field's dialog shading, its
+  window band's tilemap, its full-line window and its screens now read as
+  values (`field/line_effects.c`).
+- **The sprite table's form.** `VID_OAM_*` and `vid_oam_x_low`,
+  `vid_oam_high_bits`, `vid_oam_x`, `vid_oam_large` and `vid_oam_y` turn a
+  signed screen position into the table's entry and high bits and back; the
+  field's sprites (`field/sprites.c`) hold positions as signed coordinates
+  and no longer know the ninth bit, the hide line (`VID_OAM_HIDDEN_Y`) or how a
+  byte Y that comes round is read by where its object is (`vid_oam_y`, the
+  rule `$C0:B788` applies). The table stays game memory: the field still
+  builds it where the original did, since other routines read it, and
+  `vid_submit_sprites` (the sprite list "Migrating an existing port" sketches)
+  waits for all of them.
+
+**Where the write order went.** Shadow mode compares the DMA and HDMA
+registers as the original leaves them, and what they are left holding depends
+on the order: an empty upload stops at its size, a second upload doesn't
+program what the first did, the tile animation clears the size with a 16-bit
+store before writing its low byte. That order belongs to the original's code
+at each site, not to the game, so it moved to the SNES backend:
+`runtime/platform/snes/encodings.c` is a table of the original's sequences by
+call site (`PfOrigin.site`, which every call already passes), with the channel
+and mode each wrote -- 96 transfer and line-effect sites in 86 entries, the
+tile animation's twelve being two runs of copies -- and the four screen setups as ordered lists of
+setter calls with each one's instruction. The `vid_send_*` calls look their
+site up; one that isn't there, or that names a VRAM port where the original's
+sequence sets none (or the other way round), stops the program with the
+site's address rather than guess. A second backend never sees the table. The
+lint keeps it out of `game/`: `VID_STEP_*` and `VidSnesXfer` appear only in the
+files it lists as not moved (`test_write_order_only_where_left`), which may
+shrink and not grow.
+
+**Moved:** `core/display.c`, `core/palette.c`, `core/tile_animation.c`,
+`field/display.c`, `field/line_effects.c`, `field/window_corners.c`,
+`field/sprites.c`, `menu/display.c` (whose comments quoting the original's
+register writes went with its arrays), `scene/screen.c`, `scene/race.c` and
+`scene/title.c`; `scene/scene.h` no longer names a DMA channel or mode. The
+menus' queue at `$C2:8663` programmed its channel's mode inside the loop's
+first pass; that is a `vid_start_vram_uploads` at the instruction that does
+(`$C2:867A`) now, the same writes in the same order. **Not moved:** the battle
+(`battle/display.c`, `battle/frame.c`, `battle/nmi.c`), which a rewrite is
+changing, and three of the menus' files (`menu/epoch.c`, `menu/map.c`,
+`menu/line_effects.c`); docs/TODO.md lists their calls.
+
+**Checked** by the gate (shadow mode over the library, 0 mismatches; the
+trace, timing, vblank, route, don't-care and port-style checks), `--px-check`
+(every frame identical over the library, as before) and `--vid-check` (every
+movie's count the same as before: the observer sees the same calls, now made
+by the backend on the game's behalf). The moved entries were fuzzed against
+the ports they replace with `tools/fuzz_compare.py` (seed 1, 2000 states each,
+200 for the long transfers): 72 routines, every count the same before and
+after. The sound driver's change was checked with `ct_dev --sound-lockstep`
+over `new-game` (22426 ticks identical, the driver's state included) and 100
+runs of `ct_sound_fuzz`, none differing.
 
 ### P3: native renderer, pixel-identical
 

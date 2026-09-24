@@ -63,7 +63,7 @@ static void begin_block(Snes *s, uint16_t vram, uint32_t site, uint32_t stop)
  * the blocks after it too. */
 void scene_title_load_sprite_graphics(Snes *s)
 {
-    vid_begin_vram_uploads(m_platform(s), PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS, PF_GAME(0), NULL);
+    vid_start_vram_uploads(m_platform(s), PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS);
     begin_block(s, SPRITE_TILES_VRAM, 0x7E5983, 0x7E5986);
 }
 
@@ -92,21 +92,16 @@ enum { BG1_MAP_REST_VRAM = 0x6480, BG1_MAP_REST_BYTES = 0x0F00 };
  * size and nothing else, so the fill reads on from wherever that transfer left
  * the channel's source -- an address this routine never computes and no call
  * could name. The SNES-only escape carries it (`continue_channel`: the channel
- * supplies what the steps don't). The VRAM port is the setting the block before
+ * supplies what the original doesn't program). The VRAM port is the setting the block before
  * left (`port`), and the decompressor's destination is moved to bank 0 first. */
 static void fill_bg1_map(GameState *g, Platform *pf, uint8_t port)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL, VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SIZE_LO,
-        VID_STEP_SIZE_HI, VID_STEP_START,     VID_STEP_END,
-    };
     set_decompress_dest(g, decompress_dest(g) & 0x00FFFF);
     VidVramPort vram_port = vid_vram_port_decode(port);
-    vid_begin_vram_uploads(pf, PF_AT(0x7E59D8), &vram_port, PF_GAME(0), NULL);
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, (uint8_t)(SCENE_DMA_WORDS | SCENE_DMA_FIXED_SOURCE), steps, NULL };
+    vid_start_vram_uploads(pf, PF_AT(0x7E59D8), &vram_port);
     const VidSnesTransfer t = { .size = BG1_MAP_REST_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
                                 .target = BG1_MAP_REST_VRAM, .continue_channel = true };
-    vid_snes_transfer(pf, PF_AT(0x7E59DD), &t, &x);
+    vid_snes_copy(pf, PF_AT(0x7E59DD), &t);
 }
 
 /* The VRAM port's setting is in A. Stops at $7E:59F1, where the loader goes on. */
@@ -197,13 +192,7 @@ enum { REST_OF_PLANE_BYTES = 0x1000 };
  * through the SNES-only escape. */
 static void load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,     VID_STEP_DEST,    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,   VID_STEP_START,
-        VID_STEP_END,
-    };
-    static const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_FIXED_SOURCE, steps, NULL };
-    vid_begin_vram_uploads(pf, PF_AT(0x7E5ABE), SCENE_VRAM_LOW_BYTES, PF_GAME(0), NULL);
+    vid_start_vram_uploads(pf, PF_AT(0x7E5ABE), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E5AC4), PLANE_VRAM);
     for (int row = 0; row < PICTURE_ROWS; row++) {
         for (int column = 0; column < PICTURE_COLUMNS; column++) {
@@ -216,7 +205,7 @@ static void load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
     }
     const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE,
                                 .size = REST_OF_PLANE_BYTES };
-    vid_snes_transfer(pf, PF_AT(0x7E5AEB), &t, &x);
+    vid_snes_copy(pf, PF_AT(0x7E5AEB), &t);
     /* the port, where the original's reads of the picture leave it */
     ORIGINAL_EFFECT(hw_port_seek_address(g, (uint16_t)(PICTURE_TILES + PICTURE_BYTES)));
 }
@@ -244,7 +233,7 @@ bool scene_title_set_up_pendulum_present(Snes *s) { return m_code_matches(s, 0x7
 static const VidMode pendulum_mode = { .mode = 7 };
 static const VidMode7 pendulum_plane = { .outside = VID_M7_TRANSPARENT, .cx = 32, .cy = -64 };
 static const VidColorMath pendulum_math = { .sub_screen = true,
-                                            .layers = VID_LAYER_BIT(VID_BG1) | VID_LAYER_BIT(VID_BACK) };
+                                            .layers = VID_BG1_BIT | VID_BACK_BIT };
 static const VidBg pendulum_bg1 = { .map_base = BG1_MAP_VRAM, .map_w = 64, .map_h = 32 };
 static const VidBg pendulum_bg2 = { .map_base = BG2_MAP_VRAM, .map_w = 32, .map_h = 32 };
 static const VidBg pendulum_bg3 = { .map_base = BG3_MAP_VRAM, .map_w = 32, .map_h = 32 };
@@ -255,7 +244,7 @@ static void set_up_pendulum(Platform *pf)
 {
     vid_set_mode(pf, PF_AT(0x7E5A61), &pendulum_mode);
     vid_set_mode7(pf, PF_AT(0x7E5A65), &pendulum_plane, VID_M7_SELECT);
-    vid_set_screens(pf, PF_AT(0x7E5A6A), VID_LAYER_BIT(VID_BG1), VID_LAYER_BIT(VID_OBJ),
+    vid_set_screens(pf, PF_AT(0x7E5A6A), VID_BG1_BIT, VID_OBJ_BIT,
                     VID_SCREEN_MAIN | VID_SCREEN_SUB);
     vid_set_bg_map(pf, PF_AT(0x7E5A6F), VID_BG1, &pendulum_bg1);
     vid_set_bg_map(pf, PF_AT(0x7E5A6F), VID_BG2, &pendulum_bg2);
@@ -327,7 +316,7 @@ static bool move_logo(GameState *g, Platform *pf)
 {
     if ((int16_t)(scene_title_timer(g) - LOGO_LANDS) >= 0)
         return false;
-    vid_set_screens(pf, PF_AT(0x7E5CA4), VID_LAYER_BIT(VID_BG1) | VID_LAYER_BIT(VID_BG2) | VID_LAYER_BIT(VID_OBJ), 0,
+    vid_set_screens(pf, PF_AT(0x7E5CA4), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0,
                     VID_SCREEN_MAIN | VID_SCREEN_SUB);
     set_scene_channels_script(g, TITLE_CHANNEL, AFTER_THE_LOGO);
     set_scene_title_logo_x(g, LOGO_X);
@@ -437,13 +426,8 @@ enum { OFFSET_ROWS_BYTES = 0x80 };
 /* Each frame: the columns' offsets to BG3's map, and BG3's horizontal scroll. */
 static void upload_ripple(const GameState *g, Platform *pf)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO,   VID_STEP_TARGET_HI, VID_STEP_CONTROL, VID_STEP_DEST,
-        VID_STEP_SOURCE_LO,   VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO,
-        VID_STEP_SIZE_HI,     VID_STEP_VRAM_PORT, VID_STEP_START,   VID_STEP_END,
-    };
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_WORDS, steps, SCENE_VRAM_WHOLE_WORDS };
-    vid_upload_vram(pf, PF_AT(0x7E6215), BG3_MAP_VRAM, PF_GAME(SCENE_TILEMAP_BUFFER), OFFSET_ROWS_BYTES, &x);
+    vid_send_vram(pf, PF_AT(0x7E6215), BG3_MAP_VRAM, PF_GAME(SCENE_TILEMAP_BUFFER), OFFSET_ROWS_BYTES,
+                  SCENE_VRAM_WHOLE_WORDS);
     vid_set_scroll(pf, PF_AT(0x7E623E), VID_BG3, scene_bg3_scroll_x(g), 0, VID_SCROLL_H);
 }
 

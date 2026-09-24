@@ -63,7 +63,7 @@ static const CornerSites marked_corners[WINDOWS][2] = {
  * writes with their own routines are written in the routines' order. */
 static void refresh_window_corners(GameState *g, Platform *pf)
 {
-    vid_begin_vram_uploads(pf, PF_AT(0xC0F069), VID_VRAM_WORD_PORT, PF_GAME(0), NULL);
+    vid_start_vram_uploads(pf, PF_AT(0xC0F069), VID_VRAM_WORD_PORT);
     unsigned selected = field_window_tile_slot(g);
     for (unsigned w = 0; w < WINDOWS; w++)
         if (w != selected)

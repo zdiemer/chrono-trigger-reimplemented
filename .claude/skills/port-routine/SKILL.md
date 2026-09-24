@@ -73,7 +73,11 @@ it, don't work around it:
 - shared in the subsystem → the subsystem's header;
 - it touches the host (video, audio, timing, input, saves) → a call in
   `runtime/platform/`, added additively. A lint test enforces that no PPU, DMA,
-  HDMA or APU register number appears in `game/`;
+  HDMA or APU register number appears in `game/`. A transfer or line effect is
+  a `vid_send_*`, `vid_set_line_slot` or `vid_snes_copy` call saying what moves
+  where; the original's channel and write order at that site go in the SNES
+  backend's table (`runtime/platform/snes/encodings.c`), never in the port, and
+  a mode's whole screen setup is one `VidScreen` value and `vid_apply_screen`;
 - it reads ROM data → a named accessor (`sound_data.h`, `scene_data.h`,
   `screen_data.h`, `field_data.h`, `palette_data.h`), never
   `m_read8(s, 0xD15E10 + i)` mid-routine. Where MD2 typed the resource

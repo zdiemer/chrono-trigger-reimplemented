@@ -35,10 +35,6 @@
  * time, stepping after the high byte. */
 static const VidVramPort word_port = { .step = 1, .after_high = true };
 
-/* The menus upload over DMA channel 7, the mode at $C2:0000 over channel 0. */
-enum { MENU_DMA = 7, OBJECT_DMA = 0 };
-enum { DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01, DMA_FILL_WORDS = 0x09, DMA_FIXED_BYTE = 0x08 };
-
 /* What a screen shows while it is set up: nothing, at full brightness. */
 static const VidDisplay BLANK = { .blank = true };
 
@@ -47,8 +43,9 @@ bool menu_display_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
 /* PLP, narrowing X and Y when the pulled P makes them 8-bit. */
 static void plp(Snes *s)
 {
-    s->cpu.p = m_pull8(s);
-    if (s->cpu.p & CPU_FLAG_X) {
+    uint8_t p = m_pull8(s);
+    s->cpu.p = p;
+    if (p & CPU_FLAG_X) {
         s->cpu.x &= 0xFF;
         s->cpu.y &= 0xFF;
     }
@@ -110,22 +107,6 @@ static void send_screen_shadows(Platform *pf, const ScreenShadows *v, const Scre
     vid_set_color_math(pf, PF_AT(at->control), &math, VID_MATH_CONTROL);
     vid_color_math_decode(&math, VID_MATH_LAYERS, v->math_layers);
     vid_set_color_math(pf, PF_AT(at->layers), &math, VID_MATH_LAYERS);
-}
-
-/* The screen set up with nothing on it: no windows, no layers, no color math. */
-static void clear_screen_shadows(Platform *pf, const ScreenSites *at)
-{
-    const ScreenShadows none = { 0 };
-    send_screen_shadows(pf, &none, at);
-}
-
-static void set_tilemaps(Platform *pf, const uint8_t bytes[4], const uint32_t sites[4])
-{
-    for (int bg = 0; bg < 4; bg++) {
-        VidBg b = { 0 };
-        vid_bg_map_decode(&b, bytes[bg]);
-        vid_set_bg_map(pf, PF_AT(sites[bg]), (VidLayer)bg, &b);
-    }
 }
 
 /* ---- The mode at $C2:800E ------------------------------------------------------------------------ */
@@ -236,14 +217,6 @@ void menu_nmi_work(Snes *s)
     m_stop_at(s, 0xC28466, NOTHING_READ);
 }
 
-/* $C2:8607-$C2:8623: STX $2102 : STX $4370 : STX $4372 : STX $4375 :
- * STA $4374 : STA $420B, with the sprite table at $7E:0700. */
-static const uint8_t menu_oam_steps[] = {
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_CONTROL,     VID_STEP_DEST,
-    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SIZE_LO,     VID_STEP_SIZE_HI,
-    VID_STEP_SOURCE_BANK, VID_STEP_START,   VID_STEP_END,
-};
-
 enum { SCROLLED_LAYERS = 3 };
 
 /* The layers' scroll, which the original reads through the work RAM port
@@ -294,17 +267,10 @@ static uint16_t move_the_block(GameState *g)
 /* The working palette to CGRAM, when it has changed since it was last sent. */
 static void send_palette(GameState *g, Platform *pf)
 {
-    /* STX $4370 : STX $4372 : STX $4375 : STA $4374 : STA $2121 : STA $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_SOURCE_BANK, VID_STEP_TARGET_LO,
-        VID_STEP_START,     VID_STEP_END,
-    };
-    static const VidSnesXfer x = { MENU_DMA, DMA_ONE_REGISTER, steps, NULL };
     if (menu_palette_changed(g) == 0)
         return;
     set_menu_palette_changed(g, 0);
-    vid_upload_palette(pf, PF_AT(0xC286BC), 0, PF_GAME(RAM_MENU_PALETTE), 256, &x);
+    vid_send_palette(pf, PF_AT(0xC286BC), 0, PF_GAME(RAM_MENU_PALETTE), 256);
 }
 
 // $C2:85D6
@@ -321,17 +287,15 @@ void menu_vblank_upload(Snes *s)
     send_menu_scroll(g, pf);
     send_menu_screen_shadows(g, pf);
     uint16_t y = M_DP_PPU + 0x33;
-    static const VidSnesXfer oam = { MENU_DMA, DMA_ONE_REGISTER, menu_oam_steps, NULL };
-    vid_upload_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER), &oam);
+    vid_send_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER));
     if (menu_line_effects(g) & BLOCK_MOVE_ASKED) {
         set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~BLOCK_MOVE_ASKED));
         y = move_the_block(g);
     }
     NATIVE_TIME_AS(s, 0xC286A9, send_palette(g, pf));
-    static const uint8_t table_steps[] = { VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_END };
     uint16_t table = (uint16_t)RAM_ABS(RAM_MENU_MATH_LINE_TABLES)
                      + ((menu_math_line_table_offset(g) >> 8) ? RAM_MENU_MATH_LINE_TABLES_STRIDE : 0);
-    vid_set_line_table(pf, PF_AT(0xC28660), 0, table, table_steps);
+    vid_set_line_table(pf, PF_AT(0xC28660), 0, table);
     s->cpu.y = y;
     s->cpu.db = 0x00;
     m_stop_at(s, 0xC28663, 0);
@@ -358,7 +322,8 @@ bool menu_vblank_work_runs(Snes *s)
     for (uint16_t at = STUB; at < STUB_END; at++)
         if ((uint16_t)(at - to) < bytes)
             return false;
-    for (uint16_t at = (uint16_t)(s->cpu.s - STACK_REACH); at != (uint16_t)(s->cpu.s + STACK_REACH); at++)
+    uint16_t stack = s->cpu.s;
+    for (uint16_t at = (uint16_t)(stack - STACK_REACH); at != (uint16_t)(stack + STACK_REACH); at++)
         if ((uint16_t)(at - to) < bytes || (uint16_t)(at - from) < bytes)
             return false;
     return true;
@@ -370,18 +335,6 @@ bool menu_vblank_work_runs(Snes *s)
  * the first entry's bank in Y. */
 void menu_upload_vram_queue(Snes *s)
 {
-    /* STA $4370 before the loop; then STA $2116 : STA $4372 : STY $4374 :
-     * STA $4375 : STX $420B in it. */
-    static const uint8_t first_steps[] = {
-        VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_TARGET_LO,   VID_STEP_TARGET_HI,
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO,
-        VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-    };
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,   VID_STEP_START,
-        VID_STEP_END,
-    };
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     unsigned entries = menu_vram_queue_bytes(g) / MENU_UPLOAD_BYTES;
@@ -391,12 +344,12 @@ void menu_upload_vram_queue(Snes *s)
         return;
     }
     set_menu_vram_queue_bytes(g, 0);
+    vid_start_vram_uploads(pf, PF_AT(0xC2867A), NULL);
     for (unsigned i = entries; i-- > 0;) {
         uint16_t size = menu_vram_queue_size(g, i);
-        const VidSnesXfer x = { MENU_DMA, DMA_WORDS, i == entries - 1 ? first_steps : steps, NULL };
-        vid_upload_vram(pf, PF_AT(0xC28686), menu_vram_queue_vram(g, i),
-                        PF_GAME((uint32_t)menu_vram_queue_bank(g, i) << 16 | menu_vram_queue_source(g, i)),
-                        size ? size : 0x10000u, &x);
+        vid_send_vram(pf, PF_AT(0xC28686), menu_vram_queue_vram(g, i),
+                      PF_GAME((uint32_t)menu_vram_queue_bank(g, i) << 16 | menu_vram_queue_source(g, i)),
+                      size ? size : 0x10000u, NULL);
     }
     s->cpu.y = menu_vram_queue_bank(g, 0);
     m_rts(s);
@@ -483,17 +436,13 @@ static uint16_t put_ramp(GameState *g, uint16_t at, uint8_t lines_a_step)
  * record a single entry or a ramp, into whichever table isn't showing. */
 static void build_math_line_table(GameState *g, Platform *pf)
 {
-    /* LDA #$3101 : STA $004300 then LDA #$007E : STA $004304 */
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_END,
-    };
     enum { TABLE_BYTES = 0x100 };
     for (unsigned i = 0; i < MENU_MATH_RAMP_COLORS_COUNT; i++)
         set_menu_math_ramp_colors(g, i, menu_math_ramp_color(g, i));
     ORIGINAL_EFFECT(charge_block_move(g, 2 * MENU_MATH_RAMP_COLORS_COUNT));
     const VidLineEffect e = { .target = VID_LINE_MATH_LAYERS, .table = PF_GAME(RAM_MENU_MATH_LINE_TABLES),
                               .indirect = false, .indirect_bank = 0x7E };
-    vid_set_line_effect(pf, PF_AT(0xC286ED), 0, &e, steps);
+    vid_set_line_slot(pf, PF_AT(0xC286ED), 0, &e);
     uint16_t at = menu_math_line_table_offset(g) == 0 ? TABLE_BYTES : 0;
     set_menu_math_line_table_offset(g, at);
     set_menu_math_ramp_accumulator(g, 0);
@@ -535,7 +484,7 @@ void menu_build_math_line_table(Snes *s)
 /* Entering the sprite-object mode: interrupts, uploads and per-line effects
  * off, then forced blank at full brightness, which is the brightness the
  * mode's vblank handler goes on using. Stops at $C2:0024, where the routine
- * moves on to the CPU registers ($420D, which has no service) and its own
+ * moves on to the CPU's memory speed, which has no service, and its own
  * state. */
 void menu_object_mode_start(Snes *s)
 {
@@ -550,42 +499,35 @@ void menu_object_mode_start(Snes *s)
     m_stop_at(s, 0xC20024, 0);
 }
 
+/* The mode's screen: the sprites' smaller size 16x16, their tiles at VRAM 0;
+ * mode 1 with BG3 in front; BG1 and BG2's tilemaps two screens wide at $6000
+ * and $6800 with their tiles at $2000, BG3's (and BG4's, the same) at $7800
+ * with its tiles at $7000; nothing scrolled; the Mode 7 plane at its identity;
+ * no windows; BG1-BG3 and the sprites on the main screen, BG1, BG2 and the
+ * sprites on the sub screen, which color math adds to BG3 at half; and a black
+ * fixed color. The display stays as the mode's start left it. */
+static const VidScreen object_mode_screen = {
+    .sprites = { .size_select = 3, .base = 0x0000 },
+    .mode = { .mode = 1, .bg3_priority = true },
+    .mosaic_size = 1,
+    .bg = { { VID_TILEMAP(0x6000, 64, 32), .char_base = 0x2000 },
+            { VID_TILEMAP(0x6800, 64, 32), .char_base = 0x2000 },
+            { VID_TILEMAP(0x7800, 64, 32), .char_base = 0x7000 },
+            { VID_TILEMAP(0x7800, 64, 32), .char_base = 0x7000 } },
+    .mode7 = { .a = 0x0100, .d = 0x0100 },
+    .main_layers = VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_OBJ_BIT,
+    .sub_layers = VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT,
+    .math = { .sub_screen = true, .half = true, .layers = VID_BG3_BIT },
+    .vram_port = { .step = 1, .after_high = true },
+};
+
 // $C2:0043
-/* The mode's screen: no sprites of the other size, mode 1 with BG3 in front,
- * the four tilemaps at $6000, $6800, $7800 and $7800 and the characters at
- * $2000 and $7000, every scroll and Mode 7 value at its identity, no windows,
- * BG1-BG3 and the sprites on the main screen with BG1, BG2 and the backdrop
- * on the sub screen, color math adding the sub screen at half, and a black
- * fixed color. Stops at $C2:00F2, where the routine moves on to the CPU
- * registers; the caller's direct page is kept on the stack. */
+/* Set the mode's screen up. Stops at $C2:00F2, where the routine moves on to
+ * the CPU registers; the caller's direct page is kept on the stack. */
 void menu_object_init_video(Snes *s)
 {
-    static const uint8_t maps[4] = { 0x61, 0x69, 0x79, 0x79 };
-    static const uint32_t map_sites[4] = { 0xC2005B, 0xC2005F, 0xC20063, 0xC20067 };
-    static const ScreenSites at = { 0xC200C2, 0xC200D6, 0xC200DE, 0xC200E4, 0xC200E8 };
-    Platform *pf = m_platform(s);
     m_push16(s, s->cpu.d);
-    VidObjConfig obj = vid_obj_config_decode(0x60);
-    vid_set_obj_config(pf, PF_AT(0xC2004A), &obj);
-    vid_set_oam_address(pf, PF_AT(0xC2004F), 0x0000, false);
-    vid_set_mode(pf, PF_AT(0xC20053), &(VidMode){ .mode = 1, .bg3_priority = true });
-    vid_set_mosaic(pf, PF_AT(0xC20057), 0x00, 1);
-    set_tilemaps(pf, maps, map_sites);
-    vid_set_bg_chars(pf, PF_AT(0xC2006B), VID_BG1, 0x2000, 0x2000);
-    vid_set_bg_chars(pf, PF_AT(0xC2006F), VID_BG3, 0x7000, 0x7000);
-    for (int bg = 0; bg < 4; bg++)
-        vid_set_scroll(pf, PF_AT((uint32_t)(0xC20073 + 8 * bg)), (VidLayer)bg, 0, 0, VID_SCROLL_H | VID_SCROLL_V);
-    vid_begin_vram_uploads(pf, PF_AT(0xC20095), VID_VRAM_WORD_PORT, PF_GAME(0), NULL);
-    vid_set_vram_address(pf, PF_AT(0xC2009A), 0x0000);
-    vid_set_mode7(pf, PF_AT(0xC2009E), &(VidMode7){ 0 }, VID_M7_SELECT);
-    VidMode7 identity = { .a = 0x0100, .d = 0x0100 };
-    vid_set_mode7(pf, PF_AT(0xC200A0), &identity, VID_M7_MATRIX);
-    vid_set_mode7(pf, PF_AT(0xC200B8), &identity, VID_M7_CENTER);
-    vid_set_palette_address(pf, PF_AT(0xC200C0), 0x00);
-    const ScreenShadows screen = { { 0 }, { 0 }, { 0 }, 0x17, 0x13, 0, 0, 0x02, 0x44 };
-    send_screen_shadows(pf, &screen, &at);
-    vid_set_fixed_color(pf, PF_AT(0xC200EC), VID_RED | VID_GREEN | VID_BLUE, 0);
-    vid_set_video_config(pf, PF_AT(0xC200F0), &(VidVideoConfig){ 0 });
+    vid_apply_screen(m_platform(s), PF_AT(0xC20043), &object_mode_screen);
     m_stop_at(s, 0xC200F2, 0);
 }
 
@@ -661,25 +603,11 @@ enum { FRAME_TO_SHOW = 0x01, PALETTE_TO_SEND = 0x02 };
 
 static void send_object_frame(GameState *g, Platform *pf)
 {
-    /* STX $2102 : STZ $4300 : STA $4301 : STX $4302 : STZ $4304 : STX $4305 :
-     * STA $420B, and the same order for the palette with STA $2121 first. */
-    static const uint8_t oam_steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_CONTROL,     VID_STEP_DEST,
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO,
-        VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-    };
-    static const uint8_t palette_steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_CONTROL,   VID_STEP_DEST,    VID_STEP_SOURCE_LO,
-        VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,
-        VID_STEP_START,     VID_STEP_END,
-    };
-    static const VidSnesXfer oam = { OBJECT_DMA, DMA_ONE_REGISTER, oam_steps, NULL };
-    static const VidSnesXfer palette = { OBJECT_DMA, DMA_ONE_REGISTER, palette_steps, NULL };
     vid_set_display(pf, PF_AT(0xC2017D), &BLANK);
     vid_enable_line_effects(pf, PF_AT(0xC20181), 0x00);
-    vid_upload_oam(pf, PF_AT(0xC20187), PF_GAME(RAM_ABS(RAM_OAM_BUFFER)), &oam);
+    vid_send_oam(pf, PF_AT(0xC20187), PF_GAME(RAM_ABS(RAM_OAM_BUFFER)));
     if (menu_object_frame_state(g) & PALETTE_TO_SEND)
-        vid_upload_palette(pf, PF_AT(0xC201AD), 0, PF_GAME(RAM_ABS(RAM_MENU_OBJECT_PALETTE)), 256, &palette);
+        vid_send_palette(pf, PF_AT(0xC201AD), 0, PF_GAME(RAM_ABS(RAM_MENU_OBJECT_PALETTE)), 256);
     set_menu_object_frame_state(g, 0);
     send_object_shadows(g, pf);
     place_line_tables(g);
@@ -736,11 +664,11 @@ void menu_object_nmi(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
+    /* A, X, Y and D, saved a word each and put back the other way round */
+    uint16_t *const saved[4] = { &s->cpu.a, &s->cpu.x, &s->cpu.y, &s->cpu.d };
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_push16(s, s->cpu.a);
-    m_push16(s, s->cpu.x);
-    m_push16(s, s->cpu.y);
-    m_push16(s, s->cpu.d);
+    for (int i = 0; i < 4; i++)
+        m_push16(s, *saved[i]);
     m_push8(s, s->cpu.db);
     s->cpu.d = 0x0000;
     m_sep(s, CPU_FLAG_M);
@@ -755,28 +683,19 @@ void menu_object_nmi(Snes *s)
     }
     m_rep(s, CPU_FLAG_M);
     s->cpu.db = m_pull8(s);
-    s->cpu.d = m_pull16(s);
-    s->cpu.y = m_pull16(s);
-    s->cpu.x = m_pull16(s);
-    s->cpu.a = m_pull16(s);
-    m_set_nz16(s, s->cpu.a);
+    for (int i = 3; i >= 0; i--)
+        *saved[i] = m_pull16(s);
+    m_set_nz16(s, *saved[0]);
     m_rti(s);
 }
 
 // $C2:0405
 /* The sprite-object mode's VRAM upload queue, unless something is queueing
  * right now: each record from the source, bank and VRAM address, size and
- * port setting it names, over channel 0; then the queue is empty and the
+ * port setting it names; then the queue is empty and the
  * upload buffer starts over. */
 static void send_object_queue(GameState *g, Platform *pf)
 {
-    /* STA $4302 : STA $2116 : STA $4305 : STA $4304 : STA $2115 : STA $4301 :
-     * STA $4300 : STA $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_TARGET_LO,   VID_STEP_TARGET_HI,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_SOURCE_BANK, VID_STEP_VRAM_PORT,
-        VID_STEP_DEST,      VID_STEP_CONTROL,   VID_STEP_START,       VID_STEP_END,
-    };
     enum { UPLOAD_BUFFER = 0x7EF000 };
     uint8_t end = menu_object_vram_queue_end(g);
     if (menu_object_vram_queue_busy(g) != 0 || end == 0)
@@ -791,8 +710,7 @@ static void send_object_queue(GameState *g, Platform *pf)
         uint8_t bank = in_queue ? menu_object_vram_queue_bank(g, r) : menu_object_vram_queue_bank_unchecked(g, r);
         VidVramPort port = vid_vram_port_decode(in_queue ? menu_object_vram_queue_port(g, r)
                                                          : menu_object_vram_queue_port_unchecked(g, r));
-        const VidSnesXfer x = { OBJECT_DMA, DMA_WORDS, steps, &port };
-        vid_upload_vram(pf, PF_AT(0xC20417), vram, PF_GAME((uint32_t)bank << 16 | source), size ? size : 0x10000u, &x);
+        vid_send_vram(pf, PF_AT(0xC20417), vram, PF_GAME((uint32_t)bank << 16 | source), size ? size : 0x10000u, &port);
         at = (uint8_t)(at + MENU_OBJECT_UPLOAD_BYTES);
     } while (at != end);
     set_menu_object_vram_queue_end(g, 0);
@@ -830,15 +748,7 @@ bool menu_object_queue_is_sendable(Snes *s)
  * It leaves X at 0. */
 void menu_clear_vram(Snes *s)
 {
-    /* STX $2116 : STA $2115 : STA $4370 : STA $4371 : STX $4372 : STA $4374 :
-     * STX $4375 : STA $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_VRAM_PORT, VID_STEP_CONTROL,
-        VID_STEP_DEST,      VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-    };
-    static const VidSnesXfer x = { MENU_DMA, DMA_FILL_WORDS, steps, &word_port };
-    vid_fill_vram(m_platform(s), PF_AT(0xC226AB), 0x0000, PF_GAME(0xC226D4), 0x10000, &x);
+    vid_send_vram_fill(m_platform(s), PF_AT(0xC226AB), 0x0000, PF_GAME(0xC226D4), 0x10000, &word_port);
     s->cpu.x = 0x0000;
     m_rts(s);
 }
@@ -848,16 +758,9 @@ void menu_clear_vram(Snes *s)
  * a time. A size of 0 is a whole 64 KiB, as the registers read it. */
 void menu_upload_vram(Snes *s)
 {
-    /* STX $4372 : STY $2116 : STA $4375 : STA $2115 : STX $4370 : STA $4374 :
-     * STA $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_TARGET_LO, VID_STEP_TARGET_HI,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_VRAM_PORT, VID_STEP_CONTROL,
-        VID_STEP_DEST,      VID_STEP_SOURCE_BANK, VID_STEP_START,   VID_STEP_END,
-    };
-    static const VidSnesXfer x = { MENU_DMA, DMA_WORDS, steps, &word_port };
     uint32_t size = s->cpu.a;
-    vid_upload_vram(m_platform(s), PF_AT(0xC22D70), s->cpu.y, PF_GAME(0x7F0000 | s->cpu.x), size ? size : 0x10000, &x);
+    vid_send_vram(m_platform(s), PF_AT(0xC22D70), s->cpu.y, PF_GAME(0x7F0000 | s->cpu.x), size ? size : 0x10000,
+                  &word_port);
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
@@ -868,77 +771,56 @@ void menu_upload_vram(Snes *s)
  * $C2:2D91, which the original carries on with. */
 void menu_upload_loaded_palette(Snes *s)
 {
-    /* STA $2121 : STX $4370 : STX $4372 : STA $4374 : STX $4375 : STA $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_CONTROL,   VID_STEP_DEST,    VID_STEP_SOURCE_LO,
-        VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,
-        VID_STEP_START,     VID_STEP_END,
-    };
-    static const VidSnesXfer x = { MENU_DMA, DMA_ONE_REGISTER, steps, NULL };
-    vid_upload_palette(m_platform(s), PF_AT(0xC22D4B), 0, PF_GAME(0x7F8C00), 256, &x);
+    vid_send_palette(m_platform(s), PF_AT(0xC22D4B), 0, PF_GAME(0x7F8C00), 256);
     m_sep(s, CPU_FLAG_M);
     m_stop_at(s, 0xC22D6A, 0);
 }
 
+/* The screen the graphics loader's screens are built on: forced blank; the
+ * sprites 8x8 and 16x16 with their tiles at VRAM $4000; mode 1 with BG3 in
+ * front; BG1-BG3's tilemaps two screens high at $5800, $6000 and $6800, BG1
+ * and BG2's tiles at 0 and BG3's at $7000, and BG4's all at 0; nothing
+ * scrolled; the Mode 7 plane at its identity; no windows, no layer on either
+ * screen and no color math; and a black fixed color. */
+static const VidScreen loader_screen = {
+    .display = &BLANK,
+    .sprites = { .size_select = 0, .base = 0x4000 },
+    .mode = { .mode = 1, .bg3_priority = true },
+    .mosaic_size = 1,
+    .bg = { { VID_TILEMAP(0x5800, 32, 64), .char_base = 0x0000 },
+            { VID_TILEMAP(0x6000, 32, 64), .char_base = 0x0000 },
+            { VID_TILEMAP(0x6800, 32, 64), .char_base = 0x7000 },
+            { VID_TILEMAP(0x0000, 32, 32), .char_base = 0x0000 } },
+    .mode7 = { .a = 0x0100, .d = 0x0100 },
+    .vram_port = { .step = 1, .after_high = true },
+};
+
 // $C2:940D
-/* The screen the graphics loader's screens are built on: forced blank, sprites
- * of the smaller sizes, mode 1 with BG3 in front, tilemaps at $B400, $C400 and
- * $D400 and characters at 0 and $7000, everything else at its identity or off,
- * and a black fixed color. Stops at $C2:94B8, where the routine moves on to
- * the CPU registers; the caller's data bank, direct page and flags are kept on
- * the stack for $C2:94D5 to put back. */
+/* Set the loader's screen up. Stops at $C2:94B8, where the routine moves on
+ * to the CPU registers; the caller's data bank, direct page and flags are kept
+ * on the stack for $C2:94D5 to put back. */
 void menu_init_video(Snes *s)
 {
-    static const uint8_t maps[4] = { 0x5A, 0x62, 0x6A, 0x00 };
-    static const uint32_t map_sites[4] = { 0xC2942B, 0xC2942F, 0xC29433, 0xC29437 };
-    static const ScreenSites at = { 0xC29494, 0xC294A6, 0xC294AA, 0xC294AE, 0xC294B0 };
-    Platform *pf = m_platform(s);
     m_push8(s, s->cpu.db);
     m_push16(s, s->cpu.d);
     m_push8(s, s->cpu.p);
     m_rep(s, CPU_FLAG_X);
     m_sep(s, CPU_FLAG_M);
     s->cpu.db = 0x00;
-    vid_set_display(pf, PF_AT(0xC2941F), &BLANK);
-    VidObjConfig obj = vid_obj_config_decode(0x02);
-    vid_set_obj_config(pf, PF_AT(0xC29423), &obj);
-    vid_set_mode(pf, PF_AT(0xC29427), &(VidMode){ .mode = 1, .bg3_priority = true });
-    set_tilemaps(pf, maps, map_sites);
-    vid_set_bg_chars(pf, PF_AT(0xC2943B), VID_BG1, 0x0000, 0x0000);
-    vid_set_bg_chars(pf, PF_AT(0xC2943F), VID_BG3, 0x7000, 0x0000);
-    vid_set_mosaic(pf, PF_AT(0xC29443), 0x00, 1);
-    for (int bg = 0; bg < 4; bg++)
-        vid_set_scroll(pf, PF_AT((uint32_t)(0xC29445 + 8 * bg)), (VidLayer)bg, 0, 0, VID_SCROLL_H | VID_SCROLL_V);
-    vid_begin_vram_uploads(pf, PF_AT(0xC29467), VID_VRAM_WORD_PORT, PF_GAME(0), NULL);
-    vid_set_vram_address(pf, PF_AT(0xC2946C), 0x0000);
-    vid_set_mode7(pf, PF_AT(0xC29470), &(VidMode7){ 0 }, VID_M7_SELECT);
-    VidMode7 identity = { .a = 0x0100, .d = 0x0100 };
-    vid_set_mode7(pf, PF_AT(0xC29472), &identity, VID_M7_MATRIX);
-    vid_set_mode7(pf, PF_AT(0xC2948E), &identity, VID_M7_CENTER);
-    vid_set_palette_address(pf, PF_AT(0xC29492), 0x00);
-    clear_screen_shadows(pf, &at);
-    vid_set_video_config(pf, PF_AT(0xC294B2), &(VidVideoConfig){ 0 });
-    vid_set_fixed_color(pf, PF_AT(0xC294B6), VID_RED | VID_GREEN | VID_BLUE, 0);
+    vid_apply_screen(m_platform(s), PF_AT(0xC2940D), &loader_screen);
     m_stop_at(s, 0xC294B8, 0);
 }
 
-/* A stretch of work RAM cleared with the byte at $C2:9510, over DMA channel 0
- * into the work RAM port, with the per-line effects off first (they share the
- * channel). The destination is memory, not video, so the transfer goes through
+/* A stretch of work RAM cleared with the byte at $C2:9510 through the work
+ * RAM port, with the per-line effects off first (the transfer runs on one of
+ * their channels). The destination is memory, not video, so the transfer goes through
  * the SNES-only escape; the port's address is its input. */
 static void clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 {
-    /* STY $4305 : STX $4300 : STX $4302 : STA $4304 : STA $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_CONTROL,     VID_STEP_DEST,
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_START,
-        VID_STEP_END,
-    };
-    static const VidSnesXfer x = { OBJECT_DMA, DMA_FIXED_BYTE, steps, NULL };
     vid_enable_line_effects(pf, PF_AT(0xC2951B), 0x00);
     hw_port_seek(g, at, 0);
     const VidSnesTransfer t = { .dest = 0x80, .source = 0xC29510, .size = bytes };
-    vid_snes_transfer(pf, PF_AT(0xC29526), &t, &x);
+    vid_snes_copy(pf, PF_AT(0xC29526), &t);
 }
 
 // $C2:94D5
@@ -947,18 +829,10 @@ static void clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes
  * direct page and data bank put back. */
 void menu_init_video_memory(Snes *s)
 {
-    /* STX $4300 : STX $4305 : STX $4302 : STA $4304 : STA $420B, with the VRAM
-     * address and port already set by the first half of the routine. */
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_START,
-        VID_STEP_END,
-    };
-    static const VidSnesXfer x = { OBJECT_DMA, DMA_FILL_WORDS, steps, NULL };
     static const struct { uint16_t at, bytes; } stretches[3] = { { 0x0C00, 0x1200 }, { 0x2E00, 0xD200 }, { 0x0000, 0x0100 } };
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
-    vid_fill_vram(pf, PF_AT(0xC294D8), 0x0000, PF_GAME(0xC29510), 0xFFFF, &x);
+    vid_send_vram_fill(pf, PF_AT(0xC294D8), 0x0000, PF_GAME(0xC29510), 0xFFFF, NULL);
     for (int i = 0; i < 3; i++)
         NATIVE_TIME_AS(s, 0xC29512, clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
     plp(s);
@@ -971,8 +845,9 @@ void menu_init_video_memory(Snes *s)
  * stack the loader's own return and saved flags are on. */
 bool menu_memory_stretch_misses_the_stack(Snes *s)
 {
-    uint32_t from = s->cpu.x, to = from + (s->cpu.y ? s->cpu.y : 0x10000u);
-    uint32_t low = (uint16_t)(s->cpu.s - 1), high = (uint32_t)s->cpu.s + 3;
+    uint16_t bytes = s->cpu.y, stack = s->cpu.s;
+    uint32_t from = s->cpu.x, to = from + (bytes ? bytes : 0x10000u);
+    uint32_t low = (uint16_t)(stack - 1), high = (uint32_t)stack + 3;
     return to <= low || from >= high;
 }
 
@@ -985,20 +860,13 @@ void menu_fill_memory(Snes *s)
 }
 
 // $C2:9542
-/* Copy Y bytes from $FF:A into work RAM at $7E:X, over DMA channel 0 into the
- * work RAM port: memory again, so the SNES-only escape. */
+/* Copy Y bytes from $FF:A into work RAM at $7E:X through the work RAM port:
+ * memory again, so the SNES-only escape. */
 void menu_copy_to_memory(Snes *s)
 {
-    /* STA $4302 : STY $4305 : STX $4300 : STA $4304 : STA $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SIZE_LO,     VID_STEP_SIZE_HI,
-        VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_SOURCE_BANK, VID_STEP_START,
-        VID_STEP_END,
-    };
-    static const VidSnesXfer x = { OBJECT_DMA, DMA_ONE_REGISTER, steps, NULL };
     const VidSnesTransfer t = { .dest = 0x80, .source = 0xFF0000u | s->cpu.a, .size = s->cpu.y };
     hw_port_seek(state_of(s), s->cpu.x, 0);
-    vid_snes_transfer(m_platform(s), PF_AT(0xC2954B), &t, &x);
+    vid_snes_copy(m_platform(s), PF_AT(0xC2954B), &t);
     m_rts(s);
 }
 
@@ -1032,10 +900,6 @@ static uint16_t window_table_of(uint8_t slot) { return (uint16_t)(0x9000 + (slot
  * leaves the base in Y. */
 void menu_window_set_line_effect(Snes *s)
 {
-    static const uint8_t channel_steps[] = {
-        VID_STEP_SOURCE_BANK, VID_STEP_INDIRECT_BANK, VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_END,
-    };
-    static const uint8_t table_steps[] = { VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_END };
     Platform *pf = m_platform(s);
     uint16_t base = m_read16(s, m_dp(s, 0x5B));
     uint16_t control = m_read16(s, m_dp(s, 0x5D));
@@ -1045,9 +909,9 @@ void menu_window_set_line_effect(Snes *s)
     vid_line_effect_decode((uint8_t)control, (uint8_t)(control >> 8), &e);
     e.indirect_bank = 0x7E;
     e.table = PF_GAME(0x7E0000u | table);
-    vid_set_line_effect(pf, PF_AT(0xC2F342), slot, &e, channel_steps);
+    vid_set_line_slot(pf, PF_AT(0xC2F342), slot, &e);
     m_write16(s, m_dp(s, 0x61), table);
-    vid_set_line_table(pf, PF_AT(0xC2F35C), slot, table, table_steps);
+    vid_set_line_table(pf, PF_AT(0xC2F35C), slot, table);
     s->cpu.y = base;
     m_rts(s);
 }
@@ -1086,8 +950,7 @@ static void build_window_line_table(GameState *g)
  * three cells: the second level, a run of lines out, and the groups. */
 void menu_window_build_line_table(Snes *s)
 {
-    static const uint8_t table_steps[] = { VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_END };
-    vid_set_line_table(m_platform(s), PF_AT(0xFFFC0A), 1, (uint16_t)RAM_ABS(RAM_MENU_WINDOW_LINE_TABLE), table_steps);
+    vid_set_line_table(m_platform(s), PF_AT(0xFFFC0A), 1, (uint16_t)RAM_ABS(RAM_MENU_WINDOW_LINE_TABLE));
     build_window_line_table(state_of(s));
     m_write8(s, m_dp(s, 0x00), SECOND_LEVEL);
     m_write8(s, m_dp(s, 0x01), 0);
