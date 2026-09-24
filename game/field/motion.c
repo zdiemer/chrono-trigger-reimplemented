@@ -20,6 +20,7 @@
 #include "field/field.h"
 #include "field/object.h"
 
+#include "charge.h"
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field_data.h"
@@ -366,10 +367,9 @@ static uint16_t distance_across(uint16_t other, uint16_t own)
     return (int16_t)d < 0 ? (uint16_t)~d : d;
 }
 
-static bool can_block(const GameState *g, FieldObject other, FieldObject obj)
+static bool can_block_in_view(const GameState *g, FieldObject other, FieldObject obj)
 {
-    return object_view(g, other) != OUT_OF_VIEW && !object_disabled(g, other) && other != obj &&
-           object_solid(g, other);
+    return !object_disabled(g, other) && other != obj && object_solid(g, other);
 }
 
 /* The search starts at the slot after the last object and runs down to the
@@ -429,9 +429,31 @@ bool field_looks_for_objects(const GameState *g, FieldObject obj)
     return object_view(g, obj) != OUT_OF_VIEW && (field_object_blocking(g, obj) & BLOCKED_BY_OBJECTS);
 }
 
+/* How far a search went: the slots it passed, those in view it looked at
+ * more closely, and those it measured. */
+typedef struct {
+    uint8_t passed, in_view, measured;
+} SearchLength;
+
+/* The original steps its index down the slots with the checks spelled out
+ * for each, where the port reads a byte or two a slot: its time is a pass
+ * for every slot, more for one in view, and more again for each it measures.
+ * What the port charges is that difference, in accesses at the search's own
+ * rate, so that one scalar fits a search of any length -- the moves that run
+ * it inline included (docs/RECOMP.md, "The absent party member and the
+ * object off the map"). */
+enum { OBJECT_IN_THE_WAY = 0xC05B95, ACCESSES_A_SLOT = 1, ACCESSES_IN_VIEW = 2, ACCESSES_A_MEASURE = 5 };
+
+static void charge_search(GameState *g, SearchLength n)
+{
+    charge_as(g, OBJECT_IN_THE_WAY,
+              (uint32_t)n.passed * ACCESSES_A_SLOT + (uint32_t)n.in_view * ACCESSES_IN_VIEW +
+                  (uint32_t)n.measured * ACCESSES_A_MEASURE);
+}
+
 /* The objects are looked at from the one past the last down to the second
  * (the first is the party's leader), until one is found in the way. */
-static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj)
+static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj, SearchLength *n)
 {
     ObjectsAhead r = { false, false, 0 };
     if (!field_looks_for_objects(g, obj))
@@ -440,7 +462,12 @@ static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj)
     FieldPosition at = object_position(g, obj);
     ORIGINAL_EFFECT(leave_blocking_check(g, facing, at));
     for (FieldObject other = (FieldObject)event_object_count(g); other != 0; other--) {
-        if (can_block(g, other, obj)) {
+        n->passed++;
+        if (object_view(g, other) == OUT_OF_VIEW)
+            continue;
+        n->in_view++;
+        if (can_block_in_view(g, other, obj)) {
+            n->measured++;
             r = (ObjectsAhead){ false, true, other };
             Measure m = measure(at, object_position(g, other), facing, other < obj);
             if (close_ahead(m) && m.across < REACH)
@@ -453,8 +480,10 @@ static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj)
 // $C0:5B95
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
 {
-    ObjectsAhead r = look_for_objects_ahead(g, obj);
+    SearchLength n = { 0, 0, 0 };
+    ObjectsAhead r = look_for_objects_ahead(g, obj, &n);
     ORIGINAL_EFFECT(leave_target(g, r));
+    ORIGINAL_EFFECT(charge_search(g, n));
     return r;
 }
 
@@ -584,11 +613,11 @@ static void leave_own_position(GameState *g, uint16_t y) { original_cell16(g, 0x
 
 // $C0:30B3
 /* Toward the other object's pixel, a step on each axis where they differ. */
-bool object_line_up_with(GameState *g, FieldObject obj, FieldObject target)
+bool object_line_up_with(GameState *g, FieldObject obj, FieldPosition other)
 {
     stand_still(g, obj);
-    uint16_t own_x = position_x(g, obj) & ON_TILE, other_x = position_x(g, target) & ON_TILE;
-    uint16_t own_y = position_y(g, obj) & ON_TILE, other_y = position_y(g, target) & ON_TILE;
+    uint16_t own_x = position_x(g, obj) & ON_TILE, other_x = other.x & ON_TILE;
+    uint16_t own_y = position_y(g, obj) & ON_TILE, other_y = other.y & ON_TILE;
     ORIGINAL_EFFECT(leave_own_position(g, own_y));
     if (other_x == own_x && other_y == own_y)
         return false;
@@ -761,8 +790,8 @@ void field_object_in_the_way(Snes *s)
 void field_line_up_with_object(Snes *s)
 {
     GameState *g = state_of(s);
-    bool moving = object_line_up_with(g, (FieldObject)field_current_object_slot(s),
-                                      field_linked_object(field_link_stored((uint8_t)field_target_object(g))));
+    FieldObject target = field_linked_object(field_link_stored((uint8_t)field_target_object(g)));
+    bool moving = object_line_up_with(g, (FieldObject)field_current_object_slot(s), object_position(g, target));
     m_set_flag(s, CPU_FLAG_C, moving);
     m_rts(s);
 }

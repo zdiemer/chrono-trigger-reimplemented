@@ -5478,6 +5478,93 @@ they were taken; the read and the mapping now make far fewer bus accesses
 than the original's instructions, and the clock, which reads and writes all
 six digits, more.
 
+### The absent party member and the object off the map
+
+Two guards from event's and field's combined pass refused calls the game
+really makes, so the original ran them, and a build without the original has
+nowhere to send them (PLAN.md, "A guard becomes an assertion"). Both are
+ported now: what the game does in each case is decided in its own terms, and
+what the original reads past its tables to get there is one marked piece of
+scaffolding each, which the native-shape build compiles out.
+
+**A member who isn't in the party.** Scripts written for a full party address
+its second and third members whether or not anyone is there. The party keeps
+an empty place as a link to none, `$80`, and the original takes that byte for
+an object's offset like any other: the slot one past the object tables, whose
+role is object 0's script position's low byte, whose position is object 0's
+vertical position and horizontal velocity. In the game's terms the member is
+nowhere: the language has an operand kind for a member by their place
+(`MEMBER`, `event/script.h`), and the commands that take one ask for them as
+`Someone` (`event/party.h`) -- whether anyone is there, whether they are
+disabled, where they stand. A walk or a follow toward nobody is over at once,
+as toward a disabled object; noting the tile of nobody leaves the variables as
+they were. For the gate, `member_in_place` fills in the original's phantom
+through `ORIGINAL_EFFECT(see_what_the_original_finds(...))` (`event/party.c`),
+which reads the slot through the unchecked accessors of the role and
+position (`field/object.h`, `object_past_the_tables`; `unchecked` in the map
+says why). Over the library the phantom mostly reads as disabled, which is
+what the game means; 3 calls in each of the stand-in objects' 5,000 (the
+objects for members 1 and 2 in the first maps of a new game, out of view)
+catch object 0's script at an offset whose top bit is clear, and set off
+toward a tile that isn't anywhere, and the ending that notes an absent
+leader's tile every frame has nothing read the variables before the map
+changes. Neither shows. One read comes later in the original than in the
+port -- lining up, it stops the walker before reading the other's position,
+which for walker 0 zeroes the phantom's fine vertical position -- and the
+scaffolding function makes that correction too. The guard now refuses only an
+odd marker, which would read the tables out of step and which the game never
+makes. `$24`, `$A9` and `$07` (waiting) still take a member's object without
+asking, and leave an empty place to the original; the game makes none of
+those calls (TODO.md).
+
+**An object off the map.** Scripts put an object that follows the map at tile
+column 64, or at (255, 255), to take it out of the way, and the original
+layers its sprite from the bytes past the attribute tables' rows (column 64's
+upper attributes are column 0's lower ones; (255, 255) reaches bank `$7F`).
+Off the map there is nothing to layer against: `object_layer_as_the_map`
+keeps the priorities the object had, and `ORIGINAL_EFFECT(layer_as_past_the_map(...))`
+(`field/object.c`, through `map_tile_attributes_past_the_map` in
+`field/layers.c` and the attribute tables' unchecked accessors) does what the
+original does. The guards on `$8B`, `$8C`, `$8D` and `$8E` are gone, and the
+map's openings run those commands as C too. The field's own step onto a tile
+off the map (`field_start_step`) is still only reached by fuzzing (TODO.md).
+
+**What moved.** Shadow mode over the 26 movies, against `main`'s logs: no
+mismatch, and every call these guards refused is compared.
+
+| Entry | Calls | Refused before | Refused after |
+|---|---|---|---|
+| `event_cmd_move_toward_party_member` | 72,121 | 52,898 | 0 |
+| `event_cmd_follow_party_member` | 70,971 | 52,898 | 0 |
+| `event_cmd_note_tile_member` | 38,500 | 2,735 | 0 |
+| `event_cmd_stand_on_tile` | 1,013 | 9 | 0 |
+| `event_cmd_place` | 520 | 1 | 0 |
+
+Every call of each matches. (The 10 commands the openings ran inline were
+handed to the original's handler through the table before, and are the
+openings' own C now.)
+
+**Fuzzing.** `tools/fuzz_compare.py` against `main`'s `ct_fuzz`, seed 1,
+20,000 states each, over the 60 entries these touch: 0 routines differ in
+mismatches. Each member command has an `absent` variant with every place of
+the party empty and its marker any byte from `$80` (odd ones refused): `main`
+compares none of those states, this tree about 2,400 each, all matching; the
+tile commands have an `offmap` variant with the tile from column 64 on, where
+`main` compares 4,875 and this tree 9,987, all matching.
+
+**Timing.** The member entries' time now includes calls that were the
+original's, and reading `Someone` reads the fine position too, so their rows
+were recalibrated. The search for an object in the way, which the moves run
+inline, charges the original's per-slot work the port doesn't do
+(`field/motion.c`, `charge_search`: accesses for each slot passed, each in
+view and each measured, at `field_object_in_the_way`'s own rate, through
+`charge_as`). That took `field_object_in_the_way`'s mean error from 69% to
+40% of its time, and the vblank tail of it, `event_cmd_move_to_tile` and
+`event_cmd_move_toward_party_member` from 1.08%, 3.09% and 1.23% of their
+vblank calls off by 1024 clocks or more to none, so their three exceptions
+left `tools/timing_exceptions.txt`. `event_run_init_scripts` keeps its own:
+its error follows its walk over the slots, which this doesn't touch.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,
