@@ -37,7 +37,6 @@ void battle_update_low_hp_flag(Snes *s);
 void battle_update_status_flags(Snes *s);
 void battle_update_all_combatants(Snes *s);
 void battle_select_status_pose(Snes *s);
-void battle_update_combo_members(Snes *s);
 void battle_update_combatant(Snes *s);
 
 /* battle/tiles.c */
@@ -112,12 +111,20 @@ void battle_step_object_palettes(Snes *s);
 void battle_index_record_groups(Snes *s);
 void battle_build_bitmap_sprites(Snes *s);
 
-/* battle/gauges.c */
+/* battle/window.c, battle/status.c, battle/digits.c, battle/menu_window.c,
+ * battle/numbers.c: the windows and the numbers, and the guard they run under */
+bool battle_window_ready(Snes *s);
+bool battle_window_member_ready(Snes *s);
+void battle_draw_window(Snes *s);
 void battle_draw_gauge(Snes *s);
+void battle_draw_party_status(Snes *s);
 void battle_number_to_digits(Snes *s);
 void battle_number_to_2_digits(Snes *s);
 void battle_blank_leading_zeros(Snes *s);
-void battle_draw_party_status(Snes *s);
+void battle_draw_menu_window(Snes *s);
+void battle_place_menu_cursors(Snes *s);
+void battle_update_combo_members(Snes *s);
+void battle_script_build_number_sprites(Snes *s);
 
 /* battle/arith.c, battle/buttons.c */
 void battle_multiply_8x8(Snes *s);

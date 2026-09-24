@@ -1,586 +1,498 @@
-/* Battle: drawing the battle window's tilemap.
+/* Battle: redrawing the battle window.
  *
- * The window tilemap at $0CC0 holds 2 bytes per tile (tile, attribute) and $40
- * bytes per row; $0B40 is a second tilemap of the same layout. $9F20 selects
- * one of three window layouts. */
+ * The window is redrawn whole when the battle starts and whenever the menu
+ * moves on to another member (menu_window.c). Its first six rows are cleared
+ * and headed HP and MP over the columns the layout puts them in; then each
+ * party member in the fight gets its line (window.h, MemberLine): its name in
+ * shaded text, its HP, a slash and its maximum HP in the first layout, its
+ * MP, and in the other layouts its gauge between two end caps. Beside the
+ * party, each kind of enemy in the fight is named, a line a kind.
+ *
+ * While members are choosing what to do, each of them has its command window
+ * (Attack, Tech or Combo, Item) at the window's left, a frame around it in the
+ * frames tilemap, and the member whose menu is open has its name plain and its
+ * command cursor drawn. While an action is aimed at a party member, the
+ * window marks that member's name instead. */
 #include "battle/window.h"
 
-#include "port/machine.h"
+#include "battle/bridge.h"
+#include "battle/combatant.h"
+#include "battle/entries.h"
+#include "battle/window_data.h"
+#include "original_effects.h"
+#include "vars.h"
 
-static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
-static void set_abs8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr), v); }
-static uint8_t absx8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.x); }
-static void set_absx8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.x, v); }
-static void set_absy8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.y, v); }
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
+/* ---- The layouts ------------------------------------------------------------------------ */
 
-/* INC/DEC on a direct-page byte, setting N and Z. */
-static uint8_t step_dp8(Snes *s, uint8_t cell, int delta)
+WindowLayout battle_window_layout_now(const GameState *g)
 {
-    uint8_t v = (uint8_t)(dp8(s, cell) + delta);
-    set_dp8(s, cell, v);
-    m_set_nz8(s, v);
-    return v;
+    switch (battle_window_layout(g)) {
+    case 0: return LAYOUT_MAX_HP;
+    case 1: return LAYOUT_NUMBERS_FIRST;
+    default: return LAYOUT_NUMBERS_AFTER;
+    }
 }
 
-/* DEC A at 8 and 16 bits. */
-static uint8_t dec_a8(Snes *s)
+/* A member's line is two rows, the first member's on the rows under the
+ * headings, and each layout puts the line's parts in its own columns. */
+enum { HEADING_ROW = 0, FIRST_LINE_ROW = 1, LINE_ROWS = 2 };
+
+MemberLine battle_member_line(WindowLayout layout, unsigned member)
 {
-    uint8_t v = (uint8_t)(s->cpu.a - 1);
-    m_set_a8(s, v);
-    m_set_nz8(s, v);
-    return v;
+    static const struct {
+        uint8_t name, hp, mp, gauge;
+    } columns[] = {
+        [LAYOUT_MAX_HP] = { 13, 20, 29, 0 },
+        [LAYOUT_NUMBERS_FIRST] = { 20, 13, 17, 25 },
+        [LAYOUT_NUMBERS_AFTER] = { 13, 19, 23, 25 },
+    };
+    unsigned row = FIRST_LINE_ROW + LINE_ROWS * member;
+    return (MemberLine){ .name = window_cell(row, columns[layout].name),
+                         .hp = window_cell(row, columns[layout].hp),
+                         .mp = window_cell(row, columns[layout].mp),
+                         .gauge = window_cell(row, columns[layout].gauge) };
 }
 
-static uint16_t dec_a16(Snes *s) { return m_lda16(s, (uint16_t)(s->cpu.a - 1)); }
+/* ---- A member's line ------------------------------------------------------------------- */
 
-/* ASL A (8-bit). */
-static uint8_t asl_a8(Snes *s)
+/* The tiles of the headings, of the cell after the HP (a slash before the
+ * maximum, or the edge of the HP's box), and of the gauge's end caps. */
+enum { TILE_H = 0x64, TILE_M = 0x65, TILE_P = 0x66, TILE_SLASH = 0xE0, TILE_HP_EDGE = 0x5F };
+enum { TILE_GAUGE_LEFT = 0x5D, TILE_GAUGE_RIGHT = 0x5E, GAUGE_CELLS = 4 };
+
+static uint8_t shade(bool shaded) { return shaded ? TEXT_SHADED : TEXT_PLAIN; }
+
+bool member_numbers_shaded(const GameState *g, unsigned member)
 {
-    uint8_t v = m_asl8(s, (uint8_t)s->cpu.a);
-    m_set_a8(s, v);
-    return v;
+    return battle_stats_hp(g, member) == 0 || (combatant_hp_low(g, member) && battle_blink(g) != 0);
 }
 
-/* LDA dp : ASL : ASL : STA dp : ASL : CLC : ADC dp : TAX -- X = value * 12. */
-static void times_12_to_x(Snes *s, uint8_t value, uint8_t cell)
+static void put_digits(GameState *g, WindowCell at, const uint8_t *tiles, unsigned n, uint8_t attributes)
 {
-    m_lda8(s, value);
-    asl_a8(s);
-    set_dp8(s, cell, asl_a8(s));
-    asl_a8(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)s->cpu.a, dp8(s, cell)));
-    m_tax(s);
+    for (unsigned i = 0; i < n; i++)
+        window_put(g, (WindowCell)(at + i), tiles[i], attributes);
 }
 
-/* REP #$21 : LDA dp : ADC #n : STA dp : TDC : SEP #$20 */
-static void add_dp16(Snes *s, uint8_t cell, uint16_t n)
+static void put_three_digits(GameState *g, WindowCell at, uint16_t n, uint8_t attributes)
 {
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-    m_lda16(s, dp16(s, cell));
-    set_dp16(s, cell, s->cpu.a = m_adc16(s, s->cpu.a, n));
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
+    Digits d = battle_digits_blanked(g, battle_digits_of(g, n, 3));
+    const uint8_t tiles[3] = { d.hundreds, d.tens, d.ones };
+    put_digits(g, at, tiles, 3, attributes);
 }
 
-static bool widths_ok(const Snes *s) { return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M; }
-
-/* JSR out; false if the callee didn't come back with 8-bit A and 16-bit X. */
-static bool jsr(Snes *s, uint32_t site, uint32_t target)
+void window_show_hp(GameState *g, WindowLayout layout, unsigned member, bool shaded)
 {
-    m_jsr(s, site, target);
-    return widths_ok(s);
+    WindowCell at = battle_member_line(layout, member).hp;
+    put_three_digits(g, at, battle_stats_hp(g, member), shade(shaded));
+    window_set_attributes(g, (WindowCell)(at + 3), shade(shaded));
+    if (layout == LAYOUT_MAX_HP)
+        for (unsigned i = 0; i < 3; i++)
+            window_set_attributes(g, (WindowCell)(at + MAX_HP_AFTER_HP + i), shade(shaded));
 }
 
-/* LDA #count : STA $8E (: LDY $84 when `load_y`), then `count` tiles from
- * table,X to the tilemap at Y with attribute `attr`. */
-static void copy_tile_row(Snes *s, uint16_t table, uint8_t attr, uint8_t count, bool load_y)
+void window_show_mp(GameState *g, WindowLayout layout, unsigned member, bool shaded)
 {
-    set_dp8(s, 0x8E, m_lda8(s, count));
-    if (load_y)
-        m_set_index(s, &s->cpu.y, dp16(s, 0x84));
-    do {
-        set_absy8(s, 0x0CC0, m_lda8(s, absx8(s, table)));
-        set_absy8(s, 0x0CC1, m_lda8(s, attr));
-        m_iny(s);
-        m_iny(s);
-        m_inx(s);
-    } while (step_dp8(s, 0x8E, -1) != 0);
+    Digits d = battle_digits_blanked(g, battle_digits_of(g, battle_stats_mp(g, member), 2));
+    const uint8_t tiles[2] = { d.tens, d.ones };
+    put_digits(g, battle_member_line(layout, member).mp, tiles, 2, shade(shaded));
 }
 
-/* REP #$20 : SEC : LDA $84 : SBC #$0040 : TAY : TDC : SEP #$20 -- the row above. */
-static void row_above(Snes *s)
+/* A name is two rows tall: its lower half on the line's row, five tiles, and
+ * its upper half on the row above; the party's names are kept as tiles, the
+ * lower half first. */
+enum { NAME_LENGTH = 5 };
+
+static void put_name(GameState *g, WindowCell at, unsigned member)
 {
-    m_rep(s, CPU_FLAG_M);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_lda16(s, dp16(s, 0x84));
-    s->cpu.a = m_sbc16(s, s->cpu.a, 0x0040);
-    m_set_index(s, &s->cpu.y, s->cpu.a);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
+    for (unsigned i = 0; i < NAME_LENGTH; i++) {
+        window_put(g, (WindowCell)(at + i), battle_party_name_tiles(g, 2 * NAME_LENGTH * member + i), TEXT_SHADED);
+        window_put(g, (WindowCell)(at - WINDOW_COLUMNS + i),
+                   battle_party_name_tiles(g, 2 * NAME_LENGTH * member + NAME_LENGTH + i), TEXT_SHADED);
+    }
 }
 
-/* CLC or SEC : LDA $84 : ADC or SBC #n : TAY (16-bit A) */
-static void y_from_row(Snes *s, int16_t offset)
+/* The name of the member whose menu is open, or who is the target, shown
+ * plain among the shaded ones. */
+static void show_name_plain(GameState *g, WindowLayout layout, unsigned member)
 {
-    Cpu *c = &s->cpu;
-    m_set_flag(s, CPU_FLAG_C, offset < 0);
-    m_lda16(s, dp16(s, 0x84));
-    c->a = offset < 0 ? m_sbc16(s, c->a, (uint16_t)-offset) : m_adc16(s, c->a, (uint16_t)offset);
-    m_set_index(s, &c->y, c->a);
+    WindowCell at = battle_member_line(layout, member).name;
+    for (unsigned i = 0; i < NAME_LENGTH; i++) {
+        window_set_attributes(g, (WindowCell)(at - WINDOW_COLUMNS + i), TEXT_PLAIN);
+        window_set_attributes(g, (WindowCell)(at + i), TEXT_PLAIN);
+    }
 }
 
-/* LDA $9F20 (16-bit) : BNE : ... : DEC A : BNE -- the row offset for layouts
- * 0, 1 and 2, into Y. */
-static void y_for_layout(Snes *s, int16_t layout0, int16_t layout1, int16_t layout2)
-{
-    if (m_lda16(s, m_read16(s, m_abs(s, 0x9F20))) == 0)
-        y_from_row(s, layout0);
-    else
-        y_from_row(s, dec_a16(s) == 0 ? layout1 : layout2);
-}
+/* The stat block the original works from, and where it keeps whether the
+ * numbers are shaded (window.h, "What the original leaves"). */
+enum { STAT_BLOCK_BYTES = 0x80, NAME_COUNT = 0x8E };
 
-/* LDX #$29 : LDA $A10F : BEQ : LDX #$2D : TXA -- the digit attribute: $2D
- * while $A10F is set, $29 otherwise. */
-static uint8_t digit_attribute(Snes *s)
+static void leave_member_cells(GameState *g, unsigned member, bool shaded)
 {
-    m_ldx16(s, 0x0029);
-    if (m_lda8(s, abs8(s, 0xA10F)) != 0)
-        m_ldx16(s, 0x002D);
-    m_txa(s);
-    return (uint8_t)s->cpu.a;
-}
-
-/* The three digits at $949D-$949F into the tilemap at Y, with `attrs`
- * attribute cells (from $0CC1) set to the digit attribute. */
-static void put_3_digits(Snes *s, int attrs)
-{
-    for (uint16_t i = 0; i < 3; i++)
-        set_absy8(s, (uint16_t)(0x0CC0 + 2 * i), m_lda8(s, abs8(s, (uint16_t)(0x949D + i))));
-    uint8_t attr = digit_attribute(s);
-    for (int k = 0; k < attrs; k++)
-        set_absy8(s, (uint16_t)(0x0CC1 + 2 * k), attr);
+    battle_leave_work8(g, NAME_COUNT, 0);
+    set_battle_member_stat_block(g, (uint16_t)(member * STAT_BLOCK_BYTES));
+    set_battle_digit_highlight(g, shaded);
 }
 
 // $C1:0311
-/* Party member $80's part of the window (X = $80, Y = its row $84): its
- * name from $9412 (5 tiles on its row, 5 more on the row above, attribute
- * $2D), HP ($5E30, highlighted as in battle_draw_party_status), in layout 0
- * the maximum HP ($5E32) after a $E0 tile ($5F in other layouts), MP ($5E34),
- * and in layouts 1 and 2 the gauge's end tiles $5D/$5E and the gauge
- * ($C1:06F0). False if a callee came back with other register widths. */
-static bool draw_member(Snes *s)
+/* A member's line: its name, its HP (then its maximum in the first layout),
+ * its MP, and the gauge in the others. */
+static void draw_member_line(GameState *g, WindowLayout layout, unsigned member)
 {
-    Cpu *c = &s->cpu;
-    m_lda8(s, m_read8(s, 0xCCF837 + c->x));
-    m_tax(s);
-    copy_tile_row(s, 0x9412, 0x2D, 5, false);
-    row_above(s);
-    copy_tile_row(s, 0x9412, 0x2D, 5, false);
-    set_abs8(s, 0xA10F, 0x00);
+    MemberLine line = battle_member_line(layout, member);
+    bool shaded = member_numbers_shaded(g, member);
+    put_name(g, line.name, member);
+    window_show_hp(g, layout, member, shaded);
+    if (layout == LAYOUT_MAX_HP) {
+        window_set_tile(g, (WindowCell)(line.hp + 3), TILE_SLASH);
+        put_three_digits(g, (WindowCell)(line.hp + MAX_HP_AFTER_HP), battle_stats_max_hp(g, member), shade(shaded));
+    } else {
+        window_set_tile(g, (WindowCell)(line.hp + 3), TILE_HP_EDGE);
+    }
+    window_show_mp(g, layout, member, shaded);
+    if (layout_has_gauges(layout)) {
+        window_put(g, line.gauge, TILE_GAUGE_LEFT, TEXT_PLAIN);
+        window_put(g, (WindowCell)(line.gauge + 1 + GAUGE_CELLS), TILE_GAUGE_RIGHT, TEXT_PLAIN);
+        battle_show_gauge(g, member);
+    }
+    ORIGINAL_EFFECT(leave_member_cells(g, member, shaded));
+}
 
-    /* $C1:0351: HP */
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, dp16(s, 0x80));
-    c->a = m_asl16(s, c->a);
-    m_tax(s);
-    set_dp16(s, 0xA2, m_lda16(s, m_read16(s, 0xCCF8ED + c->x)));
-    m_tax(s);
-    uint16_t hp = m_lda16(s, m_read16(s, m_abs(s, 0x5E30) + c->x));
-    m_write16(s, m_abs(s, 0x9499), hp);
-    bool low = hp == 0;
-    if (!low) {
-        m_lda16(s, m_read16(s, m_abs(s, 0x5E32) + c->x));
-        m_push16(s, 0x036B);   /* JSR $011B: LSR x3 */
-        for (int i = 0; i < 3; i++)
-            c->a = m_lsr16(s, c->a);
-        m_pull16(s);
-        uint16_t eighth = c->a;
-        uint16_t cur = m_read16(s, m_abs(s, 0x9499));
-        m_cmp16(s, eighth, cur);
-        if (eighth >= cur)
-            low = m_lda16(s, m_read16(s, m_abs(s, 0xA110))) != 0;
+/* ---- The window's lists ------------------------------------------------------------------ */
+
+enum { CLEARED_ROWS = 6 };
+
+static void put_headings(GameState *g, WindowLayout layout)
+{
+    MemberLine first = battle_member_line(layout, 0);
+    WindowCell hp = (WindowCell)(first.hp - WINDOW_COLUMNS), mp = (WindowCell)(first.mp - WINDOW_COLUMNS);
+    window_set_tile(g, hp, TILE_H);
+    window_set_tile(g, (WindowCell)(hp + 1), TILE_P);
+    window_set_tile(g, mp, TILE_M);
+    window_set_tile(g, (WindowCell)(mp + 1), TILE_P);
+}
+
+/* The enemy kinds' names, eleven tiles a half, each kind's lower half and
+ * then its upper kept a tile apart, one line a kind from the window's second
+ * column. */
+enum { ENEMY_KINDS = 3, ENEMY_NAME_LENGTH = 11, ENEMY_NAME_TILES = 24, ENEMY_NAME_COLUMN = 1 };
+
+static void put_enemy_name(GameState *g, WindowCell at, unsigned kind)
+{
+    for (unsigned i = 0; i < ENEMY_NAME_LENGTH; i++) {
+        window_put(g, (WindowCell)(at + i), battle_enemy_name_tiles(g, ENEMY_NAME_TILES * kind + i), TEXT_PLAIN);
+        window_put(g, (WindowCell)(at - WINDOW_COLUMNS + i),
+                   battle_enemy_name_tiles(g, ENEMY_NAME_TILES * kind + ENEMY_NAME_LENGTH + 1 + i), TEXT_PLAIN);
     }
-    if (low) {
-        uint32_t flag = m_abs(s, 0xA10F);
-        uint16_t v = (uint16_t)(m_read16(s, flag) + 1);
-        m_write16(s, flag, v);
-        m_set_nz16(s, v);
+}
+
+/* The original counts the lines through the list in its work cells: the loop's
+ * index, the next line's place (bytes), and the tiles left of a name. */
+enum { LIST_INDEX = 0x80, LIST_PLACE = 0x84, TILEMAP_BYTES_PER_CELL = 2 };
+
+static void leave_enemy_list_cells(GameState *g, unsigned shown)
+{
+    battle_leave_work16(g, LIST_INDEX, ENEMY_KINDS);
+    battle_leave_work16(g, LIST_PLACE,
+                        (uint16_t)(TILEMAP_BYTES_PER_CELL * window_cell(FIRST_LINE_ROW + LINE_ROWS * shown, ENEMY_NAME_COLUMN)));
+    if (shown)
+        battle_leave_work8(g, NAME_COUNT, 0);
+}
+
+static void list_enemy_kinds(GameState *g)
+{
+    unsigned shown = 0;
+    for (unsigned kind = 0; kind < ENEMY_KINDS; kind++) {
+        if (battle_enemy_kind_counts(g, kind) == 0)
+            continue;
+        put_enemy_name(g, window_cell(FIRST_LINE_ROW + LINE_ROWS * shown, ENEMY_NAME_COLUMN), kind);
+        shown++;
     }
-    y_for_layout(s, 0x0E, -0x0E, 0x0C);
-    if (!jsr(s, 0xC1039A, 0xC1011F) || !jsr(s, 0xC1039D, 0xC1104E))
+    ORIGINAL_EFFECT(leave_enemy_list_cells(g, shown));
+}
+
+/* ---- The command windows --------------------------------------------------------------- */
+
+/* A member's command window is seven cells by six, at the window's left, one
+ * beside the other by party slot (so neighbours share their border column). */
+enum { COMMAND_WINDOW_COLUMNS = 7, COMMAND_WINDOW_ROWS = 6, COMMAND_WINDOW_STEP = 6 };
+
+static WindowCell command_window_cell(unsigned member, unsigned row, unsigned column)
+{
+    return window_cell(row, COMMAND_WINDOW_STEP * member + column);
+}
+
+static bool slot_has_member(const GameState *g, unsigned slot) { return !(battle_menu_slot_members(g, slot) & 0x80); }
+
+/* Whether the member's window offers combination techs instead of its own:
+ * when more than one member is choosing and the member has double or triple
+ * techs. With Magus in the party only the three of them combine, so when two
+ * are choosing, Magus has no Combo, and the other has one only when Magus is
+ * not one of the two. */
+static bool offers_combos(const GameState *g, unsigned member)
+{
+    if (!battle_combos_offered(g) || !(battle_double_techs(g, member) | battle_triple_techs(g, member)))
         return false;
-    put_3_digits(s, 4);
-
-    /* $C1:03CA: maximum HP */
-    bool wide = m_lda8(s, abs8(s, 0x9F20)) == 0;
-    set_absy8(s, 0x0CC6, m_lda8(s, wide ? 0xE0 : 0x5F));
-    if (wide) {
-        m_rep(s, CPU_FLAG_M);
-        m_ldx16(s, dp16(s, 0xA2));
-        m_write16(s, m_abs(s, 0x9499), m_lda16(s, m_read16(s, m_abs(s, 0x5E32) + c->x)));
-        y_from_row(s, 0x16);
-        if (!jsr(s, 0xC103EE, 0xC1011F) || !jsr(s, 0xC103F1, 0xC1104E))
-            return false;
-        put_3_digits(s, 3);
-    }
-
-    /* $C1:041B: MP */
-    m_rep(s, CPU_FLAG_M);
-    m_ldx16(s, dp16(s, 0xA2));
-    m_write16(s, m_abs(s, 0x9499), m_lda16(s, m_read16(s, m_abs(s, 0x5E34) + c->x)));
-    y_for_layout(s, 0x1E, -0x06, 0x14);
-    if (!jsr(s, 0xC10444, 0xC10174))
+    if (!battle_magus_present(g) || battle_menu_member_count(g) == BATTLE_PARTY_SIZE)
+        return true;
+    uint16_t magus = battle_magus_slot(g);
+    if (member == (uint8_t)magus)
         return false;
-    wide = m_lda8(s, abs8(s, 0x9F20)) == 0;
-    if (!jsr(s, wide ? 0xC1044C : 0xC10451, 0xC1104E))
-        return false;
-    uint16_t first = wide ? 0x0CC2 : 0x0CC0;
-    set_absy8(s, first, m_lda8(s, abs8(s, 0x949E)));
-    set_absy8(s, (uint16_t)(first + 2), m_lda8(s, abs8(s, 0x949F)));
-    uint8_t attr = digit_attribute(s);
-    set_absy8(s, (uint16_t)(first + 1), attr);
-    set_absy8(s, (uint16_t)(first + 3), attr);
+    return !slot_has_member(g, magus);
+}
 
-    /* $C1:0492: gauge */
-    if (m_lda8(s, abs8(s, 0x9F20)) != 0) {
-        m_rep(s, CPU_FLAG_M);
-        y_from_row(s, dec_a16(s) == 0 ? 0x0A : 0x18);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        set_absy8(s, 0x0CC0, m_lda8(s, 0x5D));
-        set_absy8(s, 0x0CCA, m_lda8(s, 0x5E));
-        set_absy8(s, 0x0CC1, m_lda8(s, 0x29));
-        set_absy8(s, 0x0CCB, 0x29);
-        if (!jsr(s, 0xC104C0, 0xC106F0))
-            return false;
-    }
-    return true;
+/* The original counts a window's rows and cells down in two work cells, keeps
+ * the next row's place (bytes), and the loop over the slots keeps its index. */
+enum { COUNTERS = 0x80, ROW_PLACE = 0x82, SLOT_INDEX = 0x86 };
+
+static void leave_command_window_cells(GameState *g, unsigned member)
+{
+    battle_leave_work16(g, COUNTERS, 0);
+    battle_leave_work16(g, ROW_PLACE,
+                        (uint16_t)(TILEMAP_BYTES_PER_CELL * command_window_cell(member, COMMAND_WINDOW_ROWS, 0)));
 }
 
 // $C1:0785
-/* The 7x6-tile window for party member A ($80) at row $82 = A * 12 (in the
- * tilemap's first row), from $CC:FA41; with $95F1 set, the member's $9F25 or
- * $9F28 set and either $A117 clear, $A6DE = 3, or member $A115 (another
- * member) negative in $A6D9, from $CC:FA6B instead. Attribute $29. */
-static void draw_member_window(Snes *s)
+static void put_command_window(GameState *g, unsigned member)
 {
-    Cpu *c = &s->cpu;
-    set_dp8(s, 0x80, (uint8_t)c->a);
-    asl_a8(s);
-    set_dp8(s, 0x82, asl_a8(s));
-    asl_a8(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x82)));
-    m_tax(s);
-    set_dp16(s, 0x82, c->x);
-    uint32_t table = 0xCCFA41;
-    if (m_lda8(s, abs8(s, 0x95F1)) != 0) {
-        m_lda8(s, dp8(s, 0x80));
-        m_tax(s);
-        uint8_t v = m_lda8(s, absx8(s, 0x9F25));
-        if (m_lda8(s, (uint8_t)(v | absx8(s, 0x9F28))) != 0) {
-            if (m_lda8(s, abs8(s, 0xA117)) == 0) {
-                table = 0xCCFA6B;
-            } else {
-                uint8_t mode = m_lda8(s, abs8(s, 0xA6DE));
-                m_cmp8(s, mode, 0x03);
-                if (mode == 0x03) {
-                    table = 0xCCFA6B;
-                } else {
-                    uint8_t member = m_lda8(s, dp8(s, 0x80));
-                    uint8_t other = abs8(s, 0xA115);
-                    m_cmp8(s, member, other);
-                    if (member != other) {
-                        m_ldx16(s, m_read16(s, m_abs(s, 0xA115)));
-                        if (m_lda8(s, absx8(s, 0xA6D9)) & 0x80)
-                            table = 0xCCFA6B;
-                    }
-                }
-            }
-        }
-    }
-    m_tdc(s);
-    m_tax(s);
-    set_dp8(s, 0x80, m_lda8(s, 0x06));
-    do {
-        set_dp8(s, 0x81, m_lda8(s, 0x07));
-        m_set_index(s, &c->y, dp16(s, 0x82));
-        do {
-            set_absy8(s, 0x0CC0, m_lda8(s, m_read8(s, table + c->x)));
-            set_absy8(s, 0x0CC1, m_lda8(s, 0x29));
-            m_iny(s);
-            m_iny(s);
-            m_inx(s);
-        } while (step_dp8(s, 0x81, -1) != 0);
-        add_dp16(s, 0x82, 0x0040);
-    } while (step_dp8(s, 0x80, -1) != 0);
+    bool combo = offers_combos(g, member);
+    for (unsigned row = 0; row < COMMAND_WINDOW_ROWS; row++)
+        for (unsigned column = 0; column < COMMAND_WINDOW_COLUMNS; column++)
+            window_put(g, command_window_cell(member, row, column),
+                       battle_command_window_tile(g, combo, row * COMMAND_WINDOW_COLUMNS + column), TEXT_PLAIN);
+    ORIGINAL_EFFECT(leave_command_window_cells(g, member));
+}
+
+/* The frames tilemap's cells: the frames are drawn by slot, a window beside a
+ * drawn one leaving out its left border, which the other drew. */
+static void put_frame_cell(GameState *g, WindowCell cell, unsigned from)
+{
+    set_battle_window_frames_tilemap_tile(g, cell, battle_command_frame_tile(g, from));
+    set_battle_window_frames_tilemap_attributes(g, cell, battle_command_frame_attributes(g, from));
+}
+
+/* The same, and whether it leaves the border out. */
+enum { LEAVES_BORDER_OUT = 0x84 };
+
+static void leave_frame_cells(GameState *g, WindowCell first)
+{
+    battle_leave_work16(g, COUNTERS, 0);
+    battle_leave_work16(g, ROW_PLACE, (uint16_t)(TILEMAP_BYTES_PER_CELL * (first + COMMAND_WINDOW_ROWS * WINDOW_COLUMNS)));
 }
 
 // $C1:0929
-/* Copy 6 rows of 14 bytes (or, with $84 set, 12 bytes skipping 2 per row)
- * from $D1:59FC into the tilemap at $0B40 + $82. */
-static void copy_window_frame(Snes *s)
+static void put_frame(GameState *g, unsigned slot, bool beside_another)
 {
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_tax(s);
-    set_dp8(s, 0x81, m_lda8(s, 0x06));
-    do {
-        uint8_t count;
-        if (m_lda8(s, dp8(s, 0x84)) == 0) {
-            count = m_lda8(s, 0x0E);
-        } else {
-            m_inx(s);
-            m_inx(s);
-            count = m_lda8(s, 0x0C);
-        }
-        set_dp8(s, 0x80, count);
-        m_set_index(s, &c->y, dp16(s, 0x82));
-        do {
-            set_absy8(s, 0x0B40, m_lda8(s, m_read8(s, 0xD159FC + c->x)));
-            m_inx(s);
-            m_iny(s);
-        } while (step_dp8(s, 0x80, -1) != 0);
-        add_dp16(s, 0x82, 0x0040);
-    } while (step_dp8(s, 0x81, -1) != 0);
-}
-
-// $C1:08E8
-/* Set attribute $29 on 5 tiles in each of two rows at the position for member
- * A ($CC:FA23 in layout 1, $CC:FA29 otherwise). */
-static void mark_member_attributes(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    asl_a8(s);
-    m_tax(s);
-    m_rep(s, CPU_FLAG_M);
-    uint32_t table = 0xCCFA29;
-    if (m_lda16(s, m_read16(s, m_abs(s, 0x9F20))) != 0 && dec_a16(s) == 0)
-        table = 0xCCFA23;
-    m_lda16(s, m_read16(s, table + c->x));
-    m_tax(s);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
-    m_lda8(s, 0x29);
-    static const uint16_t cells[10] = { 0x0CC0, 0x0CC2, 0x0CC4, 0x0CC6, 0x0CC8, 0x0D00, 0x0D02, 0x0D04, 0x0D06, 0x0D08 };
-    for (int i = 0; i < 10; i++)
-        set_absx8(s, cells[i], 0x29);
+    unsigned first_column = beside_another ? 1 : 0;
+    WindowCell first = window_cell(0, COMMAND_WINDOW_STEP * slot + first_column);
+    for (unsigned row = 0; row < COMMAND_WINDOW_ROWS; row++)
+        for (unsigned column = first_column; column < COMMAND_WINDOW_COLUMNS; column++)
+            put_frame_cell(g, window_cell(row, COMMAND_WINDOW_STEP * slot + column), row * COMMAND_WINDOW_COLUMNS + column);
+    ORIGINAL_EFFECT(leave_frame_cells(g, first));
 }
 
 // $C1:081E
-/* The window frames of the party members present in $A6D9-$A6DB (not
- * negative) into $0B40, each next to the previous one; member $A6DD's
- * attributes; then ($C1:0872) clear 2 tiles in each of 6 rows at member
- * $95D5's window and, with $A43F set and $9609 clear, put tiles $60-$63 at
- * the position $CC:FADD gives for member $A6DD's entry in $95DC. Clears
- * $A43F. */
-static void draw_window_frames(Snes *s)
+static void put_frames(GameState *g)
 {
-    Cpu *c = &s->cpu;
-    set_dp8(s, 0x84, 0x00);
-    if (!(m_lda8(s, abs8(s, 0xA6D9)) & 0x80)) {
-        m_ldx16(s, 0x0000);
-        set_dp16(s, 0x82, c->x);
-        m_push16(s, 0x082C);
-        copy_window_frame(s);
-        m_pull16(s);
+    bool last_beside = false;
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++) {
+        if (!slot_has_member(g, slot))
+            continue;
+        last_beside = slot > 0 && slot_has_member(g, slot - 1);
+        put_frame(g, slot, last_beside);
     }
-    if (!(m_lda8(s, abs8(s, 0xA6DA)) & 0x80)) {
-        if (!(m_lda8(s, abs8(s, 0xA6D9)) & 0x80)) {
-            set_dp8(s, 0x84, m_lda8(s, 0x01));
-            m_ldx16(s, 0x000E);
-        } else {
-            m_ldx16(s, 0x000C);
-        }
-        set_dp16(s, 0x82, c->x);
-        m_push16(s, 0x0847);
-        copy_window_frame(s);
-        m_pull16(s);
-        set_dp8(s, 0x84, 0x00);
-    }
-    if (!(m_lda8(s, abs8(s, 0xA6DB)) & 0x80)) {
-        if (!(m_lda8(s, abs8(s, 0xA6DA)) & 0x80)) {
-            set_dp8(s, 0x84, m_lda8(s, 0x01));
-            m_ldx16(s, 0x001A);
-        } else {
-            m_ldx16(s, 0x0018);
-        }
-        set_dp16(s, 0x82, c->x);
-        m_push16(s, 0x0864);
-        copy_window_frame(s);
-        m_pull16(s);
-    }
-    m_lda8(s, abs8(s, 0xA6DD));
-    m_tax(s);
-    m_lda8(s, absx8(s, 0xA6D9));
-    m_push16(s, 0x086E);
-    mark_member_attributes(s);
-    m_pull16(s);
-    uint8_t flag = (uint8_t)(abs8(s, 0xA43F) + 1);
-    set_abs8(s, 0xA43F, flag);
-    m_set_nz8(s, flag);
+    /* The original notes a border left out for the third slot's frame last,
+     * and clears it after the second's. */
+    ORIGINAL_EFFECT(battle_leave_work8(g, LEAVES_BORDER_OUT, slot_has_member(g, 2) && last_beside));
+}
 
-    /* $C1:0872 */
-    times_12_to_x(s, abs8(s, 0x95D5), 0x80);
-    static const uint16_t cells[12] = { 0x0CC0, 0x0D00, 0x0D40, 0x0D80, 0x0DC0, 0x0E00,
-                                        0x0CC2, 0x0D02, 0x0D42, 0x0D82, 0x0DC2, 0x0E02 };
-    for (int i = 0; i < 12; i++)
-        set_absx8(s, cells[i], 0x00);
-    if (m_lda8(s, abs8(s, 0xA43F)) != 0) {
-        m_lda8(s, abs8(s, 0xA6DD));
-        m_tax(s);
-        asl_a8(s);
-        set_dp8(s, 0x80, asl_a8(s));
-        asl_a8(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x80)));
-        m_set_index(s, &c->y, c->a);
-        set_dp16(s, 0x80, c->y);
-        m_lda8(s, absx8(s, 0xA6D9));
-        m_tax(s);
-        m_lda8(s, absx8(s, 0x95DC));
-        asl_a8(s);
-        m_tax(s);
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-        m_lda16(s, m_read16(s, 0xCCFADD + c->x));
-        c->a = m_adc16(s, c->a, dp16(s, 0x80));
-        m_tax(s);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        if (m_lda8(s, abs8(s, 0x9609)) == 0) {
-            set_absx8(s, 0x0CC0, m_lda8(s, 0x60));
-            set_absx8(s, 0x0CC2, m_lda8(s, 0x61));
-            set_absx8(s, 0x0D00, m_lda8(s, 0x62));
-            set_absx8(s, 0x0D02, m_lda8(s, 0x63));
-        }
+/* ---- The command cursor ----------------------------------------------------------------- */
+
+enum { CURSOR_ROWS_PER_COMMAND = 2, MEMBER_CELLS = 0x80 };
+
+/* The menu's slot whose window was last shown, set to none so that the menu
+ * rebuilds the window when it next draws. */
+enum { NO_SLOT_SHOWN = 0xFE };
+
+void window_put_cursor(GameState *g, WindowCell cell)
+{
+    window_set_tile(g, cell, TILE_CURSOR);
+    window_set_tile(g, (WindowCell)(cell + 1), TILE_CURSOR + 1);
+    window_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS), TILE_CURSOR + 2);
+    window_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS + 1), TILE_CURSOR + 3);
+}
+
+/* Where the original works out the cursor's place: the member's window's
+ * offset, bytes, and then the slot's. */
+static void leave_cursor_cells(GameState *g, unsigned member, unsigned slot, bool redrawn)
+{
+    if (redrawn)
+        battle_leave_work16(g, MEMBER_CELLS, (uint16_t)(TILEMAP_BYTES_PER_CELL * COMMAND_WINDOW_STEP * slot));
+    else
+        battle_leave_work8(g, MEMBER_CELLS, (uint8_t)(TILEMAP_BYTES_PER_CELL * COMMAND_WINDOW_STEP * member));
+}
+
+// $C1:0872
+/* The member whose menu is open loses the command window's cursor column, the
+ * two cells inside its left border; then, when the cursor is to be redrawn
+ * and no target is being chosen, it points at the command the member's
+ * cursor is on, in the window of the menu's slot. Either way the redraw is
+ * done. */
+void battle_redraw_command_cursor(GameState *g)
+{
+    unsigned member = battle_menu_member(g);
+    for (unsigned row = 0; row < COMMAND_WINDOW_ROWS; row++) {
+        window_set_tile(g, command_window_cell(member, row, 0), TILE_NOTHING);
+        window_set_tile(g, command_window_cell(member, row, 1), TILE_NOTHING);
     }
-    set_abs8(s, 0xA43F, 0x00);
+    bool redraw = battle_member_cells_redraw(g) != 0;
+    unsigned slot = battle_menu_slot(g);
+    if (redraw && !battle_targeting(g)) {
+        unsigned command = battle_command_cursor(g, battle_menu_slot_members(g, slot));
+        window_put_cursor(g, command_window_cell(slot, CURSOR_ROWS_PER_COMMAND * command, 0));
+    }
+    set_battle_member_cells_redraw(g, 0);
+    ORIGINAL_EFFECT(leave_cursor_cells(g, member, slot, redraw));
+}
+
+/* The first menu slot with a member, which becomes the menu's when its own
+ * slot has none. */
+static unsigned first_slot_with_member(const GameState *g)
+{
+    unsigned slot = 0;
+    while (!slot_has_member(g, slot))
+        slot++;
+    return slot;
+}
+
+/* The command windows of every member choosing, their frames, the plain name
+ * of the member whose menu is open (the menu's slot, or the first with a
+ * member), and its cursor. */
+static void show_command_windows(GameState *g, WindowLayout layout)
+{
+    set_battle_combos_offered(g, (uint8_t)(battle_menu_member_count(g) - 1));
+    if (!slot_has_member(g, battle_menu_slot(g)))
+        set_battle_menu_slot(g, (uint8_t)first_slot_with_member(g));
+    uint8_t member = battle_menu_slot_members(g, battle_menu_slot(g));
+    set_battle_menu_member(g, member);
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
+        if (slot_has_member(g, slot))
+            put_command_window(g, battle_menu_slot_members(g, slot));
+    ORIGINAL_EFFECT(battle_leave_work16(g, SLOT_INDEX, BATTLE_PARTY_SIZE));
+    put_frames(g);
+    show_name_plain(g, layout, member);
+    /* The cursor is asked for as the menu asks for it, by counting the flag up. */
+    set_battle_member_cells_redraw(g, (uint8_t)(battle_member_cells_redraw(g) + 1));
+    battle_redraw_command_cursor(g);
 }
 
 // $C1:0299
-/* Redraw the battle window's tilemap ($0CC0): clear 192 tiles (attribute
- * $29), put the corner tiles $64-$66 for layout $9F20, then for each party
- * member present ($96F5) its name, HP, MP and gauge on rows from $5A ($68 in
- * layout 1), $80 apart; for each of three entries with $98CC set, 11 tiles
- * from $ACBC on its row and 11 on the row above, rows from $42. Then, when
- * $A6DE is set: with $A86B set and $A62D differing from $A0D7, set $A6DF to
- * $FE and mark member $A62D's attributes; otherwise, unless $95DB is set,
- * set $95F1 = $A6DE - 1, make $A6DD point at a present member ($A6D9 not
- * negative) and store that entry in $95D5, and draw each present member's
- * window and the window frames. */
+void battle_redraw_window(GameState *g)
+{
+    WindowLayout layout = battle_window_layout_now(g);
+    for (WindowCell cell = 0; cell < CLEARED_ROWS * WINDOW_COLUMNS; cell++)
+        window_put(g, cell, TILE_NOTHING, TEXT_PLAIN);
+    put_headings(g, layout);
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
+        if (battle_slot_present(g, member))
+            draw_member_line(g, layout, member);
+    list_enemy_kinds(g);
+
+    if (battle_menu_member_count(g) == 0)
+        return;
+    if (battle_ally_target_page(g)) {
+        uint8_t target = battle_targets(g, 0);
+        if (target != battle_ally_target_marked(g)) {
+            set_battle_menu_slot_shown(g, NO_SLOT_SHOWN);
+            show_name_plain(g, layout, target);
+        }
+        return;
+    }
+    if (battle_menu_page(g) == 0)
+        show_command_windows(g, layout);
+}
+
+/* ---- The entry ------------------------------------------------------------------------- */
+
+/* The carry the original leaves: from comparing the last enemy kind's index
+ * (set) where it stops early; from doubling the target where it marks a
+ * target's name; from the cursor's place where it draws the command windows
+ * and the cursor (clear: the place is small); and from the member's window's
+ * offset where a wrapped count skips the cursor (clear likewise). */
+bool battle_window_redraw_carry(const GameState *g)
+{
+    if (battle_menu_member_count(g) == 0)
+        return true;
+    if (battle_ally_target_page(g)) {
+        uint8_t target = battle_targets(g, 0);
+        return target == battle_ally_target_marked(g) || (target & 0x80);
+    }
+    return battle_menu_page(g) != 0;
+}
+
 void battle_draw_window(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_tax(s);
-    m_set_index(s, &c->y, c->a);
-    do {
-        m_tdc(s);
-        set_absy8(s, 0x0CC0, (uint8_t)c->a);
-        set_absy8(s, 0x0CC1, m_lda8(s, 0x29));
-        m_iny(s);
-        m_iny(s);
-        m_inx(s);
-        m_cmp16(s, c->x, 0x00C0);
-    } while (c->x != 0x00C0);
-
-    static const uint16_t corners[3][4] = {
-        { 0x0CE8, 0x0CEA, 0x0CFC, 0x0CFA },
-        { 0x0CDA, 0x0CDC, 0x0CE4, 0x0CE2 },
-        { 0x0CE6, 0x0CE8, 0x0CF0, 0x0CEE },
-    };
-    int layout = 0;
-    if (m_lda8(s, abs8(s, 0x9F20)) != 0)
-        layout = dec_a8(s) == 0 ? 1 : 2;
-    set_abs8(s, corners[layout][0], m_lda8(s, 0x64));
-    set_abs8(s, corners[layout][1], m_lda8(s, 0x66));
-    set_abs8(s, corners[layout][2], 0x66);
-    set_abs8(s, corners[layout][3], m_lda8(s, 0x65));
-
-    /* $C1:02EF: party members */
-    uint16_t row = 0x005A;
-    if (m_lda8(s, abs8(s, 0x9F20)) != 0 && dec_a8(s) == 0)
-        row = 0x0068;
-    set_dp16(s, 0x84, m_ldx16(s, row));
-    m_tdc(s);
-    m_tax(s);
-    set_dp16(s, 0x80, c->x);
-    uint8_t n;
-    do {
-        m_set_index(s, &c->y, dp16(s, 0x84));
-        m_ldx16(s, dp16(s, 0x80));
-        if (m_lda8(s, absx8(s, 0x96F5)) != 0 && !draw_member(s))
-            return;
-        add_dp16(s, 0x84, 0x0080);
-        step_dp8(s, 0x80, +1);
-        n = m_lda8(s, dp8(s, 0x80));
-        m_cmp8(s, n, 0x03);
-    } while (n != 0x03);
-
-    /* $C1:04DC: three entries of 11+11 tiles from $ACBC */
-    set_dp16(s, 0x84, m_ldx16(s, 0x0042));
-    m_tdc(s);
-    m_tax(s);
-    set_dp16(s, 0x80, c->x);
-    do {
-        m_ldx16(s, dp16(s, 0x80));
-        if (m_lda8(s, absx8(s, 0x98CC)) != 0) {
-            m_lda8(s, dp8(s, 0x80));
-            asl_a8(s);
-            asl_a8(s);
-            set_dp8(s, 0x8E, asl_a8(s));
-            asl_a8(s);
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x8E)));
-            m_tax(s);
-            copy_tile_row(s, 0xACBC, 0x29, 0x0B, true);
-            row_above(s);
-            m_inx(s);
-            copy_tile_row(s, 0xACBC, 0x29, 0x0B, false);
-            add_dp16(s, 0x84, 0x0080);
-        }
-        step_dp8(s, 0x80, +1);
-        n = m_lda8(s, dp8(s, 0x80));
-        m_cmp8(s, n, 0x03);
-    } while (n != 0x03);
-
-    /* $C1:0547 */
-    if (m_lda8(s, abs8(s, 0xA6DE)) == 0) {
-        m_rts(s);
-        return;
-    }
-    if (m_lda8(s, abs8(s, 0xA86B)) != 0) {
-        uint8_t member = m_lda8(s, abs8(s, 0xA62D));
-        uint8_t shown = abs8(s, 0xA0D7);
-        m_cmp8(s, member, shown);
-        if (member != shown) {
-            set_abs8(s, 0xA6DF, m_lda8(s, 0xFE));
-            m_lda8(s, abs8(s, 0xA62D));
-            mark_member_attributes(s);   /* JMP $08E8 */
-        }
-        m_rts(s);
-        return;
-    }
-    if (m_lda8(s, abs8(s, 0x95DB)) != 0) {
-        m_rts(s);
-        return;
-    }
-    m_lda8(s, abs8(s, 0xA6DE));
-    set_abs8(s, 0x95F1, dec_a8(s));
-    m_lda8(s, abs8(s, 0xA6DD));
-    m_tax(s);
-    if (m_lda8(s, absx8(s, 0xA6D9)) & 0x80) {
-        m_tdc(s);
-        m_tax(s);
-        while (m_lda8(s, absx8(s, 0xA6D9)) & 0x80)
-            m_inx(s);
-        m_push8(s, (uint8_t)c->a);
-        m_txa(s);
-        set_abs8(s, 0xA6DD, (uint8_t)c->a);
-        m_lda8(s, m_pull8(s));
-    }
-    set_abs8(s, 0x95D5, (uint8_t)c->a);
-    m_tdc(s);
-    m_tax(s);
-    set_dp16(s, 0x86, c->x);
-    do {
-        m_ldx16(s, dp16(s, 0x86));
-        if (!(m_lda8(s, absx8(s, 0xA6D9)) & 0x80)) {
-            m_push16(s, 0x059A);
-            draw_member_window(s);
-            m_pull16(s);
-        }
-        step_dp8(s, 0x86, +1);
-        n = m_lda8(s, dp8(s, 0x86));
-        m_cmp8(s, n, 0x03);
-    } while (n != 0x03);
-    m_push16(s, 0x05A5);
-    draw_window_frames(s);
-    m_pull16(s);
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool carry = battle_window_redraw_carry(g);
+    vars_peek(false);
+    battle_redraw_window(g);
+    m_set_flag(s, CPU_FLAG_C, carry);
     m_rts(s);
+}
+
+/* ---- The guards ------------------------------------------------------------------------ */
+
+static bool names_member_or_nobody(uint8_t v) { return v < BATTLE_PARTY_SIZE || (v & 0x80); }
+static bool names_combatant_or_nobody(uint8_t v) { return v < BATTLE_COMBATANTS || (v & 0x80); }
+
+/* The item list's cursor rows. */
+enum { ITEM_CURSOR_ROWS = 4 };
+
+/* The menu's state as the game keeps it, which the window's routines take on
+ * trust: the layout's high byte clear (the original reads the layout as a
+ * byte in places and as a word in others); the menu's member a party member
+ * or nobody, and while anyone is choosing, its slot a party slot and some slot
+ * holding a member; the cursors on rows the menus have; the targets
+ * combatants or nobody, and an ally while an action is aimed at the party. A
+ * state that breaks these is the original's to run. */
+static bool menu_state_kept(const GameState *g)
+{
+    if (battle_window_layout(g) > 0xFF || !names_member_or_nobody(battle_menu_member(g)))
+        return false;
+    for (unsigned i = 0; i < BATTLE_PARTY_SIZE; i++)
+        if (battle_command_cursor(g, i) >= BATTLE_PARTY_SIZE || battle_tech_cursor(g, i) >= BATTLE_PARTY_SIZE)
+            return false;
+    uint8_t shown = battle_item_cursor_shown(g);
+    if (battle_item_row(g) >= ITEM_CURSOR_ROWS || (shown >= ITEM_CURSOR_ROWS && !(shown & 0x80)))
+        return false;
+    for (unsigned i = 0; i < 6; i++)
+        if (!names_combatant_or_nobody(battle_targets(g, i)))
+            return false;
+    if (battle_ally_target_page(g) && battle_targets(g, 0) >= BATTLE_PARTY_SIZE)
+        return false;
+    if (battle_menu_member_count(g) == 0)
+        return true;
+    if (battle_menu_slot(g) >= BATTLE_PARTY_SIZE)
+        return false;
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
+        if (slot_has_member(g, slot))
+            return true;
+    return false;
+}
+
+bool battle_window_ready(Snes *s)
+{
+    vars_peek(true);
+    bool ready = battle_on_page(s) && menu_state_kept(state_of(s));
+    vars_peek(false);
+    return ready;
+}
+
+/* The gauge's member, in its work cell, a party member. */
+bool battle_window_member_ready(Snes *s)
+{
+    vars_peek(true);
+    bool ready = battle_on_page(s) && battle_work16(state_of(s), 0x80) < BATTLE_PARTY_SIZE;
+    vars_peek(false);
+    return ready;
 }

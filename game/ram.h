@@ -2160,6 +2160,14 @@
 /* Nonzero while the battle NMI or IRQ handler runs; an NMI arriving then returns at once */
 #define RAM_BATTLE_INTERRUPT_BUSY 0x7E007Fu
 #define RAM_BATTLE_INTERRUPT_BUSY_DP 0x7Fu   /* page battle */
+/* The battle's work cells on its page, $80-$9D: each routine keeps its own values in them on the
+ * way (a loop's counters, the tilemap position it is writing at, the number it is drawing),
+ * which only it reads again; the ports leave in them what the original leaves [30 x $1 bytes, by
+ * cell ($80 + index)] */
+#define RAM_BATTLE_WORK 0x7E0080u
+#define RAM_BATTLE_WORK_COUNT 30u
+#define RAM_BATTLE_WORK_STRIDE 0x01u
+#define RAM_BATTLE_WORK_DP 0x80u             /* page battle */
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 #define RAM_BATTLE_FRAME_PENDING 0x7E009Eu
 #define RAM_BATTLE_FRAME_PENDING_DP 0x9Eu    /* page battle */
@@ -2170,6 +2178,10 @@
 /* The attribute bits of the effect whose sprites are being drawn */
 #define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES 0x7E00A1u
 #define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES_DP 0xA1u /* page battle */
+/* The stat block ($80 times the battle slot) of the party member the window is drawing, or whose
+ * menu is open ($CF:FD9E notes it there) [2 bytes] */
+#define RAM_BATTLE_MEMBER_STAT_BLOCK 0x7E00A2u
+#define RAM_BATTLE_MEMBER_STAT_BLOCK_DP 0xA2u /* page battle */
 /* Cycles 0-3: which of the four queued VRAM uploads runs this frame, and whose animations step
  * (0 the party, 1-3 an enemy group) */
 #define RAM_BATTLE_FRAME_PHASE 0x7E00A4u
@@ -2220,6 +2232,12 @@
 /* The controller's buttons held this frame, as the battle reads them [2 bytes] */
 #define RAM_BATTLE_JOYPAD 0x7E00F8u
 #define RAM_BATTLE_JOYPAD_DP 0xF8u           /* page battle */
+/* The enemy the single target cursor is on, for $CD:002D and $CD:0030, which show its name and,
+ * where the party can see it, its HP [5 x $1 bytes, by byte: the enemy ($0200), its HP ($0201, a
+ * word) and maximum HP ($0203, a word)] */
+#define RAM_BATTLE_TARGET_DISPLAY 0x7E0200u
+#define RAM_BATTLE_TARGET_DISPLAY_COUNT 5u
+#define RAM_BATTLE_TARGET_DISPLAY_STRIDE 0x01u
 /* Per-line amounts added to the window edges of lines 48-175 [128 x $1 bytes, by table * 32 +
  * line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones)] */
 #define RAM_BATTLE_WINDOW_LINE_DELTAS 0x7E0A00u
@@ -2252,17 +2270,23 @@
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_STRIDE 0x04u
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_TILE 0x7E11B2u /* Tile number */
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_ATTRIBUTES 0x7E11B3u /* Attributes */
-/* Seven-byte records of the techs the party members can use in battle (a member's entries 0-7,
- * 10-15 and 18 fill its tech list) [19 x $7 bytes, by tech entry (from the member's record base
- * at $CC:F395 + member * 2)] */
+/* Seven-byte records of the techs the party members can use in battle, twenty a member (a
+ * member's entries 0-7, 10-15 and 18 fill its tech list) [60 x $7 bytes, by party member * 20 +
+ * the entry the member's tech list names (battle_tech_list)] */
 #define RAM_BATTLE_TECH_RECORDS 0x7E1A80u
-#define RAM_BATTLE_TECH_RECORDS_COUNT 19u
+#define RAM_BATTLE_TECH_RECORDS_COUNT 60u
 #define RAM_BATTLE_TECH_RECORDS_STRIDE 0x07u
 #define RAM_BATTLE_TECH_RECORDS_ID 0x7E1A80u /* Tech id ($FF: none); what the member's tech list shows */
 #define RAM_BATTLE_TECH_RECORDS_FLAGS 0x7E1A82u /* Bit 7 set while the tech is dimmed (can't be used now) */
 #define RAM_BATTLE_TECH_RECORDS_COST 0x7E1A83u /* MP cost for the first member ($FF or negative: none) */
 #define RAM_BATTLE_TECH_RECORDS_PARTNERS 0x7E1A84u /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
 #define RAM_BATTLE_TECH_RECORDS_PARTNER_COSTS 0x7E1A85u /* MP costs for the second and third members */
+/* The party members' equipment, five bytes each, the weapon first (its palette colors the
+ * member's weapon at setup) [15 x $1 bytes, by party slot * 5 + the equipment's place (0 the
+ * weapon)] */
+#define RAM_BATTLE_MEMBER_EQUIPMENT 0x7E1C48u
+#define RAM_BATTLE_MEMBER_EQUIPMENT_COUNT 15u
+#define RAM_BATTLE_MEMBER_EQUIPMENT_STRIDE 0x01u
 /* Long pointer to the object's graphics set, the tiles its frames are assembled from [11 x $3
  * bytes, by battle slot] */
 #define RAM_BATTLE_OBJECT_GRAPHICS 0x7E1C57u
@@ -2511,12 +2535,15 @@
 #define RAM_BATTLE_CHARACTER_NAME_TILES 0x7E9453u
 #define RAM_BATTLE_CHARACTER_NAME_TILES_COUNT 70u
 #define RAM_BATTLE_CHARACTER_NAME_TILES_STRIDE 0x01u
-/* The number being turned into digit tiles (left holding it modulo 100) [2 bytes] */
+/* The number the original's callers hand the digit routines; they leave it holding its ones
+ * digit less ten [2 bytes] */
 #define RAM_BATTLE_NUMBER 0x7E9499u
-/* The number's digit tiles ($73 zero digit, blanked when leading; $FF blank) [4 x $1 bytes, by
- * digit ($949C blank, then hundreds, tens, ones)] */
-#define RAM_BATTLE_DIGITS 0x7E949Cu
-#define RAM_BATTLE_DIGITS_COUNT 4u
+/* A number's digit tiles, where the digit routines leave them for the original's callers: the
+ * window's (the last three; $73 the zero, $FF blank) and the number sprites' (the last four; $90
+ * the zero, and a miss fills all five) [5 x $1 bytes, by place, the most significant first: ten
+ * thousands, thousands, hundreds, tens, ones] */
+#define RAM_BATTLE_DIGITS 0x7E949Bu
+#define RAM_BATTLE_DIGITS_COUNT 5u
 #define RAM_BATTLE_DIGITS_STRIDE 0x01u
 /* A name being converted to tiles: the characters go in at $94A0, the two tile rows come back at
  * $94A0 and $94B0 [32 x $1 bytes, by byte (two 16-byte rows)] */
@@ -2555,12 +2582,21 @@
 #define RAM_BATTLE_TECH_SCROLL 0x7E95EBu
 #define RAM_BATTLE_TECH_SCROLL_COUNT 3u
 #define RAM_BATTLE_TECH_SCROLL_STRIDE 0x01u
+/* The menu's member count less one, as the window was last redrawn: nonzero when the command
+ * windows may offer combination techs */
+#define RAM_BATTLE_COMBOS_OFFERED 0x7E95F1u
 /* Nonzero while targets are being chosen; the cursors are then placed on the objects in
  * battle_targets */
 #define RAM_BATTLE_TARGETING 0x7E9609u
+/* Nonzero while the target being chosen may bring the other frame on: a single target's cursor
+ * near the screen's top turns battle_alternate_frame on, and near its bottom off */
+#define RAM_BATTLE_TARGET_MOVES_FRAME 0x7E960Au
 /* Next target entry the group target cursors are placed from (cycles through the entries, three
  * at a time) */
 #define RAM_BATTLE_TARGET_CURSOR 0x7E960Bu
+/* Negative when choosing targets found none (the last target entry's $FF); the target cursors
+ * are left alone then */
+#define RAM_BATTLE_NO_TARGETS 0x7E9613u
 /* Low byte of the length of one facing's part of the object's frame lists (the gap to the next
  * $E4:2600 entry / 4), multiplied by the facing [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_FACING_STRIDE_LOW 0x7E966Eu
@@ -2756,6 +2792,11 @@
 #define RAM_BATTLE_OBJECT_PALETTE 0x7E993Cu
 #define RAM_BATTLE_OBJECT_PALETTE_COUNT 11u
 #define RAM_BATTLE_OBJECT_PALETTE_STRIDE 0x01u
+/* The number sprites' colors, loaded at setup; each number command puts them back in the working
+ * palette [8 x $2 bytes, by color: the first four of sprite palette 0, then of sprite palette 4] */
+#define RAM_BATTLE_NUMBER_COLORS 0x7E999Fu
+#define RAM_BATTLE_NUMBER_COLORS_COUNT 8u
+#define RAM_BATTLE_NUMBER_COLORS_STRIDE 0x02u
 /* Attribute bits ORed with the palette into the object's sprites [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS 0x7E99B5u
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS_COUNT 11u
@@ -2794,8 +2835,10 @@
 #define RAM_BATTLE_PENDING_TRANSFER 0x7E9EEAu
 #define RAM_BATTLE_PENDING_TRANSFER_COUNT 9u
 #define RAM_BATTLE_PENDING_TRANSFER_STRIDE 0x06u
-/* Which of three battle window layouts is used (0, 1, 2): positions of names, HP, MP and gauges,
- * and whether max HP is shown (layout 0) */
+/* Which of three battle window layouts the settings chose (0, 1, 2; past 2 as 2): positions of
+ * names, HP, MP and gauges, and whether max HP is shown (layout 0). Setup writes a byte; the
+ * window's code reads it as a byte in some places and a word in others, so the byte after it is
+ * 0 as the game goes [2 bytes] */
 #define RAM_BATTLE_WINDOW_LAYOUT 0x7E9F20u
 /* The full wait battle_gauge_wait is measured against [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_GAUGE_WAIT_FULL 0x7E9F22u
@@ -2811,6 +2854,14 @@
 #define RAM_BATTLE_TRIPLE_TECHS 0x7E9F28u
 #define RAM_BATTLE_TRIPLE_TECHS_COUNT 3u
 #define RAM_BATTLE_TRIPLE_TECHS_STRIDE 0x01u
+/* Nonzero for an enemy whose HP the target display may show [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_HP_VISIBLE 0x7E9F2Cu
+#define RAM_BATTLE_ENEMY_HP_VISIBLE_COUNT 8u
+#define RAM_BATTLE_ENEMY_HP_VISIBLE_STRIDE 0x01u
+/* Nonzero when a party member's equipment lets the party see enemies' HP (from the stat blocks'
+ * byte $57 at setup); the single target cursor then shows it for enemies battle_enemy_hp_visible
+ * allows */
+#define RAM_BATTLE_ENEMY_HP_SEEN 0x7E9F34u
 /* Priority bits of the four cursor sprites and the shadows; bit 3 picks the animated color at
  * $233C or $23BC */
 #define RAM_BATTLE_CURSOR_PRIORITY 0x7E9F46u
@@ -2828,6 +2879,12 @@
 #define RAM_BATTLE_OBJECT_HIDDEN_STRIDE 0x01u
 /* The enemy (battle slot less 3) the formation keeps its places around */
 #define RAM_BATTLE_FORMATION_LEADER 0x7EA002u
+/* Nonzero for a combatant whose numbers show at its cursor point (its object's position plus
+ * battle_cursor_offset_x and _y) rather than at its object's position [11 x $1 bytes, by battle
+ * slot] */
+#define RAM_BATTLE_NUMBER_AT_CURSOR 0x7EA003u
+#define RAM_BATTLE_NUMBER_AT_CURSOR_COUNT 11u
+#define RAM_BATTLE_NUMBER_AT_CURSOR_STRIDE 0x01u
 /* Pointer offset (channel * 4) of the running channel */
 #define RAM_BATTLE_SCRIPT_OFFSET 0x7EA00Eu
 /* Set by an opcode handler to run the channel's next opcode in the same frame */
@@ -2866,11 +2923,22 @@
 #define RAM_BATTLE_BACKGROUND_CYCLE_ON 0x7EA08Bu
 /* Set by any button in a demo battle; the brightness then counts down to the exit */
 #define RAM_BATTLE_DEMO_EXITING 0x7EA097u
+/* Set once the tech page has worked out which of the member's techs can't be used now */
+#define RAM_BATTLE_TECH_LIST_DIMMED 0x7EA099u
+/* Set when the window was rebuilt for aiming at a party member; while it is clear, a window in
+ * the second layout with a member in the third menu slot redraws only its gauges between turns */
+#define RAM_BATTLE_ALLY_TARGET_WINDOW 0x7EA09Au
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
  * techs naming it, are dimmed [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_MEMBER_DISABLED 0x7EA0D1u
 #define RAM_BATTLE_MEMBER_DISABLED_COUNT 3u
 #define RAM_BATTLE_MEMBER_DISABLED_STRIDE 0x01u
+/* The party member the window marks as the target while an action is aimed at a party member; a
+ * redraw marks the first target's name when it is another */
+#define RAM_BATTLE_ALLY_TARGET_MARKED 0x7EA0D7u
+/* Bit 7 set when the game's settings show a tech's description as the tech list's cursor moves
+ * ($CD:0027 shows it) */
+#define RAM_BATTLE_SHOW_DESCRIPTIONS 0x7EA0DBu
 /* Nonzero for combatants whose numbers rise by the second table [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_NUMBER_RISE_ALT 0x7EA0DCu
 #define RAM_BATTLE_NUMBER_RISE_ALT_COUNT 11u
@@ -2892,10 +2960,11 @@
 #define RAM_BATTLE_OBJECT_POSE_SHOWN 0x7EA103u
 #define RAM_BATTLE_OBJECT_POSE_SHOWN_COUNT 3u
 #define RAM_BATTLE_OBJECT_POSE_SHOWN_STRIDE 0x01u
-/* Nonzero while the member being drawn is at 0 HP or low HP on a blink frame: its digits get
- * attribute $2D */
+/* Where the window's routines keep, while they draw a member's numbers, whether they are shaded
+ * (at 0 HP, or low on a blink frame); only they read it */
 #define RAM_BATTLE_DIGIT_HIGHLIGHT 0x7EA10Fu
-/* Blink phase for low HP digits, toggled every 12 frames */
+/* Blink phase for low HP digits, toggled every 12 frames (its low byte; the window reads a word)
+ * [2 bytes] */
 #define RAM_BATTLE_BLINK 0x7EA110u
 /* Frames until battle_blink toggles (reloaded with 12) */
 #define RAM_BATTLE_BLINK_TIMER 0x7EA112u
@@ -3056,6 +3125,8 @@
 #define RAM_BATTLE_NUMBER_STEP 0x7EA3D1u
 /* Row of the number motion table reached */
 #define RAM_BATTLE_NUMBERS_ROW 0x7EA3D2u
+/* The set of numbers (battle_number_records) the script's number command last showed */
+#define RAM_BATTLE_NUMBERS_SET 0x7EA3D3u
 /* Set when the object's prepared (number) sprites are copied to the OAM buffer [11 x $1 bytes,
  * by battle slot] */
 #define RAM_BATTLE_PREPARED_SPRITES_ON 0x7EA3D4u
@@ -3129,6 +3200,8 @@
 #define RAM_BATTLE_ANIMATION_POSITION_MODES 0x7EA4E8u
 #define RAM_BATTLE_ANIMATION_POSITION_MODES_COUNT 6u
 #define RAM_BATTLE_ANIMATION_POSITION_MODES_STRIDE 0x01u
+/* Set when the player moves the target; placing the target cursors takes it */
+#define RAM_BATTLE_TARGETS_CHANGED 0x7EA4EEu
 /* Phase (0-$3D) of the animated color at $233C/$23BC */
 #define RAM_BATTLE_COLOR_PHASE 0x7EA4EFu
 /* Path steps left (from 7; negative when done) [11 x $1 bytes, by battle slot] */
@@ -3195,6 +3268,9 @@
 #define RAM_BATTLE_MENU_SLOT_MEMBERS_STRIDE 0x01u
 /* The menu slot whose window is current (its member goes to battle_menu_member) */
 #define RAM_BATTLE_MENU_SLOT 0x7EA6DDu
+/* How many of the menu's slots hold a party member (battle_menu_slot_members): 0 while nobody
+ * chooses, and a double tech wants two, a triple tech three */
+#define RAM_BATTLE_MENU_MEMBER_COUNT 0x7EA6DEu
 /* The menu slot the window was last rebuilt for; the command page rebuilds the window when
  * battle_menu_slot differs */
 #define RAM_BATTLE_MENU_SLOT_SHOWN 0x7EA6DFu
@@ -3209,6 +3285,9 @@
 #define RAM_BATTLE_MENU_TILEMAP_ATTRIBUTES 0x7EA6E2u /* Tile attributes ($29 normal, $2D dimmed) */
 /* Set to reload the window frames tilemap from $D1:5A50 when the tech page is drawn */
 #define RAM_BATTLE_FRAMES_RELOAD_REQUEST 0x7EA86Au
+/* Nonzero while an action is aimed at a party member: the menu page to go back to, plus one; the
+ * window then marks the targeted member's name instead of showing the command windows */
+#define RAM_BATTLE_ALLY_TARGET_PAGE 0x7EA86Bu
 /* Handler of the effect slot ($CF:F01E table for the first 11, $CF:F02E for the rest) [19 x $1
  * bytes, by effect slot] */
 #define RAM_BATTLE_EFFECT_TYPE 0x7EA86Du
@@ -3413,13 +3492,14 @@
 #define RAM_BATTLE_ENEMY_NAME_TILES 0x7EACBCu
 #define RAM_BATTLE_ENEMY_NAME_TILES_COUNT 72u
 #define RAM_BATTLE_ENEMY_NAME_TILES_STRIDE 0x01u
-/* The numbers shown over the combatants [44 x $4 bytes, by record (by combatant through
- * $CC:F829)] */
+/* The numbers shown over the combatants, a set per number command of the animation script, one a
+ * combatant [44 x $4 bytes, by set * 11 + battle slot (the animation script's number commands
+ * $50-$53 show sets 0-3)] */
 #define RAM_BATTLE_NUMBER_RECORDS 0x7EAD9Cu
 #define RAM_BATTLE_NUMBER_RECORDS_COUNT 44u
 #define RAM_BATTLE_NUMBER_RECORDS_STRIDE 0x04u
 #define RAM_BATTLE_NUMBER_RECORDS_VALUE 0x7EAD9Cu /* The number */
-#define RAM_BATTLE_NUMBER_RECORDS_KIND 0x7EAD9Eu /* Its kind */
+#define RAM_BATTLE_NUMBER_RECORDS_KIND 0x7EAD9Eu /* How it shows: 0 not at all, 5 as a miss, otherwise as a number (1 and 2 in the second palette; 2, 4 and up rise the second way) */
 /* The combatant's status bit that restarts its script ($04 of the second status byte) as last
  * seen: a change restarts the script [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN 0x7EAE7Au
@@ -3503,12 +3583,15 @@
 #define RAM_BATTLE_TIMER_TICK_SLOT 0x7EB3C0u
 /* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_TIMER 0x7EB3C4u
-/* Set when the member can take part in a combination tech now [3 x $1 bytes, by party slot] */
-#define RAM_BATTLE_COMBO_READY 0x7EB3E7u
-#define RAM_BATTLE_COMBO_READY_COUNT 3u
-#define RAM_BATTLE_COMBO_READY_STRIDE 0x01u
-/* 3x3 pairing table filled from the members' partner nibbles ($FF: not paired) [9 x $1 bytes, by
- * member * 3 + member] */
+/* Set when the member's combination tech is called off: it, or a member it chose as a partner or
+ * that chose it, can't act; $FD:A95F then drops what the member had queued [3 x $1 bytes, by
+ * party slot] */
+#define RAM_BATTLE_COMBO_CALLED_OFF 0x7EB3E7u
+#define RAM_BATTLE_COMBO_CALLED_OFF_COUNT 3u
+#define RAM_BATTLE_COMBO_CALLED_OFF_STRIDE 0x01u
+/* Who is in each member's combination tech: a row of three per member, the member itself first,
+ * then the members it or they chose as partners, each in its own column ($FF: none) [9 x $1
+ * bytes, by member * 3 + member] */
 #define RAM_BATTLE_COMBO_PAIRS 0x7EB3EBu
 #define RAM_BATTLE_COMBO_PAIRS_COUNT 9u
 #define RAM_BATTLE_COMBO_PAIRS_STRIDE 0x01u
