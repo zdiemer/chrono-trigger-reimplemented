@@ -5,6 +5,7 @@
  * V that follow from the command, what it did and the state before and after.
  * The build without the original's effects has none of it. */
 #include "event/leaves.h"
+#include "event/party.h"
 #include "event/variables.h"
 #include "field/field.h"
 #include "port/vars_ram.h"
@@ -118,8 +119,8 @@ static void derive_face_toward(GameState *g, const EventCommand *c, EventFlow fl
 
 /* The screen test ($28, and a walk until well on screen, $8F): where the
  * tile is well on screen, the overflow of its last subtraction. $8F arrives
- * by it where the walker is neither next to its target nor walking to a
- * disabled one; otherwise it set off, and says how itself. */
+ * by it where the walker is neither next to the member it walks to nor
+ * finds nobody to walk to; otherwise it set off, and says how itself. */
 static void derive_screen_test(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
 {
     (void)flow, (void)n;
@@ -132,7 +133,8 @@ static void derive_arrived_on_screen(GameState *g, const EventCommand *c, EventF
 {
     (void)n;
     MapTile own = object_tile(g, c->self);
-    if (flow.kind == FLOW_NEXT && !object_disabled(g, c->target) && !tiles_next_to(own, object_tile(g, c->target)))
+    Someone quarry = member_in_place(g, c->member, c->self);
+    if (flow.kind == FLOW_NEXT && quarry.there && !quarry.disabled && !tiles_next_to(own, tile_at(quarry.at)))
         l->overflow = field_screen_test_overflow(g, own);
 }
 

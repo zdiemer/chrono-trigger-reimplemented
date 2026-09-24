@@ -1116,6 +1116,15 @@ enum { FIELD_OBJECT_ROLE_COUNT = 64 };   /* by object slot (X = slot * 2) */
  * party, 7 checked against the screen window only, 8 left alone by the update */
 uint8_t field_object_role(const GameState *g, unsigned slot);
 void set_field_object_role(GameState *g, unsigned slot, uint8_t v);
+/* What the object is to the field (field/object.h, ObjectRole): bit 7 disabled; the kind below
+ * it, 0-2 the party's leader and members (moved without tile checks), 3 a character who left the
+ * party, 7 checked against the screen window only, 8 left alone by the update Unchecked, for
+ * marked scaffolding only: an empty party place's marker (a byte with the top bit set, $80 as
+ * the game makes it) is taken as an object by the moves toward a member, following one and
+ * noting one's tile, which read the slot it names past the tables (game/event/party.c,
+ * see_what_the_original_finds; 52,898 real calls over the movie library) */
+uint8_t field_object_role_unchecked(const GameState *g, unsigned slot);
+void set_field_object_role_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_CHARACTER_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The character the object is (event $D6 takes the first party member who is one out of the
@@ -1194,6 +1203,19 @@ void set_field_object_x_fine(GameState *g, unsigned slot, uint8_t v);
 /* Tile X */
 uint8_t field_object_x_tile(const GameState *g, unsigned slot);
 void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v);
+/* Position within the tile ($80 its middle) Unchecked, for marked scaffolding only: an empty
+ * party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an
+ * object by the moves toward a member, following one and noting one's tile, which read the slot
+ * it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls
+ * over the movie library) */
+uint8_t field_object_x_fine_unchecked(const GameState *g, unsigned slot);
+void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* Tile X Unchecked, for marked scaffolding only: an empty party place's marker (a byte with the
+ * top bit set, $80 as the game makes it) is taken as an object by the moves toward a member,
+ * following one and noting one's tile, which read the slot it names past the tables
+ * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library) */
+uint8_t field_object_x_tile_unchecked(const GameState *g, unsigned slot);
+void set_field_object_x_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Position within the tile */
@@ -1202,6 +1224,19 @@ void set_field_object_y_fine(GameState *g, unsigned slot, uint8_t v);
 /* Tile Y */
 uint8_t field_object_y_tile(const GameState *g, unsigned slot);
 void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v);
+/* Position within the tile Unchecked, for marked scaffolding only: an empty party place's marker
+ * (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves
+ * toward a member, following one and noting one's tile, which read the slot it names past the
+ * tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie
+ * library) */
+uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot);
+void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* Tile Y Unchecked, for marked scaffolding only: an empty party place's marker (a byte with the
+ * top bit set, $80 as the game makes it) is taken as an object by the moves toward a member,
+ * following one and noting one's tile, which read the slot it names past the tables
+ * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library) */
+uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot);
+void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_VELOCITY_X_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* X velocity added to the position each step, sign-extended to 16 bits */
@@ -1467,6 +1502,15 @@ void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint
 enum { FIELD_TILE_UPPER_ATTRIBUTES_ROWS = 64, FIELD_TILE_UPPER_ATTRIBUTES_COLUMNS = 64 };
 uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
+/* The second of the three bytes a map gives each tile (a row every 256 bytes, beside
+ * field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the
+ * map (field_object_sprite_priority +1, where the object takes its priority from the map) [a
+ * byte by row and column] Unchecked, for marked scaffolding only: an object that follows the map
+ * put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the
+ * bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map;
+ * 20 real calls over the movie library) */
+uint8_t field_tile_upper_attributes_unchecked(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_upper_attributes_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 /* The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it,
  * bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)
@@ -1474,6 +1518,14 @@ void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column
 enum { FIELD_TILE_LOWER_ATTRIBUTES_ROWS = 64, FIELD_TILE_LOWER_ATTRIBUTES_COLUMNS = 64 };
 uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
+/* The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it,
+ * bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)
+ * [a byte by row and column] Unchecked, for marked scaffolding only: an object that follows the
+ * map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from
+ * the bytes past the attribute tables' rows (game/field/layers.c,
+ * map_tile_attributes_past_the_map; 20 real calls over the movie library) */
+uint8_t field_tile_lower_attributes_unchecked(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_lower_attributes_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 uint8_t field_map_data(const GameState *g);

@@ -72,6 +72,21 @@ rest waits, is [PLAN.md](PLAN.md).
   - `title.c:332`'s `move_logo` sets channel 0's script through the raw
     accessor: export a `scene_channel_go_to` from `script.c`.
 
+- **What core's controller rewrite left** (RECOMP.md, "Phase 3a: the
+  controller off the machine"):
+  - the rest of `game/core/` reads as translation though none of it is on the
+    baseline (0.07 a line hides it): `palette.c` (every function on the
+    machine, slots as byte offsets, the multiplier used to compute, the
+    scratch pointer re-read per colour), `sound_driver.c` (the CPU half, on
+    the machine throughout, names from `$2F00`), `tile_animation.c` (offset
+    arithmetic into the slot records, the transfer's write order spelled out,
+    call sites computed), `display.c` (the power-on setup as register bytes
+    through the decoders, in the original's order) and `memory.c` (the block
+    move stub as `m_mvn`);
+  - the button names other subsystems still define privately: `event/input.c`
+    (the game's order, `core/input.h`'s `BUTTON_*`), `battle/nmi.c` and
+    `battle/frame.c` (the controller's, `platform/input.h`'s `IN_BUTTON_*`).
+
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
   machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
   - what the qualitative review rated "mostly" in `menu/display.c`, to finish:
@@ -106,20 +121,6 @@ rest waits, is [PLAN.md](PLAN.md).
   - the glyph drawer takes the font's addresses from the text engine
     (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
     that engine ported first.
-
-- **The absent party member is an unported path, and a common one.** Making
-  it explicit in the combined event and field pass turned a hidden alias (an
-  empty party place read as object 64, one past the tables) into a guard that
-  refuses those calls, so the original runs them. That is correct, and the
-  gate passes, but it is **52,898 real calls over the library**: a scene
-  following a party of two, where the third place is empty
-  (`event_cmd_move_toward_party_member`, `event_cmd_follow_party_member`), and
-  2,735 of `event_cmd_note_tile_member`. A native build has no original to
-  hand them to (PLAN.md, "A guard becomes an assertion"). Port the case:
-  decide what a command does to an absent member, in the game's terms (most
-  likely nothing, or the move completes). Where the byte-exact gate needs the
-  original's stray reads of slot 64, reproduce them in one marked scaffolding
-  function.
 
 - **What event's and field's combined pass left** (RECOMP.md, "Phase 3a: event
   onto the field's objects"):
@@ -203,25 +204,13 @@ rest waits, is [PLAN.md](PLAN.md).
   (`sprites.c`, by address through `game/wram.h`), the fifth sprite's Y above
   the screen, the openings' word clear spilling into the next slot (the first
   object's falling flag, past the last), and the row removal's in-view
-  write. One is the game's: a command that names a party member without
-  checking (`$22`, `$24`, `$95`, `$99`, `$9F`, `$A9`, `$B6`, `$8F`, and `$07`
-  while it waits) takes an empty place's marker as an object past the
-  tables, and the scripts do that (a scene following a party of two). The
-  guards leave those calls to the original now; a build without it needs to
-  decide what the game should do there (most likely nothing: the member
-  isn't on the map).
-- **An object layered as the map on a tile off the map is an unported path.**
-  The accessor checks found scripts putting an object that follows the map at
-  tile column 64, or at (255, 255) to take it out of the way, and the original
-  then reads the layering tables' neighbours for its sprite priorities
-  (another row's tile maps, the other attribute table). The guards on `$8B`,
-  `$8C`, `$8D` and `$8E` (`event/properties.c`, `tile_on_the_map`) leave those
-  commands to the original: 20 real calls over the library, 18 in
-  `events-prison-escape` (9 of `$C0:4B74` on its own, 9 run inline by the
-  map's openings `$C0:58DE`) and 2 in `endings-beyond-time` (one of `$C0:4C27`,
-  one inline). A native build
-  needs to decide what the priority of an object off the map is (most likely
-  whatever it had: it isn't drawn).
+  write. Three commands still take a party member's object without checking
+  (`$24`, `$A9`, and `$07` while it waits), and their guards leave an empty
+  place to the original, where it reads the slot past the tables; the game
+  makes none of those calls over the library. The moves, following and
+  noting a member's tile ask for the member as `Someone` (`event/party.h`),
+  which has nobody in an empty place, and these would do the same (RECOMP.md,
+  "The absent party member and the object off the map").
 - **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:
@@ -980,8 +969,6 @@ waits on M5 rather than on a backend.
   - `frame.c` derives the controller's carry (its compare with the reset
     buttons) twice, at the pause sound's call and at the task lists'; once,
     named, would do.
-  - The button names `frame.c` defines belong in `platform/input.h`, where a
-    second subsystem's would find them.
   - `SCENE_VBLANK_TASKS` is the map's `scene_early_tasks`: one name for both.
   - `script.c`: the register encoding (`(operand & 0x1E) / 2`) and the operand
     offsets the adapters spell out want the table to decode typed operands.

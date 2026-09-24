@@ -212,6 +212,7 @@ typedef struct {
 
 FieldPosition object_position(const GameState *g, FieldObject obj);
 MapTile object_tile(const GameState *g, FieldObject obj);
+static inline MapTile tile_at(FieldPosition at) { return (MapTile){ (uint8_t)(at.x >> 8), (uint8_t)(at.y >> 8) }; }
 void object_place(GameState *g, FieldObject obj, FieldPosition at);
 
 /* Put the object on a tile, at the tile's bottom: `centred` across it, or
@@ -253,13 +254,15 @@ bool layering_byte_is_one(uint8_t byte);
  * its frame shows again at once. */
 void object_set_layering(GameState *g, FieldObject obj, ObjectLayering layering);
 bool object_follows_the_map(const GameState *g, FieldObject obj);
-/* Its halves take the map's priorities on a tile, which must be on the map. */
+/* Its halves take the map's priorities on a tile. Off the map there are
+ * none to take, and it keeps those it had: scripts put an object there to
+ * take it out of the way (a tile column of 64, or (255, 255)), where nothing
+ * draws it. (The original layers it from the bytes past the attribute
+ * tables' rows all the same, which only its effects reproduce:
+ * field/layers.h, map_tile_attributes_past_the_map.) */
 void object_layer_as_the_map(GameState *g, FieldObject obj, MapTile tile);
 /* Whether a tile is on the map: inside the tables that say how each of its
- * tiles is layered. The original, layering an object on a tile off the map,
- * reads those tables' neighbours in its memory (another row's tile maps, the
- * other attribute table), which a script that puts an object off the map
- * has it do; that is the original's to run (docs/TODO.md). */
+ * tiles is layered. */
 bool tile_on_the_map(MapTile tile);
 /* Its halves' priorities, 0-3; or those its own layering gives. */
 void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, uint8_t lower);
@@ -444,7 +447,7 @@ bool object_search_fits(const GameState *g);
 /* A step to line the object up with its tile's middle, or with another
  * object's tile: true while it still has to move. */
 bool object_line_up_with_tile(GameState *g, FieldObject obj);
-bool object_line_up_with(GameState *g, FieldObject obj, FieldObject target);
+bool object_line_up_with(GameState *g, FieldObject obj, FieldPosition other);
 
 /* Every frame: the object's step of its current move, if it has steps left.
  * An object that accelerates falls; otherwise it steps at its velocity,
@@ -485,6 +488,23 @@ FieldLink row_first_object(const GameState *g, unsigned row);
  * leaves. */
 FieldLink party_member_link(const GameState *g, unsigned place);
 void party_place_left_empty(GameState *g, unsigned place);
+
+/* ---- Past the tables (field/object.c): the original's effects only ----------------------- *
+ *
+ * The original takes a link to none as an object where a script names an
+ * empty party place (event/party.c), and reads the object its byte names: for
+ * the game's marker, $80, the slot one past the tables, whose role and
+ * position are the next tables' first bytes -- object 0's script position's
+ * low byte (the top bit of which reads as disabled), its vertical position
+ * (read as the slot's horizontal one) and its horizontal velocity (as the
+ * vertical). Marked scaffolding (original_effects.h) reads them here, through
+ * the tables' unchecked accessors, so that the gate sees what the original
+ * does; the game has nobody there, and a native build reads nothing. */
+typedef struct {
+    bool disabled;
+    FieldPosition at;
+} ObjectPastTheTables;
+ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot);
 
 /* The object a dialog's window is placed by, which is waiting on it. */
 void dialog_set_speaker(GameState *g, FieldObject speaker);
