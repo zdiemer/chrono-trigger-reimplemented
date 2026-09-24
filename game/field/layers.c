@@ -384,6 +384,12 @@ TileAttributes map_tile_attributes(const GameState *g, MapPlace p)
                              field_tile_lower_attributes(g, p.row, p.column) };
 }
 
+TileAttributes map_tile_attributes_past_the_map(const GameState *g, MapPlace p)
+{
+    return (TileAttributes){ .upper = field_tile_upper_attributes_unchecked(g, p.row, p.column),
+                             .lower = field_tile_lower_attributes_unchecked(g, p.row, p.column) };
+}
+
 /* A tile's bytes from the stream, each written as it is read: a big map's
  * attribute tables reach the stream's bytes still to come, and change them
  * as the original does. */

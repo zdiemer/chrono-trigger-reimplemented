@@ -62,16 +62,17 @@ const EventOpcode *event_opcode(uint8_t opcode)
 
 enum { LONGEST_COMMAND = 8 };
 
-/* The party member at `place` (doubled, as scripts write it): a place of the
- * party, and their object one the tables hold; or, where the command checks
- * first, nobody there. An empty place names no object. A command that doesn't
- * check would take its marker as an object past the tables (the absent
- * member, which the game does: a scene following a party of two), and read
- * the tables' neighbours there: those calls are the original's
- * (docs/TODO.md). */
+/* A place of the party (doubled, as scripts write it). */
+static bool a_place(uint8_t place) { return !(place & 1) && (place >> 1) < PARTY_PLACES; }
+
+/* The party member at `place`: their object one the tables hold; or, where
+ * the command checks first, nobody there. An empty place names no object, and
+ * a command that takes the member's object without checking is left to the
+ * original there; the game makes none of those calls (the commands that do
+ * take an empty place ask for the member as Someone, event/party.h). */
 static bool member_named(const GameState *g, uint8_t place, bool may_be_absent)
 {
-    if ((place & 1) || (place >> 1) >= PARTY_PLACES)
+    if (!a_place(place))
         return false;
     FieldLink link = party_member_link(g, place >> 1);
     return field_link_is_object(link) ? field_link_names_object(link) : may_be_absent;
@@ -89,6 +90,7 @@ static bool names_what_it_says(const GameState *g, const EventOpcode *row, const
     uint8_t operand = script_byte(g, (uint16_t)(at + arg->operand));
     switch (arg->kind) {
     case ARG_OBJECT: return field_names_object(operand);
+    case ARG_MEMBER: return a_place(operand) && member_place_readable(g, (PartyPlace)(operand >> 1));
     case ARG_MEMBER_OBJECT:
     case ARG_MEMBER_PRESENT: return member_named(g, operand, row->member_may_be_absent);
     case ARG_BIT: return operand <= LAST_BIT_READ;
@@ -131,6 +133,7 @@ static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
     case ARG_VARIABLE_WORD: return variable_word(g, script_byte(g, operand));
     case ARG_OBJECT: return field_linked_object(field_link_stored(script_byte(g, operand)));
     case ARG_SELF: return object_current(g);
+    case ARG_MEMBER: return (PartyPlace)(script_byte(g, operand) >> 1);
     case ARG_MEMBER_OBJECT: return member_object(g, (PartyPlace)(script_byte(g, operand) >> 1));
     case ARG_MEMBER_PRESENT: return place_taken(g, (PartyPlace)(script_byte(g, operand) >> 1));
     case ARG_STORY_WORD: return story_word(g, script_word(g, operand));

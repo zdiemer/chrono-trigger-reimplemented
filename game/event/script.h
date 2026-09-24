@@ -109,6 +109,9 @@ typedef enum { WALKING, SLIDING } MoveStyle;
 /* Where a walk toward another object ends: next to it, or where the walker
  * stands well on screen (someone running in to join a scene). */
 typedef enum { NEXT_TO_IT, WELL_ON_SCREEN } WalkEnd;
+/* A place in the party, as scripts name a member: 0 the leader, 1 and 2 the
+ * others (event/party.h). */
+typedef uint8_t PartyPlace;
 /* A tint's colour, added to the picture or taken away from it. */
 typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
 
@@ -128,7 +131,7 @@ typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
     X(uint16_t, left) X(uint16_t, right) X(uint8_t, comparison) X(uint8_t, progress)            \
     X(uint8_t, point) X(uint16_t, buttons)                                                       \
     /* objects */                                                                                \
-    X(FieldObject, object) X(FieldObject, target) X(bool, there) X(uint8_t, level)              \
+    X(FieldObject, object) X(FieldObject, target) X(PartyPlace, member) X(bool, there)              X(uint8_t, level)                                                                            \
     X(uint8_t, function) X(bool, takes) X(Facing, facing) X(EventVariable, column)              \
     X(EventVariable, row) X(uint8_t, speed) X(bool, solid)                                       \
     X(ObjectBlocking, blocked_by) X(ObjectArrival, arrival) X(uint8_t, move_length)             \
@@ -236,6 +239,7 @@ typedef enum {
     ARG_VARIABLE_WORD,   /* the value of the variable the operand names, as a word */
     ARG_OBJECT,          /* the object the operand names */
     ARG_SELF,            /* the object whose script this is */
+    ARG_MEMBER,          /* the party member the operand names, by their place (anyone there or not) */
     ARG_MEMBER_OBJECT,   /* the object of the party member the operand names */
     ARG_MEMBER_PRESENT,  /* whether there is a party member where the operand says */
     ARG_STORY_WORD,      /* the word of the story memory at the operand word */
@@ -264,6 +268,7 @@ typedef struct {
 #define VARIABLE_WORD(n) { ARG_VARIABLE_WORD, (n), 0, 0 }
 #define OBJECT(n) { ARG_OBJECT, (n), 0, 0 }
 #define SELF { ARG_SELF, 0, 0, 0 }
+#define MEMBER(n) { ARG_MEMBER, (n), 0, 0 }
 #define MEMBER_OBJECT(n) { ARG_MEMBER_OBJECT, (n), 0, 0 }
 #define MEMBER_PRESENT(n) { ARG_MEMBER_PRESENT, (n), 0, 0 }
 #define STORY_WORD(n) { ARG_STORY_WORD, (n), 0, 0 }

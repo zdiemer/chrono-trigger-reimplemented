@@ -14,12 +14,12 @@
  * face its way and runs its walking and standing animations; a sliding one
  * keeps its facing and doesn't animate (MoveStyle).
  *
- * The moves are three operations, by where they go: to a tile, toward an
- * object (or a party member's), and in a direction; the table's rows say
- * which opcode walks or slides, counts, or reads its operands from
- * variables. A jump, a launch and following are operations too; letting an
- * object behave as its state says calls the field's own routines, which are
- * still the original's, and is a bridge.
+ * The moves go to a tile, up to someone -- an object, or a party member
+ * (who may not be in the party: event/party.h) -- or in a direction; the
+ * table's rows say which opcode walks or slides, counts, or reads its
+ * operands from variables. A jump, a launch and following are operations
+ * too; letting an object behave as its state says calls the field's own
+ * routines, which are still the original's, and is a bridge.
  *
  * What the original's handlers leave in Y and V for the code after them
  * (event/leaves.h) is the field's routines' they called: each move says so
@@ -28,6 +28,7 @@
 #include "cpu_io.h"
 #include "event/bridge.h"
 #include "event/leaves.h"
+#include "event/party.h"
 #include "event/script.h"
 #include "field/scratch.h"
 
@@ -160,30 +161,37 @@ static EventFlow move_to_tile(GameState *g, FieldObject self, uint8_t tile_x, ui
 }
 EVENT_OPERATION(move_to_tile, self, tile_x, tile_y, style, counted, steps)
 
-/* ---- Toward an object --------------------------------------------------------------------- */
+/* ---- Toward someone ----------------------------------------------------------------------- */
+
+/* A walk up to someone waits while the walker's last move is under way; a
+ * counted one sets off only once, and is over when its steps are taken. */
+static bool walk_waits(GameState *g, FieldObject self, bool counted, EventFlow *flow)
+{
+    if (!counted) {
+        *flow = stay();
+        return object_moving(g, self);
+    }
+    switch (counted_move(g, self)) {
+    case MOVE_RUNNING: *flow = stay(); return true;
+    case MOVE_DONE: *flow = next_command(); return true;
+    default: return false;
+    }
+}
 
 // $C0:5215
-/* Walk or slide up to another object (or a party member), a move's worth of
- * steps at a time, turning aside from what's in the way, until next to it --
- * lined up with it, where the object asks -- or, running in to join a scene,
- * until well on screen. A disabled object is none to walk to. A counted move
- * sets off once, for the steps given. */
-static EventFlow move_toward(GameState *g, FieldObject self, FieldObject target, MoveStyle style, bool counted,
-                             uint8_t steps, WalkEnd until)
+/* Walk or slide up to someone (an object, or a party member), a move's worth
+ * of steps at a time, turning aside from what's in the way, until next to
+ * them -- lined up with them, where the walker asks -- or, running in to join
+ * a scene, until well on screen. With nobody to walk to -- a disabled object,
+ * or a member who isn't in the party -- the walk is over at once. A counted
+ * move sets off once, for the steps given. */
+static EventFlow walk_up_to(GameState *g, FieldObject self, Someone quarry, MoveStyle style, bool counted,
+                            uint8_t steps, WalkEnd until)
 {
-    if (counted) {
-        switch (counted_move(g, self)) {
-        case MOVE_RUNNING: return stay();
-        case MOVE_DONE: return next_command();
-        default: break;
-        }
-    } else if (object_moving(g, self)) {
-        return stay();
-    }
-    if (!object_disabled(g, target)) {
-        Aim aim = { object_tile(g, self), object_tile(g, target) };
+    if (quarry.there && !quarry.disabled) {
+        Aim aim = { object_tile(g, self), tile_at(quarry.at) };
         ORIGINAL_EFFECT(field_leave_aim(g, aim));
-        ORIGINAL_EFFECT(field_leave_target_object(g, target));
+        ORIGINAL_EFFECT(field_leave_target_object(g, quarry.object));
         if (!tiles_next_to(aim.from, aim.to)) {
             if (until == WELL_ON_SCREEN) {
                 ORIGINAL_EFFECT(keep_screen_edges(g));
@@ -193,7 +201,7 @@ static EventFlow move_toward(GameState *g, FieldObject self, FieldObject target,
             return set_off_toward(g, self, style, aim, steps_to_set_off(g, self, counted, steps));
         }
         if (until == NEXT_TO_IT && object_lines_up(g, self, LINE_UP_ON_THE_OBJECT) &&
-            object_line_up_with(g, self, target))
+            object_line_up_with(g, self, quarry.at))
             return keep_lining_up(g, self, style);
     }
     if (counted)
@@ -202,7 +210,28 @@ static EventFlow move_toward(GameState *g, FieldObject self, FieldObject target,
         return next_command();
     return arrive(g, self, style);
 }
+
+/* Up to another object. */
+static EventFlow move_toward(GameState *g, FieldObject self, FieldObject target, MoveStyle style, bool counted,
+                             uint8_t steps, WalkEnd until)
+{
+    EventFlow waiting;
+    if (walk_waits(g, self, counted, &waiting))
+        return waiting;
+    return walk_up_to(g, self, someone_of_object(g, target), style, counted, steps, until);
+}
 EVENT_OPERATION(move_toward, self, target, style, counted, steps, until)
+
+/* Up to a member of the party (event/party.h). */
+static EventFlow move_toward_member(GameState *g, FieldObject self, PartyPlace member, MoveStyle style,
+                                    bool counted, uint8_t steps, WalkEnd until)
+{
+    EventFlow waiting;
+    if (walk_waits(g, self, counted, &waiting))
+        return waiting;
+    return walk_up_to(g, self, member_in_place(g, member, self), style, counted, steps, until);
+}
+EVENT_OPERATION(move_toward_member, self, member, style, counted, steps, until)
 
 /* ---- In a direction ----------------------------------------------------------------------- */
 
@@ -337,13 +366,15 @@ EVENT_OPERATION(follow, self, target)
 
 // $C0:354F
 /* Follow a party member about for good: walk up to them every turn, and go
- * on with the object's turn this frame when the walk would have (arrived). */
-static EventFlow follow_party_member(GameState *g, FieldObject self, FieldObject target)
+ * on with the object's turn this frame when the walk would have (arrived,
+ * or found nobody to follow: the object standing in for a member who isn't
+ * in the party waits there, a turn at a time, for good). */
+static EventFlow follow_party_member(GameState *g, FieldObject self, PartyPlace member)
 {
-    EventFlow walk = move_toward(g, self, target, WALKING, false, 0, NEXT_TO_IT);
+    EventFlow walk = move_toward_member(g, self, member, WALKING, false, 0, NEXT_TO_IT);
     return walk.kind == FLOW_NEXT ? run_again() : stay();
 }
-EVENT_OPERATION(follow_party_member, self, target)
+EVENT_OPERATION(follow_party_member, self, member)
 
 /* ---- Behaving as the state says ------------------------------------------------------------ */
 
@@ -403,8 +434,8 @@ static bool can_slide_its_way(const GameState *g, FieldObject self)
 }
 EVENT_CHECK(can_slide_its_way, self)
 
-/* The moves' guards are their operands': an object, or a party member whose
- * object is one. */
+/* The moves' guards are their operands': an object, or a place of the party
+ * (event/party.h, member_place_readable). */
 #define TO_A_TILE .tile_x = OPERAND(1), .tile_y = OPERAND(2)
 #define TO_A_TILE_FROM_VARIABLES .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2)
 #define WALKS .style = CONSTANT(WALKING)
@@ -418,14 +449,14 @@ EVENT_OPCODES(event_movement_opcodes,
     { 0xA1, OPERATION(move_to_tile), TO_A_TILE_FROM_VARIABLES, SLIDES, .length = 3 },
     { 0x9A, OPERATION(move_to_tile), TO_A_TILE, WALKS_LOOKING, .counted = CONSTANT(true), .steps = OPERAND(3), .length = 4 },
     { 0x94, OPERATION(move_toward), .target = OBJECT(1), WALKS_LOOKING, .length = 2 },
-    { 0x95, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS_LOOKING, .length = 2 },
+    { 0x95, OPERATION(move_toward_member), .member = MEMBER(1), WALKS_LOOKING, .length = 2 },
     { 0x9E, OPERATION(move_toward), .target = OBJECT(1), SLIDES, .length = 2 },
-    { 0x9F, OPERATION(move_toward), .target = MEMBER_OBJECT(1), SLIDES, .length = 2 },
+    { 0x9F, OPERATION(move_toward_member), .member = MEMBER(1), SLIDES, .length = 2 },
     { 0x98, OPERATION(move_toward), .target = OBJECT(1), WALKS_LOOKING, .counted = CONSTANT(true), .steps = OPERAND(2),
       .length = 3 },
-    { 0x99, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS_LOOKING, .counted = CONSTANT(true),
+    { 0x99, OPERATION(move_toward_member), .member = MEMBER(1), WALKS_LOOKING, .counted = CONSTANT(true),
       .steps = OPERAND(2), .length = 3 },
-    { 0x8F, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS_LOOKING, .until = CONSTANT(WELL_ON_SCREEN),
+    { 0x8F, OPERATION(move_toward_member), .member = MEMBER(1), WALKS_LOOKING, .until = CONSTANT(WELL_ON_SCREEN),
       .length = 2 },
     { 0x92, OPERATION(move_in_direction), .direction = OPERAND(1), .steps = OPERAND(2), WALKS, .length = 3 },
     { 0x9C, OPERATION(move_in_direction), .direction = OPERAND(1), .steps = OPERAND(2),
@@ -436,5 +467,5 @@ EVENT_OPCODES(event_movement_opcodes,
     { 0x7B, OPERATION(launch), .velocity_x = OPERAND(1), .velocity_y = OPERAND(2), .acceleration = OPERAND(3),
       .steps = OPERAND(4), .length = 5 },
     { 0xB5, OPERATION(follow), .target = OBJECT(1), .length = 2, CHECK(can_look_its_way) },
-    { 0xB6, OPERATION(follow_party_member), .target = MEMBER_OBJECT(1), .length = 2, CHECK(can_look_its_way) },
+    { 0xB6, OPERATION(follow_party_member), .member = MEMBER(1), .length = 2, CHECK(can_look_its_way) },
     { 0xB0, .length = 1 });

@@ -1143,6 +1143,8 @@ uint8_t field_object_animation_link(const GameState *g, unsigned slot) { IN_RANG
 void set_field_object_animation_link(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 62, "set_field_object_animation_link", "count", slot, 64u); w8(g, 0x7E1081u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_role(const GameState *g, unsigned slot) { IN_RANGE(g, 63, "field_object_role", "count", slot, 64u); return r8(g, 0x7E1100u + (uint32_t)slot * 0x02u); }
 void set_field_object_role(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 63, "set_field_object_role", "count", slot, 64u); w8(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_role_unchecked(const GameState *g, unsigned slot) { return r8(g, 0x7E1100u + (uint32_t)slot * 0x02u); }
+void set_field_object_role_unchecked(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_character(const GameState *g, unsigned slot) { IN_RANGE(g, 64, "field_object_character", "count", slot, 64u); return r8(g, 0x7E1101u + (uint32_t)slot * 0x02u); }
 void set_field_object_character(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 64, "set_field_object_character", "count", slot, 64u); w8(g, 0x7E1101u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_sprite_layout(const GameState *g, unsigned slot) { IN_RANGE(g, 65, "field_object_sprite_layout", "count", slot, 64u); return r8(g, 0x7E1201u + (uint32_t)slot * 0x02u); }
@@ -1173,10 +1175,18 @@ uint8_t field_object_x_fine(const GameState *g, unsigned slot) { IN_RANGE(g, 77,
 void set_field_object_x_fine(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 77, "set_field_object_x_fine", "count", slot, 64u); w8(g, 0x7E1800u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_x_tile(const GameState *g, unsigned slot) { IN_RANGE(g, 77, "field_object_x_tile", "count", slot, 64u); return r8(g, 0x7E1801u + (uint32_t)slot * 0x02u); }
 void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 77, "set_field_object_x_tile", "count", slot, 64u); w8(g, 0x7E1801u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_x_fine_unchecked(const GameState *g, unsigned slot) { return r8(g, 0x7E1800u + (uint32_t)slot * 0x02u); }
+void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1800u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_x_tile_unchecked(const GameState *g, unsigned slot) { return r8(g, 0x7E1801u + (uint32_t)slot * 0x02u); }
+void set_field_object_x_tile_unchecked(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1801u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_y_fine(const GameState *g, unsigned slot) { IN_RANGE(g, 78, "field_object_y_fine", "count", slot, 64u); return r8(g, 0x7E1880u + (uint32_t)slot * 0x02u); }
 void set_field_object_y_fine(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 78, "set_field_object_y_fine", "count", slot, 64u); w8(g, 0x7E1880u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_y_tile(const GameState *g, unsigned slot) { IN_RANGE(g, 78, "field_object_y_tile", "count", slot, 64u); return r8(g, 0x7E1881u + (uint32_t)slot * 0x02u); }
 void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 78, "set_field_object_y_tile", "count", slot, 64u); w8(g, 0x7E1881u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot) { return r8(g, 0x7E1880u + (uint32_t)slot * 0x02u); }
+void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1880u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot) { return r8(g, 0x7E1881u + (uint32_t)slot * 0x02u); }
+void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1881u + (uint32_t)slot * 0x02u, v); }
 uint16_t field_object_velocity_x(const GameState *g, unsigned slot) { IN_RANGE(g, 79, "field_object_velocity_x", "count", slot, 64u); return r16(g, 0x7E1900u + (uint32_t)slot * 0x02u); }
 void set_field_object_velocity_x(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 79, "set_field_object_velocity_x", "count", slot, 64u); w16(g, 0x7E1900u + (uint32_t)slot * 0x02u, v); }
 uint16_t field_object_velocity_y(const GameState *g, unsigned slot) { IN_RANGE(g, 80, "field_object_velocity_y", "count", slot, 64u); return r16(g, 0x7E1980u + (uint32_t)slot * 0x02u); }
@@ -1287,8 +1297,12 @@ uint8_t field_tile_properties(const GameState *g, unsigned row, unsigned column)
 void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 107, "set_field_tile_properties", "rows", row, 64u); IN_RANGE(g, 107, "set_field_tile_properties", "columns", column, 64u); w8(g, 0x7E30C0u + (uint32_t)row * 0x100u + column, v); }
 uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 108, "field_tile_upper_attributes", "rows", row, 64u); IN_RANGE(g, 108, "field_tile_upper_attributes", "columns", column, 64u); return r8(g, 0x7E7000u + (uint32_t)row * 0x100u + column); }
 void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 108, "set_field_tile_upper_attributes", "rows", row, 64u); IN_RANGE(g, 108, "set_field_tile_upper_attributes", "columns", column, 64u); w8(g, 0x7E7000u + (uint32_t)row * 0x100u + column, v); }
+uint8_t field_tile_upper_attributes_unchecked(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E7000u + (uint32_t)row * 0x100u + column); }
+void set_field_tile_upper_attributes_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E7000u + (uint32_t)row * 0x100u + column, v); }
 uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 109, "field_tile_lower_attributes", "rows", row, 64u); IN_RANGE(g, 109, "field_tile_lower_attributes", "columns", column, 64u); return r8(g, 0x7E7040u + (uint32_t)row * 0x100u + column); }
 void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 109, "set_field_tile_lower_attributes", "rows", row, 64u); IN_RANGE(g, 109, "set_field_tile_lower_attributes", "columns", column, 64u); w8(g, 0x7E7040u + (uint32_t)row * 0x100u + column, v); }
+uint8_t field_tile_lower_attributes_unchecked(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E7040u + (uint32_t)row * 0x100u + column); }
+void set_field_tile_lower_attributes_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E7040u + (uint32_t)row * 0x100u + column, v); }
 uint8_t field_map_data(const GameState *g) { return r8(g, 0x7EB506u); }
 void set_field_map_data(GameState *g, uint8_t v) { w8(g, 0x7EB506u, v); }
 uint8_t field_window_2_second_table(const GameState *g) { return r8(g, 0x7F0351u); }
