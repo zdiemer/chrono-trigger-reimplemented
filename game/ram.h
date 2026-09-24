@@ -98,6 +98,9 @@
 #define RAM_LOCATION_PREVIOUS 0x7E0105u
 #define RAM_LOCATION_PREVIOUS_DP 0x05u       /* page field */
 #define RAM_LOCATION_PREVIOUS_ID 0x7E0105u   /* 16-bit value whose low 9 bits are the location number */
+#define RAM_LOCATION_PREVIOUS_X 0x7E0107u    /* Where the party stood across it, in 8x8 tiles */
+#define RAM_LOCATION_PREVIOUS_Y 0x7E0108u    /* And down it */
+#define RAM_LOCATION_PREVIOUS_FLAGS 0x7E0109u /* How the change back to it is made (location's flags) */
 /* A location triple event $DC keeps (the field's start reads it, $C0:02F9) [5 bytes] */
 #define RAM_LOCATION_STORED 0x7E010Au
 #define RAM_LOCATION_STORED_DP 0x0Au         /* page field */
@@ -1343,19 +1346,17 @@
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 
-/* The character of the party member the load screen is drawing a row for (its record's first
- * byte; the portrait clears the high byte) [2 bytes] */
-#define RAM_MENU_SAVE_MEMBER 0x7E0000u
-#define RAM_MENU_SAVE_MEMBER_DP 0x00u        /* page menu */
-/* Where the record of the party member the load screen is drawing a row for is, in the save
- * summary [2 bytes] */
-#define RAM_MENU_SAVE_MEMBER_RECORD 0x7E0002u
-#define RAM_MENU_SAVE_MEMBER_RECORD_DP 0x02u /* page menu */
-/* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
- * brightness); while bit 7 of the first is set the wave handler also turns its effect off [2
- * bytes] */
-#define RAM_MENU_OBJECT_DISPLAY 0x7E001Cu
-#define RAM_MENU_OBJECT_DISPLAY_DP 0x1Cu     /* page menu */
+/* The menus' first direct-page cells, which their routines share as working values, each its own
+ * [16 bytes] */
+#define RAM_MENU_SCRATCH 0x7E0000u
+#define RAM_MENU_SCRATCH_DP 0x00u            /* page menu */
+#define RAM_MENU_SCRATCH_SAVE_MEMBER 0x7E0000u /* The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte) */
+#define RAM_MENU_SCRATCH_SAVE_MEMBER_RECORD 0x7E0002u /* The load screen: where the record of the member it is drawing is, in the save summary */
+#define RAM_MENU_SCRATCH_RECORD_HIGH_BIT 0x7E0000u /* A window record's sprites: the next sprite's ninth X bit, as its place in the high table's byte */
+#define RAM_MENU_SCRATCH_RECORD_HIGH_BYTE 0x7E0002u /* A window record's sprites: which high table byte the record's are in */
+#define RAM_MENU_SCRATCH_RECORD_SPRITES_END 0x7E0004u /* A window record's sprites: twice the sprites it draws */
+#define RAM_MENU_SCRATCH_RECORD_X 0x7E0006u  /* A window record's sprites: the record's X on the screen; its high byte rotated so bit 7 is the ninth bit */
+#define RAM_MENU_SCRATCH_RECORD_TILE 0x7E0008u /* A window record's sprites: the next sprite's tile past the record's first */
 /* Which of the save summary's three member rows the load screen is drawing (the portrait's
  * palette is 4 on from it) [2 bytes] */
 #define RAM_MENU_SAVE_MEMBER_ROW 0x7E0024u
@@ -1363,26 +1364,6 @@
 /* How wide, in pixels, the era label the load screen shows is */
 #define RAM_MENU_SAVE_ERA_WIDTH 0x7E0026u
 #define RAM_MENU_SAVE_ERA_WIDTH_DP 0x26u     /* page menu */
-/* The per-line effect slots the sprite object mode enables each frame (bit 1: the wave on slot
- * 1) */
-#define RAM_MENU_OBJECT_LINE_EFFECTS 0x7E004Au
-#define RAM_MENU_OBJECT_LINE_EFFECTS_DP 0x4Au /* page menu */
-/* Counts the sprite object mode's vblank interrupts; the main loop waits for it to change */
-#define RAM_MENU_OBJECT_FRAME_COUNTER 0x7E004Bu
-#define RAM_MENU_OBJECT_FRAME_COUNTER_DP 0x4Bu /* page menu */
-/* Bit 0: the main loop has finished a frame, so the vblank handler sends it and runs the objects
- * (setting it again after); bit 1: send the palette at $0920 too */
-#define RAM_MENU_OBJECT_FRAME_STATE 0x7E004Cu
-#define RAM_MENU_OBJECT_FRAME_STATE_DP 0x4Cu /* page menu */
-/* The next free entry of the sprite table while sprite nodes are drawn */
-#define RAM_MENU_OBJECT_SPRITE_INDEX 0x7E004Du
-#define RAM_MENU_OBJECT_SPRITE_INDEX_DP 0x4Du /* page menu */
-/* Address of the object slot being run [2 bytes] */
-#define RAM_MENU_OBJECT_CURRENT 0x7E004Eu
-#define RAM_MENU_OBJECT_CURRENT_DP 0x4Eu     /* page menu */
-/* The handler of the object being run, called through JMP ($0050) [2 bytes] */
-#define RAM_MENU_OBJECT_HANDLER 0x7E0050u
-#define RAM_MENU_OBJECT_HANDLER_DP 0x50u     /* page menu */
 /* The current menu's cursor position: the cursor sprite is placed from the table at $7E:9380 at
  * 6 bytes per position; on the load screen, the selected save slot */
 #define RAM_MENU_CURSOR_INDEX 0x7E0054u
@@ -1404,12 +1385,6 @@
 /* Window command 12's per-line transfer mode (the destination register follows it) */
 #define RAM_MENU_WINDOW_EFFECT_MODE 0x7E005Du
 #define RAM_MENU_WINDOW_EFFECT_MODE_DP 0x5Du /* page menu */
-/* Nonzero while a VRAM upload is being queued, so the vblank handler leaves the queue alone */
-#define RAM_MENU_OBJECT_VRAM_QUEUE_BUSY 0x7E005Eu
-#define RAM_MENU_OBJECT_VRAM_QUEUE_BUSY_DP 0x5Eu /* page menu */
-/* Bytes of VRAM upload records queued at $60, 8 per record; the vblank upload clears it */
-#define RAM_MENU_OBJECT_VRAM_QUEUE_END 0x7E005Fu
-#define RAM_MENU_OBJECT_VRAM_QUEUE_END_DP 0x5Fu /* page menu */
 /* The place in a tilemap buffer in bank $7E the menus draw relative to: the text's move code
  * puts the pen at an offset from it, and the save screen draws a member's summary and portrait
  * there [2 bytes] */
@@ -1454,11 +1429,6 @@
 /* The number's size in bytes, counted down as it is converted [2 bytes] */
 #define RAM_MENU_NUMBER_SIZE 0x7E0092u
 #define RAM_MENU_NUMBER_SIZE_DP 0x92u        /* page menu */
-/* Long pointer to the next free bytes of the upload buffer at $7E:F000, where the sprite object
- * mode builds what goes to VRAM: a sprite's two tile columns, or a strip of the map's tilemap.
- * Put back to $7E:F000 once each frame's queue is out [3 bytes] */
-#define RAM_MENU_OBJECT_UPLOAD_BUFFER 0x7E00E0u
-#define RAM_MENU_OBJECT_UPLOAD_BUFFER_DP 0xE0u /* page menu */
 /* Which background tile column of the map each plane has at its left edge (0-191), set from the
  * party's tile at $0102 ($C2:2720). A third plane's word would be menu_map_row's first, and its
  * tile groups would be the first plane's map, so only two planes can be scrolled [2 x $2 bytes,
@@ -1472,6 +1442,11 @@
 #define RAM_MENU_MAP_ROW_COUNT 3u
 #define RAM_MENU_MAP_ROW_STRIDE 0x02u
 #define RAM_MENU_MAP_ROW_DP 0xE7u            /* page menu */
+/* Where the wave on the layer over a map screen's map is in its sine, which moves on 4 steps a
+ * frame. The handler means its object's own phase (+$22) but reaches it through an index its
+ * loop has run on to $01C0, so it keeps it here, in the field page's scratch; it clears the
+ * object's own the first frame all the same [2 bytes] */
+#define RAM_MENU_WAVE_PHASE 0x7E01E2u
 /* What the graphics loader at $C2:57DF is to load, on its own direct page $0200 [9 bytes] */
 #define RAM_MENU_LOAD_REQUEST 0x7E020Cu
 #define RAM_MENU_LOAD_REQUEST_ENTRY 0x7E020Cu /* Which entry of the table below to load */
@@ -1532,6 +1507,9 @@
 /* Where the party was when a map screen changed the location: the location number and the map
  * position, the same three values it also copies to location_previous [4 bytes] */
 #define RAM_MENU_SAVED_LOCATION 0x7E04FCu
+#define RAM_MENU_SAVED_LOCATION_ID 0x7E04FCu /* The location */
+#define RAM_MENU_SAVED_LOCATION_X 0x7E04FEu  /* Where the party stood across it, in 8x8 tiles */
+#define RAM_MENU_SAVED_LOCATION_Y 0x7E04FFu  /* And down it */
 /* The caller's stack pointer, put back when the menus return [2 bytes] */
 #define RAM_MENU_CALLER_STACK 0x7E0920u
 /* The accumulator the caller entered the menus with */
@@ -1618,10 +1596,15 @@
 /* How far the story has gone, which decides the map view's graphics and the time dial's set of
  * locations */
 #define RAM_MENU_STORY_PROGRESS 0x7E1BA6u
-/* Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237) */
-#define RAM_MENU_SCENE_MODE_BITS 0x7E1BA9u
-/* Bit 0 decides which graphics one of the map view's maps loads */
-#define RAM_MENU_EPOCH_FLAGS 0x7E1BADu
+/* A copy of the story's flags at $7F:01F0-$01FF, which the map screens copy in as they start
+ * ($C2:26D6) and back out as they end ($C2:26F0) [16 bytes] */
+#define RAM_MENU_STORY_FLAGS 0x7E1BA7u
+#define RAM_MENU_STORY_FLAGS_BYTES 0x7E1BA7u /* The sixteen bytes */
+#define RAM_MENU_STORY_FLAGS_TOP_LAYER_FIRST 0x7E1BA7u /* Bit 4: the layer over the map stays still while the map scrolls (so do bit 5 of top_layer_second and bit 1 of top_layer_third) */
+#define RAM_MENU_STORY_FLAGS_TOP_LAYER_SECOND 0x7E1BAAu /* Bit 5: the layer over the map stays still */
+#define RAM_MENU_STORY_FLAGS_SCENE_MODE_BITS 0x7E1BA9u /* Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237) */
+#define RAM_MENU_STORY_FLAGS_EPOCH 0x7E1BADu /* Bit 0 decides which graphics one of the map view's maps loads */
+#define RAM_MENU_STORY_FLAGS_TOP_LAYER_THIRD 0x7E1BAFu /* Bit 1: the layer over the map stays still */
 /* Which of the time dial's seven periods it stands at, which the digit objects watch */
 #define RAM_MENU_TIME_PERIOD 0x7E1BB7u
 /* The gate triangle's three corners on the screen, turned by the dial's angle each frame [6 x $1
@@ -1658,6 +1641,10 @@
  * free: the command byte and up to three parameters, in the order the driver takes them [4
  * bytes] */
 #define RAM_MENU_SOUND_REQUEST 0x7E1BE8u
+#define RAM_MENU_SOUND_REQUEST_COMMAND 0x7E1BE8u /* The driver's command */
+#define RAM_MENU_SOUND_REQUEST_FIRST 0x7E1BE9u /* Its first parameter (a song, a sound) */
+#define RAM_MENU_SOUND_REQUEST_SECOND 0x7E1BEAu /* Its second */
+#define RAM_MENU_SOUND_REQUEST_THIRD 0x7E1BEBu /* Its third */
 /* Cleared whenever a script leaves a new sound request; $C2:2ED9 weighs it against the byte
  * after it when it decides whether to pass the request on */
 #define RAM_MENU_SOUND_REQUEST_AGE 0x7E1BEDu
@@ -1678,6 +1665,9 @@
 #define RAM_MENU_ERA_LABEL_TILES 0x7E5248u
 #define RAM_MENU_ERA_LABEL_TILES_ROWS 2u
 #define RAM_MENU_ERA_LABEL_TILES_ROW_STRIDE 0x40u
+/* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
+ * then sixteen groups of three lines from the table at $FF:FC57, and an end [148 bytes] */
+#define RAM_MENU_WINDOW_LINE_TABLE 0x7E6E00u
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 [1024 x $1 bytes, by
  * byte] */
 #define RAM_MENU_MAP_GRAPHICS 0x7E8621u
@@ -1689,19 +1679,19 @@
 #define RAM_MENU_OBJECT_HDMA_POINTERS 0x7E8A21u
 #define RAM_MENU_OBJECT_HDMA_POINTERS_COUNT 10u
 #define RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE 0x02u
-/* The indirect per-line table slot 1 reads for the wave on BG3's horizontal scroll [3 x $3
- * bytes, by entry; the third's zero line count ends the table] */
-#define RAM_MENU_OBJECT_WAVE_TABLE 0x7E8A35u
-#define RAM_MENU_OBJECT_WAVE_TABLE_COUNT 3u
-#define RAM_MENU_OBJECT_WAVE_TABLE_STRIDE 0x03u
-#define RAM_MENU_OBJECT_WAVE_TABLE_LINES 0x7E8A35u /* Line count ($F0: repeat mode, 112 lines) */
-#define RAM_MENU_OBJECT_WAVE_TABLE_DATA 0x7E8A36u /* Address of the entry's per-line scroll values */
-/* The two indirect per-line tables the time dial's four Mode 7 matrix channels read, three bytes
- * an entry and a 0 to end (the vblank handler fills each entry's pointer in from $8A25-$8A2C)
- * [20 x $1 bytes, by byte of the two per-line tables, which start at +0 and +$0D] */
-#define RAM_MENU_GATE_MATRIX_TABLES 0x7E8A42u
-#define RAM_MENU_GATE_MATRIX_TABLES_COUNT 20u
-#define RAM_MENU_GATE_MATRIX_TABLES_STRIDE 0x01u
+/* The indirect per-line tables the sprite-object mode's per-line effects read: two entries a
+ * slot, each a line count and the address of its values, and an end; the vblank handler copies
+ * the staged addresses (menu_object_hdma_pointers) into them each frame. The wave uses the
+ * first; the time dial's four Mode 7 matrix channels the second and third [5 x $D bytes, by
+ * per-line effect slot, from 1] */
+#define RAM_MENU_OBJECT_LINE_SLOTS 0x7E8A35u
+#define RAM_MENU_OBJECT_LINE_SLOTS_COUNT 5u
+#define RAM_MENU_OBJECT_LINE_SLOTS_STRIDE 0x0Du
+#define RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES 0x7E8A35u /* The first entry's line count ($F0: repeat mode, 112 lines) */
+#define RAM_MENU_OBJECT_LINE_SLOTS_FIRST 0x7E8A36u /* Address of the first entry's per-line values */
+#define RAM_MENU_OBJECT_LINE_SLOTS_SECOND_LINES 0x7E8A38u /* The second entry's line count */
+#define RAM_MENU_OBJECT_LINE_SLOTS_SECOND 0x7E8A39u /* Address of the second entry's per-line values */
+#define RAM_MENU_OBJECT_LINE_SLOTS_END 0x7E8A3Bu /* 0, which ends the table */
 /* The first of the sprite object mode's per-line buffers: the wave effect's BG3 scroll values,
  * rebuilt each frame from the scroll $24 and a sine phase, the map view's fixed-colour gradient,
  * or one of the time dial's two window tables [224 x $2 bytes, by word: even ones the scroll
@@ -1739,6 +1729,9 @@
 #define RAM_MENU_WINDOW_SHADOWS_MATH_CONTROL 0x7E968Du /* Color math control */
 #define RAM_MENU_WINDOW_SHADOWS_MATH_LAYERS 0x7E968Eu /* Color math layers */
 #define RAM_MENU_WINDOW_SHADOWS_FIXED_COLOR 0x7E968Fu /* Fixed color: channel bits 5-7, intensity bits 0-4 */
+/* The code the menus' vblank runs a frame's block move through: MVN $7E,$7E and RTL, written
+ * there each time [4 bytes] */
+#define RAM_MENU_BLOCK_MOVE_STUB 0x7E9690u
 /* Source address of the block move bit 7 of $0D13 asks the vblank for (through the MVN stub at
  * $7E:9690) [2 bytes] */
 #define RAM_MENU_BLOCK_MOVE_SOURCE 0x7E9694u
@@ -1778,6 +1771,14 @@
 #define RAM_MENU_STATUS_RECORD_LAST 0x7E9AA2u
 /* The same record's next six bytes [6 bytes] */
 #define RAM_MENU_STATUS_RECORD_TAIL 0x7E9AE0u
+/* What the menus' per-line color math table is built from: each record a run of lines at one
+ * color, or (a nonzero line count) a sixteen-step ramp through the ramp colors [40 x $2 bytes,
+ * by record; a line count with bit 7 set ends the list] */
+#define RAM_MENU_MATH_RECORDS 0x7E9D99u
+#define RAM_MENU_MATH_RECORDS_COUNT 40u
+#define RAM_MENU_MATH_RECORDS_STRIDE 0x02u
+#define RAM_MENU_MATH_RECORDS_LINES 0x7E9D99u /* 0 for a single entry; nonzero for a ramp; bit 7 ends the list */
+#define RAM_MENU_MATH_RECORDS_VALUE 0x7E9D9Au /* The entry's line count, or the ramp's lines a step */
 /* The color list a ramp of the per-line color math table steps through, refreshed from $C2:8771
  * [16 x $2 bytes, by ramp step] */
 #define RAM_MENU_MATH_RAMP_COLORS 0x7E9DE9u
@@ -1815,26 +1816,6 @@
 #define RAM_MENU_MAP_COLOURS 0x7EAB25u
 #define RAM_MENU_MAP_COLOURS_COUNT 896u
 #define RAM_MENU_MAP_COLOURS_STRIDE 0x01u
-/* The sprite nodes objects queue their sprite groups in, linked into the drawing list ($B500) or
- * the free list ($B504) [64 x $10 bytes, by node] */
-#define RAM_MENU_SPRITE_NODES 0x7EB000u
-#define RAM_MENU_SPRITE_NODES_COUNT 64u
-#define RAM_MENU_SPRITE_NODES_STRIDE 0x10u
-#define RAM_MENU_SPRITE_NODES_PREV 0x7EB000u /* Previous node in its list */
-#define RAM_MENU_SPRITE_NODES_NEXT 0x7EB002u /* Next node in its list */
-#define RAM_MENU_SPRITE_NODES_X 0x7EB004u    /* X position */
-#define RAM_MENU_SPRITE_NODES_Y 0x7EB006u    /* Y position (the list is kept in Y order unless flagged) */
-#define RAM_MENU_SPRITE_NODES_ATTRIBUTES 0x7EB008u /* Attribute bits: +8 bit 0 draw first, bit 7 scroll-relative; +9-$0A tile base and attributes, +$0A bit 6 the other size, bit 7 insert last */
-#define RAM_MENU_SPRITE_NODES_GROUP 0x7EB00Bu /* Long pointer to the sprite group: a count of 4-byte entries (X and Y offset, tile word) */
-/* Each node's initial links (previous, next) for the free list, which the list reset copies into
- * the nodes [64 x $4 bytes, by node] */
-#define RAM_MENU_SPRITE_NODE_LINKS 0x7EB400u
-#define RAM_MENU_SPRITE_NODE_LINKS_COUNT 64u
-#define RAM_MENU_SPRITE_NODE_LINKS_STRIDE 0x04u
-/* Head of the drawing list: last node, then first node (itself when empty) [4 bytes] */
-#define RAM_MENU_SPRITE_DRAW_LIST 0x7EB500u
-/* Head of the free node list: last node, then first node [4 bytes] */
-#define RAM_MENU_SPRITE_FREE_LIST 0x7EB504u
 /* The time dial's palette as the mode keeps it, copied out of the loaded one at $7F:8C00, which
  * also goes to the mode's own palette buffer with one colour set to white first [256 x $2 bytes,
  * by color] */
@@ -1846,6 +1827,9 @@
 #define RAM_MENU_MAP_NAME_TABLE 0x7EF000u
 #define RAM_MENU_MAP_NAME_TABLE_COUNT 1024u
 #define RAM_MENU_MAP_NAME_TABLE_STRIDE 0x01u
+/* Set while a map screen keeps the song that is playing: the object scripts' command that starts
+ * a screen's song ($C2:18F1) leaves it be */
+#define RAM_MENU_SONG_KEPT 0x7F01EDu
 /* The palette the menus' graphics loader decompresses, sent to CGRAM [256 x $2 bytes, by color] */
 #define RAM_MENU_LOADED_PALETTE 0x7F8C00u
 #define RAM_MENU_LOADED_PALETTE_COUNT 256u
@@ -1869,19 +1853,51 @@
 #define RAM_MENU_RECORD_X_DP 0x0Fu           /* page menu_record, D per instance */
 /* Tile and attributes of the record's first sprite; each next sprite's tile is 2 more [2 bytes] */
 #define RAM_MENU_RECORD_TILE_DP 0x19u        /* page menu_record, D per instance */
-/* The first sprite's (X, Y) offset from the record's position; the other sprites' pairs follow
- * [2 bytes] */
+/* Each sprite's offset across and down from the record's place, a signed byte each, up to the
+ * record's end [30 bytes] */
 #define RAM_MENU_RECORD_SPRITE_OFFSETS_DP 0x22u /* page menu_record, D per instance */
 
 /* ---- menu_object --------------------------------------------------------------------------- */
 
-/* Direct-page scratch the sprite object mode's routines share at $00-$1B, below the display
- * shadows: the Epoch's screens keep their operands, pointers and loop counts here, and the
- * gate's window fill writes its two edge positions over $00-$03 [28 x $1 bytes, by byte] */
+/* Direct-page cells the sprite object mode's routines share at $00-$1B, below the display
+ * shadows: each routine's operands, pointers and loop counts, handed from one to the next [28
+ * bytes] */
 #define RAM_MENU_OBJECT_SCRATCH 0x7E0000u
-#define RAM_MENU_OBJECT_SCRATCH_COUNT 28u
-#define RAM_MENU_OBJECT_SCRATCH_STRIDE 0x01u
 #define RAM_MENU_OBJECT_SCRATCH_DP 0x00u     /* page menu */
+#define RAM_MENU_OBJECT_SCRATCH_BYTES 0x7E0000u /* Every byte, as the Epoch's screens use them */
+#define RAM_MENU_OBJECT_SCRATCH_PLANE 0x7E0000u /* Which of the map's planes a scroll or a redraw works on (1-3) */
+#define RAM_MENU_OBJECT_SCRATCH_STEP 0x7E0001u /* How many whole map tiles a scroll moves, a signed byte */
+#define RAM_MENU_OBJECT_SCRATCH_START_BANK 0x7E0001u /* The bank of the script an object is started on */
+#define RAM_MENU_OBJECT_SCRATCH_SPAWN_HANDLER 0x7E0008u /* The handler an object is started with */
+#define RAM_MENU_OBJECT_SCRATCH_START_SCRIPT 0x7E000Au /* The script an object is started on */
+#define RAM_MENU_OBJECT_SCRATCH_RESET_ROUNDS 0x7E0008u /* The sprite list's reset: rounds of eight nodes left */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_COUNT 0x7E0000u /* The sprite list's drawing: sprites left in the group */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_ATTRIBUTES 0x7E0002u /* The drawing: the node's palette and priority, as the tile word's high bits */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_X 0x7E0004u /* The drawing: the last sprite's X */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_TILES 0x7E0006u /* The drawing: the node's first tile */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_PLACE 0x7E0008u /* The drawing: the last sprite's X, overlapped by its Y where the X was on the screen */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_NODE_X 0x7E000Cu /* The drawing: the node's X on the screen */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_NODE_Y 0x7E000Eu /* The drawing: the node's Y on the screen */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_NODE 0x7E0010u /* The drawing: the node being drawn */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_SIZE 0x7E0013u /* The drawing: 1 for the node's sprites being the other size */
+#define RAM_MENU_OBJECT_SCRATCH_DRAW_SIZE_BIT 0x7E0016u /* The drawing: the size bit the last shown sprite's high bits were made from, shifted out */
+#define RAM_MENU_OBJECT_SCRATCH_WAVE_PHASE 0x7E000Au /* The wave on the layer over the map: the sine's step for the next line */
+#define RAM_MENU_OBJECT_SCRATCH_ENTRY 0x7E0000u /* The script command that marks an entry of a screen's table: the entry */
+#define RAM_MENU_OBJECT_SCRATCH_COLUMNS 0x7E0000u /* The script command that copies map tiles: how many across */
+#define RAM_MENU_OBJECT_SCRATCH_ROWS_LEFT 0x7E0001u /* The copy: rows left */
+#define RAM_MENU_OBJECT_SCRATCH_COLUMNS_LEFT 0x7E0002u /* The copy: tiles left in the row */
+#define RAM_MENU_OBJECT_SCRATCH_GROUP_COLUMN 0x7E0000u /* The script command that shows a tile group: its tilemap column, across both screens */
+#define RAM_MENU_OBJECT_SCRATCH_GROUP_SCREEN_COLUMN 0x7E0002u /* The same, in its screen */
+#define RAM_MENU_OBJECT_SCRATCH_SCENE_SCRIPT 0x7E0008u /* The script command that gives a scene's object its sprite script: the script */
+#define RAM_MENU_OBJECT_SCRATCH_POINTER_ADDRESS 0x7E0010u /* Showing a tile group: where its tiles come from */
+#define RAM_MENU_OBJECT_SCRATCH_SECOND_POINTER_ADDRESS 0x7E0013u /* Showing a tile group: where in VRAM they go */
+#define RAM_MENU_OBJECT_SCRATCH_POINTER 0x7E0010u /* The script commands that reach a map, a table or a group: where (and, for the copy, where from) */
+#define RAM_MENU_OBJECT_SCRATCH_SECOND_POINTER 0x7E0013u /* The copy: where to; showing a group: where in VRAM */
+/* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
+ * brightness); while bit 7 of the first is set the wave handler also turns its effect off [2
+ * bytes] */
+#define RAM_MENU_OBJECT_DISPLAY 0x7E001Cu
+#define RAM_MENU_OBJECT_DISPLAY_DP 0x1Cu     /* page menu */
 /* The sprite object mode's display shadows, copied to the registers byte by byte in vblank [44
  * bytes] */
 #define RAM_MENU_OBJECT_SHADOWS 0x7E001Eu
@@ -1890,6 +1906,12 @@
 #define RAM_MENU_OBJECT_SHADOWS_MOSAIC 0x7E001Fu /* Mosaic: layers in the low nibble, size less one in the high */
 #define RAM_MENU_OBJECT_SHADOWS_SCROLL_X 0x7E0020u /* Horizontal scroll of BG1, BG2 and BG3, a word each */
 #define RAM_MENU_OBJECT_SHADOWS_SCROLL_Y 0x7E0026u /* Vertical scroll of BG1, BG2 and BG3, a word each */
+#define RAM_MENU_OBJECT_SHADOWS_BG1_SCROLL_X 0x7E0020u /* BG1's horizontal scroll: the map's first plane */
+#define RAM_MENU_OBJECT_SHADOWS_BG2_SCROLL_X 0x7E0022u /* BG2's horizontal scroll: the map's second plane, which the objects on the map move with */
+#define RAM_MENU_OBJECT_SHADOWS_BG3_SCROLL_X 0x7E0024u /* BG3's horizontal scroll */
+#define RAM_MENU_OBJECT_SHADOWS_BG1_SCROLL_Y 0x7E0026u /* BG1's vertical scroll */
+#define RAM_MENU_OBJECT_SHADOWS_BG2_SCROLL_Y 0x7E0028u /* BG2's vertical scroll */
+#define RAM_MENU_OBJECT_SHADOWS_BG3_SCROLL_Y 0x7E002Au /* BG3's vertical scroll */
 #define RAM_MENU_OBJECT_SHADOWS_MODE7_MATRIX 0x7E002Cu /* Mode 7 matrix A, B, C, D, a word each */
 #define RAM_MENU_OBJECT_SHADOWS_MODE7_CENTER 0x7E0034u /* Mode 7 center X and Y, a word each */
 #define RAM_MENU_OBJECT_SHADOWS_WINDOWS 0x7E0038u /* Window masks, edges and logic, in register order $2123-$212B */
@@ -1902,6 +1924,26 @@
 #define RAM_MENU_OBJECT_SHADOWS_FIXED_BLUE 0x7E0047u /* Fixed color blue intensity */
 #define RAM_MENU_OBJECT_SHADOWS_FIXED_RED 0x7E0048u /* Fixed color red intensity */
 #define RAM_MENU_OBJECT_SHADOWS_FIXED_GREEN 0x7E0049u /* Fixed color green intensity */
+/* The per-line effect slots the sprite object mode enables each frame (bit 1: the wave on slot
+ * 1) */
+#define RAM_MENU_OBJECT_LINE_EFFECTS 0x7E004Au
+#define RAM_MENU_OBJECT_LINE_EFFECTS_DP 0x4Au /* page menu */
+/* Counts the sprite object mode's vblank interrupts; the main loop waits for it to change */
+#define RAM_MENU_OBJECT_FRAME_COUNTER 0x7E004Bu
+#define RAM_MENU_OBJECT_FRAME_COUNTER_DP 0x4Bu /* page menu */
+/* Bit 0: the main loop has finished a frame, so the vblank handler sends it and runs the objects
+ * (setting it again after); bit 1: send the palette at $0920 too */
+#define RAM_MENU_OBJECT_FRAME_STATE 0x7E004Cu
+#define RAM_MENU_OBJECT_FRAME_STATE_DP 0x4Cu /* page menu */
+/* The next free entry of the sprite table while sprite nodes are drawn */
+#define RAM_MENU_OBJECT_SPRITE_INDEX 0x7E004Du
+#define RAM_MENU_OBJECT_SPRITE_INDEX_DP 0x4Du /* page menu */
+/* Address of the object slot being run [2 bytes] */
+#define RAM_MENU_OBJECT_CURRENT 0x7E004Eu
+#define RAM_MENU_OBJECT_CURRENT_DP 0x4Eu     /* page menu */
+/* The handler of the object being run, called through JMP ($0050) [2 bytes] */
+#define RAM_MENU_OBJECT_HANDLER 0x7E0050u
+#define RAM_MENU_OBJECT_HANDLER_DP 0x50u     /* page menu */
 /* Long pointer to the running object's sprite script, taken from its slot while $C2:0E1D runs it
  * and put back after [3 bytes] */
 #define RAM_MENU_OBJECT_SPRITE_SCRIPT 0x7E0052u
@@ -1918,32 +1960,91 @@
  * at $C2:1819, a long address for the JML [$005B] at $C2:1836 [3 bytes] */
 #define RAM_MENU_OBJECT_CALL_TARGET 0x7E005Bu
 #define RAM_MENU_OBJECT_CALL_TARGET_DP 0x5Bu /* page menu */
-/* The first of the sprite object mode's queued VRAM upload records; the others follow up to the
- * queue end [8 bytes] */
+/* Nonzero while a VRAM upload is being queued, so the vblank handler leaves the queue alone */
+#define RAM_MENU_OBJECT_VRAM_QUEUE_BUSY 0x7E005Eu
+#define RAM_MENU_OBJECT_VRAM_QUEUE_BUSY_DP 0x5Eu /* page menu */
+/* Bytes of VRAM upload records queued at $60, 8 per record; the vblank upload clears it */
+#define RAM_MENU_OBJECT_VRAM_QUEUE_END 0x7E005Fu
+#define RAM_MENU_OBJECT_VRAM_QUEUE_END_DP 0x5Fu /* page menu */
+/* The sprite object mode's queued VRAM upload records, sent in its vblank from the first to the
+ * queue's end [16 x $8 bytes, by record: the queue's end offset over 8] */
 #define RAM_MENU_OBJECT_VRAM_QUEUE 0x7E0060u
+#define RAM_MENU_OBJECT_VRAM_QUEUE_COUNT 16u
+#define RAM_MENU_OBJECT_VRAM_QUEUE_STRIDE 0x08u
 #define RAM_MENU_OBJECT_VRAM_QUEUE_DP 0x60u  /* page menu */
 #define RAM_MENU_OBJECT_VRAM_QUEUE_SOURCE 0x7E0060u /* Source address */
 #define RAM_MENU_OBJECT_VRAM_QUEUE_BANK 0x7E0062u /* Source bank */
 #define RAM_MENU_OBJECT_VRAM_QUEUE_VRAM 0x7E0063u /* VRAM word address */
 #define RAM_MENU_OBJECT_VRAM_QUEUE_SIZE 0x7E0065u /* Bytes to send; 0 means 64 KiB */
 #define RAM_MENU_OBJECT_VRAM_QUEUE_PORT 0x7E0067u /* The VRAM port setting to send them with */
+/* Long pointer to the next free bytes of the upload buffer at $7E:F000, where the sprite object
+ * mode builds what goes to VRAM: a sprite's two tile columns, or a strip of the map's tilemap.
+ * Put back to $7E:F000 once each frame's queue is out [3 bytes] */
+#define RAM_MENU_OBJECT_UPLOAD_BUFFER 0x7E00E0u
+#define RAM_MENU_OBJECT_UPLOAD_BUFFER_DP 0xE0u /* page menu */
 /* The sprite object mode's CGRAM image: the vblank handler sends all 512 bytes to colour 0 when
  * the mode asks for it, and screens patch rows into it (the map view's sixteen map colours land
  * at colour $80) [512 bytes] */
 #define RAM_MENU_OBJECT_PALETTE 0x7E0920u
-/* The mode's object slots, run in address order every frame by $C2:051D: a handler and the state
- * it keeps between frames [64 x $40 bytes, by the slot's address, which the mode keeps in
- * menu_object_current] */
+/* The sprite-object mode's objects, run in slot order every frame by $C2:051D: a handler and the
+ * state it keeps between frames. Most run a command script; the Epoch's screens and a few
+ * effects have handlers of their own, which use the slot's later bytes as they need [64 x $40
+ * bytes, by slot: the mode keeps its address, $0B30 + $40 a slot, in menu_object_current] */
 #define RAM_MENU_OBJECT_SLOTS 0x7E0B30u
 #define RAM_MENU_OBJECT_SLOTS_COUNT 64u
 #define RAM_MENU_OBJECT_SLOTS_STRIDE 0x40u
 #define RAM_MENU_OBJECT_SLOTS_HANDLER 0x7E0B30u /* The routine that runs the object each frame, called through JMP ($0050); zero for a free slot, and the handler returning carry set frees it */
 #define RAM_MENU_OBJECT_SLOTS_STEP 0x7E0B32u /* Which of the handler's steps runs next; the dispatch doubles it to index the handler's jump table */
 #define RAM_MENU_OBJECT_SLOTS_AGE 0x7E0B33u  /* Frames the object has run, counted up after every frame its handler keeps the slot */
+#define RAM_MENU_OBJECT_SLOTS_BYTES 0x7E0B30u /* Every byte of the slot, as a script names one by its offset */
+#define RAM_MENU_OBJECT_SLOTS_INHERITED 0x7E0B35u /* Everything from here on, which a new object takes on from the object that starts it */
+#define RAM_MENU_OBJECT_SLOTS_RETURN_TO 0x7E0B35u /* Where a script's call goes back to: the command after the call */
 #define RAM_MENU_OBJECT_SLOTS_SCRIPT 0x7E0B37u /* Long pointer to the object's command script, advanced past each command $C2:0F63 runs */
+#define RAM_MENU_OBJECT_SLOTS_COMMAND_FRAMES 0x7E0B3Au /* How many frames a command that lasts a while has left: loaded from its operand the first frame, counted down after */
 #define RAM_MENU_OBJECT_SLOTS_SPRITE_SCRIPT 0x7E0B3Bu /* Long pointer to the object's sprite script, advanced past each command $C2:0E1D runs */
-#define RAM_MENU_OBJECT_SLOTS_SCRIPT_WAIT 0x7E0B3Eu /* A command's countdown in frames: loaded from the command's operand when zero, then counted down until it is zero again */
-#define RAM_MENU_OBJECT_SLOTS_COMMAND_DONE 0x7E0B62u /* Cleared after every command the script runs, so the next command starts fresh */
+#define RAM_MENU_OBJECT_SLOTS_SPRITE_SCRIPT_AT 0x7E0B3Bu /* Where in its bank the sprite script has got to */
+#define RAM_MENU_OBJECT_SLOTS_SPRITE_FRAMES 0x7E0B3Eu /* How many frames the sprite script's command has left: loaded from its operand when zero, then counted down until it is zero again */
+#define RAM_MENU_OBJECT_SLOTS_LOOK 0x7E0B3Fu /* How the object's sprites are drawn: bit 0 in front of the others, bits 1-3 the palette, 4-5 the priority, 6 held on one frame (no countdown), 7 placed on the map (moving with its scroll) */
+#define RAM_MENU_OBJECT_SLOTS_TILES 0x7E0B40u /* The first tile of the object's sprites, and the attribute bits that go with it (bit 6 of the high byte: the other sprite size; bit 7: drawn after everything) */
+#define RAM_MENU_OBJECT_SLOTS_X 0x7E0B42u    /* The object's place across the map, 16.16 fixed point: a fraction, then the pixel */
+#define RAM_MENU_OBJECT_SLOTS_X_FRACTION 0x7E0B42u /* The fraction of its place across */
+#define RAM_MENU_OBJECT_SLOTS_X_PIXEL 0x7E0B44u /* The pixel of its place across */
+#define RAM_MENU_OBJECT_SLOTS_Y 0x7E0B46u    /* Its place down the map, 16.16 fixed point */
+#define RAM_MENU_OBJECT_SLOTS_Y_FRACTION 0x7E0B46u /* The fraction of its place down */
+#define RAM_MENU_OBJECT_SLOTS_Y_PIXEL 0x7E0B48u /* The pixel of its place down */
+#define RAM_MENU_OBJECT_SLOTS_VELOCITY_X 0x7E0B4Au /* How far it moves across each frame, signed 16.16 fixed point */
+#define RAM_MENU_OBJECT_SLOTS_VELOCITY_Y 0x7E0B4Eu /* How far it moves down each frame, signed 16.16 fixed point */
+#define RAM_MENU_OBJECT_SLOTS_PHASE 0x7E0B52u /* A handler's own count: the wave's phase, the Epoch's screens' angles and steps */
+#define RAM_MENU_OBJECT_SLOTS_COMMAND_STATE 0x7E0B62u /* What the running command keeps between frames, cleared after every command the script finishes: a move's started flag, the palette loader's row */
+#define RAM_MENU_OBJECT_SLOTS_MOVE_TARGET 0x7E0B64u /* Where a move command's object is going; the palette loader's hand-over flag in the low byte */
+#define RAM_MENU_OBJECT_SLOTS_PALETTE_SOURCE 0x7E0B65u /* The palette loader's long pointer to its colours */
+/* The sprite nodes objects queue their sprite groups in, linked into the drawing list ($B500) or
+ * the free list ($B504) [64 x $10 bytes, by node] */
+#define RAM_MENU_SPRITE_NODES 0x7EB000u
+#define RAM_MENU_SPRITE_NODES_COUNT 64u
+#define RAM_MENU_SPRITE_NODES_STRIDE 0x10u
+#define RAM_MENU_SPRITE_NODES_PREV 0x7EB000u /* Previous node in its list */
+#define RAM_MENU_SPRITE_NODES_NEXT 0x7EB002u /* Next node in its list */
+#define RAM_MENU_SPRITE_NODES_X 0x7EB004u    /* X position */
+#define RAM_MENU_SPRITE_NODES_Y 0x7EB006u    /* Y position (the list is kept in Y order unless flagged) */
+#define RAM_MENU_SPRITE_NODES_LOOK 0x7EB008u /* The object's look (menu_object_slots.look): bit 0 drawn in front, bits 1-5 the palette and priority, bit 7 placed on the map */
+#define RAM_MENU_SPRITE_NODES_TILES 0x7EB009u /* The object's first tile and its attribute bits; bit 6 of the high byte the other sprite size, bit 7 drawn after everything */
+#define RAM_MENU_SPRITE_NODES_GROUP 0x7EB00Bu /* Long pointer to the sprite group: a count of 4-byte entries (X and Y offset, tile word) */
+/* Each node's initial links (previous, next) for the free list, which the list reset copies into
+ * the nodes [64 x $4 bytes, by node] */
+#define RAM_MENU_SPRITE_NODE_LINKS 0x7EB400u
+#define RAM_MENU_SPRITE_NODE_LINKS_COUNT 64u
+#define RAM_MENU_SPRITE_NODE_LINKS_STRIDE 0x04u
+#define RAM_MENU_SPRITE_NODE_LINKS_PREV 0x7EB400u /* The node's first previous link */
+#define RAM_MENU_SPRITE_NODE_LINKS_NEXT 0x7EB402u /* Its first next link */
+/* Head of the drawing list: last node, then first node (itself when empty) [4 bytes] */
+#define RAM_MENU_SPRITE_DRAW_LIST 0x7EB500u
+#define RAM_MENU_SPRITE_DRAW_LIST_LAST 0x7EB500u /* The list's last node (the list itself when empty), where a node's previous link is */
+#define RAM_MENU_SPRITE_DRAW_LIST_FIRST 0x7EB502u /* Its first node (the list itself when empty), where a node's next link is */
+/* Head of the free node list: last node, then first node [4 bytes] */
+#define RAM_MENU_SPRITE_FREE_LIST 0x7EB504u
+#define RAM_MENU_SPRITE_FREE_LIST_LAST 0x7EB504u /* The list's last node (the list itself when empty), where a node's previous link is */
+#define RAM_MENU_SPRITE_FREE_LIST_FIRST 0x7EB506u /* Its first node (the list itself when empty), where a node's next link is */
 
 /* ---- battle -------------------------------------------------------------------------------- */
 

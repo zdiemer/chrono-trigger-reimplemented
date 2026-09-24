@@ -100,6 +100,15 @@ void set_location_flags(GameState *g, uint8_t v);
 /* 16-bit value whose low 9 bits are the location number */
 uint16_t location_previous_id(const GameState *g);
 void set_location_previous_id(GameState *g, uint16_t v);
+/* Where the party stood across it, in 8x8 tiles */
+uint8_t location_previous_x(const GameState *g);
+void set_location_previous_x(GameState *g, uint8_t v);
+/* And down it */
+uint8_t location_previous_y(const GameState *g);
+void set_location_previous_y(GameState *g, uint8_t v);
+/* How the change back to it is made (location's flags) */
+uint8_t location_previous_flags(const GameState *g);
+void set_location_previous_flags(GameState *g, uint8_t v);
 
 /* 16-bit value whose low 9 bits are the location number */
 uint16_t location_stored_id(const GameState *g);
@@ -1658,20 +1667,30 @@ void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint16_t v);
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 
-/* The character of the party member the load screen is drawing a row for (its record's first
+/* The load screen: the character of the party member it is drawing a row for (its record's first
  * byte; the portrait clears the high byte) */
-uint16_t menu_save_member(const GameState *g);
-void set_menu_save_member(GameState *g, uint16_t v);
-
-/* Where the record of the party member the load screen is drawing a row for is, in the save
- * summary */
-uint16_t menu_save_member_record(const GameState *g);
-void set_menu_save_member_record(GameState *g, uint16_t v);
-
-/* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
- * brightness); while bit 7 of the first is set the wave handler also turns its effect off */
-uint16_t menu_object_display(const GameState *g);
-void set_menu_object_display(GameState *g, uint16_t v);
+uint16_t menu_scratch_save_member(const GameState *g);
+void set_menu_scratch_save_member(GameState *g, uint16_t v);
+/* The load screen: where the record of the member it is drawing is, in the save summary */
+uint16_t menu_scratch_save_member_record(const GameState *g);
+void set_menu_scratch_save_member_record(GameState *g, uint16_t v);
+/* A window record's sprites: the next sprite's ninth X bit, as its place in the high table's
+ * byte */
+uint8_t menu_scratch_record_high_bit(const GameState *g);
+void set_menu_scratch_record_high_bit(GameState *g, uint8_t v);
+/* A window record's sprites: which high table byte the record's are in */
+uint16_t menu_scratch_record_high_byte(const GameState *g);
+void set_menu_scratch_record_high_byte(GameState *g, uint16_t v);
+/* A window record's sprites: twice the sprites it draws */
+uint16_t menu_scratch_record_sprites_end(const GameState *g);
+void set_menu_scratch_record_sprites_end(GameState *g, uint16_t v);
+/* A window record's sprites: the record's X on the screen; its high byte rotated so bit 7 is the
+ * ninth bit */
+uint16_t menu_scratch_record_x(const GameState *g);
+void set_menu_scratch_record_x(GameState *g, uint16_t v);
+/* A window record's sprites: the next sprite's tile past the record's first */
+uint16_t menu_scratch_record_tile(const GameState *g);
+void set_menu_scratch_record_tile(GameState *g, uint16_t v);
 
 /* Which of the save summary's three member rows the load screen is drawing (the portrait's
  * palette is 4 on from it) */
@@ -1681,32 +1700,6 @@ void set_menu_save_member_row(GameState *g, uint16_t v);
 /* How wide, in pixels, the era label the load screen shows is */
 uint8_t menu_save_era_width(const GameState *g);
 void set_menu_save_era_width(GameState *g, uint8_t v);
-
-/* The per-line effect slots the sprite object mode enables each frame (bit 1: the wave on slot
- * 1) */
-uint8_t menu_object_line_effects(const GameState *g);
-void set_menu_object_line_effects(GameState *g, uint8_t v);
-
-/* Counts the sprite object mode's vblank interrupts; the main loop waits for it to change */
-uint8_t menu_object_frame_counter(const GameState *g);
-void set_menu_object_frame_counter(GameState *g, uint8_t v);
-
-/* Bit 0: the main loop has finished a frame, so the vblank handler sends it and runs the objects
- * (setting it again after); bit 1: send the palette at $0920 too */
-uint8_t menu_object_frame_state(const GameState *g);
-void set_menu_object_frame_state(GameState *g, uint8_t v);
-
-/* The next free entry of the sprite table while sprite nodes are drawn */
-uint8_t menu_object_sprite_index(const GameState *g);
-void set_menu_object_sprite_index(GameState *g, uint8_t v);
-
-/* Address of the object slot being run */
-uint16_t menu_object_current(const GameState *g);
-void set_menu_object_current(GameState *g, uint16_t v);
-
-/* The handler of the object being run, called through JMP ($0050) */
-uint16_t menu_object_handler(const GameState *g);
-void set_menu_object_handler(GameState *g, uint16_t v);
 
 /* The current menu's cursor position: the cursor sprite is placed from the table at $7E:9380 at
  * 6 bytes per position; on the load screen, the selected save slot */
@@ -1734,14 +1727,6 @@ void set_menu_window_effect_channel(GameState *g, uint16_t v);
 /* Window command 12's per-line transfer mode (the destination register follows it) */
 uint8_t menu_window_effect_mode(const GameState *g);
 void set_menu_window_effect_mode(GameState *g, uint8_t v);
-
-/* Nonzero while a VRAM upload is being queued, so the vblank handler leaves the queue alone */
-uint8_t menu_object_vram_queue_busy(const GameState *g);
-void set_menu_object_vram_queue_busy(GameState *g, uint8_t v);
-
-/* Bytes of VRAM upload records queued at $60, 8 per record; the vblank upload clears it */
-uint8_t menu_object_vram_queue_end(const GameState *g);
-void set_menu_object_vram_queue_end(GameState *g, uint8_t v);
 
 /* The place in a tilemap buffer in bank $7E the menus draw relative to: the text's move code
  * puts the pen at an offset from it, and the save screen draws a member's summary and portrait
@@ -1800,12 +1785,6 @@ void set_menu_number_dest(GameState *g, uint16_t v);
 uint16_t menu_number_size(const GameState *g);
 void set_menu_number_size(GameState *g, uint16_t v);
 
-/* Long pointer to the next free bytes of the upload buffer at $7E:F000, where the sprite object
- * mode builds what goes to VRAM: a sprite's two tile columns, or a strip of the map's tilemap.
- * Put back to $7E:F000 once each frame's queue is out */
-uint32_t menu_object_upload_buffer(const GameState *g);
-void set_menu_object_upload_buffer(GameState *g, uint32_t v);
-
 enum { MENU_MAP_COLUMN_COUNT = 2 };   /* by plane */
 /* Which background tile column of the map each plane has at its left edge (0-191), set from the
  * party's tile at $0102 ($C2:2720). A third plane's word would be menu_map_row's first, and its
@@ -1817,6 +1796,13 @@ enum { MENU_MAP_ROW_COUNT = 3 };   /* by plane */
 /* And which tile row it has at its top edge (0-127) */
 uint16_t menu_map_row(const GameState *g, unsigned i);
 void set_menu_map_row(GameState *g, unsigned i, uint16_t v);
+
+/* Where the wave on the layer over a map screen's map is in its sine, which moves on 4 steps a
+ * frame. The handler means its object's own phase (+$22) but reaches it through an index its
+ * loop has run on to $01C0, so it keeps it here, in the field page's scratch; it clears the
+ * object's own the first frame all the same */
+uint16_t menu_wave_phase(const GameState *g);
+void set_menu_wave_phase(GameState *g, uint16_t v);
 
 /* Which entry of the table below to load */
 uint8_t menu_load_request_entry(const GameState *g);
@@ -1905,10 +1891,15 @@ void set_menu_song_playing(GameState *g, uint8_t v);
 uint16_t menu_travel_location(const GameState *g);
 void set_menu_travel_location(GameState *g, uint16_t v);
 
-/* Where the party was when a map screen changed the location: the location number and the map
- * position, the same three values it also copies to location_previous */
-uint32_t menu_saved_location(const GameState *g);
-void set_menu_saved_location(GameState *g, uint32_t v);
+/* The location */
+uint16_t menu_saved_location_id(const GameState *g);
+void set_menu_saved_location_id(GameState *g, uint16_t v);
+/* Where the party stood across it, in 8x8 tiles */
+uint8_t menu_saved_location_x(const GameState *g);
+void set_menu_saved_location_x(GameState *g, uint8_t v);
+/* And down it */
+uint8_t menu_saved_location_y(const GameState *g);
+void set_menu_saved_location_y(GameState *g, uint8_t v);
 
 /* The caller's stack pointer, put back when the menus return */
 uint16_t menu_caller_stack(const GameState *g);
@@ -2039,13 +2030,26 @@ void set_menu_sprite_script_busy(GameState *g, uint8_t v);
 uint8_t menu_story_progress(const GameState *g);
 void set_menu_story_progress(GameState *g, uint8_t v);
 
+/* The sixteen bytes [16 bytes, one at a time] */
+enum { MENU_STORY_FLAGS_BYTES_BYTES = 16 };
+uint8_t menu_story_flags_bytes_byte(const GameState *g, unsigned at);
+void set_menu_story_flags_bytes_byte(GameState *g, unsigned at, uint8_t v);
+/* Bit 4: the layer over the map stays still while the map scrolls (so do bit 5 of
+ * top_layer_second and bit 1 of top_layer_third) */
+uint8_t menu_story_flags_top_layer_first(const GameState *g);
+void set_menu_story_flags_top_layer_first(GameState *g, uint8_t v);
+/* Bit 5: the layer over the map stays still */
+uint8_t menu_story_flags_top_layer_second(const GameState *g);
+void set_menu_story_flags_top_layer_second(GameState *g, uint8_t v);
 /* Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237) */
-uint8_t menu_scene_mode_bits(const GameState *g);
-void set_menu_scene_mode_bits(GameState *g, uint8_t v);
-
+uint8_t menu_story_flags_scene_mode_bits(const GameState *g);
+void set_menu_story_flags_scene_mode_bits(GameState *g, uint8_t v);
 /* Bit 0 decides which graphics one of the map view's maps loads */
-uint8_t menu_epoch_flags(const GameState *g);
-void set_menu_epoch_flags(GameState *g, uint8_t v);
+uint8_t menu_story_flags_epoch(const GameState *g);
+void set_menu_story_flags_epoch(GameState *g, uint8_t v);
+/* Bit 1: the layer over the map stays still */
+uint8_t menu_story_flags_top_layer_third(const GameState *g);
+void set_menu_story_flags_top_layer_third(GameState *g, uint8_t v);
 
 /* Which of the time dial's seven periods it stands at, which the digit objects watch */
 uint8_t menu_time_period(const GameState *g);
@@ -2086,10 +2090,18 @@ enum { MENU_GATE_EDGE_LINES_COUNT = 3 };   /* by edge */
 uint16_t menu_gate_edge_lines(const GameState *g, unsigned i);
 void set_menu_gate_edge_lines(GameState *g, unsigned i, uint16_t v);
 
-/* The sound driver command an object script leaves for $C2:2ED9 to pass on when the driver is
- * free: the command byte and up to three parameters, in the order the driver takes them */
-uint32_t menu_sound_request(const GameState *g);
-void set_menu_sound_request(GameState *g, uint32_t v);
+/* The driver's command */
+uint8_t menu_sound_request_command(const GameState *g);
+void set_menu_sound_request_command(GameState *g, uint8_t v);
+/* Its first parameter (a song, a sound) */
+uint8_t menu_sound_request_first(const GameState *g);
+void set_menu_sound_request_first(GameState *g, uint8_t v);
+/* Its second */
+uint8_t menu_sound_request_second(const GameState *g);
+void set_menu_sound_request_second(GameState *g, uint8_t v);
+/* Its third */
+uint8_t menu_sound_request_third(const GameState *g);
+void set_menu_sound_request_third(GameState *g, uint8_t v);
 
 /* Cleared whenever a script leaves a new sound request; $C2:2ED9 weighs it against the byte
  * after it when it decides whether to pass the request on */
@@ -2121,6 +2133,13 @@ enum { MENU_ERA_LABEL_TILES_ROWS = 2, MENU_ERA_LABEL_TILES_COLUMNS = 18 };
 uint8_t menu_era_label_tiles(const GameState *g, unsigned row, unsigned column);
 void set_menu_era_label_tiles(GameState *g, unsigned row, unsigned column, uint8_t v);
 
+/* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
+ * then sixteen groups of three lines from the table at $FF:FC57, and an end [148 bytes, one at a
+ * time] */
+enum { MENU_WINDOW_LINE_TABLE_BYTES = 148 };
+uint8_t menu_window_line_table_byte(const GameState *g, unsigned at);
+void set_menu_window_line_table_byte(GameState *g, unsigned at, uint8_t v);
+
 enum { MENU_MAP_GRAPHICS_COUNT = 1024 };   /* by byte */
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 */
 uint8_t menu_map_graphics(const GameState *g, unsigned i);
@@ -2132,19 +2151,22 @@ enum { MENU_OBJECT_HDMA_POINTERS_COUNT = 10 };   /* by table entry the vblank ha
 uint16_t menu_object_hdma_pointers(const GameState *g, unsigned i);
 void set_menu_object_hdma_pointers(GameState *g, unsigned i, uint16_t v);
 
-enum { MENU_OBJECT_WAVE_TABLE_COUNT = 3 };   /* by entry; the third's zero line count ends the table */
-/* Line count ($F0: repeat mode, 112 lines) */
-uint8_t menu_object_wave_table_lines(const GameState *g, unsigned line);
-void set_menu_object_wave_table_lines(GameState *g, unsigned line, uint8_t v);
-/* Address of the entry's per-line scroll values */
-uint16_t menu_object_wave_table_data(const GameState *g, unsigned line);
-void set_menu_object_wave_table_data(GameState *g, unsigned line, uint16_t v);
-
-enum { MENU_GATE_MATRIX_TABLES_COUNT = 20 };   /* by byte of the two per-line tables, which start at +0 and +$0D */
-/* The two indirect per-line tables the time dial's four Mode 7 matrix channels read, three bytes
- * an entry and a 0 to end (the vblank handler fills each entry's pointer in from $8A25-$8A2C) */
-uint8_t menu_gate_matrix_tables(const GameState *g, unsigned line);
-void set_menu_gate_matrix_tables(GameState *g, unsigned line, uint8_t v);
+enum { MENU_OBJECT_LINE_SLOTS_COUNT = 5 };   /* by per-line effect slot, from 1 */
+/* The first entry's line count ($F0: repeat mode, 112 lines) */
+uint8_t menu_object_line_slots_first_lines(const GameState *g, unsigned slot);
+void set_menu_object_line_slots_first_lines(GameState *g, unsigned slot, uint8_t v);
+/* Address of the first entry's per-line values */
+uint16_t menu_object_line_slots_first(const GameState *g, unsigned slot);
+void set_menu_object_line_slots_first(GameState *g, unsigned slot, uint16_t v);
+/* The second entry's line count */
+uint8_t menu_object_line_slots_second_lines(const GameState *g, unsigned slot);
+void set_menu_object_line_slots_second_lines(GameState *g, unsigned slot, uint8_t v);
+/* Address of the second entry's per-line values */
+uint16_t menu_object_line_slots_second(const GameState *g, unsigned slot);
+void set_menu_object_line_slots_second(GameState *g, unsigned slot, uint16_t v);
+/* 0, which ends the table */
+uint8_t menu_object_line_slots_end(const GameState *g, unsigned slot);
+void set_menu_object_line_slots_end(GameState *g, unsigned slot, uint8_t v);
 
 enum { MENU_OBJECT_WAVE_SCROLL_COUNT = 224 };   /* by word: even ones the scroll position, odd ones it plus the sine wave */
 /* The first of the sprite object mode's per-line buffers: the wave effect's BG3 scroll values,
@@ -2209,6 +2231,11 @@ void set_menu_window_shadows_math_layers(GameState *g, uint8_t v);
 /* Fixed color: channel bits 5-7, intensity bits 0-4 */
 uint8_t menu_window_shadows_fixed_color(const GameState *g);
 void set_menu_window_shadows_fixed_color(GameState *g, uint8_t v);
+
+/* The code the menus' vblank runs a frame's block move through: MVN $7E,$7E and RTL, written
+ * there each time */
+uint32_t menu_block_move_stub(const GameState *g);
+void set_menu_block_move_stub(GameState *g, uint32_t v);
 
 /* Source address of the block move bit 7 of $0D13 asks the vblank for (through the MVN stub at
  * $7E:9690) */
@@ -2276,6 +2303,14 @@ enum { MENU_STATUS_RECORD_TAIL_BYTES = 6 };
 uint8_t menu_status_record_tail_byte(const GameState *g, unsigned at);
 void set_menu_status_record_tail_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { MENU_MATH_RECORDS_COUNT = 40 };   /* by record; a line count with bit 7 set ends the list */
+/* 0 for a single entry; nonzero for a ramp; bit 7 ends the list */
+uint8_t menu_math_records_lines(const GameState *g, unsigned line);
+void set_menu_math_records_lines(GameState *g, unsigned line, uint8_t v);
+/* The entry's line count, or the ramp's lines a step */
+uint8_t menu_math_records_value(const GameState *g, unsigned line);
+void set_menu_math_records_value(GameState *g, unsigned line, uint8_t v);
+
 enum { MENU_MATH_RAMP_COLORS_COUNT = 16 };   /* by ramp step */
 /* The color list a ramp of the per-line color math table steps through, refreshed from $C2:8771 */
 uint16_t menu_math_ramp_colors(const GameState *g, unsigned i);
@@ -2323,41 +2358,6 @@ enum { MENU_MAP_COLOURS_COUNT = 896 };   /* by world map tile */
 uint8_t menu_map_colours(const GameState *g, unsigned i);
 void set_menu_map_colours(GameState *g, unsigned i, uint8_t v);
 
-enum { MENU_SPRITE_NODES_COUNT = 64 };   /* by node */
-/* Previous node in its list */
-uint16_t menu_sprite_nodes_prev(const GameState *g, unsigned i);
-void set_menu_sprite_nodes_prev(GameState *g, unsigned i, uint16_t v);
-/* Next node in its list */
-uint16_t menu_sprite_nodes_next(const GameState *g, unsigned i);
-void set_menu_sprite_nodes_next(GameState *g, unsigned i, uint16_t v);
-/* X position */
-uint16_t menu_sprite_nodes_x(const GameState *g, unsigned i);
-void set_menu_sprite_nodes_x(GameState *g, unsigned i, uint16_t v);
-/* Y position (the list is kept in Y order unless flagged) */
-uint16_t menu_sprite_nodes_y(const GameState *g, unsigned i);
-void set_menu_sprite_nodes_y(GameState *g, unsigned i, uint16_t v);
-/* Attribute bits: +8 bit 0 draw first, bit 7 scroll-relative; +9-$0A tile base and attributes,
- * +$0A bit 6 the other size, bit 7 insert last */
-uint32_t menu_sprite_nodes_attributes(const GameState *g, unsigned i);
-void set_menu_sprite_nodes_attributes(GameState *g, unsigned i, uint32_t v);
-/* Long pointer to the sprite group: a count of 4-byte entries (X and Y offset, tile word) */
-uint32_t menu_sprite_nodes_group(const GameState *g, unsigned i);
-void set_menu_sprite_nodes_group(GameState *g, unsigned i, uint32_t v);
-
-enum { MENU_SPRITE_NODE_LINKS_COUNT = 64 };   /* by node */
-/* Each node's initial links (previous, next) for the free list, which the list reset copies into
- * the nodes */
-uint32_t menu_sprite_node_links(const GameState *g, unsigned i);
-void set_menu_sprite_node_links(GameState *g, unsigned i, uint32_t v);
-
-/* Head of the drawing list: last node, then first node (itself when empty) */
-uint32_t menu_sprite_draw_list(const GameState *g);
-void set_menu_sprite_draw_list(GameState *g, uint32_t v);
-
-/* Head of the free node list: last node, then first node */
-uint32_t menu_sprite_free_list(const GameState *g);
-void set_menu_sprite_free_list(GameState *g, uint32_t v);
-
 enum { MENU_GATE_PALETTE_COPY_COUNT = 256 };   /* by color */
 /* The time dial's palette as the mode keeps it, copied out of the loaded one at $7F:8C00, which
  * also goes to the mode's own palette buffer with one colour set to white first */
@@ -2369,6 +2369,11 @@ enum { MENU_MAP_NAME_TABLE_COUNT = 1024 };   /* by byte of the Mode 7 name table
  * plane's words */
 uint8_t menu_map_name_table(const GameState *g, unsigned i);
 void set_menu_map_name_table(GameState *g, unsigned i, uint8_t v);
+
+/* Set while a map screen keeps the song that is playing: the object scripts' command that starts
+ * a screen's song ($C2:18F1) leaves it be */
+uint8_t menu_song_kept(const GameState *g);
+void set_menu_song_kept(GameState *g, uint8_t v);
 
 enum { MENU_LOADED_PALETTE_COUNT = 256 };   /* by color */
 /* The palette the menus' graphics loader decompresses, sent to CGRAM */
@@ -2402,18 +2407,108 @@ void set_menu_record_x(GameState *g, unsigned record, uint16_t v);
 uint16_t menu_record_tile(const GameState *g, unsigned record);
 void set_menu_record_tile(GameState *g, unsigned record, uint16_t v);
 
-/* The first sprite's (X, Y) offset from the record's position; the other sprites' pairs follow */
-uint16_t menu_record_sprite_offsets(const GameState *g, unsigned record);
-void set_menu_record_sprite_offsets(GameState *g, unsigned record, uint16_t v);
+/* Each sprite's offset across and down from the record's place, a signed byte each, up to the
+ * record's end [30 bytes, one at a time] */
+enum { MENU_RECORD_SPRITE_OFFSETS_BYTES = 30 };
+uint8_t menu_record_sprite_offsets_byte(const GameState *g, unsigned record, unsigned at);
+void set_menu_record_sprite_offsets_byte(GameState *g, unsigned record, unsigned at, uint8_t v);
 
 /* ---- menu_object --------------------------------------------------------------------------- */
 
-enum { MENU_OBJECT_SCRATCH_COUNT = 28 };   /* by byte */
-/* Direct-page scratch the sprite object mode's routines share at $00-$1B, below the display
- * shadows: the Epoch's screens keep their operands, pointers and loop counts here, and the
- * gate's window fill writes its two edge positions over $00-$03 */
-uint8_t menu_object_scratch(const GameState *g, unsigned i);
-void set_menu_object_scratch(GameState *g, unsigned i, uint8_t v);
+/* Every byte, as the Epoch's screens use them [28 bytes, one at a time] */
+enum { MENU_OBJECT_SCRATCH_BYTES_BYTES = 28 };
+uint8_t menu_object_scratch_bytes_byte(const GameState *g, unsigned at);
+void set_menu_object_scratch_bytes_byte(GameState *g, unsigned at, uint8_t v);
+/* Which of the map's planes a scroll or a redraw works on (1-3) */
+uint8_t menu_object_scratch_plane(const GameState *g);
+void set_menu_object_scratch_plane(GameState *g, uint8_t v);
+/* How many whole map tiles a scroll moves, a signed byte */
+uint8_t menu_object_scratch_step(const GameState *g);
+void set_menu_object_scratch_step(GameState *g, uint8_t v);
+/* The bank of the script an object is started on */
+uint8_t menu_object_scratch_start_bank(const GameState *g);
+void set_menu_object_scratch_start_bank(GameState *g, uint8_t v);
+/* The handler an object is started with */
+uint16_t menu_object_scratch_spawn_handler(const GameState *g);
+void set_menu_object_scratch_spawn_handler(GameState *g, uint16_t v);
+/* The script an object is started on */
+uint16_t menu_object_scratch_start_script(const GameState *g);
+void set_menu_object_scratch_start_script(GameState *g, uint16_t v);
+/* The sprite list's reset: rounds of eight nodes left */
+uint16_t menu_object_scratch_reset_rounds(const GameState *g);
+void set_menu_object_scratch_reset_rounds(GameState *g, uint16_t v);
+/* The sprite list's drawing: sprites left in the group */
+uint16_t menu_object_scratch_draw_count(const GameState *g);
+void set_menu_object_scratch_draw_count(GameState *g, uint16_t v);
+/* The drawing: the node's palette and priority, as the tile word's high bits */
+uint16_t menu_object_scratch_draw_attributes(const GameState *g);
+void set_menu_object_scratch_draw_attributes(GameState *g, uint16_t v);
+/* The drawing: the last sprite's X */
+uint16_t menu_object_scratch_draw_x(const GameState *g);
+void set_menu_object_scratch_draw_x(GameState *g, uint16_t v);
+/* The drawing: the node's first tile */
+uint16_t menu_object_scratch_draw_tiles(const GameState *g);
+void set_menu_object_scratch_draw_tiles(GameState *g, uint16_t v);
+/* The drawing: the last sprite's X, overlapped by its Y where the X was on the screen */
+uint32_t menu_object_scratch_draw_place(const GameState *g);
+void set_menu_object_scratch_draw_place(GameState *g, uint32_t v);
+/* The drawing: the node's X on the screen */
+uint16_t menu_object_scratch_draw_node_x(const GameState *g);
+void set_menu_object_scratch_draw_node_x(GameState *g, uint16_t v);
+/* The drawing: the node's Y on the screen */
+uint16_t menu_object_scratch_draw_node_y(const GameState *g);
+void set_menu_object_scratch_draw_node_y(GameState *g, uint16_t v);
+/* The drawing: the node being drawn */
+uint16_t menu_object_scratch_draw_node(const GameState *g);
+void set_menu_object_scratch_draw_node(GameState *g, uint16_t v);
+/* The drawing: 1 for the node's sprites being the other size */
+uint16_t menu_object_scratch_draw_size(const GameState *g);
+void set_menu_object_scratch_draw_size(GameState *g, uint16_t v);
+/* The drawing: the size bit the last shown sprite's high bits were made from, shifted out */
+uint8_t menu_object_scratch_draw_size_bit(const GameState *g);
+void set_menu_object_scratch_draw_size_bit(GameState *g, uint8_t v);
+/* The wave on the layer over the map: the sine's step for the next line */
+uint16_t menu_object_scratch_wave_phase(const GameState *g);
+void set_menu_object_scratch_wave_phase(GameState *g, uint16_t v);
+/* The script command that marks an entry of a screen's table: the entry */
+uint16_t menu_object_scratch_entry(const GameState *g);
+void set_menu_object_scratch_entry(GameState *g, uint16_t v);
+/* The script command that copies map tiles: how many across */
+uint8_t menu_object_scratch_columns(const GameState *g);
+void set_menu_object_scratch_columns(GameState *g, uint8_t v);
+/* The copy: rows left */
+uint8_t menu_object_scratch_rows_left(const GameState *g);
+void set_menu_object_scratch_rows_left(GameState *g, uint8_t v);
+/* The copy: tiles left in the row */
+uint8_t menu_object_scratch_columns_left(const GameState *g);
+void set_menu_object_scratch_columns_left(GameState *g, uint8_t v);
+/* The script command that shows a tile group: its tilemap column, across both screens */
+uint16_t menu_object_scratch_group_column(const GameState *g);
+void set_menu_object_scratch_group_column(GameState *g, uint16_t v);
+/* The same, in its screen */
+uint16_t menu_object_scratch_group_screen_column(const GameState *g);
+void set_menu_object_scratch_group_screen_column(GameState *g, uint16_t v);
+/* The script command that gives a scene's object its sprite script: the script */
+uint16_t menu_object_scratch_scene_script(const GameState *g);
+void set_menu_object_scratch_scene_script(GameState *g, uint16_t v);
+/* Showing a tile group: where its tiles come from */
+uint16_t menu_object_scratch_pointer_address(const GameState *g);
+void set_menu_object_scratch_pointer_address(GameState *g, uint16_t v);
+/* Showing a tile group: where in VRAM they go */
+uint16_t menu_object_scratch_second_pointer_address(const GameState *g);
+void set_menu_object_scratch_second_pointer_address(GameState *g, uint16_t v);
+/* The script commands that reach a map, a table or a group: where (and, for the copy, where
+ * from) */
+uint32_t menu_object_scratch_pointer(const GameState *g);
+void set_menu_object_scratch_pointer(GameState *g, uint32_t v);
+/* The copy: where to; showing a group: where in VRAM */
+uint32_t menu_object_scratch_second_pointer(const GameState *g);
+void set_menu_object_scratch_second_pointer(GameState *g, uint32_t v);
+
+/* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
+ * brightness); while bit 7 of the first is set the wave handler also turns its effect off */
+uint16_t menu_object_display(const GameState *g);
+void set_menu_object_display(GameState *g, uint16_t v);
 
 /* BG mode */
 uint8_t menu_object_shadows_bg_mode(const GameState *g);
@@ -2429,6 +2524,24 @@ void set_menu_object_shadows_scroll_x_byte(GameState *g, unsigned at, uint8_t v)
 enum { MENU_OBJECT_SHADOWS_SCROLL_Y_BYTES = 6 };
 uint8_t menu_object_shadows_scroll_y_byte(const GameState *g, unsigned at);
 void set_menu_object_shadows_scroll_y_byte(GameState *g, unsigned at, uint8_t v);
+/* BG1's horizontal scroll: the map's first plane */
+uint16_t menu_object_shadows_bg1_scroll_x(const GameState *g);
+void set_menu_object_shadows_bg1_scroll_x(GameState *g, uint16_t v);
+/* BG2's horizontal scroll: the map's second plane, which the objects on the map move with */
+uint16_t menu_object_shadows_bg2_scroll_x(const GameState *g);
+void set_menu_object_shadows_bg2_scroll_x(GameState *g, uint16_t v);
+/* BG3's horizontal scroll */
+uint16_t menu_object_shadows_bg3_scroll_x(const GameState *g);
+void set_menu_object_shadows_bg3_scroll_x(GameState *g, uint16_t v);
+/* BG1's vertical scroll */
+uint16_t menu_object_shadows_bg1_scroll_y(const GameState *g);
+void set_menu_object_shadows_bg1_scroll_y(GameState *g, uint16_t v);
+/* BG2's vertical scroll */
+uint16_t menu_object_shadows_bg2_scroll_y(const GameState *g);
+void set_menu_object_shadows_bg2_scroll_y(GameState *g, uint16_t v);
+/* BG3's vertical scroll */
+uint16_t menu_object_shadows_bg3_scroll_y(const GameState *g);
+void set_menu_object_shadows_bg3_scroll_y(GameState *g, uint16_t v);
 /* Mode 7 matrix A, B, C, D, a word each [8 bytes, one at a time] */
 enum { MENU_OBJECT_SHADOWS_MODE7_MATRIX_BYTES = 8 };
 uint8_t menu_object_shadows_mode7_matrix_byte(const GameState *g, unsigned at);
@@ -2468,6 +2581,32 @@ void set_menu_object_shadows_fixed_red(GameState *g, uint8_t v);
 uint8_t menu_object_shadows_fixed_green(const GameState *g);
 void set_menu_object_shadows_fixed_green(GameState *g, uint8_t v);
 
+/* The per-line effect slots the sprite object mode enables each frame (bit 1: the wave on slot
+ * 1) */
+uint8_t menu_object_line_effects(const GameState *g);
+void set_menu_object_line_effects(GameState *g, uint8_t v);
+
+/* Counts the sprite object mode's vblank interrupts; the main loop waits for it to change */
+uint8_t menu_object_frame_counter(const GameState *g);
+void set_menu_object_frame_counter(GameState *g, uint8_t v);
+
+/* Bit 0: the main loop has finished a frame, so the vblank handler sends it and runs the objects
+ * (setting it again after); bit 1: send the palette at $0920 too */
+uint8_t menu_object_frame_state(const GameState *g);
+void set_menu_object_frame_state(GameState *g, uint8_t v);
+
+/* The next free entry of the sprite table while sprite nodes are drawn */
+uint8_t menu_object_sprite_index(const GameState *g);
+void set_menu_object_sprite_index(GameState *g, uint8_t v);
+
+/* Address of the object slot being run */
+uint16_t menu_object_current(const GameState *g);
+void set_menu_object_current(GameState *g, uint16_t v);
+
+/* The handler of the object being run, called through JMP ($0050) */
+uint16_t menu_object_handler(const GameState *g);
+void set_menu_object_handler(GameState *g, uint16_t v);
+
 /* Long pointer to the running object's sprite script, taken from its slot while $C2:0E1D runs it
  * and put back after */
 uint32_t menu_object_sprite_script(const GameState *g);
@@ -2488,21 +2627,63 @@ void set_menu_object_script(GameState *g, uint32_t v);
 uint32_t menu_object_call_target(const GameState *g);
 void set_menu_object_call_target(GameState *g, uint32_t v);
 
+/* Nonzero while a VRAM upload is being queued, so the vblank handler leaves the queue alone */
+uint8_t menu_object_vram_queue_busy(const GameState *g);
+void set_menu_object_vram_queue_busy(GameState *g, uint8_t v);
+
+/* Bytes of VRAM upload records queued at $60, 8 per record; the vblank upload clears it */
+uint8_t menu_object_vram_queue_end(const GameState *g);
+void set_menu_object_vram_queue_end(GameState *g, uint8_t v);
+
+enum { MENU_OBJECT_VRAM_QUEUE_COUNT = 16 };   /* by record: the queue's end offset over 8 */
 /* Source address */
-uint16_t menu_object_vram_queue_source(const GameState *g);
-void set_menu_object_vram_queue_source(GameState *g, uint16_t v);
+uint16_t menu_object_vram_queue_source(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_source(GameState *g, unsigned i, uint16_t v);
 /* Source bank */
-uint8_t menu_object_vram_queue_bank(const GameState *g);
-void set_menu_object_vram_queue_bank(GameState *g, uint8_t v);
+uint8_t menu_object_vram_queue_bank(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_bank(GameState *g, unsigned i, uint8_t v);
 /* VRAM word address */
-uint16_t menu_object_vram_queue_vram(const GameState *g);
-void set_menu_object_vram_queue_vram(GameState *g, uint16_t v);
+uint16_t menu_object_vram_queue_vram(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_vram(GameState *g, unsigned i, uint16_t v);
 /* Bytes to send; 0 means 64 KiB */
-uint16_t menu_object_vram_queue_size(const GameState *g);
-void set_menu_object_vram_queue_size(GameState *g, uint16_t v);
+uint16_t menu_object_vram_queue_size(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_size(GameState *g, unsigned i, uint16_t v);
 /* The VRAM port setting to send them with */
-uint8_t menu_object_vram_queue_port(const GameState *g);
-void set_menu_object_vram_queue_port(GameState *g, uint8_t v);
+uint8_t menu_object_vram_queue_port(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_port(GameState *g, unsigned i, uint8_t v);
+/* Source address Unchecked, for marked scaffolding only: a queue filled past its sixteen records
+ * runs on over the upload buffer's cursor and past the page, which the original's writers reach
+ * through the queue's end offset alone; no screen queues so many in a frame */
+uint16_t menu_object_vram_queue_source_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_source_unchecked(GameState *g, unsigned i, uint16_t v);
+/* Source bank Unchecked, for marked scaffolding only: a queue filled past its sixteen records
+ * runs on over the upload buffer's cursor and past the page, which the original's writers reach
+ * through the queue's end offset alone; no screen queues so many in a frame */
+uint8_t menu_object_vram_queue_bank_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_bank_unchecked(GameState *g, unsigned i, uint8_t v);
+/* VRAM word address Unchecked, for marked scaffolding only: a queue filled past its sixteen
+ * records runs on over the upload buffer's cursor and past the page, which the original's
+ * writers reach through the queue's end offset alone; no screen queues so many in a frame */
+uint16_t menu_object_vram_queue_vram_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_vram_unchecked(GameState *g, unsigned i, uint16_t v);
+/* Bytes to send; 0 means 64 KiB Unchecked, for marked scaffolding only: a queue filled past its
+ * sixteen records runs on over the upload buffer's cursor and past the page, which the
+ * original's writers reach through the queue's end offset alone; no screen queues so many in a
+ * frame */
+uint16_t menu_object_vram_queue_size_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_size_unchecked(GameState *g, unsigned i, uint16_t v);
+/* The VRAM port setting to send them with Unchecked, for marked scaffolding only: a queue filled
+ * past its sixteen records runs on over the upload buffer's cursor and past the page, which the
+ * original's writers reach through the queue's end offset alone; no screen queues so many in a
+ * frame */
+uint8_t menu_object_vram_queue_port_unchecked(const GameState *g, unsigned i);
+void set_menu_object_vram_queue_port_unchecked(GameState *g, unsigned i, uint8_t v);
+
+/* Long pointer to the next free bytes of the upload buffer at $7E:F000, where the sprite object
+ * mode builds what goes to VRAM: a sprite's two tile columns, or a strip of the map's tilemap.
+ * Put back to $7E:F000 once each frame's queue is out */
+uint32_t menu_object_upload_buffer(const GameState *g);
+void set_menu_object_upload_buffer(GameState *g, uint32_t v);
 
 /* The sprite object mode's CGRAM image: the vblank handler sends all 512 bytes to colour 0 when
  * the mode asks for it, and screens patch rows into it (the map view's sixteen map colours land
@@ -2511,7 +2692,7 @@ enum { MENU_OBJECT_PALETTE_BYTES = 512 };
 uint8_t menu_object_palette_byte(const GameState *g, unsigned at);
 void set_menu_object_palette_byte(GameState *g, unsigned at, uint8_t v);
 
-enum { MENU_OBJECT_SLOTS_COUNT = 64 };   /* by the slot's address, which the mode keeps in menu_object_current */
+enum { MENU_OBJECT_SLOTS_COUNT = 64 };   /* by slot: the mode keeps its address, $0B30 + $40 a slot, in menu_object_current */
 /* The routine that runs the object each frame, called through JMP ($0050); zero for a free slot,
  * and the handler returning carry set frees it */
 uint16_t menu_object_slots_handler(const GameState *g, unsigned slot);
@@ -2523,19 +2704,127 @@ void set_menu_object_slots_step(GameState *g, unsigned slot, uint8_t v);
 /* Frames the object has run, counted up after every frame its handler keeps the slot */
 uint16_t menu_object_slots_age(const GameState *g, unsigned slot);
 void set_menu_object_slots_age(GameState *g, unsigned slot, uint16_t v);
+/* Every byte of the slot, as a script names one by its offset [64 bytes, one at a time] */
+enum { MENU_OBJECT_SLOTS_BYTES_BYTES = 64 };
+uint8_t menu_object_slots_bytes_byte(const GameState *g, unsigned slot, unsigned at);
+void set_menu_object_slots_bytes_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+/* Everything from here on, which a new object takes on from the object that starts it [59 bytes,
+ * one at a time] */
+enum { MENU_OBJECT_SLOTS_INHERITED_BYTES = 59 };
+uint8_t menu_object_slots_inherited_byte(const GameState *g, unsigned slot, unsigned at);
+void set_menu_object_slots_inherited_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+/* Where a script's call goes back to: the command after the call */
+uint16_t menu_object_slots_return_to(const GameState *g, unsigned slot);
+void set_menu_object_slots_return_to(GameState *g, unsigned slot, uint16_t v);
 /* Long pointer to the object's command script, advanced past each command $C2:0F63 runs */
 uint32_t menu_object_slots_script(const GameState *g, unsigned slot);
 void set_menu_object_slots_script(GameState *g, unsigned slot, uint32_t v);
+/* How many frames a command that lasts a while has left: loaded from its operand the first
+ * frame, counted down after */
+uint8_t menu_object_slots_command_frames(const GameState *g, unsigned slot);
+void set_menu_object_slots_command_frames(GameState *g, unsigned slot, uint8_t v);
 /* Long pointer to the object's sprite script, advanced past each command $C2:0E1D runs */
 uint32_t menu_object_slots_sprite_script(const GameState *g, unsigned slot);
 void set_menu_object_slots_sprite_script(GameState *g, unsigned slot, uint32_t v);
-/* A command's countdown in frames: loaded from the command's operand when zero, then counted
- * down until it is zero again */
-uint8_t menu_object_slots_script_wait(const GameState *g, unsigned slot);
-void set_menu_object_slots_script_wait(GameState *g, unsigned slot, uint8_t v);
-/* Cleared after every command the script runs, so the next command starts fresh */
-uint16_t menu_object_slots_command_done(const GameState *g, unsigned slot);
-void set_menu_object_slots_command_done(GameState *g, unsigned slot, uint16_t v);
+/* Where in its bank the sprite script has got to */
+uint16_t menu_object_slots_sprite_script_at(const GameState *g, unsigned slot);
+void set_menu_object_slots_sprite_script_at(GameState *g, unsigned slot, uint16_t v);
+/* How many frames the sprite script's command has left: loaded from its operand when zero, then
+ * counted down until it is zero again */
+uint8_t menu_object_slots_sprite_frames(const GameState *g, unsigned slot);
+void set_menu_object_slots_sprite_frames(GameState *g, unsigned slot, uint8_t v);
+/* How the object's sprites are drawn: bit 0 in front of the others, bits 1-3 the palette, 4-5
+ * the priority, 6 held on one frame (no countdown), 7 placed on the map (moving with its scroll) */
+uint8_t menu_object_slots_look(const GameState *g, unsigned slot);
+void set_menu_object_slots_look(GameState *g, unsigned slot, uint8_t v);
+/* The first tile of the object's sprites, and the attribute bits that go with it (bit 6 of the
+ * high byte: the other sprite size; bit 7: drawn after everything) */
+uint16_t menu_object_slots_tiles(const GameState *g, unsigned slot);
+void set_menu_object_slots_tiles(GameState *g, unsigned slot, uint16_t v);
+/* The object's place across the map, 16.16 fixed point: a fraction, then the pixel */
+uint32_t menu_object_slots_x(const GameState *g, unsigned slot);
+void set_menu_object_slots_x(GameState *g, unsigned slot, uint32_t v);
+/* The fraction of its place across */
+uint16_t menu_object_slots_x_fraction(const GameState *g, unsigned slot);
+void set_menu_object_slots_x_fraction(GameState *g, unsigned slot, uint16_t v);
+/* The pixel of its place across */
+uint16_t menu_object_slots_x_pixel(const GameState *g, unsigned slot);
+void set_menu_object_slots_x_pixel(GameState *g, unsigned slot, uint16_t v);
+/* Its place down the map, 16.16 fixed point */
+uint32_t menu_object_slots_y(const GameState *g, unsigned slot);
+void set_menu_object_slots_y(GameState *g, unsigned slot, uint32_t v);
+/* The fraction of its place down */
+uint16_t menu_object_slots_y_fraction(const GameState *g, unsigned slot);
+void set_menu_object_slots_y_fraction(GameState *g, unsigned slot, uint16_t v);
+/* The pixel of its place down */
+uint16_t menu_object_slots_y_pixel(const GameState *g, unsigned slot);
+void set_menu_object_slots_y_pixel(GameState *g, unsigned slot, uint16_t v);
+/* How far it moves across each frame, signed 16.16 fixed point */
+uint32_t menu_object_slots_velocity_x(const GameState *g, unsigned slot);
+void set_menu_object_slots_velocity_x(GameState *g, unsigned slot, uint32_t v);
+/* How far it moves down each frame, signed 16.16 fixed point */
+uint32_t menu_object_slots_velocity_y(const GameState *g, unsigned slot);
+void set_menu_object_slots_velocity_y(GameState *g, unsigned slot, uint32_t v);
+/* A handler's own count: the wave's phase, the Epoch's screens' angles and steps */
+uint16_t menu_object_slots_phase(const GameState *g, unsigned slot);
+void set_menu_object_slots_phase(GameState *g, unsigned slot, uint16_t v);
+/* What the running command keeps between frames, cleared after every command the script
+ * finishes: a move's started flag, the palette loader's row */
+uint16_t menu_object_slots_command_state(const GameState *g, unsigned slot);
+void set_menu_object_slots_command_state(GameState *g, unsigned slot, uint16_t v);
+/* Where a move command's object is going; the palette loader's hand-over flag in the low byte */
+uint16_t menu_object_slots_move_target(const GameState *g, unsigned slot);
+void set_menu_object_slots_move_target(GameState *g, unsigned slot, uint16_t v);
+/* The palette loader's long pointer to its colours */
+uint32_t menu_object_slots_palette_source(const GameState *g, unsigned slot);
+void set_menu_object_slots_palette_source(GameState *g, unsigned slot, uint32_t v);
+
+enum { MENU_SPRITE_NODES_COUNT = 64 };   /* by node */
+/* Previous node in its list */
+uint16_t menu_sprite_nodes_prev(const GameState *g, unsigned i);
+void set_menu_sprite_nodes_prev(GameState *g, unsigned i, uint16_t v);
+/* Next node in its list */
+uint16_t menu_sprite_nodes_next(const GameState *g, unsigned i);
+void set_menu_sprite_nodes_next(GameState *g, unsigned i, uint16_t v);
+/* X position */
+uint16_t menu_sprite_nodes_x(const GameState *g, unsigned i);
+void set_menu_sprite_nodes_x(GameState *g, unsigned i, uint16_t v);
+/* Y position (the list is kept in Y order unless flagged) */
+uint16_t menu_sprite_nodes_y(const GameState *g, unsigned i);
+void set_menu_sprite_nodes_y(GameState *g, unsigned i, uint16_t v);
+/* The object's look (menu_object_slots.look): bit 0 drawn in front, bits 1-5 the palette and
+ * priority, bit 7 placed on the map */
+uint8_t menu_sprite_nodes_look(const GameState *g, unsigned i);
+void set_menu_sprite_nodes_look(GameState *g, unsigned i, uint8_t v);
+/* The object's first tile and its attribute bits; bit 6 of the high byte the other sprite size,
+ * bit 7 drawn after everything */
+uint16_t menu_sprite_nodes_tiles(const GameState *g, unsigned i);
+void set_menu_sprite_nodes_tiles(GameState *g, unsigned i, uint16_t v);
+/* Long pointer to the sprite group: a count of 4-byte entries (X and Y offset, tile word) */
+uint32_t menu_sprite_nodes_group(const GameState *g, unsigned i);
+void set_menu_sprite_nodes_group(GameState *g, unsigned i, uint32_t v);
+
+enum { MENU_SPRITE_NODE_LINKS_COUNT = 64 };   /* by node */
+/* The node's first previous link */
+uint16_t menu_sprite_node_links_prev(const GameState *g, unsigned i);
+void set_menu_sprite_node_links_prev(GameState *g, unsigned i, uint16_t v);
+/* Its first next link */
+uint16_t menu_sprite_node_links_next(const GameState *g, unsigned i);
+void set_menu_sprite_node_links_next(GameState *g, unsigned i, uint16_t v);
+
+/* The list's last node (the list itself when empty), where a node's previous link is */
+uint16_t menu_sprite_draw_list_last(const GameState *g);
+void set_menu_sprite_draw_list_last(GameState *g, uint16_t v);
+/* Its first node (the list itself when empty), where a node's next link is */
+uint16_t menu_sprite_draw_list_first(const GameState *g);
+void set_menu_sprite_draw_list_first(GameState *g, uint16_t v);
+
+/* The list's last node (the list itself when empty), where a node's previous link is */
+uint16_t menu_sprite_free_list_last(const GameState *g);
+void set_menu_sprite_free_list_last(GameState *g, uint16_t v);
+/* Its first node (the list itself when empty), where a node's next link is */
+uint16_t menu_sprite_free_list_first(const GameState *g);
+void set_menu_sprite_free_list_first(GameState *g, uint16_t v);
 
 /* ---- battle -------------------------------------------------------------------------------- */
 

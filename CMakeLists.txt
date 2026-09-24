@@ -123,9 +123,13 @@ add_library(ct_game STATIC
   game/menu/object_script.c
   game/menu/objects.c
   game/menu/save_screen.c
+  game/menu/script.c
+  game/menu/script_bridge.c
   game/menu/sound.c
+  game/menu/sprites.c
   game/menu/text.c
   game/menu/vram.c
+  game/menu/wave.c
   game/attract/main_loop.c
   game/scene/boot.c
   game/scene/circle.c

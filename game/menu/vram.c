@@ -109,3 +109,81 @@ bool menu_built_upload_is_apart(Snes *s)
     uint16_t entry = (uint16_t)(QUEUE_ADDRESS + queued_bytes_now(s));
     return at <= 0x10000 - RECORD_BYTES && (at + RECORD_BYTES <= entry || at >= entry + RECORD_BYTES);
 }
+
+/* ---- The sprite-object mode's queue --------------------------------------------------------- */
+
+/* The sprite-object mode keeps a queue of its own on its direct page, which
+ * its vblank handler sends (game/menu/display.c, menu_object_upload_vram_queue)
+ * unless something is queueing at that moment. Its records are counted by the
+ * byte offset of the queue's end. The queue holds sixteen; one filled past
+ * them runs on over the upload buffer's cursor after it (the original's
+ * writers know only the end offset), which no screen does. */
+enum { OBJECT_RECORD_BYTES = MENU_OBJECT_UPLOAD_BYTES, OBJECT_QUEUE_RECORDS = 16 };
+
+uint8_t menu_hold_object_queue(GameState *g)
+{
+    set_menu_object_vram_queue_busy(g, (uint8_t)(menu_object_vram_queue_busy(g) + 1));
+    return menu_object_vram_queue_end(g);
+}
+
+void menu_release_object_queue(GameState *g, uint8_t end)
+{
+    set_menu_object_vram_queue_end(g, end);
+    set_menu_object_vram_queue_busy(g, 0);
+}
+
+static unsigned object_record(uint8_t at) { return at / OBJECT_RECORD_BYTES; }
+static bool in_the_queue(uint8_t at) { return object_record(at) < OBJECT_QUEUE_RECORDS; }
+
+void menu_set_object_upload_bank(GameState *g, uint8_t at, uint8_t bank)
+{
+    if (in_the_queue(at))
+        set_menu_object_vram_queue_bank(g, object_record(at), bank);
+    else
+        set_menu_object_vram_queue_bank_unchecked(g, object_record(at), bank);
+}
+
+void menu_set_object_upload_port(GameState *g, uint8_t at, uint8_t port)
+{
+    if (in_the_queue(at))
+        set_menu_object_vram_queue_port(g, object_record(at), port);
+    else
+        set_menu_object_vram_queue_port_unchecked(g, object_record(at), port);
+}
+
+void menu_set_object_upload_source(GameState *g, uint8_t at, uint16_t source)
+{
+    if (in_the_queue(at))
+        set_menu_object_vram_queue_source(g, object_record(at), source);
+    else
+        set_menu_object_vram_queue_source_unchecked(g, object_record(at), source);
+}
+
+void menu_set_object_upload_vram(GameState *g, uint8_t at, uint16_t vram)
+{
+    if (in_the_queue(at))
+        set_menu_object_vram_queue_vram(g, object_record(at), vram);
+    else
+        set_menu_object_vram_queue_vram_unchecked(g, object_record(at), vram);
+}
+
+void menu_set_object_upload_size(GameState *g, uint8_t at, uint16_t size)
+{
+    if (in_the_queue(at))
+        set_menu_object_vram_queue_size(g, object_record(at), size);
+    else
+        set_menu_object_vram_queue_size_unchecked(g, object_record(at), size);
+}
+
+void menu_queue_object_upload(GameState *g, uint32_t source, uint16_t vram, uint16_t size)
+{
+    uint8_t at = menu_hold_object_queue(g);
+    menu_set_object_upload_bank(g, at, (uint8_t)(source >> 16));
+    menu_set_object_upload_port(g, at, MENU_PORT_WORDS);
+    menu_set_object_upload_source(g, at, (uint16_t)source);
+    menu_set_object_upload_vram(g, at, vram);
+    menu_set_object_upload_size(g, at, size);
+    menu_release_object_queue(g, (uint8_t)(at + OBJECT_RECORD_BYTES));
+}
+
+bool menu_object_queue_is_whole(const GameState *g) { return menu_object_vram_queue_end(g) % OBJECT_RECORD_BYTES == 0; }

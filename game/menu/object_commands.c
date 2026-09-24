@@ -79,7 +79,7 @@ static void return_sum16(Snes *s, uint16_t a, const Sum *f)
 /* $00 = the mode bits 2-5 of $1BA9 (8-bit A). */
 void menu_object_read_mode(Snes *s)
 {
-    uint8_t v = (uint8_t)((m_read8(s, m_abs(s, RAM_ABS(RAM_MENU_SCENE_MODE_BITS))) & 0x3C) >> 2);
+    uint8_t v = (uint8_t)((m_read8(s, m_abs(s, RAM_ABS(RAM_MENU_STORY_FLAGS_SCENE_MODE_BITS))) & 0x3C) >> 2);
     set_cell8(s, 0x00, v);
     set_a_low(s, v);
     m_set_nz8(s, v);
@@ -349,7 +349,7 @@ void menu_object_load_c3_stream_2(Snes *s) { load_stream(s, 0xC6E68F, 0x8C00, SC
 /* The menu's indirect per-line tables, one per slot from slot 1 at $7E:8A35:
  * two entries of 112 lines each, whose data pointers the vblank handler fills
  * in from the staged ones, and the end. */
-enum { LINE_TABLES = RAM_MENU_OBJECT_WAVE_TABLE, LINE_TABLE_SIZE = 13, REPEAT_112_LINES = 0xF0 };
+enum { LINE_TABLES = RAM_MENU_OBJECT_LINE_SLOTS, LINE_TABLE_SIZE = RAM_MENU_OBJECT_LINE_SLOTS_STRIDE, REPEAT_112_LINES = 0xF0 };
 
 static uint32_t line_table(uint8_t slot) { return LINE_TABLES + (uint32_t)(slot - 1) * LINE_TABLE_SIZE; }
 
@@ -359,8 +359,8 @@ static void init_line_table(Snes *s, uint8_t slot)
 {
     uint32_t table = line_table(slot);
     m_write8(s, table, REPEAT_112_LINES);
-    m_write8(s, table + RAM_MENU_OBJECT_WAVE_TABLE_STRIDE, REPEAT_112_LINES);
-    m_write8(s, table + 2 * RAM_MENU_OBJECT_WAVE_TABLE_STRIDE, (uint8_t)s->cpu.d);
+    m_write8(s, table + (RAM_MENU_OBJECT_LINE_SLOTS_SECOND_LINES - RAM_MENU_OBJECT_LINE_SLOTS), REPEAT_112_LINES);
+    m_write8(s, table + (RAM_MENU_OBJECT_LINE_SLOTS_END - RAM_MENU_OBJECT_LINE_SLOTS), (uint8_t)s->cpu.d);
 }
 
 /* Slot `slot` reads its table indirectly (the data in bank $7E) and drives

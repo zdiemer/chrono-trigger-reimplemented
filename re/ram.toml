@@ -1071,6 +1071,18 @@ name = "id"
 offset = 0
 size = 2
 meaning = "16-bit value whose low 9 bits are the location number"
+[[var.field]]
+name = "x"
+offset = 2
+meaning = "Where the party stood across it, in 8x8 tiles"
+[[var.field]]
+name = "y"
+offset = 3
+meaning = "And down it"
+[[var.field]]
+name = "flags"
+offset = 4
+meaning = "How the change back to it is made (location's flags)"
 
 [[var]]
 name = "location_next"
@@ -4144,22 +4156,47 @@ meaning = "How wide, in pixels, the graphic the menus' loader last loaded is (th
 source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
 
 [[var]]
-name = "menu_save_member"
+name = "menu_scratch"
 addr = "7E:0000"
 page = "menu"
-size = 2
+stride = 0x10
 subsystem = "menu"
-meaning = "The character of the party member the load screen is drawing a row for (its record's first byte; the portrait clears the high byte)"
-source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C, menu_draw_member_portrait $C2:D466"
-
-[[var]]
-name = "menu_save_member_record"
-addr = "7E:0002"
-page = "menu"
-size = 2
-subsystem = "menu"
-meaning = "Where the record of the party member the load screen is drawing a row for is, in the save summary"
-source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+meaning = "The menus' first direct-page cells, which their routines share as working values, each its own"
+source = "game/menu/save_screen.c, game/menu/sprites.c"
+  [[var.field]]
+  name = "save_member"
+  offset = 0
+  size = 2
+  meaning = "The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte)"
+  [[var.field]]
+  name = "save_member_record"
+  offset = 2
+  size = 2
+  meaning = "The load screen: where the record of the member it is drawing is, in the save summary"
+  [[var.field]]
+  name = "record_high_bit"
+  offset = 0
+  meaning = "A window record's sprites: the next sprite's ninth X bit, as its place in the high table's byte"
+  [[var.field]]
+  name = "record_high_byte"
+  offset = 2
+  size = 2
+  meaning = "A window record's sprites: which high table byte the record's are in"
+  [[var.field]]
+  name = "record_sprites_end"
+  offset = 4
+  size = 2
+  meaning = "A window record's sprites: twice the sprites it draws"
+  [[var.field]]
+  name = "record_x"
+  offset = 6
+  size = 2
+  meaning = "A window record's sprites: the record's X on the screen; its high byte rotated so bit 7 is the ninth bit"
+  [[var.field]]
+  name = "record_tile"
+  offset = 8
+  size = 2
+  meaning = "A window record's sprites: the next sprite's tile past the record's first"
 
 [[var]]
 name = "menu_save_member_row"
@@ -4534,9 +4571,9 @@ source = "game/menu/objects.c, menu_draw_record_sprites $C2:F871"
 name = "menu_record_sprite_offsets"
 page = "menu_record"
 dp = 0x22
-size = 2
+size = 0x1E
 subsystem = "menu"
-meaning = "The first sprite's (X, Y) offset from the record's position; the other sprites' pairs follow"
+meaning = "Each sprite's offset across and down from the record's place, a signed byte each, up to the record's end"
 source = "game/menu/objects.c, menu_draw_record_sprites $C2:F871"
 
 [[var]]
@@ -4815,7 +4852,7 @@ name = "menu_object_display"
 addr = "7E:001C"
 page = "menu"
 size = 2
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble brightness); while bit 7 of the first is set the wave handler also turns its effect off"
 source = "game/menu/display.c, menu_object_nmi $C2:015E; game/menu/objects.c, menu_object_wave_hdma $C2:7759"
 
@@ -4845,6 +4882,36 @@ source = "game/menu/display.c, menu_object_copy_shadows ($C2:01CE-$C2:02AF); doc
   offset = 0x08
   size = 6
   meaning = "Vertical scroll of BG1, BG2 and BG3, a word each"
+  [[var.field]]
+  name = "bg1_scroll_x"
+  offset = 0x02
+  size = 2
+  meaning = "BG1's horizontal scroll: the map's first plane"
+  [[var.field]]
+  name = "bg2_scroll_x"
+  offset = 0x04
+  size = 2
+  meaning = "BG2's horizontal scroll: the map's second plane, which the objects on the map move with"
+  [[var.field]]
+  name = "bg3_scroll_x"
+  offset = 0x06
+  size = 2
+  meaning = "BG3's horizontal scroll"
+  [[var.field]]
+  name = "bg1_scroll_y"
+  offset = 0x08
+  size = 2
+  meaning = "BG1's vertical scroll"
+  [[var.field]]
+  name = "bg2_scroll_y"
+  offset = 0x0A
+  size = 2
+  meaning = "BG2's vertical scroll"
+  [[var.field]]
+  name = "bg3_scroll_y"
+  offset = 0x0C
+  size = 2
+  meaning = "BG3's vertical scroll"
   [[var.field]]
   name = "mode7_matrix"
   offset = 0x0E
@@ -4901,7 +4968,7 @@ source = "game/menu/display.c, menu_object_copy_shadows ($C2:01CE-$C2:02AF); doc
 name = "menu_object_line_effects"
 addr = "7E:004A"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "The per-line effect slots the sprite object mode enables each frame (bit 1: the wave on slot 1)"
 source = "game/menu/display.c, menu_object_nmi $C2:015E; game/menu/objects.c, menu_object_wave_hdma $C2:7759"
 
@@ -4909,7 +4976,7 @@ source = "game/menu/display.c, menu_object_nmi $C2:015E; game/menu/objects.c, me
 name = "menu_object_frame_counter"
 addr = "7E:004B"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Counts the sprite object mode's vblank interrupts; the main loop waits for it to change"
 source = "game/menu/display.c, menu_object_nmi $C2:015E; game/menu/frame.c, menu_wait_for_frame_loop $C2:0348"
 
@@ -4917,7 +4984,7 @@ source = "game/menu/display.c, menu_object_nmi $C2:015E; game/menu/frame.c, menu
 name = "menu_object_frame_state"
 addr = "7E:004C"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Bit 0: the main loop has finished a frame, so the vblank handler sends it and runs the objects (setting it again after); bit 1: send the palette at $0920 too"
 source = "game/menu/display.c, menu_object_nmi $C2:015E"
 
@@ -4925,16 +4992,9 @@ source = "game/menu/display.c, menu_object_nmi $C2:015E"
 name = "menu_object_sprite_index"
 addr = "7E:004D"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "The next free entry of the sprite table while sprite nodes are drawn"
 source = "game/menu/objects.c, draw_node $C2:0D08; game/menu/display.c, menu_object_nmi $C2:015E"
-
-[[var]]
-name = "menu_scene_mode_bits"
-addr = "7E:1BA9"
-subsystem = "menu"
-meaning = "Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237)"
-source = "game/menu/object_commands.c, menu_object_read_mode $C6:E237"
 
 [[var]]
 name = "menu_pending_scroll_x"
@@ -4957,7 +5017,7 @@ name = "menu_object_current"
 addr = "7E:004E"
 page = "menu"
 size = 2
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Address of the object slot being run"
 source = "game/menu/objects.c, menu_run_objects $C2:051D, menu_run_sprite_script $C2:0E1D, menu_run_object_script $C2:0F63"
 
@@ -4966,7 +5026,7 @@ name = "menu_object_handler"
 addr = "7E:0050"
 page = "menu"
 size = 2
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "The handler of the object being run, called through JMP ($0050)"
 source = "game/menu/objects.c, menu_run_objects $C2:051D"
 
@@ -4974,7 +5034,7 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D"
 name = "menu_object_vram_queue_busy"
 addr = "7E:005E"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Nonzero while a VRAM upload is being queued, so the vblank handler leaves the queue alone"
 source = "game/menu/display.c, menu_object_upload_vram_queue $C2:0405; game/menu/objects.c, sprite command $C2:0F00"
 
@@ -4982,7 +5042,7 @@ source = "game/menu/display.c, menu_object_upload_vram_queue $C2:0405; game/menu
 name = "menu_object_vram_queue_end"
 addr = "7E:005F"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Bytes of VRAM upload records queued at $60, 8 per record; the vblank upload clears it"
 source = "game/menu/display.c, menu_object_upload_vram_queue $C2:0405; game/menu/objects.c, sprite command $C2:0F00"
 
@@ -4991,8 +5051,11 @@ name = "menu_object_vram_queue"
 addr = "7E:0060"
 page = "menu"
 stride = 8
+count = 16
+index = "record: the queue's end offset over 8"
+unchecked = "a queue filled past its sixteen records runs on over the upload buffer's cursor and past the page, which the original's writers reach through the queue's end offset alone; no screen queues so many in a frame"
 subsystem = "menu_object"
-meaning = "The first of the sprite object mode's queued VRAM upload records; the others follow up to the queue end"
+meaning = "The sprite object mode's queued VRAM upload records, sent in its vblank from the first to the queue's end"
 source = "game/menu/display.c, menu_object_upload_vram_queue $C2:0405; game/menu/objects.c, sprite command $C2:0F00"
   [[var.field]]
   name = "source"
@@ -5023,7 +5086,7 @@ name = "menu_object_upload_buffer"
 addr = "7E:00E0"
 page = "menu"
 size = 3
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Long pointer to the next free bytes of the upload buffer at $7E:F000, where the sprite object mode builds what goes to VRAM: a sprite's two tile columns, or a strip of the map's tilemap. Put back to $7E:F000 once each frame's queue is out"
 source = "game/menu/map.c, menu_map_upload_block $C2:0ADC; game/menu/display.c, menu_object_upload_vram_queue $C2:0405"
 
@@ -5033,7 +5096,7 @@ addr = "7E:B000"
 stride = 0x10
 count = 64
 index = "node"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "The sprite nodes objects queue their sprite groups in, linked into the drawing list ($B500) or the free list ($B504)"
 source = "game/menu/objects.c, menu_reset_sprite_nodes $C2:0C4D, menu_insert_sprite_node $C2:0B53, draw_node $C2:0D08"
   [[var.field]]
@@ -5057,10 +5120,14 @@ source = "game/menu/objects.c, menu_reset_sprite_nodes $C2:0C4D, menu_insert_spr
   size = 2
   meaning = "Y position (the list is kept in Y order unless flagged)"
   [[var.field]]
-  name = "attributes"
+  name = "look"
   offset = 8
-  size = 3
-  meaning = "Attribute bits: +8 bit 0 draw first, bit 7 scroll-relative; +9-$0A tile base and attributes, +$0A bit 6 the other size, bit 7 insert last"
+  meaning = "The object's look (menu_object_slots.look): bit 0 drawn in front, bits 1-5 the palette and priority, bit 7 placed on the map"
+  [[var.field]]
+  name = "tiles"
+  offset = 9
+  size = 2
+  meaning = "The object's first tile and its attribute bits; bit 6 of the high byte the other sprite size, bit 7 drawn after everything"
   [[var.field]]
   name = "group"
   offset = 0x0B
@@ -5070,28 +5137,58 @@ source = "game/menu/objects.c, menu_reset_sprite_nodes $C2:0C4D, menu_insert_spr
 [[var]]
 name = "menu_sprite_node_links"
 addr = "7E:B400"
-size = 4
+stride = 4
 count = 64
 index = "node"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Each node's initial links (previous, next) for the free list, which the list reset copies into the nodes"
 source = "game/menu/objects.c, menu_reset_sprite_nodes $C2:0C4D (table built by $C2:0BF6)"
+  [[var.field]]
+  name = "prev"
+  offset = 0
+  size = 2
+  meaning = "The node's first previous link"
+  [[var.field]]
+  name = "next"
+  offset = 2
+  size = 2
+  meaning = "Its first next link"
 
 [[var]]
 name = "menu_sprite_draw_list"
 addr = "7E:B500"
-size = 4
-subsystem = "menu"
+stride = 4
+subsystem = "menu_object"
 meaning = "Head of the drawing list: last node, then first node (itself when empty)"
 source = "game/menu/objects.c, menu_reset_sprite_nodes $C2:0C4D, menu_draw_sprite_nodes $C2:0CEA"
+  [[var.field]]
+  name = "last"
+  offset = 0
+  size = 2
+  meaning = "The list's last node (the list itself when empty), where a node's previous link is"
+  [[var.field]]
+  name = "first"
+  offset = 2
+  size = 2
+  meaning = "Its first node (the list itself when empty), where a node's next link is"
 
 [[var]]
 name = "menu_sprite_free_list"
 addr = "7E:B504"
-size = 4
-subsystem = "menu"
+stride = 4
+subsystem = "menu_object"
 meaning = "Head of the free node list: last node, then first node"
 source = "game/menu/objects.c, menu_reset_sprite_nodes $C2:0C4D, menu_insert_sprite_node $C2:0B53"
+  [[var.field]]
+  name = "last"
+  offset = 0
+  size = 2
+  meaning = "The list's last node (the list itself when empty), where a node's previous link is"
+  [[var.field]]
+  name = "first"
+  offset = 2
+  size = 2
+  meaning = "Its first node (the list itself when empty), where a node's next link is"
 
 [[var]]
 name = "menu_object_hdma_pointers"
@@ -5104,24 +5201,37 @@ meaning = "Data pointers staged for the indirect per-line tables, copied into th
 source = "game/menu/display.c, menu_object_nmi $C2:015E; game/menu/objects.c, menu_object_wave_hdma $C2:7759"
 
 [[var]]
-name = "menu_object_wave_table"
+name = "menu_object_line_slots"
 addr = "7E:8A35"
-stride = 3
-count = 3
-index = "entry; the third's zero line count ends the table"
+stride = 13
+count = 5
+index = "per-line effect slot, from 1"
 subsystem = "menu"
-meaning = "The indirect per-line table slot 1 reads for the wave on BG3's horizontal scroll"
-source = "game/menu/objects.c, menu_object_wave_hdma $C2:7759"
+meaning = "The indirect per-line tables the sprite-object mode's per-line effects read: two entries a slot, each a line count and the address of its values, and an end; the vblank handler copies the staged addresses (menu_object_hdma_pointers) into them each frame. The wave uses the first; the time dial's four Mode 7 matrix channels the second and third"
+source = "game/menu/wave.c, menu_object_wave_hdma $C2:7759; game/menu/display.c, menu_object_nmi $C2:015E; game/menu/epoch.c"
 
   [[var.field]]
-  name = "lines"
+  name = "first_lines"
   offset = 0
-  meaning = "Line count ($F0: repeat mode, 112 lines)"
+  meaning = "The first entry's line count ($F0: repeat mode, 112 lines)"
   [[var.field]]
-  name = "data"
+  name = "first"
   offset = 1
   size = 2
-  meaning = "Address of the entry's per-line scroll values"
+  meaning = "Address of the first entry's per-line values"
+  [[var.field]]
+  name = "second_lines"
+  offset = 3
+  meaning = "The second entry's line count"
+  [[var.field]]
+  name = "second"
+  offset = 4
+  size = 2
+  meaning = "Address of the second entry's per-line values"
+  [[var.field]]
+  name = "end"
+  offset = 6
+  meaning = "0, which ends the table"
 
 [[var]]
 name = "menu_object_wave_scroll"
@@ -5132,16 +5242,6 @@ index = "word: even ones the scroll position, odd ones it plus the sine wave"
 subsystem = "menu"
 meaning = "The first of the sprite object mode's per-line buffers: the wave effect's BG3 scroll values, rebuilt each frame from the scroll $24 and a sine phase, the map view's fixed-colour gradient, or one of the time dial's two window tables"
 source = "game/menu/objects.c, menu_object_wave_hdma $C2:7759; game/menu/epoch.c, menu_epoch_map_gradient $C2:68F4, menu_epoch_build_gate_window $C2:6CC1"
-
-[[var]]
-name = "menu_gate_matrix_tables"
-addr = "7E:8A42"
-size = 1
-count = 20
-index = "byte of the two per-line tables, which start at +0 and +$0D"
-subsystem = "menu"
-meaning = "The two indirect per-line tables the time dial's four Mode 7 matrix channels read, three bytes an entry and a 0 to end (the vblank handler fills each entry's pointer in from $8A25-$8A2C)"
-source = "game/menu/epoch.c, menu_epoch_gate_matrix_object $C2:6F85"
 
 [[var]]
 name = "menu_map_colours"
@@ -5336,12 +5436,37 @@ meaning = "How far the story has gone, which decides the map view's graphics and
 source = "game/menu/epoch.c, menu_epoch_load_map_graphics $C2:6965, menu_epoch_time_dial_object $C2:6AC8"
 
 [[var]]
-name = "menu_epoch_flags"
-addr = "7E:1BAD"
-size = 1
+name = "menu_story_flags"
+addr = "7E:1BA7"
+stride = 0x10
 subsystem = "menu"
-meaning = "Bit 0 decides which graphics one of the map view's maps loads"
-source = "game/menu/epoch.c, menu_epoch_load_map_graphics $C2:6965"
+meaning = "A copy of the story's flags at $7F:01F0-$01FF, which the map screens copy in as they start ($C2:26D6) and back out as they end ($C2:26F0)"
+source = "$C2:26D6, $C2:26F0; game/menu/object_script.c; game/menu/epoch.c"
+  [[var.field]]
+  name = "bytes"
+  offset = 0
+  size = 0x10
+  meaning = "The sixteen bytes"
+  [[var.field]]
+  name = "top_layer_first"
+  offset = 0x00
+  meaning = "Bit 4: the layer over the map stays still while the map scrolls (so do bit 5 of top_layer_second and bit 1 of top_layer_third)"
+  [[var.field]]
+  name = "top_layer_second"
+  offset = 0x03
+  meaning = "Bit 5: the layer over the map stays still"
+  [[var.field]]
+  name = "scene_mode_bits"
+  offset = 0x02
+  meaning = "Bits 2-5: a value object scripts of the menu's scenes copy to $00 (command $4E to $C6:E237)"
+  [[var.field]]
+  name = "epoch"
+  offset = 0x06
+  meaning = "Bit 0 decides which graphics one of the map view's maps loads"
+  [[var.field]]
+  name = "top_layer_third"
+  offset = 0x08
+  meaning = "Bit 1: the layer over the map stays still"
 
 [[var]]
 name = "menu_gate_screen_state"
@@ -5356,13 +5481,149 @@ source = "game/menu/epoch.c, menu_start_gate_screen $C2:CE9D"
 [[var]]
 name = "menu_object_scratch"
 addr = "7E:0000"
-size = 1
-count = 28
-index = "byte"
+stride = 0x1C
 page = "menu"
 subsystem = "menu_object"
-meaning = "Direct-page scratch the sprite object mode's routines share at $00-$1B, below the display shadows: the Epoch's screens keep their operands, pointers and loop counts here, and the gate's window fill writes its two edge positions over $00-$03"
-source = "game/menu/epoch.c (the CELL_ names at the top say what each holds)"
+meaning = "Direct-page cells the sprite object mode's routines share at $00-$1B, below the display shadows: each routine's operands, pointers and loop counts, handed from one to the next"
+source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c; game/menu/epoch.c (the CELL_ names at the top say what each holds there)"
+  [[var.field]]
+  name = "bytes"
+  offset = 0
+  size = 0x1C
+  meaning = "Every byte, as the Epoch's screens use them"
+  [[var.field]]
+  name = "plane"
+  offset = 0x00
+  meaning = "Which of the map's planes a scroll or a redraw works on (1-3)"
+  [[var.field]]
+  name = "step"
+  offset = 0x01
+  meaning = "How many whole map tiles a scroll moves, a signed byte"
+  [[var.field]]
+  name = "start_bank"
+  offset = 0x01
+  meaning = "The bank of the script an object is started on"
+  [[var.field]]
+  name = "spawn_handler"
+  offset = 0x08
+  size = 2
+  meaning = "The handler an object is started with"
+  [[var.field]]
+  name = "start_script"
+  offset = 0x0A
+  size = 2
+  meaning = "The script an object is started on"
+  [[var.field]]
+  name = "reset_rounds"
+  offset = 0x08
+  size = 2
+  meaning = "The sprite list's reset: rounds of eight nodes left"
+  [[var.field]]
+  name = "draw_count"
+  offset = 0x00
+  size = 2
+  meaning = "The sprite list's drawing: sprites left in the group"
+  [[var.field]]
+  name = "draw_attributes"
+  offset = 0x02
+  size = 2
+  meaning = "The drawing: the node's palette and priority, as the tile word's high bits"
+  [[var.field]]
+  name = "draw_x"
+  offset = 0x04
+  size = 2
+  meaning = "The drawing: the last sprite's X"
+  [[var.field]]
+  name = "draw_tiles"
+  offset = 0x06
+  size = 2
+  meaning = "The drawing: the node's first tile"
+  [[var.field]]
+  name = "draw_place"
+  offset = 0x08
+  size = 3
+  meaning = "The drawing: the last sprite's X, overlapped by its Y where the X was on the screen"
+  [[var.field]]
+  name = "draw_node_x"
+  offset = 0x0C
+  size = 2
+  meaning = "The drawing: the node's X on the screen"
+  [[var.field]]
+  name = "draw_node_y"
+  offset = 0x0E
+  size = 2
+  meaning = "The drawing: the node's Y on the screen"
+  [[var.field]]
+  name = "draw_node"
+  offset = 0x10
+  size = 2
+  meaning = "The drawing: the node being drawn"
+  [[var.field]]
+  name = "draw_size"
+  offset = 0x13
+  size = 2
+  meaning = "The drawing: 1 for the node's sprites being the other size"
+  [[var.field]]
+  name = "draw_size_bit"
+  offset = 0x16
+  meaning = "The drawing: the size bit the last shown sprite's high bits were made from, shifted out"
+  [[var.field]]
+  name = "wave_phase"
+  offset = 0x0A
+  size = 2
+  meaning = "The wave on the layer over the map: the sine's step for the next line"
+  [[var.field]]
+  name = "entry"
+  offset = 0x00
+  size = 2
+  meaning = "The script command that marks an entry of a screen's table: the entry"
+  [[var.field]]
+  name = "columns"
+  offset = 0x00
+  meaning = "The script command that copies map tiles: how many across"
+  [[var.field]]
+  name = "rows_left"
+  offset = 0x01
+  meaning = "The copy: rows left"
+  [[var.field]]
+  name = "columns_left"
+  offset = 0x02
+  meaning = "The copy: tiles left in the row"
+  [[var.field]]
+  name = "group_column"
+  offset = 0x00
+  size = 2
+  meaning = "The script command that shows a tile group: its tilemap column, across both screens"
+  [[var.field]]
+  name = "group_screen_column"
+  offset = 0x02
+  size = 2
+  meaning = "The same, in its screen"
+  [[var.field]]
+  name = "scene_script"
+  offset = 0x08
+  size = 2
+  meaning = "The script command that gives a scene's object its sprite script: the script"
+  [[var.field]]
+  name = "pointer_address"
+  offset = 0x10
+  size = 2
+  meaning = "Showing a tile group: where its tiles come from"
+  [[var.field]]
+  name = "second_pointer_address"
+  offset = 0x13
+  size = 2
+  meaning = "Showing a tile group: where in VRAM they go"
+  [[var.field]]
+  name = "pointer"
+  offset = 0x10
+  size = 3
+  meaning = "The script commands that reach a map, a table or a group: where (and, for the copy, where from)"
+  [[var.field]]
+  name = "second_pointer"
+  offset = 0x13
+  size = 3
+  meaning = "The copy: where to; showing a group: where in VRAM"
 
 [[var]]
 name = "menu_load_request"
@@ -5495,10 +5756,10 @@ name = "menu_object_slots"
 addr = "7E:0B30"
 count = 64
 stride = 0x40
-index = "the slot's address, which the mode keeps in menu_object_current"
+index = "slot: the mode keeps its address, $0B30 + $40 a slot, in menu_object_current"
 subsystem = "menu_object"
-meaning = "The mode's object slots, run in address order every frame by $C2:051D: a handler and the state it keeps between frames"
-source = "game/menu/objects.c, menu_run_objects $C2:051D and menu_run_object_script $C2:0F63; game/menu/epoch.c (the screens are objects in these slots)"
+meaning = "The sprite-object mode's objects, run in slot order every frame by $C2:051D: a handler and the state it keeps between frames. Most run a command script; the Epoch's screens and a few effects have handlers of their own, which use the slot's later bytes as they need"
+source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, menu_run_object_script $C2:0F63; game/menu/epoch.c"
 
   [[var.field]]
   name = "handler"
@@ -5518,10 +5779,33 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D and menu_run_object_scr
   meaning = "Frames the object has run, counted up after every frame its handler keeps the slot"
 
   [[var.field]]
+  name = "bytes"
+  offset = 0
+  size = 0x40
+  meaning = "Every byte of the slot, as a script names one by its offset"
+
+  [[var.field]]
+  name = "inherited"
+  offset = 0x05
+  size = 0x3B
+  meaning = "Everything from here on, which a new object takes on from the object that starts it"
+
+  [[var.field]]
+  name = "return_to"
+  offset = 0x05
+  size = 2
+  meaning = "Where a script's call goes back to: the command after the call"
+
+  [[var.field]]
   name = "script"
   offset = 0x07
   size = 3
   meaning = "Long pointer to the object's command script, advanced past each command $C2:0F63 runs"
+
+  [[var.field]]
+  name = "command_frames"
+  offset = 0x0A
+  meaning = "How many frames a command that lasts a while has left: loaded from its operand the first frame, counted down after"
 
   [[var.field]]
   name = "sprite_script"
@@ -5530,15 +5814,98 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D and menu_run_object_scr
   meaning = "Long pointer to the object's sprite script, advanced past each command $C2:0E1D runs"
 
   [[var.field]]
-  name = "script_wait"
-  offset = 0x0E
-  meaning = "A command's countdown in frames: loaded from the command's operand when zero, then counted down until it is zero again"
+  name = "sprite_script_at"
+  offset = 0x0B
+  size = 2
+  meaning = "Where in its bank the sprite script has got to"
 
   [[var.field]]
-  name = "command_done"
+  name = "sprite_frames"
+  offset = 0x0E
+  meaning = "How many frames the sprite script's command has left: loaded from its operand when zero, then counted down until it is zero again"
+
+  [[var.field]]
+  name = "look"
+  offset = 0x0F
+  meaning = "How the object's sprites are drawn: bit 0 in front of the others, bits 1-3 the palette, 4-5 the priority, 6 held on one frame (no countdown), 7 placed on the map (moving with its scroll)"
+
+  [[var.field]]
+  name = "tiles"
+  offset = 0x10
+  size = 2
+  meaning = "The first tile of the object's sprites, and the attribute bits that go with it (bit 6 of the high byte: the other sprite size; bit 7: drawn after everything)"
+
+  [[var.field]]
+  name = "x"
+  offset = 0x12
+  size = 4
+  meaning = "The object's place across the map, 16.16 fixed point: a fraction, then the pixel"
+
+  [[var.field]]
+  name = "x_fraction"
+  offset = 0x12
+  size = 2
+  meaning = "The fraction of its place across"
+
+  [[var.field]]
+  name = "x_pixel"
+  offset = 0x14
+  size = 2
+  meaning = "The pixel of its place across"
+
+  [[var.field]]
+  name = "y"
+  offset = 0x16
+  size = 4
+  meaning = "Its place down the map, 16.16 fixed point"
+
+  [[var.field]]
+  name = "y_fraction"
+  offset = 0x16
+  size = 2
+  meaning = "The fraction of its place down"
+
+  [[var.field]]
+  name = "y_pixel"
+  offset = 0x18
+  size = 2
+  meaning = "The pixel of its place down"
+
+  [[var.field]]
+  name = "velocity_x"
+  offset = 0x1A
+  size = 4
+  meaning = "How far it moves across each frame, signed 16.16 fixed point"
+
+  [[var.field]]
+  name = "velocity_y"
+  offset = 0x1E
+  size = 4
+  meaning = "How far it moves down each frame, signed 16.16 fixed point"
+
+  [[var.field]]
+  name = "phase"
+  offset = 0x22
+  size = 2
+  meaning = "A handler's own count: the wave's phase, the Epoch's screens' angles and steps"
+
+  [[var.field]]
+  name = "command_state"
   offset = 0x32
   size = 2
-  meaning = "Cleared after every command the script runs, so the next command starts fresh"
+  meaning = "What the running command keeps between frames, cleared after every command the script finishes: a move's started flag, the palette loader's row"
+
+  [[var.field]]
+  name = "move_target"
+  offset = 0x34
+  size = 2
+  meaning = "Where a move command's object is going; the palette loader's hand-over flag in the low byte"
+
+  [[var.field]]
+  name = "palette_source"
+  offset = 0x35
+  size = 3
+  meaning = "The palette loader's long pointer to its colours"
 
 [[var]]
 name = "menu_object_sprite_script"
@@ -5579,10 +5946,26 @@ source = "game/menu/object_script.c, menu_object_cmd_call_routine $C2:1807 and c
 [[var]]
 name = "menu_sound_request"
 addr = "7E:1BE8"
-size = 4
+stride = 4
 subsystem = "menu"
 meaning = "The sound driver command an object script leaves for $C2:2ED9 to pass on when the driver is free: the command byte and up to three parameters, in the order the driver takes them"
 source = "game/menu/object_script.c, menu_object_cmd_sound_18 $C2:18C7, menu_object_cmd_play_song $C2:18F9, menu_object_cmd_sound_command $C2:191F; $C2:2ED9 copies them to sound_command"
+  [[var.field]]
+  name = "command"
+  offset = 0
+  meaning = "The driver's command"
+  [[var.field]]
+  name = "first"
+  offset = 1
+  meaning = "Its first parameter (a song, a sound)"
+  [[var.field]]
+  name = "second"
+  offset = 2
+  meaning = "Its second"
+  [[var.field]]
+  name = "third"
+  offset = 3
+  meaning = "Its third"
 
 [[var]]
 name = "menu_sound_request_age"
@@ -5613,10 +5996,23 @@ source = "game/menu/object_script.c, menu_object_cmd_play_song $C2:18F9"
 [[var]]
 name = "menu_saved_location"
 addr = "7E:04FC"
-size = 4
+stride = 4
 subsystem = "menu"
 meaning = "Where the party was when a map screen changed the location: the location number and the map position, the same three values it also copies to location_previous"
 source = "game/menu/object_script.c, menu_object_cmd_change_location $C2:1100"
+  [[var.field]]
+  name = "id"
+  offset = 0
+  size = 2
+  meaning = "The location"
+  [[var.field]]
+  name = "x"
+  offset = 2
+  meaning = "Where the party stood across it, in 8x8 tiles"
+  [[var.field]]
+  name = "y"
+  offset = 3
+  meaning = "And down it"
 
 # ==============================================================================
 # Battle
@@ -9543,3 +9939,52 @@ why = "a sine table bound, masks, and the address battle_build_object_graphics_c
 file = "battle/timers.c"
 values = [0x1000]
 why = "the bit of the first timer kind in $B186"
+
+[[var]]
+name = "menu_song_kept"
+addr = "7F:01ED"
+subsystem = "menu"
+meaning = "Set while a map screen keeps the song that is playing: the object scripts' command that starts a screen's song ($C2:18F1) leaves it be"
+source = "game/menu/object_script.c, play_song $C2:18F1; game/menu/object_commands.c ($C6:E63D and $C6:E644, which the scenes call, set and clear it)"
+
+[[var]]
+name = "menu_wave_phase"
+addr = "7E:01E2"
+size = 2
+subsystem = "menu"
+meaning = "Where the wave on the layer over a map screen's map is in its sine, which moves on 4 steps a frame. The handler means its object's own phase (+$22) but reaches it through an index its loop has run on to $01C0, so it keeps it here, in the field page's scratch; it clears the object's own the first frame all the same"
+source = "game/menu/wave.c, menu_object_wave_hdma $C2:7759 ($C2:77C7)"
+
+[[var]]
+name = "menu_block_move_stub"
+addr = "7E:9690"
+size = 4
+subsystem = "menu"
+meaning = "The code the menus' vblank runs a frame's block move through: MVN $7E,$7E and RTL, written there each time"
+source = "game/menu/display.c, menu_vblank_upload $C2:85D6"
+
+[[var]]
+name = "menu_math_records"
+addr = "7E:9D99"
+stride = 2
+count = 40
+index = "record; a line count with bit 7 set ends the list"
+subsystem = "menu"
+meaning = "What the menus' per-line color math table is built from: each record a run of lines at one color, or (a nonzero line count) a sixteen-step ramp through the ramp colors"
+source = "game/menu/display.c, menu_build_math_line_table $C2:86DD"
+  [[var.field]]
+  name = "lines"
+  offset = 0
+  meaning = "0 for a single entry; nonzero for a ramp; bit 7 ends the list"
+  [[var.field]]
+  name = "value"
+  offset = 1
+  meaning = "The entry's line count, or the ramp's lines a step"
+
+[[var]]
+name = "menu_window_line_table"
+addr = "7E:6E00"
+size = 0x94
+subsystem = "menu"
+meaning = "The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value, then sixteen groups of three lines from the table at $FF:FC57, and an end"
+source = "game/menu/display.c, menu_window_build_line_table $FF:FC04"

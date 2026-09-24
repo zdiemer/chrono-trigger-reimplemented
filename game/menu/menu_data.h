@@ -122,4 +122,50 @@ enum {
     MENU_UPLOAD_SLOT_TILEMAP_3 = 0xFC29,
 };
 
+/* ---- The sprite-object mode --------------------------------------------------------------- */
+
+/* The object scripts (menu/script.h), the sprite scripts and the sprite groups
+ * they show (menu/sprites.c), wherever their pointers put them: bank C2's and
+ * C3's scripts, or ones a screen built in work RAM. `at` is a 24-bit address,
+ * whose offset the callers wrap in its bank. */
+static inline uint8_t menu_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+static inline uint8_t menu_sprite_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+static inline uint8_t menu_sprite_group_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+
+/* The address in bank C2 of each object script command's handler ($C2:0F91),
+ * which names the command's time and its registered entry. */
+static inline uint16_t menu_script_handler(const GameState *g, uint8_t opcode)
+{
+    return rom_read16(g, 0xC20F91u + 2u * opcode);
+}
+
+/* The sprite scripts an object script gives its object, by number: where each
+ * starts in bank C3 ($C3:E000, a word each). */
+enum { MENU_SPRITE_SCRIPT_BANK = 0xC3 };
+static inline uint16_t menu_sprite_script_start(const GameState *g, uint8_t script)
+{
+    return rom_read16(g, 0xC3E000u + 2u * script);
+}
+
+/* For each plane of the map ($C2:0556, $C2:055C, $C2:0562, a word a plane):
+ * where its tile groups and its map are in bank $7E, and where its tilemap is
+ * in VRAM. The original indexes them by the plane's number doubled, a byte
+ * that a script's plane number 0 turns into $1FE, past the tables into the
+ * code after them. */
+static inline uint16_t menu_plane_word(const GameState *g, uint32_t table, uint8_t plane)
+{
+    return rom_read16(g, table + (uint16_t)(2u * plane));
+}
+static inline uint16_t menu_plane_groups(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC20556u, plane); }
+static inline uint16_t menu_plane_map(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC2055Cu, plane); }
+static inline uint16_t menu_plane_tilemap(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC20562u, plane); }
+
+/* How the game goes back to the world map from a location a map screen sends
+ * the party to, by the location's kind ($C2:2509, four bytes). */
+static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind) { return rom_read8(g, 0xC22509u + kind); }
+
+/* The sizes of the waves on the layer over the map ($C0:F900): a byte a
+ * step, 1024 steps a turn, of which the second half is read below zero. */
+static inline uint8_t menu_wave_size(const GameState *g, uint16_t step) { return rom_read8(g, 0xC0F900u + step); }
+
 #endif

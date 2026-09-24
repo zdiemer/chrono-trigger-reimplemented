@@ -136,8 +136,8 @@ static void draw_member_portrait(GameState *g)
     uint8_t attribute = (uint8_t)((uint8_t)(row << PALETTE_SHIFT) | FIRST_PORTRAIT_PALETTE | UPPER_TILES);
     for (unsigned i = 0; i < 4; i++)
         put_tilemap_byte(g, origin, (uint16_t)(PORTRAIT_AT + corners[i] + 1), attribute);
-    uint8_t character = (uint8_t)menu_save_member(g);
-    ORIGINAL_EFFECT(set_menu_save_member(g, character));
+    uint8_t character = (uint8_t)menu_scratch_save_member(g);
+    ORIGINAL_EFFECT(set_menu_scratch_save_member(g, character));
     uint8_t tile = menu_portrait_first_tile(g, character);
     for (unsigned i = 0; i < 4; i++)
         put_tilemap_byte(g, origin, (uint16_t)(PORTRAIT_AT + corners[i]), (uint8_t)(tile + i));
@@ -303,11 +303,11 @@ static bool draw_member_rows(Snes *s)
 {
     GameState *g = state_of(s);
     set_menu_draw_origin(g, MEMBER_ROWS_AT);
-    set_menu_save_member_record(g, SUMMARY_AT);
+    set_menu_scratch_save_member_record(g, SUMMARY_AT);
     set_menu_save_member_row(g, 0);
     for (unsigned row = 0; row < MEMBER_ROWS; row++) {
         uint8_t member = menu_save_summary_byte(g, row * MEMBER_RECORD_BYTES);
-        set_menu_save_member(g, (uint16_t)((menu_save_member(g) & 0xFF00) | member));
+        set_menu_scratch_save_member(g, (uint16_t)((menu_scratch_save_member(g) & 0xFF00) | member));
         if (member_present(g, row)) {
             show_member(g, row);
             s->cpu.x = MEMBER_ROW_LIST;
@@ -316,7 +316,7 @@ static bool draw_member_rows(Snes *s)
             NATIVE_TIME_AS(s, 0xC2D466, draw_member_portrait(g));
             set_menu_draw_origin(g, (uint16_t)(menu_draw_origin(g) + MEMBER_ROW_BYTES));
         }
-        set_menu_save_member_record(g, (uint16_t)(SUMMARY_AT + (row + 1) * MEMBER_RECORD_BYTES));
+        set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + (row + 1) * MEMBER_RECORD_BYTES));
         set_menu_save_member_row(g, (uint16_t)(row + 1));
     }
     return true;
@@ -573,7 +573,7 @@ bool menu_portrait_is_drawable(Snes *s)
         return false;
     GameState *g = state_of(s);
     vars_peek(true);
-    bool ok = menu_save_member_row(g) < MEMBER_ROWS && (uint8_t)menu_save_member(g) < MENU_PORTRAITS;
+    bool ok = menu_save_member_row(g) < MEMBER_ROWS && (uint8_t)menu_scratch_save_member(g) < MENU_PORTRAITS;
     vars_peek(false);
     return ok;
 }
