@@ -23,12 +23,6 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* The field's uploads use DMA channel 7: the sprite table one byte at a time,
- * VRAM in words. What the SNES backend is told for each transfer is its
- * register writes in the original's order (the service's `steps`, which
- * shadow mode compares). */
-enum { FIELD_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01, DMA_FROM_REGISTER = 0x80 };
-
 /* Where the sprite table and the layers' tile maps are, as the transfers'
  * sources. */
 enum { TILE_MAP_BANK = 0x7E, QUEUE_BANK = 0x7F };
@@ -40,13 +34,7 @@ static const VidVramPort column_port = { .step = 32, .after_high = true };
 /* The sprite table, all of it, from the first sprite. */
 void field_upload_sprite_table(Platform *pf)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI,   VID_STEP_CONTROL, VID_STEP_DEST,   VID_STEP_SOURCE_LO,
-        VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START,
-        VID_STEP_END,
-    };
-    static const VidSnesXfer x = { FIELD_DMA, DMA_ONE_REGISTER, steps, NULL };
-    vid_upload_oam(pf, PF_AT(0xC0ECA5), PF_GAME(FIELD_SPRITE_TABLE_ADDRESS), &x);
+    vid_send_oam(pf, PF_AT(0xC0ECA5), PF_GAME(FIELD_SPRITE_TABLE_ADDRESS));
 }
 
 // $C0:B1B2
@@ -56,21 +44,14 @@ void field_upload_sprite_table(Platform *pf)
  * emptied. */
 void field_upload_queued_transfers(GameState *g, Platform *pf)
 {
-    static const uint8_t channel_steps[] = { VID_STEP_DEST, VID_STEP_CONTROL, VID_STEP_SOURCE_BANK, VID_STEP_END };
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-    };
-    static const VidSnesXfer channel = { FIELD_DMA, DMA_WORDS, channel_steps, NULL };
-    static const VidSnesXfer x = { FIELD_DMA, DMA_WORDS, steps, NULL };
-    vid_begin_vram_uploads(pf, PF_AT(0xC0B1BC), VID_VRAM_WORD_PORT, PF_GAME((uint32_t)QUEUE_BANK << 16), &channel);
+    vid_start_vram_uploads(pf, PF_AT(0xC0B1BC), VID_VRAM_WORD_PORT);
     for (unsigned i = 0; field_vram_queue_used(g, i) != 0; i++) {
         uint16_t size = field_vram_queue_size(g, i);
-        vid_upload_vram(pf, PF_AT(0xC0B1D7), field_vram_queue_vram(g, i),
-                        PF_GAME((uint32_t)QUEUE_BANK << 16 | field_vram_queue_source(g, i)), size ? size : 0x10000u, &x);
+        vid_send_vram(pf, PF_AT(0xC0B1D7), field_vram_queue_vram(g, i),
+                      PF_GAME((uint32_t)QUEUE_BANK << 16 | field_vram_queue_source(g, i)), size ? size : 0x10000u, NULL);
         size = field_vram_queue_size2(g, i);
-        vid_upload_vram(pf, PF_AT(0xC0B1EB), field_vram_queue_vram2(g, i),
-                        PF_GAME((uint32_t)QUEUE_BANK << 16 | field_vram_queue_source2(g, i)), size ? size : 0x10000u, &x);
+        vid_send_vram(pf, PF_AT(0xC0B1EB), field_vram_queue_vram2(g, i),
+                      PF_GAME((uint32_t)QUEUE_BANK << 16 | field_vram_queue_source2(g, i)), size ? size : 0x10000u, NULL);
     }
     set_field_vram_queue_used(g, 0, 0);
 }
@@ -134,18 +115,13 @@ static const EdgeRun edge_runs[FIELD_EDGE_UPLOADS] = {
 void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload)
 {
     const EdgeRun *r = &edge_runs[upload];
-    static const uint8_t steps[] = {
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI, VID_STEP_TARGET_LO,   VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO,
-        VID_STEP_SOURCE_HI, VID_STEP_VRAM_PORT, VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_SOURCE_BANK,
-        VID_STEP_START,     VID_STEP_END,
-    };
-    const VidSnesXfer x = { FIELD_DMA, DMA_WORDS, steps, r->down_a_column ? &column_port : &word_port };
+    const VidVramPort *port = r->down_a_column ? &column_port : &word_port;
     uint16_t source = r->staged;
     for (unsigned k = 0; k < r->parts; k++) {
         uint16_t size = edge_word(g, field_layer_edge_sizes_byte, r->layer, r->sizes + k);
         if (size != 0) {
             uint16_t vram = edge_word(g, field_layer_edge_vram_byte, r->layer, r->addresses + k);
-            vid_upload_vram(pf, PF_AT(r->site[k]), vram, PF_GAME((uint32_t)TILE_MAP_BANK << 16 | source), size, &x);
+            vid_send_vram(pf, PF_AT(r->site[k]), vram, PF_GAME((uint32_t)TILE_MAP_BANK << 16 | source), size, port);
         }
         source = (uint16_t)(source + size);
     }
@@ -219,8 +195,7 @@ static void init_video_mode(Platform *pf)
     static const uint32_t scroll_sites[3] = { 0xFDC0FE, 0xFDC106, 0xFDC10E };
     for (int bg = 0; bg < 3; bg++)
         vid_set_scroll(pf, PF_AT(scroll_sites[bg]), (VidLayer)bg, 0, 0, VID_SCROLL_H | VID_SCROLL_V);
-    vid_set_screens(pf, PF_AT(0xFDC118), VID_LAYER_BIT(VID_BG1) | VID_LAYER_BIT(VID_BG2) | VID_LAYER_BIT(VID_OBJ), 0,
-                    VID_SCREEN_MAIN);
+    vid_set_screens(pf, PF_AT(0xFDC118), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN);
     vid_set_color_math(pf, PF_AT(0xFDC11C), &(VidColorMath){ .sub_screen = true }, VID_MATH_CONTROL);
     vid_set_fixed_color(pf, PF_AT(0xFDC120), VID_RED | VID_GREEN | VID_BLUE, 0);
 }
@@ -243,15 +218,9 @@ static void set_screens(const GameState *g, Platform *pf)
  * address, mode, source and size (0 is 64 KiB). */
 static void vram_transfer(const GameState *g, Platform *pf)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO,   VID_STEP_TARGET_HI, VID_STEP_VRAM_PORT, VID_STEP_CONTROL, VID_STEP_DEST,
-        VID_STEP_SOURCE_LO,   VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,
-        VID_STEP_START,       VID_STEP_END,
-    };
     uint16_t size = field_transfer_size(g);
-    const VidSnesXfer x = { FIELD_DMA, field_transfer_mode(g), steps, &word_port };
-    vid_upload_vram(pf, PF_AT(0xC02DCA), field_transfer_vram(g), PF_GAME(field_transfer_source(g)),
-                    size ? size : 0x10000u, &x);
+    vid_send_vram_in_mode(pf, PF_AT(0xC02DCA), field_transfer_vram(g), PF_GAME(field_transfer_source(g)),
+                          size ? size : 0x10000u, &word_port, field_transfer_mode(g));
 }
 
 // $C0:2DF1
@@ -262,15 +231,10 @@ static void vram_transfer(const GameState *g, Platform *pf)
  * escape; only the two matrix values it leaves behind are video state. */
 static void fill_memory(const GameState *g, Platform *pf)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,   VID_STEP_DEST,    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI, VID_STEP_START,     VID_STEP_END,
-    };
-    enum { MODE7_PRODUCT = 0x34 };
     vid_set_mode7(pf, PF_AT(0xC02DF3), &(VidMode7){ .a = 0, .b = 0 }, VID_M7_MATRIX_AB);
-    const VidSnesXfer x = { FIELD_DMA, DMA_FROM_REGISTER, steps, NULL };
-    const VidSnesTransfer t = { .dest = MODE7_PRODUCT, .source = field_transfer_source(g), .size = field_transfer_size(g) };
-    vid_snes_transfer(pf, PF_AT(0xC02E01), &t, &x);
+    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = field_transfer_source(g),
+                                .size = field_transfer_size(g) };
+    vid_snes_copy(pf, PF_AT(0xC02E01), &t);
 }
 
 /* ---- The line interrupt ---------------------------------------------------------------- */

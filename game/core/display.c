@@ -31,75 +31,37 @@ void display_blank_and_stop_interrupts(Snes *s)
 
 // $FD:C036
 /* The register block at power-on, written through a direct page on it: forced
- * blank, sprites 16x16/32x32 with their tiles at VRAM $C000, mode 1 with BG3 in
- * front, every tilemap, character base and scroll cleared, the Mode 7 matrix set
- * to the identity, the windows cleared but for BG3's, both screens showing all
- * five layers, and a black fixed color. The reset code before this sets the CPU
- * registers and has no service; the port starts where the PPU block does and
- * ends at the jump into the boot, at $C0:000E.
+ * blank; the sprites 16x16 and 32x32 with their tiles at VRAM word $6000; mode
+ * 1 with BG3 in front; every tilemap, character base and scroll at 0 and the
+ * mosaic off; the Mode 7 plane unflipped with the identity matrix; no window
+ * but window 1 on BG3, drawing outside it; no color math; all five layers on
+ * both screens; and a black fixed color (its red left as it was). The reset
+ * code before this sets the CPU registers and has no service; the port starts
+ * where the PPU block does and ends at the jump into the boot, at $C0:000E.
  *
  * It runs once, at frame 0, which is why it matters out of proportion to its
  * size: the observer is built from the calls, so until this is one of them a
  * comparison from power-on starts out of step with the hardware. */
-static void init_registers(Platform *pf)
-{
-    static const VidVramPort low_byte_port = { .step = 1, .after_high = false };
-
-    vid_set_display(pf, PF_AT(0xFDC040), &(VidDisplay){ .blank = true });
-    VidObjConfig obj = vid_obj_config_decode(0x63);
-    vid_set_obj_config(pf, PF_AT(0xFDC044), &obj);
-    vid_set_oam_address(pf, PF_AT(0xFDC048), 0x0000, false);
-    VidMode mode = vid_mode_decode(0x09);
-    vid_set_mode(pf, PF_AT(0xFDC04E), &mode);
-    vid_set_mosaic(pf, PF_AT(0xFDC052), 0x00, 1);
-    for (int bg = 0; bg < 4; bg++) {
-        VidBg b = { 0 };
-        vid_bg_map_decode(&b, 0x00);
-        vid_set_bg_map(pf, PF_AT((uint32_t)(0xFDC054 + 2 * bg)), (VidLayer)bg, &b);
-    }
-    vid_set_bg_chars(pf, PF_AT(0xFDC05C), VID_BG1, 0x0000, 0x0000);
-    vid_set_bg_chars(pf, PF_AT(0xFDC05E), VID_BG3, 0x0000, 0x0000);
-    for (int bg = 0; bg < 4; bg++)
-        vid_set_scroll(pf, PF_AT((uint32_t)(0xFDC060 + 8 * bg)), (VidLayer)bg, 0, 0,
-                       VID_SCROLL_H | VID_SCROLL_V);
-    vid_begin_vram_uploads(pf, PF_AT(0xFDC080), &low_byte_port, PF_GAME(0), NULL);
-    vid_set_vram_address(pf, PF_AT(0xFDC082), 0x0000);
-    vid_set_mode7(pf, PF_AT(0xFDC086), &(VidMode7){ 0 }, VID_M7_SELECT);
-    /* The identity matrix. */
-    vid_set_mode7(pf, PF_AT(0xFDC088), &(VidMode7){ .a = 0x0100, .d = 0x0100 }, VID_M7_MATRIX);
-    vid_set_mode7(pf, PF_AT(0xFDC09D), &(VidMode7){ 0 }, VID_M7_CENTER);
-    vid_set_palette_address(pf, PF_AT(0xFDC0A5), 0x00);
-
-    VidWindows w = { 0 };
-    vid_windows_decode(&w, VID_WINDOWS_BG1_BG2, 0x00);
-    vid_windows_decode(&w, VID_WINDOWS_BG3_BG4, 0x03);
-    static const uint32_t rest[] = {
-        VID_WINDOWS_OBJ_BACK, VID_WINDOWS_W1_LEFT, VID_WINDOWS_W1_RIGHT, VID_WINDOWS_W2_LEFT,
-        VID_WINDOWS_W2_RIGHT, VID_WINDOWS_BG_LOGIC, VID_WINDOWS_OBJ_LOGIC,
-    };
-    uint32_t fields = VID_WINDOWS_BG1_BG2 | VID_WINDOWS_BG3_BG4;
-    for (size_t i = 0; i < sizeof rest / sizeof rest[0]; i++) {
-        vid_windows_decode(&w, rest[i], 0x00);
-        fields |= rest[i];
-    }
-    vid_set_windows(pf, PF_AT(0xFDC0A7), &w, fields);
-    vid_windows_decode(&w, VID_WINDOWS_MAIN, 0x00);
-    vid_windows_decode(&w, VID_WINDOWS_SUB, 0x00);
-    vid_set_windows(pf, PF_AT(0xFDC0BD), &w, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
-    VidColorMath math = { 0 };
-    vid_color_math_decode(&math, VID_MATH_CONTROL, 0x00);
-    vid_color_math_decode(&math, VID_MATH_LAYERS, 0x00);
-    vid_set_color_math(pf, PF_AT(0xFDC0C1), &math, VID_MATH_CONTROL | VID_MATH_LAYERS);
-    vid_set_screens(pf, PF_AT(0xFDC0C7), 0x1F, 0x1F, VID_SCREEN_MAIN | VID_SCREEN_SUB);
-    vid_set_fixed_color(pf, PF_AT(0xFDC0CD), VID_GREEN | VID_BLUE, 0);
-    vid_set_video_config(pf, PF_AT(0xFDC0D1), &(VidVideoConfig){ 0 });
-}
+static const VidScreen power_on_screen = {
+    .display = &(const VidDisplay){ .blank = true },
+    .sprites = { .size_select = 3, .base = 0x6000 },
+    .mode = { .mode = 1, .bg3_priority = true },
+    .mosaic_size = 1,
+    .bg = { { VID_TILEMAP(0x0000, 32, 32) }, { VID_TILEMAP(0x0000, 32, 32) }, { VID_TILEMAP(0x0000, 32, 32) },
+            { VID_TILEMAP(0x0000, 32, 32) } },
+    .mode7 = { .a = 0x0100, .d = 0x0100 },
+    .windows = { .w1 = { [VID_BG3] = VID_WIN_OUT } },
+    .main_layers = VID_ALL_LAYERS,
+    .sub_layers = VID_ALL_LAYERS,
+    /* VRAM written a byte at a time, the address stepping after the low one */
+    .vram_port = { .step = 1, .after_high = false },
+};
 
 /* The original leaves the direct page on the PPU registers and A with the $2100
  * it set it from and the last byte it wrote, 0, and hands over to the boot. */
 void display_init_registers(Snes *s)
 {
-    init_registers(m_platform(s));
+    vid_apply_screen(m_platform(s), PF_AT(0xFDC036), &power_on_screen);
     s->cpu.d = M_DP_PPU;
     s->cpu.a = M_DP_PPU;
     m_set_nz8(s, 0x00);

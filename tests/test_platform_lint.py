@@ -7,7 +7,9 @@ fits in 16 bits, or when its bank byte is one where those addresses are I/O
 ($00-$3F, $80-$BF). Comments and strings are skipped. The SNES-only escapes
 (vid_snes_*) are allowed only where registered, and so are the audio service's
 calls below the command interface (au_driver_*), which only the CPU half of the
-sound driver and the scene code that sends it messages may use.
+sound driver and the scene code that sends it messages may use. The SNES
+backend's write orders for transfers and line effects (VID_STEP_*, VidSnesXfer)
+are left only in the files that haven't moved to the calls that look them up.
 """
 import pathlib
 import re
@@ -34,6 +36,19 @@ ESCAPES = {
                            # and $7E:38E7, whose mode and destination are game data
     "scene/title.c": 2,    # $7E:5AEB, which writes the data port's low half alone, and $7E:59D5, which
                            # carries on from what the channel holds
+}
+
+# Files whose calls still spell out the SNES backend's write order for a transfer
+# or a line effect (VID_STEP_*, VidSnesXfer), which the vid_send_* uploads,
+# vid_set_line_slot and vid_snes_copy take from the backend instead
+# (platform/snes/encodings.c; docs/TODO.md, Platform). Remove a file once it
+# moves; the test fails if a listed file no longer does, and nothing may be added.
+WRITE_ORDER = {
+    "battle/display.c",
+    "battle/frame.c",
+    "menu/epoch.c",
+    "menu/line_effects.c",
+    "menu/map.c",
 }
 
 # Files allowed to use the driver-level audio calls (au_driver_*).
@@ -98,6 +113,33 @@ class PlatformLint(unittest.TestCase):
             if n:
                 counts[path.relative_to(GAME).as_posix()] = n
         self.assertEqual(counts, ESCAPES)
+
+    def test_write_order_only_where_left(self):
+        users = set()
+        for path in self.sources():
+            if re.search(r"\bVID_STEP_\w+|\bVidSnesXfer\b", strip(path.read_text(encoding="utf-8"))):
+                users.add(path.relative_to(GAME).as_posix())
+        self.assertEqual(users, WRITE_ORDER)
+
+    def test_sites_have_encodings(self):
+        """A call that takes its write order from the SNES backend at a literal
+        site has that site in the backend's table, so no movie is needed to find
+        one missing (the backend stops the program on an unknown site)."""
+        table = (ROOT / "runtime/platform/snes/encodings.c").read_text(encoding="utf-8")
+        known = {int(m, 16) for m in re.findall(r"\b0x([0-9A-Fa-f]{6})\b", table)}
+        runs = [(int(a, 16), int(n), int(st, 16)) for a, n, st in
+                re.findall(r"\{ 0x([0-9A-Fa-f]{6}), ([1-9]\d*), 0x([0-9A-Fa-f]+),", table)]
+        call = re.compile(r"\bvid_(?:send_\w+|set_line_slot|set_line_table|snes_copy|apply_screen|start_vram_uploads)"
+                          r"\s*\([^,]+,\s*PF_AT\(0x([0-9A-Fa-f]{6})\)")
+        missing = []
+        for path in self.sources():
+            for m in call.finditer(strip(path.read_text(encoding="utf-8"))):
+                site = int(m.group(1), 16)
+                if "start_vram_uploads" in m.group(0):
+                    continue   # a VRAM port on its own needs no encoding
+                if site not in known and not any(a <= site < a + n * st and (site - a) % st == 0 for a, n, st in runs):
+                    missing.append(f"{path.relative_to(ROOT).as_posix()}: ${site >> 16:02X}:{site & 0xFFFF:04X}")
+        self.assertEqual(missing, [], "calls whose site has no encoding in runtime/platform/snes/encodings.c")
 
     def test_audio_driver_calls_only_where_allowed(self):
         users = set()

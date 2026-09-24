@@ -71,15 +71,9 @@ enum { SCENE_SPRITE_TABLE = 0x000700, SCENE_SPRITE_HIGH_TABLE = 0x000900 };
  * layer shows where nothing is drawn. */
 enum { SCENE_BLANK_TILE = 0x7E350B };
 
-/* The program's transfers: its DMA channel, and how a transfer moves its bytes
- * (the SNES-only escape and the per-call steps take them; docs/TODO.md). */
-enum {
-    SCENE_DMA_CHANNEL = 7,
-    SCENE_DMA_ONE_REGISTER = 0x00,     /* a byte at a time into one register */
-    SCENE_DMA_WORDS = 0x01,            /* into a register pair, a word at a time */
-    SCENE_DMA_FIXED_SOURCE = 0x08,     /* the same source byte over and over: a fill */
-    SCENE_DMA_FROM_REGISTER = 0x80,    /* out of the register into memory */
-};
+/* How the loaders' transfer (scene_transfer) moves its bytes, as the program
+ * keeps it for the SNES-only escape: into a register pair, a word at a time. */
+enum { SCENE_TRANSFER_WORDS = 0x01 };
 
 /* How VRAM writes step: a word at a time, stepping after the high byte (whole
  * words), or after the low byte (the low bytes alone, as the Mode 7 plane's

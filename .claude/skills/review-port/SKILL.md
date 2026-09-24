@@ -385,14 +385,16 @@ Each of these is a finding. Every example here comes from this repo.
     `vid_windows_decode(&w, field, 0x00)`. The decoders exist for bytes the game
     computes at run time; a constant fed to one is the register value with a
     function around it. Write the struct's fields and the named constants
-    (`(VidMode){ .mode = 7 }`, `VID_LAYER_BIT(VID_BG1)`, `.cy = -64`). A setup
+    (`(VidMode){ .mode = 7 }`, `VID_BG1_BIT | VID_OBJ_BIT`, `.cy = -64`). A setup
     routine that is 25 register-group writes in the original's order is smell 1
-    on the display side: build the state as one value and apply it, or add the
-    service call that would.
+    on the display side: build the state as one `VidScreen` and apply it
+    (`vid_apply_screen`), or add the service call that would.
 15. **Assembly quoted in comments.** `/* STX $2102 : STZ $4374 : STA $420B */`
     is the most blatant form of smell 8. Also a finding: a per-call array
     spelling out the original's write order for a transfer the service already
-    models.
+    models (`VID_STEP_*`, `VidSnesXfer`, a DMA channel or mode); the site's
+    order belongs in `runtime/platform/snes/encodings.c`, and the lint allows it
+    in `game/` only in the files it lists as not moved yet.
 16. **Stop-point fragments.** Entries that exist only because a routine is
     half-ported, named for the address or constant at the stop
     (`scene_set_vram_6400`, `scene_race_set_vram_0000_again`). Port the routine

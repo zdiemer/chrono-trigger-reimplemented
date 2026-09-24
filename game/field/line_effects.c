@@ -547,19 +547,20 @@ static void build_line_effect_tables(GameState *g)
  * from 0 up to 9, each intensity for 40 / 8 lines (0 for the remainder's
  * lines too), and a copy of it for table set 1. The copy is a block move of
  * 256 bytes up into its own source, so its last $38 bytes repeat its first. */
+static const VidColorMath SHADING_ADD = { .layers = VID_BG1_BIT };
+static const VidColorMath SHADING_SUBTRACT = { .subtract = true, .layers = VID_BG1_BIT };
 enum {
-    SHADING_ADD = 0x01, SHADING_SUBTRACT = 0x81,
-    FIXED_COLOR_ALL = 0xE0,         /* the fixed color's three channels, intensity in the low bits */
+    ALL_CHANNELS = VID_RED | VID_GREEN | VID_BLUE,   /* the fixed color is a gray */
     SHADING_LINES = 0x28, SHADING_STEPS = 8, SHADING_DEEPEST = 9,
     SHADING_COPY_BYTES = 0x100,
 };
 
 /* `lines` lines of shading from `*line` on. */
-static void shade(GameState *g, uint8_t *line, uint8_t lines, uint8_t mode, uint8_t intensity)
+static void shade(GameState *g, uint8_t *line, uint8_t lines, const VidColorMath *math, uint8_t intensity)
 {
     for (uint8_t i = 0; i < lines; i++, *line = (uint8_t)(*line + 1)) {
-        set_field_dialog_shading_fixed_color(g, *line, (uint8_t)(FIXED_COLOR_ALL | intensity));
-        set_field_dialog_shading_layers(g, *line, mode);
+        set_field_dialog_shading_fixed_color(g, *line, vid_line_fixed_color(ALL_CHANNELS, intensity));
+        set_field_dialog_shading_layers(g, *line, vid_line_math_layers(math));
     }
 }
 
@@ -582,7 +583,7 @@ static void leave_shading(GameState *g)
     original_cell8(g, 0xDB, (uint8_t)((SHADED_LINES + SHADING_STEP) * 2));
     original_cell8(g, 0xDD, (uint8_t)(SHADING_STEP * 2));
     original_cell8(g, 0xDF, (uint8_t)(SHADING_REST * 2));
-    original_cell8(g, 0xE1, FIXED_COLOR_ALL | SHADING_DEEPEST);
+    original_cell8(g, 0xE1, vid_line_fixed_color(ALL_CHANNELS, SHADING_DEEPEST));
 }
 
 /* Table set 1's copy of the shading. The copy runs on past the shading's lines
@@ -605,10 +606,10 @@ static void fill_dialog_shading(GameState *g)
 {
     uint8_t line = 0;
     for (uint8_t intensity = SHADING_STEPS; intensity >= 1; intensity--)
-        shade(g, &line, SHADING_STEP, SHADING_ADD, intensity);
-    shade(g, &line, SHADING_STEP + SHADING_REST, SHADING_SUBTRACT, 0);
+        shade(g, &line, SHADING_STEP, &SHADING_ADD, intensity);
+    shade(g, &line, SHADING_STEP + SHADING_REST, &SHADING_SUBTRACT, 0);
     for (uint8_t intensity = 1; intensity <= SHADING_DEEPEST; intensity++)
-        shade(g, &line, SHADING_STEP, SHADING_SUBTRACT, intensity);
+        shade(g, &line, SHADING_STEP, &SHADING_SUBTRACT, intensity);
     ORIGINAL_EFFECT(leave_shading(g));
     copy_dialog_shading(g);
 }
@@ -617,7 +618,8 @@ static void fill_dialog_shading(GameState *g)
  * BG3 read the window's tile map and scroll it into place, window 1 spans the
  * whole line, the window's body shows BG1 and BG3 and its frame BG1, and the
  * color math there is black. */
-enum { WINDOW_MAP = 0x1C, FULL_LINE_EDGES = 0xFF00 };
+static const VidBg WINDOW_MAP = { VID_TILEMAP(0x1C00, 32, 32) };
+enum { WHOLE_LINE_LEFT = 0x00, WHOLE_LINE_RIGHT = 0xFF };
 
 /* How far BG1 and BG3 scroll the window's tile map down (up, where negative)
  * so that its rows land in the top window's band or the bottom one's. */
@@ -625,7 +627,7 @@ static const int16_t window_map_scroll_v[WINDOW_POSITIONS][2] = {
     [WINDOW_AT_TOP] = { 55, -15 },
     [WINDOW_AT_BOTTOM] = { -68, -138 },
 };
-enum { SCREENS_WINDOW_BODY_LAYERS = 0x05, SCREENS_WINDOW_EDGE_LAYERS = 0x01 };   /* BG1 and BG3; BG1 */
+enum { SCREENS_WINDOW_BODY_LAYERS = VID_BG1_BIT | VID_BG3_BIT, SCREENS_WINDOW_EDGE_LAYERS = VID_BG1_BIT };
 
 static uint32_t bytes4(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
 {
@@ -639,7 +641,8 @@ static void init_line_effect_values(GameState *g)
     for (unsigned layer = 0; layer < 3; layer++)
         maps[layer] = (uint8_t)((field_layer_map_base(g, layer) >> 8) | field_layer_map_size(g, layer));
     set_field_line_bg_maps(g, 0, bytes4(maps[0], maps[1], maps[2], 0));
-    set_field_line_bg_maps(g, 1, bytes4(WINDOW_MAP, (uint8_t)((field_layer_map_base(g, FIELD_BG2) >> 8) | FIELD_MAP_TWO_SCREENS_WIDE), WINDOW_MAP, 0));
+    uint8_t window_map = vid_line_bg_map(&WINDOW_MAP);
+    set_field_line_bg_maps(g, 1, bytes4(window_map, (uint8_t)((field_layer_map_base(g, FIELD_BG2) >> 8) | FIELD_MAP_TWO_SCREENS_WIDE), window_map, 0));
 
     for (WindowPosition position = WINDOW_AT_TOP; position <= WINDOW_AT_BOTTOM; position++) {
         for (unsigned bg3 = 0; bg3 < 2; bg3++) {
@@ -648,8 +651,8 @@ static void init_line_effect_values(GameState *g)
         }
     }
     for (uint8_t set = 0; set < 2; set++) {
-        set_field_line_window1_edges(g, set, FULL_LINE_EDGES);
-        set_field_line_color_math_fixed_color(g, color_math(set, true), FIXED_COLOR_ALL);
+        set_field_line_window1_edges(g, set, vid_line_window_edges(WHOLE_LINE_LEFT, WHOLE_LINE_RIGHT));
+        set_field_line_color_math_fixed_color(g, color_math(set, true), vid_line_fixed_color(ALL_CHANNELS, 0));
     }
     set_field_line_screens(g, SCREENS_OUTSIDE, bytes4(field_main_screen(g), field_sub_screen(g), 0, 0));
     set_field_line_screens(g, SCREENS_WINDOW_BODY, bytes4(SCREENS_WINDOW_BODY_LAYERS, 0, 0, 0));
@@ -675,11 +678,6 @@ uint8_t field_set_up_line_effects(GameState *g, Platform *pf)
     };
     static const uint32_t sites[SLOTS] = { 0xFDC1F9, 0xFDC1FD, 0xFDC201, 0xFDC205,
                                            0xFDC209, 0xFDC20D, 0xFDC211, 0xFDC215 };
-    /* The register writes of one effect, as the SNES backend makes them. */
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,     VID_STEP_DEST,      VID_STEP_SOURCE_BANK, VID_STEP_INDIRECT_BANK,
-        VID_STEP_SOURCE_LO,   VID_STEP_SOURCE_HI, VID_STEP_END,
-    };
     bool right_edge = field_window2_edge(g) & 0x01;
     uint8_t set = (field_display_flags(g) & FIELD_TABLE_SET_BITS) != 0;
     for (uint8_t slot = 0; slot < SLOTS; slot++) {
@@ -689,7 +687,7 @@ uint8_t field_set_up_line_effects(GameState *g, Platform *pf)
             .indirect = true,
             .indirect_bank = RAM_FIELD_LINE_EFFECT_TABLES >> 16,
         };
-        vid_set_line_effect(pf, PF_AT(sites[slot]), slot, &e, steps);
+        vid_set_line_slot(pf, PF_AT(sites[slot]), slot, &e);
     }
     return set;
 }

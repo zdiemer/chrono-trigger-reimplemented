@@ -306,7 +306,12 @@ void flush_mix(SoundDriver *d)
     au_echo_volume(d->voices, d->echo_volume_heard, d->echo_volume_heard);
     au_echo_voices(d->voices, d->echo_voices);
     au_voices_key_off(d->voices, s->key_off);
-    au_mixer(d->voices, (AuMixer){ .noise_clock = d->noise_clock });
+    /* The mixer's switches are set whole every tick, as the original writes
+     * them from its shadow: the noise at its clock, the echo writing and the
+     * output on, whatever changed them since (a `$FD` register write). */
+    au_noise_clock(d->voices, d->noise_clock);
+    au_echo_writes(d->voices, true);
+    au_output_stopped(d->voices, false);
     au_noise_voices(d->voices, d->noise_voices);
     au_pitch_modulation(d->voices, d->pitch_modulation_voices);
     au_voices_key_on(d->voices, s->key_on);

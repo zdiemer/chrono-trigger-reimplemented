@@ -19,13 +19,16 @@
  *
  * An object's sprites are read into a list of Sprite, whose X is a signed
  * screen coordinate, and one function writes a list into the table
- * (write_sprites): it alone knows the table's form, a byte of X and a ninth
- * bit apart, and streams the entries through the work RAM port. The lists are
- * an object's, not a range's: a range's would be up to 128 sprites of locals,
- * more than a build for the 65816 can keep. */
+ * (write_sprites), streaming the entries through the work RAM port. The
+ * table's form -- X as a byte and a ninth bit apart, Y as a byte, the line
+ * that hides a sprite -- is the video service's (VID_OAM_*, vid_oam_*), which
+ * turns a position into it and back. The lists are an object's, not a
+ * range's: a range's would be up to 128 sprites of locals, more than a build
+ * for the 65816 can keep. */
 #include "field/sprites.h"
 #include "field/field.h"
 #include "field/object.h"
+#include "platform/video.h"
 
 #include "cpu_io.h"
 #include "field/bridge.h"
@@ -37,8 +40,7 @@
 #include "wram.h"
 
 /* A sprite as the table shows it. Its Y is already in the table's form (the
- * records hold it that way, a line at $E0 or past hiding it); its X is a
- * screen coordinate. */
+ * records hold it that way, vid_oam_y); its X is a screen coordinate. */
 typedef struct {
     int16_t x;
     uint8_t y, tile, attributes;
@@ -47,7 +49,7 @@ typedef struct {
 
 enum { MOST_SPRITES = 24 };
 
-/* The layouts: how many sprites, and high table bytes (four sprites a byte). */
+/* The layouts: how many sprites, and high table bytes (VID_OAM_SPRITES_A_HIGH_BYTE a byte). */
 typedef struct {
     uint8_t sprites, high_bytes;
 } Layout;
@@ -58,12 +60,11 @@ static Layout layout_of(const GameState *g, FieldObject obj) { return layouts[ob
 
 /* ---- The table's storage: the only code that knows its form ------------------------------ */
 
-/* The table is in low RAM at FIELD_SPRITE_TABLE_ADDRESS: 128 entries of four bytes (X's low
- * byte, Y, tile, attributes), then the high table, two bits a sprite (X's
- * ninth bit, and large). The ranges' cursors are kept as the table's
- * addresses; here they are offsets into it. */
-enum { OAM_ENTRY = 4, ENTRY_Y = 1, HIDDEN_Y = 0xE0 };
-enum { X_NINTH_BIT = 0x01, LARGE_BIT = 0x02, BITS_A_SPRITE = 2, SPRITES_A_HIGH_BYTE = 4 };
+/* The table is in low RAM at FIELD_SPRITE_TABLE_ADDRESS, in the video
+ * service's form (VID_OAM_*): the entries, then the high table. The ranges'
+ * cursors are kept as the table's addresses; here they are offsets into it. */
+enum { OAM_ENTRY = VID_OAM_ENTRY_BYTES, BITS_A_SPRITE = VID_OAM_HIGH_BITS,
+       SPRITES_A_HIGH_BYTE = VID_OAM_SPRITES_A_HIGH_BYTE };
 
 enum { RANGES = 3 };   /* by SpriteRange, as field_sprite_range_* index them */
 
@@ -116,8 +117,7 @@ static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, u
         uint8_t bits = 0;
         for (unsigned i = 0; i < SPRITES_A_HIGH_BYTE; i++) {
             const Sprite *s = &sprites[b * SPRITES_A_HIGH_BYTE + i];
-            uint8_t pair = (uint8_t)((((uint16_t)s->x >> 8) & X_NINTH_BIT) | (s->large ? LARGE_BIT : 0));
-            bits = (uint8_t)(bits | pair << (BITS_A_SPRITE * i));
+            bits = (uint8_t)(bits | vid_oam_high_bits(s->x, s->large) << (BITS_A_SPRITE * i));
         }
         set_high_bits(g, (uint16_t)(high + b), bits);
     }
@@ -127,7 +127,7 @@ static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, u
     hw_port_seek_address(g, (uint16_t)(entry + FIELD_SPRITE_TABLE_ADDRESS));
     set_range_next(g, range, (uint16_t)(entry + count * OAM_ENTRY));
     for (unsigned n = 0; n < count; n++) {
-        hw_port_write(g, (uint8_t)sprites[n].x);
+        hw_port_write(g, vid_oam_x_low(sprites[n].x));
         hw_port_write(g, sprites[n].y);
         hw_port_write(g, sprites[n].tile);
         hw_port_write(g, sprites[n].attributes);
@@ -144,7 +144,7 @@ static void hide_leftovers(GameState *g)
         uint16_t next = field_sprite_range_next(g, r);
         uint16_t limit = (uint16_t)(range_limit[r] + FIELD_SPRITE_TABLE_ADDRESS);
         for (uint16_t entry = next; entry < field_sprite_range_end(g, r); entry = (uint16_t)(entry + OAM_ENTRY)) {
-            set_field_sprite_table_byte(g, (uint16_t)(entry - FIELD_SPRITE_TABLE_ADDRESS + ENTRY_Y), HIDDEN_Y);
+            set_field_sprite_table_byte(g, (uint16_t)(entry - FIELD_SPRITE_TABLE_ADDRESS + VID_OAM_ENTRY_Y), VID_OAM_HIDDEN_Y);
             if ((uint16_t)(entry + OAM_ENTRY) >= limit)
                 break;
         }
@@ -229,9 +229,8 @@ static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)
     for (unsigned n = 0; n < layout.sprites; n++) {
         SpriteRecord r = sprite_record(g, obj, n);
         uint8_t pair = (uint8_t)(object_sprite_high_bits(g, obj, n) >> (BITS_A_SPRITE * (n % SPRITES_A_HIGH_BYTE)));
-        uint16_t nine = (uint16_t)(record_x(g, r) | (pair & X_NINTH_BIT) << 8);
-        out[n] = (Sprite){ screen_coordinate_of(nine), record_y(g, r), record_tile(g, r), record_attributes(g, r),
-                           (pair & LARGE_BIT) != 0 };
+        out[n] = (Sprite){ vid_oam_x(record_x(g, r), pair), record_y(g, r), record_tile(g, r), record_attributes(g, r),
+                           vid_oam_large(pair) };
     }
     return layout.sprites;
 }
@@ -250,40 +249,19 @@ static void draw_object(GameState *g, FieldObject obj)
 
 /* ---- Placing the 4-sprite layout ------------------------------------------------------------ */
 
-/* Every field sprite is large. */
-enum { ALL_LARGE = 0xAA, SPRITES_PLACED = 4 };
+enum { SPRITES_PLACED = 4 };
 
-/* Whether a sprite whose Y comes round the screen shows, by where the object
- * is: an object above the screen's top edge shows only the sprites whose Y
- * came round past 0 and to $E0 or more; one in the screen's lower half hides
- * the sprites that came round; one in its upper half hides those whose Y went
- * past $7F to below $E0. */
-typedef enum { SCREEN_OFF_TOP, SCREEN_LOWER, SCREEN_UPPER } ScreenHalf;
-
-enum { LOWER_HALF = 0x80 };
-
-static ScreenHalf screen_half(int16_t screen_y)
+/* Every field sprite is large: the large bit in each of a high byte's pairs. */
+static uint8_t all_large(void)
 {
-    if (screen_y < 0)
-        return SCREEN_OFF_TOP;
-    return (screen_y & LOWER_HALF) ? SCREEN_LOWER : SCREEN_UPPER;
+    uint8_t bits = 0;
+    for (unsigned i = 0; i < SPRITES_A_HIGH_BYTE; i++)
+        bits = (uint8_t)(bits | vid_oam_high_bits(0, true) << (BITS_A_SPRITE * i));
+    return bits;
 }
 
-static uint8_t sprite_y(ScreenHalf half, uint8_t offset, uint8_t screen_y)
-{
-    uint16_t sum = (uint16_t)(offset + screen_y);
-    uint8_t y = (uint8_t)sum;
-    bool came_round = sum > 0xFF;
-    switch (half) {
-    case SCREEN_OFF_TOP:
-        return came_round && y >= HIDDEN_Y ? y : HIDDEN_Y;
-    case SCREEN_LOWER:
-        return came_round && y >= HIDDEN_Y ? HIDDEN_Y : y;
-    case SCREEN_UPPER:
-        return y >= LOWER_HALF && y < HIDDEN_Y ? HIDDEN_Y : y;
-    }
-    return y;
-}
+/* An object whose screen position is above the screen's top edge. */
+static bool above_the_screen(int16_t screen_y) { return screen_y < 0; }
 
 /* For the original's code and shadow mode (field/scratch.h): placing leaves
  * the object's screen position ($C3, $C5, as the object's table keeps it),
@@ -295,7 +273,7 @@ static void leave_place(GameState *g, FieldObject obj, uint8_t ninth_bits)
     original_cell16(g, 0xC5, (uint16_t)(field_object_screen_y(g, obj) & SCREEN_NINE_BITS));
     original_cell16(g, 0xD9, object_sprite_records(g, obj));
     original_cell8(g, 0xE5, (uint8_t)(ninth_bits >> BITS_A_SPRITE));
-    original_cell8(g, 0xE6, (uint8_t)(ninth_bits & X_NINTH_BIT));
+    original_cell8(g, 0xE6, (uint8_t)(ninth_bits & ((1u << BITS_A_SPRITE) - 1)));
 }
 
 /* For the original's memory and shadow mode: for an object above the screen's
@@ -313,7 +291,7 @@ static uint8_t stray_fifth_y_offset(const GameState *g, FieldObject obj)
 static void leave_stray_fifth_sprite_y(GameState *g, FieldObject obj, int16_t screen_y)
 {
     unsigned fifth = (unsigned)sprite_record(g, obj, SPRITES_PLACED).at;
-    uint8_t y = sprite_y(SCREEN_OFF_TOP, stray_fifth_y_offset(g, obj), (uint8_t)screen_y);
+    uint8_t y = vid_oam_y(screen_y, stray_fifth_y_offset(g, obj));
     set_field_sprite_records_byte_unchecked(g, fifth + RECORD_Y, y);
 }
 
@@ -332,20 +310,19 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
         SpriteRecord r = sprite_record(g, obj, (unsigned)n);
         if (reload)
             set_record_x_offset(g, r, frame_x_offset(g, r));
-        uint16_t x = (uint16_t)(record_x_offset(g, r) + (uint16_t)at.x);
-        set_record_x(g, r, (uint8_t)x);
-        ninth_bits = (uint8_t)(ninth_bits << BITS_A_SPRITE | ((x >> 8) & X_NINTH_BIT));
+        int16_t x = (int16_t)(record_x_offset(g, r) + (uint16_t)at.x);
+        set_record_x(g, r, vid_oam_x_low(x));
+        ninth_bits = (uint8_t)(ninth_bits << BITS_A_SPRITE | vid_oam_high_bits(x, false));
     }
-    object_set_first_sprites_high_bits(g, obj, (uint8_t)(ninth_bits | ALL_LARGE));
+    object_set_first_sprites_high_bits(g, obj, (uint8_t)(ninth_bits | all_large()));
 
-    ScreenHalf half = screen_half(at.y);
     for (unsigned n = 0; n < SPRITES_PLACED; n++) {
         SpriteRecord r = sprite_record(g, obj, n);
         if (reload)
             set_record_y_offset(g, r, frame_y_offset(g, r));
-        set_record_y(g, r, sprite_y(half, record_y_offset(g, r), (uint8_t)at.y));
+        set_record_y(g, r, vid_oam_y(at.y, record_y_offset(g, r)));
     }
-    if (half == SCREEN_OFF_TOP)
+    if (above_the_screen(at.y))
         ORIGINAL_EFFECT(leave_stray_fifth_sprite_y(g, obj, at.y));
     if (reload)
         for (unsigned n = 0; n < SPRITES_PLACED; n++) {
@@ -645,7 +622,7 @@ static void place_and_leave_overflow(Snes *s, FieldObject obj, bool reload)
     ScreenPoint at = object_screen_position(g, obj);
     /* the original's last sum is the fifth sprite's, for an object above the
      * screen's top (leave_stray_fifth_sprite_y) */
-    uint8_t last_offset = screen_half(at.y) == SCREEN_OFF_TOP ? stray_fifth_y_offset(g, obj)
+    uint8_t last_offset = above_the_screen(at.y) ? stray_fifth_y_offset(g, obj)
                                                                : record_y_offset(g, sprite_record(g, obj, SPRITES_PLACED - 1));
     m_set_flag(s, CPU_FLAG_V, field_add_overflows8(last_offset, (uint8_t)at.y));
 }
