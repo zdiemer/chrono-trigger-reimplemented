@@ -123,15 +123,19 @@ static void show_name_plain(GameState *g, WindowLayout layout, unsigned member)
     }
 }
 
-/* The stat block the original works from, and where it keeps whether the
- * numbers are shaded (window.h, "What the original leaves"). */
-enum { STAT_BLOCK_BYTES = 0x80, NAME_COUNT = 0x8E };
+void battle_leave_member_drawn(GameState *g, unsigned member, bool shaded)
+{
+    set_battle_member_stat_block(g, (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES));
+    set_battle_digit_highlight(g, shaded);
+}
+
+/* The name's tiles, counted down in a work cell. */
+enum { NAME_COUNT = 0x8E };
 
 static void leave_member_cells(GameState *g, unsigned member, bool shaded)
 {
     battle_leave_work8(g, NAME_COUNT, 0);
-    set_battle_member_stat_block(g, (uint16_t)(member * STAT_BLOCK_BYTES));
-    set_battle_digit_highlight(g, shaded);
+    battle_leave_member_drawn(g, member, shaded);
 }
 
 // $C1:0311
@@ -222,8 +226,6 @@ static WindowCell command_window_cell(unsigned member, unsigned row, unsigned co
     return window_cell(row, COMMAND_WINDOW_STEP * member + column);
 }
 
-static bool slot_has_member(const GameState *g, unsigned slot) { return !(battle_menu_slot_members(g, slot) & 0x80); }
-
 /* Whether the member's window offers combination techs instead of its own:
  * when more than one member is choosing and the member has double or triple
  * techs. With Magus in the party only the three of them combine, so when two
@@ -236,9 +238,9 @@ static bool offers_combos(const GameState *g, unsigned member)
     if (!battle_magus_present(g) || battle_menu_member_count(g) == BATTLE_PARTY_SIZE)
         return true;
     uint16_t magus = battle_magus_slot(g);
-    if (member == (uint8_t)magus)
+    if (member == (uint8_t)magus)   /* the original compares the slot's low byte */
         return false;
-    return !slot_has_member(g, magus);
+    return !menu_slot_has_member(g, magus);
 }
 
 /* The original counts a window's rows and cells down in two work cells, keeps
@@ -296,14 +298,14 @@ static void put_frames(GameState *g)
 {
     bool last_beside = false;
     for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++) {
-        if (!slot_has_member(g, slot))
+        if (!menu_slot_has_member(g, slot))
             continue;
-        last_beside = slot > 0 && slot_has_member(g, slot - 1);
+        last_beside = slot > 0 && menu_slot_has_member(g, slot - 1);
         put_frame(g, slot, last_beside);
     }
     /* The original notes a border left out for the third slot's frame last,
      * and clears it after the second's. */
-    ORIGINAL_EFFECT(battle_leave_work8(g, LEAVES_BORDER_OUT, slot_has_member(g, 2) && last_beside));
+    ORIGINAL_EFFECT(battle_leave_work8(g, LEAVES_BORDER_OUT, menu_slot_has_member(g, 2) && last_beside));
 }
 
 /* ---- The command cursor ----------------------------------------------------------------- */
@@ -356,11 +358,11 @@ void battle_redraw_command_cursor(GameState *g)
 }
 
 /* The first menu slot with a member, which becomes the menu's when its own
- * slot has none. */
+ * slot has none (the entries' guard keeps one). */
 static unsigned first_slot_with_member(const GameState *g)
 {
     unsigned slot = 0;
-    while (!slot_has_member(g, slot))
+    while (!menu_slot_has_member(g, slot))
         slot++;
     return slot;
 }
@@ -371,12 +373,12 @@ static unsigned first_slot_with_member(const GameState *g)
 static void show_command_windows(GameState *g, WindowLayout layout)
 {
     set_battle_combos_offered(g, (uint8_t)(battle_menu_member_count(g) - 1));
-    if (!slot_has_member(g, battle_menu_slot(g)))
+    if (!menu_slot_has_member(g, battle_menu_slot(g)))
         set_battle_menu_slot(g, (uint8_t)first_slot_with_member(g));
     uint8_t member = battle_menu_slot_members(g, battle_menu_slot(g));
     set_battle_menu_member(g, member);
     for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
-        if (slot_has_member(g, slot))
+        if (menu_slot_has_member(g, slot))
             put_command_window(g, battle_menu_slot_members(g, slot));
     ORIGINAL_EFFECT(battle_leave_work16(g, SLOT_INDEX, BATTLE_PARTY_SIZE));
     put_frames(g);
@@ -408,7 +410,7 @@ void battle_redraw_window(GameState *g)
         }
         return;
     }
-    if (battle_menu_page(g) == 0)
+    if (battle_menu_page(g) == PAGE_COMMANDS)
         show_command_windows(g, layout);
 }
 
@@ -428,8 +430,8 @@ void battle_draw_window(Snes *s)
 
 /* ---- The guards ------------------------------------------------------------------------ */
 
-static bool names_member_or_nobody(uint8_t v) { return v < BATTLE_PARTY_SIZE || (v & 0x80); }
-static bool names_combatant_or_nobody(uint8_t v) { return v < BATTLE_COMBATANTS || (v & 0x80); }
+static bool names_member_or_nobody(uint8_t v) { return v < BATTLE_PARTY_SIZE || menu_nobody(v); }
+static bool names_combatant_or_nobody(uint8_t v) { return v < BATTLE_COMBATANTS || menu_nobody(v); }
 
 /* The item list's cursor rows. */
 enum { ITEM_CURSOR_ROWS = 4 };
@@ -449,21 +451,21 @@ static bool menu_state_kept(const GameState *g)
         if (battle_command_cursor(g, i) >= BATTLE_PARTY_SIZE || battle_tech_cursor(g, i) >= BATTLE_PARTY_SIZE)
             return false;
     uint8_t shown = battle_item_cursor_shown(g);
-    if (battle_item_row(g) >= ITEM_CURSOR_ROWS || (shown >= ITEM_CURSOR_ROWS && !(shown & 0x80)))
+    if (battle_item_row(g) >= ITEM_CURSOR_ROWS || (shown >= ITEM_CURSOR_ROWS && !menu_nobody(shown)))
         return false;
-    for (unsigned i = 0; i < 6; i++)
+    for (unsigned i = 0; i < BATTLE_TARGET_ENTRIES; i++)
         if (!names_combatant_or_nobody(battle_targets(g, i)))
             return false;
     if (battle_ally_target_page(g) && battle_targets(g, 0) >= BATTLE_PARTY_SIZE)
         return false;
-    if (battle_target_cursor(g) >= 6)
+    if (battle_target_cursor(g) >= BATTLE_TARGET_ENTRIES)
         return false;
     if (battle_menu_member_count(g) == 0)
         return true;
     if (battle_menu_slot(g) >= BATTLE_PARTY_SIZE)
         return false;
     for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
-        if (slot_has_member(g, slot))
+        if (menu_slot_has_member(g, slot))
             return true;
     return false;
 }
@@ -480,7 +482,7 @@ bool battle_window_ready(Snes *s)
 bool battle_window_member_ready(Snes *s)
 {
     vars_peek(true);
-    bool ready = battle_on_page(s) && battle_work16(state_of(s), 0x80) < BATTLE_PARTY_SIZE;
+    bool ready = battle_on_page(s) && battle_work16(state_of(s), BATTLE_GAUGE_MEMBER) < BATTLE_PARTY_SIZE;
     vars_peek(false);
     return ready;
 }

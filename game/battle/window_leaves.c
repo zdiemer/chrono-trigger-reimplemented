@@ -15,9 +15,9 @@ bool window_redraw_carry(const GameState *g)
         return true;
     if (battle_ally_target_page(g)) {
         uint8_t target = battle_targets(g, 0);
-        return target == battle_ally_target_marked(g) || (target & 0x80);
+        return target == battle_ally_target_marked(g) || menu_nobody(target);
     }
-    return battle_menu_page(g) != 0;
+    return battle_menu_page(g) != PAGE_COMMANDS;
 }
 
 PartyStatusNote note_party_status(const GameState *g)

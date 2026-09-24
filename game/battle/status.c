@@ -69,9 +69,11 @@ void battle_show_gauge(GameState *g, unsigned member)
  * window goes, so while it is up (unless the window was rebuilt for aiming
  * at a party member, which shows no command windows) only the gauges are
  * redrawn. */
+enum { THIRD_SLOT = 2 };
+
 bool battle_status_numbers_covered(const GameState *g, WindowLayout layout)
 {
-    return !(battle_menu_slot_members(g, 2) & 0x80) && !battle_ally_target_window(g) && layout == LAYOUT_NUMBERS_FIRST;
+    return menu_slot_has_member(g, THIRD_SLOT) && !battle_ally_target_window(g) && layout == LAYOUT_NUMBERS_FIRST;
 }
 
 /* The member whose numbers are redrawn next: each in turn. */
@@ -86,14 +88,13 @@ static unsigned next_status_member(GameState *g)
 
 /* The original keeps the member in a work cell, a word, and where its HP goes
  * (bytes); and the loop over the gauges keeps its index there too. */
-enum { MEMBER = 0x80, HP_PLACE = 0x86, STAT_BLOCK_BYTES = 0x80 };
+enum { MEMBER = 0x80, HP_PLACE = 0x86 };
 
 static void leave_member_cells(GameState *g, unsigned member, WindowLayout layout, bool shaded)
 {
     battle_leave_work16(g, MEMBER, (uint16_t)member);
     battle_leave_work16(g, HP_PLACE, (uint16_t)(2 * battle_member_line(layout, member).hp));
-    set_battle_member_stat_block(g, (uint16_t)(member * STAT_BLOCK_BYTES));
-    set_battle_digit_highlight(g, shaded);
+    battle_leave_member_drawn(g, member, shaded);
 }
 
 // $C1:05A7
@@ -126,7 +127,7 @@ void battle_show_party_status(GameState *g)
 void battle_draw_gauge(Snes *s)
 {
     GameState *g = state_of(s);
-    battle_show_gauge(g, battle_work16(g, MEMBER));
+    battle_show_gauge(g, battle_work16(g, BATTLE_GAUGE_MEMBER));
     s->cpu.a = 0;
     m_rts(s);
 }

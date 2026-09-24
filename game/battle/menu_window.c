@@ -33,9 +33,6 @@
 #include "port/native.h"
 #include "vars.h"
 
-typedef enum { PAGE_COMMANDS, PAGE_TECHS } MenuPage;
-
-static bool nobody(uint8_t member_or_slot) { return (member_or_slot & 0x80) != 0; }
 
 /* ---- The menu window's tilemap ---------------------------------------------------------- */
 
@@ -52,6 +49,17 @@ void menu_put_cursor(GameState *g, WindowCell cell)
     menu_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS), TILE_CURSOR + 2);
     menu_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS + 1), TILE_CURSOR + 3);
 }
+
+/* ---- Partners ------------------------------------------------------------------------ */
+
+/* A combination tech's partners, and those a member's action chose, are a
+ * party slot in each half of a byte: the second $F where there is none (and
+ * the whole byte $FF for a tech of one). */
+enum { NO_PARTNER = 0x0F };
+
+static uint8_t first_partner(uint8_t partners) { return partners & 0x0F; }
+static uint8_t second_partner(uint8_t partners) { return partners >> 4; }
+static bool has_second_partner(uint8_t partners) { return second_partner(partners) != NO_PARTNER; }
 
 /* ---- Which techs can be used now -------------------------------------------------------- */
 
@@ -95,7 +103,7 @@ static bool partner_out(GameState *g, uint8_t partner)
 {
     ORIGINAL_EFFECT(battle_leave_work8(g, PARTNER, partner));
     uint8_t member = battle_menu_slot_members(g, partner);
-    return nobody(member) || battle_member_disabled(g, member);
+    return menu_nobody(member) || battle_member_disabled(g, member);
 }
 
 /* A tech can be used when every member it costs MP has enough, its partners
@@ -109,9 +117,9 @@ static bool tech_usable(GameState *g, unsigned member, unsigned record)
     uint8_t partners = battle_tech_records_partners(g, record);
     ORIGINAL_EFFECT(battle_leave_work8(g, PARTNERS, partners));
     if (partners != BLANK_ROW) {
-        if (partner_out(g, partners & 0x0F))
+        if (partner_out(g, first_partner(partners)))
             return false;
-        if ((partners & 0xF0) != 0xF0 && partner_out(g, partners >> 4))
+        if (has_second_partner(partners) && partner_out(g, second_partner(partners)))
             return false;
     }
     if (battle_member_disabled(g, member))
@@ -196,7 +204,7 @@ static void shade_unusable_techs(GameState *g)
 /* Beside the list, a column nine cells wide: each member's MP on its line, and
  * what the selected tech costs it. */
 enum { COLUMN_START = 21, COLUMN_CELLS = 9, PAGE_ROWS = 6, MENU_CELLS = PAGE_ROWS * WINDOW_COLUMNS };
-enum { MP_COLUMN = 24, MARK_COLUMN = 27, COST_COLUMN = 29 };
+enum { MP_COLUMN = 24, SEPARATOR_COLUMN = 27, COST_COLUMN = 29 };
 
 static WindowCell slot_line_cell(unsigned slot, unsigned column) { return window_cell(1 + 2 * slot, column); }
 
@@ -220,13 +228,13 @@ static void show_tech_list(GameState *g)
     ORIGINAL_EFFECT(leave_column_cells(g));
 }
 
-/* Each member's MP, its cost cells cleared; a slot with nobody has its line's
- * mark cleared instead. */
+/* Each member's MP, its cost cells cleared; a slot with nobody has the mark
+ * between the MP and the cost cleared instead. */
 static void show_party_mp(GameState *g)
 {
     for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++) {
         if (!battle_slot_present(g, slot)) {
-            menu_set_tile(g, slot_line_cell(slot, MARK_COLUMN), TILE_BLANK);
+            menu_set_tile(g, slot_line_cell(slot, SEPARATOR_COLUMN), TILE_BLANK);
             continue;
         }
         Digits d = battle_digits_blanked(g, battle_digits_of(g, battle_stats_mp(g, slot), 2));
@@ -287,7 +295,7 @@ enum { RECORD_OFFSET = 0x80 };
 static void leave_selected_cells(GameState *g, unsigned member, bool blank, uint8_t entry)
 {
     uint16_t records = (uint16_t)(member * MEMBER_RECORDS_BYTES);
-    if (blank) {
+    if (blank) {   /* only the list's start, over the low byte */
         set_battle_product(g, (uint16_t)((records & 0xFF00) | (uint8_t)(member * TECHS_PER_MEMBER)));
         return;
     }
@@ -337,6 +345,12 @@ static void show_tech_cursor(GameState *g, unsigned member)
         menu_put_cursor(g, window_cell(2 * row, TECH_CURSOR_COLUMN));
 }
 
+/* Ask for the frames tilemap to be sent in the next vblank. */
+static void request_frames_upload(GameState *g)
+{
+    set_battle_frames_upload_request(g, (uint8_t)(battle_frames_upload_request(g) + 1));
+}
+
 /* The frames tilemap as the tech page wants it, when asked, and sent. */
 static void reload_tech_page_frames(GameState *g)
 {
@@ -344,7 +358,7 @@ static void reload_tech_page_frames(GameState *g)
         set_battle_window_frames_tilemap_tile(g, cell, battle_tech_page_frames_tile(g, cell));
         set_battle_window_frames_tilemap_attributes(g, cell, battle_tech_page_frames_attributes(g, cell));
     }
-    set_battle_frames_upload_request(g, (uint8_t)(battle_frames_upload_request(g) + 1));
+    request_frames_upload(g);
     set_battle_frames_reload_request(g, 0);
 }
 
@@ -355,6 +369,9 @@ static void reload_tech_page_frames(GameState *g)
  * of the window's tilemaps ($CF:FD02, $CF:FD36). Each reads what the window
  * left in memory; only the description takes a register, the tech in A. */
 enum { CALLEE_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+/* The settings' bit that asks for the descriptions. */
+enum { DESCRIPTIONS_ON = 0x80 };
 
 // $C1:0C49
 /* The window's upload request passes the carry on to the menu's callers, so
@@ -379,17 +396,17 @@ static bool show_command_page(Snes *s, GameState *g)
         vars_peek(true);
         carry = party_status_carry(g, note);
         vars_peek(false);
-        if (battle_member_cells_redraw(g) && !nobody(battle_menu_slot(g))) {
+        if (battle_member_cells_redraw(g) && !menu_nobody(battle_menu_slot(g))) {
             battle_redraw_command_cursor(g);
             carry = false;
         }
     }
     m_set_flag(s, CPU_FLAG_C, carry);
-    if (nobody(battle_menu_member(g)) && !battle_call(s, 0xC10C76, 0xC11C3A, CALLEE_READS_NOTHING))
+    if (menu_nobody(battle_menu_member(g)) && !battle_call(s, 0xC10C76, 0xC11C3A, CALLEE_READS_NOTHING))
         return false;
     if (!battle_call_long(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING))
         return false;
-    set_battle_frames_upload_request(g, (uint8_t)(battle_frames_upload_request(g) + 1));
+    request_frames_upload(g);
     return true;
 }
 
@@ -424,7 +441,7 @@ static bool show_tech_page(Snes *s, GameState *g)
     vars_peek(true);
     m_set_flag(s, CPU_FLAG_C, tech_page_carry(g, member));
     vars_peek(false);
-    if (battle_show_descriptions(g) & 0x80) {
+    if (battle_show_descriptions(g) & DESCRIPTIONS_ON) {
         s->cpu.a = battle_selected_tech_id(g);
         if (!battle_call_long(s, 0xC10E95, 0xCD0027, DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
             return false;
@@ -513,11 +530,11 @@ static void place_combo_cursors(GameState *g)
     for (unsigned cursor = 0; cursor < BATTLE_PARTY_SIZE; cursor++)
         set_cursor_look(g, cursor);
     point_cursor_at(g, 0, battle_menu_member(g));
-    point_cursor_at(g, 1, partners & 0x0F);
+    point_cursor_at(g, 1, first_partner(partners));
     show_cursor(g, 0);
     show_cursor(g, 1);
-    if ((partners & 0xF0) != 0xF0) {
-        point_cursor_at(g, 2, partners >> 4);
+    if (has_second_partner(partners)) {
+        point_cursor_at(g, 2, second_partner(partners));
         show_cursor(g, 2);
     }
 }
@@ -533,7 +550,7 @@ static bool combination_tech_selected(const GameState *g)
 
 /* The target entries, and how many of them a round of the group's cursors
  * takes. */
-enum { TARGET_ENTRIES = 6, TARGETS_A_ROUND = 3 };
+enum { TARGETS_A_ROUND = 3 };
 
 /* The original counts the targets and the cursors in two work cells. */
 enum { TARGET_COUNTED = 0x80, CURSOR_COUNTED = 0x82 };
@@ -551,28 +568,28 @@ static void leave_group_cells(GameState *g, unsigned target, unsigned cursor)
 static void place_group_cursors(GameState *g)
 {
     uint8_t first = battle_targets(g, 0);
-    if (!nobody(first)) {
+    if (!menu_nobody(first)) {
         point_cursor_at(g, 0, first);
         show_cursor(g, 0);
     }
     unsigned target = battle_target_cursor(g), cursor = 1;
     for (;;) {
         uint8_t slot = battle_targets(g, target);
-        if (!nobody(slot)) {
+        if (!menu_nobody(slot)) {
             point_cursor_at(g, cursor, slot);
             show_cursor(g, cursor);
         }
         target++;
-        if (target == TARGETS_A_ROUND || target == TARGET_ENTRIES || ++cursor == CURSORS)
+        if (target == TARGETS_A_ROUND || target == BATTLE_TARGET_ENTRIES || ++cursor == CURSORS)
             break;
     }
     ORIGINAL_EFFECT(leave_group_cells(g, target, cursor));
-    set_battle_target_cursor(g, (uint8_t)(target == TARGET_ENTRIES ? 0 : target));
+    set_battle_target_cursor(g, (uint8_t)(target == BATTLE_TARGET_ENTRIES ? 0 : target));
 }
 
 /* A lone enemy target is named ($CD:0030), with its HP where the party can
  * see it ($CD:002D, from battle_target_display); some enemies go unnamed. */
-enum { UNNAMED = 0xFF, TARGET_STAT_BLOCK = 0x80, STAT_BLOCK_BYTES = 0x80 };
+enum { UNNAMED = 0xFF, TARGET_STAT_BLOCK = 0x80 };
 
 static bool enemy_hp_shown(const GameState *g, unsigned slot)
 {
@@ -584,7 +601,7 @@ static uint8_t describe_target(GameState *g, unsigned slot)
 {
     uint8_t enemy = (uint8_t)battle_enemy_numbers(g, slot - BATTLE_FIRST_ENEMY);
     set_battle_target_display(g, 0, enemy);
-    ORIGINAL_EFFECT(battle_leave_work16(g, TARGET_STAT_BLOCK, (uint16_t)(slot * STAT_BLOCK_BYTES)));
+    ORIGINAL_EFFECT(battle_leave_work16(g, TARGET_STAT_BLOCK, (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES)));
     if (enemy_hp_shown(g, slot)) {
         uint16_t hp = battle_stats_hp(g, slot), max_hp = battle_stats_max_hp(g, slot);
         set_battle_target_display(g, 1, (uint8_t)hp);
@@ -675,7 +692,7 @@ static bool show_item_cursor(GameState *g)
     }
     if (move) {
         uint8_t shown = battle_item_cursor_shown(g);
-        clear_item_cursor(g, item_cursor_cell(g, nobody(shown) ? 0 : shown));
+        clear_item_cursor(g, item_cursor_cell(g, menu_nobody(shown) ? 0 : shown));
         set_battle_item_cursor_shown(g, row);
         draw_item_cursor(g, item_cursor_cell(g, row));
         drawn++;
@@ -738,14 +755,14 @@ static bool place_lone_target_cursor(Snes *s, GameState *g, uint8_t target)
  * the carry set, and A clear, where it went round. */
 static bool place_target_cursors(Snes *s, GameState *g)
 {
-    if (nobody(battle_no_targets(g)))
+    if (menu_nobody(battle_no_targets(g)))
         return true;
     if (battle_menu_page(g) == PAGE_TECHS)
         clear_tech_cursor_column(g);
     hide_cursors(g);
     for (unsigned cursor = 0; cursor < CURSORS; cursor++)
         set_cursor_look(g, cursor);
-    if (!nobody(battle_targets(g, 1))) {
+    if (!menu_nobody(battle_targets(g, 1))) {
         place_group_cursors(g);
         bool went_round = battle_target_cursor(g) == 0;
         m_set_flag(s, CPU_FLAG_C, went_round);
@@ -754,7 +771,7 @@ static bool place_target_cursors(Snes *s, GameState *g)
         return true;
     }
     uint8_t target = battle_targets(g, 0);
-    if (nobody(target))
+    if (menu_nobody(target))
         return true;
     return place_lone_target_cursor(s, g, target);
 }
@@ -770,7 +787,7 @@ static bool place_target_cursors(Snes *s, GameState *g)
 void battle_place_menu_cursors(Snes *s)
 {
     GameState *g = state_of(s);
-    if (nobody(battle_menu_member(g))) {
+    if (menu_nobody(battle_menu_member(g))) {
         move_cursors_away(g);
     } else if (battle_targeting(g)) {
         if (!place_target_cursors(s, g))
@@ -779,7 +796,7 @@ void battle_place_menu_cursors(Snes *s)
         if (combination_tech_selected(g)) {
             place_combo_cursors(g);
             uint8_t partners = battle_selected_tech_partners(g);
-            m_set_flag(s, CPU_FLAG_C, (partners & 0xF0) == 0xF0 || cursor_carry(g, partners >> 4));
+            m_set_flag(s, CPU_FLAG_C, !has_second_partner(partners) || cursor_carry(g, second_partner(partners)));
         } else if (!battle_call(s, 0xC118AA, 0xC11115, CALLEE_READS_NOTHING_HERE)) {
             return;
         }
@@ -811,13 +828,13 @@ static void set_combo_pair(GameState *g, unsigned member, unsigned column, uint8
 }
 static bool in_combo(const GameState *g, unsigned member, unsigned column)
 {
-    return !nobody(battle_combo_pairs(g, member * COMBO_COLUMNS + column));
+    return !menu_nobody(battle_combo_pairs(g, member * COMBO_COLUMNS + column));
 }
 
 static bool chose_partner(const GameState *g, unsigned member, unsigned partner)
 {
     uint8_t partners = battle_member_actions_partners(g, member);
-    return (partners & 0x0F) == partner || (partners >> 4) == partner;
+    return first_partner(partners) == partner || second_partner(partners) == partner;
 }
 
 static void find_combo_partners(GameState *g)

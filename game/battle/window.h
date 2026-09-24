@@ -67,6 +67,21 @@ static inline void window_set_attributes(GameState *g, WindowCell cell, uint8_t 
 void window_put_cursor(GameState *g, WindowCell cell);
 void menu_put_cursor(GameState *g, WindowCell cell);
 
+/* ---- The menu ------------------------------------------------------------------------- */
+
+/* The menu's pages: the commands, the techs, and past them the items. */
+typedef enum { PAGE_COMMANDS, PAGE_TECHS } MenuPage;
+
+/* The menu keeps "nobody" in-band, in its member, its slots' members and the
+ * targets: a byte with its top bit set. */
+enum { MENU_NOBODY = 0x80, BATTLE_TARGET_ENTRIES = 6 };
+
+static inline bool menu_nobody(uint8_t member) { return (member & MENU_NOBODY) != 0; }
+static inline bool menu_slot_has_member(const GameState *g, unsigned slot)
+{
+    return !menu_nobody(battle_menu_slot_members(g, slot));
+}
+
 /* ---- The battle window's layouts ---------------------------------------------------------- */
 
 /* The game's settings choose one of three layouts. The first shows each
@@ -100,8 +115,10 @@ void window_show_hp(GameState *g, WindowLayout layout, unsigned member, bool sha
 void window_show_mp(GameState *g, WindowLayout layout, unsigned member, bool shaded);
 
 /* Draw the member's gauge: how much of its wait for its turn has passed
- * (status.c, $C1:06F0). */
+ * (status.c, $C1:06F0). The original's callers hand it the member in a work
+ * cell. */
 void battle_show_gauge(GameState *g, unsigned member);
+enum { BATTLE_GAUGE_MEMBER = 0x80 };
 
 /* Redraw the whole battle window (window.c, $C1:0299), and the next member's
  * numbers and the gauges (status.c, $C1:05A7). The numbers are left alone
@@ -176,5 +193,9 @@ static inline void battle_leave_work16(GameState *g, uint8_t cell, uint16_t v)
     battle_leave_work8(g, cell, (uint8_t)v);
     battle_leave_work8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
 }
+
+/* What drawing a member's numbers leaves: its stat block where the original
+ * works from it, and whether they are shaded (window.c). */
+void battle_leave_member_drawn(GameState *g, unsigned member, bool shaded);
 
 #endif
