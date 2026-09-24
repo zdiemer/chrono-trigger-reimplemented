@@ -13,9 +13,8 @@
  * fade out: the palette, the brightness it is fading to, the layers at their
  * base scroll, and the map's own scroll and palette animation.
  *
- * The SNES programs a DMA or HDMA channel for each of these in the original's
- * order, which the video service takes as step lists; they are together in
- * the next section. */
+ * Everything goes through the video service, which knows how the SNES
+ * programmed each channel by the site the call stands for. */
 #include "battle/frame.h"
 
 #include "battle/battle.h"
@@ -28,38 +27,8 @@
 #include "ram.h"
 #include "vars.h"
 
-/* ---- How the SNES programs the channels -------------------------------------------------- */
-
-/* The per-line effects' slots are HDMA channels 0-6, and the window's is 7,
- * which the vblank's uploads share; each reads its table in bank $7E
- * indirectly. The graphics load runs on channel 7, in words. */
-enum { WINDOW_SLOT = 7, LOAD_DMA = 7, DMA_WORDS = 0x01 };
-
-/* $CD:09F7: a slot's mode and register, its table, then the indirect bank. */
-static const uint8_t steps_line_effect[] = {
-    VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-    VID_STEP_INDIRECT_BANK, VID_STEP_END,
-};
-/* $CD:0AEE: the window's, the banks before the table. */
-static const uint8_t steps_window_table[] = {
-    VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_INDIRECT_BANK, VID_STEP_SOURCE_BANK,
-    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_END,
-};
-/* The first load of a step programs the whole channel, the rest reuse its
- * mode and destination, and one of them the source bank as well. */
-static const uint8_t steps_load_channel[] = {
-    VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-    VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_START,
-    VID_STEP_END,
-};
-static const uint8_t steps_load_same_channel[] = {
-    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_START,       VID_STEP_END,
-};
-static const uint8_t steps_load_same_bank[] = {
-    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_START,   VID_STEP_END,
-};
+/* The window's per-line effect is slot 7, beside the seven of the setup. */
+enum { WINDOW_SLOT = 7 };
 
 /* ---- The per-line effects ----------------------------------------------------------------- */
 
@@ -85,7 +54,7 @@ static void point_the_line_effects(Platform *pf)
     for (uint8_t slot = 0; slot < sizeof effects / sizeof effects[0]; slot++) {
         const VidLineEffect e = line_effect(effects[slot].target,
                                             RAM_BATTLE_LINE_TABLES + slot * RAM_BATTLE_LINE_TABLES_STRIDE);
-        vid_set_line_effect(pf, PF_AT(effects[slot].site), slot, &e, steps_line_effect);
+        vid_set_line_slot(pf, PF_AT(effects[slot].site), slot, &e);
     }
 }
 
@@ -97,7 +66,7 @@ void battle_show_window_table(GameState *g, Platform *pf)
     unsigned table = battle_frame_count(g) & 1;
     const VidLineEffect e = line_effect(VID_LINE_WINDOWS, RAM_BATTLE_WINDOW_LINE_TABLES
                                                               + table * RAM_BATTLE_WINDOW_LINE_TABLES_STRIDE);
-    vid_set_line_effect(pf, PF_AT(0xCD0AF0), WINDOW_SLOT, &e, steps_window_table);
+    vid_set_line_slot(pf, PF_AT(0xCD0AF0), WINDOW_SLOT, &e);
 }
 
 /* ---- The battle's graphics ----------------------------------------------------------------- */
@@ -109,7 +78,6 @@ void battle_show_window_table(GameState *g, Platform *pf)
 typedef struct {
     uint32_t source;
     uint16_t bytes, vram;
-    const uint8_t *steps;
     uint32_t site;
 } VramLoad;
 
@@ -117,22 +85,22 @@ typedef struct {
 enum { SECOND_TILEMAP_SENT_FROM = 192 };
 
 static const VramLoad step_1[] = {
-    { BATTLE_MESSAGE_LAYER_TILES, 0x1000, 0x5800, steps_load_channel, 0xCCE00C },
-    { BATTLE_WINDOW_TILE_BLOCK_2, 0x0040, 0x0060, steps_load_same_channel, 0xCCE047 },
-    { BATTLE_WINDOW_TILE_BLOCK_1, 0x0040, 0x0020, steps_load_same_channel, 0xCCE076 },
+    { BATTLE_MESSAGE_LAYER_TILES, 0x1000, 0x5800, 0xCCE00C },
+    { BATTLE_WINDOW_TILE_BLOCK_2, 0x0040, 0x0060, 0xCCE047 },
+    { BATTLE_WINDOW_TILE_BLOCK_1, 0x0040, 0x0020, 0xCCE076 },
 };
 static const VramLoad step_2[] = {
-    { (uint16_t)RAM_BATTLE_WINDOW_TILEMAP, 0x0780, 0x7820, steps_load_channel, 0xCCE0AF },
-    { BATTLE_WINDOW_TILE_BLOCK_3, 0x0040, 0x0160, steps_load_same_channel, 0xCCE0EB },
-    { BATTLE_WINDOW_TILE_BLOCK_3, 0x0040, 0x0120, steps_load_same_channel, 0xCCE11B },
-    { RAM_BATTLE_LOAD_TILEMAP, 0x01C0, 0x7B00, steps_load_same_channel, 0xCCE14B },
-    { RAM_BATTLE_LOAD_TILEMAP_2 + SECOND_TILEMAP_SENT_FROM, 0x0040, 0x7800, steps_load_same_channel, 0xCCE17A },
-    { BATTLE_WINDOW_TILE_BLOCK_4, 0x0040, 0x0000, steps_load_channel, 0xCCE22E },
-    { BATTLE_WINDOW_TILE_BLOCK_5, 0x0040, 0x0100, steps_load_same_bank, 0xCCE267 },
+    { (uint16_t)RAM_BATTLE_WINDOW_TILEMAP, 0x0780, 0x7820, 0xCCE0AF },
+    { BATTLE_WINDOW_TILE_BLOCK_3, 0x0040, 0x0160, 0xCCE0EB },
+    { BATTLE_WINDOW_TILE_BLOCK_3, 0x0040, 0x0120, 0xCCE11B },
+    { RAM_BATTLE_LOAD_TILEMAP, 0x01C0, 0x7B00, 0xCCE14B },
+    { RAM_BATTLE_LOAD_TILEMAP_2 + SECOND_TILEMAP_SENT_FROM, 0x0040, 0x7800, 0xCCE17A },
+    { BATTLE_WINDOW_TILE_BLOCK_4, 0x0040, 0x0000, 0xCCE22E },
+    { BATTLE_WINDOW_TILE_BLOCK_5, 0x0040, 0x0100, 0xCCE267 },
 };
 static const VramLoad step_3[] = {
-    { (uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP, 0x0180, 0x7A00, steps_load_channel, 0xCCE1B3 },
-    { RAM_BATTLE_DECODED_TILES, 0x0C00, 0x1800, steps_load_channel, 0xCCE1EE },
+    { (uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP, 0x0180, 0x7A00, 0xCCE1B3 },
+    { RAM_BATTLE_DECODED_TILES, 0x0C00, 0x1800, 0xCCE1EE },
 };
 
 static const struct {
@@ -155,8 +123,7 @@ static void load_the_next_step(GameState *g, Platform *pf)
         return;
     for (unsigned i = 0; i < load_steps[step - 1].count; i++) {
         const VramLoad *l = &load_steps[step - 1].loads[i];
-        const VidSnesXfer x = { LOAD_DMA, DMA_WORDS, l->steps, NULL };
-        vid_upload_vram(pf, PF_AT(l->site), l->vram, PF_GAME(l->source), l->bytes, &x);
+        vid_send_vram(pf, PF_AT(l->site), l->vram, PF_GAME(l->source), l->bytes, NULL);
     }
     set_battle_graphics_load_step(g, (uint8_t)(step + 1));
 }

@@ -16,10 +16,8 @@
  *   - one of four uploads in turn while the combatants animate, and one again
  *     when a countdown ends; and a combatant's graphics once they are built.
  *
- * Everything goes through the video service. The SNES programs one DMA
- * channel for these in a different order at almost every site, which the
- * service is handed as step lists; they are all in the next section, so the
- * rest reads as what is sent where. */
+ * Everything goes through the video service, which knows how the SNES made
+ * each transfer by the site the call stands for (platform/snes/encodings.c). */
 #include "battle/frame.h"
 
 #include "battle/battle.h"
@@ -32,65 +30,9 @@
 #include "ram.h"
 #include "vars.h"
 
-/* ---- How the SNES programs the channel ------------------------------------------------ */
-
-/* The battle's uploads run on DMA channel 7, in words to the VRAM port unless
- * they say otherwise. */
-enum { BATTLE_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01, DMA_TWO_BYTES_ONE_REGISTER = 0x02,
-       DMA_FILL_WORDS = 0x09 };
-
-static const uint8_t steps_full[] = {
-    VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-    VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_START, VID_STEP_END,
-};
-/* OAM and CGRAM have a one-byte address register. */
-static const uint8_t steps_full_short_target[] = {
-    VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-    VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_TARGET_LO, VID_STEP_START, VID_STEP_END,
-};
-/* A second upload reusing the first one's mode, destination and bank. */
-static const uint8_t steps_same_channel[] = {
-    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_START, VID_STEP_END,
-};
-static const VidSnesXfer words = { BATTLE_DMA, DMA_WORDS, steps_full, NULL };
-static const VidSnesXfer words_again = { BATTLE_DMA, DMA_WORDS, steps_same_channel, NULL };
-static const VidSnesXfer sprites = { BATTLE_DMA, DMA_ONE_REGISTER, steps_full_short_target, NULL };
-static const VidSnesXfer palette_bytes = { BATTLE_DMA, DMA_ONE_REGISTER, steps_full_short_target, NULL };
-
-/* $CD:09CE: the palette's address, then the channel two bytes at a time. */
-static const uint8_t steps_palette[] = {
-    VID_STEP_INDIRECT_BANK, VID_STEP_TARGET_LO, VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO,
-    VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START, VID_STEP_END,
-};
-static const VidSnesXfer palette_words = { BATTLE_DMA, DMA_TWO_BYTES_ONE_REGISTER, steps_palette, NULL };
-
-/* $CD:3E8E: the VRAM address first. */
-static const uint8_t steps_address_first[] = {
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-    VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START, VID_STEP_END,
-};
-static const VidSnesXfer words_address_first = { BATTLE_DMA, DMA_WORDS, steps_address_first, NULL };
-
-/* $CD:0667: a fill from a fixed byte. */
-static const uint8_t steps_fill[] = {
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_SOURCE_LO,
-    VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START, VID_STEP_END,
-};
-static const VidSnesXfer fill_words = { BATTLE_DMA, DMA_FILL_WORDS, steps_fill, NULL };
-
-/* $D1:E8E0: the channel set once, then per tile the address, the size's low
- * byte and the start; the source runs on from where the last tile left it. */
-static const uint8_t steps_block_first[] = {
-    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_CONTROL, VID_STEP_DEST,
-    VID_STEP_SIZE_HI,   VID_STEP_TARGET_LO, VID_STEP_TARGET_HI,   VID_STEP_SIZE_LO, VID_STEP_START,
-    VID_STEP_END,
-};
-static const uint8_t steps_block_next[] = {
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SIZE_LO, VID_STEP_START, VID_STEP_END,
-};
-static const VidSnesXfer block_first = { BATTLE_DMA, DMA_WORDS, steps_block_first, NULL };
-static const VidSnesXfer block_next = { BATTLE_DMA, DMA_WORDS, steps_block_next, NULL };
+/* The described transfers are in words to the VRAM port, as the channel takes
+ * them. */
+enum { DMA_WORDS = 0x01 };
 
 /* A transfer's size: 0 is a whole 64 KiB, as the channel counts it. */
 static uint32_t transfer_bytes(uint16_t size) { return size ? size : 0x10000u; }
@@ -102,7 +44,7 @@ enum { PALETTE_COLORS = 256 };
 // $CD:09CE
 void battle_send_palette(Platform *pf)
 {
-    vid_upload_palette(pf, PF_AT(0xCD09CE), 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS, &palette_words);
+    vid_send_palette(pf, PF_AT(0xCD09CE), 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
 }
 
 /* ---- A queued transfer ------------------------------------------------------------------- */
@@ -111,7 +53,7 @@ void battle_send_palette(Platform *pf)
 /* Send `bytes` bytes (0 a whole bank) from `source` to VRAM. */
 static void send_to_vram(Platform *pf, uint16_t vram, uint32_t source, uint16_t bytes)
 {
-    vid_upload_vram(pf, PF_AT(0xCD3E95), vram, PF_GAME(source), transfer_bytes(bytes), &words_address_first);
+    vid_send_vram(pf, PF_AT(0xCD3E95), vram, PF_GAME(source), transfer_bytes(bytes), NULL);
 }
 
 /* The transfer's size is handed over in the scratch cell $45, where the
@@ -145,8 +87,8 @@ static void send_block(Platform *pf, uint32_t source, uint16_t vram)
 {
     for (unsigned tile = 0; tile < BLOCK_TILES; tile++) {
         uint32_t from = (source & 0xFF0000u) | (uint16_t)(source + TILE_BYTES * tile);
-        vid_upload_vram(pf, PF_AT(tile == 0 ? 0xD1E8E0 : 0xD1E902), (uint16_t)(vram + TILE_SPACING_WORDS * tile),
-                        PF_GAME(from), TILE_BYTES, tile == 0 ? &block_first : &block_next);
+        vid_send_vram(pf, PF_AT(tile == 0 ? 0xD1E8E0 : 0xD1E902), (uint16_t)(vram + TILE_SPACING_WORDS * tile),
+                      PF_GAME(from), TILE_BYTES, NULL);
     }
 }
 
@@ -196,7 +138,7 @@ static void send_message_tiles(GameState *g, Platform *pf)
         send_to_vram(pf, vram, RAM_BATTLE_MESSAGE_TILES + (odd ? 0 : RAM_BATTLE_MESSAGE_TILES_STRIDE),
                      MESSAGE_HALF_BYTES);
     else
-        vid_fill_vram(pf, PF_AT(0xCD066F), vram, PF_GAME(BATTLE_ZERO_BYTE), MESSAGE_HALF_BYTES, &fill_words);
+        vid_send_vram_fill(pf, PF_AT(0xCD066F), vram, PF_GAME(BATTLE_ZERO_BYTE), MESSAGE_HALF_BYTES, NULL);
 }
 
 // $CD:0607
@@ -244,10 +186,10 @@ static void describe_transfer(GameState *g, TransferDescription d)
 static void send_described_transfer(GameState *g, Platform *pf)
 {
     TransferDescription d = described_transfer(g);
-    const VidSnesXfer x = { BATTLE_DMA, d.mode, steps_full, NULL };
     const VidSnesTransfer t = { .dest = d.port, .source = d.source, .size = d.size,
-                                .target_reg = VID_SNES_VRAM_ADDRESS, .target = d.vram };
-    vid_snes_transfer(pf, PF_AT(0xCFE33B), &t, &x);
+                                .target_reg = VID_SNES_VRAM_ADDRESS, .target = d.vram,
+                                .mode_from_data = true, .mode = d.mode };
+    vid_snes_copy(pf, PF_AT(0xCFE33B), &t);
     set_battle_transfer_pending(g, 0);
 }
 
@@ -274,8 +216,8 @@ static void send_window_frames(GameState *g, Platform *pf)
 {
     if (!battle_frames_upload_request(g))
         return;
-    vid_upload_vram(pf, PF_AT(0xCFE386), FRAMES_VRAM, PF_GAME((uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
-                    FRAMES_BYTES, &words);
+    vid_send_vram(pf, PF_AT(0xCFE386), FRAMES_VRAM, PF_GAME((uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
+                  FRAMES_BYTES, NULL);
     set_battle_frames_upload_request(g, 0);
 }
 
@@ -285,10 +227,10 @@ static void send_queued_upload(const GameState *g, Platform *pf, uint8_t slot, u
                                uint32_t second_site)
 {
     BattleQueuedTransfer first = battle_queued_transfer(g, slot, 0), second = battle_queued_transfer(g, slot, 1);
-    vid_upload_vram(pf, PF_AT(first_site), first.vram, PF_GAME((uint32_t)BLOCK_BANK << 16 | first.source),
-                    transfer_bytes(first.size), &words);
-    vid_upload_vram(pf, PF_AT(second_site), second.size != 0 ? second.vram : 0,
-                    PF_GAME((uint32_t)BLOCK_BANK << 16 | second.source), second.size, &words_again);
+    vid_send_vram(pf, PF_AT(first_site), first.vram, PF_GAME((uint32_t)BLOCK_BANK << 16 | first.source),
+                  transfer_bytes(first.size), NULL);
+    vid_send_vram(pf, PF_AT(second_site), second.size != 0 ? second.vram : 0,
+                  PF_GAME((uint32_t)BLOCK_BANK << 16 | second.source), second.size, NULL);
 }
 
 /* While the combatants animate and no effects run, one queued upload a frame,
@@ -318,9 +260,9 @@ static void send_built_graphics(GameState *g, Platform *pf)
     static const uint32_t sites[2] = { 0xCFE4A0, 0xCFE4E3 };
     for (unsigned second = 0; second < 2; second++) {
         unsigned upload = slot + second * BATTLE_COMBATANTS;
-        vid_upload_vram(pf, PF_AT(sites[second]), battle_upload_vram_address(g, upload),
-                        PF_GAME((uint32_t)BLOCK_BANK << 16 | battle_upload_source(g, upload)),
-                        transfer_bytes(battle_upload_size(g, upload)), second ? &words_again : &words);
+        vid_send_vram(pf, PF_AT(sites[second]), battle_upload_vram_address(g, upload),
+                      PF_GAME((uint32_t)BLOCK_BANK << 16 | battle_upload_source(g, upload)),
+                      transfer_bytes(battle_upload_size(g, upload)), NULL);
     }
 }
 
@@ -339,11 +281,11 @@ static void count_down_to_reupload(GameState *g, Platform *pf)
 /* The sprite table goes from work RAM's mirror in bank $00. */
 void battle_send_vblank_uploads(GameState *g, Platform *pf)
 {
-    vid_upload_oam(pf, PF_AT(0xCFE301), PF_GAME((uint16_t)RAM_OAM_BUFFER), &sprites);
+    vid_send_oam(pf, PF_AT(0xCFE301), PF_GAME((uint16_t)RAM_OAM_BUFFER));
     if (battle_transfer_pending(g))
         send_described_transfer(g, pf);
     send_window_frames(g, pf);
-    vid_upload_palette(pf, PF_AT(0xCFE3C5), 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS, &palette_bytes);
+    vid_send_palette(pf, PF_AT(0xCFE3C5), 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
     send_next_queued_upload(g, pf);
     send_built_graphics(g, pf);
     count_down_to_reupload(g, pf);

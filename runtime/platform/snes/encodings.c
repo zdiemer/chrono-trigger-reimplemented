@@ -28,6 +28,7 @@ enum {
 enum {
     ONE_REGISTER = 0x00,       /* a byte at a time into one register */
     WORDS = 0x01,              /* into a register pair, a word at a time */
+    TWO_BYTES = 0x02,          /* two bytes a time into one register, as CGRAM takes a color */
     FIXED_BYTE = 0x08,         /* the same source byte over and over */
     FILL_WORDS = 0x09,         /* the same byte into both halves of a word */
     WORDS_INDIRECT_BIT = 0x41, /* words, with HDMA's indirect bit, which a transfer ignores */
@@ -41,6 +42,11 @@ enum {
 #define FIELD_LINE(site) { site, 0, 0, 0, 0, FIELD_LINE_STEPS, 0 }
 #define SCENE_TRANSFER_STEPS STEPS(C, D, SL, SH, SB, ZL, ZH, GO)
 #define RACE_UPLOAD_STEPS STEPS(TL, TH, ZL, ZH, C, D, SL, SH, SB, P, GO)
+/* The battle's channel 7, programmed whole; a second transfer reusing its mode,
+ * register and bank; and one reusing its mode and register only. */
+#define BATTLE_FULL_STEPS STEPS(C, D, SL, SH, SB, ZL, ZH, TL, TH, GO)
+#define BATTLE_AGAIN_STEPS STEPS(SL, SH, ZL, ZH, TL, TH, GO)
+#define BATTLE_SAME_STEPS STEPS(SL, SH, SB, ZL, ZH, TL, TH, GO)
 
 static const PfSnesEncoding encodings[] = {
     /* ---- Shared ---- */
@@ -88,6 +94,32 @@ static const PfSnesEncoding encodings[] = {
     { 0xC294D8, 0, 0, 0, FILL_WORDS, STEPS(C, D, ZL, ZH, SL, SH, SB, GO), 0 },             /* VRAM filled */
     { 0xC29526, 0, 0, 0, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },             /* work RAM cleared */
     { 0xC2954B, 0, 0, 0, ONE_REGISTER, STEPS(SL, SH, ZL, ZH, C, D, SB, GO), 0 },           /* work RAM copied */
+
+    /* ---- The battle ---- */
+    { 0xCD09CE, 0, 0, 7, TWO_BYTES, STEPS(IB, TL, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* the palette */
+    { 0xCD3E95, 0, 0, 7, WORDS, STEPS(TL, TH, SL, SH, SB, C, D, ZL, ZH, GO), 0 },       /* a queued transfer */
+    { 0xCD066F, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0 },  /* the message's VRAM cleared */
+    { 0xD1E8E0, 0, 0, 7, WORDS, STEPS(SL, SH, SB, C, D, ZH, TL, TH, ZL, GO), 0 },       /* a block's first tile */
+    { 0xD1E902, 0, 0, 7, WORDS, STEPS(TL, TH, ZL, GO), 0 },                             /* ... the rest */
+    { 0xCFE301, 0, 0, 7, ONE_REGISTER, STEPS(C, D, SL, SH, SB, ZL, ZH, TL, GO), 0 },    /* the sprite table */
+    { 0xCFE33B, 0, 0, 7, 0, BATTLE_FULL_STEPS, 0 },   /* the described transfer (its mode is data) */
+    { 0xCFE386, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 },                                 /* the window frames */
+    { 0xCFE3C5, 0, 0, 7, ONE_REGISTER, STEPS(C, D, SL, SH, SB, ZL, ZH, TL, GO), 0 },    /* the palette */
+    { 0xCFE40A, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 },       /* a queued upload's first transfer */
+    { 0xCFE449, 0, 0, 7, WORDS, BATTLE_AGAIN_STEPS, 0 },      /* ... its second */
+    { 0xCFE4A0, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 },       /* a combatant's graphics */
+    { 0xCFE4E3, 0, 0, 7, WORDS, BATTLE_AGAIN_STEPS, 0 },
+    { 0xCFE51C, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 },       /* the first queued upload again */
+    { 0xCFE55B, 0, 0, 7, WORDS, BATTLE_AGAIN_STEPS, 0 },
+    { 0xCD0AF0, 0, 0, 7, 0, STEPS(C, D, IB, SB, SL, SH), 0 },   /* the window's line table */
+    { 0xCD09F7, 7, 0x1A, 0, 0, STEPS(C, D, SL, SH, SB, IB), 0 },   /* the seven line effects, $CD:09F1 */
+    /* the graphics load, $CC:E000, a step a frame */
+    { 0xCCE00C, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 }, { 0xCCE047, 0, 0, 7, WORDS, BATTLE_SAME_STEPS, 0 },
+    { 0xCCE076, 0, 0, 7, WORDS, BATTLE_SAME_STEPS, 0 }, { 0xCCE0AF, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 },
+    { 0xCCE0EB, 0, 0, 7, WORDS, BATTLE_SAME_STEPS, 0 }, { 0xCCE11B, 0, 0, 7, WORDS, BATTLE_SAME_STEPS, 0 },
+    { 0xCCE14B, 0, 0, 7, WORDS, BATTLE_SAME_STEPS, 0 }, { 0xCCE17A, 0, 0, 7, WORDS, BATTLE_SAME_STEPS, 0 },
+    { 0xCCE1B3, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 }, { 0xCCE1EE, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 },
+    { 0xCCE22E, 0, 0, 7, WORDS, BATTLE_FULL_STEPS, 0 }, { 0xCCE267, 0, 0, 7, WORDS, BATTLE_AGAIN_STEPS, 0 },
 
     /* ---- The scenes ---- */
     { 0x7E30B6, 0, 0, 7, FROM_REGISTER, SCENE_TRANSFER_STEPS, 0 },   /* work RAM cleared: the direct page */

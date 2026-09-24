@@ -876,6 +876,8 @@ uint16_t palette_base(const GameState *g, unsigned i) { IN_RANGE(g, 13, "palette
 void set_palette_base(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 13, "set_palette_base", "count", i, 256u); w16(g, 0x7E2000u + (uint32_t)i * 0x02u, v); }
 uint16_t palette_working(const GameState *g, unsigned i) { IN_RANGE(g, 14, "palette_working", "count", i, 256u); return r16(g, 0x7E2200u + (uint32_t)i * 0x02u); }
 void set_palette_working(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 14, "set_palette_working", "count", i, 256u); w16(g, 0x7E2200u + (uint32_t)i * 0x02u, v); }
+uint16_t palette_working_unchecked(const GameState *g, unsigned i) { return r16(g, 0x7E2200u + (uint32_t)i * 0x02u); }
+void set_palette_working_unchecked(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E2200u + (uint32_t)i * 0x02u, v); }
 uint8_t inventory_items(const GameState *g, unsigned i) { IN_RANGE(g, 15, "inventory_items", "count", i, 242u); return r8(g, 0x7E2400u + (uint32_t)i * 0x01u); }
 void set_inventory_items(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 15, "set_inventory_items", "count", i, 242u); w8(g, 0x7E2400u + (uint32_t)i * 0x01u, v); }
 uint8_t inventory_counts(const GameState *g, unsigned i) { IN_RANGE(g, 16, "inventory_counts", "count", i, 242u); return r8(g, 0x7E2500u + (uint32_t)i * 0x01u); }

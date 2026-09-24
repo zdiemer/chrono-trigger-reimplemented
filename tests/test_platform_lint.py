@@ -44,8 +44,6 @@ ESCAPES = {
 # (platform/snes/encodings.c; docs/TODO.md, Platform). Remove a file once it
 # moves; the test fails if a listed file no longer does, and nothing may be added.
 WRITE_ORDER = {
-    "battle/display.c",
-    "battle/frame.c",
     "menu/epoch.c",
     "menu/line_effects.c",
     "menu/map.c",
