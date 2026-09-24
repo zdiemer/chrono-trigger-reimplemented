@@ -90,7 +90,7 @@ static void choose_order(GameState *g, AnimationGroup group, uint8_t order[GROUP
 /* One object's graphics built this frame: the upload has room for no more,
  * but for the enemies of the smallest graphics kind in slot 4 or from slot 6
  * on. Two built, nobody else's frame is taken. */
-enum { ONE_BUILD = 1, SMALLEST_KIND = 0 };
+enum { ONE_BUILD = 1, SMALLEST_KIND = 0, SLOT_BESIDE_THE_UPLOAD = 4, FIRST_LATE_SLOT = 6 };
 
 static bool member_waits_for_upload(const GameState *g) { return battle_graphics_built(g) == ONE_BUILD; }
 
@@ -101,15 +101,16 @@ static bool enemy_waits_for_upload(const GameState *g, unsigned slot)
         return false;
     if (built != ONE_BUILD || battle_object_kind(g, slot) != SMALLEST_KIND)
         return true;
-    return !(slot == 4 || slot >= 6);
+    return !(slot == SLOT_BESIDE_THE_UPLOAD || slot >= FIRST_LATE_SLOT);
 }
 
 /* ---- A party member's frames -------------------------------------------------------------- */
 
-/* The original's cells the party's step and its pose choice leave. */
+/* The battle's working cells (battle_work, by their offset from $80), and
+ * what the party's step and its pose choice leave in them. */
 enum { LEFT_STANCE = 0x04, LEFT_FACING_PART = 0x02, LEFT_PLACE = 0x12, LEFT_TURNED = 0x00, LEFT_TURN_HOLDER = 0x01 };
-static void leave_byte(GameState *g, unsigned cell, uint8_t v) { set_battle_work(g, cell, v); }
-static void leave_word(GameState *g, unsigned cell, uint16_t v)
+static void set_work_byte(GameState *g, unsigned cell, uint8_t v) { set_battle_work(g, cell, v); }
+static void set_work_word(GameState *g, unsigned cell, uint16_t v)
 {
     set_battle_work(g, cell, (uint8_t)v);
     set_battle_work(g, cell + 1, (uint8_t)(v >> 8));
@@ -119,12 +120,12 @@ static void leave_word(GameState *g, unsigned cell, uint16_t v)
  * effect runs: the original's routines the steps call (the pose's setup, the
  * effects' handlers) take them from their cells. */
 enum { POSING_CELL = 0x94 - 0x80, EFFECT_ENEMY_CELL = 0x9C - 0x80 };
-static void give_posing(GameState *g, unsigned slot) { leave_word(g, POSING_CELL, (uint16_t)slot); }
+static void give_posing(GameState *g, unsigned slot) { set_work_word(g, POSING_CELL, (uint16_t)slot); }
 static unsigned posing(const GameState *g)
 {
     return (unsigned)(battle_work(g, POSING_CELL) | battle_work(g, POSING_CELL + 1) << 8);
 }
-static void give_effect_enemy(GameState *g, unsigned enemy) { leave_word(g, EFFECT_ENEMY_CELL, (uint16_t)enemy); }
+static void give_effect_enemy(GameState *g, unsigned enemy) { set_work_word(g, EFFECT_ENEMY_CELL, (uint16_t)enemy); }
 
 /* A member's frame lists are in bank $E4, four entries an animation, and
  * each facing's part of them a stride after the last. */
@@ -174,7 +175,7 @@ static uint8_t take_next_party_frame(GameState *g, unsigned member, uint8_t anim
 
     uint8_t graphics = party_list_byte(g, (uint16_t)(frames_at + facing_part + frame));
     battle_show_object_frame(g, member, graphics);
-    ORIGINAL_EFFECT(leave_word(g, LEFT_FACING_PART, facing_part));
+    ORIGINAL_EFFECT(set_work_word(g, LEFT_FACING_PART, facing_part));
     return graphics;
 }
 
@@ -211,8 +212,8 @@ static bool members_turn_to_face(GameState *g, unsigned member)
 {
     uint8_t turn = battle_facing_turn(g);
     uint8_t holder = turn & (uint8_t)~TURN_TAKEN;
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_TURNED, 0));
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_TURN_HOLDER, holder));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 0));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURN_HOLDER, holder));
     if (holder != member) {
         if (!(turn & TURN_TAKEN))
             set_battle_facing_turn(g, (uint8_t)(member | TURN_TAKEN));
@@ -247,7 +248,7 @@ static void aim_at_enemy_found(GameState *g, unsigned member)
     set_battle_direction_points(g, 1, battle_object_y(g, battle_combatant_object(member)));
     set_battle_direction_points(g, 2, battle_object_x(g, battle_combatant_object(enemy)));
     set_battle_direction_points(g, 3, battle_object_y(g, battle_combatant_object(enemy)));
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_TURNED, 0));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 0));
 }
 
 /* Face the way the direction found gives; true if the member turned. */
@@ -257,7 +258,7 @@ static bool face_direction(GameState *g, unsigned member, uint16_t direction)
     if (facing == battle_object_facing(g, member))
         return false;
     set_battle_object_facing(g, member, facing);
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_TURNED, 1));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 1));
     return true;
 }
 
@@ -272,11 +273,11 @@ static uint8_t enemy_list_start(unsigned enemy) { return (uint8_t)(enemy * ENEMY
 /* Which part of the enemy's lists an animation's frames start at: resting
  * animations one part, the stopped one another, and the acting ones the
  * first. */
-enum { RESTING = 0, ACTING = 1 };
+enum { RESTING_PART = 0, ACTING_PART = 1 };
 static uint8_t animation_list_offset(uint8_t part)
 {
-    static const uint8_t offsets[] = { 12, 4, 24 };
-    return offsets[part < 2 ? part : 2];
+    enum { RESTING_FRAMES_AT = 12, ACTING_FRAMES_AT = 4, STOPPED_FRAMES_AT = 24 };
+    return part == RESTING_PART ? RESTING_FRAMES_AT : part == ACTING_PART ? ACTING_FRAMES_AT : STOPPED_FRAMES_AT;
 }
 
 static bool enemy_list_stale(const GameState *g, unsigned enemy)
@@ -297,10 +298,10 @@ static void leave_loaded_list(GameState *g, uint32_t frames, uint32_t times, uin
         set_battle_data_pointers(g, LEFT_FRAMES_POINTER + b, (uint8_t)(frames >> 8 * b));
         set_battle_data_pointers(g, LEFT_TIMES_POINTER + b, (uint8_t)(times >> 8 * b));
     }
-    leave_byte(g, LEFT_LIST_PART, part_offset);
-    leave_word(g, LEFT_LIST_START, start);
-    leave_word(g, LEFT_LIST_END, (uint16_t)(list_start + ENEMY_LIST_ENTRIES));
-    leave_byte(g, LEFT_COUNT, 0);
+    set_work_byte(g, LEFT_LIST_PART, part_offset);
+    set_work_word(g, LEFT_LIST_START, start);
+    set_work_word(g, LEFT_LIST_END, (uint16_t)(list_start + ENEMY_LIST_ENTRIES));
+    set_work_byte(g, LEFT_COUNT, 0);
 }
 
 // $C1:3364
@@ -317,7 +318,7 @@ static void load_enemy_frame_list(GameState *g, unsigned enemy)
     uint32_t frames = battle_object_frame_lists(g, slot), times = battle_object_delay_lists(g, slot);
     uint16_t facing_part = (uint16_t)battle_multiply_long(g, battle_object_facing(g, slot), facing_stride(g, slot));
     uint8_t part = battle_enemy_animation_part(g, animation);
-    if (part == ACTING)
+    if (part == ACTING_PART)
         set_battle_enemy_acts_anyway(g, enemy, 0);
     uint8_t offset = animation_list_offset(part);
     uint16_t start = (uint16_t)(offset + facing_part);
@@ -334,7 +335,7 @@ static void load_enemy_frame_list(GameState *g, unsigned enemy)
  * where the list has ended there (its time is 0). */
 static uint8_t frame_or_first(GameState *g, unsigned enemy, uint8_t frame)
 {
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_COUNT, enemy_list_start(enemy)));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_COUNT, enemy_list_start(enemy)));
     return battle_enemy_frame_delays(g, (uint8_t)(enemy_list_start(enemy) + frame)) != 0 ? frame : 0;
 }
 
@@ -440,7 +441,7 @@ static void take_pose(GameState *g, unsigned slot, uint8_t pose)
 static void leave_pose_cells(GameState *g, unsigned slot)
 {
     set_battle_posing_stat_block(g, (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES));
-    leave_word(g, LEFT_TURNED, 0);
+    set_work_word(g, LEFT_TURNED, 0);
 }
 
 // $C1:2F97
@@ -475,11 +476,11 @@ uint8_t combatant_choose_pose(GameState *g, unsigned slot)
         animation = pose.animation == STANCE ? (uint8_t)ANIMATION_BATTLE_STANCE : pose.animation;
         if (!(pose.pose & POSE_NONE_BIT))
             take_pose(g, slot, pose.pose);
-        ORIGINAL_EFFECT(leave_byte(g, LEFT_STANCE, animation));
+        ORIGINAL_EFFECT(set_work_byte(g, LEFT_STANCE, animation));
         ORIGINAL_EFFECT(set_battle_pose_animation(g, animation));
         return animation;
     }
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_STANCE, stance));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_STANCE, stance));
     if (combatant_low_hp_noted(g, slot) && !battle_member_sitting_out(g, slot)) {
         set_battle_object_pose(g, slot, WEAK_POSE);
         if (battle_object_pose_last(g, slot) != ANIMATION_WEAK && battle_slot_is_party(slot))
@@ -578,12 +579,12 @@ static bool next_party_frame(Snes *s, unsigned member)
 static bool step_party(Snes *s)
 {
     GameState *g = state_of(s);
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_STANCE, ANIMATION_BATTLE_STANCE));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_STANCE, ANIMATION_BATTLE_STANCE));
     uint8_t order[GROUP_PLACES];
     choose_order(g, THE_PARTY, order);
     for (unsigned place = 0; place < GROUP_PLACES; place++) {
         unsigned member = order[place];
-        ORIGINAL_EFFECT(leave_word(g, LEFT_PLACE, (uint16_t)place));
+        ORIGINAL_EFFECT(set_work_word(g, LEFT_PLACE, (uint16_t)place));
         give_posing(g, member);
         if (!battle_slot_present(g, member))
             continue;
@@ -596,7 +597,7 @@ static bool step_party(Snes *s)
         if (left == 0 && !next_party_frame(s, member))
             return false;
     }
-    ORIGINAL_EFFECT(leave_word(g, LEFT_PLACE, GROUP_PLACES));
+    ORIGINAL_EFFECT(set_work_word(g, LEFT_PLACE, GROUP_PLACES));
     return true;
 }
 

@@ -23,7 +23,7 @@ enum { GRAPHICS_UNIT = 8, TILE_ROWS = 8, TILE_BYTES = 32, HALF_TILE_BYTES = 16, 
 
 /* A row set's descriptors are 64 bytes apart, and its palette word a word
  * each. */
-enum { ROW_SET_BYTES = 64, TILES_PER_PALETTE_WORD = 16, TILES_PER_PALETTE = 2, PALETTE_BITS = 2 };
+enum { ROW_SET_BYTES = 64, TILES_PER_PALETTE_WORD = 16, TILES_PER_PALETTE = 2, PALETTE_BITS = 2, PALETTE_GROUP = 0x3 };
 
 /* The palette group of a tile of the row: two bits of the row's palette word
  * for every two tiles, a byte of it for every eight, the word serving each
@@ -36,7 +36,7 @@ static uint8_t tile_palette_byte(uint16_t palettes, unsigned tile)
 static uint8_t tile_palette(uint16_t palettes, unsigned tile)
 {
     unsigned shift = tile % TILES_PER_PALETTE_BYTE / TILES_PER_PALETTE * PALETTE_BITS;
-    return (uint8_t)(tile_palette_byte(palettes, tile) >> shift & 0x3);
+    return (uint8_t)(tile_palette_byte(palettes, tile) >> shift & PALETTE_GROUP);
 }
 
 /* A row of a decoded tile, as its two bit planes are kept: the lower two in
