@@ -7,6 +7,6 @@
 
 void menu_wait_for_field_song_faded(Snes *s);
 void menu_wait_for_menu_song_faded(Snes *s);
-void menu_wait_for_menu_song_started_loop(Snes *s);
+void menu_wait_for_menu_music_playing_loop(Snes *s);
 
 #endif

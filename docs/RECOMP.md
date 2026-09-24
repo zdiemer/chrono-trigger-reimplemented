@@ -3939,7 +3939,7 @@ What changed for each:
   addition leaves.
 - *`sound.c`*: the driver's commands are named in `platform/audio.h`
   (`au_play_effect`, `au_fade`, `AU_FADE_MUSIC` ..., `au_music_fade_left`,
-  `au_song_marker`), the waits named for what they wait on, and the registers
+  `au_music_playing`), the waits named for what they wait on, and the registers
   the driver doesn't read declared with `PF_CALL_DC` rather than loaded; what
   it hands back to the command's caller (A's high byte, Y) stays, and says so.
 - *`movement.c`*: the decisions return plain values; the carries the field's
@@ -4951,7 +4951,7 @@ assembly is quoted in a comment.
 **Entries named for what they do**: 30 renames, among them
 `scene_title_ripple_columns` (was `scene_shift_c00_words`),
 `scene_run_frame_tasks` and `scene_run_vblank_tasks` (`_950`, `_940`),
-`scene_wait_for_song_marker_loop` (`scene_wait_apu_port3_loop`),
+`scene_wait_for_music_loop` (`scene_wait_apu_port3_loop`),
 `scene_race_wait_for_tilemap_upload_loop` (`scene_wait_39_clear_loop`),
 `scene_script_wait_for_sound` (`scene_script_wait_sound_port2`),
 `scene_copy_resource` and `_to_upper_ram` (`_to_7e`, `_to_7f`), and the

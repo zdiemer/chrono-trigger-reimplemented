@@ -5,9 +5,9 @@
  * driver's entry (the frame's song, a script's command: scene/frame.c,
  * scene/script.c) -- and, for its own sounds, it sends the buffer to the
  * driver itself and waits for the driver to echo the command. It also waits on
- * the song: the driver shows a marker the song sets (docs/SOUND.md, "What the
- * game reads back"), which the program waits for to keep a scene in time with
- * its music. The race's engine is its own message (scene/race.c). */
+ * the song: the driver shows a marker the song sets as it plays (docs/SOUND.md,
+ * "What the game reads back"), which the program waits for to keep a scene in
+ * time with its music, and whether the music is playing. The race's engine is its own message (scene/race.c). */
 #include "scene/scene.h"
 
 #include "platform/audio.h"
@@ -15,15 +15,15 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* The driver's status on port 3: its low nibble is the song's marker. And on
- * port 2, which music is playing, whose low nibble is how far the song has got
- * (docs/SOUND.md, "What the game reads back"). */
-enum { MARKER_PORT = 3, MARKER = 0x0F, MUSIC_PORT = 2, PROGRESS = 0x0F };
+/* The driver's status on port 2: its low nibble is the marker the song sets,
+ * how far it has got. And on port 3, whose low nibble is which of the music's
+ * tracks are playing (docs/SOUND.md, "What the game reads back"). */
+enum { MARKER_PORT = 2, PROGRESS = 0x0F, PLAYING_PORT = 3, MUSIC_TRACKS = 0x0F };
 
 MusicStatus scene_music_status(Platform *pf)
 {
-    uint8_t first = au_status(pf, PF_AT(0xC30C2C), MUSIC_PORT);
-    uint8_t second = au_status(pf, PF_AT(0xC30C30), MUSIC_PORT);
+    uint8_t first = au_status(pf, PF_AT(0xC30C2C), MARKER_PORT);
+    uint8_t second = au_status(pf, PF_AT(0xC30C30), MARKER_PORT);
     return (MusicStatus){ first, second, first == second };
 }
 
@@ -36,25 +36,25 @@ bool scene_music_reached(MusicStatus music, uint8_t level)
     return music.steady && (int8_t)(scene_music_progress(music) - level) >= 0;
 }
 
-/* The song's marker: nonzero once the song has set it. */
-static uint8_t song_marker(Platform *pf) { return au_status(pf, PF_AT(0x7E5AAA), MARKER_PORT) & MARKER; }
+/* Which of the music's tracks are playing: nonzero once a song has started. */
+static uint8_t music_playing(Platform *pf) { return au_status(pf, PF_AT(0x7E5AAA), PLAYING_PORT) & MUSIC_TRACKS; }
 
 /* The guard also checks that absolute addressing reaches the APU ports, which
  * the audio service addresses in bank $00. */
-bool scene_wait_for_song_marker_present(Snes *s)
+bool scene_wait_for_music_present(Snes *s)
 {
     return m_bank_reaches_io(s) && m_code_matches(s, 0x7E5AAA, 7, 0x441A7AC228BA6C77ull);
 }
 
 // $7E:5AAA
-/* One pass of the wait for the song to set its marker, then return. Idle
- * entry, 8-bit A holding the marker. */
-void scene_wait_for_song_marker_loop(Snes *s)
+/* One pass of the wait for the music to start playing, then return. Idle
+ * entry, 8-bit A holding the tracks playing. */
+void scene_wait_for_music_loop(Snes *s)
 {
-    uint8_t marker = song_marker(m_platform(s));
-    m_set_a8(s, marker);
-    m_set_nz8(s, marker);
-    if (marker != 0)
+    uint8_t playing = music_playing(m_platform(s));
+    m_set_a8(s, playing);
+    m_set_nz8(s, playing);
+    if (playing != 0)
         m_rts(s);
 }
 

@@ -23,6 +23,7 @@
 #include "platform/native/render.h"
 #include "platform/snes/decode.h"
 #include "natives.h"
+#include "sound_host.h"
 #include "port/native.h"
 #include "snes/render.h"
 #include "snes/system.h"
@@ -86,6 +87,7 @@ typedef struct {
     long save_wait;                       /* frames it has waited */
     uint8_t *quick_save;                  /* a quick save taken, until the driver takes it */
     size_t quick_save_len;
+    SoundHost *sound_host;                /* the C sound driver in the SPC700's place (--sound-driver c) */
 #if CT_PLAYER_NO_INTERPRETER
     Misses *misses;                       /* instructions without generated code */
     const char *misses_name;              /* where the driver keeps them, for messages */
@@ -115,8 +117,10 @@ uint32_t player_sram_crc(Player *pl);
 void player_load_sram(Player *pl, const uint8_t *sram);
 
 /* Start the native runtime (after the SRAM is in place), and select the
- * APU-direct audio backend if asked. */
-void player_start(Player *pl, bool audio_direct);
+ * APU-direct audio backend if asked, and the C sound driver in place of the
+ * original's on the SPC700 (sound_host.h), which leaves the player unable to
+ * save or load a state. Returns 0, or the exit status after printing why not. */
+int player_start(Player *pl, bool audio_direct, bool c_sound_driver);
 
 /* Run one frame. `live` is the buttons held, used once the replay is over. */
 void player_step(Player *pl, uint16_t live);

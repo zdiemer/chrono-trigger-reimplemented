@@ -72,6 +72,35 @@ rest waits, is [PLAN.md](PLAN.md).
   - `title.c:332`'s `move_logo` sets channel 0's script through the raw
     accessor: export a `scene_channel_go_to` from `script.c`.
 
+- **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
+  machine"):
+  - `menu/epoch.c` is still on the transcription backlog (0.16 operations a
+    line, 1,827 lines): the Epoch's two Mode 7 screens and the End of Time's
+    gate, each a machine-level port of its own. It is the next piece, and the
+    object mode's module (`menu/object.h`) is what its object handlers should
+    be rewritten onto;
+  - `menu/map.c` and `menu/object_commands.c` are under the style bar but take
+    the machine throughout (the map's strips, and bank C6's routines the
+    scripts call by address); the script commands reach the map through a
+    service (`ScriptServices`) so that its port can move under it;
+  - two divergences the rewrite accepts, both on inputs no game state makes:
+    a sprite script command past the language's eight stops the script, where
+    the original jumps through the words after its table into code (fuzzing
+    with a sprite script anywhere reaches it: the animating commands'
+    mismatches in PORTING.md); and a string's control code past `$0C`, or one
+    included deeper than four, draws nothing, where the original jumps or
+    recurses;
+  - the load screen's slot is drawn as C from `menu_show_save_slot`, so shadow
+    mode compares `menu_draw_save_slot` only where the original's own code
+    calls it (1,139 of 15,708 calls; the rest are inside its caller's
+    comparison);
+  - `menu_saves_finished_game` (`menu/menu_data.h`) reads the cartridge's
+    save RAM at `$30:7FE2` through the ROM accessor: a save-RAM service should
+    take it;
+  - the glyph drawer takes the font's addresses from the text engine
+    (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
+    that engine ported first.
+
 - **The absent party member is an unported path, and a common one.** Making
   it explicit in the combined event and field pass turned a hidden alias (an
   empty party place read as object 64, one past the tables) into a guard that
@@ -349,9 +378,10 @@ rest waits, is [PLAN.md](PLAN.md).
   and operands named mechanically (`party_routine_6`), and the 39
   command layouts read from handlers no port has checked yet.
   The sound driver's tables (found by the $C7 pilot, `core/sound_data.h`):
-  `$C7:1871` is typed as one song's twelve three-byte entries, but the driver
-  indexes 83 songs' worth (36 bytes each, to `$C7:241C`), and the two bytes per
-  song at `$C7:241D-24C2` are still `mixed`.
+  `$C7:1871`, the songs' percussion (`sound_song_percussion_table`), is typed
+  as one song's twelve three-byte entries, but the driver indexes 83 songs'
+  worth (36 bytes each, to `$C7:241C`), and the two bytes per song at
+  `$C7:241D-24C2` are still `mixed`.
   The battle scripts' leftovers (MATCHING.md, "The battle script formats"):
   names for the commands, conditions and actions that keep their numbers, and
   deriving the action and target tables (`$C1:B85F`, `B88D`, `B8BB`) from the
@@ -365,10 +395,11 @@ rest waits, is [PLAN.md](PLAN.md).
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
   subsystem. The menus' three at `$7E:0D5D`, `$0D84` and `$0DC5` are the save
   slot summary's (`menu/save_screen.c`), and lie inside the object slots' span
-  without being fields of a slot. Three more bytes the object scripts read,
-  `$7E:1BA7` bit 4, `$1BAA` bit 5 and `$1BAF` bit 1, each stop the map screens'
-  scroll from following the object and nothing says what else they mean, so
-  `menu/object_script.c` names them in the file.
+  without being fields of a slot. Three more bits the object scripts read,
+  `$7E:1BA7` bit 4, `$1BAA` bit 5 and `$1BAF` bit 1, are the story's flags as
+  the map screens copy them in (`menu_story_flags`, fields `top_layer_*`):
+  each holds the layer over the map still while the map scrolls, and nothing
+  says what else they mean.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 84 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
@@ -422,21 +453,76 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    items are two, and they are no longer optional or later: **port Square's
-    SPC700 driver to C** (it is interpreted assembly in the shipping path
-    today, and `game/core/sound_driver.c` is only the CPU half that uploads it),
-    and **a native mixer behind `au_*`** that decodes the same BRR samples and
-    runs the same envelopes and echo, replacing `runtime/apu/dsp.c` in the
-    shipped product. Both are PLAN.md's Phase 4a; `--audio direct` is the
-    halfway house.
-  - **The sound driver port's harness** (SOUND.md, "Validating the port"),
-    before the port itself: a hook at the interpreted driver's tick boundary
-    (its loop leaving the timer wait at `$029C`), a record of the commands and
-    uploads it took that tick, and a comparison of the port's DSP writes and
-    status with `--dsp-log`'s, per tick. Then a command-stream driver for the
-    paths no movie reaches (commands `$88`, `$8E`, `$F4`, `$F5`, `$F8`, `$F9`,
-    `$FD`, event `$F4`, the meter mode, zero-length slides), and a note-stream
-    comparison for when the port drives the audio.
+    items are PLAN.md's Phase 4a, and they are no longer optional or later.
+    **Make the C sound driver the one that plays** (`game/sound/`, identical to
+    the original tick for tick; `ct_play --sound-driver c` plays it on the
+    host, SOUND.md "The port as built"): play it enough to make it the default,
+    then drop the protocol for calls, which deletes the CPU half's uploads and
+    waits (`game/core/sound_driver.c`) and the host's answering of them
+    (`frontend/sound_host.c`). Until then the player can't save or load a state
+    with it, since the driver's state isn't in a saved state (saving the
+    `SoundDriver` beside the machine would do). Then **a native mixer behind
+    the voices** (`platform/audio.h`, "The voices") that decodes the same BRR
+    samples and runs the same envelopes and echo, replacing
+    `runtime/apu/dsp.c` in the shipped product, and a note-stream comparison
+    (SOUND.md, "Validating the port") for when the lockstep reference is gone.
+  - **The C sound driver's leftovers** (SOUND.md, "The port as built"). The
+    paths neither the movies nor the fuzzer reach: the saturation at `$0A34`
+    (unreachable by its arithmetic), the loop poll's retry at `$0B9B` and the
+    ignored commands' echo at `$0BD5`, and the wrap of event `$F5`'s loop pop
+    (`$1C2B`, `$1C54`). Three of the original's failures the port doesn't
+    reproduce, and the fuzzer steers round: two `$FC`s queued behind each
+    other run each other for ever; song `$3F`, the one long enough to run over
+    the effect table, leaves an effect or a set switch playing its bytes as
+    addresses anywhere in sound memory, which the port doesn't keep; and a set
+    switch under a track that has run on into the effects.
+  - **Sound driver follow-ups after its review.** The qualitative review of
+    `game/sound/` rated no file a translation (`driver.h` hand-written, the
+    rest mostly), so it merged with these as follow-ups rather than blockers,
+    the user's rule for "mostly" findings. Each is a place where the original's
+    storage still shows through the model:
+    - Per-track facts kept as the original's per-voice bitsets in
+      `SoundVoiceFlags` (echo, noise, pitch modulation, sounding, held, slur,
+      roll): they want to be bools on `SoundTrack`, with the voice sets the mix
+      needs derived from the tracks.
+    - Signed values in unsigned storage: `falling(step) { return step & 0x8000; }`,
+      `(uint16_t)-step`, the 24-bit pitch-slide step in a `uint32_t`
+      (`SLIDE_STEP_BITS`).
+    - Packed bytes stored raw and decoded at every use: a wave's `depth` and
+      its shape, an instrument's `tuning`, `pan_sweep`, and `octave` holding
+      semitones rather than an octave.
+    - `pan_sweep`'s bit tricks in `sequencer.c` (the event's setup of period,
+      step and phase).
+    - The look-ahead re-implements the loop, jump and branch control flow
+      beside the events', reads operands by position, and changes state as it
+      looks (it is the only thing that ends a slur or roll, which is why
+      events `$E5` and `$E7` are no-ops): it wants to share the events'
+      decoding and flow, and leave the ending of articulation to the events.
+    - Four versions of "set a value or slide it there" (`slide_to`,
+      `slide_toward`, the fades', the filter's), and the resumed song's fade
+      step hard-coded (`RESUME_FADE_STEP = 0x0EF0`) rather than computed from
+      its steps.
+    - `start_effect` finds the effect's tracks by a byte scan that ends on an
+      8-bit index wrapping.
+    - `SILENT_TRACK`, the stopped effect's sentinel, points into the driver's
+      program (`$1DC1`, an end-of-track byte) rather than being a state.
+    - Unexplained adjustments to `ticks_left` and a loop's `counts_left`.
+    - The instrument and percussion tables are kept by their sound-memory
+      addresses, because the original's tables alias (the index is `2n & $FF`).
+    - The status is stored as the four port bytes rather than as the three
+      values the game reads.
+    - Smaller: `OWN_SAMPLE_ENVELOPE = 0xE0FF` is a raw ADSR register pair;
+      `(uint8_t)~pan`; `phase >> 7` with no unit; a literal `8` for the echo's
+      taps (`SOUND_ECHO_TAPS`); `update_voices` and its loading-tick copy
+      duplicate each other; `stop_music` followed by restoring the song ids it
+      cleared (the music fade's end).
+  - **`au_mixer` and `au_echo_writes` overlap** (`platform/audio.h`, "The
+    voices"). Both set the echo-write switch, so the C driver's every-tick
+    `au_mixer` call (to set the noise clock) also turns echo writes on and
+    `muted`/`reset` off without saying so; it matches the original, which
+    writes FLG whole from its shadow, but the interface hides it. Give the noise
+    clock a call of its own, or document that `au_mixer` sets all four
+    switches.
   - **Controllers.** `in_host_set` is already the one host entry point per
     frame, so this is an SDL GameController call into it plus bindings (see
     Player and tooling).
@@ -536,10 +622,12 @@ below. `python3 tools/timing_census.py` re-runs the census.
     with one exception, below. They go when the gate does.
 - **The menus' wave phase starts from event's scratch cell.** The wave handler
   at `$C2:77C7` (`menus-end-of-time`) reads and advances `$01E2` as its phase
-  without setting it first, so it starts from whatever event's calls (`$02`)
-  or `$B5` last left there. A native build without event's scaffolding would
-  start it elsewhere: the menus' port should give the phase a start of its own
-  (a line or two of the wave, a frame).
+  (`menu_wave_phase`, `menu/wave.c`: it means its object's own, and reaches
+  this one through an index its loop has run on) without setting it first, so
+  it starts from whatever event's calls (`$02`) or `$B5` last left there. A
+  native build without event's scaffolding would start it elsewhere: give the
+  phase a start of its own when the gate retires (a line or two of the wave, a
+  frame).
 - **What the scripts set that isn't established:**
   - `field_setting_1e` (events `$DE`/`$DF` raise it with the location they
     set; cleared at `$C0:2842` and `$C0:2866`, returned by `$C0:28A7`, ANDed

@@ -33,6 +33,12 @@ writes every SPC700 address the sound driver executed, with counts, and
 `--dsp-log out.txt` every S-DSP register write the driver made (frame, SPC700
 cycle, register, value), through the APU's `on_insn` and `on_dsp_write` hooks;
 both are for the sound driver's port ([SOUND.md](SOUND.md)).
+`--sound-lockstep [out.txt]` runs that port (`game/sound/`) beside the
+interpreted driver and compares them every tick (`--sound-lockstep-level`
+status, keys, dsp or state; SOUND.md, "The port as built"); it needs a run
+from power-on. A third hook, `Apu.host`, runs a program on the host in the
+SPC700's place once the boot upload starts one: `ct_play --sound-driver c`
+plays the port that way (`frontend/sound_host.c`).
 
 ## Components
 

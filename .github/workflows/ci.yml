@@ -161,6 +161,8 @@ jobs:
         run: build/ci/time_parts_test
       - name: vars_test
         run: build/ci/vars_test
+      - name: sound_test
+        run: build/ci/sound_test
       - name: bindings_test
         run: build/ci/bindings_test
       # The full suites (5.12M and 256k cases) take seconds, so every job runs them.

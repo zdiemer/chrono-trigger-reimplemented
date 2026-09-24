@@ -87,6 +87,9 @@ static void smp_write(void *ctx, uint16_t addr, uint8_t v)
     }
 }
 
+/* A host program in place of the SPC700's runs a sample's time at a go. */
+#define HOST_CYCLES DSP_SAMPLE_CYCLES
+
 /* Timers and DSP run from the same SPC700 clock. */
 static void tick_timers(Apu *apu, unsigned cycles)
 {
@@ -227,9 +230,14 @@ static void run(Apu *apu, uint32_t master_clocks)
             run(apu, 0);
             return;
         }
-        if (apu->on_insn)
-            apu->on_insn(apu->on_insn_ctx, apu);
-        unsigned cycles = spc700_step(&apu->spc);
+        unsigned cycles;
+        if (apu->host) {
+            cycles = apu->host(apu->host_ctx, apu, HOST_CYCLES);
+        } else {
+            if (apu->on_insn)
+                apu->on_insn(apu->on_insn_ctx, apu);
+            cycles = spc700_step(&apu->spc);
+        }
         tick_timers(apu, cycles);
         apu->spc_cycles += cycles;
         apu->budget -= (int64_t)cycles * MASTER_HZ;

@@ -80,6 +80,7 @@ static void clone_pointers(Snes *dst)
     dst->cpu.on_insn = NULL;
     dst->apu.on_insn = NULL;
     dst->apu.on_dsp_write = NULL;
+    dst->apu.host = NULL;
     dst->on_line = NULL;
     dst->on_frame_top = NULL;
     dst->intercept = NULL;

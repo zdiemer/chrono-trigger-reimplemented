@@ -600,6 +600,8 @@ int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t 
     s->apu.on_insn = keep.apu.on_insn;
     s->apu.on_insn_ctx = keep.apu.on_insn_ctx;
     s->apu.on_dsp_write = keep.apu.on_dsp_write;
+    s->apu.host = keep.apu.host;
+    s->apu.host_ctx = keep.apu.host_ctx;
     s->on_line = keep.on_line;
     s->on_line_ctx = keep.on_line_ctx;
     s->on_frame_top = keep.on_frame_top;

@@ -157,6 +157,18 @@ sound driver, so it implies `--recomp on`, and it can't be combined with
 game and then waits for it; the buffer absorbs short leads, and a long one can
 show up as a short gap. `--audio snes` (the default) keeps the original timing.
 
+`--sound-driver c` plays the sound driver's C port (`game/sound/`,
+[SOUND.md](SOUND.md) "The port as built") in place of the original on the
+SPC700. The CPU half still uploads the original and talks to it through the
+ports; once the boot upload starts it, the SPC700 stays idle and
+`frontend/sound_host.c` answers the ports as the original's loop and upload
+receivers would, runs the driver's ticks on its timer, and has it play into
+the same S-DSP model. The answers come sooner than the original's, so the
+game's timing is not the original's: the mode can't replay or record a movie,
+and since the driver's state isn't in a saved state, it can't save or load one
+either. `--sound-driver original` is the default. It combines with either
+`--audio` backend.
+
 The picture comes from the native renderer ([PLATFORM.md](PLATFORM.md), P3),
 which draws each frame from the video service's frame state rather than from the
 PPU registers line by line. `--renderer scanline` selects the reference renderer

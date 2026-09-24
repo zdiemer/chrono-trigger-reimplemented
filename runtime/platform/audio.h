@@ -54,10 +54,10 @@ static inline void au_fade(Platform *pf, PfOrigin o, uint8_t what, uint8_t steps
 PF_API uint8_t au_status(Platform *pf, PfOrigin o, uint8_t port);
 
 /* What the status says (docs/SOUND.md, "What the game reads back"): the steps
- * the music's fade has left, and the marker the playing song last set (its
- * sequence's event $F9), which a scene waits on to keep in time with it. */
+ * the music's fade has left, and which of the music's tracks are playing,
+ * folded into four bits (none once the song has ended). */
 static inline uint8_t au_music_fade_left(Platform *pf, PfOrigin o) { return au_status(pf, o, 1); }
-static inline uint8_t au_song_marker(Platform *pf, PfOrigin o) { return au_status(pf, o, 3) & 0x0F; }
+static inline uint8_t au_music_playing(Platform *pf, PfOrigin o) { return au_status(pf, o, 3) & 0x0F; }
 
 /* Host side: up to max_frames stereo frames at 32000 Hz; returns how many. */
 PF_API size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames);
@@ -88,6 +88,101 @@ PF_API bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi);
  * port/native.h), which shadow mode doesn't compare at the call: a port written
  * as logic apart from the registers sets only what the callee takes. */
 PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care);
+
+/* ---- The voices ----------------------------------------------------------------------
+ *
+ * What the sound driver (game/sound/) plays through, the S-DSP's semantics
+ * without its mechanics. Eight voices, each playing a sample from the sample
+ * directory at a pitch, shaped by an envelope and heard at a volume on each
+ * side; a master volume; an echo (a delay line whose output is filtered by
+ * eight taps, fed back and mixed in at its own volume, for the voices that
+ * send to it); noise at a clock in place of a voice's sample; and pitch
+ * modulation of a voice by the one below it. A key on starts the voices' notes
+ * with what they are set to, a key off releases them.
+ *
+ * No register numbers and no write order: a call says what changes. The first
+ * implementation (platform/voices_dsp.h) makes each change as the S-DSP
+ * register writes that make it, so the C driver can be checked register for
+ * register against the original (ct_dev --sound-lockstep) and can play through
+ * the emulated S-DSP; a native mixer is the second (docs/PLAN.md, Phase 4a).
+ * An AuVoices is whichever of them the driver was given. */
+typedef struct AuVoices AuVoices;
+
+enum { AU_VOICES = 8 };
+typedef uint8_t AuVoiceSet;   /* a bit per voice, voice 0 the lowest */
+
+/* An ADSR envelope: attack rate 0-15, decay rate 0-7, the level the decay
+ * stops at 0-7 (in eighths, less one), and the rate it falls at from there
+ * 0-31. `adsr` false plays the voice at its gain instead. */
+typedef struct {
+    bool adsr;
+    uint8_t attack, decay, sustain_level, sustain_rate;
+} AuEnvelope;
+
+/* A gain, what a voice plays at when its ADSR is off: a level held
+ * (AU_GAIN_DIRECT, 0-127), or a rate 0-31 it moves at (0 holds it still). */
+typedef enum {
+    AU_GAIN_DIRECT,
+    AU_GAIN_DECREASE_LINEAR,
+    AU_GAIN_DECREASE_EXPONENTIAL,
+    AU_GAIN_INCREASE_LINEAR,
+    AU_GAIN_INCREASE_BENT
+} AuGainMode;
+typedef struct {
+    AuGainMode mode;
+    uint8_t value;
+} AuGain;
+
+/* The mixer's switches: noise's clock 0-31, and the echo's writes, the output
+ * and the voices themselves held off (reset keys every voice off and holds
+ * them there). */
+typedef struct {
+    uint8_t noise_clock;
+    bool echo_writes_off, muted, reset;
+} AuMixer;
+
+/* Ready the voices for a driver: they find their samples in the directory
+ * the driver's data was loaded with. */
+void au_voices_start(AuVoices *v);
+
+void au_voice_sample(AuVoices *v, uint8_t voice, uint8_t sample);
+void au_voice_envelope(AuVoices *v, uint8_t voice, AuEnvelope e);
+void au_voice_gain(AuVoices *v, uint8_t voice, AuGain g);
+/* The pitch in 4096ths of the sample's own rate; the S-DSP hears 14 bits. */
+void au_voice_pitch(AuVoices *v, uint8_t voice, uint16_t pitch);
+void au_voice_volume(AuVoices *v, uint8_t voice, int8_t left, int8_t right);
+void au_voices_key_on(AuVoices *v, AuVoiceSet voices);
+void au_voices_key_off(AuVoices *v, AuVoiceSet voices);
+/* Every voice's envelope stops where it is (true: each plays at its gain),
+ * or goes on with its ADSR (false): the driver's pause. */
+void au_voices_hold(AuVoices *v, bool hold);
+/* The level a voice is putting out now, its top 8 bits (signed). */
+int8_t au_voice_output(AuVoices *v, uint8_t voice);
+
+void au_master_volume(AuVoices *v, int8_t left, int8_t right);
+void au_mixer(AuVoices *v, AuMixer m);
+void au_noise_voices(AuVoices *v, AuVoiceSet voices);
+void au_pitch_modulation(AuVoices *v, AuVoiceSet voices);
+
+void au_echo_voices(AuVoices *v, AuVoiceSet voices);
+void au_echo_volume(AuVoices *v, int8_t left, int8_t right);
+void au_echo_feedback(AuVoices *v, int8_t feedback);
+void au_echo_filter(AuVoices *v, const int8_t taps[8]);
+/* The echo's delay, in 16 ms units (up to 15); its buffer is where the S-DSP
+ * implementation's sound memory keeps it. Change it with the echo's writes
+ * off (au_echo_writes), or the old delay's writes land where the new buffer
+ * isn't. */
+void au_echo_delay(AuVoices *v, uint8_t delay);
+void au_echo_writes(AuVoices *v, bool on);
+
+/* A sample of the driver's own: its BRR bytes, which loop from `loop` on, as
+ * sample `sample` of the directory; and one byte of it changed. */
+void au_sample_define(AuVoices *v, uint8_t sample, const uint8_t *brr, uint16_t length, uint16_t loop);
+void au_sample_write(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte);
+
+/* The SNES escape: an S-DSP register written as it is, for the driver's
+ * command that asks for exactly that ($FD). */
+void au_voices_snes_register(AuVoices *v, uint8_t reg, uint8_t value);
 
 /* Backends selectable at run time on the development system (host side).
  * APU-direct runs the SPC700 outside the machine's timeline

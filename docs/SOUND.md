@@ -20,6 +20,7 @@ user's ROM with `tools/spc700dis.py`.
 - [Coverage](#coverage)
 - [What the port needs](#what-the-port-needs)
 - [Validating the port](#validating-the-port)
+- [The port as built](#the-port-as-built)
 
 ## How it was read
 
@@ -135,7 +136,7 @@ half handles `$70` and `$71` itself, with uploads).
 | `$14`, `$15` | `$0BD8`, `$0BE0` | The same, saving the playing song first (`$13A9`); starting the saved song again restores it where it was (`$13E5`) |
 | `$18`, `$19` | `$0D45`, `$0D51` | Start an effect (p1 id, p2 pan) on voices 6-7 or 4-5, from the effect set's table |
 | `$80`-`$83` | `$0E11-$0E2A` | Volume fade over p1 steps to p2: all, music, effects 6-7, effects 4-5 |
-| `$85`-`$87` | `$0E7F-$0EAA` | Slide the tempo modifier, the pitch modifier, or both |
+| `$85`-`$87` | `$0E7F-$0EAA` | Slide both modifiers ($85), the tempo modifier ($86) or the pitch modifier ($87) |
 | `$88` | `$12B6` | Set the value event `$FA` branches on |
 | `$89` | `$0ED6` | Pitch modifier for the effect voices |
 | `$8E` | `$0EE6` | Master volume, full or half |
@@ -230,12 +231,19 @@ The driver's status, put on the ports each tick (`$02C2-$02DB`) and read through
 
 - **Port 1**: the music fade's remaining steps. Events `$ED`, battle and menu
   code wait for it to reach zero: "the fade is over".
-- **Port 2**: which music tracks and which effect voices are playing
-  (the scene program compares two reads of it).
-- **Port 3**: low nibble the marker event `$F9` sets, high nibble the highest
-  value an event `$FA` has compared. Event `$EE` and the scene program wait on
-  the low nibble.
+- **Port 2**: low nibble the marker event `$F9` sets, high nibble the highest
+  value an event `$FA` has compared. The scene program reads the low nibble as
+  how far the song has got (and compares two reads of the port).
+- **Port 3**: which music tracks are playing, folded into the low nibble
+  (tracks 0 and 4 on bit 0, ...), and which voices the effects have, in the
+  high one. Event `$EE`, the scene program and the menus wait on the low
+  nibble: until the music has ended.
 - **Port 0**: the echo of the last command; the CPU half's handshake.
+
+(Ports 2 and 3 are written with one word store, the marker in port 2. This
+page first had them the other way round, which the port's lockstep found; the
+names that followed the old reading are now `au_music_playing`, event `$EE`'s
+`wait_for_music_to_end` and the scene program's `scene_wait_for_music_loop`.)
 
 So the game-facing interface is small: the commands above, and three status
 values. The protocol under them (echoes, counters, uploads) exists because two
@@ -373,5 +381,140 @@ interpreted driver's removal, and it is what `tools/audio_compare.py` does
 today for waveforms, one level up.
 
 Paths no movie reaches (the commands and branches under Coverage) get
-constructed inputs: a command stream fed to both drivers in lockstep from a
-save state, the SPC700's equivalent of `ct_fuzz`.
+constructed inputs: a command stream fed to both drivers in lockstep, the
+SPC700's equivalent of `ct_fuzz`.
+
+Check 1 and the command stream are built (`ct_dev --sound-lockstep`,
+`ct_sound_fuzz`: "The port as built", below). Check 2 waits for the driver to
+play without the original beside it.
+
+## The port as built
+
+`game/sound/` is the driver reimplemented in C as game code, about 2,800 lines
+in six files, with no operation on emulated registers and no function that
+takes the machine (`portstyle.py`: 0.00 a line, 0% on the machine). It plays
+through the voices, the voice-level part of `platform/audio.h` (PLATFORM.md,
+"The voices, as built"), and reads its data from the cartridge through
+`core/sound_data.h`.
+
+| File | What |
+|---|---|
+| `sound.h` | The driver's face: its state (`SoundDriver`), commands, ticks, loads and the status |
+| `driver.c` | The tick and its parts, the command table, fades and the tempo and pitch modifiers, the queue, boot and reload, the driver's own sample |
+| `songs.c` | Sound memory and what loads into it, the instruments, starting, stopping, saving and resuming songs, starting effects, the echo's delay |
+| `sequencer.c` | Stepping tracks: notes, rests and ties, the look-ahead, the 60 events as a table |
+| `voices.c` | Vibrato, tremolo and pan sweep; each voice's volume and pitch; the mix the tick sets; the meter |
+| `driver.h` | What the four share |
+
+**State.** The driver's state is its own structs, not sound RAM. `SoundDriver`
+keeps the sound memory the driver reads data from (the instruments' tunings
+and envelopes, the sequences with the effect set after the song, the song's
+percussion), which it loads itself from the cartridge when a song starts, a
+set is switched or an instrument is loaded, rather than receiving uploads; the
+tables it copies out of its program at boot (semitone pitches, note lengths,
+vibrato scales, echo filters, its own sample); and the fades, modifiers, queue
+and status. `SoundSong` is what the original's song save keeps (sixteen
+`SoundTrack`s, the keys, tempo, volumes, echo and filter settings, the voices'
+echo, noise and pitch modulation), so commands `$14`/`$15` save and resume a
+song by copying it. A song's pointers are SPC700 addresses (a song is built
+for where it loads), so the driver reads its sound memory by address
+(`sound_memory_byte`) and counts any read outside what it keeps
+(`stray_reads`); there are none in any movie or fuzzer run.
+
+**Interface.** Commands are calls with the command and parameters the game
+sends (`sound_run_command`). Ticks are `sound_tick`, or its three parts for a
+host that gives commands at the points the original takes them, and
+`sound_tick_while_loading`. Loads are `sound_load_effects` and
+`sound_load_instrument`. The echo's wait after a change of its delay is
+`echo_waits`, with `sound_echo_drained` and `sound_echo_ready`, for a host that
+waits as the original does; otherwise what follows the wait follows at once.
+The three status values are `sound_music_fade_left`, `sound_marker` and
+`sound_playing` (`sound_status` is all four ports).
+
+**Shape.** The commands dispatch through a C table whose rows say which
+operation runs and with what (track set, save first, effect pair, fade, tempo
+or pitch), so its 29 commands are 16 operations. The events are
+a table of 60 rows naming the operation, how its operands decode (an operand,
+a word or a constant) and whether the look-ahead passes over it; the short and
+long forms of an event are one operation. Every slide (volumes, pans, the
+tempo, echo volume and feedback, the filter, the fades and the modifiers) is
+one `SoundSlide`, and vibrato and tremolo are one `SoundWave`.
+
+**The original's behaviour kept** where the gate sees it (each is said where it
+is done): the tick run during a ticking upload hears the echo volume the last
+full tick set, not the current one; the driver's own sample moves on a paused
+tick; the look-ahead reads event `$DC`'s operand as if it were a note; an
+effect's table index wraps at 8 bits; a reload keeps what sits outside the
+direct page; a music fade to silence marks the song `$7F`. Three of the
+original's failures are not kept, and the fuzzer steers round them (TODO.md,
+"The C sound driver's leftovers").
+
+**How it was checked.** In stages -- the status, then the key writes, then
+every S-DSP register, then the drivers' own state -- each over the whole
+library before the next:
+
+- `ct_dev --sound-lockstep [out.txt]`, with `--sound-lockstep-level
+  status|keys|dsp|state` (`dev/sound_lockstep.c`), runs the C driver beside the
+  interpreted one from power-on. It gives the C driver each input at the
+  original's instruction that takes it: a command where it is carried out
+  (`$0BAC`), a song's start once its upload is in (`$0C08`), the loads at an
+  upload's header (`$1035`: the effect set the CPU half's work RAM says it
+  sent, command `$71`'s instrument), the echo writing again (`$1397`) and its
+  buffer ready (`$0CE5`, `$134B`), the tick's parts where the original reaches
+  them (`$02F2`, `$036E`, `$0371`), the loading tick (`$0415`), and the output
+  levels the meter read (`$145C`). At each tick's start it compares what the
+  last one left: the status, every key-on and key-off write in order, every
+  S-DSP register but the three the S-DSP changes itself (ENVX, OUTX, ENDX), and
+  the driver's own sample in sound memory; and at `state`, the drivers' state
+  field by field against the original's sound RAM (`dev/sound_state.c`), which
+  finds the tick where they part rather than where it shows. The first
+  difference is reported by frame, tick and register or field, and the run
+  exits 1.
+- Over the library, all 26 movies are identical at every level: 2,392,958
+  ticks, 1,246 of them loading ticks, 14,198 commands, 36 loads.
+- `ct_sound_fuzz` plays the CPU half's part of the protocol against the
+  interpreted driver with the harness running: random commands and parameters
+  at random intervals, songs from all 83 with their uploads, effect set
+  switches, instrument loads, and the driver sent back to the boot ROM and
+  loaded again. With `--made-up-songs 1`, half the songs are its own: random
+  tracks of every event, with loops, jumps and conditional branches. At the
+  `state` level, 200 runs of 400 commands with the game's songs are identical
+  (6,385,781 ticks, 1,192,589 loading, 81,607 commands, 2,407 loads), and so
+  are 200 with made-up songs (6,435,163 ticks, 563,082 loading, 81,650
+  commands, 2,148 loads).
+- `sound_test` (no ROM) checks the comparison, the voices' register mapping,
+  and the driver on a synthetic cartridge.
+
+What the checks found in the port, each fixed: the echo volume a loading tick
+sets; a paused tick's end; the order of a song's voices and the echo's wait
+(hence the host's say in the wait); and what a reload keeps. And one in this
+page: ports 2 and 3 were the other way round. With the fuzzer the driver's
+code has run 3063 of its 3156 instructions (97%, against the movies' 90%).
+What is left is the upload receivers' paths the CPU half never uses, which are
+the host's to answer and not the driver's (below); the loop poll's retry
+(`$0B9B`) and its echo of an ignored command (`$0BD5`); a saturation its
+arithmetic can't reach (`$0A34`); and a track's loop stack wrapping, a fifth
+loop nested or one left past the first (`$1C2B`, `$1C54`, `$1C6E`, `$1CB1`,
+`$1CDB`). TODO.md lists them.
+
+**Playing it.** `ct_play --sound-driver c` (PLAYING.md) plays the C driver in
+the SPC700's place. `frontend/sound_host.c` hooks the APU's run loop
+(`Apu.host`) once the boot upload starts a program, leaves the SPC700 idle, and
+answers the ports as the original's loop and upload receivers do: commands
+echoed and carried out, a song that is playing already refused, uploads
+received into sound memory (the samples and the directory the S-DSP plays
+from; the driver loads its own data), a loading tick while a set is uploaded,
+the echo's wait with commands queued meanwhile, the driver's ticks on its
+timer, its status on the ports, and command `$FF $F0` back to the boot ROM.
+The voices write the emulated S-DSP, which makes the sound. The host answers
+sooner than the original, so it takes about the original's time over a
+command, an upload's end or a wait's end before it ticks again; otherwise the
+next tick's status covers an answer before the CPU half has seen it.
+`ct_sound_fuzz --sound-driver c` checks the host's side of the protocol: 400
+runs of 400 commands with the game's songs and 100 with made-up ones, every
+command and upload answered. From power-on, the title music starts 233 ms
+sooner than with the original (the game's timing isn't the original's), and
+aligned by that the two are the same waveform to within 2% of its level over
+its first seconds, the rest being the S-DSP's envelope counter at another
+phase; later they drift apart as the game's timing does. The mode can't replay
+a movie or save a state (TODO.md).

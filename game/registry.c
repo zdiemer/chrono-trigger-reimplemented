@@ -872,7 +872,7 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC03C4C, event_cmd_fade_music, 2981, event_cmd_fade_music_accepts),
     EVENT_CMD(0xC03C98, event_cmd_send_sound_command, 3038, event_cmd_send_sound_command_accepts),
     EVENT_CMD(0xC03CBC, event_cmd_wait_for_music_fade, 2796, event_cmd_wait_for_music_fade_accepts),
-    EVENT_CMD(0xC03CC5, event_cmd_wait_for_song_marker, 3106, event_cmd_wait_for_song_marker_accepts),
+    EVENT_CMD(0xC03CC5, event_cmd_wait_for_music_to_end, 3106, event_cmd_wait_for_music_to_end_accepts),
     EVENT_CMD(0xC03C05, event_cmd_set_player_control, 3167, event_cmd_set_player_control_accepts),
     EVENT_CMD(0xC03CD0, event_cmd_fade, 3680, event_cmd_fade_accepts),
     EVENT_CMD(0xC03CFD, event_cmd_wait_for_screen_fade, 2857, event_cmd_wait_for_screen_fade_accepts),
@@ -1539,7 +1539,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2CC28, .name = "menu_wait_for_menu_song_faded", .fn = menu_wait_for_menu_song_faded, NEEDS_M8,
       .cost_milli = 4000, .dont_care = DC_AL },
     /* per waiting pass: LDA long (30), AND #imm (12), BEQ taken (18) */
-    { .addr = 0xC2CBE0, .name = "menu_wait_for_menu_song_started_loop", .fn = menu_wait_for_menu_song_started_loop, NEEDS_M8,
+    { .addr = 0xC2CBE0, .name = "menu_wait_for_menu_music_playing_loop", .fn = menu_wait_for_menu_music_playing_loop, NEEDS_M8,
       .idle = true, .idle_clocks = 60, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
 
     /* scenes run from RAM: the bank C3 routines they call */
@@ -1664,8 +1664,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0x7E39BE, .name = "scene_run_vblank_tasks", .fn = scene_run_vblank_tasks, .p_mask = CPU_FLAG_X,
       .p_value = 0, .cost_milli = 3959, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = scene_vblank_tasks_present },
     /* per pass: LDA $2143 (30 master clocks from WRAM), AND #$0F (16), BEQ taken (22) */
-    { .addr = 0x7E5AAA, .name = "scene_wait_for_song_marker_loop", .fn = scene_wait_for_song_marker_loop, NEEDS_M8,
-      .idle = true, .idle_clocks = 68, .guard = scene_wait_for_song_marker_present },
+    { .addr = 0x7E5AAA, .name = "scene_wait_for_music_loop", .fn = scene_wait_for_music_loop, NEEDS_M8,
+      .idle = true, .idle_clocks = 68, .guard = scene_wait_for_music_present },
     { .addr = 0x7E5211, .name = "scene_race_wait_for_tilemap_upload_loop", .fn = scene_race_wait_for_tilemap_upload_loop, NEEDS_M16,
       .idle = true, .guard = scene_race_wait_for_tilemap_upload_present },
     { .addr = 0x7E377E, .name = "scene_send_sound_command", .fn = scene_send_sound_command, .p_mask = CPU_FLAG_X,

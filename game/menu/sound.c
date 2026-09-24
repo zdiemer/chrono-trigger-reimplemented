@@ -7,8 +7,8 @@
  * out and starts the field's again, from where it was kept ($C2:CC0E, command
  * $11). Between the fade and the new song the menus wait for the driver: for
  * the fade to run out (the driver counts its steps left on its status) and,
- * after starting their own song, for the song to set its marker, which it does
- * as it starts. These are those waits, a pass at a time; the rest is the
+ * after starting their own song, for its music to be playing (the status
+ * names the tracks that are). These are those waits, a pass at a time; the rest is the
  * original's. No movie reaches them. */
 #include "menu/sound.h"
 
@@ -37,9 +37,10 @@ void menu_wait_for_field_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CBC1, 0x
 void menu_wait_for_menu_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CC28, 0xC2CC2E, 0xC2CC33); }
 
 // $C2:CBE0
-/* After starting the menus' song, wait for it to set its marker, then on to
- * $C2:CBE8, where nothing reads what the loop loaded. Idle entry, one pass. */
-void menu_wait_for_menu_song_started_loop(Snes *s)
+/* After starting the menus' song, wait for its music to be playing (the
+ * driver's status names the tracks that are), then on to $C2:CBE8, where
+ * nothing reads what the loop loaded. Idle entry, one pass. */
+void menu_wait_for_menu_music_playing_loop(Snes *s)
 {
-    m_stop_at(s, au_song_marker(m_platform(s), PF_AT(0xC2CBE0)) != 0 ? 0xC2CBE8 : 0xC2CBE0, 0);
+    m_stop_at(s, au_music_playing(m_platform(s), PF_AT(0xC2CBE0)) != 0 ? 0xC2CBE8 : 0xC2CBE0, 0);
 }

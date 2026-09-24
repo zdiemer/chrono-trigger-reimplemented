@@ -2,7 +2,7 @@
  * and the rest on the development system (docs/PLAYING.md).
  *
  *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp only|on|off]
- *           [--audio snes|direct] [--renderer native|scanline] [--save-dir dir] [--keys f] [--bind IN=ACTION]...
+ *           [--audio snes|direct] [--sound-driver original|c] [--renderer native|scanline] [--save-dir dir] [--keys f] [--bind IN=ACTION]...
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm] [--load-zst in.zst]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
  *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm] [--wav out.wav]
@@ -71,6 +71,9 @@ static void usage(FILE *out)
             "  --audio BACKEND      snes: the APU on the machine's timeline (default); direct: the sound driver's\n"
             "                       uploads and commands take no CPU time (APU-direct; needs --native on, and\n"
             "                       runs the ported routines, so --recomp on is implied)\n"
+            "  --sound-driver D     original: the game's sound driver on the SPC700 (default); c: the C port of it\n"
+            "                       (game/sound/) in its place, playing through the same S-DSP; the game's timing\n"
+            "                       is not the original's, so no movies, and no saved states\n"
             "  --renderer R         native: draw each frame from the video service's frame state (default);\n"
             "                       scanline: the reference renderer, line by line from the PPU registers\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
@@ -163,6 +166,7 @@ int main(int argc, char **argv)
     static Player pl;   /* large; keep it off the stack */
     static Files files;
     bool native_given = false, recomp = true, recomp_only = false, recomp_given = false, audio_direct = false;
+    bool c_sound_driver = false;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
     /* A TV showed the picture at 4:3 and hid about 8 rows at the top and bottom. */
@@ -268,6 +272,14 @@ int main(int argc, char **argv)
                 return 2;
             }
         }
+        else if (!strcmp(a, "--sound-driver")) {
+            if (!strcmp(v, "original") || !strcmp(v, "c")) {
+                c_sound_driver = strcmp(v, "c") == 0;
+            } else {
+                fprintf(stderr, "--sound-driver must be original or c\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--recomp")) {
             recomp_given = true;
             if (!strcmp(v, "off")) recomp = false, recomp_only = false;
@@ -347,6 +359,12 @@ int main(int argc, char **argv)
      * --recomp says otherwise. */
     if ((movie_path || record_path) && !recomp_given)
         recomp_only = true;
+    if (c_sound_driver && (movie_path || record_path || load_state_path || save_state_path || zst_path)) {
+        /* the C driver answers the CPU half at once, and its state is its own */
+        fprintf(stderr, "--sound-driver c changes the original's timing and keeps state outside the machine: it can't "
+                        "replay or record a movie, or load or save a state\n");
+        return 2;
+    }
     if (audio_direct) {
         /* APU-direct runs in the sound driver's ported routines and changes timing */
         if (pl.native_mode != NATIVE_ON || record_path || (recomp_given && recomp_only)) {
@@ -454,7 +472,8 @@ int main(int argc, char **argv)
         player_load_sram(&pl, sram && sram_len == SNES_SRAM_SIZE ? sram : NULL);
         free(sram);
     }
-    player_start(&pl, audio_direct);
+    if (player_start(&pl, audio_direct, c_sound_driver) != 0)
+        return 1;
     if (load_state_path && files_load_state(&pl, load_state_path) != 0)
         return 1;
     if (zst_path) {

@@ -115,14 +115,13 @@ static EventFlow wait_for_music_fade(GameState *g, Platform *platform)
 EVENT_OPERATION(wait_for_music_fade, platform)
 
 // $C0:3CC5
-/* Wait until the song reaches the marker a scene keeps time by (the marker
- * back to zero). */
-static EventFlow wait_for_song_marker(GameState *g, Platform *platform)
+/* Wait until the music has ended: none of its tracks playing. */
+static EventFlow wait_for_music_to_end(GameState *g, Platform *platform)
 {
     (void)g;
-    return au_song_marker(platform, PF_AT(0xC03CC6)) == 0 ? end_turn() : stay();
+    return au_music_playing(platform, PF_AT(0xC03CC6)) == 0 ? end_turn() : stay();
 }
-EVENT_OPERATION(wait_for_song_marker, platform)
+EVENT_OPERATION(wait_for_music_to_end, platform)
 
 EVENT_OPCODES(event_sound_opcodes,
     { 0xE8, .effect = OPERAND(1), .length = 2 },
@@ -130,4 +129,4 @@ EVENT_OPCODES(event_sound_opcodes,
     { 0xEB, .steps = OPERAND(1), .volume = OPERAND(2), .length = 3 },
     { 0xEC, .sound_command = OPERAND(1), .first_argument = OPERAND(2), .second_argument = OPERAND(3), .length = 4 },
     { 0xED, OPERATION(wait_for_music_fade), .length = 1 },
-    { 0xEE, OPERATION(wait_for_song_marker), .length = 1 });
+    { 0xEE, OPERATION(wait_for_music_to_end), .length = 1 });
