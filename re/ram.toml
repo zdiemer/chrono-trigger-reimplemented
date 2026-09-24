@@ -3446,6 +3446,15 @@ meaning = "The three active party members as character ids, $80 for an empty slo
 source = "tools/movies/addresses.py PARTY_MEMBERS; game/event/party.c take_out_of_party $C0:3A07"
 
 [[var]]
+name = "game_settings"
+addr = "7E:2990"
+count = 3
+index = "byte"
+subsystem = "core"
+meaning = "The player's settings as the settings menu leaves them ($C2:92F4 reads them into its own cells). What the battle reads: the first byte's bit 7 shows a tech's or item's description as the cursor meets it, bit 6 is active time (clear: the timers wait while a tech or item list is open); the second byte's bit 6 has the battle remember each member's command cursor, bit 7 its tech and item cursors; the third byte is the battle gauge setting, which picks the window's layout"
+source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4; $C2:92F4 and $C2:934F (the settings menu)"
+
+[[var]]
 name = "current_song"
 addr = "7E:29AE"
 subsystem = "core"
@@ -6264,7 +6273,7 @@ size = 5
 index = "character"
 subsystem = "core"
 meaning = "The characters' names, five name characters in each 6-byte record; the battle converts them to tiles"
-source = "game/battle/setup.c, copy_name_records and read_party_slots in battle_setup_state $CC:E2E4 (seven records, a party member's picked through $CC:F846 by character)"
+source = "game/battle/setup_names.c setup_copy_character_names and setup_party.c setup_party_slots in battle_setup_state $CC:E2E4 (seven records, a party member's picked through $CC:F846 by character)"
 
 # ---- battle direct page (D = $0000) -------------------------------------------
 
@@ -6473,7 +6482,7 @@ addr = "7E:1D00"
 page = "battle_sprites"
 count = 23
 index = "battle object ($0C + battle slot for the combatants)"
-unchecked = "with the party off the grid, the grid's marking reads the positions of three objects past the combatants', as the original's indexed reads do (game/battle/battlefield.c)"
+unchecked = "a combatant's position read for a slot past the combatants, as the original's indexed reads do: the grid's marking with the party off the grid (game/battle/battlefield.c), the menu's cursors at a target entry no battle makes (game/battle/battle.h combatant_x)"
 subsystem = "battle"
 meaning = "Battle objects' screen X positions"
 source = "game/battle/draw_objects.c header, draw_combatant $CF:EAC5, draw_shadow $CF:EA8A; the ports at D = 0 index it as $1D0C + slot (setup.c place_party_objects, step_scripted_moves $CF:EC78, objects.c, battlefield.c)"
@@ -6484,7 +6493,7 @@ addr = "7E:1D17"
 page = "battle_sprites"
 count = 23
 index = "battle object ($0C + battle slot for the combatants)"
-unchecked = "with the party off the grid, the grid's marking reads the positions of three objects past the combatants', as the original's indexed reads do (game/battle/battlefield.c)"
+unchecked = "a combatant's position read for a slot past the combatants, as the original's indexed reads do: the grid's marking with the party off the grid (game/battle/battlefield.c), the menu's cursors at a target entry no battle makes (game/battle/battle.h combatant_x)"
 subsystem = "battle"
 meaning = "Battle objects' screen Y positions, also their depth when sprites are sorted"
 source = "game/battle/draw_objects.c header, draw_objects $CF:E83A; indexed as $1D23 + slot at D = 0 (setup.c, step_scripted_moves $CF:EC78, battle_step_orbits $CF:F978)"
@@ -6507,7 +6516,7 @@ count = 23
 index = "battle object"
 subsystem = "battle"
 meaning = "Number of sprite parts drawn for the object (0: shadow only); $0F for party members"
-source = "game/battle/draw_objects.c header and draw_objects $CF:E83A; game/battle/setup.c place_party_objects and setup_enemy ($1D7F + slot)"
+source = "game/battle/draw_objects.c header and draw_objects $CF:E83A; game/battle/setup_party.c setup_party_objects and setup_enemies.c set_up_enemy ($1D7F + slot)"
 
 [[var]]
 name = "battle_draw_list_depth"
@@ -6563,7 +6572,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "High-table size bits for each present object's sprites and its extra parts' ($AA: all large)"
-source = "game/battle/setup.c mark_object_parts in battle_setup_graphics $CC:ED87"
+source = "game/battle/setup_screen.c setup_size_bits in battle_setup_graphics $CC:ED87"
 
 [[var]]
 name = "battle_window_frames_tilemap"
@@ -6591,7 +6600,7 @@ stride = 2
 index = "row * 32 + column"
 subsystem = "battle"
 meaning = "The battle window's tilemap: party names, HP, MP, gauges and enemy names"
-source = "game/battle/window.c header and battle_draw_window $C1:0299; game/battle/gauges.c; game/battle/setup.c reset_word_buffers ($4C0 bytes filled with $2900); game/battle/display.c battle_load_graphics $CC:E000 (uploaded to VRAM $7820)"
+source = "game/battle/window.c header and battle_draw_window $C1:0299; game/battle/gauges.c; game/battle/setup_screen.c setup_tilemaps ($4C0 bytes filled with $2900); game/battle/display.c battle_load_graphics $CC:E000 (uploaded to VRAM $7820)"
   [[var.field]]
   name = "tile"
   offset = 0
@@ -6609,7 +6618,7 @@ stride = 4
 index = "battle slot * 4 + sprite"
 subsystem = "battle"
 meaning = "Four sprite entries per combatant's object from object $0C on, then the entries of the objects after the combatants (the table at $CC:F84D), which a combatant's tile copy of eight groups reads on into: position bytes cleared, tile and attributes from $CC:FAF3, enemies' attributes their palette ($988B) + $20"
-source = "game/battle/setup.c fill_11b0_table and fill_enemy_rows in battle_setup_graphics $CC:ED87"
+source = "game/battle/setup_screen.c setup_sprite_entries and setup_screen.c setup_enemy_sprite_attributes in battle_setup_graphics $CC:ED87"
   [[var.field]]
   name = "tile"
   offset = 2
@@ -6618,6 +6627,14 @@ source = "game/battle/setup.c fill_11b0_table and fill_enemy_rows in battle_setu
   name = "attributes"
   offset = 3
   meaning = "Attributes"
+  [[var.field]]
+  name = "x_offset"
+  offset = 0
+  meaning = "X from the object's position (cleared at the battle's start)"
+  [[var.field]]
+  name = "y_offset"
+  offset = 1
+  meaning = "Y from the object's position (cleared at the battle's start)"
 
 # ---- tech records and object graphics pointers ---------------------------------
 
@@ -6629,7 +6646,7 @@ stride = 7
 index = "party member * 20 + the entry the member's tech list names (battle_tech_list)"
 subsystem = "battle"
 meaning = "Seven-byte records of the techs the party members can use in battle, twenty a member (a member's entries 0-7, 10-15 and 18 fill its tech list)"
-source = "game/battle/setup.c build_member_lists in battle_setup_state $CC:E2E4; game/battle/menu_window.c dim_unusable_techs $C1:0EE1, show_tech_costs"
+source = "game/battle/setup_party.c setup_tech_lists in battle_setup_state $CC:E2E4; game/battle/menu_window.c dim_unusable_techs $C1:0EE1, show_tech_costs"
   [[var.field]]
   name = "id"
   offset = 0
@@ -6667,7 +6684,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Long pointer to the object's graphics set, the tiles its frames are assembled from"
-source = "game/battle/setup.c load_party_graphics and setup_enemy in battle_setup_state $CC:E2E4 (from $E4:2000/$E4:2300); game/battle/sprites.c battle_build_object_graphics $C1:1C55"
+source = "game/battle/setup_party.c setup_party_objects and setup_enemies.c set_up_enemy in battle_setup_state $CC:E2E4 (from $E4:2000/$E4:2300); game/battle/sprites.c battle_build_object_graphics $C1:1C55"
 
 [[var]]
 name = "battle_object_tile_lists"
@@ -6677,7 +6694,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Long pointer to the object's frame tile lists (16-bit tile descriptors: bit 14 flipped, bits 0-10 the tile, 0 blank)"
-source = "game/battle/setup.c load_party_graphics and setup_enemy in battle_setup_state $CC:E2E4; game/battle/sprites.c battle_build_object_graphics $C1:1C55"
+source = "game/battle/setup_party.c setup_party_objects and setup_enemies.c set_up_enemy in battle_setup_state $CC:E2E4; game/battle/sprites.c battle_build_object_graphics $C1:1C55"
 
 [[var]]
 name = "battle_object_frame_lists"
@@ -6687,7 +6704,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Long pointer (bank $E4) to the object's animation frame lists (the frames' graphics numbers, per pose)"
-source = "game/battle/setup.c load_party_graphics and setup_enemy in battle_setup_state $CC:E2E4; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E4C) and load_enemy_animation"
+source = "game/battle/setup_party.c setup_party_objects and setup_enemies.c set_up_enemy in battle_setup_state $CC:E2E4; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E4C) and load_enemy_animation"
 
 [[var]]
 name = "battle_object_delay_lists"
@@ -6697,7 +6714,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Long pointer (bank $E4) to the object's animation frame delay lists"
-source = "game/battle/setup.c load_party_graphics and setup_enemy in battle_setup_state $CC:E2E4; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E4C) and load_enemy_animation"
+source = "game/battle/setup_party.c setup_party_objects and setup_enemies.c set_up_enemy in battle_setup_state $CC:E2E4; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E4C) and load_enemy_animation"
 
 # ---- the data the event hands the battle ($2980-$2C9F) --------------------------
 
@@ -6723,7 +6740,7 @@ stride = 5
 index = "party slot"
 subsystem = "battle"
 meaning = "Where the party members stand at the start of the battle"
-source = "game/battle/setup.c place_party_objects in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_party.c setup_party_objects in battle_setup_state $CC:E2E4"
   [[var.field]]
   name = "tile_x"
   offset = 0
@@ -6740,6 +6757,10 @@ source = "game/battle/setup.c place_party_objects in battle_setup_state $CC:E2E4
   name = "y_offset"
   offset = 3
   meaning = "Y offset within the tile"
+  [[var.field]]
+  name = "frame"
+  offset = 4
+  meaning = "The frame the member's object starts on"
 
 [[var]]
 name = "battle_enemy_placement"
@@ -6749,7 +6770,7 @@ stride = 12
 index = "enemy record"
 subsystem = "battle"
 meaning = "The battle's enemies and where they stand"
-source = "game/battle/setup.c copy_enemy_headers, setup_enemy and setup_enemies in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_enemies.c keep_start_positions, setup_enemies.c set_up_enemy and setup_enemies.c setup_enemies in battle_setup_state $CC:E2E4"
   [[var.field]]
   name = "tile_x"
   offset = 0
@@ -6779,6 +6800,15 @@ source = "game/battle/setup.c copy_enemy_headers, setup_enemy and setup_enemies 
   name = "palette"
   offset = 8
   meaning = "Sprite palette (doubled into $9888/$993C)"
+  [[var.field]]
+  name = "frame"
+  offset = 4
+  meaning = "The frame the enemy's object starts on"
+  [[var.field]]
+  name = "graphics"
+  offset = 9
+  size = 3
+  meaning = "Long pointer to the enemy's graphics set"
 
 [[var]]
 name = "battle_bg_scroll"
@@ -6805,14 +6835,14 @@ name = "battle_remembered_item_top"
 addr = "7E:2C98"
 subsystem = "battle"
 meaning = "Item list top entry the battle menu starts at ($95E6) when $A0D5 is set"
-source = "game/battle/setup.c read_slot_extras in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_party.c setup_remembered_cursors in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_remembered_item_row"
 addr = "7E:2C99"
 subsystem = "battle"
 meaning = "Item list cursor row the battle menu starts at ($95E5) when $A0D5 is set"
-source = "game/battle/setup.c read_slot_extras in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_party.c setup_remembered_cursors in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_decoded_tiles"
@@ -6926,6 +6956,10 @@ source = "tools/movies/addresses.py BATTLE_STATS; game/battle/stats.c header, ba
   offset = 0x23
   size = 2
   meaning = "Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes' bits ($5E52-$5E53 for slot 0)"
+  [[var.field]]
+  name = "worn_item"
+  offset = 0x28
+  meaning = "An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP (battle_enemy_hp_seen)"
 
 # ---- the battlefield grid and setup tables -------------------------------------
 
@@ -6936,7 +6970,7 @@ count = 256
 index = "cell (Y tile * 16 + X tile)"
 subsystem = "battle"
 meaning = "The battlefield grid as built at setup, from ROM rows and the $2A23/$2B23 cell bits"
-source = "game/battle/setup.c build_base_grid in battle_setup_state $CC:E2E4; game/battle/battlefield.c battle_mark_object_grid $CC:F110"
+source = "game/battle/setup_screen.c setup_base_grid in battle_setup_state $CC:E2E4; game/battle/battlefield.c battle_mark_object_grid $CC:F110"
 
 [[var]]
 name = "battle_grid"
@@ -6955,7 +6989,7 @@ count = 0x80
 index = "tile"
 subsystem = "battle"
 meaning = "Tilemap words built at setup ($29FF blanks and counting tile runs); load step 2 uploads $1C0 bytes of it to VRAM $7B00"
-source = "game/battle/setup.c reset_word_buffers in battle_setup_state $CC:E2E4; game/battle/display.c battle_load_graphics $CC:E000"
+source = "game/battle/setup_screen.c setup_tilemaps in battle_setup_state $CC:E2E4; game/battle/display.c battle_load_graphics $CC:E000"
 
 [[var]]
 name = "battle_load_tilemap_2"
@@ -6964,7 +6998,7 @@ count = 0x200
 index = "byte"
 subsystem = "battle"
 meaning = "Tilemap bytes built at setup (from $D1:5D50, then $29FF words); load step 2 uploads the $40 bytes at $81BD to VRAM $7800"
-source = "game/battle/setup.c reset_word_buffers in battle_setup_state $CC:E2E4; game/battle/display.c battle_load_graphics $CC:E000"
+source = "game/battle/setup_screen.c setup_tilemaps in battle_setup_state $CC:E2E4; game/battle/display.c battle_load_graphics $CC:E000"
 
 [[var]]
 name = "battle_oam_high_bits"
@@ -6973,7 +7007,7 @@ count = 0x200
 index = "OAM buffer offset"
 subsystem = "battle"
 meaning = "For each OAM buffer byte offset, the mask that clears its sprite's X high bit in its high-table byte (the second table, battle_oam_x_high_bits, sets it)"
-source = "game/battle/setup.c fill_cell_tables in battle_setup_state $CC:E2E4; game/battle/draw_objects.c draw_combatant $CF:EAC5 (read as $8E2D, the second of the two tables)"
+source = "game/battle/setup_screen.c setup_sprite_tables in battle_setup_state $CC:E2E4; game/battle/draw_objects.c draw_combatant $CF:EAC5 (read as $8E2D, the second of the two tables)"
 
 [[var]]
 name = "battle_oam_high_offsets"
@@ -6982,7 +7016,7 @@ count = 0x200
 index = "OAM buffer offset"
 subsystem = "battle"
 meaning = "For each OAM buffer byte offset, its sprite's byte in the high table (offset / 16)"
-source = "game/battle/setup.c fill_cell_tables in battle_setup_state $CC:E2E4; game/battle/draw_objects.c draw_combatant $CF:EAC5, draw_numbers"
+source = "game/battle/setup_screen.c setup_sprite_tables in battle_setup_state $CC:E2E4; game/battle/draw_objects.c draw_combatant $CF:EAC5, draw_numbers"
 
 # ---- number sprites, names and digits ------------------------------------------
 
@@ -7048,7 +7082,7 @@ size = 5
 index = "party slot"
 subsystem = "battle"
 meaning = "The party members' names (five characters each), before conversion to tiles"
-source = "game/battle/setup.c read_party_slots in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_party.c setup_party_slots in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_party_name_tiles"
@@ -7057,7 +7091,7 @@ count = 30
 index = "byte (two rows of five tiles per member, at $CC:F837 + member)"
 subsystem = "battle"
 meaning = "The party members' names as window tiles, two rows each"
-source = "game/battle/setup.c convert_names in battle_setup_state $CC:E2E4; game/battle/window.c draw_member $C1:0311"
+source = "game/battle/setup_names.c setup_name_to_convert in battle_setup_state $CC:E2E4; game/battle/window.c draw_member $C1:0311"
 
 [[var]]
 name = "battle_character_names"
@@ -7068,7 +7102,7 @@ size = 5
 index = "character"
 subsystem = "battle"
 meaning = "Copies of the seven characters' names, before conversion to tiles"
-source = "game/battle/setup.c copy_name_records in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_names.c setup_copy_character_names in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_character_name_tiles"
@@ -7077,7 +7111,7 @@ count = 70
 index = "byte (two rows of five tiles per character, at $CC:F837 + character)"
 subsystem = "battle"
 meaning = "The seven characters' names as tiles, two rows each"
-source = "game/battle/setup.c convert_names in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_names.c setup_name_to_convert in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_number"
@@ -7103,7 +7137,7 @@ count = 32
 index = "byte (two 16-byte rows)"
 subsystem = "battle"
 meaning = "A name being converted to tiles: the characters go in at $94A0, the two tile rows come back at $94A0 and $94B0"
-source = "game/battle/setup.c convert_name, store_name_rows, convert_enemy_names in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_names.c setup_name_to_convert, setup_names.c setup_keep_name_tiles, setup_names.c setup_enemy_name_to_convert in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_tech_list_ids"
@@ -7112,7 +7146,7 @@ count = 0x81
 index = "list offset ($CC:F38C + member) + entry"
 subsystem = "battle"
 meaning = "Each party member's tech list: the tech's id, $FC/$FD marking the double and triple tech sections, $FF a blank row"
-source = "game/battle/setup.c build_member_lists in battle_setup_state $CC:E2E4; game/battle/menu_window.c mark_tech_list $C1:0EE1"
+source = "game/battle/setup_party.c setup_tech_lists in battle_setup_state $CC:E2E4; game/battle/menu_window.c mark_tech_list $C1:0EE1"
 
 [[var]]
 name = "battle_tech_list"
@@ -7121,7 +7155,7 @@ count = 0x81
 index = "list offset ($CC:F38C + member) + entry"
 subsystem = "battle"
 meaning = "Each party member's tech list: the entry number of the tech's record at $1A80, $FF a blank row"
-source = "tools/movies/addresses.py BATTLE_TECH_LIST; game/battle/setup.c build_member_lists; game/battle/menu_window.c mark_tech_list $C1:0EE1, draw_tech_page"
+source = "tools/movies/addresses.py BATTLE_TECH_LIST; game/battle/setup_party.c setup_tech_lists; game/battle/menu_window.c mark_tech_list $C1:0EE1, draw_tech_page"
 
 # ---- the battle menu -------------------------------------------------------------
 
@@ -7199,6 +7233,7 @@ name = "battle_menu_slot_members"
 addr = "7E:A6D9"
 count = 3
 index = "menu slot"
+unchecked = "a tech record's partner nibble names the slot; the menu window reads it whatever it holds, past the three for a record no battle makes (game/battle/menu_window.c, $C1:103E)"
 subsystem = "battle"
 meaning = "The party member each menu window slot belongs to; negative: no member"
 source = "game/battle/window.c battle_draw_window $C1:0299, draw_window_frames $C1:081E; game/battle/menu_window.c member_unavailable $C1:103E"
@@ -7274,7 +7309,7 @@ stride = 2
 index = "row * 32 + column (6 rows)"
 subsystem = "battle"
 meaning = "The menu window's tilemap: the tech list, members' MP and tech costs, cursor tiles"
-source = "game/battle/menu_window.c header, mark_tech_list $C1:0EE1, draw_tech_page; game/battle/setup.c reset_word_buffers ($180 bytes filled with $2900)"
+source = "game/battle/menu_window.c header, mark_tech_list $C1:0EE1, draw_tech_page; game/battle/setup_screen.c setup_tilemaps ($180 bytes filled with $2900)"
   [[var.field]]
   name = "tile"
   offset = 0
@@ -7292,7 +7327,7 @@ stride = 2
 index = "tile"
 subsystem = "battle"
 meaning = "(tile, attribute) pairs the tech page's list is laid out in and copied from into the menu tilemap"
-source = "game/battle/menu_window.c draw_tech_page ($C1:0A88 lays it out); game/battle/setup.c reset_word_buffers ($500 bytes filled with $2900)"
+source = "game/battle/menu_window.c draw_tech_page ($C1:0A88 lays it out); game/battle/setup_screen.c setup_tilemaps ($500 bytes filled with $2900)"
 
 [[var]]
 name = "battle_selected_tech"
@@ -7403,7 +7438,7 @@ addr = "7E:9F20"
 size = 2
 subsystem = "battle"
 meaning = "Which of three battle window layouts the settings chose (0, 1, 2; past 2 as 2): positions of names, HP, MP and gauges, and whether max HP is shown (layout 0). Setup writes a byte; the window's code reads it as a byte in some places and a word in others, so the byte after it is 0 as the game goes"
-source = "game/battle/window.c battle_window_layout_now, battle_redraw_window $C1:0299; game/battle/status.c battle_show_party_status $C1:05A7; game/battle/setup.c reset_battle_tables (from $CC:FBC5 by $2992)"
+source = "game/battle/window.c battle_window_layout_now, battle_redraw_window $C1:0299; game/battle/status.c battle_show_party_status $C1:05A7; game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4 (from $CC:FBC5 by the gauge setting)"
 
 [[var]]
 name = "battle_digit_highlight"
@@ -7425,13 +7460,14 @@ name = "battle_blink_timer"
 addr = "7E:A112"
 subsystem = "battle"
 meaning = "Frames until battle_blink toggles (reloaded with 12)"
-source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/setup.c reset_battle_tables"
+source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/setup_reset.c setup_reset_for_new_fight"
 
 [[var]]
 name = "battle_member_disabled"
 addr = "7E:A0D1"
 count = 3
 index = "party slot"
+unchecked = "read for the member a partner's slot names, whatever that holds (game/battle/menu_window.c, $C1:103E)"
 subsystem = "battle"
 meaning = "Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination techs naming it, are dimmed"
 source = "game/battle/stats.c battle_update_status_flags $C1:B0B6; game/battle/menu_window.c member_unavailable $C1:103E, mark_tech_list $C1:0EE1"
@@ -7441,7 +7477,7 @@ name = "battle_show_descriptions"
 addr = "7E:A0DB"
 subsystem = "battle"
 meaning = "Bit 7 set when the game's settings show a tech's description as the tech list's cursor moves ($CD:0027 shows it)"
-source = "game/battle/setup.c reset_battle_tables (from $2990 bit 7); game/battle/menu_window.c show_tech_page $C1:0C83"
+source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4 (game_settings); game/battle/menu_window.c show_tech_page $C1:0C83"
 
 [[var]]
 name = "battle_frog_slot"
@@ -7449,7 +7485,7 @@ addr = "7E:A0FF"
 size = 2
 subsystem = "battle"
 meaning = "Party slot of character 4 (Frog), times 5 after setup (an index into $1C48)"
-source = "game/battle/setup.c read_party_slots in battle_setup_state $CC:E2E4; game/battle/menu_window.c mark_tech_list $C1:0EE1"
+source = "game/battle/setup_party.c setup_party_slots in battle_setup_state $CC:E2E4; game/battle/menu_window.c mark_tech_list $C1:0EE1"
 
 [[var]]
 name = "battle_magus_slot"
@@ -7457,14 +7493,14 @@ addr = "7E:A115"
 size = 2
 subsystem = "battle"
 meaning = "Party slot of character 6 (Magus)"
-source = "game/battle/setup.c read_party_slots in battle_setup_state $CC:E2E4; game/battle/window.c draw_member_window $C1:0785"
+source = "game/battle/setup_party.c setup_party_slots in battle_setup_state $CC:E2E4; game/battle/window.c draw_member_window $C1:0785"
 
 [[var]]
 name = "battle_magus_present"
 addr = "7E:A117"
 subsystem = "battle"
 meaning = "Counts character 6 (Magus) in the party"
-source = "game/battle/setup.c read_party_slots in battle_setup_state $CC:E2E4; game/battle/window.c draw_member_window $C1:0785"
+source = "game/battle/setup_party.c setup_party_slots in battle_setup_state $CC:E2E4; game/battle/window.c draw_member_window $C1:0785"
 
 [[var]]
 name = "battle_double_techs"
@@ -7473,7 +7509,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Set when the member's tech list has a double tech section (the $FC marker)"
-source = "game/battle/setup.c mark_member_records and build_member_lists in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_party.c setup_tech_lists and setup_party.c setup_tech_lists in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_triple_techs"
@@ -7482,7 +7518,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Set when the member's tech list has a triple tech section (the $FD marker and entry 18)"
-source = "game/battle/setup.c mark_member_records and build_member_lists in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_party.c setup_tech_lists and setup_party.c setup_tech_lists in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_member_carried"
@@ -7499,7 +7535,7 @@ name = "battle_enemy_hp_seen"
 addr = "7E:9F34"
 subsystem = "battle"
 meaning = "Nonzero when a party member's equipment lets the party see enemies' HP (from the stat blocks' byte $57 at setup); the single target cursor then shows it for enemies battle_enemy_hp_visible allows"
-source = "game/battle/setup.c ($CC:E2E4, stat block byte $57); game/battle/menu_window.c show_target $C1:19B4"
+source = "game/battle/setup_screen.c setup_uploads in battle_setup_graphics $CC:ED87 (battle_stats.worn_item); game/battle/menu_window.c show_target $C1:19B4"
 
 [[var]]
 name = "battle_enemy_hp_visible"
@@ -7517,7 +7553,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Number of entries in the member's tech list (up to the first $FF, at most 20)"
-source = "game/battle/setup.c build_member_lists in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_party.c setup_tech_lists in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_combo_called_off"
@@ -8096,7 +8132,7 @@ count = 8
 index = "enemy (battle slot - 3)"
 subsystem = "battle"
 meaning = "The enemy's link (battle_enemy_link) as its animation effect last saw it"
-source = "game/battle/animation.c battle_step_enemy_effects $C1:3714"
+source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup_reset.c rest_the_enemies in battle_setup_state $CC:E2E4 ($FF: none yet)"
 
 [[var]]
 name = "battle_enemy_standing"
@@ -8221,7 +8257,7 @@ index = "battle slot (0-2 the party, 3-10 enemies)"
 unchecked = "with the party off the grid, the grid's marking looks at the eleven slots from the fourth, three past the table, as the original's indexed reads do (game/battle/battlefield.c)"
 subsystem = "battle"
 meaning = "Nonzero when the battle slot holds a combatant"
-source = "game/battle/setup.c read_party_slots and setup_enemy in battle_setup_state $CC:E2E4; game/battle/window.c; game/battle/objects.c; game/battle/battlefield.c"
+source = "game/battle/setup_party.c setup_party_slots and setup_enemies.c set_up_enemy in battle_setup_state $CC:E2E4; game/battle/window.c; game/battle/objects.c; game/battle/battlefield.c"
 
 [[var]]
 name = "battle_object_kind"
@@ -8230,7 +8266,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Object's graphics kind, also its count of extra parts (2: fixed upload descriptors, 3 and up: no graphics built)"
-source = "game/battle/setup.c setup_enemy, mark_object_parts, set_upload_descriptors; game/battle/sprites.c battle_build_object_graphics $C1:1C55"
+source = "game/battle/setup_enemies.c set_up_enemy, setup_screen.c setup_size_bits, setup_screen.c setup_uploads; game/battle/sprites.c battle_build_object_graphics $C1:1C55"
 
 [[var]]
 name = "battle_graphics_object"
@@ -8263,7 +8299,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Low byte of the length of one facing's part of the object's frame lists (the gap to the next $E4:2600 entry / 4), multiplied by the facing"
-source = "game/battle/setup.c load_party_graphics and setup_enemy; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E98)"
+source = "game/battle/setup_party.c setup_party_objects and setup_enemies.c set_up_enemy; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E98)"
 
 [[var]]
 name = "battle_facing_stride_high"
@@ -8272,7 +8308,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "High byte of battle_facing_stride_low's length"
-source = "game/battle/setup.c load_party_graphics and setup_enemy; game/battle/animation.c"
+source = "game/battle/setup_party.c setup_party_objects and setup_enemies.c set_up_enemy; game/battle/animation.c"
 
 [[var]]
 name = "battle_party_frame_delay"
@@ -8300,7 +8336,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Frames until the enemy's next animation frame"
-source = "game/battle/animation.c header and step_enemy $C1:3351; game/battle/setup.c reset_battle_tables"
+source = "game/battle/animation.c header and step_enemy $C1:3351; game/battle/setup_reset.c setup_reset_for_new_fight"
 
 [[var]]
 name = "battle_enemy_frame"
@@ -8318,7 +8354,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Direction the object faces, selecting the facing's part of its frame lists"
-source = "game/battle/animation.c face_target $C1:2F22 and party frames; game/battle/setup.c place_party_objects, setup_enemy"
+source = "game/battle/animation.c face_target $C1:2F22 and party frames; game/battle/setup_party.c setup_party_objects, setup_enemies.c set_up_enemy"
 
 [[var]]
 name = "battle_object_facing_loaded"
@@ -8447,8 +8483,8 @@ source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
 name = "battle_fight_flags"
 addr = "7E:A0A7"
 subsystem = "battle"
-meaning = "Flags the fight sets at its start (bit 1 from bit 1 of $7F:00BA, inverted, $CF:FBDE; more ORed in at $CC:ECAA); bit 0 changes the menu's first command ($C1:12BC), and any set keeps the status poses that take the combatant's stance from being chosen"
-source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
+meaning = "Flags the fight sets at its start (bit 1 from bit 1 of $7F:00BA, inverted, $CF:FBDE; bit 0 ORed in at the battle's start when an enemy in it keeps the party from running away, $CC:ECAA); bit 0 changes the menu's first command ($C1:12BC), and any set keeps the status poses that take the combatant's stance from being chosen"
+source = "game/battle/animation.c battle_choose_status_pose $C1:2F97; game/battle/setup_enemies.c take_rules in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_combatant_down"
@@ -8500,7 +8536,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Object's sprite palette (times 2, the attribute bits; party $0A, $0C, $0E)"
-source = "game/battle/setup.c load_palettes, setup_enemy; game/battle/draw_objects.c draw_combatant $CF:EAC5 ($9930 + object); game/battle/object_motion.c cycle_party_colors $CF:E7D7"
+source = "game/battle/setup_screen.c setup_colors, setup_enemies.c set_up_enemy; game/battle/draw_objects.c draw_combatant $CF:EAC5 ($9930 + object); game/battle/object_motion.c cycle_party_colors $CF:E7D7"
 
 [[var]]
 name = "battle_object_palette_initial"
@@ -8509,7 +8545,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "The palette each object starts with (as battle_object_palette); enemies' sprite entries at $11B0 take theirs from it"
-source = "game/battle/setup.c load_palettes, setup_enemy, fill_enemy_rows"
+source = "game/battle/setup_screen.c setup_colors, setup_enemies.c set_up_enemy, setup_screen.c setup_enemy_sprite_attributes"
 
 [[var]]
 name = "battle_object_attribute_bits"
@@ -8518,7 +8554,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Attribute bits ORed with the palette into the object's sprites"
-source = "game/battle/draw_objects.c draw_combatant $CF:EAC5 ($99A9 + object); game/battle/setup.c reset_battle_tables"
+source = "game/battle/draw_objects.c draw_combatant $CF:EAC5 ($99A9 + object); game/battle/setup_reset.c setup_reset_for_new_fight"
 
 [[var]]
 name = "battle_sprite_attributes"
@@ -8561,7 +8597,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set to skip drawing the object's parts and shadow; enemies start with bit 7 of their placement kind, and hidden ones aren't counted among the enemy kinds"
-source = "game/battle/draw_objects.c draw_combatant $CF:EAC5, draw_shadow $CF:EA8A ($9FEB + object); game/battle/setup.c setup_enemy, count_enemy_kinds ($9FFA + enemy)"
+source = "game/battle/draw_objects.c draw_combatant $CF:EAC5, draw_shadow $CF:EA8A ($9FEB + object); game/battle/setup_enemies.c set_up_enemy, setup_enemies.c count_kinds ($9FFA + enemy)"
 
 [[var]]
 name = "battle_object_extra_draw_on"
@@ -8570,7 +8606,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set when the object gets a topmost draw-list entry as well ($80 for enemies with flag bit 7 of $E4:F604)"
-source = "game/battle/draw_objects.c draw_objects $CF:E83A ($A5C1 + object); game/battle/setup.c setup_enemy ($A5D0 + enemy)"
+source = "game/battle/draw_objects.c draw_objects $CF:E83A ($A5C1 + object); game/battle/setup_enemies.c set_up_enemy ($A5D0 + enemy)"
 
 [[var]]
 name = "battle_object_shadow"
@@ -8579,7 +8615,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Set when the object has a shadow sprite (cleared for enemies at setup)"
-source = "game/battle/draw_objects.c draw_shadow $CF:EA8A ($A5CC + object); game/battle/setup.c setup_enemy ($A5DB + enemy)"
+source = "game/battle/draw_objects.c draw_shadow $CF:EA8A ($A5CC + object); game/battle/setup_enemies.c set_up_enemy ($A5DB + enemy)"
 
 [[var]]
 name = "battle_sprite_offset_x"
@@ -8604,18 +8640,20 @@ name = "battle_cursor_offset_x"
 addr = "7E:9708"
 count = 11
 index = "battle slot"
+unchecked = "the menu's cursors point at the combatant a target entry names, whatever it holds (game/battle/window.h combatant_cursor_x, $C1:17DD)"
 subsystem = "battle"
 meaning = "Offset of the menu cursor from the object's X position (plus 16)"
-source = "game/battle/menu_window.c place_at_object; game/battle/setup.c reset_battle_tables, setup_enemy (from $E4:F605)"
+source = "game/battle/menu_window.c place_at_object; game/battle/setup_reset.c setup_reset_for_new_fight, setup_enemies.c set_up_enemy (from $E4:F605)"
 
 [[var]]
 name = "battle_cursor_offset_y"
 addr = "7E:9713"
 count = 11
 index = "battle slot"
+unchecked = "the menu's cursors point at the combatant a target entry names, whatever it holds (game/battle/window.h combatant_cursor_x, $C1:17DD)"
 subsystem = "battle"
 meaning = "Offset of the menu cursor from the object's Y position"
-source = "game/battle/menu_window.c place_at_object; game/battle/setup.c reset_battle_tables, setup_enemy (from $E4:F606)"
+source = "game/battle/menu_window.c place_at_object; game/battle/setup_reset.c setup_reset_for_new_fight, setup_enemies.c set_up_enemy (from $E4:F606)"
 
 [[var]]
 name = "battle_object_half_width"
@@ -8624,7 +8662,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Half the object's width, for its screen bounds"
-source = "game/battle/objects.c battle_update_object_bounds $C1:285A; game/battle/setup.c reset_battle_tables (8 for the party), setup_enemy (from $E4:F607)"
+source = "game/battle/objects.c battle_update_object_bounds $C1:285A; game/battle/setup_reset.c setup_reset_for_new_fight (8 for the party), setup_enemies.c set_up_enemy (from $E4:F607)"
 
 [[var]]
 name = "battle_object_half_height"
@@ -8633,7 +8671,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Half the object's height, for its screen bounds"
-source = "game/battle/objects.c battle_update_object_bounds $C1:285A; game/battle/setup.c reset_battle_tables, setup_enemy (from $E4:F608)"
+source = "game/battle/objects.c battle_update_object_bounds $C1:285A; game/battle/setup_reset.c setup_reset_for_new_fight, setup_enemies.c set_up_enemy (from $E4:F608)"
 
 [[var]]
 name = "battle_bounds_left"
@@ -8697,7 +8735,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Each enemy's number (its entry in the enemy tables at $E4:F600 and $CC:6500)"
-source = "game/battle/setup.c setup_enemy, scan_enemy_specials, count_enemy_kinds in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_enemies.c set_up_enemy, setup_enemies.c take_rules, setup_enemies.c count_kinds in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_enemy_flags"
@@ -8706,7 +8744,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "The enemy's flags from $E4:F604 (bit 7 extra draw entry, bit 5, bit 3, bit 2)"
-source = "game/battle/setup.c setup_enemy in battle_setup_state $CC:E2E4"
+source = "game/battle/setup_enemies.c set_up_enemy in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_enemy_kind_counts"
@@ -8715,17 +8753,17 @@ count = 3
 index = "enemy kind"
 subsystem = "battle"
 meaning = "How many enemies of each distinct kind are present; the window lists a kind's name while nonzero"
-source = "game/battle/setup.c count_enemy_kinds in battle_setup_state $CC:E2E4; game/battle/window.c battle_draw_window $C1:0299"
+source = "game/battle/setup_enemies.c count_kinds in battle_setup_state $CC:E2E4; game/battle/window.c battle_draw_window $C1:0299"
 
 [[var]]
 name = "battle_enemy_kinds"
 addr = "7E:98FF"
 size = 2
-count = 3
+count = 4
 index = "enemy kind"
 subsystem = "battle"
-meaning = "The distinct enemy numbers present (high byte negative: none)"
-source = "game/battle/setup.c count_enemy_kinds and convert_enemy_names in battle_setup_state $CC:E2E4"
+meaning = "The distinct enemy numbers present (high byte negative: none); the window lists the first three, and the fourth is only ever cleared at the start"
+source = "game/battle/setup_enemies.c count_kinds and setup_names.c setup_enemy_name_to_convert in battle_setup_state $CC:E2E4"
 
 [[var]]
 name = "battle_enemy_name_tiles"
@@ -8734,14 +8772,311 @@ count = 72
 index = "enemy kind * 24 + byte (two rows of 12 tiles)"
 subsystem = "battle"
 meaning = "The enemy kinds' names as window tiles"
-source = "game/battle/setup.c convert_enemy_names in battle_setup_state $CC:E2E4; game/battle/window.c battle_draw_window $C1:0299"
+source = "game/battle/setup_names.c setup_enemy_name_to_convert in battle_setup_state $CC:E2E4; game/battle/window.c battle_draw_window $C1:0299"
+
+# ---- the battle's start (game/battle/setup*.c) ----------------------------------
+
+[[var]]
+name = "battle_start_mark"
+addr = "7E:00E4"
+page = "battle"
+subsystem = "battle"
+meaning = "Set to $40 as the battle is set up; what reads it isn't known yet"
+source = "game/battle/setup_reset.c setup_reset_for_new_fight $CC:E2E4"
+
+[[var]]
+name = "battle_draw_work"
+addr = "7E:1D50"
+page = "battle_sprites"
+count = 35
+index = "byte"
+subsystem = "battle"
+meaning = "The sprite drawers' page's working bytes between the objects' extra draw marks and their part counts; cleared at the battle's start, what each is isn't worked out yet"
+source = "game/battle/setup_reset.c clear_drawing in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_draw_list_work"
+addr = "7E:1DB8"
+page = "battle_sprites"
+count = 11
+index = "byte"
+subsystem = "battle"
+meaning = "The sprite drawers' page's working bytes after the draw list; cleared at the battle's start, what each is isn't worked out yet"
+source = "game/battle/setup_reset.c clear_drawing in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_draw_page_work"
+addr = "7E:1DCF"
+page = "battle_sprites"
+count = 49
+index = "byte"
+subsystem = "battle"
+meaning = "The rest of the sprite drawers' page; cleared at the battle's start, what each byte is isn't worked out yet"
+source = "game/battle/setup_reset.c clear_drawing in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_location_upper_attributes"
+addr = "7E:2A23"
+count = 256
+index = "battlefield cell (row * 16 + column)"
+subsystem = "battle"
+meaning = "The field map's upper tile attributes under the battlefield, a byte a cell, copied as the battle starts ($C0:039B): bit 7 goes into the battlefield grid"
+source = "game/battle/setup_screen.c setup_base_grid $CC:E466; $C0:039B"
+
+[[var]]
+name = "battle_location_lower_attributes"
+addr = "7E:2B23"
+count = 256
+index = "battlefield cell (row * 16 + column)"
+subsystem = "battle"
+meaning = "The field map's lower tile attributes under the battlefield, a byte a cell, copied as the battle starts ($C0:039B): bit 7 (the tile blocks a move) makes the grid's cell blocked"
+source = "game/battle/setup_screen.c setup_base_grid $CC:E466; $C0:039B"
+
+[[var]]
+name = "battle_remembered_cursors"
+addr = "7E:2C7C"
+count = 7
+stride = 4
+index = "character"
+subsystem = "battle"
+meaning = "Where each character's battle menu cursors were left, kept in the saved game for the settings that remember them (game_settings)"
+source = "game/battle/setup_party.c setup_remembered_cursors $CC:E8D2; $CF:FC77 keeps them at the battle's end"
+  [[var.field]]
+  name = "command"
+  offset = 0
+  meaning = "The command cursor"
+  [[var.field]]
+  name = "tech_scroll"
+  offset = 1
+  meaning = "The tech list's scroll"
+  [[var.field]]
+  name = "tech_row"
+  offset = 2
+  meaning = "The tech list cursor's row"
+  [[var.field]]
+  name = "tech"
+  offset = 3
+  meaning = "The tech under the tech list cursor"
+
+[[var]]
+name = "battle_menu_mark"
+addr = "7E:95D2"
+subsystem = "battle"
+meaning = "Set to $FF at the battle's start; what reads it isn't known yet"
+source = "game/battle/setup_reset.c close_the_menus in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_menu_queue"
+addr = "7E:95D6"
+count = 4
+index = "place in the queue"
+subsystem = "battle"
+meaning = "The party members whose command menus wait to open after battle_menu_member's, in order ($FF past them); $C1:1B67 moves them up"
+source = "game/battle/setup_reset.c close_the_menus in battle_setup_state $CC:E2E4; $C1:1B19, $C1:1B67"
+
+[[var]]
+name = "battle_start_positions"
+addr = "7E:96A4"
+count = 11
+stride = 5
+index = "battle slot"
+subsystem = "battle"
+meaning = "Where each combatant stood as the battle started, and the frame it started on: the party's placements, then the first five bytes of the enemies' records"
+source = "game/battle/setup_party.c setup_party_objects and setup_place_combatant, game/battle/setup_enemies.c keep_start_positions in battle_setup_state $CC:E2E4"
+  [[var.field]]
+  name = "tile_x"
+  offset = 0
+  meaning = "X in 16-pixel tiles"
+  [[var.field]]
+  name = "tile_y"
+  offset = 1
+  meaning = "Y in 16-pixel tiles"
+  [[var.field]]
+  name = "x_offset"
+  offset = 2
+  meaning = "X offset within the tile"
+  [[var.field]]
+  name = "y_offset"
+  offset = 3
+  meaning = "Y offset within the tile"
+  [[var.field]]
+  name = "frame"
+  offset = 4
+  meaning = "The frame its object starts on"
+
+[[var]]
+name = "battle_effect_period_start"
+addr = "7E:973F"
+count = 3
+index = "party slot"
+subsystem = "battle"
+meaning = "The effect period (battle_effect_period) a party member's effects start from when an action begins ($C1:4F1A reads it by battle slot: an enemy's is its orbit period, battle_orbit_period, which follows); 1"
+source = "game/battle/setup_reset.c rest_the_objects in battle_setup_state $CC:E2E4; $C1:4F1A"
+
+[[var]]
+name = "battle_number_marks"
+addr = "7E:9842"
+count = 16
+index = "byte"
+subsystem = "battle"
+meaning = "The bytes before battle_enemy_numbers: set to $FF at the start and the last to 0. The last six are the party's words when a combatant's number is read by battle slot ($C1:19E5); what reads the first ten isn't known yet"
+source = "game/battle/setup_reset.c rest_the_enemies in battle_setup_state $CC:E2E4; $C1:19E5"
+
+[[var]]
+name = "battle_effect_steps_start"
+addr = "7E:98BF"
+count = 3
+index = "party slot"
+subsystem = "battle"
+meaning = "The effect steps (battle_effect_steps) a party member's effects start from when an action begins ($C1:4F1A reads it by battle slot: an enemy's is its orbit's radius step, battle_orbit_radius_step, which follows); 2"
+source = "game/battle/setup_reset.c rest_the_objects in battle_setup_state $CC:E2E4; $C1:4F1A"
+
+[[var]]
+name = "battle_remembered_command"
+addr = "7E:9916"
+count = 3
+index = "party slot"
+subsystem = "battle"
+meaning = "Each member's command cursor as the battle remembers it (from and back to battle_remembered_cursors while the setting is on)"
+source = "game/battle/setup_party.c setup_remembered_cursors $CC:E8D2; $C1:16A8; $CF:FC77"
+
+[[var]]
+name = "battle_list_cursors_shown"
+addr = "7E:9919"
+count = 6
+index = "byte"
+subsystem = "battle"
+meaning = "The six bytes before battle_item_cursor_shown, set to $FF with it at the start; what reads them isn't known yet"
+source = "game/battle/setup_reset.c close_the_menus in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_enemy_rule"
+addr = "7E:99D2"
+subsystem = "battle"
+meaning = "A rule an enemy in the fight brings into the battle (the enemies' rules at $E1:DE00), with its parameter in the next byte (battle_background_cycle for the color cycles); 0 none"
+source = "game/battle/setup_enemies.c take_rules in battle_setup_state $CC:E2E4; $CD:0052, $CD:0B1E, $C1:5DDC"
+
+[[var]]
+name = "battle_action_queue_end"
+addr = "7E:99D7"
+subsystem = "battle"
+meaning = "The byte after battle_action_queue, $FF at the start; what reads it isn't known yet"
+source = "game/battle/setup_reset.c close_the_menus in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_next_enemy_checked"
+addr = "7E:99D9"
+subsystem = "battle"
+meaning = "The battle slot of the enemy $C1:305C looks at next, going round the enemies from 3"
+source = "game/battle/setup_reset.c rest_the_enemies in battle_setup_state $CC:E2E4; $C1:305C"
+
+[[var]]
+name = "battle_lists_hold_timers"
+addr = "7E:99E1"
+subsystem = "battle"
+meaning = "Nonzero ($40) in wait mode: opening a tech or item list holds the combatants' timers (it is copied into battle_timers_held)"
+source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4; $C1:1172"
+
+[[var]]
+name = "battle_menu_list_attributes"
+addr = "7E:99E4"
+count = 0x280
+stride = 2
+index = "tile"
+subsystem = "battle"
+meaning = "The attributes of battle_menu_list_tiles' tiles, the second byte of each pair"
+source = "game/battle/setup_screen.c setup_tilemaps in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_attribute_bits_start"
+addr = "7E:9F3B"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "The attribute bits a combatant's sprites go back to (battle_object_attribute_bits, $C1:7592)"
+source = "game/battle/setup_reset.c rest_the_objects in battle_setup_state $CC:E2E4; $C1:7592"
+
+[[var]]
+name = "battle_rule_applies"
+addr = "7E:A08C"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Nonzero for an enemy the battle's rule (battle_enemy_rule) applies to: flag bit 2 of its header"
+source = "game/battle/setup_enemies.c take_flags in battle_setup_state $CC:E2E4; $C1:5DF3, $CD:0066"
+
+[[var]]
+name = "battle_remembers_commands"
+addr = "7E:A0D4"
+subsystem = "battle"
+meaning = "Nonzero ($40) when the settings have the battle remember each member's command cursor"
+source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4; $C1:118F, $CF:FC7F"
+
+[[var]]
+name = "battle_remembers_lists"
+addr = "7E:A0D5"
+subsystem = "battle"
+meaning = "Nonzero ($80) when the settings have the battle remember each member's tech list and the item list cursors"
+source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4; $C1:163B, $CF:FC8A"
+
+[[var]]
+name = "battle_remembered_tech"
+addr = "7E:A0D8"
+count = 3
+index = "party slot"
+subsystem = "battle"
+meaning = "The tech under each member's tech list cursor as the battle remembers it"
+source = "game/battle/setup_party.c setup_remembered_cursors $CC:E8D2; $C1:1653; $CF:FC9B"
+
+[[var]]
+name = "battle_slot_draw_bits"
+addr = "7E:A5C2"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "$C0 for every combatant at the start, $80 for an enemy drawn on top (flag bit 7 of its header); what reads it isn't known yet"
+source = "game/battle/setup_reset.c rest_the_objects, game/battle/setup_enemies.c take_flags in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_menu_slot_mark"
+addr = "7E:A6DC"
+subsystem = "battle"
+meaning = "The byte after battle_menu_slot_members, $FF at the start; what reads it isn't known yet"
+source = "game/battle/setup_reset.c close_the_menus in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_remembered_tech_row"
+addr = "7E:A863"
+count = 3
+index = "party slot"
+subsystem = "battle"
+meaning = "Each member's tech list cursor row as the battle remembers it"
+source = "game/battle/setup_party.c setup_remembered_cursors $CC:E8D2; $C1:138F, $C1:1638"
+
+[[var]]
+name = "battle_remembered_tech_scroll"
+addr = "7E:A866"
+count = 3
+index = "party slot"
+subsystem = "battle"
+meaning = "Each member's tech list scroll as the battle remembers it"
+source = "game/battle/setup_party.c setup_remembered_cursors $CC:E8D2; $C1:138F, $C1:1638"
+
+[[var]]
+name = "battle_effect_attribute_bits_start"
+addr = "7E:AB57"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "The attribute bits an enemy's effects' sprites go back to (battle_effect_attribute_bits, $C1:75AD)"
+source = "game/battle/setup_reset.c rest_the_enemies in battle_setup_state $CC:E2E4; $C1:75AD"
 
 [[var]]
 name = "battle_graphics_load_step"
 addr = "7E:98CA"
 subsystem = "battle"
 meaning = "Which step of loading the battle's graphics into VRAM runs next (0 none yet, 1-3; setup waits for it to reach 4)"
-source = "game/battle/display.c battle_load_graphics $CC:E000; game/battle/setup.c set_upload_descriptors; game/battle/wait.c battle_wait_setup_counter_loop $CC:F05B"
+source = "game/battle/display.c battle_load_graphics $CC:E000; game/battle/setup_screen.c setup_uploads; game/battle/wait.c battle_wait_setup_counter_loop $CC:F05B"
 
 # ---- graphics uploads ------------------------------------------------------------
 
@@ -8753,7 +9088,7 @@ count = 22
 index = "upload * 11 + battle slot"
 subsystem = "battle"
 meaning = "Source address (bank $7E) of each object's two graphics uploads"
-source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
+source = "game/battle/setup_screen.c setup_uploads in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_upload_vram_address"
@@ -8763,7 +9098,7 @@ count = 22
 index = "upload * 11 + battle slot"
 subsystem = "battle"
 meaning = "VRAM word address of each object's two graphics uploads"
-source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
+source = "game/battle/setup_screen.c setup_uploads in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_upload_size"
@@ -8773,7 +9108,7 @@ count = 22
 index = "upload * 11 + battle slot"
 subsystem = "battle"
 meaning = "Size in bytes of each object's two graphics uploads"
-source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
+source = "game/battle/setup_screen.c setup_uploads in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_graphics_upload_request"
@@ -8999,7 +9334,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Added to the radius at each orbit step"
-source = "game/battle/effect_paths.c step_drifts $CF:F978; game/battle/setup.c setup_enemy (low bits of $E4:F609)"
+source = "game/battle/effect_paths.c step_drifts $CF:F978; game/battle/setup_enemies.c set_up_enemy (low bits of $E4:F609)"
 
 [[var]]
 name = "battle_orbit_period"
@@ -9008,7 +9343,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Frames between orbit steps"
-source = "game/battle/effect_paths.c step_drifts $CF:F978; game/battle/setup.c setup_enemy (high nibble of $E4:F609)"
+source = "game/battle/effect_paths.c step_drifts $CF:F978; game/battle/setup_enemies.c set_up_enemy (high nibble of $E4:F609)"
 
 [[var]]
 name = "battle_orbit_angle"
@@ -9026,7 +9361,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Frames until the next orbit step"
-source = "game/battle/effect_paths.c step_drifts $CF:F978; game/battle/setup.c setup_enemy"
+source = "game/battle/effect_paths.c step_drifts $CF:F978; game/battle/setup_enemies.c set_up_enemy"
 
 [[var]]
 name = "battle_enemy_effect_delay"
@@ -9035,7 +9370,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Frames until the enemy's per-frame effect handler runs"
-source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup.c setup_enemy"
+source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup_enemies.c set_up_enemy"
 
 [[var]]
 name = "battle_enemy_effect_period"
@@ -9044,7 +9379,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Reload of battle_enemy_effect_delay"
-source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup.c setup_enemy (from $CC:F544)"
+source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup_enemies.c set_up_enemy (from $CC:F544)"
 
 [[var]]
 name = "battle_effect_active"
@@ -9159,6 +9494,7 @@ name = "battle_marker_frame"
 addr = "7E:A4DB"
 count = 11
 index = "battle slot"
+unchecked = "the frame each combatant's object starts with is kept a byte on, in the same bytes, and the last enemy's is the byte past the markers (game/battle/setup_party.c set_start_frame)"
 subsystem = "battle"
 meaning = "The marker's frame, 0-3"
 source = "game/battle/draw_objects.c draw_marker in draw_in_front $CF:EDB8"
@@ -9270,7 +9606,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Nonzero for a combatant whose numbers show at its cursor point (its object's position plus battle_cursor_offset_x and _y) rather than at its object's position"
-source = "game/battle/numbers.c number_position in battle_script_build_number_sprites $C1:5ADB"
+source = "game/battle/numbers.c number_position in battle_script_build_number_sprites $C1:5ADB; game/battle/setup_enemies.c take_flags in battle_setup_state $CC:E2E4 (counted up for an enemy with flag bit 5 of its header)"
 
 [[var]]
 name = "battle_number_colors"
@@ -9280,7 +9616,7 @@ count = 8
 index = "color: the first four of sprite palette 0, then of sprite palette 4"
 subsystem = "battle"
 meaning = "The number sprites' colors, loaded at setup; each number command puts them back in the working palette"
-source = "game/battle/setup.c battle_setup_graphics ($CC:EF09); game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB"
+source = "game/battle/setup_screen.c setup_cursor_sprites_and_colors in battle_setup_graphics ($CC:EF09); game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB"
 
 [[var]]
 name = "battle_palette_anim_on"
@@ -11081,7 +11417,7 @@ name = "battle_formation"
 addr = "7E:AA63"
 subsystem = "battle"
 meaning = "Nonzero while an enemy formation places its members each frame ($CF:F9D3)"
-source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/setup.c setup_enemy"
+source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/setup_enemies.c set_up_enemy"
 
 [[var]]
 name = "battle_sprites_frozen"
@@ -11120,7 +11456,7 @@ count = 0x200
 index = "OAM buffer offset"
 subsystem = "battle"
 meaning = "For each OAM buffer byte offset, the bit of its sprite's X high bit in its high-table byte"
-source = "game/battle/draw_objects.c set_x_ninth_bit; game/battle/setup.c fill_cell_tables"
+source = "game/battle/draw_objects.c set_x_ninth_bit; game/battle/setup_screen.c setup_sprite_tables"
 
 [[var]]
 name = "battle_draw_scratch"

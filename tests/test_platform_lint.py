@@ -20,8 +20,6 @@ GAME = ROOT / "game"
 # converted; the test fails if a listed file no longer has register constants.
 UNCONVERTED = {
     "attract/main_loop.c",   # $4212 polls in RAM wait loops
-    "battle/main_loop.c",    # the debug path's second controller
-    "battle/wait.c",         # $4212 and counter polls in idle entries
 }
 
 # Uses of the SNES-only escapes, per file.

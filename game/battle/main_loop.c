@@ -1002,13 +1002,13 @@ static bool after_action(Snes *s, bool skip_to_end)
         for (unsigned i = 0; i < BATTLE_COMBATANTS; i++)
             set_battle_reaction_targets(g, i, battle_action_targets(g, i));
         set_battle_last_actor(g, battle_actor(g));
-        if (!battle_call(s, 0xC1863D, AFTER_ACTION, READS_NOTHING))
+        if (!battle_call(s, 0xC1863D, AFTER_ACTION, READS_OVERFLOW))
             return false;
         uint8_t actor = battle_last_actor(g);
         if (!follow_up(s, actor))
             return false;
     }
-    if (!battle_call(s, 0xC1881C, FINISH_BEATEN, READS_NOTHING))
+    if (!battle_call(s, 0xC1881C, FINISH_BEATEN, READS_OVERFLOW))
         return false;
     set_battle_action_hit_enemy(g, false);
     if (!battle_party_defeated(g) && !battle_call(s, 0xC18826, START_ENEMY_SCRIPTS, READS_Y))

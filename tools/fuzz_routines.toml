@@ -7578,3 +7578,44 @@ subsystem = "core"
 state = "menus"
 args = []
 why = "any state: the clock sets its own direct page"
+
+# -- setup: the battle's start (battle/setup*.c)
+
+[[routine]]
+name = "battle_setup_state"
+at = "CC:E2E4"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E2980-7E2982=00-06", "--fill", "7E96F8-7E96FF=00-00",
+        "--fill", "7EAA63-7EAA63=00-00", "--fill", "7E2C7C-7E2C97=00-09",
+        "--fill", "7E29C5-7E29C5=00-00", "--fill", "7E29D1-7E29D1=00-00", "--fill", "7E29DD-7E29DD=00-00",
+        "--fill", "7E29E9-7E29E9=80-FF", "--fill", "7E29F5-7E29F5=80-FF", "--fill", "7E2A01-7E2A01=80-FF",
+        "--fill", "7E2A0D-7E2A0D=80-FF", "--fill", "7E2A19-7E2A19=80-FF"]
+why = "what the guard takes (battle_setup_inputs_are_real): a party of characters 0-6, the enemy slots empty before the setup fills them, no formation left over, remembered cursors within the lists, and three enemy records filled (any numbers) with the rest empty, so at most three kinds"
+
+[[routine]]
+name = "battle_setup_state"
+variant = "loose"
+at = "CC:E2E4"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--keep", "7E29BF-7E2A1E", "--fill", "7E96F8-7E96FF=00-00",
+        "--fill", "7EAA63-7EAA63=00-00"]
+why = "the party, the settings and the remembered cursors free (the guard turns away what the game never makes), the enemy records as the base state's battle has them (kinds that repeat)"
+
+[[routine]]
+name = "battle_setup_graphics"
+at = "CC:ED87"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E967C-7E9684=00-02", "--fill", "7E9685-7E9686=00-00"]
+why = "combatants whose extra parts fit their slots, as the guard takes (battle_setup_parts_fit); it stops at the wait for the load steps"
+
+[[routine]]
+name = "battle_setup_graphics"
+variant = "loose"
+at = "CC:ED87"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E967C-7E9681=00-FF", "--fill", "7E9682-7E9686=00-00"]
+why = "any graphics kind in the first six slots, whose parts (up to five more) still end within the slots; the guard turns away the states where they wouldn't"
