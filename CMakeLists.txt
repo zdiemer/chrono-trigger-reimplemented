@@ -155,7 +155,6 @@ add_library(ct_game STATIC
   game/battle/battlefield.c
   game/battle/bridge.c
   game/battle/buttons.c
-  game/battle/buffers.c
   game/battle/combatants.c
   game/battle/damage.c
   game/battle/digits.c
@@ -168,6 +167,7 @@ add_library(ct_game STATIC
   game/battle/nmi.c
   game/battle/numbers.c
   game/battle/objects.c
+  game/battle/reset.c
   game/battle/screen_beam.c
   game/battle/screen_gradient.c
   game/battle/screen_graphics.c

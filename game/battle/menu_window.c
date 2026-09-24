@@ -414,9 +414,12 @@ static bool show_command_page(Snes *s, GameState *g)
             carry = false;
         }
     }
-    m_set_flag(s, CPU_FLAG_C, carry);
-    if (menu_nobody(battle_menu_member(g)))
+    /* the frames' reset ends on a compare that leaves the carry set */
+    if (menu_nobody(battle_menu_member(g))) {
         NATIVE_TIME_AS(s, 0xC11C3A, reset_frames(g));
+        carry = true;
+    }
+    m_set_flag(s, CPU_FLAG_C, carry);
     if (!battle_call_long(s, 0xC10C79, 0xCFFD02, CALLEE_READS_NOTHING))
         return false;
     request_frames_upload(g);

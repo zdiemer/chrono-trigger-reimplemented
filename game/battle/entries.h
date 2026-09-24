@@ -15,7 +15,7 @@ void battle_wait_window_slide_loop(Snes *s);
 void battle_irq_wait_hblank_loop(Snes *s);
 void battle_wait_graphics_loaded_loop(Snes *s);
 
-/* battle/buffers.c */
+/* battle/sprite_table.c, battlefield.c, menu_window.c, damage.c, reset.c */
 void battle_clear_oam_buffer(Snes *s);
 void battle_mark_object_grid(Snes *s);
 void battle_reset_window_frames(Snes *s);

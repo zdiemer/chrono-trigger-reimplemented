@@ -2448,9 +2448,25 @@
 #define RAM_BATTLE_EFFECT_SPRITE_DATA 0x7E4500u
 #define RAM_BATTLE_EFFECT_SPRITE_DATA_COUNT 6272u
 #define RAM_BATTLE_EFFECT_SPRITE_DATA_STRIDE 0x01u
+/* The animation scripts' variables, which their commands set, count up and down, add to and
+ * compare by number ($C1:58F3, $C1:5935, $C1:5731) [27 x $1 bytes, by variable, by the number a
+ * command names] */
+#define RAM_BATTLE_SCRIPT_VARIABLES 0x7E5D80u
+#define RAM_BATTLE_SCRIPT_VARIABLES_COUNT 27u
+#define RAM_BATTLE_SCRIPT_VARIABLES_STRIDE 0x01u
 /* Set while the screen script channels run; cleared when both have ended. The HP gradient waits
  * for it */
 #define RAM_BATTLE_SCREEN_SCRIPTS_RUNNING 0x7E5D9Bu
+/* Two more of the scripts' values, each with commands of its own that set it and compare it
+ * ($C1:5901, $C1:590F, $C1:5746, $C1:5759) [2 x $1 bytes, by mark] */
+#define RAM_BATTLE_SCRIPT_MARKS 0x7E5D9Cu
+#define RAM_BATTLE_SCRIPT_MARKS_COUNT 2u
+#define RAM_BATTLE_SCRIPT_MARKS_STRIDE 0x01u
+/* A point a script command takes from a position mode ($C1:591D, from battle_position_found_x
+ * and _y) for the commands after it [2 bytes] */
+#define RAM_BATTLE_SCRIPT_POINT 0x7E5D9Eu
+#define RAM_BATTLE_SCRIPT_POINT_X 0x7E5D9Eu  /* X */
+#define RAM_BATTLE_SCRIPT_POINT_Y 0x7E5D9Fu  /* Y */
 /* Positions computed for the six animation slots with a position mode [6 x $2 bytes, by
  * animation slot] */
 #define RAM_BATTLE_ANIMATION_POSITIONS 0x7E5DA0u
@@ -2460,6 +2476,12 @@
 #define RAM_BATTLE_SCRIPT_RUNNING 0x7E5DACu
 #define RAM_BATTLE_SCRIPT_RUNNING_COUNT 16u
 #define RAM_BATTLE_SCRIPT_RUNNING_STRIDE 0x01u
+/* The byte before each channel's pointer (battle_script_pointers), and the one after the last,
+ * which only the objects' reset writes [17 x $4 bytes, by script channel (16: the byte after the
+ * last pointer)] */
+#define RAM_BATTLE_SCRIPT_POINTER_PADS 0x7E5DBCu
+#define RAM_BATTLE_SCRIPT_POINTER_PADS_COUNT 17u
+#define RAM_BATTLE_SCRIPT_POINTER_PADS_STRIDE 0x04u
 /* Each animation script channel's program pointer (24-bit) [16 x $4 bytes, by script channel] */
 #define RAM_BATTLE_SCRIPT_POINTERS 0x7E5DBDu
 #define RAM_BATTLE_SCRIPT_POINTERS_COUNT 16u
@@ -2771,6 +2793,9 @@
 #define RAM_BATTLE_TARGET_SEARCHER 0x7E986Fu
 /* The combatant $C1:2986's search found (battle slot) */
 #define RAM_BATTLE_TARGET_FOUND 0x7E9873u
+/* Counted up by a script command ($C1:4D00) for the battle's code waiting on the scripts
+ * ($C1:40CE) */
+#define RAM_BATTLE_SCRIPT_SIGNAL 0x7E9876u
 /* Offset in bank $CD of the effect's palette animation frames (two bytes a frame: the color set
  * and where it goes) [2 bytes] */
 #define RAM_BATTLE_PALETTE_ANIM_FRAMES 0x7E9882u
@@ -2980,6 +3005,12 @@
 #define RAM_BATTLE_GRAPHICS_UPLOAD_REQUEST 0x7EA012u
 /* Set while the timed effect slots run; the enemies' orbits run instead otherwise */
 #define RAM_BATTLE_EFFECTS_RUNNING 0x7EA013u
+/* The combatant each animation script channel animates, which its commands act on ($FF: none;
+ * channel 0's is set at the battle's start from $AE91, $CC:F165) [11 x $1 bytes, by script
+ * channel] */
+#define RAM_BATTLE_SCRIPT_SUBJECTS 0x7EA014u
+#define RAM_BATTLE_SCRIPT_SUBJECTS_COUNT 11u
+#define RAM_BATTLE_SCRIPT_SUBJECTS_STRIDE 0x01u
 /* Nonzero to leave the OAM buffer as it is: it is neither cleared nor drawn into */
 #define RAM_BATTLE_SPRITES_FROZEN 0x7EA028u
 /* Set while main code uses the hardware divider, so the interrupt handlers restore its operands
@@ -3097,10 +3128,24 @@
 #define RAM_BATTLE_ANIMATION_DELAY 0x7EA12Fu
 #define RAM_BATTLE_ANIMATION_DELAY_COUNT 11u
 #define RAM_BATTLE_ANIMATION_DELAY_STRIDE 0x01u
+/* Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0,
+ * $C1:4E37, $C1:4EB7); what each holds past that isn't worked out [33 x $1 bytes, by cell * 11 +
+ * battle slot: the frames an animation has run ($A13A), and the marks two of the scripts' waits
+ * for an animation set while they wait ($A145, $A150)] */
+#define RAM_BATTLE_ANIMATION_WAIT_CELLS 0x7EA13Au
+#define RAM_BATTLE_ANIMATION_WAIT_CELLS_COUNT 33u
+#define RAM_BATTLE_ANIMATION_WAIT_CELLS_STRIDE 0x01u
 /* Set while the object moves along a scripted path [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PATH_ACTIVE 0x7EA15Bu
 #define RAM_BATTLE_PATH_ACTIVE_COUNT 11u
 #define RAM_BATTLE_PATH_ACTIVE_STRIDE 0x01u
+/* Per-combatant cells of the script commands that keep state over frames; what each is for past
+ * that isn't worked out [44 x $1 bytes, by cell * 11 + battle slot: a count ($A166, $C1:546E),
+ * an unused row ($A171), a countdown ($A17C) and a toggle ($A187) of the blinking command at
+ * $C1:5F35] */
+#define RAM_BATTLE_SCRIPT_COMMAND_CELLS 0x7EA166u
+#define RAM_BATTLE_SCRIPT_COMMAND_CELLS_COUNT 44u
+#define RAM_BATTLE_SCRIPT_COMMAND_CELLS_STRIDE 0x01u
 /* Set when the object records a position trail [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_TRAIL_ON 0x7EA192u
 #define RAM_BATTLE_TRAIL_ON_COUNT 11u
@@ -3120,6 +3165,12 @@
 #define RAM_BATTLE_EFFECT_FRAME_TIME 0x7EA1B0u
 #define RAM_BATTLE_EFFECT_FRAME_TIME_COUNT 8u
 #define RAM_BATTLE_EFFECT_FRAME_TIME_STRIDE 0x01u
+/* Per-effect cells of the script commands that wait on an effect's animation; what each is for
+ * past that isn't worked out [32 x $1 bytes, by cell * 8 + effect: the frame time less one
+ * ($A1B8, $C1:4E0D), the marks two effect waits set ($A1C0, $A1C8), and an unused row ($A1D0)] */
+#define RAM_BATTLE_EFFECT_COMMAND_CELLS 0x7EA1B8u
+#define RAM_BATTLE_EFFECT_COMMAND_CELLS_COUNT 32u
+#define RAM_BATTLE_EFFECT_COMMAND_CELLS_STRIDE 0x01u
 /* Nonzero while the effect's sprites are drawn with the objects [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_SHOWN 0x7EA1D8u
 #define RAM_BATTLE_EFFECT_SHOWN_COUNT 8u
@@ -3180,6 +3231,8 @@
 #define RAM_BATTLE_EFFECT_KIND 0x7EA2B5u
 /* The enemy whose script channel (8 and up) is running, for its commands */
 #define RAM_BATTLE_SCRIPT_ENEMY 0x7EA2B6u
+/* The byte after battle_script_enemy, which only the objects' reset writes */
+#define RAM_BATTLE_SCRIPT_ENEMY_SPARE 0x7EA2B7u
 /* The sprite set an effect draws (low six bits) [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_SPRITE_SET 0x7EA2C0u
 #define RAM_BATTLE_EFFECT_SPRITE_SET_COUNT 8u
@@ -3532,6 +3585,11 @@
 #define RAM_BATTLE_EFFECT_ORBIT_RADIUS 0x7EAAE6u
 #define RAM_BATTLE_EFFECT_ORBIT_RADIUS_COUNT 19u
 #define RAM_BATTLE_EFFECT_ORBIT_RADIUS_STRIDE 0x01u
+/* The byte before battle_script_countdown, which only the objects' reset writes */
+#define RAM_BATTLE_SCRIPT_COUNTDOWN_SPARE 0x7EAAFBu
+/* A count a script command runs down a frame at a time before it goes on ($C1:7349), set by
+ * $C1:6727 [2 bytes] */
+#define RAM_BATTLE_SCRIPT_COUNTDOWN 0x7EAAFCu
 /* Set once the jump onto its target has first come near it [19 x $1 bytes, by effect slot (0-10
  * the combatants', 11-18 the anchors')] */
 #define RAM_BATTLE_EFFECT_HOME_STAGE 0x7EAB00u

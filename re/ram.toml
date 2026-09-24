@@ -6856,6 +6856,16 @@ meaning = "Each animation script channel's program pointer (24-bit)"
 source = "game/battle/scripts.c header and battle_run_script_channel $C1:4C9E"
 
 [[var]]
+name = "battle_script_pointer_pads"
+addr = "7E:5DBC"
+count = 17
+stride = 4
+index = "script channel (16: the byte after the last pointer)"
+subsystem = "battle"
+meaning = "The byte before each channel's pointer (battle_script_pointers), and the one after the last, which only the objects' reset writes"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+
+[[var]]
 name = "battle_script_waits"
 addr = "7E:5DFD"
 count = 16
@@ -9091,6 +9101,15 @@ meaning = "Frames the effect's animation frame still shows (from its frame recor
 source = "game/battle/effect_animation.c battle_animate_effects $CC:F278; game/battle/draw_objects.c $CF:EEEB"
 
 [[var]]
+name = "battle_effect_command_cells"
+addr = "7E:A1B8"
+count = 32
+index = "cell * 8 + effect: the frame time less one ($A1B8, $C1:4E0D), the marks two effect waits set ($A1C0, $A1C8), and an unused row ($A1D0)"
+subsystem = "battle"
+meaning = "Per-effect cells of the script commands that wait on an effect's animation; what each is for past that isn't worked out"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+
+[[var]]
 name = "battle_object_effect_slots"
 addr = "7E:A3DF"
 count = 88
@@ -9381,6 +9400,24 @@ meaning = "Frames until the object's next animation step in the scheduler"
 source = "game/battle/objects.c battle_find_due_animation $C1:423A"
 
 [[var]]
+name = "battle_animation_wait_cells"
+addr = "7E:A13A"
+count = 33
+index = "cell * 11 + battle slot: the frames an animation has run ($A13A), and the marks two of the scripts' waits for an animation set while they wait ($A145, $A150)"
+subsystem = "battle"
+meaning = "Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0, $C1:4E37, $C1:4EB7); what each holds past that isn't worked out"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+
+[[var]]
+name = "battle_script_command_cells"
+addr = "7E:A166"
+count = 44
+index = "cell * 11 + battle slot: a count ($A166, $C1:546E), an unused row ($A171), a countdown ($A17C) and a toggle ($A187) of the blinking command at $C1:5F35"
+subsystem = "battle"
+meaning = "Per-combatant cells of the script commands that keep state over frames; what each is for past that isn't worked out"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+
+[[var]]
 name = "battle_animating"
 addr = "7E:A124"
 count = 11
@@ -9434,6 +9471,22 @@ meaning = "The animation script channel running (a word)"
 source = "game/battle/scripts.c battle_run_script_channel $C1:4C9E"
 
 [[var]]
+name = "battle_script_subjects"
+addr = "7E:A014"
+count = 11
+index = "script channel"
+subsystem = "battle"
+meaning = "The combatant each animation script channel animates, which its commands act on ($FF: none; channel 0's is set at the battle's start from $AE91, $CC:F165)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; the script commands ($C1:40FD and on)"
+
+[[var]]
+name = "battle_script_signal"
+addr = "7E:9876"
+subsystem = "battle"
+meaning = "Counted up by a script command ($C1:4D00) for the battle's code waiting on the scripts ($C1:40CE)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+
+[[var]]
 name = "battle_script_command"
 addr = "7E:9895"
 subsystem = "battle"
@@ -9446,6 +9499,13 @@ addr = "7E:A2B6"
 subsystem = "battle"
 meaning = "The enemy whose script channel (8 and up) is running, for its commands"
 source = "game/battle/scripts.c battle_run_scripts $C1:4BBE"
+
+[[var]]
+name = "battle_script_enemy_spare"
+addr = "7E:A2B7"
+subsystem = "battle"
+meaning = "The byte after battle_script_enemy, which only the objects' reset writes"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]
 name = "battle_action_other_targets"
@@ -10004,6 +10064,40 @@ addr = "7E:5D9B"
 subsystem = "battle"
 meaning = "Set while the screen script channels run; cleared when both have ended. The HP gradient waits for it"
 source = "$CD:1609 ($CD:164D); game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
+
+[[var]]
+name = "battle_script_variables"
+addr = "7E:5D80"
+count = 0x1B
+index = "variable, by the number a command names"
+subsystem = "battle"
+meaning = "The animation scripts' variables, which their commands set, count up and down, add to and compare by number ($C1:58F3, $C1:5935, $C1:5731)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; the script commands at $C1:5731-$C1:5A8E"
+
+[[var]]
+name = "battle_script_marks"
+addr = "7E:5D9C"
+count = 2
+index = "mark"
+subsystem = "battle"
+meaning = "Two more of the scripts' values, each with commands of its own that set it and compare it ($C1:5901, $C1:590F, $C1:5746, $C1:5759)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+
+[[var]]
+name = "battle_script_point"
+addr = "7E:5D9E"
+stride = 2
+subsystem = "battle"
+meaning = "A point a script command takes from a position mode ($C1:591D, from battle_position_found_x and _y) for the commands after it"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  meaning = "X"
+  [[var.field]]
+  name = "y"
+  offset = 1
+  meaning = "Y"
 
 [[var]]
 name = "battle_sprite_palettes_flipped"
@@ -10652,6 +10746,21 @@ index = "effect slot (0-10 the combatants', 11-18 the anchors')"
 subsystem = "battle"
 meaning = "The orbit's radius"
 source = "game/battle/effect_paths.c orbit_step $CF:F1F8"
+
+[[var]]
+name = "battle_script_countdown_spare"
+addr = "7E:AAFB"
+subsystem = "battle"
+meaning = "The byte before battle_script_countdown, which only the objects' reset writes"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+
+[[var]]
+name = "battle_script_countdown"
+addr = "7E:AAFC"
+size = 2
+subsystem = "battle"
+meaning = "A count a script command runs down a frame at a time before it goes on ($C1:7349), set by $C1:6727"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]
 name = "battle_effect_orbit_angle"
