@@ -1,79 +1,85 @@
 /* Scenes: the arithmetic the scene programs share.
  *
- * The scene programs work out their motion in fixed point -- the attract's
+ * The scene programs work out their motion in fixed point -- the title's
  * pendulum and its Mode 7 matrix, the race's perspective, the endings' zooms --
- * and pass operands and results to these helpers in sixteen bytes of scratch on
- * the caller's page (scene_math_scratch: the scene's own page, or the page of
- * the sequence channel whose script called the program). They are:
+ * and pass operands and results in sixteen bytes on the page they are called on
+ * (scene_call: the scene's own page, or the page of the sequence channel whose
+ * script called the program). They are:
  *
  * - multiply: 16 x 16 bits into a 32-bit product;
  * - multiply_signed: a signed 16-bit value times a signed byte;
  * - divide: 32 by 32 bits, into a quotient and a remainder;
  * - divide_8_8: a value's high byte by a 16-bit divisor, as an 8.8 fixed-point
  *   fraction (how far along a distance something is);
- * - find_divisor: the first divisor from a starting one whose quotient falls
+ * - find_divisor: the first divisor after a starting one whose quotient falls
  *   under a limit (the race's scale for a distance).
  *
- * Each is C arithmetic. What the original's way of computing them leaves in the
- * result is reproduced where a caller can see it, each in a function of its own
- * that says what it is: a carry that reaches the product from the byte after
- * it and one it adds a byte too low, a byte the signed multiply takes from the product cell as the caller left
- * it, and the long divisions' 16- and 32-bit remainders, which differ from exact
- * division only for divisors no scene uses. The CPU's multiplier and divider
- * are left as the original leaves them, for its own code and shadow mode
- * (game/cpu_io.h). */
+ * Each is C arithmetic on the operands the game gives it. The original's way of
+ * computing them leaves marks on some inputs no scene gives it -- a 32-bit
+ * divisor of 0 or past $7FFFFFFF, a product whose middle partial sums overflow
+ * -- and each entry's guard hands those to the original. The marks it leaves
+ * on inputs the game does give are named inputs: the unsigned multiply carries
+ * in the top bit of the byte after its product, and the signed one adds in a
+ * byte of the product cell, both as the last routine left them. The CPU's
+ * multiplier and divider, and the cells the original only works in, are left
+ * as it leaves them, for its own code and shadow mode. */
 #include "scene/scene.h"
 
+#include "charge.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* ---- multiply ------------------------------------------------------------------------------ */
-
-/* The original adds its two middle partial products and carries their sum's
- * overflow into the top byte with a rotate over the cell after the product,
- * which shifts that byte left and brings its top bit into the product. */
-enum { CARRIED_INTO_PRODUCT = 0x100 };
-
-static uint32_t carry_from_the_byte_after(GameState *g, SceneMathPage page)
-{
-    uint8_t after = scene_math_scratch_quotient_first_byte(g, page);
-    set_scene_math_scratch_quotient_first_byte(g, page, (uint8_t)(after << 1));
-    return (after & 0x80) ? CARRIED_INTO_PRODUCT : 0;
-}
-
-/* The multiplier as the original leaves it: its last partial product, the
- * high bytes of the two operands. */
+/* The multiplier as the original leaves it: its last partial product, the high
+ * bytes of the two operands. */
 static void leave_multiplier(GameState *g, uint8_t multiplicand, uint8_t multiplier)
 {
     hw_set_multiplicand(g, multiplicand);
     hw_multiply_by(g, multiplier);
 }
 
-/* The original multiplies a byte at a time and adds the two middle partial
- * products, with the high byte of the low one (and the carry above), in 16
- * bits. When that sum overflows, it adds the overflow into the product's third
- * byte, where it belongs in the fourth: the product comes out $FF0000 short. */
-enum { CARRIED_A_BYTE_LOW = 0xFF0000 };
+/* ---- multiply ------------------------------------------------------------------------------ */
 
-static uint32_t middle_sum_carried_low(uint16_t a, uint16_t b, uint32_t carried)
+/* The byte after the product -- whatever the last routine to use it left
+ * there: the matrix code generator's source base, a divide's quotient or its
+ * divisor less one. The original adds its middle partial products through a
+ * rotate of that byte, so the byte's top bit is carried into the product, 256
+ * more, and the byte is left shifted a place, for the next multiply. The title's
+ * pendulum and the race multiply with it set, some 850 times a title screen. */
+enum { CARRIED_IN = 0x100 };
+
+static bool carries_into_the_product(const GameState *g, SceneProgramPage page)
 {
-    uint32_t middle = (((uint32_t)(a & 0xFF) * (b >> 8) + (uint32_t)(a >> 8) * (b & 0xFF)) & 0xFFFF) +
-                      ((uint32_t)(a & 0xFF) * (b & 0xFF) >> 8) + (carried ? 1 : 0);
-    return middle > 0xFFFF ? CARRIED_A_BYTE_LOW : 0;
+    return scene_call_after_the_product(g, page) & 0x80;
+}
+
+static void shift_the_byte_after(GameState *g, SceneProgramPage page)
+{
+    set_scene_call_after_the_product(g, page, (uint8_t)(scene_call_after_the_product(g, page) << 1));
 }
 
 // $7E:31BF
 /* The product of the two operands. */
-static void multiply(GameState *g, SceneMathPage page)
+static void multiply(GameState *g, SceneProgramPage page)
 {
-    uint16_t a = scene_math_scratch_first(g, page), b = scene_math_scratch_second(g, page);
-    uint32_t carried = carry_from_the_byte_after(g, page);
-    uint32_t product = (uint32_t)a * b + carried - middle_sum_carried_low(a, b, carried);
-    set_scene_math_scratch_product(g, page, product);
+    uint16_t a = scene_call_first(g, page), b = scene_call_second(g, page);
+    bool carried = carries_into_the_product(g, page);
+    shift_the_byte_after(g, page);
+    set_scene_call_product(g, page, (uint32_t)a * b + (carried ? CARRIED_IN : 0));
     ORIGINAL_EFFECT(leave_multiplier(g, (uint8_t)(b >> 8), (uint8_t)(a >> 8)));
+}
+
+/* The original sums the middle partial products in 16 bits, and one that
+ * overflows goes into the product a byte too low; no scene's product does, and
+ * the entry's guard hands such a product to the original. */
+static bool multiplies_exactly(const GameState *g, SceneProgramPage page)
+{
+    uint16_t a = scene_call_first(g, page), b = scene_call_second(g, page);
+    uint32_t middle = (((uint32_t)(a & 0xFF) * (b >> 8) + (uint32_t)(a >> 8) * (b & 0xFF)) & 0xFFFF) +
+                      ((uint32_t)(a & 0xFF) * (b & 0xFF) >> 8) + (carries_into_the_product(g, page) ? 1 : 0);
+    return middle <= 0xFFFF;
 }
 
 /* ---- multiply_signed ------------------------------------------------------------------------ */
@@ -81,10 +87,9 @@ static void multiply(GameState *g, SceneMathPage page)
 static uint16_t magnitude16(uint16_t v) { return (v & 0x8000) ? (uint16_t)-v : v; }
 static uint8_t magnitude8(uint8_t v) { return (v & 0x80) ? (uint8_t)-v : v; }
 
-/* The 24 bits of the product's magnitude the original computes, and the byte
- * above them it clears: it adds the second partial product into the product
- * cell's second and third bytes as they stand, so the third byte the caller
- * left there is added in too. */
+/* The original adds the second partial product into the product cell's second
+ * and third bytes as they stand, so the third byte the caller left there is
+ * added in: the product's magnitude is 24 bits with that byte on top. */
 static uint32_t magnitude_with_leftover(uint32_t magnitude, uint8_t leftover)
 {
     return (magnitude + ((uint32_t)leftover << 16)) & 0x00FFFFFF;
@@ -92,148 +97,142 @@ static uint32_t magnitude_with_leftover(uint32_t magnitude, uint8_t leftover)
 
 // $C3:094C
 /* The first operand, signed, times the second's low byte, signed: the
- * magnitudes through the multiplier, and the product negated when the signs
- * differ. */
-static void multiply_signed(GameState *g, SceneMathPage page)
+ * magnitudes multiplied, and the product negated when the signs differ. */
+static void multiply_signed(GameState *g, SceneProgramPage page)
 {
-    uint16_t a = scene_math_scratch_first(g, page);
-    uint8_t b = (uint8_t)scene_math_scratch_second(g, page);
-    uint8_t leftover = (uint8_t)(scene_math_scratch_product(g, page) >> 16);
+    uint16_t a = scene_call_first(g, page);
+    uint8_t b = (uint8_t)scene_call_second(g, page);
+    uint8_t leftover = (uint8_t)(scene_call_product(g, page) >> 16);
     bool negative = ((a >> 8) ^ b) & 0x80;
     uint16_t size_a = magnitude16(a);
     uint8_t size_b = magnitude8(b);
     uint32_t product = magnitude_with_leftover((uint32_t)size_a * size_b, leftover);
-    set_scene_math_scratch_product(g, page, negative ? (uint32_t)-product : product);
+    set_scene_call_product(g, page, negative ? (uint32_t)-product : product);
     ORIGINAL_EFFECT(leave_multiplier(g, size_b, (uint8_t)(size_a >> 8)));
 }
 
 /* ---- divide ----------------------------------------------------------------------------------- */
 
-typedef struct {
-    uint32_t quotient, remainder;
-} Division;
-
-/* A divisor with its top bit set, or 0. The original divides bit by bit into a
- * 32-bit remainder, which then loses the bit it shifts out; and a divisor of 0
- * subtracts nothing, so every bit of the quotient is set and the remainder is
- * the dividend. No scene divides by either -- its divisors are distances --
- * but a caller could, so this is the original's long division as it runs. */
-static Division long_division_in_32_bits(uint32_t dividend, uint32_t divisor)
-{
-    Division d = { 0, 0 };
-    for (int bit = 31; bit >= 0; bit--) {
-        d.remainder = d.remainder << 1 | (dividend >> bit & 1);   /* its top bit lost */
-        d.quotient <<= 1;
-        if (d.remainder >= divisor) {
-            d.remainder -= divisor;
-            d.quotient |= 1;
-        }
-    }
-    return d;
-}
-
-enum { TOP_BIT_32 = 0x80000000u };
-
 // $7E:339F
 /* The dividend by the divisor, into the quotient and the remainder. */
-static void divide(GameState *g, SceneMathPage page)
+static void divide(GameState *g, SceneProgramPage page)
 {
-    uint32_t dividend = scene_math_scratch_dividend(g, page), divisor = scene_math_scratch_divisor(g, page);
-    Division d = (divisor == 0 || (divisor & TOP_BIT_32)) ? long_division_in_32_bits(dividend, divisor)
-                                                          : (Division){ dividend / divisor, dividend % divisor };
-    set_scene_math_scratch_quotient(g, page, d.quotient);
-    set_scene_math_scratch_remainder(g, page, d.remainder);
+    uint32_t dividend = scene_call_dividend(g, page), divisor = scene_call_divisor(g, page);
+    set_scene_call_quotient(g, page, dividend / divisor);
+    set_scene_call_remainder(g, page, dividend % divisor);
 }
 
 /* The original shifts the dividend out of its cell as it goes, bringing the
  * caller's carry in at the bottom first, so the cell ends with that carry in its
  * top bit. */
-static void leave_dividend_shifted_out(GameState *g, SceneMathPage page, bool carry)
+enum { TOP_BIT_32 = 0x80000000u };
+
+static void leave_dividend_shifted_out(GameState *g, SceneProgramPage page, bool carry)
 {
-    set_scene_math_scratch_dividend(g, page, carry ? TOP_BIT_32 : 0);
+    set_scene_call_dividend(g, page, carry ? TOP_BIT_32 : 0);
 }
 
 /* ---- divide_8_8 ------------------------------------------------------------------------------ */
 
-/* A divisor past $8000, or 0. The original's remainder is 16 bits, and the bit
- * it shifts out of the top counts as one more (it subtracts the divisor less
- * one, borrowing that bit); a divisor of 0 counts as $10000. No scene divides by
- * either, but a caller could, so this is the original's long division as it runs,
- * with the dividend's high byte and then eight zeros shifted in. */
-static uint16_t fraction_in_16_bits(uint16_t dividend, uint16_t divisor)
-{
-    uint32_t by = divisor ? divisor : 0x10000u;
-    uint16_t remainder = 0, fraction = 0;
-    for (int bit = 15; bit >= 0; bit--) {
-        uint32_t shifted = (uint16_t)(remainder << 1 | (bit >= 8 ? dividend >> bit & 1 : 0));
-        if (remainder & 0x8000)
-            shifted++;
-        fraction = (uint16_t)(fraction << 1);
-        if (shifted >= by) {
-            shifted -= by;
-            fraction |= 1;
-        }
-        remainder = (uint16_t)shifted;
-    }
-    return fraction;
-}
-
-enum { WHOLE_PART = 0xFF00, LARGEST_EXACT_DIVISOR = 0x8000 };
+enum { WHOLE_PART = 0xFF00 };
 
 // $7E:32E2
 /* How many times the divisor goes into the dividend's high byte, as an 8.8
- * fixed-point fraction (the dividend's low byte is dropped). The divisor less
- * one is left in the quotient cell, whose first byte the next multiply reads. */
-static void divide_8_8(GameState *g, SceneMathPage page, uint16_t dividend)
+ * fixed-point fraction (the dividend's low byte is dropped). A divisor of 0
+ * counts as 65536, so the fraction is 0: the endings divide by it (637 times
+ * over the library). The divisor less one is left after the product, where the
+ * next multiply carries in its top bit. */
+static void divide_8_8(GameState *g, SceneProgramPage page, uint16_t dividend)
 {
-    uint16_t divisor = scene_math_scratch_second(g, page);
-    set_scene_math_scratch_divisor_less_one(g, page, (uint16_t)(divisor - 1));
-    uint16_t fraction = (divisor != 0 && divisor <= LARGEST_EXACT_DIVISOR)
-                            ? (uint16_t)((dividend & WHOLE_PART) / divisor)
-                            : fraction_in_16_bits(dividend, divisor);
-    set_scene_math_scratch_fraction(g, page, fraction);
+    uint16_t divisor = scene_call_second(g, page);
+    set_scene_call_fraction(g, page, divisor ? (uint16_t)((dividend & WHOLE_PART) / divisor) : 0);
+    set_scene_call_divisor_less_one(g, page, (uint16_t)(divisor - 1));
 }
 
 /* The original keeps the dividend in the first operand's cell and shifts its
  * high byte out as it goes, bringing the caller's carry in first. */
-static void leave_dividend_high_byte_shifted_out(GameState *g, SceneMathPage page, uint16_t dividend, bool carry)
+static void leave_dividend_high_byte_shifted_out(GameState *g, SceneProgramPage page, uint16_t dividend, bool carry)
 {
-    set_scene_math_scratch_first(g, page, (uint16_t)(dividend << 8 | (carry ? 0x80 : 0)));
+    set_scene_call_first(g, page, (uint16_t)(dividend << 8 | (carry ? 0x80 : 0)));
 }
 
 /* ---- find_divisor --------------------------------------------------------------------------- */
 
-typedef struct {
-    bool found;
-    uint8_t after;      /* the divisor after the one found */
-    uint16_t quotient;  /* the quotient of the one found */
-} FoundDivisor;
+/* The CPU's divider gives $FFFF for a divisor of 0. */
+static uint16_t quotient_of(uint16_t dividend, uint8_t divisor) { return divisor ? dividend / divisor : 0xFFFF; }
 
-/* The 8-bit divisors wrap after 256, and the search is then back where it
- * started: a quotient that never falls under the limit never ends it. */
+/* The 8-bit divisors wrap after 256: a search that goes round finds nothing. */
 enum { DIVISORS = 0x100 };
 
+typedef struct {
+    bool found;
+    uint8_t divisor;    /* the one found, or where the search started */
+    uint16_t quotient;  /* its quotient */
+    unsigned tried;     /* how many divisors it tried */
+} FoundDivisor;
+
 // $C3:0E29
-/* Try divisors from the one after `tried` (the caller's own division, already
- * made) until a quotient of the divider's dividend falls under the limit (on
- * the scene's own page, reached through the data bank). The divider is left
- * dividing by the divisor after the one found, as the original leaves it. */
-static FoundDivisor find_divisor(GameState *g, uint8_t tried)
+/* The first divisor, from `first`, whose quotient of `dividend` falls under
+ * `limit`. The caller has divided by `first` already, and its quotient is
+ * `first_quotient`. */
+static FoundDivisor find_divisor(uint16_t dividend, uint8_t first, uint16_t first_quotient, uint16_t limit)
 {
-    uint16_t limit = scene_math_scratch_quotient_limit(g, scene_math_scene());
-    uint16_t quotient = hw_quotient(g);
-    FoundDivisor f = { false, (uint8_t)(tried + 1), quotient };
+    uint16_t quotient = first_quotient;
     for (unsigned n = 0; n < DIVISORS; n++) {
-        uint8_t next = (uint8_t)(tried + 1);
-        if (quotient < limit) {
-            f = (FoundDivisor){ true, next, quotient };
-            break;
-        }
-        quotient = hw_quotient_by(g, next);
-        tried = next;
+        uint8_t divisor = (uint8_t)(first + n);
+        if (n)
+            quotient = quotient_of(dividend, divisor);
+        if (quotient < limit)
+            return (FoundDivisor){ true, divisor, quotient, n + 1 };
     }
-    ORIGINAL_EFFECT(hw_divide_by(g, f.after));
-    return f;
+    return (FoundDivisor){ false, first, first_quotient, 1 };
+}
+
+/* The original tries a divisor a pass, through the CPU's divider: each pass
+ * starts the next division and reads the last one's quotient. Its time is
+ * charged a pass at a time, and the divider left dividing by the divisor after
+ * the one found, as the original leaves it. */
+enum { FIND_DIVISOR = 0xC30E29, ACCESSES_PER_PASS = 3 };
+
+static void leave_divider_after(GameState *g, const FoundDivisor *f)
+{
+    charge_as(g, FIND_DIVISOR, f->tried * ACCESSES_PER_PASS);
+    hw_divide_by(g, (uint8_t)(f->divisor + 1));
+}
+
+/* ---- Guards: the helpers run from the program in RAM ----------------------------------------- */
+
+bool scene_multiply_present(Snes *s)
+{
+    if (!scene_on_program_page(s) || !m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull))
+        return false;
+    vars_peek(true);
+    bool exact = multiplies_exactly(state_of(s), scene_program_page_at_entry(s));
+    vars_peek(false);
+    return exact;
+}
+
+bool scene_divide_8_8_present(Snes *s)
+{
+    return scene_on_program_page(s) && m_code_matches(s, 0x7E32E2, 189, 0xD04B8C1274AF93C8ull);
+}
+
+/* The 32-bit divide takes the divisors the scenes divide by, never 0 and under
+ * $80000000; past those the original's long division comes out otherwise. */
+bool scene_divide_present(Snes *s)
+{
+    if (!scene_on_program_page(s) || !m_code_matches(s, 0x7E339F, 55, 0x03E628A5184CD799ull))
+        return false;
+    vars_peek(true);
+    uint32_t divisor = scene_call_divisor(state_of(s), scene_program_page_at_entry(s));
+    vars_peek(false);
+    return divisor != 0 && !(divisor & TOP_BIT_32);
+}
+
+/* The original reaches the divider through the direct page. */
+bool scene_find_divisor_on_divider_page(Snes *s)
+{
+    return m_direct_page(s) == M_DP_CPU && m_bank_reaches_low_ram(s);
 }
 
 /* ---- Entries --------------------------------------------------------------------------------- */
@@ -242,19 +241,21 @@ static FoundDivisor find_divisor(GameState *g, uint8_t tried)
  * were, and nothing else it leaves is read. */
 void scene_multiply(Snes *s)
 {
-    multiply(state_of(s), scene_math_page_at_entry(s));
+    GameState *g = state_of(s);
+    SceneProgramPage page = scene_program_page_at_entry(s);
+    multiply(g, page);
     m_rts(s);
 }
 
 /* Entered with 16-bit index registers; P comes back as it was. X is read after
- * it: the original leaves the first partial product there, the magnitudes'
- * low bytes multiplied. */
+ * it: the original leaves the first partial product there, the magnitudes' low
+ * bytes multiplied. */
 void scene_multiply_signed(Snes *s)
 {
     GameState *g = state_of(s);
-    SceneMathPage page = scene_math_page_at_entry(s);
-    uint16_t a = magnitude16(scene_math_scratch_first(g, page));
-    uint8_t b = magnitude8((uint8_t)scene_math_scratch_second(g, page));
+    SceneProgramPage page = scene_program_page_at_entry(s);
+    uint16_t a = magnitude16(scene_call_first(g, page));
+    uint8_t b = magnitude8((uint8_t)scene_call_second(g, page));
     multiply_signed(g, page);
     s->cpu.x = (uint16_t)((a & 0xFF) * b);
     m_rtl(s);
@@ -265,7 +266,7 @@ void scene_multiply_signed(Snes *s)
 void scene_divide(Snes *s)
 {
     GameState *g = state_of(s);
-    SceneMathPage page = scene_math_page_at_entry(s);
+    SceneProgramPage page = scene_program_page_at_entry(s);
     divide(g, page);
     ORIGINAL_EFFECT(leave_dividend_shifted_out(g, page, m_flag(s, CPU_FLAG_C)));
     m_rts(s);
@@ -277,7 +278,7 @@ void scene_divide(Snes *s)
 void scene_divide_8_8(Snes *s)
 {
     GameState *g = state_of(s);
-    SceneMathPage page = scene_math_page_at_entry(s);
+    SceneProgramPage page = scene_program_page_at_entry(s);
     uint16_t dividend = s->cpu.a;
     divide_8_8(g, page, dividend);
     ORIGINAL_EFFECT(leave_dividend_high_byte_shifted_out(g, page, dividend, m_flag(s, CPU_FLAG_C)));
@@ -285,21 +286,21 @@ void scene_divide_8_8(Snes *s)
     m_rts(s);
 }
 
-/* The original reaches the divider through the direct page. */
-bool scene_find_divisor_on_divider_page(Snes *s)
-{
-    return m_direct_page(s) == M_DP_CPU && m_bank_reaches_low_ram(s);
-}
-
 /* Entered with 16-bit A and 8-bit index registers, X the divisor the caller
- * tried; back, X is the divisor after the one found and A its quotient, with
- * the carry clear (the loop's compare). One that is never found loops forever
- * in the original; the port stops after the first pass, where the search is
- * after all 256. */
+ * started a division by, of the dividend it left in the divider, whose
+ * quotient the divider holds; the limit is
+ * on the scene's own page, through the data bank. Back, X is the divisor after
+ * the one found and A its quotient, with the carry clear (the loop's compare).
+ * A search that finds nothing loops forever in the original; the port stops
+ * after the first pass, where the search is after all 256. */
 void scene_find_divisor(Snes *s)
 {
-    FoundDivisor f = find_divisor(state_of(s), (uint8_t)s->cpu.x);
-    s->cpu.x = f.after;
+    GameState *g = state_of(s);
+    uint8_t caller_tried = (uint8_t)s->cpu.x;
+    uint16_t limit = scene_call_quotient_limit(g, scene_program_own());
+    FoundDivisor f = find_divisor(hw_dividend(g), caller_tried, hw_quotient(g), limit);
+    ORIGINAL_EFFECT(leave_divider_after(g, &f));
+    s->cpu.x = (uint8_t)(f.divisor + 1);
     s->cpu.a = f.quotient;
     m_set_flag(s, CPU_FLAG_C, !f.found);
     if (!f.found) {
@@ -307,21 +308,4 @@ void scene_find_divisor(Snes *s)
         return;
     }
     m_rtl(s);
-}
-
-/* ---- Guards: the helpers run from the program in RAM ----------------------------------------- */
-
-bool scene_multiply_present(Snes *s)
-{
-    return scene_on_math_page(s) && m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull);
-}
-
-bool scene_divide_8_8_present(Snes *s)
-{
-    return scene_on_math_page(s) && m_code_matches(s, 0x7E32E2, 189, 0xD04B8C1274AF93C8ull);
-}
-
-bool scene_divide_present(Snes *s)
-{
-    return scene_on_math_page(s) && m_code_matches(s, 0x7E339F, 55, 0x03E628A5184CD799ull);
 }

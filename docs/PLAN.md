@@ -322,9 +322,10 @@ review passes it.
 `re/ram.toml` lists the pages its code runs on, as measured over the library
 (`ct_dev --page-report`), and its variables' accessors take which of them a
 port means, never a D (DISASSEMBLY.md, "The accessors"; RECOMP.md, "Page
-kinds"). It covers the three sets of such cells the map knew: scene's math
-scratch, its own page or a sequence channel's, whose uses are the fields of
-`scene_math_scratch`; the menus' `menu_record` page, for `menu`'s rewrite of
+kinds"). It covers the three sets of such cells the map knew: the cells the
+scene program's shared routines take their values in, on its own page or a
+sequence channel's (`scene_program`, whose uses are the fields of
+`scene_call`); the menus' `menu_record` page, for `menu`'s rewrite of
 `objects.c`; and the controller input cells, which measurement put on one page,
 D = `$0000`, so they are ordinary accessors for `core/input.c` and whatever
 reads them. The event engine and its objects run on the fixed field page

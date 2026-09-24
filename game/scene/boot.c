@@ -158,8 +158,6 @@ void scene_boot_line_irq_blank(Snes *s)
 
 /* ---- Resources copied as they are ------------------------------------------------------------ */
 
-/* The two banks of work RAM a resource can go to. */
-enum { WORK_RAM_LOWER = 0x7E, WORK_RAM_UPPER = 0x7F };
 
 // $C3:099C, $C3:09A0
 /* `count` bytes of a resource in bank $FE from `from` to `to`, a byte at a time
@@ -182,7 +180,7 @@ static void copy_resource_entry(Snes *s, uint8_t bank)
 }
 
 /* A resource into the first bank of work RAM. */
-void scene_copy_resource(Snes *s) { copy_resource_entry(s, WORK_RAM_LOWER); }
+void scene_copy_resource(Snes *s) { copy_resource_entry(s, SCENE_LOWER_WORK_RAM); }
 
 /* A resource into the second bank of work RAM. */
-void scene_copy_resource_to_upper_ram(Snes *s) { copy_resource_entry(s, WORK_RAM_UPPER); }
+void scene_copy_resource_to_upper_ram(Snes *s) { copy_resource_entry(s, SCENE_UPPER_WORK_RAM); }

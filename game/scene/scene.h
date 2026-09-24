@@ -30,6 +30,7 @@
 
 #include <stdbool.h>
 
+#include "platform/video.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
@@ -44,6 +45,36 @@ enum {
     /* The frame's work doesn't send the sound driver song changes. */
     SCENE_FLAG_NO_SONGS = 0x20,
 };
+
+/* ---- The scene program's memory and transfers ------------------------------------------------ */
+
+/* The two banks of work RAM. The program runs in the first, and puts large
+ * buffers (the scaler's bitmaps, some irises' tables) in the second. */
+enum { SCENE_LOWER_WORK_RAM = 0x7E, SCENE_UPPER_WORK_RAM = 0x7F };
+
+/* The tilemap the scene builds for vblank (scene_tilemap_buffer), where the
+ * uploads read it: low RAM, through bank 0. */
+enum { SCENE_TILEMAP_BUFFER = 0x000C00 };
+
+/* A word of the program the loaders fill a map's unused space with: the tile a
+ * layer shows where nothing is drawn. */
+enum { SCENE_BLANK_TILE = 0x7E350B };
+
+/* The program's transfers: its DMA channel, and how a transfer moves its bytes
+ * (the SNES-only escape and the per-call steps take them; docs/TODO.md). */
+enum {
+    SCENE_DMA_CHANNEL = 7,
+    SCENE_DMA_ONE_REGISTER = 0x00,     /* a byte at a time into one register */
+    SCENE_DMA_WORDS = 0x01,            /* into a register pair, a word at a time */
+    SCENE_DMA_FIXED_SOURCE = 0x08,     /* the same source byte over and over: a fill */
+    SCENE_DMA_FROM_REGISTER = 0x80,    /* out of the register into memory */
+};
+
+/* How VRAM writes step: a word at a time, stepping after the high byte (whole
+ * words), or after the low byte (the low bytes alone, as the Mode 7 plane's
+ * name table is written). */
+#define SCENE_VRAM_WHOLE_WORDS VID_VRAM_WORD_PORT
+#define SCENE_VRAM_LOW_BYTES (&(const VidVramPort){ .step = 1, .after_high = false })
 
 /* A task: a routine of the program (its address), which the frame's work
  * calls every frame while it is on one of the two lists. 0 is an empty slot. */
@@ -71,6 +102,17 @@ typedef unsigned SceneChannel;
 uint16_t scene_channel_register(const GameState *g, SceneChannel ch, unsigned n);
 void set_scene_channel_register(GameState *g, SceneChannel ch, unsigned n, uint16_t v);
 
+/* scene/sound.c: how far the music has got. The sound driver shows it on a
+ * port, which two reads that agree say is steady (not being changed as it is
+ * read); its progress is a level from 0 to 15 that the song sets as it plays. */
+typedef struct {
+    uint8_t first, second;   /* the two reads */
+    bool steady;
+} MusicStatus;
+MusicStatus scene_music_status(Platform *pf);
+uint8_t scene_music_progress(MusicStatus music);
+bool scene_music_reached(MusicStatus music, uint8_t level);
+
 /* scene/circle.c: the iris, as a C call for the menus' sprite objects. */
 void scene_circle_draw(GameState *g, uint8_t mode);
 
@@ -80,15 +122,11 @@ void scene_circle_draw(GameState *g, uint8_t mode);
 bool scene_on_scene_page(Snes *s);
 bool scene_on_scene_page_low_bank(Snes *s);
 bool scene_on_scene_page_io_bank(Snes *s);
-bool scene_on_math_page(Snes *s);
-bool scene_on_math_page_io_bank(Snes *s);
+bool scene_on_program_page(Snes *s);
+bool scene_on_program_page_io_bank(Snes *s);
 bool scene_on_channel_page(Snes *s);
-SceneMathPage scene_math_page_at_entry(const Snes *s);
-/* The timing gate's estimate of a block move a port makes byte by byte: the
- * entry's wrapper names its machine (NULL when it is done), and the logic marks
- * the move, through ORIGINAL_EFFECT. */
-void scene_time_entry(Snes *s);
-void scene_time_block_move(bool starting);
+bool scene_channel_at(uint16_t d, SceneChannel *ch);
+SceneProgramPage scene_program_page_at_entry(const Snes *s);
 
 /* scene/boot.c */
 void scene_boot(Snes *s);
@@ -106,6 +144,7 @@ void scene_nmi(Snes *s);
 void scene_nmi_while_working(Snes *s);
 void scene_line_irq_ack(Snes *s);
 void scene_frame_work(Snes *s);
+bool scene_pause_is_a_switch(Snes *s);
 bool scene_frame_tasks_present(Snes *s);
 bool scene_vblank_tasks_present(Snes *s);
 void scene_run_frame_tasks(Snes *s);

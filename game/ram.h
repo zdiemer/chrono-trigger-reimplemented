@@ -49,13 +49,13 @@
 /* D is not fixed: D walks a table of records, so an offset names a field of whichever record is
  * current. Instances: record 0-7 (D = $1800 + $40 each) */
 /* (no RAM_PAGE_MENU_RECORD: variables in it have offsets only) */
-/* scene_math: The page the scene's multiply and divide helpers keep their operands and results
- * on: their caller's */
-/* D is not fixed: the helpers have no page of their own: they work on the cells of whichever
+/* scene_program: The page the scene program's shared routines run on: the scene's own, or, when
+ * a sequence script calls one, its channel's */
+/* D is not fixed: the routines have no page of their own: they work on the cells of whichever
  * page they are called on, the scene's own, or a sequence channel's (its record in
- * scene_channels) when a channel's script calls a routine of the program. Instances: scene (D =
+ * scene_channels) when a channel's script calls a routine of the program. Instances: own (D =
  * $0000); channel 0-1 (D = $0A00 + $100 each) */
-/* (no RAM_PAGE_SCENE_MATH: variables in it have offsets only) */
+/* (no RAM_PAGE_SCENE_PROGRAM: variables in it have offsets only) */
 
 /* ---- core ---------------------------------------------------------------------------------- */
 
@@ -3627,30 +3627,30 @@
 /* Half of the race's 128x128 Mode 7 name table, sent into the low byte of VRAM words; the loader
  * sends it twice to cover the whole table [8192 bytes] */
 #define RAM_SCENE_RACE_PLANE_MAP 0x7F2200u
-/* The sixteen bytes the scene programs pass operands and results in, on whichever page the
- * caller has (the scene's own, or a sequence channel's): the multiplies' and divides' operands
- * and results, and the other routines that borrow them. Each field is one of those uses, so
- * fields overlap [16 bytes] */
-#define RAM_SCENE_MATH_SCRATCH_DP 0xF0u      /* page scene_math, D per instance */
-#define RAM_SCENE_MATH_SCRATCH_FIRST_DP 0xF0u /* The first operand: the multiplicand, or the 8.8 divide's dividend */
-#define RAM_SCENE_MATH_SCRATCH_SECOND_DP 0xF2u /* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor */
-#define RAM_SCENE_MATH_SCRATCH_DIVIDEND_DP 0xF0u /* The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and zeros below */
-#define RAM_SCENE_MATH_SCRATCH_PRODUCT_DP 0xF4u /* The multiplies' 32-bit product */
-#define RAM_SCENE_MATH_SCRATCH_DIVISOR_DP 0xF4u /* The 32-bit divide's divisor */
-#define RAM_SCENE_MATH_SCRATCH_FRACTION_DP 0xF4u /* The 8.8 divide's quotient: an 8.8 fixed-point number */
-#define RAM_SCENE_MATH_SCRATCH_QUOTIENT_LIMIT_DP 0xF4u /* The quotient the divisor search stops below (read on the scene's own page) */
-#define RAM_SCENE_MATH_SCRATCH_QUOTIENT_DP 0xF8u /* The 32-bit divide's quotient */
-#define RAM_SCENE_MATH_SCRATCH_QUOTIENT_FIRST_BYTE_DP 0xF8u /* The quotient's first byte, which the unsigned multiply shifts left as it carries its middle sum (its top bit goes into the product) */
-#define RAM_SCENE_MATH_SCRATCH_DIVISOR_LESS_ONE_DP 0xF8u /* The 8.8 divide's divisor less one, which it keeps while it runs */
-#define RAM_SCENE_MATH_SCRATCH_REMAINDER_DP 0xFCu /* The 32-bit divide's remainder */
-#define RAM_SCENE_MATH_SCRATCH_TRANSFER_CONTROL_DP 0xF0u /* The program's own transfer: its channel's mode (how it moves the bytes) */
-#define RAM_SCENE_MATH_SCRATCH_TRANSFER_REGISTER_DP 0xF2u /* The program's own transfer: the register it feeds */
-#define RAM_SCENE_MATH_SCRATCH_MATRIX_TABLE_OFFSET_DP 0xF0u /* The race's matrix code generator: the table offset of the eighth being written */
-#define RAM_SCENE_MATH_SCRATCH_MATRIX_ROW_STEP_DP 0xF2u /* The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0) */
-#define RAM_SCENE_MATH_SCRATCH_MATRIX_PAIR_STEP_DP 0xF4u /* The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0) */
-#define RAM_SCENE_MATH_SCRATCH_MATRIX_COLUMN_STEP_DP 0xF6u /* The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0) */
-#define RAM_SCENE_MATH_SCRATCH_MATRIX_SOURCE_DP 0xF8u /* The race's matrix code generator: the base the generated loads add their offsets to */
-#define RAM_SCENE_MATH_SCRATCH_MATRIX_DESTINATION_DP 0xFAu /* The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last */
-#define RAM_SCENE_MATH_SCRATCH_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
+/* The sixteen bytes a scene program's routine takes its values in and leaves its results in, on
+ * whichever page it is called on (the scene's own, or a sequence channel's): the arithmetic's
+ * operands and results, the program's transfer's mode and register, the matrix code generator's
+ * offsets, the script's kept word. Each field is one routine's use, so fields overlap [16 bytes] */
+#define RAM_SCENE_CALL_DP 0xF0u              /* page scene_program, D per instance */
+#define RAM_SCENE_CALL_FIRST_DP 0xF0u        /* The first operand: the multiplicand, or the 8.8 divide's dividend */
+#define RAM_SCENE_CALL_SECOND_DP 0xF2u       /* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor */
+#define RAM_SCENE_CALL_DIVIDEND_DP 0xF0u     /* The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and zeros below */
+#define RAM_SCENE_CALL_PRODUCT_DP 0xF4u      /* The multiplies' 32-bit product */
+#define RAM_SCENE_CALL_DIVISOR_DP 0xF4u      /* The 32-bit divide's divisor */
+#define RAM_SCENE_CALL_FRACTION_DP 0xF4u     /* The 8.8 divide's quotient: an 8.8 fixed-point number */
+#define RAM_SCENE_CALL_QUOTIENT_LIMIT_DP 0xF4u /* The quotient the divisor search stops below (read on the scene's own page) */
+#define RAM_SCENE_CALL_QUOTIENT_DP 0xF8u     /* The 32-bit divide's quotient */
+#define RAM_SCENE_CALL_AFTER_THE_PRODUCT_DP 0xF8u /* The byte after the product, whatever the last routine to use it left there (the matrix code generator's source base, a divide's quotient or divisor): the unsigned multiply shifts it left through the product's top byte */
+#define RAM_SCENE_CALL_DIVISOR_LESS_ONE_DP 0xF8u /* The 8.8 divide's divisor less one, which it keeps while it runs */
+#define RAM_SCENE_CALL_REMAINDER_DP 0xFCu    /* The 32-bit divide's remainder */
+#define RAM_SCENE_CALL_TRANSFER_CONTROL_DP 0xF0u /* The program's own transfer: its channel's mode (how it moves the bytes) */
+#define RAM_SCENE_CALL_TRANSFER_REGISTER_DP 0xF2u /* The program's own transfer: the register it feeds */
+#define RAM_SCENE_CALL_MATRIX_TABLE_OFFSET_DP 0xF0u /* The race's matrix code generator: the table offset of the eighth being written */
+#define RAM_SCENE_CALL_MATRIX_ROW_STEP_DP 0xF2u /* The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_PAIR_STEP_DP 0xF4u /* The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_COLUMN_STEP_DP 0xF6u /* The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_SOURCE_DP 0xF8u /* The race's matrix code generator: the base the generated loads add their offsets to */
+#define RAM_SCENE_CALL_MATRIX_DESTINATION_DP 0xFAu /* The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last */
+#define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
 
 #endif

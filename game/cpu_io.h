@@ -33,9 +33,10 @@ void hw_set_dividend(GameState *g, uint16_t dividend);
 uint16_t hw_quotient(const GameState *g);
 uint16_t hw_remainder(const GameState *g);
 void hw_divide_by(GameState *g, uint8_t divisor);
-/* The quotient of the dividend already there by `divisor`: a division started
- * and its result read (a divisor of 0 gives $FFFF, as the divider does). */
-uint16_t hw_quotient_by(GameState *g, uint8_t divisor);
+/* The dividend a caller left in the divider, for a routine that divides it
+ * itself (reading it costs no time: the register can't be read on the
+ * machine, so the backing looks at what the divider holds). */
+uint16_t hw_dividend(const GameState *g);
 
 /* The work RAM port: a cursor into work RAM that steps on with every byte read
  * or written through it, which the game uses to stream a list or to write code.

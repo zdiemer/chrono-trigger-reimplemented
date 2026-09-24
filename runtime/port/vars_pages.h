@@ -21,8 +21,8 @@
 /* menu_record: record 0-7 (D = $1800 + $40 each) */
 bool menu_record_page_of(uint16_t d, unsigned *record);
 
-/* scene_math: scene (D = $0000); channel 0-1 (D = $0A00 + $100 each) */
-bool scene_math_page_of(uint16_t d, SceneMathPage *page);
+/* scene_program: own (D = $0000); channel 0-1 (D = $0A00 + $100 each) */
+bool scene_program_page_of(uint16_t d, SceneProgramPage *page);
 
 /* The D values each page kind's <page>_page_of refused, in this process. */
 typedef struct {

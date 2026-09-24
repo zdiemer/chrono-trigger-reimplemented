@@ -22,17 +22,17 @@
  * before it reads them). */
 #include "scene/scene.h"
 
+#include "charge.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
 
-enum { LINES = 224, LINE_BYTES = 2, LAST_OPEN_BOTTOM = 0xDF };
+enum { LINES = 224, LINE_BYTES = 2, LAST_OPEN_BOTTOM = LINES - 1 };
 enum { RIGHT_EDGE = 0xFF };                    /* where a line's right edge is clamped */
 enum { CLOSED_LINE = 0x0001 };                  /* left 1, right 0 */
 enum { MODE_MIRROR = 0, MODE_HALF_HEIGHT = 1, MODE_LEAVE_OUTSIDE = 0x80 };
-enum { WORK_RAM_LOWER = 0x7E, WORK_RAM_UPPER = 0x7F };
 
 /* The circle, as the caller describes it. */
 typedef struct {
@@ -59,21 +59,29 @@ static void copy_line(GameState *g, const Circle *c, uint16_t from, uint16_t to)
     wram_write16(g, in_table(c, to), wram_read16(g, in_table(c, from)));
 }
 
+static uint16_t line_at(const Circle *c, int line) { return (uint16_t)(c->table + line * LINE_BYTES); }
+
 // $C3:01C6, $C3:01CA
-/* Close `bytes` + 2 bytes of lines from `at`: the first line, and a copy of it
- * forward a byte at a time over the rest, as the original's block move does. */
-static void close_lines(GameState *g, const Circle *c, uint16_t at, uint16_t bytes)
+/* Close `lines` lines of the table from `first_line` on. The original closes
+ * the first and copies it on over the rest with a block move, whose time is
+ * charged here. */
+static void close_lines(GameState *g, const Circle *c, int first_line, int lines)
 {
-    wram_write16(g, in_table(c, at), CLOSED_LINE);
-    ORIGINAL_EFFECT(scene_time_block_move(true));
-    for (uint32_t i = 0; i <= bytes; i++)
-        wram_write8(g, in_table(c, (uint16_t)(at + 2 + i)), wram_read8(g, in_table(c, (uint16_t)(at + i))));
-    ORIGINAL_EFFECT(scene_time_block_move(false));
+    wram_fill16(g, in_table(c, line_at(c, first_line)), (uint32_t)lines, CLOSED_LINE);
+    ORIGINAL_EFFECT(charge_block_move(g, (uint32_t)(lines - 1) * LINE_BYTES));
 }
 
-/* The byte count close_lines takes to reach from the line `first` lines into
- * the table through the line before `end`. */
-static uint16_t bytes_between(int first, int end) { return (uint16_t)((end - first - 1) * LINE_BYTES - 1); }
+/* The original closes a whole table with a block move that runs three bytes
+ * past it -- the pattern of closed lines, on into whatever follows the table.
+ * Nothing reads them as lines; they are written as the original writes them. */
+enum { SPILL_BYTES = 3 };
+
+static void spill_past_table(GameState *g, const Circle *c)
+{
+    wram_fill16(g, in_table(c, line_at(c, LINES)), 1, CLOSED_LINE);
+    wram_fill8(g, in_table(c, (uint16_t)(line_at(c, LINES) + LINE_BYTES)), 1, (uint8_t)CLOSED_LINE);
+    charge_block_move(g, SPILL_BYTES);
+}
 
 /* ---- The outline ---------------------------------------------------------------------------- */
 
@@ -166,8 +174,9 @@ static void draw_lower_half(GameState *g, const Circle *c, int lines, int step)
     }
 }
 
-/* The original's cells as it leaves them: the last count it kept, the mode (or,
- * with a radius of 0, the cell as it was), the near line's address, and half the
+/* The original's cells as it leaves them: the last count it kept (a block
+ * move's count, or the lower half's lines run down), the mode (or, with a
+ * radius of 0, the cell as it was), the near line's address, and half the
  * center line's. */
 static void leave_cells(GameState *g, const Circle *c, uint16_t count, uint8_t mode, const Octant *o)
 {
@@ -179,21 +188,33 @@ static void leave_cells(GameState *g, const Circle *c, uint16_t count, uint8_t m
     set_scene_circle_center_row_half(g, (uint16_t)(c->center_row >> 1));
 }
 
+/* The center and the radius are bytes in word cells, which the original reads
+ * as words with their high halves cleared; the callers write only the bytes, so
+ * nothing reads the high halves but the original clearing them again. */
+static void leave_center_and_radius_as_bytes(GameState *g, const Circle *c)
+{
+    set_scene_circle_center_x(g, (uint16_t)c->center_x);
+    set_scene_circle_center_y(g, (uint16_t)c->center_y);
+    set_scene_circle_radius(g, (uint16_t)c->radius);
+}
+
+/* The byte counts the original's cells keep for a run of closed lines: its
+ * block move's count. */
+static uint16_t closing_count(int lines) { return (uint16_t)(lines * LINE_BYTES - 3); }
+
 // $C3:0077
 static void draw_circle(GameState *g, uint8_t mode)
 {
-    /* the center and the radius are bytes in word cells: the high halves cleared */
-    set_scene_circle_center_x(g, scene_circle_center_x(g) & 0xFF);
-    set_scene_circle_center_y(g, scene_circle_center_y(g) & 0xFF);
-    set_scene_circle_radius(g, scene_circle_radius(g) & 0xFF);
-    Circle c = { (int16_t)scene_circle_center_x(g), (int16_t)scene_circle_center_y(g), (int16_t)scene_circle_radius(g),
-                 (scene_circle_table_bank(g) & 1) ? WORK_RAM_UPPER : WORK_RAM_LOWER, scene_circle_table(g), 0 };
-    c.center_row = (uint16_t)(c.table + c.center_y * LINE_BYTES);
+    Circle c = { (int16_t)(scene_circle_center_x(g) & 0xFF), (int16_t)(scene_circle_center_y(g) & 0xFF),
+                 (int16_t)(scene_circle_radius(g) & 0xFF),
+                 (scene_circle_table_bank(g) & 1) ? SCENE_UPPER_WORK_RAM : SCENE_LOWER_WORK_RAM, scene_circle_table(g), 0 };
+    c.center_row = line_at(&c, c.center_y);
+    ORIGINAL_EFFECT(leave_center_and_radius_as_bytes(g, &c));
 
     if (c.radius == 0) {
-        uint16_t all = (uint16_t)(LINES * LINE_BYTES);
-        close_lines(g, &c, c.table, all);
-        ORIGINAL_EFFECT(leave_cells(g, &c, all, mode, NULL));
+        close_lines(g, &c, 0, LINES);
+        ORIGINAL_EFFECT(spill_past_table(g, &c));
+        ORIGINAL_EFFECT(leave_cells(g, &c, (uint16_t)(LINES * LINE_BYTES), mode, NULL));
         return;
     }
 
@@ -216,16 +237,21 @@ static void draw_circle(GameState *g, uint8_t mode)
     count = 0;
 
     if (!(mode & MODE_LEAVE_OUTSIDE)) {
-        /* close the lines below the circle, and above it */
+        /* close the lines below the circle, from its last line on; with only
+         * the table's last line left, the original's count would run its block
+         * move through the whole bank, and it closes none */
         int bottom = height + c.center_y;
         if (bottom < LAST_OPEN_BOTTOM) {
-            count = bytes_between(bottom, LINES);
-            close_lines(g, &c, (uint16_t)(c.table + bottom * LINE_BYTES), count);
+            close_lines(g, &c, bottom, LINES - bottom);
+            count = closing_count(LINES - bottom);
         }
+        /* and the lines above it; with a single line above, the original's
+         * count for it would run the block move through the whole bank, and it
+         * closes none, leaving the top line as it was */
         int top = c.center_y - c.radius;
         if (top > 1) {
-            count = bytes_between(0, top);
-            close_lines(g, &c, c.table, count);
+            close_lines(g, &c, 0, top);
+            count = closing_count(top);
         }
     }
     ORIGINAL_EFFECT(leave_cells(g, &c, count, mode, &o));
@@ -261,9 +287,7 @@ bool scene_circle_table_is_clear(Snes *s)
  * too except N and Z, which the last pull (PLB) sets from the data bank. */
 void scene_draw_circle(Snes *s)
 {
-    scene_time_entry(s);
     draw_circle(state_of(s), (uint8_t)s->cpu.a);
-    scene_time_entry(NULL);
     m_set_nz8(s, s->cpu.db);
     m_rtl(s);
 }

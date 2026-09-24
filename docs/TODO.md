@@ -292,18 +292,16 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Platform
 
-- **Ports feed the video service literal register bytes.** Scene's review
-  found setup code building display state as `vid_mode_decode(0x07)`,
-  `vid_set_screens(pf, at, 0x13, 0x04, ...)` and `vid_windows_decode(&w,
-  field, 0x00)`: the decoders exist for bytes the game computes at run time,
-  and a constant fed to one is the register value with a function around it.
-  The ports should write the structs' fields and named constants
-  (`VID_LAYER_BIT`, `.mode = 7`). Where there's no call for what a setup
-  routine means (a whole display reset, `display.c`'s `init_video`, which is
-  about 25 register-group writes), the service gains one. And uploads the
-  service models (`vid_upload_oam`, `vid_upload_palette`, `vid_upload_vram`)
-  still take a per-call array of the original's write order, which `game/`
-  should never have to spell out.
+- **Ports feed the video service literal register bytes**, a pattern scene's
+  first review found (`vid_mode_decode(0x07)`, `vid_set_screens(pf, at, 0x13,
+  0x04, ...)`): the decoders exist for bytes the game computes at run time.
+  Scene now writes the structs' fields and named constants; the other
+  subsystems' setup code wants the same reading. What the service still lacks:
+  a call that sets a whole screen at once (`vid_apply_screen`, for scene's
+  `init_video` and its kind), and uploads (`vid_upload_oam`,
+  `vid_upload_palette`, `vid_upload_vram`) that don't take a per-call array of
+  the original's write order, which `game/` should never have to spell out,
+  nor the DMA channel and transfer modes `scene/scene.h` names.
 
 - **P3's leftover is not a leftover**: the renderer is fed by decoding PPU
   register writes, so the register file is still in the shipping path. Feeding
@@ -831,6 +829,18 @@ waits on M5 rather than on a backend.
   and the program's own routines (`$7E:3691`, `$7E:37A6`, `$7E:38AF`,
   `$7E:89ED`, `$7E:5E3C`). Porting each loader whole, as one routine that loads a
   list of resources to VRAM addresses, would retire twelve entries.
+- **Scene work that is still the original's, beside its ports.** The title
+  logo's sweep before it lands (`$7E:5CBA`, where `scene_title_move_logo`
+  stops) and the ripple's new first offset each frame (`$7E:600E`, where
+  `scene_title_ripple_columns` stops) are the program's code; porting them
+  would end two stops mid-routine.
+- **An endings concept.** The endings have no routines in `game/scene/` of
+  their own -- they are the program's scripts, using the iris, the scaler and
+  the arithmetic -- so there is nothing to hold one yet; when their script
+  routines are ported, they want a file of their own.
+- **`scene/scene_data.h` reads bank `$FE` by address** (`scene_data_byte`,
+  which the resource copies use): the asset seam wants a named accessor for
+  each resource the table at `$FE:0000` points to.
 - **`scene_find_divisor` on a bank that isn't low RAM.** Its limit is read
   through the data bank, and its guard now leaves the rare call whose data bank
   doesn't reach low RAM (one in some runs of `events-jetbike-race`) to the

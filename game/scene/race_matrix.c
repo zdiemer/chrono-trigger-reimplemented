@@ -12,11 +12,11 @@
  * same bytes; the routine itself runs as the program's own code (RECOMP.md,
  * "The race's generated code").
  *
- * The generator keeps its offsets in the scene's scratch (scene_math_scratch),
- * and leaves them as they end. */
+ * The generator keeps its offsets in the scene's cells (scene_call). */
 #include "scene/scene.h"
 
 #include "cpu_io.h"
+#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "scene/scene_data.h"
@@ -41,11 +41,22 @@ typedef struct {
     uint8_t row, pair, column;
 } Offsets;
 
+/* The offsets as the generator leaves them in the scene's cells, the
+ * destination's page moved on past the last; nothing reads them again. */
+static void leave_offsets(GameState *g, const Offsets *o, uint16_t destination)
+{
+    SceneProgramPage scene = scene_program_own();
+    set_scene_call_matrix_table_offset(g, scene, o->table);
+    set_scene_call_matrix_row_step(g, scene, o->row);
+    set_scene_call_matrix_pair_step(g, scene, o->pair);
+    set_scene_call_matrix_column_step(g, scene, o->column);
+    set_scene_call_matrix_destination(g, scene, destination);
+}
+
 // $C3:09E9
 /* Write the routine: pairs store from the page in `destination` on, and load
- * from `source` on. The offsets are left in the scene's scratch as they end,
- * the destination's page moved on past the last (the next multiply's rounding
- * reads the byte the source base is left in). */
+ * from `source` on. The source base stays in the scene's cells, where the
+ * program's next multiply finds it after its product. */
 static void write_matrix_code(GameState *g, uint16_t destination, uint16_t source)
 {
     Offsets o = { 0, 0, 0, 0 };
@@ -80,13 +91,9 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
     }
     hw_port_write(g, OP_RTS);
 
-    SceneMathPage scene = scene_math_scene();
-    set_scene_math_scratch_matrix_table_offset(g, scene, o.table);
-    set_scene_math_scratch_matrix_row_step(g, scene, o.row);
-    set_scene_math_scratch_matrix_pair_step(g, scene, o.pair);
-    set_scene_math_scratch_matrix_column_step(g, scene, o.column);
-    set_scene_math_scratch_matrix_source(g, scene, source);
-    set_scene_math_scratch_matrix_destination(g, scene, (uint16_t)((destination & 0x00FF) | page << 8));
+    SceneProgramPage scene = scene_program_own();
+    set_scene_call_matrix_source(g, scene, source);
+    ORIGINAL_EFFECT(leave_offsets(g, &o, (uint16_t)((destination & 0x00FF) | page << 8)));
 }
 
 /* Entered with 16-bit index registers: X the first destination page's

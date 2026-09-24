@@ -2224,6 +2224,34 @@ void native_time_end(Snes *s, int was)
     j->part = was;
 }
 
+void native_charge_as(Snes *s, uint32_t routine, uint32_t bus_clocks)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime)
+        return;
+    int was = native_time_as(s, routine);
+    s->bus.clocks += bus_clocks;
+    native_time_end(s, was);
+}
+
+uint32_t native_uncounted_begin(Snes *s)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime)
+        return 0;
+    part_flush(j);
+    return s->bus.clocks;
+}
+
+void native_uncounted_end(Snes *s, uint32_t mark)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime || s->bus.clocks < mark)
+        return;
+    s->bus.clocks = mark;
+    j->part_bus = mark;
+}
+
 void native_attach(NativeRuntime *rt, Snes *snes)
 {
     if (rt->mode == NATIVE_OFF)

@@ -81,29 +81,29 @@ static void check_menu_records(GameState *g)
     CHECK(wram(0x7E1800 + 4 * 0x40 + 0x0E) == 0 && menu_record_y(g, 4) == 0, "record 4 is untouched");
 }
 
-static void check_scene_math(GameState *g)
+static void check_scene_program(GameState *g)
 {
-    SceneMathPage page;
-    CHECK(scene_math_page_of(0x0000, &page) && page.kind == SCENE_MATH_SCENE, "D $0000 is the scene's page");
-    CHECK(scene_math_page_of(0x0A00, &page) && page.kind == SCENE_MATH_CHANNEL && page.index == 0,
+    SceneProgramPage page;
+    CHECK(scene_program_page_of(0x0000, &page) && page.kind == SCENE_PROGRAM_OWN, "D $0000 is the scene's page");
+    CHECK(scene_program_page_of(0x0A00, &page) && page.kind == SCENE_PROGRAM_CHANNEL && page.index == 0,
           "D $0A00 is channel 0");
-    CHECK(scene_math_page_of(0x0B00, &page) && page.kind == SCENE_MATH_CHANNEL && page.index == 1,
+    CHECK(scene_program_page_of(0x0B00, &page) && page.kind == SCENE_PROGRAM_CHANNEL && page.index == 1,
           "D $0B00 is channel 1");
     uint16_t last = 0;
-    unsigned long before = refused("scene_math", &last);
-    CHECK(!scene_math_page_of(0x0C00, &page), "D $0C00 is past the channels");
-    CHECK(!scene_math_page_of(0x0A80, &page), "D $0A80 is inside a channel's page");
-    CHECK(!scene_math_page_of(0x0100, &page), "D $0100 is the field's page");
-    CHECK(refused("scene_math", &last) == before + 3 && last == 0x0100, "the three refusals are counted");
+    unsigned long before = refused("scene_program", &last);
+    CHECK(!scene_program_page_of(0x0C00, &page), "D $0C00 is past the channels");
+    CHECK(!scene_program_page_of(0x0A80, &page), "D $0A80 is inside a channel's page");
+    CHECK(!scene_program_page_of(0x0100, &page), "D $0100 is the field's page");
+    CHECK(refused("scene_program", &last) == before + 3 && last == 0x0100, "the three refusals are counted");
 
-    set_scene_math_scratch_second(g, scene_math_scene(), 0x1111);
-    set_scene_math_scratch_second(g, scene_math_channel(0), 0x2222);
-    set_scene_math_scratch_second(g, scene_math_channel(1), 0x3333);
+    set_scene_call_second(g, scene_program_own(), 0x1111);
+    set_scene_call_second(g, scene_program_channel(0), 0x2222);
+    set_scene_call_second(g, scene_program_channel(1), 0x3333);
     CHECK(wram(0x7E00F3) == 0x11 && wram(0x7E0AF3) == 0x22 && wram(0x7E0BF3) == 0x33,
           "each page's second operand is at $F2 of that page");
-    CHECK(scene_math_scratch_second(g, scene_math_channel(1)) == 0x3333, "channel 1's reads back");
-    set_scene_math_scratch_quotient_first_byte(g, scene_math_channel(0), 0x44);
-    CHECK(wram(0x7E0AF8) == 0x44 && (scene_math_scratch_quotient(g, scene_math_channel(0)) & 0xFF) == 0x44,
+    CHECK(scene_call_second(g, scene_program_channel(1)) == 0x3333, "channel 1's reads back");
+    set_scene_call_after_the_product(g, scene_program_channel(0), 0x44);
+    CHECK(wram(0x7E0AF8) == 0x44 && (scene_call_quotient(g, scene_program_channel(0)) & 0xFF) == 0x44,
           "a field overlapping another reads the same bytes");
 }
 
@@ -117,7 +117,7 @@ int main(void)
     GameState *g = state_of(&machine);
     check_input_cells(g);
     check_menu_records(g);
-    check_scene_math(g);
+    check_scene_program(g);
     if (failures) {
         printf("%d failure(s)\n", failures);
         return 1;

@@ -242,10 +242,10 @@ an array of pages (`{ name, base, count, stride }`):
 
 ```toml
 [[page]]
-name = "scene_math"
+name = "scene_program"
 ...
 instances = [
-  { name = "scene", d = 0x0000 },
+  { name = "own", d = 0x0000 },
   { name = "channel", base = 0x0A00, count = 2, stride = 0x100 },
 ]
 ```
@@ -258,8 +258,8 @@ show, plus any the code proves (a table's length), with its `source` saying
 which. An instance is named for where its cells are, not for the code that uses
 it: two modes on one D share one set of bytes, so the map rejects two instances
 at one D, and a kind with a single named instance is just a fixed page. Two
-page kinds are in the map: `scene_math`, the scene's multiply and divide
-helpers' cells, on the scene's own page or a sequence channel's; and
+page kinds are in the map: `scene_program`, the page the scene program's
+shared routines run on, the scene's own or a sequence channel's; and
 `menu_record`, the eight `$40`-byte records at `$1800` the menus point D at to
 draw each. Variables on a page kind have an offset (`dp`) and no address. The
 controller reader's cells were thought to be a third, since the reader is
@@ -316,15 +316,15 @@ each:
 enum { MENU_RECORD_COUNT = 8 };   /* by record */
 uint8_t menu_record_y(const GameState *g, unsigned record);
 
-typedef enum { SCENE_MATH_SCENE, SCENE_MATH_CHANNEL } SceneMathPageKind;
+typedef enum { SCENE_PROGRAM_OWN, SCENE_PROGRAM_CHANNEL } SceneProgramPageKind;
 typedef struct {
-    SceneMathPageKind kind;
+    SceneProgramPageKind kind;
     uint8_t index;   /* which one, for channel */
-} SceneMathPage;
-enum { SCENE_MATH_CHANNEL_COUNT = 2 };
-static inline SceneMathPage scene_math_scene(void) { ... }
-static inline SceneMathPage scene_math_channel(unsigned channel) { ... }
-uint16_t scene_math_scratch_first(const GameState *g, SceneMathPage page);   /* a record's field */
+} SceneProgramPage;
+enum { SCENE_PROGRAM_CHANNEL_COUNT = 2 };
+static inline SceneProgramPage scene_program_own(void) { ... }
+static inline SceneProgramPage scene_program_channel(unsigned channel) { ... }
+uint16_t scene_call_first(const GameState *g, SceneProgramPage page);   /* a record's field */
 ```
 
 Only an entry wrapper knows the caller's D, so turning it into the handle is

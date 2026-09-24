@@ -35,18 +35,18 @@
  * on each, drawing their sprites. The instances: record. */
 enum { MENU_RECORD_COUNT = 8 };   /* by record */
 
-/* ---- page kind scene_math ------------------------------------------------------------------ */
+/* ---- page kind scene_program --------------------------------------------------------------- */
 
-/* The page the scene's multiply and divide helpers keep their operands and results on: their
- * caller's. The instances: scene; channel. */
-typedef enum { SCENE_MATH_SCENE, SCENE_MATH_CHANNEL } SceneMathPageKind;
+/* The page the scene program's shared routines run on: the scene's own, or, when a sequence
+ * script calls one, its channel's. The instances: own; channel. */
+typedef enum { SCENE_PROGRAM_OWN, SCENE_PROGRAM_CHANNEL } SceneProgramPageKind;
 typedef struct {
-    SceneMathPageKind kind;
+    SceneProgramPageKind kind;
     uint8_t index;   /* which one, for channel */
-} SceneMathPage;
-enum { SCENE_MATH_CHANNEL_COUNT = 2 };
-static inline SceneMathPage scene_math_scene(void) { return (SceneMathPage){ SCENE_MATH_SCENE, 0 }; }
-static inline SceneMathPage scene_math_channel(unsigned channel) { return (SceneMathPage){ SCENE_MATH_CHANNEL, (uint8_t)channel }; }
+} SceneProgramPage;
+enum { SCENE_PROGRAM_CHANNEL_COUNT = 2 };
+static inline SceneProgramPage scene_program_own(void) { return (SceneProgramPage){ SCENE_PROGRAM_OWN, 0 }; }
+static inline SceneProgramPage scene_program_channel(unsigned channel) { return (SceneProgramPage){ SCENE_PROGRAM_CHANNEL, (uint8_t)channel }; }
 
 /* ---- core ---------------------------------------------------------------------------------- */
 
@@ -4749,70 +4749,71 @@ uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at);
 void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v);
 
 /* The first operand: the multiplicand, or the 8.8 divide's dividend */
-uint16_t scene_math_scratch_first(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_first(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_first(const GameState *g, SceneProgramPage page);
+void set_scene_call_first(GameState *g, SceneProgramPage page, uint16_t v);
 /* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8
  * divide's divisor */
-uint16_t scene_math_scratch_second(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_second(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_second(const GameState *g, SceneProgramPage page);
+void set_scene_call_second(GameState *g, SceneProgramPage page, uint16_t v);
 /* The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and
  * zeros below */
-uint32_t scene_math_scratch_dividend(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_dividend(GameState *g, SceneMathPage page, uint32_t v);
+uint32_t scene_call_dividend(const GameState *g, SceneProgramPage page);
+void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v);
 /* The multiplies' 32-bit product */
-uint32_t scene_math_scratch_product(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_product(GameState *g, SceneMathPage page, uint32_t v);
+uint32_t scene_call_product(const GameState *g, SceneProgramPage page);
+void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v);
 /* The 32-bit divide's divisor */
-uint32_t scene_math_scratch_divisor(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_divisor(GameState *g, SceneMathPage page, uint32_t v);
+uint32_t scene_call_divisor(const GameState *g, SceneProgramPage page);
+void set_scene_call_divisor(GameState *g, SceneProgramPage page, uint32_t v);
 /* The 8.8 divide's quotient: an 8.8 fixed-point number */
-uint16_t scene_math_scratch_fraction(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_fraction(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_fraction(const GameState *g, SceneProgramPage page);
+void set_scene_call_fraction(GameState *g, SceneProgramPage page, uint16_t v);
 /* The quotient the divisor search stops below (read on the scene's own page) */
-uint16_t scene_math_scratch_quotient_limit(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_quotient_limit(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_quotient_limit(const GameState *g, SceneProgramPage page);
+void set_scene_call_quotient_limit(GameState *g, SceneProgramPage page, uint16_t v);
 /* The 32-bit divide's quotient */
-uint32_t scene_math_scratch_quotient(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_quotient(GameState *g, SceneMathPage page, uint32_t v);
-/* The quotient's first byte, which the unsigned multiply shifts left as it carries its middle
- * sum (its top bit goes into the product) */
-uint8_t scene_math_scratch_quotient_first_byte(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_quotient_first_byte(GameState *g, SceneMathPage page, uint8_t v);
+uint32_t scene_call_quotient(const GameState *g, SceneProgramPage page);
+void set_scene_call_quotient(GameState *g, SceneProgramPage page, uint32_t v);
+/* The byte after the product, whatever the last routine to use it left there (the matrix code
+ * generator's source base, a divide's quotient or divisor): the unsigned multiply shifts it left
+ * through the product's top byte */
+uint8_t scene_call_after_the_product(const GameState *g, SceneProgramPage page);
+void set_scene_call_after_the_product(GameState *g, SceneProgramPage page, uint8_t v);
 /* The 8.8 divide's divisor less one, which it keeps while it runs */
-uint16_t scene_math_scratch_divisor_less_one(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_divisor_less_one(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_divisor_less_one(const GameState *g, SceneProgramPage page);
+void set_scene_call_divisor_less_one(GameState *g, SceneProgramPage page, uint16_t v);
 /* The 32-bit divide's remainder */
-uint32_t scene_math_scratch_remainder(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_remainder(GameState *g, SceneMathPage page, uint32_t v);
+uint32_t scene_call_remainder(const GameState *g, SceneProgramPage page);
+void set_scene_call_remainder(GameState *g, SceneProgramPage page, uint32_t v);
 /* The program's own transfer: its channel's mode (how it moves the bytes) */
-uint8_t scene_math_scratch_transfer_control(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_transfer_control(GameState *g, SceneMathPage page, uint8_t v);
+uint8_t scene_call_transfer_control(const GameState *g, SceneProgramPage page);
+void set_scene_call_transfer_control(GameState *g, SceneProgramPage page, uint8_t v);
 /* The program's own transfer: the register it feeds */
-uint8_t scene_math_scratch_transfer_register(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_transfer_register(GameState *g, SceneMathPage page, uint8_t v);
+uint8_t scene_call_transfer_register(const GameState *g, SceneProgramPage page);
+void set_scene_call_transfer_register(GameState *g, SceneProgramPage page, uint8_t v);
 /* The race's matrix code generator: the table offset of the eighth being written */
-uint16_t scene_math_scratch_matrix_table_offset(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_matrix_table_offset(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_matrix_table_offset(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_table_offset(GameState *g, SceneProgramPage page, uint16_t v);
 /* The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0) */
-uint16_t scene_math_scratch_matrix_row_step(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_matrix_row_step(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_matrix_row_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_row_step(GameState *g, SceneProgramPage page, uint16_t v);
 /* The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0) */
-uint16_t scene_math_scratch_matrix_pair_step(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_matrix_pair_step(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_matrix_pair_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_pair_step(GameState *g, SceneProgramPage page, uint16_t v);
 /* The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0) */
-uint16_t scene_math_scratch_matrix_column_step(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_matrix_column_step(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_matrix_column_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_column_step(GameState *g, SceneProgramPage page, uint16_t v);
 /* The race's matrix code generator: the base the generated loads add their offsets to */
-uint16_t scene_math_scratch_matrix_source(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_matrix_source(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_matrix_source(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_source(GameState *g, SceneProgramPage page, uint16_t v);
 /* The race's matrix code generator: the page the generated stores start on, which it leaves
  * moved on past the last */
-uint16_t scene_math_scratch_matrix_destination(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_matrix_destination(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_matrix_destination(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint16_t v);
 /* A sequence channel's: what the interpreter last kept there -- the command it read, the address
  * of the register an assignment names, or the routine of the program a script calls (on the
  * scene's own page) */
-uint16_t scene_math_scratch_script_scratch(const GameState *g, SceneMathPage page);
-void set_scene_math_scratch_script_scratch(GameState *g, SceneMathPage page, uint16_t v);
+uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page);
+void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v);
 
 #endif

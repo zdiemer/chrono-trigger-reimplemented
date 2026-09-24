@@ -27,12 +27,6 @@
 #include "vars.h"
 #include "wram.h"
 
-/* The scenes' transfers go over DMA channel 7. */
-enum { SCENE_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_FROM_REGISTER = 0x80 };
-
-
-
-
 /* The sprite table and the working palette, in the first bank of work RAM. */
 enum { SPRITE_TABLE = 0x000700, SPRITE_TABLE_BYTES = 0x0200, HIGH_TABLE = 0x0900, WORKING_PALETTE = 0x7E2200 };
 enum { COLORS = 256 };
@@ -84,19 +78,21 @@ bool scene_clear_work_ram_present(Snes *s)
 enum { DIRECT_PAGE_BYTES = 0x0100, FROM_THE_STACK = 0x000900, FROM_THE_TASKS = 0x000920, SOUND_PAGE = 0x1E00 };
 
 // $7E:3092
-/* Clear the program's work RAM with the product of the Mode 7 multiplier set
- * to A times 0, which is 0. The second transfer keeps the first one's mode,
+/* Clear the program's work RAM: every byte set to the product the Mode 7
+ * multiplier offers, with the matrix set so that it is 0 -- A times 0, where A
+ * is `matrix_left`, whatever the caller had in the accumulator, which the
+ * multiplier keeps afterwards. The second transfer keeps the first one's mode,
  * destination and bank, so it programs only its source and size. Returns
  * whether it was the title's shorter clear. */
-static bool clear_work_ram(GameState *g, Platform *pf, uint8_t a)
+static bool clear_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
 {
     static const uint8_t again_steps[] = {
         VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START,
         VID_STEP_END,
     };
-    const VidSnesXfer first_channel = { SCENE_DMA, DMA_FROM_REGISTER, clear_steps, NULL };
-    const VidSnesXfer again = { SCENE_DMA, DMA_FROM_REGISTER, again_steps, NULL };
-    vid_set_mode7(pf, PF_AT(0x7E3096), &(VidMode7){ .a = (int16_t)(a << 8 | a) }, VID_M7_MATRIX_A);
+    const VidSnesXfer first_channel = { SCENE_DMA_CHANNEL, SCENE_DMA_FROM_REGISTER, clear_steps, NULL };
+    const VidSnesXfer again = { SCENE_DMA_CHANNEL, SCENE_DMA_FROM_REGISTER, again_steps, NULL };
+    vid_set_mode7(pf, PF_AT(0x7E3096), &(VidMode7){ .a = (int16_t)(matrix_left << 8 | matrix_left) }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E309D), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B);
     const VidSnesTransfer direct_page = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = 0x000000, .size = DIRECT_PAGE_BYTES };
     vid_snes_transfer(pf, PF_AT(0x7E30B6), &direct_page, &first_channel);
@@ -218,7 +214,7 @@ static void upload_sprites(GameState *g, Platform *pf)
         VID_STEP_DEST,      VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,   VID_STEP_SIZE_LO,
         VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
     };
-    static const VidSnesXfer x = { SCENE_DMA, DMA_ONE_REGISTER, steps, NULL };
+    static const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_ONE_REGISTER, steps, NULL };
     vid_upload_oam(pf, PF_AT(0x7E3811), PF_GAME(SPRITE_TABLE), &x);
     vid_set_oam_address(pf, PF_AT(0x7E3830), scene_sprite_priority_start(g), true);
     set_scene_sprite_index(g, 0);
@@ -248,7 +244,7 @@ static void clear_sprite_table(Platform *pf)
         VID_STEP_SIZE_LO,     VID_STEP_SIZE_HI, VID_STEP_CONTROL,   VID_STEP_START,
         VID_STEP_END,
     };
-    static const VidSnesXfer x = { SCENE_DMA, DMA_FROM_REGISTER, steps, NULL };
+    static const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_FROM_REGISTER, steps, NULL };
     vid_set_mode7(pf, PF_AT(0x7E3845), &(VidMode7){ .a = 1 }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E384D), &(VidMode7){ .b = BELOW_THE_PICTURE * 256 }, VID_M7_MATRIX_B_HIGH);
     const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = SPRITE_TABLE, .size = SPRITE_TABLE_BYTES };
@@ -273,7 +269,7 @@ static void upload_palette(Platform *pf)
         VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SIZE_LO,     VID_STEP_SIZE_HI,
         VID_STEP_START,     VID_STEP_END,
     };
-    static const VidSnesXfer x = { SCENE_DMA, DMA_ONE_REGISTER, steps, NULL };
+    static const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_ONE_REGISTER, steps, NULL };
     vid_upload_palette(pf, PF_AT(0x7E388D), 0, PF_GAME(WORKING_PALETTE), COLORS, &x);
 }
 
@@ -302,9 +298,9 @@ static void transfer(const GameState *g, Platform *pf)
         VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,   VID_STEP_START,
         VID_STEP_END,
     };
-    SceneMathPage scene = scene_math_scene();
-    const VidSnesXfer x = { SCENE_DMA, scene_math_scratch_transfer_control(g, scene), steps, NULL };
-    const VidSnesTransfer t = { .dest = scene_math_scratch_transfer_register(g, scene), .source = decompress_dest(g),
+    SceneProgramPage scene = scene_program_own();
+    const VidSnesXfer x = { SCENE_DMA_CHANNEL, scene_call_transfer_control(g, scene), steps, NULL };
+    const VidSnesTransfer t = { .dest = scene_call_transfer_register(g, scene), .source = decompress_dest(g),
                                 .size = decompress_length(g) };
     vid_snes_transfer(pf, PF_AT(0x7E38EA), &t, &x);
 }
@@ -330,7 +326,7 @@ typedef struct {
     uint8_t bank, spill;
 } LineEffectDescriptor;
 
-enum { DESCRIPTOR_BYTES = 5, END_OF_DESCRIPTORS = 0xFF, LINE_CHANNELS = 8, DESCRIPTOR_BANK = 0x7E };
+enum { DESCRIPTOR_BYTES = 5, END_OF_DESCRIPTORS = 0xFF, LINE_CHANNELS = 8, DESCRIPTOR_BANK = SCENE_LOWER_WORK_RAM };
 
 static uint32_t descriptor_at(uint16_t at, unsigned offset) { return (uint32_t)DESCRIPTOR_BANK << 16 | (uint16_t)(at + offset); }
 

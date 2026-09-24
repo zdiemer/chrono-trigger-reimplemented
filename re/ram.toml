@@ -173,13 +173,13 @@ meaning = "The scene engine's and scene program's direct page"
 source = "LDA #$0000 : TCD at $C3:09EE; every scene_ port but scene_title_start_ripple (called from a script, on its channel's page) entered with D = $0000"
 
 [[page]]
-name = "scene_math"
+name = "scene_program"
 subsystem = "scene"
-meaning = "The page the scene's multiply and divide helpers keep their operands and results on: their caller's"
+meaning = "The page the scene program's shared routines run on: the scene's own, or, when a sequence script calls one, its channel's"
 source = "Measured over the 26 movies (ct_dev --page-report): scene_multiply ($7E:31BF) entered with D = $0000 146235 times, $0A00 23842 (5412 of them in events-jetbike-race) and $0B00 1920 (endings-beyond-time); scene_divide ($7E:339F, 20115 calls), scene_divide_8_8 ($7E:32E2, 16225) and scene_multiply_signed ($C3:094C, 21120) only with $0000; the sequence interpreter ($C3:0AFF) on $0A00 61680 times and $0B00 18316, never another page. Two channels because the attract program has two (scene_channels); every instance is reached"
-why = "the helpers have no page of their own: they work on the cells of whichever page they are called on, the scene's own, or a sequence channel's (its record in scene_channels) when a channel's script calls a routine of the program"
+why = "the routines have no page of their own: they work on the cells of whichever page they are called on, the scene's own, or a sequence channel's (its record in scene_channels) when a channel's script calls a routine of the program"
 instances = [
-  { name = "scene", d = 0x0000 },
+  { name = "own", d = 0x0000 },
   { name = "channel", base = 0x0A00, count = 2, stride = 0x100 },
 ]
 
@@ -598,12 +598,12 @@ meaning = "Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $44
 source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221"
 
 [[var]]
-name = "scene_math_scratch"
-page = "scene_math"
+name = "scene_call"
+page = "scene_program"
 dp = 0xF0
 stride = 16
 subsystem = "scene"
-meaning = "The sixteen bytes the scene programs pass operands and results in, on whichever page the caller has (the scene's own, or a sequence channel's): the multiplies' and divides' operands and results, and the other routines that borrow them. Each field is one of those uses, so fields overlap"
+meaning = "The sixteen bytes a scene program's routine takes its values in and leaves its results in, on whichever page it is called on (the scene's own, or a sequence channel's): the arithmetic's operands and results, the program's transfer's mode and register, the matrix code generator's offsets, the script's kept word. Each field is one routine's use, so fields overlap"
 source = "game/scene/math.c, scene_multiply $7E:31BF, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply_signed $C3:094C, scene_find_divisor $C3:0E29; game/scene/race_matrix.c, scene_write_matrix_code $C3:09E9; game/scene/screen.c, scene_transfer $7E:38E7; game/scene/script.c, scene_run_sequence $C3:0AFF"
 [[var.field]]
 name = "first"
@@ -646,9 +646,9 @@ offset = 0x8
 size = 4
 meaning = "The 32-bit divide's quotient"
 [[var.field]]
-name = "quotient_first_byte"
+name = "after_the_product"
 offset = 0x8
-meaning = "The quotient's first byte, which the unsigned multiply shifts left as it carries its middle sum (its top bit goes into the product)"
+meaning = "The byte after the product, whatever the last routine to use it left there (the matrix code generator's source base, a divide's quotient or divisor): the unsigned multiply shifts it left through the product's top byte"
 [[var.field]]
 name = "divisor_less_one"
 offset = 0x8

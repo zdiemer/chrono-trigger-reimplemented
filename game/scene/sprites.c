@@ -39,7 +39,7 @@ enum { SPRITES_PER_HIGH_BYTE = 4 };
 enum { HIGH_LARGE = 0x80, HIGH_X9 = 0x40 };
 
 /* The lists and the single sprites' sources are in the first bank of work RAM. */
-enum { SOURCE_BANK = 0x7E };
+enum { SOURCE_BANK = SCENE_LOWER_WORK_RAM };
 
 /* A clipped sprite whose X is at or past the right edge is put off screen: at
  * X 257, one past the last X the 9-bit position can show whole. */

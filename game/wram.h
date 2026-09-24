@@ -24,4 +24,13 @@ uint16_t wram_read16(const GameState *g, uint32_t at);
 void wram_write8(GameState *g, uint32_t at, uint8_t v);
 void wram_write16(GameState *g, uint32_t at, uint16_t v);
 
+/* Plain fills and copies, forward within the bank `at` is in (the offset
+ * wraps, as the 65816's block move does). They take none of the port's own
+ * time: a port charges what the original spends on the move with
+ * charge_block_move (charge.h). A copy that overlaps its destination reads what
+ * it has already written, as a forward block move does. */
+void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
+void wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v);
+void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
+
 #endif

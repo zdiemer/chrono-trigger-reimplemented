@@ -127,6 +127,26 @@ static void after_vblank_tasks(GameState *g, Platform *pf)
         set_scene_tasks_running(g, i, scene_tasks(g, i));
 }
 
+/* ---- The scene's switches: how each is kept ---------------------------------------------------- */
+
+/* Pausing: whether Start may pause the scene, whether it is paused (a word the
+ * pause keeps 0 or 1), and whether Start was already down last frame, so
+ * holding it pauses once. */
+static bool pause_allowed(const GameState *g) { return scene_pause_enabled(g) != 0; }
+static bool is_paused(const GameState *g) { return scene_paused(g) != 0; }
+static void set_paused(GameState *g, bool paused) { set_scene_paused(g, paused ? 1 : 0); }
+static bool start_was_down(const GameState *g) { return scene_start_held(g) != 0; }
+static void set_start_was_down(GameState *g, bool down) { set_scene_start_held(g, down ? 1 : 0); }
+
+/* Whether the reset buttons reset the console during this scene. */
+static bool reset_allowed(const GameState *g) { return scene_reset_disabled(g) == 0; }
+
+/* Whether a song is on its way to the sound driver. */
+static bool sending_song(const GameState *g) { return scene_song_sending(g) != 0; }
+static void set_sending_song(GameState *g, bool sending) { set_scene_song_sending(g, sending ? 1 : 0); }
+
+/* ---- The controller, pausing and the song --------------------------------------------------- */
+
 typedef enum { PAD_READ, PAD_BUSY, PAD_RESET } PadRead;
 
 // $C3:0A8E
@@ -139,7 +159,7 @@ static PadRead read_controller(GameState *g, Platform *pf)
         return PAD_BUSY;
     PadBits pad = in_read(pf, PF_AT(0xC30A99), 0);
     set_scene_joypad(g, pad);
-    if (pad != RESET_BUTTONS || scene_reset_disabled(g) != 0)
+    if (pad != RESET_BUTTONS || !reset_allowed(g))
         return PAD_READ;
     vid_set_display(pf, PF_AT(0xC30AAC), &(VidDisplay){ .blank = true });
     tm_enable_interrupts(pf, PF_AT(0xC30AAF), 0);
@@ -150,21 +170,20 @@ static PadRead read_controller(GameState *g, Platform *pf)
 typedef enum { PAUSE_UNCHANGED, PAUSE_ON, PAUSE_OFF } PauseChange;
 
 /* Start, pressed anew where the scene allows pausing, pauses or unpauses it and
- * puts the sound that goes with it in the sound command buffer. The pause flag
- * is the low bit of its cell. */
+ * puts the sound that goes with it in the sound command buffer. */
 static PauseChange press_pause(GameState *g, PadBits pad)
 {
-    if (scene_pause_enabled(g) == 0)
+    if (!pause_allowed(g))
         return PAUSE_UNCHANGED;
     if (!(pad & BUTTON_START)) {
-        set_scene_start_held(g, false);
+        set_start_was_down(g, false);
         return PAUSE_UNCHANGED;
     }
-    if (scene_start_held(g) != 0)
+    if (start_was_down(g))
         return PAUSE_UNCHANGED;
-    set_scene_start_held(g, true);
-    bool paused = !(scene_paused(g) & 1);
-    set_scene_paused(g, paused);
+    set_start_was_down(g, true);
+    bool paused = !is_paused(g);
+    set_paused(g, paused);
     if (paused) {
         set_sound_command(g, STOP_EFFECTS);
         set_sound_command_parameters(g, 0, 0);
@@ -185,17 +204,17 @@ static void dim_for_pause(const GameState *g, Platform *pf)
 }
 
 // $C3:09A4
-/* The song the scene wants, when it has changed and no send is under way (and
- * the scene sends songs at all): marked playing, and the send under way. */
+/* The song the scene wants, when it has changed and no song is on its way
+ * (and the scene sends songs at all): marked playing, and on its way. */
 static bool song_to_send(GameState *g, uint8_t *song)
 {
-    if (scene_song_sending(g) != 0 || (scene_flags(g) & SCENE_FLAG_NO_SONGS))
+    if (sending_song(g) || (scene_flags(g) & SCENE_FLAG_NO_SONGS))
         return false;
     *song = scene_song(g);
     if (*song == scene_song_playing(g))
         return false;
     set_scene_song_playing(g, *song);
-    set_scene_song_sending(g, (uint8_t)(scene_song_sending(g) + 1));
+    set_sending_song(g, true);
     return true;
 }
 
@@ -206,35 +225,28 @@ static bool song_to_send(GameState *g, uint8_t *song)
  * otherwise the port stops there. */
 static bool can_continue(Snes *s) { return !s->cpu.e && !m_flag(s, CPU_FLAG_X) && m_bank_reaches_io(s); }
 
+/* Where the original's copy of the task list leaves Y (past the copy), which
+ * the frame's tasks and the controller read's stops see. */
+enum { PAST_THE_COPY = 0x0970 };
+
 // $7E:39BE, $7E:398A
 /* A task list, called as the frame's work calls it: the vblank list with 8-bit
- * A, the frame's list with 16-bit A. */
+ * A, the frame's list with 16-bit A, and A the pause word it tested (0, to get
+ * there), which the tasks may read. */
 static bool run_task_list(Snes *s, SceneTaskList list)
 {
     bool vblank = list == SCENE_VBLANK_TASKS;
     m_set_flag(s, CPU_FLAG_M, vblank);
-    s->cpu.a = 0x0000;   /* the pause flag the frame's work tested, which was 0: a task can leave it there */
+    s->cpu.a = 0x0000;
     m_jsl_dc(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
              DC_X | DC_N | DC_Z | (vblank ? DC_A | DC_Y : 0));
     return can_continue(s);
 }
 
-/* The index registers the task list's copy leaves (a block move of it: X and Y
- * past the two lists), which the controller read's stops and its call-out see. */
-static void leave_registers_of_the_copy(Snes *s)
+/* The program's send of the command in the sound command buffer ($7E:377A). */
+static bool send_pause_sound(Snes *s, uint32_t site)
 {
-    s->cpu.x = 0x0940;
-    s->cpu.y = 0x0970;
-}
-
-/* The program's send of the command in the sound command buffer ($7E:377A),
- * with 16-bit A the word stored last (neither negative nor zero). */
-static bool send_pause_sound(Snes *s, uint32_t site, uint16_t stored)
-{
-    s->cpu.a = stored;
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, false);
-    m_jsl(s, site, 0x7E377A);
+    m_jsl_dc(s, site, 0x7E377A, DC_A | DC_X | DC_N | DC_Z);
     return can_continue(s);
 }
 
@@ -242,12 +254,14 @@ static bool send_pause_sound(Snes *s, uint32_t site, uint16_t stored)
  * read's stops and its call-out. */
 enum { READ_CONTROLLER_RETURN = 0x0921 };
 
+typedef enum { READ_STOPPED, READ_DONE, READ_SENT_SOUND } ReadEnd;
+
 // $C3:0A8E
-/* The controller and the pause, as the frame's work calls them. The carry is
- * the compare with the reset buttons, which the frame's tasks see. False where
- * the port stops: the console still reading (the wait is the original's loop),
- * the reset, or a call-out coming back with other widths. */
-static bool read_controller_and_pause(Snes *s, bool *carry)
+/* The controller and the pause, as the frame's work calls them. The port stops
+ * where the console is still reading (the wait is the original's loop), at the
+ * reset, or where the pause's sound comes back with other widths. At the
+ * sound's call the carry is the controller's compare with the reset buttons. */
+static ReadEnd read_controller_and_pause(Snes *s)
 {
     GameState *g = state_of(s);
     m_push16(s, READ_CONTROLLER_RETURN);
@@ -255,26 +269,24 @@ static bool read_controller_and_pause(Snes *s, bool *carry)
     case PAD_BUSY:
         m_set_flag(s, CPU_FLAG_Z, false);
         m_stop_at_own(s, 0xC30A95, DC_A | DC_X | DC_N | DC_C);
-        return false;
+        return READ_STOPPED;
     case PAD_RESET:
         m_stop_at_own(s, 0x00FF00, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D);   /* JML to the reset code */
-        return false;
+        return READ_STOPPED;
     case PAD_READ:
         break;
     }
     m_set_flag(s, CPU_FLAG_M, false);
-    *carry = scene_joypad(g) >= RESET_BUTTONS;
     PauseChange change = press_pause(g, scene_joypad(g));
-    if (change != PAUSE_UNCHANGED) {
-        m_set_flag(s, CPU_FLAG_C, *carry);
-        bool ok = change == PAUSE_ON ? send_pause_sound(s, 0xC30AE1, STOP_EFFECTS)
-                                     : send_pause_sound(s, 0xC30AF3, PAN_MIDDLE);
-        *carry = m_flag(s, CPU_FLAG_C);
-        if (!ok)
-            return false;
+    if (change == PAUSE_UNCHANGED) {
+        m_pull16(s);
+        return READ_DONE;
     }
+    m_set_flag(s, CPU_FLAG_C, scene_joypad(g) >= RESET_BUTTONS);
+    if (!send_pause_sound(s, change == PAUSE_ON ? 0xC30AE1 : 0xC30AF3))
+        return READ_STOPPED;
     m_pull16(s);
-    return true;
+    return READ_SENT_SOUND;
 }
 
 // $C3:08D0
@@ -288,31 +300,41 @@ static bool frame_work(Snes *s)
     bool quiet = begin_frame(g, pf);
     if (scene_flags(g) & SCENE_FLAG_TITLE_WITH_LINE_IRQ)
         m_set_flag(s, CPU_FLAG_I, false);   /* the line interrupt may interrupt the work */
-    s->cpu.x = HANDLER_WHILE_WORKING;
-    m_set_flag(s, CPU_FLAG_C, quiet);
-    if (!(scene_paused(g) & 0xFF) && !run_task_list(s, SCENE_VBLANK_TASKS))
-        return false;
+    if (!is_paused(g)) {
+        m_set_flag(s, CPU_FLAG_C, quiet);   /* the acknowledge's compare, which the tasks see */
+        if (!run_task_list(s, SCENE_VBLANK_TASKS))
+            return false;
+    }
     after_vblank_tasks(g, pf);
-    leave_registers_of_the_copy(s);
+    ORIGINAL_EFFECT(s->cpu.y = PAST_THE_COPY);
     m_set_flag(s, CPU_FLAG_M, true);
 
-    bool carry = m_flag(s, CPU_FLAG_C);
-    if (!read_controller_and_pause(s, &carry))
+    ReadEnd read = read_controller_and_pause(s);
+    if (read == READ_STOPPED)
         return false;
-
-    uint16_t paused = scene_paused(g);
-    if (paused != 0) {
+    if (is_paused(g)) {
         dim_for_pause(g, pf);
-        s->cpu.a = (uint16_t)(paused & 0xFF00);
-        m_set_flag(s, CPU_FLAG_C, scene_brightness(g) & 1);
+        ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, scene_brightness(g) & 1));   /* the halving's */
+        s->cpu.a &= 0x00FF;   /* the pause word's high byte, 0 */
     } else {
-        m_set_flag(s, CPU_FLAG_C, carry);
+        if (read == READ_DONE)
+            m_set_flag(s, CPU_FLAG_C, scene_joypad(g) >= RESET_BUTTONS);   /* the controller's compare */
         if (!run_task_list(s, SCENE_FRAME_TASKS))
             return false;
     }
     m_set_flag(s, CPU_FLAG_M, true);
     install_handler(g, FRAME_HANDLER);
     return true;
+}
+
+/* The scene keeps its pause as 0 or 1, which the port takes as a switch; the
+ * original tests the word, and its low byte, which agree only then. */
+bool scene_pause_is_a_switch(Snes *s)
+{
+    vars_peek(true);
+    bool ok = scene_paused(state_of(s)) <= 1;
+    vars_peek(false);
+    return ok;
 }
 
 /* Entered with 16-bit index registers; back, the callers read A's high byte and
@@ -323,9 +345,7 @@ void scene_frame_work(Snes *s)
         m_rtl(s);
 }
 
-/* The song's send, as the NMI handler makes it: A the song, X the two
- * parameters it sends as $FF, N and Z from that load and the carry from the
- * compare. False where the port stops. */
+/* The song's send, as the NMI handler makes it. False where the port stops. */
 static bool send_song(Snes *s)
 {
     GameState *g = state_of(s);
@@ -334,22 +354,19 @@ static bool send_song(Snes *s)
     uint8_t playing = scene_song_playing(g);
     if (!song_to_send(g, &song))
         return true;
-    m_set_a8(s, song);
-    m_set_flag(s, CPU_FLAG_C, song >= playing);
     if (!m_bank_reaches_io(s)) {
         /* the command buffer isn't where the audio service writes it */
+        m_set_a8(s, song);
+        m_set_flag(s, CPU_FLAG_C, song >= playing);
         m_stop_at(s, 0xC309C0, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D | DC_AL);
         return false;
     }
-    s->cpu.x = 0xFFFF;
-    m_set_flag(s, CPU_FLAG_N, true);
-    m_set_flag(s, CPU_FLAG_Z, false);
-    au_command(m_platform(s), PF_CALL(0xC309D1, 0xC70004),
+    au_command(m_platform(s), PF_CALL_DC(0xC309D1, 0xC70004, DC_AL | DC_X | DC_N | DC_Z | DC_C),
                (AudioCommand){ .command = PLAY_SONG, .p1 = song, .p2 = SONG_VOLUME_AS_IS, .p3 = SONG_ECHO_AS_IS,
                                .count = 3 });
     if (!can_continue(s) || !m_flag(s, CPU_FLAG_M))
         return false;
-    set_scene_song_sending(g, 0);
+    set_sending_song(g, false);
     return true;
 }
 

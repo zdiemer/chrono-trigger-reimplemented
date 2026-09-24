@@ -93,8 +93,9 @@ name = "scene_scale_bitmap_row"
 subsystem = "scene"
 state = "race"
 args = ["--long", "--d", "0000", "--db", "7F", "--fill", "7E001F-7E001F=01-08", "--fill", "7E0020-7E0020=00-00",
-        "--fill", "7E0024-7E0024=00-70", "--fill", "7E002C-7E002C=00-0F"]
-why = "1-8 pairs of 8 pixels a row, output in bank $7F as the race draws; the source's base and limit kept where its samples stay in the bank, as the guard asks (game/scene/scaler.c: past it the original's reads reach its own scratch in low RAM)"
+        "--fill", "7E0024-7E0024=00-70", "--fill", "7E002C-7E002C=00-0F", "--fill", "7E002A-7E002A=00-01",
+        "--fill", "7E0030-7E0030=00-EF"]
+why = "1-8 pairs of 8 pixels a row, output in bank $7F as the race draws; the source's base and limit kept where its samples stay in the bank, the column step under 2 pixels and the plane pointer clear of the bank's end, as the guard asks (game/scene/scaler.c: past them the original's sums carry into its samples and its reads reach its own scratch in low RAM)"
 
 [[routine]]
 name = "scene_scale_bitmap"
@@ -116,7 +117,7 @@ variant = "channel"
 subsystem = "scene"
 state = "race"
 args = ["--long", "--d", "0B00", "--db", "00"]
-why = "on the second sequence channel's page, the other instance of the math helpers' page kind (re/ram.toml, scene_math)"
+why = "on the second sequence channel's page, the other instance of the scene program's page kind (re/ram.toml, scene_program)"
 
 [[routine]]
 name = "scene_find_divisor"
@@ -199,8 +200,8 @@ why = "the port read back, so the wait ends"
 name = "scene_frame_work"
 subsystem = "scene"
 state = "attract"
-args = ["--long", "--keep", "7E3000-7EB5FF"]
-why = "the program kept: the task lists are call-outs into it"
+args = ["--long", "--keep", "7E3000-7EB5FF", "--fill", "7E0392-7E0392=00-01", "--fill", "7E0393-7E0393=00-00"]
+why = "the program kept: the task lists are call-outs into it; the pause a switch, 0 or 1, as the guard asks (game/scene/frame.c: the original tests the word and its low byte, which agree only then)"
 
 [[routine]]
 name = "scene_nmi"
@@ -265,7 +266,7 @@ variant = "channel"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0B00", "--keep", "7E3000-7EB5FF"]
-why = "on the second sequence channel's page, the other instance of the math helpers' page kind (re/ram.toml, scene_math)"
+why = "on the second sequence channel's page, the other instance of the scene program's page kind (re/ram.toml, scene_program)"
 
 [[routine]]
 name = "scene_divide_8_8"
@@ -279,7 +280,7 @@ variant = "channel"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0B00", "--keep", "7E3000-7EB5FF"]
-why = "on the second sequence channel's page, the other instance of the math helpers' page kind (re/ram.toml, scene_math)"
+why = "on the second sequence channel's page, the other instance of the scene program's page kind (re/ram.toml, scene_program)"
 
 [[routine]]
 name = "scene_multiply"
@@ -293,7 +294,7 @@ variant = "channel"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0B00", "--keep", "7E3000-7EB5FF"]
-why = "on the second sequence channel's page, the other instance of the math helpers' page kind (re/ram.toml, scene_math)"
+why = "on the second sequence channel's page, the other instance of the scene program's page kind (re/ram.toml, scene_program)"
 
 [[routine]]
 name = "scene_multiply"

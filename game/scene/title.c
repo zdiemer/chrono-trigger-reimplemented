@@ -31,14 +31,6 @@
 #include "vars.h"
 #include "wram.h"
 
-/* The scenes' transfers go over DMA channel 7. */
-enum { SCENE_DMA = 7, DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01, DMA_FIXED_BYTE = 0x08 };
-
-/* The VRAM port a word at a time, stepping after the low byte (the plane's name
- * table, which is the low byte of every word) or after the high one (whole
- * words, and the plane's pixels in the high bytes). */
-static const VidVramPort low_bytes = { .step = 1, .after_high = false };
-static const VidVramPort whole_words = { .step = 1, .after_high = true };
 
 /* Where the title keeps its graphics in VRAM. */
 enum {
@@ -71,7 +63,7 @@ static void begin_block(Snes *s, uint16_t vram, uint32_t site, uint32_t stop)
  * the blocks after it too. */
 void scene_title_load_sprite_graphics(Snes *s)
 {
-    vid_begin_vram_uploads(m_platform(s), PF_AT(0x7E597D), &whole_words, PF_GAME(0), NULL);
+    vid_begin_vram_uploads(m_platform(s), PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS, PF_GAME(0), NULL);
     begin_block(s, SPRITE_TILES_VRAM, 0x7E5983, 0x7E5986);
 }
 
@@ -111,7 +103,7 @@ static void fill_bg1_map(GameState *g, Platform *pf, uint8_t port)
     set_decompress_dest(g, decompress_dest(g) & 0x00FFFF);
     VidVramPort vram_port = vid_vram_port_decode(port);
     vid_begin_vram_uploads(pf, PF_AT(0x7E59D8), &vram_port, PF_GAME(0), NULL);
-    const VidSnesXfer x = { SCENE_DMA, (uint8_t)(DMA_WORDS | DMA_FIXED_BYTE), steps, NULL };
+    const VidSnesXfer x = { SCENE_DMA_CHANNEL, (uint8_t)(SCENE_DMA_WORDS | SCENE_DMA_FIXED_SOURCE), steps, NULL };
     const VidSnesTransfer t = { .size = BG1_MAP_REST_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
                                 .target = BG1_MAP_REST_VRAM, .continue_channel = true };
     vid_snes_transfer(pf, PF_AT(0x7E59DD), &t, &x);
@@ -192,9 +184,9 @@ bool scene_title_load_plane_map_present(Snes *s)
 /* The plane's name table is 128 tiles a row. The title's picture is 32 rows of
  * 32, which the loader has put in work RAM as words whose low bytes are the
  * tile numbers; the rest of each row is tile 0, and the rest of the table the
- * tile the word at $7E:350B names. */
+ * blank tile. */
 enum { PLANE_ROW = 128, PICTURE_ROWS = 32, PICTURE_COLUMNS = 32 };
-enum { PICTURE_TILES = 0x0200, REST_OF_PLANE_TILE = 0x7E350B, REST_OF_PLANE_BYTES = 0x1000 };
+enum { PICTURE_TILES = 0x0200, REST_OF_PLANE_BYTES = 0x1000 };
 
 // $7E:5AB6
 /* The plane's name table: the picture's rows, a tile at a time through the
@@ -209,9 +201,9 @@ static void load_plane_map(GameState *g, Platform *pf)
         VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,   VID_STEP_START,
         VID_STEP_END,
     };
-    static const VidSnesXfer x = { SCENE_DMA, DMA_FIXED_BYTE, steps, NULL };
+    static const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_FIXED_SOURCE, steps, NULL };
     hw_port_seek_address(g, PICTURE_TILES);
-    vid_begin_vram_uploads(pf, PF_AT(0x7E5ABE), &low_bytes, PF_GAME(0), NULL);
+    vid_begin_vram_uploads(pf, PF_AT(0x7E5ABE), SCENE_VRAM_LOW_BYTES, PF_GAME(0), NULL);
     vid_set_vram_address(pf, PF_AT(0x7E5AC4), PLANE_VRAM);
     for (int row = 0; row < PICTURE_ROWS; row++) {
         for (int column = 0; column < PICTURE_COLUMNS; column++) {
@@ -221,7 +213,7 @@ static void load_plane_map(GameState *g, Platform *pf)
         for (int column = PICTURE_COLUMNS; column < PLANE_ROW; column++)
             vid_write_vram_byte(pf, PF_AT(0x7E5ADC), false, 0);
     }
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = REST_OF_PLANE_TILE,
+    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE,
                                 .size = REST_OF_PLANE_BYTES };
     vid_snes_transfer(pf, PF_AT(0x7E5AEB), &t, &x);
 }
@@ -376,7 +368,7 @@ static void start_ripple(GameState *g, Platform *pf, SceneChannel channel)
 /* The channel's page is D. */
 void scene_title_start_ripple(Snes *s)
 {
-    start_ripple(state_of(s), m_platform(s), scene_math_page_at_entry(s).index);
+    start_ripple(state_of(s), m_platform(s), scene_program_page_at_entry(s).index);
     m_rts(s);
 }
 
@@ -433,7 +425,7 @@ bool scene_title_upload_ripple_present(Snes *s)
 }
 
 /* The first two rows of BG3's map, the columns' offsets in mode 2. */
-enum { OFFSET_ROWS_BYTES = 0x80, TILEMAP_BUFFER = 0x000C00 };
+enum { OFFSET_ROWS_BYTES = 0x80 };
 
 // $7E:6212
 /* Each frame: the columns' offsets to BG3's map, and BG3's horizontal scroll. */
@@ -444,8 +436,8 @@ static void upload_ripple(const GameState *g, Platform *pf)
         VID_STEP_SOURCE_LO,   VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO,
         VID_STEP_SIZE_HI,     VID_STEP_VRAM_PORT, VID_STEP_START,   VID_STEP_END,
     };
-    static const VidSnesXfer x = { SCENE_DMA, DMA_WORDS, steps, &whole_words };
-    vid_upload_vram(pf, PF_AT(0x7E6215), BG3_MAP_VRAM, PF_GAME(TILEMAP_BUFFER), OFFSET_ROWS_BYTES, &x);
+    const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_WORDS, steps, SCENE_VRAM_WHOLE_WORDS };
+    vid_upload_vram(pf, PF_AT(0x7E6215), BG3_MAP_VRAM, PF_GAME(SCENE_TILEMAP_BUFFER), OFFSET_ROWS_BYTES, &x);
     vid_set_scroll(pf, PF_AT(0x7E623E), VID_BG3, scene_bg3_scroll_x(g), 0, VID_SCROLL_H);
 }
 

@@ -485,6 +485,18 @@ self-check to run before reporting done, and the worktree rules a wave needs.
    first and the dispatcher's own part from what they leave (RECOMP.md, "The
    timing gate", "Dispatchers").
 
+   A port that does in one plain step what the original does at length -- a
+   block move done as a fill, a search done in locals -- must not keep the
+   original's shape so that it gets timed. It charges the time instead, as
+   scaffolding (`game/charge.h`, backed by `runtime/port/state_io.c` and
+   `native_charge_as`): `ORIGINAL_EFFECT(charge_block_move(g, bytes))` after a
+   plain `wram_fill8`/`wram_fill16`/`wram_copy` (`game/wram.h`, whose accesses
+   take none of the port's own time), estimated at the block move stub's
+   calibrated rate; or `ORIGINAL_EFFECT(charge_as(g, 0xBBAAAA, accesses))`, that
+   many memory accesses of a registered routine's work, the running port's own
+   included (the scene's divisor search charges its passes that way). A native
+   build has none of it.
+
 Liveness is only as good as the call graph. Functions called from code the
 analysis can't see (RAM code, unresolved indirect jumps) keep everything live,
 which is why step 1 feeds in the runtime call log. Rerun it when movies reach

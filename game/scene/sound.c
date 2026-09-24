@@ -15,8 +15,29 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* The driver's status on port 3: its low nibble is the song's marker. */
-enum { MARKER_PORT = 3, MARKER = 0x0F };
+/* The driver's status on port 3: its low nibble is the song's marker. And on
+ * port 2, which music is playing, whose low nibble is how far the song has got
+ * (docs/SOUND.md, "What the game reads back"). */
+enum { MARKER_PORT = 3, MARKER = 0x0F, MUSIC_PORT = 2, PROGRESS = 0x0F };
+
+MusicStatus scene_music_status(Platform *pf)
+{
+    uint8_t first = au_status(pf, PF_AT(0xC30C2C), MUSIC_PORT);
+    uint8_t second = au_status(pf, PF_AT(0xC30C30), MUSIC_PORT);
+    return (MusicStatus){ first, second, first == second };
+}
+
+uint8_t scene_music_progress(MusicStatus music) { return music.first & PROGRESS; }
+
+/* The music is at `level` or past it (compared by the sign of the difference,
+ * as the original compares it). */
+bool scene_music_reached(MusicStatus music, uint8_t level)
+{
+    return music.steady && (int8_t)(scene_music_progress(music) - level) >= 0;
+}
+
+/* The song's marker: nonzero once the song has set it. */
+static uint8_t song_marker(Platform *pf) { return au_status(pf, PF_AT(0x7E5AAA), MARKER_PORT) & MARKER; }
 
 /* The guard also checks that absolute addressing reaches the APU ports, which
  * the audio service addresses in bank $00. */
@@ -30,7 +51,7 @@ bool scene_wait_for_song_marker_present(Snes *s)
  * entry, 8-bit A holding the marker. */
 void scene_wait_for_song_marker_loop(Snes *s)
 {
-    uint8_t marker = au_status(m_platform(s), PF_AT(0x7E5AAA), MARKER_PORT) & MARKER;
+    uint8_t marker = song_marker(m_platform(s));
     m_set_a8(s, marker);
     m_set_nz8(s, marker);
     if (marker != 0)
@@ -51,13 +72,16 @@ bool scene_send_sound_command_present(Snes *s)
  * driver sends back. */
 static uint8_t send_sound_command(const GameState *g, Platform *pf)
 {
-    static const uint32_t sites[4] = { 0x7E3786, 0x7E378C, 0x7E3792, 0x7E3798 };
-    for (uint8_t port = 3; port > 0; port--)
-        au_driver_write(pf, PF_AT(sites[3 - port]), port, sound_command_parameters(g, port - 1u));
+    au_driver_write(pf, PF_AT(0x7E3786), 3, sound_command_parameters(g, 2));
+    au_driver_write(pf, PF_AT(0x7E378C), 2, sound_command_parameters(g, 1));
+    au_driver_write(pf, PF_AT(0x7E3792), 1, sound_command_parameters(g, 0));
     uint8_t command = sound_command(g);
-    au_driver_write(pf, PF_AT(sites[3]), 0, command);
+    au_driver_write(pf, PF_AT(0x7E3798), 0, command);
     return command;
 }
+
+/* The driver echoes a command on port 0 once it has taken it. */
+static uint8_t echo(Platform *pf) { return au_driver_read(pf, PF_AT(0x7E379B), 0); }
 
 /* How many passes the echo wait makes before it sends the command again. */
 enum { ECHO_PASSES = 0x0400 };
@@ -91,10 +115,10 @@ void scene_send_sound_command(Snes *s)
 void scene_wait_sound_command_echo_loop(Snes *s)
 {
     uint8_t command = (uint8_t)s->cpu.a;
-    uint8_t echo = au_driver_read(m_platform(s), PF_AT(0x7E379B), 0);
-    m_set_flag(s, CPU_FLAG_C, command >= echo);
-    m_set_nz8(s, (uint8_t)(command - echo));
-    if (command == echo) {
+    uint8_t echoed = echo(m_platform(s));
+    m_set_flag(s, CPU_FLAG_C, command >= echoed);
+    m_set_nz8(s, (uint8_t)(command - echoed));
+    if (command == echoed) {
         s->cpu.pc = 0x37A5;
         return;
     }

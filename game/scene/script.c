@@ -17,20 +17,18 @@
  *            until it gets there; $9n also ends the turn
  *   $A0-$FF  by the low nibble: call a routine of the program; store a byte or
  *            a word in low RAM; call a part of the script and return from it;
- *            wait for the sound driver; send it a command; put a task on either
- *            of the frame's lists or take one off; a video setting; end the
- *            turn; jump (ending the turn, or not); and stop, for good
+ *            wait for the music; send the sound driver a command; put a task on
+ *            either of the frame's lists or take one off; a video setting; end
+ *            the turn; jump (ending the turn, or not); and stop, for good
  *
- * The language is a table: each row says which opcodes it covers, which
- * operation they are and how their operands decode, and the interpreter decodes
- * a command once, by its row, into a ScriptCommand of named, typed parameters.
- * The operations are C over the channel. Two call the original's code -- a
+ * The language is a table: each row says which opcodes it covers and runs
+ * them, decoding the command's operands into the named parameters of an
+ * operation over the channel. Two operations call the original's code -- a
  * routine of the program, and the sound driver's entry -- so the loop that runs
- * them is a bridge on the machine, which makes those calls with the registers the
- * original has there. A command the port doesn't take (one no script has: a
- * store outside low RAM, a video setting no call expresses, a task that isn't on
- * its list) is left to the original, as is a script that runs COMMAND_LIMIT
- * commands without ending its turn, which would hang it. */
+ * them is a bridge on the machine. A command the port doesn't take (one no
+ * script has: a store outside low RAM, a video setting no call expresses, a task
+ * that isn't on its list) is left to the original, as is a script that runs
+ * COMMAND_LIMIT commands without ending its turn, which would hang it. */
 #include "scene/scene.h"
 
 #include "original_effects.h"
@@ -43,7 +41,7 @@
 
 /* The scripts are in the program's bank, which is also the data bank the
  * interpreter runs with. */
-enum { SCRIPT_BANK = 0x7E };
+enum { SCRIPT_BANK = SCENE_LOWER_WORK_RAM };
 
 /* Low RAM, which the store commands write: the rest of bank 0 is the I/O
  * registers and the cartridge. */
@@ -87,67 +85,405 @@ static uint16_t script_word(const GameState *g, uint16_t at)
     return wram_read16(g, (uint32_t)SCRIPT_BANK << 16 | at);
 }
 
-/* ---- The language ---------------------------------------------------------------------------- */
-
-typedef enum {
-    SET,            /* register = value */
-    ADD,            /* register += value */
-    LOOP,           /* count a loop counter up to `limit`, jumping back to `target` until it gets there */
-    CALL_ROUTINE,   /* a routine of the program */
-    STORE,          /* a byte or a word to low RAM */
-    GOSUB,          /* a part of the script, returning past this command */
-    RETURN,
-    WAIT_SOUND,     /* until the sound driver's playing status reaches `level` */
-    SOUND,          /* a sound driver command */
-    ADD_TASK,
-    REMOVE_TASK,
-    VIDEO,          /* a video setting */
-    END_TURN,
-    JUMP,
-    STOP,           /* the script is over: it stays here, and the program's main loop is told */
-} ScriptOperation;
-
-/* Where an assignment's value is. */
-typedef enum { NO_VALUE, VALUE_WORD, VALUE_REGISTER } ValueFrom;
+/* ---- What the commands leave for the original -------------------------------------------------
+ *
+ * The program's code after the interpreter reads the carry and overflow of the
+ * last addition or compare a command made; the overflow in particular can be
+ * one a command several before left, which nothing in the final state says. A
+ * record of the two, which only ORIGINAL_EFFECT writes and the bridge hands
+ * over, and none of it in a native build. */
 
 typedef struct {
+    bool carry, overflow;
+} ScriptFlags;
+
+static ScriptFlags *flags_left;
+
+static bool overflows16(uint16_t a, uint16_t b, uint16_t sum) { return ((a ^ sum) & (b ^ sum) & 0x8000) != 0; }
+
+/* The flags of a sum, a + b. */
+static void leave_flags_of_adding(uint16_t a, uint16_t b)
+{
+    flags_left->carry = (uint32_t)a + b > 0xFFFF;
+    flags_left->overflow = overflows16(a, b, (uint16_t)(a + b));
+}
+
+/* A command of $80 and up finds its handler through a doubled index, which
+ * clears the carry; the flags of what it compares or adds follow. */
+static void leave_carry_clear(void) { flags_left->carry = false; }
+static void leave_carry(bool carry) { flags_left->carry = carry; }
+static void leave_overflow_clear(void) { flags_left->overflow = false; }
+
+/* Every command keeps a word in its channel's scratch, which only it reads: an
+ * assignment the address of its register, any other command itself and the
+ * byte after it. What is left there is the last command's. */
+enum { CHANNEL_PAGES = 0x0A00, CHANNEL_PAGE_BYTES = 0x100 };
+
+static uint16_t register_address(SceneChannel ch, unsigned reg)
+{
+    return (uint16_t)(CHANNEL_PAGES + ch * CHANNEL_PAGE_BYTES + 2 * reg);
+}
+
+static void keep_word(GameState *g, SceneChannel ch, uint16_t word)
+{
+    set_scene_call_script_scratch(g, scene_program_channel(ch), word);
+}
+
+/* ---- The operations -------------------------------------------------------------------------- */
+
+/* How a command ends. */
+typedef enum {
+    GO_ON,          /* on to the next command */
+    END_OF_TURN,    /* the interpreter returns */
+    WAITING,        /* waiting for the music ($C3:0C2A, an idle entry of its own) */
+    ROUTINE_CALL,   /* the program's routine to call */
+    SOUND_SEND,     /* the sound command buffer to send */
+} ScriptFlowKind;
+
+typedef struct {
+    ScriptFlowKind kind;
+    uint16_t routine;   /* ROUTINE_CALL */
+} ScriptFlow;
+
+static ScriptFlow go_on(void) { return (ScriptFlow){ GO_ON, 0 }; }
+static ScriptFlow end_of_turn(void) { return (ScriptFlow){ END_OF_TURN, 0 }; }
+
+static void assign(GameState *g, SceneChannel ch, unsigned reg, uint16_t value, bool add)
+{
+    uint16_t was = scene_channel_register(g, ch, reg);
+    ORIGINAL_EFFECT(keep_word(g, ch, register_address(ch, reg)));
+    ORIGINAL_EFFECT(leave_flags_of_adding((uint16_t)(CHANNEL_PAGES + ch * CHANNEL_PAGE_BYTES), (uint16_t)(2 * reg)));
+    if (add)
+        ORIGINAL_EFFECT(leave_flags_of_adding(was, value));
+    set_scene_channel_register(g, ch, reg, add ? (uint16_t)(was + value) : value);
+}
+
+/* A loop's counter reaches its limit when, counted up, it is at least the limit
+ * -- compared by the sign of the difference, as the original compares it. A
+ * counter at 0 has just started. */
+static bool loop_done(uint16_t count, uint16_t limit) { return count != 0 && (int16_t)(count - limit) >= 0; }
+
+/* Count a loop: short of its limit, count it up and go back to `back_to`; at
+ * it, clear it and go on to `after`. */
+static void count_loop(GameState *g, SceneChannel ch, unsigned counter, uint16_t limit, uint16_t back_to,
+                       uint16_t after)
+{
+    uint16_t count = loop_counter(g, ch, counter);
+    bool done = loop_done(count, limit);
+    if (!done)
+        ORIGINAL_EFFECT(leave_carry(count != 0 && count >= limit));
+    else
+        ORIGINAL_EFFECT(leave_flags_of_adding((uint16_t)(after - 4), 4));
+    set_loop_counter(g, ch, counter, done ? 0 : (uint16_t)(count + 1));
+    set_script(g, ch, done ? after : back_to);
+}
+
+/* Store a byte or a word in low RAM. A store can reach the script's own
+ * pointer, which makes it a jump: the script goes on past the value from
+ * wherever the store left the pointer. */
+enum { VALUE_OPERAND = 3 };
+
+static void store(GameState *g, SceneChannel ch, uint16_t on_the_value, uint16_t address, uint16_t value, bool word)
+{
+    set_script(g, ch, on_the_value);
+    uint32_t to = (uint32_t)SCRIPT_BANK << 16 | address;   /* low RAM, which the program's bank starts with */
+    if (word)
+        wram_write16(g, to, value);
+    else
+        wram_write8(g, to, (uint8_t)value);
+    set_script(g, ch, (uint16_t)(script(g, ch) + (word ? 2 : 1)));
+}
+
+/* A part of the script, which returns to `return_to`. */
+static void gosub(GameState *g, SceneChannel ch, uint16_t target, uint16_t return_to)
+{
+    set_scene_channels_return_address(g, ch, return_to);
+    set_script(g, ch, target);
+}
+
+static void return_from_gosub(GameState *g, SceneChannel ch) { set_script(g, ch, scene_channels_return_address(g, ch)); }
+
+/* A sound for the driver: the command and its parameters into the sound
+ * command buffer, and sent unless a song is on its way to the driver, which
+ * takes one message at a time -- then the sound is lost, and the player doesn't
+ * hear it. True if it is to be sent. */
+static bool queue_sound(GameState *g, const uint8_t sound[4])
+{
+    set_sound_command(g, sound[0]);
+    for (unsigned i = 0; i < 3; i++)
+        set_sound_command_parameters(g, i, sound[1 + i]);
+    return scene_song_sending(g) == 0;
+}
+
+/* The video settings a script makes. A script names each by the register the
+ * original writes it to, a number the table below carries as the scripts'
+ * encoding. */
+typedef enum {
+    MODE7_SETTINGS,      /* the plane's flips, and what lies outside it */
+    OBJ_WINDOWS,         /* how the windows mask the sprites and the color window */
+    WINDOW1_LEFT, WINDOW1_RIGHT,
+    MAIN_SCREEN,         /* the layers on the main screen */
+    SUB_SCREEN,
+    MAIN_WINDOWS,        /* the layers the windows mask on the main screen */
+    COLOR_MATH_LAYERS,
+    VIDEO_CONFIG,
+    NO_SETTING,
+} ScriptVideoSetting;
+
+static const struct {
+    uint8_t named_by;
+    ScriptVideoSetting setting;
+} video_settings[] = {
+    { 0x1A, MODE7_SETTINGS }, { 0x25, OBJ_WINDOWS }, { 0x26, WINDOW1_LEFT }, { 0x27, WINDOW1_RIGHT },
+    { 0x2C, MAIN_SCREEN },    { 0x2D, SUB_SCREEN },  { 0x2E, MAIN_WINDOWS }, { 0x31, COLOR_MATH_LAYERS },
+    { 0x33, VIDEO_CONFIG },
+};
+
+static ScriptVideoSetting video_setting_named(uint8_t named_by)
+{
+    for (unsigned i = 0; i < sizeof video_settings / sizeof video_settings[0]; i++)
+        if (video_settings[i].named_by == named_by)
+            return video_settings[i].setting;
+    return NO_SETTING;
+}
+
+/* A mode 7 setting a VidMode7 can carry: flips and what lies outside. */
+enum { MODE7_SETTINGS_UNUSED = 0x3C };
+
+static bool video_setting_expressed(ScriptVideoSetting setting, uint8_t value)
+{
+    return setting != NO_SETTING && !(setting == MODE7_SETTINGS && (value & MODE7_SETTINGS_UNUSED));
+}
+
+/* The setting, in the video service's terms: the script's byte is the setting
+ * as the game keeps it, which the service's decoders read. */
+static void make_video_setting(Platform *pf, ScriptVideoSetting setting, uint8_t v)
+{
+    PfOrigin at = PF_AT(0xC30C75);
+    VidWindows w = { 0 };
+    VidColorMath math = { 0 };
+    uint32_t windows;
+    switch (setting) {
+    case MODE7_SETTINGS:
+        vid_set_mode7(pf, at, &(VidMode7){ .hflip = v & 1, .vflip = (v & 2) != 0, .outside = (uint8_t)(v >> 6) },
+                      VID_M7_SELECT);
+        return;
+    case MAIN_SCREEN: vid_set_screens(pf, at, v, 0, VID_SCREEN_MAIN); return;
+    case SUB_SCREEN: vid_set_screens(pf, at, 0, v, VID_SCREEN_SUB); return;
+    case COLOR_MATH_LAYERS:
+        vid_color_math_decode(&math, VID_MATH_LAYERS, v);
+        vid_set_color_math(pf, at, &math, VID_MATH_LAYERS);
+        return;
+    case VIDEO_CONFIG: {
+        VidVideoConfig config = vid_video_config_decode(v);
+        vid_set_video_config(pf, at, &config);
+        return;
+    }
+    case OBJ_WINDOWS: windows = VID_WINDOWS_OBJ_BACK; break;
+    case WINDOW1_LEFT: windows = VID_WINDOWS_W1_LEFT; break;
+    case WINDOW1_RIGHT: windows = VID_WINDOWS_W1_RIGHT; break;
+    default: windows = VID_WINDOWS_MAIN; break;
+    }
+    vid_windows_decode(&w, windows, v);
+    vid_set_windows(pf, at, &w, windows);
+}
+
+/* The script is over: it stays on its stop, and the program's main loop is told. */
+static void stop(GameState *g, SceneChannel ch, uint16_t at)
+{
+    set_script(g, ch, at);
+    set_scene_frame_ready(g, 1);
+}
+
+/* ---- The table --------------------------------------------------------------------------------- */
+
+/* The command being run: where it is and its opcode, and whose script. */
+typedef struct {
+    GameState *g;
+    Platform *pf;
+    SceneChannel ch;
+    uint16_t at;
+    uint8_t opcode;
+} Command;
+
+static uint8_t operand8(const Command *c, unsigned n) { return script_byte(c->g, (uint16_t)(c->at + n)); }
+static uint16_t operand16(const Command *c, unsigned n) { return script_word(c->g, (uint16_t)(c->at + n)); }
+static unsigned low_nibble(const Command *c) { return c->opcode & 0x0F; }
+static uint16_t after(const Command *c, unsigned length) { return (uint16_t)(c->at + length); }
+
+struct ScriptRow;
+typedef ScriptFlow (*ScriptRun)(const Command *c, const struct ScriptRow *row);
+typedef bool (*ScriptTakes)(const Command *c, const struct ScriptRow *row);
+
+/* Where an assignment's value is. */
+typedef enum { VALUE_WORD, VALUE_REGISTER } ValueFrom;
+
+typedef struct ScriptRow {
     uint8_t mask, match;   /* the opcodes the row covers: those whose bits under the mask are `match` */
-    ScriptOperation operation;
-    ValueFrom value;       /* SET, ADD */
-    bool ends_turn;        /* LOOP, JUMP: the channel's turn ends after it */
-    bool word;             /* STORE */
-    SceneTaskList list;    /* ADD_TASK, REMOVE_TASK */
+    ScriptRun run;
+    ScriptTakes takes;     /* what the port needs of the state to run it, or NULL */
+    ValueFrom value;       /* assignments */
+    bool add;              /* assignments */
+    bool ends_turn;        /* loops, jumps */
+    bool word;             /* stores */
+    SceneTaskList list;    /* tasks */
 } ScriptRow;
+
+/* Across a call to the original's code, the script stays on the operand word the
+ * command read last -- a routine it calls can move it -- and goes on past that
+ * word from wherever the callee left it. */
+enum { ROUTINE_OPERAND = 1, SOUND_TAIL_OPERAND = 3 };
+
+static ScriptFlow run_assign(const Command *c, const ScriptRow *row)
+{
+    bool from_word = row->value == VALUE_WORD;
+    uint16_t value = from_word ? operand16(c, 1) : scene_channel_register(c->g, c->ch, (operand8(c, 1) & 0x1E) / 2);
+    assign(c->g, c->ch, low_nibble(c), value, row->add);
+    set_script(c->g, c->ch, after(c, from_word ? 3 : 2));
+    return go_on();
+}
+
+static ScriptFlow run_loop(const Command *c, const ScriptRow *row)
+{
+    count_loop(c->g, c->ch, low_nibble(c), operand16(c, 1), operand16(c, 3), after(c, 5));
+    return row->ends_turn ? end_of_turn() : go_on();
+}
+
+static ScriptFlow run_call_routine(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    set_script(c->g, c->ch, after(c, ROUTINE_OPERAND));
+    return (ScriptFlow){ ROUTINE_CALL, operand16(c, 1) };
+}
+
+static bool store_takes(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    return operand16(c, 1) < LOW_RAM_END;
+}
+
+static ScriptFlow run_store(const Command *c, const ScriptRow *row)
+{
+    uint16_t value = row->word ? operand16(c, 3) : operand8(c, 3);
+    store(c->g, c->ch, after(c, VALUE_OPERAND), operand16(c, 1), value, row->word);
+    return go_on();
+}
+
+static ScriptFlow run_gosub(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    gosub(c->g, c->ch, operand16(c, 1), after(c, 3));
+    return go_on();
+}
+
+static ScriptFlow run_return(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    return_from_gosub(c->g, c->ch);
+    return go_on();
+}
+
+/* The wait reads the level after the command. */
+static ScriptFlow run_wait_for_music(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    set_script(c->g, c->ch, after(c, 1));
+    return (ScriptFlow){ WAITING, 0 };
+}
+
+static ScriptFlow run_sound(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    uint8_t sound[4] = { operand8(c, 1), operand8(c, 2), operand8(c, 3), operand8(c, 4) };
+    if (!queue_sound(c->g, sound)) {
+        set_script(c->g, c->ch, after(c, 5));
+        return go_on();
+    }
+    set_script(c->g, c->ch, after(c, SOUND_TAIL_OPERAND));
+    return (ScriptFlow){ SOUND_SEND, 0 };
+}
+
+static bool task_takes(const Command *c, const ScriptRow *row)
+{
+    bool adding = row->add;
+    return scene_task_listed(c->g, row->list, adding ? NO_TASK : operand16(c, 1));
+}
+
+static ScriptFlow run_task(const Command *c, const ScriptRow *row)
+{
+    SceneTask task = operand16(c, 1);
+    if (row->add)
+        scene_add_task(c->g, row->list, task);
+    else
+        scene_remove_task(c->g, row->list, task);
+    set_script(c->g, c->ch, after(c, 3));
+    return go_on();
+}
+
+static bool video_takes(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    return video_setting_expressed(video_setting_named(operand8(c, 2)), operand8(c, 1));
+}
+
+static ScriptFlow run_video(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    make_video_setting(c->pf, video_setting_named(operand8(c, 2)), operand8(c, 1));
+    ORIGINAL_EFFECT(leave_overflow_clear());
+    set_script(c->g, c->ch, after(c, 3));
+    return go_on();
+}
+
+static ScriptFlow run_end_turn(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    set_script(c->g, c->ch, after(c, 1));
+    return end_of_turn();
+}
+
+static ScriptFlow run_jump(const Command *c, const ScriptRow *row)
+{
+    set_script(c->g, c->ch, operand16(c, 1));
+    return row->ends_turn ? end_of_turn() : go_on();
+}
+
+static ScriptFlow run_stop(const Command *c, const ScriptRow *row)
+{
+    (void)row;
+    stop(c->g, c->ch, c->at);
+    return end_of_turn();
+}
 
 /* The first row that covers an opcode is its. */
 static const ScriptRow rows[] = {
-    { .mask = 0xF0, .match = 0x00, .operation = SET, .value = VALUE_WORD },
-    { .mask = 0xF0, .match = 0x20, .operation = SET, .value = VALUE_REGISTER },
-    { .mask = 0xF0, .match = 0x10, .operation = ADD, .value = VALUE_WORD },
-    { .mask = 0xF0, .match = 0x40, .operation = ADD, .value = VALUE_WORD },
-    { .mask = 0xF0, .match = 0x50, .operation = ADD, .value = VALUE_WORD },
-    { .mask = 0xF0, .match = 0x30, .operation = ADD, .value = VALUE_REGISTER },
-    { .mask = 0xF0, .match = 0x60, .operation = ADD, .value = VALUE_REGISTER },
-    { .mask = 0xF0, .match = 0x70, .operation = ADD, .value = VALUE_REGISTER },
-    { .mask = 0xF0, .match = 0x80, .operation = LOOP },
-    { .mask = 0xF0, .match = 0x90, .operation = LOOP, .ends_turn = true },
+    { .mask = 0xF0, .match = 0x00, .run = run_assign, .value = VALUE_WORD },
+    { .mask = 0xF0, .match = 0x20, .run = run_assign, .value = VALUE_REGISTER },
+    { .mask = 0xF0, .match = 0x10, .run = run_assign, .value = VALUE_WORD, .add = true },
+    { .mask = 0xF0, .match = 0x40, .run = run_assign, .value = VALUE_WORD, .add = true },
+    { .mask = 0xF0, .match = 0x50, .run = run_assign, .value = VALUE_WORD, .add = true },
+    { .mask = 0xF0, .match = 0x30, .run = run_assign, .value = VALUE_REGISTER, .add = true },
+    { .mask = 0xF0, .match = 0x60, .run = run_assign, .value = VALUE_REGISTER, .add = true },
+    { .mask = 0xF0, .match = 0x70, .run = run_assign, .value = VALUE_REGISTER, .add = true },
+    { .mask = 0xF0, .match = 0x80, .run = run_loop },
+    { .mask = 0xF0, .match = 0x90, .run = run_loop, .ends_turn = true },
     /* $A0-$FF: the low nibble */
-    { .mask = 0x0F, .match = 0x00, .operation = CALL_ROUTINE },
-    { .mask = 0x0F, .match = 0x01, .operation = STORE },
-    { .mask = 0x0F, .match = 0x02, .operation = STORE, .word = true },
-    { .mask = 0x0F, .match = 0x03, .operation = GOSUB },
-    { .mask = 0x0F, .match = 0x04, .operation = RETURN },
-    { .mask = 0x0F, .match = 0x05, .operation = WAIT_SOUND },
-    { .mask = 0x0F, .match = 0x06, .operation = SOUND },
-    { .mask = 0x0F, .match = 0x07, .operation = REMOVE_TASK, .list = SCENE_VBLANK_TASKS },
-    { .mask = 0x0F, .match = 0x08, .operation = ADD_TASK, .list = SCENE_VBLANK_TASKS },
-    { .mask = 0x0F, .match = 0x09, .operation = REMOVE_TASK, .list = SCENE_FRAME_TASKS },
-    { .mask = 0x0F, .match = 0x0A, .operation = ADD_TASK, .list = SCENE_FRAME_TASKS },
-    { .mask = 0x0F, .match = 0x0B, .operation = VIDEO },
-    { .mask = 0x0F, .match = 0x0C, .operation = END_TURN },
-    { .mask = 0x0F, .match = 0x0D, .operation = JUMP, .ends_turn = true },
-    { .mask = 0x0F, .match = 0x0E, .operation = JUMP },
-    { .mask = 0x0F, .match = 0x0F, .operation = STOP },
+    { .mask = 0x0F, .match = 0x00, .run = run_call_routine },
+    { .mask = 0x0F, .match = 0x01, .run = run_store, .takes = store_takes },
+    { .mask = 0x0F, .match = 0x02, .run = run_store, .takes = store_takes, .word = true },
+    { .mask = 0x0F, .match = 0x03, .run = run_gosub },
+    { .mask = 0x0F, .match = 0x04, .run = run_return },
+    { .mask = 0x0F, .match = 0x05, .run = run_wait_for_music },
+    { .mask = 0x0F, .match = 0x06, .run = run_sound },
+    { .mask = 0x0F, .match = 0x07, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS },
+    { .mask = 0x0F, .match = 0x08, .run = run_task, .takes = task_takes, .list = SCENE_VBLANK_TASKS, .add = true },
+    { .mask = 0x0F, .match = 0x09, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS },
+    { .mask = 0x0F, .match = 0x0A, .run = run_task, .takes = task_takes, .list = SCENE_FRAME_TASKS, .add = true },
+    { .mask = 0x0F, .match = 0x0B, .run = run_video, .takes = video_takes },
+    { .mask = 0x0F, .match = 0x0C, .run = run_end_turn },
+    { .mask = 0x0F, .match = 0x0D, .run = run_jump, .ends_turn = true },
+    { .mask = 0x0F, .match = 0x0E, .run = run_jump },
+    { .mask = 0x0F, .match = 0x0F, .run = run_stop },
 };
 
 static const ScriptRow *row_of(uint8_t opcode)
@@ -158,337 +494,14 @@ static const ScriptRow *row_of(uint8_t opcode)
     return NULL;
 }
 
-/* The video settings a script makes: it names each by its register, whose
- * number it carries as data. */
-typedef enum {
-    SCRIPT_MODE7_SETTINGS = 0x1A,     /* the plane's flips, and what lies outside it */
-    SCRIPT_OBJ_WINDOWS = 0x25,        /* how the windows mask the sprites and the color window */
-    SCRIPT_WINDOW1_LEFT = 0x26,
-    SCRIPT_WINDOW1_RIGHT = 0x27,
-    SCRIPT_MAIN_SCREEN = 0x2C,        /* the layers on the main screen */
-    SCRIPT_SUB_SCREEN = 0x2D,
-    SCRIPT_MAIN_WINDOWS = 0x2E,       /* the layers the windows mask on the main screen */
-    SCRIPT_COLOR_MATH_LAYERS = 0x31,
-    SCRIPT_VIDEO_CONFIG = 0x33,
-} ScriptVideoSetting;
+static bool is_assignment(const ScriptRow *row) { return row->run == run_assign; }
 
-/* A command, decoded by its row. */
-typedef struct {
-    uint16_t at;                /* where it is */
-    uint8_t opcode;
-    const ScriptRow *row;
-    uint8_t length;             /* its bytes, the opcode's included */
-    uint8_t reg;                /* SET, ADD: the register; LOOP: the counter */
-    uint16_t value;             /* SET, ADD: the value; STORE: what is stored */
-    uint16_t address;           /* STORE: where; CALL_ROUTINE: the routine */
-    uint16_t limit, target;     /* LOOP; GOSUB, JUMP: target */
-    uint8_t level;              /* WAIT_SOUND */
-    uint8_t sound[4];           /* SOUND: the command and its three parameters */
-    SceneTask task;             /* ADD_TASK, REMOVE_TASK */
-    ScriptVideoSetting setting; /* VIDEO */
-    uint8_t setting_value;
-} ScriptCommand;
-
-static ScriptCommand decode(const GameState *g, SceneChannel ch, uint16_t at)
+/* Before a command of $80 and up runs, the original keeps the command itself
+ * and the byte after it in the channel's scratch, and clears the carry. */
+static void leave_before_dispatch(GameState *g, SceneChannel ch, uint16_t at)
 {
-    ScriptCommand c = { .at = at, .opcode = script_byte(g, at), .length = 1 };
-    c.row = row_of(c.opcode);
-    uint16_t operand = script_word(g, (uint16_t)(at + 1));
-    switch (c.row->operation) {
-    case SET:
-    case ADD:
-        c.reg = c.opcode & 0x0F;
-        if (c.row->value == VALUE_WORD) {
-            c.value = operand;
-            c.length = 3;
-        } else {
-            c.value = scene_channel_register(g, ch, (operand & 0x1E) / 2);
-            c.length = 2;
-        }
-        break;
-    case LOOP:
-        c.reg = c.opcode & 0x0F;
-        c.limit = operand;
-        c.target = script_word(g, (uint16_t)(at + 3));
-        c.length = 5;
-        break;
-    case CALL_ROUTINE:
-        c.address = operand;
-        c.length = 3;
-        break;
-    case STORE:
-        c.address = operand;
-        c.value = c.row->word ? script_word(g, (uint16_t)(at + 3)) : script_byte(g, (uint16_t)(at + 3));
-        c.length = c.row->word ? 5 : 4;
-        break;
-    case GOSUB:
-    case JUMP:
-        c.target = operand;
-        c.length = 3;
-        break;
-    case WAIT_SOUND:
-        c.level = (uint8_t)operand;
-        c.length = 2;
-        break;
-    case SOUND:
-        for (unsigned i = 0; i < 4; i++)
-            c.sound[i] = script_byte(g, (uint16_t)(at + 1 + i));
-        c.length = 5;
-        break;
-    case ADD_TASK:
-    case REMOVE_TASK:
-        c.task = operand;
-        c.length = 3;
-        break;
-    case VIDEO:
-        c.setting_value = (uint8_t)operand;
-        c.setting = (ScriptVideoSetting)(operand >> 8);
-        c.length = 3;
-        break;
-    default:
-        break;
-    }
-    return c;
-}
-
-/* ---- Video settings ---------------------------------------------------------------------------- */
-
-/* A mode 7 setting a VidMode7 can carry: flips and what lies outside. */
-enum { MODE7_SETTINGS_UNUSED = 0x3C };
-
-static bool video_setting_expressed(ScriptVideoSetting setting, uint8_t value)
-{
-    switch (setting) {
-    case SCRIPT_MODE7_SETTINGS: return !(value & MODE7_SETTINGS_UNUSED);
-    case SCRIPT_OBJ_WINDOWS:
-    case SCRIPT_WINDOW1_LEFT:
-    case SCRIPT_WINDOW1_RIGHT:
-    case SCRIPT_MAIN_SCREEN:
-    case SCRIPT_SUB_SCREEN:
-    case SCRIPT_MAIN_WINDOWS:
-    case SCRIPT_COLOR_MATH_LAYERS:
-    case SCRIPT_VIDEO_CONFIG: return true;
-    default: return false;
-    }
-}
-
-/* The setting, each in the video service's terms: the script's byte is the
- * setting as the game keeps it, which the service's decoders read. */
-static void make_video_setting(Platform *pf, ScriptVideoSetting setting, uint8_t v)
-{
-    PfOrigin at = PF_AT(0xC30C75);
-    VidWindows w = { 0 };
-    VidColorMath math = { 0 };
-    uint32_t windows;
-    switch (setting) {
-    case SCRIPT_MODE7_SETTINGS:
-        vid_set_mode7(pf, at, &(VidMode7){ .hflip = v & 1, .vflip = (v & 2) != 0, .outside = (uint8_t)(v >> 6) },
-                      VID_M7_SELECT);
-        return;
-    case SCRIPT_MAIN_SCREEN: vid_set_screens(pf, at, v, 0, VID_SCREEN_MAIN); return;
-    case SCRIPT_SUB_SCREEN: vid_set_screens(pf, at, 0, v, VID_SCREEN_SUB); return;
-    case SCRIPT_COLOR_MATH_LAYERS:
-        vid_color_math_decode(&math, VID_MATH_LAYERS, v);
-        vid_set_color_math(pf, at, &math, VID_MATH_LAYERS);
-        return;
-    case SCRIPT_VIDEO_CONFIG: {
-        VidVideoConfig config = vid_video_config_decode(v);
-        vid_set_video_config(pf, at, &config);
-        return;
-    }
-    case SCRIPT_OBJ_WINDOWS: windows = VID_WINDOWS_OBJ_BACK; break;
-    case SCRIPT_WINDOW1_LEFT: windows = VID_WINDOWS_W1_LEFT; break;
-    case SCRIPT_WINDOW1_RIGHT: windows = VID_WINDOWS_W1_RIGHT; break;
-    default: windows = VID_WINDOWS_MAIN; break;
-    }
-    vid_windows_decode(&w, windows, v);
-    vid_set_windows(pf, at, &w, windows);
-}
-
-/* ---- What the commands do ---------------------------------------------------------------------- */
-
-/* How a command ends. */
-typedef enum {
-    GO_ON,          /* on to the next command */
-    END_OF_TURN,    /* the interpreter returns */
-    WAITING,        /* waiting for the sound driver ($C3:0C2A, an idle entry of its own) */
-    ROUTINE_CALL,   /* the program's routine to call, then on past the command */
-    SOUND_SEND,     /* the sound command buffer to send, then on past the command */
-} ScriptFlow;
-
-/* Whether the port runs the command in this state: what it can't express, or
- * what the original runs on past its bounds, is left to the original. */
-static bool port_runs(const GameState *g, const ScriptCommand *c)
-{
-    switch (c->row->operation) {
-    case STORE: return c->address < LOW_RAM_END;
-    case VIDEO: return video_setting_expressed(c->setting, c->setting_value);
-    case REMOVE_TASK: return scene_task_listed(g, c->row->list, c->task);
-    case ADD_TASK: return scene_task_listed(g, c->row->list, NO_TASK);
-    default: return true;
-    }
-}
-
-/* A loop counter reaches its limit when, counted up, it is at least the limit
- * -- compared by the sign of the difference, as the original compares it. A
- * counter at 0 has just started. */
-static bool loop_done(uint16_t count, uint16_t limit) { return count != 0 && (int16_t)(count - limit) >= 0; }
-
-/* The operand of a store: where the script goes on is past it, from wherever
- * the store leaves the script pointer (a store to it is a jump). */
-enum { STORE_ADDRESS_BYTES = 3 };
-
-static ScriptFlow perform(GameState *g, Platform *pf, SceneChannel ch, const ScriptCommand *c)
-{
-    uint16_t after = (uint16_t)(c->at + c->length);
-    switch (c->row->operation) {
-    case SET:
-        set_scene_channel_register(g, ch, c->reg, c->value);
-        break;
-    case ADD:
-        set_scene_channel_register(g, ch, c->reg, (uint16_t)(scene_channel_register(g, ch, c->reg) + c->value));
-        break;
-    case LOOP: {
-        uint16_t count = loop_counter(g, ch, c->reg);
-        if (loop_done(count, c->limit)) {
-            set_loop_counter(g, ch, c->reg, 0);
-        } else {
-            set_loop_counter(g, ch, c->reg, (uint16_t)(count + 1));
-            after = c->target;
-        }
-        set_script(g, ch, after);
-        return c->row->ends_turn ? END_OF_TURN : GO_ON;
-    }
-    case CALL_ROUTINE:
-        set_script(g, ch, (uint16_t)(c->at + 1));
-        return ROUTINE_CALL;
-    case STORE: {
-        set_script(g, ch, (uint16_t)(c->at + STORE_ADDRESS_BYTES));
-        uint32_t to = (uint32_t)SCRIPT_BANK << 16 | c->address;   /* low RAM, which bank $7E starts with */
-        if (c->row->word)
-            wram_write16(g, to, c->value);
-        else
-            wram_write8(g, to, (uint8_t)c->value);
-        set_script(g, ch, (uint16_t)(script(g, ch) + c->length - STORE_ADDRESS_BYTES));
-        return GO_ON;
-    }
-    case GOSUB:
-        set_scene_channels_return_address(g, ch, after);
-        after = c->target;
-        break;
-    case RETURN:
-        after = scene_channels_return_address(g, ch);
-        break;
-    case WAIT_SOUND:
-        set_script(g, ch, (uint16_t)(c->at + 1));
-        return WAITING;
-    case SOUND:
-        set_sound_command(g, c->sound[0]);
-        for (unsigned i = 0; i < 3; i++)
-            set_sound_command_parameters(g, i, c->sound[1 + i]);
-        if (scene_song_sending(g) != 0)
-            break;
-        set_script(g, ch, (uint16_t)(c->at + 3));
-        return SOUND_SEND;
-    case ADD_TASK:
-        scene_add_task(g, c->row->list, c->task);
-        break;
-    case REMOVE_TASK:
-        scene_remove_task(g, c->row->list, c->task);
-        break;
-    case VIDEO:
-        make_video_setting(pf, c->setting, c->setting_value);
-        break;
-    case END_TURN:
-        set_script(g, ch, after);
-        return END_OF_TURN;
-    case JUMP:
-        set_script(g, ch, c->target);
-        return c->row->ends_turn ? END_OF_TURN : GO_ON;
-    case STOP:
-        set_script(g, ch, c->at);
-        set_scene_frame_ready(g, 1);
-        return END_OF_TURN;
-    }
-    set_script(g, ch, after);
-    return GO_ON;
-}
-
-/* ---- What the commands leave for the original ----------------------------------------------------
- *
- * The program's code after the interpreter reads the carry and overflow of the
- * last addition or compare a command made, and A as the command that ended the
- * turn left it; and each command keeps a word in its channel's scratch, which
- * only it reads. None of it is the scripts' doing, so it is written apart
- * (original_effects.h), and a build without the original's effects has none of
- * it. The bridge below puts the flags on the machine where it hands over. */
-
-typedef struct {
-    bool carry, overflow;
-    uint16_t a;
-} ScriptLeaves;
-
-static ScriptLeaves *script_leaves;
-
-static bool overflows16(uint16_t a, uint16_t b, uint16_t sum) { return ((a ^ sum) & (b ^ sum) & 0x8000) != 0; }
-
-enum { CHANNEL_PAGES = 0x0A00, CHANNEL_PAGE_BYTES = 0x100 };
-
-/* Before a command runs: the word it keeps in the scratch -- an assignment its
- * register's address, anything else the command and the byte after it -- and
- * the flags it leaves, from its operands. */
-static void leave_before(GameState *g, SceneChannel ch, const ScriptCommand *c)
-{
-    ScriptLeaves *l = script_leaves;
-    SceneMathPage page = scene_math_channel(ch);
-    if (c->row->operation == SET || c->row->operation == ADD) {
-        uint16_t d = (uint16_t)(CHANNEL_PAGES + ch * CHANNEL_PAGE_BYTES), reg = (uint16_t)(2 * c->reg);
-        uint16_t address = (uint16_t)(d + reg);
-        set_scene_math_scratch_script_scratch(g, page, address);
-        l->carry = (uint32_t)d + reg > 0xFFFF;
-        l->overflow = overflows16(d, reg, address);
-        if (c->row->operation == ADD) {
-            uint16_t was = scene_channel_register(g, ch, c->reg), sum = (uint16_t)(was + c->value);
-            l->carry = (uint32_t)was + c->value > 0xFFFF;
-            l->overflow = overflows16(was, c->value, sum);
-        }
-        return;
-    }
-    set_scene_math_scratch_script_scratch(g, page, script_word(g, c->at));
-    l->carry = false;   /* the shift of the command's number that dispatches it */
-    switch (c->row->operation) {
-    case LOOP: {
-        uint16_t count = loop_counter(g, ch, c->reg);
-        if (loop_done(count, c->limit)) {
-            uint16_t on = (uint16_t)(c->at + 1);
-            l->carry = (uint32_t)on + 4 > 0xFFFF;
-            l->overflow = overflows16(on, 4, (uint16_t)(on + 4));
-        } else if (count != 0) {
-            l->carry = count >= c->limit;
-        }
-        break;
-    }
-    case VIDEO:
-        l->overflow = false;   /* the sum that makes the register's address */
-        break;
-    default:
-        break;
-    }
-}
-
-/* A where a command ends the turn: the loop's the script's new place, the jump
- * its target, the stop 1, and the plain end of turn its command's number in the
- * interpreter's table. */
-enum { END_TURN_INDEX = 0x18 };
-
-static void leave_a_at_end_of_turn(const GameState *g, SceneChannel ch, const ScriptCommand *c)
-{
-    switch (c->row->operation) {
-    case LOOP: script_leaves->a = script(g, ch); break;
-    case JUMP: script_leaves->a = c->target; break;
-    case STOP: script_leaves->a = 1; break;
-    default: script_leaves->a = END_TURN_INDEX; break;
-    }
+    keep_word(g, ch, script_word(g, at));
+    leave_carry_clear();
 }
 
 /* ---- Where the port meets the original's registers ------------------------------------------
@@ -500,26 +513,16 @@ static void set_widths16(Snes *s) { s->cpu.p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG
 
 static void put_flags(Snes *s)
 {
-    m_set_flag(s, CPU_FLAG_C, script_leaves->carry);
-    m_set_flag(s, CPU_FLAG_V, script_leaves->overflow);
-}
-
-/* The channel whose page D is on: a channel's page is the channel instance of
- * the math helpers' page kind (re/ram.toml, scene_math). */
-static bool on_channel(uint16_t d, SceneChannel *ch)
-{
-    SceneMathPage page;
-    if (!scene_math_page_of(d, &page) || page.kind != SCENE_MATH_CHANNEL)
-        return false;
-    *ch = page.index;
-    return true;
+    m_set_flag(s, CPU_FLAG_C, flags_left->carry);
+    m_set_flag(s, CPU_FLAG_V, flags_left->overflow);
 }
 
 /* Where the interpreter runs as the port has it: native mode, 16-bit index
  * registers, binary adds, the scripts' data bank and D on a channel's page. */
 static bool machine_as_expected(Snes *s, SceneChannel *ch)
 {
-    return !s->cpu.e && !(s->cpu.p & (CPU_FLAG_X | CPU_FLAG_D)) && s->cpu.db == SCRIPT_BANK && on_channel(s->cpu.d, ch);
+    return !s->cpu.e && !(s->cpu.p & (CPU_FLAG_X | CPU_FLAG_D)) && s->cpu.db == SCRIPT_BANK &&
+           scene_channel_at(s->cpu.d, ch);
 }
 
 /* After a call-out: the port carries on if the callee left the machine as
@@ -527,88 +530,100 @@ static bool machine_as_expected(Snes *s, SceneChannel *ch)
  * does. Either way the flags are the callee's. */
 static bool can_continue(Snes *s, SceneChannel *ch)
 {
-    script_leaves->carry = m_flag(s, CPU_FLAG_C);
-    script_leaves->overflow = m_flag(s, CPU_FLAG_V);
+    flags_left->carry = m_flag(s, CPU_FLAG_C);
+    flags_left->overflow = m_flag(s, CPU_FLAG_V);
     return machine_as_expected(s, ch);
 }
 
 // $C3:0C51
-/* A routine of the program, which $7E:37F3 calls through the scene's scratch. */
+/* A routine of the program, which $7E:37F3 calls through the scene's own page:
+ * the routine's address is what that call reads. */
 static bool call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
 {
-    set_scene_math_scratch_script_scratch(state_of(s), scene_math_scene(), routine);
-    s->cpu.a = routine;
+    set_scene_call_script_scratch(state_of(s), scene_program_own(), routine);
+    s->cpu.a = routine;   /* as the original loaded it: some routines read it */
     set_widths16(s);
     put_flags(s);
-    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z);
+    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_X | DC_Y | DC_N | DC_V | DC_Z);
     return can_continue(s, ch);
 }
 
 // $C3:0BD4
-/* The sound driver command in its buffer, with the registers at the original's
- * call: A's high byte the last parameter and its low byte the flag of a song
- * being sent, 0; X the command's place in the table. */
-enum { SOUND_TABLE_INDEX = 0x000C };
-
+/* The sound driver command in its buffer, as the original calls the driver
+ * (8-bit A). The driver's entry saves A, which the liveness analysis counts as
+ * reading its high byte: there the original has the command's last parameter,
+ * which it loaded last. */
 static bool send_sound(Snes *s, SceneChannel *ch)
 {
     GameState *g = state_of(s);
-    s->cpu.a = (uint16_t)(sound_command_parameters(g, 2) << 8);
-    s->cpu.x = SOUND_TABLE_INDEX;
     set_widths16(s);
     s->cpu.p |= CPU_FLAG_M;
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, true);
     put_flags(s);
-    au_command(m_platform(s), PF_CALL(0xC30BE9, 0xC70004),
+    s->cpu.a = (uint16_t)(sound_command_parameters(g, 2) << 8);
+    au_command(m_platform(s), PF_CALL_DC(0xC30BE9, 0xC70004, DC_AL | DC_X | DC_N | DC_Z),
                (AudioCommand){ .command = sound_command(g), .p1 = sound_command_parameters(g, 0),
                                .p2 = sound_command_parameters(g, 1), .p3 = sound_command_parameters(g, 2),
                                .count = 3 });
     return can_continue(s, ch);
 }
 
-/* After a command's call-out, the script moves on past its operand on the page
- * the callee left in D: a channel's, or, where the callee left the machine
- * other than the port expects, wherever D is, as the original's does. */
-enum { SCRIPT_CELL = 0x20, CALL_OPERAND_BYTES = 2 };
+/* After a command's call-out, the script moves on past the operand word it was
+ * on, on the page the callee left in D: a channel's, or, where the callee left
+ * the machine other than the port expects, wherever D is, as the original's
+ * does. */
+enum { SCRIPT_CELL = 0x20, OPERAND_WORD = 2 };
 
 static bool past_the_call(Snes *s, SceneChannel ch, bool go_on)
 {
     if (go_on) {
-        set_script(state_of(s), ch, (uint16_t)(script(state_of(s), ch) + CALL_OPERAND_BYTES));
+        set_script(state_of(s), ch, (uint16_t)(script(state_of(s), ch) + OPERAND_WORD));
         return true;
     }
     uint16_t cell = (uint16_t)(s->cpu.d + SCRIPT_CELL);
-    m_write16(s, cell, (uint16_t)(m_read16(s, cell) + CALL_OPERAND_BYTES));
+    m_write16(s, cell, (uint16_t)(m_read16(s, cell) + OPERAND_WORD));
     return false;
+}
+
+/* A where a command ends the turn: the loop's and the jump's the script's new
+ * place, the stop 1, and the plain end of turn its handler's place in the
+ * interpreter's table. */
+enum { END_TURN_INDEX = 0x18, STOPPED = 1 };
+
+static uint16_t a_at_end_of_turn(const GameState *g, SceneChannel ch, const ScriptRow *row)
+{
+    if (row->run == run_loop || row->run == run_jump)
+        return script(g, ch);
+    return row->run == run_stop ? STOPPED : END_TURN_INDEX;
 }
 
 /* How the run ends. */
 typedef enum { RUN_ENDED_TURN, RUN_WAITING, RUN_HANDED_BACK } RunEnd;
 
-/* The wait for the sound driver's registers: A and X the command's place in
- * the interpreter's table. */
+/* The wait for the music's registers: A and X its handler's place in the
+ * interpreter's table. */
 enum { WAIT_TABLE_INDEX = 0x000A };
 
 // $C3:0B03
 /* Run commands until one ends the channel's turn. Otherwise the script is left
  * on the command the original is to carry on from (RUN_HANDED_BACK), or the port
- * has stopped at the sound wait (RUN_WAITING). */
+ * has stopped at the wait for the music (RUN_WAITING). */
 static RunEnd run(Snes *s, SceneChannel ch)
 {
     GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     for (uint32_t i = 0; i < COMMAND_LIMIT; i++) {
-        ScriptCommand c = decode(g, ch, script(g, ch));
-        if (!port_runs(g, &c))
+        uint16_t at = script(g, ch);
+        Command c = { g, m_platform(s), ch, at, script_byte(g, at) };
+        const ScriptRow *row = row_of(c.opcode);
+        if (row->takes && !row->takes(&c, row))
             return RUN_HANDED_BACK;
-        ORIGINAL_EFFECT(leave_before(g, ch, &c));
-        switch (perform(g, pf, ch, &c)) {
+        if (!is_assignment(row))
+            ORIGINAL_EFFECT(leave_before_dispatch(g, ch, at));
+        ScriptFlow flow = row->run(&c, row);
+        switch (flow.kind) {
         case GO_ON:
             continue;
         case END_OF_TURN:
-            ORIGINAL_EFFECT(leave_a_at_end_of_turn(g, ch, &c));
-            s->cpu.a = script_leaves->a;
+            s->cpu.a = a_at_end_of_turn(g, ch, row);
             return RUN_ENDED_TURN;
         case WAITING:
             s->cpu.a = WAIT_TABLE_INDEX;
@@ -618,7 +633,7 @@ static RunEnd run(Snes *s, SceneChannel ch)
             m_stop_at(s, 0xC30C2A, DC_X | DC_N | DC_Z | DC_C);
             return RUN_WAITING;
         case ROUTINE_CALL:
-            if (!past_the_call(s, ch, call_routine(s, &ch, c.address)))
+            if (!past_the_call(s, ch, call_routine(s, &ch, flow.routine)))
                 return RUN_HANDED_BACK;
             continue;
         case SOUND_SEND:
@@ -637,8 +652,8 @@ enum { INTERPRETER_RETURN = 0x0B01 };
 /* The channel whose page is in D runs until its script ends its turn. */
 void scene_run_sequence(Snes *s)
 {
-    ScriptLeaves leaves = { m_flag(s, CPU_FLAG_C), m_flag(s, CPU_FLAG_V), s->cpu.a };
-    script_leaves = &leaves;
+    ScriptFlags flags = { m_flag(s, CPU_FLAG_C), m_flag(s, CPU_FLAG_V) };
+    flags_left = &flags;
     SceneChannel ch = 0;
     machine_as_expected(s, &ch);
     m_push16(s, INTERPRETER_RETURN);   /* the JSR's frame, there at every call-out */
@@ -667,45 +682,37 @@ bool scene_sequence_bank_is_scripts(Snes *s)
 bool scene_sequence_waits_on_channel(Snes *s)
 {
     SceneChannel ch;
-    return s->cpu.db == SCRIPT_BANK && on_channel(s->cpu.d, &ch);
+    return s->cpu.db == SCRIPT_BANK && scene_channel_at(s->cpu.d, &ch);
 }
 
-/* ---- The wait for the sound driver ---------------------------------------------------------- */
+/* ---- The wait for the music ------------------------------------------------------------------ */
 
 /* $C3:0C28, where the wait goes on, isn't an entry, so after the wait the rest
  * of that run is the original's. It could be: the store command's own path runs
  * through it, but an entry the original reaches inside a run shadow mode is
  * comparing no longer takes the run's call-outs (docs/PORTING.md, Call-outs). */
 
-/* The sound driver's playing status (docs/SOUND.md, "What the game reads
- * back"): the script waits until its low nibble reaches the command's level. */
-enum { STATUS_PORT = 2, PLAYING = 0x0F };
-
 // $C3:0C2A
-/* One pass of the wait: the status, read until two reads agree; at the level
- * or past it (compared by the sign of the difference, as the original compares
- * it), the wait is over, and until then the script stays on the command and the
- * channel's turn ends, with A the status and the carry from the compare. Idle
- * entry. */
+/* One pass of the wait: the music's progress (scene/sound.c) against the level
+ * after the command; at the level or past it the wait is over, and until then
+ * the script stays on the command and the channel's turn ends. Idle entry: A is
+ * what the original compared last, and the flags its compare's. */
 void scene_script_wait_for_sound(Snes *s)
 {
     GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     SceneChannel ch = 0;
-    on_channel(s->cpu.d, &ch);   /* the guard has checked it is */
+    scene_channel_at(s->cpu.d, &ch);   /* the guard has checked it is */
     s->cpu.p |= CPU_FLAG_M;
-    uint8_t first = au_status(pf, PF_AT(0xC30C2C), STATUS_PORT);
-    uint8_t second = au_status(pf, PF_AT(0xC30C30), STATUS_PORT);
-    m_set_a8(s, first);
-    m_set_flag(s, CPU_FLAG_C, first >= second);
-    m_set_nz8(s, (uint8_t)(first - second));
-    if (first != second)
+    MusicStatus music = scene_music_status(m_platform(s));
+    uint8_t level = script_byte(g, script(g, ch));
+    uint8_t compared = music.steady ? scene_music_progress(music) : music.first;
+    uint8_t against = music.steady ? level : music.second;
+    m_set_a8(s, compared);
+    m_set_flag(s, CPU_FLAG_C, compared >= against);
+    m_set_nz8(s, (uint8_t)(compared - against));
+    if (!music.steady)
         return;
-    uint8_t level = first & PLAYING, wanted = script_byte(g, script(g, ch));
-    m_set_a8(s, level);
-    m_set_flag(s, CPU_FLAG_C, level >= wanted);
-    m_set_nz8(s, (uint8_t)(level - wanted));
-    if ((int8_t)(level - wanted) >= 0) {
+    if (scene_music_reached(music, level)) {
         s->cpu.pc = 0x0C28;
         return;
     }
