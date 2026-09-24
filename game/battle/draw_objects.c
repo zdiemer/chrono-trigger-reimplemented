@@ -18,7 +18,7 @@
  * which the original switches the direct page to for them. A's high byte is 0
  * all through a frame's drawing (the entries that take it along are guarded
  * on that), and what each leaves in A is returned where it is live. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "battle/sprite_data.h"
 #include "port/machine.h"
@@ -544,13 +544,6 @@ static void draw_objects(Snes *s, uint16_t sp)
 }
 
 /* ---- entries ------------------------------------------------------------------------- */
-
-/* The drawing routines' page and bank: the direct page on battle_sprites and
- * data bank $7E; with A's high byte 0 for those that take it into an index. */
-bool battle_sprite_page(Snes *s) { return s->cpu.d == (uint16_t)RAM_BATTLE_OBJECT_X && s->cpu.db == 0x7E; }
-bool battle_sprite_page_ready(Snes *s) { return battle_sprite_page(s) && (s->cpu.a & 0xFF00) == 0; }
-/* The whole drawing sets its own direct page. */
-bool battle_sprite_bank_ready(Snes *s) { return s->cpu.db == 0x7E && (s->cpu.a & 0xFF00) == 0; }
 
 static void return_a8(Snes *s, uint16_t a)
 {

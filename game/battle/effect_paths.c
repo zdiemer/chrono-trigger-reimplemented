@@ -23,7 +23,7 @@
  * the loop leaves it; they return what they leave in A, which the loop hands
  * on (battle_step_effect_slots still reproduces it). Called by themselves they
  * leave A's low byte as it is: their callers don't read it (DC_AL). */
-#include "battle/battle.h"
+#include "battle/entries.h"
 #include "battle/effects.h"
 
 #include "port/machine.h"

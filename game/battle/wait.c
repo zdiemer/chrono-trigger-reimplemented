@@ -1,5 +1,5 @@
 /* Battle: synchronizing with the display. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "port/machine.h"
 

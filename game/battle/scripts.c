@@ -5,7 +5,7 @@
  * While a channel runs, its pointer is in $E6-$E8, the channel in $A010 and
  * its pointer offset in $A00E; each opcode's handler ($C1:7A6B table) sets
  * $A00F to keep going within the frame. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "port/machine.h"
 

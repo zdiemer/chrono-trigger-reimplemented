@@ -151,8 +151,11 @@ add_library(ct_game STATIC
   game/scene/sprites.c
   game/scene/title.c
   game/battle/animation.c
+  game/battle/bridge.c
   game/battle/buffers.c
+  game/battle/combatants.c
   game/battle/display.c
+  game/battle/effect_animation.c
   game/battle/effect_paths.c
   game/battle/frame.c
   game/battle/gauges.c
@@ -172,7 +175,6 @@ add_library(ct_game STATIC
   game/battle/sprites.c
   game/battle/draw_objects.c
   game/battle/object_motion.c
-  game/battle/stats.c
   game/battle/tiles.c
   game/battle/timers.c
   game/battle/wait.c

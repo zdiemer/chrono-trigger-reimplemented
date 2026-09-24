@@ -1,5 +1,5 @@
 /* Battle: per-object state updated each battle frame. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "port/machine.h"
 

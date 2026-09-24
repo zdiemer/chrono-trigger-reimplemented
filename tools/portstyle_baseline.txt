@@ -18,9 +18,7 @@ game/battle/scripts.c                        0.458
 game/battle/setup.c                          0.323
 game/battle/sound.c                          0.200
 game/battle/sprites.c                        0.584
-game/battle/stats.c                          0.600
 game/battle/tiles.c                          0.505
-game/battle/timers.c                         0.544
 game/battle/wait.c                           0.295
 game/battle/window.c                         0.488
 game/core/input.c                            0.541

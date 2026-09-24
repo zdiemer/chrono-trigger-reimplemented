@@ -1,6 +1,6 @@
 /* Battle: building the objects' sprite graphics and the bitmap sprites (banks
  * C1 and CC). Drawing the objects into the OAM buffer is battle/draw_objects.c. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "port/machine.h"
 

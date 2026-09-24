@@ -2,7 +2,8 @@
 
 #include "attract/attract.h"
 #include "battle/animation.h"
-#include "battle/battle.h"
+#include "battle/bridge.h"
+#include "battle/entries.h"
 #include "battle/menu_window.h"
 #include "battle/main_loop.h"
 #include "battle/window.h"
@@ -220,9 +221,9 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC18461, .name = "battle_run_queued_scripts", .fn = battle_run_queued_scripts,
       NEEDS_M8_X16_BINARY, .cost_milli = 5081, .dont_care = DC_N | DC_Z },
     { .addr = 0xC18231, .name = "battle_tick_timers", .fn = battle_tick_timers, .p_mask = CPU_FLAG_X,
-      .p_value = 0, .cost_milli = 3737 },
+      .p_value = 0, .cost_milli = 3737, .guard = battle_on_page },
     { .addr = 0xC18290, .name = "battle_dispatch_expired_timers", .fn = battle_dispatch_expired_timers,
-      NEEDS_M8_X16_BINARY, .cost_milli = 3713 },
+      NEEDS_M8_X16_BINARY, .cost_milli = 3713, .guard = battle_on_page },
     { .addr = 0xC1285A, .name = "battle_update_object_bounds", .fn = battle_update_object_bounds,
       NEEDS_M8_X16_BINARY, .cost_milli = 5171 },
     { .addr = 0xC1283D, .name = "battle_update_all_object_bounds", .fn = battle_update_all_object_bounds,
@@ -308,11 +309,11 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCFE58A, .name = "battle_frame_update", .fn = battle_frame_update, NEEDS_M8_X16_BINARY,
       .cost_milli = 3865, .guard = battle_effect_page, .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS },
     { .addr = 0xC1B093, .name = "battle_update_low_hp_flag", .fn = battle_update_low_hp_flag, NEEDS_M8_X16,
-      .cost_milli = 4695, .dont_care = DC_N | DC_Z | DC_C },
+      .cost_milli = 4695, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C, .guard = battle_on_page_stat_block_x },
     { .addr = 0xC1B0B6, .name = "battle_update_status_flags", .fn = battle_update_status_flags, NEEDS_M8_X16,
-      .cost_milli = 5666, .dont_care = DC_N | DC_Z | DC_C },
+      .cost_milli = 5666, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C, .guard = battle_on_page_combatant_xy },
     { .addr = 0xC1B223, .name = "battle_update_all_combatants", .fn = battle_update_all_combatants, NEEDS_M8_X16,
-      .cost_milli = 6264, .dont_care = DC_N | DC_Z },
+      .cost_milli = 6264, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_on_page },
     { .addr = 0xCD1368, .name = "battle_decode_tile_row", .fn = battle_decode_tile_row, NEEDS_M8_X16_BINARY,
       .cost_milli = 2926, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C },
     { .addr = 0xC14C9E, .name = "battle_run_script_channel", .fn = battle_run_script_channel, NEEDS_M8_X16,
@@ -457,7 +458,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC1B575, .name = "battle_update_combo_members", .fn = battle_update_combo_members, NEEDS_M8_X16,
       .cost_milli = 7076 },
     { .addr = 0xC1B279, .name = "battle_update_combatant", .fn = battle_update_combatant, NEEDS_M8_X16,
-      .cost_milli = 5352, .dont_care = DC_N | DC_Z },
+      .cost_milli = 5352, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C, .guard = battle_on_page_combatant_xy },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
       .cost_milli = 4344, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF110, .name = "battle_mark_object_grid", .fn = battle_mark_object_grid,

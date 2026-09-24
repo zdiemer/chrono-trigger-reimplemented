@@ -5,7 +5,7 @@
  * (bit 13: no third plane in the data; bits 13-14 also pick the flip
  * handler). Each decodes to 32 bytes of 4-plane tile at $2D00 + Y, the upper
  * planes taken from the lower ones masked by the palette mask in $5F. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "port/machine.h"
 

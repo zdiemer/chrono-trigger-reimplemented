@@ -1,5 +1,5 @@
 /* Battle: arithmetic helpers on the hardware multiplier. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "port/machine.h"
 

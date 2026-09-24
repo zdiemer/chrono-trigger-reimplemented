@@ -1,5 +1,5 @@
 /* Battle: the per-frame work the NMI handler runs. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "platform/input.h"
 #include "platform/video.h"

@@ -1,5 +1,5 @@
 /* Battle: resetting per-frame work buffers. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "port/machine.h"
 

@@ -6805,15 +6805,19 @@ source = "tools/movies/addresses.py BATTLE_STATS; game/battle/stats.c header, ba
   size = 2
   meaning = "Maximum MP"
   [[var.field]]
-  name = "status"
+  name = "condition"
   offset = 0x1B
-  size = 5
-  meaning = "Status bytes ($5E4A-$5E4E for slot 0): the per-status timer rows and the pose table test their bits"
+  meaning = "Bit 7 set while the combatant is knocked out ($5E4A for slot 0)"
   [[var.field]]
-  name = "status_extra"
+  name = "status"
+  offset = 0x1C
+  size = 4
+  meaning = "The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its timed statuses' bits, which its status timers follow, and the bits the pose table tests"
+  [[var.field]]
+  name = "status_kept"
   offset = 0x23
   size = 2
-  meaning = "Two more status bytes ($5E52-$5E53), ORed with the first ones' bits"
+  meaning = "Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes' bits ($5E52-$5E53 for slot 0)"
 
 # ---- the battlefield grid and setup tables -------------------------------------
 
@@ -7317,20 +7321,67 @@ source = "game/battle/gauges.c battle_draw_gauge $C1:06F0; game/battle/nmi.c bat
 [[var]]
 name = "battle_timer_counts"
 addr = "7E:AF27"
-count = 143
-index = "timer kind * 11 + battle slot"
+size = 11
+count = 13
+stride = 11
+index = "kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot"
 subsystem = "battle"
-meaning = "Counters of the battle's timers: 13 kinds (the last the combatants' turn wait) for each of the 11 slots"
-source = "game/battle/timers.c battle_tick_timers $C1:8231, battle_dispatch_expired_timers $C1:8290"
+meaning = "Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then the turn), a column per battle slot"
+source = "game/battle/timers.c battle_tick_timers $C1:8231, battle_dispatch_expired_timers $C1:8290; the kinds' handlers from the table at $C1:B92D"
 
 [[var]]
 name = "battle_timer_flags"
 addr = "7E:AFB6"
-count = 143
-index = "timer kind * 11 + battle slot"
+size = 11
+count = 13
+stride = 11
+index = "kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot"
+unchecked = "an empty place in battle_timer_order ($FF) names a timer past the kind's row, which the search for run-out timers reads as the original's indexed read does (game/battle/timers.c)"
 subsystem = "battle"
-meaning = "Flags of the battle's timers: nonzero while running, bit 7 once expired; most kinds' bit 0 mirrors a status bit of the slot's stat block"
-source = "game/battle/timers.c battle_tick_timers $C1:8231; game/battle/stats.c header and battle_update_status_flags $C1:B0B6"
+meaning = "Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once it has run out; bit 0 of a status's timer follows the status's bit in the stat block"
+source = "game/battle/timers.c battle_tick_timers $C1:8231; game/battle/combatants.c battle_update_status_flags $C1:B0B6; the table of the rows at $C1:B947"
+
+[[var]]
+name = "battle_timer_order"
+addr = "7E:B163"
+count = 11
+index = "place in the order"
+unchecked = "a timer kind's cursor that ran past the order reads on into battle_timer_order_draw after it, as the original's indexed read does (game/battle/timers.c)"
+subsystem = "battle"
+meaning = "The order the combatants' run-out timers are looked for in: battle slots drawn at random at the start of the battle, $FF past the combatants"
+source = "game/battle/timers.c battle_dispatch_expired_timers $C1:8290; game/battle/main_loop.c battle_main_loop_start $C1:8000"
+
+[[var]]
+name = "battle_timer_order_draw"
+addr = "7E:B16E"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "What battle_timer_order is drawn from at the start: the combatants still to be placed ($FF once placed); then the enemies' ids, for the enemies' order (battle_main_loop_start); in a turn, the entry of the combatant acting"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000, battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_timer_kind_bit"
+addr = "7E:AEC3"
+size = 2
+subsystem = "battle"
+meaning = "The bit of battle_timer_kinds_due for the kind being searched or handled"
+source = "game/battle/timers.c battle_dispatch_expired_timers $C1:8290"
+
+[[var]]
+name = "battle_timer_tick_slot"
+addr = "7E:B3C0"
+subsystem = "battle"
+meaning = "The battle slot of the timer the count-down pass is at"
+source = "game/battle/timers.c battle_tick_timers $C1:8231"
+
+[[var]]
+name = "battle_timer_tick_timer"
+addr = "7E:B3C4"
+size = 2
+subsystem = "battle"
+meaning = "The timer the count-down pass is at (kind * 11 + slot); 143 once it is through"
+source = "game/battle/timers.c battle_tick_timers $C1:8231"
 
 [[var]]
 name = "battle_timer_kind_cursors"
@@ -7350,13 +7401,102 @@ meaning = "One bit per timer kind with an expired entry to handle (bit 12 kind 0
 source = "game/battle/timers.c battle_dispatch_expired_timers $C1:8290; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
 
 [[var]]
-name = "battle_combatant_out"
+name = "battle_combatant_fighting"
 addr = "7E:AEFF"
 count = 11
 index = "battle slot"
+unchecked = "an enemy with no other part has $FF for its link, and the look at whether its link is in the fight reads the byte that far past the table, as the original's indexed read does (game/battle/combatants.c)"
 subsystem = "battle"
-meaning = "Negative ($FF) when the combatant is out of the fight; all three party slots negative is a defeat, all enemy slots a victory"
-source = "game/battle/stats.c battle_update_all_combatants $C1:B223, battle_update_combatant $C1:B279; game/battle/main_loop.c battle_main_loop_body $C1:812C"
+meaning = "The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all three party slots out is a defeat"
+source = "game/battle/combatants.c battle_update_all_combatants $C1:B223, battle_update_combatant $C1:B279; game/battle/main_loop.c battle_main_loop_body $C1:812C, battle_run_queued_scripts $C1:8461 (an enemy's id picks its script, $C1:B488)"
+
+[[var]]
+name = "battle_combatant_id"
+addr = "7E:AF0A"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "What the combatant is, as its scripts are found by it ($C1:B488); $FF for a slot nobody fills. It stays while the combatant is out, and comes back into battle_combatant_fighting when it is revived"
+source = "game/battle/combatants.c battle_update_combatant $C1:B279; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_enemy_animation"
+addr = "7E:5E0D"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "The animation the enemy shows (its frame list is loaded for it, battle_enemy_animation_loaded); a status sets it to 0 or 4, and an enemy may start its turn only from a few of them"
+source = "game/battle/combatants.c battle_update_status_flags $C1:B0B6; game/battle/animation.c; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_enemy_link"
+addr = "7E:5E15"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "The battle slot of the combatant the enemy goes with (another part of it): an enemy out of the fight with its link out too has its turn's script dropped"
+source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; game/battle/timers.c battle_step_slot_effects $C1:3714"
+
+[[var]]
+name = "battle_enemy_standing"
+addr = "7E:AF15"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "How the enemy stands in the battle: bit 7 while it waits off the battlefield to be brought in ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win"
+source = "game/battle/combatants.c battle_update_combatant $C1:B279; game/battle/main_loop.c battle_main_loop_body $C1:812C; $C1:9BD5"
+
+[[var]]
+name = "battle_combatant_updating"
+addr = "7E:B2D3"
+subsystem = "battle"
+meaning = "The combatant battle_update_all_combatants is updating (11 once it is done)"
+source = "game/battle/combatants.c battle_update_all_combatants $C1:B223"
+
+[[var]]
+name = "battle_status_script_seen"
+addr = "7E:AE7A"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "The combatant's status bit that restarts its script ($04 of the second status byte) as last seen: a change restarts the script"
+source = "game/battle/combatants.c battle_update_status_flags $C1:B0B6"
+
+[[var]]
+name = "battle_enemy_script_blocks"
+addr = "7E:B263"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "How many blocks of its script the enemy's turn has moved past this turn; a block's conditions are tested again only when this and battle_enemy_script_block_seen differ"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C09, $C1:8C63"
+
+[[var]]
+name = "battle_enemy_script_block_seen"
+addr = "7E:B26B"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "battle_enemy_script_blocks as the enemy's turn last started from it; $FF makes the next turn start the script over"
+source = "game/battle/combatants.c battle_update_status_flags $C1:B0B6; $C1:8C63"
+
+[[var]]
+name = "battle_enemy_last_condition"
+addr = "7E:B242"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "The kind of the condition in its script the enemy's turn tested last ($FF: none, as at the start and once the enemy and its link are out)"
+source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; $C1:8C3E; game/battle/main_loop.c battle_main_loop_start $C1:8000"
+
+[[var]]
+name = "battle_enemy_script_started"
+addr = "7E:B2B6"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "Set once the enemy's script has been found and started ($C1:8C09 starts the script of a present enemy with it clear); cleared when the enemy and its link are out, or its script says so"
+source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; $C1:8C09, $C1:8CF5; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
 
 [[var]]
 name = "battle_result"

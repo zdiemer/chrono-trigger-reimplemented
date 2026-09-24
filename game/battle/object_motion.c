@@ -8,7 +8,7 @@
  * high byte being 0 as their caller leaves it (their indexes take it along).
  * Each returns what the original leaves in A (and Y where it is live), since
  * A's high byte is live after them. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "battle/sprite_data.h"
 #include "port/machine.h"

@@ -1,308 +1,210 @@
-/* Battle: timers ticked from the battle main loop. */
+/* Battle: the combatants' timers (battle/timers.h), counted down and looked
+ * for once a pass of the main loop.
+ *
+ * A timer's state byte is 0 while it is stopped and nonzero while it runs,
+ * with bit 7 once it has run out; a status's timer keeps bit 0 as the status
+ * (battle_follow_status). Its count is a byte that runs down to 0. */
+#include "battle/timers.h"
+
 #include "battle/battle.h"
+#include "battle/bridge.h"
+#include "battle/entries.h"
+#include "original_effects.h"
+#include "vars.h"
 
-#include "port/machine.h"
+enum { TIMER_RUNNING = 0x01, TIMER_RUN_OUT = 0x80, TIMER_STOPPED = 0 };
 
-static uint8_t absx8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.x); }
-static void set_absx8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.x, v); }
+static uint8_t timer_state(const GameState *g, BattleTimer timer, unsigned slot)
+{
+    return battle_timer_flags_byte(g, timer, slot);
+}
+static void set_timer_state(GameState *g, BattleTimer timer, unsigned slot, uint8_t state)
+{
+    set_battle_timer_flags_byte(g, timer, slot, state);
+}
+static uint8_t timer_count(const GameState *g, BattleTimer timer, unsigned slot)
+{
+    return battle_timer_counts_byte(g, timer, slot);
+}
+static void set_timer_count(GameState *g, BattleTimer timer, unsigned slot, uint8_t count)
+{
+    set_battle_timer_counts_byte(g, timer, slot, count);
+}
+
+static bool timer_counting(uint8_t state) { return state != TIMER_STOPPED && !(state & TIMER_RUN_OUT); }
+
+void battle_run_timer(GameState *g, BattleTimer timer, unsigned slot)
+{
+    set_timer_state(g, timer, slot, timer_state(g, timer, slot) | TIMER_RUNNING);
+}
+
+void battle_stop_timer(GameState *g, BattleTimer timer, unsigned slot) { set_timer_state(g, timer, slot, TIMER_STOPPED); }
+
+void battle_follow_status(GameState *g, BattleTimer timer, unsigned slot, bool status_on)
+{
+    uint8_t state = timer_state(g, timer, slot) & (uint8_t)~TIMER_RUNNING;
+    set_timer_state(g, timer, slot, status_on ? state | TIMER_RUNNING : state);
+}
+
+static void run_out(GameState *g, BattleTimer timer, unsigned slot)
+{
+    set_timer_state(g, timer, slot, timer_state(g, timer, slot) | TIMER_RUN_OUT);
+}
 
 // $C1:8231
-/* A stretch of the battle main loop ($C1:8231-$C1:828F): walk the 143
- * timer entries ($AFB6 flags, $AF27 counters; $B3C4 the entry) alongside a
- * slot index cycling 0-10 ($B3C0). For each entry whose flags are positive:
- * if the slot's own flags ($AFB6 + slot) are set, count down the slot's
- * counter, otherwise count down the entry's counter unless it's already 0;
- * when the counted-down one reaches 0, set bit 7 of its flags. Continues at
- * $C1:8290. Entered with 16-bit X. */
-void battle_tick_timers(Snes *s)
+/* Count every running timer down a step, kind after kind. A stopped
+ * combatant's timers stand still, and each of them steps its stop timer down
+ * instead, which runs out when it reaches 0 (from 0 it goes round to 255). A
+ * timer at 0 already runs out without counting. */
+void battle_count_timers_down(GameState *g)
 {
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    m_tdc(s);
-    m_tax(s);
-    m_set_index(s, &c->y, c->a);
-    m_write16(s, m_abs(s, 0xB3C0), c->y);
-    m_write16(s, m_abs(s, 0xB3C4), c->y);
-    do {
-        m_ldx16(s, m_read16(s, m_abs(s, 0xB3C4)));
-        uint8_t flags = m_lda8(s, absx8(s, 0xAFB6));
-        if (flags != 0 && !(flags & 0x80)) {
-            m_tdc(s);
-            m_lda8(s, m_read8(s, m_abs(s, 0xB3C0)));
-            m_tax(s);
-            bool expired;
-            if (m_lda8(s, absx8(s, 0xAFB6)) != 0) {
-                uint8_t n = m_lda8(s, (uint8_t)(absx8(s, 0xAF27) - 1));
-                set_absx8(s, 0xAF27, n);
-                m_cmp8(s, n, 0x00);
-                expired = n == 0;
-            } else {
-                m_ldx16(s, m_read16(s, m_abs(s, 0xB3C4)));
-                uint8_t n = m_lda8(s, absx8(s, 0xAF27));
-                m_cmp8(s, n, 0x00);
-                expired = n == 0;
-                if (!expired) {
-                    n = m_lda8(s, (uint8_t)(n - 1));
-                    set_absx8(s, 0xAF27, n);
-                    m_cmp8(s, n, 0x00);
-                    expired = n == 0;
-                }
+    for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++) {
+        for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
+            if (!timer_counting(timer_state(g, kind, slot)))
+                continue;
+            if (timer_state(g, BATTLE_TIMER_STOP, slot) != TIMER_STOPPED) {
+                uint8_t left = (uint8_t)(timer_count(g, BATTLE_TIMER_STOP, slot) - 1);
+                set_timer_count(g, BATTLE_TIMER_STOP, slot, left);
+                if (left == 0)
+                    run_out(g, BATTLE_TIMER_STOP, slot);
+                continue;
             }
-            if (expired) {
-                uint8_t f = m_lda8(s, absx8(s, 0xAFB6));
-                set_absx8(s, 0xAFB6, m_lda8(s, f | 0x80));
-            }
+            uint8_t left = timer_count(g, kind, slot);
+            if (left != 0)
+                set_timer_count(g, kind, slot, --left);
+            if (left == 0)
+                run_out(g, kind, slot);
         }
-        uint32_t slot_addr = m_abs(s, 0xB3C0);
-        uint8_t slot = (uint8_t)(m_read8(s, slot_addr) + 1);
-        m_write8(s, slot_addr, slot);
-        m_set_nz8(s, slot);
-        slot = m_lda8(s, m_read8(s, slot_addr));
-        m_cmp8(s, slot, 0x0B);
-        if (slot >= 0x0B)
-            m_write8(s, slot_addr, 0x00);
-        m_ldx16(s, m_read16(s, m_abs(s, 0xB3C4)));
-        m_ldx16(s, (uint16_t)(c->x + 1));
-        m_write16(s, m_abs(s, 0xB3C4), c->x);
-        m_cmp16(s, c->x, 0x008F);
-    } while (c->x < 0x008F);
-    c->pc = 0x8290;
+    }
+    ORIGINAL_EFFECT(set_battle_timer_tick_slot(g, 0));
+    ORIGINAL_EFFECT(set_battle_timer_tick_timer(g, BATTLE_TIMER_KINDS * BATTLE_COMBATANTS));
 }
 
-static uint8_t absy8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.y); }
-static void set_absy8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.y, v); }
-static uint16_t abs16(Snes *s, uint16_t addr) { return m_read16(s, m_abs(s, addr)); }
-
-/* LSR on a 16-bit absolute word. */
-static void lsr_abs16(Snes *s, uint16_t addr)
+/* The combatant at a place in the order the timers are looked for in. A
+ * kind's cursor that found a run-out timer at the order's last place goes on
+ * past it, and the next search reads on into the list after the order, as the
+ * original's indexed read does. And a place past the combatants is empty
+ * ($FF), whose timer is past the kind's row: that byte is read as a state
+ * too. */
+static uint8_t combatant_in_order(const GameState *g, uint8_t place)
 {
-    uint32_t a = m_abs(s, addr);
-    m_write16(s, a, m_lsr16(s, m_read16(s, a)));
+    return place < BATTLE_TIMER_ORDER_COUNT ? battle_timer_order(g, place) : battle_timer_order_unchecked(g, place);
 }
 
-/* INC A : STA abs,Y on an 8-bit counter; returns the new value. */
-static uint8_t bump_absy8(Snes *s, uint16_t addr)
+static bool has_run_out(const GameState *g, BattleTimer timer, uint8_t slot)
 {
-    uint8_t v = m_lda8(s, (uint8_t)(m_lda8(s, absy8(s, addr)) + 1));
-    set_absy8(s, addr, v);
-    return v;
+    return (battle_timer_flags_byte_unchecked(g, timer, slot) & TIMER_RUN_OUT) != 0;
+}
+
+/* The due bits run from kind 0 at bit 12 down to the turn at bit 0. */
+static uint16_t due_bit(BattleTimer kind) { return (uint16_t)(1u << (BATTLE_TIMER_TURN - kind)); }
+
+/* What the search leaves in its cells: the kind after the last (a word), the
+ * battle slot it looked at last, and the due bit shifted past kind 12. */
+static void leave_search_cells(GameState *g, uint8_t last_slot)
+{
+    set_battle_low_scratch(g, 0, BATTLE_TIMER_KINDS);
+    set_battle_low_scratch(g, 1, 0);
+    set_battle_low_scratch(g, 2, last_slot);
+    set_battle_low_scratch(g, 3, 0);
+    set_battle_timer_kind_bit(g, 0);
 }
 
 // $C1:8290
-/* The stretch of the battle main loop after battle_tick_timers ($C1:8290-
- * $C1:8344). Copies $AFAB-$AFAD to $99DD-$99DF. Then, when $0027 bit 0 is
- * set: for each of the 13 kinds ($00), look through its 11 timer entries
- * starting from the kind's cursor ($B179 + kind) for one whose flags (found
- * through the kind's table at $C1:B947 and the entry's index $B163) have bit 7
- * set; if one does, set the kind's bit in $B186 (bit 12 down to bit 0) and
- * move the cursor past it. And again when $0027 bit 0 is set: call the
- * handler ($C1:B92D table) for each kind whose bit is set. Continues at
- * $C1:8345. Entered with 8-bit A and 16-bit X. */
+/* The party's turn timers go on their gauges. Then, on the passes that look,
+ * each kind of timer is searched for one that has run out, from where its
+ * last search stopped in the order, to the order's end: the first found marks
+ * the kind due and the search moves past it; none found starts the kind's
+ * next search at the top. */
+void battle_find_run_out_timers(GameState *g, bool look)
+{
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
+        set_battle_gauge_wait(g, member, timer_count(g, BATTLE_TIMER_TURN, member));
+    if (!look)
+        return;
+    uint8_t slot = 0;
+    for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++) {
+        for (;;) {
+            uint8_t place = battle_timer_kind_cursors(g, kind);
+            slot = combatant_in_order(g, place);
+            set_battle_timer_kind_cursors(g, kind, ++place);
+            if (has_run_out(g, kind, slot)) {
+                set_battle_timer_kinds_due(g, battle_timer_kinds_due(g) | due_bit(kind));
+                break;
+            }
+            if (place >= BATTLE_TIMER_ORDER_COUNT) {
+                set_battle_timer_kind_cursors(g, kind, 0);
+                break;
+            }
+        }
+    }
+    ORIGINAL_EFFECT(leave_search_cells(g, slot));
+}
+
+/* ---- The entries ------------------------------------------------------------------------ */
+
+/* Both are stretches of the main loop, which each hands on to the next: the
+ * count-down to the search ($C1:8290), and the search, with the handlers of
+ * the kinds due, to the rest of the pass ($C1:8345). */
+enum { SEARCH = 0xC18290, REST_OF_PASS = 0xC18345, THE_HANDLERS_CALL = 0xC18333 };
+
+/* The timed statuses' handlers, as the original's table at $C1:B92D names
+ * them, all still the original's; the turn's is the turn itself
+ * (battle/main_loop.c, battle_run_queued_scripts at $C1:8461). */
+static const uint16_t kind_handlers[BATTLE_TIMER_TURN] = {
+    0x8876, 0x88C5, 0x8975, 0x89B9, 0x8A05, 0x8A51, 0x8A9D, 0x8A9E, 0x8A9F, 0x8B10, 0x8BB9, 0x8C08,
+};
+
+/* The main loop counts its passes; the search looks on the odd ones. */
+static bool pass_looks(const GameState *g) { return battle_loop_count(g) & 0x01; }
+
+void battle_tick_timers(Snes *s)
+{
+    battle_count_timers_down(state_of(s));
+    m_sep(s, CPU_FLAG_M);
+    m_stop_at(s, SEARCH, DC_A | DC_X | DC_Y | DC_FLAGS);
+}
+
+/* Run each due kind's handler, as the original's loop calls them: the kind on
+ * the stack under the call and its bit in its cell. The turn's handler also
+ * reads Y, which the search left at the last kind and a handler before it
+ * leaves as it likes, and the overflow flag, which the test of the due bits
+ * sets from their bit 14. */
+enum { DUE_TEST_OVERFLOW = 0x4000 };
+
+static bool call_handler(Snes *s, BattleTimer kind)
+{
+    s->cpu.x = (uint16_t)(kind * 2);
+    s->cpu.a = 0;
+    if (kind != BATTLE_TIMER_TURN)
+        return battle_call(s, THE_HANDLERS_CALL, 0xC10000u | kind_handlers[kind], DC_A | DC_X | DC_Y | DC_FLAGS);
+    m_set_flag(s, CPU_FLAG_V, battle_timer_kinds_due(state_of(s)) & DUE_TEST_OVERFLOW);
+    return battle_call(s, THE_HANDLERS_CALL, 0xC18461, DC_A | DC_X | DC_N | DC_Z | DC_C);
+}
+
+static bool run_due_handlers(Snes *s)
+{
+    GameState *g = state_of(s);
+    s->cpu.y = BATTLE_TIMER_KINDS;
+    for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++) {
+        ORIGINAL_EFFECT(set_battle_timer_kind_bit(g, due_bit(kind)));
+        if (!(battle_timer_kinds_due(g) & due_bit(kind)))
+            continue;
+        m_push16(s, (uint16_t)kind);
+        if (!call_handler(s, kind))
+            return false;
+        m_pull16(s);
+    }
+    ORIGINAL_EFFECT(set_battle_timer_kind_bit(g, 0));
+    return true;
+}
+
 void battle_dispatch_expired_timers(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    for (uint16_t i = 0; i < 3; i++)
-        m_write8(s, m_abs(s, (uint16_t)(0x99DD + i)), m_lda8(s, m_read8(s, m_abs(s, (uint16_t)(0xAFAB + i)))));
-    m_lda8(s, m_read8(s, m_abs(s, 0x0027)));
-    m_bit_imm8(s, 0x01);
-    if (c->a & 0x01) {
-        m_tdc(s);
-        m_tax(s);
-        m_write16(s, m_dp(s, 0x00), c->x);
-        m_ldx16(s, 0x1000);
-        m_write16(s, m_abs(s, 0xAEC3), c->x);
-        uint8_t kind;
-        do {
-            /* $C1:82B3 */
-            m_tdc(s);
-            m_set_index(s, &c->y, m_read16(s, m_dp(s, 0x00)));
-            m_lda8(s, absy8(s, 0xB179));
-            m_tax(s);
-            m_lda8(s, m_read8(s, m_abs(s, 0xB163) + c->x));
-            m_rep(s, CPU_FLAG_M);
-            m_write16(s, m_dp(s, 0x02), c->a);
-            m_lda16(s, m_read16(s, m_dp(s, 0x00)));
-            c->a = m_asl16(s, c->a);
-            m_tax(s);
-            m_lda16(s, m_read16(s, 0xC1B947 + c->x));
-            m_set_flag(s, CPU_FLAG_C, false);
-            c->a = m_adc16(s, c->a, m_read16(s, m_dp(s, 0x02)));
-            m_tax(s);
-            m_tdc(s);
-            m_sep(s, CPU_FLAG_M);
-            m_lda8(s, m_read8(s, m_abs(s, 0x0000) + c->x));
-            m_bit_imm8(s, 0x80);
-            if (c->a & 0x80) {
-                m_rep(s, CPU_FLAG_M);
-                m_lda16(s, abs16(s, 0xB186));
-                m_write16(s, m_abs(s, 0xB186), m_lda16(s, (uint16_t)(c->a | abs16(s, 0xAEC3))));
-                m_tdc(s);
-                m_sep(s, CPU_FLAG_M);
-                m_set_index(s, &c->y, m_read16(s, m_dp(s, 0x00)));
-                bump_absy8(s, 0xB179);
-            } else {
-                m_set_index(s, &c->y, m_read16(s, m_dp(s, 0x00)));
-                uint8_t cursor = bump_absy8(s, 0xB179);
-                m_cmp8(s, cursor, 0x0B);
-                if (cursor < 0x0B)
-                    continue;   /* same kind, next entry */
-                m_tdc(s);
-                set_absy8(s, 0xB179, (uint8_t)c->a);
-            }
-            /* $C1:8301 */
-            kind = (uint8_t)(m_read8(s, m_dp(s, 0x00)) + 1);
-            m_write8(s, m_dp(s, 0x00), kind);
-            m_set_nz8(s, kind);
-            m_set_index(s, &c->y, m_read16(s, m_dp(s, 0x00)));
-            m_rep(s, CPU_FLAG_M);
-            lsr_abs16(s, 0xAEC3);
-            m_tdc(s);
-            m_sep(s, CPU_FLAG_M);
-            kind = m_lda8(s, m_read8(s, m_dp(s, 0x00)));
-            m_cmp8(s, kind, 0x0D);
-        } while (m_read8(s, m_dp(s, 0x00)) < 0x0D);
-    }
-
-    /* $C1:8313 */
-    m_lda8(s, m_read8(s, m_abs(s, 0x0027)));
-    m_bit_imm8(s, 0x01);
-    if (c->a & 0x01) {
-        m_rep(s, CPU_FLAG_M);
-        m_write16(s, m_abs(s, 0xAEC3), m_lda16(s, 0x1000));
-        m_tdc(s);
-        m_tax(s);
-        do {
-            uint16_t bit = m_lda16(s, abs16(s, 0xAEC3));
-            uint16_t flags = abs16(s, 0xB186);
-            m_set_flag(s, CPU_FLAG_Z, (bit & flags) == 0);
-            m_set_flag(s, CPU_FLAG_N, flags & 0x8000);
-            m_set_flag(s, CPU_FLAG_V, flags & 0x4000);
-            if (bit & flags) {
-                m_push16(s, c->x);
-                m_txa(s);
-                c->a = m_asl16(s, c->a);
-                m_tax(s);
-                m_tdc(s);
-                m_sep(s, CPU_FLAG_M);
-                m_jsr(s, 0xC18333, 0xC10000 | m_jump_table(s, 0xC1, 0xB92D, c->x));
-                if (c->e || (c->p & CPU_FLAG_X))
-                    return;   /* PLX below needs 16-bit X */
-                m_rep(s, CPU_FLAG_M);
-                c->x = m_pull16(s);
-                m_set_nz16(s, c->x);
-            }
-            lsr_abs16(s, 0xAEC3);
-            m_inx(s);
-            m_cmp16(s, c->x, 0x000D);
-        } while (c->x < 0x000D);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-    }
-    c->pc = 0x8345;
-}
-
-/* JSR out; false if the callee didn't come back with 8-bit A and 16-bit X. */
-static bool call(Snes *s, uint32_t site, uint32_t target)
-{
-    m_jsr(s, site, target);
-    return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M;
-}
-
-// $CC:F278
-/* Count down the delays ($A1B0) of the 8 active ($A1A8) slots, then run
- * $CC:F2A9 for each active slot whose delay is 0 ($80 = the slot). */
-void battle_step_slot_delays(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_tax(s);
-    do {
-        if (m_lda8(s, absx8(s, 0xA1A8)) != 0) {
-            uint8_t delay = m_lda8(s, absx8(s, 0xA1B0));
-            if (delay != 0) {
-                delay = (uint8_t)(delay - 1);
-                set_absx8(s, 0xA1B0, delay);
-                m_set_nz8(s, delay);
-            }
-        }
-        m_inx(s);
-        m_cmp16(s, c->x, 0x0008);
-    } while (c->x != 0x0008);
-    m_tdc(s);
-    m_tax(s);
-    m_write16(s, m_dp(s, 0x80), c->x);
-    uint8_t slot;
-    do {
-        m_ldx16(s, m_read16(s, m_dp(s, 0x80)));
-        if (m_lda8(s, absx8(s, 0xA1A8)) != 0 && m_lda8(s, absx8(s, 0xA1B0)) == 0 && !call(s, 0xCCF29D, 0xCCF2A9))
-            return;
-        slot = (uint8_t)(m_read8(s, m_dp(s, 0x80)) + 1);
-        m_write8(s, m_dp(s, 0x80), slot);
-        m_set_nz8(s, slot);
-        slot = m_lda8(s, m_read8(s, m_dp(s, 0x80)));
-        m_cmp8(s, slot, 0x08);
-    } while (slot != 0x08);
-    m_rtl(s);
-}
-
-/* $C1:373B: run slot $9C's effect: when the object is present ($96F8 +
- * slot), track its $5E15 in $9752, and unless $974A is negative, call the
- * handler for its kind ($CC:FBAB, table $C1:3760) with the kind in $A2B5. */
-static bool run_slot_effect(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_ldx16(s, m_read16(s, m_dp(s, 0x9C)));
-    if (m_lda8(s, absx8(s, 0x96F8)) == 0)
-        return true;
-    uint8_t v = m_lda8(s, absx8(s, 0x5E15));
-    uint8_t seen = absx8(s, 0x9752);
-    m_cmp8(s, v, seen);
-    if (v != seen)
-        set_absx8(s, 0x9752, v);
-    uint8_t kind = m_lda8(s, absx8(s, 0x974A));
-    if (kind & 0x80)
-        return true;
-    m_write8(s, m_abs(s, 0xA2B5), kind);
-    m_tax(s);
-    m_set_a8(s, m_asl8(s, m_lda8(s, m_read8(s, 0xCCFBAB + c->x))));
-    m_tax(s);
-    return call(s, 0xC1375C, 0xC10000 | m_jump_table(s, 0xC1, 0x3760, c->x));
-}
-
-// $C1:3714
-/* Unless $99E0 is set, count down the effect delays of the 8 slots with an
- * effect ($974A; delay $9897, reload $989F) and run each whose delay ran
- * out. */
-void battle_step_slot_effects(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    if (m_lda8(s, m_read8(s, m_abs(s, 0x99E0))) != 0) {
-        m_rts(s);
+    GameState *g = state_of(s);
+    bool look = pass_looks(g);
+    battle_find_run_out_timers(g, look);
+    if (look && !run_due_handlers(s))
         return;
-    }
-    m_tdc(s);
-    m_tax(s);
-    m_write16(s, m_dp(s, 0x9C), c->x);
-    uint8_t slot;
-    do {
-        m_ldx16(s, m_read16(s, m_dp(s, 0x9C)));
-        if (m_lda8(s, absx8(s, 0x974A)) != 0) {
-            uint8_t d = (uint8_t)(absx8(s, 0x9897) - 1);
-            set_absx8(s, 0x9897, d);
-            m_set_nz8(s, d);
-            if (d == 0) {
-                set_absx8(s, 0x9897, m_lda8(s, absx8(s, 0x989F)));
-                m_push16(s, 0x3731);
-                if (!run_slot_effect(s))
-                    return;
-                m_pull16(s);
-            }
-        }
-        slot = (uint8_t)(m_read8(s, m_dp(s, 0x9C)) + 1);
-        m_write8(s, m_dp(s, 0x9C), slot);
-        m_set_nz8(s, slot);
-        slot = m_lda8(s, m_read8(s, m_dp(s, 0x9C)));
-        m_cmp8(s, slot, 0x08);
-    } while (slot != 0x08);
-    m_rts(s);
+    m_stop_at(s, REST_OF_PASS, DC_A | DC_X | DC_Y | DC_FLAGS);
 }

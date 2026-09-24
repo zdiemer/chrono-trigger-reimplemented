@@ -2379,6 +2379,18 @@
 #define RAM_BATTLE_SCRIPT_WAITS 0x7E5DFDu
 #define RAM_BATTLE_SCRIPT_WAITS_COUNT 16u
 #define RAM_BATTLE_SCRIPT_WAITS_STRIDE 0x01u
+/* The animation the enemy shows (its frame list is loaded for it,
+ * battle_enemy_animation_loaded); a status sets it to 0 or 4, and an enemy may start its turn
+ * only from a few of them [8 x $1 bytes, by enemy (battle slot - 3)] */
+#define RAM_BATTLE_ENEMY_ANIMATION 0x7E5E0Du
+#define RAM_BATTLE_ENEMY_ANIMATION_COUNT 8u
+#define RAM_BATTLE_ENEMY_ANIMATION_STRIDE 0x01u
+/* The battle slot of the combatant the enemy goes with (another part of it): an enemy out of the
+ * fight with its link out too has its turn's script dropped [8 x $1 bytes, by enemy (battle slot
+ * - 3)] */
+#define RAM_BATTLE_ENEMY_LINK 0x7E5E15u
+#define RAM_BATTLE_ENEMY_LINK_COUNT 8u
+#define RAM_BATTLE_ENEMY_LINK_STRIDE 0x01u
 /* Per-combatant stat blocks ($80 bytes each; the record is placed at the lowest byte the ports
  * index by slot * $80) [11 x $80 bytes, by battle slot (0-2 the party, 3-10 enemies)] */
 #define RAM_BATTLE_STATS 0x7E5E2Fu
@@ -2389,8 +2401,9 @@
 #define RAM_BATTLE_STATS_MAX_HP 0x7E5E32u    /* Maximum HP */
 #define RAM_BATTLE_STATS_MP 0x7E5E34u        /* Current MP (what tech costs are checked against) */
 #define RAM_BATTLE_STATS_MAX_MP 0x7E5E36u    /* Maximum MP */
-#define RAM_BATTLE_STATS_STATUS 0x7E5E4Au    /* Status bytes ($5E4A-$5E4E for slot 0): the per-status timer rows and the pose table test their bits */
-#define RAM_BATTLE_STATS_STATUS_EXTRA 0x7E5E52u /* Two more status bytes ($5E52-$5E53), ORed with the first ones' bits */
+#define RAM_BATTLE_STATS_CONDITION 0x7E5E4Au /* Bit 7 set while the combatant is knocked out ($5E4A for slot 0) */
+#define RAM_BATTLE_STATS_STATUS 0x7E5E4Bu    /* The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its timed statuses' bits, which its status timers follow, and the bits the pose table tests */
+#define RAM_BATTLE_STATS_STATUS_KEPT 0x7E5E52u /* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes' bits ($5E52-$5E53 for slot 0) */
 /* The battlefield grid as built at setup, from ROM rows and the $2A23/$2B23 cell bits [256 x $1
  * bytes, by cell (Y tile * 16 + X tile)] */
 #define RAM_BATTLE_BASE_GRID 0x7E7BFDu
@@ -3373,22 +3386,53 @@
 #define RAM_BATTLE_NUMBER_RECORDS_STRIDE 0x04u
 #define RAM_BATTLE_NUMBER_RECORDS_VALUE 0x7EAD9Cu /* The number */
 #define RAM_BATTLE_NUMBER_RECORDS_KIND 0x7EAD9Eu /* Its kind */
-/* Negative ($FF) when the combatant is out of the fight; all three party slots negative is a
- * defeat, all enemy slots a victory [11 x $1 bytes, by battle slot] */
-#define RAM_BATTLE_COMBATANT_OUT 0x7EAEFFu
-#define RAM_BATTLE_COMBATANT_OUT_COUNT 11u
-#define RAM_BATTLE_COMBATANT_OUT_STRIDE 0x01u
-/* Counters of the battle's timers: 13 kinds (the last the combatants' turn wait) for each of the
- * 11 slots [143 x $1 bytes, by timer kind * 11 + battle slot] */
+/* The combatant's status bit that restarts its script ($04 of the second status byte) as last
+ * seen: a change restarts the script [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_STATUS_SCRIPT_SEEN 0x7EAE7Au
+#define RAM_BATTLE_STATUS_SCRIPT_SEEN_COUNT 11u
+#define RAM_BATTLE_STATUS_SCRIPT_SEEN_STRIDE 0x01u
+/* The bit of battle_timer_kinds_due for the kind being searched or handled [2 bytes] */
+#define RAM_BATTLE_TIMER_KIND_BIT 0x7EAEC3u
+/* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
+ * three party slots out is a defeat [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_COMBATANT_FIGHTING 0x7EAEFFu
+#define RAM_BATTLE_COMBATANT_FIGHTING_COUNT 11u
+#define RAM_BATTLE_COMBATANT_FIGHTING_STRIDE 0x01u
+/* What the combatant is, as its scripts are found by it ($C1:B488); $FF for a slot nobody fills.
+ * It stays while the combatant is out, and comes back into battle_combatant_fighting when it is
+ * revived [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_COMBATANT_ID 0x7EAF0Au
+#define RAM_BATTLE_COMBATANT_ID_COUNT 11u
+#define RAM_BATTLE_COMBATANT_ID_STRIDE 0x01u
+/* How the enemy stands in the battle: bit 7 while it waits off the battlefield to be brought in
+ * ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win [8 x $1
+ * bytes, by enemy (battle slot - 3)] */
+#define RAM_BATTLE_ENEMY_STANDING 0x7EAF15u
+#define RAM_BATTLE_ENEMY_STANDING_COUNT 8u
+#define RAM_BATTLE_ENEMY_STANDING_STRIDE 0x01u
+/* Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then
+ * the turn), a column per battle slot [13 x $B bytes, by kind of timer (0-11 the timed statuses,
+ * 12 the turn); a byte a battle slot] */
 #define RAM_BATTLE_TIMER_COUNTS 0x7EAF27u
-#define RAM_BATTLE_TIMER_COUNTS_COUNT 143u
-#define RAM_BATTLE_TIMER_COUNTS_STRIDE 0x01u
-/* Flags of the battle's timers: nonzero while running, bit 7 once expired; most kinds' bit 0
- * mirrors a status bit of the slot's stat block [143 x $1 bytes, by timer kind * 11 + battle
- * slot] */
+#define RAM_BATTLE_TIMER_COUNTS_COUNT 13u
+#define RAM_BATTLE_TIMER_COUNTS_STRIDE 0x0Bu
+/* Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once
+ * it has run out; bit 0 of a status's timer follows the status's bit in the stat block [13 x $B
+ * bytes, by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot] */
 #define RAM_BATTLE_TIMER_FLAGS 0x7EAFB6u
-#define RAM_BATTLE_TIMER_FLAGS_COUNT 143u
-#define RAM_BATTLE_TIMER_FLAGS_STRIDE 0x01u
+#define RAM_BATTLE_TIMER_FLAGS_COUNT 13u
+#define RAM_BATTLE_TIMER_FLAGS_STRIDE 0x0Bu
+/* The order the combatants' run-out timers are looked for in: battle slots drawn at random at
+ * the start of the battle, $FF past the combatants [11 x $1 bytes, by place in the order] */
+#define RAM_BATTLE_TIMER_ORDER 0x7EB163u
+#define RAM_BATTLE_TIMER_ORDER_COUNT 11u
+#define RAM_BATTLE_TIMER_ORDER_STRIDE 0x01u
+/* What battle_timer_order is drawn from at the start: the combatants still to be placed ($FF
+ * once placed); then the enemies' ids, for the enemies' order (battle_main_loop_start); in a
+ * turn, the entry of the combatant acting [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_TIMER_ORDER_DRAW 0x7EB16Eu
+#define RAM_BATTLE_TIMER_ORDER_DRAW_COUNT 11u
+#define RAM_BATTLE_TIMER_ORDER_DRAW_STRIDE 0x01u
 /* Where each timer kind's search for its next expired entry resumes [13 x $1 bytes, by timer
  * kind] */
 #define RAM_BATTLE_TIMER_KIND_CURSORS 0x7EB179u
@@ -3397,6 +3441,34 @@
 /* One bit per timer kind with an expired entry to handle (bit 12 kind 0 down to bit 0 kind 12)
  * [2 bytes] */
 #define RAM_BATTLE_TIMER_KINDS_DUE 0x7EB186u
+/* The kind of the condition in its script the enemy's turn tested last ($FF: none, as at the
+ * start and once the enemy and its link are out) [8 x $1 bytes, by enemy (battle slot - 3)] */
+#define RAM_BATTLE_ENEMY_LAST_CONDITION 0x7EB242u
+#define RAM_BATTLE_ENEMY_LAST_CONDITION_COUNT 8u
+#define RAM_BATTLE_ENEMY_LAST_CONDITION_STRIDE 0x01u
+/* How many blocks of its script the enemy's turn has moved past this turn; a block's conditions
+ * are tested again only when this and battle_enemy_script_block_seen differ [8 x $1 bytes, by
+ * enemy (battle slot - 3)] */
+#define RAM_BATTLE_ENEMY_SCRIPT_BLOCKS 0x7EB263u
+#define RAM_BATTLE_ENEMY_SCRIPT_BLOCKS_COUNT 8u
+#define RAM_BATTLE_ENEMY_SCRIPT_BLOCKS_STRIDE 0x01u
+/* battle_enemy_script_blocks as the enemy's turn last started from it; $FF makes the next turn
+ * start the script over [8 x $1 bytes, by enemy (battle slot - 3)] */
+#define RAM_BATTLE_ENEMY_SCRIPT_BLOCK_SEEN 0x7EB26Bu
+#define RAM_BATTLE_ENEMY_SCRIPT_BLOCK_SEEN_COUNT 8u
+#define RAM_BATTLE_ENEMY_SCRIPT_BLOCK_SEEN_STRIDE 0x01u
+/* Set once the enemy's script has been found and started ($C1:8C09 starts the script of a
+ * present enemy with it clear); cleared when the enemy and its link are out, or its script says
+ * so [8 x $1 bytes, by enemy (battle slot - 3)] */
+#define RAM_BATTLE_ENEMY_SCRIPT_STARTED 0x7EB2B6u
+#define RAM_BATTLE_ENEMY_SCRIPT_STARTED_COUNT 8u
+#define RAM_BATTLE_ENEMY_SCRIPT_STARTED_STRIDE 0x01u
+/* The combatant battle_update_all_combatants is updating (11 once it is done) */
+#define RAM_BATTLE_COMBATANT_UPDATING 0x7EB2D3u
+/* The battle slot of the timer the count-down pass is at */
+#define RAM_BATTLE_TIMER_TICK_SLOT 0x7EB3C0u
+/* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through [2 bytes] */
+#define RAM_BATTLE_TIMER_TICK_TIMER 0x7EB3C4u
 /* Set when the member can take part in a combination tech now [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_COMBO_READY 0x7EB3E7u
 #define RAM_BATTLE_COMBO_READY_COUNT 3u

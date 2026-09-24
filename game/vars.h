@@ -3329,6 +3329,19 @@ enum { BATTLE_SCRIPT_WAITS_COUNT = 16 };   /* by script channel */
 uint8_t battle_script_waits(const GameState *g, unsigned channel);
 void set_battle_script_waits(GameState *g, unsigned channel, uint8_t v);
 
+enum { BATTLE_ENEMY_ANIMATION_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* The animation the enemy shows (its frame list is loaded for it,
+ * battle_enemy_animation_loaded); a status sets it to 0 or 4, and an enemy may start its turn
+ * only from a few of them */
+uint8_t battle_enemy_animation(const GameState *g, unsigned i);
+void set_battle_enemy_animation(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_LINK_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* The battle slot of the combatant the enemy goes with (another part of it): an enemy out of the
+ * fight with its link out too has its turn's script dropped */
+uint8_t battle_enemy_link(const GameState *g, unsigned i);
+void set_battle_enemy_link(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_STATS_COUNT = 11 };   /* by battle slot (0-2 the party, 3-10 enemies) */
 /* Bit 0 set while HP is at most an eighth of max HP */
 uint8_t battle_stats_low_hp(const GameState *g, unsigned slot);
@@ -3345,14 +3358,17 @@ void set_battle_stats_mp(GameState *g, unsigned slot, uint16_t v);
 /* Maximum MP */
 uint16_t battle_stats_max_mp(const GameState *g, unsigned slot);
 void set_battle_stats_max_mp(GameState *g, unsigned slot, uint16_t v);
-/* Status bytes ($5E4A-$5E4E for slot 0): the per-status timer rows and the pose table test their
- * bits [5 bytes, one at a time] */
-enum { BATTLE_STATS_STATUS_BYTES = 5 };
-uint8_t battle_stats_status_byte(const GameState *g, unsigned slot, unsigned at);
-void set_battle_stats_status_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
-/* Two more status bytes ($5E52-$5E53), ORed with the first ones' bits */
-uint16_t battle_stats_status_extra(const GameState *g, unsigned slot);
-void set_battle_stats_status_extra(GameState *g, unsigned slot, uint16_t v);
+/* Bit 7 set while the combatant is knocked out ($5E4A for slot 0) */
+uint8_t battle_stats_condition(const GameState *g, unsigned slot);
+void set_battle_stats_condition(GameState *g, unsigned slot, uint8_t v);
+/* The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its
+ * timed statuses' bits, which its status timers follow, and the bits the pose table tests */
+uint32_t battle_stats_status(const GameState *g, unsigned slot);
+void set_battle_stats_status(GameState *g, unsigned slot, uint32_t v);
+/* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes'
+ * bits ($5E52-$5E53 for slot 0) */
+uint16_t battle_stats_status_kept(const GameState *g, unsigned slot);
+void set_battle_stats_status_kept(GameState *g, unsigned slot, uint16_t v);
 
 enum { BATTLE_BASE_GRID_COUNT = 256 };   /* by cell (Y tile * 16 + X tile) */
 /* The battlefield grid as built at setup, from ROM rows and the $2A23/$2B23 cell bits */
@@ -4586,23 +4602,81 @@ void set_battle_number_records_value(GameState *g, unsigned i, uint16_t v);
 uint8_t battle_number_records_kind(const GameState *g, unsigned i);
 void set_battle_number_records_kind(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_COMBATANT_OUT_COUNT = 11 };   /* by battle slot */
-/* Negative ($FF) when the combatant is out of the fight; all three party slots negative is a
- * defeat, all enemy slots a victory */
-uint8_t battle_combatant_out(const GameState *g, unsigned slot);
-void set_battle_combatant_out(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_STATUS_SCRIPT_SEEN_COUNT = 11 };   /* by battle slot */
+/* The combatant's status bit that restarts its script ($04 of the second status byte) as last
+ * seen: a change restarts the script */
+uint8_t battle_status_script_seen(const GameState *g, unsigned slot);
+void set_battle_status_script_seen(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_TIMER_COUNTS_COUNT = 143 };   /* by timer kind * 11 + battle slot */
-/* Counters of the battle's timers: 13 kinds (the last the combatants' turn wait) for each of the
- * 11 slots */
-uint8_t battle_timer_counts(const GameState *g, unsigned slot);
-void set_battle_timer_counts(GameState *g, unsigned slot, uint8_t v);
+/* The bit of battle_timer_kinds_due for the kind being searched or handled */
+uint16_t battle_timer_kind_bit(const GameState *g);
+void set_battle_timer_kind_bit(GameState *g, uint16_t v);
 
-enum { BATTLE_TIMER_FLAGS_COUNT = 143 };   /* by timer kind * 11 + battle slot */
-/* Flags of the battle's timers: nonzero while running, bit 7 once expired; most kinds' bit 0
- * mirrors a status bit of the slot's stat block */
-uint8_t battle_timer_flags(const GameState *g, unsigned slot);
-void set_battle_timer_flags(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_COMBATANT_FIGHTING_COUNT = 11 };   /* by battle slot */
+/* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
+ * three party slots out is a defeat */
+uint8_t battle_combatant_fighting(const GameState *g, unsigned slot);
+void set_battle_combatant_fighting(GameState *g, unsigned slot, uint8_t v);
+/* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
+ * three party slots out is a defeat Unchecked, for marked scaffolding only: an enemy with no
+ * other part has $FF for its link, and the look at whether its link is in the fight reads the
+ * byte that far past the table, as the original's indexed read does (game/battle/combatants.c) */
+uint8_t battle_combatant_fighting_unchecked(const GameState *g, unsigned slot);
+void set_battle_combatant_fighting_unchecked(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_COMBATANT_ID_COUNT = 11 };   /* by battle slot */
+/* What the combatant is, as its scripts are found by it ($C1:B488); $FF for a slot nobody fills.
+ * It stays while the combatant is out, and comes back into battle_combatant_fighting when it is
+ * revived */
+uint8_t battle_combatant_id(const GameState *g, unsigned slot);
+void set_battle_combatant_id(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_ENEMY_STANDING_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* How the enemy stands in the battle: bit 7 while it waits off the battlefield to be brought in
+ * ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win */
+uint8_t battle_enemy_standing(const GameState *g, unsigned i);
+void set_battle_enemy_standing(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_TIMER_COUNTS_COUNT = 13 };   /* by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot */
+/* Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then
+ * the turn), a column per battle slot [11 bytes, one at a time] */
+enum { BATTLE_TIMER_COUNTS_BYTES = 11 };
+uint8_t battle_timer_counts_byte(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_counts_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+enum { BATTLE_TIMER_FLAGS_COUNT = 13 };   /* by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot */
+/* Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once
+ * it has run out; bit 0 of a status's timer follows the status's bit in the stat block [11
+ * bytes, one at a time] */
+enum { BATTLE_TIMER_FLAGS_BYTES = 11 };
+uint8_t battle_timer_flags_byte(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_flags_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once
+ * it has run out; bit 0 of a status's timer follows the status's bit in the stat block [11
+ * bytes, one at a time] Unchecked, for marked scaffolding only: an empty place in
+ * battle_timer_order ($FF) names a timer past the kind's row, which the search for run-out
+ * timers reads as the original's indexed read does (game/battle/timers.c) */
+uint8_t battle_timer_flags_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_flags_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+enum { BATTLE_TIMER_ORDER_COUNT = 11 };   /* by place in the order */
+/* The order the combatants' run-out timers are looked for in: battle slots drawn at random at
+ * the start of the battle, $FF past the combatants */
+uint8_t battle_timer_order(const GameState *g, unsigned i);
+void set_battle_timer_order(GameState *g, unsigned i, uint8_t v);
+/* The order the combatants' run-out timers are looked for in: battle slots drawn at random at
+ * the start of the battle, $FF past the combatants Unchecked, for marked scaffolding only: a
+ * timer kind's cursor that ran past the order reads on into battle_timer_order_draw after it, as
+ * the original's indexed read does (game/battle/timers.c) */
+uint8_t battle_timer_order_unchecked(const GameState *g, unsigned i);
+void set_battle_timer_order_unchecked(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_TIMER_ORDER_DRAW_COUNT = 11 };   /* by battle slot */
+/* What battle_timer_order is drawn from at the start: the combatants still to be placed ($FF
+ * once placed); then the enemies' ids, for the enemies' order (battle_main_loop_start); in a
+ * turn, the entry of the combatant acting */
+uint8_t battle_timer_order_draw(const GameState *g, unsigned slot);
+void set_battle_timer_order_draw(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_TIMER_KIND_CURSORS_COUNT = 13 };   /* by timer kind */
 /* Where each timer kind's search for its next expired entry resumes */
@@ -4612,6 +4686,43 @@ void set_battle_timer_kind_cursors(GameState *g, unsigned i, uint8_t v);
 /* One bit per timer kind with an expired entry to handle (bit 12 kind 0 down to bit 0 kind 12) */
 uint16_t battle_timer_kinds_due(const GameState *g);
 void set_battle_timer_kinds_due(GameState *g, uint16_t v);
+
+enum { BATTLE_ENEMY_LAST_CONDITION_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* The kind of the condition in its script the enemy's turn tested last ($FF: none, as at the
+ * start and once the enemy and its link are out) */
+uint8_t battle_enemy_last_condition(const GameState *g, unsigned i);
+void set_battle_enemy_last_condition(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_SCRIPT_BLOCKS_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* How many blocks of its script the enemy's turn has moved past this turn; a block's conditions
+ * are tested again only when this and battle_enemy_script_block_seen differ */
+uint8_t battle_enemy_script_blocks(const GameState *g, unsigned i);
+void set_battle_enemy_script_blocks(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_SCRIPT_BLOCK_SEEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* battle_enemy_script_blocks as the enemy's turn last started from it; $FF makes the next turn
+ * start the script over */
+uint8_t battle_enemy_script_block_seen(const GameState *g, unsigned i);
+void set_battle_enemy_script_block_seen(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_SCRIPT_STARTED_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* Set once the enemy's script has been found and started ($C1:8C09 starts the script of a
+ * present enemy with it clear); cleared when the enemy and its link are out, or its script says
+ * so */
+uint8_t battle_enemy_script_started(const GameState *g, unsigned i);
+void set_battle_enemy_script_started(GameState *g, unsigned i, uint8_t v);
+
+/* The combatant battle_update_all_combatants is updating (11 once it is done) */
+uint8_t battle_combatant_updating(const GameState *g);
+void set_battle_combatant_updating(GameState *g, uint8_t v);
+
+/* The battle slot of the timer the count-down pass is at */
+uint8_t battle_timer_tick_slot(const GameState *g);
+void set_battle_timer_tick_slot(GameState *g, uint8_t v);
+
+/* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through */
+uint16_t battle_timer_tick_timer(const GameState *g);
+void set_battle_timer_tick_timer(GameState *g, uint16_t v);
 
 enum { BATTLE_COMBO_READY_COUNT = 3 };   /* by party slot */
 /* Set when the member can take part in a combination tech now */

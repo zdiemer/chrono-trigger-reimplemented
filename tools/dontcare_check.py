@@ -90,13 +90,18 @@ HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
-# The bridges' vocabulary (game/field/bridge.h): bridge_call(s, site, target,
-# set, machine) and bridge_call_long(...) are m_jsr_dc and m_jsl_dc and a stop
-# of the bridge's own with no set at the call's return; their arguments are
-# read where they are called, and the helpers' own bodies (BRIDGE_FILE) aren't
-# declarations of their own.
-DELEGATES = ("bridge_call", "bridge_call_long")
-BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", ("bridge_call", "bridge_call_long", "bridge_back")
+# The bridges' vocabulary (game/field/bridge.h, game/battle/bridge.h):
+# bridge_call(s, site, target, set, machine) and bridge_call_long(...), and the
+# battle's battle_call(s, site, target, set) and battle_call_long(...), are
+# m_jsr_dc and m_jsl_dc and a stop of the bridge's own with no set at the
+# call's return; their arguments are read where they are called, and the
+# helpers' own bodies (BRIDGES) aren't declarations of their own.
+DELEGATES = ("bridge_call", "bridge_call_long", "battle_call", "battle_call_long")
+BRIDGES = {
+    "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back"),
+    "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back"),
+}
+BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]
 DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES
 CALL_OUTS = ("m_jsr", "m_jsl", "m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + DELEGATES
 RETURNS = re.compile(r"\bm_rt[sli]\s*\(")
@@ -829,7 +834,7 @@ def declarations(sources: list, ev: Evaluator) -> tuple:
     for src in sources:
         for call in src.calls(DECLARATIONS):
             f = src.func_at(call.offset)
-            if src.path == BRIDGE_FILE and f is not None and f.name in BRIDGE_BODIES:
+            if f is not None and f.name in BRIDGES.get(src.path, ()):
                 continue
             where = f"{src.path}:{src.line(call.offset)}"
             try:

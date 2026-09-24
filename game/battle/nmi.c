@@ -14,7 +14,7 @@
  * the entry functions, which save and restore them. The handlers run with the
  * battle page ($0000); the code they call leaves the data bank at $7E, which
  * they rely on, and a call that doesn't hands the rest back to the original. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "battle/screen_data.h"
 #include "platform/input.h"
@@ -328,8 +328,5 @@ void battle_irq_after_hblank(Snes *s)
     restore_registers_and_return(s);
 }
 
-/* Guards. battle_setup_window_hdma and battle_upload_vram's callers set the
- * data bank to 0 for the registers, which the platform services address in
- * bank 0. */
-bool battle_data_bank_is_io(Snes *s) { return m_io_bank(s->cpu.db); }
+
 

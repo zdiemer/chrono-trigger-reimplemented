@@ -1,5 +1,5 @@
 /* Battle: per-frame display tables, the palette upload and the display setup. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -354,8 +354,6 @@ void battle_upload_tile_rows(Snes *s)
     m_rtl(s);
 }
 
-/* The battle page (D = $0000), for the entries that address its cells. */
-bool battle_page(Snes *s) { return s->cpu.d == 0x0000; }
 
 // $D1:F4C0
 /* A second battle vblank handler: per-line effects off, the interrupt

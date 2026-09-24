@@ -1,5 +1,5 @@
 /* Battle: the window's gauges, drawn into the window tilemap at $0CC0. */
-#include "battle/battle.h"
+#include "battle/entries.h"
 
 #include "port/machine.h"
 
