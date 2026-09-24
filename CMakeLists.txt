@@ -50,6 +50,7 @@ add_library(ct_runtime STATIC
   runtime/platform/snes/backend.c
   runtime/platform/direct/audio.c
   runtime/platform/observe.c
+  runtime/platform/voices_dsp.c
   runtime/platform/snes/decode.c
   runtime/platform/native/render.c)
 # The game's state interface (game/vars.h, game/state.h) is game/'s, and
@@ -116,6 +117,10 @@ add_library(ct_game STATIC
   game/menu/sound.c
   game/menu/text.c
   game/menu/vram.c
+  game/sound/driver.c
+  game/sound/sequencer.c
+  game/sound/songs.c
+  game/sound/voices.c
   game/attract/main_loop.c
   game/scene/boot.c
   game/scene/circle.c
@@ -179,12 +184,20 @@ target_link_libraries(ct_game_native_shape PRIVATE ct_game)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-add_executable(ct_dev dev/ct_dev.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/vid_check.c frontend/natives.c)
+add_executable(ct_dev dev/ct_dev.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/sound_compare.c
+  dev/sound_lockstep.c dev/sound_state.c dev/vid_check.c frontend/natives.c)
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_recomp ct_runtime ct_trace)
 
 add_executable(ct_fuzz dev/ct_fuzz.c dev/fuzz.c)
 target_link_libraries(ct_fuzz PRIVATE ct_game ct_runtime)
+
+# The C sound driver against the original on random command streams
+# (docs/SOUND.md, "Validating the port").
+add_executable(ct_sound_fuzz dev/ct_sound_fuzz.c dev/sound_lockstep.c dev/sound_compare.c dev/sound_state.c
+  frontend/sound_host.c)
+target_include_directories(ct_sound_fuzz PRIVATE frontend)
+target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_runtime)
 
 # The machine as a scriptable server, for authoring input movies from game state
 # and testing the shipping mode with the routes that do (tools/movies,
@@ -212,6 +225,11 @@ target_link_libraries(fuzz_test PRIVATE ct_runtime)
 # Time attribution (native_time_as) in shadow mode, on a made-up program.
 add_executable(time_parts_test tests/port/time_parts_test.c)
 target_link_libraries(time_parts_test PRIVATE ct_runtime)
+# The C sound driver on a made-up cartridge, its voices as S-DSP registers, and
+# the lockstep harness's comparison (docs/SOUND.md).
+add_executable(sound_test tests/port/sound_test.c dev/sound_compare.c)
+target_include_directories(sound_test PRIVATE dev)
+target_link_libraries(sound_test PRIVATE ct_game ct_runtime)
 # The accessors generated from re/ram.toml, and the page kinds' D mapping.
 add_executable(vars_test tests/port/vars_test.c)
 target_include_directories(vars_test PRIVATE game)
@@ -284,7 +302,7 @@ endif()
 
 if(CT_SDL2)
   add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/audio_fill.c frontend/window.c
-    frontend/headless.c frontend/files.c frontend/bindings.c)
+    frontend/headless.c frontend/files.c frontend/bindings.c frontend/sound_host.c)
   if(NOT CT_PLAYER_INTERPRETER_MODE STREQUAL "ON")
     # The miss report (dev/misses.h) is the player's log of misses.
     target_sources(ct_play PRIVATE dev/misses.c)

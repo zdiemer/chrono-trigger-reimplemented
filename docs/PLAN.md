@@ -58,20 +58,20 @@ it counts as done may still be transliterated or welded to the machine, which
 | Ports that read as source (`portstyle.py`) | 0.27 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 79% take a `Snes *` | entry wrappers only |
 | ROM reads by address | 117, in 22 files | 0, all through accessors |
-| SPC700 sound driver | read and mapped (SOUND.md); port not started | reimplemented in C |
+| SPC700 sound driver | reimplemented in C, identical to the original tick for tick (SOUND.md); the original still plays by default | the original deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 
 ### The two gaps this list exposed
 
-**The sound driver proper is still interpreted assembly.** `game/core/sound_driver.c`
-is the CPU half only -- the code that uploads Square's driver and sends it
-commands. The driver itself runs on the emulated SPC700, feeding the emulated
-S-DSP, in the shipping path today. It is not in the burndown, not in `game/`,
-and was not in any phase. **It is now Phase 4a**, and it has been read
-([SOUND.md](SOUND.md)). The decision taken: port the driver (the sequencer, the
-song and effect handling, voice output) to C as game code, against a
-voice-level interface whose second implementation is a native mixer reading the
-same BRR samples, ADSR envelopes and echo settings. The upload protocol between
+**The sound driver proper is still interpreted assembly by default.**
+`game/core/sound_driver.c` is the CPU half only -- the code that uploads
+Square's driver and sends it commands. The driver itself runs on the emulated
+SPC700, feeding the emulated S-DSP, in the shipping path today. It is not in
+the burndown and was not in any phase. **It is now Phase 4a**: read
+([SOUND.md](SOUND.md)) and ported to C as game code (`game/sound/`: the
+sequencer, the song and effect handling, voice output), against a voice-level
+interface whose second implementation is a native mixer reading the same BRR
+samples, ADSR envelopes and echo settings. The upload protocol between
 the two processors is not ported: once both halves are C, commands are calls
 and song data comes from the asset accessors. The mixer is the audio engine,
 not an emulator; the SPC700 core is deleted with everything else under
@@ -168,9 +168,9 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **32 of 97 files, 14,026 of
-28,317 lines (50%), are on the backlog**, and all but the scenes, the events
-and the field is on the machine:
+each subsystem's functions that take the machine. **32 of 101 files, 14,026 of
+30,263 lines (46%), are on the backlog**, and all but the scenes, the events,
+the field and the sound driver is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
@@ -180,7 +180,8 @@ and the field is on the machine:
 | field | 0 | 18 | 0 | 4,166 | 0.02 | 26% |
 | scene | 0 | 13 | 0 | 2,611 | 0.04 | 45% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
-| **total** | **32** | **97** | **14,026** | **28,317** | **0.22** | **63%** |
+| sound | 0 | 4 | 0 | 1,946 | 0.00 | 0% |
+| **total** | **32** | **101** | **14,026** | **30,263** | **0.21** | **58%** |
 
 Scene's 45%, event's 13% and field's 26% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
@@ -562,39 +563,17 @@ Three things stand between a finished `game/` and a native build with nothing
 under it. None of them is optional for target 1, and none was scheduled before
 the audit that found them.
 
-- **The SPC700 sound driver, 7151 bytes.** Square's audio engine runs as
-  interpreted SPC700 assembly today (`runtime/platform/direct/audio.c` runs the
-  core; the ported `game/core/sound_driver.c` is only the CPU side that uploads
-  it and sends commands). Block 0 of the boot upload (`$C7:0000`), 7151 bytes
-  to SPC700 `$0200`, is the program: 3156 instructions and 0.7 KiB of tables,
-  read and mapped in [SOUND.md](SOUND.md). Reimplement it in C as game code:
-  the sequencer and its 60 events (about 40% of it), the song, effect, fade and
-  command handling (30%), and voice output (10%); the rest is the upload
-  protocol, which a build where both halves are C doesn't need. On the order of
-  2000 lines of C, a few times the `$C7` CPU half.
-
-  **Tooling: a linear disassembler and coverage, nothing more.** Both exist
-  (`tools/spc700dis.py`, `ct_dev --spc-coverage`); with five dispatch tables as
-  entry points the listing reaches all the code, and the movies run 90% of it,
-  with no dead subsystem. Liveness, don't-care sets and drafts don't apply: the
-  port isn't compared at routine exits, and a draft of uniform 8-bit code would
-  only transliterate it (SOUND.md, "What the port needs").
-
-  **Write it against a voice-level interface** -- key on with a sample, pitch
-  and envelope; set pitch; set volume; echo and noise settings -- whose first
-  implementation writes the S-DSP registers, so it can be checked register for
-  register against the interpreted driver. The native mixer is then that
-  interface's second implementation. And drop the protocol in the native build:
-  commands become calls, the three status values the game polls become calls,
-  and a song's data is read from the asset accessors instead of uploaded.
-
-  Validation is per tick, not per call: run the port in lockstep with the
-  interpreted driver, one tick each time it starts one, fed the commands it took
-  that tick, and compare the DSP register writes and the status every tick of
-  every movie (`ct_dev --dsp-log` is the reference half). Once the port drives
-  the audio, a note stream (key ons with sample, pitch, envelope and volume)
-  compared between runs is the structural check target 4 allows (SOUND.md,
-  "Validating the port").
+- **The SPC700 sound driver: the C port replaces the original.** The driver is
+  reimplemented in C as game code (`game/sound/`, SOUND.md "The port as built"),
+  against the voice-level interface in `platform/audio.h`, and is identical to
+  the interpreted driver tick for tick over the movie library and the command
+  fuzzer, down to its own state. `ct_play --sound-driver c` plays with it in the
+  SPC700's place, the CPU half's protocol answered on the host. What is left is
+  the switch: make that the default once it has been played (it changes the
+  game's timing, so it can't replay movies, and the player can't save a state
+  with it yet: TODO.md), then drop the protocol for calls, which is when the
+  CPU half (`game/core/sound_driver.c`) and its uploads go, and the SPC700 core
+  with them.
 - **A native mixer behind `au_*`.** BRR decoding, ADSR envelopes, echo and
   mixing, reading the same sample data the driver points at. This is the audio
   engine, not an emulator: it replaces `runtime/apu/dsp.c` in the shipped

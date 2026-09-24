@@ -193,8 +193,15 @@ uint64_t player_owed(const Player *pl)
     return pl->runtime_mode == NATIVE_ON ? native_owed(pl->natives) : 0;
 }
 
+/* A state holds the machine, and the C sound driver's state is the host's. */
+static const char no_state_with_c_sound_driver[] = "the C sound driver's state isn't in a saved state";
+
 uint8_t *player_save_state(Player *pl, size_t *len)
 {
+    if (pl->sound_host) {
+        fprintf(stderr, "%s\n", no_state_with_c_sound_driver);
+        return NULL;
+    }
     return snes_state_write(&pl->snes, len);
 }
 
@@ -206,6 +213,10 @@ int player_load_state(Player *pl, const uint8_t *data, size_t len, char *why, si
     Track *t = &pl->track;
     if (t->record_name && (!t->state_ours || ct_crc32(data, len) != t->state_crc))
         return PLAYER_NOT_OURS;
+    if (pl->sound_host) {
+        snprintf(why, why_len, "%s", no_state_with_c_sound_driver);
+        return -1;
+    }
     if (snes_state_read(&pl->snes, data, len, why, why_len) != 0)
         return -1;
     natives_start(pl, pl->runtime_mode);
@@ -379,13 +390,21 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bo
     return 0;
 }
 
-void player_start(Player *pl, bool audio_direct)
+int player_start(Player *pl, bool audio_direct, bool c_sound_driver)
 {
+    if (c_sound_driver) {
+        pl->sound_host = sound_host_attach(&pl->snes);
+        if (!pl->sound_host) {
+            fprintf(stderr, "out of memory\n");
+            return 1;
+        }
+    }
     /* Replaying for a recording runs uninterrupted interpretation, which keeps the
      * same timing as shadow mode and is several times faster. */
     natives_start(pl, pl->track.replay_frames && pl->native_mode == NATIVE_SHADOW ? NATIVE_OFF : pl->native_mode);
     if (audio_direct)
         au_select_backend(m_platform(&pl->snes), AU_BACKEND_DIRECT);
+    return 0;
 }
 
 void player_step(Player *pl, uint16_t live)
@@ -474,4 +493,6 @@ void player_finish(Player *pl)
     t->pads = NULL;
     free(pl->quick_save);
     pl->quick_save = NULL;
+    sound_host_detach(pl->sound_host);
+    pl->sound_host = NULL;
 }

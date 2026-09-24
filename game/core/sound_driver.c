@@ -11,7 +11,7 @@
  *   then uploads what the song needs that the SPC700 doesn't have yet: the
  *   blocks it uses, into memory slots after the driver's own data (moving the
  *   blocks it keeps down first), three small tables about them, its sequence,
- *   and twelve three-byte entries;
+ *   and its percussion, twelve three-byte entries;
  * - for command $70, switches between the two data sets at SPC700 $2F00;
  * - for command $71, uploads one block into a given slot.
  *
@@ -372,7 +372,7 @@ static Upload upload_from(Snes *s, uint32_t at)
 }
 
 /* Upload from `at` with the whole address in the pointer (the boot blocks, the
- * $2F00 sets and play_song's $F120 entries). */
+ * $2F00 sets and play_song's percussion). */
 static Upload upload_at(Snes *s, uint32_t at, uint16_t offset)
 {
     m_write16(s, DATA_POINTER, (uint16_t)at);
@@ -708,15 +708,15 @@ static bool send_sequence(Snes *s, uint8_t song)
 }
 
 // $C7:059A
-/* The song's twelve entries to SPC700 $F120, and the end of the upload: $E0
+/* The song's twelve percussion entries to SPC700 $F120, and the end of the upload: $E0
  * on ports 1 and 0. */
-static End send_f120_entries(Snes *s, uint8_t song)
+static End send_percussion(Snes *s, uint8_t song)
 {
     m_write16(s, INDEX_SCRATCH, (uint16_t)(12 * song));
-    Upload u = upload_at(s, sound_song_f120_table(), (uint16_t)(36 * song));
+    Upload u = upload_at(s, sound_song_percussion_table(), (uint16_t)(36 * song));
     if (!send_header(s, 0x05CF, 0xF120, KIND_DATA))
         return end_lost();
-    for (int i = 0; i < SOUND_SONG_F120_ENTRIES; i++)
+    for (int i = 0; i < SOUND_PERCUSSION_ENTRIES; i++)
         if (!send_three(s, &u, 0x05F7))
             return end_lost();
     port_write(s, 0x05FF, 1, COUNTER_FIRST);
@@ -730,11 +730,11 @@ static End song_upload_from_blocks(Snes *s, uint8_t song, bool load_blocks)
     if (load_blocks && !load_missing_blocks(s))
         return end_lost();
     build_address_table(s);
-    if (!send_address_table(s) || !send_block_words(s, 0x0420, 0x1F40, sound_block_1f40_word, 0x044B) ||
-        !send_block_words(s, 0x046E, 0x1FC0, sound_block_1fc0_word, 0x0499) || !prepare_2f00(s) ||
+    if (!send_address_table(s) || !send_block_words(s, 0x0420, 0x1F40, sound_block_tuning, 0x044B) ||
+        !send_block_words(s, 0x046E, 0x1FC0, sound_block_envelope, 0x0499) || !prepare_2f00(s) ||
         !send_sequence(s, song))
         return end_lost();
-    return send_f120_entries(s, song);
+    return send_percussion(s, song);
 }
 
 /* The SPC700 refused the first block move: send it zeros for good measure and
@@ -960,10 +960,10 @@ static End upload_to_slot(Snes *s)
     send_word_12(s, 0x086B, (uint16_t)(address + sound_block_address_offset(s, id)));
     if (!send_counter_unkept(s, 0x086B) || !send_table_header(s, 0x087F, 0x1F40))
         return end_lost();
-    send_word_12(s, 0x0895, sound_block_1f40_word(s, id));
+    send_word_12(s, 0x0895, sound_block_tuning(s, id));
     if (!send_counter_unkept(s, 0x0895) || !send_table_header(s, 0x08A9, 0x1FC0))
         return end_lost();
-    send_word_12(s, 0x08BF, sound_block_1fc0_word(s, id));
+    send_word_12(s, 0x08BF, sound_block_envelope(s, id));
     if (!send_counter_unkept(s, 0x08BF))
         return end_lost();
     port_write(s, 0x08C2, 1, COUNTER_FIRST);

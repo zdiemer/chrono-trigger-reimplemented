@@ -397,8 +397,9 @@ audio backend, its registry entry calls that backend, so interpreted and
 generated callers are routed too. Below it is Square's protocol (three bytes
 per echo, block slots), which is the SNES backend's business. The APU-direct
 backend (P1) still runs Square's driver on the SPC700 and S-DSP cores, fed
-without the main CPU's handshake; replacing the driver with a native
-sequencer stays optional ([APPROACH.md](APPROACH.md)).
+without the main CPU's handshake. The driver's C port (Phase 4a) plays through
+a second, lower level of the service, the voices ("The voices, as built",
+below).
 
 ### Timing
 
@@ -1006,6 +1007,39 @@ ran ahead of the machine (the boot upload is about 0.34 s of it); no run gave up
   in those segments. The SNES backend against the original timing gives
   0.33 dB for `new-game`. Closing the gap would mean delaying the game by the
   time the SNES backend's uploads take, which is what APU-direct removes.
+
+#### The voices, as built
+
+The C sound driver (`game/sound/`, [SOUND.md](SOUND.md) "The port as built")
+reaches the S-DSP through a voice-level part of `platform/audio.h`, added
+beside the command interface for it. It has the S-DSP's semantics and none of
+its mechanics: eight voices, each a sample from the directory
+(`au_voice_sample`) at a pitch in 4096ths of the sample's rate
+(`au_voice_pitch`), shaped by an ADSR envelope (`AuEnvelope`) or a gain
+(`AuGain`), at a volume on each side; key on and key off by voice set
+(`AuVoiceSet`); the master volume; the mixer's switches (`AuMixer`: the noise
+clock, echo writes, mute, reset); noise and pitch modulation by voice set; the
+echo's voices, volume, feedback, eight filter taps, delay and writes; a hold
+of every envelope (the driver's pause); a voice's current output (the
+driver's meter mode reads it); and the driver's own sample, defined and
+rewritten a byte at a time (`au_sample_define`, `au_sample_write`). No call
+names a register or implies a write order. The one escape is
+`au_voices_snes_register`, for the command whose meaning is "write this
+S-DSP register" (`$FD`), which the game never sends.
+
+The handle, `AuVoices`, is opaque to game code. Its first implementation,
+`runtime/platform/voices_dsp.{h,c}`, turns each call into the register writes
+that make it, through three host callbacks (read a register, write one, write
+a byte of sound memory), and keeps the original driver's layout of sound
+memory where the S-DSP needs one: the directory at `$1E00`, the echo buffer
+ending at page `$F1`, the driver's own sample at `$1DC2`. Two hosts give it
+callbacks: `ct_dev --sound-lockstep` points them at a copy of the register
+file, which is compared with the original driver's after every tick; and
+`frontend/sound_host.c` (`ct_play --sound-driver c`) at the emulated S-DSP,
+which then makes the sound. A native mixer is the second implementation,
+behind the same calls. The lint test keeps the S-DSP out of `game/`: no
+`apu/` or `voices_dsp.h` include and no `DSP_` name there
+(`test_no_sound_hardware_in_game`).
 
 ### P2: video behind the API, subsystem by subsystem
 

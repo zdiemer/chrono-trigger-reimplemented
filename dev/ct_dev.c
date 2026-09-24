@@ -9,7 +9,8 @@
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
  *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
- *          [--page-report] [--event-reads out.txt]
+ *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
+ *          [--sound-lockstep-level status|keys|dsp|state]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -68,6 +69,14 @@
  * instruction at, with its count (docs/SOUND.md; tools/spc700dis.py reads it).
  * --dsp-log writes every S-DSP register write the driver makes: the frame, the
  * SPC700 cycle, the register and the value (docs/SOUND.md, "Validating the port").
+ * --sound-lockstep [out.txt] runs the C sound driver (game/sound/) beside the
+ * original, a tick for each of its ticks, and compares the two after every tick
+ * (dev/sound_lockstep.h): the status, and with --sound-lockstep-level keys or
+ * dsp (the default) the key on and off writes, and then the S-DSP's registers and
+ * the driver's own sample; state also compares the two drivers' state
+ * (dev/sound_state.h), to find where they part. It prints a summary, writes
+ * each differing tick to out.txt, and a run that differs exits 1. It needs a
+ * run from power-on.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -77,6 +86,7 @@
 #include "io_log.h"
 #include "misses.h"
 #include "px_check.h"
+#include "sound_lockstep.h"
 #include "vid_check.h"
 #include "media.h"
 #include "movie.h"
@@ -213,10 +223,11 @@ static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
     }
 }
 
-/* --spc-coverage and --dsp-log: the SPC700's side, through the APU's hooks. */
+/* --spc-coverage, --dsp-log and --sound-lockstep: the SPC700's side, through the APU's hooks. */
 typedef struct {
     uint32_t *counts;   /* instructions executed per SPC700 address, or NULL */
     FILE *dsp_log;
+    SoundLockstep *lockstep;
     const Snes *snes;
 } SpcWatch;
 
@@ -225,6 +236,8 @@ static void on_spc_insn(void *ctx, const Apu *apu)
     SpcWatch *w = ctx;
     if (w->counts && w->counts[apu->spc.pc] != UINT32_MAX)
         w->counts[apu->spc.pc]++;
+    if (w->lockstep)
+        sound_lockstep_insn(w->lockstep, apu);
 }
 
 static void on_dsp_write(void *ctx, const Apu *apu, uint8_t reg, uint8_t value)
@@ -233,6 +246,8 @@ static void on_dsp_write(void *ctx, const Apu *apu, uint8_t reg, uint8_t value)
     if (w->dsp_log)
         fprintf(w->dsp_log, "%u %llu %02X %02X\n", (unsigned)w->snes->frame, (unsigned long long)apu->spc_cycles,
                 reg, value);
+    if (w->lockstep)
+        sound_lockstep_dsp_write(w->lockstep, apu, reg, value);
 }
 
 static int write_spc_coverage(const SpcWatch *w, const char *path)
@@ -325,7 +340,9 @@ int main(int argc, char **argv)
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
-    bool want_vid_check = false, want_px_check = false;
+    const char *lockstep_path = NULL;
+    bool want_vid_check = false, want_px_check = false, want_lockstep = false;
+    SoundCompareLevel lockstep_level = SOUND_COMPARE_DSP;
     long vid_check_from = 0;
     long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
@@ -357,6 +374,10 @@ int main(int argc, char **argv)
             want_px_check = true;
             continue;
         }
+        if (!strcmp(a, "--sound-lockstep") && (!v || v[0] == '-')) {
+            want_lockstep = true;
+            continue;
+        }
         if (!v) {
             fprintf(stderr, "missing value for %s\n", a);
             return 2;
@@ -378,6 +399,18 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--wav")) wav_path = v;
         else if (!strcmp(a, "--spc-coverage")) spc_coverage_path = v;
         else if (!strcmp(a, "--dsp-log")) dsp_log_path = v;
+        else if (!strcmp(a, "--sound-lockstep")) { lockstep_path = v; want_lockstep = true; }
+        else if (!strcmp(a, "--sound-lockstep-level")) {
+            if (!strcmp(v, "status")) lockstep_level = SOUND_COMPARE_STATUS;
+            else if (!strcmp(v, "keys")) lockstep_level = SOUND_COMPARE_KEYS;
+            else if (!strcmp(v, "dsp")) lockstep_level = SOUND_COMPARE_DSP;
+            else if (!strcmp(v, "state")) lockstep_level = SOUND_COMPARE_STATE;
+            else {
+                fprintf(stderr, "--sound-lockstep-level must be status, keys, dsp or state\n");
+                return 2;
+            }
+            want_lockstep = true;
+        }
         else if (!strcmp(a, "--io-log")) io_log_path = v;
         else if (!strcmp(a, "--event-reads")) event_reads_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
@@ -588,9 +621,16 @@ int main(int argc, char **argv)
         fprintf(stderr, "cannot open %s\n", dsp_log_path);
         return 1;
     }
-    if (spc_coverage_path || dsp_log_path) {
-        snes.apu.on_insn = spc_coverage_path ? on_spc_insn : NULL;
-        snes.apu.on_dsp_write = dsp_log_path ? on_dsp_write : NULL;
+    if (want_lockstep) {
+        if (load_state || zst_path) {
+            fprintf(stderr, "--sound-lockstep needs a run from power-on, not a loaded state\n");
+            return 2;
+        }
+        spc.lockstep = sound_lockstep_create(&snes, lockstep_level);
+    }
+    if (spc_coverage_path || dsp_log_path || spc.lockstep) {
+        snes.apu.on_insn = spc_coverage_path || spc.lockstep ? on_spc_insn : NULL;
+        snes.apu.on_dsp_write = dsp_log_path || spc.lockstep ? on_dsp_write : NULL;
         snes.apu.on_insn_ctx = &spc;
     }
 
@@ -742,6 +782,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "cannot write %s\n", dsp_log_path);
         rc = 1;
     }
+    if (spc.lockstep && !sound_lockstep_report(spc.lockstep, lockstep_path, stderr))
+        rc = 1;
+    sound_lockstep_destroy(spc.lockstep);
     free(spc.counts);
     free(cov.calls);
     ct_movie_free(&movie);

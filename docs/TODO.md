@@ -296,9 +296,10 @@ rest waits, is [PLAN.md](PLAN.md).
   and operands named mechanically (`party_routine_6`), and the 39
   command layouts read from handlers no port has checked yet.
   The sound driver's tables (found by the $C7 pilot, `core/sound_data.h`):
-  `$C7:1871` is typed as one song's twelve three-byte entries, but the driver
-  indexes 83 songs' worth (36 bytes each, to `$C7:241C`), and the two bytes per
-  song at `$C7:241D-24C2` are still `mixed`.
+  `$C7:1871`, the songs' percussion (`sound_song_percussion_table`), is typed
+  as one song's twelve three-byte entries, but the driver indexes 83 songs'
+  worth (36 bytes each, to `$C7:241C`), and the two bytes per song at
+  `$C7:241D-24C2` are still `mixed`.
   The battle scripts' leftovers (MATCHING.md, "The battle script formats"):
   names for the commands, conditions and actions that keep their numbers, and
   deriving the action and target tables (`$C1:B85F`, `B88D`, `B8BB`) from the
@@ -369,21 +370,32 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    items are two, and they are no longer optional or later: **port Square's
-    SPC700 driver to C** (it is interpreted assembly in the shipping path
-    today, and `game/core/sound_driver.c` is only the CPU half that uploads it),
-    and **a native mixer behind `au_*`** that decodes the same BRR samples and
-    runs the same envelopes and echo, replacing `runtime/apu/dsp.c` in the
-    shipped product. Both are PLAN.md's Phase 4a; `--audio direct` is the
-    halfway house.
-  - **The sound driver port's harness** (SOUND.md, "Validating the port"),
-    before the port itself: a hook at the interpreted driver's tick boundary
-    (its loop leaving the timer wait at `$029C`), a record of the commands and
-    uploads it took that tick, and a comparison of the port's DSP writes and
-    status with `--dsp-log`'s, per tick. Then a command-stream driver for the
-    paths no movie reaches (commands `$88`, `$8E`, `$F4`, `$F5`, `$F8`, `$F9`,
-    `$FD`, event `$F4`, the meter mode, zero-length slides), and a note-stream
-    comparison for when the port drives the audio.
+    items are PLAN.md's Phase 4a, and they are no longer optional or later.
+    **Make the C sound driver the one that plays** (`game/sound/`, identical to
+    the original tick for tick; `ct_play --sound-driver c` plays it on the
+    host, SOUND.md "The port as built"): play it enough to make it the default,
+    then drop the protocol for calls, which deletes the CPU half's uploads and
+    waits (`game/core/sound_driver.c`) and the host's answering of them
+    (`frontend/sound_host.c`). Until then the player can't save or load a state
+    with it, since the driver's state isn't in a saved state (saving the
+    `SoundDriver` beside the machine would do). Then **a native mixer behind
+    the voices** (`platform/audio.h`, "The voices") that decodes the same BRR
+    samples and runs the same envelopes and echo, replacing
+    `runtime/apu/dsp.c` in the shipped product, and a note-stream comparison
+    (SOUND.md, "Validating the port") for when the lockstep reference is gone.
+  - **The C sound driver's leftovers** (SOUND.md, "The port as built"). The
+    paths neither the movies nor the fuzzer reach: the saturation at `$0A34`
+    (unreachable by its arithmetic), the loop poll's retry at `$0B9B` and the
+    ignored commands' echo at `$0BD5`, and the wrap of event `$F5`'s loop pop
+    (`$1C2B`, `$1C54`). Three of the original's failures the port doesn't
+    reproduce, and the fuzzer steers round: two `$FC`s queued behind each
+    other run each other for ever; song `$3F`, the one long enough to run over
+    the effect table, leaves an effect or a set switch playing its bytes as
+    addresses anywhere in sound memory, which the port doesn't keep; and a set
+    switch under a track that has run on into the effects. Names that still
+    follow the status ports swapped: `au_song_marker` (`platform/audio.h`)
+    reads port 3, the music playing, and so does the scene program's
+    `MARKER_PORT`.
   - **Controllers.** `in_host_set` is already the one host entry point per
     frame, so this is an SDL GameController call into it plus bindings (see
     Player and tooling).
