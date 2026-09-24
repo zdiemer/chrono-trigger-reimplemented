@@ -6384,9 +6384,18 @@ why = "on the battle page; the points in the chase's cells"
 name = "battle_draw_objects"
 subsystem = "battle"
 state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--keep", "7E1D73-7E1D89", "--keep", "7E8E2D-7E922C", "--keep", "7E967C-7E9686", "--keep", "7E96F5-7E96FF", "--keep", "7EA05B-7EA08A", "--keep", "7EA192-7EA19C", "--keep", "7EA1B0-7EA1B7", "--keep", "7EA1D8-7EA1DF", "--keep", "7EA2C0-7EA2C7", "--keep", "7EA3DF-7EA436", "--keep", "7EA5CD-7EA5D7"]
+iterations = 5000
+why = "the data bank at $7E and A's high byte 0, as the frame's update calls it (it sets its own page); the battle's own counts of what each combatant draws (its kind's parts, its part count, the effects its records name and their sets' sizes, who is on the battlefield and with a second entry or a trail) and the sprite buffer's high-table tables kept, so the sprites fit the buffer as in every battle: past it the port's order of writes differs (the accepted divergence at $CF:E83A, draw_objects.c)"
+
+[[routine]]
+name = "battle_draw_objects"
+variant = "loose"
+subsystem = "battle"
+state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
 iterations = 5000
-why = "the data bank at $7E and A's high byte 0, as the frame's update calls it (it sets its own page)"
+why = "everything random, so the sprites run far past the buffer: the mismatches are the accepted divergence at $CF:E83A (draw_objects.c), writes past the buffer over the high table in another order"
 
 [[routine]]
 name = "battle_draw_shadow"
