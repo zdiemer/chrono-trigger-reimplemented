@@ -259,8 +259,7 @@ static void leave_angle_cells(GameState *g, Point from, Point to, uint8_t across
         from.x, from.y, to.x, to.y,
         (uint8_t)(from.x - to.x), from.x < to.x ? 0xFF : 0x00,
         (uint8_t)(from.y - to.y), from.y < to.y ? 0xFF : 0x00,
-        angle, (uint8_t)(across / BATTLE_ARCTANGENT_STEP), 0, across, 0, down, 0,
-        (uint8_t)(down / BATTLE_ARCTANGENT_STEP * BATTLE_ARCTANGENT_COLUMNS + across / BATTLE_ARCTANGENT_STEP),
+        angle, (uint8_t)(across / BATTLE_ARCTANGENT_STEP), 0, across, 0, down, 0, (uint8_t)battle_arctangent_index(across, down),
     };
     for (unsigned i = 0; i < BATTLE_CHASE_CELLS_COUNT; i++)
         set_battle_chase_cells(g, i, cells[i]);
@@ -286,7 +285,7 @@ static uint8_t angle_toward(GameState *g, Point from, Point to)
     else if (!below)
         angle = (uint8_t)-angle;
     ORIGINAL_EFFECT(leave_angle_cells(g, from, to, across, down, angle));
-    set_battle_numbers_rising(g, (uint8_t)(down / BATTLE_ARCTANGENT_STEP / (256 / BATTLE_ARCTANGENT_COLUMNS)));
+    set_battle_numbers_rising(g, (uint8_t)(battle_arctangent_index(across, down) >> 8));
     return angle;
 }
 
@@ -310,25 +309,25 @@ static Point advance_along_line(GameState *g, Mover m)
  * pixel a substep bounces back up at the bounce speed. */
 typedef struct {
     uint32_t speed, height;
-    uint16_t falling;
+    bool falling, turned;
 } Jump;
 
 enum { WHOLE_PIXEL = 0x10000 };
 
 /* Run the jump `substeps` substeps (a count of 0 runs 65536), counting its
- * turns at the top on the mover's done flag where `count_turns`. Returns the
- * height's whole part. */
+ * turns at the top on the mover's done flag where `count_turns`. The falling
+ * flag is written where the jump turns. Returns the height's whole part. */
 static uint16_t run_jump(GameState *g, Mover m, uint16_t substeps, bool count_turns)
 {
     unsigned e = entry_of(m);
     uint16_t gravity = battle_effect_jump_gravity(g, e);
-    Jump j = { battle_effect_jump_speed(g, e), battle_effect_jump_height(g, e), battle_effect_jump_falling(g, e) };
+    Jump j = { battle_effect_jump_speed(g, e), battle_effect_jump_height(g, e), battle_effect_jump_falling(g, e) != 0, false };
     do {
         uint16_t fraction = (uint16_t)j.speed;
         if (!j.falling) {
             if (fraction < gravity) {
                 j.speed = 0;
-                j.falling = 1;
+                j.falling = j.turned = true;
                 if (count_turns)
                     count_turn(g, m);
             } else {
@@ -336,7 +335,8 @@ static uint16_t run_jump(GameState *g, Mover m, uint16_t substeps, bool count_tu
             }
         } else if (fraction + gravity >= WHOLE_PIXEL) {
             j.speed = battle_effect_jump_bounce(g, e);
-            j.falling = 0;
+            j.falling = false;
+            j.turned = true;
         } else {
             j.speed = (j.speed & ~0xFFFFu) | (uint16_t)(fraction + gravity);
         }
@@ -344,7 +344,8 @@ static uint16_t run_jump(GameState *g, Mover m, uint16_t substeps, bool count_tu
     } while (--substeps != 0);
     set_battle_effect_jump_speed(g, e, j.speed);
     set_battle_effect_jump_height(g, e, j.height);
-    set_battle_effect_jump_falling(g, e, j.falling);
+    if (j.turned)
+        set_battle_effect_jump_falling(g, e, j.falling);
     uint16_t whole = (uint16_t)(j.height >> 16);
     ORIGINAL_EFFECT(leave_cell16(g, 0xCC, 0));
     ORIGINAL_EFFECT(set_battle_low_scratch(g, 4, (uint8_t)whole));
@@ -398,14 +399,14 @@ static void jump(GameState *g, Mover m)
             place(g, m, (Point){ p.x, lifted(p.y, height, downward, once) });
         } else {
             place(g, m, p);
-            set_battle_sprite_offset_y(g, m.index, lifted(0, height, downward, once));
+            set_combatant_sprite_offset_y(g, m.index, lifted(0, height, downward, once));
         }
         set_battle_effect_jump_frames(g, e, --left);
     }
     if (left != 0)
         return;
     if (!is_anchor(m))
-        set_battle_sprite_offset_y(g, m.index, 0);
+        set_combatant_sprite_offset_y(g, m.index, 0);
     end_path(g, m);
 }
 
@@ -465,19 +466,20 @@ static void jump_to_target(GameState *g, Mover m)
         place(g, m, (Point){ p.x, lifted(p.y, height, false, lifts_once(g, m)) });
     } else {
         place(g, m, p);
-        set_battle_sprite_offset_y(g, m.index, lifted(0, height, false, false));
+        set_combatant_sprite_offset_y(g, m.index, lifted(0, height, false, false));
     }
 }
 
 /* ---- The spiral --------------------------------------------------------------------- */
 
 /* The screen's edge, as the spiral finds it: the outermost 16-pixel columns
- * and top row, and the row just below the screen. */
-enum { EDGE = 16, LAST_EDGE_COLUMN = 15, EDGE_ROW_BELOW = 14 };
+ * and the top row of the original's 256 by 224 screen, and the row just
+ * below it. */
+enum { EDGE = 16, SCREEN_WIDTH = 256, SCREEN_HEIGHT = 224 };
 
 static bool at_screen_edge(Point p)
 {
-    return p.y / EDGE == 0 || p.y / EDGE == EDGE_ROW_BELOW || p.x / EDGE == 0 || p.x / EDGE == LAST_EDGE_COLUMN;
+    return p.y / EDGE == 0 || p.y / EDGE == SCREEN_HEIGHT / EDGE || p.x / EDGE == 0 || p.x / EDGE == SCREEN_WIDTH / EDGE - 1;
 }
 
 // $CF:F194, $CF:F61F
@@ -511,24 +513,23 @@ static void spiral(GameState *g, Mover m)
 /* ---- Orbits ------------------------------------------------------------------------- */
 
 /* The flat orbit's effect goes in front of the combatant it circles on the
- * near half of the circle and behind it on the far half (the in-front and
- * behind bits of the combatant's record of the effect, re/ram.toml
- * battle_object_effect_slots). */
-enum { EFFECT_IN_FRONT = 0x80, EFFECT_BEHIND = 0x40, EFFECT_OF_RECORD = 0x3F };
+ * near half of the circle and behind it on the far half: the side its record
+ * names (battle/effects.h). The record keeps the rest of its bits. */
+enum { RECORD_KEEPS = 0x3F };
 
 /* The record of the anchor's effect whose side the flat orbit turns: its row
  * is the anchor's, and the column the anchor's record names (the combatant),
  * as the original indexes it, a byte. */
 static unsigned facing_record(const GameState *g, unsigned anchor)
 {
-    return (uint8_t)(anchor * BATTLE_COMBATANTS + battle_anchor_facing_record(g, anchor));
+    return (uint8_t)battle_record_of(battle_anchor_facing_record(g, anchor), anchor);
 }
 
 static void turn_effect_by_side(GameState *g, Mover m, uint8_t angle)
 {
     unsigned record = facing_record(g, m.index);
-    uint8_t side = angle < HALF_TURN ? EFFECT_IN_FRONT : EFFECT_BEHIND;
-    set_battle_object_effect_slots(g, record, (uint8_t)((battle_object_effect_slots(g, record) & EFFECT_OF_RECORD) | side));
+    uint8_t side = angle < HALF_TURN ? BATTLE_RECORD_IN_FRONT : BATTLE_RECORD_BEHIND;
+    set_battle_object_effect_slots(g, record, (uint8_t)((battle_object_effect_slots(g, record) & RECORD_KEEPS) | side));
 }
 
 /* An anchor's orbit moves it within the 256 pixels its coordinates' high

@@ -209,12 +209,8 @@ static void copy_combatant_tiles(GameState *g, unsigned slot, unsigned sprite, u
 
 /* ---- Effects in front of a combatant and behind it ------------------------------------ */
 
-/* A combatant's records: a row an effect, a byte a combatant. A record names
- * an effect (its low three bits), with bit 7 in front of the combatant or
- * bit 6 behind it. */
-enum { RECORD_ROWS = BATTLE_EFFECTS, RECORD_EFFECT = 0x07, IN_FRONT = 0x80, BEHIND = 0x40 };
-
-static unsigned record_of(unsigned slot, unsigned row) { return row * BATTLE_COMBATANTS + slot; }
+/* A combatant's records (battle/effects.h), a row an effect. */
+enum { RECORD_ROWS = BATTLE_EFFECTS };
 
 /* An effect's sprite set is so many sprites (its count's low six bits; none
  * draws 256), each an X and a Y from the effect's point, a tile and
@@ -241,7 +237,7 @@ static void leave_effect_sprite_cells(GameState *g, uint16_t next, uint16_t x, u
  * offset, while it has a frame showing. Returns the next free sprite. */
 static unsigned draw_effect(GameState *g, unsigned record, unsigned sprite)
 {
-    unsigned effect = battle_object_effect_slots(g, record) & RECORD_EFFECT;
+    unsigned effect = battle_object_effect_slots(g, record) & BATTLE_RECORD_EFFECT;
     uint8_t bits = battle_effect_attribute_bits(g, effect);
     uint16_t x = (uint16_t)(battle_anchor_x(g, effect) + battle_anchor_offset_x(g, effect));
     uint16_t y = (uint16_t)(battle_anchor_y(g, effect) + battle_anchor_offset_y(g, effect));
@@ -267,9 +263,9 @@ static unsigned draw_effect(GameState *g, unsigned record, unsigned sprite)
  * effect shows: the record with its side bit cleared names it. */
 static bool effect_on_side(const GameState *g, uint8_t record, bool in_front)
 {
-    if (record == 0 || ((record & IN_FRONT) != 0) != in_front)
+    if (record == 0 || ((record & BATTLE_RECORD_IN_FRONT) != 0) != in_front)
         return false;
-    return battle_effect_shown(g, (uint8_t)(record & ~(in_front ? IN_FRONT : BEHIND))) != 0;
+    return battle_effect_shown(g, (uint8_t)(record & ~(in_front ? BATTLE_RECORD_IN_FRONT : BATTLE_RECORD_BEHIND))) != 0;
 }
 
 /* ---- Numbers, marker and shadow ------------------------------------------------------ */
@@ -485,7 +481,7 @@ static unsigned draw_effects(Snes *s, unsigned slot, unsigned sprite, bool in_fr
 {
     GameState *g = state_of(s);
     for (unsigned row = 0; row < RECORD_ROWS; row++) {
-        unsigned record = record_of(slot, row);
+        unsigned record = battle_record_of(slot, row);
         if (effect_on_side(g, battle_object_effect_slots(g, record), in_front))
             NATIVE_TIME_AS(s, DRAW_EFFECT, sprite = draw_effect(g, record, sprite));
     }

@@ -90,10 +90,13 @@ static inline uint8_t battle_sine_magnitude(const GameState *g, uint8_t angle)
  * down by 32 across ($C0:F300). */
 enum { BATTLE_ARCTANGENT_STEP = 8, BATTLE_ARCTANGENT_COLUMNS = 32 };
 
+static inline uint16_t battle_arctangent_index(uint8_t across, uint8_t down)
+{
+    return (uint16_t)(down / BATTLE_ARCTANGENT_STEP * BATTLE_ARCTANGENT_COLUMNS + across / BATTLE_ARCTANGENT_STEP);
+}
 static inline uint8_t battle_arctangent(const GameState *g, uint8_t across, uint8_t down)
 {
-    return rom_read8(g, 0xC0F300u + (uint16_t)(down / BATTLE_ARCTANGENT_STEP * BATTLE_ARCTANGENT_COLUMNS
-                                              + across / BATTLE_ARCTANGENT_STEP));
+    return rom_read8(g, 0xC0F300u + battle_arctangent_index(across, down));
 }
 
 /* The facing an object moving at an angle takes ($C0:F700). */

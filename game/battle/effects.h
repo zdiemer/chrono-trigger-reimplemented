@@ -67,6 +67,18 @@ static inline void set_combatant_sprite_offset(GameState *g, unsigned slot, int8
     set_battle_sprite_offset_x(g, slot, (uint8_t)x);
     set_battle_sprite_offset_y(g, slot, (uint8_t)y);
 }
+static inline void set_combatant_sprite_offset_y(GameState *g, unsigned slot, uint8_t y)
+{
+    set_battle_sprite_offset_y(g, slot, y);
+}
+
+/* The effects drawn with a combatant: its records, a row an effect and a
+ * byte a combatant in each row. A record names an effect (its low three
+ * bits) and the side of the combatant it is drawn on: in front of it, or
+ * behind it; 0 is none. */
+enum { BATTLE_RECORD_EFFECT = 0x07, BATTLE_RECORD_IN_FRONT = 0x80, BATTLE_RECORD_BEHIND = 0x40 };
+
+static inline unsigned battle_record_of(unsigned slot, unsigned row) { return row * BATTLE_COMBATANTS + slot; }
 
 /* An anchor's position is a word a coordinate: a place on the battlefield
  * whose high byte is 0, unless a chase took it off the edge. */
