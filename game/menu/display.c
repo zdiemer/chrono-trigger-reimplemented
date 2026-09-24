@@ -272,10 +272,10 @@ static void send_menu_screen_shadows(GameState *g, Platform *pf)
  * the bytes moved, the vblank's caller reads. */
 static uint16_t move_the_block(GameState *g)
 {
-    enum { MVN_7E_7E = 0x7E54, BANK_7E_RTL = 0x6B7E };
+    enum { STUB_BLOCK_MOVE = 0x7E54, STUB_BANK_AND_RETURN = 0x6B7E };
     uint16_t from = menu_block_move_source(g), to = menu_block_move_dest(g), size = menu_block_move_size(g);
     uint32_t bytes = size ? size : 0x10000u;
-    ORIGINAL_EFFECT(set_menu_block_move_stub(g, (uint32_t)BANK_7E_RTL << 16 | MVN_7E_7E));
+    ORIGINAL_EFFECT(set_menu_block_move_stub(g, (uint32_t)STUB_BANK_AND_RETURN << 16 | STUB_BLOCK_MOVE));
     wram_copy(g, 0x7E0000u | from, 0x7E0000u | to, bytes);
     ORIGINAL_EFFECT(charge_block_move(g, bytes));
     return (uint16_t)(to + bytes);
@@ -328,6 +328,33 @@ void menu_vblank_upload(Snes *s)
     m_stop_at(s, 0xC28663, 0);
 }
 
+/* The vblank's work runs on the menus' vblank page, with the data bank on the
+ * I/O registers; a block move the game asks for moves a buffer, not the code
+ * the original runs it through nor the stack it returns on (which the
+ * original's move would also read its own return address from). */
+bool menu_vblank_work_runs(Snes *s)
+{
+    enum { VBLANK_PAGE = 0x0D00, STUB = 0x9690, STUB_END = 0x9694, STACK_REACH = 0x10 };
+    if (m_direct_page(s) != VBLANK_PAGE || !m_io_bank(s->cpu.db))
+        return false;
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool asked = (menu_line_effects(g) & BLOCK_MOVE_ASKED) != 0;
+    uint32_t from = menu_block_move_source(g), to = menu_block_move_dest(g), size = menu_block_move_size(g);
+    vars_peek(false);
+    if (!asked)
+        return true;
+    /* the move's destination runs round its bank, as a block move does */
+    uint32_t bytes = size ? size : 0x10000u;
+    for (uint16_t at = STUB; at < STUB_END; at++)
+        if ((uint16_t)(at - to) < bytes)
+            return false;
+    for (uint16_t at = (uint16_t)(s->cpu.s - STACK_REACH); at != (uint16_t)(s->cpu.s + STACK_REACH); at++)
+        if ((uint16_t)(at - to) < bytes || (uint16_t)(at - from) < bytes)
+            return false;
+    return true;
+}
+
 // $C2:8663
 /* The queued VRAM uploads, the last queued first, which empties the queue.
  * A size of 0 is a whole 64 KiB, as the transfer registers read it. It leaves
@@ -366,13 +393,22 @@ void menu_upload_vram_queue(Snes *s)
     m_rts(s);
 }
 
-/* The queue's entries are whole, and no more than it holds. */
+/* What the game uploads comes from work RAM's banks or the ROM's, never
+ * through the banks that mirror the I/O registers, where what a transfer reads
+ * depends on when it reads it. */
+static bool uploads_from_memory(uint8_t bank) { return bank == 0x7E || bank == 0x7F || (bank & 0x7F) >= 0x40; }
+
+/* The queue's entries are whole, no more than it holds, and from memory. */
 bool menu_vram_queue_is_whole(Snes *s)
 {
+    GameState *g = state_of(s);
     vars_peek(true);
-    uint8_t bytes = menu_vram_queue_bytes(state_of(s));
+    uint8_t bytes = menu_vram_queue_bytes(g);
+    bool ok = bytes % MENU_UPLOAD_BYTES == 0 && bytes / MENU_UPLOAD_BYTES <= MENU_VRAM_QUEUE_COUNT;
+    for (unsigned i = 0; ok && i < bytes / MENU_UPLOAD_BYTES; i++)
+        ok = uploads_from_memory(menu_vram_queue_bank(g, i));
     vars_peek(false);
-    return bytes % MENU_UPLOAD_BYTES == 0 && bytes / MENU_UPLOAD_BYTES <= MENU_VRAM_QUEUE_COUNT;
+    return ok;
 }
 
 // $C2:86A9
@@ -387,11 +423,21 @@ void menu_upload_palette(Snes *s)
  * color math layers and the fixed color, a word. */
 enum { MATH_ENTRY_BYTES = 3, RAMP_STEPS = 16, LIST_END = 0x80, SINGLE_COLOR = 8 };
 
+/* A byte of the tables by its offset from the first; a table built longer than
+ * the two hold runs on past them, as the original's index does. */
+static void put_math_byte(GameState *g, uint16_t at, uint8_t v)
+{
+    if ((at >> 8) < MENU_MATH_LINE_TABLES_COUNT)
+        set_menu_math_line_tables_byte(g, at >> 8, at & 0xFF, v);
+    else
+        set_menu_math_line_tables_byte_unchecked(g, at >> 8, at & 0xFF, v);
+}
+
 static void put_math_entry(GameState *g, uint16_t at, uint8_t lines, uint16_t color)
 {
-    set_menu_math_line_tables_byte(g, at >> 8, at & 0xFF, lines);
-    set_menu_math_line_tables_byte(g, (uint16_t)(at + 1) >> 8, (at + 1) & 0xFF, (uint8_t)color);
-    set_menu_math_line_tables_byte(g, (uint16_t)(at + 2) >> 8, (at + 2) & 0xFF, (uint8_t)(color >> 8));
+    put_math_byte(g, at, lines);
+    put_math_byte(g, (uint16_t)(at + 1), (uint8_t)color);
+    put_math_byte(g, (uint16_t)(at + 2), (uint8_t)(color >> 8));
 }
 
 /* A ramp: sixteen steps through the ramp colors, each for the lines the
@@ -438,6 +484,22 @@ static void build_math_line_table(GameState *g, Platform *pf)
         put_math_entry(g, at, menu_math_records_value(g, r), menu_math_ramp_colors(g, SINGLE_COLOR));
         at = (uint16_t)(at + MATH_ENTRY_BYTES);
     }
+}
+
+/* A list the game builds ends within its records and fits a table. */
+bool menu_math_list_fits(Snes *s)
+{
+    GameState *g = state_of(s);
+    unsigned bytes = 0;
+    bool ends = false;
+    vars_peek(true);
+    for (unsigned r = 0; r < MENU_MATH_RECORDS_COUNT && !ends; r++) {
+        ends = (menu_math_records_lines(g, r) & LIST_END) != 0;
+        if (!ends)
+            bytes += menu_math_records_lines(g, r) != 0 ? RAMP_STEPS * MATH_ENTRY_BYTES : MATH_ENTRY_BYTES;
+    }
+    vars_peek(false);
+    return ends && bytes <= MENU_MATH_LINE_TABLES_BYTES;
 }
 
 void menu_build_math_line_table(Snes *s)
@@ -626,11 +688,16 @@ static bool run_frame_work(Snes *s)
      * count is cleared a word wide, over the running object's low byte */
     set_menu_object_sprite_index(g, 0);
     set_menu_object_current(g, (uint16_t)(menu_object_current(g) & 0xFF00));
-    static const struct { uint32_t site, routine; } work[3] = {
-        { 0xC20330, 0xC2034D }, { 0xC20333, 0xC2051D }, { 0xC20336, 0xC20CEA },
+    /* The objects' handlers may read Y and the carry and overflow flags (the
+     * handlers are named in work RAM), which the sprites' hiding leaves as the
+     * original does. */
+    static const struct { uint32_t site, routine; uint16_t ignores; } work[3] = {
+        { 0xC20330, 0xC2034D, NOTHING_READ },
+        { 0xC20333, 0xC2051D, DC_A | DC_X | DC_N | DC_Z },
+        { 0xC20336, 0xC20CEA, NOTHING_READ },
     };
     for (int i = 0; i < 3; i++) {
-        m_jsr_dc(s, work[i].site, work[i].routine, NOTHING_READ);
+        m_jsr_dc(s, work[i].site, work[i].routine, work[i].ignores);
         if (!back_as_the_menus_run(s))
             return false;
     }
@@ -724,8 +791,13 @@ bool menu_object_queue_is_sendable(Snes *s)
 {
     if (m_direct_page(s) != 0 || !m_bank_reaches_low_ram(s))
         return false;
+    GameState *g = state_of(s);
     vars_peek(true);
-    bool ok = menu_object_queue_is_whole(state_of(s));
+    uint8_t end = menu_object_vram_queue_end(g);
+    bool ok = menu_object_queue_is_whole(g);
+    for (unsigned r = 0; ok && r < end / MENU_OBJECT_UPLOAD_BYTES; r++)
+        ok = uploads_from_memory(r < MENU_OBJECT_VRAM_QUEUE_COUNT ? menu_object_vram_queue_bank(g, r)
+                                                                   : menu_object_vram_queue_bank_unchecked(g, r));
     vars_peek(false);
     return ok;
 }
@@ -872,6 +944,15 @@ void menu_init_video_memory(Snes *s)
     s->cpu.d = m_pull16(s);
     s->cpu.db = m_pull8(s);
     m_rts(s);
+}
+
+/* The loader's stretches of work RAM are the screen's buffers, never the
+ * stack the loader's own return and saved flags are on. */
+bool menu_memory_stretch_misses_the_stack(Snes *s)
+{
+    uint32_t from = s->cpu.x, to = from + (s->cpu.y ? s->cpu.y : 0x10000u);
+    uint32_t low = (uint16_t)(s->cpu.s - 1), high = (uint32_t)s->cpu.s + 3;
+    return to <= low || from >= high;
 }
 
 // $C2:9512

@@ -19,8 +19,10 @@
 void menu_wait_for_frame_loop(Snes *s)
 {
     uint8_t seen = (uint8_t)s->cpu.a;
-    if (menu_object_frame_counter(state_of(s)) == seen)
+    if (menu_object_frame_counter(state_of(s)) == seen) {
+        m_stop_at(s, 0xC20348, 0);
         return;
+    }
     s->cpu.pc = 0x034C;   /* the RTS after the loop */
     m_rts(s);
 }
@@ -31,8 +33,7 @@ void menu_wait_for_frame_loop(Snes *s)
  * nothing reads what the loop loaded. */
 void menu_wait_ready_loop(Snes *s)
 {
-    if (menu_vblank_done(state_of(s)) != 0)
-        s->cpu.pc = 0x81CF;
+    m_stop_at(s, menu_vblank_done(state_of(s)) != 0 ? 0xC281CF : 0xC281CA, 0);
 }
 
 /* The first waits on the menus' page, the second reads its cell through a

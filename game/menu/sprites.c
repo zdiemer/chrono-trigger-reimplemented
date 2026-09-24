@@ -697,9 +697,14 @@ static void a8_x16(Snes *s)
 }
 
 // $C2:034D
+/* It narrows Y to a byte on the way (with 8-bit index registers), and its
+ * loop's last subtraction borrows without overflowing: what the objects' run
+ * that follows it in the vblank handler starts with. */
 void menu_hide_all_sprites(Snes *s)
 {
     hide_all_sprites(state_of(s));
+    s->cpu.y &= 0xFF;
+    s->cpu.p = (uint8_t)(s->cpu.p & ~(CPU_FLAG_C | CPU_FLAG_V));
     a8_x16(s);
     m_rts(s);
 }

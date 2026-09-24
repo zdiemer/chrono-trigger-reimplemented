@@ -28,18 +28,19 @@ void menu_queue_upload(GameState *g, MenuUpload u);
  * anywhere in memory, whose VRAM port steps as `port` says (MENU_PORT_WORDS a
  * word at a time, MENU_PORT_ROWS a tilemap row at a time). Queueing holds the
  * queue from the vblank handler and gives the queue's end, the byte offset of
- * the next record; the records' fields are set by offset; releasing it sets
- * the new end. menu_queue_object_upload does all of it for one upload a word
+ * the next record; the records' fields are set by offset (a record at an end
+ * past $F8 lies past the byte's reach, as the original's page-relative writes
+ * put it); releasing it sets the new end. menu_queue_object_upload does all of it for one upload a word
  * at a time. */
 enum { MENU_PORT_WORDS = 0x80, MENU_PORT_ROWS = 0x81 };
 enum { MENU_OBJECT_UPLOAD_BYTES = 8 };
 uint8_t menu_hold_object_queue(GameState *g);
 void menu_release_object_queue(GameState *g, uint8_t end);
-void menu_set_object_upload_bank(GameState *g, uint8_t at, uint8_t bank);
-void menu_set_object_upload_port(GameState *g, uint8_t at, uint8_t port);
-void menu_set_object_upload_source(GameState *g, uint8_t at, uint16_t source);
-void menu_set_object_upload_vram(GameState *g, uint8_t at, uint16_t vram);
-void menu_set_object_upload_size(GameState *g, uint8_t at, uint16_t size);
+void menu_set_object_upload_bank(GameState *g, unsigned at, uint8_t bank);
+void menu_set_object_upload_port(GameState *g, unsigned at, uint8_t port);
+void menu_set_object_upload_source(GameState *g, unsigned at, uint16_t source);
+void menu_set_object_upload_vram(GameState *g, unsigned at, uint16_t vram);
+void menu_set_object_upload_size(GameState *g, unsigned at, uint16_t size);
 void menu_queue_object_upload(GameState *g, uint32_t source, uint16_t vram, uint16_t size);
 /* Whether the queue's end is on a record (the game's always is). */
 bool menu_object_queue_is_whole(const GameState *g);

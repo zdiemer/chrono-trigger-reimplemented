@@ -377,10 +377,10 @@ SCRIPT_SERVED_OPERATION(scroll_map, frames, plane)
  * mosaic, an object that streams the tiles the command describes to VRAM
  * over a few frames, and one that loads palette rows. They are the
  * original's, run by the objects' loop (menu/objects.c). */
-#define IN_BANK_C2(handler) ((uint16_t)(handler))
+#define HANDLER_AT(handler) ((uint16_t)(handler))
 enum {
-    TILE_STREAMER = IN_BANK_C2(0xC21CF5), PALETTE_LOADER = IN_BANK_C2(0xC21DD4), FADE_OUT = IN_BANK_C2(0xC220A2),
-    FADE_IN = IN_BANK_C2(0xC22105), MOSAIC_OFF = IN_BANK_C2(0xC22194), MOSAIC_ON = IN_BANK_C2(0xC221F8),
+    TILE_STREAMER = HANDLER_AT(0xC21CF5), PALETTE_LOADER = HANDLER_AT(0xC21DD4), FADE_OUT = HANDLER_AT(0xC220A2),
+    FADE_IN = HANDLER_AT(0xC22105), MOSAIC_OFF = HANDLER_AT(0xC22194), MOSAIC_ON = HANDLER_AT(0xC221F8),
 };
 
 // $C2:10BF, $C2:158B-$C2:15B5, $C2:1839, $C2:1A43
@@ -515,15 +515,15 @@ static ScriptFlow show_tile_group(GameState *g, MenuObject self, uint8_t plane, 
     ORIGINAL_EFFECT(set_menu_object_scratch_group_screen_column(g, in_its_screen));
     ORIGINAL_EFFECT(set_menu_object_scratch_pointer_address(g, source));
     ORIGINAL_EFFECT(set_menu_object_scratch_second_pointer_address(g, vram));
-    uint8_t at = menu_hold_object_queue(g);
-    for (unsigned half = 0; half < 2; half++, at = (uint8_t)(at + MENU_OBJECT_UPLOAD_BYTES)) {
+    unsigned at = menu_hold_object_queue(g);
+    for (unsigned half = 0; half < 2; half++, at += MENU_OBJECT_UPLOAD_BYTES) {
         menu_set_object_upload_bank(g, at, MAP_BANK);
         menu_set_object_upload_port(g, at, MENU_PORT_WORDS);
         menu_set_object_upload_source(g, at, (uint16_t)(source + half * GROUP_ROW_BYTES));
         menu_set_object_upload_vram(g, at, (uint16_t)(vram + half * TILEMAP_COLUMNS));
         menu_set_object_upload_size(g, at, GROUP_ROW_BYTES);
     }
-    menu_release_object_queue(g, at);
+    menu_release_object_queue(g, (uint8_t)at);
     return next_command();
 }
 SCRIPT_OPERATION(show_tile_group, plane, column, row, group)

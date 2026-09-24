@@ -17,34 +17,29 @@
 
 /* One pass of a wait for the music's fade to run out: on to `done` once it
  * has, else to `wait`, the call that lets a frame go by before looking again.
- * The status is dead at both but for its flags on the way to the call, which
- * saves them. */
-static void wait_for_the_fade(Snes *s, uint32_t site, uint16_t wait, uint16_t done)
+ * The status itself is dead at both, and its flags are read on the way to the
+ * call, which saves them. */
+static void wait_for_the_fade(Snes *s, uint32_t site, uint32_t wait, uint32_t done)
 {
     uint8_t steps_left = au_music_fade_left(m_platform(s), PF_AT(site));
-    if (steps_left == 0) {
-        s->cpu.pc = done;
-        return;
-    }
     m_set_nz8(s, steps_left);
-    s->cpu.pc = wait;
+    m_stop_at(s, steps_left == 0 ? done : wait, 0);
 }
 
 // $C2:CBC1
 /* Opening the menus: wait for the field's song to fade out, then on to
  * starting the menus' song at $C2:CBCC. */
-void menu_wait_for_field_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CBC1, 0xCBC7, 0xCBCC); }
+void menu_wait_for_field_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CBC1, 0xC2CBC7, 0xC2CBCC); }
 
 // $C2:CC28
 /* Closing them: wait for the menus' song to fade out, then on to starting
  * the field's again at $C2:CC33. */
-void menu_wait_for_menu_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CC28, 0xCC2E, 0xCC33); }
+void menu_wait_for_menu_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CC28, 0xC2CC2E, 0xC2CC33); }
 
 // $C2:CBE0
 /* After starting the menus' song, wait for it to set its marker, then on to
  * $C2:CBE8, where nothing reads what the loop loaded. Idle entry, one pass. */
 void menu_wait_for_menu_song_started_loop(Snes *s)
 {
-    if (au_song_marker(m_platform(s), PF_AT(0xC2CBE0)) != 0)
-        s->cpu.pc = 0xCBE8;
+    m_stop_at(s, au_song_marker(m_platform(s), PF_AT(0xC2CBE0)) != 0 ? 0xC2CBE8 : 0xC2CBE0, 0);
 }

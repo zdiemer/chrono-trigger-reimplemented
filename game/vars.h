@@ -2322,6 +2322,12 @@ enum { MENU_MATH_LINE_TABLES_COUNT = 2 };   /* by buffer (swapped each build, so
 enum { MENU_MATH_LINE_TABLES_BYTES = 256 };
 uint8_t menu_math_line_tables_byte(const GameState *g, unsigned i, unsigned at);
 void set_menu_math_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* The per-line color math tables slot 0 runs: three bytes per entry (line count, $2131 value and
+ * the fixed color) [256 bytes, one at a time] Unchecked, for marked scaffolding only: a table
+ * whose records ramp more than the table holds runs on past the second table, which the original
+ * writes through its index alone; no screen builds one so long */
+uint8_t menu_math_line_tables_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_menu_math_line_tables_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 /* The line count of the ramp being built, times 16: the step its accumulator advances by */
 uint16_t menu_math_ramp_step(const GameState *g);

@@ -11,6 +11,7 @@ void menu_draw_tile(Snes *s);
 void menu_draw_text(Snes *s);
 
 bool menu_text_on_page(Snes *s);
+bool menu_tile_on_page(Snes *s);
 bool menu_number_is_drawable(Snes *s);
 bool menu_number_is_convertible(Snes *s);
 

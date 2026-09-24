@@ -16,6 +16,7 @@ void menu_object_step_position(Snes *s);
 bool menu_objects_on_page(Snes *s);
 bool menu_objects_can_start(Snes *s);
 bool menu_object_can_move(Snes *s);
+bool menu_object_handler_runs(Snes *s);
 
 /* menu/sprites.c */
 void menu_reset_sprite_nodes(Snes *s);

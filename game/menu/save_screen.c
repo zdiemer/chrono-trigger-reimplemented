@@ -229,19 +229,36 @@ static void set_widths(Snes *s, bool a8, bool x8)
     m_sep(s, (uint8_t)((a8 ? CPU_FLAG_M : 0) | (x8 ? CPU_FLAG_X : 0)));
 }
 
-static bool call_original(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8)
+static bool back_on_the_menus_page(Snes *s, uint32_t site, bool a8, bool x8)
 {
-    set_widths(s, a8, x8);
-    m_jsr_dc(s, site, routine, dont_care);
     if (!s->cpu.e && m_m8(s) == a8 && m_x8(s) == x8 && s->cpu.db == WORK_RAM_BANK && m_direct_page(s) == 0)
         return true;
     m_stop_at(s, site + JSR_SIZE, 0);
     return false;
 }
 
+static bool call_original(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8)
+{
+    set_widths(s, a8, x8);
+    m_jsr_dc(s, site, routine, dont_care);
+    return back_on_the_menus_page(s, site, a8, x8);
+}
+
+/* The window command lists ($C2:ED31) the slot's header and its member rows
+ * are drawn with. Their interpreter dispatches through a table, so liveness
+ * can't show the carry and overflow dead at the call; the game's lists never
+ * read them, which scrambling them shows. */
+static bool draw_window_list(Snes *s, uint32_t site)
+{
+    set_widths(s, false, false);
+    /* dc-evidence: ct_fuzz --poison-dc menu_draw_save_slot:poison, seed 1: 500 states,
+       3340 call-outs scrambled, 0 mismatched */
+    m_jsr_dc(s, site, 0xC2ED31, DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB);
+    return back_on_the_menus_page(s, site, false, false);
+}
+
 /* Registers the callees don't read (tools/dontcare_check.py checks each). */
 enum {
-    WINDOW_LIST_IGNORES = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,         /* $C2:ED31 */
     LOCATION_NAME_IGNORES = DC_A | DC_N | DC_V | DC_Z | DC_C,                       /* $C2:F28D */
     LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D,         /* $C2:F90C */
     TILE_STRIP_IGNORES = DC_N | DC_V | DC_Z | DC_C | DC_D | DC_AH,                  /* $C2:FB97 */
@@ -270,7 +287,7 @@ static bool draw_header(Snes *s)
 {
     GameState *g = state_of(s);
     s->cpu.x = HEADER_LIST;
-    if (!call_original(s, 0xC2D3A1, 0xC2ED31, WINDOW_LIST_IGNORES, false, false))
+    if (!draw_window_list(s, 0xC2D3A1))
         return false;
     s->cpu.x = LOCATION_NAME_TILES;
     s->cpu.y = LOCATION_NAME;
@@ -311,7 +328,7 @@ static bool draw_member_rows(Snes *s)
         if (member_present(g, row)) {
             show_member(g, row);
             s->cpu.x = MEMBER_ROW_LIST;
-            if (!call_original(s, 0xC2D43A, 0xC2ED31, WINDOW_LIST_IGNORES, false, false))
+            if (!draw_window_list(s, 0xC2D43A))
                 return false;
             NATIVE_TIME_AS(s, 0xC2D466, draw_member_portrait(g));
             set_menu_draw_origin(g, (uint16_t)(menu_draw_origin(g) + MEMBER_ROW_BYTES));

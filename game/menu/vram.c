@@ -132,10 +132,10 @@ void menu_release_object_queue(GameState *g, uint8_t end)
     set_menu_object_vram_queue_busy(g, 0);
 }
 
-static unsigned object_record(uint8_t at) { return at / OBJECT_RECORD_BYTES; }
-static bool in_the_queue(uint8_t at) { return object_record(at) < OBJECT_QUEUE_RECORDS; }
+static unsigned object_record(unsigned at) { return at / OBJECT_RECORD_BYTES; }
+static bool in_the_queue(unsigned at) { return object_record(at) < OBJECT_QUEUE_RECORDS; }
 
-void menu_set_object_upload_bank(GameState *g, uint8_t at, uint8_t bank)
+void menu_set_object_upload_bank(GameState *g, unsigned at, uint8_t bank)
 {
     if (in_the_queue(at))
         set_menu_object_vram_queue_bank(g, object_record(at), bank);
@@ -143,7 +143,7 @@ void menu_set_object_upload_bank(GameState *g, uint8_t at, uint8_t bank)
         set_menu_object_vram_queue_bank_unchecked(g, object_record(at), bank);
 }
 
-void menu_set_object_upload_port(GameState *g, uint8_t at, uint8_t port)
+void menu_set_object_upload_port(GameState *g, unsigned at, uint8_t port)
 {
     if (in_the_queue(at))
         set_menu_object_vram_queue_port(g, object_record(at), port);
@@ -151,7 +151,7 @@ void menu_set_object_upload_port(GameState *g, uint8_t at, uint8_t port)
         set_menu_object_vram_queue_port_unchecked(g, object_record(at), port);
 }
 
-void menu_set_object_upload_source(GameState *g, uint8_t at, uint16_t source)
+void menu_set_object_upload_source(GameState *g, unsigned at, uint16_t source)
 {
     if (in_the_queue(at))
         set_menu_object_vram_queue_source(g, object_record(at), source);
@@ -159,7 +159,7 @@ void menu_set_object_upload_source(GameState *g, uint8_t at, uint16_t source)
         set_menu_object_vram_queue_source_unchecked(g, object_record(at), source);
 }
 
-void menu_set_object_upload_vram(GameState *g, uint8_t at, uint16_t vram)
+void menu_set_object_upload_vram(GameState *g, unsigned at, uint16_t vram)
 {
     if (in_the_queue(at))
         set_menu_object_vram_queue_vram(g, object_record(at), vram);
@@ -167,7 +167,7 @@ void menu_set_object_upload_vram(GameState *g, uint8_t at, uint16_t vram)
         set_menu_object_vram_queue_vram_unchecked(g, object_record(at), vram);
 }
 
-void menu_set_object_upload_size(GameState *g, uint8_t at, uint16_t size)
+void menu_set_object_upload_size(GameState *g, unsigned at, uint16_t size)
 {
     if (in_the_queue(at))
         set_menu_object_vram_queue_size(g, object_record(at), size);

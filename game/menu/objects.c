@@ -271,6 +271,18 @@ bool menu_object_can_move(Snes *s)
     return ok;
 }
 
+/* A handler is entered with its slot in X as well, which is the one it
+ * reaches its own state through. */
+bool menu_object_handler_runs(Snes *s)
+{
+    if (!menu_object_can_move(s))
+        return false;
+    vars_peek(true);
+    bool ok = s->cpu.x == menu_object_current(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
 /* The address a start leaves in X: past the slot it took, or past the last it
  * looked at where every one was busy. */
 static uint16_t past(const GameState *g, MenuSlotKind kind)

@@ -1644,6 +1644,8 @@ uint16_t menu_math_ramp_colors(const GameState *g, unsigned i) { IN_RANGE(g, 165
 void set_menu_math_ramp_colors(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 165, "set_menu_math_ramp_colors", "count", i, 16u); w16(g, 0x7E9DE9u + (uint32_t)i * 0x02u, v); }
 uint8_t menu_math_line_tables_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 166, "menu_math_line_tables_byte", "count", i, 2u); IN_RANGE(g, 166, "menu_math_line_tables_byte", "bytes", at, 256u); return r8(g, 0x7E9E19u + (uint32_t)i * 0x100u + at); }
 void set_menu_math_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 166, "set_menu_math_line_tables_byte", "count", i, 2u); IN_RANGE(g, 166, "set_menu_math_line_tables_byte", "bytes", at, 256u); w8(g, 0x7E9E19u + (uint32_t)i * 0x100u + at, v); }
+uint8_t menu_math_line_tables_byte_unchecked(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7E9E19u + (uint32_t)i * 0x100u + at); }
+void set_menu_math_line_tables_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7E9E19u + (uint32_t)i * 0x100u + at, v); }
 uint16_t menu_math_ramp_step(const GameState *g) { return r16(g, 0x7EA019u); }
 void set_menu_math_ramp_step(GameState *g, uint16_t v) { w16(g, 0x7EA019u, v); }
 uint16_t menu_math_ramp_accumulator(const GameState *g) { return r16(g, 0x7EA01Bu); }

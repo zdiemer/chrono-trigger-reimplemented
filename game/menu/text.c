@@ -460,18 +460,53 @@ static TextPlace draw_text(GameState *g, TextPlace p, uint16_t *pen, uint8_t set
 /* ---- The entries ------------------------------------------------------------------------- */
 
 /* All four run on the menus' page, and the conversion starts from the first
- * power of two: the cell it starts its table from ($51) is 0 whenever the
+ * power of two: the word it starts its table from ($51) is 0 whenever the
  * menus draw a number. */
 static bool on_the_menus_page(Snes *s) { return m_direct_page(s) == 0x0000; }
-static bool converts_from_one(Snes *s) { return snes_bus_peek(&s->bus, 0x000051) == 0; }
+static bool converts_from_one(Snes *s)
+{
+    return snes_bus_peek(&s->bus, 0x000051) == 0 && snes_bus_peek(&s->bus, 0x000052) == 0;
+}
 
-bool menu_text_on_page(Snes *s) { return on_the_menus_page(s); }
+/* What the menus read strings and numbers from is work RAM or the ROM: no
+ * string or number of the game's is in the I/O registers or open bus, where
+ * a read can change what it reads. */
+static bool reads_memory(uint32_t at)
+{
+    uint8_t bank = (uint8_t)(at >> 16);
+    uint16_t address = (uint16_t)at;
+    if (bank == 0x7E || bank == 0x7F || (bank & 0x7F) >= 0x40)
+        return true;
+    return address < 0x2000 || address >= 0x8000;
+}
+
+/* The number drawer keeps its digits and its place in cells of the menus'
+ * page ($8A-$93); a number the game draws is neither read from them nor drawn
+ * over them. */
+static bool clear_of_the_drawers_cells(uint32_t number_at, uint16_t pen)
+{
+    enum { CELLS = 0x8A, CELLS_END = 0x94, NUMBER_BYTES = 3, BELOW_THE_PEN = 2 * ROW_BYTES };
+    uint8_t bank = (uint8_t)(number_at >> 16);
+    uint16_t address = (uint16_t)number_at;
+    bool low_ram = bank == 0x7E || ((bank & 0x7F) < 0x40 && address < 0x2000);
+    bool reads_them = low_ram && address < CELLS_END && address + NUMBER_BYTES > CELLS;
+    return !reads_them && pen >= CELLS_END + BELOW_THE_PEN;
+}
+
+bool menu_tile_on_page(Snes *s) { return on_the_menus_page(s); }
+
+bool menu_text_on_page(Snes *s)
+{
+    return on_the_menus_page(s) && converts_from_one(s) && reads_memory((uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y);
+}
 
 /* A number the game draws is one to three bytes. */
 bool menu_number_is_drawable(Snes *s)
 {
     uint8_t bytes = number_format((uint8_t)s->cpu.a).bytes;
-    return on_the_menus_page(s) && converts_from_one(s) && bytes != 0;
+    uint32_t at = (uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y;
+    return on_the_menus_page(s) && converts_from_one(s) && bytes != 0 && reads_memory(at)
+           && clear_of_the_drawers_cells(at, s->cpu.x);
 }
 
 bool menu_number_is_convertible(Snes *s)
@@ -479,7 +514,9 @@ bool menu_number_is_convertible(Snes *s)
     vars_peek(true);
     uint16_t bytes = menu_number_size(state_of(s));
     vars_peek(false);
-    return on_the_menus_page(s) && converts_from_one(s) && bytes >= 1 && bytes <= 3;
+    uint32_t at = (uint32_t)s->cpu.db << 16 | s->cpu.y;
+    return on_the_menus_page(s) && converts_from_one(s) && bytes >= 1 && bytes <= 3 && reads_memory(at)
+           && clear_of_the_drawers_cells(at, 0xFFFF);
 }
 
 /* The number drawer leaves A's high byte clear (its digits are drawn with it

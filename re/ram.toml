@@ -4755,6 +4755,7 @@ addr = "7E:9E19"
 size = 0x100
 count = 2
 index = "buffer (swapped each build, so the frame showing keeps its own)"
+unchecked = "a table whose records ramp more than the table holds runs on past the second table, which the original writes through its index alone; no screen builds one so long"
 subsystem = "menu"
 meaning = "The per-line color math tables slot 0 runs: three bytes per entry (line count, $2131 value and the fixed color)"
 source = "game/menu/display.c, menu_build_math_line_table $C2:86DD, menu_vblank_upload $C2:85D6"

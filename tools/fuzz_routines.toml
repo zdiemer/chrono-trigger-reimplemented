@@ -4318,3 +4318,1786 @@ subsystem = "field"
 state = "field"
 args = ["--db", "00"]
 why = "a bank reaching low RAM"
+
+# ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
+#
+# Two states: the menus proper (the field menu open, menus-field-menu) and the sprite-object
+# mode (the Epoch's map screen, menus-epoch). The object mode's entries run on its page with a data
+# bank of 0 and the running object a slot ($4E: $0B30 + $100 k); the script commands are entered as
+# the interpreter's dispatch enters them (A and X the opcode doubled; the carry is random, and a
+# state with it set is refused as the game never makes one) on a script built in work RAM at
+# $7E:1C00, the opcode first and small operands after, so the cells they name are low RAM. The
+# entries are at their addresses: the rewrite renamed several.
+
+[state.menus]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 3000
+
+[state.objects]
+movie = "oracle/movies/saves/menus-epoch.ctm"
+frames = 8500
+
+[[routine]]
+name = "menu_draw_glyph_line"
+at = "C2:5E89"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0200", "--db", "C2", "--fill", "7E026A-7E026A=00-07", "--fill", "7E026E-7E026E=00-1E", "--fill", "7E026F-7E026F=00-00", "--fill", "7E0274-7E0274=20-7F", "--fill", "7E0275-7E0275=7E-7E", "--fill", "7E0278-7E0278=FF-FF", "--fill", "7E027B-7E027B=FF-FF", "--fill", "7E0260-7E0260=00-17", "--fill", "7E0261-7E0261=00-00"]
+iterations = 2000
+why = "the text engine's page ($0200) and the font tables' bank; the pen's offset in its tile (0-7), a column the line's table has, the glyph's pixels in the font's bank ($FF) and bound for the text's tiles in bank $7E, and a byte of the glyph's 24, as the text engine hands them over (the guards, game/menu/glyphs.c)"
+
+[[routine]]
+name = "menu_draw_glyph"
+at = "C2:5E36"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0200", "--db", "C2", "--fill", "7E026A-7E026A=00-07", "--fill", "7E026E-7E026E=00-1E", "--fill", "7E026F-7E026F=00-00", "--fill", "7E0274-7E0274=20-7F", "--fill", "7E0275-7E0275=7E-7E", "--fill", "7E0278-7E0278=FF-FF", "--fill", "7E027B-7E027B=FF-FF"]
+iterations = 2000
+why = "the text engine's page ($0200) and the font tables' bank; the pen's offset in its tile (0-7), a column the line's table has, the glyph's pixels in the font's bank ($FF) and bound for the text's tiles in bank $7E, as the text engine hands them over (the guards, game/menu/glyphs.c)"
+
+[[routine]]
+name = "menu_wait_for_frame_loop"
+at = "C2:0348"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_wait_ready_loop"
+at = "C2:81CA"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_number_to_bcd"
+at = "C2:F13F"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0092-7E0092=01-03", "--fill", "7E0093-7E0093=00-00"]
+iterations = 2000
+why = "the menus' page, the conversion from the first power of two ($51-$52 = 0) and a number of one to three bytes ($92), as the menus convert (the guard, game/menu/text.c)"
+
+[[routine]]
+name = "menu_draw_number"
+at = "C2:F114"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' page, and the number conversion starting from the first power of two ($51-$52 = 0), as it does whenever the menus draw (the guard, game/menu/text.c)"
+
+[[routine]]
+name = "menu_draw_tile"
+at = "C2:EF97"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' page, and the number conversion starting from the first power of two ($51-$52 = 0), as it does whenever the menus draw (the guard, game/menu/text.c)"
+
+[[routine]]
+name = "menu_draw_text"
+at = "C2:EF65"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' page, and the number conversion starting from the first power of two ($51-$52 = 0), as it does whenever the menus draw (the guard, game/menu/text.c)"
+
+[[routine]]
+name = "menu_mode_start"
+at = "C2:800E"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_mode_return"
+at = "C2:82C1"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_mode_restart"
+at = "C2:832F"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_nmi_work"
+at = "C2:842A"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0D00", "--db", "00"]
+iterations = 500
+why = "the vblank handler, entered as the interrupt enters it"
+
+[[routine]]
+name = "menu_vblank_upload"
+at = "C2:85D6"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0D00", "--db", "00"]
+iterations = 2000
+why = "the menus' vblank page ($0D00) and a data bank on the I/O registers, as the vblank handler calls it; a block move clear of the stub it runs through and of the stack (the guard, game/menu/display.c)"
+
+[[routine]]
+name = "menu_upload_vram_queue"
+at = "C2:8663"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_upload_palette"
+at = "C2:86A9"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_build_math_line_table"
+at = "C2:86DD"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_object_mode_start"
+at = "C2:000F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 500
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_object_init_video"
+at = "C2:0043"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 500
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_object_nmi"
+at = "C2:015E"
+subsystem = "menu"
+state = "objects"
+args = ["--interrupt", "--d", "0000", "--db", "00"]
+iterations = 500
+why = "the vblank handler, entered as the interrupt enters it"
+
+[[routine]]
+name = "menu_object_upload_vram_queue"
+at = "C2:0405"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_map_centre_on_party"
+at = "C2:2720"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_map_scroll_x"
+at = "C2:0568"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_map_scroll_y"
+at = "C2:066C"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_map_redraw"
+at = "C2:09C5"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_map_upload_block"
+at = "C2:0ADC"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_clear_vram"
+at = "C2:26A8"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_upload_vram"
+at = "C2:2D70"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_upload_loaded_palette"
+at = "C2:2D47"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_init_video"
+at = "C2:940D"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_init_video_memory"
+at = "C2:94D5"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_fill_memory"
+at = "C2:9512"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_copy_to_memory"
+at = "C2:9542"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_window_set_line_effect"
+at = "C2:F337"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_window_build_line_table"
+at = "FF:FC04"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_queue_vram_upload"
+at = "C2:8385"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_queue_built_vram_upload"
+at = "C2:838E"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_reset_sprites"
+at = "C2:E92D"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_load_slot_rows_effect"
+at = "C2:CFFB"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_draw_member_portrait"
+at = "C2:D466"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_draw_save_slot"
+at = "C2:D36C"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_draw_save_slot"
+variant = "poison"
+at = "C2:D36C"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E0000-7FFFFF", "--fill", "7E0079-7E0079=00-02"]
+iterations = 500
+why = "the field menu's save screen as it is, with a slot shown (0-2), so the drawing reaches its window command lists: the run --poison-dc makes for the lists' dc-evidence (game/menu/save_screen.c)"
+
+[[routine]]
+name = "menu_show_save_slot"
+at = "C2:E743"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_object_spawn"
+at = "C2:048A"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_object_spawn_high"
+at = "C2:04CD"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_object_start_script"
+at = "C2:04D9"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_object_start_script_high"
+at = "C2:04FB"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_object_step_position"
+at = "C2:0F38"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_reset_state"
+at = "C2:1037"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0000-0000", "--range", "X=0000-0000", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=00-00", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_sprite_palette"
+at = "C2:1091"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0002-0002", "--range", "X=0002-0002", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=01-01", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_sprite_priority"
+at = "C2:10A8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0004-0004", "--range", "X=0004-0004", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=02-02", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_start_sprite_object"
+at = "C2:10BF"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0006-0006", "--range", "X=0006-0006", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=03-03", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_load_palette_row"
+at = "C2:10CD"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0008-0008", "--range", "X=0008-0008", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=04-04", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_change_location"
+at = "C2:1100"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=000A-000A", "--range", "X=000A-000A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=05-05", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_wait_frame"
+at = "C2:1169"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=000C-000C", "--range", "X=000C-000C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=06-06", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_write_table_byte"
+at = "C2:116B"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=000E-000E", "--range", "X=000E-000E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=07-07", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_scene_script"
+at = "C2:11B2"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0010-0010", "--range", "X=0010-0010", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=08-08", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_start_object"
+at = "C2:11F6"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0012-0012", "--range", "X=0012-0012", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=09-09", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_clear_slot_byte"
+at = "C2:120C"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0014-0014", "--range", "X=0014-0014", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=0A-0A", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_increment_slot_byte"
+at = "C2:121D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0016-0016", "--range", "X=0016-0016", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=0B-0B", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_decrement_slot_byte"
+at = "C2:1230"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0018-0018", "--range", "X=0018-0018", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=0C-0C", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_slot_byte"
+at = "C2:1243"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=001A-001A", "--range", "X=001A-001A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=0D-0D", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_slot_bits"
+at = "C2:1257"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=001C-001C", "--range", "X=001C-001C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=0E-0E", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_clear_slot_bits"
+at = "C2:126D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=001E-001E", "--range", "X=001E-001E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=0F-0F", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_clear_cell"
+at = "C2:1285"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0020-0020", "--range", "X=0020-0020", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=10-10", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_increment_cell"
+at = "C2:1296"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0022-0022", "--range", "X=0022-0022", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=11-11", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_decrement_cell"
+at = "C2:12A7"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0024-0024", "--range", "X=0024-0024", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=12-12", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_cell"
+at = "C2:12B8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0026-0026", "--range", "X=0026-0026", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=13-13", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_cell_bits"
+at = "C2:12CE"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0028-0028", "--range", "X=0028-0028", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=14-14", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_clear_cell_bits"
+at = "C2:12E7"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=002A-002A", "--range", "X=002A-002A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=15-15", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_store_slot_byte"
+at = "C2:1302"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=002C-002C", "--range", "X=002C-002C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=16-16", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_load_slot_byte"
+at = "C2:131C"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=002E-002E", "--range", "X=002E-002E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=17-17", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_copy_slot_byte"
+at = "C2:1336"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0030-0030", "--range", "X=0030-0030", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=18-18", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_copy_cell"
+at = "C2:1350"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0032-0032", "--range", "X=0032-0032", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=19-19", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_jump"
+at = "C2:136A"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0034-0034", "--range", "X=0034-0034", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=1A-1A", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_loop_slot_byte"
+at = "C2:1375"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0036-0036", "--range", "X=0036-0036", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=1B-1B", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_slot_byte_zero"
+at = "C2:1398"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0038-0038", "--range", "X=0038-0038", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=1C-1C", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_slot_byte_set"
+at = "C2:13B8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=003A-003A", "--range", "X=003A-003A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=1D-1D", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_slot_byte_not"
+at = "C2:13D8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=003C-003C", "--range", "X=003C-003C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=1E-1E", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_slot_byte_is"
+at = "C2:13FC"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=003E-003E", "--range", "X=003E-003E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=1F-1F", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_slot_bits_set"
+at = "C2:1420"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0040-0040", "--range", "X=0040-0040", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=20-20", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_slot_bits_clear"
+at = "C2:1444"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0042-0042", "--range", "X=0042-0042", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=21-21", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_cell_zero"
+at = "C2:1469"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0044-0044", "--range", "X=0044-0044", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=22-22", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_cell_set"
+at = "C2:148B"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0046-0046", "--range", "X=0046-0046", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=23-23", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_cell_not"
+at = "C2:14AD"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0048-0048", "--range", "X=0048-0048", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=24-24", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_cell_is"
+at = "C2:14D2"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=004A-004A", "--range", "X=004A-004A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=25-25", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_cell_bits_set"
+at = "C2:14F7"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=004C-004C", "--range", "X=004C-004C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=26-26", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_cell_bits_clear"
+at = "C2:151C"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=004E-004E", "--range", "X=004E-004E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=27-27", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_cell_below"
+at = "C2:1541"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0098-0098", "--range", "X=0098-0098", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=4C-4C", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_branch_if_cell_at_least"
+at = "C2:1566"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=009A-009A", "--range", "X=009A-009A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=4D-4D", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_fade_out"
+at = "C2:158B"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0050-0050", "--range", "X=0050-0050", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=28-28", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_fade_in"
+at = "C2:1599"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0052-0052", "--range", "X=0052-0052", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=29-29", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_mosaic_on"
+at = "C2:15A7"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0054-0054", "--range", "X=0054-0054", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=2A-2A", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_mosaic_off"
+at = "C2:15B5"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0056-0056", "--range", "X=0056-0056", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=2B-2B", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_position"
+at = "C2:15C3"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0058-0058", "--range", "X=0058-0058", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=2C-2C", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_nothing"
+at = "C2:15DF"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=005A-005A", "--range", "X=005A-005A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=2D-2D", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_velocity_x"
+at = "C2:15E3"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=005C-005C", "--range", "X=005C-005C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=2E-2E", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_velocity_y"
+at = "C2:15F9"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=005E-005E", "--range", "X=005E-005E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=2F-2F", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_set_sprite_script"
+at = "C2:160F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0060-0060", "--range", "X=0060-0060", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=30-30", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_animate_for"
+at = "C2:161D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0062-0062", "--range", "X=0062-0062", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=31-31", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_scroll_map_for"
+at = "C2:164B"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0064-0064", "--range", "X=0064-0064", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=32-32", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_scroll_map_plane_for"
+at = "C2:16FA"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=00A2-00A2", "--range", "X=00A2-00A2", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=51-51", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_queue_vram_upload"
+at = "C2:17D2"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0066-0066", "--range", "X=0066-0066", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=33-33", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_call_routine"
+at = "C2:1807"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0068-0068", "--range", "X=0068-0068", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=34-34", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_call_routine_long"
+at = "C2:181C"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=009C-009C", "--range", "X=009C-009C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=4E-4E", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_start_handler"
+at = "C2:1839"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=006A-006A", "--range", "X=006A-006A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=35-35", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_call"
+at = "C2:1848"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=006C-006C", "--range", "X=006C-006C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=36-36", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_return"
+at = "C2:185F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=006E-006E", "--range", "X=006E-006E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=37-37", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_wait_for"
+at = "C2:186B"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0070-0070", "--range", "X=0070-0070", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=38-38", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_animate_wait_for"
+at = "C2:188E"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0072-0072", "--range", "X=0072-0072", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=39-39", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_stop_after_age"
+at = "C2:18B4"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0074-0074", "--range", "X=0074-0074", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=3A-3A", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_sound_18"
+at = "C2:18C7"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0076-0076", "--range", "X=0076-0076", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=3B-3B", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_sound_19"
+at = "C2:18D0"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0078-0078", "--range", "X=0078-0078", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=3C-3C", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_play_song_unless_flag"
+at = "C2:18F1"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=007A-007A", "--range", "X=007A-007A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=3D-3D", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_play_song"
+at = "C2:18F9"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0094-0094", "--range", "X=0094-0094", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=4A-4A", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_sound_command"
+at = "C2:191F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0096-0096", "--range", "X=0096-0096", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=4B-4B", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_redraw_map"
+at = "C2:1947"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=007C-007C", "--range", "X=007C-007C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=3E-3E", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_move_x_to"
+at = "C2:1959"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=007E-007E", "--range", "X=007E-007E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=3F-3F", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_move_y_to"
+at = "C2:19C2"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0080-0080", "--range", "X=0080-0080", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=40-40", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_wait_frame_again"
+at = "C2:1A2B"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0082-0082", "--range", "X=0082-0082", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=41-41", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_start_script"
+at = "C2:1A2D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0086-0086", "--range", "X=0086-0086", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=43-43", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_start_handler_high"
+at = "C2:1A43"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0084-0084", "--range", "X=0084-0084", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=42-42", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_mark_table_entry"
+at = "C2:1A52"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0088-0088", "--range", "X=0088-0088", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=44-44", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_unmark_table_entry"
+at = "C2:1AAC"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=008A-008A", "--range", "X=008A-008A", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=45-45", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_add_to_slot_byte"
+at = "C2:1ACA"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=008C-008C", "--range", "X=008C-008C", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=46-46", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_subtract_from_slot_byte"
+at = "C2:1AE1"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=008E-008E", "--range", "X=008E-008E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=47-47", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_add_to_cell"
+at = "C2:1AFB"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0090-0090", "--range", "X=0090-0090", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=48-48", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_subtract_from_cell"
+at = "C2:1B15"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0092-0092", "--range", "X=0092-0092", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=49-49", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_copy_tilemap_rows"
+at = "C2:1B2F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=009E-009E", "--range", "X=009E-009E", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=4F-4F", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_copy_tilemap_block"
+at = "C2:1BE0"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=00A0-00A0", "--range", "X=00A0-00A0", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=50-50", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_object_cmd_end"
+at = "C2:1C81"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=00A4-00A4", "--range", "X=00A4-00A4", "--fill", "7E0058-7E0058=00-00", "--fill", "7E0059-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C00-7E1C00=52-52", "--fill", "7E1C01-7E1C09=00-1F"]
+iterations = 2000
+why = "entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C00, operands below $20 so its cells are low RAM), the running object a slot"
+
+[[routine]]
+name = "menu_reset_sprite_nodes"
+at = "C2:0C4D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_hide_all_sprites"
+at = "C2:034D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_run_objects"
+at = "C2:051D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 500
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_draw_sprite_nodes"
+at = "C2:0CEA"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_insert_sprite_node"
+at = "C2:0B53"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_run_sprite_script"
+at = "C2:0E1D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_run_object_script"
+at = "C2:0F63"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "the object mode's page, a data bank of 0 and the running object a slot"
+
+[[routine]]
+name = "menu_object_wave_hdma"
+at = "C2:7759"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "X=0B30-0B30", "--fill", "7E004F-7E004F=0B-0B"]
+iterations = 2000
+why = "the object mode's page and a data bank of 0, entered as a slot's handler: the slot in X and in the running object's cell (the guard, game/menu/objects.c)"
+
+[[routine]]
+name = "menu_epoch_map_screen"
+at = "C2:631F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_build_map"
+at = "C2:63DF"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_map_cursor"
+at = "C2:666C"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_map_matrix"
+at = "C2:6736"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_map_party_marker"
+at = "C2:67FA"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_map_epoch_marker"
+at = "C2:683B"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_map_location_marker"
+at = "C2:68A3"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_map_gradient"
+at = "C2:68F4"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_load_map_graphics"
+at = "C2:6965"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_time_dial_screen"
+at = "C2:6A34"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_time_dial_object"
+at = "C2:6AC8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_build_gate_window"
+at = "C2:6CC1"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_multiply_signed"
+at = "C2:6F33"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_gate_matrix_object"
+at = "C2:6F85"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_time_dial_digit"
+at = "C2:7143"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_load_gate_stream"
+at = "C2:71F9"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_upload_gate_pixels"
+at = "C2:722C"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_upload_gate_tiles"
+at = "C2:7254"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_upload_gate_rows"
+at = "C2:72D8"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_expand_gate_nibbles"
+at = "C2:7361"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_gate_graphics"
+at = "C2:7389"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_gate_scroll_hdma"
+at = "C2:7652"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_gate_drift"
+at = "C2:7702"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_gate_scroll_slow"
+at = "C2:75C3"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_gate_scroll_wrap"
+at = "C2:75FD"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_place_marker_random"
+at = "C2:754D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_place_marker_edge"
+at = "C2:7575"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_set_marker_velocity"
+at = "C2:7598"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_start_gate_screen"
+at = "C2:CE9D"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_draw_record_sprites"
+at = "C2:F871"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_wait_for_field_song_faded"
+at = "C2:CBC1"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_wait_for_menu_song_faded"
+at = "C2:CC28"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_wait_for_menu_song_started_loop"
+at = "C2:CBE0"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_object_read_mode"
+at = "C6:E237"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_clear_7f0062"
+at = "C6:E2AF"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_set_7f01ed"
+at = "C6:E63D"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_clear_7f01ed"
+at = "C6:E644"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_advance_line_tables"
+at = "C6:E568"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_step_28"
+at = "C6:E583"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_step_28_down"
+at = "C6:E590"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_add_velocity"
+at = "C6:E77F"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_drift"
+at = "C6:E2B5"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_epoch_outside_sides"
+at = "C6:E74E"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_epoch_in_area"
+at = "C6:E797"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page and data bank"
+
+[[routine]]
+name = "menu_object_window1_lines"
+at = "C6:E000"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_window1_lines_2"
+at = "C6:E318"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_window1_lines_3"
+at = "C6:E448"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_window2_lines"
+at = "C6:E340"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_window2_lines_2"
+at = "C6:E470"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_bg1_scroll_lines"
+at = "C6:E595"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_squashed_iris_1"
+at = "C6:E368"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_squashed_iris_2"
+at = "C6:E391"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_capsule_iris_1"
+at = "C6:E498"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_capsule_iris_2"
+at = "C6:E4BE"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_load_graphics_2"
+at = "C6:E028"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_load_c3_stream_1"
+at = "C6:E04D"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_load_graphics_13"
+at = "C6:E64A"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_load_c3_stream_2"
+at = "C6:E66F"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"

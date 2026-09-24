@@ -30,6 +30,7 @@ typedef struct {
     bool called_down;        /* ... (a scroll down, last) */
     uint16_t called_x;       /* ... X */
     bool called_carry;       /* ... and the carry */
+    bool overflow;           /* the overflow the interpreter's dispatch leaves the command */
 } OnTheMachine;
 
 /* The commands go on from a call with 16-bit index registers on the mode's
@@ -81,8 +82,6 @@ static bool call_out_far(OnTheMachine *m, uint32_t site, uint32_t routine, uint1
 enum {
     MAP_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,          /* $C2:0568, $C2:066C, $C2:09C5 */
     SOUND_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,        /* $C2:2ED9 */
-    NEAR_CALL_IGNORES = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AL,   /* $C2:1819 */
-    FAR_CALL_IGNORES = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C,            /* $C2:1836 */
 };
 
 
@@ -125,20 +124,28 @@ static bool pass_on_sound(void *ctx)
 }
 
 /* A routine a script names goes through the call target, by a jump through it
- * ($C2:1819) or a long jump ($C2:1836); the first reads the address's high
- * byte in A as it jumps, the second the doubled opcode in X. */
+ * ($C2:1819) or a long jump ($C2:1836), and may read any register: it gets
+ * the ones the command's handler has there. The handler has read its
+ * operands through Y (the address's word, and for the long one its bank),
+ * which leaves A, N and Z; X, the carry and the overflow are the dispatch's. */
 static bool call_routine(void *ctx, uint32_t routine, bool far)
 {
     OnTheMachine *m = ctx;
     Snes *s = m->s;
     GameState *g = state_of(s);
+    m_set_flag(s, CPU_FLAG_V, m->overflow);
     if (!far) {
         set_menu_object_call_target(g, (menu_object_call_target(g) & 0xFF0000u) | (uint16_t)routine);
         s->cpu.a = (uint16_t)routine;
-        return call_out(m, 0xC21810, 0xC21819, NEAR_CALL_IGNORES);
+        s->cpu.y = 1;
+        m_set_nz16(s, s->cpu.a);
+        return call_out(m, 0xC21810, 0xC21819, 0);
     }
     set_menu_object_call_target(g, routine);
-    return call_out_far(m, 0xC2182C, 0xC21836, FAR_CALL_IGNORES);
+    s->cpu.a = (uint16_t)((routine & 0xFF00) | (uint8_t)(routine >> 16));
+    s->cpu.y = 3;
+    m_set_nz8(s, (uint8_t)(routine >> 16));
+    return call_out_far(m, 0xC2182C, 0xC21836, 0);
 }
 
 /* ---- What a command leaves -------------------------------------------------------------------- */
@@ -363,7 +370,18 @@ static void leave(OnTheMachine *m, const ScriptOpcode *row, const ScriptCommand 
 
 static void on_the_machine(OnTheMachine *m, Snes *s, uint8_t opcode)
 {
-    *m = (OnTheMachine){ s, { scroll_map, redraw_map, pass_on_sound, call_routine, m }, opcode, false, false, 0, false };
+    bool overflow = m->s == s && m->overflow;
+    *m = (OnTheMachine){ s, { scroll_map, redraw_map, pass_on_sound, call_routine, m }, opcode, false, false, 0, false,
+                         overflow };
+}
+
+/* The interpreter moves the script pointer on by what a command handed back
+ * with an addition, which leaves its overflow for the next command's
+ * dispatch. */
+static bool overflow_moving_on(uint16_t pointer, uint16_t by)
+{
+    uint16_t to = (uint16_t)(pointer + by);
+    return (~(pointer ^ by) & (pointer ^ to) & 0x8000) != 0;
 }
 
 static uint32_t handler_of(Snes *s, uint8_t opcode)
@@ -440,8 +458,11 @@ static ScriptFlow run_on_the_machine(void *ctx, MenuObject self, uint32_t at)
     enter_as_the_dispatch_does(s, opcode);
     m_push16(s, (uint16_t)(DISPATCH_SITE + JSR_SIZE - 1));
     ScriptFlow f = perform(m, row, &c);
-    if (f.kind != SCRIPT_HANDED_BACK)
-        (void)m_pull16(s);
+    if (f.kind == SCRIPT_HANDED_BACK)
+        return f;
+    (void)m_pull16(s);
+    uint16_t pointer = f.kind == SCRIPT_GO_TO ? (uint16_t)(f.to - 1) : (uint16_t)at;
+    m->overflow = overflow_moving_on(pointer, s->cpu.a);
     return f;
 }
 
@@ -471,7 +492,7 @@ bool menu_object_script_runs(Snes *s)
 void menu_run_object_script(Snes *s)
 {
     GameState *g = state_of(s);
-    OnTheMachine m;
+    OnTheMachine m = { .s = s, .overflow = m_flag(s, CPU_FLAG_V) };
     on_the_machine(&m, s, 0);
     ScriptRunner r = { run_on_the_machine, &m };
     uint32_t stopped = 0;
@@ -489,7 +510,7 @@ void menu_run_object_script(Snes *s)
 static void command_entry(Snes *s, uint8_t opcode)
 {
     GameState *g = state_of(s);
-    OnTheMachine m;
+    OnTheMachine m = { .s = s, .overflow = m_flag(s, CPU_FLAG_V) };
     on_the_machine(&m, s, opcode);
     vars_peek(true);
     uint32_t at = menu_object_script(g);

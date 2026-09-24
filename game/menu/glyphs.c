@@ -58,9 +58,10 @@ static Pen pen(const GameState *g)
     return (Pen){ (uint8_t)(menu_glyph_pen_column(g) >> 1), menu_glyph_pen_offset(g) };
 }
 
-/* A line of the glyph in one bitplane (`byte` of its 24), its 12 pixels in
- * the top of 16 bits. */
-static uint16_t glyph_pixels(const GameState *g, Glyph glyph, uint8_t byte)
+/* A line of the glyph in one bitplane (`byte` of its 24; the drawer's index
+ * is a word, which the line entry takes as its caller leaves it), its 12
+ * pixels in the top of 16 bits. */
+static uint16_t glyph_pixels(const GameState *g, Glyph glyph, uint16_t byte)
 {
     uint8_t left = menu_font_byte(g, glyph.left + byte);
     uint8_t shared = menu_font_byte(g, glyph.right + byte);
@@ -125,8 +126,7 @@ static void draw_glyph_line(GameState *g)
 {
     Glyph glyph = glyph_being_drawn(g);
     Pen p = pen(g);
-    uint8_t byte = (uint8_t)menu_glyph_byte(g);
-    uint16_t pixels = glyph_pixels(g, glyph, byte);
+    uint16_t pixels = glyph_pixels(g, glyph, menu_glyph_byte(g));
     put_pixels(g, menu_glyph_dest(g), p, pixels);
     ORIGINAL_EFFECT(leave_spill(g, p, pixels));
 }
@@ -189,8 +189,20 @@ static bool glyph_is_one_the_game_draws(Snes *s)
 bool menu_glyph_is_drawable(Snes *s) { return glyph_is_one_the_game_draws(s); }
 
 /* The line entry also reads the column table through the data bank, which
- * the drawer sets to the table's bank. */
-bool menu_glyph_line_is_drawable(Snes *s) { return s->cpu.db == FONT_TABLES_BANK && glyph_is_one_the_game_draws(s); }
+ * the drawer sets to the table's bank, and is called for one of the glyph's
+ * 24 bytes. */
+static bool on_a_byte_of_the_glyph(Snes *s)
+{
+    vars_peek(true);
+    bool ok = menu_glyph_byte(state_of(s)) < GLYPH_BYTES;
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_glyph_line_is_drawable(Snes *s)
+{
+    return s->cpu.db == FONT_TABLES_BANK && glyph_is_one_the_game_draws(s) && on_a_byte_of_the_glyph(s);
+}
 
 /* Both leave Y at the pen's own tile's offset, the last they looked up. */
 static void leave_y(Snes *s)
