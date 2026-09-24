@@ -111,7 +111,38 @@ rest waits, is [PLAN.md](PLAN.md).
     take it;
   - the glyph drawer takes the font's addresses from the text engine
     (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
-    that engine ported first.
+    that engine ported first;
+  - what the Epoch's review rated "mostly" (`menu/epoch.c`, `top_layer.c`):
+    - the gate window's fill walks its edges through the `menu_gate_edge_*`
+      cells, which nothing else reads, masking a 16-bit declaration down to
+      the byte that means something: walk local edges and leave the table
+      once through `ORIGINAL_EFFECT`, and narrow the declarations in
+      `re/ram.toml`;
+    - `turn_corners`/`multiply_signed` keep `SignedProduct` and `last`
+      locals only for the leftovers, and `on_the_screen`'s `wrapped` is the
+      add's carry for x but the subtraction's no-borrow for y, which its
+      comment and name get wrong: one named quirk per axis, and the
+      leftovers derived after the call;
+    - `WindowDrawn` is filled inside the corner loop for the leftovers
+      alone; the middle lines are read and filled in bank `$7E` where the
+      rest go to `bank`, without a comment;
+    - raw button bits and `input_mapped(g, 0/1)` where `core/input.h`'s
+      `BUTTON_*` and `ASSIGNED_*` belong;
+    - `start_dial_objects` hands each digit its period through the running
+      object's own slot and restores it; set the started slot's instead;
+    - the dial's and the map view's screen setup runs in the `Snes *` entry,
+      about 25 shadow writes in the original's order: split the runs without
+      call-outs into `GameState`/`Platform` functions;
+    - `draw_map_tile`/`draw_map_picture` return the last group only for the
+      leftovers;
+    - `upload_gate_rows` accepts a count of 0 and a table anywhere; the guard
+      should refuse what the game never passes;
+    - `sine()` is written three times (`epoch.c`, `top_layer.c`, `wave.c`),
+      and `OBJECTS_HELD`/`SCREEN_OFF` twice;
+    - the End of Time's gate screen (`menu_start_gate_screen`) is not an
+      Epoch screen and wants its own file;
+    - sign-bit compares, an uncommented `_unchecked` read in `group_pixel`,
+      and the numbered entries `menu_object_window1_lines_2`/`_3`.
 
 - **What event's and field's combined pass left** (RECOMP.md, "Phase 3a: event
   onto the field's objects"):
