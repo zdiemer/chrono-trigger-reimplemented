@@ -3504,6 +3504,14 @@
 #define RAM_BATTLE_FADE_LINE_DATA 0x7EC02Fu
 #define RAM_BATTLE_FADE_LINE_DATA_COUNT 288u
 #define RAM_BATTLE_FADE_LINE_DATA_STRIDE 0x01u
+/* The top border's lines of the window table, just before battle_window_lines: the window
+ * effects that start a line early (the waves, the wipe) write into the last of them [4 x $4
+ * bytes, by line (the four above the first buffer's first)] */
+#define RAM_BATTLE_WINDOW_TOP_LINES 0x7EC151u
+#define RAM_BATTLE_WINDOW_TOP_LINES_COUNT 4u
+#define RAM_BATTLE_WINDOW_TOP_LINES_STRIDE 0x04u
+#define RAM_BATTLE_WINDOW_TOP_LINES_W1 0x7EC151u /* Window 1's edges as one word, the left in the low byte */
+#define RAM_BATTLE_WINDOW_TOP_LINES_W2 0x7EC153u /* Window 2's edges as one word, the left in the low byte */
 /* The two windows' edges per line, in two buffers the window line effect alternates between
  * (through the indirect tables at $C9A2 and $C9CF); four more lines' entries at $C151 come
  * before the first [448 x $4 bytes, by buffer * 224 + line (the frame work writes buffer 1 on
@@ -3515,6 +3523,8 @@
 #define RAM_BATTLE_WINDOW_LINES_W1_RIGHT 0x7EC162u /* Window 1's right edge */
 #define RAM_BATTLE_WINDOW_LINES_W2_LEFT 0x7EC163u /* Window 2's left edge */
 #define RAM_BATTLE_WINDOW_LINES_W2_RIGHT 0x7EC164u /* Window 2's right edge */
+#define RAM_BATTLE_WINDOW_LINES_W1 0x7EC161u /* Window 1's edges as one word, the left in the low byte */
+#define RAM_BATTLE_WINDOW_LINES_W2 0x7EC163u /* Window 2's edges as one word, the left in the low byte */
 /* Shadows of the window settings written each frame [5 x $1 bytes, by window register (BG1/2,
  * BG3/4, OBJ/color, BG logic, OBJ logic)] */
 #define RAM_BATTLE_WINDOW_REGISTERS 0x7EC861u
@@ -3562,24 +3572,18 @@
 #define RAM_BATTLE_VRAM_REQUEST_BANK 0x7ECA29u /* Source bank */
 #define RAM_BATTLE_VRAM_REQUEST_VRAM 0x7ECA2Au /* VRAM word address */
 #define RAM_BATTLE_VRAM_REQUEST_SIZE 0x7ECA2Cu /* Size in bytes */
-/* Direction of the channel's swing: nonzero while its speed grows and its position falls [2 x
- * $10 bytes, by screen script channel] */
-#define RAM_BATTLE_SCREEN_MOTION_DIRECTION 0x7ECA52u
-#define RAM_BATTLE_SCREEN_MOTION_DIRECTION_COUNT 2u
-#define RAM_BATTLE_SCREEN_MOTION_DIRECTION_STRIDE 0x10u
-/* Offset the channel's swing moves around [2 x $10 bytes, by screen script channel] */
-#define RAM_BATTLE_SCREEN_MOTION_BASE 0x7ECA54u
-#define RAM_BATTLE_SCREEN_MOTION_BASE_COUNT 2u
-#define RAM_BATTLE_SCREEN_MOTION_BASE_STRIDE 0x10u
-/* BG3's moving scroll position, used instead of its base scroll in the moving mode [2 x $2
- * bytes, by axis (X, Y)] */
-#define RAM_BATTLE_BG3_SCROLL 0x7ECA5Au
-#define RAM_BATTLE_BG3_SCROLL_COUNT 2u
-#define RAM_BATTLE_BG3_SCROLL_STRIDE 0x02u
-/* Offset added to BG3's moving scroll [2 x $2 bytes, by axis (X, Y)] */
-#define RAM_BATTLE_BG3_SCROLL_OFFSET 0x7ECA5Eu
-#define RAM_BATTLE_BG3_SCROLL_OFFSET_COUNT 2u
-#define RAM_BATTLE_BG3_SCROLL_OFFSET_STRIDE 0x02u
+/* The layer a screen script channel moves, as its commands jitter and swing it; channel 0's
+ * position and offset are BG3's moving scroll, used instead of its base scroll in the moving
+ * mode [2 x $10 bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_LAYER 0x7ECA52u
+#define RAM_BATTLE_SCREEN_LAYER_COUNT 2u
+#define RAM_BATTLE_SCREEN_LAYER_STRIDE 0x10u
+#define RAM_BATTLE_SCREEN_LAYER_SWING_RISING 0x7ECA52u /* Nonzero while the channel's swing gathers speed back up the screen; 0 while it slows moving down */
+#define RAM_BATTLE_SCREEN_LAYER_SWING_CENTER 0x7ECA54u /* The vertical offset the swing moves the layer about */
+#define RAM_BATTLE_SCREEN_LAYER_X 0x7ECA5Au  /* The layer's position across */
+#define RAM_BATTLE_SCREEN_LAYER_Y 0x7ECA5Cu  /* The layer's position down */
+#define RAM_BATTLE_SCREEN_LAYER_OFFSET_X 0x7ECA5Eu /* Offset added to the position across */
+#define RAM_BATTLE_SCREEN_LAYER_OFFSET_Y 0x7ECA60u /* Offset added to the position down, which the swing sets */
 /* Speed of the channel's swing, in 1/65536 of a pixel a frame [2 x $10 bytes, by screen script
  * channel] */
 #define RAM_BATTLE_SCREEN_SWING_SPEED 0x7ECA7Au
@@ -3632,11 +3636,21 @@
 #define RAM_BATTLE_SHAKE_TARGET 0x7ECCB7u    /* Target amplitude */
 /* Which layer offsets the shake applies to (bits 7-2: BG1 X, BG1 Y, BG2 X, BG2 Y, BG3 X, BG3 Y) */
 #define RAM_BATTLE_SHAKE_LAYERS 0x7ECCC0u
-/* Palette animation slots copied over slots 8-9 (24 bytes) or slot 10 (12 bytes at $CCD9) on
- * request [36 x $1 bytes, by byte (two slots, then one)] */
+/* Palette animation slots copied over slots 8-9 or slot 10 on request, laid out as those slots
+ * are (palette_animations) [3 x $C bytes, by preset slot (two for animation slots 8-9, then one
+ * for slot 10)] */
 #define RAM_BATTLE_PALETTE_SLOT_PRESETS 0x7ECCC1u
-#define RAM_BATTLE_PALETTE_SLOT_PRESETS_COUNT 36u
-#define RAM_BATTLE_PALETTE_SLOT_PRESETS_STRIDE 0x01u
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_COUNT 3u
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_STRIDE 0x0Cu
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_KIND 0x7ECCC1u /* Animation type in the high nibble, as palette_animations' kind (4 fade to white, 5 to black) */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_FIRST_COLOR 0x7ECCC2u /* First palette entry the animation changes */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_COLOR_COUNT 0x7ECCC3u /* Number of palette entries it changes */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_STEP 0x7ECCC4u /* The amount a fade's level moves per step */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_DELAY 0x7ECCC5u /* Frame counter toward the period */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_PERIOD 0x7ECCC6u /* Frames between steps */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_FADE_MODE 0x7ECCC7u /* Which color channels the fade changes (core/palette.c's table) */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_FADE_LEVEL 0x7ECCC8u /* Fade level the animation starts from */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_FADE_TARGET 0x7ECCC9u /* Level the fade moves toward */
 /* Requests a preset palette slot copy: bit 7 slot 10, bit 0 slots 8-9; each bit cleared once
  * copied */
 #define RAM_BATTLE_PALETTE_PRESET_REQUEST 0x7ECCE5u
@@ -3652,12 +3666,12 @@
 /* Set while Start is held after it toggled the pause, so one press toggles once; the debug frame
  * advance runs only while it is set */
 #define RAM_BATTLE_PAUSE_HELD 0x7ECD03u
-/* The corners of a window quadrilateral $D1:F9AF rasterizes into the window table (the beam's:
- * its top edge, then its bottom edge) [8 x $2 bytes, by coordinate (X0, Y0, X1, Y1, X2, Y2, X3,
- * Y3)] */
+/* The corners of the two window quadrilaterals $D1:F9AF rasterizes into the window table (the
+ * beam's: its top edge, then its foot) [16 x $1 bytes, by coordinate * 2 + quadrilateral (two,
+ * their bytes interleaved; the coordinates X0, Y0, X1, Y1, X2, Y2, X3, Y3)] */
 #define RAM_BATTLE_WINDOW_QUADS 0x7ECD0Du
-#define RAM_BATTLE_WINDOW_QUADS_COUNT 8u
-#define RAM_BATTLE_WINDOW_QUADS_STRIDE 0x02u
+#define RAM_BATTLE_WINDOW_QUADS_COUNT 16u
+#define RAM_BATTLE_WINDOW_QUADS_STRIDE 0x01u
 /* Set while a battle message opened by id ($CD:0295) is up; the other message calls return while
  * it is */
 #define RAM_BATTLE_MESSAGE_BY_ID 0x7ECD1Du

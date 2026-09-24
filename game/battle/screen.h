@@ -1,27 +1,112 @@
-/* Battle: the screen effects in bank D1, shared between their files.
+/* Battle: the screen effects, shared between their files.
  *
- * Most of them are the bodies of the battle's screen script commands: two
- * script channels ($CA32, 16 bytes each) that the frame work runs, whose
- * commands from $80 up dispatch through $CD:16B5 to handlers in bank CD, many
- * of which call a routine here. When a handler runs, the script pointer
- * ($40-$42) points at its first operand, and the channel moves it one byte on
- * afterwards: a command with one operand leaves it where it is, one with three
- * moves it two, and one with none moves it back a byte. $43 holds the channel
- * (0 or $10).
+ * A battle's spells and attacks dress the screen through the screen scripts:
+ * two channels of commands, run by the frame work, that recolor palette rows,
+ * shape the two windows line by line, shake and swing the layers and load an
+ * effect's graphics. Most of the effects here are the bodies of those
+ * commands; the rest run every frame (the HP gradient, pausing palette
+ * animation) or once at the start of the battle (the fade tables).
  *
- * Everything here runs with the battle's direct page ($0000) and data bank
- * ($7E), which the entries' guard checks, so work RAM is addressed by its long
- * address. */
+ *   screen_palette.c   palette rows: swapping, whitening and moving them, and
+ *                      pausing palette animation with the battle
+ *   screen_gradient.c  the HP gradient: a boss's colors that follow its HP
+ *   screen_graphics.c  loading an effect's graphics and colors
+ *   screen_window.c    the windows' per-line edges: bands, wipes, waves
+ *   screen_beam.c      a beam from the top of the screen, and the window
+ *                      quadrilaterals it is drawn with
+ *   screen_motion.c    jitter, swing and shake of the layers, and the
+ *                      screen-effect settings (shake, palette presets)
+ *   screen_setup.c     the fade tables, built at the start of a battle
+ *
+ * A command's operands follow its opcode in the script. While its body runs,
+ * the script pointer is at its first operand, and the channel steps one byte
+ * on when the body returns: a body that takes other than one operand says how
+ * many it took (screen_command_took). */
 #ifndef CT_GAME_BATTLE_SCREEN_H
 #define CT_GAME_BATTLE_SCREEN_H
 
-#include "snes/system.h"
+#include <stdbool.h>
+#include <stdint.h>
 
-/* The guard of every entry here: D = $0000 and DB = $7E, as all of their
- * callers have them. */
+#include "battle/screen_data.h"
+#include "port/machine.h"
+#include "port/vars_ram.h"
+#include "state.h"
+#include "vars.h"
+
+/* ---- The running command ---------------------------------------------------------------- */
+
+/* The running command's `n`th operand, from its first. */
+static inline uint8_t screen_command_operand(const GameState *g, unsigned n)
+{
+    return battle_screen_script_byte(g, battle_screen_script(g) + n);
+}
+
+/* The command took `operands` operands: the channel's step after it lands on
+ * the next command. The pointer moves within its bank. */
+static inline void screen_command_took(GameState *g, int operands)
+{
+    uint32_t at = battle_screen_script(g);
+    set_battle_screen_script(g, (at & 0xFF0000u) | (uint16_t)(at + operands - 1));
+}
+
+/* ---- The cells the original works in -------------------------------------------------------
+ *
+ * The effects' routines keep values in the battle page's scratch cells as they
+ * work ($00-$1F and $45-$5B); a port keeps them in C and writes the final
+ * values once, as scaffolding (ORIGINAL_EFFECT): nothing but the original's
+ * next use of a cell, which writes it first, and shadow mode read them. `cell`
+ * is the cell's offset on the page, as the original spells it. Where a cell is
+ * a callee's input or a result a caller reads, it has a name in the map and
+ * the code says so. */
+enum { SCREEN_LOW_CELLS_END = 0x20, SCREEN_CELLS = 0x45 };
+
+static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v)
+{
+    if (cell < SCREEN_LOW_CELLS_END)
+        set_battle_low_scratch(g, cell, v);
+    else
+        set_battle_scratch(g, (unsigned)(cell - SCREEN_CELLS), v);
+}
+
+static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v)
+{
+    screen_leave_cell(g, cell, (uint8_t)v);
+    screen_leave_cell(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
+}
+
+/* ---- The guards (registry .guard) ------------------------------------------------------ */
+
+/* Every entry here runs on the battle's page with the data bank at $7E, as all
+ * of their callers have them (battle/bridge.h); most also with A's high byte
+ * 0, which the original's indexing takes along into its tables. The screen
+ * script's dispatch calls its commands' bodies so. */
 bool battle_screen_page(Snes *s);
-/* $D1:F91D and $D1:F972 run with the data bank at the registers (0). */
+bool battle_screen_page_a_clear(Snes *s);
+/* ... running a channel (screen_motion.c); the jitter with the carry set, as
+ * the dispatch leaves it; the positions saved to one of two slots; a screen
+ * effect one of the six. */
+bool battle_screen_channel_command(Snes *s);
+bool battle_screen_dispatched_jitter(Snes *s);
+bool battle_screen_saves_positions(Snes *s);
+bool battle_screen_effect_is_one(Snes *s);
+/* ... the HP gradient's phase and rows within its tables (screen_gradient.c). */
+bool battle_gradient_page(Snes *s);
+bool battle_gradient_row_is_one(Snes *s);
+/* ... the window commands' shapes within the window table (screen_window.c). */
+bool battle_screen_band_fits(Snes *s);
+bool battle_screen_middle_band_fits(Snes *s);
+bool battle_screen_copy_unshifted(Snes *s);
+bool battle_screen_fill_is_one(Snes *s);
+bool battle_wave_pair_is_one(Snes *s);
+bool battle_screen_nudge_dispatched(Snes *s);
+/* ... a window quadrilateral one of the two (screen_beam.c); $D1:F91D and
+ * $D1:F972 run with the data bank the rasterizer sets for the work RAM port. */
+bool battle_quad_is_one(Snes *s);
+bool battle_beam_quad_is_one(Snes *s);
 bool battle_quad_page(Snes *s);
+
+/* ---- The entries (game/registry.c) --------------------------------------------------------- */
 
 /* screen_palette.c */
 void battle_screen_swap_palette_rows(Snes *s);
@@ -29,13 +114,17 @@ void battle_screen_whiten_palette(Snes *s);
 void battle_screen_whiten_high_rows(Snes *s);
 void battle_screen_move_rows_up(Snes *s);
 void battle_screen_move_rows_down(Snes *s);
-void battle_step_hp_gradient(Snes *s);
-void battle_load_effect_graphics(Snes *s);
 void battle_pause_palette_animation(Snes *s);
+void battle_save_palette_kinds(Snes *s);
+
+/* screen_gradient.c */
+void battle_step_hp_gradient(Snes *s);
 void battle_find_gradient_phase(Snes *s);
 void battle_gradient_row_rotation(Snes *s);
 void battle_write_gradient_row(Snes *s);
-void battle_save_palette_kinds(Snes *s);
+
+/* screen_graphics.c */
+void battle_load_effect_graphics(Snes *s);
 
 /* screen_window.c */
 void battle_screen_open_band(Snes *s);
@@ -49,7 +138,6 @@ void battle_screen_copy_window1_inverted(Snes *s);
 void battle_screen_move_column_band(Snes *s);
 void battle_screen_draw_column_band(Snes *s);
 void battle_screen_fill_windows(Snes *s);
-void battle_screen_draw_beam(Snes *s);
 void battle_wave_w1_from_table(Snes *s);
 void battle_wave_w1(Snes *s);
 void battle_wave_w2(Snes *s);
@@ -57,6 +145,9 @@ void battle_fill_windows_empty(Snes *s);
 void battle_fill_window1_empty(Snes *s);
 void battle_fill_window2_empty(Snes *s);
 void battle_fill_window1_full(Snes *s);
+
+/* screen_beam.c */
+void battle_screen_draw_beam(Snes *s);
 void battle_sort_quad_corners(Snes *s);
 void battle_quad_edge_slope(Snes *s);
 void battle_quad_edge_slopes(Snes *s);

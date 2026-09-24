@@ -1,656 +1,637 @@
-/* Battle: window effects in bank D1.
+/* Battle: the windows' per-line edges.
  *
- * The battle's two windows are shaped per line: the window line effect
- * (battle_setup_window_hdma, $CD:0AEE) reads, for each of the 224 lines, four
- * bytes -- window 1's left and right edge, window 2's -- from one of two
- * buffers at battle_window_lines ($7E:C161 and $7E:C4E1), switching each
- * frame. The effects here write the buffer for the coming frame: the second
- * one on odd frames (battle_frame_count bit 0), the first on even ones. An
- * empty window has its left edge right of its right edge ($FF, $00); a full
- * one runs from 0 to $FF. Four more lines' entries before the first buffer
- * ($C151) are the top border's, and some effects start one line early into
- * them, as the original does.
+ * The battle's two windows mask the layers and the color math, and their
+ * edges can change on every line of the screen: the line effect
+ * (battle_setup_window_hdma, $CD:0AEE) sends each line both windows' left and
+ * right edges from a table. The table is kept twice, and the line effect
+ * shows one buffer while the effects write the other for the coming frame:
+ * the second buffer on odd frames, the first on even ones. An empty window
+ * has its left edge right of its right one ($FF, 0); a full one runs from 0 to
+ * $FF. Four lines of the top border come before the first buffer.
  *
- * The screen script commands among them (screen.h) take their operand at the
- * script pointer. */
+ * The screen script's window commands shape the table: a band that opens
+ * about the first animation position, a diagonal wipe, waves down both
+ * windows, per-line nudges, a band about the middle of the battlefield,
+ * copies between the windows and plain fills. A few of them (the waves, the
+ * wipe) always write the first buffer, and start a line early, in the border. */
 #include "battle/screen.h"
 
-#include "battle/screen_data.h"
-#include "port/machine.h"
-#include "ram.h"
+#include "cpu_io.h"
+#include "original_effects.h"
+#include "port/native.h"
+
+/* ---- The line table --------------------------------------------------------------------------- */
+
+typedef enum { WINDOW_1, WINDOW_2 } Window;
+
+/* A window's edges on a line as one word, the left edge in the low byte. */
+typedef uint16_t Edges;
+enum { EDGES_EMPTY = 0x00FF, EDGES_FULL = 0xFF00 };
+
+static Edges edges_between(uint8_t left, uint8_t right) { return (Edges)(right << 8 | left); }
 
 enum {
-    LINE_BYTES = RAM_BATTLE_WINDOW_LINES_STRIDE,
-    LINES = 224,
-    BUFFER_BYTES = LINES * LINE_BYTES,
-    W1 = 0,               /* offset of window 1's edges in a line entry */
-    W2 = 2,
-    EDGES_EMPTY = 0x00FF,  /* left $FF, right $00 */
-    EDGES_FULL = 0xFF00,   /* left 0, right $FF */
-    WAVE_END = 0x0350,     /* the wave effects' byte offset: two lines a step, 212 lines */
-    BAND_LINES = 212,
+    SCREEN_LINES = 224,
+    /* the battlefield, above the menus: the lines the bands and waves cover */
+    BATTLEFIELD_LINES = 212,
+    TOP_BORDER_LINES = BATTLE_WINDOW_TOP_LINES_COUNT,
 };
 
-/* Two step counts the effects keep between calls: the band's half width, the
- * wave's accumulated operand or the wipe's steps (A), and the band's half
- * height or the counted wave's calls (B). */
-#define STEPS_A RAM_BATTLE_WINDOW_STEPS
-#define STEPS_B (RAM_BATTLE_WINDOW_STEPS + 1)
+/* A line of the table, counted from the first buffer's first: the second
+ * buffer's follow the first's (224-447), and the top border's four come
+ * before them (-4 to -1). */
+typedef int TableLine;
 
-/* ---- The machine at the edges -------------------------------------------------------- */
-
-static void set_a(Snes *s, uint16_t a)
+static Edges line_edges(const GameState *g, TableLine line, Window w)
 {
-    s->cpu.a = a;
-    s->cpu.p |= CPU_FLAG_M;
+    if (line < 0)
+        return w == WINDOW_1 ? battle_window_top_lines_w1(g, TOP_BORDER_LINES + line)
+                             : battle_window_top_lines_w2(g, TOP_BORDER_LINES + line);
+    return w == WINDOW_1 ? battle_window_lines_w1(g, line) : battle_window_lines_w2(g, line);
 }
 
-static bool odd_frame(Snes *s) { return m_read8(s, RAM_BATTLE_FRAME_COUNT) & 0x01; }
-
-/* The buffer the coming frame shows, at a byte offset (which may run into the
- * next buffer or back into the border, as the original's indexing does). */
-static uint32_t lines_at(bool odd, uint32_t offset) { return RAM_BATTLE_WINDOW_LINES + (odd ? BUFFER_BYTES : 0) + offset; }
-
-static uint8_t operand(Snes *s, uint16_t n) { return m_read8(s, (m_read16(s, RAM_BATTLE_SCREEN_SCRIPT) | (uint32_t)m_read8(s, RAM_BATTLE_SCREEN_SCRIPT + 2) << 16) + n); }
-
-static uint8_t scratch(Snes *s, uint8_t cell) { return m_read8(s, RAM_BATTLE_SCRATCH + cell); }
-static void set_scratch(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, RAM_BATTLE_SCRATCH + cell, v); }
-static uint16_t scratch16(Snes *s, uint8_t cell) { return m_read16(s, RAM_BATTLE_SCRATCH + cell); }
-static void set_scratch16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, RAM_BATTLE_SCRATCH + cell, v); }
-
-/* The scratch cells, by what the effects keep there ($45 up). */
-enum {
-    CELL_PHASE2 = 0x00,   /* $45 */
-    CELL_PHASE1 = 0x02,   /* $47 */
-    CELL_MASK = 0x04,     /* $49 */
-    CELL_AMP1 = 0x06,     /* $4B */
-    CELL_AMP2 = 0x08,     /* $4D */
-    CELL_BASE1 = 0x0A,    /* $4F */
-    CELL_BASE2 = 0x0C,    /* $51 */
-};
-
-/* The high byte of a product, through the hardware multiplier as the original
- * uses it (its operands and result stay in its registers). */
-static void multiply_start(Snes *s, uint8_t a, uint8_t b)
+static void set_line_edges(GameState *g, TableLine line, Window w, Edges e)
 {
-    m_write8(s, 0x004202, a);
-    m_write8(s, 0x004203, b);
+    if (line < 0) {
+        if (w == WINDOW_1)
+            set_battle_window_top_lines_w1(g, TOP_BORDER_LINES + line, e);
+        else
+            set_battle_window_top_lines_w2(g, TOP_BORDER_LINES + line, e);
+    } else if (w == WINDOW_1) {
+        set_battle_window_lines_w1(g, line, e);
+    } else {
+        set_battle_window_lines_w2(g, line, e);
+    }
 }
-static uint8_t product_high(Snes *s) { return m_read8(s, 0x004217); }
 
-static uint16_t sign_extend(uint8_t v) { return (v & 0x80) ? (uint16_t)(0xFF00 | v) : v; }
+/* The original counts lines in bytes of the table, four a line, and leaves
+ * such counts in its cells. */
+enum { LINE_BYTES = 4 };
+
+/* The buffer the coming frame shows, and the one on screen now. */
+static bool odd_frame(const GameState *g) { return battle_frame_count(g) & 0x01; }
+static TableLine coming_line(const GameState *g, unsigned line) { return (odd_frame(g) ? SCREEN_LINES : 0) + (int)line; }
+static TableLine shown_line(const GameState *g, unsigned line) { return (odd_frame(g) ? 0 : SCREEN_LINES) + (int)line; }
+
+/* Two step counts the effects keep between calls: the across one (the band's
+ * half width, the waves' damping, the wipe's steps) and the down one (the
+ * band's half height, the counted wave's calls). */
+typedef enum { STEPS_ACROSS, STEPS_DOWN } StepCount;
+
+static uint8_t steps(const GameState *g, StepCount c) { return battle_window_steps(g, c); }
+static void set_steps(GameState *g, StepCount c, uint8_t v) { set_battle_window_steps(g, c, v); }
+
+/* ---- Bands ------------------------------------------------------------------------------------- */
+
+/* The first animation position, the band's center. */
+static uint8_t position_across(const GameState *g) { return (uint8_t)battle_animation_positions(g, 0); }
+static uint8_t position_down(const GameState *g) { return (uint8_t)(battle_animation_positions(g, 0) >> 8); }
+
+enum { BAND_WIDEST = 8, BAND_TALLEST = 9 };
+
+/* The original works out the band's edges in two cells, and leaves the end
+ * of its lines there after a band down. */
+static void leave_band(GameState *g, uint8_t low, uint8_t high)
+{
+    screen_leave_cell(g, 0x45, low);
+    screen_leave_cell(g, 0x46, high);
+}
 
 // $D1:EDCD
-/* Screen command $EE: open a band of window around the first animation
- * position, one step a frame. Operand 0: window 1 on every line takes the
- * columns $5DA0 +- the band's half width (clamped to the screen), which grows
- * to 8. Otherwise window 2 covers whole lines from $5DA1 - its half height to
- * $5DA1 + it (at most line $D4), growing to 9. */
-static void open_band(Snes *s)
+/* Screen command $EE: open a band about the first animation position, a step
+ * wider each frame: across (operand 0), window 1 on every line of the
+ * battlefield covers the columns within the band's half width of the
+ * position, up to 8; otherwise window 2 covers whole lines within its half
+ * height, up to 9, down to the battlefield's last line. */
+static void open_band_across(GameState *g)
 {
-    bool odd = odd_frame(s);
-    if (operand(s, 0) == 0) {
-        uint8_t center = m_read8(s, RAM_BATTLE_ANIMATION_POSITIONS);
-        uint8_t half = m_read8(s, STEPS_A);
-        uint8_t left = center >= half ? (uint8_t)(center - half) : 0;
-        uint8_t right = center + half > 0xFF ? 0xFF : (uint8_t)(center + half);
-        set_scratch(s, 0, left);
-        set_scratch(s, 1, right);
-        if (half < 8)
-            m_write8(s, STEPS_A, (uint8_t)(half + 1));
-        for (uint16_t line = 0; line < BAND_LINES; line++)
-            m_write16(s, lines_at(odd, line * LINE_BYTES + W1), (uint16_t)(right << 8 | left));
-        return;
-    }
-    uint8_t center = m_read8(s, RAM_BATTLE_ANIMATION_POSITIONS + 1);
-    uint8_t half = m_read8(s, STEPS_B);
+    uint8_t center = position_across(g), half = steps(g, STEPS_ACROSS);
+    uint8_t left = center >= half ? (uint8_t)(center - half) : 0;
+    uint8_t right = center + half > 0xFF ? 0xFF : (uint8_t)(center + half);
+    if (half < BAND_WIDEST)
+        set_steps(g, STEPS_ACROSS, (uint8_t)(half + 1));
+    for (unsigned line = 0; line < BATTLEFIELD_LINES; line++)
+        set_line_edges(g, coming_line(g, line), WINDOW_1, edges_between(left, right));
+    ORIGINAL_EFFECT(leave_band(g, left, right));
+}
+
+static void open_band_down(GameState *g)
+{
+    uint8_t center = position_down(g), half = steps(g, STEPS_DOWN);
     uint8_t top = center >= half ? (uint8_t)(center - half) : 0;
-    uint16_t bottom = (uint16_t)(center + half);
-    if (bottom > 0xFF || bottom >= 0xD4)
-        bottom = 0xD4;
-    set_scratch(s, 0, top);
-    set_scratch(s, 1, (uint8_t)bottom);
-    if (half < 9)
-        m_write8(s, STEPS_B, (uint8_t)(half + 1));
-    uint16_t at = (uint16_t)(top << 2), end = (uint16_t)(bottom << 2);
-    set_scratch16(s, 0, end);
-    for (; at != end; at = (uint16_t)(at + LINE_BYTES))
-        m_write16(s, lines_at(odd, (uint32_t)at + W2), EDGES_FULL);
+    uint8_t bottom = center + half >= BATTLEFIELD_LINES ? BATTLEFIELD_LINES : (uint8_t)(center + half);
+    if (half < BAND_TALLEST)
+        set_steps(g, STEPS_DOWN, (uint8_t)(half + 1));
+    for (unsigned line = top; line < bottom; line++)
+        set_line_edges(g, coming_line(g, line), WINDOW_2, EDGES_FULL);
+    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, (uint16_t)(bottom * LINE_BYTES)));
+}
+
+static void open_band(GameState *g, bool across)
+{
+    if (across)
+        open_band_across(g);
+    else
+        open_band_down(g);
+}
+
+enum { BAND_MIDDLE_LINE = 0x6A };
+
+// $D1:FB68
+/* Screen command $E9: move the middle band's left edge by the operand (its
+ * right edge mirrors it). */
+static void move_middle_band(GameState *g, uint8_t by)
+{
+    set_battle_column_band_left(g, (uint8_t)(battle_column_band_left(g) + by));
+}
+
+// $D1:FB72
+/* Screen command $E8: grow the middle band's half height by the operand and
+ * draw it: window 1 on the lines within its half height of the battlefield's
+ * middle line covers the columns from its left edge to as far from the right
+ * of the screen. */
+static void draw_middle_band(GameState *g, uint8_t grow_by)
+{
+    uint8_t half = (uint8_t)(battle_column_band_half_height(g) + grow_by);
+    set_battle_column_band_half_height(g, half);
+    uint8_t left = battle_column_band_left(g), right = (uint8_t)~left;
+    uint8_t top = (uint8_t)(BAND_MIDDLE_LINE - half), bottom = (uint8_t)(BAND_MIDDLE_LINE + half);
+    for (unsigned line = top; line < bottom; line++)
+        set_line_edges(g, coming_line(g, line), WINDOW_1, edges_between(left, right));
+    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, (uint16_t)(bottom * LINE_BYTES)));
+    ORIGINAL_EFFECT(screen_leave_word(g, 0x49, edges_between(left, right)));
+}
+
+// $D1:EEA5
+/* Screen command $EC: a diagonal wipe that climbs a line each call. On the
+ * first buffer's lines from $BF less the calls so far up to the top border,
+ * window 2's left edge steps a column right each line up, from 0, its right
+ * edge at 0. Past $C0 calls the lines start below the buffer's end, in the
+ * second buffer. The call count is a word across both step counts. */
+static void wipe_diagonally(GameState *g)
+{
+    uint8_t lowest = (uint8_t)(0xC0 - steps(g, STEPS_ACROSS));
+    for (unsigned n = 0; n <= lowest; n++)
+        set_line_edges(g, (TableLine)lowest - 1 - (TableLine)n, WINDOW_2, (Edges)n);
+    uint16_t calls = (uint16_t)(steps(g, STEPS_ACROSS) | steps(g, STEPS_DOWN) << 8);
+    calls++;
+    set_steps(g, STEPS_ACROSS, (uint8_t)calls);
+    set_steps(g, STEPS_DOWN, (uint8_t)(calls >> 8));
+}
+
+/* ---- Waves -------------------------------------------------------------------------------------- */
+
+/* The waves shape both windows of the first buffer down 212 lines, a pair of
+ * lines at a time (the first pair starting in the border): each window's
+ * edges, as one word, are its base moved by its amplitude times the sine of
+ * its phase, and the phases step once a pair. As the edges move as a word,
+ * the left edge waves and the right one moves only when the left wraps. */
+enum { WAVE_PAIRS = BATTLE_WAVE_EDGES_COUNT, HALF_TURN = 0x80, SINE_FRACTION_BITS = 8 };
+
+typedef struct {
+    uint8_t phase[2], amplitude[2];   /* by window */
+    Edges base[2];
+    bool base1_per_pair;              /* window 1's base from battle_wave_edges, pair by pair */
+} Waves;
+
+/* A wave's offset: its amplitude times the sine of the phase, in whole
+ * columns, negative in the second half of the turn, and taken as a signed
+ * byte. */
+static int16_t wave_offset(const GameState *g, uint8_t phase, uint8_t amplitude)
+{
+    uint8_t columns = (uint8_t)(battle_sine_magnitude(g, phase) * amplitude >> SINE_FRACTION_BITS);
+    if (phase & HALF_TURN)
+        columns = (uint8_t)-columns;
+    return columns < 0x80 ? (int16_t)columns : (int16_t)(columns - 0x100);
+}
+
+static void set_pair_edges(GameState *g, unsigned pair, Window w, Edges e)
+{
+    set_line_edges(g, 2 * (TableLine)pair - 1, w, e);
+    set_line_edges(g, 2 * (TableLine)pair, w, e);
+}
+
+static Edges waved(Edges base, int16_t offset) { return (Edges)(base + offset); }
+
+/* What the waves leave in their cells, and the multiplier its last product:
+ * the phases where they stopped, the amplitudes and the bases. */
+static void leave_waves(GameState *g, const Waves *w)
+{
+    screen_leave_word(g, 0x45, w->phase[WINDOW_2]);
+    screen_leave_word(g, 0x47, w->phase[WINDOW_1]);
+    screen_leave_cell(g, 0x4B, w->amplitude[WINDOW_1]);
+    screen_leave_cell(g, 0x4D, w->amplitude[WINDOW_2]);
+    screen_leave_word(g, 0x4F, w->base[WINDOW_1]);
+    screen_leave_word(g, 0x51, w->base[WINDOW_2]);
+    hw_set_multiplicand(g, battle_sine_magnitude(g, (uint8_t)(w->phase[WINDOW_2] - 1)));
+    hw_multiply_by(g, w->amplitude[WINDOW_2]);
+}
+
+static void draw_waves(GameState *g, Waves w)
+{
+    for (unsigned pair = 0; pair < WAVE_PAIRS; pair++) {
+        Edges base1 = w.base1_per_pair ? battle_wave_edges(g, pair) : w.base[WINDOW_1];
+        set_pair_edges(g, pair, WINDOW_1, waved(base1, wave_offset(g, w.phase[WINDOW_1], w.amplitude[WINDOW_1])));
+        set_pair_edges(g, pair, WINDOW_2,
+                       waved(w.base[WINDOW_2], wave_offset(g, w.phase[WINDOW_2], w.amplitude[WINDOW_2])));
+        w.phase[WINDOW_1]++;
+        w.phase[WINDOW_2]++;
+    }
+    ORIGINAL_EFFECT(leave_waves(g, &w));
+}
+
+/* The waves die down as their operands add up: the amplitude is $60 less the
+ * sum so far. */
+enum { WAVE_AMPLITUDE = 0x60 };
+
+static uint8_t damped_amplitude(GameState *g, uint8_t damping)
+{
+    uint8_t damped = (uint8_t)(steps(g, STEPS_ACROSS) + damping);
+    set_steps(g, STEPS_ACROSS, damped);
+    return (uint8_t)(WAVE_AMPLITUDE - damped);
+}
+
+/* The bases: channel 0's layer position and offset, across for window 1 and
+ * down for window 2. */
+static void bases_from_layer(const GameState *g, Waves *w)
+{
+    w->base[WINDOW_1] = (Edges)(battle_screen_layer_x(g, 0) + battle_screen_layer_offset_x(g, 0));
+    w->base[WINDOW_2] = (Edges)(battle_screen_layer_y(g, 0) + battle_screen_layer_offset_y(g, 0));
+}
+
+/* Phases from the frame count: window 1's moves two steps a frame, window
+ * 2's four. */
+static void phases_from_frame(const GameState *g, Waves *w)
+{
+    uint8_t frame = (uint8_t)battle_frame_count(g);
+    w->phase[WINDOW_1] = (uint8_t)(frame << 1);
+    w->phase[WINDOW_2] = (uint8_t)(frame << 2);
+}
+
+// $D1:EEC4
+/* Screen command $ED: waves on window 1 about the per-line edges of
+ * battle_wave_edges, and on window 2 about the layer's vertical position at
+ * half the amplitude, flowing with the frame count. The operand damps them. */
+static void wave_about_edges(GameState *g, uint8_t damping)
+{
+    Waves w = { .base1_per_pair = true };
+    w.amplitude[WINDOW_1] = damped_amplitude(g, damping);
+    w.amplitude[WINDOW_2] = w.amplitude[WINDOW_1] >> 1;
+    phases_from_frame(g, &w);
+    bases_from_layer(g, &w);
+    draw_waves(g, w);
+}
+
+/* Both windows waving about the layer's position with one amplitude. */
+static void wave_about_layer(GameState *g, uint8_t damping, Waves w)
+{
+    w.amplitude[WINDOW_1] = w.amplitude[WINDOW_2] = damped_amplitude(g, damping);
+    bases_from_layer(g, &w);
+    draw_waves(g, w);
+}
+
+/* The counted wave's first phase: its calls so far, from $A8, two steps a
+ * call. */
+enum { COUNTED_WAVE_START = 0xA8 };
+
+// $D1:EFD0
+/* Screen command $F3: waves about the layer's position, flowing with a count
+ * of the command's calls rather than the frames. */
+static void wave_counted(GameState *g, uint8_t damping)
+{
+    uint8_t calls = steps(g, STEPS_DOWN);
+    Waves w = { 0 };
+    w.phase[WINDOW_1] = (uint8_t)((uint8_t)(calls + COUNTED_WAVE_START) << 1);
+    w.phase[WINDOW_2] = (uint8_t)(w.phase[WINDOW_1] << 1);
+    set_steps(g, STEPS_DOWN, (uint8_t)(calls + 1));
+    wave_about_layer(g, damping, w);
+}
+
+// $D1:EFE3
+/* Screen command $EB: the same, flowing with the frame count. */
+static void wave_with_frames(GameState *g, uint8_t damping)
+{
+    Waves w = { 0 };
+    phases_from_frame(g, &w);
+    wave_about_layer(g, damping, w);
+}
+
+/* ---- Nudges and copies ----------------------------------------------------------------------- */
+
+/* The lines the nudges move: two runs of 64, from line 48 and from line 112. */
+enum { NUDGED_LINES = 64, FIRST_NUDGED = 48, SECOND_NUDGED = 112 };
+
+/* Window 2's nudges are a second table, which starts at another place on odd
+ * frames than on even ones; both overlap window 1's. */
+enum { WINDOW_2_NUDGES_ODD = 0x40, WINDOW_2_NUDGES_EVEN = 0x20 };
+
+typedef enum { W1_LEFT, W1_RIGHT, W2_LEFT, W2_RIGHT, LINE_EDGES } Edge;
+
+static uint8_t edge(const GameState *g, TableLine line, Edge e)
+{
+    switch (e) {
+    case W1_LEFT: return battle_window_lines_w1_left(g, line);
+    case W1_RIGHT: return battle_window_lines_w1_right(g, line);
+    case W2_LEFT: return battle_window_lines_w2_left(g, line);
+    default: return battle_window_lines_w2_right(g, line);
+    }
+}
+
+static void set_edge(GameState *g, TableLine line, Edge e, uint8_t v)
+{
+    switch (e) {
+    case W1_LEFT: set_battle_window_lines_w1_left(g, line, v); break;
+    case W1_RIGHT: set_battle_window_lines_w1_right(g, line, v); break;
+    case W2_LEFT: set_battle_window_lines_w2_left(g, line, v); break;
+    default: set_battle_window_lines_w2_right(g, line, v); break;
+    }
+}
+
+// $D1:F108
+/* Screen command $80, operation 13: nudge the edges of the coming frame's
+ * lines 48-175 by the per-line amounts in battle_window_line_deltas, the
+ * same amount on the two runs of lines. The original adds them as one long
+ * chain, each addition carrying its overflow into the next, so an edge after
+ * one that went past 255 moves one further: with a negative amount (a byte
+ * above $7F), nearly every edge but the first does. */
+static void nudge_edges(GameState *g)
+{
+    uint8_t second_table = odd_frame(g) ? WINDOW_2_NUDGES_ODD : WINDOW_2_NUDGES_EVEN;
+    bool overflowed = false;
+    for (unsigned n = 0; n < NUDGED_LINES; n++) {
+        uint8_t by[2] = { battle_window_line_deltas(g, n), battle_window_line_deltas(g, second_table + n) };
+        const unsigned runs[2] = { FIRST_NUDGED, SECOND_NUDGED };
+        for (unsigned r = 0; r < 2; r++) {
+            TableLine line = coming_line(g, runs[r] + n);
+            for (Edge e = W1_LEFT; e < LINE_EDGES; e++) {
+                unsigned moved = edge(g, line, e) + by[e >= W2_LEFT] + overflowed;
+                overflowed = moved > 0xFF;
+                set_edge(g, line, e, (uint8_t)moved);
+            }
+        }
+    }
+}
+
+// $D1:F5F5
+/* Screen command $DB: the coming frame's window 2 takes window 1 as it is on
+ * the screen now, on every line. */
+static void copy_window_1_across(GameState *g)
+{
+    for (unsigned line = 0; line < SCREEN_LINES; line++)
+        set_line_edges(g, coming_line(g, line), WINDOW_2, line_edges(g, shown_line(g, line), WINDOW_1));
+}
+
+/* Window 1's edges turned inside out: the left edge where the right one
+ * stops, the right where the left starts. */
+static Edges inside_out(Edges e) { return (Edges)(((uint16_t)~e & 0xFF) << 8 | (uint16_t)~e >> 8); }
+
+// $D1:FD7E
+/* Screen command $CF: as $DB, with window 1 turned inside out. The operand
+ * shifts the lines taken, which the guard keeps to no shift. */
+static void copy_window_1_inside_out(GameState *g)
+{
+    for (unsigned line = 0; line < SCREEN_LINES; line++)
+        set_line_edges(g, coming_line(g, line), WINDOW_2, inside_out(line_edges(g, shown_line(g, line), WINDOW_1)));
+    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, 28 * LINE_BYTES));
+}
+
+/* ---- Fills --------------------------------------------------------------------------------------- */
+
+typedef enum { BOTH_EMPTY, WINDOW_1_EMPTY, WINDOW_2_EMPTY, WINDOW_1_FULL, FILLS } Fill;
+
+static const struct {
+    Edges edges;
+    bool window_1, window_2;
+    uint32_t routine;
+} fills[FILLS] = {
+    [BOTH_EMPTY] = { EDGES_EMPTY, true, true, 0xD1FCF4 },
+    [WINDOW_1_EMPTY] = { EDGES_EMPTY, true, false, 0xD1FC38 },
+    [WINDOW_2_EMPTY] = { EDGES_EMPTY, false, true, 0xD1FC96 },
+    [WINDOW_1_FULL] = { EDGES_FULL, true, false, 0xD1FBDA },
+};
+
+// $D1:FCF4 $D1:FC38 $D1:FC96 $D1:FBDA
+/* Empty or fill the coming frame's windows on every line. */
+static void fill_windows(GameState *g, Fill f)
+{
+    for (unsigned line = 0; line < SCREEN_LINES; line++) {
+        if (fills[f].window_1)
+            set_line_edges(g, coming_line(g, line), WINDOW_1, fills[f].edges);
+        if (fills[f].window_2)
+            set_line_edges(g, coming_line(g, line), WINDOW_2, fills[f].edges);
+    }
+}
+
+/* ---- The entries ------------------------------------------------------------------------ */
+
+/* The guards. The band down stays above the position's reach of the
+ * battlefield's end, and the middle band within the battlefield's top half,
+ * or the original's line loop runs round all of work RAM; the inside-out copy
+ * takes the lines as they are (an operand of 0 or $80); the fill is one of
+ * four; the wave's line pair is one of the 106. None of the others' reaches a
+ * game makes. */
+bool battle_screen_band_fits(Snes *s)
+{
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool fits = screen_command_operand(g, 0) == 0 || position_down(g) <= BATTLEFIELD_LINES + steps(g, STEPS_DOWN);
+    vars_peek(false);
+    return battle_screen_page_a_clear(s) && fits;
+}
+
+bool battle_screen_middle_band_fits(Snes *s)
+{
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool fits = (uint8_t)(battle_column_band_half_height(g) + screen_command_operand(g, 0)) <= BAND_MIDDLE_LINE;
+    vars_peek(false);
+    return battle_screen_page_a_clear(s) && fits;
+}
+
+enum { NO_SHIFT = 0x7F };
+
+bool battle_screen_copy_unshifted(Snes *s)
+{
+    vars_peek(true);
+    bool unshifted = (screen_command_operand(state_of(s), 0) & NO_SHIFT) == 0;
+    vars_peek(false);
+    return battle_screen_page_a_clear(s) && unshifted;
+}
+
+bool battle_screen_fill_is_one(Snes *s) { return battle_screen_page_a_clear(s) && s->cpu.x < 2 * FILLS && s->cpu.x % 2 == 0; }
+
+enum { PAIR_BYTES = 2 * LINE_BYTES };
+
+bool battle_wave_pair_is_one(Snes *s)
+{
+    return battle_screen_page_a_clear(s) && s->cpu.y % PAIR_BYTES == 0 && s->cpu.y / PAIR_BYTES < WAVE_PAIRS;
+}
+
+/* The commands return with A 0, as the original's last TDC leaves it. */
+static void command_done(Snes *s)
+{
+    s->cpu.a = 0;
+    m_rtl(s);
 }
 
 void battle_screen_open_band(Snes *s)
 {
-    open_band(s);
-    set_a(s, 0);
-    m_rtl(s);
-}
-
-// $D1:EEA5
-/* Screen command $EC: window 2 reaches over from the left by one more column
- * on each line going up from line $BF - its step count (the count grows by
- * one a call): line n (from -1) gets the columns up to n + 1. The start is
- * computed from A with its high byte, as the original's 16-bit shift does. */
-static void wipe_from_left(Snes *s, uint16_t a_high)
-{
-    uint8_t steps = m_read8(s, STEPS_A);
-    uint16_t at = (uint16_t)((a_high | (uint8_t)(0xC0 - steps)) << 2);
-    if (!(at & 0x8000)) {
-        uint16_t v = 0;
-        do {
-            m_write16(s, RAM_BATTLE_WINDOW_LINES - LINE_BYTES + W2 + at, v);
-            v++;
-            at = (uint16_t)(at - LINE_BYTES);
-        } while (!(at & 0x8000));
-    }
-    /* a 16-bit INC: it carries into the other count */
-    m_write16(s, STEPS_A, (uint16_t)(m_read16(s, STEPS_A) + 1));
+    GameState *g = state_of(s);
+    open_band(g, screen_command_operand(g, 0) == 0);
+    command_done(s);
 }
 
 void battle_screen_wipe_from_left(Snes *s)
 {
-    wipe_from_left(s, s->cpu.a & 0xFF00);
-    set_a(s, 0);
-    m_rtl(s);
-}
-
-/* ---- Waves ---------------------------------------------------------------------------- */
-
-/* The product the multiplier holds as a signed offset: its high byte, negated
- * for a phase in the second half of the turn. */
-static uint16_t signed_product(Snes *s, bool negative)
-{
-    uint8_t v = product_high(s);
-    if (negative)
-        v = (uint8_t)-v;
-    return sign_extend(v);
-}
-
-/* Window 1's edges for the line pair at `at`: `base` moved by `offset`; then
- * start the product for window 2 (the sine of phase 2 times amplitude 2).
- * Returns whether phase 2 is in the negative half. */
-static bool set_wave_w1(Snes *s, uint16_t at, uint16_t offset, uint16_t base)
-{
-    uint16_t w1 = (uint16_t)(offset + base);
-    m_write16(s, RAM_BATTLE_WINDOW_LINES - LINE_BYTES + W1 + at, w1);
-    m_write16(s, RAM_BATTLE_WINDOW_LINES + W1 + at, w1);
-    uint8_t phase2 = scratch(s, CELL_PHASE2);
-    multiply_start(s, battle_sine(s, phase2), scratch(s, CELL_AMP2));
-    return phase2 & 0x80;
-}
-
-// $D1:F0E9
-/* Window 2's edges for the line pair at `at`: the second base moved by
- * `offset`. Returns the edges. */
-static uint16_t set_wave_w2(Snes *s, uint16_t at, uint16_t offset)
-{
-    uint16_t w2 = (uint16_t)(offset + scratch16(s, CELL_BASE2));
-    m_write16(s, RAM_BATTLE_WINDOW_LINES - LINE_BYTES + W2 + at, w2);
-    m_write16(s, RAM_BATTLE_WINDOW_LINES + W2 + at, w2);
-    return w2;
-}
-
-/* Both windows of the first buffer shaped as waves down the screen, two lines
- * a step for 212 lines: window 1's edges are its base (per step from
- * battle_wave_edges, or one value) moved by amplitude 1 times the sine of
- * phase 1, window 2's the second base moved by amplitude 2 times the sine of
- * phase 2; both phases step once a line pair. The phases, amplitudes and
- * bases are in the scratch cells. */
-static void draw_waves(Snes *s, bool base1_per_step)
-{
-    for (uint16_t at = 0; at != WAVE_END; at = (uint16_t)(at + 2 * LINE_BYTES)) {
-        uint8_t phase1 = scratch(s, CELL_PHASE1);
-        multiply_start(s, battle_sine(s, phase1), scratch(s, CELL_AMP1));
-        uint16_t d1 = signed_product(s, phase1 & 0x80);
-        uint16_t base1 = base1_per_step ? m_read16(s, RAM_BATTLE_WAVE_EDGES + at) : scratch16(s, CELL_BASE1);
-        bool negative2 = set_wave_w1(s, at, d1, base1);
-        set_wave_w2(s, at, signed_product(s, negative2));
-        set_scratch(s, CELL_PHASE2, (uint8_t)(scratch(s, CELL_PHASE2) + 1));
-        set_scratch(s, CELL_PHASE1, (uint8_t)(scratch(s, CELL_PHASE1) + 1));
-    }
-}
-
-/* $D1:EF63, $D1:F07E and $D1:F0E9 as entries of their own: the offset in A,
- * sign-extended by the N flag the caller's last load left, the line pair in
- * Y. The first two return with A holding amplitude 2 and the carry saying
- * whether phase 2 is negative. */
-static uint16_t entry_offset(Snes *s)
-{
-    return (s->cpu.p & CPU_FLAG_N) ? (uint16_t)(s->cpu.a | 0xFF00) : s->cpu.a;
-}
-
-static void finish_w1(Snes *s, bool negative2)
-{
-    uint8_t phase2 = scratch(s, CELL_PHASE2);
-    s->cpu.x = phase2;
-    s->cpu.a = scratch(s, CELL_AMP2);
-    s->cpu.p |= CPU_FLAG_M;
-    m_set_flag(s, CPU_FLAG_C, negative2);
-    m_rts(s);
-}
-
-// $D1:EF63
-void battle_wave_w1_from_table(Snes *s)
-{
-    uint16_t at = s->cpu.y;
-    finish_w1(s, set_wave_w1(s, at, entry_offset(s), m_read16(s, RAM_BATTLE_WAVE_EDGES + at)));
-}
-
-// $D1:F07E
-void battle_wave_w1(Snes *s)
-{
-    finish_w1(s, set_wave_w1(s, s->cpu.y, entry_offset(s), scratch16(s, CELL_BASE1)));
-}
-
-void battle_wave_w2(Snes *s)
-{
-    s->cpu.a = set_wave_w2(s, s->cpu.y, entry_offset(s));
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
-}
-
-/* The bases from BG3's moving scroll: horizontal for window 1, vertical for
- * window 2. */
-static void set_wave_bases(Snes *s)
-{
-    set_scratch16(s, CELL_BASE1, (uint16_t)(m_read16(s, RAM_BATTLE_BG3_SCROLL) + m_read16(s, RAM_BATTLE_BG3_SCROLL_OFFSET)));
-    set_scratch16(s, CELL_BASE2,
-                  (uint16_t)(m_read16(s, RAM_BATTLE_BG3_SCROLL + 2) + m_read16(s, RAM_BATTLE_BG3_SCROLL_OFFSET + 2)));
-}
-
-/* The wave's amplitude falls as the operand, added up in the band width cell,
- * grows: $60 less it. */
-static uint8_t add_to_wave_steps(Snes *s)
-{
-    uint8_t steps = (uint8_t)(m_read8(s, STEPS_A) + operand(s, 0));
-    m_write8(s, STEPS_A, steps);
-    return (uint8_t)(0x60 - steps);
-}
-
-/* The phases from the frame count, as the original shifts it (8-bit, with A's
- * high byte in the index's). */
-static void set_frame_phases(Snes *s, uint16_t a_high)
-{
-    uint8_t frame = m_read8(s, RAM_BATTLE_FRAME_COUNT);
-    set_scratch16(s, CELL_PHASE2, (uint16_t)(a_high | (uint8_t)(frame << 2)));
-    set_scratch16(s, CELL_PHASE1, (uint16_t)(a_high | (uint8_t)(frame << 1)));
-}
-
-// $D1:EEC4
-/* Screen command $ED: waves on window 1 around the per-line edges at
- * $7E:E500, and on window 2 around BG3's vertical scroll at half the
- * amplitude, the phases following the frame count. */
-static void wave_windows(Snes *s, uint16_t a_high)
-{
-    uint8_t amp = add_to_wave_steps(s);
-    set_scratch(s, CELL_AMP1, amp);
-    set_scratch(s, CELL_AMP2, (uint8_t)(amp >> 1));
-    set_frame_phases(s, a_high);
-    set_wave_bases(s);
-    draw_waves(s, true);
+    wipe_diagonally(state_of(s));
+    command_done(s);
 }
 
 void battle_screen_wave_windows(Snes *s)
 {
-    wave_windows(s, s->cpu.a & 0xFF00);
-    set_a(s, 0);
-    m_rtl(s);
+    GameState *g = state_of(s);
+    wave_about_edges(g, screen_command_operand(g, 0));
+    command_done(s);
 }
 
-/* Both windows waving around BG3's moving scroll with one amplitude. */
-static void wave_around_scroll(Snes *s)
-{
-    uint8_t amp = add_to_wave_steps(s);
-    set_scratch(s, CELL_AMP1, amp);
-    set_scratch(s, CELL_AMP2, amp);
-    set_wave_bases(s);
-    draw_waves(s, false);
-}
-
-// $D1:EFD0
-/* Screen command $F3: waves around BG3's scroll, the phases from a count of
- * calls that starts at $A8 (the count grows by one a call). */
 void battle_screen_wave_counted(Snes *s)
 {
-    uint16_t a_high = s->cpu.a & 0xFF00;
-    uint8_t steps = m_read8(s, STEPS_B);
-    uint8_t phase = (uint8_t)((uint8_t)(steps + 0xA8) << 1);
-    set_scratch16(s, CELL_PHASE1, (uint16_t)(a_high | phase));
-    set_scratch16(s, CELL_PHASE2, (uint16_t)(a_high | (uint8_t)(phase << 1)));
-    m_write8(s, STEPS_B, (uint8_t)(steps + 1));
-    wave_around_scroll(s);
-    set_a(s, 0);
-    m_rtl(s);
+    GameState *g = state_of(s);
+    wave_counted(g, screen_command_operand(g, 0));
+    command_done(s);
 }
 
-// $D1:EFE3
-/* Screen command $EB: the same, the phases following the frame count. */
 void battle_screen_wave_framed(Snes *s)
 {
-    set_frame_phases(s, s->cpu.a & 0xFF00);
-    wave_around_scroll(s);
-    set_a(s, 0);
-    m_rtl(s);
+    GameState *g = state_of(s);
+    wave_with_frames(g, screen_command_operand(g, 0));
+    command_done(s);
 }
 
-// $D1:F108
-/* Screen command $80, operation 13: add the per-line deltas at $0A00 to the
- * edges of lines 48-111 and 112-175 of the coming frame's buffer (window 1 by
- * the first 64, window 2 by those at $0A40 on odd frames and $0A20 on even
- * ones). The additions run as one long ADC chain: the carry of each goes
- * into the next, starting with the carry the caller left. Returns the last
- * byte written. */
-static uint8_t add_line_deltas(Snes *s, bool carry)
+/* $D1:EF63, $D1:F07E and $D1:F0E9, the waves' steps as the original calls
+ * them for each pair of lines: the offset in A, taken as negative by the N
+ * flag its making left; the pair in Y; the phases, amplitudes and bases in
+ * the cells the waves leave them in. The first two go on to start window 2's
+ * product in the multiplier, and return the carry set for window 2's phase in
+ * the second half of the turn. */
+static int16_t offset_in_a(const Snes *s)
 {
-    bool odd = odd_frame(s);
-    uint16_t w2_deltas = odd ? 0x40 : 0x20;
-    uint8_t last = 0;
-    for (uint16_t line = 0; line < 64; line++) {
-        uint8_t d1 = m_read8(s, RAM_BATTLE_WINDOW_LINE_DELTAS + line);
-        uint8_t d2 = m_read8(s, RAM_BATTLE_WINDOW_LINE_DELTAS + w2_deltas + line);
-        for (int half = 0; half < 2; half++) {
-            uint32_t entry = lines_at(odd, (uint32_t)(48 + 64 * half + line) * LINE_BYTES);
-            for (int edge = 0; edge < 4; edge++) {
-                uint16_t sum = (uint16_t)(m_read8(s, entry + edge) + (edge < 2 ? d1 : d2) + carry);
-                carry = sum > 0xFF;
-                last = (uint8_t)sum;
-                m_write8(s, entry + edge, last);
-            }
-        }
-    }
-    return last;
+    uint8_t v = (uint8_t)s->cpu.a;
+    return (s->cpu.p & CPU_FLAG_N) ? (int16_t)(v - 0x100) : (int16_t)v;
 }
+
+static unsigned pair_in_y(const Snes *s) { return s->cpu.y / PAIR_BYTES; }
+
+static uint8_t cell(const GameState *g, uint8_t at) { return battle_scratch(g, (unsigned)(at - SCREEN_CELLS)); }
+static uint16_t cell_word(const GameState *g, uint8_t at) { return (uint16_t)(cell(g, at) | cell(g, (uint8_t)(at + 1)) << 8); }
+
+static void hand_on_to_window_2(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t phase = cell(g, 0x45);
+    hw_set_multiplicand(g, battle_sine_magnitude(g, phase));
+    hw_multiply_by(g, cell(g, 0x4D));
+    s->cpu.a = 0;
+    m_set_flag(s, CPU_FLAG_C, phase & HALF_TURN);
+    m_rts(s);
+}
+
+void battle_wave_w1_from_table(Snes *s)
+{
+    GameState *g = state_of(s);
+    unsigned pair = pair_in_y(s);
+    set_pair_edges(g, pair, WINDOW_1, waved(battle_wave_edges(g, pair), offset_in_a(s)));
+    hand_on_to_window_2(s);
+}
+
+void battle_wave_w1(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_pair_edges(g, pair_in_y(s), WINDOW_1, waved(cell_word(g, 0x4F), offset_in_a(s)));
+    hand_on_to_window_2(s);
+}
+
+void battle_wave_w2(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_pair_edges(g, pair_in_y(s), WINDOW_2, waved(cell_word(g, 0x51), offset_in_a(s)));
+    m_rts(s);
+}
+
+/* The nudges' guard has the carry clear, as the operation's dispatch leaves
+ * it. */
+bool battle_screen_nudge_dispatched(Snes *s) { return battle_screen_page_a_clear(s) && !m_flag(s, CPU_FLAG_C); }
 
 void battle_screen_add_line_deltas(Snes *s)
 {
-    uint8_t last = add_line_deltas(s, m_flag(s, CPU_FLAG_C));
-    m_set_a8(s, last);
+    nudge_edges(state_of(s));
+    s->cpu.a = 0;
     m_rtl(s);
 }
 
-// $D1:F5F5
-/* Screen command $DB: the coming frame's window 2 takes the other buffer's
- * window 1, on every line. */
 void battle_screen_copy_window1_to_window2(Snes *s)
 {
-    bool odd = odd_frame(s);
-    for (uint16_t line = 0; line < LINES; line++)
-        m_write16(s, lines_at(odd, line * LINE_BYTES + W2), m_read16(s, lines_at(!odd, line * LINE_BYTES + W1)));
-    set_a(s, 0);
-    m_rtl(s);
-}
-
-// $D1:FD7E
-/* Screen command $CF: the same for 224 lines from twice the operand bytes in
- * (an odd operand shifts the entries by half), with the window turned inside
- * out: the left edge from the other's right one inverted, the right from its
- * left. */
-static void copy_inverted(Snes *s, uint8_t op)
-{
-    bool odd = odd_frame(s);
-    uint8_t at = (uint8_t)(op << 1);
-    uint16_t end = (uint16_t)(at + 0x70);
-    set_scratch16(s, 0, end);
-    do {
-        for (int block = 0; block < 8; block++) {
-            uint32_t offset = (uint32_t)block * 0x70 + at;
-            uint16_t v = (uint16_t)~m_read16(s, lines_at(!odd, offset + W1));
-            m_write16(s, lines_at(odd, offset + W2), (uint16_t)(v << 8 | v >> 8));
-        }
-        at = (uint8_t)(at + LINE_BYTES);
-    } while (at != (uint8_t)end);
+    copy_window_1_across(state_of(s));
+    command_done(s);
 }
 
 void battle_screen_copy_window1_inverted(Snes *s)
 {
-    copy_inverted(s, operand(s, 0));
-    set_a(s, 0);
-    m_rtl(s);
+    copy_window_1_inside_out(state_of(s));
+    command_done(s);
 }
 
-// $D1:FB68
-/* Screen command $E9: add the operand to the column band's left edge. */
 void battle_screen_move_column_band(Snes *s)
 {
-    uint8_t left = (uint8_t)(m_read8(s, RAM_BATTLE_COLUMN_BAND_LEFT) + operand(s, 0));
-    m_write8(s, RAM_BATTLE_COLUMN_BAND_LEFT, left);
-    m_set_a8(s, left);
-    m_rtl(s);
-}
-
-// $D1:FB72
-/* Screen command $E8: grow the column band's half height by the operand and
- * draw it: window 1 on the lines $6A +- the half height covers the columns
- * from its left edge to 255 less it. The first line is computed from A with
- * its high byte, as the original's 16-bit shift does. */
-static void draw_column_band(Snes *s, uint16_t a_high)
-{
-    uint8_t half = (uint8_t)(m_read8(s, RAM_BATTLE_COLUMN_BAND_HALF_HEIGHT) + operand(s, 0));
-    m_write8(s, RAM_BATTLE_COLUMN_BAND_HALF_HEIGHT, half);
-    uint8_t left = m_read8(s, RAM_BATTLE_COLUMN_BAND_LEFT);
-    set_scratch(s, CELL_MASK, left);
-    set_scratch(s, CELL_MASK + 1, (uint8_t)~left);
-    uint8_t bottom = (uint8_t)(half + 0x6A);
-    set_scratch(s, 0, bottom);
-    uint16_t at = (uint16_t)((a_high | (uint8_t)(0x6A - half)) << 2);
-    uint16_t end = (uint16_t)(bottom << 2);
-    set_scratch16(s, 0, end);
-    if (at == end)
-        return;
-    bool odd = odd_frame(s);
-    uint16_t edges = scratch16(s, CELL_MASK);
-    for (; at != end; at = (uint16_t)(at + LINE_BYTES))
-        m_write16(s, lines_at(odd, (uint32_t)at + W1), edges);
+    GameState *g = state_of(s);
+    move_middle_band(g, screen_command_operand(g, 0));
+    command_done(s);
 }
 
 void battle_screen_draw_column_band(Snes *s)
 {
-    draw_column_band(s, s->cpu.a & 0xFF00);
-    set_a(s, 0);
-    m_rtl(s);
+    GameState *g = state_of(s);
+    draw_middle_band(g, screen_command_operand(g, 0));
+    command_done(s);
 }
 
-/* The fills $D1:FBCE dispatches to: the value each line gets, which window,
- * and whether both. */
-typedef struct {
-    uint16_t handler;
-    uint16_t edges;
-    uint8_t window, words;
-} Fill;
-static const Fill fills[] = {
-    { 0xFCF4, EDGES_EMPTY, W1, 2 },   /* both windows */
-    { 0xFC38, EDGES_EMPTY, W1, 1 },
-    { 0xFC96, EDGES_EMPTY, W2, 1 },
-    { 0xFBDA, EDGES_FULL, W1, 1 },
-};
-
-/* Fill the coming frame's windows on every line. The fill's value stays in
- * A, which the original leaves 8-bit with its high byte. */
-static void fill(Snes *s, const Fill *f)
+/* A fill returns with its edges in A, which its callers read the high byte
+ * of. */
+static void filled(Snes *s, Fill f)
 {
-    bool odd = odd_frame(s);
-    for (uint16_t line = 0; line < LINES; line++)
-        for (uint8_t w = 0; w < f->words; w++)
-            m_write16(s, lines_at(odd, line * LINE_BYTES + f->window + 2u * w), f->edges);
-    set_a(s, f->edges);
-    s->cpu.x = 0;
+    fill_windows(state_of(s), f);
+    s->cpu.a = fills[f].edges;
 }
 
 // $D1:FBCE
-/* Screen command $88: set the coming frame's windows on every line, by the
- * operation in X (twice the operand): 0 both windows empty, 1 window 1
- * empty, 2 window 2 empty, 3 window 1 full. Operations past the table jump
- * where the original's table points, as a call-out. */
+/* Screen command $88: fill the windows as the operand says (X, doubled). */
 void battle_screen_fill_windows(Snes *s)
 {
-    uint16_t target = screen_dispatch_target(s, 0xFBD2, s->cpu.x);
-    for (size_t i = 0; i < sizeof fills / sizeof fills[0]; i++) {
-        if (fills[i].handler == target) {
-            fill(s, &fills[i]);
-            m_rtl(s);
-            return;
-        }
-    }
-    m_jsr(s, 0xD1FBCE, 0xD10000 | target);
+    Fill f = (Fill)(s->cpu.x / 2);
+    NATIVE_TIME_AS(s, fills[f].routine, filled(s, f));
     m_rtl(s);
 }
 
-// $D1:FCF4
-void battle_fill_windows_empty(Snes *s) { fill(s, &fills[0]); m_rts(s); }
-// $D1:FC38
-void battle_fill_window1_empty(Snes *s) { fill(s, &fills[1]); m_rts(s); }
-// $D1:FC96
-void battle_fill_window2_empty(Snes *s) { fill(s, &fills[2]); m_rts(s); }
-// $D1:FBDA
-void battle_fill_window1_full(Snes *s) { fill(s, &fills[3]); m_rts(s); }
-
-// $D1:EBFF
-/* Screen command $F4: a beam from the top of the screen to the first
- * animation position, as window quadrilateral X (the operand): its top edge
- * 32 columns wide from $B0 plus 40 times the sine of the frame count, its
- * bottom edge 32 columns wide around the position. $D1:F9AF rasterizes it,
- * called out: it writes the window table through the work RAM port with
- * 16-bit stores whose low bytes land on APU port 3, which no service
- * expresses (docs/TODO.md). The index takes A's high byte, as the original's
- * TAX does. */
-void battle_screen_draw_beam(Snes *s)
+void battle_fill_windows_empty(Snes *s)
 {
-    uint16_t a_high = s->cpu.a & 0xFF00;
-    uint8_t frame = m_read8(s, RAM_BATTLE_FRAME_COUNT);
-    m_write8(s, 0x004202, 0x28);
-    m_write8(s, 0x004203, battle_sine(s, (uint16_t)(a_high | frame)));
-    uint16_t quad = (uint16_t)(a_high | operand(s, 0));
-    uint8_t swing = product_high(s);
-    if (frame & 0x80)
-        swing = (uint8_t)-swing;
-    uint32_t q = RAM_BATTLE_WINDOW_QUADS + quad;
-    uint8_t top_left = (uint8_t)(swing + 0xB0);
-    m_write8(s, q + 0x0, top_left);
-    m_write8(s, q + 0x2, 0);
-    m_write8(s, q + 0x4, (uint8_t)(top_left + 0x20));
-    m_write8(s, q + 0x6, 0);
-    uint8_t bottom_left = (uint8_t)(m_read8(s, RAM_BATTLE_ANIMATION_POSITIONS) - 0x10);
-    m_write8(s, q + 0x8, bottom_left);
-    m_write8(s, q + 0xC, (uint8_t)(bottom_left + 0x20));
-    uint8_t y = m_read8(s, RAM_BATTLE_ANIMATION_POSITIONS + 1);
-    m_write8(s, q + 0xA, y);
-    m_write8(s, q + 0xE, y);
-    s->cpu.x = quad;
-    m_jsl_dc(s, 0xD1EC5A, 0xD1F9AF, DC_A | DC_Y | DC_FLAGS);
-    m_rtl(s);
-}
-
-/* ---- The beam's quadrilateral -----------------------------------------------------------
- *
- * The rasterizer ($D1:F9E7) stays with the original: it writes the window
- * table through the work RAM port with 16-bit stores to $217F, so each line's
- * edge also goes, as a low byte, to APU port 3 -- a write no service expresses
- * (docs/TODO.md). What it works from is ported: the corners, sorted by line,
- * and the four edges' slopes. They live in the battle page's rasterizer cells
- * (battle_low_scratch): corner i's X and Y at $12 + 2i and $13 + 2i, the
- * slopes at $03, $05, $07 and $09, and a slope's operands at $0B-$0F. */
-
-/* The guard of the two the rasterizer calls: the battle page, and the data
- * bank the rasterizer sets for the work RAM port (its divisions go through
- * the data bank too). */
-bool battle_quad_page(Snes *s) { return s->cpu.d == 0x0000 && m_io_bank(s->cpu.db); }
-
-/* The rasterizer's cells, from $03 in the battle page's low scratch. */
-#define QUAD_CELLS (RAM_BATTLE_LOW_SCRATCH + 0x03)
-
-enum { CORNERS = 0x12 - 0x03, SLOPES = 0x00, SLOPE_TO_X = 0x08, SLOPE_FROM_X = 0x09, SLOPE_LINES = 0x0A,
-       TOP_LINE = 0x0C };
-
-static uint8_t quad(Snes *s, uint8_t cell) { return m_read8(s, QUAD_CELLS + cell); }
-static void set_quad(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, QUAD_CELLS + cell, v); }
-static uint16_t corner(Snes *s, int i) { return m_read16(s, QUAD_CELLS + CORNERS + 2u * (unsigned)i); }
-static void set_corner(Snes *s, int i, uint16_t v) { m_write16(s, QUAD_CELLS + CORNERS + 2u * (unsigned)i, v); }
-static uint8_t corner_y(Snes *s, int i) { return quad(s, (uint8_t)(CORNERS + 2 * i + 1)); }
-
-// $D1:F8EB
-/* Sort the four corners by line, top first: four bubble passes, a corner
- * moving past the next when its line isn't above it. */
-static void sort_corners(Snes *s)
-{
-    for (int pass = 0; pass < 4; pass++) {
-        for (int i = 0; i < 3; i++) {
-            if (corner_y(s, i) >= corner_y(s, i + 1)) {
-                uint16_t a = corner(s, i), b = corner(s, i + 1);
-                set_corner(s, i + 1, a);
-                set_corner(s, i, b);
-            }
-        }
-    }
-}
-
-void battle_sort_quad_corners(Snes *s)
-{
-    sort_corners(s);
-    m_set_a8(s, 0);
+    filled(s, BOTH_EMPTY);
     m_rts(s);
 }
 
-// $D1:F972
-/* An edge's slope in columns per line, 8.8 fixed point: the columns from its
- * start to its end over its lines, through the hardware divider (the
- * dividend's low byte is A's high byte, as the original's XBA leaves it). */
-static uint16_t edge_slope(Snes *s, uint8_t a_high)
+void battle_fill_window1_empty(Snes *s)
 {
-    uint8_t to = quad(s, SLOPE_TO_X), from = quad(s, SLOPE_FROM_X);
-    bool left = to < from;
-    uint8_t columns = left ? (uint8_t)(from - to) : (uint8_t)(to - from);
-    m_write16(s, 0x004204, (uint16_t)(columns << 8 | a_high));
-    m_write8(s, 0x004206, quad(s, SLOPE_LINES));
-    uint16_t q = m_read16(s, 0x004214);
-    return left ? (uint16_t)-q : q;
-}
-
-void battle_quad_edge_slope(Snes *s)
-{
-    s->cpu.y = edge_slope(s, (uint8_t)(s->cpu.a >> 8));
-    s->cpu.a = 0;
+    filled(s, WINDOW_1_EMPTY);
     m_rts(s);
 }
 
-// $D1:F91D
-/* The slopes of the four edges, from the top corner down the one side to the
- * second and third corners and from the second and third down to the
- * bottom one; the top line goes to $0F. The first slope's dividend takes A's
- * high byte, the rest 0. */
-static void edge_slopes(Snes *s, uint8_t a_high)
+void battle_fill_window2_empty(Snes *s)
 {
-    static const struct { uint8_t from, to; } edges[4] = { { 0, 2 }, { 2, 3 }, { 0, 1 }, { 1, 3 } };
-    set_quad(s, TOP_LINE, corner_y(s, 0));
-    for (int e = 0; e < 4; e++) {
-        set_quad(s, SLOPE_LINES, (uint8_t)(corner_y(s, edges[e].to) - corner_y(s, edges[e].from)));
-        set_quad(s, SLOPE_TO_X, (uint8_t)corner(s, edges[e].to));
-        set_quad(s, SLOPE_FROM_X, (uint8_t)corner(s, edges[e].from));
-        m_write16(s, QUAD_CELLS + SLOPES + 2u * (unsigned)e, edge_slope(s, a_high));
-        a_high = 0;   /* the slope leaves A 0 */
-    }
-}
-
-void battle_quad_edge_slopes(Snes *s)
-{
-    edge_slopes(s, (uint8_t)(s->cpu.a >> 8));
-    s->cpu.a = 0;
+    filled(s, WINDOW_2_EMPTY);
     m_rts(s);
 }
 
-// $D1:F9AF
-/* Rasterize window quadrilateral X (battle_window_quads) into the coming
- * frame's window table: its corners to the rasterizer's cells, sorted, then
- * $D1:F9E7 with data bank 0 (for the work RAM port), called out. */
-void battle_draw_window_quad(Snes *s)
+void battle_fill_window1_full(Snes *s)
 {
-    uint16_t q = s->cpu.x;
-    m_write8(s, RAM_BATTLE_WINDOW_QUAD_INDEX, (uint8_t)q);
-    for (int i = 0; i < 8; i++)
-        set_quad(s, (uint8_t)(CORNERS + i), m_read8(s, RAM_BATTLE_WINDOW_QUADS + 2u * (unsigned)i + q));
-    sort_corners(s);
-    m_push8(s, s->cpu.db);
-    s->cpu.db = 0x00;
-    s->cpu.a = 0;
-    m_jsr_dc(s, 0xD1F9E2, 0xD1F9E7, DC_X | DC_Y | DC_FLAGS);
-    s->cpu.db = m_pull8(s);
-    m_rtl(s);
+    filled(s, WINDOW_1_FULL);
+    m_rts(s);
 }

@@ -1,77 +1,96 @@
-/* Battle: setting up the screen effects' tables at the start of a battle
- * (bank D1). */
+/* Battle: the fade tables, built once at the start of a battle.
+ *
+ * The screen effects darken or brighten the battlefield line by line through
+ * color math: a per-line table gives, for each band of lines, the value the
+ * color-math register takes, all color channels at an intensity of 0-31. The
+ * battle builds four such tables at the start, two pairs: in each pair one
+ * falls from intensity 8 to nothing down the screen and the other rises from
+ * nothing, in steps a third of an intensity apart over 24 lines, or two
+ * thirds apart over 12. The screen scripts point the line effect at them.
+ *
+ * A table entry is four bytes: how many lines it lasts (bit 7 set to write
+ * its value on every one of them) and the value, then two bytes left 0. A
+ * line count of 0 ends a table. */
 #include "battle/screen.h"
 
-#include "port/machine.h"
-#include "ram.h"
+#include "original_effects.h"
+#include "vars.h"
 
-enum {
-    DATA_BYTES = 0x120,
-    ENTRY_BYTES = 4,
-    /* the four tables' places in battle_fade_line_data */
-    FIRST_DOWN = 0x01, FIRST_UP = 0x61, SECOND_DOWN = 0xC1, SECOND_UP = 0xF1,
-    REPEAT_ONE = 0x81,   /* a line count of 1 with the repeat bit */
-    ALL_CHANNELS = 0xE0,
+/* A color-math value: the channels it applies to in the top three bits and the
+ * intensity in the low five. The tables step the intensity in 1/256ths of a
+ * level, and each entry takes the whole part. */
+enum { ALL_CHANNELS = 0xE0, INTENSITY_FRACTION_BITS = 8, INTENSITY_ONE = 1 << INTENSITY_FRACTION_BITS };
+
+static uint8_t color_math_value(uint16_t intensity) { return (uint8_t)(ALL_CHANNELS | intensity >> INTENSITY_FRACTION_BITS); }
+
+/* The four tables in battle_fade_line_data, by where their first entry is. */
+typedef enum { FALL_BY_THIRDS = 0x01, RISE_BY_THIRDS = 0x61, FALL_BY_TWO_THIRDS = 0xC1, RISE_BY_TWO_THIRDS = 0xF1 } FadeTable;
+
+enum { ENTRY_BYTES = 4, ONE_LINE = 1, EVERY_LINE = 0x80, END_OF_TABLE = 0 };
+
+static void set_entry(GameState *g, FadeTable table, unsigned entry, uint8_t lines, uint8_t value)
+{
+    unsigned at = table + entry * ENTRY_BYTES;
+    set_battle_fade_line_data(g, at, lines);
+    set_battle_fade_line_data(g, at + 1, value);
+}
+
+/* A falling table and a rising one, one line an entry, a step apart each
+ * line: the fall starts a step below intensity 9 and the rise a step above
+ * nothing. */
+typedef struct {
+    FadeTable falls, rises;
+    unsigned entries;
+    uint16_t step;
+} FadePair;
+
+enum { FALL_FROM = 9 * INTENSITY_ONE };
+
+static const FadePair pairs[] = {
+    { FALL_BY_THIRDS, RISE_BY_THIRDS, 24, INTENSITY_ONE / 3 },
+    { FALL_BY_TWO_THIRDS, RISE_BY_TWO_THIRDS, 12, 2 * INTENSITY_ONE / 3 },
 };
 
-/* One pair of tables: `entries` entries of one line each, one falling from
- * `down` and one rising from `up` (the high bytes of 8.8 values stepping by
- * `step`), the second with the repeat bit. The values stay in the scratch
- * cells $53-$56. Returns the overflow of the last step up. */
-static void fill_fades(Snes *s, uint16_t down_at, uint16_t up_at, int entries, uint16_t down, uint16_t up,
-                       uint16_t step, bool *overflow)
+/* The rising tables' last entry ends them, holding every channel at nothing. */
+static void end_rising_table(GameState *g, FadeTable table, unsigned entries)
 {
-    for (int i = 0; i < entries; i++) {
-        uint16_t at = (uint16_t)(i * ENTRY_BYTES);
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + down_at + 1 + at, (uint8_t)(down >> 8));
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + up_at + 1 + at, (uint8_t)(up >> 8));
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + up_at + at, REPEAT_ONE);
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + down_at + at, 1);
-        down = (uint16_t)(down - step);
-        m_write16(s, RAM_BATTLE_SCRATCH + 0x0E, down);
-        uint32_t sum = (uint32_t)up + step;
-        *overflow = (~(up ^ step) & (up ^ sum) & 0x8000) != 0;
-        up = (uint16_t)sum;
-        m_write16(s, RAM_BATTLE_SCRATCH + 0x10, up);
-    }
+    set_entry(g, table, entries - 1, END_OF_TABLE, ALL_CHANNELS);
+}
+
+/* The original counts the two intensities in its scratch cells, color-math
+ * value and fraction together, and leaves the last pair's there. */
+static void leave_intensities(GameState *g, const FadePair *p)
+{
+    uint16_t fell = (uint16_t)(ALL_CHANNELS << 8 | (uint16_t)(FALL_FROM - (p->entries + 1) * p->step));
+    uint16_t rose = (uint16_t)(ALL_CHANNELS << 8 | (uint16_t)((p->entries + 1) * p->step));
+    set_battle_scratch(g, 0x0E, (uint8_t)fell);
+    set_battle_scratch(g, 0x0F, (uint8_t)(fell >> 8));
+    set_battle_scratch(g, 0x10, (uint8_t)rose);
+    set_battle_scratch(g, 0x11, (uint8_t)(rose >> 8));
 }
 
 // $D1:F83D
-/* Build the fade tables: two pairs of one-line entries whose values fall from
- * $E8 and rise from $E0 (all color channels, intensity 8 to 0 and 0 up), 24
- * entries a third of a step apart and then 12 two thirds apart, each pair
- * followed by a closing entry of $E0. */
-static void build_fade_tables(Snes *s, bool *overflow)
+/* Build the four fade tables, from nothing. */
+static void build_fade_tables(GameState *g)
 {
-    for (uint16_t i = 0; i < DATA_BYTES; i++)
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + i, 0);
-    m_write8(s, RAM_BATTLE_SCRATCH + 0x0F, 0xE8);
-    m_write8(s, RAM_BATTLE_SCRATCH + 0x11, ALL_CHANNELS);
-    m_write8(s, RAM_BATTLE_SCRATCH + 0x0E, 0xAB);
-    m_write8(s, RAM_BATTLE_SCRATCH + 0x10, 0x55);
-    fill_fades(s, FIRST_DOWN, FIRST_UP, 24, 0xE8AB, 0xE055, 0x0055, overflow);
-    m_write8(s, RAM_BATTLE_SCRATCH + 0x0F, 0xE8);
-    m_write8(s, RAM_BATTLE_SCRATCH + 0x11, ALL_CHANNELS);
-    m_write8(s, RAM_BATTLE_SCRATCH + 0x0E, 0x56);
-    m_write8(s, RAM_BATTLE_SCRATCH + 0x10, 0xAA);
-    fill_fades(s, SECOND_DOWN, SECOND_UP, 12, 0xE856, 0xE0AA, 0x00AA, overflow);
-    static const uint16_t closes[2] = { SECOND_DOWN - ENTRY_BYTES, SECOND_UP + 12 * ENTRY_BYTES - ENTRY_BYTES };
-    for (int i = 0; i < 2; i++) {
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + closes[i] + 1, ALL_CHANNELS);
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + closes[i] - 1, 0);
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + closes[i], 0);
-        m_write8(s, RAM_BATTLE_FADE_LINE_DATA + closes[i] + 2, 0);
+    for (unsigned i = 0; i < BATTLE_FADE_LINE_DATA_COUNT; i++)
+        set_battle_fade_line_data(g, i, 0);
+    for (unsigned n = 0; n < sizeof pairs / sizeof pairs[0]; n++) {
+        const FadePair *p = &pairs[n];
+        uint16_t fall = (uint16_t)(FALL_FROM - p->step), rise = p->step;
+        for (unsigned e = 0; e < p->entries; e++, fall -= p->step, rise += p->step) {
+            set_entry(g, p->falls, e, ONE_LINE, color_math_value(fall));
+            set_entry(g, p->rises, e, EVERY_LINE | ONE_LINE, color_math_value(rise));
+        }
+        end_rising_table(g, p->rises, p->entries);
     }
+    ORIGINAL_EFFECT(leave_intensities(g, &pairs[1]));
 }
+
+/* ---- The entry ------------------------------------------------------------------------ */
 
 void battle_build_fade_tables(Snes *s)
 {
-    bool overflow = false;
-    build_fade_tables(s, &overflow);
-    /* the last loop's CPX leaves the carry set; the overflow is its last ADC's */
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_set_flag(s, CPU_FLAG_V, overflow);
-    s->cpu.a = ALL_CHANNELS;
-    s->cpu.p |= CPU_FLAG_M;
+    build_fade_tables(state_of(s));
     m_rtl(s);
 }

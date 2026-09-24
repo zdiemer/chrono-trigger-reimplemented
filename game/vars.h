@@ -4767,6 +4767,14 @@ enum { BATTLE_FADE_LINE_DATA_COUNT = 288 };   /* by byte (four tables of one-lin
 uint8_t battle_fade_line_data(const GameState *g, unsigned i);
 void set_battle_fade_line_data(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_WINDOW_TOP_LINES_COUNT = 4 };   /* by line (the four above the first buffer's first) */
+/* Window 1's edges as one word, the left in the low byte */
+uint16_t battle_window_top_lines_w1(const GameState *g, unsigned line);
+void set_battle_window_top_lines_w1(GameState *g, unsigned line, uint16_t v);
+/* Window 2's edges as one word, the left in the low byte */
+uint16_t battle_window_top_lines_w2(const GameState *g, unsigned line);
+void set_battle_window_top_lines_w2(GameState *g, unsigned line, uint16_t v);
+
 enum { BATTLE_WINDOW_LINES_COUNT = 448 };   /* by buffer * 224 + line (the frame work writes buffer 1 on odd frames, 0 on even ones) */
 /* Window 1's left edge */
 uint8_t battle_window_lines_w1_left(const GameState *g, unsigned line);
@@ -4780,6 +4788,12 @@ void set_battle_window_lines_w2_left(GameState *g, unsigned line, uint8_t v);
 /* Window 2's right edge */
 uint8_t battle_window_lines_w2_right(const GameState *g, unsigned line);
 void set_battle_window_lines_w2_right(GameState *g, unsigned line, uint8_t v);
+/* Window 1's edges as one word, the left in the low byte */
+uint16_t battle_window_lines_w1(const GameState *g, unsigned line);
+void set_battle_window_lines_w1(GameState *g, unsigned line, uint16_t v);
+/* Window 2's edges as one word, the left in the low byte */
+uint16_t battle_window_lines_w2(const GameState *g, unsigned line);
+void set_battle_window_lines_w2(GameState *g, unsigned line, uint16_t v);
 
 enum { BATTLE_WINDOW_REGISTERS_COUNT = 5 };   /* by window register (BG1/2, BG3/4, OBJ/color, BG logic, OBJ logic) */
 /* Shadows of the window settings written each frame */
@@ -4862,25 +4876,26 @@ void set_battle_vram_request_vram(GameState *g, uint16_t v);
 uint16_t battle_vram_request_size(const GameState *g);
 void set_battle_vram_request_size(GameState *g, uint16_t v);
 
-enum { BATTLE_SCREEN_MOTION_DIRECTION_COUNT = 2 };   /* by screen script channel */
-/* Direction of the channel's swing: nonzero while its speed grows and its position falls */
-uint16_t battle_screen_motion_direction(const GameState *g, unsigned channel);
-void set_battle_screen_motion_direction(GameState *g, unsigned channel, uint16_t v);
-
-enum { BATTLE_SCREEN_MOTION_BASE_COUNT = 2 };   /* by screen script channel */
-/* Offset the channel's swing moves around */
-uint16_t battle_screen_motion_base(const GameState *g, unsigned channel);
-void set_battle_screen_motion_base(GameState *g, unsigned channel, uint16_t v);
-
-enum { BATTLE_BG3_SCROLL_COUNT = 2 };   /* by axis (X, Y) */
-/* BG3's moving scroll position, used instead of its base scroll in the moving mode */
-uint16_t battle_bg3_scroll(const GameState *g, unsigned i);
-void set_battle_bg3_scroll(GameState *g, unsigned i, uint16_t v);
-
-enum { BATTLE_BG3_SCROLL_OFFSET_COUNT = 2 };   /* by axis (X, Y) */
-/* Offset added to BG3's moving scroll */
-uint16_t battle_bg3_scroll_offset(const GameState *g, unsigned i);
-void set_battle_bg3_scroll_offset(GameState *g, unsigned i, uint16_t v);
+enum { BATTLE_SCREEN_LAYER_COUNT = 2 };   /* by screen script channel */
+/* Nonzero while the channel's swing gathers speed back up the screen; 0 while it slows moving
+ * down */
+uint16_t battle_screen_layer_swing_rising(const GameState *g, unsigned channel);
+void set_battle_screen_layer_swing_rising(GameState *g, unsigned channel, uint16_t v);
+/* The vertical offset the swing moves the layer about */
+uint16_t battle_screen_layer_swing_center(const GameState *g, unsigned channel);
+void set_battle_screen_layer_swing_center(GameState *g, unsigned channel, uint16_t v);
+/* The layer's position across */
+uint16_t battle_screen_layer_x(const GameState *g, unsigned channel);
+void set_battle_screen_layer_x(GameState *g, unsigned channel, uint16_t v);
+/* The layer's position down */
+uint16_t battle_screen_layer_y(const GameState *g, unsigned channel);
+void set_battle_screen_layer_y(GameState *g, unsigned channel, uint16_t v);
+/* Offset added to the position across */
+uint16_t battle_screen_layer_offset_x(const GameState *g, unsigned channel);
+void set_battle_screen_layer_offset_x(GameState *g, unsigned channel, uint16_t v);
+/* Offset added to the position down, which the swing sets */
+uint16_t battle_screen_layer_offset_y(const GameState *g, unsigned channel);
+void set_battle_screen_layer_offset_y(GameState *g, unsigned channel, uint16_t v);
 
 enum { BATTLE_SCREEN_SWING_SPEED_COUNT = 2 };   /* by screen script channel */
 /* Speed of the channel's swing, in 1/65536 of a pixel a frame */
@@ -4960,11 +4975,34 @@ void set_battle_shake_target(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_shake_layers(const GameState *g);
 void set_battle_shake_layers(GameState *g, uint8_t v);
 
-enum { BATTLE_PALETTE_SLOT_PRESETS_COUNT = 36 };   /* by byte (two slots, then one) */
-/* Palette animation slots copied over slots 8-9 (24 bytes) or slot 10 (12 bytes at $CCD9) on
- * request */
-uint8_t battle_palette_slot_presets(const GameState *g, unsigned i);
-void set_battle_palette_slot_presets(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_PALETTE_SLOT_PRESETS_COUNT = 3 };   /* by preset slot (two for animation slots 8-9, then one for slot 10) */
+/* Animation type in the high nibble, as palette_animations' kind (4 fade to white, 5 to black) */
+uint8_t battle_palette_slot_presets_kind(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_kind(GameState *g, unsigned slot, uint8_t v);
+/* First palette entry the animation changes */
+uint8_t battle_palette_slot_presets_first_color(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_first_color(GameState *g, unsigned slot, uint8_t v);
+/* Number of palette entries it changes */
+uint8_t battle_palette_slot_presets_color_count(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_color_count(GameState *g, unsigned slot, uint8_t v);
+/* The amount a fade's level moves per step */
+uint8_t battle_palette_slot_presets_step(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_step(GameState *g, unsigned slot, uint8_t v);
+/* Frame counter toward the period */
+uint8_t battle_palette_slot_presets_delay(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_delay(GameState *g, unsigned slot, uint8_t v);
+/* Frames between steps */
+uint8_t battle_palette_slot_presets_period(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_period(GameState *g, unsigned slot, uint8_t v);
+/* Which color channels the fade changes (core/palette.c's table) */
+uint8_t battle_palette_slot_presets_fade_mode(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_fade_mode(GameState *g, unsigned slot, uint8_t v);
+/* Fade level the animation starts from */
+uint8_t battle_palette_slot_presets_fade_level(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_fade_level(GameState *g, unsigned slot, uint8_t v);
+/* Level the fade moves toward */
+uint8_t battle_palette_slot_presets_fade_target(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_fade_target(GameState *g, unsigned slot, uint8_t v);
 
 /* Requests a preset palette slot copy: bit 7 slot 10, bit 0 slots 8-9; each bit cleared once
  * copied */
@@ -4993,9 +5031,9 @@ void set_battle_paused(GameState *g, uint8_t v);
 uint8_t battle_pause_held(const GameState *g);
 void set_battle_pause_held(GameState *g, uint8_t v);
 
-enum { BATTLE_WINDOW_QUADS_COUNT = 8 };   /* by coordinate (X0, Y0, X1, Y1, X2, Y2, X3, Y3) */
-/* The corners of a window quadrilateral $D1:F9AF rasterizes into the window table (the beam's:
- * its top edge, then its bottom edge) */
+enum { BATTLE_WINDOW_QUADS_COUNT = 16 };   /* by coordinate * 2 + quadrilateral (two, their bytes interleaved; the coordinates X0, Y0, X1, Y1, X2, Y2, X3, Y3) */
+/* The corners of the two window quadrilaterals $D1:F9AF rasterizes into the window table (the
+ * beam's: its top edge, then its foot) */
 uint8_t battle_window_quads(const GameState *g, unsigned i);
 void set_battle_window_quads(GameState *g, unsigned i, uint8_t v);
 

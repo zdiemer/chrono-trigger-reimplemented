@@ -8856,26 +8856,6 @@ meaning = "Which scroll table routine runs each frame (through $CD:06BC)"
 source = "game/battle/frame.c battle_update_scroll_dispatch $CD:06B4"
 
 [[var]]
-name = "battle_bg3_scroll"
-addr = "7E:CA5A"
-size = 2
-count = 2
-index = "axis (X, Y)"
-subsystem = "battle"
-meaning = "BG3's moving scroll position, used instead of its base scroll in the moving mode"
-source = "game/battle/display.c battle_update_scroll_tables_bg3_moving $CD:076C"
-
-[[var]]
-name = "battle_bg3_scroll_offset"
-addr = "7E:CA5E"
-size = 2
-count = 2
-index = "axis (X, Y)"
-subsystem = "battle"
-meaning = "Offset added to BG3's moving scroll"
-source = "game/battle/display.c battle_update_scroll_tables_bg3_moving $CD:076C"
-
-[[var]]
 name = "battle_shake_offsets"
 addr = "7E:CCA4"
 size = 2
@@ -8937,11 +8917,48 @@ source = "game/battle/frame.c battle_update_screen_shake $CD:0B51"
 [[var]]
 name = "battle_palette_slot_presets"
 addr = "7E:CCC1"
-count = 36
-index = "byte (two slots, then one)"
+count = 3
+stride = 0x0C
+index = "preset slot (two for animation slots 8-9, then one for slot 10)"
 subsystem = "battle"
-meaning = "Palette animation slots copied over slots 8-9 (24 bytes) or slot 10 (12 bytes at $CCD9) on request"
-source = "game/battle/frame.c battle_update_screen_shake $CD:0B51"
+meaning = "Palette animation slots copied over slots 8-9 or slot 10 on request, laid out as those slots are (palette_animations)"
+source = "game/battle/frame.c battle_update_screen_shake $CD:0B51; game/battle/screen_motion.c battle_set_palette_preset $D1:F74D"
+  [[var.field]]
+  name = "kind"
+  offset = 0
+  meaning = "Animation type in the high nibble, as palette_animations' kind (4 fade to white, 5 to black)"
+  [[var.field]]
+  name = "first_color"
+  offset = 1
+  meaning = "First palette entry the animation changes"
+  [[var.field]]
+  name = "color_count"
+  offset = 2
+  meaning = "Number of palette entries it changes"
+  [[var.field]]
+  name = "step"
+  offset = 3
+  meaning = "The amount a fade's level moves per step"
+  [[var.field]]
+  name = "delay"
+  offset = 4
+  meaning = "Frame counter toward the period"
+  [[var.field]]
+  name = "period"
+  offset = 5
+  meaning = "Frames between steps"
+  [[var.field]]
+  name = "fade_mode"
+  offset = 6
+  meaning = "Which color channels the fade changes (core/palette.c's table)"
+  [[var.field]]
+  name = "fade_level"
+  offset = 7
+  meaning = "Fade level the animation starts from"
+  [[var.field]]
+  name = "fade_target"
+  offset = 8
+  meaning = "Level the fade moves toward"
 
 [[var]]
 name = "battle_palette_preset_request"
@@ -9191,6 +9208,36 @@ source = "game/battle/screen_window.c header; game/battle/frame.c battle_setup_w
   name = "w2_right"
   offset = 3
   meaning = "Window 2's right edge"
+  [[var.field]]
+  name = "w1"
+  offset = 0
+  size = 2
+  meaning = "Window 1's edges as one word, the left in the low byte"
+  [[var.field]]
+  name = "w2"
+  offset = 2
+  size = 2
+  meaning = "Window 2's edges as one word, the left in the low byte"
+
+[[var]]
+name = "battle_window_top_lines"
+addr = "7E:C151"
+count = 4
+stride = 4
+index = "line (the four above the first buffer's first)"
+subsystem = "battle"
+meaning = "The top border's lines of the window table, just before battle_window_lines: the window effects that start a line early (the waves, the wipe) write into the last of them"
+source = "game/battle/screen_window.c battle_screen_wave_windows $D1:EEC4, battle_screen_wipe_from_left $D1:EEA5; $D1:F1B0 fills them"
+  [[var.field]]
+  name = "w1"
+  offset = 0
+  size = 2
+  meaning = "Window 1's edges as one word, the left in the low byte"
+  [[var.field]]
+  name = "w2"
+  offset = 2
+  size = 2
+  meaning = "Window 2's edges as one word, the left in the low byte"
 
 [[var]]
 name = "battle_window_line_deltas"
@@ -9238,34 +9285,51 @@ source = "game/battle/screen_window.c battle_screen_move_column_band $D1:FB68, b
 [[var]]
 name = "battle_window_quads"
 addr = "7E:CD0D"
-count = 8
-stride = 2
-index = "coordinate (X0, Y0, X1, Y1, X2, Y2, X3, Y3)"
+count = 16
+index = "coordinate * 2 + quadrilateral (two, their bytes interleaved; the coordinates X0, Y0, X1, Y1, X2, Y2, X3, Y3)"
 subsystem = "battle"
-meaning = "The corners of a window quadrilateral $D1:F9AF rasterizes into the window table (the beam's: its top edge, then its bottom edge)"
-source = "game/battle/screen_window.c battle_screen_draw_beam $D1:EBFF; $D1:F9AF"
+meaning = "The corners of the two window quadrilaterals $D1:F9AF rasterizes into the window table (the beam's: its top edge, then its foot)"
+source = "game/battle/screen_beam.c battle_screen_draw_beam $D1:EBFF, battle_draw_window_quad $D1:F9AF; $CD:2495"
 
 [[var]]
-name = "battle_screen_motion_direction"
+name = "battle_screen_layer"
 addr = "7E:CA52"
-size = 2
 count = 2
 stride = 0x10
 index = "screen script channel"
 subsystem = "battle"
-meaning = "Direction of the channel's swing: nonzero while its speed grows and its position falls"
-source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
-
-[[var]]
-name = "battle_screen_motion_base"
-addr = "7E:CA54"
-size = 2
-count = 2
-stride = 0x10
-index = "screen script channel"
-subsystem = "battle"
-meaning = "Offset the channel's swing moves around"
-source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
+meaning = "The layer a screen script channel moves, as its commands jitter and swing it; channel 0's position and offset are BG3's moving scroll, used instead of its base scroll in the moving mode"
+source = "game/battle/screen_motion.c battle_screen_jitter $D1:F47C, battle_screen_swing $D1:F559; game/battle/display.c battle_update_scroll_tables_bg3_moving $CD:076C"
+  [[var.field]]
+  name = "swing_rising"
+  offset = 0
+  size = 2
+  meaning = "Nonzero while the channel's swing gathers speed back up the screen; 0 while it slows moving down"
+  [[var.field]]
+  name = "swing_center"
+  offset = 2
+  size = 2
+  meaning = "The vertical offset the swing moves the layer about"
+  [[var.field]]
+  name = "x"
+  offset = 8
+  size = 2
+  meaning = "The layer's position across"
+  [[var.field]]
+  name = "y"
+  offset = 0x0A
+  size = 2
+  meaning = "The layer's position down"
+  [[var.field]]
+  name = "offset_x"
+  offset = 0x0C
+  size = 2
+  meaning = "Offset added to the position across"
+  [[var.field]]
+  name = "offset_y"
+  offset = 0x0E
+  size = 2
+  meaning = "Offset added to the position down, which the swing sets"
 
 [[var]]
 name = "battle_screen_swing_speed"
