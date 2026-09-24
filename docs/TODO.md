@@ -73,14 +73,8 @@ rest waits, is [PLAN.md](PLAN.md).
     accessor: export a `scene_channel_go_to` from `script.c`.
 
 - **What core's rewrite left** (RECOMP.md, "Phase 3a: the controller off the
-  machine" and "Phase 3a: palette animation and the block move"):
-  - `tile_animation.c` (offset arithmetic into the slot records, the
-    transfer's write order spelled out, call sites computed) and `display.c`
-    (the power-on setup as register bytes through the decoders, in the
-    original's order) still read as translation, though neither is on the
-    baseline: both wait for the platform's video setup as values and its write
-    orders in the SNES backend;
-  - `sound_driver.c` reads as translation too, and is not to be rewritten: it
+  machine" and "Phase 3a: the rest of core"):
+  - `sound_driver.c` still reads as translation, and is not to be rewritten: it
     is the original driver's upload protocol, which goes when the C sound
     driver becomes the default (docs/SOUND.md);
   - the controller's button names `battle/nmi.c` and `battle/frame.c` still
