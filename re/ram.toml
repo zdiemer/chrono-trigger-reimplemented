@@ -3527,10 +3527,10 @@ source = "game/core/input.c, input_read_joypad $C2:84EC"
 name = "button_assignments"
 addr = "7E:2993"
 count = 8
-index = "assignment: $2998, $2996, $2997, $2994, $2999, $299A, $2995 and $2993 give bits 0-7 of the remapped byte"
+index = "assignment: which of the game's buttons it stands for, in the order A, B, X, Select, Y, Start, R, L"
 subsystem = "core"
 meaning = "The player's button assignments: each a mask of buttons that must all be down to set one bit of the remapped buttons"
-source = "game/core/input.c, input_map_buttons $C2:8545 (map_button_byte $C2:8555)"
+source = "game/core/input.c, input_map_buttons $C2:8545"
 
 [[var]]
 name = "play_time"

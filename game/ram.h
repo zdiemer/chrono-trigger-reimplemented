@@ -330,8 +330,8 @@
 #define RAM_PARTY_MEMBERS_COUNT 3u
 #define RAM_PARTY_MEMBERS_STRIDE 0x01u
 /* The player's button assignments: each a mask of buttons that must all be down to set one bit
- * of the remapped buttons [8 x $1 bytes, by assignment: $2998, $2996, $2997, $2994, $2999,
- * $299A, $2995 and $2993 give bits 0-7 of the remapped byte] */
+ * of the remapped buttons [8 x $1 bytes, by assignment: which of the game's buttons it stands
+ * for, in the order A, B, X, Select, Y, Start, R, L] */
 #define RAM_BUTTON_ASSIGNMENTS 0x7E2993u
 #define RAM_BUTTON_ASSIGNMENTS_COUNT 8u
 #define RAM_BUTTON_ASSIGNMENTS_STRIDE 0x01u

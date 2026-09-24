@@ -424,7 +424,7 @@ enum { PARTY_MEMBERS_COUNT = 3 };   /* by party slot */
 uint8_t party_members(const GameState *g, unsigned slot);
 void set_party_members(GameState *g, unsigned slot, uint8_t v);
 
-enum { BUTTON_ASSIGNMENTS_COUNT = 8 };   /* by assignment: $2998, $2996, $2997, $2994, $2999, $299A, $2995 and $2993 give bits 0-7 of the remapped byte */
+enum { BUTTON_ASSIGNMENTS_COUNT = 8 };   /* by assignment: which of the game's buttons it stands for, in the order A, B, X, Select, Y, Start, R, L */
 /* The player's button assignments: each a mask of buttons that must all be down to set one bit
  * of the remapped buttons */
 uint8_t button_assignments(const GameState *g, unsigned i);

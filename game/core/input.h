@@ -19,7 +19,7 @@ enum {
 };
 
 /* The sets kept through the player's button assignments (input_mapped). */
-enum { ASSIGNED_PRESSED, ASSIGNED_HELD, ASSIGNED_REPEATING };
+typedef enum { ASSIGNED_PRESSED, ASSIGNED_HELD, ASSIGNED_REPEATING } AssignedSet;
 
 /* The buttons (PadBits) that, held together and alone, reset the console, from any mode that
  * reads the controller (the scenes check them too, scene/frame.c). */

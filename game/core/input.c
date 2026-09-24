@@ -53,12 +53,12 @@ static Buttons in_game_order(PadBits pad)
     return buttons;
 }
 
-/* Buttons held from one frame to the next repeat when the repeat countdown
- * runs out, and the countdown starts again from the repeat delay the mode has
+/* A frame of the repeat countdown, returning the buttons that repeat on it.
+ * Buttons held from one frame to the next repeat when the countdown runs out, and the countdown starts again from the repeat delay the mode has
  * set; with no button held through, it waits from the start. The countdown is
  * a byte: one that is already out when buttons are held runs 256 frames, as the
  * original's does. */
-static Buttons repeating(GameState *g, Buttons held_through)
+static Buttons advance_repeat(GameState *g, Buttons held_through)
 {
     if (held_through) {
         uint8_t left = (uint8_t)(input_repeat_countdown(g) - 1);
@@ -91,19 +91,15 @@ static ControllerRead read_controller(GameState *g, Platform *pf)
         return CONTROLLER_RESET;
     Buttons pressed = (Buttons)(held & ~before);
     set_input_pressed(g, pressed);
-    set_input_repeat(g, (Buttons)(pressed | repeating(g, (Buttons)(held & before))));
+    set_input_repeat(g, (Buttons)(pressed | advance_repeat(g, (Buttons)(held & before))));
     return CONTROLLER_READ;
 }
 
 /* ---- The player's button assignments ------------------------------------------------------------ */
 
-/* Which of the game's buttons each assignment stands for. */
-static const struct {
-    uint8_t assignment;
-    Buttons stands_for;
-} ASSIGNED_BUTTONS[] = {
-    { 0, BUTTON_A }, { 1, BUTTON_B }, { 2, BUTTON_X },     { 3, BUTTON_SELECT },
-    { 4, BUTTON_Y }, { 5, BUTTON_START }, { 6, BUTTON_R }, { 7, BUTTON_L },
+/* Which of the game's buttons each of the eight assignments stands for. */
+static const Buttons ASSIGNMENT_STANDS_FOR[] = {
+    BUTTON_A, BUTTON_B, BUTTON_X, BUTTON_SELECT, BUTTON_Y, BUTTON_START, BUTTON_R, BUTTON_L,
 };
 
 /* The direction pad isn't assigned: its byte of a set passes through whole. */
@@ -115,10 +111,11 @@ enum { DIRECTION_PAD_BYTE = 0xFF00 };
 static Buttons through_assignments(const GameState *g, Buttons buttons)
 {
     Buttons assigned = buttons & DIRECTION_PAD_BYTE;
-    for (unsigned i = 0; i < sizeof ASSIGNED_BUTTONS / sizeof ASSIGNED_BUTTONS[0]; i++) {
-        Buttons group = button_assignments(g, ASSIGNED_BUTTONS[i].assignment);
+    for (unsigned assignment = 0; assignment < sizeof ASSIGNMENT_STANDS_FOR / sizeof ASSIGNMENT_STANDS_FOR[0];
+         assignment++) {
+        Buttons group = button_assignments(g, assignment);
         if ((buttons & group) == group)
-            assigned |= ASSIGNED_BUTTONS[i].stands_for;
+            assigned |= ASSIGNMENT_STANDS_FOR[assignment];
     }
     return assigned;
 }
@@ -215,7 +212,9 @@ static void stop_reading(Snes *s, ControllerRead read)
 }
 
 // $C2:84EC
-/* It comes back with 16-bit A and 8-bit index registers. */
+/* Called once a frame, from input_update or from the per-frame work at
+ * $C2:8473, which reads the second controller as well. It comes back with
+ * 16-bit A and 8-bit index registers. */
 void input_read_joypad(Snes *s)
 {
     on_controller_page(s);

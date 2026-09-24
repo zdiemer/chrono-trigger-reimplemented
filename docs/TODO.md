@@ -83,9 +83,8 @@ rest waits, is [PLAN.md](PLAN.md).
     call sites computed), `display.c` (the power-on setup as register bytes
     through the decoders, in the original's order) and `memory.c` (the block
     move stub as `m_mvn`);
-  - the button names other subsystems still define privately: `event/input.c`
-    (the game's order, `core/input.h`'s `BUTTON_*`), `battle/nmi.c` and
-    `battle/frame.c` (the controller's, `platform/input.h`'s `IN_BUTTON_*`).
+  - the controller's button names `battle/nmi.c` and `battle/frame.c` still
+    define privately (`platform/input.h`'s `IN_BUTTON_*`).
 
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
   machine"):
