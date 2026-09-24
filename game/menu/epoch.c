@@ -1,2212 +1,1974 @@
-/* Menu mode: the Epoch's two Mode 7 screens, and the End of Time's gate.
+/* The Epoch: its two Mode 7 screens, and where it may fly.
  *
- * Both Epoch screens run in the menus' sprite-object mode (the one started at
- * $C2:0000, game/menu/objects.c): they blank the screen, build a Mode 7 plane
- * in VRAM, put one object in a slot to drive it, and then loop on the frame
- * task until the mode byte at $027C changes.
+ * Both screens run in the sprite-object mode (menu/object.h): each blanks
+ * the screen, builds a Mode 7 plane, starts the objects that drive it, and
+ * then runs frame after frame until the menus' mode leaves it.
  *
- * - **The map view** ($C2:631F), opened while flying the Epoch. It packs the
- *   world map's tiles into one colour each, builds the Mode 7 plane from them
- *   and turns the plane under a cursor that walks a fixed path; markers show
- *   the party, the Epoch and the map it would land on. Its one per-line effect
- *   is a blue gradient down the screen.
- * - **The time dial** ($C2:6A34), the Epoch's time-travel screen. The gate is a
- *   triangle spun by a Mode 7 matrix that changes every line, cut out of the
- *   screen by window 1 whose edges change every line too; seven digit objects
- *   show the periods and the background drifts behind them.
+ * - **The map view** ($C2:631F), opened while the Epoch flies. It draws the
+ *   world map the party is on as a small Mode 7 picture, a pixel a map tile
+ *   across and two down (draw_map_picture), and a cursor object walks a fixed
+ *   path out and back, turning and zooming the picture as it goes
+ *   (map_view_cursor). Markers show where the party stands, where the Epoch is
+ *   parked and where it would land; the fixed colour's blue steps down the
+ *   screen behind it (map_view_gradient).
+ * - **The time dial** ($C2:6A34), where the Epoch travels in time. The gate is
+ *   a triangle cut out of the screen by window 1, whose edges are drawn line
+ *   by line as the gate turns (draw_gate_window); the picture behind it spins
+ *   through a Mode 7 matrix that changes every line (gate_spin). The player
+ *   turns the dial through seven periods, each a location to travel to, and
+ *   seven digit objects show the period the dial stands at.
  *
- * The two share their helpers -- the signed multiply and divide their matrices
- * need, and the object-script routines that place and move markers -- so they
- * are one file. Everything they put on the screen goes through the video
- * service; what they write through the work RAM port and compute with the
- * multiplier and divider is memory and arithmetic, which ports reach directly.
- */
+ * What they put on the screen goes through the video service. Their objects'
+ * state is kept in their slots (menu/object.h), and their per-line tables in
+ * the mode's line-effect slots (menu/line_effects.h). The original also leaves
+ * working values in the mode's direct-page cells, the multiplier, the divider
+ * and the work RAM port; this port computes in C and leaves those as
+ * scaffolding, once, at the end of each routine (the leave_* functions).
+ *
+ * The screens call routines of the menus that are still the original's
+ * (clearing VRAM, resetting the mode, waiting for a frame, the graphics
+ * loader and the decompressor); those calls are made from bridges on the
+ * machine, at the original's call sites. */
 #include "menu/epoch.h"
 
+#include "charge.h"
+#include "cpu_io.h"
+#include "menu/line_effects.h"
+#include "menu/menu_data.h"
+#include "menu/object.h"
+#include "menu/sprites.h"
+#include "menu/vram.h"
+#include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
+#include "port/native.h"
+#include "port/vars_ram.h"
 #include "ram.h"
+#include "sound/sound.h"
+#include "vars.h"
+#include "wram.h"
 
-/* The work RAM data port and its address register: memory access, not video
- * (docs/PLATFORM.md), so ports reach it directly. */
-enum { WRAM_PORT = 0x2180, WRAM_ADDR = 0x2181, WRAM_ADDR_BANK = 0x2183 };
+/* ---- What both screens use ---------------------------------------------------------------- */
 
-/* The multiplier and divider, which ports may use as the original does. */
-enum { MUL_A = 0x4202, MUL_B = 0x4203, DIV_LOW = 0x4204, DIV_HIGH = 0x4205,
-       DIVISOR = 0x4206, QUOTIENT = 0x4214, PRODUCT = 0x4216 };
+/* A sine wave of 1024 steps a turn, its values -255 to 255: the menus' wave
+ * table's size at the step, below zero in the second half of the turn. */
+enum { SINE_STEPS = 0x400, HALF_TURN = 0x200, QUARTER_TURN = 0x100, EIGHTH_TURN = 0x80 };
 
-/* The mode uploads over DMA channel 7. Its per-line slots: 1 for the gradient
- * or the window, and 2-5 for the four Mode 7 matrix values. */
-enum { MENU_DMA = 7 };
-enum { DMA_ONE_REGISTER = 0x00, DMA_WORDS = 0x01 };
-enum { EFFECT_SLOT = 1, MATRIX_A_SLOT = 2, MATRIX_B_SLOT = 3, MATRIX_C_SLOT = 4,
-       MATRIX_D_SLOT = 5 };
-enum { EFFECT_SLOT_BIT = 1u << EFFECT_SLOT, MATRIX_SLOT_BITS = 0x3C };
-
-/* The VRAM port settings these screens upload with: stepping after the high
- * byte (a whole word, or the high bytes alone), and after the low byte for an
- * upload that writes the low bytes alone. */
-static const VidVramPort high_port = { .step = 1, .after_high = true };
-static const VidVramPort low_port = { .step = 1, .after_high = false };
-
-/* ---- the screens' own work RAM ---------------------------------------------------------- */
-
-enum {
-    LOAD_REQUEST = (uint16_t)RAM_ABS(RAM_MENU_LOAD_REQUEST),
-    OBJECTS_FROZEN = (uint16_t)RAM_ABS(RAM_MENU_OBJECTS_FROZEN),
-    MAP_GRAPHICS = (uint16_t)RAM_ABS(RAM_MENU_MAP_GRAPHICS),
-    MODE7_PLANE = (uint16_t)RAM_ABS(RAM_MENU_MODE7_PLANE),
-    GATE_TILES = (uint16_t)RAM_ABS(RAM_MENU_GATE_TILES),
-    GATE_PALETTE = (uint16_t)RAM_ABS(RAM_MENU_LOADED_PALETTE),
-    GATE_PALETTE_COPY = (uint16_t)RAM_ABS(RAM_MENU_GATE_PALETTE_COPY),
-    /* The one colour the screen sets to white before the palette goes out. */
-    GATE_PALETTE_WHITE = (uint16_t)RAM_ABS(RAM_MENU_LOADED_PALETTE) + 2 * 0xD1,
-    /* $C2:7321: which source row each of the gate's tilemap rows takes. */
-    GATE_TILE_ROWS = 0x7321,
-    /* The sprite object mode's palette, which its vblank handler uploads to
-     * CGRAM ($C2:01AD), and colour $80, where the map view patches in the
-     * sixteen colours of the map it packed. */
-    OBJECT_PALETTE = (uint16_t)RAM_ABS(RAM_MENU_OBJECT_PALETTE),
-    OBJECT_PALETTE_PATCH = (uint16_t)RAM_ABS(RAM_MENU_OBJECT_PALETTE) + 2 * 0x80,
-};
-
-/* The per-line tables the time dial reads, in the mode's buffer space. Each is
- * two entries of 112 lines, the second LINE_HALF bytes on, and the matrix ones
- * are double-buffered so a frame rebuilds one while the other runs. */
-enum {
-    WINDOW_TABLE_A = (uint16_t)RAM_ABS(RAM_MENU_OBJECT_WAVE_SCROLL),
-    WINDOW_TABLE_B = 0x8DF6,
-    MATRIX_COS_A = 0x9176, MATRIX_SIN_A = 0x9796,
-    MATRIX_COS_B = 0x9416, MATRIX_SIN_B = 0x9A36,
-    LINE_HALF = 0xE0,        /* where a table's second entry starts */
-    MATRIX_LINES = 0xE0,     /* values a matrix table holds */
-    MATRIX_LAST = 2 * (MATRIX_LINES - 1),   /* the one a frame appends */
-};
-
-/* Where in the mode's direct-page scratch ($00-$1B) each screen keeps its
- * working values; the mode's named cells start at $1C (game/ram.h). */
-enum {
-    CELL_LOW = RAM_MENU_OBJECT_SCRATCH_DP,      /* the pair being packed, the screen centre, a loop's count */
-    CELL_PAIR = 0x02,     /* a corner, a width, the second edge's position */
-    CELL_HEIGHT = 0x04,   /* an edge's height, and a half product */
-    CELL_OUT = 0x05,      /* where the plane's next block goes */
-    CELL_STEP = 0x06,     /* the corners left to place, and the multiply's 8-bit operand at $07 */
-    CELL_A = 0x08,        /* the first operand: a scaled cosine, a VRAM address, a line */
-    CELL_B = 0x0A,        /* the second: a scaled sine, a source address, a line */
-    CELL_C = 0x0C,        /* the third: a zoom, a VRAM address, a table offset */
-    CELL_D = 0x0E,        /* the fourth: a zoom, a map record, the multiply's 16-bit operand */
-    CELL_PTR1 = 0x10,     /* a long pointer, and the matrix's two sign flags */
-    CELL_PTR2 = 0x13,     /* a second long pointer */
-    CELL_PTR3 = 0x16,     /* a third, and the per-line table being rebuilt */
-    CELL_PRODUCT = 0x19,  /* the signed multiply's 24-bit product, and a count */
-    /* Where the map has its top-left tile, from the second of its planes;
-     * $C2:2720 sets the first two planes to the same tile. */
-    MAP_ORIGIN_X = RAM_MENU_MAP_COLUMN_DP + RAM_MENU_MAP_COLUMN_STRIDE,
-    MAP_ORIGIN_Y = RAM_MENU_MAP_ROW_DP + RAM_MENU_MAP_ROW_STRIDE,
-};
-
-/* Shadow display bytes, reached on the menus' page. */
-enum {
-    SHADOW_BG_MODE = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_BG_MODE),
-    SHADOW_SCROLL_X = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_SCROLL_X),
-    SHADOW_SCROLL_Y = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_SCROLL_Y),
-    SHADOW_MATRIX = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_MODE7_MATRIX),
-    SHADOW_CENTER = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_MODE7_CENTER),
-    SHADOW_WINDOWS = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_WINDOWS),
-    SHADOW_MAIN_WINDOW_MASK = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_MAIN_WINDOW_MASK),
-    SHADOW_SUB_WINDOW_MASK = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_SUB_WINDOW_MASK),
-    SHADOW_MATH_CONTROL = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_MATH_CONTROL),
-    SHADOW_MATH_LAYERS = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_MATH_LAYERS),
-    SHADOW_FIXED_BLUE = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_FIXED_BLUE),
-    SHADOW_FIXED_RED = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_FIXED_RED),
-    SHADOW_FIXED_GREEN = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_FIXED_GREEN),
-    /* BG3's scroll, which both screens drift and the wave drives per line. */
-    SHADOW_BG3_X = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_SCROLL_X) + 4,
-    SHADOW_BG3_Y = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_SHADOWS_SCROLL_Y) + 4,
-    DISPLAY = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_DISPLAY),
-    LINE_EFFECTS = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_LINE_EFFECTS),
-    FRAME_STATE = (uint8_t)RAM_ABS(RAM_MENU_OBJECT_FRAME_STATE),
-};
-
-/* ---- direct page and object slots ------------------------------------------------------ */
-
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
-
-/* An object slot's fields, at the slot address the mode keeps in $4E. The
- * original reaches them as `field,X` through the data bank, so the sum wraps in
- * 16 bits. */
-enum {
-    OBJ_STEP = 0x02,      /* which of the handler's steps runs next */
-    OBJ_SCRIPT = 0x0B,    /* long pointer to the sprite script */
-    OBJ_SCRIPT_STATE = 0x0E,
-    OBJ_SPRITE = 0x0F,
-    OBJ_FRACTION = 0x10,
-    OBJ_X = 0x14,         /* the dial's object keeps the angle it turns to here */
-    OBJ_Y = 0x18,         /* and the angle it stands at here */
-    OBJ_VELOCITY = 0x1A,  /* 32-bit horizontal, then 32-bit vertical at $1E */
-    OBJ_TURN = 0x20,      /* how far the dial turns each frame, signed */
-    OBJ_PARAMETER = 0x22, /* the angle, the period, or the step the handler counts */
-    OBJ_ZOOM = 0x24,      /* the map view's two zooms, and the path step it has reached at $28 */
-    OBJ_PATH_AT = 0x28,
-};
-
-static uint16_t object(Snes *s) { return m_read16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP)); }
-static uint32_t field_at(Snes *s, uint16_t slot, uint8_t field)
+static int16_t sine(const GameState *g, uint16_t phase)
 {
-    return m_abs(s, (uint16_t)(field + slot));
+    uint16_t step = phase & (SINE_STEPS - 1);
+    int16_t size = menu_wave_size(g, step);
+    return step >= HALF_TURN ? (int16_t)-size : size;
 }
-static uint8_t field8(Snes *s, uint16_t slot, uint8_t f) { return m_read8(s, field_at(s, slot, f)); }
-static void set_field8(Snes *s, uint16_t slot, uint8_t f, uint8_t v) { m_write8(s, field_at(s, slot, f), v); }
-static uint16_t field16(Snes *s, uint16_t slot, uint8_t f) { return m_read16(s, field_at(s, slot, f)); }
-static void set_field16(Snes *s, uint16_t slot, uint8_t f, uint16_t v) { m_write16(s, field_at(s, slot, f), v); }
+static int16_t cosine(const GameState *g, uint16_t phase) { return sine(g, (uint16_t)(phase + QUARTER_TURN)); }
 
-/* An object handler's dispatch: its step doubled, which the jump table needs
- * and which the handler's paths keep in X until they load the slot again. */
-static uint8_t dispatch_step(Snes *s)
+/* The mode's work RAM bank, where its buffers are. */
+enum { WORK_RAM_BANK = 0x7E, EXTRA_RAM_BANK = 0x7F };
+static uint32_t in_work_ram(uint16_t at) { return (uint32_t)WORK_RAM_BANK << 16 | at; }
+
+/* The Mode 7 layer's pixels and tile numbers share VRAM words: a tile's 64
+ * pixels are a byte each in the high halves of its 64 words, and the plane's
+ * 128 by 128 tile numbers the low halves of the first 16384. */
+enum { MODE7_TILE_PIXELS = 64, MODE7_MAP_ROW = 128 };
+
+/* How VRAM steps as the screens' uploads go: a word at a time, stepping
+ * after its high byte, or (the plane's tile numbers, the low halves alone)
+ * after its low byte. */
+static const VidVramPort after_high = { .step = 1, .after_high = true };
+static const VidVramPort after_low = { .step = 1, .after_high = false };
+
+/* The mode's frame: bit 0 has the vblank handler send the frame and run the
+ * objects, bit 1 send the palette too. */
+enum { SEND_FRAME_AND_PALETTE = 0x03 };
+
+/* The screens' display, as the mode's shadows hold it. */
+enum { MODE_7 = 0x07, MENU_BG_MODE = 0x09 };
+
+static void set_mode7_matrix(GameState *g, int16_t a, int16_t b, int16_t c, int16_t d)
 {
-    uint8_t step = m_read8(s, field_at(s, s->cpu.x, OBJ_STEP));
-    m_tdc(s);
-    m_lda8(s, step);
-    m_set_a8(s, m_asl8(s, step));
-    m_tax(s);
-    return step;
-}
-
-/* Guards. Both screens run on the menus' page with the data bank on the I/O
- * banks, which is what lets their slot and shadow accesses be named. */
-bool menu_epoch_page_is_menu(Snes *s) { return s->cpu.d == RAM_PAGE_MENU && s->cpu.db == 0x00; }
-bool menu_epoch_bank_is_menu(Snes *s) { return s->cpu.db == 0x00; }
-
-/* ---- the screens' data in the ROM ------------------------------------------------------ */
-
-/* $C2:69F0, by location less $1F0: the graphics set the map view loads. The
- * original reads a word at the byte index, so the set is its low byte. */
-static uint16_t map_graphics_set(Snes *s, uint16_t index) { return m_read16(s, 0xC269F0 + index); }
-
-/* $C6:F560 and $C6:F5A0: where the cursor stands at each step of its path. */
-static uint16_t cursor_path_x(Snes *s, uint16_t step) { return m_read16(s, 0xC6F560 + step); }
-static uint16_t cursor_path_y(Snes *s, uint16_t step) { return m_read16(s, 0xC6F5A0 + step); }
-
-/* $C2:68E4, by location less $1F0: where the map view puts the landing marker. */
-static uint16_t landing_marker_x(Snes *s, uint16_t index) { return m_read16(s, 0xC268E4 + index); }
-
-/* $C6:F700: two of the gate plane's pixels per byte, a colour in each nibble. */
-static uint8_t gate_plane_nibbles(Snes *s, uint16_t i) { return m_read8(s, 0xC6F700 + i); }
-
-/* $C6:F640: four words of velocity for the marker kind a script names. */
-static uint16_t marker_velocity(Snes *s, uint16_t index, uint16_t word)
-{
-    return m_read16(s, 0xC6F640 + index + 2 * word);
-}
-
-/* $C2:6C97 and $C2:6CA5: the locations the time dial travels to, seven each,
- * the second set once the story has passed $1BA6 = $CC. */
-static uint16_t period_table(Snes *s)
-{
-    return m_read8(s, RAM_MENU_STORY_PROGRESS) < 0xCC ? 0x6C97 : 0x6CA5;
-}
-static uint16_t period_location(Snes *s, uint16_t table, uint16_t index)
-{
-    return m_read16(s, 0xC20000 | (uint16_t)(table + index));
-}
-
-/* $C2:6CB3: the angle the gate stands at for each period. */
-static uint16_t period_angle(Snes *s, uint16_t index) { return m_read16(s, 0xC26CB3 + index); }
-
-/* $C2:6F2D: the gate triangle's three corners, a signed pair each. */
-static uint8_t gate_corner(Snes *s, uint16_t i) { return m_read8(s, 0xC26F2D + i); }
-
-/* $C2:71DD, $C2:71EB and $C2:71EC: a digit object's place on the dial, and the
- * scripts that show and hide it. */
-static uint8_t digit_x(Snes *s, uint16_t index) { return m_read8(s, 0xC271DD + index); }
-static uint8_t digit_y(Snes *s, uint16_t index) { return m_read8(s, 0xC271DE + index); }
-static uint8_t digit_show_script(Snes *s, uint16_t index) { return m_read8(s, 0xC271EB + index); }
-static uint8_t digit_hide_script(Snes *s, uint16_t index) { return m_read8(s, 0xC271EC + index); }
-
-/* $C2:7220: the compressed streams the gate screen loads, a source word and a
- * destination word each. */
-static uint16_t gate_stream_source(Snes *s, uint16_t index) { return m_read16(s, 0xC27220 + index); }
-static uint16_t gate_stream_dest(Snes *s, uint16_t index) { return m_read16(s, 0xC27222 + index); }
-
-/* $C2:72B8: the sixteen VRAM rows the gate's tiles go to. */
-static uint16_t gate_tile_row(Snes *s, uint16_t index) { return m_read16(s, 0xC272B8 + index); }
-
-/* $C0:F900: a half sine wave, 10 bits of phase, the upper half negated. */
-static uint16_t sine(Snes *s, uint16_t phase)
-{
-    uint16_t index = (uint16_t)(phase & 0x03FF);
-    uint16_t v = (uint16_t)(m_read16(s, 0xC0F900 + index) & 0x00FF);
-    return index >= 0x0200 ? (uint16_t)(0 - v) : v;
-}
-static uint16_t cosine(Snes *s, uint16_t phase) { return sine(s, (uint16_t)(phase + 0x0100)); }
-
-/* $C0:FE00 through the counter at $1B30: the menus' random bytes. */
-static uint8_t next_random(Snes *s)
-{
-    uint8_t at = m_read8(s, RAM_MENU_RANDOM_INDEX);
-    uint8_t v = m_read8(s, 0xC0FE00 + at);
-    m_write8(s, RAM_MENU_RANDOM_INDEX, (uint8_t)(at + 1));
-    return v;
-}
-
-/* ---- arithmetic ------------------------------------------------------------------------- */
-
-/* A 16-bit addition with the carry in, and the flags ADC leaves. */
-typedef struct { bool carry, overflow; } Sum;
-
-static uint16_t add16(Sum *f, uint16_t a, uint16_t b)
-{
-    uint32_t sum = (uint32_t)a + b + (f->carry ? 1 : 0);
-    f->carry = sum > 0xFFFF;
-    f->overflow = (~(a ^ b) & (a ^ sum) & 0x8000) != 0;
-    return (uint16_t)sum;
-}
-
-static uint16_t sub16(Sum *f, uint16_t a, uint16_t b) { return add16(f, a, (uint16_t)~b); }
-
-/* ASL repeated, leaving the carry the last shift put out (the original adds
- * with it). */
-static uint16_t asl16(Sum *f, uint16_t v, int times)
-{
-    for (int i = 0; i < times; i++) {
-        f->carry = (v & 0x8000) != 0;
-        v = (uint16_t)(v << 1);
+    const int16_t m[4] = { a, b, c, d };
+    for (unsigned i = 0; i < 4; i++) {
+        set_menu_object_shadows_mode7_matrix_byte(g, 2 * i, (uint8_t)m[i]);
+        set_menu_object_shadows_mode7_matrix_byte(g, 2 * i + 1, (uint8_t)((uint16_t)m[i] >> 8));
     }
-    return v;
 }
 
-/* LSR repeated, likewise: the original adds with the last bit shifted out. */
-static uint16_t lsr16(Sum *f, uint16_t v, int times)
+/* The original's direct-page cells ($00-$1B), as the leave_* functions put
+ * what it leaves there. */
+static void leave_cell8(GameState *g, unsigned cell, uint8_t v) { set_menu_object_scratch_bytes_byte(g, cell, v); }
+static void leave_cell16(GameState *g, unsigned cell, uint16_t v)
 {
-    for (int i = 0; i < times; i++) {
-        f->carry = (v & 1) != 0;
-        v = (uint16_t)(v >> 1);
+    leave_cell8(g, cell, (uint8_t)v);
+    leave_cell8(g, cell + 1, (uint8_t)(v >> 8));
+}
+
+/* The world maps count from the first's location. */
+static uint16_t world_map(const GameState *g) { return (uint16_t)((location_id(g) & 0x01FF) - MENU_FIRST_WORLD_MAP); }
+static uint16_t location_here(const GameState *g) { return location_id(g) & 0x01FF; }
+
+/* ---- The map view: its picture -------------------------------------------------------------- */
+
+/* A world map tile's colour on the view is the colour of one of its pixels,
+ * the fourth across and third down: its four bitplanes' bits there, the
+ * fourth plane's the highest. */
+enum { TILE_BYTES = 32, SAMPLED_BIT = 0x10 };
+static const uint8_t sampled_planes[4] = { 0x15, 0x14, 0x05, 0x04 };
+enum { WORLD_MAP_TILES = MENU_WORLD_MAP_TILES_COUNT };
+
+// $C2:6400, $C2:6453
+/* Every world map tile's colour on the view. The original writes them
+ * through the work RAM port. */
+static void sample_map_colours(GameState *g)
+{
+    for (unsigned tile = 0; tile < WORLD_MAP_TILES; tile++) {
+        uint8_t colour = 0;
+        for (unsigned plane = 0; plane < 4; plane++)
+            colour = (uint8_t)(colour << 1 | ((menu_world_map_tiles_byte(g, tile, sampled_planes[plane]) & SAMPLED_BIT) != 0));
+        set_menu_map_colours(g, tile, colour);
     }
-    return v;
+    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(RAM_MENU_MAP_COLOURS + WORLD_MAP_TILES), WORK_RAM_BANK));
 }
 
-static uint8_t add8(Sum *f, uint8_t a, uint8_t b)
-{
-    uint16_t sum = (uint16_t)(a + b + (f->carry ? 1 : 0));
-    f->carry = sum > 0xFF;
-    return (uint8_t)sum;
-}
-
-static uint8_t sub8(Sum *f, uint8_t a, uint8_t b) { return add8(f, a, (uint8_t)~b); }
-
-/* The divider as the original drives it: a 16-bit dividend over an 8-bit
- * divisor, the quotient read back. The original spaces its divides with NOPs
- * for the divider's latency; nothing here has to. */
-static uint16_t divide(Snes *s, uint16_t dividend, uint8_t divisor)
-{
-    m_write16(s, m_abs(s, DIV_LOW), dividend);
-    m_write8(s, m_abs(s, DIVISOR), divisor);
-    return m_read16(s, m_abs(s, QUOTIENT));
-}
-
-/* ---- uploads ---------------------------------------------------------------------------- */
-
-/* STX $2116 : STA $2115 : STX $4370 : STX $4372 : STA $4374 : STX $4375 :
- * STA $420B -- the order most of these uploads program the channel in. */
-static const uint8_t upload_steps[] = {
-    VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_VRAM_PORT, VID_STEP_CONTROL,
-    VID_STEP_DEST,      VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-    VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-};
-static const VidSnesXfer word_upload = { MENU_DMA, DMA_WORDS, upload_steps, &high_port };
-static const VidSnesXfer pixel_upload = { MENU_DMA, DMA_ONE_REGISTER, upload_steps, &high_port };
-static const VidSnesXfer tile_upload = { MENU_DMA, DMA_ONE_REGISTER, upload_steps, &low_port };
-
-/* STY $43x0 : STY $43x2 : STA $43x4 : STA $43x7 -- how both screens program a
- * per-line slot: no size, since HDMA counts the table's own lines. */
-static const uint8_t line_effect_steps[] = {
-    VID_STEP_CONTROL,     VID_STEP_DEST,          VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-    VID_STEP_SOURCE_BANK, VID_STEP_INDIRECT_BANK, VID_STEP_END,
+/* The picture is 96 pixels across, a map tile's column each, and 128 down,
+ * two a map row; it is built in the mode's upload buffer four map rows (a
+ * row of Mode 7 tiles, twelve) at a time and sent to the plane's tiles from
+ * tile 1. */
+enum {
+    MAP_COLUMNS = 96, MAP_ROWS = 64,
+    PICTURE_TILES_ACROSS = MAP_COLUMNS / 8, PICTURE_TILES_DOWN = 2 * MAP_ROWS / 8,
+    TILE_ROW_BYTES = PICTURE_TILES_ACROSS * MODE7_TILE_PIXELS,
+    MAP_ROWS_A_TILE_ROW = 4, FIRST_PICTURE_TILE = 1,
 };
 
-/* ---- the map view ($C2:631F) ------------------------------------------------------------ */
+/* A map tile is drawn from its tile group's right-hand tiles (the group's
+ * top right and bottom right words): each one's colour in its palette, so
+ * the pixel is the CGRAM entry. A colour of 0 draws nothing, and leaves what
+ * is under it. */
+enum { GROUP_BYTES = 8, TOP_RIGHT = 2, BOTTOM_RIGHT = 6, TILE_NUMBER = 0x03FF, PALETTE_BITS = 0x1C00 };
+enum { BLACK = 0 };
 
-// $C2:6400, with $C2:6453
-/* Pack the world map's tiles at $7F:9000 into one colour each at $7E:AB25,
- * through the work RAM port: bit 4 of four of every tile's 32 bytes says which
- * of its quarters is land. */
-static void pack_map_rows(Snes *s)
+typedef struct {
+    bool drawn;
+    uint8_t pixel;
+} MapPixel;
+
+/* Some colours aren't shown, and come out black: on one of the world maps
+ * those of its fifth palette, on the rest a handful of its first three. */
+enum { MAP_WITH_ITS_OWN_BLACKS = 0x01F3 };
+static bool shown(const GameState *g, uint8_t pixel)
 {
-    static const uint16_t quarters[4] = { 0x15, 0x14, 0x05, 0x04 };
-    m_write16(s, m_abs(s, WRAM_ADDR), RAM_ABS(RAM_MENU_MAP_COLOURS));
-    m_write8(s, m_abs(s, WRAM_ADDR_BANK), (uint8_t)(RAM_MENU_MAP_COLOURS >> 16));
-    uint8_t outer_bank = s->cpu.db;
-    /* From here on the data bank is on the map's own, so the port is reached
-     * long, as the original reaches it. */
-    s->cpu.db = 0x7F;
-    for (uint16_t tile = 0; tile < 0x0380; tile++) {
-        uint16_t row = (uint16_t)(MODE7_PLANE + (tile << 5));
-        set_dp16(s, CELL_PTR1, row);
-        uint8_t packed = 0;
-        set_dp8(s, CELL_LOW, 0);
-        for (int i = 0; i < 4; i++) {
-            uint8_t byte = m_read8(s, (uint32_t)m_abs(s, row) + quarters[i]);
-            packed = (uint8_t)(packed << 1 | ((byte >> 4) & 1));
-            set_dp8(s, CELL_LOW, packed);
+    if (location_id(g) == MAP_WITH_ITS_OWN_BLACKS)
+        return !(pixel >= 0x40 && pixel < 0x4F);
+    return !(pixel == 0x0F || pixel == 0x2F || (pixel >= 0x24 && pixel < 0x2C));
+}
+
+static uint16_t group_word(const GameState *g, uint16_t group, unsigned corner)
+{
+    return wram_read16(g, in_work_ram((uint16_t)(group + corner)));
+}
+
+static uint8_t palette_of(uint16_t word) { return (uint8_t)((word & PALETTE_BITS) >> 6); }
+
+static MapPixel group_pixel(const GameState *g, uint16_t group, unsigned corner, uint8_t palette)
+{
+    uint16_t tile = group_word(g, group, corner) & TILE_NUMBER;
+    uint8_t colour = tile < WORLD_MAP_TILES ? menu_map_colours(g, tile) : menu_map_colours_unchecked(g, tile);
+    if (colour == 0)
+        return (MapPixel){ false, 0 };
+    uint8_t pixel = (uint8_t)(colour | palette);
+    return (MapPixel){ true, shown(g, pixel) ? pixel : BLACK };
+}
+
+/* Where a map tile's pair of pixels goes in the tile row being built. */
+static uint16_t picture_offset(unsigned column, unsigned row)
+{
+    return (uint16_t)((column / 8) * MODE7_TILE_PIXELS + column % 8 + (2 * row % 8) * 8);
+}
+
+static void put_pixel(GameState *g, uint16_t buffer, uint16_t at, MapPixel p)
+{
+    if (p.drawn)
+        wram_write8(g, in_work_ram((uint16_t)(buffer + at)), p.pixel);
+}
+
+/* A map tile's pixels, from one plane's map; says where the tile's group
+ * is. */
+static uint16_t draw_map_tile(GameState *g, uint16_t buffer, uint8_t plane, unsigned column, unsigned row)
+{
+    uint8_t group = wram_read8(g, in_work_ram((uint16_t)(menu_plane_map(g, plane) + row * MAP_COLUMNS + column)));
+    uint16_t record = (uint16_t)(menu_plane_groups(g, plane) + group * GROUP_BYTES);
+    uint16_t at = picture_offset(column, row);
+    /* Both palettes are read before either pixel is drawn: where the buffer
+     * lies over the groups, the first pixel can change the second's tile. */
+    uint8_t top = palette_of(group_word(g, record, TOP_RIGHT));
+    uint8_t bottom = palette_of(group_word(g, record, BOTTOM_RIGHT));
+    put_pixel(g, buffer, at, group_pixel(g, record, TOP_RIGHT, top));
+    put_pixel(g, buffer, (uint16_t)(at + 8), group_pixel(g, record, BOTTOM_RIGHT, bottom));
+    return record;
+}
+
+/* A tile row started: the mode's upload buffer cleared, the first time a
+ * quarter more than a tile row, and its place returned. The original looks
+ * the buffer up again for each row and clears it with a block move. */
+static uint16_t start_tile_row(GameState *g, uint16_t bytes)
+{
+    uint16_t buffer = (uint16_t)menu_object_upload_buffer(g);
+    wram_fill8(g, in_work_ram(buffer), bytes, 0);
+    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+    return buffer;
+}
+
+/* The map's land is its second plane, and the first is drawn over it; one
+ * world map has nothing on its first. */
+enum { LAND_PLANE = 1, OVER_THE_LAND = 0, MAP_WITH_ONE_PLANE = 0x01F5 };
+
+// $C2:645C, $C2:653E, $C2:658E
+/* Draw the picture a tile row at a time and send each to the plane. Returns
+ * where the last tile group it looked at is. */
+static uint16_t draw_map_picture(GameState *g, Platform *pf)
+{
+    uint16_t buffer = start_tile_row(g, TILE_ROW_BYTES + TILE_ROW_BYTES / 3);
+    bool both_planes = location_id(g) != MAP_WITH_ONE_PLANE;
+    uint16_t last_group = 0;
+    for (unsigned row = 0; row < MAP_ROWS; row++) {
+        for (unsigned column = 0; column < MAP_COLUMNS; column++) {
+            last_group = draw_map_tile(g, buffer, LAND_PLANE, column, row);
+            if (both_planes)
+                last_group = draw_map_tile(g, buffer, OVER_THE_LAND, column, row);
         }
-        m_write8(s, WRAM_PORT, packed);
-        set_dp16(s, CELL_A, (uint16_t)(tile + 1));
-    }
-    m_lda16(s, 0x0380);
-    m_cmp16(s, 0x0380, 0x0380);
-    m_sep(s, CPU_FLAG_M);
-    s->cpu.db = outer_bank;
-}
-
-// $C2:658E
-/* Whether a map colour shows at all on this location's map: the Ocean Palace's
- * map ($1F3) keeps only $40-$4E, and every other map drops $0F, $2F and
- * $24-$2B. A dropped tile leaves the direct page's low word, which is 0 here. */
-static uint16_t map_colour_shown(Snes *s, uint16_t colour)
-{
-    uint8_t v = (uint8_t)colour;
-    bool drop = m_read16(s, RAM_LOCATION_ID) == 0x01F3
-                    ? (v >= 0x40 && v < 0x4F)
-                    : (v == 0x0F || v == 0x2F || (v >= 0x24 && v < 0x2C));
-    return drop ? s->cpu.d : colour;
-}
-
-// $C2:653E
-/* One 8x8 block of the map view's plane: the two tiles the map record at $0E
- * names -- its own and the one four rows down -- each looked up in the packed
- * colours and shaded by the record's bits 2-4. */
-static void map_tile_pair(Snes *s)
-{
-    uint32_t record = m_abs(s, dp16(s, CELL_D));
-    uint8_t top_shade = (uint8_t)((m_read8(s, record + 3) & 0x1C) << 2);
-    set_dp8(s, CELL_LOW, top_shade);
-    uint8_t bottom_shade = (uint8_t)((m_read8(s, record + 7) & 0x1C) << 2);
-    set_dp8(s, (uint8_t)(CELL_LOW + 1), bottom_shade);
-
-    uint16_t top = (uint16_t)(m_read16(s, record + 2) & 0x03FF);
-    uint8_t colour = m_read8(s, RAM_MENU_MAP_COLOURS + top);
-    if (colour != 0) {
-        uint16_t shown = map_colour_shown(s, (uint16_t)((s->cpu.a & 0xFF00) | (colour | top_shade)));
-        m_write8(s, m_abs(s, dp16(s, CELL_OUT)), (uint8_t)shown);
-    }
-    uint16_t bottom = (uint16_t)(m_read16(s, record + 6) & 0x03FF);
-    colour = m_read8(s, RAM_MENU_MAP_COLOURS + bottom);
-    if (colour != 0) {
-        uint16_t shown = map_colour_shown(s, (uint16_t)((s->cpu.a & 0xFF00) | (colour | bottom_shade)));
-        m_write8(s, (uint32_t)m_abs(s, dp16(s, CELL_OUT)) + 8, (uint8_t)shown);
-    }
-}
-
-/* The plane buffer at the long pointer $E0, cleared through the block move that
- * propagates its first bytes, as the original clears it. */
-static void clear_plane_buffer(Snes *s, uint16_t count, bool word)
-{
-    Cpu *c = &s->cpu;
-    uint16_t buffer = dp16(s, RAM_MENU_OBJECT_UPLOAD_BUFFER_DP);
-    set_dp16(s, CELL_OUT, buffer);
-    if (word)
-        m_write16(s, m_abs(s, buffer), 0);
-    else
-        m_write8(s, m_abs(s, buffer), 0);
-    m_ldx(s, buffer);
-    m_ldy(s, (uint16_t)(buffer + 1));
-    c->a = count;
-    m_mvn(s, 0x7E, 0x7E);
-}
-
-// $C2:645C
-/* Build the map view's Mode 7 plane: $60 blocks across and $40 rows down, from
- * the two map layers at ($10) and ($13), into the buffer at $E0 and out to the
- * plane's pixels after every four rows. A's high byte on entry is the high byte
- * of the first clear's count, which the caller leaves there. */
-static void build_map_plane(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    uint8_t outer_bank = c->db;
-    c->db = 0x7E;
-    clear_plane_buffer(s, (uint16_t)((c->a & 0xFF00) | 0xFE), false);
-
-    set_dp16(s, CELL_C, 0x0040);
-    for (uint16_t row = 0; row < 0x40; row++) {
-        set_dp16(s, CELL_A, row);
-        for (uint16_t block = 0; block < 0x60; block++) {
-            set_dp16(s, CELL_B, block);
-            uint16_t first =
-                (uint16_t)(((m_read16(s, (uint32_t)m_abs(s, dp16(s, CELL_PTR1)) + block) & 0x00FF) << 3)
-                           + dp16(s, CELL_PTR3));
-            set_dp16(s, CELL_D, first);
-            map_tile_pair(s);
-            if (m_read16(s, RAM_LOCATION_ID) != 0x01F5) {
-                uint16_t second =
-                    (uint16_t)(((m_read16(s, (uint32_t)m_abs(s, dp16(s, CELL_PTR2)) + block) & 0x00FF) << 3)
-                               + dp16(s, CELL_PRODUCT));
-                set_dp16(s, CELL_D, second);
-                map_tile_pair(s);
-            }
-            uint16_t next = (uint16_t)(block + 1);
-            set_dp16(s, CELL_B, next);
-            set_dp16(s, CELL_OUT, (uint16_t)(dp16(s, CELL_OUT) + ((next & 7) ? 1 : 0x39)));
-        }
-        set_dp16(s, CELL_PTR1, (uint16_t)(dp16(s, CELL_PTR1) + 0x60));
-        set_dp16(s, CELL_PTR2, (uint16_t)(dp16(s, CELL_PTR2) + 0x60));
-        set_dp16(s, CELL_OUT, (uint16_t)(dp16(s, CELL_OUT) - 0x02F0));
-        set_dp16(s, CELL_A, (uint16_t)(row + 1));
-        if (((row + 1) & 3) == 0) {
-            /* STA $2116 : STA $4372 : STA $4375 : STA $4370 : STA $2115 :
-             * STA $4374 : STA $420B */
-            static const uint8_t steps[] = {
-                VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-                VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_CONTROL,   VID_STEP_DEST,
-                VID_STEP_VRAM_PORT, VID_STEP_SOURCE_BANK, VID_STEP_START,   VID_STEP_END,
-            };
-            static const VidSnesXfer x = { MENU_DMA, DMA_ONE_REGISTER, steps, &high_port };
-            uint32_t source = (uint32_t)dp8(s, (uint8_t)(RAM_MENU_OBJECT_UPLOAD_BUFFER_DP + 2)) << 16
-                              | dp16(s, RAM_MENU_OBJECT_UPLOAD_BUFFER_DP);
-            vid_upload_vram_half(m_platform(s), PF_AT(0xC264EB), dp16(s, CELL_C), PF_GAME(source), 0x0300,
-                                 VID_VRAM_HIGH_BYTES, &x);
-            clear_plane_buffer(s, 0x02FE, true);
-            set_dp16(s, CELL_C, (uint16_t)(dp16(s, CELL_C) + 0x0300));
+        if ((row + 1) % MAP_ROWS_A_TILE_ROW == 0) {
+            unsigned tile_row = row / MAP_ROWS_A_TILE_ROW;
+            uint16_t first_tile = (uint16_t)(FIRST_PICTURE_TILE + tile_row * PICTURE_TILES_ACROSS);
+            vid_send_vram_half(pf, PF_AT(0xC264EB), (uint16_t)(first_tile * MODE7_TILE_PIXELS),
+                                 PF_GAME(menu_object_upload_buffer(g)), TILE_ROW_BYTES, VID_VRAM_HIGH_BYTES,
+                                 &after_high);
+            buffer = start_tile_row(g, TILE_ROW_BYTES);
         }
     }
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, 0x0040);
-    m_cmp16(s, 0x0040, 0x0040);
-    c->db = outer_bank;
+    return last_group;
 }
+
+/* Where the picture stands on the plane: tile rows 6 down and columns 2 in. */
+enum { PICTURE_ROW = 6, PICTURE_COLUMN = 2, NAME_ROWS_SENT = 32, NAME_TABLE_BYTES = 0x400 };
 
 // $C2:65B2
-/* The map view's Mode 7 name table: a twelve by sixteen block of consecutive
- * tile numbers, six rows down and two columns in, built in $7E:F000 and sent to
- * the tile half of the plane's first 32 rows. */
-static void build_map_names(Snes *s)
+/* Lay the picture's tiles out on the plane: its tile numbers in order,
+ * twelve across and sixteen down, the rest of the plane's corner tile 0,
+ * built in work RAM and sent to the low halves of the plane's first 32
+ * rows. */
+static void place_map_picture(GameState *g, Platform *pf)
 {
-    Cpu *c = &s->cpu;
-    uint8_t outer_bank = c->db;
-    m_write16(s, RAM_MENU_MAP_NAME_TABLE, 0);
-    m_ldx(s, RAM_ABS(RAM_MENU_MAP_NAME_TABLE));
-    m_ldy(s, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + 1));
-    c->a = 0x03FE;
-    m_mvn(s, 0x7E, 0x7E);
+    for (unsigned i = 0; i < NAME_TABLE_BYTES; i++)
+        set_menu_map_name_table(g, i, 0);
+    ORIGINAL_EFFECT(charge_block_move(g, NAME_TABLE_BYTES));
+    uint8_t tile = FIRST_PICTURE_TILE;
+    for (unsigned row = 0; row < PICTURE_TILES_DOWN; row++)
+        for (unsigned column = 0; column < PICTURE_TILES_ACROSS; column++)
+            set_menu_map_name_table(g, (PICTURE_ROW + row) * NAME_ROWS_SENT + PICTURE_COLUMN + column, tile++);
+    for (unsigned row = 0; row < NAME_ROWS_SENT; row++)
+        vid_send_vram_half(pf, PF_AT(0xC2662F), (uint16_t)(row * MODE7_MAP_ROW),
+                           PF_GAME(RAM_MENU_MAP_NAME_TABLE + row * NAME_ROWS_SENT), NAME_ROWS_SENT,
+                           VID_VRAM_LOW_BYTES, &after_low);
+}
 
-    set_dp8(s, CELL_LOW, 2);
-    set_dp8(s, (uint8_t)(CELL_LOW + 1), 6);
-    set_dp16(s, CELL_PTR1, RAM_ABS(RAM_MENU_MAP_NAME_TABLE));
-    m_write8(s, MUL_A, dp8(s, (uint8_t)(CELL_LOW + 1)));
-    m_write8(s, MUL_B, 0x20);
-    Sum f = { false, false };
-    set_dp16(s, CELL_PTR1, add16(&f, dp16(s, CELL_PTR1), m_read16(s, PRODUCT)));
-    f.carry = false;
-    set_dp16(s, CELL_PTR1, add16(&f, dp8(s, CELL_LOW), dp16(s, CELL_PTR1)));
-
-    set_dp8(s, CELL_A, 1);
-    set_dp8(s, CELL_B, 0);
-    for (uint8_t row = 0; row < 0x10; row++) {
-        for (uint16_t col = 0; col < 12; col++) {
-            m_write8(s, (uint32_t)m_abs(s, dp16(s, CELL_PTR1)) + col, dp8(s, CELL_A));
-            set_dp8(s, CELL_A, (uint8_t)(dp8(s, CELL_A) + 1));
-        }
-        f.carry = false;
-        set_dp16(s, CELL_PTR1, add16(&f, dp16(s, CELL_PTR1), 0x0020));
-        set_dp8(s, CELL_B, (uint8_t)(row + 1));
-    }
-    c->db = outer_bank;
-
-    set_dp8(s, CELL_LOW, 0x20);
-    set_dp16(s, CELL_C, 0);
-    set_dp16(s, CELL_B, RAM_ABS(RAM_MENU_MAP_NAME_TABLE));
-    for (int i = 0; i < 0x20; i++) {
-        vid_upload_vram_half(m_platform(s), PF_AT(0xC2662F), dp16(s, CELL_C),
-                             PF_GAME((RAM_MENU_MAP_NAME_TABLE & 0xFF0000) | dp16(s, CELL_B)), 0x0020,
-                             VID_VRAM_LOW_BYTES, &tile_upload);
-        f.carry = false;
-        set_dp16(s, CELL_C, add16(&f, dp16(s, CELL_C), 0x0080));
-        f.carry = false;
-        set_dp16(s, CELL_B, add16(&f, dp16(s, CELL_B), 0x0020));
-        set_dp8(s, CELL_LOW, (uint8_t)(dp8(s, CELL_LOW) - 1));
-    }
-    m_sep(s, CPU_FLAG_M);
+/* What building the view leaves in the mode's cells: the name table's last
+ * row sent (its count run out, the row it started the picture at, the tile
+ * after the last, the next row's source and VRAM word), where it started the
+ * picture's rows, and the picture's building (the buffer's place, the last
+ * group it looked at, the two planes' maps a row past the last and their
+ * groups); and the multiplier as it found the picture's row. */
+static void leave_map_view_built(GameState *g, uint16_t last_group)
+{
+    enum { NAMES_LEFT = 0x00, NAMES_ROW = 0x01, BUFFER_AT = 0x05, NEXT_TILE = 0x08, NEXT_SOURCE = 0x0A,
+           NEXT_VRAM = 0x0C, LAST_GROUP = 0x0E, NAMES_AT = 0x10, OVER_MAP = 0x13, LAND_GROUPS = 0x16,
+           OVER_GROUPS = 0x19 };
+    leave_cell8(g, NAMES_LEFT, 0);
+    leave_cell8(g, NAMES_ROW, PICTURE_ROW);
+    leave_cell16(g, BUFFER_AT, (uint16_t)menu_object_upload_buffer(g));
+    leave_cell16(g, NEXT_TILE, FIRST_PICTURE_TILE + PICTURE_TILES_ACROSS * PICTURE_TILES_DOWN);
+    leave_cell16(g, NEXT_SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + NAME_TABLE_BYTES));
+    leave_cell16(g, NEXT_VRAM, NAME_ROWS_SENT * MODE7_MAP_ROW);
+    leave_cell16(g, LAST_GROUP, last_group);
+    leave_cell16(g, NAMES_AT, (uint16_t)(RAM_ABS(RAM_MENU_MAP_NAME_TABLE) + (PICTURE_ROW + PICTURE_TILES_DOWN) * NAME_ROWS_SENT
+                                         + PICTURE_COLUMN));
+    leave_cell16(g, OVER_MAP, (uint16_t)(menu_plane_map(g, OVER_THE_LAND) + MAP_ROWS * MAP_COLUMNS));
+    leave_cell16(g, LAND_GROUPS, menu_plane_groups(g, LAND_PLANE));
+    leave_cell16(g, OVER_GROUPS, menu_plane_groups(g, OVER_THE_LAND));
+    hw_set_multiplicand(g, PICTURE_ROW);
+    (void)hw_multiply_by(g, NAME_ROWS_SENT);
 }
 
 // $C2:63DF
-/* Everything the map view shows: the world map loaded, its tiles packed, the
- * plane built from the two map layers, and the name table placed. */
-void menu_epoch_build_map(Snes *s)
+/* The map view's plane, from the world map just loaded: every tile's colour,
+ * the picture drawn from them, and the picture laid out on the plane. */
+static void build_map_view(GameState *g, Platform *pf)
 {
-    Cpu *c = &s->cpu;
-    m_jsr_dc(s, 0xC263DF, 0xC227DE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_push8(s, c->db);
-    pack_map_rows(s);
-    c->db = m_pull8(s);
-    set_dp16(s, CELL_PTR1, 0x5800);
-    set_dp16(s, CELL_PTR2, 0x4000);
-    set_dp16(s, CELL_PTR3, 0x3800);
-    set_dp16(s, CELL_PRODUCT, 0x3000);
-    m_push8(s, c->db);
-    build_map_plane(s);
-    c->db = m_pull8(s);
-    m_push8(s, c->db);
-    build_map_names(s);
-    (void)m_pull8(s);
-    m_rts(s);
+    sample_map_colours(g);
+    uint16_t last_group = draw_map_picture(g, pf);
+    place_map_picture(g, pf);
+    ORIGINAL_EFFECT(leave_map_view_built(g, last_group));
 }
 
-// $C2:67B3
-/* The four quotients the map view's matrix is made of: the scaled cosine and
- * sine ($08, $0A) over each axis's zoom ($0C, $0E), into $00-$07, the third
- * negated. */
-static void map_matrix_divide(Snes *s)
+/* ---- The map view: its graphics --------------------------------------------------------------- */
+
+/* The graphics set two of the world maps' markers are drawn from changes
+ * with the story: before it the map uses the set every map starts with. */
+enum { EARLY_SET = 0x6F, SET_OF_A_LATER_STORY = 0x6C, SET_OF_THE_EPOCH_WINGS = 0x6B };
+enum { STORY_OF_THE_LATER_SET = 0x36, EPOCH_WINGS_FLAG = 0x01 };
+
+/* Ask the menus' graphics loader for the view's graphics: this map's set
+ * from the table of sets at $C6:F400, the loader's second way of reading,
+ * into its buffer at $7E:8621. */
+enum { MAP_VIEW_SETS = 0xC6F400, LOADER_KIND = 0x02, MAP_VIEW_GRAPHICS_BYTES = 0x0C };
+
+static void request_map_view_graphics(GameState *g)
 {
-    uint16_t cos8 = dp16(s, CELL_A), sin8 = dp16(s, CELL_B);
-    uint8_t zoom_x = dp8(s, CELL_C), zoom_y = dp8(s, CELL_D);
-    set_dp16(s, 0x00, divide(s, cos8, zoom_x));
-    set_dp16(s, 0x02, divide(s, sin8, zoom_x));
-    uint16_t sin_over_y = divide(s, sin8, zoom_y);
-    set_dp16(s, 0x04, (uint16_t)(0 - sin_over_y));
-    set_dp16(s, 0x06, divide(s, cos8, zoom_y));
+    uint8_t set = menu_map_view_graphics(g, world_map(g));
+    if ((set == SET_OF_A_LATER_STORY && menu_story_progress(g) < STORY_OF_THE_LATER_SET)
+        || (set == SET_OF_THE_EPOCH_WINGS && !(menu_story_flags_epoch(g) & EPOCH_WINGS_FLAG)))
+        set = EARLY_SET;
+    set_menu_load_request_entry(g, set);
+    set_menu_load_request_table(g, MAP_VIEW_SETS);
+    set_menu_load_request_kind(g, LOADER_KIND);
+    set_menu_load_request_dest(g, RAM_MENU_MAP_GRAPHICS);
 }
 
-// $C2:6736
-/* The map view's Mode 7 matrix, from the cursor's angle and its two zooms: the
- * sine and cosine times eight, divided by the zoom on each axis, with the signs
- * put back. The original keeps the two signs as 16-bit flags at $10 and $11,
- * which overlap, so the second lands in the byte after the first. */
-static void map_matrix(Snes *s)
+/* ---- The map view: its objects ---------------------------------------------------------------- */
+
+/* The cursor walks its path out and back, a step a frame; each step is a
+ * zoom across and down, and the picture turns with the cursor's angle. */
+enum { PATH_BYTES = 0x40, PATH_STEP = 2, PATH_END = PATH_BYTES - PATH_STEP };
+typedef enum { CURSOR_STARTS, CURSOR_WALKS_OUT, CURSOR_WAITS, CURSOR_WALKS_BACK } CursorStep;
+
+/* The view is centred on the party: the picture a pixel a map tile across
+ * (sixteen of the world map's pixels) and two down, from where it stands on
+ * the plane. */
+enum { PICTURE_LEFT = PICTURE_COLUMN * 8, PICTURE_TOP = PICTURE_ROW * 8 };
+
+/* What the cursor did this frame. */
+typedef enum { CURSOR_WALKED, CURSOR_WAITED, CURSOR_DONE } CursorOutcome;
+
+/* The scripts the cursor starts as it reaches its path's end and as the
+ * player leaves (bank C2). */
+enum { CURSOR_ARRIVED_SCRIPT = 0xC26A0A, CURSOR_LEAVING_SCRIPT = 0xC269FF };
+
+/* The menus' mode the view hands back to as it ends. */
+enum { MENU_MODE_BACK_TO_THE_MAP = 0x07 };
+
+/* The button that closes the view. */
+enum { CLOSE_BUTTON = 0x0008 };
+
+/* An eighth of a sine's value is a matrix's whole unit; the zooms divide it. */
+enum { MATRIX_SCALE = 8 };
+
+/* A value of the sine, at the matrix's unit and shrunk by a zoom (a larger
+ * zoom, a smaller picture). The original divides its size and puts the sign
+ * back after, so it rounds toward zero; a zoom of 0 gives the divider's
+ * all-ones. */
+static uint16_t quotient(uint16_t dividend, uint8_t divisor)
 {
-    /* The angle for the sine comes from whichever slot the caller left in X;
-     * everything after it from the slot at $4E, which is the same one when the
-     * cursor calls. */
-    uint16_t slot = s->cpu.x;
-    set_dp16(s, CELL_PTR1, 0);
-    uint16_t sin = sine(s, field16(s, slot, OBJ_PARAMETER));
-    m_ldx(s, sin);
-    if (sin & 0x8000) {
-        sin = (uint16_t)(0 - sin);
-        set_dp16(s, CELL_PTR1, (uint16_t)(dp16(s, CELL_PTR1) + 1));
-    }
-    set_dp16(s, CELL_B, (uint16_t)(sin << 3));
-
-    slot = object(s);
-    m_ldx(s, slot);
-    uint16_t cos = cosine(s, field16(s, slot, OBJ_PARAMETER));
-    m_ldx(s, cos);
-    if (cos & 0x8000) {
-        cos = (uint16_t)(0 - cos);
-        set_dp16(s, (uint8_t)(CELL_PTR1 + 1), (uint16_t)(dp16(s, (uint8_t)(CELL_PTR1 + 1)) + 1));
-    }
-    set_dp16(s, CELL_A, (uint16_t)(cos << 3));
-
-    slot = object(s);
-    m_ldx(s, slot);
-    set_dp16(s, CELL_C, field16(s, slot, OBJ_ZOOM));
-    set_dp16(s, CELL_D, field16(s, slot, (uint8_t)(OBJ_ZOOM + 2)));
-    map_matrix_divide(s);
-
-    if (dp8(s, CELL_PTR1) != 0) {
-        set_dp16(s, 0x02, (uint16_t)(0 - dp16(s, 0x02)));
-        set_dp16(s, 0x04, (uint16_t)(0 - dp16(s, 0x04)));
-    }
-    if (dp8(s, (uint8_t)(CELL_PTR1 + 1)) != 0) {
-        set_dp16(s, 0x00, (uint16_t)(0 - dp16(s, 0x00)));
-        set_dp16(s, 0x06, (uint16_t)(0 - dp16(s, 0x06)));
-    }
-    for (int i = 0; i < 4; i++)
-        set_dp16(s, (uint8_t)(SHADOW_MATRIX + 2 * i), dp16(s, (uint8_t)(2 * i)));
-    /* SEP #$10 narrows the index registers while the two sign flags are read
-     * and REP #$10 widens them again, so Y keeps only its low byte and X comes
-     * back as the cosine's flag. */
-    s->cpu.y &= 0xFF;
-    s->cpu.x = dp8(s, (uint8_t)(CELL_PTR1 + 1));
-    m_lda16(s, dp16(s, 0x06));
+    return divisor ? (uint16_t)(dividend / divisor) : 0xFFFF;
 }
 
-void menu_epoch_map_matrix(Snes *s)
+static uint16_t size_at_the_unit(int16_t value) { return (uint16_t)((value < 0 ? -value : value) * MATRIX_SCALE); }
+
+static uint16_t zoomed(int16_t value, uint8_t zoom)
 {
-    map_matrix(s);
-    m_rts(s);
+    uint16_t q = quotient(size_at_the_unit(value), zoom);
+    return value < 0 ? (uint16_t)(0 - q) : q;
 }
 
-// $C2:688A
-/* A world position into the map view's plane: an eighth of it, plus the plane's
- * origin. */
-static void marker_position(Snes *s, uint16_t slot)
+/* What working out the matrix leaves in the mode's cells and the divider:
+ * the four quotients, the sine's and cosine's sizes, the zooms and the two
+ * signs (the second a byte on from the first). */
+static void leave_matrix(GameState *g, int16_t sin, int16_t cos, const uint16_t matrix[4], uint16_t zoom_x,
+                         uint16_t zoom_y)
 {
-    Sum f = { false, false };
-    set_field16(s, slot, OBJ_X, add16(&f, lsr16(&f, field16(s, slot, OBJ_X), 3), 0x0020));
-    set_field16(s, slot, OBJ_Y, add16(&f, lsr16(&f, field16(s, slot, OBJ_Y), 3), 0x0030));
+    enum { QUOTIENTS = 0x00, COS8 = 0x08, SIN8 = 0x0A, ZOOM_X = 0x0C, ZOOM_Y = 0x0E, SIN_SIGN = 0x10, COS_SIGN = 0x11 };
+    for (unsigned i = 0; i < 4; i++)
+        leave_cell16(g, QUOTIENTS + 2 * i, matrix[i]);
+    leave_cell16(g, COS8, size_at_the_unit(cos));
+    leave_cell16(g, SIN8, size_at_the_unit(sin));
+    leave_cell16(g, ZOOM_X, zoom_x);
+    leave_cell16(g, ZOOM_Y, zoom_y);
+    leave_cell8(g, SIN_SIGN, sin < 0);
+    leave_cell8(g, COS_SIGN, cos < 0);
+    hw_set_dividend(g, size_at_the_unit(cos));
+    hw_divide_by(g, (uint8_t)zoom_y);
 }
 
-/* A marker's first step: place it and give it a script. */
-static void start_marker(Snes *s, uint16_t slot, uint16_t world_x, uint16_t world_y, uint16_t script)
+// $C2:6736, $C2:67B3
+/* Turn the picture by the cursor's angle and zoom it by its zooms across and
+ * down. The original takes the angle's sine from another object's angle,
+ * `sine_from`: the object it last started or the cursor, which in the game
+ * always has the cursor's angle (menu_epoch_map_cursor). */
+static void turn_map_view(GameState *g, MenuObject cursor, MenuObject sine_from)
 {
-    set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-    set_field8(s, slot, OBJ_SPRITE, 0x30);
-    set_field16(s, slot, OBJ_FRACTION, 0);
-    set_field16(s, slot, OBJ_X, world_x);
-    set_field16(s, slot, OBJ_Y, world_y);
-    marker_position(s, slot);
-    set_field16(s, slot, OBJ_SCRIPT, script);
-    set_field8(s, slot, (uint8_t)(OBJ_SCRIPT + 2), 0xC2);
-    set_field8(s, slot, OBJ_SCRIPT_STATE, 0);
+    uint16_t zoom_x = menu_object_slots_zoom_x(g, cursor), zoom_y = menu_object_slots_zoom_y(g, cursor);
+    int16_t sin = sine(g, menu_object_slots_phase(g, sine_from));
+    int16_t cos = cosine(g, menu_object_slots_phase(g, cursor));
+    const uint16_t matrix[4] = { zoomed(cos, (uint8_t)zoom_x), zoomed(sin, (uint8_t)zoom_x),
+                                 (uint16_t)(0 - zoomed(sin, (uint8_t)zoom_y)), zoomed(cos, (uint8_t)zoom_y) };
+    set_mode7_matrix(g, (int16_t)matrix[0], (int16_t)matrix[1], (int16_t)matrix[2], (int16_t)matrix[3]);
+    ORIGINAL_EFFECT(leave_matrix(g, sin, cos, matrix, zoom_x, zoom_y));
 }
 
-/* Every step after that: run the sprite script unless another one is busy, and
- * say whether the object goes (the carry). */
-static void run_marker_script(Snes *s, uint32_t site)
+/* The cursor takes the zoom of the step it is on. */
+static void take_path_step(GameState *g, MenuObject cursor, uint16_t at)
 {
-    uint8_t busy = m_read8(s, m_abs(s, RAM_ABS(RAM_MENU_SPRITE_SCRIPT_BUSY)));
-    m_set_a8(s, busy);
-    m_set_nz8(s, busy);
-    if (busy == 0) {
-        m_jsr_dc(s, site, 0xC20E1D, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        m_set_flag(s, CPU_FLAG_C, false);
-    } else {
-        m_set_flag(s, CPU_FLAG_C, true);
-    }
-    m_rts(s);
-}
-
-// $C2:67FA
-/* The marker showing where the party stands. */
-void menu_epoch_map_party_marker(Snes *s)
-{
-    uint16_t slot = object(s);
-    if (field8(s, slot, OBJ_STEP) == 0)
-        start_marker(s, slot, m_read16(s, m_abs(s, RAM_ABS(RAM_WORLD_POSITION_X))),
-                     m_read16(s, m_abs(s, RAM_ABS(RAM_WORLD_POSITION_Y))), 0x6A18);
-    run_marker_script(s, 0xC26834);
-}
-
-// $C2:683B
-/* The marker showing where the Epoch stands, placed only while the party is on
- * the map the Epoch is parked on. */
-void menu_epoch_map_epoch_marker(Snes *s)
-{
-    uint16_t slot = object(s);
-    if (field8(s, slot, OBJ_STEP) == 0) {
-        m_rep(s, CPU_FLAG_M);
-        uint16_t here = (uint16_t)(m_read16(s, RAM_LOCATION_ID) & 0x01FF);
-        uint16_t parked = m_read16(s, m_abs(s, RAM_ABS(RAM_MENU_EPOCH_LOCATION)));
-        if (here != parked) {
-            m_lda16(s, here);
-            m_cmp16(s, here, parked);
-            m_set_flag(s, CPU_FLAG_C, true);
-            m_rts(s);
-            return;
-        }
-        start_marker(s, slot, m_read16(s, m_abs(s, RAM_ABS(RAM_MENU_EPOCH_POSITION))),
-                     m_read16(s, m_abs(s, RAM_ABS(RAM_MENU_EPOCH_POSITION) + 2)), 0x6A20);
-        m_sep(s, CPU_FLAG_M);
-    }
-    run_marker_script(s, 0xC26883);
-}
-
-// $C2:68A3
-/* The marker showing which map the Epoch would land on, whose place on the
- * plane is a table entry rather than a world position. */
-void menu_epoch_map_location_marker(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    uint16_t slot = c->x;
-    if (field8(s, slot, OBJ_STEP) == 0) {
-        set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-        set_field8(s, slot, OBJ_SPRITE, 0x30);
-        m_txy(s);
-        m_rep(s, CPU_FLAG_M);
-        uint16_t index = (uint16_t)(((m_read16(s, RAM_LOCATION_ID) & 0x01FF) - 0x01F0) << 1);
-        set_field16(s, slot, OBJ_X, landing_marker_x(s, index));
-        set_field16(s, slot, OBJ_Y, 0x00C0);
-        set_field16(s, slot, OBJ_FRACTION, 0);
-        m_lda16(s, 0x0047);
-        m_ldx(s, slot);
-        m_jsr_dc(s, 0xC268D3, 0xC21CDA, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        m_sep(s, CPU_FLAG_M);
-    }
-    run_marker_script(s, 0xC268DD);
+    set_menu_object_slots_zoom_x(g, cursor, menu_cursor_path_zoom_x(g, at));
+    set_menu_object_slots_zoom_y(g, cursor, menu_cursor_path_zoom_y(g, at));
 }
 
 // $C2:666C
-/* The map view's cursor: it walks its path out while the plane turns with it,
- * waits for the confirm button, then walks back and ends the screen. */
-void menu_epoch_map_cursor(Snes *s)
+/* The view's cursor: it centres the picture on the party, walks its path
+ * out, waits for the player to close the view, walks back and ends the
+ * screen. */
+static CursorOutcome map_view_cursor(GameState *g, MenuObject cursor)
 {
-    uint8_t step = dispatch_step(s);
-    uint16_t slot;
-    if (step == 0) {
-        slot = object(s);
-        m_ldx(s, slot);
-        set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-        m_rep(s, CPU_FLAG_M);
-        Sum f = { false, false };
-        uint16_t centre_x =
-            add16(&f, (uint16_t)(m_read16(s, m_abs(s, RAM_ABS(RAM_WORLD_POSITION_X))) >> 4), 0x0010);
-        set_dp16(s, SHADOW_CENTER, centre_x);
-        set_dp16(s, SHADOW_SCROLL_X, (uint16_t)(0 - centre_x));
-        f.carry = false;
-        set_dp16(s, (uint8_t)(SHADOW_CENTER + 2),
-                 add16(&f, (uint16_t)(m_read16(s, m_abs(s, RAM_ABS(RAM_WORLD_POSITION_Y))) >> 3), 0x0030));
-        set_dp16(s, SHADOW_SCROLL_Y, 0);
-        set_field16(s, slot, OBJ_PARAMETER, 0);
-        set_field16(s, slot, OBJ_PATH_AT, 0);
-        step = 1;
+    CursorStep step = (CursorStep)menu_object_slots_step(g, cursor);
+    if (step == CURSOR_STARTS) {
+        step = CURSOR_WALKS_OUT;
+        set_menu_object_slots_step(g, cursor, step);
+        uint16_t centre_x = (uint16_t)((world_position_x(g) >> 4) + PICTURE_LEFT);
+        uint16_t centre_y = (uint16_t)((world_position_y(g) >> 3) + PICTURE_TOP);
+        set_menu_object_shadows_mode7_center(g, (uint32_t)centre_y << 16 | centre_x);
+        set_menu_object_shadows_bg1_scroll_x(g, (uint16_t)(0 - centre_x));
+        set_menu_object_shadows_bg1_scroll_y(g, 0);
+        set_menu_object_slots_phase(g, cursor, 0);
+        set_menu_object_slots_path_step(g, cursor, 0);
     }
-    if (step <= 1) {
-        m_rep(s, CPU_FLAG_M);
-        slot = object(s);
-        m_ldy(s, slot);
-        uint16_t at = field16(s, slot, OBJ_PATH_AT);
-        m_ldx(s, at);
-        set_field16(s, slot, OBJ_ZOOM, cursor_path_x(s, at));
-        set_field16(s, slot, (uint8_t)(OBJ_ZOOM + 2), cursor_path_y(s, at));
-        m_tyx(s);
-        uint16_t next = (uint16_t)(at + 2);
-        set_field16(s, slot, OBJ_PATH_AT, next);
-        if (next >= 0x0040) {
-            set_field16(s, slot, OBJ_PATH_AT, 0x003E);
-            m_sep(s, CPU_FLAG_M);
-            set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-            m_set_a8(s, 0xC2);
-            m_ldx(s, 0x6A0A);
-            m_jsr_dc(s, 0xC266DF, 0xC204D9, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-            m_rep(s, CPU_FLAG_M);
+    switch (step) {
+    case CURSOR_STARTS:
+    case CURSOR_WALKS_OUT: {
+        uint16_t at = menu_object_slots_path_step(g, cursor);
+        take_path_step(g, cursor, at);
+        at = (uint16_t)(at + PATH_STEP);
+        set_menu_object_slots_path_step(g, cursor, at);
+        /* On the step the path ends, the sine's angle is the object's just
+         * started: a copy of the cursor, unless every slot was busy and the
+         * script went to the last one over what it held. */
+        MenuObject angled = cursor;
+        if (at >= PATH_BYTES) {
+            set_menu_object_slots_path_step(g, cursor, PATH_END);
+            set_menu_object_slots_step(g, cursor, CURSOR_WAITS);
+            TIMED_AS(g, 0xC204D9, angled = menu_start_script(g, CURSOR_ARRIVED_SCRIPT, MENU_ORDINARY_SLOT));
         }
-        NATIVE_TIME_AS(s, 0xC26736, map_matrix(s));
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
+        TIMED_AS(g, 0xC26736, turn_map_view(g, cursor, angled));
+        return CURSOR_WALKED;
     }
-    if (step == 2) {
-        m_rep(s, CPU_FLAG_M);
-        uint16_t buttons = m_read16(s, m_dp(s, RAM_INPUT_MAPPED_DP));
-        m_lda16(s, buttons);
-        m_set_flag(s, CPU_FLAG_Z, (buttons & 0x0008) == 0);
-        m_sep(s, CPU_FLAG_M);
-        if (buttons & 0x0008) {
-            slot = object(s);
-            m_ldx(s, slot);
-            set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-            m_set_a8(s, 0xC2);
-            m_ldx(s, 0x69FF);
-            m_jsr_dc(s, 0xC266FF, 0xC204D9, DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    case CURSOR_WAITS:
+        if (input_mapped(g, 0) & CLOSE_BUTTON) {
+            set_menu_object_slots_step(g, cursor, CURSOR_WALKS_BACK);
+            TIMED_AS(g, 0xC204D9, menu_start_script(g, CURSOR_LEAVING_SCRIPT, MENU_ORDINARY_SLOT));
         }
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
+        return CURSOR_WAITED;
+    default: {
+        uint16_t at = menu_object_slots_path_step(g, cursor);
+        take_path_step(g, cursor, at);
+        at = (uint16_t)(at - PATH_STEP);
+        set_menu_object_slots_path_step(g, cursor, at);
+        TIMED_AS(g, 0xC26736, turn_map_view(g, cursor, cursor));
+        if (at != 0)
+            return CURSOR_WALKED;
+        set_menu_mode(g, MENU_MODE_BACK_TO_THE_MAP);
+        return CURSOR_DONE;
     }
-    m_rep(s, CPU_FLAG_M);
-    slot = object(s);
-    m_ldy(s, slot);
-    uint16_t at = field16(s, slot, OBJ_PATH_AT);
-    m_ldx(s, at);
-    set_field16(s, slot, OBJ_ZOOM, cursor_path_x(s, at));
-    set_field16(s, slot, (uint8_t)(OBJ_ZOOM + 2), cursor_path_y(s, at));
-    m_tyx(s);
-    uint16_t back = (uint16_t)(at - 2);
-    set_field16(s, slot, OBJ_PATH_AT, back);
-    NATIVE_TIME_AS(s, 0xC26736, map_matrix(s));
-    if (back == 0) {
-        m_sep(s, CPU_FLAG_M);
-        m_set_a8(s, 0x07);
-        m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_MODE)), 0x07);
-        m_set_flag(s, CPU_FLAG_C, true);
-    } else {
-        m_set_flag(s, CPU_FLAG_C, false);
     }
-    m_rts(s);
+}
+
+/* A marker is a sprite on the view: a place on the picture, a sprite script
+ * of bank C2's, drawn in front at priority 3. A world position (a pixel of
+ * the world map) is on the picture an eighth of it across and down, rounded,
+ * from where the picture stands on the plane. */
+enum { MARKER_LOOK = 0x30, MARKER_SCRIPT_BANK = 0xC2, PARTY_MARKER = 0x6A18, EPOCH_MARKER = 0x6A20 };
+enum { LANDING_MARKER_SCRIPT = 0x47, LANDING_MARKER_Y = 0x00C0, PICTURE_ORIGIN_X = 0x20, PICTURE_ORIGIN_Y = 0x30 };
+
+static uint16_t on_the_picture(uint16_t world, uint16_t origin) { return (uint16_t)((((uint32_t)world + 4) >> 3) + origin); }
+
+static void start_marker(GameState *g, MenuObject marker)
+{
+    set_menu_object_slots_step(g, marker, (uint8_t)(menu_object_slots_step(g, marker) + 1));
+    set_menu_object_slots_look(g, marker, MARKER_LOOK);
+    set_menu_object_slots_tiles(g, marker, 0);
+}
+
+static void place_marker(GameState *g, MenuObject marker, uint16_t world_x, uint16_t world_y, uint16_t script)
+{
+    start_marker(g, marker);
+    set_menu_object_slots_x_pixel(g, marker, on_the_picture(world_x, PICTURE_ORIGIN_X));
+    set_menu_object_slots_y_pixel(g, marker, on_the_picture(world_y, PICTURE_ORIGIN_Y));
+    set_menu_object_slots_sprite_script(g, marker, (uint32_t)MARKER_SCRIPT_BANK << 16 | script);
+    set_menu_object_slots_sprite_frames(g, marker, 0);
+}
+
+/* What a marker did this frame: showed its sprites, ended because another
+ * object's sprite script was running, or ended because the Epoch isn't on
+ * this map. */
+typedef enum { MARKER_SHOWN, MARKER_ENDED, MARKER_NOT_HERE } MarkerOutcome;
+
+static MarkerOutcome show_marker(GameState *g)
+{
+    if (menu_sprite_script_busy(g) != 0)
+        return MARKER_ENDED;
+    TIMED_AS(g, 0xC20E1D, menu_object_animate(g));
+    return MARKER_SHOWN;
+}
+
+// $C2:67FA
+/* The marker where the party stands. */
+static MarkerOutcome party_marker(GameState *g, MenuObject marker)
+{
+    if (menu_object_slots_step(g, marker) == 0)
+        place_marker(g, marker, world_position_x(g), world_position_y(g), PARTY_MARKER);
+    return show_marker(g);
+}
+
+// $C2:683B
+/* The marker where the Epoch is parked, on the map it is parked on alone;
+ * on another it ends at once. */
+static MarkerOutcome epoch_marker(GameState *g, MenuObject marker)
+{
+    if (menu_object_slots_step(g, marker) == 0) {
+        if (location_here(g) != menu_epoch_location(g))
+            return MARKER_NOT_HERE;
+        place_marker(g, marker, menu_epoch_position(g, 0), menu_epoch_position(g, 1), EPOCH_MARKER);
+    }
+    return show_marker(g);
+}
+
+// $C2:68A3
+/* The marker over the map the Epoch would land on: its place is the map's
+ * own. */
+static MarkerOutcome landing_marker(GameState *g, MenuObject marker)
+{
+    if (menu_object_slots_step(g, marker) == 0) {
+        start_marker(g, marker);
+        set_menu_object_slots_x_pixel(g, marker, menu_landing_marker_x(g, world_map(g)));
+        set_menu_object_slots_y_pixel(g, marker, LANDING_MARKER_Y);
+        menu_give_sprite_script(g, marker, LANDING_MARKER_SCRIPT);
+    }
+    return show_marker(g);
 }
 
 // $C2:68F4
-/* The map view's one per-line effect: the fixed colour's blue channel stepping
- * down the screen, seven lines at a value, out of a table the vblank handler
- * re-points every frame. Only the first 224 bytes are read; the second loop
- * runs its counter all the way round, as the original does. */
-static void map_gradient(Snes *s)
+/* The view's backdrop: the fixed colour's blue stepping down the screen,
+ * seven lines a level, on line-effect slot 1. Its values are a byte a line,
+ * written from slot 1's first table on: the second sixteen levels run the
+ * count all the way round, on over the tables after it, as the original's
+ * byte does. */
+enum { GRADIENT_SLOT = 1, LINES_A_LEVEL = 7, LEVELS = 16, BLUE = 0x80, GRADIENT_HALF = 112 };
+
+static void map_view_gradient(GameState *g, Platform *pf)
 {
-    m_write16(s, m_abs(s, WRAM_ADDR), RAM_ABS(RAM_MENU_OBJECT_WAVE_SCROLL));
-    m_write8(s, m_abs(s, WRAM_ADDR_BANK), (uint8_t)(RAM_MENU_OBJECT_WAVE_SCROLL >> 16));
+    uint16_t at = (uint16_t)RAM_MENU_SLOT1_LINE_VALUES;
     uint8_t level = 0;
-    for (int pass = 0; pass < 2; pass++) {
+    for (unsigned pass = 0; pass < 2; pass++) {
         do {
-            set_dp8(s, CELL_LOW, level);
-            for (int line = 0; line < 7; line++)
-                m_write8(s, m_abs(s, WRAM_PORT), (uint8_t)(level | 0x80));
-            level = (uint8_t)(level + 1);
-            set_dp8(s, CELL_LOW, level);
-        } while (level != 0x10);
+            for (unsigned line = 0; line < LINES_A_LEVEL; line++)
+                wram_write8(g, in_work_ram(at++), (uint8_t)(level | BLUE));
+        } while (++level != LEVELS);
     }
-    m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES, 0xF0);
-    m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_SECOND_LINES, 0xF0);
-    m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_END, 0x00);
-    m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS, RAM_ABS(RAM_MENU_OBJECT_WAVE_SCROLL));
-    m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE,
-              (uint16_t)(RAM_ABS(RAM_MENU_OBJECT_WAVE_SCROLL) + 0x70));
-    static const VidLineEffect gradient = { .target = VID_LINE_FIXED_COLOR,
-                                            .table = PF_GAME(RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES),
-                                            .indirect = true, .indirect_bank = 0x7E };
-    vid_set_line_effect(m_platform(s), PF_AT(0xC2694F), EFFECT_SLOT, &gradient, line_effect_steps);
-    m_lda8(s, EFFECT_SLOT_BIT);
-    m_tsb8(s, m_dp(s, LINE_EFFECTS));
+    ORIGINAL_EFFECT(hw_port_seek(g, at, WORK_RAM_BANK));
+    ORIGINAL_EFFECT(leave_cell8(g, 0x00, level));
+    menu_start_line_effect(g, pf, 0xC2694F, GRADIENT_SLOT, VID_LINE_FIXED_COLOR);
+    set_menu_object_hdma_pointers(g, 0, (uint16_t)RAM_MENU_SLOT1_LINE_VALUES);
+    set_menu_object_hdma_pointers(g, 1, (uint16_t)(RAM_MENU_SLOT1_LINE_VALUES + GRADIENT_HALF));
 }
 
-void menu_epoch_map_gradient(Snes *s)
+/* ---- The time dial: its periods ------------------------------------------------------------- */
+
+static bool later_periods(const GameState *g) { return menu_story_progress(g) >= MENU_LATER_PERIODS; }
+
+/* The original notes the table of the periods' locations it reads in its
+ * cells: its address and bank. */
+static void leave_period_table(GameState *g)
 {
-    map_gradient(s);
-    m_ldx(s, 0x0000);
-    m_set_flag(s, CPU_FLAG_C, true);
+    enum { PERIODS_AT = 0x10 };
+    leave_cell16(g, PERIODS_AT, later_periods(g) ? 0x6CA5 : 0x6C97);
+    leave_cell8(g, PERIODS_AT + 2, 0xC2);
+}
+
+// $C2:747A
+/* The period the party is in: the one whose location is here, or the last. */
+static uint8_t period_here(GameState *g)
+{
+    ORIGINAL_EFFECT(leave_period_table(g));
+    for (uint8_t period = 0; period < MENU_PERIODS; period++)
+        if (menu_period_location(g, later_periods(g), period) == location_here(g))
+            return period;
+    return MENU_PERIODS - 1;
+}
+
+// $C2:745A
+/* The location a period travels to. */
+static uint16_t period_location(GameState *g, uint8_t period)
+{
+    ORIGINAL_EFFECT(leave_period_table(g));
+    return menu_period_location(g, later_periods(g), period);
+}
+
+/* ---- The time dial: the gate's window --------------------------------------------------------- */
+
+/* The gate's triangle is cut out of the screen by window 1, its two edges
+ * drawn into a table of a line's left and right edge each; two tables, one
+ * drawn while the other shows, on line-effect slot 1. */
+enum { WINDOW_SLOT = 1, SCREEN_CENTRE_X = 0x84, SCREEN_CENTRE_Y = 0x70, CORNERS = 3 };
+enum { CLOSED_LINE = 0x0001 };
+enum { DRAWING_THE_OTHER_WINDOW = 0x01, DRAWING_THE_OTHER_SPIN = 0x02, DRAWING_THE_OTHER_SINES = 0x04 };
+
+static void set_line(GameState *g, uint8_t bank, uint16_t table, uint16_t line, uint16_t v)
+{
+    uint16_t at = (uint16_t)(table + 2 * line);
+    wram_write8(g, (uint32_t)bank << 16 | at, (uint8_t)v);
+    wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(at + 1), (uint8_t)(v >> 8));
+}
+static uint16_t line_value(const GameState *g, uint8_t bank, uint16_t table, uint16_t line)
+{
+    uint16_t at = (uint16_t)(table + 2 * line);
+    return (uint16_t)(wram_read8(g, (uint32_t)bank << 16 | at) | wram_read8(g, (uint32_t)bank << 16 | (uint16_t)(at + 1)) << 8);
+}
+
+/* A signed multiply of a sine's value by a corner's offset, as the
+ * original's routine does it: the two made positive, multiplied, and the
+ * sign put back, so it leaves both operands positive in its cells. */
+typedef struct {
+    int32_t product;     /* 24 bits */
+    uint8_t by;          /* the operands as it leaves them */
+    uint16_t value;
+} SignedProduct;
+
+static SignedProduct multiply_signed(int8_t by, int16_t value)
+{
+    SignedProduct p;
+    p.by = (uint8_t)(by < 0 ? -by : by);
+    p.value = (uint16_t)(value < 0 ? -value : value);
+    uint32_t magnitude = (uint32_t)p.by * p.value;
+    p.product = (by < 0) != (value < 0) ? -(int32_t)magnitude : (int32_t)magnitude;
+    return p;
+}
+
+/* What the multiply leaves: its operands, positive, the 24-bit product, and
+ * the multiplier as it worked out the high byte's part. */
+static void leave_multiply(GameState *g, const SignedProduct *p)
+{
+    enum { BY = 0x07, VALUE = 0x0E, PRODUCT = 0x19 };
+    leave_cell8(g, BY, p->by);
+    leave_cell16(g, VALUE, p->value);
+    leave_cell16(g, PRODUCT, (uint16_t)p->product);
+    leave_cell8(g, PRODUCT + 2, (uint8_t)((uint32_t)p->product >> 16));
+    hw_set_multiplicand(g, p->by);
+    (void)hw_multiply_by(g, (uint8_t)(p->value >> 8));
+}
+
+/* A turned corner's place on the screen: the centre, moved by the whole
+ * pixels of its turned offset (8.8). The original works the offset out from
+ * the two products and adds the centre with the first sum's carry still in,
+ * so an offset whose products wrap past zero lands a pixel further on. */
+static uint8_t on_the_screen(uint16_t offset, bool wrapped, uint8_t centre)
+{
+    return (uint8_t)((offset >> 8) + centre + wrapped);
+}
+
+typedef struct {
+    uint8_t x, y;
+} ScreenPoint;
+
+// $C2:6D1B
+/* The triangle's corners, turned by the gate's angle about the screen's
+ * centre. */
+static void turn_corners(GameState *g, uint16_t angle, ScreenPoint corners[CORNERS])
+{
+    int16_t cos = cosine(g, angle), sin = sine(g, angle);
+    SignedProduct last = { 0 };
+    uint16_t last_height = 0;
+    for (unsigned c = 0; c < CORNERS; c++) {
+        int8_t dx = menu_gate_corner_x(g, c), dy = menu_gate_corner_y(g, c);
+        uint16_t across = (uint16_t)multiply_signed(dx, cos).product;
+        uint16_t lifted = (uint16_t)multiply_signed(dy, sin).product;
+        uint16_t x = (uint16_t)(across + lifted);
+        corners[c].x = on_the_screen(x, x < across, SCREEN_CENTRE_X);
+        SignedProduct leant = multiply_signed(dx, sin);
+        last = multiply_signed(dy, cos);
+        uint16_t y = (uint16_t)((uint16_t)last.product - (uint16_t)leant.product);
+        corners[c].y = on_the_screen(y, (uint16_t)last.product >= (uint16_t)leant.product, SCREEN_CENTRE_Y);
+        last_height = (uint16_t)leant.product;
+        set_menu_gate_corners(g, 2 * c, corners[c].x);
+        set_menu_gate_corners(g, 2 * c + 1, corners[c].y);
+    }
+    ORIGINAL_EFFECT(leave_multiply(g, &last));
+    ORIGINAL_EFFECT(leave_cell16(g, 0x04, last_height));
+}
+
+/* An edge of the triangle, from its higher corner to the line above its
+ * lower one: where it starts across, 8.8, and how far it moves a line. */
+typedef struct {
+    bool drawn;          /* a flat edge takes no lines */
+    uint8_t x, top, bottom, width, height;
+    bool swapped;
+    uint16_t step;
+} GateEdge;
+
+static GateEdge edge_between(ScreenPoint from, ScreenPoint to)
+{
+    GateEdge e = { 0 };
+    if (from.y == to.y)
+        return e;
+    e.drawn = true;
+    e.swapped = to.y < from.y;
+    if (e.swapped) {
+        ScreenPoint t = from;
+        from = to;
+        to = t;
+    }
+    e.x = from.x;
+    e.top = from.y;
+    e.bottom = (uint8_t)(to.y - 1);
+    e.height = (uint8_t)(e.bottom - e.top);
+    bool leftward = to.x < from.x;
+    e.width = (uint8_t)(leftward ? from.x - to.x : to.x - from.x);
+    uint16_t slope = quotient((uint16_t)(e.width << 8), e.height);
+    e.step = leftward ? (uint16_t)(0 - slope) : slope;
+    return e;
+}
+
+/* The edges kept in the game's cells for the fill: on the line, where
+ * across, how far it moves, its lines. */
+static void keep_edge(GameState *g, unsigned e, const GateEdge *edge)
+{
+    set_menu_gate_edge_active(g, e, menu_gate_edge_active(g, e) & 0xFF00);
+    set_menu_gate_edge_x(g, e, (uint16_t)(edge->x << 8));
+    set_menu_gate_edge_top(g, e, (uint16_t)(edge->top << 8));
+    set_menu_gate_edge_lines(g, e, edge->height);
+    set_menu_gate_edge_bottom(g, e, (uint16_t)(edge->bottom << 8));
+    set_menu_gate_edge_step(g, e, edge->step);
+}
+
+/* The edges crossing a line, their places across in the order of the edges,
+ * each moved on to the next line; an edge that has run out of lines leaves
+ * the fill. */
+static void cross_line(GameState *g, unsigned edges, uint8_t line, uint16_t crossings[CORNERS])
+{
+    for (unsigned e = 0; e < edges; e++)
+        if (menu_gate_edge_top(g, e) >> 8 == line)
+            set_menu_gate_edge_active(g, e, (menu_gate_edge_active(g, e) & 0xFF00)
+                                                | (uint8_t)(menu_gate_edge_active(g, e) + 1));
+    unsigned crossing = 0;
+    for (unsigned e = 0; e < edges; e++) {
+        if ((uint8_t)menu_gate_edge_active(g, e) == 0)
+            continue;
+        uint16_t x = menu_gate_edge_x(g, e);
+        crossings[crossing++] = x;
+        set_menu_gate_edge_x(g, e, (uint16_t)(x + menu_gate_edge_step(g, e)));
+        uint8_t left = (uint8_t)(menu_gate_edge_lines(g, e) - 1);
+        set_menu_gate_edge_lines(g, e, left);
+        if (left & 0x80)
+            set_menu_gate_edge_active(g, e, menu_gate_edge_active(g, e) & 0xFF00);
+    }
+}
+
+/* What drawing the window leaves in the mode's cells, the divider and the
+ * work RAM port: the last line's two crossings, the edge loop's counts and
+ * places (the last edge's corners, as its swap left them), the lines' span,
+ * and the table's place. */
+typedef struct {
+    uint16_t crossings[CORNERS];
+    GateEdge last_edge;
+    ScreenPoint last_from, last_to;
+    bool any_swapped;
+    unsigned edges;
+    uint8_t after_the_last_line, bottom;
+    uint16_t table;
+    uint8_t bank;
+    int16_t cos, sin;
+} WindowDrawn;
+
+static void leave_window_drawn(GameState *g, const WindowDrawn *w, const GateEdge *divided)
+{
+    enum { CROSSINGS = 0x00, SECOND_CROSSING = 0x02, HEIGHT = 0x04, CORNERS_LEFT = 0x06, LINE = 0x08, BOTTOM = 0x0A,
+           TO_X = 0x0C, TO_Y = 0x0E, EDGES_LEFT = 0x10, EDGE_AT = 0x11, LINES_LEFT = 0x13, TABLE = 0x16,
+           EDGES = 0x19 };
+    leave_cell16(g, CROSSINGS, w->crossings[0]);
+    leave_cell16(g, SECOND_CROSSING, w->crossings[1]);
+    if (divided->drawn)
+        leave_cell8(g, HEIGHT, divided->height);
+    leave_cell8(g, CORNERS_LEFT, 0);
+    leave_cell8(g, LINE, w->after_the_last_line);
+    leave_cell8(g, LINE + 1, w->any_swapped ? 0 : (uint8_t)((uint16_t)w->cos >> 8));
+    leave_cell8(g, BOTTOM, w->bottom);
+    leave_cell8(g, BOTTOM + 1, (uint8_t)((uint16_t)w->sin >> 8));
+    leave_cell8(g, TO_X, w->last_edge.swapped ? w->last_from.x : w->last_to.x);
+    leave_cell8(g, TO_X + 1, 0);
+    leave_cell8(g, TO_Y, w->last_edge.drawn ? w->last_edge.bottom : w->last_to.y);
+    if (w->any_swapped)
+        leave_cell8(g, TO_Y + 1, (uint8_t)((uint16_t)w->sin >> 8));
+    leave_cell8(g, EDGES_LEFT, 0);
+    leave_cell8(g, EDGE_AT, 0);
+    leave_cell8(g, LINES_LEFT, 0);
+    leave_cell8(g, LINES_LEFT + 1, 0);
+    leave_cell16(g, TABLE, w->table);
+    leave_cell16(g, EDGES, (uint16_t)w->edges);
+    if (divided->drawn) {
+        hw_set_dividend(g, (uint16_t)(divided->width << 8));
+        hw_divide_by(g, divided->height);
+    }
+    hw_port_seek(g, (uint16_t)(w->table + 2 * w->after_the_last_line), w->bank);
+}
+
+/* The original's time for the window follows its lines more closely than
+ * the port's accesses do: each line runs its loops over every edge. It is
+ * charged, in accesses at the window's rate. */
+enum { LINE_ACCESSES = 7, FIXED_ACCESSES = 330 };
+
+// $C2:6CC1
+/* Draw the gate's window for the angle the gate stands at, into the table
+ * not shown this frame, and show it from the next: the table starts closed
+ * at its top, its middle lines take the one above them, the triangle's
+ * corners are turned about the centre, and every line from the highest
+ * corner to the lowest takes the two edges that cross it. */
+static void draw_gate_window(GameState *g, MenuObject dial)
+{
+    bool first = !(menu_gate_flags(g) & DRAWING_THE_OTHER_WINDOW);
+    set_menu_gate_flags(g, (uint8_t)(menu_gate_flags(g) ^ DRAWING_THE_OTHER_WINDOW));
+    uint16_t table = menu_line_values(WINDOW_SLOT, first ? 1 : 0);
+    menu_show_line_values(g, WINDOW_SLOT, table);
+    uint8_t bank = menu_object_scratch_gate_window_bank(g);
+
+    /* The first line closed, and the line under it half; the middle lines
+     * all take the one above them, which the original repeats with an
+     * overlapping block move. */
+    enum { MIDDLE_FROM = 72, MIDDLE_TO = 152 };
+    set_line(g, bank, table, 0, CLOSED_LINE);
+    wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(table + 2), 0);
+    uint16_t middle = line_value(g, WORK_RAM_BANK, table, MIDDLE_FROM);
+    wram_fill16(g, in_work_ram((uint16_t)(table + 2 * (MIDDLE_FROM + 1))), MIDDLE_TO - MIDDLE_FROM - 1, middle);
+    ORIGINAL_EFFECT(charge_block_move(g, 2 * (MIDDLE_TO - MIDDLE_FROM - 1)));
+
+    uint16_t angle = menu_object_slots_angle(g, dial);
+    ScreenPoint corners[CORNERS];
+    turn_corners(g, angle, corners);
+
+    WindowDrawn w = { .table = table, .bank = bank, .cos = cosine(g, angle), .sin = sine(g, angle) };
+    GateEdge divided = { 0 };
+    uint8_t top = 0xFF, bottom = 0;
+    for (unsigned c = 0; c < CORNERS; c++) {
+        ScreenPoint to = corners[(c + 1) % CORNERS];
+        GateEdge edge = edge_between(corners[c], to);
+        w.last_edge = edge;
+        w.last_from = corners[c];
+        w.last_to = to;
+        if (!edge.drawn)
+            continue;
+        divided = edge;
+        w.any_swapped = w.any_swapped || edge.swapped;
+        keep_edge(g, w.edges++, &edge);
+        if (edge.top < top)
+            top = edge.top;
+        if (edge.bottom >= bottom)
+            bottom = edge.bottom;
+    }
+
+    /* Every triangle the gate turns to has two edges across each of its
+     * lines. */
+    uint8_t lines = (uint8_t)(bottom - top);
+    for (uint8_t n = 0; n < lines; n++) {
+        uint8_t line = (uint8_t)(top + n);
+        cross_line(g, w.edges, line, w.crossings);
+        uint8_t first_x = (uint8_t)(w.crossings[0] >> 8), second_x = (uint8_t)(w.crossings[1] >> 8);
+        set_line(g, bank, table, line, first_x < second_x ? (uint16_t)(second_x << 8 | first_x)
+                                                          : (uint16_t)(first_x << 8 | second_x));
+    }
+    ORIGINAL_EFFECT(charge_as(g, 0xC26CC1, FIXED_ACCESSES + LINE_ACCESSES * lines));
+    w.after_the_last_line = (uint8_t)(top + lines);
+    w.bottom = bottom;
+    ORIGINAL_EFFECT(leave_window_drawn(g, &w, &divided));
+}
+
+/* ---- The time dial: its objects --------------------------------------------------------------- */
+
+typedef enum { DIAL_STARTS, DIAL_WAITS, DIAL_TURNS } DialStep;
+
+/* The buttons that turn the dial back and on, tried in this order, and the
+ * ones that travel and that leave. */
+static const struct {
+    uint16_t button;
+    int8_t turn;
+} dial_buttons[] = {
+    { 0x0010, -1 }, { 0x0020, 1 }, { 0x0100, -1 }, { 0x0200, 1 }, { 0x0800, -1 }, { 0x0400, 1 },
+};
+enum { TRAVEL_BUTTON = 0x0080, LEAVE_BUTTON = 0x0008, NOWHERE = 0xFFFF };
+
+/* How far the gate turns a frame, and the sound of a period the Epoch is
+ * already at. */
+enum { DIAL_SPEED = 4 };
+enum { BUZZ_EFFECT = 0x01, BUZZ_PAN = 0x80 };
+
+/* The screen the dial starts on: the window's tables all closed, and the
+ * window on slot 1. */
+static void open_the_window(GameState *g, Platform *pf)
+{
+    set_menu_object_scratch_gate_window_bank(g, WORK_RAM_BANK);
+    menu_start_line_effect(g, pf, 0xC26AFA, WINDOW_SLOT, VID_LINE_WINDOW1);
+    wram_fill16(g, RAM_MENU_SLOT1_LINE_VALUES, MENU_LINE_TABLE_LINES, CLOSED_LINE);
+    wram_fill16(g, RAM_MENU_SLOT1_OTHER_LINE_VALUES, MENU_LINE_TABLE_LINES, CLOSED_LINE);
+    ORIGINAL_EFFECT(charge_block_move(g, 4 * MENU_LINE_TABLE_LINES));
+}
+
+/* Stand the dial at a period: the gate turns to its angle. */
+static void aim_at_period(GameState *g, MenuObject dial, uint8_t period)
+{
+    set_menu_object_slots_period(g, dial, period);
+    set_menu_object_slots_target_angle(g, dial, menu_period_angle(g, period));
+}
+
+/* Where turning moves on past the ends of the dial: it stops there. */
+static uint8_t turned_period(uint8_t period, int8_t turn)
+{
+    uint8_t next = (uint8_t)(period + turn);
+    if (turn < 0)
+        return next & 0x80 ? 0 : next;
+    return next >= MENU_PERIODS ? MENU_PERIODS - 1 : next;
+}
+
+/* What the dial did this frame. */
+typedef enum {
+    DIAL_IDLE,        /* nothing pressed */
+    DIAL_TRAVELS,     /* to the period it stands at, or away */
+    DIAL_BUZZES,      /* asked to travel to where the party is */
+    DIAL_TURNING,     /* on towards the period it was turned to */
+    DIAL_ARRIVED,     /* at that period */
+    DIAL_PASSES,      /* over a period whose location is here, on to the next */
+} DialOutcome;
+
+// $C2:6AC8
+/* The dial: it starts at the party's period with its window open, then turns
+ * through the periods as the player asks. A period whose location is where
+ * the party is is turned past, back at the ends. The player travels to the
+ * period the dial stands at, or leaves; asked to travel to where the party
+ * is, the dial buzzes (its entry sends the sound). It is never done: the
+ * screen ends by the menus' mode. */
+static DialOutcome time_dial(GameState *g, Platform *pf, MenuObject dial)
+{
+    uint8_t step = menu_object_slots_step(g, dial);
+    if (step == DIAL_STARTS) {
+        set_menu_object_slots_step(g, dial, DIAL_WAITS);
+        uint8_t period = period_here(g);
+        open_the_window(g, pf);
+        aim_at_period(g, dial, period);
+        set_menu_object_slots_angle(g, dial, menu_period_angle(g, period));
+        set_menu_time_period(g, period);
+        TIMED_AS(g, 0xC26CC1, draw_gate_window(g, dial));
+        step = DIAL_WAITS;
+    }
+    if (step == DIAL_WAITS) {
+        uint16_t buttons = input_mapped(g, 1);
+        int8_t turn = 0;
+        for (unsigned i = 0; i < sizeof dial_buttons / sizeof dial_buttons[0] && turn == 0; i++)
+            if (buttons & dial_buttons[i].button)
+                turn = dial_buttons[i].turn;
+        if (turn == 0) {
+            if (buttons & TRAVEL_BUTTON) {
+                uint16_t there = period_location(g, menu_object_slots_period(g, dial));
+                ORIGINAL_EFFECT(leave_cell16(g, 0x08, location_here(g)));
+                if (there != location_here(g)) {
+                    set_menu_travel_location(g, there);
+                    set_menu_mode(g, MENU_MODE_BACK_TO_THE_MAP);
+                    return DIAL_TRAVELS;
+                }
+                set_sound_command(g, SOUND_EFFECT_ON_VOICES_6_7);
+                set_sound_command_parameters(g, 0, BUZZ_EFFECT);
+                set_sound_command_parameters(g, 1, BUZZ_PAN);
+                return DIAL_BUZZES;
+            }
+            if (buttons & LEAVE_BUTTON) {
+                set_menu_travel_location(g, NOWHERE);
+                set_menu_mode(g, MENU_MODE_BACK_TO_THE_MAP);
+                return DIAL_TRAVELS;
+            }
+            return DIAL_IDLE;
+        }
+        aim_at_period(g, dial, turned_period(menu_object_slots_period(g, dial), turn));
+        set_menu_object_slots_turn(g, dial, (uint16_t)(turn * DIAL_SPEED));
+        set_menu_object_slots_step(g, dial, DIAL_TURNS);
+    }
+    uint16_t angle = menu_object_slots_angle(g, dial);
+    if (angle != menu_object_slots_target_angle(g, dial)) {
+        set_menu_object_slots_angle(g, dial, (uint16_t)(angle + menu_object_slots_turn(g, dial)));
+        TIMED_AS(g, 0xC26CC1, draw_gate_window(g, dial));
+        return DIAL_TURNING;
+    }
+    uint8_t period = menu_object_slots_period(g, dial);
+    uint16_t there = period_location(g, period);
+    ORIGINAL_EFFECT(leave_cell16(g, 0x08, there));
+    if (location_here(g) != there) {
+        set_menu_time_period(g, period);
+        set_menu_object_slots_step(g, dial, DIAL_WAITS);
+        return DIAL_ARRIVED;
+    }
+    /* Here already: on past it the way it was turning, and back at an end. */
+    int16_t turn = (int16_t)menu_object_slots_turn(g, dial);
+    uint8_t next = (uint8_t)(period + (turn >= 0 ? 1 : -1));
+    if (turn >= 0 ? next >= MENU_PERIODS : (next & 0x80) != 0) {
+        next = (uint8_t)(turn >= 0 ? next - 2 : next + 2);
+        set_menu_object_slots_turn(g, dial, (uint16_t)-turn);
+    }
+    aim_at_period(g, dial, next);
+    return DIAL_PASSES;
+}
+
+/* The gate's spin: the Mode 7 matrix changes every line, its cosines on
+ * line-effect slot 2 (the matrix's A and D) and its sines on slot 3 (B and
+ * C), each double-buffered; every frame the lines move up one and the last
+ * takes the next angle, so the gate turns down the screen. */
+enum { COSINE_SLOT = 2, SINE_SLOT = 3, MATRIX_A = 2, MATRIX_C = 4, MATRIX_D = 5, MATRIX_B = 3 };
+enum { SPIN_SPEED = 4, LAST_LINE = MENU_LINE_TABLE_LINES - 1 };
+
+static void gate_spin_line(GameState *g, uint16_t cosines, uint16_t sines, uint16_t line, uint16_t angle)
+{
+    wram_write16(g, in_work_ram((uint16_t)(cosines + 2 * line)), (uint16_t)cosine(g, angle));
+    wram_write16(g, in_work_ram((uint16_t)(sines + 2 * line)), (uint16_t)sine(g, (uint16_t)(angle + EIGHTH_TURN)));
+}
+
+/* What the spin leaves in the mode's cells: the two tables' places, past
+ * the lines it filled the first time, and on the first, its loop's count and
+ * angle. */
+static void leave_spin(GameState *g, uint16_t cosines, uint16_t sines)
+{
+    enum { COSINES_AT = 0x10, SINES_AT = 0x13 };
+    leave_cell16(g, COSINES_AT, cosines);
+    leave_cell16(g, SINES_AT, sines);
+}
+
+// $C2:6F85
+/* The gate's spin object. The first frame fills both first tables from its
+ * angle, a spin speed's turn a line, and starts the four channels; every
+ * frame after moves the lines up into the other table and shows that. */
+static void gate_spin(GameState *g, Platform *pf, MenuObject spin)
+{
+    if (menu_object_slots_step(g, spin) == 0) {
+        set_menu_object_slots_step(g, spin, 1);
+        set_menu_object_slots_angle(g, spin, 0);
+        menu_lay_out_line_slot(g, COSINE_SLOT);
+        menu_lay_out_line_slot(g, SINE_SLOT);
+        menu_program_line_channel(pf, 0xC26FBB, MATRIX_A, VID_LINE_MODE7_A, menu_line_slot_table(COSINE_SLOT));
+        menu_program_line_channel(pf, 0xC26FC1, MATRIX_D, VID_LINE_MODE7_D, menu_line_slot_table(COSINE_SLOT));
+        menu_program_line_channel(pf, 0xC26FDE, MATRIX_B, VID_LINE_MODE7_B, menu_line_slot_table(SINE_SLOT));
+        menu_program_line_channel(pf, 0xC26FE4, MATRIX_C, VID_LINE_MODE7_C, menu_line_slot_table(SINE_SLOT));
+        menu_turn_on_line_slots(g, 1u << MATRIX_A | 1u << MATRIX_B | 1u << MATRIX_C | 1u << MATRIX_D);
+        set_menu_gate_flags(g, (uint8_t)(menu_gate_flags(g) & ~(DRAWING_THE_OTHER_SPIN | DRAWING_THE_OTHER_SINES)));
+        uint16_t cosines = menu_line_values(COSINE_SLOT, 0), sines = menu_line_values(SINE_SLOT, 0);
+        menu_show_line_values(g, COSINE_SLOT, cosines);
+        menu_show_line_values(g, SINE_SLOT, sines);
+        uint16_t angle = 0;
+        for (uint16_t line = 0; line < MENU_LINE_TABLE_LINES; line++, angle = (uint16_t)(angle + SPIN_SPEED))
+            gate_spin_line(g, cosines, sines, line, angle);
+        set_menu_object_slots_angle(g, spin, angle);
+        ORIGINAL_EFFECT(leave_spin(g, (uint16_t)(cosines + 2 * MENU_LINE_TABLE_LINES),
+                                   (uint16_t)(sines + 2 * MENU_LINE_TABLE_LINES)));
+        ORIGINAL_EFFECT(leave_cell16(g, 0x00, 0));
+        ORIGINAL_EFFECT(leave_cell16(g, 0x08, angle));
+        return;
+    }
+    bool first = !(menu_gate_flags(g) & DRAWING_THE_OTHER_SPIN);
+    set_menu_gate_flags(g, (uint8_t)(menu_gate_flags(g) ^ DRAWING_THE_OTHER_SPIN));
+    uint16_t cosines = menu_line_values(COSINE_SLOT, first ? 1 : 0), sines = menu_line_values(SINE_SLOT, first ? 1 : 0);
+    uint16_t cosines_were = menu_line_values(COSINE_SLOT, first ? 0 : 1), sines_were = menu_line_values(SINE_SLOT, first ? 0 : 1);
+    menu_show_line_values(g, COSINE_SLOT, cosines);
+    menu_show_line_values(g, SINE_SLOT, sines);
+    /* Every line moves up one, and the byte past the tables comes with them
+     * into the last line's low half, which the next angle then covers. */
+    enum { MOVED = 2 * LAST_LINE + 1 };
+    wram_copy(g, in_work_ram((uint16_t)(cosines_were + 2)), in_work_ram(cosines), MOVED);
+    wram_copy(g, in_work_ram((uint16_t)(sines_were + 2)), in_work_ram(sines), MOVED);
+    ORIGINAL_EFFECT(charge_as(g, 0xC26F85, 2 * 2 * MOVED));
+    uint16_t angle = menu_object_slots_angle(g, spin);
+    gate_spin_line(g, cosines, sines, LAST_LINE, angle);
+    set_menu_object_slots_angle(g, spin, (uint16_t)(angle + SPIN_SPEED));
+    ORIGINAL_EFFECT(leave_spin(g, cosines, sines));
+}
+
+typedef enum { DIGIT_STARTS, DIGIT_HIDDEN, DIGIT_SHOWING, DIGIT_SHOWN, DIGIT_HIDING } DigitStep;
+enum { DIGIT_LOOK = 0xB0 };
+
+// $C2:7143
+/* One of the dial's seven digits, its period's: it appears while the dial
+ * stands at its period, and goes when the dial moves on, each by a sprite
+ * script that plays out before it looks again. */
+static void dial_digit(GameState *g, MenuObject digit)
+{
+    uint8_t period = menu_object_slots_period(g, digit);
+    DigitStep step = (DigitStep)menu_object_slots_step(g, digit);
+    if (step == DIGIT_STARTS) {
+        step = DIGIT_HIDDEN;
+        set_menu_object_slots_step(g, digit, step);
+        set_menu_object_slots_look(g, digit, DIGIT_LOOK);
+        set_menu_object_slots_tiles(g, digit, 0);
+        set_menu_object_slots_x_pixel(g, digit, menu_digit_x(g, period));
+        set_menu_object_slots_y_pixel(g, digit, menu_digit_y(g, period));
+    }
+    switch (step) {
+    case DIGIT_STARTS:
+    case DIGIT_HIDDEN:
+        if (menu_time_period(g) == period) {
+            set_menu_object_slots_step(g, digit, DIGIT_SHOWING);
+            menu_give_sprite_script(g, digit, menu_digit_show_script(g, period));
+            TIMED_AS(g, 0xC20E1D, menu_object_animate(g));
+        }
+        return;
+    case DIGIT_SHOWING:
+        if (menu_object_slots_sprite_frames(g, digit) == 0)
+            set_menu_object_slots_step(g, digit, DIGIT_SHOWN);
+        TIMED_AS(g, 0xC20E1D, menu_object_animate(g));
+        return;
+    case DIGIT_SHOWN:
+        if (menu_time_period(g) != period) {
+            set_menu_object_slots_step(g, digit, DIGIT_HIDING);
+            menu_give_sprite_script(g, digit, menu_digit_hide_script(g, period));
+        }
+        TIMED_AS(g, 0xC20E1D, menu_object_animate(g));
+        return;
+    default:
+        if (menu_object_slots_sprite_frames(g, digit) == 0)
+            set_menu_object_slots_step(g, digit, DIGIT_HIDDEN);
+        TIMED_AS(g, 0xC20E1D, menu_object_animate(g));
+        return;
+    }
+}
+
+/* ---- The time dial: its graphics -------------------------------------------------------------- */
+
+/* The gate's tiles, twelve by sixteen of them, go to sixteen rows of VRAM,
+ * each filled with the same run of 32 pieces from the plane's buffer. */
+enum { GATE_TILE_ROWS = 16, GATE_PIECES = 32, GATE_PIECE_BYTES = 0x40, GATE_PIECE_WORDS = 0x80 };
+
+// $C2:7254
+static void upload_gate_tiles(GameState *g, Platform *pf)
+{
+    for (unsigned row = 0; row < GATE_TILE_ROWS; row++) {
+        uint16_t vram = menu_gate_tile_row(g, row);
+        for (unsigned piece = 0; piece < GATE_PIECES; piece++)
+            vid_send_vram(pf, PF_AT(0xC2726D), (uint16_t)(vram + piece * GATE_PIECE_WORDS),
+                            PF_GAME(RAM_MENU_MODE7_PLANE + piece * GATE_PIECE_BYTES), GATE_PIECE_BYTES, &after_high);
+    }
+}
+
+static void leave_gate_tiles(GameState *g)
+{
+    enum { PIECES_LEFT = 0x00, VRAM = 0x08, SOURCE = 0x0A, ROWS_AT = 0x0C };
+    leave_cell8(g, PIECES_LEFT, 0);
+    leave_cell16(g, VRAM, (uint16_t)(menu_gate_tile_row(g, GATE_TILE_ROWS - 1) + GATE_PIECES * GATE_PIECE_WORDS));
+    leave_cell16(g, SOURCE, (uint16_t)(RAM_ABS(RAM_MENU_MODE7_PLANE) + GATE_PIECES * GATE_PIECE_BYTES));
+    leave_cell16(g, ROWS_AT, 2 * GATE_TILE_ROWS);
+}
+
+/* A tilemap row is 32 bytes, sixteen words. */
+enum { TILEMAP_ROW_BYTES = 0x20, TILEMAP_ROW_WORDS = 0x10 };
+
+/* Where the rows' table and source are, long, as the original hands them to
+ * the rows' upload in its cells. */
+static void leave_rows_asked_for(GameState *g, uint32_t picks, uint32_t source)
+{
+    enum { PICKS = 0x10, SOURCE = 0x13 };
+    leave_cell16(g, PICKS, (uint16_t)picks);
+    leave_cell8(g, PICKS + 2, (uint8_t)(picks >> 16));
+    leave_cell16(g, SOURCE, (uint16_t)source);
+    leave_cell8(g, SOURCE + 2, (uint8_t)(source >> 16));
+}
+
+// $C2:72D8
+/* Rows of the gate's tilemap: each picks a row of the source by its number
+ * in a table, and goes to the next row of VRAM. A count of 0 is 65536. */
+static void upload_gate_rows(GameState *g, Platform *pf, uint16_t rows, uint32_t picks, uint32_t source, uint16_t vram)
+{
+    uint16_t left = rows;
+    do {
+        uint8_t pick = menu_gate_row_pick(g, picks);
+        picks = (picks & 0xFF0000u) | (uint16_t)(picks + 1);
+        uint32_t from = (source & 0xFF0000u) | (uint16_t)(pick * TILEMAP_ROW_BYTES + source);
+        vid_send_vram(pf, PF_AT(0xC272EE), vram, PF_GAME(from), TILEMAP_ROW_BYTES, &after_high);
+        vram = (uint16_t)(vram + TILEMAP_ROW_WORDS);
+        ORIGINAL_EFFECT(leave_cell16(g, 0x0A, (uint16_t)from));
+    } while (--left != 0);
+    ORIGINAL_EFFECT(leave_cell16(g, 0x00, 0));
+    ORIGINAL_EFFECT(leave_cell16(g, 0x08, vram));
+    ORIGINAL_EFFECT(leave_cell16(g, 0x10, (uint16_t)picks));
+}
+
+// $C2:7361
+/* The gate's picture: its pixels, packed two a byte, a byte each in the
+ * plane's buffer. The original writes them through the work RAM port. */
+enum { GATE_PIXEL_PAIRS = 0x400 };
+
+static void unpack_gate_pixels(GameState *g)
+{
+    for (unsigned i = 0; i < GATE_PIXEL_PAIRS; i++) {
+        uint8_t pair = menu_gate_pixel_pair(g, i);
+        set_menu_mode7_plane(g, 2 * i, (uint8_t)(pair >> 4));
+        set_menu_mode7_plane(g, 2 * i + 1, (uint8_t)(pair & 0x0F));
+    }
+    ORIGINAL_EFFECT(hw_port_seek(g, (uint16_t)(RAM_ABS(RAM_MENU_MODE7_PLANE) + 2 * GATE_PIXEL_PAIRS), EXTRA_RAM_BANK));
+}
+
+// $C2:722C
+/* The gate's picture to the plane's first tiles. */
+static void upload_gate_pixels(Platform *pf)
+{
+    vid_send_vram_half(pf, PF_AT(0xC2722F), 0x0000, PF_GAME(RAM_MENU_MODE7_PLANE), 2 * GATE_PIXEL_PAIRS,
+                       VID_VRAM_HIGH_BYTES, &after_high);
+}
+
+/* The dial's palette: kept as the mode loaded it, and sent with one colour
+ * white. */
+enum { WHITE = 0xFFFF, WHITE_COLOUR = 0xD1, PALETTE_BYTES = 0x200 };
+
+static void keep_dial_palette(GameState *g)
+{
+    wram_copy(g, RAM_MENU_LOADED_PALETTE, RAM_MENU_GATE_PALETTE_COPY, PALETTE_BYTES);
+    set_menu_loaded_palette(g, WHITE_COLOUR, WHITE);
+    wram_copy(g, RAM_MENU_LOADED_PALETTE, RAM_MENU_OBJECT_PALETTE, PALETTE_BYTES);
+    ORIGINAL_EFFECT(charge_block_move(g, 2 * PALETTE_BYTES));
+}
+
+/* The dial's objects: the dial, the gate's spin, two scripts and the seven
+ * digits, one a period (a new object takes on the period of the one that
+ * starts it, which counts them). */
+enum { DIAL_HANDLER = 0x6AC8, SPIN_HANDLER = 0x6F85, DIGIT_HANDLER = 0x7143 };
+enum { DIAL_SCRIPT = 0xC274B8, DIAL_SECOND_SCRIPT = 0xC27504, DIAL_LAST_SCRIPT = 0xC274AE, DIAL_ENDING_SCRIPT = 0xC274B3 };
+
+static void start_dial_objects(GameState *g)
+{
+    MenuObject started;
+    TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, DIAL_HANDLER, MENU_ORDINARY_SLOT, &started));
+    TIMED_AS(g, 0xC204D9, menu_start_script(g, DIAL_SCRIPT, MENU_ORDINARY_SLOT));
+    TIMED_AS(g, 0xC204D9, menu_start_script(g, DIAL_SECOND_SCRIPT, MENU_ORDINARY_SLOT));
+    TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, SPIN_HANDLER, MENU_ORDINARY_SLOT, &started));
+    MenuObject self = menu_object_running(g);
+    uint8_t kept = menu_object_slots_period(g, self);
+    set_menu_object_slots_period(g, self, 0);
+    for (uint8_t period = 0; period < MENU_PERIODS; period++) {
+        TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, DIGIT_HANDLER, MENU_ORDINARY_SLOT, &started));
+        set_menu_object_slots_period(g, self, (uint8_t)(period + 1));
+    }
+    set_menu_object_slots_period(g, self, kept);
+    TIMED_AS(g, 0xC204D9, menu_start_script(g, DIAL_LAST_SCRIPT, MENU_ORDINARY_SLOT));
+}
+
+/* ---- Where the Epoch may fly ------------------------------------------------------------------ */
+
+/* A rectangle of tiles, each start inclusive and end exclusive, and the sides
+ * of it a tile can be outside of. */
+typedef struct {
+    uint8_t top, bottom, left, right;
+} Area;
+enum { OUTSIDE_LEFT = 1, OUTSIDE_RIGHT = 2, OUTSIDE_ABOVE = 4, OUTSIDE_BELOW = 8 };
+
+// $C6:E74E
+static uint8_t sides_outside(uint8_t x, uint8_t y, Area a)
+{
+    uint8_t sides = 0;
+    if (x < a.left)
+        sides = OUTSIDE_LEFT;
+    else if (x >= a.right)
+        sides = OUTSIDE_RIGHT;
+    if (y < a.top)
+        sides |= OUTSIDE_ABOVE;
+    else if (y >= a.bottom)
+        sides |= OUTSIDE_BELOW;
+    return sides;
+}
+
+/* The areas of the world maps the Epoch may be flown in; a map with none has
+ * nowhere. */
+enum { TILE_SHIFT = 3 };
+static const struct {
+    bool has_area;
+    Area area;
+} world_map_areas[MENU_WORLD_MAPS] = {
+    { true, { 0x64, 0x7F, 0x41, 0x72 } },
+    { true, { 0x76, 0x7F, 0x60, 0x6E } },
+    { false, { 0, 0, 0, 0 } },
+    { true, { 0x00, 0x34, 0x00, 0x0E } },
+    { true, { 0x60, 0x7F, 0x00, 0x20 } },
+    { false, { 0, 0, 0, 0 } },
+    { false, { 0, 0, 0, 0 } },
+    { false, { 0, 0, 0, 0 } },
+};
+
+/* The tile the check takes and the area it compared, as the original leaves
+ * them in its cells. It stores the tile's row as a word, whose high byte
+ * lands in the area's first row's cell, which the area then covers. */
+static void leave_area_cells(GameState *g, uint16_t tile_x, uint16_t tile_y, const Area *a, uint8_t sides)
+{
+    set_menu_object_scratch_area_tile_x(g, (uint8_t)tile_x);
+    set_menu_object_scratch_area_tile_y(g, (uint8_t)tile_y);
+    set_menu_object_scratch_area_top(g, (uint8_t)(tile_y >> 8));
+    if (!a)
+        return;
+    set_menu_object_scratch_area_top(g, a->top);
+    set_menu_object_scratch_area_bottom(g, a->bottom);
+    set_menu_object_scratch_area_left(g, a->left);
+    set_menu_object_scratch_area_right(g, a->right);
+    set_menu_object_scratch_area_outside(g, sides);
+}
+
+// $C6:E797
+/* Whether the object is inside the area of the world map the party is on. */
+static bool in_area(GameState *g, MenuObject o)
+{
+    MenuPlace p = menu_object_place(g, o);
+    uint16_t tile_x = menu_pixel(p.x) >> TILE_SHIFT, tile_y = menu_pixel(p.y) >> TILE_SHIFT;
+    unsigned map = (uint16_t)(location_id(g) - MENU_FIRST_WORLD_MAP);
+    if (!world_map_areas[map].has_area) {
+        ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, NULL, 0));
+        return false;
+    }
+    const Area *a = &world_map_areas[map].area;
+    uint8_t sides = sides_outside((uint8_t)tile_x, (uint8_t)tile_y, *a);
+    ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, a, sides));
+    return sides == 0;
+}
+
+/* ---- The End of Time's gate screen ------------------------------------------------------------ */
+
+/* The menus proper start the End of Time's gate screen: its third layer's
+ * tilemap moves to its own place, the screen's frame task is added to the
+ * menus' tasks, and the screen's state is set up from the ROM, where the task
+ * reads it. The task and the rest of the screen are still the original's. */
+enum { GATE_SCREEN_TILEMAP = 0x6800, TILEMAP_TILES = 32 };
+
+/* The screen's state: two bytes the screen counts from zero, then its setup. */
+enum { GATE_SCREEN_COUNTS = 2, GATE_SCREEN_SETUP_BYTES = MENU_GATE_SCREEN_STATE_COUNT - GATE_SCREEN_COUNTS };
+
+static void start_counting(GameState *g)
+{
+    for (unsigned i = 0; i < GATE_SCREEN_COUNTS; i++)
+        set_menu_gate_screen_state(g, i, 0);
+}
+
+static void set_up_gate_screen(GameState *g)
+{
+    for (unsigned i = 0; i < GATE_SCREEN_SETUP_BYTES; i++)
+        set_menu_gate_screen_state(g, GATE_SCREEN_COUNTS + i, menu_gate_screen_setup(g, i));
+}
+
+/* ---- The bridges: the screens on the machine -------------------------------------------------- */
+
+/* Registers the original's routines the screens call don't read
+ * (tools/dontcare_check.py checks each). */
+enum {
+    READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+    READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+    READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+    READS_X_AND_A_HIGH = DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AL,
+};
+
+/* The loaders and builders that call out to the original's decompressor and
+ * graphics loader are called as the original calls them, through the
+ * machine: they are entries of their own (registered, each a port), which
+ * shadow mode compares and the timing gate measures on their own. */
+
+// $C2:6965
+/* Load the view's marker graphics with the menus' loader, and send them to
+ * VRAM $6200. */
+static void load_map_view_graphics(Snes *s)
+{
+    GameState *g = state_of(s);
+    m_jsr_dc(s, 0xC26965, 0xC25798, READS_NOTHING | DC_DB);   /* clear the loader's buffer */
+    request_map_view_graphics(g);
+    m_jsl_dc(s, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);   /* the loader */
+    set_menu_load_request_size(g, MAP_VIEW_GRAPHICS_BYTES);
+    m_jsl_dc(s, 0xC269C4, 0xC25823, READS_NOTHING | DC_D);
+    vid_send_vram(m_platform(s), PF_AT(0xC269C8), 0x6200, PF_GAME(RAM_MENU_MAP_GRAPHICS), 0x0400, &after_high);
+}
+
+// $C2:63DF
+/* Load the world map ($C2:27DE), then build the view's plane from it. */
+static void build_map_view_on_the_machine(Snes *s)
+{
+    m_jsr_dc(s, 0xC263DF, 0xC227DE, READS_NOTHING);
+    build_map_view(state_of(s), m_platform(s));
+}
+
+/* The routines both screens call: the menus' VRAM cleared (menu/display.c's
+ * entry), the mode reset, every object slot freed, a frame waited, a number
+ * of frames waited while the sound's requests go on. */
+static void clear_the_screen(Snes *s, uint32_t clear_vram, uint32_t reset_the_mode, uint32_t free_the_slots)
+{
+    m_jsr_dc(s, clear_vram, 0xC226A8, READS_NOTHING);
+    m_jsr_dc(s, reset_the_mode, 0xC203EF, READS_NOTHING | DC_DB);
+    m_jsr_dc(s, free_the_slots, 0xC20471, READS_NOTHING);
+}
+
+static void wait_frames(Snes *s, uint32_t site, uint16_t frames)
+{
+    s->cpu.x = frames;
+    m_jsr_dc(s, site, 0xC20454, READS_X_AND_A_HIGH);
+}
+
+/* The screen runs until the menus' mode leaves `mode`, a frame at a time. */
+static void run_until_the_mode_changes(Snes *s, uint32_t site, uint8_t mode)
+{
+    GameState *g = state_of(s);
+    do
+        m_jsr_dc(s, site, 0xC2046E, READS_NOTHING | DC_DB);
+    while (menu_mode(g) == mode);
+    m_set_a8(s, menu_mode(g));
+}
+
+/* The screen shows from the next frame: the mode sends its frame and palette,
+ * and the vblank and joypad interrupts are on. */
+static void show_from_the_next_frame(Snes *s, uint32_t site)
+{
+    GameState *g = state_of(s);
+    set_menu_object_frame_state(g, (uint8_t)(menu_object_frame_state(g) | SEND_FRAME_AND_PALETTE));
+    tm_enable_interrupts(m_platform(s), PF_AT(site), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
+}
+
+/* And back to the menus' own display as it ends. */
+static void back_to_the_menus(Snes *s, uint32_t sprites_site, uint32_t interrupts_site, uint32_t uploads_site,
+                              uint32_t effects_site)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    set_menu_object_shadows_bg_mode(g, MENU_BG_MODE);
+    const VidObjConfig menus = { .size_select = 3, .base = 0x0000, .name_select = 0 };
+    vid_set_obj_config(pf, PF_AT(sprites_site), &menus);
+    tm_enable_interrupts(pf, PF_AT(interrupts_site), 0);
+    vid_stop_uploads(pf, PF_AT(uploads_site));
+    vid_enable_line_effects(pf, PF_AT(effects_site), 0);
+}
+
+/* Starting a script leaves A its address's high byte over its bank, which
+ * the frames' wait after it reads. */
+static void start_script_as_the_original(Snes *s, uint32_t script)
+{
+    menu_start_script(state_of(s), script, MENU_ORDINARY_SLOT);
+    s->cpu.a = (uint16_t)((script & 0xFF00) | (uint8_t)(script >> 16));
+}
+
+// $C2:631F
+/* The map view: Mode 7 behind sprites at $6000, the colour math adding the
+ * fixed colour to the backdrop, its graphics and plane built, the cursor and
+ * its script started, and the screen run until the menus' mode leaves it. */
+enum { MAP_VIEW_MODE = 0x06, BACKDROP = 0x20, MAP_VIEW_CURSOR = 0x666C, MAP_VIEW_SCRIPT = 0xC269F8 };
+
+void menu_epoch_map_screen(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    set_menu_object_shadows_bg_mode(g, MODE_7);
+    const VidObjConfig sprites = { .size_select = 3, .base = 0x6000, .name_select = 0 };
+    vid_set_obj_config(pf, PF_AT(0xC26325), &sprites);
+    set_menu_object_shadows_math_control(g, 0);
+    set_menu_object_shadows_math_layers(g, BACKDROP);
+    clear_the_screen(s, 0xC2632E, 0xC26331, 0xC26334);
+    m_jsr_dc(s, 0xC26337, 0xC26965, READS_NOTHING);
+    NATIVE_TIME_AS(s, 0xC268F4, map_view_gradient(g, pf));
+    m_jsr_dc(s, 0xC2633D, 0xC263DF, READS_NOTHING);
+
+    vid_send_vram(pf, PF_AT(0xC26340), 0x6000, PF_GAME(MENU_MAP_VIEW_TILES), 0x0020, &after_high);
+    vid_send_vram(pf, PF_AT(0xC26367), 0x6020, PF_GAME(MENU_MAP_VIEW_MORE_TILES), 0x0020, &after_high);
+    enum { VIEW_COLOURS = 0x100, VIEW_COLOUR_BYTES = 0x21 };
+    set_menu_object_palette_byte(g, 0, 0);
+    set_menu_object_palette_byte(g, 1, 0);
+    uint32_t silenced = native_uncounted_begin(s);
+    for (unsigned i = 0; i < VIEW_COLOUR_BYTES; i++)
+        set_menu_object_palette_byte(g, VIEW_COLOURS + i, menu_map_view_colour_byte(g, i));
+    native_uncounted_end(s, silenced);
+    ORIGINAL_EFFECT(charge_block_move(g, VIEW_COLOUR_BYTES));
+    m_sep(s, CPU_FLAG_M);
+
+    MenuObject cursor;
+    NATIVE_TIME_AS(s, 0xC2048A, (void)menu_start_object(g, MAP_VIEW_CURSOR, MENU_ORDINARY_SLOT, &cursor));
+    NATIVE_TIME_AS(s, 0xC204D9, start_script_as_the_original(s, MAP_VIEW_SCRIPT));
+    show_from_the_next_frame(s, 0xC263B7);
+    run_until_the_mode_changes(s, 0xC263BA, MAP_VIEW_MODE);
+    wait_frames(s, 0xC263C7, 0x11);
+    back_to_the_menus(s, 0xC263D0, 0xC263D5, 0xC263D8, 0xC263DB);
+    m_rts(s);
+}
+
+/* Load one of the dial's streams from the bank the caller names into bank
+ * $7F with the decompressor, from the JSL at $C2:721B. */
+static void load_gate_stream(Snes *s, uint8_t stream, uint8_t bank)
+{
+    GameState *g = state_of(s);
+    set_decompress_source(g, (uint32_t)bank << 16 | menu_gate_stream_source(g, stream));
+    set_decompress_dest(g, (uint32_t)EXTRA_RAM_BANK << 16 | menu_gate_stream_dest(g, stream));
+    m_jsl_dc(s, 0xC2721B, 0xC30002, READS_NOTHING | DC_DB | DC_D);
+}
+
+/* The streams: the tiles from bank C3, the palette and the tilemap's rows
+ * from bank C6. */
+enum { GATE_TILES_STREAM = 0, GATE_PALETTE_STREAM = 1, GATE_ROWS_STREAM = 2 };
+
+/* The loader takes the stream's number in the mode's cell at $08 and its
+ * bank in A. */
+static void load_gate_stream_as_the_original(Snes *s, uint32_t jsr_site, uint8_t stream, uint8_t bank)
+{
+    enum { STREAM_CELL = 0x08 };
+    set_menu_object_scratch_bytes_byte(state_of(s), STREAM_CELL, stream);
+    m_set_a8(s, bank);
+    m_jsr_dc(s, jsr_site, 0xC271F9, READS_A | DC_AH);
+}
+
+// $C2:7389
+/* Everything the dial shows: the gate's tiles, its tilemap, its palette and
+ * its picture, and the objects that drive it. */
+enum { GATE_TILE_VRAM = 0x6400, GATE_TILEMAP_VRAM = 0x6000, GATE_TILEMAP_ROWS = 0x40, GATE_TILES_BYTES = 0x800 };
+
+static void build_the_dial(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    load_gate_stream_as_the_original(s, 0xC2738D, GATE_TILES_STREAM, 0xC3);
+    vid_send_vram(pf, PF_AT(0xC27393), GATE_TILE_VRAM, PF_GAME(RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &after_high);
+    ORIGINAL_EFFECT(leave_rows_asked_for(g, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE));
+    NATIVE_TIME_AS(s, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
+                                                 GATE_TILEMAP_VRAM));
+    load_gate_stream_as_the_original(s, 0xC273DC, GATE_PALETTE_STREAM, 0xC6);
+    keep_dial_palette(g);
+    load_gate_stream_as_the_original(s, 0xC27408, GATE_ROWS_STREAM, 0xC6);
+    NATIVE_TIME_AS(s, 0xC27254, upload_gate_tiles(g, pf));
+    ORIGINAL_EFFECT(leave_gate_tiles(g));
+    NATIVE_TIME_AS(s, 0xC27361, unpack_gate_pixels(g));
+    NATIVE_TIME_AS(s, 0xC2722C, upload_gate_pixels(pf));
+    start_dial_objects(g);
+    s->cpu.a = (uint16_t)((DIAL_LAST_SCRIPT & 0xFF00) | (uint8_t)(DIAL_LAST_SCRIPT >> 16));
+}
+
+// $C2:6A34
+/* The time dial: Mode 7 behind sprites at $6000, its matrix a unit's
+ * across and down, window 1 cutting the gate out of both screens, the colour
+ * math adding the fixed colour to what the window leaves; the gate built and
+ * its objects started, and the screen run until the menus' mode leaves it. */
+enum { DIAL_MODE = 0x08, DIAL_SCROLL_X = 0xFF80, DIAL_SCROLL_Y = 0xFF90, UNIT_HIGH = 0x01 };
+enum { WINDOW1_ON_COLOUR = 0x20, BG1_AND_SPRITES = 0x11, MATH_INSIDE_THE_WINDOW = 0x10, MATH_LAYERS = 0x17 };
+enum { FIXED_LEVEL = 0x0F };
+
+void menu_epoch_time_dial_screen(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    clear_the_screen(s, 0xC26A34, 0xC26A37, 0xC26A3A);
+    set_menu_object_shadows_bg_mode(g, MODE_7);
+    const VidObjConfig sprites = { .size_select = 0, .base = 0x6000, .name_select = 0 };
+    vid_set_obj_config(pf, PF_AT(0xC26A43), &sprites);
+    set_menu_object_shadows_bg1_scroll_x(g, DIAL_SCROLL_X);
+    set_menu_object_shadows_bg1_scroll_y(g, DIAL_SCROLL_Y);
+    set_menu_object_shadows_bg2_scroll_x(g, 0);
+    set_menu_object_shadows_bg2_scroll_y(g, 0);
+    set_menu_object_shadows_bg3_scroll_x(g, 0);
+    set_menu_object_shadows_bg3_scroll_y(g, 0);
+    /* The matrix's B and C cleared and the high bytes of A and D set: a unit
+     * across and down, whatever their low bytes held. */
+    for (unsigned at = 2; at < 6; at++)
+        set_menu_object_shadows_mode7_matrix_byte(g, at, 0);
+    set_menu_object_shadows_mode7_center(g, 0);
+    set_menu_object_shadows_mode7_matrix_byte(g, 1, UNIT_HIGH);
+    set_menu_object_shadows_mode7_matrix_byte(g, 7, UNIT_HIGH);
+    set_menu_object_shadows_windows_byte(g, 0, 0);
+    set_menu_object_shadows_windows_byte(g, 1, 0);
+    set_menu_object_shadows_windows_byte(g, 2, WINDOW1_ON_COLOUR);
+    set_menu_object_shadows_main_window_mask(g, BG1_AND_SPRITES);
+    set_menu_object_shadows_sub_window_mask(g, BG1_AND_SPRITES);
+    set_menu_object_shadows_math_control(g, MATH_INSIDE_THE_WINDOW);
+    set_menu_object_shadows_math_layers(g, MATH_LAYERS);
+    set_menu_object_shadows_fixed_blue(g, FIXED_LEVEL);
+    set_menu_object_shadows_fixed_red(g, FIXED_LEVEL);
+    set_menu_object_shadows_fixed_green(g, FIXED_LEVEL);
+    set_menu_gate_flags(g, 0);
+    m_jsr_dc(s, 0xC26A8A, 0xC27389, READS_NOTHING);
+    show_from_the_next_frame(s, 0xC26A93);
+    m_set_a8(s, 0x81);
+    wait_frames(s, 0xC26A99, 0x12);
+    run_until_the_mode_changes(s, 0xC26A9C, DIAL_MODE);
+    NATIVE_TIME_AS(s, 0xC204D9, start_script_as_the_original(s, DIAL_ENDING_SCRIPT));
+    wait_frames(s, 0xC26AB1, 0x12);
+    back_to_the_menus(s, 0xC26ABA, 0xC26ABE, 0xC26AC1, 0xC26AC4);
+    m_rts(s);
+}
+
+/* ---- The entries ---------------------------------------------------------------------------- */
+
+/* Both screens run on the menus' page with the data bank on the I/O banks,
+ * their objects' handlers entered with their slot in X. */
+bool menu_epoch_page_is_menu(Snes *s) { return s->cpu.d == RAM_PAGE_MENU && s->cpu.db == 0x00; }
+
+bool menu_epoch_object_runs(Snes *s)
+{
+    if (!menu_epoch_page_is_menu(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = menu_object_address_names_one(menu_object_current(g)) && s->cpu.x == menu_object_current(g);
+    vars_peek(false);
+    return ok;
+}
+
+/* The objects whose handlers go by steps are on one of theirs: the original
+ * jumps through a table of them, and past its end into code. */
+static bool on_a_step(Snes *s, uint8_t steps)
+{
+    if (!menu_epoch_object_runs(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = menu_object_slots_step(g, menu_object_running(g)) < steps;
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_epoch_cursor_runs(Snes *s) { return on_a_step(s, CURSOR_WALKS_BACK + 1); }
+/* The dial draws its window in the tables its first step put in work RAM. */
+bool menu_epoch_dial_runs(Snes *s)
+{
+    if (!on_a_step(s, DIAL_TURNS + 1))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint8_t bank = menu_object_scratch_gate_window_bank(g);
+    bool ok = menu_object_slots_step(g, menu_object_running(g)) == DIAL_STARTS || bank == WORK_RAM_BANK
+              || bank == EXTRA_RAM_BANK;
+    vars_peek(false);
+    return ok;
+}
+bool menu_epoch_spin_runs(Snes *s) { return on_a_step(s, 2); }
+
+/* The markers and the digits run a sprite script, which reads as the
+ * language wherever the game gives one (menu/sprites.c): the one the object
+ * has, once it has set its own up, and the ones a digit is given for its
+ * period; the sprite list is as the mode lays it out and the upload queue
+ * whole. */
+static bool animates(const GameState *g, MenuObject o)
+{
+    return menu_sprite_list_is_sound(g) && menu_object_queue_is_whole(g)
+           && (menu_object_slots_step(g, o) == 0 || menu_sprite_script_is_well_formed(g, o));
+}
+
+bool menu_epoch_marker_runs(Snes *s)
+{
+    if (!menu_epoch_object_runs(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = animates(g, menu_object_running(g));
+    vars_peek(false);
+    return ok;
+}
+
+bool menu_epoch_digit_runs(Snes *s)
+{
+    if (!on_a_step(s, DIGIT_HIDING + 1))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    MenuObject digit = menu_object_running(g);
+    uint8_t period = menu_object_slots_period(g, digit);
+    /* A hidden digit shows nothing until it is given its showing script. */
+    bool hidden = menu_object_slots_step(g, digit) <= DIGIT_HIDDEN;
+    bool ok = menu_sprite_list_is_sound(g) && menu_object_queue_is_whole(g)
+              && (hidden || menu_sprite_script_is_well_formed(g, digit))
+              && menu_given_sprite_script_is_well_formed(g, menu_digit_show_script(g, period))
+              && menu_given_sprite_script_is_well_formed(g, menu_digit_hide_script(g, period));
+    vars_peek(false);
+    return ok;
+}
+
+/* A slot's object is running: the dial's graphics count the digits' periods
+ * in its slot. */
+bool menu_epoch_slot_runs(Snes *s)
+{
+    if (!menu_epoch_page_is_menu(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_object_address_names_one(menu_object_current(state_of(s)));
+    vars_peek(false);
+    return ok;
+}
+
+/* The matrix takes the angle for its sine from the slot in X. */
+bool menu_epoch_matrix_runs(Snes *s)
+{
+    return menu_epoch_slot_runs(s) && menu_object_address_names_one(s->cpu.x);
+}
+
+/* The window's drawing runs on the page with a slot's object running (the
+ * dial calls it with X on other things), and its tables in work RAM, where
+ * the dial puts them. */
+bool menu_epoch_window_runs(Snes *s)
+{
+    if (!menu_epoch_page_is_menu(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint8_t bank = menu_object_scratch_gate_window_bank(g);
+    bool ok = menu_object_address_names_one(menu_object_current(g)) && (bank == WORK_RAM_BANK || bank == EXTRA_RAM_BANK);
+    vars_peek(false);
+    return ok;
+}
+
+/* The area check on one of the world maps, which the original picks the area
+ * of with a jump through a table as long as the maps. */
+bool menu_epoch_on_world_map(Snes *s)
+{
+    if (m_direct_page(s) != 0 || !m_bank_reaches_low_ram(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = menu_object_address_names_one(menu_object_current(g))
+              && (uint16_t)(location_id(g) - MENU_FIRST_WORLD_MAP) < MENU_WORLD_MAPS;
+    vars_peek(false);
+    return ok;
+}
+
+/* An object's handler hands back whether it is done in the carry, and the
+ * original's comes back with the accumulator as wide as its path left it. */
+static void handler_returns(Snes *s, bool done, bool wide)
+{
+    m_set_flag(s, CPU_FLAG_C, done);
+    if (wide)
+        m_rep(s, CPU_FLAG_M);
+    else
+        m_sep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:63DF
+/* It comes back with an 8-bit accumulator. */
+void menu_epoch_build_map(Snes *s)
+{
+    build_map_view_on_the_machine(s);
+    m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
 
 // $C2:6965
-/* Load the map view's graphics: the set this location's map uses, with the two
- * story exceptions, decompressed to $7E:8621 and sent to VRAM $6200. */
 void menu_epoch_load_map_graphics(Snes *s)
 {
-    m_jsr_dc(s, 0xC26965, 0xC25798, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    uint16_t index = (uint16_t)((m_read16(s, RAM_LOCATION_ID) & 0x01FF) - 0x01F0);
-    uint16_t pair = map_graphics_set(s, index);
-    m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_ENTRY)), pair);
-    uint8_t set = (uint8_t)pair;
-    if (set == 0x6C) {
-        if (m_read8(s, RAM_MENU_STORY_PROGRESS) < 0x36)
-            m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_ENTRY)), 0x6F);
-    } else if (set == 0x6B) {
-        if ((m_read8(s, RAM_MENU_STORY_FLAGS_EPOCH) & 1) == 0)
-            m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_ENTRY)), 0x6F);
-    }
-    m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_TABLE)), 0xF400);
-    m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_TABLE) + 2), 0xC6);
-    m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_KIND)), 0x02);
-    m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_DEST)), MAP_GRAPHICS);
-    m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_DEST) + 2), 0x7E);
-    m_ldx(s, MAP_GRAPHICS);
-    m_lda8(s, 0x7E);
-    m_jsl_dc(s, 0xC269BB, 0xC257DF, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_lda8(s, 0x0C);
-    m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_SIZE)), 0x0C);
-    m_jsl_dc(s, 0xC269C4, 0xC25823, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    vid_upload_vram(m_platform(s), PF_AT(0xC269C8), 0x6200, PF_GAME(0x7E0000 | MAP_GRAPHICS), 0x0400,
-                    &word_upload);
+    load_map_view_graphics(s);
     m_rts(s);
 }
 
-// $C2:631F
-/* The map view: sprite tiles at $6000 and Mode 7 behind them, the plane and the
- * cursor's graphics built, the cursor object put in a slot, and the frame task
- * run until the mode byte leaves the map view. */
-void menu_epoch_map_screen(Snes *s)
+// $C2:666C
+/* A step of its walk comes back 16 bits wide. */
+void menu_epoch_map_cursor(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    Platform *pf = m_platform(s);
-    set_dp8(s, SHADOW_BG_MODE, 0x07);
-    VidObjConfig objects = vid_obj_config_decode(0x63);
-    vid_set_obj_config(pf, PF_AT(0xC26325), &objects);
-    set_dp8(s, SHADOW_MATH_CONTROL, 0);
-    set_dp8(s, SHADOW_MATH_LAYERS, 0x20);
-    m_jsr_dc(s, 0xC2632E, 0xC226A8, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_jsr_dc(s, 0xC26331, 0xC203EF, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_jsr_dc(s, 0xC26334, 0xC20471, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_jsr_dc(s, 0xC26337, 0xC26965, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    NATIVE_TIME_AS(s, 0xC268F4, map_gradient(s));
-    m_jsr_dc(s, 0xC2633D, 0xC263DF, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    GameState *g = state_of(s);
+    CursorOutcome outcome = map_view_cursor(g, menu_object_running(g));
+    handler_returns(s, outcome == CURSOR_DONE, outcome == CURSOR_WALKED);
+}
 
-    vid_upload_vram(pf, PF_AT(0xC26340), 0x6000, PF_GAME(0xC6F500), 0x0020, &word_upload);
-    vid_upload_vram(pf, PF_AT(0xC26367), 0x6020, PF_GAME(0xC6F520), 0x0020, &word_upload);
-
-    m_write16(s, m_abs(s, OBJECT_PALETTE), 0);
-    m_push8(s, c->db);
-    m_ldx(s, 0xF540);
-    m_ldy(s, OBJECT_PALETTE_PATCH);
-    m_lda16(s, 0x0020);
-    m_mvn(s, 0x00, 0xC6);
-    c->db = m_pull8(s);
-    m_set_nz8(s, c->db);
-    m_sep(s, CPU_FLAG_M);
-    m_ldx(s, 0x666C);
-    m_jsr_dc(s, 0xC263A6, 0xC2048A, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_set_a8(s, 0xC2);
-    m_ldx(s, 0x69F8);
-    m_jsr_dc(s, 0xC263AE, 0xC204D9, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_lda8(s, 0x03);
-    m_tsb8(s, m_dp(s, FRAME_STATE));
-    m_lda8(s, 0x81);
-    tm_enable_interrupts(pf, PF_AT(0xC263B7), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
-    do {
-        m_jsr_dc(s, 0xC263BA, 0xC2046E, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        m_set_a8(s, m_read8(s, m_abs(s, RAM_ABS(RAM_MENU_MODE))));
-        m_cmp8(s, (uint8_t)c->a, 0x06);
-    } while ((uint8_t)c->a == 0x06);
-    m_ldx(s, 0x0011);
-    m_jsr_dc(s, 0xC263C7, 0xC20454, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    set_dp8(s, SHADOW_BG_MODE, 0x09);
-    VidObjConfig back = vid_obj_config_decode(0x60);
-    vid_set_obj_config(pf, PF_AT(0xC263D0), &back);
-    m_lda8(s, 0x00);
-    tm_enable_interrupts(pf, PF_AT(0xC263D5), 0);
-    vid_stop_uploads(pf, PF_AT(0xC263D8));
-    vid_enable_line_effects(pf, PF_AT(0xC263DB), 0);
+// $C2:6736
+void menu_epoch_map_matrix(Snes *s)
+{
+    GameState *g = state_of(s);
+    turn_map_view(g, menu_object_running(g), menu_object_at_address(s->cpu.x));
+    m_rep(s, CPU_FLAG_M);
     m_rts(s);
 }
 
-/* ---- the time dial ($C2:6A34) ------------------------------------------------------------ */
-
-// $C2:747A
-/* Which of the seven periods the party is in now, or the last one if none
- * matches. */
-static uint16_t current_period(Snes *s)
+/* A marker that ends because the Epoch is elsewhere comes back 16 bits
+ * wide. */
+static void marker_returns(Snes *s, MarkerOutcome outcome)
 {
-    uint16_t table = period_table(s);
-    set_dp16(s, CELL_PTR1, table);
-    set_dp8(s, (uint8_t)(CELL_PTR1 + 2), 0xC2);
-    uint16_t here = (uint16_t)(m_read16(s, RAM_LOCATION_ID) & 0x01FF);
-    for (uint16_t i = 0; i < 7; i++) {
-        if (period_location(s, table, (uint16_t)(2 * i)) == here)
-            return i;
-    }
-    return 6;
+    handler_returns(s, outcome != MARKER_SHOWN, outcome == MARKER_NOT_HERE);
 }
 
-// $C2:745A
-/* The location the dial's object would travel to at the period it shows. The
- * period is doubled with an 8-bit shift, so one of $80 or more indexes the
- * table from the other end of its own byte. */
-static uint16_t period_location_for(Snes *s, uint16_t slot)
+// $C2:67FA
+void menu_epoch_map_party_marker(Snes *s)
 {
-    uint16_t table = period_table(s);
-    set_dp16(s, CELL_PTR1, table);
-    set_dp8(s, (uint8_t)(CELL_PTR1 + 2), 0xC2);
-    return period_location(s, table, (uint8_t)(field8(s, slot, OBJ_PARAMETER) << 1));
+    GameState *g = state_of(s);
+    marker_returns(s, party_marker(g, menu_object_running(g)));
 }
 
-// $C2:6F33
-/* A signed 8 by 16 bit multiply, $07 times the word at $0E, into the 24-bit
- * product at $19. Each operand is made positive first and the sign put back
- * afterwards, so the original also leaves both absolute. */
-static void multiply_signed_logic(Snes *s)
+// $C2:683B
+void menu_epoch_map_epoch_marker(Snes *s)
 {
-    bool negative = ((dp8(s, (uint8_t)(CELL_D + 1)) ^ dp8(s, (uint8_t)(CELL_STEP + 1))) & 0x80) != 0;
-    uint8_t by = dp8(s, (uint8_t)(CELL_STEP + 1));
-    if (by & 0x80) {
-        by = (uint8_t)(0 - by);
-        set_dp8(s, (uint8_t)(CELL_STEP + 1), by);
-    }
-    uint16_t value = dp16(s, CELL_D);
-    if (value & 0x8000) {
-        value = (uint16_t)(0 - value);
-        set_dp16(s, CELL_D, value);
-    }
-    m_write8(s, m_abs(s, MUL_A), by);
-    m_write8(s, m_abs(s, MUL_B), (uint8_t)value);
-    set_dp8(s, (uint8_t)(CELL_PRODUCT + 2), 0);
-    uint16_t low = m_read16(s, m_abs(s, PRODUCT));
-    m_write8(s, m_abs(s, MUL_B), (uint8_t)(value >> 8));
-    set_dp16(s, CELL_PRODUCT, low);
-    Sum f = { false, false };
-    set_dp16(s, (uint8_t)(CELL_PRODUCT + 1),
-             add16(&f, m_read16(s, m_abs(s, PRODUCT)), dp16(s, (uint8_t)(CELL_PRODUCT + 1))));
-    if (negative) {
-        Sum n = { true, false };
-        set_dp16(s, CELL_PRODUCT, sub16(&n, 0, dp16(s, CELL_PRODUCT)));
-        set_dp8(s, (uint8_t)(CELL_PRODUCT + 2), sub8(&n, 0, dp8(s, (uint8_t)(CELL_PRODUCT + 2))));
-    }
+    GameState *g = state_of(s);
+    marker_returns(s, epoch_marker(g, menu_object_running(g)));
 }
 
-void menu_epoch_multiply_signed(Snes *s)
+// $C2:68A3
+void menu_epoch_map_location_marker(Snes *s)
 {
-    multiply_signed_logic(s);
-    m_rts(s);
+    GameState *g = state_of(s);
+    marker_returns(s, landing_marker(g, menu_object_running(g)));
 }
 
-// $C2:6CC1
-/* Rebuild the gate's per-line window table for this frame, into whichever of
- * the two buffers the flag at $1BF5 says is free. The gate is a triangle: its
- * three corners are turned by the object's angle around the screen centre and
- * written to $1BB8 through the work RAM port, then each edge is given the slope
- * the divider works out, and every line between the highest and lowest corner
- * takes the two edges that cross it. */
-static void build_gate_window(Snes *s)
+// $C2:68F4
+/* A scene's script calls it too: it comes back with X clear and the carry
+ * set. */
+void menu_epoch_map_gradient(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    uint16_t table;
-    uint8_t flags = m_read8(s, RAM_MENU_GATE_FLAGS);
-    if (flags & 1) {
-        m_write8(s, RAM_MENU_GATE_FLAGS, (uint8_t)(flags & ~1u));
-        m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS, WINDOW_TABLE_A);
-        m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE,
-                  WINDOW_TABLE_A + LINE_HALF);
-        table = WINDOW_TABLE_A;
-    } else {
-        m_write8(s, RAM_MENU_GATE_FLAGS, (uint8_t)(flags | 1u));
-        m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS, WINDOW_TABLE_B);
-        m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE,
-                  WINDOW_TABLE_B + LINE_HALF);
-        table = WINDOW_TABLE_B;
-    }
-    set_dp16(s, CELL_PTR3, table);
-    set_dp8(s, CELL_LOW, 0x84);
-    set_dp8(s, (uint8_t)(CELL_LOW + 1), 0x70);
-
-    uint16_t slot = object(s);
-    uint16_t angle = field16(s, slot, OBJ_Y);
-    set_dp16(s, CELL_A, cosine(s, angle));
-    set_dp16(s, CELL_B, sine(s, angle));
-
-    /* The table starts closed, and its tail is filled by propagating one pair. */
-    uint32_t base = (uint32_t)dp8(s, (uint8_t)(CELL_PTR3 + 2)) << 16 | table;
-    uint8_t outer_bank = c->db;
-    m_write16(s, base, 1);
-    m_write16(s, base + 1, 0);
-    m_ldx(s, (uint16_t)(table + 0x90));
-    m_ldy(s, (uint16_t)(table + 0x92));
-    c->a = 0x009D;
-    m_mvn(s, 0x7E, 0x7E);
-    c->db = outer_bank;
-
-    set_dp16(s, CELL_C, 0);
-    m_write16(s, m_abs(s, WRAM_ADDR), RAM_ABS(RAM_MENU_GATE_CORNERS));
-    m_write8(s, m_abs(s, WRAM_ADDR_BANK), 0x00);
-    set_dp8(s, CELL_STEP, 3);
-    for (int corner = 0; corner < 3; corner++) {
-        uint16_t at = dp16(s, CELL_C);
-        uint8_t dx = gate_corner(s, at);
-        set_dp8(s, CELL_PAIR, dx);
-        uint8_t dy = gate_corner(s, (uint16_t)(at + 1));
-        set_dp8(s, (uint8_t)(CELL_PAIR + 1), dy);
-        set_dp16(s, CELL_C, (uint16_t)(at + 2));
-
-        set_dp16(s, CELL_D, dp16(s, CELL_A));
-        set_dp8(s, (uint8_t)(CELL_STEP + 1), dx);
-        NATIVE_TIME_AS(s, 0xC26F33, multiply_signed_logic(s));
-        set_dp16(s, CELL_HEIGHT, dp16(s, CELL_PRODUCT));
-        set_dp16(s, CELL_D, dp16(s, CELL_B));
-        set_dp8(s, (uint8_t)(CELL_STEP + 1), dy);
-        NATIVE_TIME_AS(s, 0xC26F33, multiply_signed_logic(s));
-        Sum f = { false, false };
-        uint16_t x = add16(&f, dp16(s, CELL_PRODUCT), dp16(s, CELL_HEIGHT));
-        x = (uint16_t)(x >> 8 | x << 8);
-        m_write8(s, m_abs(s, WRAM_PORT), add8(&f, (uint8_t)x, dp8(s, CELL_LOW)));
-
-        set_dp16(s, CELL_D, dp16(s, CELL_B));
-        set_dp8(s, (uint8_t)(CELL_STEP + 1), dp8(s, CELL_PAIR));
-        NATIVE_TIME_AS(s, 0xC26F33, multiply_signed_logic(s));
-        set_dp16(s, CELL_HEIGHT, dp16(s, CELL_PRODUCT));
-        set_dp16(s, CELL_D, dp16(s, CELL_A));
-        set_dp8(s, (uint8_t)(CELL_STEP + 1), dp8(s, (uint8_t)(CELL_PAIR + 1)));
-        NATIVE_TIME_AS(s, 0xC26F33, multiply_signed_logic(s));
-        f.carry = true;
-        uint16_t y = sub16(&f, dp16(s, CELL_PRODUCT), dp16(s, CELL_HEIGHT));
-        y = (uint16_t)(y >> 8 | y << 8);
-        m_write8(s, m_abs(s, WRAM_PORT), add8(&f, (uint8_t)y, dp8(s, (uint8_t)(CELL_LOW + 1))));
-        set_dp8(s, CELL_STEP, (uint8_t)(2 - corner));
-    }
-
-    /* The three edges, each taken from its higher corner to its lower one. */
-    set_dp8(s, CELL_LOW, 3);
-    set_dp16(s, CELL_PRODUCT, 0);
-    set_dp16(s, CELL_PTR1, 0);
-    set_dp16(s, CELL_PTR2, 0);
-    for (int i = 0; i < 3; i++) {
-        uint16_t at = dp16(s, CELL_PTR1);
-        uint8_t x0 = m_read8(s, RAM_MENU_GATE_CORNERS + at);
-        set_dp8(s, CELL_A, x0);
-        uint8_t y0 = m_read8(s, RAM_MENU_GATE_CORNERS + at + 1);
-        set_dp8(s, CELL_B, y0);
-        uint8_t x1, y1;
-        if (dp8(s, CELL_LOW) == 1) {
-            x1 = m_read8(s, RAM_MENU_GATE_CORNERS);
-            y1 = m_read8(s, RAM_MENU_GATE_CORNERS + 1);
-        } else {
-            x1 = m_read8(s, RAM_MENU_GATE_CORNERS + at + 2);
-            y1 = m_read8(s, RAM_MENU_GATE_CORNERS + at + 3);
-        }
-        set_dp8(s, CELL_C, x1);
-        set_dp8(s, CELL_D, y1);
-        if (y1 != y0) {
-            if (y1 < y0) {
-                /* The original swaps through the index registers, which are
-                 * 16-bit here, so each swap also carries the byte after it. */
-                set_dp16(s, CELL_D, dp16(s, CELL_B));
-                set_dp8(s, CELL_B, y1);
-                set_dp16(s, CELL_A, dp16(s, CELL_C));
-                set_dp8(s, CELL_C, x0);
-                uint8_t t = y0; y0 = y1; y1 = t;
-                t = x0; x0 = x1; x1 = t;
-            }
-            y1 = (uint8_t)(y1 - 1);
-            set_dp8(s, CELL_D, y1);
-            Sum f = { true, false };
-            uint8_t height = sub8(&f, y1, y0);
-            set_dp8(s, CELL_HEIGHT, height);
-            f.carry = true;
-            uint8_t width = sub8(&f, x1, x0);
-            set_dp8(s, CELL_PAIR, width);
-            bool step_negative = (width & 0x80) != 0;
-            if (step_negative) {
-                width = (uint8_t)(0 - width);
-                set_dp8(s, CELL_PAIR, width);
-            }
-            m_write8(s, m_abs(s, DIV_LOW), (uint8_t)s->cpu.d);
-            m_write8(s, m_abs(s, DIV_HIGH), width);
-            m_write8(s, m_abs(s, DIVISOR), height);
-
-            uint16_t e = dp16(s, CELL_PTR2);
-            m_write8(s, RAM_MENU_GATE_EDGE_ACTIVE + e, 0);
-            m_write8(s, RAM_MENU_GATE_EDGE_X + e + 1, x0);
-            m_write8(s, RAM_MENU_GATE_EDGE_X + e, 0);
-            m_write8(s, RAM_MENU_GATE_EDGE_TOP + e + 1, y0);
-            m_write8(s, RAM_MENU_GATE_EDGE_TOP + e, 0);
-            f.carry = true;
-            m_write8(s, RAM_MENU_GATE_EDGE_LINES + e, sub8(&f, y1, y0));
-            m_write8(s, RAM_MENU_GATE_EDGE_LINES + e + 1, 0);
-            m_write8(s, RAM_MENU_GATE_EDGE_BOTTOM + e + 1, y1);
-            m_write8(s, RAM_MENU_GATE_EDGE_BOTTOM + e, 0);
-            uint16_t slope = m_read16(s, m_abs(s, QUOTIENT));
-            m_write16(s, RAM_MENU_GATE_EDGE_STEP + e, step_negative ? (uint16_t)(0 - slope) : slope);
-            set_dp16(s, CELL_PRODUCT, (uint16_t)(dp16(s, CELL_PRODUCT) + 1));
-            set_dp16(s, CELL_PTR2, (uint16_t)(e + 2));
-        }
-        set_dp16(s, CELL_PTR1, (uint16_t)(dp16(s, CELL_PTR1) + 2));
-        set_dp8(s, CELL_LOW, (uint8_t)(dp8(s, CELL_LOW) - 1));
-    }
-
-    /* The lines the edges cover, and the two that cross each one. The two
-     * searches count down from one less than the number of edges and stop at 0,
-     * so with fewer than two they read on past the edges, as the original
-     * does. */
-    uint16_t edges = dp16(s, CELL_PRODUCT);
-    uint8_t top = m_read8(s, RAM_MENU_GATE_EDGE_TOP + 1);
-    set_dp8(s, CELL_A, top);
-    uint16_t left = (uint16_t)(edges - 1);
-    uint16_t at_edge = 2;
-    do {
-        uint8_t v = m_read8(s, (uint32_t)(RAM_MENU_GATE_EDGE_TOP + 1) + at_edge);
-        if (v < dp8(s, CELL_A))
-            set_dp8(s, CELL_A, v);
-        at_edge = (uint16_t)(at_edge + 2);
-        left = (uint16_t)(left - 1);
-    } while (left != 0);
-    uint8_t bottom = m_read8(s, RAM_MENU_GATE_EDGE_BOTTOM + 1);
-    set_dp8(s, CELL_B, bottom);
-    left = (uint16_t)(edges - 1);
-    at_edge = 2;
-    do {
-        uint8_t v = m_read8(s, (uint32_t)(RAM_MENU_GATE_EDGE_BOTTOM + 1) + at_edge);
-        if (v >= dp8(s, CELL_B))
-            set_dp8(s, CELL_B, v);
-        at_edge = (uint16_t)(at_edge + 2);
-        left = (uint16_t)(left - 1);
-    } while (left != 0);
-    top = dp8(s, CELL_A);
-    bottom = dp8(s, CELL_B);
-    Sum f = { true, false };
-    uint8_t lines = sub8(&f, bottom, top);
-    set_dp8(s, CELL_PTR2, lines);
-    f.carry = false;
-    m_write16(s, m_abs(s, WRAM_ADDR), add16(&f, (uint16_t)(top << 1), dp16(s, CELL_PTR3)));
-    m_write8(s, m_abs(s, WRAM_ADDR_BANK), dp8(s, (uint8_t)(CELL_PTR3 + 2)));
-    uint8_t remaining = lines;
-    uint16_t out = 0;
-    Sum edge = { false, false };
-    do {
-        uint8_t at = dp8(s, CELL_A);
-        uint16_t count = edges;
-        uint16_t e = 0;
-        do {
-            if (m_read8(s, (uint32_t)(RAM_MENU_GATE_EDGE_TOP + 1) + e) == at)
-                m_write8(s, RAM_MENU_GATE_EDGE_ACTIVE + e,
-                         (uint8_t)(m_read8(s, RAM_MENU_GATE_EDGE_ACTIVE + e) + 1));
-            e = (uint16_t)(e + 2);
-            count = (uint16_t)(count - 1);
-        } while (count != 0);
-        /* This pass counts down an 8-bit copy of the edge count at $10, so no
-         * edges at all take it all the way round rather than through 65536. */
-        set_dp8(s, CELL_PTR1, (uint8_t)edges);
-        uint8_t left_edges = (uint8_t)edges;
-        e = 0;
-        out = 0;
-        do {
-            if (m_read8(s, RAM_MENU_GATE_EDGE_ACTIVE + e) != 0) {
-                uint16_t x = m_read16(s, RAM_MENU_GATE_EDGE_X + e);
-                m_write16(s, m_abs(s, out), x);
-                edge.carry = false;
-                m_write16(s, RAM_MENU_GATE_EDGE_X + e,
-                          add16(&edge, x, m_read16(s, RAM_MENU_GATE_EDGE_STEP + e)));
-                out = (uint16_t)(out + 2);
-                uint8_t lines_left = (uint8_t)(m_read8(s, RAM_MENU_GATE_EDGE_LINES + e) - 1);
-                m_write8(s, RAM_MENU_GATE_EDGE_LINES + e, lines_left);
-                if (lines_left & 0x80)
-                    m_write8(s, RAM_MENU_GATE_EDGE_ACTIVE + e, 0);
-            }
-            e = (uint16_t)(e + 2);
-            left_edges = (uint8_t)(left_edges - 1);
-            set_dp8(s, CELL_PTR1, left_edges);
-        } while (left_edges != 0);
-        uint8_t first = dp8(s, (uint8_t)(CELL_LOW + 1)), second = dp8(s, (uint8_t)(CELL_PAIR + 1));
-        m_set_a8(s, first);
-        m_cmp8(s, first, second);
-        if (first < second) {
-            m_write8(s, m_abs(s, WRAM_PORT), first);
-            m_write8(s, m_abs(s, WRAM_PORT), second);
-            m_set_a8(s, second);
-        } else {
-            m_write8(s, m_abs(s, WRAM_PORT), second);
-            m_write8(s, m_abs(s, WRAM_PORT), first);
-            m_set_a8(s, first);
-        }
-        set_dp8(s, CELL_A, (uint8_t)(at + 1));
-        remaining = (uint8_t)(remaining - 1);
-        set_dp8(s, CELL_PTR2, remaining);
-    } while (remaining != 0);
-    /* The registers the fill leaves: the last edge index, the last value put
-     * out, and the comparison of the two edges of the last line. */
-    m_ldx(s, (uint16_t)(2 * edges));
-    m_ldy(s, out);
-    m_set_nz8(s, remaining);
-}
-
-void menu_epoch_build_gate_window(Snes *s)
-{
-    build_gate_window(s);
+    map_view_gradient(state_of(s), m_platform(s));
+    s->cpu.x = 0;
+    m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);
 }
 
 // $C2:6AC8
-/* The time dial's one object: it programs window 1's per-line edges, then lets
- * the player turn the dial through the seven periods and either travel or
- * leave. */
+/* The dial's buzz goes to the sound driver from the dial's own call, which
+ * reads A's high byte: the location's there, where the dial compared it. */
 void menu_epoch_time_dial_object(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    uint16_t slot;
-    uint8_t step = dispatch_step(s);
-    if (step == 0) {
-        slot = object(s);
-        m_ldx(s, slot);
-        set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-        m_set_a8(s, (uint8_t)current_period(s));
-        m_ldx(s, slot);
-        set_field8(s, slot, OBJ_PARAMETER, (uint8_t)c->a);
-        m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES, 0xF0);
-        m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_SECOND_LINES, 0xF0);
-        m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_END, 0x00);
-        set_dp8(s, (uint8_t)(CELL_PTR3 + 2), 0x7E);
-        static const VidLineEffect window = { .target = VID_LINE_WINDOW1,
-                                              .table = PF_GAME(RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES),
-                                              .indirect = true, .indirect_bank = 0x7E };
-        vid_set_line_effect(m_platform(s), PF_AT(0xC26AFA), EFFECT_SLOT, &window, line_effect_steps);
-        m_lda8(s, EFFECT_SLOT_BIT);
-        m_tsb8(s, m_dp(s, LINE_EFFECTS));
-        set_dp8(s, CELL_LOW, 0x84);
-        set_dp8(s, (uint8_t)(CELL_LOW + 1), 0x70);
-        m_rep(s, CPU_FLAG_M);
-        uint8_t outer_bank = c->db;
-        m_write16(s, RAM_MENU_OBJECT_WAVE_SCROLL, 1);
-        m_write16(s, RAM_MENU_OBJECT_WAVE_SCROLL + 1, 0);
-        m_ldx(s, RAM_ABS(RAM_MENU_OBJECT_WAVE_SCROLL));
-        m_ldy(s, (uint16_t)(RAM_ABS(RAM_MENU_OBJECT_WAVE_SCROLL) + 2));
-        c->a = 0x01BD;
-        m_mvn(s, 0x7E, 0x7E);
-        m_ldx(s, WINDOW_TABLE_A);
-        m_ldy(s, WINDOW_TABLE_B);
-        c->a = 0x01BF;
-        m_mvn(s, 0x7E, 0x7E);
-        c->db = outer_bank;
-        slot = object(s);
-        m_ldy(s, slot);
-        uint16_t first = (uint16_t)((field16(s, slot, OBJ_PARAMETER) & 0x00FF) << 1);
-        m_ldx(s, first);
-        uint16_t angle = period_angle(s, first);
-        set_field16(s, slot, OBJ_Y, angle);
-        set_field16(s, slot, OBJ_X, angle);
+    GameState *g = state_of(s);
+    DialOutcome outcome = time_dial(g, m_platform(s), menu_object_running(g));
+    if (outcome == DIAL_BUZZES) {
+        s->cpu.a = (uint16_t)((location_here(g) & 0xFF00) | BUZZ_PAN);
         m_sep(s, CPU_FLAG_M);
-        m_set_a8(s, field8(s, slot, OBJ_PARAMETER));
-        m_write8(s, RAM_MENU_TIME_PERIOD, (uint8_t)c->a);
-        NATIVE_TIME_AS(s, 0xC26CC1, build_gate_window(s));
-        step = 1;
-    }
-    if (step == 1) {
-        m_rep(s, CPU_FLAG_M);
-        slot = object(s);
-        m_ldx(s, slot);
-        uint16_t buttons = m_read16(s, m_dp(s, (uint8_t)(RAM_INPUT_MAPPED_DP + RAM_INPUT_MAPPED_STRIDE)));
-        /* The six directions are tested one at a time, down and up in turn, so
-         * a frame holding one of each takes whichever comes first here. */
-        static const struct { uint16_t button; int turn; } turns[] = {
-            { 0x0010, -1 }, { 0x0020, 1 }, { 0x0100, -1 },
-            { 0x0200, 1 },  { 0x0800, -1 }, { 0x0400, 1 },
-        };
-        int turn = 0;
-        for (unsigned i = 0; i < sizeof turns / sizeof turns[0] && turn == 0; i++)
-            if (buttons & turns[i].button)
-                turn = turns[i].turn;
-        if (turn == 0 && (buttons & 0x0080)) {
-            set_dp16(s, CELL_A, (uint16_t)(m_read16(s, RAM_LOCATION_ID) & 0x01FF));
-            uint16_t there = period_location_for(s, slot);
-            m_lda16(s, there);
-            m_cmp16(s, there, dp16(s, CELL_A));
-            if (there != dp16(s, CELL_A)) {
-                m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_TRAVEL_LOCATION)), there);
-                m_sep(s, CPU_FLAG_M);
-                m_set_a8(s, 0x07);
-                m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_MODE)), 0x07);
-                m_set_flag(s, CPU_FLAG_C, false);
-                m_rts(s);
-                return;
-            }
-            m_sep(s, CPU_FLAG_M);
-            m_set_a8(s, 0x18);
-            m_write8(s, m_abs(s, RAM_ABS(RAM_SOUND_COMMAND)), 0x18);
-            m_set_a8(s, 0x01);
-            m_write8(s, m_abs(s, RAM_ABS(RAM_SOUND_COMMAND_PARAMETERS)), 0x01);
-            m_set_a8(s, 0x80);
-            m_write8(s, m_abs(s, RAM_ABS(RAM_SOUND_COMMAND_PARAMETERS) + 1), 0x80);
-            m_jsl_dc(s, 0xC26BE9, 0xC70004, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_rts(s);
-            return;
-        } else if (turn == 0 && (buttons & 0x0008)) {
-            m_lda16(s, 0xFFFF);
-            m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_TRAVEL_LOCATION)), 0xFFFF);
-            m_sep(s, CPU_FLAG_M);
-            m_set_a8(s, 0x07);
-            m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_MODE)), 0x07);
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_rts(s);
-            return;
-        } else if (turn == 0) {
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_rts(s);
-            return;
-        }
-        m_sep(s, CPU_FLAG_M);
-        if (turn < 0) {
-            uint8_t period = (uint8_t)(field8(s, slot, OBJ_PARAMETER) - 1);
-            set_field8(s, slot, OBJ_PARAMETER, period);
-            if (period & 0x80)
-                set_field8(s, slot, OBJ_PARAMETER, 0);
-            set_field16(s, slot, OBJ_TURN, 0xFFFC);
-        } else {
-            uint8_t period = (uint8_t)(field8(s, slot, OBJ_PARAMETER) + 1);
-            set_field8(s, slot, OBJ_PARAMETER, period);
-            if (period >= 7)
-                set_field8(s, slot, OBJ_PARAMETER, 6);
-            set_field16(s, slot, OBJ_TURN, 0x0004);
-        }
-        m_rep(s, CPU_FLAG_M);
-        m_txy(s);
-        uint16_t step_index = (uint16_t)((field16(s, slot, OBJ_PARAMETER) & 0x00FF) << 1);
-        m_ldx(s, step_index);
-        set_field16(s, slot, OBJ_X, period_angle(s, step_index));
-        m_sep(s, CPU_FLAG_M);
-        m_tyx(s);
-        set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-    }
-    /* Step 2: turn towards the angle the chosen period stands at. */
-    m_rep(s, CPU_FLAG_M);
-    slot = object(s);
-    m_ldx(s, slot);
-    if (field16(s, slot, OBJ_Y) == field16(s, slot, OBJ_X)) {
-        set_dp16(s, CELL_A, period_location_for(s, slot));
-        uint16_t here = (uint16_t)(m_read16(s, RAM_LOCATION_ID) & 0x01FF);
-        m_lda16(s, here);
-        m_cmp16(s, here, dp16(s, CELL_A));
-        if (here != dp16(s, CELL_A)) {
-            m_sep(s, CPU_FLAG_M);
-            m_set_a8(s, field8(s, slot, OBJ_PARAMETER));
-            m_write8(s, RAM_MENU_TIME_PERIOD, (uint8_t)c->a);
-            m_set_a8(s, 1);
-            set_field8(s, slot, OBJ_STEP, 1);
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_rts(s);
-            return;
-        }
-        m_lda16(s, field16(s, slot, OBJ_TURN));
-        m_sep(s, CPU_FLAG_M);
-        if ((field16(s, slot, OBJ_TURN) & 0x8000) == 0) {
-            uint8_t period = (uint8_t)(field8(s, slot, OBJ_PARAMETER) + 1);
-            set_field8(s, slot, OBJ_PARAMETER, period);
-            if (period >= 7) {
-                set_field8(s, slot, OBJ_PARAMETER, (uint8_t)(period - 2));
-                m_rep(s, CPU_FLAG_M);
-                set_field16(s, slot, OBJ_TURN, (uint16_t)(0 - field16(s, slot, OBJ_TURN)));
-            }
-        } else {
-            uint8_t period = (uint8_t)(field8(s, slot, OBJ_PARAMETER) - 1);
-            set_field8(s, slot, OBJ_PARAMETER, period);
-            if (period & 0x80) {
-                set_field8(s, slot, OBJ_PARAMETER, (uint8_t)(period + 2));
-                m_rep(s, CPU_FLAG_M);
-                set_field16(s, slot, OBJ_TURN, (uint16_t)(0 - field16(s, slot, OBJ_TURN)));
-            }
-        }
-        m_rep(s, CPU_FLAG_M);
-        m_ldy(s, object(s));
-        uint16_t turn_index = (uint16_t)((field16(s, slot, OBJ_PARAMETER) & 0x00FF) << 1);
-        m_ldx(s, turn_index);
-        set_field16(s, slot, OBJ_X, period_angle(s, turn_index));
+        m_jsl_dc(s, 0xC26BE9, 0xC70004, READS_X_AND_A_HIGH);
         m_set_flag(s, CPU_FLAG_C, false);
         m_rts(s);
         return;
     }
-    Sum f = { false, false };
-    set_field16(s, slot, OBJ_Y, add16(&f, field16(s, slot, OBJ_Y), field16(s, slot, OBJ_TURN)));
-    m_sep(s, CPU_FLAG_M);
-    NATIVE_TIME_AS(s, 0xC26CC1, build_gate_window(s));
-    m_set_flag(s, CPU_FLAG_C, false);
+    handler_returns(s, false, outcome == DIAL_IDLE || outcome == DIAL_PASSES);
+}
+
+// $C2:6CC1
+void menu_epoch_build_gate_window(Snes *s)
+{
+    GameState *g = state_of(s);
+    draw_gate_window(g, menu_object_running(g));
     m_rts(s);
 }
 
-/* The time dial's four Mode 7 matrix channels read their values through line
- * slots 2 and 3's small tables (menu/line_effects.h). */
-enum { GATE_MATRIX_TABLES = RAM_MENU_OBJECT_LINE_SLOTS + RAM_MENU_OBJECT_LINE_SLOTS_STRIDE };
+// $C2:6F33
+/* The multiply's operands are in the mode's cells: the byte at $07 and the
+ * word at $0E. */
+void menu_epoch_multiply_signed(Snes *s)
+{
+    GameState *g = state_of(s);
+    SignedProduct p = multiply_signed((int8_t)menu_object_scratch_bytes_byte(g, 0x07),
+                                      (int16_t)(menu_object_scratch_bytes_byte(g, 0x0E)
+                                                | menu_object_scratch_bytes_byte(g, 0x0F) << 8));
+    leave_multiply(g, &p);
+    m_rts(s);
+}
 
 // $C2:6F85
-/* The object that drives the gate's Mode 7 matrix: four per-line tables, two of
- * cosines and two of sines, double-buffered and advanced by one entry a frame
- * so the gate turns. */
 void menu_epoch_gate_matrix_object(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    uint16_t slot;
-    if (dispatch_step(s) != 0) {
-        /* Every frame after the first: swap the buffers and append one value.
-         * The flags are read and changed a word at a time here, the byte after
-         * them included. */
-        m_rep(s, CPU_FLAG_M);
-        uint16_t flags = m_read16(s, RAM_MENU_GATE_FLAGS);
-        uint16_t cos_table, sin_table;
-        uint8_t outer_bank = c->db;
-        if ((flags & 2) == 0) {
-            m_write16(s, RAM_MENU_GATE_FLAGS, (uint16_t)(flags | 2u));
-            m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 2 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_COS_B);
-            m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 3 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_COS_B + LINE_HALF);
-            m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 4 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_SIN_B);
-            m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 5 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_SIN_B + LINE_HALF);
-            /* The whole table moves one value on into the other buffer. */
-            m_ldy(s, MATRIX_COS_B);
-            m_ldx(s, MATRIX_COS_A + 2);
-            c->a = MATRIX_LAST;
-            m_mvn(s, 0x7E, 0x7E);
-            m_ldy(s, MATRIX_SIN_B);
-            m_ldx(s, MATRIX_SIN_A + 2);
-            c->a = MATRIX_LAST;
-            m_mvn(s, 0x7E, 0x7E);
-            cos_table = MATRIX_COS_B;
-            sin_table = MATRIX_SIN_B;
-        } else {
-            m_write16(s, RAM_MENU_GATE_FLAGS, (uint16_t)(flags & ~2u));
-            m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 2 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_COS_A);
-            m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 3 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_COS_A + LINE_HALF);
-            m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 4 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_SIN_A);
-            m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 5 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_SIN_A + LINE_HALF);
-            m_ldy(s, MATRIX_COS_A);
-            m_ldx(s, MATRIX_COS_B + 2);
-            c->a = MATRIX_LAST;
-            m_mvn(s, 0x7E, 0x7E);
-            m_ldy(s, MATRIX_SIN_A);
-            m_ldx(s, MATRIX_SIN_B + 2);
-            c->a = MATRIX_LAST;
-            m_mvn(s, 0x7E, 0x7E);
-            cos_table = MATRIX_COS_A;
-            sin_table = MATRIX_SIN_A;
-        }
-        set_dp16(s, CELL_PTR1, cos_table);
-        set_dp16(s, CELL_PTR2, sin_table);
-        slot = object(s);
-        m_ldy(s, slot);
-        uint16_t angle = field16(s, slot, OBJ_Y);
-        m_ldx(s, cos_table);
-        m_write16(s, 0x7E0000 | (uint16_t)(cos_table + MATRIX_LAST), cosine(s, angle));
-        m_ldx(s, sin_table);
-        m_write16(s, 0x7E0000 | (uint16_t)(sin_table + MATRIX_LAST), sine(s, (uint16_t)(angle + 0x0080)));
-        Sum step = { false, false };
-        set_field16(s, slot, OBJ_Y, add16(&step, angle, 4));
-        c->db = outer_bank;
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-
-    slot = object(s);
-    m_ldx(s, slot);
-    set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-    set_field8(s, slot, OBJ_Y, 0);
-    set_field8(s, slot, (uint8_t)(OBJ_Y + 1), 0);
-    m_write8(s, GATE_MATRIX_TABLES, 0xF0);
-    m_write8(s, GATE_MATRIX_TABLES + 0x0D, 0xF0);
-    m_write8(s, GATE_MATRIX_TABLES + 3, 0xF0);
-    m_write8(s, GATE_MATRIX_TABLES + 0x10, 0xF0);
-    m_write8(s, GATE_MATRIX_TABLES + 6, 0x00);
-    m_write8(s, GATE_MATRIX_TABLES + 0x13, 0x00);
-    {
-        Platform *pf = m_platform(s);
-        static const VidLineEffect matrix_a = { .target = VID_LINE_MODE7_A,
-                                                .table = PF_GAME(GATE_MATRIX_TABLES),
-                                                .indirect = true, .indirect_bank = 0x7E };
-        static const VidLineEffect matrix_b = { .target = VID_LINE_MODE7_B,
-                                                .table = PF_GAME(GATE_MATRIX_TABLES + 0x0D),
-                                                .indirect = true, .indirect_bank = 0x7E };
-        /* A and D take the cosines, B and C the sines, so each pair shares a
-         * table. */
-        static const VidLineEffect matrix_c = { .target = VID_LINE_MODE7_C,
-                                                .table = PF_GAME(GATE_MATRIX_TABLES + 0x0D),
-                                                .indirect = true, .indirect_bank = 0x7E };
-        static const VidLineEffect matrix_d = { .target = VID_LINE_MODE7_D,
-                                                .table = PF_GAME(GATE_MATRIX_TABLES),
-                                                .indirect = true, .indirect_bank = 0x7E };
-        /* The original programs the four channels a step at a time, in pairs. */
-        static const uint8_t control_only[] = { VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_END };
-        static const uint8_t table_only[] = { VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_END };
-        static const uint8_t source_bank[] = { VID_STEP_SOURCE_BANK, VID_STEP_END };
-        static const uint8_t indirect_bank[] = { VID_STEP_INDIRECT_BANK, VID_STEP_END };
-        vid_set_line_effect(pf, PF_AT(0xC26FBB), MATRIX_A_SLOT, &matrix_a, control_only);
-        vid_set_line_effect(pf, PF_AT(0xC26FC1), MATRIX_D_SLOT, &matrix_d, control_only);
-        vid_set_line_effect(pf, PF_AT(0xC26FC7), MATRIX_A_SLOT, &matrix_a, table_only);
-        vid_set_line_effect(pf, PF_AT(0xC26FCA), MATRIX_D_SLOT, &matrix_d, table_only);
-        vid_set_line_effect(pf, PF_AT(0xC26FCF), MATRIX_A_SLOT, &matrix_a, source_bank);
-        vid_set_line_effect(pf, PF_AT(0xC26FD2), MATRIX_A_SLOT, &matrix_a, indirect_bank);
-        vid_set_line_effect(pf, PF_AT(0xC26FD5), MATRIX_D_SLOT, &matrix_d, source_bank);
-        vid_set_line_effect(pf, PF_AT(0xC26FD8), MATRIX_D_SLOT, &matrix_d, indirect_bank);
-        vid_set_line_effect(pf, PF_AT(0xC26FDE), MATRIX_B_SLOT, &matrix_b, control_only);
-        vid_set_line_effect(pf, PF_AT(0xC26FE4), MATRIX_C_SLOT, &matrix_c, control_only);
-        vid_set_line_effect(pf, PF_AT(0xC26FEA), MATRIX_B_SLOT, &matrix_b, table_only);
-        vid_set_line_effect(pf, PF_AT(0xC26FED), MATRIX_C_SLOT, &matrix_c, table_only);
-        vid_set_line_effect(pf, PF_AT(0xC26FF2), MATRIX_B_SLOT, &matrix_b, source_bank);
-        vid_set_line_effect(pf, PF_AT(0xC26FF5), MATRIX_B_SLOT, &matrix_b, indirect_bank);
-        vid_set_line_effect(pf, PF_AT(0xC26FF8), MATRIX_C_SLOT, &matrix_c, source_bank);
-        vid_set_line_effect(pf, PF_AT(0xC26FFB), MATRIX_C_SLOT, &matrix_c, indirect_bank);
-    }
-    m_lda8(s, MATRIX_SLOT_BITS);
-    m_tsb8(s, m_dp(s, LINE_EFFECTS));
-    uint8_t flags = m_read8(s, RAM_MENU_GATE_FLAGS);
-    m_write8(s, RAM_MENU_GATE_FLAGS, (uint8_t)(flags & ~2u));
-    m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 2 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_COS_A);
-    m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 3 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_COS_A + LINE_HALF);
-    set_dp16(s, CELL_PTR1, MATRIX_COS_A);
-    flags = m_read8(s, RAM_MENU_GATE_FLAGS);
-    m_write8(s, RAM_MENU_GATE_FLAGS, (uint8_t)(flags & ~4u));
-    m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 4 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_SIN_A);
-    m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + 5 * RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE, MATRIX_SIN_A + LINE_HALF);
-    set_dp16(s, CELL_PTR2, MATRIX_SIN_A);
-
-    uint8_t outer_bank = c->db;
-    c->db = 0x7E;
-    m_rep(s, CPU_FLAG_M);
-    slot = object(s);
-    m_ldx(s, slot);
-    set_dp16(s, CELL_A, field16(s, slot, OBJ_Y));
-    set_dp16(s, CELL_LOW, MATRIX_LINES);
-    for (int line = 0; line < MATRIX_LINES; line++) {
-        uint16_t angle = dp16(s, CELL_A);
-        Sum f = { false, false };
-        m_ldy(s, dp16(s, CELL_PTR1));
-        m_write16(s, m_abs(s, dp16(s, CELL_PTR1)), cosine(s, angle));
-        set_dp16(s, CELL_PTR1, (uint16_t)(dp16(s, CELL_PTR1) + 2));
-        m_ldy(s, dp16(s, CELL_PTR2));
-        m_write16(s, m_abs(s, dp16(s, CELL_PTR2)), sine(s, add16(&f, angle, 0x0080)));
-        set_dp16(s, CELL_PTR2, (uint16_t)(dp16(s, CELL_PTR2) + 2));
-        f.carry = false;
-        set_dp16(s, CELL_A, add16(&f, angle, 4));
-        set_dp16(s, CELL_LOW, (uint16_t)(MATRIX_LINES - line - 1));
-    }
-    slot = object(s);
-    m_ldx(s, slot);
-    m_lda16(s, dp16(s, CELL_A));
-    set_field16(s, slot, OBJ_Y, dp16(s, CELL_A));
-    m_sep(s, CPU_FLAG_M);
-    c->db = outer_bank;
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    GameState *g = state_of(s);
+    MenuObject spin = menu_object_running(g);
+    bool first_frame = menu_object_slots_step(g, spin) == 0;
+    gate_spin(g, m_platform(s), spin);
+    handler_returns(s, false, !first_frame);
 }
 
 // $C2:7143
-/* One of the seven digit objects on the dial: it shows its period's digits
- * while the dial stands at it and hides them when it moves on. */
 void menu_epoch_time_dial_digit(Snes *s)
 {
-    uint16_t slot;
-    uint8_t step = dispatch_step(s);
-    if (step == 0) {
-        slot = object(s);
-        m_ldx(s, slot);
-        m_txy(s);
-        set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-        m_set_a8(s, 0xB0);
-        set_field8(s, slot, OBJ_SPRITE, 0xB0);
-        set_field8(s, slot, OBJ_FRACTION, 0);
-        set_field8(s, slot, (uint8_t)(OBJ_FRACTION + 1), 0);
-        uint8_t index = m_asl8(s, field8(s, slot, OBJ_PARAMETER));
-        m_ldx(s, index);
-        m_lda8(s, digit_x(s, index));
-        set_field8(s, slot, OBJ_X, digit_x(s, index));
-        m_lda8(s, digit_y(s, index));
-        set_field8(s, slot, OBJ_Y, digit_y(s, index));
-        m_tyx(s);
-        set_field8(s, slot, (uint8_t)(OBJ_X + 1), 0);
-        set_field8(s, slot, (uint8_t)(OBJ_Y + 1), 0);
-        step = 1;
-    }
-    if (step == 1) {
-        slot = object(s);
-        uint8_t period = m_read8(s, RAM_MENU_TIME_PERIOD);
-        m_ldx(s, slot);
-        m_set_a8(s, period);
-        m_cmp8(s, period, field8(s, slot, OBJ_PARAMETER));
-        if (period == field8(s, slot, OBJ_PARAMETER)) {
-            set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-            uint8_t index = m_asl8(s, field8(s, slot, OBJ_PARAMETER));
-            m_ldx(s, index);
-            m_lda8(s, digit_show_script(s, index));
-            m_jsr_dc(s, 0xC27197, 0xC21CDA, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-            m_jsr(s, 0xC2719A, 0xC20E1D);
-        }
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    if (step == 2) {
-        slot = object(s);
-        m_ldx(s, slot);
-        m_lda8(s, field8(s, slot, OBJ_SCRIPT_STATE));
-        if ((uint8_t)s->cpu.a == 0) {
-            uint8_t next = (uint8_t)(field8(s, slot, OBJ_STEP) + 1);
-            set_field8(s, slot, OBJ_STEP, next);
-            m_set_nz8(s, next);
-        }
-        m_jsr(s, 0xC271A9, 0xC20E1D);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    if (step == 3) {
-        slot = object(s);
-        uint8_t period = m_read8(s, RAM_MENU_TIME_PERIOD);
-        m_ldx(s, slot);
-        m_set_a8(s, period);
-        m_cmp8(s, period, field8(s, slot, OBJ_PARAMETER));
-        if (period != field8(s, slot, OBJ_PARAMETER)) {
-            set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-            uint8_t index = m_asl8(s, field8(s, slot, OBJ_PARAMETER));
-            m_ldx(s, index);
-            m_lda8(s, digit_hide_script(s, index));
-            m_jsr_dc(s, 0xC271C4, 0xC21CDA, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        }
-        m_jsr(s, 0xC271C7, 0xC20E1D);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    slot = object(s);
-    m_ldx(s, slot);
-    m_lda8(s, field8(s, slot, OBJ_SCRIPT_STATE));
-    if ((uint8_t)s->cpu.a == 0) {
-        m_lda8(s, 1);
-        set_field8(s, slot, OBJ_STEP, 1);
-    }
-    m_jsr(s, 0xC271D8, 0xC20E1D);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    GameState *g = state_of(s);
+    dial_digit(g, menu_object_running(g));
+    handler_returns(s, false, false);
 }
 
 // $C2:71F9
-/* Decompress one of the gate screen's streams into $7F, by the index at $08 and
- * the bank the caller passes in A. */
+/* The stream's number is in the mode's cell at $08, its bank in A. */
 void menu_epoch_load_gate_stream(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_write8(s, m_abs(s, RAM_ABS(RAM_DECOMPRESS_SOURCE) + 2), (uint8_t)c->a);
-    uint16_t index = (uint16_t)((dp16(s, CELL_A) & 0x00FF) << 2);
-    m_write16(s, m_abs(s, RAM_ABS(RAM_DECOMPRESS_SOURCE)), gate_stream_source(s, index));
-    m_write16(s, m_abs(s, RAM_ABS(RAM_DECOMPRESS_DEST)), gate_stream_dest(s, index));
-    m_write8(s, m_abs(s, RAM_ABS(RAM_DECOMPRESS_DEST) + 2), 0x7F);
-    m_lda8(s, 0x7F);
-    m_jsl_dc(s, 0xC2721B, 0xC30002, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    load_gate_stream(s, menu_object_scratch_bytes_byte(state_of(s), 0x08), (uint8_t)s->cpu.a);
     m_rts(s);
 }
 
 // $C2:722C
-/* The gate's plane pixels: $800 bytes of $7F:9000 into the high half of the
- * plane's first words. */
 void menu_epoch_upload_gate_pixels(Snes *s)
 {
-    vid_upload_vram_half(m_platform(s), PF_AT(0xC2722F), 0x0000, PF_GAME(0x7F0000 | MODE7_PLANE), 0x0800,
-                         VID_VRAM_HIGH_BYTES, &pixel_upload);
+    upload_gate_pixels(m_platform(s));
     m_rts(s);
 }
 
 // $C2:7254
-/* The gate's tiles: sixteen VRAM rows, each filled from $7F:9000 in 32 pieces
- * of $40 bytes. */
 void menu_epoch_upload_gate_tiles(Snes *s)
 {
-    set_dp16(s, CELL_C, 0);
-    for (uint16_t row = 0; row < 0x10; row++) {
-        set_dp16(s, CELL_A, gate_tile_row(s, dp16(s, CELL_C)));
-        set_dp16(s, CELL_B, MODE7_PLANE);
-        set_dp8(s, CELL_LOW, 0x20);
-        for (int piece = 0; piece < 0x20; piece++) {
-            vid_upload_vram(m_platform(s), PF_AT(0xC2726D), dp16(s, CELL_A),
-                            PF_GAME(0x7F0000 | dp16(s, CELL_B)), 0x0040, &word_upload);
-            Sum f = { false, false };
-            set_dp16(s, CELL_A, add16(&f, dp16(s, CELL_A), 0x0080));
-            f.carry = false;
-            set_dp16(s, CELL_B, add16(&f, dp16(s, CELL_B), 0x0040));
-            set_dp8(s, CELL_LOW, (uint8_t)(0x20 - piece - 1));
-        }
-        set_dp16(s, CELL_C, (uint16_t)(2 * (row + 1)));
-    }
+    GameState *g = state_of(s);
+    upload_gate_tiles(g, m_platform(s));
+    ORIGINAL_EFFECT(leave_gate_tiles(g));
     m_rts(s);
 }
 
 // $C2:72D8
-/* The gate's tilemap rows: for each of the $00 rows, the byte at the long
- * pointer $10 picks a source row in the bank at $15, which goes to VRAM $08. */
+/* Its count, table, source and VRAM word are in the mode's cells. */
 void menu_epoch_upload_gate_rows(Snes *s)
 {
-    /* The count is taken from $00 and stepped down at the end of each row, so a
-     * count of 0 goes all the way round, as the original does. */
-    uint16_t rows = dp16(s, CELL_LOW);
-    do {
-        uint32_t table = (uint32_t)dp8(s, (uint8_t)(CELL_PTR1 + 2)) << 16 | dp16(s, CELL_PTR1);
-        uint16_t pick = (uint16_t)(m_read16(s, table) & 0x00FF);
-        set_dp16(s, CELL_PTR1, (uint16_t)(dp16(s, CELL_PTR1) + 1));
-        uint16_t swapped = (uint16_t)(pick >> 8 | pick << 8);
-        Sum f = { false, false };
-        for (int j = 0; j < 3; j++) {
-            f.carry = (swapped & 1) != 0;
-            swapped = (uint16_t)(swapped >> 1);
-        }
-        set_dp16(s, CELL_B, add16(&f, swapped, dp16(s, CELL_PTR2)));
-        /* STX $4370 : STA $2115 : STX $2116 : STX $4372 : STA $4374 :
-         * STX $4375 : STA $420B -- this one sets the VRAM port before the
-         * address, where the rest of the screen's uploads do it the other way
-         * round, and the port decides what the address latches. */
-        static const uint8_t steps[] = {
-            VID_STEP_CONTROL,   VID_STEP_DEST,      VID_STEP_VRAM_PORT, VID_STEP_TARGET_LO,
-            VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-            VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-        };
-        static const VidSnesXfer x = { MENU_DMA, DMA_WORDS, steps, &high_port };
-        vid_upload_vram(m_platform(s), PF_AT(0xC272EE), dp16(s, CELL_A),
-                        PF_GAME((uint32_t)dp8(s, (uint8_t)(CELL_PTR2 + 2)) << 16 | dp16(s, CELL_B)),
-                        0x0020, &x);
-        f.carry = false;
-        set_dp16(s, CELL_A, add16(&f, dp16(s, CELL_A), 0x0010));
-        rows = (uint16_t)(rows - 1);
-        set_dp16(s, CELL_LOW, rows);
-    } while (rows != 0);
+    GameState *g = state_of(s);
+    uint16_t rows = (uint16_t)(menu_object_scratch_bytes_byte(g, 0x00) | menu_object_scratch_bytes_byte(g, 0x01) << 8);
+    uint32_t picks = menu_object_scratch_bytes_byte(g, 0x10) | (uint32_t)menu_object_scratch_bytes_byte(g, 0x11) << 8
+                     | (uint32_t)menu_object_scratch_bytes_byte(g, 0x12) << 16;
+    uint32_t source = menu_object_scratch_bytes_byte(g, 0x13) | (uint32_t)menu_object_scratch_bytes_byte(g, 0x14) << 8
+                      | (uint32_t)menu_object_scratch_bytes_byte(g, 0x15) << 16;
+    uint16_t vram = (uint16_t)(menu_object_scratch_bytes_byte(g, 0x08) | menu_object_scratch_bytes_byte(g, 0x09) << 8);
+    upload_gate_rows(g, m_platform(s), rows, picks, source, vram);
     m_rts(s);
 }
 
 // $C2:7361
-/* Expand the gate plane's packed colours into $7F:9000, a nibble per pixel. */
 void menu_epoch_expand_gate_nibbles(Snes *s)
 {
-    m_tdc(s);
-    m_write16(s, m_abs(s, WRAM_ADDR), MODE7_PLANE);
-    m_write8(s, m_abs(s, WRAM_ADDR_BANK), 0x7F);
-    for (uint16_t i = 0; i < 0x0400; i++) {
-        uint8_t pair = gate_plane_nibbles(s, i);
-        m_write8(s, m_abs(s, WRAM_PORT), (uint8_t)(pair >> 4));
-        m_write8(s, m_abs(s, WRAM_PORT), (uint8_t)(pair & 0x0F));
-    }
+    unpack_gate_pixels(state_of(s));
     m_rts(s);
 }
 
 // $C2:7389
-/* Build everything the time dial shows: the gate's plane and tiles, its
- * tilemap, and the objects that drive it -- the dial itself, the matrix, two
- * scripts and the seven digits. The original ends by jumping to the object
- * starter, so the port hands back at that jump. */
 void menu_epoch_gate_graphics(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    set_dp8(s, CELL_A, 0);
-    m_set_a8(s, 0xC3);
-    m_jsr_dc(s, 0xC2738D, 0xC271F9, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    vid_upload_vram(m_platform(s), PF_AT(0xC27393), 0x6400, PF_GAME(0x7F0000 | GATE_TILES), 0x0800,
-                    &word_upload);
-    set_dp16(s, CELL_A, 0x6000);
-    set_dp16(s, CELL_PTR1, GATE_TILE_ROWS);
-    set_dp8(s, (uint8_t)(CELL_PTR1 + 2), 0xC2);
-    set_dp16(s, CELL_PTR2, MODE7_PLANE);
-    set_dp8(s, (uint8_t)(CELL_PTR2 + 2), 0x7F);
-    set_dp16(s, CELL_LOW, 0x0040);
-    m_jsr_dc(s, 0xC273D3, 0xC272D8, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    set_dp8(s, CELL_A, 1);
-    m_set_a8(s, 0xC6);
-    m_jsr_dc(s, 0xC273DC, 0xC271F9, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    uint8_t outer_bank = c->db;
-    m_ldx(s, GATE_PALETTE);
-    m_ldy(s, GATE_PALETTE_COPY);
-    c->a = 0x01FF;
-    m_mvn(s, 0x7E, 0x7F);
-    m_write16(s, 0x7F0000 | GATE_PALETTE_WHITE, 0xFFFF);
-    m_ldx(s, GATE_PALETTE);
-    m_ldy(s, OBJECT_PALETTE);
-    c->a = 0x01FF;
-    m_mvn(s, 0x00, 0x7F);
-    c->db = outer_bank;
-    set_dp8(s, CELL_A, (uint8_t)(dp8(s, CELL_A) + 1));
-    m_set_a8(s, 0xC6);
-    m_jsr_dc(s, 0xC27408, 0xC271F9, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_jsr_dc(s, 0xC2740B, 0xC27254, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_jsr_dc(s, 0xC2740E, 0xC27361, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_jsr_dc(s, 0xC27411, 0xC2722C, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_ldx(s, 0x6AC8);
-    m_jsr_dc(s, 0xC27417, 0xC2048A, DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_set_a8(s, 0xC2);
-    m_ldx(s, 0x74B8);
-    m_jsr_dc(s, 0xC2741F, 0xC204D9, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_set_a8(s, 0xC2);
-    m_ldx(s, 0x7504);
-    m_jsr_dc(s, 0xC27427, 0xC204D9, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_ldx(s, 0x6F85);
-    m_jsr_dc(s, 0xC2742D, 0xC2048A, DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    uint16_t slot = object(s);
-    set_dp8(s, CELL_B, field8(s, slot, OBJ_PARAMETER));
-    set_field8(s, slot, OBJ_PARAMETER, 0);
-    m_lda8(s, 7);
-    set_dp8(s, (uint8_t)(CELL_LOW + 1), 7);
-    for (int i = 0; i < 7; i++) {
-        m_ldx(s, 0x7143);
-        m_jsr_dc(s, 0xC27441, 0xC2048A, DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        slot = object(s);
-        set_field8(s, slot, OBJ_PARAMETER, (uint8_t)(field8(s, slot, OBJ_PARAMETER) + 1));
-        set_dp8(s, (uint8_t)(CELL_LOW + 1), (uint8_t)(6 - i));
-    }
-    m_ldx(s, slot);
-    set_field8(s, slot, OBJ_PARAMETER, dp8(s, CELL_B));
-    m_set_a8(s, 0xC2);
-    m_ldx(s, 0x74AE);
-    m_stop_at_own(s, 0xC27457, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-}
-
-// $C2:6A34
-/* The time dial: Mode 7 with the identity matrix behind sprites at $6000, the
- * gate built and its objects started, and the frame task run until the mode
- * byte leaves the dial. */
-void menu_epoch_time_dial_screen(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    Platform *pf = m_platform(s);
-    m_jsr_dc(s, 0xC26A34, 0xC226A8, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_jsr_dc(s, 0xC26A37, 0xC203EF, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_jsr_dc(s, 0xC26A3A, 0xC20471, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    set_dp8(s, SHADOW_BG_MODE, 0x07);
-    VidObjConfig objects = vid_obj_config_decode(0x03);
-    vid_set_obj_config(pf, PF_AT(0xC26A43), &objects);
-    set_dp16(s, SHADOW_SCROLL_X, 0xFF80);
-    set_dp16(s, SHADOW_SCROLL_Y, 0xFF90);
-    set_dp16(s, (uint8_t)(SHADOW_SCROLL_X + 2), 0);
-    set_dp16(s, (uint8_t)(SHADOW_SCROLL_Y + 2), 0);
-    set_dp16(s, SHADOW_BG3_X, 0);
-    set_dp16(s, SHADOW_BG3_Y, 0);
-    set_dp16(s, (uint8_t)(SHADOW_MATRIX + 2), 0);
-    set_dp16(s, (uint8_t)(SHADOW_MATRIX + 4), 0);
-    set_dp16(s, SHADOW_CENTER, 0);
-    set_dp16(s, (uint8_t)(SHADOW_CENTER + 2), 0);
-    set_dp8(s, (uint8_t)(SHADOW_MATRIX + 1), 1);
-    set_dp8(s, (uint8_t)(SHADOW_MATRIX + 7), 1);
-    set_dp8(s, SHADOW_WINDOWS, 0);
-    set_dp8(s, (uint8_t)(SHADOW_WINDOWS + 1), 0);
-    set_dp8(s, (uint8_t)(SHADOW_WINDOWS + 2), 0x20);
-    set_dp8(s, SHADOW_MAIN_WINDOW_MASK, 0x11);
-    set_dp8(s, SHADOW_SUB_WINDOW_MASK, 0x11);
-    set_dp8(s, SHADOW_MATH_CONTROL, 0x10);
-    set_dp8(s, SHADOW_MATH_LAYERS, 0x17);
-    m_lda8(s, 0x0F);
-    set_dp8(s, SHADOW_FIXED_BLUE, 0x0F);
-    set_dp8(s, SHADOW_FIXED_RED, 0x0F);
-    set_dp8(s, SHADOW_FIXED_GREEN, 0x0F);
-    m_write8(s, RAM_MENU_GATE_FLAGS, 0);
-    m_jsr_dc(s, 0xC26A8A, 0xC27389, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_lda8(s, 0x03);
-    m_tsb8(s, m_dp(s, FRAME_STATE));
-    m_lda8(s, 0x81);
-    tm_enable_interrupts(pf, PF_AT(0xC26A93), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
-    m_ldx(s, 0x0012);
-    m_jsr_dc(s, 0xC26A99, 0xC20454, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    do {
-        m_jsr_dc(s, 0xC26A9C, 0xC2046E, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-        m_set_a8(s, m_read8(s, m_abs(s, RAM_ABS(RAM_MENU_MODE))));
-        m_cmp8(s, (uint8_t)c->a, 0x08);
-    } while ((uint8_t)c->a == 0x08);
-    m_set_a8(s, 0xC2);
-    m_ldx(s, 0x74B3);
-    m_jsr_dc(s, 0xC26AAB, 0xC204D9, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_ldx(s, 0x0012);
-    m_jsr_dc(s, 0xC26AB1, 0xC20454, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    set_dp8(s, SHADOW_BG_MODE, 0x09);
-    VidObjConfig back = vid_obj_config_decode(0x60);
-    vid_set_obj_config(pf, PF_AT(0xC26ABA), &back);
-    m_tdc(s);
-    tm_enable_interrupts(pf, PF_AT(0xC26ABE), 0);
-    vid_stop_uploads(pf, PF_AT(0xC26AC1));
-    vid_enable_line_effects(pf, PF_AT(0xC26AC4), 0);
+    build_the_dial(s);
+    m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
 
-/* ---- the objects that move the screens' backgrounds -------------------------------------- */
-
-/* Both drifts end by taking in whatever scroll the menu code left pending. */
-static void take_pending_scroll(Snes *s)
+// $C6:E74E
+/* The map screen's own check of a tile against an area, both in the object
+ * mode's cells; the sides come back there. */
+void menu_epoch_outside_sides(Snes *s)
 {
-    Sum f = { false, false };
-    set_dp16(s, SHADOW_BG3_X, add16(&f, dp16(s, SHADOW_BG3_X), m_read16(s, RAM_MENU_PENDING_SCROLL_X)));
-    f.carry = false;
-    set_dp16(s, SHADOW_BG3_Y, add16(&f, dp16(s, SHADOW_BG3_Y), m_read16(s, RAM_MENU_PENDING_SCROLL_Y)));
+    GameState *g = state_of(s);
+    Area a = { menu_object_scratch_area_top(g), menu_object_scratch_area_bottom(g),
+               menu_object_scratch_area_left(g), menu_object_scratch_area_right(g) };
+    set_menu_object_scratch_area_outside(
+        g, sides_outside(menu_object_scratch_area_tile_x(g), menu_object_scratch_area_tile_y(g), a));
+    m_rtl(s);
 }
 
-// $C2:7652
-/* The gate screen's BG3 wave: a sine over the scroll, rebuilt every frame into
- * a circular buffer that the per-line effect reads. Hidden while the screen is
- * blanked, and still while the objects are frozen. */
-void menu_epoch_gate_scroll_hdma(Snes *s)
+// $C6:E797
+/* The carry says whether the object is inside; the accumulator is 8-bit. */
+void menu_epoch_in_area(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    if (dp8(s, DISPLAY) & 0x80) {
-        m_lda8(s, EFFECT_SLOT_BIT);
-        m_trb8(s, m_dp(s, LINE_EFFECTS));
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    if (m_read8(s, m_abs(s, OBJECTS_FROZEN)) & 0x10) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    uint16_t slot = c->x;
-    if (field8(s, slot, OBJ_STEP) == 0) {
-        set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
-        set_field8(s, slot, OBJ_PARAMETER, 0);
-        set_field8(s, slot, (uint8_t)(OBJ_PARAMETER + 1), 0);
-        m_write16(s, RAM_MENU_GATE_SCROLL_AT, RAM_ABS(RAM_MENU_GATE_SCROLL));
-    }
-    m_write8(s, RAM_MENU_GATE_SCROLL_TABLE, 0xC0);
-    m_write8(s, RAM_MENU_GATE_SCROLL_TABLE + 3, 0xC0);
-    m_write8(s, RAM_MENU_GATE_SCROLL_TABLE + 6, 0xC0);
-    m_write8(s, RAM_MENU_GATE_SCROLL_TABLE + 9, 0xA0);
-    m_write8(s, RAM_MENU_GATE_SCROLL_TABLE + 12, 0x00);
-    static const VidLineEffect wave = { .target = VID_LINE_SCROLL_BG3_H,
-                                        .table = PF_GAME(RAM_MENU_GATE_SCROLL_TABLE),
-                                        .indirect = true, .indirect_bank = 0x7E };
-    vid_set_line_effect(m_platform(s), PF_AT(0xC2769A), EFFECT_SLOT, &wave, line_effect_steps);
-    m_lda8(s, EFFECT_SLOT_BIT);
-    m_tsb8(s, m_dp(s, LINE_EFFECTS));
-    set_dp16(s, CELL_PTR1, RAM_ABS(RAM_MENU_GATE_SCROLL));
-    set_dp8(s, (uint8_t)(CELL_PTR1 + 2), 0x7E);
-    m_rep(s, CPU_FLAG_M);
-    uint16_t phase = field16(s, slot, OBJ_PARAMETER);
-    set_dp16(s, CELL_B, phase);
-    Sum f = { false, false };
-    set_field16(s, slot, OBJ_PARAMETER, add16(&f, phase, 1));
-    for (uint16_t i = 0; i < 0x40; i++) {
-        uint16_t v = sine(s, dp16(s, CELL_B));
-        set_dp16(s, CELL_A, v);
-        f.carry = false;
-        set_dp16(s, CELL_B, add16(&f, dp16(s, CELL_B), 0x0010));
-        uint16_t scaled = (v & 0x8000) ? (uint16_t)((v >> 2) | 0xC000) : (uint16_t)(v >> 2);
-        f.carry = false;
-        m_write16(s, RAM_MENU_GATE_SCROLL + 2 * i, add16(&f, scaled, dp16(s, SHADOW_BG3_X)));
-    }
-    uint8_t outer_bank = c->db;
-    m_ldx(s, RAM_ABS(RAM_MENU_GATE_SCROLL));
-    m_ldy(s, (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCROLL) + 0x80));
-    c->a = 0x007F;
-    m_mvn(s, 0x7E, 0x7E);
-    c->db = outer_bank;
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
+    GameState *g = state_of(s);
+    m_set_flag(s, CPU_FLAG_C, in_area(g, menu_object_running(g)));
+    m_sep(s, CPU_FLAG_M);
+    m_rtl(s);
 }
 
-// $C2:7702
-/* The object that drifts the gate screen's background by a velocity of its
- * own. */
-void menu_epoch_gate_drift(Snes *s)
-{
-    if (m_read8(s, m_abs(s, OBJECTS_FROZEN)) & 0x10) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    uint16_t slot = object(s);
-    m_ldx(s, slot);
-    uint8_t step = field8(s, slot, OBJ_STEP);
-    m_set_a8(s, step);
-    m_rep(s, CPU_FLAG_M);
-    if (step == 0) {
-        set_field16(s, slot, OBJ_STEP, (uint16_t)(field16(s, slot, OBJ_STEP) + 1));
-        set_field16(s, slot, OBJ_VELOCITY, 0x8931);
-        set_field16(s, slot, (uint8_t)(OBJ_VELOCITY + 2), 0xFFFC);
-        set_field16(s, slot, (uint8_t)(OBJ_VELOCITY + 4), 0);
-        set_field16(s, slot, (uint8_t)(OBJ_VELOCITY + 6), 2);
-    }
-    set_field16(s, slot, OBJ_X, dp16(s, SHADOW_BG3_X));
-    set_field16(s, slot, OBJ_Y, dp16(s, SHADOW_BG3_Y));
-    m_ldx(s, slot);
-    m_jsr_dc(s, 0xC27734, 0xC20F38, DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    slot = s->cpu.x;
-    set_dp16(s, SHADOW_BG3_X, field16(s, slot, OBJ_X));
-    set_dp16(s, SHADOW_BG3_Y, field16(s, slot, OBJ_Y));
-    take_pending_scroll(s);
-    m_write16(s, RAM_MENU_PENDING_SCROLL_X, 0);
-    m_write16(s, RAM_MENU_PENDING_SCROLL_Y, 0);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
-
-// $C2:75C3
-/* A slow drift of BG3: one step left every fourth frame and one down every
- * eighth. */
-void menu_epoch_gate_scroll_slow(Snes *s)
-{
-    if (m_read8(s, m_abs(s, OBJECTS_FROZEN)) & 0x10) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    m_rep(s, CPU_FLAG_M);
-    uint16_t slot = object(s);
-    m_ldx(s, slot);
-    uint16_t count = (uint16_t)(field16(s, slot, OBJ_PARAMETER) + 1);
-    set_field16(s, slot, OBJ_PARAMETER, count);
-    if ((count & 3) == 0)
-        set_dp16(s, SHADOW_BG3_X, (uint16_t)(dp16(s, SHADOW_BG3_X) - 1));
-    if ((count & 7) == 0)
-        set_dp16(s, SHADOW_BG3_Y, (uint16_t)(dp16(s, SHADOW_BG3_Y) + 1));
-    take_pending_scroll(s);
-    m_write16(s, RAM_MENU_PENDING_SCROLL_X, 0);
-    m_write16(s, RAM_MENU_PENDING_SCROLL_Y, 0);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
-
-// $C2:75FD
-/* The same drift with the wave's buffer moved along too, kept inside the
- * buffer's two halves so it wraps rather than running off. */
-void menu_epoch_gate_scroll_wrap(Snes *s)
-{
-    if (m_read8(s, m_abs(s, OBJECTS_FROZEN)) & 0x10) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    m_rep(s, CPU_FLAG_M);
-    uint16_t slot = object(s);
-    m_ldx(s, slot);
-    uint16_t count = (uint16_t)(field16(s, slot, OBJ_PARAMETER) + 1);
-    set_field16(s, slot, OBJ_PARAMETER, count);
-    if ((count & 3) == 0) {
-        set_dp16(s, SHADOW_BG3_X, (uint16_t)(dp16(s, SHADOW_BG3_X) - 1));
-        set_dp16(s, SHADOW_BG3_Y, (uint16_t)(dp16(s, SHADOW_BG3_Y) + 1));
-    }
-    take_pending_scroll(s);
-    uint16_t pending = (uint16_t)(m_read16(s, RAM_MENU_PENDING_SCROLL_Y) << 1);
-    m_write16(s, RAM_MENU_PENDING_SCROLL_Y, pending);
-    Sum f = { false, false };
-    uint16_t at = add16(&f, m_read16(s, RAM_MENU_GATE_SCROLL_AT), pending);
-    if (at < RAM_ABS(RAM_MENU_GATE_SCROLL)) {
-        f.carry = false;
-        at = add16(&f, at, 0x0080);
-    } else if (at >= (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCROLL) + 0x80)) {
-        f.carry = true;
-        at = sub16(&f, at, 0x0080);
-    }
-    m_write16(s, RAM_MENU_GATE_SCROLL_AT, at);
-    m_write16(s, RAM_MENU_PENDING_SCROLL_X, 0);
-    m_write16(s, RAM_MENU_PENDING_SCROLL_Y, 0);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_rts(s);
-}
-
-/* ---- object script routines the screens' scripts call ($C2:1819) ------------------------ */
-
-// $C2:754D
-/* Place the object at a random spot in the map view's visible area. */
-void menu_epoch_place_marker_random(Snes *s)
-{
-    uint8_t r = next_random(s);
-    set_dp8(s, CELL_A, (uint8_t)(r & 0x7F));
-    set_dp8(s, (uint8_t)(CELL_A + 1), 0);
-    uint16_t slot = object(s);
-    m_ldx(s, slot);
-    m_rep(s, CPU_FLAG_M);
-    Sum f = { false, false };
-    uint16_t x = add16(&f, asl16(&f, dp16(s, MAP_ORIGIN_X), 3), dp16(s, CELL_A));
-    f.carry = false;
-    set_field16(s, slot, OBJ_X, add16(&f, x, 0x0040));
-    f.carry = false;
-    set_field16(s, slot, OBJ_Y, asl16(&f, add16(&f, dp16(s, MAP_ORIGIN_Y), 0x0020), 3));
-    m_set_flag(s, CPU_FLAG_C, f.carry);
-    m_rts(s);
-}
-
-// $C2:7575
-/* Place the object at the right-hand edge of the map view's area. */
-void menu_epoch_place_marker_edge(Snes *s)
-{
-    uint8_t r = next_random(s);
-    set_dp8(s, CELL_A, r);
-    set_dp8(s, (uint8_t)(CELL_A + 1), 0);
-    uint16_t slot = object(s);
-    m_ldx(s, slot);
-    m_rep(s, CPU_FLAG_M);
-    Sum f = { false, false };
-    set_field16(s, slot, OBJ_X, add16(&f, asl16(&f, 0x002F, 3), dp16(s, CELL_A)));
-    f.carry = false;
-    set_field16(s, slot, OBJ_Y, asl16(&f, add16(&f, dp16(s, MAP_ORIGIN_Y), 0x0020), 3));
-    m_set_flag(s, CPU_FLAG_C, f.carry);
-    m_rts(s);
-}
-
-// $C2:7598
-/* Give the object one of sixteen velocities, picked at random. */
-void menu_epoch_set_marker_velocity(Snes *s)
-{
-    uint8_t r = next_random(s);
-    uint16_t slot = object(s);
-    m_ldy(s, slot);
-    m_rep(s, CPU_FLAG_M);
-    Sum f = { false, false };
-    uint16_t index = asl16(&f, (uint16_t)(r & 0x000F), 3);
-    m_ldx(s, index);
-    m_set_flag(s, CPU_FLAG_C, f.carry);
-    for (uint16_t word = 0; word < 4; word++)
-        set_field16(s, slot, (uint8_t)(OBJ_VELOCITY + 2 * word), marker_velocity(s, index, word));
-    m_rts(s);
-}
-
-/* ---- the End of Time's gate --------------------------------------------------------------- */
+/* The gate screen's frame task ($C2:CECE), added in the menus' task slot $10
+ * by $C2:8249, the original's. The setup is copied with a block move, which
+ * leaves the data bank on work RAM's and Y past the state, which the caller
+ * reads. */
+enum { GATE_SCREEN_TASK = 0xCECE, GATE_SCREEN_TASK_SLOT = 0x0010 };
 
 // $C2:CE9D
-/* Start the End of Time's gate screen: BG3's tilemap moves to $6800 in 32 by 32
- * quadrants, the screen's frame task is added, and its eleven bytes of setup are
- * copied out of the ROM. */
+/* The original keeps its caller's P on the stack round the task's call, and
+ * puts it back as it returns. */
 void menu_start_gate_screen(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    VidBg bg3;
-    vid_bg_map_decode(&bg3, 0x68);
+    GameState *g = state_of(s);
+    m_push8(s, s->cpu.p);
+    const VidBg bg3 = { .map_base = GATE_SCREEN_TILEMAP, .map_w = TILEMAP_TILES, .map_h = TILEMAP_TILES };
     vid_set_bg_map(m_platform(s), PF_AT(0xC2CEA2), VID_BG3, &bg3);
+    start_counting(g);
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_GATE_SCREEN_STATE)), 0);
-    m_lda16(s, 0xCECE);
-    m_ldx(s, 0x0010);
-    m_jsr_dc(s, 0xC2CEB1, 0xC28249, DC_Y | DC_N | DC_V | DC_Z | DC_C);
-    m_ldx(s, 0xD57A);
-    m_ldy(s, (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCREEN_STATE) + 2));
-    c->a = 0x000B;
-    m_mvn(s, 0x7E, 0xFF);
-    c->p = m_pull8(s);
-    if (c->p & CPU_FLAG_X) {
-        c->x &= 0xFF;
-        c->y &= 0xFF;
+    s->cpu.a = GATE_SCREEN_TASK;
+    s->cpu.x = GATE_SCREEN_TASK_SLOT;
+    m_jsr_dc(s, 0xC2CEB1, 0xC28249, DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB);
+    set_up_gate_screen(g);
+    s->cpu.db = WORK_RAM_BANK;
+    s->cpu.y = (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCREEN_STATE) + MENU_GATE_SCREEN_STATE_COUNT);
+    s->cpu.p = m_pull8(s);
+    if (m_x8(s)) {
+        s->cpu.x &= 0xFF;
+        s->cpu.y &= 0xFF;
     }
     m_rts(s);
 }

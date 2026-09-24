@@ -81,9 +81,9 @@ uint32_t charge_uncounted_begin(GameState *g) { return native_uncounted_begin(st
 
 void charge_uncounted_end(GameState *g, uint32_t mark) { native_uncounted_end(state_snes(g), mark); }
 
-int charge_begin_as(GameState *g, uint32_t routine) { return native_time_as(state_snes(g), routine); }
+int charge_time_as_begin(GameState *g, uint32_t routine) { return native_time_as(state_snes(g), routine); }
 
-void charge_end(GameState *g, int was) { native_time_end(state_snes(g), was); }
+void charge_time_as_end(GameState *g, int was) { native_time_end(state_snes(g), was); }
 
 static uint32_t in_bank(uint32_t at, uint32_t offset) { return (at & 0xFF0000u) | (uint16_t)(at + offset); }
 

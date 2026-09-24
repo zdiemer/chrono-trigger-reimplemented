@@ -554,6 +554,18 @@ Each of these is a finding. Every example here comes from this repo.
     lines with X". Write the fill; keep the idiom only where the gate needs
     its exact bytes, and say so.
 
+57. **A quirk parameter named for one of its uses.** A flag that is the add's
+    carry at one call and the subtraction's no-borrow at another, named and
+    commented for the first. Check every call site of such a parameter
+    against its name and comment.
+58. **A declaration wider than its meaning.** A word accessor for a cell of
+    which one byte means something forces `& 0xFF00` and `(uint8_t)` into
+    the port. Narrow it in `re/ram.toml` (a map fix, not the port's).
+59. **A bridge's runs between call-outs left in the `Snes *` body.** A
+    bridge may call out mid-body, but the stretches without call-outs (a
+    screen's setup, a table's fill) are logic, and belong in `GameState`/
+    `Platform` functions the bridge calls.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"

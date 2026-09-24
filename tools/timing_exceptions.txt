@@ -43,7 +43,7 @@ menu_object_wave_hdma vblank-tail fills a RAM scroll-wave table in 53-line calls
 menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 18-line calls; its pixels are attributed to $C2:5E89, whose own time follows the pixel's bits (7.1% on its own); at most 2932 clocks (two lines)
 menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; its tiles and numbers are attributed (19% of vblank calls off by a line, from 32%), the control codes' handlers are no entries and the loop follows the string; at most 3498 clocks (2.6 lines) in vblank
 menu_draw_sprite_nodes vblank-tail draws the sprite list into the OAM buffer in RAM, which the next vblank uploads, 40510 clocks a call on average; its time is charged per node and per sprite as the original spends it (dropped across, dropped down, shown), 2.97% of its 236 calls in vblank off by 1024 clocks or more, at most 3416 clocks (2.6 lines)
-menu_object_cmd_animate_for vblank-tail runs its object's sprite script inline, whose commands (a show, a byte change, an upload queued) vary from frame to frame under one scalar; 1.54% of its calls in vblank off by 1024 clocks or more, at most 2982 clocks (2.3 lines), writing the object and the sprite list in RAM
+menu_object_cmd_for_frames_moving vblank-tail runs its object's sprite script inline, whose commands (a show, a byte change, an upload queued) vary from frame to frame under one scalar; 1.54% of its calls in vblank off by 1024 clocks or more, at most 2982 clocks (2.3 lines), writing the object and the sprite list in RAM
 
 # The scene engine's circle, a RAM window table the next frame's HDMA reads.
 scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls, longer than vblank, writing only RAM; its closed lines are charged as the block move stub's work, and what is left follows the radius in the outline's steps and the lower half's copies, which one scalar fits only on average; at most 11085 clocks (8.1 lines), which moves only when its RAM writes end
@@ -56,9 +56,7 @@ battle_step_hp_gradient vblank-tail writes three palette rows in RAM, uploaded a
 
 # The Epoch's time dial, which rebuilds a per-line window table in RAM that the
 # next frame's HDMA reads: the vblank check finds none of its writes moved.
-menu_epoch_build_gate_window vblank-tail rebuilds the gate's per-line window table in RAM in 250-line calls, longer than vblank; its time follows the triangle (how many lines its corners span and which edges cross each), 4.7% on average and at most 5864 clocks (22 lines) of a 250-line call
-menu_epoch_time_dial_object vblank-tail the object that drives the dial: the window rebuild is attributed to $C2:6CC1, what is left is a setup call that moves two 448-byte buffers and programs the slot against 946 calls that turn the dial or do nothing, which one scalar can't fit
-menu_epoch_time_dial_object vblank-worst as for vblank-tail: the setup call, once per screen, writing the buffers the next frame's HDMA reads
+menu_epoch_build_gate_window vblank-tail rebuilds the gate's per-line window table in RAM in 250-line calls, longer than vblank; its time follows the triangle (how many lines its corners span and which edges cross each), which the port charges by the lines it fills, 0.8% on average and at most 4537 clocks of a 250-line call
 
 # Starting an object: the free-slot walk looks at one slot or at sixty, and
 # only the call that finds one copies the caller's state into it ($3B bytes),

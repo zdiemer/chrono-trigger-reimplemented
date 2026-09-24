@@ -180,6 +180,98 @@ static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind) { retu
  * step, 1024 steps a turn, of which the second half is read below zero. */
 static inline uint8_t menu_wave_size(const GameState *g, uint16_t step) { return rom_read8(g, 0xC0F900u + step); }
 
+/* The menus' random bytes ($C0:FE00, 256 of them), which the sprite-object
+ * mode's scenes take in turn. */
+static inline uint8_t menu_random_byte(const GameState *g, uint8_t index) { return rom_read8(g, 0xC0FE00u + index); }
+
+/* The sixteen velocities a scene's object may be given at random ($C6:F640):
+ * across, then down, each 16.16 fixed point. */
+static inline uint32_t menu_scene_velocity_x(const GameState *g, uint8_t pick)
+{
+    uint32_t at = 0xC6F640u + 8u * pick;
+    return rom_read16(g, at) | (uint32_t)rom_read16(g, at + 2) << 16;
+}
+static inline uint32_t menu_scene_velocity_y(const GameState *g, uint8_t pick)
+{
+    uint32_t at = 0xC6F640u + 8u * pick + 4;
+    return rom_read16(g, at) | (uint32_t)rom_read16(g, at + 2) << 16;
+}
+
+/* ---- The Epoch's screens -------------------------------------------------------------------- */
+
+/* The map view: the graphics set its markers are drawn from for each world
+ * map ($C2:69F0, a byte a map; the story swaps two of them for $6F), and
+ * where on the view the landing marker stands, across, for each ($C2:68E4, a
+ * word a map). Maps count from the first world map's location, $1F0. */
+enum { MENU_FIRST_WORLD_MAP = 0x01F0, MENU_WORLD_MAPS = 8 };
+static inline uint8_t menu_map_view_graphics(const GameState *g, uint16_t map)
+{
+    return rom_read8(g, 0xC269F0u + map);
+}
+static inline uint16_t menu_landing_marker_x(const GameState *g, uint16_t map)
+{
+    return rom_read16(g, 0xC268E4u + (uint16_t)(2u * map));
+}
+
+/* The map view's cursor's path: its zoom across ($C6:F560) and down
+ * ($C6:F5A0) at each of 32 steps, words, by the step's byte offset. */
+static inline uint16_t menu_cursor_path_zoom_x(const GameState *g, uint16_t at) { return rom_read16(g, 0xC6F560u + at); }
+static inline uint16_t menu_cursor_path_zoom_y(const GameState *g, uint16_t at) { return rom_read16(g, 0xC6F5A0u + at); }
+
+/* The map view's sprites: the cursor's tiles, two runs of 32 bytes, and
+ * their sixteen colours with the byte after them. */
+enum { MENU_MAP_VIEW_TILES = 0xC6F500, MENU_MAP_VIEW_MORE_TILES = 0xC6F520, MENU_MAP_VIEW_COLOURS = 0xC6F540 };
+static inline uint8_t menu_map_view_colour_byte(const GameState *g, unsigned i) { return rom_read8(g, MENU_MAP_VIEW_COLOURS + i); }
+
+/* The time dial's seven periods: the location each travels to, in the two
+ * sets the story moves between ($C2:6C97, and $C2:6CA5 once the story has
+ * passed $CC), a word a period, and the angle the gate stands at for each
+ * ($C2:6CB3). The original doubles a period in a byte to read the
+ * locations, so one past $7F reads from the set's start again. */
+enum { MENU_PERIODS = 7, MENU_LATER_PERIODS = 0xCC };
+static inline uint16_t menu_period_location(const GameState *g, bool later_set, uint8_t period)
+{
+    return rom_read16(g, 0xC20000u | (uint16_t)((later_set ? 0x6CA5u : 0x6C97u) + (uint8_t)(period << 1)));
+}
+static inline uint16_t menu_period_angle(const GameState *g, uint8_t period)
+{
+    return rom_read16(g, 0xC20000u | (uint16_t)(0x6CB3u + 2u * period));
+}
+
+/* The gate's triangle: its three corners about the screen's centre, a signed
+ * pair each ($C2:6F2D). */
+static inline int8_t menu_gate_corner_x(const GameState *g, unsigned corner) { return (int8_t)rom_read8(g, 0xC26F2Du + 2u * corner); }
+static inline int8_t menu_gate_corner_y(const GameState *g, unsigned corner) { return (int8_t)rom_read8(g, 0xC26F2Eu + 2u * corner); }
+
+/* The dial's digits, by period: where each stands ($C2:71DD, across then
+ * down), and the sprite scripts that show and hide it ($C2:71EB, $C2:71EC).
+ * The original doubles the period in a byte. */
+static inline uint8_t menu_digit_x(const GameState *g, uint8_t period) { return rom_read8(g, 0xC271DDu + (uint8_t)(period << 1)); }
+static inline uint8_t menu_digit_y(const GameState *g, uint8_t period) { return rom_read8(g, 0xC271DEu + (uint8_t)(period << 1)); }
+static inline uint8_t menu_digit_show_script(const GameState *g, uint8_t period) { return rom_read8(g, 0xC271EBu + (uint8_t)(period << 1)); }
+static inline uint8_t menu_digit_hide_script(const GameState *g, uint8_t period) { return rom_read8(g, 0xC271ECu + (uint8_t)(period << 1)); }
+
+/* The time dial's compressed streams ($C2:7220): where each is, in the bank
+ * its loader names, and where in bank $7F it goes, a word each. */
+static inline uint16_t menu_gate_stream_source(const GameState *g, uint8_t stream) { return rom_read16(g, 0xC27220u + 4u * stream); }
+static inline uint16_t menu_gate_stream_dest(const GameState *g, uint8_t stream) { return rom_read16(g, 0xC27222u + 4u * stream); }
+
+/* The gate's tiles go to sixteen rows of VRAM ($C2:72B8, a word a row), and
+ * its tilemap's rows are picked from a table of row numbers wherever its
+ * pointer puts it (the dial's own at $C2:7321). */
+static inline uint16_t menu_gate_tile_row(const GameState *g, unsigned row) { return rom_read16(g, 0xC272B8u + 2u * row); }
+enum { MENU_GATE_TILEMAP_ROWS = 0xC27321 };
+/* The original reads a word and keeps its low byte; where the table is
+ * pointed at hardware registers, the second byte's read counts too. */
+static inline uint8_t menu_gate_row_pick(const GameState *g, uint32_t at) { return (uint8_t)rom_read16(g, at & 0xFFFFFFu); }
+
+/* The gate's plane: two pixels a byte, a colour in each nibble, the left one
+ * in the high nibble ($C6:F700, 1024 bytes). */
+static inline uint8_t menu_gate_pixel_pair(const GameState *g, unsigned i) { return rom_read8(g, 0xC6F700u + i); }
+
+/* The End of Time's gate screen's setup, twelve bytes ($FF:D57A). */
+static inline uint8_t menu_gate_screen_setup(const GameState *g, unsigned i) { return rom_read8(g, 0xFFD57Au + i); }
+
 /* ---- The menus' display ------------------------------------------------------------------- */
 
 /* The colors the menus' color math ramps step through ($C2:8771, sixteen

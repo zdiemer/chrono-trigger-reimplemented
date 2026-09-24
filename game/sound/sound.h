@@ -30,6 +30,12 @@
 #include "platform/audio.h"
 #include "state.h"
 
+/* The commands the game sends most often (driver.c's table has them all):
+ * start a song on its first set of tracks, or a sound effect on the pair of
+ * voices 6-7 or 4-5 that the effects take from the music. */
+enum { SOUND_PLAY_SONG = 0x10 };
+typedef enum { SOUND_EFFECT_ON_VOICES_6_7 = 0x18, SOUND_EFFECT_ON_VOICES_4_5 = 0x19 } SoundEffectVoices;
+
 /* The driver's tick: its timer runs at 8 kHz and ticks every 42nd count; fast
  * forward ticks at every count. */
 enum { SOUND_TIMER_HZ = 8000, SOUND_TIMER_COUNTS_PER_TICK = 42 };

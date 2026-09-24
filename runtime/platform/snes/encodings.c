@@ -41,6 +41,8 @@ enum {
 #define FIELD_LINE(site) { site, 0, 0, 0, 0, FIELD_LINE_STEPS, 0 }
 #define SCENE_TRANSFER_STEPS STEPS(C, D, SL, SH, SB, ZL, ZH, GO)
 #define RACE_UPLOAD_STEPS STEPS(TL, TH, ZL, ZH, C, D, SL, SH, SB, P, GO)
+#define MENU_LINE(site) { site, 0, 0, 0, 0, STEPS(C, D, SL, SH, SB, IB), 0 }
+#define EPOCH_UPLOAD_STEPS STEPS(TL, TH, P, C, D, SL, SH, SB, ZL, ZH, GO)
 
 static const PfSnesEncoding encodings[] = {
     /* ---- Shared ---- */
@@ -88,6 +90,27 @@ static const PfSnesEncoding encodings[] = {
     { 0xC294D8, 0, 0, 0, FILL_WORDS, STEPS(C, D, ZL, ZH, SL, SH, SB, GO), 0 },             /* VRAM filled */
     { 0xC29526, 0, 0, 0, FIXED_BYTE, STEPS(ZL, ZH, C, D, SL, SH, SB, GO), 0 },             /* work RAM cleared */
     { 0xC2954B, 0, 0, 0, ONE_REGISTER, STEPS(SL, SH, ZL, ZH, C, D, SB, GO), 0 },           /* work RAM copied */
+    { 0xC20AF6, 0, 0, 7, WORDS, STEPS(TL, TH, P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },       /* a map block's first column */
+    { 0xC20B22, 0, 0, 7, WORDS, STEPS(TL, TH, SL, SH, SB, P, C, D, ZL, ZH, GO), 0 },       /* ... its second */
+    /* the line effects the scenes' objects start, $C6:E000-$C6:E5A7 */
+    MENU_LINE(0xC6E012), MENU_LINE(0xC6E32A), MENU_LINE(0xC6E45A), MENU_LINE(0xC6E352), MENU_LINE(0xC6E482),
+    MENU_LINE(0xC6E5A7),
+    /* the top layer's wave over the world maps */
+    MENU_LINE(0xC2769A), MENU_LINE(0xC2779E),
+    /* the Epoch's map view */
+    { 0xC26340, 0, 0, 7, WORDS, EPOCH_UPLOAD_STEPS, 0 },          /* its sprite tiles */
+    { 0xC26367, 0, 0, 7, WORDS, EPOCH_UPLOAD_STEPS, 0 },
+    { 0xC269C8, 0, 0, 7, WORDS, EPOCH_UPLOAD_STEPS, 0 },          /* its graphics */
+    { 0xC264EB, 0, 0, 7, ONE_REGISTER, STEPS(TL, TH, SL, SH, ZL, ZH, C, D, P, SB, GO), 0 },   /* a row of its picture */
+    { 0xC2662F, 0, 0, 7, ONE_REGISTER, EPOCH_UPLOAD_STEPS, 0 },   /* a row of its tile numbers */
+    MENU_LINE(0xC2694F),                                           /* its gradient */
+    /* the time dial */
+    { 0xC27393, 0, 0, 7, WORDS, EPOCH_UPLOAD_STEPS, 0 },          /* the gate's tiles */
+    { 0xC2726D, 0, 0, 7, WORDS, EPOCH_UPLOAD_STEPS, 0 },          /* ... a run of them */
+    { 0xC272EE, 0, 0, 7, WORDS, STEPS(C, D, P, TL, TH, SL, SH, SB, ZL, ZH, GO), 0 },   /* a tilemap row */
+    { 0xC2722F, 0, 0, 7, ONE_REGISTER, EPOCH_UPLOAD_STEPS, 0 },   /* the gate's picture */
+    MENU_LINE(0xC26AFA),                                           /* the gate's window */
+    MENU_LINE(0xC26FBB), MENU_LINE(0xC26FC1), MENU_LINE(0xC26FDE), MENU_LINE(0xC26FE4),   /* its spin's matrix */
 
     /* ---- The scenes ---- */
     { 0x7E30B6, 0, 0, 7, FROM_REGISTER, SCENE_TRANSFER_STEPS, 0 },   /* work RAM cleared: the direct page */

@@ -1582,10 +1582,10 @@
 #define RAM_MENU_CURSOR_HIDDEN 0x7E0D9Bu
 /* Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it loads [2 bytes] */
 #define RAM_MENU_LOAD_DESTINATION 0x7E0DC5u
-/* The End of Time gate screen's state, set up when the screen starts [13 x $1 bytes, by byte;
+/* The End of Time gate screen's state, set up when the screen starts [14 x $1 bytes, by byte;
  * the first two are cleared and the rest come from $FF:D57A] */
 #define RAM_MENU_GATE_SCREEN_STATE 0x7E0F10u
-#define RAM_MENU_GATE_SCREEN_STATE_COUNT 13u
+#define RAM_MENU_GATE_SCREEN_STATE_COUNT 14u
 #define RAM_MENU_GATE_SCREEN_STATE_STRIDE 0x01u
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 #define RAM_MENU_RANDOM_INDEX 0x7E1B30u
@@ -1696,13 +1696,6 @@
 #define RAM_MENU_OBJECT_LINE_SLOTS_SECOND_LINES 0x7E8A38u /* The second entry's line count */
 #define RAM_MENU_OBJECT_LINE_SLOTS_SECOND 0x7E8A39u /* Address of the second entry's per-line values */
 #define RAM_MENU_OBJECT_LINE_SLOTS_END 0x7E8A3Bu /* 0, which ends the table */
-/* The first of the sprite object mode's per-line buffers: the wave effect's BG3 scroll values,
- * rebuilt each frame from the scroll $24 and a sine phase, the map view's fixed-colour gradient,
- * or one of the time dial's two window tables [224 x $2 bytes, by word: even ones the scroll
- * position, odd ones it plus the sine wave] */
-#define RAM_MENU_OBJECT_WAVE_SCROLL 0x7E8B56u
-#define RAM_MENU_OBJECT_WAVE_SCROLL_COUNT 224u
-#define RAM_MENU_OBJECT_WAVE_SCROLL_STRIDE 0x02u
 /* Where the cursor sprite goes for each cursor position of the current menu; the load screen
  * moves its fourth row's between two choices [42 x $6 bytes, by cursor position of the current
  * menu (the table runs up to the palette at $9480)] */
@@ -1803,19 +1796,24 @@
 /* Which color math table was built last: 0 for $9E19, $100 for $9F19 (the vblank reads its high
  * byte to point slot 0 at it) [2 bytes] */
 #define RAM_MENU_MATH_LINE_TABLE_OFFSET 0x7EA01Du
-/* Where in the wave's circular buffer the gate screen's per-line scroll starts this frame [2
- * bytes] */
-#define RAM_MENU_GATE_SCROLL_AT 0x7EA916u
-/* The indirect per-line table the gate screen's BG3 scroll is read through, 64 lines an entry
- * and 32 in the last [4 x $3 bytes, by entry; a 0 byte at $A924 ends the table] */
-#define RAM_MENU_GATE_SCROLL_TABLE 0x7EA918u
-#define RAM_MENU_GATE_SCROLL_TABLE_COUNT 4u
-#define RAM_MENU_GATE_SCROLL_TABLE_STRIDE 0x03u
-/* The gate screen's per-line BG3 scroll, a sine over the layer's own scroll, copied on to the
- * buffer's second half so the table can start anywhere in it [64 x $2 bytes, by line pair] */
-#define RAM_MENU_GATE_SCROLL 0x7EA925u
-#define RAM_MENU_GATE_SCROLL_COUNT 64u
-#define RAM_MENU_GATE_SCROLL_STRIDE 0x02u
+/* Where in its circular buffer (menu_top_layer_wave_lines) the wave of the layer over one world
+ * map's scene starts this frame; the vblank handler points the wave's table at it [2 bytes] */
+#define RAM_MENU_TOP_LAYER_WAVE_AT 0x7EA916u
+/* The indirect per-line table the wave of the layer over one world map's scene is read through:
+ * a line count (64 lines an entry, 32 in the last, with the repeat bit) and where its values
+ * are, which the vblank handler fills in from menu_top_layer_wave_at [4 x $3 bytes, by entry; a
+ * 0 byte at $A924 ends the table] */
+#define RAM_MENU_TOP_LAYER_WAVE_TABLE 0x7EA918u
+#define RAM_MENU_TOP_LAYER_WAVE_TABLE_COUNT 4u
+#define RAM_MENU_TOP_LAYER_WAVE_TABLE_STRIDE 0x03u
+/* The 0 that ends menu_top_layer_wave_table */
+#define RAM_MENU_TOP_LAYER_WAVE_TABLE_END 0x7EA924u
+/* The wave of the layer over one world map's scene: its scroll across, a line pair each, a sine
+ * over the layer's own scroll, copied on to the buffer's second half so the table can start
+ * anywhere in the first [128 x $2 bytes, by line pair; the second 64 a copy of the first] */
+#define RAM_MENU_TOP_LAYER_WAVE_LINES 0x7EA925u
+#define RAM_MENU_TOP_LAYER_WAVE_LINES_COUNT 128u
+#define RAM_MENU_TOP_LAYER_WAVE_LINES_STRIDE 0x02u
 /* One colour per world map tile, four bits packed out of the tile's own graphics, which the map
  * view's plane is drawn from [896 x $1 bytes, by world map tile] */
 #define RAM_MENU_MAP_COLOURS 0x7EAB25u
@@ -1929,6 +1927,7 @@
 #define RAM_MENU_OBJECT_SCRATCH_SCENE_MODE 0x7E0000u /* The scene's mode (bits 2-5 of menu_story_flags' scene_mode_bits), copied here for the object scripts to test ($C6:E237) */
 #define RAM_MENU_OBJECT_SCRATCH_AREA_TILE_X 0x7E0000u /* The Epoch's area check: the object's column in tiles */
 #define RAM_MENU_OBJECT_SCRATCH_AREA_TILE_Y 0x7E0001u /* The Epoch's area check: its row in tiles (a word: the high byte over area_top) */
+#define RAM_MENU_OBJECT_SCRATCH_GATE_WINDOW_BANK 0x7E0018u /* The time dial: the bank the gate's window tables are drawn in, which the dial sets as it starts ($C2:6AC8) and the window's drawing ($C2:6CC1) writes its lines through */
 #define RAM_MENU_OBJECT_SCRATCH_AREA_TOP 0x7E0002u /* The Epoch's area check: the area's first row */
 #define RAM_MENU_OBJECT_SCRATCH_AREA_BOTTOM 0x7E0003u /* The Epoch's area check: the row past its last */
 #define RAM_MENU_OBJECT_SCRATCH_AREA_LEFT 0x7E0004u /* The Epoch's area check: its first column */
@@ -2069,9 +2068,49 @@
 #define RAM_MENU_OBJECT_SLOTS_IRIS_FRAMES 0x7E0B54u /* The squashed iris's frame count, which picks the pair of tables it draws into */
 #define RAM_MENU_OBJECT_SLOTS_IRIS_STRETCH 0x7E0B54u /* The capsule iris's stretch: the lines its lower half is moved down by */
 #define RAM_MENU_OBJECT_SLOTS_CAPSULE_FRAMES 0x7E0B56u /* The capsule iris's frame count, which picks the pair of tables it draws into */
-#define RAM_MENU_OBJECT_SLOTS_COMMAND_STATE 0x7E0B62u /* What the running command keeps between frames, cleared after every command the script finishes: a move's started flag, the palette loader's row */
-#define RAM_MENU_OBJECT_SLOTS_MOVE_TARGET 0x7E0B64u /* Where a move command's object is going; the palette loader's hand-over flag in the low byte */
+#define RAM_MENU_OBJECT_SLOTS_COMMAND_STATE 0x7E0B62u /* What the running command keeps between frames, cleared after every command the script finishes: a move's started flag */
+#define RAM_MENU_OBJECT_SLOTS_MOVE_TARGET 0x7E0B64u /* Where a move command's object is going */
 #define RAM_MENU_OBJECT_SLOTS_PALETTE_SOURCE 0x7E0B65u /* The palette loader's long pointer to its colours */
+#define RAM_MENU_OBJECT_SLOTS_PALETTE_ROW 0x7E0B62u /* The palette loader's row of the palette, which the object that starts it hands it ($C2:10CD) */
+#define RAM_MENU_OBJECT_SLOTS_PALETTE_HAND_OVER 0x7E0B64u /* The palette loader's hand-over flag: nonzero where it hands over to the next loader when done ($C2:10CD) */
+#define RAM_MENU_OBJECT_SLOTS_TARGET_ANGLE 0x7E0B44u /* The time dial's object: the angle the gate turns to, the chosen period's (game/menu/epoch.c) */
+#define RAM_MENU_OBJECT_SLOTS_ANGLE 0x7E0B48u /* The time dial's object: the angle the gate stands at; the gate's matrix object: the angle its spin has reached (game/menu/epoch.c) */
+#define RAM_MENU_OBJECT_SLOTS_TURN 0x7E0B50u /* The time dial's object: how far the gate turns each frame, signed (game/menu/epoch.c) */
+#define RAM_MENU_OBJECT_SLOTS_PERIOD 0x7E0B52u /* The time dial's object and its digits: which of the seven periods it shows (game/menu/epoch.c) */
+#define RAM_MENU_OBJECT_SLOTS_ZOOM_X 0x7E0B54u /* The map view's cursor: how far the plane is zoomed across, a divisor of its matrix (game/menu/epoch.c) */
+#define RAM_MENU_OBJECT_SLOTS_ZOOM_Y 0x7E0B56u /* The map view's cursor: how far it is zoomed down */
+#define RAM_MENU_OBJECT_SLOTS_PATH_STEP 0x7E0B58u /* The map view's cursor: how far along its path it has come, in bytes of the path's tables */
+/* The first of the per-line value tables of the sprite-object mode's line-effect slot 1, a word
+ * a line. Each of the first three slots has two, which an object draws into on alternate frames
+ * and stages for the vblank handler (menu_object_hdma_pointers), so the one shown is never the
+ * one being drawn. The wave draws its BG3 scroll into this one (even lines the layer's scroll,
+ * odd ones it plus the wave); the irises draw into either of slot 1's, the map view its
+ * fixed-colour gradient and the time dial its gate window [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT1_LINE_VALUES 0x7E8B56u
+#define RAM_MENU_SLOT1_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT1_LINE_VALUES_STRIDE 0x02u
+/* Slot 1's second table of per-line values (menu_slot1_line_values) [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT1_OTHER_LINE_VALUES 0x7E8DF6u
+#define RAM_MENU_SLOT1_OTHER_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT1_OTHER_LINE_VALUES_STRIDE 0x02u
+/* Slot 2's first table of per-line values (menu_slot1_line_values): an iris drawn into slot 2,
+ * or the cosines of the time dial's turning Mode 7 matrix [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT2_LINE_VALUES 0x7E9176u
+#define RAM_MENU_SLOT2_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT2_LINE_VALUES_STRIDE 0x02u
+/* Slot 2's second table of per-line values [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT2_OTHER_LINE_VALUES 0x7E9416u
+#define RAM_MENU_SLOT2_OTHER_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT2_OTHER_LINE_VALUES_STRIDE 0x02u
+/* Slot 3's first table of per-line values: the sines of the time dial's turning Mode 7 matrix
+ * [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT3_LINE_VALUES 0x7E9796u
+#define RAM_MENU_SLOT3_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT3_LINE_VALUES_STRIDE 0x02u
+/* Slot 3's second table of per-line values [224 x $2 bytes, by line] */
+#define RAM_MENU_SLOT3_OTHER_LINE_VALUES 0x7E9A36u
+#define RAM_MENU_SLOT3_OTHER_LINE_VALUES_COUNT 224u
+#define RAM_MENU_SLOT3_OTHER_LINE_VALUES_STRIDE 0x02u
 /* The sprite nodes objects queue their sprite groups in, linked into the drawing list ($B500) or
  * the free list ($B504) [64 x $10 bytes, by node] */
 #define RAM_MENU_SPRITE_NODES 0x7EB000u
@@ -2099,6 +2138,12 @@
 #define RAM_MENU_SPRITE_FREE_LIST 0x7EB504u
 #define RAM_MENU_SPRITE_FREE_LIST_LAST 0x7EB504u /* The list's last node (the list itself when empty), where a node's previous link is */
 #define RAM_MENU_SPRITE_FREE_LIST_FIRST 0x7EB506u /* Its first node (the list itself when empty), where a node's next link is */
+/* The world map's tile graphics as the map view loads them ($C2:27DE): 8 by 8 pixels, four
+ * bitplanes, 32 bytes a tile, which the view reduces to a colour each (menu_map_colours) [896 x
+ * $20 bytes, by world map tile] */
+#define RAM_MENU_WORLD_MAP_TILES 0x7F9000u
+#define RAM_MENU_WORLD_MAP_TILES_COUNT 896u
+#define RAM_MENU_WORLD_MAP_TILES_STRIDE 0x20u
 
 /* ---- battle -------------------------------------------------------------------------------- */
 

@@ -255,7 +255,7 @@ static void fade_colors(GameState *g, unsigned slot, uint8_t mode, uint8_t fract
 static void faded_by(GameState *g, unsigned slot, uint8_t fraction, bool lighten)
 {
     uint8_t mode = fade_mode(g, slot);
-    CHARGED_AS(g, fade_loop_routine(lighten, mode), fade_colors(g, slot, mode, fraction, lighten));
+    TIMED_AS(g, fade_loop_routine(lighten, mode), fade_colors(g, slot, mode, fraction, lighten));
 }
 
 // $FD:E8AC (after white), $FD:E624 (after black)
@@ -286,7 +286,7 @@ static void fade_step(GameState *g, unsigned slot, bool lighten)
         int next = rising ? now + step : now - step;
         bool past_the_end = next > TOP || next < 0;
         if (past_the_end && (rising ? !lighten : lighten)) {
-            CHARGED_AS(g, lighten ? 0xFDE8AC : 0xFDE624, restore_colors(g, slot));
+            TIMED_AS(g, lighten ? 0xFDE8AC : 0xFDE624, restore_colors(g, slot));
             return;
         }
         bool arrived = past_the_end || (rising ? next >= target : next < target);
@@ -320,14 +320,14 @@ static void animate_slot(GameState *g, unsigned slot, AnimationType type)
 {
     switch (type) {
     case NO_ANIMATION: break;
-    case CYCLE_FRAMES: CHARGED_AS(g, 0xFDE437, show_frame(g, slot, type)); break;
-    case ROTATE_DOWN: CHARGED_AS(g, 0xFDE532, rotate_colors(g, slot, type)); break;
-    case ROTATE_UP: CHARGED_AS(g, 0xFDE4E8, rotate_colors(g, slot, type)); break;
-    case FADE_TO_WHITE: CHARGED_AS(g, 0xFDE82C, fade_step(g, slot, true)); break;
-    case FADE_TO_BLACK: CHARGED_AS(g, 0xFDE5A4, fade_step(g, slot, false)); break;
-    case PULSE_WHITE: CHARGED_AS(g, 0xFDE807, pulse_step(g, slot, true)); break;
-    case PULSE_BLACK: CHARGED_AS(g, 0xFDE57C, pulse_step(g, slot, false)); break;
-    default: CHARGED_AS(g, 0xFDE485, show_frame(g, slot, type)); break;
+    case CYCLE_FRAMES: TIMED_AS(g, 0xFDE437, show_frame(g, slot, type)); break;
+    case ROTATE_DOWN: TIMED_AS(g, 0xFDE532, rotate_colors(g, slot, type)); break;
+    case ROTATE_UP: TIMED_AS(g, 0xFDE4E8, rotate_colors(g, slot, type)); break;
+    case FADE_TO_WHITE: TIMED_AS(g, 0xFDE82C, fade_step(g, slot, true)); break;
+    case FADE_TO_BLACK: TIMED_AS(g, 0xFDE5A4, fade_step(g, slot, false)); break;
+    case PULSE_WHITE: TIMED_AS(g, 0xFDE807, pulse_step(g, slot, true)); break;
+    case PULSE_BLACK: TIMED_AS(g, 0xFDE57C, pulse_step(g, slot, false)); break;
+    default: TIMED_AS(g, 0xFDE485, show_frame(g, slot, type)); break;
     }
 }
 
@@ -478,10 +478,12 @@ static const FadeLoop LIGHTENING_LOOPS[FADE_MODES] = {
     { 0xFDEA11, BLUE, 0, true },
 };
 
-static uint32_t fade_loop_routine(bool lighten, uint8_t mode)
+static const FadeLoop *fade_loop(bool lighten, uint8_t mode)
 {
-    return (lighten ? LIGHTENING_LOOPS : DARKENING_LOOPS)[mode].routine;
+    return lighten ? &LIGHTENING_LOOPS[mode] : &DARKENING_LOOPS[mode];
 }
+
+static uint32_t fade_loop_routine(bool lighten, uint8_t mode) { return fade_loop(lighten, mode)->routine; }
 
 /* The original spends a color's time on its scratch -- each channel stored
  * there and read back, and what it leaves of the color -- and on the
@@ -491,14 +493,14 @@ static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count)
 {
     enum { ACCESSES_PER_CHANNEL = 4, WORD_ACCESSES = 2, BYTE_ACCESSES = 1 };
     const FadeChannels *m = lighten ? &LIGHTENING[mode] : &DARKENING[mode];
-    const FadeLoop *loop = lighten ? &LIGHTENING_LOOPS[mode] : &DARKENING_LOOPS[mode];
+    const FadeLoop *loop = fade_loop(lighten, mode);
     uint32_t per_color = loop->scratch_byte ? BYTE_ACCESSES : WORD_ACCESSES;
     if (loop->keeps_green)
         per_color += BYTE_ACCESSES;
     for (unsigned c = 0; c < CHANNEL_COUNT; c++)
         if (m->scales & CHANNELS[c].bits)
             per_color += ACCESSES_PER_CHANNEL;
-    charge_as(g, loop->routine, per_color * count);
+    charge_as(g, fade_loop_routine(lighten, mode), per_color * count);
 }
 
 /* The multiplier holds the fraction and the last channel it scaled: the last
@@ -507,7 +509,7 @@ static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count)
 static void leave_fade(GameState *g, bool lighten, uint8_t mode, uint8_t fraction, uint16_t last_color)
 {
     const FadeChannels *m = lighten ? &LIGHTENING[mode] : &DARKENING[mode];
-    const FadeLoop *loop = lighten ? &LIGHTENING_LOOPS[mode] : &DARKENING_LOOPS[mode];
+    const FadeLoop *loop = fade_loop(lighten, mode);
     uint32_t uncounted = charge_uncounted_begin(g);   /* charge_fade stands for it */
     uint16_t color = faded(last_color, m, fraction, lighten);
     if (loop->scratch_byte == LOW_BYTE)

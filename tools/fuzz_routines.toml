@@ -4835,7 +4835,7 @@ iterations = 2000
 why = "the object mode's page, a data bank of 0 and the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_reset_state"
+name = "menu_object_cmd_forget_everything"
 at = "C2:1037"
 subsystem = "menu"
 state = "objects"
@@ -4844,7 +4844,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_sprite_palette"
+name = "menu_object_cmd_set_look_palette"
 at = "C2:1091"
 subsystem = "menu"
 state = "objects"
@@ -4853,7 +4853,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_sprite_priority"
+name = "menu_object_cmd_set_look_priority"
 at = "C2:10A8"
 subsystem = "menu"
 state = "objects"
@@ -4862,7 +4862,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_start_sprite_object"
+name = "menu_object_cmd_start_handler_tile_streamer"
 at = "C2:10BF"
 subsystem = "menu"
 state = "objects"
@@ -4889,7 +4889,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_wait_frame"
+name = "menu_object_cmd_wait_for_next_frame"
 at = "C2:1169"
 subsystem = "menu"
 state = "objects"
@@ -4898,7 +4898,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_write_table_byte"
+name = "menu_object_cmd_set_map_tile"
 at = "C2:116B"
 subsystem = "menu"
 state = "objects"
@@ -4916,7 +4916,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_start_object"
+name = "menu_object_cmd_start_script"
 at = "C2:11F6"
 subsystem = "menu"
 state = "objects"
@@ -4925,7 +4925,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_clear_slot_byte"
+name = "menu_object_cmd_change_byte_slot_clear"
 at = "C2:120C"
 subsystem = "menu"
 state = "objects"
@@ -4934,7 +4934,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_increment_slot_byte"
+name = "menu_object_cmd_change_byte_slot_count_up"
 at = "C2:121D"
 subsystem = "menu"
 state = "objects"
@@ -4943,7 +4943,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_decrement_slot_byte"
+name = "menu_object_cmd_change_byte_slot_count_down"
 at = "C2:1230"
 subsystem = "menu"
 state = "objects"
@@ -4952,7 +4952,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_slot_byte"
+name = "menu_object_cmd_change_byte_slot_set"
 at = "C2:1243"
 subsystem = "menu"
 state = "objects"
@@ -4961,7 +4961,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_slot_bits"
+name = "menu_object_cmd_change_byte_slot_set_bits"
 at = "C2:1257"
 subsystem = "menu"
 state = "objects"
@@ -4970,7 +4970,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_clear_slot_bits"
+name = "menu_object_cmd_change_byte_slot_clear_bits"
 at = "C2:126D"
 subsystem = "menu"
 state = "objects"
@@ -4979,7 +4979,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_clear_cell"
+name = "menu_object_cmd_change_byte_cell_clear"
 at = "C2:1285"
 subsystem = "menu"
 state = "objects"
@@ -4988,7 +4988,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_increment_cell"
+name = "menu_object_cmd_change_byte_cell_count_up"
 at = "C2:1296"
 subsystem = "menu"
 state = "objects"
@@ -4997,7 +4997,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_decrement_cell"
+name = "menu_object_cmd_change_byte_cell_count_down"
 at = "C2:12A7"
 subsystem = "menu"
 state = "objects"
@@ -5006,7 +5006,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_cell"
+name = "menu_object_cmd_change_byte_cell_set"
 at = "C2:12B8"
 subsystem = "menu"
 state = "objects"
@@ -5015,7 +5015,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_cell_bits"
+name = "menu_object_cmd_change_byte_cell_set_bits"
 at = "C2:12CE"
 subsystem = "menu"
 state = "objects"
@@ -5024,7 +5024,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_clear_cell_bits"
+name = "menu_object_cmd_change_byte_cell_clear_bits"
 at = "C2:12E7"
 subsystem = "menu"
 state = "objects"
@@ -5033,7 +5033,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_store_slot_byte"
+name = "menu_object_cmd_copy_byte_slot_to_cell"
 at = "C2:1302"
 subsystem = "menu"
 state = "objects"
@@ -5042,7 +5042,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_load_slot_byte"
+name = "menu_object_cmd_copy_byte_cell_to_slot"
 at = "C2:131C"
 subsystem = "menu"
 state = "objects"
@@ -5051,7 +5051,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_copy_slot_byte"
+name = "menu_object_cmd_copy_byte_slot_to_slot"
 at = "C2:1336"
 subsystem = "menu"
 state = "objects"
@@ -5060,7 +5060,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_copy_cell"
+name = "menu_object_cmd_copy_byte_cell_to_cell"
 at = "C2:1350"
 subsystem = "menu"
 state = "objects"
@@ -5078,7 +5078,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_loop_slot_byte"
+name = "menu_object_cmd_loop"
 at = "C2:1375"
 subsystem = "menu"
 state = "objects"
@@ -5087,7 +5087,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_slot_byte_zero"
+name = "menu_object_cmd_branch_if_slot_zero"
 at = "C2:1398"
 subsystem = "menu"
 state = "objects"
@@ -5096,7 +5096,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_slot_byte_set"
+name = "menu_object_cmd_branch_if_slot_nonzero"
 at = "C2:13B8"
 subsystem = "menu"
 state = "objects"
@@ -5105,7 +5105,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_slot_byte_not"
+name = "menu_object_cmd_branch_if_slot_not_equal"
 at = "C2:13D8"
 subsystem = "menu"
 state = "objects"
@@ -5114,7 +5114,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_slot_byte_is"
+name = "menu_object_cmd_branch_if_slot_equal"
 at = "C2:13FC"
 subsystem = "menu"
 state = "objects"
@@ -5123,7 +5123,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_slot_bits_set"
+name = "menu_object_cmd_branch_if_slot_any_bit"
 at = "C2:1420"
 subsystem = "menu"
 state = "objects"
@@ -5132,7 +5132,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_slot_bits_clear"
+name = "menu_object_cmd_branch_if_slot_no_bit"
 at = "C2:1444"
 subsystem = "menu"
 state = "objects"
@@ -5150,7 +5150,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_cell_set"
+name = "menu_object_cmd_branch_if_cell_nonzero"
 at = "C2:148B"
 subsystem = "menu"
 state = "objects"
@@ -5159,7 +5159,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_cell_not"
+name = "menu_object_cmd_branch_if_cell_not_equal"
 at = "C2:14AD"
 subsystem = "menu"
 state = "objects"
@@ -5168,7 +5168,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_cell_is"
+name = "menu_object_cmd_branch_if_cell_equal"
 at = "C2:14D2"
 subsystem = "menu"
 state = "objects"
@@ -5177,7 +5177,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_cell_bits_set"
+name = "menu_object_cmd_branch_if_cell_any_bit"
 at = "C2:14F7"
 subsystem = "menu"
 state = "objects"
@@ -5186,7 +5186,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_branch_if_cell_bits_clear"
+name = "menu_object_cmd_branch_if_cell_no_bit"
 at = "C2:151C"
 subsystem = "menu"
 state = "objects"
@@ -5213,7 +5213,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_fade_out"
+name = "menu_object_cmd_start_handler_fade_out"
 at = "C2:158B"
 subsystem = "menu"
 state = "objects"
@@ -5222,7 +5222,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_fade_in"
+name = "menu_object_cmd_start_handler_fade_in"
 at = "C2:1599"
 subsystem = "menu"
 state = "objects"
@@ -5231,7 +5231,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_mosaic_on"
+name = "menu_object_cmd_start_handler_mosaic_on"
 at = "C2:15A7"
 subsystem = "menu"
 state = "objects"
@@ -5240,7 +5240,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_mosaic_off"
+name = "menu_object_cmd_start_handler_mosaic_off"
 at = "C2:15B5"
 subsystem = "menu"
 state = "objects"
@@ -5249,7 +5249,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_position"
+name = "menu_object_cmd_place"
 at = "C2:15C3"
 subsystem = "menu"
 state = "objects"
@@ -5267,7 +5267,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_velocity_x"
+name = "menu_object_cmd_set_velocity_across"
 at = "C2:15E3"
 subsystem = "menu"
 state = "objects"
@@ -5276,7 +5276,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_velocity_y"
+name = "menu_object_cmd_set_velocity_down"
 at = "C2:15F9"
 subsystem = "menu"
 state = "objects"
@@ -5285,7 +5285,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_set_sprite_script"
+name = "menu_object_cmd_give_sprite_script"
 at = "C2:160F"
 subsystem = "menu"
 state = "objects"
@@ -5294,7 +5294,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_animate_for"
+name = "menu_object_cmd_for_frames_moving"
 at = "C2:161D"
 subsystem = "menu"
 state = "objects"
@@ -5303,7 +5303,7 @@ iterations = 20000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); twenty thousand states, as the guard turns away the nine in ten whose object queue ends off a record (a sprite script can queue an upload); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_scroll_map_for"
+name = "menu_object_cmd_scroll_map"
 at = "C2:164B"
 subsystem = "menu"
 state = "objects"
@@ -5312,7 +5312,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_scroll_map_plane_for"
+name = "menu_object_cmd_scroll_map_plane"
 at = "C2:16FA"
 subsystem = "menu"
 state = "objects"
@@ -5321,7 +5321,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_queue_vram_upload"
+name = "menu_object_cmd_queue_upload"
 at = "C2:17D2"
 subsystem = "menu"
 state = "objects"
@@ -5339,7 +5339,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_call_routine_long"
+name = "menu_object_cmd_call_routine_far"
 at = "C2:181C"
 subsystem = "menu"
 state = "objects"
@@ -5366,7 +5366,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_return"
+name = "menu_object_cmd_return_from_call"
 at = "C2:185F"
 subsystem = "menu"
 state = "objects"
@@ -5375,7 +5375,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_wait_for"
+name = "menu_object_cmd_for_frames_waiting"
 at = "C2:186B"
 subsystem = "menu"
 state = "objects"
@@ -5384,7 +5384,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_animate_wait_for"
+name = "menu_object_cmd_for_frames_animating"
 at = "C2:188E"
 subsystem = "menu"
 state = "objects"
@@ -5393,7 +5393,7 @@ iterations = 20000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); twenty thousand states, as the guard turns away the nine in ten whose object queue ends off a record (a sprite script can queue an upload); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_stop_after_age"
+name = "menu_object_cmd_until_older_than"
 at = "C2:18B4"
 subsystem = "menu"
 state = "objects"
@@ -5402,7 +5402,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_sound_18"
+name = "menu_object_cmd_play_effect_on_voices_67"
 at = "C2:18C7"
 subsystem = "menu"
 state = "objects"
@@ -5411,7 +5411,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_sound_19"
+name = "menu_object_cmd_play_effect_on_voices_45"
 at = "C2:18D0"
 subsystem = "menu"
 state = "objects"
@@ -5420,7 +5420,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_play_song_unless_flag"
+name = "menu_object_cmd_play_song_unless_kept"
 at = "C2:18F1"
 subsystem = "menu"
 state = "objects"
@@ -5438,7 +5438,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_sound_command"
+name = "menu_object_cmd_send_sound_command"
 at = "C2:191F"
 subsystem = "menu"
 state = "objects"
@@ -5456,7 +5456,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_move_x_to"
+name = "menu_object_cmd_move_to_across"
 at = "C2:1959"
 subsystem = "menu"
 state = "objects"
@@ -5465,7 +5465,7 @@ iterations = 20000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); twenty thousand states, as the guard turns away the nine in ten whose object queue ends off a record (a sprite script can queue an upload); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_move_y_to"
+name = "menu_object_cmd_move_to_down"
 at = "C2:19C2"
 subsystem = "menu"
 state = "objects"
@@ -5474,7 +5474,7 @@ iterations = 20000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); twenty thousand states, as the guard turns away the nine in ten whose object queue ends off a record (a sprite script can queue an upload); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_wait_frame_again"
+name = "menu_object_cmd_wait_for_next_frame_again"
 at = "C2:1A2B"
 subsystem = "menu"
 state = "objects"
@@ -5483,7 +5483,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_start_script"
+name = "menu_object_cmd_start_script_first"
 at = "C2:1A2D"
 subsystem = "menu"
 state = "objects"
@@ -5492,7 +5492,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_start_handler_high"
+name = "menu_object_cmd_start_handler_first"
 at = "C2:1A43"
 subsystem = "menu"
 state = "objects"
@@ -5501,7 +5501,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_mark_table_entry"
+name = "menu_object_cmd_mark_entry_set"
 at = "C2:1A52"
 subsystem = "menu"
 state = "objects"
@@ -5510,7 +5510,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_unmark_table_entry"
+name = "menu_object_cmd_mark_entry_clear"
 at = "C2:1AAC"
 subsystem = "menu"
 state = "objects"
@@ -5519,7 +5519,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_add_to_slot_byte"
+name = "menu_object_cmd_change_byte_slot_add"
 at = "C2:1ACA"
 subsystem = "menu"
 state = "objects"
@@ -5528,7 +5528,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_subtract_from_slot_byte"
+name = "menu_object_cmd_change_byte_slot_subtract"
 at = "C2:1AE1"
 subsystem = "menu"
 state = "objects"
@@ -5537,7 +5537,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_add_to_cell"
+name = "menu_object_cmd_change_byte_cell_add"
 at = "C2:1AFB"
 subsystem = "menu"
 state = "objects"
@@ -5546,7 +5546,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_subtract_from_cell"
+name = "menu_object_cmd_change_byte_cell_subtract"
 at = "C2:1B15"
 subsystem = "menu"
 state = "objects"
@@ -5555,7 +5555,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_copy_tilemap_rows"
+name = "menu_object_cmd_copy_map_tiles"
 at = "C2:1B2F"
 subsystem = "menu"
 state = "objects"
@@ -5564,7 +5564,7 @@ iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
 [[routine]]
-name = "menu_object_cmd_copy_tilemap_block"
+name = "menu_object_cmd_show_tile_group"
 at = "C2:1BE0"
 subsystem = "menu"
 state = "objects"
@@ -5686,45 +5686,45 @@ name = "menu_epoch_map_cursor"
 at = "C2:666C"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "[7E004E]+02,1=00-03"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell and on one of its steps (the guard)"
 
 [[routine]]
 name = "menu_epoch_map_matrix"
 at = "C2:6736"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell (the guard)"
 
 [[routine]]
 name = "menu_epoch_map_party_marker"
 at = "C2:67FA"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--keep", "7EB000-7EB507", "--fill", "7E005F-7E005F=00-00", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "[7E004E]+0B,2=1D-1D", "--fill", "[7E004E]+0D,1=7E-7E", "--fill", "7E1D1D-7E1D1D=04-04", "--fill", "7E1D1E-7E1D1F=00-FF", "--fill", "7E1D20-7E1D20=00-08", "--fill", "7E1D21-7E1D21=03-03", "--fill", "7E1D22-7E1D22=FC-FC"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler (the slot in X and in the running object's cell), the sprite list as the mode lays it out, the object queue empty and the object on a sprite script of one show and a jump back ($7E:1D1D): the guard's, for the sprite script it runs"
 
 [[routine]]
 name = "menu_epoch_map_epoch_marker"
 at = "C2:683B"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--keep", "7EB000-7EB507", "--fill", "7E005F-7E005F=00-00", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "[7E004E]+0B,2=1D-1D", "--fill", "[7E004E]+0D,1=7E-7E", "--fill", "7E1D1D-7E1D1D=04-04", "--fill", "7E1D1E-7E1D1F=00-FF", "--fill", "7E1D20-7E1D20=00-08", "--fill", "7E1D21-7E1D21=03-03", "--fill", "7E1D22-7E1D22=FC-FC"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler (the slot in X and in the running object's cell), the sprite list as the mode lays it out, the object queue empty and the object on a sprite script of one show and a jump back ($7E:1D1D): the guard's, for the sprite script it runs"
 
 [[routine]]
 name = "menu_epoch_map_location_marker"
 at = "C2:68A3"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--keep", "7EB000-7EB507", "--fill", "7E005F-7E005F=00-00", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "[7E004E]+0B,2=1D-1D", "--fill", "[7E004E]+0D,1=7E-7E", "--fill", "7E1D1D-7E1D1D=04-04", "--fill", "7E1D1E-7E1D1F=00-FF", "--fill", "7E1D20-7E1D20=00-08", "--fill", "7E1D21-7E1D21=03-03", "--fill", "7E1D22-7E1D22=FC-FC"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler (the slot in X and in the running object's cell), the sprite list as the mode lays it out, the object queue empty and the object on a sprite script of one show and a jump back ($7E:1D1D): the guard's, for the sprite script it runs"
 
 [[routine]]
 name = "menu_epoch_map_gradient"
@@ -5758,18 +5758,18 @@ name = "menu_epoch_time_dial_object"
 at = "C2:6AC8"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "[7E004E]+02,1=00-02", "--fill", "7E0018-7E0018=7E-7F"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell and on one of its steps, its window in work RAM (the guard)"
 
 [[routine]]
 name = "menu_epoch_build_gate_window"
 at = "C2:6CC1"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--fill", "7E0018-7E0018=7E-7F"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, the first slot's object running and the window's tables in work RAM, where the dial puts them (the guard)"
 
 [[routine]]
 name = "menu_epoch_multiply_signed"
@@ -5785,18 +5785,18 @@ name = "menu_epoch_gate_matrix_object"
 at = "C2:6F85"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "[7E004E]+02,1=00-01"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell and on one of its steps (the guard)"
 
 [[routine]]
 name = "menu_epoch_time_dial_digit"
 at = "C2:7143"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--keep", "7EB000-7EB507", "--fill", "7E005F-7E005F=00-00", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "[7E004E]+0B,2=1D-1D", "--fill", "[7E004E]+0D,1=7E-7E", "--fill", "7E1D1D-7E1D1D=04-04", "--fill", "7E1D1E-7E1D1F=00-FF", "--fill", "7E1D20-7E1D20=00-08", "--fill", "7E1D21-7E1D21=03-03", "--fill", "7E1D22-7E1D22=FC-FC", "--fill", "[7E004E]+22,1=00-06", "--fill", "[7E004E]+02,1=00-04"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler (the slot in X and in the running object's cell), the sprite list as the mode lays it out, the object queue empty and the object on a sprite script of one show and a jump back ($7E:1D1D): the guard's, for the sprite script it runs, its period one of the seven and its step one of its five"
 
 [[routine]]
 name = "menu_epoch_load_gate_stream"
@@ -5830,9 +5830,9 @@ name = "menu_epoch_upload_gate_rows"
 at = "C2:72D8"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E0012-7E0012=C0-FF", "--fill", "7E0015-7E0015=7F-7F"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, and the table of rows in ROM and the rows in bank $7F, where the game keeps them: pointed at the routine's own cells or at hardware registers, the original reads what its loop has left there"
 
 [[routine]]
 name = "menu_epoch_expand_gate_nibbles"
@@ -5848,72 +5848,72 @@ name = "menu_epoch_gate_graphics"
 at = "C2:7389"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, with a slot's object running (the guard)"
 
 [[routine]]
-name = "menu_epoch_gate_scroll_hdma"
+name = "menu_top_layer_wave"
 at = "C2:7652"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell (the guard)"
 
 [[routine]]
-name = "menu_epoch_gate_drift"
+name = "menu_top_layer_drift"
 at = "C2:7702"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell (the guard)"
 
 [[routine]]
-name = "menu_epoch_gate_scroll_slow"
+name = "menu_top_layer_slow_drift"
 at = "C2:75C3"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell (the guard)"
 
 [[routine]]
-name = "menu_epoch_gate_scroll_wrap"
+name = "menu_top_layer_wave_drift"
 at = "C2:75FD"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, entered as the first slot's handler: the slot in X and in the running object's cell (the guard)"
 
 [[routine]]
-name = "menu_epoch_place_marker_random"
+name = "menu_object_place_under_the_view"
 at = "C2:754D"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, the first slot's object running (the guard)"
 
 [[routine]]
-name = "menu_epoch_place_marker_edge"
+name = "menu_object_place_under_the_stretch"
 at = "C2:7575"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, the first slot's object running (the guard)"
 
 [[routine]]
-name = "menu_epoch_set_marker_velocity"
+name = "menu_object_give_random_velocity"
 at = "C2:7598"
 subsystem = "menu"
 state = "objects"
-args = ["--d", "0000", "--db", "00"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, the first slot's object running (the guard)"
 
 [[routine]]
 name = "menu_start_gate_screen"
@@ -6150,7 +6150,7 @@ iterations = 2000
 why = "called by JSL from a script's call command on the object mode's page, the running object a slot drawing an iris on the screen: its centre line 1-$DF, its radius under $61 and its stretch under $41, high bytes clear (the guards take a squashed iris of radius 2 or more, and a capsule stretched 2 lines or more)"
 
 [[routine]]
-name = "menu_object_load_scene_graphics_2"
+name = "menu_object_load_mode7_graphics"
 at = "C6:E028"
 subsystem = "menu"
 state = "objects"
@@ -6159,7 +6159,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_load_scene_palette_1"
+name = "menu_object_load_mode7_palette"
 at = "C6:E04D"
 subsystem = "menu"
 state = "objects"
@@ -6168,7 +6168,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_load_scene_graphics_13"
+name = "menu_object_load_second_mode7_graphics"
 at = "C6:E64A"
 subsystem = "menu"
 state = "objects"
@@ -6177,7 +6177,7 @@ iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
 
 [[routine]]
-name = "menu_object_load_scene_palette_2"
+name = "menu_object_load_second_mode7_palette"
 at = "C6:E66F"
 subsystem = "menu"
 state = "objects"

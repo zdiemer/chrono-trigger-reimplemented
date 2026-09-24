@@ -64,88 +64,88 @@ class Command:
 
 C = Command
 COMMANDS = {
-    0x00: C(0x1037, 1, name="reset_state"),                                 # clears slot fields +$05-$3F, returns 1
-    0x01: C(0x1091, 2, name="set_sprite_palette"),                          # ORA byte into +$0F
-    0x02: C(0x10A8, 2, name="set_sprite_priority"),
-    0x03: C(0x10BF, 10, name="start_sprite_object"),                        # spawns $1CF5, which reads bytes 1-9 of this command
+    0x00: C(0x1037, 1, name="forget_everything"),                                 # clears slot fields +$05-$3F, returns 1
+    0x01: C(0x1091, 2, name="set_look_palette"),                          # ORA byte into +$0F
+    0x02: C(0x10A8, 2, name="set_look_priority"),
+    0x03: C(0x10BF, 10, name="start_handler_tile_streamer"),                        # spawns $1CF5, which reads bytes 1-9 of this command
     0x04: C(0x10CD, 6, name="load_palette_row"),                            # bytes 1-5 into +$32-$37, spawns $1DD4
     0x05: C(0x1100, 5, name="change_location"),
-    0x06: C(0x1169, 1, "halt", name="wait_frame"),                          # TDC; RTS
-    0x07: C(0x116B, 5, name="write_table_byte"),
+    0x06: C(0x1169, 1, "halt", name="wait_for_next_frame"),                          # TDC; RTS
+    0x07: C(0x116B, 5, name="set_map_tile"),
     0x08: C(0x11B2, 4, extra=(("script7f", 1),), name="set_scene_script"),  # word 1 into $1B3B/$1B3D/$1B3F/$1B41
-    0x09: C(0x11F6, 4, extra=(("script", 1),), name="start_object"),        # JSR $04D9, X = word 1, A = byte 3
-    0x0A: C(0x120C, 2, extra=(("slotwrite", 1),), name="clear_slot_byte"),
-    0x0B: C(0x121D, 2, extra=(("slotwrite", 1),), name="increment_slot_byte"),
-    0x0C: C(0x1230, 2, extra=(("slotwrite", 1),), name="decrement_slot_byte"),
-    0x0D: C(0x1243, 3, extra=(("slotwrite", 1),), name="set_slot_byte"),
-    0x0E: C(0x1257, 3, extra=(("slotwrite", 1),), name="set_slot_bits"),
-    0x0F: C(0x126D, 3, extra=(("slotwrite", 1),), name="clear_slot_bits"),
-    0x10: C(0x1285, 3, extra=(("abswrite", 1),), name="clear_cell"),
-    0x11: C(0x1296, 3, extra=(("abswrite", 1),), name="increment_cell"),
-    0x12: C(0x12A7, 3, extra=(("abswrite", 1),), name="decrement_cell"),
-    0x13: C(0x12B8, 4, extra=(("abswrite", 1),), name="set_cell"),
-    0x14: C(0x12CE, 4, extra=(("abswrite", 1),), name="set_cell_bits"),
-    0x15: C(0x12E7, 4, extra=(("abswrite", 1),), name="clear_cell_bits"),
-    0x16: C(0x1302, 4, extra=(("abswrite", 2),), name="store_slot_byte"),   # slot byte (offset 1) to the address at 2
-    0x17: C(0x131C, 4, extra=(("slotwrite", 1),), name="load_slot_byte"),   # the byte at the address at 2 to a slot offset
-    0x18: C(0x1336, 3, extra=(("slotwrite", 1),), name="copy_slot_byte"),
-    0x19: C(0x1350, 5, extra=(("abswrite", 1),), name="copy_cell"),         # copies the byte at the address at 3 to the one at 1
+    0x09: C(0x11F6, 4, extra=(("script", 1),), name="start_script"),        # JSR $04D9, X = word 1, A = byte 3
+    0x0A: C(0x120C, 2, extra=(("slotwrite", 1),), name="change_byte_slot_clear"),
+    0x0B: C(0x121D, 2, extra=(("slotwrite", 1),), name="change_byte_slot_count_up"),
+    0x0C: C(0x1230, 2, extra=(("slotwrite", 1),), name="change_byte_slot_count_down"),
+    0x0D: C(0x1243, 3, extra=(("slotwrite", 1),), name="change_byte_slot_set"),
+    0x0E: C(0x1257, 3, extra=(("slotwrite", 1),), name="change_byte_slot_set_bits"),
+    0x0F: C(0x126D, 3, extra=(("slotwrite", 1),), name="change_byte_slot_clear_bits"),
+    0x10: C(0x1285, 3, extra=(("abswrite", 1),), name="change_byte_cell_clear"),
+    0x11: C(0x1296, 3, extra=(("abswrite", 1),), name="change_byte_cell_count_up"),
+    0x12: C(0x12A7, 3, extra=(("abswrite", 1),), name="change_byte_cell_count_down"),
+    0x13: C(0x12B8, 4, extra=(("abswrite", 1),), name="change_byte_cell_set"),
+    0x14: C(0x12CE, 4, extra=(("abswrite", 1),), name="change_byte_cell_set_bits"),
+    0x15: C(0x12E7, 4, extra=(("abswrite", 1),), name="change_byte_cell_clear_bits"),
+    0x16: C(0x1302, 4, extra=(("abswrite", 2),), name="copy_byte_slot_to_cell"),   # slot byte (offset 1) to the address at 2
+    0x17: C(0x131C, 4, extra=(("slotwrite", 1),), name="copy_byte_cell_to_slot"),   # the byte at the address at 2 to a slot offset
+    0x18: C(0x1336, 3, extra=(("slotwrite", 1),), name="copy_byte_slot_to_slot"),
+    0x19: C(0x1350, 5, extra=(("abswrite", 1),), name="copy_byte_cell_to_cell"),         # copies the byte at the address at 3 to the one at 1
     0x1A: C(0x136A, 3, "goto", name="jump"),                                # $58 = word 1, returns 1
-    0x1B: C(0x1375, 3, "branch", 2, name="loop_slot_byte"),                 # decrement a slot byte, branch while not zero
-    0x1C: C(0x1398, 3, "branch", 2, name="branch_if_slot_byte_zero"),
-    0x1D: C(0x13B8, 3, "branch", 2, name="branch_if_slot_byte_set"),
-    0x1E: C(0x13D8, 4, "branch", 3, name="branch_if_slot_byte_not"),
-    0x1F: C(0x13FC, 4, "branch", 3, name="branch_if_slot_byte_is"),
-    0x20: C(0x1420, 4, "branch", 3, name="branch_if_slot_bits_set"),
-    0x21: C(0x1444, 4, "branch", 3, name="branch_if_slot_bits_clear"),
+    0x1B: C(0x1375, 3, "branch", 2, name="loop"),                 # decrement a slot byte, branch while not zero
+    0x1C: C(0x1398, 3, "branch", 2, name="branch_if_slot_zero"),
+    0x1D: C(0x13B8, 3, "branch", 2, name="branch_if_slot_nonzero"),
+    0x1E: C(0x13D8, 4, "branch", 3, name="branch_if_slot_not_equal"),
+    0x1F: C(0x13FC, 4, "branch", 3, name="branch_if_slot_equal"),
+    0x20: C(0x1420, 4, "branch", 3, name="branch_if_slot_any_bit"),
+    0x21: C(0x1444, 4, "branch", 3, name="branch_if_slot_no_bit"),
     0x22: C(0x1469, 4, "branch", 3, name="branch_if_cell_zero"),
-    0x23: C(0x148B, 4, "branch", 3, name="branch_if_cell_set"),
-    0x24: C(0x14AD, 5, "branch", 4, name="branch_if_cell_not"),
-    0x25: C(0x14D2, 5, "branch", 4, name="branch_if_cell_is"),
-    0x26: C(0x14F7, 5, "branch", 4, name="branch_if_cell_bits_set"),
-    0x27: C(0x151C, 5, "branch", 4, name="branch_if_cell_bits_clear"),
-    0x28: C(0x158B, 2, name="fade_out"),                                    # spawns $20A2
-    0x29: C(0x1599, 2, name="fade_in"),                                     # spawns $2105
-    0x2A: C(0x15A7, 3, name="mosaic_on"),                                   # spawns $21F8
-    0x2B: C(0x15B5, 3, name="mosaic_off"),                                  # spawns $2194
-    0x2C: C(0x15C3, 5, name="set_position"),
+    0x23: C(0x148B, 4, "branch", 3, name="branch_if_cell_nonzero"),
+    0x24: C(0x14AD, 5, "branch", 4, name="branch_if_cell_not_equal"),
+    0x25: C(0x14D2, 5, "branch", 4, name="branch_if_cell_equal"),
+    0x26: C(0x14F7, 5, "branch", 4, name="branch_if_cell_any_bit"),
+    0x27: C(0x151C, 5, "branch", 4, name="branch_if_cell_no_bit"),
+    0x28: C(0x158B, 2, name="start_handler_fade_out"),                                    # spawns $20A2
+    0x29: C(0x1599, 2, name="start_handler_fade_in"),                                     # spawns $2105
+    0x2A: C(0x15A7, 3, name="start_handler_mosaic_on"),                                   # spawns $21F8
+    0x2B: C(0x15B5, 3, name="start_handler_mosaic_off"),                                  # spawns $2194
+    0x2C: C(0x15C3, 5, name="place"),
     0x2D: C(0x15DF, 2, name="nothing"),
-    0x2E: C(0x15E3, 5, name="set_velocity_x"),
-    0x2F: C(0x15F9, 5, name="set_velocity_y"),
-    0x30: C(0x160F, 2, name="set_sprite_script"),                           # sprite script from $C3:E000 by byte 1
-    0x31: C(0x161D, 2, "wait", 1, name="animate_for"),                      # count at 1 into +$0A; a count of 0 waits forever
-    0x32: C(0x164B, 2, "wait", 1, name="scroll_map_for"),
-    0x33: C(0x17D2, 8, name="queue_vram_upload"),
+    0x2E: C(0x15E3, 5, name="set_velocity_across"),
+    0x2F: C(0x15F9, 5, name="set_velocity_down"),
+    0x30: C(0x160F, 2, name="give_sprite_script"),                           # sprite script from $C3:E000 by byte 1
+    0x31: C(0x161D, 2, "wait", 1, name="for_frames_moving"),                      # count at 1 into +$0A; a count of 0 waits forever
+    0x32: C(0x164B, 2, "wait", 1, name="scroll_map"),
+    0x33: C(0x17D2, 8, name="queue_upload"),
     0x34: C(0x1807, 3, extra=(("jsr", 1),), name="call_routine"),           # $5B = word 1, JSR $1819 (JMP ($005B)), m8 x16
     0x35: C(0x1839, 3, extra=(("handler", 1),), name="start_handler"),      # JSR $048A with X = word 1
     0x36: C(0x1848, 3, "call", name="call"),                                # +5 = $58 + 3, $58 = word 1 - 1, returns 1
-    0x37: C(0x185F, 1, "return", name="return"),                            # $58 = +5 - 1, returns 1
-    0x38: C(0x186B, 2, "wait", 1, name="wait_for"),
-    0x39: C(0x188E, 2, "wait", 1, name="animate_wait_for"),
-    0x3A: C(0x18B4, 3, "wait", name="stop_after_age"),                      # until the frame counter +3 reaches word 1
-    0x3B: C(0x18C7, 3, name="sound_18"),
-    0x3C: C(0x18D0, 3, name="sound_19"),
-    0x3D: C(0x18F1, 2, name="play_song_unless_flag"),                       # continues into $4A's handler when $7F:01ED is 0
+    0x37: C(0x185F, 1, "return", name="return_from_call"),                            # $58 = +5 - 1, returns 1
+    0x38: C(0x186B, 2, "wait", 1, name="for_frames_waiting"),
+    0x39: C(0x188E, 2, "wait", 1, name="for_frames_animating"),
+    0x3A: C(0x18B4, 3, "wait", name="until_older_than"),                      # until the frame counter +3 reaches word 1
+    0x3B: C(0x18C7, 3, name="play_effect_on_voices_67"),
+    0x3C: C(0x18D0, 3, name="play_effect_on_voices_45"),
+    0x3D: C(0x18F1, 2, name="play_song_unless_kept"),                       # continues into $4A's handler when $7F:01ED is 0
     0x3E: C(0x1947, 2, name="redraw_map"),
-    0x3F: C(0x1959, 5, "wait", name="move_x_to"),
-    0x40: C(0x19C2, 5, "wait", name="move_y_to"),
-    0x41: C(0x1A2B, 1, "halt", name="wait_frame_again"),                    # TDC; RTS
-    0x42: C(0x1A43, 3, extra=(("handler", 1),), name="start_handler_high"), # JSR $04CD with X = word 1
-    0x43: C(0x1A2D, 4, extra=(("script", 1),), name="start_script"),        # JSR $04FB, X = word 1, A = byte 3
-    0x44: C(0x1A52, 3, extra=(("sub", 1),), name="mark_table_entry"),       # JSR ($1A70,X), X = byte 1 * 2
-    0x45: C(0x1AAC, 3, extra=(("sub", 1),), name="unmark_table_entry"),
-    0x46: C(0x1ACA, 3, extra=(("slotwrite", 1),), name="add_to_slot_byte"),
-    0x47: C(0x1AE1, 3, extra=(("slotwrite", 1),), name="subtract_from_slot_byte"),
-    0x48: C(0x1AFB, 4, extra=(("abswrite", 1),), name="add_to_cell"),
-    0x49: C(0x1B15, 4, extra=(("abswrite", 1),), name="subtract_from_cell"),
+    0x3F: C(0x1959, 5, "wait", name="move_to_across"),
+    0x40: C(0x19C2, 5, "wait", name="move_to_down"),
+    0x41: C(0x1A2B, 1, "halt", name="wait_for_next_frame_again"),                    # TDC; RTS
+    0x42: C(0x1A43, 3, extra=(("handler", 1),), name="start_handler_first"), # JSR $04CD with X = word 1
+    0x43: C(0x1A2D, 4, extra=(("script", 1),), name="start_script_first"),        # JSR $04FB, X = word 1, A = byte 3
+    0x44: C(0x1A52, 3, extra=(("sub", 1),), name="mark_entry_set"),       # JSR ($1A70,X), X = byte 1 * 2
+    0x45: C(0x1AAC, 3, extra=(("sub", 1),), name="mark_entry_clear"),
+    0x46: C(0x1ACA, 3, extra=(("slotwrite", 1),), name="change_byte_slot_add"),
+    0x47: C(0x1AE1, 3, extra=(("slotwrite", 1),), name="change_byte_slot_subtract"),
+    0x48: C(0x1AFB, 4, extra=(("abswrite", 1),), name="change_byte_cell_add"),
+    0x49: C(0x1B15, 4, extra=(("abswrite", 1),), name="change_byte_cell_subtract"),
     0x4A: C(0x18F9, 2, name="play_song"),
-    0x4B: C(0x191F, 5, name="sound_command"),
+    0x4B: C(0x191F, 5, name="send_sound_command"),
     0x4C: C(0x1541, 5, "branch", 4, name="branch_if_cell_below"),
     0x4D: C(0x1566, 5, "branch", 4, name="branch_if_cell_at_least"),
-    0x4E: C(0x181C, 4, extra=(("jsl", 1),), name="call_routine_long"),      # $5B-$5D = long 1, JSL $1836 (JML [$005B]), m8 x16
-    0x4F: C(0x1B2F, 9, name="copy_tilemap_rows"),
-    0x50: C(0x1BE0, 5, name="copy_tilemap_block"),
-    0x51: C(0x16FA, 3, "wait", 2, name="scroll_map_plane_for"),
+    0x4E: C(0x181C, 4, extra=(("jsl", 1),), name="call_routine_far"),      # $5B-$5D = long 1, JSL $1836 (JML [$005B]), m8 x16
+    0x4F: C(0x1B2F, 9, name="copy_map_tiles"),
+    0x50: C(0x1BE0, 5, name="show_tile_group"),
+    0x51: C(0x16FA, 3, "wait", 2, name="scroll_map_plane"),
     0x52: C(0x1C81, 1, "end", name="end"),                                  # TDC; SEC; RTS
 }
 del C

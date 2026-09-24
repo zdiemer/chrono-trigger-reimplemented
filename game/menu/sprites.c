@@ -195,9 +195,9 @@ static void empty_the_list(GameState *g)
     }
 }
 
-/* The look's bits a node's place in the list and its drawing follow, and the
- * tiles'. */
-enum { IN_FRONT = 0x01, ON_THE_MAP = 0x80, LOOK_PALETTE_AND_PRIORITY = 0x3E };
+/* A node's place in the list and its drawing follow its look (menu/object.h)
+ * and these bits of its tiles. */
+enum { IN_FRONT = MENU_LOOK_IN_FRONT, ON_THE_MAP = MENU_LOOK_ON_THE_MAP };
 enum { OTHER_SIZE = 0x4000, DRAWN_LAST = 0x8000, TILE_AND_ATTRIBUTES = 0x3FFF };
 
 /* Where a node goes: before the first node that isn't in front, for one in
@@ -367,7 +367,7 @@ static void draw_node(GameState *g, NodeLink node)
     uint16_t tiles = drawn_group.tiles;
     uint8_t look = drawn_group.look;
     bool other_size = (tiles & OTHER_SIZE) != 0;
-    uint16_t attributes = (uint16_t)((look & LOOK_PALETTE_AND_PRIORITY) << 8);
+    uint16_t attributes = (uint16_t)((look & MENU_LOOK_ATTRIBUTES) << 8);
     uint16_t first_tile = tiles & TILE_AND_ATTRIBUTES;
     int16_t x = (int16_t)drawn_group.x;
     int16_t y = (int16_t)drawn_group.y;
@@ -450,13 +450,29 @@ static void draw_the_list(GameState *g)
 
 /* ---- Sprite scripts --------------------------------------------------------------------------- */
 
-/* The commands of a sprite script, and how long each is. */
-enum {
-    SPRITE_CLEAR_BYTE, SPRITE_COUNT_UP, SPRITE_COUNT_DOWN, SPRITE_JUMP, SPRITE_SHOW,
-    SPRITE_WAIT, SPRITE_UPLOAD, SPRITE_STOP, SPRITE_COMMANDS,
+/* A sprite script is read a command at a time by a table of rows, an opcode
+ * a row: what the command does and how long it is. The three that change a
+ * byte of the object's state are one operation, their rows saying how. */
+typedef enum { SPRITE_CHANGE_BYTE, SPRITE_JUMP, SPRITE_SHOW, SPRITE_WAIT, SPRITE_UPLOAD, SPRITE_STOP } SpriteOperation;
+typedef enum { BYTE_CLEARED, BYTE_COUNTED_UP, BYTE_COUNTED_DOWN } SpriteByteChange;
+
+typedef struct {
+    SpriteOperation operation;
+    SpriteByteChange change;   /* a byte change's */
+    uint8_t length;            /* the command's bytes, its opcode's included */
+} SpriteCommandRow;
+
+static const SpriteCommandRow sprite_commands[] = {
+    { SPRITE_CHANGE_BYTE, BYTE_CLEARED, 2 },      // $C2:0E5A
+    { SPRITE_CHANGE_BYTE, BYTE_COUNTED_UP, 2 },   // $C2:0E6B
+    { SPRITE_CHANGE_BYTE, BYTE_COUNTED_DOWN, 2 }, // $C2:0E7E
+    { SPRITE_JUMP, BYTE_CLEARED, 2 },             // $C2:0E91
+    { SPRITE_SHOW, BYTE_CLEARED, 4 },             // $C2:0EA3
+    { SPRITE_WAIT, BYTE_CLEARED, 2 },             // $C2:0EDC
+    { SPRITE_UPLOAD, BYTE_CLEARED, 8 },           // $C2:0F00
+    { SPRITE_STOP, BYTE_CLEARED, 1 },             // $C2:0F35
 };
-/* The look's bit that holds an object on the frame it shows. */
-enum { HELD = 0x40 };
+enum { SPRITE_OPCODES = sizeof sprite_commands / sizeof sprite_commands[0] };
 
 /* A place in a sprite script: the bank stays the script's while the offset
  * wraps in it, as the original's pointer does; operands read on from there. */
@@ -472,6 +488,42 @@ static uint8_t sprite_script_byte(const GameState *g, SpritePlace p, uint16_t k)
 static uint16_t sprite_script_word(const GameState *g, SpritePlace p, uint16_t k)
 {
     return (uint16_t)(sprite_script_byte(g, p, k) | sprite_script_byte(g, p, (uint16_t)(k + 1)) << 8);
+}
+
+/* A command, its operands decoded by its row's operation: the byte of the
+ * object's state a change works on (by its offset, which can name a byte past
+ * the slot's own 64, menu/object.h), how far a jump goes, the group a show
+ * shows and in its script's bank, the frames a show or a wait lasts, and an
+ * upload of the object's tiles. */
+typedef struct {
+    const SpriteCommandRow *row;
+    uint8_t byte;
+    int8_t by;
+    uint32_t group;
+    uint8_t frames;
+    uint32_t source;
+    uint16_t vram, size;
+} SpriteCommand;
+
+static SpriteCommand decode_sprite_command(const GameState *g, const SpriteCommandRow *row, SpritePlace p)
+{
+    SpriteCommand c = { .row = row };
+    switch (row->operation) {
+    case SPRITE_CHANGE_BYTE: c.byte = sprite_script_byte(g, p, 1); break;
+    case SPRITE_JUMP: c.by = (int8_t)sprite_script_byte(g, p, 1); break;
+    case SPRITE_SHOW:
+        c.group = (uint32_t)p.bank << 16 | sprite_script_word(g, p, 1);
+        c.frames = sprite_script_byte(g, p, 3);
+        break;
+    case SPRITE_WAIT: c.frames = sprite_script_byte(g, p, 1); break;
+    case SPRITE_UPLOAD:
+        c.source = (uint32_t)sprite_script_byte(g, p, 1) << 16 | sprite_script_word(g, p, 2);
+        c.vram = sprite_script_word(g, p, 4);
+        c.size = sprite_script_word(g, p, 6);
+        break;
+    case SPRITE_STOP: break;
+    }
+    return c;
 }
 
 /* What a command says next: on to the command `by` bytes on, or stay on this
@@ -492,60 +544,45 @@ static bool counting(GameState *g, MenuObject o, uint8_t frames)
     return left != 0;
 }
 
-// $C2:0EA3
 /* Show a group for a number of frames, or for as long as the object is held
- * on it; once the frames are out, on to the next command instead. */
-static SpriteStep show(GameState *g, MenuObject o, SpritePlace p)
+ * on it; true while it shows, and once the frames are out the script goes
+ * on instead. */
+static bool show(GameState *g, MenuObject o, uint32_t group, uint8_t frames)
 {
-    enum { LENGTH = 4 };
-    if (!(menu_object_slots_look(g, o) & HELD) && !counting(g, o, sprite_script_byte(g, p, 3)))
-        return LENGTH;
-    uint32_t group = (uint32_t)p.bank << 16 | sprite_script_word(g, p, 1);
+    if (!(menu_object_slots_look(g, o) & MENU_LOOK_HELD) && !counting(g, o, frames))
+        return false;
     ORIGINAL_EFFECT(set_menu_object_sprite_group(g, group));
     show_sprite_group(g, group);
-    return SPRITE_STAY;
+    return true;
 }
 
-// $C2:0EDC
-static SpriteStep wait(GameState *g, MenuObject o, SpritePlace p)
+static void change_object_byte(GameState *g, MenuObject o, SpriteByteChange change, uint8_t byte)
 {
-    enum { LENGTH = 2 };
-    return counting(g, o, sprite_script_byte(g, p, 1)) ? SPRITE_STAY : LENGTH;
-}
-
-// $C2:0F00
-/* Queue an upload of the object's tiles: bank, source, VRAM word and size. */
-static SpriteStep upload(GameState *g, SpritePlace p)
-{
-    enum { LENGTH = 8 };
-    uint32_t source = (uint32_t)sprite_script_byte(g, p, 1) << 16 | sprite_script_word(g, p, 2);
-    menu_queue_object_upload(g, source, sprite_script_word(g, p, 4), sprite_script_word(g, p, 6));
-    return LENGTH;
-}
-
-/* A byte of the object's state by its offset, which a byte can name past the
- * slot's own 64 into the slots after (menu/object.h). */
-static SpriteStep change_byte(GameState *g, MenuObject o, SpritePlace p, uint8_t command)
-{
-    enum { LENGTH = 2 };
-    uint8_t offset = sprite_script_byte(g, p, 1);
-    uint8_t now = command == SPRITE_CLEAR_BYTE ? 0 : menu_object_byte(g, o, offset);
-    if (command == SPRITE_COUNT_UP)
+    uint8_t now = change == BYTE_CLEARED ? 0 : menu_object_byte(g, o, byte);
+    if (change == BYTE_COUNTED_UP)
         now++;
-    else if (command == SPRITE_COUNT_DOWN)
+    else if (change == BYTE_COUNTED_DOWN)
         now--;
-    menu_set_object_byte(g, o, offset, now);
-    return LENGTH;
+    menu_set_object_byte(g, o, byte, now);
 }
 
-// $C2:0E91
-/* Go back the bytes the command gives, to repeat an animation. A jump
- * forward (or by nothing) holds the script on the jump: the original tests
- * the offset's sign where it means to test the step. */
-static SpriteStep jump(const GameState *g, SpritePlace p)
+/* A jump goes back the bytes it gives, to repeat an animation. One forward
+ * (or by nothing) holds the script on the jump: the original tests the
+ * offset's sign where it means to test the step. */
+static SpriteStep jump(int8_t by) { return by < 0 ? by : SPRITE_STAY; }
+
+static SpriteStep perform_sprite_command(GameState *g, MenuObject o, const SpriteCommand *c)
 {
-    int8_t by = (int8_t)sprite_script_byte(g, p, 1);
-    return by < 0 ? by : SPRITE_STAY;
+    SpriteStep on = c->row->length;
+    switch (c->row->operation) {
+    case SPRITE_CHANGE_BYTE: change_object_byte(g, o, c->row->change, c->byte); return on;
+    case SPRITE_JUMP: return jump(c->by);
+    case SPRITE_SHOW: return show(g, o, c->group, c->frames) ? SPRITE_STAY : on;
+    case SPRITE_WAIT: return counting(g, o, c->frames) ? SPRITE_STAY : on;
+    case SPRITE_UPLOAD: menu_queue_object_upload(g, c->source, c->vram, c->size); return on;
+    case SPRITE_STOP: break;
+    }
+    return SPRITE_STAY;
 }
 
 // $C2:0E1D
@@ -561,18 +598,11 @@ static void run_sprite_script(GameState *g)
     uint32_t script = menu_object_slots_sprite_script(g, o);
     SpritePlace p = { (uint8_t)(script >> 16), (uint16_t)script };
     for (;;) {
-        uint8_t command = sprite_script_byte(g, p, 0);
-        SpriteStep step;
-        switch (command) {
-        case SPRITE_CLEAR_BYTE: case SPRITE_COUNT_UP: case SPRITE_COUNT_DOWN:
-            step = change_byte(g, o, p, command);
+        uint8_t opcode = sprite_script_byte(g, p, 0);
+        if (opcode >= SPRITE_OPCODES)
             break;
-        case SPRITE_JUMP: step = jump(g, p); break;
-        case SPRITE_SHOW: step = show(g, o, p); break;
-        case SPRITE_WAIT: step = wait(g, o, p); break;
-        case SPRITE_UPLOAD: step = upload(g, p); break;
-        default: step = SPRITE_STAY; break;   /* SPRITE_STOP, and past it (below) */
-        }
+        SpriteCommand c = decode_sprite_command(g, &sprite_commands[opcode], p);
+        SpriteStep step = perform_sprite_command(g, o, &c);
         if (step == SPRITE_STAY)
             break;
         p.at = (uint16_t)(p.at + step);
@@ -594,6 +624,17 @@ static bool in_the_slots(SpritePlace p)
     return false;
 }
 
+/* Where a command holds its script for good: a show or a wait of no frames,
+ * and a jump forward. What follows it is the next script's, or data. */
+static bool holds_for_good(const SpriteCommand *c)
+{
+    switch (c->row->operation) {
+    case SPRITE_SHOW: case SPRITE_WAIT: return c->frames == 0;
+    case SPRITE_JUMP: return c->by >= 0;
+    default: return false;
+    }
+}
+
 /* Whether an object's sprite script is one the language reads: every command
  * it can reach from where it is is one of the eight, and outside the objects'
  * slots, before it stops, holds for good or goes round. The game's scripts
@@ -603,23 +644,15 @@ static bool in_the_slots(SpritePlace p)
 static bool reads_as_the_language(const GameState *g, uint32_t script)
 {
     enum { WALK = 64 };
-    static const uint8_t lengths[SPRITE_COMMANDS] = { 2, 2, 2, 0, 4, 2, 8, 0 };
     SpritePlace p = { (uint8_t)(script >> 16), (uint16_t)script };
     for (unsigned step = 0; step < WALK; step++) {
-        uint8_t command = sprite_script_byte(g, p, 0);
-        if (command >= SPRITE_COMMANDS || in_the_slots(p))
+        uint8_t opcode = sprite_script_byte(g, p, 0);
+        if (opcode >= SPRITE_OPCODES || in_the_slots(p))
             return false;
-        if (command == SPRITE_STOP)
+        SpriteCommand c = decode_sprite_command(g, &sprite_commands[opcode], p);
+        if (c.row->operation == SPRITE_STOP || holds_for_good(&c))
             return true;
-        /* A show or a wait of no frames holds the script there for good, as
-         * does a jump forward; what follows is the next script's, or data. */
-        if ((command == SPRITE_SHOW && sprite_script_byte(g, p, 3) == 0)
-            || (command == SPRITE_WAIT && sprite_script_byte(g, p, 1) == 0))
-            return true;
-        int8_t by = command == SPRITE_JUMP ? (int8_t)sprite_script_byte(g, p, 1) : (int8_t)lengths[command];
-        if (by >= 0 && command == SPRITE_JUMP)
-            return true;   /* a jump forward holds there */
-        p.at = (uint16_t)(p.at + by);
+        p.at = (uint16_t)(p.at + (c.row->operation == SPRITE_JUMP ? c.by : c.row->length));
     }
     return true;   /* round and round within the walk's reach */
 }
@@ -635,6 +668,8 @@ bool menu_given_sprite_script_is_well_formed(const GameState *g, uint8_t script)
 }
 
 // $C2:1CDA
+/* Give an object one of the game's sprite scripts, from its start, its first
+ * command's frames not yet begun. */
 void menu_give_sprite_script(GameState *g, MenuObject o, uint8_t script)
 {
     set_menu_object_slots_sprite_script(g, o, (uint32_t)MENU_SPRITE_SCRIPT_BANK << 16 | menu_sprite_script_start(g, script));
