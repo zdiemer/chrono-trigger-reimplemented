@@ -30,9 +30,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
   `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_recomp_runner tests/cpu/data/*.bin`,
   `build/main/recomp_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
-  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test`, `bindings_test` and `vars_test` need no data.
+  failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test` and `sound_test` need no data; `build/main/ct_sound_fuzz` checks
+  the C sound driver against the original's in lockstep (docs/SOUND.md).
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
-  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`,
+  configured without a ROM and with `-DCT_WERROR=ON`; runs the unit tests, `dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`, `sound_test`,
   the conformance runners (test data cached) and builds `ct_play` and the oracle. Code must build
   warning-free on all four and tests must pass without a ROM. Docs-only changes don't trigger it.
 - Movies: `oracle/movies/*.ctm` from power-on, and `oracle/movies/saves/*.ctm` from cartridge saves
@@ -226,7 +227,9 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   live in `oracle/saves/`; emulator save states are not.
 - Reference emulator cores are supplied locally under `cores/` and never
   vendored.
-- Every ported routine carries its original address in a `// $BB:AAAA` comment.
+- Every ported routine carries its original address in a `// $BB:AAAA` comment; code ported
+  from the sound CPU (`game/sound/`) uses `// SPC $AAAA`, with every address where one
+  function stands for several routines.
 - Keep the docs current as work lands, in the same commit as the work: the
   milestone docs (docs/APPROACH.md, RECOMP.md, MATCHING.md, PLATFORM.md,
   RUNTIME.md, PORTING.md) say what was built and how it was measured,
