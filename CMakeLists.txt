@@ -168,6 +168,9 @@ add_library(ct_game STATIC
   game/battle/nmi.c
   game/battle/numbers.c
   game/battle/objects.c
+  game/battle/screen_beam.c
+  game/battle/screen_gradient.c
+  game/battle/screen_graphics.c
   game/battle/screen_motion.c
   game/battle/screen_palette.c
   game/battle/screen_setup.c
