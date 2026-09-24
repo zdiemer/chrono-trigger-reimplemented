@@ -6112,3 +6112,33 @@ state = "objects"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
 iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+# ---- core: the controller and the play time clock ----------------------------------------------
+
+[[routine]]
+name = "input_update"
+subsystem = "core"
+state = "menus"
+args = []
+why = "any state: the per-frame input work sets its own pages, and saves and restores every register of its caller"
+
+[[routine]]
+name = "input_read_joypad"
+subsystem = "core"
+state = "menus"
+args = []
+why = "any state: the controller read sets its own direct page and data bank"
+
+[[routine]]
+name = "input_map_buttons"
+subsystem = "core"
+state = "menus"
+args = ["--d", "0000"]
+why = "the controller's page, the one input_update calls it on (its guard refuses any other)"
+
+[[routine]]
+name = "play_time_tick"
+subsystem = "core"
+state = "menus"
+args = []
+why = "any state: the clock sets its own direct page"
