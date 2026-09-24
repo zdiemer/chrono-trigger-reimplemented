@@ -317,19 +317,6 @@ static bool draw_header(Snes *s)
     return true;
 }
 
-/* The portrait of the member whose row the rows' cells name, where it is one
- * the port draws: its row and character are what the command list left in
- * the cells. */
-static bool draw_the_rows_portrait(GameState *g)
-{
-    uint16_t row = menu_save_member_row(g);
-    uint8_t character = (uint8_t)menu_scratch_save_member(g);
-    if (!portrait_is_drawable(row, character))
-        return false;
-    draw_member_portrait(g, menu_draw_origin(g), row, character);
-    return true;
-}
-
 // $C2:D36C, from $C2:D404
 /* A row for each member in the party: the member's record where the window
  * command list draws it from, and the portrait. The rows' cells are what the
@@ -353,9 +340,13 @@ static bool draw_member_rows(Snes *s)
             s->cpu.x = MEMBER_ROW_LIST;
             if (!draw_window_list(s, 0xC2D43A))
                 return false;
-            bool drawn = false;
-            NATIVE_TIME_AS(s, 0xC2D466, drawn = draw_the_rows_portrait(g));
-            if (!drawn && !call_original(s, 0xC2D43D, 0xC2D466, PORTRAIT_IGNORES, false, false))
+            /* The member's row and character are what the command list
+             * left in the rows' cells. */
+            uint16_t row = menu_save_member_row(g);
+            uint8_t character = (uint8_t)menu_scratch_save_member(g);
+            if (portrait_is_drawable(row, character))
+                NATIVE_TIME_AS(s, 0xC2D466, draw_member_portrait(g, menu_draw_origin(g), row, character));
+            else if (!call_original(s, 0xC2D43D, 0xC2D466, PORTRAIT_IGNORES, false, false))
                 return false;
             set_menu_draw_origin(g, (uint16_t)(menu_draw_origin(g) + MEMBER_ROW_BYTES));
         }

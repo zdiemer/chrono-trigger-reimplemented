@@ -1409,7 +1409,7 @@ static void load_map_view_graphics(Snes *s)
 static void build_map_view_on_the_machine(Snes *s)
 {
     m_jsr_dc(s, 0xC263DF, 0xC227DE, READS_NOTHING);
-    build_map_view(state_of(s), m_platform(s));
+    NATIVE_TIME_AS(s, 0xC263DF, build_map_view(state_of(s), m_platform(s)));
 }
 
 /* The routines both screens call: the menus' VRAM cleared (menu/display.c's
@@ -1692,7 +1692,11 @@ bool menu_epoch_digit_runs(Snes *s)
     const GameState *g = state_of(s);
     MenuObject digit = menu_object_running(g);
     uint8_t period = menu_object_slots_period(g, digit);
-    bool ok = animates(g, digit) && menu_given_sprite_script_is_well_formed(g, menu_digit_show_script(g, period))
+    /* A hidden digit shows nothing until it is given its showing script. */
+    bool hidden = menu_object_slots_step(g, digit) <= DIGIT_HIDDEN;
+    bool ok = menu_sprite_list_is_sound(g) && menu_object_queue_is_whole(g)
+              && (hidden || menu_sprite_script_is_well_formed(g, digit))
+              && menu_given_sprite_script_is_well_formed(g, menu_digit_show_script(g, period))
               && menu_given_sprite_script_is_well_formed(g, menu_digit_hide_script(g, period));
     vars_peek(false);
     return ok;
