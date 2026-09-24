@@ -6258,6 +6258,7 @@ why = "on the battle's page, any setup flags (the party off the grid or on it)"
 
 [[routine]]
 name = "battle_clear_damage"
+at = "FD:ACFD"
 subsystem = "battle"
 state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E"]
@@ -6265,6 +6266,7 @@ why = "on the battle's page"
 
 [[routine]]
 name = "battle_clear_numbers"
+at = "FD:ACEE"
 subsystem = "battle"
 state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E"]
@@ -6300,6 +6302,7 @@ why = "the line handler's tail, as its head leaves the machine at the wait for h
 
 [[routine]]
 name = "battle_apply_alternate_frame"
+at = "D1:FE4C"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E"]
