@@ -1,166 +1,207 @@
-/* Battle: per-object state updated each battle frame. */
+/* Battle: the objects' screen bounds, and where their animations stand.
+ *
+ * Each combatant's object has a box on the screen around its position,
+ * half its width to either side and half its height up, and 8 pixels down
+ * from it (nothing down when the party stands off the battlefield's grid),
+ * clamped to the screen's edges; the targeting and the effects' paths go by
+ * it. The battle keeps the position the box was worked out from beside it,
+ * since an effect may work it out for a position the object is only moving
+ * to.
+ *
+ * The animation scheduler plays scripted animations on the objects (a tech's
+ * swing, a spell's cast) a frame's time at a time: each frame every object's
+ * time counts down, and the scheduler takes the next object due, round the
+ * objects from where it last stopped. And six animation slots can have their
+ * position worked out each frame by a position mode, whose code is still the
+ * original's. */
+#include "battle/animation.h"
+
+#include "battle/battle.h"
+#include "battle/bridge.h"
 #include "battle/entries.h"
+#include "original_effects.h"
+#include "vars.h"
 
-#include "port/machine.h"
+/* ---- Screen bounds ---------------------------------------------------------------------- */
 
-static uint8_t absx8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.x); }
-static void set_absx8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.x, v); }
+/* The screen's edges in the bounds' 8-bit coordinates. A position in the
+ * screen's left (top) half can't have a bound past its left (top) edge, and
+ * one in its right (bottom) half can't have one past its right (bottom) edge;
+ * the other way round, a bound wraps as the byte does. */
+enum { SCREEN_NEAR_EDGE = 0x00, SCREEN_FAR_EDGE = 0xFF, SCREEN_HALF = 0x80 };
 
-/* SEC or CLC, LDA base,X, then SBC or ADC size,X: a bound that doesn't cross
- * the screen edge. A positive base clamps to 0 when subtracting; a negative
- * base (past the right or bottom edge) clamps to $FF when adding. */
-static uint8_t clamped_bound(Snes *s, uint16_t base, uint16_t size, bool subtract)
+static bool in_far_half(uint8_t v) { return (v & SCREEN_HALF) != 0; }
+
+static bool past_near_edge(uint8_t at, uint8_t half_size) { return !in_far_half(at) && in_far_half((uint8_t)(at - half_size)); }
+
+static uint8_t bound_before(uint8_t at, uint8_t half_size)
 {
-    m_set_flag(s, CPU_FLAG_C, subtract);
-    uint8_t v = m_lda8(s, absx8(s, base));
-    uint8_t r;
-    if (subtract) {
-        r = m_sbc8(s, v, absx8(s, size));
-        m_set_a8(s, r);
-        if (!(v & 0x80) && (r & 0x80)) {
-            m_tdc(s);
-            r = (uint8_t)s->cpu.a;
-        }
-    } else {
-        r = m_adc8(s, v, absx8(s, size));
-        m_set_a8(s, r);
-        if ((v & 0x80) && !(r & 0x80))
-            r = m_lda8(s, 0xFF);
-    }
-    return r;
+    return past_near_edge(at, half_size) ? (uint8_t)SCREEN_NEAR_EDGE : (uint8_t)(at - half_size);
 }
 
-static void object_bounds(Snes *s)
+static uint8_t bound_after(uint8_t at, uint8_t half_size)
 {
-    set_absx8(s, 0x975A, clamped_bound(s, 0xA039, 0x971E, true));
-    set_absx8(s, 0x9770, clamped_bound(s, 0xA039, 0x971E, false));
-    set_absx8(s, 0x9765, clamped_bound(s, 0xA050, 0x9729, true));
-    uint8_t flags = m_lda8(s, m_read8(s, m_abs(s, 0x2989)));
-    if (m_lda8(s, flags & 0x04) != 0) {
-        set_absx8(s, 0x977B, m_lda8(s, absx8(s, 0xA050)));
-    } else {
-        m_set_flag(s, CPU_FLAG_C, false);
-        uint8_t v = m_adc8(s, m_lda8(s, absx8(s, 0xA050)), 0x08);
-        m_set_a8(s, v);
-        set_absx8(s, 0x977B, v);
-    }
+    uint8_t bound = (uint8_t)(at + half_size);
+    return in_far_half(at) && !in_far_half(bound) ? (uint8_t)SCREEN_FAR_EDGE : bound;
 }
+
+/* The party stands off the battlefield's grid (battle_setup_flags). */
+enum { PARTY_OFF_GRID = 0x04, BOX_BELOW = 8 };
 
 // $C1:285A
-/* Compute object X's screen bounds from its position ($A039/$A050) and half
- * sizes ($971E/$9729): left $975A, right $9770, top $9765 and bottom $977B
- * (the Y position, plus 8 unless $2989 bit 2 is set). */
-void battle_update_object_bounds(Snes *s)
+/* Work out the object's box from the position it was last given. */
+static void update_bounds(GameState *g, unsigned slot)
 {
-    object_bounds(s);
-    m_rts(s);
+    uint8_t x = battle_bounds_x(g, slot), y = battle_bounds_y(g, slot);
+    set_battle_bounds_left(g, slot, bound_before(x, battle_object_half_width(g, slot)));
+    set_battle_bounds_right(g, slot, bound_after(x, battle_object_half_width(g, slot)));
+    set_battle_bounds_top(g, slot, bound_before(y, battle_object_half_height(g, slot)));
+    bool below = !(battle_setup_flags(g) & PARTY_OFF_GRID);
+    set_battle_bounds_bottom(g, slot, below ? (uint8_t)(y + BOX_BELOW) : y);
 }
 
 // $C1:283D
-/* For each of the 11 objects present ($96F5 + slot), copy its position
- * ($1D0C/$1D23 + slot) to $A039/$A050 and compute its bounds. */
-void battle_update_all_object_bounds(Snes *s)
+/* Work out every combatant's box from where it stands now. */
+static void update_all_bounds(GameState *g)
 {
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_tax(s);
-    do {
-        if (m_lda8(s, absx8(s, 0x96F5)) != 0) {
-            set_absx8(s, 0xA039, m_lda8(s, absx8(s, 0x1D0C)));
-            set_absx8(s, 0xA050, m_lda8(s, absx8(s, 0x1D23)));
-            m_jsr_stack_bytes(s, 0x2852);   /* JSR $285A */
-            object_bounds(s);
-        }
-        m_inx(s);
-        m_cmp16(s, c->x, 0x000B);
-    } while (c->x != 0x000B);
-    m_rts(s);
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
+        if (!battle_slot_present(g, slot))
+            continue;
+        set_battle_bounds_x(g, slot, battle_object_x(g, battle_combatant_object(slot)));
+        set_battle_bounds_y(g, slot, battle_object_y(g, battle_combatant_object(slot)));
+        update_bounds(g, slot);
+    }
 }
+
+/* ---- The animation scheduler ------------------------------------------------------------ */
 
 // $C1:423A
-/* The head of the battle animation scheduler: count down each object's
- * animation delay ($A12F + slot), then look for the next object, round-robin
- * from $A21F, that is animating ($A124) with its delay run out. Returns if
- * there is none; otherwise continues at $C1:4269 with X = that object. */
+/* Count every object's time down a frame, and find the next object due: one
+ * with an animation playing whose time is up, looking round the objects from
+ * the scheduler's place. BATTLE_COMBATANTS if there is none. */
+static unsigned find_due_animation(GameState *g)
+{
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
+        uint8_t left = battle_animation_delay(g, slot);
+        if (left != 0)
+            set_battle_animation_delay(g, slot, (uint8_t)(left - 1));
+    }
+    unsigned slot = battle_animation_cursor(g);
+    for (unsigned n = 0; n < BATTLE_COMBATANTS; n++) {
+        if (battle_animating(g, slot) && battle_animation_delay(g, slot) == 0)
+            return slot;
+        if (++slot == BATTLE_COMBATANTS)
+            slot = 0;
+    }
+    return BATTLE_COMBATANTS;
+}
+
+/* ---- The animation slots' positions ------------------------------------------------------- */
+
+enum { POSITION_SLOTS = 6, NO_POSITION_MODE = 0 };
+
+/* The slot's position mode, less the "none" that 0 is. */
+static bool has_position_mode(const GameState *g, unsigned slot)
+{
+    return battle_animation_position_modes(g, slot) != NO_POSITION_MODE;
+}
+static uint8_t position_mode(const GameState *g, unsigned slot)
+{
+    return (uint8_t)(battle_animation_position_modes(g, slot) - 1);
+}
+
+/* Keep the position the slot's mode worked out. */
+static void keep_found_position(GameState *g, unsigned slot)
+{
+    set_battle_animation_positions(g, slot, (uint16_t)(battle_position_found_x(g) | battle_position_found_y(g) << 8));
+}
+
+/* The original keeps the slot it is at in a cell; the modes' code doesn't
+ * read it. */
+enum { LEFT_POSITION_SLOT = 0x10 };
+static void leave_position_slot(GameState *g, unsigned slot)
+{
+    set_battle_work(g, LEFT_POSITION_SLOT, (uint8_t)slot);
+    set_battle_work(g, LEFT_POSITION_SLOT + 1, 0);
+}
+
+/* ---- The entries ------------------------------------------------------------------------ */
+
+/* Each takes the object as the original's callers give it, in X. The box's
+ * last sum leaves the carry for the callers: the bottom's, or the top's
+ * when the box has none below; and a bound clamped at the near edge leaves A's
+ * high byte clear (the original clamps with its direct page, 0). */
+static bool bounds_carry(const GameState *g, unsigned slot)
+{
+    uint8_t y = battle_bounds_y(g, slot);
+    if (!(battle_setup_flags(g) & PARTY_OFF_GRID))
+        return y + BOX_BELOW > 0xFF;
+    return y >= battle_object_half_height(g, slot);
+}
+
+void battle_update_object_bounds(Snes *s)
+{
+    GameState *g = state_of(s);
+    unsigned slot = s->cpu.x;
+    bool clamped = past_near_edge(battle_bounds_x(g, slot), battle_object_half_width(g, slot))
+                   || past_near_edge(battle_bounds_y(g, slot), battle_object_half_height(g, slot));
+    update_bounds(g, slot);
+    if (clamped)
+        s->cpu.a = 0;
+    m_set_flag(s, CPU_FLAG_C, bounds_carry(g, slot));
+    m_rts(s);
+}
+
+/* It leaves A's high byte clear and the carry the compare that ends its loop
+ * leaves. */
+void battle_update_all_object_bounds(Snes *s)
+{
+    update_all_bounds(state_of(s));
+    s->cpu.a = 0;
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_rts(s);
+}
+
+bool battle_names_bounds_object(Snes *s) { return battle_on_page(s) && battle_names_combatant(s->cpu.x); }
+
+/* The scheduler goes on with the object due at $C1:4269, with it in X; with
+ * none due it returns. */
+enum { TAKE_ANIMATION_STEP = 0xC14269 };
+
 void battle_find_due_animation(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_tax(s);
-    do {
-        uint8_t delay = m_lda8(s, absx8(s, 0xA12F));
-        if (delay != 0) {
-            delay = (uint8_t)(delay - 1);
-            set_absx8(s, 0xA12F, delay);
-            m_set_nz8(s, delay);
-        }
-        m_inx(s);
-        m_cmp16(s, c->x, 0x000B);
-    } while (c->x != 0x000B);
-    m_tdc(s);
-    m_set_index(s, &c->y, c->a);
-    m_lda8(s, m_read8(s, m_abs(s, 0xA21F)));
-    m_tax(s);
-    do {
-        if (m_lda8(s, absx8(s, 0xA124)) != 0 && m_lda8(s, absx8(s, 0xA12F)) == 0) {
-            c->pc = 0x4269;
-            return;
-        }
-        m_inx(s);
-        m_cmp16(s, c->x, 0x000B);
-        if (c->x == 0x000B) {
-            m_tdc(s);
-            m_tax(s);
-        }
-        m_iny(s);
-        m_cmp16(s, c->y, 0x000B);
-    } while (c->y != 0x000B);
-    m_rts(s);
+    unsigned slot = find_due_animation(state_of(s));
+    s->cpu.a = 0;
+    if (slot == BATTLE_COMBATANTS) {
+        m_rts(s);
+        return;
+    }
+    s->cpu.x = (uint16_t)slot;
+    m_stop_at_own(s, TAKE_ANIMATION_STEP, DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AL);
 }
 
-// $C1:4212
-/* For each of the six animation slots with a position mode ($A4E8 + slot,
- * mode = value - 1), compute the slot's position through the handler for the
- * mode ($C1:762E, table $C1:79D3; result in $A2B0/$A2B2) and store it at
- * $5DA0 + slot * 2. */
+bool battle_scheduler_in_place(Snes *s)
+{
+    vars_peek(true);
+    bool in_place = battle_names_combatant(battle_animation_cursor(state_of(s)));
+    vars_peek(false);
+    return battle_on_page(s) && in_place;
+}
+
+/* Each slot's position is worked out by its mode's code ($C1:762E, which
+ * picks it by the mode in A), a call per slot. */
 void battle_update_animation_positions(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_tdc(s);
-    m_tax(s);
-    m_write16(s, m_dp(s, 0x90), c->x);
-    uint8_t slot;
-    do {
-        m_ldx16(s, m_read16(s, m_dp(s, 0x90)));
-        uint8_t mode = m_lda8(s, absx8(s, 0xA4E8));
-        if (mode != 0) {
-            m_lda8(s, (uint8_t)(mode - 1));
-            /* JSR $762E: PHY : PHX : TAY : ASL : TAX : JSR ($79D3,X) : PLX : PLY : RTS */
-            m_push16(s, 0x4220);
-            m_push16(s, c->y);
-            m_push16(s, c->x);
-            m_set_index(s, &c->y, c->a);
-            m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-            m_tax(s);
-            m_jsr(s, 0xC17633, 0xC10000 | m_jump_table(s, 0xC1, 0x79D3, c->x));
-            if (c->e || (c->p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
-                return;
-            c->x = m_pull16(s);
-            m_set_nz16(s, c->x);
-            c->y = m_pull16(s);
-            m_set_nz16(s, c->y);
-            m_pull16(s);
-            m_set_a8(s, m_asl8(s, m_lda8(s, m_read8(s, m_dp(s, 0x90)))));
-            m_tax(s);
-            set_absx8(s, 0x5DA0, m_lda8(s, m_read8(s, m_abs(s, 0xA2B0))));
-            set_absx8(s, 0x5DA1, m_lda8(s, m_read8(s, m_abs(s, 0xA2B2))));
-        }
-        slot = (uint8_t)(m_read8(s, m_dp(s, 0x90)) + 1);
-        m_write8(s, m_dp(s, 0x90), slot);
-        m_set_nz8(s, slot);
-        slot = m_lda8(s, m_read8(s, m_dp(s, 0x90)));
-        m_cmp8(s, slot, 0x06);
-    } while (slot != 0x06);
+    GameState *g = state_of(s);
+    for (unsigned slot = 0; slot < POSITION_SLOTS; slot++) {
+        ORIGINAL_EFFECT(leave_position_slot(g, slot));
+        if (!has_position_mode(g, slot))
+            continue;
+        s->cpu.a = position_mode(g, slot);
+        if (!battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C))
+            return;
+        keep_found_position(g, slot);
+    }
+    ORIGINAL_EFFECT(leave_position_slot(g, POSITION_SLOTS));
     m_rts(s);
 }
-

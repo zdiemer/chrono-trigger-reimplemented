@@ -1,745 +1,727 @@
-/* Battle: stepping the combatants' animation frames.
+/* Battle: how the combatants animate (battle/animation.h).
  *
- * Each frame the battle steps the animations of three combatants: the party
- * (slots 0-2) while $A4 is 0, otherwise one of three groups of enemies (slots
- * 3-5, 6-8, 9-10), chosen by $A4. The order within the three is kept in
- * $992D-$992F and rotated to start after a slot whose flag in $9922 + slot
- * is set. Each has a frame delay ($9689 for the party, $9694 + enemy for
- * enemies) that counts down before its next frame. */
+ * A combatant shows an animation, a list of frames each shown for its own
+ * time. A party member's frames and times are read from its frame and delay
+ * lists in the ROM, the part for its facing, with every frame it takes: the
+ * animation is whatever its pose gives it (combatant_choose_pose, later in
+ * this file: knocked out, asleep, weak with low HP, or standing ready), or
+ * the party turning to run while L and R are held. An enemy's
+ * frames, at most four, are loaded from its lists whenever the animation its
+ * script gives it or its facing changes (the enemies' loaded frame lists,
+ * battle_enemy_frame_graphics and _delays).
+ *
+ * Once a frame the battle steps three combatants' animations: the party's on
+ * one frame in four, one group of enemies' on each of the other three
+ * (battle_frame_phase). Each combatant counts its frame's time down, and when
+ * it is up takes its next frame, whose sprite graphics are then built
+ * (battle/sprites.c). Building is slow, so after one object's graphics have
+ * been built in a frame the next combatants due mostly hold their frame for a
+ * pass, and their group's order starts with the first of them next time.
+ *
+ * As they animate, the party members turn to face their nearest enemy, one
+ * member at a time, and each enemy's animation may run an effect beside it
+ * (the enemies' per-animation effects, at the end of this file), whose
+ * handlers are still the original's. */
 #include "battle/animation.h"
 
-#include "port/machine.h"
+#include "battle/animation_data.h"
+#include "battle/arith.h"
+#include "battle/battle.h"
+#include "battle/bridge.h"
+#include "battle/combatant.h"
+#include "battle/entries.h"
+#include "original_effects.h"
+#include "vars.h"
 
-static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
-static void set_abs8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr), v); }
-static uint16_t abs16(Snes *s, uint16_t addr) { return m_read16(s, m_abs(s, addr)); }
-static uint8_t absx8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.x); }
-static void set_absx8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.x, v); }
-static uint8_t absy8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.y); }
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
+/* A frame list's times are kept in fifths of a step of the animations, and
+ * a frame shows for at least one step. */
+enum { TIME_UNITS_PER_STEP = 5 };
 
-/* INC/DEC on a direct-page byte, setting N and Z. */
-static uint8_t step_dp8(Snes *s, uint8_t cell, int delta)
+/* A frame list restarted at its next step: the frame before its first. */
+enum { BEFORE_THE_FIRST_FRAME = 0xFF };
+
+/* ---- The groups the combatants animate in ------------------------------------------------ */
+
+/* Which combatants a pass steps: the party, or a group of enemies. Their
+ * number within their side (a party member, or enemy 0-7) is what the order
+ * holds, with NO_ONE for the empty third place of the last group. */
+typedef enum { THE_PARTY, ENEMIES_0_TO_2, ENEMIES_3_TO_5, ENEMIES_6_AND_7, GROUPS } AnimationGroup;
+enum { GROUP_PLACES = 3, NO_ONE = 0xFF, NO_ONE_BIT = 0x80 };
+
+static const struct {
+    uint8_t first_slot, size;
+} groups[GROUPS] = { { 0, 3 }, { 3, 3 }, { 6, 3 }, { 9, 2 } };
+
+static unsigned enemy_slot(unsigned enemy) { return BATTLE_FIRST_ENEMY + enemy; }
+
+/* Hold the combatant's frame for a pass, while another object's graphics are
+ * uploaded: its group's next order starts with it. */
+static void hold_frame(GameState *g, unsigned slot)
 {
-    uint8_t v = (uint8_t)(dp8(s, cell) + delta);
-    set_dp8(s, cell, v);
-    m_set_nz8(s, v);
-    return v;
+    set_battle_anim_held(g, slot, (uint8_t)(battle_anim_held(g, slot) + 1));
 }
 
-/* INC/DEC on an absolute byte (8-bit), setting N and Z. */
-static uint8_t step_abs8(Snes *s, uint16_t addr, int delta)
+static void leave_order(GameState *g, const uint8_t order[GROUP_PLACES])
 {
-    uint8_t v = (uint8_t)(abs8(s, addr) + delta);
-    set_abs8(s, addr, v);
-    m_set_nz8(s, v);
-    return v;
+    for (unsigned place = 0; place < GROUP_PLACES; place++)
+        set_battle_anim_order(g, place, order[place]);
 }
 
-/* INC/DEC abs,X (8-bit), setting N and Z. */
-static uint8_t step_absx8(Snes *s, uint16_t addr, int delta)
+/* The order the group animates in this pass: round the group from the first
+ * of it that held its frame last pass, whose hold is then over, or from its
+ * first. */
+static void choose_order(GameState *g, AnimationGroup group, uint8_t order[GROUP_PLACES])
 {
-    uint8_t v = (uint8_t)(absx8(s, addr) + delta);
-    set_absx8(s, addr, v);
-    m_set_nz8(s, v);
-    return v;
-}
-
-/* INC A / DEC A (8-bit). */
-static uint8_t step_a8(Snes *s, int delta)
-{
-    uint8_t v = (uint8_t)(s->cpu.a + delta);
-    m_set_a8(s, v);
-    m_set_nz8(s, v);
-    return v;
-}
-
-/* ASL A (8-bit). */
-static uint8_t asl_a8(Snes *s)
-{
-    uint8_t v = m_asl8(s, (uint8_t)s->cpu.a);
-    m_set_a8(s, v);
-    return v;
-}
-
-/* The 24-bit address a long pointer on the direct page holds. */
-static uint32_t long_ptr(Snes *s, uint8_t cell)
-{
-    return m_read16(s, m_dp(s, cell)) | (uint32_t)m_read8(s, m_dp(s, (uint8_t)(cell + 2))) << 16;
-}
-
-static bool widths_ok(const Snes *s) { return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M; }
-
-/* JSR out; false if the callee didn't come back with 8-bit A and 16-bit X. */
-static bool jsr(Snes *s, uint32_t site, uint32_t target)
-{
-    m_jsr(s, site, target);
-    return widths_ok(s);
-}
-
-/* Operations that load the order entries: LDA #n (n >= 0), TDC, INC A, DEC A. */
-enum { OP_TDC = -1, OP_INC = -2, OP_DEC = -3 };
-
-/* LDA flag : BEQ : STZ flag : ... for each flag in turn; the first one set
- * (or none) picks the three operations whose results go to $992D-$992F. */
-static void choose_order(Snes *s, const uint16_t *flags, int count, const int16_t (*ops)[3])
-{
-    int pick = count;
-    for (int i = 0; i < count; i++) {
-        if (m_lda8(s, abs8(s, flags[i])) != 0) {
-            set_abs8(s, flags[i], 0x00);
-            pick = i;
+    unsigned first = groups[group].first_slot, size = groups[group].size;
+    unsigned start = 0;
+    for (unsigned i = 0; i < size; i++) {
+        if (battle_anim_held(g, first + i)) {
+            set_battle_anim_held(g, first + i, 0);
+            start = i;
             break;
         }
     }
-    for (uint16_t k = 0; k < 3; k++) {
-        int16_t op = ops[pick][k];
-        if (op == OP_TDC)
-            m_tdc(s);
-        else if (op == OP_INC || op == OP_DEC)
-            step_a8(s, op == OP_INC ? 1 : -1);
-        else
-            m_lda8(s, (uint8_t)op);
-        set_abs8(s, (uint16_t)(0x992D + k), (uint8_t)s->cpu.a);
-    }
+    unsigned side_first = group == THE_PARTY ? 0 : BATTLE_FIRST_ENEMY;
+    for (unsigned place = 0; place < GROUP_PLACES; place++)
+        order[place] = place < size ? (uint8_t)(first - side_first + (start + place) % size) : (uint8_t)NO_ONE;
+    ORIGINAL_EFFECT(leave_order(g, order));
 }
 
-// $C1:2F22
-/* Turn party member $94 toward its target: $A098 holds the member (bit 7:
- * already handled). For another member, set bit 7 of $A098 with the member
- * number when bit 7 is clear. For this member, clear bit 7 and, unless the
- * stat block ($A2) has $5E4A bit 7 or $5E4B bit 1 set, run $C1:0045 action
- * 5 with $986E = 2 and $986F = the member, record the target ($9873) in
- * $99DA, and set the facing $96DB from the direction ($C1:0222, table
- * $C0:F700) between the positions ($1D0C/$1D23) of the member and the
- * target; $80 = 1 when the facing changed, 0 otherwise. */
-static bool face_target(Snes *s)
+/* One object's graphics built this frame: the upload has room for no more,
+ * but for the enemies of the smallest graphics kind in slot 4 or from slot 6
+ * on. Two built, nobody else's frame is taken. */
+enum { ONE_BUILD = 1, SMALLEST_KIND = 0, SLOT_BESIDE_THE_UPLOAD = 4, FIRST_LATE_SLOT = 6 };
+
+static bool member_waits_for_upload(const GameState *g) { return battle_graphics_built(g) == ONE_BUILD; }
+
+static bool enemy_waits_for_upload(const GameState *g, unsigned slot)
 {
-    Cpu *c = &s->cpu;
-    set_dp8(s, 0x80, 0x00);
-    uint8_t current = m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0xA098)) & 0x7F));
-    set_dp8(s, 0x81, current);
-    uint8_t member = m_lda8(s, dp8(s, 0x94));
-    m_cmp8(s, member, dp8(s, 0x81));
-    if (member != current) {
-        if (!(m_lda8(s, abs8(s, 0xA098)) & 0x80)) {
-            uint8_t v = m_lda8(s, dp8(s, 0x94));
-            set_abs8(s, 0xA098, m_lda8(s, (uint8_t)(v | 0x80)));
-        }
-        return true;
-    }
-    set_abs8(s, 0xA098, m_lda8(s, dp8(s, 0x81)));
-    m_set_index(s, &c->y, dp16(s, 0xA2));
-    if (m_lda8(s, absy8(s, 0x5E4A)) & 0x80)
-        return true;
-    if (m_lda8(s, (uint8_t)(m_lda8(s, absy8(s, 0x5E4B)) & 0x02)) != 0)
-        return true;
-    set_abs8(s, 0x986E, m_lda8(s, 0x02));
-    set_abs8(s, 0x986F, m_lda8(s, dp8(s, 0x94)));
-    m_lda8(s, 0x05);
-    if (!jsr(s, 0xC12F60, 0xC10045))
+    uint8_t built = battle_graphics_built(g);
+    if (built == 0)
         return false;
-    m_ldx16(s, dp16(s, 0x94));
-    set_dp8(s, 0xD3, m_lda8(s, absx8(s, 0x1D0C)));
-    set_dp8(s, 0xD4, m_lda8(s, absx8(s, 0x1D23)));
-    set_absx8(s, 0x99DA, m_lda8(s, abs8(s, 0x9873)));
-    m_tax(s);
-    set_dp8(s, 0xD5, m_lda8(s, absx8(s, 0x1D0C)));
-    set_dp8(s, 0xD6, m_lda8(s, absx8(s, 0x1D23)));
-    set_dp8(s, 0x80, 0x00);
-    if (!jsr(s, 0xC12F82, 0xC10222))
-        return false;
-    m_tax(s);
-    uint8_t facing = m_lda8(s, m_read8(s, 0xC0F700 + c->x));
-    m_ldx16(s, dp16(s, 0x94));
-    uint8_t old = absx8(s, 0x96DB);
-    m_cmp8(s, facing, old);
-    if (facing != old) {
-        set_absx8(s, 0x96DB, facing);
-        step_dp8(s, 0x80, +1);
+    if (built != ONE_BUILD || battle_object_kind(g, slot) != SMALLEST_KIND)
+        return true;
+    return !(slot == SLOT_BESIDE_THE_UPLOAD || slot >= FIRST_LATE_SLOT);
+}
+
+/* ---- A party member's frames -------------------------------------------------------------- */
+
+/* The battle's working cells (battle_work, by their offset from $80), and
+ * what the party's step and its pose choice leave in them. */
+enum { LEFT_STANCE = 0x04, LEFT_FACING_PART = 0x02, LEFT_PLACE = 0x12, LEFT_TURNED = 0x00, LEFT_TURN_HOLDER = 0x01 };
+static void set_work_byte(GameState *g, unsigned cell, uint8_t v) { set_battle_work(g, cell, v); }
+static void set_work_word(GameState *g, unsigned cell, uint16_t v)
+{
+    set_battle_work(g, cell, (uint8_t)v);
+    set_battle_work(g, cell + 1, (uint8_t)(v >> 8));
+}
+
+/* The combatant whose pose is being chosen, and the enemy whose animation
+ * effect runs: the original's routines the steps call (the pose's setup, the
+ * effects' handlers) take them from their cells. */
+enum { POSING_CELL = 0x94 - 0x80, EFFECT_ENEMY_CELL = 0x9C - 0x80 };
+static void give_posing(GameState *g, unsigned slot) { set_work_word(g, POSING_CELL, (uint16_t)slot); }
+static unsigned posing(const GameState *g)
+{
+    return (unsigned)(battle_work(g, POSING_CELL) | battle_work(g, POSING_CELL + 1) << 8);
+}
+static void give_effect_enemy(GameState *g, unsigned enemy) { set_work_word(g, EFFECT_ENEMY_CELL, (uint16_t)enemy); }
+
+/* A member's frame lists are in bank $E4, four entries an animation, and
+ * each facing's part of them a stride after the last. */
+enum { PARTY_LISTS_BANK = 0xE4, FRAMES_PER_ANIMATION = 4 };
+
+static uint8_t party_list_byte(const GameState *g, uint16_t at)
+{
+    return battle_frame_list_byte(g, battle_at(PARTY_LISTS_BANK, at));
+}
+
+static uint16_t facing_stride(const GameState *g, unsigned slot)
+{
+    return (uint16_t)(battle_facing_stride_low(g, slot) | battle_facing_stride_high(g, slot) << 8);
+}
+
+/* The member's step keeps the places of its lists in the animation
+ * scheduler's first entry (battle_scheduled_frame_lists), whatever member it
+ * is: a scheduled animation of the first combatant finds them there. */
+static void keep_member_lists(GameState *g, uint16_t frames_at, uint16_t times_at)
+{
+    set_battle_scheduled_frame_lists(g, 0, frames_at);
+    set_battle_scheduled_delay_lists(g, 0, times_at);
+}
+
+// $C1:2E4C
+/* Take the member's next frame of an animation: its time comes from the
+ * delay list, the list starting over where a time is 0, and its graphics
+ * from the frame list, in its facing's part. The frame is what the member
+ * shows next. */
+static uint8_t take_next_party_frame(GameState *g, unsigned member, uint8_t animation)
+{
+    uint16_t place = (uint16_t)(animation * FRAMES_PER_ANIMATION);
+    uint16_t frames_at = (uint16_t)(battle_object_frame_lists(g, member) + place);
+    uint16_t times_at = (uint16_t)(battle_object_delay_lists(g, member) + place);
+    keep_member_lists(g, frames_at, times_at);
+    uint16_t facing_part = (uint16_t)battle_multiply_long(g, battle_object_facing(g, member), facing_stride(g, member));
+
+    uint8_t frame = (uint8_t)(battle_party_frame(g, member) + 1);
+    uint8_t time = party_list_byte(g, (uint16_t)(times_at + frame));
+    if (time == 0) {
+        frame = 0;
+        time = party_list_byte(g, times_at);
     }
+    set_battle_party_frame(g, member, frame);
+    uint8_t steps = (uint8_t)battle_divide_by(g, time, TIME_UNITS_PER_STEP).quotient;
+    set_battle_party_frame_delay(g, member, steps != 0 ? steps : 1);
+
+    uint8_t graphics = party_list_byte(g, (uint16_t)(frames_at + facing_part + frame));
+    battle_show_object_frame(g, member, graphics);
+    ORIGINAL_EFFECT(set_work_word(g, LEFT_FACING_PART, facing_part));
+    return graphics;
+}
+
+/* While L and R are held, a member standing ready turns to run, from the
+ * start of that animation. */
+static uint8_t with_running(GameState *g, unsigned member, uint8_t animation)
+{
+    if (animation != ANIMATION_BATTLE_STANCE || battle_lr_held(g) == 0)
+        return animation;
+    ORIGINAL_EFFECT(set_battle_pose_animation(g, ANIMATION_RUNNING));
+    set_battle_party_frame(g, member, BEFORE_THE_FIRST_FRAME);
+    return ANIMATION_RUNNING;
+}
+
+/* A member's graphics are built for its new frame, except while it stands
+ * ready in the animation it showed last, facing as it was, and isn't the
+ * member choosing a command. */
+static bool member_graphics_change(GameState *g, unsigned member, uint8_t animation, bool turned)
+{
+    bool new_animation = animation != battle_object_pose_shown(g, member);
+    if (new_animation)
+        set_battle_object_pose_shown(g, member, animation);
+    return new_animation || animation != ANIMATION_BATTLE_STANCE || turned || battle_menu_member(g) == member;
+}
+
+/* ---- Facing the nearest enemy -------------------------------------------------------------- */
+
+/* The turn to face goes round the party: the member holding it turns each
+ * time it animates, and a member without it takes it once the holder has
+ * turned, with TURN_TAKEN until it turns in its turn. */
+enum { TURN_TAKEN = 0x80 };
+
+static bool members_turn_to_face(GameState *g, unsigned member)
+{
+    uint8_t turn = battle_facing_turn(g);
+    uint8_t holder = turn & (uint8_t)~TURN_TAKEN;
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 0));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURN_HOLDER, holder));
+    if (holder != member) {
+        if (!(turn & TURN_TAKEN))
+            set_battle_facing_turn(g, (uint8_t)(member | TURN_TAKEN));
+        return false;
+    }
+    set_battle_facing_turn(g, holder);
     return true;
 }
 
-// $C1:2E28
-/* Party member $94's next frame: choose its pose ($C1:2F97), face its target
- * (inline $C1:2F22), apply the pose ($C1:308C), use pose $2B instead of 3
- * while $99CF or $99D0 is set, then advance its frame $968C through the
- * pose's frame list in bank $E4 (a 0 entry restarts it; list offsets from
- * the member's $1C99/$1CBA words plus pose * 4) and set its delay $9689 to a
- * fifth of the list's delay byte (at least 1), with the frame's graphics in
- * $967B. Rebuilds the graphics ($C1:1C4A) unless the pose is unchanged
- * ($A103), 3, $80 clear and $95D5 isn't this member. */
-static bool step_party_member(Snes *s)
+/* A member knocked out, or that gets no turns, stays facing as it is. */
+static bool member_can_turn(const GameState *g, unsigned member)
 {
-    Cpu *c = &s->cpu;
-    if (!jsr(s, 0xC12E28, 0xC12F97))
-        return false;
-    m_push16(s, 0x2E2D);
-    if (!face_target(s))
-        return false;
-    m_pull16(s);
-    if (!jsr(s, 0xC12E2E, 0xC1308C))
-        return false;
-    uint8_t pose = m_lda8(s, abs8(s, 0xA440));
-    m_cmp8(s, pose, 0x03);
-    if (pose == 0x03) {
-        uint8_t v = m_lda8(s, abs8(s, 0x99CF));
-        if (m_lda8(s, (uint8_t)(v | abs8(s, 0x99D0))) != 0) {
-            set_abs8(s, 0xA440, m_lda8(s, 0x2B));
-            m_ldx16(s, dp16(s, 0x94));
-            set_absx8(s, 0x968C, m_lda8(s, 0xFF));
-        }
-    }
-
-    /* $C1:2E4C */
-    m_lda8(s, dp8(s, 0x94));
-    asl_a8(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x94)));
-    m_tax(s);
-    set_abs8(s, 0xA1E8, m_lda8(s, absx8(s, 0x1C99)));
-    set_abs8(s, 0xA1E9, m_lda8(s, absx8(s, 0x1C9A)));
-    set_abs8(s, 0xA1FE, m_lda8(s, absx8(s, 0x1CBA)));
-    set_abs8(s, 0xA1FF, m_lda8(s, absx8(s, 0x1CBB)));
-    m_lda8(s, abs8(s, 0xA440));
-    m_rep(s, CPU_FLAG_M);
-    c->a = m_asl16(s, c->a);
-    c->a = m_asl16(s, c->a);
-    set_dp16(s, 0x82, c->a);
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, abs16(s, 0xA1FE));
-    m_write16(s, m_abs(s, 0xA1FE), c->a);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_lda16(s, dp16(s, 0x82));
-    c->a = m_adc16(s, c->a, abs16(s, 0xA1E8));
-    m_write16(s, m_abs(s, 0xA1E8), c->a);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
-    m_ldx16(s, dp16(s, 0x94));
-    set_dp8(s, 0xA5, m_lda8(s, absx8(s, 0x96DB)));
-    set_dp8(s, 0xA7, m_lda8(s, absx8(s, 0x966E)));
-    set_dp8(s, 0xA8, m_lda8(s, absx8(s, 0xA2C8)));
-    if (!jsr(s, 0xC12E98, 0xC100A7))
-        return false;
-    set_dp16(s, 0x82, m_ldx16(s, dp16(s, 0xA9)));
-    set_abs8(s, 0x9679, m_lda8(s, dp8(s, 0x94)));
-    asl_a8(s);
-    m_set_index(s, &c->y, c->a);
-    m_ldx16(s, dp16(s, 0x94));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, m_lda8(s, absx8(s, 0x968C)), 0x01));
-    uint8_t delay;
-    for (;;) {
-        /* $C1:2EAE */
-        set_absx8(s, 0x968C, (uint8_t)c->a);
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-        c->a = m_adc16(s, c->a, abs16(s, 0xA1FE));
-        m_tax(s);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        delay = m_lda8(s, m_read8(s, 0xE40000 + c->x));
-        if (delay != 0)
-            break;
-        m_tdc(s);
-        m_ldx16(s, dp16(s, 0x94));
-    }
-    m_ldx16(s, dp16(s, 0x94));
-    set_dp8(s, 0xB1, delay);
-    set_dp8(s, 0xB2, 0x00);
-    set_dp8(s, 0xB3, m_lda8(s, 0x05));
-    if (!jsr(s, 0xC12ECF, 0xC100D7))
-        return false;
-    if (m_lda8(s, dp8(s, 0xB5)) == 0)
-        step_a8(s, +1);
-    set_absx8(s, 0x9689, (uint8_t)c->a);
-    m_ldx16(s, dp16(s, 0x94));
-    m_lda8(s, absx8(s, 0x968C));
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-    c->a = m_adc16(s, c->a, dp16(s, 0x82));
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, abs16(s, 0xA1E8));
-    m_tax(s);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
-    set_abs8(s, 0x967B, m_lda8(s, m_read8(s, 0xE40000 + c->x)));
-
-    /* $C1:2EF2 */
-    m_ldx16(s, dp16(s, 0x94));
-    pose = m_lda8(s, abs8(s, 0xA440));
-    uint8_t shown = absx8(s, 0xA103);
-    m_cmp8(s, pose, shown);
-    bool rebuild = true;
-    if (pose != shown) {
-        set_absx8(s, 0xA103, pose);
-    } else {
-        m_cmp8(s, pose, 0x03);
-        if (pose == 0x03 && m_lda8(s, dp8(s, 0x80)) == 0) {
-            uint8_t focus = m_lda8(s, abs8(s, 0x95D5));
-            uint8_t member = dp8(s, 0x94);
-            m_cmp8(s, focus, member);
-            rebuild = focus == member;
-        }
-    }
-    return !rebuild || jsr(s, 0xC12F10, 0xC11C4A);
+    return !combatant_knocked_out(g, member) && !(combatant_statuses(g, member) & STATUS_NO_TURNS);
 }
 
-/* JSR $0112: ASL x3 (8-bit), the JSR at `site`. */
-static void times_8(Snes *s, uint16_t site)
+/* The search $C1:2986 makes for the member's nearest enemy. */
+enum { NEAREST_ENEMY = 2 };
+
+static void ask_for_nearest_enemy(GameState *g, unsigned member)
 {
-    m_push16(s, (uint16_t)(site + 2));
-    for (int i = 0; i < 3; i++)
-        asl_a8(s);
-    m_pull16(s);
+    set_battle_target_search(g, NEAREST_ENEMY);
+    set_battle_target_searcher(g, (uint8_t)member);
+}
+
+/* The member faces the enemy found, and the direction's code takes the two
+ * points it is between. */
+static void aim_at_enemy_found(GameState *g, unsigned member)
+{
+    uint8_t enemy = battle_target_found(g);
+    set_battle_member_facing_target(g, member, enemy);
+    set_battle_direction_points(g, 0, battle_object_x(g, battle_combatant_object(member)));
+    set_battle_direction_points(g, 1, battle_object_y(g, battle_combatant_object(member)));
+    set_battle_direction_points(g, 2, battle_object_x(g, battle_combatant_object(enemy)));
+    set_battle_direction_points(g, 3, battle_object_y(g, battle_combatant_object(enemy)));
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 0));
+}
+
+/* Face the way the direction found gives; true if the member turned. */
+static bool face_direction(GameState *g, unsigned member, uint16_t direction)
+{
+    uint8_t facing = battle_facing_of_direction(g, direction);
+    if (facing == battle_object_facing(g, member))
+        return false;
+    set_battle_object_facing(g, member, facing);
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 1));
+    return true;
+}
+
+/* ---- An enemy's frames ------------------------------------------------------------------ */
+
+/* An enemy's loaded frame list: eight entries an enemy, of which its
+ * animation shows at most four. */
+enum { ENEMY_LIST_ENTRIES = 8, ENEMY_FRAMES = 4 };
+
+static uint8_t enemy_list_start(unsigned enemy) { return (uint8_t)(enemy * ENEMY_LIST_ENTRIES); }
+
+/* Which part of the enemy's lists an animation's frames start at: resting
+ * animations one part, the stopped one another, and the acting ones the
+ * first. */
+enum { RESTING_PART = 0, ACTING_PART = 1 };
+static uint8_t animation_list_offset(uint8_t part)
+{
+    enum { RESTING_FRAMES_AT = 12, ACTING_FRAMES_AT = 4, STOPPED_FRAMES_AT = 24 };
+    return part == RESTING_PART ? RESTING_FRAMES_AT : part == ACTING_PART ? ACTING_FRAMES_AT : STOPPED_FRAMES_AT;
+}
+
+static bool enemy_list_stale(const GameState *g, unsigned enemy)
+{
+    unsigned slot = enemy_slot(enemy);
+    return battle_enemy_animation_loaded(g, enemy) != battle_enemy_animation(g, enemy)
+           || battle_object_facing(g, slot) != battle_object_facing_loaded(g, slot);
+}
+
+/* What the original leaves of a frame list it loaded: the list pointers,
+ * the part and where the frames were copied from and to. */
+enum { LEFT_FRAMES_POINTER = 6, LEFT_TIMES_POINTER = 9, LEFT_LIST_PART = 0x06, LEFT_LIST_START = 0x02,
+       LEFT_LIST_END = 0x04, LEFT_COUNT = 0x00 };
+static void leave_loaded_list(GameState *g, uint32_t frames, uint32_t times, uint8_t part_offset, uint16_t start,
+                              uint8_t list_start)
+{
+    for (unsigned b = 0; b < 3; b++) {
+        set_battle_data_pointers(g, LEFT_FRAMES_POINTER + b, (uint8_t)(frames >> 8 * b));
+        set_battle_data_pointers(g, LEFT_TIMES_POINTER + b, (uint8_t)(times >> 8 * b));
+    }
+    set_work_byte(g, LEFT_LIST_PART, part_offset);
+    set_work_word(g, LEFT_LIST_START, start);
+    set_work_word(g, LEFT_LIST_END, (uint16_t)(list_start + ENEMY_LIST_ENTRIES));
+    set_work_byte(g, LEFT_COUNT, 0);
 }
 
 // $C1:3364
-/* Enemy $9C's animation changed ($5E0D or $96DE differ from the copies in
- * $974A and $96E9): take the copies, load the long pointers $C0 and $C3 from
- * the enemy's $1CA2 and $1CC3 entries, and copy its frame list for the
- * animation (offset $96DE * $9671-$A2CB via $C1:00A7, plus 4, 12 or 24 by
- * $CC:FB91; kind 1 also clears $9829) into $97D9 + $CC:F82F entry: 8 graphics
- * bytes from [$C0] and 8 delays, mapped through $CC:FBCE, from [$C3] into
- * $9799. */
-static bool load_enemy_animation(Snes *s)
+/* Load the enemy's frame list for its animation and facing: the frames'
+ * graphics from its facing's part, and their times, which don't differ by
+ * facing. An acting animation is the enemy's own again: it no longer takes
+ * its turn whatever animation it shows (battle_enemy_acts_anyway). */
+static void load_enemy_frame_list(GameState *g, unsigned enemy)
 {
-    Cpu *c = &s->cpu;
-    set_absx8(s, 0x974A, m_lda8(s, absx8(s, 0x5E0D)));
-    set_absx8(s, 0x96E9, m_lda8(s, absx8(s, 0x96DE)));
-    m_txa(s);
-    asl_a8(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, dp8(s, 0x9C)));
-    m_tax(s);
-    static const struct { uint16_t table; uint8_t cell; } ptrs[6] = {
-        { 0x1CC3, 0xC3 }, { 0x1CC4, 0xC4 }, { 0x1CC5, 0xC5 }, { 0x1CA2, 0xC0 }, { 0x1CA3, 0xC1 }, { 0x1CA4, 0xC2 },
-    };
-    for (int i = 0; i < 6; i++)
-        set_dp8(s, ptrs[i].cell, m_lda8(s, absx8(s, ptrs[i].table)));
-    m_ldx16(s, dp16(s, 0x9C));
-    set_dp8(s, 0xA5, m_lda8(s, absx8(s, 0x96DE)));
-    set_dp8(s, 0xA7, m_lda8(s, absx8(s, 0x9671)));
-    set_dp8(s, 0xA8, m_lda8(s, absx8(s, 0xA2CB)));
-    if (!jsr(s, 0xC133A5, 0xC100A7))
-        return false;
-    m_ldx16(s, dp16(s, 0x9C));
-    m_lda8(s, absx8(s, 0x974A));
-    m_tax(s);
-    if (m_lda8(s, m_read8(s, 0xCCFB91 + c->x)) == 0) {
-        m_lda8(s, 0x0C);
-    } else if (step_a8(s, -1) == 0) {
-        m_ldx16(s, dp16(s, 0x9C));
-        set_absx8(s, 0x9829, 0x00);
-        m_lda8(s, 0x04);
-    } else {
-        m_lda8(s, 0x18);
+    unsigned slot = enemy_slot(enemy);
+    uint8_t animation = battle_enemy_animation(g, enemy);
+    set_battle_enemy_animation_loaded(g, enemy, animation);
+    set_battle_object_facing_loaded(g, slot, battle_object_facing(g, slot));
+    uint32_t frames = battle_object_frame_lists(g, slot), times = battle_object_delay_lists(g, slot);
+    uint16_t facing_part = (uint16_t)battle_multiply_long(g, battle_object_facing(g, slot), facing_stride(g, slot));
+    uint8_t part = battle_enemy_animation_part(g, animation);
+    if (part == ACTING_PART)
+        set_battle_enemy_acts_anyway(g, enemy, 0);
+    uint8_t offset = animation_list_offset(part);
+    uint16_t start = (uint16_t)(offset + facing_part);
+    uint8_t list_start = enemy_list_start(enemy);
+    for (unsigned i = 0; i < ENEMY_LIST_ENTRIES; i++)
+        set_battle_enemy_frame_graphics(g, list_start + i, battle_frame_list_byte(g, frames + start + i));
+    for (unsigned i = 0; i < ENEMY_LIST_ENTRIES; i++)
+        set_battle_enemy_frame_delays(g, list_start + i,
+                                      battle_enemy_frame_time(g, battle_frame_list_byte(g, times + offset + i)));
+    ORIGINAL_EFFECT(leave_loaded_list(g, frames, times, offset, start, list_start));
+}
+
+/* The frame the enemy's loaded list has at a place: that one, or the first
+ * where the list has ended there (its time is 0). */
+static uint8_t frame_or_first(GameState *g, unsigned enemy, uint8_t frame)
+{
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_COUNT, enemy_list_start(enemy)));
+    return battle_enemy_frame_delays(g, (uint8_t)(enemy_list_start(enemy) + frame)) != 0 ? frame : 0;
+}
+
+static uint8_t list_place(unsigned enemy, uint8_t frame) { return (uint8_t)(enemy_list_start(enemy) + frame); }
+
+// $C1:3407
+/* The enemy's frame is up: show it. */
+static void show_enemy_frame(GameState *g, unsigned enemy)
+{
+    uint8_t frame = frame_or_first(g, enemy, battle_enemy_frame(g, enemy));
+    set_battle_enemy_frame(g, enemy, frame);
+    battle_show_object_frame(g, enemy_slot(enemy), battle_enemy_frame_graphics(g, list_place(enemy, frame)));
+}
+
+/* The enemy waits a pass to show its frame: its time is up again then. */
+static void hold_enemy_frame(GameState *g, unsigned enemy)
+{
+    hold_frame(g, enemy_slot(enemy));
+    set_battle_enemy_frame_delay(g, enemy, (uint8_t)(battle_enemy_frame_delay(g, enemy) + 1));
+}
+
+/* Move on to the enemy's next frame and take its time. */
+static void next_enemy_frame(GameState *g, unsigned enemy)
+{
+    uint8_t frame = (uint8_t)(battle_enemy_frame(g, enemy) + 1);
+    if (frame == ENEMY_FRAMES)
+        frame = 0;
+    frame = frame_or_first(g, enemy, frame);
+    set_battle_enemy_frame(g, enemy, frame);
+    set_battle_enemy_frame_delay(g, enemy, battle_enemy_frame_delays(g, list_place(enemy, frame)));
+}
+
+/* Enemies whose graphics kind is this or larger have their frames built some
+ * other way. */
+enum { FIRST_KIND_NOT_BUILT = 3 };
+
+static bool enemy_frame_built(const GameState *g, unsigned enemy)
+{
+    return battle_object_kind(g, enemy_slot(enemy)) < FIRST_KIND_NOT_BUILT;
+}
+
+/* The original's cells the enemies' step leaves: the enemy it is at and its
+ * place in the order. */
+static void leave_enemy(GameState *g, unsigned enemy) { give_effect_enemy(g, enemy); }
+
+/* The frame phase picks the group: the party at 0, enemy groups at 1-3. The
+ * original counts the phase down to the group while it steps it, and back up
+ * after unless it has reached the phase the battle's loop saved (which the
+ * loop puts back itself). */
+enum { PHASES = 4 };
+
+static uint8_t phase_after_enemies(const GameState *g, uint8_t phase)
+{
+    uint8_t counted_down = (uint8_t)(phase - 1);
+    if (counted_down == battle_frame_phase_saved(g) || counted_down >= PHASES - 1)
+        return counted_down;
+    return phase;
+}
+
+/* ---- A combatant's pose ------------------------------------------------------------------ */
+
+/* The byte of the combatant's state a status pose tests, by its offset from
+ * the condition byte in the stat block: the condition itself, its four
+ * status bytes, or the two statuses it keeps. */
+enum { TESTS_CONDITION = 0, TESTS_STATUS = 1, STATUS_BYTES = 4, TESTS_KEPT = 8, KEPT_BYTES = 2 };
+
+static uint8_t tested_byte(const GameState *g, unsigned slot, uint8_t which)
+{
+    if (which == TESTS_CONDITION)
+        return battle_stats_condition(g, slot);
+    if (which - TESTS_STATUS < STATUS_BYTES)
+        return (uint8_t)(battle_stats_status(g, slot) >> 8 * (which - TESTS_STATUS));
+    if (which - TESTS_KEPT < KEPT_BYTES)
+        return (uint8_t)(battle_stats_status_kept(g, slot) >> 8 * (which - TESTS_KEPT));
+    return 0;
+}
+
+/* A pose with its top bit set is none; an animation of STANCE is the
+ * combatant's stance. The knocked-out pose is the table's first, which a
+ * member falling takes too. */
+enum { NO_POSE = 0xFF, POSE_NONE_BIT = 0x80, WEAK_POSE = 0x80, STANCE = 0xFF, KNOCKED_OUT_ENTRY = 0 };
+
+/* Start the combatant's frame list over at its next step. Only the party
+ * has its frame counted there: for an enemy the original's write lands past
+ * the party's table, and for the last three on the frame delays of enemies
+ * 0-2 (battle_party_frame's unchecked accessors). */
+static void restart_frame_list(GameState *g, unsigned slot)
+{
+    if (battle_slot_is_party(slot))
+        set_battle_party_frame(g, slot, BEFORE_THE_FIRST_FRAME);
+    else
+        set_battle_party_frame_unchecked(g, slot, BEFORE_THE_FIRST_FRAME);
+}
+
+/* Give the combatant a pose; a new one starts its frame list over. */
+static void take_pose(GameState *g, unsigned slot, uint8_t pose)
+{
+    set_battle_object_pose(g, slot, pose);
+    if (pose != battle_object_pose_last(g, slot))
+        restart_frame_list(g, slot);
+}
+
+static void leave_pose_cells(GameState *g, unsigned slot)
+{
+    set_battle_current_stat_block(g, (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES));
+    set_work_word(g, LEFT_TURNED, 0);
+}
+
+// $C1:2F97
+/* The combatant's pose is the first of the status poses whose statuses it
+ * has (the first, knocked out, also when it is falling), with its animation;
+ * a pose whose animation is the stance is passed over in fights with flags.
+ * With none, a party member with low HP takes its weak pose, unless it sits
+ * the fight out; otherwise the combatant has no pose and its stance. A
+ * combatant knocked out or falling is marked down, and its frames start over.
+ *
+ * The weak pose starts a member's frames over at every step: the original
+ * tests the pose the member had against the weak animation's number, which
+ * no pose has. */
+uint8_t combatant_choose_pose(GameState *g, unsigned slot)
+{
+    uint8_t stance = battle_member_sitting_out(g, slot) ? ANIMATION_FIELD_STANCE : ANIMATION_BATTLE_STANCE;
+    uint8_t animation = stance;
+    set_battle_object_pose(g, slot, NO_POSE);
+    ORIGINAL_EFFECT(leave_pose_cells(g, slot));
+    bool falling = battle_member_falling(g, slot) != 0;
+    if (falling || combatant_knocked_out(g, slot)) {
+        set_battle_combatant_down(g, slot, 1);
+        restart_frame_list(g, slot);
     }
-    set_dp8(s, 0x86, (uint8_t)c->a);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-    c->a = m_adc16(s, c->a, dp16(s, 0xA9));
-    set_dp16(s, 0x82, c->a);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x80, m_lda8(s, 0x08));
-    m_ldx16(s, dp16(s, 0x9C));
-    m_lda8(s, m_read8(s, 0xCCF82F + c->x));
-    m_tax(s);
-    m_push16(s, c->x);
-    m_set_index(s, &c->y, dp16(s, 0x82));
-    do {
-        set_absx8(s, 0x97D9, m_lda8(s, m_read8(s, long_ptr(s, 0xC0) + c->y)));
-        m_iny(s);
-        m_inx(s);
-    } while (step_dp8(s, 0x80, -1) != 0);
-    set_dp8(s, 0x80, m_lda8(s, 0x08));
-    c->x = m_pull16(s);
-    m_set_nz16(s, c->x);
-    set_dp16(s, 0x84, c->x);
-    m_lda8(s, dp8(s, 0x86));
-    m_set_index(s, &c->y, c->a);
-    do {
-        m_lda8(s, m_read8(s, long_ptr(s, 0xC3) + c->y));
-        m_tax(s);
-        m_lda8(s, m_read8(s, 0xCCFBCE + c->x));
-        m_ldx16(s, dp16(s, 0x84));
-        set_absx8(s, 0x9799, (uint8_t)c->a);
-        m_iny(s);
-        step_dp8(s, 0x84, +1);
-    } while (step_dp8(s, 0x80, -1) != 0);
+    for (uint16_t entry = 0; !battle_status_pose_ends(g, entry); entry++) {
+        BattleStatusPose pose = battle_status_pose(g, entry);
+        bool has = (tested_byte(g, slot, pose.status_byte) & pose.bits) != 0;
+        if (!has && !(entry == KNOCKED_OUT_ENTRY && falling))
+            continue;
+        if (pose.animation == STANCE && battle_fight_flags(g))
+            continue;
+        animation = pose.animation == STANCE ? (uint8_t)ANIMATION_BATTLE_STANCE : pose.animation;
+        if (!(pose.pose & POSE_NONE_BIT))
+            take_pose(g, slot, pose.pose);
+        ORIGINAL_EFFECT(set_work_byte(g, LEFT_STANCE, animation));
+        ORIGINAL_EFFECT(set_battle_pose_animation(g, animation));
+        return animation;
+    }
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_STANCE, stance));
+    if (combatant_low_hp_noted(g, slot) && !battle_member_sitting_out(g, slot)) {
+        set_battle_object_pose(g, slot, WEAK_POSE);
+        if (battle_object_pose_last(g, slot) != ANIMATION_WEAK && battle_slot_is_party(slot))
+            restart_frame_list(g, slot);
+        animation = ANIMATION_WEAK;
+    }
+    ORIGINAL_EFFECT(set_battle_pose_animation(g, animation));
+    return animation;
+}
+
+/* ---- The enemies' animation effects ------------------------------------------------------- */
+
+/* An enemy's animation can run an effect beside it (following its link,
+ * moving on a path), every few frames: its handler, chosen by the
+ * animation's effect ($CC:FBAB), is still the original's. The resting
+ * animation has none, nor an animation with its top bit set. */
+enum { NO_EFFECT_ANIMATION = 0, NO_EFFECT_BIT = 0x80 };
+
+static bool effect_due(GameState *g, unsigned enemy)
+{
+    uint8_t left = (uint8_t)(battle_enemy_effect_delay(g, enemy) - 1);
+    set_battle_enemy_effect_delay(g, enemy, left);
+    if (left != 0)
+        return false;
+    set_battle_enemy_effect_delay(g, enemy, battle_enemy_effect_period(g, enemy));
     return true;
 }
 
-/* LDA $9C : JSR $0112 : STA $80 : CLC : ADC $969C,X : TAY : LDA $9799,Y :
- * BNE, else STZ $969C,X : LDA $80 : TAY -- Y = the enemy's delay entry for
- * frame $969C, restarting at frame 0 when that delay is 0. */
-static uint8_t frame_delay(Snes *s, uint16_t site, bool reload)
+/* The effect notes the enemy's link as it goes. */
+static void note_link(GameState *g, unsigned enemy)
 {
-    Cpu *c = &s->cpu;
-    m_lda8(s, dp8(s, 0x9C));
-    times_8(s, site);
-    set_dp8(s, 0x80, (uint8_t)c->a);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, (uint8_t)c->a, absx8(s, 0x969C)));
-    m_set_index(s, &c->y, c->a);
-    uint8_t delay = m_lda8(s, absy8(s, 0x9799));
-    if (delay == 0) {
-        set_absx8(s, 0x969C, 0x00);
-        m_lda8(s, dp8(s, 0x80));
-        m_set_index(s, &c->y, c->a);
-        if (reload)
-            delay = m_lda8(s, absy8(s, 0x9799));
-    }
-    return delay;
+    set_battle_enemy_link_seen(g, enemy, battle_enemy_link(g, enemy));
 }
 
-// $C1:3351
-/* Enemy $9C (X): reload its frame list when its animation changed, then when
- * its delay $9694 runs out show frame $969C's graphics ($967B, slot $9679),
- * rebuild its graphics ($C1:1C4A) unless $967C + slot is 3 or more, and move
- * to the next of up to 4 frames, taking its delay. While $9912 is set (1:
- * for slots other than 4 and 6 and up, with $967C + slot clear) it instead
- * sets the slot's $9922 flag and waits a frame. */
-static bool step_enemy(Snes *s)
+/* ---- The bridges and the entries ------------------------------------------------------- */
+
+/* The steps run beside the machine: the party's calls the pose's setup
+ * ($C1:308C) and, as a member faces, the search for its nearest enemy
+ * ($C1:2986, through $C1:0045) and the direction to it ($C1:0222), which are
+ * still the original's; and the pose's choice and the frames' graphics, run
+ * as C here, are timed as their own routines (NATIVE_TIME_AS). */
+typedef enum { FACING_KEPT, TURNED, STOPPED } Facing;
+
+enum { FIND_TARGET = 5 };
+
+// $C1:2F22
+/* The member faces its nearest enemy, when it has the turn to. The search
+ * and the direction run inside the original's subroutine, so its return
+ * address is on the stack under their calls. */
+static Facing face_nearest_enemy(Snes *s, unsigned member)
 {
-    Cpu *c = &s->cpu;
-    uint8_t v = m_lda8(s, absx8(s, 0x974A));
-    uint8_t w = absx8(s, 0x5E0D);
-    m_cmp8(s, v, w);
-    bool changed = v != w;
-    if (!changed) {
-        v = m_lda8(s, absx8(s, 0x96DE));
-        w = absx8(s, 0x96E9);
-        m_cmp8(s, v, w);
-        changed = v != w;
-    }
-    if (changed && !load_enemy_animation(s))
-        return false;
+    GameState *g = state_of(s);
+    if (!members_turn_to_face(g, member) || !member_can_turn(g, member))
+        return FACING_KEPT;
+    ask_for_nearest_enemy(g, member);
+    m_push16(s, 0x2E2D);
+    s->cpu.a = FIND_TARGET;
+    /* The pose's choice leaves the overflow clear, and the search can read it. */
+    m_set_flag(s, CPU_FLAG_V, false);
+    if (!battle_call(s, 0xC12F60, 0xC10045, DC_X | DC_Y | DC_N | DC_Z | DC_C))
+        return STOPPED;
+    aim_at_enemy_found(g, member);
+    if (!battle_call(s, 0xC12F82, 0xC10222, DC_A | DC_X | DC_Y | DC_FLAGS))
+        return STOPPED;
+    m_pull16(s);
+    return face_direction(g, member, s->cpu.a) ? TURNED : FACING_KEPT;
+}
 
-    /* $C1:3407 */
-    m_ldx16(s, dp16(s, 0x9C));
-    if (step_absx8(s, 0x9694, -1) != 0)
-        return true;
-    frame_delay(s, 0x3410, false);
-    set_abs8(s, 0x967B, m_lda8(s, absy8(s, 0x97D9)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_set_a8(s, m_adc8(s, m_lda8(s, dp8(s, 0x9C)), 0x03));
-    set_abs8(s, 0x9679, (uint8_t)c->a);
-    m_tax(s);
-    bool hold;
-    if (m_lda8(s, abs8(s, 0x9912)) == 0) {
-        hold = false;
-    } else if (step_a8(s, -1) != 0 || m_lda8(s, absx8(s, 0x967C)) != 0) {
-        hold = true;
-    } else {
-        uint8_t slot = m_lda8(s, abs8(s, 0x9679));
-        m_cmp8(s, slot, 0x04);
-        if (slot == 0x04) {
-            hold = false;
-        } else {
-            m_cmp8(s, slot, 0x06);
-            hold = slot < 0x06;
+// $C1:2E28
+/* The member's frame is up: it takes the pose its statuses give it, faces
+ * its nearest enemy in its turn, and takes its next frame, whose graphics are
+ * built if they change. */
+static bool next_party_frame(Snes *s, unsigned member)
+{
+    GameState *g = state_of(s);
+    uint8_t animation = 0;
+    NATIVE_TIME_AS(s, 0xC12F97, animation = combatant_choose_pose(g, member));
+    /* The pose's choice hands the animation back in A, whose high byte the
+     * pose's setup reads. */
+    s->cpu.a = animation;
+    Facing facing = face_nearest_enemy(s, member);
+    if (facing == STOPPED)
+        return false;
+    if (!battle_call(s, 0xC12E2E, 0xC1308C, DC_AL | DC_X | DC_Y | DC_FLAGS))
+        return false;
+    animation = with_running(g, member, animation);
+    uint8_t frame = take_next_party_frame(g, member, animation);
+    if (member_graphics_change(g, member, animation, facing == TURNED) && battle_object_builds_graphics(g, member))
+        NATIVE_TIME_AS(s, 0xC11C55, battle_build_frame_graphics(g, member, frame));
+    return true;
+}
+
+// $C1:2D9F
+/* Step the party's animations: each member present whose frame's time is
+ * up takes its next frame, unless it holds its frame for the upload. */
+static bool step_party(Snes *s)
+{
+    GameState *g = state_of(s);
+    ORIGINAL_EFFECT(set_work_byte(g, LEFT_STANCE, ANIMATION_BATTLE_STANCE));
+    uint8_t order[GROUP_PLACES];
+    choose_order(g, THE_PARTY, order);
+    for (unsigned place = 0; place < GROUP_PLACES; place++) {
+        unsigned member = order[place];
+        ORIGINAL_EFFECT(set_work_word(g, LEFT_PLACE, (uint16_t)place));
+        give_posing(g, member);
+        if (!battle_slot_present(g, member))
+            continue;
+        if (member_waits_for_upload(g)) {
+            hold_frame(g, member);
+            continue;
         }
+        uint8_t left = (uint8_t)(battle_party_frame_delay(g, member) - 1);
+        set_battle_party_frame_delay(g, member, left);
+        if (left == 0 && !next_party_frame(s, member))
+            return false;
     }
-    if (hold) {
-        step_absx8(s, 0x9922, +1);
-        m_ldx16(s, dp16(s, 0x9C));
-        step_absx8(s, 0x9694, +1);
-        return true;
-    }
-
-    /* $C1:3456 */
-    uint8_t state = m_lda8(s, absx8(s, 0x967C));
-    m_cmp8(s, state, 0x03);
-    if (state < 0x03 && !jsr(s, 0xC1345D, 0xC11C4A))
-        return false;
-    m_ldx16(s, dp16(s, 0x9C));
-    step_absx8(s, 0x969C, +1);
-    uint8_t frame = m_lda8(s, absx8(s, 0x969C));
-    m_cmp8(s, frame, 0x04);
-    if (frame == 0x04)
-        set_absx8(s, 0x969C, 0x00);
-    set_absx8(s, 0x9694, frame_delay(s, 0x3471, true));
+    ORIGINAL_EFFECT(set_work_word(g, LEFT_PLACE, GROUP_PLACES));
     return true;
 }
 
 // $C1:3234
-/* The enemy half of battle_step_combatant_animations: count $A4 (1-3) down
- * to the group, choose the order of its enemies (a negative entry is
- * skipped), step each present one ($96F8), then count $A4 back up unless it
- * is what the caller saved in $993B or 3 or more. */
-static void step_enemy_group(Snes *s)
+/* Step a group of enemies' animations: each enemy present reloads its frame
+ * list if its animation or facing changed, and when its frame's time is up
+ * shows its frame, unless it holds it for the upload, and moves on to the
+ * next. */
+static void step_enemy_group(Snes *s, AnimationGroup group)
 {
-    Cpu *c = &s->cpu;
-    set_abs8(s, 0x9841, 0x00);
-    int group = 0;
-    while (step_a8(s, -1) != 0) {
-        if (++group == 3) {
-            m_rts(s);
-            return;
+    GameState *g = state_of(s);
+    uint8_t order[GROUP_PLACES];
+    choose_order(g, group, order);
+    for (unsigned place = 0; place < GROUP_PLACES; place++) {
+        unsigned enemy = order[place];
+        ORIGINAL_EFFECT(set_battle_anim_order_place(g, (uint8_t)place));
+        if (enemy & NO_ONE_BIT)
+            continue;
+        ORIGINAL_EFFECT(leave_enemy(g, enemy));
+        if (!battle_slot_present(g, enemy_slot(enemy)))
+            continue;
+        if (enemy_list_stale(g, enemy))
+            load_enemy_frame_list(g, enemy);
+        uint8_t left = (uint8_t)(battle_enemy_frame_delay(g, enemy) - 1);
+        set_battle_enemy_frame_delay(g, enemy, left);
+        if (left != 0)
+            continue;
+        show_enemy_frame(g, enemy);
+        if (enemy_waits_for_upload(g, enemy_slot(enemy))) {
+            hold_enemy_frame(g, enemy);
+            continue;
         }
+        if (enemy_frame_built(g, enemy))
+            NATIVE_TIME_AS(s, 0xC11C55, battle_build_frame_graphics(g, enemy_slot(enemy), battle_graphics_frame(g)));
+        next_enemy_frame(g, enemy);
     }
-    step_dp8(s, 0xA4, -1);
-    static const uint16_t flags[3][3] = { { 0x9925, 0x9926, 0x9927 }, { 0x9928, 0x9929, 0x992A }, { 0x992B, 0x992C } };
-    static const int counts[3] = { 3, 3, 2 };
-    static const int16_t ops[3][4][3] = {
-        { { OP_TDC, OP_INC, OP_INC }, { 1, OP_INC, OP_TDC }, { 2, OP_TDC, OP_INC }, { OP_TDC, OP_INC, OP_INC } },
-        { { 3, OP_INC, OP_INC }, { 4, OP_INC, 3 }, { 5, 3, OP_INC }, { 3, OP_INC, OP_INC } },
-        { { 6, OP_INC, 0xFF }, { 7, OP_DEC, 0xFF }, { 6, OP_INC, 0xFF } },
-    };
-    choose_order(s, flags[group], counts[group], ops[group]);
-
-    uint8_t n;
-    do {
-        /* $C1:333D */
-        m_lda8(s, abs8(s, 0x9841));
-        m_tax(s);
-        if (!(m_lda8(s, absx8(s, 0x992D)) & 0x80)) {
-            m_tax(s);
-            set_dp16(s, 0x9C, c->x);
-            if (m_lda8(s, absx8(s, 0x96F8)) != 0 && !step_enemy(s))
-                return;
-        }
-        step_abs8(s, 0x9841, +1);
-        n = m_lda8(s, abs8(s, 0x9841));
-        m_cmp8(s, n, 0x03);
-    } while (n != 0x03);
-    uint8_t a4 = m_lda8(s, dp8(s, 0xA4));
-    uint8_t saved = abs8(s, 0x993B);
-    m_cmp8(s, a4, saved);
-    if (a4 != saved) {
-        m_cmp8(s, a4, 0x03);
-        if (a4 < 0x03)
-            step_dp8(s, 0xA4, +1);
-    }
-    m_rts(s);
+    ORIGINAL_EFFECT(set_battle_anim_order_place(g, GROUP_PLACES));
 }
 
-// $C1:2D9F
-/* Step three combatants' animations for this frame (see the top of this
- * file): with $A4 clear the party, in the order $992D-$992F; for each member
- * present ($96F5), with $9912 = 1 set its $9922 flag, otherwise count down
- * its delay $9689 and, when it runs out, give it its next frame. With $A4
- * set, the group of enemies $A4 selects. Clears $9912 first. */
 void battle_step_combatant_animations(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    set_abs8(s, 0x9912, 0x00);
-    if (m_lda8(s, dp8(s, 0xA4)) != 0) {
-        step_enemy_group(s);
+    GameState *g = state_of(s);
+    set_battle_graphics_built(g, 0);
+    uint8_t phase = battle_frame_phase(g);
+    if (phase == THE_PARTY) {
+        if (step_party(s))
+            m_rts(s);
         return;
     }
-    set_dp8(s, 0x84, m_lda8(s, 0x03));
-    static const uint16_t flags[3] = { 0x9922, 0x9923, 0x9924 };
-    static const int16_t ops[4][3] = {
-        { OP_TDC, OP_INC, OP_INC }, { 1, OP_INC, OP_TDC }, { 2, OP_TDC, OP_INC }, { OP_TDC, OP_INC, OP_INC },
-    };
-    choose_order(s, flags, 3, ops);
-
-    /* $C1:2DFD */
-    m_tdc(s);
-    m_tax(s);
-    set_dp16(s, 0x92, c->x);
-    uint8_t n;
-    do {
-        m_ldx16(s, dp16(s, 0x92));
-        m_lda8(s, absx8(s, 0x992D));
-        m_tax(s);
-        set_dp16(s, 0x94, c->x);
-        if (m_lda8(s, absx8(s, 0x96F5)) != 0) {
-            uint8_t hold = m_lda8(s, abs8(s, 0x9912));
-            m_cmp8(s, hold, 0x01);
-            if (hold == 0x01) {
-                step_absx8(s, 0x9922, +1);
-            } else {
-                m_ldx16(s, dp16(s, 0x94));
-                if (step_absx8(s, 0x9689, -1) == 0 && !step_party_member(s))
-                    return;
-            }
-        }
-        step_dp8(s, 0x92, +1);
-        n = m_lda8(s, dp8(s, 0x92));
-        m_cmp8(s, n, 0x03);
-    } while (n != 0x03);
+    ORIGINAL_EFFECT(set_battle_anim_order_place(g, 0));
+    if (phase < GROUPS) {
+        step_enemy_group(s, (AnimationGroup)phase);
+        set_battle_frame_phase(g, phase_after_enemies(g, phase));
+    }
     m_rts(s);
 }
 
-/* ---- (moved from timers.c, being rewritten) ---- */
+/* The enemies' groups take the order's places as they come, which only a
+ * clear A's high byte keeps to the order (the original indexes with the whole
+ * of A). */
+bool battle_steps_animations(Snes *s) { return battle_on_page_a_high_clear(s); }
 
-static bool call(Snes *s, uint32_t site, uint32_t target)
+/* The combatant comes in its cell; the animation goes back in A. */
+void battle_choose_status_pose(Snes *s)
 {
-    m_jsr(s, site, target);
-    return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M;
+    s->cpu.a = combatant_choose_pose(state_of(s), posing(state_of(s)));
+    m_rts(s);
 }
 
-/* $C1:373B: run slot $9C's effect: when the object is present ($96F8 +
- * slot), track its $5E15 in $9752, and unless $974A is negative, call the
- * handler for its kind ($CC:FBAB, table $C1:3760) with the kind in $A2B5. */
-static bool run_slot_effect(Snes *s)
+/* The original finds the combatant's stat block by the whole of A as its
+ * index, so it is the combatant's only while A's high byte is clear, as the
+ * game has it. */
+bool battle_poses_combatant(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_ldx16(s, m_read16(s, m_dp(s, 0x9C)));
-    if (m_lda8(s, absx8(s, 0x96F8)) == 0)
-        return true;
-    uint8_t v = m_lda8(s, absx8(s, 0x5E15));
-    uint8_t seen = absx8(s, 0x9752);
-    m_cmp8(s, v, seen);
-    if (v != seen)
-        set_absx8(s, 0x9752, v);
-    uint8_t kind = m_lda8(s, absx8(s, 0x974A));
-    if (kind & 0x80)
-        return true;
-    m_write8(s, m_abs(s, 0xA2B5), kind);
-    m_tax(s);
-    m_set_a8(s, m_asl8(s, m_lda8(s, m_read8(s, 0xCCFBAB + c->x))));
-    m_tax(s);
-    return call(s, 0xC1375C, 0xC10000 | m_jump_table(s, 0xC1, 0x3760, c->x));
+    vars_peek(true);
+    bool named = battle_names_combatant(posing(state_of(s)));
+    vars_peek(false);
+    return battle_on_page_a_high_clear(s) && named;
+}
+
+/* The handlers, as the original's table at $C1:3760 names them, by effect. */
+static const uint16_t effect_handlers[] = { 0x3772, 0x379A, 0x38BF, 0x3959, 0x3A3D, 0x3BC2, 0x3E33, 0x3F5A, 0x4021 };
+enum { EFFECTS = sizeof effect_handlers / sizeof effect_handlers[0] };
+
+/* Run the enemy's effect's handler: inside the original's subroutine, whose
+ * return address is on the stack under the call. An effect past the table's
+ * rows goes where the ROM's table does. */
+static bool run_effect(Snes *s, unsigned enemy)
+{
+    GameState *g = state_of(s);
+    uint8_t animation = battle_enemy_animation_loaded(g, enemy);
+    set_battle_effect_kind(g, animation);
+    uint8_t effect = battle_enemy_animation_effect(g, animation);
+    uint16_t handler =
+        effect < EFFECTS ? effect_handlers[effect] : m_jump_table(s, 0xC1, 0x3760, (uint8_t)(effect * 2));
+    m_push16(s, 0x3731);
+    if (!battle_call(s, 0xC1375C, 0xC10000u | handler, DC_AL | DC_X | DC_Y | DC_FLAGS))
+        return false;
+    m_pull16(s);
+    return true;
 }
 
 // $C1:3714
-/* Unless $99E0 is set, count down the effect delays of the 8 slots with an
- * effect ($974A; delay $9897, reload $989F) and run each whose delay ran
- * out. */
-void battle_step_slot_effects(Snes *s)
+/* Run the enemies' animation effects that are due, unless they stand still
+ * for the battle menu. The handlers find the enemy in their cell. */
+void battle_step_enemy_effects(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    if (m_lda8(s, m_read8(s, m_abs(s, 0x99E0))) != 0) {
-        m_rts(s);
-        return;
-    }
-    m_tdc(s);
-    m_tax(s);
-    m_write16(s, m_dp(s, 0x9C), c->x);
-    uint8_t slot;
-    do {
-        m_ldx16(s, m_read16(s, m_dp(s, 0x9C)));
-        if (m_lda8(s, absx8(s, 0x974A)) != 0) {
-            uint8_t d = (uint8_t)(absx8(s, 0x9897) - 1);
-            set_absx8(s, 0x9897, d);
-            m_set_nz8(s, d);
-            if (d == 0) {
-                set_absx8(s, 0x9897, m_lda8(s, absx8(s, 0x989F)));
-                m_push16(s, 0x3731);
-                if (!run_slot_effect(s))
-                    return;
-                m_pull16(s);
-            }
+    GameState *g = state_of(s);
+    if (!battle_timers_held(g)) {
+        s->cpu.a = 0;
+        for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
+            give_effect_enemy(g, enemy);
+            uint8_t animation = battle_enemy_animation_loaded(g, enemy);
+            if (animation == NO_EFFECT_ANIMATION || !effect_due(g, enemy))
+                continue;
+            if (!battle_slot_present(g, enemy_slot(enemy)))
+                continue;
+            note_link(g, enemy);
+            if (animation & NO_EFFECT_BIT)
+                continue;
+            if (!run_effect(s, enemy))
+                return;
         }
-        slot = (uint8_t)(m_read8(s, m_dp(s, 0x9C)) + 1);
-        m_write8(s, m_dp(s, 0x9C), slot);
-        m_set_nz8(s, slot);
-        slot = m_lda8(s, m_read8(s, m_dp(s, 0x9C)));
-        m_cmp8(s, slot, 0x08);
-    } while (slot != 0x08);
+        ORIGINAL_EFFECT(leave_enemy(g, BATTLE_ENEMIES));
+    }
     m_rts(s);
 }
-
-/* ---- (moved from stats.c, being rewritten) ---- */
-
-// $C1:2F97
-/* Choose combatant $94's status pose: walk the 4-byte entries of the table at
- * $CC:F77F (stat block offset, mask, pose, animation; a negative offset ends
- * it) for the first status bit set in its stat block ($CC:F8ED + slot * 2);
- * the first entry also applies when $A119 is set. A matching entry sets the
- * pose in $A441 (and $968C = $FF to restart the animation when it differs
- * from $A44C) and its animation in $A440 ($FF: 3 unless $A0A7 is set). With no
- * match, bit 0 of $5E2F picks pose $80 and animation $12 (unless $A09B is set);
- * otherwise the animation is 0, or 3 when $A09B is clear. */
-void battle_select_status_pose(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_ldx16(s, m_read16(s, m_dp(s, 0x94)));
-    uint8_t base = m_lda8(s, absx8(s, 0xA09B)) ? 0x00 : 0x03;
-    m_write8(s, m_dp(s, 0x84), m_lda8(s, base));
-    set_absx8(s, 0xA441, m_lda8(s, 0xFF));
-    m_set_a8(s, m_asl8(s, m_lda8(s, m_read8(s, m_dp(s, 0x94)))));
-    m_tax(s);
-    m_rep(s, CPU_FLAG_M);
-    m_set_index(s, &c->y, m_lda16(s, m_read16(s, 0xCCF8ED + c->x)));
-    m_write16(s, m_dp(s, 0xA2), c->y);
-    m_tdc(s);
-    m_write16(s, m_dp(s, 0x80), c->a);
-    m_sep(s, CPU_FLAG_M);
-    m_ldx16(s, m_read16(s, m_dp(s, 0x94)));
-    bool restart = m_lda8(s, absx8(s, 0xA119)) != 0;
-    if (!restart)
-        restart = m_lda8(s, m_read8(s, m_abs(s, 0x5E4A) + c->y)) & 0x80;
-    if (restart) {
-        set_absx8(s, 0xA0A8, m_lda8(s, 0x01));
-        set_absx8(s, 0x968C, m_lda8(s, 0xFF));
-    }
-    m_tdc(s);
-    m_tax(s);
-    for (;;) {
-        /* $C1:2FD5 */
-        uint8_t offset = m_lda8(s, m_read8(s, 0xCCF77F + c->x));
-        if (offset & 0x80) {
-            /* $C1:302C: no status pose */
-            m_set_index(s, &c->y, m_read16(s, m_dp(s, 0xA2)));
-            if (m_lda8(s, (uint8_t)(m_lda8(s, m_read8(s, m_abs(s, 0x5E2F) + c->y)) & 0x01)) != 0) {
-                m_set_index(s, &c->y, m_read16(s, m_dp(s, 0x94)));
-                if (m_lda8(s, m_read8(s, m_abs(s, 0xA09B) + c->y)) == 0) {
-                    m_write8(s, m_abs(s, 0xA441) + c->y, m_lda8(s, 0x80));
-                    uint8_t last = m_read8(s, m_abs(s, 0xA44C) + c->y);
-                    m_lda8(s, 0x12);
-                    m_cmp8(s, 0x12, last);
-                    if (last != 0x12) {
-                        m_cmp16(s, c->y, 0x0003);
-                        if (c->y < 0x0003)
-                            m_write8(s, m_abs(s, 0x968C) + c->y, m_lda8(s, 0xFF));
-                    }
-                    m_write8(s, m_abs(s, 0xA440), m_lda8(s, 0x12));
-                    m_rts(s);
-                    return;
-                }
-            }
-            break;
-        }
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-        c->a = m_adc16(s, c->a, m_read16(s, m_dp(s, 0xA2)));
-        m_set_index(s, &c->y, c->a);
-        m_tdc(s);
-        m_sep(s, CPU_FLAG_M);
-        uint8_t bits = m_lda8(s, m_read8(s, m_abs(s, 0x5E4A) + c->y));
-        bool match = m_lda8(s, (uint8_t)(bits & m_read8(s, 0xCCF780 + c->x))) != 0;
-        if (!match) {
-            m_txa(s);
-            if ((uint8_t)c->a == 0) {
-                m_ldx16(s, m_read16(s, m_dp(s, 0x94)));
-                match = m_lda8(s, absx8(s, 0xA119)) != 0;
-                m_tdc(s);
-                m_tax(s);
-            }
-        }
-        if (match) {
-            /* $C1:2FFE */
-            uint8_t anim = m_lda8(s, m_read8(s, 0xCCF782 + c->x));
-            m_cmp8(s, anim, 0xFF);
-            if (anim == 0xFF) {
-                if (m_lda8(s, m_read8(s, m_abs(s, 0xA0A7))) != 0)
-                    goto next;
-                anim = m_lda8(s, 0x03);
-            }
-            m_write8(s, m_dp(s, 0x84), anim);
-            m_set_index(s, &c->y, m_read16(s, m_dp(s, 0x94)));
-            uint8_t pose = m_lda8(s, m_read8(s, 0xCCF781 + c->x));
-            if (!(pose & 0x80)) {
-                m_write8(s, m_abs(s, 0xA441) + c->y, pose);
-                uint8_t last = m_read8(s, m_abs(s, 0xA44C) + c->y);
-                m_cmp8(s, pose, last);
-                if (pose != last)
-                    m_write8(s, m_abs(s, 0x968C) + c->y, m_lda8(s, 0xFF));
-            }
-            break;
-        }
-    next:
-        for (int i = 0; i < 4; i++)
-            m_inx(s);
-    }
-    /* $C1:3056 */
-    m_write8(s, m_abs(s, 0xA440), m_lda8(s, m_read8(s, m_dp(s, 0x84))));
-    m_rts(s);
-}
-
