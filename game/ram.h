@@ -329,6 +329,15 @@
 #define RAM_PARTY_MEMBERS 0x7E2980u
 #define RAM_PARTY_MEMBERS_COUNT 3u
 #define RAM_PARTY_MEMBERS_STRIDE 0x01u
+/* The player's settings as the settings menu leaves them ($C2:92F4 reads them into its own
+ * cells). What the battle reads: the first byte's bit 7 shows a tech's or item's description as
+ * the cursor meets it, bit 6 is active time (clear: the timers wait while a tech or item list is
+ * open); the second byte's bit 6 has the battle remember each member's command cursor, bit 7 its
+ * tech and item cursors; the third byte is the battle gauge setting, which picks the window's
+ * layout [3 x $1 bytes, by byte] */
+#define RAM_GAME_SETTINGS 0x7E2990u
+#define RAM_GAME_SETTINGS_COUNT 3u
+#define RAM_GAME_SETTINGS_STRIDE 0x01u
 /* The player's button assignments: each a mask of buttons that must all be down to set one bit
  * of the remapped buttons [8 x $1 bytes, by assignment: $2998, $2996, $2997, $2994, $2999,
  * $299A, $2995 and $2993 give bits 0-7 of the remapped byte] */
@@ -2219,6 +2228,9 @@
 #define RAM_BATTLE_EFFECT_CELLS_COUNT 12u
 #define RAM_BATTLE_EFFECT_CELLS_STRIDE 0x01u
 #define RAM_BATTLE_EFFECT_CELLS_DP 0xC6u     /* page battle */
+/* Set to $40 as the battle is set up; what reads it isn't known yet */
+#define RAM_BATTLE_START_MARK 0x7E00E4u
+#define RAM_BATTLE_START_MARK_DP 0xE4u       /* page battle */
 /* Nonzero while the four rotating queued VRAM uploads run (and $A013 is clear) */
 #define RAM_BATTLE_QUEUED_UPLOADS_ON 0x7E00E5u
 #define RAM_BATTLE_QUEUED_UPLOADS_ON_DP 0xE5u /* page battle */
@@ -2268,6 +2280,8 @@
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_STRIDE 0x04u
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_TILE 0x7E11B2u /* Tile number */
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_ATTRIBUTES 0x7E11B3u /* Attributes */
+#define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_X_OFFSET 0x7E11B0u /* X from the object's position (cleared at the battle's start) */
+#define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_Y_OFFSET 0x7E11B1u /* Y from the object's position (cleared at the battle's start) */
 /* Seven-byte records of the techs the party members can use in battle (a member's entries 0-7,
  * 10-15 and 18 fill its tech list) [19 x $7 bytes, by tech entry (from the member's record base
  * at $CC:F395 + member * 2)] */
@@ -2329,6 +2343,13 @@
 #define RAM_BATTLE_OBJECT_EXTRA_DRAW_COUNT 11u
 #define RAM_BATTLE_OBJECT_EXTRA_DRAW_STRIDE 0x01u
 #define RAM_BATTLE_OBJECT_EXTRA_DRAW_DP 0x45u /* page battle_sprites */
+/* The sprite drawers' page's working bytes between the objects' extra draw marks and their part
+ * counts; cleared at the battle's start, what each is isn't worked out yet [35 x $1 bytes, by
+ * byte] */
+#define RAM_BATTLE_DRAW_WORK 0x7E1D50u
+#define RAM_BATTLE_DRAW_WORK_COUNT 35u
+#define RAM_BATTLE_DRAW_WORK_STRIDE 0x01u
+#define RAM_BATTLE_DRAW_WORK_DP 0x50u        /* page battle_sprites */
 /* Number of sprite parts drawn for the object (0: shadow only); $0F for party members [23 x $1
  * bytes, by battle object] */
 #define RAM_BATTLE_OBJECT_PART_COUNT 0x7E1D73u
@@ -2347,6 +2368,12 @@
 #define RAM_BATTLE_DRAW_LIST_COUNT 23u
 #define RAM_BATTLE_DRAW_LIST_STRIDE 0x01u
 #define RAM_BATTLE_DRAW_LIST_DP 0xA1u        /* page battle_sprites */
+/* The sprite drawers' page's working bytes after the draw list; cleared at the battle's start,
+ * what each is isn't worked out yet [11 x $1 bytes, by byte] */
+#define RAM_BATTLE_DRAW_LIST_WORK 0x7E1DB8u
+#define RAM_BATTLE_DRAW_LIST_WORK_COUNT 11u
+#define RAM_BATTLE_DRAW_LIST_WORK_STRIDE 0x01u
+#define RAM_BATTLE_DRAW_LIST_WORK_DP 0xB8u   /* page battle_sprites */
 /* Draw list entry being drawn: a word the drawing pass clears and counts on in its low byte [2
  * bytes] */
 #define RAM_BATTLE_DRAW_LIST_POSITION 0x7E1DC3u
@@ -2367,6 +2394,12 @@
 /* Groups of four sprites whose tiles are left to copy [2 bytes] */
 #define RAM_BATTLE_DRAW_TILE_GROUPS 0x7E1DCDu
 #define RAM_BATTLE_DRAW_TILE_GROUPS_DP 0xCDu /* page battle_sprites */
+/* The rest of the sprite drawers' page; cleared at the battle's start, what each byte is isn't
+ * worked out yet [49 x $1 bytes, by byte] */
+#define RAM_BATTLE_DRAW_PAGE_WORK 0x7E1DCFu
+#define RAM_BATTLE_DRAW_PAGE_WORK_COUNT 49u
+#define RAM_BATTLE_DRAW_PAGE_WORK_STRIDE 0x01u
+#define RAM_BATTLE_DRAW_PAGE_WORK_DP 0xCFu   /* page battle_sprites */
 /* Nonzero when the battle shares out no experience or gold */
 #define RAM_BATTLE_REWARDS_HELD 0x7E2880u
 /* Flags of the battle being started: bit 7 no running away (L+R), bit 5 a demo battle (any
@@ -2382,6 +2415,7 @@
 #define RAM_BATTLE_PARTY_PLACEMENT_TILE_Y 0x7E29B1u /* Y in 16-pixel tiles */
 #define RAM_BATTLE_PARTY_PLACEMENT_X_OFFSET 0x7E29B2u /* X offset within the tile */
 #define RAM_BATTLE_PARTY_PLACEMENT_Y_OFFSET 0x7E29B3u /* Y offset within the tile */
+#define RAM_BATTLE_PARTY_PLACEMENT_FRAME 0x7E29B4u /* The frame the member's object starts on */
 /* The battle's enemies and where they stand [8 x $C bytes, by enemy record] */
 #define RAM_BATTLE_ENEMY_PLACEMENT 0x7E29BFu
 #define RAM_BATTLE_ENEMY_PLACEMENT_COUNT 8u
@@ -2393,18 +2427,41 @@
 #define RAM_BATTLE_ENEMY_PLACEMENT_ENEMY 0x7E29C4u /* Enemy number (index of the enemy's 10-byte entry at $E4:F600); high byte negative: no enemy */
 #define RAM_BATTLE_ENEMY_PLACEMENT_KIND 0x7E29C6u /* Bits 0-2 the graphics kind, bit 7 the enemy starts hidden */
 #define RAM_BATTLE_ENEMY_PLACEMENT_PALETTE 0x7E29C7u /* Sprite palette (doubled into $9888/$993C) */
+#define RAM_BATTLE_ENEMY_PLACEMENT_FRAME 0x7E29C3u /* The frame the enemy's object starts on */
+#define RAM_BATTLE_ENEMY_PLACEMENT_GRAPHICS 0x7E29C8u /* Long pointer to the enemy's graphics set */
 /* Flags the event hands the battle with battle_setup_flags (event $D8's second operand): with
  * bit 6 the battle keeps the field's song ($CD:03CC) */
 #define RAM_BATTLE_EVENT_FLAGS 0x7E2A1Fu
 /* How the battle's background behaves: bit 0 the HP gradient runs each frame, bit 1 palette
  * animation slot 7 follows the sprite palette row swap */
 #define RAM_BATTLE_BACKGROUND_FLAGS 0x7E2A21u
+/* The field map's upper tile attributes under the battlefield, a byte a cell, copied as the
+ * battle starts ($C0:039B): bit 7 goes into the battlefield grid [256 x $1 bytes, by battlefield
+ * cell (row * 16 + column)] */
+#define RAM_BATTLE_LOCATION_UPPER_ATTRIBUTES 0x7E2A23u
+#define RAM_BATTLE_LOCATION_UPPER_ATTRIBUTES_COUNT 256u
+#define RAM_BATTLE_LOCATION_UPPER_ATTRIBUTES_STRIDE 0x01u
+/* The field map's lower tile attributes under the battlefield, a byte a cell, copied as the
+ * battle starts ($C0:039B): bit 7 (the tile blocks a move) makes the grid's cell blocked [256 x
+ * $1 bytes, by battlefield cell (row * 16 + column)] */
+#define RAM_BATTLE_LOCATION_LOWER_ATTRIBUTES 0x7E2B23u
+#define RAM_BATTLE_LOCATION_LOWER_ATTRIBUTES_COUNT 256u
+#define RAM_BATTLE_LOCATION_LOWER_ATTRIBUTES_STRIDE 0x01u
 /* The three background layers' base scroll positions [3 x $4 bytes, by layer (BG1-BG3)] */
 #define RAM_BATTLE_BG_SCROLL 0x7E2C70u
 #define RAM_BATTLE_BG_SCROLL_COUNT 3u
 #define RAM_BATTLE_BG_SCROLL_STRIDE 0x04u
 #define RAM_BATTLE_BG_SCROLL_X 0x7E2C70u     /* Horizontal scroll */
 #define RAM_BATTLE_BG_SCROLL_Y 0x7E2C72u     /* Vertical scroll */
+/* Where each character's battle menu cursors were left, kept in the saved game for the settings
+ * that remember them (game_settings) [7 x $4 bytes, by character] */
+#define RAM_BATTLE_REMEMBERED_CURSORS 0x7E2C7Cu
+#define RAM_BATTLE_REMEMBERED_CURSORS_COUNT 7u
+#define RAM_BATTLE_REMEMBERED_CURSORS_STRIDE 0x04u
+#define RAM_BATTLE_REMEMBERED_CURSORS_COMMAND 0x7E2C7Cu /* The command cursor */
+#define RAM_BATTLE_REMEMBERED_CURSORS_TECH_SCROLL 0x7E2C7Du /* The tech list's scroll */
+#define RAM_BATTLE_REMEMBERED_CURSORS_TECH_ROW 0x7E2C7Eu /* The tech list cursor's row */
+#define RAM_BATTLE_REMEMBERED_CURSORS_TECH 0x7E2C7Fu /* The tech under the tech list cursor */
 /* Item list top entry the battle menu starts at ($95E6) when $A0D5 is set */
 #define RAM_BATTLE_REMEMBERED_ITEM_TOP 0x7E2C98u
 /* Item list cursor row the battle menu starts at ($95E5) when $A0D5 is set */
@@ -2466,6 +2523,7 @@
 #define RAM_BATTLE_STATS_STATUS 0x7E5E4Bu    /* The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its timed statuses' bits, which its status timers follow, and the bits the pose table tests */
 #define RAM_BATTLE_STATS_CARRIED 0x7E5E56u   /* A byte the battle carries over from the member's record (battle_member_carried) when it ends ($5E56 for slot 0) */
 #define RAM_BATTLE_STATS_STATUS_KEPT 0x7E5E52u /* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes' bits ($5E52-$5E53 for slot 0) */
+#define RAM_BATTLE_STATS_WORN_ITEM 0x7E5E57u /* An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP (battle_sees_enemy_hp) */
 /* The battlefield grid as built at setup, from ROM rows and the $2A23/$2B23 cell bits [256 x $1
  * bytes, by cell (Y tile * 16 + X tile)] */
 #define RAM_BATTLE_BASE_GRID 0x7E7BFDu
@@ -2562,8 +2620,15 @@
 #define RAM_BATTLE_TECH_LIST 0x7E9551u
 #define RAM_BATTLE_TECH_LIST_COUNT 129u
 #define RAM_BATTLE_TECH_LIST_STRIDE 0x01u
+/* Set to $FF at the battle's start; what reads it isn't known yet */
+#define RAM_BATTLE_MENU_MARK 0x7E95D2u
 /* The party member whose command menu is open; negative ($80 and up) none */
 #define RAM_BATTLE_MENU_MEMBER 0x7E95D5u
+/* The party members whose command menus wait to open after battle_menu_member's, in order ($FF
+ * past them); $C1:1B67 moves them up [4 x $1 bytes, by place in the queue] */
+#define RAM_BATTLE_MENU_QUEUE 0x7E95D6u
+#define RAM_BATTLE_MENU_QUEUE_COUNT 4u
+#define RAM_BATTLE_MENU_QUEUE_STRIDE 0x01u
 /* Menu page: 0 the command list (Attack/Tech/Item), 1 the tech list, 2 the item list */
 #define RAM_BATTLE_MENU_PAGE 0x7E95DBu
 /* Command list cursor per member: 0 Attack, 1 Tech, 2 Item [3 x $1 bytes, by party slot] */
@@ -2621,6 +2686,16 @@
 #define RAM_BATTLE_ENEMY_FRAME 0x7E969Cu
 #define RAM_BATTLE_ENEMY_FRAME_COUNT 8u
 #define RAM_BATTLE_ENEMY_FRAME_STRIDE 0x01u
+/* Where each combatant stood as the battle started, and the frame it started on: the party's
+ * placements, then the first five bytes of the enemies' records [11 x $5 bytes, by battle slot] */
+#define RAM_BATTLE_START_POSITIONS 0x7E96A4u
+#define RAM_BATTLE_START_POSITIONS_COUNT 11u
+#define RAM_BATTLE_START_POSITIONS_STRIDE 0x05u
+#define RAM_BATTLE_START_POSITIONS_TILE_X 0x7E96A4u /* X in 16-pixel tiles */
+#define RAM_BATTLE_START_POSITIONS_TILE_Y 0x7E96A5u /* Y in 16-pixel tiles */
+#define RAM_BATTLE_START_POSITIONS_X_OFFSET 0x7E96A6u /* X offset within the tile */
+#define RAM_BATTLE_START_POSITIONS_Y_OFFSET 0x7E96A7u /* Y offset within the tile */
+#define RAM_BATTLE_START_POSITIONS_FRAME 0x7E96A8u /* The frame its object starts on */
 /* Direction the object faces, selecting the facing's part of its frame lists [11 x $1 bytes, by
  * battle slot] */
 #define RAM_BATTLE_OBJECT_FACING 0x7E96DBu
@@ -2664,6 +2739,12 @@
 #define RAM_BATTLE_ORBIT_RADIUS 0x7E9737u
 #define RAM_BATTLE_ORBIT_RADIUS_COUNT 8u
 #define RAM_BATTLE_ORBIT_RADIUS_STRIDE 0x01u
+/* The effect period (battle_effect_period) a party member's effects start from when an action
+ * begins ($C1:4F1A reads it by battle slot: an enemy's is its orbit period, battle_orbit_period,
+ * which follows); 1 [3 x $1 bytes, by party slot] */
+#define RAM_BATTLE_EFFECT_PERIOD_START 0x7E973Fu
+#define RAM_BATTLE_EFFECT_PERIOD_START_COUNT 3u
+#define RAM_BATTLE_EFFECT_PERIOD_START_STRIDE 0x01u
 /* Frames between orbit steps [8 x $1 bytes, by enemy] */
 #define RAM_BATTLE_ORBIT_PERIOD 0x7E9742u
 #define RAM_BATTLE_ORBIT_PERIOD_COUNT 8u
@@ -2673,6 +2754,11 @@
 #define RAM_BATTLE_ENEMY_ANIMATION_LOADED 0x7E974Au
 #define RAM_BATTLE_ENEMY_ANIMATION_LOADED_COUNT 8u
 #define RAM_BATTLE_ENEMY_ANIMATION_LOADED_STRIDE 0x01u
+/* The enemy's link (battle_enemy_link) as last looked at ($C1:373B); $FF at the start [8 x $1
+ * bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_LINK_SEEN 0x7E9752u
+#define RAM_BATTLE_ENEMY_LINK_SEEN_COUNT 8u
+#define RAM_BATTLE_ENEMY_LINK_SEEN_STRIDE 0x01u
 /* Object's left screen bound (clamped to 0) [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_BOUNDS_LEFT 0x7E975Au
 #define RAM_BATTLE_BOUNDS_LEFT_COUNT 11u
@@ -2713,6 +2799,12 @@
 #define RAM_BATTLE_ENEMY_ACTS_ANYWAY 0x7E9829u
 #define RAM_BATTLE_ENEMY_ACTS_ANYWAY_COUNT 8u
 #define RAM_BATTLE_ENEMY_ACTS_ANYWAY_STRIDE 0x01u
+/* The bytes before battle_enemy_numbers: set to $FF at the start and the last to 0. The last six
+ * are the party's words when a combatant's number is read by battle slot ($C1:19E5); what reads
+ * the first ten isn't known yet [16 x $1 bytes, by byte] */
+#define RAM_BATTLE_NUMBER_MARKS 0x7E9842u
+#define RAM_BATTLE_NUMBER_MARKS_COUNT 16u
+#define RAM_BATTLE_NUMBER_MARKS_STRIDE 0x01u
 /* Each enemy's number (its entry in the enemy tables at $E4:F600 and $CC:6500) [8 x $2 bytes, by
  * enemy] */
 #define RAM_BATTLE_ENEMY_NUMBERS 0x7E9853u
@@ -2746,6 +2838,12 @@
 #define RAM_BATTLE_ORBIT_CENTER_Y 0x7E98B7u
 #define RAM_BATTLE_ORBIT_CENTER_Y_COUNT 8u
 #define RAM_BATTLE_ORBIT_CENTER_Y_STRIDE 0x01u
+/* The effect steps (battle_effect_steps) a party member's effects start from when an action
+ * begins ($C1:4F1A reads it by battle slot: an enemy's is its orbit's radius step,
+ * battle_orbit_radius_step, which follows); 2 [3 x $1 bytes, by party slot] */
+#define RAM_BATTLE_EFFECT_STEPS_START 0x7E98BFu
+#define RAM_BATTLE_EFFECT_STEPS_START_COUNT 3u
+#define RAM_BATTLE_EFFECT_STEPS_START_STRIDE 0x01u
 /* Added to the radius at each orbit step [8 x $1 bytes, by enemy] */
 #define RAM_BATTLE_ORBIT_RADIUS_STEP 0x7E98C2u
 #define RAM_BATTLE_ORBIT_RADIUS_STEP_COUNT 8u
@@ -2758,9 +2856,10 @@
 #define RAM_BATTLE_ENEMY_KIND_COUNTS 0x7E98CCu
 #define RAM_BATTLE_ENEMY_KIND_COUNTS_COUNT 3u
 #define RAM_BATTLE_ENEMY_KIND_COUNTS_STRIDE 0x01u
-/* The distinct enemy numbers present (high byte negative: none) [3 x $2 bytes, by enemy kind] */
+/* The distinct enemy numbers present (high byte negative: none); the window lists the first
+ * three, and the fourth is only ever cleared at the start [4 x $2 bytes, by enemy kind] */
 #define RAM_BATTLE_ENEMY_KINDS 0x7E98FFu
-#define RAM_BATTLE_ENEMY_KINDS_COUNT 3u
+#define RAM_BATTLE_ENEMY_KINDS_COUNT 4u
 #define RAM_BATTLE_ENEMY_KINDS_STRIDE 0x02u
 /* Frame whose graphics the object's tile buffer holds; building the same frame again is skipped
  * [11 x $1 bytes, by battle slot] */
@@ -2770,6 +2869,16 @@
 /* Counts object graphics built this frame; while set the next combatants hold their frame a
  * frame */
 #define RAM_BATTLE_GRAPHICS_BUILT 0x7E9912u
+/* Each member's command cursor as the battle remembers it (from and back to
+ * battle_remembered_cursors while the setting is on) [3 x $1 bytes, by party slot] */
+#define RAM_BATTLE_REMEMBERED_COMMAND 0x7E9916u
+#define RAM_BATTLE_REMEMBERED_COMMAND_COUNT 3u
+#define RAM_BATTLE_REMEMBERED_COMMAND_STRIDE 0x01u
+/* The six bytes before battle_item_cursor_shown, set to $FF with it at the start; what reads
+ * them isn't known yet [6 x $1 bytes, by byte] */
+#define RAM_BATTLE_LIST_CURSORS_SHOWN 0x7E9919u
+#define RAM_BATTLE_LIST_CURSORS_SHOWN_COUNT 6u
+#define RAM_BATTLE_LIST_CURSORS_SHOWN_STRIDE 0x01u
 /* The item cursor row the list cursor tiles were last drawn at */
 #define RAM_BATTLE_ITEM_CURSOR_SHOWN 0x7E991Fu
 /* The item list top the scroll arrow tiles were last drawn for */
@@ -2793,6 +2902,11 @@
 #define RAM_BATTLE_OBJECT_PALETTE 0x7E993Cu
 #define RAM_BATTLE_OBJECT_PALETTE_COUNT 11u
 #define RAM_BATTLE_OBJECT_PALETTE_STRIDE 0x01u
+/* Two sets of four sprite colors the battle puts back into sprite palettes 0 and 4 ($C1:5B05) [8
+ * x $2 bytes, by color] */
+#define RAM_BATTLE_KEPT_SPRITE_COLORS 0x7E999Fu
+#define RAM_BATTLE_KEPT_SPRITE_COLORS_COUNT 8u
+#define RAM_BATTLE_KEPT_SPRITE_COLORS_STRIDE 0x02u
 /* Attribute bits ORed with the palette into the object's sprites [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS 0x7E99B5u
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS_COUNT 11u
@@ -2805,6 +2919,9 @@
 #define RAM_BATTLE_LR_HELD 0x7E99CFu
 /* Cleared with battle_lr_held when L and R are let go */
 #define RAM_BATTLE_LR_STATE 0x7E99D1u
+/* A rule an enemy in the fight brings into the battle (the enemies' rules at $E1:DE00), with its
+ * parameter in the next byte (battle_background_cycle for the color cycles); 0 none */
+#define RAM_BATTLE_ENEMY_RULE 0x7E99D2u
 /* The rotated background colors: the palette in the high nibble from the color in the low one,
  * and color 1-15 of every palette after it */
 #define RAM_BATTLE_BACKGROUND_CYCLE 0x7E99D3u
@@ -2813,8 +2930,12 @@
 #define RAM_BATTLE_ACTION_QUEUE 0x7E99D4u
 #define RAM_BATTLE_ACTION_QUEUE_COUNT 3u
 #define RAM_BATTLE_ACTION_QUEUE_STRIDE 0x01u
+/* The byte after battle_action_queue, $FF at the start; what reads it isn't known yet */
+#define RAM_BATTLE_ACTION_QUEUE_END 0x7E99D7u
 /* How many actions battle_action_queue holds */
 #define RAM_BATTLE_ACTION_QUEUE_LENGTH 0x7E99D8u
+/* The battle slot of the enemy $C1:305C looks at next, going round the enemies from 3 */
+#define RAM_BATTLE_NEXT_ENEMY_CHECKED 0x7E99D9u
 /* Party member's remaining wait before it can act (copied from its timer counter each pass); its
  * gauge shows the part that has passed, highlighted while nonzero [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_GAUGE_WAIT 0x7E99DDu
@@ -2823,6 +2944,9 @@
 /* Nonzero while the combatants' timers are held: a pass only drops the actions of members that
  * can't act */
 #define RAM_BATTLE_TIMERS_HELD 0x7E99E0u
+/* Nonzero ($40) in wait mode: opening a tech or item list holds the combatants' timers (it is
+ * copied into battle_timers_held) */
+#define RAM_BATTLE_LISTS_HOLD_TIMERS 0x7E99E1u
 /* Set to upload the window frames tilemap ($0B40) at the next vblank */
 #define RAM_BATTLE_FRAMES_UPLOAD_REQUEST 0x7E99E2u
 /* (tile, attribute) pairs the tech page's list is laid out in and copied from into the menu
@@ -2830,6 +2954,11 @@
 #define RAM_BATTLE_MENU_LIST_TILES 0x7E99E3u
 #define RAM_BATTLE_MENU_LIST_TILES_COUNT 640u
 #define RAM_BATTLE_MENU_LIST_TILES_STRIDE 0x02u
+/* The attributes of battle_menu_list_tiles' tiles, the second byte of each pair [640 x $2 bytes,
+ * by tile] */
+#define RAM_BATTLE_MENU_LIST_ATTRIBUTES 0x7E99E4u
+#define RAM_BATTLE_MENU_LIST_ATTRIBUTES_COUNT 640u
+#define RAM_BATTLE_MENU_LIST_ATTRIBUTES_STRIDE 0x02u
 /* Copy of the record of the tech under the tech list cursor ($FF when none): id at +0, costs at
  * +3, +5 and +6, partners at +4 [7 x $1 bytes, by byte of the tech record] */
 #define RAM_BATTLE_SELECTED_TECH 0x7E9EE3u
@@ -2858,6 +2987,14 @@
 #define RAM_BATTLE_TRIPLE_TECHS 0x7E9F28u
 #define RAM_BATTLE_TRIPLE_TECHS_COUNT 3u
 #define RAM_BATTLE_TRIPLE_TECHS_STRIDE 0x01u
+/* Nonzero when a party member wears an item that lets the party see an enemy's HP; the cursor on
+ * an enemy then shows it ($C1:19F7) */
+#define RAM_BATTLE_SEES_ENEMY_HP 0x7E9F34u
+/* The attribute bits a combatant's sprites go back to (battle_object_attribute_bits, $C1:7592)
+ * [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_ATTRIBUTE_BITS_START 0x7E9F3Bu
+#define RAM_BATTLE_ATTRIBUTE_BITS_START_COUNT 11u
+#define RAM_BATTLE_ATTRIBUTE_BITS_START_STRIDE 0x01u
 /* Priority bits of the four cursor sprites and the shadows; bit 3 picks the animated color at
  * $233C or $23BC */
 #define RAM_BATTLE_CURSOR_PRIORITY 0x7E9F46u
@@ -2875,6 +3012,12 @@
 #define RAM_BATTLE_OBJECT_HIDDEN_STRIDE 0x01u
 /* The enemy (battle slot less 3) the formation keeps its places around */
 #define RAM_BATTLE_FORMATION_LEADER 0x7EA002u
+/* Nonzero when effects aimed at the combatant go to its cursor point (its position plus
+ * battle_cursor_offset) rather than its position ($C1:5B4D); counted up for an enemy with flag
+ * bit 5 in its header [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_AIM_AT_CURSOR 0x7EA003u
+#define RAM_BATTLE_AIM_AT_CURSOR_COUNT 11u
+#define RAM_BATTLE_AIM_AT_CURSOR_STRIDE 0x01u
 /* Pointer offset (channel * 4) of the running channel */
 #define RAM_BATTLE_SCRIPT_OFFSET 0x7EA00Eu
 /* Set by an opcode handler to run the channel's next opcode in the same frame */
@@ -2912,13 +3055,34 @@
 /* Nonzero to rotate the background palette colors battle_background_cycle names, with the sprite
  * colors at $2382 */
 #define RAM_BATTLE_BACKGROUND_CYCLE_ON 0x7EA08Bu
+/* Nonzero for an enemy the battle's rule (battle_enemy_rule) applies to: flag bit 2 of its
+ * header [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_RULE_APPLIES 0x7EA08Cu
+#define RAM_BATTLE_RULE_APPLIES_COUNT 11u
+#define RAM_BATTLE_RULE_APPLIES_STRIDE 0x01u
 /* Set by any button in a demo battle; the brightness then counts down to the exit */
 #define RAM_BATTLE_DEMO_EXITING 0x7EA097u
+/* Bit 0: the party can't run from this battle (an enemy in it forbids it); the run away and its
+ * prompt test it ($C1:12BC, $C1:12ED) */
+#define RAM_BATTLE_ESCAPE_BLOCKED 0x7EA0A7u
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
  * techs naming it, are dimmed [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_MEMBER_DISABLED 0x7EA0D1u
 #define RAM_BATTLE_MEMBER_DISABLED_COUNT 3u
 #define RAM_BATTLE_MEMBER_DISABLED_STRIDE 0x01u
+/* Nonzero ($40) when the settings have the battle remember each member's command cursor */
+#define RAM_BATTLE_REMEMBERS_COMMANDS 0x7EA0D4u
+/* Nonzero ($80) when the settings have the battle remember each member's tech list and the item
+ * list cursors */
+#define RAM_BATTLE_REMEMBERS_LISTS 0x7EA0D5u
+/* The tech under each member's tech list cursor as the battle remembers it [3 x $1 bytes, by
+ * party slot] */
+#define RAM_BATTLE_REMEMBERED_TECH 0x7EA0D8u
+#define RAM_BATTLE_REMEMBERED_TECH_COUNT 3u
+#define RAM_BATTLE_REMEMBERED_TECH_STRIDE 0x01u
+/* Bit 7 set when the settings show a tech's or item's description as the list cursor meets it
+ * ($C1:0E8D) */
+#define RAM_BATTLE_SHOWS_DESCRIPTIONS 0x7EA0DBu
 /* Nonzero for combatants whose numbers rise by the second table [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_NUMBER_RISE_ALT 0x7EA0DCu
 #define RAM_BATTLE_NUMBER_RISE_ALT_COUNT 11u
@@ -3204,6 +3368,11 @@
 #define RAM_BATTLE_EFFECT_ANGLE_USED 0x7EA5AAu
 #define RAM_BATTLE_EFFECT_ANGLE_USED_COUNT 19u
 #define RAM_BATTLE_EFFECT_ANGLE_USED_STRIDE 0x01u
+/* $C0 for every combatant at the start, $80 for an enemy drawn on top (flag bit 7 of its
+ * header); what reads it isn't known yet [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_SLOT_DRAW_BITS 0x7EA5C2u
+#define RAM_BATTLE_SLOT_DRAW_BITS_COUNT 11u
+#define RAM_BATTLE_SLOT_DRAW_BITS_STRIDE 0x01u
 /* Set when the object gets a topmost draw-list entry as well ($80 for enemies with flag bit 7 of
  * $E4:F604) [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_OBJECT_EXTRA_DRAW_ON 0x7EA5CDu
@@ -3252,6 +3421,8 @@
 #define RAM_BATTLE_MENU_SLOT_MEMBERS 0x7EA6D9u
 #define RAM_BATTLE_MENU_SLOT_MEMBERS_COUNT 3u
 #define RAM_BATTLE_MENU_SLOT_MEMBERS_STRIDE 0x01u
+/* The byte after battle_menu_slot_members, $FF at the start; what reads it isn't known yet */
+#define RAM_BATTLE_MENU_SLOT_MARK 0x7EA6DCu
 /* The menu slot whose window is current (its member goes to battle_menu_member) */
 #define RAM_BATTLE_MENU_SLOT 0x7EA6DDu
 /* The menu slot the window was last rebuilt for; the command page rebuilds the window when
@@ -3266,6 +3437,14 @@
 #define RAM_BATTLE_MENU_TILEMAP_STRIDE 0x02u
 #define RAM_BATTLE_MENU_TILEMAP_TILE 0x7EA6E1u /* Tile number ($FF blank) */
 #define RAM_BATTLE_MENU_TILEMAP_ATTRIBUTES 0x7EA6E2u /* Tile attributes ($29 normal, $2D dimmed) */
+/* Each member's tech list cursor row as the battle remembers it [3 x $1 bytes, by party slot] */
+#define RAM_BATTLE_REMEMBERED_TECH_ROW 0x7EA863u
+#define RAM_BATTLE_REMEMBERED_TECH_ROW_COUNT 3u
+#define RAM_BATTLE_REMEMBERED_TECH_ROW_STRIDE 0x01u
+/* Each member's tech list scroll as the battle remembers it [3 x $1 bytes, by party slot] */
+#define RAM_BATTLE_REMEMBERED_TECH_SCROLL 0x7EA866u
+#define RAM_BATTLE_REMEMBERED_TECH_SCROLL_COUNT 3u
+#define RAM_BATTLE_REMEMBERED_TECH_SCROLL_STRIDE 0x01u
 /* Set to reload the window frames tilemap from $D1:5A50 when the tech page is drawn */
 #define RAM_BATTLE_FRAMES_RELOAD_REQUEST 0x7EA86Au
 /* Handler of the effect slot ($CF:F01E table for the first 11, $CF:F02E for the rest) [19 x $1
@@ -3400,6 +3579,11 @@
 #define RAM_BATTLE_ANCHOR_FACING_RECORD 0x7EAB4Fu
 #define RAM_BATTLE_ANCHOR_FACING_RECORD_COUNT 8u
 #define RAM_BATTLE_ANCHOR_FACING_RECORD_STRIDE 0x01u
+/* The attribute bits an enemy's effects' sprites go back to (battle_effect_attribute_bits,
+ * $C1:75AD) [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_EFFECT_ATTRIBUTE_BITS_START 0x7EAB57u
+#define RAM_BATTLE_EFFECT_ATTRIBUTE_BITS_START_COUNT 8u
+#define RAM_BATTLE_EFFECT_ATTRIBUTE_BITS_START_STRIDE 0x01u
 /* Attribute bits (palette, priority) of each effect's sprites [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_ATTRIBUTE_BITS 0x7EAB5Fu
 #define RAM_BATTLE_EFFECT_ATTRIBUTE_BITS_COUNT 8u
