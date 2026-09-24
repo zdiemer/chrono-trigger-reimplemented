@@ -5,8 +5,6 @@
 
 game/battle/animation.c                      0.455
 game/battle/buffers.c                        0.548
-game/battle/display.c                        0.285
-game/battle/frame.c                          0.234
 game/battle/gauges.c                         0.593
 game/battle/menu_window.c                    0.481
 game/battle/numbers.c                        0.498

@@ -16,7 +16,6 @@ void battle_irq_wait_hblank_loop(Snes *s);
 void battle_wait_graphics_loaded_loop(Snes *s);
 
 /* battle/buffers.c */
-void battle_clear_oam_buffer(Snes *s);
 void battle_mark_object_grid(Snes *s);
 void battle_reset_0b40_table(Snes *s);
 void battle_clear_damage(Snes *s);
@@ -24,13 +23,27 @@ void battle_clear_numbers(Snes *s);
 void battle_reset_object_state(Snes *s);
 
 /* battle/display.c */
+void battle_setup_display(Snes *s);
+void battle_setup_window_hdma(Snes *s);
+void battle_load_graphics(Snes *s);
+void battle_nmi_alternate(Snes *s);
+
+/* battle/scroll.c */
+void battle_update_scroll_dispatch(Snes *s);
 void battle_update_scroll_tables(Snes *s);
 void battle_update_scroll_tables_bg3_moving(Snes *s);
+void battle_update_screen_shake(Snes *s);
+
+/* battle/uploads.c */
 void battle_upload_palette(Snes *s);
-void battle_setup_display(Snes *s);
-void battle_load_graphics(Snes *s);
+void battle_vram_transfer(Snes *s);
+void battle_flush_vram_transfer(Snes *s);
+void battle_upload_alternating_vram(Snes *s);
 void battle_upload_tile_rows(Snes *s);
-void battle_nmi_alternate(Snes *s);
+void battle_upload_vram(Snes *s);
+void battle_request_window_rows(Snes *s);
+void battle_request_saved_window_rows(Snes *s);
+void battle_request_lower_window_rows(Snes *s);
 
 /* battle/stats.c */
 void battle_update_low_hp_flag(Snes *s);
@@ -84,22 +97,13 @@ void battle_update_animation_positions(Snes *s);
 
 /* battle/frame.c */
 void battle_frame_dispatch(Snes *s);
-void battle_flush_vram_transfer(Snes *s);
-void battle_step_window_slide(Snes *s);
-void battle_update_scroll_dispatch(Snes *s);
-void battle_step_cdc9(Snes *s);
 void battle_frame_work(Snes *s);
-void battle_upload_vram(Snes *s);
-void battle_request_window_rows(Snes *s);
-void battle_request_saved_window_rows(Snes *s);
-void battle_request_lower_window_rows(Snes *s);
+void battle_step_window_slide(Snes *s);
+void battle_step_gradient_phase(Snes *s);
+void battle_clear_oam_buffer(Snes *s);
 void battle_frame_update(Snes *s);
-void battle_vram_transfer(Snes *s);
-void battle_upload_alternating_vram(Snes *s);
-void battle_update_screen_shake(Snes *s);
-void battle_setup_window_hdma(Snes *s);
-void battle_call_c00002(Snes *s);
 void battle_frame_wait_tail(Snes *s);
+void battle_scroll_map_layers(Snes *s);
 
 /* battle/nmi.c */
 void battle_nmi(Snes *s);

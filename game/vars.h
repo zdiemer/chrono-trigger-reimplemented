@@ -4084,6 +4084,11 @@ void set_battle_graphics_upload_request(GameState *g, uint8_t v);
 uint8_t battle_effects_running(const GameState *g);
 void set_battle_effects_running(GameState *g, uint8_t v);
 
+/* Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled
+ * reads it: docs/TODO.md) */
+uint8_t battle_block_uploads_made(const GameState *g);
+void set_battle_block_uploads_made(GameState *g, uint8_t v);
+
 /* Nonzero to leave the OAM buffer as it is: it is neither cleared nor drawn into */
 uint8_t battle_sprites_frozen(const GameState *g);
 void set_battle_sprites_frozen(GameState *g, uint8_t v);
@@ -5180,6 +5185,13 @@ void set_battle_combo_pairs(GameState *g, unsigned member, uint8_t v);
 uint8_t battle_acting_for_itself(const GameState *g);
 void set_battle_acting_for_itself(GameState *g, uint8_t v);
 
+enum { BATTLE_MESSAGE_TILES_COUNT = 2 };   /* by half (the first goes to VRAM $5800 on odd frames, the second to $5980 on even ones) */
+/* A battle message's text, drawn as tiles, in two halves the vblank sends to VRAM in turn while
+ * the message shows [512 bytes, one at a time] */
+enum { BATTLE_MESSAGE_TILES_BYTES = 512 };
+uint8_t battle_message_tiles_byte(const GameState *g, unsigned i, unsigned at);
+void set_battle_message_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
 /* Screen brightness the battle's handlers set each frame (halved while paused); counted down to
  * 0 when a demo battle exits */
 uint8_t battle_brightness(const GameState *g);
@@ -5247,6 +5259,13 @@ enum { BATTLE_WINDOW_REGISTERS_COUNT = 5 };   /* by window register (BG1/2, BG3/
 uint8_t battle_window_registers(const GameState *g, unsigned i);
 void set_battle_window_registers(GameState *g, unsigned i, uint8_t v);
 
+/* The fixed color's setting for the lines below the window's split, as the color math takes it
+ * (bits 5-7 the channels, 0-4 the intensity); the frame work hands it to the per-line effects
+ * each frame (battle_split_line_values' sixth word), and the animation scripts brighten and
+ * darken it ($CD:3044) */
+uint8_t battle_fixed_color(const GameState *g);
+void set_battle_fixed_color(GameState *g, uint8_t v);
+
 enum { BATTLE_LINE_TABLES_COUNT = 7 };   /* by per-line effect (0 BG maps, 1-3 BG1-BG3 scroll, 4 screens, 5 color math, 6 mode) */
 /* The indirect tables of the battle's seven per-line effects [45 bytes, one at a time] */
 enum { BATTLE_LINE_TABLES_BYTES = 45 };
@@ -5297,6 +5316,12 @@ void set_battle_alternate_request(GameState *g, uint8_t v);
 /* The value of battle_alternate_request the IRQ last applied */
 uint8_t battle_alternate_latched(const GameState *g);
 void set_battle_alternate_latched(GameState *g, uint8_t v);
+
+/* Set while the player holds the button that flips battle_alternate_request (their sixth
+ * assignment, bit 0 of the remapped held buttons), so that a press flips it once; cleared when
+ * it is let go */
+uint8_t battle_alternate_toggle_held(const GameState *g);
+void set_battle_alternate_toggle_held(GameState *g, uint8_t v);
 
 /* Set to make the IRQ apply the alternating-frame setting again ($CE:EE6E); cleared once it has */
 uint8_t battle_alternate_apply(const GameState *g);
@@ -5362,6 +5387,11 @@ void set_battle_screen_swing_position(GameState *g, unsigned channel, uint32_t v
 /* Which scroll table routine runs each frame (through $CD:06BC) */
 uint8_t battle_scroll_mode(const GameState *g);
 void set_battle_scroll_mode(GameState *g, uint8_t v);
+
+/* Nonzero while the display setup loads a step of the battle's graphics each frame
+ * (battle_load_graphics) */
+uint8_t battle_graphics_load_in_vblank(const GameState *g);
+void set_battle_graphics_load_in_vblank(GameState *g, uint8_t v);
 
 enum { BATTLE_SAVED_POSITIONS_COUNT = 12 };   /* by position byte * 2 + slot */
 /* The three animation positions, saved by the screen script into one of two interleaved slots */
@@ -5456,17 +5486,28 @@ void set_battle_palette_slot_presets_fade_level(GameState *g, unsigned slot, uin
 /* Level the fade moves toward */
 uint8_t battle_palette_slot_presets_fade_target(const GameState *g, unsigned slot);
 void set_battle_palette_slot_presets_fade_target(GameState *g, unsigned slot, uint8_t v);
+/* The frame table a palette animation of frames reads, as palette_animations' is: copied with
+ * the rest, though a fade doesn't use it */
+uint32_t battle_palette_slot_presets_frame_table(const GameState *g, unsigned slot);
+void set_battle_palette_slot_presets_frame_table(GameState *g, unsigned slot, uint32_t v);
 
 /* Requests a preset palette slot copy: bit 7 slot 10, bit 0 slots 8-9; each bit cleared once
  * copied */
 uint8_t battle_palette_preset_request(const GameState *g);
 void set_battle_palette_preset_request(GameState *g, uint8_t v);
 
+/* Set to have the frame wait put the battlefield back once the effects stop ($CD:0453: the
+ * background's graphics sent back from $7F:5080, the scroll steady again); cleared when it has */
+uint8_t battle_background_restore_request(const GameState *g);
+void set_battle_background_restore_request(GameState *g, uint8_t v);
+
 /* Frames left before a timed battle message closes */
 uint8_t battle_message_frames(const GameState *g);
 void set_battle_message_frames(GameState *g, uint8_t v);
 
-/* $10 to copy $7E:B400/$B600 to VRAM $5800/$5980 on alternating frames instead of clearing it */
+/* $10 while a battle message shows: its tiles (battle_message_tiles) go to VRAM a half a frame
+ * instead of that VRAM being cleared; the line handler adds it to the alternate arrangement it
+ * applies */
 uint8_t battle_vram_copy_mode(const GameState *g);
 void set_battle_vram_copy_mode(GameState *g, uint8_t v);
 
@@ -5508,6 +5549,21 @@ void set_battle_block_uploaded_source(GameState *g, uint16_t v);
 uint8_t battle_setup_flags_copy(const GameState *g);
 void set_battle_setup_flags_copy(GameState *g, uint8_t v);
 
+/* What an animation script sets battle_sprites_frozen to; the frame work copies it over each
+ * frame */
+uint8_t battle_sprites_frozen_setting(const GameState *g);
+void set_battle_sprites_frozen_setting(GameState *g, uint8_t v);
+
+/* Set by an animation script to keep the sprite table as it is: the frame work doesn't hide the
+ * sprites before the objects draw */
+uint8_t battle_keep_sprites(const GameState *g);
+void set_battle_keep_sprites(GameState *g, uint8_t v);
+
+/* Set by an animation script to have the frame work not wait for line 64 before the animation
+ * scripts' frame while effects run */
+uint8_t battle_effect_line_wait_off(const GameState *g);
+void set_battle_effect_line_wait_off(GameState *g, uint8_t v);
+
 enum { BATTLE_SAVED_PALETTE_TYPES_COUNT = 8 };   /* by palette animation slot */
 /* Types of palette animation slots 0-7, saved while palette animation is paused */
 uint8_t battle_saved_palette_types(const GameState *g, unsigned slot);
@@ -5547,6 +5603,15 @@ void set_battle_effect_graphics_id(GameState *g, uint8_t v);
  * another meanwhile */
 uint8_t battle_effect_graphics_loading(const GameState *g);
 void set_battle_effect_graphics_loading(GameState *g, uint8_t v);
+
+/* Set by an animation script to have the frame wait load an effect's graphics
+ * (battle_effect_graphics_effect); cleared once the load starts */
+uint8_t battle_effect_graphics_wanted(const GameState *g);
+void set_battle_effect_graphics_wanted(GameState *g, uint8_t v);
+
+/* The effect whose graphics battle_effect_graphics_wanted asks for */
+uint8_t battle_effect_graphics_effect(const GameState *g);
+void set_battle_effect_graphics_effect(GameState *g, uint8_t v);
 
 /* Set while background rows 2-4 are moved back to their place with their starting colors
  * ($D1:E984); moving them up clears it */
@@ -5593,9 +5658,19 @@ void set_battle_frame_work_reduced(GameState *g, uint8_t v);
 uint8_t battle_gradient_reversed(const GameState *g);
 void set_battle_gradient_reversed(GameState *g, uint8_t v);
 
+/* Counted up while a routine queues a VRAM transfer and waits for the one before it to go
+ * ($CD:3ED2); the frame wait's tail leaves the background and effects' loads alone meanwhile */
+uint8_t battle_vram_request_busy(const GameState *g);
+void set_battle_vram_request_busy(GameState *g, uint8_t v);
+
 /* Set once palette animation has been paused for $CFFF */
 uint8_t battle_palette_paused(const GameState *g);
 void set_battle_palette_paused(GameState *g, uint8_t v);
+
+/* The HP gradient steps on the frames whose count has none of these bits set (0 every frame, 1
+ * every other) */
+uint8_t battle_gradient_frame_mask(const GameState *g);
+void set_battle_gradient_frame_mask(GameState *g, uint8_t v);
 
 /* Counted each frame; bit 0 picks VRAM $5800 or $5980 for the alternating clear or copy */
 uint8_t battle_vram_alternate(const GameState *g);

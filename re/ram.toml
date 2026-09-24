@@ -9268,6 +9268,13 @@ meaning = "Shadows of the window settings written each frame"
 source = "game/battle/frame.c battle_frame_work $CD:088D"
 
 [[var]]
+name = "battle_fixed_color"
+addr = "7E:C866"
+subsystem = "battle"
+meaning = "The fixed color's setting for the lines below the window's split, as the color math takes it (bits 5-7 the channels, 0-4 the intensity); the frame work hands it to the per-line effects each frame (battle_split_line_values' sixth word), and the animation scripts brighten and darken it ($CD:3044)"
+source = "game/battle/frame.c battle_frame_work $CD:088D"
+
+[[var]]
 name = "battle_line_effects_on"
 addr = "7E:CA1D"
 subsystem = "battle"
@@ -9303,6 +9310,13 @@ meaning = "Alternating-frame flag (0 or 1); the IRQ applies it when it changes"
 source = "game/battle/frame.c battle_frame_work $CD:088D; game/battle/nmi.c battle_apply_alternate_frame $D1:FE4C"
 
 [[var]]
+name = "battle_alternate_toggle_held"
+addr = "7E:CA23"
+subsystem = "battle"
+meaning = "Set while the player holds the button that flips battle_alternate_request (their sixth assignment, bit 0 of the remapped held buttons), so that a press flips it once; cleared when it is let go"
+source = "game/battle/frame.c battle_frame_work $CD:088D"
+
+[[var]]
 name = "battle_alternate_latched"
 addr = "7E:CA22"
 subsystem = "battle"
@@ -9322,6 +9336,27 @@ addr = "7E:CE0F"
 subsystem = "battle"
 meaning = "Nonzero to have the frame work only upload the palette and flush the queued VRAM transfer before the window registers (no block uploads, no battle work)"
 source = "game/battle/frame.c battle_frame_work $CD:088D"
+
+[[var]]
+name = "battle_vram_request_busy"
+addr = "7E:CE11"
+subsystem = "battle"
+meaning = "Counted up while a routine queues a VRAM transfer and waits for the one before it to go ($CD:3ED2); the frame wait's tail leaves the background and effects' loads alone meanwhile"
+source = "game/battle/frame.c battle_frame_wait_tail $CD:04AA"
+
+[[var]]
+name = "battle_background_restore_request"
+addr = "7E:CCEA"
+subsystem = "battle"
+meaning = "Set to have the frame wait put the battlefield back once the effects stop ($CD:0453: the background's graphics sent back from $7F:5080, the scroll steady again); cleared when it has"
+source = "game/battle/frame.c battle_frame_wait_tail $CD:04AA"
+
+[[var]]
+name = "battle_graphics_load_in_vblank"
+addr = "7E:CAD3"
+subsystem = "battle"
+meaning = "Nonzero while the display setup loads a step of the battle's graphics each frame (battle_load_graphics)"
+source = "game/battle/display.c battle_setup_display $CD:09F1"
 
 [[var]]
 name = "battle_vram_request"
@@ -9391,6 +9426,13 @@ size = 2
 subsystem = "battle"
 meaning = "Source of the last block upload"
 source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+
+[[var]]
+name = "battle_block_uploads_made"
+addr = "7E:A01F"
+subsystem = "battle"
+meaning = "Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled reads it: docs/TODO.md)"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
 [[var]]
 name = "battle_vram_alternate"
@@ -9510,6 +9552,11 @@ source = "game/battle/frame.c battle_update_screen_shake $CD:0B51; game/battle/s
   name = "fade_target"
   offset = 8
   meaning = "Level the fade moves toward"
+  [[var.field]]
+  name = "frame_table"
+  offset = 9
+  size = 3
+  meaning = "The frame table a palette animation of frames reads, as palette_animations' is: copied with the rest, though a fade doesn't use it"
 
 [[var]]
 name = "battle_palette_preset_request"
@@ -9522,8 +9569,19 @@ source = "game/battle/frame.c battle_update_screen_shake $CD:0B51"
 name = "battle_vram_copy_mode"
 addr = "7E:CCEC"
 subsystem = "battle"
-meaning = "$10 to copy $7E:B400/$B600 to VRAM $5800/$5980 on alternating frames instead of clearing it"
-source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+meaning = "$10 while a battle message shows: its tiles (battle_message_tiles) go to VRAM a half a frame instead of that VRAM being cleared; the line handler adds it to the alternate arrangement it applies"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607; game/battle/nmi.c battle_apply_alternate_frame $D1:FE4C; $CD:027F sets it"
+
+[[var]]
+name = "battle_message_tiles"
+addr = "7E:B400"
+count = 2
+stride = 0x200
+size = 0x200
+index = "half (the first goes to VRAM $5800 on odd frames, the second to $5980 on even ones)"
+subsystem = "battle"
+meaning = "A battle message's text, drawn as tiles, in two halves the vblank sends to VRAM in turn while the message shows"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
 [[var]]
 name = "battle_repeat_buttons"
@@ -9686,6 +9744,20 @@ meaning = "Set while an effect's graphics load, which waits for frames; the fram
 source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3; game/battle/frame.c battle_frame_wait_tail $CD:04AA"
 
 [[var]]
+name = "battle_effect_graphics_wanted"
+addr = "7E:CD44"
+subsystem = "battle"
+meaning = "Set by an animation script to have the frame wait load an effect's graphics (battle_effect_graphics_effect); cleared once the load starts"
+source = "game/battle/frame.c battle_frame_wait_tail $CD:04AA; $CD:180A sets it"
+
+[[var]]
+name = "battle_effect_graphics_effect"
+addr = "7E:CD45"
+subsystem = "battle"
+meaning = "The effect whose graphics battle_effect_graphics_wanted asks for"
+source = "game/battle/frame.c battle_frame_wait_tail $CD:04AA; $CD:180A sets it"
+
+[[var]]
 name = "battle_palette_rows_moved"
 addr = "7E:CDC8"
 subsystem = "battle"
@@ -9698,6 +9770,13 @@ addr = "7E:CDC9"
 subsystem = "battle"
 meaning = "Rotation phase of the HP gradient's rows (13 down to 0 and around), which picks each row's rotation"
 source = "game/battle/screen_gradient.c battle_find_gradient_phase $D1:EA01, battle_step_hp_gradient $D1:EA4B; game/battle/frame.c battle_step_cdc9 $CD:0ADE"
+
+[[var]]
+name = "battle_gradient_frame_mask"
+addr = "7E:CE13"
+subsystem = "battle"
+meaning = "The HP gradient steps on the frames whose count has none of these bits set (0 every frame, 1 every other)"
+source = "game/battle/frame.c battle_frame_work $CD:088D"
 
 [[var]]
 name = "battle_gradient_colors"
@@ -10539,6 +10618,27 @@ meaning = "Nonzero to leave the OAM buffer as it is: it is neither cleared nor d
 source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/frame.c battle_frame_work $CD:088D"
 
 # ---- drawing the battle objects (bank CF) ------------------------------------------
+
+[[var]]
+name = "battle_sprites_frozen_setting"
+addr = "7E:CD29"
+subsystem = "battle"
+meaning = "What an animation script sets battle_sprites_frozen to; the frame work copies it over each frame"
+source = "game/battle/frame.c battle_frame_work $CD:088D; $CD:1918 sets it"
+
+[[var]]
+name = "battle_keep_sprites"
+addr = "7E:CD2D"
+subsystem = "battle"
+meaning = "Set by an animation script to keep the sprite table as it is: the frame work doesn't hide the sprites before the objects draw"
+source = "game/battle/frame.c battle_frame_work $CD:088D; $CD:190D sets it"
+
+[[var]]
+name = "battle_effect_line_wait_off"
+addr = "7E:CD2E"
+subsystem = "battle"
+meaning = "Set by an animation script to have the frame work not wait for line 64 before the animation scripts' frame while effects run"
+source = "game/battle/frame.c battle_frame_work $CD:088D; $CD:1907 sets it"
 
 [[var]]
 name = "battle_oam_x_high_bits"

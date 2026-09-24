@@ -176,13 +176,14 @@ add_library(ct_game STATIC
   game/battle/screen_setup.c
   game/battle/screen_window.c
   game/battle/scripts.c
+  game/battle/scroll.c
   game/battle/setup.c
   game/battle/sound.c
-  game/battle/sprite_table.c
   game/battle/sprites.c
   game/battle/draw_objects.c
   game/battle/object_motion.c
   game/battle/tiles.c
+  game/battle/uploads.c
   game/battle/timers.c
   game/battle/wait.c
   game/battle/window.c)

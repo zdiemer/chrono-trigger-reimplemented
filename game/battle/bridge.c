@@ -3,6 +3,7 @@
 #include "battle/bridge.h"
 
 #include "battle/battle.h"
+#include "port/native.h"
 
 /* The machine's state a guard or a call's check looks at. */
 static uint8_t data_bank(const Snes *s) { return s->cpu.db; }
@@ -38,6 +39,30 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     uint8_t bank = data_bank(s);
     m_jsl_dc(s, site, routine, dont_care);
     return battle_back(s, site + BATTLE_JSL_SIZE, page, bank);
+}
+
+static bool run_entry(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), bool long_call)
+{
+    uint16_t page = m_direct_page(s), stack = s->cpu.s;
+    uint32_t returns_to = site + (long_call ? BATTLE_JSL_SIZE : BATTLE_JSR_SIZE);
+    if (long_call)
+        m_push8(s, (uint8_t)(site >> 16));
+    m_push16(s, (uint16_t)(returns_to - 1));
+    s->cpu.pb = (uint8_t)(routine >> 16);
+    s->cpu.pc = (uint16_t)routine;
+    NATIVE_TIME_AS(s, routine, entry(s));
+    bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
+    return returned && battle_back(s, returns_to, page, data_bank(s));
+}
+
+bool battle_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, entry, false);
+}
+
+bool battle_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, entry, true);
 }
 
 bool battle_widths_m8_x16(const Snes *s) { return !s->cpu.e && m_m8(s) && !m_x8(s); }

@@ -2886,6 +2886,9 @@
 #define RAM_BATTLE_GRAPHICS_UPLOAD_REQUEST 0x7EA012u
 /* Set while the timed effect slots run; the enemies' orbits run instead otherwise */
 #define RAM_BATTLE_EFFECTS_RUNNING 0x7EA013u
+/* Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled
+ * reads it: docs/TODO.md) */
+#define RAM_BATTLE_BLOCK_UPLOADS_MADE 0x7EA01Fu
 /* Nonzero to leave the OAM buffer as it is: it is neither cleared nor drawn into */
 #define RAM_BATTLE_SPRITES_FROZEN 0x7EA028u
 /* Set while main code uses the hardware divider, so the interrupt handlers restore its operands
@@ -3706,6 +3709,12 @@
 #define RAM_BATTLE_COMBO_PAIRS_STRIDE 0x01u
 /* The party member whose status picks its action */
 #define RAM_BATTLE_ACTING_FOR_ITSELF 0x7EB3F4u
+/* A battle message's text, drawn as tiles, in two halves the vblank sends to VRAM in turn while
+ * the message shows [2 x $200 bytes, by half (the first goes to VRAM $5800 on odd frames, the
+ * second to $5980 on even ones)] */
+#define RAM_BATTLE_MESSAGE_TILES 0x7EB400u
+#define RAM_BATTLE_MESSAGE_TILES_COUNT 2u
+#define RAM_BATTLE_MESSAGE_TILES_STRIDE 0x200u
 /* Screen brightness the battle's handlers set each frame (halved while paused); counted down to
  * 0 when a demo battle exits */
 #define RAM_BATTLE_BRIGHTNESS 0x7EBB00u
@@ -3760,6 +3769,11 @@
 #define RAM_BATTLE_WINDOW_REGISTERS 0x7EC861u
 #define RAM_BATTLE_WINDOW_REGISTERS_COUNT 5u
 #define RAM_BATTLE_WINDOW_REGISTERS_STRIDE 0x01u
+/* The fixed color's setting for the lines below the window's split, as the color math takes it
+ * (bits 5-7 the channels, 0-4 the intensity); the frame work hands it to the per-line effects
+ * each frame (battle_split_line_values' sixth word), and the animation scripts brighten and
+ * darken it ($CD:3044) */
+#define RAM_BATTLE_FIXED_COLOR 0x7EC866u
 /* The indirect tables of the battle's seven per-line effects [7 x $2D bytes, by per-line effect
  * (0 BG maps, 1-3 BG1-BG3 scroll, 4 screens, 5 color math, 6 mode)] */
 #define RAM_BATTLE_LINE_TABLES 0x7EC867u
@@ -3790,6 +3804,10 @@
 #define RAM_BATTLE_ALTERNATE_REQUEST 0x7ECA21u
 /* The value of battle_alternate_request the IRQ last applied */
 #define RAM_BATTLE_ALTERNATE_LATCHED 0x7ECA22u
+/* Set while the player holds the button that flips battle_alternate_request (their sixth
+ * assignment, bit 0 of the remapped held buttons), so that a press flips it once; cleared when
+ * it is let go */
+#define RAM_BATTLE_ALTERNATE_TOGGLE_HELD 0x7ECA23u
 /* Set to make the IRQ apply the alternating-frame setting again ($CE:EE6E); cleared once it has */
 #define RAM_BATTLE_ALTERNATE_APPLY 0x7ECA24u
 /* Added to the alternating-frame request when the IRQ applies it ($CE:EE6E): 0, 2 or 8 by the
@@ -3829,6 +3847,9 @@
 #define RAM_BATTLE_SCREEN_SWING_POSITION_STRIDE 0x10u
 /* Which scroll table routine runs each frame (through $CD:06BC) */
 #define RAM_BATTLE_SCROLL_MODE 0x7ECA92u
+/* Nonzero while the display setup loads a step of the battle's graphics each frame
+ * (battle_load_graphics) */
+#define RAM_BATTLE_GRAPHICS_LOAD_IN_VBLANK 0x7ECAD3u
 /* The three animation positions, saved by the screen script into one of two interleaved slots
  * [12 x $1 bytes, by position byte * 2 + slot] */
 #define RAM_BATTLE_SAVED_POSITIONS 0x7ECAEAu
@@ -3885,12 +3906,18 @@
 #define RAM_BATTLE_PALETTE_SLOT_PRESETS_FADE_MODE 0x7ECCC7u /* Which color channels the fade changes (core/palette.c's table) */
 #define RAM_BATTLE_PALETTE_SLOT_PRESETS_FADE_LEVEL 0x7ECCC8u /* Fade level the animation starts from */
 #define RAM_BATTLE_PALETTE_SLOT_PRESETS_FADE_TARGET 0x7ECCC9u /* Level the fade moves toward */
+#define RAM_BATTLE_PALETTE_SLOT_PRESETS_FRAME_TABLE 0x7ECCCAu /* The frame table a palette animation of frames reads, as palette_animations' is: copied with the rest, though a fade doesn't use it */
 /* Requests a preset palette slot copy: bit 7 slot 10, bit 0 slots 8-9; each bit cleared once
  * copied */
 #define RAM_BATTLE_PALETTE_PRESET_REQUEST 0x7ECCE5u
+/* Set to have the frame wait put the battlefield back once the effects stop ($CD:0453: the
+ * background's graphics sent back from $7F:5080, the scroll steady again); cleared when it has */
+#define RAM_BATTLE_BACKGROUND_RESTORE_REQUEST 0x7ECCEAu
 /* Frames left before a timed battle message closes */
 #define RAM_BATTLE_MESSAGE_FRAMES 0x7ECCEBu
-/* $10 to copy $7E:B400/$B600 to VRAM $5800/$5980 on alternating frames instead of clearing it */
+/* $10 while a battle message shows: its tiles (battle_message_tiles) go to VRAM a half a frame
+ * instead of that VRAM being cleared; the line handler adds it to the alternate arrangement it
+ * applies */
 #define RAM_BATTLE_VRAM_COPY_MODE 0x7ECCECu
 /* Set while a timed battle message is up; the NMI counts its frames down and closes it */
 #define RAM_BATTLE_MESSAGE_TIMED 0x7ECCEDu
@@ -3916,6 +3943,15 @@
 /* The battle's setup flags (battle_setup_flags), copied at the start; bit 5 (a demo battle)
  * keeps Start from pausing */
 #define RAM_BATTLE_SETUP_FLAGS_COPY 0x7ECD27u
+/* What an animation script sets battle_sprites_frozen to; the frame work copies it over each
+ * frame */
+#define RAM_BATTLE_SPRITES_FROZEN_SETTING 0x7ECD29u
+/* Set by an animation script to keep the sprite table as it is: the frame work doesn't hide the
+ * sprites before the objects draw */
+#define RAM_BATTLE_KEEP_SPRITES 0x7ECD2Du
+/* Set by an animation script to have the frame work not wait for line 64 before the animation
+ * scripts' frame while effects run */
+#define RAM_BATTLE_EFFECT_LINE_WAIT_OFF 0x7ECD2Eu
 /* Types of palette animation slots 0-7, saved while palette animation is paused [8 x $1 bytes,
  * by palette animation slot] */
 #define RAM_BATTLE_SAVED_PALETTE_TYPES 0x7ECD2Fu
@@ -3942,6 +3978,11 @@
 /* Set while an effect's graphics load, which waits for frames; the frame wait tail doesn't start
  * another meanwhile */
 #define RAM_BATTLE_EFFECT_GRAPHICS_LOADING 0x7ECD43u
+/* Set by an animation script to have the frame wait load an effect's graphics
+ * (battle_effect_graphics_effect); cleared once the load starts */
+#define RAM_BATTLE_EFFECT_GRAPHICS_WANTED 0x7ECD44u
+/* The effect whose graphics battle_effect_graphics_wanted asks for */
+#define RAM_BATTLE_EFFECT_GRAPHICS_EFFECT 0x7ECD45u
 /* Set while background rows 2-4 are moved back to their place with their starting colors
  * ($D1:E984); moving them up clears it */
 #define RAM_BATTLE_PALETTE_ROWS_MOVED 0x7ECDC8u
@@ -3968,8 +4009,14 @@
 #define RAM_BATTLE_FRAME_WORK_REDUCED 0x7ECE0Fu
 /* Nonzero to rotate the gradient's rows the other way */
 #define RAM_BATTLE_GRADIENT_REVERSED 0x7ECE10u
+/* Counted up while a routine queues a VRAM transfer and waits for the one before it to go
+ * ($CD:3ED2); the frame wait's tail leaves the background and effects' loads alone meanwhile */
+#define RAM_BATTLE_VRAM_REQUEST_BUSY 0x7ECE11u
 /* Set once palette animation has been paused for $CFFF */
 #define RAM_BATTLE_PALETTE_PAUSED 0x7ECE12u
+/* The HP gradient steps on the frames whose count has none of these bits set (0 every frame, 1
+ * every other) */
+#define RAM_BATTLE_GRADIENT_FRAME_MASK 0x7ECE13u
 /* Counted each frame; bit 0 picks VRAM $5800 or $5980 for the alternating clear or copy */
 #define RAM_BATTLE_VRAM_ALTERNATE 0x7ECE14u
 /* Nonzero while Start can't pause the battle ($FF from the start, cleared at $CD:05F8) */

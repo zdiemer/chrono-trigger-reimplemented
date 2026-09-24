@@ -46,6 +46,17 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
  * same stop. */
 bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank);
 
+/* Run a sibling port's registered entry as the original's JSR (JSL) at
+ * `site` calls `routine`: the return address pushed as the call pushes it, so
+ * that the entry's own call-outs meet the original's where it makes them, and
+ * its time counted as the routine's own. True if it came back to the call's
+ * return as battle_call's callee must, on the page it was called on and with
+ * whatever data bank it chose (the frame work sets its own); otherwise it
+ * stopped where the original carries on, or at the return. For a machine-shaped sibling: one whose work
+ * is C on the game's state is called as C. */
+bool battle_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+bool battle_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+
 /* 8-bit A and 16-bit index registers, whatever else: what the interrupt
  * handlers need a callee to come back with. */
 bool battle_widths_m8_x16(const Snes *s);
