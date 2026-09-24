@@ -35,18 +35,18 @@
  * on each, drawing their sprites. The instances: record. */
 enum { MENU_RECORD_COUNT = 8 };   /* by record */
 
-/* ---- page kind scene_math ------------------------------------------------------------------ */
+/* ---- page kind scene_program --------------------------------------------------------------- */
 
-/* The page the scene's multiply and divide helpers keep their operands and results on: their
- * caller's. The instances: scene; channel. */
-typedef enum { SCENE_MATH_SCENE, SCENE_MATH_CHANNEL } SceneMathPageKind;
+/* The page the scene program's shared routines run on: the scene's own, or, when a sequence
+ * script calls one, its channel's. The instances: own; channel. */
+typedef enum { SCENE_PROGRAM_OWN, SCENE_PROGRAM_CHANNEL } SceneProgramPageKind;
 typedef struct {
-    SceneMathPageKind kind;
+    SceneProgramPageKind kind;
     uint8_t index;   /* which one, for channel */
-} SceneMathPage;
-enum { SCENE_MATH_CHANNEL_COUNT = 2 };
-static inline SceneMathPage scene_math_scene(void) { return (SceneMathPage){ SCENE_MATH_SCENE, 0 }; }
-static inline SceneMathPage scene_math_channel(unsigned channel) { return (SceneMathPage){ SCENE_MATH_CHANNEL, (uint8_t)channel }; }
+} SceneProgramPage;
+enum { SCENE_PROGRAM_CHANNEL_COUNT = 2 };
+static inline SceneProgramPage scene_program_own(void) { return (SceneProgramPage){ SCENE_PROGRAM_OWN, 0 }; }
+static inline SceneProgramPage scene_program_channel(unsigned channel) { return (SceneProgramPage){ SCENE_PROGRAM_CHANNEL, (uint8_t)channel }; }
 
 /* ---- core ---------------------------------------------------------------------------------- */
 
@@ -4416,9 +4416,10 @@ void set_battle_result(GameState *g, uint8_t v);
 
 /* ---- scene --------------------------------------------------------------------------------- */
 
-/* Flag the scene NMI work sets and the program's main loop waits on (16-bit) */
-uint16_t scene_frame_ready(const GameState *g);
-void set_scene_frame_ready(GameState *g, uint16_t v);
+/* Nonzero once a sequence script has reached its stop: the program's main loop, which waits for
+ * it, then ends the scene (16-bit) */
+uint16_t scene_program_over(const GameState *g);
+void set_scene_program_over(GameState *g, uint16_t v);
 
 /* Controller 1 as read in the scene NMI; bit 4 of the high byte ($0003) is Start, which toggles
  * pause */
@@ -4439,8 +4440,8 @@ void set_scene_sprite_priority_start(GameState *g, uint8_t v);
 uint16_t scene_sprite_index(const GameState *g);
 void set_scene_sprite_index(GameState *g, uint16_t v);
 
-/* Pointer to the OAM high-table byte the next sprite's bits go into; back to $0900 after each
- * upload */
+/* Address of the OAM high-table byte the next sprite's bits go into ($0900 + the byte's place in
+ * scene_sprite_high_table); back to the first after each upload */
 uint16_t scene_sprite_high_pointer(const GameState *g);
 void set_scene_sprite_high_pointer(GameState *g, uint16_t v);
 
@@ -4515,9 +4516,9 @@ void set_scene_scaler_output_end(GameState *g, uint16_t v);
 uint16_t scene_race_tilemap_pending(const GameState *g);
 void set_scene_race_tilemap_pending(GameState *g, uint16_t v);
 
-/* Scratch for packing pixels into bitplanes: the scaler's eight sample words ($3B-$43), or a
- * tile row's two words and the row count ($3F) in scene_expand_tile_rows [9 bytes, one at a
- * time] */
+/* Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's
+ * eight sample words ($3B-$43), or the title's plane tile row's two words and its row count
+ * ($3F) [9 bytes, one at a time] */
 enum { SCENE_BITPLANE_SCRATCH_BYTES = 9 };
 uint8_t scene_bitplane_scratch_byte(const GameState *g, unsigned at);
 void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v);
@@ -4526,9 +4527,10 @@ void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v);
 uint16_t scene_bg3_scroll_x(const GameState *g);
 void set_scene_bg3_scroll_x(GameState *g, uint16_t v);
 
-/* Value the race writes to APU port 1 with $89 on port 0 each frame, without waiting for an echo */
-uint8_t scene_race_sound_parameter(const GameState *g);
-void set_scene_race_sound_parameter(GameState *g, uint8_t v);
+/* The pitch of the race's engine: the parameter of the sound driver command $89 (the effect
+ * voices' pitch, docs/SOUND.md), which the race sends each frame without waiting for the echo */
+uint8_t scene_race_engine_pitch(const GameState *g);
+void set_scene_race_engine_pitch(GameState *g, uint8_t v);
 
 /* Matrix parameter A */
 uint16_t scene_mode7_matrix_a(const GameState *g);
@@ -4543,17 +4545,19 @@ void set_scene_mode7_matrix_c(GameState *g, uint16_t v);
 uint16_t scene_mode7_matrix_d(const GameState *g);
 void set_scene_mode7_matrix_d(GameState *g, uint16_t v);
 
-/* Set to $0038 when the title's task shows its layers, beside scene_title_show_cell_2 ($003A);
- * what reads the pair isn't ported */
-uint16_t scene_title_show_cell_1(const GameState *g);
-void set_scene_title_show_cell_1(GameState *g, uint16_t v);
+/* The title logo's X: the sprite offset its two sprite lists are drawn at ($7E:5D01); it sweeps
+ * in along a curve and lands at $38 */
+uint16_t scene_title_logo_x(const GameState *g);
+void set_scene_title_logo_x(GameState *g, uint16_t v);
 
-/* Set to $003A when the title's task shows its layers, beside scene_title_show_cell_1 ($0038) */
-uint16_t scene_title_show_cell_2(const GameState *g);
-void set_scene_title_show_cell_2(GameState *g, uint16_t v);
+/* The title logo's Y: the sprite offset of its first sprite list, and $40 more its second's
+ * ($7E:5D01); it lands at $3A */
+uint16_t scene_title_logo_y(const GameState *g);
+void set_scene_title_logo_y(GameState *g, uint16_t v);
 
-/* The title's frame count, which its layer task reads: while it is below $72 the task shows BG1,
- * BG2 and the sprites and hands channel 0 its next script */
+/* The title's timer, which the logo's task counts down by two a frame from $F8 while the logo
+ * sweeps in; below $72 the logo lands, BG1, BG2 and the sprites come on and channel 0 goes on to
+ * the next script */
 uint16_t scene_title_timer(const GameState *g);
 void set_scene_title_timer(GameState *g, uint16_t v);
 
@@ -4654,12 +4658,37 @@ void set_scene_circle_row(GameState *g, uint16_t v);
 uint16_t scene_circle_center_row_half(const GameState *g);
 void set_scene_circle_center_row_half(GameState *g, uint16_t v);
 
-/* The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y,
- * tile, attributes) and the $20-byte high table after them, reached by the byte offsets the
- * scene's cursors hold [544 bytes, one at a time] */
-enum { SCENE_SPRITE_TABLE_BYTES = 544 };
+/* The jump's opcode, which installing a handler writes */
+uint8_t scene_nmi_stub_jump(const GameState *g);
+void set_scene_nmi_stub_jump(GameState *g, uint8_t v);
+/* The handler's long address */
+uint32_t scene_nmi_stub_handler(const GameState *g);
+void set_scene_nmi_stub_handler(GameState *g, uint32_t v);
+/* The handler's address within its bank, which the frame's work swaps between its two handlers
+ * in bank C3 */
+uint16_t scene_nmi_stub_handler_in_bank(const GameState *g);
+void set_scene_nmi_stub_handler_in_bank(GameState *g, uint16_t v);
+
+/* The jump's opcode, which installing a handler writes */
+uint8_t scene_irq_stub_jump(const GameState *g);
+void set_scene_irq_stub_jump(GameState *g, uint8_t v);
+/* The handler's long address */
+uint32_t scene_irq_stub_handler(const GameState *g);
+void set_scene_irq_stub_handler(GameState *g, uint32_t v);
+
+/* The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y,
+ * tile, attributes), reached by the byte offset the scene's cursor holds [512 bytes, one at a
+ * time] */
+enum { SCENE_SPRITE_TABLE_BYTES = 512 };
 uint8_t scene_sprite_table_byte(const GameState *g, unsigned at);
 void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v);
+
+/* The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites'
+ * two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its
+ * own at the top [32 bytes, one at a time] */
+enum { SCENE_SPRITE_HIGH_TABLE_BYTES = 32 };
+uint8_t scene_sprite_high_table_byte(const GameState *g, unsigned at);
+void set_scene_sprite_high_table_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { SCENE_TASKS_COUNT = 16 };   /* by task slot */
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence
@@ -4696,9 +4725,11 @@ void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsig
 uint16_t scene_channels_return_address(const GameState *g, unsigned channel);
 void set_scene_channels_return_address(GameState *g, unsigned channel, uint16_t v);
 
-/* Tilemap the scene builds in work RAM for vblank: $80 bytes of it go to VRAM $7000 each frame,
- * and in the race all $800 to whichever half of the plane tilemap is ready; its words at
- * $0C40-$0C7F are shifted up a slot at the start of a task [2048 bytes, one at a time] */
+/* Tilemap the scene builds in work RAM for vblank. In the title, its first $80 bytes are BG3's
+ * first two rows, which in BG mode 2 hold the columns' horizontal and vertical offsets: each
+ * frame the vertical ones ($0C40-$0C7F) move a column to the right and go to VRAM $7000, which
+ * makes the ripple. In the race, all $800 go to whichever half of the racers' tilemap is ready
+ * [2048 bytes, one at a time] */
 enum { SCENE_TILEMAP_BUFFER_BYTES = 2048 };
 uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at);
 void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v);
@@ -4756,15 +4787,72 @@ enum { SCENE_RACE_PLANE_MAP_BYTES = 8192 };
 uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at);
 void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v);
 
-/* Operands and results of the scene's multiply and divide helpers, on whichever page the caller
- * has, the scene's own or a sequence channel's: two operand words at $F0 and $F2 (multiplicand
- * and multiplier, the 8.8 divide's dividend and divisor, the 32-bit dividend), a 32-bit product
- * or divisor at $F4, and the 32-bit quotient and remainder at $F8 and $FC. The matrix code
- * generator keeps its offsets here, the program's own transfer its channel's mode and
- * destination, and the sequence scripts' code call its routine's address [16 bytes, one at a
- * time] */
-enum { SCENE_MATH_SCRATCH_BYTES = 16 };
-uint8_t scene_math_scratch_byte(const GameState *g, SceneMathPage page, unsigned at);
-void set_scene_math_scratch_byte(GameState *g, SceneMathPage page, unsigned at, uint8_t v);
+/* The first operand: the multiplicand, or the 8.8 divide's dividend */
+uint16_t scene_call_first(const GameState *g, SceneProgramPage page);
+void set_scene_call_first(GameState *g, SceneProgramPage page, uint16_t v);
+/* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8
+ * divide's divisor */
+uint16_t scene_call_second(const GameState *g, SceneProgramPage page);
+void set_scene_call_second(GameState *g, SceneProgramPage page, uint16_t v);
+/* The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and
+ * zeros below */
+uint32_t scene_call_dividend(const GameState *g, SceneProgramPage page);
+void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v);
+/* The multiplies' 32-bit product */
+uint32_t scene_call_product(const GameState *g, SceneProgramPage page);
+void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v);
+/* The 32-bit divide's divisor */
+uint32_t scene_call_divisor(const GameState *g, SceneProgramPage page);
+void set_scene_call_divisor(GameState *g, SceneProgramPage page, uint32_t v);
+/* The 8.8 divide's quotient: an 8.8 fixed-point number */
+uint16_t scene_call_fraction(const GameState *g, SceneProgramPage page);
+void set_scene_call_fraction(GameState *g, SceneProgramPage page, uint16_t v);
+/* The quotient the divisor search stops below (read on the scene's own page) */
+uint16_t scene_call_quotient_limit(const GameState *g, SceneProgramPage page);
+void set_scene_call_quotient_limit(GameState *g, SceneProgramPage page, uint16_t v);
+/* The 32-bit divide's quotient */
+uint32_t scene_call_quotient(const GameState *g, SceneProgramPage page);
+void set_scene_call_quotient(GameState *g, SceneProgramPage page, uint32_t v);
+/* The byte after the product, whatever the last routine to use it left there (the matrix code
+ * generator's source base, a divide's quotient or divisor): the unsigned multiply shifts it left
+ * through the product's top byte */
+uint8_t scene_call_after_the_product(const GameState *g, SceneProgramPage page);
+void set_scene_call_after_the_product(GameState *g, SceneProgramPage page, uint8_t v);
+/* The 8.8 divide's divisor less one, which it keeps while it runs */
+uint16_t scene_call_divisor_less_one(const GameState *g, SceneProgramPage page);
+void set_scene_call_divisor_less_one(GameState *g, SceneProgramPage page, uint16_t v);
+/* The 32-bit divide's remainder */
+uint32_t scene_call_remainder(const GameState *g, SceneProgramPage page);
+void set_scene_call_remainder(GameState *g, SceneProgramPage page, uint32_t v);
+/* The program's own transfer: its channel's mode (how it moves the bytes) */
+uint8_t scene_call_transfer_control(const GameState *g, SceneProgramPage page);
+void set_scene_call_transfer_control(GameState *g, SceneProgramPage page, uint8_t v);
+/* The program's own transfer: the register it feeds */
+uint8_t scene_call_transfer_register(const GameState *g, SceneProgramPage page);
+void set_scene_call_transfer_register(GameState *g, SceneProgramPage page, uint8_t v);
+/* The race's matrix code generator: the table offset of the eighth being written */
+uint16_t scene_call_matrix_table_offset(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_table_offset(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0) */
+uint16_t scene_call_matrix_row_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_row_step(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0) */
+uint16_t scene_call_matrix_pair_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_pair_step(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0) */
+uint16_t scene_call_matrix_column_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_column_step(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's matrix code generator: the base the generated loads add their offsets to */
+uint16_t scene_call_matrix_source(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_source(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's matrix code generator: the page the generated stores start on, which it leaves
+ * moved on past the last */
+uint16_t scene_call_matrix_destination(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint16_t v);
+/* A sequence channel's: what the interpreter last kept there -- the command it read, the address
+ * of the register an assignment names, or the routine of the program a script calls (on the
+ * scene's own page) */
+uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page);
+void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v);
 
 #endif

@@ -351,6 +351,18 @@ void native_sync(Snes *s);
  * gate fails on it). Outside the runtime (ct_fuzz, tests) both do nothing. */
 int native_time_as(Snes *s, uint32_t routine);
 void native_time_end(Snes *s, int was);
+/* Time charged rather than spent, for a port that does another way what the
+ * original spends its time on (game/charge.h): `bus_clocks` more of the stretch's
+ * bus clocks, as if the routine registered at `routine` had made them, so they
+ * are estimated at its cost_milli (its own entry's when it is the running
+ * port). And accesses left out of the estimate: the bus clocks between
+ * native_uncounted_begin and native_uncounted_end don't count, for a plain fill
+ * or copy whose time the port charges instead. Outside the runtime all three do
+ * nothing. */
+void native_charge_as(Snes *s, uint32_t routine, uint32_t bus_clocks);
+uint32_t native_uncounted_begin(Snes *s);
+void native_uncounted_end(Snes *s, uint32_t mark);
+
 /* The same around one statement: NATIVE_TIME_AS(s, 0xCFEAC5, a = draw_parts(s)); */
 #define NATIVE_TIME_AS(s, routine, statement)                 \
     do {                                                      \

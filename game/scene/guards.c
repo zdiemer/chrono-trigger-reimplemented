@@ -20,13 +20,39 @@ bool scene_on_scene_page_low_bank(Snes *s) { return scene_on_scene_page(s) && m_
 /* The work RAM port and the multiplier are reached through the data bank too. */
 bool scene_on_scene_page_io_bank(Snes *s) { return scene_on_scene_page(s) && m_bank_reaches_io(s); }
 
-/* The math helpers work on the scratch cells of whichever page they're
- * called on: the scene's own or a sequence channel's, the instances re/ram.toml
- * declares for them (a D that is neither is refused, and counted). */
-bool scene_on_math_page(Snes *s)
+/* The arithmetic works on the cells of whichever page it's called on: the
+ * scene's own or a sequence channel's, the instances re/ram.toml declares for
+ * them (a D that is neither is refused, and counted). */
+bool scene_on_program_page(Snes *s)
 {
-    SceneMathPage page;
-    return scene_math_page_of(m_direct_page(s), &page);
+    SceneProgramPage page;
+    return scene_program_page_of(m_direct_page(s), &page);
 }
 
-bool scene_on_math_page_io_bank(Snes *s) { return scene_on_math_page(s) && m_bank_reaches_io(s); }
+bool scene_on_program_page_io_bank(Snes *s) { return scene_on_program_page(s) && m_bank_reaches_io(s); }
+
+/* The sequence channel whose page is at `d`. */
+bool scene_channel_at(uint16_t d, SceneChannel *ch)
+{
+    SceneProgramPage page;
+    if (!scene_program_page_of(d, &page) || page.kind != SCENE_PROGRAM_CHANNEL)
+        return false;
+    *ch = page.index;
+    return true;
+}
+
+/* A routine a script calls runs on its channel's page. */
+bool scene_on_channel_page(Snes *s)
+{
+    SceneChannel ch;
+    return scene_channel_at(m_direct_page(s), &ch);
+}
+
+/* The page an entry's caller has D on, which its guard has checked is one. */
+SceneProgramPage scene_program_page_at_entry(const Snes *s)
+{
+    SceneProgramPage page = scene_program_own();
+    scene_program_page_of(m_direct_page(s), &page);
+    return page;
+}
+

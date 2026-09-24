@@ -3281,7 +3281,8 @@ A's high byte and the M flag; the eight race stops leave nothing.
 - *Byte offsets into a record.* The sprite writers index the OAM buffer by a
   byte offset and a high-table pointer, not a sprite number, and fuzzing puts
   odd offsets there; the core's `oam_buffer` record can't take them, so the map
-  has `scene_sprite_table` over the same bytes (`$0700-$091F`) for the scene.
+  has `scene_sprite_table` and `scene_sprite_high_table` over the same bytes
+  (`$0700-$08FF`, `$0900-$091F`) for the scene.
 
 **The guards.** A port that names its cells through `game/vars.h` knows them
 where the scene keeps them, while the original reaches them through D and the
@@ -4776,6 +4777,281 @@ flags sharing the rows) and the solidity operand (10,035). The derivations
 look at the state without the machine's time (`vars_peek`), so an estimate
 still counts only what the operation does, and event's and field's rows were
 recalibrated.
+
+### Phase 3a: scene reworked to the review
+
+The first qualitative review (`.claude/skills/review-port/`) rated three of
+scene's files translation -- `program.c` emulated the arithmetic unit,
+`circle.c` kept its X and Y in RAM cells and chained the carry through every
+edge, `bitmap.c` passed a struct that was the CPU (`carry, overflow, x, y,
+bank`) -- and most of the rest mostly. This rework takes each of its findings
+and regroups the subsystem by the game. Nothing was added to the burndown, and
+the behaviour is the predecessor's: the per-entry shadow totals over the 26
+movies (calls, matched, mismatched, interrupted, skipped, abandoned, and the
+pages each entry was called on) are identical to `main`'s for every hand port,
+not only the scene's.
+
+**The files, by the game.** `title.c` (the title screen: the pendulum, the
+logo, the ripple, and the loader's blocks), `race.c` (the jet bike race's
+display and its engine's pitch), `race_matrix.c` (the race's generated matrix
+code), `script.c` (the sequence scripts), `frame.c` (the NMI, pause, the song,
+the task lists), `screen.c` (every scene's first screen, the per-frame uploads,
+the program's transfer and the line effects), `boot.c` (starting a scene, its
+interrupt handlers, the resource copies), `sound.c` (the program's own sends to
+the sound driver and its wait for the song's marker), and what the scenes
+share: `sprites.c`, `circle.c`, `scaler.c` (was `bitmap.c`), `math.c`.
+`scene.h` says where each part of the game is. The endings have no routines of
+their own: they are the program's scripts, using the iris, the scaler and the
+arithmetic. `display.c`, `display.h`, `race.h`, `sound.h`, `program.c`,
+`nmi.c`, `sequence.c`, `matrix_code.c` and `scratch.c` are gone.
+
+**The arithmetic is C** (`math.c`). The 32-bit divide is `n / d` and `n % d`,
+the 8.8 divide `(dividend & $FF00) / divisor`, the multiplies `a * b`, the
+divisor search a loop of `dividend / divisor` in locals. Where the original's
+way of computing them would come out otherwise, what the game gives it decides
+between a guard and a named input, measured by guarding each and comparing the
+per-entry shadow totals with `main`'s:
+- no scene divides by a 32-bit divisor of 0 or with its top bit set, and no
+  unsigned product's middle partial sums overflow 16 bits (which would put the
+  overflow a byte too low); the guards hand those to the original, and turned
+  away none of the library's calls;
+- the unsigned multiply carries the top bit of the byte after its product into
+  it, and leaves that byte shifted a place for the next: the title's pendulum
+  and the race multiply with it set (848 of the 3870 multiplies of every title
+  screen, 32936 over the library, which a guard turned away), so it is a named
+  input (`carries_into_the_product`, `shift_the_byte_after`) and stays in the
+  logic, since the next multiply reads it; the 8.8 divide's divisor less one,
+  one of the things left in that byte, stays in the logic with it;
+- the 8.8 divide by 0: the endings make it (637 calls in `endings-beyond-time`),
+  and the original's long division, compared over every divisor, comes out
+  exact for all of them with 0 counting as 65536 -- so the fraction is 0, one
+  line, and the bit-serial division is gone;
+- the signed multiply adds the product cell's third byte as the caller left it
+  (`magnitude_with_leftover`), a named input.
+The dividend cells the divides leave shifted out with the caller's carry, the
+multiplier and divider as the original leaves them, and the divisor search's
+time (below) are scaffolding. The wrappers derive what the callers read: the
+8.8 divide's carry is always clear, the signed multiply's X its first partial
+product, the search's X and A the divisor after the one found and its quotient.
+The search takes what its caller left in the divider -- the dividend
+(`cpu_io.h`'s `hw_dividend`, which costs no time) and the quotient of the
+division the caller started -- and divides by the divisors after in C.
+
+**The circle** keeps the outline in locals (`Octant`: x, y, the decision, the
+near line) and writes its four cells, and the center's and radius's cleared
+high bytes, once, as scaffolding (nothing reads the high bytes: the callers
+write the cells as bytes). The original's chained carries move pixels, and they
+are two named functions: `edge_rounding` (the top line a line higher, the far
+lines' right edge a pixel further right unless their left edge is off screen, a
+near line's left edge a pixel in when the far line reached the right of the
+screen) and `decision_step` (the midpoint step, with `y - x` one less while the
+near line's right edge is on screen, and one or two more near the diagonal).
+Closing lines is `close_lines(g, c, first_line, lines)`, a plain fill; a whole
+table closed runs three bytes past it in the original, a marked write of its
+own (`spill_past_table`); and the lines above a circle whose top is on the
+second line stay open, because the original's count for one line would run its
+block move through the bank. A table that could reach the cells the original
+reads back is refused by a guard (`scene_circle_table_is_clear`); no table the
+game or the fuzzing makes comes near them. `scene_circle_draw` takes the
+`GameState`, which the menus' one call site now passes.
+
+**The scaler** (`scaler.c`) has no CPU struct and no carry chain. The
+original never clears the carry between its sums; two of them move what the
+player sees, and they are named: a row's samples start 1/256 of a pixel further
+on when its source row lies further along the bitmap than the last row's
+(`sample_nudge`), and a row's source is picked 1/128 of a row further on when
+the call before left the carry set (the entry's carry, `row_nudge`): the
+positions are fixed point, a sample's in 1/256ths of a pixel (`PIXEL_UNITS`)
+and a row's in 1/128ths of a row (`ROW_UNITS`). The rest
+come from sums that wrap past the end of the bank -- a sample's position along
+its row, the plane pointer -- and the entry's guard hands those bitmaps to the
+original, with a source limit a row's position compares with either way and a
+source whose samples stay in the bank; no movie's call is refused. A sample's
+position is then `(k + 1) * step + nudge`, and its time the samples it reads.
+The wrapper derives the flags it leaves where the bitmap ends from the previous
+end, this one's and whether the rows ran out, and the carry at the row loop's
+head from the output pointer; the only record left is the scratch the original
+packs pixels in, a memory write through `ORIGINAL_EFFECT`. Clearing what the
+previous bitmap left and repeating a row are a plain fill and copy, their time
+charged as the block move's.
+
+**The script** (`script.c`) is a table of rows, each a mask and match over the
+opcode, a handler, and what the port needs of the state to take the command
+(a store in low RAM, a video setting a call expresses, a task that is on its
+list). Each handler decodes its operands and calls an operation with named
+parameters -- `assign(g, ch, reg, value, add)`, `count_loop(g, ch, counter,
+limit, back_to, after)`, `store`, `gosub(g, ch, target, return_to)`,
+`queue_sound`, `make_video_setting`, `stop` -- and says how the command ends.
+The script pointer's moves across the original's code are named: while a routine
+of the program runs, the script stays on the routine's address (a routine can
+move it) and goes on past it from there; a store to the script's own pointer is
+a jump; a sound goes unsent, and unheard, while a song is on its way to the
+driver, which takes one message at a time. The operations leave nothing for
+the original: each row has a kind (set, add, loop, ...), and after each command
+the bridge leaves, through `ORIGINAL_EFFECT`, what the original's code for that
+kind leaves -- the word it keeps in its channel's scratch (an assignment its
+register's address, any other command itself), and its carry and overflow, from
+a table of the flags per kind worked out from the command's register and loop
+counter before and after it (`note_flags`). The flags live in P, so a call-out's
+are the callee's with no copy. They are left because they are read: the attract
+and title programs run their channels at `$7E:54B4` and go straight on to
+`$7E:5777`, whose `$7E:3443` calls the random number mixer at `$C3:02DD`, which
+starts with a `ROL A`; and `$7E:62F0` reaches the `ADC #$40` at `$7E:65B3` with the
+carry the run left, `$7E:3448` between them saving and restoring P. No code in
+either program or in bank C3 branches on the overflow, but the liveness
+analysis counts it as read, so it is left too. A set's flags are both clear,
+not the original's sum of the channel's page and the register's place they
+come from, which carries and overflows on no channel's page. The A a turn ends
+with is the ending command's kind's: the script's place after a loop or a jump,
+1 after the stop, the plain end of turn's handler's place otherwise. The
+video settings a script names by their register are a table of the scripts'
+encoding. The wait for the music is `scene_music_status`/`scene_music_reached`
+(`sound.c`), with its flags derived in the idle entry.
+
+**Tasks and pages.** `SceneTask` and `SceneTaskList` (the vblank tasks at
+`$0940`, the frame's at `$0920`) are types with operations (`scene_add_task`,
+`scene_remove_task`, `scene_task_listed`). The review expected a task page
+kind for `$7E:5DA7`'s "task's next step"; the page report says it is called
+only on `$0A00`, channel 0's page, from a script's call, and the cell it
+writes is that channel's register 2, where the title keeps BG1's vertical
+scroll (`scene_title_start_ripple`). So there is no task page: the routine
+writes a channel register, and its guard asks for a channel's page.
+
+**Vocabulary in the map.** The sixteen bytes the program's shared routines
+take their values in are `scene_call`, on the page kind `scene_program` (the
+scene's own page, or a sequence channel's): a record of named, overlapping
+fields, one per user (the operands, product, quotient, remainder, the 8.8
+fraction and the divisor less one, the byte after the product, the transfer's
+mode and register, the matrix generator's offsets, the script's kept word);
+`scene_nmi_stub` and `scene_irq_stub` name the stubs' jump and target, so
+installing a handler is two writes and no bit surgery. Named by finding their
+readers: `$62`/`$64` are the title logo's X and Y (the sprite offsets its lists
+are drawn at, `$7E:5D01`; the review found "cell 1" and "cell 2"); `$4B` is the
+race's engine pitch (the sound driver's command `$89`, the effect voices'
+pitch; the review found "presumably a parameter"); the words the old
+`shift_history` moved are BG3's second row, which in mode 2 are the columns'
+vertical offsets: the title's ripple. `scene_flags`' bit 7 has one definition,
+named for both its meanings, and the pause, the song on its way, Start held and
+the reset allowed are switches with one storage function each (`frame.c`). The
+scene's DMA channel and modes, its two banks of work RAM, its tilemap buffer,
+its blank tile and its two VRAM stepping settings each have one definition, in
+`scene.h`.
+
+**The display** writes the video service's structs: `(VidMode){ .mode = 7 }`,
+`VID_LAYER_BIT(...)` sets, `.cy = -64`; `init_video` is one value, the first
+screen every scene starts from, applied by one function; the race's line-effect
+descriptors decode into a `LineEffectDescriptor`. The transfers through the
+SNES-only escape name their registers (`VID_SNES_VRAM_DATA_LOW` and the rest,
+added to `platform/video.h`); their per-call `steps` stay (TODO.md). No
+assembly is quoted in a comment.
+
+**Entries named for what they do**: 30 renames, among them
+`scene_title_ripple_columns` (was `scene_shift_c00_words`),
+`scene_run_frame_tasks` and `scene_run_vblank_tasks` (`_950`, `_940`),
+`scene_wait_for_song_marker_loop` (`scene_wait_apu_port3_loop`),
+`scene_race_wait_for_tilemap_upload_loop` (`scene_wait_39_clear_loop`),
+`scene_script_wait_for_sound` (`scene_script_wait_sound_port2`),
+`scene_copy_resource` and `_to_upper_ram` (`_to_7e`, `_to_7f`), and the
+loaders' blocks by what they put in VRAM (`scene_title_load_sprite_graphics`
+for `scene_set_vram_4000`, `scene_race_load_bg3_map` for
+`scene_race_set_vram_6800`, ...). The loaders themselves aren't ported
+(TODO.md).
+
+**The sprite writers** are one loader with a `clipped` parameter and no
+in-band X: a sprite past the right edge is at X 257, and the word `$9801` the
+original stores there only feeds the A its callers read. The loader leaves no
+register record: a small list's A already has the list's high byte, and the
+clipped entry's wrapper works out A's high byte and the overflow after the call
+from the list's last entry, which the guard keeps clear of every cell the call
+writes. The lists are read from work RAM (`wram_read8`), and the port the
+original streams them through is left where its reads would leave it, once,
+through `ORIGINAL_EFFECT` (the title's plane tiles, the same). The sprite table
+is two views in the map, `scene_sprite_table` (the $200 bytes of entries) and
+`scene_sprite_high_table` (its $20), with `SCENE_SPRITE_TABLE` and
+`SCENE_SPRITE_HIGH_TABLE` in `scene.h`, and the port's high-table cursor is the
+byte's place in the table, 0-31. Their guard, which
+TODO.md asked for, takes a cursor whose sprites stay in the sprite table, a
+list clear of the cell the original counts it down in (fuzzing found 2 and 15
+lists of 20000 read over that cell), and a clipped list clear of the table.
+The fuzz runs start the cursor where each frame's first list finds it; the
+guard turns away the random lists too long for the table, about half.
+
+**The frame** (`frame.c`) names the controller's buttons and the reset
+combination, and installs its handlers through the stub's fields. Its bridge
+sets only what the original's code it calls reads: A the pause word the frame's
+work tested (0) at a task list's call, the carry the acknowledge's or the
+controller's compare where the tasks see it, Y where the list's copy left it
+(through `ORIGINAL_EFFECT`); the pause sound's and the song's calls declare the
+rest dead, which the don't-care check verified (the driver's entry saves A,
+which liveness counts as reading its high byte, so those calls keep it). A pause
+word other than 0 or 1, which the original tests as a word in one place and as
+a byte in another, is refused by a guard; no movie makes one.
+
+**Fuzzing against the predecessor** (`tools/fuzz_compare.py`, seed 1, every
+scene entry and variant in `tools/fuzz_routines.toml`, 87 runs): the counts
+agree for every one. The runs that didn't, over the two rounds, were each the
+rewrite's to fix: the unsigned multiply's middle sum (7 and 11 states, now
+guarded), the scaler's samples read past the bank into its own scratch (24),
+sprite lists read over the cell the original counts them down in (2 and 15),
+the divisor search taking its first quotient from the dividend rather than from
+the division its caller made (211: the fuzzer's states don't keep the two
+consistent, the game's do), and a routine a script calls reading the A the
+original loads it with (60 and 64, which the call-out's don't-care set had
+declared dead: liveness can't see into the program's RAM routines, so A is set
+and no longer declared). The third round's two: a small list read from work RAM
+must read each sprite's Y before shifting its high-table bits, as the original
+does, since a list can lie over the high table (7 and 3 states); and a loop's
+flags must be worked out from the limit as it was before the loop ran, since a
+script a jump sends into its channel's page can lie over the counter (1). What the guards turn away shows in the skipped column:
+the sprite lists too long for the table from where the cursor stands (9907 and
+10074 of 20000 in the tight runs, 15320 and 15785 in the loose ones, whose
+cursors are anywhere in the table and whose lists anywhere in low RAM), the
+single sprites whose high-table byte is past the table (112 of 20000, loose),
+8 of 2000 plane tiles over the scratch, the 32-bit divides by 0 or past
+`$7FFFFFFF` (10092 and 10017 of 20000) and the products whose middle sum
+overflows (7 and 11); everything each accepts matches as it did. The scaler's,
+the frame's and the sprites' runs are narrowed to what their guards take, with
+the guard named in each entry's `why`. The plane tiles mismatch in 5 of 2000
+states, and the frame's work in 1 of 10024, before the rework and after it:
+the predecessor's residue, not the rework's.
+
+**Time: charged, not kept in the logic's shape.** The review's item 36: the
+first round kept the circle's and the scaler's block moves byte by byte, and
+the divisor search dividing through the divider, because that shape is what the
+timing estimate charged. Now a port charges the time as scaffolding, through a
+general mechanism (`game/charge.h`, backed by `runtime/port/state_io.c` on
+`native_charge_as` and `native_uncounted_begin`/`_end` in `native.c`):
+`charge_block_move(g, bytes)` charges a block move's time at the block move
+stub's calibrated rate, after a plain `wram_fill8`/`wram_fill16`/`wram_copy`
+(`wram.h`), whose accesses take none of the port's own time; and
+`charge_as(g, routine, accesses)` charges that many accesses of a registered
+routine's work, the running port's own included -- the divisor search charges
+three a divisor tried. Sixteen of the scene's `cost_milli` rows moved over the
+two rounds: most by a few percent, the ones whose work is now C by more
+(`scene_multiply` 6178 to 8688, `scene_title_expand_plane_tile` 3723 to 27517,
+`scene_scale_bitmap_row` 2877 to 20318, `scene_draw_circle` 3051 to 17017,
+`scene_find_divisor` 6952 to 5195). The circle's worst error in vblank is 11085
+clocks, which its vblank-tail exception covers with the new figure
+(`tools/timing_exceptions.txt`). The whole gate, every route included
+(`--long-routes`), passes.
+
+**The second review's follow-ups** (the third round took its must-fix items,
+above; these it accepted as later work, each in TODO.md): the scaler's carry
+into the leftover's measure, threaded through three functions, a block move
+charged as `bytes - 1` without saying why, and `in_scaler_bank`'s two
+arguments whose roles its callers mix; the iris's `mode` byte across the
+menus' call, which wants an `IrisShape` and a `leave_outside` flag, and a
+`count` local that exists only for scaffolding; one `scene_queue_sound` for the
+frame's and the script's copies; the controller's carry derived twice; the
+button names, which belong in `platform/input.h`; `SCENE_VBLANK_TASKS` against
+the map's `scene_early_tasks`; the script's register encoding and its operand
+offsets in the adapters; the divisor search's `tried`, and `divide_8_8` as
+`fraction_along`; `race_matrix.c`'s accumulators; the bank `$FE` resource
+accessor; `init_video`'s sites and computed `PF_AT`, which wait for
+`vid_apply_screen`; the transfers' `steps[]`, the platform's; the title's logo
+sweep and ripple, the program's code still; and `game/attract/`, which is the
+same program and belongs here (the two headers now point at each other).
+
 
 ## Risks
 

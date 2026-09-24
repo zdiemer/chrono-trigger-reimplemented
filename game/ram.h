@@ -49,13 +49,13 @@
 /* D is not fixed: D walks a table of records, so an offset names a field of whichever record is
  * current. Instances: record 0-7 (D = $1800 + $40 each) */
 /* (no RAM_PAGE_MENU_RECORD: variables in it have offsets only) */
-/* scene_math: The page the scene's multiply and divide helpers keep their operands and results
- * on: their caller's */
-/* D is not fixed: the helpers have no page of their own: they work on the cells of whichever
+/* scene_program: The page the scene program's shared routines run on: the scene's own, or, when
+ * a sequence script calls one, its channel's */
+/* D is not fixed: the routines have no page of their own: they work on the cells of whichever
  * page they are called on, the scene's own, or a sequence channel's (its record in
- * scene_channels) when a channel's script calls a routine of the program. Instances: scene (D =
+ * scene_channels) when a channel's script calls a routine of the program. Instances: own (D =
  * $0000); channel 0-1 (D = $0A00 + $100 each) */
-/* (no RAM_PAGE_SCENE_MATH: variables in it have offsets only) */
+/* (no RAM_PAGE_SCENE_PROGRAM: variables in it have offsets only) */
 
 /* ---- core ---------------------------------------------------------------------------------- */
 
@@ -3414,9 +3414,10 @@
 
 /* ---- scene --------------------------------------------------------------------------------- */
 
-/* Flag the scene NMI work sets and the program's main loop waits on (16-bit) [2 bytes] */
-#define RAM_SCENE_FRAME_READY 0x7E0000u
-#define RAM_SCENE_FRAME_READY_DP 0x00u       /* page scene */
+/* Nonzero once a sequence script has reached its stop: the program's main loop, which waits for
+ * it, then ends the scene (16-bit) [2 bytes] */
+#define RAM_SCENE_PROGRAM_OVER 0x7E0000u
+#define RAM_SCENE_PROGRAM_OVER_DP 0x00u      /* page scene */
 /* Controller 1 as read in the scene NMI; bit 4 of the high byte ($0003) is Start, which toggles
  * pause [2 bytes] */
 #define RAM_SCENE_JOYPAD 0x7E0002u
@@ -3432,8 +3433,8 @@
  * each upload [2 bytes] */
 #define RAM_SCENE_SPRITE_INDEX 0x7E0011u
 #define RAM_SCENE_SPRITE_INDEX_DP 0x11u      /* page scene */
-/* Pointer to the OAM high-table byte the next sprite's bits go into; back to $0900 after each
- * upload [2 bytes] */
+/* Address of the OAM high-table byte the next sprite's bits go into ($0900 + the byte's place in
+ * scene_sprite_high_table); back to the first after each upload [2 bytes] */
 #define RAM_SCENE_SPRITE_HIGH_POINTER 0x7E0013u
 #define RAM_SCENE_SPRITE_HIGH_POINTER_DP 0x13u /* page scene */
 /* X added to every sprite of a list as it is copied (16-bit in the clipped copy, where 256 or
@@ -3493,16 +3494,18 @@
  * it to clear [2 bytes] */
 #define RAM_SCENE_RACE_TILEMAP_PENDING 0x7E0039u
 #define RAM_SCENE_RACE_TILEMAP_PENDING_DP 0x39u /* page scene */
-/* Scratch for packing pixels into bitplanes: the scaler's eight sample words ($3B-$43), or a
- * tile row's two words and the row count ($3F) in scene_expand_tile_rows [9 bytes] */
+/* Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's
+ * eight sample words ($3B-$43), or the title's plane tile row's two words and its row count
+ * ($3F) [9 bytes] */
 #define RAM_SCENE_BITPLANE_SCRATCH 0x7E003Bu
 #define RAM_SCENE_BITPLANE_SCRATCH_DP 0x3Bu  /* page scene */
 /* BG3's horizontal scroll, sent with the per-frame tilemap block [2 bytes] */
 #define RAM_SCENE_BG3_SCROLL_X 0x7E0044u
 #define RAM_SCENE_BG3_SCROLL_X_DP 0x44u      /* page scene */
-/* Value the race writes to APU port 1 with $89 on port 0 each frame, without waiting for an echo */
-#define RAM_SCENE_RACE_SOUND_PARAMETER 0x7E004Bu
-#define RAM_SCENE_RACE_SOUND_PARAMETER_DP 0x4Bu /* page scene */
+/* The pitch of the race's engine: the parameter of the sound driver command $89 (the effect
+ * voices' pitch, docs/SOUND.md), which the race sends each frame without waiting for the echo */
+#define RAM_SCENE_RACE_ENGINE_PITCH 0x7E004Bu
+#define RAM_SCENE_RACE_ENGINE_PITCH_DP 0x4Bu /* page scene */
 /* The Mode 7 matrix the scene keeps and copies to the hardware [8 bytes] */
 #define RAM_SCENE_MODE7_MATRIX 0x7E005Au
 #define RAM_SCENE_MODE7_MATRIX_DP 0x5Au      /* page scene */
@@ -3510,16 +3513,17 @@
 #define RAM_SCENE_MODE7_MATRIX_B 0x7E005Cu   /* Matrix parameter B */
 #define RAM_SCENE_MODE7_MATRIX_C 0x7E005Eu   /* Matrix parameter C */
 #define RAM_SCENE_MODE7_MATRIX_D 0x7E0060u   /* Matrix parameter D */
-/* Set to $0038 when the title's task shows its layers, beside scene_title_show_cell_2 ($003A);
- * what reads the pair isn't ported [2 bytes] */
-#define RAM_SCENE_TITLE_SHOW_CELL_1 0x7E0062u
-#define RAM_SCENE_TITLE_SHOW_CELL_1_DP 0x62u /* page scene */
-/* Set to $003A when the title's task shows its layers, beside scene_title_show_cell_1 ($0038) [2
- * bytes] */
-#define RAM_SCENE_TITLE_SHOW_CELL_2 0x7E0064u
-#define RAM_SCENE_TITLE_SHOW_CELL_2_DP 0x64u /* page scene */
-/* The title's frame count, which its layer task reads: while it is below $72 the task shows BG1,
- * BG2 and the sprites and hands channel 0 its next script [2 bytes] */
+/* The title logo's X: the sprite offset its two sprite lists are drawn at ($7E:5D01); it sweeps
+ * in along a curve and lands at $38 [2 bytes] */
+#define RAM_SCENE_TITLE_LOGO_X 0x7E0062u
+#define RAM_SCENE_TITLE_LOGO_X_DP 0x62u      /* page scene */
+/* The title logo's Y: the sprite offset of its first sprite list, and $40 more its second's
+ * ($7E:5D01); it lands at $3A [2 bytes] */
+#define RAM_SCENE_TITLE_LOGO_Y 0x7E0064u
+#define RAM_SCENE_TITLE_LOGO_Y_DP 0x64u      /* page scene */
+/* The title's timer, which the logo's task counts down by two a frame from $F8 while the logo
+ * sweeps in; below $72 the logo lands, BG1, BG2 and the sprites come on and channel 0 goes on to
+ * the next script [2 bytes] */
 #define RAM_SCENE_TITLE_TIMER 0x7E0068u
 #define RAM_SCENE_TITLE_TIMER_DP 0x68u       /* page scene */
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4000; cleared when it is
@@ -3591,10 +3595,24 @@
  * that finds the line x above it [2 bytes] */
 #define RAM_SCENE_CIRCLE_CENTER_ROW_HALF 0x7E03F6u
 #define RAM_SCENE_CIRCLE_CENTER_ROW_HALF_DP 0xF6u /* page decompress */
-/* The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y,
- * tile, attributes) and the $20-byte high table after them, reached by the byte offsets the
- * scene's cursors hold [544 bytes] */
+/* The NMI stub (core's nmi_vector) as the scenes install their handlers in it: a long jump and
+ * its target [4 bytes] */
+#define RAM_SCENE_NMI_STUB 0x7E0500u
+#define RAM_SCENE_NMI_STUB_JUMP 0x7E0500u    /* The jump's opcode, which installing a handler writes */
+#define RAM_SCENE_NMI_STUB_HANDLER 0x7E0501u /* The handler's long address */
+#define RAM_SCENE_NMI_STUB_HANDLER_IN_BANK 0x7E0501u /* The handler's address within its bank, which the frame's work swaps between its two handlers in bank C3 */
+/* The IRQ stub (core's irq_vector) as the scene boot installs its line handler in it: a long
+ * jump and its target [4 bytes] */
+#define RAM_SCENE_IRQ_STUB 0x7E0504u
+#define RAM_SCENE_IRQ_STUB_JUMP 0x7E0504u    /* The jump's opcode, which installing a handler writes */
+#define RAM_SCENE_IRQ_STUB_HANDLER 0x7E0505u /* The handler's long address */
+/* The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y,
+ * tile, attributes), reached by the byte offset the scene's cursor holds [512 bytes] */
 #define RAM_SCENE_SPRITE_TABLE 0x7E0700u
+/* The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites'
+ * two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its
+ * own at the top [32 bytes] */
+#define RAM_SCENE_SPRITE_HIGH_TABLE 0x7E0900u
 /* The scene's task list: addresses of routines in the program (0 = empty slot) that sequence
  * scripts add and remove; the NMI copies it to $0950 and runs the copy each frame [16 x $2
  * bytes, by task slot] */
@@ -3621,9 +3639,11 @@
 #define RAM_SCENE_CHANNELS_SCRIPT 0x7E0A20u  /* Pointer to the channel's next script command in bank $7E; a store to it is a goto */
 #define RAM_SCENE_CHANNELS_LOOP_COUNTERS 0x7E0A22u /* Counters of the loop commands $80-$9F, a word each at $22 + 2n (n = 7 is the return address) */
 #define RAM_SCENE_CHANNELS_RETURN_ADDRESS 0x7E0A30u /* Where the script's call command ($A3) returns to */
-/* Tilemap the scene builds in work RAM for vblank: $80 bytes of it go to VRAM $7000 each frame,
- * and in the race all $800 to whichever half of the plane tilemap is ready; its words at
- * $0C40-$0C7F are shifted up a slot at the start of a task [2048 bytes] */
+/* Tilemap the scene builds in work RAM for vblank. In the title, its first $80 bytes are BG3's
+ * first two rows, which in BG mode 2 hold the columns' horizontal and vertical offsets: each
+ * frame the vertical ones ($0C40-$0C7F) move a column to the right and go to VRAM $7000, which
+ * makes the ripple. In the race, all $800 go to whichever half of the racers' tilemap is ready
+ * [2048 bytes] */
 #define RAM_SCENE_TILEMAP_BUFFER 0x7E0C00u
 /* Race camera: the Mode 7 rotation center's X [2 bytes] */
 #define RAM_SCENE_RACE_CENTER_X 0x7E142Cu
@@ -3650,12 +3670,30 @@
 /* Half of the race's 128x128 Mode 7 name table, sent into the low byte of VRAM words; the loader
  * sends it twice to cover the whole table [8192 bytes] */
 #define RAM_SCENE_RACE_PLANE_MAP 0x7F2200u
-/* Operands and results of the scene's multiply and divide helpers, on whichever page the caller
- * has, the scene's own or a sequence channel's: two operand words at $F0 and $F2 (multiplicand
- * and multiplier, the 8.8 divide's dividend and divisor, the 32-bit dividend), a 32-bit product
- * or divisor at $F4, and the 32-bit quotient and remainder at $F8 and $FC. The matrix code
- * generator keeps its offsets here, the program's own transfer its channel's mode and
- * destination, and the sequence scripts' code call its routine's address [16 bytes] */
-#define RAM_SCENE_MATH_SCRATCH_DP 0xF0u      /* page scene_math, D per instance */
+/* The sixteen bytes a scene program's routine takes its values in and leaves its results in, on
+ * whichever page it is called on (the scene's own, or a sequence channel's): the arithmetic's
+ * operands and results, the program's transfer's mode and register, the matrix code generator's
+ * offsets, the script's kept word. Each field is one routine's use, so fields overlap [16 bytes] */
+#define RAM_SCENE_CALL_DP 0xF0u              /* page scene_program, D per instance */
+#define RAM_SCENE_CALL_FIRST_DP 0xF0u        /* The first operand: the multiplicand, or the 8.8 divide's dividend */
+#define RAM_SCENE_CALL_SECOND_DP 0xF2u       /* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor */
+#define RAM_SCENE_CALL_DIVIDEND_DP 0xF0u     /* The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and zeros below */
+#define RAM_SCENE_CALL_PRODUCT_DP 0xF4u      /* The multiplies' 32-bit product */
+#define RAM_SCENE_CALL_DIVISOR_DP 0xF4u      /* The 32-bit divide's divisor */
+#define RAM_SCENE_CALL_FRACTION_DP 0xF4u     /* The 8.8 divide's quotient: an 8.8 fixed-point number */
+#define RAM_SCENE_CALL_QUOTIENT_LIMIT_DP 0xF4u /* The quotient the divisor search stops below (read on the scene's own page) */
+#define RAM_SCENE_CALL_QUOTIENT_DP 0xF8u     /* The 32-bit divide's quotient */
+#define RAM_SCENE_CALL_AFTER_THE_PRODUCT_DP 0xF8u /* The byte after the product, whatever the last routine to use it left there (the matrix code generator's source base, a divide's quotient or divisor): the unsigned multiply shifts it left through the product's top byte */
+#define RAM_SCENE_CALL_DIVISOR_LESS_ONE_DP 0xF8u /* The 8.8 divide's divisor less one, which it keeps while it runs */
+#define RAM_SCENE_CALL_REMAINDER_DP 0xFCu    /* The 32-bit divide's remainder */
+#define RAM_SCENE_CALL_TRANSFER_CONTROL_DP 0xF0u /* The program's own transfer: its channel's mode (how it moves the bytes) */
+#define RAM_SCENE_CALL_TRANSFER_REGISTER_DP 0xF2u /* The program's own transfer: the register it feeds */
+#define RAM_SCENE_CALL_MATRIX_TABLE_OFFSET_DP 0xF0u /* The race's matrix code generator: the table offset of the eighth being written */
+#define RAM_SCENE_CALL_MATRIX_ROW_STEP_DP 0xF2u /* The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_PAIR_STEP_DP 0xF4u /* The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_COLUMN_STEP_DP 0xF6u /* The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_SOURCE_DP 0xF8u /* The race's matrix code generator: the base the generated loads add their offsets to */
+#define RAM_SCENE_CALL_MATRIX_DESTINATION_DP 0xFAu /* The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last */
+#define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
 
 #endif

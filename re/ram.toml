@@ -173,16 +173,16 @@ name = "scene"
 d = 0x0000
 subsystem = "scene"
 meaning = "The scene engine's and scene program's direct page"
-source = "LDA #$0000 : TCD at $C3:09EE; every scene_ port but scene_set_mode_2 entered with D = $0000"
+source = "LDA #$0000 : TCD at $C3:09EE; every scene_ port but scene_title_start_ripple (called from a script, on its channel's page) entered with D = $0000"
 
 [[page]]
-name = "scene_math"
+name = "scene_program"
 subsystem = "scene"
-meaning = "The page the scene's multiply and divide helpers keep their operands and results on: their caller's"
+meaning = "The page the scene program's shared routines run on: the scene's own, or, when a sequence script calls one, its channel's"
 source = "Measured over the 26 movies (ct_dev --page-report): scene_multiply ($7E:31BF) entered with D = $0000 146235 times, $0A00 23842 (5412 of them in events-jetbike-race) and $0B00 1920 (endings-beyond-time); scene_divide ($7E:339F, 20115 calls), scene_divide_8_8 ($7E:32E2, 16225) and scene_multiply_signed ($C3:094C, 21120) only with $0000; the sequence interpreter ($C3:0AFF) on $0A00 61680 times and $0B00 18316, never another page. Two channels because the attract program has two (scene_channels); every instance is reached"
-why = "the helpers have no page of their own: they work on the cells of whichever page they are called on, the scene's own, or a sequence channel's (its record in scene_channels) when a channel's script calls a routine of the program"
+why = "the routines have no page of their own: they work on the cells of whichever page they are called on, the scene's own, or a sequence channel's (its record in scene_channels) when a channel's script calls a routine of the program"
 instances = [
-  { name = "scene", d = 0x0000 },
+  { name = "own", d = 0x0000 },
   { name = "channel", base = 0x0A00, count = 2, stride = 0x100 },
 ]
 
@@ -243,7 +243,7 @@ size = 3
 page = "decompress"
 subsystem = "data"
 meaning = "24-bit destination in bank $7E or $7F the decompressor writes (in); the scene program's own transfer takes its source from here"
-source = "game/data/decompress.c, decompress $C3:0557 (V_DST); game/scene/display.c, scene_transfer $7E:38E7"
+source = "game/data/decompress.c, decompress $C3:0557 (V_DST); game/scene/screen.c, scene_transfer $7E:38E7"
 
 [[var]]
 name = "decompress_length"
@@ -252,7 +252,7 @@ size = 2
 page = "decompress"
 subsystem = "data"
 meaning = "Decompressed length in bytes (out); the scene program's own transfer takes its size from here"
-source = "game/data/decompress.c, decompress $C3:0557 (V_OUT_LEN); game/scene/display.c, scene_transfer $7E:38E7"
+source = "game/data/decompress.c, decompress $C3:0557 (V_OUT_LEN); game/scene/screen.c, scene_transfer $7E:38E7"
 
 [[var]]
 name = "decompress_segment_end"
@@ -300,13 +300,13 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_TEMP)"
 # ---- the scene page ($0000) ----------------------------------------------------
 
 [[var]]
-name = "scene_frame_ready"
+name = "scene_program_over"
 addr = "7E:0000"
 size = 2
 page = "scene"
 subsystem = "scene"
-meaning = "Flag the scene NMI work sets and the program's main loop waits on (16-bit)"
-source = "game/attract/main_loop.c, attract_wait_loop $7E:3023"
+meaning = "Nonzero once a sequence script has reached its stop: the program's main loop, which waits for it, then ends the scene (16-bit)"
+source = "game/scene/script.c, stop (command $AF, $C3:0B95); game/attract/main_loop.c, attract_wait_loop $7E:3023"
 
 [[var]]
 name = "scene_joypad"
@@ -315,7 +315,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Controller 1 as read in the scene NMI; bit 4 of the high byte ($0003) is Start, which toggles pause"
-source = "game/scene/nmi.c, read_pause_button $C3:0A8E"
+source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E"
 
 [[var]]
 name = "scene_frame_counter"
@@ -324,7 +324,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Frames counted by the scene NMI work"
-source = "game/scene/nmi.c, scene_run_frame_work $C3:08D0"
+source = "game/scene/frame.c, scene_frame_work $C3:08D0"
 
 [[var]]
 name = "scene_sprite_priority_start"
@@ -332,7 +332,7 @@ addr = "7E:0010"
 page = "scene"
 subsystem = "scene"
 meaning = "OAM address the sprite upload leaves set with priority rotation on: the entry that draws on top"
-source = "game/scene/display.c, scene_upload_sprites $7E:380E"
+source = "game/scene/screen.c, scene_upload_sprites $7E:380E"
 
 [[var]]
 name = "scene_sprite_index"
@@ -341,7 +341,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Offset of the next free entry in the OAM buffer at $0700 (4 bytes an entry); cleared after each upload"
-source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC; game/scene/display.c, scene_upload_sprites $7E:380E"
+source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC; game/scene/screen.c, scene_upload_sprites $7E:380E"
 
 [[var]]
 name = "scene_sprite_high_pointer"
@@ -349,8 +349,8 @@ addr = "7E:0013"
 size = 2
 page = "scene"
 subsystem = "scene"
-meaning = "Pointer to the OAM high-table byte the next sprite's bits go into; back to $0900 after each upload"
-source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC; game/scene/display.c, scene_init_video $7E:30F9, scene_upload_sprites $7E:380E"
+meaning = "Address of the OAM high-table byte the next sprite's bits go into ($0900 + the byte's place in scene_sprite_high_table); back to the first after each upload"
+source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC; game/scene/screen.c, scene_init_video $7E:30F9, scene_upload_sprites $7E:380E"
 
 [[var]]
 name = "scene_sprite_offset_x"
@@ -380,10 +380,18 @@ source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E"
 [[var]]
 name = "scene_sprite_table"
 addr = "7E:0700"
-size = 0x220
+size = 0x200
 subsystem = "scene"
-meaning = "The OAM buffer as the scene's sprite writers see it: $200 bytes of four-byte entries (X, Y, tile, attributes) and the $20-byte high table after them, reached by the byte offsets the scene's cursors hold"
-source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC (the entry offset and the high-table pointer are byte offsets and addresses, not sprite numbers)"
+meaning = "The OAM buffer's entries as the scene's sprite writers see them: 128 four-byte entries (X, Y, tile, attributes), reached by the byte offset the scene's cursor holds"
+source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC (the entry cursor is a byte offset, not a sprite number)"
+
+[[var]]
+name = "scene_sprite_high_table"
+addr = "7E:0900"
+size = 0x20
+subsystem = "scene"
+meaning = "The OAM buffer's high table as the scene's sprite writers see it: 32 bytes of four sprites' two bits each (X's 9th bit, large), a sprite shifting a byte right two bits and putting its own at the top"
+source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC"
 
 [[var]]
 name = "scene_scaler_pairs"
@@ -392,7 +400,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: pairs of 8-sample groups per output row (the row's width in 16-pixel units)"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_source_base"
@@ -401,7 +409,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: base address added to a source row's position to point at it"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_rows_left"
@@ -410,7 +418,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: output rows left to render"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_row_step"
@@ -419,7 +427,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: step added to the row accumulator per output row"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_column_step"
@@ -428,7 +436,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: 8.8 fixed-point step between source samples along a row"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_source_limit"
@@ -437,7 +445,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: source row position at or past which the rest of the output is cleared and the bitmap ends"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_output"
@@ -446,7 +454,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: address in bank $7F of the current output row (32 bytes of planar tile graphics)"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_plane_output"
@@ -455,7 +463,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: where the next four bitplane bytes go, advancing by 4 per 8 samples"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_source_row"
@@ -464,7 +472,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: pointer to the source row being sampled; a row equal to the last one copies the previous output"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_row_position"
@@ -473,7 +481,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: row accumulator that picks each output row's source row (0 at the start)"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309 (and $C3:0307)"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309 (and $C3:0307)"
 
 [[var]]
 name = "scene_scaler_pair_counter"
@@ -482,7 +490,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: sample pairs left in the current row"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_scaler_output_end"
@@ -491,7 +499,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Bitmap scaler: end of the previous bitmap's output; when a bitmap ends, the output from its end up to here is cleared"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
 name = "scene_race_tilemap_pending"
@@ -500,7 +508,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Nonzero until the vblank upload sends a tilemap half the race marked ready; the race waits for it to clear"
-source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221; game/scene/program.c, scene_wait_39_clear_loop $7E:5211"
+source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221, scene_race_wait_for_tilemap_upload_loop $7E:5211"
 
 [[var]]
 name = "scene_bitplane_scratch"
@@ -508,8 +516,8 @@ addr = "7E:003B"
 size = 9
 page = "scene"
 subsystem = "scene"
-meaning = "Scratch for packing pixels into bitplanes: the scaler's eight sample words ($3B-$43), or a tile row's two words and the row count ($3F) in scene_expand_tile_rows"
-source = "game/scene/bitmap.c, scene_scale_bitmap_row $C3:0309; game/scene/display.c, scene_expand_tile_rows $7E:5E54"
+meaning = "Scratch the original packs pixels in, which only the routine that fills it reads: the scaler's eight sample words ($3B-$43), or the title's plane tile row's two words and its row count ($3F)"
+source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309; game/scene/title.c, scene_title_expand_plane_tile $7E:5E54"
 
 [[var]]
 name = "scene_bg3_scroll_x"
@@ -518,15 +526,15 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "BG3's horizontal scroll, sent with the per-frame tilemap block"
-source = "game/scene/display.c, scene_upload_map_and_scroll $7E:6212"
+source = "game/scene/title.c, scene_title_upload_ripple $7E:6212"
 
 [[var]]
-name = "scene_race_sound_parameter"
+name = "scene_race_engine_pitch"
 addr = "7E:004B"
 page = "scene"
 subsystem = "scene"
-meaning = "Value the race writes to APU port 1 with $89 on port 0 each frame, without waiting for an echo"
-source = "game/scene/program.c, scene_race_send_sound_parameter $7E:4BD2"
+meaning = "The pitch of the race's engine: the parameter of the sound driver command $89 (the effect voices' pitch, docs/SOUND.md), which the race sends each frame without waiting for the echo"
+source = "game/scene/race.c, scene_race_set_engine_pitch $7E:4BD2"
 
 [[var]]
 name = "scene_mode7_matrix"
@@ -535,7 +543,7 @@ stride = 8
 page = "scene"
 subsystem = "scene"
 meaning = "The Mode 7 matrix the scene keeps and copies to the hardware"
-source = "game/scene/display.c, scene_set_mode7_matrix $7E:5C57"
+source = "game/scene/title.c, scene_title_place_pendulum $7E:5C57"
 [[var.field]]
 name = "a"
 offset = 0
@@ -558,22 +566,22 @@ size = 2
 meaning = "Matrix parameter D"
 
 [[var]]
-name = "scene_title_show_cell_1"
+name = "scene_title_logo_x"
 addr = "7E:0062"
 size = 2
 page = "scene"
 subsystem = "scene"
-meaning = "Set to $0038 when the title's task shows its layers, beside scene_title_show_cell_2 ($003A); what reads the pair isn't ported"
-source = "game/scene/display.c, scene_show_layers $7E:5C98"
+meaning = "The title logo's X: the sprite offset its two sprite lists are drawn at ($7E:5D01); it sweeps in along a curve and lands at $38"
+source = "game/scene/title.c, scene_title_move_logo $7E:5C98"
 
 [[var]]
-name = "scene_title_show_cell_2"
+name = "scene_title_logo_y"
 addr = "7E:0064"
 size = 2
 page = "scene"
 subsystem = "scene"
-meaning = "Set to $003A when the title's task shows its layers, beside scene_title_show_cell_1 ($0038)"
-source = "game/scene/display.c, scene_show_layers $7E:5C98"
+meaning = "The title logo's Y: the sprite offset of its first sprite list, and $40 more its second's ($7E:5D01); it lands at $3A"
+source = "game/scene/title.c, scene_title_move_logo $7E:5C98"
 
 [[var]]
 name = "scene_title_timer"
@@ -581,8 +589,8 @@ addr = "7E:0068"
 size = 2
 page = "scene"
 subsystem = "scene"
-meaning = "The title's frame count, which its layer task reads: while it is below $72 the task shows BG1, BG2 and the sprites and hands channel 0 its next script"
-source = "game/scene/display.c, scene_show_layers $7E:5C98"
+meaning = "The title's timer, which the logo's task counts down by two a frame from $F8 while the logo sweeps in; below $72 the logo lands, BG1, BG2 and the sprites come on and channel 0 goes on to the next script"
+source = "game/scene/title.c, scene_title_move_logo $7E:5C98"
 
 [[var]]
 name = "scene_race_tilemap_a_ready"
@@ -601,13 +609,110 @@ meaning = "Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $44
 source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221"
 
 [[var]]
-name = "scene_math_scratch"
-page = "scene_math"
+name = "scene_call"
+page = "scene_program"
 dp = 0xF0
-size = 16
+stride = 16
 subsystem = "scene"
-meaning = "Operands and results of the scene's multiply and divide helpers, on whichever page the caller has, the scene's own or a sequence channel's: two operand words at $F0 and $F2 (multiplicand and multiplier, the 8.8 divide's dividend and divisor, the 32-bit dividend), a 32-bit product or divisor at $F4, and the 32-bit quotient and remainder at $F8 and $FC. The matrix code generator keeps its offsets here, the program's own transfer its channel's mode and destination, and the sequence scripts' code call its routine's address"
-source = "game/scene/program.c, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply $7E:31BF; game/scene/math.c, scene_multiply_signed $C3:094C; game/scene/matrix_code.c, scene_write_matrix_code $C3:09E9; game/scene/display.c, scene_transfer $7E:38E7; tools/disasm/seqscript.py (command $A0)"
+meaning = "The sixteen bytes a scene program's routine takes its values in and leaves its results in, on whichever page it is called on (the scene's own, or a sequence channel's): the arithmetic's operands and results, the program's transfer's mode and register, the matrix code generator's offsets, the script's kept word. Each field is one routine's use, so fields overlap"
+source = "game/scene/math.c, scene_multiply $7E:31BF, scene_divide $7E:339F, scene_divide_8_8 $7E:32E2, scene_multiply_signed $C3:094C, scene_find_divisor $C3:0E29; game/scene/race_matrix.c, scene_write_matrix_code $C3:09E9; game/scene/screen.c, scene_transfer $7E:38E7; game/scene/script.c, scene_run_sequence $C3:0AFF"
+[[var.field]]
+name = "first"
+offset = 0x0
+size = 2
+meaning = "The first operand: the multiplicand, or the 8.8 divide's dividend"
+[[var.field]]
+name = "second"
+offset = 0x2
+size = 2
+meaning = "The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor"
+[[var.field]]
+name = "dividend"
+offset = 0x0
+size = 4
+meaning = "The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and zeros below"
+[[var.field]]
+name = "product"
+offset = 0x4
+size = 4
+meaning = "The multiplies' 32-bit product"
+[[var.field]]
+name = "divisor"
+offset = 0x4
+size = 4
+meaning = "The 32-bit divide's divisor"
+[[var.field]]
+name = "fraction"
+offset = 0x4
+size = 2
+meaning = "The 8.8 divide's quotient: an 8.8 fixed-point number"
+[[var.field]]
+name = "quotient_limit"
+offset = 0x4
+size = 2
+meaning = "The quotient the divisor search stops below (read on the scene's own page)"
+[[var.field]]
+name = "quotient"
+offset = 0x8
+size = 4
+meaning = "The 32-bit divide's quotient"
+[[var.field]]
+name = "after_the_product"
+offset = 0x8
+meaning = "The byte after the product, whatever the last routine to use it left there (the matrix code generator's source base, a divide's quotient or divisor): the unsigned multiply shifts it left through the product's top byte"
+[[var.field]]
+name = "divisor_less_one"
+offset = 0x8
+size = 2
+meaning = "The 8.8 divide's divisor less one, which it keeps while it runs"
+[[var.field]]
+name = "remainder"
+offset = 0xC
+size = 4
+meaning = "The 32-bit divide's remainder"
+[[var.field]]
+name = "transfer_control"
+offset = 0x0
+meaning = "The program's own transfer: its channel's mode (how it moves the bytes)"
+[[var.field]]
+name = "transfer_register"
+offset = 0x2
+meaning = "The program's own transfer: the register it feeds"
+[[var.field]]
+name = "matrix_table_offset"
+offset = 0x0
+size = 2
+meaning = "The race's matrix code generator: the table offset of the eighth being written"
+[[var.field]]
+name = "matrix_row_step"
+offset = 0x2
+size = 2
+meaning = "The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0)"
+[[var.field]]
+name = "matrix_pair_step"
+offset = 0x4
+size = 2
+meaning = "The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0)"
+[[var.field]]
+name = "matrix_column_step"
+offset = 0x6
+size = 2
+meaning = "The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0)"
+[[var.field]]
+name = "matrix_source"
+offset = 0x8
+size = 2
+meaning = "The race's matrix code generator: the base the generated loads add their offsets to"
+[[var.field]]
+name = "matrix_destination"
+offset = 0xA
+size = 2
+meaning = "The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last"
+[[var.field]]
+name = "script_scratch"
+offset = 0x0
+size = 2
+meaning = "A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page)"
 
 # ---- the scene's absolute work RAM ---------------------------------------------
 
@@ -616,42 +721,42 @@ name = "scene_flags"
 addr = "7E:0384"
 subsystem = "scene"
 meaning = "Scene mode bits: bit 7 = interrupts stay enabled through the NMI work (IRQs in use) and the shorter work RAM clear (the title coming back); bit 5 = don't send song changes"
-source = "game/scene/nmi.c, scene_run_frame_work $C3:08D0, update_song $C3:09A4; game/scene/display.c, scene_clear_work_ram $7E:3092"
+source = "game/scene/frame.c, scene_frame_work $C3:08D0, song_to_send $C3:09A4; game/scene/screen.c, scene_clear_work_ram $7E:3092"
 
 [[var]]
 name = "scene_song_sending"
 addr = "7E:0388"
 subsystem = "scene"
 meaning = "Nonzero while a song is being sent to the sound driver; the race skips its sound parameter meanwhile"
-source = "game/scene/nmi.c, update_song $C3:09A4; game/scene/program.c, scene_race_send_sound_parameter $7E:4BD2"
+source = "game/scene/frame.c, song_to_send $C3:09A4; game/scene/race.c, scene_race_set_engine_pitch $7E:4BD2"
 
 [[var]]
 name = "scene_song_playing"
 addr = "7E:0389"
 subsystem = "scene"
 meaning = "The song last sent to the sound driver"
-source = "game/scene/nmi.c, update_song $C3:09A4"
+source = "game/scene/frame.c, song_to_send $C3:09A4"
 
 [[var]]
 name = "scene_song"
 addr = "7E:038A"
 subsystem = "scene"
 meaning = "The song the scene wants; the NMI sends it (driver command $10) when it differs from the one playing"
-source = "game/scene/nmi.c, update_song $C3:09A4"
+source = "game/scene/frame.c, song_to_send $C3:09A4"
 
 [[var]]
 name = "scene_line_effects"
 addr = "7E:038C"
 subsystem = "scene"
 meaning = "Per-line effect (HDMA) channels to enable, restored after the NMI work"
-source = "game/scene/nmi.c, scene_run_frame_work $C3:08D0"
+source = "game/scene/frame.c, scene_frame_work $C3:08D0"
 
 [[var]]
 name = "scene_brightness"
 addr = "7E:038D"
 subsystem = "scene"
 meaning = "Display brightness the NMI work restores (0 = forced blank), halved while paused"
-source = "game/scene/nmi.c, scene_run_frame_work $C3:08D0; docs/PLATFORM.md, survey (Display)"
+source = "game/scene/frame.c, scene_frame_work $C3:08D0; docs/PLATFORM.md, survey (Display)"
 
 [[var]]
 name = "scene_pause_enabled"
@@ -659,7 +764,7 @@ addr = "7E:0390"
 size = 2
 subsystem = "scene"
 meaning = "Nonzero while Start may pause the scene"
-source = "game/scene/nmi.c, read_pause_button $C3:0A8E"
+source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E"
 
 [[var]]
 name = "scene_paused"
@@ -667,7 +772,7 @@ addr = "7E:0392"
 size = 2
 subsystem = "scene"
 meaning = "1 while the scene is paused: the task lists don't run and the screen is at half brightness"
-source = "game/scene/nmi.c, read_pause_button $C3:0A8E, scene_run_frame_work $C3:08D0"
+source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E, scene_frame_work $C3:08D0"
 
 [[var]]
 name = "scene_start_held"
@@ -675,14 +780,53 @@ addr = "7E:0394"
 size = 2
 subsystem = "scene"
 meaning = "Set when Start toggles pause and cleared when it is released, so a held Start toggles once"
-source = "game/scene/nmi.c, read_pause_button $C3:0A8E"
+source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E"
 
 [[var]]
 name = "scene_reset_disabled"
 addr = "7E:0396"
 subsystem = "scene"
 meaning = "Nonzero keeps L+R+Select+Start from resetting the console during a scene"
-source = "game/scene/nmi.c, read_pause_button $C3:0A8E"
+source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E"
+
+[[var]]
+name = "scene_nmi_stub"
+addr = "7E:0500"
+stride = 4
+subsystem = "scene"
+meaning = "The NMI stub (core's nmi_vector) as the scenes install their handlers in it: a long jump and its target"
+source = "game/scene/boot.c, scene_boot $C3:0000; game/scene/frame.c, scene_frame_work $C3:08D0"
+[[var.field]]
+name = "jump"
+offset = 0
+meaning = "The jump's opcode, which installing a handler writes"
+[[var.field]]
+name = "handler"
+offset = 1
+size = 3
+meaning = "The handler's long address"
+[[var.field]]
+name = "handler_in_bank"
+offset = 1
+size = 2
+meaning = "The handler's address within its bank, which the frame's work swaps between its two handlers in bank C3"
+
+[[var]]
+name = "scene_irq_stub"
+addr = "7E:0504"
+stride = 4
+subsystem = "scene"
+meaning = "The IRQ stub (core's irq_vector) as the scene boot installs its line handler in it: a long jump and its target"
+source = "game/scene/boot.c, scene_boot $C3:0000"
+[[var.field]]
+name = "jump"
+offset = 0
+meaning = "The jump's opcode, which installing a handler writes"
+[[var.field]]
+name = "handler"
+offset = 1
+size = 3
+meaning = "The handler's long address"
 
 [[var]]
 name = "scene_tasks"
@@ -692,7 +836,7 @@ count = 16
 index = "task slot"
 subsystem = "scene"
 meaning = "The scene's task list: addresses of routines in the program (0 = empty slot) that sequence scripts add and remove; the NMI copies it to $0950 and runs the copy each frame"
-source = "game/scene/nmi.c, scene_run_frame_work $C3:08D0 (MVN of $20 bytes); docs/DISASSEMBLY.md parser table and tools/disasm/seqscript.py (commands $A9, $AA)"
+source = "game/scene/frame.c, scene_frame_work $C3:08D0 (MVN of $20 bytes); docs/DISASSEMBLY.md parser table and tools/disasm/seqscript.py (commands $A9, $AA)"
 
 [[var]]
 name = "scene_early_tasks"
@@ -702,7 +846,7 @@ count = 8
 index = "task slot"
 subsystem = "scene"
 meaning = "The scene's second task list (0 = empty slot), run early in the NMI work unless paused, each task called with 8-bit A and the direct page in A"
-source = "game/scene/program.c, scene_run_tasks_940 $7E:39BE; game/scene/nmi.c, scene_run_frame_work $C3:08D0; tools/disasm/seqscript.py (commands $A7, $A8)"
+source = "game/scene/frame.c, scene_run_vblank_tasks $7E:39BE, scene_frame_work $C3:08D0; tools/disasm/seqscript.py (commands $A7, $A8)"
 
 [[var]]
 name = "scene_tasks_running"
@@ -712,7 +856,7 @@ count = 16
 index = "task slot"
 subsystem = "scene"
 meaning = "The NMI's copy of the task list at $0920, which it runs each frame when not paused"
-source = "game/scene/program.c, scene_run_tasks_950 $7E:398A; game/scene/nmi.c, scene_run_frame_work $C3:08D0"
+source = "game/scene/frame.c, scene_run_frame_tasks $7E:398A, scene_frame_work $C3:08D0"
 
 [[var]]
 name = "scene_channels"
@@ -722,7 +866,7 @@ count = 2
 index = "sequence channel (0 at $0A00, 1 at $0B00)"
 subsystem = "scene"
 meaning = "The attract program's two sequence channels, each run by $C3:0B03 with the direct page on its record; the rest of each page is the channel code's own scratch"
-source = "tools/disasm/seqscript.py and docs/DISASSEMBLY.md's parser table; game/scene/display.c, scene_show_layers $7E:5C98, scene_set_mode7_matrix $7E:5C57, scene_set_mode_2 $7E:5DA7"
+source = "tools/disasm/seqscript.py and docs/DISASSEMBLY.md's parser table; game/scene/title.c, scene_title_move_logo $7E:5C98, scene_title_place_pendulum $7E:5C57, scene_title_start_ripple $7E:5DA7"
 [[var.field]]
 name = "registers"
 offset = 0x00
@@ -749,8 +893,8 @@ name = "scene_tilemap_buffer"
 addr = "7E:0C00"
 size = 0x800
 subsystem = "scene"
-meaning = "Tilemap the scene builds in work RAM for vblank: $80 bytes of it go to VRAM $7000 each frame, and in the race all $800 to whichever half of the plane tilemap is ready; its words at $0C40-$0C7F are shifted up a slot at the start of a task"
-source = "game/scene/display.c, scene_upload_map_and_scroll $7E:6212; game/scene/race.c, scene_race_upload_tilemap $7E:5221, scene_race_clear_buffers $7E:3C09; game/scene/program.c, scene_shift_c00_words $7E:5FFE"
+meaning = "Tilemap the scene builds in work RAM for vblank. In the title, its first $80 bytes are BG3's first two rows, which in BG mode 2 hold the columns' horizontal and vertical offsets: each frame the vertical ones ($0C40-$0C7F) move a column to the right and go to VRAM $7000, which makes the ripple. In the race, all $800 go to whichever half of the racers' tilemap is ready"
+source = "game/scene/title.c, scene_title_upload_ripple $7E:6212; game/scene/race.c, scene_race_upload_tilemap $7E:5221, scene_race_clear_buffers $7E:3C09; game/scene/title.c, scene_title_ripple_columns $7E:5FFE"
 
 [[var]]
 name = "scene_race_center_x"
@@ -798,7 +942,7 @@ addr = "7E:2200"
 size = 0x200
 subsystem = "scene"
 meaning = "The scene's working palette, 256 colors, sent to CGRAM"
-source = "game/scene/display.c, scene_upload_palette $7E:388B"
+source = "game/scene/screen.c, scene_upload_palette $7E:388B"
 
 [[var]]
 name = "scene_race_plane_column"
@@ -830,7 +974,7 @@ addr = "7F:0300"
 size = 0x700
 subsystem = "scene"
 meaning = "The bitmap scaler's output buffer in the race (planar tile graphics), cleared at setup"
-source = "game/scene/race.c, scene_race_clear_scratch $7E:3E58"
+source = "game/scene/race.c, scene_race_load_bg1_map $7E:3E58"
 
 [[var]]
 name = "scene_race_plane_map"
@@ -848,7 +992,7 @@ count = 128
 index = "sprite (OAM entry)"
 subsystem = "core"
 meaning = "The OAM buffer's low table every mode fills and uploads in vblank"
-source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC; game/scene/display.c, scene_upload_sprites $7E:380E ($220 bytes with the high table); docs/PLATFORM.md, Sprites"
+source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC; game/scene/screen.c, scene_upload_sprites $7E:380E ($220 bytes with the high table); docs/PLATFORM.md, Sprites"
 [[var.field]]
 name = "x"
 offset = 0
@@ -872,7 +1016,7 @@ addr = "7E:0900"
 size = 0x20
 subsystem = "core"
 meaning = "The OAM buffer's high table: two bits per sprite, X bit 8 and the large size"
-source = "game/scene/sprites.c, scene_load_sprite_list_clipped $C3:0D5E; game/scene/display.c, scene_upload_sprites $7E:380E; docs/PLATFORM.md, survey (OAM)"
+source = "game/scene/sprites.c, scene_load_sprite_list_clipped $C3:0D5E; game/scene/screen.c, scene_upload_sprites $7E:380E; docs/PLATFORM.md, survey (OAM)"
 
 # ==============================================================================
 # Field and event
@@ -2760,9 +2904,10 @@ subsystem = "scene"
 meaning = "Bit 0: the circle's table is in bank $7F rather than $7E"
 source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
-# The circle's scratch, high on the decompressor's page: the routine keeps its
-# loop state there rather than in registers, and other code on the page reuses
-# the cells, so the port writes them where the original does.
+# The circle's scratch, high on the decompressor's page: the original keeps its
+# loop state there rather than in registers, and other code on the page writes
+# the cells before it reads them, so the port keeps its state in locals and
+# writes the cells' final values for shadow mode (ORIGINAL_EFFECT).
 [[var]]
 name = "scene_circle_count"
 addr = "7E:03F0"
@@ -8930,39 +9075,14 @@ values = [0x07FF, 0x0FFF]
 why = "masks of a back-reference's distance field"
 
 [[not_ram]]
-file = "scene/bitmap.c"
-values = [0x0309]
-why = "PC value: the loop head $C3:0309 the scaler stops at"
+file = "scene/circle.c"
+values = [0x0200]
+why = "how many bytes before its table a circle's lines can reach"
 
 [[not_ram]]
-file = "scene/sequence.c"
-values = [0x0C28, 0x0B01, 0x1F00, 0x2000, 0x8000]
-why = "PC values and the interpreter's return address in bank $C3; the end of low RAM (and of the pages below it) and the task list search's step count"
-
-[[not_ram]]
-file = "scene/sprites.c"
-values = [0x0100]
-why = "the X position (256) past which a sprite is off screen"
-
-[[not_ram]]
-file = "scene/nmi.c"
-values = [0x08B3, 0x08C0, 0x08C9, 0x0921, 0x09C0, 0x0A95, 0x0AA3]
-why = "PC values and pushed return addresses in bank $C3 (NMI vector targets, JSR returns, stop points)"
-
-[[not_ram]]
-file = "scene/program.c"
-values = [0x0400]
-why = "the echo wait's pass count"
-
-[[not_ram]]
-file = "scene/display.c"
-values = [0x0100, 0x0220, 0x0400, 0x0F00, 0x1000, 0x1001, 0x14E0, 0x1500, 0x1808]
-why = "transfer sizes, DMA mode/destination register pairs and the main/sub screen pair written as one word"
-
-[[not_ram]]
-file = "scene/race.c"
-values = [0x0700, 0x0800, 0x0B00, 0x1000, 0x1200]
-why = "transfer sizes and the VRAM word address $0B00 of the Mode 7 name table column"
+file = "scene/screen.c"
+values = [0x0200]
+why = "the sprite table's entries, in bytes"
 
 [[not_ram]]
 file = "field/display.c"

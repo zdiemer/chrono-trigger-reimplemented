@@ -27,7 +27,7 @@ structure and meaning is a starting point for the porter, not a port.
 
 D and DB come from the routine and its callers (tools/recomp/frame.py);
 --d/--db give them by hand, and --page names a direct page whose D isn't fixed
-(a page kind in re/ram.toml: `scene_math`, `menu_record`), whose variables are
+(a page kind in re/ram.toml: `scene_program`, `menu_record`), whose variables are
 then used by offset.
 """
 

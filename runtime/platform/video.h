@@ -509,6 +509,16 @@ typedef struct {
 } VidSnesTransfer;
 PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x);
 
+/* The registers the game's transfers through the escape name, by the low byte
+ * of their address ($21xx), as VidSnesTransfer.dest and .target_reg take it. */
+enum {
+    VID_SNES_VRAM_ADDRESS = 0x16,        /* where VRAM writes go */
+    VID_SNES_VRAM_DATA_LOW = 0x18,       /* the VRAM data port's low byte */
+    VID_SNES_VRAM_DATA_HIGH = 0x19,      /* ... and its high byte */
+    VID_SNES_MULTIPLIER_PRODUCT = 0x34,  /* the Mode 7 multiplier's product, which the clears copy */
+    VID_SNES_VRAM_READ = 0x39,           /* the VRAM read port */
+};
+
 /* ---- observer (docs/PLATFORM.md, P2) ------------------------------------------
  *
  * The development system folds every call into a VidFrame, so the command-built

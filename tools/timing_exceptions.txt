@@ -35,7 +35,6 @@ field_rasterize_quad vblank-worst as for vblank-tail: at most 14885 clocks (11 l
 field_rasterize_quad worst as for vblank-tail: the original steps each pixel of an edge's run and the port each line, so the error follows the shape's widths; at most 80899 clocks, in calls up to four times vblank's length, and no video write moves
 field_build_sprite_table vblank-tail builds the sprite table in RAM, which the next vblank uploads; its time is its draws where it runs them as C (each timed as the draw) and the loop hiding last frame's leftover sprites, whose instructions are mostly index steps the rewrite doesn't make; at most 7352 clocks (5.6 lines) in vblank, 6716 a call on average
 field_build_line_effect_tables vblank-tail builds the next frame's line-effect tables in RAM; its time follows the dialog window's band and the waves, whose loops' index steps the rewrite doesn't make; at most 2252 clocks (1.7 lines)
-field_build_top_window_0 vblank-tail as field_build_line_effect_tables: 1.1% of its calls in vblank off by 1024 clocks or more, at most 1044
 field_build_bottom_window_0 vblank-tail as field_build_line_effect_tables: 2.7% of its calls in vblank off by 1024 clocks or more, at most 1079
 field_unpack_tile_maps vblank-worst unpacks a map's tile layers and attributes at its load, 2.5 frames a call on average, writing RAM; its time follows the runs in the stream, and its error (3.3%) moves the end of the load, not a video write
 field_unpack_tile_maps worst as for vblank-worst: at most 157575 clocks in a call of 658247 on average
@@ -45,7 +44,7 @@ menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 
 menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; its tiles and numbers are attributed (19% of vblank calls off by a line, from 32%), the control codes' handlers are no entries and the loop follows the string; at most 3498 clocks (2.6 lines) in vblank
 
 # The scene engine's circle, a RAM window table the next frame's HDMA reads.
-scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls; its time follows the radius (the midpoint steps and the fills); at most 1883 clocks (1.4 lines)
+scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls, longer than vblank, writing only RAM; its closed lines are charged as the block move stub's work, and what is left follows the radius in the outline's steps and the lower half's copies, which one scalar fits only on average; at most 11085 clocks (8.1 lines), which moves only when its RAM writes end
 scene_draw_circle_jump vblank-tail the same routine through its jump at $C3:0008: as scene_draw_circle
 battle_draw_objects vblank-tail draws the battle objects into the OAM buffer in RAM in 37-line calls, longer than vblank; the routines it runs per object are attributed (10.7% error to 3.7%), what is left is its own draw list build and exchange sort, whose swaps follow the order; at most 7311 clocks (5.4 lines)
 battle_draw_object_underlays vblank-tail part of battle_draw_objects' pass, into the OAM buffer in RAM; its marker, number sprites and effect sprites are attributed (55.4% error to 12.7%), what is left is its own loop over the object's eight effect records, whose time follows which are set; at most 1855 clocks
