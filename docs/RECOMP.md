@@ -5920,7 +5920,13 @@ numbers, all writing RAM, with the vblank check finding no write moved:
 `battle_effect_combatant_jump`'s vblank tail (4.61%, at most 2,562 clocks) and
 the frame dispatch's drift (+0.83%, the table step's share, at `cost_milli`
 1); `battle_draw_object_underlays`' exception left, its successor
-`battle_draw_in_front` within the limits.
+`battle_draw_in_front` within the limits. The new timing moved the
+`bucket_lavos` route's shell fight onto a frame where the route's bot pressed A
+on a member's menu before the menu had put its remembered command under the
+cursor, so a list other than the one it wanted opened and the bot, not
+expecting it, waited for good; `main` passes because its timing lands
+elsewhere. The bot now backs out of a list it didn't ask for
+(`tools/movies/bot.py`), and the route passes in the shipping mode.
 
 **What is left** is in TODO.md, "What battle's rewrite left": the original's
 routines the battle still calls out to, the meanings not worked out, the

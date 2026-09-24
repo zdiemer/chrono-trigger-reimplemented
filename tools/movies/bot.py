@@ -142,6 +142,10 @@ class Bot:
         else:
             page = 1 if kind == "tech" else 2
             if not self.press("A", lambda s: s.page == page or s.member != member):
+                # the menu can still be setting its cursor up when it first
+                # shows (the member's remembered command), so A may open
+                # another list: back out of it and try again
+                self.back_out(member)
                 return False
             self.step(10)      # the list window takes a few frames before it accepts input
             if kind == "tech":
