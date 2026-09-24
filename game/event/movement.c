@@ -17,9 +17,9 @@
  * The moves go to a tile, up to someone -- an object, or a party member
  * (who may not be in the party: event/party.h) -- or in a direction; the
  * table's rows say which opcode walks or slides, counts, or reads its
- * operands from variables. A jump, a launch and following are operations too; letting an
- * object behave as its state says calls the field's own routines, which are
- * still the original's, and is a bridge.
+ * operands from variables. A jump, a launch and following are operations
+ * too; letting an object behave as its state says calls the field's own
+ * routines, which are still the original's, and is a bridge.
  *
  * What the original's handlers leave in Y and V for the code after them
  * (event/leaves.h) is the field's routines' they called: each move says so

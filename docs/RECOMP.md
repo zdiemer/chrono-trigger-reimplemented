@@ -5481,15 +5481,15 @@ mismatch, and every call these guards refused is compared.
 
 | Entry | Calls | Refused before | Refused after |
 |---|---|---|---|
-| `event_cmd_move_toward_party_member` | 67,877 | 52,898 | 0 |
-| `event_cmd_follow_party_member` | 67,827 | 52,898 | 0 |
-| `event_cmd_note_tile_member` | 5,330 | 2,735 | 0 |
-| `event_cmd_stand_on_tile` | 70 | 9 | 0 |
-| `event_cmd_place` | 53 | 1 | 0 |
+| `event_cmd_move_toward_party_member` | 72,121 | 52,898 | 0 |
+| `event_cmd_follow_party_member` | 70,971 | 52,898 | 0 |
+| `event_cmd_note_tile_member` | 38,500 | 2,735 | 0 |
+| `event_cmd_stand_on_tile` | 1,013 | 9 | 0 |
+| `event_cmd_place` | 520 | 1 | 0 |
 
-(The totals are the movies that make the calls; the 10 commands the openings
-ran inline were handed to the original's handler through the table before, and
-are the openings' own C now.)
+Every call of each matches. (The 10 commands the openings ran inline were
+handed to the original's handler through the table before, and are the
+openings' own C now.)
 
 **Fuzzing.** `tools/fuzz_compare.py` against `main`'s `ct_fuzz`, seed 1,
 20,000 states each, over the 60 entries these touch: 0 routines differ in
