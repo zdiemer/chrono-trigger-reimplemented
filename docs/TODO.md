@@ -177,6 +177,23 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Recompiler
 
+- **Liveness can't see into code the game runs from RAM, and the don't-care
+  check trusts it there.** Scene's rework declared A dead at a call-out into
+  the scene program's RAM routines. Liveness agreed and
+  `tools/dontcare_check.py` accepted it, but one of those routines reads the A
+  the original loads. Only fuzzing caught it (60 of 64 states mismatched).
+  Until liveness follows the program images (`[[ramcode]]`), a declaration at
+  a call-out into RAM code is a claim the check can't support. The check
+  should refuse it, or flag it as unverified, instead of passing it.
+- **"No game state produces it", checked by a tool.** Rubric item 34 says to
+  guard inputs the game never produces instead of emulating them, and each
+  such claim has to be checked. Scene's rework checked each one by adding the
+  guard and diffing per-entry shadow totals against main. That showed the
+  multiply's carry-in is reached 32,936 times (848 on every title screen), so
+  the reviewer's suggested guard would have been wrong. A tool that takes a
+  guard condition, runs the library, and reports how many real calls it would
+  refuse, by entry, would make this a command instead of a gate run.
+
 - **M4**: skip flags nobody reads, call generated blocks directly where it's
   safe. Speed only; rendering and sound dominate now.
 - **The draft tool's gaps** (RECOMP.md, "What drafts don't do yet"): D and DB
