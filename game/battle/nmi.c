@@ -19,9 +19,9 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/screen_data.h"
 #include "cpu_io.h"
 #include "original_effects.h"
-#include "rom.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -32,11 +32,6 @@ enum { BUTTON_START = 0x10, BUTTON_R = 0x10, BUTTON_L = 0x20 };
 
 /* The battle's setup can forbid the pause; it is taken only in the fight. */
 enum { SETUP_NO_PAUSE = 0x20, MODE_FIGHT = 1 };
-
-/* The debug frame advance is on where a byte of the ROM says so; it is 0 in
- * the released game. */
-enum { DEBUG_FRAME_ADVANCE = 0xCD3FFF };
-static bool frame_advance_on(const GameState *g) { return rom_read8(g, DEBUG_FRAME_ADVANCE) != 0; }
 
 /* ---- The frame -------------------------------------------------------------------------- */
 
@@ -95,7 +90,7 @@ static void take_pause(GameState *g, Platform *pf)
  * while Start holds it, every fourth frame runs if L is held. */
 static void take_frame_advance(GameState *g, Platform *pf)
 {
-    if (!frame_advance_on(g))
+    if (!battle_debug_frame_advance(g))
         return;
     if (in_read_low(pf, PF_AT(0xD1E84B), 0) & BUTTON_R) {
         set_battle_paused(g, 0);

@@ -135,9 +135,7 @@ static inline uint8_t palette_preset_step(const GameState *g, unsigned pace, uns
 /* ---- Debugging ---------------------------------------------------------------------------- */
 
 /* Whether the battle's debug frame advance is on: a byte of the ROM ($CD:3FFF),
- * 0 in the released game. battle/nmi.c asks with the machine until its port
- * takes the state. */
+ * 0 in the released game. */
 static inline bool battle_debug_frame_advance(const GameState *g) { return rom_read8(g, 0xCD3FFFu) != 0; }
-static inline bool battle_frame_advance_enabled(Snes *s) { return battle_debug_frame_advance(state_of(s)); }
 
 #endif
