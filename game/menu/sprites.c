@@ -28,6 +28,7 @@
  * Both modes hide the sprites they aren't using (menu_hide_all_sprites). */
 #include "menu/sprites.h"
 
+#include "charge.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/objects.h"
@@ -339,6 +340,22 @@ static void note_sprite(int16_t x, int16_t y, bool x_on_screen, bool shown)
     drawn.any_shown = drawn.any_shown || shown;
 }
 
+/* The original's time for a node follows its sprites: a sprite off the
+ * screen across is dropped at once, one off it down a little later, and one
+ * shown takes its entry and its high bits; a node on the map places itself
+ * first. The port's own accesses weigh these otherwise, so it charges the
+ * difference, in accesses at the drawing's rate. */
+enum { DRAW_SPRITE_NODES = 0xC20CEA };
+enum { NODE_ACCESSES = 2, ON_THE_MAP_ACCESSES = 9 };
+enum { SPRITE_ACCESSES = 6, TESTED_DOWN_ACCESSES = 3, SHOWN_ACCESSES = 5 };
+
+static void charge_node(GameState *g, bool on_the_map, unsigned sprites, unsigned tested_down, unsigned shown)
+{
+    charge_as(g, DRAW_SPRITE_NODES,
+              NODE_ACCESSES + (on_the_map ? ON_THE_MAP_ACCESSES : 0) + sprites * SPRITE_ACCESSES
+                  + tested_down * TESTED_DOWN_ACCESSES + shown * SHOWN_ACCESSES);
+}
+
 // $C2:0D08
 /* Draw one node's group into the sprite table. */
 static void draw_node(GameState *g, NodeLink node)
@@ -361,12 +378,15 @@ static void draw_node(GameState *g, NodeLink node)
     ORIGINAL_EFFECT(note_node(node, x, y, attributes, first_tile, other_size,
                               (group & 0xFF0000u) | (uint16_t)(group + 1 + 4 * (left ? left : 0x10000u))));
     p.at = (uint16_t)(p.at + 1);
+    unsigned sprites = 0, tested_down = 0, shown_sprites = 0;
     do {
+        sprites++;
         int16_t sx = (int16_t)(x + (int8_t)group_byte(g, p, 0));
         bool x_on = (uint16_t)(sx + SPRITE_REACH) < SCREEN_WIDTH + SPRITE_REACH;
         int16_t sy = 0;
         bool shown = false;
         if (x_on) {
+            tested_down++;
             sy = (int16_t)(y + (int8_t)group_byte(g, p, 1));
             shown = (uint16_t)(sy + SPRITE_REACH) < SCREEN_HEIGHT + SPRITE_REACH;
         }
@@ -381,10 +401,12 @@ static void draw_node(GameState *g, NodeLink node)
             set_oam_buffer_attributes(g, entry, (uint8_t)(word >> 8));
             or_high_bits(g, i, high_bits(i, ((uint16_t)sx & 0x100) != 0, other_size));
             count_a_sprite(g);
+            shown_sprites++;
         }
         ORIGINAL_EFFECT(note_sprite(sx, sy, x_on, shown));
         p.at = (uint16_t)(p.at + 4);
     } while (--left != 0);
+    ORIGINAL_EFFECT(charge_node(g, (look & ON_THE_MAP) != 0, sprites, tested_down, shown_sprites));
 }
 
 /* What the drawing leaves in the mode's scratch cells: the last node's place

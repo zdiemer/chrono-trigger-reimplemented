@@ -87,6 +87,11 @@ rest waits, is [PLAN.md](PLAN.md).
     string's control code past `$0C`, or one included deeper than four, draws
     nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
     mismatches in PORTING.md);
+  - the load screen's member rows keep their own place, where the original
+    reads it back from its cells after the window list and the portrait (both
+    still the original's) have run: a list run over random memory that
+    changes those cells is where the two part (8 of about 3,400 fuzzed
+    slots); the lists' port closes it;
   - the map's strips, built in the upload buffer, part from the original's
     where the buffer is near the bank's end (`map.c`, before this rewrite as
     after): the command fuzzing keeps the buffer where the game has it;

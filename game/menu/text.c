@@ -22,6 +22,7 @@
  * are the drawer's. */
 #include "menu/text.h"
 
+#include "charge.h"
 #include "menu/menu_data.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -196,12 +197,32 @@ static void leave_converted(GameState *g)
     set_menu_number_size(g, 0);
 }
 
+/* The original converts bit by bit, adding each set bit's decimal value: its
+ * time is a pass over each byte's eight bits and an add for each bit set. */
+enum { NUMBER_TO_BCD = 0xC2F13F, ACCESSES_PER_BYTE = 56, ACCESSES_PER_SET_BIT = 10 };
+
+static void charge_conversion(GameState *g, uint32_t value, uint8_t bytes)
+{
+    unsigned set = 0;
+    for (uint32_t v = value; v != 0; v >>= 1)
+        set += v & 1;
+    charge_as(g, NUMBER_TO_BCD, bytes * ACCESSES_PER_BYTE + set * ACCESSES_PER_SET_BIT);
+}
+
+/* The number of `bytes` bytes at `at` as decimal digits. */
+static uint32_t converted(GameState *g, uint32_t at, uint8_t bytes)
+{
+    uint32_t value = number_at(g, at, bytes);
+    ORIGINAL_EFFECT(charge_conversion(g, value, bytes));
+    return decimal_digits(value);
+}
+
 // $C2:F13F
 /* Convert the number of `bytes` bytes at `at` to decimal digits, for the menus
  * to show. */
 static void convert_number(GameState *g, uint32_t at, uint8_t bytes)
 {
-    set_menu_text_work_number(g, decimal_digits(number_at(g, at, bytes)));
+    set_menu_text_work_number(g, converted(g, at, bytes));
     ORIGINAL_EFFECT(leave_converted(g));
 }
 
@@ -211,7 +232,7 @@ static void convert_number(GameState *g, uint32_t at, uint8_t bytes)
 static uint16_t draw_number(GameState *g, uint32_t at, uint8_t format, uint16_t pen)
 {
     NumberFormat f = number_format(format);
-    uint32_t digits = decimal_digits(number_at(g, at, f.bytes));
+    uint32_t digits = converted(g, at, f.bytes);
     set_menu_text_work_number(g, digits);
     uint16_t after = draw_digits(g, pen, digits, f);
     ORIGINAL_EFFECT(leave_number_drawn(g, format, f, digits, pen));

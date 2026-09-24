@@ -407,6 +407,16 @@ void menu_upload_vram_queue(Snes *s)
  * depends on when it reads it. */
 static bool uploads_from_memory(uint8_t bank) { return bank == 0x7E || bank == 0x7F || (bank & 0x7F) >= 0x40; }
 
+/* ... and never from the top of the stack, where the original's upload
+ * routine saves its registers before it reads the queue. */
+static bool uploads_off_the_stack(uint8_t bank, uint16_t source, uint16_t size, uint16_t sp)
+{
+    enum { SAVED = 8, LOW_RAM_END = 0x2000 };
+    bool low_ram = bank == 0x7E || ((bank & 0x7F) < 0x40 && source < LOW_RAM_END);
+    uint32_t from = source, to = (uint32_t)source + (size ? size : 0x10000u);
+    return !low_ram || to <= (uint32_t)(sp - SAVED) || from > sp;
+}
+
 /* The queue's entries are whole, no more than it holds, and from memory. */
 bool menu_vram_queue_is_whole(Snes *s)
 {
@@ -415,7 +425,9 @@ bool menu_vram_queue_is_whole(Snes *s)
     uint8_t bytes = menu_vram_queue_bytes(g);
     bool ok = bytes % MENU_UPLOAD_BYTES == 0 && bytes / MENU_UPLOAD_BYTES <= MENU_VRAM_QUEUE_COUNT;
     for (unsigned i = 0; ok && i < bytes / MENU_UPLOAD_BYTES; i++)
-        ok = uploads_from_memory(menu_vram_queue_bank(g, i));
+        ok = uploads_from_memory(menu_vram_queue_bank(g, i))
+             && uploads_off_the_stack(menu_vram_queue_bank(g, i), menu_vram_queue_source(g, i),
+                                      menu_vram_queue_size(g, i), s->cpu.s);
     vars_peek(false);
     return ok;
 }
