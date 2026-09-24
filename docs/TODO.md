@@ -72,17 +72,17 @@ rest waits, is [PLAN.md](PLAN.md).
   - `title.c:332`'s `move_logo` sets channel 0's script through the raw
     accessor: export a `scene_channel_go_to` from `script.c`.
 
-- **What core's controller rewrite left** (RECOMP.md, "Phase 3a: the
-  controller off the machine"):
-  - the rest of `game/core/` reads as translation though none of it is on the
-    baseline (0.07 a line hides it): `palette.c` (every function on the
-    machine, slots as byte offsets, the multiplier used to compute, the
-    scratch pointer re-read per colour), `sound_driver.c` (the CPU half, on
-    the machine throughout, names from `$2F00`), `tile_animation.c` (offset
-    arithmetic into the slot records, the transfer's write order spelled out,
-    call sites computed), `display.c` (the power-on setup as register bytes
-    through the decoders, in the original's order) and `memory.c` (the block
-    move stub as `m_mvn`);
+- **What core's rewrite left** (RECOMP.md, "Phase 3a: the controller off the
+  machine" and "Phase 3a: palette animation and the block move"):
+  - `tile_animation.c` (offset arithmetic into the slot records, the
+    transfer's write order spelled out, call sites computed) and `display.c`
+    (the power-on setup as register bytes through the decoders, in the
+    original's order) still read as translation, though neither is on the
+    baseline: both wait for the platform's video setup as values and its write
+    orders in the SNES backend;
+  - `sound_driver.c` reads as translation too, and is not to be rewritten: it
+    is the original driver's upload protocol, which goes when the C sound
+    driver becomes the default (docs/SOUND.md);
   - the controller's button names `battle/nmi.c` and `battle/frame.c` still
     define privately (`platform/input.h`'s `IN_BUTTON_*`).
 

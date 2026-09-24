@@ -3611,7 +3611,7 @@ count = 12
 index = "animation slot"
 subsystem = "core"
 meaning = "The palette animation slots run every frame in every mode, on the direct page $0500"
-source = "game/core/palette.c, palette_animate $FD:E39C (loop ends at Y = $90: 12 slots of 12 bytes)"
+source = "game/core/palette.c, palette_animate $FD:E39C (loop ends at Y = $90: 12 slots of 12 bytes), palette_load_animations $FD:E292"
   [[var.field]]
   name = "kind"
   offset = 0
@@ -3653,6 +3653,10 @@ source = "game/core/palette.c, palette_animate $FD:E39C (loop ends at Y = $90: 1
   offset = 6
   size = 2
   meaning = "Types 1 and 8: offset of the animation's frames in the ROM's palette frames ($F6:0000)"
+  [[var.field]]
+  name = "frames_bank"
+  offset = 8
+  meaning = "Types 1 and 8: the bank of the frames, loaded with them ($F6 in the ROM's sets); the animation reads bank $F6 whatever it holds"
   [[var.field]]
   name = "frame_table"
   offset = 9
@@ -10208,8 +10212,8 @@ name = "menu_block_move_stub"
 addr = "7E:9690"
 size = 4
 subsystem = "menu"
-meaning = "The code the menus' vblank runs a frame's block move through: MVN $7E,$7E and RTL, written there each time"
-source = "game/menu/display.c, menu_vblank_upload $C2:85D6"
+meaning = "The game's block move (core/memory.c): MVN and RTL, with the banks to and from its callers write before each call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the save code, save RAM's)"
+source = "game/menu/display.c, menu_vblank_upload $C2:85D6; game/core/memory.c, memory_move_stub $7E:9690"
 
 [[var]]
 name = "menu_math_records"

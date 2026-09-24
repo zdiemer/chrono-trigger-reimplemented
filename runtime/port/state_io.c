@@ -33,6 +33,8 @@ void hw_divide_by(GameState *g, uint8_t divisor) { m_write8(state_snes(g), WRDIV
 
 uint16_t hw_dividend(const GameState *g) { return state_snes(g)->bus.wrdiv; }
 
+uint8_t hw_multiplicand(const GameState *g) { return state_snes(g)->bus.wrmpya; }
+
 void hw_port_seek(GameState *g, uint16_t at, uint8_t bank)
 {
     m_write16(state_snes(g), WMADDL, at);
@@ -74,6 +76,10 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 }
 
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
+
+int charge_begin_as(GameState *g, uint32_t routine) { return native_time_as(state_snes(g), routine); }
+
+void charge_end(GameState *g, int was) { native_time_end(state_snes(g), was); }
 
 static uint32_t in_bank(uint32_t at, uint32_t offset) { return (at & 0xFF0000u) | (uint16_t)(at + offset); }
 

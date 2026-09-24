@@ -1,503 +1,647 @@
-/* Palette animation, run every frame in every game mode ($FD:E39C).
+/* Palette animation: the colors that move on their own, in every game mode.
  *
- * Twelve slots (palette_animations) each change a run of colors of the
- * working palette (palette_working), most of them from the palette as loaded
- * (palette_base). A slot runs every `period` frames; its type is the high
- * nibble of its kind:
+ * A torch flickering, water shimmering, a screen flashing white: the game keeps
+ * twelve animation slots (palette_animations), each changing a run of colors
+ * of the working palette, the one sent to the screen every frame
+ * (palette_working), most of them from the palette as loaded (palette_base).
+ * Once a frame (run_animations) every slot counts a frame, and a slot whose
+ * count reaches its period starts counting again and takes a step of what it
+ * does (AnimationType):
  *
- *   1  frames: copy the colors from frame `step` of an animation in the ROM
- *      (core/palette_data.h), stepping through the low nibble + 1 frames;
- *   8  the same, the frame number read from a table at frame_table + step;
- *      9-15 run the same handler without stepping;
- *   2  rotate the colors first..first + count (count + 1 of them), in both
- *      palettes, toward the first;
- *   3  rotate them toward the last;
- *   4  fade toward white: the level moves by `step` toward `target`, and each
- *      of the channels the fade mode picks moves toward full by level / 256;
- *   5  fade toward black: the channels scale by level / 256;
- *   6  pulse toward white: the level runs on by `step`, wrapping, and its
- *      size times `target` makes the fraction;
- *   7  pulse toward black, the same fraction negated.
+ * - cycle frames: show the next of a few frames of colors kept in the ROM,
+ *   in order, or in the order a table in the ROM gives;
+ * - rotate: every color of the run takes its neighbour's, the one at the end
+ *   coming round to the other end, in both palettes;
+ * - fade toward white or black: a level moves toward a target and the colors
+ *   are the loaded ones lightened or darkened by it; reaching the target ends
+ *   the fade, and fading back past where the colors are as loaded restores
+ *   them and ends it;
+ * - pulse white or black: the level swings back and forth, and the colors
+ *   lighten or darken by how far it has swung.
  *
- * A fade that reaches its target ends (type 0); fading past the end of its
- * range restores the colors and ends. The fractions go through the hardware
- * multiplier, which the fades and pulses leave as they last set it.
+ * A fade or pulse can change some of the channels and leave the others
+ * (FadeChannels). Each location has a set of animations in the ROM, which
+ * load_animations starts in the first six slots when the location is entered;
+ * the modes put their own in the others.
  *
- * Each routine is a C function of what it does; the entries, at the end of
- * the file, move the original's registers in and out. The animations run with
- * the direct page $0500, whose cells $0C-$1A are their scratch, and the data
- * bank $00, through which they reach the slots and the multiplier. */
+ * The functions here take the game's state; the entries at the end translate
+ * the original's registers. What the original leaves behind for nobody but
+ * shadow mode -- its scratch cells, its pointer, the multiplier -- is written
+ * once, as scaffolding (ORIGINAL_EFFECT). */
 #include "core/palette.h"
 
+#include "charge.h"
 #include "core/palette_data.h"
+#include "cpu_io.h"
+#include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
-#include "ram.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
 /* The palette upload uses DMA channel 7, one byte at a time to one register. */
 enum { PALETTE_DMA = 7, PALETTE_DMA_CONTROL = 0x00 };
 
-/* ---- Slots ------------------------------------------------------------------------------
- *
- * A slot is addressed by the original's Y, its offset from the first (slot *
- * 12), and reached through the data bank $00: an offset past the slots runs
- * on into bank 0 as the original's does. */
-static uint32_t slot_field(uint16_t slot, uint32_t field) { return RAM_ABS(field) + (uint32_t)slot; }
-static uint8_t slot8(Snes *s, uint16_t slot, uint32_t field) { return m_read8(s, slot_field(slot, field)); }
-static void set_slot8(Snes *s, uint16_t slot, uint32_t field, uint8_t v) { m_write8(s, slot_field(slot, field), v); }
+/* ---- A slot ----------------------------------------------------------------------------- */
 
-enum {
-    KIND_TYPE = 0xF0,
-    KIND_STEPS = 0x0F,          /* the number of frames less one, for types 1 and 8 */
-    TYPE_FRAMES = 1, TYPE_ROTATE_DOWN, TYPE_ROTATE_UP, TYPE_FADE_TO_WHITE, TYPE_FADE_TO_BLACK,
-    TYPE_PULSE_WHITE, TYPE_PULSE_BLACK, TYPE_FRAMES_FROM_TABLE,
-};
+enum { SLOTS = PALETTE_ANIMATIONS_COUNT, LOCATION_SLOTS = 6, PALETTE_COLORS = PALETTE_WORKING_COUNT };
 
-/* The palettes as the animations reach them: a color by its byte offset
- * (color * 2) from the start, 16-bit, the way the original indexes them from a
- * long base, so an offset past the palette runs on into what follows. */
-static uint32_t base_color(uint16_t at) { return RAM_PALETTE_BASE + at; }
-static uint32_t working_color(uint16_t at) { return RAM_PALETTE_WORKING + at; }
+/* What a slot does, the high nibble of its kind; 9-15 play as 8, but the
+ * frame they are on doesn't step. For the frame types the low nibble is the
+ * number of frames less one. */
+typedef enum {
+    NO_ANIMATION = 0,
+    CYCLE_FRAMES = 1,
+    ROTATE_DOWN = 2,   /* toward the first color */
+    ROTATE_UP = 3,     /* toward the last */
+    FADE_TO_WHITE = 4,
+    FADE_TO_BLACK = 5,
+    PULSE_WHITE = 6,
+    PULSE_BLACK = 7,
+    FRAMES_FROM_TABLE = 8,
+} AnimationType;
+enum { TYPE_SHIFT = 4, FRAMES_LESS_ONE = 0x0F };
 
-/* Scratch cells of the page $0500 that the original leaves written: a color's
- * channels and the old green as a fade builds it, or a rotation's carried base
- * and working colors, its end and its length; and a long pointer. */
-#define SCRATCH_COLOR RAM_PALETTE_ANIMATION_SCRATCH
-#define SCRATCH_GREEN (RAM_PALETTE_ANIMATION_SCRATCH + 2)
-#define SCRATCH_END (RAM_PALETTE_ANIMATION_SCRATCH + 4)
-#define SCRATCH_LENGTH (RAM_PALETTE_ANIMATION_SCRATCH + 6)
-#define SCRATCH_POINTER RAM_PALETTE_ANIMATION_POINTER
-
-/* The multiplier, through which the fades take a fraction of a channel: the
- * fraction (/ 256) is set once, then each channel's product's high byte read. */
-static void set_fraction(Snes *s, uint8_t f) { m_write8(s, 0x004202, f); }
-static uint8_t scale(Snes *s, uint8_t v)
+static AnimationType type_of(const GameState *g, unsigned slot)
 {
-    m_write8(s, 0x004203, v);
-    return m_read8(s, 0x004217);
-}
-static uint16_t product(Snes *s, uint8_t v)
-{
-    m_write8(s, 0x004203, v);
-    return m_read16(s, 0x004216);
+    return (AnimationType)(palette_animations_kind(g, slot) >> TYPE_SHIFT);
 }
 
-/* ---- Copying frames in (types 1 and 8) -------------------------------------------------- */
+static void stop(GameState *g, unsigned slot) { set_palette_animations_kind(g, slot, NO_ANIMATION); }
 
-/* Copy `count` colors (0: 65536, as the original's counter runs) from the
- * frames at `at` into the working palette from color `first`, through the
- * long pointer the original keeps in its scratch, which it reads again for
- * every color: a count of 0 runs over the whole bank, the pointer included.
- * Returns where the frames were left, which the original leaves in X. */
-static uint16_t copy_frame(Snes *s, uint8_t first, uint8_t count, uint16_t at)
+static bool plays_frames(AnimationType type) { return type == CYCLE_FRAMES || type >= FRAMES_FROM_TABLE; }
+
+/* Only these two step through their frames; 9-15 hold theirs. */
+static bool steps_through_frames(AnimationType type) { return type == CYCLE_FRAMES || type == FRAMES_FROM_TABLE; }
+
+static uint8_t frame_count(const GameState *g, unsigned slot)
 {
-    m_write16(s, SCRATCH_POINTER, (uint16_t)(RAM_ABS(RAM_PALETTE_WORKING) + first * 2));
-    m_write8(s, SCRATCH_POINTER + 2, (uint8_t)(RAM_PALETTE_WORKING >> 16));
-    uint16_t n = count;
-    do {
-        uint32_t to = (uint32_t)m_read8(s, SCRATCH_POINTER + 2) << 16 | m_read16(s, SCRATCH_POINTER);
-        m_write16(s, to, palette_frame_color(s, at));
-        m_write16(s, SCRATCH_POINTER, (uint16_t)(m_read16(s, SCRATCH_POINTER) + 2));
-        at = (uint16_t)(at + 2);
-        n--;
-    } while (n != 0);
-    return at;
+    return (uint8_t)((palette_animations_kind(g, slot) & FRAMES_LESS_ONE) + 1);
 }
 
-/* Where frame `frame` of the slot's animation is: its offset plus the frame
- * times the colors' size, in the multiplier (the size taken 8-bit, as the
- * original's ASL of the count leaves it). */
-static uint16_t frame_at(Snes *s, uint16_t slot, uint8_t frame)
+static uint8_t first_color(const GameState *g, unsigned slot) { return palette_animations_first_color(g, slot); }
+static uint8_t color_count(const GameState *g, unsigned slot) { return palette_animations_color_count(g, slot); }
+
+/* Whether the slot's run of colors lies in the palette for what it does: a
+ * rotation takes the color after its count too, and the frame types keep a
+ * frame's size as a byte (2 per color). The frame table is in the cartridge.
+ * The original's loops take a count of 0 as 65536 and run on past the palette
+ * into what follows it, and the game makes neither: the entries refuse those
+ * slots (their guards), so the original runs them. */
+static bool slot_fits(const GameState *g, unsigned slot, AnimationType type)
 {
-    set_fraction(s, frame);
-    uint16_t offset = m_read16(s, slot_field(slot, RAM_PALETTE_ANIMATIONS_FRAMES));
-    return (uint16_t)(offset + product(s, (uint8_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_COLOR_COUNT) * 2)));
+    enum { LARGEST_FRAME = 127, CARTRIDGE_BANKS = 0xC0 };
+    unsigned first = first_color(g, slot), count = color_count(g, slot);
+    if (type == NO_ANIMATION)
+        return true;
+    if (count == 0)
+        return false;
+    if (type == ROTATE_DOWN || type == ROTATE_UP)
+        return count <= LARGEST_FRAME && first + count < PALETTE_COLORS;
+    if (first + count > PALETTE_COLORS)
+        return false;
+    if (!plays_frames(type))
+        return true;
+    return count <= LARGEST_FRAME
+           && (type == CYCLE_FRAMES || palette_animations_frame_table(g, slot) >> 16 >= CARTRIDGE_BANKS);
 }
 
-// $FD:E437
-/* Type 1: the frame is the step. */
-static uint16_t animate_frames(Snes *s, uint16_t slot)
+/* ---- Cycling frames ----------------------------------------------------------------------- */
+
+/* A frame is the slot's colors one after another in the ROM's frames, and
+ * the slot's frames follow each other from its frames' offset. */
+static uint8_t frame_bytes(const GameState *g, unsigned slot) { return (uint8_t)(color_count(g, slot) * 2); }
+
+static uint16_t frame_offset(const GameState *g, unsigned slot, uint8_t frame)
 {
-    uint16_t at = frame_at(s, slot, slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP));
-    return copy_frame(s, slot8(s, slot, RAM_PALETTE_ANIMATIONS_FIRST_COLOR),
-                      slot8(s, slot, RAM_PALETTE_ANIMATIONS_COLOR_COUNT), at);
+    return (uint16_t)(palette_animations_frames(g, slot) + frame * frame_bytes(g, slot));
 }
 
-// $FD:E485
-/* Type 8: the frame is read from the slot's frame table, indexed by the
- * step. */
-static uint16_t animate_frames_from_table(Snes *s, uint16_t slot)
+/* The frame the slot is on: its step, or for a table the table's entry at
+ * its step. */
+static uint8_t current_frame(const GameState *g, unsigned slot, AnimationType type)
 {
-    uint16_t pointer = (uint16_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP) +
-                                  m_read16(s, slot_field(slot, RAM_PALETTE_ANIMATIONS_FRAME_TABLE)));
-    uint8_t bank = slot8(s, slot, RAM_PALETTE_ANIMATIONS_FRAME_TABLE + 2);
-    m_write16(s, SCRATCH_POINTER, pointer);
-    m_write8(s, SCRATCH_POINTER + 2, bank);
-    uint8_t frame = m_read8(s, (uint32_t)bank << 16 | pointer);
-    uint16_t at = frame_at(s, slot, frame);
-    return copy_frame(s, slot8(s, slot, RAM_PALETTE_ANIMATIONS_FIRST_COLOR),
-                      slot8(s, slot, RAM_PALETTE_ANIMATIONS_COLOR_COUNT), at);
+    uint8_t step = palette_animations_step(g, slot);
+    if (type == CYCLE_FRAMES)
+        return step;
+    uint32_t table = palette_animations_frame_table(g, slot);
+    return palette_frame_table_entry(g, (table & 0xFF0000u) | (uint16_t)(table + step));
 }
 
-/* ---- Rotating (types 2 and 3) ----------------------------------------------------------- */
-
-/* Rotate colors first..first + count of both palettes by one; the colors move
- * down (toward the first) or up. The loop runs at least once, so a count of 0
- * runs through all 32768 colors' worth of offsets, as the original's does.
- * Returns where it stopped, which the original leaves in X. */
-static uint16_t rotate(Snes *s, uint16_t slot, bool up)
+/* The next frame, back to the first after the last. */
+static void step_frame(GameState *g, unsigned slot)
 {
-    uint8_t length = (uint8_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_COLOR_COUNT) * 2);
-    m_write16(s, SCRATCH_LENGTH, length);
-    uint16_t first = (uint16_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_FIRST_COLOR) * 2);
-    uint16_t last = (uint16_t)(first + length);
-    uint16_t from = up ? last : first, end = up ? first : last;
-    m_write16(s, SCRATCH_END, end);
-    uint16_t carried_base = m_read16(s, base_color(from)), carried_working = m_read16(s, working_color(from));
-    m_write16(s, SCRATCH_COLOR, carried_base);
-    m_write16(s, SCRATCH_GREEN, carried_working);
-    uint16_t at = from;
-    do {
-        /* The neighbour is read at the color's address -2 or +2, so at an
-         * offset of 0 or $FFFE it is outside the 16-bit run of offsets. */
-        int8_t by = up ? -2 : 2;
-        m_write16(s, base_color(at), m_read16(s, base_color(at) + (uint32_t)(int32_t)by));
-        m_write16(s, working_color(at), m_read16(s, working_color(at) + (uint32_t)(int32_t)by));
-        at = (uint16_t)(at + by);
-    } while (at != end);
-    m_write16(s, base_color(at), carried_base);
-    m_write16(s, working_color(at), carried_working);
-    return at;
+    uint8_t step = (uint8_t)(palette_animations_step(g, slot) + 1);
+    set_palette_animations_step(g, slot, step == frame_count(g, slot) ? 0 : step);
 }
 
-/* ---- Fading (types 4-7) ------------------------------------------------------------------ */
+static void leave_frame_copy(GameState *g, unsigned slot, uint8_t frame);
+
+// $FD:E437, $FD:E485
+/* Show the frame the slot is on: its colors into the working palette. */
+static void show_frame(GameState *g, unsigned slot, AnimationType type)
+{
+    uint8_t frame = current_frame(g, slot, type);
+    uint16_t at = frame_offset(g, slot, frame);
+    uint8_t first = first_color(g, slot), count = color_count(g, slot);
+    for (uint8_t i = 0; i < count; i++)
+        set_palette_working(g, (unsigned)(first + i), palette_frame_color(g, (uint16_t)(at + 2 * i)));
+    ORIGINAL_EFFECT(leave_frame_copy(g, slot, frame));
+}
+
+/* ---- Rotating ------------------------------------------------------------------------------ */
+
+static void leave_rotation(GameState *g, uint16_t carried_base, uint16_t carried_working, uint8_t end, uint8_t count);
+
+// $FD:E532 (down), $FD:E4E8 (up)
+/* Rotate the colors from the first to the first plus the count, in the
+ * palette as loaded and the working one alike: down, each takes the next
+ * one's and the first comes round to the end; up, the other way. */
+static void rotate_colors(GameState *g, unsigned slot, AnimationType type)
+{
+    uint8_t first = first_color(g, slot), last = (uint8_t)(first + color_count(g, slot));
+    bool down = type == ROTATE_DOWN;
+    uint8_t from = down ? first : last, to = down ? last : first;
+    int step = down ? 1 : -1;
+    uint16_t carried_base = palette_base(g, from), carried_working = palette_working(g, from);
+    for (unsigned i = from; i != to; i = (unsigned)((int)i + step)) {
+        set_palette_base(g, i, palette_base(g, (unsigned)((int)i + step)));
+        set_palette_working(g, i, palette_working(g, (unsigned)((int)i + step)));
+    }
+    set_palette_base(g, to, carried_base);
+    set_palette_working(g, to, carried_working);
+    ORIGINAL_EFFECT(leave_rotation(g, carried_base, carried_working, to, color_count(g, slot)));
+}
+
+/* ---- Fading --------------------------------------------------------------------------------- */
 
 enum { RED = 0x001F, GREEN = 0x03E0, BLUE = 0x7C00 };
-enum { WRITE_WORD, WRITE_LOW, WRITE_HIGH };
 
-/* Which channels a fade changes, by its fade mode, and what the original's
- * code for that mode leaves besides: the byte of the color it writes (the
- * lighten modes for red alone and blue alone write one), the new color's bits
- * it keeps in a scratch cell (a byte for those two), whether it keeps the old
- * green there too, and the channels it keeps from the old color, which two of
- * the lighten modes' masks get wrong (red and green clears blue, green and
- * blue clears red). */
+/* Each channel is scaled in a byte, where the original holds it: blue as the
+ * color's high byte has it, red at the foot of the low byte and green three
+ * bits up. Where it lies sets how the fraction rounds, which the player sees
+ * as a shade's difference, so the places are kept. In the order the original
+ * scales them. */
+static const struct {
+    uint16_t bits;
+    uint8_t shift;
+} CHANNELS[] = { { BLUE, 8 }, { RED, 0 }, { GREEN, 2 } };
+enum { CHANNEL_COUNT = sizeof CHANNELS / sizeof CHANNELS[0] };
+
+/* What a fade changes: the channels it scales; those it keeps from the color
+ * as loaded (two of the lightening modes keep one channel fewer than they
+ * leave: red and green clear blue, green and blue clear red); and the part of
+ * the working color it leaves as it was (the lightening of red alone and of
+ * blue alone write one byte of the color). The slot's fade mode picks one; a
+ * mode past the last is the last. */
 typedef struct {
-    uint16_t channels;
-    uint16_t kept;
-    uint8_t write;
-    uint16_t scratch;
-    bool green_scratch;
-    uint32_t routine;   /* the mode's loop in the original, whose time the port's is (native_time_as) */
-} FadeMode;
+    uint16_t scales, keeps, keeps_working;
+} FadeChannels;
+enum { FADE_MODES = 7, LOW_BYTE = 0x00FF, HIGH_BYTE = 0xFF00 };
 
-enum { FADE_MODES = 7 };
-
-static const FadeMode darken_modes[FADE_MODES] = {
-    { RED | GREEN | BLUE, 0, WRITE_WORD, RED | BLUE, false, 0xFDE64F },
-    { GREEN | BLUE, RED, WRITE_WORD, RED | BLUE, false, 0xFDE7C0 },
-    { RED | BLUE, GREEN, WRITE_WORD, RED | BLUE, false, 0xFDE73A },
-    { BLUE, RED | GREEN, WRITE_WORD, BLUE, false, 0xFDE6A1 },
-    { RED | GREEN, BLUE, WRITE_WORD, RED | BLUE, false, 0xFDE779 },
-    { GREEN, RED | BLUE, WRITE_WORD, RED | BLUE, false, 0xFDE6D1 },
-    { RED, GREEN | BLUE, WRITE_WORD, RED, false, 0xFDE708 },          /* and modes past 6 */
+static const FadeChannels DARKENING[FADE_MODES] = {
+    { RED | GREEN | BLUE, 0, 0 }, { GREEN | BLUE, RED, 0 }, { RED | BLUE, GREEN, 0 }, { BLUE, RED | GREEN, 0 },
+    { RED | GREEN, BLUE, 0 },     { GREEN, RED | BLUE, 0 }, { RED, GREEN | BLUE, 0 },
 };
-static const FadeMode lighten_modes[FADE_MODES] = {
-    { RED | GREEN | BLUE, 0, WRITE_WORD, RED | BLUE, true, 0xFDE8D7 },
-    { RED, GREEN | BLUE, WRITE_LOW, RED, false, 0xFDE962 },
-    { GREEN, RED | BLUE, WRITE_WORD, GREEN, false, 0xFDE98F },
-    { RED | GREEN, 0, WRITE_WORD, RED, true, 0xFDEA5C },
-    { BLUE, GREEN, WRITE_HIGH, BLUE, false, 0xFDE935 },
-    { RED | BLUE, GREEN, WRITE_WORD, RED | BLUE, false, 0xFDE9CA },
-    { GREEN | BLUE, 0, WRITE_WORD, BLUE, true, 0xFDEA11 },            /* and modes past 6 */
+static const FadeChannels LIGHTENING[FADE_MODES] = {
+    { RED | GREEN | BLUE, 0, 0 }, { RED, GREEN | BLUE, HIGH_BYTE }, { GREEN, RED | BLUE, 0 }, { RED | GREEN, 0, 0 },
+    { BLUE, GREEN, LOW_BYTE },    { RED | BLUE, GREEN, 0 },         { GREEN | BLUE, 0, 0 },
 };
 
-/* One channel, 8-bit (blue as the color's high byte, green shifted up to the
- * top of a byte), scaled by the fraction, or moved toward full (`full`) by it. */
-static uint8_t fade_channel(Snes *s, uint8_t v, uint8_t full, bool lighten)
+static uint8_t fade_mode(const GameState *g, unsigned slot)
 {
-    return lighten ? (uint8_t)(v + scale(s, v ^ full)) : scale(s, v);
+    uint8_t mode = palette_animations_fade_mode(g, slot);
+    return mode < FADE_MODES ? mode : FADE_MODES - 1;
 }
 
-/* Fade `count` colors (0: 65536) from byte offset `at` of the palette as
- * loaded into the working palette, by the fraction in the multiplier. The
- * channels go through the multiplier blue, red, green. Returns where it
- * stopped, which the original leaves in X. */
-static uint16_t fade_colors(Snes *s, uint16_t at, uint8_t count, const FadeMode *m, bool lighten)
+/* A channel lightened toward full or darkened toward none by `fraction` / 256. */
+static uint8_t fade_channel(uint8_t v, uint8_t full, uint8_t fraction, bool lighten)
 {
-    uint16_t n = count;
-    do {
-        uint16_t old = m_read16(s, base_color(at));
-        uint8_t blue = (uint8_t)(old >> 8) & (BLUE >> 8), red = old & RED;
-        uint8_t green = (uint8_t)((old & GREEN) >> 2);
-        uint16_t color = old & m->kept;
-        if (m->channels & BLUE)
-            color |= (uint16_t)(fade_channel(s, blue, BLUE >> 8, lighten) << 8) & BLUE;
-        if (m->channels & RED)
-            color |= fade_channel(s, red, RED, lighten) & RED;
-        if (m->channels & GREEN)
-            color |= (uint16_t)((fade_channel(s, green, GREEN >> 2, lighten) & (GREEN >> 2)) << 2);
-        if (m->write == WRITE_LOW) {
-            m_write8(s, working_color(at), (uint8_t)color);
-            m_write8(s, SCRATCH_COLOR, (uint8_t)(color & m->scratch));
-        } else if (m->write == WRITE_HIGH) {
-            m_write8(s, working_color(at) + 1, (uint8_t)(color >> 8));
-            m_write8(s, SCRATCH_COLOR, (uint8_t)((color & m->scratch) >> 8));
-        } else {
-            m_write16(s, working_color(at), color);
-            m_write16(s, SCRATCH_COLOR, color & m->scratch);
-        }
-        if (m->green_scratch)
-            m_write8(s, SCRATCH_GREEN, green);
-        at = (uint16_t)(at + 2);
-        n--;
-    } while (n != 0);
-    return at;
+    return lighten ? (uint8_t)(v + ((full - v) * fraction >> 8)) : (uint8_t)(v * fraction >> 8);
 }
 
-static const FadeMode *fade_mode(Snes *s, uint16_t slot, bool lighten)
+static uint16_t faded(uint16_t color, const FadeChannels *m, uint8_t fraction, bool lighten)
 {
-    uint8_t mode = slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_MODE);
-    if (mode >= FADE_MODES)
-        mode = FADE_MODES - 1;
-    return lighten ? &lighten_modes[mode] : &darken_modes[mode];
-}
-
-/* The slot's colors by its fade mode, with the fraction already set: the
- * mode's own loop in the original, which the handlers jump to through a
- * table. */
-static uint16_t fade_slot_colors(Snes *s, uint16_t slot, bool lighten)
-{
-    uint16_t at = (uint16_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_FIRST_COLOR) * 2);
-    const FadeMode *m = fade_mode(s, slot, lighten);
-    int was = native_time_as(s, m->routine);
-    at = fade_colors(s, at, slot8(s, slot, RAM_PALETTE_ANIMATIONS_COLOR_COUNT), m, lighten);
-    native_time_end(s, was);
-    return at;
-}
-
-// $FD:E8AC (toward white), $FD:E624 (toward black)
-/* End the animation with its colors as loaded. */
-static uint16_t restore_colors(Snes *s, uint16_t slot)
-{
-    set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND, 0);
-    uint16_t at = (uint16_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_FIRST_COLOR) * 2);
-    uint16_t n = slot8(s, slot, RAM_PALETTE_ANIMATIONS_COLOR_COUNT);
-    do {
-        m_write16(s, working_color(at), m_read16(s, base_color(at)));
-        at = (uint16_t)(at + 2);
-        n--;
-    } while (n != 0);
-    return at;
-}
-
-/* The restore is a path of the fade's handler that the original branches to,
- * registered as an entry of its own so that its time, a copy of the colors,
- * is estimated apart from the handler's (native_time_as). */
-static uint16_t restore_path(Snes *s, uint16_t slot, bool lighten)
-{
-    uint16_t at;
-    NATIVE_TIME_AS(s, lighten ? 0xFDE8AC : 0xFDE624, at = restore_colors(s, slot));
-    return at;
-}
-
-// $FD:E82C (toward white), $FD:E5A4 (toward black)
-/* Types 4 and 5: move the level by the step toward the target, ending the
- * animation at the target when it gets there; a negative period is the level
- * itself. Fading past the end of the range -- above 255 toward black, below 0
- * toward white -- restores the colors and ends instead. */
-static uint16_t fade(Snes *s, uint16_t slot, bool lighten)
-{
-    uint8_t level = slot8(s, slot, RAM_PALETTE_ANIMATIONS_PERIOD);
-    if (!(level & 0x80)) {
-        uint8_t target = slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_TARGET);
-        uint8_t step = slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP);
-        level = slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_LEVEL);
-        bool arrived;
-        if (level < target) {
-            if (level + step > 0xFF && !lighten)
-                return restore_path(s, slot, lighten);
-            arrived = level + step > 0xFF || (uint8_t)(level + step) >= target;
-            level = (uint8_t)(level + step);
-        } else {
-            if (level < step && lighten)
-                return restore_path(s, slot, lighten);
-            arrived = level < step || (uint8_t)(level - step) < target;
-            level = (uint8_t)(level - step);
-        }
-        if (arrived) {
-            set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND, 0);
-            level = slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_TARGET);
-        }
+    uint16_t out = color & m->keeps;
+    for (unsigned c = 0; c < CHANNEL_COUNT; c++) {
+        if (!(m->scales & CHANNELS[c].bits))
+            continue;
+        uint8_t full = (uint8_t)(CHANNELS[c].bits >> CHANNELS[c].shift);
+        uint8_t v = (uint8_t)((color & CHANNELS[c].bits) >> CHANNELS[c].shift);
+        out |= (uint16_t)(fade_channel(v, full, fraction, lighten) << CHANNELS[c].shift) & CHANNELS[c].bits;
     }
-    set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_LEVEL, level);
-    set_fraction(s, slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_LEVEL));
-    return fade_slot_colors(s, slot, lighten);
+    return out;
 }
 
-// $FD:E807 (toward white), $FD:E57C (toward black)
-/* Types 6 and 7: the level runs on by the step (8-bit, so it swings from
- * positive to negative), and the fraction is its size times 2 times the
- * target, / 256; toward black it is negated. */
-static uint16_t pulse(Snes *s, uint16_t slot, bool lighten)
+static void leave_fade(GameState *g, bool lighten, uint8_t mode, uint8_t fraction, uint16_t last_color);
+static uint32_t fade_loop_routine(bool lighten, uint8_t mode);
+static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count);
+
+// $FD:E64F-$FD:E7C0 (darkening), $FD:E8D7-$FD:EA5C (lightening)
+/* The slot's run of colors, as loaded, into the working palette, lightened or
+ * darkened by `fraction` / 256 in the channels its fade mode changes. */
+static void fade_colors(GameState *g, unsigned slot, uint8_t mode, uint8_t fraction, bool lighten)
 {
-    uint8_t level = (uint8_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_LEVEL) +
-                              slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP));
-    set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_LEVEL, level);
-    uint8_t size = (level & 0x80) ? (uint8_t)-level : level;
-    set_fraction(s, (uint8_t)(size * 2));
-    uint8_t fraction = scale(s, slot8(s, slot, RAM_PALETTE_ANIMATIONS_FADE_TARGET));
-    set_fraction(s, lighten ? fraction : (uint8_t)-fraction);
-    return fade_slot_colors(s, slot, lighten);
+    const FadeChannels *m = lighten ? &LIGHTENING[mode] : &DARKENING[mode];
+    uint8_t first = first_color(g, slot), count = color_count(g, slot);
+    for (uint8_t i = 0; i < count; i++) {
+        unsigned at = (unsigned)(first + i);
+        uint16_t color = faded(palette_base(g, at), m, fraction, lighten);
+        if (m->keeps_working)
+            color = (uint16_t)((palette_working(g, at) & m->keeps_working) | (color & ~m->keeps_working));
+        set_palette_working(g, at, color);
+    }
+    ORIGINAL_EFFECT(leave_fade(g, lighten, mode, fraction, palette_base(g, (unsigned)(first + count - 1))));
+    ORIGINAL_EFFECT(charge_fade(g, lighten, mode, count));
 }
 
-/* ---- The frame's work ---------------------------------------------------------------- */
+static void faded_by(GameState *g, unsigned slot, uint8_t fraction, bool lighten)
+{
+    uint8_t mode = fade_mode(g, slot);
+    CHARGED_AS(g, fade_loop_routine(lighten, mode), fade_colors(g, slot, mode, fraction, lighten));
+}
 
-static uint16_t run_type(Snes *s, uint16_t slot, uint8_t type)
+// $FD:E8AC (after white), $FD:E624 (after black)
+/* A fade is over, back where it started: its colors as loaded. */
+static void restore_colors(GameState *g, unsigned slot)
+{
+    stop(g, slot);
+    uint8_t first = first_color(g, slot), count = color_count(g, slot);
+    for (uint8_t i = 0; i < count; i++)
+        set_palette_working(g, (unsigned)(first + i), palette_base(g, (unsigned)(first + i)));
+}
+
+// $FD:E82C (to white), $FD:E5A4 (to black)
+/* A step of a fade: its level moves by the step toward the target, and
+ * reaching the target (going up, getting there; going down, passing it) ends
+ * the fade there. A fade that would run past the level where its colors are
+ * as loaded -- above the top darkening, below the bottom lightening --
+ * restores them and ends instead. A slot whose period is negative holds its
+ * level at the period. */
+static void fade_step(GameState *g, unsigned slot, bool lighten)
+{
+    enum { HELD_LEVEL = 0x80, TOP = 0xFF };
+    uint8_t level = palette_animations_period(g, slot);
+    if (!(level & HELD_LEVEL)) {
+        uint8_t target = palette_animations_fade_target(g, slot), step = palette_animations_step(g, slot);
+        uint8_t now = palette_animations_fade_level(g, slot);
+        bool rising = now < target;
+        int next = rising ? now + step : now - step;
+        bool past_the_end = next > TOP || next < 0;
+        if (past_the_end && (rising ? !lighten : lighten)) {
+            CHARGED_AS(g, lighten ? 0xFDE8AC : 0xFDE624, restore_colors(g, slot));
+            return;
+        }
+        bool arrived = past_the_end || (rising ? next >= target : next < target);
+        if (arrived)
+            stop(g, slot);
+        level = arrived ? target : (uint8_t)next;
+    }
+    set_palette_animations_fade_level(g, slot, level);
+    faded_by(g, slot, level, lighten);
+}
+
+// $FD:E807 (white), $FD:E57C (black)
+/* A step of a pulse: its level runs on by the step, as a byte, so it swings
+ * from positive to negative and back, and the colors lighten or darken by how
+ * far it is from the middle times the target. Darkening, the fraction is what
+ * is taken away, so a pulse at the middle shows black. */
+static void pulse_step(GameState *g, unsigned slot, bool lighten)
+{
+    uint8_t level = (uint8_t)(palette_animations_fade_level(g, slot) + palette_animations_step(g, slot));
+    set_palette_animations_fade_level(g, slot, level);
+    uint8_t swing = (uint8_t)(((int8_t)level < 0 ? (uint8_t)-level : level) * 2);
+    uint8_t fraction = (uint8_t)(swing * palette_animations_fade_target(g, slot) >> 8);
+    faded_by(g, slot, lighten ? fraction : (uint8_t)-fraction, lighten);
+}
+
+/* ---- The frame's work ----------------------------------------------------------------------- */
+
+/* What a slot does when its period comes round, as the original's handler for
+ * its type does it. */
+static void animate_slot(GameState *g, unsigned slot, AnimationType type)
 {
     switch (type) {
-    case TYPE_FRAMES: return animate_frames(s, slot);
-    case TYPE_ROTATE_DOWN: return rotate(s, slot, false);
-    case TYPE_ROTATE_UP: return rotate(s, slot, true);
-    case TYPE_FADE_TO_WHITE: return fade(s, slot, true);
-    case TYPE_FADE_TO_BLACK: return fade(s, slot, false);
-    case TYPE_PULSE_WHITE: return pulse(s, slot, true);
-    case TYPE_PULSE_BLACK: return pulse(s, slot, false);
-    default: return animate_frames_from_table(s, slot);
+    case NO_ANIMATION: break;
+    case CYCLE_FRAMES: CHARGED_AS(g, 0xFDE437, show_frame(g, slot, type)); break;
+    case ROTATE_DOWN: CHARGED_AS(g, 0xFDE532, rotate_colors(g, slot, type)); break;
+    case ROTATE_UP: CHARGED_AS(g, 0xFDE4E8, rotate_colors(g, slot, type)); break;
+    case FADE_TO_WHITE: CHARGED_AS(g, 0xFDE82C, fade_step(g, slot, true)); break;
+    case FADE_TO_BLACK: CHARGED_AS(g, 0xFDE5A4, fade_step(g, slot, false)); break;
+    case PULSE_WHITE: CHARGED_AS(g, 0xFDE807, pulse_step(g, slot, true)); break;
+    case PULSE_BLACK: CHARGED_AS(g, 0xFDE57C, pulse_step(g, slot, false)); break;
+    default: CHARGED_AS(g, 0xFDE485, show_frame(g, slot, type)); break;
     }
 }
 
-/* Each type's handler in the original, which the loop calls through a table
- * (types 9-15 run type 8's), and whose time the port's is (native_time_as). */
-static const uint32_t type_handlers[16] = {
-    0, 0xFDE437, 0xFDE532, 0xFDE4E8, 0xFDE82C, 0xFDE5A4, 0xFDE807, 0xFDE57C,
-    0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485, 0xFDE485,
-};
-
-/* Run the slot's type; returns what its handler leaves in X, or `x` if it
- * runs none. */
-static uint16_t run_slot(Snes *s, uint16_t slot, uint16_t x)
-{
-    uint8_t type = slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND) >> 4;
-    if (type == 0)
-        return x;
-    int was = native_time_as(s, type_handlers[type]);
-    x = run_type(s, slot, type);
-    native_time_end(s, was);
-    return x;
-}
-
-enum { SLOTS_END = RAM_PALETTE_ANIMATIONS_COUNT * RAM_PALETTE_ANIMATIONS_STRIDE };
+static void note_last_run(unsigned slot, AnimationType type);
 
 // $FD:E39C
-/* Every slot whose delay reaches its period: start the delay over, step the
- * frame types (1 and 8) on, wrapping after their frames, and run its type.
- * Returns what the last handler left in X, or `x`. */
-static uint16_t animate(Snes *s, uint16_t x)
+/* A frame of every slot: each counts a frame toward its period, and one that
+ * gets there starts counting again, steps on to its next frame if it plays
+ * frames, and animates. */
+static void run_animations(GameState *g)
 {
-    for (uint16_t slot = 0; slot != SLOTS_END; slot = (uint16_t)(slot + RAM_PALETTE_ANIMATIONS_STRIDE)) {
-        uint8_t delay = (uint8_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_DELAY) + 1);
-        set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_DELAY, delay);
-        if (delay != slot8(s, slot, RAM_PALETTE_ANIMATIONS_PERIOD))
+    for (unsigned slot = 0; slot < SLOTS; slot++) {
+        uint8_t delay = (uint8_t)(palette_animations_delay(g, slot) + 1);
+        set_palette_animations_delay(g, slot, delay);
+        if (delay != palette_animations_period(g, slot))
             continue;
-        set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_DELAY, 0);
-        uint8_t type = slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND) & KIND_TYPE;
-        if (type == TYPE_FRAMES << 4 || type == TYPE_FRAMES_FROM_TABLE << 4) {
-            uint8_t step = (uint8_t)(slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP) + 1);
-            set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP, step);
-            if ((uint8_t)((slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND) & KIND_STEPS) + 1) ==
-                slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP))
-                set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP, 0);
-        }
-        x = run_slot(s, slot, x);
+        set_palette_animations_delay(g, slot, 0);
+        AnimationType type = type_of(g, slot);
+        if (steps_through_frames(type))
+            step_frame(g, slot);
+        animate_slot(g, slot, type);
+        if (type != NO_ANIMATION)
+            ORIGINAL_EFFECT(note_last_run(slot, type));
     }
-    return x;
 }
 
 // $FD:E275
-/* Stop every palette animation (the slots' types to 0). */
-static void clear_animations(Snes *s)
+static void stop_all(GameState *g)
 {
-    for (uint16_t slot = 0; slot != SLOTS_END; slot = (uint16_t)(slot + RAM_PALETTE_ANIMATIONS_STRIDE))
-        set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND, 0);
+    for (unsigned slot = 0; slot < SLOTS; slot++)
+        stop(g, slot);
 }
 
-/* The location's animations go in the first six slots; the others stop. */
-enum { LOCATION_SLOTS = 6 };
+/* ---- A location's animations ---------------------------------------------------------------- */
+
+/* The ROM's sets of animations, a stream of slots: each a kind, then for an
+ * animation the first color, the count and the period; for the frame types
+ * the frames' offset and bank; and for a frame table the table itself, a
+ * frame number a frame, which the slot then points at where it lies. A kind
+ * of type 0 is a slot left empty, and takes one byte. */
+typedef struct {
+    const GameState *g;
+    uint16_t at;
+} SetStream;
+
+static uint8_t next_byte(SetStream *in) { return palette_animation_set_byte(in->g, in->at++); }
+
+static void leave_load(GameState *g, bool any_table, uint8_t table_frames);
+
+static void load_slot(GameState *g, unsigned slot, SetStream *in, uint8_t *table_frames)
+{
+    uint8_t kind = next_byte(in);
+    AnimationType type = (AnimationType)(kind >> TYPE_SHIFT);
+    set_palette_animations_kind(g, slot, type == NO_ANIMATION ? NO_ANIMATION : kind);
+    if (type == NO_ANIMATION)
+        return;
+    set_palette_animations_first_color(g, slot, next_byte(in));
+    set_palette_animations_color_count(g, slot, next_byte(in));
+    set_palette_animations_step(g, slot, 0);
+    set_palette_animations_delay(g, slot, 0);
+    set_palette_animations_period(g, slot, next_byte(in));
+    if (!steps_through_frames(type))
+        return;
+    uint16_t frames = next_byte(in);
+    frames |= (uint16_t)(next_byte(in) << 8);
+    set_palette_animations_frames(g, slot, frames);
+    set_palette_animations_frames_bank(g, slot, next_byte(in));
+    if (type != FRAMES_FROM_TABLE)
+        return;
+    set_palette_animations_frame_table(g, slot, palette_animation_set_address(in->at));
+    *table_frames = (uint8_t)(kind & FRAMES_LESS_ONE);
+    in->at = (uint16_t)(in->at + *table_frames + 1);
+}
 
 // $FD:E292
-/* Start the current location's palette animations: the set its record names,
- * a stream of slots in the ROM (core/palette_data.h). Each slot starts with
- * its kind; a kind of type 0 stops the slot, and takes one byte. The others
- * take the first color, the count and the period, starting at step 0 and delay
- * 0; the frame types (1 and 8) also take +6-+8 (the frames' address and a
- * byte past it), and type 8 its frame table, which the slot points at where it
- * lies in the stream, the frame count bytes of it. The original also sets the
- * work RAM port's address to the slots, which nothing uses. */
-static void load_animations(Snes *s)
+/* Start the current location's palette animations in the first six slots,
+ * from the set its record names, and stop the others. */
+static void load_animations(GameState *g)
 {
-    uint8_t set = location_palette_animation_set(s, m_read16(s, RAM_LOCATION_RECORD_OFFSET));
-    uint16_t at = palette_animation_set_start(s, set);
-    m_write16(s, 0x002181, RAM_ABS(RAM_PALETTE_ANIMATIONS));   /* the work RAM port's address, $7E:0520 */
-    m_write8(s, 0x002183, 0x00);
-    m_write16(s, SCRATCH_POINTER, 0x000C);   /* which nothing reads */
-    for (uint16_t slot = 0; slot != LOCATION_SLOTS * RAM_PALETTE_ANIMATIONS_STRIDE;
-         slot = (uint16_t)(slot + RAM_PALETTE_ANIMATIONS_STRIDE)) {
-        uint8_t type = palette_animation_set_byte(s, at) & KIND_TYPE;
-        if (type == 0) {
-            at++;
-            set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND, 0);
-            continue;
-        }
-        bool frames = type == TYPE_FRAMES << 4 || type == TYPE_FRAMES_FROM_TABLE << 4;
-        static const uint32_t header[] = {
-            RAM_PALETTE_ANIMATIONS_KIND, RAM_PALETTE_ANIMATIONS_FIRST_COLOR, RAM_PALETTE_ANIMATIONS_COLOR_COUNT,
-        };
-        for (uint8_t i = 0; i < 3; i++)
-            set_slot8(s, slot, header[i], palette_animation_set_byte(s, at++));
-        set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_STEP, 0);
-        set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_DELAY, 0);
-        set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_PERIOD, palette_animation_set_byte(s, at++));
-        if (!frames)
-            continue;
-        for (uint8_t i = 0; i < 3; i++)
-            set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_FRAMES + i, palette_animation_set_byte(s, at++));
-        if (type != TYPE_FRAMES_FROM_TABLE << 4)
-            continue;
-        uint32_t table = palette_animation_set_address(at);
-        m_write16(s, slot_field(slot, RAM_PALETTE_ANIMATIONS_FRAME_TABLE), (uint16_t)table);
-        set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_FRAME_TABLE + 2, (uint8_t)(table >> 16));
-        uint8_t steps = slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND) & KIND_STEPS;
-        m_write8(s, SCRATCH_GREEN, steps);
-        m_write8(s, SCRATCH_GREEN + 1, 0);
-        at = (uint16_t)(at + steps + 1);
-    }
-    for (uint16_t slot = LOCATION_SLOTS * RAM_PALETTE_ANIMATIONS_STRIDE; slot != SLOTS_END;
-         slot = (uint16_t)(slot + RAM_PALETTE_ANIMATIONS_STRIDE))
-        set_slot8(s, slot, RAM_PALETTE_ANIMATIONS_KIND, 0);
+    uint8_t set = location_palette_animation_set(g, location_record_offset(g));
+    SetStream in = { g, palette_animation_set_start(g, set) };
+    enum { NO_TABLE = 0xFF };
+    uint8_t table_frames = NO_TABLE;
+    for (unsigned slot = 0; slot < LOCATION_SLOTS; slot++)
+        load_slot(g, slot, &in, &table_frames);
+    for (unsigned slot = LOCATION_SLOTS; slot < SLOTS; slot++)
+        stop(g, slot);
+    ORIGINAL_EFFECT(leave_load(g, table_frames != NO_TABLE, table_frames));
 }
 
-/* ---- The machine at the entries ---------------------------------------------------------
+/* ---- What the original leaves: its scratch, its pointer, the multiplier -------------------------
  *
- * From here to the upload: the translation between the original's registers
- * and the C, which a build for the 65816 replaces with its own calling
- * convention. palette_animate saves its caller's direct page and data bank,
- * sets the data bank from the direct page's low byte and the direct page to
- * $0500, and restores both. The handlers, entries of their own, run with
- * what it set, and A's high byte clear, which its guard checks: they index
- * the palettes by the first color through the whole of A. */
+ * The original works in scratch cells of its direct page and through the
+ * multiplier, and leaves them as they were at its end; nothing but shadow mode
+ * reads them. */
 
-bool palette_animate_page_is_whole(Snes *s) { return (s->cpu.d & 0xFF) == 0; }
-bool palette_handler_can_run(Snes *s)
+enum { SCRATCH_COLOR, SCRATCH_GREEN, SCRATCH_END, SCRATCH_LENGTH };
+
+static void leave_scratch_low_byte(GameState *g, unsigned cell, uint8_t v)
 {
-    return s->cpu.d == RAM_PAGE_PALETTE_FADE && s->cpu.db == 0x00 && (s->cpu.a >> 8) == 0;
+    set_palette_animation_scratch(g, cell, (uint16_t)((palette_animation_scratch(g, cell) & HIGH_BYTE) | v));
 }
 
+static void leave_multiplier(GameState *g, uint8_t first, uint8_t second)
+{
+    hw_set_multiplicand(g, first);
+    hw_multiply_by(g, second);
+}
+
+/* The frame copy leaves its long pointer past the last color it wrote, in
+ * the working palette, and the multiplier on the frame's place. */
+static void leave_frame_copy(GameState *g, unsigned slot, uint8_t frame)
+{
+    enum { WORKING_PALETTE = 0x7E2200 };
+    uint16_t past = (uint16_t)(WORKING_PALETTE + (first_color(g, slot) + color_count(g, slot)) * 2);
+    set_palette_animation_pointer(g, (WORKING_PALETTE & 0xFF0000u) | past);
+    leave_multiplier(g, frame, frame_bytes(g, slot));
+}
+
+/* A rotation leaves the two colors it carried round, where it ended (a byte
+ * offset) and the run's length in bytes. */
+static void leave_rotation(GameState *g, uint16_t carried_base, uint16_t carried_working, uint8_t end, uint8_t count)
+{
+    set_palette_animation_scratch(g, SCRATCH_COLOR, carried_base);
+    set_palette_animation_scratch(g, SCRATCH_GREEN, carried_working);
+    set_palette_animation_scratch(g, SCRATCH_END, (uint16_t)(end * 2));
+    set_palette_animation_scratch(g, SCRATCH_LENGTH, (uint16_t)(count * 2));
+}
+
+/* Each fade mode's loop in the original, whose time the port's is, and what
+ * it leaves of the last color: part of the faded color (a byte of it for
+ * the modes that write a byte), and for some the loaded color's green. */
+typedef struct {
+    uint32_t routine;
+    uint16_t scratch_bits;
+    uint16_t scratch_byte;   /* 0: the word; LOW_BYTE or HIGH_BYTE: that byte, into the cell's low byte */
+    bool keeps_green;
+} FadeLoop;
+
+static const FadeLoop DARKENING_LOOPS[FADE_MODES] = {
+    { 0xFDE64F, RED | BLUE, 0, false }, { 0xFDE7C0, RED | BLUE, 0, false }, { 0xFDE73A, RED | BLUE, 0, false },
+    { 0xFDE6A1, BLUE, 0, false },       { 0xFDE779, RED | BLUE, 0, false }, { 0xFDE6D1, RED | BLUE, 0, false },
+    { 0xFDE708, RED, 0, false },
+};
+static const FadeLoop LIGHTENING_LOOPS[FADE_MODES] = {
+    { 0xFDE8D7, RED | BLUE, 0, true },     { 0xFDE962, RED, LOW_BYTE, false }, { 0xFDE98F, GREEN, 0, false },
+    { 0xFDEA5C, RED, 0, true },            { 0xFDE935, BLUE, HIGH_BYTE, false }, { 0xFDE9CA, RED | BLUE, 0, false },
+    { 0xFDEA11, BLUE, 0, true },
+};
+
+static uint32_t fade_loop_routine(bool lighten, uint8_t mode)
+{
+    return (lighten ? LIGHTENING_LOOPS : DARKENING_LOOPS)[mode].routine;
+}
+
+/* The original spends a color's time on the multiplier, a channel's operand
+ * and its product each, and on the scratch it leaves, which the port writes
+ * once: charged, so that the estimate follows the count. */
+static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count)
+{
+    enum { ACCESSES_PER_CHANNEL = 2, WORD_ACCESSES = 2, BYTE_ACCESSES = 1 };
+    const FadeChannels *m = lighten ? &LIGHTENING[mode] : &DARKENING[mode];
+    const FadeLoop *loop = lighten ? &LIGHTENING_LOOPS[mode] : &DARKENING_LOOPS[mode];
+    uint32_t per_color = loop->scratch_byte ? BYTE_ACCESSES : WORD_ACCESSES;
+    if (loop->keeps_green)
+        per_color += BYTE_ACCESSES;
+    for (unsigned c = 0; c < CHANNEL_COUNT; c++)
+        if (m->scales & CHANNELS[c].bits)
+            per_color += ACCESSES_PER_CHANNEL;
+    charge_as(g, loop->routine, per_color * count);
+}
+
+/* The multiplier holds the fraction and the last channel it scaled: the last
+ * of blue, red and green the mode changes, of the last color, or for a
+ * lightening what that channel lacked of full. */
+static void leave_fade(GameState *g, bool lighten, uint8_t mode, uint8_t fraction, uint16_t last_color)
+{
+    const FadeChannels *m = lighten ? &LIGHTENING[mode] : &DARKENING[mode];
+    const FadeLoop *loop = lighten ? &LIGHTENING_LOOPS[mode] : &DARKENING_LOOPS[mode];
+    uint16_t color = faded(last_color, m, fraction, lighten);
+    if (loop->scratch_byte == LOW_BYTE)
+        leave_scratch_low_byte(g, SCRATCH_COLOR, (uint8_t)(color & loop->scratch_bits));
+    else if (loop->scratch_byte == HIGH_BYTE)
+        leave_scratch_low_byte(g, SCRATCH_COLOR, (uint8_t)((color & loop->scratch_bits) >> 8));
+    else
+        set_palette_animation_scratch(g, SCRATCH_COLOR, color & loop->scratch_bits);
+    if (loop->keeps_green)
+        leave_scratch_low_byte(g, SCRATCH_GREEN, (uint8_t)((last_color & GREEN) >> 2));
+    uint8_t operand = 0;
+    for (unsigned c = 0; c < CHANNEL_COUNT; c++) {
+        if (!(m->scales & CHANNELS[c].bits))
+            continue;
+        uint8_t full = (uint8_t)(CHANNELS[c].bits >> CHANNELS[c].shift);
+        uint8_t v = (uint8_t)((last_color & CHANNELS[c].bits) >> CHANNELS[c].shift);
+        operand = lighten ? (uint8_t)(full - v) : v;
+    }
+    leave_multiplier(g, fraction, operand);
+}
+
+/* The loader points the work RAM port at the slots and its long pointer's
+ * address at $000C, and a frame table leaves its frame count less one in the
+ * scratch. */
+static void leave_load(GameState *g, bool any_table, uint8_t table_frames)
+{
+    enum { SLOTS_IN_WORK_RAM = 0x0520, WORK_RAM_BANK = 0x00, POINTER_LEFT = 0x000C };
+    hw_port_seek(g, SLOTS_IN_WORK_RAM, WORK_RAM_BANK);
+    set_palette_animation_pointer(g, (palette_animation_pointer(g) & 0xFF0000u) | POINTER_LEFT);
+    if (any_table)
+        set_palette_animation_scratch(g, SCRATCH_GREEN, table_frames);
+}
+
+/* ---- The entries ------------------------------------------------------------------------------
+ *
+ * The translation between the original's registers and the functions above.
+ * palette_animate saves its caller's direct page and data bank, runs on the
+ * page $0500 with the data bank its caller's direct page's low byte (so 0, its
+ * guard), and gives them back. The handlers are entries of their own, with
+ * the slot's offset in Y, on that page and data bank and with A's high byte
+ * clear (they index the palettes through the whole of A): their guard. */
+
+/* The page, and the slots as the original's Y has them, 12 bytes apart. */
+enum { ANIMATIONS_PAGE = 0x0500, SLOT_BYTES = 12, SLOTS_END = SLOTS * SLOT_BYTES };
+
+/* The slot a handler runs on, from its offset in Y. */
+static unsigned slot_in_y(const Snes *s) { return s->cpu.y / SLOT_BYTES; }
+static bool y_is_a_slot(const Snes *s) { return s->cpu.y < SLOTS_END && s->cpu.y % SLOT_BYTES == 0; }
+
+/* Where a handler leaves X: past the last color it changed, or for a rotation
+ * where it ended, or for a frame past the frame in the ROM's frames. */
+static uint16_t run_end(const GameState *g, unsigned slot, AnimationType type)
+{
+    uint8_t first = first_color(g, slot), count = color_count(g, slot);
+    if (type == ROTATE_UP)
+        return (uint16_t)(first * 2);
+    if (plays_frames(type))
+        return (uint16_t)(frame_offset(g, slot, current_frame(g, slot, type)) + count * 2);
+    return (uint16_t)((first + count) * 2);
+}
+
+/* Which slot palette_animate ran last, for the X it leaves. */
+static struct {
+    bool ran;
+    unsigned slot;
+    AnimationType type;
+} last_run;
+
+static void note_last_run(unsigned slot, AnimationType type)
+{
+    last_run.ran = true;
+    last_run.slot = slot;
+    last_run.type = type;
+}
+
+static bool every_slot_fits(const GameState *g)
+{
+    for (unsigned slot = 0; slot < SLOTS; slot++)
+        if (!slot_fits(g, slot, type_of(g, slot)))
+            return false;
+    return true;
+}
+
+bool palette_animate_runs(Snes *s)
+{
+    if ((m_direct_page(s) & 0xFF) != 0)
+        return false;
+    vars_peek(true);
+    bool ok = every_slot_fits(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
+static bool on_the_page(const Snes *s)
+{
+    return s->cpu.d == ANIMATIONS_PAGE && s->cpu.db == 0x00 && (s->cpu.a >> 8) == 0 && y_is_a_slot(s);
+}
+
+static bool slot_in_y_fits(Snes *s, AnimationType type)
+{
+    if (!on_the_page(s))
+        return false;
+    vars_peek(true);
+    bool ok = slot_fits(state_of(s), slot_in_y(s), type);
+    vars_peek(false);
+    return ok;
+}
+
+bool palette_frames_can_run(Snes *s) { return slot_in_y_fits(s, CYCLE_FRAMES); }
+bool palette_table_frames_can_run(Snes *s) { return slot_in_y_fits(s, FRAMES_FROM_TABLE); }
+bool palette_rotation_can_run(Snes *s) { return slot_in_y_fits(s, ROTATE_DOWN); }
+bool palette_fade_can_run(Snes *s) { return slot_in_y_fits(s, FADE_TO_WHITE); }
+
+/* A fade mode's loop is entered with X the slot's first color, as its handler
+ * gives it. */
+bool palette_fade_loop_can_run(Snes *s)
+{
+    if (!slot_in_y_fits(s, FADE_TO_WHITE))
+        return false;
+    vars_peek(true);
+    bool ok = s->cpu.x == first_color(state_of(s), slot_in_y(s)) * 2;
+    vars_peek(false);
+    return ok;
+}
+
+/* It leaves the last slot's offset in A and Y, the carry of its last
+ * comparison set and the overflow clear. */
 void palette_animate(Snes *s)
 {
-    s->cpu.x = animate(s, RAM_PAGE_PALETTE_FADE);
-    /* The loop leaves its last slot offset in A and Y and the flags of its
-     * comparison and addition. */
+    GameState *g = state_of(s);
+    last_run.ran = false;
+    run_animations(g);
+    s->cpu.x = last_run.ran ? run_end(g, last_run.slot, last_run.type) : ANIMATIONS_PAGE;
     s->cpu.a = SLOTS_END;
     s->cpu.y = SLOTS_END;
     m_set_flag(s, CPU_FLAG_C, true);
@@ -505,88 +649,82 @@ void palette_animate(Snes *s)
     m_rtl(s);
 }
 
-/* Both save the caller's P (and data bank; the loader its direct page) and
- * restore them. The clear leaves Y past the last slot, which its callers read. */
 void palette_clear_animations(Snes *s)
 {
-    clear_animations(s);
-    s->cpu.y = SLOTS_END;
-    m_set_a8(s, SLOTS_END);
+    stop_all(state_of(s));
     m_rtl(s);
 }
 
 void palette_load_animations(Snes *s)
 {
-    load_animations(s);
+    load_animations(state_of(s));
     m_rtl(s);
 }
 
-/* A type's handler: returns with the slot offset in Y as it came, X from the
- * handler, and A 0. */
-static void handler_exit(Snes *s, uint16_t x)
+/* A type's handler comes back with the slot's offset in Y as it came and X
+ * from run_end. */
+static void handler_entry(Snes *s, AnimationType type)
 {
-    s->cpu.x = x;
-    s->cpu.a = 0;
+    GameState *g = state_of(s);
+    unsigned slot = slot_in_y(s);
+    animate_slot(g, slot, type);
+    s->cpu.x = run_end(g, slot, type);
     m_rts(s);
 }
-/* The frame types save Y on the stack around the copy, which a count of 0
- * runs over (the whole bank): Y comes back from there. palette_animate
- * doesn't reproduce that; its callers' slots never have such a count. */
-static void frames_entry(Snes *s, bool from_table)
-{
-    uint16_t slot = s->cpu.y;
-    m_push16(s, slot);
-    uint16_t x = from_table ? animate_frames_from_table(s, slot) : animate_frames(s, slot);
-    s->cpu.y = m_pull16(s);
-    handler_exit(s, x);
-}
-void palette_animate_frames(Snes *s) { frames_entry(s, false); }
-void palette_animate_frames_from_table(Snes *s) { frames_entry(s, true); }
-void palette_rotate_down(Snes *s) { handler_exit(s, rotate(s, s->cpu.y, false)); }
-void palette_rotate_up(Snes *s) { handler_exit(s, rotate(s, s->cpu.y, true)); }
-void palette_fade_to_white(Snes *s) { handler_exit(s, fade(s, s->cpu.y, true)); }
-void palette_fade_to_black(Snes *s) { handler_exit(s, fade(s, s->cpu.y, false)); }
-/* The fades' restore paths, entered with the slot in Y and on the stack under
- * the return address, where the handler saved it: they pull it back and
+void palette_animate_frames(Snes *s) { handler_entry(s, CYCLE_FRAMES); }
+void palette_animate_frames_from_table(Snes *s) { handler_entry(s, FRAMES_FROM_TABLE); }
+void palette_rotate_down(Snes *s) { handler_entry(s, ROTATE_DOWN); }
+void palette_rotate_up(Snes *s) { handler_entry(s, ROTATE_UP); }
+void palette_fade_to_white(Snes *s) { handler_entry(s, FADE_TO_WHITE); }
+void palette_fade_to_black(Snes *s) { handler_entry(s, FADE_TO_BLACK); }
+void palette_pulse_white(Snes *s) { handler_entry(s, PULSE_WHITE); }
+void palette_pulse_black(Snes *s) { handler_entry(s, PULSE_BLACK); }
+
+/* The fades' restore paths, which their handlers branch to with the slot's
+ * offset saved on the stack above the return: they take it back and
  * return. */
 static void restore_entry(Snes *s)
 {
-    uint16_t x = restore_colors(s, s->cpu.y);
+    GameState *g = state_of(s);
+    unsigned slot = slot_in_y(s);
+    restore_colors(g, slot);
+    s->cpu.x = run_end(g, slot, FADE_TO_WHITE);
     s->cpu.y = m_pull16(s);
-    handler_exit(s, x);
+    m_rts(s);
 }
 void palette_restore_after_white(Snes *s) { restore_entry(s); }
 void palette_restore_after_black(Snes *s) { restore_entry(s); }
-void palette_pulse_white(Snes *s) { handler_exit(s, pulse(s, s->cpu.y, true)); }
-void palette_pulse_black(Snes *s) { handler_exit(s, pulse(s, s->cpu.y, false)); }
 
-/* A fade mode's loop, entered with X the first color's offset and Y the slot:
- * returns with X past the last color and Y 0. */
-static void fade_mode_entry(Snes *s, const FadeMode *m, bool lighten)
+/* A fade mode's loop, with the fraction its handler left in the multiplier:
+ * back with X past the last color. */
+static void fade_loop_entry(Snes *s, uint8_t mode, bool lighten)
 {
-    s->cpu.x = fade_colors(s, s->cpu.x, slot8(s, s->cpu.y, RAM_PALETTE_ANIMATIONS_COLOR_COUNT), m, lighten);
-    s->cpu.y = 0;
+    GameState *g = state_of(s);
+    unsigned slot = slot_in_y(s);
+    fade_colors(g, slot, mode, hw_multiplicand(g), lighten);
+    s->cpu.x = run_end(g, slot, FADE_TO_WHITE);
     m_rts(s);
 }
-void palette_darken_all(Snes *s) { fade_mode_entry(s, &darken_modes[0], false); }
-void palette_darken_green_blue(Snes *s) { fade_mode_entry(s, &darken_modes[1], false); }
-void palette_darken_red_blue(Snes *s) { fade_mode_entry(s, &darken_modes[2], false); }
-void palette_darken_blue(Snes *s) { fade_mode_entry(s, &darken_modes[3], false); }
-void palette_darken_red_green(Snes *s) { fade_mode_entry(s, &darken_modes[4], false); }
-void palette_darken_green(Snes *s) { fade_mode_entry(s, &darken_modes[5], false); }
-void palette_darken_red(Snes *s) { fade_mode_entry(s, &darken_modes[6], false); }
-void palette_lighten_all(Snes *s) { fade_mode_entry(s, &lighten_modes[0], true); }
-void palette_lighten_red(Snes *s) { fade_mode_entry(s, &lighten_modes[1], true); }
-void palette_lighten_green(Snes *s) { fade_mode_entry(s, &lighten_modes[2], true); }
-void palette_lighten_red_green(Snes *s) { fade_mode_entry(s, &lighten_modes[3], true); }
-void palette_lighten_blue(Snes *s) { fade_mode_entry(s, &lighten_modes[4], true); }
-void palette_lighten_red_blue(Snes *s) { fade_mode_entry(s, &lighten_modes[5], true); }
-void palette_lighten_green_blue(Snes *s) { fade_mode_entry(s, &lighten_modes[6], true); }
+void palette_darken_all(Snes *s) { fade_loop_entry(s, 0, false); }
+void palette_darken_green_blue(Snes *s) { fade_loop_entry(s, 1, false); }
+void palette_darken_red_blue(Snes *s) { fade_loop_entry(s, 2, false); }
+void palette_darken_blue(Snes *s) { fade_loop_entry(s, 3, false); }
+void palette_darken_red_green(Snes *s) { fade_loop_entry(s, 4, false); }
+void palette_darken_green(Snes *s) { fade_loop_entry(s, 5, false); }
+void palette_darken_red(Snes *s) { fade_loop_entry(s, 6, false); }
+void palette_lighten_all(Snes *s) { fade_loop_entry(s, 0, true); }
+void palette_lighten_red(Snes *s) { fade_loop_entry(s, 1, true); }
+void palette_lighten_green(Snes *s) { fade_loop_entry(s, 2, true); }
+void palette_lighten_red_green(Snes *s) { fade_loop_entry(s, 3, true); }
+void palette_lighten_blue(Snes *s) { fade_loop_entry(s, 4, true); }
+void palette_lighten_red_blue(Snes *s) { fade_loop_entry(s, 5, true); }
+void palette_lighten_green_blue(Snes *s) { fade_loop_entry(s, 6, true); }
 
 // $C0:712E
 /* Upload the working palette: the 256 colors at $7E:2200 into CGRAM from entry
  * 0, one byte at a time into the same register, over DMA channel 7. Every mode
- * calls this from its vblank work. */
+ * calls this from its vblank work; what it leaves in A, X and the flags
+ * nobody reads (the entry's set). */
 void palette_upload(Snes *s)
 {
     /* STA $2121 : STA $4370 : STA $4371 : STX $4372 : STA $4374 : STX $4375 : STA $420B */
@@ -595,14 +733,7 @@ void palette_upload(Snes *s)
         VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START,     VID_STEP_END,
     };
     static const VidSnesXfer x = { PALETTE_DMA, PALETTE_DMA_CONTROL, steps, NULL };
-    m_lda8(s, 0x00);
-    m_lda8(s, 0x00);
-    m_lda8(s, 0x22);
-    m_ldx16(s, 0x2200);
-    m_lda8(s, 0x7E);
-    m_ldx16(s, 0x0200);
-    vid_upload_palette(m_platform(s), PF_AT(0xC07130), 0, PF_GAME(0x7E2200), 0x100, &x);
-    m_lda8(s, 0x80);
+    vid_upload_palette(m_platform(s), PF_AT(0xC07130), 0, PF_GAME(0x7E2200), PALETTE_COLORS, &x);
     m_rts(s);
 }
 

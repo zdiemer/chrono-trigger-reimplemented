@@ -163,6 +163,7 @@
 #define RAM_PALETTE_ANIMATIONS_FADE_LEVEL 0x7E0527u /* Fade level, loaded into the multiplier as the fraction / 256 applied to each color; a pulse's running phase */
 #define RAM_PALETTE_ANIMATIONS_FADE_TARGET 0x7E0528u /* Level the fade moves toward, reaching it ends the animation; a pulse's amplitude */
 #define RAM_PALETTE_ANIMATIONS_FRAMES 0x7E0526u /* Types 1 and 8: offset of the animation's frames in the ROM's palette frames ($F6:0000) */
+#define RAM_PALETTE_ANIMATIONS_FRAMES_BANK 0x7E0528u /* Types 1 and 8: the bank of the frames, loaded with them ($F6 in the ROM's sets); the animation reads bank $F6 whatever it holds */
 #define RAM_PALETTE_ANIMATIONS_FRAME_TABLE 0x7E0529u /* Type 8: long pointer to the frame numbers, indexed by the current frame */
 /* The animated background tile slots, each sending 128 bytes of its current frame to VRAM [12 x
  * $5 bytes, by animated tile slot] */
@@ -1732,8 +1733,9 @@
 #define RAM_MENU_WINDOW_SHADOWS_MATH_CONTROL 0x7E968Du /* Color math control */
 #define RAM_MENU_WINDOW_SHADOWS_MATH_LAYERS 0x7E968Eu /* Color math layers */
 #define RAM_MENU_WINDOW_SHADOWS_FIXED_COLOR 0x7E968Fu /* Fixed color: channel bits 5-7, intensity bits 0-4 */
-/* The code the menus' vblank runs a frame's block move through: MVN $7E,$7E and RTL, written
- * there each time [4 bytes] */
+/* The game's block move (core/memory.c): MVN and RTL, with the banks to and from its callers
+ * write before each call (the menus' vblank writes MVN $7E,$7E for a frame's block move; the
+ * save code, save RAM's) [4 bytes] */
 #define RAM_MENU_BLOCK_MOVE_STUB 0x7E9690u
 /* Source address of the block move bit 7 of $0D13 asks the vblank for (through the MVN stub at
  * $7E:9690) [2 bytes] */

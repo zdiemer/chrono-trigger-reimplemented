@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 
+#include "original_effects.h"
 #include "state.h"
 
 /* The time of `accesses` memory accesses of the routine at `routine` (a hand
@@ -26,5 +27,15 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
  * spends where a port fills or copies with wram_fill8, wram_fill16 or
  * wram_copy (wram.h), which take none of the port's own time. */
 void charge_block_move(GameState *g, uint32_t bytes);
+
+/* The work of `statement` as the routine registered at `routine` doing it: a
+ * dispatcher running its handlers inline, whose time follows which handlers
+ * ran, has each estimated at its handler's calibrated rate
+ * (runtime/port/native.h, native_time_as; for a port on the machine,
+ * NATIVE_TIME_AS). `routine` is a tag, the handler's `// $BB:AAAA`, and the
+ * statement runs either way. */
+int charge_begin_as(GameState *g, uint32_t routine);
+void charge_end(GameState *g, int was);
+#define CHARGED_AS(g, routine, statement)                                              do {                                                                                 int charged_was_ = ORIGINAL_EFFECTS ? charge_begin_as((g), (routine)) : 0;         statement;                                                                       ORIGINAL_EFFECT(charge_end((g), charged_was_));                                } while (0)
 
 #endif
