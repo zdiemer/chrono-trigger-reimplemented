@@ -592,9 +592,9 @@ static void place_line_tables(GameState *g)
         set_menu_object_line_slots_first(g, slot, menu_object_hdma_pointers(g, 2 * slot));
         set_menu_object_line_slots_second(g, slot, menu_object_hdma_pointers(g, 2 * slot + 1));
     }
-    uint16_t at = menu_gate_scroll_at(g);
+    uint16_t at = menu_top_layer_wave_at(g);
     for (unsigned i = 0; i < GATE_ENTRIES; i++)
-        set_menu_gate_scroll_table(g, i, (menu_gate_scroll_table(g, i) & 0xFF) | (uint32_t)at << 8);
+        set_menu_top_layer_wave_table(g, i, (menu_top_layer_wave_table(g, i) & 0xFF) | (uint32_t)at << 8);
 }
 
 /* The mode's frame state: the main loop has finished a frame to show, and the

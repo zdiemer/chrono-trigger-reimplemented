@@ -5417,33 +5417,33 @@ meaning = "Which of the time dial's seven periods it stands at, which the digit 
 source = "game/menu/epoch.c, menu_epoch_time_dial_object $C2:6AC8"
 
 [[var]]
-name = "menu_gate_scroll_at"
+name = "menu_top_layer_wave_at"
 addr = "7E:A916"
 size = 2
 subsystem = "menu"
-meaning = "Where in its circular buffer (menu_gate_scroll) the wave of the layer over one world map's scene starts this frame; the vblank handler points the wave's table at it"
+meaning = "Where in its circular buffer (menu_top_layer_wave_lines) the wave of the layer over one world map's scene starts this frame; the vblank handler points the wave's table at it"
 source = "game/menu/top_layer.c, menu_top_layer_wave $C2:7652, menu_top_layer_wave_drift $C2:75FD; game/menu/display.c"
 
 [[var]]
-name = "menu_gate_scroll_table"
+name = "menu_top_layer_wave_table"
 addr = "7E:A918"
 size = 3
 count = 4
 index = "entry; a 0 byte at $A924 ends the table"
 subsystem = "menu"
-meaning = "The indirect per-line table the wave of the layer over one world map's scene is read through: a line count (64 lines an entry, 32 in the last, with the repeat bit) and where its values are, which the vblank handler fills in from menu_gate_scroll_at"
+meaning = "The indirect per-line table the wave of the layer over one world map's scene is read through: a line count (64 lines an entry, 32 in the last, with the repeat bit) and where its values are, which the vblank handler fills in from menu_top_layer_wave_at"
 source = "game/menu/top_layer.c, menu_top_layer_wave $C2:7652; game/menu/display.c"
 
 [[var]]
-name = "menu_gate_scroll_table_end"
+name = "menu_top_layer_wave_table_end"
 addr = "7E:A924"
 size = 1
 subsystem = "menu"
-meaning = "The 0 that ends menu_gate_scroll_table"
+meaning = "The 0 that ends menu_top_layer_wave_table"
 source = "game/menu/top_layer.c, menu_top_layer_wave $C2:7652"
 
 [[var]]
-name = "menu_gate_scroll"
+name = "menu_top_layer_wave_lines"
 addr = "7E:A925"
 size = 2
 count = 128

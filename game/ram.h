@@ -1794,24 +1794,24 @@
 /* Which color math table was built last: 0 for $9E19, $100 for $9F19 (the vblank reads its high
  * byte to point slot 0 at it) [2 bytes] */
 #define RAM_MENU_MATH_LINE_TABLE_OFFSET 0x7EA01Du
-/* Where in its circular buffer (menu_gate_scroll) the wave of the layer over one world map's
- * scene starts this frame; the vblank handler points the wave's table at it [2 bytes] */
-#define RAM_MENU_GATE_SCROLL_AT 0x7EA916u
+/* Where in its circular buffer (menu_top_layer_wave_lines) the wave of the layer over one world
+ * map's scene starts this frame; the vblank handler points the wave's table at it [2 bytes] */
+#define RAM_MENU_TOP_LAYER_WAVE_AT 0x7EA916u
 /* The indirect per-line table the wave of the layer over one world map's scene is read through:
  * a line count (64 lines an entry, 32 in the last, with the repeat bit) and where its values
- * are, which the vblank handler fills in from menu_gate_scroll_at [4 x $3 bytes, by entry; a 0
- * byte at $A924 ends the table] */
-#define RAM_MENU_GATE_SCROLL_TABLE 0x7EA918u
-#define RAM_MENU_GATE_SCROLL_TABLE_COUNT 4u
-#define RAM_MENU_GATE_SCROLL_TABLE_STRIDE 0x03u
-/* The 0 that ends menu_gate_scroll_table */
-#define RAM_MENU_GATE_SCROLL_TABLE_END 0x7EA924u
+ * are, which the vblank handler fills in from menu_top_layer_wave_at [4 x $3 bytes, by entry; a
+ * 0 byte at $A924 ends the table] */
+#define RAM_MENU_TOP_LAYER_WAVE_TABLE 0x7EA918u
+#define RAM_MENU_TOP_LAYER_WAVE_TABLE_COUNT 4u
+#define RAM_MENU_TOP_LAYER_WAVE_TABLE_STRIDE 0x03u
+/* The 0 that ends menu_top_layer_wave_table */
+#define RAM_MENU_TOP_LAYER_WAVE_TABLE_END 0x7EA924u
 /* The wave of the layer over one world map's scene: its scroll across, a line pair each, a sine
  * over the layer's own scroll, copied on to the buffer's second half so the table can start
  * anywhere in the first [128 x $2 bytes, by line pair; the second 64 a copy of the first] */
-#define RAM_MENU_GATE_SCROLL 0x7EA925u
-#define RAM_MENU_GATE_SCROLL_COUNT 128u
-#define RAM_MENU_GATE_SCROLL_STRIDE 0x02u
+#define RAM_MENU_TOP_LAYER_WAVE_LINES 0x7EA925u
+#define RAM_MENU_TOP_LAYER_WAVE_LINES_COUNT 128u
+#define RAM_MENU_TOP_LAYER_WAVE_LINES_STRIDE 0x02u
 /* One colour per world map tile, four bits packed out of the tile's own graphics, which the map
  * view's plane is drawn from [896 x $1 bytes, by world map tile] */
 #define RAM_MENU_MAP_COLOURS 0x7EAB25u

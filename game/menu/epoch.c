@@ -1361,14 +1361,12 @@ enum {
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
     READS_X_AND_A_HIGH = DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AL,
-    JSR_BYTES = 2,
 };
 
-/* A sibling the port runs as C where the original calls it with a JSR, and
- * which calls out itself: its return address is pushed as the JSR pushes it,
- * so the machine's stack is the original's at the call-outs inside. */
-static void push_return(Snes *s, uint32_t jsr_site) { m_push16(s, (uint16_t)(jsr_site + JSR_BYTES)); }
-static void pull_return(Snes *s) { (void)m_pull16(s); }
+/* The loaders and builders that call out to the original's decompressor and
+ * graphics loader are called as the original calls them, through the
+ * machine: they are entries of their own (registered, each a port), which
+ * shadow mode compares and the timing gate measures on their own. */
 
 // $C2:6965
 /* Load the view's marker graphics with the menus' loader, and send them to
@@ -1389,7 +1387,7 @@ static void load_map_view_graphics(Snes *s)
 static void build_map_view_on_the_machine(Snes *s)
 {
     m_jsr_dc(s, 0xC263DF, 0xC227DE, READS_NOTHING);
-    NATIVE_TIME_AS(s, 0xC263DF, build_map_view(state_of(s), m_platform(s)));
+    build_map_view(state_of(s), m_platform(s));
 }
 
 /* The routines both screens call: the menus' VRAM cleared (menu/display.c's
@@ -1465,13 +1463,9 @@ void menu_epoch_map_screen(Snes *s)
     set_menu_object_shadows_math_control(g, 0);
     set_menu_object_shadows_math_layers(g, BACKDROP);
     clear_the_screen(s, 0xC2632E, 0xC26331, 0xC26334);
-    push_return(s, 0xC26337);
-    load_map_view_graphics(s);
-    pull_return(s);
+    m_jsr_dc(s, 0xC26337, 0xC26965, READS_NOTHING);
     NATIVE_TIME_AS(s, 0xC268F4, map_view_gradient(g, pf));
-    push_return(s, 0xC2633D);
-    build_map_view_on_the_machine(s);
-    pull_return(s);
+    m_jsr_dc(s, 0xC2633D, 0xC263DF, READS_NOTHING);
 
     vid_send_vram(pf, PF_AT(0xC26340), 0x6000, PF_GAME(MENU_MAP_VIEW_TILES), 0x0020, &after_high);
     vid_send_vram(pf, PF_AT(0xC26367), 0x6020, PF_GAME(MENU_MAP_VIEW_MORE_TILES), 0x0020, &after_high);
@@ -1509,12 +1503,14 @@ static void load_gate_stream(Snes *s, uint8_t stream, uint8_t bank)
  * from bank C6. */
 enum { GATE_TILES_STREAM = 0, GATE_PALETTE_STREAM = 1, GATE_ROWS_STREAM = 2 };
 
+/* The loader takes the stream's number in the mode's cell at $08 and its
+ * bank in A. */
 static void load_gate_stream_as_the_original(Snes *s, uint32_t jsr_site, uint8_t stream, uint8_t bank)
 {
-    ORIGINAL_EFFECT(leave_cell8(state_of(s), 0x08, stream));
-    push_return(s, jsr_site);
-    load_gate_stream(s, stream, bank);
-    pull_return(s);
+    enum { STREAM_CELL = 0x08 };
+    set_menu_object_scratch_bytes_byte(state_of(s), STREAM_CELL, stream);
+    m_set_a8(s, bank);
+    m_jsr_dc(s, jsr_site, 0xC271F9, READS_A | DC_AH);
 }
 
 // $C2:7389
@@ -1583,9 +1579,7 @@ void menu_epoch_time_dial_screen(Snes *s)
     set_menu_object_shadows_fixed_red(g, FIXED_LEVEL);
     set_menu_object_shadows_fixed_green(g, FIXED_LEVEL);
     set_menu_gate_flags(g, 0);
-    push_return(s, 0xC26A8A);
-    build_the_dial(s);
-    pull_return(s);
+    m_jsr_dc(s, 0xC26A8A, 0xC27389, READS_NOTHING);
     show_from_the_next_frame(s, 0xC26A93);
     m_set_a8(s, 0x81);
     wait_frames(s, 0xC26A99, 0x12);

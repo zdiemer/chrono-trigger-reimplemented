@@ -317,6 +317,13 @@ static bool draw_header(Snes *s)
     return true;
 }
 
+/* The portrait of the member the rows' cells name: the command list leaves
+ * the member's row and character there, and the tilemap's origin. */
+static void draw_the_rows_portrait(GameState *g)
+{
+    draw_member_portrait(g, menu_draw_origin(g), menu_save_member_row(g), (uint8_t)menu_scratch_save_member(g));
+}
+
 // $C2:D36C, from $C2:D404
 /* A row for each member in the party: the member's record where the window
  * command list draws it from, and the portrait. The rows' cells are what the
@@ -340,12 +347,8 @@ static bool draw_member_rows(Snes *s)
             s->cpu.x = MEMBER_ROW_LIST;
             if (!draw_window_list(s, 0xC2D43A))
                 return false;
-            /* The member's row and character are what the command list
-             * left in the rows' cells. */
-            uint16_t row = menu_save_member_row(g);
-            uint8_t character = (uint8_t)menu_scratch_save_member(g);
-            if (portrait_is_drawable(row, character))
-                NATIVE_TIME_AS(s, 0xC2D466, draw_member_portrait(g, menu_draw_origin(g), row, character));
+            if (portrait_is_drawable(menu_save_member_row(g), (uint8_t)menu_scratch_save_member(g)))
+                NATIVE_TIME_AS(s, 0xC2D466, draw_the_rows_portrait(g));
             else if (!call_original(s, 0xC2D43D, 0xC2D466, PORTRAIT_IGNORES, false, false))
                 return false;
             set_menu_draw_origin(g, (uint16_t)(menu_draw_origin(g) + MEMBER_ROW_BYTES));
@@ -519,11 +522,9 @@ void menu_load_slot_rows_effect(Snes *s)
 }
 
 // $C2:D466
-/* The portrait of the member whose row the load screen's cells name. */
 void menu_draw_member_portrait(Snes *s)
 {
-    GameState *g = state_of(s);
-    draw_member_portrait(g, menu_draw_origin(g), menu_save_member_row(g), (uint8_t)menu_scratch_save_member(g));
+    draw_the_rows_portrait(state_of(s));
     m_rts(s);
 }
 

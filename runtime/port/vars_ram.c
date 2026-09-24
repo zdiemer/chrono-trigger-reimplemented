@@ -290,8 +290,8 @@ static VarsRangeFault range_faults[] = {
     { .var = "menu_math_records" },
     { .var = "menu_math_ramp_colors" },
     { .var = "menu_math_line_tables" },
-    { .var = "menu_gate_scroll_table" },
-    { .var = "menu_gate_scroll" },
+    { .var = "menu_top_layer_wave_table" },
+    { .var = "menu_top_layer_wave_lines" },
     { .var = "menu_map_colours" },
     { .var = "menu_gate_palette_copy" },
     { .var = "menu_map_name_table" },
@@ -1672,14 +1672,14 @@ uint16_t menu_math_ramp_accumulator(const GameState *g) { return r16(g, 0x7EA01B
 void set_menu_math_ramp_accumulator(GameState *g, uint16_t v) { w16(g, 0x7EA01Bu, v); }
 uint16_t menu_math_line_table_offset(const GameState *g) { return r16(g, 0x7EA01Du); }
 void set_menu_math_line_table_offset(GameState *g, uint16_t v) { w16(g, 0x7EA01Du, v); }
-uint16_t menu_gate_scroll_at(const GameState *g) { return r16(g, 0x7EA916u); }
-void set_menu_gate_scroll_at(GameState *g, uint16_t v) { w16(g, 0x7EA916u, v); }
-uint32_t menu_gate_scroll_table(const GameState *g, unsigned i) { IN_RANGE(g, 166, "menu_gate_scroll_table", "count", i, 4u); return r24(g, 0x7EA918u + (uint32_t)i * 0x03u); }
-void set_menu_gate_scroll_table(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 166, "set_menu_gate_scroll_table", "count", i, 4u); w24(g, 0x7EA918u + (uint32_t)i * 0x03u, v); }
-uint8_t menu_gate_scroll_table_end(const GameState *g) { return r8(g, 0x7EA924u); }
-void set_menu_gate_scroll_table_end(GameState *g, uint8_t v) { w8(g, 0x7EA924u, v); }
-uint16_t menu_gate_scroll(const GameState *g, unsigned line) { IN_RANGE(g, 167, "menu_gate_scroll", "count", line, 128u); return r16(g, 0x7EA925u + (uint32_t)line * 0x02u); }
-void set_menu_gate_scroll(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 167, "set_menu_gate_scroll", "count", line, 128u); w16(g, 0x7EA925u + (uint32_t)line * 0x02u, v); }
+uint16_t menu_top_layer_wave_at(const GameState *g) { return r16(g, 0x7EA916u); }
+void set_menu_top_layer_wave_at(GameState *g, uint16_t v) { w16(g, 0x7EA916u, v); }
+uint32_t menu_top_layer_wave_table(const GameState *g, unsigned i) { IN_RANGE(g, 166, "menu_top_layer_wave_table", "count", i, 4u); return r24(g, 0x7EA918u + (uint32_t)i * 0x03u); }
+void set_menu_top_layer_wave_table(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 166, "set_menu_top_layer_wave_table", "count", i, 4u); w24(g, 0x7EA918u + (uint32_t)i * 0x03u, v); }
+uint8_t menu_top_layer_wave_table_end(const GameState *g) { return r8(g, 0x7EA924u); }
+void set_menu_top_layer_wave_table_end(GameState *g, uint8_t v) { w8(g, 0x7EA924u, v); }
+uint16_t menu_top_layer_wave_lines(const GameState *g, unsigned line) { IN_RANGE(g, 167, "menu_top_layer_wave_lines", "count", line, 128u); return r16(g, 0x7EA925u + (uint32_t)line * 0x02u); }
+void set_menu_top_layer_wave_lines(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 167, "set_menu_top_layer_wave_lines", "count", line, 128u); w16(g, 0x7EA925u + (uint32_t)line * 0x02u, v); }
 uint8_t menu_map_colours(const GameState *g, unsigned i) { IN_RANGE(g, 168, "menu_map_colours", "count", i, 896u); return r8(g, 0x7EAB25u + (uint32_t)i * 0x01u); }
 void set_menu_map_colours(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 168, "set_menu_map_colours", "count", i, 896u); w8(g, 0x7EAB25u + (uint32_t)i * 0x01u, v); }
 uint8_t menu_map_colours_unchecked(const GameState *g, unsigned i) { return r8(g, 0x7EAB25u + (uint32_t)i * 0x01u); }

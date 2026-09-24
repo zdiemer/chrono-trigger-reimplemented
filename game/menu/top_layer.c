@@ -88,7 +88,7 @@ static bool drift(GameState *g, MenuObject o)
 /* The wave's circular buffer: 64 line pairs and a copy of them, so the
  * table can start its 224 lines anywhere in the first 64. */
 enum { WAVE_PAIRS = 64, WAVE_BYTES = 2 * WAVE_PAIRS };
-static uint16_t wave_first(void) { return (uint16_t)RAM_ABS(RAM_MENU_GATE_SCROLL); }
+static uint16_t wave_first(void) { return (uint16_t)RAM_ABS(RAM_MENU_TOP_LAYER_WAVE_LINES); }
 
 // $C2:75FD
 /* The slow drift with the wave's start moved round its buffer as the layer
@@ -102,12 +102,12 @@ static bool wave_drift(GameState *g, MenuObject o)
         move_layer(g, -1, 1);
     uint16_t pending_down = menu_pending_scroll_y(g);
     take_pending_scroll(g);
-    uint16_t start = (uint16_t)(menu_gate_scroll_at(g) + 2 * pending_down);
+    uint16_t start = (uint16_t)(menu_top_layer_wave_at(g) + 2 * pending_down);
     if (start < wave_first())
         start = (uint16_t)(start + WAVE_BYTES);
     else if (start >= wave_first() + WAVE_BYTES)
         start = (uint16_t)(start - WAVE_BYTES);
-    set_menu_gate_scroll_at(g, start);
+    set_menu_top_layer_wave_at(g, start);
     return true;
 }
 
@@ -138,7 +138,7 @@ static void leave_wave_drawn(GameState *g, int16_t last, uint16_t phase)
     set_menu_object_scratch_bytes_byte(g, PHASE + 1, (uint8_t)(phase >> 8));
     set_menu_object_scratch_bytes_byte(g, VALUES_AT, (uint8_t)wave_first());
     set_menu_object_scratch_bytes_byte(g, VALUES_AT + 1, (uint8_t)(wave_first() >> 8));
-    set_menu_object_scratch_bytes_byte(g, VALUES_AT + 2, (uint8_t)(RAM_MENU_GATE_SCROLL >> 16));
+    set_menu_object_scratch_bytes_byte(g, VALUES_AT + 2, (uint8_t)(RAM_MENU_TOP_LAYER_WAVE_LINES >> 16));
 }
 
 // $C2:7652
@@ -157,13 +157,13 @@ static bool wave(GameState *g, Platform *pf, MenuObject o)
     if (menu_object_slots_step(g, o) == 0) {
         set_menu_object_slots_step(g, o, 1);
         set_menu_object_slots_phase(g, o, 0);
-        set_menu_gate_scroll_at(g, wave_first());
+        set_menu_top_layer_wave_at(g, wave_first());
     }
     static const uint8_t runs[WAVE_RUNS] = { RUN_OF_64_LINES, RUN_OF_64_LINES, RUN_OF_64_LINES, RUN_OF_32_LINES };
     for (unsigned r = 0; r < WAVE_RUNS; r++)
-        set_menu_gate_scroll_table(g, r, (menu_gate_scroll_table(g, r) & 0xFFFF00u) | runs[r]);
-    set_menu_gate_scroll_table_end(g, 0);
-    menu_program_line_channel(pf, 0xC2769A, WAVE_SLOT, VID_LINE_SCROLL_BG3_H, RAM_MENU_GATE_SCROLL_TABLE);
+        set_menu_top_layer_wave_table(g, r, (menu_top_layer_wave_table(g, r) & 0xFFFF00u) | runs[r]);
+    set_menu_top_layer_wave_table_end(g, 0);
+    menu_program_line_channel(pf, 0xC2769A, WAVE_SLOT, VID_LINE_SCROLL_BG3_H, RAM_MENU_TOP_LAYER_WAVE_TABLE);
     menu_turn_on_line_slots(g, 1u << WAVE_SLOT);
 
     uint16_t phase = menu_object_slots_phase(g, o);
@@ -172,10 +172,10 @@ static bool wave(GameState *g, Platform *pf, MenuObject o)
     int16_t last = 0;
     for (unsigned pair = 0; pair < WAVE_PAIRS; pair++, phase = (uint16_t)(phase + WAVE_STEP)) {
         last = sine(g, phase);
-        set_menu_gate_scroll(g, pair, (uint16_t)(quarter(last) + layer));
+        set_menu_top_layer_wave_lines(g, pair, (uint16_t)(quarter(last) + layer));
     }
     for (unsigned pair = 0; pair < WAVE_PAIRS; pair++)
-        set_menu_gate_scroll(g, WAVE_PAIRS + pair, menu_gate_scroll(g, pair));
+        set_menu_top_layer_wave_lines(g, WAVE_PAIRS + pair, menu_top_layer_wave_lines(g, pair));
     ORIGINAL_EFFECT(leave_wave_drawn(g, last, phase));
     return true;
 }

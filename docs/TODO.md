@@ -89,10 +89,6 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
   machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
-  - the RAM map's `menu_gate_scroll`, `menu_gate_scroll_at` and
-    `menu_gate_scroll_table` are one world map's wave of the layer over the
-    map (`menu/top_layer.c`), not a gate's; their names wait on
-    `menu/display.c`, which reads two of them;
   - a divergence the rewrite accepts, on inputs no game state makes: a
     string's control code past `$0C`, or one included deeper than four, draws
     nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz

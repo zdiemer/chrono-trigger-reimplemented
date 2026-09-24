@@ -2392,28 +2392,28 @@ void set_menu_math_ramp_accumulator(GameState *g, uint16_t v);
 uint16_t menu_math_line_table_offset(const GameState *g);
 void set_menu_math_line_table_offset(GameState *g, uint16_t v);
 
-/* Where in its circular buffer (menu_gate_scroll) the wave of the layer over one world map's
- * scene starts this frame; the vblank handler points the wave's table at it */
-uint16_t menu_gate_scroll_at(const GameState *g);
-void set_menu_gate_scroll_at(GameState *g, uint16_t v);
+/* Where in its circular buffer (menu_top_layer_wave_lines) the wave of the layer over one world
+ * map's scene starts this frame; the vblank handler points the wave's table at it */
+uint16_t menu_top_layer_wave_at(const GameState *g);
+void set_menu_top_layer_wave_at(GameState *g, uint16_t v);
 
-enum { MENU_GATE_SCROLL_TABLE_COUNT = 4 };   /* by entry; a 0 byte at $A924 ends the table */
+enum { MENU_TOP_LAYER_WAVE_TABLE_COUNT = 4 };   /* by entry; a 0 byte at $A924 ends the table */
 /* The indirect per-line table the wave of the layer over one world map's scene is read through:
  * a line count (64 lines an entry, 32 in the last, with the repeat bit) and where its values
- * are, which the vblank handler fills in from menu_gate_scroll_at */
-uint32_t menu_gate_scroll_table(const GameState *g, unsigned i);
-void set_menu_gate_scroll_table(GameState *g, unsigned i, uint32_t v);
+ * are, which the vblank handler fills in from menu_top_layer_wave_at */
+uint32_t menu_top_layer_wave_table(const GameState *g, unsigned i);
+void set_menu_top_layer_wave_table(GameState *g, unsigned i, uint32_t v);
 
-/* The 0 that ends menu_gate_scroll_table */
-uint8_t menu_gate_scroll_table_end(const GameState *g);
-void set_menu_gate_scroll_table_end(GameState *g, uint8_t v);
+/* The 0 that ends menu_top_layer_wave_table */
+uint8_t menu_top_layer_wave_table_end(const GameState *g);
+void set_menu_top_layer_wave_table_end(GameState *g, uint8_t v);
 
-enum { MENU_GATE_SCROLL_COUNT = 128 };   /* by line pair; the second 64 a copy of the first */
+enum { MENU_TOP_LAYER_WAVE_LINES_COUNT = 128 };   /* by line pair; the second 64 a copy of the first */
 /* The wave of the layer over one world map's scene: its scroll across, a line pair each, a sine
  * over the layer's own scroll, copied on to the buffer's second half so the table can start
  * anywhere in the first */
-uint16_t menu_gate_scroll(const GameState *g, unsigned line);
-void set_menu_gate_scroll(GameState *g, unsigned line, uint16_t v);
+uint16_t menu_top_layer_wave_lines(const GameState *g, unsigned line);
+void set_menu_top_layer_wave_lines(GameState *g, unsigned line, uint16_t v);
 
 enum { MENU_MAP_COLOURS_COUNT = 896 };   /* by world map tile */
 /* One colour per world map tile, four bits packed out of the tile's own graphics, which the map
