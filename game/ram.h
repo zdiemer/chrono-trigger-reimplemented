@@ -2689,6 +2689,9 @@
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL 0x7E9888u
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL_COUNT 11u
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL_STRIDE 0x01u
+/* The command the running animation script channel is at, which its handler reads (the number
+ * commands pick their table by its low bits) */
+#define RAM_BATTLE_SCRIPT_COMMAND 0x7E9895u
 /* Frames until the enemy's per-frame effect handler runs [8 x $1 bytes, by enemy] */
 #define RAM_BATTLE_ENEMY_EFFECT_DELAY 0x7E9897u
 #define RAM_BATTLE_ENEMY_EFFECT_DELAY_COUNT 8u
@@ -2832,7 +2835,7 @@
 #define RAM_BATTLE_SCRIPT_OFFSET 0x7EA00Eu
 /* Set by an opcode handler to run the channel's next opcode in the same frame */
 #define RAM_BATTLE_SCRIPT_CONTINUE 0x7EA00Fu
-/* Animation script channel running */
+/* The animation script channel running (a word) [2 bytes] */
 #define RAM_BATTLE_SCRIPT_CHANNEL 0x7EA010u
 /* 1: upload battle_graphics_object's graphics at the next vblank; 2: the frame after (counted
  * down each frame update) */
@@ -2973,6 +2976,8 @@
 #define RAM_BATTLE_RECORD_GROUP_COUNTS 0x7EA2A0u
 #define RAM_BATTLE_RECORD_GROUP_COUNTS_COUNT 16u
 #define RAM_BATTLE_RECORD_GROUP_COUNTS_STRIDE 0x01u
+/* The enemy whose script channel (8 and up) is running, for its commands */
+#define RAM_BATTLE_SCRIPT_ENEMY 0x7EA2B6u
 /* The sprite set an effect draws (low six bits) [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_SPRITE_SET 0x7EA2C0u
 #define RAM_BATTLE_EFFECT_SPRITE_SET_COUNT 8u
@@ -3425,6 +3430,9 @@
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN 0x7EAE7Au
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN_COUNT 11u
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN_STRIDE 0x01u
+/* The battle slots the action targets after its first, a bit each (bit 15 slot 0 down); script
+ * channel 4 animates them while there are any [2 bytes] */
+#define RAM_BATTLE_ACTION_OTHER_TARGETS 0x7EAE99u
 /* The bit of battle_timer_kinds_due for the kind being searched or handled [2 bytes] */
 #define RAM_BATTLE_TIMER_KIND_BIT 0x7EAEC3u
 /* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all

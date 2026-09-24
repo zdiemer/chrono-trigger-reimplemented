@@ -3706,6 +3706,11 @@ enum { BATTLE_OBJECT_PALETTE_INITIAL_COUNT = 11 };   /* by battle slot */
 uint8_t battle_object_palette_initial(const GameState *g, unsigned slot);
 void set_battle_object_palette_initial(GameState *g, unsigned slot, uint8_t v);
 
+/* The command the running animation script channel is at, which its handler reads (the number
+ * commands pick their table by its low bits) */
+uint8_t battle_script_command(const GameState *g);
+void set_battle_script_command(GameState *g, uint8_t v);
+
 enum { BATTLE_ENEMY_EFFECT_DELAY_COUNT = 8 };   /* by enemy */
 /* Frames until the enemy's per-frame effect handler runs */
 uint8_t battle_enemy_effect_delay(const GameState *g, unsigned i);
@@ -3897,9 +3902,9 @@ void set_battle_script_offset(GameState *g, uint8_t v);
 uint8_t battle_script_continue(const GameState *g);
 void set_battle_script_continue(GameState *g, uint8_t v);
 
-/* Animation script channel running */
-uint8_t battle_script_channel(const GameState *g);
-void set_battle_script_channel(GameState *g, uint8_t v);
+/* The animation script channel running (a word) */
+uint16_t battle_script_channel(const GameState *g);
+void set_battle_script_channel(GameState *g, uint16_t v);
 
 /* 1: upload battle_graphics_object's graphics at the next vblank; 2: the frame after (counted
  * down each frame update) */
@@ -4098,6 +4103,10 @@ enum { BATTLE_RECORD_GROUP_COUNTS_COUNT = 16 };   /* by group */
 /* Number of records in each group */
 uint8_t battle_record_group_counts(const GameState *g, unsigned i);
 void set_battle_record_group_counts(GameState *g, unsigned i, uint8_t v);
+
+/* The enemy whose script channel (8 and up) is running, for its commands */
+uint8_t battle_script_enemy(const GameState *g);
+void set_battle_script_enemy(GameState *g, uint8_t v);
 
 enum { BATTLE_EFFECT_SPRITE_SET_COUNT = 8 };   /* by effect */
 /* The sprite set an effect draws (low six bits) */
@@ -4638,6 +4647,11 @@ enum { BATTLE_STATUS_SCRIPT_SEEN_COUNT = 11 };   /* by battle slot */
  * seen: a change restarts the script */
 uint8_t battle_status_script_seen(const GameState *g, unsigned slot);
 void set_battle_status_script_seen(GameState *g, unsigned slot, uint8_t v);
+
+/* The battle slots the action targets after its first, a bit each (bit 15 slot 0 down); script
+ * channel 4 animates them while there are any */
+uint16_t battle_action_other_targets(const GameState *g);
+void set_battle_action_other_targets(GameState *g, uint16_t v);
 
 /* The bit of battle_timer_kinds_due for the kind being searched or handled */
 uint16_t battle_timer_kind_bit(const GameState *g);

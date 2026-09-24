@@ -6203,3 +6203,21 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 why = "on the battle's page"
+
+# -- the animation script channels (battle/scripts.c)
+
+[[routine]]
+name = "battle_run_script_channel"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "Y=0003-0003", "--range", "A=000C-000C"]
+iterations = 5000
+why = "channel 3 in Y and its pointer's offset in A, as battle_run_scripts calls it; its commands are call-outs"
+
+[[routine]]
+name = "battle_run_scripts"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 3000
+why = "on the battle's page; each channel is a call-out"

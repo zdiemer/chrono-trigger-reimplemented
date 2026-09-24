@@ -8642,9 +8642,32 @@ source = "game/battle/objects.c battle_update_animation_positions $C1:4212"
 [[var]]
 name = "battle_script_channel"
 addr = "7E:A010"
+size = 2
 subsystem = "battle"
-meaning = "Animation script channel running"
-source = "game/battle/scripts.c header and battle_run_script_channel $C1:4C9E"
+meaning = "The animation script channel running (a word)"
+source = "game/battle/scripts.c battle_run_script_channel $C1:4C9E"
+
+[[var]]
+name = "battle_script_command"
+addr = "7E:9895"
+subsystem = "battle"
+meaning = "The command the running animation script channel is at, which its handler reads (the number commands pick their table by its low bits)"
+source = "game/battle/scripts.c battle_run_script_channel $C1:4C9E; game/battle/numbers.c"
+
+[[var]]
+name = "battle_script_enemy"
+addr = "7E:A2B6"
+subsystem = "battle"
+meaning = "The enemy whose script channel (8 and up) is running, for its commands"
+source = "game/battle/scripts.c battle_run_scripts $C1:4BBE"
+
+[[var]]
+name = "battle_action_other_targets"
+addr = "7E:AE99"
+size = 2
+subsystem = "battle"
+meaning = "The battle slots the action targets after its first, a bit each (bit 15 slot 0 down); script channel 4 animates them while there are any"
+source = "$C1:AD35; game/battle/scripts.c battle_run_scripts $C1:4BBE"
 
 [[var]]
 name = "battle_script_offset"

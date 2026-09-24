@@ -84,6 +84,7 @@ void battle_irq_after_hblank(Snes *s);
 /* battle/scripts.c */
 void battle_run_script_channel(Snes *s);
 void battle_run_scripts(Snes *s);
+bool battle_script_channel_in_y(Snes *s);
 
 /* battle/draw_objects.c */
 void battle_draw_objects(Snes *s);
