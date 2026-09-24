@@ -59,30 +59,13 @@ enum {
  * before it has one of its own. */
 enum { PLANE_MAP_IN_ROM = 0xD20000 };
 
-/* A transfer's channel programmed mode and destination first, then source, size
- * and start. */
-static const uint8_t transfer_steps[] = {
-    VID_STEP_CONTROL,     VID_STEP_DEST,    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-    VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI,   VID_STEP_START,
-    VID_STEP_END,
-};
-
-/* The VRAM address, then the size, then the channel, then the port: the order
- * both of the race's per-frame uploads program them in. */
-static const uint8_t upload_steps[] = {
-    VID_STEP_TARGET_LO,   VID_STEP_TARGET_HI, VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,
-    VID_STEP_CONTROL,     VID_STEP_DEST,      VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-    VID_STEP_SOURCE_BANK, VID_STEP_VRAM_PORT, VID_STEP_START,     VID_STEP_END,
-};
-
 /* Clear a buffer by copying the Mode 7 multiplier's product (0 here) out of
  * the PPU, the way scene_clear_work_ram does: a transfer that reads a register
  * rather than writing one, which goes through the SNES-only escape. */
 static void clear_buffer(Platform *pf, uint32_t buffer, uint16_t bytes, uint32_t site)
 {
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_FROM_REGISTER, transfer_steps, NULL };
     const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = buffer, .size = bytes };
-    vid_snes_transfer(pf, PF_AT(site), &t, &x);
+    vid_snes_copy(pf, PF_AT(site), &t);
 }
 
 /* The registers a stop leaves nothing in that the program reads. */
@@ -131,15 +114,13 @@ static void setup_race_maps(Platform *pf)
     vid_set_bg_chars(pf, PF_AT(0x7E3D0F), VID_BG3, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
     vid_set_color_math(pf, PF_AT(0x7E3D14), &race_math, VID_MATH_CONTROL);
     vid_set_screens(pf, PF_AT(0x7E3D1A),
-                    VID_LAYER_BIT(VID_BG1) | VID_LAYER_BIT(VID_BG2) | VID_LAYER_BIT(VID_BG3) | VID_LAYER_BIT(VID_OBJ),
-                    VID_LAYER_BIT(VID_BG3), VID_SCREEN_MAIN | VID_SCREEN_SUB);
-    vid_begin_vram_uploads(pf, PF_AT(0x7E3D1F), &down_a_column, PF_GAME(0), NULL);
+                    VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_OBJ_BIT, VID_BG3_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+    vid_start_vram_uploads(pf, PF_AT(0x7E3D1F), &down_a_column);
     vid_set_vram_address(pf, PF_AT(0x7E3D25), PLANE_COLUMN_VRAM);
 
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_FROM_REGISTER, transfer_steps, NULL };
     const VidSnesTransfer t = { .dest = VID_SNES_VRAM_READ, .source = PLANE_COLUMN_COPY,
                                 .size = PLANE_COLUMN_READ_BYTES };
-    vid_snes_transfer(pf, PF_AT(0x7E3D41), &t, &x);
+    vid_snes_copy(pf, PF_AT(0x7E3D41), &t);
 }
 
 /* Nothing it leaves in the registers is read but the overflow, which it
@@ -157,14 +138,8 @@ bool scene_race_fill_map_present(Snes *s) { return m_code_matches(s, 0x7E3D8C, 3
  * race draws into them. */
 static void fill_racers_map(Platform *pf)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_CONTROL,     VID_STEP_DEST,
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO,
-        VID_STEP_SIZE_HI,   VID_STEP_START,     VID_STEP_END,
-    };
-    vid_begin_vram_uploads(pf, PF_AT(0x7E3D8E), SCENE_VRAM_WHOLE_WORDS, PF_GAME(0), NULL);
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, (uint8_t)(SCENE_DMA_WORDS | SCENE_DMA_FIXED_SOURCE), steps, NULL };
-    vid_fill_vram(pf, PF_AT(0x7E3DB0), RACERS_MAP_A_VRAM, PF_GAME(SCENE_BLANK_TILE), RACERS_MAP_BYTES, &x);
+    vid_start_vram_uploads(pf, PF_AT(0x7E3D8E), SCENE_VRAM_WHOLE_WORDS);
+    vid_send_vram_fill(pf, PF_AT(0x7E3DB0), RACERS_MAP_A_VRAM, PF_GAME(SCENE_BLANK_TILE), RACERS_MAP_BYTES, NULL);
 }
 
 /* Stops where the program goes on to decompress its graphics. */
@@ -204,8 +179,8 @@ void scene_race_load_plane_map(Snes *s) { begin_block(s, PLANE_VRAM, 0x7E3DE4, 0
  * blocks from here on. */
 static void begin_layer_tiles(GameState *g, Platform *pf)
 {
-    vid_begin_vram_uploads(pf, PF_AT(0x7E3E03), SCENE_VRAM_WHOLE_WORDS, PF_GAME(0), NULL);
-    set_scene_call_transfer_control(g, scene_program_own(), SCENE_DMA_WORDS);
+    vid_start_vram_uploads(pf, PF_AT(0x7E3E03), SCENE_VRAM_WHOLE_WORDS);
+    set_scene_call_transfer_control(g, scene_program_own(), SCENE_TRANSFER_WORDS);
     set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
 }
 
@@ -245,10 +220,9 @@ bool scene_race_upload_plane_present(Snes *s) { return m_code_matches(s, 0x7E875
  * byte by byte. */
 static void upload_plane_half(Platform *pf)
 {
-    vid_begin_vram_uploads(pf, PF_AT(0x7E8752), SCENE_VRAM_LOW_BYTES, PF_GAME(0), NULL);
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_ONE_REGISTER, transfer_steps, NULL };
+    vid_start_vram_uploads(pf, PF_AT(0x7E8752), SCENE_VRAM_LOW_BYTES);
     const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = PLANE_MAP_HALF, .size = PLANE_MAP_HALF_BYTES };
-    vid_snes_transfer(pf, PF_AT(0x7E876E), &t, &x);
+    vid_snes_copy(pf, PF_AT(0x7E876E), &t);
 }
 
 void scene_race_upload_plane(Snes *s)
@@ -292,15 +266,10 @@ bool scene_race_upload_column_present(Snes *s) { return m_code_matches(s, 0x7E46
  * escape. */
 static void upload_column(Platform *pf, uint32_t column)
 {
-    static const uint8_t steps[] = {
-        VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK, VID_STEP_CONTROL,
-        VID_STEP_DEST,      VID_STEP_VRAM_PORT, VID_STEP_TARGET_LO,   VID_STEP_TARGET_HI,
-        VID_STEP_SIZE_LO,   VID_STEP_SIZE_HI,   VID_STEP_START,       VID_STEP_END,
-    };
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_ONE_REGISTER, steps, &down_a_column };
     const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = column, .size = PLANE_COLUMN_BYTES,
-                                .target_reg = VID_SNES_VRAM_ADDRESS, .target = PLANE_COLUMN_VRAM };
-    vid_snes_transfer(pf, PF_AT(0x7E4671), &t, &x);
+                                .target_reg = VID_SNES_VRAM_ADDRESS, .target = PLANE_COLUMN_VRAM,
+                                .port = &down_a_column };
+    vid_snes_copy(pf, PF_AT(0x7E4671), &t);
 }
 
 /* Both entries end by jumping into the task list's exit. */
@@ -339,8 +308,7 @@ static void upload_racers_map(GameState *g, Platform *pf)
     } else {
         return;
     }
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_WORDS, upload_steps, SCENE_VRAM_WHOLE_WORDS };
-    vid_upload_vram(pf, PF_AT(0x7E525B), vram, PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, &x);
+    vid_send_vram(pf, PF_AT(0x7E525B), vram, PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
     set_scene_race_tilemap_pending(g, scene_race_tilemap_pending(g) & 0xFF00);
 }
 
@@ -360,8 +328,7 @@ bool scene_race_upload_strip_present(Snes *s) { return m_code_matches(s, 0x7E522
  * $7E:44FE, which points the scaler at the strip and jumps here. */
 static void upload_road_strip(Platform *pf)
 {
-    const VidSnesXfer x = { SCENE_DMA_CHANNEL, SCENE_DMA_WORDS, upload_steps, SCENE_VRAM_WHOLE_WORDS };
-    vid_upload_vram(pf, PF_AT(0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, &x);
+    vid_send_vram(pf, PF_AT(0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
 }
 
 void scene_race_upload_strip(Snes *s)

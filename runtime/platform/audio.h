@@ -133,14 +133,6 @@ typedef struct {
     uint8_t value;
 } AuGain;
 
-/* The mixer's switches: noise's clock 0-31, and the echo's writes, the output
- * and the voices themselves held off (reset keys every voice off and holds
- * them there). */
-typedef struct {
-    uint8_t noise_clock;
-    bool echo_writes_off, muted, reset;
-} AuMixer;
-
 /* Ready the voices for a driver: they find their samples in the directory
  * the driver's data was loaded with. */
 void au_voices_start(AuVoices *v);
@@ -160,7 +152,11 @@ void au_voices_hold(AuVoices *v, bool hold);
 int8_t au_voice_output(AuVoices *v, uint8_t voice);
 
 void au_master_volume(AuVoices *v, int8_t left, int8_t right);
-void au_mixer(AuVoices *v, AuMixer m);
+/* The clock the noise voices play at, 0-31. */
+void au_noise_clock(AuVoices *v, uint8_t clock);
+/* The whole output stopped (true): nothing is heard, and every voice is keyed
+ * off and held there until it is started again (false). */
+void au_output_stopped(AuVoices *v, bool stopped);
 void au_noise_voices(AuVoices *v, AuVoiceSet voices);
 void au_pitch_modulation(AuVoices *v, AuVoiceSet voices);
 

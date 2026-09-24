@@ -50,6 +50,7 @@ add_library(ct_runtime STATIC
   runtime/platform/observe.c
   runtime/platform/voices_dsp.c
   runtime/platform/snes/decode.c
+  runtime/platform/snes/encodings.c
   runtime/platform/native/render.c)
 target_include_directories(ct_runtime PUBLIC runtime PRIVATE game)
 

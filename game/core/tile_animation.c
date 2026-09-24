@@ -11,9 +11,8 @@
 #include "port/machine.h"
 #include "ram.h"
 
-/* Uploads on DMA channel 7 in words; the routine sets the channel's mode ($41:
- * words, with the HDMA indirect bit the transfer ignores) once for all slots. */
-enum { TILE_DMA = 7, TILE_DMA_CONTROL = 0x41, TILE_BYTES = 0x80 };
+/* What a slot sends a frame: 128 bytes of tiles. */
+enum { TILE_BYTES = 0x80 };
 enum { SLOTS_PER_FRAME = 6, VRAM_UNUSED = 0x8000, FRAME_BITS = 0x0E00 };
 
 /* One slot: when in use, step its accumulator and send 128 bytes of the frame
@@ -30,13 +29,7 @@ static void upload_slot(Snes *s, uint8_t slot, uint32_t site)
     m_write16(s, at, (uint16_t)(accumulator + m_read16(s, table + frame)));
     uint16_t source = m_read16(s, table + (RAM_TILE_ANIMATION_TABLES_SOURCES - RAM_TILE_ANIMATION_TABLES) + frame);
     uint8_t bank = m_read8(s, at + (RAM_TILE_ANIMATIONS_BANK - RAM_TILE_ANIMATIONS));
-    /* STA $2116 : ... STA $4372 : STX $4374 : STZ $4375 : STY $4375 : STY $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_TARGET_HI, VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI, VID_STEP_SOURCE_BANK,
-        VID_STEP_SIZE_CLEAR, VID_STEP_SIZE_LO, VID_STEP_START, VID_STEP_END,
-    };
-    static const VidSnesXfer x = { TILE_DMA, TILE_DMA_CONTROL, steps, NULL };
-    vid_upload_vram(m_platform(s), PF_AT(site), vram, PF_GAME((uint32_t)bank << 16 | source), TILE_BYTES, &x);
+    vid_send_vram(m_platform(s), PF_AT(site), vram, PF_GAME((uint32_t)bank << 16 | source), TILE_BYTES, NULL);
 }
 
 // $FD:E022
@@ -45,9 +38,7 @@ static void upload_slot(Snes *s, uint8_t slot, uint32_t site)
  * others', which is where the call sites come from. */
 static void upload(Snes *s)
 {
-    static const uint8_t setup[] = { VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_END };
-    static const VidSnesXfer channel = { TILE_DMA, TILE_DMA_CONTROL, setup, NULL };
-    vid_begin_vram_uploads(m_platform(s), PF_AT(0xFDE02B), VID_VRAM_WORD_PORT, PF_GAME(0), &channel);
+    vid_start_vram_uploads(m_platform(s), PF_AT(0xFDE02B), VID_VRAM_WORD_PORT);
     uint8_t count = (uint8_t)(m_read8(s, RAM_TILE_ANIMATION_FRAME) + 1);
     m_write8(s, RAM_TILE_ANIMATION_FRAME, count);
     bool odd = count & 1;

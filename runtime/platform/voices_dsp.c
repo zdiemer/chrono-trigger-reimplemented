@@ -39,7 +39,7 @@ void au_voice_volume(AuVoices *v, uint8_t voice, int8_t left, int8_t right)
 void au_voices_key_on(AuVoices *v, AuVoiceSet voices) { put(v, DSP_KON, voices); }
 void au_voices_key_off(AuVoices *v, AuVoiceSet voices) { put(v, DSP_KOFF, voices); }
 
-enum { ADSR_ON = 0x80, ECHO_WRITES_OFF = 0x20 };
+enum { ADSR_ON = 0x80, RESET = 0x80, MUTED = 0x40, ECHO_WRITES_OFF = 0x20, NOISE_CLOCK = 0x1F };
 
 void au_voices_hold(AuVoices *v, bool hold)
 {
@@ -58,11 +58,17 @@ void au_master_volume(AuVoices *v, int8_t left, int8_t right)
     put(v, DSP_MVOLR, (uint8_t)right);
 }
 
-void au_mixer(AuVoices *v, AuMixer m)
+/* The S-DSP keeps the noise clock, the echo's writes and the output's two
+ * switches in one register (FLG), so each of their calls changes its own bits
+ * and keeps the others'. */
+static void set_flags(AuVoices *v, uint8_t bits, uint8_t value)
 {
-    put(v, DSP_FLG, (uint8_t)((m.reset ? 0x80 : 0) | (m.muted ? 0x40 : 0) | (m.echo_writes_off ? ECHO_WRITES_OFF : 0) |
-                              (m.noise_clock & 0x1F)));
+    put(v, DSP_FLG, (uint8_t)((v->read(v->ctx, DSP_FLG) & ~bits) | (value & bits)));
 }
+
+void au_noise_clock(AuVoices *v, uint8_t clock) { set_flags(v, NOISE_CLOCK, clock); }
+
+void au_output_stopped(AuVoices *v, bool stopped) { set_flags(v, RESET | MUTED, stopped ? RESET | MUTED : 0); }
 
 void au_noise_voices(AuVoices *v, AuVoiceSet voices) { put(v, DSP_NON, voices); }
 void au_pitch_modulation(AuVoices *v, AuVoiceSet voices) { put(v, DSP_PMON, voices); }
@@ -90,11 +96,7 @@ void au_echo_delay(AuVoices *v, uint8_t delay)
     put(v, DSP_ESA, (uint8_t)(VOICES_DSP_ECHO_END_PAGE - 8 * delay));
 }
 
-void au_echo_writes(AuVoices *v, bool on)
-{
-    uint8_t flags = v->read(v->ctx, DSP_FLG);
-    put(v, DSP_FLG, on ? (uint8_t)(flags & ~ECHO_WRITES_OFF) : (uint8_t)(flags | ECHO_WRITES_OFF));
-}
+void au_echo_writes(AuVoices *v, bool on) { set_flags(v, ECHO_WRITES_OFF, on ? 0 : ECHO_WRITES_OFF); }
 
 /* The directory holds each sample's start and loop addresses. */
 static void directory_entry(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop)
