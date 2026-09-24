@@ -239,7 +239,7 @@ static bool run_task_list(Snes *s, SceneTaskList list)
     m_set_flag(s, CPU_FLAG_M, vblank);
     s->cpu.a = 0x0000;
     m_jsl_dc(s, vblank ? 0xC308F7 : 0xC30938, vblank ? 0x7E39BE : 0x7E398A,
-             DC_X | DC_N | DC_Z | (vblank ? DC_A | DC_Y : 0));
+             DC_X | DC_N | DC_Z | (vblank ? DC_A : 0));
     return can_continue(s);
 }
 

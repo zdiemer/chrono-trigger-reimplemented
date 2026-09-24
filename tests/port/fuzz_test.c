@@ -15,6 +15,10 @@
  * - a port that stops at a loop's head after some passes is compared at the
  *   original's pass where the machines are the same, and one the same at no
  *   pass is a mismatch;
+ * - --poison-dc: a call-out whose callee reads a register the call declared
+ *   dead mismatches once the register is scrambled, though the port passes
+ *   the original's value; one whose callee only writes a declared register, or
+ *   leaves it alone, still matches (what it left alone is the caller's again);
  * - areas parse, and malformed ones don't.
  *
  * Exits non-zero on failure.
@@ -63,6 +67,10 @@ static const struct {
      * makes no more accesses */
     { 0x8500, { 0x20, 0x00, 0x86, 0x60 }, 4 },
     { 0x8600, { 0xCB, 0x60 }, 2 },
+    /* $C0:8700: JSR $8800 : RTS, and $C0:8800: STA $0070 : LDX #$0001 : RTS --
+     * a callee that reads A, writes X without reading it and leaves Y alone */
+    { 0x8700, { 0x20, 0x00, 0x88, 0x60 }, 4 },
+    { 0x8800, { 0x8D, 0x70, 0x00, 0xA2, 0x01, 0x00, 0x60 }, 7 },
 };
 
 /* ---- the ports ------------------------------------------------------------------------- */
@@ -142,6 +150,21 @@ static void calls_halting(Snes *s)
     m_rts(s);
 }
 
+/* The call as the original makes it, the registers as the original has them,
+ * declaring dead what the callee doesn't read (right), or A, which it does
+ * (wrong, and only scrambling shows it). */
+static void calls_declaring_x_y(Snes *s)
+{
+    m_jsr_dc(s, 0xC08700, 0xC08800, DC_X | DC_Y);
+    m_rts(s);
+}
+
+static void calls_declaring_a(Snes *s)
+{
+    m_jsr_dc(s, 0xC08700, 0xC08800, DC_A);
+    m_rts(s);
+}
+
 #define M8_X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M
 
 static const NativeEntry entries[] = {
@@ -154,6 +177,8 @@ static const NativeEntry entries[] = {
     { .addr = 0xC08500, .name = "calls_halting", .fn = calls_halting, M8_X16 },
     { .addr = 0xC08100, .name = "countdown_third", .fn = countdown_third, M8_X16, .dont_care = DC_A },
     { .addr = 0xC08100, .name = "countdown_wrong", .fn = countdown_wrong, M8_X16, .dont_care = DC_A },
+    { .addr = 0xC08700, .name = "calls_declaring_x_y", .fn = calls_declaring_x_y, M8_X16 },
+    { .addr = 0xC08700, .name = "calls_declaring_a", .fn = calls_declaring_a, M8_X16 },
 };
 
 static uint8_t rom[ROM_SIZE];
@@ -260,6 +285,27 @@ int main(void)
     r = run(8, &o, log, sizeof log);
     CHECK(r.mismatched > 90, "countdown_wrong: mismatched %lu", r.mismatched);
     CHECK(strstr(log, "  X: original 10 native D") != NULL, "the first pass's difference:\n%s", log);
+
+    /* Scrambling what call-outs declare dead: a callee that reads A shows it;
+     * one that writes X, and leaves Y alone, doesn't. */
+    o = options(100);
+    r = run(10, &o, log, sizeof log);
+    CHECK(r.matched == 100 && r.scrambled == 0, "calls_declaring_a unscrambled: matched %lu", r.matched);
+    o.poison_dc = true;
+    r = run(10, &o, log, sizeof log);
+    CHECK(r.mismatched > 90 && r.scrambled == 100, "calls_declaring_a scrambled: mismatched %lu scrambled %lu",
+          r.mismatched, r.scrambled);
+    CHECK(strstr(log, "WRAM 7E0070-7E0070") != NULL, "the callee's store differs:\n%s", log);
+    r = run(9, &o, log, sizeof log);
+    CHECK(r.matched == 100 && r.scrambled == 100, "calls_declaring_x_y scrambled: matched %lu mismatched %lu",
+          r.matched, r.mismatched);
+    o.poison_site = 0xC08701;
+    r = run(10, &o, log, sizeof log);
+    CHECK(r.matched == 100 && r.scrambled == 0, "calls_declaring_a scrambled at another site: matched %lu",
+          r.matched);
+    o.poison_site = 0xC08700;
+    r = run(10, &o, log, sizeof log);
+    CHECK(r.mismatched > 90, "calls_declaring_a scrambled at its site: mismatched %lu", r.mismatched);
 
     /* Areas. */
     FuzzArea a;

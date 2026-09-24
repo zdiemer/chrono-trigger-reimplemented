@@ -190,7 +190,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     not the entry's too), and the don't-care sets of call-outs say so, and shadow mode doesn't compare
     them (docs/PORTING.md). A declaration is a claim about the original, so it must be one the
     liveness analysis agrees with: `tools/dontcare_check.py` checks every one, and the gate runs
-    it. A port stops with `m_stop_at` and its address, and writes the addresses and sets as
+    it. A call-out's set must hold even where the callee's targets are picked at run time (a
+    dispatcher reading RAM); where only fuzzing can show that, the declaration carries a
+    `dc-evidence:` note naming a `ct_fuzz --poison-dc` run (docs/PORTING.md, "Declarations
+    liveness can't prove"). A port stops with `m_stop_at` and its address, and writes the addresses and sets as
     constants, or from a helper's parameters, locals or a table in the same file, so the check
     can read them.
   - Still write the scratch cells the original writes, even ones that look like temporaries:

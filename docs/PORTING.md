@@ -757,6 +757,55 @@ fuzzed: `decompress`, whose random source and destination pointers make it
 overwrite its own stack and variables (it needs generated streams), and
 `field_nmi`, which returns with RTI.
 
+### Declarations liveness can't prove
+
+`tools/dontcare_check.py` checks a call-out's don't-care set twice: against
+liveness as the analysis follows the game, and against liveness that trusts no
+target set the machine decides at run time. A callee that reaches a transfer
+whose targets are read from work RAM (a jump table or a pointer there, a call
+whose operand the program writes) or come from data (a `derive` hint) has its
+targets followed as they were argued for the game's own data, and a port that
+stores the target itself, as the scene interpreter stores a script's routine
+in `$00F0` before calling `$7E:37F3`, can send it anywhere; so can the fuzzer.
+The second solve keeps everything live at such a transfer. A set only the
+first solve supports is a finding: pass what may be read (usually the port
+already has the original's value there, as the scene's calls did), or, where
+the declaration is right and only the analysis can't show it, fuzz the
+call-out with its declared registers scrambled and note the run beside it.
+
+`ct_fuzz --poison-dc` scrambles, at each call-out the port makes with a
+don't-care set, the registers and flags the set names, each to a value other
+than the port's, so a callee that reads one runs on something other than the
+original's value and the state mismatches (`--poison-site BBAAAA` does it at
+the call-outs from one site only, to tell which declaration a mismatch is in).
+Without it a port that happens to pass the original's value hides a wrong
+declaration: the scene's call to `$7E:37F3` declared Y and V dead, passed the
+original's, and matched on every state until they were scrambled (2 of 1390
+states then read them, through routines random scripts named). The callee runs
+twice from the same machine, first with the port's values on a copy, and what
+it left alone is the port's again afterwards, as shadow mode keeps it; the run
+reports how many call-outs it scrambled in the states it compared.
+
+The note goes in the comment block just above the statement that makes the
+declaration, or on its lines, in exactly this form:
+
+```c
+/* dc-evidence: ct_fuzz --poison-dc ROUTINE[:VARIANT], seed S: N states,
+   M call-outs scrambled, 0 mismatched */
+m_jsl_dc(s, site, target, set);
+```
+
+with the run's routine, seed and counts in place of the capitals. `:VARIANT`
+names a variant of `tools/fuzz_routines.toml`, run with that
+entry's arguments, and `--poison-site BBAAAA` may stand for `--poison-dc`. The
+check reads the note: the routine must be listed there and be a registered
+entry that reaches the declaration; the run must have compared states,
+scrambled at least 100 call-outs (a run whose states mostly stop before the
+call, a callee past the budget, says little: narrow the states until they
+reach it) and mismatched none. A note on a declaration liveness proves without
+one is a finding too. `grep -rn "dc-evidence:" game/` lists every declaration
+that rests on fuzzing rather than on the analysis.
+
 ## Status
 
 | Routine | Address | Calls in new-game movie |

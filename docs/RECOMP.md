@@ -2239,6 +2239,9 @@ targets from the original's call at the site. A declaration the check can't
 read is itself a finding. It is a row of `tools/suite.py`'s `CHECKS`
 (`--no-dontcare`), fed the call logs the shadow runs just wrote, and takes
 about 20 seconds; `--tree` checks another tree, such as a `draftcheck` one.
+Call-outs are also held to a second solve that trusts no target set the machine
+picks at run time, which doubles the solve ("Call-outs into targets the machine
+picks", below).
 
 **What it found on the ports**, and what was done. Every finding was either
 liveness being too conservative, fixed where that was sound, or a declaration
@@ -5123,6 +5126,75 @@ checks. Its shadow movies took 393 s against 317 s in those two runs (and 398 s
 against 327 s in an earlier pair); the controlled runs above don't reproduce
 that gap, so it is left as an open question in TODO.md rather than put down to
 the checks.
+
+
+### Call-outs into targets the machine picks
+
+Scene's rework declared A dead at the sequence interpreter's call to the scene
+program's routines (`$C3:0C58` to `$7E:37F3`); liveness agreed, the don't-care
+check passed it, and fuzzing found the callee reading A in 60 and 64 states of
+its two variants. The analysis did see the callee: the program is a
+`[[ramcode]]` image, traced, and `$7E:37F3` is `LDX #0 : JSR ($00F0,X) : RTL`,
+a call through the word script command `$A0` stores at `$00F0`, whose 33
+targets `derive = "seqscript.call"` finds in every script the game can run.
+None of them reads A, Y or V, so for the game's own scripts the declaration was
+right. What liveness couldn't see is that the target is the caller's to
+choose: the port stores the script's operand at `$00F0` itself, and a script
+the fuzzer makes up (its script pointer lands anywhere in the program) names
+any address in bank `$7E`. Instrumenting the fuzzer to print `$00F0` at the
+call showed the two states that still mismatched calling `$28F6` and `$14A4`,
+routines no script names. The promise that unknown control flow keeps
+everything live held; this transfer wasn't unknown, it was followed with a set
+that was complete for the original and not for a caller that picks the target.
+
+**The analysis.** `Liveness.dynamic_transfer` names the transfers whose
+targets the machine decides at run time: a jump table or pointer in work RAM,
+a call whose operand the program writes, a table whose extent comes from data
+(29 sites; DISASSEMBLY.md, "Liveness"). `Liveness(strict=True)` solves with
+each of them keeping everything live, and `dynamic_sites` says which of them a
+routine reaches. Liveness as the analysis uses it elsewhere is unchanged: the
+generated code, the drafts and `liveness.json` still follow the argued sets,
+which are sound for the original.
+
+**The check.** A call-out's set must be dead in both solves; a call whose
+target the port computes at a site that is itself such a transfer counts as
+reading everything. A set only the trusting solve supports is a finding that
+names the transfer, unless the comment beside the declaration carries a
+`dc-evidence:` note for a fuzz run that scrambled the set and found nothing
+(PORTING.md, "Declarations liveness can't prove"; the check verifies the note's
+form, that the routine it names is a registered, listed fuzz entry that
+reaches the declaration, at least 100 scrambled call-outs, and 0 mismatched,
+and flags a note liveness doesn't need). The second solve takes the check from
+about 38 to 65 seconds.
+
+**The evidence.** Fuzzing hid the scene bug until the port stopped setting A:
+a port that passes the original's value never shows a wrong declaration. So
+`ct_fuzz --poison-dc` scrambles what each call-out declares dead, each register
+to a value other than the port's, and runs the callee twice from the same
+machine (clean on a copy, then scrambled), so what the callee left alone can be
+given back to the port as shadow mode does; comparing the scrambled value
+alone, as `keep_untouched` does, restored a byte the callee happened to write
+with the scrambled value in 7 of 1400 states (a false mismatch).
+`--poison-site BBAAAA` scrambles one site's calls, and the run reports how many
+call-outs it scrambled in the states it compared.
+
+**The audit.** Over `game/` (589 entries with a set, 89 stops, 348
+call-outs), the old check had 0 findings and the new one 2, both the scene's:
+
+| Declaration | Strict solve | Fuzzed (`--poison-site`, 2000 states) | Resolution |
+|---|---|---|---|
+| `script.c`, `$C3:0C58` to `$7E:37F3`: X Y N V Z | Y and V read past `$7E:37F6` (`$00F0`) | 2 of 1390 compared mismatch, both in routines no script names | Y and V passed: the port leaves Y as the caller's and keeps V (`note_flags`), as the original has them; X N Z stay, set by the `LDX #0` |
+| `frame.c`, `$C3:08F7` to `$7E:39BE`: A X Y N Z | Y read past `$7E:39CF` (the task list at `$0940`) | 0 of 987, but only 4 call-outs scrambled | Y passed: the port never touches it before the call, so it is the caller's, as in the original |
+
+Both are then proven by the strict solve, with no note needed. Fuzzed with the
+scene's constraints (`tools/fuzz_routines.toml`, seed 1, 20000 states), with and
+without scrambling: `scene_run_sequence` 14061 matched and 0 mismatched (5745
+call-outs scrambled), its channel variant 14049 and 0 (5734), and
+`scene_frame_work` 10023 and 1 (20 scrambled), the one being the predecessor's
+residue the scene rework recorded, the same state with and without. Nothing in
+`game/event/`, `game/field/`, `game/battle/`, `game/core/` or `game/menu/` is a
+finding: their call-outs reach no run-time transfer that reads what they
+declare. Stops and entries aren't held to the strict solve yet (TODO.md).
 
 
 ## Risks
