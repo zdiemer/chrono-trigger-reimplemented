@@ -3005,6 +3005,12 @@ void set_battle_party_defeated(GameState *g, uint8_t v);
 uint8_t battle_loop_count(const GameState *g);
 void set_battle_loop_count(GameState *g, uint8_t v);
 
+enum { BATTLE_WIDE_MATH_COUNT = 12 };   /* by byte: the first number, a word ($28); the second ($2A); the product's low word or the quotient ($2C); the product's high word or the dividend's ($2E); the remainder ($32) */
+/* Where the original's callers hand $C1:C90B (a word times a word) and $C1:C92A (a long divided
+ * by a word) their numbers, and those leave the results */
+uint8_t battle_wide_math(const GameState *g, unsigned i);
+void set_battle_wide_math(GameState *g, unsigned i, uint8_t v);
+
 /* Screen script pointer while a command runs: at the command's first operand; the channel moves
  * it one byte on after the handler returns */
 uint32_t battle_screen_script(const GameState *g);
@@ -3064,6 +3070,27 @@ void set_battle_effect_sprite_attributes(GameState *g, uint8_t v);
 uint8_t battle_frame_phase(const GameState *g);
 void set_battle_frame_phase(GameState *g, uint8_t v);
 
+enum { BATTLE_LONG_MULTIPLY_COUNT = 7 };   /* by byte: the factor ($A5), the other factor, a word ($A7), the 24-bit product ($A9) */
+/* Where the battle's code hands $C1:00A7 (a byte times a word) its factors, and it leaves the
+ * product */
+uint8_t battle_long_multiply(const GameState *g, unsigned i);
+void set_battle_long_multiply(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_MULTIPLY_FACTORS_COUNT = 2 };   /* by factor */
+/* Where the battle's code hands $C1:0089 (a byte times a byte) its factors */
+uint8_t battle_multiply_factors(const GameState *g, unsigned i);
+void set_battle_multiply_factors(GameState *g, unsigned i, uint8_t v);
+
+/* Where $C1:0089 leaves its product */
+uint16_t battle_product(const GameState *g);
+void set_battle_product(GameState *g, uint16_t v);
+
+enum { BATTLE_DIVISION_COUNT = 8 };   /* by byte: the dividend, a word ($B1), the divisor ($B3), the quotient, a word ($B5), the remainder, a word ($B7) */
+/* Where the battle's code hands $C1:00D7 (a word divided by a byte) its numbers, and it leaves
+ * the quotient and remainder */
+uint8_t battle_division(const GameState *g, unsigned i);
+void set_battle_division(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_EFFECT_CELLS_COUNT = 12 };   /* by byte */
 /* The effect loops' cells: the slot ($C6, a word), twice and four times it ($C8, $CA), and the
  * handlers' scratch ($CC-$D1): a point, a target, the proximity limit ($D1) and result ($D0) for
@@ -3087,6 +3114,10 @@ void set_battle_alternate_frame(GameState *g, uint8_t v);
  * and placing the menu cursors clears it */
 uint16_t battle_menu_buttons(const GameState *g);
 void set_battle_menu_buttons(GameState *g, uint16_t v);
+
+/* The controller's buttons held this frame, as the battle reads them */
+uint16_t battle_joypad(const GameState *g);
+void set_battle_joypad(GameState *g, uint16_t v);
 
 enum { BATTLE_WINDOW_LINE_DELTAS_COUNT = 128 };   /* by table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones) */
 /* Per-line amounts added to the window edges of lines 48-175 */
@@ -4916,11 +4947,17 @@ enum { BATTLE_SAVED_DIRECT_PAGE_COUNT = 43 };   /* by direct page byte */
 uint8_t battle_saved_direct_page(const GameState *g, unsigned i);
 void set_battle_saved_direct_page(GameState *g, unsigned i, uint8_t v);
 
-/* This frame's buttons: newly pressed, or all held ones again once the repeat delay runs out */
+/* This frame's buttons for the menus: newly pressed, or all held ones again once the repeat
+ * delay runs out */
 uint16_t battle_repeat_buttons(const GameState *g);
 void set_battle_repeat_buttons(GameState *g, uint16_t v);
 
-/* Frames until held buttons repeat (15 at first, then every frame; bit 15 set: 24) */
+/* The buttons held last frame, which a button must not be among to count as newly pressed */
+uint16_t battle_buttons_held(const GameState *g);
+void set_battle_buttons_held(GameState *g, uint16_t v);
+
+/* Frames until held buttons repeat: 15 at first, then every frame; 24 after a press of A (its
+ * low byte) */
 uint16_t battle_repeat_delay(const GameState *g);
 void set_battle_repeat_delay(GameState *g, uint16_t v);
 

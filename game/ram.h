@@ -2116,6 +2116,14 @@
  * 0 set */
 #define RAM_BATTLE_LOOP_COUNT 0x7E0027u
 #define RAM_BATTLE_LOOP_COUNT_DP 0x27u       /* page battle */
+/* Where the original's callers hand $C1:C90B (a word times a word) and $C1:C92A (a long divided
+ * by a word) their numbers, and those leave the results [12 x $1 bytes, by byte: the first
+ * number, a word ($28); the second ($2A); the product's low word or the quotient ($2C); the
+ * product's high word or the dividend's ($2E); the remainder ($32)] */
+#define RAM_BATTLE_WIDE_MATH 0x7E0028u
+#define RAM_BATTLE_WIDE_MATH_COUNT 12u
+#define RAM_BATTLE_WIDE_MATH_STRIDE 0x01u
+#define RAM_BATTLE_WIDE_MATH_DP 0x28u        /* page battle */
 /* Screen script pointer while a command runs: at the command's first operand; the channel moves
  * it one byte on after the handler returns [3 bytes] */
 #define RAM_BATTLE_SCREEN_SCRIPT 0x7E0040u
@@ -2166,6 +2174,29 @@
  * (0 the party, 1-3 an enemy group) */
 #define RAM_BATTLE_FRAME_PHASE 0x7E00A4u
 #define RAM_BATTLE_FRAME_PHASE_DP 0xA4u      /* page battle */
+/* Where the battle's code hands $C1:00A7 (a byte times a word) its factors, and it leaves the
+ * product [7 x $1 bytes, by byte: the factor ($A5), the other factor, a word ($A7), the 24-bit
+ * product ($A9)] */
+#define RAM_BATTLE_LONG_MULTIPLY 0x7E00A5u
+#define RAM_BATTLE_LONG_MULTIPLY_COUNT 7u
+#define RAM_BATTLE_LONG_MULTIPLY_STRIDE 0x01u
+#define RAM_BATTLE_LONG_MULTIPLY_DP 0xA5u    /* page battle */
+/* Where the battle's code hands $C1:0089 (a byte times a byte) its factors [2 x $1 bytes, by
+ * factor] */
+#define RAM_BATTLE_MULTIPLY_FACTORS 0x7E00ADu
+#define RAM_BATTLE_MULTIPLY_FACTORS_COUNT 2u
+#define RAM_BATTLE_MULTIPLY_FACTORS_STRIDE 0x01u
+#define RAM_BATTLE_MULTIPLY_FACTORS_DP 0xADu /* page battle */
+/* Where $C1:0089 leaves its product [2 bytes] */
+#define RAM_BATTLE_PRODUCT 0x7E00AFu
+#define RAM_BATTLE_PRODUCT_DP 0xAFu          /* page battle */
+/* Where the battle's code hands $C1:00D7 (a word divided by a byte) its numbers, and it leaves
+ * the quotient and remainder [8 x $1 bytes, by byte: the dividend, a word ($B1), the divisor
+ * ($B3), the quotient, a word ($B5), the remainder, a word ($B7)] */
+#define RAM_BATTLE_DIVISION 0x7E00B1u
+#define RAM_BATTLE_DIVISION_COUNT 8u
+#define RAM_BATTLE_DIVISION_STRIDE 0x01u
+#define RAM_BATTLE_DIVISION_DP 0xB1u         /* page battle */
 /* The effect loops' cells: the slot ($C6, a word), twice and four times it ($C8, $CA), and the
  * handlers' scratch ($CC-$D1): a point, a target, the proximity limit ($D1) and result ($D0) for
  * $CF:F957, sine products, a 16-bit substep count [12 x $1 bytes, by byte] */
@@ -2186,6 +2217,9 @@
  * and placing the menu cursors clears it [2 bytes] */
 #define RAM_BATTLE_MENU_BUTTONS 0x7E00EEu
 #define RAM_BATTLE_MENU_BUTTONS_DP 0xEEu     /* page battle */
+/* The controller's buttons held this frame, as the battle reads them [2 bytes] */
+#define RAM_BATTLE_JOYPAD 0x7E00F8u
+#define RAM_BATTLE_JOYPAD_DP 0xF8u           /* page battle */
 /* Per-line amounts added to the window edges of lines 48-175 [128 x $1 bytes, by table * 32 +
  * line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones)] */
 #define RAM_BATTLE_WINDOW_LINE_DELTAS 0x7E0A00u
@@ -3608,10 +3642,14 @@
 #define RAM_BATTLE_SAVED_DIRECT_PAGE 0x7ECC65u
 #define RAM_BATTLE_SAVED_DIRECT_PAGE_COUNT 43u
 #define RAM_BATTLE_SAVED_DIRECT_PAGE_STRIDE 0x01u
-/* This frame's buttons: newly pressed, or all held ones again once the repeat delay runs out [2
- * bytes] */
+/* This frame's buttons for the menus: newly pressed, or all held ones again once the repeat
+ * delay runs out [2 bytes] */
 #define RAM_BATTLE_REPEAT_BUTTONS 0x7ECC97u
-/* Frames until held buttons repeat (15 at first, then every frame; bit 15 set: 24) [2 bytes] */
+/* The buttons held last frame, which a button must not be among to count as newly pressed [2
+ * bytes] */
+#define RAM_BATTLE_BUTTONS_HELD 0x7ECC99u
+/* Frames until held buttons repeat: 15 at first, then every frame; 24 after a press of A (its
+ * low byte) [2 bytes] */
 #define RAM_BATTLE_REPEAT_DELAY 0x7ECC9Bu
 /* Offsets added to the three layers' scroll: the screen shake, on the layers battle_shake_layers
  * selects [6 x $2 bytes, by layer * 2 + axis (BG1-BG3, X then Y)] */

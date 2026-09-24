@@ -6300,6 +6300,55 @@ meaning = "Copies of the last operands written to the hardware divider, restored
 source = "game/battle/gauges.c battle_draw_gauge $C1:06F0; game/battle/nmi.c battle_restore_math_operands $D1:FE71"
 
 [[var]]
+name = "battle_long_multiply"
+addr = "7E:00A5"
+page = "battle"
+count = 7
+index = "byte: the factor ($A5), the other factor, a word ($A7), the 24-bit product ($A9)"
+subsystem = "battle"
+meaning = "Where the battle's code hands $C1:00A7 (a byte times a word) its factors, and it leaves the product"
+source = "game/battle/arith.c battle_multiply_long $C1:00A7"
+
+[[var]]
+name = "battle_multiply_factors"
+addr = "7E:00AD"
+page = "battle"
+count = 2
+index = "factor"
+subsystem = "battle"
+meaning = "Where the battle's code hands $C1:0089 (a byte times a byte) its factors"
+source = "game/battle/arith.c battle_multiply $C1:0089"
+
+[[var]]
+name = "battle_product"
+addr = "7E:00AF"
+page = "battle"
+size = 2
+subsystem = "battle"
+meaning = "Where $C1:0089 leaves its product"
+source = "game/battle/arith.c battle_multiply $C1:0089"
+
+[[var]]
+name = "battle_division"
+addr = "7E:00B1"
+page = "battle"
+count = 8
+index = "byte: the dividend, a word ($B1), the divisor ($B3), the quotient, a word ($B5), the remainder, a word ($B7)"
+subsystem = "battle"
+meaning = "Where the battle's code hands $C1:00D7 (a word divided by a byte) its numbers, and it leaves the quotient and remainder"
+source = "game/battle/arith.c battle_divide $C1:00D7"
+
+[[var]]
+name = "battle_wide_math"
+addr = "7E:0028"
+page = "battle"
+count = 12
+index = "byte: the first number, a word ($28); the second ($2A); the product's low word or the quotient ($2C); the product's high word or the dividend's ($2E); the remainder ($32)"
+subsystem = "battle"
+meaning = "Where the original's callers hand $C1:C90B (a word times a word) and $C1:C92A (a long divided by a word) their numbers, and those leave the results"
+source = "game/battle/arith.c battle_multiply_16x16 $C1:C90B, battle_divide $C1:C92A"
+
+[[var]]
 name = "battle_frame_count"
 addr = "7E:007C"
 page = "battle"
@@ -8962,16 +9011,33 @@ name = "battle_repeat_buttons"
 addr = "7E:CC97"
 size = 2
 subsystem = "battle"
-meaning = "This frame's buttons: newly pressed, or all held ones again once the repeat delay runs out"
-source = "game/battle/math.c battle_update_button_repeat $CD:0340"
+meaning = "This frame's buttons for the menus: newly pressed, or all held ones again once the repeat delay runs out"
+source = "game/battle/buttons.c battle_update_button_repeat $CD:0340"
+
+[[var]]
+name = "battle_buttons_held"
+addr = "7E:CC99"
+size = 2
+subsystem = "battle"
+meaning = "The buttons held last frame, which a button must not be among to count as newly pressed"
+source = "game/battle/buttons.c battle_update_button_repeat $CD:0340"
 
 [[var]]
 name = "battle_repeat_delay"
 addr = "7E:CC9B"
 size = 2
 subsystem = "battle"
-meaning = "Frames until held buttons repeat (15 at first, then every frame; bit 15 set: 24)"
-source = "game/battle/math.c battle_update_button_repeat $CD:0340"
+meaning = "Frames until held buttons repeat: 15 at first, then every frame; 24 after a press of A (its low byte)"
+source = "game/battle/buttons.c battle_update_button_repeat $CD:0340"
+
+[[var]]
+name = "battle_joypad"
+addr = "7E:00F8"
+page = "battle"
+size = 2
+subsystem = "battle"
+meaning = "The controller's buttons held this frame, as the battle reads them"
+source = "game/battle/buttons.c battle_update_button_repeat $CD:0340"
 
 [[var]]
 name = "battle_saved_direct_page"

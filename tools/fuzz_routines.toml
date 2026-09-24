@@ -6166,3 +6166,40 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 iterations = 5000
 why = "on the battle's page; the kinds' handlers are call-outs"
+
+# -- the arithmetic and the menus' buttons (battle/arith.c, battle/buttons.c)
+
+[[routine]]
+name = "battle_multiply_8x8"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "its factors in their cells on the battle's page"
+
+[[routine]]
+name = "battle_multiply_8x16"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "its factors in their cells on the battle's page"
+
+[[routine]]
+name = "battle_multiply_16x16"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "its numbers in their cells on the battle's page"
+
+[[routine]]
+name = "battle_divide"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E002B-7E002B=00-80"]
+why = "its numbers in their cells on the battle's page, the divisor up to $80FF: the guard refuses one over $8000, where the original's bit-serial division loses the remainder's top bit (game/battle/arith.c)"
+
+[[routine]]
+name = "battle_update_button_repeat"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"

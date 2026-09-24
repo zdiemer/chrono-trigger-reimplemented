@@ -119,11 +119,12 @@ void battle_number_to_2_digits(Snes *s);
 void battle_blank_leading_zeros(Snes *s);
 void battle_draw_party_status(Snes *s);
 
-/* battle/math.c */
+/* battle/arith.c, battle/buttons.c */
 void battle_multiply_8x8(Snes *s);
 void battle_multiply_8x16(Snes *s);
 void battle_divide(Snes *s);
 void battle_update_button_repeat(Snes *s);
 void battle_multiply_16x16(Snes *s);
+bool battle_divide_is_exact(Snes *s);
 
 #endif
