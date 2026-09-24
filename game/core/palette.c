@@ -39,9 +39,6 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* The palette upload uses DMA channel 7, one byte at a time to one register. */
-enum { PALETTE_DMA = 7, PALETTE_DMA_CONTROL = 0x00 };
-
 /* ---- A slot ----------------------------------------------------------------------------- */
 
 enum { SLOTS = PALETTE_ANIMATIONS_COUNT, LOCATION_SLOTS = 6, PALETTE_COLORS = PALETTE_WORKING_COUNT };
@@ -722,18 +719,11 @@ void palette_lighten_green_blue(Snes *s) { fade_loop_entry(s, 6, true); }
 
 // $C0:712E
 /* Upload the working palette: the 256 colors at $7E:2200 into CGRAM from entry
- * 0, one byte at a time into the same register, over DMA channel 7. Every mode
- * calls this from its vblank work; what it leaves in A, X and the flags
- * nobody reads (the entry's set). */
+ * 0. Every mode calls this from its vblank work; what it leaves in A, X and
+ * the flags nobody reads (the entry's set). */
 void palette_upload(Snes *s)
 {
-    /* STA $2121 : STA $4370 : STA $4371 : STX $4372 : STA $4374 : STX $4375 : STA $420B */
-    static const uint8_t steps[] = {
-        VID_STEP_TARGET_LO, VID_STEP_CONTROL,   VID_STEP_DEST,    VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SOURCE_BANK, VID_STEP_SIZE_LO, VID_STEP_SIZE_HI, VID_STEP_START,     VID_STEP_END,
-    };
-    static const VidSnesXfer x = { PALETTE_DMA, PALETTE_DMA_CONTROL, steps, NULL };
-    vid_upload_palette(m_platform(s), PF_AT(0xC07130), 0, PF_GAME(0x7E2200), PALETTE_COLORS, &x);
+    vid_send_palette(m_platform(s), PF_AT(0xC07130), 0, PF_GAME(0x7E2200), PALETTE_COLORS);
     m_rts(s);
 }
 
