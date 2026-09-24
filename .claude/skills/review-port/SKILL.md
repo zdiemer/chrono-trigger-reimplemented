@@ -23,6 +23,12 @@ where the code still reads as a translation, not to confirm that it doesn't.
   a file includes, `re/ram.toml`, CLAUDE.md's porting rules.
 - **Don't run the gate or rebuild anything.** Behaviour is the gate's job.
   Yours is reading.
+- **Rate every file under the subsystem's directory**, whether or not the
+  branch touched it. A file that is neither rewritten nor on
+  `tools/portstyle_baseline.txt` is not thereby a pass: `portstyle.py` counts
+  machine operations, and a file can emulate an ALU in plain C (a
+  `Sum{carry, overflow}` threaded through the logic, a multiply by shifts) or
+  keep its loop counters in direct-page cells without tripping it.
 
 **The test, per function:** from its name, its signature and its comment alone,
 can you say in one sentence what it does *in the game* — to the party, an
@@ -535,6 +541,11 @@ Each of these is a finding. Every example here comes from this repo.
     states a fraction, name the unit as a constant.
 54. **One program split across subsystem directories**, with neither header
     pointing at the other (`game/scene/` and `game/attract/`).
+55. **Generic operand names forced by a language-wide parameter list.** An
+    interpreter whose table decodes into one shared set of parameters (`word`,
+    `second_word`, `first`) lets every operation take them without saying what
+    they are. The signature looks explicit and isn't: `place(g, o, x, y)`, not
+    `place(g, o, word, second_word)`.
 
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
