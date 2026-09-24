@@ -168,9 +168,11 @@ static void draw_middle_band(GameState *g, uint8_t grow_by)
  * window 2's left edge steps a column right each line up, from 0, its right
  * edge at 0. Past $C0 calls the lines start below the buffer's end, in the
  * second buffer. The call count is a word across both step counts. */
+enum { WIPE_FROM = 0xC0 };
+
 static void wipe_diagonally(GameState *g)
 {
-    uint8_t lowest = (uint8_t)(0xC0 - steps(g, STEPS_ACROSS));
+    uint8_t lowest = (uint8_t)(WIPE_FROM - steps(g, STEPS_ACROSS));
     for (unsigned n = 0; n <= lowest; n++)
         set_line_edges(g, (TableLine)lowest - 1 - (TableLine)n, WINDOW_2, (Edges)n);
     uint16_t calls = (uint16_t)(steps(g, STEPS_ACROSS) | steps(g, STEPS_DOWN) << 8);
