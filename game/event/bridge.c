@@ -6,14 +6,9 @@
 #include "event/event_data.h"
 #include "port/native.h"
 
-EventLeaves *event_leaves;
-
 /* ---- The registers a command leaves --------------------------------------------------- */
 
-EventLeaves event_leaves_of(const Snes *s, uint16_t at)
-{
-    return (EventLeaves){ at, s->cpu.y, m_flag(s, CPU_FLAG_V) };
-}
+EventLeaves event_leaves_of(const Snes *s) { return (EventLeaves){ s->cpu.y, m_flag(s, CPU_FLAG_V) }; }
 
 void event_hand_back(Snes *s, const EventLeaves *left)
 {
@@ -35,15 +30,20 @@ void event_return(Snes *s, EventStep st)
 
 /* ---- The handlers: where the original's are, and the bridges ------------------------------
  *
- * Each opcode's handler is at the address the original's table ($C0:5D6E)
- * gives it, which names the command's time (native_time_as) and its
- * registered entry. It is read without the machine's time: the original's
- * dispatch reads it too, but only once, where the port has already. */
+ * Each opcode's handler is at the address the original's table gives it
+ * (event_data.h), which names the command's time (native_time_as) and its
+ * registered entry. It is read without the machine's time where the port
+ * runs the command: the original's dispatch reads it too, but only once,
+ * where the port has already. */
+
+enum { HANDLERS_BANK = 0xC00000 };
 
 static uint32_t handler_of(Snes *s, uint8_t opcode)
 {
-    uint32_t entry = 0xC05D6Eu + 2u * opcode;
-    return 0xC00000u | snes_bus_peek(&s->bus, entry) | (uint32_t)snes_bus_peek(&s->bus, entry + 1) << 8;
+    vars_peek(true);
+    uint32_t handler = HANDLERS_BANK | command_handler(state_of(s), opcode);
+    vars_peek(false);
+    return handler;
 }
 
 static EventBridge bridge_of(uint8_t opcode)
@@ -89,7 +89,7 @@ bool event_command_accepts(Snes *s, uint8_t opcode)
 /* The engine's: the object the per-frame turn is for (X, 8-bit) is one. */
 bool event_runs_an_object(Snes *s)
 {
-    return machine_as_the_engine_keeps_it(s) && event_names_object((uint8_t)s->cpu.x);
+    return machine_as_the_engine_keeps_it(s) && field_names_object((uint8_t)s->cpu.x);
 }
 
 /* And the map setup's: there are objects, and no more than the tables hold
@@ -110,9 +110,8 @@ void event_command_entry(Snes *s, uint8_t opcode)
 {
     const EventOpcode *row = event_opcode(opcode);
     uint16_t at = event_command_offset(s);
-    EventLeaves left = event_leaves_of(s, at);
-    ORIGINAL_EFFECT(leave_into(&left));
-    EventStep st = event_perform(state_of(s), m_platform(s), row, at);
+    EventLeaves left = event_leaves_of(s);
+    EventStep st = event_perform_leaving(state_of(s), m_platform(s), row, at, &left);
     ORIGINAL_EFFECT(event_hand_back(s, &left));
     event_return(s, st);
 }
@@ -170,7 +169,7 @@ static bool through_the_table(OnTheMachine *m, uint16_t at, EventStep *st)
     uint8_t opcode = script_byte(state_of(s), at);
     BridgeMachine as = event_machine(s, false);
     enter_as_the_table_does(s, opcode, at);
-    m_jsr(s, dispatch_site[m->dispatch], 0xC00000u | command_handler(state_of(s), opcode));
+    m_jsr(s, dispatch_site[m->dispatch], HANDLERS_BANK | command_handler(state_of(s), opcode));
     if (!back(m, as))
         return false;
     *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
@@ -196,9 +195,8 @@ static bool run_on_the_machine(void *ctx, uint16_t at, EventStep *st)
         *st = (EventStep){ s->cpu.x, m_flag(s, CPU_FLAG_C) };
         return true;
     }
-    EventLeaves left = event_leaves_of(s, at);
-    ORIGINAL_EFFECT(leave_into(&left));
-    NATIVE_TIME_AS(s, handler, *st = event_perform(g, m_platform(s), row, at));
+    EventLeaves left = event_leaves_of(s);
+    NATIVE_TIME_AS(s, handler, *st = event_perform_leaving(g, m_platform(s), row, at, &left));
     /* X and the carry, as the handler returns them: where the original's loop
      * reads them if it takes over after this command */
     s->cpu.x = st->next;
@@ -225,7 +223,7 @@ void event_run_object_script(Snes *s)
 {
     OnTheMachine m = { s, IN_A_TURN };
     EventRunner r = { run_on_the_machine, bank_reaches_low_ram, &m };
-    uint8_t object = (uint8_t)s->cpu.x;
+    FieldObject object = field_linked_object(field_link_stored((uint8_t)s->cpu.x));
     m_rep(s, CPU_FLAG_X);
     uint16_t at;
     switch (event_run_turn(state_of(s), object, &r, &at)) {
@@ -251,12 +249,13 @@ void event_run_init_scripts(Snes *s)
 {
     OnTheMachine m = { s, IN_AN_OPENING };
     EventRunner r = { run_on_the_machine, bank_reaches_low_ram, &m };
-    uint16_t object, at = 0;
+    FieldObject object;
+    uint16_t at = 0;
     switch (event_run_openings(state_of(s), &r, &object, &at)) {
     case TURN_HANDED_BACK:
         return;
     case TURN_NOT_OURS_BEFORE:
-        hand_over(s, object, 0xC058ED, 0);
+        hand_over(s, field_object_offset(object), 0xC058ED, 0);
         return;
     case TURN_OFF_THE_SCRIPT:
         hand_over(s, at, 0xC05900, 0);

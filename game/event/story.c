@@ -22,13 +22,9 @@ static EventFlow record(GameState *g, StoryOffset story_at, uint16_t value, Widt
 }
 EVENT_OPERATION(record, story_at, value, width)
 
-/* What the original keeps of a flag: the operand that names it, and its
- * mask. */
-static void keep_flag(GameState *g, uint8_t mask)
-{
-    keep_byte(g, KEPT_SECOND, script_byte(g, (uint16_t)(event_leaves->at + 1)));
-    keep_byte(g, KEPT_FIRST, mask);
-}
+/* What the original keeps of a flag: its mask (and the operand that names
+ * it, by event/leaves.c's table). */
+static void keep_mask(GameState *g, uint8_t mask) { keep_byte(g, KEPT_FIRST, mask); }
 
 // $C0:6B76
 /* Raise a story flag, or lower it: a bit of a byte on the story's first
@@ -38,7 +34,7 @@ static void keep_flag(GameState *g, uint8_t mask)
 static EventFlow mark_story_flag(GameState *g, uint8_t flag_bit, bool on_second_page, uint8_t offset, bool raise)
 {
     uint8_t mask = raise ? bit_mask(g, flag_bit) : bit_clear_mask(g, flag_bit);
-    ORIGINAL_EFFECT(keep_flag(g, mask));
+    ORIGINAL_EFFECT(keep_mask(g, mask));
     StoryOffset at = (StoryOffset)((on_second_page ? STORY_SECOND_PAGE : 0) | offset);
     uint8_t byte = story_byte(g, at);
     set_story_byte(g, at, raise ? (uint8_t)(byte | mask) : (uint8_t)(byte & mask));

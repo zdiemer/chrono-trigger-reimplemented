@@ -68,22 +68,29 @@ static inline bool field_subtract_overflows16(uint16_t a, uint16_t b)
     return (((a ^ b) & (a ^ difference)) & 0x8000) != 0;
 }
 
-/* What the motion's routines leave the original's code and shadow mode, for a
- * caller that runs them as C where the original called them (event's moves,
- * whose commands hand on a Y and a V; event/leaves.h): the cells the
- * direction routine works from and leaves (field_leave_aim,
- * field_leave_direction) and its overflow; the check for objects in the way
- * keeping its caller's Y; the Y and the overflow a step's start leaves; and
- * the overflow animating with the movement leaves where it did. Each is what
- * that routine's entry leaves too (field/motion.c, field/animation.c). */
+/* What the motion's routines leave the original's code and shadow mode, for
+ * their entries' wrappers and for a caller that runs them as C where the
+ * original called them (event's moves, whose commands hand on a Y and a V;
+ * event/leaves.h), worked out in field/leaves.c: the cells the direction
+ * routine works from and leaves (field_leave_aim, field_leave_direction) and
+ * its overflow; the check for objects in the way keeping its caller's Y, and
+ * the object it (or a move) keeps as its target; the Y and the overflow a
+ * step's start leaves; a jump's overflow; the overflow animating with the
+ * movement leaves where it did; and the screen test's. */
 void field_leave_aim(GameState *g, Aim aim);
 void field_leave_direction(GameState *g, Aim aim, Direction d);
 bool field_direction_overflow(Aim aim, Direction d);
 void field_leave_in_the_way_check(GameState *g, FieldObject obj, uint16_t callers_y);
+void field_leave_target_object(GameState *g, FieldObject obj);
 uint16_t field_step_start_y(const GameState *g, StepStart r, uint16_t callers_y);
 bool field_step_start_overflow(const GameState *g, FieldObject obj, StepStart r);
 bool field_walk_overflow(const GameState *g, FieldObject obj);
-bool field_jump_overflow(const GameState *g, FieldObject obj, uint8_t steps, uint8_t height);
+bool field_jump_overflow(const GameState *g, FieldObject obj);
+bool field_screen_test_overflow(const GameState *g, MapTile tile);
+
+/* The frame read's overflow (field/animation.c's entry): from whether it
+ * took a frame and the frame the object was on before. */
+bool field_frame_read_overflow(const GameState *g, FieldObject obj, bool took_a_frame, uint8_t frame_before);
 
 enum { FIELD_WORK_CELLS = 0xC1, FIELD_SCRATCH_CELLS = 0xD9, FIELD_LAYER_WORK_CELLS = 0x50, FIELD_LAYER_EDGE_CELLS = 0x60 };
 enum { SHAPE_EDGE_CELLS = 0x53, SHAPE_STEP_CELLS = 0xF0 };

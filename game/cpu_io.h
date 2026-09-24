@@ -1,18 +1,23 @@
-/* The CPU's multiplier, divider and work RAM port, as the game drives them.
+/* The CPU's multiplier, divider and work RAM port, as the original leaves them.
  *
  * The 8x8 multiplier ($4202/$4203, the product at $4216), the 16/8 divider
  * ($4204-$4206, the quotient at $4214) and the work RAM port ($2180-$2183) are
  * arithmetic and memory access, not platform services (docs/PLATFORM.md, "Not
- * services"). But their registers are part of what shadow mode and the fuzzer
- * compare, and a routine can leave an operand or a cursor behind for the next
- * one, so while the game's state lives in emulated work RAM a port drives them
- * as the original does: set an operand and read the result, move the cursor and
- * stream bytes through it. runtime/port/state_io.c is the backing, beside the one
- * for game/vars.h; a native backing computes the same values and keeps the
- * cursor as a value, with no registers at all.
+ * services"). A port computes in C (`a * b`, `n / d`, a variable read through
+ * its accessor) and never uses these to compute. What they are for is the
+ * state the original leaves in them: their registers are part of what shadow
+ * mode and the fuzzer compare, and a routine can leave an operand or a cursor
+ * behind for the next one, so a port leaves the operands, the result and the
+ * cursor as the original does, as scaffolding (ORIGINAL_EFFECT;
+ * docs/PORTING.md, "Scaffolding"). The few ports that still read a stream
+ * through the port, where its data has no entries in the RAM map yet, are
+ * listed in docs/TODO.md; that is a debt, not a way to write a port.
+ * runtime/port/state_io.c is the backing, beside the one for game/vars.h; a
+ * native backing keeps what those streams need as values, with no
+ * registers.
  *
  * They take the state rather than the machine because that is what they are to
- * a port: values it leaves and reads back, like any other variable. */
+ * a port: values it leaves, like any other variable. */
 #ifndef CT_GAME_CPU_IO_H
 #define CT_GAME_CPU_IO_H
 

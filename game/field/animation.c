@@ -17,16 +17,21 @@
  * frame shows, ending in 0. Reaching the end of the times starts the
  * animation over, or for a one-off counts a pass.
  *
+ * A one-off is counted in half passes, which is how the scripts give its
+ * length too (event/animation.c): the end of its times takes a whole pass
+ * and the end of its frame table, which an animation whose frame table is
+ * shorter than its times reaches first, half of one.
+ *
  * The state is kept in the object tables, and the original encodes part of it
  * in-band: while a one-off plays or a frame is held, "was it looping an
- * animation before?" is the looped animation's number $FF, and a one-off's
- * count of passes is kept in half passes. Those encodings live in this file's
- * storage functions and nowhere else. */
+ * animation before?" is the looped animation's number $FF. That encoding
+ * lives in this file's storage functions and nowhere else. */
 #include "field/field.h"
 #include "field/object.h"
 
 #include "field/bridge.h"
 #include "field/field_data.h"
+#include "field/parts.h"
 #include "field/scratch.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -72,11 +77,16 @@ static uint8_t one_off_animation(const GameState *g, FieldObject obj)
 {
     return field_object_one_off_animation(g, obj);
 }
+static void set_one_off_animation(GameState *g, FieldObject obj, uint8_t animation)
+{
+    set_field_object_one_off_animation(g, obj, animation);
+}
 
-/* A one-off's passes left, which the original counts in half passes: the end
- * of the times takes a whole pass, and the end of the frame table, which an
- * animation whose frame table is shorter than its times reaches first, half
- * of one. The last half pass is the one-off played out, holding its frame. */
+/* The frame a script holds. */
+static void set_held_frame(GameState *g, FieldObject obj, uint8_t frame) { set_field_object_static_frame(g, obj, frame); }
+
+/* A one-off's half passes left (above). The last half pass is the one-off
+ * played out, holding its frame; none is no one-off. */
 enum { NO_ONE_OFF = 0, PLAYED_OUT = 1, HALF_PASSES_PER_PASS = 2 };
 
 static uint8_t half_passes_left(const GameState *g, FieldObject obj)
@@ -145,7 +155,7 @@ void object_stop_animating(GameState *g, FieldObject obj)
  * ends first, and the one-off is played out on its last half pass. */
 void object_play_animation(GameState *g, FieldObject obj, uint8_t animation, uint8_t half_passes)
 {
-    set_field_object_one_off_animation(g, obj, animation);
+    set_one_off_animation(g, obj, animation);
     interrupt_with(g, obj, ANIMATE_PLAY);
     set_half_passes_left(g, obj, half_passes);
 }
@@ -174,7 +184,7 @@ void object_finish_animation(GameState *g, FieldObject obj)
 /* Hold one frame a script chose, until the object moves again. */
 void object_show_frame(GameState *g, FieldObject obj, uint8_t frame)
 {
-    set_field_object_static_frame(g, obj, frame);
+    set_held_frame(g, obj, frame);
     interrupt_with(g, obj, ANIMATE_SHOW_FRAME);
 }
 
@@ -202,14 +212,10 @@ static void animate_movement_with(GameState *g, FieldObject obj, uint8_t animati
     object_restart_animation(g, obj);
 }
 
-static uint8_t magnitude(uint8_t step) { return (int8_t)step < 0 ? (uint8_t)-step : step; }
+static uint8_t magnitude(int8_t step) { return step < 0 ? (uint8_t)-step : (uint8_t)step; }
 
 /* How fast it moves, the two axes' steps added (a byte, as the original). */
-static uint8_t movement_speed(const GameState *g, FieldObject obj)
-{
-    return (uint8_t)(magnitude((uint8_t)field_object_velocity_y(g, obj)) +
-                     magnitude((uint8_t)field_object_velocity_x(g, obj)));
-}
+static uint8_t movement_speed(Velocity v) { return (uint8_t)(magnitude(v.y) + magnitude(v.x)); }
 
 enum { RUNNING_SPEED = 0x20 };
 
@@ -229,12 +235,14 @@ MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
     } else if (mode != ANIMATE_WITH_MOVEMENT) {
         return MOVEMENT_KEPT_BY_SCRIPT;
     }
-    ORIGINAL_EFFECT(leave_speed_part(g, magnitude((uint8_t)field_object_velocity_x(g, obj))));
-    uint8_t speed = movement_speed(g, obj);
+    Velocity v = object_velocity(g, obj);
+    ORIGINAL_EFFECT(leave_speed_part(g, magnitude(v.x)));
+    uint8_t speed = movement_speed(v);
     MovementAnimation choice = speed == 0                                           ? MOVEMENT_STAND
                                : speed >= RUNNING_SPEED && object_may_run(g, obj) ? MOVEMENT_RUN
                                                                                     : MOVEMENT_WALK;
-    static const uint8_t animations[] = { 0, ANIMATION_STAND, ANIMATION_WALK, ANIMATION_RUN };
+    static const uint8_t animations[] = { [MOVEMENT_STAND] = ANIMATION_STAND, [MOVEMENT_WALK] = ANIMATION_WALK,
+                                          [MOVEMENT_RUN] = ANIMATION_RUN };
     animate_movement_with(g, obj, animations[choice]);
     return choice;
 }
@@ -360,19 +368,24 @@ static void count_a_pass(GameState *g, FieldObject obj)
     set_field_object_animation_frame(g, obj, 0);
 }
 
-/* The animation the tick times: a loop's, or the one-off's (a held frame
- * keeps timing the last one-off). */
-static uint8_t timed_animation(const GameState *g, FieldObject obj)
+/* The animation the object is on: a one-off's while it plays one, its loop's
+ * (or its movement's) otherwise. A held frame is the one exception, and the
+ * original's: the tick goes on timing the last one-off, while the frame
+ * builder reads the loop's frames. */
+typedef enum { ITS_TIMES, ITS_FRAMES } AnimationPart;
+
+static uint8_t current_animation(const GameState *g, FieldObject obj, AnimationPart part)
 {
     ObjectAnimationMode mode = object_animation_mode(g, obj);
-    return mode == ANIMATE_WITH_MOVEMENT || mode == ANIMATE_LOOP ? looped_animation(g, obj) : one_off_animation(g, obj);
+    bool looping = part == ITS_FRAMES ? mode != ANIMATE_PLAY : mode == ANIMATE_WITH_MOVEMENT || mode == ANIMATE_LOOP;
+    return looping ? looped_animation(g, obj) : one_off_animation(g, obj);
 }
 
 /* Where the animation's times start in the object's table of times, without
  * the 16 bits' wrap (for the guard, below). */
 static uint32_t first_time_entry(const GameState *g, FieldObject obj)
 {
-    return (uint32_t)timed_animation(g, obj) * FIELD_FRAMES_A_ANIMATION + field_object_delay_table(g, obj);
+    return (uint32_t)current_animation(g, obj, ITS_TIMES) * FIELD_FRAMES_A_ANIMATION + field_object_delay_table(g, obj);
 }
 
 /* On to the next frame, with its time; at the end of the times, the
@@ -382,7 +395,7 @@ static void next_frame(GameState *g, FieldObject obj)
     uint8_t frame = (uint8_t)(field_object_animation_frame(g, obj) + 1);
     set_field_object_animation_frame(g, obj, frame);
     uint16_t table = field_object_delay_table(g, obj);
-    uint8_t animation = timed_animation(g, obj);
+    uint8_t animation = current_animation(g, obj, ITS_TIMES);
     ORIGINAL_EFFECT(leave_first_time_entry(g, field_animation_place(table, animation, 0)));
     uint8_t time = field_animation_frame_time(g, field_animation_place(table, animation, frame));
     if (time != END_OF_TIMES) {
@@ -405,25 +418,12 @@ void object_animation_tick(GameState *g, FieldObject obj)
 
 /* ---- The frame it shows ------------------------------------------------------------------ */
 
-/* How many facing tables on from the object's frame table its facing's are:
- * facing 0 none, 2 two, 3 and on three, the rest (1, and the facings past
- * $81, which the original's signed compare takes as below 2) one. */
-static unsigned tables_on(uint8_t facing)
-{
-    if (facing == 0)
-        return 0;
-    if (facing == 2)
-        return 2;
-    return (int8_t)(facing - 2) < 0 ? 1 : 3;
-}
-
 /* The object's frame table for its facing, in the bank the frame builder
- * names. */
+ * names: a table a facing, in the facings' order. */
 static FieldFrameTable facing_frame_table(const GameState *g, FieldObject obj)
 {
-    unsigned on = tables_on(field_object_facing(g, obj));
-    uint16_t table = field_object_frame_table(g, obj);
-    uint16_t facing_table = on == 0 ? table : (uint16_t)(on * field_object_facing_table_size(g, obj) + table);
+    uint16_t size = field_object_facing_table_size(g, obj);
+    uint16_t facing_table = (uint16_t)(object_facing(g, obj) * size + field_object_frame_table(g, obj));
     return (FieldFrameTable){ field_frame_entry_bank(g), facing_table };
 }
 
@@ -445,7 +445,7 @@ static NextFrame find_next_frame(const GameState *g, FieldObject obj)
 {
     uint8_t frame = field_object_animation_frame(g, obj);
     bool one_off = object_animation_mode(g, obj) == ANIMATE_PLAY;
-    uint8_t animation = one_off ? one_off_animation(g, obj) : looped_animation(g, obj);
+    uint8_t animation = current_animation(g, obj, ITS_FRAMES);
     /* Looked up last, just before its frame is read, as the original does: a
      * table pointing where nothing answers reads the last byte on the bus,
      * the table's bank (fuzzing found it; no object the game makes does). */
@@ -484,15 +484,24 @@ ObjectFrame object_take_next_frame(GameState *g, FieldObject obj)
     }
 }
 
-/* ---- Entries --------------------------------------------------------------------------- */
+/* For the derivations (field/parts.h, field/leaves.c): the start of the
+ * object's frame table for its facing, where its current animation's first
+ * frame is in it, and whether it was put a frame before its first. */
+uint16_t field_facing_frame_table(const GameState *g, FieldObject obj) { return facing_frame_table(g, obj).offset; }
 
-/* Animating with its movement ($C0:5614) leaves the overflow of the speed's
- * sum, where it looked at the speed (field/scratch.h). */
-bool field_walk_overflow(const GameState *g, FieldObject obj)
+uint16_t field_first_frame_place(const GameState *g, FieldObject obj)
 {
-    return field_add_overflows8(magnitude((uint8_t)field_object_velocity_y(g, obj)),
-                                magnitude((uint8_t)field_object_velocity_x(g, obj)));
+    return field_animation_place(facing_frame_table(g, obj).offset, current_animation(g, obj, ITS_FRAMES), 0);
 }
+
+bool field_frame_before_the_first(uint8_t frame) { return frame == BEFORE_THE_FIRST_FRAME; }
+
+bool field_animation_rewound(const GameState *g, FieldObject obj)
+{
+    return field_frame_before_the_first(field_object_animation_frame(g, obj));
+}
+
+/* ---- Entries --------------------------------------------------------------------------- */
 
 /* On the field's page, the current object's (16-bit X). */
 void field_update_walk_animation(Snes *s)
@@ -543,7 +552,8 @@ bool field_object_frames_in_bank(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_object_in_x(s);
-    bool ok = tables_on(field_object_facing(g, obj)) != 3 || 3u * field_object_facing_table_size(g, obj) < BANK_SIZE;
+    bool ok = object_facing_is_one(g, obj) &&
+              (object_facing(g, obj) != FACING_RIGHT || 3u * field_object_facing_table_size(g, obj) < BANK_SIZE);
     vars_peek(false);
     return ok;
 }
@@ -555,30 +565,10 @@ void field_tick_object_animation(Snes *s)
     m_rts(s);
 }
 
-/* Whether taking the frame started the animation over, from what it left:
- * a frame, with the animation put a frame before its first. Where it was
- * there already, the entry tells: starting over reads from the animation's
- * start, and a frame found there from a place past it. */
-static uint8_t current_animation(const GameState *g, FieldObject obj)
-{
-    return object_animation_mode(g, obj) == ANIMATE_PLAY ? one_off_animation(g, obj) : looped_animation(g, obj);
-}
-
-static bool took_first_frame_again(const GameState *g, FieldObject obj, ObjectFrame r, uint8_t frame_before,
-                                   uint16_t entry)
-{
-    if (!r.has_frame || field_object_animation_frame(g, obj) != BEFORE_THE_FIRST_FRAME)
-        return false;
-    if (frame_before != BEFORE_THE_FIRST_FRAME)
-        return true;
-    return entry == field_animation_place(facing_frame_table(g, obj).offset, current_animation(g, obj), 0);
-}
-
 /* The object in X (8-bit). The carry says whether there is a frame; A holds
  * it (or, for a one-off at its end, the half passes it counted down to) with
- * the high byte of the entry's address; and the overflow is that of the
- * entry's last sum: the table and the place in it, or the frame taken back
- * off where the animation started over. */
+ * the high byte of the entry's address; and the overflow is the frame
+ * read's (field/leaves.c). */
 void field_read_animation_frame(Snes *s)
 {
     GameState *g = state_of(s);
@@ -591,15 +581,7 @@ void field_read_animation_frame(Snes *s)
     s->cpu.a = (uint16_t)((entry & 0xFF00) | shown);
     m_set_flag(s, CPU_FLAG_C, r.has_frame);
     vars_peek(true);
-    bool started_over = took_first_frame_again(g, obj, r, frame_before, entry);
+    m_set_flag(s, CPU_FLAG_V, field_frame_read_overflow(g, obj, r.has_frame, frame_before));
     vars_peek(false);
-    bool overflow;
-    if (started_over) {
-        overflow = field_subtract_overflows16((uint16_t)(entry + frame_before), frame_before);
-    } else {
-        uint16_t table = facing_frame_table(g, obj).offset;
-        overflow = field_add_overflows16((uint16_t)(entry - table), table);
-    }
-    m_set_flag(s, CPU_FLAG_V, overflow);
     m_rts(s);
 }

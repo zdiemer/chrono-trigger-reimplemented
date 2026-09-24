@@ -90,28 +90,90 @@ void object_take_off_the_map(GameState *g, FieldObject obj)
     object_set_sprite(g, obj, SPRITE_HIDDEN);
 }
 
-/* For the original's memory and shadow mode: the original clears the last
- * slot's solidity with a word, whose second byte is past the objects'
- * tables, where its memory has the first object's falling flag. */
-static void leave_stray_clear_past_the_last(GameState *g) { set_field_object_accelerating(g, 0, 0); }
+/* For the original's memory and shadow mode: the original clears the
+ * solidity with a word store, whose second byte is the next slot's sprite
+ * records' state (and past the last slot, the first object's falling flag,
+ * where its memory has that table). The game doesn't depend on it: an
+ * object's records state is set again as it comes into view, before its
+ * sprite is drawn (object_view.c; docs/RECOMP.md says how that was
+ * checked). */
+static void leave_word_clear_spill(GameState *g, FieldObject obj)
+{
+    if (obj + 1 < FIELD_OBJECTS)
+        object_records_to_build(g, (FieldObject)(obj + 1));
+    else
+        set_field_object_accelerating(g, 0, 0);
+}
 
 // $C0:58DE (the map setup's openings)
-/* The original clears the solidity with a word, and so the next object's
- * sprite records' state with it: nothing to draw yet. */
 void object_start_on_the_map(GameState *g, FieldObject obj)
 {
-    set_field_object_solid(g, obj, 0);
-    if (obj + 1 < FIELD_OBJECTS)
-        set_field_object_sprite_state(g, (FieldObject)(obj + 1), 0);
-    else
-        ORIGINAL_EFFECT(leave_stray_clear_past_the_last(g));
+    object_set_solidity(g, obj, false);
+    ORIGINAL_EFFECT(leave_word_clear_spill(g, obj));
     set_field_object_accelerating(g, obj, 0);
     set_field_object_acceleration(g, obj, 0);
 }
 
+/* ---- Its sprite -------------------------------------------------------------------------- */
+
+/* The layout is the byte's low two bits. */
+enum { LAYOUT_BITS = 0x03 };
+SpriteLayout object_sprite_layout(const GameState *g, FieldObject obj)
+{
+    return (SpriteLayout)(field_object_sprite_layout(g, obj) & LAYOUT_BITS);
+}
+
+/* The range is its layering's: 0 the middle, and of the others, the first
+ * bit behind. */
+SpriteRange object_sprite_range(const GameState *g, FieldObject obj)
+{
+    uint8_t range = layering_of_byte(field_object_priority_mode(g, obj)).range;
+    return range == 0 ? RANGE_MIDDLE : (range & 1) ? RANGE_BACK : RANGE_FRONT;
+}
+
+uint16_t object_sprite_records(const GameState *g, FieldObject obj) { return field_object_sprite_records(g, obj); }
+
+/* The high bits are kept in three words, eight sprites each. */
+enum { SPRITES_A_HIGH_WORD = 8, SPRITES_A_HIGH_BYTE = 4 };
+
+uint8_t object_sprite_high_bits(const GameState *g, FieldObject obj, unsigned n)
+{
+    unsigned w = n / SPRITES_A_HIGH_WORD;
+    uint16_t word = w == 0   ? field_object_sprite_high(g, obj)
+                    : w == 1 ? field_object_sprite_high_more(g, obj)
+                             : field_object_sprite_high_last(g, obj);
+    return (uint8_t)(word >> (8 * ((n / SPRITES_A_HIGH_BYTE) & 1)));
+}
+
+void object_set_first_sprites_high_bits(GameState *g, FieldObject obj, uint8_t bits)
+{
+    set_field_object_sprite_high(g, obj, (uint16_t)((field_object_sprite_high(g, obj) & 0xFF00) | bits));
+}
+
+/* The records' state is kept as a byte: the count, and the top bit set once
+ * built (0 is nothing built and nothing changed). */
+enum { RECORDS_BUILT_BIT = 0x80 };
+
+RecordsState object_records_state(const GameState *g, FieldObject obj)
+{
+    uint8_t stored = field_object_sprite_state(g, obj);
+    return (RecordsState){ (stored & RECORDS_BUILT_BIT) != 0, (uint8_t)(stored & ~RECORDS_BUILT_BIT) };
+}
+
+void object_mark_records_built(GameState *g, FieldObject obj) { set_field_object_sprite_state(g, obj, RECORDS_BUILT_BIT); }
+void object_records_to_build(GameState *g, FieldObject obj) { set_field_object_sprite_state(g, obj, 0); }
+
+/* The battle's placement byte: $FF leaves it to the battle. */
+enum { THE_BATTLE_PLACES_IT = 0xFF };
+void object_let_the_battle_place(GameState *g, FieldObject obj) { set_field_object_battle_info(g, obj, THE_BATTLE_PLACES_IT); }
+
 /* ---- Facing ------------------------------------------------------------------------------ */
 
-Facing object_facing(const GameState *g, FieldObject obj) { return (Facing)field_object_facing(g, obj); }
+/* The facing is kept as a byte, which the game only ever sets to one of the
+ * four; the guards leave any other to the original (object.h). */
+enum { FACINGS = 4 };
+Facing object_facing(const GameState *g, FieldObject obj) { return (Facing)(field_object_facing(g, obj) % FACINGS); }
+bool object_facing_is_one(const GameState *g, FieldObject obj) { return field_object_facing(g, obj) < FACINGS; }
 
 void object_set_facing(GameState *g, FieldObject obj, Facing facing) { set_field_object_facing(g, obj, (uint8_t)facing); }
 
@@ -128,8 +190,29 @@ Facing facing_of_direction(const GameState *g, Direction direction) { return (Fa
 
 /* The halves' priorities are kept as the hardware's sprite attribute bits
  * (4-5), the lower half's in the first byte. */
-enum { PRIORITY_SHIFT = 4, PRIORITY_MASK = 0x03, UPPER_PRIORITY_SHIFT = 4 };
-enum { BATTLE_PLACES_IT = 0xFF };   /* field_object_battle_info */
+enum { PRIORITY_SHIFT = 4 };
+
+/* The layering's byte (object.h). */
+enum { FOLLOWS_THE_MAP_BIT = 0x80, NO_LAYERING_BIT = 0x40, UPPER_SHIFT = 4, RANGE_SHIFT = 2, TWO_BITS = 0x03 };
+
+ObjectLayering layering_of_byte(uint8_t byte)
+{
+    return (ObjectLayering){ (byte & FOLLOWS_THE_MAP_BIT) != 0, (uint8_t)((byte >> UPPER_SHIFT) & TWO_BITS),
+                             (uint8_t)(byte & TWO_BITS), (uint8_t)((byte >> RANGE_SHIFT) & TWO_BITS) };
+}
+
+bool layering_byte_is_one(uint8_t byte) { return !(byte & NO_LAYERING_BIT); }
+
+static uint8_t layering_byte(ObjectLayering l)
+{
+    return (uint8_t)((l.follows_the_map ? FOLLOWS_THE_MAP_BIT : 0) | (l.upper & TWO_BITS) << UPPER_SHIFT |
+                     (l.range & TWO_BITS) << RANGE_SHIFT | (l.lower & TWO_BITS));
+}
+
+static ObjectLayering own_layering(const GameState *g, FieldObject obj)
+{
+    return layering_of_byte(field_object_priority_mode(g, obj));
+}
 
 void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, uint8_t lower)
 {
@@ -137,10 +220,7 @@ void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, 
     set_field_object_sprite_priority(g, obj, (uint16_t)(high << 8 | low));
 }
 
-bool object_follows_the_map(const GameState *g, FieldObject obj)
-{
-    return (field_object_priority_mode(g, obj) & LAYERING_FOLLOWS_THE_MAP) != 0;
-}
+bool object_follows_the_map(const GameState *g, FieldObject obj) { return own_layering(g, obj).follows_the_map; }
 
 // $C0:4BA3
 void object_layer_as_the_map(GameState *g, FieldObject obj, MapTile tile)
@@ -149,24 +229,21 @@ void object_layer_as_the_map(GameState *g, FieldObject obj, MapTile tile)
     object_set_sprite_priorities(g, obj, tile_priority(there.upper), tile_priority(there.lower));
 }
 
-/* The halves take the priorities the layering's bits give. */
-static void take_priorities_of(GameState *g, FieldObject obj, ObjectLayering layering)
+void object_take_own_priorities(GameState *g, FieldObject obj)
 {
-    object_set_sprite_priorities(g, obj, (uint8_t)((layering >> UPPER_PRIORITY_SHIFT) & PRIORITY_MASK),
-                                 (uint8_t)(layering & PRIORITY_MASK));
+    ObjectLayering own = own_layering(g, obj);
+    object_set_sprite_priorities(g, obj, own.upper, own.lower);
 }
-
-void object_take_own_priorities(GameState *g, FieldObject obj) { take_priorities_of(g, obj, field_object_priority_mode(g, obj)); }
 
 // $C0:4C74
 void object_set_layering(GameState *g, FieldObject obj, ObjectLayering layering)
 {
-    set_field_object_priority_mode(g, obj, layering);
-    if (layering & LAYERING_FOLLOWS_THE_MAP)
+    set_field_object_priority_mode(g, obj, layering_byte(layering));
+    if (layering.follows_the_map)
         object_layer_as_the_map(g, obj, object_tile(g, obj));
     else
-        take_priorities_of(g, obj, layering);
-    set_field_object_battle_info(g, obj, BATTLE_PLACES_IT);
+        object_set_sprite_priorities(g, obj, layering.upper, layering.lower);
+    object_let_the_battle_place(g, obj);
     object_end_frame_time(g, obj);
 }
 
@@ -181,8 +258,12 @@ void object_set_blocked_by(GameState *g, FieldObject obj, ObjectBlocking blockin
     set_field_object_blocking(g, obj, blocking);
 }
 
+/* Solidity is kept as a byte, 1 or 0. */
+enum { SOLID = 0x01 };
+
 // $C0:4867
-void object_set_solidity(GameState *g, FieldObject obj, ObjectSolidity solidity) { set_field_object_solid(g, obj, solidity); }
+void object_set_solidity(GameState *g, FieldObject obj, bool solid) { set_field_object_solid(g, obj, solid ? SOLID : 0); }
+bool object_solid(const GameState *g, FieldObject obj) { return (field_object_solid(g, obj) & SOLID) != 0; }
 
 // $C0:62A4
 void object_set_arrival(GameState *g, FieldObject obj, ObjectArrival arrival) { set_field_object_arrival_flags(g, obj, arrival); }
@@ -215,3 +296,20 @@ void object_unmark_scripted_move(GameState *g, FieldObject obj) { set_field_obje
 /* ---- The party ------------------------------------------------------------------------- */
 
 FieldLink party_member_link(const GameState *g, unsigned place) { return field_link_stored(field_party_objects(g, place)); }
+void party_place_left_empty(GameState *g, unsigned place) { set_field_party_objects(g, place, field_link_byte(field_no_link())); }
+
+void dialog_set_speaker(GameState *g, FieldObject speaker) { set_dialog_speaker(g, field_link_byte(field_link_to(speaker))); }
+
+/* ---- The current object ------------------------------------------------------------------ */
+
+/* The word's low byte is the object's link; the high byte is the original's
+ * alone (the per-frame turn stores the link with 8-bit index registers, and
+ * keeps it; the map's openings store it as a word, which the event engine
+ * says where it does). */
+FieldObject object_current(const GameState *g) { return field_linked_object(field_link_stored((uint8_t)field_current_object(g))); }
+bool object_current_is_one(const GameState *g) { return field_names_object(field_current_object(g)); }
+
+void object_make_current(GameState *g, FieldObject obj)
+{
+    set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | field_link_byte(field_link_to(obj))));
+}

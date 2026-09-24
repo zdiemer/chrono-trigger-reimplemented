@@ -9,28 +9,31 @@
  *   stopped. After the map-setup run of object 0 ($C0:595C, still the
  *   original's) and after the openings the engine runs at map setup, the last
  *   command's Y reaches the menus' dispatcher ($C2:8C36), which stores its
- *   low byte at $04C0; nothing the library runs reads it there. The value is
- *   static per opcode, so it is kept in a table of its own beside the
- *   language's (event/leaves.c, by opcode); an operation whose parse stops
- *   elsewhere on one path says so with leave_y or leave_parse_at.
+ *   low byte at $04C0; nothing the library runs reads it there.
  * - V. The additions in a command (a jump's, the arithmetic's, the calls'
  *   index) leave their overflow in V, which the field loop carries into code
  *   it leaves through JMLs: the liveness analysis can't show it dead, so the
- *   engine's own entries hand it back. Nothing the library runs reads it. An
- *   addition's V follows from its operands, so it is derived after the
- *   operation (event/leaves.c), not computed by it.
+ *   engine's own entries hand it back. Nothing the library runs reads it.
  * - The scratch cells, event_scratch ($D9-$E4 of the field page): the
  *   original keeps a command's operands and intermediate values there. Every
  *   read the library makes of one is by the command that wrote it (or by a
  *   routine of that command's own, now C), so they are written for shadow
  *   mode's comparison alone. The cells are named here by the order the
- *   original uses them in, and each file names what its commands keep; the
- *   cells a command's first operands go to are in the same table as Y.
+ *   original uses them in, and each file names what its commands keep.
  *
- * The record the command running leaves its Y and V in belongs to whoever
- * runs it: the engine for a turn, or a command's registered entry
- * (event/bridge.c), which set `event_leaves` around the call. A build without
- * the original's effects has none of this: no record, no table. */
+ * Y and V are the machine's, and follow from the command: event/leaves.c
+ * works them out around the operation, from its parameters, what it did and
+ * the state before and after, in a table parallel to the language's (the
+ * cells a command's first operands go to are in the same table). Three
+ * things the moves say themselves, where they know them and nothing after
+ * them does: how a move set off (the step's start is the field's, and leaves
+ * nothing in the state that says whether it stepped, turned or stayed),
+ * whether it looked for objects in the way on the way there, and the
+ * walking animation its lining up picked (a path the move took, which the
+ * state after it shares with others). The record they go into is the
+ * runner's (event/bridge.c), which the derivations set up around the
+ * operation; an operation never reads it, nor the command's offset. A build
+ * without the original's effects has none of this. */
 #ifndef CT_GAME_EVENT_LEAVES_H
 #define CT_GAME_EVENT_LEAVES_H
 
@@ -44,50 +47,36 @@
 #include "event/script.h"
 #include "field/scratch.h"
 
+/* The Y and V a command leaves the original's code after it. */
 typedef struct {
-    uint16_t at;      /* the command's offset */
-    uint16_t y;       /* the original's Y */
-    bool overflow;    /* the original's V */
+    uint16_t y;
+    bool overflow;
 } EventLeaves;
 
-extern EventLeaves *event_leaves;
+/* Run a command by its row as event_perform does, with what the original
+ * leaves worked out around it into `left` (event/leaves.c). */
+EventStep event_perform_leaving(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at, EventLeaves *left);
 
-/* The record the command about to run leaves in. */
-static inline void leave_into(EventLeaves *record) { event_leaves = record; }
-
-static inline void leave_y(uint16_t y) { event_leaves->y = y; }
-/* The parse stopped at operand n instead of where the row says. */
-static inline void leave_parse_at(unsigned n) { event_leaves->y = (uint16_t)(event_leaves->at + n); }
-static inline void leave_overflow(bool v) { event_leaves->overflow = v; }
+/* What an operation says itself, where only it knows (above): a move's
+ * setting off from the command at the offset the runner has (walking or
+ * sliding), the objects in the way looked for, and a walking animation's
+ * overflow. */
+void leave_set_off(GameState *g, FieldObject self, StepStart start, bool walking);
+void leave_in_the_way_check(GameState *g, FieldObject self);
+void leave_walk_overflow(const GameState *g, FieldObject self);
 
 /* The original keeps a command's offset (or where it goes on) in
- * event_saved_position across its calls, and reads it back itself: at an
- * offset, or n bytes on from the command running. */
+ * event_saved_position across its calls, and reads it back itself. */
 static inline void event_keep_offset(GameState *g, uint16_t at) { set_event_saved_position(g, at); }
-static inline void keep_resume_point(GameState *g, unsigned n) { event_keep_offset(g, (uint16_t)(event_leaves->at + n)); }
 
-/* The V flag the original leaves after it computes a + b, or a - b
- * (field/scratch.h). */
-static inline void leave_overflow_of_adding16(uint16_t a, uint16_t b) { leave_overflow(field_add_overflows16(a, b)); }
-static inline void leave_overflow_of_subtracting8(uint8_t a, uint8_t b) { leave_overflow(field_subtract_overflows8(a, b)); }
-static inline void leave_overflow_of_subtracting16(uint16_t a, uint16_t b)
-{
-    leave_overflow(field_subtract_overflows16(a, b));
-}
-
-/* ---- What each command leaves, by opcode (event/leaves.c) --------------------------------
- *
- * The part that is the same every time a command runs, which the engine and
- * the entries reproduce around the operation: a table parallel to the
- * language's, which the build without the original's effects leaves out.
- * Around a command the language's table runs (event/engine.c): before the
- * operation, Y where the parse stops and what is kept in the scratch cells
- * (from the command's parameters; `jump` the row's jump operand); after it,
- * the V an addition leaves, which follows from the amount and the variable as
- * it now is; and on the command's jump, what the jump leaves. */
-void original_leaves_before(GameState *g, uint8_t opcode, uint16_t at, uint8_t jump, const EventCommand *c);
-void original_leaves_after(const GameState *g, uint8_t opcode, const EventCommand *c);
-void original_leaves_on_jump(GameState *g, uint8_t opcode, uint16_t at, uint16_t from, uint8_t distance, bool back);
+/* What the commands' files tell the derivations, looked at before the
+ * command runs: whether a call reaches the target's places (event/calls.c),
+ * whose index the original works out with additions that leave V clear;
+ * and whether a question opens its window (event/dialog.c). */
+typedef enum { CALL_AND_GO, CALL_WHEN_TAKEN, CALL_AND_WAIT } CallKind;
+bool event_call_reaches_the_places(const GameState *g, CallKind kind, FieldObject self, FieldObject target, bool there,
+                                   uint8_t level);
+bool event_question_opens(const GameState *g, FieldObject self);
 
 /* The scratch cells, as byte offsets into event_scratch: six words, which the
  * original fills in this order, a command's first value first. */
@@ -103,5 +92,13 @@ static inline void keep_word(GameState *g, unsigned cell, uint16_t v)
 
 /* The high byte of a kept word, on its own. */
 static inline void keep_high_byte(GameState *g, unsigned cell, uint8_t v) { set_event_scratch_byte(g, cell + 1, v); }
+
+/* The screen test (field/object.h, tile_well_on_screen) keeps the screen's
+ * edges, in the objects' tiles. */
+static inline void keep_screen_edges(GameState *g)
+{
+    keep_byte(g, KEPT_SECOND, (uint8_t)(field_screen_left(g) >> 1));
+    keep_byte(g, KEPT_THIRD, (uint8_t)(field_screen_top(g) >> 1));
+}
 
 #endif

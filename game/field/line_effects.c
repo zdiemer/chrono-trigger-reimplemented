@@ -23,9 +23,11 @@
  *
  * The builders' arithmetic is 8-bit, as the original's: a window taller than
  * the space it has wraps the counts, and the tables say so. The per-line window
- * tables (field_window_edge_lines and its copy) are filled by the event screen
- * effects and the window shapes (field/window_shape.c); the builders only point
- * at them.
+ * tables are filled by the event screen effects and the window shapes
+ * (field/window_shape.c); the builders only point at them. Window 1 reads
+ * field_window_edge_lines a word a line (and field_window_edge_lines_copy for
+ * the second set); window 2 reads the same buffer a byte a line, as two
+ * tables, its halves (window2_edge_table).
  *
  * The tables hold addresses in bank $7F as their data, which is the format the
  * line effects read: those are the one place the port spells where a variable
@@ -175,18 +177,26 @@ static void set_bg2_table(GameState *g, uint8_t set)
         wave_screen(g, t, wave_values(set, 0));
 }
 
-/* Window 2's edge table: set 0 reads one of the two per-line window tables
- * and set 1 the other, swapped where a script asks (field_window_2_second_table,
- * the high byte of the scripts' variable $A8). */
-enum { WINDOW2_SECOND_TABLE = 0xE0, TABLES_SWAPPED = 0x01 };
+/* Window 2's edge tables: a byte a line for the screen's 224 lines, two of
+ * them, which are the two halves of field_window_edge_lines read a byte at a
+ * time (window 1 reads the buffer a word a line). */
+enum { WINDOW2_TABLE_BYTES = 0xE0 };
+
+static uint16_t window2_edge_table(uint8_t half)
+{
+    return (uint16_t)(window_edge_lines_values(0) + half * WINDOW2_TABLE_BYTES);
+}
+
+/* Set 0's window 2 reads the first table and set 1's the second, swapped
+ * where a script asks (field_window_2_second_table, the high byte of the
+ * scripts' variable $A8). */
+enum { TABLES_SWAPPED = 0x01 };
 
 static bool window2_choice(const GameState *g) { return (field_window_2_second_table(g) & TABLES_SWAPPED) != 0; }
 
-/* The per-line window table the set's window 2 reads. */
 static uint16_t window2_lines(const GameState *g, uint8_t set)
 {
-    uint16_t first = window_edge_lines_values(0);
-    return window2_choice(g) != (set != 0) ? first : (uint16_t)(first + WINDOW2_SECOND_TABLE);
+    return window2_edge_table(window2_choice(g) != (set != 0) ? 0 : 1);
 }
 
 // $FD:C439 (set 0), $FD:C477 (set 1)

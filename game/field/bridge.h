@@ -35,11 +35,6 @@ static inline unsigned field_object_in_x(const Snes *s) { return s->cpu.x >> 1; 
  * its low byte with 8-bit X, the word with 16-bit X. */
 unsigned field_current_object_slot(Snes *s);
 
-/* Whether a doubled slot names an object the accessors reach as the original
- * does: even, and inside the tables ($80 bytes, 64 objects). Past them the
- * original's index reads the tables' neighbours. */
-static inline bool field_names_object(uint16_t doubled) { return !(doubled & 1) && doubled < 2 * FIELD_OBJECTS; }
-
 /* ---- Calling the original's code ------------------------------------------------------ */
 
 /* How a bridge -- a port around a call to code still the original's, in
@@ -102,14 +97,6 @@ void field_move_object_step(Snes *s, FieldObject obj, bool party_member);
 bool field_update_visibility(Snes *s, FieldObject obj);
 bool field_view_changes(const GameState *g, unsigned obj);
 void field_update_in_window(Snes *s, FieldObject obj);
-
-/* The object the original's routines work on (field_current_object, a word
- * whose low byte is the object's link), which the field sets before it calls
- * one of them. */
-static inline void object_make_current(GameState *g, FieldObject obj)
-{
-    set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | field_link_byte(field_link_to(obj))));
-}
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 

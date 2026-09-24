@@ -1,8 +1,13 @@
 /* What each command leaves for the original's sake (event/leaves.h), by
- * opcode: a table parallel to the language's, of what isn't the language's.
+ * opcode: a table parallel to the language's, of what isn't the language's,
+ * and the runner that works it out around the operation: before it, where
+ * the parse stops and what is kept in the scratch cells; after it, the Y and
+ * V that follow from the command, what it did and the state before and after.
  * The build without the original's effects has none of it. */
 #include "event/leaves.h"
 #include "event/variables.h"
+#include "field/field.h"
+#include "port/vars_ram.h"
 
 #if ORIGINAL_EFFECTS
 
@@ -36,14 +41,167 @@ typedef struct {
  * the amount to the variable (or taking it away), in the command's width. */
 typedef enum { V_AS_IT_WAS, V_OF_ADDING, V_OF_SUBTRACTING } OverflowLeft;
 
+/* What a derivation looks at before the operation runs, where the operation
+ * changes it: whether the command's work reaches past its first test (a call
+ * the target takes, a move or a change that starts, a window that opens), and
+ * whether a call names an empty place. */
+typedef struct {
+    bool starts;
+    bool to_nobody;
+} Noted;
+
+typedef void (*NoteBefore)(const GameState *g, const EventCommand *c, Noted *n);
+typedef void (*DeriveAfter)(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l);
+
 typedef struct {
     uint8_t parse;            /* the operand the original's parse stops at, going on: its Y */
     uint8_t parse_on_jump;    /* ... and taking its jump */
     bool shared_comparison;   /* made by the original's comparison routine, which notes where the jump
                                * byte is and runs with 8-bit index registers (Y keeps its low byte) */
     Kept first, second;       /* what it keeps in its first two scratch cells */
+    bool offset_kept_last;    /* it keeps its own offset in the last cell, across a call it makes */
     OverflowLeft overflow;
+    NoteBefore note;          /* what its derivation needs of the state before */
+    DeriveAfter derive;       /* the rest of its Y and V, after */
 } OriginalLeaves;
+
+/* ---- The derivations ------------------------------------------------------------------------ */
+
+/* Calls ($02-$07): the original works out the index of a place with
+ * additions that never overflow (eight levels, 64 objects), so V is clear
+ * whenever the call reached the target's places; and a call to a party
+ * member whose place is empty stops its parse after the call byte. */
+static void note_call(const GameState *g, const EventCommand *c, CallKind kind, Noted *n)
+{
+    n->starts = event_call_reaches_the_places(g, kind, c->self, c->target, c->there, c->level);
+    n->to_nobody = !c->there && !(kind == CALL_AND_WAIT && event_call_waiting(g, c->self));
+}
+static void note_call_and_go(const GameState *g, const EventCommand *c, Noted *n) { note_call(g, c, CALL_AND_GO, n); }
+static void note_call_when_taken(const GameState *g, const EventCommand *c, Noted *n)
+{
+    note_call(g, c, CALL_WHEN_TAKEN, n);
+}
+static void note_call_and_wait(const GameState *g, const EventCommand *c, Noted *n) { note_call(g, c, CALL_AND_WAIT, n); }
+
+static void derive_call(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)g, (void)c, (void)flow;
+    if (n->starts)
+        l->overflow = false;
+}
+
+static void derive_call_that_waits(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    derive_call(g, c, flow, n, l);
+    if (n->to_nobody)
+        l->y = (uint16_t)(c->at + 3);
+}
+
+/* A return ($00) that resumes something searched the places the same way. */
+static void derive_return(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)g, (void)c, (void)n;
+    if (flow.kind == FLOW_GO_TO)
+        l->overflow = false;
+}
+
+/* Facing another object ($A8, $A9): the field's direction routine's overflow
+ * (field/scratch.h), from the tiles, which the turn doesn't move. */
+static void derive_face_toward(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)n;
+    if (flow.kind != FLOW_END_TURN)
+        return;
+    Aim aim = aim_toward_object(g, c->self, c->target);
+    l->overflow = field_direction_overflow(aim, direction_between(g, aim.from, aim.to));
+}
+
+/* The screen test ($28, and a walk until well on screen, $8F): where the
+ * tile is well on screen, the overflow of its last subtraction. $8F arrives
+ * by it where the walker is neither next to its target nor walking to a
+ * disabled one; otherwise it set off, and says how itself. */
+static void derive_screen_test(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow, (void)n;
+    MapTile tile = object_tile(g, c->object);
+    if (tile_well_on_screen(g, tile))
+        l->overflow = field_screen_test_overflow(g, tile);
+}
+
+static void derive_arrived_on_screen(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)n;
+    MapTile own = object_tile(g, c->self);
+    if (flow.kind == FLOW_NEXT && !object_disabled(g, c->target) && !tiles_next_to(own, object_tile(g, c->target)))
+        l->overflow = field_screen_test_overflow(g, own);
+}
+
+/* Moves that start with a velocity of their own ($7A, $7B), and a change of
+ * location worked out in variables ($E2): they keep their offset, and the
+ * parse stops where their start does. */
+static void note_move_starts(const GameState *g, const EventCommand *c, Noted *n)
+{
+    n->starts = !object_scripted_move_marked(g, c->self);
+}
+
+static void derive_launch(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    if (!n->starts)
+        return;
+    event_keep_offset(g, c->at);
+    l->y = field_current_object(g);   /* the original's parse ends on the object */
+}
+
+static void derive_jump(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    if (!n->starts)
+        return;
+    event_keep_offset(g, c->at);
+    l->y = (uint16_t)(c->at & 0x00FF);   /* heading the object clears Y's high byte */
+    l->overflow = field_jump_overflow(g, c->self);
+}
+
+static void note_change_asked(const GameState *g, const EventCommand *c, Noted *n)
+{
+    (void)c;
+    n->starts = !(field_requests(g) & FIELD_REQUEST_LOCATION_CHANGE);
+}
+
+static void derive_change_asked(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    if (!n->starts)
+        return;
+    event_keep_offset(g, c->at);
+    l->y = (uint16_t)(c->at + 4);
+}
+
+/* A question ($C0, $C3, $C4) keeps its choices' operand as it opens its
+ * window. */
+static void note_question_opens(const GameState *g, const EventCommand *c, Noted *n)
+{
+    n->starts = event_question_opens(g, c->self);
+}
+
+static void derive_question(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow, (void)l;
+    if (n->starts)
+        keep_byte(g, KEPT_FIRST, script_byte(g, (uint16_t)(c->at + 2)));
+}
+
+/* Drifting the layers ($E6) loads Y with the speed to store it, for each
+ * layer it drifts. */
+enum { DRIFTING_LAYERS = 0x07 };
+
+static void derive_drift(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)g, (void)flow, (void)n;
+    if (c->layers & DRIFTING_LAYERS)
+        l->y = c->drift;
+}
 
 #define PARSE(n) .parse = (n), .parse_on_jump = (n)
 #define KEEP(how, parameter) { KEEP_##how, PARAMETER_##parameter, 0 }
@@ -54,8 +212,13 @@ static const OriginalLeaves by_opcode[256] = {
     /* animation */
     [0xAA] = { .parse = 1 },
     /* calls between objects */
-    [0x02] = { .parse = 3 },
-    [0x05] = { .parse = 3 },
+    [0x00] = { .derive = derive_return },
+    [0x02] = { .parse = 3, .note = note_call_and_go, .derive = derive_call },
+    [0x03] = { .note = note_call_when_taken, .derive = derive_call_that_waits },
+    [0x04] = { .note = note_call_and_wait, .derive = derive_call_that_waits },
+    [0x05] = { .parse = 3, .note = note_call_and_go, .derive = derive_call },
+    [0x06] = { .note = note_call_when_taken, .derive = derive_call_that_waits },
+    [0x07] = { .note = note_call_and_wait, .derive = derive_call_that_waits },
     [0x0A] = { .parse = 1 },
     [0x0B] = { .parse = 1 },
     [0x0C] = { .parse = 1 },
@@ -63,6 +226,9 @@ static const OriginalLeaves by_opcode[256] = {
     [0x19] = { .parse = 1 },
     [0x1A] = { PARSE(1) },
     [0x1C] = { .parse = 2 },
+    [0xC0] = { .note = note_question_opens, .derive = derive_question },
+    [0xC3] = { .note = note_question_opens, .derive = derive_question },
+    [0xC4] = { .note = note_question_opens, .derive = derive_question },
     /* facing */
     [0x1E] = { .parse = 1 },
     [0x1F] = { .parse = 1 },
@@ -72,6 +238,8 @@ static const OriginalLeaves by_opcode[256] = {
     [0x26] = { .parse = 1 },
     [0xA6] = { .parse = 1 },
     [0xA7] = { .parse = 1 },
+    [0xA8] = { .derive = derive_face_toward },
+    [0xA9] = { .derive = derive_face_toward },
     /* jumps and conditions */
     [0x10] = { PARSE(1) },
     [0x11] = { PARSE(1) },
@@ -82,7 +250,7 @@ static const OriginalLeaves by_opcode[256] = {
     [0x16] = { PARSE(1), .shared_comparison = true },
     [0x18] = { PARSE(1) },
     [0x27] = { PARSE(1) },
-    [0x28] = { PARSE(1) },
+    [0x28] = { PARSE(1), .derive = derive_screen_test },
     /* the controller: its parse stops on the jump when the button is down, before it when not */
     [0x2D] = { .parse = 2, .parse_on_jump = 1 },
     [0x30] = { .parse = 2, .parse_on_jump = 1 },
@@ -102,6 +270,7 @@ static const OriginalLeaves by_opcode[256] = {
     [0x43] = { .parse = 2, .parse_on_jump = 1 },
     [0x44] = { .parse = 2, .parse_on_jump = 1 },
     /* places */
+    [0xE2] = { .note = note_change_asked, .derive = derive_change_asked },
     [0xDC] = { .first = KEEP(WORD, map_and_how) },
     [0xDD] = { .first = KEEP(WORD, map_and_how) },
     [0xDE] = { .first = KEEP(WORD, map_and_how) },
@@ -110,6 +279,12 @@ static const OriginalLeaves by_opcode[256] = {
     [0x49] = { .first = KEEP_OPERAND_AT(4) },
     [0x4C] = { .first = KEEP_OPERAND_AT(4) },
     [0x4D] = { .first = KEEP_OPERAND_AT(4) },
+    /* moves */
+    [0x7A] = { .note = note_move_starts, .derive = derive_jump },
+    [0x7B] = { .note = note_move_starts, .derive = derive_launch },
+    [0x8F] = { .derive = derive_arrived_on_screen },
+    [0xB5] = { .offset_kept_last = true },
+    [0xB6] = { .offset_kept_last = true },
     /* object properties */
     [0x0D] = { .parse = 1 },
     [0x0E] = { .parse = 1 },
@@ -128,15 +303,15 @@ static const OriginalLeaves by_opcode[256] = {
     /* the screen */
     [0x47] = { .parse = 2 },
     [0xE3] = { .parse = 2 },
-    [0xE6] = { .first = KEEP(BYTE, layers), .second = KEEP(WORD, drift) },
+    [0xE6] = { .first = KEEP(BYTE, layers), .second = KEEP(WORD, drift), .derive = derive_drift },
     [0xF0] = { .first = KEEP_OPERAND(1) },
     /* the story */
     [0x56] = { .parse = 4, .first = KEEP(BYTE, value) },
     [0x58] = { .parse = 4, .first = KEEP(WORD, value) },
     [0x59] = { .parse = 4, .first = KEEP(WORD, value) },
     [0x5A] = { .parse = 1 },
-    [0x65] = { .parse = 3 },
-    [0x66] = { .parse = 3 },
+    [0x65] = { .parse = 3, .second = KEEP_OPERAND(1) },
+    [0x66] = { .parse = 3, .second = KEEP_OPERAND(1) },
     /* variables, and the party leader */
     [0x20] = { .parse = 2 },
     [0x4F] = { .parse = 1, .first = KEEP(BYTE, value) },
@@ -186,45 +361,118 @@ static void keep(GameState *g, unsigned cell, Kept k, const EventCommand *c, uin
     }
 }
 
-void original_leaves_before(GameState *g, uint8_t opcode, uint16_t at, uint8_t jump, const EventCommand *c)
+/* Before the operation: Y where the parse stops, what is kept in the scratch
+ * cells (from the command's parameters; the jump operand's place for the
+ * comparisons), and what the derivation needs noted. */
+static void before(GameState *g, const OriginalLeaves *l, const EventOpcode *row, const EventCommand *c, Noted *n,
+                   EventLeaves *left)
 {
-    const OriginalLeaves *l = original_leaves(opcode);
-    event_leaves->at = at;
-    event_leaves->y = parse_stop(l, at, l->parse);
-    keep(g, KEPT_FIRST, l->first, c, at);
-    keep(g, KEPT_SECOND, l->second, c, at);
+    left->y = parse_stop(l, c->at, l->parse);
+    keep(g, KEPT_FIRST, l->first, c, c->at);
+    keep(g, KEPT_SECOND, l->second, c, c->at);
+    if (l->offset_kept_last)
+        keep_word(g, KEPT_SIXTH, c->at);
     /* the comparisons' shared routine notes where the jump byte is, and
      * reads it back itself */
     if (l->shared_comparison)
-        set_event_condition_resume(g, (uint16_t)(at + jump));
+        set_event_condition_resume(g, (uint16_t)(c->at + row->jump));
+    if (l->note)
+        l->note(g, c, n);
 }
 
-void original_leaves_after(const GameState *g, uint8_t opcode, const EventCommand *c)
+/* The V an addition leaves, which follows from the amount and the variable as
+ * it now is. */
+static bool arithmetic_overflow(const GameState *g, OverflowLeft how, const EventCommand *c)
 {
-    const OriginalLeaves *l = original_leaves(opcode);
-    if (l->overflow == V_AS_IT_WAS)
-        return;
     Width w = c->width;
     uint16_t amount = c->amount, now = variable(g, c->variable, w);
-    if (l->overflow == V_OF_SUBTRACTING) {
-        uint16_t before = (uint16_t)(now + amount);
-        leave_overflow(w == AS_BYTE ? field_subtract_overflows8((uint8_t)before, (uint8_t)amount)
-                                    : field_subtract_overflows16(before, amount));
-    } else {
-        uint16_t before = (uint16_t)(now - amount);
-        leave_overflow(w == AS_BYTE ? field_add_overflows8((uint8_t)before, (uint8_t)amount)
-                                    : field_add_overflows16(before, amount));
+    if (how == V_OF_SUBTRACTING) {
+        uint16_t was = (uint16_t)(now + amount);
+        return w == AS_BYTE ? field_subtract_overflows8((uint8_t)was, (uint8_t)amount)
+                            : field_subtract_overflows16(was, amount);
     }
+    uint16_t was = (uint16_t)(now - amount);
+    return w == AS_BYTE ? field_add_overflows8((uint8_t)was, (uint8_t)amount) : field_add_overflows16(was, amount);
 }
 
-void original_leaves_on_jump(GameState *g, uint8_t opcode, uint16_t at, uint16_t from, uint8_t distance, bool back)
+/* After it: the arithmetic's V, a jump's distance, V and Y, and the
+ * command's own derivation. */
+static void after(GameState *g, const OriginalLeaves *l, const EventOpcode *row, const EventCommand *c, EventFlow flow,
+                  const Noted *n, EventLeaves *left)
 {
-    const OriginalLeaves *l = original_leaves(opcode);
-    keep_word(g, KEPT_FIRST, distance);
-    leave_overflow(back ? field_subtract_overflows16(from, distance) : field_add_overflows16(from, distance));
-    leave_y(parse_stop(l, at, l->parse_on_jump));
+    if (l->overflow != V_AS_IT_WAS)
+        left->overflow = arithmetic_overflow(g, l->overflow, c);
+    if (flow.kind == FLOW_JUMP) {
+        uint16_t from = (uint16_t)(c->at + row->jump);
+        uint8_t distance = script_byte(g, from);
+        keep_word(g, KEPT_FIRST, distance);
+        left->overflow = row->back ? field_subtract_overflows16(from, distance) : field_add_overflows16(from, distance);
+        left->y = parse_stop(l, c->at, l->parse_on_jump);
+    }
+    if (l->derive)
+        l->derive(g, c, flow, n, left);
+}
+
+/* The record the operation's own leaves go to while it runs, and the
+ * command's offset. */
+static struct {
+    EventLeaves *left;
+    uint16_t at;
+} running;
+
+EventStep event_perform_leaving(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at, EventLeaves *left)
+{
+    const OriginalLeaves *l = original_leaves(row->opcode);
+    EventCommand c = event_decode(g, pf, row, at);
+    Noted n = { false, false };
+    /* what the derivations look at costs the machine no time: the original
+     * never reads it again (port/vars_ram.h) */
+    vars_peek(true);
+    before(g, l, row, &c, &n, left);
+    vars_peek(false);
+    running.left = left;
+    running.at = at;
+    EventFlow flow = row->run(g, &c);
+    running.left = NULL;
+    vars_peek(true);
+    after(g, l, row, &c, flow, &n, left);
+    vars_peek(false);
+    return event_follow(g, row, at, flow);
+}
+
+/* Whether a walking object's animation went with its movement, which leaves
+ * the walking animation's overflow (a script's animation keeps it). */
+static bool walk_animated(const GameState *g, FieldObject self)
+{
+    return object_animation_mode(g, self) == ANIMATE_WITH_MOVEMENT;
+}
+
+/* A move set off (event/movement.c): the Y and the overflow the step's start
+ * leaves, or the walking animation's overflow where it picked one. The
+ * original keeps the command's offset across its calls, and reads it back
+ * itself; the check for objects in the way keeps it too. */
+void leave_set_off(GameState *g, FieldObject self, StepStart start, bool walking)
+{
+    event_keep_offset(g, running.at);
+    running.left->y = field_step_start_y(g, start, running.at);
+    running.left->overflow = walking && walk_animated(g, self) ? field_walk_overflow(g, self)
+                                                               : field_step_start_overflow(g, self, start);
+}
+
+void leave_in_the_way_check(GameState *g, FieldObject self) { field_leave_in_the_way_check(g, self, running.at); }
+
+void leave_walk_overflow(const GameState *g, FieldObject self)
+{
+    if (walk_animated(g, self))
+        running.left->overflow = field_walk_overflow(g, self);
 }
 
 #else
-typedef int no_original_leaves;
+
+EventStep event_perform_leaving(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at, EventLeaves *left)
+{
+    (void)left;
+    return event_perform(g, pf, row, at);
+}
+
 #endif

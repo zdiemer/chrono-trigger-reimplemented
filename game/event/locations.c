@@ -84,10 +84,8 @@ static EventFlow go_to_worked_out_location(GameState *g, uint16_t map, uint8_t t
 {
     if (change_pending(g))
         return stay();
-    ORIGINAL_EFFECT(keep_resume_point(g, 0));
     set_location_as(g, WHERE_IT_GOES_NEXT, (Location){ map, tile_x, tile_y, how });
     request_change(g);
-    ORIGINAL_EFFECT(leave_parse_at(4));
     return stay();
 }
 EVENT_OPERATION(go_to_worked_out_location, map, tile_x, tile_y, how)

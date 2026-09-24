@@ -37,133 +37,260 @@ bytes?
 
 ## What hand-written looks like
 
-A complete file first, so there is a picture of the target and not only a list
-of ways to miss it. **This is an illustration of the shape to aim for, not a
-file in the tree.** It covers the concept the rubric's worst examples come from
-(field objects' animation; compare smells 1, 2 and 5 below). When a real file
-passes a review with no findings of its own, it replaces this, and the
-illustration goes.
+A real file first, so there is a picture of the target and not only a list of
+ways to miss it: the first half of `game/field/animation.c`, field objects'
+animation (the concept the rubric's worst examples come from; compare smells
+1, 2 and 5 below), as it passed its review, and the script command that uses
+it from `game/event/animation.c`. Read the rest of the file in the tree: the
+tick, the frame queue and the frame read follow the same shape.
 
 ```c
 /* Field objects: how an object animates.
  *
- * Everything on the map shows one of four things at any moment: it stands still
- * on its current frame; it loops an animation (a character's idle bob, a torch
- * flickering); it plays a one-off animation for a number of frames (a nod, a
- * jump of surprise) and then goes back to what it was looping; or it holds a
- * single frame a script chose. Scripts start and stop these (event/animation.c),
- * and the object update advances them once a frame (object_animation_tick).
+ * Everything on the map shows one of four things at any moment
+ * (ObjectAnimationMode): it animates with its movement, standing, walking or
+ * running by how fast it goes; it loops an animation a script chose (an idle
+ * bob, a torch flickering); it plays a one-off animation (a nod, a jump of
+ * surprise) a number of times and then goes back to what it was doing; or it
+ * holds a single frame a script chose. Scripts start and stop these, the
+ * object's movement picks the stand, walk and run animations
+ * (object_animate_movement), and the object update advances the animation
+ * once a frame (object_animation_tick): when the frame's time is up the
+ * object is queued for the frame builder, which draws the new frame's tiles
+ * and takes the new frame from this file (object_take_next_frame).
  *
- * The state is kept in the object tables, and part of it the original encodes
- * in-band: while a one-off plays, "was it looping before?" is the animation
- * number $FF. That encoding lives in this file's storage functions and nowhere
- * else; the rest of the game sees an AnimationMode and a bool. */
+ * An animation is four entries a facing in the object's frame table, frame
+ * numbers ending in an end marker, and beside it a table of how long each
+ * frame shows, ending in 0. Reaching the end of the times starts the
+ * animation over, or for a one-off counts a pass.
+ *
+ * A one-off is counted in half passes, which is how the scripts give its
+ * length too (event/animation.c): the end of its times takes a whole pass
+ * and the end of its frame table, which an animation whose frame table is
+ * shorter than its times reaches first, half of one.
+ *
+ * The state is kept in the object tables, and the original encodes part of it
+ * in-band: while a one-off plays or a frame is held, "was it looping an
+ * animation before?" is the looped animation's number $FF. That encoding
+ * lives in this file's storage functions and nowhere else. */
+#include "field/field.h"
 #include "field/object.h"
 
-/* ---- Storage: the only code that knows how the state sits in the tables ---- */
+#include "field/bridge.h"
+#include "field/field_data.h"
+#include "field/parts.h"
+#include "field/scratch.h"
+#include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
 
-enum { NOTHING_TO_GO_BACK_TO = 0xFF };   /* the original's in-band marker */
+/* The end markers of an animation's two tables. */
+enum { END_OF_FRAMES = 0xFF, END_OF_TIMES = 0 };
 
-static void restart_from_first_frame(GameState *g, FieldObject obj)
+/* ---- Storage: the only code that knows how the state sits in the tables ------------------ */
+
+ObjectAnimationMode object_animation_mode(const GameState *g, FieldObject obj)
 {
-    set_object_frame(g, obj, 0);
-    set_object_frame_delay(g, obj, 0);
+    return (ObjectAnimationMode)field_object_animation_mode(g, obj);
 }
 
-static bool was_looping(const GameState *g, FieldObject obj)
+static void set_mode(GameState *g, FieldObject obj, ObjectAnimationMode mode)
 {
-    return object_animation_mode(g, obj) != STANDING_STILL;
+    set_field_object_animation_mode(g, obj, (uint8_t)mode);
 }
+
+/* The animation it loops, or animates its movement with. */
+static uint8_t looped_animation(const GameState *g, FieldObject obj) { return field_object_looped_animation(g, obj); }
+static void set_looped_animation(GameState *g, FieldObject obj, uint8_t animation)
+{
+    set_field_object_looped_animation(g, obj, animation);
+}
+
+/* The original's in-band marker, in place of the looped animation: nothing to
+ * go back to but the object's movement. */
+enum { NOTHING_TO_GO_BACK_TO = 0xFF };
 
 static void remember_nothing_to_go_back_to(GameState *g, FieldObject obj)
 {
-    set_object_looped_animation(g, obj, NOTHING_TO_GO_BACK_TO);
+    set_looped_animation(g, obj, NOTHING_TO_GO_BACK_TO);
 }
 
-static bool has_something_to_go_back_to(const GameState *g, FieldObject obj)
+static bool has_loop_to_go_back_to(const GameState *g, FieldObject obj)
 {
-    return object_looped_animation(g, obj) != NOTHING_TO_GO_BACK_TO;
+    return looped_animation(g, obj) != NOTHING_TO_GO_BACK_TO;
 }
 
-/* ---- What the game does with it ---------------------------------------------- */
+static uint8_t one_off_animation(const GameState *g, FieldObject obj)
+{
+    return field_object_one_off_animation(g, obj);
+}
+static void set_one_off_animation(GameState *g, FieldObject obj, uint8_t animation)
+{
+    set_field_object_one_off_animation(g, obj, animation);
+}
 
-// $C0:2E6D
+/* The frame a script holds. */
+static void set_held_frame(GameState *g, FieldObject obj, uint8_t frame) { set_field_object_static_frame(g, obj, frame); }
+
+/* A one-off's half passes left (above). The last half pass is the one-off
+ * played out, holding its frame; none is no one-off. */
+enum { NO_ONE_OFF = 0, PLAYED_OUT = 1, HALF_PASSES_PER_PASS = 2 };
+
+static uint8_t half_passes_left(const GameState *g, FieldObject obj)
+{
+    return field_object_one_off_half_passes(g, obj);
+}
+static void set_half_passes_left(GameState *g, FieldObject obj, uint8_t n)
+{
+    set_field_object_one_off_half_passes(g, obj, n);
+}
+
+/* Where the object is in its animation: a frame number, and how long it has
+ * left on it. An animation that starts over is put a frame before its first,
+ * so that its next frame is the first (the frame number wraps). */
+enum { BEFORE_THE_FIRST_FRAME = 0xFF };
+
+void object_restart_animation(GameState *g, FieldObject obj)
+{
+    set_field_object_animation_frame(g, obj, 0);
+    object_end_frame_time(g, obj);
+}
+
+void object_end_frame_time(GameState *g, FieldObject obj) { set_field_object_frame_delay(g, obj, 0); }
+
+/* ---- What a script does with it ------------------------------------------------------- */
+
+/* Leave what it was doing for a one-off animation or a held frame. An object
+ * animating with its movement has nothing to go back to but its movement; a
+ * looping one goes back to its loop. */
+static void interrupt_with(GameState *g, FieldObject obj, ObjectAnimationMode mode)
+{
+    object_restart_animation(g, obj);
+    if (object_animation_mode(g, obj) == ANIMATE_WITH_MOVEMENT)
+        remember_nothing_to_go_back_to(g, obj);
+    set_mode(g, obj, mode);
+}
+
+/* Start the object animating in a mode from the first frame, dropping any
+ * one-off it was playing. */
+static void start_afresh(GameState *g, FieldObject obj, ObjectAnimationMode mode)
+{
+    set_mode(g, obj, mode);
+    set_half_passes_left(g, obj, NO_ONE_OFF);
+    object_restart_animation(g, obj);
+}
+
 /* Loop an animation from its first frame, dropping whatever the object was
  * doing. */
 void object_loop_animation(GameState *g, FieldObject obj, uint8_t animation)
 {
-    set_object_looped_animation(g, obj, animation);
-    set_object_animation_mode(g, obj, LOOPING);
-    restart_from_first_frame(g, obj);
+    set_looped_animation(g, obj, animation);
+    start_afresh(g, obj, ANIMATE_LOOP);
 }
 
-// $C0:2E9A
-/* Play a one-off animation for `frames` frames. The object goes back to the
- * animation it was looping when it's over, or stands still if it wasn't
- * looping anything. */
-void object_play_animation(GameState *g, FieldObject obj, uint8_t animation, uint8_t frames)
+/* Stop any animation a script gave the object: it stands, and walks and runs
+ * again as it moves. */
+void object_stop_animating(GameState *g, FieldObject obj)
 {
-    if (!was_looping(g, obj))
-        remember_nothing_to_go_back_to(g, obj);
-    set_object_one_off(g, obj, animation, frames);
-    set_object_animation_mode(g, obj, PLAYING_ONCE);
-    restart_from_first_frame(g, obj);
+    set_looped_animation(g, obj, ANIMATION_STAND);
+    start_afresh(g, obj, ANIMATE_WITH_MOVEMENT);
 }
 
-/* A one-off is over: back to the loop, or to standing still. */
-static void finish_one_off(GameState *g, FieldObject obj)
+/* Play a one-off animation (a gesture, a reaction) for `half_passes` half
+ * passes; then it holds its last frame until the script that started it
+ * finishes it. The count runs down two a pass and one where the frame table
+ * ends first, and the one-off is played out on its last half pass. */
+void object_play_animation(GameState *g, FieldObject obj, uint8_t animation, uint8_t half_passes)
 {
-    if (has_something_to_go_back_to(g, obj)) {
-        set_object_animation_mode(g, obj, LOOPING);
+    set_one_off_animation(g, obj, animation);
+    interrupt_with(g, obj, ANIMATE_PLAY);
+    set_half_passes_left(g, obj, half_passes);
+}
+
+bool object_playing_animation(const GameState *g, FieldObject obj, uint8_t animation)
+{
+    return half_passes_left(g, obj) != NO_ONE_OFF && animation == one_off_animation(g, obj);
+}
+
+bool object_animation_played(const GameState *g, FieldObject obj) { return half_passes_left(g, obj) == PLAYED_OUT; }
+
+/* A one-off is over: back to the loop the object had, or to animating with its
+ * movement, standing. */
+void object_finish_animation(GameState *g, FieldObject obj)
+{
+    set_half_passes_left(g, obj, NO_ONE_OFF);
+    object_restart_animation(g, obj);
+    if (has_loop_to_go_back_to(g, obj)) {
+        set_mode(g, obj, ANIMATE_LOOP);
     } else {
-        set_object_looped_animation(g, obj, 0);
-        set_object_animation_mode(g, obj, STANDING_STILL);
+        set_looped_animation(g, obj, ANIMATION_STAND);
+        set_mode(g, obj, ANIMATE_WITH_MOVEMENT);
     }
-    restart_from_first_frame(g, obj);
 }
 
-// $C0:5614
-/* Once a frame, from the object update: a one-off counts down, and ends. */
-void object_animation_tick(GameState *g, FieldObject obj)
+/* Hold one frame a script chose, until the object moves again. */
+void object_show_frame(GameState *g, FieldObject obj, uint8_t frame)
 {
-    if (object_animation_mode(g, obj) != PLAYING_ONCE)
-        return;
-    uint8_t left = object_one_off_frames_left(g, obj);
-    if (left <= 1)
-        finish_one_off(g, obj);
-    else
-        set_object_one_off_frames_left(g, obj, left - 1);
+    set_held_frame(g, obj, frame);
+    interrupt_with(g, obj, ANIMATE_SHOW_FRAME);
+}
+
+/* An object that leaves view while playing a one-off animation is cut to its
+ * last pass, so the script waiting on it isn't held up by what nobody sees. */
+void object_hurry_animation(GameState *g, FieldObject obj)
+{
+    if (half_passes_left(g, obj) != NO_ONE_OFF)
+        set_half_passes_left(g, obj, HALF_PASSES_PER_PASS);
 }
 ```
 
 And a script command using it. One operation serves an opcode family,
 because the table (not a function per opcode) says how each opcode's operands
-decode:
+decode into the operation's parameters:
 
 ```c
-/* Make the object running the script loop an animation. Scripts use one-byte
- * forms for the two most common ones. */
-static EventFlow loop_animation(GameState *g, FieldObject self, uint8_t animation)
+// $C0:2E9A
+/* Play a one-off animation on the object (a gesture, a reaction) and hold the
+ * script until it has played; the object then goes back to what it was
+ * looping. Met again while that animation still plays, the command waits on.
+ * How long it plays is counted in half passes (field/object.h): the short
+ * form plays it once through. */
+static EventFlow play_animation(GameState *g, FieldObject self, uint8_t animation, uint8_t half_passes)
 {
-    object_loop_animation(g, self, animation);
-    return next_command();
+    if (object_animation_played(g, self)) {
+        object_finish_animation(g, self);
+        return next_command();
+    }
+    if (!object_playing_animation(g, self, animation))
+        object_play_animation(g, self, animation, half_passes);
+    return stay();
 }
+EVENT_OPERATION(play_animation, self, animation, half_passes)
 
+/* The long form gives how long the one-off plays as its half passes less
+ * one. */
 EVENT_OPCODES(event_animation_opcodes,
-    { 0xAA, loop_animation, .animation = OPERAND(1), .length = 2 },
-    { 0xB3, loop_animation, .animation = CONSTANT(0), .length = 1 },
-    { 0xB4, loop_animation, .animation = CONSTANT(1), .length = 1 });
+    { 0xAA, OPERATION(loop_animation), .animation = OPERAND(1), .length = 2 },
+    { 0xB3, OPERATION(loop_animation), .animation = CONSTANT(0), .length = 1 },
+    { 0xB4, OPERATION(loop_animation), .animation = CONSTANT(1), .length = 1 },
+    { 0xAE, OPERATION(stop_animating), .length = 1 },
+    { 0xAB, OPERATION(play_animation), .animation = OPERAND(1), .half_passes = CONSTANT(2), .length = 2 },
+    { 0xB7, OPERATION(play_animation), .animation = OPERAND(1), .half_passes = OPERAND_PLUS_ONE(2), .length = 3 },
+    { 0xAC, OPERATION(hold_frame), .frame = OPERAND(1), .length = 2 });
 ```
 
 Why this reads as hand-written:
 
 - **The header teaches the concept before any code.** A reader who has never
   seen the ROM learns the four things an object can be doing, who changes
-  them, and who advances them.
+  them, who advances them, and how long a one-off lasts, in the unit the
+  scripts give it in.
 - **The original's encoding is confined and named.** `$FF` appears once, as
-  `NOTHING_TO_GO_BACK_TO`, inside four small storage functions. Everything
-  above them reads in the game's terms (`was_looping`,
-  `has_something_to_go_back_to`), and nothing outside the file sees the byte.
+  `NOTHING_TO_GO_BACK_TO`, inside the storage functions at the top, and the
+  frame number's wrap once, as `BEFORE_THE_FIRST_FRAME`. Everything below them
+  reads in the game's terms (`has_loop_to_go_back_to`, `half_passes_left`),
+  and nothing outside the file sees the bytes: the rest of the game calls
+  `field/object.h`.
 - **Operations are named for what the game does**, and each comment says what
   the player sees, not how the original stored it.
 - **There is still a setter sequence in each operation, and that's fine.** It
@@ -174,15 +301,17 @@ Why this reads as hand-written:
   original writes, so shadow mode compares them as before. Nothing in the
   shape needs a machine.
 - **Short forms are table rows**, not functions. `$B3` and `$B4` are the same
-  operation as `$AA`, and the reader sees that at a glance.
+  operation as `$AA`, and `$AB` the same as `$B7` with its count fixed; the
+  reader sees that at a glance.
 - **What's absent is as telling:** no `Snes *`, no `m_*`, no register or flag
   values carried through, no positional `operand(g, c, 1)`, no `SCRATCH_D9`, no
   "presumably".
 
 A registered entry around such code stays the thin shape the rubric describes:
 it reads the original's registers into these parameters, calls the operation,
-and derives any register a caller reads from the state afterwards. Anything it
-can't derive is recorded through the scaffolding mechanism, in one marked line.
+and derives any register a caller reads from the state afterwards, beside the
+other derivations (`game/field/leaves.c`). Anything it can't derive is
+recorded through the scaffolding mechanism, in one marked line.
 
 ## What reads as a translation
 
@@ -323,7 +452,7 @@ Each of these is a finding. Every example here comes from this repo.
     `(GameState *g, const EventCommand *c)`, where `EventCommand` holds every
     parameter of the language (about 80 fields). Its fields are named, but the
     signature no longer says what the operation reads. Take the parameters
-    explicitly, as the illustration does (`loop_animation(g, self, animation)`),
+    explicitly, as `event/animation.c` does (`play_animation(g, self, animation, half_passes)`),
     or a small struct per operation family.
 33. **Constants that type nothing.** Enums declared so a comment can mention
     them (`IN_OTHERS_WAY`, `STOPPED_BY_*`) while the parameter stays `uint8_t`.

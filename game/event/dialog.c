@@ -23,7 +23,7 @@ static void open_dialog(GameState *g, FieldObject speaker, uint8_t line, WindowP
 {
     set_event_object_wait_dialog(g, speaker, 1);
     set_dialog_string(g, line);
-    set_dialog_speaker(g, field_link_byte(field_link_to(speaker)));
+    dialog_set_speaker(g, speaker);
     set_dialog_window_object(g, 0);   /* the dialog places its window by the speaker once it starts */
     set_dialog_state(g, DIALOG_OPENING);
     set_dialog_box_position(g, where);
@@ -80,9 +80,13 @@ static EventFlow say(GameState *g, FieldObject self, uint8_t line, WindowPlace w
 }
 EVENT_OPERATION(say, self, line, window)
 
-/* For the original's code and shadow mode: the original keeps the choices'
- * operand byte in its first scratch cell as it opens the window. */
-static void keep_choices(GameState *g) { keep_byte(g, KEPT_FIRST, script_byte(g, (uint16_t)(event_leaves->at + 2))); }
+/* For event/leaves.c, before a question runs: whether it opens its window
+ * (no dialog on screen, and the object not waiting on one it opened), where
+ * the original keeps its choices' operand. */
+bool event_question_opens(const GameState *g, FieldObject self)
+{
+    return !dialog_on_screen(g) && !event_object_wait_dialog(g, self);
+}
 
 // $C0:3643
 /* Ask a question: a line with choices, and wait for the answer, which
@@ -97,7 +101,6 @@ static EventFlow ask(GameState *g, FieldObject self, uint8_t line, uint8_t first
         set_dialog_choice_active(g, 0);
         return next_command();
     }
-    ORIGINAL_EFFECT(keep_choices(g));
     offer_choices(g, first_choice, last_choice);
     open_dialog(g, self, line, window);
     return stay();

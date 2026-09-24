@@ -142,7 +142,6 @@ static EventFlow drift_layers(GameState *g, uint16_t drift, uint8_t layers, uint
         if (layers & 1u << layer) {
             set_field_layer_extra_speed_x(g, layer, (uint8_t)drift);
             set_field_layer_extra_speed_y(g, layer, (uint8_t)(drift >> 8));
-            ORIGINAL_EFFECT(leave_y(drift));   /* the original loads Y with the speed to store it */
         }
     }
     return next_command();

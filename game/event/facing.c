@@ -29,16 +29,20 @@ static EventFlow note_facing(GameState *g, FieldObject object, EventVariable var
 }
 EVENT_OPERATION(note_facing, object, variable)
 
+/* The guard's part: the object faces one of the four ways (field/object.h;
+ * the original would note whatever byte it keeps). */
+static bool faces_a_way(const GameState *g, FieldObject object) { return object_facing_is_one(g, object); }
+EVENT_CHECK(faces_a_way, object)
+
 /* For the original's code and shadow mode: the original keeps the object it
  * turns toward in its first scratch cell, and works the direction out with
- * the field's routine, which leaves its cells and its overflow
- * (field/scratch.h). */
+ * the field's routine, which leaves its cells (field/scratch.h; its overflow
+ * is event/leaves.c's). */
 static void leave_aim_toward(GameState *g, FieldObject target, Aim aim, Direction d)
 {
-    keep_word(g, KEPT_FIRST, field_link_byte(field_link_to(target)));
+    keep_word(g, KEPT_FIRST, field_object_offset(target));
     field_leave_aim(g, aim);
     field_leave_direction(g, aim, d);
-    leave_overflow(field_direction_overflow(aim, d));
 }
 
 // $C0:55A9
@@ -67,7 +71,8 @@ EVENT_OPCODES(event_facing_opcodes,
     { 0x1F, OPERATION(face), .object = OBJECT(1), .facing = CONSTANT(FACING_DOWN), .length = 2 },
     { 0x25, OPERATION(face), .object = OBJECT(1), .facing = CONSTANT(FACING_LEFT), .length = 2 },
     { 0x26, OPERATION(face), .object = OBJECT(1), .facing = CONSTANT(FACING_RIGHT), .length = 2 },
-    { 0x23, OPERATION(note_facing), .variable = VARIABLE(2), .object = OBJECT(1), .length = 3 },
-    { 0x24, OPERATION(note_facing), .variable = VARIABLE(2), .object = MEMBER_OBJECT(1), .length = 3 },
+    { 0x23, OPERATION(note_facing), .variable = VARIABLE(2), .object = OBJECT(1), .length = 3, CHECK(faces_a_way) },
+    { 0x24, OPERATION(note_facing), .variable = VARIABLE(2), .object = MEMBER_OBJECT(1), .length = 3,
+      CHECK(faces_a_way) },
     { 0xA8, OPERATION(face_toward), .target = OBJECT(1), .length = 2 },
     { 0xA9, OPERATION(face_toward), .target = MEMBER_OBJECT(1), .length = 2 });

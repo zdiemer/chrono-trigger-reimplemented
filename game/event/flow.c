@@ -97,27 +97,13 @@ static EventFlow if_in_view(GameState *g, FieldObject object)
 }
 EVENT_OPERATION(if_in_view, object)
 
-/* What the original keeps of the screen test: the screen's edges, in the
- * objects' tiles; and where the tile is well on screen, the overflow of its
- * last subtraction. */
-static void leave_screen_test(GameState *g, MapTile tile, bool inside)
-{
-    uint8_t left = (uint8_t)(field_screen_left(g) >> 1), top = (uint8_t)(field_screen_top(g) >> 1);
-    keep_byte(g, KEPT_SECOND, left);
-    keep_byte(g, KEPT_THIRD, top);
-    if (inside)
-        leave_overflow_of_subtracting8(tile.y, top);
-}
-
 // $C0:6655
 /* If an object stands well on screen, clear of its edges: where a cutscene
  * can start without the camera moving. */
 static EventFlow if_well_on_screen(GameState *g, FieldObject object)
 {
-    MapTile tile = object_tile(g, object);
-    bool inside = tile_well_on_screen(g, tile);
-    ORIGINAL_EFFECT(leave_screen_test(g, tile, inside));
-    return unless_jump(inside);
+    ORIGINAL_EFFECT(keep_screen_edges(g));
+    return unless_jump(tile_well_on_screen(g, object_tile(g, object)));
 }
 EVENT_OPERATION(if_well_on_screen, object)
 

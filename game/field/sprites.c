@@ -51,11 +51,10 @@ enum { MOST_SPRITES = 24 };
 typedef struct {
     uint8_t sprites, high_bytes;
 } Layout;
-enum { LAYOUT_4, LAYOUT_8, LAYOUT_12, LAYOUT_24 };
-static const Layout layouts[4] = { { 4, 1 }, { 8, 2 }, { 12, 3 }, { 24, 6 } };
+static const Layout layouts[4] = { [LAYOUT_4] = { 4, 1 }, [LAYOUT_8] = { 8, 2 }, [LAYOUT_12] = { 12, 3 },
+                                   [LAYOUT_24] = { 24, 6 } };
 
-static unsigned layout_kind(const GameState *g, FieldObject obj) { return field_object_sprite_layout(g, obj) & 3; }
-static Layout layout_of(const GameState *g, FieldObject obj) { return layouts[layout_kind(g, obj)]; }
+static Layout layout_of(const GameState *g, FieldObject obj) { return layouts[object_sprite_layout(g, obj)]; }
 
 /* ---- The table's storage: the only code that knows its form ------------------------------ */
 
@@ -66,7 +65,7 @@ static Layout layout_of(const GameState *g, FieldObject obj) { return layouts[la
 enum { OAM_ENTRY = 4, ENTRY_Y = 1, HIDDEN_Y = 0xE0 };
 enum { X_NINTH_BIT = 0x01, LARGE_BIT = 0x02, BITS_A_SPRITE = 2, SPRITES_A_HIGH_BYTE = 4 };
 
-enum { MIDDLE, BACK, FRONT, RANGES };   /* the ranges, as field_sprite_range_* index them */
+enum { RANGES = 3 };   /* by SpriteRange, as field_sprite_range_* index them */
 
 /* Each range's first entry and the entry after its last, and its first high
  * table byte, as offsets into the table: the front range entries 4-27, the
@@ -172,7 +171,7 @@ enum { RECORD_BYTES = 8, RECORD_X = 0, RECORD_Y = 1, RECORD_X_OFFSET = 2, RECORD
 
 static SpriteRecord sprite_record(const GameState *g, FieldObject obj, unsigned n)
 {
-    return (SpriteRecord){ (uint16_t)(field_object_sprite_records(g, obj) + n * RECORD_BYTES) };
+    return (SpriteRecord){ (uint16_t)(object_sprite_records(g, obj) + n * RECORD_BYTES) };
 }
 
 static uint8_t record_byte(const GameState *g, SpriteRecord r, unsigned field)
@@ -222,24 +221,6 @@ static uint8_t frame_y_offset(const GameState *g, SpriteRecord r)
 }
 static uint16_t frame_look(const GameState *g, SpriteRecord r) { return frame_word(g, r, RECORD_TILE); }
 
-/* The object's sprites' high table bits, a byte for four sprites: the first
- * word holds the first eight's, then the next eight's, then the last eight's. */
-static uint16_t high_word(const GameState *g, FieldObject obj, unsigned w)
-{
-    return w == 0 ? field_object_sprite_high(g, obj) : w == 1 ? field_object_sprite_high_more(g, obj)
-                                                             : field_object_sprite_high_last(g, obj);
-}
-
-static uint8_t high_byte(const GameState *g, FieldObject obj, unsigned n)
-{
-    return (uint8_t)(high_word(g, obj, n / 8) >> (8 * ((n / SPRITES_A_HIGH_BYTE) & 1)));
-}
-
-/* The first four sprites' high bits, the first word's low byte. */
-static void set_first_high_byte(GameState *g, FieldObject obj, uint8_t bits)
-{
-    set_field_object_sprite_high(g, obj, (uint16_t)((field_object_sprite_high(g, obj) & 0xFF00) | bits));
-}
 
 /* The object's sprites as a list, from its records and its high bits. */
 static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)
@@ -247,7 +228,7 @@ static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)
     Layout layout = layout_of(g, obj);
     for (unsigned n = 0; n < layout.sprites; n++) {
         SpriteRecord r = sprite_record(g, obj, n);
-        uint8_t pair = (uint8_t)(high_byte(g, obj, n) >> (BITS_A_SPRITE * (n % SPRITES_A_HIGH_BYTE)));
+        uint8_t pair = (uint8_t)(object_sprite_high_bits(g, obj, n) >> (BITS_A_SPRITE * (n % SPRITES_A_HIGH_BYTE)));
         uint16_t nine = (uint16_t)(record_x(g, r) | (pair & X_NINTH_BIT) << 8);
         out[n] = (Sprite){ screen_coordinate_of(nine), record_y(g, r), record_tile(g, r), record_attributes(g, r),
                            (pair & LARGE_BIT) != 0 };
@@ -257,14 +238,6 @@ static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)
 
 /* ---- Drawing an object --------------------------------------------------------------------- */
 
-enum { PRIORITY_RANGE = 0x0C, PRIORITY_BACK = 0x04 };   /* the object's layering, bits 2-3 */
-
-/* The range an object's sprites go in, by its layering. */
-static unsigned range_of(const GameState *g, FieldObject obj)
-{
-    uint8_t priority = field_object_priority_mode(g, obj) & PRIORITY_RANGE;
-    return priority == 0 ? MIDDLE : (priority & PRIORITY_BACK) ? BACK : FRONT;
-}
 
 // $C0:B309
 /* Draw the object's sprites into its range. */
@@ -272,7 +245,7 @@ static void draw_object(GameState *g, FieldObject obj)
 {
     Sprite sprites[MOST_SPRITES];
     unsigned count = object_sprites(g, obj, sprites);
-    write_sprites(g, range_of(g, obj), sprites, count);
+    write_sprites(g, object_sprite_range(g, obj), sprites, count);
 }
 
 /* ---- Placing the 4-sprite layout ------------------------------------------------------------ */
@@ -320,7 +293,7 @@ static void leave_place(GameState *g, FieldObject obj, uint8_t ninth_bits)
 {
     original_cell16(g, 0xC3, field_object_screen_x(g, obj));
     original_cell16(g, 0xC5, (uint16_t)(field_object_screen_y(g, obj) & SCREEN_NINE_BITS));
-    original_cell16(g, 0xD9, field_object_sprite_records(g, obj));
+    original_cell16(g, 0xD9, object_sprite_records(g, obj));
     original_cell8(g, 0xE5, (uint8_t)(ninth_bits >> BITS_A_SPRITE));
     original_cell8(g, 0xE6, (uint8_t)(ninth_bits & X_NINTH_BIT));
 }
@@ -355,7 +328,7 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
         set_record_x(g, r, (uint8_t)x);
         ninth_bits = (uint8_t)(ninth_bits << BITS_A_SPRITE | ((x >> 8) & X_NINTH_BIT));
     }
-    set_first_high_byte(g, obj, (uint8_t)(ninth_bits | ALL_LARGE));
+    object_set_first_sprites_high_bits(g, obj, (uint8_t)(ninth_bits | ALL_LARGE));
 
     ScreenHalf half = screen_half(at.y);
     for (unsigned n = 0; n < SPRITES_PLACED; n++) {
@@ -376,24 +349,6 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
 
 /* ---- What an object's records need ------------------------------------------------------- */
 
-/* The records' state, as field_object_sprite_state keeps it: whether they
- * have been built since the object came into view, and a count of the
- * frame's sprites the frame builder has changed since (the original keeps
- * the first as the byte's top bit). */
-typedef struct {
-    bool built;
-    uint8_t changed;
-} RecordsState;
-
-enum { RECORDS_BUILT_BIT = 0x80 };
-
-static RecordsState records_state(const GameState *g, FieldObject obj)
-{
-    uint8_t stored = field_object_sprite_state(g, obj);
-    return (RecordsState){ (stored & RECORDS_BUILT_BIT) != 0, (uint8_t)(stored & ~RECORDS_BUILT_BIT) };
-}
-
-static void mark_records_built(GameState *g, FieldObject obj) { set_field_object_sprite_state(g, obj, RECORDS_BUILT_BIT); }
 
 typedef enum { RECORDS_NOTHING, RECORDS_PLACE, RECORDS_REBUILD } RecordsWork;
 
@@ -406,8 +361,8 @@ static uint8_t rebuild_after(unsigned layout) { return layout == LAYOUT_4 ? 1 : 
 
 static RecordsWork records_work(const GameState *g, FieldObject obj)
 {
-    RecordsState st = records_state(g, obj);
-    uint8_t at_least = rebuild_after(layout_kind(g, obj));
+    RecordsState st = object_records_state(g, obj);
+    uint8_t at_least = rebuild_after(object_sprite_layout(g, obj));
     if (!st.built && st.changed == 0)
         return RECORDS_NOTHING;
     if (st.built)
@@ -421,7 +376,7 @@ static RecordsWork records_work(const GameState *g, FieldObject obj)
 static bool records_work_is_own(const GameState *g, FieldObject obj)
 {
     RecordsWork work = records_work(g, obj);
-    switch (layout_kind(g, obj)) {
+    switch (object_sprite_layout(g, obj)) {
     case LAYOUT_4: return work != RECORDS_REBUILD;
     case LAYOUT_8:
     case LAYOUT_12: return work == RECORDS_NOTHING;
@@ -473,10 +428,10 @@ static bool records_step(Snes *s, FieldObject obj, unsigned layout, RecordsStep 
     }
     switch (step) {
     case PLACE:
-        s->cpu.x = field_link_byte(field_link_to(obj));
+        s->cpu.x = field_object_offset(obj);
         return call_out(s, records_calls[layout].place_site, records_calls[layout].place, RECORDS_DONT_CARE);
     case REBUILD:
-        s->cpu.x = field_link_byte(field_link_to(obj));
+        s->cpu.x = field_object_offset(obj);
         return call_out(s, records_calls[layout].rebuild_site, records_calls[layout].rebuild, RECORDS_DONT_CARE);
     default:
         return call_out(s, records_calls[layout].release_site, records_calls[layout].release, RECORDS_DONT_CARE);
@@ -494,14 +449,14 @@ typedef enum { RECORDS_STOPPED, RECORDS_NONE_TO_DRAW, RECORDS_READY } RecordsOut
 static RecordsOutcome bring_records_up_to_date(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
-    unsigned layout = layout_kind(g, obj);
+    SpriteLayout layout = object_sprite_layout(g, obj);
     RecordsWork work = records_work(g, obj);
     if (work == RECORDS_PLACE && !records_step(s, obj, layout, PLACE))
         return RECORDS_STOPPED;
     if (work == RECORDS_REBUILD) {
         if (!records_step(s, obj, layout, REBUILD) || !records_step(s, obj, layout, RELEASE))
             return RECORDS_STOPPED;
-        mark_records_built(g, obj);
+        object_mark_records_built(g, obj);
     }
     return work == RECORDS_NOTHING ? RECORDS_NONE_TO_DRAW : RECORDS_READY;
 }
@@ -511,7 +466,7 @@ static RecordsOutcome bring_records_up_to_date(Snes *s, FieldObject obj)
 void field_update_object_sprites(Snes *s)
 {
     FieldObject obj = (FieldObject)field_current_object_slot(s);
-    if (layout_kind(state_of(s), obj) == LAYOUT_24) {
+    if (object_sprite_layout(state_of(s), obj) == LAYOUT_24) {
         s->cpu.x = field_current_object(state_of(s));
         m_stop_at(s, 0xC0C73A, DC_A | DC_V | DC_C);
         return;
@@ -723,7 +678,7 @@ enum { RECORDS_ROOM = 0x10000 - 0x4BC0, LARGEST_LAYOUT = MOST_SPRITES * RECORD_B
 
 static bool records_in_bank(const GameState *g, FieldObject obj)
 {
-    return (uint32_t)field_object_sprite_records(g, obj) + LARGEST_LAYOUT + RECORD_BYTES <= RECORDS_ROOM;
+    return (uint32_t)object_sprite_records(g, obj) + LARGEST_LAYOUT + RECORD_BYTES <= RECORDS_ROOM;
 }
 
 bool field_sprites_draw_in_table(Snes *s)

@@ -416,22 +416,15 @@ static void rows_entry_return(Snes *s)
     m_rts(s);
 }
 
-/* The current object, as the rows' entries read it: the low byte of its
- * word, a link. */
-static FieldObject current_as_link(const GameState *g)
-{
-    return field_linked_object(field_link_stored((uint8_t)field_current_object(g)));
-}
-
 void field_leave_object_row(Snes *s)
 {
-    object_leave_row(state_of(s), current_as_link(state_of(s)));
+    object_leave_row(state_of(s), object_current(state_of(s)));
     rows_entry_return(s);
 }
 
 void field_join_object_row(Snes *s)
 {
-    object_join_row(state_of(s), current_as_link(state_of(s)));
+    object_join_row(state_of(s), object_current(state_of(s)));
     rows_entry_return(s);
 }
 
@@ -455,7 +448,7 @@ bool field_object_rows_linked(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     uint8_t current = (uint8_t)field_current_object(g);
-    bool ok = field_names_object(current) && field_rows_are_exact(g, current_as_link(g));
+    bool ok = field_names_object(current) && field_rows_are_exact(g, object_current(g));
     vars_peek(false);
     return ok;
 }

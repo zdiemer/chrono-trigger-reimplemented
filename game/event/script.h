@@ -55,14 +55,9 @@ static inline uint16_t script_word(const GameState *g, uint16_t at)
     return (uint16_t)(event_script_byte(g, at) | event_script_byte(g, (unsigned)at + 1) << 8);
 }
 
-/* ---- Objects -------------------------------------------------------------------------- */
-
-/* Scripts name an object by its slot doubled (its offset in the field's
- * object tables); `slot_of` turns that into the object. */
-static inline FieldObject slot_of(uint16_t doubled) { return (FieldObject)(doubled >> 1); }
-
-/* The object whose script is running. */
-static inline FieldObject running_object(const GameState *g) { return slot_of(field_current_object(g)); }
+/* Scripts name an object by its offset in the field's object tables, which
+ * is how a link stores it (field/object.h); the object whose script is
+ * running is the field's current object. */
 
 /* ---- What happens next ------------------------------------------------------------- */
 
@@ -135,10 +130,10 @@ typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
     /* objects */                                                                                \
     X(FieldObject, object) X(FieldObject, target) X(bool, there) X(uint8_t, level)              \
     X(uint8_t, function) X(bool, takes) X(Facing, facing) X(EventVariable, column)              \
-    X(EventVariable, row) X(uint8_t, speed) X(ObjectSolidity, solidity)                         \
+    X(EventVariable, row) X(uint8_t, speed) X(bool, solid)                                       \
     X(ObjectBlocking, blocked_by) X(ObjectArrival, arrival) X(uint8_t, move_length)             \
     X(uint8_t, tile_x) X(uint8_t, tile_y) X(bool, centred) X(uint16_t, x) X(uint16_t, y)        \
-    X(ObjectLayering, layering) X(ObjectSprite, sprite)                                          \
+    X(uint8_t, layering) X(ObjectSprite, sprite)                                                 \
     /* moves */                                                                                  \
     X(MoveStyle, style) X(bool, counted) X(WalkEnd, until) X(uint8_t, steps)                    \
     X(Direction, direction) X(uint8_t, height) X(uint8_t, velocity_x) X(uint8_t, velocity_y)    \
@@ -247,6 +242,7 @@ typedef enum {
     ARG_STORY_PROGRESS,  /* the story's progress counter */
     ARG_BIT,             /* the operand is a bit number: the byte with that bit set */
     ARG_ALL_BUT_BIT,     /* the operand is a bit number: the byte with every other bit set */
+    ARG_FLAG,            /* the operand is 0 or 1: false or true */
 } EventArgKind;
 
 typedef struct {
@@ -274,6 +270,7 @@ typedef struct {
 #define STORY_PROGRESS { ARG_STORY_PROGRESS, 0, 0, 0 }
 #define BIT(n) { ARG_BIT, (n), 0, 0 }
 #define ALL_BUT_BIT(n) { ARG_ALL_BUT_BIT, (n), 0, 0 }
+#define FLAG(n) { ARG_FLAG, (n), 0, 0 }
 
 /* The widths, as a row gives them. */
 #define BYTES CONSTANT(AS_BYTE)
@@ -325,8 +322,8 @@ EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *r
 /* Run the command at `at` by its row: decode, operate, and where next. */
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at);
 
-/* An object offset (a slot doubled) that names an object the port's
- * accessors reach as the original's code does: even, and in the tables. */
-bool event_names_object(uint16_t doubled);
+/* Where the script goes on after a command at `at` whose operation said
+ * `flow`. */
+EventStep event_follow(GameState *g, const EventOpcode *row, uint16_t at, EventFlow flow);
 
 #endif

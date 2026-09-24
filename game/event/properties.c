@@ -18,13 +18,13 @@ static EventFlow set_speed(GameState *g, FieldObject self, uint8_t speed)
 EVENT_OPERATION(set_speed, self, speed)
 
 // $C0:4867
-/* Whether other objects bump into this one (SOLID) or pass through it. */
-static EventFlow set_solidity(GameState *g, FieldObject self, ObjectSolidity solidity)
+/* Whether other objects bump into this one or pass through it. */
+static EventFlow set_solidity(GameState *g, FieldObject self, bool solid)
 {
-    object_set_solidity(g, self, solidity);
+    object_set_solidity(g, self, solid);
     return next_command();
 }
-EVENT_OPERATION(set_solidity, self, solidity)
+EVENT_OPERATION(set_solidity, self, solid)
 
 // $C0:6295
 /* What stops the object's moves: the map's blocked tiles, other objects,
@@ -104,17 +104,27 @@ EVENT_OPERATION(place, self, x, y)
 
 // $C0:4C74
 /* Layer the object's sprite against the map: following the map where it
- * stands, or with the priorities the layering gives. */
-static EventFlow set_layering(GameState *g, FieldObject self, ObjectLayering layering)
+ * stands, or with the priorities the layering gives. The script gives the
+ * layering as the byte the object keeps it in (field/object.h). */
+static EventFlow set_layering(GameState *g, FieldObject self, uint8_t layering)
 {
-    object_set_layering(g, self, layering);
-    if (layering & LAYERING_FOLLOWS_THE_MAP)
+    ObjectLayering l = layering_of_byte(layering);
+    object_set_layering(g, self, l);
+    if (l.follows_the_map)
         ORIGINAL_EFFECT(keep_upper_priority(g, object_tile(g, self)));
     else
         ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, layering));
     return next_command();
 }
 EVENT_OPERATION(set_layering, self, layering)
+
+/* The guard's part: the byte is a layering (field/object.h). */
+static bool a_layering(const GameState *g, uint8_t layering)
+{
+    (void)g;
+    return layering_byte_is_one(layering);
+}
+EVENT_CHECK(a_layering, layering)
 
 // $C0:4CD9
 /* Show an object's sprite, hide it, or take it away. Ends the turn. */
@@ -141,7 +151,7 @@ EVENT_OPERATION(note_tile, object, column, row)
 EVENT_OPCODES(event_properties_opcodes,
     { 0x89, OPERATION(set_speed), .speed = OPERAND(1), .length = 2 },
     { 0x8A, OPERATION(set_speed), .speed = VARIABLE_BYTE(1), .length = 2 },
-    { 0x84, OPERATION(set_solidity), .solidity = OPERAND(1), .length = 2 },
+    { 0x84, OPERATION(set_solidity), .solid = FLAG(1), .length = 2 },
     { 0x0D, OPERATION(set_blocked_by), .blocked_by = OPERAND(1), .length = 2 },
     { 0x0E, OPERATION(set_arrival), .arrival = OPERAND(1), .length = 2 },
     { 0x87, OPERATION(set_move_length), .move_length = OPERAND(1), .length = 2 },
@@ -149,7 +159,7 @@ EVENT_OPCODES(event_properties_opcodes,
       .length = 3 },
     { 0x8C, OPERATION(stand_on_tile), .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2), .length = 3 },
     { 0x8D, OPERATION(place), .x = OPERAND_WORD(1), .y = OPERAND_WORD(3), .length = 5 },
-    { 0x8E, OPERATION(set_layering), .layering = OPERAND(1), .length = 2 },
+    { 0x8E, OPERATION(set_layering), .layering = OPERAND(1), .length = 2, CHECK(a_layering) },
     { 0x90, OPERATION(set_sprite), .object = SELF, .sprite = CONSTANT(SPRITE_SHOWN), .length = 1 },
     { 0x91, OPERATION(set_sprite), .object = SELF, .sprite = CONSTANT(SPRITE_HIDDEN), .length = 1 },
     { 0x7E, OPERATION(set_sprite), .object = SELF, .sprite = CONSTANT(SPRITE_NONE), .length = 1 },

@@ -40,9 +40,9 @@ bool event_command_accepts(Snes *s, uint8_t opcode);
  * if it returned (false: it stopped, and the original has the machine). */
 bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bridge);
 
-/* The scaffolding record for a command at `at`, starting from the registers
- * the machine has, and the Y and V the command leaves from the record. */
-EventLeaves event_leaves_of(const Snes *s, uint16_t at);
+/* The scaffolding record for a command, starting from the registers the
+ * machine has, and the Y and V the command leaves from the record. */
+EventLeaves event_leaves_of(const Snes *s);
 void event_hand_back(Snes *s, const EventLeaves *left);
 
 /* For the bridges: the command's offset (Y at entry); the command there,

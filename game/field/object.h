@@ -64,6 +64,30 @@ static inline bool field_same_link(FieldLink a, FieldLink b) { return a.stored =
 static inline FieldLink field_link_stored(uint8_t byte) { return (FieldLink){ byte }; }
 static inline uint8_t field_link_byte(FieldLink link) { return link.stored; }
 
+/* Whether an offset as the original's tables are indexed -- a stored link, a
+ * script's operand naming an object, the current object -- names an object
+ * the tables hold: even, and inside them. Past them the original's index
+ * reads the tables' neighbours, which only the original runs (the guards
+ * check this, and the scripts' operands). */
+static inline bool field_names_object(uint16_t offset) { return !(offset & 1) && offset < 2 * FIELD_OBJECTS; }
+static inline bool field_link_names_object(FieldLink link)
+{
+    return field_link_is_object(link) && field_names_object(link.stored);
+}
+
+/* The object as the original's index registers hold it (its link's byte), for
+ * scaffolding that keeps it in a scratch cell and for the machine side. */
+static inline uint8_t field_object_offset(FieldObject obj) { return field_link_to(obj).stored; }
+
+/* ---- The current object (field/object.c) ---------------------------------------------- *
+ *
+ * The object whose turn it is: the event engine runs its script, and the
+ * object update, the sprite table and the original's routines work on it.
+ * The original keeps it as a word whose low byte is the object's link. */
+FieldObject object_current(const GameState *g);
+bool object_current_is_one(const GameState *g);
+void object_make_current(GameState *g, FieldObject obj);
+
 /* ---- Role (field/object.c) ------------------------------------------------------------ */
 
 /* What the object is to the field, which decides how the object update treats
@@ -115,6 +139,38 @@ bool object_can_be_seen(const GameState *g, FieldObject obj);
 /* The object leaves the map: disabled, its sprite hidden. */
 void object_take_off_the_map(GameState *g, FieldObject obj);
 
+/* How its sprite is drawn (field/sprites.c): with how many sprites, from
+ * which of the records the frame builder writes, and in which part of the
+ * sprite table -- in front of the others, behind them, or in the middle,
+ * which its layering says (below). */
+typedef enum { LAYOUT_4, LAYOUT_8, LAYOUT_12, LAYOUT_24 } SpriteLayout;
+typedef enum { RANGE_MIDDLE, RANGE_BACK, RANGE_FRONT } SpriteRange;
+SpriteLayout object_sprite_layout(const GameState *g, FieldObject obj);
+SpriteRange object_sprite_range(const GameState *g, FieldObject obj);
+uint16_t object_sprite_records(const GameState *g, FieldObject obj);
+
+/* Its sprites' high table bits (a sprite's X's ninth bit, and large): a
+ * byte for each four sprites, from sprite n on; the sprite table's placing
+ * sets the first four's. */
+uint8_t object_sprite_high_bits(const GameState *g, FieldObject obj, unsigned n);
+void object_set_first_sprites_high_bits(GameState *g, FieldObject obj, uint8_t bits);
+
+/* Its sprite records' state: whether they have been built since the object
+ * came into view, and how many of the frame's sprites the frame builder has
+ * changed since. An object coming into view has none to build from yet. */
+typedef struct {
+    bool built;
+    uint8_t changed;
+} RecordsState;
+RecordsState object_records_state(const GameState *g, FieldObject obj);
+void object_mark_records_built(GameState *g, FieldObject obj);
+void object_records_to_build(GameState *g, FieldObject obj);
+
+/* Where a battle on the map puts the object is the battle's to choose: what
+ * coming into view and a script's layering leave (the byte the field hands
+ * the battle with the party's placement, re/ram.toml). */
+void object_let_the_battle_place(GameState *g, FieldObject obj);
+
 /* Before a map's objects first run their scripts: none solid, none falling. */
 void object_start_on_the_map(GameState *g, FieldObject obj);
 
@@ -135,6 +191,13 @@ void object_set_in_view(GameState *g, FieldObject obj, bool in_view);
 typedef struct {
     uint8_t x, y;
 } MapTile;
+
+/* Whether two tiles touch, sides or corners (or are the same). */
+static inline bool tiles_next_to(MapTile a, MapTile b)
+{
+    uint8_t across = (uint8_t)(a.x - b.x + 1), down = (uint8_t)(a.y - b.y + 1);
+    return across <= 2 && down <= 2;
+}
 
 /* Whether a tile is well on screen, clear of its edges by two tiles, where a
  * scene can play without the camera moving. */
@@ -159,6 +222,9 @@ void object_put_on_tile(GameState *g, FieldObject obj, MapTile tile, bool centre
 typedef enum { FACING_UP, FACING_DOWN, FACING_LEFT, FACING_RIGHT } Facing;
 
 Facing object_facing(const GameState *g, FieldObject obj);
+/* Whether what the object keeps as its facing is one of the four (the
+ * guards': the game sets no other). */
+bool object_facing_is_one(const GameState *g, FieldObject obj);
 /* It faces a way as it moves (its walk shows the facing). */
 void object_set_facing(GameState *g, FieldObject obj, Facing facing);
 /* It turns on the spot: the new facing shows from the next frame. */
@@ -167,11 +233,20 @@ void object_turn(GameState *g, FieldObject obj, Facing facing);
 /* How the object's sprite is layered against the map's layers: a priority, 0
  * (behind everything) to 3 (in front of everything), for its upper half and
  * its lower half; or following the map, where each tile says (field/layers.h,
- * TILE_RAISES_SPRITES). A script gives it as a byte: bit 7 follows the map,
- * bits 4-5 the upper half's priority and bits 0-1 the lower's, and bits 2-3
- * the sprite table's range it draws in (field/sprites.c). */
-typedef uint8_t ObjectLayering;
-enum { LAYERING_FOLLOWS_THE_MAP = 0x80 };
+ * TILE_RAISES_SPRITES); and the part of the sprite table it draws in. */
+typedef struct {
+    bool follows_the_map;
+    uint8_t upper, lower;   /* the halves' priorities, where it doesn't follow the map */
+    uint8_t range;          /* 0 the middle, 1 or 3 behind the other sprites, 2 in front */
+} ObjectLayering;
+
+/* A script gives the layering as the byte the object keeps it in: bit 7
+ * follows the map, bits 4-5 the upper half's priority, bits 2-3 the range
+ * and bits 0-1 the lower half's priority. Bit 6 is no part of it: a byte
+ * with it set is left to the original (the guards'), and none the game
+ * gives has it. */
+ObjectLayering layering_of_byte(uint8_t byte);
+bool layering_byte_is_one(uint8_t byte);
 
 /* A script layers the object: it follows the map where it stands, or takes
  * the byte's priorities; its place in a battle is the battle's to choose, and
@@ -268,9 +343,10 @@ typedef uint8_t ObjectBlocking;
 enum { BLOCKED_BY_THE_MAP = 0x01, BLOCKED_BY_OBJECTS = 0x02 };
 void object_set_blocked_by(GameState *g, FieldObject obj, ObjectBlocking blocking);
 
-typedef uint8_t ObjectSolidity;
-enum { SOLID = 0x01 };
-void object_set_solidity(GameState *g, FieldObject obj, ObjectSolidity solidity);
+/* Whether it stands in other objects' way: a solid object blocks their
+ * moves. */
+void object_set_solidity(GameState *g, FieldObject obj, bool solid);
+bool object_solid(const GameState *g, FieldObject obj);
 
 /* What the object does on arriving where a script walked it: line itself up
  * with the tile's middle, or with the object it walked up to. */
@@ -399,7 +475,12 @@ FieldLink object_next_in_row(const GameState *g, FieldObject obj);
 FieldLink row_first_object(const GameState *g, unsigned row);
 
 /* The party's members as the field keeps them: a link to each place's
- * object, or none for an empty place. */
+ * object, or none for an empty place, which a member leaving the map
+ * leaves. */
 FieldLink party_member_link(const GameState *g, unsigned place);
+void party_place_left_empty(GameState *g, unsigned place);
+
+/* The object a dialog's window is placed by, which is waiting on it. */
+void dialog_set_speaker(GameState *g, FieldObject speaker);
 
 #endif

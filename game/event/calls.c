@@ -33,23 +33,20 @@ static bool refusing_calls(const GameState *g, FieldObject object)
 /* ---- Levels and places ------------------------------------------------------------------ */
 
 /* The places, a level at a time and an object's a word in each: the place of
- * an object at a level is entry level * 64 + object of event_saved_positions.
- * The original reaches them by a 16-bit byte offset, which wraps: a search
- * that runs past the last level comes round to the first. */
-enum { OBJECTS_PER_LEVEL = 64, PLACES = 0x8000, BYTES_PER_LEVEL = OBJECTS_PER_LEVEL * 2, LEVELS_ROUND = PLACES / OBJECTS_PER_LEVEL };
+ * an object at a level is entry level * 64 + object of event_saved_positions,
+ * which holds the eight levels. */
+enum { OBJECTS_PER_LEVEL = 64, BYTES_PER_LEVEL = OBJECTS_PER_LEVEL * 2 };
 
 typedef uint16_t Place;   /* an entry of event_saved_positions */
 
 /* What the original leaves as it finds a place: the multiplier holding the
- * level's offset (it multiplies in hardware), the offset in a scratch cell,
- * and the V of the addition. */
+ * level's offset (it multiplies in hardware), and the offset in a scratch
+ * cell. */
 static void leave_place_found(GameState *g, FieldObject object, uint8_t level)
 {
-    uint16_t row = (uint16_t)(level * BYTES_PER_LEVEL), column = (uint16_t)(object * 2);
     hw_set_multiplicand(g, level);
     hw_multiply_by(g, BYTES_PER_LEVEL);
-    keep_word(g, KEPT_FIFTH, (uint16_t)(row + column));
-    leave_overflow_of_adding16(row, column);
+    keep_word(g, KEPT_FIFTH, (uint16_t)(level * BYTES_PER_LEVEL + field_object_offset(object)));
 }
 
 static Place place_of(FieldObject object, uint8_t level) { return (Place)(level * OBJECTS_PER_LEVEL + object); }
@@ -60,31 +57,23 @@ static Place place_found(GameState *g, FieldObject object, uint8_t level)
     return place_of(object, level);
 }
 
-/* The place the next level down keeps. */
-static Place place_below(Place p) { return (Place)((p + OBJECTS_PER_LEVEL) % PLACES); }
-
 static uint16_t place(const GameState *g, Place p) { return event_saved_positions(g, p); }
 static void set_place(GameState *g, Place p, uint16_t at) { set_event_saved_positions(g, p, at); }
 
 /* The most urgent unfinished thing below an object's level: counting down
- * the levels from the one below, the first place with something to resume,
- * and the level it is at. The search comes round past the last level to the
- * first; it finds nothing if it comes round to where it started. */
+ * the levels from the one below to the lowest, the first with something to
+ * resume. */
 typedef struct {
     bool found;
-    Place place;
     uint8_t level;
 } Resumption;
 
 static Resumption resumption_below(const GameState *g, FieldObject object, uint8_t level)
 {
-    Place p = place_of(object, level);
-    for (unsigned k = 1; k < LEVELS_ROUND; k++) {
-        p = place_below(p);
-        if (place(g, p) != 0)
-            return (Resumption){ true, p, (uint8_t)(level + k) };
-    }
-    return (Resumption){ false, 0, 0 };
+    for (uint8_t below = (uint8_t)(level + 1); below <= LOWEST_LEVEL; below++)
+        if (place(g, place_of(object, below)) != 0)
+            return (Resumption){ true, below };
+    return (Resumption){ false, 0 };
 }
 
 /* Where one of an object's functions starts: the table at the head of the
@@ -93,7 +82,6 @@ static uint16_t function_start(GameState *g, FieldObject object, uint8_t functio
 {
     uint16_t table = (uint16_t)(object * FUNCTIONS * 2), entry = (uint16_t)(function * 2);
     ORIGINAL_EFFECT(keep_word(g, KEPT_SIXTH, table));
-    ORIGINAL_EFFECT(leave_overflow_of_adding16(entry, table));
     return script_word(g, (uint16_t)(table + entry));
 }
 
@@ -106,10 +94,7 @@ typedef enum { TAKES_CALLS, REFUSES_CALLS, PASSED_OVER } Answer;
  * level, the call and the level it asks for. */
 static uint8_t call_byte(uint8_t level, uint8_t function) { return (uint8_t)(level << 4 | function); }
 
-static void keep_target(GameState *g, FieldObject target)
-{
-    keep_word(g, KEPT_SECOND, field_link_byte(field_link_to(target)));
-}
+static void keep_target(GameState *g, FieldObject target) { keep_word(g, KEPT_SECOND, field_object_offset(target)); }
 
 static void keep_levels(GameState *g, uint8_t current, uint8_t level, uint8_t function)
 {
@@ -118,21 +103,31 @@ static void keep_levels(GameState *g, uint8_t current, uint8_t level, uint8_t fu
     keep_byte(g, KEPT_FOURTH, level);
 }
 
-static Answer answer(GameState *g, FieldObject target)
+static Answer answer_of(const GameState *g, FieldObject target)
 {
-    ORIGINAL_EFFECT(keep_target(g, target));
     if (refusing_calls(g, target))
         return REFUSES_CALLS;
     return object_unreachable(g, target) ? PASSED_OVER : TAKES_CALLS;
 }
 
+static Answer answer(GameState *g, FieldObject target)
+{
+    ORIGINAL_EFFECT(keep_target(g, target));
+    return answer_of(g, target);
+}
+
 /* How urgent a call at `level` is against what the target is doing: below 0
  * more, 0 as, above 0 less. */
-static int urgency(GameState *g, FieldObject target, uint8_t level, uint8_t function)
+static int urgency_of(const GameState *g, FieldObject target, uint8_t level)
 {
     uint8_t current = event_object_call_state_level(g, target);
-    ORIGINAL_EFFECT(keep_levels(g, current, level, function));
     return level < current ? -1 : level > current;
+}
+
+static int urgency(GameState *g, FieldObject target, uint8_t level, uint8_t function)
+{
+    ORIGINAL_EFFECT(keep_levels(g, event_object_call_state_level(g, target), level, function));
+    return urgency_of(g, target, level);
 }
 
 /* The target drops what it is doing for the function. */
@@ -179,10 +174,8 @@ typedef enum { NO_CALL, NOT_YET, TAKEN } Taking;
 
 static Taking take_the_call(GameState *g, FieldObject target, bool there, uint8_t level, uint8_t function)
 {
-    if (!there) {
-        ORIGINAL_EFFECT(leave_parse_at(3));
+    if (!there)
         return NO_CALL;
-    }
     switch (answer(g, target)) {
     case REFUSES_CALLS: return NOT_YET;
     case PASSED_OVER: return NO_CALL;
@@ -227,14 +220,6 @@ static EventFlow call_and_wait(GameState *g, FieldObject self, FieldObject targe
 }
 EVENT_OPERATION(call_and_wait, self, target, there, level, function)
 
-/* What the original's search leaves: the overflow of its last step, from the
- * place before the one it found to it. */
-static void leave_search_overflow(Place found)
-{
-    Place before = (Place)((found + PLACES - OBJECTS_PER_LEVEL) % PLACES);
-    leave_overflow_of_adding16((uint16_t)(before * 2), BYTES_PER_LEVEL);
-}
-
 // $C0:5F74
 /* A function ends: the object clears the place of the level it ran at and
  * resumes the most urgent unfinished thing below it. At the lowest level
@@ -249,9 +234,8 @@ static EventFlow return_from_function(GameState *g, FieldObject self)
     ORIGINAL_EFFECT(hw_multiply_by(g, BYTES_PER_LEVEL));   /* the original multiplies in hardware */
     set_place(g, place_of(self, level), 0);
     Resumption r = resumption_below(g, self, level);
-    ORIGINAL_EFFECT(leave_search_overflow(r.place));
     set_event_object_call_state_level(g, self, r.level);
-    return go_to(place(g, r.place));
+    return go_to(place(g, place_of(self, r.level)));
 }
 EVENT_OPERATION(return_from_function, self)
 
@@ -292,29 +276,59 @@ static EventFlow make_reachable(GameState *g, FieldObject object)
 }
 EVENT_OPERATION(make_reachable, object)
 
+/* For event/leaves.c, before a call runs: whether it reaches the target's
+ * places -- queued or interrupting where it just calls, interrupting where
+ * it waits to be taken, and not while its caller waits it out. */
+bool event_call_reaches_the_places(const GameState *g, CallKind kind, FieldObject self, FieldObject target, bool there,
+                                   uint8_t level)
+{
+    if ((kind == CALL_AND_WAIT && waiting(g, self)) || !there || answer_of(g, target) != TAKES_CALLS)
+        return false;
+    int order = urgency_of(g, target, level);
+    return kind == CALL_AND_GO ? order != 0 : order < 0;
+}
+
 /* The guard's part for a return: at the lowest level, or with something to
- * resume below it (the original never stops searching otherwise). */
+ * resume in the levels below it. Past them the original's search reads on
+ * past the places, round its 16-bit offset, which only the original runs. */
 static bool has_something_to_resume(const GameState *g, FieldObject self)
 {
     uint8_t level = event_object_call_state_level(g, self);
-    return level == LOWEST_LEVEL || resumption_below(g, self, level).found;
+    return level == LOWEST_LEVEL || (level < LOWEST_LEVEL && resumption_below(g, self, level).found);
 }
 EVENT_CHECK(has_something_to_resume, self)
+
+/* And for a call: the level it asks for and the target's are among the eight
+ * the places hold (a call byte's level can say up to 15). */
+static bool levels_in_the_places(const GameState *g, FieldObject target, bool there, uint8_t level)
+{
+    return level <= LOWEST_LEVEL && (!there || event_object_call_state_level(g, target) <= LOWEST_LEVEL);
+}
+EVENT_CHECK(levels_in_the_places, target, there, level)
+
+/* A wait on a party member goes on looking at the member's object, which an
+ * empty place doesn't have: the original reads the tables' neighbours
+ * there, and runs that itself. */
+static bool can_wait_on(const GameState *g, FieldObject self, FieldObject target, bool there, uint8_t level)
+{
+    return levels_in_the_places(g, target, there, level) && (there || !waiting(g, self));
+}
+EVENT_CHECK(can_wait_on, self, target, there, level)
 
 /* A call's target is an object, or a party member, who may not be there. */
 #define TO_AN_OBJECT .target = OBJECT(1), .there = CONSTANT(true)
 #define TO_A_MEMBER .target = MEMBER_OBJECT(1), .there = MEMBER_PRESENT(1)
 #define THE_CALL .level = OPERAND_BITS(2, 4, 0x0F), .function = OPERAND_BITS(2, 0, 0x0F)
+#define CHECKED CHECK(levels_in_the_places)
 
 EVENT_OPCODES(event_calls_opcodes,
-    { 0x02, OPERATION(call_function), TO_AN_OBJECT, THE_CALL, .length = 3 },
-    { 0x05, OPERATION(call_function), TO_A_MEMBER, THE_CALL, .length = 3, .member_may_be_absent = true },
-    { 0x03, OPERATION(call_when_taken), TO_AN_OBJECT, THE_CALL, .length = 3 },
-    { 0x06, OPERATION(call_when_taken), TO_A_MEMBER, THE_CALL, .length = 3, .member_may_be_absent = true },
-    { 0x04, OPERATION(call_and_wait), TO_AN_OBJECT, THE_CALL, .length = 3 },
-    /* the wait goes on with the member's place even when it is empty, so the
-     * marker there must name an object as the original indexes it */
-    { 0x07, OPERATION(call_and_wait), TO_A_MEMBER, THE_CALL, .length = 3 },
+    { 0x02, OPERATION(call_function), TO_AN_OBJECT, THE_CALL, CHECKED, .length = 3 },
+    { 0x05, OPERATION(call_function), TO_A_MEMBER, THE_CALL, CHECKED, .length = 3, .member_may_be_absent = true },
+    { 0x03, OPERATION(call_when_taken), TO_AN_OBJECT, THE_CALL, CHECKED, .length = 3 },
+    { 0x06, OPERATION(call_when_taken), TO_A_MEMBER, THE_CALL, CHECKED, .length = 3, .member_may_be_absent = true },
+    { 0x04, OPERATION(call_and_wait), TO_AN_OBJECT, THE_CALL, CHECK(can_wait_on), .length = 3 },
+    { 0x07, OPERATION(call_and_wait), TO_A_MEMBER, THE_CALL, CHECK(can_wait_on), .length = 3,
+      .member_may_be_absent = true },
     { 0x00, OPERATION(return_from_function), .length = 1, CHECK(has_something_to_resume) },
     { 0x08, OPERATION(take_calls), .takes = CONSTANT(false), .length = 1 },
     { 0x09, OPERATION(take_calls), .takes = CONSTANT(true), .length = 1 },

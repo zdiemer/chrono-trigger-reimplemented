@@ -42,11 +42,6 @@ static void leave_aim(GameState *g, Aim aim, Direction d)
     field_leave_direction(g, aim, d);
 }
 
-static void leave_aim_at_object(GameState *g, FieldObject target)
-{
-    set_field_target_object(g, field_link_byte(field_link_to(target)));
-}
-
 /* Turning aside, the original leaves the new direction in the field's
  * direction cell, which the step's start reads. */
 static void leave_turned_aside(GameState *g, Direction turned)
@@ -54,29 +49,10 @@ static void leave_turned_aside(GameState *g, Direction turned)
     set_field_direction(g, (uint16_t)((field_direction(g) & 0xFF00) | turned));
 }
 
-/* A move set off: the Y and the overflow the step's start leaves, or the
- * walking animation's overflow where it picked one. The original keeps the
- * command's offset across its calls, and reads it back itself; the check for
- * objects in the way keeps it too. */
-static void leave_set_off(GameState *g, FieldObject self, StepStart start, bool walk_animated)
-{
-    uint16_t at = event_leaves->at;
-    event_keep_offset(g, at);
-    leave_y(field_step_start_y(g, start, at));
-    leave_overflow(walk_animated ? field_walk_overflow(g, self) : field_step_start_overflow(g, self, start));
-}
-
-static void leave_in_the_way_check(GameState *g, FieldObject self)
-{
-    field_leave_in_the_way_check(g, self, event_leaves->at);
-}
-
-/* The walking animation's overflow, where it picked one. */
-static void leave_walk_animation(const GameState *g, FieldObject self, MovementAnimation walk)
-{
-    if (walk != MOVEMENT_KEPT_BY_SCRIPT)
-        leave_overflow(field_walk_overflow(g, self));
-}
+/* What the step's start and the walking animation leave (the Y and V of a
+ * move that set off, and the check for objects in the way) is said where
+ * they happen, through event/leaves.h: nothing after the move says which way
+ * its step started. */
 
 /* ---- Setting off, arriving --------------------------------------------------------------- */
 
@@ -101,8 +77,9 @@ static EventFlow set_off(GameState *g, FieldObject self, MoveStyle style, Direct
     }
     object_start_walk(g, self, steps);
     StepStart start = object_start_step(g, self, direction);
-    bool animated = style == WALKING && object_animate_movement(g, self) != MOVEMENT_KEPT_BY_SCRIPT;
-    ORIGINAL_EFFECT(leave_set_off(g, self, start, animated));
+    if (style == WALKING)
+        object_animate_movement(g, self);
+    ORIGINAL_EFFECT(leave_set_off(g, self, start, style == WALKING));
     return stay();
 }
 
@@ -126,8 +103,8 @@ static EventFlow arrive(GameState *g, FieldObject self, MoveStyle style)
 static EventFlow keep_lining_up(GameState *g, FieldObject self, MoveStyle style)
 {
     if (style == WALKING) {
-        MovementAnimation walk = object_animate_movement(g, self);
-        ORIGINAL_EFFECT(leave_walk_animation(g, self, walk));
+        object_animate_movement(g, self);
+        ORIGINAL_EFFECT(leave_walk_overflow(g, self));
     }
     return stay();
 }
@@ -185,23 +162,6 @@ EVENT_OPERATION(move_to_tile, self, tile_x, tile_y, style, counted, steps)
 
 /* ---- Toward an object --------------------------------------------------------------------- */
 
-static bool within_one(uint8_t a, uint8_t b) { return a == b || (uint8_t)(a + 1) == b || (uint8_t)(a - 1) == b; }
-
-static bool next_to(MapTile a, MapTile b) { return within_one(a.y, b.y) && within_one(a.x, b.x); }
-
-/* For the original's code and shadow mode: the screen test keeps the
- * screen's edges, in the objects' tiles, and leaves the overflow of its last
- * subtraction. */
-static void leave_screen_test(GameState *g, MapTile own)
-{
-    uint8_t left = (uint8_t)(field_screen_left(g) >> 1), top = (uint8_t)(field_screen_top(g) >> 1);
-    keep_byte(g, KEPT_SECOND, left);
-    keep_byte(g, KEPT_THIRD, top);
-    uint8_t across = (uint8_t)(own.x - left);
-    bool across_well_in = across >= 2 && across < 14;
-    leave_overflow(across_well_in ? field_subtract_overflows8(own.y, top) : field_subtract_overflows8(own.x, left));
-}
-
 // $C0:5215
 /* Walk or slide up to another object (or a party member), a move's worth of
  * steps at a time, turning aside from what's in the way, until next to it --
@@ -223,10 +183,10 @@ static EventFlow move_toward(GameState *g, FieldObject self, FieldObject target,
     if (!object_disabled(g, target)) {
         Aim aim = { object_tile(g, self), object_tile(g, target) };
         ORIGINAL_EFFECT(field_leave_aim(g, aim));
-        ORIGINAL_EFFECT(leave_aim_at_object(g, target));
-        if (!next_to(aim.from, aim.to)) {
+        ORIGINAL_EFFECT(field_leave_target_object(g, target));
+        if (!tiles_next_to(aim.from, aim.to)) {
             if (until == WELL_ON_SCREEN) {
-                ORIGINAL_EFFECT(leave_screen_test(g, aim.from));
+                ORIGINAL_EFFECT(keep_screen_edges(g));
                 if (tile_well_on_screen(g, aim.from))
                     return arrive(g, self, style);
             }
@@ -262,8 +222,9 @@ static EventFlow move_in_direction(GameState *g, FieldObject self, Direction dir
         object_set_facing(g, self, facing_of_direction(g, direction));
     object_mark_scripted_move(g, self);
     StepStart start = object_start_step(g, self, direction);
-    bool animated = style == WALKING && object_animate_movement(g, self) != MOVEMENT_KEPT_BY_SCRIPT;
-    ORIGINAL_EFFECT(leave_set_off(g, self, start, animated));
+    if (style == WALKING)
+        object_animate_movement(g, self);
+    ORIGINAL_EFFECT(leave_set_off(g, self, start, style == WALKING));
     return stay();
 }
 EVENT_OPERATION(move_in_direction, self, direction, steps, style)
@@ -296,9 +257,7 @@ static EventFlow launch(GameState *g, FieldObject self, uint8_t velocity_x, uint
     case LANDED: return next_command();
     default: break;
     }
-    ORIGINAL_EFFECT(keep_resume_point(g, 0));
     object_launch(g, self, velocity_x, velocity_y, acceleration, steps);
-    ORIGINAL_EFFECT(leave_y(field_current_object(g)));   /* the original's parse ends on the object */
     return stay();
 }
 EVENT_OPERATION(launch, self, velocity_x, velocity_y, acceleration, steps)
@@ -335,17 +294,13 @@ static uint8_t jump_steps(GameState *g, FieldObject self, Aim aim, uint8_t heigh
 }
 
 /* For the original's code and shadow mode: the jump keeps its height in
- * event_count's low byte across its calls; it multiplies the steps by the
- * height in hardware, which it leaves holding the product; heading the
- * object clears Y's high byte; and the rise leaves the overflow of lowering
- * the vertical velocity (field/scratch.h). */
-static void leave_jump(GameState *g, FieldObject self, uint8_t steps, uint8_t height)
+ * event_count's low byte across its calls, and multiplies the steps by the
+ * height in hardware, which it leaves holding the product. */
+static void leave_jump(GameState *g, uint8_t steps, uint8_t height)
 {
     set_event_count(g, (uint16_t)((event_count(g) & 0xFF00) | height));
     hw_set_multiplicand(g, steps);
     hw_multiply_by(g, height);
-    leave_y((uint16_t)(event_leaves->at & 0x00FF));
-    leave_overflow(field_jump_overflow(g, self, steps, height));
 }
 
 // $C0:4D06
@@ -358,29 +313,23 @@ static EventFlow jump_to_tile(GameState *g, FieldObject self, uint8_t tile_x, ui
     case LANDED: return next_command();
     default: break;
     }
-    ORIGINAL_EFFECT(keep_resume_point(g, 0));
     Aim aim = { object_tile(g, self), { tile_x, tile_y } };
     Direction d = direction_between(g, aim.from, aim.to);
     ORIGINAL_EFFECT(leave_aim(g, aim, d));
     object_head(g, self, d);
     uint8_t steps = jump_steps(g, self, aim, height);
     object_jump(g, self, steps, height);
-    ORIGINAL_EFFECT(leave_jump(g, self, steps, height));
+    ORIGINAL_EFFECT(leave_jump(g, steps, height));
     return stay();
 }
 EVENT_OPERATION(jump_to_tile, self, tile_x, tile_y, height)
 
 /* ---- Following ----------------------------------------------------------------------------- */
 
-/* The original keeps the command's offset in its last scratch cell across
- * its call to the walk. */
-static void keep_following(GameState *g) { keep_word(g, KEPT_SIXTH, event_leaves->at); }
-
 // $C0:3546
 /* Follow another object about for good: walk up to it every turn. */
 static EventFlow follow(GameState *g, FieldObject self, FieldObject target)
 {
-    ORIGINAL_EFFECT(keep_following(g));
     move_toward(g, self, target, WALKING, false, 0, NEXT_TO_IT);
     return stay();
 }
@@ -391,7 +340,6 @@ EVENT_OPERATION(follow, self, target)
  * on with the object's turn this frame when the walk would have (arrived). */
 static EventFlow follow_party_member(GameState *g, FieldObject self, FieldObject target)
 {
-    ORIGINAL_EFFECT(keep_following(g));
     EventFlow walk = move_toward(g, self, target, WALKING, false, 0, NEXT_TO_IT);
     return walk.kind == FLOW_NEXT ? run_again() : stay();
 }
@@ -424,7 +372,7 @@ void event_cmd_behave(Snes *s)
     s->cpu.p |= CPU_FLAG_X;   /* 8-bit index registers, which clears their high bytes */
     s->cpu.x &= 0x00FF;
     s->cpu.y &= 0x00FF;
-    FieldObject self = running_object(g);
+    FieldObject self = object_current(g);
     ObjectRole role = object_role(g, self);
     if (object_is_party_member(g, self)) {
         object_start_one_step(g, self);
@@ -441,24 +389,17 @@ void event_cmd_behave(Snes *s)
     event_return(s, (EventStep){ at, false });
 }
 
-/* The keep-facing moves turn aside from an object in the way by the check
- * that looks the way the object faces, which the original looks up in a
- * table of four facings (object_in_the_way). An object facing none of them
- * would read past the table; no object the game makes does, and the guard
- * turns those away. */
-static bool faces_its_way(const GameState *g, FieldObject self)
-{
-    return (uint8_t)(object_facing(g, self) << 1) < 8;
-}
-
 /* The moves that set off look for an object in the way, over the object
  * slots (object_search_fits). */
 static bool can_look_its_way(const GameState *g) { return object_search_fits(g); }
 EVENT_CHECK_TAKING_NOTHING(can_look_its_way)
 
+/* A sliding move looks the way the object faces, which the original looks
+ * up in a table of the four facings: an object facing none of them would
+ * read past it, which the guard leaves to the original. */
 static bool can_slide_its_way(const GameState *g, FieldObject self)
 {
-    return faces_its_way(g, self) && object_search_fits(g);
+    return object_facing_is_one(g, self) && object_search_fits(g);
 }
 EVENT_CHECK(can_slide_its_way, self)
 

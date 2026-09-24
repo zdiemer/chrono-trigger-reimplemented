@@ -20,9 +20,7 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { NO_BATTLE_PLACE = 0xFF };   /* field_object_battle_info */
 enum { DIALOG_ENDED_BY_LEAVING = 0x0D };   /* dialog_state */
-enum { RECORDS_TO_BUILD = 0 };   /* field_object_sprite_state: nothing built yet */
 
 /* The window objects come into view in: the screen's edges, in tiles doubled
  * as the positions are compared, widened a little. */
@@ -125,8 +123,8 @@ static void come_into_view(GameState *g, FieldObject obj)
     object_out_of_rows(g, obj);
     object_set_in_view(g, obj, true);
     object_restart_animation(g, obj);
-    set_field_object_sprite_state(g, obj, RECORDS_TO_BUILD);
-    set_field_object_battle_info(g, obj, NO_BATTLE_PLACE);
+    object_records_to_build(g, obj);
+    object_let_the_battle_place(g, obj);
 }
 
 /* Left view: a dialog waiting on the object ends, unless the dialog box has

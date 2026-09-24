@@ -127,7 +127,7 @@ void event_cmd_party_routine_7(Snes *s) { party_routines(s, 0xC03E67, 7, false);
 static bool members_are_objects(const GameState *g)
 {
     for (PartyPlace place = 0; place < PARTY_PLACES; place++)
-        if (place_taken(g, place) && !event_names_object(field_party_objects(g, place)))
+        if (place_taken(g, place) && !field_link_names_object(party_member_link(g, place)))
             return false;
     return true;
 }

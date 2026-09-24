@@ -67,13 +67,14 @@ static void keep_count(GameState *g, uint16_t length) { set_event_count(g, (uint
 
 /* For the original's code and shadow mode: the block move leaves Y where the
  * destination ended, and turning the source's end back into a script offset
- * leaves V. */
+ * leaves V. Both follow from the block. */
 enum { SCRIPT_ADDRESS = 0x2001 };   /* where the script starts in its bank */
 
-static void leave_copy_ends(uint16_t from_end, uint16_t to_end)
+static void leave_copy_ends(EventLeaves *left, DataBlock b)
 {
-    leave_y(to_end);
-    leave_overflow_of_subtracting16((uint16_t)(from_end + SCRIPT_ADDRESS), SCRIPT_ADDRESS);
+    uint16_t from_end = (uint16_t)(b.from + b.length);
+    left->y = (uint16_t)(b.to + b.length);
+    left->overflow = field_subtract_overflows16((uint16_t)(from_end + SCRIPT_ADDRESS), SCRIPT_ADDRESS);
 }
 
 // $C0:6846
@@ -90,7 +91,6 @@ static EventStep copy_data(GameState *g, uint16_t destination, uint8_t bank, uin
         wram_write8(g, b.bank | to, script_byte(g, from));
         from++, to++;
     }
-    ORIGINAL_EFFECT(leave_copy_ends(from, to));
     return (EventStep){ from, true };
 }
 
@@ -101,10 +101,10 @@ void event_cmd_copy_data(Snes *s)
 {
     m_push8(s, s->cpu.db);
     uint16_t at = event_command_offset(s);
-    EventLeaves left = event_leaves_of(s, at);
-    ORIGINAL_EFFECT(leave_into(&left));
+    EventLeaves left = event_leaves_of(s);
     EventCommand c = event_command_of(s, 0x4E);
     EventStep st = copy_data(state_of(s), c.destination, c.bank, c.size, at);
+    ORIGINAL_EFFECT(leave_copy_ends(&left, data_block(c.destination, c.bank, c.size, at)));
     s->cpu.db = m_pull8(s);
     ORIGINAL_EFFECT(event_hand_back(s, &left));
     event_return(s, st);

@@ -67,13 +67,62 @@ rest waits, is [PLAN.md](PLAN.md).
     `tools/dontcare_check.py` reads a call-out's site and routine only from the
     file that makes the call, so sharing the table needs the check to follow a
     table in a header;
-  - the two prediction guards (`field_view_changes`, `every_draw_is_own`),
-    accepted while shadow mode pairs a bridge's calls in order; restructure
-    them if that pairing changes;
   - the staging buffers the field's transfers read are addresses in bank
     `$7E` (`display.c`'s edge runs, the VRAM queue), which a transfer service
     that takes a named buffer would replace (the video service item under
-    "Platform").
+    "Platform");
+  - computing through the work RAM port and raw addresses: `layers.c` reads
+    the map data as a stream through the port, `sprites.c` its records by
+    address, `graphics.c` its buffer, `display.c` its staging buffers. Each
+    needs the data's entries in the RAM map first (a stream's layout is the
+    map data's format, MATCHING.md), which is its own pass;
+  - the platform's parts of the field: the write-order arrays, the DMA
+    values, the `0x34` window setting and the line effects' values as types
+    rather than table words, which wait on the video service ("Platform");
+  - a screen or camera module: the screen's tile and fine position is worked
+    out in three of the field's files (`scroll.c`, `object_view.c`,
+    `line_effects.c`), and event's "well on screen" is a fourth reader; one
+    module that owns where the camera is would give them one vocabulary, and
+    is a design of its own;
+  - naming and organisation the reviews asked for, none of which changes
+    behaviour: `scroll.c` is the automatic scroll (`auto_scroll.c`),
+    `display.c` and `nmi.c` split by what the vblank sends rather than by
+    where the original's code sat, a dialog-window type for the band the line
+    effects build, and `field.h`'s header saying what the file is;
+  - wrappers that grew logic: `line_effects.c`'s `leaves_after_send` works out
+    which of three paths the send took to rebuild its registers; a
+    derivation per path, beside the others (`field/leaves.c`), would keep
+    the wrapper thin;
+  - `window_shape.c`'s `shape_leaves` records the last sloped edge while it
+    draws; its width and height follow from the last edge the shape leaves,
+    and only its error needs the record;
+  - event's entries named by meaning: `face_0`..`face_3` are `face_up` and
+    the rest, `loop_animation_0`/`_1` the idle and walking loops,
+    `party_routine_*` what the menus' routines do, `*_1e` what
+    `field_setting_1e` is once that is known;
+  - `$B0`'s bridge (`event_cmd_behave`): thick, its roles used as indices
+    into tables of ROM addresses (review-port item 42), the machine's
+    registers edited directly, and its comment's "wandering townsperson",
+    which it isn't (only party members reach the state routines); it becomes
+    an operation when those routines are ports;
+  - `move_to_tile`'s branches follow the original's order more than the
+    game's, and its sliding tail repeats `arrive`'s;
+  - the tint's colour kept as the hardware's bytes (`screen.c`);
+  - the bit masks read from the ROM's table by a bit number (`event_data.h`),
+    which a guard of `n < 8` would let the port compute;
+  - types: a `Comparison` for the conditions' operator byte, the calls'
+    urgency as an enum, and the flags still carried as bytes;
+  - `sound.c`'s four bridges repeat one shape (keep the offset, leave the
+    parse, call the driver), which one helper would say once;
+  - `calls.c`'s `place_found` is a lookup with a scaffolding side effect,
+    which the derivations could take over.
+- **Shadow mode pairs a bridge's calls in order** (a tooling gap, not a port
+  fix). A bridge that may or may not call the original's code has to predict,
+  in its guard, whether it will, because shadow mode pairs the port's call-outs
+  with the original's in order: the field's `field_view_changes`,
+  `every_draw_is_own` and `records_work_is_own` are those predictions
+  (review-port item 29, guards that duplicate the logic). Pairing call-outs by
+  site and routine rather than by order would let the guards go.
 - **Coverage that field's rewrite thinned.** Inlining the object update's
   steps into their callers' time left more of their calls interrupted, and
   shadow mode compares none of those: `field_update_object_sprites` went from 78
@@ -87,15 +136,17 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What only the original's memory has, past the object tables.** The
   stray accesses are explicit and marked now (RECOMP.md, "Phase 3a: event onto
   the field's objects"), and a build without the original's memory has to
-  decide each: the
-  sprite table's high part running on past its end (`sprites.c`, by address
-  through `game/wram.h`), the fifth sprite's Y above the screen, the openings'
-  clear of the first object's falling flag, and the row removal's in-view
+  decide each: the sprite table's high part running on past its end
+  (`sprites.c`, by address through `game/wram.h`), the fifth sprite's Y above
+  the screen, the openings' word clear spilling into the next slot (the first
+  object's falling flag, past the last), and the row removal's in-view
   write. One is the game's: a command that names a party member without
-  checking (`$07`, `$22`, `$95`, `$B6`) takes an empty place's marker as
-  object 64, and the scripts do that (52,898 of `$95`'s calls over the
-  library, a scene following a party of two), reading the tables' neighbours
-  through the objects' accessors. The bounds check below would stop there.
+  checking (`$22`, `$24`, `$95`, `$99`, `$9F`, `$A9`, `$B6`, `$8F`, and `$07`
+  while it waits) takes an empty place's marker as an object past the
+  tables, and the scripts do that (a scene following a party of two). The
+  guards leave those calls to the original now; a build without it needs to
+  decide what the game should do there (most likely nothing: the member
+  isn't on the map).
 - **Generated accessors don't check their index.** `vars_ram.c` computes
   `base + index * stride` with no bound, so slot 64 of a 64-slot table silently
   writes the next table. Field's row code did exactly that (`object_update.c`,
