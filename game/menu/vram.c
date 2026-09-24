@@ -120,13 +120,13 @@ bool menu_built_upload_is_apart(Snes *s)
  * writers know only the end offset), which no screen does. */
 enum { OBJECT_RECORD_BYTES = MENU_OBJECT_UPLOAD_BYTES, OBJECT_QUEUE_RECORDS = 16 };
 
-uint8_t menu_hold_object_queue(GameState *g)
+static uint8_t hold_the_queue(GameState *g)
 {
     set_menu_object_vram_queue_busy(g, (uint8_t)(menu_object_vram_queue_busy(g) + 1));
     return menu_object_vram_queue_end(g);
 }
 
-void menu_release_object_queue(GameState *g, uint8_t end)
+static void release_the_queue(GameState *g, uint8_t end)
 {
     set_menu_object_vram_queue_end(g, end);
     set_menu_object_vram_queue_busy(g, 0);
@@ -135,65 +135,39 @@ void menu_release_object_queue(GameState *g, uint8_t end)
 static unsigned object_record(unsigned at) { return at / OBJECT_RECORD_BYTES; }
 static bool in_the_queue(unsigned at) { return object_record(at) < OBJECT_QUEUE_RECORDS; }
 
-void menu_set_object_upload_bank(GameState *g, unsigned at, uint8_t bank)
+/* A record's fields, by its byte offset in the queue: past the sixteen
+ * records the same fields of the bytes after them (the map's `unchecked`). */
+static void set_record(GameState *g, unsigned at, const MenuObjectUpload *u)
 {
-    if (in_the_queue(at))
-        set_menu_object_vram_queue_bank(g, object_record(at), bank);
-    else
-        set_menu_object_vram_queue_bank_unchecked(g, object_record(at), bank);
-}
-
-void menu_set_object_upload_port(GameState *g, unsigned at, uint8_t port)
-{
-    if (in_the_queue(at))
-        set_menu_object_vram_queue_port(g, object_record(at), port);
-    else
-        set_menu_object_vram_queue_port_unchecked(g, object_record(at), port);
-}
-
-void menu_set_object_upload_source(GameState *g, unsigned at, uint16_t source)
-{
-    if (in_the_queue(at))
-        set_menu_object_vram_queue_source(g, object_record(at), source);
-    else
-        set_menu_object_vram_queue_source_unchecked(g, object_record(at), source);
-}
-
-void menu_set_object_upload_vram(GameState *g, unsigned at, uint16_t vram)
-{
-    if (in_the_queue(at))
-        set_menu_object_vram_queue_vram(g, object_record(at), vram);
-    else
-        set_menu_object_vram_queue_vram_unchecked(g, object_record(at), vram);
-}
-
-void menu_set_object_upload_size(GameState *g, unsigned at, uint16_t size)
-{
-    if (in_the_queue(at))
-        set_menu_object_vram_queue_size(g, object_record(at), size);
-    else
-        set_menu_object_vram_queue_size_unchecked(g, object_record(at), size);
+    unsigned r = object_record(at);
+    if (in_the_queue(at)) {
+        set_menu_object_vram_queue_bank(g, r, (uint8_t)(u->source >> 16));
+        set_menu_object_vram_queue_port(g, r, (uint8_t)u->port);
+        set_menu_object_vram_queue_source(g, r, (uint16_t)u->source);
+        set_menu_object_vram_queue_vram(g, r, u->vram);
+        set_menu_object_vram_queue_size(g, r, u->size);
+    } else {
+        set_menu_object_vram_queue_bank_unchecked(g, r, (uint8_t)(u->source >> 16));
+        set_menu_object_vram_queue_port_unchecked(g, r, (uint8_t)u->port);
+        set_menu_object_vram_queue_source_unchecked(g, r, (uint16_t)u->source);
+        set_menu_object_vram_queue_vram_unchecked(g, r, u->vram);
+        set_menu_object_vram_queue_size_unchecked(g, r, u->size);
+    }
 }
 
 uint8_t menu_queue_object_uploads(GameState *g, const MenuObjectUpload *uploads, unsigned count)
 {
-    uint8_t first = menu_hold_object_queue(g);
+    uint8_t first = hold_the_queue(g);
     unsigned at = first;
-    for (unsigned i = 0; i < count; i++, at += OBJECT_RECORD_BYTES) {
-        const MenuObjectUpload *u = &uploads[i];
-        menu_set_object_upload_bank(g, at, (uint8_t)(u->source >> 16));
-        menu_set_object_upload_port(g, at, u->port);
-        menu_set_object_upload_source(g, at, (uint16_t)u->source);
-        menu_set_object_upload_vram(g, at, u->vram);
-        menu_set_object_upload_size(g, at, u->size);
-    }
-    menu_release_object_queue(g, (uint8_t)at);
+    for (unsigned i = 0; i < count; i++, at += OBJECT_RECORD_BYTES)
+        set_record(g, at, &uploads[i]);
+    release_the_queue(g, (uint8_t)at);
     return first;
 }
 
 void menu_queue_object_upload(GameState *g, uint32_t source, uint16_t vram, uint16_t size)
 {
-    const MenuObjectUpload u = { source, vram, size, MENU_PORT_WORDS };
+    const MenuObjectUpload u = { source, vram, size, MENU_PORT_WORD_BY_WORD };
     menu_queue_object_uploads(g, &u, 1);
 }
 

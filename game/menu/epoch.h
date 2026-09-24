@@ -1,11 +1,11 @@
-/* Menu mode: the Epoch's two screens, and the End of Time's gate
- * (game/menu/epoch.c). */
+/* The Epoch: its two Mode 7 screens, where it may fly, and the End of Time's
+ * gate screen (game/menu/epoch.c). */
 #ifndef CT_GAME_MENU_EPOCH_H
 #define CT_GAME_MENU_EPOCH_H
 
-#include "port/native.h"
+#include "snes/system.h"
 
-/* The world map view */
+/* The map view */
 void menu_epoch_map_screen(Snes *s);
 void menu_epoch_build_map(Snes *s);
 void menu_epoch_map_cursor(Snes *s);
@@ -30,19 +30,24 @@ void menu_epoch_upload_gate_tiles(Snes *s);
 void menu_epoch_upload_gate_rows(Snes *s);
 void menu_epoch_expand_gate_nibbles(Snes *s);
 
-/* The objects both screens' scripts move */
-void menu_epoch_gate_scroll_hdma(Snes *s);
-void menu_epoch_gate_drift(Snes *s);
-void menu_epoch_gate_scroll_slow(Snes *s);
-void menu_epoch_gate_scroll_wrap(Snes *s);
-void menu_epoch_place_marker_random(Snes *s);
-void menu_epoch_place_marker_edge(Snes *s);
-void menu_epoch_set_marker_velocity(Snes *s);
-
-bool menu_epoch_page_is_menu(Snes *s);
-bool menu_epoch_bank_is_menu(Snes *s);
+/* Where the Epoch may fly */
+void menu_epoch_outside_sides(Snes *s);
+void menu_epoch_in_area(Snes *s);
 
 /* The End of Time's gate screen */
 void menu_start_gate_screen(Snes *s);
+
+/* Guards */
+bool menu_epoch_page_is_menu(Snes *s);
+bool menu_epoch_object_runs(Snes *s);
+bool menu_epoch_slot_runs(Snes *s);
+bool menu_epoch_window_runs(Snes *s);
+bool menu_epoch_matrix_runs(Snes *s);
+bool menu_epoch_marker_runs(Snes *s);
+bool menu_epoch_cursor_runs(Snes *s);
+bool menu_epoch_dial_runs(Snes *s);
+bool menu_epoch_spin_runs(Snes *s);
+bool menu_epoch_digit_runs(Snes *s);
+bool menu_epoch_on_world_map(Snes *s);
 
 #endif

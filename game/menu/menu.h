@@ -6,10 +6,10 @@
  * screens: they draw text and windows into tilemaps in work RAM and queue them
  * for VRAM (text.c, vram.c, save_screen.c), and their vblank handler sends the
  * frame's display state, sprites, palette and queue (display.c). The
- * sprite-object mode ($C2:0000) is the one the Epoch's screens, the End of
- * Time's gate and the overworld scenes of the menus run in: a map of three
- * planes behind a set of sprite objects, each run by a handler or a command
- * script (map.c, objects.c, object_script.c, object_commands.c, epoch.c).
+ * sprite-object mode ($C2:0000) is the one the Epoch's screens and the world
+ * maps' scenes run in: a map of three planes behind a set of sprite objects,
+ * each run by a handler or a command script (map.c, objects.c,
+ * object_script.c, object_commands.c, top_layer.c, wave.c, epoch.c).
  * Each mode's main loop waits for its vblank handler (frame.c). The music the
  * menus switch to is sound.c, and the dialog's proportional font, drawn a
  * glyph at a time, glyphs.c. What they read from the ROM is menu_data.h. */

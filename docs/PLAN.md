@@ -170,20 +170,20 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **23 of 106 files, 9,906 of
-30,173 lines (33%), are on the backlog**, and all but the scenes, the events,
-the field and the sound driver is on the machine:
+each subsystem's functions that take the machine. **22 of 107 files, 8,079 of
+29,977 lines (27%), are on the backlog**, and all but the scenes, the events,
+the field, the menus and the sound driver is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 20 | 27 | 7,779 | 10,310 | 0.33 | 99% |
-| menu | 1 | 17 | 1,827 | 6,779 | 0.07 | 40% |
+| menu | 0 | 18 | 0 | 6,583 | 0.04 | 34% |
 | event | 0 | 19 | 0 | 2,404 | 0.01 | 12% |
 | field | 0 | 18 | 0 | 4,207 | 0.02 | 26% |
 | scene | 0 | 13 | 0 | 2,611 | 0.04 | 45% |
 | core, data | 2 | 8 | 300 | 1,916 | 0.12 | 99% |
 | sound | 0 | 4 | 0 | 1,946 | 0.00 | 0% |
-| **total** | **23** | **106** | **9,906** | **30,173** | **0.14** | **48%** |
+| **total** | **22** | **107** | **8,079** | **29,977** | **0.13** | **46%** |
 
 Scene's 45%, event's 13% and field's 26% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
@@ -263,10 +263,9 @@ gate, so shadow mode compares the rewrite against the original call for call
 over the whole library, and the entry keeps its fuzzing. Rewriting a file to
 the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
 holds every other file where it is, so the list only shrinks. `menu` is
-rewritten but for `menu/epoch.c` (RECOMP.md, "Phase 3a: the menus off the
-machine"); `battle` is next, whose 7.8K
-lines are the largest and whose bank is also the least converted, with
-`epoch.c` beside it on the object mode's module.
+rewritten (RECOMP.md, "Phase 3a: the menus off the machine" and "Phase 3a:
+the menus' follow-ups and the Epoch"); `battle` is next, whose 7.8K
+lines are the largest and whose bank is also the least converted.
 
 **The bar grew after event, and event is being brought up to it.** Reading
 event's rewrite, it still read as a translation: the accessors had taken the

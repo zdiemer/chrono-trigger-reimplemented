@@ -2011,7 +2011,7 @@ void set_menu_cursor_hidden(GameState *g, uint8_t v);
 uint16_t menu_load_destination(const GameState *g);
 void set_menu_load_destination(GameState *g, uint16_t v);
 
-enum { MENU_GATE_SCREEN_STATE_COUNT = 13 };   /* by byte; the first two are cleared and the rest come from $FF:D57A */
+enum { MENU_GATE_SCREEN_STATE_COUNT = 14 };   /* by byte; the first two are cleared and the rest come from $FF:D57A */
 /* The End of Time gate screen's state, set up when the screen starts */
 uint8_t menu_gate_screen_state(const GameState *g, unsigned i);
 void set_menu_gate_screen_state(GameState *g, unsigned i, uint8_t v);
@@ -2172,13 +2172,6 @@ void set_menu_object_line_slots_second(GameState *g, unsigned slot, uint16_t v);
 /* 0, which ends the table */
 uint8_t menu_object_line_slots_end(const GameState *g, unsigned slot);
 void set_menu_object_line_slots_end(GameState *g, unsigned slot, uint8_t v);
-
-enum { MENU_OBJECT_WAVE_SCROLL_COUNT = 224 };   /* by word: even ones the scroll position, odd ones it plus the sine wave */
-/* The first of the sprite object mode's per-line buffers: the wave effect's BG3 scroll values,
- * rebuilt each frame from the scroll $24 and a sine phase, the map view's fixed-colour gradient,
- * or one of the time dial's two window tables */
-uint16_t menu_object_wave_scroll(const GameState *g, unsigned i);
-void set_menu_object_wave_scroll(GameState *g, unsigned i, uint16_t v);
 
 enum { MENU_CURSOR_PLACES_COUNT = 42 };   /* by cursor position of the current menu (the table runs up to the palette at $9480) */
 /* The cursor's X */
@@ -2347,19 +2340,26 @@ void set_menu_math_ramp_accumulator(GameState *g, uint16_t v);
 uint16_t menu_math_line_table_offset(const GameState *g);
 void set_menu_math_line_table_offset(GameState *g, uint16_t v);
 
-/* Where in the wave's circular buffer the gate screen's per-line scroll starts this frame */
+/* Where in its circular buffer (menu_gate_scroll) the wave of the layer over one world map's
+ * scene starts this frame; the vblank handler points the wave's table at it */
 uint16_t menu_gate_scroll_at(const GameState *g);
 void set_menu_gate_scroll_at(GameState *g, uint16_t v);
 
 enum { MENU_GATE_SCROLL_TABLE_COUNT = 4 };   /* by entry; a 0 byte at $A924 ends the table */
-/* The indirect per-line table the gate screen's BG3 scroll is read through, 64 lines an entry
- * and 32 in the last */
+/* The indirect per-line table the wave of the layer over one world map's scene is read through:
+ * a line count (64 lines an entry, 32 in the last, with the repeat bit) and where its values
+ * are, which the vblank handler fills in from menu_gate_scroll_at */
 uint32_t menu_gate_scroll_table(const GameState *g, unsigned i);
 void set_menu_gate_scroll_table(GameState *g, unsigned i, uint32_t v);
 
-enum { MENU_GATE_SCROLL_COUNT = 64 };   /* by line pair */
-/* The gate screen's per-line BG3 scroll, a sine over the layer's own scroll, copied on to the
- * buffer's second half so the table can start anywhere in it */
+/* The 0 that ends menu_gate_scroll_table */
+uint8_t menu_gate_scroll_table_end(const GameState *g);
+void set_menu_gate_scroll_table_end(GameState *g, uint8_t v);
+
+enum { MENU_GATE_SCROLL_COUNT = 128 };   /* by line pair; the second 64 a copy of the first */
+/* The wave of the layer over one world map's scene: its scroll across, a line pair each, a sine
+ * over the layer's own scroll, copied on to the buffer's second half so the table can start
+ * anywhere in the first */
 uint16_t menu_gate_scroll(const GameState *g, unsigned line);
 void set_menu_gate_scroll(GameState *g, unsigned line, uint16_t v);
 
@@ -2368,6 +2368,12 @@ enum { MENU_MAP_COLOURS_COUNT = 896 };   /* by world map tile */
  * view's plane is drawn from */
 uint8_t menu_map_colours(const GameState *g, unsigned i);
 void set_menu_map_colours(GameState *g, unsigned i, uint8_t v);
+/* One colour per world map tile, four bits packed out of the tile's own graphics, which the map
+ * view's plane is drawn from Unchecked, for marked scaffolding only: a tile number is ten bits,
+ * so the map view's drawing can name one past the world map's 896 tiles, which the original
+ * reads from the bytes after the colours; the world maps' own tiles stop short of it */
+uint8_t menu_map_colours_unchecked(const GameState *g, unsigned i);
+void set_menu_map_colours_unchecked(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_GATE_PALETTE_COPY_COUNT = 256 };   /* by color */
 /* The time dial's palette as the mode keeps it, copied out of the loaded one at $7F:8C00, which
@@ -2608,6 +2614,10 @@ void set_menu_object_scratch_area_tile_x(GameState *g, uint8_t v);
 /* The Epoch's area check: its row in tiles (a word: the high byte over area_top) */
 uint8_t menu_object_scratch_area_tile_y(const GameState *g);
 void set_menu_object_scratch_area_tile_y(GameState *g, uint8_t v);
+/* The time dial: the bank the gate's window tables are drawn in, which the dial sets as it
+ * starts ($C2:6AC8) and the window's drawing ($C2:6CC1) writes its lines through */
+uint8_t menu_object_scratch_gate_window_bank(const GameState *g);
+void set_menu_object_scratch_gate_window_bank(GameState *g, uint8_t v);
 /* The Epoch's area check: the area's first row */
 uint8_t menu_object_scratch_area_top(const GameState *g);
 void set_menu_object_scratch_area_top(GameState *g, uint8_t v);
@@ -2928,15 +2938,81 @@ void set_menu_object_slots_iris_stretch(GameState *g, unsigned slot, uint16_t v)
 uint16_t menu_object_slots_capsule_frames(const GameState *g, unsigned slot);
 void set_menu_object_slots_capsule_frames(GameState *g, unsigned slot, uint16_t v);
 /* What the running command keeps between frames, cleared after every command the script
- * finishes: a move's started flag, the palette loader's row */
+ * finishes: a move's started flag */
 uint16_t menu_object_slots_command_state(const GameState *g, unsigned slot);
 void set_menu_object_slots_command_state(GameState *g, unsigned slot, uint16_t v);
-/* Where a move command's object is going; the palette loader's hand-over flag in the low byte */
+/* Where a move command's object is going */
 uint16_t menu_object_slots_move_target(const GameState *g, unsigned slot);
 void set_menu_object_slots_move_target(GameState *g, unsigned slot, uint16_t v);
 /* The palette loader's long pointer to its colours */
 uint32_t menu_object_slots_palette_source(const GameState *g, unsigned slot);
 void set_menu_object_slots_palette_source(GameState *g, unsigned slot, uint32_t v);
+/* The palette loader's row of the palette, which the object that starts it hands it ($C2:10CD) */
+uint16_t menu_object_slots_palette_row(const GameState *g, unsigned slot);
+void set_menu_object_slots_palette_row(GameState *g, unsigned slot, uint16_t v);
+/* The palette loader's hand-over flag: nonzero where it hands over to the next loader when done
+ * ($C2:10CD) */
+uint8_t menu_object_slots_palette_hand_over(const GameState *g, unsigned slot);
+void set_menu_object_slots_palette_hand_over(GameState *g, unsigned slot, uint8_t v);
+/* The time dial's object: the angle the gate turns to, the chosen period's (game/menu/epoch.c) */
+uint16_t menu_object_slots_target_angle(const GameState *g, unsigned slot);
+void set_menu_object_slots_target_angle(GameState *g, unsigned slot, uint16_t v);
+/* The time dial's object: the angle the gate stands at; the gate's matrix object: the angle its
+ * spin has reached (game/menu/epoch.c) */
+uint16_t menu_object_slots_angle(const GameState *g, unsigned slot);
+void set_menu_object_slots_angle(GameState *g, unsigned slot, uint16_t v);
+/* The time dial's object: how far the gate turns each frame, signed (game/menu/epoch.c) */
+uint16_t menu_object_slots_turn(const GameState *g, unsigned slot);
+void set_menu_object_slots_turn(GameState *g, unsigned slot, uint16_t v);
+/* The time dial's object and its digits: which of the seven periods it shows (game/menu/epoch.c) */
+uint8_t menu_object_slots_period(const GameState *g, unsigned slot);
+void set_menu_object_slots_period(GameState *g, unsigned slot, uint8_t v);
+/* The map view's cursor: how far the plane is zoomed across, a divisor of its matrix
+ * (game/menu/epoch.c) */
+uint16_t menu_object_slots_zoom_x(const GameState *g, unsigned slot);
+void set_menu_object_slots_zoom_x(GameState *g, unsigned slot, uint16_t v);
+/* The map view's cursor: how far it is zoomed down */
+uint16_t menu_object_slots_zoom_y(const GameState *g, unsigned slot);
+void set_menu_object_slots_zoom_y(GameState *g, unsigned slot, uint16_t v);
+/* The map view's cursor: how far along its path it has come, in bytes of the path's tables */
+uint16_t menu_object_slots_path_step(const GameState *g, unsigned slot);
+void set_menu_object_slots_path_step(GameState *g, unsigned slot, uint16_t v);
+
+enum { MENU_SLOT1_LINE_VALUES_COUNT = 224 };   /* by line */
+/* The first of the per-line value tables of the sprite-object mode's line-effect slot 1, a word
+ * a line. Each of the first three slots has two, which an object draws into on alternate frames
+ * and stages for the vblank handler (menu_object_hdma_pointers), so the one shown is never the
+ * one being drawn. The wave draws its BG3 scroll into this one (even lines the layer's scroll,
+ * odd ones it plus the wave); the irises draw into either of slot 1's, the map view its
+ * fixed-colour gradient and the time dial its gate window */
+uint16_t menu_slot1_line_values(const GameState *g, unsigned line);
+void set_menu_slot1_line_values(GameState *g, unsigned line, uint16_t v);
+
+enum { MENU_SLOT1_OTHER_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 1's second table of per-line values (menu_slot1_line_values) */
+uint16_t menu_slot1_other_line_values(const GameState *g, unsigned line);
+void set_menu_slot1_other_line_values(GameState *g, unsigned line, uint16_t v);
+
+enum { MENU_SLOT2_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 2's first table of per-line values (menu_slot1_line_values): an iris drawn into slot 2,
+ * or the cosines of the time dial's turning Mode 7 matrix */
+uint16_t menu_slot2_line_values(const GameState *g, unsigned line);
+void set_menu_slot2_line_values(GameState *g, unsigned line, uint16_t v);
+
+enum { MENU_SLOT2_OTHER_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 2's second table of per-line values */
+uint16_t menu_slot2_other_line_values(const GameState *g, unsigned line);
+void set_menu_slot2_other_line_values(GameState *g, unsigned line, uint16_t v);
+
+enum { MENU_SLOT3_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 3's first table of per-line values: the sines of the time dial's turning Mode 7 matrix */
+uint16_t menu_slot3_line_values(const GameState *g, unsigned line);
+void set_menu_slot3_line_values(GameState *g, unsigned line, uint16_t v);
+
+enum { MENU_SLOT3_OTHER_LINE_VALUES_COUNT = 224 };   /* by line */
+/* Slot 3's second table of per-line values */
+uint16_t menu_slot3_other_line_values(const GameState *g, unsigned line);
+void set_menu_slot3_other_line_values(GameState *g, unsigned line, uint16_t v);
 
 enum { MENU_SPRITE_NODES_COUNT = 64 };   /* by node */
 /* Previous node in its list */
@@ -2984,6 +3060,14 @@ void set_menu_sprite_free_list_last(GameState *g, uint16_t v);
 /* Its first node (the list itself when empty), where a node's next link is */
 uint16_t menu_sprite_free_list_first(const GameState *g);
 void set_menu_sprite_free_list_first(GameState *g, uint16_t v);
+
+enum { MENU_WORLD_MAP_TILES_COUNT = 896 };   /* by world map tile */
+/* The world map's tile graphics as the map view loads them ($C2:27DE): 8 by 8 pixels, four
+ * bitplanes, 32 bytes a tile, which the view reduces to a colour each (menu_map_colours) [32
+ * bytes, one at a time] */
+enum { MENU_WORLD_MAP_TILES_BYTES = 32 };
+uint8_t menu_world_map_tiles_byte(const GameState *g, unsigned i, unsigned at);
+void set_menu_world_map_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 /* ---- battle -------------------------------------------------------------------------------- */
 

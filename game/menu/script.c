@@ -73,6 +73,7 @@ static ByteRef byte_ref(const GameState *g, ScriptArg a, uint32_t at)
 #define SCRIPT_DECODE_ByteTest SCRIPT_DECODE
 #define SCRIPT_DECODE_MenuSlotKind SCRIPT_DECODE
 #define SCRIPT_DECODE_MenuAxis SCRIPT_DECODE
+#define SCRIPT_DECODE_SoundEffectVoices SCRIPT_DECODE
 #define SCRIPT_DECODE_uint8_t SCRIPT_DECODE
 #define SCRIPT_DECODE_int8_t SCRIPT_DECODE
 #define SCRIPT_DECODE_uint16_t SCRIPT_DECODE

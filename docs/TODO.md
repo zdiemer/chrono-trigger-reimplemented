@@ -73,55 +73,16 @@ rest waits, is [PLAN.md](PLAN.md).
     accessor: export a `scene_channel_go_to` from `script.c`.
 
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
-  machine"):
-  - `menu/epoch.c` is still on the transcription backlog (0.16 operations a
-    line, 1,827 lines): the Epoch's two Mode 7 screens and the End of Time's
-    gate, each a machine-level port of its own. It is the next piece, and the
-    object mode's module (`menu/object.h`) is what its object handlers should
-    be rewritten onto;
-  - what the qualitative review rated "mostly", to finish:
-    - `menu/display.c`: about a dozen comments quote the original's register
-      writes; and its two screen setups decode register bytes where named
-      `Vid*` values would say what the screen is (partly a platform gap: there
-      is no `VidBg` from a tilemap's address and size, and no screen-mask
-      helper);
-    - `menu/script_bridge.h`: entry names that disagree with their operations
-      (`reset_state` for `forget_everything`, `sound_18`/`sound_19`, and
-      others), and the bridge switching on opcode literals (`0x3B`/`0x3C`/
-      `0x4B`, `0x33`) rather than on the rows;
-    - `menu/sprites.c`: the sprite-script interpreter is a switch with
-      positional operands and a second table of lengths, where a table of rows
-      would do (as `object_script.c`'s);
-    - `menu/vram.h`: the object queue is still also set field by field by
-      offset (`menu_set_object_upload_*`, which `object_script.c`'s tile
-      groups use); `MenuObjectUpload` should be the only way in, with its
-      `port` an enum rather than a byte;
-    - `menu/object_script.c`: the look bits `0xF1`/`0x4F` belong in
-      `object.h`, once; the story bits in `top_layer_stays` and the sounds
-      `0x18`/`0x19` need names; `load_palette_row` keeps its parameters in
-      `command_state`/`move_target`; `word`/`second_word` should be the
-      parameters' names;
-    - `menu/save_screen.c`: the portrait's character goes round through
-      `ORIGINAL_EFFECT` and back; its inputs should be parameters; and the
-      return site (`0xE7AC + 2`, `pc == 0xE7AF`) should be named;
-    - `menu/text.c`: control codes decode their operands by offset;
-    - `menu/map.c`: the logic's results are shaped by the entry and the
-      scaffolding (`Strip`, `MapScroll` and the strip queues' `at`
-      out-parameter exist for X and the leftover cells); the wrapper can
-      derive X from the final state, leaving one scaffolding record;
-      `redraw_plane` takes `Snes *` only for its timing tag and the platform;
-    - `menu/line_effects.c`: the irises' bars and the capsule's gap are filled
-      by an overlapping forward copy (`repeat_forward`), where a fill of
-      lines says what they are; the iris tables at `$8DF6`/`$9176`/`$9416` are
-      literals, not in `re/ram.toml`; the channel-write site is computed from
-      PB:PC where a literal per entry belongs; the squashed iris steps byte
-      addresses rather than lines;
-    - `menu/object_commands.c`: still a file of "bank C6's routines" (the
-      Epoch area check belongs beside the Epoch's screen), the scene loaders
-      are named for resource numbers, the mode mask `0x3C` is unnamed, and a
-      16-bit scaffolding store into the area's top cell has no comment;
-    - `menu/epoch.c`: the gate matrix sets line slots 2 and 3 by offset from
-      `GATE_MATRIX_TABLES`, where `line_effects.h`'s operations belong;
+  machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
+  - what the qualitative review rated "mostly" in `menu/display.c`, to finish:
+    about a dozen comments quote the original's register writes; and its two
+    screen setups decode register bytes where named `Vid*` values would say
+    what the screen is (partly a platform gap: there is no `VidBg` from a
+    tilemap's address and size, and no screen-mask helper);
+  - the RAM map's `menu_gate_scroll`, `menu_gate_scroll_at` and
+    `menu_gate_scroll_table` are one world map's wave of the layer over the
+    map (`menu/top_layer.c`), not a gate's; their names wait on
+    `menu/display.c`, which reads two of them;
   - a divergence the rewrite accepts, on inputs no game state makes: a
     string's control code past `$0C`, or one included deeper than four, draws
     nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
@@ -476,7 +437,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (3863 of 5599; PLATFORM.md, "P2 as built"): from frame 3864 its gate screen
   drives the Mode 7 matrix, the screen mode and the brightness itself, and none
   of that code is ported, so nothing tells the observer. It is a different
-  screen from the menus' gate (`menu/epoch.c`), which agrees on every frame.
+  screen from the Epoch's time dial (`menu/epoch.c`), which agrees on every frame.
   Porting the event's version is what closes it, and it is the last movie
   between P2 and a library that agrees from power-on.
 - **P3 leftovers** (PLATFORM.md, "P3 as built"): the observer doesn't fill in

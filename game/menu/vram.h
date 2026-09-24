@@ -25,31 +25,24 @@ enum { MENU_UPLOAD_BYTES = 8 };
 void menu_queue_upload(GameState *g, MenuUpload u);
 
 /* The sprite-object mode's queue (its own, on its direct page): uploads from
- * anywhere in memory, whose VRAM port steps as `port` says (MENU_PORT_WORDS a
- * word at a time, MENU_PORT_ROWS a tilemap row at a time). Queueing holds the
- * queue from the vblank handler and gives the queue's end, the byte offset of
- * the next record; the records' fields are set by offset (a record at an end
- * past $F8 lies past the byte's reach, as the original's page-relative writes
- * put it); releasing it sets the new end. menu_queue_object_upload does all of it for one upload a word
- * at a time. */
-enum { MENU_PORT_WORDS = 0x80, MENU_PORT_ROWS = 0x81 };
+ * anywhere in memory, each record holding how the VRAM address steps as it
+ * goes -- a word at a time along a tilemap row, or a tilemap row at a time
+ * down a column -- as the byte its vblank handler hands the video service
+ * (vid_vram_port_decode). A run of uploads is queued in one hold of the queue,
+ * so the vblank handler never sends half of it; the first's place in the
+ * queue (the byte offset of its record) comes back. A record queued at an
+ * end past $F8 lies past the byte's reach, as the original's page-relative
+ * writes put it. */
+typedef enum { MENU_PORT_WORD_BY_WORD = 0x80, MENU_PORT_ROW_BY_ROW = 0x81 } MenuVramPort;
 enum { MENU_OBJECT_UPLOAD_BYTES = 8 };
-uint8_t menu_hold_object_queue(GameState *g);
-void menu_release_object_queue(GameState *g, uint8_t end);
-void menu_set_object_upload_bank(GameState *g, unsigned at, uint8_t bank);
-void menu_set_object_upload_port(GameState *g, unsigned at, uint8_t port);
-void menu_set_object_upload_source(GameState *g, unsigned at, uint16_t source);
-void menu_set_object_upload_vram(GameState *g, unsigned at, uint16_t vram);
-void menu_set_object_upload_size(GameState *g, unsigned at, uint16_t size);
-void menu_queue_object_upload(GameState *g, uint32_t source, uint16_t vram, uint16_t size);
-/* An upload for the object mode's queue, and a run of them queued in one
- * hold of the queue; the first's place in the queue comes back. */
 typedef struct {
     uint32_t source;
     uint16_t vram, size;
-    uint8_t port;
+    MenuVramPort port;
 } MenuObjectUpload;
 uint8_t menu_queue_object_uploads(GameState *g, const MenuObjectUpload *uploads, unsigned count);
+/* One upload, a word at a time. */
+void menu_queue_object_upload(GameState *g, uint32_t source, uint16_t vram, uint16_t size);
 /* Whether the queue's end is on a record (the game's always is). */
 bool menu_object_queue_is_whole(const GameState *g);
 

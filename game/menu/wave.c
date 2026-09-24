@@ -63,12 +63,12 @@ static bool wave(GameState *g, Platform *pf, MenuObject self)
     }
     set_up_line_effect(g, pf);
     uint16_t scroll = menu_object_shadows_bg3_scroll_x(g);
-    for (unsigned line = 0; line < MENU_OBJECT_WAVE_SCROLL_COUNT; line += 2)
-        set_menu_object_wave_scroll(g, line, scroll);
+    for (unsigned line = 0; line < MENU_SLOT1_LINE_VALUES_COUNT; line += 2)
+        set_menu_slot1_line_values(g, line, scroll);
     uint16_t phase = menu_wave_phase(g);
     set_menu_wave_phase(g, (uint16_t)(phase + WAVE_SPEED));
-    for (unsigned line = 1; line < MENU_OBJECT_WAVE_SCROLL_COUNT; line += 2)
-        set_menu_object_wave_scroll(g, line, (uint16_t)(scroll + sine(g, phase++)));
+    for (unsigned line = 1; line < MENU_SLOT1_LINE_VALUES_COUNT; line += 2)
+        set_menu_slot1_line_values(g, line, (uint16_t)(scroll + sine(g, phase++)));
     ORIGINAL_EFFECT(set_menu_object_scratch_wave_phase(g, phase));
     return true;
 }

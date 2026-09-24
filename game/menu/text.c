@@ -359,16 +359,65 @@ typedef struct {
     unsigned depth;
 } Inclusions;
 
-/* The number of bytes of operands after each control code. */
-static uint8_t operand_bytes(uint8_t code)
+/* A control code's operands, decoded by its row: where a move puts the line
+ * (from the window's origin); a number's place and format (a hex number's
+ * format is its digits less one, and its blanking byte); a limited number's
+ * limit, by its index, and where its byte is in work RAM; the tile a palette
+ * or a copy is taken from; how many blanks; the flags or attribute set; a
+ * string included, and a name included (in work RAM). */
+typedef struct {
+    uint16_t offset;
+    uint32_t number;
+    uint16_t format;
+    uint8_t limit;
+    uint16_t value_at;
+    uint16_t tile_at;
+    uint8_t count;
+    uint8_t value;
+    TextPlace string;
+    uint16_t name;
+} ControlOperands;
+
+/* How each code's operands are laid out after it, and how many bytes they
+ * take. */
+typedef enum {
+    NO_OPERANDS, AN_OFFSET, A_NUMBER, A_LIMITED_NUMBER, A_TILE, A_COUNT, A_VALUE, A_STRING, A_NAME,
+} OperandLayout;
+
+static const struct {
+    OperandLayout layout;
+    uint8_t bytes;
+} control_codes[] = {
+    [CODE_NEW_LINE] = { NO_OPERANDS, 0 },   [CODE_MOVE] = { AN_OFFSET, 2 },
+    [CODE_NUMBER] = { A_NUMBER, 4 },         [CODE_STRING] = { A_STRING, 3 },
+    [CODE_NAME] = { A_NAME, 2 },             [CODE_PALETTE_FROM] = { A_TILE, 2 },
+    [CODE_COPY_TILE] = { A_TILE, 2 },        [CODE_BLANKS] = { A_COUNT, 1 },
+    [CODE_FLAGS] = { A_VALUE, 1 },           [CODE_ATTRIBUTE] = { A_VALUE, 1 },
+    [CODE_HEX_NUMBER] = { A_NUMBER, 4 },     [CODE_LIMITED_NUMBER] = { A_LIMITED_NUMBER, 3 },
+};
+enum { CONTROL_CODES = sizeof control_codes / sizeof control_codes[0] };
+
+static ControlOperands decode_operands(const GameState *g, uint8_t code, TextPlace o)
 {
-    switch (code) {
-    case CODE_MOVE: case CODE_PALETTE_FROM: case CODE_COPY_TILE: case CODE_NAME: return 2;
-    case CODE_NUMBER: case CODE_HEX_NUMBER: return 4;
-    case CODE_STRING: case CODE_LIMITED_NUMBER: return 3;
-    case CODE_BLANKS: case CODE_FLAGS: case CODE_ATTRIBUTE: return 1;
-    default: return 0;
+    ControlOperands c = { 0 };
+    switch (code < CONTROL_CODES ? control_codes[code].layout : NO_OPERANDS) {
+    case AN_OFFSET: c.offset = text_word(g, o, 0); break;
+    case A_NUMBER:
+        c.format = text_word(g, o, 2);
+        c.number = (uint32_t)(c.format >> 8) << 16 | text_word(g, o, 0);
+        break;
+    case A_LIMITED_NUMBER:
+        c.limit = text_byte(g, o, 0);
+        c.value_at = text_word(g, o, 1);
+        break;
+    case A_TILE: c.tile_at = text_word(g, o, 0); break;
+    case A_COUNT: c.count = text_byte(g, o, 0); break;
+    case A_VALUE: c.value = text_byte(g, o, 0); break;
+    case A_STRING: c.string = (TextPlace){ text_byte(g, o, 2), text_word(g, o, 0) }; break;
+    case A_NAME: c.name = text_word(g, o, 0); break;
+    case NO_OPERANDS: break;
     }
+    return c;
 }
 
 /* Carry out the control code whose operands start at `p`: the pen may move,
@@ -376,25 +425,19 @@ static uint8_t operand_bytes(uint8_t code)
  * goes on). */
 static uint16_t control_code(GameState *g, uint8_t code, TextPlace *p, uint16_t pen, Inclusions *in)
 {
-    TextPlace o = *p;
-    *p = advanced(o, operand_bytes(code));
+    ControlOperands c = decode_operands(g, code, *p);
+    *p = advanced(*p, code < CONTROL_CODES ? control_codes[code].bytes : 0);
     switch (code) {
     case CODE_NEW_LINE: return new_line(g);
-    case CODE_MOVE: return move_to(g, text_word(g, o, 0));
-    case CODE_NUMBER: {
-        uint16_t format = text_word(g, o, 2);
-        return draw_number(g, (uint32_t)(format >> 8) << 16 | text_word(g, o, 0), (uint8_t)format, pen);
-    }
-    case CODE_HEX_NUMBER: {
-        uint16_t format = text_word(g, o, 2);
-        return draw_hex_number(g, (uint32_t)(format >> 8) << 16 | text_word(g, o, 0), format, pen);
-    }
-    case CODE_LIMITED_NUMBER: return draw_limited_number(g, text_byte(g, o, 0), text_word(g, o, 1), pen);
-    case CODE_PALETTE_FROM: palette_from(g, text_word(g, o, 0)); return pen;
-    case CODE_COPY_TILE: return copy_tile(g, text_word(g, o, 0), pen);
-    case CODE_BLANKS: return draw_blanks(g, pen, text_byte(g, o, 0));
-    case CODE_FLAGS: set_menu_text_flags(g, text_byte(g, o, 0)); return pen;
-    case CODE_ATTRIBUTE: set_menu_text_attribute(g, text_byte(g, o, 0)); return pen;
+    case CODE_MOVE: return move_to(g, c.offset);
+    case CODE_NUMBER: return draw_number(g, c.number, (uint8_t)c.format, pen);
+    case CODE_HEX_NUMBER: return draw_hex_number(g, c.number, c.format, pen);
+    case CODE_LIMITED_NUMBER: return draw_limited_number(g, c.limit, c.value_at, pen);
+    case CODE_PALETTE_FROM: palette_from(g, c.tile_at); return pen;
+    case CODE_COPY_TILE: return copy_tile(g, c.tile_at, pen);
+    case CODE_BLANKS: return draw_blanks(g, pen, c.count);
+    case CODE_FLAGS: set_menu_text_flags(g, c.value); return pen;
+    case CODE_ATTRIBUTE: set_menu_text_attribute(g, c.value); return pen;
     case CODE_STRING:
     case CODE_NAME:
         if (in->depth < INCLUDED_DEPTH) {
@@ -404,9 +447,9 @@ static uint16_t control_code(GameState *g, uint8_t code, TextPlace *p, uint16_t 
             if (i->name) {
                 set_menu_text_tile_limit(g, NAME_TILES);
                 set_menu_text_flags(g, NAME_FLAGS);
-                *p = (TextPlace){ TILEMAP_BANK, text_word(g, o, 0) };
+                *p = (TextPlace){ TILEMAP_BANK, c.name };
             } else {
-                *p = (TextPlace){ text_byte(g, o, 2), text_word(g, o, 0) };
+                *p = c.string;
             }
         }
         return pen;

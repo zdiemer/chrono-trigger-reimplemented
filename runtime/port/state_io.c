@@ -75,6 +75,10 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
 
+int charge_time_as_begin(GameState *g, uint32_t routine) { return native_time_as(state_snes(g), routine); }
+
+void charge_time_as_end(GameState *g, int was) { native_time_end(state_snes(g), was); }
+
 static uint32_t in_bank(uint32_t at, uint32_t offset) { return (at & 0xFF0000u) | (uint16_t)(at + offset); }
 
 void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)

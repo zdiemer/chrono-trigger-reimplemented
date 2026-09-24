@@ -27,4 +27,25 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses);
  * wram_copy (wram.h), which take none of the port's own time. */
 void charge_block_move(GameState *g, uint32_t bytes);
 
+/* The time of the work a statement does, estimated as the routine at
+ * `routine`'s, for logic that runs another routine's work inline: the same
+ * tag as NATIVE_TIME_AS (runtime/port/native.h) for code that has no machine.
+ * A tag, never a number. The native-shape build runs the statement alone. */
+int charge_time_as_begin(GameState *g, uint32_t routine);
+void charge_time_as_end(GameState *g, int was);
+#ifdef CT_WITHOUT_ORIGINAL_EFFECTS
+#define TIMED_AS(g, routine, statement) \
+    do {                                \
+        (void)(g);                      \
+        statement;                      \
+    } while (0)
+#else
+#define TIMED_AS(g, routine, statement)                           \
+    do {                                                          \
+        int timed_as_was_ = charge_time_as_begin((g), (routine)); \
+        statement;                                                \
+        charge_time_as_end((g), timed_as_was_);                   \
+    } while (0)
+#endif
+
 #endif

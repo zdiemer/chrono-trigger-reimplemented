@@ -52,6 +52,24 @@ MenuObject menu_object_at_address(uint16_t address);
 uint8_t menu_object_byte(const GameState *g, MenuObject o, uint16_t at);
 void menu_set_object_byte(GameState *g, MenuObject o, uint16_t at, uint8_t v);
 
+/* ---- How it looks ------------------------------------------------------------------------ */
+
+/* An object's look, the byte its sprites are drawn with (menu/sprites.c):
+ * whether it is drawn in front of the objects that aren't, its palette and
+ * priority (the sprites' attribute bits, as they sit there), whether it holds
+ * the frame its sprite script shows rather than counting the frame's time
+ * down, and whether it is placed on the map, moving with its scroll, rather
+ * than on the screen. */
+enum {
+    MENU_LOOK_IN_FRONT = 0x01,
+    MENU_LOOK_PALETTE = 0x0E,
+    MENU_LOOK_PRIORITY = 0x30,
+    MENU_LOOK_HELD = 0x40,
+    MENU_LOOK_ON_THE_MAP = 0x80,
+    /* The sprites' attribute bits the look gives them. */
+    MENU_LOOK_ATTRIBUTES = MENU_LOOK_PALETTE | MENU_LOOK_PRIORITY,
+};
+
 /* ---- Starting objects -------------------------------------------------------------------- */
 
 /* Where a new object goes: the ordinary slots, or the four a screen runs
@@ -63,10 +81,11 @@ typedef enum { MENU_ORDINARY_SLOT, MENU_FIRST_SLOT } MenuSlotKind;
  * busy. */
 bool menu_start_object(GameState *g, uint16_t handler, MenuSlotKind kind, MenuObject *started);
 
-/* Start an object on a command script (a 24-bit address). Where every slot
- * is busy, the original still gives the script to the last slot it looked
- * at, over whatever that object was running; so does this. */
-void menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind);
+/* Start an object on a command script (a 24-bit address), and say which
+ * object has it. Where every slot is busy, the original still gives the
+ * script to the last slot it looked at, over whatever that object was
+ * running; so does this. */
+MenuObject menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind);
 
 /* The slot an object would start in: the first free one of the kind, or
  * MENU_OBJECTS where there is none. */

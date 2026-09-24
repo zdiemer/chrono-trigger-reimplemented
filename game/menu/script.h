@@ -38,6 +38,7 @@
 #include <stdint.h>
 
 #include "menu/object.h"
+#include "sound/sound.h"
 #include "state.h"
 
 /* ---- What happens next ------------------------------------------------------------------ */
@@ -101,21 +102,23 @@ typedef enum {
 enum { BOTH_PLANES = 0 };
 
 /* Every parameter an operation of the language takes, by type and name. */
-#define SCRIPT_PARAMETERS(X)                                                                    \
-    X(ByteChange, change) X(ByteTest, test) X(ByteRef, byte) X(ByteRef, from) X(uint8_t, value) \
-    X(int8_t, by) X(uint16_t, to)                                                               \
-    X(uint16_t, handler) X(MenuSlotKind, slots) X(uint32_t, script) X(uint8_t, frames)          \
+#define SCRIPT_PARAMETERS(X)                                                                         \
+    X(ByteChange, change) X(ByteTest, test) X(ByteRef, byte) X(ByteRef, from) X(uint8_t, value)      \
+    X(int8_t, by) X(uint16_t, to)                                                                    \
+    X(uint16_t, handler) X(MenuSlotKind, slots) X(uint32_t, script) X(uint8_t, frames)               \
     X(bool, moving) X(bool, animating) X(MenuAxis, axis) X(uint16_t, target) X(uint8_t, forward_script) \
-    X(uint8_t, back_script) X(uint16_t, word) X(uint16_t, second_word) X(uint8_t, sprite_script)  \
-    X(uint8_t, keep) X(uint8_t, bits) X(uint8_t, plane) X(uint16_t, age)                        \
-    X(uint32_t, colours) X(uint8_t, row) X(uint8_t, hand_over)                                   \
-    X(uint16_t, location) X(uint8_t, region) X(uint8_t, tile_x) X(uint8_t, tile_y)              \
-    X(uint8_t, column) X(uint8_t, member)                                                        \
-    X(uint8_t, table) X(uint8_t, entry) X(bool, mark)                                            \
-    X(uint32_t, source) X(uint16_t, vram) X(uint16_t, size)                                      \
-    X(uint8_t, from_plane) X(uint8_t, from_column) X(uint8_t, from_row)                          \
-    X(uint8_t, columns) X(uint8_t, rows) X(uint8_t, group)                                       \
-    X(uint8_t, sound) X(uint8_t, first) X(uint8_t, second) X(uint8_t, third) X(bool, unless_kept)       X(uint32_t, routine) X(bool, far)
+    X(uint8_t, back_script) X(uint16_t, x) X(uint16_t, y) X(uint16_t, pixels) X(uint16_t, fraction)  \
+    X(uint8_t, sprite_script) X(uint8_t, part) X(uint8_t, look) X(uint8_t, plane) X(uint16_t, age)   \
+    X(uint32_t, colours) X(uint8_t, row) X(uint8_t, hand_over)                                        \
+    X(uint16_t, location) X(uint8_t, region) X(uint8_t, tile_x) X(uint8_t, tile_y)                   \
+    X(uint8_t, column) X(uint8_t, member) X(uint16_t, scene_script)                                   \
+    X(uint8_t, table) X(uint8_t, entry) X(bool, mark)                                                 \
+    X(uint32_t, source) X(uint16_t, vram) X(uint16_t, size)                                           \
+    X(uint8_t, from_plane) X(uint8_t, from_column) X(uint8_t, from_row)                               \
+    X(uint8_t, columns) X(uint8_t, rows) X(uint8_t, group)                                            \
+    X(SoundEffectVoices, voices) X(uint8_t, effect) X(uint8_t, pan) X(uint8_t, song)                  \
+    X(bool, unless_kept) X(uint8_t, command) X(uint8_t, first) X(uint8_t, second) X(uint8_t, third)  \
+    X(uint32_t, routine) X(bool, far)
 
 /* What a few commands reach that isn't the game's state: the original's code
  * on the development system, the game's own elsewhere. Each says whether the
@@ -164,9 +167,10 @@ typedef ScriptFlow (*ScriptOperation)(GameState *g, const ScriptCommand *command
 /* SCRIPT_OPERATION(op, parameter...): the form of `op` the table calls, which
  * hands it the running object and the decoded parameters it names, in that
  * order. SCRIPT_OPERATION_OF_THE_OBJECT(op) for one that takes nothing else,
- * SCRIPT_OPERATION_TAKING_NOTHING(op) for one that takes neither, and
+ * SCRIPT_OPERATION_TAKING_NOTHING(op) for one that takes neither,
  * SCRIPT_SERVED_OPERATION(op, parameter...) for one that takes the services
- * after the object. */
+ * after the object, and SCRIPT_PLACED_OPERATION(op, parameter...) for one
+ * that takes where the command is. */
 #define SCRIPT_OPERATION(op, ...)                                                               \
     static ScriptFlow op##_command(GameState *g, const ScriptCommand *command)                 \
     {                                                                                          \
@@ -176,6 +180,12 @@ typedef ScriptFlow (*ScriptOperation)(GameState *g, const ScriptCommand *command
     static ScriptFlow op##_command(GameState *g, const ScriptCommand *command)                 \
     {                                                                                          \
         return op(g, command->self, command->services                                         \
+                  SCRIPT_GLUE(SCRIPT_TAKE_, SCRIPT_COUNT(__VA_ARGS__))(__VA_ARGS__));           \
+    }
+#define SCRIPT_PLACED_OPERATION(op, ...)                                                        \
+    static ScriptFlow op##_command(GameState *g, const ScriptCommand *command)                 \
+    {                                                                                          \
+        return op(g, command->self, command->at                                               \
                   SCRIPT_GLUE(SCRIPT_TAKE_, SCRIPT_COUNT(__VA_ARGS__))(__VA_ARGS__));           \
     }
 #define SCRIPT_OPERATION_OF_THE_OBJECT(op)                                                       \

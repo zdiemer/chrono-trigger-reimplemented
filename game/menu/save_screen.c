@@ -126,17 +126,15 @@ enum { PALETTE_SHIFT = 2, FIRST_PORTRAIT_PALETTE = 4 << PALETTE_SHIFT, UPPER_TIL
 enum { PORTRAIT_PALETTE_COLOURS = 4 * COLOURS };
 
 // $C2:D466
-/* The member's portrait on its row: its tiles, and its colours in the row's
- * palette. */
-static void draw_member_portrait(GameState *g)
+/* A member's portrait on the member's row of the slot's tilemap, which starts
+ * at `origin`: the character's tiles, and its colours in the row's palette.
+ * The original keeps the character in its cell as a word. */
+static void draw_member_portrait(GameState *g, uint16_t origin, uint16_t row, uint8_t character)
 {
     static const uint16_t corners[4] = { 0, 2, TILEMAP_ROW, TILEMAP_ROW + 2 };
-    uint16_t origin = menu_draw_origin(g);
-    uint16_t row = menu_save_member_row(g);
     uint8_t attribute = (uint8_t)((uint8_t)(row << PALETTE_SHIFT) | FIRST_PORTRAIT_PALETTE | UPPER_TILES);
     for (unsigned i = 0; i < 4; i++)
         put_tilemap_byte(g, origin, (uint16_t)(PORTRAIT_AT + corners[i] + 1), attribute);
-    uint8_t character = (uint8_t)menu_scratch_save_member(g);
     ORIGINAL_EFFECT(set_menu_scratch_save_member(g, character));
     uint8_t tile = menu_portrait_first_tile(g, character);
     for (unsigned i = 0; i < 4; i++)
@@ -164,9 +162,9 @@ enum { SAVE_SLOTS = 3 };
 enum { SUMMARY_MEMBER_BYTES = MEMBER_ROWS * MEMBER_RECORD_BYTES };
 
 /* A portrait is of one of the three rows and a character that has one. */
-static bool portrait_is_drawable(const GameState *g)
+static bool portrait_is_drawable(uint16_t row, uint8_t character)
 {
-    return menu_save_member_row(g) < MEMBER_ROWS && (uint8_t)menu_scratch_save_member(g) < MENU_PORTRAITS;
+    return row < MEMBER_ROWS && character < MENU_PORTRAITS;
 }
 
 static void copy_summary(GameState *g, uint8_t slot)
@@ -319,6 +317,19 @@ static bool draw_header(Snes *s)
     return true;
 }
 
+/* The portrait of the member whose row the rows' cells name, where it is one
+ * the port draws: its row and character are what the command list left in
+ * the cells. */
+static bool draw_the_rows_portrait(GameState *g)
+{
+    uint16_t row = menu_save_member_row(g);
+    uint8_t character = (uint8_t)menu_scratch_save_member(g);
+    if (!portrait_is_drawable(row, character))
+        return false;
+    draw_member_portrait(g, menu_draw_origin(g), row, character);
+    return true;
+}
+
 // $C2:D36C, from $C2:D404
 /* A row for each member in the party: the member's record where the window
  * command list draws it from, and the portrait. The rows' cells are what the
@@ -342,9 +353,9 @@ static bool draw_member_rows(Snes *s)
             s->cpu.x = MEMBER_ROW_LIST;
             if (!draw_window_list(s, 0xC2D43A))
                 return false;
-            if (portrait_is_drawable(g))
-                NATIVE_TIME_AS(s, 0xC2D466, draw_member_portrait(g));
-            else if (!call_original(s, 0xC2D43D, 0xC2D466, PORTRAIT_IGNORES, false, false))
+            bool drawn = false;
+            NATIVE_TIME_AS(s, 0xC2D466, drawn = draw_the_rows_portrait(g));
+            if (!drawn && !call_original(s, 0xC2D43D, 0xC2D466, PORTRAIT_IGNORES, false, false))
                 return false;
             set_menu_draw_origin(g, (uint16_t)(menu_draw_origin(g) + MEMBER_ROW_BYTES));
         }
@@ -517,9 +528,11 @@ void menu_load_slot_rows_effect(Snes *s)
 }
 
 // $C2:D466
+/* The portrait of the member whose row the load screen's cells name. */
 void menu_draw_member_portrait(Snes *s)
 {
-    draw_member_portrait(state_of(s));
+    GameState *g = state_of(s);
+    draw_member_portrait(g, menu_draw_origin(g), menu_save_member_row(g), (uint8_t)menu_scratch_save_member(g));
     m_rts(s);
 }
 
@@ -533,15 +546,21 @@ void menu_draw_save_slot(Snes *s)
     m_rts(s);
 }
 
+/* Where showing the slot calls the slot's drawing ($C2:E7AC), and where the
+ * call returns to: the drawing runs as C, so the return is pushed as the
+ * JSR pushes it, and a drawing that handed the rest to the original's code
+ * is back there only where it returned. */
+enum { DRAWING_THE_SLOT_RETURNS = 0xE7AC + JSR_SIZE };
+
 // $C2:E743
 void menu_show_save_slot(Snes *s)
 {
     save_p(s);
     if (!show_save_slot(s))
         return;
-    m_push16(s, 0xE7AC + 2);   /* the JSR to the slot's drawing, called as C */
+    m_push16(s, (uint16_t)(DRAWING_THE_SLOT_RETURNS - 1));   /* the JSR to the slot's drawing, called as C */
     NATIVE_TIME_AS(s, 0xC2D36C, menu_draw_save_slot(s));
-    if (s->cpu.pb != 0xC2 || s->cpu.pc != 0xE7AF)
+    if (((uint32_t)s->cpu.pb << 16 | s->cpu.pc) != (0xC20000u | DRAWING_THE_SLOT_RETURNS))
         return;
     queue_upload(s, MENU_UPLOAD_SLOT_TILEMAP);
     queue_upload(s, MENU_UPLOAD_SLOT_TILEMAP_2);
@@ -614,7 +633,8 @@ bool menu_portrait_is_drawable(Snes *s)
     if (!on_the_menus_page(s) || s->cpu.db != WORK_RAM_BANK)
         return false;
     vars_peek(true);
-    bool ok = portrait_is_drawable(state_of(s));
+    const GameState *g = state_of(s);
+    bool ok = portrait_is_drawable(menu_save_member_row(g), (uint8_t)menu_scratch_save_member(g));
     vars_peek(false);
     return ok;
 }
