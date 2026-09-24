@@ -1,5 +1,5 @@
-/* Scripts and the party (event/party.h): who leads it, someone leaving it,
- * and the menus' party routines, which the scripts call on (what routines 6,
+/* Scripts and the party (event/party.h): who is in a place of it (Someone),
+ * who leads it, someone leaving it, and the menus' party routines, which the scripts call on (what routines 6,
  * 7 and $0A do for the party isn't established; docs/TODO.md).
  *
  * Leaving and the menus' routines are bridges: the first because what it
@@ -8,6 +8,64 @@
 #include "event/bridge.h"
 #include "event/party.h"
 #include "event/variables.h"
+
+/* ---- Someone to walk up to or ask after -------------------------------------------------- */
+
+Someone someone_of_object(const GameState *g, FieldObject object)
+{
+    return (Someone){ true, object_disabled(g, object), object_position(g, object), object };
+}
+
+/* For shadow mode: whom the original finds in an empty place. It takes the
+ * place's marker for an object like any other, and reads the slot its byte
+ * names past the object tables (field/object.h, object_past_the_tables): for
+ * the game's marker, a slot disabled when object 0's script has got to an
+ * offset with the low byte's top bit set, and standing where object 0's
+ * vertical position and horizontal velocity say. So the moves toward the
+ * member mostly find nobody to walk to, as the game means, and now and then
+ * set off toward that tile; and noting the member's tile notes it.
+ *
+ * None of it shows. Over the movie library the moves are made by the
+ * objects that stand in for a party's second and third members in the first
+ * maps of a new game (locations $001 and $002), following them while Crono
+ * is on his own: 3 calls of each object's
+ * 5,000 set off (just after the map loads, while object 0's script is early
+ * on), and the objects are out of view. The tile is noted every frame by an
+ * ending with no party at all, and nothing reads the variables before the
+ * map changes. A native build has nobody there.
+ *
+ * One read of the original comes later than the port's: lining up with the
+ * slot, it stops the walker first, and the slot's vertical fine position is
+ * the low byte of object 0's horizontal velocity, which the stop zeroes when
+ * the walker is object 0. */
+static void see_what_the_original_finds(const GameState *g, FieldLink marker, FieldObject asking, Someone *found)
+{
+    FieldObject slot = field_linked_object(marker);
+    ObjectPastTheTables past = object_past_the_tables(g, slot);
+    if (asking == slot - FIELD_OBJECTS)
+        past.at.y &= 0xFF00;
+    *found = (Someone){ true, past.disabled, past.at, slot };
+}
+
+Someone member_in_place(const GameState *g, PartyPlace place, FieldObject asking)
+{
+    FieldLink link = party_member_link(g, place);
+    if (field_link_is_object(link))
+        return someone_of_object(g, field_linked_object(link));
+    Someone nobody = { .there = false };
+    ORIGINAL_EFFECT(see_what_the_original_finds(g, link, asking, &nobody));
+    return nobody;
+}
+
+/* The marker's byte is an offset like an object's, which the slot past the
+ * tables stands for when it is even; an odd one reads the tables out of step
+ * (a slot's two bytes from two slots), which the game never makes: its
+ * marker is $80. */
+bool member_place_readable(const GameState *g, PartyPlace place)
+{
+    FieldLink link = party_member_link(g, place);
+    return field_link_is_object(link) ? field_link_names_object(link) : !(field_link_byte(link) & 1);
+}
 
 // $C0:658F
 /* A variable learns who leads the party. */

@@ -316,8 +316,11 @@ an assertion"). So:
   those calls from the shadow totals (calls handed to the original, by entry),
   report them, and put them in `docs/TODO.md` as work to finish.
 
-The absent party member is the example: 52,898 real calls, correctly refused,
-and still owed a port.
+The absent party member was the example: 52,898 real calls, correctly
+refused, until the case was ported -- what the game does with a member who
+isn't there decided in its own terms, and the original's stray reads kept in
+one marked scaffolding function (RECOMP.md, "The absent party member and the
+object off the map").
 
 **When the counts disagree, fix the port, not the fuzz.** If your rewrite
 mismatches where its predecessor didn't, narrowing the fuzz domain until the

@@ -85,16 +85,5 @@ menu_map_scroll_y vblank-tail as for menu_map_scroll_x, with two records a strip
 # runs a script only for some, against openings of 0 to 30 commands, and the
 # commands it hands to the original's table, which it looks up; a mix one
 # scalar can't fit. The vblank check finds none of its writes moved.
-event_run_init_scripts vblank-tail runs the map's openings at load, screen blanked, writing RAM; commands attributed to their handlers, the rest its own walk over the slots, which clears every object and runs only some; 3.15% of calls off by a line or more, at most 4615 clocks (3.4 lines)
+event_run_init_scripts vblank-tail runs the map's openings at load, screen blanked, writing RAM; commands attributed to their handlers, the rest its own walk over the slots, which clears every object and runs only some; 3.54% of calls off by a line or more, at most 5640 clocks (4.1 lines)
 
-# The script moves (event/movement.c), operations since the moves stopped being
-# bridges: each runs the field's motion inline as C -- the direction to the
-# target, the in-the-way search over the object slots, the step's start --
-# over the game's state, where no machine is at hand to name those routines'
-# time, so a move's time follows which of them it reaches and how far the
-# search goes before something blocks. They write object state in work RAM,
-# which the object update reads the next frame; the vblank check finds none of
-# their writes moved.
-event_cmd_move_to_tile vblank-tail walks an object to a tile, writing object state in RAM; its time follows the field's motion it runs inline (the aim, the in-the-way search, the step's start); 2.24% of calls in vblank off by 1024 clocks or more, at most 1677 (1.3 lines)
-event_cmd_move_toward_party_member vblank-tail as event_cmd_move_to_tile, toward a member's object; 5.76% of calls in vblank off by 1024 clocks or more, at most 1330 (one line)
-field_object_in_the_way vblank-tail looks for an object in the way over the object slots, writing RAM only; its time follows how many slots it passes before one blocks; 1.08% of calls in vblank off by 1024 clocks or more, at most 2010 (1.5 lines)
