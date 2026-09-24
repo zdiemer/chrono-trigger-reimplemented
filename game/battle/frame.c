@@ -248,14 +248,22 @@ static void cycle_the_cursor_color(GameState *g)
 }
 
 /* Colors that rotate: a run of colors each moves up one, and the top one comes
- * round to the bottom. */
+ * round to the bottom. The original stores the top one a word below where the
+ * last move read, as a 16-bit index: a run from the palette's very first color
+ * puts it a bank on instead, past the palette (the word 0x8000 colors on),
+ * and color 0 keeps its own. The game can see that, so it is kept. */
+enum { A_BANK_ON = 0x8000 };
+
 static void rotate_colors_up(GameState *g, unsigned first, unsigned count)
 {
     unsigned top = first + count - 1;
     uint16_t kept = palette_working(g, top);
     for (unsigned color = top; color > first; color--)
         set_palette_working(g, color, palette_working(g, color - 1));
-    set_palette_working(g, first, kept);
+    if (first == 0)
+        set_palette_working_unchecked(g, A_BANK_ON, kept);
+    else
+        set_palette_working(g, first, kept);
 }
 
 /* Every so many frames, while the rotation is on: sprite palette 4's colors
@@ -690,8 +698,10 @@ void battle_scroll_map_layers(Snes *s)
  * one below its last, as the game names them: the original's count of colors
  * to move runs round from none to 65536 for its last color. The dispatch
  * runs on the battle's page with A's high byte clear (its index takes it
- * along) and a mode its table has; the frame work with what the uploads and
- * the frame update read in range. */
+ * along) and a mode its table has; the frame work with A's high byte clear too
+ * (the block upload's table index takes it along), a scroll mode the
+ * dispatch's table has, and what the uploads and the frame update read in
+ * range. */
 enum { LAST_COLOR = 0x0F };
 
 static bool rotation_in_range(const GameState *g)
@@ -704,7 +714,8 @@ static bool frame_work_state_ok(Snes *s)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = battle_vblank_uploads_in_range(g) && battle_transfers_apart(g, s->cpu.s) && rotation_in_range(g);
+    bool ok = battle_vblank_uploads_in_range(g) && battle_transfers_apart(g, s->cpu.s) && rotation_in_range(g)
+              && battle_scroll_mode(g) < BATTLE_SCROLL_MODES;
     vars_peek(false);
     return ok;
 }

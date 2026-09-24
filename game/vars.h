@@ -407,6 +407,12 @@ enum { PALETTE_WORKING_COUNT = 256 };   /* by color */
 /* The working palette the animations write and every mode's vblank work sends to CGRAM */
 uint16_t palette_working(const GameState *g, unsigned i);
 void set_palette_working(GameState *g, unsigned i, uint16_t v);
+/* The working palette the animations write and every mode's vblank work sends to CGRAM
+ * Unchecked, for marked scaffolding only: the battle's background color rotation from color 0 of
+ * palette 0 stores its last color a word below the palette, which its indexed store takes a bank
+ * on, to $7F:2200 (game/battle/frame.c, rotate_colors_up; no movie reaches it, fuzzing does) */
+uint16_t palette_working_unchecked(const GameState *g, unsigned i);
+void set_palette_working_unchecked(GameState *g, unsigned i, uint16_t v);
 
 enum { INVENTORY_ITEMS_COUNT = 242 };   /* by inventory position */
 /* The inventory's item ids, one per position; the battle item list is this list with the items

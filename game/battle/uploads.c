@@ -349,10 +349,31 @@ void battle_send_vblank_uploads(GameState *g, Platform *pf)
     count_down_to_reupload(g, pf);
 }
 
+/* The game sends from memory, never from the I/O registers the low halves of
+ * banks $00-$3F and $80-$BF reach from $2000 to $7FFF, where what a transfer
+ * reads depends on when it reads it. */
+enum { IO_START = 0x2000, IO_END = 0x8000 };
+
+static bool from_memory(uint8_t bank, uint16_t source, uint32_t bytes)
+{
+    if (bank & 0x40)
+        return true;
+    for (uint32_t i = 0; i < bytes; i++) {
+        uint16_t at = (uint16_t)(source + i);
+        if (at >= IO_START && at < IO_END)
+            return false;
+    }
+    return true;
+}
+
 bool battle_vblank_uploads_in_range(const GameState *g)
 {
-    return battle_graphics_upload_request(g) != GRAPHICS_UPLOAD_NOW
-           || (uint8_t)battle_graphics_object(g) < BATTLE_COMBATANTS;
+    bool object_is_a_combatant = battle_graphics_upload_request(g) != GRAPHICS_UPLOAD_NOW
+                                 || (uint8_t)battle_graphics_object(g) < BATTLE_COMBATANTS;
+    TransferDescription d = described_transfer(g);
+    bool described_from_memory = !battle_transfer_pending(g)
+                                 || from_memory((uint8_t)(d.source >> 16), (uint16_t)d.source, transfer_bytes(d.size));
+    return object_is_a_combatant && described_from_memory;
 }
 
 /* What the game sends comes from memory apart from the scratch cells and the
@@ -371,6 +392,8 @@ static bool sends_cell(uint8_t bank, uint16_t source, uint32_t bytes, uint16_t c
 
 static bool transfer_apart(uint8_t bank, uint16_t source, uint32_t bytes, uint16_t stack)
 {
+    if (!from_memory(bank, source, bytes))
+        return false;
     for (uint16_t cell = COUNT_CELLS; cell < COUNT_CELLS_END; cell++)
         if (sends_cell(bank, source, bytes, cell))
             return false;
