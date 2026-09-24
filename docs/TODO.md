@@ -78,7 +78,19 @@ rest waits, is [PLAN.md](PLAN.md).
     is the original driver's upload protocol, which goes when the C sound
     driver becomes the default (docs/SOUND.md);
   - the controller's button names `battle/nmi.c` and `battle/frame.c` still
-    define privately (`platform/input.h`'s `IN_BUTTON_*`).
+    define privately (`platform/input.h`'s `IN_BUTTON_*`);
+  - what core's review rated "mostly": `palette.c` passes one animation type
+    to stand for a family (`ROTATE_DOWN` for both rotations, `FADE_TO_WHITE`
+    for every fade, pulse and restore) where a `RunShape` belongs; the held
+    level is read out of the period byte in `fade_step` where storage helpers
+    belong; the scratch cells are named for one of their uses
+    (`SCRATCH_GREEN` also carries a working colour and a frame count); and
+    `run_end` uses `native_uncounted_*` where the rest use `charge.h`'s pair;
+    `palette_frame_table_entry` takes any long address where an offset into
+    the set stream may do (or the accessor says why not);
+  - map fixes: `tile_animation_tables`' steps and sources are words the map
+    declares as bytes; the block-move stub's two bank bytes want fields of
+    their own, and `memory_move_stub` a name for what it does.
 
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
   machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
