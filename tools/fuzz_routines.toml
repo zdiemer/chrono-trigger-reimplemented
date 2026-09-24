@@ -7227,6 +7227,150 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EA3D1
         "--fill", "7E9895-7E9895=50-55"]
 why = "on the battle's page with A's high byte clear (the guard's), each of the command's steps, the number commands $50-$55"
 
+[[routine]]
+name = "battle_reset_window_frames"
+at = "C1:1C3A"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "the frames tilemap put back, on the battle's page (the window's calls)"
+
+# -- anim: the combatants' animation and their sprite graphics (battle/animation.c, objects.c, sprites.c, tiles.c)
+
+[[routine]]
+name = "battle_step_combatant_animations"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00A4-7E00A4=00-00",
+        "--fill", "7E967A-7E967A=00-00", "--fill", "7E1C57-7E1CDA=C0-FE", "--fill", "7E967C-7E9686=00-04"]
+iterations = 5000
+why = "the party's pass (phase 0), on the battle's page with A's high byte clear, which the guard asks for; the object whose graphics are built a word whose high byte is 0 (the original reads it whole, the step sets its low byte), and the objects' lists in the ROM with graphics kinds that have a layout; a member's pose setup, target search and direction are call-outs"
+
+[[routine]]
+name = "battle_step_combatant_animations"
+variant = "enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00A4-7E00A4=01-03",
+        "--fill", "7E1C57-7E1CDA=C0-FE", "--fill", "7E967C-7E9686=00-04", "--fill", "7E969C-7E96A3=00-03",
+        "--fill", "7E967A-7E967A=00-00"]
+iterations = 5000
+why = "an enemy group's pass (phases 1-3): the objects' graphics, tile lists and frame lists in the ROM, their graphics kinds ones with a layout and the enemies' frames 0-3, as the enemies' frames build their graphics"
+
+[[routine]]
+name = "battle_step_combatant_animations"
+variant = "loose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00A4-7E00A4=00-03",
+        "--fill", "7E967A-7E967A=00-00", "--fill", "7E1C57-7E1CDA=7E-7E", "--fill", "7E967C-7E9686=00-04",
+        "--fill", "7E969C-7E96A3=00-03"]
+iterations = 5000
+why = "any phase, the objects' lists and graphics in work RAM ($7E:7E7E on), where they land on the buffers and cells the step writes; a graphics set over the direct page's cells or the stack differs (the accepted divergence at battle_build_frame_graphics, game/battle/sprites.c)"
+
+[[routine]]
+name = "battle_choose_status_pose"
+at = "C1:2F97"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E0094-7E0094=00-0A", "--fill", "7E0095-7E0095=00-00"]
+why = "the combatant in its cell, as the party's step and $C1:305C give it, and A's high byte clear: the guard refuses one past the combatants, and a high byte the original would index the stat blocks' table with"
+
+[[routine]]
+name = "battle_step_enemy_effects"
+at = "C1:3714"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "on the battle's page; the effects' handlers are call-outs"
+
+[[routine]]
+name = "battle_update_object_bounds"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-000A"]
+why = "a combatant's battle slot in X, as its callers give it"
+
+[[routine]]
+name = "battle_update_all_object_bounds"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_find_due_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EA21F-7EA21F=00-0A"]
+why = "the scheduler's place on a combatant; the guard refuses one past them"
+
+[[routine]]
+name = "battle_update_animation_positions"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "on the battle's page; the position modes' code is a call-out"
+
+[[routine]]
+name = "battle_build_object_graphics"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9679-7E9679=00-0A", "--fill", "7E967A-7E967A=00-00",
+        "--fill", "7E967C-7E9686=00-04", "--fill", "7E1C57-7E1C98=C0-FE"]
+why = "a combatant's object and a graphics kind with a layout, as the guard asks, with the objects' graphics and tile lists somewhere in the ROM (a bank from $C0: a pointer into the I/O registers reads open bus, which a port can't match)"
+
+[[routine]]
+name = "battle_build_object_graphics"
+variant = "loose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9679-7E9679=00-0A", "--fill", "7E967A-7E967A=00-00",
+        "--fill", "7E967C-7E9686=00-04", "--fill", "7E1C57-7E1C98=7E-7F"]
+why = "the tile lists and graphics sets in work RAM, over the buffers being built; a graphics set over the direct page's cells or the stack differs, which no object's graphics are (the accepted divergence at battle_build_frame_graphics, game/battle/sprites.c)"
+
+[[routine]]
+name = "battle_build_object_graphics_checked"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9679-7E9679=00-0A", "--fill", "7E967A-7E967A=00-00",
+        "--fill", "7E967C-7E9686=00-04", "--fill", "7E1C57-7E1C98=C0-FE"]
+why = "as battle_build_object_graphics, kind 3 among the kinds (which it returns for)"
+
+[[routine]]
+name = "battle_decode_tile_row"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-00FF", "--fill", "7E0067-7E0067=20-20",
+        "--fill", "7E0068-7E0068=00-00"]
+why = "a row set in X and a whole row of 32 tiles in its cell, as the setup's load step gives them"
+
+[[routine]]
+name = "battle_step_object_palettes"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "on the battle's page, entered by JSL"
+
+[[routine]]
+name = "battle_index_effect_animations"
+at = "C1:48EC"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "the effect's records anywhere in bank $CE"
+
+[[routine]]
+name = "battle_build_bitmap_shapes"
+at = "C1:4943"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "on the battle's page; it waits for a frame first (a call-out), which a fuzz state mostly never finishes"
+
 # -- setup: the battle's start (battle/setup*.c)
 
 [[routine]]

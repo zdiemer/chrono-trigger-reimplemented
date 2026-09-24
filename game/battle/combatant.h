@@ -19,6 +19,7 @@
 
 #include "battle/battle.h"
 #include "state.h"
+#include "vars.h"
 
 /* A combatant's statuses as one value: the four status bytes, the first in
  * the low byte, with the kept statuses ORed into the third and fourth. What
@@ -56,6 +57,13 @@ bool combatant_hp_low(const GameState *g, unsigned slot);
 
 /* Note whether the combatant's HP is low, for the window and the poses. */
 void combatant_note_low_hp(GameState *g, unsigned slot);
+
+/* Whether the combatant's HP was last noted low (the low bit of its stat
+ * block's first byte): a party member then takes its weak pose. */
+static inline bool combatant_low_hp_noted(const GameState *g, unsigned slot)
+{
+    return (battle_stats_low_hp(g, slot) & 0x01) != 0;
+}
 
 /* Bring the combatant's status timers in step with its statuses, and what its
  * statuses decide besides (battle/combatants.c). */

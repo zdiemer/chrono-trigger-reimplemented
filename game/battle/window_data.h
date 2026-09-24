@@ -40,6 +40,14 @@ static inline uint8_t battle_command_frame_attributes(const GameState *g, unsign
     return rom_read8(g, 0xD159FCu + 2 * cell + 1);
 }
 
+/* The frames tilemap as a battle starts it, and as the command page puts it
+ * back, a tile and its attributes a cell ($D1:5800). */
+static inline uint8_t battle_first_frames_tile(const GameState *g, unsigned cell) { return rom_read8(g, 0xD15800u + 2 * cell); }
+static inline uint8_t battle_first_frames_attributes(const GameState *g, unsigned cell)
+{
+    return rom_read8(g, 0xD15800u + 2 * cell + 1);
+}
+
 /* The frames tilemap as the tech page leaves it, a tile and its attributes a
  * cell ($D1:5A50). */
 static inline uint8_t battle_tech_page_frames_tile(const GameState *g, unsigned cell)

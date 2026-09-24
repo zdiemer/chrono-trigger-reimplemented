@@ -6334,6 +6334,26 @@ meaning = "Where the battle's code hands $C1:0089 (a byte times a byte) its fact
 source = "game/battle/arith.c battle_multiply $C1:0089"
 
 [[var]]
+name = "battle_data_pointers"
+addr = "7E:00BA"
+page = "battle"
+count = 12
+index = "byte"
+subsystem = "battle"
+meaning = "Long pointers the battle's routines read the ROM through, each routine its own: a frame's tile list ($BA) and the offset of the object's graphics ($BD), an enemy's frame list ($C0) and delay list ($C3)"
+source = "game/battle/sprites.c battle_build_object_graphics $C1:1C55; game/battle/animation.c load_enemy_frame_list $C1:3364"
+
+[[var]]
+name = "battle_direction_points"
+addr = "7E:00D3"
+page = "battle"
+count = 4
+index = "byte"
+subsystem = "battle"
+meaning = "The two points $C1:0222 finds the direction between: from X and Y ($D3, $D4) to X and Y ($D5, $D6)"
+source = "game/battle/animation.c face_nearest_enemy $C1:2F22"
+
+[[var]]
 name = "battle_product"
 addr = "7E:00AF"
 page = "battle"
@@ -6412,13 +6432,13 @@ meaning = "Cycles 0-3: which of the four queued VRAM uploads runs this frame, an
 source = "game/battle/frame.c battle_upload_vram $CF:E300; game/battle/animation.c battle_step_combatant_animations $C1:2D9F"
 
 [[var]]
-name = "battle_member_stat_block"
+name = "battle_current_stat_block"
 addr = "7E:00A2"
 page = "battle"
 size = 2
 subsystem = "battle"
-meaning = "The stat block ($80 times the battle slot) of the party member the window is drawing, or whose menu is open ($CF:FD9E notes it there)"
-source = "game/battle/window.c draw_member_status $C1:0311; game/battle/status.c battle_draw_party_status $C1:05A7; $CF:FD9E, called from game/battle/menu_window.c"
+meaning = "The stat block ($80 times the battle slot) of the combatant at hand: the party member the window is drawing, or whose menu is open ($CF:FD9E notes it there), or the combatant a status pose was chosen for"
+source = "game/battle/window.c draw_member_status $C1:0311; game/battle/status.c battle_draw_party_status $C1:05A7; $CF:FD9E, called from game/battle/menu_window.c; game/battle/animation.c battle_choose_status_pose $C1:2F97"
 
 [[var]]
 name = "battle_queued_uploads_on"
@@ -6562,7 +6582,7 @@ stride = 2
 index = "row * 32 + column (6 rows)"
 subsystem = "battle"
 meaning = "Second window tilemap, the party members' window frames; reset from $D1:5800 and uploaded to VRAM $7A00 when $99E2 is set"
-source = "game/battle/window.c header and copy_window_frame $C1:0929; game/battle/buffers.c battle_reset_0b40_table $C1:1C3A; game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/window.c header and copy_window_frame $C1:0929; game/battle/menu_window.c battle_reset_window_frames $C1:1C3A; game/battle/frame.c battle_upload_vram $CF:E300"
   [[var.field]]
   name = "tile"
   offset = 0
@@ -6684,7 +6704,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Long pointer (bank $E4) to the object's animation frame lists (the frames' graphics numbers, per pose)"
-source = "game/battle/setup.c load_party_graphics and setup_enemy in battle_setup_state $CC:E2E4; game/battle/animation.c party frames ($C1:2E4C) and load_enemy_animation"
+source = "game/battle/setup.c load_party_graphics and setup_enemy in battle_setup_state $CC:E2E4; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E4C) and load_enemy_animation"
 
 [[var]]
 name = "battle_object_delay_lists"
@@ -6694,7 +6714,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Long pointer (bank $E4) to the object's animation frame delay lists"
-source = "game/battle/setup.c load_party_graphics and setup_enemy in battle_setup_state $CC:E2E4; game/battle/animation.c party frames ($C1:2E4C) and load_enemy_animation"
+source = "game/battle/setup.c load_party_graphics and setup_enemy in battle_setup_state $CC:E2E4; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E4C) and load_enemy_animation"
 
 # ---- the data the event hands the battle ($2980-$2C9F) --------------------------
 
@@ -6830,8 +6850,8 @@ addr = "7E:2D00"
 count = 0xC00
 index = "byte"
 subsystem = "battle"
-meaning = "Tile graphics decoded to 4 bitplanes for upload (load step 3 sends $C00 bytes to VRAM $1800); battle_build_bitmap_sprites also reads its shape stream here"
-source = "game/battle/tiles.c battle_decode_tile_row $CD:1368; game/battle/display.c battle_load_graphics $CC:E000; game/battle/sprites.c battle_build_bitmap_sprites $C1:4943"
+meaning = "Tile graphics decoded to 4 bitplanes for upload (load step 3 sends $C00 bytes to VRAM $1800); battle_build_bitmap_shapes also reads its shape stream here"
+source = "game/battle/tiles.c battle_decode_tile_row $CD:1368; game/battle/display.c battle_load_graphics $CC:E000; game/battle/sprites.c battle_build_bitmap_shapes $C1:4943"
 
 # ---- combatant stats and animation scripts ------------------------------------
 
@@ -7751,7 +7771,7 @@ name = "battle_timers_held"
 addr = "7E:99E0"
 subsystem = "battle"
 meaning = "Nonzero while the combatants' timers are held: a pass only drops the actions of members that can't act"
-source = "game/battle/main_loop.c battle_main_loop_body $C1:812C"
+source = "game/battle/main_loop.c battle_main_loop_body $C1:812C; game/battle/animation.c battle_step_enemy_effects $C1:3714 (the enemy animation effects stand still too)"
 
 [[var]]
 name = "battle_action_running"
@@ -7809,7 +7829,7 @@ count = 8
 index = "enemy (battle slot - 3)"
 subsystem = "battle"
 meaning = "Set to have the enemy take its turn whatever animation it shows"
-source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battle/animation.c"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battle/animation.c load_enemy_frame_list $C1:3364 (loading an acting animation clears it; the enemy animation effect handlers count it up)"
 
 [[var]]
 name = "battle_enemy_turn_held"
@@ -8091,7 +8111,16 @@ count = 8
 index = "enemy (battle slot - 3)"
 subsystem = "battle"
 meaning = "The battle slot of the combatant the enemy goes with (another part of it): an enemy out of the fight with its link out too has its turn's script dropped"
-source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; game/battle/timers.c battle_step_slot_effects $C1:3714"
+source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; game/battle/animation.c battle_step_enemy_effects $C1:3714"
+
+[[var]]
+name = "battle_enemy_link_seen"
+addr = "7E:9752"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "The enemy's link (battle_enemy_link) as its animation effect last saw it"
+source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup_reset.c rest_the_enemies in battle_setup_state $CC:E2E4 ($FF: none yet)"
 
 [[var]]
 name = "battle_enemy_standing"
@@ -8175,7 +8204,7 @@ addr = "7E:99CF"
 size = 2
 subsystem = "battle"
 meaning = "Frames L and R have been held together (cleared when released); while nonzero the party shows its running pose"
-source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/animation.c party frames ($C1:2E28)"
+source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E28)"
 
 [[var]]
 name = "battle_frames"
@@ -8198,6 +8227,13 @@ addr = "7E:993A"
 subsystem = "battle"
 meaning = "Counted every fourth frame update"
 source = "game/battle/frame.c battle_frame_update $CF:E58A"
+
+[[var]]
+name = "battle_frame_phase_saved"
+addr = "7E:993B"
+subsystem = "battle"
+meaning = "battle_frame_phase as the battle's frame loop saved it before stepping the animations ($C1:10A6), which it puts back after; the enemies' step stops short of it"
+source = "game/battle/animation.c step_enemy_group $C1:3234"
 
 # ---- per-slot object state -------------------------------------------------------
 
@@ -8251,7 +8287,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Low byte of the length of one facing's part of the object's frame lists (the gap to the next $E4:2600 entry / 4), multiplied by the facing"
-source = "game/battle/setup.c load_party_graphics and setup_enemy; game/battle/animation.c party frames ($C1:2E98)"
+source = "game/battle/setup.c load_party_graphics and setup_enemy; game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2E98)"
 
 [[var]]
 name = "battle_facing_stride_high"
@@ -8277,8 +8313,9 @@ addr = "7E:968C"
 count = 3
 index = "party slot"
 subsystem = "battle"
+unchecked = "battle_choose_status_pose restarts the frame list of whatever combatant it chose a pose for through this table, so an enemy's write lands 5 to 12 bytes past it, the last three on the frame delays of enemies 0-2 (game/battle/animation.c, restart_frame_list)"
 meaning = "Party member's position in its pose's frame list ($FF restarts the pose)"
-source = "game/battle/animation.c party frames; game/battle/stats.c battle_select_status_pose $C1:2F97"
+source = "game/battle/animation.c take_next_party_frame $C1:2E28, restart_frame_list, battle_choose_status_pose $C1:2F97"
 
 [[var]]
 name = "battle_enemy_frame_delay"
@@ -8314,7 +8351,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "The facing the enemy's frame list was loaded for; a change reloads it"
-source = "game/battle/animation.c load_enemy_animation and step_enemy $C1:3351"
+source = "game/battle/animation.c load_enemy_frame_list $C1:3364 and step_enemy $C1:3351"
 
 [[var]]
 name = "battle_enemy_animation_loaded"
@@ -8323,7 +8360,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "The enemy animation its frame list was loaded for (a copy of $5E0D + enemy); negative: no per-frame effect handler"
-source = "game/battle/animation.c load_enemy_animation; game/battle/timers.c battle_step_slot_effects $C1:3714"
+source = "game/battle/animation.c load_enemy_frame_list $C1:3364; game/battle/animation.c battle_step_enemy_effects $C1:3714"
 
 [[var]]
 name = "battle_enemy_frame_graphics"
@@ -8332,7 +8369,7 @@ count = 64
 index = "enemy frame list offset ($CC:F82F by enemy) + frame"
 subsystem = "battle"
 meaning = "Enemies' loaded frame lists: each frame's graphics number"
-source = "game/battle/animation.c load_enemy_animation, step_enemy $C1:3351"
+source = "game/battle/animation.c load_enemy_frame_list $C1:3364, step_enemy $C1:3351"
 
 [[var]]
 name = "battle_enemy_frame_delays"
@@ -8341,7 +8378,7 @@ count = 64
 index = "enemy frame list offset ($CC:F82F by enemy) + frame"
 subsystem = "battle"
 meaning = "Enemies' loaded frame lists: each frame's delay (0 ends the list)"
-source = "game/battle/animation.c load_enemy_animation, frame_delay"
+source = "game/battle/animation.c load_enemy_frame_list $C1:3364, frame_delay"
 
 [[var]]
 name = "battle_anim_held"
@@ -8349,7 +8386,7 @@ addr = "7E:9922"
 count = 11
 index = "battle slot"
 subsystem = "battle"
-meaning = "Set when the combatant waited a frame for the graphics upload; the next pass starts its group's order after it"
+meaning = "Set (counted up) when the combatant waited a frame because another object's graphics had been built; the next pass starts its group's order with it, and building its own graphics clears it"
 source = "game/battle/animation.c header, choose_order, battle_step_combatant_animations $C1:2D9F; game/battle/sprites.c battle_build_object_graphics $C1:1C55 (clears it)"
 
 [[var]]
@@ -8360,6 +8397,13 @@ index = "position in this frame's order"
 subsystem = "battle"
 meaning = "The order this frame's three combatants are animated in (party slots, or enemies; negative skipped)"
 source = "game/battle/animation.c header and choose_order"
+
+[[var]]
+name = "battle_anim_order_place"
+addr = "7E:9841"
+subsystem = "battle"
+meaning = "The place in battle_anim_order the enemies' animation step has reached (3 once through)"
+source = "game/battle/animation.c step_enemy_group $C1:3234"
 
 [[var]]
 name = "battle_graphics_built"
@@ -8375,7 +8419,78 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "The combatant's pose ($FF none; $80 the low HP pose), chosen from its status"
-source = "game/battle/stats.c battle_select_status_pose $C1:2F97; game/battle/object_motion.c cycle_party_colors $CF:E7D7"
+source = "game/battle/animation.c battle_choose_status_pose $C1:2F97; game/battle/object_motion.c cycle_party_colors $CF:E7D7"
+
+[[var]]
+name = "battle_facing_turn"
+addr = "7E:A098"
+subsystem = "battle"
+meaning = "The party member whose turn it is to face its nearest enemy, with bit 7 while the member has taken the turn and not yet turned (it turns when it next animates, and keeps the turn until another member takes it)"
+source = "game/battle/animation.c face_nearest_enemy $C1:2F22"
+
+[[var]]
+name = "battle_member_facing_target"
+addr = "7E:99DA"
+count = 3
+index = "party slot"
+subsystem = "battle"
+meaning = "The enemy (battle slot) the party member last turned to face, its nearest"
+source = "game/battle/animation.c face_nearest_enemy $C1:2F22"
+
+[[var]]
+name = "battle_target_search"
+addr = "7E:986E"
+subsystem = "battle"
+meaning = "Which search $C1:2986 makes for a target (2: the nearest enemy)"
+source = "game/battle/animation.c face_nearest_enemy $C1:2F22"
+
+[[var]]
+name = "battle_target_searcher"
+addr = "7E:986F"
+subsystem = "battle"
+meaning = "The combatant $C1:2986 searches for a target for (battle slot)"
+source = "game/battle/animation.c face_nearest_enemy $C1:2F22"
+
+[[var]]
+name = "battle_target_found"
+addr = "7E:9873"
+subsystem = "battle"
+meaning = "The combatant $C1:2986's search found (battle slot)"
+source = "game/battle/animation.c face_nearest_enemy $C1:2F22"
+
+[[var]]
+name = "battle_member_sitting_out"
+addr = "7E:A09B"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Set for a party member that takes no part in the fight (from $7F:00B4 by character when bit 0 of $7F:00BA is set, $CF:FBD0): the targeting passes it over, and it stands in its field stance with no weak pose; the enemies' entries stay 0"
+source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
+
+[[var]]
+name = "battle_fight_flags"
+addr = "7E:A0A7"
+subsystem = "battle"
+meaning = "Flags the fight sets at its start (bit 1 from bit 1 of $7F:00BA, inverted, $CF:FBDE; bit 0 ORed in at the battle's start when an enemy in it keeps the party from running away, $CC:ECAA); bit 0 changes the menu's first command ($C1:12BC), and any set keeps the status poses that take the combatant's stance from being chosen"
+source = "game/battle/animation.c battle_choose_status_pose $C1:2F97; game/battle/setup_enemies.c take_rules in battle_setup_state $CC:E2E4"
+
+[[var]]
+name = "battle_combatant_down"
+addr = "7E:A0A8"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Set when the combatant's pose was chosen while it was knocked out or falling: the targeting passes over it (but for actions of kind 4), and its next pose clears it ($C1:308C)"
+source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
+
+[[var]]
+name = "battle_member_falling"
+addr = "7E:A119"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Set for a party member the damage now shown takes to 0 HP ($C1:41BE): its pose is the knocked-out one at once, before its HP says so; the enemies' entries stay 0"
+source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
 
 [[var]]
 name = "battle_object_pose_last"
@@ -8384,14 +8499,14 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "The pose the combatant last had; a different pose restarts its frame list"
-source = "game/battle/stats.c battle_select_status_pose $C1:2F97"
+source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
 
 [[var]]
 name = "battle_pose_animation"
 addr = "7E:A440"
 subsystem = "battle"
 meaning = "Animation chosen with the pose for the combatant being updated"
-source = "game/battle/stats.c battle_select_status_pose $C1:2F97; game/battle/animation.c party frames"
+source = "game/battle/animation.c battle_choose_status_pose $C1:2F97; game/battle/animation.c take_next_party_frame $C1:2E28"
 
 [[var]]
 name = "battle_object_pose_shown"
@@ -8400,7 +8515,7 @@ count = 3
 index = "party slot"
 subsystem = "battle"
 meaning = "Pose the party member's graphics were last built for"
-source = "game/battle/animation.c party frames ($C1:2EF2)"
+source = "game/battle/animation.c take_next_party_frame $C1:2E28 ($C1:2EF2)"
 
 [[var]]
 name = "battle_object_palette"
@@ -8434,7 +8549,7 @@ name = "battle_sprite_attributes"
 addr = "7E:A5E3"
 subsystem = "battle"
 meaning = "Attribute bits (priority) ORed into the shadows, markers and bitmap sprites"
-source = "game/battle/draw_objects.c draw_shadow $CF:EA8A, draw_marker; game/battle/sprites.c battle_build_bitmap_sprites $C1:4943"
+source = "game/battle/draw_objects.c draw_shadow $CF:EA8A, draw_marker; game/battle/sprites.c battle_build_bitmap_shapes $C1:4943"
 
 [[var]]
 name = "battle_cursor_priority"
@@ -8785,15 +8900,6 @@ meaning = "The effect period (battle_effect_period) a party member's effects sta
 source = "game/battle/setup_reset.c rest_the_objects in battle_setup_state $CC:E2E4; $C1:4F1A"
 
 [[var]]
-name = "battle_enemy_link_seen"
-addr = "7E:9752"
-count = 8
-index = "enemy"
-subsystem = "battle"
-meaning = "The enemy's link (battle_enemy_link) as last looked at ($C1:373B); $FF at the start"
-source = "game/battle/setup_reset.c rest_the_enemies in battle_setup_state $CC:E2E4; $C1:373B"
-
-[[var]]
 name = "battle_number_marks"
 addr = "7E:9842"
 count = 16
@@ -8884,13 +8990,6 @@ index = "battle slot"
 subsystem = "battle"
 meaning = "Nonzero for an enemy the battle's rule (battle_enemy_rule) applies to: flag bit 2 of its header"
 source = "game/battle/setup_enemies.c take_flags in battle_setup_state $CC:E2E4; $C1:5DF3, $CD:0066"
-
-[[var]]
-name = "battle_escape_blocked"
-addr = "7E:A0A7"
-subsystem = "battle"
-meaning = "Bit 0: the party can't run from this battle (an enemy in it forbids it); the run away and its prompt test it ($C1:12BC, $C1:12ED)"
-source = "game/battle/setup_enemies.c take_rules in battle_setup_state $CC:E2E4; $C1:12BC"
 
 [[var]]
 name = "battle_remembers_commands"
@@ -9257,7 +9356,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Frames until the enemy's per-frame effect handler runs"
-source = "game/battle/timers.c battle_step_slot_effects $C1:3714; game/battle/setup.c setup_enemy"
+source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup.c setup_enemy"
 
 [[var]]
 name = "battle_enemy_effect_period"
@@ -9266,7 +9365,7 @@ count = 8
 index = "enemy"
 subsystem = "battle"
 meaning = "Reload of battle_enemy_effect_delay"
-source = "game/battle/timers.c battle_step_slot_effects $C1:3714; game/battle/setup.c setup_enemy (from $CC:F544)"
+source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup.c setup_enemy (from $CC:F544)"
 
 [[var]]
 name = "battle_effect_active"
@@ -9551,6 +9650,14 @@ meaning = "Last frame, after which it wraps"
 source = "game/battle/sprites.c battle_step_object_palettes $CC:F1E7"
 
 [[var]]
+name = "battle_palette_anim_frames"
+addr = "7E:9882"
+size = 2
+subsystem = "battle"
+meaning = "Offset in bank $CD of the effect's palette animation frames (two bytes a frame: the color set and where it goes)"
+source = "game/battle/sprites.c battle_step_object_palettes $CC:F1E7"
+
+[[var]]
 name = "battle_party_palette_cycle_on"
 addr = "7E:A46D"
 count = 3
@@ -9622,6 +9729,26 @@ meaning = "Where the animation scheduler's round-robin search resumes"
 source = "game/battle/objects.c battle_find_due_animation $C1:423A"
 
 [[var]]
+name = "battle_scheduled_frame_lists"
+addr = "7E:A1E8"
+size = 2
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Offset (bank $E4) of the frame list of the animation the scheduler plays on the object; a party member's frame step keeps its own in the first entry"
+source = "game/battle/animation.c take_next_party_frame $C1:2E28; the scheduler at $C1:4269"
+
+[[var]]
+name = "battle_scheduled_delay_lists"
+addr = "7E:A1FE"
+size = 2
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Offset (bank $E4) of the delay list of the animation the scheduler plays on the object; a party member's frame step keeps its own in the first entry"
+source = "game/battle/animation.c take_next_party_frame $C1:2E28; the scheduler at $C1:4269"
+
+[[var]]
 name = "battle_animation_position_modes"
 addr = "7E:A4E8"
 count = 6
@@ -9675,39 +9802,77 @@ meaning = "Set by an opcode handler to run the channel's next opcode in the same
 source = "game/battle/scripts.c header and battle_run_script_channel $C1:4C9E"
 
 [[var]]
-name = "battle_record_group_starts"
+name = "battle_effect_animation_starts"
 addr = "7E:A280"
 size = 2
 count = 16
-index = "group"
+index = "animation"
 subsystem = "battle"
-meaning = "Offset in bank CE where each group of 4-byte records starts"
-source = "game/battle/sprites.c battle_index_record_groups $C1:48EC"
+meaning = "Offset in bank $CE of the first record of each of the effect's sixteen animations"
+source = "game/battle/sprites.c battle_index_effect_animations $C1:48EC; read at $C1:4DDF"
 
 [[var]]
-name = "battle_record_group_counts"
+name = "battle_effect_animation_frames"
 addr = "7E:A2A0"
 count = 16
-index = "group"
+index = "animation"
 subsystem = "battle"
-meaning = "Number of records in each group"
-source = "game/battle/sprites.c battle_index_record_groups $C1:48EC"
+meaning = "Number of frames (records) of each of the effect's sixteen animations"
+source = "game/battle/sprites.c battle_index_effect_animations $C1:48EC; read at $C1:4DDF"
 
 [[var]]
-name = "battle_bitmap_shape"
+name = "battle_effect_records"
+addr = "7E:9885"
+size = 2
+subsystem = "battle"
+meaning = "Offset in bank $CE of the effect's animation records, which battle_index_effect_animations divides into its sixteen animations"
+source = "game/battle/sprites.c battle_index_effect_animations $C1:48EC"
+
+[[var]]
+name = "battle_position_found_x"
+addr = "7E:A2B0"
+subsystem = "battle"
+meaning = "X of the position an animation slot's position mode worked out (the handlers at $C1:79D3)"
+source = "game/battle/objects.c battle_update_animation_positions $C1:4212"
+
+[[var]]
+name = "battle_position_found_y"
+addr = "7E:A2B2"
+subsystem = "battle"
+meaning = "Y of the position an animation slot's position mode worked out"
+source = "game/battle/objects.c battle_update_animation_positions $C1:4212"
+
+[[var]]
+name = "battle_effect_kind"
+addr = "7E:A2B5"
+subsystem = "battle"
+meaning = "The animation of the enemy whose animation effect runs, which picks the effect's handler ($CC:FBAB)"
+source = "game/battle/animation.c battle_step_enemy_effects $C1:3714"
+
+[[var]]
+name = "battle_bitmap_set"
 addr = "7E:A650"
 size = 2
 subsystem = "battle"
-meaning = "Bitmap sprite shape being built (0-3)"
-source = "game/battle/sprites.c battle_build_bitmap_sprites $C1:4943"
+meaning = "The effect sprite set the next bitmap shape is built into (counted up by its low byte)"
+source = "game/battle/sprites.c battle_build_bitmap_shapes $C1:4943"
 
 [[var]]
 name = "battle_bitmap_stream"
 addr = "7E:A652"
 size = 2
 subsystem = "battle"
-meaning = "Read offset in the shape stream at $2D00"
-source = "game/battle/sprites.c battle_build_bitmap_sprites $C1:4943"
+meaning = "Read offset in the stream of bitmap shapes in the decode buffer (battle_decoded_tiles)"
+source = "game/battle/sprites.c battle_build_bitmap_shapes $C1:4943"
+
+[[var]]
+name = "battle_bitmap_row_masks"
+addr = "7E:A2D3"
+count = 15
+index = "row"
+subsystem = "battle"
+meaning = "The bitmap shape's rows as its stream gives them, a bit a sprite from the left; building the sprites shifts them out, leaving 0"
+source = "game/battle/sprites.c battle_build_bitmap_shapes $C1:4943"
 
 [[var]]
 name = "battle_bitmap_counts"
@@ -9715,8 +9880,8 @@ addr = "7E:A05B"
 count = 48
 index = "effect sprite set"
 subsystem = "battle"
-meaning = "Number of sprites in each effect sprite set (battle_effect_sprite_data); the first four are the bitmap shapes battle_build_bitmap_sprites builds"
-source = "game/battle/sprites.c battle_build_bitmap_sprites $C1:4943"
+meaning = "Number of sprites built into each effect sprite set (battle_effect_sprite_data) from a bitmap shape"
+source = "game/battle/sprites.c battle_build_bitmap_shapes $C1:4943; game/battle/draw_objects.c draw_effect_sprites $CF:EEEB"
 
 # ---- display: scroll, shake, window, pause ----------------------------------------
 
@@ -9897,6 +10062,16 @@ size = 2
 subsystem = "battle"
 meaning = "Source address in $7E of the requested block upload"
 source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+
+[[var]]
+name = "battle_tile_row_palettes"
+addr = "7E:CC9D"
+size = 2
+count = 2
+index = "copy"
+subsystem = "battle"
+meaning = "The palette word of the battlefield tile row being decoded, twice over, so that a byte of it can be taken for every eight tiles"
+source = "game/battle/tiles.c battle_decode_tile_row $CD:1368"
 
 [[var]]
 name = "battle_block_uploaded_row"
@@ -10142,11 +10317,11 @@ source = "game/battle/screen.h; $CD:16A6"
 name = "battle_scratch"
 addr = "7E:0045"
 page = "battle"
-count = 0x17
+count = 0x26
 index = "byte"
 subsystem = "battle"
-meaning = "Direct-page scratch the battle's routines share ($45-$5B): counts, thresholds, operands and table offsets, each routine's own"
-source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c"
+meaning = "Direct-page scratch the battle's routines share ($45-$6A): counts, thresholds, operands and table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and counts at $53-$6A, the count of tiles its callers hand it at $67"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c; game/battle/tiles.c battle_decode_tile_row $CD:1368"
 
 [[var]]
 name = "battle_background_flags"
@@ -11159,8 +11334,8 @@ addr = "7E:4500"
 count = 0x1880
 index = "byte: the 48 effect sprite sets, 0-31 of 48 sprites each $C0 bytes apart, then 32-47 of two, 8 bytes apart ($CC:F7C0)"
 subsystem = "battle"
-meaning = "The effect sprite sets: four bytes a sprite (X, Y from the anchor, tile, attributes)"
-source = "game/battle/draw_objects.c draw_effect $CF:EEEB"
+meaning = "The effect sprite sets, four bytes a sprite (X, Y from the anchor, tile, attributes): sets 0-31 of 48 sprites each, sets 32-47 of two ($CC:F7C0 gives where each starts)"
+source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB; game/battle/sprites.c battle_build_bitmap_shapes $C1:4943 (the bitmap shapes reach set 11 and on)"
 
 [[var]]
 name = "battle_effect_shown"

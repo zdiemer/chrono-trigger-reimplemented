@@ -125,7 +125,7 @@ static void show_name_plain(GameState *g, WindowLayout layout, unsigned member)
 
 void battle_leave_member_drawn(GameState *g, unsigned member, bool shaded)
 {
-    set_battle_member_stat_block(g, (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES));
+    set_battle_current_stat_block(g, (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES));
     set_battle_digit_highlight(g, shaded);
 }
 

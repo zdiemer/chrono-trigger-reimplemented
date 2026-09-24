@@ -204,7 +204,7 @@ static void take_rules(GameState *g)
             }
         }
     }
-    set_battle_escape_blocked(g, battle_escape_blocked(g) | (no_escape ? ESCAPE_BLOCKED : 0));
+    set_battle_fight_flags(g, battle_fight_flags(g) | (no_escape ? ESCAPE_BLOCKED : 0));
     set_battle_effect_mirror_slot3(g, mirror);
     ORIGINAL_EFFECT(leave_rules(g, no_escape, mirror));
 }

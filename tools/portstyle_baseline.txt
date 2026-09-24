@@ -3,13 +3,9 @@
 # threshold, or a listed file gets worse. Rewriting one to the bar means deleting
 # its line; the list is meant to empty (docs/PLAN.md, "The transcription backlog").
 
-game/battle/animation.c                      0.455
 game/battle/buffers.c                        0.548
 game/battle/display.c                        0.285
 game/battle/frame.c                          0.234
-game/battle/objects.c                        0.526
-game/battle/sprites.c                        0.584
-game/battle/tiles.c                          0.505
 game/core/input.c                            0.541
 game/data/decompress.c                       0.171
 game/menu/epoch.c                            0.159

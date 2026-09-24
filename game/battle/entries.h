@@ -18,7 +18,7 @@ void battle_wait_graphics_loaded_loop(Snes *s);
 /* battle/buffers.c */
 void battle_clear_oam_buffer(Snes *s);
 void battle_mark_object_grid(Snes *s);
-void battle_reset_0b40_table(Snes *s);
+void battle_reset_window_frames(Snes *s);
 void battle_clear_damage(Snes *s);
 void battle_clear_numbers(Snes *s);
 void battle_reset_object_state(Snes *s);
@@ -36,16 +36,22 @@ void battle_nmi_alternate(Snes *s);
 void battle_update_low_hp_flag(Snes *s);
 void battle_update_status_flags(Snes *s);
 void battle_update_all_combatants(Snes *s);
-void battle_select_status_pose(Snes *s);
 void battle_update_combatant(Snes *s);
 
 /* battle/tiles.c */
 void battle_decode_tile_row(Snes *s);
+bool battle_decodes_tile_row(Snes *s);
+
+/* battle/animation.c */
+void battle_step_combatant_animations(Snes *s);
+bool battle_steps_animations(Snes *s);
+void battle_choose_status_pose(Snes *s);
+bool battle_poses_combatant(Snes *s);
+void battle_step_enemy_effects(Snes *s);
 
 /* battle/timers.c */
 void battle_tick_timers(Snes *s);
 void battle_dispatch_expired_timers(Snes *s);
-void battle_step_slot_effects(Snes *s);
 
 /* battle/effect_animation.c */
 void battle_animate_effects(Snes *s);
@@ -78,7 +84,9 @@ void battle_effect_anchor_chase(Snes *s);
 /* battle/objects.c */
 void battle_update_object_bounds(Snes *s);
 void battle_update_all_object_bounds(Snes *s);
+bool battle_names_bounds_object(Snes *s);
 void battle_find_due_animation(Snes *s);
+bool battle_scheduler_in_place(Snes *s);
 void battle_update_animation_positions(Snes *s);
 
 /* battle/frame.c */
@@ -142,9 +150,10 @@ void battle_cycle_party_colors(Snes *s);
 /* battle/sprites.c */
 void battle_build_object_graphics(Snes *s);
 void battle_build_object_graphics_checked(Snes *s);
+bool battle_builds_known_object(Snes *s);
 void battle_step_object_palettes(Snes *s);
-void battle_index_record_groups(Snes *s);
-void battle_build_bitmap_sprites(Snes *s);
+void battle_index_effect_animations(Snes *s);
+void battle_build_bitmap_shapes(Snes *s);
 
 /* battle/window.c, battle/status.c, battle/digits.c, battle/menu_window.c,
  * battle/numbers.c: the windows and the numbers, and the guard they run under */
