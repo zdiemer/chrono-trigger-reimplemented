@@ -169,7 +169,7 @@ void battle_nmi(Snes *s)
     vid_enable_line_effects(pf, PF_AT(0xD1E7CC), 0);
     tm_reset_beam_latch(pf, PF_AT(0xD1E7CF));
     vid_set_display(pf, PF_AT(0xD1E7D4), &(VidDisplay){ .blank = true });
-    vid_begin_vram_uploads(pf, PF_AT(0xD1E7D7), VID_VRAM_WORD_PORT, PF_GAME(0), NULL);
+    vid_start_vram_uploads(pf, PF_AT(0xD1E7D7), VID_VRAM_WORD_PORT);
     s->cpu.a = 0x0080;
     m_jsl_dc(s, 0xD1E7DA, FRAME_WORK, DC_X | DC_N | DC_Z | DC_C);
     if (!came_back(s))
