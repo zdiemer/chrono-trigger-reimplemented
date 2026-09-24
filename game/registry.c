@@ -4,7 +4,6 @@
 #include "battle/animation.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
-#include "battle/menu_window.h"
 #include "battle/main_loop.h"
 #include "battle/window.h"
 #include "battle/effects.h"
@@ -460,7 +459,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCCF06B, .name = "battle_reset_object_state", .fn = battle_reset_object_state, NEEDS_M8_X16,
       .cost_milli = 7433 },
     { .addr = 0xC1B575, .name = "battle_update_combo_members", .fn = battle_update_combo_members, NEEDS_M8_X16,
-      .cost_milli = 7076 },
+      .guard = battle_on_page, .cost_milli = 7076, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC1B279, .name = "battle_update_combatant", .fn = battle_update_combatant, NEEDS_M8_X16,
       .cost_milli = 5352, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C, .guard = battle_on_page_combatant_xy },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
@@ -470,11 +469,12 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC11C3A, .name = "battle_reset_0b40_table", .fn = battle_reset_0b40_table, NEEDS_M8_X16,
       .cost_milli = 7845, .dont_care = DC_N | DC_Z },
     { .addr = 0xC10C2D, .name = "battle_draw_menu_window", .fn = battle_draw_menu_window, NEEDS_M8_X16_BINARY,
-      .cost_milli = 5920, .dont_care = DC_N | DC_Z },
+      .guard = battle_window_ready, .cost_milli = 5920, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC117DD, .name = "battle_place_menu_cursors", .fn = battle_place_menu_cursors, NEEDS_M8_X16_BINARY,
-      .cost_milli = 3835, .dont_care = DC_N | DC_Z },
+      .guard = battle_cursors_ready, .cost_milli = 3835, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC15ADB, .name = "battle_script_build_number_sprites", .fn = battle_script_build_number_sprites,
-      NEEDS_M8_X16_BINARY, .cost_milli = 4557, .dont_care = DC_N | DC_Z },
+      NEEDS_M8_X16_BINARY, .guard = battle_on_page_a_high_clear, .cost_milli = 4557,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xFDACFD, .name = "battle_clear_b328_table", .fn = battle_clear_b328_table, NEEDS_M8_X16,
       .cost_milli = 9833, .dont_care = DC_N | DC_Z },
     { .addr = 0xCFE83A, .name = "battle_draw_objects", .fn = battle_draw_objects, NEEDS_M8_X16_BINARY,

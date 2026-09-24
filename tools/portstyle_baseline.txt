@@ -8,9 +8,7 @@ game/battle/buffers.c                        0.548
 game/battle/display.c                        0.285
 game/battle/frame.c                          0.234
 game/battle/main_loop.c                      0.418
-game/battle/menu_window.c                    0.481
 game/battle/nmi.c                            0.168
-game/battle/numbers.c                        0.498
 game/battle/objects.c                        0.526
 game/battle/scripts.c                        0.458
 game/battle/setup.c                          0.323

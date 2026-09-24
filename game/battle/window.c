@@ -19,6 +19,7 @@
 #include "battle/combatant.h"
 #include "battle/entries.h"
 #include "battle/window_data.h"
+#include "battle/window_leaves.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -413,27 +414,12 @@ void battle_redraw_window(GameState *g)
 
 /* ---- The entry ------------------------------------------------------------------------- */
 
-/* The carry the original leaves: from comparing the last enemy kind's index
- * (set) where it stops early; from doubling the target where it marks a
- * target's name; from the cursor's place where it draws the command windows
- * and the cursor (clear: the place is small); and from the member's window's
- * offset where a wrapped count skips the cursor (clear likewise). */
-bool battle_window_redraw_carry(const GameState *g)
-{
-    if (battle_menu_member_count(g) == 0)
-        return true;
-    if (battle_ally_target_page(g)) {
-        uint8_t target = battle_targets(g, 0);
-        return target == battle_ally_target_marked(g) || (target & 0x80);
-    }
-    return battle_menu_page(g) != 0;
-}
-
+/* It leaves the carry as window_leaves.c works it out. */
 void battle_draw_window(Snes *s)
 {
     GameState *g = state_of(s);
     vars_peek(true);
-    bool carry = battle_window_redraw_carry(g);
+    bool carry = window_redraw_carry(g);
     vars_peek(false);
     battle_redraw_window(g);
     m_set_flag(s, CPU_FLAG_C, carry);
@@ -470,6 +456,8 @@ static bool menu_state_kept(const GameState *g)
             return false;
     if (battle_ally_target_page(g) && battle_targets(g, 0) >= BATTLE_PARTY_SIZE)
         return false;
+    if (battle_target_cursor(g) >= 6)
+        return false;
     if (battle_menu_member_count(g) == 0)
         return true;
     if (battle_menu_slot(g) >= BATTLE_PARTY_SIZE)
@@ -496,3 +484,7 @@ bool battle_window_member_ready(Snes *s)
     vars_peek(false);
     return ready;
 }
+
+/* The cursors also take the target's name in A, whose high byte the original
+ * carries into its indexes: the game's is clear. */
+bool battle_cursors_ready(Snes *s) { return battle_window_ready(s) && !(s->cpu.a & 0xFF00); }

@@ -3175,18 +3175,25 @@ enum { BATTLE_TECH_RECORDS_COUNT = 60 };   /* by party member * 20 + the entry t
 /* Tech id ($FF: none); what the member's tech list shows */
 uint8_t battle_tech_records_id(const GameState *g, unsigned member);
 void set_battle_tech_records_id(GameState *g, unsigned member, uint8_t v);
+/* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it,
+ * and what it is isn't worked out (docs/TODO.md) */
+uint8_t battle_tech_records_menu_detail(const GameState *g, unsigned member);
+void set_battle_tech_records_menu_detail(GameState *g, unsigned member, uint8_t v);
 /* Bit 7 set while the tech is dimmed (can't be used now) */
 uint8_t battle_tech_records_flags(const GameState *g, unsigned member);
 void set_battle_tech_records_flags(GameState *g, unsigned member, uint8_t v);
-/* MP cost for the first member ($FF or negative: none) */
+/* MP the tech costs the party member in the first slot (negative: none) */
 uint8_t battle_tech_records_cost(const GameState *g, unsigned member);
 void set_battle_tech_records_cost(GameState *g, unsigned member, uint8_t v);
 /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
 uint8_t battle_tech_records_partners(const GameState *g, unsigned member);
 void set_battle_tech_records_partners(GameState *g, unsigned member, uint8_t v);
-/* MP costs for the second and third members */
-uint16_t battle_tech_records_partner_costs(const GameState *g, unsigned member);
-void set_battle_tech_records_partner_costs(GameState *g, unsigned member, uint16_t v);
+/* MP it costs the member in the second slot (negative: none) */
+uint8_t battle_tech_records_second_cost(const GameState *g, unsigned member);
+void set_battle_tech_records_second_cost(GameState *g, unsigned member, uint8_t v);
+/* MP it costs the member in the third slot (negative: none) */
+uint8_t battle_tech_records_third_cost(const GameState *g, unsigned member);
+void set_battle_tech_records_third_cost(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_MEMBER_EQUIPMENT_COUNT = 15 };   /* by party slot * 5 + the equipment's place (0 the weapon) */
 /* The party members' equipment, five bytes each, the weapon first (its palette colors the
@@ -3748,6 +3755,11 @@ enum { BATTLE_OBJECT_PALETTE_INITIAL_COUNT = 11 };   /* by battle slot */
 uint8_t battle_object_palette_initial(const GameState *g, unsigned slot);
 void set_battle_object_palette_initial(GameState *g, unsigned slot, uint8_t v);
 
+/* The animation script command being run, its first byte; the number commands $50-$55 take their
+ * set of numbers from its low bits */
+uint8_t battle_script_command(const GameState *g);
+void set_battle_script_command(GameState *g, uint8_t v);
+
 enum { BATTLE_ENEMY_EFFECT_DELAY_COUNT = 8 };   /* by enemy */
 /* Frames until the enemy's per-frame effect handler runs */
 uint8_t battle_enemy_effect_delay(const GameState *g, unsigned i);
@@ -3883,11 +3895,28 @@ enum { BATTLE_MENU_LIST_TILES_COUNT = 640 };   /* by tile */
 uint8_t battle_menu_list_tiles(const GameState *g, unsigned i);
 void set_battle_menu_list_tiles(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_SELECTED_TECH_COUNT = 7 };   /* by byte of the tech record */
-/* Copy of the record of the tech under the tech list cursor ($FF when none): id at +0, costs at
- * +3, +5 and +6, partners at +4 */
-uint8_t battle_selected_tech(const GameState *g, unsigned i);
-void set_battle_selected_tech(GameState *g, unsigned i, uint8_t v);
+/* Tech id ($FF: none); what the member's tech list shows */
+uint8_t battle_selected_tech_id(const GameState *g);
+void set_battle_selected_tech_id(GameState *g, uint8_t v);
+/* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it,
+ * and what it is isn't worked out (docs/TODO.md) */
+uint8_t battle_selected_tech_menu_detail(const GameState *g);
+void set_battle_selected_tech_menu_detail(GameState *g, uint8_t v);
+/* Bit 7 set while the tech is dimmed (can't be used now) */
+uint8_t battle_selected_tech_flags(const GameState *g);
+void set_battle_selected_tech_flags(GameState *g, uint8_t v);
+/* MP the tech costs the party member in the first slot (negative: none) */
+uint8_t battle_selected_tech_cost(const GameState *g);
+void set_battle_selected_tech_cost(GameState *g, uint8_t v);
+/* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
+uint8_t battle_selected_tech_partners(const GameState *g);
+void set_battle_selected_tech_partners(GameState *g, uint8_t v);
+/* MP it costs the member in the second slot (negative: none) */
+uint8_t battle_selected_tech_second_cost(const GameState *g);
+void set_battle_selected_tech_second_cost(GameState *g, uint8_t v);
+/* MP it costs the member in the third slot (negative: none) */
+uint8_t battle_selected_tech_third_cost(const GameState *g);
+void set_battle_selected_tech_third_cost(GameState *g, uint8_t v);
 
 enum { BATTLE_PENDING_TRANSFER_COUNT = 9 };   /* by channel value (mode, destination, source low, high, bank, size low, high, VRAM low, high) */
 /* The transfer battle_upload_vram makes when $A0 is set, one value in every sixth byte */
@@ -4865,6 +4894,11 @@ enum { BATTLE_COMBO_CALLED_OFF_COUNT = 3 };   /* by party slot */
  * that chose it, can't act; $FD:A95F then drops what the member had queued */
 uint8_t battle_combo_called_off(const GameState *g, unsigned slot);
 void set_battle_combo_called_off(GameState *g, unsigned slot, uint8_t v);
+
+/* Where $FD:A8A5 leaves whether the member it was asked about can't act now (knocked out, or a
+ * status that keeps it from combination techs); the combination check reads it after each call */
+uint8_t battle_combo_member_out(const GameState *g);
+void set_battle_combo_member_out(GameState *g, uint8_t v);
 
 enum { BATTLE_COMBO_PAIRS_COUNT = 9 };   /* by member * 3 + member */
 /* Who is in each member's combination tech: a row of three per member, the member itself first,

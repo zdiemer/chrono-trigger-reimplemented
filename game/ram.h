@@ -2277,10 +2277,12 @@
 #define RAM_BATTLE_TECH_RECORDS_COUNT 60u
 #define RAM_BATTLE_TECH_RECORDS_STRIDE 0x07u
 #define RAM_BATTLE_TECH_RECORDS_ID 0x7E1A80u /* Tech id ($FF: none); what the member's tech list shows */
+#define RAM_BATTLE_TECH_RECORDS_MENU_DETAIL 0x7E1A81u /* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md) */
 #define RAM_BATTLE_TECH_RECORDS_FLAGS 0x7E1A82u /* Bit 7 set while the tech is dimmed (can't be used now) */
-#define RAM_BATTLE_TECH_RECORDS_COST 0x7E1A83u /* MP cost for the first member ($FF or negative: none) */
+#define RAM_BATTLE_TECH_RECORDS_COST 0x7E1A83u /* MP the tech costs the party member in the first slot (negative: none) */
 #define RAM_BATTLE_TECH_RECORDS_PARTNERS 0x7E1A84u /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
-#define RAM_BATTLE_TECH_RECORDS_PARTNER_COSTS 0x7E1A85u /* MP costs for the second and third members */
+#define RAM_BATTLE_TECH_RECORDS_SECOND_COST 0x7E1A85u /* MP it costs the member in the second slot (negative: none) */
+#define RAM_BATTLE_TECH_RECORDS_THIRD_COST 0x7E1A86u /* MP it costs the member in the third slot (negative: none) */
 /* The party members' equipment, five bytes each, the weapon first (its palette colors the
  * member's weapon at setup) [15 x $1 bytes, by party slot * 5 + the equipment's place (0 the
  * weapon)] */
@@ -2725,6 +2727,9 @@
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL 0x7E9888u
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL_COUNT 11u
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL_STRIDE 0x01u
+/* The animation script command being run, its first byte; the number commands $50-$55 take their
+ * set of numbers from its low bits */
+#define RAM_BATTLE_SCRIPT_COMMAND 0x7E9895u
 /* Frames until the enemy's per-frame effect handler runs [8 x $1 bytes, by enemy] */
 #define RAM_BATTLE_ENEMY_EFFECT_DELAY 0x7E9897u
 #define RAM_BATTLE_ENEMY_EFFECT_DELAY_COUNT 8u
@@ -2824,11 +2829,16 @@
 #define RAM_BATTLE_MENU_LIST_TILES 0x7E99E3u
 #define RAM_BATTLE_MENU_LIST_TILES_COUNT 640u
 #define RAM_BATTLE_MENU_LIST_TILES_STRIDE 0x02u
-/* Copy of the record of the tech under the tech list cursor ($FF when none): id at +0, costs at
- * +3, +5 and +6, partners at +4 [7 x $1 bytes, by byte of the tech record] */
+/* Copy of the record (battle_tech_records) of the tech under the tech list's cursor, every byte
+ * $FF when the row is blank [7 bytes] */
 #define RAM_BATTLE_SELECTED_TECH 0x7E9EE3u
-#define RAM_BATTLE_SELECTED_TECH_COUNT 7u
-#define RAM_BATTLE_SELECTED_TECH_STRIDE 0x01u
+#define RAM_BATTLE_SELECTED_TECH_ID 0x7E9EE3u /* Tech id ($FF: none); what the member's tech list shows */
+#define RAM_BATTLE_SELECTED_TECH_MENU_DETAIL 0x7E9EE4u /* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md) */
+#define RAM_BATTLE_SELECTED_TECH_FLAGS 0x7E9EE5u /* Bit 7 set while the tech is dimmed (can't be used now) */
+#define RAM_BATTLE_SELECTED_TECH_COST 0x7E9EE6u /* MP the tech costs the party member in the first slot (negative: none) */
+#define RAM_BATTLE_SELECTED_TECH_PARTNERS 0x7E9EE7u /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
+#define RAM_BATTLE_SELECTED_TECH_SECOND_COST 0x7E9EE8u /* MP it costs the member in the second slot (negative: none) */
+#define RAM_BATTLE_SELECTED_TECH_THIRD_COST 0x7E9EE9u /* MP it costs the member in the third slot (negative: none) */
 /* The transfer battle_upload_vram makes when $A0 is set, one value in every sixth byte [9 x $6
  * bytes, by channel value (mode, destination, source low, high, bank, size low, high, VRAM low,
  * high)] */
@@ -3589,6 +3599,9 @@
 #define RAM_BATTLE_COMBO_CALLED_OFF 0x7EB3E7u
 #define RAM_BATTLE_COMBO_CALLED_OFF_COUNT 3u
 #define RAM_BATTLE_COMBO_CALLED_OFF_STRIDE 0x01u
+/* Where $FD:A8A5 leaves whether the member it was asked about can't act now (knocked out, or a
+ * status that keeps it from combination techs); the combination check reads it after each call */
+#define RAM_BATTLE_COMBO_MEMBER_OUT 0x7EB3EAu
 /* Who is in each member's combination tech: a row of three per member, the member itself first,
  * then the members it or they chose as partners, each in its own column ($FF: none) [9 x $1
  * bytes, by member * 3 + member] */

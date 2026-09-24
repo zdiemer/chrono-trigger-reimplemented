@@ -180,7 +180,8 @@ add_library(ct_game STATIC
   game/battle/tiles.c
   game/battle/timers.c
   game/battle/wait.c
-  game/battle/window.c)
+  game/battle/window.c
+  game/battle/window_leaves.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 

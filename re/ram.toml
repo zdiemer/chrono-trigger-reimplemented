@@ -6617,22 +6617,29 @@ source = "game/battle/setup.c build_member_lists in battle_setup_state $CC:E2E4;
   offset = 0
   meaning = "Tech id ($FF: none); what the member's tech list shows"
   [[var.field]]
+  name = "menu_detail"
+  offset = 1
+  meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md)"
+  [[var.field]]
   name = "flags"
   offset = 2
   meaning = "Bit 7 set while the tech is dimmed (can't be used now)"
   [[var.field]]
   name = "cost"
   offset = 3
-  meaning = "MP cost for the first member ($FF or negative: none)"
+  meaning = "MP the tech costs the party member in the first slot (negative: none)"
   [[var.field]]
   name = "partners"
   offset = 4
   meaning = "Combination partners, one party slot per nibble ($F: none, $FF: single tech)"
   [[var.field]]
-  name = "partner_costs"
+  name = "second_cost"
   offset = 5
-  size = 2
-  meaning = "MP costs for the second and third members"
+  meaning = "MP it costs the member in the second slot (negative: none)"
+  [[var.field]]
+  name = "third_cost"
+  offset = 6
+  meaning = "MP it costs the member in the third slot (negative: none)"
 
 [[var]]
 name = "battle_object_graphics"
@@ -7253,11 +7260,38 @@ source = "game/battle/menu_window.c draw_tech_page ($C1:0A88 lays it out); game/
 [[var]]
 name = "battle_selected_tech"
 addr = "7E:9EE3"
-count = 7
-index = "byte of the tech record"
+stride = 7
 subsystem = "battle"
-meaning = "Copy of the record of the tech under the tech list cursor ($FF when none): id at +0, costs at +3, +5 and +6, partners at +4"
-source = "game/battle/menu_window.c draw_tech_page in battle_draw_menu_window $C1:0C2D, place_tech_cursors $C1:17FE"
+meaning = "Copy of the record (battle_tech_records) of the tech under the tech list's cursor, every byte $FF when the row is blank"
+source = "game/battle/menu_window.c show_tech_costs in battle_draw_menu_window $C1:0C2D, place_combo_cursors $C1:17FE"
+  [[var.field]]
+  name = "id"
+  offset = 0
+  meaning = "Tech id ($FF: none); what the member's tech list shows"
+  [[var.field]]
+  name = "menu_detail"
+  offset = 1
+  meaning = "A byte the tech menu copies with the rest of the record; nothing in the ported code reads it, and what it is isn't worked out (docs/TODO.md)"
+  [[var.field]]
+  name = "flags"
+  offset = 2
+  meaning = "Bit 7 set while the tech is dimmed (can't be used now)"
+  [[var.field]]
+  name = "cost"
+  offset = 3
+  meaning = "MP the tech costs the party member in the first slot (negative: none)"
+  [[var.field]]
+  name = "partners"
+  offset = 4
+  meaning = "Combination partners, one party slot per nibble ($F: none, $FF: single tech)"
+  [[var.field]]
+  name = "second_cost"
+  offset = 5
+  meaning = "MP it costs the member in the second slot (negative: none)"
+  [[var.field]]
+  name = "third_cost"
+  offset = 6
+  meaning = "MP it costs the member in the third slot (negative: none)"
 
 [[var]]
 name = "battle_targets"
@@ -7464,6 +7498,13 @@ index = "member * 3 + member"
 subsystem = "battle"
 meaning = "Who is in each member's combination tech: a row of three per member, the member itself first, then the members it or they chose as partners, each in its own column ($FF: none)"
 source = "game/battle/menu_window.c battle_update_combo_members $C1:B575"
+
+[[var]]
+name = "battle_combo_member_out"
+addr = "7E:B3EA"
+subsystem = "battle"
+meaning = "Where $FD:A8A5 leaves whether the member it was asked about can't act now (knocked out, or a status that keeps it from combination techs); the combination check reads it after each call"
+source = "game/battle/menu_window.c call_off_combos in battle_update_combo_members $C1:B575"
 
 # ---- gauges and timers -----------------------------------------------------------
 
@@ -8596,6 +8637,13 @@ addr = "7E:A3D1"
 subsystem = "battle"
 meaning = "Step of the number display script opcodes (hide, build, wait); while set the objects draw their prepared sprites"
 source = "game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB; game/battle/draw_objects.c draw_underlays $CF:EDB8"
+
+[[var]]
+name = "battle_script_command"
+addr = "7E:9895"
+subsystem = "battle"
+meaning = "The animation script command being run, its first byte; the number commands $50-$55 take their set of numbers from its low bits"
+source = "$C1:4CC6 in the script channel's run (sets it); game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB"
 
 [[var]]
 name = "battle_numbers_rising"
@@ -10486,11 +10534,6 @@ why = "a table length"
 file = "battle/main_loop.c"
 values = [0x0180]
 why = "an offset (three $80-byte stat blocks) added to an enemy index"
-
-[[not_ram]]
-file = "battle/menu_window.c"
-values = [0x0180, 0x0C40, 0x0C6E, 0x0E63, 0x0FBE, 0x0FCB, 0x0FD0, 0x1884, 0x1987]
-why = "a table length, and the JSR sites of local subroutines whose return addresses are pushed"
 
 [[not_ram]]
 file = "battle/wait.c"

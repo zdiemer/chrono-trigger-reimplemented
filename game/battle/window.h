@@ -104,9 +104,11 @@ void window_show_mp(GameState *g, WindowLayout layout, unsigned member, bool sha
 void battle_show_gauge(GameState *g, unsigned member);
 
 /* Redraw the whole battle window (window.c, $C1:0299), and the next member's
- * numbers and the gauges (status.c, $C1:05A7). */
+ * numbers and the gauges (status.c, $C1:05A7). The numbers are left alone
+ * while a command window covers them. */
 void battle_redraw_window(GameState *g);
 void battle_show_party_status(GameState *g);
+bool battle_status_numbers_covered(const GameState *g, WindowLayout layout);
 
 /* Redraw the command cursor of the member whose menu is open, as asked
  * (battle_member_cells_redraw; window.c, $C1:0872). */

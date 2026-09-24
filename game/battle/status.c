@@ -10,6 +10,7 @@
 #include "battle/arith.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/window_leaves.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -68,7 +69,7 @@ void battle_show_gauge(GameState *g, unsigned member)
  * window goes, so while it is up (unless the window was rebuilt for aiming
  * at a party member, which shows no command windows) only the gauges are
  * redrawn. */
-static bool numbers_covered(const GameState *g, WindowLayout layout)
+bool battle_status_numbers_covered(const GameState *g, WindowLayout layout)
 {
     return !(battle_menu_slot_members(g, 2) & 0x80) && !battle_ally_target_window(g) && layout == LAYOUT_NUMBERS_FIRST;
 }
@@ -99,7 +100,7 @@ static void leave_member_cells(GameState *g, unsigned member, WindowLayout layou
 void battle_show_party_status(GameState *g)
 {
     WindowLayout layout = battle_window_layout_now(g);
-    if (!numbers_covered(g, layout)) {
+    if (!battle_status_numbers_covered(g, layout)) {
         unsigned member = next_status_member(g);
         if (!battle_slot_present(g, member)) {
             ORIGINAL_EFFECT(battle_leave_work16(g, MEMBER, (uint16_t)member));
@@ -130,30 +131,19 @@ void battle_draw_gauge(Snes *s)
     m_rts(s);
 }
 
-/* What the original leaves, from the state before and after: a member not in
- * the fight leaves the carry of counting the turn on (set where it went
- * round) and A as it was; the gauges leave the carry of their last count
- * (set); and otherwise the MP's tens, compared with the zero, do. Where it
- * drew anything, A's high byte is clear. */
+/* It leaves the carry, and A, as window_leaves.c works them out. */
 void battle_draw_party_status(Snes *s)
 {
     GameState *g = state_of(s);
     vars_peek(true);
-    WindowLayout layout = battle_window_layout_now(g);
-    bool numbers = !numbers_covered(g, layout);
-    bool went_round = (uint8_t)(battle_status_member(g) + 1) >= BATTLE_PARTY_SIZE;
+    PartyStatusNote note = note_party_status(g);
     vars_peek(false);
     battle_show_party_status(g);
     vars_peek(true);
-    unsigned member = battle_status_member(g);
-    bool absent = numbers && !battle_slot_present(g, member);
-    bool tens_counted = battle_digits(g, BATTLE_DIGIT_TENS) >= TILE_DIGIT_ZERO;
+    bool carry = party_status_carry(g, note), clears_a = party_status_clears_a(g, note);
     vars_peek(false);
-    if (absent) {
-        m_set_flag(s, CPU_FLAG_C, went_round);
-    } else {
-        m_set_flag(s, CPU_FLAG_C, layout_has_gauges(layout) || tens_counted);
+    m_set_flag(s, CPU_FLAG_C, carry);
+    if (clears_a)
         s->cpu.a = 0;
-    }
     m_rts(s);
 }
