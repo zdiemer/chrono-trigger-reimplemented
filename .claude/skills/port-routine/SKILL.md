@@ -292,6 +292,19 @@ the predecessor's, which is where a guard that refuses real calls shows.
 Declare each entry's largest don't-care set first (`tools/dontcare_check.py
 --list`): it is what takes the register traffic out of the wrappers.
 
+**A guard may refuse only what the game never produces.** A guard hands a
+call to the original, so while the emulator is there it is always correct. But
+in a native build a refused call has nowhere to go (PLAN.md, "A guard becomes
+an assertion"). So:
+- a guard refusing states the game never makes (random fuzz states, inputs no
+  movie reaches) is the tool for item 34;
+- a guard refusing **calls the game really makes** is an unported path. Count
+  those calls from the shadow totals (calls handed to the original, by entry),
+  report them, and put them in `docs/TODO.md` as work to finish.
+
+The absent party member is the example: 52,898 real calls, correctly refused,
+and still owed a port.
+
 **When the counts disagree, fix the port, not the fuzz.** If your rewrite
 mismatches where its predecessor didn't, narrowing the fuzz domain until the
 counts agree only stops the tool from looking; the rewrite still diverges on

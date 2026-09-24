@@ -58,6 +58,20 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Phase 3a work in flight
 
+- **The absent party member is an unported path, and a common one.** Making
+  it explicit in the combined event and field pass turned a hidden alias (an
+  empty party place read as object 64, one past the tables) into a guard that
+  refuses those calls, so the original runs them. That is correct, and the
+  gate passes, but it is **52,898 real calls over the library**: a scene
+  following a party of two, where the third place is empty
+  (`event_cmd_move_toward_party_member`, `event_cmd_follow_party_member`), and
+  2,735 of `event_cmd_note_tile_member`. A native build has no original to
+  hand them to (PLAN.md, "A guard becomes an assertion"). Port the case:
+  decide what a command does to an absent member, in the game's terms (most
+  likely nothing, or the move completes). Where the byte-exact gate needs the
+  original's stray reads of slot 64, reproduce them in one marked scaffolding
+  function.
+
 - **What event's and field's combined pass left** (RECOMP.md, "Phase 3a: event
   onto the field's objects"):
   - a location is still decoded from its two words in the operation
