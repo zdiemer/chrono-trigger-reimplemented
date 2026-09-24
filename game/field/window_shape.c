@@ -144,7 +144,7 @@ static void draw_sloped_edge(GameState *g, Column column, Edge e)
         wram_write8(g, (uint32_t)column.bank << 16 | at, (uint8_t)x);
         at = (uint16_t)(at + LINE_BYTES);
     }
-    record_sloped_edge((uint16_t)width, (uint8_t)height, (uint16_t)error);
+    ORIGINAL_EFFECT(record_sloped_edge((uint16_t)width, (uint8_t)height, (uint16_t)error));
 }
 
 /* An edge, upper end first (a level edge as it comes). Returns it as drawn. */
@@ -257,7 +257,7 @@ bool field_window_shape_table_in_place(Snes *s)
  * read after (the entry's don't-care set). */
 void field_rasterize_quad(Snes *s)
 {
-    shape_leaves.sloped = false;
+    ORIGINAL_EFFECT(shape_leaves.sloped = false);
     rasterize_quad(state_of(s));
     m_rtl(s);
 }

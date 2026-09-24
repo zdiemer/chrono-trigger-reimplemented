@@ -450,30 +450,41 @@ static bool faces_its_way(const GameState *g, FieldObject self)
 {
     return (uint8_t)(object_facing(g, self) << 1) < 8;
 }
-EVENT_CHECK(faces_its_way, self)
+
+/* The moves that set off look for an object in the way, over the object
+ * slots (object_search_fits). */
+static bool can_look_its_way(const GameState *g) { return object_search_fits(g); }
+EVENT_CHECK_TAKING_NOTHING(can_look_its_way)
+
+static bool can_slide_its_way(const GameState *g, FieldObject self)
+{
+    return faces_its_way(g, self) && object_search_fits(g);
+}
+EVENT_CHECK(can_slide_its_way, self)
 
 /* The moves' guards are their operands': an object, or a party member whose
  * object is one. */
 #define TO_A_TILE .tile_x = OPERAND(1), .tile_y = OPERAND(2)
 #define TO_A_TILE_FROM_VARIABLES .tile_x = VARIABLE_BYTE(1), .tile_y = VARIABLE_BYTE(2)
 #define WALKS .style = CONSTANT(WALKING)
-#define SLIDES .style = CONSTANT(SLIDING), CHECK(faces_its_way)
+#define WALKS_LOOKING .style = CONSTANT(WALKING), CHECK(can_look_its_way)
+#define SLIDES .style = CONSTANT(SLIDING), CHECK(can_slide_its_way)
 
 EVENT_OPCODES(event_movement_opcodes,
-    { 0x96, OPERATION(move_to_tile), TO_A_TILE, WALKS, .length = 3 },
-    { 0x97, OPERATION(move_to_tile), TO_A_TILE_FROM_VARIABLES, WALKS, .length = 3 },
+    { 0x96, OPERATION(move_to_tile), TO_A_TILE, WALKS_LOOKING, .length = 3 },
+    { 0x97, OPERATION(move_to_tile), TO_A_TILE_FROM_VARIABLES, WALKS_LOOKING, .length = 3 },
     { 0xA0, OPERATION(move_to_tile), TO_A_TILE, SLIDES, .length = 3 },
     { 0xA1, OPERATION(move_to_tile), TO_A_TILE_FROM_VARIABLES, SLIDES, .length = 3 },
-    { 0x9A, OPERATION(move_to_tile), TO_A_TILE, WALKS, .counted = CONSTANT(true), .steps = OPERAND(3), .length = 4 },
-    { 0x94, OPERATION(move_toward), .target = OBJECT(1), WALKS, .length = 2 },
-    { 0x95, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS, .length = 2 },
+    { 0x9A, OPERATION(move_to_tile), TO_A_TILE, WALKS_LOOKING, .counted = CONSTANT(true), .steps = OPERAND(3), .length = 4 },
+    { 0x94, OPERATION(move_toward), .target = OBJECT(1), WALKS_LOOKING, .length = 2 },
+    { 0x95, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS_LOOKING, .length = 2 },
     { 0x9E, OPERATION(move_toward), .target = OBJECT(1), SLIDES, .length = 2 },
     { 0x9F, OPERATION(move_toward), .target = MEMBER_OBJECT(1), SLIDES, .length = 2 },
-    { 0x98, OPERATION(move_toward), .target = OBJECT(1), WALKS, .counted = CONSTANT(true), .steps = OPERAND(2),
+    { 0x98, OPERATION(move_toward), .target = OBJECT(1), WALKS_LOOKING, .counted = CONSTANT(true), .steps = OPERAND(2),
       .length = 3 },
-    { 0x99, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS, .counted = CONSTANT(true),
+    { 0x99, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS_LOOKING, .counted = CONSTANT(true),
       .steps = OPERAND(2), .length = 3 },
-    { 0x8F, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS, .until = CONSTANT(WELL_ON_SCREEN),
+    { 0x8F, OPERATION(move_toward), .target = MEMBER_OBJECT(1), WALKS_LOOKING, .until = CONSTANT(WELL_ON_SCREEN),
       .length = 2 },
     { 0x92, OPERATION(move_in_direction), .direction = OPERAND(1), .steps = OPERAND(2), WALKS, .length = 3 },
     { 0x9C, OPERATION(move_in_direction), .direction = OPERAND(1), .steps = OPERAND(2),

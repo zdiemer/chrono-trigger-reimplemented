@@ -4380,10 +4380,12 @@ TODO.md for the build without the original's memory:
   $220 bytes, and the original writes the high bits there too
   (`leave_stray_high_bits`, by address through `game/wram.h`, since those
   bytes are no variable's);
-- the in-the-way search's slots past 64 read the tables after each table, by
-  their own names (`stray_slot_can_block`: the in-view flags run on into the
-  priority modes, the roles into the scripts' positions, the solidity into
-  the accelerations);
+- the in-the-way search's slots past 64, which the original reaches with no
+  objects or 64 of them (it counts round 128), are the original's: no map has
+  either, and the guards of the check and of the moves that set off refuse
+  them (`object_search_fits`), where step 1 first read the tables after each
+  table by their own names (item 34 of review-port's rubric, "emulating inputs
+  no game state produces", which came after);
 - the openings' word clear of the last slot's solidity clears the first
   object's falling flag (`object_start_on_the_map`);
 - `field_layer_maps`, `field_tile_properties` and the two tile attribute
@@ -4558,6 +4560,24 @@ named functions that had moved or been renamed.
 - PORTING.md's "Call-outs" says how a bridge's calls are paired with the
   original's, and the bridges' vocabulary.
 
+**Against the rubric's later items** (review-port 34-38, which grew from
+scene's review while this pass ran). The leftover records went where the
+wrapper can derive the value (item 35): the in-the-way check returns the
+object it measured last as well as whether it was blocked, and the wrapper
+measures it again for the distance whose high byte the original leaves in A;
+the wave's last carry comes from the table the wave wrote and the offsets'
+table; whether the frame read started the animation over from the frame and
+entry it left. What the wrapper looks at again it reads under `vars_peek`,
+which the cartridge's accessors now honour too (`runtime/port/state_io.c`), so
+it costs the port no time. Two records stay, for cells whose values follow the
+path taken and are nowhere in the final state (the last run the tile
+unpacking repeated, the last sloped edge of a window shape), written through
+`ORIGINAL_EFFECT`; `field/scratch.h` says which. The in-the-way search's stray
+slots are a guard now (item 34, above). No step is kept in the original's
+order for the timing estimate's sake (item 36): the orders this pass kept (the
+frame table looked up last, the copy of script data a byte at a time) are
+behaviour, a read of open bus and a copy onto itself.
+
 Deferred, each in TODO.md with why: the location's decoding, `nmi.c` sharing
 `display.c`'s edge runs (the don't-care check reads a call's site only from
 its own file), the staging buffers (a transfer service's), the prediction
@@ -4625,6 +4645,11 @@ each for a guard, which the skipped column shows:
   in X the current one: the moves compare half their predecessor's states,
   the object guard's share (2,498 and 1,317), and the placing all 20,000
   (loose 13,878), before and after.
+- the moves that set off and `field_object_in_the_way`, once the search's
+  stray slots became a guard, compared a quarter of the states: the fuzzer
+  randomizes the map's object count, which sits before the script. Their
+  entries now keep it 1 to 63, and they compare their predecessors' states
+  (the object guard's half where an operand names an object).
 
 **The timing gate.** Event's and field's `cost_milli` rows were recalibrated
 over this pass's shadow runs, 57 rows (the two of menu's that the calibration

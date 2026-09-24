@@ -42,5 +42,14 @@ uint8_t hw_port_read(GameState *g) { return m_read8(state_snes(g), WMDATA); }
 
 void hw_port_write(GameState *g, uint8_t v) { m_write8(state_snes(g), WMDATA, v); }
 
-uint8_t rom_read8(const GameState *g, uint32_t at) { return m_read8(state_snes(g), at); }
-uint16_t rom_read16(const GameState *g, uint32_t at) { return m_read16(state_snes(g), at); }
+uint8_t rom_read8(const GameState *g, uint32_t at)
+{
+    return vars_peeking() ? snes_bus_peek(&state_snes(g)->bus, at & 0xFFFFFF) : m_read8(state_snes(g), at);
+}
+
+uint16_t rom_read16(const GameState *g, uint32_t at)
+{
+    if (!vars_peeking())
+        return m_read16(state_snes(g), at);
+    return (uint16_t)(rom_read8(g, at) | rom_read8(g, at + 1) << 8);
+}

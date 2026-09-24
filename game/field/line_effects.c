@@ -234,23 +234,9 @@ static void wave_part(GameState *g, TableWriter *t, uint8_t set, uint8_t lines, 
  * the right, and while window 2 reads its second table the first line moves
  * a pixel too (the choice's bit is still in the adder). On the screen that is
  * a one-pixel kink in the wave; this is the one place it is kept. */
-/* For the entries' wrappers (field/scratch.h, "What a wrapper can't work
- * out"): the wave's last line's sum, whose carry and overflow the original's
- * callers see. Written only by record_last_wave_line, read only by the
- * wrappers. */
-static struct {
-    bool waved;
-    uint16_t offset, scroll;
-    bool nudged;
-} wave_leaves;
+static bool a_layer_waves(const GameState *g) { return field_line_wave_bg3(g) != 0 || field_line_wave_bg2(g) != 0; }
 
-static void record_last_wave_line(uint16_t offset, uint16_t scroll, bool nudged)
-{
-    wave_leaves.waved = true;
-    wave_leaves.offset = offset;
-    wave_leaves.scroll = scroll;
-    wave_leaves.nudged = nudged;
-}
+static uint16_t wave_start(uint8_t phase) { return phase & WAVE_PHASE_STEP; }
 
 static void fill_wave_scroll(GameState *g, uint8_t set, uint16_t start, uint16_t scroll)
 {
@@ -259,8 +245,6 @@ static void fill_wave_scroll(GameState *g, uint8_t set, uint16_t start, uint16_t
         uint16_t offset = field_wave_offset(g, (uint16_t)(start + i * WAVE_ENTRY));
         uint32_t sum = (uint32_t)offset + scroll + nudge;
         set_field_line_wave_h(g, set * WAVE_SET_LINES + i, (uint16_t)sum);
-        if (i == WAVE_LINES - 1)
-            record_last_wave_line(offset, scroll, nudge);
         nudge = sum > 0xFFFF;
     }
 }
@@ -276,13 +260,13 @@ static void send_scroll(GameState *g, uint8_t set)
         set_field_line_scroll_v(g, layer * 2u + set, field_layer_scroll_v(g, layer));
     }
     uint16_t bg3_h = field_layer_scroll_h(g, FIELD_BG3), bg3_v = field_layer_scroll_v(g, FIELD_BG3);
-    if (field_line_wave_bg3(g) == 0 && field_line_wave_bg2(g) == 0) {
+    if (!a_layer_waves(g)) {
         set_field_line_scroll_h(g, FIELD_BG3 * 2u + set, bg3_h);
         set_field_line_scroll_v(g, FIELD_BG3 * 2u + set, bg3_v);
     } else {
         uint8_t phase = (uint8_t)(field_line_wave_phase(g) + 1);
         set_field_line_wave_phase(g, phase);
-        fill_wave_scroll(g, set, phase & WAVE_PHASE_STEP, bg3_h);
+        fill_wave_scroll(g, set, wave_start(phase), bg3_h);
         for (unsigned i = 0; i < WAVE_LINES; i++)
             set_field_line_wave_v(g, set * WAVE_SET_LINES + i, bg3_v);
         /* The second 16 lines repeat the first, so an entry can read 16 lines
@@ -717,13 +701,21 @@ static Leaves leaves_after_send(const GameState *g, uint8_t set, bool setup, uin
     if (setup)
         return (Leaves){ x, field_color_math_layers_override(g), (uint8_t)(field_auto_scroll_position_y(g, 1) >> 8),
                          choice, overflow };
-    if (!wave_leaves.waved)
+    vars_peek(true);
+    bool waved = a_layer_waves(g);
+    vars_peek(false);
+    if (!waved)
         return (Leaves){ x, field_fixed_color_math_layers(g), (uint8_t)(field_layer_scroll_v(g, FIELD_BG3) >> 8),
                          choice, overflow };
-    const uint16_t a = wave_leaves.offset, b = wave_leaves.scroll;
+    /* The wave's last line: its offset and the scroll it was added to, and
+     * the pixel the line before carried into it, the rest of its sum. */
+    vars_peek(true);
+    uint16_t a = field_wave_offset(g, (uint16_t)(wave_start(field_line_wave_phase(g)) + (WAVE_LINES - 1) * WAVE_ENTRY));
+    uint16_t b = field_layer_scroll_h(g, FIELD_BG3);
+    bool carried = (uint16_t)(field_line_wave_h(g, set * WAVE_SET_LINES + WAVE_LINES - 1) - a - b) != 0;
+    vars_peek(false);
     return (Leaves){ wave_values(set, WAVE_LINES), field_fixed_color_math_layers(g), 0xFF,
-                     (uint32_t)a + b + wave_leaves.nudged > 0xFFFF,
-                     field_add_with_carry_overflows16(a, b, wave_leaves.nudged) };
+                     (uint32_t)a + b + carried > 0xFFFF, field_add_with_carry_overflows16(a, b, carried) };
 }
 
 /* The same after a whole builder: the overflow in, which only a window's
@@ -787,7 +779,6 @@ void field_build_line_effect_tables(Snes *s)
     GameState *g = state_of(s);
     uint8_t set = set_to_build(g);
     WindowPosition position = (WindowPosition)dialog_window_position(g);
-    wave_leaves.waved = false;
     build_line_effect_tables(g);
     leave(s, leaves_after_build(g, set, position, m_flag(s, CPU_FLAG_V)), 0x01);
     m_rtl(s);
@@ -798,7 +789,6 @@ void field_build_line_effect_tables(Snes *s)
 static void builder_entry(Snes *s, uint8_t set, WindowPosition position)
 {
     GameState *g = state_of(s);
-    wave_leaves.waved = false;
     build_for(g, set, position);
     Leaves l = leaves_after_build(g, set, position, m_flag(s, CPU_FLAG_V));
     leave(s, l, l.a_low);
@@ -859,7 +849,6 @@ void field_set_bg2_table_1(Snes *s) { bg2_entry(s, 1); }
 static void send_scroll_entry(Snes *s, uint8_t set)
 {
     GameState *g = state_of(s);
-    wave_leaves.waved = false;
     send_scroll(g, set);
     Leaves l = leaves_after_send(g, set, false, s->cpu.x, m_flag(s, CPU_FLAG_V));
     leave(s, l, field_fixed_color_math_layers(g));

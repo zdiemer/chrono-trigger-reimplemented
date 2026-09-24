@@ -19,6 +19,7 @@
 /* Reads while a guard looks (vars_peek): they take none of the machine's time. */
 static bool peeking;
 void vars_peek(bool on) { peeking = on; }
+bool vars_peeking(void) { return peeking; }
 
 /* A value of the width the map gives, low byte first, as the 65816 stores it. */
 static uint8_t r8(const GameState *g, uint32_t a)

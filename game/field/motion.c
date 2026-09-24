@@ -382,21 +382,14 @@ static bool can_block(const GameState *g, FieldObject other, FieldObject obj)
            (field_object_solid(g, other) & SOLID);
 }
 
-/* The search starts at the slot after the last object, which with 64 objects
- * is past the tables, and with a count past 64 (the original takes it modulo
- * 128) more of them. There the original reads on past each table into the one
- * after it in its memory, at the same place: the in-view flags into the
- * objects' priority modes, the roles into the scripts' positions, and the
- * solidity into the accelerations. No map has 64 objects; the port reads the
- * same bytes, by their own names, so that shadow mode and fuzzing see what
- * the original sees. A build without the original's memory has no slots
- * there (docs/TODO.md). */
-static bool stray_slot_can_block(const GameState *g, unsigned slot)
+/* The search starts at the slot after the last object and runs down to the
+ * second. With no objects, or as many as the tables have slots, the original
+ * would go on into slots past the tables (it counts round 128); no map has
+ * either, and the entries' guards leave those to the original. */
+bool object_search_fits(const GameState *g)
 {
-    unsigned past = slot - FIELD_OBJECTS;
-    bool in_view = field_object_priority_mode(g, past) != 0;
-    bool disabled = (event_object_script_position(g, past) & 0x80) != 0;   /* the role's disabled bit */
-    return in_view && !disabled && (field_object_acceleration(g, past) & SOLID);
+    uint8_t count = event_object_count(g);
+    return count != 0 && count < FIELD_OBJECTS;
 }
 
 /* For the original's code and shadow mode (field/scratch.h): the blocking
@@ -409,22 +402,25 @@ static void leave_blocking_check(GameState *g, uint8_t facing, FieldPosition at)
     original_cell16(g, 0xDD, at.y);
 }
 
-enum { SLOTS_IN_A_BYTE = 0x80 };   /* an object count doubled wraps round a byte */
+/* How another object stands from this one, the way this one faces: whether
+ * it is on the side it looks, how far along the way, and how far across. */
+typedef struct {
+    bool ahead;
+    uint16_t along, across;
+} Measure;
 
-/* For the entry's wrapper (field/scratch.h, "What a wrapper can't work out"):
- * the last distance the check measured, ahead or across, whose high byte the
- * original leaves in A. Written only by record_measured, read only by
- * field_object_in_the_way. */
-static struct {
-    bool measured;
-    uint16_t last_distance;
-} in_the_way_leaves;
-
-static void record_measured(uint16_t distance)
+static Measure measure(FieldPosition at, FieldPosition there, Facing facing, bool earlier_slot)
 {
-    in_the_way_leaves.measured = true;
-    in_the_way_leaves.last_distance = distance;
+    bool vertical = facing == FACING_UP || facing == FACING_DOWN;
+    bool looking_back = facing == FACING_UP || facing == FACING_LEFT;
+    Measure m;
+    m.ahead = distance_ahead(vertical ? there.y : there.x, vertical ? at.y : at.x, earlier_slot, looking_back,
+                             &m.along);
+    m.across = distance_across(vertical ? there.x : there.y, vertical ? at.x : at.y);
+    return m;
 }
+
+static bool close_ahead(Measure m) { return m.ahead && m.along < REACH; }
 
 /* For the original's code and shadow mode: the check stores the object it
  * finds as a byte into the word field_target_object, whose high byte it
@@ -446,7 +442,7 @@ static bool looks_for_objects(const GameState *g, FieldObject obj)
  * the scripts' movement reads it. */
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
 {
-    ObjectsAhead r = { false, 0 };
+    ObjectsAhead r = { false, false, 0 };
     ORIGINAL_EFFECT(leave_target_as_byte(g));
     if (!looks_for_objects(g, obj))
         return r;
@@ -454,28 +450,15 @@ ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
     Facing facing = (Facing)(faces & 0x03);
     FieldPosition at = object_position(g, obj);
     ORIGINAL_EFFECT(leave_blocking_check(g, faces, at));
-    bool vertical = facing == FACING_UP || facing == FACING_DOWN;
-    bool looking_back = facing == FACING_UP || facing == FACING_LEFT;
-    unsigned slot = event_object_count(g) % SLOTS_IN_A_BYTE;
-    do {
-        bool blocks = slot < FIELD_OBJECTS ? can_block(g, (FieldObject)slot, obj) : stray_slot_can_block(g, slot);
-        if (blocks) {
-            FieldObject other = (FieldObject)slot;
+    for (FieldObject other = (FieldObject)event_object_count(g); other != 0; other--) {
+        if (can_block(g, other, obj)) {
             set_field_target_object(g, field_link_byte(field_link_to(other)));
-            FieldPosition there = object_position(g, other);
-            uint16_t along;
-            bool ahead = distance_ahead(vertical ? there.y : there.x, vertical ? at.y : at.x, other < obj,
-                                        looking_back, &along);
-            record_measured(along);
-            if (ahead && along < REACH) {
-                uint16_t across = distance_across(vertical ? there.x : there.y, vertical ? at.x : at.y);
-                record_measured(across);
-                if (across < REACH)
-                    return (ObjectsAhead){ true, other };
-            }
+            r = (ObjectsAhead){ false, true, other };
+            Measure m = measure(at, object_position(g, other), facing, other < obj);
+            if (close_ahead(m) && m.across < REACH)
+                return (ObjectsAhead){ true, true, other };
         }
-        slot = (slot - 1) & (SLOTS_IN_A_BYTE - 1);
-    } while (slot != 0);
+    }
     return r;
 }
 
@@ -828,12 +811,18 @@ void field_object_in_the_way(Snes *s)
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
     bool looked = looks_for_objects(g, obj);
-    in_the_way_leaves.measured = false;
     ObjectsAhead r = object_in_the_way(g, obj);
     field_leave_in_the_way_check(g, obj, s->cpu.y);
-    if (in_the_way_leaves.measured)
-        s->cpu.a = (uint16_t)((in_the_way_leaves.last_distance & 0xFF00) | (s->cpu.a & 0x00FF));
-    else if (looked)
+    if (r.measured) {
+        /* the last distance it measured: along the way, and across where the
+         * object was close ahead */
+        vars_peek(true);
+        Measure m = measure(object_position(g, obj), object_position(g, r.object),
+                            (Facing)(field_object_facing(g, obj) & 0x03), r.object < obj);
+        vars_peek(false);
+        uint16_t last = close_ahead(m) ? m.across : m.along;
+        s->cpu.a = (uint16_t)((last & 0xFF00) | (s->cpu.a & 0x00FF));
+    } else if (looked)
         s->cpu.a = (uint16_t)((position_y(g, obj) & 0xFF00) | (s->cpu.a & 0x00FF));
     m_set_flag(s, CPU_FLAG_C, r.blocked);
     m_rts(s);
@@ -922,9 +911,10 @@ bool field_object_checks_its_way(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool faces = (uint8_t)(field_object_facing(g, (FieldObject)field_current_object_slot(s)) << 1) < 8;
+    bool ok = (uint8_t)(field_object_facing(g, (FieldObject)field_current_object_slot(s)) << 1) < 8 &&
+              object_search_fits(g);
     vars_peek(false);
-    return faces;
+    return ok;
 }
 
 /* Lining up with another object: that object is one. */

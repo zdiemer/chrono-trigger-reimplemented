@@ -18,14 +18,18 @@
  *   operand spells it: these are addresses on purpose, since they are the
  *   original's.
  *
- * - What a wrapper can't work out. An entry's wrapper gives the original's
- *   callers the registers they read, derived from the game's state after the
- *   call. Where one follows from a value the routine had on the way and
- *   nowhere else (the last distance a search measured, whether an animation
- *   started over), the routine records it in a file-static record named
- *   `..._leaves`, written only by a `record_...` helper and read only by the
- *   entry's wrapper, which clears it before the call. The logic's signatures
- *   never carry it. */
+ * - What a wrapper works out. An entry's wrapper gives the original's callers
+ *   the registers they read, derived from the call's inputs, its result and
+ *   the game's state after it: the last distance the in-the-way search
+ *   measured from the object it names, the wave's last carry from the table
+ *   it wrote. What it looks at again it reads under vars_peek, so it takes
+ *   none of the machine's time. Only cells the original leaves whose values
+ *   follow the path the routine took and are nowhere in the final state (the
+ *   last run the tile unpacking repeated, the last sloped edge a window shape
+ *   drew) are recorded on the way, in a file-static record named
+ *   `..._leaves`, through a `record_...` helper called as an ORIGINAL_EFFECT
+ *   and read only by the helper that leaves the cells. The logic's
+ *   signatures never carry any of it. */
 #ifndef CT_GAME_FIELD_SCRATCH_H
 #define CT_GAME_FIELD_SCRATCH_H
 

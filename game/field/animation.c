@@ -459,16 +459,6 @@ static NextFrame find_next_frame(const GameState *g, FieldObject obj)
     return (NextFrame){ STARTING_OVER, 0, (uint16_t)(place - frame) };
 }
 
-/* For the entry's wrapper (field/scratch.h, "What a wrapper can't work out"):
- * whether taking the frame started the animation over, which decides the
- * overflow the original's callers see. Written only by record_started_over,
- * read only by field_read_animation_frame. */
-static struct {
-    bool started_over;
-} frame_read_leaves;
-
-static void record_started_over(void) { frame_read_leaves.started_over = true; }
-
 // $C0:CB3A
 /* The frame builder takes the object's next frame to draw, and goes on
  * reading the frame table from where it is (field_frame_entry_address, which
@@ -488,7 +478,6 @@ ObjectFrame object_take_next_frame(GameState *g, FieldObject obj)
     }
     case STARTING_OVER:
         set_field_object_animation_frame(g, obj, BEFORE_THE_FIRST_FRAME);
-        record_started_over();
         return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj), next.place) };
     default:
         return (ObjectFrame){ true, next.frame };
@@ -566,6 +555,25 @@ void field_tick_object_animation(Snes *s)
     m_rts(s);
 }
 
+/* Whether taking the frame started the animation over, from what it left:
+ * a frame, with the animation put a frame before its first. Where it was
+ * there already, the entry tells: starting over reads from the animation's
+ * start, and a frame found there from a place past it. */
+static uint8_t current_animation(const GameState *g, FieldObject obj)
+{
+    return object_animation_mode(g, obj) == ANIMATE_PLAY ? one_off_animation(g, obj) : looped_animation(g, obj);
+}
+
+static bool took_first_frame_again(const GameState *g, FieldObject obj, ObjectFrame r, uint8_t frame_before,
+                                   uint16_t entry)
+{
+    if (!r.has_frame || field_object_animation_frame(g, obj) != BEFORE_THE_FIRST_FRAME)
+        return false;
+    if (frame_before != BEFORE_THE_FIRST_FRAME)
+        return true;
+    return entry == field_animation_place(facing_frame_table(g, obj).offset, current_animation(g, obj), 0);
+}
+
 /* The object in X (8-bit). The carry says whether there is a frame; A holds
  * it (or, for a one-off at its end, the half passes it counted down to) with
  * the high byte of the entry's address; and the overflow is that of the
@@ -577,14 +585,16 @@ void field_read_animation_frame(Snes *s)
     FieldObject obj = (FieldObject)field_object_in_x(s);
     uint8_t frame_before = field_object_animation_frame(g, obj);
     uint8_t half_passes_before = half_passes_left(g, obj);
-    frame_read_leaves.started_over = false;
     ObjectFrame r = object_take_next_frame(g, obj);
     uint16_t entry = field_frame_entry_address(g);
     uint8_t shown = r.has_frame ? r.frame : (uint8_t)(half_passes_before - 1);
     s->cpu.a = (uint16_t)((entry & 0xFF00) | shown);
     m_set_flag(s, CPU_FLAG_C, r.has_frame);
+    vars_peek(true);
+    bool started_over = took_first_frame_again(g, obj, r, frame_before, entry);
+    vars_peek(false);
     bool overflow;
-    if (frame_read_leaves.started_over) {
+    if (started_over) {
         overflow = field_subtract_overflows16((uint16_t)(entry + frame_before), frame_before);
     } else {
         uint16_t table = facing_frame_table(g, obj).offset;

@@ -440,7 +440,7 @@ static void unpack_attributes(GameState *g, MapSize size)
         uint8_t first = hw_port_read(g);
         TileAttributes a = read_tile_attributes(g, p, (uint8_t)(first & ~RUN));
         if (first & RUN) {
-            record_run(a);
+            ORIGINAL_EFFECT(record_run(a));
             uint8_t count = hw_port_read(g);
             for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
                 if (!next_tile(size, &p))
@@ -465,7 +465,7 @@ static void unpack_tile_maps(GameState *g)
     if (field_map_flags(g) & MAP_HAS_BG3)
         unpack_layer_map(g, FIELD_BG3);
     MapSize size = layer_size(g, FIELD_BG1);
-    unpack_leaves.had_run = false;
+    ORIGINAL_EFFECT(unpack_leaves.had_run = false);
     unpack_attributes(g, size);
     ORIGINAL_EFFECT(leave_for_original_unpack(g, size));
 }

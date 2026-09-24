@@ -87,8 +87,7 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What only the original's memory has, past the object tables.** The
   stray accesses are explicit and marked now (RECOMP.md, "Phase 3a: event onto
   the field's objects"), and a build without the original's memory has to
-  decide each: the in-the-way search's slots past 64 (`motion.c`,
-  `stray_slot_can_block`, which reads the next tables by their names), the
+  decide each: the
   sprite table's high part running on past its end (`sprites.c`, by address
   through `game/wram.h`), the fifth sprite's Y above the screen, the openings'
   clear of the first object's falling flag, and the row removal's in-view

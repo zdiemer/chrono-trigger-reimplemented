@@ -347,12 +347,17 @@ StepStart object_start_step(GameState *g, FieldObject obj, Direction direction);
 
 /* Whether another solid object in view stands within 256 sixteenths of a
  * pixel ahead of the object, the way it faces (only for an object in view
- * that minds other objects), and which. */
+ * that minds other objects): the object in the way, or else the last one it
+ * measured, if any. */
 typedef struct {
     bool blocked;
-    FieldObject blocker;
+    bool measured;
+    FieldObject object;
 } ObjectsAhead;
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj);
+/* Whether the search fits the tables: there are objects, fewer than the
+ * slots. Its callers' guards make sure. */
+bool object_search_fits(const GameState *g);
 
 /* A step to line the object up with its tile's middle, or with another
  * object's tile: true while it still has to move. */
