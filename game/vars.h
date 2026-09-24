@@ -3303,9 +3303,10 @@ enum { BATTLE_OBJECT_X_COUNT = 23 };   /* by battle object ($0C + battle slot fo
 /* Battle objects' screen X positions */
 uint8_t battle_object_x(const GameState *g, unsigned i);
 void set_battle_object_x(GameState *g, unsigned i, uint8_t v);
-/* Battle objects' screen X positions Unchecked, for marked scaffolding only: with the party off
- * the grid, the grid's marking reads the positions of three objects past the combatants', as the
- * original's indexed reads do (game/battle/battlefield.c) */
+/* Battle objects' screen X positions Unchecked, for marked scaffolding only: a combatant's
+ * position read for a slot past the combatants, as the original's indexed reads do: the grid's
+ * marking with the party off the grid (game/battle/battlefield.c), the menu's cursors at a
+ * target entry no battle makes (game/battle/battle.h combatant_x) */
 uint8_t battle_object_x_unchecked(const GameState *g, unsigned i);
 void set_battle_object_x_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -3314,9 +3315,10 @@ enum { BATTLE_OBJECT_Y_COUNT = 23 };   /* by battle object ($0C + battle slot fo
 uint8_t battle_object_y(const GameState *g, unsigned i);
 void set_battle_object_y(GameState *g, unsigned i, uint8_t v);
 /* Battle objects' screen Y positions, also their depth when sprites are sorted Unchecked, for
- * marked scaffolding only: with the party off the grid, the grid's marking reads the positions
- * of three objects past the combatants', as the original's indexed reads do
- * (game/battle/battlefield.c) */
+ * marked scaffolding only: a combatant's position read for a slot past the combatants, as the
+ * original's indexed reads do: the grid's marking with the party off the grid
+ * (game/battle/battlefield.c), the menu's cursors at a target entry no battle makes
+ * (game/battle/battle.h combatant_x) */
 uint8_t battle_object_y_unchecked(const GameState *g, unsigned i);
 void set_battle_object_y_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -3856,11 +3858,21 @@ enum { BATTLE_CURSOR_OFFSET_X_COUNT = 11 };   /* by battle slot */
 /* Offset of the menu cursor from the object's X position (plus 16) */
 uint8_t battle_cursor_offset_x(const GameState *g, unsigned slot);
 void set_battle_cursor_offset_x(GameState *g, unsigned slot, uint8_t v);
+/* Offset of the menu cursor from the object's X position (plus 16) Unchecked, for marked
+ * scaffolding only: the menu's cursors point at the combatant a target entry names, whatever it
+ * holds (game/battle/window.h combatant_cursor_x, $C1:17DD) */
+uint8_t battle_cursor_offset_x_unchecked(const GameState *g, unsigned slot);
+void set_battle_cursor_offset_x_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_CURSOR_OFFSET_Y_COUNT = 11 };   /* by battle slot */
 /* Offset of the menu cursor from the object's Y position */
 uint8_t battle_cursor_offset_y(const GameState *g, unsigned slot);
 void set_battle_cursor_offset_y(GameState *g, unsigned slot, uint8_t v);
+/* Offset of the menu cursor from the object's Y position Unchecked, for marked scaffolding only:
+ * the menu's cursors point at the combatant a target entry names, whatever it holds
+ * (game/battle/window.h combatant_cursor_x, $C1:17DD) */
+uint8_t battle_cursor_offset_y_unchecked(const GameState *g, unsigned slot);
+void set_battle_cursor_offset_y_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_OBJECT_HALF_WIDTH_COUNT = 11 };   /* by battle slot */
 /* Half the object's width, for its screen bounds */
@@ -4339,6 +4351,11 @@ enum { BATTLE_MEMBER_DISABLED_COUNT = 3 };   /* by party slot */
  * techs naming it, are dimmed */
 uint8_t battle_member_disabled(const GameState *g, unsigned slot);
 void set_battle_member_disabled(GameState *g, unsigned slot, uint8_t v);
+/* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
+ * techs naming it, are dimmed Unchecked, for marked scaffolding only: read for the member a
+ * partner's slot names, whatever that holds (game/battle/menu_window.c, $C1:103E) */
+uint8_t battle_member_disabled_unchecked(const GameState *g, unsigned slot);
+void set_battle_member_disabled_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 /* The party member the window marks as the target while an action is aimed at a party member; a
  * redraw marks the first target's name when it is another */
@@ -4850,6 +4867,12 @@ enum { BATTLE_MENU_SLOT_MEMBERS_COUNT = 3 };   /* by menu slot */
 /* The party member each menu window slot belongs to; negative: no member */
 uint8_t battle_menu_slot_members(const GameState *g, unsigned slot);
 void set_battle_menu_slot_members(GameState *g, unsigned slot, uint8_t v);
+/* The party member each menu window slot belongs to; negative: no member Unchecked, for marked
+ * scaffolding only: a tech record's partner nibble names the slot; the menu window reads it
+ * whatever it holds, past the three for a record no battle makes (game/battle/menu_window.c,
+ * $C1:103E) */
+uint8_t battle_menu_slot_members_unchecked(const GameState *g, unsigned slot);
+void set_battle_menu_slot_members_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 /* The menu slot whose window is current (its member goes to battle_menu_member) */
 uint8_t battle_menu_slot(const GameState *g);

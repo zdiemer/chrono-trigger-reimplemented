@@ -103,11 +103,26 @@ enum { TECH_NEEDING_FROGS_SWORD = 0x74, FROGS_SWORD = 0x42, MEMBER_CARRIED_BYTES
  * partners, and the partner it looked at last. */
 enum { RECORD_PLACE = 0x88, PARTNERS = 0x81, PARTNER = 0x80, TECH_RECORD_BYTES = 7, MEMBER_RECORDS_BYTES = 140 };
 
+/* A partner and its member are read as the original indexes them: a record
+ * naming a partner past the three slots (none a battle holds) reads on into
+ * the tables after. */
+static uint8_t partner_member(const GameState *g, uint8_t partner)
+{
+    return partner < BATTLE_MENU_SLOT_MEMBERS_COUNT ? battle_menu_slot_members(g, partner)
+                                                    : battle_menu_slot_members_unchecked(g, partner);
+}
+
+static bool member_disabled(const GameState *g, uint8_t member)
+{
+    return (member < BATTLE_MEMBER_DISABLED_COUNT ? battle_member_disabled(g, member)
+                                                  : battle_member_disabled_unchecked(g, member)) != 0;
+}
+
 static bool partner_out(GameState *g, uint8_t partner)
 {
     ORIGINAL_EFFECT(battle_leave_work8(g, PARTNER, partner));
-    uint8_t member = battle_menu_slot_members(g, partner);
-    return menu_nobody(member) || battle_member_disabled(g, member);
+    uint8_t member = partner_member(g, partner);
+    return menu_nobody(member) || member_disabled(g, member);
 }
 
 /* A tech can be used when every member it costs MP has enough, its partners
@@ -753,7 +768,7 @@ static bool show_item_cursor(GameState *g)
  * combatant's cursor offset to its Y. */
 static bool cursor_carry(const GameState *g, unsigned slot)
 {
-    return combatant_y(g, slot) + battle_cursor_offset_y(g, slot) > 0xFF;
+    return combatant_y(g, slot) + combatant_cursor_offset_y(g, slot) > 0xFF;
 }
 
 /* What the callees read of the machine: $CD:002D and $CD:0030 the name in

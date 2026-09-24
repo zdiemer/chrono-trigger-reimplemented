@@ -77,9 +77,12 @@ typedef enum { PAGE_COMMANDS, PAGE_TECHS } MenuPage;
 enum { MENU_NOBODY = 0x80, BATTLE_TARGET_ENTRIES = 6 };
 
 static inline bool menu_nobody(uint8_t member) { return (member & MENU_NOBODY) != 0; }
+/* A slot is read as the original indexes it: a slot past the three (Magus's
+ * slot, a word, holds no other in a battle) reads on into what follows. */
 static inline bool menu_slot_has_member(const GameState *g, unsigned slot)
 {
-    return !menu_nobody(battle_menu_slot_members(g, slot));
+    return !menu_nobody(slot < BATTLE_MENU_SLOT_MEMBERS_COUNT ? battle_menu_slot_members(g, slot)
+                                                                : battle_menu_slot_members_unchecked(g, slot));
 }
 
 /* ---- The battle window's layouts ---------------------------------------------------------- */
@@ -156,13 +159,21 @@ static inline bool digit_is_zero(uint8_t tile) { return tile == TILE_DIGIT_ZERO;
 /* The point a combatant's cursor points at: where it stands (battle.h) moved
  * by its cursor offsets. Coordinates are the battlefield's bytes, and wrap as
  * the original's do. */
+static inline uint8_t combatant_cursor_offset_x(const GameState *g, unsigned slot)
+{
+    return slot < BATTLE_CURSOR_OFFSET_X_COUNT ? battle_cursor_offset_x(g, slot) : battle_cursor_offset_x_unchecked(g, slot);
+}
+static inline uint8_t combatant_cursor_offset_y(const GameState *g, unsigned slot)
+{
+    return slot < BATTLE_CURSOR_OFFSET_Y_COUNT ? battle_cursor_offset_y(g, slot) : battle_cursor_offset_y_unchecked(g, slot);
+}
 static inline uint8_t combatant_cursor_x(const GameState *g, unsigned slot)
 {
-    return (uint8_t)(combatant_x(g, slot) + battle_cursor_offset_x(g, slot));
+    return (uint8_t)(combatant_x(g, slot) + combatant_cursor_offset_x(g, slot));
 }
 static inline uint8_t combatant_cursor_y(const GameState *g, unsigned slot)
 {
-    return (uint8_t)(combatant_y(g, slot) + battle_cursor_offset_y(g, slot));
+    return (uint8_t)(combatant_y(g, slot) + combatant_cursor_offset_y(g, slot));
 }
 
 /* ---- What the original leaves in its work cells ---------------------------------------- */
