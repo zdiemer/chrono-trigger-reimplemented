@@ -837,14 +837,14 @@ static void map_gradient(Snes *s)
             set_dp8(s, CELL_LOW, level);
         } while (level != 0x10);
     }
-    m_write8(s, RAM_MENU_OBJECT_WAVE_TABLE_LINES, 0xF0);
-    m_write8(s, RAM_MENU_OBJECT_WAVE_TABLE_LINES + RAM_MENU_OBJECT_WAVE_TABLE_STRIDE, 0xF0);
-    m_write8(s, RAM_MENU_OBJECT_WAVE_TABLE_LINES + 2 * RAM_MENU_OBJECT_WAVE_TABLE_STRIDE, 0x00);
+    m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES, 0xF0);
+    m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_SECOND_LINES, 0xF0);
+    m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_END, 0x00);
     m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS, RAM_ABS(RAM_MENU_OBJECT_WAVE_SCROLL));
     m_write16(s, RAM_MENU_OBJECT_HDMA_POINTERS + RAM_MENU_OBJECT_HDMA_POINTERS_STRIDE,
               (uint16_t)(RAM_ABS(RAM_MENU_OBJECT_WAVE_SCROLL) + 0x70));
     static const VidLineEffect gradient = { .target = VID_LINE_FIXED_COLOR,
-                                            .table = PF_GAME(RAM_MENU_OBJECT_WAVE_TABLE_LINES),
+                                            .table = PF_GAME(RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES),
                                             .indirect = true, .indirect_bank = 0x7E };
     vid_set_line_effect(m_platform(s), PF_AT(0xC2694F), EFFECT_SLOT, &gradient, line_effect_steps);
     m_lda8(s, EFFECT_SLOT_BIT);
@@ -873,7 +873,7 @@ void menu_epoch_load_map_graphics(Snes *s)
         if (m_read8(s, RAM_MENU_STORY_PROGRESS) < 0x36)
             m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_ENTRY)), 0x6F);
     } else if (set == 0x6B) {
-        if ((m_read8(s, RAM_MENU_EPOCH_FLAGS) & 1) == 0)
+        if ((m_read8(s, RAM_MENU_STORY_FLAGS_EPOCH) & 1) == 0)
             m_write8(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_ENTRY)), 0x6F);
     }
     m_write16(s, m_abs(s, RAM_ABS(RAM_MENU_LOAD_REQUEST_TABLE)), 0xF400);
@@ -1288,12 +1288,12 @@ void menu_epoch_time_dial_object(Snes *s)
         m_set_a8(s, (uint8_t)current_period(s));
         m_ldx(s, slot);
         set_field8(s, slot, OBJ_PARAMETER, (uint8_t)c->a);
-        m_write8(s, RAM_MENU_OBJECT_WAVE_TABLE_LINES, 0xF0);
-        m_write8(s, RAM_MENU_OBJECT_WAVE_TABLE_LINES + RAM_MENU_OBJECT_WAVE_TABLE_STRIDE, 0xF0);
-        m_write8(s, RAM_MENU_OBJECT_WAVE_TABLE_LINES + 2 * RAM_MENU_OBJECT_WAVE_TABLE_STRIDE, 0x00);
+        m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES, 0xF0);
+        m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_SECOND_LINES, 0xF0);
+        m_write8(s, RAM_MENU_OBJECT_LINE_SLOTS_END, 0x00);
         set_dp8(s, (uint8_t)(CELL_PTR3 + 2), 0x7E);
         static const VidLineEffect window = { .target = VID_LINE_WINDOW1,
-                                              .table = PF_GAME(RAM_MENU_OBJECT_WAVE_TABLE_LINES),
+                                              .table = PF_GAME(RAM_MENU_OBJECT_LINE_SLOTS_FIRST_LINES),
                                               .indirect = true, .indirect_bank = 0x7E };
         vid_set_line_effect(m_platform(s), PF_AT(0xC26AFA), EFFECT_SLOT, &window, line_effect_steps);
         m_lda8(s, EFFECT_SLOT_BIT);
@@ -1458,6 +1458,10 @@ void menu_epoch_time_dial_object(Snes *s)
     m_rts(s);
 }
 
+/* The time dial's four Mode 7 matrix channels read their values through line
+ * slots 2 and 3's small tables (menu/line_effects.h). */
+enum { GATE_MATRIX_TABLES = RAM_MENU_OBJECT_LINE_SLOTS + RAM_MENU_OBJECT_LINE_SLOTS_STRIDE };
+
 // $C2:6F85
 /* The object that drives the gate's Mode 7 matrix: four per-line tables, two of
  * cosines and two of sines, double-buffered and advanced by one entry a frame
@@ -1530,27 +1534,27 @@ void menu_epoch_gate_matrix_object(Snes *s)
     set_field8(s, slot, OBJ_STEP, (uint8_t)(field8(s, slot, OBJ_STEP) + 1));
     set_field8(s, slot, OBJ_Y, 0);
     set_field8(s, slot, (uint8_t)(OBJ_Y + 1), 0);
-    m_write8(s, RAM_MENU_GATE_MATRIX_TABLES, 0xF0);
-    m_write8(s, RAM_MENU_GATE_MATRIX_TABLES + 0x0D, 0xF0);
-    m_write8(s, RAM_MENU_GATE_MATRIX_TABLES + 3, 0xF0);
-    m_write8(s, RAM_MENU_GATE_MATRIX_TABLES + 0x10, 0xF0);
-    m_write8(s, RAM_MENU_GATE_MATRIX_TABLES + 6, 0x00);
-    m_write8(s, RAM_MENU_GATE_MATRIX_TABLES + 0x13, 0x00);
+    m_write8(s, GATE_MATRIX_TABLES, 0xF0);
+    m_write8(s, GATE_MATRIX_TABLES + 0x0D, 0xF0);
+    m_write8(s, GATE_MATRIX_TABLES + 3, 0xF0);
+    m_write8(s, GATE_MATRIX_TABLES + 0x10, 0xF0);
+    m_write8(s, GATE_MATRIX_TABLES + 6, 0x00);
+    m_write8(s, GATE_MATRIX_TABLES + 0x13, 0x00);
     {
         Platform *pf = m_platform(s);
         static const VidLineEffect matrix_a = { .target = VID_LINE_MODE7_A,
-                                                .table = PF_GAME(RAM_MENU_GATE_MATRIX_TABLES),
+                                                .table = PF_GAME(GATE_MATRIX_TABLES),
                                                 .indirect = true, .indirect_bank = 0x7E };
         static const VidLineEffect matrix_b = { .target = VID_LINE_MODE7_B,
-                                                .table = PF_GAME(RAM_MENU_GATE_MATRIX_TABLES + 0x0D),
+                                                .table = PF_GAME(GATE_MATRIX_TABLES + 0x0D),
                                                 .indirect = true, .indirect_bank = 0x7E };
         /* A and D take the cosines, B and C the sines, so each pair shares a
          * table. */
         static const VidLineEffect matrix_c = { .target = VID_LINE_MODE7_C,
-                                                .table = PF_GAME(RAM_MENU_GATE_MATRIX_TABLES + 0x0D),
+                                                .table = PF_GAME(GATE_MATRIX_TABLES + 0x0D),
                                                 .indirect = true, .indirect_bank = 0x7E };
         static const VidLineEffect matrix_d = { .target = VID_LINE_MODE7_D,
-                                                .table = PF_GAME(RAM_MENU_GATE_MATRIX_TABLES),
+                                                .table = PF_GAME(GATE_MATRIX_TABLES),
                                                 .indirect = true, .indirect_bank = 0x7E };
         /* The original programs the four channels a step at a time, in pairs. */
         static const uint8_t control_only[] = { VID_STEP_CONTROL, VID_STEP_DEST, VID_STEP_END };

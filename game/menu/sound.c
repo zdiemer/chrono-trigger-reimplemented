@@ -1,36 +1,46 @@
-/* Menu: loops around sound driver commands $11 and $14 ($C2:CBBF, $C2:CC0E)
- * that wait for the driver's status on APU ports 1 and 3, through the audio
- * service (platform/audio.h). No movie reaches them. */
+/* The menus' music.
+ *
+ * Opening the menus from the field fades the field's song out and starts the
+ * menus' own, which the sound driver plays while it keeps the field's song
+ * where it was ($C2:CB96, and the task it starts at $C2:CBBF, which sends
+ * command $14); closing them fades the menus' song
+ * out and starts the field's again, from where it was kept ($C2:CC0E, command
+ * $11). Between the fade and the new song the menus wait for the driver: for
+ * the fade to run out (the driver counts its steps left on its status) and,
+ * after starting their own song, for its music to be playing (the status
+ * names the tracks that are). These are those waits, a pass at a time; the rest is the
+ * original's. No movie reaches them. */
 #include "menu/sound.h"
 
 #include "platform/audio.h"
 #include "port/machine.h"
 
-/* LDA $002141 : BEQ done -- one pass of a loop that calls $C2:821E until port 1
- * reads zero: continues at `done`, or at the call. */
-static void wait_port1(Snes *s, uint32_t at, uint16_t call, uint16_t done)
+/* One pass of a wait for the music's fade to run out: on to `done` once it
+ * has, else to `wait`, the call that lets a frame go by before looking again.
+ * The status itself is dead at both, and its flags are read on the way to the
+ * call, which saves them. */
+static void wait_for_the_fade(Snes *s, uint32_t site, uint32_t wait, uint32_t done)
 {
-    uint8_t v = m_lda8(s, au_status(m_platform(s), PF_AT(at), 1));
-    s->cpu.pc = v == 0 ? done : call;
+    uint8_t steps_left = au_music_fade_left(m_platform(s), PF_AT(site));
+    m_set_nz8(s, steps_left);
+    m_stop_at(s, steps_left == 0 ? done : wait, 0);
 }
 
 // $C2:CBC1
-/* Before command $14 in $C2:CBBF: continues at $C2:CBCC once port 1 is zero,
- * else at the call at $C2:CBC7. */
-void menu_wait_sound_port1_cbc1(Snes *s) { wait_port1(s, 0xC2CBC1, 0xCBC7, 0xCBCC); }
+/* Opening the menus: wait for the field's song to fade out, then on to
+ * starting the menus' song at $C2:CBCC. */
+void menu_wait_for_field_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CBC1, 0xC2CBC7, 0xC2CBCC); }
 
 // $C2:CC28
-/* Before command $11 in $C2:CC0E: continues at $C2:CC33 once port 1 is zero,
- * else at the call at $C2:CC2E. */
-void menu_wait_sound_port1_cc28(Snes *s) { wait_port1(s, 0xC2CC28, 0xCC2E, 0xCC33); }
+/* Closing them: wait for the menus' song to fade out, then on to starting
+ * the field's again at $C2:CC33. */
+void menu_wait_for_menu_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CC28, 0xC2CC2E, 0xC2CC33); }
 
 // $C2:CBE0
-/* LDA $002143 : AND #$0F : BEQ loop -- wait for the low nibble of port 3 to be
- * nonzero after command $14. Idle entry, 8-bit A; exits to the JMP at
- * $C2:CBE8. */
-void menu_wait_sound_port3_loop(Snes *s)
+/* After starting the menus' song, wait for its music to be playing (the
+ * driver's status names the tracks that are), then on to $C2:CBE8, where
+ * nothing reads what the loop loaded. Idle entry, one pass. */
+void menu_wait_for_menu_music_playing_loop(Snes *s)
 {
-    uint8_t v = au_status(m_platform(s), PF_AT(0xC2CBE0), 3);
-    if (m_lda8(s, v & 0x0F) != 0)
-        s->cpu.pc = 0xCBE8;
+    m_stop_at(s, au_music_playing(m_platform(s), PF_AT(0xC2CBE0)) != 0 ? 0xC2CBE8 : 0xC2CBE0, 0);
 }

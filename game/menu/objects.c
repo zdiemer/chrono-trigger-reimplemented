@@ -1,862 +1,356 @@
-/* Menu: sprite objects, run and drawn each frame from the vblank handler of
- * the mode started at $C2:0000 (every movie that shows a menu screen reaches
- * it, the new-game movie included).
+/* The sprite-object mode's objects: their slots, starting them, moving them,
+ * and running every one of them once a frame (menu/object.h says what an
+ * object is).
  *
- * Objects are $40-byte slots from $0B30 to $1B2F; a slot's first word is its
- * handler (0 for a free slot). Objects queue sprite groups into a list of
- * $10-byte nodes at $7E:B000-$B3FF: a node has previous and next links (+0,
- * +2), a position (+4, +6), attribute bits (+8-$0A) and a long pointer to its
- * sprite group (+$0B), whose first byte counts 4-byte entries (x and y offset,
- * tile word). $B500 heads the list in drawing order, $B504 the free nodes.
- * Drawing writes sprites into the OAM buffer at $0700 (index $4D) and size and
- * X high bits into $0900. */
+ * The vblank handler runs the objects in slot order (menu_run_objects): each
+ * slot with a handler runs it, and a handler that says it is done frees its
+ * slot; every other object counts a frame of age. A handler is a routine of
+ * bank C2 the slot names by its address: the command scripts' interpreter
+ * (menu/script.c), the Epoch's screens' objects (menu/epoch.c), the fades,
+ * the palette loader, the wave (menu/wave.c) and the tile streamer. */
+#include "menu/object.h"
 #include "menu/objects.h"
 
-#include "platform/video.h"
+#include "original_effects.h"
 #include "port/machine.h"
-#include "ram.h"
+#include "port/vars_ram.h"
+#include "vars.h"
+#include "wram.h"
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
-static uint32_t abs_x(Snes *s, uint16_t offset) { return m_abs(s, offset) + s->cpu.x; }
-static uint32_t abs_y(Snes *s, uint16_t offset) { return m_abs(s, offset) + s->cpu.y; }
+/* ---- Storage: the slots by their address -------------------------------------------------- */
 
-/* The 24-bit address [cell],Y. */
-static uint32_t long_y(Snes *s, uint8_t cell)
+/* The original names a slot by its address in low RAM, and reaches its bytes
+ * through the data bank, which the mode keeps on low RAM; an address that
+ * isn't a slot's (the running object before any has run, a byte named past
+ * the last slot) is low RAM like any other. */
+enum { FIRST_SLOT_ADDRESS = 0x0B30, SLOT_BYTES = 0x40 };
+enum { SLOTS_END = FIRST_SLOT_ADDRESS + MENU_OBJECTS * SLOT_BYTES };
+
+uint16_t menu_object_address(MenuObject o) { return (uint16_t)(FIRST_SLOT_ADDRESS + o * SLOT_BYTES); }
+
+static bool in_a_slot(uint16_t address) { return address >= FIRST_SLOT_ADDRESS && address < SLOTS_END; }
+
+bool menu_objects_hold(uint32_t address)
 {
-    uint32_t p = m_read16(s, m_dp(s, cell)) | (uint32_t)m_read8(s, m_dp(s, (uint8_t)(cell + 2))) << 16;
-    return (p + s->cpu.y) & 0xFFFFFF;
+    enum { WORK_RAM = 0x7E, LOW_RAM_END = 0x2000 };
+    uint8_t bank = (uint8_t)(address >> 16);
+    bool low_ram = bank == WORK_RAM || ((bank & 0x7F) < 0x40 && (uint16_t)address < LOW_RAM_END);
+    return low_ram && in_a_slot((uint16_t)address);
 }
 
-/* The address (cell),Y: a 16-bit pointer in the data bank. */
-static uint32_t ptr_y(Snes *s, uint8_t cell) { return (m_abs(s, dp16(s, cell)) + s->cpu.y) & 0xFFFFFF; }
-
-static void plb(Snes *s)
+bool menu_object_address_names_one(uint16_t address)
 {
-    s->cpu.db = m_pull8(s);
-    m_set_nz8(s, s->cpu.db);
+    return in_a_slot(address) && (address - FIRST_SLOT_ADDRESS) % SLOT_BYTES == 0;
 }
 
-/* LDA #$7E : PHA : PLB (after PHB), 8-bit A */
-static void set_bank_7e(Snes *s)
+MenuObject menu_object_at_address(uint16_t address) { return (MenuObject)((address - FIRST_SLOT_ADDRESS) / SLOT_BYTES); }
+
+MenuObject menu_object_running(const GameState *g) { return menu_object_at_address(menu_object_current(g)); }
+void menu_object_make_running(GameState *g, MenuObject o) { set_menu_object_current(g, menu_object_address(o)); }
+
+static uint8_t byte_at(const GameState *g, uint16_t address)
 {
-    m_push8(s, m_lda8(s, 0x7E));
-    plb(s);
+    if (!in_a_slot(address))
+        return wram_read8(g, 0x7E0000u | address);
+    unsigned from_first = address - FIRST_SLOT_ADDRESS;
+    return menu_object_slots_bytes_byte(g, from_first / SLOT_BYTES, from_first % SLOT_BYTES);
 }
 
-/* BIT #imm, 16-bit: only Z. */
-static void bit_imm16(Snes *s, uint16_t imm) { m_set_flag(s, CPU_FLAG_Z, (s->cpu.a & imm) == 0); }
-
-/* DEC on a 16-bit word; returns the result. */
-static uint16_t dec16(Snes *s, uint32_t addr)
+static void set_byte_at(GameState *g, uint16_t address, uint8_t v)
 {
-    uint16_t v = (uint16_t)(m_read16(s, addr) - 1);
-    m_write16(s, addr, v);
-    m_set_nz16(s, v);
-    return v;
+    if (!in_a_slot(address)) {
+        wram_write8(g, 0x7E0000u | address, v);
+        return;
+    }
+    unsigned from_first = address - FIRST_SLOT_ADDRESS;
+    set_menu_object_slots_bytes_byte(g, from_first / SLOT_BYTES, from_first % SLOT_BYTES, v);
 }
 
-/* DEC on a byte; returns the result. */
-static uint8_t dec8(Snes *s, uint32_t addr)
+uint8_t menu_object_byte(const GameState *g, MenuObject o, uint16_t at)
 {
-    uint8_t v = (uint8_t)(m_read8(s, addr) - 1);
-    m_write8(s, addr, v);
-    m_set_nz8(s, v);
-    return v;
+    return byte_at(g, (uint16_t)(menu_object_address(o) + at));
 }
 
-static bool widths_are(Snes *s, uint8_t mx)
+void menu_set_object_byte(GameState *g, MenuObject o, uint16_t at, uint8_t v)
 {
-    return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == mx;
+    set_byte_at(g, (uint16_t)(menu_object_address(o) + at), v);
 }
 
-// $C2:0C4D
-/* Reset the sprite node list: an empty drawing list at $B500, the free list
- * at $B504 ($B3F0 last, $B000 first), and each node's links from the table
- * at $B400 (built by $C2:0BF6). Returns with 16-bit A. */
-void menu_reset_sprite_nodes(Snes *s)
+/* ---- Starting objects ----------------------------------------------------------------------- */
+
+/* A new object takes on the starter's state from its sixth byte on: where it
+ * is and how it moves, its look, its scripts. The starter is whichever object
+ * ran last: before any has, what the running object's cell names. */
+enum { INHERITED_FROM = 0x05 };
+
+static MenuObject first_of(MenuSlotKind kind) { return kind == MENU_FIRST_SLOT ? 0 : MENU_FIRST_OBJECTS; }
+static unsigned end_of(MenuSlotKind kind) { return kind == MENU_FIRST_SLOT ? MENU_FIRST_OBJECTS : MENU_OBJECTS; }
+
+unsigned menu_last_object_of(MenuSlotKind kind) { return end_of(kind) - 1; }
+
+unsigned menu_first_free_object(const GameState *g, MenuSlotKind kind)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->db);
-    set_bank_7e(s);
-    m_rep(s, CPU_FLAG_M);
-    m_ldx(s, 0xB500);
-    m_txa(s);
-    m_write16(s, abs_x(s, 0x0000), c->a);
-    m_write16(s, abs_x(s, 0x0002), c->a);
-    m_ldx(s, 0xB504);
-    m_write16(s, abs_x(s, 0x0000), m_lda16(s, 0xB3F0));
-    m_write16(s, abs_x(s, 0x0002), m_lda16(s, 0xB000));
-    m_ldx(s, 0xB400);
-    m_ldy(s, 0xB000);
-    set_dp16(s, 0x08, m_lda16(s, 0x0008));
-    do {
-        /* 16 nodes a round: links +0/+2 of node Y + $10n from the words at X + 4n */
-        for (uint16_t i = 0; i < 0x20; i += 2) {
-            m_lda16(s, m_read16(s, abs_x(s, i)));
-            m_write16(s, abs_y(s, (uint16_t)((i >> 2) << 4 | (i & 2))), c->a);
-        }
-        m_txa(s);
+    for (unsigned o = first_of(kind); o < end_of(kind); o++)
+        if (menu_object_slots_handler(g, o) == 0)
+            return o;
+    return MENU_OBJECTS;
+}
+
+static void inherit(GameState *g, MenuObject to)
+{
+    uint16_t from = menu_object_current(g);
+    for (unsigned i = INHERITED_FROM; i < SLOT_BYTES; i++)
+        set_byte_at(g, (uint16_t)(menu_object_address(to) + i), byte_at(g, (uint16_t)(from + i)));
+}
+
+// $C2:048A, $C2:04CD
+bool menu_start_object(GameState *g, uint16_t handler, MenuSlotKind kind, MenuObject *started)
+{
+    ORIGINAL_EFFECT(set_menu_object_scratch_spawn_handler(g, handler));
+    unsigned o = menu_first_free_object(g, kind);
+    if (o == MENU_OBJECTS)
+        return false;
+    set_menu_object_slots_handler(g, o, handler);
+    set_menu_object_slots_age(g, o, 0);
+    set_menu_object_slots_step(g, o, 0);
+    inherit(g, (MenuObject)o);
+    *started = (MenuObject)o;
+    return true;
+}
+
+// $C2:04D9, $C2:04FB
+void menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind)
+{
+    ORIGINAL_EFFECT(set_menu_object_scratch_start_bank(g, (uint8_t)(script >> 16)));
+    ORIGINAL_EFFECT(set_menu_object_scratch_start_script(g, (uint16_t)script));
+    MenuObject o;
+    if (!menu_start_object(g, MENU_SCRIPT_HANDLER, kind, &o))
+        o = (MenuObject)menu_last_object_of(kind);
+    set_menu_object_slots_script(g, o, script);
+    set_menu_object_slots_command_frames(g, o, 0);
+}
+
+/* ---- Where it is and how it moves --------------------------------------------------------- */
+
+MenuPlace menu_object_place(const GameState *g, MenuObject o)
+{
+    return (MenuPlace){ menu_object_slots_x(g, o), menu_object_slots_y(g, o) };
+}
+
+void menu_object_set_place(GameState *g, MenuObject o, MenuPlace p)
+{
+    set_menu_object_slots_x(g, o, p.x);
+    set_menu_object_slots_y(g, o, p.y);
+}
+
+MenuPlace menu_object_velocity(const GameState *g, MenuObject o)
+{
+    return (MenuPlace){ menu_object_slots_velocity_x(g, o), menu_object_slots_velocity_y(g, o) };
+}
+
+void menu_object_set_velocity(GameState *g, MenuObject o, MenuPlace v)
+{
+    set_menu_object_slots_velocity_x(g, o, v.x);
+    set_menu_object_slots_velocity_y(g, o, v.y);
+}
+
+// $C2:1C84, $C2:1C9E
+void menu_object_turn_round(GameState *g, MenuObject o, MenuAxis axis)
+{
+    MenuPlace v = menu_object_velocity(g, o);
+    if (axis == MENU_ACROSS)
+        v.x = 0u - v.x;
+    else
+        v.y = 0u - v.y;
+    menu_object_set_velocity(g, o, v);
+}
+
+// $C2:0F38
+void menu_object_move(GameState *g, MenuObject o)
+{
+    MenuPlace p = menu_object_place(g, o), v = menu_object_velocity(g, o);
+    menu_object_set_place(g, o, (MenuPlace){ p.x + v.x, p.y + v.y });
+}
+
+// $C2:1CB8
+/* The map's height is a power of two, so down is kept by masking; across,
+ * an object a pixel off either edge comes round to the other. */
+void menu_object_wrap_onto_map(GameState *g, MenuObject o)
+{
+    int16_t x = (int16_t)menu_object_slots_x_pixel(g, o);
+    if (x < 0)
+        x = (int16_t)(x + MENU_MAP_WIDTH);
+    else if (x >= MENU_MAP_WIDTH)
+        x = (int16_t)(x - MENU_MAP_WIDTH);
+    set_menu_object_slots_x_pixel(g, o, (uint16_t)x);
+    set_menu_object_slots_y_pixel(g, o, (uint16_t)(menu_object_slots_y_pixel(g, o) & (MENU_MAP_HEIGHT - 1)));
+}
+
+/* ---- Running them ---------------------------------------------------------------------------- */
+
+/* An object's handler is done with it when it says so; the slot is then free.
+ * Otherwise the object is a frame older. */
+static void after_its_turn(GameState *g, uint16_t address, bool done)
+{
+    MenuObject o = menu_object_at_address(address);
+    if (done)
+        set_menu_object_slots_handler(g, o, 0);
+    else
+        set_menu_object_slots_age(g, o, (uint16_t)(menu_object_slots_age(g, o) + 1));
+}
+
+/* The handler runs on the machine, from the original's JSR at $C2:053E to
+ * its jump through the handler's address ($C2:0553), which reads it from
+ * menu_object_handler. It says it is done with the carry. False where it
+ * came back in a way the loop can't go on from, or left the running object
+ * elsewhere than a slot: the original then carries on from the call. */
+static bool run_handler(Snes *s, uint16_t address, uint16_t handler, bool *done)
+{
+    GameState *g = state_of(s);
+    set_menu_object_handler(g, handler);
+    set_menu_object_current(g, address);
+    if (address != FIRST_SLOT_ADDRESS) {
         m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, 0x0020);
-        m_tax(s);
-        m_lda16(s, c->y);
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, 0x0080);
-        m_ldy(s, c->a);
-    } while (dec16(s, m_dp(s, 0x08)) != 0);
-    plb(s);
-    m_rts(s);
-}
-
-// $C2:034D
-/* Hide OAM buffer sprites (Y = $E0 in $0701 + 4n for 128 sprites, in blocks
- * of 8 per $20 steps of X) and clear the high bits table $0900-$091F. */
-void menu_hide_all_sprites(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_ldx(s, 0x60);
-    static const uint16_t base[4] = { 0x0701, 0x0781, 0x0801, 0x0881 };
-    do {
-        m_lda8(s, 0xE0);
-        for (int b = 0; b < 4; b++)
-            for (uint16_t i = 0; i < 8; i++)
-                m_write8(s, abs_x(s, (uint16_t)(base[b] + i * 4)), (uint8_t)c->a);
-        m_txa(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_set_a8(s, m_sbc8(s, (uint8_t)c->a, 0x20));
-        m_tax(s);
-    } while (!(c->x & 0x80));
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    for (uint16_t i = 0; i < 0x20; i += 2)
-        m_write16(s, m_abs(s, (uint16_t)(0x0900 + i)), 0x0000);
+        m_set_flag(s, CPU_FLAG_V, false);
+    }
+    s->cpu.a = handler;
+    s->cpu.x = address;
+    m_set_nz16(s, handler);
     m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-/* A field of the object slot at `slot`, reached through the data bank as the
- * original reaches it. */
-enum {
-    SLOT_HANDLER = 0,
-    SLOT_AGE = RAM_MENU_OBJECT_SLOTS_AGE - RAM_MENU_OBJECT_SLOTS,
-    SLOT_SCRIPT = RAM_MENU_OBJECT_SLOTS_SCRIPT - RAM_MENU_OBJECT_SLOTS,
-    SLOT_COMMAND_DONE = RAM_MENU_OBJECT_SLOTS_COMMAND_DONE - RAM_MENU_OBJECT_SLOTS,
-};
-
-static uint32_t slot_field(Snes *s, uint16_t slot, uint16_t field)
-{
-    return (m_abs(s, field) + slot) & 0xFFFFFFu;
+    m_jsr(s, 0xC2053E, 0xC20553);
+    if (s->cpu.e || m_x8(s) || !menu_object_address_names_one(menu_object_current(g))) {
+        m_stop_at_own(s, 0xC20541, 0);
+        return false;
+    }
+    *done = m_flag(s, CPU_FLAG_C);
+    return true;
 }
 
 // $C2:051D
-/* Run every object slot's handler once, in address order: the slot's first
- * word, jumped to through $0050 with the slot in $4E. A handler that returns
- * carry set frees its slot; otherwise the object's age counts up. */
+/* Every object's turn this frame, in slot order. The loop's own registers
+ * are what it leaves: the address past the last slot in A, and the carry of
+ * its last comparison. */
 void menu_run_objects(Snes *s)
 {
-    enum { SLOTS_END = RAM_ABS(RAM_MENU_OBJECT_SLOTS)
-                       + RAM_MENU_OBJECT_SLOTS_COUNT * RAM_MENU_OBJECT_SLOTS_STRIDE };
-    uint16_t slot = m_ldx(s, RAM_ABS(RAM_MENU_OBJECT_SLOTS));
-    for (;;) {
-        m_rep(s, CPU_FLAG_M);
-        uint16_t handler = m_lda16(s, m_read16(s, slot_field(s, slot, SLOT_HANDLER)));
-        if (handler != 0) {
-            m_write16(s, m_dp(s, RAM_MENU_OBJECT_HANDLER_DP), m_lda16(s, handler));
-            m_sep(s, CPU_FLAG_M);
-            m_write16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP), slot);
-            m_jsr(s, 0xC2053E, 0xC20553);
-            if (m_x8(s) || s->cpu.e) {
-                /* the handler left widths this loop can't carry on with */
-                m_stop_at(s, 0xC20541, 0);
-                return;
-            }
-            slot = m_ldx(s, m_read16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP)));
-            m_rep(s, CPU_FLAG_M);
-            if (m_flag(s, CPU_FLAG_C)) {
-                m_write16(s, slot_field(s, slot, SLOT_HANDLER), 0);      /* the object is done */
-            } else {
-                uint16_t age = (uint16_t)(m_read16(s, slot_field(s, slot, SLOT_AGE)) + 1);
-                m_write16(s, slot_field(s, slot, SLOT_AGE), age);
-                m_set_nz16(s, age);
-            }
-        }
-        m_txa(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_lda16(s, m_adc16(s, slot, RAM_MENU_OBJECT_SLOTS_STRIDE));
-        slot = m_ldx(s, s->cpu.a);
-        m_cmp16(s, slot, SLOTS_END);
-        if (slot == SLOTS_END)
-            break;
-    }
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-/* The signed byte at [$55],Y as a word (LDA [$55],Y : AND #$00FF : BIT
- * #$0080 : BEQ : ORA #$FF00). */
-static void signed_offset(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_lda16(s, m_read16(s, long_y(s, 0x55)));
-    m_lda16(s, c->a & 0x00FF);
-    bit_imm16(s, 0x0080);
-    if (c->a & 0x0080)
-        m_lda16(s, c->a | 0xFF00);
-}
-
-/* Make the coordinate in `cell` relative to the scroll position in `scroll`,
- * wrapping by `span` (the map's size) when it falls below `low` or at or above
- * `high`. */
-static uint16_t wrap_relative(Snes *s, uint8_t cell, uint8_t scroll, uint16_t low, uint16_t high, uint16_t span)
-{
-    Cpu *c = &s->cpu;
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_lda16(s, dp16(s, cell));
-    c->a = m_sbc16(s, c->a, dp16(s, scroll));
-    if (c->a & 0x8000) {
-        m_cmp16(s, c->a, low);
-        if (!m_flag(s, CPU_FLAG_C))
-            c->a = m_adc16(s, c->a, span);
-    } else {
-        m_cmp16(s, c->a, high);
-        if (m_flag(s, CPU_FLAG_C))
-            c->a = m_sbc16(s, c->a, span);
-    }
-    set_dp16(s, cell, c->a);
-    return c->a;
-}
-
-/* $C2:0D08: draw sprite node X's group. */
-static void draw_node(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_ldy(s, m_read16(s, abs_x(s, 0x000B)));
-    set_dp16(s, 0x55, c->y);
-    set_dp8(s, 0x57, m_lda8(s, m_read8(s, abs_x(s, 0x000D))));
-    {
-        uint16_t y = c->y;
-        c->y = 0;
-        set_dp8(s, 0x00, m_lda8(s, m_read8(s, long_y(s, 0x55))));
-        c->y = y;
-    }
-    set_dp8(s, 0x01, 0x00);
-    m_ldy(s, 0x0000);
-    m_lda8(s, m_read8(s, abs_x(s, 0x000A)));
-    m_bit_imm8(s, 0x40);
-    if (c->a & 0x40)
-        m_iny(s);
-    set_dp16(s, 0x13, c->y);
-    m_rep(s, CPU_FLAG_M);
-    {
-        uint16_t v = (uint16_t)(dp16(s, 0x55) + 1);
-        set_dp16(s, 0x55, v);
-        m_set_nz16(s, v);
-    }
-    m_lda16(s, m_read16(s, abs_x(s, 0x0008)));
-    m_xba(s);
-    set_dp16(s, 0x02, m_lda16(s, c->a & 0x3E00));
-    m_lda16(s, m_read16(s, abs_x(s, 0x0009)));
-    set_dp16(s, 0x06, m_lda16(s, c->a & 0x3FFF));
-    set_dp16(s, 0x0C, m_lda16(s, m_read16(s, abs_x(s, 0x0004))));
-    set_dp16(s, 0x0E, m_lda16(s, m_read16(s, abs_x(s, 0x0006))));
-    m_lda16(s, m_read16(s, abs_x(s, 0x0008)));
-    bit_imm16(s, 0x0080);
-    if (c->a & 0x0080) {
-        wrap_relative(s, 0x0C, 0x22, 0xFD00, 0x0300, 0x0600);
-        wrap_relative(s, 0x0E, 0x28, 0xFE00, 0x0200, 0x0400);
-    }
-    for (;;) {
-        /* $C2:0D82 */
-        uint16_t y = c->y;
-        c->y = 0;
-        signed_offset(s);
-        c->y = y;
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, dp16(s, 0x0C));
-        set_dp16(s, 0x08, c->a);
-        set_dp16(s, 0x04, c->a);
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, 0x000F);
-        m_cmp16(s, c->a, 0x010F);
-        if (!m_flag(s, CPU_FLAG_C)) {
-            m_ldy(s, 0x0001);
-            signed_offset(s);
-            m_set_flag(s, CPU_FLAG_C, false);
-            c->a = m_adc16(s, c->a, dp16(s, 0x0E));
-            set_dp16(s, 0x09, c->a);
-            m_set_flag(s, CPU_FLAG_C, false);
-            c->a = m_adc16(s, c->a, 0x000F);
-            m_cmp16(s, c->a, 0x00EF);
-            if (!m_flag(s, CPU_FLAG_C)) {
-                m_iny(s);
-                m_lda16(s, m_read16(s, long_y(s, 0x55)));
-                m_set_flag(s, CPU_FLAG_C, false);
-                c->a = m_adc16(s, c->a, dp16(s, 0x06));
-                m_lda16(s, c->a | dp16(s, 0x02));
-                m_ldy(s, c->a);
-                m_lda16(s, dp16(s, 0x4D));
-                m_lda16(s, c->a & 0x007F);
-                c->a = m_asl16(s, c->a);
-                c->a = m_asl16(s, c->a);
-                m_tax(s);
-                m_write16(s, abs_x(s, 0x0700), m_lda16(s, dp16(s, 0x08)));
-                m_lda16(s, c->y);
-                m_write16(s, abs_x(s, 0x0702), c->a);
-                m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-                set_dp8(s, 0x16, m_lda8(s, dp8(s, 0x13)));
-                m_lda8(s, dp8(s, 0x4D));
-                m_lda8(s, (uint8_t)c->a & 0x03);
-                for (int i = 0; i < 2; i++) {
-                    uint8_t cell = i == 0 ? 0x16 : 0x05;
-                    set_dp8(s, cell, m_lsr8(s, dp8(s, cell)));
-                    /* ROL A */
-                    bool carry = c->a & 0x80;
-                    uint8_t v = (uint8_t)((uint8_t)c->a << 1 | (m_flag(s, CPU_FLAG_C) ? 1 : 0));
-                    m_set_a8(s, v);
-                    m_set_flag(s, CPU_FLAG_C, carry);
-                    m_set_nz8(s, v);
-                }
-                m_tax(s);
-                m_lda8(s, dp8(s, 0x4D));
-                m_set_a8(s, m_lsr8(s, (uint8_t)c->a));
-                m_set_a8(s, m_lsr8(s, (uint8_t)c->a));
-                m_ldy(s, c->a & 0xFF);
-                m_lda8(s, m_read8(s, 0xC20E0D + c->x));
-                m_lda8(s, (uint8_t)c->a | m_read8(s, abs_y(s, 0x0900)));
-                m_write8(s, abs_y(s, 0x0900), (uint8_t)c->a);
-                m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-                uint16_t n = (uint16_t)(dp16(s, 0x4D) + 1);
-                set_dp16(s, 0x4D, n);
-                m_set_nz16(s, n);
-            }
-        }
-        /* $C2:0DFB */
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_lda16(s, dp16(s, 0x55));
-        c->a = m_adc16(s, c->a, 0x0004);
-        set_dp16(s, 0x55, c->a);
-        if (dec16(s, m_dp(s, 0x00)) == 0)
-            break;
-    }
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:0CEA
-/* Draw the sprite groups of the nodes in the drawing list at $7E:B500, in
- * order, into the OAM buffer. */
-void menu_draw_sprite_nodes(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_push8(s, c->db);
-    set_bank_7e(s);
-    m_ldy(s, 0xB500);
-    m_ldx(s, m_read16(s, abs_y(s, 0x0002)));
-    for (;;) {
-        m_cmp16(s, c->x, 0xB500);
-        if (c->x == 0xB500)
-            break;
-        set_dp16(s, 0x10, c->x);
-        m_push16(s, 0x0CFE);
-        draw_node(s);
-        m_ldy(s, dp16(s, 0x10));
-        m_ldx(s, m_read16(s, abs_y(s, 0x0002)));
-    }
-    plb(s);
-    m_rts(s);
-}
-
-// $C2:0B53
-/* Take a node from the free list and insert it into the drawing list for
- * object $4E: position from the object's +$14 and +$18, attributes from +$0F
- * and +$10, sprite group from the long pointer in $55. A node with attribute
- * bit 0 set is linked in before the first node without it; otherwise, unless
- * +$0A bit 7 is set (then it goes last), before the first node without bit 0
- * whose +6 (Y) is lower than its own. */
-void menu_insert_sprite_node(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    m_push8(s, c->db);
-    set_bank_7e(s);
-    m_rep(s, CPU_FLAG_M);
-    /* unlink the first free node */
-    m_ldy(s, 0xB504);
-    m_ldx(s, m_read16(s, abs_y(s, 0x0002)));
-    m_ldy(s, m_read16(s, abs_x(s, 0x0000)));
-    m_write16(s, abs_y(s, 0x0002), m_lda16(s, m_read16(s, abs_x(s, 0x0002))));
-    m_ldy(s, c->a);
-    m_write16(s, abs_y(s, 0x0000), m_lda16(s, m_read16(s, abs_x(s, 0x0000))));
-    /* fill it */
-    m_ldy(s, dp16(s, 0x4E));
-    m_write16(s, abs_x(s, 0x0004), m_lda16(s, m_read16(s, abs_y(s, 0x0014))));
-    m_write16(s, abs_x(s, 0x0006), m_lda16(s, m_read16(s, abs_y(s, 0x0018))));
-    m_write16(s, abs_x(s, 0x000B), m_lda16(s, dp16(s, 0x55)));
-    m_write16(s, abs_x(s, 0x0009), m_lda16(s, m_read16(s, abs_y(s, 0x0010))));
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, abs_x(s, 0x000D), m_lda8(s, dp8(s, 0x57)));
-    m_write8(s, abs_x(s, 0x0008), m_lda8(s, m_read8(s, abs_y(s, 0x000F))));
-    /* find the node to insert after */
-    m_ldy(s, 0xB500);
-    m_lda8(s, m_read8(s, abs_x(s, 0x0008)));
-    m_bit_imm8(s, 0x01);
-    if (c->a & 0x01) {
-        m_rep(s, CPU_FLAG_M);
-        for (;;) {
-            m_ldy(s, m_lda16(s, m_read16(s, abs_y(s, 0x0002))));
-            m_cmp16(s, c->y, 0xB500);
-            if (c->y == 0xB500)
-                break;
-            m_lda16(s, m_read16(s, abs_y(s, 0x0008)));
-            bit_imm16(s, 0x0001);
-            if (!(c->a & 0x0001))
-                break;
-        }
-    } else {
-        m_lda8(s, m_read8(s, abs_x(s, 0x000A)));
-        m_rep(s, CPU_FLAG_M);
-        if (!(c->a & 0x80)) {
-            for (;;) {
-                m_ldy(s, m_lda16(s, m_read16(s, abs_y(s, 0x0002))));
-                m_cmp16(s, c->y, 0xB500);
-                if (c->y == 0xB500)
-                    break;
-                m_lda16(s, m_read16(s, abs_y(s, 0x0008)));
-                bit_imm16(s, 0x0001);
-                if (c->a & 0x0001)
-                    continue;
-                m_lda16(s, m_read16(s, abs_x(s, 0x0006)));
-                uint16_t other = m_read16(s, abs_y(s, 0x0006));
-                m_cmp16(s, c->a, other);
-                if (c->a > other)
-                    break;
-            }
-        }
-    }
-    /* $C2:0BD9: link X in before Y */
-    m_ldy(s, m_lda16(s, m_read16(s, abs_y(s, 0x0000))));
-    m_write16(s, abs_x(s, 0x0002), m_lda16(s, m_read16(s, abs_y(s, 0x0002))));
-    m_txa(s);
-    m_write16(s, abs_y(s, 0x0002), c->a);
-    m_ldy(s, m_read16(s, abs_x(s, 0x0002)));
-    m_write16(s, abs_x(s, 0x0000), m_lda16(s, m_read16(s, abs_y(s, 0x0000))));
-    m_txa(s);
-    m_write16(s, abs_y(s, 0x0000), c->a);
-    plb(s);
-    m_rts(s);
-}
-
-/* The 8-bit operand byte [$52],1 in A (with 16-bit Y = 1 first). */
-static uint8_t script_byte(Snes *s, uint16_t offset)
-{
-    m_ldy(s, offset);
-    return m_lda8(s, m_read8(s, long_y(s, 0x52)));
-}
-
-/* A countdown in the object's +$0E: loaded from the operand at `offset` when
- * zero, else decremented; true when it reaches zero. */
-static bool object_countdown(Snes *s, uint16_t offset)
-{
-    if (m_lda8(s, m_read8(s, abs_x(s, 0x000E))) == 0) {
-        m_write8(s, abs_x(s, 0x000E), script_byte(s, offset));
-        return false;
-    }
-    return dec8(s, abs_x(s, 0x000E)) == 0;
-}
-
-/* The sprite script commands ($C2:0E4A table), each ending with the
- * command's length in A (Z set to stop). */
-static void sprite_command(Snes *s, uint16_t handler)
-{
-    Cpu *c = &s->cpu;
-    switch (handler) {
-    case 0x0E5A: /* clear byte (object),operand */
-    case 0x0E6B: /* increment it */
-    case 0x0E7E: /* decrement it */
-        m_sep(s, CPU_FLAG_M);
-        script_byte(s, 0x0001);
-        m_set_index(s, &c->y, c->a);
-        if (handler == 0x0E5A) {
-            m_tdc(s);
-            m_write8(s, ptr_y(s, 0x4E), (uint8_t)c->a);
-        } else {
-            m_lda8(s, m_read8(s, ptr_y(s, 0x4E)));
-            m_lda8(s, (uint8_t)(c->a + (handler == 0x0E6B ? 1 : -1)));
-            m_write8(s, ptr_y(s, 0x4E), (uint8_t)c->a);
-        }
-        m_rep(s, CPU_FLAG_M);
-        m_lda16(s, 0x0002);
-        break;
-    case 0x0E91: /* jump by the signed operand */
-        m_ldy(s, 0x0001);
-        m_lda16(s, m_read16(s, long_y(s, 0x52)));
-        m_lda16(s, c->a & 0x00FF);
-        bit_imm16(s, 0x0080);
-        if (c->a & 0x0080)
-            m_lda16(s, c->a | 0xFF00);
-        m_set_flag(s, CPU_FLAG_C, false);
-        break;
-    case 0x0EA3: /* show a sprite group, for a count of frames unless +$0F bit 6 */
-        m_sep(s, CPU_FLAG_M);
-        m_ldx(s, dp16(s, 0x4E));
-        m_lda8(s, m_read8(s, abs_x(s, 0x000F)));
-        m_bit_imm8(s, 0x40);
-        if (!(c->a & 0x40) && object_countdown(s, 0x0003)) {
-            m_rep(s, CPU_FLAG_M);
-            m_lda16(s, 0x0004);
-            m_set_flag(s, CPU_FLAG_C, false);
-            break;
-        }
-        set_dp8(s, 0x57, m_lda8(s, dp8(s, 0x54)));
-        m_rep(s, CPU_FLAG_M);
-        m_ldy(s, 0x0001);
-        set_dp16(s, 0x55, m_lda16(s, m_read16(s, long_y(s, 0x52))));
-        m_push16(s, 0x0ED8);
-        menu_insert_sprite_node(s);
-        m_tdc(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-        break;
-    case 0x0EDC: /* wait for a count of frames */
-        m_sep(s, CPU_FLAG_M);
-        m_ldx(s, dp16(s, 0x4E));
-        if (object_countdown(s, 0x0001)) {
-            m_rep(s, CPU_FLAG_M);
-            m_lda16(s, 0x0002);
-            m_set_flag(s, CPU_FLAG_C, false);
-            break;
-        }
-        m_rep(s, CPU_FLAG_M);
-        m_tdc(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-        break;
-    case 0x0F00: { /* queue a VRAM upload in the table at $60 */
-        m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-        m_ldx(s, dp8(s, 0x5F));
-        {
-            uint8_t v = (uint8_t)(dp8(s, 0x5E) + 1);
-            set_dp8(s, 0x5E, v);
-            m_set_nz8(s, v);
-        }
-        m_write8(s, abs_x(s, 0x0062), script_byte(s, 0x01));
-        m_write8(s, (uint16_t)(c->d + 0x67 + c->x), m_lda8(s, 0x80));
-        m_rep(s, CPU_FLAG_M);
-        static const uint8_t cells[3] = { 0x60, 0x63, 0x65 };
-        for (int i = 0; i < 3; i++) {
-            m_ldy(s, (uint16_t)(2 + 2 * i));
-            m_lda16(s, m_read16(s, long_y(s, 0x52)));
-            m_write16(s, (uint16_t)(c->d + cells[i] + c->x), c->a);
-        }
-        m_sep(s, CPU_FLAG_M);
-        m_txa(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0x08));
-        set_dp8(s, 0x5F, (uint8_t)c->a);
-        set_dp8(s, 0x5E, 0x00);
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-        m_lda16(s, 0x0008);
-        break;
-    }
-    default: /* $C2:0F35: stop */
-        m_tdc(s);
-        m_set_flag(s, CPU_FLAG_C, true);
-        break;
-    }
-}
-
-// $C2:0E1D
-/* Run object $4E's sprite script from the long pointer at +$0B until a
- * command stops it, saving the position back. */
-void menu_run_sprite_script(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    m_ldx(s, dp16(s, 0x4E));
-    set_dp8(s, 0x54, m_lda8(s, m_read8(s, abs_x(s, 0x000D))));
-    m_rep(s, CPU_FLAG_M);
-    set_dp16(s, 0x52, m_lda16(s, m_read16(s, abs_x(s, 0x000B))));
-    for (;;) {
-        uint16_t y = c->y;
-        c->y = 0;
-        m_lda16(s, m_read16(s, long_y(s, 0x52)));
-        c->y = y;
-        m_lda16(s, c->a & 0x00FF);
-        c->a = m_asl16(s, c->a);
-        m_tax(s);
-        uint16_t handler = m_jump_table(s, 0xC2, 0x0E4A, c->x);
-        switch (handler) {
-        case 0x0E5A: case 0x0E6B: case 0x0E7E: case 0x0E91:
-        case 0x0EA3: case 0x0EDC: case 0x0F00: case 0x0F35:
-            m_push16(s, 0x0E36);
-            sprite_command(s, handler);
-            m_pull16(s);
-            break;
-        default:
-            m_jsr(s, 0xC20E34, 0xC20000 | handler);
-            if (!widths_are(s, 0)) {
-                c->pb = 0xC2;
-                c->pc = 0x0E37;
-                return;
-            }
-            break;
-        }
-        if (m_flag(s, CPU_FLAG_Z))
-            break;
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, dp16(s, 0x52));
-        set_dp16(s, 0x52, c->a);
-    }
-    m_ldx(s, dp16(s, 0x4E));
-    m_write16(s, abs_x(s, 0x000B), m_lda16(s, dp16(s, 0x52)));
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
-}
-
-// $C2:0F63
-/* Run the object's command script from where its slot left off, command after
- * command, until a handler hands back zero: a length moves the script on and
- * clears the per-command word at +$32, zero leaves the object until the next
- * frame, and a signed offset is a branch moved the same way. The handlers are
- * in menu/object_script.c; the interpreter calls them as the original does, so
- * one that isn't ported yet runs on the interpreter. */
-void menu_run_object_script(Snes *s)
-{
-    enum { HANDLERS = 0x0F91 };   /* the handler table the command byte indexes */
-    Cpu *c = &s->cpu;
-    uint16_t slot = m_ldx(s, m_read16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP)));
-    m_sep(s, CPU_FLAG_M);
-    m_write8(s, m_dp(s, RAM_MENU_OBJECT_SCRIPT_DP + 2),
-             m_lda8(s, m_read8(s, slot_field(s, slot, SLOT_SCRIPT + 2))));
-    m_rep(s, CPU_FLAG_M);
-    m_write16(s, m_dp(s, RAM_MENU_OBJECT_SCRIPT_DP),
-              m_lda16(s, m_read16(s, slot_field(s, slot, SLOT_SCRIPT))));
-    for (;;) {
-        uint16_t was = c->y;
-        c->y = 0;
-        uint8_t command = (uint8_t)m_lda16(s, m_read16(s, long_y(s, RAM_MENU_OBJECT_SCRIPT_DP)));
-        c->y = was;
-        m_lda16(s, command);
-        m_lda16(s, m_asl16(s, c->a));
-        m_tax(s);
-        m_jsr(s, 0xC20F7A, 0xC20000 | m_jump_table(s, 0xC2, HANDLERS, c->x));
-        if (!widths_are(s, 0)) {
-            /* a handler that hands back other widths: let the original carry on */
-            c->pb = 0xC2;
-            c->pc = 0x0F7D;
+    GameState *g = state_of(s);
+    for (uint16_t address = FIRST_SLOT_ADDRESS; address != SLOTS_END; address += SLOT_BYTES) {
+        uint16_t handler = menu_object_slots_handler(g, menu_object_at_address(address));
+        if (handler == 0)
+            continue;
+        bool done;
+        if (!run_handler(s, address, handler, &done))
             return;
-        }
-        if (m_flag(s, CPU_FLAG_Z))
-            break;                                  /* the object is done for this frame */
-        m_set_flag(s, CPU_FLAG_C, false);
-        uint16_t next = m_adc16(s, c->a, m_read16(s, m_dp(s, RAM_MENU_OBJECT_SCRIPT_DP)));
-        m_lda16(s, next);
-        m_write16(s, m_dp(s, RAM_MENU_OBJECT_SCRIPT_DP), next);
-        slot = m_ldx(s, m_read16(s, m_dp(s, RAM_MENU_OBJECT_CURRENT_DP)));
-        m_write16(s, slot_field(s, slot, SLOT_SCRIPT), next);
-        m_write16(s, slot_field(s, slot, SLOT_COMMAND_DONE), 0);
+        address = menu_object_current(g);
+        after_its_turn(g, address, done);
     }
+    s->cpu.a = SLOTS_END;
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_set_flag(s, CPU_FLAG_V, false);
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
 
-/* ROR on an 8-bit value with the CPU's flags. */
-static uint8_t ror8(Snes *s, uint8_t v)
+/* ---- The entries ------------------------------------------------------------------------------ */
+
+/* Starting an object copies the running object's state: from a slot, or from
+ * low RAM below the I/O registers, where the running object's cell names
+ * something else before the first object has run. */
+static bool starter_in_low_ram(const GameState *g) { return menu_object_current(g) <= 0x2000 - SLOT_BYTES; }
+
+bool menu_objects_on_page(Snes *s) { return m_direct_page(s) == 0 && m_bank_reaches_low_ram(s); }
+
+bool menu_objects_can_start(Snes *s)
 {
-    uint8_t r = (uint8_t)(v >> 1 | (m_flag(s, CPU_FLAG_C) ? 0x80 : 0));
-    m_set_flag(s, CPU_FLAG_C, v & 0x01);
-    m_set_nz8(s, r);
-    return r;
+    if (!menu_objects_on_page(s))
+        return false;
+    vars_peek(true);
+    bool ok = starter_in_low_ram(state_of(s));
+    vars_peek(false);
+    return ok;
 }
 
-// $C2:7759
-/* Object handler (reached through the slot's handler word): unless $1C bit 7
- * (which only turns HDMA channel 1 off in $4A) or $0294 bit 4 is set, set up
- * HDMA channel 1 on the table at $7E:8A35 and fill the 112 entries at $8B56
- * with the scroll position $24 plus a wave: the sine table at $C0:F900 ($C2:225E,
- * a JSL ported inline) from a phase in $0A that starts at the word read at
- * $0022 + $01C0 (which advances by 4 each frame). Returns with carry clear. */
-void menu_object_wave_hdma(Snes *s)
+bool menu_object_can_move(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    if (m_lda8(s, dp8(s, 0x1C)) & 0x80) {
-        m_lda8(s, 0x02);
-        m_trb8(s, m_dp(s, 0x4A));
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    m_lda8(s, m_read8(s, m_abs(s, 0x0294)));
-    m_bit_imm8(s, 0x10);
-    if (c->a & 0x10) {
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_rts(s);
-        return;
-    }
-    if (m_lda8(s, m_read8(s, abs_x(s, 0x0002))) == 0) {
-        uint8_t v = (uint8_t)(m_read8(s, abs_x(s, 0x0002)) + 1);
-        m_write8(s, abs_x(s, 0x0002), v);
-        m_set_nz8(s, v);
-        m_write8(s, abs_x(s, 0x0022), 0x00);
-        m_write8(s, abs_x(s, 0x0023), 0x00);
-    }
-    m_lda8(s, 0xF0);
-    m_write8(s, 0x7E8A35, (uint8_t)c->a);
-    m_write8(s, 0x7E8A38, (uint8_t)c->a);
-    m_tdc(s);
-    m_write8(s, 0x7E8A3B, (uint8_t)c->a);
-    m_rep(s, CPU_FLAG_M);
-    m_write16(s, 0x7E8A21, m_lda16(s, 0x8B56));
-    m_write16(s, 0x7E8A23, m_lda16(s, 0x8C36));
+    if (!menu_objects_on_page(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_object_address_names_one(menu_object_current(state_of(s)));
+    vars_peek(false);
+    return ok;
+}
+
+/* A handler is entered with its slot in X as well, which is the one it
+ * reaches its own state through. */
+bool menu_object_handler_runs(Snes *s)
+{
+    if (!menu_object_can_move(s))
+        return false;
+    vars_peek(true);
+    bool ok = s->cpu.x == menu_object_current(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
+/* The address a start leaves in X: past the slot it took, or past the last it
+ * looked at where every one was busy. */
+static uint16_t past(const GameState *g, MenuSlotKind kind)
+{
+    unsigned o = menu_first_free_object(g, kind);
+    return menu_object_address((MenuObject)(o == MENU_OBJECTS ? end_of(kind) : o + 1));
+}
+
+static void start_object_entry(Snes *s, MenuSlotKind kind)
+{
+    GameState *g = state_of(s);
+    uint16_t x = past(g, kind);
+    MenuObject started;
+    (void)menu_start_object(g, s->cpu.x, kind, &started);
+    s->cpu.x = x;
+    m_set_flag(s, CPU_FLAG_C, false);
     m_sep(s, CPU_FLAG_M);
-    /* STY $4310 : STY $4312 : STA $4314 : STA $4317 -- slot 1 reads the table
-     * at $7E:8A35 indirectly and drives BG3's horizontal scroll per line. */
-    static const uint8_t steps[] = {
-        VID_STEP_CONTROL,     VID_STEP_DEST,          VID_STEP_SOURCE_LO, VID_STEP_SOURCE_HI,
-        VID_STEP_SOURCE_BANK, VID_STEP_INDIRECT_BANK, VID_STEP_END,
-    };
-    static const VidLineEffect wave = { .target = VID_LINE_SCROLL_BG3_H, .table = PF_GAME(0x7E8A35),
-                                        .indirect = true, .indirect_bank = 0x7E };
-    m_ldy(s, 0x1142);
-    m_ldy(s, 0x8A35);
-    m_lda8(s, 0x7E);
-    vid_set_line_effect(m_platform(s), PF_AT(0xC2779E), 1, &wave, steps);
-    m_lda8(s, 0x02);
-    m_tsb8(s, m_dp(s, 0x4A));
-    m_rep(s, CPU_FLAG_M);
-    m_ldx(s, 0x0000);
-    do {
-        m_lda16(s, dp16(s, 0x24));
-        m_write16(s, 0x7E8B56 + c->x, c->a);
-        for (int i = 0; i < 4; i++)
-            m_inx(s);
-        m_cmp16(s, c->x, 0x01C0);
-    } while (c->x != 0x01C0);
-    set_dp16(s, 0x0A, m_lda16(s, m_read16(s, abs_x(s, 0x0022))));
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, 0x0004);
-    m_write16(s, abs_x(s, 0x0022), c->a);
-    m_ldx(s, 0x0002);
-    do {
-        m_txy(s);
-        m_lda16(s, dp16(s, 0x0A));
-        /* JSL $C2:225E: A = sine of phase A (10 bits), signed */
-        m_push8(s, 0xC2);
-        m_push16(s, 0x77DC);
-        m_lda16(s, c->a & 0x03FF);
-        m_tax(s);
-        m_lda16(s, m_read16(s, 0xC0F900 + c->x));
-        m_lda16(s, c->a & 0x00FF);
-        m_cmp16(s, c->x, 0x0200);
-        if (m_flag(s, CPU_FLAG_C)) {
-            m_lda16(s, c->a ^ 0xFFFF);
-            m_lda16(s, (uint16_t)(c->a + 1));
-        }
-        m_pull16(s);
-        m_pull8(s);
-        uint16_t phase = (uint16_t)(dp16(s, 0x0A) + 1);
-        set_dp16(s, 0x0A, phase);
-        m_set_nz16(s, phase);
-        m_tyx(s);
-        m_set_flag(s, CPU_FLAG_C, false);
-        c->a = m_adc16(s, c->a, dp16(s, 0x24));
-        m_write16(s, 0x7E8B56 + c->x, c->a);
-        for (int i = 0; i < 4; i++)
-            m_inx(s);
-        m_cmp16(s, c->x, 0x01C2);
-    } while (c->x != 0x01C2);
-    m_set_flag(s, CPU_FLAG_C, false);
     m_rts(s);
 }
 
-// $C2:F871
-/* Draw the sprites of the record at the direct page (the records at $1800,
- * $40 bytes each, run by the task at $C2:F657): $02 low nibble * 2 sprites
- * into the OAM buffer at $0800 + D / 4 (low byte), each at the record's
- * position ($0F-$10 plus $0D2E, $0E plus $0D30) plus the offset pair at
- * $22,X, with tile word $19 plus 2 per sprite; X high bits go to $0910 + D /
- * 64 when the X addition overflows the way $0007's sign says. Works in the
- * scratch bytes $0000-$0008 of the data bank. */
-void menu_draw_record_sprites(Snes *s)
+// $C2:048A
+/* Start an object running the handler in X, in the first free ordinary slot. */
+void menu_object_spawn(Snes *s) { start_object_entry(s, MENU_ORDINARY_SLOT); }
+
+// $C2:04CD
+/* The same among the four slots a screen runs first. */
+void menu_object_spawn_high(Snes *s) { start_object_entry(s, MENU_FIRST_SLOT); }
+
+/* Starting one on a script leaves X on the slot it took (or the last it
+ * looked at), the script's high byte over its bank in A, and the carry and
+ * overflow of the subtraction that found the slot. */
+static void start_script_entry(Snes *s, MenuSlotKind kind)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_rep(s, CPU_FLAG_M);
-    m_tdc(s);
-    c->a = m_lsr16(s, c->a);
-    c->a = m_lsr16(s, c->a);
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_set_index(s, &c->y, c->a);
-    for (int i = 0; i < 4; i++)
-        m_set_a8(s, m_lsr8(s, (uint8_t)c->a));
-    m_write8(s, m_abs(s, 0x0002), (uint8_t)c->a);
-    m_write8(s, m_abs(s, 0x0003), 0x00);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_lda16(s, dp16(s, 0x02));
-    m_lda16(s, c->a & 0x000F);
-    for (int i = 0; i < 3; i++)
-        c->a = m_asl16(s, c->a);
-    m_write16(s, m_abs(s, 0x0004), c->a);
-    m_write16(s, m_abs(s, 0x0008), 0x0000);
-    m_lda16(s, dp16(s, 0x0F));
-    c->a = m_adc16(s, c->a, m_read16(s, m_abs(s, 0x0D2E)));
-    m_write16(s, m_abs(s, 0x0006), c->a);
+    GameState *g = state_of(s);
+    uint8_t bank = (uint8_t)s->cpu.a;
+    uint16_t at = s->cpu.x;
+    uint16_t x = (uint16_t)(past(g, kind) - SLOT_BYTES);
+    menu_start_script(g, (uint32_t)bank << 16 | at, kind);
+    s->cpu.x = x;
+    s->cpu.a = (uint16_t)((at & 0xFF00) | bank);
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_set_flag(s, CPU_FLAG_V, false);
     m_sep(s, CPU_FLAG_M);
-    uint32_t sign = m_abs(s, 0x0007);
-    m_write8(s, sign, m_lsr8(s, m_read8(s, sign)));
-    m_write8(s, sign, ror8(s, m_read8(s, sign)));
-    m_ldx(s, 0x0000);
-    m_write8(s, m_abs(s, 0x0000), m_lda8(s, 0x01));
-    do {
-        m_lda8(s, m_read8(s, m_abs(s, 0x0006)));
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_a8(s, m_adc8(s, (uint8_t)c->a, m_read8(s, (uint16_t)(c->d + 0x22 + c->x))));
-        m_write8(s, abs_y(s, 0x0800), (uint8_t)c->a);
-        m_set_a8(s, ror8(s, (uint8_t)c->a));
-        m_lda8(s, (uint8_t)c->a ^ m_read8(s, (uint16_t)(c->d + 0x22 + c->x)));
-        m_lda8(s, (uint8_t)c->a ^ m_read8(s, sign));
-        if (c->a & 0x80) {
-            m_push16(s, c->y);
-            m_ldy(s, m_read16(s, m_abs(s, 0x0002)));
-            m_lda8(s, m_read8(s, abs_y(s, 0x0910)));
-            m_lda8(s, (uint8_t)c->a | m_read8(s, m_abs(s, 0x0000)));
-            m_write8(s, abs_y(s, 0x0910), (uint8_t)c->a);
-            m_ldy(s, m_pull16(s));
-        }
-        m_lda8(s, dp8(s, 0x0E));
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_a8(s, m_adc8(s, (uint8_t)c->a, m_read8(s, (uint16_t)(c->d + 0x23 + c->x))));
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_a8(s, m_adc8(s, (uint8_t)c->a, m_read8(s, m_abs(s, 0x0D30))));
-        m_write8(s, abs_y(s, 0x0801), (uint8_t)c->a);
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-        m_lda16(s, m_read16(s, m_abs(s, 0x0008)));
-        c->a = m_adc16(s, c->a, dp16(s, 0x19));
-        m_write16(s, abs_y(s, 0x0802), c->a);
-        m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-        m_lda16(s, c->y);
-        c->a = m_adc16(s, c->a, 0x0004);
-        m_ldy(s, c->a);
-        m_sep(s, CPU_FLAG_M);
-        m_lda8(s, m_read8(s, m_abs(s, 0x0008)));
-        m_lda8(s, (uint8_t)c->a | 0x10);
-        m_lda8(s, (uint8_t)(c->a + 1));
-        m_lda8(s, (uint8_t)(c->a + 1));
-        m_lda8(s, (uint8_t)c->a & 0xEF);
-        m_write8(s, m_abs(s, 0x0008), (uint8_t)c->a);
-        for (int i = 0; i < 2; i++) {
-            uint32_t bit = m_abs(s, 0x0000);
-            m_write8(s, bit, m_asl8(s, m_read8(s, bit)));
-        }
-        m_inx(s);
-        m_inx(s);
-        m_cmp16(s, c->x, m_read16(s, m_abs(s, 0x0004)));
-    } while (!m_flag(s, CPU_FLAG_C));
-    s->cpu.p = m_pull8(s);
-    if (s->cpu.p & CPU_FLAG_X) {
-        s->cpu.x &= 0xFF;
-        s->cpu.y &= 0xFF;
-    }
+    m_rts(s);
+}
+
+// $C2:04D9
+/* Start an object on the script at X in the bank in A. */
+void menu_object_start_script(Snes *s) { start_script_entry(s, MENU_ORDINARY_SLOT); }
+
+// $C2:04FB
+void menu_object_start_script_high(Snes *s) { start_script_entry(s, MENU_FIRST_SLOT); }
+
+// $C2:0F38
+/* Move the running object by its velocity; it leaves X on the object's slot. */
+void menu_object_step_position(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_object_move(g, menu_object_running(g));
+    s->cpu.x = menu_object_current(g);
+    m_rep(s, CPU_FLAG_M);
     m_rts(s);
 }

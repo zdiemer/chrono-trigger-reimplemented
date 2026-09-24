@@ -5197,6 +5197,234 @@ finding: their call-outs reach no run-time transfer that reads what they
 declare. Stops and entries aren't held to the strict solve yet (TODO.md).
 
 
+### Phase 3a: the menus off the machine
+
+`game/menu/` was the second-largest backlog: ten of its twelve files on
+`tools/portstyle_baseline.txt`, 0.35 operations a line and 97% of its functions
+on the machine. The rewrite takes all of them but `menu/epoch.c` (the Epoch's two
+Mode 7 screens and the End of Time's gate, 1,827 lines and a chunk of its own)
+to the bar, in the field's order: a domain module written first, then the files
+that use it, and each entry's widest don't-care set declared before its wrapper
+is written. Nothing was added to the burndown. The subsystem now scores 0.07
+operations a line with 40% of its functions on the machine (the entries'
+wrappers, the guards, and the bridges round the call-outs); every rewritten file
+is under the bar and off the baseline.
+
+**The files, by the game.** The leaves -- `glyphs.c` (a glyph's pixels into
+tile graphics, in the eight packings the font uses), `text.c` (the string and
+number drawers, the control codes a switch of named operations), `vram.c` (the upload queue
+as records), `save_screen.c` (the load screen's slots, a header and a row per
+member), `frame.c` and `sound.c` (the waits) -- are plain functions over the RAM
+map with their ROM through `menu/menu_data.h`'s accessors. The sprite-object
+mode, the half of bank C2 the Epoch's map and the End of Time run on, is a
+module: `object.h`/`objects.c` (the sixteen slots: start,
+turn round, move, wrap onto the map, and the per-frame run over the slots'
+handlers), `sprites.c` (the sprite list the objects draw through, the sprite
+script each runs, and the window records' sprites), `wave.c` (the one object
+handler that isn't a script: a wave down the screen's lines), and the object
+scripts. `display.c` is both modes' screen setup, vblank handler and loaders
+through the video service: the shadows sent as named values, the queued uploads
+by record, the colour math and window line tables built in C, and the frame's
+block move a `wram_copy`. `object_script.h`, and the old `objects.c` that held
+the scripts' commands inline, are gone.
+
+**The object scripts are a language** (`script.h`, `script.c`,
+`object_script.c`), on `game/event/`'s pattern. `object_script.c` is 33
+operations -- `change_byte`, `copy_byte`, `branch_if`, `for_frames`, `move_to`,
+`start_handler`, `mark_table_entry`, `scroll_map_for`, `play_song`, ... --
+named for what they do to an object or the game, each with typed parameters,
+and a table of 83 rows, one an opcode, saying how its operands decode into
+them (`SLOT_BYTE(1)`, `CELL(1)`, `OPERAND_WORD(1)`, `CONSTANT(MENU_ACROSS)`).
+The families that were a function an opcode are rows of one operation:
+`change_byte` 16 opcodes (clear, count up and down, set, set and clear bits,
+add and subtract, on a slot byte or a cell), `branch_if` 16, `start_handler` 8,
+`copy_byte` 4, `for_frames` 3 (move and animate, animate, wait), `move_to` 2.
+`script.c` is the interpreter, as C: decode the row, run it, follow its flow
+(next, branch, go to, wait a frame, end), keep the object's place. What reaches
+past the object -- scrolling and redrawing the map, the sound queue, a routine a
+script names by address -- goes through `ScriptServices`, so the map's port can
+move under it. Every handler stays registered (`menu_object_cmd_*`, generated
+from one list in `script_bridge.h`), so fuzzing and the ROM's own dispatch still
+find each one.
+
+`script_bridge.c` is the machine side, and the only file of the language that
+takes a `Snes *`. It runs each command at its handler's time
+(`NATIVE_TIME_AS`), pushes the dispatch's return round it as the original's
+`JSR` does, and derives what a command leaves for the interpreter's loop -- X,
+the carry -- from a table parallel to the language's, through
+`ORIGINAL_EFFECT`; the language's rows carry none of it. A routine a script
+names gets the registers its handler has at the call: A the address's word (or
+its bank), Y the operand's offset, N and Z from A, and the overflow the
+interpreter's last `ADC` left, tracked from command to command. A command the
+port doesn't take goes back to the original's interpreter at the top of its
+loop (`$C2:0F73`) rather than through its table from inside the engine, which
+on a random opcode could re-enter the engine from the machine.
+
+**Shadow mode, and what it found.** Each group was committed shadow-clean over
+the whole library (26 movies, 0 mismatched). What it found on the way: the
+object mode's vblank handler carries on after the sprite list's reset in the
+16-bit accumulator that reset leaves, and the port first handed the rest back
+in 8 (the NMI's A and P); the wave's phase is the cell at `$01E2` that event's
+calls leave (`menu_wave_phase`; TODO.md); the tilemap row copy sets the data
+bank to `$7E`; the upload queue's Y is a byte index, so an 8-bit index register
+truncates it; the sprite hiding the vblank handler does before the objects' run
+leaves Y a byte and the carry and overflow clear, which the handlers read.
+Against `main`'s per-entry totals, every menu entry has the same calls, and
+every one compared matched, but for these moves, each explained:
+- `menu_draw_save_slot`: 1,139 compared of 15,708 (was 15,707): the load
+  screen draws its slot as C from `menu_show_save_slot` (`NATIVE_TIME_AS`), so
+  the 14,590 inside it are inside that entry's comparison;
+- the commands that call out mid-command (`call_routine` 96,028, `sound_18`
+  228, `redraw_map` 36, `play_song_unless_flag` 8, `play_song` 1,
+  `call_routine_long` 2, and 2,699 of `scroll_map_for`'s 9,093): the
+  interpreter runs them as C, so their calls are inside
+  `menu_run_object_script`'s comparison rather than compared on their own;
+- interrupted calls: `menu_run_object_script` 9 (was 3), `menu_object_nmi` 1
+  and `menu_show_save_slot` 1 (were 0): an interrupt landing in a longer or
+  shorter native stretch; the paths are the ones the library compares
+  elsewhere, and the fuzzing below covers each entry alone;
+- `play_song` refuses 8 of its 9 calls, as it did before: the game reaches it
+  from `play_song_unless_flag`, not the dispatch, and the interpreter runs
+  both as C.
+
+**Fuzzing** (`tools/fuzz_routines.toml`, the menus' section: 196 entries on two
+states, the field menu open and the Epoch's map). `tools/fuzz_compare.py`
+ran every menu entry, rewritten or not, against `main`'s ports with the same
+seed and domains: 197 runs, 12,863 of 430,672 compared states mismatched
+before and 12,362 of 258,516 after. All but 105 of the after's are the
+predecessors' own, on the same states in `epoch.c`, `map.c`, the irises of
+`object_commands.c`, `menu_init_video_memory` and
+`menu_window_set_line_effect` (those of `map.c` and the irises are gone since:
+below, "After the review"); the 105 are the two accepted divergences
+(`menu_draw_text`'s 97 and the load screen's 8, below). Fewer states are
+compared after because the guards turn away what the game never makes, which
+is the point of them; where that left an entry with few or none, the domain
+was reworked so its guard takes the states (the load screen's summaries, both
+upload queues' records, the command script and sprite script built in work
+RAM, the upload buffer where the game keeps it), and the animating commands
+run twenty thousand. Setting it up took a toml section of 197 entries on two
+base states, and the 16-area limit of `ct_fuzz` is why the command entries
+pack their script pointers as repeated bytes (`$7E:1C1C`, `$7E:1D1D`).
+
+What the fuzzing found, each fixed in the port or refused by a guard:
+- the glyph line takes its byte index as a word, as the original does;
+- the object queue's records at an end past `$F8` run on past the queue, as
+  the original's page-relative writes do (`_unchecked` accessors);
+- the number drawer read a table offset the menus never use, its own cells,
+  the I/O registers and the stack (the conversion pushes its place in the
+  number as it reads each byte): the predecessor's 223 mismatches, now refused;
+- a sprite script's jump forward holds the script on the jump: the original
+  tests the offset's sign where it means to test the step, so only a jump back
+  goes on (the port had it go on either way);
+- a sprite script inside the objects' slots changes under its own reading, and
+  one with a command past the eight jumps into code: both refused;
+- the object mode's vblank handler writes its frame flag through the page, so
+  a call-out that comes back on another page or data bank goes to the
+  original; the menus' handler the same;
+- the map's commands set the step once for both planes, the second plane
+  scrolling by what the first's scroll left in the cell;
+- the load screen: a slot drawn without its header clears the era label's
+  width (the original clears the row count a word wide, over the width after
+  it), and a portrait whose row or character the portrait's guard would
+  refuse is drawn by the original's; the menus' upload queue refuses sources
+  over the top of the stack, where the original saves its registers first.
+
+Two divergences are accepted, on inputs no game state makes: a string's
+control code past `$0C`, or one included deeper than four, draws nothing where
+the original jumps or recurses (97 of 1,503); and the load screen's member
+rows keep their own place where the original reads it back from its cells
+after the window list and the portrait, which a list run over random memory
+changes (8 of 3,394). The map's strips parted from the original's where the
+upload buffer was near the bank's end, in `map.c`'s port before this rewrite
+and in its first pass, so the command fuzzing keeps the buffer where the game
+has it; the map module's guards now say so.
+
+**The guards refuse only what the game never makes.** Each is a claim about the
+game, checked against the library's totals (none refuses a real call but
+`play_song`'s, above): numbers read from the I/O registers or open bus, from
+the number drawer's own cells or from the stack, or converted from a table
+offset the menus never use; uploads from the I/O banks; fills and block moves
+over the stack or the move's own stub; a vblank call-out that comes back on
+another page or data bank; a wave entered for another slot; a colour math list
+without its end; a script outside the ROM's banks and work RAM, a command
+naming the interpreter's own cells, a sprite list not as the mode lays it out,
+and an upload or map command with the object queue off a record or the upload
+buffer out of work RAM; and a sprite script that doesn't read as the language
+where a command runs it (every command it can reach one of the eight, outside
+the objects' slots, before it stops, holds for good or goes round). That last
+one first refused 12,610 of the interpreter's real calls: objects that never
+animate have no sprite script at all, and a show or wait of no frames holds its
+script for good with the next script's bytes after it. It is now asked only by
+the commands that animate, of the script they run, and stops at a hold; it
+refuses none. Where the load screen draws a portrait inline and the portrait's
+own guard would refuse it, the original's draws it.
+
+**Don't-care declarations.** The entries' sets were widened to what
+`tools/dontcare_check.py --list` offered before their wrappers were written,
+and the check agrees with every one (0 findings, the strict solve for
+call-outs included). The window command lists' call-outs in `save_screen.c` declare the
+carry and overflow on a poisoned fuzz run (`dc-evidence`: 500 states, 3,340
+call-outs scrambled, 0 mismatched); the idle waits stop with `m_stop_at` at
+their loop's head.
+
+**After the review.** A qualitative review by a reader who hadn't seen this
+section rated two files translation, both outside the first pass because they
+were under the style bar: `map.c` kept its loop counters in direct-page cells,
+multiplied a row by 96 with the original's swaps and shifts and queued its
+strips with its own copy of the queue's code; `object_commands.c` emulated
+`ADC` with a carry-and-overflow struct and named routines by their addresses
+(`clear_7f0062`, `step_28`). Both were rewritten:
+- `map.c` is a module over the game's state: `scroll_plane(g, plane, axis,
+  step)` moves a plane a pixel at a time and builds each strip that comes into
+  view from one table of strip shapes (a column down the map, a row along
+  it), `redraw_plane` builds and sends the eighteen blocks, the strips are
+  queued through `vram.h` (which gained `MenuObjectUpload` and
+  `menu_queue_object_uploads`), the plane tables come from `menu_data.h`, and
+  a row starts at `row * MAP_COLUMNS`. The original's cells get their final
+  values once, as scaffolding; the thin entries read the plane and step cells
+  and set X as the scripts read it. Its guards (the page, a plane that
+  scrolls, the tiles on the map, the buffer in work RAM above low RAM, room
+  in the queue) refuse none of the library's calls.
+- the per-line effects and the irises moved to `menu/line_effects.c`, which
+  the wave shares: a slot's table set up in one place, the tables' addresses
+  named, the irises' copies as loops over lines. `object_commands.c` keeps
+  the scene routines, named for what they do (`read_scene_mode`,
+  `clear_scene_flag`, `keep_song`, `bob_second_plane`, `accelerate`, `drift`,
+  `load_scene_graphics`), as plain C over `object.h`'s place and velocity:
+  a sum is `a + b`, and the only carries are the ones the scripts read, derived
+  in the wrappers. Every entry declares all but X and the carry dead (the
+  liveness analysis agrees), and the story byte at `$7F:0062` has a name in
+  the map, if not yet a meaning.
+- `epoch.c`'s gate matrix tables have their name back.
+Shadow totals over the library are unchanged, entry by entry. Fuzzed against
+`main`'s ports, same seed: the map's entries on a domain their guards take
+(scroll across 0 of 1,989, down 0 of 1,012, the redraw 0 of 2,000, the block
+upload the predecessor's 2 of 1,998); every bank C6 entry 0 mismatched, the
+irises on a new domain (their centre and radius on the screen), where the
+predecessor's squashed irises mismatched 11 and 9 on radii under 2 that the
+guard now refuses. Fuzzing found one ordering: the block upload's entry wrote
+its VRAM cell after sending the block, where the original writes it first,
+which only a buffer on the direct page can see.
+
+**What is left** is in TODO.md, "What menu's rewrite left": `epoch.c`; what
+the review rated "mostly"; the two accepted divergences; the save RAM flag
+read through the ROM accessor; and the glyph drawer's font addresses, which
+come from the still-original text engine.
+
+**Timing.** The rewritten ports make far fewer bus accesses than their
+predecessors, so the menus' measured `cost_milli` rows were recalibrated from
+shadow runs over the library (`tools/timing_gate.py --calibrate`), and only
+those rows were taken. Two ports do in a step what the original does at a
+length that follows the data, and charge the difference (`charge.h`, through
+`ORIGINAL_EFFECT`): the number conversion, bit by bit with an add for each bit
+set, which left `menu_draw_text` 78,077 clocks off at worst before it was
+charged; and the sprite list's drawing, per node and per sprite dropped across,
+dropped down or shown. Two entries went into `tools/timing_exceptions.txt`
+with their numbers: `menu_draw_sprite_nodes` (2.97% of its 236 calls in vblank
+off by a line or more, at most 3,416 clocks, writing the sprite table in RAM)
+and `menu_object_cmd_animate_for`, which runs its object's sprite script
+inline (1.54%, at most 2,982 clocks).
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

@@ -119,14 +119,19 @@ add_library(ct_game STATIC
   game/menu/epoch.c
   game/menu/frame.c
   game/menu/glyphs.c
+  game/menu/line_effects.c
   game/menu/map.c
   game/menu/object_commands.c
   game/menu/object_script.c
   game/menu/objects.c
   game/menu/save_screen.c
+  game/menu/script.c
+  game/menu/script_bridge.c
   game/menu/sound.c
+  game/menu/sprites.c
   game/menu/text.c
   game/menu/vram.c
+  game/menu/wave.c
   game/sound/driver.c
   game/sound/sequencer.c
   game/sound/songs.c

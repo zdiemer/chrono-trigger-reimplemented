@@ -72,6 +72,63 @@ rest waits, is [PLAN.md](PLAN.md).
   - `title.c:332`'s `move_logo` sets channel 0's script through the raw
     accessor: export a `scene_channel_go_to` from `script.c`.
 
+- **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
+  machine"):
+  - `menu/epoch.c` is still on the transcription backlog (0.16 operations a
+    line, 1,827 lines): the Epoch's two Mode 7 screens and the End of Time's
+    gate, each a machine-level port of its own. It is the next piece, and the
+    object mode's module (`menu/object.h`) is what its object handlers should
+    be rewritten onto;
+  - what the qualitative review rated "mostly", to finish:
+    - `menu/display.c`: about a dozen comments quote the original's register
+      writes; and its two screen setups decode register bytes where named
+      `Vid*` values would say what the screen is (partly a platform gap: there
+      is no `VidBg` from a tilemap's address and size, and no screen-mask
+      helper);
+    - `menu/script_bridge.h`: entry names that disagree with their operations
+      (`reset_state` for `forget_everything`, `sound_18`/`sound_19`, and
+      others), and the bridge switching on opcode literals (`0x3B`/`0x3C`/
+      `0x4B`, `0x33`) rather than on the rows;
+    - `menu/sprites.c`: the sprite-script interpreter is a switch with
+      positional operands and a second table of lengths, where a table of rows
+      would do (as `object_script.c`'s);
+    - `menu/vram.h`: the object queue is still also set field by field by
+      offset (`menu_set_object_upload_*`, which `object_script.c`'s tile
+      groups use); `MenuObjectUpload` should be the only way in, with the
+      ports as a named type;
+    - `menu/object_script.c`: the look bits `0xF1`/`0x4F` belong in
+      `object.h`, once; the story bits in `top_layer_stays` and the sounds
+      `0x18`/`0x19` need names; `load_palette_row` keeps its parameters in
+      `command_state`/`move_target`; `word`/`second_word` should be the
+      parameters' names;
+    - `menu/save_screen.c`: the portrait's character goes round through
+      `ORIGINAL_EFFECT` and back; its inputs should be parameters; and the
+      return site (`0xE7AC + 2`, `pc == 0xE7AF`) should be named;
+    - `menu/text.c`: control codes decode their operands by offset;
+  - a divergence the rewrite accepts, on inputs no game state makes: a
+    string's control code past `$0C`, or one included deeper than four, draws
+    nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
+    mismatches in PORTING.md);
+  - the load screen's member rows keep their own place, where the original
+    reads it back from its cells after the window list and the portrait (both
+    still the original's) have run: a list run over random memory that
+    changes those cells is where the two part (8 of about 3,400 fuzzed
+    slots); the lists' port closes it;
+  - the map's strips are built in the upload buffer where the game keeps it:
+    `map.c`'s guards hand a buffer outside work RAM above low RAM, a plane
+    whose top-left tile is off the map, or a queue without room for a
+    scroll's strips to the original, none of which the library makes;
+  - the load screen's slot is drawn as C from `menu_show_save_slot`, so shadow
+    mode compares `menu_draw_save_slot` only where the original's own code
+    calls it (1,139 of 15,708 calls; the rest are inside its caller's
+    comparison);
+  - `menu_saves_finished_game` (`menu/menu_data.h`) reads the cartridge's
+    save RAM at `$30:7FE2` through the ROM accessor: a save-RAM service should
+    take it;
+  - the glyph drawer takes the font's addresses from the text engine
+    (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
+    that engine ported first.
+
 - **The absent party member is an unported path, and a common one.** Making
   it explicit in the combined event and field pass turned a hidden alias (an
   empty party place read as object 64, one past the tables) into a guard that
@@ -366,10 +423,11 @@ rest waits, is [PLAN.md](PLAN.md).
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
   subsystem. The menus' three at `$7E:0D5D`, `$0D84` and `$0DC5` are the save
   slot summary's (`menu/save_screen.c`), and lie inside the object slots' span
-  without being fields of a slot. Three more bytes the object scripts read,
-  `$7E:1BA7` bit 4, `$1BAA` bit 5 and `$1BAF` bit 1, each stop the map screens'
-  scroll from following the object and nothing says what else they mean, so
-  `menu/object_script.c` names them in the file.
+  without being fields of a slot. Three more bits the object scripts read,
+  `$7E:1BA7` bit 4, `$1BAA` bit 5 and `$1BAF` bit 1, are the story's flags as
+  the map screens copy them in (`menu_story_flags`, fields `top_layer_*`):
+  each holds the layer over the map still while the map scrolls, and nothing
+  says what else they mean.
 - **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
 - **MD4 residue**: 84 jump tables are bounded by layout alone, the claim that
   menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
@@ -592,10 +650,12 @@ below. `python3 tools/timing_census.py` re-runs the census.
     with one exception, below. They go when the gate does.
 - **The menus' wave phase starts from event's scratch cell.** The wave handler
   at `$C2:77C7` (`menus-end-of-time`) reads and advances `$01E2` as its phase
-  without setting it first, so it starts from whatever event's calls (`$02`)
-  or `$B5` last left there. A native build without event's scaffolding would
-  start it elsewhere: the menus' port should give the phase a start of its own
-  (a line or two of the wave, a frame).
+  (`menu_wave_phase`, `menu/wave.c`: it means its object's own, and reaches
+  this one through an index its loop has run on) without setting it first, so
+  it starts from whatever event's calls (`$02`) or `$B5` last left there. A
+  native build without event's scaffolding would start it elsewhere: give the
+  phase a start of its own when the gate retires (a line or two of the wave, a
+  frame).
 - **What the scripts set that isn't established:**
   - `field_setting_1e` (events `$DE`/`$DF` raise it with the location they
     set; cleared at `$C0:2842` and `$C0:2866`, returned by `$C0:28A7`, ANDed

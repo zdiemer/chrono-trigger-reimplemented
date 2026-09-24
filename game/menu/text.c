@@ -1,637 +1,597 @@
-/* Menu: drawing text and numbers into tilemap buffers.
+/* The menus' text: strings and numbers drawn as tiles into the tilemaps the
+ * menus build in work RAM (bank $7E), which the VRAM queue then sends.
  *
- * Strings are bytes read through the data bank: 0 ends the string, $01-$0F
- * are control codes (a handler table at $C2:EFD4), and every other byte is a
- * tile written as a word, tile then the attribute byte in $7E, into bank $7E
- * at X. The count in $87 limits how many tiles a string may write, and bit 7 of
- * $88 turns off the blank tile ($FF) otherwise written one row above ($40
- * bytes back) for tile $FF. Numbers are converted to binary-coded decimal by
- * adding table entries for each set bit, then written as digit tiles ($D4-$DD). */
+ * A string is a run of bytes ending in 0. A byte of $10 or more is a tile,
+ * written with the current attribute (its palette, priority and flips); the
+ * bytes below are control codes, which take operands from the bytes after
+ * them: a new line, a move to a place in the window, a number, another
+ * string or a character's name drawn in the middle of this one, a run of
+ * blanks, a tile copied from elsewhere, the attribute or its palette, the
+ * text's flags. A string draws at most a set number of tiles.
+ *
+ * The menus' text is two tile rows a line -- the row above a line held the
+ * Japanese text's marks, and gets a blank wherever the line has one -- unless
+ * the flags say one row. Numbers are drawn in decimal, right-aligned in a set
+ * number of digits with blanks for the leading zeros (or zeros, where the
+ * format says), or in hex; a limited number is drawn only below its limit,
+ * and as dashes from it on.
+ *
+ * The text's state is the menus' own cells: the attribute, the flags, the
+ * tiles left, where the line starts, and the number being drawn, which the
+ * menus' other code reads. Where the pen is and where the string is being read
+ * are the drawer's. */
 #include "menu/text.h"
 
+#include "charge.h"
+#include "menu/menu_data.h"
+#include "original_effects.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
+#include "vars.h"
+#include "wram.h"
 
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
+enum { END_OF_STRING = 0x00, FIRST_TILE = 0x10 };
+enum { BLANK = 0xFF, DASH = 0x2F, FIRST_DIGIT = 0xD4 };
 
-/* $offset,Y and $offset,X in the data bank. */
-static uint32_t abs_y(Snes *s, uint16_t offset) { return m_abs(s, offset) + s->cpu.y; }
-static uint32_t abs_x(Snes *s, uint16_t offset) { return m_abs(s, offset) + s->cpu.x; }
+/* The tilemaps are in bank $7E, 32 tiles to a row, a tile a word: its number,
+ * then its attribute. */
+enum { TILEMAP_BANK = 0x7E, TILE_BYTES = 2, ROW_BYTES = 0x40 };
 
-/* PHX/PHY/PLX/PLY at the current index width. */
-static void push_index(Snes *s, uint16_t v)
+/* The text's flags (menu_text_flags). */
+enum { ONE_ROW = 0x80 };
+
+/* The attribute's palette bits, and what of the attribute a string leaves for
+ * the next: the tile's high bits and its priority, not its flips or its
+ * palette. */
+enum { PALETTE_BITS = 0x1C, KEPT_AFTER_A_STRING = 0x23 };
+
+/* A name is drawn in five tiles on one row, padded with blanks. */
+enum { NAME_TILES = 5, NAME_FLAGS = ONE_ROW };
+
+/* The control codes. */
+enum {
+    CODE_NEW_LINE = 0x01,
+    CODE_MOVE = 0x02,
+    CODE_NUMBER = 0x03,
+    CODE_STRING = 0x04,
+    CODE_NAME = 0x05,
+    CODE_PALETTE_FROM = 0x06,
+    CODE_COPY_TILE = 0x07,
+    CODE_BLANKS = 0x08,
+    CODE_FLAGS = 0x09,
+    CODE_ATTRIBUTE = 0x0A,
+    CODE_HEX_NUMBER = 0x0B,
+    CODE_LIMITED_NUMBER = 0x0C,
+};
+
+/* ---- Where the text is ------------------------------------------------------------------- */
+
+/* A place in a string: its bank and where in it. Reading on past the bank's
+ * end carries into the next, while the place itself wraps in its bank, as the
+ * original's index register does. */
+typedef struct {
+    uint8_t bank;
+    uint16_t at;
+} TextPlace;
+
+static uint32_t address_of(TextPlace p, uint16_t k) { return ((uint32_t)p.bank << 16 | p.at) + k; }
+static uint8_t text_byte(const GameState *g, TextPlace p, uint16_t k) { return menu_text_byte(g, address_of(p, k)); }
+static uint16_t text_word(const GameState *g, TextPlace p, uint16_t k)
 {
-    if (m_x8(s))
-        m_push8(s, (uint8_t)v);
-    else
-        m_push16(s, v);
+    return (uint16_t)(text_byte(g, p, k) | text_byte(g, p, (uint16_t)(k + 1)) << 8);
+}
+static TextPlace advanced(TextPlace p, uint16_t by) { return (TextPlace){ p.bank, (uint16_t)(p.at + by) }; }
+
+/* A place in a tilemap: the tiles are in bank $7E, and the row above a tile
+ * at the tilemap's start is before the bank, where the original's store goes
+ * into the ROM and does nothing. */
+static uint32_t in_tilemap(uint16_t pen, int16_t offset) { return (((uint32_t)TILEMAP_BANK << 16) + pen + offset) & 0xFFFFFFu; }
+
+/* ---- Tiles ----------------------------------------------------------------------------------- */
+
+static bool one_row(const GameState *g) { return (menu_text_flags(g) & ONE_ROW) != 0; }
+
+static void put_tile_word(GameState *g, uint32_t at, uint8_t tile)
+{
+    wram_write8(g, at, tile);
+    wram_write8(g, at + 1, menu_text_attribute(g));
 }
 
-static uint16_t pull_index(Snes *s, uint16_t *reg)
+/* Draw a tile at the pen, and a blank above a blank on two-row text. Returns
+ * where the pen goes on. */
+static uint16_t draw_tile(GameState *g, uint16_t pen, uint8_t tile)
 {
-    return m_set_index(s, reg, m_x8(s) ? m_pull8(s) : m_pull16(s));
+    if (tile == BLANK && !one_row(g))
+        put_tile_word(g, in_tilemap(pen, -ROW_BYTES), BLANK);
+    put_tile_word(g, in_tilemap(pen, 0), tile);
+    return (uint16_t)(pen + TILE_BYTES);
 }
 
-/* PLA at the current accumulator width. */
-static void pla(Snes *s)
+static uint16_t draw_blanks(GameState *g, uint16_t pen, uint16_t count)
 {
-    if (m_m8(s))
-        m_lda8(s, m_pull8(s));
-    else
-        m_lda16(s, m_pull16(s));
+    uint16_t left = count;   /* 0 is 65536: the original counts down before it tests */
+    do
+        pen = draw_tile(g, pen, BLANK);
+    while (--left != 0);
+    return pen;
 }
 
-static void plb(Snes *s)
+/* ---- Numbers ------------------------------------------------------------------------------- */
+
+/* How a number is drawn, from its format byte: how many bytes it is (1-3), in
+ * how many digits (1-8), whether its leading zeros show as blanks, and whether
+ * even its units digit does. */
+typedef struct {
+    uint8_t bytes;
+    uint8_t digits;
+    bool blank_leading_zeros;
+    bool blank_a_zero_units;
+} NumberFormat;
+
+static NumberFormat number_format(uint8_t format)
 {
-    s->cpu.db = m_pull8(s);
-    m_set_nz8(s, s->cpu.db);
+    return (NumberFormat){ (uint8_t)(format & 0x03), (uint8_t)(((format >> 4) & 0x07) + 1),
+                           (format & 0x80) == 0, (format & 0x08) != 0 };
 }
 
-static void plp(Snes *s)
+/* The number of `bytes` bytes at `at`, low byte first. */
+static uint32_t number_at(const GameState *g, uint32_t at, uint8_t bytes)
 {
-    s->cpu.p = m_pull8(s);
-    if (s->cpu.p & CPU_FLAG_X) {
-        s->cpu.x &= 0xFF;
-        s->cpu.y &= 0xFF;
+    uint32_t value = 0;
+    for (uint8_t i = 0; i < bytes; i++)
+        value |= (uint32_t)menu_text_byte(g, at + i) << (8 * i);
+    return value;
+}
+
+/* A number as eight decimal digits, four bits each, the units lowest. */
+static uint32_t decimal_digits(uint32_t value)
+{
+    uint32_t digits = 0;
+    for (unsigned place = 0; place < 8; place++) {
+        digits |= (value % 10) << (4 * place);
+        value /= 10;
     }
+    return digits;
 }
 
-/* LDA $offset,Y at the current accumulator width. */
-static uint16_t lda_abs_y(Snes *s, uint16_t offset)
+/* Draw the last `digits` of `number` (four bits a digit) at the pen, most
+ * significant first; a zero before the first other digit is a blank while
+ * leading zeros are blanked, and so is the units digit where the format says.
+ * Returns where the pen goes on. */
+static uint16_t draw_digits(GameState *g, uint16_t pen, uint32_t number, NumberFormat f)
 {
-    if (m_m8(s))
-        return m_lda8(s, m_read8(s, abs_y(s, offset)));
-    return m_lda16(s, m_read16(s, abs_y(s, offset)));
+    bool blanking = f.blank_leading_zeros;
+    for (int place = f.digits - 1; place >= 0; place--) {
+        if (place == 0 && !f.blank_a_zero_units)
+            blanking = false;
+        uint8_t digit = (uint8_t)(number >> (4 * place) & 0x0F);
+        bool blank = digit == 0 && blanking;
+        if (!blank)
+            blanking = false;
+        put_tile_word(g, in_tilemap(pen, 0), blank ? BLANK : (uint8_t)(FIRST_DIGIT + digit));
+        pen = (uint16_t)(pen + TILE_BYTES);
+    }
+    return pen;
 }
 
-/* BIT on an 8-bit direct-page byte. */
-static void bit_dp8(Snes *s, uint8_t cell)
+/* What the number drawer leaves in its cells: the digits less one, the
+ * blanking flags (the format's, flipped, until a digit stops them: they last
+ * only where every digit was a blank), where it drew and the bytes it had
+ * left to convert. */
+static void leave_number_drawn(GameState *g, uint8_t format, NumberFormat f, uint32_t number, uint16_t pen)
 {
-    uint8_t v = dp8(s, cell);
-    m_set_flag(s, CPU_FLAG_N, v & 0x80);
-    m_set_flag(s, CPU_FLAG_V, v & 0x40);
-    m_set_flag(s, CPU_FLAG_Z, ((uint8_t)s->cpu.a & v) == 0);
+    uint32_t shown = f.digits == 8 ? number : number & ((1u << (4 * f.digits)) - 1);
+    bool still_blanking = f.blank_leading_zeros && f.blank_a_zero_units && shown == 0;
+    set_menu_number_digits(g, (uint8_t)(f.digits - 1));
+    set_menu_number_blanking(g, still_blanking ? (uint8_t)(format ^ 0x80) : 0);
+    set_menu_number_dest(g, pen);
+    set_menu_number_size(g, 0);
 }
 
-/* DEC on an 8-bit direct-page byte; returns the result. */
-static uint8_t dec_dp8(Snes *s, uint8_t cell)
+/* The conversion's own leftovers: the byte it shifted out (a word, over the
+ * digits and blanking cells), and the bytes left. */
+static void leave_converted(GameState *g)
 {
-    uint8_t v = (uint8_t)(dp8(s, cell) - 1);
-    set_dp8(s, cell, v);
-    m_set_nz8(s, v);
-    return v;
+    set_menu_number_digits(g, 0);
+    set_menu_number_blanking(g, 0);
+    set_menu_number_size(g, 0);
 }
 
-/* 16-bit ADC in decimal mode, as the CPU core computes it (flags included). */
-static uint16_t adc16_decimal(Snes *s, uint16_t a, uint16_t data)
+/* The original converts bit by bit, adding each set bit's decimal value: its
+ * time is a pass over each byte's eight bits and an add for each bit set. */
+enum { NUMBER_TO_BCD = 0xC2F13F, ACCESSES_PER_BYTE = 56, ACCESSES_PER_SET_BIT = 10 };
+
+static void charge_conversion(GameState *g, uint32_t value, uint8_t bytes)
 {
-    int carry = m_flag(s, CPU_FLAG_C) ? 1 : 0;
-    int r = (a & 0x000F) + (data & 0x000F) + carry;
-    if (r > 0x0009) r += 0x0006;
-    carry = r > 0x000F;
-    r = (a & 0x00F0) + (data & 0x00F0) + (carry << 4) + (r & 0x000F);
-    if (r > 0x009F) r += 0x0060;
-    carry = r > 0x00FF;
-    r = (a & 0x0F00) + (data & 0x0F00) + (carry << 8) + (r & 0x00FF);
-    if (r > 0x09FF) r += 0x0600;
-    carry = r > 0x0FFF;
-    r = (a & 0xF000) + (data & 0xF000) + (carry << 12) + (r & 0x0FFF);
-    m_set_flag(s, CPU_FLAG_V, ~(a ^ data) & (a ^ r) & 0x8000);
-    if (r > 0x9FFF) r += 0x6000;
-    m_set_flag(s, CPU_FLAG_C, r > 0xFFFF);
-    m_set_nz16(s, (uint16_t)r);
-    return (uint16_t)r;
+    unsigned set = 0;
+    for (uint32_t v = value; v != 0; v >>= 1)
+        set += v & 1;
+    charge_as(g, NUMBER_TO_BCD, bytes * ACCESSES_PER_BYTE + set * ACCESSES_PER_SET_BIT);
+}
+
+/* The number of `bytes` bytes at `at` as decimal digits. */
+static uint32_t converted(GameState *g, uint32_t at, uint8_t bytes)
+{
+    uint32_t value = number_at(g, at, bytes);
+    ORIGINAL_EFFECT(charge_conversion(g, value, bytes));
+    return decimal_digits(value);
 }
 
 // $C2:F13F
-/* Convert the $92-byte little-endian number at DB:Y to BCD in $8A-$8D: for
- * each set bit, add its 4-byte BCD value from the table at $C2:F17A (X starts
- * at the offset in $51) in decimal mode. Leaves Y past the number. */
-void menu_number_to_bcd(Snes *s)
+/* Convert the number of `bytes` bytes at `at` to decimal digits, for the menus
+ * to show. */
+static void convert_number(GameState *g, uint32_t at, uint8_t bytes)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    set_dp16(s, 0x8A, 0x0000);
-    set_dp16(s, 0x8C, 0x0000);
-    m_ldx(s, dp16(s, 0x51));
-    uint16_t bytes_left;
-    do {
-        m_push16(s, c->y);
-        m_lda16(s, m_read16(s, abs_y(s, 0x0000)));
-        set_dp16(s, 0x8E, m_lda16(s, c->a & 0x00FF));
-        m_ldy(s, 0x0008);
-        do {
-            uint16_t bits = dp16(s, 0x8E);
-            set_dp16(s, 0x8E, m_lsr16(s, bits));
-            if (m_flag(s, CPU_FLAG_C)) {
-                c->p |= CPU_FLAG_D;
-                m_set_flag(s, CPU_FLAG_C, false);
-                m_lda16(s, m_read16(s, 0xC2F17A + c->x));
-                c->a = adc16_decimal(s, c->a, dp16(s, 0x8A));
-                set_dp16(s, 0x8A, c->a);
-                m_lda16(s, m_read16(s, 0xC2F17C + c->x));
-                c->a = adc16_decimal(s, c->a, dp16(s, 0x8C));
-                set_dp16(s, 0x8C, c->a);
-                c->p &= (uint8_t)~CPU_FLAG_D;
-            }
-            for (int i = 0; i < 4; i++)
-                m_inx(s);
-        } while (m_set_index(s, &c->y, (uint16_t)(c->y - 1)) != 0);
-        pull_index(s, &c->y);
-        m_iny(s);
-        bytes_left = (uint16_t)(dp16(s, 0x92) - 1);
-        set_dp16(s, 0x92, bytes_left);
-        m_set_nz16(s, bytes_left);
-    } while (bytes_left != 0);
-    plp(s);
-    m_rts(s);
-}
-
-/* $C2:F20B: write the low nibble of A as a digit tile at DB:Y with the
- * attribute in $7E, or a blank ($FF) for a leading zero while $8F bit 7 is set.
- * Any other digit clears $8F. */
-static void draw_digit(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_lda8(s, (uint8_t)c->a & 0x0F);
-    bool blank = false;
-    if ((uint8_t)c->a == 0) {
-        bit_dp8(s, 0x8F);
-        blank = m_flag(s, CPU_FLAG_N);
-    }
-    if (blank) {
-        m_lda8(s, 0xFF);
-    } else {
-        set_dp8(s, 0x8F, 0x00);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_set_a8(s, m_adc8(s, (uint8_t)c->a, 0xD4));
-    }
-    m_write8(s, abs_y(s, 0x0000), (uint8_t)c->a);
-    m_write8(s, abs_y(s, 0x0001), m_lda8(s, dp8(s, 0x7E)));
-    m_iny(s);
-    m_iny(s);
-    m_rts(s);
-}
-
-/* The direct-page byte $8A,X. */
-static uint8_t bcd_byte(Snes *s)
-{
-    return m_lda8(s, m_read8(s, (uint16_t)(s->cpu.d + 0x8A + s->cpu.x)));
-}
-
-/* $C2:F1DA: write $8E digits of the BCD number in $8A-$8D, most significant
- * first, into bank $7E at the address in $90. Leading zeros are blanked while
- * $8F bit 7 is set; unless $8F bit 3 is set, the units digit is always drawn. */
-static void draw_bcd_digits(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    m_push16(s, 0x7E7E);
-    plb(s);
-    plb(s);
-    m_ldy(s, dp16(s, 0x90));
-    m_lda8(s, 0x00);
-    m_xba(s);
-    m_lda8(s, dp8(s, 0x8E));
-    m_set_a8(s, m_lsr8(s, (uint8_t)c->a));
-    m_tax(s);
-    bool high_digit = m_flag(s, CPU_FLAG_C);
-    for (;;) {
-        if (high_digit) {
-            bcd_byte(s);
-            for (int i = 0; i < 4; i++)
-                m_set_a8(s, m_lsr8(s, (uint8_t)c->a));
-            m_push16(s, 0xF1F4);
-            draw_digit(s);
-        }
-        high_digit = true;
-        m_cmp16(s, c->x, 0x0000);
-        if (c->x == 0) {
-            m_lda8(s, dp8(s, 0x8F));
-            if (m_lda8(s, (uint8_t)c->a & 0x08) == 0)
-                set_dp8(s, 0x8F, 0x00);
-        }
-        bcd_byte(s);
-        m_push16(s, 0xF206);
-        draw_digit(s);
-        if (m_set_index(s, &c->x, (uint16_t)(c->x - 1)) & (m_x8(s) ? 0x80 : 0x8000))
-            break;
-    }
-    m_rts(s);
+    set_menu_text_work_number(g, converted(g, at, bytes));
+    ORIGINAL_EFFECT(leave_converted(g));
 }
 
 // $C2:F114
-/* Draw the number at B:Y (A's high byte is its bank) as decimal digit tiles
- * at X in bank $7E. A's low byte: bits 0-1 the number's size in bytes, bits 4-6
- * the digit count times two plus one for an odd count, bit 7 clear to blank
- * leading zeros, bit 3 set to keep blanking through the last byte. Returns X
- * past the digits. */
-void menu_draw_number(Snes *s)
+/* Draw the number at `at` as its format says, at the pen. Returns where the
+ * pen goes on. */
+static uint16_t draw_number(GameState *g, uint32_t at, uint8_t format, uint16_t pen)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->db);
-    m_push8(s, c->p);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_push16(s, c->a);
-    plb(s);
-    plb(s);
-    set_dp16(s, 0x90, c->x);
-    m_sep(s, CPU_FLAG_M);
-    m_push8(s, (uint8_t)c->a);
-    set_dp8(s, 0x92, m_lda8(s, (uint8_t)c->a & 0x03));
-    set_dp8(s, 0x93, 0x00);
-    m_push16(s, 0xF128);
-    NATIVE_TIME_AS(s, 0xC2F13F, menu_number_to_bcd(s));
-    m_lda8(s, m_pull8(s));
-    set_dp8(s, 0x8F, m_lda8(s, (uint8_t)c->a ^ 0x80));
-    for (int i = 0; i < 4; i++)
-        m_set_a8(s, m_lsr8(s, (uint8_t)c->a));
-    set_dp8(s, 0x8E, m_lda8(s, (uint8_t)c->a & 0x07));
-    m_push16(s, c->y);
-    m_push16(s, 0xF139);
-    draw_bcd_digits(s);
-    m_tyx(s);
-    pull_index(s, &c->y);
-    plp(s);
-    plb(s);
+    NumberFormat f = number_format(format);
+    uint32_t digits = converted(g, at, f.bytes);
+    set_menu_text_work_number(g, digits);
+    uint16_t after = draw_digits(g, pen, digits, f);
+    ORIGINAL_EFFECT(leave_number_drawn(g, format, f, digits, pen));
+    return after;
+}
+
+/* Where the number's four bytes are on the menus' page, as the original
+ * reads a hex number's digits. */
+enum { NUMBER_CELLS = 0x7E008A };
+
+/* The hex number's digit `place` (from the units): four bytes' worth are the
+ * number's; past them the original reads on into the drawer's own cells --
+ * the count, the bank, where the digits go -- and on up the page, which no
+ * string of the game's asks for, and the port reads them too (a stray read,
+ * explicitly past menu_text_work's four bytes). */
+static uint8_t hex_byte(const GameState *g, uint32_t bytes, unsigned place)
+{
+    unsigned i = place / 2;
+    if (i < 4)
+        return (uint8_t)(bytes >> (8 * i));
+    return wram_read8(g, NUMBER_CELLS + i);
+}
+
+// $C2:F227
+/* Draw the four bytes at `at` as a hex number of `count` + 1 digits. */
+static uint16_t draw_hex_number(GameState *g, uint32_t at, uint16_t format, uint16_t pen)
+{
+    uint32_t bytes = number_at(g, at, 4);
+    set_menu_text_work_number(g, bytes);
+    uint8_t count = (uint8_t)format;
+    /* written first: the digits past the number's bytes are read from here */
+    set_menu_number_digits(g, count);
+    set_menu_number_blanking(g, (uint8_t)(format >> 8));
+    set_menu_number_dest(g, pen);
+    for (int place = count; place >= 0; place--) {
+        uint8_t b = hex_byte(g, bytes, (unsigned)place);
+        uint8_t digit = (place & 1) ? (uint8_t)(b >> 4) : (uint8_t)(b & 0x0F);
+        put_tile_word(g, in_tilemap(pen, 0), menu_hex_digit_tile(g, digit));
+        pen = (uint16_t)(pen + TILE_BYTES);
+    }
+    return pen;
+}
+
+// $C2:F0D1
+/* A value shown only while it is under its limit (a stat's cap), and as
+ * dashes from it on: one byte in work RAM, two digits with a blank for a
+ * leading zero. */
+static uint16_t draw_limited_number(GameState *g, uint8_t which, uint16_t value_at, uint16_t pen)
+{
+    enum { TWO_DIGITS_OF_A_BYTE = 0x11 };
+    uint32_t at = (uint32_t)TILEMAP_BANK << 16 | value_at;
+    if (menu_text_byte(g, at) < menu_number_limit(g, which))
+        return draw_number(g, at, TWO_DIGITS_OF_A_BYTE, pen);
+    wram_write8(g, in_tilemap(pen, 0), DASH);
+    wram_write8(g, in_tilemap(pen, 2), DASH);
+    uint8_t attribute = menu_text_attribute(g);
+    wram_write8(g, in_tilemap(pen, 1), attribute);
+    wram_write8(g, in_tilemap(pen, 3), attribute);
+    return (uint16_t)(pen + 2 * TILE_BYTES);
+}
+
+/* ---- Strings ------------------------------------------------------------------------------- */
+
+/* The tiles a string may still draw: when a drawn tile uses the last, the
+ * string ends there. A tile a string copies counts too, but doesn't end it. */
+static bool count_a_tile(GameState *g)
+{
+    uint8_t left = (uint8_t)(menu_text_tile_limit(g) - 1);
+    set_menu_text_tile_limit(g, left);
+    return left != 0;
+}
+
+/* A new line: back to where the line started, two rows down, or one on
+ * one-row text. */
+static uint16_t new_line(GameState *g)
+{
+    uint16_t start = (uint16_t)(menu_text_line_start(g) + (one_row(g) ? ROW_BYTES : 2 * ROW_BYTES));
+    set_menu_text_line_start(g, start);
+    return start;
+}
+
+/* A move: a new line starting at `offset` from the window's origin. */
+static uint16_t move_to(GameState *g, uint16_t offset)
+{
+    uint16_t start = (uint16_t)(offset + menu_draw_origin(g));
+    set_menu_text_line_start(g, start);
+    return start;
+}
+
+/* The attribute's palette, taken from another tile's attribute in work RAM. */
+static void palette_from(GameState *g, uint16_t attribute_at)
+{
+    set_menu_text_attribute(g, (uint8_t)(menu_text_attribute(g) & ~PALETTE_BITS));
+    uint8_t other = wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | attribute_at);
+    set_menu_text_attribute(g, (uint8_t)(menu_text_attribute(g) | (other & PALETTE_BITS)));
+}
+
+/* A tile word copied from elsewhere in work RAM. */
+static uint16_t copy_tile(GameState *g, uint16_t from, uint16_t pen)
+{
+    uint8_t tile = wram_read8(g, in_tilemap(from, 0));
+    uint8_t attribute = wram_read8(g, in_tilemap(from, 1));
+    wram_write8(g, in_tilemap(pen, 0), tile);
+    wram_write8(g, in_tilemap(pen, 1), attribute);
+    (void)count_a_tile(g);
+    return (uint16_t)(pen + TILE_BYTES);
+}
+
+/* A string drawn inside another: another string, or a character's name, which
+ * is drawn in five tiles on one row whatever its length and then puts the
+ * tile limit and flags back as they were. The original draws them by calling
+ * itself; the port keeps what it needs to go back to the string that
+ * included them, as deep as the game's strings go. */
+typedef struct {
+    TextPlace resume;
+    bool name;
+    uint16_t pen_after;
+    uint8_t limit, flags;
+} Included;
+enum { INCLUDED_DEPTH = 4 };
+
+typedef struct {
+    Included stack[INCLUDED_DEPTH];
+    unsigned depth;
+} Inclusions;
+
+/* The number of bytes of operands after each control code. */
+static uint8_t operand_bytes(uint8_t code)
+{
+    switch (code) {
+    case CODE_MOVE: case CODE_PALETTE_FROM: case CODE_COPY_TILE: case CODE_NAME: return 2;
+    case CODE_NUMBER: case CODE_HEX_NUMBER: return 4;
+    case CODE_STRING: case CODE_LIMITED_NUMBER: return 3;
+    case CODE_BLANKS: case CODE_FLAGS: case CODE_ATTRIBUTE: return 1;
+    default: return 0;
+    }
+}
+
+/* Carry out the control code whose operands start at `p`: the pen may move,
+ * and a string or a name included starts being read (`*p` is where the text
+ * goes on). */
+static uint16_t control_code(GameState *g, uint8_t code, TextPlace *p, uint16_t pen, Inclusions *in)
+{
+    TextPlace o = *p;
+    *p = advanced(o, operand_bytes(code));
+    switch (code) {
+    case CODE_NEW_LINE: return new_line(g);
+    case CODE_MOVE: return move_to(g, text_word(g, o, 0));
+    case CODE_NUMBER: {
+        uint16_t format = text_word(g, o, 2);
+        return draw_number(g, (uint32_t)(format >> 8) << 16 | text_word(g, o, 0), (uint8_t)format, pen);
+    }
+    case CODE_HEX_NUMBER: {
+        uint16_t format = text_word(g, o, 2);
+        return draw_hex_number(g, (uint32_t)(format >> 8) << 16 | text_word(g, o, 0), format, pen);
+    }
+    case CODE_LIMITED_NUMBER: return draw_limited_number(g, text_byte(g, o, 0), text_word(g, o, 1), pen);
+    case CODE_PALETTE_FROM: palette_from(g, text_word(g, o, 0)); return pen;
+    case CODE_COPY_TILE: return copy_tile(g, text_word(g, o, 0), pen);
+    case CODE_BLANKS: return draw_blanks(g, pen, text_byte(g, o, 0));
+    case CODE_FLAGS: set_menu_text_flags(g, text_byte(g, o, 0)); return pen;
+    case CODE_ATTRIBUTE: set_menu_text_attribute(g, text_byte(g, o, 0)); return pen;
+    case CODE_STRING:
+    case CODE_NAME:
+        if (in->depth < INCLUDED_DEPTH) {
+            Included *i = &in->stack[in->depth++];
+            *i = (Included){ *p, code == CODE_NAME, (uint16_t)(pen + NAME_TILES * TILE_BYTES),
+                             menu_text_tile_limit(g), menu_text_flags(g) };
+            if (i->name) {
+                set_menu_text_tile_limit(g, NAME_TILES);
+                set_menu_text_flags(g, NAME_FLAGS);
+                *p = (TextPlace){ TILEMAP_BANK, text_word(g, o, 0) };
+            } else {
+                *p = (TextPlace){ text_byte(g, o, 2), text_word(g, o, 0) };
+            }
+        }
+        return pen;
+    default: return pen;
+    }
+}
+
+/* Back to the string that included the one just ended: a name is padded to
+ * its five tiles with blanks, and the pen goes on past them. */
+static uint16_t back_to_including(GameState *g, Included *i, uint16_t pen, TextPlace *p)
+{
+    if (i->name) {
+        for (uint8_t left = menu_text_tile_limit(g); left != 0; left = menu_text_tile_limit(g)) {
+            pen = draw_tile(g, pen, BLANK);
+            set_menu_text_tile_limit(g, (uint8_t)(left - 1));
+        }
+        pen = i->pen_after;
+        set_menu_text_tile_limit(g, i->limit);
+        set_menu_text_flags(g, i->flags);
+    }
+    *p = i->resume;
+    return pen;
+}
+
+// $C2:EF7E
+/* Draw the string at `p` at the pen, until its end or until it draws its last
+ * tile. Returns where the string stopped; the pen is left where it got to. */
+static TextPlace draw_string(GameState *g, TextPlace p, uint16_t *pen)
+{
+    Inclusions in = { .depth = 0 };
+    for (;;) {
+        uint8_t byte = text_byte(g, p, 0);
+        bool ended = byte == END_OF_STRING;
+        if (!ended) {
+            p = advanced(p, 1);
+            if (byte < FIRST_TILE) {
+                ORIGINAL_EFFECT(set_menu_text_work_code_handler(g, menu_text_code_handler(g, byte)));
+                *pen = control_code(g, byte, &p, *pen, &in);
+                continue;
+            }
+            *pen = draw_tile(g, *pen, byte);
+            ended = !count_a_tile(g);
+        }
+        if (ended) {
+            if (in.depth == 0)
+                return p;
+            *pen = back_to_including(g, &in.stack[--in.depth], *pen, &p);
+        }
+    }
+}
+
+// $C2:EF65
+/* Draw a string at the pen: `settings` is the text's flags, and in its low
+ * seven bits the most tiles it may draw (0 for 256: the count is a byte that
+ * counts down before it is tested).
+ *
+ * Two things no string of the game's does, where the port and the original
+ * part: strings include strings and names as deep as INCLUDED_DEPTH, and one
+ * deeper the original would draw and the port leaves out; and a number of no
+ * bytes (a format whose low bits are 0) the original converts from 65536
+ * bytes and its table far past its end, and the port as 0. */
+static TextPlace draw_text(GameState *g, TextPlace p, uint16_t *pen, uint8_t settings)
+{
+    set_menu_text_flags(g, settings);
+    set_menu_text_tile_limit(g, (uint8_t)(settings & 0x7F));
+    set_menu_text_line_start(g, *pen);
+    TextPlace stopped = draw_string(g, p, pen);
+    set_menu_text_attribute(g, (uint8_t)(menu_text_attribute(g) & KEPT_AFTER_A_STRING));
+    return stopped;
+}
+
+/* ---- The entries ------------------------------------------------------------------------- */
+
+/* All four run on the menus' page, and the conversion starts from the first
+ * power of two: the word it starts its table from ($51) is 0 whenever the
+ * menus draw a number. */
+static bool on_the_menus_page(Snes *s) { return m_direct_page(s) == 0x0000; }
+static bool converts_from_one(Snes *s)
+{
+    return snes_bus_peek(&s->bus, 0x000051) == 0 && snes_bus_peek(&s->bus, 0x000052) == 0;
+}
+
+/* What the menus read strings and numbers from is work RAM or the ROM: no
+ * string or number of the game's is in the I/O registers or open bus, where
+ * a read can change what it reads. */
+static bool reads_memory(uint32_t at)
+{
+    uint8_t bank = (uint8_t)(at >> 16);
+    uint16_t address = (uint16_t)at;
+    if (bank == 0x7E || bank == 0x7F || (bank & 0x7F) >= 0x40)
+        return true;
+    return address < 0x2000 || address >= 0x8000;
+}
+
+/* The number drawer keeps its digits and its place in cells of the menus'
+ * page ($8A-$93); a number the game draws is neither read from them nor drawn
+ * over them. */
+static bool clear_of_the_drawers_cells(uint32_t number_at, uint16_t pen)
+{
+    enum { CELLS = 0x8A, CELLS_END = 0x94, NUMBER_BYTES = 3, BELOW_THE_PEN = 2 * ROW_BYTES };
+    uint8_t bank = (uint8_t)(number_at >> 16);
+    uint16_t address = (uint16_t)number_at;
+    bool low_ram = bank == 0x7E || ((bank & 0x7F) < 0x40 && address < 0x2000);
+    bool reads_them = low_ram && address < CELLS_END && address + NUMBER_BYTES > CELLS;
+    return !reads_them && pen >= CELLS_END + BELOW_THE_PEN;
+}
+
+/* A number the game draws isn't on the stack, where the conversion pushes
+ * its place in the number as it reads each byte: the reach of its pushes and
+ * the drawer's call below the stack pointer. */
+static bool clear_of_the_stack(uint32_t number_at, uint16_t sp)
+{
+    enum { NUMBER_BYTES = 3, PUSHES = 8 };
+    uint8_t bank = (uint8_t)(number_at >> 16);
+    uint16_t address = (uint16_t)number_at;
+    bool low_ram = bank == 0x7E || ((bank & 0x7F) < 0x40 && address < 0x2000);
+    return !low_ram || address > sp || address + NUMBER_BYTES + PUSHES <= sp;
+}
+
+bool menu_tile_on_page(Snes *s) { return on_the_menus_page(s); }
+
+bool menu_text_on_page(Snes *s)
+{
+    return on_the_menus_page(s) && converts_from_one(s) && reads_memory((uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y);
+}
+
+/* A number the game draws is one to three bytes. */
+bool menu_number_is_drawable(Snes *s)
+{
+    uint8_t bytes = number_format((uint8_t)s->cpu.a).bytes;
+    uint32_t at = (uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y;
+    return on_the_menus_page(s) && converts_from_one(s) && bytes != 0 && reads_memory(at)
+           && clear_of_the_drawers_cells(at, s->cpu.x) && clear_of_the_stack(at, s->cpu.s);
+}
+
+bool menu_number_is_convertible(Snes *s)
+{
+    vars_peek(true);
+    uint16_t bytes = menu_number_size(state_of(s));
+    vars_peek(false);
+    uint32_t at = (uint32_t)s->cpu.db << 16 | s->cpu.y;
+    return on_the_menus_page(s) && converts_from_one(s) && bytes >= 1 && bytes <= 3 && reads_memory(at)
+           && clear_of_the_drawers_cells(at, 0xFFFF) && clear_of_the_stack(at, s->cpu.s);
+}
+
+/* The number drawer leaves A's high byte clear (its digits are drawn with it
+ * so), which its callers can't be shown not to read. */
+static void clear_a_high(Snes *s) { s->cpu.a &= 0x00FF; }
+
+// $C2:EF65
+void menu_draw_text(Snes *s)
+{
+    uint16_t pen = s->cpu.x;
+    TextPlace stopped = draw_text(state_of(s), (TextPlace){ (uint8_t)(s->cpu.a >> 8), s->cpu.y }, &pen,
+                                  (uint8_t)s->cpu.a);
+    s->cpu.x = pen;
+    s->cpu.y = stopped.at;
     m_rts(s);
 }
 
 // $C2:EF97
-/* Write tile A with the attribute in $7E at X in bank $7E and advance X; tile
- * $FF also gets a blank tile one row above unless $88 bit 7 is set. Flags are
- * preserved. */
 void menu_draw_tile(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    bit_dp8(s, 0x88);
-    bool above = false;
-    if (!m_flag(s, CPU_FLAG_N)) {
-        m_cmp8(s, (uint8_t)c->a, 0xFF);
-        above = (uint8_t)c->a == 0xFF;
-    }
-    if (above) {
-        m_xba(s);
-        m_write8(s, 0x7DFFC0 + c->x, m_lda8(s, 0xFF));
-        m_write8(s, 0x7DFFC1 + c->x, m_lda8(s, dp8(s, 0x7E)));
-        m_xba(s);
-    }
-    m_write8(s, 0x7E0000 + c->x, (uint8_t)c->a);
-    m_write8(s, 0x7E0001 + c->x, m_lda8(s, dp8(s, 0x7E)));
-    m_inx(s);
-    m_inx(s);
-    plp(s);
+    s->cpu.x = draw_tile(state_of(s), s->cpu.x, (uint8_t)s->cpu.a);
     m_rts(s);
 }
 
-static void menu_draw_text_loop(Snes *s);
-
-/* INY INY RTS ($C2:F00E), without the RTS. */
-static void iny2(Snes *s)
+// $C2:F114
+void menu_draw_number(Snes *s)
 {
-    m_iny(s);
-    m_iny(s);
-}
-
-/* The control code handlers reached through JMP ($008A) with the return
- * address $EFD2 pushed by PER. Each runs with a 16-bit accumulator; the
- * handler's RTS is the m_pull16 at its end. */
-
-/* $C2:EFF4: next line: $65 moves on $80 bytes (two rows), or $40 when $88
- * bit 7 is set; X = $65. */
-static void code_new_line(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_lda16(s, 0x0080);
-    uint16_t v = dp16(s, 0x87);
-    m_set_flag(s, CPU_FLAG_N, v & 0x8000);
-    m_set_flag(s, CPU_FLAG_V, v & 0x4000);
-    m_set_flag(s, CPU_FLAG_Z, (c->a & v) == 0);
-    if (v & 0x8000)
-        m_lda16(s, 0x0040);
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, dp16(s, 0x65));
-    set_dp16(s, 0x65, c->a);
-    m_tax(s);
-    m_pull16(s);
-}
-
-/* $C2:F005: move to the word operand plus $61; X = $65. */
-static void code_move(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_lda16(s, m_read16(s, abs_y(s, 0x0000)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, dp16(s, 0x61));
-    set_dp16(s, 0x65, c->a);
-    m_tax(s);
-    iny2(s);
-    m_pull16(s);
-}
-
-/* $C2:F011: a number: word operands address and format (for $C2:F114). */
-static void code_number(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    push_index(s, c->y);
-    m_lda16(s, m_read16(s, abs_y(s, 0x0000)));
-    m_push16(s, c->a);
-    m_lda16(s, m_read16(s, abs_y(s, 0x0002)));
-    pull_index(s, &c->y);
-    m_push16(s, 0xF01C);
-    NATIVE_TIME_AS(s, 0xC2F114, menu_draw_number(s));
-    pull_index(s, &c->y);
-    iny2(s);
-    iny2(s);
-    m_pull16(s);
-}
-
-/* $C2:F022: a substring at the 3-byte address operand. */
-static void code_substring(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    push_index(s, c->y);
-    m_push8(s, c->db);
-    lda_abs_y(s, 0x0001);
-    m_push16(s, c->a);
-    lda_abs_y(s, 0x0000);
-    m_set_index(s, &c->y, c->a);
-    plb(s);
-    plb(s);
-    m_push16(s, 0xF030);
-    menu_draw_text_loop(s);
-    plb(s);
-    pull_index(s, &c->y);
-    m_iny(s);
-    iny2(s);
-    m_pull16(s);
-}
-
-/* $C2:F036: a name: the string at the word operand in bank $7E, at most 5
- * tiles, padded with blanks to 5; X moves on 10. */
-static void code_name(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_push16(s, m_read16(s, m_dp(s, 0x87)));
-    push_index(s, c->y);
-    m_push8(s, c->db);
-    m_push8(s, c->p);
-    m_txa(s);
-    m_set_flag(s, CPU_FLAG_C, false);
-    c->a = m_adc16(s, c->a, 0x000A);
-    m_push16(s, c->a);
-    set_dp16(s, 0x87, m_lda16(s, 0x8005));
-    lda_abs_y(s, 0x0000);
-    m_set_index(s, &c->y, c->a);
-    m_push16(s, 0x7E7E);
-    plb(s);
-    plb(s);
-    m_push16(s, 0xF051);
-    menu_draw_text_loop(s);
-    if (m_lda8(s, dp8(s, 0x87)) != 0) {
-        do {
-            m_lda8(s, 0xFF);
-            m_push16(s, 0xF05A);
-            NATIVE_TIME_AS(s, 0xC2EF97, menu_draw_tile(s));
-        } while (dec_dp8(s, 0x87) != 0);
-    }
-    pull_index(s, &c->x);
-    plp(s);
-    plb(s);
-    pull_index(s, &c->y);
-    pla(s);
-    if (m_m8(s))
-        set_dp8(s, 0x87, (uint8_t)c->a);
-    else
-        set_dp16(s, 0x87, c->a);
-    iny2(s);
-    m_pull16(s);
-}
-
-/* $C2:F068: set the attribute byte $7E. */
-static void code_attribute(Snes *s)
-{
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x7E, m_lda8(s, m_read8(s, abs_y(s, 0x0000))));
-    m_iny(s);
-    m_pull16(s);
-}
-
-/* $C2:F071: copy a word from bank $7E at the word operand as a tile; counts
- * against $87. */
-static void code_copy_tile(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    push_index(s, c->y);
-    m_push8(s, c->db);
-    lda_abs_y(s, 0x0000);
-    m_set_index(s, &c->y, c->a);
-    m_push16(s, 0x7E7E);
-    plb(s);
-    plb(s);
-    lda_abs_y(s, 0x0000);
-    if (m_m8(s))
-        m_write8(s, abs_x(s, 0x0000), (uint8_t)c->a);
-    else
-        m_write16(s, abs_x(s, 0x0000), c->a);
-    plb(s);
-    pull_index(s, &c->y);
-    m_sep(s, CPU_FLAG_M);
-    m_inx(s);
-    m_inx(s);
-    dec_dp8(s, 0x87);
-    iny2(s);
-    m_pull16(s);
-}
-
-/* $C2:F08D: the byte operand's count of blank tiles. */
-static void code_blanks(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    lda_abs_y(s, 0x0000);
-    m_iny(s);
-    push_index(s, c->y);
-    m_lda16(s, c->a & 0x00FF);
-    m_set_index(s, &c->y, c->a);
-    m_sep(s, CPU_FLAG_M);
-    do {
-        m_lda8(s, 0xFF);
-        m_push16(s, 0xF09C);
-        NATIVE_TIME_AS(s, 0xC2EF97, menu_draw_tile(s));
-    } while (m_set_index(s, &c->y, (uint16_t)(c->y - 1)) != 0);
-    pull_index(s, &c->y);
-    m_pull16(s);
-}
-
-/* $C2:F0A2: take the palette bits ($1C) of the attribute from the byte in
- * bank $7E at the word operand. */
-static void code_palette_from(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_sep(s, CPU_FLAG_M);
-    push_index(s, c->x);
-    m_ldx(s, m_x8(s) ? m_read8(s, abs_y(s, 0x0000)) : m_read16(s, abs_y(s, 0x0000)));
-    iny2(s);
-    m_lda8(s, 0x1C);
-    m_trb8(s, m_dp(s, 0x7E));
-    m_lda8(s, m_read8(s, 0x7E0000 + c->x));
-    m_lda8(s, (uint8_t)c->a & 0x1C);
-    m_tsb8(s, m_dp(s, 0x7E));
-    pull_index(s, &c->x);
-    m_pull16(s);
-}
-
-/* $C2:F0B8: set $88. */
-static void code_set_88(Snes *s)
-{
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x88, m_lda8(s, m_read8(s, abs_y(s, 0x0000))));
-    m_iny(s);
-    m_pull16(s);
-}
-
-/* $C2:F0D1: a one-byte value from bank $7E at the word operand as two digits,
- * or two "--"-like tiles ($2F) when it isn't below the limit $FF:CF33 indexed
- * by the byte operand. */
-static void code_limited_number(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_push8(s, c->db);
-    push_index(s, c->y);
-    push_index(s, c->x);
-    lda_abs_y(s, 0x0000);
-    m_lda16(s, c->a & 0x00FF);
-    m_tax(s);
-    lda_abs_y(s, 0x0001);
-    m_set_index(s, &c->y, c->a);
-    m_sep(s, CPU_FLAG_M);
-    m_push16(s, 0x7E7E);
-    plb(s);
-    plb(s);
-    m_lda8(s, m_read8(s, abs_y(s, 0x0000)));
-    m_cmp8(s, (uint8_t)c->a, m_read8(s, 0xFFCF33 + c->x));
-    pull_index(s, &c->x);
-    if (!m_flag(s, CPU_FLAG_C)) {
-        m_lda8(s, 0x7E);
-        m_xba(s);
-        m_lda8(s, 0x11);
-        m_push16(s, 0xF0F7);
-        NATIVE_TIME_AS(s, 0xC2F114, menu_draw_number(s));
-    } else {
-        m_lda8(s, 0x2F);
-        m_write8(s, abs_x(s, 0x0000), (uint8_t)c->a);
-        m_write8(s, abs_x(s, 0x0002), (uint8_t)c->a);
-        m_lda8(s, dp8(s, 0x7E));
-        m_write8(s, abs_x(s, 0x0001), (uint8_t)c->a);
-        m_write8(s, abs_x(s, 0x0003), (uint8_t)c->a);
-        for (int i = 0; i < 4; i++)
-            m_inx(s);
-    }
-    pull_index(s, &c->y);
-    plb(s);
-    m_iny(s);
-    iny2(s);
-    m_pull16(s);
-}
-
-/* $C2:EFBE (JSR from $EF8A): run control code A through the table at
- * $C2:EFD4, returning through the RTS at $C2:EFD3. Handlers not ported (and
- * codes past the table's ported entries) are called out at the JMP. */
-static void control_code(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    push_index(s, c->x);
-    m_rep(s, CPU_FLAG_M);
-    m_lda16(s, c->a & 0x00FF);
-    c->a = m_asl16(s, c->a);
-    m_tax(s);
-    m_lda16(s, m_read16(s, 0xC2EFD4 + c->x));
-    set_dp16(s, 0x8A, c->a);
-    pull_index(s, &c->x);
-    uint16_t handler = m_read16(s, 0x00008A);
-    void (*fn)(Snes *) = NULL;
-    switch (handler) {
-    case 0xEFD3: break;
-    case 0xEFF4: fn = code_new_line; break;
-    case 0xF005: fn = code_move; break;
-    case 0xF011: fn = code_number; break;
-    case 0xF022: fn = code_substring; break;
-    case 0xF036: fn = code_name; break;
-    case 0xF068: fn = code_attribute; break;
-    case 0xF071: fn = code_copy_tile; break;
-    case 0xF08D: fn = code_blanks; break;
-    case 0xF0A2: fn = code_palette_from; break;
-    case 0xF0B8: fn = code_set_88; break;
-    case 0xF0D1: fn = code_limited_number; break;
-    default:
-        /* PER $EFD2 : JMP ($008A) is a call returning to $EFD3 */
-        m_jsr(s, 0xC2EFD0, 0xC20000 | handler);
-        m_rts(s);
-        return;
-    }
-    m_push16(s, 0xEFD2);
-    if (fn)
-        fn(s);
-    else
-        m_pull16(s);
+    uint8_t bytes = number_format((uint8_t)s->cpu.a).bytes;
+    s->cpu.x = draw_number(state_of(s), (uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y, (uint8_t)s->cpu.a, s->cpu.x);
+    ORIGINAL_EFFECT(clear_a_high(s));
+    s->cpu.y = (uint16_t)(s->cpu.y + bytes);
     m_rts(s);
 }
 
-// $C2:EF7E
-/* Draw the string at DB:Y into bank $7E at X (see the top of the file) until
- * its terminator or until $87 tiles have been written. Also entered
- * recursively by the substring and name codes. Returns with 8-bit A. */
-static void menu_draw_text_loop(Snes *s)
+// $C2:F13F
+void menu_number_to_bcd(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    for (;;) {
-        m_sep(s, CPU_FLAG_M);
-        if (m_lda8(s, m_read8(s, abs_y(s, 0x0000))) == 0)
-            break;
-        m_iny(s);
-        m_cmp8(s, (uint8_t)c->a, 0x10);
-        if ((uint8_t)c->a < 0x10) {
-            m_push16(s, 0xEF8C);
-            control_code(s);
-            continue;
-        }
-        m_push16(s, 0xEF91);
-        NATIVE_TIME_AS(s, 0xC2EF97, menu_draw_tile(s));
-        if (dec_dp8(s, 0x87) == 0)
-            break;
-    }
-    m_rts(s);
-}
-
-// $C2:EF65
-/* Draw the string at B:Y (A's high byte is its bank) at X: A's low byte goes
- * to $88 and, without bit 7, to the tile limit $87; $65 = X. Clears attribute
- * bits $DC in $7E afterwards. */
-void menu_draw_text(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    m_push8(s, c->db);
-    m_push8(s, c->p);
-    m_sep(s, CPU_FLAG_M);
-    set_dp8(s, 0x88, (uint8_t)c->a);
-    set_dp8(s, 0x87, m_lda8(s, (uint8_t)c->a & 0x7F));
-    if (m_x8(s))
-        set_dp8(s, 0x65, (uint8_t)c->x);
-    else
-        set_dp16(s, 0x65, c->x);
-    m_xba(s);
-    m_push8(s, (uint8_t)c->a);
-    plb(s);
-    m_push16(s, 0xEF76);
-    menu_draw_text_loop(s);
-    m_lda8(s, 0xDC);
-    m_trb8(s, m_dp(s, 0x7E));
-    plp(s);
-    plb(s);
+    GameState *g = state_of(s);
+    vars_peek(true);
+    uint8_t bytes = (uint8_t)menu_number_size(g);
+    vars_peek(false);
+    convert_number(g, m_abs(s, s->cpu.y), bytes);
+    s->cpu.y = (uint16_t)(s->cpu.y + bytes);
     m_rts(s);
 }
