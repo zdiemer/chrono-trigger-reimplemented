@@ -84,6 +84,8 @@ enum { LAST_BIT_READ = 0xDF, LAST_CLEAR_BIT_READ = 0xD7 };
 /* Whether one of the command's operands names what its kind says. */
 static bool names_what_it_says(const GameState *g, const EventOpcode *row, const EventArg *arg, uint16_t at)
 {
+    if (arg->kind == ARG_STORY_WORD)   /* the word the command reads is in the story memory */
+        return story_holds(script_word(g, (uint16_t)(at + arg->operand)), AS_WORD);
     uint8_t operand = script_byte(g, (uint16_t)(at + arg->operand));
     switch (arg->kind) {
     case ARG_OBJECT: return field_names_object(operand);

@@ -222,6 +222,11 @@ void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, 
 
 bool object_follows_the_map(const GameState *g, FieldObject obj) { return own_layering(g, obj).follows_the_map; }
 
+bool tile_on_the_map(MapTile tile)
+{
+    return tile.x < FIELD_TILE_PROPERTIES_COLUMNS && tile.y < FIELD_TILE_PROPERTIES_ROWS;
+}
+
 // $C0:4BA3
 void object_layer_as_the_map(GameState *g, FieldObject obj, MapTile tile)
 {

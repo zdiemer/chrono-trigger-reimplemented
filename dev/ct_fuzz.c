@@ -54,13 +54,15 @@
  * with. --apu-loopback makes reads of the APU ports return what the CPU last
  * wrote to them: the SPC700 doesn't run here, so the sound driver's echo waits
  * would otherwise never end. --details N describes the first N mismatches
- * (default 10).
+ * (default 10). Accessors the port called out of range (port/vars_ram.h) are
+ * listed after the counts, one `accessor out of range` line per variable.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "fuzz.h"
+#include "range_report.h"
 #include "registry.h"
 #include "snes/system.h"
 
@@ -176,6 +178,9 @@ int main(int argc, char **argv)
            "long %lu, the original past its budget %lu)\n",
            e->name, o.iterations, r.matched, r.mismatched, r.looped,
            r.guard + r.callout + r.both_long + r.original_long, r.guard, r.callout, r.both_long, r.original_long);
+    /* Random states reach indices no movie does: an accessor called past what
+     * re/ram.toml declares, usually where no guard turns the state away. */
+    range_report(stdout);
     return r.mismatched ? 1 : 0;
 
 usage:

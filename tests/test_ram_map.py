@@ -233,7 +233,9 @@ class TestAccessors(unittest.TestCase):
                      "void set_maps(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v);"):
             with self.subTest(line=line):
                 self.assertIn(line, h)
-        self.assertIn("{ return r8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column); }",
+        self.assertIn('{ IN_RANGE(g, 0, "maps", "count", layer, 3u); IN_RANGE(g, 0, "maps", "rows", row, 64u); '
+                      'IN_RANGE(g, 0, "maps", "columns", column, 64u); '
+                      'return r8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column); }',
                       ram_map.render_backing(m))
 
     def test_the_interface_has_no_layout(self):
@@ -250,11 +252,56 @@ class TestAccessors(unittest.TestCase):
         c = ram_map.render_backing(m)
         for line in ("uint8_t flag(const GameState *g) { return r8(g, 0x7E1000u); }",
                      "void set_pointer(GameState *g, uint32_t v) { w24(g, 0x7E1004u, v); }",
-                     "uint16_t facing(const GameState *g, unsigned slot)"
-                     " { return r16(g, 0x7E1100u + (uint32_t)slot * 0x02u); }",
-                     "uint8_t name_byte(const GameState *g, unsigned at) { return r8(g, 0x7E1200u + at); }"):
+                     "uint16_t facing(const GameState *g, unsigned slot) { IN_RANGE(g, 0, \"facing\", \"count\", slot, 4u);"
+                     " return r16(g, 0x7E1100u + (uint32_t)slot * 0x02u); }",
+                     "uint8_t name_byte(const GameState *g, unsigned at)"
+                     " { IN_RANGE(g, 1, \"name_byte\", \"bytes\", at, 6u); return r8(g, 0x7E1200u + at); }"):
             with self.subTest(line=line):
                 self.assertIn(line, c)
+
+    def test_every_index_is_checked(self):
+        """Each index an accessor takes is checked against the map's count, bytes,
+        rows and columns, before the address is formed; a scalar has none. The
+        check is compiled only with CT_ACCESSOR_CHECKS, and is nothing without."""
+        m = self.load(var("flag", 'addr = "7E:1000"')
+                      + var("facing", 'addr = "7E:1100"\nsize = 2\ncount = 4\nstride = 2\nindex = "object slot"')
+                      + var("combatant", 'addr = "7E:5E30"\ncount = 2\nstride = 0x80\nindex = "battle slot"\n'
+                                         '[[var.field]]\nname = "hp"\noffset = 0\nsize = 2\nmeaning = "m"', "battle"))
+        c = ram_map.render_backing(m)
+        for line in ("void set_flag(GameState *g, uint8_t v) { w8(g, 0x7E1000u, v); }",
+                     'void set_facing(GameState *g, unsigned slot, uint16_t v)'
+                     ' { IN_RANGE(g, 0, "set_facing", "count", slot, 4u); w16(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }',
+                     'uint16_t combatant_hp(const GameState *g, unsigned slot) { IN_RANGE(g, 1, "combatant_hp", "count", slot, 2u);',
+                     '    { .var = "facing" },\n    { .var = "combatant" },\n};',
+                     "    *count = 2;",
+                     "#define IN_RANGE(g, var, accessor, bound, index, limit) ((void)0)"):
+            with self.subTest(line=line):
+                self.assertIn(line, c)
+        on, off = c.index("#ifdef CT_ACCESSOR_CHECKS"), c.index("#else")
+        self.assertLess(on, c.index("static void out_of_range("))
+        self.assertLess(c.index("static void out_of_range("), off)
+
+    def test_a_deliberate_stray_access_has_an_unchecked_pair(self):
+        """Marked scaffolding that reaches past a variable on purpose uses its
+        `_unchecked` pair, which the map declares with a reason; the checked
+        pair is still there for everything else."""
+        m = self.load(var("facing", 'addr = "7E:1100"\nsize = 2\ncount = 4\nstride = 2\nindex = "object slot"\n'
+                                    'unchecked = "the original writes the slot after the last"'))
+        h, c = ram_map.render_vars_header(m), ram_map.render_backing(m)
+        self.assertIn("void set_facing(GameState *g, unsigned slot, uint16_t v);", h)
+        self.assertIn("void set_facing_unchecked(GameState *g, unsigned slot, uint16_t v);", h)
+        self.assertIn("Unchecked, for marked scaffolding only", h)
+        self.assertIn("void set_facing_unchecked(GameState *g, unsigned slot, uint16_t v)"
+                      " { w16(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }", c)
+        m = self.load(var("name", 'addr = "7E:1200"\nsize = 6\nunchecked = "w"'))   # a buffer: one _BYTES
+        h = ram_map.render_vars_header(m)
+        self.assertEqual(h.count("NAME_BYTES"), 1)
+        self.assertIn("uint8_t name_byte_unchecked(const GameState *g, unsigned at);", h)
+        for why, text in {"a scalar has no index": var("flag", 'addr = "7E:1000"\nunchecked = "w"'),
+                          "unchecked says why": var("facing", 'addr = "7E:1100"\ncount = 4\nindex = "slot"\n'
+                                                              'unchecked = ""')}.items():
+            with self.subTest(why=why), self.assertRaises(ram_map.MapError):
+                self.load(text)
 
     def test_variables_on_a_page_kind_take_the_instance(self):
         m = self.load(var("held", 'page = "unknown"\ndp = 0xF2\nsize = 2', "core"))
@@ -318,10 +365,17 @@ class TestPageKinds(unittest.TestCase):
                      "    case MATH_CHANNEL:\n        return 0x7E0A00u + (uint32_t)page.index * 0x100u;",
                      "uint16_t pressed(const GameState *g, InputPage page) { return r16(g, input_page_base(page) + 0xF0u); }",
                      "uint16_t mapped(const GameState *g, InputPage page, unsigned i)"
-                     " { return r16(g, input_page_base(page) + 0xF6u + (uint32_t)i * 0x02u); }",
-                     "uint8_t record_y(const GameState *g, unsigned slot) { return r8(g, record_page_base(slot) + 0x0Eu); }",
+                     " { IN_RANGE(g, 0, \"mapped\", \"count\", i, 3u);"
+                     " return r16(g, input_page_base(page) + 0xF6u + (uint32_t)i * 0x02u); }",
+                     "uint8_t record_y(const GameState *g, unsigned slot)"
+                     " { IN_RANGE(g, 1, \"record_y\", \"instances\", slot, 8u);"
+                     " return r8(g, record_page_base(slot) + 0x0Eu); }",
                      "uint8_t scratch_byte(const GameState *g, MathPage page, unsigned at)"
-                     " { return r8(g, math_page_base(page) + 0xF0u + at); }"):
+                     " { IN_RANGE(g, 2, \"scratch_byte\", \"instances\", page.index, math_page_count(page));"
+                     " IN_RANGE(g, 2, \"scratch_byte\", \"bytes\", at, 16u);"
+                     " return r8(g, math_page_base(page) + 0xF0u + at); }",
+                     "static unsigned math_page_count(MathPage page)\n{\n    switch (page.kind) {\n"
+                     "    case MATH_OWN:\n        return 1u;\n    case MATH_CHANNEL:\n        return 2u;"):
             with self.subTest(line=line):
                 self.assertIn(line, c)
 

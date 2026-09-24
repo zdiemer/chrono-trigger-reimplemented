@@ -36,4 +36,31 @@ static inline Snes *state_snes(const GameState *g) { return (Snes *)(void *)g; }
 void vars_peek(bool on);
 bool vars_peeking(void);
 
+/* Accessors called with an index past what re/ram.toml declares: an element
+ * past an array's count, a byte past a buffer's, a row or column past a
+ * table's, an instance past a page kind's. Such an access reaches whatever
+ * variable follows in work RAM, which works only while the storage is the
+ * original's layout, so the backing counts it, per variable, and lets it
+ * happen as it did. Only a build with CT_ACCESSOR_CHECKS counts (ct_dev,
+ * ct_fuzz and the tests; not ct_play): without it vars_range_faults gives
+ * none. ct_dev prints an `accessor out of range` line for each variable with
+ * a count, and tools/suite.py fails a movie that prints one (docs/DISASSEMBLY.md,
+ * "The accessors"). */
+typedef struct {
+    const char *accessor;   /* the accessor called, e.g. "set_field_object_role" */
+    const char *bound;      /* which limit: "count", "bytes", "rows", "columns", "instances" */
+    unsigned index;
+    unsigned limit;
+    uint32_t pc;            /* the running entry's address, or the machine's PC */
+} VarsRangeHit;
+enum { VARS_RANGE_HITS_KEPT = 4 };
+typedef struct {
+    const char *var;
+    unsigned long count;
+    unsigned kept;          /* how many of first[] are filled */
+    VarsRangeHit first[VARS_RANGE_HITS_KEPT];
+} VarsRangeFault;
+const VarsRangeFault *vars_range_faults(unsigned *count);
+void vars_range_reset(void);
+
 #endif

@@ -969,7 +969,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0B309, .name = "field_draw_object_sprites", .fn = field_draw_object_sprites, NEEDS_M8_X16_BINARY,
       .cost_milli = 4446, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_sprites_draw_in_table },
     { .addr = 0xC0B701, .name = "field_update_object_sprites", .fn = field_update_object_sprites, NEEDS_M8_X16,
-      .cost_milli = 4353, .dont_care = DC_A | DC_X | DC_N | DC_Z, .guard = field_current_object_low_bank },
+      .cost_milli = 4353, .dont_care = DC_A | DC_X | DC_N | DC_Z, .guard = field_sprites_update_in_tables },
     { .addr = 0xC0B788, .name = "field_position_sprites", .fn = field_position_sprites, NEEDS_M8_X16_BINARY,
       .cost_milli = 4893, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_sprites_place_object },
     { .addr = 0xC0B8CA, .name = "field_load_and_position_sprites", .fn = field_load_and_position_sprites,

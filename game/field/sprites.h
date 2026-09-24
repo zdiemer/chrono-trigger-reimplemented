@@ -17,6 +17,7 @@ void field_update_object_sprites(Snes *s);
 void field_position_sprites(Snes *s);
 void field_load_and_position_sprites(Snes *s);
 bool field_sprites_draw_in_table(Snes *s);
+bool field_sprites_update_in_tables(Snes *s);
 bool field_sprites_place_object(Snes *s);
 
 #endif
