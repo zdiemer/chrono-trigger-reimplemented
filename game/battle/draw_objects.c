@@ -122,9 +122,12 @@ static unsigned frame_parts(const GameState *g, unsigned slot)
 
 static uint16_t first_part_offset(unsigned slot) { return (uint16_t)(slot * PART_ENTRIES_PER_COMBATANT * SPRITE_BYTES); }
 
-static void leave_parts_cells(GameState *g, unsigned slot, FramePoint at, FramePoint offset, uint8_t bits,
-                              unsigned parts, FramePoint last)
+/* The original leaves the frame's point, its last part's, the attributes and
+ * the offset in its cells, and the part it came to. */
+static void leave_parts_cells(GameState *g, unsigned slot, FramePoint at, FramePoint offset, uint8_t bits, unsigned parts)
 {
+    unsigned last_part = slot * PART_ENTRIES_PER_COMBATANT + parts - 1;
+    FramePoint last = { (uint16_t)(battle_part_offsets_x(g, last_part) + at.x), (uint16_t)(battle_part_offsets_y(g, last_part) + at.y) };
     leave_draw_cell16(g, 0x2E, at.x);
     leave_draw_cell16(g, 0x30, at.y);
     leave_draw_cell16(g, 0x32, last.x);
@@ -144,13 +147,11 @@ static unsigned draw_frame(GameState *g, unsigned slot, unsigned sprite, FramePo
     at = (FramePoint){ (uint16_t)(at.x + offset.x), (uint16_t)(at.y + offset.y) };
     uint8_t bits = (uint8_t)(battle_object_palette(g, slot) | battle_object_attribute_bits(g, slot));
     unsigned parts = frame_parts(g, slot), part = slot * PART_ENTRIES_PER_COMBATANT;
-    FramePoint p = { 0, 0 };
     for (unsigned n = 0; n < parts; n++, sprite++, part++) {
-        p = (FramePoint){ (uint16_t)(battle_part_offsets_x(g, part) + at.x), (uint16_t)(battle_part_offsets_y(g, part) + at.y) };
         set_oam_buffer_attributes(g, sprite, (uint8_t)((oam_buffer_attributes(g, sprite) & PART_KEEPS) | bits));
-        place_sprite(g, sprite, p.x, p.y);
+        place_sprite(g, sprite, (uint16_t)(battle_part_offsets_x(g, part) + at.x), (uint16_t)(battle_part_offsets_y(g, part) + at.y));
     }
-    ORIGINAL_EFFECT(leave_parts_cells(g, slot, at, offset, bits, parts, p));
+    ORIGINAL_EFFECT(leave_parts_cells(g, slot, at, offset, bits, parts));
     return sprite;
 }
 
@@ -224,12 +225,15 @@ static void leave_effect_point_cells(GameState *g, uint8_t bits, uint16_t x, uin
     leave_effect_cell16(g, 0xCE, y);
 }
 
-static void leave_effect_sprite_cells(GameState *g, uint16_t next, uint16_t x, uint16_t y)
+/* The original leaves where in the set it came to, its count run out, and
+ * the last sprite's point. */
+static void leave_effect_sprite_cells(GameState *g, uint16_t from, unsigned sprites, uint16_t x, uint16_t y)
 {
-    leave_effect_cell16(g, 0xC6, next);
+    uint16_t last = (uint16_t)(from + (sprites - 1) * SPRITE_BYTES);
+    leave_effect_cell16(g, 0xC6, (uint16_t)(last + SPRITE_BYTES));
     leave_effect_cell16(g, 0xC8, 0);
-    leave_effect_cell16(g, 0xCA, x);
-    leave_effect_cell16(g, 0xD0, y);
+    leave_effect_cell16(g, 0xCA, (uint16_t)(battle_effect_sprite_data(g, last) + x));
+    leave_effect_cell16(g, 0xD0, (uint16_t)(battle_effect_sprite_data(g, last + 1u) + y));
 }
 
 // $CF:EEEB
@@ -247,15 +251,13 @@ static unsigned draw_effect(GameState *g, unsigned record, unsigned sprite)
     uint8_t set = battle_effect_sprite_set(g, effect) & SET_OF_EFFECT;
     unsigned counted = battle_bitmap_counts(g, set) & SET_OF_EFFECT;
     unsigned sprites = counted ? counted : 256;
-    uint16_t from = battle_effect_sprite_set_start(g, set), sx = 0, sy = 0;
+    uint16_t first = battle_effect_sprite_set_start(g, set), from = first;
     for (unsigned n = 0; n < sprites; n++, from = (uint16_t)(from + SPRITE_BYTES)) {
-        sx = (uint16_t)(battle_effect_sprite_data(g, from) + x);
-        sy = (uint16_t)(battle_effect_sprite_data(g, from + 1u) + y);
         set_oam_buffer_tile(g, sprite + n, battle_effect_sprite_data(g, from + 2u));
         set_oam_buffer_attributes(g, sprite + n, (uint8_t)((battle_effect_sprite_data(g, from + 3u) & EFFECT_SPRITE_KEEPS) | bits));
-        place_sprite(g, sprite + n, sx, sy);
+        place_sprite(g, sprite + n, (uint16_t)(battle_effect_sprite_data(g, from) + x), (uint16_t)(battle_effect_sprite_data(g, from + 1u) + y));
     }
-    ORIGINAL_EFFECT(leave_effect_sprite_cells(g, from, sx, sy));
+    ORIGINAL_EFFECT(leave_effect_sprite_cells(g, first, sprites, x, y));
     return sprite + counted;
 }
 
@@ -551,10 +553,10 @@ static unsigned draw_with_effects(Snes *s, unsigned slot, unsigned sprite, uint8
 /* What the pass leaves in its cells: the entry it stopped at (the list's
  * end), the last combatant it came to, the parts of the last whose frame it
  * drew, and the next free sprite. */
-static void leave_pass_cells(GameState *g, unsigned end, unsigned last_slot, uint8_t last_parts, unsigned sprite)
+static void leave_pass_cells(GameState *g, const DrawList *list, uint8_t last_parts, unsigned sprite)
 {
-    set_battle_draw_list_position(g, (uint16_t)end);
-    set_battle_draw_object(g, (uint16_t)battle_object_of(last_slot));
+    set_battle_draw_list_position(g, (uint16_t)list->count);
+    set_battle_draw_object(g, (uint16_t)battle_object_of(list->entry[list->count - 1].slot));
     set_battle_draw_part_count(g, last_parts);
     set_battle_oam_next(g, (uint16_t)(sprite * SPRITE_BYTES));
 }
@@ -573,11 +575,11 @@ static void draw_objects(Snes *s)
     GameState *g = state_of(s);
     DrawList list = build_draw_list(g);
     bool drawn_early[BATTLE_COMBATANTS] = { false };
-    unsigned sprite = FIRST_FREE_SPRITE, slot = 0;
+    unsigned sprite = FIRST_FREE_SPRITE;
     uint8_t last_parts = 0;
     for (unsigned i = 0; i < list.count; i++) {
         DrawEntry e = list.entry[i];
-        slot = e.slot;
+        unsigned slot = e.slot;
         uint8_t parts = battle_object_part_count(g, battle_object_of(slot));
         bool shadow = true;
         if (!drawn_early[slot] && parts != 0) {
@@ -593,7 +595,7 @@ static void draw_objects(Snes *s)
         if (battle_effects_running(g) && e.own && battle_trail_on(g, slot))
             NATIVE_TIME_AS(s, DRAW_AFTERIMAGES, sprite = draw_afterimages(s, slot, sprite, last_parts));
     }
-    ORIGINAL_EFFECT(leave_pass_cells(g, list.count, slot, last_parts, sprite));
+    ORIGINAL_EFFECT(leave_pass_cells(g, &list, last_parts, sprite));
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
