@@ -1,332 +1,310 @@
-/* Battle: the NMI and IRQ handlers.
+/* Battle: the vblank and line handlers.
  *
- * The vblank handler starts the frame's display work: it blanks the screen,
- * runs the per-frame work for the battle mode and, unless the battle is
- * paused, $C0:0002 and the frame count, then takes the Start button's pause
- * and the debug frame advance. The line handler, at line 211,
- * blanks the screen for the rest of the frame and, on alternate frames,
- * applies the alternating-frame setting or runs the tile animation uploads.
- * Both save the registers on the stack, which stays live across the routines
- * they call out to, and both keep the hardware multiplier's or divider's
- * operands for the code they interrupted.
+ * The vblank handler starts each frame's display work: it blanks the screen
+ * for the uploads, runs the frame work for the battle's mode and, unless the
+ * battle is paused, the game's per-frame work and the frame count; then it
+ * takes the Start button's pause and the debug frame advance. The line
+ * handler, at the line the battle sets for it, blanks the rest of the frame
+ * and, on alternate frames, applies the alternating-frame setting or runs the
+ * tile animation uploads.
  *
- * Each handler's work is C; what it does to the original's registers is in
- * the entry functions, which save and restore them. The handlers run with the
- * battle page ($0000); the code they call leaves the data bank at $7E, which
- * they rely on, and a call that doesn't hands the rest back to the original. */
+ * What each handler does to the game is C on the game's state. The entries
+ * save and restore the interrupted code's registers around it, and with them
+ * the scratch at the bottom of the direct page the frame work reuses and the
+ * multiplier's or divider's operands the interrupted code may be relying on:
+ * that is the interrupted code's context, not the battle's, so it lives in the
+ * entries. The handlers run on the battle's page; the code they call leaves
+ * the data bank at $7E, which they rely on, and a call that doesn't hands the
+ * rest back to the original. */
+#include "battle/battle.h"
+#include "battle/bridge.h"
 #include "battle/entries.h"
-
-#include "battle/screen_data.h"
+#include "cpu_io.h"
+#include "original_effects.h"
+#include "rom.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
-#include "port/machine.h"
-#include "ram.h"
+#include "vars.h"
 
-enum {
-    SAVED_DIRECT_PAGE_BYTES = 43,
-    BUTTON_START = 0x10,   /* in the high byte of the joypad word */
-    BUTTON_R = 0x10,       /* in the low byte */
-    BUTTON_L = 0x20,
-    FLAG_NO_PAUSE = 0x20,  /* battle_setup_flags_copy */
-    MODE_FIGHT = 1,        /* the battle mode Start pauses in */
-};
+/* The Start button in the joypad's high byte; R and L in its low byte. */
+enum { BUTTON_START = 0x10, BUTTON_R = 0x10, BUTTON_L = 0x20 };
 
-/* ---- The machine at the handlers' edges -------------------------------------------- */
+/* The battle's setup can forbid the pause; it is taken only in the fight. */
+enum { SETUP_NO_PAUSE = 0x20, MODE_FIGHT = 1 };
 
-/* REP #$30 : PHA : PHX : PHY : PHB : PHD */
-static void save_registers(Snes *s)
+/* The debug frame advance is on where a byte of the ROM says so; it is 0 in
+ * the released game. */
+enum { DEBUG_FRAME_ADVANCE = 0xCD3FFF };
+static bool frame_advance_on(const GameState *g) { return rom_read8(g, DEBUG_FRAME_ADVANCE) != 0; }
+
+/* ---- The frame -------------------------------------------------------------------------- */
+
+/* The per-line effects take their values from word pairs; each frame the
+ * first pair of each group of four is latched into the second, so the lines
+ * after a split see this frame's values. */
+static void latch_split_lines(GameState *g)
 {
-    Cpu *c = &s->cpu;
-    c->p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG_X);
-    m_push16(s, c->a);
-    m_push16(s, c->x);
-    m_push16(s, c->y);
-    m_push8(s, c->db);
-    m_push16(s, c->d);
+    static const uint8_t latched[4] = { 0, 1, 4, 5 };
+    for (unsigned i = 0; i < 4; i++)
+        set_battle_split_line_values(g, latched[i] + 2u, battle_split_line_values(g, latched[i]));
 }
 
-/* REP #$30 : PLD : PLB : PLY : PLX : PLA : RTI */
-static void restore_registers_and_return(Snes *s)
+/* The frame count, and the timed battle message's countdown: when it runs out
+ * the message closes (one opened by id is forgotten, so it can show again),
+ * and the line handler applies the alternating-frame setting anew. */
+static void count_frame(GameState *g)
 {
-    Cpu *c = &s->cpu;
-    c->p &= (uint8_t)~(CPU_FLAG_M | CPU_FLAG_X);
-    c->d = m_pull16(s);
-    c->db = m_pull8(s);
-    c->y = m_pull16(s);
-    c->x = m_pull16(s);
-    c->a = m_pull16(s);
-    m_rti(s);
+    set_battle_frame_count(g, (uint16_t)(battle_frame_count(g) + 1));
+    if (!battle_message_timed(g))
+        return;
+    uint8_t left = (uint8_t)(battle_message_frames(g) - 1);
+    set_battle_message_frames(g, left);
+    if (left != 0)
+        return;
+    if (battle_message_by_id(g))
+        set_battle_message_shown(g, 0xFF);
+    set_battle_message_by_id(g, 0);
+    set_battle_vram_copy_mode(g, 0);
+    set_battle_message_timed(g, 0);
+    set_battle_alternate_apply(g, (uint8_t)(battle_alternate_apply(g) + 1));
 }
 
-static bool widths_m8_x16(const Snes *s) { return !s->cpu.e && (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) == CPU_FLAG_M; }
-
-/* After a call-out: false when the callee came back without 8-bit A, 16-bit
- * index registers and the data bank at $7E, which the rest relies on; the
- * machine is then at the return address, and the original carries on. */
-static bool came_back(const Snes *s) { return widths_m8_x16(s) && s->cpu.db == 0x7E; }
-
-/* The direct page's first 43 bytes, which the frame work uses as scratch,
- * saved around it with MVN. It leaves the block move's end pointers and a
- * count of $FFFF in the registers. */
-static void move_direct_page(Snes *s, uint16_t from, uint16_t to)
+static bool pause_allowed(const GameState *g)
 {
-    for (uint16_t i = 0; i < SAVED_DIRECT_PAGE_BYTES; i++)
-        m_write8(s, 0x7E0000u + (uint16_t)(to + i), m_read8(s, 0x7E0000u + (uint16_t)(from + i)));
-    s->cpu.x = (uint16_t)(from + SAVED_DIRECT_PAGE_BYTES);
-    s->cpu.y = (uint16_t)(to + SAVED_DIRECT_PAGE_BYTES);
-    s->cpu.a = 0xFFFF;
-    s->cpu.db = 0x7E;
+    return battle_mode(g) == MODE_FIGHT && !(battle_setup_flags_copy(g) & SETUP_NO_PAUSE) && !battle_pause_blocked(g);
 }
+
+/* Start pauses and unpauses the fight, once per press. Where the pause isn't
+ * allowed (outside the fight, or forbidden) the fight runs on. */
+static void take_pause(GameState *g, Platform *pf)
+{
+    if (battle_mode(g) == MODE_FIGHT && !pause_allowed(g))
+        set_battle_paused(g, 0);
+    else if (pause_allowed(g) && (in_read_high(pf, PF_AT(0xD1E81E), 0) & BUTTON_START)) {
+        if (!battle_pause_held(g)) {
+            set_battle_paused(g, (uint8_t)((battle_paused(g) + 1) & 0x01));
+            set_battle_pause_held(g, 1);
+        }
+        return;
+    }
+    set_battle_pause_held(g, 0);
+}
+
+/* The debug frame advance, where the ROM turns it on: R ends the pause, and
+ * while Start holds it, every fourth frame runs if L is held. */
+static void take_frame_advance(GameState *g, Platform *pf)
+{
+    if (!frame_advance_on(g))
+        return;
+    if (in_read_low(pf, PF_AT(0xD1E84B), 0) & BUTTON_R) {
+        set_battle_paused(g, 0);
+        set_battle_pause_held(g, 0);
+        return;
+    }
+    if (!battle_pause_held(g))
+        return;
+    uint8_t count = (uint8_t)(battle_frame_advance_count(g) + 1);
+    set_battle_frame_advance_count(g, count);
+    bool runs = (count & 0x03) == 0 && (in_read_low(pf, PF_AT(0xD1E86A), 0) & BUTTON_L);
+    set_battle_paused(g, (count & 0x03) ? (count & 0x03) : !runs);
+}
+
+/* ---- The interrupted code's context --------------------------------------------------------- */
 
 // $D1:FE71
-/* Put the operands of the hardware divider (while the main code has it busy)
- * or multiplier back, redoing the operation this handler's own arithmetic
- * clobbered. */
-static void restore_math_operands(Snes *s)
+/* The multiplier's or divider's operands, set again after the handler's own
+ * callees used it: the divider's while the interrupted code has it busy,
+ * otherwise the multiplier's. */
+static void restore_math_operands(GameState *g)
 {
-    if (m_read8(s, RAM_BATTLE_DIVIDER_BUSY)) {
-        m_write8(s, 0x004204, m_read8(s, RAM_BATTLE_DIVIDER_OPERANDS));
-        m_write8(s, 0x004205, m_read8(s, RAM_BATTLE_DIVIDER_OPERANDS + 1));
-        m_write8(s, 0x004206, m_read8(s, RAM_BATTLE_DIVIDER_OPERANDS + 2));
+    if (battle_divider_busy(g)) {
+        hw_set_dividend(g, (uint16_t)(battle_divider_operands(g, 0) | battle_divider_operands(g, 1) << 8));
+        hw_divide_by(g, battle_divider_operands(g, 2));
     } else {
-        m_write8(s, 0x004202, m_read8(s, RAM_BATTLE_MULTIPLIER_OPERANDS));
-        m_write8(s, 0x004203, m_read8(s, RAM_BATTLE_MULTIPLIER_OPERANDS + 1));
+        hw_set_multiplicand(g, battle_multiplier_operands(g, 0));
+        (void)hw_multiply_by(g, battle_multiplier_operands(g, 1));
     }
 }
 
+static uint8_t last_math_operand(const GameState *g)
+{
+    return battle_divider_busy(g) ? battle_divider_operands(g, 2) : battle_multiplier_operands(g, 1);
+}
+
+/* The direct page's bottom bytes, which the frame work uses as scratch, are
+ * moved aside around it. */
+enum { SCRATCH_BYTES = 43, SCRATCH_ASIDE = 0xCC65 };
+
+static bool came_back(const Snes *s) { return battle_widths_m8_x16(s) && s->cpu.db == BATTLE_DATA_BANK; }
+
+/* ---- The vblank handler ----------------------------------------------------------------- */
+
+/* The frame work for the battle's mode reads A's high byte and Y (the block
+ * move's end); the game's per-frame work reads nothing. */
+enum { FRAME_WORK = 0xCD0C95, GAME_FRAME = 0xCD0C89 };
+
+// $D1:E77C
+/* The battle's vblank handler. Unless the last one is still running: the
+ * line values latched, the screen blanked for the uploads, the frame work, and
+ * unless paused the game's per-frame work and the frame count; then pause and
+ * frame advance, and the battle's waits for the frame are released. */
+void battle_nmi(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    m_save_interrupted_registers_bank_first(s);
+    s->cpu.d = BATTLE_PAGE;
+    s->cpu.a = 0;
+    m_sep(s, CPU_FLAG_M);
+    vid_enable_line_effects(pf, PF_AT(0xD1E78A), 0);
+    tm_ack_vblank(pf, PF_AT(0xD1E78E));
+    tm_enable_interrupts(pf, PF_AT(0xD1E794), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
+    if (battle_interrupt_busy(g)) {
+        m_return_to_interrupted_bank_first(s);
+        return;
+    }
+    set_battle_interrupt_busy(g, (uint8_t)(battle_interrupt_busy(g) + 1));
+    m_block_move(s, BATTLE_DATA_BANK, SCRATCH_ASIDE, BATTLE_DATA_BANK, BATTLE_PAGE, SCRATCH_BYTES);
+    latch_split_lines(g);
+
+    s->cpu.db = 0x00;
+    vid_enable_line_effects(pf, PF_AT(0xD1E7CC), 0);
+    tm_reset_beam_latch(pf, PF_AT(0xD1E7CF));
+    vid_set_display(pf, PF_AT(0xD1E7D4), &(VidDisplay){ .blank = true });
+    vid_begin_vram_uploads(pf, PF_AT(0xD1E7D7), VID_VRAM_WORD_PORT, PF_GAME(0), NULL);
+    s->cpu.a = 0x0080;
+    m_jsl_dc(s, 0xD1E7DA, FRAME_WORK, DC_X | DC_N | DC_Z | DC_C);
+    if (!came_back(s))
+        return;
+    if (!battle_paused(g)) {
+        m_jsl_dc(s, 0xD1E7E3, GAME_FRAME, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
+        if (!came_back(s))
+            return;
+        count_frame(g);
+    }
+    take_pause(g, pf);
+    ORIGINAL_EFFECT(restore_math_operands(g));
+    take_frame_advance(g, pf);
+
+    m_block_move(s, BATTLE_DATA_BANK, BATTLE_PAGE, BATTLE_DATA_BANK, SCRATCH_ASIDE, SCRATCH_BYTES);
+    set_battle_interrupt_busy(g, 0);
+    set_battle_nmi_pending(g, 0);
+    m_return_to_interrupted_bank_first(s);
+}
+
+/* It leaves A 8-bit, the last operand it set. */
 void battle_restore_math_operands(Snes *s)
 {
-    uint8_t last = m_read8(s, m_read8(s, RAM_BATTLE_DIVIDER_BUSY) ? RAM_BATTLE_DIVIDER_OPERANDS + 2
-                                                                     : RAM_BATTLE_MULTIPLIER_OPERANDS + 1);
-    restore_math_operands(s);
+    GameState *g = state_of(s);
+    uint8_t last = last_math_operand(g);
+    ORIGINAL_EFFECT(restore_math_operands(g));
     m_set_a8(s, last);
     m_set_nz8(s, last);
     m_rtl(s);
 }
 
-/* ---- The vblank handler ------------------------------------------------------------- */
+/* ---- The line handler ------------------------------------------------------------------- */
 
-/* The frame count, and the timed battle message's countdown: when it runs out
- * the message closes (and one opened by id is forgotten, so it can show
- * again), and the IRQ applies the alternating-frame setting anew. */
-static void count_frame(Snes *s)
+/* The alternating-frame setting, applied by $CE:EE6E: its base plus the
+ * request, offset by the VRAM copy mode. */
+enum { APPLY_ALTERNATE = 0xCEEE6E, TILE_ANIMATION_UPLOADS = 0xFDFFFD };
+
+/* Whether the alternating-frame setting must be applied: the request changed
+ * (and is latched), or an application was asked for. */
+static bool alternate_wanted(GameState *g)
 {
-    m_write16(s, RAM_BATTLE_FRAME_COUNT, (uint16_t)(m_read16(s, RAM_BATTLE_FRAME_COUNT) + 1));
-    if (!m_read8(s, RAM_BATTLE_MESSAGE_TIMED))
-        return;
-    uint8_t left = (uint8_t)(m_read8(s, RAM_BATTLE_MESSAGE_FRAMES) - 1);
-    m_write8(s, RAM_BATTLE_MESSAGE_FRAMES, left);
-    if (left != 0)
-        return;
-    if (m_read8(s, RAM_BATTLE_MESSAGE_BY_ID))
-        m_write8(s, RAM_BATTLE_MESSAGE_SHOWN, 0xFF);
-    m_write8(s, RAM_BATTLE_MESSAGE_BY_ID, 0);
-    m_write8(s, RAM_BATTLE_VRAM_COPY_MODE, 0);
-    m_write8(s, RAM_BATTLE_MESSAGE_TIMED, 0);
-    m_write8(s, RAM_BATTLE_ALTERNATE_APPLY, (uint8_t)(m_read8(s, RAM_BATTLE_ALTERNATE_APPLY) + 1));
+    uint8_t request = battle_alternate_request(g);
+    if (request != battle_alternate_latched(g)) {
+        set_battle_alternate_latched(g, request);
+        return true;
+    }
+    return battle_alternate_apply(g) != 0;
 }
-
-/* Start pauses and unpauses the fight (once per press), unless pausing is
- * blocked or the battle is a demo. */
-static void take_pause(Snes *s, uint8_t buttons_high)
-{
-    if (m_read8(s, RAM_BATTLE_MODE) == MODE_FIGHT) {
-        if ((m_read8(s, RAM_BATTLE_SETUP_FLAGS_COPY) & FLAG_NO_PAUSE) || m_read8(s, RAM_BATTLE_PAUSE_BLOCKED)) {
-            m_write8(s, RAM_BATTLE_PAUSED, 0);
-        } else if (buttons_high & BUTTON_START) {
-            if (!m_read8(s, RAM_BATTLE_PAUSE_HELD)) {
-                m_write8(s, RAM_BATTLE_PAUSED, (uint8_t)((m_read8(s, RAM_BATTLE_PAUSED) + 1) & 0x01));
-                m_write8(s, RAM_BATTLE_PAUSE_HELD, 1);
-            }
-            return;
-        }
-    }
-    m_write8(s, RAM_BATTLE_PAUSE_HELD, 0);
-}
-
-/* The debug frame advance, where the ROM enables it: R ends the pause; while
- * paused by Start, the frame count's every fourth frame runs if L is held. */
-static void take_frame_advance(Snes *s, uint8_t buttons_low_at_r, Platform *pf)
-{
-    if (!battle_frame_advance_enabled(s))
-        return;
-    if (buttons_low_at_r & BUTTON_R) {
-        m_write8(s, RAM_BATTLE_PAUSED, 0);
-        m_write8(s, RAM_BATTLE_PAUSE_HELD, 0);
-        return;
-    }
-    if (!m_read8(s, RAM_BATTLE_PAUSE_HELD))
-        return;
-    uint8_t count = (uint8_t)(m_read8(s, RAM_BATTLE_FRAME_ADVANCE_COUNT) + 1);
-    m_write8(s, RAM_BATTLE_FRAME_ADVANCE_COUNT, count);
-    uint8_t paused = count & 0x03;
-    if (paused == 0)
-        paused = (uint8_t)(((in_read_low(pf, PF_AT(0xD1E86A), 0) & BUTTON_L) ^ BUTTON_L) >> 5);
-    m_write8(s, RAM_BATTLE_PAUSED, paused);
-}
-
-// $D1:E77C
-/* The battle's vblank handler (the JML at $0500 points here). Unless the last
- * one is still running, it saves the direct page's scratch around its work:
- * the line values' second copies, forced blank for the uploads, the frame
- * work for the battle mode ($CD:0C95) and, unless paused, $C0:0002 (through
- * $CD:0C89), the frame count and the message countdown; then pause and frame
- * advance, and it releases the battle's wait loops. */
-void battle_nmi(Snes *s)
-{
-    Cpu *c = &s->cpu;
-    Platform *pf = m_platform(s);
-    save_registers(s);
-    c->d = 0x0000;
-    c->a = 0x0000;
-    c->p |= CPU_FLAG_M;
-    vid_enable_line_effects(pf, PF_AT(0xD1E78A), 0);
-    tm_ack_vblank(pf, PF_AT(0xD1E78E));
-    tm_enable_interrupts(pf, PF_AT(0xD1E794), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
-    if (m_read8(s, RAM_BATTLE_INTERRUPT_BUSY)) {
-        restore_registers_and_return(s);
-        return;
-    }
-    m_write8(s, RAM_BATTLE_INTERRUPT_BUSY, (uint8_t)(m_read8(s, RAM_BATTLE_INTERRUPT_BUSY) + 1));
-
-    move_direct_page(s, 0x0000, RAM_ABS(RAM_BATTLE_SAVED_DIRECT_PAGE));
-    for (int i = 0; i < 4; i++) {
-        static const uint8_t pairs[4] = { 0x0, 0x2, 0x8, 0xA };
-        uint32_t from = RAM_BATTLE_SPLIT_LINE_VALUES + pairs[i];
-        m_write16(s, from + 4, m_read16(s, from));
-    }
-    c->db = 0x00;
-    vid_enable_line_effects(pf, PF_AT(0xD1E7CC), 0);
-    tm_reset_beam_latch(pf, PF_AT(0xD1E7CF));
-    vid_set_display(pf, PF_AT(0xD1E7D4), &(VidDisplay){ .blank = true });
-    vid_begin_vram_uploads(pf, PF_AT(0xD1E7D7), VID_VRAM_WORD_PORT, PF_GAME(0), NULL);
-
-    /* A is $80 (the display byte) for the frame work, which reads its high
-     * byte and Y, the block move's end */
-    c->a = 0x0080;
-    c->p |= CPU_FLAG_M;
-    m_jsl_dc(s, 0xD1E7DA, 0xCD0C95, DC_X | DC_N | DC_Z | DC_C);
-    if (!came_back(s))
-        return;
-    if (!m_read8(s, RAM_BATTLE_PAUSED)) {
-        m_jsl_dc(s, 0xD1E7E3, 0xCD0C89, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
-        if (!came_back(s))
-            return;
-        count_frame(s);
-    }
-
-    /* the joypad bytes are read where the original reads them */
-    uint8_t high = 0;
-    if (m_read8(s, RAM_BATTLE_MODE) == MODE_FIGHT
-        && !(m_read8(s, RAM_BATTLE_SETUP_FLAGS_COPY) & FLAG_NO_PAUSE) && !m_read8(s, RAM_BATTLE_PAUSE_BLOCKED))
-        high = in_read_high(pf, PF_AT(0xD1E81E), 0);
-    take_pause(s, high);
-    restore_math_operands(s);
-    uint8_t low = battle_frame_advance_enabled(s) ? in_read_low(pf, PF_AT(0xD1E84B), 0) : 0;
-    take_frame_advance(s, low, pf);
-
-    move_direct_page(s, RAM_ABS(RAM_BATTLE_SAVED_DIRECT_PAGE), 0x0000);
-    m_write8(s, RAM_BATTLE_INTERRUPT_BUSY, 0);
-    m_write8(s, RAM_BATTLE_NMI_PENDING, 0);
-    restore_registers_and_return(s);
-}
-
-/* ---- The line handler --------------------------------------------------------------- */
 
 // $D1:FE4C
-/* On the IRQ's even frames: when the alternating-frame request changed, or a
- * new application is asked for, apply it ($CE:EE6E, with the setting's base
- * plus the request and the VRAM copy mode) and clear the ask. */
-void battle_irq_update_ca22(Snes *s)
+/* On the line handler's even frames: apply the alternating-frame setting when
+ * it is wanted, and clear the ask. The setting is handed over with the carry
+ * and overflow of its sum, which the callee carries back to our caller; with
+ * nothing to apply, A is the ask (0) and the carry that of the compare. */
+void battle_apply_alternate_frame(Snes *s)
 {
-    uint8_t request = m_read8(s, RAM_BATTLE_ALTERNATE_REQUEST);
-    if (request != m_read8(s, RAM_BATTLE_ALTERNATE_LATCHED)) {
-        m_write8(s, RAM_BATTLE_ALTERNATE_LATCHED, request);
-    } else if (!m_read8(s, RAM_BATTLE_ALTERNATE_APPLY)) {
-        /* what the original leaves: A the ask, the carry of the equal compare */
+    GameState *g = state_of(s);
+    if (!alternate_wanted(g)) {
         m_set_a8(s, 0);
         m_set_nz8(s, 0);
         m_set_flag(s, CPU_FLAG_C, true);
         m_rts(s);
         return;
     }
-    /* CLC : ADC twice; the callee takes the second's overflow, and the carry
-     * comes back through it to the caller */
-    uint8_t partial = (uint8_t)(m_read8(s, RAM_BATTLE_ALTERNATE_BASE) + m_read8(s, RAM_BATTLE_ALTERNATE_LATCHED));
-    uint8_t mode = m_read8(s, RAM_BATTLE_VRAM_COPY_MODE);
-    uint16_t sum = (uint16_t)(partial + mode);
+    uint8_t setting = (uint8_t)(battle_alternate_base(g) + battle_alternate_latched(g));
+    uint8_t mode = battle_vram_copy_mode(g);
+    uint16_t sum = (uint16_t)(setting + mode);
     m_set_a8(s, (uint8_t)sum);
     m_set_flag(s, CPU_FLAG_C, sum > 0xFF);
-    m_set_flag(s, CPU_FLAG_V, (~(partial ^ mode) & (partial ^ sum) & 0x80) != 0);
-    m_jsl_dc(s, 0xD1FE69, 0xCEEE6E, DC_X | DC_Y | DC_N | DC_Z);
-    if (!widths_m8_x16(s))
+    m_set_flag(s, CPU_FLAG_V, (~(setting ^ mode) & (setting ^ sum) & 0x80) != 0);
+    m_jsl_dc(s, 0xD1FE69, APPLY_ALTERNATE, DC_X | DC_Y | DC_N | DC_Z);
+    if (!battle_widths_m8_x16(s))
         return;
-    m_write8(s, RAM_BATTLE_ALTERNATE_APPLY, 0);
+    set_battle_alternate_apply(g, 0);
     m_rts(s);
 }
 
 // $D1:FE97
-/* The battle's line handler (the JML at $0504), up to its wait for hblank:
- * save the registers, mark the handler busy, acknowledge the IRQ, keep NMI
- * and auto-joypad on, and turn the line effects off. Continues at the wait,
- * $D1:FEB8, an idle entry. */
+/* The battle's line handler, up to its wait for hblank: the handler marked
+ * busy, the line interrupt acknowledged (NMI and auto-joypad kept on), and the
+ * line effects off. It stops at the wait, $D1:FEB8, an idle entry, with A 0
+ * and Z set as the wait's first test leaves them. */
 void battle_irq(Snes *s)
 {
-    Cpu *c = &s->cpu;
+    GameState *g = state_of(s);
     Platform *pf = m_platform(s);
-    save_registers(s);
-    c->d = 0x0000;
-    c->p |= CPU_FLAG_M;
-    m_write8(s, RAM_BATTLE_INTERRUPT_BUSY, (uint8_t)(m_read8(s, RAM_BATTLE_INTERRUPT_BUSY) + 1));
+    m_save_interrupted_registers_bank_first(s);
+    s->cpu.d = BATTLE_PAGE;
+    m_sep(s, CPU_FLAG_M);
+    set_battle_interrupt_busy(g, (uint8_t)(battle_interrupt_busy(g) + 1));
     tm_ack_line_irq(pf, PF_AT(0xD1FEA8));
     tm_enable_interrupts(pf, PF_AT(0xD1FEAE), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
-    c->db = 0x00;
+    s->cpu.db = 0x00;
     vid_enable_line_effects(pf, PF_AT(0xD1FEB5), 0);
-    /* the wait loads A and tests it; the original has A 0 and Z set there */
-    c->a = 0x0000;
+    s->cpu.a = 0;
     m_set_nz8(s, 0);
     m_stop_at(s, 0xD1FEB8, 0);
 }
 
 // $D1:FEBF
-/* The rest of the line handler, from hblank: forced blank for the rest of
- * the frame, then on even frames the alternating-frame setting ($D1:FE4C,
- * data bank $7E) and on odd ones, unless paused, the tile animation uploads
- * ($FD:FFFD); the math operands back, and return. The line is the one the
- * battle set for the handler, which is when the write lands. */
+/* The rest of the line handler, from hblank: the rest of the frame blanked,
+ * then on even frames the alternating-frame setting (on the data bank $7E,
+ * which an 8-bit load puts in A's low byte) and on odd ones, unless paused,
+ * the tile animation uploads, which run under the flags of the pause's test,
+ * pushed; then the math operands back, and return. */
 void battle_irq_after_hblank(Snes *s)
 {
-    Cpu *c = &s->cpu;
+    GameState *g = state_of(s);
     vid_raster_display(m_platform(s), PF_AT(0xD1FEC1), VID_AT_LINE_HANDLER, &(VidDisplay){ .blank = true });
-    if (!(m_read8(s, RAM_BATTLE_FRAME_COUNT) & 0x01)) {
-        c->db = 0x7E;
-        c->a = (uint16_t)((c->a & 0xFF00) | 0x7E); /* 8-bit LDA: the high byte stays */
+    if (!(battle_frame_count(g) & 0x01)) {
+        s->cpu.db = BATTLE_DATA_BANK;
+        m_set_a8(s, BATTLE_DATA_BANK);
         m_jsr_dc(s, 0xD1FECE, 0xD1FE4C, DC_X | DC_Y | DC_N | DC_Z | DC_C);
-        if (!widths_m8_x16(s))
+        if (!battle_widths_m8_x16(s))
             return;
-    } else if (!m_read8(s, RAM_BATTLE_PAUSED)) {
-        /* PHP : JSL $FD:FFFD : PLP -- the P byte is live under the call, with
-         * the flags of the load that tested the pause */
+    } else if (!battle_paused(g)) {
         m_set_a8(s, 0);
         m_set_nz8(s, 0);
-        m_push8(s, c->p);
-        m_jsl_dc(s, 0xD1FEDA, 0xFDFFFD, DC_A | DC_X | DC_Y | DC_N | DC_Z);
-        if (!widths_m8_x16(s))
+        m_push8(s, s->cpu.p);
+        m_jsl_dc(s, 0xD1FEDA, TILE_ANIMATION_UPLOADS, DC_A | DC_X | DC_Y | DC_N | DC_Z);
+        if (!battle_widths_m8_x16(s))
             return;
-        c->p = m_pull8(s);
-        if (c->p & CPU_FLAG_X) {
-            c->x &= 0xFF;
-            c->y &= 0xFF;
+        s->cpu.p = m_pull8(s);
+        if (s->cpu.p & CPU_FLAG_X) {
+            s->cpu.x &= 0xFF;
+            s->cpu.y &= 0xFF;
         }
     }
-    c->x = 0x0000;
-    c->d = 0x0000;
-    c->p |= CPU_FLAG_M;
-    restore_math_operands(s);
-    m_write8(s, RAM_BATTLE_INTERRUPT_BUSY, 0);
-    restore_registers_and_return(s);
+    s->cpu.x = 0;
+    s->cpu.d = BATTLE_PAGE;
+    m_sep(s, CPU_FLAG_M);
+    ORIGINAL_EFFECT(restore_math_operands(g));
+    set_battle_interrupt_busy(g, 0);
+    m_return_to_interrupted_bank_first(s);
 }
-
-
-

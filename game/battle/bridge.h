@@ -46,6 +46,10 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
  * same stop. */
 bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank);
 
+/* 8-bit A and 16-bit index registers, whatever else: what the interrupt
+ * handlers need a callee to come back with. */
+bool battle_widths_m8_x16(const Snes *s);
+
 /* ---- What the registers name -------------------------------------------------------------- */
 
 /* A combatant's stat block is $80 bytes, and an index register holding its

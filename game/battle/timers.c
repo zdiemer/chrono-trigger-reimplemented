@@ -46,6 +46,13 @@ void battle_follow_status(GameState *g, BattleTimer timer, unsigned slot, bool s
     set_timer_state(g, timer, slot, status_on ? state | TIMER_RUNNING : state);
 }
 
+void battle_restart_timer(GameState *g, BattleTimer timer, unsigned slot) { set_timer_state(g, timer, slot, TIMER_RUNNING); }
+
+bool battle_timer_run_out(const GameState *g, BattleTimer timer, unsigned slot)
+{
+    return (timer_state(g, timer, slot) & TIMER_RUN_OUT) != 0;
+}
+
 static void run_out(GameState *g, BattleTimer timer, unsigned slot)
 {
     set_timer_state(g, timer, slot, timer_state(g, timer, slot) | TIMER_RUN_OUT);
@@ -86,7 +93,7 @@ void battle_count_timers_down(GameState *g)
  * original's indexed read does. And a place past the combatants is empty
  * ($FF), whose timer is past the kind's row: that byte is read as a state
  * too. */
-static uint8_t combatant_in_order(const GameState *g, uint8_t place)
+uint8_t battle_timer_order_at(const GameState *g, uint8_t place)
 {
     return place < BATTLE_TIMER_ORDER_COUNT ? battle_timer_order(g, place) : battle_timer_order_unchecked(g, place);
 }
@@ -126,7 +133,7 @@ void battle_find_run_out_timers(GameState *g, bool look)
     for (unsigned kind = 0; kind < BATTLE_TIMER_KINDS; kind++) {
         for (;;) {
             uint8_t place = battle_timer_kind_cursors(g, kind);
-            slot = combatant_in_order(g, place);
+            slot = battle_timer_order_at(g, place);
             set_battle_timer_kind_cursors(g, kind, ++place);
             if (has_run_out(g, kind, slot)) {
                 set_battle_timer_kinds_due(g, battle_timer_kinds_due(g) | due_bit(kind));

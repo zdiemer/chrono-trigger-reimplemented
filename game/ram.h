@@ -2108,10 +2108,17 @@
 #define RAM_BATTLE_LOW_SCRATCH_COUNT 32u
 #define RAM_BATTLE_LOW_SCRATCH_STRIDE 0x01u
 #define RAM_BATTLE_LOW_SCRATCH_DP 0x00u      /* page battle */
+/* The battle slot whose turn it is (a word) [2 bytes] */
+#define RAM_BATTLE_TURN_SLOT 0x7E0022u
+#define RAM_BATTLE_TURN_SLOT_DP 0x22u        /* page battle */
 /* Set when all three party slots are out of the fight ($AEFF negative); the main loop then takes
  * the defeat exit */
 #define RAM_BATTLE_PARTY_DEFEATED 0x7E0024u
 #define RAM_BATTLE_PARTY_DEFEATED_DP 0x24u   /* page battle */
+/* Where the next random number is taken from the battle's table of them ($FD:BA61); each draw
+ * steps it on */
+#define RAM_BATTLE_RANDOM_POSITION 0x7E0026u
+#define RAM_BATTLE_RANDOM_POSITION_DP 0x26u  /* page battle */
 /* Battle main loop pass counter; the timers find and run expired entries only on passes with bit
  * 0 set */
 #define RAM_BATTLE_LOOP_COUNT 0x7E0027u
@@ -2160,6 +2167,13 @@
 /* Nonzero while the battle NMI or IRQ handler runs; an NMI arriving then returns at once */
 #define RAM_BATTLE_INTERRUPT_BUSY 0x7E007Fu
 #define RAM_BATTLE_INTERRUPT_BUSY_DP 0x7Fu   /* page battle */
+/* Direct-page cells the battle's routines work in, each routine's own; the ports keep their
+ * working state in C and leave in them what the original leaves [30 x $1 bytes, by cell
+ * ($80-$9D)] */
+#define RAM_BATTLE_WORK 0x7E0080u
+#define RAM_BATTLE_WORK_COUNT 30u
+#define RAM_BATTLE_WORK_STRIDE 0x01u
+#define RAM_BATTLE_WORK_DP 0x80u             /* page battle */
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 #define RAM_BATTLE_FRAME_PENDING 0x7E009Eu
 #define RAM_BATTLE_FRAME_PENDING_DP 0x9Eu    /* page battle */
@@ -2263,6 +2277,11 @@
 #define RAM_BATTLE_TECH_RECORDS_COST 0x7E1A83u /* MP cost for the first member ($FF or negative: none) */
 #define RAM_BATTLE_TECH_RECORDS_PARTNERS 0x7E1A84u /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
 #define RAM_BATTLE_TECH_RECORDS_PARTNER_COSTS 0x7E1A85u /* MP costs for the second and third members */
+/* Five bytes the battle keeps for each party member; the first goes back into its stat block
+ * when the battle ends [3 x $5 bytes, by party member] */
+#define RAM_BATTLE_MEMBER_CARRIED 0x7E1C48u
+#define RAM_BATTLE_MEMBER_CARRIED_COUNT 3u
+#define RAM_BATTLE_MEMBER_CARRIED_STRIDE 0x05u
 /* Long pointer to the object's graphics set, the tiles its frames are assembled from [11 x $3
  * bytes, by battle slot] */
 #define RAM_BATTLE_OBJECT_GRAPHICS 0x7E1C57u
@@ -2345,9 +2364,13 @@
 /* Groups of four sprites whose tiles are left to copy [2 bytes] */
 #define RAM_BATTLE_DRAW_TILE_GROUPS 0x7E1DCDu
 #define RAM_BATTLE_DRAW_TILE_GROUPS_DP 0xCDu /* page battle_sprites */
+/* Nonzero when the battle shares out no experience or gold */
+#define RAM_BATTLE_REWARDS_HELD 0x7E2880u
 /* Flags of the battle being started: bit 7 no running away (L+R), bit 5 a demo battle (any
  * button ends it), bit 2 the party left off the battlefield grid */
 #define RAM_BATTLE_SETUP_FLAGS 0x7E2989u
+/* battle_random_position kept between battles: taken at the start and put back at the end */
+#define RAM_BATTLE_RANDOM_KEPT 0x7E29ADu
 /* Where the party members stand at the start of the battle [3 x $5 bytes, by party slot] */
 #define RAM_BATTLE_PARTY_PLACEMENT 0x7E29B0u
 #define RAM_BATTLE_PARTY_PLACEMENT_COUNT 3u
@@ -2437,6 +2460,7 @@
 #define RAM_BATTLE_STATS_MAX_MP 0x7E5E36u    /* Maximum MP */
 #define RAM_BATTLE_STATS_CONDITION 0x7E5E4Au /* Bit 7 set while the combatant is knocked out ($5E4A for slot 0) */
 #define RAM_BATTLE_STATS_STATUS 0x7E5E4Bu    /* The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its timed statuses' bits, which its status timers follow, and the bits the pose table tests */
+#define RAM_BATTLE_STATS_CARRIED 0x7E5E56u   /* A byte the battle carries over from the member's record (battle_member_carried) when it ends ($5E56 for slot 0) */
 #define RAM_BATTLE_STATS_STATUS_KEPT 0x7E5E52u /* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes' bits ($5E52-$5E53 for slot 0) */
 /* The battlefield grid as built at setup, from ROM rows and the $2A23/$2B23 cell bits [256 x $1
  * bytes, by cell (Y tile * 16 + X tile)] */
@@ -2491,6 +2515,7 @@
 #define RAM_BATTLE_MEMBER_ACTIONS 0x7E93EEu
 #define RAM_BATTLE_MEMBER_ACTIONS_COUNT 3u
 #define RAM_BATTLE_MEMBER_ACTIONS_STRIDE 0x07u
+#define RAM_BATTLE_MEMBER_ACTIONS_STATE 0x7E93EEu /* Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an action chosen */
 #define RAM_BATTLE_MEMBER_ACTIONS_PARTNERS 0x7E93F3u /* Combination tech pairing: a partner's party slot in each nibble ($F: none) */
 /* The party members' names (five characters each), before conversion to tiles [3 x $5 bytes, by
  * party slot] */
@@ -2679,6 +2704,11 @@
 #define RAM_BATTLE_ORBIT_COUNTDOWN 0x7E9819u
 #define RAM_BATTLE_ORBIT_COUNTDOWN_COUNT 8u
 #define RAM_BATTLE_ORBIT_COUNTDOWN_STRIDE 0x01u
+/* Set to have the enemy take its turn whatever animation it shows [8 x $1 bytes, by enemy
+ * (battle slot - 3)] */
+#define RAM_BATTLE_ENEMY_ACTS_ANYWAY 0x7E9829u
+#define RAM_BATTLE_ENEMY_ACTS_ANYWAY_COUNT 8u
+#define RAM_BATTLE_ENEMY_ACTS_ANYWAY_STRIDE 0x01u
 /* Each enemy's number (its entry in the enemy tables at $E4:F600 and $CC:6500) [8 x $2 bytes, by
  * enemy] */
 #define RAM_BATTLE_ENEMY_NUMBERS 0x7E9853u
@@ -2774,11 +2804,21 @@
 /* The rotated background colors: the palette in the high nibble from the color in the low one,
  * and color 1-15 of every palette after it */
 #define RAM_BATTLE_BACKGROUND_CYCLE 0x7E99D3u
+/* The party members whose chosen actions wait to be carried out, in order ($FF past them) [3 x
+ * $1 bytes, by place] */
+#define RAM_BATTLE_ACTION_QUEUE 0x7E99D4u
+#define RAM_BATTLE_ACTION_QUEUE_COUNT 3u
+#define RAM_BATTLE_ACTION_QUEUE_STRIDE 0x01u
+/* How many actions battle_action_queue holds */
+#define RAM_BATTLE_ACTION_QUEUE_LENGTH 0x7E99D8u
 /* Party member's remaining wait before it can act (copied from its timer counter each pass); its
  * gauge shows the part that has passed, highlighted while nonzero [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_GAUGE_WAIT 0x7E99DDu
 #define RAM_BATTLE_GAUGE_WAIT_COUNT 3u
 #define RAM_BATTLE_GAUGE_WAIT_STRIDE 0x01u
+/* Nonzero while the combatants' timers are held: a pass only drops the actions of members that
+ * can't act */
+#define RAM_BATTLE_TIMERS_HELD 0x7E99E0u
 /* Set to upload the window frames tilemap ($0B40) at the next vblank */
 #define RAM_BATTLE_FRAMES_UPLOAD_REQUEST 0x7E99E2u
 /* (tile, attribute) pairs the tech page's list is laid out in and copied from into the menu
@@ -2895,6 +2935,8 @@
 #define RAM_BATTLE_OBJECT_POSE_SHOWN 0x7EA103u
 #define RAM_BATTLE_OBJECT_POSE_SHOWN_COUNT 3u
 #define RAM_BATTLE_OBJECT_POSE_SHOWN_STRIDE 0x01u
+/* Set while the party's defeat plays out, before the defeat's own step */
+#define RAM_BATTLE_DEFEAT_SHOWING 0x7EA10Eu
 /* Nonzero while the member being drawn is at 0 HP or low HP on a blink frame: its digits get
  * attribute $2D */
 #define RAM_BATTLE_DIGIT_HIGHLIGHT 0x7EA10Fu
@@ -3145,6 +3187,8 @@
 #define RAM_BATTLE_PATH 0x7EA517u
 #define RAM_BATTLE_PATH_COUNT 11u
 #define RAM_BATTLE_PATH_STRIDE 0x01u
+/* $FF once every enemy that must be beaten is out */
+#define RAM_BATTLE_WON 0x7EA5A9u
 /* The angle the spiral last used, which the flicker reuses [19 x $1 bytes, by effect slot (0-10
  * the combatants', 11-18 the anchors')] */
 #define RAM_BATTLE_EFFECT_ANGLE_USED 0x7EA5AAu
@@ -3418,6 +3462,13 @@
 #define RAM_BATTLE_ENEMY_NAME_TILES 0x7EACBCu
 #define RAM_BATTLE_ENEMY_NAME_TILES_COUNT 72u
 #define RAM_BATTLE_ENEMY_NAME_TILES_STRIDE 0x01u
+/* The action's targets ($FF past them) [11 x $1 bytes, by place] */
+#define RAM_BATTLE_ACTION_TARGETS 0x7EAD8Eu
+#define RAM_BATTLE_ACTION_TARGETS_COUNT 11u
+#define RAM_BATTLE_ACTION_TARGETS_STRIDE 0x01u
+/* A count the action's effect routines keep ($C1:D386), cleared with the numbers shown over the
+ * combatants */
+#define RAM_BATTLE_EFFECT_TALLY 0x7EAD9Bu
 /* The numbers shown over the combatants [44 x $4 bytes, by record (by combatant through
  * $CC:F829)] */
 #define RAM_BATTLE_NUMBER_RECORDS 0x7EAD9Cu
@@ -3425,6 +3476,9 @@
 #define RAM_BATTLE_NUMBER_RECORDS_STRIDE 0x04u
 #define RAM_BATTLE_NUMBER_RECORDS_VALUE 0x7EAD9Cu /* The number */
 #define RAM_BATTLE_NUMBER_RECORDS_KIND 0x7EAD9Eu /* Its kind */
+#define RAM_BATTLE_NUMBER_RECORDS_LAST_BYTE 0x7EAD9Fu /* The record's last byte, which the number display doesn't read; cleared with the rest */
+/* The party member the loop's per-member checks are at (3 once they are done) */
+#define RAM_BATTLE_MEMBER_UPDATING 0x7EAE5Au
 /* The combatant's status bit that restarts its script ($04 of the second status byte) as last
  * seen: a change restarts the script [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN 0x7EAE7Au
@@ -3433,8 +3487,22 @@
 /* The battle slots the action targets after its first, a bit each (bit 15 slot 0 down); script
  * channel 4 animates them while there are any [2 bytes] */
 #define RAM_BATTLE_ACTION_OTHER_TARGETS 0x7EAE99u
+/* Set when an enemy was beaten by the action */
+#define RAM_BATTLE_ENEMY_BEATEN_ANY 0x7EAEB2u
+/* Set for each enemy the action beat [8 x $1 bytes, by enemy (battle slot - 3)] */
+#define RAM_BATTLE_ENEMY_BEATEN 0x7EAEB3u
+#define RAM_BATTLE_ENEMY_BEATEN_COUNT 8u
+#define RAM_BATTLE_ENEMY_BEATEN_STRIDE 0x01u
+/* The enemy's foe, kept while a reaction names the actor instead */
+#define RAM_BATTLE_FOE_KEPT 0x7EAEBBu
 /* The bit of battle_timer_kinds_due for the kind being searched or handled [2 bytes] */
 #define RAM_BATTLE_TIMER_KIND_BIT 0x7EAEC3u
+/* How many enemies the battle has */
+#define RAM_BATTLE_ENEMY_COUNT 0x7EAEC6u
+/* How many combatants the timers' order holds */
+#define RAM_BATTLE_TIMER_ORDER_LENGTH 0x7EAEC7u
+/* The enemy (battle slot - 3) whose turn or reaction runs */
+#define RAM_BATTLE_ENEMY_ACTING 0x7EAEC8u
 /* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
  * three party slots out is a defeat [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_COMBATANT_FIGHTING 0x7EAEFFu
@@ -3452,6 +3520,14 @@
 #define RAM_BATTLE_ENEMY_STANDING 0x7EAF15u
 #define RAM_BATTLE_ENEMY_STANDING_COUNT 8u
 #define RAM_BATTLE_ENEMY_STANDING_STRIDE 0x01u
+/* Set by a party member's turn when a status of its picks its action for it */
+#define RAM_BATTLE_MEMBER_ACTS_FOR_ITSELF 0x7EAF23u
+/* What testing a block of an enemy's script came to: 0 its conditions held and the enemy acts;
+ * otherwise the script goes on (2: on to the next block at once) */
+#define RAM_BATTLE_SCRIPT_OUTCOME 0x7EAF24u
+/* Nonzero while an action runs over passes: the turn's handler runs each pass without the timers
+ * [2 bytes] */
+#define RAM_BATTLE_ACTION_RUNNING 0x7EAF25u
 /* Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then
  * the turn), a column per battle slot [13 x $B bytes, by kind of timer (0-11 the timed statuses,
  * 12 the turn); a byte a battle slot] */
@@ -3464,17 +3540,23 @@
 #define RAM_BATTLE_TIMER_FLAGS 0x7EAFB6u
 #define RAM_BATTLE_TIMER_FLAGS_COUNT 13u
 #define RAM_BATTLE_TIMER_FLAGS_STRIDE 0x0Bu
+/* The combatant's turn wait: what its turn timer starts from again after it acts [11 x $1 bytes,
+ * by battle slot] */
+#define RAM_BATTLE_TURN_WAIT 0x7EB158u
+#define RAM_BATTLE_TURN_WAIT_COUNT 11u
+#define RAM_BATTLE_TURN_WAIT_STRIDE 0x01u
 /* The order the combatants' run-out timers are looked for in: battle slots drawn at random at
  * the start of the battle, $FF past the combatants [11 x $1 bytes, by place in the order] */
 #define RAM_BATTLE_TIMER_ORDER 0x7EB163u
 #define RAM_BATTLE_TIMER_ORDER_COUNT 11u
 #define RAM_BATTLE_TIMER_ORDER_STRIDE 0x01u
-/* What battle_timer_order is drawn from at the start: the combatants still to be placed ($FF
- * once placed); then the enemies' ids, for the enemies' order (battle_main_loop_start); in a
- * turn, the entry of the combatant acting [11 x $1 bytes, by battle slot] */
-#define RAM_BATTLE_TIMER_ORDER_DRAW 0x7EB16Eu
-#define RAM_BATTLE_TIMER_ORDER_DRAW_COUNT 11u
-#define RAM_BATTLE_TIMER_ORDER_DRAW_STRIDE 0x01u
+/* Each enemy's foe, the combatant its script's conditions and actions are about (while it reacts
+ * to an action, the action's actor); at the battle's start, what the timers' order and then the
+ * enemies' order are drawn from (a battle slot plus one, or an enemy's id; $FF once drawn) [11 x
+ * $1 bytes, by enemy (battle slot - 3), or at the start a place in the draw] */
+#define RAM_BATTLE_FOES 0x7EB16Eu
+#define RAM_BATTLE_FOES_COUNT 11u
+#define RAM_BATTLE_FOES_STRIDE 0x01u
 /* Where each timer kind's search for its next expired entry resumes [13 x $1 bytes, by timer
  * kind] */
 #define RAM_BATTLE_TIMER_KIND_CURSORS 0x7EB179u
@@ -3483,11 +3565,52 @@
 /* One bit per timer kind with an expired entry to handle (bit 12 kind 0 down to bit 0 kind 12)
  * [2 bytes] */
 #define RAM_BATTLE_TIMER_KINDS_DUE 0x7EB186u
+/* The party member's action record's first byte once it has chosen an action (bit 7), until the
+ * action is carried out [3 x $1 bytes, by party member] */
+#define RAM_BATTLE_MEMBER_READY 0x7EB188u
+#define RAM_BATTLE_MEMBER_READY_COUNT 3u
+#define RAM_BATTLE_MEMBER_READY_STRIDE 0x01u
+/* The combatant whose action is carried out */
+#define RAM_BATTLE_ACTOR 0x7EB18Bu
+/* Each combatant's chosen action (four bytes), forgotten once it is carried out [11 x $4 bytes,
+ * by battle slot] */
+#define RAM_BATTLE_CHOSEN_ACTIONS 0x7EB192u
+#define RAM_BATTLE_CHOSEN_ACTIONS_COUNT 11u
+#define RAM_BATTLE_CHOSEN_ACTIONS_STRIDE 0x04u
+/* The battle slot each character fights in, as the timers' order is drawn [7 x $1 bytes, by
+ * character] */
+#define RAM_BATTLE_CHARACTER_SLOT 0x7EB1BEu
+#define RAM_BATTLE_CHARACTER_SLOT_COUNT 7u
+#define RAM_BATTLE_CHARACTER_SLOT_STRIDE 0x01u
+/* Set when the block being tested has a second condition */
+#define RAM_BATTLE_SECOND_CONDITION 0x7EB1CFu
+/* Where the block of the enemy's script being tested starts [2 bytes] */
+#define RAM_BATTLE_BLOCK_START 0x7EB1D0u
+/* Where the enemy's script is read, in bank CC [2 bytes] */
+#define RAM_BATTLE_SCRIPT_PLACE 0x7EB1D2u
+/* A place in the script kept for each reaction, by the reaction's place among the action's
+ * targets [8 x $2 bytes, by place among the targets] */
+#define RAM_BATTLE_REACTION_PLACES 0x7EB1D4u
+#define RAM_BATTLE_REACTION_PLACES_COUNT 8u
+#define RAM_BATTLE_REACTION_PLACES_STRIDE 0x02u
+/* The kind of the condition being tested (its handler's number) */
+#define RAM_BATTLE_CONDITION_KIND 0x7EB239u
+/* The enemies in the order drawn at the start ($FF past them) [8 x $1 bytes, by place] */
+#define RAM_BATTLE_ENEMY_ORDER 0x7EB23Au
+#define RAM_BATTLE_ENEMY_ORDER_COUNT 8u
+#define RAM_BATTLE_ENEMY_ORDER_STRIDE 0x01u
 /* The kind of the condition in its script the enemy's turn tested last ($FF: none, as at the
  * start and once the enemy and its link are out) [8 x $1 bytes, by enemy (battle slot - 3)] */
 #define RAM_BATTLE_ENEMY_LAST_CONDITION 0x7EB242u
 #define RAM_BATTLE_ENEMY_LAST_CONDITION_COUNT 8u
 #define RAM_BATTLE_ENEMY_LAST_CONDITION_STRIDE 0x01u
+/* Nonzero to hold the enemy's turn; a reaction leaves its outcome here, by the reaction's place
+ * among the action's targets [8 x $1 bytes, by enemy (battle slot - 3), or the reaction's place] */
+#define RAM_BATTLE_ENEMY_TURN_HELD 0x7EB24Au
+#define RAM_BATTLE_ENEMY_TURN_HELD_COUNT 8u
+#define RAM_BATTLE_ENEMY_TURN_HELD_STRIDE 0x01u
+/* The enemy (battle slot - 3) whose script the turn code is working on */
+#define RAM_BATTLE_ENEMY_TURN 0x7EB252u
 /* How many blocks of its script the enemy's turn has moved past this turn; a block's conditions
  * are tested again only when this and battle_enemy_script_block_seen differ [8 x $1 bytes, by
  * enemy (battle slot - 3)] */
@@ -3499,18 +3622,68 @@
 #define RAM_BATTLE_ENEMY_SCRIPT_BLOCK_SEEN 0x7EB26Bu
 #define RAM_BATTLE_ENEMY_SCRIPT_BLOCK_SEEN_COUNT 8u
 #define RAM_BATTLE_ENEMY_SCRIPT_BLOCK_SEEN_STRIDE 0x01u
+/* Where the enemy's reactions start in its script [2 bytes] */
+#define RAM_BATTLE_SCRIPT_RESTART_PLACE 0x7EB273u
+/* The gold the battle gives [2 bytes] */
+#define RAM_BATTLE_GOLD_WON 0x7EB2A5u
+/* The items the battle gives (0: none) [6 x $1 bytes, by item] */
+#define RAM_BATTLE_ITEMS_WON 0x7EB2A7u
+#define RAM_BATTLE_ITEMS_WON_COUNT 6u
+#define RAM_BATTLE_ITEMS_WON_STRIDE 0x01u
+/* What the rewards were: bit 6 the gold and experience given, bit 5 an item given, bit 7 a
+ * message ($FD:AD17) */
+#define RAM_BATTLE_REWARD_FLAGS 0x7EB2AFu
 /* Set once the enemy's script has been found and started ($C1:8C09 starts the script of a
  * present enemy with it clear); cleared when the enemy and its link are out, or its script says
  * so [8 x $1 bytes, by enemy (battle slot - 3)] */
 #define RAM_BATTLE_ENEMY_SCRIPT_STARTED 0x7EB2B6u
 #define RAM_BATTLE_ENEMY_SCRIPT_STARTED_COUNT 8u
 #define RAM_BATTLE_ENEMY_SCRIPT_STARTED_STRIDE 0x01u
+/* Set when the action's first target is an enemy: the enemies it hit react */
+#define RAM_BATTLE_ACTION_HIT_ENEMY 0x7EB2C0u
+/* Which of the damage table's three hits the action is counting ($C1:EC12); back to the first
+ * each pass */
+#define RAM_BATTLE_DAMAGE_HIT 0x7EB2C7u
 /* The combatant battle_update_all_combatants is updating (11 once it is done) */
 #define RAM_BATTLE_COMBATANT_UPDATING 0x7EB2D3u
+/* The enemy's animation, kept while its reactions run and put back after */
+#define RAM_BATTLE_ANIMATION_KEPT 0x7EB2D5u
+/* The place among the action's targets the reactions are at */
+#define RAM_BATTLE_REACTION_ENTRY 0x7EB315u
+/* The party's maximum HP as the battle began, put back when it ends [3 x $2 bytes, by party
+ * member] */
+#define RAM_BATTLE_PARTY_MAX_HP_KEPT 0x7EB316u
+#define RAM_BATTLE_PARTY_MAX_HP_KEPT_COUNT 3u
+#define RAM_BATTLE_PARTY_MAX_HP_KEPT_STRIDE 0x02u
+/* The demo battle bit of battle_setup_flags, set apart while the battle is set up and put back
+ * after */
+#define RAM_BATTLE_DEMO_KEPT 0x7EB31Fu
+/* What each of an action's three hits does to each combatant, cleared each pass of the main loop
+ * [33 x $4 bytes, by hit (0-2) * 11 + battle slot] */
+#define RAM_BATTLE_DAMAGE 0x7EB328u
+#define RAM_BATTLE_DAMAGE_COUNT 33u
+#define RAM_BATTLE_DAMAGE_STRIDE 0x04u
+#define RAM_BATTLE_DAMAGE_AMOUNT 0x7EB328u   /* The HP it takes (subtracted from the combatant's HP at $C1:EC7F) */
+#define RAM_BATTLE_DAMAGE_KIND 0x7EB32Au     /* A byte of the hit's kind */
+#define RAM_BATTLE_DAMAGE_FLAGS 0x7EB32Bu    /* The hit's flags: bit 7 it heals, bit 6 it doesn't take HP, bit 5 it clears the combatant's hits */
+/* The action's targets, as the reactions go through them [11 x $1 bytes, by place] */
+#define RAM_BATTLE_REACTION_TARGETS 0x7EB3ACu
+#define RAM_BATTLE_REACTION_TARGETS_COUNT 11u
+#define RAM_BATTLE_REACTION_TARGETS_STRIDE 0x01u
+/* The combatant whose action the reactions answer */
+#define RAM_BATTLE_LAST_ACTOR 0x7EB3B7u
+/* Set when the action's first target is a party member: the party may counter ($FD:AC6E) */
+#define RAM_BATTLE_ACTION_HIT_PARTY 0x7EB3B9u
+/* The party member the spare turns cycle to (2, 1, 0 and round) */
+#define RAM_BATTLE_SPARE_TURN_MEMBER 0x7EB3BEu
 /* The battle slot of the timer the count-down pass is at [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_SLOT 0x7EB3C0u
 /* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_TIMER 0x7EB3C4u
+/* A reaction's kept place, while its conditions are tested [2 bytes] */
+#define RAM_BATTLE_REACTION_PLACE_KEPT 0x7EB3CAu
+/* battle_random_position as the battle started */
+#define RAM_BATTLE_RANDOM_AT_START 0x7EB3E6u
 /* Set when the member can take part in a combination tech now [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_COMBO_READY 0x7EB3E7u
 #define RAM_BATTLE_COMBO_READY_COUNT 3u
@@ -3520,6 +3693,8 @@
 #define RAM_BATTLE_COMBO_PAIRS 0x7EB3EBu
 #define RAM_BATTLE_COMBO_PAIRS_COUNT 9u
 #define RAM_BATTLE_COMBO_PAIRS_STRIDE 0x01u
+/* The party member whose status picks its action */
+#define RAM_BATTLE_ACTING_FOR_ITSELF 0x7EB3F4u
 /* Screen brightness the battle's handlers set each frame (halved while paused); counted down to
  * 0 when a demo battle exits */
 #define RAM_BATTLE_BRIGHTNESS 0x7EBB00u
@@ -3529,11 +3704,13 @@
 #define RAM_BATTLE_BG_OFFSET_STRIDE 0x02u
 /* Set to $80 as a demo battle exits to the reset code */
 #define RAM_BATTLE_LEAVING 0x7EBB80u
-/* The layers' per-line scroll tables (horizontal/vertical word pairs), refilled each frame [3 x
- * $80 bytes, by layer (BG1-BG3)] */
+/* The layers' per-line scroll tables, 32 entries a layer, refilled each frame with the layer's
+ * scroll [96 x $4 bytes, by layer (BG1-BG3) * 32 + entry] */
 #define RAM_BATTLE_SCROLL_TABLES 0x7EBC89u
-#define RAM_BATTLE_SCROLL_TABLES_COUNT 3u
-#define RAM_BATTLE_SCROLL_TABLES_STRIDE 0x80u
+#define RAM_BATTLE_SCROLL_TABLES_COUNT 96u
+#define RAM_BATTLE_SCROLL_TABLES_STRIDE 0x04u
+#define RAM_BATTLE_SCROLL_TABLES_X 0x7EBC89u /* Horizontal scroll */
+#define RAM_BATTLE_SCROLL_TABLES_Y 0x7EBC8Bu /* Vertical scroll */
 /* Words the per-line effects read through their tables; each frame the NMI copies the first two
  * of each group of four over the next two, so the lines after a split take the new values [8 x
  * $2 bytes, by word (the NMI copies words 0, 1, 4 and 5 to 2, 3, 6 and 7)] */

@@ -14,6 +14,7 @@
 #define CT_GAME_BATTLE_TIMERS_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "state.h"
 
@@ -31,6 +32,13 @@ typedef enum {
 void battle_run_timer(GameState *g, BattleTimer timer, unsigned slot);
 void battle_stop_timer(GameState *g, BattleTimer timer, unsigned slot);
 void battle_follow_status(GameState *g, BattleTimer timer, unsigned slot, bool status_on);
+/* Start it running afresh, past having run out. */
+void battle_restart_timer(GameState *g, BattleTimer timer, unsigned slot);
+bool battle_timer_run_out(const GameState *g, BattleTimer timer, unsigned slot);
+
+/* The combatant at a place in the order the timers are looked for in (a
+ * place past the order reads on, as the original does: battle/timers.c). */
+uint8_t battle_timer_order_at(const GameState *g, uint8_t place);
 
 /* Count every running timer down a step. */
 void battle_count_timers_down(GameState *g);

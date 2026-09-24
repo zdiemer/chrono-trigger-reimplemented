@@ -1,71 +1,90 @@
-/* Battle: pausing the sound while the battle is paused, and loops that wait for
- * the sound driver's status on APU port 1, through the audio service
- * (platform/audio.h). */
+/* Battle: the sound while the battle is paused, and the waits for the music's
+ * fade.
+ *
+ * Pausing the battle (Start, battle/nmi.c) silences its sound -- the sound
+ * driver is told to (command $F5), and told again to carry on when the pause
+ * ends -- and stops the play time clock. And before the battle changes the music -- at its start, for a screen
+ * effect's own song -- it has the driver fade the song out and waits, a frame
+ * at a time, for the fade to run out (the driver counts its steps left on its
+ * status, platform/audio.h); a battle an event starts with the field's song
+ * kept doesn't wait at its start. The waits are passes of the original's
+ * loops, which call a frame's wait between them. */
 #include "battle/sound.h"
 
+#include "battle/bridge.h"
 #include "platform/audio.h"
-#include "port/machine.h"
+#include "vars.h"
 
-/* The registry guard for the pause poll: absolute addressing reaches the command
- * buffer at $00:1E00 (a bank with the low RAM mirror: $00-$3F, $80-$BF or $7E),
- * where the audio service writes it. */
-bool battle_sound_bank_reaches_1e00(Snes *s) { return m_io_bank(s->cpu.db) || s->cpu.db == 0x7E; }
+/* The driver's command that silences the battle, with the pause's on or off
+ * as its operand; the play time clock stops with the same byte. */
+enum { SILENCE = 0xF5, SILENCE_ON = 0xF5, SILENCE_OFF = 0x00 };
+
+static void silence(GameState *g, Platform *pf, PfOrigin o, uint8_t on)
+{
+    set_play_time_stopped(g, on);
+    au_command(pf, o, (AudioCommand){ .command = SILENCE, .p1 = on, .count = 1 });
+}
 
 // $CD:3E49
-/* In $CD:3E44, which the battle calls every frame and which returns at once
- * unless the battle is paused ($CD02 nonzero; that test stays in the original,
- * so the frequent call isn't an entry): driver command $F5 with $F5 (and $F5 in
- * $0407), then the original's loop at $CD:3E58 waits a frame at a time until
- * $CD02 clears; $CD:3E65 follows. The command is presumably what silences the
- * sound during the pause. */
+/* The battle is paused: silence it, then on to the original's loop at
+ * $CD:3E58, which waits a frame at a time for the pause to end. (The test of
+ * the pause before it, in $CD:3E44, stays the original's, since the battle
+ * calls it every frame.) */
 void battle_sound_pause(Snes *s)
 {
-    m_lda8(s, 0xF5);
-    m_write8(s, m_abs(s, 0x0407), 0xF5);
-    au_command(m_platform(s), PF_CALL(0xCD3E54, 0xC70004),
-               (AudioCommand){ .command = 0xF5, .p1 = 0xF5, .count = 1 });
-    /* the call-out returned to $CD:3E58, the wait loop */
+    m_set_a8(s, SILENCE_ON);
+    silence(state_of(s), m_platform(s), PF_CALL(0xCD3E54, 0xC70004), SILENCE_ON);
 }
 
 // $CD:3E65
-/* The pause ended: clear $0407 and send driver command $F5 with $00, then RTS. */
+/* The pause ended: let the sound carry on. */
 void battle_sound_resume(Snes *s)
 {
-    m_write8(s, m_abs(s, 0x0407), 0x00);
-    m_lda8(s, 0xF5);
-    au_command(m_platform(s), PF_CALL(0xCD3E70, 0xC70004),
-               (AudioCommand){ .command = 0xF5, .p1 = 0x00, .count = 1 });
+    m_set_a8(s, SILENCE);
+    silence(state_of(s), m_platform(s), PF_CALL(0xCD3E70, 0xC70004), SILENCE_OFF);
     m_rts(s);
 }
 
-// $CD:042B
-/* One pass of a loop that calls $CD:044A (at $CD:0428) until bit 6 of $2A1F is
- * set or APU port 1 reads zero: continues at $CD:0438 then, or at the call
- * otherwise. */
-void battle_wait_sound_port1_or_2a1f(Snes *s)
+/* The driver's commands are built in its buffer at $1E00, which the data
+ * bank must reach (low RAM's banks, or $7E). */
+bool battle_sound_buffer_reachable(Snes *s) { return m_bank_reaches_low_ram(s); }
+
+/* ---- The fade's waits ------------------------------------------------------------------ */
+
+/* One pass of a wait for the fade to run out: on to `done` once it has (or
+ * `anyway`), else back to `wait`, the loop's call of a frame's wait. The
+ * status tested is left in A. */
+static void wait_for_fade(Snes *s, PfOrigin o, bool anyway, uint16_t wait, uint16_t done)
 {
-    if (m_lda8(s, m_read8(s, m_abs(s, 0x2A1F)) & 0x40) != 0) {
-        s->cpu.pc = 0x0438;
+    if (anyway) {
+        s->cpu.pc = done;
         return;
     }
-    uint8_t v = m_lda8(s, au_status(m_platform(s), PF_AT(0xCD0432), 1));
-    s->cpu.pc = v != 0 ? 0x0428 : 0x0438;
+    uint8_t left = au_music_fade_left(m_platform(s), o);
+    m_set_a8(s, left);
+    m_set_nz8(s, left);
+    s->cpu.pc = left != 0 ? wait : done;
 }
 
-/* LDA $002141 : BNE loop -- one pass of a loop that calls $CD:3E7D (a frame)
- * until APU port 1 reads zero. */
-static void wait_port1(Snes *s, uint32_t at, uint16_t loop, uint16_t exit)
+/* An event can start a battle with the field's song kept. */
+enum { KEEPS_FIELD_SONG = 0x40 };
+
+// $CD:042B (in $CD:0418, the start's)
+void battle_wait_start_music_fade_loop(Snes *s)
 {
-    uint8_t v = m_lda8(s, au_status(m_platform(s), PF_AT(at), 1));
-    s->cpu.pc = v != 0 ? loop : exit;
+    bool kept = (battle_event_flags(state_of(s)) & KEEPS_FIELD_SONG) != 0;
+    if (kept) {
+        m_set_a8(s, KEEPS_FIELD_SONG);
+        m_set_nz8(s, KEEPS_FIELD_SONG);
+    }
+    wait_for_fade(s, PF_AT(0xCD0432), kept, 0x0428, 0x0438);
 }
 
-// $CD:0D9C
-/* In $CD:0D93: continues at the frame call at $CD:0D99 while port 1 is
- * nonzero, else at $CD:0DA2. */
-void battle_wait_sound_port1_0d9c(Snes *s) { wait_port1(s, 0xCD0D9C, 0x0D99, 0x0DA2); }
+// $CD:0D9C (in $CD:0D93, before a song of the screen effects')
+void battle_wait_music_fade_loop(Snes *s) { wait_for_fade(s, PF_AT(0xCD0D9C), false, 0x0D99, 0x0DA2); }
 
-// $CD:0DB7
-/* In $CD:0DB1: continues at the frame call at $CD:0DB4 while port 1 is
- * nonzero, else at $CD:0DBD. */
-void battle_wait_sound_port1_0db7(Snes *s) { wait_port1(s, 0xCD0DB7, 0x0DB4, 0x0DBD); }
+// $CD:0DB7 (in $CD:0DB1, before the HP gradient's)
+void battle_wait_music_fade_for_gradient_loop(Snes *s)
+{
+    wait_for_fade(s, PF_AT(0xCD0DB7), false, 0x0DB4, 0x0DBD);
+}

@@ -9,5 +9,6 @@ void battle_main_loop(Snes *s);
 void battle_main_loop_body(Snes *s);
 void battle_main_loop_tail(Snes *s);
 void battle_run_queued_scripts(Snes *s);
+bool battle_pass_ends_plainly(Snes *s);
 
 #endif

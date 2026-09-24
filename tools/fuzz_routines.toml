@@ -6221,3 +6221,100 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 iterations = 3000
 why = "on the battle's page; each channel is a call-out"
+
+# -- the main loop, its small modules, the handlers, the waits and the sound's pause
+#    (battle/main_loop.c, battlefield.c, damage.c, sprite_table.c, nmi.c, sound.c)
+
+[[routine]]
+name = "battle_main_loop_body"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "a pass of the main loop after its frame's wait, on the battle's page; its callees are call-outs"
+
+[[routine]]
+name = "battle_main_loop_tail"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the end of a pass, on the battle's page"
+
+[[routine]]
+name = "battle_run_queued_scripts"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the turns taken while an action runs over passes, on the battle's page; each action is a call-out"
+
+[[routine]]
+name = "battle_mark_object_grid"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "on the battle's page, any setup flags (the party off the grid or on it)"
+
+[[routine]]
+name = "battle_clear_damage"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_clear_numbers"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_clear_oam_buffer"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_nmi"
+subsystem = "battle"
+state = "battle"
+args = ["--interrupt", "--keep", "7E007F-7E007F"]
+why = "the vblank handler interrupting any state, the battle's mode kept (the frame work it dispatches on loops on random RAM otherwise)"
+
+[[routine]]
+name = "battle_irq"
+subsystem = "battle"
+state = "battle"
+args = ["--interrupt"]
+why = "the line handler's head interrupting any state"
+
+[[routine]]
+name = "battle_irq_after_hblank"
+subsystem = "battle"
+state = "battle"
+args = ["--interrupt", "--db", "00", "--d", "0000"]
+why = "the line handler's tail, as its head leaves the machine at the wait for hblank"
+
+[[routine]]
+name = "battle_apply_alternate_frame"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "as the line handler calls it on even frames"
+
+[[routine]]
+name = "battle_restore_math_operands"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "on the battle's page, either unit busy"
+
+[[routine]]
+name = "battle_sound_resume"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "the pause's end, on the battle's page"

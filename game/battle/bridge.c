@@ -40,6 +40,8 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     return battle_back(s, site + BATTLE_JSL_SIZE, page, bank);
 }
 
+bool battle_widths_m8_x16(const Snes *s) { return !s->cpu.e && m_m8(s) && !m_x8(s); }
+
 bool battle_names_combatant(uint16_t slot) { return slot < BATTLE_COMBATANTS; }
 bool battle_names_stat_block(uint16_t offset)
 {

@@ -6,11 +6,11 @@
 
 #include "snes/system.h"
 
-bool battle_sound_bank_reaches_1e00(Snes *s);
+bool battle_sound_buffer_reachable(Snes *s);
 void battle_sound_pause(Snes *s);
 void battle_sound_resume(Snes *s);
-void battle_wait_sound_port1_or_2a1f(Snes *s);
-void battle_wait_sound_port1_0d9c(Snes *s);
-void battle_wait_sound_port1_0db7(Snes *s);
+void battle_wait_start_music_fade_loop(Snes *s);
+void battle_wait_music_fade_loop(Snes *s);
+void battle_wait_music_fade_for_gradient_loop(Snes *s);
 
 #endif

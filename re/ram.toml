@@ -6439,6 +6439,7 @@ addr = "7E:1D00"
 page = "battle_sprites"
 count = 23
 index = "battle object ($0C + battle slot for the combatants)"
+unchecked = "with the party off the grid, the grid's marking reads the positions of three objects past the combatants', as the original's indexed reads do (game/battle/battlefield.c)"
 subsystem = "battle"
 meaning = "Battle objects' screen X positions"
 source = "game/battle/draw_objects.c header, draw_sprite_parts $CF:EAC5, draw_shadow $CF:EA8A; the ports at D = 0 index it as $1D0C + slot (setup.c place_party_objects, battle_step_object_paths $CF:EC78, objects.c, buffers.c)"
@@ -6449,6 +6450,7 @@ addr = "7E:1D17"
 page = "battle_sprites"
 count = 23
 index = "battle object ($0C + battle slot for the combatants)"
+unchecked = "with the party off the grid, the grid's marking reads the positions of three objects past the combatants', as the original's indexed reads do (game/battle/battlefield.c)"
 subsystem = "battle"
 meaning = "Battle objects' screen Y positions, also their depth when sprites are sorted"
 source = "game/battle/draw_objects.c header, draw_objects $CF:E83A; indexed as $1D23 + slot at D = 0 (setup.c, battle_step_object_paths $CF:EC78, battle_step_orbits $CF:F978)"
@@ -6863,6 +6865,10 @@ source = "tools/movies/addresses.py BATTLE_STATS; game/battle/stats.c header, ba
   size = 4
   meaning = "The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its timed statuses' bits, which its status timers follow, and the bits the pose table tests"
   [[var.field]]
+  name = "carried"
+  offset = 0x27
+  meaning = "A byte the battle carries over from the member's record (battle_member_carried) when it ends ($5E56 for slot 0)"
+  [[var.field]]
   name = "status_kept"
   offset = 0x23
   size = 2
@@ -6971,6 +6977,10 @@ index = "party slot"
 subsystem = "battle"
 meaning = "Per party member action records"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battle/stats.c battle_update_combo_members $C1:B575"
+  [[var.field]]
+  name = "state"
+  offset = 0
+  meaning = "Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an action chosen"
   [[var.field]]
   name = "partners"
   offset = 5
@@ -7401,12 +7411,12 @@ meaning = "The order the combatants' run-out timers are looked for in: battle sl
 source = "game/battle/timers.c battle_dispatch_expired_timers $C1:8290; game/battle/main_loop.c battle_main_loop_start $C1:8000"
 
 [[var]]
-name = "battle_timer_order_draw"
+name = "battle_foes"
 addr = "7E:B16E"
 count = 11
-index = "battle slot"
+index = "enemy (battle slot - 3), or at the start a place in the draw"
 subsystem = "battle"
-meaning = "What battle_timer_order is drawn from at the start: the combatants still to be placed ($FF once placed); then the enemies' ids, for the enemies' order (battle_main_loop_start); in a turn, the entry of the combatant acting"
+meaning = "Each enemy's foe, the combatant its script's conditions and actions are about (while it reacts to an action, the action's actor); at the battle's start, what the timers' order and then the enemies' order are drawn from (a battle slot plus one, or an enemy's id; $FF once drawn)"
 source = "game/battle/main_loop.c battle_main_loop_start $C1:8000, battle_run_queued_scripts $C1:8461"
 
 [[var]]
@@ -7432,6 +7442,413 @@ size = 2
 subsystem = "battle"
 meaning = "The timer the count-down pass is at (kind * 11 + slot); 143 once it is through"
 source = "game/battle/timers.c battle_tick_timers $C1:8231"
+
+[[var]]
+name = "battle_random_position"
+addr = "7E:0026"
+page = "battle"
+subsystem = "battle"
+meaning = "Where the next random number is taken from the battle's table of them ($FD:BA61); each draw steps it on"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000; $C1:AF22"
+
+[[var]]
+name = "battle_turn_slot"
+addr = "7E:0022"
+page = "battle"
+size = 2
+subsystem = "battle"
+meaning = "The battle slot whose turn it is (a word)"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_random_kept"
+addr = "7E:29AD"
+subsystem = "battle"
+meaning = "battle_random_position kept between battles: taken at the start and put back at the end"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000, $C1:8443"
+
+[[var]]
+name = "battle_random_at_start"
+addr = "7E:B3E6"
+subsystem = "battle"
+meaning = "battle_random_position as the battle started"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
+
+[[var]]
+name = "battle_demo_kept"
+addr = "7E:B31F"
+subsystem = "battle"
+meaning = "The demo battle bit of battle_setup_flags, set apart while the battle is set up and put back after"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
+
+[[var]]
+name = "battle_character_slot"
+addr = "7E:B1BE"
+count = 7
+index = "character"
+subsystem = "battle"
+meaning = "The battle slot each character fights in, as the timers' order is drawn"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
+
+[[var]]
+name = "battle_enemy_count"
+addr = "7E:AEC6"
+subsystem = "battle"
+meaning = "How many enemies the battle has"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
+
+[[var]]
+name = "battle_timer_order_length"
+addr = "7E:AEC7"
+subsystem = "battle"
+meaning = "How many combatants the timers' order holds"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000; game/battle/timers.c; the kinds' handlers ($C1:8876)"
+
+[[var]]
+name = "battle_enemy_order"
+addr = "7E:B23A"
+count = 8
+index = "place"
+subsystem = "battle"
+meaning = "The enemies in the order drawn at the start ($FF past them)"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
+
+[[var]]
+name = "battle_enemy_turn"
+addr = "7E:B252"
+subsystem = "battle"
+meaning = "The enemy (battle slot - 3) whose script the turn code is working on"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C09"
+
+[[var]]
+name = "battle_damage_hit"
+addr = "7E:B2C7"
+subsystem = "battle"
+meaning = "Which of the damage table's three hits the action is counting ($C1:EC12); back to the first each pass"
+source = "game/battle/main_loop.c battle_main_loop $C1:8120"
+
+[[var]]
+name = "battle_member_updating"
+addr = "7E:AE5A"
+subsystem = "battle"
+meaning = "The party member the loop's per-member checks are at (3 once they are done)"
+source = "game/battle/main_loop.c battle_main_loop_body $C1:812C, battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_defeat_showing"
+addr = "7E:A10E"
+subsystem = "battle"
+meaning = "Set while the party's defeat plays out, before the defeat's own step"
+source = "game/battle/main_loop.c battle_main_loop_body $C1:812C; $C1:106E"
+
+[[var]]
+name = "battle_won"
+addr = "7E:A5A9"
+subsystem = "battle"
+meaning = "$FF once every enemy that must be beaten is out"
+source = "game/battle/main_loop.c battle_main_loop_body $C1:812C"
+
+[[var]]
+name = "battle_timers_held"
+addr = "7E:99E0"
+subsystem = "battle"
+meaning = "Nonzero while the combatants' timers are held: a pass only drops the actions of members that can't act"
+source = "game/battle/main_loop.c battle_main_loop_body $C1:812C"
+
+[[var]]
+name = "battle_action_running"
+addr = "7E:AF25"
+size = 2
+subsystem = "battle"
+meaning = "Nonzero while an action runs over passes: the turn's handler runs each pass without the timers"
+source = "game/battle/main_loop.c battle_main_loop_body $C1:812C"
+
+[[var]]
+name = "battle_party_max_hp_kept"
+addr = "7E:B316"
+size = 2
+count = 3
+index = "party member"
+subsystem = "battle"
+meaning = "The party's maximum HP as the battle began, put back when it ends"
+source = "game/battle/main_loop.c $C1:83BB, $C1:8423; $C1:FD2C"
+
+[[var]]
+name = "battle_member_carried"
+addr = "7E:1C48"
+count = 3
+stride = 5
+index = "party member"
+subsystem = "battle"
+meaning = "Five bytes the battle keeps for each party member; the first goes back into its stat block when the battle ends"
+source = "game/battle/main_loop.c $C1:8443"
+
+[[var]]
+name = "battle_rewards_held"
+addr = "7E:2880"
+subsystem = "battle"
+meaning = "Nonzero when the battle shares out no experience or gold"
+source = "game/battle/main_loop.c $C1:83BB"
+
+[[var]]
+name = "battle_gold_won"
+addr = "7E:B2A5"
+size = 2
+subsystem = "battle"
+meaning = "The gold the battle gives"
+source = "game/battle/main_loop.c $C1:83BB; $FD:B201"
+
+[[var]]
+name = "battle_reward_flags"
+addr = "7E:B2AF"
+subsystem = "battle"
+meaning = "What the rewards were: bit 6 the gold and experience given, bit 5 an item given, bit 7 a message ($FD:AD17)"
+source = "game/battle/main_loop.c $C1:83BB; $FD:B201, $FD:AD17"
+
+[[var]]
+name = "battle_items_won"
+addr = "7E:B2A7"
+count = 6
+index = "item"
+subsystem = "battle"
+meaning = "The items the battle gives (0: none)"
+source = "game/battle/main_loop.c $C1:83BB"
+
+[[var]]
+name = "battle_enemy_acts_anyway"
+addr = "7E:9829"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "Set to have the enemy take its turn whatever animation it shows"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battle/animation.c"
+
+[[var]]
+name = "battle_enemy_turn_held"
+addr = "7E:B24A"
+count = 8
+index = "enemy (battle slot - 3), or the reaction's place"
+subsystem = "battle"
+meaning = "Nonzero to hold the enemy's turn; a reaction leaves its outcome here, by the reaction's place among the action's targets"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C09"
+
+[[var]]
+name = "battle_turn_wait"
+addr = "7E:B158"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "The combatant's turn wait: what its turn timer starts from again after it acts"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:BCE1, $C1:B392"
+
+[[var]]
+name = "battle_enemy_acting"
+addr = "7E:AEC8"
+subsystem = "battle"
+meaning = "The enemy (battle slot - 3) whose turn or reaction runs"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8CF9"
+
+[[var]]
+name = "battle_member_acts_for_itself"
+addr = "7E:AF23"
+subsystem = "battle"
+meaning = "Set by a party member's turn when a status of its picks its action for it"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $FD:AB30"
+
+[[var]]
+name = "battle_acting_for_itself"
+addr = "7E:B3F4"
+subsystem = "battle"
+meaning = "The party member whose status picks its action"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:BCE1"
+
+[[var]]
+name = "battle_member_ready"
+addr = "7E:B188"
+count = 3
+index = "party member"
+subsystem = "battle"
+meaning = "The party member's action record's first byte once it has chosen an action (bit 7), until the action is carried out"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:B3F9"
+
+[[var]]
+name = "battle_spare_turn_member"
+addr = "7E:B3BE"
+subsystem = "battle"
+meaning = "The party member the spare turns cycle to (2, 1, 0 and round)"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_action_queue"
+addr = "7E:99D4"
+count = 3
+index = "place"
+subsystem = "battle"
+meaning = "The party members whose chosen actions wait to be carried out, in order ($FF past them)"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_action_queue_length"
+addr = "7E:99D8"
+subsystem = "battle"
+meaning = "How many actions battle_action_queue holds"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_actor"
+addr = "7E:B18B"
+subsystem = "battle"
+meaning = "The combatant whose action is carried out"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:B967"
+
+[[var]]
+name = "battle_enemy_beaten_any"
+addr = "7E:AEB2"
+subsystem = "battle"
+meaning = "Set when an enemy was beaten by the action"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:AC5E"
+
+[[var]]
+name = "battle_enemy_beaten"
+addr = "7E:AEB3"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "Set for each enemy the action beat"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:AC5E, $C1:B762"
+
+[[var]]
+name = "battle_script_place"
+addr = "7E:B1D2"
+size = 2
+subsystem = "battle"
+meaning = "Where the enemy's script is read, in bank CC"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:B488"
+
+[[var]]
+name = "battle_script_restart_place"
+addr = "7E:B273"
+size = 2
+subsystem = "battle"
+meaning = "Where the enemy's reactions start in its script"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C63"
+
+[[var]]
+name = "battle_block_start"
+addr = "7E:B1D0"
+size = 2
+subsystem = "battle"
+meaning = "Where the block of the enemy's script being tested starts"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_animation_kept"
+addr = "7E:B2D5"
+subsystem = "battle"
+meaning = "The enemy's animation, kept while its reactions run and put back after"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_second_condition"
+addr = "7E:B1CF"
+subsystem = "battle"
+meaning = "Set when the block being tested has a second condition"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_script_outcome"
+addr = "7E:AF24"
+subsystem = "battle"
+meaning = "What testing a block of an enemy's script came to: 0 its conditions held and the enemy acts; otherwise the script goes on (2: on to the next block at once)"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; the conditions' handlers ($C1:B80D)"
+
+[[var]]
+name = "battle_foe_kept"
+addr = "7E:AEBB"
+subsystem = "battle"
+meaning = "The enemy's foe, kept while a reaction names the actor instead"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_reaction_places"
+addr = "7E:B1D4"
+size = 2
+count = 8
+index = "place among the targets"
+subsystem = "battle"
+meaning = "A place in the script kept for each reaction, by the reaction's place among the action's targets"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C63"
+
+[[var]]
+name = "battle_reaction_place_kept"
+addr = "7E:B3CA"
+size = 2
+subsystem = "battle"
+meaning = "A reaction's kept place, while its conditions are tested"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_condition_kind"
+addr = "7E:B239"
+subsystem = "battle"
+meaning = "The kind of the condition being tested (its handler's number)"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C3E"
+
+[[var]]
+name = "battle_reaction_targets"
+addr = "7E:B3AC"
+count = 11
+index = "place"
+subsystem = "battle"
+meaning = "The action's targets, as the reactions go through them"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:B762"
+
+[[var]]
+name = "battle_action_targets"
+addr = "7E:AD8E"
+count = 11
+index = "place"
+subsystem = "battle"
+meaning = "The action's targets ($FF past them)"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:AC46"
+
+[[var]]
+name = "battle_last_actor"
+addr = "7E:B3B7"
+subsystem = "battle"
+meaning = "The combatant whose action the reactions answer"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_reaction_entry"
+addr = "7E:B315"
+subsystem = "battle"
+meaning = "The place among the action's targets the reactions are at"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+
+[[var]]
+name = "battle_action_hit_enemy"
+addr = "7E:B2C0"
+subsystem = "battle"
+meaning = "Set when the action's first target is an enemy: the enemies it hit react"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:BB36"
+
+[[var]]
+name = "battle_action_hit_party"
+addr = "7E:B3B9"
+subsystem = "battle"
+meaning = "Set when the action's first target is a party member: the party may counter ($FD:AC6E)"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:99E8, $FD:AC6E"
+
+[[var]]
+name = "battle_chosen_actions"
+addr = "7E:B192"
+size = 4
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Each combatant's chosen action (four bytes), forgotten once it is carried out"
+source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461 ($C1:8862)"
 
 [[var]]
 name = "battle_timer_kind_cursors"
@@ -7600,6 +8017,7 @@ name = "battle_slot_present"
 addr = "7E:96F5"
 count = 11
 index = "battle slot (0-2 the party, 3-10 enemies)"
+unchecked = "with the party off the grid, the grid's marking looks at the eleven slots from the fourth, three past the table, as the original's indexed reads do (game/battle/battlefield.c)"
 subsystem = "battle"
 meaning = "Nonzero when the battle slot holds a combatant"
 source = "game/battle/setup.c read_party_slots and setup_enemy in battle_setup_state $CC:E2E4; game/battle/window.c; game/battle/objects.c; game/battle/buffers.c"
@@ -8487,6 +8905,46 @@ meaning = "Row of the number motion table reached"
 source = "game/battle/object_motion.c battle_step_prepared_sprites $CF:E781"
 
 [[var]]
+name = "battle_work"
+addr = "7E:0080"
+page = "battle"
+count = 30
+index = "cell ($80-$9D)"
+subsystem = "battle"
+meaning = "Direct-page cells the battle's routines work in, each routine's own; the ports keep their working state in C and leave in them what the original leaves"
+source = "game/battle/battlefield.c battle_mark_object_grid $CC:F110; the battle's ports"
+
+[[var]]
+name = "battle_damage"
+addr = "7E:B328"
+count = 33
+stride = 4
+index = "hit (0-2) * 11 + battle slot"
+subsystem = "battle"
+meaning = "What each of an action's three hits does to each combatant, cleared each pass of the main loop"
+source = "game/battle/damage.c battle_clear_damage $FD:ACFD; $C1:EC12, $C1:EC39, $C1:EC7F"
+  [[var.field]]
+  name = "amount"
+  offset = 0
+  size = 2
+  meaning = "The HP it takes (subtracted from the combatant's HP at $C1:EC7F)"
+  [[var.field]]
+  name = "kind"
+  offset = 2
+  meaning = "A byte of the hit's kind"
+  [[var.field]]
+  name = "flags"
+  offset = 3
+  meaning = "The hit's flags: bit 7 it heals, bit 6 it doesn't take HP, bit 5 it clears the combatant's hits"
+
+[[var]]
+name = "battle_effect_tally"
+addr = "7E:AD9B"
+subsystem = "battle"
+meaning = "A count the action's effect routines keep ($C1:D386), cleared with the numbers shown over the combatants"
+source = "game/battle/damage.c battle_clear_numbers $FD:ACEE"
+
+[[var]]
 name = "battle_number_records"
 addr = "7E:AD9C"
 count = 44
@@ -8494,7 +8952,7 @@ stride = 4
 index = "record (by combatant through $CC:F829)"
 subsystem = "battle"
 meaning = "The numbers shown over the combatants"
-source = "game/battle/numbers.c header; game/battle/buffers.c battle_clear_ad9c_table $FD:ACEE"
+source = "game/battle/numbers.c header; game/battle/damage.c battle_clear_numbers $FD:ACEE"
   [[var.field]]
   name = "value"
   offset = 0
@@ -8504,6 +8962,10 @@ source = "game/battle/numbers.c header; game/battle/buffers.c battle_clear_ad9c_
   name = "kind"
   offset = 2
   meaning = "Its kind"
+  [[var.field]]
+  name = "last_byte"
+  offset = 3
+  meaning = "The record's last byte, which the number display doesn't read; cleared with the rest"
 
 [[var]]
 name = "battle_palette_anim_on"
@@ -8749,13 +9211,22 @@ source = "game/battle/display.c scroll_bg12 in battle_update_scroll_tables $CD:0
 [[var]]
 name = "battle_scroll_tables"
 addr = "7E:BC89"
-count = 3
-stride = 0x80
-size = 0x80
-index = "layer (BG1-BG3)"
+count = 96
+stride = 4
+index = "layer (BG1-BG3) * 32 + entry"
 subsystem = "battle"
-meaning = "The layers' per-line scroll tables (horizontal/vertical word pairs), refilled each frame"
-source = "game/battle/display.c fill_scroll_tables $CD:0706"
+meaning = "The layers' per-line scroll tables, 32 entries a layer, refilled each frame with the layer's scroll"
+source = "game/battle/display.c battle_update_scroll_tables $CD:06C4 ($CD:0706)"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Horizontal scroll"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Vertical scroll"
 
 [[var]]
 name = "battle_line_tables"
@@ -8821,21 +9292,21 @@ name = "battle_alternate_request"
 addr = "7E:CA21"
 subsystem = "battle"
 meaning = "Alternating-frame flag (0 or 1); the IRQ applies it when it changes"
-source = "game/battle/frame.c battle_frame_work $CD:088D; game/battle/nmi.c battle_irq_update_ca22 $D1:FE4C"
+source = "game/battle/frame.c battle_frame_work $CD:088D; game/battle/nmi.c battle_apply_alternate_frame $D1:FE4C"
 
 [[var]]
 name = "battle_alternate_latched"
 addr = "7E:CA22"
 subsystem = "battle"
 meaning = "The value of battle_alternate_request the IRQ last applied"
-source = "game/battle/nmi.c battle_irq_update_ca22 $D1:FE4C"
+source = "game/battle/nmi.c battle_apply_alternate_frame $D1:FE4C"
 
 [[var]]
 name = "battle_alternate_apply"
 addr = "7E:CA24"
 subsystem = "battle"
 meaning = "Set to make the IRQ apply the alternating-frame setting again ($CE:EE6E); cleared once it has"
-source = "game/battle/nmi.c battle_irq_update_ca22 $D1:FE4C; game/battle/frame.c battle_step_window_slide $CD:05B2"
+source = "game/battle/nmi.c battle_apply_alternate_frame $D1:FE4C; game/battle/frame.c battle_step_window_slide $CD:05B2"
 
 [[var]]
 name = "battle_frame_work_reduced"
@@ -9495,7 +9966,7 @@ name = "battle_alternate_base"
 addr = "7E:CA25"
 subsystem = "battle"
 meaning = "Added to the alternating-frame request when the IRQ applies it ($CE:EE6E): 0, 2 or 8 by the window slide and the display setup"
-source = "game/battle/nmi.c battle_irq_update_ca22 $D1:FE4C; game/battle/frame.c battle_step_window_slide $CD:05B2"
+source = "game/battle/nmi.c battle_apply_alternate_frame $D1:FE4C; game/battle/frame.c battle_step_window_slide $CD:05B2"
 
 # ---- timed effect slots (bank CF) ------------------------------------------------
 

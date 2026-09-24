@@ -40,6 +40,9 @@ PF_API uint8_t tm_video_status(Platform *pf, PfOrigin o);
 /* Restart the beam position latch (the battle NMI does this every frame);
  * returns the status it had. */
 PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o);
+/* The line the beam is on, its low byte, latched and read now (the battle
+ * waits for a line so). */
+PF_API uint8_t tm_beam_line(Platform *pf, PfOrigin o);
 /* Before I/O another processor watches (the APU): let the time the native
  * routine has taken so far pass first. */
 PF_API void tm_sync(Platform *pf);

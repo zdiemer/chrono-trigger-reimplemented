@@ -1,4 +1,4 @@
-/* Timing service, SNES backend: $4200, $4209-$420A, $4210-$4212 and $213F. Included by
+/* Timing service, SNES backend: $4200, $4209-$420A, $4210-$4212, $2137, $213D and $213F. Included by
  * platform/timing.h. */
 #ifndef CT_PLATFORM_SNES_TIMING_H
 #define CT_PLATFORM_SNES_TIMING_H
@@ -41,6 +41,16 @@ PF_API uint8_t tm_video_status(Platform *pf, PfOrigin o)
 PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o)
 {
     return pf_snes_status_read(pf, o, "tm_reset_beam_latch", 0x213F);
+}
+
+PF_API uint8_t tm_beam_line(Platform *pf, PfOrigin o)
+{
+    pf_snes_begin("tm_beam_line", o);
+    pf_snes_get(pf_snes(pf), 0x2137);
+    pf_snes_get(pf_snes(pf), 0x213F);
+    uint8_t line = pf_snes_get(pf_snes(pf), 0x213D);
+    pf_snes_end();
+    return line;
 }
 
 PF_API void tm_sync(Platform *pf) { native_sync(pf_snes(pf)); }
