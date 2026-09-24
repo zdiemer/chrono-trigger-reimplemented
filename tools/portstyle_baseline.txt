@@ -4,4 +4,3 @@
 # its line; the list is meant to empty (docs/PLAN.md, "The transcription backlog").
 
 game/data/decompress.c                       0.171
-game/menu/epoch.c                            0.159

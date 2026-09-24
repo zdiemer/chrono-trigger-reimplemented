@@ -128,50 +128,7 @@ rest waits, is [PLAN.md](PLAN.md).
     written twice, in `numbers.c` and `scripts.c`.
 
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
-  machine"):
-  - `menu/epoch.c` is still on the transcription backlog (0.16 operations a
-    line, 1,827 lines): the Epoch's two Mode 7 screens and the End of Time's
-    gate, each a machine-level port of its own. It is the next piece, and the
-    object mode's module (`menu/object.h`) is what its object handlers should
-    be rewritten onto;
-  - what the qualitative review rated "mostly", to finish:
-    - `menu/script_bridge.h`: entry names that disagree with their operations
-      (`reset_state` for `forget_everything`, `sound_18`/`sound_19`, and
-      others), and the bridge switching on opcode literals (`0x3B`/`0x3C`/
-      `0x4B`, `0x33`) rather than on the rows;
-    - `menu/sprites.c`: the sprite-script interpreter is a switch with
-      positional operands and a second table of lengths, where a table of rows
-      would do (as `object_script.c`'s);
-    - `menu/vram.h`: the object queue is still also set field by field by
-      offset (`menu_set_object_upload_*`, which `object_script.c`'s tile
-      groups use); `MenuObjectUpload` should be the only way in, with its
-      `port` an enum rather than a byte;
-    - `menu/object_script.c`: the look bits `0xF1`/`0x4F` belong in
-      `object.h`, once; the story bits in `top_layer_stays` and the sounds
-      `0x18`/`0x19` need names; `load_palette_row` keeps its parameters in
-      `command_state`/`move_target`; `word`/`second_word` should be the
-      parameters' names;
-    - `menu/save_screen.c`: the portrait's character goes round through
-      `ORIGINAL_EFFECT` and back; its inputs should be parameters; and the
-      return site (`0xE7AC + 2`, `pc == 0xE7AF`) should be named;
-    - `menu/text.c`: control codes decode their operands by offset;
-    - `menu/map.c`: the logic's results are shaped by the entry and the
-      scaffolding (`Strip`, `MapScroll` and the strip queues' `at`
-      out-parameter exist for X and the leftover cells); the wrapper can
-      derive X from the final state, leaving one scaffolding record;
-      `redraw_plane` takes `Snes *` only for its timing tag and the platform;
-    - `menu/line_effects.c`: the irises' bars and the capsule's gap are filled
-      by an overlapping forward copy (`repeat_forward`), where a fill of
-      lines says what they are; the iris tables at `$8DF6`/`$9176`/`$9416` are
-      literals, not in `re/ram.toml`; the channel-write site is computed from
-      PB:PC where a literal per entry belongs; the squashed iris steps byte
-      addresses rather than lines;
-    - `menu/object_commands.c`: still a file of "bank C6's routines" (the
-      Epoch area check belongs beside the Epoch's screen), the scene loaders
-      are named for resource numbers, the mode mask `0x3C` is unnamed, and a
-      16-bit scaffolding store into the area's top cell has no comment;
-    - `menu/epoch.c`: the gate matrix sets line slots 2 and 3 by offset from
-      `GATE_MATRIX_TABLES`, where `line_effects.h`'s operations belong;
+  machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
   - a divergence the rewrite accepts, on inputs no game state makes: a
     string's control code past `$0C`, or one included deeper than four, draws
     nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
@@ -194,7 +151,38 @@ rest waits, is [PLAN.md](PLAN.md).
     take it;
   - the glyph drawer takes the font's addresses from the text engine
     (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
-    that engine ported first.
+    that engine ported first;
+  - what the Epoch's review rated "mostly" (`menu/epoch.c`, `top_layer.c`):
+    - the gate window's fill walks its edges through the `menu_gate_edge_*`
+      cells, which nothing else reads, masking a 16-bit declaration down to
+      the byte that means something: walk local edges and leave the table
+      once through `ORIGINAL_EFFECT`, and narrow the declarations in
+      `re/ram.toml`;
+    - `turn_corners`/`multiply_signed` keep `SignedProduct` and `last`
+      locals only for the leftovers, and `on_the_screen`'s `wrapped` is the
+      add's carry for x but the subtraction's no-borrow for y, which its
+      comment and name get wrong: one named quirk per axis, and the
+      leftovers derived after the call;
+    - `WindowDrawn` is filled inside the corner loop for the leftovers
+      alone; the middle lines are read and filled in bank `$7E` where the
+      rest go to `bank`, without a comment;
+    - raw button bits and `input_mapped(g, 0/1)` where `core/input.h`'s
+      `BUTTON_*` and `ASSIGNED_*` belong;
+    - `start_dial_objects` hands each digit its period through the running
+      object's own slot and restores it; set the started slot's instead;
+    - the dial's and the map view's screen setup runs in the `Snes *` entry,
+      about 25 shadow writes in the original's order: split the runs without
+      call-outs into `GameState`/`Platform` functions;
+    - `draw_map_tile`/`draw_map_picture` return the last group only for the
+      leftovers;
+    - `upload_gate_rows` accepts a count of 0 and a table anywhere; the guard
+      should refuse what the game never passes;
+    - `sine()` is written three times (`epoch.c`, `top_layer.c`, `wave.c`),
+      and `OBJECTS_HELD`/`SCREEN_OFF` twice;
+    - the End of Time's gate screen (`menu_start_gate_screen`) is not an
+      Epoch screen and wants its own file;
+    - sign-bit compares, an uncommented `_unchecked` read in `group_pixel`,
+      and the numbered entries `menu_object_window1_lines_2`/`_3`.
 
 - **What event's and field's combined pass left** (RECOMP.md, "Phase 3a: event
   onto the field's objects"):
@@ -467,21 +455,13 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Platform
 
-- **The ports still on the older video forms** (PLATFORM.md, "The services'
-  gaps the reviews found, closed"). Three of the menus' files still
-  hand the SNES backend their write order (`VID_STEP_*` in a
-  `VidSnesXfer`) at the call. Moving a call to `vid_send_*`,
-  `vid_set_line_slot` or `vid_snes_copy` means adding its site's sequence to
-  `runtime/platform/snes/encodings.c` and, once a file has none left,
-  deleting it from the lint's `WRITE_ORDER`. When none is left, the older
-  forms (`vid_upload_*`, `vid_fill_vram`, `vid_begin_vram_uploads`,
-  `vid_set_line_effect`, `vid_snes_transfer`) and `VidSnesXfer` leave the
-  service. What is left, for the menus' next pass:
-  - `menu/epoch.c`: the Epoch's screens' and the gate's line slots
-    (`vid_set_line_effect`) and their Mode 7 transfers (`vid_upload_vram`,
-    `vid_upload_vram_half`);
-  - `menu/map.c`: the two strip uploads (`$C2:0AF6`, `$C2:0B22`);
-    `menu/line_effects.c`: the irises' slot.
+- **The older video forms can leave the service** (PLATFORM.md, "The services'
+  gaps the reviews found, closed"). No port hands the SNES backend its write
+  order at the call any more (the lint's `WRITE_ORDER` is empty): every site's
+  sequence is in `runtime/platform/snes/encodings.c`. The older forms
+  (`vid_upload_*`, `vid_fill_vram`, `vid_begin_vram_uploads`,
+  `vid_set_line_effect`, `vid_snes_transfer`) and `VidSnesXfer` can go once
+  nothing else calls them.
   The field's own screen setup (`$FD:C0D7`) sets part of a screen, which
   `VidScreen` doesn't express; it is a run of setters with values, which is
   enough until a partial screen is wanted elsewhere.
@@ -497,7 +477,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (3863 of 5599; PLATFORM.md, "P2 as built"): from frame 3864 its gate screen
   drives the Mode 7 matrix, the screen mode and the brightness itself, and none
   of that code is ported, so nothing tells the observer. It is a different
-  screen from the menus' gate (`menu/epoch.c`), which agrees on every frame.
+  screen from the Epoch's time dial (`menu/epoch.c`), which agrees on every frame.
   Porting the event's version is what closes it, and it is the last movie
   between P2 and a library that agrees from power-on.
 - **P3 leftovers** (PLATFORM.md, "P3 as built"): the observer doesn't fill in

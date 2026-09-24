@@ -26,10 +26,26 @@
  * screen's lines, which the vblank handler sends in two halves. */
 enum { MENU_LINE_TABLE_LINES = 224, MENU_LINE_HALF_BYTES = MENU_LINE_TABLE_LINES / 2 * 2 };
 
-/* Where a slot keeps its values in bank $7E: two tables for slots 1 and 2,
- * which the irises draw into on alternate frames (0 and 1). The wave uses
- * slot 1's first. */
+/* Where a slot keeps its values in bank $7E: two tables for each of slots 1-3
+ * (menu_slot1_line_values and the rest), which an object draws into on
+ * alternate frames (0 and 1). The wave uses slot 1's first. */
 uint16_t menu_line_values(uint8_t slot, unsigned which);
+
+/* A slot's small table, set to two runs of 112 lines that read the values
+ * staged for the screen's top half and bottom half; and where it is, which
+ * the slot's channel reads. */
+void menu_lay_out_line_slot(GameState *g, uint8_t slot);
+uint32_t menu_line_slot_table(uint8_t slot);
+
+/* Program line-effect channel `channel` on `target`, reading its values
+ * through the small table at `table` in bank $7E (a slot's, or an object's
+ * own); the channel is programmed at `site`, the original's. The Mode 7
+ * matrix's four channels read two slots' tables between them. */
+void menu_program_line_channel(Platform *pf, uint32_t site, uint8_t channel, VidLineTarget target, uint32_t table);
+
+/* Turn slots' effects on or off from the next frame (a bit a slot). */
+void menu_turn_on_line_slots(GameState *g, uint8_t slots);
+void menu_turn_off_line_slots(GameState *g, uint8_t slots);
 
 /* Start slot `slot` on `target`: its small table set to two runs of 112
  * lines, the channel programmed (at `site`, the original's), and the effect
@@ -46,7 +62,10 @@ bool menu_squashed_iris_can_draw(Snes *s);
 bool menu_capsule_iris_can_draw(Snes *s);
 void menu_object_advance_line_tables(Snes *s);
 void menu_object_window1_lines(Snes *s);
+void menu_object_window1_lines_2(Snes *s);
+void menu_object_window1_lines_3(Snes *s);
 void menu_object_window2_lines(Snes *s);
+void menu_object_window2_lines_2(Snes *s);
 void menu_object_bg1_scroll_lines(Snes *s);
 void menu_object_squashed_iris_1(Snes *s);
 void menu_object_squashed_iris_2(Snes *s);

@@ -43,11 +43,7 @@ ESCAPES = {
 # vid_set_line_slot and vid_snes_copy take from the backend instead
 # (platform/snes/encodings.c; docs/TODO.md, Platform). Remove a file once it
 # moves; the test fails if a listed file no longer does, and nothing may be added.
-WRITE_ORDER = {
-    "menu/epoch.c",
-    "menu/line_effects.c",
-    "menu/map.c",
-}
+WRITE_ORDER = set()
 
 # Files allowed to use the driver-level audio calls (au_driver_*).
 AUDIO_DRIVER = {

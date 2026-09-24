@@ -1,7 +1,12 @@
 /* The command scripts on the original's machine (menu/script_bridge.h): the
  * interpreter's entry and how it runs each command, the commands' entries,
  * the services the commands reach the original's code through, the guards,
- * and the registers a command leaves. */
+ * and the registers a command leaves.
+ *
+ * What a command is on the machine -- where it calls the original's code
+ * from, and what it leaves in X and the carry -- is a table parallel to the
+ * language's (menu/object_script.c), a row an opcode, so the language's own
+ * rows carry none of it. */
 #include "menu/script_bridge.h"
 
 #include "menu/menu_data.h"
@@ -14,13 +19,113 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
+/* ---- What a command is on the machine ----------------------------------------------------------- */
+
+/* X, the carry and A after each command, as the original's handler leaves
+ * them. Nothing the game runs reads them but the interpreter (A) and its
+ * callers (X and the carry, when the command stops the object: the liveness
+ * analysis can't show them dead), so they are worked out from what the
+ * command did. */
+typedef enum {
+    X_AS_ENTERED,      /* the doubled opcode */
+    X_SLOT,            /* the running object's slot, as its cell has it after the command */
+    X_BYTE,            /* the byte the command names: its offset, or the cell's address */
+    X_FROM,            /* the byte it copies from */
+    X_COPIED,          /* the value it copied */
+    X_PAST_STARTED,    /* past the slot it started an object in, or the last it looked at */
+    X_STARTED,         /* the slot it started a script's object in */
+    X_KIND,            /* the location's kind */
+    X_PLANE_INDEX,     /* the plane's number, from 0, doubled */
+    X_SCENE_SCRIPT,    /* the script, where it gave one */
+    X_QUEUE_END,       /* where the queue ended before */
+    X_TABLE_INDEX,     /* the table's number, doubled in a byte */
+    X_LAST_ROW,        /* where the copy's last row went */
+    X_CALLED,          /* what the original's code it called left */
+    X_SCROLLED,        /* the scroll's, where the last move was down; else the slot */
+} XLeft;
+
+typedef enum {
+    C_CLEAR,
+    C_SET,
+    C_SET_GOING_ON,    /* set where the command is over */
+    C_ADDED,           /* the addition's carry */
+    C_SUBTRACTED,      /* no borrow */
+    C_COMPARED,        /* the comparison's, where it didn't branch */
+    C_KIND_BIT,        /* the bit the location's kind was shifted out of */
+    C_SCENE_COMPARE,   /* the last comparison of the member with the party */
+    C_RETURN_PAST_BANK,
+    C_QUEUE_PAST_PAGE, /* the queue's end, moved past the records it queued, past its byte */
+    C_LAST_ROW,
+    C_CALLED,
+} CarryLeft;
+
+/* Which of the original's calls a command makes, each from its own JSR:
+ * the map's scroll for both planes or for one, the sound queue for an
+ * effect, a song or any command. */
+typedef enum { NO_CALL, SCROLLS_BOTH_PLANES, SCROLLS_ONE_PLANE, SENDS_EFFECT, SENDS_SONG, SENDS_COMMAND } CallKind;
+
+typedef struct {
+    uint8_t x, carry;
+    uint8_t calls;     /* CallKind */
+    uint8_t queues;    /* records a command that queues uploads queues */
+} MachineRow;
+
+static const MachineRow MACHINE[] = {
+    [0x00] = { X_SLOT, C_CLEAR },           [0x01] = { X_SLOT, C_CLEAR },
+    [0x02] = { X_SLOT, C_CLEAR },           [0x03] = { X_PAST_STARTED, C_CLEAR },
+    [0x04] = { X_PAST_STARTED, C_CLEAR },   [0x05] = { X_KIND, C_KIND_BIT },
+    [0x06] = { X_AS_ENTERED, C_CLEAR },     [0x07] = { X_PLANE_INDEX, C_CLEAR },
+    [0x08] = { X_SCENE_SCRIPT, C_SCENE_COMPARE }, [0x09] = { X_STARTED, C_SET },
+    [0x0A] = { X_AS_ENTERED, C_CLEAR },     [0x0B] = { X_AS_ENTERED, C_CLEAR },
+    [0x0C] = { X_AS_ENTERED, C_CLEAR },     [0x0D] = { X_BYTE, C_CLEAR },
+    [0x0E] = { X_BYTE, C_CLEAR },           [0x0F] = { X_BYTE, C_CLEAR },
+    [0x10] = { X_BYTE, C_CLEAR },           [0x11] = { X_BYTE, C_CLEAR },
+    [0x12] = { X_BYTE, C_CLEAR },           [0x13] = { X_BYTE, C_CLEAR },
+    [0x14] = { X_BYTE, C_CLEAR },           [0x15] = { X_BYTE, C_CLEAR },
+    [0x16] = { X_BYTE, C_CLEAR },           [0x17] = { X_FROM, C_CLEAR },
+    [0x18] = { X_COPIED, C_CLEAR },         [0x19] = { X_FROM, C_CLEAR },
+    [0x1A] = { X_AS_ENTERED, C_CLEAR },     [0x1B] = { X_AS_ENTERED, C_CLEAR },
+    [0x1C] = { X_AS_ENTERED, C_CLEAR },     [0x1D] = { X_AS_ENTERED, C_CLEAR },
+    [0x1E] = { X_BYTE, C_COMPARED },        [0x1F] = { X_BYTE, C_COMPARED },
+    [0x20] = { X_BYTE, C_COMPARED },        [0x21] = { X_BYTE, C_COMPARED },
+    [0x22] = { X_BYTE, C_CLEAR },           [0x23] = { X_BYTE, C_CLEAR },
+    [0x24] = { X_BYTE, C_COMPARED },        [0x25] = { X_BYTE, C_COMPARED },
+    [0x26] = { X_BYTE, C_COMPARED },        [0x27] = { X_BYTE, C_COMPARED },
+    [0x28] = { X_PAST_STARTED, C_CLEAR },   [0x29] = { X_PAST_STARTED, C_CLEAR },
+    [0x2A] = { X_PAST_STARTED, C_CLEAR },   [0x2B] = { X_PAST_STARTED, C_CLEAR },
+    [0x2C] = { X_SLOT, C_CLEAR },           [0x2D] = { X_AS_ENTERED, C_CLEAR },
+    [0x2E] = { X_SLOT, C_CLEAR },           [0x2F] = { X_SLOT, C_CLEAR },
+    [0x30] = { X_SLOT, C_CLEAR },           [0x31] = { X_SLOT, C_CLEAR },
+    [0x32] = { X_SCROLLED, C_CLEAR, SCROLLS_BOTH_PLANES },
+    [0x33] = { X_QUEUE_END, C_QUEUE_PAST_PAGE, NO_CALL, 1 },
+    [0x34] = { X_CALLED, C_CALLED },        [0x35] = { X_PAST_STARTED, C_CLEAR },
+    [0x36] = { X_SLOT, C_RETURN_PAST_BANK }, [0x37] = { X_SLOT, C_CLEAR },
+    [0x38] = { X_SLOT, C_CLEAR },           [0x39] = { X_SLOT, C_CLEAR },
+    [0x3A] = { X_SLOT, C_SET_GOING_ON },
+    [0x3B] = { X_CALLED, C_CALLED, SENDS_EFFECT },
+    [0x3C] = { X_CALLED, C_CALLED, SENDS_EFFECT },
+    [0x3D] = { X_CALLED, C_CALLED, SENDS_SONG },
+    [0x3E] = { X_CALLED, C_CALLED },        [0x3F] = { X_SLOT, C_SET_GOING_ON },
+    [0x40] = { X_SLOT, C_SET_GOING_ON },    [0x41] = { X_AS_ENTERED, C_CLEAR },
+    [0x42] = { X_PAST_STARTED, C_CLEAR },   [0x43] = { X_STARTED, C_SET },
+    [0x44] = { X_TABLE_INDEX, C_CLEAR },    [0x45] = { X_TABLE_INDEX, C_CLEAR },
+    [0x46] = { X_BYTE, C_ADDED },           [0x47] = { X_BYTE, C_SUBTRACTED },
+    [0x48] = { X_BYTE, C_ADDED },           [0x49] = { X_BYTE, C_SUBTRACTED },
+    [0x4A] = { X_CALLED, C_CALLED, SENDS_SONG },
+    [0x4B] = { X_CALLED, C_CALLED, SENDS_COMMAND },
+    [0x4C] = { X_BYTE, C_COMPARED },        [0x4D] = { X_BYTE, C_COMPARED },
+    [0x4E] = { X_CALLED, C_CALLED },        [0x4F] = { X_LAST_ROW, C_LAST_ROW },
+    [0x50] = { X_QUEUE_END, C_QUEUE_PAST_PAGE, NO_CALL, 2 },
+    [0x51] = { X_SCROLLED, C_CLEAR, SCROLLS_ONE_PLANE },
+    [0x52] = { X_AS_ENTERED, C_SET },
+};
+
 /* ---- The machine a command runs on ---------------------------------------------------------- */
 
 /* The interpreter's dispatch, JSR ($0F91,X) at $C2:0F7A, which returns to
  * $C2:0F7D; the handlers are in bank C2. */
 enum { DISPATCH_SITE = 0xC20F7A, HANDLERS_BANK = 0xC20000, JSR_SIZE = 3, JSL_SIZE = 4 };
 
-enum { BOTH_PLANES_SCROLL = 0x32, SCROLL_ONE_PLANE = 0x51 };
 enum { SCROLL_ACROSS = 0xC20568, SCROLL_DOWN = 0xC2066C };
 
 typedef struct {
@@ -33,6 +138,8 @@ typedef struct {
     bool called_carry;       /* ... and the carry */
     bool overflow;           /* the overflow the interpreter's dispatch leaves the command */
 } OnTheMachine;
+
+static const MachineRow *machine_row(const OnTheMachine *m) { return &MACHINE[m->opcode]; }
 
 /* The commands go on from a call with 16-bit index registers on the mode's
  * page; the map's scrolling, whose caller goes on with 8-bit A, also with
@@ -85,22 +192,21 @@ enum {
     SOUND_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,        /* $C2:2ED9 */
 };
 
-
 /* ---- The services, on the machine ------------------------------------------------------------- */
 
 /* The map's scrolling takes the plane and the step from the mode's first two
- * cells. */
+ * cells. A scroll of both planes sets the step once, so the second plane
+ * scrolls by what the first's scroll left in the cell. */
 static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
 {
     OnTheMachine *m = ctx;
     GameState *g = state_of(m->s);
+    bool both_planes = machine_row(m)->calls == SCROLLS_BOTH_PLANES;
     set_menu_object_scratch_plane(g, plane);
-    /* The original sets the step once for both planes; the second scrolls by
-     * what the first's scroll left in the cell. */
-    if (m->opcode == SCROLL_ONE_PLANE || plane != 2)
+    if (!both_planes || plane != 2)
         set_menu_object_scratch_step(g, (uint8_t)step);
     m->called_down = axis == MENU_DOWN;
-    if (m->opcode == SCROLL_ONE_PLANE)
+    if (!both_planes)
         return axis == MENU_ACROSS ? call_out(m, 0xC2173C, SCROLL_ACROSS, MAP_IGNORES)
                                    : call_out(m, 0xC21751, SCROLL_DOWN, MAP_IGNORES);
     if (axis == MENU_ACROSS)
@@ -116,13 +222,13 @@ static bool redraw_map(void *ctx, uint8_t plane)
     return call_out(m, 0xC21950, 0xC209C5, MAP_IGNORES);
 }
 
-/* The sound queue: each command sends from its own JSR. */
+/* The sound queue: each kind of request sends from its own JSR. */
 static bool pass_on_sound(void *ctx)
 {
     OnTheMachine *m = ctx;
-    switch (m->opcode) {
-    case 0x3B: case 0x3C: return call_out(m, 0xC218E8, 0xC22ED9, SOUND_IGNORES);
-    case 0x4B: return call_out(m, 0xC2193E, 0xC22ED9, SOUND_IGNORES);
+    switch ((CallKind)machine_row(m)->calls) {
+    case SENDS_EFFECT: return call_out(m, 0xC218E8, 0xC22ED9, SOUND_IGNORES);
+    case SENDS_COMMAND: return call_out(m, 0xC2193E, 0xC22ED9, SOUND_IGNORES);
     default: return call_out(m, 0xC21916, 0xC22ED9, SOUND_IGNORES);
     }
 }
@@ -130,7 +236,7 @@ static bool pass_on_sound(void *ctx)
 /* A routine a script names goes through the call target, by a jump through it
  * ($C2:1819) or a long jump ($C2:1836), and may read any register: it gets
  * the ones the command's handler has there. The handler has read its
- * operands through Y (the address's word, and for the long one its bank),
+ * operands through Y (the address's word, and for the far one its bank),
  * which leaves A, N and Z; X, the carry and the overflow are the dispatch's. */
 static bool call_routine(void *ctx, uint32_t routine, bool far)
 {
@@ -153,93 +259,6 @@ static bool call_routine(void *ctx, uint32_t routine, bool far)
 }
 
 /* ---- What a command leaves -------------------------------------------------------------------- */
-
-/* X, the carry and A after each command, as the original's handler leaves
- * them. Nothing the game runs reads them but the interpreter (A) and its
- * callers (X and the carry, when the command stops the object: the liveness
- * analysis can't show them dead), so they are worked out here from what the
- * command did, by a table parallel to the language's. */
-typedef enum {
-    X_AS_ENTERED,      /* the doubled opcode */
-    X_SLOT,            /* the running object's slot, as its cell has it after the command */
-    X_BYTE,            /* the byte the command names: its offset, or the cell's address */
-    X_FROM,            /* the byte it copies from */
-    X_COPIED,          /* the value it copied */
-    X_PAST_STARTED,    /* past the slot it started an object in, or the last it looked at */
-    X_STARTED,         /* the slot it started a script's object in */
-    X_KIND,            /* the location's kind */
-    X_PLANE_INDEX,     /* the plane's number, from 0, doubled */
-    X_SCENE_SCRIPT,    /* the script, where it gave one */
-    X_QUEUE_END,       /* where the queue ended before */
-    X_TABLE_INDEX,     /* the table's number, doubled in a byte */
-    X_LAST_ROW,        /* where the copy's last row went */
-    X_CALLED,          /* what the original's code it called left */
-    X_SCROLLED,        /* the scroll's, where the last move was down; else the slot */
-} XLeft;
-
-typedef enum {
-    C_CLEAR,
-    C_SET,
-    C_SET_GOING_ON,    /* set where the command is over */
-    C_ADDED,           /* the addition's carry */
-    C_SUBTRACTED,      /* no borrow */
-    C_COMPARED,        /* the comparison's, where it didn't branch */
-    C_KIND_BIT,        /* the bit the location's kind was shifted out of */
-    C_SCENE_COMPARE,   /* the last comparison of the member with the party */
-    C_RETURN_PAST_BANK,
-    C_QUEUE_PAST_PAGE,
-    C_LAST_ROW,
-    C_CALLED,
-} CarryLeft;
-
-typedef struct {
-    uint8_t x, carry;
-} Left;
-
-static const Left LEFT[] = {
-    [0x00] = { X_SLOT, C_CLEAR },           [0x01] = { X_SLOT, C_CLEAR },
-    [0x02] = { X_SLOT, C_CLEAR },           [0x03] = { X_PAST_STARTED, C_CLEAR },
-    [0x04] = { X_PAST_STARTED, C_CLEAR },   [0x05] = { X_KIND, C_KIND_BIT },
-    [0x06] = { X_AS_ENTERED, C_CLEAR },     [0x07] = { X_PLANE_INDEX, C_CLEAR },
-    [0x08] = { X_SCENE_SCRIPT, C_SCENE_COMPARE }, [0x09] = { X_STARTED, C_SET },
-    [0x0A] = { X_AS_ENTERED, C_CLEAR },     [0x0B] = { X_AS_ENTERED, C_CLEAR },
-    [0x0C] = { X_AS_ENTERED, C_CLEAR },     [0x0D] = { X_BYTE, C_CLEAR },
-    [0x0E] = { X_BYTE, C_CLEAR },           [0x0F] = { X_BYTE, C_CLEAR },
-    [0x10] = { X_BYTE, C_CLEAR },           [0x11] = { X_BYTE, C_CLEAR },
-    [0x12] = { X_BYTE, C_CLEAR },           [0x13] = { X_BYTE, C_CLEAR },
-    [0x14] = { X_BYTE, C_CLEAR },           [0x15] = { X_BYTE, C_CLEAR },
-    [0x16] = { X_BYTE, C_CLEAR },           [0x17] = { X_FROM, C_CLEAR },
-    [0x18] = { X_COPIED, C_CLEAR },         [0x19] = { X_FROM, C_CLEAR },
-    [0x1A] = { X_AS_ENTERED, C_CLEAR },     [0x1B] = { X_AS_ENTERED, C_CLEAR },
-    [0x1C] = { X_AS_ENTERED, C_CLEAR },     [0x1D] = { X_AS_ENTERED, C_CLEAR },
-    [0x1E] = { X_BYTE, C_COMPARED },        [0x1F] = { X_BYTE, C_COMPARED },
-    [0x20] = { X_BYTE, C_COMPARED },        [0x21] = { X_BYTE, C_COMPARED },
-    [0x22] = { X_BYTE, C_CLEAR },           [0x23] = { X_BYTE, C_CLEAR },
-    [0x24] = { X_BYTE, C_COMPARED },        [0x25] = { X_BYTE, C_COMPARED },
-    [0x26] = { X_BYTE, C_COMPARED },        [0x27] = { X_BYTE, C_COMPARED },
-    [0x28] = { X_PAST_STARTED, C_CLEAR },   [0x29] = { X_PAST_STARTED, C_CLEAR },
-    [0x2A] = { X_PAST_STARTED, C_CLEAR },   [0x2B] = { X_PAST_STARTED, C_CLEAR },
-    [0x2C] = { X_SLOT, C_CLEAR },           [0x2D] = { X_AS_ENTERED, C_CLEAR },
-    [0x2E] = { X_SLOT, C_CLEAR },           [0x2F] = { X_SLOT, C_CLEAR },
-    [0x30] = { X_SLOT, C_CLEAR },           [0x31] = { X_SLOT, C_CLEAR },
-    [0x32] = { X_SCROLLED, C_CLEAR },       [0x33] = { X_QUEUE_END, C_QUEUE_PAST_PAGE },
-    [0x34] = { X_CALLED, C_CALLED },        [0x35] = { X_PAST_STARTED, C_CLEAR },
-    [0x36] = { X_SLOT, C_RETURN_PAST_BANK }, [0x37] = { X_SLOT, C_CLEAR },
-    [0x38] = { X_SLOT, C_CLEAR },           [0x39] = { X_SLOT, C_CLEAR },
-    [0x3A] = { X_SLOT, C_SET_GOING_ON },    [0x3B] = { X_CALLED, C_CALLED },
-    [0x3C] = { X_CALLED, C_CALLED },        [0x3D] = { X_CALLED, C_CALLED },
-    [0x3E] = { X_CALLED, C_CALLED },        [0x3F] = { X_SLOT, C_SET_GOING_ON },
-    [0x40] = { X_SLOT, C_SET_GOING_ON },    [0x41] = { X_AS_ENTERED, C_CLEAR },
-    [0x42] = { X_PAST_STARTED, C_CLEAR },   [0x43] = { X_STARTED, C_SET },
-    [0x44] = { X_TABLE_INDEX, C_CLEAR },    [0x45] = { X_TABLE_INDEX, C_CLEAR },
-    [0x46] = { X_BYTE, C_ADDED },           [0x47] = { X_BYTE, C_SUBTRACTED },
-    [0x48] = { X_BYTE, C_ADDED },           [0x49] = { X_BYTE, C_SUBTRACTED },
-    [0x4A] = { X_CALLED, C_CALLED },        [0x4B] = { X_CALLED, C_CALLED },
-    [0x4C] = { X_BYTE, C_COMPARED },        [0x4D] = { X_BYTE, C_COMPARED },
-    [0x4E] = { X_CALLED, C_CALLED },        [0x4F] = { X_LAST_ROW, C_LAST_ROW },
-    [0x50] = { X_QUEUE_END, C_QUEUE_PAST_PAGE }, [0x51] = { X_SCROLLED, C_CLEAR },
-    [0x52] = { X_AS_ENTERED, C_SET },
-};
 
 /* What the derivations need of the state before the command changes it. */
 typedef struct {
@@ -271,14 +290,14 @@ static bool scene_compare(const GameState *g, const ScriptCommand *c, uint16_t *
 {
     enum { EXTRA_OBJECT = 7, PARTY = 3 };
     if (c->member == EXTRA_OBJECT) {
-        *x = c->word;
+        *x = c->scene_script;
         return true;
     }
     bool carry = false;
     for (unsigned slot = 0; slot < PARTY; slot++) {
         carry = c->member >= party_members(g, slot);
         if (c->member == party_members(g, slot)) {
-            *x = c->word;
+            *x = c->scene_script;
             break;
         }
     }
@@ -305,7 +324,7 @@ static bool compared(const ScriptCommand *c, ScriptFlow f, uint8_t found)
 
 static uint16_t x_left(const GameState *g, const OnTheMachine *m, const ScriptCommand *c, const Noted *n, uint16_t x)
 {
-    switch (LEFT[m->opcode].x) {
+    switch ((XLeft)machine_row(m)->x) {
     case X_SLOT: return menu_object_current(g);
     case X_BYTE: return c->byte.at;
     case X_FROM: return c->from.at;
@@ -327,7 +346,8 @@ static uint16_t x_left(const GameState *g, const OnTheMachine *m, const ScriptCo
 static bool carry_left(const GameState *g, const OnTheMachine *m, const ScriptCommand *c, ScriptFlow f, const Noted *n)
 {
     uint16_t unused = 0;
-    switch (LEFT[m->opcode].carry) {
+    const MachineRow *row = machine_row(m);
+    switch ((CarryLeft)row->carry) {
     case C_SET: return true;
     case C_SET_GOING_ON: return f.kind == SCRIPT_NEXT;
     case C_ADDED: return n->found + c->value > 0xFF;
@@ -336,7 +356,7 @@ static bool carry_left(const GameState *g, const OnTheMachine *m, const ScriptCo
     case C_KIND_BIT: return c->region & 1;
     case C_SCENE_COMPARE: return scene_compare(g, c, &unused);
     case C_RETURN_PAST_BANK: return (uint16_t)c->at + 3 > 0xFFFF;
-    case C_QUEUE_PAST_PAGE: return n->queue_end + (m->opcode == 0x33 ? 8 : 16) > 0xFF;
+    case C_QUEUE_PAST_PAGE: return n->queue_end + row->queues * MENU_OBJECT_UPLOAD_BYTES > 0xFF;
     case C_LAST_ROW: return last_row(g, c) + MAP_ROW_BYTES > 0xFFFF;
     case C_CALLED: return m->called && m->called_carry;
     default: return false;

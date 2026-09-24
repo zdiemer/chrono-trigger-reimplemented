@@ -5565,6 +5565,147 @@ vblank calls off by 1024 clocks or more to none, so their three exceptions
 left `tools/timing_exceptions.txt`. `event_run_init_scripts` keeps its own:
 its error follows its walk over the slots, which this doesn't touch.
 
+### Phase 3a: the menus' follow-ups and the Epoch
+
+The menus' rewrite left two things (TODO.md, "What menu's rewrite left"): what
+its qualitative review rated "mostly" in nine files, and `menu/epoch.c`, the
+last menu file on `tools/portstyle_baseline.txt` (0.16 operations a line over
+1,827 of its 2,212 lines, every function on the machine). This pass takes both;
+`menu/display.c`'s findings went with the platform pass that landed beside
+it (PLATFORM.md, "The services' gaps the reviews found, closed").
+
+**The follow-ups.** Each became what the review asked for:
+- `menu/script_bridge.h`: every command's entry is named for its operation in
+  `object_script.c`, and where one operation serves several opcodes, for what
+  the row fixes (`menu_object_cmd_forget_everything`, `..._change_byte_slot_add`,
+  `..._branch_if_cell_at_least`, `..._play_effect_on_voices_67`); the bridge's
+  per-opcode facts -- what a command leaves in X and the carry, which of the
+  original's routines it calls and from where, how many records it queues --
+  are one table parallel to the language's, and the scroll's and the sound
+  queue's call sites are picked by the row's kind of call, not by opcode
+  literals. `tools/disasm/objscript.py` takes the same names.
+- `menu/object_script.c`: the look's bits are `object.h`'s (`MENU_LOOK_*`, one
+  definition the sprites use too), and `set_look` takes the part it replaces;
+  the story flags that hold the layer over the map still, and the sound
+  driver's commands (`SOUND_PLAY_SONG`, `SoundEffectVoices` in
+  `game/sound/sound.h`), have names; the palette loader's row and hand-over
+  flag are fields of the slot (`palette_row`, `palette_hand_over`); and the
+  language's parameters are named for what they are (`x`, `y`, `pixels`,
+  `fraction`, `scene_script`, `effect`, `pan`, `song`), so no operation takes
+  a `word`. The three operations that took the whole command
+  (`copy_map_tiles`, the call, the sounds) take their parameters.
+- `menu/sprites.c`: the sprite scripts are read by a table of rows (what a
+  command does, how it changes a byte, how long it is), decoded once into
+  named operands; the interpreter and the well-formedness walk share it.
+- `menu/vram.h`: `menu_queue_object_uploads` is the only way into the object
+  mode's queue, `MenuObjectUpload`'s port a `MenuVramPort`.
+- `menu/save_screen.c`: the portrait takes its row, character and tilemap as
+  parameters, read where the rows' command list left them, and the load
+  screen's call of the slot's drawing names its return.
+- `menu/text.c`: a control code's operands are decoded by its row's layout
+  into named fields.
+- `menu/map.c`: the scroll returns nothing; its entries derive X from the
+  plane's final scroll and the queue's end, and the last strip's working
+  values go through one scaffolding record. The redraw takes the platform and
+  times the block uploads through `TIMED_AS` (`charge.h`, new: the tag
+  `NATIVE_TIME_AS` gives code that has the machine, for code that hasn't).
+- `menu/line_effects.c`: the irises' bars and the capsule's gap are line
+  fills (`wram_fill16`, the block move charged), the squashed iris walks lines
+  from its centre, the slots' tables are named in the RAM map
+  (`menu_slot1_line_values` and five more, the sprite-object mode's own), and
+  each copy of the starters programs the channel from its own literal site. A
+  slot's small table, its channel and its enable bit are operations the time
+  dial and the layer's wave now use too (`menu_lay_out_line_slot`,
+  `menu_program_line_channel`, `menu_turn_on_line_slots`).
+- `menu/object_commands.c`: the routines the world maps' scenes call, by
+  purpose (the scene's state, the song, motion, pictures, and now three that
+  put objects on the map at random); the Epoch's area check is in
+  `epoch.c`; the scene mode's bits and the loaders (`..._load_mode7_graphics`,
+  `..._load_second_mode7_palette`) are named for what they are.
+
+**`menu/epoch.c`** is now the Epoch's screens alone, rewritten on the object
+mode's module and the line effects: the map view (the world map sampled a
+colour a tile, drawn as a picture a pixel a map tile across, laid out on the
+plane; a cursor that walks its path turning and zooming it; three markers; the
+blue gradient) and the time dial (the gate's window drawn from three turned
+corners, the spin's double-buffered cosines and sines, the dial through its
+periods, seven digits, the gate's graphics). Its handlers are functions over
+the slot's named fields (`angle`, `target_angle`, `turn`, `period`, `zoom_x`,
+`path_step`, new in the RAM map) returning what the object did this frame,
+from which the entries set the carry and the accumulator's width the
+original's path leaves. What the original leaves in the mode's direct-page
+cells, the multiplier, the divider and the work RAM port is written once, at
+the end, by `leave_*` scaffolding: 26 of the file's cells, worked out from the
+predecessor's register-level port. Three things moved out: the four objects
+that move the layer over three world maps (`menu/top_layer.c`, new:
+`menu_top_layer_slow_drift`, `_drift`, `_wave_drift`, `_wave`, which the
+predecessor called the gate's, as the RAM map did the wave's buffer and table,
+now `menu_top_layer_wave_lines`, `_at` and `_table`), the three routines that put a scene's objects
+on the map at random (`object_commands.c`: `menu_object_place_under_the_view`,
+`_under_the_stretch`, `menu_object_give_random_velocity`), and the End of
+Time's gate screen, which stays in `epoch.c` as its own small section. The
+sibling routines the screens called through their ROM addresses are C calls
+now (the object starts, the sprite scripts, the uploads, the window, the
+multiply). The four that call out themselves (the map view's graphics and
+its build, which call the menus' loader and the world map's, and the gate's
+graphics and its stream loader, which call the decompressor) are still called
+through the machine, as the original calls them: each is an entry of its own,
+which shadow mode compares and the timing gate measures on its own, where run
+inline their time would fall into one stretch of the screen's. `epoch.c`
+scores 0.02 and is off the baseline.
+
+**The video service's new calls.** The platform pass that landed alongside
+(PLATFORM.md, "The services' gaps the reviews found, closed") left
+`epoch.c`, `map.c` and `line_effects.c` on the older forms; they are on
+`vid_send_vram`, `vid_send_vram_half` and `vid_set_line_slot` now, and
+their 25 sites' write orders are in `runtime/platform/snes/encodings.c`.
+
+**Shadow mode.** Over the 26 movies, against `main`'s logs before the pass:
+no mismatch, and every menu entry's calls, compared calls and refusals are
+the same, entry by entry. Two guards refused real calls on the way and were
+narrowed to what the handlers read: the gate matrix's (the slot in X is a new
+object at the cursor path's end, not the running one) and the digits' (a
+hidden digit's sprite script is whatever its slot held, and it shows nothing
+until it is given one; 4,823 of 6,636 calls were refused until the guard
+checked the script it would run). The map view's graphics and build, the
+gate's graphics and its stream loader went through a stage of running inline,
+where shadow mode compares them only inside their screens; they are entries
+again, compared on their own.
+
+**Fuzzing.** `tools/fuzz_compare.py` against `main`'s `ct_fuzz`, seed 1, over
+the menus' 197 entries: every entry but one has the same counts before and
+after or fewer mismatches after. `menu_epoch_load_gate_stream` mismatches 16
+of 173 compared states against 17 of 174 before, the same states: with a
+random bank the decompressor reads through I/O space, where open bus holds
+what the interpreter's fetches left (PORTING.md). The differences fuzzing
+found in the rewrite, all fixed in the port: the map matrix takes its sine's
+angle from the object in X (the cursor, or the object it has just started)
+and the rest from the cursor, as the predecessor had found; the map
+picture's tile reads both palettes before drawing either pixel, and the last
+tile group it looked at is the last one drawn, not the last on the map; the
+path's zooms and the map view's graphics number are read with the bank's
+24-bit carry; the gate tilemap's row table is read as a word, its low byte
+kept, which matters where the table is pointed at hardware registers; the
+dial and its window draw into the tables the dial's first step put in bank
+`$7E` or `$7F`. New constraints: the dial's window bank, the row upload's
+table in ROM and rows in bank `$7F`, and a slot running for the gate's
+graphics (which counts the digits' periods in it).
+
+**Timing.** The rewritten entries were recalibrated (`menu_epoch_*`,
+`menu_top_layer_*`, the three placements, `menu_start_gate_screen`), and
+nothing else. The inlined siblings are named with `NATIVE_TIME_AS` where
+they have the machine and with `TIMED_AS` (`game/charge.h`, new) where the
+logic has only the game state; block moves and work RAM fills charge the
+original's per-byte time (`charge_block_move`), and the gate window's drawing
+charges its per-line accesses. That took `menu_epoch_time_dial_object`'s
+vblank tail from 14.24% of its vblank calls off by 1024 clocks or more to
+0.53%, and its worst from 45,506 clocks to 4,271, so both its exceptions left
+`tools/timing_exceptions.txt`; `menu_epoch_build_gate_window`'s tail went from
+88.8% to 2.0% and keeps its exception, its time following the triangle's
+lines. The load screen's portrait is timed as before: the check whether it is
+the port's to draw stays outside its `NATIVE_TIME_AS`, since inside it charged
+the portrait's time to the rows it hands to the original.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

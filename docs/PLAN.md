@@ -264,11 +264,10 @@ gate, so shadow mode compares the rewrite against the original call for call
 over the whole library, and the entry keeps its fuzzing. Rewriting a file to
 the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
 holds every other file where it is, so the list only shrinks. `menu` is
-rewritten but for `menu/epoch.c` (RECOMP.md, "Phase 3a: the menus off the
-machine"), and `battle` is rewritten whole (RECOMP.md, "Phase 3a: the battle
-off the machine"), waiting for its qualitative review before it merges. What
-is left of the backlog is `epoch.c`, on the object mode's module, and the
-decompressor.
+rewritten (RECOMP.md, "Phase 3a: the menus off the machine" and "Phase 3a:
+the menus' follow-ups and the Epoch"), and `battle` is rewritten whole
+(RECOMP.md, "Phase 3a: the battle off the machine"), waiting for its
+qualitative review before it merges.
 
 **The bar grew after event, and event is being brought up to it.** Reading
 event's rewrite, it still read as a translation: the accessors had taken the

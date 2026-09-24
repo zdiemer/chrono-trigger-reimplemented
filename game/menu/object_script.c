@@ -47,30 +47,31 @@ static ScriptFlow forget_everything(GameState *g, MenuObject self)
 SCRIPT_OPERATION_OF_THE_OBJECT(forget_everything)
 
 // $C2:1091, $C2:10A8
-/* A part of how the object's sprites look: their palette, or their priority
- * and whether they move with the map. */
-static ScriptFlow set_look(GameState *g, MenuObject self, uint8_t keep, uint8_t bits)
+/* A part of how the object's sprites look (menu/object.h): their palette, or
+ * their priority and whether they move with the map. The script's bits go
+ * over the part unmasked, as the original puts them. */
+static ScriptFlow set_look(GameState *g, MenuObject self, uint8_t part, uint8_t look)
 {
-    set_menu_object_slots_look(g, self, (uint8_t)((menu_object_slots_look(g, self) & keep) | bits));
+    set_menu_object_slots_look(g, self, (uint8_t)((menu_object_slots_look(g, self) & ~part) | look));
     return next_command();
 }
-SCRIPT_OPERATION(set_look, keep, bits)
+SCRIPT_OPERATION(set_look, part, look)
 
 // $C2:15C3
 /* Put the object on a pixel of the map. */
-static ScriptFlow place(GameState *g, MenuObject self, uint16_t word, uint16_t second_word)
+static ScriptFlow place(GameState *g, MenuObject self, uint16_t x, uint16_t y)
 {
-    menu_object_set_place(g, self, (MenuPlace){ (uint32_t)word << 16, (uint32_t)second_word << 16 });
+    menu_object_set_place(g, self, (MenuPlace){ (uint32_t)x * MENU_POSITION_UNITS, (uint32_t)y * MENU_POSITION_UNITS });
     return next_command();
 }
-SCRIPT_OPERATION(place, word, second_word)
+SCRIPT_OPERATION(place, x, y)
 
 // $C2:15E3, $C2:15F9
-/* Its velocity across or down: a fraction of a pixel a frame, then pixels. */
-static ScriptFlow set_velocity(GameState *g, MenuObject self, MenuAxis axis, uint16_t word, uint16_t second_word)
+/* Its velocity across or down: whole pixels a frame, and a fraction of one. */
+static ScriptFlow set_velocity(GameState *g, MenuObject self, MenuAxis axis, uint16_t pixels, uint16_t fraction)
 {
     MenuPlace v = menu_object_velocity(g, self);
-    uint32_t pixels_a_frame = (uint32_t)second_word << 16 | word;
+    uint32_t pixels_a_frame = (uint32_t)pixels * MENU_POSITION_UNITS + fraction;
     if (axis == MENU_ACROSS)
         v.x = pixels_a_frame;
     else
@@ -78,9 +79,10 @@ static ScriptFlow set_velocity(GameState *g, MenuObject self, MenuAxis axis, uin
     menu_object_set_velocity(g, self, v);
     return next_command();
 }
-SCRIPT_OPERATION(set_velocity, axis, word, second_word)
+SCRIPT_OPERATION(set_velocity, axis, pixels, fraction)
 
 // $C2:160F
+/* Give the object one of the game's sprite scripts, from its start. */
 static ScriptFlow give_sprite_script(GameState *g, MenuObject self, uint8_t sprite_script)
 {
     menu_give_sprite_script(g, self, sprite_script);
@@ -127,6 +129,7 @@ static ScriptFlow change_byte(GameState *g, MenuObject self, ByteChange change, 
 SCRIPT_OPERATION(change_byte, change, byte, value)
 
 // $C2:1302, $C2:131C, $C2:1336, $C2:1350
+/* Copy a byte of the object's state or the game's to another. */
 static ScriptFlow copy_byte(GameState *g, MenuObject self, ByteRef from, ByteRef byte)
 {
     script_set_byte_at(g, self, byte, script_byte_at(g, self, from));
@@ -188,13 +191,15 @@ static ScriptFlow call(GameState *g, MenuObject self, uint32_t at, uint16_t to)
     set_menu_object_slots_return_to(g, self, (uint16_t)(at + CALL_LENGTH));
     return go_to(to);
 }
-static ScriptFlow call_command(GameState *g, const ScriptCommand *c) { return call(g, c->self, c->at, c->to); }
+SCRIPT_PLACED_OPERATION(call, to)
 
 // $C2:185F
+/* Back to where the script's call left off. */
 static ScriptFlow return_from_call(GameState *g, MenuObject self) { return go_to(menu_object_slots_return_to(g, self)); }
 SCRIPT_OPERATION_OF_THE_OBJECT(return_from_call)
 
 // $C2:1169, $C2:1A2B
+/* Hold the script on this command until the next frame, where it goes on. */
 static ScriptFlow wait_for_next_frame(GameState *g)
 {
     (void)g;
@@ -297,11 +302,15 @@ static ScriptFlow move_to(GameState *g, MenuObject self, MenuAxis axis, uint16_t
 }
 SCRIPT_OPERATION(move_to, axis, target, back_script, forward_script)
 
-/* The layer over the map moves with it, unless the story holds it still. */
+/* The layer over the map moves with it, unless one of the three story flags
+ * that hold it still is set (in the map screens' copy of the story's flags). */
+enum { TOP_LAYER_STAYS_FIRST = 0x10, TOP_LAYER_STAYS_SECOND = 0x20, TOP_LAYER_STAYS_THIRD = 0x02 };
+
 static bool top_layer_stays(const GameState *g)
 {
-    return (menu_story_flags_top_layer_first(g) & 0x10) || (menu_story_flags_top_layer_second(g) & 0x20)
-           || (menu_story_flags_top_layer_third(g) & 0x02);
+    return (menu_story_flags_top_layer_first(g) & TOP_LAYER_STAYS_FIRST)
+           || (menu_story_flags_top_layer_second(g) & TOP_LAYER_STAYS_SECOND)
+           || (menu_story_flags_top_layer_third(g) & TOP_LAYER_STAYS_THIRD);
 }
 
 /* A scroll moves the map by the whole pixels the object has moved since the
@@ -398,18 +407,20 @@ SCRIPT_OPERATION(start_handler, handler, slots)
 
 // $C2:10CD
 /* Start the palette loader on colours from anywhere in memory, for a row of
- * the palette, and say whether it hands over to the next loader when done:
- * the loader takes them from the state it inherits. */
+ * the palette, and say whether it hands over to the next loader when done.
+ * The loader (the original's) reads what it loads from the state it inherits
+ * from this object, so this object holds them first. */
 static ScriptFlow load_palette_row(GameState *g, MenuObject self, uint32_t colours, uint8_t row, uint8_t hand_over)
 {
     set_menu_object_slots_palette_source(g, self, colours);
-    set_menu_object_slots_command_state(g, self, row);
-    set_menu_object_slots_move_target(g, self, (uint16_t)((menu_object_slots_move_target(g, self) & 0xFF00) | hand_over));
+    set_menu_object_slots_palette_row(g, self, row);
+    set_menu_object_slots_palette_hand_over(g, self, hand_over);
     return start_handler(g, self, PALETTE_LOADER, MENU_ORDINARY_SLOT);
 }
 SCRIPT_OPERATION(load_palette_row, colours, row, hand_over)
 
 // $C2:11F6, $C2:1A2D
+/* Start another object on a script, in the ordinary slots or the first four. */
 static ScriptFlow start_script(GameState *g, MenuObject self, uint32_t script, MenuSlotKind slots)
 {
     (void)self;
@@ -476,20 +487,24 @@ static void leave_copied(GameState *g, uint16_t from, uint16_t to, uint8_t to_ro
  * of the first two planes' maps to a place in either, a row at a time from
  * the top and each row from the left (so a copy onto itself runs on through
  * what it has just written). A count of zero is 256. */
-static ScriptFlow copy_map_tiles(GameState *g, const ScriptCommand *c)
+static ScriptFlow copy_map_tiles(GameState *g, MenuObject self, uint8_t from_plane, uint8_t from_column,
+                                 uint8_t from_row, uint8_t plane, uint8_t column, uint8_t row, uint8_t columns,
+                                 uint8_t rows)
 {
-    uint16_t from = map_tile(g, first_or_second(c->from_plane), c->from_column, c->from_row);
-    uint16_t to = map_tile(g, first_or_second(c->plane), c->column, c->row);
-    unsigned rows = c->rows ? c->rows : 256, across = c->columns ? c->columns : 256;
-    for (unsigned r = 0; r < rows; r++) {
+    (void)self;
+    uint16_t from = map_tile(g, first_or_second(from_plane), from_column, from_row);
+    uint16_t to = map_tile(g, first_or_second(plane), column, row);
+    unsigned down = rows ? rows : 256, across = columns ? columns : 256;
+    for (unsigned r = 0; r < down; r++) {
         uint32_t source = ((uint32_t)MAP_BANK << 16) + (uint16_t)(from + r * MAP_ROW_BYTES);
         uint32_t dest = ((uint32_t)MAP_BANK << 16) + (uint16_t)(to + r * MAP_ROW_BYTES);
         for (unsigned i = 0; i < across; i++)
             wram_write8(g, dest + i, wram_read8(g, source + i));
     }
-    ORIGINAL_EFFECT(leave_copied(g, from, to, c->row, c->columns, rows));
+    ORIGINAL_EFFECT(leave_copied(g, from, to, row, columns, down));
     return next_command();
 }
+SCRIPT_OPERATION(copy_map_tiles, from_plane, from_column, from_row, plane, column, row, columns, rows)
 
 /* A tile group's four tiles go to the plane's tilemap two over two, the
  * tilemap being two screens of 32 tiles across; a map tile is two tiles
@@ -515,20 +530,18 @@ static ScriptFlow show_tile_group(GameState *g, MenuObject self, uint8_t plane, 
     ORIGINAL_EFFECT(set_menu_object_scratch_group_screen_column(g, in_its_screen));
     ORIGINAL_EFFECT(set_menu_object_scratch_pointer_address(g, source));
     ORIGINAL_EFFECT(set_menu_object_scratch_second_pointer_address(g, vram));
-    unsigned at = menu_hold_object_queue(g);
-    for (unsigned half = 0; half < 2; half++, at += MENU_OBJECT_UPLOAD_BYTES) {
-        menu_set_object_upload_bank(g, at, MAP_BANK);
-        menu_set_object_upload_port(g, at, MENU_PORT_WORDS);
-        menu_set_object_upload_source(g, at, (uint16_t)(source + half * GROUP_ROW_BYTES));
-        menu_set_object_upload_vram(g, at, (uint16_t)(vram + half * TILEMAP_COLUMNS));
-        menu_set_object_upload_size(g, at, GROUP_ROW_BYTES);
-    }
-    menu_release_object_queue(g, (uint8_t)at);
+    const MenuObjectUpload rows[2] = {
+        { (uint32_t)MAP_BANK << 16 | source, vram, GROUP_ROW_BYTES, MENU_PORT_WORD_BY_WORD },
+        { (uint32_t)MAP_BANK << 16 | (uint16_t)(source + GROUP_ROW_BYTES), (uint16_t)(vram + TILEMAP_COLUMNS),
+          GROUP_ROW_BYTES, MENU_PORT_WORD_BY_WORD },
+    };
+    (void)menu_queue_object_uploads(g, rows, 2);
     return next_command();
 }
 SCRIPT_OPERATION(show_tile_group, plane, column, row, group)
 
 // $C2:1947
+/* Redraw one of the map's planes whole. */
 static ScriptFlow redraw_map(GameState *g, MenuObject self, const ScriptServices *map, uint8_t plane)
 {
     (void)g;
@@ -553,24 +566,24 @@ SCRIPT_OPERATION(queue_upload, source, vram, size)
 /* Give the object of a map screen's scene that plays a character its script:
  * the party member who is that character, or the extra object where the
  * command names 7. Nothing where no member is. */
-static ScriptFlow set_scene_script(GameState *g, MenuObject self, uint16_t word, uint8_t member)
+static ScriptFlow set_scene_script(GameState *g, MenuObject self, uint16_t scene_script, uint8_t member)
 {
     enum { EXTRA_OBJECT = 7, EXTRA_SLOT = 3, PARTY = 3 };
     (void)self;
-    ORIGINAL_EFFECT(set_menu_object_scratch_scene_script(g, word));
+    ORIGINAL_EFFECT(set_menu_object_scratch_scene_script(g, scene_script));
     if (member == EXTRA_OBJECT) {
-        set_menu_member_scripts(g, EXTRA_SLOT, word);
+        set_menu_member_scripts(g, EXTRA_SLOT, scene_script);
         return next_command();
     }
     for (unsigned slot = 0; slot < PARTY; slot++) {
         if (party_members(g, slot) == member) {
-            set_menu_member_scripts(g, slot, word);
+            set_menu_member_scripts(g, slot, scene_script);
             break;
         }
     }
     return next_command();
 }
-SCRIPT_OPERATION(set_scene_script, word, member)
+SCRIPT_OPERATION(set_scene_script, scene_script, member)
 
 // $C2:1100
 /* Leave the map screen for a location: where the party is on the world map
@@ -630,55 +643,63 @@ static ScriptFlow mark_entry(GameState *g, MenuObject self, uint8_t table, uint8
 }
 SCRIPT_OPERATION(mark_entry, table, entry, mark)
 
-/* The sound driver's commands the scripts send: a song, and two kinds of
- * sound. A song fills the rest of its request with $FF. */
-enum { PLAY_SONG = 0x10, NO_PARAMETER = 0xFF };
+/* What the scripts ask of the sound driver (game/sound/driver.c): a song, a
+ * sound effect on one of the two pairs of voices kept for effects
+ * (SoundEffectVoices), or any command with its three parameters. A song
+ * fills the rest of its request with $FF. */
+enum { NO_PARAMETER = 0xFF };
 
 static ScriptFlow pass_on(const ScriptServices *sound)
 {
     return sound->pass_on_sound(sound->ctx) ? next_command() : handed_back();
 }
 
-// $C2:18C7, $C2:18D0, $C2:191F
-/* Send the sound driver a command: a sound with its two parameters, or any
- * command with all three. */
-static ScriptFlow send_sound(GameState *g, const ScriptServices *sound, uint8_t command, uint8_t first,
-                             uint8_t second, uint8_t third, bool all_three)
+// $C2:18C7, $C2:18D0
+/* Play a sound effect, panned, on one of the pairs of voices. */
+static ScriptFlow play_effect(GameState *g, MenuObject self, const ScriptServices *sound, SoundEffectVoices voices,
+                              uint8_t effect, uint8_t pan)
 {
-    set_menu_sound_request_command(g, command);
-    set_menu_sound_request_first(g, first);
-    set_menu_sound_request_second(g, second);
-    if (all_three)
-        set_menu_sound_request_third(g, third);
+    (void)self;
+    set_menu_sound_request_command(g, (uint8_t)voices);
+    set_menu_sound_request_first(g, effect);
+    set_menu_sound_request_second(g, pan);
     set_menu_sound_request_age(g, 0);
     return pass_on(sound);
 }
-static ScriptFlow play_sound_command(GameState *g, const ScriptCommand *c)
+SCRIPT_SERVED_OPERATION(play_effect, voices, effect, pan)
+
+// $C2:191F
+/* Send the sound driver any command, with its three parameters. */
+static ScriptFlow send_sound_command(GameState *g, MenuObject self, const ScriptServices *sound, uint8_t command,
+                                    uint8_t first, uint8_t second, uint8_t third)
 {
-    return send_sound(g, c->services, c->sound, c->first, c->second, 0, false);
+    (void)self;
+    set_menu_sound_request_command(g, command);
+    set_menu_sound_request_first(g, first);
+    set_menu_sound_request_second(g, second);
+    set_menu_sound_request_third(g, third);
+    set_menu_sound_request_age(g, 0);
+    return pass_on(sound);
 }
-static ScriptFlow send_to_sound_driver_command(GameState *g, const ScriptCommand *c)
-{
-    return send_sound(g, c->services, c->sound, c->first, c->second, c->third, true);
-}
+SCRIPT_SERVED_OPERATION(send_sound_command, command, first, second, third)
 
 // $C2:18F9, $C2:18F1
 /* Start a song, and note it as the one playing; or start the screen's song
  * unless the screen keeps the one already playing. */
-static ScriptFlow play_song(GameState *g, MenuObject self, const ScriptServices *sound, uint8_t first, bool unless_kept)
+static ScriptFlow play_song(GameState *g, MenuObject self, const ScriptServices *sound, uint8_t song, bool unless_kept)
 {
     (void)self;
     if (unless_kept && menu_song_kept(g) != 0)
         return next_command();
-    set_menu_sound_request_command(g, PLAY_SONG);
-    set_menu_sound_request_first(g, first);
-    set_menu_song_playing(g, first);
+    set_menu_sound_request_command(g, SOUND_PLAY_SONG);
+    set_menu_sound_request_first(g, song);
+    set_menu_song_playing(g, song);
     set_menu_sound_request_second(g, NO_PARAMETER);
     set_menu_sound_request_third(g, NO_PARAMETER);
     set_menu_sound_request_age(g, 0);
     return pass_on(sound);
 }
-SCRIPT_SERVED_OPERATION(play_song, first, unless_kept)
+SCRIPT_SERVED_OPERATION(play_song, song, unless_kept)
 
 // $C2:1807, $C2:181C
 /* Run a routine the script names: in bank C2, or anywhere. */
@@ -699,8 +720,9 @@ SCRIPT_SERVED_OPERATION(call_routine, routine, far)
 
 SCRIPT_OPCODES(menu_script_opcodes,
     { 0x00, OPERATION(forget_everything), .length = 1 },
-    { 0x01, OPERATION(set_look), .keep = CONSTANT(0xF1), .bits = OPERAND(1), .length = 2 },
-    { 0x02, OPERATION(set_look), .keep = CONSTANT(0x4F), .bits = OPERAND(1), .length = 2 },
+    { 0x01, OPERATION(set_look), .part = CONSTANT(MENU_LOOK_PALETTE), .look = OPERAND(1), .length = 2 },
+    { 0x02, OPERATION(set_look), .part = CONSTANT(MENU_LOOK_PRIORITY | MENU_LOOK_ON_THE_MAP), .look = OPERAND(1),
+      .length = 2 },
     { 0x03, OPERATION(start_handler), .handler = CONSTANT(TILE_STREAMER), .slots = ORDINARY, .length = 10 },
     { 0x04, OPERATION(load_palette_row), .colours = OPERAND_LONG(1), .row = OPERAND(4), .hand_over = OPERAND(5),
       .length = 6 },
@@ -709,7 +731,7 @@ SCRIPT_OPCODES(menu_script_opcodes,
     { 0x06, OPERATION(wait_for_next_frame), .length = 1 },
     { 0x07, OPERATION(set_map_tile), .plane = OPERAND(1), .column = OPERAND(2), .row = OPERAND(3),
       .value = OPERAND(4), .length = 5 },
-    { 0x08, OPERATION(set_scene_script), .word = OPERAND_WORD(1), .member = OPERAND(3), .length = 4 },
+    { 0x08, OPERATION(set_scene_script), .scene_script = OPERAND_WORD(1), .member = OPERAND(3), .length = 4 },
     { 0x09, OPERATION(start_script), .script = WORD_IN_BANK(1, 3), .slots = ORDINARY, .length = 4 },
     { 0x0A, OPERATION(change_byte), .change = CONSTANT(BYTE_CLEAR), .byte = SLOT_BYTE(1), .length = 2 },
     { 0x0B, OPERATION(change_byte), .change = CONSTANT(BYTE_COUNT_UP), .byte = SLOT_BYTE(1), .length = 2 },
@@ -753,12 +775,12 @@ SCRIPT_OPCODES(menu_script_opcodes,
     { 0x29, OPERATION(start_handler), .handler = CONSTANT(FADE_IN), .slots = ORDINARY, .length = 2 },
     { 0x2A, OPERATION(start_handler), .handler = CONSTANT(MOSAIC_ON), .slots = ORDINARY, .length = 3 },
     { 0x2B, OPERATION(start_handler), .handler = CONSTANT(MOSAIC_OFF), .slots = ORDINARY, .length = 3 },
-    { 0x2C, OPERATION(place), .word = OPERAND_WORD(1), .second_word = OPERAND_WORD(3), .length = 5 },
+    { 0x2C, OPERATION(place), .x = OPERAND_WORD(1), .y = OPERAND_WORD(3), .length = 5 },
     { 0x2D, OPERATION(nothing), .length = 2 },
-    { 0x2E, OPERATION(set_velocity), .axis = CONSTANT(MENU_ACROSS), .word = OPERAND_WORD(1),
-      .second_word = OPERAND_WORD(3), .length = 5 },
-    { 0x2F, OPERATION(set_velocity), .axis = CONSTANT(MENU_DOWN), .word = OPERAND_WORD(1),
-      .second_word = OPERAND_WORD(3), .length = 5 },
+    { 0x2E, OPERATION(set_velocity), .axis = CONSTANT(MENU_ACROSS), .fraction = OPERAND_WORD(1),
+      .pixels = OPERAND_WORD(3), .length = 5 },
+    { 0x2F, OPERATION(set_velocity), .axis = CONSTANT(MENU_DOWN), .fraction = OPERAND_WORD(1),
+      .pixels = OPERAND_WORD(3), .length = 5 },
     { 0x30, OPERATION(give_sprite_script), .sprite_script = OPERAND(1), .length = 2 },
     { 0x31, OPERATION(for_frames), .frames = OPERAND(1), .moving = ON, .animating = ON, .length = 2 },
     { 0x32, OPERATION(scroll_map), .frames = OPERAND(1), .plane = CONSTANT(BOTH_PLANES), .length = 2 },
@@ -766,14 +788,16 @@ SCRIPT_OPCODES(menu_script_opcodes,
       .length = 8 },
     { 0x34, OPERATION(call_routine), .routine = OPERAND_WORD(1), .far = OFF, .length = 3 },
     { 0x35, OPERATION(start_handler), .handler = OPERAND_WORD(1), .slots = ORDINARY, .length = 3 },
-    { 0x36, .run = call_command, .to = OPERAND_WORD(1), .length = 3 },
+    { 0x36, OPERATION(call), .to = OPERAND_WORD(1), .length = 3 },
     { 0x37, OPERATION(return_from_call), .length = 1 },
     { 0x38, OPERATION(for_frames), .frames = OPERAND(1), .moving = OFF, .animating = OFF, .length = 2 },
     { 0x39, OPERATION(for_frames), .frames = OPERAND(1), .moving = OFF, .animating = ON, .length = 2 },
     { 0x3A, OPERATION(until_older_than), .age = OPERAND_WORD(1), .length = 3 },
-    { 0x3B, .run = play_sound_command, .sound = CONSTANT(0x18), .first = OPERAND(1), .second = OPERAND(2), .length = 3 },
-    { 0x3C, .run = play_sound_command, .sound = CONSTANT(0x19), .first = OPERAND(1), .second = OPERAND(2), .length = 3 },
-    { 0x3D, OPERATION(play_song), .first = OPERAND(1), .unless_kept = ON, .length = 2 },
+    { 0x3B, OPERATION(play_effect), .voices = CONSTANT(SOUND_EFFECT_ON_VOICES_6_7), .effect = OPERAND(1), .pan = OPERAND(2),
+      .length = 3 },
+    { 0x3C, OPERATION(play_effect), .voices = CONSTANT(SOUND_EFFECT_ON_VOICES_4_5), .effect = OPERAND(1), .pan = OPERAND(2),
+      .length = 3 },
+    { 0x3D, OPERATION(play_song), .song = OPERAND(1), .unless_kept = ON, .length = 2 },
     { 0x3E, OPERATION(redraw_map), .plane = OPERAND(1), .length = 2 },
     { 0x3F, OPERATION(move_to), .axis = CONSTANT(MENU_ACROSS), .target = OPERAND_WORD(1), .back_script = OPERAND(3),
       .forward_script = OPERAND(4), .length = 5 },
@@ -788,15 +812,15 @@ SCRIPT_OPCODES(menu_script_opcodes,
     { 0x47, OPERATION(change_byte), .change = CONSTANT(BYTE_SUBTRACT), .byte = SLOT_BYTE(1), .value = OPERAND(2), .length = 3 },
     { 0x48, OPERATION(change_byte), .change = CONSTANT(BYTE_ADD), .byte = CELL(1), .value = OPERAND(3), .length = 4 },
     { 0x49, OPERATION(change_byte), .change = CONSTANT(BYTE_SUBTRACT), .byte = CELL(1), .value = OPERAND(3), .length = 4 },
-    { 0x4A, OPERATION(play_song), .first = OPERAND(1), .unless_kept = OFF, .length = 2 },
-    { 0x4B, .run = send_to_sound_driver_command, .sound = OPERAND(1), .first = OPERAND(2), .second = OPERAND(3),
+    { 0x4A, OPERATION(play_song), .song = OPERAND(1), .unless_kept = OFF, .length = 2 },
+    { 0x4B, OPERATION(send_sound_command), .command = OPERAND(1), .first = OPERAND(2), .second = OPERAND(3),
       .third = OPERAND(4), .length = 5 },
     { 0x4C, OPERATION(branch_if), .test = CONSTANT(TEST_BELOW), .byte = CELL(1), .value = OPERAND(3),
       .by = SIGNED_OPERAND(4), .length = 5 },
     { 0x4D, OPERATION(branch_if), .test = CONSTANT(TEST_AT_LEAST), .byte = CELL(1), .value = OPERAND(3),
       .by = SIGNED_OPERAND(4), .length = 5 },
     { 0x4E, OPERATION(call_routine), .routine = OPERAND_LONG(1), .far = ON, .length = 4 },
-    { 0x4F, .run = copy_map_tiles, .from_plane = OPERAND(1), .from_column = OPERAND(2), .from_row = OPERAND(3),
+    { 0x4F, OPERATION(copy_map_tiles), .from_plane = OPERAND(1), .from_column = OPERAND(2), .from_row = OPERAND(3),
       .plane = OPERAND(4), .column = OPERAND(5), .row = OPERAND(6), .columns = OPERAND(7), .rows = OPERAND(8),
       .length = 9 },
     { 0x50, OPERATION(show_tile_group), .plane = OPERAND(1), .column = OPERAND(2), .row = OPERAND(3),

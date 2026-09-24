@@ -1,17 +1,24 @@
-/* Menu mode: the routines of bank C6 the sprite objects' scripts call.
+/* Menu mode: the routines the world maps' scenes call from their scripts.
  *
- * A script can call a routine by its long address (menu/object_script.c's
- * call command); the ones here sit in bank C6 beside the scenes' resource
- * tables. They do small things to the scene around the object: note the
- * scene's mode for the script to test, set and clear story flags, bob the
- * second plane, make an object fall faster, let the layer over the map drift
- * with an object, load a scene's graphics and palettes. The Epoch's map screen
- * also calls its area check directly. The per-line effects the scripts start
- * from bank C6 are menu/line_effects.c's.
+ * The sprite-object mode plays a scene on each world map (menu/object.h), a
+ * script for each of its objects. A script can call a routine by its long
+ * address (menu/object_script.c's call command); these are the ones the
+ * scenes call to do what the script language can't:
  *
- * After them the scripts read only X and the carry (and the map screen the
- * area check's outcome), so each entry says what it leaves in those and
- * declares the rest dead. */
+ * - the scene's own state: its mode, which a script tests to pick its way
+ *   (set in the story's flags), and the flag a scene clears as it ends;
+ * - the song: whether the map screen that follows keeps the one playing;
+ * - motion: an object that falls faster and faster, the layer over the map
+ *   drifting with an object, the second plane bobbing up and down;
+ * - pictures: the scenes' Mode 7 graphics and colours, decompressed into
+ *   the Mode 7 plane's buffer and the loaded palette.
+ *
+ * The per-line effects the scenes start are menu/line_effects.c's, and the
+ * Epoch's area check, which its map screen calls, is beside the Epoch's
+ * screens in menu/epoch.c.
+ *
+ * After them the scripts read only X and the carry, so each entry says what
+ * it leaves in those and declares the rest dead. */
 #include "menu/object_commands.h"
 
 #include "menu/menu_data.h"
@@ -21,11 +28,19 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-/* ---- the scene around the object ------------------------------------------------------------- */
+/* ---- the scene's own state ------------------------------------------------------------------ */
+
+/* The scene's mode is kept in bits 2-5 of one of the story's flags (the map
+ * screens' copy of them). */
+enum { SCENE_MODE_BITS = 0x3C, SCENE_MODE_SHIFT = 2 };
 
 // $C6:E237
-/* The scene's mode: bits 2-5 of the story flags the map screens copy in. */
-static uint8_t scene_mode(const GameState *g) { return (uint8_t)((menu_story_flags_scene_mode_bits(g) & 0x3C) >> 2); }
+static uint8_t scene_mode(const GameState *g)
+{
+    return (uint8_t)((menu_story_flags_scene_mode_bits(g) & SCENE_MODE_BITS) >> SCENE_MODE_SHIFT);
+}
+
+/* ---- motion --------------------------------------------------------------------------------- */
 
 // $C6:E583, $C6:E590
 /* Bob the second plane up or down a couple of lines (its scroll's low byte,
@@ -57,15 +72,16 @@ static bool accelerate(GameState *g, MenuObject o)
     return wrapped;
 }
 
+/* How much the drift speeds up each frame, across and down. */
+enum { DRIFT_SPEED_UP_X = 0x0DDB, DRIFT_SPEED_UP_Y = 0x0800 };
+
+static uint32_t layer_place(uint16_t scroll, uint32_t place) { return (uint32_t)scroll << 16 | (uint16_t)place; }
+
 // $C6:E2B5
 /* The layer over the map drifts with the object: the object's velocity moves
  * the layer's scroll, the fraction of a pixel kept in the object's place, and
  * the scroll the menu code has left pending is added and used up; then the
  * drift speeds up. True where the speed down wrapped round. */
-enum { DRIFT_SPEED_UP_X = 0x0DDB, DRIFT_SPEED_UP_Y = 0x0800 };
-
-static uint32_t layer_place(uint16_t scroll, uint32_t place) { return (uint32_t)scroll << 16 | (uint16_t)place; }
-
 static bool drift(GameState *g, MenuObject o)
 {
     MenuPlace p = menu_object_place(g, o), v = menu_object_velocity(g, o);
@@ -84,78 +100,67 @@ static bool drift(GameState *g, MenuObject o)
     return wrapped;
 }
 
-/* ---- the Epoch's areas ----------------------------------------------------------------------- */
+/* ---- objects put on the map at random ----------------------------------------------------------- */
 
-/* A rectangle of tiles, each start inclusive and end exclusive, and the sides
- * of it a tile can be outside of. */
-typedef struct {
-    uint8_t top, bottom, left, right;
-} Area;
-enum { OUTSIDE_LEFT = 1, OUTSIDE_RIGHT = 2, OUTSIDE_ABOVE = 4, OUTSIDE_BELOW = 8 };
-
-// $C6:E74E
-static uint8_t sides_outside(uint8_t x, uint8_t y, Area a)
+/* The menus' random bytes, taken in turn. */
+static uint8_t next_random(GameState *g)
 {
-    uint8_t sides = 0;
-    if (x < a.left)
-        sides = OUTSIDE_LEFT;
-    else if (x >= a.right)
-        sides = OUTSIDE_RIGHT;
-    if (y < a.top)
-        sides |= OUTSIDE_ABOVE;
-    else if (y >= a.bottom)
-        sides |= OUTSIDE_BELOW;
-    return sides;
+    uint8_t at = menu_random_index(g);
+    set_menu_random_index(g, (uint8_t)(at + 1));
+    return menu_random_byte(g, at);
 }
 
-/* The areas of the world maps (locations $1F0-$1F7) the Epoch may be flown
- * in; a map with none has nowhere. */
-enum { WORLD_MAPS = 0x01F0, WORLD_MAP_COUNT = 8, TILE_SHIFT = 3 };
-static const struct {
-    bool has_area;
-    Area area;
-} world_map_areas[WORLD_MAP_COUNT] = {
-    { true, { 0x64, 0x7F, 0x41, 0x72 } },
-    { true, { 0x76, 0x7F, 0x60, 0x6E } },
-    { false, { 0, 0, 0, 0 } },
-    { true, { 0x00, 0x34, 0x00, 0x0E } },
-    { true, { 0x60, 0x7F, 0x00, 0x20 } },
-    { false, { 0, 0, 0, 0 } },
-    { false, { 0, 0, 0, 0 } },
-    { false, { 0, 0, 0, 0 } },
-};
+/* The view's top-left, in the map's tiles of 8 pixels: the second plane's,
+ * which the objects on the map move with. A new object goes in just under
+ * the view: 32 tiles down, the view being 28. */
+enum { MAP_TILE_PIXELS = 8, UNDER_THE_VIEW = 0x20 };
 
-/* The tile the check takes and the area it compared, as the original leaves
- * them in its cells. */
-static void leave_area_cells(GameState *g, uint16_t tile_x, uint16_t tile_y, const Area *a, uint8_t sides)
+static uint16_t under_the_view(const GameState *g)
 {
-    set_menu_object_scratch_area_tile_x(g, (uint8_t)tile_x);
-    set_menu_object_scratch_area_tile_y(g, (uint8_t)tile_y);
-    set_menu_object_scratch_area_top(g, (uint8_t)(tile_y >> 8));
-    if (!a)
-        return;
-    set_menu_object_scratch_area_top(g, a->top);
-    set_menu_object_scratch_area_bottom(g, a->bottom);
-    set_menu_object_scratch_area_left(g, a->left);
-    set_menu_object_scratch_area_right(g, a->right);
-    set_menu_object_scratch_area_outside(g, sides);
+    return (uint16_t)((menu_map_row(g, 1) + UNDER_THE_VIEW) * MAP_TILE_PIXELS);
 }
 
-// $C6:E797
-/* Whether the object is inside the area of the world map the party is on. */
-static bool in_area(GameState *g, MenuObject o)
+/* The byte the placing leaves in the mode's cells: the random offset across. */
+static void leave_offset(GameState *g, uint8_t offset)
 {
-    MenuPlace p = menu_object_place(g, o);
-    uint16_t tile_x = menu_pixel(p.x) >> TILE_SHIFT, tile_y = menu_pixel(p.y) >> TILE_SHIFT;
-    unsigned map = (uint16_t)(location_id(g) - WORLD_MAPS);
-    if (!world_map_areas[map].has_area) {
-        ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, NULL, 0));
-        return false;
-    }
-    const Area *a = &world_map_areas[map].area;
-    uint8_t sides = sides_outside((uint8_t)tile_x, (uint8_t)tile_y, *a);
-    ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, a, sides));
-    return sides == 0;
+    enum { OFFSET = 0x08 };
+    set_menu_object_scratch_bytes_byte(g, OFFSET, offset);
+    set_menu_object_scratch_bytes_byte(g, OFFSET + 1, 0);
+}
+
+// $C2:754D
+/* Put the object just under the view, somewhere across its middle half. */
+enum { MIDDLE_HALF = 0x7F, QUARTER_IN = 0x40 };
+
+static void place_under_the_view(GameState *g, MenuObject o)
+{
+    uint8_t offset = next_random(g) & MIDDLE_HALF;
+    ORIGINAL_EFFECT(leave_offset(g, offset));
+    set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_map_column(g, 1) * MAP_TILE_PIXELS + offset + QUARTER_IN));
+    set_menu_object_slots_y_pixel(g, o, under_the_view(g));
+}
+
+// $C2:7575
+/* Put the object just under the view, somewhere along the 256 pixels of the
+ * map from $178 across. */
+enum { STRETCH_START = 0x178 };
+
+static void place_under_the_stretch(GameState *g, MenuObject o)
+{
+    uint8_t offset = next_random(g);
+    ORIGINAL_EFFECT(leave_offset(g, offset));
+    set_menu_object_slots_x_pixel(g, o, (uint16_t)(STRETCH_START + offset));
+    set_menu_object_slots_y_pixel(g, o, under_the_view(g));
+}
+
+// $C2:7598
+/* Give the object one of the scenes' sixteen velocities, at random. */
+enum { VELOCITIES = 16 };
+
+static void give_random_velocity(GameState *g, MenuObject o)
+{
+    uint8_t pick = next_random(g) & (VELOCITIES - 1);
+    menu_object_set_velocity(g, o, (MenuPlace){ menu_scene_velocity_x(g, pick), menu_scene_velocity_y(g, pick) });
 }
 
 /* ---- the entries ----------------------------------------------------------------------------- */
@@ -179,17 +184,7 @@ bool menu_object_routine_runs(Snes *s)
     return ok;
 }
 
-/* And the area check on one of the world maps, which the original picks the
- * area of with a jump through a table as long as the maps. */
-bool menu_epoch_on_world_map(Snes *s)
-{
-    if (!menu_object_routine_runs(s))
-        return false;
-    vars_peek(true);
-    bool ok = (uint16_t)(location_id(state_of(s)) - WORLD_MAPS) < WORLD_MAP_COUNT;
-    vars_peek(false);
-    return ok;
-}
+/* -- the scene's own state -- */
 
 // $C6:E237
 /* The scene's mode, where the script tests it. The carry is clear. */
@@ -209,6 +204,8 @@ void menu_object_clear_scene_flag(Snes *s)
     m_rtl(s);
 }
 
+/* -- the song -- */
+
 // $C6:E63D
 /* Keep the song that is playing through the map screen that follows. */
 void menu_object_keep_song(Snes *s)
@@ -224,6 +221,8 @@ void menu_object_let_song_go(Snes *s)
     set_menu_song_kept(state_of(s), 0);
     m_rtl(s);
 }
+
+/* -- motion -- */
 
 // $C6:E583
 /* Bob the second plane: up where the object's count is odd, down where it
@@ -266,30 +265,70 @@ void menu_object_drift(Snes *s)
     leave_moved(s, drift(g, menu_object_running(g)));
 }
 
-// $C6:E74E
-/* The map screen's own check of a tile against an area, both in the object
- * mode's cells; the sides come back there. */
-void menu_epoch_outside_sides(Snes *s)
+/* -- objects put on the map at random -- */
+
+/* They run on the mode's page with the data bank on the I/O banks, and the
+ * view is on the map: its top-left column well under $2000 (the original
+ * carries the multiply's top bit into the sum). */
+bool menu_object_can_be_placed(Snes *s)
 {
-    GameState *g = state_of(s);
-    Area a = { menu_object_scratch_area_top(g), menu_object_scratch_area_bottom(g),
-               menu_object_scratch_area_left(g), menu_object_scratch_area_right(g) };
-    set_menu_object_scratch_area_outside(
-        g, sides_outside(menu_object_scratch_area_tile_x(g), menu_object_scratch_area_tile_y(g), a));
-    m_rtl(s);
+    enum { COLUMNS_THE_SUM_TAKES = 0x2000 };
+    if (m_direct_page(s) != MODE_PAGE || s->cpu.db != 0x00)
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = menu_object_address_names_one(menu_object_current(g)) && menu_map_column(g, 1) < COLUMNS_THE_SUM_TAKES;
+    vars_peek(false);
+    return ok;
 }
 
-// $C6:E797
-/* The carry says whether the object is inside; the accumulator is 8-bit. */
-void menu_epoch_in_area(Snes *s)
+/* They come back 16 bits wide with X on the object, and the carry the top
+ * bit the row's multiply by the tile's pixels put out. */
+static void leave_placed(Snes *s)
 {
     GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, in_area(g, menu_object_running(g)));
-    m_sep(s, CPU_FLAG_M);
-    m_rtl(s);
+    s->cpu.x = menu_object_current(g);
+    m_set_flag(s, CPU_FLAG_C, ((menu_map_row(g, 1) + UNDER_THE_VIEW) & 0x2000) != 0);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
 }
 
-/* Decompress one of the scene's resources into its buffer in bank $7F with
+// $C2:754D
+void menu_object_place_under_the_view(Snes *s)
+{
+    GameState *g = state_of(s);
+    place_under_the_view(g, menu_object_running(g));
+    leave_placed(s);
+}
+
+// $C2:7575
+void menu_object_place_under_the_stretch(Snes *s)
+{
+    GameState *g = state_of(s);
+    place_under_the_stretch(g, menu_object_running(g));
+    leave_placed(s);
+}
+
+// $C2:7598
+/* It comes back 16 bits wide with X the velocity's place in its table and
+ * the carry clear. */
+void menu_object_give_random_velocity(Snes *s)
+{
+    enum { VELOCITY_BYTES = 8 };
+    GameState *g = state_of(s);
+    give_random_velocity(g, menu_object_running(g));
+    vars_peek(true);
+    uint8_t pick = menu_random_byte(g, (uint8_t)(menu_random_index(g) - 1)) & (VELOCITIES - 1);
+    vars_peek(false);
+    s->cpu.x = (uint16_t)(pick * VELOCITY_BYTES);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+/* -- pictures -- */
+
+/* Decompress one of the scenes' resources into its buffer in bank $7F with
  * the original's decompressor (a call-out), which takes the resource's
  * number times three in X and the pointer's bank over its high byte in A. */
 static void load_scene_resource(Snes *s, uint32_t site, MenuSceneResource kind, uint8_t number, uint32_t buffer)
@@ -305,27 +344,36 @@ static void load_scene_resource(Snes *s, uint32_t site, MenuSceneResource kind, 
     m_rtl(s);
 }
 
-/* Where the resources go: the graphics to the Mode 7 plane's buffer, the
- * palettes to the loaded palette's. */
-enum { SCENE_GRAPHICS_BUFFER = 0x7F9000, SCENE_PALETTE_BUFFER = 0x7F8C00 };
+/* Where the pictures go: the graphics to the Mode 7 plane's buffer, the
+ * colours to the loaded palette's. The scenes of six of the eight world maps
+ * share one picture; one scene has a second of its own. */
+enum { MODE7_GRAPHICS_BUFFER = 0x7F9000, MODE7_PALETTE_BUFFER = 0x7F8C00 };
+enum { SHARED_GRAPHICS = 2, SHARED_PALETTE = 1, SECOND_GRAPHICS = 13, SECOND_PALETTE = 2 };
 
 // $C6:E028
-void menu_object_load_scene_graphics_2(Snes *s)
+/* The Mode 7 graphics most of the world maps' scenes share. */
+void menu_object_load_mode7_graphics(Snes *s)
 {
-    load_scene_resource(s, 0xC6E048, MENU_SCENE_GRAPHICS, 2, SCENE_GRAPHICS_BUFFER);
+    load_scene_resource(s, 0xC6E048, MENU_SCENE_GRAPHICS, SHARED_GRAPHICS, MODE7_GRAPHICS_BUFFER);
 }
+
 // $C6:E04D
-void menu_object_load_scene_palette_1(Snes *s)
+/* And their colours. */
+void menu_object_load_mode7_palette(Snes *s)
 {
-    load_scene_resource(s, 0xC6E06D, MENU_SCENE_PALETTES, 1, SCENE_PALETTE_BUFFER);
+    load_scene_resource(s, 0xC6E06D, MENU_SCENE_PALETTES, SHARED_PALETTE, MODE7_PALETTE_BUFFER);
 }
+
 // $C6:E64A
-void menu_object_load_scene_graphics_13(Snes *s)
+/* The Mode 7 graphics one world map's scene shows after the shared ones. */
+void menu_object_load_second_mode7_graphics(Snes *s)
 {
-    load_scene_resource(s, 0xC6E66A, MENU_SCENE_GRAPHICS, 13, SCENE_GRAPHICS_BUFFER);
+    load_scene_resource(s, 0xC6E66A, MENU_SCENE_GRAPHICS, SECOND_GRAPHICS, MODE7_GRAPHICS_BUFFER);
 }
+
 // $C6:E66F
-void menu_object_load_scene_palette_2(Snes *s)
+/* And their colours. */
+void menu_object_load_second_mode7_palette(Snes *s)
 {
-    load_scene_resource(s, 0xC6E68F, MENU_SCENE_PALETTES, 2, SCENE_PALETTE_BUFFER);
+    load_scene_resource(s, 0xC6E68F, MENU_SCENE_PALETTES, SECOND_PALETTE, MODE7_PALETTE_BUFFER);
 }

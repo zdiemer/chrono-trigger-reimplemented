@@ -119,7 +119,7 @@ bool menu_start_object(GameState *g, uint16_t handler, MenuSlotKind kind, MenuOb
 }
 
 // $C2:04D9, $C2:04FB
-void menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind)
+MenuObject menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind)
 {
     ORIGINAL_EFFECT(set_menu_object_scratch_start_bank(g, (uint8_t)(script >> 16)));
     ORIGINAL_EFFECT(set_menu_object_scratch_start_script(g, (uint16_t)script));
@@ -128,6 +128,7 @@ void menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind)
         o = (MenuObject)menu_last_object_of(kind);
     set_menu_object_slots_script(g, o, script);
     set_menu_object_slots_command_frames(g, o, 0);
+    return o;
 }
 
 /* ---- Where it is and how it moves --------------------------------------------------------- */
