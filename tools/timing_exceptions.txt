@@ -63,9 +63,9 @@ menu_epoch_time_dial_object vblank-worst as for vblank-tail: the setup call, onc
 # Starting an object: the free-slot walk looks at one slot or at sixty, and
 # only the call that finds one copies the caller's state into it ($3B bytes),
 # so the share of a call that is the copy swings with the walk, which one
-# scalar can't fit. Both entries drift by 0.01% or less over 14 movies and the
-# vblank check finds none of their writes moved.
-menu_object_spawn vblank-tail the walk is 1 to 60 slots and only the call that finds one copies the state; at most 1574 clocks (1.2 lines) with +0.01% drift, and the copy writes a slot, not a video register
+# scalar can't fit. The spawn itself is within the limits since its
+# recalibration; the palette row command, which runs a spawn, still spreads.
+# It drifts by 0.01% or less and the vblank check finds none of its writes moved.
 menu_object_cmd_load_palette_row vblank-tail its time is the spawn it attributes to $C2:048A, so it inherits that spread; at most 1681 clocks with -0.00% drift
 
 # Scrolling the menus' map: the call moves as many tiles as the frame's move
