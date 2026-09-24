@@ -32,10 +32,11 @@ enum { SCREEN_NEAR_EDGE = 0x00, SCREEN_FAR_EDGE = 0xFF, SCREEN_HALF = 0x80 };
 
 static bool in_far_half(uint8_t v) { return (v & SCREEN_HALF) != 0; }
 
+static bool past_near_edge(uint8_t at, uint8_t half_size) { return !in_far_half(at) && in_far_half((uint8_t)(at - half_size)); }
+
 static uint8_t bound_before(uint8_t at, uint8_t half_size)
 {
-    uint8_t bound = (uint8_t)(at - half_size);
-    return !in_far_half(at) && in_far_half(bound) ? (uint8_t)SCREEN_NEAR_EDGE : bound;
+    return past_near_edge(at, half_size) ? (uint8_t)SCREEN_NEAR_EDGE : (uint8_t)(at - half_size);
 }
 
 static uint8_t bound_after(uint8_t at, uint8_t half_size)
@@ -128,7 +129,8 @@ static void leave_position_slot(GameState *g, unsigned slot)
 
 /* Each takes the object as the original's callers give it, in X. The box's
  * last sum leaves the carry for the callers: the bottom's, or the top's
- * when the box has none below. */
+ * when the box has none below; and a bound clamped at the near edge leaves A's
+ * high byte clear (the original clamps with its direct page, 0). */
 static bool bounds_carry(const GameState *g, unsigned slot)
 {
     uint8_t y = battle_bounds_y(g, slot);
@@ -141,15 +143,21 @@ void battle_update_object_bounds(Snes *s)
 {
     GameState *g = state_of(s);
     unsigned slot = s->cpu.x;
+    bool clamped = past_near_edge(battle_bounds_x(g, slot), battle_object_half_width(g, slot))
+                   || past_near_edge(battle_bounds_y(g, slot), battle_object_half_height(g, slot));
     update_bounds(g, slot);
+    if (clamped)
+        s->cpu.a = 0;
     m_set_flag(s, CPU_FLAG_C, bounds_carry(g, slot));
     m_rts(s);
 }
 
-/* It leaves the carry the compare that ends its loop leaves. */
+/* It leaves A's high byte clear and the carry the compare that ends its loop
+ * leaves. */
 void battle_update_all_object_bounds(Snes *s)
 {
     update_all_bounds(state_of(s));
+    s->cpu.a = 0;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);
 }

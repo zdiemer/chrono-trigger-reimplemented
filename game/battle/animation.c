@@ -612,6 +612,7 @@ static void step_enemy_group(Snes *s, AnimationGroup group)
     choose_order(g, group, order);
     for (unsigned place = 0; place < GROUP_PLACES; place++) {
         unsigned enemy = order[place];
+        ORIGINAL_EFFECT(set_battle_anim_order_place(g, (uint8_t)place));
         if (enemy & NO_ONE_BIT)
             continue;
         ORIGINAL_EFFECT(leave_enemy(g, enemy));
@@ -665,12 +666,15 @@ void battle_choose_status_pose(Snes *s)
     m_rts(s);
 }
 
+/* The original finds the combatant's stat block by the whole of A as its
+ * index, so it is the combatant's only while A's high byte is clear, as the
+ * game has it. */
 bool battle_poses_combatant(Snes *s)
 {
     vars_peek(true);
     bool named = battle_names_combatant(posing(state_of(s)));
     vars_peek(false);
-    return battle_on_page(s) && named;
+    return battle_on_page_a_high_clear(s) && named;
 }
 
 /* The handlers, as the original's table at $C1:3760 names them, by effect. */

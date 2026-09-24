@@ -160,6 +160,11 @@ static void leave_built_frame(GameState *g, unsigned object, uint32_t tiles, uin
 }
 
 // $C1:1C55
+/* The original counts its rows and tiles in the battle's direct-page cells
+ * as it builds, which this leaves once at the end, and keeps the data bank on
+ * the stack meanwhile: a graphics set placed over those cells or the stack
+ * would read other bytes here, which no object's graphics are (an accepted
+ * divergence, found by fuzzing the loose variant, tools/fuzz_routines.toml). */
 void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame)
 {
     set_battle_anim_held(g, object, 0);
@@ -472,15 +477,22 @@ void battle_build_object_graphics_checked(Snes *s)
 }
 
 /* Only an object whose graphics kind has a layout, as every object the
- * battle builds has. */
-enum { GRAPHICS_KINDS = 5 };
+ * battle builds has, and whose frame's part offsets stay in the table (a
+ * large kind's run on into the next objects', and the last objects are the
+ * smallest); and A's high byte clear, as the game has it, since the original
+ * picks the kind's sizes with the whole of A as its index. */
+enum { GRAPHICS_KINDS = 5, PART_OFFSET_WORDS = BATTLE_COMBATANTS * PARTS_PER_OBJECT * OFFSETS_PER_PART };
 bool battle_builds_known_object(Snes *s)
 {
     vars_peek(true);
+    GameState *g = state_of(s);
     unsigned object = graphics_object(s);
-    bool known = battle_names_combatant((uint16_t)object) && battle_object_kind(state_of(s), object) < GRAPHICS_KINDS;
+    bool known = battle_names_combatant((uint16_t)object) && battle_object_kind(g, object) < GRAPHICS_KINDS
+                 && object * PARTS_PER_OBJECT * OFFSETS_PER_PART
+                            + battle_frame_part_offset_bytes(g, battle_object_kind(g, object))
+                        <= PART_OFFSET_WORDS;
     vars_peek(false);
-    return battle_on_page(s) && known;
+    return battle_on_page_a_high_clear(s) && known;
 }
 
 void battle_step_object_palettes(Snes *s)
