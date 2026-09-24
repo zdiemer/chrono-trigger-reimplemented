@@ -1,615 +1,756 @@
-/* Battle: drawing the battle objects into the OAM buffer (bank CF).
+/* Battle: drawing the combatants into the sprite buffer, once a frame.
  *
- * Each frame the objects of the eleven battle slots (battle objects $0C-$16)
- * are listed with their Y position as the sort key, those with a topmost part
- * listed a second time with the key $FE, and the list is sorted, largest key
- * first. Then each entry in order draws its object: what goes under it (the
- * prepared number sprites, the animated marker, or the effect sprites marked
- * to go under), its parts' tiles copied into place, its parts at its position
- * plus its sprite offset and each part's offset, what goes over it, and its
- * shadow unless it has a topmost entry; and, while effects run, its trail of
- * four afterimages. Sprites go to the OAM buffer from battle_oam_next on, 4
- * bytes each, with their X high bit in the high table through
- * battle_oam_high_offsets and battle_oam_x_high_bits.
+ * The sprites put in the buffer first show in front of the ones after them,
+ * so the combatants are drawn nearest first: the pass lists the combatants on
+ * the battlefield by how far down the screen they stand, and a combatant that
+ * must show above everything (a flying enemy) a second time at the top of the
+ * list. For each entry it draws, in this order:
  *
- * The routines run with the direct page on the battle_sprites page ($1D00),
- * where the objects' positions and the draw list live, and data bank $7E. The
- * marker and the effect sprites use cells on the battle page ($0000) instead,
- * which the original switches the direct page to for them. A's high byte is 0
- * all through a frame's drawing (the entries that take it along are guarded
- * on that), and what each leaves in A is returned where it is live. */
+ * - what shows in front of the combatant: its damage numbers while numbers
+ *   show; otherwise, when no effect plays, its animated marker; and while
+ *   effects play, the effects its records put in front of it
+ *   (battle/effects.h);
+ * - the combatant itself: its frame's parts, sprites at offsets from where it
+ *   stands (moved by its sprite's offset), in its palette, their tiles copied
+ *   from its sprite entries;
+ * - what shows behind it: the effects its records put behind it;
+ * - its shadow, a sprite at its feet;
+ * - while effects play, its afterimages: its frame drawn again at the four
+ *   places its trail recorded (battle/object_motion.c), one frame in so many.
+ *
+ * A combatant with a second entry is drawn at that one and only its shadow
+ * and afterimages at the other. A sprite off the left or right of the screen
+ * gets its X's ninth bit in the buffer's high table; the battle keeps tables
+ * of which high-table byte and bit go with each sprite.
+ *
+ * The original's drawing routines run on the combatants' objects' page and
+ * keep their working values in cells there; the numbers', the marker's and
+ * the effects' switch to the battle's page. The pass runs each of them in its
+ * own time (native_time_as), as the original calls them. */
+#include "battle/effects.h"
+
+#include "battle/bridge.h"
 #include "battle/entries.h"
-
 #include "battle/sprite_data.h"
-#include "port/machine.h"
-#include "ram.h"
+#include "original_effects.h"
+#include "vars.h"
 
-enum {
-    FIRST_OBJECT = 0x0C,   /* battle object of battle slot 0 */
-    OBJECTS_END = 0x17,
-    SPRITE_BYTES = 4,
-    FIRST_FREE_OFFSET = 0x10,   /* after the four cursor sprites */
-    SHADOW_TILE = 0x02,
-    SHADOW_BYTES = 0x10,
-    SHADOW_LEFT = 8,
-    SHADOW_UP = 4,
-    LIST_OBJECT = 0x1F,
-    LIST_MAIN = 0x40,   /* clear in a topmost entry */
-    LIST_END = 0x80,
-    TOPMOST_KEY = 0xFE,
-    EXTRA_DRAWN = 0x80,
-    PARTS_PER_OBJECT = 16,   /* bytes of battle_part_offsets per object */
-    TILE_GROUPS = 8,
-    OFFSCREEN_Y = 0xF0,
-    TRAIL_RECORDS = 4,
-    TRAIL_RECORD_STRIDE = 0x16,
-    EFFECT_RECORD_STRIDE = 11,
-    EFFECT_RECORDS_END = 0x58,
-    EFFECT_UNDER = 0x80,
-    MARKER_FRAMES = 4,
-    PREPARED_SPRITES = 4,
-    SPRITE_SETS = 0x3F,
-    EFFECT_ANCHORS = 0x07,
-    EFFECT_ATTRIBUTES_KEPT = 0xCF,
-    TILE_ATTRIBUTES_KEPT = 0xC1FF,
-};
+/* ---- The sprite buffer ---------------------------------------------------------------- */
 
-/* The drawing scratch (battle_draw_scratch, $2E up on the page) by what it
- * holds: the base position (16-bit X, Y), the part's X, the part count, the
- * attribute word, the part's Y, the sprite offset sign-extended, the part
- * index. An afterimage's recorded position passes in the part X and count
- * cells. */
-enum { BASE_X = 0x00, BASE_Y = 0x02, PART_X = 0x04, PART_COUNT = 0x06, ATTRIBUTES = 0x08, PART_Y = 0x0A,
-       OFFSET_X = 0x0C, OFFSET_Y = 0x0E, PART_INDEX = 0x14 };
+/* The buffer's first four sprites are the menu's cursors; the combatants'
+ * start after them. A place in the buffer is the sprite's number; the battle
+ * counts the next free one in bytes, four a sprite. */
+enum { SPRITE_BYTES = 4, FIRST_FREE_SPRITE = 4, SPRITES = 128 };
 
-/* The battle page's cells the marker and the effect sprites use (from
- * battle_effect_cells, $C6). */
-enum { CELL_FROM = 0x00, CELL_COUNT = 0x02, CELL_X = 0x04, CELL_ANCHOR_X = 0x06, CELL_ANCHOR_Y = 0x08,
-       CELL_Y = 0x0A, CELL_MARKER_X = 0x06, CELL_MARKER_Y = 0x07 };
+static unsigned next_sprite(const GameState *g) { return battle_oam_next(g) / SPRITE_BYTES; }
+static void set_next_sprite(GameState *g, unsigned sprite) { set_battle_oam_next(g, (uint16_t)(sprite * SPRITE_BYTES)); }
 
-static uint8_t scratch8(Snes *s, uint8_t c) { return m_read8(s, RAM_BATTLE_DRAW_SCRATCH + c); }
-static void set_scratch8(Snes *s, uint8_t c, uint8_t v) { m_write8(s, RAM_BATTLE_DRAW_SCRATCH + c, v); }
-static uint16_t scratch16(Snes *s, uint8_t c) { return m_read16(s, RAM_BATTLE_DRAW_SCRATCH + c); }
-static void set_scratch16(Snes *s, uint8_t c, uint16_t v) { m_write16(s, RAM_BATTLE_DRAW_SCRATCH + c, v); }
-static uint8_t cell8(Snes *s, uint8_t c) { return m_read8(s, RAM_BATTLE_EFFECT_CELLS + c); }
-static void set_cell8(Snes *s, uint8_t c, uint8_t v) { m_write8(s, RAM_BATTLE_EFFECT_CELLS + c, v); }
-static uint16_t cell16(Snes *s, uint8_t c) { return m_read16(s, RAM_BATTLE_EFFECT_CELLS + c); }
-static void set_cell16(Snes *s, uint8_t c, uint16_t v) { m_write16(s, RAM_BATTLE_EFFECT_CELLS + c, v); }
-
-static uint16_t oam_next(Snes *s) { return m_read16(s, RAM_BATTLE_OAM_NEXT); }
-static void set_oam_next(Snes *s, uint16_t v) { m_write16(s, RAM_BATTLE_OAM_NEXT, v); }
-/* The object being drawn (16-bit, its high byte kept 0). */
-static uint16_t draw_object(Snes *s) { return m_read16(s, RAM_BATTLE_DRAW_OBJECT); }
-/* Its battle slot, as the original's 8-bit subtraction leaves it. */
-static uint16_t draw_slot(Snes *s) { return (uint8_t)(m_read8(s, RAM_BATTLE_DRAW_OBJECT) - FIRST_OBJECT); }
-
-/* A cell of the drawing page indexed the way the original's direct-page
- * indexing does it: 16-bit, in bank $00, where the page's cells are the work
- * RAM's. An index read back from a cell a sprite landed on can take it past
- * the RAM. */
-static uint32_t page_at(uint32_t cell, uint16_t x) { return (uint16_t)((uint16_t)cell + x); }
-
-static uint16_t sign_extend(uint8_t v) { return (uint16_t)((v & 0x80) ? 0xFF00 | v : v); }
-
-/* Mark the sprite at OAM buffer offset `at` with its X high bit (the bit as
- * for offset `bit_at`, which is `at` unless a sprite landed on
- * battle_oam_next); returns the high-table byte. */
-static uint8_t set_x_high_bit(Snes *s, uint16_t at, uint16_t bit_at)
+/* Push the sprite off the side of the screen, or onto its right-hand part:
+ * the ninth bit of its X. */
+static void set_x_ninth_bit(GameState *g, unsigned sprite)
 {
-    uint8_t byte = m_read8(s, RAM_BATTLE_OAM_HIGH_OFFSETS + at);
-    uint8_t v = (uint8_t)(m_read8(s, RAM_OAM_HIGH_TABLE + byte) | m_read8(s, RAM_BATTLE_OAM_X_HIGH_BITS + bit_at));
-    m_write8(s, RAM_OAM_HIGH_TABLE + byte, v);
-    return v;
+    unsigned at = sprite * SPRITE_BYTES;
+    unsigned byte = battle_oam_high_offsets(g, at);
+    set_oam_high_table_byte(g, byte, (uint8_t)(oam_high_table_byte(g, byte) | battle_oam_x_high_bits(g, at)));
 }
 
-/* Whether a sprite at the 16-bit position gets its X high bit: one above the
- * top (Y's high byte set) unless it is at $F0 or below; otherwise one whose
- * X's high byte is set. `tested` is the byte the original tests. */
-static bool needs_x_high(uint16_t x, uint16_t y, uint8_t *tested)
+/* Whether a sprite at a point (screen coordinates, a word each) needs the
+ * ninth bit: one past the left or right edge does; one above the top or
+ * below the bottom gets it too, to take it off the screen where the hardware
+ * would wrap it round, unless it is in the 16 lines just above the top, where
+ * the hardware shows it coming in. */
+enum { JUST_ABOVE_THE_TOP = 0xF0 };
+
+static bool needs_x_ninth_bit(uint16_t x, uint16_t y)
 {
-    if (y >> 8) {
-        *tested = (uint8_t)y;
-        return (uint8_t)y < OFFSCREEN_Y;
-    }
-    *tested = (uint8_t)(x >> 8);
+    if (y >> 8)
+        return (uint8_t)y < JUST_ABOVE_THE_TOP;
     return (x >> 8) != 0;
 }
 
-// $CF:EB94
-/* Copy the tile and attribute words (bytes 2-3 of each sprite) of groups of
- * four sprites from `from` to `to` in `bank`, as many groups as
- * battle_draw_tile_groups counts (16-bit, counted down after each of the
- * first seven; at most eight, and eight when it starts at 0 or above 7). */
-static void copy_sprite_tiles(Snes *s, uint32_t bank, uint16_t from, uint16_t to)
+static void place_sprite(GameState *g, unsigned sprite, uint16_t x, uint16_t y)
 {
-    for (uint16_t group = 0; group < TILE_GROUPS; group++) {
-        for (uint16_t k = 0; k < 4; k++) {
-            uint16_t at = (uint16_t)(2 + group * PARTS_PER_OBJECT + k * SPRITE_BYTES);
-            m_write16(s, bank + to + at, m_read16(s, bank + from + at));
-        }
-        if (group == TILE_GROUPS - 1)
-            break;   /* the last group isn't counted */
-        uint16_t left = (uint16_t)(m_read16(s, RAM_BATTLE_DRAW_TILE_GROUPS) - 1);
-        m_write16(s, RAM_BATTLE_DRAW_TILE_GROUPS, left);
-        if (left == 0)
-            break;
+    set_oam_buffer_x(g, sprite, (uint8_t)x);
+    set_oam_buffer_y(g, sprite, (uint8_t)y);
+    if (needs_x_ninth_bit(x, y))
+        set_x_ninth_bit(g, sprite);
+}
+
+/* ---- The drawing page's cells --------------------------------------------------------- */
+
+/* The original keeps its working values in cells of the objects' page ($2E-$44)
+ * and of the battle's ($A1, $C6-$D1); the ports leave there what it leaves,
+ * for shadow mode. `cell` is the original's direct-page address. */
+static void leave_draw_cell16(GameState *g, uint8_t cell, uint16_t v)
+{
+    set_battle_draw_scratch(g, (unsigned)(cell - 0x2E), (uint8_t)v);
+    set_battle_draw_scratch(g, (unsigned)(cell - 0x2E + 1), (uint8_t)(v >> 8));
+}
+static void leave_effect_cell16(GameState *g, uint8_t cell, uint16_t v)
+{
+    set_battle_effect_cells(g, (unsigned)(cell - 0xC6), (uint8_t)v);
+    set_battle_effect_cells(g, (unsigned)(cell - 0xC6 + 1), (uint8_t)(v >> 8));
+}
+
+/* ---- A combatant's frame -------------------------------------------------------------- */
+
+/* A combatant's frame is so many parts (by its graphics kind; a kind of 0
+ * parts draws 256), each a sprite at an offset from where the frame is. The
+ * part offsets of each combatant's frame start four entries apart and run on
+ * over the next combatants' for a frame of more parts. */
+enum { PART_ENTRIES_PER_COMBATANT = 4 };
+
+/* A part keeps its frame's flips and its tile's ninth bit; the combatant's
+ * palette and priority are the rest of its attributes. */
+enum { PART_KEEPS = 0xC1 };
+
+typedef struct {
+    uint16_t x, y;
+} FramePoint;
+
+static unsigned frame_parts(const GameState *g, unsigned slot)
+{
+    uint8_t parts = battle_frame_parts(g, battle_object_kind(g, slot));
+    return parts ? parts : 256;
+}
+
+static void leave_parts_cells(GameState *g, unsigned slot, FramePoint at, FramePoint offset, uint8_t bits,
+                              unsigned parts, FramePoint last)
+{
+    leave_draw_cell16(g, 0x2E, at.x);
+    leave_draw_cell16(g, 0x30, at.y);
+    leave_draw_cell16(g, 0x32, last.x);
+    leave_draw_cell16(g, 0x34, 0);
+    leave_draw_cell16(g, 0x36, (uint16_t)(bits << 8));
+    leave_draw_cell16(g, 0x38, last.y);
+    leave_draw_cell16(g, 0x3A, offset.x);
+    leave_draw_cell16(g, 0x3C, offset.y);
+    leave_draw_cell16(g, 0x42, (uint16_t)(slot * PART_ENTRIES_PER_COMBATANT * SPRITE_BYTES + parts * SPRITE_BYTES));
+}
+
+// $CF:EAC5 (from $CF:EB1B), $CF:E99C (from $CF:EA11)
+/* Draw the combatant's frame with its first part's point at `at` plus the
+ * `offset`, into the next free sprites. */
+static void draw_frame(GameState *g, unsigned slot, FramePoint at, FramePoint offset)
+{
+    at = (FramePoint){ (uint16_t)(at.x + offset.x), (uint16_t)(at.y + offset.y) };
+    uint8_t bits = (uint8_t)(battle_object_palette(g, slot) | battle_object_attribute_bits(g, slot));
+    unsigned parts = frame_parts(g, slot), sprite = next_sprite(g), part = slot * PART_ENTRIES_PER_COMBATANT;
+    FramePoint p = { 0, 0 };
+    for (unsigned n = 0; n < parts; n++, sprite++, part++) {
+        p = (FramePoint){ (uint16_t)(battle_part_offsets_x(g, part) + at.x), (uint16_t)(battle_part_offsets_y(g, part) + at.y) };
+        set_oam_buffer_attributes(g, sprite, (uint8_t)((oam_buffer_attributes(g, sprite) & PART_KEEPS) | bits));
+        place_sprite(g, sprite, p.x, p.y);
+        set_next_sprite(g, sprite + 1);
     }
+    ORIGINAL_EFFECT(leave_parts_cells(g, slot, at, offset, bits, parts, p));
 }
 
-/* The return address a JSR leaves on the stack at `sp`, which a copy reading
- * the stack page sees. */
-static void push_return(Snes *s, uint16_t sp, uint16_t ret)
+static bool hidden(const GameState *g, unsigned slot) { return battle_object_hidden(g, slot) != 0; }
+
+static void leave_first_part_cell(GameState *g, unsigned slot)
 {
-    m_write8(s, sp, (uint8_t)(ret >> 8));
-    m_write8(s, (uint16_t)(sp - 1), (uint8_t)ret);
+    leave_draw_cell16(g, 0x42, (uint16_t)(slot * PART_ENTRIES_PER_COMBATANT * SPRITE_BYTES));
 }
 
-/* The tiles of the drawn object's parts into place for its next sprites: from
- * its tile buffer, as many groups of four as its parts need. `sp` and `ret`:
- * where the original's JSR to the copy leaves its return address. */
-static void copy_object_tiles(Snes *s, uint16_t sp, uint16_t ret)
-{
-    push_return(s, sp, ret);
-    uint16_t to = (uint16_t)(oam_next(s) + (uint16_t)RAM_OAM_BUFFER);
-    uint16_t from = battle_object_tile_source(s, (uint16_t)(draw_object(s) << 1));
-    m_write16(s, RAM_BATTLE_DRAW_TILE_GROUPS, (uint16_t)((uint16_t)(m_read16(s, RAM_BATTLE_DRAW_PART_COUNT) + 1) >> 4));
-    NATIVE_TIME_AS(s, 0xCFEB94, copy_sprite_tiles(s, RAM_OAM_BUFFER & 0xFF0000u, from, to));
-}
-
-/* The object's parts at the base position in the scratch: each part at the
- * base plus the part's offset, its attributes the object's palette and bits,
- * as many as its frame has. Returns what the original leaves in A. */
-static uint8_t draw_parts(Snes *s, uint16_t object)
-{
-    set_scratch8(s, ATTRIBUTES + 1,
-                 (uint8_t)(m_read8(s, RAM_BATTLE_OBJECT_PALETTE - FIRST_OBJECT + object)
-                           | m_read8(s, RAM_BATTLE_OBJECT_ATTRIBUTE_BITS - FIRST_OBJECT + object)));
-    set_scratch8(s, ATTRIBUTES, 0);
-    uint8_t kind = m_read8(s, RAM_BATTLE_OBJECT_KIND - FIRST_OBJECT + object);
-    set_scratch16(s, PART_COUNT, battle_frame_part_count(s, (uint8_t)(kind << 1)));
-    /* The cells are read back where the original reads them: a sprite written
-     * far enough on lands on them. */
-    uint8_t a;
-    do {
-        uint16_t part = scratch16(s, PART_INDEX), at = oam_next(s);
-        set_scratch16(s, PART_X, (uint16_t)(m_read16(s, RAM_BATTLE_PART_OFFSETS_X + part) + scratch16(s, BASE_X)));
-        set_scratch16(s, PART_Y, (uint16_t)(m_read16(s, RAM_BATTLE_PART_OFFSETS_Y + part) + scratch16(s, BASE_Y)));
-        uint32_t tile = RAM_OAM_BUFFER_TILE + at;
-        m_write16(s, tile, (uint16_t)((m_read16(s, tile) & TILE_ATTRIBUTES_KEPT) | scratch16(s, ATTRIBUTES)));
-        m_write8(s, RAM_OAM_BUFFER_X + at, scratch8(s, PART_X));
-        m_write8(s, RAM_OAM_BUFFER_Y + at, scratch8(s, PART_Y));
-        if (needs_x_high(scratch16(s, PART_X), scratch16(s, PART_Y), &a))
-            a = set_x_high_bit(s, at, oam_next(s));
-        set_oam_next(s, (uint16_t)(oam_next(s) + SPRITE_BYTES));
-        set_scratch16(s, PART_INDEX, (uint16_t)(scratch16(s, PART_INDEX) + SPRITE_BYTES));
-        set_scratch8(s, PART_COUNT, (uint8_t)(scratch8(s, PART_COUNT) - 1));
-    } while (scratch8(s, PART_COUNT) != 0);
-    return a;
-}
-
-/* The drawn object's first part index (16 bytes an object, from object $0C,
- * 8-bit), and whether it shows. */
-static bool start_parts(Snes *s, uint16_t object, uint8_t *hidden)
-{
-    set_scratch16(s, PART_INDEX, (uint8_t)((uint8_t)(object - FIRST_OBJECT) << 4));
-    *hidden = m_read8(s, RAM_BATTLE_OBJECT_HIDDEN - FIRST_OBJECT + object);
-    return *hidden == 0;
-}
-
-/* The base position: the position plus the signed offset in the scratch. */
-static void add_base_offsets(Snes *s)
-{
-    set_scratch16(s, BASE_X, (uint16_t)(scratch16(s, BASE_X) + scratch16(s, OFFSET_X)));
-    set_scratch16(s, BASE_Y, (uint16_t)(scratch16(s, BASE_Y) + scratch16(s, OFFSET_Y)));
-}
+/* A signed byte as the word the frame's point is moved by. */
+static uint16_t widened(int8_t v) { return (uint16_t)(int16_t)v; }
 
 // $CF:EAC5
-/* Draw the drawn object's parts at its position plus its sprite offset,
- * unless it is hidden. Returns what the original leaves in A. */
-static uint8_t draw_sprite_parts(Snes *s)
+/* Draw the combatant where it stands, moved by its sprite's offset, unless
+ * it is hidden. */
+static void draw_combatant(GameState *g, unsigned slot)
 {
-    uint16_t object = (uint8_t)draw_object(s);
-    uint8_t hidden;
-    if (!start_parts(s, object, &hidden))
-        return hidden;
-    /* one after the other: an object past the eleven reads its Y from the
-     * scratch the X was just written to */
-    set_scratch16(s, BASE_X, m_read8(s, RAM_BATTLE_OBJECT_X + object));
-    set_scratch16(s, OFFSET_X, sign_extend(m_read8(s, RAM_BATTLE_SPRITE_OFFSET_X - FIRST_OBJECT + object)));
-    set_scratch16(s, BASE_Y, m_read8(s, RAM_BATTLE_OBJECT_Y + object));
-    set_scratch16(s, OFFSET_Y, sign_extend(m_read8(s, RAM_BATTLE_SPRITE_OFFSET_Y - FIRST_OBJECT + object)));
-    add_base_offsets(s);
-    return draw_parts(s, object);
+    ORIGINAL_EFFECT(leave_first_part_cell(g, slot));
+    if (hidden(g, slot))
+        return;
+    draw_frame(g, slot, (FramePoint){ combatant_x(g, slot), combatant_y(g, slot) },
+               (FramePoint){ widened(combatant_sprite_offset_x(g, slot)), widened(combatant_sprite_offset_y(g, slot)) });
 }
 
-// $CF:E99C
-/* One afterimage of the drawn object's trail: its tiles, and its parts at the
- * recorded position (the low bytes in the part X cells, the high bytes in the
- * part count cells, of which only the sign counts), unless it is hidden. */
-static uint8_t draw_afterimage(Snes *s, uint16_t sp)
+/* ---- Tiles ------------------------------------------------------------------------------ */
+
+/* The tiles of a combatant's frame come from its sprite entries, groups of
+ * four sprites, copied into the sprites its parts are drawn in; the table at
+ * $CC:F84D says where each object's entries are, which for the combatants is
+ * four entries apart, as the map has them. A count of 0 or 8 or more copies
+ * eight groups. */
+enum { SPRITES_PER_TILE_GROUP = 4, MOST_TILE_GROUPS = 8 };
+
+static void leave_tile_groups(GameState *g, uint16_t count)
 {
-    copy_object_tiles(s, sp, 0xE9B8);
-    uint16_t object = (uint8_t)draw_object(s);
-    uint8_t hidden;
-    if (!start_parts(s, object, &hidden))
-        return hidden;
-    set_scratch16(s, BASE_X, scratch8(s, PART_X));
-    set_scratch16(s, OFFSET_X, (scratch8(s, PART_COUNT) & 0x80) ? 0xFF00 : 0);
-    set_scratch16(s, BASE_Y, scratch8(s, PART_X + 1));
-    set_scratch16(s, OFFSET_Y, (scratch8(s, PART_COUNT + 1) & 0x80) ? 0xFF00 : 0);
-    add_base_offsets(s);
-    return draw_parts(s, object);
+    set_battle_draw_tile_groups(g, count == 0 || count >= MOST_TILE_GROUPS ? (uint16_t)(count - (MOST_TILE_GROUPS - 1)) : 0);
 }
 
-// $CF:E92C
-/* The object's trail: when its countdown runs out, draw the four afterimages
- * at the four positions it recorded. Returns what the original leaves in A
- * (`a` when it doesn't draw). */
-static uint16_t step_trail(Snes *s, uint16_t object, uint16_t a, uint16_t sp)
+// $CF:EB94
+/* Copy `count` groups' tiles from the sprite entries from `from` on into the
+ * sprites from `to` on. */
+static void copy_tiles(GameState *g, unsigned from, unsigned to, uint16_t count)
 {
-    static const uint16_t returns[TRAIL_RECORDS] = { 0xE94F, 0xE968, 0xE981, 0xE99A };
-    m_write16(s, RAM_BATTLE_EFFECT_OBJECT, object);
-    uint32_t countdown = RAM_BATTLE_EFFECT_COUNTDOWN - FIRST_OBJECT + object;
-    uint8_t left = (uint8_t)(m_read8(s, countdown) - 1);
-    m_write8(s, countdown, left);
-    if (left != 0)
-        return a;
-    m_write8(s, countdown, m_read8(s, RAM_BATTLE_EFFECT_RELOAD - FIRST_OBJECT + object));
-    for (uint16_t record = 0; record < TRAIL_RECORDS; record++) {
-        uint32_t o = (uint32_t)m_read16(s, RAM_BATTLE_EFFECT_OBJECT) - FIRST_OBJECT + record * TRAIL_RECORD_STRIDE;
-        set_scratch8(s, PART_X, m_read8(s, RAM_BATTLE_TRAIL_LOW_X + o));
-        set_scratch8(s, PART_X + 1, m_read8(s, RAM_BATTLE_TRAIL_LOW_Y + o));
-        set_scratch8(s, PART_COUNT, m_read8(s, RAM_BATTLE_TRAIL_HIGH_X + o));
-        set_scratch8(s, PART_COUNT + 1, m_read8(s, RAM_BATTLE_TRAIL_HIGH_Y + o));
-        push_return(s, sp, returns[record]);
-        NATIVE_TIME_AS(s, 0xCFE99C, a = draw_afterimage(s, (uint16_t)(sp - 2)));
+    unsigned groups = count == 0 || count >= MOST_TILE_GROUPS ? MOST_TILE_GROUPS : count;
+    for (unsigned n = 0; n < groups * SPRITES_PER_TILE_GROUP; n++) {
+        set_oam_buffer_tile(g, to + n, battle_object_sprite_entries_tile(g, from + n));
+        set_oam_buffer_attributes(g, to + n, battle_object_sprite_entries_attributes(g, from + n));
     }
-    return a;
+    ORIGINAL_EFFECT(leave_tile_groups(g, count));
 }
 
-// $CF:EA8A
-/* The object's shadow, when it has one and isn't hidden: the shadow tile, 8
- * left of and 4 above its position, with the shadows' attributes; it takes
- * four sprites' room. Returns the byte that stopped it, or -1 once drawn. */
-static int draw_shadow(Snes *s, uint16_t object)
+/* A combatant's tiles, into the next free sprites. */
+static void copy_frame_tiles(GameState *g, unsigned slot, uint16_t count)
 {
-    uint8_t has = m_read8(s, RAM_BATTLE_OBJECT_SHADOW - FIRST_OBJECT + object);
-    if (!has)
-        return has;
-    uint8_t hidden = m_read8(s, RAM_BATTLE_OBJECT_HIDDEN - FIRST_OBJECT + object);
-    if (hidden)
-        return hidden;
-    uint16_t at = oam_next(s);
-    m_write8(s, RAM_OAM_BUFFER_X + at, (uint8_t)(m_read8(s, RAM_BATTLE_OBJECT_X + object) - SHADOW_LEFT));
-    m_write8(s, RAM_OAM_BUFFER_Y + at, (uint8_t)(m_read8(s, RAM_BATTLE_OBJECT_Y + object) - SHADOW_UP));
-    m_write8(s, RAM_OAM_BUFFER_TILE + at, SHADOW_TILE);
-    m_write8(s, RAM_OAM_BUFFER_ATTRIBUTES + at,
-             (uint8_t)(m_read8(s, RAM_BATTLE_SPRITE_ATTRIBUTES) | m_read8(s, RAM_BATTLE_CURSOR_PRIORITY)));
-    set_oam_next(s, (uint16_t)(at + SHADOW_BYTES));
-    return -1;
+    copy_tiles(g, slot * SPRITES_PER_TILE_GROUP, next_sprite(g), count);
+}
+
+/* The groups a frame of so many parts takes: a group for sixteen parts, the
+ * count rounded to the nearest (a frame of fewer than 15 parts counts 0, so
+ * its tiles copy eight). */
+static uint16_t tile_groups_for(uint16_t parts) { return (uint16_t)((parts + 1) >> 4); }
+
+/* ---- What shows in front of a combatant and behind it -------------------------------- */
+
+/* The records of a combatant: a row an effect, a byte a combatant; a record
+ * names an effect (its low three bits) with bit 7 in front of the combatant
+ * or bit 6 behind it. */
+enum { RECORD_ROWS = BATTLE_EFFECTS, RECORD_EFFECT = 0x07, IN_FRONT = 0x80, BEHIND = 0x40 };
+
+static unsigned record_of(unsigned slot, unsigned row) { return row * BATTLE_COMBATANTS + slot; }
+
+/* An effect's sprite set: so many sprites (its count's low six bits; none
+ * draws 256), each an X and a Y from the effect's point, a tile and
+ * attributes. The effect's own attribute bits are its priority; the sprite
+ * keeps the rest. */
+enum { SET_OF_EFFECT = 0x3F, EFFECT_SPRITE_KEEPS = 0xCF };
+
+static void leave_effect_cells(GameState *g, uint8_t bits, uint16_t x, uint16_t y)
+{
+    set_battle_effect_sprite_attributes(g, bits);
+    leave_effect_cell16(g, 0xCC, x);
+    leave_effect_cell16(g, 0xCE, y);
+}
+
+static void leave_effect_sprite_cells(GameState *g, uint16_t next, uint16_t x, uint16_t y)
+{
+    leave_effect_cell16(g, 0xC6, next);
+    leave_effect_cell16(g, 0xC8, 0);
+    leave_effect_cell16(g, 0xCA, x);
+    leave_effect_cell16(g, 0xD0, y);
 }
 
 // $CF:EEEB
-/* The sprites of the effect in effect record `record` (its low three bits the
- * effect, which is also its anchor): the effect's sprite set, at the anchor
- * plus its offset, with the effect's attribute bits, while the effect shows. */
-static void draw_effect_sprites(Snes *s, uint16_t record)
+/* Draw the effect the record names, at its anchor moved by its frame's
+ * offset, while it has a frame showing. */
+static void draw_effect(GameState *g, unsigned record)
 {
-    uint8_t effect = m_read8(s, RAM_BATTLE_OBJECT_EFFECT_SLOTS + record) & EFFECT_ANCHORS;
-    uint16_t w = (uint16_t)(effect << 1);
-    m_write8(s, RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES, m_read8(s, RAM_BATTLE_EFFECT_ATTRIBUTE_BITS + effect));
-    set_cell16(s, CELL_ANCHOR_X,
-               (uint16_t)(m_read16(s, RAM_BATTLE_ANCHOR_X + w) + m_read16(s, RAM_BATTLE_ANCHOR_OFFSET_X + w)));
-    set_cell16(s, CELL_ANCHOR_Y,
-               (uint16_t)(m_read16(s, RAM_BATTLE_ANCHOR_Y + w) + m_read16(s, RAM_BATTLE_ANCHOR_OFFSET_Y + w)));
-    if (!m_read8(s, RAM_BATTLE_SLOT_DELAYS + effect))
+    unsigned effect = battle_object_effect_slots(g, record) & RECORD_EFFECT;
+    uint8_t bits = battle_effect_attribute_bits(g, effect);
+    uint16_t x = (uint16_t)(battle_anchor_x(g, effect) + battle_anchor_offset_x(g, effect));
+    uint16_t y = (uint16_t)(battle_anchor_y(g, effect) + battle_anchor_offset_y(g, effect));
+    ORIGINAL_EFFECT(leave_effect_cells(g, bits, x, y));
+    if (battle_effect_frame_time(g, effect) == 0)
         return;
-    uint8_t set = m_read8(s, RAM_BATTLE_EFFECT_SPRITE_SET + effect) & SPRITE_SETS;
-    uint8_t bytes = (uint8_t)(m_read8(s, RAM_BATTLE_BITMAP_COUNTS + set) << 2);
-    uint16_t from = battle_effect_sprite_set_start(s, (uint16_t)(set << 1));
-    set_cell16(s, CELL_FROM, from);
-    set_cell16(s, CELL_COUNT, (uint16_t)(bytes >> 2));
-    uint16_t at = oam_next(s);
-    do {
-        uint16_t x = (uint16_t)(m_read8(s, RAM_BATTLE_EFFECT_SPRITE_DATA + from) + cell16(s, CELL_ANCHOR_X));
-        set_cell16(s, CELL_X, x);
-        m_write8(s, RAM_OAM_BUFFER_X + at, (uint8_t)x);
-        uint16_t y = (uint16_t)(m_read8(s, RAM_BATTLE_EFFECT_SPRITE_DATA + 1 + from) + cell16(s, CELL_ANCHOR_Y));
-        set_cell16(s, CELL_Y, y);
-        m_write8(s, RAM_OAM_BUFFER_Y + at, (uint8_t)y);
-        m_write8(s, RAM_OAM_BUFFER_TILE + at, m_read8(s, RAM_BATTLE_EFFECT_SPRITE_DATA + 2 + from));
-        m_write8(s, RAM_OAM_BUFFER_ATTRIBUTES + at,
-                 (uint8_t)((m_read8(s, RAM_BATTLE_EFFECT_SPRITE_DATA + 3 + from) & EFFECT_ATTRIBUTES_KEPT)
-                           | m_read8(s, RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES)));
-        uint8_t tested;
-        if (needs_x_high(cell16(s, CELL_X), cell16(s, CELL_Y), &tested))
-            set_x_high_bit(s, at, at);
-        from = (uint16_t)(cell16(s, CELL_FROM) + SPRITE_BYTES);
-        set_cell16(s, CELL_FROM, from);
-        at = (uint16_t)(at + SPRITE_BYTES);
-        set_cell8(s, CELL_COUNT, (uint8_t)(cell8(s, CELL_COUNT) - 1));
-    } while (cell8(s, CELL_COUNT) != 0);
-    set_oam_next(s, (uint16_t)(oam_next(s) + bytes));
+    uint8_t set = battle_effect_sprite_set(g, effect) & SET_OF_EFFECT;
+    unsigned counted = battle_bitmap_counts(g, set) & SET_OF_EFFECT;
+    unsigned sprites = counted ? counted : 256, sprite = next_sprite(g);
+    uint16_t from = battle_effect_sprite_set_start(g, set);
+    uint16_t sx = 0, sy = 0;
+    for (unsigned n = 0; n < sprites; n++, from = (uint16_t)(from + SPRITE_BYTES)) {
+        sx = (uint16_t)(battle_effect_sprite_data(g, from) + x);
+        sy = (uint16_t)(battle_effect_sprite_data(g, from + 1u) + y);
+        set_oam_buffer_tile(g, sprite + n, battle_effect_sprite_data(g, from + 2u));
+        set_oam_buffer_attributes(g, sprite + n, (uint8_t)((battle_effect_sprite_data(g, from + 3u) & EFFECT_SPRITE_KEEPS) | bits));
+        place_sprite(g, sprite + n, sx, sy);
+    }
+    set_next_sprite(g, sprite + counted);
+    ORIGINAL_EFFECT(leave_effect_sprite_cells(g, from, sx, sy));
 }
 
-/* The drawn object's effect records (one for each of its eight effects, 11
- * bytes apart), those marked to go under it (bit 7 set) or over it, whose
- * effect shows. The first record is looked at whatever the offset. Returns
- * the offset the loop ends at, which the original leaves in A. */
-static uint8_t draw_effects(Snes *s, bool under)
+/* The effect a record names, with its side bit cleared, is shown while its
+ * flag is set. */
+static bool shown(const GameState *g, uint8_t effect) { return battle_effect_shown(g, effect) != 0; }
+
+// $CF:EE9F
+/* The combatant's damage numbers: four sprites, prepared with their
+ * high-table byte, which fills the byte of the four they go in. */
+enum { NUMBER_DIGITS = 4 };
+
+static void draw_numbers(GameState *g, unsigned slot)
 {
-    uint8_t record = (uint8_t)draw_slot(s);
-    do {
-        uint8_t v = m_read8(s, RAM_BATTLE_OBJECT_EFFECT_SLOTS + record);
-        if (v != 0 && ((v & EFFECT_UNDER) != 0) == under) {
-            uint8_t effect = under ? (uint8_t)(v & 0x7F) : (uint8_t)(v & 0xBF);
-            if (m_read8(s, RAM_BATTLE_EFFECT_SHOWN + effect))
-                NATIVE_TIME_AS(s, 0xCFEEEB, draw_effect_sprites(s, record));
-        }
-        record = (uint8_t)(record + EFFECT_RECORD_STRIDE);
-    } while (record < EFFECT_RECORDS_END);
-    return record;
+    if (!battle_prepared_sprites_on(g, slot))
+        return;
+    unsigned sprite = next_sprite(g);
+    set_oam_high_table_byte(g, battle_oam_high_offsets(g, sprite * SPRITE_BYTES), battle_number_sprite_high(g, slot));
+    for (unsigned d = 0; d < NUMBER_DIGITS; d++) {
+        unsigned digit = slot * NUMBER_DIGITS + d;
+        set_oam_buffer_x(g, sprite + d, battle_number_sprites_x(g, digit));
+        set_oam_buffer_y(g, sprite + d, battle_number_sprites_y(g, digit));
+        set_oam_buffer_tile(g, sprite + d, battle_number_sprites_tile(g, digit));
+        set_oam_buffer_attributes(g, sprite + d, battle_number_sprites_attributes(g, digit));
+    }
+    set_next_sprite(g, sprite + NUMBER_DIGITS);
+    ORIGINAL_EFFECT(set_battle_effect_cells(g, 0xC8 - 0xC6, 0));
 }
 
 // $CF:EE2C
-/* The object's animated marker, when it has one: its frame steps every
- * period frames through four, and the frame's sprite goes at the object's
- * position. */
-static void draw_marker(Snes *s)
+/* The combatant's marker: an animated sprite at it, four frames, each shown
+ * for the marker's period. */
+enum { MARKER_FRAMES = 4 };
+
+static void draw_marker(GameState *g, unsigned slot)
 {
-    uint16_t slot = draw_slot(s);
-    if (!m_read8(s, RAM_BATTLE_MARKER_ON + slot))
+    if (!battle_marker_on(g, slot))
         return;
-    set_cell8(s, CELL_MARKER_X, m_read8(s, RAM_BATTLE_OBJECT_X + FIRST_OBJECT + slot));
-    set_cell8(s, CELL_MARKER_Y, m_read8(s, RAM_BATTLE_OBJECT_Y + FIRST_OBJECT + slot));
-    uint32_t countdown = RAM_BATTLE_MARKER_COUNTDOWN + slot, frame = RAM_BATTLE_MARKER_FRAME + slot;
-    uint8_t left = (uint8_t)(m_read8(s, countdown) - 1);
-    m_write8(s, countdown, left);
+    uint8_t x = combatant_x(g, slot), y = combatant_y(g, slot);
+    ORIGINAL_EFFECT(set_battle_effect_cells(g, 0xCC - 0xC6, x));
+    ORIGINAL_EFFECT(set_battle_effect_cells(g, 0xCD - 0xC6, y));
+    uint8_t left = (uint8_t)(battle_marker_countdown(g, slot) - 1);
+    set_battle_marker_countdown(g, slot, left ? left : battle_marker_period(g, slot));
     if (left == 0) {
-        m_write8(s, countdown, m_read8(s, RAM_BATTLE_MARKER_PERIOD + slot));
-        uint8_t f = (uint8_t)(m_read8(s, frame) + 1);
-        m_write8(s, frame, f);
-        if (f == MARKER_FRAMES)
-            m_write8(s, frame, 0);
+        uint8_t frame = (uint8_t)(battle_marker_frame(g, slot) + 1);
+        set_battle_marker_frame(g, slot, frame == MARKER_FRAMES ? 0 : frame);
     }
-    uint8_t k = (uint8_t)((uint8_t)(m_read8(s, frame) << 2) + m_read8(s, RAM_BATTLE_MARKER_KIND + slot));
-    uint16_t at = oam_next(s);
-    m_write8(s, RAM_OAM_BUFFER_X + at, (uint8_t)(battle_marker_sprite(s, k, 0) + cell8(s, CELL_MARKER_X)));
-    m_write8(s, RAM_OAM_BUFFER_Y + at, (uint8_t)(battle_marker_sprite(s, k, 1) + cell8(s, CELL_MARKER_Y)));
-    m_write8(s, RAM_OAM_BUFFER_TILE + at, battle_marker_sprite(s, k, 2));
-    m_write8(s, RAM_OAM_BUFFER_ATTRIBUTES + at,
-             (uint8_t)(battle_marker_sprite(s, k, 3) | m_read8(s, RAM_BATTLE_SPRITE_ATTRIBUTES)));
-    set_oam_next(s, (uint16_t)(at + SPRITE_BYTES));
+    MarkerSprite m = battle_marker_sprite(g, (uint8_t)(battle_marker_frame(g, slot) * SPRITE_BYTES + battle_marker_kind(g, slot)));
+    unsigned sprite = next_sprite(g);
+    set_oam_buffer_x(g, sprite, (uint8_t)(x + m.x));
+    set_oam_buffer_y(g, sprite, (uint8_t)(y + m.y));
+    set_oam_buffer_tile(g, sprite, m.tile);
+    set_oam_buffer_attributes(g, sprite, (uint8_t)(m.attributes | battle_sprite_attributes(g)));
+    set_next_sprite(g, sprite + 1);
 }
 
-// $CF:EE9F
-/* The object's four prepared number sprites, when it has them, with their
- * high-table byte. */
-static void copy_prepared_sprites(Snes *s)
+/* ---- The shadow ------------------------------------------------------------------------- */
+
+/* A shadow is the shadow tile 8 pixels left of and 4 above the combatant's
+ * point, in the shadows' priority, and takes four sprites' room. */
+enum { SHADOW_TILE = 0x02, SHADOW_LEFT = 8, SHADOW_UP = 4, SHADOW_SPRITES = 4 };
+
+// $CF:EA8A
+static void draw_shadow(GameState *g, unsigned slot)
 {
-    uint16_t slot = draw_slot(s);
-    if (!m_read8(s, RAM_BATTLE_PREPARED_SPRITES_ON + slot))
+    if (!battle_object_shadow(g, slot) || hidden(g, slot))
         return;
-    uint16_t at = oam_next(s);
-    uint8_t byte = m_read8(s, RAM_BATTLE_OAM_HIGH_OFFSETS + at);
-    m_write8(s, RAM_OAM_HIGH_TABLE + byte, m_read8(s, RAM_BATTLE_NUMBER_SPRITE_HIGH + slot));
-    uint16_t from = (uint8_t)(slot << 4);
-    set_cell8(s, CELL_COUNT, PREPARED_SPRITES);
-    do {
-        for (uint16_t k = 0; k < SPRITE_BYTES; k++)
-            m_write8(s, RAM_OAM_BUFFER + at + k, m_read8(s, RAM_BATTLE_NUMBER_SPRITES + from + k));
-        at = (uint16_t)(at + SPRITE_BYTES);
-        from = (uint16_t)(from + SPRITE_BYTES);
-        set_cell8(s, CELL_COUNT, (uint8_t)(cell8(s, CELL_COUNT) - 1));
-    } while (cell8(s, CELL_COUNT) != 0);
-    set_oam_next(s, at);
+    unsigned sprite = next_sprite(g);
+    set_oam_buffer_x(g, sprite, (uint8_t)(combatant_x(g, slot) - SHADOW_LEFT));
+    set_oam_buffer_y(g, sprite, (uint8_t)(combatant_y(g, slot) - SHADOW_UP));
+    set_oam_buffer_tile(g, sprite, SHADOW_TILE);
+    set_oam_buffer_attributes(g, sprite, (uint8_t)(battle_sprite_attributes(g) | battle_cursor_priority(g)));
+    set_next_sprite(g, sprite + SHADOW_SPRITES);
+}
+
+/* ---- Afterimages ------------------------------------------------------------------------ */
+
+/* A trail's point: its coordinates' low bytes are where the afterimage is
+ * drawn; of the high bytes only the sign counts, so a point past the right
+ * or bottom edge is drawn back on the screen. */
+typedef struct {
+    uint8_t x, y, x_high, y_high;
+} TrailPoint;
+
+enum { TRAIL_POINTS = 4 };
+
+static TrailPoint trail_point(const GameState *g, unsigned point, unsigned slot)
+{
+    return (TrailPoint){ battle_trail_low_x_byte(g, point, slot), battle_trail_low_y_byte(g, point, slot),
+                         battle_trail_high_x_byte(g, point, slot), battle_trail_high_y_byte(g, point, slot) };
+}
+
+static uint16_t sign_of(uint8_t high) { return (high & 0x80) ? 0xFF00 : 0; }
+
+static void leave_trail_point_cells(GameState *g, TrailPoint p)
+{
+    leave_draw_cell16(g, 0x32, (uint16_t)(p.x | p.y << 8));
+    leave_draw_cell16(g, 0x34, (uint16_t)(p.x_high | p.y_high << 8));
+}
+
+// $CF:E99C
+/* One afterimage: the frame's parts at a point of the trail, unless the
+ * combatant is hidden. */
+static void draw_afterimage_parts(GameState *g, unsigned slot, TrailPoint p)
+{
+    ORIGINAL_EFFECT(leave_trail_point_cells(g, p));
+    ORIGINAL_EFFECT(leave_first_part_cell(g, slot));
+    if (hidden(g, slot))
+        return;
+    draw_frame(g, slot, (FramePoint){ p.x, p.y }, (FramePoint){ sign_of(p.x_high), sign_of(p.y_high) });
+}
+
+/* Whether the afterimages show this frame: one frame in so many. */
+static bool afterimages_due(GameState *g, unsigned slot)
+{
+    uint8_t left = (uint8_t)(battle_afterimage_countdown(g, slot) - 1);
+    set_battle_afterimage_countdown(g, slot, left ? left : battle_afterimage_period(g, slot));
+    return left == 0;
+}
+
+/* ---- The draw list ---------------------------------------------------------------------- */
+
+/* An entry of the draw list: the object, marked as the combatant's own entry
+ * or as its second, topmost one, sorted by its key: how far down the screen
+ * the combatant stands, or the top key. The list ends with an end marker,
+ * which the pass knows by its top bit. */
+enum { ENTRY_OBJECT = 0x1F, OWN_ENTRY = 0x40, END_OF_LIST = 0xFF, IS_END = 0x80, TOPMOST_KEY = 0xFE };
+
+/* A combatant with a second entry is marked when that entry is drawn, and
+ * its own entry then draws only its shadow and afterimages. */
+enum { HAS_SECOND_ENTRY = 0x01, DRAWN_AT_SECOND_ENTRY = 0x80 };
+
+enum { MOST_ENTRIES = 2 * BATTLE_COMBATANTS };
+
+typedef struct {
+    uint8_t key[MOST_ENTRIES], entry[MOST_ENTRIES];
+    unsigned count;
+} DrawList;
+
+static void list_add(DrawList *list, uint8_t key, uint8_t entry)
+{
+    list->key[list->count] = key;
+    list->entry[list->count] = entry;
+    list->count++;
+}
+
+/* Sort the list, largest key first: the original's exchange sort, which
+ * the order of equal keys depends on. */
+static void sort_draw_list(DrawList *list)
+{
+    for (unsigned i = 0; i + 1 < list->count; i++)
+        for (unsigned j = i + 1; j < list->count; j++)
+            if (list->key[i] < list->key[j]) {
+                uint8_t key = list->key[i], entry = list->entry[i];
+                list->key[i] = list->key[j];
+                list->entry[i] = list->entry[j];
+                list->key[j] = key;
+                list->entry[j] = entry;
+            }
+}
+
+// $CF:E83A (to $CF:E8A6)
+/* List the combatants on the battlefield, those with a second entry twice,
+ * and sort the list. */
+static void build_draw_list(GameState *g)
+{
+    DrawList list = { { 0 }, { 0 }, 0 };
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
+        if (!battle_slot_present(g, slot))
+            continue;
+        unsigned object = battle_object_of(slot);
+        list_add(&list, combatant_y(g, slot), (uint8_t)(object | OWN_ENTRY));
+        uint8_t second = battle_object_extra_draw_on(g, slot);
+        set_battle_object_extra_draw(g, slot, second ? HAS_SECOND_ENTRY : 0);
+        if (second)
+            list_add(&list, TOPMOST_KEY, (uint8_t)object);
+    }
+    ORIGINAL_EFFECT(leave_draw_cell16(g, 0x30, (uint16_t)(list.count - 1)));
+    sort_draw_list(&list);
+    for (unsigned i = 0; i < list.count; i++) {
+        set_battle_draw_list_depth(g, i, list.key[i]);
+        set_battle_draw_list(g, i, list.entry[i]);
+    }
+    set_battle_draw_list(g, list.count, END_OF_LIST);
+}
+
+static unsigned slot_of_object(unsigned object) { return object - BATTLE_FIRST_COMBATANT_OBJECT; }
+
+static bool drawn_at_second_entry(const GameState *g, unsigned slot)
+{
+    return (battle_object_extra_draw(g, slot) & DRAWN_AT_SECOND_ENTRY) != 0;
+}
+
+/* ---- The pass, each part in the time of the original's routine for it ------------------ */
+
+enum {
+    DRAW_IN_FRONT = 0xCFEDB8, DRAW_BEHIND = 0xCFEDF7, DRAW_COMBATANT = 0xCFEAC5, COPY_TILES = 0xCFEB94,
+    DRAW_SHADOW = 0xCFEA8A, DRAW_AFTERIMAGES = 0xCFE92C, DRAW_AFTERIMAGE = 0xCFE99C, DRAW_EFFECT = 0xCFEEEB,
+    DRAW_NUMBERS = 0xCFEE9F, DRAW_MARKER = 0xCFEE2C,
+};
+
+/* The effects the combatant's records put on one side of it, while shown. */
+static void draw_effects(Snes *s, unsigned slot, bool in_front)
+{
+    GameState *g = state_of(s);
+    for (unsigned row = 0; row < RECORD_ROWS; row++) {
+        unsigned record = record_of(slot, row);
+        uint8_t v = battle_object_effect_slots(g, record);
+        if (v == 0 || ((v & IN_FRONT) != 0) != in_front)
+            continue;
+        if (shown(g, (uint8_t)(v & ~(in_front ? IN_FRONT : BEHIND))))
+            NATIVE_TIME_AS(s, DRAW_EFFECT, draw_effect(g, record));
+    }
 }
 
 // $CF:EDB8
-/* What goes under the object: while numbers show, its prepared sprites;
- * otherwise, unless effects run or markers are held off, its marker; or else
- * its effects marked to go under. The first two are routines of their own,
- * which the original jumps to. */
-static void draw_underlays(Snes *s)
+/* In front of the combatant: its numbers while numbers show; its marker
+ * while no effect plays, unless markers are held off; otherwise its effects
+ * in front. */
+static void draw_in_front(Snes *s, unsigned slot)
 {
-    if (m_read8(s, RAM_BATTLE_NUMBER_STEP)) {
-        NATIVE_TIME_AS(s, 0xCFEE9F, copy_prepared_sprites(s));
-        return;
-    }
-    if (!m_read8(s, RAM_BATTLE_EFFECTS_RUNNING) && !m_read8(s, RAM_BATTLE_MARKERS_HELD)) {
-        NATIVE_TIME_AS(s, 0xCFEE2C, draw_marker(s));
-        return;
-    }
-    draw_effects(s, true);
+    GameState *g = state_of(s);
+    if (battle_number_step(g))
+        NATIVE_TIME_AS(s, DRAW_NUMBERS, draw_numbers(g, slot));
+    else if (!battle_effects_running(g) && !battle_markers_held(g))
+        NATIVE_TIME_AS(s, DRAW_MARKER, draw_marker(g, slot));
+    else
+        draw_effects(s, slot, true);
 }
 
 // $CF:EDF7
-/* What goes over it: while effects run and no numbers show, its effects
- * marked to go over. Returns what the original leaves in A. */
-static uint8_t draw_overlays(Snes *s)
+/* Behind it: while effects play and no numbers show, its effects behind. */
+static void draw_behind(Snes *s, unsigned slot)
 {
-    uint8_t running = m_read8(s, RAM_BATTLE_EFFECTS_RUNNING);
-    if (!running)
-        return running;
-    uint8_t step = m_read8(s, RAM_BATTLE_NUMBER_STEP);
-    if (step)
-        return step;
-    return draw_effects(s, false);
+    GameState *g = state_of(s);
+    if (battle_effects_running(g) && !battle_number_step(g))
+        draw_effects(s, slot, false);
 }
 
-/* Build the draw list: each present object keyed by its Y, and a topmost
- * entry keyed $FE for those with one. Returns the last entry's index (16-bit;
- * $FFFF for an empty list). */
-static uint16_t build_draw_list(Snes *s)
+/* The afterimages copy as many tiles as the last combatant drawn had parts. */
+static void draw_afterimage(Snes *s, unsigned slot, TrailPoint p, uint16_t last_parts)
 {
-    uint16_t n = 0;
-    for (uint16_t object = FIRST_OBJECT; object < OBJECTS_END; object++) {
-        if (!m_read8(s, RAM_BATTLE_SLOT_PRESENT - FIRST_OBJECT + object))
-            continue;
-        m_write8(s, page_at(RAM_BATTLE_DRAW_LIST_DEPTH, n), m_read8(s, RAM_BATTLE_OBJECT_Y + object));
-        m_write8(s, page_at(RAM_BATTLE_DRAW_LIST, n), (uint8_t)(object | LIST_MAIN));
-        n++;
-        uint8_t extra = m_read8(s, RAM_BATTLE_OBJECT_EXTRA_DRAW_ON - FIRST_OBJECT + object);
-        m_write8(s, RAM_BATTLE_OBJECT_EXTRA_DRAW - FIRST_OBJECT + object, extra);
-        if (extra) {
-            m_write8(s, RAM_BATTLE_OBJECT_EXTRA_DRAW - FIRST_OBJECT + object, 1);
-            m_write8(s, page_at(RAM_BATTLE_DRAW_LIST_DEPTH, n), TOPMOST_KEY);
-            m_write8(s, page_at(RAM_BATTLE_DRAW_LIST, n), (uint8_t)object);
-            n++;
-        }
-    }
-    return (uint16_t)(n - 1);
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, COPY_TILES, copy_frame_tiles(g, slot, tile_groups_for(last_parts)));
+    draw_afterimage_parts(g, slot, p);
 }
 
-/* Sort the list by key, largest first: the original's exchange sort, which
- * runs only when the last index's low byte isn't 0, with 16-bit bounds.
- * Returns where its outer index ends. */
-static uint16_t sort_draw_list(Snes *s, uint16_t last)
+// $CF:E92C
+/* The combatant's afterimages, when they show this frame: its frame at each
+ * of its trail's four points. */
+static void draw_afterimages(Snes *s, unsigned slot, uint16_t last_parts)
 {
-    uint16_t i = 0;
-    if ((uint8_t)last == 0)
-        return i;
-    do {
-        uint16_t j = i;
-        do {
-            uint32_t ki = RAM_BATTLE_DRAW_LIST_DEPTH + i, kj = page_at(RAM_BATTLE_DRAW_LIST_DEPTH + 1u, j);
-            uint8_t a = m_read8(s, ki), b = m_read8(s, kj);
-            if (a < b) {
-                m_write8(s, ki, b);
-                m_write8(s, kj, a);
-                uint32_t ei = RAM_BATTLE_DRAW_LIST + i, ej = page_at(RAM_BATTLE_DRAW_LIST + 1u, j);
-                uint8_t e = m_read8(s, ei);
-                m_write8(s, ei, m_read8(s, ej));
-                m_write8(s, ej, e);
-            }
-            j++;
-        } while (j != last);
-        i++;
-    } while (i != last);
-    return i;
+    GameState *g = state_of(s);
+    ORIGINAL_EFFECT(set_battle_afterimage_object(g, (uint16_t)battle_object_of(slot)));
+    if (!afterimages_due(g, slot))
+        return;
+    for (unsigned point = 0; point < TRAIL_POINTS; point++)
+        NATIVE_TIME_AS(s, DRAW_AFTERIMAGE, draw_afterimage(s, slot, trail_point(g, point, slot), last_parts));
+}
+
+/* The combatant at a list entry: in front of it, its tiles and its frame,
+ * behind it; then, unless it has a second entry, its shadow. Returns whether
+ * it drew its frame (for how many tiles the afterimages copy). */
+static bool draw_entry_combatant(Snes *s, unsigned slot, uint8_t parts)
+{
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, DRAW_IN_FRONT, draw_in_front(s, slot));
+    NATIVE_TIME_AS(s, COPY_TILES, copy_frame_tiles(g, slot, tile_groups_for(parts)));
+    NATIVE_TIME_AS(s, DRAW_COMBATANT, draw_combatant(g, slot));
+    NATIVE_TIME_AS(s, DRAW_BEHIND, draw_behind(s, slot));
+    if (!battle_object_extra_draw(g, slot))
+        return false;
+    set_battle_object_extra_draw(g, slot, DRAWN_AT_SECOND_ENTRY);
+    return true;
+}
+
+static void leave_pass_cells(GameState *g, unsigned position)
+{
+    set_battle_draw_list_position(g, (uint16_t)position);
 }
 
 // $CF:E83A
-/* Draw all the battle objects (see the header). `sp`: the stack pointer, where
- * the original's calls leave their return addresses. */
-static void draw_objects(Snes *s, uint16_t sp)
+/* Draw every combatant on the battlefield (the file's header). */
+static void draw_objects(Snes *s)
 {
-    uint16_t last = build_draw_list(s);
-    set_scratch16(s, BASE_Y, last);
-    uint16_t end = sort_draw_list(s, last);
-    m_write8(s, RAM_BATTLE_DRAW_LIST + 1u + end, 0xFF);
-    m_write16(s, RAM_BATTLE_DRAW_OBJECT, 0);
-    m_write16(s, RAM_BATTLE_DRAW_PART_COUNT, 0);
-    m_write16(s, RAM_BATTLE_DRAW_LIST_POSITION, 0);
-    set_oam_next(s, FIRST_FREE_OFFSET);
-    for (;;) {
-        uint8_t entry = m_read8(s, page_at(RAM_BATTLE_DRAW_LIST, m_read16(s, RAM_BATTLE_DRAW_LIST_POSITION)));
-        if (entry & LIST_END)
+    GameState *g = state_of(s);
+    build_draw_list(g);
+    ORIGINAL_EFFECT(set_battle_draw_object(g, 0));
+    ORIGINAL_EFFECT(set_battle_draw_part_count(g, 0));
+    set_next_sprite(g, FIRST_FREE_SPRITE);
+    uint16_t last_parts = 0;
+    unsigned position = 0;
+    for (;; position++) {
+        uint8_t entry = battle_draw_list(g, position);
+        if (entry & IS_END)
             break;
-        uint16_t object = entry & LIST_OBJECT;
-        m_write8(s, RAM_BATTLE_DRAW_OBJECT, (uint8_t)object);
-        bool shadow = true;
-        if (!(m_read8(s, page_at(RAM_BATTLE_OBJECT_EXTRA_DRAW - FIRST_OBJECT, object)) & EXTRA_DRAWN)) {
-            /* from here the object is read back (16-bit) where the original
-             * reloads it: enough sprites reach it */
-            object = draw_object(s);
-            uint8_t parts = m_read8(s, page_at(RAM_BATTLE_OBJECT_PART_COUNT, object));
-            if (parts != 0) {
-                m_write8(s, RAM_BATTLE_DRAW_PART_COUNT, parts);
-                /* each part of the drawing is a routine of the original's,
-                 * whose time the port's is (native_time_as) */
-                NATIVE_TIME_AS(s, 0xCFEDB8, draw_underlays(s));
-                copy_object_tiles(s, sp, 0xE8F3);
-                NATIVE_TIME_AS(s, 0xCFEAC5, draw_sprite_parts(s));
-                NATIVE_TIME_AS(s, 0xCFEDF7, draw_overlays(s));
-                object = draw_object(s);
-                uint32_t extra = page_at(RAM_BATTLE_OBJECT_EXTRA_DRAW - FIRST_OBJECT, object);
-                if (m_read8(s, extra)) {
-                    m_write8(s, extra, EXTRA_DRAWN);
-                    shadow = false;
-                }
-            }
+        unsigned object = entry & ENTRY_OBJECT, slot = slot_of_object(object);
+        ORIGINAL_EFFECT(set_battle_draw_object(g, (uint16_t)object));
+        uint8_t parts = battle_object_part_count(g, object);
+        bool second_drawn = false;
+        if (!drawn_at_second_entry(g, slot) && parts != 0) {
+            last_parts = parts;
+            ORIGINAL_EFFECT(set_battle_draw_part_count(g, parts));
+            second_drawn = draw_entry_combatant(s, slot, parts);
         }
-        if (shadow)
-            NATIVE_TIME_AS(s, 0xCFEA8A, draw_shadow(s, object));
-        if (m_read8(s, RAM_BATTLE_EFFECTS_RUNNING)) {
-            uint8_t e = m_read8(s, page_at(RAM_BATTLE_DRAW_LIST, m_read16(s, RAM_BATTLE_DRAW_LIST_POSITION)));
-            if ((e & LIST_MAIN) && m_read8(s, RAM_BATTLE_TRAIL_ON - FIRST_OBJECT + (e & LIST_OBJECT))) {
-                push_return(s, sp, 0xE920);
-                NATIVE_TIME_AS(s, 0xCFE92C, step_trail(s, e & LIST_OBJECT, 0, (uint16_t)(sp - 2)));
-            }
-        }
-        m_write8(s, RAM_BATTLE_DRAW_LIST_POSITION, (uint8_t)(m_read8(s, RAM_BATTLE_DRAW_LIST_POSITION) + 1));
+        if (!second_drawn)
+            NATIVE_TIME_AS(s, DRAW_SHADOW, draw_shadow(g, slot));
+        if (battle_effects_running(g) && (entry & OWN_ENTRY) && battle_trail_on(g, slot))
+            NATIVE_TIME_AS(s, DRAW_AFTERIMAGES, draw_afterimages(s, slot, last_parts));
     }
+    ORIGINAL_EFFECT(leave_pass_cells(g, position));
 }
 
-/* ---- entries ------------------------------------------------------------------------- */
+/* ---- The entries ------------------------------------------------------------------------ */
 
-static void return_a8(Snes *s, uint16_t a)
+/* The pass is guarded on someone being on the battlefield: with the list
+ * empty, the original's sort would run through the whole bank. The drawing
+ * routines on their own draw the combatant the pass is drawing (the object
+ * in its cell, or in X for the shadow), into the sprite buffer at a sprite's
+ * place in it. */
+static bool someone_on_battlefield(Snes *s)
 {
-    s->cpu.a = a;
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool present = false;
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
+        present = present || battle_slot_present(g, slot);
+    vars_peek(false);
+    return present;
+}
+
+bool battle_draw_pass_ready(Snes *s) { return battle_sprite_bank_ready(s) && someone_on_battlefield(s); }
+
+static bool combatant_object(uint16_t object)
+{
+    return object >= BATTLE_FIRST_COMBATANT_OBJECT && object < BATTLE_FIRST_COMBATANT_OBJECT + BATTLE_COMBATANTS;
+}
+
+static bool at_a_sprite(Snes *s)
+{
+    vars_peek(true);
+    uint16_t next = battle_oam_next(state_of(s));
+    vars_peek(false);
+    return next % SPRITE_BYTES == 0 && next < SPRITES * SPRITE_BYTES;
+}
+
+static uint16_t object_being_drawn(Snes *s)
+{
+    vars_peek(true);
+    uint16_t object = battle_draw_object(state_of(s));
+    vars_peek(false);
+    return object;
+}
+
+bool battle_drawing_combatant(Snes *s)
+{
+    return battle_sprite_page_ready(s) && combatant_object(object_being_drawn(s)) && at_a_sprite(s);
+}
+
+/* The frame's own routines set A before they use it, whatever the caller left. */
+bool battle_drawing_combatant_frame(Snes *s)
+{
+    return battle_sprite_page(s) && combatant_object(object_being_drawn(s)) && at_a_sprite(s);
+}
+
+/* An effect's record in X. */
+bool battle_drawing_effect_record(Snes *s)
+{
+    return battle_sprite_bank_ready(s) && s->cpu.x < BATTLE_OBJECT_EFFECT_SLOTS_COUNT && at_a_sprite(s);
+}
+
+bool battle_drawing_combatant_in_x(Snes *s)
+{
+    return battle_sprite_page_ready(s) && combatant_object(s->cpu.x) && at_a_sprite(s);
+}
+
+bool battle_drawing_combatant_x_and_cell(Snes *s)
+{
+    return battle_drawing_combatant(s) && s->cpu.x == object_being_drawn(s);
+}
+
+static unsigned slot_being_drawn(Snes *s) { return slot_of_object(object_being_drawn(s)); }
+
+static uint16_t parts_being_drawn(Snes *s)
+{
+    vars_peek(true);
+    uint16_t parts = battle_draw_part_count(state_of(s));
+    vars_peek(false);
+    return parts;
+}
+
+/* Each leaves the direct page on the objects' page, where the pass runs,
+ * and A's high byte 0, which the callers read; the rest is dead. */
+static void back_on_drawing_page(Snes *s)
+{
+    s->cpu.d = BATTLE_SPRITE_PAGE;
+    s->cpu.a = 0;
     s->cpu.p |= CPU_FLAG_M;
     m_rts(s);
 }
 
-/* Leaves the direct page at $0000 and X 0. */
 void battle_draw_objects(Snes *s)
 {
-    draw_objects(s, s->cpu.s);
-    s->cpu.d = 0x0000;
-    s->cpu.x = 0x0000;
+    draw_objects(s);
+    s->cpu.d = BATTLE_PAGE;
     m_rts(s);
 }
 
-/* X the object; A kept on the paths that don't draw, 0 on the one that does. */
 void battle_draw_shadow(Snes *s)
 {
-    int r = draw_shadow(s, s->cpu.x);
-    return_a8(s, r < 0 ? 0 : (uint16_t)((s->cpu.a & 0xFF00) | r));
+    draw_shadow(state_of(s), slot_of_object(s->cpu.x));
+    back_on_drawing_page(s);
 }
 
-/* X the object. */
-void battle_step_object_effect(Snes *s) { return_a8(s, step_trail(s, s->cpu.x, s->cpu.a, s->cpu.s)); }
-/* Entered with 16-bit A; leaves 8-bit A with its high byte 0. */
-void battle_draw_sprite_parts(Snes *s) { return_a8(s, draw_sprite_parts(s)); }
-void battle_draw_afterimage(Snes *s) { return_a8(s, draw_afterimage(s, s->cpu.s)); }
-
-/* X and Y the source and destination in the data bank. */
-void battle_copy_sprite_tiles(Snes *s)
+void battle_draw_afterimages(Snes *s)
 {
-    copy_sprite_tiles(s, (uint32_t)s->cpu.db << 16, s->cpu.x, s->cpu.y);
+    draw_afterimages(s, slot_being_drawn(s), parts_being_drawn(s));
+    back_on_drawing_page(s);
+}
+
+/* Entered with 16-bit A; leaves 8-bit A. */
+void battle_draw_combatant(Snes *s)
+{
+    draw_combatant(state_of(s), slot_being_drawn(s));
+    back_on_drawing_page(s);
+}
+
+/* The afterimage at the trail's point the cells hold. */
+void battle_draw_afterimage(Snes *s)
+{
+    GameState *g = state_of(s);
+    TrailPoint p = { battle_draw_scratch(g, 4), battle_draw_scratch(g, 5), battle_draw_scratch(g, 6), battle_draw_scratch(g, 7) };
+    draw_afterimage(s, slot_being_drawn(s), p, parts_being_drawn(s));
+    back_on_drawing_page(s);
+}
+
+void battle_draw_in_front(Snes *s)
+{
+    draw_in_front(s, slot_being_drawn(s));
+    back_on_drawing_page(s);
+}
+
+void battle_draw_marker(Snes *s)
+{
+    draw_marker(state_of(s), slot_being_drawn(s));
+    back_on_drawing_page(s);
+}
+
+void battle_draw_numbers(Snes *s)
+{
+    draw_numbers(state_of(s), slot_being_drawn(s));
+    back_on_drawing_page(s);
+}
+
+void battle_draw_behind(Snes *s)
+{
+    draw_behind(s, slot_being_drawn(s));
+    back_on_drawing_page(s);
+}
+
+/* X the record. */
+void battle_draw_effect(Snes *s)
+{
+    draw_effect(state_of(s), s->cpu.x);
+    back_on_drawing_page(s);
+}
+
+/* X and Y the sprite entry and the buffer's sprite to copy from and to, as
+ * addresses in the data bank, and the count of groups in its cell. */
+enum { SPRITE_ENTRIES_AT = 0x11B0, SPRITE_BUFFER_AT = 0x0700 };
+
+static bool names_entry(uint16_t at)
+{
+    return at >= SPRITE_ENTRIES_AT && (at - SPRITE_ENTRIES_AT) % SPRITE_BYTES == 0
+           && (at - SPRITE_ENTRIES_AT) / SPRITE_BYTES < BATTLE_OBJECT_SPRITE_ENTRIES_COUNT;
+}
+static bool names_sprite(uint16_t at)
+{
+    return at >= SPRITE_BUFFER_AT && (at - SPRITE_BUFFER_AT) % SPRITE_BYTES == 0 && (at - SPRITE_BUFFER_AT) / SPRITE_BYTES < SPRITES;
+}
+
+bool battle_tile_copy_in_buffers(Snes *s)
+{
+    return battle_sprite_page(s) && names_entry(s->cpu.x) && names_sprite(s->cpu.y);
+}
+
+void battle_copy_frame_tiles(Snes *s)
+{
+    GameState *g = state_of(s);
+    copy_tiles(g, (unsigned)(s->cpu.x - SPRITE_ENTRIES_AT) / SPRITE_BYTES, (unsigned)(s->cpu.y - SPRITE_BUFFER_AT) / SPRITE_BYTES,
+               battle_draw_tile_groups(g));
     m_rts(s);
-}
-
-/* The marker path leaves the direct page back on the drawing page. */
-void battle_draw_object_underlays(Snes *s)
-{
-    draw_underlays(s);
-    m_rts(s);
-}
-
-/* The two the underlays jump to, as entries of their own: shadow mode
- * measures their time apart from the rest of the pass (native_time_as). */
-void battle_draw_object_marker(Snes *s)
-{
-    draw_marker(s);
-    m_rts(s);
-}
-
-void battle_copy_prepared_sprites(Snes *s)
-{
-    copy_prepared_sprites(s);
-    m_rts(s);
-}
-
-void battle_draw_object_overlays(Snes *s) { return_a8(s, (uint16_t)((s->cpu.a & 0xFF00) | draw_overlays(s))); }
-
-/* X the effect record; leaves A 0 and the direct page, and X, on the drawing
- * page. */
-void battle_draw_effect_sprites(Snes *s)
-{
-    draw_effect_sprites(s, s->cpu.x);
-    s->cpu.d = (uint16_t)RAM_BATTLE_OBJECT_X;
-    s->cpu.x = (uint16_t)RAM_BATTLE_OBJECT_X;
-    return_a8(s, 0);
 }

@@ -1,237 +1,274 @@
-/* Battle: per-frame object motion and effect bookkeeping (bank CF), run by
- * battle_frame_update while effects run: the objects' scripted paths, the
- * anchor points following their objects, the position trails the afterimages
- * are drawn from, the rising number sprites, and the party members' cycling
- * effect colors.
+/* Battle: what moves on the battlefield each frame while effects play,
+ * besides the paths (battle/effect_paths.c).
  *
- * The routines run with the battle page and data bank $7E, guarded on A's
- * high byte being 0 as their caller leaves it (their indexes take it along).
- * Each returns what the original leaves in A (and Y where it is live), since
- * A's high byte is live after them. */
+ * The frame's update (battle/frame.c) runs these once a frame:
+ * - the damage and healing numbers over the combatants rise, a row of a
+ *   table at a time, until the table ends;
+ * - a combatant on a scripted move (a hop back, a lunge) takes the move's next
+ *   step, eight steps a move;
+ * - the anchors (battle/effects.h) follow what they follow: a combatant, or
+ *   another anchor;
+ * - a combatant that leaves a trail records where its sprite is every few
+ *   frames, the last four places, which its afterimages are drawn at
+ *   (battle/draw_objects.c);
+ * - a party member whose colors cycle (a glow while a tech charges) takes the
+ *   cycle's next color. */
+#include "battle/effects.h"
+
+#include "battle/bridge.h"
 #include "battle/entries.h"
-
 #include "battle/sprite_data.h"
-#include "port/machine.h"
-#include "ram.h"
+#include "original_effects.h"
+#include "vars.h"
 
-enum {
-    COMBATANTS = 11,
-    FIRST_OBJECT = 0x0C,
-    ANCHORS = 8,
-    ANCHOR_FOLLOWS_ANCHOR = 0x40,
-    ANCHOR_OFF = 0x80,
-    PATH_STEPS = 7,
-    TRAIL_RECORDS = 4,
-    TRAIL_RECORD_STRIDE = 0x16,
-    NUMBER_SPRITES = 4,
-    ROW_END = 0x80,
-    PALETTE_CYCLE_END = 0x7C,
-    NO_EFFECT_PALETTE = 0x08,
-};
-
-static uint8_t cell(Snes *s, uint8_t c) { return m_read8(s, RAM_BATTLE_EFFECT_CELLS + c); }
-static void set_cell(Snes *s, uint8_t c, uint8_t v) { m_write8(s, RAM_BATTLE_EFFECT_CELLS + c, v); }
-static void set_cell16(Snes *s, uint8_t c, uint16_t v) { m_write16(s, RAM_BATTLE_EFFECT_CELLS + c, v); }
-
-static uint32_t object_x(uint16_t slot) { return RAM_BATTLE_OBJECT_X + FIRST_OBJECT + slot; }
-static uint32_t object_y(uint16_t slot) { return RAM_BATTLE_OBJECT_Y + FIRST_OBJECT + slot; }
-
-static void finish(Snes *s, uint16_t a)
+/* The loops' counters the original keeps in the effect loops' first cell:
+ * each ends at its last value, which the wrapper leaves. */
+static void leave_loop_cell(GameState *g, uint8_t low, uint8_t high)
 {
-    s->cpu.a = a;
-    s->cpu.p |= CPU_FLAG_M;
-    m_rts(s);
+    set_battle_effect_cells(g, 0, low);
+    set_battle_effect_cells(g, 1, high);
 }
+
+/* The effect loops' first cell, as a count down past 0 leaves it. */
+enum { COUNTED_PAST_ZERO = 0xFF };
+
+/* ---- The damage numbers --------------------------------------------------------------- */
+
+/* Each combatant's number is four digit sprites. */
+enum { NUMBER_DIGITS = 4 };
+
+static bool numbers_rising(const GameState *g) { return battle_numbers_rising(g) != 0; }
+static bool rises_by_second_table(const GameState *g, unsigned slot) { return battle_number_rise_alt(g, slot) != 0; }
+
+static void raise_number(GameState *g, unsigned slot, uint8_t by)
+{
+    for (unsigned digit = 0; digit < NUMBER_DIGITS; digit++) {
+        unsigned sprite = slot * NUMBER_DIGITS + digit;
+        set_battle_number_sprites_y(g, sprite, (uint8_t)(battle_number_sprites_y(g, sprite) + by));
+    }
+}
+
+// $CF:E781
+/* While the numbers rise: move every combatant's number by the rise's next
+ * row (its row of the second table for those that rise by it). A row that
+ * ends the first table ends the rise. */
+static void raise_numbers(GameState *g)
+{
+    if (!numbers_rising(g))
+        return;
+    uint8_t row = battle_numbers_row(g);
+    if (battle_number_rise_table(g, false, row) == BATTLE_NUMBER_RISE_END) {
+        set_battle_numbers_rising(g, false);
+        return;
+    }
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
+        set_battle_number_rise(g, slot, battle_number_rise_table(g, rises_by_second_table(g, slot), row));
+    set_battle_numbers_row(g, (uint8_t)(row + 1));
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
+        raise_number(g, slot, battle_number_rise(g, slot));
+    ORIGINAL_EFFECT(set_battle_effect_cells(g, 0, 0));
+}
+
+/* ---- Scripted moves ------------------------------------------------------------------- */
+
+/* A move's steps are counted down from the last to the first; the count
+ * runs below zero once the move is done. */
+enum { LAST_STEP = BATTLE_SCRIPTED_MOVE_STEPS - 1, MOVE_DONE = 0x80 };
+
+static bool on_scripted_move(const GameState *g, unsigned slot)
+{
+    return battle_path_active(g, slot) && !(battle_path_steps(g, slot) & MOVE_DONE);
+}
+
+/* The step a move is on, as the original indexes it: a byte, which for a
+ * count past the last step wraps round. */
+static uint8_t step_of(const GameState *g, unsigned slot) { return (uint8_t)(LAST_STEP - battle_path_steps(g, slot)); }
 
 // $CF:EC78
-/* Step each combatant along its scripted path: eight steps (the count runs
- * from 7 down, negative when done), each moving the object by the path's
- * deltas for the step. */
-static uint8_t step_object_paths(Snes *s)
+/* Move each combatant on a scripted move by its move's next step. */
+static void step_scripted_moves(GameState *g)
 {
-    uint8_t a = 0;
-    for (uint16_t slot = 0; slot < COMBATANTS; slot++) {
-        a = m_read8(s, RAM_BATTLE_PATH_ACTIVE + slot);
-        if (!a)
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
+        if (!on_scripted_move(g, slot))
             continue;
-        uint32_t steps = RAM_BATTLE_PATH_STEPS + slot;
-        a = m_read8(s, steps);
-        if (a & 0x80)
-            continue;
-        uint16_t step = (uint8_t)(PATH_STEPS - a);
-        set_cell16(s, 0, step);
-        uint16_t at = (uint16_t)((uint16_t)(m_read8(s, RAM_BATTLE_PATH + slot) << 3) + step);
-        m_write8(s, object_x(slot), (uint8_t)(battle_path_delta_x(s, at) + m_read8(s, object_x(slot))));
-        m_write8(s, object_y(slot), (uint8_t)(battle_path_delta_y(s, at) + m_read8(s, object_y(slot))));
-        a = (uint8_t)(m_read8(s, steps) - 1);
-        m_write8(s, steps, a);
+        uint8_t move = battle_path(g, slot), step = step_of(g, slot);
+        place_combatant_x(g, slot, (uint8_t)(combatant_x(g, slot) + battle_scripted_move_dx(g, move, step)));
+        place_combatant_y(g, slot, (uint8_t)(combatant_y(g, slot) + battle_scripted_move_dy(g, move, step)));
+        set_battle_path_steps(g, slot, (uint8_t)(battle_path_steps(g, slot) - 1));
+        ORIGINAL_EFFECT(leave_loop_cell(g, step, 0));
     }
-    return a;
 }
 
-void battle_step_object_paths(Snes *s) { finish(s, step_object_paths(s)); }
+/* ---- The anchors ---------------------------------------------------------------------- */
+
+/* What an anchor follows: a combatant (its battle slot), or with the second
+ * bit another anchor (in the low three bits); with the top bit, nothing, and
+ * it stays where it is. */
+enum { FOLLOWS_NOTHING = 0x80, FOLLOWS_ANCHOR = 0x40, FOLLOWED_ANCHOR = 0x07 };
 
 // $CF:ECC2
-/* Place the eight anchors, from 7 down: an anchor following an object (a
- * battle slot) takes its position, one following another anchor (bit 6, the
- * anchor in the low three bits) copies it, and one with bit 7 set stays. */
-static uint8_t update_anchor_points(Snes *s)
+/* Put each anchor where what it follows is, the last anchor first, so that
+ * an anchor following one before it takes where that one was put last frame.
+ * An anchor following a combatant is where the combatant stands. */
+static void update_anchors(GameState *g)
 {
-    uint8_t a = 0;
-    set_cell16(s, 0, ANCHORS - 1);
-    do {
-        uint8_t anchor = cell(s, 0);
-        uint8_t source = m_read8(s, RAM_BATTLE_ANCHOR_SOURCES + anchor);
-        a = source;
-        uint16_t w = (uint8_t)(anchor << 1);
-        if (!(source & ANCHOR_OFF)) {
-            if (!(source & ANCHOR_FOLLOWS_ANCHOR)) {
-                m_write8(s, RAM_BATTLE_ANCHOR_X + w, m_read8(s, object_x(source)));
-                m_write8(s, RAM_BATTLE_ANCHOR_X + 1 + w, 0);
-                a = m_read8(s, object_y(source));
-                m_write8(s, RAM_BATTLE_ANCHOR_Y + w, a);
-                m_write8(s, RAM_BATTLE_ANCHOR_Y + 1 + w, 0);
-            } else {
-                uint16_t from = (uint8_t)((source & 0x07) << 1);
-                static const uint32_t bytes[4] = { RAM_BATTLE_ANCHOR_X, RAM_BATTLE_ANCHOR_X + 1, RAM_BATTLE_ANCHOR_Y,
-                                                   RAM_BATTLE_ANCHOR_Y + 1 };
-                for (int i = 0; i < 4; i++) {
-                    a = m_read8(s, bytes[i] + from);
-                    m_write8(s, bytes[i] + w, a);
-                }
-            }
+    for (int anchor = BATTLE_ANCHORS - 1; anchor >= 0; anchor--) {
+        uint8_t follows = battle_anchor_sources(g, (unsigned)anchor);
+        if (follows & FOLLOWS_NOTHING)
+            continue;
+        if (follows & FOLLOWS_ANCHOR) {
+            unsigned leader = follows & FOLLOWED_ANCHOR;
+            place_anchor(g, (unsigned)anchor, anchor_x(g, leader), anchor_y(g, leader));
+        } else {
+            place_anchor(g, (unsigned)anchor, combatant_x(g, follows), combatant_y(g, follows));
         }
-        set_cell(s, 0, (uint8_t)(cell(s, 0) - 1));
-    } while (!(cell(s, 0) & 0x80));
-    return a;
+    }
+    ORIGINAL_EFFECT(leave_loop_cell(g, COUNTED_PAST_ZERO, 0));
 }
 
-void battle_update_anchor_points(Snes *s) { finish(s, update_anchor_points(s)); }
+/* ---- Trails --------------------------------------------------------------------------- */
 
-/* One axis of a trail record: shift the four recorded positions on and
- * record the object's, plus its sprite offset, as a 16-bit value (low and
- * high bytes in separate arrays, one record every $16 bytes). */
-static uint8_t record_axis(Snes *s, uint16_t slot, uint32_t low, uint32_t high, uint32_t offset, uint32_t position)
+/* A trail is the last four places the combatant's sprite was recorded at,
+ * the newest first, a word a coordinate. */
+enum { TRAIL_POINTS = 4 };
+
+typedef struct {
+    int16_t x, y;
+} TrailPoint;
+
+static TrailPoint trail_point(const GameState *g, unsigned point, unsigned slot)
 {
-    for (int r = TRAIL_RECORDS - 1; r > 0; r--)
-        m_write8(s, low + (uint32_t)r * TRAIL_RECORD_STRIDE + slot, m_read8(s, low + (uint32_t)(r - 1) * TRAIL_RECORD_STRIDE + slot));
-    for (int r = TRAIL_RECORDS - 1; r > 0; r--)
-        m_write8(s, high + (uint32_t)r * TRAIL_RECORD_STRIDE + slot, m_read8(s, high + (uint32_t)(r - 1) * TRAIL_RECORD_STRIDE + slot));
-    uint8_t off = m_read8(s, offset + slot);
-    uint8_t h = (off & 0x80) ? 0xFF : 0x00;
-    uint16_t sum = (uint16_t)(off + m_read8(s, position + slot));
-    m_write8(s, low + slot, (uint8_t)sum);
-    h = (uint8_t)(h + (sum > 0xFF));
-    m_write8(s, high + slot, h);
-    return h;
+    return (TrailPoint){ (int16_t)(battle_trail_low_x_byte(g, point, slot) | battle_trail_high_x_byte(g, point, slot) << 8),
+                         (int16_t)(battle_trail_low_y_byte(g, point, slot) | battle_trail_high_y_byte(g, point, slot) << 8) };
+}
+
+static void set_trail_point(GameState *g, unsigned point, unsigned slot, TrailPoint p)
+{
+    set_battle_trail_low_x_byte(g, point, slot, (uint8_t)p.x);
+    set_battle_trail_high_x_byte(g, point, slot, (uint8_t)((uint16_t)p.x >> 8));
+    set_battle_trail_low_y_byte(g, point, slot, (uint8_t)p.y);
+    set_battle_trail_high_y_byte(g, point, slot, (uint8_t)((uint16_t)p.y >> 8));
+}
+
+/* Where the combatant's sprite is: where it stands, moved by its sprite's
+ * offset. */
+static TrailPoint sprite_position(const GameState *g, unsigned slot)
+{
+    return (TrailPoint){ (int16_t)(combatant_x(g, slot) + combatant_sprite_offset_x(g, slot)),
+                         (int16_t)(combatant_y(g, slot) + combatant_sprite_offset_y(g, slot)) };
+}
+
+static bool trail_due(GameState *g, unsigned slot)
+{
+    uint8_t left = (uint8_t)(battle_trail_countdown(g, slot) - 1);
+    set_battle_trail_countdown(g, slot, left ? left : battle_trail_period(g, slot));
+    return left == 0;
 }
 
 // $CF:ED18
-/* Every period frames, record the trailing combatants' positions. */
-static uint8_t record_object_trails(Snes *s)
+/* Every few frames, each combatant leaving a trail records where its sprite
+ * is, dropping the oldest of its four places. */
+static void record_trails(GameState *g)
 {
-    uint8_t a = 0;
-    for (int slot = COMBATANTS - 1; slot >= 0; slot--) {
-        uint16_t i = (uint16_t)slot;
-        a = m_read8(s, RAM_BATTLE_TRAIL_ON + i);
-        if (!a)
+    for (int slot = BATTLE_COMBATANTS - 1; slot >= 0; slot--) {
+        if (!battle_trail_on(g, (unsigned)slot) || !trail_due(g, (unsigned)slot))
             continue;
-        uint32_t countdown = RAM_BATTLE_TRAIL_COUNTDOWN + i;
-        uint8_t left = (uint8_t)(m_read8(s, countdown) - 1);
-        m_write8(s, countdown, left);
-        if (left)
-            continue;
-        m_write8(s, countdown, m_read8(s, RAM_BATTLE_TRAIL_PERIOD + i));
-        record_axis(s, i, RAM_BATTLE_TRAIL_LOW_X, RAM_BATTLE_TRAIL_HIGH_X, RAM_BATTLE_SPRITE_OFFSET_X, RAM_BATTLE_OBJECT_X + FIRST_OBJECT);
-        a = record_axis(s, i, RAM_BATTLE_TRAIL_LOW_Y, RAM_BATTLE_TRAIL_HIGH_Y, RAM_BATTLE_SPRITE_OFFSET_Y, RAM_BATTLE_OBJECT_Y + FIRST_OBJECT);
+        for (unsigned point = TRAIL_POINTS - 1; point > 0; point--)
+            set_trail_point(g, point, (unsigned)slot, trail_point(g, point - 1, (unsigned)slot));
+        set_trail_point(g, 0, (unsigned)slot, sprite_position(g, (unsigned)slot));
     }
-    return a;
 }
 
-void battle_record_object_trails(Snes *s) { finish(s, record_object_trails(s)); }
+/* ---- The party's color cycles --------------------------------------------------------- */
 
-// $CF:E781
-/* While the numbers rise: each combatant's four number sprites move by the
- * next row's amount (its own table's for those with the second), until a
- * row starts with $80. */
-static uint8_t step_prepared_sprites(Snes *s)
+/* A party member's sprite palette, as its sprites' attribute bits (twice the
+ * palette); the one that isn't the member's own takes no cycle. The two
+ * colors of the member's palette the cycle writes, and how the cycle steps
+ * through its colors and wraps. */
+enum { SHARED_PALETTE = 0x08, PALETTE_COLORS = 16, COLOR_BYTES = 2, FIRST_SPRITE_COLOR = 0x80 };
+enum { CYCLED_COLOR = 1, CYCLED_COLOR_AGAIN = 12 };
+enum { CYCLE_STEP = 2, CYCLE_END = 0x7C };
+
+/* A sprite palette's first color. A palette is sixteen colors, and the
+ * attribute bits are twice the palette, so its offset is the bits times 16
+ * bytes, which the original works out in a byte. */
+static unsigned first_color_of(uint8_t attribute_bits)
 {
-    uint8_t rising = m_read8(s, RAM_BATTLE_NUMBERS_RISING);
-    if (!rising)
-        return rising;
-    uint16_t row = m_read8(s, RAM_BATTLE_NUMBERS_ROW);
-    if (battle_number_rise_row(s, false, row) == ROW_END) {
-        m_write8(s, RAM_BATTLE_NUMBERS_RISING, 0);
-        return ROW_END;
-    }
-    for (uint16_t slot = 0; slot < COMBATANTS; slot++)
-        m_write8(s, RAM_BATTLE_NUMBER_RISE + slot,
-                 battle_number_rise_row(s, m_read8(s, RAM_BATTLE_NUMBER_RISE_ALT + slot) != 0, row));
-    m_write8(s, RAM_BATTLE_NUMBERS_ROW, (uint8_t)(m_read8(s, RAM_BATTLE_NUMBERS_ROW) + 1));
-    uint16_t at = 0;
-    uint8_t a = 0;
-    for (uint16_t slot = 0; slot < COMBATANTS; slot++) {
-        set_cell(s, 0, NUMBER_SPRITES);
-        do {
-            uint32_t y = RAM_BATTLE_NUMBER_SPRITES_Y + at;
-            a = (uint8_t)(m_read8(s, y) + m_read8(s, RAM_BATTLE_NUMBER_RISE + slot));
-            m_write8(s, y, a);
-            at = (uint16_t)(at + 4);
-            set_cell(s, 0, (uint8_t)(cell(s, 0) - 1));
-        } while (cell(s, 0) != 0);
-    }
-    return a;
+    uint8_t offset = (uint8_t)(attribute_bits * PALETTE_COLORS);
+    return FIRST_SPRITE_COLOR + offset / COLOR_BYTES;
 }
 
-void battle_step_prepared_sprites(Snes *s) { finish(s, step_prepared_sprites(s)); }
+static bool colors_cycle(const GameState *g, unsigned member)
+{
+    return battle_party_palette_cycle_on(g, member) && !battle_sprite_palettes_flipped(g)
+           && battle_object_palette(g, member) != SHARED_PALETTE;
+}
 
 // $CF:E7D7
-/* The party members' effect colors: for each member (2 down to 0) whose
- * cycle runs, unless the sprite palettes are flipped, put the cycle's next
- * color (by the member's pose, $CE:0100) in both of its sprite palette's
- * effect colors (1 and 12), unless it has no palette of its own (8); the
- * cycle steps two bytes and wraps at $7C. Returns A and leaves Y as the
- * original does. */
-static uint8_t cycle_party_palettes(Snes *s, uint16_t *y)
+/* Each party member whose colors cycle shows the cycle's next color in the
+ * two cycling colors of its sprite palette, the next for its pose. */
+static void cycle_party_colors(GameState *g)
 {
-    uint8_t a = 0;
-    set_cell16(s, 0, 2);
-    do {
-        uint8_t member = cell(s, 0);
-        *y = member;
-        a = m_read8(s, RAM_BATTLE_PARTY_PALETTE_CYCLE_ON + member);
-        if (a) {
-            a = m_read8(s, RAM_BATTLE_SPRITE_PALETTES_FLIPPED);
-            if (!a) {
-                uint16_t at = (uint16_t)(m_read8(s, RAM_BATTLE_PARTY_PALETTE_CYCLE + member)
-                                         + battle_party_cycle_start(s, (uint8_t)(m_read8(s, RAM_BATTLE_OBJECT_POSE + member) << 1)));
-                a = m_read8(s, RAM_BATTLE_OBJECT_PALETTE + member);
-                if (a != NO_EFFECT_PALETTE) {
-                    uint16_t color = (uint8_t)(a << 4);
-                    *y = color;
-                    for (int i = 0; i < 2; i++) {
-                        a = battle_party_cycle_byte(s, at, (uint8_t)i);
-                        m_write8(s, RAM_PALETTE_WORKING + 0x102 + color + (uint32_t)i, a);
-                        m_write8(s, RAM_PALETTE_WORKING + 0x118 + color + (uint32_t)i, a);
-                    }
-                    uint32_t pos = RAM_BATTLE_PARTY_PALETTE_CYCLE + m_read16(s, RAM_BATTLE_EFFECT_CELLS);
-                    a = (uint8_t)(m_read8(s, pos) + 2);
-                    m_write8(s, pos, a);
-                    if (a == PALETTE_CYCLE_END)
-                        m_write8(s, pos, 0);
-                    *y = (uint8_t)*y;
-                }
-            }
-        }
-        set_cell(s, 0, (uint8_t)(cell(s, 0) - 1));
-    } while (!(cell(s, 0) & 0x80));
-    return a;
+    for (int member = BATTLE_PARTY_SIZE - 1; member >= 0; member--) {
+        if (!colors_cycle(g, (unsigned)member))
+            continue;
+        uint8_t at = battle_party_palette_cycle(g, (unsigned)member);
+        uint16_t color = battle_color_cycle_color(
+            g, (uint16_t)(at + battle_color_cycle_start(g, battle_object_pose(g, (unsigned)member))));
+        unsigned first = first_color_of(battle_object_palette(g, (unsigned)member));
+        set_palette_working(g, first + CYCLED_COLOR, color);
+        set_palette_working(g, first + CYCLED_COLOR_AGAIN, color);
+        at = (uint8_t)(at + CYCLE_STEP);
+        set_battle_party_palette_cycle(g, (unsigned)member, at == CYCLE_END ? 0 : at);
+    }
+    ORIGINAL_EFFECT(leave_loop_cell(g, COUNTED_PAST_ZERO, 0));
 }
 
-void battle_cycle_party_palettes(Snes *s)
+/* ---- The entries ---------------------------------------------------------------------- */
+
+/* Each runs with A's high byte 0 (the guard), which the callers read and the
+ * logic leaves as it is; the rest of what the original leaves is dead
+ * (the registry's don't-care sets). */
+
+void battle_raise_numbers(Snes *s)
 {
-    uint16_t y = 0;
-    uint8_t a = cycle_party_palettes(s, &y);
-    s->cpu.y = y;
-    finish(s, a);
+    raise_numbers(state_of(s));
+    m_rts(s);
+}
+
+void battle_step_scripted_moves(Snes *s)
+{
+    step_scripted_moves(state_of(s));
+    m_rts(s);
+}
+
+void battle_update_anchors(Snes *s)
+{
+    update_anchors(state_of(s));
+    m_rts(s);
+}
+
+void battle_record_trails(Snes *s)
+{
+    record_trails(state_of(s));
+    m_rts(s);
+}
+
+/* The caller reads Y, which the original leaves as the last member's color
+ * index when that member's colors cycled (its palette's first color, as a
+ * byte offset into the palette's sprite colors), and 0 otherwise. */
+static uint16_t y_after_color_cycle(GameState *g)
+{
+    vars_peek(true);
+    uint16_t y = colors_cycle(g, 0) ? (uint8_t)(battle_object_palette(g, 0) << 4) : 0;
+    vars_peek(false);
+    return y;
+}
+
+void battle_cycle_party_colors(Snes *s)
+{
+    GameState *g = state_of(s);
+    cycle_party_colors(g);
+    s->cpu.y = y_after_color_cycle(g);
+    m_rts(s);
 }

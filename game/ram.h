@@ -2152,6 +2152,10 @@
 /* Nonzero while the battle NMI or IRQ handler runs; an NMI arriving then returns at once */
 #define RAM_BATTLE_INTERRUPT_BUSY 0x7E007Fu
 #define RAM_BATTLE_INTERRUPT_BUSY_DP 0x7Fu   /* page battle */
+/* The effect whose animation $CC:F2A9 takes the next frame of: its input, which the loop over
+ * the effects counts in [2 bytes] */
+#define RAM_BATTLE_ANIMATING_EFFECT 0x7E0080u
+#define RAM_BATTLE_ANIMATING_EFFECT_DP 0x80u /* page battle */
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 #define RAM_BATTLE_FRAME_PENDING 0x7E009Eu
 #define RAM_BATTLE_FRAME_PENDING_DP 0x9Eu    /* page battle */
@@ -2210,11 +2214,12 @@
 #define RAM_BATTLE_WINDOW_TILEMAP_STRIDE 0x02u
 #define RAM_BATTLE_WINDOW_TILEMAP_TILE 0x7E0CC0u /* Tile number */
 #define RAM_BATTLE_WINDOW_TILEMAP_ATTRIBUTES 0x7E0CC1u /* Tile attributes ($29 normal, $2D highlighted or dimmed) */
-/* Four sprite entries per battle object: position bytes cleared, tile and attributes from
- * $CC:FAF3, enemies' attributes their palette ($988B) + $20 [44 x $4 bytes, by battle slot * 4 +
- * sprite] */
+/* Four sprite entries per combatant's object from object $0C on, then the entries of the objects
+ * after the combatants (the table at $CC:F84D), which a combatant's tile copy of eight groups
+ * reads on into: position bytes cleared, tile and attributes from $CC:FAF3, enemies' attributes
+ * their palette ($988B) + $20 [72 x $4 bytes, by battle slot * 4 + sprite] */
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES 0x7E11B0u
-#define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_COUNT 44u
+#define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_COUNT 72u
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_STRIDE 0x04u
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_TILE 0x7E11B2u /* Tile number */
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_ATTRIBUTES 0x7E11B3u /* Attributes */
@@ -2292,7 +2297,8 @@
 #define RAM_BATTLE_DRAW_LIST_COUNT 23u
 #define RAM_BATTLE_DRAW_LIST_STRIDE 0x01u
 #define RAM_BATTLE_DRAW_LIST_DP 0xA1u        /* page battle_sprites */
-/* Draw list entry being drawn */
+/* Draw list entry being drawn: a word the drawing pass clears and counts on in its low byte [2
+ * bytes] */
 #define RAM_BATTLE_DRAW_LIST_POSITION 0x7E1DC3u
 #define RAM_BATTLE_DRAW_LIST_POSITION_DP 0xC3u /* page battle_sprites */
 /* Battle object whose sprites are being drawn [2 bytes] */
@@ -2305,9 +2311,9 @@
  * sprites) [2 bytes] */
 #define RAM_BATTLE_OAM_NEXT 0x7E1DC9u
 #define RAM_BATTLE_OAM_NEXT_DP 0xC9u         /* page battle_sprites */
-/* The object whose trail is being drawn [2 bytes] */
-#define RAM_BATTLE_EFFECT_OBJECT 0x7E1DCBu
-#define RAM_BATTLE_EFFECT_OBJECT_DP 0xCBu    /* page battle_sprites */
+/* The object whose afterimages are being drawn [2 bytes] */
+#define RAM_BATTLE_AFTERIMAGE_OBJECT 0x7E1DCBu
+#define RAM_BATTLE_AFTERIMAGE_OBJECT_DP 0xCBu /* page battle_sprites */
 /* Groups of four sprites whose tiles are left to copy [2 bytes] */
 #define RAM_BATTLE_DRAW_TILE_GROUPS 0x7E1DCDu
 #define RAM_BATTLE_DRAW_TILE_GROUPS_DP 0xCDu /* page battle_sprites */
@@ -2354,10 +2360,11 @@
 #define RAM_BATTLE_DECODED_TILES 0x7E2D00u
 #define RAM_BATTLE_DECODED_TILES_COUNT 3072u
 #define RAM_BATTLE_DECODED_TILES_STRIDE 0x01u
-/* The effect sprite sets: four bytes a sprite (X, Y from the anchor, tile, attributes) [2048 x
- * $1 bytes, by byte] */
+/* The effect sprite sets: four bytes a sprite (X, Y from the anchor, tile, attributes) [6272 x
+ * $1 bytes, by byte: the 48 effect sprite sets, 0-31 of 48 sprites each $C0 bytes apart, then
+ * 32-47 of two, 8 bytes apart ($CC:F7C0)] */
 #define RAM_BATTLE_EFFECT_SPRITE_DATA 0x7E4500u
-#define RAM_BATTLE_EFFECT_SPRITE_DATA_COUNT 2048u
+#define RAM_BATTLE_EFFECT_SPRITE_DATA_COUNT 6272u
 #define RAM_BATTLE_EFFECT_SPRITE_DATA_STRIDE 0x01u
 /* Set while the screen script channels run; cleared when both have ended. The HP gradient waits
  * for it */
@@ -2823,9 +2830,10 @@
 #define RAM_BATTLE_BOUNDS_Y 0x7EA050u
 #define RAM_BATTLE_BOUNDS_Y_COUNT 11u
 #define RAM_BATTLE_BOUNDS_Y_STRIDE 0x01u
-/* Number of sprite entries built for each bitmap shape [4 x $1 bytes, by shape] */
+/* Number of sprites in each effect sprite set (battle_effect_sprite_data); the first four are
+ * the bitmap shapes battle_build_bitmap_sprites builds [48 x $1 bytes, by effect sprite set] */
 #define RAM_BATTLE_BITMAP_COUNTS 0x7EA05Bu
-#define RAM_BATTLE_BITMAP_COUNTS_COUNT 4u
+#define RAM_BATTLE_BITMAP_COUNTS_COUNT 48u
 #define RAM_BATTLE_BITMAP_COUNTS_STRIDE 0x01u
 /* Nonzero to rotate the background palette colors battle_background_cycle names, with the sprite
  * colors at $2382 */
@@ -2889,23 +2897,27 @@
 #define RAM_BATTLE_TRAIL_ON 0x7EA192u
 #define RAM_BATTLE_TRAIL_ON_COUNT 11u
 #define RAM_BATTLE_TRAIL_ON_STRIDE 0x01u
-/* Set when the combatant's path has ended [11 x $1 bytes, by battle slot] */
+/* Nonzero when the combatant's path has ended (the homing jump counts its turns here too) [11 x
+ * $1 bytes, by battle slot] */
 #define RAM_BATTLE_EFFECT_DONE 0x7EA19Du
 #define RAM_BATTLE_EFFECT_DONE_COUNT 11u
 #define RAM_BATTLE_EFFECT_DONE_STRIDE 0x01u
-/* Set while the slot's delay counts down to its handler ($CC:F2A9) [8 x $1 bytes, by slot] */
-#define RAM_BATTLE_SLOT_DELAY_ACTIVE 0x7EA1A8u
-#define RAM_BATTLE_SLOT_DELAY_ACTIVE_COUNT 8u
-#define RAM_BATTLE_SLOT_DELAY_ACTIVE_STRIDE 0x01u
-/* Frames until the slot's handler runs [8 x $1 bytes, by slot] */
-#define RAM_BATTLE_SLOT_DELAYS 0x7EA1B0u
-#define RAM_BATTLE_SLOT_DELAYS_COUNT 8u
-#define RAM_BATTLE_SLOT_DELAYS_STRIDE 0x01u
+/* Nonzero while the effect animates, 2 when its animation loops; $CC:F2A9 clears it at the end
+ * of one that doesn't [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_ANIMATING 0x7EA1A8u
+#define RAM_BATTLE_EFFECT_ANIMATING_COUNT 8u
+#define RAM_BATTLE_EFFECT_ANIMATING_STRIDE 0x01u
+/* Frames the effect's animation frame still shows (from its frame record at $CC:F2A9); an effect
+ * whose time is 0 isn't drawn [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_FRAME_TIME 0x7EA1B0u
+#define RAM_BATTLE_EFFECT_FRAME_TIME_COUNT 8u
+#define RAM_BATTLE_EFFECT_FRAME_TIME_STRIDE 0x01u
 /* Nonzero while the effect's sprites are drawn with the objects [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_SHOWN 0x7EA1D8u
 #define RAM_BATTLE_EFFECT_SHOWN_COUNT 8u
 #define RAM_BATTLE_EFFECT_SHOWN_STRIDE 0x01u
-/* Set when the anchor's path has ended [8 x $1 bytes, by anchor] */
+/* Nonzero when the anchor's path has ended (the homing jump counts its turns here too) [8 x $1
+ * bytes, by anchor] */
 #define RAM_BATTLE_ANCHOR_DONE 0x7EA1E0u
 #define RAM_BATTLE_ANCHOR_DONE_COUNT 8u
 #define RAM_BATTLE_ANCHOR_DONE_STRIDE 0x01u
@@ -3027,8 +3039,9 @@
 #define RAM_BATTLE_PREPARED_SPRITES_ON 0x7EA3D4u
 #define RAM_BATTLE_PREPARED_SPRITES_ON_COUNT 11u
 #define RAM_BATTLE_PREPARED_SPRITES_ON_STRIDE 0x01u
-/* Eight effect slots per object drawn with its sprites: negative ones under the parts, positive
- * ones over them [88 x $1 bytes, by effect slot * 11 + battle slot] */
+/* The effects drawn with each combatant, a row an effect and a byte a combatant: the effect (low
+ * three bits) with bit 7 drawn in front of the combatant's own sprites, or with bit 6 behind
+ * them; 0 none [88 x $1 bytes, by effect slot * 11 + battle slot] */
 #define RAM_BATTLE_OBJECT_EFFECT_SLOTS 0x7EA3DFu
 #define RAM_BATTLE_OBJECT_EFFECT_SLOTS_COUNT 88u
 #define RAM_BATTLE_OBJECT_EFFECT_SLOTS_STRIDE 0x01u
@@ -3225,11 +3238,11 @@
 #define RAM_BATTLE_EFFECT_JUMP_SINGLE 0x7EAA04u
 #define RAM_BATTLE_EFFECT_JUMP_SINGLE_COUNT 19u
 #define RAM_BATTLE_EFFECT_JUMP_SINGLE_STRIDE 0x02u
-/* Nonzero to lift upward (a positive offset) [19 x $1 bytes, by effect slot (0-10 the
- * combatants', 11-18 the anchors')] */
-#define RAM_BATTLE_EFFECT_JUMP_UP 0x7EAA2Au
-#define RAM_BATTLE_EFFECT_JUMP_UP_COUNT 19u
-#define RAM_BATTLE_EFFECT_JUMP_UP_STRIDE 0x01u
+/* Nonzero to take the jump's height downward on the screen (a positive offset) rather than up
+ * [19 x $1 bytes, by effect slot (0-10 the combatants', 11-18 the anchors')] */
+#define RAM_BATTLE_EFFECT_JUMP_DOWNWARD 0x7EAA2Au
+#define RAM_BATTLE_EFFECT_JUMP_DOWNWARD_COUNT 19u
+#define RAM_BATTLE_EFFECT_JUMP_DOWNWARD_STRIDE 0x01u
 /* Speed the jump bounces back up with when its fall's speed overflows [19 x $2 bytes, by effect
  * slot (0-10 the combatants', 11-18 the anchors')] */
 #define RAM_BATTLE_EFFECT_JUMP_BOUNCE 0x7EAA3Du
@@ -3319,14 +3332,15 @@
 #define RAM_BATTLE_TRAIL_COUNTDOWN 0x7EAB72u
 #define RAM_BATTLE_TRAIL_COUNTDOWN_COUNT 11u
 #define RAM_BATTLE_TRAIL_COUNTDOWN_STRIDE 0x01u
-/* Period of the object's four-part effect [11 x $1 bytes, by battle slot] */
-#define RAM_BATTLE_EFFECT_RELOAD 0x7EAB7Du
-#define RAM_BATTLE_EFFECT_RELOAD_COUNT 11u
-#define RAM_BATTLE_EFFECT_RELOAD_STRIDE 0x01u
-/* Frames until the object's four-part effect steps [11 x $1 bytes, by battle slot] */
-#define RAM_BATTLE_EFFECT_COUNTDOWN 0x7EAB88u
-#define RAM_BATTLE_EFFECT_COUNTDOWN_COUNT 11u
-#define RAM_BATTLE_EFFECT_COUNTDOWN_STRIDE 0x01u
+/* Frames between the combatant's afterimages' showings [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_AFTERIMAGE_PERIOD 0x7EAB7Du
+#define RAM_BATTLE_AFTERIMAGE_PERIOD_COUNT 11u
+#define RAM_BATTLE_AFTERIMAGE_PERIOD_STRIDE 0x01u
+/* Frames until the combatant's afterimages are drawn again (they show one frame in so many) [11
+ * x $1 bytes, by battle slot] */
+#define RAM_BATTLE_AFTERIMAGE_COUNTDOWN 0x7EAB88u
+#define RAM_BATTLE_AFTERIMAGE_COUNTDOWN_COUNT 11u
+#define RAM_BATTLE_AFTERIMAGE_COUNTDOWN_STRIDE 0x01u
 /* Low bytes of the objects' last four recorded positions (the four-part effect draws from them)
  * [4 x $16 bytes, by trail entry (0 the newest)] */
 #define RAM_BATTLE_TRAIL_LOW 0x7EAB93u

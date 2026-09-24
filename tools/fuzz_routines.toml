@@ -6166,3 +6166,302 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 iterations = 5000
 why = "on the battle's page; the kinds' handlers are call-outs"
+
+# -- draw: the combatants' drawing and the effects' motion (battle/draw_objects.c, battle/object_motion.c,
+# battle/effect_paths.c, battle/effect_animation.c)
+
+[[routine]]
+name = "battle_animate_effects"
+at = "CC:F278"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "on the battle page, as the frame's work calls it by JSL; the next frame's step is a call-out"
+
+[[routine]]
+name = "battle_raise_numbers"
+at = "CF:E781"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "on the battle page with A's high byte 0, as the frame's update calls it"
+
+[[routine]]
+name = "battle_step_scripted_moves"
+at = "CF:EC78"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "as battle_raise_numbers"
+
+[[routine]]
+name = "battle_update_anchors"
+at = "CF:ECC2"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "as battle_raise_numbers"
+
+[[routine]]
+name = "battle_record_trails"
+at = "CF:ED18"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "as battle_raise_numbers"
+
+[[routine]]
+name = "battle_cycle_party_colors"
+at = "CF:E7D7"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "as battle_raise_numbers"
+
+[[routine]]
+name = "battle_step_effect_slots"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EA86D-7EA87F=00-07"]
+iterations = 5000
+why = "on the battle page with A's high byte 0; the movers' paths among the eight kinds the game gives them, which the guard takes"
+
+[[routine]]
+name = "battle_step_orbits"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "as battle_step_effect_slots, for the enemies' drifts"
+
+[[routine]]
+name = "battle_place_formation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "on the battle page with A's high byte 0, which the original indexes the leader with"
+
+[[routine]]
+name = "battle_effect_combatant_line"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_combatant_jump"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_combatant_spiral"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_combatant_orbit"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_combatant_jump_to_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_combatant_orbit_flat"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_flicker"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_flicker_step"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_combatant_chase"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=03-03", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=06-06", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=0C-0C", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming combatant 3 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_anchor_line"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=05-05", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=0A-0A", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=14-14", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming anchor 5 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_anchor_jump"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=05-05", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=0A-0A", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=14-14", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming anchor 5 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_anchor_spiral"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=05-05", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=0A-0A", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=14-14", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming anchor 5 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_anchor_orbit"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=05-05", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=0A-0A", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=14-14", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming anchor 5 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_anchor_jump_to_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=05-05", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=0A-0A", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=14-14", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming anchor 5 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_anchor_orbit_facing"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=05-05", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=0A-0A", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=14-14", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming anchor 5 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_effect_anchor_chase"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E00C6-7E00C6=05-05", "--fill", "7E00C7-7E00C7=00-00", "--fill", "7E00C8-7E00C8=0A-0A", "--fill", "7E00C9-7E00C9=00-00", "--fill", "7E00CA-7E00CA=14-14", "--fill", "7E00CB-7E00CB=00-00"]
+why = "the loop's cells naming anchor 5 as the loop sets them, A's high byte 0"
+
+[[routine]]
+name = "battle_points_are_close"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle page; the points and the limit in their cells"
+
+[[routine]]
+name = "battle_sine_scale"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle page; the angle in A and the radius at $00"
+
+[[routine]]
+name = "battle_multiply_scale"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle page; the operands at $00 and $02"
+
+[[routine]]
+name = "battle_chase_angle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle page; the points in the chase's cells"
+
+[[routine]]
+name = "battle_draw_objects"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "the data bank at $7E and A's high byte 0, as the frame's update calls it (it sets its own page)"
+
+[[routine]]
+name = "battle_draw_shadow"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=000C-0016", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "on the objects' page, a combatant's object in X; the guard takes the next free sprite at a sprite's place in the buffer"
+
+[[routine]]
+name = "battle_draw_afterimages"
+at = "CF:E92C"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=000F-000F", "--fill", "7E1DC5-7E1DC5=0F-0F", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "on the objects' page, combatant 3's object in X and in the cell of the object being drawn, as the pass calls it"
+
+[[routine]]
+name = "battle_draw_afterimage"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "on the objects' page, a combatant's object in the cell of the object being drawn; the guard takes the next free sprite at a sprite's place"
+
+[[routine]]
+name = "battle_draw_combatant"
+at = "CF:EAC5"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "as battle_draw_afterimage"
+
+[[routine]]
+name = "battle_copy_frame_tiles"
+at = "CF:EB94"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "X=11B0-125C/4", "--range", "Y=0700-08FC/4"]
+why = "X a sprite entry and Y a sprite of the buffer, as the pass computes them"
+
+[[routine]]
+name = "battle_draw_in_front"
+at = "CF:EDB8"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "as battle_draw_afterimage, A's high byte 0"
+
+[[routine]]
+name = "battle_draw_marker"
+at = "CF:EE2C"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "as battle_draw_in_front"
+
+[[routine]]
+name = "battle_draw_numbers"
+at = "CF:EE9F"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "as battle_draw_in_front"
+
+[[routine]]
+name = "battle_draw_behind"
+at = "CF:EDF7"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E1DC5-7E1DC5=0C-16", "--fill", "7E1DC6-7E1DC6=00-00", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "as battle_draw_in_front"
+
+[[routine]]
+name = "battle_draw_effect"
+at = "CF:EEEB"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "1D00", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0000-0057", "--fill", "7E1DCA-7E1DCA=00-01"]
+why = "an effect record in X, A's high byte 0"

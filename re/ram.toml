@@ -6448,8 +6448,9 @@ source = "game/battle/draw_objects.c draw_objects $CF:E83A"
 name = "battle_draw_list_position"
 addr = "7E:1DC3"
 page = "battle_sprites"
+size = 2
 subsystem = "battle"
-meaning = "Draw list entry being drawn"
+meaning = "Draw list entry being drawn: a word the drawing pass clears and counts on in its low byte"
 source = "game/battle/draw_objects.c draw_objects $CF:E83A"
 
 [[var]]
@@ -6518,11 +6519,11 @@ source = "game/battle/window.c header and battle_draw_window $C1:0299; game/batt
 [[var]]
 name = "battle_object_sprite_entries"
 addr = "7E:11B0"
-count = 44
+count = 72
 stride = 4
 index = "battle slot * 4 + sprite"
 subsystem = "battle"
-meaning = "Four sprite entries per battle object: position bytes cleared, tile and attributes from $CC:FAF3, enemies' attributes their palette ($988B) + $20"
+meaning = "Four sprite entries per combatant's object from object $0C on, then the entries of the objects after the combatants (the table at $CC:F84D), which a combatant's tile copy of eight groups reads on into: position bytes cleared, tile and attributes from $CC:FAF3, enemies' attributes their palette ($988B) + $20"
 source = "game/battle/setup.c fill_11b0_table and fill_enemy_rows in battle_setup_graphics $CC:ED87"
   [[var.field]]
   name = "tile"
@@ -8152,21 +8153,21 @@ meaning = "Frames until the object's next trail record"
 source = "game/battle/object_motion.c battle_record_object_trails $CF:ED18"
 
 [[var]]
-name = "battle_effect_reload"
+name = "battle_afterimage_period"
 addr = "7E:AB7D"
 count = 11
 index = "battle slot"
 subsystem = "battle"
-meaning = "Period of the object's four-part effect"
+meaning = "Frames between the combatant's afterimages' showings"
 source = "game/battle/draw_objects.c step_trail $CF:E92C ($AB71 + object)"
 
 [[var]]
-name = "battle_effect_countdown"
+name = "battle_afterimage_countdown"
 addr = "7E:AB88"
 count = 11
 index = "battle slot"
 subsystem = "battle"
-meaning = "Frames until the object's four-part effect steps"
+meaning = "Frames until the combatant's afterimages are drawn again (they show one frame in so many)"
 source = "game/battle/draw_objects.c step_trail $CF:E92C ($AB7C + object)"
 
 [[var]]
@@ -8336,22 +8337,31 @@ meaning = "Handler of the effect slot ($CF:F01E table for the first 11, $CF:F02E
 source = "game/battle/timers.c battle_step_effect_slots $CF:EFAF"
 
 [[var]]
-name = "battle_slot_delay_active"
+name = "battle_effect_animating"
 addr = "7E:A1A8"
 count = 8
-index = "slot"
+index = "effect"
 subsystem = "battle"
-meaning = "Set while the slot's delay counts down to its handler ($CC:F2A9)"
-source = "game/battle/timers.c battle_step_slot_delays $CC:F278"
+meaning = "Nonzero while the effect animates, 2 when its animation loops; $CC:F2A9 clears it at the end of one that doesn't"
+source = "game/battle/effect_animation.c battle_animate_effects $CC:F278, and $CC:F2A9"
 
 [[var]]
-name = "battle_slot_delays"
+name = "battle_effect_frame_time"
 addr = "7E:A1B0"
 count = 8
-index = "slot"
+index = "effect"
 subsystem = "battle"
-meaning = "Frames until the slot's handler runs"
-source = "game/battle/timers.c battle_step_slot_delays $CC:F278"
+meaning = "Frames the effect's animation frame still shows (from its frame record at $CC:F2A9); an effect whose time is 0 isn't drawn"
+source = "game/battle/effect_animation.c battle_animate_effects $CC:F278; game/battle/draw_objects.c $CF:EEEB"
+
+[[var]]
+name = "battle_animating_effect"
+addr = "7E:0080"
+page = "battle"
+size = 2
+subsystem = "battle"
+meaning = "The effect whose animation $CC:F2A9 takes the next frame of: its input, which the loop over the effects counts in"
+source = "game/battle/effect_animation.c battle_animate_effects $CC:F278"
 
 [[var]]
 name = "battle_object_effect_slots"
@@ -8359,7 +8369,7 @@ addr = "7E:A3DF"
 count = 88
 index = "effect slot * 11 + battle slot"
 subsystem = "battle"
-meaning = "Eight effect slots per object drawn with its sprites: negative ones under the parts, positive ones over them"
+meaning = "The effects drawn with each combatant, a row an effect and a byte a combatant: the effect (low three bits) with bit 7 drawn in front of the combatant's own sprites, or with bit 6 behind them; 0 none"
 source = "game/battle/draw_objects.c draw_effects in $CF:EDB8/$CF:EDF7; game/battle/buffers.c battle_reset_object_state $CC:F06B"
 
 [[var]]
@@ -8649,10 +8659,10 @@ source = "game/battle/sprites.c battle_build_bitmap_sprites $C1:4943"
 [[var]]
 name = "battle_bitmap_counts"
 addr = "7E:A05B"
-count = 4
-index = "shape"
+count = 48
+index = "effect sprite set"
 subsystem = "battle"
-meaning = "Number of sprite entries built for each bitmap shape"
+meaning = "Number of sprites in each effect sprite set (battle_effect_sprite_data); the first four are the bitmap shapes battle_build_bitmap_sprites builds"
 source = "game/battle/sprites.c battle_build_bitmap_sprites $C1:4943"
 
 # ---- display: scroll, shake, window, pause ----------------------------------------
@@ -9426,7 +9436,8 @@ addr = "7E:A19D"
 count = 11
 index = "battle slot"
 subsystem = "battle"
-meaning = "Set when the combatant's path has ended"
+meaning = "Nonzero when the combatant's path has ended (the homing jump counts its turns here too)"
+unchecked = "the homing jump counts its turn with a word increment, which from $FF carries into the next byte; for the last combatant that is past the table (no battle makes $FF)"
 source = "game/battle/effect_paths.c $CF:F03E-$CF:F405"
 
 [[var]]
@@ -9435,7 +9446,8 @@ addr = "7E:A1E0"
 count = 8
 index = "anchor"
 subsystem = "battle"
-meaning = "Set when the anchor's path has ended"
+meaning = "Nonzero when the anchor's path has ended (the homing jump counts its turns here too)"
+unchecked = "the homing jump counts its turn with a word increment, which from $FF carries into the next byte; for the last anchor that is past the table (no battle makes $FF)"
 source = "game/battle/effect_paths.c $CF:F4B2-$CF:F884"
 
 [[var]]
@@ -9628,13 +9640,13 @@ meaning = "The jump's height, 16.16"
 source = "game/battle/effect_paths.c step_jump"
 
 [[var]]
-name = "battle_effect_jump_up"
+name = "battle_effect_jump_downward"
 addr = "7E:AA2A"
 count = 19
 index = "effect slot (0-10 the combatants', 11-18 the anchors')"
 subsystem = "battle"
-meaning = "Nonzero to lift upward (a positive offset)"
-source = "game/battle/effect_paths.c move_jump $CF:F087"
+meaning = "Nonzero to take the jump's height downward on the screen (a positive offset) rather than up"
+source = "game/battle/effect_paths.c jump $CF:F087, $CF:F503"
 
 [[var]]
 name = "battle_effect_jump_single"
@@ -9935,12 +9947,12 @@ meaning = "Parts of the object being drawn, from which its tile groups are count
 source = "game/battle/draw_objects.c draw_objects $CF:E83A"
 
 [[var]]
-name = "battle_effect_object"
+name = "battle_afterimage_object"
 addr = "7E:1DCB"
 page = "battle_sprites"
 size = 2
 subsystem = "battle"
-meaning = "The object whose trail is being drawn"
+meaning = "The object whose afterimages are being drawn"
 source = "game/battle/draw_objects.c step_trail $CF:E92C"
 
 [[var]]
@@ -10001,8 +10013,8 @@ source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB"
 [[var]]
 name = "battle_effect_sprite_data"
 addr = "7E:4500"
-count = 0x800
-index = "byte"
+count = 0x1880
+index = "byte: the 48 effect sprite sets, 0-31 of 48 sprites each $C0 bytes apart, then 32-47 of two, 8 bytes apart ($CC:F7C0)"
 subsystem = "battle"
 meaning = "The effect sprite sets: four bytes a sprite (X, Y from the anchor, tile, attributes)"
 source = "game/battle/draw_objects.c draw_effect_sprites $CF:EEEB"

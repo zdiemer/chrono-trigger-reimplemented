@@ -3046,6 +3046,11 @@ void set_battle_mode(GameState *g, uint8_t v);
 uint8_t battle_interrupt_busy(const GameState *g);
 void set_battle_interrupt_busy(GameState *g, uint8_t v);
 
+/* The effect whose animation $CC:F2A9 takes the next frame of: its input, which the loop over
+ * the effects counts in */
+uint16_t battle_animating_effect(const GameState *g);
+void set_battle_animating_effect(GameState *g, uint16_t v);
+
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 uint8_t battle_frame_pending(const GameState *g);
 void set_battle_frame_pending(GameState *g, uint8_t v);
@@ -3114,7 +3119,7 @@ void set_battle_window_tilemap_tile(GameState *g, unsigned column, uint8_t v);
 uint8_t battle_window_tilemap_attributes(const GameState *g, unsigned column);
 void set_battle_window_tilemap_attributes(GameState *g, unsigned column, uint8_t v);
 
-enum { BATTLE_OBJECT_SPRITE_ENTRIES_COUNT = 44 };   /* by battle slot * 4 + sprite */
+enum { BATTLE_OBJECT_SPRITE_ENTRIES_COUNT = 72 };   /* by battle slot * 4 + sprite */
 /* Tile number */
 uint8_t battle_object_sprite_entries_tile(const GameState *g, unsigned slot);
 void set_battle_object_sprite_entries_tile(GameState *g, unsigned slot, uint8_t v);
@@ -3200,9 +3205,9 @@ enum { BATTLE_DRAW_LIST_COUNT = 23 };   /* by draw list entry */
 uint8_t battle_draw_list(const GameState *g, unsigned i);
 void set_battle_draw_list(GameState *g, unsigned i, uint8_t v);
 
-/* Draw list entry being drawn */
-uint8_t battle_draw_list_position(const GameState *g);
-void set_battle_draw_list_position(GameState *g, uint8_t v);
+/* Draw list entry being drawn: a word the drawing pass clears and counts on in its low byte */
+uint16_t battle_draw_list_position(const GameState *g);
+void set_battle_draw_list_position(GameState *g, uint16_t v);
 
 /* Battle object whose sprites are being drawn */
 uint16_t battle_draw_object(const GameState *g);
@@ -3217,9 +3222,9 @@ void set_battle_draw_part_count(GameState *g, uint16_t v);
 uint16_t battle_oam_next(const GameState *g);
 void set_battle_oam_next(GameState *g, uint16_t v);
 
-/* The object whose trail is being drawn */
-uint16_t battle_effect_object(const GameState *g);
-void set_battle_effect_object(GameState *g, uint16_t v);
+/* The object whose afterimages are being drawn */
+uint16_t battle_afterimage_object(const GameState *g);
+void set_battle_afterimage_object(GameState *g, uint16_t v);
 
 /* Groups of four sprites whose tiles are left to copy */
 uint16_t battle_draw_tile_groups(const GameState *g);
@@ -3299,7 +3304,7 @@ enum { BATTLE_DECODED_TILES_COUNT = 3072 };   /* by byte */
 uint8_t battle_decoded_tiles(const GameState *g, unsigned i);
 void set_battle_decoded_tiles(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_EFFECT_SPRITE_DATA_COUNT = 2048 };   /* by byte */
+enum { BATTLE_EFFECT_SPRITE_DATA_COUNT = 6272 };   /* by byte: the 48 effect sprite sets, 0-31 of 48 sprites each $C0 bytes apart, then 32-47 of two, 8 bytes apart ($CC:F7C0) */
 /* The effect sprite sets: four bytes a sprite (X, Y from the anchor, tile, attributes) */
 uint8_t battle_effect_sprite_data(const GameState *g, unsigned i);
 void set_battle_effect_sprite_data(GameState *g, unsigned i, uint8_t v);
@@ -3903,8 +3908,9 @@ enum { BATTLE_BOUNDS_Y_COUNT = 11 };   /* by battle slot */
 uint8_t battle_bounds_y(const GameState *g, unsigned slot);
 void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_BITMAP_COUNTS_COUNT = 4 };   /* by shape */
-/* Number of sprite entries built for each bitmap shape */
+enum { BATTLE_BITMAP_COUNTS_COUNT = 48 };   /* by effect sprite set */
+/* Number of sprites in each effect sprite set (battle_effect_sprite_data); the first four are
+ * the bitmap shapes battle_build_bitmap_sprites builds */
 uint8_t battle_bitmap_counts(const GameState *g, unsigned i);
 void set_battle_bitmap_counts(GameState *g, unsigned i, uint8_t v);
 
@@ -4005,19 +4011,27 @@ uint8_t battle_trail_on(const GameState *g, unsigned slot);
 void set_battle_trail_on(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_EFFECT_DONE_COUNT = 11 };   /* by battle slot */
-/* Set when the combatant's path has ended */
+/* Nonzero when the combatant's path has ended (the homing jump counts its turns here too) */
 uint8_t battle_effect_done(const GameState *g, unsigned slot);
 void set_battle_effect_done(GameState *g, unsigned slot, uint8_t v);
+/* Nonzero when the combatant's path has ended (the homing jump counts its turns here too)
+ * Unchecked, for marked scaffolding only: the homing jump counts its turn with a word increment,
+ * which from $FF carries into the next byte; for the last combatant that is past the table (no
+ * battle makes $FF) */
+uint8_t battle_effect_done_unchecked(const GameState *g, unsigned slot);
+void set_battle_effect_done_unchecked(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_SLOT_DELAY_ACTIVE_COUNT = 8 };   /* by slot */
-/* Set while the slot's delay counts down to its handler ($CC:F2A9) */
-uint8_t battle_slot_delay_active(const GameState *g, unsigned slot);
-void set_battle_slot_delay_active(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_EFFECT_ANIMATING_COUNT = 8 };   /* by effect */
+/* Nonzero while the effect animates, 2 when its animation loops; $CC:F2A9 clears it at the end
+ * of one that doesn't */
+uint8_t battle_effect_animating(const GameState *g, unsigned i);
+void set_battle_effect_animating(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_SLOT_DELAYS_COUNT = 8 };   /* by slot */
-/* Frames until the slot's handler runs */
-uint8_t battle_slot_delays(const GameState *g, unsigned slot);
-void set_battle_slot_delays(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_EFFECT_FRAME_TIME_COUNT = 8 };   /* by effect */
+/* Frames the effect's animation frame still shows (from its frame record at $CC:F2A9); an effect
+ * whose time is 0 isn't drawn */
+uint8_t battle_effect_frame_time(const GameState *g, unsigned i);
+void set_battle_effect_frame_time(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_EFFECT_SHOWN_COUNT = 8 };   /* by effect */
 /* Nonzero while the effect's sprites are drawn with the objects */
@@ -4025,9 +4039,15 @@ uint8_t battle_effect_shown(const GameState *g, unsigned i);
 void set_battle_effect_shown(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_ANCHOR_DONE_COUNT = 8 };   /* by anchor */
-/* Set when the anchor's path has ended */
+/* Nonzero when the anchor's path has ended (the homing jump counts its turns here too) */
 uint8_t battle_anchor_done(const GameState *g, unsigned i);
 void set_battle_anchor_done(GameState *g, unsigned i, uint8_t v);
+/* Nonzero when the anchor's path has ended (the homing jump counts its turns here too)
+ * Unchecked, for marked scaffolding only: the homing jump counts its turn with a word increment,
+ * which from $FF carries into the next byte; for the last anchor that is past the table (no
+ * battle makes $FF) */
+uint8_t battle_anchor_done_unchecked(const GameState *g, unsigned i);
+void set_battle_anchor_done_unchecked(GameState *g, unsigned i, uint8_t v);
 
 /* Where the animation scheduler's round-robin search resumes */
 uint8_t battle_animation_cursor(const GameState *g);
@@ -4173,8 +4193,9 @@ uint8_t battle_prepared_sprites_on(const GameState *g, unsigned slot);
 void set_battle_prepared_sprites_on(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_OBJECT_EFFECT_SLOTS_COUNT = 88 };   /* by effect slot * 11 + battle slot */
-/* Eight effect slots per object drawn with its sprites: negative ones under the parts, positive
- * ones over them */
+/* The effects drawn with each combatant, a row an effect and a byte a combatant: the effect (low
+ * three bits) with bit 7 drawn in front of the combatant's own sprites, or with bit 6 behind
+ * them; 0 none */
 uint8_t battle_object_effect_slots(const GameState *g, unsigned slot);
 void set_battle_object_effect_slots(GameState *g, unsigned slot, uint8_t v);
 
@@ -4405,10 +4426,10 @@ enum { BATTLE_EFFECT_JUMP_SINGLE_COUNT = 19 };   /* by effect slot (0-10 the com
 uint16_t battle_effect_jump_single(const GameState *g, unsigned slot);
 void set_battle_effect_jump_single(GameState *g, unsigned slot, uint16_t v);
 
-enum { BATTLE_EFFECT_JUMP_UP_COUNT = 19 };   /* by effect slot (0-10 the combatants', 11-18 the anchors') */
-/* Nonzero to lift upward (a positive offset) */
-uint8_t battle_effect_jump_up(const GameState *g, unsigned slot);
-void set_battle_effect_jump_up(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_EFFECT_JUMP_DOWNWARD_COUNT = 19 };   /* by effect slot (0-10 the combatants', 11-18 the anchors') */
+/* Nonzero to take the jump's height downward on the screen (a positive offset) rather than up */
+uint8_t battle_effect_jump_downward(const GameState *g, unsigned slot);
+void set_battle_effect_jump_downward(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_EFFECT_JUMP_BOUNCE_COUNT = 19 };   /* by effect slot (0-10 the combatants', 11-18 the anchors') */
 /* Speed the jump bounces back up with when its fall's speed overflows */
@@ -4522,15 +4543,15 @@ enum { BATTLE_TRAIL_COUNTDOWN_COUNT = 11 };   /* by battle slot */
 uint8_t battle_trail_countdown(const GameState *g, unsigned slot);
 void set_battle_trail_countdown(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_EFFECT_RELOAD_COUNT = 11 };   /* by battle slot */
-/* Period of the object's four-part effect */
-uint8_t battle_effect_reload(const GameState *g, unsigned slot);
-void set_battle_effect_reload(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_AFTERIMAGE_PERIOD_COUNT = 11 };   /* by battle slot */
+/* Frames between the combatant's afterimages' showings */
+uint8_t battle_afterimage_period(const GameState *g, unsigned slot);
+void set_battle_afterimage_period(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_EFFECT_COUNTDOWN_COUNT = 11 };   /* by battle slot */
-/* Frames until the object's four-part effect steps */
-uint8_t battle_effect_countdown(const GameState *g, unsigned slot);
-void set_battle_effect_countdown(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_AFTERIMAGE_COUNTDOWN_COUNT = 11 };   /* by battle slot */
+/* Frames until the combatant's afterimages are drawn again (they show one frame in so many) */
+uint8_t battle_afterimage_countdown(const GameState *g, unsigned slot);
+void set_battle_afterimage_countdown(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_TRAIL_LOW_COUNT = 4 };   /* by trail entry (0 the newest) */
 /* X, by battle slot [11 bytes, one at a time] */
