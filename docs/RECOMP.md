@@ -5425,6 +5425,59 @@ off by a line or more, at most 3,416 clocks, writing the sprite table in RAM)
 and `menu_object_cmd_animate_for`, which runs its object's sprite script
 inline (1.54%, at most 2,982 clocks).
 
+### Phase 3a: the controller off the machine
+
+`game/core/input.c` was core's one file on `tools/portstyle_baseline.txt`
+(0.54 operations a line): the per-frame input work the menus, the field and
+battle share, four registered entries -- `input_update` `$C2:84D2`, which saves
+every register and calls the other three; `input_read_joypad` `$C2:84EC`;
+`input_map_buttons` `$C2:8545`; and `play_time_tick` `$C2:85AE`. It was the
+original's instructions with the registers carried through them (the
+controller's two bytes shifted and `TSB`ed together, the assignments `ROR`ed
+into their byte eight times, the clock's digits walked with X, and the wrapper
+calling its three sibling ports through emulated `JSR`s). The rewrite is 0.08
+a line, with only the entries' wrappers on the machine.
+
+**The file, by the game.** Buttons have names now, in two orders: the
+controller's (`PadBits`, `IN_BUTTON_*` in `platform/input.h`, where scene's
+`frame.c` takes its Start and every later subsystem finds them) and the game's
+own (`Buttons`, `BUTTON_*` in `core/input.h`, the order of the words it keeps
+them in). One table says where each button goes from the one to the other, and
+another which of the game's buttons each of the player's eight assignments
+stands for; a set goes through the assignments by testing each group whole, and
+the direction pad's byte passes through. The reset combination
+(`RESET_BUTTONS`) is defined once, in `core/input.h`, for both it and the
+scenes. The repeat is one function: buttons held through repeat when the
+countdown runs out, and it starts again from the mode's delay. The clock is a
+`PlayTime` of six digits, advanced by `count_up` in a chain that stops at the
+first digit that doesn't roll over; running past its last digit marks it.
+
+**The entries.** Each declares the widest don't-care set the liveness analysis
+accepts: A added to the controller read; A, D and the data bank to the mapping
+and to the clock, so neither wrapper sets anything but the widths; and N and Z
+to `input_update`, whose closing `PLB` sets them from the caller's data bank.
+`input_update` runs the three parts as C, each at its routine's time
+(`NATIVE_TIME_AS`), leaves its caller's registers alone rather than saving and
+restoring them, and charges the original's pushes and pulls as scaffolding
+(`charge_as`). Only where the controller read stops -- at the original's wait
+while the console's automatic read is still busy (`$C2:84F9`, the item in
+"Timing without a beam") or at the reset (`$C0:FF00`) -- does it build the
+frame its saves leave on the stack. Both stops declare their own sets, now
+wider (the wait: A's high byte and the overflow; the reset: everything but Y
+and the widths). The mapping is guarded to the controller's page, which it has
+in all 651,497 of the library's calls, so the guard refuses none.
+
+**Measured.** Every call in every movie matches: 651,497 `input_update`,
+686,666 `input_read_joypad`, 651,497 `input_map_buttons` and 686,666
+`play_time_tick` (interrupted 3, 1, 2 and 0). Fuzzed against `main`'s ports with
+`tools/fuzz_compare.py` (the four new `core` entries in
+`tools/fuzz_routines.toml`, on the `menus` state), seeds 1 and 2, 20,000 states
+each: 0 mismatched before and after, for all four, none skipped. The four
+`cost_milli` rows were recalibrated from the library's shadow runs and only
+they were taken; the read and the mapping now make far fewer bus accesses
+than the original's instructions, and the clock, which reads and writes all
+six digits, more.
+
 ### The absent party member and the object off the map
 
 Two guards from event's and field's combined pass refused calls the game

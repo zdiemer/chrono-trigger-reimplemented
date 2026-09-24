@@ -23,6 +23,5 @@ game/battle/tiles.c                          0.505
 game/battle/timers.c                         0.544
 game/battle/wait.c                           0.295
 game/battle/window.c                         0.488
-game/core/input.c                            0.541
 game/data/decompress.c                       0.171
 game/menu/epoch.c                            0.159
