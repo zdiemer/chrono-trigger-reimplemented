@@ -6242,12 +6242,13 @@ iterations = 5000
 why = "the end of a pass, on the battle's page"
 
 [[routine]]
-name = "battle_run_queued_scripts"
+name = "battle_give_turn"
+at = "C1:8461"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 iterations = 5000
-why = "the turns taken while an action runs over passes, on the battle's page; each action is a call-out"
+why = "the turns taken while an action runs over passes, on the battle's page; each action is a call-out. The guard takes the states whose timers' order names a combatant at the turn's place and whose actor is one, as every battle has them"
 
 [[routine]]
 name = "battle_mark_object_grid"

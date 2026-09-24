@@ -1003,7 +1003,7 @@ static bool take_turns(Snes *s)
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
-void battle_run_queued_scripts(Snes *s)
+void battle_give_turn(Snes *s)
 {
     if (take_turns(s))
         m_rts(s);
@@ -1030,6 +1030,18 @@ static bool peek_rom_byte(Snes *s, uint32_t at)
     uint8_t v = rom_read8(state_of(s), at);
     vars_peek(false);
     return v;
+}
+
+/* The turn is given to the combatant the timers' order names, and what it did
+ * is followed up for the combatant that acted: the guard takes the states
+ * where both are combatants, as every battle has them. */
+bool battle_turn_names_combatants(Snes *s)
+{
+    vars_peek(true);
+    GameState *g = state_of(s);
+    bool named = battle_names_combatant(combatant_whose_turn(g)) && battle_names_combatant(battle_actor(g));
+    vars_peek(false);
+    return battle_on_page(s) && named;
 }
 
 bool battle_pass_ends_plainly(Snes *s) { return battle_on_page(s) && peek_rom_byte(s, 0xC1FFFF) == 0; }
