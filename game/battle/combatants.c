@@ -193,11 +193,15 @@ static void drop_script_if_gone(GameState *g, unsigned slot)
 }
 
 /* The first party member still in the fight, or the party's size if none is:
- * the party all out is a defeat. */
+ * the party all out is a defeat. The party's ids are small, and the test here
+ * is the byte's sign, which of a member's values only "out" ($FF) has; an
+ * enemy's id can have its top bit set, so elsewhere "out" is the whole byte. */
+enum { OUT_OF_FIGHT_SIGN = 0x80 };
+
 static unsigned first_member_fighting(const GameState *g)
 {
     unsigned member = 0;
-    while (member < BATTLE_PARTY_SIZE && !combatant_in_fight(g, member))
+    while (member < BATTLE_PARTY_SIZE && (battle_combatant_fighting(g, member) & OUT_OF_FIGHT_SIGN))
         member++;
     return member;
 }

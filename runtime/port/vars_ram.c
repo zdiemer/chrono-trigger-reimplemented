@@ -2735,8 +2735,8 @@ uint8_t battle_enemy_script_started(const GameState *g, unsigned i) { IN_RANGE(g
 void set_battle_enemy_script_started(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 414, "set_battle_enemy_script_started", "count", i, 8u); w8(g, 0x7EB2B6u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_combatant_updating(const GameState *g) { return r8(g, 0x7EB2D3u); }
 void set_battle_combatant_updating(GameState *g, uint8_t v) { w8(g, 0x7EB2D3u, v); }
-uint8_t battle_timer_tick_slot(const GameState *g) { return r8(g, 0x7EB3C0u); }
-void set_battle_timer_tick_slot(GameState *g, uint8_t v) { w8(g, 0x7EB3C0u, v); }
+uint16_t battle_timer_tick_slot(const GameState *g) { return r16(g, 0x7EB3C0u); }
+void set_battle_timer_tick_slot(GameState *g, uint16_t v) { w16(g, 0x7EB3C0u, v); }
 uint16_t battle_timer_tick_timer(const GameState *g) { return r16(g, 0x7EB3C4u); }
 void set_battle_timer_tick_timer(GameState *g, uint16_t v) { w16(g, 0x7EB3C4u, v); }
 uint8_t battle_combo_ready(const GameState *g, unsigned slot) { IN_RANGE(g, 415, "battle_combo_ready", "count", slot, 3u); return r8(g, 0x7EB3E7u + (uint32_t)slot * 0x01u); }

@@ -48,7 +48,9 @@
  * --range A|X|Y=lo-hi limits a register's random value, for example to keep
  * script offsets inside the script buffer: indexing past the end of a data
  * area reaches I/O space, whose open bus reads depend on instruction fetches
- * native code doesn't do. --db sets the data bank, which the base state
+ * native code doesn't do; --range X=lo-hi/step takes every step-th value
+ * from lo, for a register holding a record's offset (a battle stat block,
+ * 0-$500 by $80). --db sets the data bank, which the base state
  * otherwise decides, for entries that address registers through it; --d the
  * direct page likewise, for entries guarded on the page their subsystem runs
  * with. --apu-loopback makes reads of the APU ports return what the CPU last
@@ -146,8 +148,11 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--d")) direct_page = (int)(strtoul(v, NULL, 16) & 0xFFFF);
         else if (!strcmp(a, "--range") && strchr("AXY", v[0]) && v[1] == '=' &&
                  sscanf(v + 2, "%x-%x", &o.range_lo[strchr("AXY", v[0]) - "AXY"],
-                        &o.range_hi[strchr("AXY", v[0]) - "AXY"]) == 2)
-            ;
+                        &o.range_hi[strchr("AXY", v[0]) - "AXY"]) == 2) {
+            const char *step = strchr(v + 2, '/');
+            if (step)
+                o.range_step[strchr("AXY", v[0]) - "AXY"] = (unsigned)strtoul(step + 1, NULL, 16);
+        }
         else if ((!strcmp(a, "--fill") || !strcmp(a, "--keep")) && o.nareas < FUZZ_MAX_AREAS &&
                  fuzz_parse_area(v, !strcmp(a, "--keep"), &o.areas[o.nareas]))
             o.nareas++;
@@ -207,7 +212,7 @@ int main(int argc, char **argv)
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
                     "[--seed S] [--long | --interrupt] [--budget N] [--keep AREA]... [--fill AREA=lo-hi]... "
-                    "[--range A|X|Y=lo-hi]... [--db BB] [--d HHHH] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
+                    "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--details N]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");

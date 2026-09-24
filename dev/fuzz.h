@@ -41,6 +41,7 @@ typedef struct FuzzOptions {
     uint64_t seed;
     bool long_call, interrupt;
     unsigned range_lo[3], range_hi[3];   /* A, X, Y */
+    unsigned range_step[3];              /* every step-th value from lo (0: every one) */
     FuzzArea areas[FUZZ_MAX_AREAS];
     int nareas;
     /* The work each side may do on a state, in bus accesses: the port's own

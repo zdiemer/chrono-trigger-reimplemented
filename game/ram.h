@@ -3465,7 +3465,7 @@
 #define RAM_BATTLE_ENEMY_SCRIPT_STARTED_STRIDE 0x01u
 /* The combatant battle_update_all_combatants is updating (11 once it is done) */
 #define RAM_BATTLE_COMBATANT_UPDATING 0x7EB2D3u
-/* The battle slot of the timer the count-down pass is at */
+/* The battle slot of the timer the count-down pass is at [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_SLOT 0x7EB3C0u
 /* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_TIMER 0x7EB3C4u

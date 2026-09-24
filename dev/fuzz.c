@@ -403,8 +403,9 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         m->cpu.p = (uint8_t)((m->cpu.p & ~e->p_mask) | e->p_value);
         uint16_t *regs[3] = { &m->cpu.a, &m->cpu.x, &m->cpu.y };
         for (int i = 0; i < 3; i++) {
-            unsigned span = o->range_hi[i] >= o->range_lo[i] ? o->range_hi[i] - o->range_lo[i] + 1 : 1;
-            *regs[i] = (uint16_t)(o->range_lo[i] + (unsigned)(bits >> (8 + 16 * i)) % span);
+            unsigned step = o->range_step[i] ? o->range_step[i] : 1;
+            unsigned span = o->range_hi[i] >= o->range_lo[i] ? (o->range_hi[i] - o->range_lo[i]) / step + 1 : 1;
+            *regs[i] = (uint16_t)(o->range_lo[i] + (unsigned)(bits >> (8 + 16 * i)) % span * step);
         }
         if (m->cpu.p & CPU_FLAG_X) {
             m->cpu.x &= 0xFF;

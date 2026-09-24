@@ -6112,3 +6112,57 @@ state = "objects"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
 iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+# ---- battle ---------------------------------------------------------------------------------------
+# The battle runs on its page (D = $0000) with the data bank at $7E; a combatant is named by its stat
+# block's offset in X (0-$500 by $80) and, where the routine reads both, its battle slot in Y.
+
+[state.battle]
+movie = "oracle/movies/gato-battle.ctm"
+frames = 20000
+
+# -- the combatants and their timers (battle/combatants.c, battle/timers.c)
+
+[[routine]]
+name = "battle_update_low_hp_flag"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-0500/80"]
+why = "a combatant's stat block in X, on the battle's page, as the main loop calls it"
+
+[[routine]]
+name = "battle_update_status_flags"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-0500/80", "--range", "Y=0000-000A"]
+why = "a combatant's stat block in X and a battle slot in Y; the guard takes those where Y is X's combatant"
+
+[[routine]]
+name = "battle_update_combatant"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-0500/80", "--range", "Y=0000-000A"]
+why = "as battle_update_status_flags"
+
+[[routine]]
+name = "battle_update_all_combatants"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "on the battle's page; each combatant's update is a call-out"
+
+[[routine]]
+name = "battle_tick_timers"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page; a stretch of the main loop"
+
+[[routine]]
+name = "battle_dispatch_expired_timers"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "on the battle's page; the kinds' handlers are call-outs"

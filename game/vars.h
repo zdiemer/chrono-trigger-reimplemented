@@ -4717,8 +4717,8 @@ uint8_t battle_combatant_updating(const GameState *g);
 void set_battle_combatant_updating(GameState *g, uint8_t v);
 
 /* The battle slot of the timer the count-down pass is at */
-uint8_t battle_timer_tick_slot(const GameState *g);
-void set_battle_timer_tick_slot(GameState *g, uint8_t v);
+uint16_t battle_timer_tick_slot(const GameState *g);
+void set_battle_timer_tick_slot(GameState *g, uint16_t v);
 
 /* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through */
 uint16_t battle_timer_tick_timer(const GameState *g);

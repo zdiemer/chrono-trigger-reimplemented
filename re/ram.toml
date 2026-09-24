@@ -7371,6 +7371,7 @@ source = "game/battle/timers.c battle_dispatch_expired_timers $C1:8290"
 [[var]]
 name = "battle_timer_tick_slot"
 addr = "7E:B3C0"
+size = 2
 subsystem = "battle"
 meaning = "The battle slot of the timer the count-down pass is at"
 source = "game/battle/timers.c battle_tick_timers $C1:8231"
