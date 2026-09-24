@@ -169,7 +169,7 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **32 of 95 files, 14,026 of
-28,295 lines (50%), are on the backlog**, and all but the scenes, the events
+28,252 lines (50%), are on the backlog**, and all but the scenes, the events
 and the field is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
@@ -178,11 +178,11 @@ and the field is on the machine:
 | menu | 10 | 12 | 5,947 | 6,936 | 0.35 | 97% |
 | event | 0 | 19 | 0 | 2,693 | 0.01 | 29% |
 | field | 0 | 16 | 0 | 3,799 | 0.02 | 30% |
-| scene | 0 | 13 | 0 | 2,641 | 0.04 | 51% |
+| scene | 0 | 13 | 0 | 2,598 | 0.04 | 45% |
 | core, data | 2 | 7 | 300 | 1,883 | 0.11 | 99% |
 | **total** | **32** | **95** | **14,026** | **28,051** | **0.22** | **69%** |
 
-Scene's 51%, event's 29% and field's 30% are their entries' wrappers, their
+Scene's 45%, event's 29% and field's 30% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
 name (`portstyle.py`'s own column misses one-line definitions and
 macro-generated entries; RECOMP.md's "Phase 3a" sections for the three list
@@ -307,16 +307,18 @@ call sites rather than 20K.
 **Scene has been reworked to the review's bar, and waits for a fresh review.**
 The first qualitative review rated three of its files translation (the
 arithmetic unit emulated, loop state in RAM cells, a CPU-shaped struct through
-the scaler) and most of the rest mostly. Its rework (RECOMP.md, "Phase 3a: scene
-reworked to the review") put the arithmetic in C with the original's rounding in
-named functions, the loops' state in locals with the cells' final values as
-scaffolding, the sequence scripts in a table of rows decoded into named
-parameters, the display state in the video service's vocabulary, and the
-subsystem's concepts in its header (one `scene_flags` definition, tasks and
-their lists, the math scratch's fields in the map, entries named for what they
-do); and it regrouped the files by the game: the title screen, the race, the
-script, the frame, the screen, and the shared pieces. It closes when a fresh
-review passes it.
+the scaler); the second, of the first rework, still two (the scaler's carry
+chain, and arithmetic kept for inputs no scene gives it). The rework now
+(RECOMP.md, "Phase 3a: scene reworked to the review") has the arithmetic in C,
+with guards for what the game never gives it and named inputs for what it does;
+no carry chain, the two nudges the player sees named and the wrapping sums
+guarded; loop state in locals with the cells' final values as scaffolding;
+time charged rather than kept in the logic's shape, through a mechanism every
+subsystem can use (`game/charge.h`); the sequence scripts as rows whose
+handlers take named parameters; the display state in the video service's
+vocabulary; and the subsystem's concepts in its header and map. The files are
+grouped by the game: the title screen, the race, the script, the frame, the
+screen, and the shared pieces. It closes when a fresh review passes it.
 
 **Cells on a page the caller chooses** have a generated shape: a page kind in
 `re/ram.toml` lists the pages its code runs on, as measured over the library

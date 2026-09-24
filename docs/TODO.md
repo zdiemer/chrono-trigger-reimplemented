@@ -804,7 +804,7 @@ waits on M5 rather than on a backend.
   honest before the big subsystems land.
 - **`portstyle.py`'s function count** misses one-line definitions (its
   matcher wants the parameter list's closing parenthesis at the end of a line)
-  and counts guards and entry wrappers with everything else, so "51% on the
+  and counts guards and entry wrappers with everything else, so "45% on the
   machine" for scene reads as a backlog when it is entries, guards and bridges
   (RECOMP.md lists them by name). Matching definitions properly, and splitting
   the column into registered entries, guards and the rest, would make the rest

@@ -4549,21 +4549,27 @@ a byte in another, is refused by a guard; no movie makes one.
 
 **Fuzzing against the predecessor** (`tools/fuzz_compare.py`, seed 1, every
 scene entry and variant in `tools/fuzz_routines.toml`, 87 runs): the counts
-agree for every one. The first runs of the rewrite didn't, and each was the
-rewrite's to fix: the unsigned multiply's byte-too-low carry (7 and 11
-states), the scaler's samples read past the bank into its own scratch (24),
-and sprite lists read over the cell the original counts them down in (2 and
-15). What the guards now turn away shows in the skipped column: the sprite
-lists too long for the table from where the cursor stands (9907 and 10074 of
-20000 in the tight runs, 15320 and 15783 in the loose ones, whose cursors are
-anywhere in the table and whose lists are anywhere in low RAM), the single
-sprites whose high-table byte is past the table (112 of 20000, loose), and 8 of
-2000 plane tiles over the scratch; everything each accepts matches as it did.
-The tight sprite runs now start the cursor where each frame's first list finds
-it and the scaler's keeps its source's base and limit where its samples stay in
-the bank, both narrowed to what the guards take, with the guard named in the
-entry's `why`. The plane tiles mismatch in 5 of 2000 states before the
-rework and after it: a residue of the predecessor's, not the rework's.
+agree for every one. The runs that didn't, over the two rounds, were each the
+rewrite's to fix: the unsigned multiply's middle sum (7 and 11 states, now
+guarded), the scaler's samples read past the bank into its own scratch (24),
+sprite lists read over the cell the original counts them down in (2 and 15),
+the divisor search taking its first quotient from the dividend rather than from
+the division its caller made (211: the fuzzer's states don't keep the two
+consistent, the game's do), and a routine a script calls reading the A the
+original loads it with (60 and 64, which the call-out's don't-care set had
+declared dead: liveness can't see into the program's RAM routines, so A is set
+and no longer declared). What the guards turn away shows in the skipped column:
+the sprite lists too long for the table from where the cursor stands (9907 and
+10074 of 20000 in the tight runs, 15320 and 15783 in the loose ones, whose
+cursors are anywhere in the table and whose lists anywhere in low RAM), the
+single sprites whose high-table byte is past the table (112 of 20000, loose),
+8 of 2000 plane tiles over the scratch, the 32-bit divides by 0 or past
+`$7FFFFFFF` (10092 and 10017 of 20000) and the products whose middle sum
+overflows (7 and 11); everything each accepts matches as it did. The scaler's,
+the frame's and the sprites' runs are narrowed to what their guards take, with
+the guard named in each entry's `why`. The plane tiles mismatch in 5 of 2000
+states, and the frame's work in 1 of 10024, before the rework and after it:
+the predecessor's residue, not the rework's.
 
 **Time: charged, not kept in the logic's shape.** The review's item 36: the
 first round kept the circle's and the scaler's block moves byte by byte, and
