@@ -61,7 +61,16 @@ enum {
     INPUT_IGNORES = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,     /* $C2:8473 */
 };
 
-static bool back_as_the_menus_run(const Snes *s) { return !s->cpu.e && m_m8(s) && !m_x8(s); }
+/* The pages the two modes' vblank handlers run on. */
+enum { MENUS_PAGE = 0x0D00, OBJECT_MODE_PAGE = 0x0000 };
+
+/* A routine called from a vblank handler comes back as the handler runs: an
+ * 8-bit accumulator, 16-bit index registers, the handler's page, and a data
+ * bank on the I/O registers. */
+static bool back_as_the_menus_run(const Snes *s, uint16_t page)
+{
+    return !s->cpu.e && m_m8(s) && !m_x8(s) && s->cpu.d == page && (s->cpu.db & 0x7F) < 0x40;
+}
 
 /* ---- The windows, the screens and color math, as both modes keep them --------------------------- */
 
@@ -206,7 +215,7 @@ void menu_nmi_work(Snes *s)
     if (!(menu_vblank_done(g) & FRAME_READY_BIT)) {
         vid_enable_line_effects(pf, PF_AT(0xC2843C), 0x00);
         m_jsr_dc(s, 0xC2843F, 0xC285D6, NOTHING_READ);
-        if (!back_as_the_menus_run(s)) {
+        if (!back_as_the_menus_run(s, MENUS_PAGE)) {
             m_stop_dont_care(s, 0xC28442, 0);
             return;
         }
@@ -214,7 +223,7 @@ void menu_nmi_work(Snes *s)
         set_menu_vblank_done(g, FRAME_SENT);
     }
     m_jsr_dc(s, 0xC2844D, 0xC28473, INPUT_IGNORES);
-    if (!back_as_the_menus_run(s)) {
+    if (!back_as_the_menus_run(s, MENUS_PAGE)) {
         m_stop_dont_care(s, 0xC28450, 0);
         return;
     }
@@ -673,16 +682,16 @@ static bool run_frame_work(Snes *s)
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     m_jsr_dc(s, 0xC20318, 0xC20405, NOTHING_READ);
-    if (!back_as_the_menus_run(s))
+    if (!back_as_the_menus_run(s, OBJECT_MODE_PAGE))
         return false;
     m_jsl_dc(s, 0xC2031B, 0xC28002, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C);
-    if (!back_as_the_menus_run(s))
+    if (!back_as_the_menus_run(s, OBJECT_MODE_PAGE))
         return false;
     VidDisplay display = vid_display_decode((uint8_t)menu_object_display(g) | (uint8_t)(menu_object_display(g) >> 8));
     vid_set_display(pf, PF_AT(0xC20323), &display);
     vid_enable_line_effects(pf, PF_AT(0xC20328), menu_object_line_effects(g));
     m_jsr_dc(s, 0xC2032B, 0xC20C4D, NOTHING_READ);
-    if (s->cpu.e || m_m8(s) || m_x8(s))
+    if (s->cpu.e || m_m8(s) || m_x8(s) || s->cpu.d != OBJECT_MODE_PAGE)
         return false;
     /* the list's reset comes back with a 16-bit accumulator, so the sprites'
      * count is cleared a word wide, over the running object's low byte */
@@ -698,7 +707,7 @@ static bool run_frame_work(Snes *s)
     };
     for (int i = 0; i < 3; i++) {
         m_jsr_dc(s, work[i].site, work[i].routine, work[i].ignores);
-        if (!back_as_the_menus_run(s))
+        if (!back_as_the_menus_run(s, OBJECT_MODE_PAGE))
             return false;
     }
     set_menu_object_frame_state(g, (uint8_t)(menu_object_frame_state(g) | FRAME_TO_SHOW));

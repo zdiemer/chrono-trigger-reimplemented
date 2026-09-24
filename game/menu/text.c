@@ -493,6 +493,18 @@ static bool clear_of_the_drawers_cells(uint32_t number_at, uint16_t pen)
     return !reads_them && pen >= CELLS_END + BELOW_THE_PEN;
 }
 
+/* A number the game draws isn't on the stack, where the conversion pushes
+ * its place in the number as it reads each byte: the reach of its pushes and
+ * the drawer's call below the stack pointer. */
+static bool clear_of_the_stack(uint32_t number_at, uint16_t sp)
+{
+    enum { NUMBER_BYTES = 3, PUSHES = 8 };
+    uint8_t bank = (uint8_t)(number_at >> 16);
+    uint16_t address = (uint16_t)number_at;
+    bool low_ram = bank == 0x7E || ((bank & 0x7F) < 0x40 && address < 0x2000);
+    return !low_ram || address > sp || address + NUMBER_BYTES + PUSHES <= sp;
+}
+
 bool menu_tile_on_page(Snes *s) { return on_the_menus_page(s); }
 
 bool menu_text_on_page(Snes *s)
@@ -506,7 +518,7 @@ bool menu_number_is_drawable(Snes *s)
     uint8_t bytes = number_format((uint8_t)s->cpu.a).bytes;
     uint32_t at = (uint32_t)(s->cpu.a >> 8) << 16 | s->cpu.y;
     return on_the_menus_page(s) && converts_from_one(s) && bytes != 0 && reads_memory(at)
-           && clear_of_the_drawers_cells(at, s->cpu.x);
+           && clear_of_the_drawers_cells(at, s->cpu.x) && clear_of_the_stack(at, s->cpu.s);
 }
 
 bool menu_number_is_convertible(Snes *s)
@@ -516,7 +528,7 @@ bool menu_number_is_convertible(Snes *s)
     vars_peek(false);
     uint32_t at = (uint32_t)s->cpu.db << 16 | s->cpu.y;
     return on_the_menus_page(s) && converts_from_one(s) && bytes >= 1 && bytes <= 3 && reads_memory(at)
-           && clear_of_the_drawers_cells(at, 0xFFFF);
+           && clear_of_the_drawers_cells(at, 0xFFFF) && clear_of_the_stack(at, s->cpu.s);
 }
 
 /* The number drawer leaves A's high byte clear (its digits are drawn with it

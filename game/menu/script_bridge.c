@@ -95,7 +95,10 @@ static bool scroll_map(void *ctx, MenuAxis axis, uint8_t plane, int8_t step)
     OnTheMachine *m = ctx;
     GameState *g = state_of(m->s);
     set_menu_object_scratch_plane(g, plane);
-    set_menu_object_scratch_step(g, (uint8_t)step);
+    /* The original sets the step once for both planes; the second scrolls by
+     * what the first's scroll left in the cell. */
+    if (m->opcode == SCROLL_ONE_PLANE || plane != 2)
+        set_menu_object_scratch_step(g, (uint8_t)step);
     m->called_down = axis == MENU_DOWN;
     if (m->opcode == SCROLL_ONE_PLANE)
         return axis == MENU_ACROSS ? call_out(m, 0xC2173C, SCROLL_ACROSS, MAP_IGNORES)
@@ -482,7 +485,7 @@ bool menu_object_script_runs(Snes *s)
     GameState *g = state_of(s);
     bool ok = menu_object_address_names_one(menu_object_current(g))
               && script_bank_holds_scripts((uint8_t)(menu_object_slots_script(g, menu_object_running(g)) >> 16))
-              && menu_sprite_script_is_well_formed(g, menu_object_running(g)) && menu_sprite_list_is_sound(g);
+              && menu_sprite_list_is_sound(g);
     vars_peek(false);
     return ok;
 }
@@ -539,8 +542,7 @@ static bool command_accepts(Snes *s, uint8_t opcode)
         uint32_t at = menu_object_script(g);
         ScriptCommand c = menu_script_decode(g, row, menu_object_running(g), at, NULL);
         ok = script_bank_holds_scripts((uint8_t)(at >> 16)) && menu_script_opcode(menu_script_byte(g, at)) == row
-             && menu_script_runs_here(g, row, &c) && menu_sprite_script_is_well_formed(g, menu_object_running(g))
-             && menu_sprite_list_is_sound(g);
+             && menu_script_runs_here(g, row, &c) && menu_sprite_list_is_sound(g);
     }
     vars_peek(false);
     return ok;

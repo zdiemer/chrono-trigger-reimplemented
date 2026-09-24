@@ -30,6 +30,14 @@ uint16_t menu_object_address(MenuObject o) { return (uint16_t)(FIRST_SLOT_ADDRES
 
 static bool in_a_slot(uint16_t address) { return address >= FIRST_SLOT_ADDRESS && address < SLOTS_END; }
 
+bool menu_objects_hold(uint32_t address)
+{
+    enum { WORK_RAM = 0x7E, LOW_RAM_END = 0x2000 };
+    uint8_t bank = (uint8_t)(address >> 16);
+    bool low_ram = bank == WORK_RAM || ((bank & 0x7F) < 0x40 && (uint16_t)address < LOW_RAM_END);
+    return low_ram && in_a_slot((uint16_t)address);
+}
+
 bool menu_object_address_names_one(uint16_t address)
 {
     return in_a_slot(address) && (address - FIRST_SLOT_ADDRESS) % SLOT_BYTES == 0;

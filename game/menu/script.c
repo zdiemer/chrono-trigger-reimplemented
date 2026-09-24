@@ -3,6 +3,7 @@
 #include "menu/script.h"
 
 #include "menu/menu_data.h"
+#include "menu/sprites.h"
 #include "menu/vram.h"
 #include "vars.h"
 #include "wram.h"
@@ -103,12 +104,45 @@ static bool names_low_ram(ScriptArg spec, ByteRef b)
 }
 
 /* The commands that queue an upload write their records at the queue's end,
- * which is on a record wherever the game queues. */
-static bool queues_an_upload(const ScriptOpcode *row) { return row->vram.kind != ARG_NONE || row->group.kind != ARG_NONE; }
+ * which is on a record wherever the game queues: those that name what to
+ * upload, and those that scroll or redraw the map, whose strips go up so. */
+static bool queues_an_upload(const ScriptOpcode *row)
+{
+    return row->vram.kind != ARG_NONE || row->group.kind != ARG_NONE || row->plane.kind != ARG_NONE;
+}
+
+/* The commands that run the object's sprite script run one the language
+ * reads (menu/sprites.c): the one it has, or for a move's first frame the one
+ * it is about to be given. Objects that never animate may have none. A sprite
+ * script can queue an upload, so the queue is whole for them too. */
+static bool animates_a_sprite_script(const GameState *g, const ScriptOpcode *row, const ScriptCommand *c)
+{
+    bool animates = row->back_script.kind != ARG_NONE || c->animating;
+    if (animates && !menu_object_queue_is_whole(g))
+        return false;
+    if (row->back_script.kind != ARG_NONE && (uint8_t)menu_object_slots_command_state(g, c->self) == 0)
+        return menu_given_sprite_script_is_well_formed(g, c->back_script)
+               && menu_given_sprite_script_is_well_formed(g, c->forward_script);
+    if (!animates)
+        return true;
+    return menu_sprite_script_is_well_formed(g, c->self);
+}
+
+/* What the commands queue is built in the upload buffer, which the game
+ * keeps in work RAM above low RAM (from $7E:F000), clear of the cells the
+ * commands and the map work in. */
+static bool upload_buffer_is_clear(const GameState *g)
+{
+    enum { WORK_RAM = 0x7E, LOW_RAM_END = 0x2000 };
+    uint32_t at = menu_object_upload_buffer(g);
+    return (uint8_t)(at >> 16) == WORK_RAM && (uint16_t)at >= LOW_RAM_END;
+}
 
 bool menu_script_runs_here(const GameState *g, const ScriptOpcode *row, const ScriptCommand *c)
 {
-    if (queues_an_upload(row) && !menu_object_queue_is_whole(g))
+    if (!animates_a_sprite_script(g, row, c))
+        return false;
+    if (queues_an_upload(row) && !(menu_object_queue_is_whole(g) && upload_buffer_is_clear(g)))
         return false;
     if (!names_low_ram(row->byte, c->byte) || !names_low_ram(row->from, c->from))
         return false;

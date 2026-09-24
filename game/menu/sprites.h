@@ -19,6 +19,8 @@ void menu_object_animate(GameState *g);
 /* Whether the object's sprite script reads as the language: every command it
  * can reach one of its eight. */
 bool menu_sprite_script_is_well_formed(const GameState *g, MenuObject o);
+/* ... and whether one of the game's sprite scripts, by its number, does. */
+bool menu_given_sprite_script_is_well_formed(const GameState *g, uint8_t script);
 
 /* Whether the list the sprites are shown on is as the mode's start lays it
  * out: every link a node or a head, and a node free to show a group with. */

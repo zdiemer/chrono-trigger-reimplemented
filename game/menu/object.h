@@ -40,6 +40,9 @@ void menu_object_make_running(GameState *g, MenuObject o);
 /* The original's name for a slot: its address in bank $00/$7E. */
 uint16_t menu_object_address(MenuObject o);
 bool menu_object_address_names_one(uint16_t address);
+/* Whether a bus address is in the objects' slots (in work RAM, or low RAM
+ * through a bank that reaches it). */
+bool menu_objects_hold(uint32_t address);
 MenuObject menu_object_at_address(uint16_t address);
 
 /* A byte of an object's state by its offset from the slot's start, as the

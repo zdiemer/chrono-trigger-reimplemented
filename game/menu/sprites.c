@@ -516,7 +516,15 @@ static SpriteStep change_byte(GameState *g, MenuObject o, SpritePlace p, uint8_t
     return LENGTH;
 }
 
-typedef enum { SPRITES_GO_ON, SPRITES_STOPPED } SpriteEnd;
+// $C2:0E91
+/* Go back the bytes the command gives, to repeat an animation. A jump
+ * forward (or by nothing) holds the script on the jump: the original tests
+ * the offset's sign where it means to test the step. */
+static SpriteStep jump(const GameState *g, SpritePlace p)
+{
+    int8_t by = (int8_t)sprite_script_byte(g, p, 1);
+    return by < 0 ? by : SPRITE_STAY;
+}
 
 // $C2:0E1D
 /* Run the running object's sprite script until it shows a group, waits or
@@ -537,7 +545,7 @@ static void run_sprite_script(GameState *g)
         case SPRITE_CLEAR_BYTE: case SPRITE_COUNT_UP: case SPRITE_COUNT_DOWN:
             step = change_byte(g, o, p, command);
             break;
-        case SPRITE_JUMP: step = (int8_t)sprite_script_byte(g, p, 1); break;
+        case SPRITE_JUMP: step = jump(g, p); break;
         case SPRITE_SHOW: step = show(g, o, p); break;
         case SPRITE_WAIT: step = wait(g, o, p); break;
         case SPRITE_UPLOAD: step = upload(g, p); break;
@@ -553,29 +561,55 @@ static void run_sprite_script(GameState *g)
 
 void menu_object_animate(GameState *g) { run_sprite_script(g); }
 
+/* A command whose bytes are in the objects' slots, which the commands write:
+ * no game's script is there, and one that is changes under its own reading. */
+static bool in_the_slots(SpritePlace p)
+{
+    enum { LONGEST = 8 };
+    for (uint16_t k = 0; k < LONGEST; k++)
+        if (menu_objects_hold((uint32_t)p.bank << 16 | (uint16_t)(p.at + k)))
+            return true;
+    return false;
+}
+
 /* Whether an object's sprite script is one the language reads: every command
- * it can reach from where it is is one of the eight, before it stops or goes
- * round. The game's scripts all are; the original jumps through the words
- * after its table on any other. A show or a wait may go on to the next
- * command, so the walk goes on past each. */
-bool menu_sprite_script_is_well_formed(const GameState *g, MenuObject o)
+ * it can reach from where it is is one of the eight, and outside the objects'
+ * slots, before it stops, holds for good or goes round. The game's scripts
+ * all are; the original jumps through the words after its table on any
+ * other. A show or a wait of some frames goes on to the next command once
+ * they are out, so the walk goes on past each. */
+static bool reads_as_the_language(const GameState *g, uint32_t script)
 {
     enum { WALK = 64 };
     static const uint8_t lengths[SPRITE_COMMANDS] = { 2, 2, 2, 0, 4, 2, 8, 0 };
-    uint32_t script = menu_object_slots_sprite_script(g, o);
     SpritePlace p = { (uint8_t)(script >> 16), (uint16_t)script };
     for (unsigned step = 0; step < WALK; step++) {
         uint8_t command = sprite_script_byte(g, p, 0);
-        if (command >= SPRITE_COMMANDS)
+        if (command >= SPRITE_COMMANDS || in_the_slots(p))
             return false;
         if (command == SPRITE_STOP)
             return true;
+        /* A show or a wait of no frames holds the script there for good, as
+         * does a jump forward; what follows is the next script's, or data. */
+        if ((command == SPRITE_SHOW && sprite_script_byte(g, p, 3) == 0)
+            || (command == SPRITE_WAIT && sprite_script_byte(g, p, 1) == 0))
+            return true;
         int8_t by = command == SPRITE_JUMP ? (int8_t)sprite_script_byte(g, p, 1) : (int8_t)lengths[command];
-        if (by == 0)
-            return true;   /* a jump to itself: it goes round */
+        if (by >= 0 && command == SPRITE_JUMP)
+            return true;   /* a jump forward holds there */
         p.at = (uint16_t)(p.at + by);
     }
     return true;   /* round and round within the walk's reach */
+}
+
+bool menu_sprite_script_is_well_formed(const GameState *g, MenuObject o)
+{
+    return reads_as_the_language(g, menu_object_slots_sprite_script(g, o));
+}
+
+bool menu_given_sprite_script_is_well_formed(const GameState *g, uint8_t script)
+{
+    return reads_as_the_language(g, (uint32_t)MENU_SPRITE_SCRIPT_BANK << 16 | menu_sprite_script_start(g, script));
 }
 
 // $C2:1CDA
