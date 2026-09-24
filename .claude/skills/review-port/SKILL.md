@@ -386,6 +386,28 @@ Each of these is a finding. Every example here comes from this repo.
 48. **Aliasing artifacts promoted into domain types.** An enum value that exists
     because a stray write lands there (`OVERWRITTEN_BY_A_LINK`). Model it only
     if the game can observe it, and say so where the type is defined.
+49. **Handler identity as a type tag.** `row->run == run_loop` used to tell
+    rows apart. The table is missing a column; give it a kind.
+50. **Leftover round-trips that do nothing.** A leftover field that writes back
+    what the register already held (`a_high = list >> 8` restored into A's high
+    byte). Check each leftover field for identity with the input, as well as for
+    whether the wrapper could derive it.
+51. **Origin tags computed or tabled.** `PF_AT(0x7E3124 + 8 * bg)`,
+    `map_sites[bg]`. `PF_AT`/`PF_CALL` tags are legitimate as literals at the
+    call they describe, not as arithmetic on the ROM's code layout.
+52. **Counting conventions in scaffolding too.** `charge_block_move(g,
+    bytes - 1)` with no reason given is item 38 inside scaffolding.
+53. **Fixed-point claims without a named unit.** A comment saying "1/256 of a
+    row" that can't be checked, and was wrong (it was 1/128). Wherever a comment
+    states a fraction, name the unit as a constant.
+54. **One program split across subsystem directories**, with neither header
+    pointing at the other (`game/scene/` and `game/attract/`).
+
+**Re-reviews are scoped.** After a round that fixes files rated translation, the
+fresh review reads those files (and anything their fixes touched), not the
+whole subsystem again. The files that passed stand, and their remaining "mostly"
+findings are follow-ups. This keeps the loop convergent as the rubric grows;
+it never lets a file rated translation merge.
 
 ## What is legitimately machine-shaped
 
