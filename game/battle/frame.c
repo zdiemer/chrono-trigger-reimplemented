@@ -306,11 +306,16 @@ static void rotate_the_colors(GameState *g)
  * back to its title. True when it is time to leave. */
 enum { LEAVING_THE_BATTLE = 0x80 };
 
+static bool any_button_held(Platform *pf)
+{
+    return (in_read_low(pf, PF_AT(0xCFE6E0), 0) | in_read_high(pf, PF_AT(0xCFE6E4), 0)) != 0;
+}
+
 static bool end_the_demo(GameState *g, Platform *pf)
 {
     if (!(battle_setup_flags(g) & DEMO_BATTLE))
         return false;
-    if (in_read_low(pf, PF_AT(0xCFE6E0), 0) | in_read_high(pf, PF_AT(0xCFE6E4), 0))
+    if (any_button_held(pf))
         set_battle_demo_exiting(g, 1);
     if (!battle_demo_exiting(g))
         return false;
@@ -324,7 +329,7 @@ static bool end_the_demo(GameState *g, Platform *pf)
 
 /* Holding L and R together for two seconds makes the party run, where the
  * battle allows it; the time counts on while they are held. */
-enum { BUTTONS_L_R = 0x30, RUN_AFTER_FRAMES = 120, NO_RUNNING_AWAY = 0x80 };
+enum { BUTTONS_L_R = IN_BUTTON_L | IN_BUTTON_R, RUN_AFTER_FRAMES = 120, NO_RUNNING_AWAY = 0x80 };
 
 static void hold_to_run(GameState *g, Platform *pf)
 {

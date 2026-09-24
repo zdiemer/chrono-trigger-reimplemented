@@ -32,16 +32,6 @@
 
 enum { BATTLE_EFFECTS = 8, BATTLE_ANCHORS = 8 };
 
-/* The battlefield's objects: the combatants' are the eleven from $0C on, in
- * battle slot order. */
-enum { BATTLE_FIRST_COMBATANT_OBJECT = 0x0C };
-
-static inline unsigned battle_object_of(unsigned slot) { return BATTLE_FIRST_COMBATANT_OBJECT + slot; }
-
-/* Where a combatant stands. Positions on the battlefield are a byte each,
- * which wraps. */
-static inline uint8_t combatant_x(const GameState *g, unsigned slot) { return battle_object_x(g, battle_object_of(slot)); }
-static inline uint8_t combatant_y(const GameState *g, unsigned slot) { return battle_object_y(g, battle_object_of(slot)); }
 static inline void place_combatant_x(GameState *g, unsigned slot, uint8_t x)
 {
     set_battle_object_x(g, battle_object_of(slot), x);

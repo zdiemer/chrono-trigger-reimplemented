@@ -15,9 +15,9 @@ void battle_wait_window_slide_loop(Snes *s);
 void battle_irq_wait_hblank_loop(Snes *s);
 void battle_wait_graphics_loaded_loop(Snes *s);
 
-/* battle/buffers.c */
+/* battle/battlefield.c, menu_window.c, damage.c, reset.c */
 void battle_mark_object_grid(Snes *s);
-void battle_reset_0b40_table(Snes *s);
+void battle_reset_window_frames(Snes *s);
 void battle_clear_damage(Snes *s);
 void battle_clear_numbers(Snes *s);
 void battle_reset_object_state(Snes *s);
@@ -49,17 +49,22 @@ void battle_request_lower_window_rows(Snes *s);
 void battle_update_low_hp_flag(Snes *s);
 void battle_update_status_flags(Snes *s);
 void battle_update_all_combatants(Snes *s);
-void battle_select_status_pose(Snes *s);
-void battle_update_combo_members(Snes *s);
 void battle_update_combatant(Snes *s);
 
 /* battle/tiles.c */
 void battle_decode_tile_row(Snes *s);
+bool battle_decodes_tile_row(Snes *s);
+
+/* battle/animation.c */
+void battle_step_combatant_animations(Snes *s);
+bool battle_steps_animations(Snes *s);
+void battle_choose_status_pose(Snes *s);
+bool battle_poses_combatant(Snes *s);
+void battle_step_enemy_effects(Snes *s);
 
 /* battle/timers.c */
 void battle_tick_timers(Snes *s);
 void battle_dispatch_expired_timers(Snes *s);
-void battle_step_slot_effects(Snes *s);
 
 /* battle/effect_animation.c */
 void battle_animate_effects(Snes *s);
@@ -92,7 +97,9 @@ void battle_effect_anchor_chase(Snes *s);
 /* battle/objects.c */
 void battle_update_object_bounds(Snes *s);
 void battle_update_all_object_bounds(Snes *s);
+bool battle_names_bounds_object(Snes *s);
 void battle_find_due_animation(Snes *s);
+bool battle_scheduler_in_place(Snes *s);
 void battle_update_animation_positions(Snes *s);
 
 /* battle/frame.c */
@@ -147,16 +154,27 @@ void battle_cycle_party_colors(Snes *s);
 /* battle/sprites.c */
 void battle_build_object_graphics(Snes *s);
 void battle_build_object_graphics_checked(Snes *s);
+bool battle_builds_known_object(Snes *s);
 void battle_step_object_palettes(Snes *s);
-void battle_index_record_groups(Snes *s);
-void battle_build_bitmap_sprites(Snes *s);
+void battle_index_effect_animations(Snes *s);
+void battle_build_bitmap_shapes(Snes *s);
 
-/* battle/gauges.c */
+/* battle/window.c, battle/status.c, battle/digits.c, battle/menu_window.c,
+ * battle/numbers.c: the windows and the numbers, and the guard they run under */
+bool battle_window_ready(Snes *s);
+bool battle_window_member_ready(Snes *s);
+bool battle_window_ready_a_clear(Snes *s);
+bool battle_menu_window_ready(Snes *s);
+void battle_draw_window(Snes *s);
 void battle_draw_gauge(Snes *s);
+void battle_draw_party_status(Snes *s);
 void battle_number_to_digits(Snes *s);
 void battle_number_to_2_digits(Snes *s);
 void battle_blank_leading_zeros(Snes *s);
-void battle_draw_party_status(Snes *s);
+void battle_draw_menu_window(Snes *s);
+void battle_place_menu_cursors(Snes *s);
+void battle_update_combo_members(Snes *s);
+void battle_script_build_number_sprites(Snes *s);
 
 /* battle/arith.c, battle/buttons.c */
 void battle_multiply_8x8(Snes *s);

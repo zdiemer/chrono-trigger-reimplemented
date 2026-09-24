@@ -14,7 +14,7 @@
  *     and the timers counted down and the run-out ones handled
  *     (battle/timers.c), the turn's handler among them: the turn below.
  *
- * A turn (the handler of the turn timer, battle_run_queued_scripts) gives the
+ * A turn (the handler of the turn timer, battle_give_turn) gives the
  * combatant whose timer ran out its turn: an enemy picks its action from its
  * script, a party member's command menu opens (or, in a demo battle or under a
  * status that decides for it, its action is picked for it). The party's
@@ -141,8 +141,13 @@ static void set_demo_aside(GameState *g)
     set_battle_setup_flags(g, flags & (uint8_t)~SETUP_DEMO);
 }
 
-/* The draw's entries are a battle slot plus one; a place drawn is emptied. */
+/* The orders are drawn from a pool, which the battle keeps where the enemies'
+ * foes will be: its entries are a battle slot plus one (or an enemy's id),
+ * and a place drawn is emptied. */
 enum { DRAWN = 0xFF };
+
+static uint8_t pool(const GameState *g, unsigned place) { return battle_foes(g, place); }
+static void set_pool(GameState *g, unsigned place, uint8_t entry) { set_battle_foes(g, place, entry); }
 
 /* The combatants to be drawn into the timers' order: the party members in
  * the fight, by the slot each character fights in, then the enemies, last to
@@ -151,7 +156,7 @@ static void list_combatants_for_the_order(GameState *g)
 {
     for (unsigned i = 0; i < BATTLE_TIMER_ORDER_COUNT; i++) {
         set_battle_timer_order(g, i, DRAWN);
-        set_battle_foes(g, i, DRAWN);
+        set_pool(g, i, DRAWN);
     }
     set_battle_timer_kinds_due(g, 0);
     unsigned listed = 0;
@@ -159,10 +164,10 @@ static void list_combatants_for_the_order(GameState *g)
         uint8_t character = battle_combatant_fighting(g, member);
         if (character & 0x80)
             continue;
-        set_battle_foes(g, listed++, (uint8_t)(battle_character_slot(g, character) + 1));
+        set_pool(g, listed++, (uint8_t)(battle_character_slot(g, character) + 1));
     }
     for (uint8_t slot = (uint8_t)(battle_enemy_count(g) + BATTLE_FIRST_ENEMY); slot != BATTLE_FIRST_ENEMY; slot--)
-        set_battle_foes(g, listed++, slot);
+        set_pool(g, listed++, slot);
     ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, BATTLE_PARTY_SIZE));
     ORIGINAL_EFFECT(set_battle_low_scratch(g, 1, 0));
 }
@@ -192,11 +197,11 @@ static bool draw_timer_order(Snes *s)
         if (!draw_random(s, 0xC1807B, length, &drawn))
             return false;
         m_pull16(s);
-        uint8_t entry = battle_foes(g, drawn);
+        uint8_t entry = pool(g, drawn);
         if (entry == DRAWN)
             continue;
         set_battle_timer_order(g, placed++, (uint8_t)(entry - 1));
-        set_battle_foes(g, drawn, DRAWN);
+        set_pool(g, drawn, DRAWN);
     } while (placed < length);
     return true;
 }
@@ -208,19 +213,19 @@ static bool draw_enemy_order(Snes *s)
     GameState *g = state_of(s);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_enemy_order(g, enemy, DRAWN);
-        set_battle_foes(g, enemy, battle_combatant_id(g, BATTLE_FIRST_ENEMY + enemy));
+        set_pool(g, enemy, battle_combatant_id(g, BATTLE_FIRST_ENEMY + enemy));
     }
     unsigned placed = 0;
     for (;;) {
         uint8_t drawn;
         if (!draw_random(s, 0xC180B1, BATTLE_ENEMIES, &drawn))
             return false;
-        if (battle_foes(g, drawn) == DRAWN)
+        if (pool(g, drawn) == DRAWN)
             continue;
-        set_battle_foes(g, drawn, DRAWN);
+        set_pool(g, drawn, DRAWN);
         set_battle_enemy_order(g, placed++, drawn);
         unsigned left = 0;
-        while (battle_foes(g, left) == DRAWN && ++left < battle_enemy_count(g))
+        while (pool(g, left) == DRAWN && ++left < battle_enemy_count(g))
             ;
         if (left >= battle_enemy_count(g)) {
             /* the enemies' scripts are started with the count placed in Y */
@@ -359,7 +364,7 @@ static bool leave_with_rewards(Snes *s)
         if (!battle_call_long(s, 0xC183E0, SHARE_EXPERIENCE, READS_NOTHING))
             return false;
         s->cpu.y = battle_gold_won(g);
-        if (!battle_call(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_N | DC_Z))
+        if (!battle_call(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_FLAGS))
             return false;
         set_battle_reward_flags(g, battle_reward_flags(g) | REWARDS_GIVEN);
         s->cpu.a = battle_reward_flags(g);
@@ -380,7 +385,7 @@ static bool leave_with_rewards(Snes *s)
         if (won == 0)
             continue;
         s->cpu.y = won;
-        if (!battle_call(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_N | DC_Z))
+        if (!battle_call(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_FLAGS))
             return false;
         set_battle_reward_flags(g, battle_reward_flags(g) | ITEMS_GIVEN);
     }

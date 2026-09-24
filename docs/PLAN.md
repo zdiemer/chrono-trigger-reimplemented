@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **23 of 106 files, 9,906 of
-30,173 lines (33%), are on the backlog**, and all but the scenes, the events,
+each subsystem's functions that take the machine. **22 of 106 files, 9,723 of
+30,185 lines (32%), are on the backlog**, and all but the scenes, the events,
 the field and the sound driver is on the machine:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
@@ -181,9 +181,9 @@ the field and the sound driver is on the machine:
 | event | 0 | 19 | 0 | 2,404 | 0.01 | 12% |
 | field | 0 | 18 | 0 | 4,207 | 0.02 | 26% |
 | scene | 0 | 13 | 0 | 2,611 | 0.04 | 45% |
-| core, data | 2 | 8 | 300 | 1,916 | 0.12 | 99% |
+| core, data | 1 | 8 | 117 | 1,896 | 0.07 | 93% |
 | sound | 0 | 4 | 0 | 1,946 | 0.00 | 0% |
-| **total** | **23** | **106** | **9,906** | **30,173** | **0.14** | **48%** |
+| **total** | **22** | **106** | **9,723** | **30,185** | **0.14** | **48%** |
 
 Scene's 45%, event's 13% and field's 26% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by

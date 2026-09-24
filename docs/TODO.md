@@ -72,6 +72,21 @@ rest waits, is [PLAN.md](PLAN.md).
   - `title.c:332`'s `move_logo` sets channel 0's script through the raw
     accessor: export a `scene_channel_go_to` from `script.c`.
 
+- **What core's controller rewrite left** (RECOMP.md, "Phase 3a: the
+  controller off the machine"):
+  - the rest of `game/core/` reads as translation though none of it is on the
+    baseline (0.07 a line hides it): `palette.c` (every function on the
+    machine, slots as byte offsets, the multiplier used to compute, the
+    scratch pointer re-read per colour), `sound_driver.c` (the CPU half, on
+    the machine throughout, names from `$2F00`), `tile_animation.c` (offset
+    arithmetic into the slot records, the transfer's write order spelled out,
+    call sites computed), `display.c` (the power-on setup as register bytes
+    through the decoders, in the original's order) and `memory.c` (the block
+    move stub as `m_mvn`);
+  - the button names other subsystems still define privately: `event/input.c`
+    (the game's order, `core/input.h`'s `BUTTON_*`), `battle/nmi.c` and
+    `battle/frame.c` (the controller's, `platform/input.h`'s `IN_BUTTON_*`).
+
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
   machine"):
   - `menu/epoch.c` is still on the transcription backlog (0.16 operations a
@@ -993,8 +1008,6 @@ waits on M5 rather than on a backend.
   - `frame.c` derives the controller's carry (its compare with the reset
     buttons) twice, at the pause sound's call and at the task lists'; once,
     named, would do.
-  - The button names `frame.c` defines belong in `platform/input.h`, where a
-    second subsystem's would find them.
   - `SCENE_VBLANK_TASKS` is the map's `scene_early_tasks`: one name for both.
   - `script.c`: the register encoding (`(operand & 0x1E) / 2`) and the operand
     offsets the adapters spell out want the table to decode typed operands.

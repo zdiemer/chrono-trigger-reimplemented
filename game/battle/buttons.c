@@ -8,10 +8,10 @@
  * buttons from battle_menu_buttons, where they gather until then. */
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "platform/input.h"
 #include "vars.h"
 
 enum { FIRST_REPEAT_DELAY = 15, REPEAT_EVERY_FRAME = 1, AFTER_A_DELAY = 24 };
-enum { BUTTON_A = 0x0080 };
 
 // $CD:0340
 static void take_buttons(GameState *g)
@@ -36,7 +36,7 @@ static void take_buttons(GameState *g)
     }
     set_battle_repeat_buttons(g, buttons);
     set_battle_menu_buttons(g, battle_menu_buttons(g) | buttons);
-    if (buttons & BUTTON_A)
+    if (buttons & IN_BUTTON_A)
         set_battle_repeat_delay(g, (uint16_t)((battle_repeat_delay(g) & 0xFF00) | AFTER_A_DELAY));
 }
 

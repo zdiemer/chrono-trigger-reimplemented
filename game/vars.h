@@ -3081,9 +3081,10 @@ void set_battle_screen_script(GameState *g, uint32_t v);
 uint16_t battle_screen_channel(const GameState *g);
 void set_battle_screen_channel(GameState *g, uint16_t v);
 
-enum { BATTLE_SCRATCH_COUNT = 23 };   /* by byte */
-/* Direct-page scratch the battle's routines share ($45-$5B): counts, thresholds, operands and
- * table offsets, each routine's own */
+enum { BATTLE_SCRATCH_COUNT = 38 };   /* by byte */
+/* Direct-page scratch the battle's routines share ($45-$6A): counts, thresholds, operands and
+ * table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and
+ * counts at $53-$6A, the count of tiles its callers hand it at $67 */
 uint8_t battle_scratch(const GameState *g, unsigned i);
 void set_battle_scratch(GameState *g, unsigned i, uint8_t v);
 
@@ -3133,6 +3134,12 @@ void set_battle_transfer_pending(GameState *g, uint8_t v);
 uint8_t battle_effect_sprite_attributes(const GameState *g);
 void set_battle_effect_sprite_attributes(GameState *g, uint8_t v);
 
+/* The stat block ($80 times the battle slot) of the combatant at hand: the party member the
+ * window is drawing, or whose menu is open ($CF:FD9E notes it there), or the combatant a status
+ * pose was chosen for */
+uint16_t battle_current_stat_block(const GameState *g);
+void set_battle_current_stat_block(GameState *g, uint16_t v);
+
 /* Cycles 0-3: which of the four queued VRAM uploads runs this frame, and whose animations step
  * (0 the party, 1-3 an enemy group) */
 uint8_t battle_frame_phase(const GameState *g);
@@ -3159,12 +3166,25 @@ enum { BATTLE_DIVISION_COUNT = 8 };   /* by byte: the dividend, a word ($B1), th
 uint8_t battle_division(const GameState *g, unsigned i);
 void set_battle_division(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_DATA_POINTERS_COUNT = 12 };   /* by byte */
+/* Long pointers the battle's routines read the ROM through, each routine its own: a frame's tile
+ * list ($BA) and the offset of the object's graphics ($BD), an enemy's frame list ($C0) and
+ * delay list ($C3) */
+uint8_t battle_data_pointers(const GameState *g, unsigned i);
+void set_battle_data_pointers(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_EFFECT_CELLS_COUNT = 12 };   /* by byte */
 /* The effect loops' cells: the slot ($C6, a word), twice and four times it ($C8, $CA), and the
  * handlers' scratch ($CC-$D1): a point, a target, the proximity limit ($D1) and result ($D0) for
  * $CF:F957, sine products, a 16-bit substep count */
 uint8_t battle_effect_cells(const GameState *g, unsigned i);
 void set_battle_effect_cells(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_DIRECTION_POINTS_COUNT = 4 };   /* by byte */
+/* The two points $C1:0222 finds the direction between: from X and Y ($D3, $D4) to X and Y ($D5,
+ * $D6) */
+uint8_t battle_direction_points(const GameState *g, unsigned i);
+void set_battle_direction_points(GameState *g, unsigned i, uint8_t v);
 
 /* Nonzero while the four rotating queued VRAM uploads run (and $A013 is clear) */
 uint8_t battle_queued_uploads_on(const GameState *g);
@@ -3186,6 +3206,12 @@ void set_battle_menu_buttons(GameState *g, uint16_t v);
 /* The controller's buttons held this frame, as the battle reads them */
 uint16_t battle_joypad(const GameState *g);
 void set_battle_joypad(GameState *g, uint16_t v);
+
+enum { BATTLE_TARGET_DISPLAY_COUNT = 5 };   /* by byte: the enemy ($0200), its HP ($0201, a word) and maximum HP ($0203, a word) */
+/* The enemy the single target cursor is on, for $CD:002D and $CD:0030, which show its name and,
+ * where the party can see it, its HP */
+uint8_t battle_target_display(const GameState *g, unsigned i);
+void set_battle_target_display(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_WINDOW_LINE_DELTAS_COUNT = 128 };   /* by table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones) */
 /* Per-line amounts added to the window edges of lines 48-175 */
@@ -3221,22 +3247,29 @@ void set_battle_object_sprite_entries_tile(GameState *g, unsigned slot, uint8_t 
 uint8_t battle_object_sprite_entries_attributes(const GameState *g, unsigned slot);
 void set_battle_object_sprite_entries_attributes(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_TECH_RECORDS_COUNT = 19 };   /* by tech entry (from the member's record base at $CC:F395 + member * 2) */
+enum { BATTLE_TECH_RECORDS_COUNT = 60 };   /* by party member * 20 + the entry the member's tech list names (battle_tech_list) */
 /* Tech id ($FF: none); what the member's tech list shows */
-uint8_t battle_tech_records_id(const GameState *g, unsigned i);
-void set_battle_tech_records_id(GameState *g, unsigned i, uint8_t v);
+uint8_t battle_tech_records_id(const GameState *g, unsigned member);
+void set_battle_tech_records_id(GameState *g, unsigned member, uint8_t v);
+/* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it,
+ * and what it is isn't worked out (docs/TODO.md) */
+uint8_t battle_tech_records_menu_detail(const GameState *g, unsigned member);
+void set_battle_tech_records_menu_detail(GameState *g, unsigned member, uint8_t v);
 /* Bit 7 set while the tech is dimmed (can't be used now) */
-uint8_t battle_tech_records_flags(const GameState *g, unsigned i);
-void set_battle_tech_records_flags(GameState *g, unsigned i, uint8_t v);
-/* MP cost for the first member ($FF or negative: none) */
-uint8_t battle_tech_records_cost(const GameState *g, unsigned i);
-void set_battle_tech_records_cost(GameState *g, unsigned i, uint8_t v);
+uint8_t battle_tech_records_flags(const GameState *g, unsigned member);
+void set_battle_tech_records_flags(GameState *g, unsigned member, uint8_t v);
+/* MP the tech costs the party member in the first slot (negative: none) */
+uint8_t battle_tech_records_cost(const GameState *g, unsigned member);
+void set_battle_tech_records_cost(GameState *g, unsigned member, uint8_t v);
 /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
-uint8_t battle_tech_records_partners(const GameState *g, unsigned i);
-void set_battle_tech_records_partners(GameState *g, unsigned i, uint8_t v);
-/* MP costs for the second and third members */
-uint16_t battle_tech_records_partner_costs(const GameState *g, unsigned i);
-void set_battle_tech_records_partner_costs(GameState *g, unsigned i, uint16_t v);
+uint8_t battle_tech_records_partners(const GameState *g, unsigned member);
+void set_battle_tech_records_partners(GameState *g, unsigned member, uint8_t v);
+/* MP it costs the member in the second slot (negative: none) */
+uint8_t battle_tech_records_second_cost(const GameState *g, unsigned member);
+void set_battle_tech_records_second_cost(GameState *g, unsigned member, uint8_t v);
+/* MP it costs the member in the third slot (negative: none) */
+uint8_t battle_tech_records_third_cost(const GameState *g, unsigned member);
+void set_battle_tech_records_third_cost(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_MEMBER_CARRIED_COUNT = 3 };   /* by party member */
 /* Five bytes the battle keeps for each party member; the first goes back into its stat block
@@ -3419,19 +3452,39 @@ void set_battle_remembered_item_row(GameState *g, uint8_t v);
 
 enum { BATTLE_DECODED_TILES_COUNT = 3072 };   /* by byte */
 /* Tile graphics decoded to 4 bitplanes for upload (load step 3 sends $C00 bytes to VRAM $1800);
- * battle_build_bitmap_sprites also reads its shape stream here */
+ * battle_build_bitmap_shapes also reads its shape stream here */
 uint8_t battle_decoded_tiles(const GameState *g, unsigned i);
 void set_battle_decoded_tiles(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_EFFECT_SPRITE_DATA_COUNT = 6272 };   /* by byte: the 48 effect sprite sets, 0-31 of 48 sprites each $C0 bytes apart, then 32-47 of two, 8 bytes apart ($CC:F7C0) */
-/* The effect sprite sets: four bytes a sprite (X, Y from the anchor, tile, attributes) */
+/* The effect sprite sets, four bytes a sprite (X, Y from the anchor, tile, attributes): sets
+ * 0-31 of 48 sprites each, sets 32-47 of two ($CC:F7C0 gives where each starts) */
 uint8_t battle_effect_sprite_data(const GameState *g, unsigned i);
 void set_battle_effect_sprite_data(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCRIPT_VARIABLES_COUNT = 27 };   /* by variable, by the number a command names */
+/* The animation scripts' variables, which their commands set, count up and down, add to and
+ * compare by number ($C1:58F3, $C1:5935, $C1:5731) */
+uint8_t battle_script_variables(const GameState *g, unsigned i);
+void set_battle_script_variables(GameState *g, unsigned i, uint8_t v);
 
 /* Set while the screen script channels run; cleared when both have ended. The HP gradient waits
  * for it */
 uint8_t battle_screen_scripts_running(const GameState *g);
 void set_battle_screen_scripts_running(GameState *g, uint8_t v);
+
+enum { BATTLE_SCRIPT_MARKS_COUNT = 2 };   /* by mark */
+/* Two more of the scripts' values, each with commands of its own that set it and compare it
+ * ($C1:5901, $C1:590F, $C1:5746, $C1:5759) */
+uint8_t battle_script_marks(const GameState *g, unsigned i);
+void set_battle_script_marks(GameState *g, unsigned i, uint8_t v);
+
+/* X */
+uint8_t battle_script_point_x(const GameState *g);
+void set_battle_script_point_x(GameState *g, uint8_t v);
+/* Y */
+uint8_t battle_script_point_y(const GameState *g);
+void set_battle_script_point_y(GameState *g, uint8_t v);
 
 enum { BATTLE_ANIMATION_POSITIONS_COUNT = 6 };   /* by animation slot */
 /* Positions computed for the six animation slots with a position mode */
@@ -3442,6 +3495,12 @@ enum { BATTLE_SCRIPT_RUNNING_COUNT = 16 };   /* by script channel */
 /* Nonzero while the animation script channel runs */
 uint8_t battle_script_running(const GameState *g, unsigned channel);
 void set_battle_script_running(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCRIPT_POINTER_PADS_COUNT = 17 };   /* by script channel (16: the byte after the last pointer) */
+/* The byte before each channel's pointer (battle_script_pointers), and the one after the last,
+ * which only the objects' reset writes */
+uint8_t battle_script_pointer_pads(const GameState *g, unsigned channel);
+void set_battle_script_pointer_pads(GameState *g, unsigned channel, uint8_t v);
 
 enum { BATTLE_SCRIPT_POINTERS_COUNT = 16 };   /* by script channel */
 /* Each animation script channel's program pointer (24-bit) */
@@ -3632,12 +3691,15 @@ enum { BATTLE_CHARACTER_NAME_TILES_COUNT = 70 };   /* by byte (two rows of five 
 uint8_t battle_character_name_tiles(const GameState *g, unsigned i);
 void set_battle_character_name_tiles(GameState *g, unsigned i, uint8_t v);
 
-/* The number being turned into digit tiles (left holding it modulo 100) */
+/* The number the original's callers hand the digit routines; they leave it holding its ones
+ * digit less ten */
 uint16_t battle_number(const GameState *g);
 void set_battle_number(GameState *g, uint16_t v);
 
-enum { BATTLE_DIGITS_COUNT = 4 };   /* by digit ($949C blank, then hundreds, tens, ones) */
-/* The number's digit tiles ($73 zero digit, blanked when leading; $FF blank) */
+enum { BATTLE_DIGITS_COUNT = 5 };   /* by place, the most significant first: ten thousands, thousands, hundreds, tens, ones */
+/* A number's digit tiles, where the digit routines leave them for the original's callers: the
+ * window's (the last three; $73 the zero, $FF blank) and the number sprites' (the last four; $90
+ * the zero, and a miss fills all five) */
 uint8_t battle_digits(const GameState *g, unsigned i);
 void set_battle_digits(GameState *g, unsigned i, uint8_t v);
 
@@ -3690,15 +3752,30 @@ enum { BATTLE_TECH_SCROLL_COUNT = 3 };   /* by party slot */
 uint8_t battle_tech_scroll(const GameState *g, unsigned slot);
 void set_battle_tech_scroll(GameState *g, unsigned slot, uint8_t v);
 
+/* The menu's member count less one, as the window was last redrawn: nonzero when the command
+ * windows may offer combination techs */
+uint8_t battle_combos_offered(const GameState *g);
+void set_battle_combos_offered(GameState *g, uint8_t v);
+
 /* Nonzero while targets are being chosen; the cursors are then placed on the objects in
  * battle_targets */
 uint8_t battle_targeting(const GameState *g);
 void set_battle_targeting(GameState *g, uint8_t v);
 
+/* Nonzero while the target being chosen may bring the other frame on: a single target's cursor
+ * near the screen's top turns battle_alternate_frame on, and near its bottom off */
+uint8_t battle_target_moves_frame(const GameState *g);
+void set_battle_target_moves_frame(GameState *g, uint8_t v);
+
 /* Next target entry the group target cursors are placed from (cycles through the entries, three
  * at a time) */
 uint8_t battle_target_cursor(const GameState *g);
 void set_battle_target_cursor(GameState *g, uint8_t v);
+
+/* Negative when choosing targets found none (the last target entry's $FF); the target cursors
+ * are left alone then */
+uint8_t battle_no_targets(const GameState *g);
+void set_battle_no_targets(GameState *g, uint8_t v);
 
 enum { BATTLE_FACING_STRIDE_LOW_COUNT = 11 };   /* by battle slot */
 /* Low byte of the length of one facing's part of the object's frame lists (the gap to the next
@@ -3729,6 +3806,12 @@ enum { BATTLE_PARTY_FRAME_COUNT = 3 };   /* by party slot */
 /* Party member's position in its pose's frame list ($FF restarts the pose) */
 uint8_t battle_party_frame(const GameState *g, unsigned slot);
 void set_battle_party_frame(GameState *g, unsigned slot, uint8_t v);
+/* Party member's position in its pose's frame list ($FF restarts the pose) Unchecked, for marked
+ * scaffolding only: battle_choose_status_pose restarts the frame list of whatever combatant it
+ * chose a pose for through this table, so an enemy's write lands 5 to 12 bytes past it, the last
+ * three on the frame delays of enemies 0-2 (game/battle/animation.c, restart_frame_list) */
+uint8_t battle_party_frame_unchecked(const GameState *g, unsigned slot);
+void set_battle_party_frame_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_ENEMY_FRAME_DELAY_COUNT = 8 };   /* by enemy */
 /* Frames until the enemy's next animation frame */
@@ -3805,6 +3888,11 @@ enum { BATTLE_ENEMY_ANIMATION_LOADED_COUNT = 8 };   /* by enemy */
 uint8_t battle_enemy_animation_loaded(const GameState *g, unsigned i);
 void set_battle_enemy_animation_loaded(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_ENEMY_LINK_SEEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* The enemy's link (battle_enemy_link) as its animation effect last saw it */
+uint8_t battle_enemy_link_seen(const GameState *g, unsigned i);
+void set_battle_enemy_link_seen(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_BOUNDS_LEFT_COUNT = 11 };   /* by battle slot */
 /* Object's left screen bound (clamped to 0) */
 uint8_t battle_bounds_left(const GameState *g, unsigned slot);
@@ -3850,10 +3938,41 @@ enum { BATTLE_ENEMY_ACTS_ANYWAY_COUNT = 8 };   /* by enemy (battle slot - 3) */
 uint8_t battle_enemy_acts_anyway(const GameState *g, unsigned i);
 void set_battle_enemy_acts_anyway(GameState *g, unsigned i, uint8_t v);
 
+/* The place in battle_anim_order the enemies' animation step has reached (3 once through) */
+uint8_t battle_anim_order_place(const GameState *g);
+void set_battle_anim_order_place(GameState *g, uint8_t v);
+
 enum { BATTLE_ENEMY_NUMBERS_COUNT = 8 };   /* by enemy */
 /* Each enemy's number (its entry in the enemy tables at $E4:F600 and $CC:6500) */
 uint16_t battle_enemy_numbers(const GameState *g, unsigned i);
 void set_battle_enemy_numbers(GameState *g, unsigned i, uint16_t v);
+
+/* Which search $C1:2986 makes for a target (2: the nearest enemy) */
+uint8_t battle_target_search(const GameState *g);
+void set_battle_target_search(GameState *g, uint8_t v);
+
+/* The combatant $C1:2986 searches for a target for (battle slot) */
+uint8_t battle_target_searcher(const GameState *g);
+void set_battle_target_searcher(GameState *g, uint8_t v);
+
+/* The combatant $C1:2986's search found (battle slot) */
+uint8_t battle_target_found(const GameState *g);
+void set_battle_target_found(GameState *g, uint8_t v);
+
+/* Counted up by a script command ($C1:4D00) for the battle's code waiting on the scripts
+ * ($C1:40CE) */
+uint8_t battle_script_signal(const GameState *g);
+void set_battle_script_signal(GameState *g, uint8_t v);
+
+/* Offset in bank $CD of the effect's palette animation frames (two bytes a frame: the color set
+ * and where it goes) */
+uint16_t battle_palette_anim_frames(const GameState *g);
+void set_battle_palette_anim_frames(GameState *g, uint16_t v);
+
+/* Offset in bank $CE of the effect's animation records, which battle_index_effect_animations
+ * divides into its sixteen animations */
+uint16_t battle_effect_records(const GameState *g);
+void set_battle_effect_records(GameState *g, uint16_t v);
 
 enum { BATTLE_OBJECT_PALETTE_INITIAL_COUNT = 11 };   /* by battle slot */
 /* The palette each object starts with (as battle_object_palette); enemies' sprite entries at
@@ -3931,8 +4050,8 @@ uint8_t battle_item_arrows_shown(const GameState *g);
 void set_battle_item_arrows_shown(GameState *g, uint8_t v);
 
 enum { BATTLE_ANIM_HELD_COUNT = 11 };   /* by battle slot */
-/* Set when the combatant waited a frame for the graphics upload; the next pass starts its
- * group's order after it */
+/* Set (counted up) when the combatant waited a frame because another object's graphics had been
+ * built; the next pass starts its group's order with it, and building its own graphics clears it */
 uint8_t battle_anim_held(const GameState *g, unsigned slot);
 void set_battle_anim_held(GameState *g, unsigned slot, uint8_t v);
 
@@ -3950,10 +4069,21 @@ void set_battle_frame_tick(GameState *g, uint8_t v);
 uint8_t battle_frame_tick_4(const GameState *g);
 void set_battle_frame_tick_4(GameState *g, uint8_t v);
 
+/* battle_frame_phase as the battle's frame loop saved it before stepping the animations
+ * ($C1:10A6), which it puts back after; the enemies' step stops short of it */
+uint8_t battle_frame_phase_saved(const GameState *g);
+void set_battle_frame_phase_saved(GameState *g, uint8_t v);
+
 enum { BATTLE_OBJECT_PALETTE_COUNT = 11 };   /* by battle slot */
 /* Object's sprite palette (times 2, the attribute bits; party $0A, $0C, $0E) */
 uint8_t battle_object_palette(const GameState *g, unsigned slot);
 void set_battle_object_palette(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_NUMBER_COLORS_COUNT = 8 };   /* by color: the first four of sprite palette 0, then of sprite palette 4 */
+/* The number sprites' colors, loaded at setup; each number command puts them back in the working
+ * palette */
+uint16_t battle_number_colors(const GameState *g, unsigned i);
+void set_battle_number_colors(GameState *g, unsigned i, uint16_t v);
 
 enum { BATTLE_OBJECT_ATTRIBUTE_BITS_COUNT = 11 };   /* by battle slot */
 /* Attribute bits ORed with the palette into the object's sprites */
@@ -3988,6 +4118,11 @@ void set_battle_action_queue(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_action_queue_length(const GameState *g);
 void set_battle_action_queue_length(GameState *g, uint8_t v);
 
+enum { BATTLE_MEMBER_FACING_TARGET_COUNT = 3 };   /* by party slot */
+/* The enemy (battle slot) the party member last turned to face, its nearest */
+uint8_t battle_member_facing_target(const GameState *g, unsigned slot);
+void set_battle_member_facing_target(GameState *g, unsigned slot, uint8_t v);
+
 enum { BATTLE_GAUGE_WAIT_COUNT = 3 };   /* by party slot */
 /* Party member's remaining wait before it can act (copied from its timer counter each pass); its
  * gauge shows the part that has passed, highlighted while nonzero */
@@ -4009,21 +4144,40 @@ enum { BATTLE_MENU_LIST_TILES_COUNT = 640 };   /* by tile */
 uint8_t battle_menu_list_tiles(const GameState *g, unsigned i);
 void set_battle_menu_list_tiles(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_SELECTED_TECH_COUNT = 7 };   /* by byte of the tech record */
-/* Copy of the record of the tech under the tech list cursor ($FF when none): id at +0, costs at
- * +3, +5 and +6, partners at +4 */
-uint8_t battle_selected_tech(const GameState *g, unsigned i);
-void set_battle_selected_tech(GameState *g, unsigned i, uint8_t v);
+/* Tech id ($FF: none); what the member's tech list shows */
+uint8_t battle_selected_tech_id(const GameState *g);
+void set_battle_selected_tech_id(GameState *g, uint8_t v);
+/* A byte the tech menu copies with the rest of the record; nothing in the ported code reads it,
+ * and what it is isn't worked out (docs/TODO.md) */
+uint8_t battle_selected_tech_menu_detail(const GameState *g);
+void set_battle_selected_tech_menu_detail(GameState *g, uint8_t v);
+/* Bit 7 set while the tech is dimmed (can't be used now) */
+uint8_t battle_selected_tech_flags(const GameState *g);
+void set_battle_selected_tech_flags(GameState *g, uint8_t v);
+/* MP the tech costs the party member in the first slot (negative: none) */
+uint8_t battle_selected_tech_cost(const GameState *g);
+void set_battle_selected_tech_cost(GameState *g, uint8_t v);
+/* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
+uint8_t battle_selected_tech_partners(const GameState *g);
+void set_battle_selected_tech_partners(GameState *g, uint8_t v);
+/* MP it costs the member in the second slot (negative: none) */
+uint8_t battle_selected_tech_second_cost(const GameState *g);
+void set_battle_selected_tech_second_cost(GameState *g, uint8_t v);
+/* MP it costs the member in the third slot (negative: none) */
+uint8_t battle_selected_tech_third_cost(const GameState *g);
+void set_battle_selected_tech_third_cost(GameState *g, uint8_t v);
 
 enum { BATTLE_PENDING_TRANSFER_COUNT = 9 };   /* by channel value (mode, destination, source low, high, bank, size low, high, VRAM low, high) */
 /* The transfer battle_upload_vram makes when $A0 is set, one value in every sixth byte */
 uint8_t battle_pending_transfer(const GameState *g, unsigned channel);
 void set_battle_pending_transfer(GameState *g, unsigned channel, uint8_t v);
 
-/* Which of three battle window layouts is used (0, 1, 2): positions of names, HP, MP and gauges,
- * and whether max HP is shown (layout 0) */
-uint8_t battle_window_layout(const GameState *g);
-void set_battle_window_layout(GameState *g, uint8_t v);
+/* Which of three battle window layouts the settings chose (0, 1, 2; past 2 as 2): positions of
+ * names, HP, MP and gauges, and whether max HP is shown (layout 0). Setup writes a byte; the
+ * window's code reads it as a byte in some places and a word in others, so the byte after it is
+ * 0 as the game goes */
+uint16_t battle_window_layout(const GameState *g);
+void set_battle_window_layout(GameState *g, uint16_t v);
 
 enum { BATTLE_GAUGE_WAIT_FULL_COUNT = 3 };   /* by party slot */
 /* The full wait battle_gauge_wait is measured against */
@@ -4039,6 +4193,17 @@ enum { BATTLE_TRIPLE_TECHS_COUNT = 3 };   /* by party slot */
 /* Set when the member's tech list has a triple tech section (the $FD marker and entry 18) */
 uint8_t battle_triple_techs(const GameState *g, unsigned slot);
 void set_battle_triple_techs(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_ENEMY_HP_VISIBLE_COUNT = 8 };   /* by enemy */
+/* Nonzero for an enemy whose HP the target display may show */
+uint8_t battle_enemy_hp_visible(const GameState *g, unsigned i);
+void set_battle_enemy_hp_visible(GameState *g, unsigned i, uint8_t v);
+
+/* Nonzero when a party member's equipment lets the party see enemies' HP (from the stat blocks'
+ * byte $57 at setup); the single target cursor then shows it for enemies battle_enemy_hp_visible
+ * allows */
+uint8_t battle_enemy_hp_seen(const GameState *g);
+void set_battle_enemy_hp_seen(GameState *g, uint8_t v);
 
 /* Priority bits of the four cursor sprites and the shadows; bit 3 picks the animated color at
  * $233C or $23BC */
@@ -4063,6 +4228,12 @@ void set_battle_object_hidden(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_formation_leader(const GameState *g);
 void set_battle_formation_leader(GameState *g, uint8_t v);
 
+enum { BATTLE_NUMBER_AT_CURSOR_COUNT = 11 };   /* by battle slot */
+/* Nonzero for a combatant whose numbers show at its cursor point (its object's position plus
+ * battle_cursor_offset_x and _y) rather than at its object's position */
+uint8_t battle_number_at_cursor(const GameState *g, unsigned slot);
+void set_battle_number_at_cursor(GameState *g, unsigned slot, uint8_t v);
+
 /* Pointer offset (channel * 4) of the running channel */
 uint8_t battle_script_offset(const GameState *g);
 void set_battle_script_offset(GameState *g, uint8_t v);
@@ -4083,6 +4254,12 @@ void set_battle_graphics_upload_request(GameState *g, uint8_t v);
 /* Set while the timed effect slots run; the enemies' orbits run instead otherwise */
 uint8_t battle_effects_running(const GameState *g);
 void set_battle_effects_running(GameState *g, uint8_t v);
+
+enum { BATTLE_SCRIPT_SUBJECTS_COUNT = 11 };   /* by script channel */
+/* The combatant each animation script channel animates, which its commands act on ($FF: none;
+ * channel 0's is set at the battle's start from $AE91, $CC:F165) */
+uint8_t battle_script_subjects(const GameState *g, unsigned channel);
+void set_battle_script_subjects(GameState *g, unsigned channel, uint8_t v);
 
 /* Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled
  * reads it: docs/TODO.md) */
@@ -4114,8 +4291,8 @@ uint8_t battle_bounds_y(const GameState *g, unsigned slot);
 void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_BITMAP_COUNTS_COUNT = 48 };   /* by effect sprite set */
-/* Number of sprites in each effect sprite set (battle_effect_sprite_data); the first four are
- * the bitmap shapes battle_build_bitmap_sprites builds */
+/* Number of sprites built into each effect sprite set (battle_effect_sprite_data) from a bitmap
+ * shape */
 uint8_t battle_bitmap_counts(const GameState *g, unsigned i);
 void set_battle_bitmap_counts(GameState *g, unsigned i, uint8_t v);
 
@@ -4128,11 +4305,55 @@ void set_battle_background_cycle_on(GameState *g, uint8_t v);
 uint8_t battle_demo_exiting(const GameState *g);
 void set_battle_demo_exiting(GameState *g, uint8_t v);
 
+/* The party member whose turn it is to face its nearest enemy, with bit 7 while the member has
+ * taken the turn and not yet turned (it turns when it next animates, and keeps the turn until
+ * another member takes it) */
+uint8_t battle_facing_turn(const GameState *g);
+void set_battle_facing_turn(GameState *g, uint8_t v);
+
+/* Set once the tech page has worked out which of the member's techs can't be used now */
+uint8_t battle_tech_list_dimmed(const GameState *g);
+void set_battle_tech_list_dimmed(GameState *g, uint8_t v);
+
+/* Set when the window was rebuilt for aiming at a party member; while it is clear, a window in
+ * the second layout with a member in the third menu slot redraws only its gauges between turns */
+uint8_t battle_ally_target_window(const GameState *g);
+void set_battle_ally_target_window(GameState *g, uint8_t v);
+
+enum { BATTLE_MEMBER_SITTING_OUT_COUNT = 11 };   /* by battle slot */
+/* Set for a party member that takes no part in the fight (from $7F:00B4 by character when bit 0
+ * of $7F:00BA is set, $CF:FBD0): the targeting passes it over, and it stands in its field stance
+ * with no weak pose; the enemies' entries stay 0 */
+uint8_t battle_member_sitting_out(const GameState *g, unsigned slot);
+void set_battle_member_sitting_out(GameState *g, unsigned slot, uint8_t v);
+
+/* Flags the fight sets at its start (bit 1 from bit 1 of $7F:00BA, inverted, $CF:FBDE; more ORed
+ * in at $CC:ECAA); bit 0 changes the menu's first command ($C1:12BC), and any set keeps the
+ * status poses that take the combatant's stance from being chosen */
+uint8_t battle_fight_flags(const GameState *g);
+void set_battle_fight_flags(GameState *g, uint8_t v);
+
+enum { BATTLE_COMBATANT_DOWN_COUNT = 11 };   /* by battle slot */
+/* Set when the combatant's pose was chosen while it was knocked out or falling: the targeting
+ * passes over it (but for actions of kind 4), and its next pose clears it ($C1:308C) */
+uint8_t battle_combatant_down(const GameState *g, unsigned slot);
+void set_battle_combatant_down(GameState *g, unsigned slot, uint8_t v);
+
 enum { BATTLE_MEMBER_DISABLED_COUNT = 3 };   /* by party slot */
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
  * techs naming it, are dimmed */
 uint8_t battle_member_disabled(const GameState *g, unsigned slot);
 void set_battle_member_disabled(GameState *g, unsigned slot, uint8_t v);
+
+/* The party member the window marks as the target while an action is aimed at a party member; a
+ * redraw marks the first target's name when it is another */
+uint8_t battle_ally_target_marked(const GameState *g);
+void set_battle_ally_target_marked(GameState *g, uint8_t v);
+
+/* Bit 7 set when the game's settings show a tech's description as the tech list's cursor moves
+ * ($CD:0027 shows it) */
+uint8_t battle_show_descriptions(const GameState *g);
+void set_battle_show_descriptions(GameState *g, uint8_t v);
 
 enum { BATTLE_NUMBER_RISE_ALT_COUNT = 11 };   /* by battle slot */
 /* Nonzero for combatants whose numbers rise by the second table */
@@ -4170,14 +4391,14 @@ void set_battle_object_pose_shown(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_defeat_showing(const GameState *g);
 void set_battle_defeat_showing(GameState *g, uint8_t v);
 
-/* Nonzero while the member being drawn is at 0 HP or low HP on a blink frame: its digits get
- * attribute $2D */
+/* Where the window's routines keep, while they draw a member's numbers, whether they are shaded
+ * (at 0 HP, or low on a blink frame); only they read it */
 uint8_t battle_digit_highlight(const GameState *g);
 void set_battle_digit_highlight(GameState *g, uint8_t v);
 
-/* Blink phase for low HP digits, toggled every 12 frames */
-uint8_t battle_blink(const GameState *g);
-void set_battle_blink(GameState *g, uint8_t v);
+/* Blink phase for low HP digits, toggled every 12 frames (its low byte; the window reads a word) */
+uint16_t battle_blink(const GameState *g);
+void set_battle_blink(GameState *g, uint16_t v);
 
 /* Frames until battle_blink toggles (reloaded with 12) */
 uint8_t battle_blink_timer(const GameState *g);
@@ -4199,6 +4420,12 @@ void set_battle_magus_present(GameState *g, uint8_t v);
 uint8_t battle_reupload_countdown(const GameState *g);
 void set_battle_reupload_countdown(GameState *g, uint8_t v);
 
+enum { BATTLE_MEMBER_FALLING_COUNT = 11 };   /* by battle slot */
+/* Set for a party member the damage now shown takes to 0 HP ($C1:41BE): its pose is the
+ * knocked-out one at once, before its HP says so; the enemies' entries stay 0 */
+uint8_t battle_member_falling(const GameState *g, unsigned slot);
+void set_battle_member_falling(GameState *g, unsigned slot, uint8_t v);
+
 enum { BATTLE_ANIMATING_COUNT = 11 };   /* by battle slot */
 /* Set while the object has an animation in the scheduler */
 uint8_t battle_animating(const GameState *g, unsigned slot);
@@ -4209,10 +4436,22 @@ enum { BATTLE_ANIMATION_DELAY_COUNT = 11 };   /* by battle slot */
 uint8_t battle_animation_delay(const GameState *g, unsigned slot);
 void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v);
 
+enum { BATTLE_ANIMATION_WAIT_CELLS_COUNT = 33 };   /* by cell * 11 + battle slot: the frames an animation has run ($A13A), and the marks two of the scripts' waits for an animation set while they wait ($A145, $A150) */
+/* Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0,
+ * $C1:4E37, $C1:4EB7); what each holds past that isn't worked out */
+uint8_t battle_animation_wait_cells(const GameState *g, unsigned slot);
+void set_battle_animation_wait_cells(GameState *g, unsigned slot, uint8_t v);
+
 enum { BATTLE_PATH_ACTIVE_COUNT = 11 };   /* by battle slot */
 /* Set while the object moves along a scripted path */
 uint8_t battle_path_active(const GameState *g, unsigned slot);
 void set_battle_path_active(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_SCRIPT_COMMAND_CELLS_COUNT = 44 };   /* by cell * 11 + battle slot: a count ($A166, $C1:546E), an unused row ($A171), a countdown ($A17C) and a toggle ($A187) of the blinking command at $C1:5F35 */
+/* Per-combatant cells of the script commands that keep state over frames; what each is for past
+ * that isn't worked out */
+uint8_t battle_script_command_cells(const GameState *g, unsigned slot);
+void set_battle_script_command_cells(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_TRAIL_ON_COUNT = 11 };   /* by battle slot */
 /* Set when the object records a position trail */
@@ -4242,6 +4481,12 @@ enum { BATTLE_EFFECT_FRAME_TIME_COUNT = 8 };   /* by effect */
 uint8_t battle_effect_frame_time(const GameState *g, unsigned i);
 void set_battle_effect_frame_time(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_EFFECT_COMMAND_CELLS_COUNT = 32 };   /* by cell * 8 + effect: the frame time less one ($A1B8, $C1:4E0D), the marks two effect waits set ($A1C0, $A1C8), and an unused row ($A1D0) */
+/* Per-effect cells of the script commands that wait on an effect's animation; what each is for
+ * past that isn't worked out */
+uint8_t battle_effect_command_cells(const GameState *g, unsigned i);
+void set_battle_effect_command_cells(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_EFFECT_SHOWN_COUNT = 8 };   /* by effect */
 /* Nonzero while the effect's sprites are drawn with the objects */
 uint8_t battle_effect_shown(const GameState *g, unsigned i);
@@ -4257,6 +4502,18 @@ void set_battle_anchor_done(GameState *g, unsigned i, uint8_t v);
  * battle makes $FF) */
 uint8_t battle_anchor_done_unchecked(const GameState *g, unsigned i);
 void set_battle_anchor_done_unchecked(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCHEDULED_FRAME_LISTS_COUNT = 11 };   /* by battle slot */
+/* Offset (bank $E4) of the frame list of the animation the scheduler plays on the object; a
+ * party member's frame step keeps its own in the first entry */
+uint16_t battle_scheduled_frame_lists(const GameState *g, unsigned slot);
+void set_battle_scheduled_frame_lists(GameState *g, unsigned slot, uint16_t v);
+
+enum { BATTLE_SCHEDULED_DELAY_LISTS_COUNT = 11 };   /* by battle slot */
+/* Offset (bank $E4) of the delay list of the animation the scheduler plays on the object; a
+ * party member's frame step keeps its own in the first entry */
+uint16_t battle_scheduled_delay_lists(const GameState *g, unsigned slot);
+void set_battle_scheduled_delay_lists(GameState *g, unsigned slot, uint16_t v);
 
 /* Where the animation scheduler's round-robin search resumes */
 uint8_t battle_animation_cursor(const GameState *g);
@@ -4287,19 +4544,36 @@ enum { BATTLE_ANCHOR_OFFSET_Y_COUNT = 8 };   /* by anchor */
 uint16_t battle_anchor_offset_y(const GameState *g, unsigned i);
 void set_battle_anchor_offset_y(GameState *g, unsigned i, uint16_t v);
 
-enum { BATTLE_RECORD_GROUP_STARTS_COUNT = 16 };   /* by group */
-/* Offset in bank CE where each group of 4-byte records starts */
-uint16_t battle_record_group_starts(const GameState *g, unsigned i);
-void set_battle_record_group_starts(GameState *g, unsigned i, uint16_t v);
+enum { BATTLE_EFFECT_ANIMATION_STARTS_COUNT = 16 };   /* by animation */
+/* Offset in bank $CE of the first record of each of the effect's sixteen animations */
+uint16_t battle_effect_animation_starts(const GameState *g, unsigned i);
+void set_battle_effect_animation_starts(GameState *g, unsigned i, uint16_t v);
 
-enum { BATTLE_RECORD_GROUP_COUNTS_COUNT = 16 };   /* by group */
-/* Number of records in each group */
-uint8_t battle_record_group_counts(const GameState *g, unsigned i);
-void set_battle_record_group_counts(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_EFFECT_ANIMATION_FRAMES_COUNT = 16 };   /* by animation */
+/* Number of frames (records) of each of the effect's sixteen animations */
+uint8_t battle_effect_animation_frames(const GameState *g, unsigned i);
+void set_battle_effect_animation_frames(GameState *g, unsigned i, uint8_t v);
+
+/* X of the position an animation slot's position mode worked out (the handlers at $C1:79D3) */
+uint8_t battle_position_found_x(const GameState *g);
+void set_battle_position_found_x(GameState *g, uint8_t v);
+
+/* Y of the position an animation slot's position mode worked out */
+uint8_t battle_position_found_y(const GameState *g);
+void set_battle_position_found_y(GameState *g, uint8_t v);
+
+/* The animation of the enemy whose animation effect runs, which picks the effect's handler
+ * ($CC:FBAB) */
+uint8_t battle_effect_kind(const GameState *g);
+void set_battle_effect_kind(GameState *g, uint8_t v);
 
 /* The enemy whose script channel (8 and up) is running, for its commands */
 uint8_t battle_script_enemy(const GameState *g);
 void set_battle_script_enemy(GameState *g, uint8_t v);
+
+/* The byte after battle_script_enemy, which only the objects' reset writes */
+uint8_t battle_script_enemy_spare(const GameState *g);
+void set_battle_script_enemy_spare(GameState *g, uint8_t v);
 
 enum { BATTLE_EFFECT_SPRITE_SET_COUNT = 8 };   /* by effect */
 /* The sprite set an effect draws (low six bits) */
@@ -4310,6 +4584,12 @@ enum { BATTLE_FACING_STRIDE_HIGH_COUNT = 11 };   /* by battle slot */
 /* High byte of battle_facing_stride_low's length */
 uint8_t battle_facing_stride_high(const GameState *g, unsigned slot);
 void set_battle_facing_stride_high(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_BITMAP_ROW_MASKS_COUNT = 15 };   /* by row */
+/* The bitmap shape's rows as its stream gives them, a bit a sprite from the left; building the
+ * sprites shifts them out, leaving 0 */
+uint8_t battle_bitmap_row_masks(const GameState *g, unsigned row);
+void set_battle_bitmap_row_masks(GameState *g, unsigned row, uint8_t v);
 
 enum { BATTLE_EFFECT_DELAY_COUNT = 19 };   /* by effect slot */
 /* Frames until the effect slot's handler runs */
@@ -4400,6 +4680,10 @@ void set_battle_number_step(GameState *g, uint8_t v);
 uint8_t battle_numbers_row(const GameState *g);
 void set_battle_numbers_row(GameState *g, uint8_t v);
 
+/* The set of numbers (battle_number_records) the script's number command last showed */
+uint8_t battle_numbers_set(const GameState *g);
+void set_battle_numbers_set(GameState *g, uint8_t v);
+
 enum { BATTLE_PREPARED_SPRITES_ON_COUNT = 11 };   /* by battle slot */
 /* Set when the object's prepared (number) sprites are copied to the OAM buffer */
 uint8_t battle_prepared_sprites_on(const GameState *g, unsigned slot);
@@ -4487,6 +4771,10 @@ enum { BATTLE_ANIMATION_POSITION_MODES_COUNT = 6 };   /* by animation slot */
 uint8_t battle_animation_position_modes(const GameState *g, unsigned slot);
 void set_battle_animation_position_modes(GameState *g, unsigned slot, uint8_t v);
 
+/* Set when the player moves the target; placing the target cursors takes it */
+uint8_t battle_targets_changed(const GameState *g);
+void set_battle_targets_changed(GameState *g, uint8_t v);
+
 /* Phase (0-$3D) of the animated color at $233C/$23BC */
 uint8_t battle_color_phase(const GameState *g);
 void set_battle_color_phase(GameState *g, uint8_t v);
@@ -4540,11 +4828,11 @@ void set_battle_effect_spiral_frames(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_single_target(const GameState *g);
 void set_battle_single_target(GameState *g, uint8_t v);
 
-/* Bitmap sprite shape being built (0-3) */
-uint16_t battle_bitmap_shape(const GameState *g);
-void set_battle_bitmap_shape(GameState *g, uint16_t v);
+/* The effect sprite set the next bitmap shape is built into (counted up by its low byte) */
+uint16_t battle_bitmap_set(const GameState *g);
+void set_battle_bitmap_set(GameState *g, uint16_t v);
 
-/* Read offset in the shape stream at $2D00 */
+/* Read offset in the stream of bitmap shapes in the decode buffer (battle_decoded_tiles) */
 uint16_t battle_bitmap_stream(const GameState *g);
 void set_battle_bitmap_stream(GameState *g, uint16_t v);
 
@@ -4572,6 +4860,11 @@ void set_battle_menu_slot_members(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_menu_slot(const GameState *g);
 void set_battle_menu_slot(GameState *g, uint8_t v);
 
+/* How many of the menu's slots hold a party member (battle_menu_slot_members): 0 while nobody
+ * chooses, and a double tech wants two, a triple tech three */
+uint8_t battle_menu_member_count(const GameState *g);
+void set_battle_menu_member_count(GameState *g, uint8_t v);
+
 /* The menu slot the window was last rebuilt for; the command page rebuilds the window when
  * battle_menu_slot differs */
 uint8_t battle_menu_slot_shown(const GameState *g);
@@ -4592,6 +4885,11 @@ void set_battle_menu_tilemap_attributes(GameState *g, unsigned column, uint8_t v
 /* Set to reload the window frames tilemap from $D1:5A50 when the tech page is drawn */
 uint8_t battle_frames_reload_request(const GameState *g);
 void set_battle_frames_reload_request(GameState *g, uint8_t v);
+
+/* Nonzero while an action is aimed at a party member: the menu page to go back to, plus one; the
+ * window then marks the targeted member's name instead of showing the command windows */
+uint8_t battle_ally_target_page(const GameState *g);
+void set_battle_ally_target_page(GameState *g, uint8_t v);
 
 enum { BATTLE_EFFECT_TYPE_COUNT = 19 };   /* by effect slot */
 /* Handler of the effect slot ($CF:F01E table for the first 11, $CF:F02E for the rest) */
@@ -4696,6 +4994,15 @@ enum { BATTLE_EFFECT_ORBIT_RADIUS_COUNT = 19 };   /* by effect slot (0-10 the co
 /* The orbit's radius */
 uint8_t battle_effect_orbit_radius(const GameState *g, unsigned slot);
 void set_battle_effect_orbit_radius(GameState *g, unsigned slot, uint8_t v);
+
+/* The byte before battle_script_countdown, which only the objects' reset writes */
+uint8_t battle_script_countdown_spare(const GameState *g);
+void set_battle_script_countdown_spare(GameState *g, uint8_t v);
+
+/* A count a script command runs down a frame at a time before it goes on ($C1:7349), set by
+ * $C1:6727 */
+uint16_t battle_script_countdown(const GameState *g);
+void set_battle_script_countdown(GameState *g, uint16_t v);
 
 enum { BATTLE_EFFECT_HOME_STAGE_COUNT = 19 };   /* by effect slot (0-10 the combatants', 11-18 the anchors') */
 /* Set once the jump onto its target has first come near it */
@@ -4842,16 +5149,17 @@ void set_battle_action_targets(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_effect_tally(const GameState *g);
 void set_battle_effect_tally(GameState *g, uint8_t v);
 
-enum { BATTLE_NUMBER_RECORDS_COUNT = 44 };   /* by record (by combatant through $CC:F829) */
+enum { BATTLE_NUMBER_RECORDS_COUNT = 44 };   /* by set * 11 + battle slot (the animation script's number commands $50-$53 show sets 0-3) */
 /* The number */
-uint16_t battle_number_records_value(const GameState *g, unsigned i);
-void set_battle_number_records_value(GameState *g, unsigned i, uint16_t v);
-/* Its kind */
-uint8_t battle_number_records_kind(const GameState *g, unsigned i);
-void set_battle_number_records_kind(GameState *g, unsigned i, uint8_t v);
+uint16_t battle_number_records_value(const GameState *g, unsigned slot);
+void set_battle_number_records_value(GameState *g, unsigned slot, uint16_t v);
+/* How it shows: 0 not at all, 5 as a miss, otherwise as a number (1 and 2 in the second palette;
+ * 2, 4 and up rise the second way) */
+uint8_t battle_number_records_kind(const GameState *g, unsigned slot);
+void set_battle_number_records_kind(GameState *g, unsigned slot, uint8_t v);
 /* The record's last byte, which the number display doesn't read; cleared with the rest */
-uint8_t battle_number_records_last_byte(const GameState *g, unsigned i);
-void set_battle_number_records_last_byte(GameState *g, unsigned i, uint8_t v);
+uint8_t battle_number_records_last_byte(const GameState *g, unsigned slot);
+void set_battle_number_records_last_byte(GameState *g, unsigned slot, uint8_t v);
 
 /* The party member the loop's per-member checks are at (3 once they are done) */
 uint8_t battle_member_updating(const GameState *g);
@@ -5171,13 +5479,20 @@ void set_battle_reaction_place_kept(GameState *g, uint16_t v);
 uint8_t battle_random_at_start(const GameState *g);
 void set_battle_random_at_start(GameState *g, uint8_t v);
 
-enum { BATTLE_COMBO_READY_COUNT = 3 };   /* by party slot */
-/* Set when the member can take part in a combination tech now */
-uint8_t battle_combo_ready(const GameState *g, unsigned slot);
-void set_battle_combo_ready(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_COMBO_CALLED_OFF_COUNT = 3 };   /* by party slot */
+/* Set when the member's combination tech is called off: it, or a member it chose as a partner or
+ * that chose it, can't act; $FD:A95F then drops what the member had queued */
+uint8_t battle_combo_called_off(const GameState *g, unsigned slot);
+void set_battle_combo_called_off(GameState *g, unsigned slot, uint8_t v);
+
+/* Where $FD:A8A5 leaves whether the member it was asked about can't act now (knocked out, or a
+ * status that keeps it from combination techs); the combination check reads it after each call */
+uint8_t battle_combo_member_out(const GameState *g);
+void set_battle_combo_member_out(GameState *g, uint8_t v);
 
 enum { BATTLE_COMBO_PAIRS_COUNT = 9 };   /* by member * 3 + member */
-/* 3x3 pairing table filled from the members' partner nibbles ($FF: not paired) */
+/* Who is in each member's combination tech: a row of three per member, the member itself first,
+ * then the members it or they chose as partners, each in its own column ($FF: none) */
 uint8_t battle_combo_pairs(const GameState *g, unsigned member);
 void set_battle_combo_pairs(GameState *g, unsigned member, uint8_t v);
 
@@ -5421,6 +5736,12 @@ void set_battle_buttons_held(GameState *g, uint16_t v);
  * low byte) */
 uint16_t battle_repeat_delay(const GameState *g);
 void set_battle_repeat_delay(GameState *g, uint16_t v);
+
+enum { BATTLE_TILE_ROW_PALETTES_COUNT = 2 };   /* by copy */
+/* The palette word of the battlefield tile row being decoded, twice over, so that a byte of it
+ * can be taken for every eight tiles */
+uint16_t battle_tile_row_palettes(const GameState *g, unsigned i);
+void set_battle_tile_row_palettes(GameState *g, unsigned i, uint16_t v);
 
 enum { BATTLE_SHAKE_OFFSETS_COUNT = 6 };   /* by layer * 2 + axis (BG1-BG3, X then Y) */
 /* Offsets added to the three layers' scroll: the screen shake, on the layers battle_shake_layers

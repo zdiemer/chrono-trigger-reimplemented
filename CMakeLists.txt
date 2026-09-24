@@ -155,19 +155,19 @@ add_library(ct_game STATIC
   game/battle/battlefield.c
   game/battle/bridge.c
   game/battle/buttons.c
-  game/battle/buffers.c
   game/battle/combatants.c
   game/battle/damage.c
+  game/battle/digits.c
   game/battle/display.c
   game/battle/effect_animation.c
   game/battle/effect_paths.c
   game/battle/frame.c
-  game/battle/gauges.c
   game/battle/main_loop.c
   game/battle/menu_window.c
   game/battle/nmi.c
   game/battle/numbers.c
   game/battle/objects.c
+  game/battle/reset.c
   game/battle/screen_beam.c
   game/battle/screen_gradient.c
   game/battle/screen_graphics.c
@@ -180,13 +180,15 @@ add_library(ct_game STATIC
   game/battle/setup.c
   game/battle/sound.c
   game/battle/sprites.c
+  game/battle/status.c
   game/battle/draw_objects.c
   game/battle/object_motion.c
   game/battle/tiles.c
   game/battle/uploads.c
   game/battle/timers.c
   game/battle/wait.c
-  game/battle/window.c)
+  game/battle/window.c
+  game/battle/window_leaves.c)
 target_include_directories(ct_game PUBLIC game)
 target_link_libraries(ct_game PUBLIC ct_runtime)
 

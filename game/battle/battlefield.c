@@ -14,9 +14,6 @@
 
 enum { GRID_CELLS = 256, CELL_PIXELS_SHIFT = 4, CELL_TAKEN = 0x40, PARTY_OFF_GRID = 0x04 };
 
-/* The combatants' objects follow the battle's first twelve objects. */
-enum { FIRST_COMBATANT_OBJECT = 12 };
-
 /* A slot's presence and position, read as the original indexes them: past
  * the eleventh, into the tables after. */
 static bool slot_present(const GameState *g, unsigned slot)
@@ -59,9 +56,9 @@ static void mark_combatants(GameState *g)
     for (unsigned slot = first; slot < first + (unsigned)BATTLE_COMBATANTS; slot++) {
         if (!slot_present(g, slot))
             continue;
-        uint8_t y = object_y(g, FIRST_COMBATANT_OBJECT + slot);
+        uint8_t y = object_y(g, battle_object_of(slot));
         last_row = y & 0xF0;
-        set_battle_grid(g, cell_of(object_x(g, FIRST_COMBATANT_OBJECT + slot), y), CELL_TAKEN);
+        set_battle_grid(g, cell_of(object_x(g, battle_object_of(slot)), y), CELL_TAKEN);
     }
     ORIGINAL_EFFECT(leave_marking_cells(g, first, last_row));
 }
