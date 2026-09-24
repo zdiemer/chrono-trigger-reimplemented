@@ -48,6 +48,11 @@ typedef struct FuzzOptions {
      * the original's. See fuzz_run. */
     unsigned long budget;
     int details;                          /* mismatching states to describe in full */
+    /* Scramble what each call-out's don't-care set names before its callee
+     * runs (native_call_poison), from a generator of its own, so the states
+     * are those of the same seed without it. */
+    bool poison_dc;
+    uint32_t poison_site;                 /* ...only at the call-outs from this site (0: all) */
 } FuzzOptions;
 
 #define FUZZ_DEFAULT_BUDGET 2000000ul
@@ -68,6 +73,7 @@ typedef struct FuzzResult {
     unsigned long callout;         /* skipped: a call-out ran past the budget */
     unsigned long both_long;       /* skipped: the port ran past its budget, and the original didn't finish soon either */
     unsigned long original_long;   /* skipped: the port returned, the original didn't within its budget */
+    unsigned long scrambled;       /* --poison-dc: call-outs scrambled in the states compared */
 } FuzzResult;
 
 /* Fuzz entry e from `base` (a machine in native mode, with an interpreter).

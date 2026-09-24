@@ -569,7 +569,7 @@ static bool call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
     set_scene_call_script_scratch(state_of(s), scene_program_own(), routine);
     s->cpu.a = routine;   /* as the original loaded it: some routines read it */
     set_widths16(s);
-    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_X | DC_Y | DC_N | DC_V | DC_Z);
+    m_jsl_dc(s, 0xC30C58, 0x7E37F3, DC_X | DC_N | DC_Z);
     return can_continue(s, ch);
 }
 

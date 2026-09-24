@@ -76,6 +76,26 @@ static uint64_t rng(void)
     return rng_state;
 }
 
+/* --poison-dc: which call-outs have their don't-care registers scrambled (all,
+ * or those from one site), and the random values, from a generator apart from
+ * the states' own. */
+static uint64_t poison_state;
+static uint32_t poison_site;   /* 0: every call-out */
+static unsigned long poison_calls;   /* in this state */
+
+static bool poison_call(uint32_t site, uint32_t target, uint64_t *bits)
+{
+    (void)target;
+    if (poison_site && site != poison_site)
+        return false;
+    poison_state ^= poison_state << 13;
+    poison_state ^= poison_state >> 7;
+    poison_state ^= poison_state << 17;
+    *bits = poison_state;
+    poison_calls++;
+    return true;
+}
+
 /* The work RAM byte a 24-bit bus address reaches, or -1. */
 static long wram_index(uint32_t addr)
 {
@@ -358,7 +378,10 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
      * instructions, only catches a callee that halts. */
     native_call_step_limit = o->budget;
     native_call_timeout_hook = callout_timeout;
+    native_call_poison = o->poison_dc ? poison_call : NULL;
+    poison_site = o->poison_site;
     rng_state = o->seed * 0x9E3779B97F4A7C15ull | 1;
+    poison_state = o->seed * 0xD1B54A32D192ED03ull | 1;
     uint16_t stack_page = base->cpu.s & 0xFF00;
     for (unsigned long it = 0; it < o->iterations; it++) {
         snes_clone(&orig, base);
@@ -429,6 +452,8 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         native_ran = RAN_OK;
         in_callout = false;
         native_call_steps = 0;
+        native_call_poison_reset();
+        poison_calls = 0;
         native_stop_dont_care_direct = 0;
         native_stop_at_direct = 0;
         native_stop_own_direct = false;
@@ -518,10 +543,12 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
             if (low < lowest_s)
                 lowest_s = low;
         }
+        r.scrambled += poison_calls;
         if (same)
             r.matched++;
         else
             report(&r, o, log, it, first_what, &first_pass, &native, dont_care);
     }
+    native_call_poison = NULL;
     return r;
 }

@@ -306,5 +306,126 @@ class SplitSets(unittest.TestCase):
         self.assertEqual(dc.dc_text(dc.DC_AL | 1), "DC_A | DC_AL")
 
 
+# A dispatcher whose target is read from work RAM at run time: the analysis
+# follows the one target a hint names, which reads nothing, but a caller that
+# stores the pointer itself can send it anywhere.
+# C0:8080  JSR $8088 : RTS
+# C0:8088  LDX #$00 : JMP ($0100)             (hint: to C0:8058, LDA #$03 : RTS)
+CODE_DYNAMIC = {
+    **CODE,
+    0xC08080: bytes.fromhex("208880 60".replace(" ", "")),
+    0xC08088: bytes.fromhex("A200 6C0001".replace(" ", "")),
+}
+
+REGISTRY_DYNAMIC = """
+const NativeEntry game_natives[] = {
+    { .addr = 0xC08080, .name = "dispatch", .fn = dispatch },
+    { .addr = 0xC08000, .name = "elsewhere", .fn = elsewhere },
+};
+"""
+
+EVIDENCE = "dc-evidence: ct_fuzz --poison-dc dispatch, seed 1: 2000 states, 1500 call-outs scrambled, 0 mismatched"
+
+PORT_DYNAMIC = """
+void dispatch(Snes *s)
+{
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_A);
+
+    /* The pointer is the game's own.
+     * %(evidence)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_A | DC_Y);
+
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_C);   /* dc-evidence: fuzzed it, all fine */
+
+    /* %(evidence)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_X | DC_Z);
+
+    /* %(elsewhere)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_C);
+
+    /* %(few)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_V);
+
+    m_jsr_dc(s, 0xC08080, 0xC08088,
+             DC_D);   /* %(evidence)s */
+}
+
+void elsewhere(Snes *s) { m_rts(s); }
+""" % {"evidence": EVIDENCE, "elsewhere": EVIDENCE.replace("dispatch,", "elsewhere,"),
+       "few": EVIDENCE.replace("1500 call-outs", "12 call-outs")}
+
+
+def dynamic_findings():
+    h = Hints()
+    for addr in (0xC08000, 0xC08080):
+        h.entries.append(type("E", (), {"addr": addr, "m": True, "x": True, "kind": "test"})())
+    h.indirect[0xC0808A] = [0xC08058]
+    rom = FakeRom(CODE_DYNAMIC)
+    an = Analyzer(rom, h)
+    an.run()
+    lv, strict = Liveness(an), Liveness(an, strict=True)
+    lv.solve()
+    strict.solve()
+    sources = [dc.Source("game/registry.c", REGISTRY_DYNAMIC), dc.Source("game/port.c", PORT_DYNAMIC)]
+    found, rows, _ = dc.run_sources(sources, [dc.Source("runtime/port/native.h", NATIVE_H)], lv,
+                                    lambda addr: rom.data[bus_to_offset(addr)], strict=strict,
+                                    fuzz_routines={("dispatch", ""), ("elsewhere", "")})
+    return lv, [f.text() for f in found], rows
+
+
+class DynamicTargets(unittest.TestCase):
+    """A call-out into code that reaches a transfer whose target the machine
+    decides at run time: the declaration must hold without trusting the target
+    set, or carry a note naming a fuzz run that scrambled it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.lv, cls.found, cls.rows = dynamic_findings()
+        cls.text = "\n".join(cls.found)
+
+    def at(self, line):
+        return [f for f in self.found if f.startswith("game/port.c:%d:" % line)]
+
+    def test_the_transfer_is_dynamic(self):
+        self.assertEqual(list(self.lv.dynamic_sites(0xC08088)), [0xC0808A])
+        self.assertIn("pointer", self.lv.dynamic_sites(0xC08088)[0xC0808A])
+
+    def test_unresolved_call_out_is_a_finding(self):
+        # the trusting solve has A dead (the one target loads it); without the target set, A may be read
+        self.assertFalse([r for r in self.rows if r.startswith("game/port.c:4:") and ": ok" in r])
+        (f,) = self.at(4)
+        self.assertIn("only by trusting a target set decided at run time", f)
+        self.assertIn("$C0:808A: its pointer ($0100) is in RAM", f)
+        self.assertIn("without that, A AH may be read", f)
+
+    def test_annotated_call_out_passes(self):
+        self.assertEqual(self.at(8), [])
+        self.assertTrue(any(r.startswith("game/port.c:8:") and "ok by fuzz evidence" in r for r in self.rows))
+
+    def test_malformed_note(self):
+        (f,) = self.at(10)
+        self.assertIn("isn't in the form", f)
+
+    def test_note_where_liveness_proves_it(self):
+        # X, N and Z are set by the LDX before the dispatch: no note needed
+        (f,) = self.at(13)
+        self.assertIn("remove the note", f)
+
+    def test_note_must_name_a_routine_reaching_it(self):
+        (f,) = self.at(16)
+        self.assertIn("names elsewhere, which doesn't reach dispatch", f)
+
+    def test_note_must_have_scrambled_enough(self):
+        (f,) = self.at(19)
+        self.assertIn("scrambled 12 call-outs", f)
+
+    def test_note_on_the_statement_lines(self):
+        self.assertEqual(self.at(21), [])
+
+    def test_without_strict_nothing_changes(self):
+        found, _, _ = findings()
+        self.assertFalse([f for f in found if "trusting" in f])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -381,4 +381,19 @@ extern unsigned long native_call_steps;
 extern unsigned long native_call_timeouts;
 extern void (*native_call_timeout_hook)(void);
 
+/* Synchronous call-outs, for ct_fuzz --poison-dc: when a call with a don't-care
+ * set is made and this hook says so (it may pick calls by site and target), the
+ * registers and flags the set names are scrambled, each to a value other than
+ * the caller's, from the hook's random `bits`, so a callee that reads one of
+ * them runs on something other than the original's value and the difference
+ * shows. The callee runs twice from the same machine, first with the caller's
+ * values on a copy: what it left alone (the caller's value after the first
+ * run, the scrambled one after the second) is the caller's own again, as
+ * shadow mode and the shipping mode keep it. Only the outermost call-outs are
+ * scrambled, not the ones their callees' ports make. NULL by default; the
+ * runtime's call-outs never use it. A tool that abandons a port mid-call-out
+ * (its timeout hook) calls native_call_poison_reset before the next. */
+extern bool (*native_call_poison)(uint32_t site, uint32_t target, uint64_t *bits);
+void native_call_poison_reset(void);
+
 #endif
