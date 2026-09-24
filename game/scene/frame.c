@@ -24,6 +24,7 @@
  * where the original waits. */
 #include "scene/scene.h"
 
+#include "core/input.h"
 #include "original_effects.h"
 #include "platform/audio.h"
 #include "platform/input.h"
@@ -36,10 +37,6 @@
 /* The NMI's two handlers, in bank C3: the frame's, and the one that only
  * acknowledges while the frame's work runs. */
 enum { FRAME_HANDLER = 0x08B3, HANDLER_WHILE_WORKING = 0x08C9 };
-
-/* The controller's buttons (PadBits), and the four that reset together. */
-enum { BUTTON_START = 0x1000, BUTTON_SELECT = 0x2000, BUTTON_L = 0x0020, BUTTON_R = 0x0010 };
-enum { RESET_BUTTONS = BUTTON_L | BUTTON_R | BUTTON_SELECT | BUTTON_START };
 
 /* The sound driver commands pausing sends: the effects stop, and unpausing
  * plays sound effect $44, panned to the middle. */
@@ -175,7 +172,7 @@ static PauseChange press_pause(GameState *g, PadBits pad)
 {
     if (!pause_allowed(g))
         return PAUSE_UNCHANGED;
-    if (!(pad & BUTTON_START)) {
+    if (!(pad & IN_BUTTON_START)) {
         set_start_was_down(g, false);
         return PAUSE_UNCHANGED;
     }

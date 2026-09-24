@@ -7377,3 +7377,33 @@ subsystem = "battle"
 state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E"]
 why = "the battlefield's animation state reset, on the battle's page"
+
+# ---- core: the controller and the play time clock ----------------------------------------------
+
+[[routine]]
+name = "input_update"
+subsystem = "core"
+state = "menus"
+args = []
+why = "any state: the per-frame input work sets its own pages, and saves and restores every register of its caller"
+
+[[routine]]
+name = "input_read_joypad"
+subsystem = "core"
+state = "menus"
+args = []
+why = "any state: the controller read sets its own direct page and data bank"
+
+[[routine]]
+name = "input_map_buttons"
+subsystem = "core"
+state = "menus"
+args = ["--d", "0000"]
+why = "the controller's page, the one input_update calls it on (its guard refuses any other)"
+
+[[routine]]
+name = "play_time_tick"
+subsystem = "core"
+state = "menus"
+args = []
+why = "any state: the clock sets its own direct page"

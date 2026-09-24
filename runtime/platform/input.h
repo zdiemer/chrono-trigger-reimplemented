@@ -9,6 +9,13 @@
  * byte is the half with A X L R, the high byte the half with B ... Right. */
 typedef uint16_t PadBits;
 
+/* The buttons, as PadBits. */
+enum {
+    IN_BUTTON_B = 0x8000, IN_BUTTON_Y = 0x4000, IN_BUTTON_SELECT = 0x2000, IN_BUTTON_START = 0x1000,
+    IN_BUTTON_UP = 0x0800, IN_BUTTON_DOWN = 0x0400, IN_BUTTON_LEFT = 0x0200, IN_BUTTON_RIGHT = 0x0100,
+    IN_BUTTON_A = 0x0080, IN_BUTTON_X = 0x0040, IN_BUTTON_L = 0x0020, IN_BUTTON_R = 0x0010,
+};
+
 /* True once the controllers have been read this frame. */
 static inline bool in_ready(Platform *pf, PfOrigin o) { return !(tm_video_status(pf, o) & TM_STATUS_JOYPAD_BUSY); }
 
