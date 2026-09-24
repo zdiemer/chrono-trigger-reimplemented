@@ -6398,16 +6398,6 @@ meaning = "Cycles 0-3: which of the four queued VRAM uploads runs this frame, an
 source = "game/battle/frame.c battle_upload_vram $CF:E300; game/battle/animation.c battle_step_combatant_animations $C1:2D9F"
 
 [[var]]
-name = "battle_work"
-addr = "7E:0080"
-page = "battle"
-count = 30
-index = "cell ($80 + index)"
-subsystem = "battle"
-meaning = "The battle's work cells on its page, $80-$9D: each routine keeps its own values in them on the way (a loop's counters, the tilemap position it is writing at, the number it is drawing), which only it reads again; the ports leave in them what the original leaves"
-source = "game/battle/window.h (battle_leave_work8, battle_leave_work16); the leave_ helpers of game/battle/window.c, status.c, menu_window.c and numbers.c"
-
-[[var]]
 name = "battle_member_stat_block"
 addr = "7E:00A2"
 page = "battle"
@@ -7448,6 +7438,16 @@ meaning = "Set when the member's tech list has a triple tech section (the $FD ma
 source = "game/battle/setup.c mark_member_records and build_member_lists in battle_setup_state $CC:E2E4"
 
 [[var]]
+name = "battle_member_carried"
+addr = "7E:1C48"
+count = 3
+stride = 5
+index = "party member"
+subsystem = "battle"
+meaning = "Five bytes the battle keeps for each party member; the first goes back into its stat block when the battle ends"
+source = "game/battle/main_loop.c $C1:8443"
+
+[[var]]
 name = "battle_enemy_hp_seen"
 addr = "7E:9F34"
 subsystem = "battle"
@@ -7462,15 +7462,6 @@ index = "enemy"
 subsystem = "battle"
 meaning = "Nonzero for an enemy whose HP the target display may show"
 source = "game/battle/menu_window.c show_target $C1:19B4"
-
-[[var]]
-name = "battle_member_equipment"
-addr = "7E:1C48"
-count = 15
-index = "party slot * 5 + the equipment's place (0 the weapon)"
-subsystem = "battle"
-meaning = "The party members' equipment, five bytes each, the weapon first (its palette colors the member's weapon at setup)"
-source = "game/battle/setup.c copy_party_colors ($CC:E710); game/battle/menu_window.c dim_unusable_techs $C1:0EE1 (battle_frog_slot indexes it)"
 
 [[var]]
 name = "battle_tech_list_length"
@@ -8639,13 +8630,6 @@ meaning = "Step of the number display script opcodes (hide, build, wait); while 
 source = "game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB; game/battle/draw_objects.c draw_underlays $CF:EDB8"
 
 [[var]]
-name = "battle_script_command"
-addr = "7E:9895"
-subsystem = "battle"
-meaning = "The animation script command being run, its first byte; the number commands $50-$55 take their set of numbers from its low bits"
-source = "$C1:4CC6 in the script channel's run (sets it); game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB"
-
-[[var]]
 name = "battle_numbers_rising"
 addr = "7E:AC5A"
 subsystem = "battle"
@@ -8658,6 +8642,16 @@ addr = "7E:A3D2"
 subsystem = "battle"
 meaning = "Row of the number motion table reached"
 source = "game/battle/object_motion.c battle_step_prepared_sprites $CF:E781"
+
+[[var]]
+name = "battle_work"
+addr = "7E:0080"
+page = "battle"
+count = 30
+index = "cell ($80-$9D)"
+subsystem = "battle"
+meaning = "Direct-page cells the battle's routines work in, each routine's own; the ports keep their working state in C and leave in them what the original leaves, or put a callee's input there (the effect $CC:F2A9 takes the next frame of, a word at $80)"
+source = "game/battle/battlefield.c battle_mark_object_grid $CC:F110; game/battle/effect_animation.c battle_animate_effects $CC:F278; the battle's ports"
 
 [[var]]
 name = "battle_number_records"
@@ -8844,6 +8838,13 @@ addr = "7E:A010"
 subsystem = "battle"
 meaning = "Animation script channel running"
 source = "game/battle/scripts.c header and battle_run_script_channel $C1:4C9E"
+
+[[var]]
+name = "battle_script_command"
+addr = "7E:9895"
+subsystem = "battle"
+meaning = "The command the running animation script channel is at, which its handler reads (the number commands pick their table by its low bits)"
+source = "game/battle/scripts.c battle_run_script_channel $C1:4C9E; game/battle/numbers.c"
 
 [[var]]
 name = "battle_script_offset"

@@ -6203,3 +6203,123 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 why = "on the battle's page"
+
+# -- window: the battle window, the menu window, the digits and the number sprites (battle/window.c,
+# status.c, digits.c, menu_window.c, numbers.c). The window's entries are guarded on the menu's state
+# as the game keeps it (game/battle/window.c, menu_state_kept); the fills below keep random states
+# inside it, so that both ports are compared on the same states.
+
+[[routine]]
+name = "battle_draw_window"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
+        "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03",
+        "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02",
+        "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02"]
+why = "the menu's state as the game keeps it, which the guard requires: the layout's high byte clear, the menu's member, slot, the slots' members and cursors in range, Frog's slot, the targets combatants and the first an ally (aimed at an ally or not)"
+
+
+[[routine]]
+name = "battle_draw_party_status"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
+        "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03",
+        "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02",
+        "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02"]
+why = "as battle_draw_window, with A's high byte clear, which the guard requires (the original counts the member on in A)"
+
+[[routine]]
+name = "battle_draw_gauge"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0080-7E0080=00-02", "--fill", "7E0081-7E0081=00-00"]
+why = "a party member in its work cell ($80, a word), which the guard requires"
+
+[[routine]]
+name = "battle_number_to_digits"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page, the number in its cell"
+
+[[routine]]
+name = "battle_number_to_2_digits"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page, the number in its cell"
+
+[[routine]]
+name = "battle_blank_leading_zeros"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page, the digits in their cells"
+
+[[routine]]
+name = "battle_draw_menu_window"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
+        "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03",
+        "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02",
+        "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02",
+        "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11"]
+iterations = 5000
+why = "as battle_draw_window, on the three pages, the tech lists' entries naming the member's twenty records and its scroll inside its list, which the guard requires (game/battle/menu_window.c, tech_lists_kept)"
+
+[[routine]]
+name = "battle_draw_menu_window"
+variant = "loose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
+        "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03",
+        "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02",
+        "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02",
+        "--fill", "7E95DB-7E95DB=01-01"]
+iterations = 5000
+why = "the tech page with the tech lists and their scrolls random: the guard turns away a list whose entry is past the member's twenty records, where the port, which counts records, and the original, which reads the ROM's table of their offsets past its end, would part (game/battle/menu_window.c, tech_lists_kept); no game state has one"
+
+[[routine]]
+name = "battle_draw_menu_window"
+variant = "blank"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
+        "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03",
+        "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02",
+        "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02",
+        "--fill", "7E95DB-7E95DB=01-01", "--fill", "7E94D0-7E95D1=FF-FF", "--fill", "7E95EB-7E95ED=00-11"]
+iterations = 5000
+why = "the tech page with every row blank (the list's ids and entries $FF)"
+
+[[routine]]
+name = "battle_place_menu_cursors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00",
+        "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03",
+        "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05",
+        "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00",
+        "--fill", "7E95DB-7E95DB=00-02"]
+iterations = 10000
+why = "as battle_draw_window, on the three pages, with A's high byte clear, which the guard requires"
+
+[[routine]]
+name = "battle_update_combo_members"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 10000
+why = "on the battle's page; $FD:A95F is a call-out"
+
+[[routine]]
+name = "battle_script_build_number_sprites"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EA3D1-7EA3D1=00-03",
+        "--fill", "7E9895-7E9895=50-55"]
+why = "on the battle's page with A's high byte clear (the guard's), each of the command's steps, the number commands $50-$55"

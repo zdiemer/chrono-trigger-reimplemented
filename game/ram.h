@@ -2160,10 +2160,10 @@
 /* Nonzero while the battle NMI or IRQ handler runs; an NMI arriving then returns at once */
 #define RAM_BATTLE_INTERRUPT_BUSY 0x7E007Fu
 #define RAM_BATTLE_INTERRUPT_BUSY_DP 0x7Fu   /* page battle */
-/* The battle's work cells on its page, $80-$9D: each routine keeps its own values in them on the
- * way (a loop's counters, the tilemap position it is writing at, the number it is drawing),
- * which only it reads again; the ports leave in them what the original leaves [30 x $1 bytes, by
- * cell ($80 + index)] */
+/* Direct-page cells the battle's routines work in, each routine's own; the ports keep their
+ * working state in C and leave in them what the original leaves, or put a callee's input there
+ * (the effect $CC:F2A9 takes the next frame of, a word at $80) [30 x $1 bytes, by cell
+ * ($80-$9D)] */
 #define RAM_BATTLE_WORK 0x7E0080u
 #define RAM_BATTLE_WORK_COUNT 30u
 #define RAM_BATTLE_WORK_STRIDE 0x01u
@@ -2283,12 +2283,11 @@
 #define RAM_BATTLE_TECH_RECORDS_PARTNERS 0x7E1A84u /* Combination partners, one party slot per nibble ($F: none, $FF: single tech) */
 #define RAM_BATTLE_TECH_RECORDS_SECOND_COST 0x7E1A85u /* MP it costs the member in the second slot (negative: none) */
 #define RAM_BATTLE_TECH_RECORDS_THIRD_COST 0x7E1A86u /* MP it costs the member in the third slot (negative: none) */
-/* The party members' equipment, five bytes each, the weapon first (its palette colors the
- * member's weapon at setup) [15 x $1 bytes, by party slot * 5 + the equipment's place (0 the
- * weapon)] */
-#define RAM_BATTLE_MEMBER_EQUIPMENT 0x7E1C48u
-#define RAM_BATTLE_MEMBER_EQUIPMENT_COUNT 15u
-#define RAM_BATTLE_MEMBER_EQUIPMENT_STRIDE 0x01u
+/* Five bytes the battle keeps for each party member; the first goes back into its stat block
+ * when the battle ends [3 x $5 bytes, by party member] */
+#define RAM_BATTLE_MEMBER_CARRIED 0x7E1C48u
+#define RAM_BATTLE_MEMBER_CARRIED_COUNT 3u
+#define RAM_BATTLE_MEMBER_CARRIED_STRIDE 0x05u
 /* Long pointer to the object's graphics set, the tiles its frames are assembled from [11 x $3
  * bytes, by battle slot] */
 #define RAM_BATTLE_OBJECT_GRAPHICS 0x7E1C57u
@@ -2727,8 +2726,8 @@
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL 0x7E9888u
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL_COUNT 11u
 #define RAM_BATTLE_OBJECT_PALETTE_INITIAL_STRIDE 0x01u
-/* The animation script command being run, its first byte; the number commands $50-$55 take their
- * set of numbers from its low bits */
+/* The command the running animation script channel is at, which its handler reads (the number
+ * commands pick their table by its low bits) */
 #define RAM_BATTLE_SCRIPT_COMMAND 0x7E9895u
 /* Frames until the enemy's per-frame effect handler runs [8 x $1 bytes, by enemy] */
 #define RAM_BATTLE_ENEMY_EFFECT_DELAY 0x7E9897u

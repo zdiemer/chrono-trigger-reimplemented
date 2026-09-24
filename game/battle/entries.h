@@ -115,7 +115,8 @@ void battle_build_bitmap_sprites(Snes *s);
  * battle/numbers.c: the windows and the numbers, and the guard they run under */
 bool battle_window_ready(Snes *s);
 bool battle_window_member_ready(Snes *s);
-bool battle_cursors_ready(Snes *s);
+bool battle_window_ready_a_clear(Snes *s);
+bool battle_menu_window_ready(Snes *s);
 void battle_draw_window(Snes *s);
 void battle_draw_gauge(Snes *s);
 void battle_draw_party_status(Snes *s);

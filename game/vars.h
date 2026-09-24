@@ -3052,10 +3052,10 @@ void set_battle_mode(GameState *g, uint8_t v);
 uint8_t battle_interrupt_busy(const GameState *g);
 void set_battle_interrupt_busy(GameState *g, uint8_t v);
 
-enum { BATTLE_WORK_COUNT = 30 };   /* by cell ($80 + index) */
-/* The battle's work cells on its page, $80-$9D: each routine keeps its own values in them on the
- * way (a loop's counters, the tilemap position it is writing at, the number it is drawing),
- * which only it reads again; the ports leave in them what the original leaves */
+enum { BATTLE_WORK_COUNT = 30 };   /* by cell ($80-$9D) */
+/* Direct-page cells the battle's routines work in, each routine's own; the ports keep their
+ * working state in C and leave in them what the original leaves, or put a callee's input there
+ * (the effect $CC:F2A9 takes the next frame of, a word at $80) */
 uint8_t battle_work(const GameState *g, unsigned i);
 void set_battle_work(GameState *g, unsigned i, uint8_t v);
 
@@ -3195,11 +3195,11 @@ void set_battle_tech_records_second_cost(GameState *g, unsigned member, uint8_t 
 uint8_t battle_tech_records_third_cost(const GameState *g, unsigned member);
 void set_battle_tech_records_third_cost(GameState *g, unsigned member, uint8_t v);
 
-enum { BATTLE_MEMBER_EQUIPMENT_COUNT = 15 };   /* by party slot * 5 + the equipment's place (0 the weapon) */
-/* The party members' equipment, five bytes each, the weapon first (its palette colors the
- * member's weapon at setup) */
-uint8_t battle_member_equipment(const GameState *g, unsigned slot);
-void set_battle_member_equipment(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_MEMBER_CARRIED_COUNT = 3 };   /* by party member */
+/* Five bytes the battle keeps for each party member; the first goes back into its stat block
+ * when the battle ends */
+uint8_t battle_member_carried(const GameState *g, unsigned member);
+void set_battle_member_carried(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_OBJECT_GRAPHICS_COUNT = 11 };   /* by battle slot */
 /* Long pointer to the object's graphics set, the tiles its frames are assembled from */
@@ -3755,8 +3755,8 @@ enum { BATTLE_OBJECT_PALETTE_INITIAL_COUNT = 11 };   /* by battle slot */
 uint8_t battle_object_palette_initial(const GameState *g, unsigned slot);
 void set_battle_object_palette_initial(GameState *g, unsigned slot, uint8_t v);
 
-/* The animation script command being run, its first byte; the number commands $50-$55 take their
- * set of numbers from its low bits */
+/* The command the running animation script channel is at, which its handler reads (the number
+ * commands pick their table by its low bits) */
 uint8_t battle_script_command(const GameState *g);
 void set_battle_script_command(GameState *g, uint8_t v);
 

@@ -78,6 +78,9 @@ static uint8_t list_entry(const GameState *g, unsigned member, unsigned row)
     return (uint8_t)(member * TECHS_PER_MEMBER + battle_tech_scroll(g, member) + row);
 }
 
+/* The record a member's list entry names. (The original finds its place in
+ * a table of the records' offsets, which an entry past the twenty would read
+ * past its end; no list has one, and the entry's guard holds to that.) */
 static unsigned tech_record(unsigned member, uint8_t entry) { return member * TECHS_PER_MEMBER + entry; }
 
 /* What the tech costs the member in each party slot. */
@@ -92,8 +95,9 @@ static uint8_t cost_to(const GameState *g, unsigned record, unsigned slot)
 
 static bool affordable(uint8_t cost, uint16_t mp) { return (cost & NO_COST) || mp >= cost; }
 
-/* One tech needs Frog to hold one sword. */
-enum { TECH_NEEDING_FROGS_SWORD = 0x74, FROGS_SWORD = 0x42 };
+/* One tech needs Frog to hold one sword: the first of the bytes the battle
+ * keeps for him (battle_frog_slot counts them, five a member). */
+enum { TECH_NEEDING_FROGS_SWORD = 0x74, FROGS_SWORD = 0x42, MEMBER_CARRIED_BYTES = 5 };
 
 /* The original's work cells for the check: where the record is (bytes), the
  * partners, and the partner it looked at last. */
@@ -125,7 +129,7 @@ static bool tech_usable(GameState *g, unsigned member, unsigned record)
     if (battle_member_disabled(g, member))
         return false;
     return battle_tech_records_id(g, record) != TECH_NEEDING_FROGS_SWORD
-           || battle_member_equipment(g, battle_frog_slot(g)) == FROGS_SWORD;
+           || battle_member_carried(g, battle_frog_slot(g) / MEMBER_CARRIED_BYTES) == FROGS_SWORD;
 }
 
 /* A section of combination techs can be used when enough members are
@@ -454,6 +458,36 @@ static bool show_tech_page(Snes *s, GameState *g)
         s->cpu.a = 0;
     }
     return true;
+}
+
+/* The tech lists as the game keeps them, which the tech page takes on trust:
+ * each member's scroll leaves its three rows, and the cursor's, inside its
+ * twenty entries, and each entry names one of its records, or is blank on a
+ * row marked so. */
+static bool tech_lists_kept(const GameState *g)
+{
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
+        if (battle_tech_scroll(g, member) > TECHS_PER_MEMBER - TECH_ROWS)
+            return false;
+        for (unsigned i = 0; i < TECHS_PER_MEMBER; i++) {
+            unsigned at = member * TECHS_PER_MEMBER + i;
+            uint8_t entry = battle_tech_list(g, at);
+            bool marked = (battle_tech_list_ids(g, at) & LIST_MARK) == LIST_MARK;
+            if (entry >= TECHS_PER_MEMBER && !(entry == BLANK_ROW && marked))
+                return false;
+        }
+    }
+    return true;
+}
+
+bool battle_menu_window_ready(Snes *s)
+{
+    if (!battle_window_ready(s))
+        return false;
+    vars_peek(true);
+    bool kept = tech_lists_kept(state_of(s));
+    vars_peek(false);
+    return kept;
 }
 
 // $C1:0C2D

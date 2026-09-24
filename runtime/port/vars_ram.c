@@ -328,7 +328,7 @@ static VarsRangeFault range_faults[] = {
     { .var = "battle_window_tilemap" },
     { .var = "battle_object_sprite_entries" },
     { .var = "battle_tech_records" },
-    { .var = "battle_member_equipment" },
+    { .var = "battle_member_carried" },
     { .var = "battle_object_graphics" },
     { .var = "battle_object_tile_lists" },
     { .var = "battle_object_frame_lists" },
@@ -2120,8 +2120,8 @@ uint8_t battle_tech_records_second_cost(const GameState *g, unsigned member) { I
 void set_battle_tech_records_second_cost(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 203, "set_battle_tech_records_second_cost", "count", member, 60u); w8(g, 0x7E1A85u + (uint32_t)member * 0x07u, v); }
 uint8_t battle_tech_records_third_cost(const GameState *g, unsigned member) { IN_RANGE(g, 203, "battle_tech_records_third_cost", "count", member, 60u); return r8(g, 0x7E1A86u + (uint32_t)member * 0x07u); }
 void set_battle_tech_records_third_cost(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 203, "set_battle_tech_records_third_cost", "count", member, 60u); w8(g, 0x7E1A86u + (uint32_t)member * 0x07u, v); }
-uint8_t battle_member_equipment(const GameState *g, unsigned slot) { IN_RANGE(g, 204, "battle_member_equipment", "count", slot, 15u); return r8(g, 0x7E1C48u + (uint32_t)slot * 0x01u); }
-void set_battle_member_equipment(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 204, "set_battle_member_equipment", "count", slot, 15u); w8(g, 0x7E1C48u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_member_carried(const GameState *g, unsigned member) { IN_RANGE(g, 204, "battle_member_carried", "count", member, 3u); return r8(g, 0x7E1C48u + (uint32_t)member * 0x05u); }
+void set_battle_member_carried(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 204, "set_battle_member_carried", "count", member, 3u); w8(g, 0x7E1C48u + (uint32_t)member * 0x05u, v); }
 uint32_t battle_object_graphics(const GameState *g, unsigned slot) { IN_RANGE(g, 205, "battle_object_graphics", "count", slot, 11u); return r24(g, 0x7E1C57u + (uint32_t)slot * 0x03u); }
 void set_battle_object_graphics(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 205, "set_battle_object_graphics", "count", slot, 11u); w24(g, 0x7E1C57u + (uint32_t)slot * 0x03u, v); }
 uint32_t battle_object_tile_lists(const GameState *g, unsigned slot) { IN_RANGE(g, 206, "battle_object_tile_lists", "count", slot, 11u); return r24(g, 0x7E1C78u + (uint32_t)slot * 0x03u); }

@@ -324,14 +324,15 @@ void window_put_cursor(GameState *g, WindowCell cell)
     window_set_tile(g, (WindowCell)(cell + WINDOW_COLUMNS + 1), TILE_CURSOR + 3);
 }
 
-/* Where the original works out the cursor's place: the member's window's
- * offset, bytes, and then the slot's. */
+/* Where the original works out the windows' places: a third of the member's
+ * window's offset (bytes), on its way to the whole, and then the whole of the
+ * slot's where it draws the cursor. */
 static void leave_cursor_cells(GameState *g, unsigned member, unsigned slot, bool redrawn)
 {
     if (redrawn)
         battle_leave_work16(g, MEMBER_CELLS, (uint16_t)(TILEMAP_BYTES_PER_CELL * COMMAND_WINDOW_STEP * slot));
     else
-        battle_leave_work8(g, MEMBER_CELLS, (uint8_t)(TILEMAP_BYTES_PER_CELL * COMMAND_WINDOW_STEP * member));
+        battle_leave_work8(g, MEMBER_CELLS, (uint8_t)(TILEMAP_BYTES_PER_CELL * COMMAND_WINDOW_STEP * member / 3));
 }
 
 // $C1:0872
@@ -433,16 +434,17 @@ void battle_draw_window(Snes *s)
 static bool names_member_or_nobody(uint8_t v) { return v < BATTLE_PARTY_SIZE || menu_nobody(v); }
 static bool names_combatant_or_nobody(uint8_t v) { return v < BATTLE_COMBATANTS || menu_nobody(v); }
 
-/* The item list's cursor rows. */
-enum { ITEM_CURSOR_ROWS = 4 };
+/* The item list's cursor rows; Frog's slot is kept five times over. */
+enum { ITEM_CURSOR_ROWS = 4, FROG_SLOT_STEP = 5 };
 
 /* The menu's state as the game keeps it, which the window's routines take on
  * trust: the layout's high byte clear (the original reads the layout as a
- * byte in places and as a word in others); the menu's member a party member
- * or nobody, and while anyone is choosing, its slot a party slot and some slot
- * holding a member; the cursors on rows the menus have; the targets
- * combatants or nobody, and an ally while an action is aimed at the party. A
- * state that breaks these is the original's to run. */
+ * byte in places and as a word in others); the menu's member, and each slot's,
+ * a party member or nobody, and while anyone is choosing, its slot a party
+ * slot and some slot holding a member; the cursors on rows the menus have; the targets
+ * combatants or nobody, and an ally while an action is aimed at the party;
+ * Frog's slot a party slot. A state that breaks these is the original's to
+ * run. */
 static bool menu_state_kept(const GameState *g)
 {
     if (battle_window_layout(g) > 0xFF || !names_member_or_nobody(battle_menu_member(g)))
@@ -460,6 +462,11 @@ static bool menu_state_kept(const GameState *g)
         return false;
     if (battle_target_cursor(g) >= BATTLE_TARGET_ENTRIES)
         return false;
+    if (battle_frog_slot(g) % FROG_SLOT_STEP || battle_frog_slot(g) >= BATTLE_PARTY_SIZE * FROG_SLOT_STEP)
+        return false;
+    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
+        if (!names_member_or_nobody(battle_menu_slot_members(g, slot)))
+            return false;
     if (battle_menu_member_count(g) == 0)
         return true;
     if (battle_menu_slot(g) >= BATTLE_PARTY_SIZE)
@@ -487,6 +494,6 @@ bool battle_window_member_ready(Snes *s)
     return ready;
 }
 
-/* The cursors also take the target's name in A, whose high byte the original
- * carries into its indexes: the game's is clear. */
-bool battle_cursors_ready(Snes *s) { return battle_window_ready(s) && !(s->cpu.a & 0xFF00); }
+/* The party status and the cursors carry A's high byte into their indexes
+ * (the member's, the target's), as the original does: the game's is clear. */
+bool battle_window_ready_a_clear(Snes *s) { return battle_window_ready(s) && !(s->cpu.a & 0xFF00); }
