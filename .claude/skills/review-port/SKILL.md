@@ -438,7 +438,11 @@ Each of these is a finding. Every example here comes from this repo.
     64-entry table. It works only because of the original's memory layout, it
     hides behind a clean accessor name, and it breaks the moment storage goes
     native. A deliberate stray write the gate needs is an explicit, marked
-    scaffolding write.
+    scaffolding write, through the variable's `_unchecked` accessors (the map
+    says why) or `game/wram.h`. The gate now finds the accidental ones the
+    movies reach (`accessor out of range`, docs/DISASSEMBLY.md "The
+    accessors"), and `ct_fuzz` lists those random states reach; what neither
+    reaches is still the reviewer's to read for.
 29. **Guards that duplicate the logic.** A guard that re-runs the routine to
     predict it (`field_view_unchanged`, `draws_as_c`) is shadow mode's structure
     leaking into the file's shape.

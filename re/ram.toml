@@ -28,7 +28,7 @@
 #       (docs/DISASSEMBLY.md, "The accessors").
 #
 #   [[var]]    name, addr | dp, [size], [count, stride, index], [rows, row_stride],
-#              [page], subsystem, meaning, source, [[var.field]]
+#              [page], [unchecked], subsystem, meaning, source, [[var.field]]
 #       A variable. addr is "7E:AAAA" or "7F:AAAA" (low RAM $0000-$1FFF is
 #       $7E:0000-$1FFF, which banks $00-$3F mirror). size is the element's width
 #       in bytes (default 1); an array has count elements `stride` bytes apart
@@ -39,6 +39,10 @@
 #       lie between); its accessor takes a row and a column. With `page`, the
 #       code reaches it through that direct page: give addr when the page's D
 #       is fixed (the offset is derived), dp when the page is a page kind.
+#       `unchecked` says why marked scaffolding reaches past the variable on
+#       purpose (a `leave_stray_*` write the gate needs); it generates a second
+#       pair of accessors, `<name>_unchecked`, without the bounds check the
+#       others make (docs/DISASSEMBLY.md, "The accessors").
 #
 #   [[var.field]]  name, offset, [size], meaning
 #       A record: the element is `stride` bytes and the fields are at these
@@ -3378,6 +3382,7 @@ size = 0x340
 subsystem = "field"
 meaning = "The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's screen position (a word), the Y offset, then the tile and attribute bytes"
 source = "game/field/sprites.c, field_position_sprites $C0:B788, field_draw_object_sprites $C0:B309"
+unchecked = "the original places a fifth sprite's Y for an object above the screen, one record past the object's four, which for the last object's records is past the table (game/field/sprites.c, leave_stray_fifth_sprite_y; ct_dev's accessor checks found it over the movie library, at offsets 833 and 836)"
 
 [[var]]
 name = "field_object_sprite_high"

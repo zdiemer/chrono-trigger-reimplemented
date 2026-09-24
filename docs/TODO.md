@@ -175,14 +175,44 @@ rest waits, is [PLAN.md](PLAN.md).
   guards leave those calls to the original now; a build without it needs to
   decide what the game should do there (most likely nothing: the member
   isn't on the map).
-- **Generated accessors don't check their index.** `vars_ram.c` computes
-  `base + index * stride` with no bound, so slot 64 of a 64-slot table silently
-  writes the next table. Field's row code did exactly that (`object_update.c`,
-  unlinking with no neighbour lands on `field_object_in_view`), and its review
-  found two more places with the same risk. It works only while storage is the
-  original's layout. A bounds check in the generated backing, on in `ct_dev`
-  and the fuzzer and off in the player, would make every such alias a loud
-  failure over the library, before the storage moves.
+- **An object layered as the map on a tile off the map is an unported path.**
+  The accessor checks found scripts putting an object that follows the map at
+  tile column 64, or at (255, 255) to take it out of the way, and the original
+  then reads the layering tables' neighbours for its sprite priorities
+  (another row's tile maps, the other attribute table). The guards on `$8B`,
+  `$8C`, `$8D` and `$8E` (`event/properties.c`, `tile_on_the_map`) leave those
+  commands to the original: 20 real calls over the library, 18 in
+  `events-prison-escape` (9 of `$C0:4B74` on its own, 9 run inline by the
+  map's openings `$C0:58DE`) and 2 in `endings-beyond-time` (one of `$C0:4C27`,
+  one inline). A native build
+  needs to decide what the priority of an object off the map is (most likely
+  whatever it had: it isn't drawn).
+- **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
+  checks"). Random states still drive these accessors out of range, where no
+  guard turns the state away; no movie does:
+  - the tile ahead of a moving object, off the map: `field_start_step`
+    `$C0:ACFD` and the event moves that set off (`$C0:4E73`, `$C0:4EC7`,
+    `$C0:4F0A`, `$C0:4F61`, `$C0:4FEA`, `$C0:5084`, `$C0:5129`, `$C0:5191`,
+    the moves toward an object and the follows `$C0:3546`, `$C0:354F`) read
+    `field_tile_*` past the 64x64 tables. Deciding what walking off the map
+    meets is the port's; a guard on the objects' positions would do for the
+    gate;
+  - the line effect tables' builders (`$FD:C2C1`, `$FD:C995`, `$FD:CD0C`,
+    `$FD:CFCF`, `$FD:D27E`, and the wave parts `$FD:CC5E`, `$FD:CCB8`) write
+    past a table's 87 bytes when the band's half height or a wave part's line
+    count is out of the game's range: the guards want the window's largest
+    half and the parts' largest counts;
+  - the event engine reads the script past its buffer (`$C0:5A93`,
+    `$C0:58DE`): the opcode byte before the command's guard, and an opening's
+    end byte. Treating every offset past the buffer as off the script (not only
+    `$FFFF`) is right for the turns, but the openings' hand-over at `$C0:5900`
+    then mismatches in fuzzing (254 of 333 states), so the openings' path
+    off the script needs fixing first.
+- **The shadow movies ran 20% longer with the accessor checks in two suite
+  runs** (393 s against 317 s, and 398 s against 327 s, `-j 5`), but a movie
+  run alone or four at a time, the builds alternating, shows 1% or less
+  (RECOMP.md, "The accessor bounds checks"). Find what differs in the suite's
+  runs before reading the gap as the checks' cost.
 - **Field's review deferred three platform gaps**: there is no sprite-list
   video service, so the 9-bit X, the `$E0` hide line and the screen-half
   wrapping sit in `game/field/sprites.c`, against the widescreen rule; the

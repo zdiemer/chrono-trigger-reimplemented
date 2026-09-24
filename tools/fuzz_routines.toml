@@ -1916,8 +1916,8 @@ name = "event_cmd_set_result_story"
 at = "C0:654E"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2003,1=00-01"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the story offset below $200 (the guard refuses one past the story memory, which no script names)"
 
 [[routine]]
 name = "event_cmd_set_result_story"
@@ -2188,8 +2188,8 @@ name = "event_cmd_follow_object"
 at = "C0:3546"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; fewer objects than slots (the guard refuses a search that would pass the tables)"
 
 [[routine]]
 name = "event_cmd_follow_object"
@@ -2205,8 +2205,8 @@ name = "event_cmd_follow_party_member"
 at = "C0:354F"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c)"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0197-7E0199=00-7F", "--fill", "7F:[Y]+2002,1=00-05", "--fill", "7F2000-7F2000=01-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the party's places links to objects the tables hold or none (an empty place is the original's where the command doesn't check first, event/engine.c); fewer objects than slots (the guard refuses a search that would pass the tables)"
 
 [[routine]]
 name = "event_cmd_follow_party_member"
@@ -2477,8 +2477,8 @@ name = "event_cmd_stand_on_tile"
 at = "C0:4B74"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-3F", "--fill", "7F:[Y]+2003,1=00-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the tile on the map (the guard refuses an object that follows the map put off it)"
 
 [[routine]]
 name = "event_cmd_stand_on_tile"
@@ -2511,8 +2511,8 @@ name = "event_cmd_place"
 at = "C0:4C27"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2003,1=00-3F", "--fill", "7F:[Y]+2005,1=00-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the tile on the map (the guard refuses an object that follows the map placed off it)"
 
 [[routine]]
 name = "event_cmd_place"
@@ -3191,8 +3191,8 @@ name = "event_cmd_assign_story"
 at = "C0:693D"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2003,1=00-01"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the story offset below $200 (the guard refuses one past the story memory, which no script names)"
 
 [[routine]]
 name = "event_cmd_assign_story"
@@ -3208,8 +3208,8 @@ name = "event_cmd_assign_story_word"
 at = "C0:6964"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2003,1=00-01"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the story offset below $200 (the guard refuses one past the story memory, which no script names)"
 
 [[routine]]
 name = "event_cmd_assign_story_word"
@@ -3242,8 +3242,8 @@ name = "event_cmd_record"
 at = "C0:69A6"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2004,1=00-01"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the story offset below $200 (the guard refuses one past the story memory, which no script names)"
 
 [[routine]]
 name = "event_cmd_record"
@@ -3259,8 +3259,8 @@ name = "event_cmd_record_variable"
 at = "C0:69C4"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2004,1=00-01"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the story offset below $200 (the guard refuses one past the story memory, which no script names)"
 
 [[routine]]
 name = "event_cmd_record_variable"
@@ -3276,8 +3276,8 @@ name = "event_cmd_record_variable_word"
 at = "C0:69EB"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2004,1=00-01"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the story offset below $200 (the guard refuses one past the story memory, which no script names)"
 
 [[routine]]
 name = "event_cmd_record_variable_word"
@@ -3905,9 +3905,9 @@ why = "the layers' page and a bank reaching low RAM; the scroll state random"
 name = "field_unpack_tile_maps"
 subsystem = "field"
 state = "field"
-args = ["--d", "1D00", "--db", "00"]
+args = ["--d", "1D00", "--db", "00", "--fill", "7E0BCB-7E0BCB=00-40", "--fill", "7E0BCD-7E0BCD=00-40", "--fill", "7E0BCF-7E0BCF=00-40", "--fill", "7E0BD1-7E0BD1=00-40", "--fill", "7E0BD3-7E0BD3=00-40", "--fill", "7E0BD5-7E0BD5=00-40"]
 iterations = 2000
-why = "the layers' page and a bank reaching the work RAM port; the map sizes random, so a big map's attribute tables run over the stream still to be read and the stream wraps round the banks"
+why = "the layers' page and a bank reaching the work RAM port; the map sizes random up to 64 tiles each way, the tables' size (the guard refuses a bigger map, which the game has none of)"
 
 [[routine]]
 name = "field_update_walk_animation"
@@ -4044,22 +4044,22 @@ why = "the objects and their sprites as the field state has them (random objects
 name = "field_draw_object_sprites"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--keep", "7E0181-7E018C", "--keep", "7E01DB-7E01E0", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-2F"]
-why = "the ranges' cursors as the field state has them (the guard takes only cursors in the table), the object below $100 with its records below $3000"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--keep", "7E0181-7E018C", "--keep", "7E01DB-7E01E0", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-02"]
+why = "the ranges' cursors as the field state has them (the guard takes only cursors in the table), the object below $100 with its records below $300, inside the records (the guard refuses records past them)"
 
 [[routine]]
 name = "field_update_object_sprites"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-2F"]
-why = "the object below $100 with its records below $3000; the records' routines run as call-outs"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-02"]
+why = "the object below $100 with its records below $300, inside the records (the guard refuses records past them); the records' routines run as call-outs"
 
 [[routine]]
 name = "field_position_sprites"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
-why = "the object in X the current one, as the game always has it and the guard requires (field/sprites.c; the fuzzer can't tie the current object's cell to X, so both are slot 8), with its records below $3000 (past there they reach bank $80's I/O)"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02"]
+why = "the object in X the current one, as the game always has it and the guard requires (field/sprites.c; the fuzzer can't tie the current object's cell to X, so both are slot 8), with its records below $300, inside the records (the guard refuses records past them)"
 
 [[routine]]
 name = "field_position_sprites"
@@ -4073,7 +4073,7 @@ why = "the object in X the current one (slot 2), its records anywhere: those tha
 name = "field_load_and_position_sprites"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-2F"]
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02"]
 why = "as field_position_sprites"
 
 [[routine]]

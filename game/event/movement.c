@@ -389,8 +389,8 @@ void event_cmd_behave(Snes *s)
     event_return(s, (EventStep){ at, false });
 }
 
-/* The moves that set off look for an object in the way, over the object
- * slots (object_search_fits). */
+/* The moves that set off, following included, look for an object in the
+ * way, over the object slots (object_search_fits). */
 static bool can_look_its_way(const GameState *g) { return object_search_fits(g); }
 EVENT_CHECK_TAKING_NOTHING(can_look_its_way)
 
@@ -435,6 +435,6 @@ EVENT_OPCODES(event_movement_opcodes,
     { 0x7A, OPERATION(jump_to_tile), TO_A_TILE, .height = OPERAND(3), .length = 4 },
     { 0x7B, OPERATION(launch), .velocity_x = OPERAND(1), .velocity_y = OPERAND(2), .acceleration = OPERAND(3),
       .steps = OPERAND(4), .length = 5 },
-    { 0xB5, OPERATION(follow), .target = OBJECT(1), .length = 2 },
-    { 0xB6, OPERATION(follow_party_member), .target = MEMBER_OBJECT(1), .length = 2 },
+    { 0xB5, OPERATION(follow), .target = OBJECT(1), .length = 2, CHECK(can_look_its_way) },
+    { 0xB6, OPERATION(follow_party_member), .target = MEMBER_OBJECT(1), .length = 2, CHECK(can_look_its_way) },
     { 0xB0, .length = 1 });

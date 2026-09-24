@@ -12,6 +12,7 @@
 #include "vars.h"
 
 #include "port/machine.h"
+#include "port/native.h"
 #include "port/vars_pages.h"
 #include "port/vars_ram.h"
 #include "wram.h"
@@ -47,7 +48,7 @@ static void w32(GameState *g, uint32_t a, uint32_t v)
 }
 
 /* The escape in game/wram.h: work RAM the game locates at run time, which the
- * map has no name for yet. */
+ * map has no name for yet. It has no bound to check. */
 uint8_t wram_read8(const GameState *g, uint32_t at) { return r8(g, at); }
 uint16_t wram_read16(const GameState *g, uint32_t at) { return r16(g, at); }
 void wram_write8(GameState *g, uint32_t at, uint8_t v) { w8(g, at, v); }
@@ -111,6 +112,519 @@ bool scene_program_page_of(uint16_t d, SceneProgramPage *page)
     return refuse(1, d);
 }
 
+/* ---- bounds ---------------------------------------------------------------------------- */
+
+/* An accessor's index past what re/ram.toml declares reaches whatever comes next in work RAM,
+ * which works only while the storage is the original's layout. With CT_ACCESSOR_CHECKS (ct_dev,
+ * ct_fuzz, the tests) each is counted, per variable, with the first few indices and where the
+ * port was, and the access still happens as it did, so shadow mode compares the same bytes;
+ * ct_dev reports the counts and the gate fails a movie with any. Without it (ct_play) the check
+ * is not compiled. Marked scaffolding that goes out of range on purpose uses a variable's
+ * `_unchecked` pair, which the map declares with a reason, or game/wram.h. */
+#ifdef CT_ACCESSOR_CHECKS
+
+static VarsRangeFault range_faults[] = {
+    { .var = "input_mapped" },
+    { .var = "palette_animation_scratch" },
+    { .var = "palette_animations" },
+    { .var = "tile_animations" },
+    { .var = "oam_buffer" },
+    { .var = "oam_high_table" },
+    { .var = "sound_command_parameters" },
+    { .var = "sound_driver_slot_ids" },
+    { .var = "sound_driver_slot_lengths" },
+    { .var = "sound_driver_slot_addresses" },
+    { .var = "sound_driver_song_ids" },
+    { .var = "sound_driver_missing_ids" },
+    { .var = "sound_driver_address_table" },
+    { .var = "palette_base" },
+    { .var = "palette_working" },
+    { .var = "inventory_items" },
+    { .var = "inventory_counts" },
+    { .var = "party_members" },
+    { .var = "button_assignments" },
+    { .var = "character_names" },
+    { .var = "save_slot_summaries" },
+    { .var = "tile_animation_tables" },
+    { .var = "event_scratch" },
+    { .var = "event_object_script_position" },
+    { .var = "event_object_call_state" },
+    { .var = "event_memory" },
+    { .var = "event_variables" },
+    { .var = "event_saved_positions" },
+    { .var = "event_call_waiting" },
+    { .var = "event_object_wait" },
+    { .var = "event_object_result" },
+    { .var = "event_script" },
+    { .var = "field_sprite_range_end" },
+    { .var = "field_sprite_range_high" },
+    { .var = "field_sprite_range_spare" },
+    { .var = "field_party_objects" },
+    { .var = "field_work" },
+    { .var = "field_sprite_range_next" },
+    { .var = "field_window_shape_edge" },
+    { .var = "field_window_shape_corners" },
+    { .var = "field_window_shape_steps" },
+    { .var = "field_sprite_table" },
+    { .var = "field_vram_queue_source" },
+    { .var = "field_vram_queue_vram" },
+    { .var = "field_vram_queue_source2" },
+    { .var = "field_vram_queue_vram2" },
+    { .var = "field_vram_queue_size" },
+    { .var = "field_vram_queue_size2" },
+    { .var = "field_vram_queue_used" },
+    { .var = "field_object_screen_x" },
+    { .var = "field_object_screen_y" },
+    { .var = "field_map_layer_sizes" },
+    { .var = "field_window_shadows" },
+    { .var = "field_object_sprite_priority" },
+    { .var = "field_row_first_object" },
+    { .var = "field_object_row_mark" },
+    { .var = "field_object_row_link" },
+    { .var = "field_object_in_view" },
+    { .var = "field_object_battle_info" },
+    { .var = "field_object_priority_mode" },
+    { .var = "field_object_step_length" },
+    { .var = "field_object_step_count" },
+    { .var = "field_object_animation_link" },
+    { .var = "field_object_role" },
+    { .var = "field_object_character" },
+    { .var = "field_object_sprite_layout" },
+    { .var = "field_object_static_frame" },
+    { .var = "field_object_facing_table_size" },
+    { .var = "field_object_frame_table" },
+    { .var = "field_object_delay_table" },
+    { .var = "field_object_facing" },
+    { .var = "field_object_frame_delay" },
+    { .var = "field_object_looped_animation" },
+    { .var = "field_object_animation_frame" },
+    { .var = "field_object_sprite_records" },
+    { .var = "field_object_animation_mode" },
+    { .var = "field_object_one_off_animation" },
+    { .var = "field_object_x" },
+    { .var = "field_object_y" },
+    { .var = "field_object_velocity_x" },
+    { .var = "field_object_velocity_y" },
+    { .var = "field_object_speed" },
+    { .var = "field_object_steps_left" },
+    { .var = "field_object_counted_move" },
+    { .var = "field_object_sprite_flag" },
+    { .var = "field_object_sprite_state" },
+    { .var = "field_object_solid" },
+    { .var = "field_object_accelerating" },
+    { .var = "field_object_acceleration" },
+    { .var = "field_object_blocking" },
+    { .var = "field_object_arrival_flags" },
+    { .var = "field_layer_extra_speed" },
+    { .var = "field_screen_scroll_step" },
+    { .var = "field_layer_speed" },
+    { .var = "field_layer_scroll_accumulator" },
+    { .var = "field_layer_move" },
+    { .var = "field_layer_work" },
+    { .var = "field_layer_edge_work" },
+    { .var = "field_layer_upload_flags" },
+    { .var = "field_layer_map_base" },
+    { .var = "field_layer_map_size" },
+    { .var = "field_layer_scroll" },
+    { .var = "field_layer_position" },
+    { .var = "field_layer_edge_vram" },
+    { .var = "field_layer_edge_sizes" },
+    { .var = "field_layer_scroll_values" },
+    { .var = "field_layer_maps" },
+    { .var = "field_tile_properties" },
+    { .var = "field_tile_upper_attributes" },
+    { .var = "field_tile_lower_attributes" },
+    { .var = "field_object_tile_crossing" },
+    { .var = "field_object_one_off_half_passes" },
+    { .var = "field_line_effect_tables" },
+    { .var = "field_line_bg_maps" },
+    { .var = "field_line_window_scroll" },
+    { .var = "field_line_scroll" },
+    { .var = "field_line_screens" },
+    { .var = "field_line_color_math" },
+    { .var = "field_line_window1_edges" },
+    { .var = "field_dialog_shading" },
+    { .var = "field_dialog_shading_copy" },
+    { .var = "field_window_edge_lines" },
+    { .var = "field_window_edge_lines_copy" },
+    { .var = "field_window_shape_quad" },
+    { .var = "field_line_wave" },
+    { .var = "field_auto_scroll_speed" },
+    { .var = "field_auto_scroll_accumulator" },
+    { .var = "field_auto_scroll_position" },
+    { .var = "field_sprite_frame_data" },
+    { .var = "field_object_sprite_high_more" },
+    { .var = "field_sprite_records" },
+    { .var = "field_object_sprite_high" },
+    { .var = "field_object_sprite_high_last" },
+    { .var = "menu_map_column" },
+    { .var = "menu_map_row" },
+    { .var = "menu_epoch_position" },
+    { .var = "menu_vram_queue" },
+    { .var = "menu_scroll" },
+    { .var = "menu_save_slot_in_use" },
+    { .var = "menu_gate_screen_state" },
+    { .var = "menu_member_scripts" },
+    { .var = "menu_gate_corners" },
+    { .var = "menu_gate_edge_active" },
+    { .var = "menu_gate_edge_step" },
+    { .var = "menu_gate_edge_top" },
+    { .var = "menu_gate_edge_bottom" },
+    { .var = "menu_gate_edge_x" },
+    { .var = "menu_gate_edge_lines" },
+    { .var = "menu_save_slot_tilemap" },
+    { .var = "menu_era_label_tiles" },
+    { .var = "menu_map_graphics" },
+    { .var = "menu_object_hdma_pointers" },
+    { .var = "menu_object_wave_table" },
+    { .var = "menu_gate_matrix_tables" },
+    { .var = "menu_object_wave_scroll" },
+    { .var = "menu_cursor_places" },
+    { .var = "menu_palette" },
+    { .var = "menu_slot_row_table" },
+    { .var = "menu_slot_row_template" },
+    { .var = "menu_slot_row_values" },
+    { .var = "menu_save_summary" },
+    { .var = "menu_status_record_head" },
+    { .var = "menu_status_record_tail" },
+    { .var = "menu_math_ramp_colors" },
+    { .var = "menu_math_line_tables" },
+    { .var = "menu_gate_scroll_table" },
+    { .var = "menu_gate_scroll" },
+    { .var = "menu_map_colours" },
+    { .var = "menu_sprite_nodes" },
+    { .var = "menu_sprite_node_links" },
+    { .var = "menu_gate_palette_copy" },
+    { .var = "menu_map_name_table" },
+    { .var = "menu_loaded_palette" },
+    { .var = "menu_mode7_plane" },
+    { .var = "menu_gate_tiles" },
+    { .var = "menu_record_sprite_count" },
+    { .var = "menu_record_y" },
+    { .var = "menu_record_x" },
+    { .var = "menu_record_tile" },
+    { .var = "menu_record_sprite_offsets" },
+    { .var = "menu_object_scratch" },
+    { .var = "menu_object_shadows" },
+    { .var = "menu_object_palette" },
+    { .var = "menu_object_slots" },
+    { .var = "battle_low_scratch" },
+    { .var = "battle_scratch" },
+    { .var = "battle_multiplier_operands" },
+    { .var = "battle_divider_operands" },
+    { .var = "battle_effect_cells" },
+    { .var = "battle_window_line_deltas" },
+    { .var = "battle_object_size_bits" },
+    { .var = "battle_window_frames_tilemap" },
+    { .var = "battle_window_tilemap" },
+    { .var = "battle_object_sprite_entries" },
+    { .var = "battle_tech_records" },
+    { .var = "battle_object_graphics" },
+    { .var = "battle_object_tile_lists" },
+    { .var = "battle_object_frame_lists" },
+    { .var = "battle_object_delay_lists" },
+    { .var = "battle_object_x" },
+    { .var = "battle_object_y" },
+    { .var = "battle_draw_scratch" },
+    { .var = "battle_object_extra_draw" },
+    { .var = "battle_object_part_count" },
+    { .var = "battle_draw_list_depth" },
+    { .var = "battle_draw_list" },
+    { .var = "battle_party_placement" },
+    { .var = "battle_enemy_placement" },
+    { .var = "battle_bg_scroll" },
+    { .var = "battle_decoded_tiles" },
+    { .var = "battle_effect_sprite_data" },
+    { .var = "battle_animation_positions" },
+    { .var = "battle_script_running" },
+    { .var = "battle_script_pointers" },
+    { .var = "battle_script_waits" },
+    { .var = "battle_stats" },
+    { .var = "battle_base_grid" },
+    { .var = "battle_grid" },
+    { .var = "battle_load_tilemap" },
+    { .var = "battle_load_tilemap_2" },
+    { .var = "battle_oam_high_bits" },
+    { .var = "battle_oam_x_high_bits" },
+    { .var = "battle_oam_high_offsets" },
+    { .var = "battle_number_sprites" },
+    { .var = "battle_number_sprite_high" },
+    { .var = "battle_member_actions" },
+    { .var = "battle_party_names" },
+    { .var = "battle_party_name_tiles" },
+    { .var = "battle_character_names" },
+    { .var = "battle_character_name_tiles" },
+    { .var = "battle_digits" },
+    { .var = "battle_name_buffer" },
+    { .var = "battle_tech_list_ids" },
+    { .var = "battle_tech_list" },
+    { .var = "battle_command_cursor" },
+    { .var = "battle_tech_cursor" },
+    { .var = "battle_tech_scroll" },
+    { .var = "battle_facing_stride_low" },
+    { .var = "battle_object_kind" },
+    { .var = "battle_party_frame_delay" },
+    { .var = "battle_party_frame" },
+    { .var = "battle_enemy_frame_delay" },
+    { .var = "battle_enemy_frame" },
+    { .var = "battle_object_facing" },
+    { .var = "battle_object_facing_loaded" },
+    { .var = "battle_slot_present" },
+    { .var = "battle_enemy_flags" },
+    { .var = "battle_cursor_offset_x" },
+    { .var = "battle_cursor_offset_y" },
+    { .var = "battle_object_half_width" },
+    { .var = "battle_object_half_height" },
+    { .var = "battle_orbit_radius" },
+    { .var = "battle_orbit_period" },
+    { .var = "battle_enemy_animation_loaded" },
+    { .var = "battle_bounds_left" },
+    { .var = "battle_bounds_top" },
+    { .var = "battle_bounds_right" },
+    { .var = "battle_bounds_bottom" },
+    { .var = "battle_orbit_angle" },
+    { .var = "battle_enemy_frame_delays" },
+    { .var = "battle_enemy_frame_graphics" },
+    { .var = "battle_orbit_countdown" },
+    { .var = "battle_enemy_numbers" },
+    { .var = "battle_object_palette_initial" },
+    { .var = "battle_enemy_effect_delay" },
+    { .var = "battle_enemy_effect_period" },
+    { .var = "battle_orbit_active" },
+    { .var = "battle_orbit_center_x" },
+    { .var = "battle_orbit_center_y" },
+    { .var = "battle_orbit_radius_step" },
+    { .var = "battle_enemy_kind_counts" },
+    { .var = "battle_enemy_kinds" },
+    { .var = "battle_object_frame_shown" },
+    { .var = "battle_anim_held" },
+    { .var = "battle_anim_order" },
+    { .var = "battle_object_palette" },
+    { .var = "battle_object_attribute_bits" },
+    { .var = "battle_gauge_wait" },
+    { .var = "battle_menu_list_tiles" },
+    { .var = "battle_selected_tech" },
+    { .var = "battle_pending_transfer" },
+    { .var = "battle_gauge_wait_full" },
+    { .var = "battle_double_techs" },
+    { .var = "battle_triple_techs" },
+    { .var = "battle_part_offsets" },
+    { .var = "battle_object_hidden" },
+    { .var = "battle_tech_list_length" },
+    { .var = "battle_bounds_x" },
+    { .var = "battle_bounds_y" },
+    { .var = "battle_bitmap_counts" },
+    { .var = "battle_member_disabled" },
+    { .var = "battle_number_rise_alt" },
+    { .var = "battle_number_rise" },
+    { .var = "battle_object_pose_shown" },
+    { .var = "battle_animating" },
+    { .var = "battle_animation_delay" },
+    { .var = "battle_path_active" },
+    { .var = "battle_trail_on" },
+    { .var = "battle_effect_done" },
+    { .var = "battle_slot_delay_active" },
+    { .var = "battle_slot_delays" },
+    { .var = "battle_effect_shown" },
+    { .var = "battle_anchor_done" },
+    { .var = "battle_anchor_facing" },
+    { .var = "battle_anchor_x" },
+    { .var = "battle_anchor_y" },
+    { .var = "battle_anchor_offset_x" },
+    { .var = "battle_anchor_offset_y" },
+    { .var = "battle_record_group_starts" },
+    { .var = "battle_record_group_counts" },
+    { .var = "battle_effect_sprite_set" },
+    { .var = "battle_facing_stride_high" },
+    { .var = "battle_effect_delay" },
+    { .var = "battle_effect_period" },
+    { .var = "battle_effect_radius" },
+    { .var = "battle_effect_steps" },
+    { .var = "battle_effect_active" },
+    { .var = "battle_effect_angle" },
+    { .var = "battle_effect_base_x" },
+    { .var = "battle_effect_base_y" },
+    { .var = "battle_effect_target_x" },
+    { .var = "battle_effect_target_y" },
+    { .var = "battle_palette_anim_on" },
+    { .var = "battle_palette_anim_frame" },
+    { .var = "battle_palette_anim_delay" },
+    { .var = "battle_palette_anim_period" },
+    { .var = "battle_palette_anim_first" },
+    { .var = "battle_palette_anim_last" },
+    { .var = "battle_prepared_sprites_on" },
+    { .var = "battle_object_effect_slots" },
+    { .var = "battle_anchor_sources" },
+    { .var = "battle_object_pose" },
+    { .var = "battle_object_pose_last" },
+    { .var = "battle_party_palette_cycle_on" },
+    { .var = "battle_marker_on" },
+    { .var = "battle_party_palette_cycle" },
+    { .var = "battle_sprite_offset_x" },
+    { .var = "battle_sprite_offset_y" },
+    { .var = "battle_marker_countdown" },
+    { .var = "battle_marker_period" },
+    { .var = "battle_marker_kind" },
+    { .var = "battle_marker_frame" },
+    { .var = "battle_animation_position_modes" },
+    { .var = "battle_path_steps" },
+    { .var = "battle_path" },
+    { .var = "battle_effect_angle_used" },
+    { .var = "battle_object_extra_draw_on" },
+    { .var = "battle_object_shadow" },
+    { .var = "battle_targets" },
+    { .var = "battle_effect_spiral_frames" },
+    { .var = "battle_upload_source" },
+    { .var = "battle_upload_vram_address" },
+    { .var = "battle_upload_size" },
+    { .var = "battle_menu_slot_members" },
+    { .var = "battle_menu_tilemap" },
+    { .var = "battle_effect_type" },
+    { .var = "battle_effect_velocity_x" },
+    { .var = "battle_effect_velocity_y" },
+    { .var = "battle_effect_position_x" },
+    { .var = "battle_effect_position_y" },
+    { .var = "battle_effect_jump_speed" },
+    { .var = "battle_effect_jump_height" },
+    { .var = "battle_effect_jump_gravity" },
+    { .var = "battle_effect_jump_falling" },
+    { .var = "battle_effect_jump_single" },
+    { .var = "battle_effect_jump_up" },
+    { .var = "battle_effect_jump_bounce" },
+    { .var = "battle_formation_offset_x" },
+    { .var = "battle_formation_offset_y" },
+    { .var = "battle_anchor_orbit_center_x" },
+    { .var = "battle_anchor_orbit_center_y" },
+    { .var = "battle_effect_orbit_angle" },
+    { .var = "battle_effect_orbit_frames" },
+    { .var = "battle_effect_orbit_step" },
+    { .var = "battle_effect_orbit_radius" },
+    { .var = "battle_effect_home_stage" },
+    { .var = "battle_effect_flicker_frames" },
+    { .var = "battle_effect_flicker_radius" },
+    { .var = "battle_effect_flicker_count" },
+    { .var = "battle_effect_flicker_period" },
+    { .var = "battle_effect_flicker_hidden" },
+    { .var = "battle_anchor_facing_record" },
+    { .var = "battle_effect_attribute_bits" },
+    { .var = "battle_trail_period" },
+    { .var = "battle_trail_countdown" },
+    { .var = "battle_effect_reload" },
+    { .var = "battle_effect_countdown" },
+    { .var = "battle_trail_low" },
+    { .var = "battle_effect_line_frames" },
+    { .var = "battle_effect_jump_frames" },
+    { .var = "battle_effect_chase_angle" },
+    { .var = "battle_effect_chase_aligned" },
+    { .var = "battle_effect_chase_turn" },
+    { .var = "battle_chase_cells" },
+    { .var = "battle_trail_high" },
+    { .var = "battle_enemy_name_tiles" },
+    { .var = "battle_number_records" },
+    { .var = "battle_combatant_out" },
+    { .var = "battle_timer_counts" },
+    { .var = "battle_timer_flags" },
+    { .var = "battle_timer_kind_cursors" },
+    { .var = "battle_combo_ready" },
+    { .var = "battle_combo_pairs" },
+    { .var = "battle_bg_offset" },
+    { .var = "battle_scroll_tables" },
+    { .var = "battle_split_line_values" },
+    { .var = "battle_fade_line_data" },
+    { .var = "battle_window_lines" },
+    { .var = "battle_window_registers" },
+    { .var = "battle_line_tables" },
+    { .var = "battle_window_line_tables" },
+    { .var = "battle_screen_motion_direction" },
+    { .var = "battle_screen_motion_base" },
+    { .var = "battle_bg3_scroll" },
+    { .var = "battle_bg3_scroll_offset" },
+    { .var = "battle_screen_swing_speed" },
+    { .var = "battle_screen_swing_step" },
+    { .var = "battle_screen_swing_position" },
+    { .var = "battle_saved_positions" },
+    { .var = "battle_saved_direct_page" },
+    { .var = "battle_shake_offsets" },
+    { .var = "battle_shake" },
+    { .var = "battle_palette_slot_presets" },
+    { .var = "battle_window_quads" },
+    { .var = "battle_saved_palette_types" },
+    { .var = "battle_window_steps" },
+    { .var = "battle_gradient_colors" },
+    { .var = "battle_wave_edges" },
+    { .var = "scene_bitplane_scratch" },
+    { .var = "scene_sprite_table" },
+    { .var = "scene_sprite_high_table" },
+    { .var = "scene_tasks" },
+    { .var = "scene_early_tasks" },
+    { .var = "scene_tasks_running" },
+    { .var = "scene_channels" },
+    { .var = "scene_tilemap_buffer" },
+    { .var = "scene_palette" },
+    { .var = "scene_race_plane_column" },
+    { .var = "scene_race_road_strip" },
+    { .var = "scene_race_line_tables" },
+    { .var = "scene_race_scaler_output" },
+    { .var = "scene_race_plane_map" },
+    { .var = "scene_call" },
+};
+
+static void out_of_range(const GameState *g, unsigned var, const char *accessor, const char *bound,
+                         unsigned index, unsigned limit)
+{
+    VarsRangeFault *f = &range_faults[var];
+    if (f->kept < VARS_RANGE_HITS_KEPT) {
+        const NativeEntry *e = native_running_entry();
+        uint32_t pc = e ? e->addr : cpu_pc24(&state_snes(g)->cpu);
+        f->first[f->kept++] = (VarsRangeHit){ accessor, bound, index, limit, pc };
+    }
+    f->count++;
+}
+
+#define IN_RANGE(g, var, accessor, bound, index, limit) \
+    ((unsigned)(index) < (unsigned)(limit) ? (void)0 \
+                                           : out_of_range(g, var, accessor, bound, (unsigned)(index), (unsigned)(limit)))
+
+const VarsRangeFault *vars_range_faults(unsigned *count)
+{
+    *count = 443;
+    return range_faults;
+}
+
+void vars_range_reset(void)
+{
+    for (unsigned i = 0; i < sizeof range_faults / sizeof range_faults[0]; i++) {
+        range_faults[i].count = 0;
+        range_faults[i].kept = 0;
+    }
+}
+
+/* How many instances the kind of a scene_program handle has. */
+static unsigned scene_program_page_count(SceneProgramPage page)
+{
+    switch (page.kind) {
+    case SCENE_PROGRAM_OWN:
+        return 1u;
+    case SCENE_PROGRAM_CHANNEL:
+        return 2u;
+    }
+    return 0u;
+}
+
+#else
+
+#define IN_RANGE(g, var, accessor, bound, index, limit) ((void)0)
+
+const VarsRangeFault *vars_range_faults(unsigned *count)
+{
+    *count = 0;
+    return 0;
+}
+
+void vars_range_reset(void) {}
+
+#endif
+
 /* ---- core ---------------------------------------------------------------------------------- */
 
 uint16_t input_pressed(const GameState *g) { return r16(g, 0x7E00F0u); }
@@ -119,8 +633,8 @@ uint16_t input_held(const GameState *g) { return r16(g, 0x7E00F2u); }
 void set_input_held(GameState *g, uint16_t v) { w16(g, 0x7E00F2u, v); }
 uint16_t input_repeat(const GameState *g) { return r16(g, 0x7E00F4u); }
 void set_input_repeat(GameState *g, uint16_t v) { w16(g, 0x7E00F4u, v); }
-uint16_t input_mapped(const GameState *g, unsigned i) { return r16(g, 0x7E00F6u + (uint32_t)i * 0x02u); }
-void set_input_mapped(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E00F6u + (uint32_t)i * 0x02u, v); }
+uint16_t input_mapped(const GameState *g, unsigned i) { IN_RANGE(g, 0, "input_mapped", "count", i, 3u); return r16(g, 0x7E00F6u + (uint32_t)i * 0x02u); }
+void set_input_mapped(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 0, "set_input_mapped", "count", i, 3u); w16(g, 0x7E00F6u + (uint32_t)i * 0x02u, v); }
 uint8_t input_repeat_delay(const GameState *g) { return r8(g, 0x7E00FCu); }
 void set_input_repeat_delay(GameState *g, uint8_t v) { w8(g, 0x7E00FCu, v); }
 uint8_t input_repeat_countdown(const GameState *g) { return r8(g, 0x7E00FDu); }
@@ -173,54 +687,54 @@ uint32_t nmi_vector(const GameState *g) { return r32(g, 0x7E0500u); }
 void set_nmi_vector(GameState *g, uint32_t v) { w32(g, 0x7E0500u, v); }
 uint32_t irq_vector(const GameState *g) { return r32(g, 0x7E0504u); }
 void set_irq_vector(GameState *g, uint32_t v) { w32(g, 0x7E0504u, v); }
-uint16_t palette_animation_scratch(const GameState *g, unsigned i) { return r16(g, 0x7E050Cu + (uint32_t)i * 0x02u); }
-void set_palette_animation_scratch(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E050Cu + (uint32_t)i * 0x02u, v); }
+uint16_t palette_animation_scratch(const GameState *g, unsigned i) { IN_RANGE(g, 1, "palette_animation_scratch", "count", i, 4u); return r16(g, 0x7E050Cu + (uint32_t)i * 0x02u); }
+void set_palette_animation_scratch(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 1, "set_palette_animation_scratch", "count", i, 4u); w16(g, 0x7E050Cu + (uint32_t)i * 0x02u, v); }
 uint32_t palette_animation_pointer(const GameState *g) { return r24(g, 0x7E0518u); }
 void set_palette_animation_pointer(GameState *g, uint32_t v) { w24(g, 0x7E0518u, v); }
 uint8_t tile_animation_frame(const GameState *g) { return r8(g, 0x7E051Du); }
 void set_tile_animation_frame(GameState *g, uint8_t v) { w8(g, 0x7E051Du, v); }
-uint8_t palette_animations_kind(const GameState *g, unsigned slot) { return r8(g, 0x7E0520u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_kind(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0520u + (uint32_t)slot * 0x0Cu, v); }
-uint8_t palette_animations_first_color(const GameState *g, unsigned slot) { return r8(g, 0x7E0521u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_first_color(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0521u + (uint32_t)slot * 0x0Cu, v); }
-uint8_t palette_animations_color_count(const GameState *g, unsigned slot) { return r8(g, 0x7E0522u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_color_count(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0522u + (uint32_t)slot * 0x0Cu, v); }
-uint8_t palette_animations_step(const GameState *g, unsigned slot) { return r8(g, 0x7E0523u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_step(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0523u + (uint32_t)slot * 0x0Cu, v); }
-uint8_t palette_animations_delay(const GameState *g, unsigned slot) { return r8(g, 0x7E0524u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_delay(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0524u + (uint32_t)slot * 0x0Cu, v); }
-uint8_t palette_animations_period(const GameState *g, unsigned slot) { return r8(g, 0x7E0525u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_period(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0525u + (uint32_t)slot * 0x0Cu, v); }
-uint8_t palette_animations_fade_mode(const GameState *g, unsigned slot) { return r8(g, 0x7E0526u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_fade_mode(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0526u + (uint32_t)slot * 0x0Cu, v); }
-uint8_t palette_animations_fade_level(const GameState *g, unsigned slot) { return r8(g, 0x7E0527u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_fade_level(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0527u + (uint32_t)slot * 0x0Cu, v); }
-uint8_t palette_animations_fade_target(const GameState *g, unsigned slot) { return r8(g, 0x7E0528u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_fade_target(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0528u + (uint32_t)slot * 0x0Cu, v); }
-uint16_t palette_animations_frames(const GameState *g, unsigned slot) { return r16(g, 0x7E0526u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_frames(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0526u + (uint32_t)slot * 0x0Cu, v); }
-uint32_t palette_animations_frame_table(const GameState *g, unsigned slot) { return r24(g, 0x7E0529u + (uint32_t)slot * 0x0Cu); }
-void set_palette_animations_frame_table(GameState *g, unsigned slot, uint32_t v) { w24(g, 0x7E0529u + (uint32_t)slot * 0x0Cu, v); }
-uint16_t tile_animations_accumulator(const GameState *g, unsigned slot) { return r16(g, 0x7E05B0u + (uint32_t)slot * 0x05u); }
-void set_tile_animations_accumulator(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E05B0u + (uint32_t)slot * 0x05u, v); }
-uint16_t tile_animations_vram(const GameState *g, unsigned slot) { return r16(g, 0x7E05B2u + (uint32_t)slot * 0x05u); }
-void set_tile_animations_vram(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E05B2u + (uint32_t)slot * 0x05u, v); }
-uint8_t tile_animations_bank(const GameState *g, unsigned slot) { return r8(g, 0x7E05B4u + (uint32_t)slot * 0x05u); }
-void set_tile_animations_bank(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E05B4u + (uint32_t)slot * 0x05u, v); }
-uint8_t oam_buffer_x(const GameState *g, unsigned i) { return r8(g, 0x7E0700u + (uint32_t)i * 0x04u); }
-void set_oam_buffer_x(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0700u + (uint32_t)i * 0x04u, v); }
-uint8_t oam_buffer_y(const GameState *g, unsigned i) { return r8(g, 0x7E0701u + (uint32_t)i * 0x04u); }
-void set_oam_buffer_y(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0701u + (uint32_t)i * 0x04u, v); }
-uint8_t oam_buffer_tile(const GameState *g, unsigned i) { return r8(g, 0x7E0702u + (uint32_t)i * 0x04u); }
-void set_oam_buffer_tile(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0702u + (uint32_t)i * 0x04u, v); }
-uint8_t oam_buffer_attributes(const GameState *g, unsigned i) { return r8(g, 0x7E0703u + (uint32_t)i * 0x04u); }
-void set_oam_buffer_attributes(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0703u + (uint32_t)i * 0x04u, v); }
-uint8_t oam_high_table_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0900u + at); }
-void set_oam_high_table_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0900u + at, v); }
+uint8_t palette_animations_kind(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_kind", "count", slot, 12u); return r8(g, 0x7E0520u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_kind(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_kind", "count", slot, 12u); w8(g, 0x7E0520u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_first_color(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_first_color", "count", slot, 12u); return r8(g, 0x7E0521u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_first_color(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_first_color", "count", slot, 12u); w8(g, 0x7E0521u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_color_count(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_color_count", "count", slot, 12u); return r8(g, 0x7E0522u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_color_count(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_color_count", "count", slot, 12u); w8(g, 0x7E0522u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_step(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_step", "count", slot, 12u); return r8(g, 0x7E0523u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_step(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_step", "count", slot, 12u); w8(g, 0x7E0523u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_delay(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_delay", "count", slot, 12u); return r8(g, 0x7E0524u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_delay(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_delay", "count", slot, 12u); w8(g, 0x7E0524u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_period(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_period", "count", slot, 12u); return r8(g, 0x7E0525u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_period(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_period", "count", slot, 12u); w8(g, 0x7E0525u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_fade_mode(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_fade_mode", "count", slot, 12u); return r8(g, 0x7E0526u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_fade_mode(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_fade_mode", "count", slot, 12u); w8(g, 0x7E0526u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_fade_level(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_fade_level", "count", slot, 12u); return r8(g, 0x7E0527u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_fade_level(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_fade_level", "count", slot, 12u); w8(g, 0x7E0527u + (uint32_t)slot * 0x0Cu, v); }
+uint8_t palette_animations_fade_target(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_fade_target", "count", slot, 12u); return r8(g, 0x7E0528u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_fade_target(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 2, "set_palette_animations_fade_target", "count", slot, 12u); w8(g, 0x7E0528u + (uint32_t)slot * 0x0Cu, v); }
+uint16_t palette_animations_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_frames", "count", slot, 12u); return r16(g, 0x7E0526u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_frames(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 2, "set_palette_animations_frames", "count", slot, 12u); w16(g, 0x7E0526u + (uint32_t)slot * 0x0Cu, v); }
+uint32_t palette_animations_frame_table(const GameState *g, unsigned slot) { IN_RANGE(g, 2, "palette_animations_frame_table", "count", slot, 12u); return r24(g, 0x7E0529u + (uint32_t)slot * 0x0Cu); }
+void set_palette_animations_frame_table(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 2, "set_palette_animations_frame_table", "count", slot, 12u); w24(g, 0x7E0529u + (uint32_t)slot * 0x0Cu, v); }
+uint16_t tile_animations_accumulator(const GameState *g, unsigned slot) { IN_RANGE(g, 3, "tile_animations_accumulator", "count", slot, 12u); return r16(g, 0x7E05B0u + (uint32_t)slot * 0x05u); }
+void set_tile_animations_accumulator(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 3, "set_tile_animations_accumulator", "count", slot, 12u); w16(g, 0x7E05B0u + (uint32_t)slot * 0x05u, v); }
+uint16_t tile_animations_vram(const GameState *g, unsigned slot) { IN_RANGE(g, 3, "tile_animations_vram", "count", slot, 12u); return r16(g, 0x7E05B2u + (uint32_t)slot * 0x05u); }
+void set_tile_animations_vram(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 3, "set_tile_animations_vram", "count", slot, 12u); w16(g, 0x7E05B2u + (uint32_t)slot * 0x05u, v); }
+uint8_t tile_animations_bank(const GameState *g, unsigned slot) { IN_RANGE(g, 3, "tile_animations_bank", "count", slot, 12u); return r8(g, 0x7E05B4u + (uint32_t)slot * 0x05u); }
+void set_tile_animations_bank(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 3, "set_tile_animations_bank", "count", slot, 12u); w8(g, 0x7E05B4u + (uint32_t)slot * 0x05u, v); }
+uint8_t oam_buffer_x(const GameState *g, unsigned i) { IN_RANGE(g, 4, "oam_buffer_x", "count", i, 128u); return r8(g, 0x7E0700u + (uint32_t)i * 0x04u); }
+void set_oam_buffer_x(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 4, "set_oam_buffer_x", "count", i, 128u); w8(g, 0x7E0700u + (uint32_t)i * 0x04u, v); }
+uint8_t oam_buffer_y(const GameState *g, unsigned i) { IN_RANGE(g, 4, "oam_buffer_y", "count", i, 128u); return r8(g, 0x7E0701u + (uint32_t)i * 0x04u); }
+void set_oam_buffer_y(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 4, "set_oam_buffer_y", "count", i, 128u); w8(g, 0x7E0701u + (uint32_t)i * 0x04u, v); }
+uint8_t oam_buffer_tile(const GameState *g, unsigned i) { IN_RANGE(g, 4, "oam_buffer_tile", "count", i, 128u); return r8(g, 0x7E0702u + (uint32_t)i * 0x04u); }
+void set_oam_buffer_tile(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 4, "set_oam_buffer_tile", "count", i, 128u); w8(g, 0x7E0702u + (uint32_t)i * 0x04u, v); }
+uint8_t oam_buffer_attributes(const GameState *g, unsigned i) { IN_RANGE(g, 4, "oam_buffer_attributes", "count", i, 128u); return r8(g, 0x7E0703u + (uint32_t)i * 0x04u); }
+void set_oam_buffer_attributes(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 4, "set_oam_buffer_attributes", "count", i, 128u); w8(g, 0x7E0703u + (uint32_t)i * 0x04u, v); }
+uint8_t oam_high_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 5, "oam_high_table_byte", "bytes", at, 32u); return r8(g, 0x7E0900u + at); }
+void set_oam_high_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 5, "set_oam_high_table_byte", "bytes", at, 32u); w8(g, 0x7E0900u + at, v); }
 uint8_t sound_command(const GameState *g) { return r8(g, 0x7E1E00u); }
 void set_sound_command(GameState *g, uint8_t v) { w8(g, 0x7E1E00u, v); }
-uint8_t sound_command_parameters(const GameState *g, unsigned i) { return r8(g, 0x7E1E01u + (uint32_t)i * 0x01u); }
-void set_sound_command_parameters(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1E01u + (uint32_t)i * 0x01u, v); }
+uint8_t sound_command_parameters(const GameState *g, unsigned i) { IN_RANGE(g, 6, "sound_command_parameters", "count", i, 3u); return r8(g, 0x7E1E01u + (uint32_t)i * 0x01u); }
+void set_sound_command_parameters(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 6, "set_sound_command_parameters", "count", i, 3u); w8(g, 0x7E1E01u + (uint32_t)i * 0x01u, v); }
 uint8_t sound_driver_song(const GameState *g) { return r8(g, 0x7E1E05u); }
 void set_sound_driver_song(GameState *g, uint8_t v) { w8(g, 0x7E1E05u, v); }
 uint8_t sound_driver_unused_0a(const GameState *g) { return r8(g, 0x7E1E0Au); }
@@ -239,12 +753,12 @@ uint16_t sound_driver_load_slot(const GameState *g) { return r16(g, 0x7E1E1Cu); 
 void set_sound_driver_load_slot(GameState *g, uint16_t v) { w16(g, 0x7E1E1Cu, v); }
 uint16_t sound_driver_load_index(const GameState *g) { return r16(g, 0x7E1E1Eu); }
 void set_sound_driver_load_index(GameState *g, uint16_t v) { w16(g, 0x7E1E1Eu, v); }
-uint16_t sound_driver_slot_ids(const GameState *g, unsigned slot) { return r16(g, 0x7E1E20u + (uint32_t)slot * 0x02u); }
-void set_sound_driver_slot_ids(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1E20u + (uint32_t)slot * 0x02u, v); }
-uint16_t sound_driver_slot_lengths(const GameState *g, unsigned slot) { return r16(g, 0x7E1E40u + (uint32_t)slot * 0x02u); }
-void set_sound_driver_slot_lengths(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1E40u + (uint32_t)slot * 0x02u, v); }
-uint16_t sound_driver_slot_addresses(const GameState *g, unsigned slot) { return r16(g, 0x7E1E60u + (uint32_t)slot * 0x02u); }
-void set_sound_driver_slot_addresses(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1E60u + (uint32_t)slot * 0x02u, v); }
+uint16_t sound_driver_slot_ids(const GameState *g, unsigned slot) { IN_RANGE(g, 7, "sound_driver_slot_ids", "count", slot, 16u); return r16(g, 0x7E1E20u + (uint32_t)slot * 0x02u); }
+void set_sound_driver_slot_ids(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 7, "set_sound_driver_slot_ids", "count", slot, 16u); w16(g, 0x7E1E20u + (uint32_t)slot * 0x02u, v); }
+uint16_t sound_driver_slot_lengths(const GameState *g, unsigned slot) { IN_RANGE(g, 8, "sound_driver_slot_lengths", "count", slot, 16u); return r16(g, 0x7E1E40u + (uint32_t)slot * 0x02u); }
+void set_sound_driver_slot_lengths(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 8, "set_sound_driver_slot_lengths", "count", slot, 16u); w16(g, 0x7E1E40u + (uint32_t)slot * 0x02u, v); }
+uint16_t sound_driver_slot_addresses(const GameState *g, unsigned slot) { IN_RANGE(g, 9, "sound_driver_slot_addresses", "count", slot, 17u); return r16(g, 0x7E1E60u + (uint32_t)slot * 0x02u); }
+void set_sound_driver_slot_addresses(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 9, "set_sound_driver_slot_addresses", "count", slot, 17u); w16(g, 0x7E1E60u + (uint32_t)slot * 0x02u, v); }
 uint16_t sound_driver_index_scratch(const GameState *g) { return r16(g, 0x7E1E82u); }
 void set_sound_driver_index_scratch(GameState *g, uint16_t v) { w16(g, 0x7E1E82u, v); }
 uint8_t sound_driver_upload_counter(const GameState *g) { return r8(g, 0x7E1E84u); }
@@ -267,38 +781,38 @@ uint16_t sound_driver_unused_fa(const GameState *g) { return r16(g, 0x7E1EFAu); 
 void set_sound_driver_unused_fa(GameState *g, uint16_t v) { w16(g, 0x7E1EFAu, v); }
 uint16_t sound_driver_upload_slot(const GameState *g) { return r16(g, 0x7E1EFCu); }
 void set_sound_driver_upload_slot(GameState *g, uint16_t v) { w16(g, 0x7E1EFCu, v); }
-uint16_t sound_driver_song_ids(const GameState *g, unsigned i) { return r16(g, 0x7E1F00u + (uint32_t)i * 0x02u); }
-void set_sound_driver_song_ids(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1F00u + (uint32_t)i * 0x02u, v); }
-uint16_t sound_driver_missing_ids(const GameState *g, unsigned i) { return r16(g, 0x7E1F20u + (uint32_t)i * 0x02u); }
-void set_sound_driver_missing_ids(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1F20u + (uint32_t)i * 0x02u, v); }
-uint16_t sound_driver_address_table_address(const GameState *g, unsigned i) { return r16(g, 0x7E1F80u + (uint32_t)i * 0x04u); }
-void set_sound_driver_address_table_address(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1F80u + (uint32_t)i * 0x04u, v); }
-uint16_t sound_driver_address_table_second_address(const GameState *g, unsigned i) { return r16(g, 0x7E1F82u + (uint32_t)i * 0x04u); }
-void set_sound_driver_address_table_second_address(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1F82u + (uint32_t)i * 0x04u, v); }
-uint16_t palette_base(const GameState *g, unsigned i) { return r16(g, 0x7E2000u + (uint32_t)i * 0x02u); }
-void set_palette_base(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E2000u + (uint32_t)i * 0x02u, v); }
-uint16_t palette_working(const GameState *g, unsigned i) { return r16(g, 0x7E2200u + (uint32_t)i * 0x02u); }
-void set_palette_working(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E2200u + (uint32_t)i * 0x02u, v); }
-uint8_t inventory_items(const GameState *g, unsigned i) { return r8(g, 0x7E2400u + (uint32_t)i * 0x01u); }
-void set_inventory_items(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E2400u + (uint32_t)i * 0x01u, v); }
-uint8_t inventory_counts(const GameState *g, unsigned i) { return r8(g, 0x7E2500u + (uint32_t)i * 0x01u); }
-void set_inventory_counts(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E2500u + (uint32_t)i * 0x01u, v); }
-uint8_t party_members(const GameState *g, unsigned slot) { return r8(g, 0x7E2980u + (uint32_t)slot * 0x01u); }
-void set_party_members(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E2980u + (uint32_t)slot * 0x01u, v); }
-uint8_t button_assignments(const GameState *g, unsigned i) { return r8(g, 0x7E2993u + (uint32_t)i * 0x01u); }
-void set_button_assignments(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E2993u + (uint32_t)i * 0x01u, v); }
+uint16_t sound_driver_song_ids(const GameState *g, unsigned i) { IN_RANGE(g, 10, "sound_driver_song_ids", "count", i, 16u); return r16(g, 0x7E1F00u + (uint32_t)i * 0x02u); }
+void set_sound_driver_song_ids(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 10, "set_sound_driver_song_ids", "count", i, 16u); w16(g, 0x7E1F00u + (uint32_t)i * 0x02u, v); }
+uint16_t sound_driver_missing_ids(const GameState *g, unsigned i) { IN_RANGE(g, 11, "sound_driver_missing_ids", "count", i, 16u); return r16(g, 0x7E1F20u + (uint32_t)i * 0x02u); }
+void set_sound_driver_missing_ids(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 11, "set_sound_driver_missing_ids", "count", i, 16u); w16(g, 0x7E1F20u + (uint32_t)i * 0x02u, v); }
+uint16_t sound_driver_address_table_address(const GameState *g, unsigned i) { IN_RANGE(g, 12, "sound_driver_address_table_address", "count", i, 16u); return r16(g, 0x7E1F80u + (uint32_t)i * 0x04u); }
+void set_sound_driver_address_table_address(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 12, "set_sound_driver_address_table_address", "count", i, 16u); w16(g, 0x7E1F80u + (uint32_t)i * 0x04u, v); }
+uint16_t sound_driver_address_table_second_address(const GameState *g, unsigned i) { IN_RANGE(g, 12, "sound_driver_address_table_second_address", "count", i, 16u); return r16(g, 0x7E1F82u + (uint32_t)i * 0x04u); }
+void set_sound_driver_address_table_second_address(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 12, "set_sound_driver_address_table_second_address", "count", i, 16u); w16(g, 0x7E1F82u + (uint32_t)i * 0x04u, v); }
+uint16_t palette_base(const GameState *g, unsigned i) { IN_RANGE(g, 13, "palette_base", "count", i, 256u); return r16(g, 0x7E2000u + (uint32_t)i * 0x02u); }
+void set_palette_base(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 13, "set_palette_base", "count", i, 256u); w16(g, 0x7E2000u + (uint32_t)i * 0x02u, v); }
+uint16_t palette_working(const GameState *g, unsigned i) { IN_RANGE(g, 14, "palette_working", "count", i, 256u); return r16(g, 0x7E2200u + (uint32_t)i * 0x02u); }
+void set_palette_working(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 14, "set_palette_working", "count", i, 256u); w16(g, 0x7E2200u + (uint32_t)i * 0x02u, v); }
+uint8_t inventory_items(const GameState *g, unsigned i) { IN_RANGE(g, 15, "inventory_items", "count", i, 242u); return r8(g, 0x7E2400u + (uint32_t)i * 0x01u); }
+void set_inventory_items(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 15, "set_inventory_items", "count", i, 242u); w8(g, 0x7E2400u + (uint32_t)i * 0x01u, v); }
+uint8_t inventory_counts(const GameState *g, unsigned i) { IN_RANGE(g, 16, "inventory_counts", "count", i, 242u); return r8(g, 0x7E2500u + (uint32_t)i * 0x01u); }
+void set_inventory_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 16, "set_inventory_counts", "count", i, 242u); w8(g, 0x7E2500u + (uint32_t)i * 0x01u, v); }
+uint8_t party_members(const GameState *g, unsigned slot) { IN_RANGE(g, 17, "party_members", "count", slot, 3u); return r8(g, 0x7E2980u + (uint32_t)slot * 0x01u); }
+void set_party_members(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 17, "set_party_members", "count", slot, 3u); w8(g, 0x7E2980u + (uint32_t)slot * 0x01u, v); }
+uint8_t button_assignments(const GameState *g, unsigned i) { IN_RANGE(g, 18, "button_assignments", "count", i, 8u); return r8(g, 0x7E2993u + (uint32_t)i * 0x01u); }
+void set_button_assignments(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 18, "set_button_assignments", "count", i, 8u); w8(g, 0x7E2993u + (uint32_t)i * 0x01u, v); }
 uint8_t current_song(const GameState *g) { return r8(g, 0x7E29AEu); }
 void set_current_song(GameState *g, uint8_t v) { w8(g, 0x7E29AEu, v); }
-uint8_t character_names_byte(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7E2C23u + (uint32_t)i * 0x06u + at); }
-void set_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7E2C23u + (uint32_t)i * 0x06u + at, v); }
-uint8_t save_slot_summaries_members_byte(const GameState *g, unsigned slot, unsigned at) { return r8(g, 0x7E7600u + (uint32_t)slot * 0x40u + at); }
-void set_save_slot_summaries_members_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { w8(g, 0x7E7600u + (uint32_t)slot * 0x40u + at, v); }
-uint8_t save_slot_summaries_header_byte(const GameState *g, unsigned slot, unsigned at) { return r8(g, 0x7E7630u + (uint32_t)slot * 0x40u + at); }
-void set_save_slot_summaries_header_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { w8(g, 0x7E7630u + (uint32_t)slot * 0x40u + at, v); }
-uint8_t tile_animation_tables_steps_byte(const GameState *g, unsigned slot, unsigned at) { return r8(g, 0x7F0400u + (uint32_t)slot * 0x20u + at); }
-void set_tile_animation_tables_steps_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { w8(g, 0x7F0400u + (uint32_t)slot * 0x20u + at, v); }
-uint8_t tile_animation_tables_sources_byte(const GameState *g, unsigned slot, unsigned at) { return r8(g, 0x7F0410u + (uint32_t)slot * 0x20u + at); }
-void set_tile_animation_tables_sources_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { w8(g, 0x7F0410u + (uint32_t)slot * 0x20u + at, v); }
+uint8_t character_names_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 19, "character_names_byte", "count", i, 7u); IN_RANGE(g, 19, "character_names_byte", "bytes", at, 5u); return r8(g, 0x7E2C23u + (uint32_t)i * 0x06u + at); }
+void set_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 19, "set_character_names_byte", "count", i, 7u); IN_RANGE(g, 19, "set_character_names_byte", "bytes", at, 5u); w8(g, 0x7E2C23u + (uint32_t)i * 0x06u + at, v); }
+uint8_t save_slot_summaries_members_byte(const GameState *g, unsigned slot, unsigned at) { IN_RANGE(g, 20, "save_slot_summaries_members_byte", "count", slot, 3u); IN_RANGE(g, 20, "save_slot_summaries_members_byte", "bytes", at, 48u); return r8(g, 0x7E7600u + (uint32_t)slot * 0x40u + at); }
+void set_save_slot_summaries_members_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { IN_RANGE(g, 20, "set_save_slot_summaries_members_byte", "count", slot, 3u); IN_RANGE(g, 20, "set_save_slot_summaries_members_byte", "bytes", at, 48u); w8(g, 0x7E7600u + (uint32_t)slot * 0x40u + at, v); }
+uint8_t save_slot_summaries_header_byte(const GameState *g, unsigned slot, unsigned at) { IN_RANGE(g, 20, "save_slot_summaries_header_byte", "count", slot, 3u); IN_RANGE(g, 20, "save_slot_summaries_header_byte", "bytes", at, 16u); return r8(g, 0x7E7630u + (uint32_t)slot * 0x40u + at); }
+void set_save_slot_summaries_header_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { IN_RANGE(g, 20, "set_save_slot_summaries_header_byte", "count", slot, 3u); IN_RANGE(g, 20, "set_save_slot_summaries_header_byte", "bytes", at, 16u); w8(g, 0x7E7630u + (uint32_t)slot * 0x40u + at, v); }
+uint8_t tile_animation_tables_steps_byte(const GameState *g, unsigned slot, unsigned at) { IN_RANGE(g, 21, "tile_animation_tables_steps_byte", "count", slot, 12u); IN_RANGE(g, 21, "tile_animation_tables_steps_byte", "bytes", at, 16u); return r8(g, 0x7F0400u + (uint32_t)slot * 0x20u + at); }
+void set_tile_animation_tables_steps_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { IN_RANGE(g, 21, "set_tile_animation_tables_steps_byte", "count", slot, 12u); IN_RANGE(g, 21, "set_tile_animation_tables_steps_byte", "bytes", at, 16u); w8(g, 0x7F0400u + (uint32_t)slot * 0x20u + at, v); }
+uint8_t tile_animation_tables_sources_byte(const GameState *g, unsigned slot, unsigned at) { IN_RANGE(g, 21, "tile_animation_tables_sources_byte", "count", slot, 12u); IN_RANGE(g, 21, "tile_animation_tables_sources_byte", "bytes", at, 16u); return r8(g, 0x7F0410u + (uint32_t)slot * 0x20u + at); }
+void set_tile_animation_tables_sources_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { IN_RANGE(g, 21, "set_tile_animation_tables_sources_byte", "count", slot, 12u); IN_RANGE(g, 21, "set_tile_animation_tables_sources_byte", "bytes", at, 16u); w8(g, 0x7F0410u + (uint32_t)slot * 0x20u + at, v); }
 
 /* ---- data ---------------------------------------------------------------------------------- */
 
@@ -337,32 +851,32 @@ uint32_t event_source_pointer(const GameState *g) { return r24(g, 0x7E01CDu); }
 void set_event_source_pointer(GameState *g, uint32_t v) { w24(g, 0x7E01CDu, v); }
 uint32_t event_target_pointer(const GameState *g) { return r24(g, 0x7E01D0u); }
 void set_event_target_pointer(GameState *g, uint32_t v) { w24(g, 0x7E01D0u, v); }
-uint8_t event_scratch_byte(const GameState *g, unsigned at) { return r8(g, 0x7E01D9u + at); }
-void set_event_scratch_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E01D9u + at, v); }
-uint16_t event_object_script_position(const GameState *g, unsigned slot) { return r16(g, 0x7E1180u + (uint32_t)slot * 0x02u); }
-void set_event_object_script_position(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1180u + (uint32_t)slot * 0x02u, v); }
-uint8_t event_object_call_state_level(const GameState *g, unsigned slot) { return r8(g, 0x7E1C00u + (uint32_t)slot * 0x02u); }
-void set_event_object_call_state_level(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1C00u + (uint32_t)slot * 0x02u, v); }
-uint8_t event_object_call_state_refusing(const GameState *g, unsigned slot) { return r8(g, 0x7E1C01u + (uint32_t)slot * 0x02u); }
-void set_event_object_call_state_refusing(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1C01u + (uint32_t)slot * 0x02u, v); }
-uint8_t event_memory_byte(const GameState *g, unsigned at) { return r8(g, 0x7F0000u + at); }
-void set_event_memory_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7F0000u + at, v); }
-uint16_t event_variables(const GameState *g, unsigned i) { return r16(g, 0x7F0200u + (uint32_t)i * 0x02u); }
-void set_event_variables(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7F0200u + (uint32_t)i * 0x02u, v); }
-uint16_t event_saved_positions(const GameState *g, unsigned slot) { return r16(g, 0x7F0580u + (uint32_t)slot * 0x02u); }
-void set_event_saved_positions(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7F0580u + (uint32_t)slot * 0x02u, v); }
-uint8_t event_call_waiting(const GameState *g, unsigned slot) { return r8(g, 0x7F0980u + (uint32_t)slot * 0x02u); }
-void set_event_call_waiting(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0980u + (uint32_t)slot * 0x02u, v); }
-uint8_t event_object_wait_dialog(const GameState *g, unsigned slot) { return r8(g, 0x7F0A00u + (uint32_t)slot * 0x02u); }
-void set_event_object_wait_dialog(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0A00u + (uint32_t)slot * 0x02u, v); }
-uint8_t event_object_wait_frames(const GameState *g, unsigned slot) { return r8(g, 0x7F0A01u + (uint32_t)slot * 0x02u); }
-void set_event_object_wait_frames(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0A01u + (uint32_t)slot * 0x02u, v); }
-uint16_t event_object_result(const GameState *g, unsigned slot) { return r16(g, 0x7F0A80u + (uint32_t)slot * 0x02u); }
-void set_event_object_result(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7F0A80u + (uint32_t)slot * 0x02u, v); }
+uint8_t event_scratch_byte(const GameState *g, unsigned at) { IN_RANGE(g, 22, "event_scratch_byte", "bytes", at, 14u); return r8(g, 0x7E01D9u + at); }
+void set_event_scratch_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 22, "set_event_scratch_byte", "bytes", at, 14u); w8(g, 0x7E01D9u + at, v); }
+uint16_t event_object_script_position(const GameState *g, unsigned slot) { IN_RANGE(g, 23, "event_object_script_position", "count", slot, 64u); return r16(g, 0x7E1180u + (uint32_t)slot * 0x02u); }
+void set_event_object_script_position(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 23, "set_event_object_script_position", "count", slot, 64u); w16(g, 0x7E1180u + (uint32_t)slot * 0x02u, v); }
+uint8_t event_object_call_state_level(const GameState *g, unsigned slot) { IN_RANGE(g, 24, "event_object_call_state_level", "count", slot, 64u); return r8(g, 0x7E1C00u + (uint32_t)slot * 0x02u); }
+void set_event_object_call_state_level(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 24, "set_event_object_call_state_level", "count", slot, 64u); w8(g, 0x7E1C00u + (uint32_t)slot * 0x02u, v); }
+uint8_t event_object_call_state_refusing(const GameState *g, unsigned slot) { IN_RANGE(g, 24, "event_object_call_state_refusing", "count", slot, 64u); return r8(g, 0x7E1C01u + (uint32_t)slot * 0x02u); }
+void set_event_object_call_state_refusing(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 24, "set_event_object_call_state_refusing", "count", slot, 64u); w8(g, 0x7E1C01u + (uint32_t)slot * 0x02u, v); }
+uint8_t event_memory_byte(const GameState *g, unsigned at) { IN_RANGE(g, 25, "event_memory_byte", "bytes", at, 512u); return r8(g, 0x7F0000u + at); }
+void set_event_memory_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 25, "set_event_memory_byte", "bytes", at, 512u); w8(g, 0x7F0000u + at, v); }
+uint16_t event_variables(const GameState *g, unsigned i) { IN_RANGE(g, 26, "event_variables", "count", i, 256u); return r16(g, 0x7F0200u + (uint32_t)i * 0x02u); }
+void set_event_variables(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 26, "set_event_variables", "count", i, 256u); w16(g, 0x7F0200u + (uint32_t)i * 0x02u, v); }
+uint16_t event_saved_positions(const GameState *g, unsigned slot) { IN_RANGE(g, 27, "event_saved_positions", "count", slot, 512u); return r16(g, 0x7F0580u + (uint32_t)slot * 0x02u); }
+void set_event_saved_positions(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 27, "set_event_saved_positions", "count", slot, 512u); w16(g, 0x7F0580u + (uint32_t)slot * 0x02u, v); }
+uint8_t event_call_waiting(const GameState *g, unsigned slot) { IN_RANGE(g, 28, "event_call_waiting", "count", slot, 64u); return r8(g, 0x7F0980u + (uint32_t)slot * 0x02u); }
+void set_event_call_waiting(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 28, "set_event_call_waiting", "count", slot, 64u); w8(g, 0x7F0980u + (uint32_t)slot * 0x02u, v); }
+uint8_t event_object_wait_dialog(const GameState *g, unsigned slot) { IN_RANGE(g, 29, "event_object_wait_dialog", "count", slot, 64u); return r8(g, 0x7F0A00u + (uint32_t)slot * 0x02u); }
+void set_event_object_wait_dialog(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 29, "set_event_object_wait_dialog", "count", slot, 64u); w8(g, 0x7F0A00u + (uint32_t)slot * 0x02u, v); }
+uint8_t event_object_wait_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 29, "event_object_wait_frames", "count", slot, 64u); return r8(g, 0x7F0A01u + (uint32_t)slot * 0x02u); }
+void set_event_object_wait_frames(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 29, "set_event_object_wait_frames", "count", slot, 64u); w8(g, 0x7F0A01u + (uint32_t)slot * 0x02u, v); }
+uint16_t event_object_result(const GameState *g, unsigned slot) { IN_RANGE(g, 30, "event_object_result", "count", slot, 64u); return r16(g, 0x7F0A80u + (uint32_t)slot * 0x02u); }
+void set_event_object_result(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 30, "set_event_object_result", "count", slot, 64u); w16(g, 0x7F0A80u + (uint32_t)slot * 0x02u, v); }
 uint8_t event_object_count(const GameState *g) { return r8(g, 0x7F2000u); }
 void set_event_object_count(GameState *g, uint8_t v) { w8(g, 0x7F2000u, v); }
-uint8_t event_script_byte(const GameState *g, unsigned at) { return r8(g, 0x7F2001u + at); }
-void set_event_script_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7F2001u + at, v); }
+uint8_t event_script_byte(const GameState *g, unsigned at) { IN_RANGE(g, 31, "event_script_byte", "bytes", at, 57343u); return r8(g, 0x7F2001u + at); }
+void set_event_script_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 31, "set_event_script_byte", "bytes", at, 57343u); w8(g, 0x7F2001u + at, v); }
 
 /* ---- field --------------------------------------------------------------------------------- */
 
@@ -462,18 +976,18 @@ uint8_t field_animation_queue_tail(const GameState *g) { return r8(g, 0x7E0177u)
 void set_field_animation_queue_tail(GameState *g, uint8_t v) { w8(g, 0x7E0177u, v); }
 uint8_t field_animation_queue_front(const GameState *g) { return r8(g, 0x7E0178u); }
 void set_field_animation_queue_front(GameState *g, uint8_t v) { w8(g, 0x7E0178u, v); }
-uint16_t field_sprite_range_end(const GameState *g, unsigned i) { return r16(g, 0x7E017Bu + (uint32_t)i * 0x02u); }
-void set_field_sprite_range_end(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E017Bu + (uint32_t)i * 0x02u, v); }
-uint16_t field_sprite_range_high(const GameState *g, unsigned i) { return r16(g, 0x7E0181u + (uint32_t)i * 0x04u); }
-void set_field_sprite_range_high(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0181u + (uint32_t)i * 0x04u, v); }
-uint16_t field_sprite_range_spare(const GameState *g, unsigned i) { return r16(g, 0x7E0183u + (uint32_t)i * 0x04u); }
-void set_field_sprite_range_spare(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0183u + (uint32_t)i * 0x04u, v); }
-uint8_t field_party_objects(const GameState *g, unsigned member) { return r8(g, 0x7E0197u + (uint32_t)member * 0x02u); }
-void set_field_party_objects(GameState *g, unsigned member, uint8_t v) { w8(g, 0x7E0197u + (uint32_t)member * 0x02u, v); }
+uint16_t field_sprite_range_end(const GameState *g, unsigned i) { IN_RANGE(g, 32, "field_sprite_range_end", "count", i, 3u); return r16(g, 0x7E017Bu + (uint32_t)i * 0x02u); }
+void set_field_sprite_range_end(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 32, "set_field_sprite_range_end", "count", i, 3u); w16(g, 0x7E017Bu + (uint32_t)i * 0x02u, v); }
+uint16_t field_sprite_range_high(const GameState *g, unsigned i) { IN_RANGE(g, 33, "field_sprite_range_high", "count", i, 3u); return r16(g, 0x7E0181u + (uint32_t)i * 0x04u); }
+void set_field_sprite_range_high(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 33, "set_field_sprite_range_high", "count", i, 3u); w16(g, 0x7E0181u + (uint32_t)i * 0x04u, v); }
+uint16_t field_sprite_range_spare(const GameState *g, unsigned i) { IN_RANGE(g, 34, "field_sprite_range_spare", "count", i, 3u); return r16(g, 0x7E0183u + (uint32_t)i * 0x04u); }
+void set_field_sprite_range_spare(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 34, "set_field_sprite_range_spare", "count", i, 3u); w16(g, 0x7E0183u + (uint32_t)i * 0x04u, v); }
+uint8_t field_party_objects(const GameState *g, unsigned member) { IN_RANGE(g, 35, "field_party_objects", "count", member, 3u); return r8(g, 0x7E0197u + (uint32_t)member * 0x02u); }
+void set_field_party_objects(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 35, "set_field_party_objects", "count", member, 3u); w8(g, 0x7E0197u + (uint32_t)member * 0x02u, v); }
 uint8_t field_screen_shake(const GameState *g) { return r8(g, 0x7E01BCu); }
 void set_field_screen_shake(GameState *g, uint8_t v) { w8(g, 0x7E01BCu, v); }
-uint8_t field_work_byte(const GameState *g, unsigned at) { return r8(g, 0x7E01C1u + at); }
-void set_field_work_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E01C1u + at, v); }
+uint8_t field_work_byte(const GameState *g, unsigned at) { IN_RANGE(g, 36, "field_work_byte", "bytes", at, 8u); return r8(g, 0x7E01C1u + at); }
+void set_field_work_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 36, "set_field_work_byte", "bytes", at, 8u); w8(g, 0x7E01C1u + at, v); }
 uint8_t field_sprites_left(const GameState *g) { return r8(g, 0x7E01C9u); }
 void set_field_sprites_left(GameState *g, uint8_t v) { w8(g, 0x7E01C9u, v); }
 uint16_t field_sprite_graphics_address(const GameState *g) { return r16(g, 0x7E01CDu); }
@@ -486,8 +1000,8 @@ uint16_t field_frame_entry_address(const GameState *g) { return r16(g, 0x7E01D6u
 void set_field_frame_entry_address(GameState *g, uint16_t v) { w16(g, 0x7E01D6u, v); }
 uint8_t field_frame_entry_bank(const GameState *g) { return r8(g, 0x7E01D8u); }
 void set_field_frame_entry_bank(GameState *g, uint8_t v) { w8(g, 0x7E01D8u, v); }
-uint16_t field_sprite_range_next(const GameState *g, unsigned i) { return r16(g, 0x7E01DBu + (uint32_t)i * 0x02u); }
-void set_field_sprite_range_next(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E01DBu + (uint32_t)i * 0x02u, v); }
+uint16_t field_sprite_range_next(const GameState *g, unsigned i) { IN_RANGE(g, 37, "field_sprite_range_next", "count", i, 3u); return r16(g, 0x7E01DBu + (uint32_t)i * 0x02u); }
+void set_field_sprite_range_next(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 37, "set_field_sprite_range_next", "count", i, 3u); w16(g, 0x7E01DBu + (uint32_t)i * 0x02u, v); }
 uint16_t field_target_object(const GameState *g) { return r16(g, 0x7E01E9u); }
 void set_field_target_object(GameState *g, uint16_t v) { w16(g, 0x7E01E9u, v); }
 uint16_t field_direction(const GameState *g) { return r16(g, 0x7E01EEu); }
@@ -514,138 +1028,138 @@ uint16_t field_window_shape_table_address(const GameState *g) { return r16(g, 0x
 void set_field_window_shape_table_address(GameState *g, uint16_t v) { w16(g, 0x7E0350u, v); }
 uint8_t field_window_shape_table_bank(const GameState *g) { return r8(g, 0x7E0352u); }
 void set_field_window_shape_table_bank(GameState *g, uint8_t v) { w8(g, 0x7E0352u, v); }
-uint8_t field_window_shape_edge_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0353u + at); }
-void set_field_window_shape_edge_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0353u + at, v); }
-uint8_t field_window_shape_corners_x(const GameState *g, unsigned corner) { return r8(g, 0x7E0360u + (uint32_t)corner * 0x02u); }
-void set_field_window_shape_corners_x(GameState *g, unsigned corner, uint8_t v) { w8(g, 0x7E0360u + (uint32_t)corner * 0x02u, v); }
-uint8_t field_window_shape_corners_y(const GameState *g, unsigned corner) { return r8(g, 0x7E0361u + (uint32_t)corner * 0x02u); }
-void set_field_window_shape_corners_y(GameState *g, unsigned corner, uint8_t v) { w8(g, 0x7E0361u + (uint32_t)corner * 0x02u, v); }
+uint8_t field_window_shape_edge_byte(const GameState *g, unsigned at) { IN_RANGE(g, 38, "field_window_shape_edge_byte", "bytes", at, 8u); return r8(g, 0x7E0353u + at); }
+void set_field_window_shape_edge_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 38, "set_field_window_shape_edge_byte", "bytes", at, 8u); w8(g, 0x7E0353u + at, v); }
+uint8_t field_window_shape_corners_x(const GameState *g, unsigned corner) { IN_RANGE(g, 39, "field_window_shape_corners_x", "count", corner, 4u); return r8(g, 0x7E0360u + (uint32_t)corner * 0x02u); }
+void set_field_window_shape_corners_x(GameState *g, unsigned corner, uint8_t v) { IN_RANGE(g, 39, "set_field_window_shape_corners_x", "count", corner, 4u); w8(g, 0x7E0360u + (uint32_t)corner * 0x02u, v); }
+uint8_t field_window_shape_corners_y(const GameState *g, unsigned corner) { IN_RANGE(g, 39, "field_window_shape_corners_y", "count", corner, 4u); return r8(g, 0x7E0361u + (uint32_t)corner * 0x02u); }
+void set_field_window_shape_corners_y(GameState *g, unsigned corner, uint8_t v) { IN_RANGE(g, 39, "set_field_window_shape_corners_y", "count", corner, 4u); w8(g, 0x7E0361u + (uint32_t)corner * 0x02u, v); }
 uint16_t field_window_shape_top(const GameState *g) { return r16(g, 0x7E0368u); }
 void set_field_window_shape_top(GameState *g, uint16_t v) { w16(g, 0x7E0368u, v); }
 uint16_t field_window_shape_right_start(const GameState *g) { return r16(g, 0x7E036Au); }
 void set_field_window_shape_right_start(GameState *g, uint16_t v) { w16(g, 0x7E036Au, v); }
-uint8_t field_window_shape_steps_byte(const GameState *g, unsigned at) { return r8(g, 0x7E03F0u + at); }
-void set_field_window_shape_steps_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E03F0u + at, v); }
-uint8_t field_sprite_table_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0700u + at); }
-void set_field_sprite_table_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0700u + at, v); }
-uint16_t field_vram_queue_source(const GameState *g, unsigned i) { return r16(g, 0x7E0940u + (uint32_t)i * 0x02u); }
-void set_field_vram_queue_source(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0940u + (uint32_t)i * 0x02u, v); }
-uint16_t field_vram_queue_vram(const GameState *g, unsigned i) { return r16(g, 0x7E0950u + (uint32_t)i * 0x02u); }
-void set_field_vram_queue_vram(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0950u + (uint32_t)i * 0x02u, v); }
-uint16_t field_vram_queue_source2(const GameState *g, unsigned i) { return r16(g, 0x7E0960u + (uint32_t)i * 0x02u); }
-void set_field_vram_queue_source2(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0960u + (uint32_t)i * 0x02u, v); }
-uint16_t field_vram_queue_vram2(const GameState *g, unsigned i) { return r16(g, 0x7E0970u + (uint32_t)i * 0x02u); }
-void set_field_vram_queue_vram2(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0970u + (uint32_t)i * 0x02u, v); }
-uint16_t field_vram_queue_size(const GameState *g, unsigned i) { return r16(g, 0x7E0980u + (uint32_t)i * 0x02u); }
-void set_field_vram_queue_size(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0980u + (uint32_t)i * 0x02u, v); }
-uint16_t field_vram_queue_size2(const GameState *g, unsigned i) { return r16(g, 0x7E0990u + (uint32_t)i * 0x02u); }
-void set_field_vram_queue_size2(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0990u + (uint32_t)i * 0x02u, v); }
-uint8_t field_vram_queue_used(const GameState *g, unsigned i) { return r8(g, 0x7E09A0u + (uint32_t)i * 0x02u); }
-void set_field_vram_queue_used(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E09A0u + (uint32_t)i * 0x02u, v); }
-uint16_t field_object_screen_x(const GameState *g, unsigned slot) { return r16(g, 0x7E0A00u + (uint32_t)slot * 0x02u); }
-void set_field_object_screen_x(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0A00u + (uint32_t)slot * 0x02u, v); }
-uint16_t field_object_screen_y(const GameState *g, unsigned slot) { return r16(g, 0x7E0A80u + (uint32_t)slot * 0x02u); }
-void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0A80u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_window_shape_steps_byte(const GameState *g, unsigned at) { IN_RANGE(g, 40, "field_window_shape_steps_byte", "bytes", at, 14u); return r8(g, 0x7E03F0u + at); }
+void set_field_window_shape_steps_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 40, "set_field_window_shape_steps_byte", "bytes", at, 14u); w8(g, 0x7E03F0u + at, v); }
+uint8_t field_sprite_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 41, "field_sprite_table_byte", "bytes", at, 544u); return r8(g, 0x7E0700u + at); }
+void set_field_sprite_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 41, "set_field_sprite_table_byte", "bytes", at, 544u); w8(g, 0x7E0700u + at, v); }
+uint16_t field_vram_queue_source(const GameState *g, unsigned i) { IN_RANGE(g, 42, "field_vram_queue_source", "count", i, 8u); return r16(g, 0x7E0940u + (uint32_t)i * 0x02u); }
+void set_field_vram_queue_source(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 42, "set_field_vram_queue_source", "count", i, 8u); w16(g, 0x7E0940u + (uint32_t)i * 0x02u, v); }
+uint16_t field_vram_queue_vram(const GameState *g, unsigned i) { IN_RANGE(g, 43, "field_vram_queue_vram", "count", i, 8u); return r16(g, 0x7E0950u + (uint32_t)i * 0x02u); }
+void set_field_vram_queue_vram(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 43, "set_field_vram_queue_vram", "count", i, 8u); w16(g, 0x7E0950u + (uint32_t)i * 0x02u, v); }
+uint16_t field_vram_queue_source2(const GameState *g, unsigned i) { IN_RANGE(g, 44, "field_vram_queue_source2", "count", i, 8u); return r16(g, 0x7E0960u + (uint32_t)i * 0x02u); }
+void set_field_vram_queue_source2(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 44, "set_field_vram_queue_source2", "count", i, 8u); w16(g, 0x7E0960u + (uint32_t)i * 0x02u, v); }
+uint16_t field_vram_queue_vram2(const GameState *g, unsigned i) { IN_RANGE(g, 45, "field_vram_queue_vram2", "count", i, 8u); return r16(g, 0x7E0970u + (uint32_t)i * 0x02u); }
+void set_field_vram_queue_vram2(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 45, "set_field_vram_queue_vram2", "count", i, 8u); w16(g, 0x7E0970u + (uint32_t)i * 0x02u, v); }
+uint16_t field_vram_queue_size(const GameState *g, unsigned i) { IN_RANGE(g, 46, "field_vram_queue_size", "count", i, 8u); return r16(g, 0x7E0980u + (uint32_t)i * 0x02u); }
+void set_field_vram_queue_size(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 46, "set_field_vram_queue_size", "count", i, 8u); w16(g, 0x7E0980u + (uint32_t)i * 0x02u, v); }
+uint16_t field_vram_queue_size2(const GameState *g, unsigned i) { IN_RANGE(g, 47, "field_vram_queue_size2", "count", i, 8u); return r16(g, 0x7E0990u + (uint32_t)i * 0x02u); }
+void set_field_vram_queue_size2(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 47, "set_field_vram_queue_size2", "count", i, 8u); w16(g, 0x7E0990u + (uint32_t)i * 0x02u, v); }
+uint8_t field_vram_queue_used(const GameState *g, unsigned i) { IN_RANGE(g, 48, "field_vram_queue_used", "count", i, 8u); return r8(g, 0x7E09A0u + (uint32_t)i * 0x02u); }
+void set_field_vram_queue_used(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 48, "set_field_vram_queue_used", "count", i, 8u); w8(g, 0x7E09A0u + (uint32_t)i * 0x02u, v); }
+uint16_t field_object_screen_x(const GameState *g, unsigned slot) { IN_RANGE(g, 49, "field_object_screen_x", "count", slot, 64u); return r16(g, 0x7E0A00u + (uint32_t)slot * 0x02u); }
+void set_field_object_screen_x(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 49, "set_field_object_screen_x", "count", slot, 64u); w16(g, 0x7E0A00u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_screen_y(const GameState *g, unsigned slot) { IN_RANGE(g, 50, "field_object_screen_y", "count", slot, 64u); return r16(g, 0x7E0A80u + (uint32_t)slot * 0x02u); }
+void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 50, "set_field_object_screen_y", "count", slot, 64u); w16(g, 0x7E0A80u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_map_flags(const GameState *g) { return r8(g, 0x7E0BCAu); }
 void set_field_map_flags(GameState *g, uint8_t v) { w8(g, 0x7E0BCAu, v); }
-uint8_t field_map_layer_sizes_width(const GameState *g, unsigned layer) { return r8(g, 0x7E0BCBu + (uint32_t)layer * 0x04u); }
-void set_field_map_layer_sizes_width(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E0BCBu + (uint32_t)layer * 0x04u, v); }
-uint8_t field_map_layer_sizes_height(const GameState *g, unsigned layer) { return r8(g, 0x7E0BCDu + (uint32_t)layer * 0x04u); }
-void set_field_map_layer_sizes_height(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E0BCDu + (uint32_t)layer * 0x04u, v); }
+uint8_t field_map_layer_sizes_width(const GameState *g, unsigned layer) { IN_RANGE(g, 51, "field_map_layer_sizes_width", "count", layer, 3u); return r8(g, 0x7E0BCBu + (uint32_t)layer * 0x04u); }
+void set_field_map_layer_sizes_width(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 51, "set_field_map_layer_sizes_width", "count", layer, 3u); w8(g, 0x7E0BCBu + (uint32_t)layer * 0x04u, v); }
+uint8_t field_map_layer_sizes_height(const GameState *g, unsigned layer) { IN_RANGE(g, 51, "field_map_layer_sizes_height", "count", layer, 3u); return r8(g, 0x7E0BCDu + (uint32_t)layer * 0x04u); }
+void set_field_map_layer_sizes_height(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 51, "set_field_map_layer_sizes_height", "count", layer, 3u); w8(g, 0x7E0BCDu + (uint32_t)layer * 0x04u, v); }
 uint8_t field_main_screen(const GameState *g) { return r8(g, 0x7E0BD7u); }
 void set_field_main_screen(GameState *g, uint8_t v) { w8(g, 0x7E0BD7u, v); }
 uint8_t field_sub_screen(const GameState *g) { return r8(g, 0x7E0BD8u); }
 void set_field_sub_screen(GameState *g, uint8_t v) { w8(g, 0x7E0BD8u, v); }
-uint8_t field_window_shadows_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0BD9u + at); }
-void set_field_window_shadows_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0BD9u + at, v); }
+uint8_t field_window_shadows_byte(const GameState *g, unsigned at) { IN_RANGE(g, 52, "field_window_shadows_byte", "bytes", at, 5u); return r8(g, 0x7E0BD9u + at); }
+void set_field_window_shadows_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 52, "set_field_window_shadows_byte", "bytes", at, 5u); w8(g, 0x7E0BD9u + at, v); }
 uint8_t field_color_math_control(const GameState *g) { return r8(g, 0x7E0BDEu); }
 void set_field_color_math_control(GameState *g, uint8_t v) { w8(g, 0x7E0BDEu, v); }
 uint8_t field_color_math_layers(const GameState *g) { return r8(g, 0x7E0BDFu); }
 void set_field_color_math_layers(GameState *g, uint8_t v) { w8(g, 0x7E0BDFu, v); }
 uint8_t field_fixed_color_math_layers(const GameState *g) { return r8(g, 0x7E0BE0u); }
 void set_field_fixed_color_math_layers(GameState *g, uint8_t v) { w8(g, 0x7E0BE0u, v); }
-uint16_t field_object_sprite_priority(const GameState *g, unsigned slot) { return r16(g, 0x7E0C00u + (uint32_t)slot * 0x02u); }
-void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0C00u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_row_first_object(const GameState *g, unsigned row) { return r8(g, 0x7E0E00u + (uint32_t)row * 0x02u); }
-void set_field_row_first_object(GameState *g, unsigned row, uint8_t v) { w8(g, 0x7E0E00u + (uint32_t)row * 0x02u, v); }
-uint8_t field_object_row_mark(const GameState *g, unsigned slot) { return r8(g, 0x7E0E01u + (uint32_t)slot * 0x02u); }
-void set_field_object_row_mark(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0E01u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_row_link_previous(const GameState *g, unsigned slot) { return r8(g, 0x7E0E80u + (uint32_t)slot * 0x02u); }
-void set_field_object_row_link_previous(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0E80u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_row_link_next(const GameState *g, unsigned slot) { return r8(g, 0x7E0E81u + (uint32_t)slot * 0x02u); }
-void set_field_object_row_link_next(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0E81u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_in_view(const GameState *g, unsigned slot) { return r8(g, 0x7E0F00u + (uint32_t)slot * 0x02u); }
-void set_field_object_in_view(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0F00u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_battle_info(const GameState *g, unsigned slot) { return r8(g, 0x7E0F01u + (uint32_t)slot * 0x02u); }
-void set_field_object_battle_info(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0F01u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_priority_mode(const GameState *g, unsigned slot) { return r8(g, 0x7E0F80u + (uint32_t)slot * 0x02u); }
-void set_field_object_priority_mode(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0F80u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_step_length(const GameState *g, unsigned slot) { return r8(g, 0x7E1000u + (uint32_t)slot * 0x02u); }
-void set_field_object_step_length(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1000u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_step_count(const GameState *g, unsigned slot) { return r8(g, 0x7E1001u + (uint32_t)slot * 0x02u); }
-void set_field_object_step_count(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1001u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_animation_link(const GameState *g, unsigned slot) { return r8(g, 0x7E1081u + (uint32_t)slot * 0x02u); }
-void set_field_object_animation_link(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1081u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_role(const GameState *g, unsigned slot) { return r8(g, 0x7E1100u + (uint32_t)slot * 0x02u); }
-void set_field_object_role(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_character(const GameState *g, unsigned slot) { return r8(g, 0x7E1101u + (uint32_t)slot * 0x02u); }
-void set_field_object_character(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1101u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_sprite_layout(const GameState *g, unsigned slot) { return r8(g, 0x7E1201u + (uint32_t)slot * 0x02u); }
-void set_field_object_sprite_layout(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1201u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_static_frame(const GameState *g, unsigned slot) { return r8(g, 0x7E1301u + (uint32_t)slot * 0x02u); }
-void set_field_object_static_frame(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1301u + (uint32_t)slot * 0x02u, v); }
-uint16_t field_object_facing_table_size(const GameState *g, unsigned slot) { return r16(g, 0x7E1480u + (uint32_t)slot * 0x02u); }
-void set_field_object_facing_table_size(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1480u + (uint32_t)slot * 0x02u, v); }
-uint16_t field_object_frame_table(const GameState *g, unsigned slot) { return r16(g, 0x7E1500u + (uint32_t)slot * 0x02u); }
-void set_field_object_frame_table(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1500u + (uint32_t)slot * 0x02u, v); }
-uint16_t field_object_delay_table(const GameState *g, unsigned slot) { return r16(g, 0x7E1580u + (uint32_t)slot * 0x02u); }
-void set_field_object_delay_table(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1580u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_facing(const GameState *g, unsigned slot) { return r8(g, 0x7E1600u + (uint32_t)slot * 0x02u); }
-void set_field_object_facing(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1600u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_frame_delay(const GameState *g, unsigned slot) { return r8(g, 0x7E1601u + (uint32_t)slot * 0x02u); }
-void set_field_object_frame_delay(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1601u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_looped_animation(const GameState *g, unsigned slot) { return r8(g, 0x7E1680u + (uint32_t)slot * 0x02u); }
-void set_field_object_looped_animation(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1680u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_animation_frame(const GameState *g, unsigned slot) { return r8(g, 0x7E1681u + (uint32_t)slot * 0x02u); }
-void set_field_object_animation_frame(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1681u + (uint32_t)slot * 0x02u, v); }
-uint16_t field_object_sprite_records(const GameState *g, unsigned slot) { return r16(g, 0x7E1700u + (uint32_t)slot * 0x02u); }
-void set_field_object_sprite_records(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1700u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_animation_mode(const GameState *g, unsigned slot) { return r8(g, 0x7E1780u + (uint32_t)slot * 0x02u); }
-void set_field_object_animation_mode(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1780u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_one_off_animation(const GameState *g, unsigned slot) { return r8(g, 0x7E1781u + (uint32_t)slot * 0x02u); }
-void set_field_object_one_off_animation(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1781u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_x_fine(const GameState *g, unsigned slot) { return r8(g, 0x7E1800u + (uint32_t)slot * 0x02u); }
-void set_field_object_x_fine(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1800u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_x_tile(const GameState *g, unsigned slot) { return r8(g, 0x7E1801u + (uint32_t)slot * 0x02u); }
-void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1801u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_y_fine(const GameState *g, unsigned slot) { return r8(g, 0x7E1880u + (uint32_t)slot * 0x02u); }
-void set_field_object_y_fine(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1880u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_y_tile(const GameState *g, unsigned slot) { return r8(g, 0x7E1881u + (uint32_t)slot * 0x02u); }
-void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1881u + (uint32_t)slot * 0x02u, v); }
-uint16_t field_object_velocity_x(const GameState *g, unsigned slot) { return r16(g, 0x7E1900u + (uint32_t)slot * 0x02u); }
-void set_field_object_velocity_x(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1900u + (uint32_t)slot * 0x02u, v); }
-uint16_t field_object_velocity_y(const GameState *g, unsigned slot) { return r16(g, 0x7E1980u + (uint32_t)slot * 0x02u); }
-void set_field_object_velocity_y(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1980u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_speed(const GameState *g, unsigned slot) { return r8(g, 0x7E1A00u + (uint32_t)slot * 0x02u); }
-void set_field_object_speed(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1A00u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_steps_left(const GameState *g, unsigned slot) { return r8(g, 0x7E1A01u + (uint32_t)slot * 0x02u); }
-void set_field_object_steps_left(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1A01u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_counted_move(const GameState *g, unsigned slot) { return r8(g, 0x7E1A80u + (uint32_t)slot * 0x02u); }
-void set_field_object_counted_move(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1A80u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_sprite_flag(const GameState *g, unsigned slot) { return r8(g, 0x7E1A81u + (uint32_t)slot * 0x02u); }
-void set_field_object_sprite_flag(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1A81u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_sprite_state(const GameState *g, unsigned slot) { return r8(g, 0x7E1B00u + (uint32_t)slot * 0x02u); }
-void set_field_object_sprite_state(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1B00u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_solid(const GameState *g, unsigned slot) { return r8(g, 0x7E1B01u + (uint32_t)slot * 0x02u); }
-void set_field_object_solid(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1B01u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_accelerating(const GameState *g, unsigned slot) { return r8(g, 0x7E1B80u + (uint32_t)slot * 0x02u); }
-void set_field_object_accelerating(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1B80u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_acceleration(const GameState *g, unsigned slot) { return r8(g, 0x7E1B81u + (uint32_t)slot * 0x02u); }
-void set_field_object_acceleration(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1B81u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_blocking(const GameState *g, unsigned slot) { return r8(g, 0x7E1C80u + (uint32_t)slot * 0x02u); }
-void set_field_object_blocking(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1C80u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_arrival_flags(const GameState *g, unsigned slot) { return r8(g, 0x7E1C81u + (uint32_t)slot * 0x02u); }
-void set_field_object_arrival_flags(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1C81u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_sprite_priority(const GameState *g, unsigned slot) { IN_RANGE(g, 53, "field_object_sprite_priority", "count", slot, 64u); return r16(g, 0x7E0C00u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 53, "set_field_object_sprite_priority", "count", slot, 64u); w16(g, 0x7E0C00u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_row_first_object(const GameState *g, unsigned row) { IN_RANGE(g, 54, "field_row_first_object", "count", row, 64u); return r8(g, 0x7E0E00u + (uint32_t)row * 0x02u); }
+void set_field_row_first_object(GameState *g, unsigned row, uint8_t v) { IN_RANGE(g, 54, "set_field_row_first_object", "count", row, 64u); w8(g, 0x7E0E00u + (uint32_t)row * 0x02u, v); }
+uint8_t field_object_row_mark(const GameState *g, unsigned slot) { IN_RANGE(g, 55, "field_object_row_mark", "count", slot, 64u); return r8(g, 0x7E0E01u + (uint32_t)slot * 0x02u); }
+void set_field_object_row_mark(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 55, "set_field_object_row_mark", "count", slot, 64u); w8(g, 0x7E0E01u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_row_link_previous(const GameState *g, unsigned slot) { IN_RANGE(g, 56, "field_object_row_link_previous", "count", slot, 64u); return r8(g, 0x7E0E80u + (uint32_t)slot * 0x02u); }
+void set_field_object_row_link_previous(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 56, "set_field_object_row_link_previous", "count", slot, 64u); w8(g, 0x7E0E80u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_row_link_next(const GameState *g, unsigned slot) { IN_RANGE(g, 56, "field_object_row_link_next", "count", slot, 64u); return r8(g, 0x7E0E81u + (uint32_t)slot * 0x02u); }
+void set_field_object_row_link_next(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 56, "set_field_object_row_link_next", "count", slot, 64u); w8(g, 0x7E0E81u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_in_view(const GameState *g, unsigned slot) { IN_RANGE(g, 57, "field_object_in_view", "count", slot, 64u); return r8(g, 0x7E0F00u + (uint32_t)slot * 0x02u); }
+void set_field_object_in_view(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 57, "set_field_object_in_view", "count", slot, 64u); w8(g, 0x7E0F00u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_battle_info(const GameState *g, unsigned slot) { IN_RANGE(g, 58, "field_object_battle_info", "count", slot, 64u); return r8(g, 0x7E0F01u + (uint32_t)slot * 0x02u); }
+void set_field_object_battle_info(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 58, "set_field_object_battle_info", "count", slot, 64u); w8(g, 0x7E0F01u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_priority_mode(const GameState *g, unsigned slot) { IN_RANGE(g, 59, "field_object_priority_mode", "count", slot, 64u); return r8(g, 0x7E0F80u + (uint32_t)slot * 0x02u); }
+void set_field_object_priority_mode(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 59, "set_field_object_priority_mode", "count", slot, 64u); w8(g, 0x7E0F80u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_step_length(const GameState *g, unsigned slot) { IN_RANGE(g, 60, "field_object_step_length", "count", slot, 64u); return r8(g, 0x7E1000u + (uint32_t)slot * 0x02u); }
+void set_field_object_step_length(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 60, "set_field_object_step_length", "count", slot, 64u); w8(g, 0x7E1000u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_step_count(const GameState *g, unsigned slot) { IN_RANGE(g, 61, "field_object_step_count", "count", slot, 64u); return r8(g, 0x7E1001u + (uint32_t)slot * 0x02u); }
+void set_field_object_step_count(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 61, "set_field_object_step_count", "count", slot, 64u); w8(g, 0x7E1001u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_animation_link(const GameState *g, unsigned slot) { IN_RANGE(g, 62, "field_object_animation_link", "count", slot, 64u); return r8(g, 0x7E1081u + (uint32_t)slot * 0x02u); }
+void set_field_object_animation_link(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 62, "set_field_object_animation_link", "count", slot, 64u); w8(g, 0x7E1081u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_role(const GameState *g, unsigned slot) { IN_RANGE(g, 63, "field_object_role", "count", slot, 64u); return r8(g, 0x7E1100u + (uint32_t)slot * 0x02u); }
+void set_field_object_role(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 63, "set_field_object_role", "count", slot, 64u); w8(g, 0x7E1100u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_character(const GameState *g, unsigned slot) { IN_RANGE(g, 64, "field_object_character", "count", slot, 64u); return r8(g, 0x7E1101u + (uint32_t)slot * 0x02u); }
+void set_field_object_character(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 64, "set_field_object_character", "count", slot, 64u); w8(g, 0x7E1101u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_sprite_layout(const GameState *g, unsigned slot) { IN_RANGE(g, 65, "field_object_sprite_layout", "count", slot, 64u); return r8(g, 0x7E1201u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_layout(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 65, "set_field_object_sprite_layout", "count", slot, 64u); w8(g, 0x7E1201u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_static_frame(const GameState *g, unsigned slot) { IN_RANGE(g, 66, "field_object_static_frame", "count", slot, 64u); return r8(g, 0x7E1301u + (uint32_t)slot * 0x02u); }
+void set_field_object_static_frame(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 66, "set_field_object_static_frame", "count", slot, 64u); w8(g, 0x7E1301u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_facing_table_size(const GameState *g, unsigned slot) { IN_RANGE(g, 67, "field_object_facing_table_size", "count", slot, 64u); return r16(g, 0x7E1480u + (uint32_t)slot * 0x02u); }
+void set_field_object_facing_table_size(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 67, "set_field_object_facing_table_size", "count", slot, 64u); w16(g, 0x7E1480u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_frame_table(const GameState *g, unsigned slot) { IN_RANGE(g, 68, "field_object_frame_table", "count", slot, 64u); return r16(g, 0x7E1500u + (uint32_t)slot * 0x02u); }
+void set_field_object_frame_table(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 68, "set_field_object_frame_table", "count", slot, 64u); w16(g, 0x7E1500u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_delay_table(const GameState *g, unsigned slot) { IN_RANGE(g, 69, "field_object_delay_table", "count", slot, 64u); return r16(g, 0x7E1580u + (uint32_t)slot * 0x02u); }
+void set_field_object_delay_table(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 69, "set_field_object_delay_table", "count", slot, 64u); w16(g, 0x7E1580u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_facing(const GameState *g, unsigned slot) { IN_RANGE(g, 70, "field_object_facing", "count", slot, 64u); return r8(g, 0x7E1600u + (uint32_t)slot * 0x02u); }
+void set_field_object_facing(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 70, "set_field_object_facing", "count", slot, 64u); w8(g, 0x7E1600u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_frame_delay(const GameState *g, unsigned slot) { IN_RANGE(g, 71, "field_object_frame_delay", "count", slot, 64u); return r8(g, 0x7E1601u + (uint32_t)slot * 0x02u); }
+void set_field_object_frame_delay(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 71, "set_field_object_frame_delay", "count", slot, 64u); w8(g, 0x7E1601u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_looped_animation(const GameState *g, unsigned slot) { IN_RANGE(g, 72, "field_object_looped_animation", "count", slot, 64u); return r8(g, 0x7E1680u + (uint32_t)slot * 0x02u); }
+void set_field_object_looped_animation(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 72, "set_field_object_looped_animation", "count", slot, 64u); w8(g, 0x7E1680u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_animation_frame(const GameState *g, unsigned slot) { IN_RANGE(g, 73, "field_object_animation_frame", "count", slot, 64u); return r8(g, 0x7E1681u + (uint32_t)slot * 0x02u); }
+void set_field_object_animation_frame(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 73, "set_field_object_animation_frame", "count", slot, 64u); w8(g, 0x7E1681u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_sprite_records(const GameState *g, unsigned slot) { IN_RANGE(g, 74, "field_object_sprite_records", "count", slot, 64u); return r16(g, 0x7E1700u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_records(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 74, "set_field_object_sprite_records", "count", slot, 64u); w16(g, 0x7E1700u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_animation_mode(const GameState *g, unsigned slot) { IN_RANGE(g, 75, "field_object_animation_mode", "count", slot, 64u); return r8(g, 0x7E1780u + (uint32_t)slot * 0x02u); }
+void set_field_object_animation_mode(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 75, "set_field_object_animation_mode", "count", slot, 64u); w8(g, 0x7E1780u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_one_off_animation(const GameState *g, unsigned slot) { IN_RANGE(g, 76, "field_object_one_off_animation", "count", slot, 64u); return r8(g, 0x7E1781u + (uint32_t)slot * 0x02u); }
+void set_field_object_one_off_animation(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 76, "set_field_object_one_off_animation", "count", slot, 64u); w8(g, 0x7E1781u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_x_fine(const GameState *g, unsigned slot) { IN_RANGE(g, 77, "field_object_x_fine", "count", slot, 64u); return r8(g, 0x7E1800u + (uint32_t)slot * 0x02u); }
+void set_field_object_x_fine(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 77, "set_field_object_x_fine", "count", slot, 64u); w8(g, 0x7E1800u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_x_tile(const GameState *g, unsigned slot) { IN_RANGE(g, 77, "field_object_x_tile", "count", slot, 64u); return r8(g, 0x7E1801u + (uint32_t)slot * 0x02u); }
+void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 77, "set_field_object_x_tile", "count", slot, 64u); w8(g, 0x7E1801u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_y_fine(const GameState *g, unsigned slot) { IN_RANGE(g, 78, "field_object_y_fine", "count", slot, 64u); return r8(g, 0x7E1880u + (uint32_t)slot * 0x02u); }
+void set_field_object_y_fine(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 78, "set_field_object_y_fine", "count", slot, 64u); w8(g, 0x7E1880u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_y_tile(const GameState *g, unsigned slot) { IN_RANGE(g, 78, "field_object_y_tile", "count", slot, 64u); return r8(g, 0x7E1881u + (uint32_t)slot * 0x02u); }
+void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 78, "set_field_object_y_tile", "count", slot, 64u); w8(g, 0x7E1881u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_velocity_x(const GameState *g, unsigned slot) { IN_RANGE(g, 79, "field_object_velocity_x", "count", slot, 64u); return r16(g, 0x7E1900u + (uint32_t)slot * 0x02u); }
+void set_field_object_velocity_x(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 79, "set_field_object_velocity_x", "count", slot, 64u); w16(g, 0x7E1900u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_velocity_y(const GameState *g, unsigned slot) { IN_RANGE(g, 80, "field_object_velocity_y", "count", slot, 64u); return r16(g, 0x7E1980u + (uint32_t)slot * 0x02u); }
+void set_field_object_velocity_y(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 80, "set_field_object_velocity_y", "count", slot, 64u); w16(g, 0x7E1980u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_speed(const GameState *g, unsigned slot) { IN_RANGE(g, 81, "field_object_speed", "count", slot, 64u); return r8(g, 0x7E1A00u + (uint32_t)slot * 0x02u); }
+void set_field_object_speed(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 81, "set_field_object_speed", "count", slot, 64u); w8(g, 0x7E1A00u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_steps_left(const GameState *g, unsigned slot) { IN_RANGE(g, 82, "field_object_steps_left", "count", slot, 64u); return r8(g, 0x7E1A01u + (uint32_t)slot * 0x02u); }
+void set_field_object_steps_left(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 82, "set_field_object_steps_left", "count", slot, 64u); w8(g, 0x7E1A01u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_counted_move(const GameState *g, unsigned slot) { IN_RANGE(g, 83, "field_object_counted_move", "count", slot, 64u); return r8(g, 0x7E1A80u + (uint32_t)slot * 0x02u); }
+void set_field_object_counted_move(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 83, "set_field_object_counted_move", "count", slot, 64u); w8(g, 0x7E1A80u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_sprite_flag(const GameState *g, unsigned slot) { IN_RANGE(g, 84, "field_object_sprite_flag", "count", slot, 64u); return r8(g, 0x7E1A81u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_flag(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 84, "set_field_object_sprite_flag", "count", slot, 64u); w8(g, 0x7E1A81u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_sprite_state(const GameState *g, unsigned slot) { IN_RANGE(g, 85, "field_object_sprite_state", "count", slot, 64u); return r8(g, 0x7E1B00u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_state(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 85, "set_field_object_sprite_state", "count", slot, 64u); w8(g, 0x7E1B00u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_solid(const GameState *g, unsigned slot) { IN_RANGE(g, 86, "field_object_solid", "count", slot, 64u); return r8(g, 0x7E1B01u + (uint32_t)slot * 0x02u); }
+void set_field_object_solid(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 86, "set_field_object_solid", "count", slot, 64u); w8(g, 0x7E1B01u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_accelerating(const GameState *g, unsigned slot) { IN_RANGE(g, 87, "field_object_accelerating", "count", slot, 64u); return r8(g, 0x7E1B80u + (uint32_t)slot * 0x02u); }
+void set_field_object_accelerating(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 87, "set_field_object_accelerating", "count", slot, 64u); w8(g, 0x7E1B80u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_acceleration(const GameState *g, unsigned slot) { IN_RANGE(g, 88, "field_object_acceleration", "count", slot, 64u); return r8(g, 0x7E1B81u + (uint32_t)slot * 0x02u); }
+void set_field_object_acceleration(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 88, "set_field_object_acceleration", "count", slot, 64u); w8(g, 0x7E1B81u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_blocking(const GameState *g, unsigned slot) { IN_RANGE(g, 89, "field_object_blocking", "count", slot, 64u); return r8(g, 0x7E1C80u + (uint32_t)slot * 0x02u); }
+void set_field_object_blocking(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 89, "set_field_object_blocking", "count", slot, 64u); w8(g, 0x7E1C80u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_arrival_flags(const GameState *g, unsigned slot) { IN_RANGE(g, 90, "field_object_arrival_flags", "count", slot, 64u); return r8(g, 0x7E1C81u + (uint32_t)slot * 0x02u); }
+void set_field_object_arrival_flags(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 90, "set_field_object_arrival_flags", "count", slot, 64u); w8(g, 0x7E1C81u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_screen_scroll_state(const GameState *g) { return r8(g, 0x7E1D00u); }
 void set_field_screen_scroll_state(GameState *g, uint8_t v) { w8(g, 0x7E1D00u, v); }
 uint8_t field_screen_scroll_arrived(const GameState *g) { return r8(g, 0x7E1D01u); }
@@ -664,150 +1178,152 @@ uint8_t field_screen_bottom(const GameState *g) { return r8(g, 0x7E1D10u); }
 void set_field_screen_bottom(GameState *g, uint8_t v) { w8(g, 0x7E1D10u, v); }
 uint16_t field_map_index_mask(const GameState *g) { return r16(g, 0x7E1D1Eu); }
 void set_field_map_index_mask(GameState *g, uint16_t v) { w16(g, 0x7E1D1Eu, v); }
-uint8_t field_layer_extra_speed_x(const GameState *g, unsigned layer) { return r8(g, 0x7E1D24u + (uint32_t)layer * 0x02u); }
-void set_field_layer_extra_speed_x(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D24u + (uint32_t)layer * 0x02u, v); }
-uint8_t field_layer_extra_speed_y(const GameState *g, unsigned layer) { return r8(g, 0x7E1D25u + (uint32_t)layer * 0x02u); }
-void set_field_layer_extra_speed_y(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D25u + (uint32_t)layer * 0x02u, v); }
-uint8_t field_screen_scroll_step(const GameState *g, unsigned i) { return r8(g, 0x7E1D2Eu + (uint32_t)i * 0x02u); }
-void set_field_screen_scroll_step(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1D2Eu + (uint32_t)i * 0x02u, v); }
+uint8_t field_layer_extra_speed_x(const GameState *g, unsigned layer) { IN_RANGE(g, 91, "field_layer_extra_speed_x", "count", layer, 3u); return r8(g, 0x7E1D24u + (uint32_t)layer * 0x02u); }
+void set_field_layer_extra_speed_x(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 91, "set_field_layer_extra_speed_x", "count", layer, 3u); w8(g, 0x7E1D24u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_extra_speed_y(const GameState *g, unsigned layer) { IN_RANGE(g, 91, "field_layer_extra_speed_y", "count", layer, 3u); return r8(g, 0x7E1D25u + (uint32_t)layer * 0x02u); }
+void set_field_layer_extra_speed_y(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 91, "set_field_layer_extra_speed_y", "count", layer, 3u); w8(g, 0x7E1D25u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_screen_scroll_step(const GameState *g, unsigned i) { IN_RANGE(g, 92, "field_screen_scroll_step", "count", i, 2u); return r8(g, 0x7E1D2Eu + (uint32_t)i * 0x02u); }
+void set_field_screen_scroll_step(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 92, "set_field_screen_scroll_step", "count", i, 2u); w8(g, 0x7E1D2Eu + (uint32_t)i * 0x02u, v); }
 uint8_t field_layer_still(const GameState *g) { return r8(g, 0x7E1D36u); }
 void set_field_layer_still(GameState *g, uint8_t v) { w8(g, 0x7E1D36u, v); }
-uint8_t field_layer_speed_x(const GameState *g, unsigned layer) { return r8(g, 0x7E1D37u + (uint32_t)layer * 0x02u); }
-void set_field_layer_speed_x(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D37u + (uint32_t)layer * 0x02u, v); }
-uint8_t field_layer_speed_y(const GameState *g, unsigned layer) { return r8(g, 0x7E1D38u + (uint32_t)layer * 0x02u); }
-void set_field_layer_speed_y(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D38u + (uint32_t)layer * 0x02u, v); }
-uint8_t field_layer_scroll_accumulator_x(const GameState *g, unsigned layer) { return r8(g, 0x7E1D3Bu + (uint32_t)layer * 0x02u); }
-void set_field_layer_scroll_accumulator_x(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D3Bu + (uint32_t)layer * 0x02u, v); }
-uint8_t field_layer_scroll_accumulator_y(const GameState *g, unsigned layer) { return r8(g, 0x7E1D3Cu + (uint32_t)layer * 0x02u); }
-void set_field_layer_scroll_accumulator_y(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D3Cu + (uint32_t)layer * 0x02u, v); }
-uint8_t field_layer_move_negative(const GameState *g, unsigned layer) { return r8(g, 0x7E1D41u + (uint32_t)layer * 0x02u); }
-void set_field_layer_move_negative(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D41u + (uint32_t)layer * 0x02u, v); }
-uint8_t field_layer_move_positive(const GameState *g, unsigned layer) { return r8(g, 0x7E1D42u + (uint32_t)layer * 0x02u); }
-void set_field_layer_move_positive(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D42u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_speed_x(const GameState *g, unsigned layer) { IN_RANGE(g, 93, "field_layer_speed_x", "count", layer, 2u); return r8(g, 0x7E1D37u + (uint32_t)layer * 0x02u); }
+void set_field_layer_speed_x(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 93, "set_field_layer_speed_x", "count", layer, 2u); w8(g, 0x7E1D37u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_speed_y(const GameState *g, unsigned layer) { IN_RANGE(g, 93, "field_layer_speed_y", "count", layer, 2u); return r8(g, 0x7E1D38u + (uint32_t)layer * 0x02u); }
+void set_field_layer_speed_y(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 93, "set_field_layer_speed_y", "count", layer, 2u); w8(g, 0x7E1D38u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_scroll_accumulator_x(const GameState *g, unsigned layer) { IN_RANGE(g, 94, "field_layer_scroll_accumulator_x", "count", layer, 3u); return r8(g, 0x7E1D3Bu + (uint32_t)layer * 0x02u); }
+void set_field_layer_scroll_accumulator_x(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 94, "set_field_layer_scroll_accumulator_x", "count", layer, 3u); w8(g, 0x7E1D3Bu + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_scroll_accumulator_y(const GameState *g, unsigned layer) { IN_RANGE(g, 94, "field_layer_scroll_accumulator_y", "count", layer, 3u); return r8(g, 0x7E1D3Cu + (uint32_t)layer * 0x02u); }
+void set_field_layer_scroll_accumulator_y(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 94, "set_field_layer_scroll_accumulator_y", "count", layer, 3u); w8(g, 0x7E1D3Cu + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_move_negative(const GameState *g, unsigned layer) { IN_RANGE(g, 95, "field_layer_move_negative", "count", layer, 6u); return r8(g, 0x7E1D41u + (uint32_t)layer * 0x02u); }
+void set_field_layer_move_negative(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 95, "set_field_layer_move_negative", "count", layer, 6u); w8(g, 0x7E1D41u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_move_positive(const GameState *g, unsigned layer) { IN_RANGE(g, 95, "field_layer_move_positive", "count", layer, 6u); return r8(g, 0x7E1D42u + (uint32_t)layer * 0x02u); }
+void set_field_layer_move_positive(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 95, "set_field_layer_move_positive", "count", layer, 6u); w8(g, 0x7E1D42u + (uint32_t)layer * 0x02u, v); }
 uint8_t field_layer_extra_speed_time(const GameState *g) { return r8(g, 0x7E1D4Du); }
 void set_field_layer_extra_speed_time(GameState *g, uint8_t v) { w8(g, 0x7E1D4Du, v); }
 uint8_t field_scroll_offset_x(const GameState *g) { return r8(g, 0x7E1D4Eu); }
 void set_field_scroll_offset_x(GameState *g, uint8_t v) { w8(g, 0x7E1D4Eu, v); }
 uint8_t field_scroll_offset_y(const GameState *g) { return r8(g, 0x7E1D4Fu); }
 void set_field_scroll_offset_y(GameState *g, uint8_t v) { w8(g, 0x7E1D4Fu, v); }
-uint8_t field_layer_work_byte(const GameState *g, unsigned at) { return r8(g, 0x7E1D50u + at); }
-void set_field_layer_work_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E1D50u + at, v); }
+uint8_t field_layer_work_byte(const GameState *g, unsigned at) { IN_RANGE(g, 96, "field_layer_work_byte", "bytes", at, 14u); return r8(g, 0x7E1D50u + at); }
+void set_field_layer_work_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 96, "set_field_layer_work_byte", "bytes", at, 14u); w8(g, 0x7E1D50u + at, v); }
 uint16_t field_layer_edge_wrap(const GameState *g) { return r16(g, 0x7E1D5Eu); }
 void set_field_layer_edge_wrap(GameState *g, uint16_t v) { w16(g, 0x7E1D5Eu, v); }
-uint8_t field_layer_edge_work_byte(const GameState *g, unsigned at) { return r8(g, 0x7E1D60u + at); }
-void set_field_layer_edge_work_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E1D60u + at, v); }
-uint8_t field_layer_upload_flags(const GameState *g, unsigned i) { return r8(g, 0x7E1D78u + (uint32_t)i * 0x01u); }
-void set_field_layer_upload_flags(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1D78u + (uint32_t)i * 0x01u, v); }
-uint16_t field_layer_map_base(const GameState *g, unsigned layer) { return r16(g, 0x7E1D7Cu + (uint32_t)layer * 0x02u); }
-void set_field_layer_map_base(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E1D7Cu + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_edge_work_byte(const GameState *g, unsigned at) { IN_RANGE(g, 97, "field_layer_edge_work_byte", "bytes", at, 16u); return r8(g, 0x7E1D60u + at); }
+void set_field_layer_edge_work_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 97, "set_field_layer_edge_work_byte", "bytes", at, 16u); w8(g, 0x7E1D60u + at, v); }
+uint8_t field_layer_upload_flags(const GameState *g, unsigned i) { IN_RANGE(g, 98, "field_layer_upload_flags", "count", i, 4u); return r8(g, 0x7E1D78u + (uint32_t)i * 0x01u); }
+void set_field_layer_upload_flags(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 98, "set_field_layer_upload_flags", "count", i, 4u); w8(g, 0x7E1D78u + (uint32_t)i * 0x01u, v); }
+uint16_t field_layer_map_base(const GameState *g, unsigned layer) { IN_RANGE(g, 99, "field_layer_map_base", "count", layer, 3u); return r16(g, 0x7E1D7Cu + (uint32_t)layer * 0x02u); }
+void set_field_layer_map_base(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 99, "set_field_layer_map_base", "count", layer, 3u); w16(g, 0x7E1D7Cu + (uint32_t)layer * 0x02u, v); }
 uint16_t field_transition_map_base(const GameState *g) { return r16(g, 0x7E1D82u); }
 void set_field_transition_map_base(GameState *g, uint16_t v) { w16(g, 0x7E1D82u, v); }
-uint8_t field_layer_map_size(const GameState *g, unsigned layer) { return r8(g, 0x7E1D84u + (uint32_t)layer * 0x01u); }
-void set_field_layer_map_size(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D84u + (uint32_t)layer * 0x01u, v); }
-uint16_t field_layer_scroll_h(const GameState *g, unsigned layer) { return r16(g, 0x7E1D87u + (uint32_t)layer * 0x04u); }
-void set_field_layer_scroll_h(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E1D87u + (uint32_t)layer * 0x04u, v); }
-uint16_t field_layer_scroll_v(const GameState *g, unsigned layer) { return r16(g, 0x7E1D89u + (uint32_t)layer * 0x04u); }
-void set_field_layer_scroll_v(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E1D89u + (uint32_t)layer * 0x04u, v); }
-uint8_t field_layer_position_x(const GameState *g, unsigned layer) { return r8(g, 0x7E1D99u + (uint32_t)layer * 0x02u); }
-void set_field_layer_position_x(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D99u + (uint32_t)layer * 0x02u, v); }
-uint8_t field_layer_position_y(const GameState *g, unsigned layer) { return r8(g, 0x7E1D9Au + (uint32_t)layer * 0x02u); }
-void set_field_layer_position_y(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7E1D9Au + (uint32_t)layer * 0x02u, v); }
-uint8_t field_layer_edge_vram_byte(const GameState *g, unsigned layer, unsigned at) { return r8(g, 0x7E1D9Fu + (uint32_t)layer * 0x14u + at); }
-void set_field_layer_edge_vram_byte(GameState *g, unsigned layer, unsigned at, uint8_t v) { w8(g, 0x7E1D9Fu + (uint32_t)layer * 0x14u + at, v); }
-uint8_t field_layer_edge_sizes_byte(const GameState *g, unsigned layer, unsigned at) { return r8(g, 0x7E1DDBu + (uint32_t)layer * 0x0Au + at); }
-void set_field_layer_edge_sizes_byte(GameState *g, unsigned layer, unsigned at, uint8_t v) { w8(g, 0x7E1DDBu + (uint32_t)layer * 0x0Au + at, v); }
+uint8_t field_layer_map_size(const GameState *g, unsigned layer) { IN_RANGE(g, 100, "field_layer_map_size", "count", layer, 3u); return r8(g, 0x7E1D84u + (uint32_t)layer * 0x01u); }
+void set_field_layer_map_size(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 100, "set_field_layer_map_size", "count", layer, 3u); w8(g, 0x7E1D84u + (uint32_t)layer * 0x01u, v); }
+uint16_t field_layer_scroll_h(const GameState *g, unsigned layer) { IN_RANGE(g, 101, "field_layer_scroll_h", "count", layer, 3u); return r16(g, 0x7E1D87u + (uint32_t)layer * 0x04u); }
+void set_field_layer_scroll_h(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 101, "set_field_layer_scroll_h", "count", layer, 3u); w16(g, 0x7E1D87u + (uint32_t)layer * 0x04u, v); }
+uint16_t field_layer_scroll_v(const GameState *g, unsigned layer) { IN_RANGE(g, 101, "field_layer_scroll_v", "count", layer, 3u); return r16(g, 0x7E1D89u + (uint32_t)layer * 0x04u); }
+void set_field_layer_scroll_v(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 101, "set_field_layer_scroll_v", "count", layer, 3u); w16(g, 0x7E1D89u + (uint32_t)layer * 0x04u, v); }
+uint8_t field_layer_position_x(const GameState *g, unsigned layer) { IN_RANGE(g, 102, "field_layer_position_x", "count", layer, 3u); return r8(g, 0x7E1D99u + (uint32_t)layer * 0x02u); }
+void set_field_layer_position_x(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 102, "set_field_layer_position_x", "count", layer, 3u); w8(g, 0x7E1D99u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_position_y(const GameState *g, unsigned layer) { IN_RANGE(g, 102, "field_layer_position_y", "count", layer, 3u); return r8(g, 0x7E1D9Au + (uint32_t)layer * 0x02u); }
+void set_field_layer_position_y(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 102, "set_field_layer_position_y", "count", layer, 3u); w8(g, 0x7E1D9Au + (uint32_t)layer * 0x02u, v); }
+uint8_t field_layer_edge_vram_byte(const GameState *g, unsigned layer, unsigned at) { IN_RANGE(g, 103, "field_layer_edge_vram_byte", "count", layer, 3u); IN_RANGE(g, 103, "field_layer_edge_vram_byte", "bytes", at, 20u); return r8(g, 0x7E1D9Fu + (uint32_t)layer * 0x14u + at); }
+void set_field_layer_edge_vram_byte(GameState *g, unsigned layer, unsigned at, uint8_t v) { IN_RANGE(g, 103, "set_field_layer_edge_vram_byte", "count", layer, 3u); IN_RANGE(g, 103, "set_field_layer_edge_vram_byte", "bytes", at, 20u); w8(g, 0x7E1D9Fu + (uint32_t)layer * 0x14u + at, v); }
+uint8_t field_layer_edge_sizes_byte(const GameState *g, unsigned layer, unsigned at) { IN_RANGE(g, 104, "field_layer_edge_sizes_byte", "count", layer, 3u); IN_RANGE(g, 104, "field_layer_edge_sizes_byte", "bytes", at, 10u); return r8(g, 0x7E1DDBu + (uint32_t)layer * 0x0Au + at); }
+void set_field_layer_edge_sizes_byte(GameState *g, unsigned layer, unsigned at, uint8_t v) { IN_RANGE(g, 104, "set_field_layer_edge_sizes_byte", "count", layer, 3u); IN_RANGE(g, 104, "set_field_layer_edge_sizes_byte", "bytes", at, 10u); w8(g, 0x7E1DDBu + (uint32_t)layer * 0x0Au + at, v); }
 uint16_t field_line_wave_bg3(const GameState *g) { return r16(g, 0x7E1DF9u); }
 void set_field_line_wave_bg3(GameState *g, uint16_t v) { w16(g, 0x7E1DF9u, v); }
 uint8_t field_line_wave_phase(const GameState *g) { return r8(g, 0x7E1DFBu); }
 void set_field_line_wave_phase(GameState *g, uint8_t v) { w8(g, 0x7E1DFBu, v); }
 uint16_t field_line_wave_bg2(const GameState *g) { return r16(g, 0x7E1DFDu); }
 void set_field_line_wave_bg2(GameState *g, uint16_t v) { w16(g, 0x7E1DFDu, v); }
-uint16_t field_layer_scroll_values_x(const GameState *g, unsigned layer) { return r16(g, 0x7E2C74u + (uint32_t)layer * 0x04u); }
-void set_field_layer_scroll_values_x(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E2C74u + (uint32_t)layer * 0x04u, v); }
-uint16_t field_layer_scroll_values_y(const GameState *g, unsigned layer) { return r16(g, 0x7E2C76u + (uint32_t)layer * 0x04u); }
-void set_field_layer_scroll_values_y(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E2C76u + (uint32_t)layer * 0x04u, v); }
-uint8_t field_layer_maps(const GameState *g, unsigned layer, unsigned row, unsigned column) { return r8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column); }
-void set_field_layer_maps(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column, v); }
-uint8_t field_tile_properties(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E30C0u + (uint32_t)row * 0x100u + column); }
-void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E30C0u + (uint32_t)row * 0x100u + column, v); }
-uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E7000u + (uint32_t)row * 0x100u + column); }
-void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E7000u + (uint32_t)row * 0x100u + column, v); }
-uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E7040u + (uint32_t)row * 0x100u + column); }
-void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E7040u + (uint32_t)row * 0x100u + column, v); }
+uint16_t field_layer_scroll_values_x(const GameState *g, unsigned layer) { IN_RANGE(g, 105, "field_layer_scroll_values_x", "count", layer, 2u); return r16(g, 0x7E2C74u + (uint32_t)layer * 0x04u); }
+void set_field_layer_scroll_values_x(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 105, "set_field_layer_scroll_values_x", "count", layer, 2u); w16(g, 0x7E2C74u + (uint32_t)layer * 0x04u, v); }
+uint16_t field_layer_scroll_values_y(const GameState *g, unsigned layer) { IN_RANGE(g, 105, "field_layer_scroll_values_y", "count", layer, 2u); return r16(g, 0x7E2C76u + (uint32_t)layer * 0x04u); }
+void set_field_layer_scroll_values_y(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 105, "set_field_layer_scroll_values_y", "count", layer, 2u); w16(g, 0x7E2C76u + (uint32_t)layer * 0x04u, v); }
+uint8_t field_layer_maps(const GameState *g, unsigned layer, unsigned row, unsigned column) { IN_RANGE(g, 106, "field_layer_maps", "count", layer, 3u); IN_RANGE(g, 106, "field_layer_maps", "rows", row, 64u); IN_RANGE(g, 106, "field_layer_maps", "columns", column, 64u); return r8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column); }
+void set_field_layer_maps(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 106, "set_field_layer_maps", "count", layer, 3u); IN_RANGE(g, 106, "set_field_layer_maps", "rows", row, 64u); IN_RANGE(g, 106, "set_field_layer_maps", "columns", column, 64u); w8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column, v); }
+uint8_t field_tile_properties(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 107, "field_tile_properties", "rows", row, 64u); IN_RANGE(g, 107, "field_tile_properties", "columns", column, 64u); return r8(g, 0x7E30C0u + (uint32_t)row * 0x100u + column); }
+void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 107, "set_field_tile_properties", "rows", row, 64u); IN_RANGE(g, 107, "set_field_tile_properties", "columns", column, 64u); w8(g, 0x7E30C0u + (uint32_t)row * 0x100u + column, v); }
+uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 108, "field_tile_upper_attributes", "rows", row, 64u); IN_RANGE(g, 108, "field_tile_upper_attributes", "columns", column, 64u); return r8(g, 0x7E7000u + (uint32_t)row * 0x100u + column); }
+void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 108, "set_field_tile_upper_attributes", "rows", row, 64u); IN_RANGE(g, 108, "set_field_tile_upper_attributes", "columns", column, 64u); w8(g, 0x7E7000u + (uint32_t)row * 0x100u + column, v); }
+uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 109, "field_tile_lower_attributes", "rows", row, 64u); IN_RANGE(g, 109, "field_tile_lower_attributes", "columns", column, 64u); return r8(g, 0x7E7040u + (uint32_t)row * 0x100u + column); }
+void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 109, "set_field_tile_lower_attributes", "rows", row, 64u); IN_RANGE(g, 109, "set_field_tile_lower_attributes", "columns", column, 64u); w8(g, 0x7E7040u + (uint32_t)row * 0x100u + column, v); }
 uint8_t field_map_data(const GameState *g) { return r8(g, 0x7EB506u); }
 void set_field_map_data(GameState *g, uint8_t v) { w8(g, 0x7EB506u, v); }
 uint8_t field_window_2_second_table(const GameState *g) { return r8(g, 0x7F0351u); }
 void set_field_window_2_second_table(GameState *g, uint8_t v) { w8(g, 0x7F0351u, v); }
-uint8_t field_object_tile_crossing(const GameState *g, unsigned slot) { return r8(g, 0x7F0B00u + (uint32_t)slot * 0x02u); }
-void set_field_object_tile_crossing(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0B00u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_object_one_off_half_passes(const GameState *g, unsigned slot) { return r8(g, 0x7F0B01u + (uint32_t)slot * 0x02u); }
-void set_field_object_one_off_half_passes(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7F0B01u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_line_effect_tables_byte(const GameState *g, unsigned slot, unsigned at) { return r8(g, 0x7F0F80u + (uint32_t)slot * 0x57u + at); }
-void set_field_line_effect_tables_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { w8(g, 0x7F0F80u + (uint32_t)slot * 0x57u + at, v); }
-uint32_t field_line_bg_maps(const GameState *g, unsigned i) { return r32(g, 0x7F14F0u + (uint32_t)i * 0x04u); }
-void set_field_line_bg_maps(GameState *g, unsigned i, uint32_t v) { w32(g, 0x7F14F0u + (uint32_t)i * 0x04u, v); }
-uint16_t field_line_window_scroll_h(const GameState *g, unsigned i) { return r16(g, 0x7F14F8u + (uint32_t)i * 0x04u); }
-void set_field_line_window_scroll_h(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7F14F8u + (uint32_t)i * 0x04u, v); }
-uint16_t field_line_window_scroll_v(const GameState *g, unsigned i) { return r16(g, 0x7F14FAu + (uint32_t)i * 0x04u); }
-void set_field_line_window_scroll_v(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7F14FAu + (uint32_t)i * 0x04u, v); }
-uint16_t field_line_scroll_h(const GameState *g, unsigned layer) { return r16(g, 0x7F1508u + (uint32_t)layer * 0x04u); }
-void set_field_line_scroll_h(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7F1508u + (uint32_t)layer * 0x04u, v); }
-uint16_t field_line_scroll_v(const GameState *g, unsigned layer) { return r16(g, 0x7F150Au + (uint32_t)layer * 0x04u); }
-void set_field_line_scroll_v(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7F150Au + (uint32_t)layer * 0x04u, v); }
-uint32_t field_line_screens(const GameState *g, unsigned i) { return r32(g, 0x7F1520u + (uint32_t)i * 0x04u); }
-void set_field_line_screens(GameState *g, unsigned i, uint32_t v) { w32(g, 0x7F1520u + (uint32_t)i * 0x04u, v); }
-uint8_t field_line_color_math_layers(const GameState *g, unsigned i) { return r8(g, 0x7F152Cu + (uint32_t)i * 0x02u); }
-void set_field_line_color_math_layers(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7F152Cu + (uint32_t)i * 0x02u, v); }
-uint8_t field_line_color_math_fixed_color(const GameState *g, unsigned i) { return r8(g, 0x7F152Du + (uint32_t)i * 0x02u); }
-void set_field_line_color_math_fixed_color(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7F152Du + (uint32_t)i * 0x02u, v); }
-uint16_t field_line_window1_edges(const GameState *g, unsigned i) { return r16(g, 0x7F1534u + (uint32_t)i * 0x02u); }
-void set_field_line_window1_edges(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7F1534u + (uint32_t)i * 0x02u, v); }
-uint8_t field_dialog_shading_layers(const GameState *g, unsigned line) { return r8(g, 0x7F1538u + (uint32_t)line * 0x02u); }
-void set_field_dialog_shading_layers(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7F1538u + (uint32_t)line * 0x02u, v); }
-uint8_t field_dialog_shading_fixed_color(const GameState *g, unsigned line) { return r8(g, 0x7F1539u + (uint32_t)line * 0x02u); }
-void set_field_dialog_shading_fixed_color(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7F1539u + (uint32_t)line * 0x02u, v); }
-uint16_t field_dialog_shading_copy(const GameState *g, unsigned line) { return r16(g, 0x7F1600u + (uint32_t)line * 0x02u); }
-void set_field_dialog_shading_copy(GameState *g, unsigned line, uint16_t v) { w16(g, 0x7F1600u + (uint32_t)line * 0x02u, v); }
-uint16_t field_window_edge_lines(const GameState *g, unsigned line) { return r16(g, 0x7F17C8u + (uint32_t)line * 0x02u); }
-void set_field_window_edge_lines(GameState *g, unsigned line, uint16_t v) { w16(g, 0x7F17C8u + (uint32_t)line * 0x02u, v); }
-uint16_t field_window_edge_lines_copy(const GameState *g, unsigned line) { return r16(g, 0x7F1AC8u + (uint32_t)line * 0x02u); }
-void set_field_window_edge_lines_copy(GameState *g, unsigned line, uint16_t v) { w16(g, 0x7F1AC8u + (uint32_t)line * 0x02u, v); }
-uint8_t field_window_shape_quad_byte(const GameState *g, unsigned at) { return r8(g, 0x7F1CEAu + at); }
-void set_field_window_shape_quad_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7F1CEAu + at, v); }
-uint16_t field_line_wave_h(const GameState *g, unsigned line) { return r16(g, 0x7F1D27u + (uint32_t)line * 0x04u); }
-void set_field_line_wave_h(GameState *g, unsigned line, uint16_t v) { w16(g, 0x7F1D27u + (uint32_t)line * 0x04u, v); }
-uint16_t field_line_wave_v(const GameState *g, unsigned line) { return r16(g, 0x7F1D29u + (uint32_t)line * 0x04u); }
-void set_field_line_wave_v(GameState *g, unsigned line, uint16_t v) { w16(g, 0x7F1D29u + (uint32_t)line * 0x04u, v); }
+uint8_t field_object_tile_crossing(const GameState *g, unsigned slot) { IN_RANGE(g, 110, "field_object_tile_crossing", "count", slot, 64u); return r8(g, 0x7F0B00u + (uint32_t)slot * 0x02u); }
+void set_field_object_tile_crossing(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 110, "set_field_object_tile_crossing", "count", slot, 64u); w8(g, 0x7F0B00u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_object_one_off_half_passes(const GameState *g, unsigned slot) { IN_RANGE(g, 111, "field_object_one_off_half_passes", "count", slot, 64u); return r8(g, 0x7F0B01u + (uint32_t)slot * 0x02u); }
+void set_field_object_one_off_half_passes(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 111, "set_field_object_one_off_half_passes", "count", slot, 64u); w8(g, 0x7F0B01u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_line_effect_tables_byte(const GameState *g, unsigned slot, unsigned at) { IN_RANGE(g, 112, "field_line_effect_tables_byte", "count", slot, 16u); IN_RANGE(g, 112, "field_line_effect_tables_byte", "bytes", at, 87u); return r8(g, 0x7F0F80u + (uint32_t)slot * 0x57u + at); }
+void set_field_line_effect_tables_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { IN_RANGE(g, 112, "set_field_line_effect_tables_byte", "count", slot, 16u); IN_RANGE(g, 112, "set_field_line_effect_tables_byte", "bytes", at, 87u); w8(g, 0x7F0F80u + (uint32_t)slot * 0x57u + at, v); }
+uint32_t field_line_bg_maps(const GameState *g, unsigned i) { IN_RANGE(g, 113, "field_line_bg_maps", "count", i, 2u); return r32(g, 0x7F14F0u + (uint32_t)i * 0x04u); }
+void set_field_line_bg_maps(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 113, "set_field_line_bg_maps", "count", i, 2u); w32(g, 0x7F14F0u + (uint32_t)i * 0x04u, v); }
+uint16_t field_line_window_scroll_h(const GameState *g, unsigned i) { IN_RANGE(g, 114, "field_line_window_scroll_h", "count", i, 4u); return r16(g, 0x7F14F8u + (uint32_t)i * 0x04u); }
+void set_field_line_window_scroll_h(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 114, "set_field_line_window_scroll_h", "count", i, 4u); w16(g, 0x7F14F8u + (uint32_t)i * 0x04u, v); }
+uint16_t field_line_window_scroll_v(const GameState *g, unsigned i) { IN_RANGE(g, 114, "field_line_window_scroll_v", "count", i, 4u); return r16(g, 0x7F14FAu + (uint32_t)i * 0x04u); }
+void set_field_line_window_scroll_v(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 114, "set_field_line_window_scroll_v", "count", i, 4u); w16(g, 0x7F14FAu + (uint32_t)i * 0x04u, v); }
+uint16_t field_line_scroll_h(const GameState *g, unsigned layer) { IN_RANGE(g, 115, "field_line_scroll_h", "count", layer, 6u); return r16(g, 0x7F1508u + (uint32_t)layer * 0x04u); }
+void set_field_line_scroll_h(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 115, "set_field_line_scroll_h", "count", layer, 6u); w16(g, 0x7F1508u + (uint32_t)layer * 0x04u, v); }
+uint16_t field_line_scroll_v(const GameState *g, unsigned layer) { IN_RANGE(g, 115, "field_line_scroll_v", "count", layer, 6u); return r16(g, 0x7F150Au + (uint32_t)layer * 0x04u); }
+void set_field_line_scroll_v(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 115, "set_field_line_scroll_v", "count", layer, 6u); w16(g, 0x7F150Au + (uint32_t)layer * 0x04u, v); }
+uint32_t field_line_screens(const GameState *g, unsigned i) { IN_RANGE(g, 116, "field_line_screens", "count", i, 3u); return r32(g, 0x7F1520u + (uint32_t)i * 0x04u); }
+void set_field_line_screens(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 116, "set_field_line_screens", "count", i, 3u); w32(g, 0x7F1520u + (uint32_t)i * 0x04u, v); }
+uint8_t field_line_color_math_layers(const GameState *g, unsigned i) { IN_RANGE(g, 117, "field_line_color_math_layers", "count", i, 4u); return r8(g, 0x7F152Cu + (uint32_t)i * 0x02u); }
+void set_field_line_color_math_layers(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 117, "set_field_line_color_math_layers", "count", i, 4u); w8(g, 0x7F152Cu + (uint32_t)i * 0x02u, v); }
+uint8_t field_line_color_math_fixed_color(const GameState *g, unsigned i) { IN_RANGE(g, 117, "field_line_color_math_fixed_color", "count", i, 4u); return r8(g, 0x7F152Du + (uint32_t)i * 0x02u); }
+void set_field_line_color_math_fixed_color(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 117, "set_field_line_color_math_fixed_color", "count", i, 4u); w8(g, 0x7F152Du + (uint32_t)i * 0x02u, v); }
+uint16_t field_line_window1_edges(const GameState *g, unsigned i) { IN_RANGE(g, 118, "field_line_window1_edges", "count", i, 2u); return r16(g, 0x7F1534u + (uint32_t)i * 0x02u); }
+void set_field_line_window1_edges(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 118, "set_field_line_window1_edges", "count", i, 2u); w16(g, 0x7F1534u + (uint32_t)i * 0x02u, v); }
+uint8_t field_dialog_shading_layers(const GameState *g, unsigned line) { IN_RANGE(g, 119, "field_dialog_shading_layers", "count", line, 100u); return r8(g, 0x7F1538u + (uint32_t)line * 0x02u); }
+void set_field_dialog_shading_layers(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 119, "set_field_dialog_shading_layers", "count", line, 100u); w8(g, 0x7F1538u + (uint32_t)line * 0x02u, v); }
+uint8_t field_dialog_shading_fixed_color(const GameState *g, unsigned line) { IN_RANGE(g, 119, "field_dialog_shading_fixed_color", "count", line, 100u); return r8(g, 0x7F1539u + (uint32_t)line * 0x02u); }
+void set_field_dialog_shading_fixed_color(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 119, "set_field_dialog_shading_fixed_color", "count", line, 100u); w8(g, 0x7F1539u + (uint32_t)line * 0x02u, v); }
+uint16_t field_dialog_shading_copy(const GameState *g, unsigned line) { IN_RANGE(g, 120, "field_dialog_shading_copy", "count", line, 128u); return r16(g, 0x7F1600u + (uint32_t)line * 0x02u); }
+void set_field_dialog_shading_copy(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 120, "set_field_dialog_shading_copy", "count", line, 128u); w16(g, 0x7F1600u + (uint32_t)line * 0x02u, v); }
+uint16_t field_window_edge_lines(const GameState *g, unsigned line) { IN_RANGE(g, 121, "field_window_edge_lines", "count", line, 224u); return r16(g, 0x7F17C8u + (uint32_t)line * 0x02u); }
+void set_field_window_edge_lines(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 121, "set_field_window_edge_lines", "count", line, 224u); w16(g, 0x7F17C8u + (uint32_t)line * 0x02u, v); }
+uint16_t field_window_edge_lines_copy(const GameState *g, unsigned line) { IN_RANGE(g, 122, "field_window_edge_lines_copy", "count", line, 224u); return r16(g, 0x7F1AC8u + (uint32_t)line * 0x02u); }
+void set_field_window_edge_lines_copy(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 122, "set_field_window_edge_lines_copy", "count", line, 224u); w16(g, 0x7F1AC8u + (uint32_t)line * 0x02u, v); }
+uint8_t field_window_shape_quad_byte(const GameState *g, unsigned at) { IN_RANGE(g, 123, "field_window_shape_quad_byte", "bytes", at, 15u); return r8(g, 0x7F1CEAu + at); }
+void set_field_window_shape_quad_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 123, "set_field_window_shape_quad_byte", "bytes", at, 15u); w8(g, 0x7F1CEAu + at, v); }
+uint16_t field_line_wave_h(const GameState *g, unsigned line) { IN_RANGE(g, 124, "field_line_wave_h", "count", line, 64u); return r16(g, 0x7F1D27u + (uint32_t)line * 0x04u); }
+void set_field_line_wave_h(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 124, "set_field_line_wave_h", "count", line, 64u); w16(g, 0x7F1D27u + (uint32_t)line * 0x04u, v); }
+uint16_t field_line_wave_v(const GameState *g, unsigned line) { IN_RANGE(g, 124, "field_line_wave_v", "count", line, 64u); return r16(g, 0x7F1D29u + (uint32_t)line * 0x04u); }
+void set_field_line_wave_v(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 124, "set_field_line_wave_v", "count", line, 64u); w16(g, 0x7F1D29u + (uint32_t)line * 0x04u, v); }
 uint8_t field_color_math_layers_override(const GameState *g) { return r8(g, 0x7F22C0u); }
 void set_field_color_math_layers_override(GameState *g, uint8_t v) { w8(g, 0x7F22C0u, v); }
 uint8_t field_auto_scroll(const GameState *g) { return r8(g, 0x7F3415u); }
 void set_field_auto_scroll(GameState *g, uint8_t v) { w8(g, 0x7F3415u, v); }
-uint8_t field_auto_scroll_speed_x(const GameState *g, unsigned layer) { return r8(g, 0x7F3417u + (uint32_t)layer * 0x02u); }
-void set_field_auto_scroll_speed_x(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7F3417u + (uint32_t)layer * 0x02u, v); }
-uint8_t field_auto_scroll_speed_y(const GameState *g, unsigned layer) { return r8(g, 0x7F3418u + (uint32_t)layer * 0x02u); }
-void set_field_auto_scroll_speed_y(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7F3418u + (uint32_t)layer * 0x02u, v); }
-uint8_t field_auto_scroll_accumulator_x(const GameState *g, unsigned layer) { return r8(g, 0x7F341Du + (uint32_t)layer * 0x02u); }
-void set_field_auto_scroll_accumulator_x(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7F341Du + (uint32_t)layer * 0x02u, v); }
-uint8_t field_auto_scroll_accumulator_y(const GameState *g, unsigned layer) { return r8(g, 0x7F341Eu + (uint32_t)layer * 0x02u); }
-void set_field_auto_scroll_accumulator_y(GameState *g, unsigned layer, uint8_t v) { w8(g, 0x7F341Eu + (uint32_t)layer * 0x02u, v); }
+uint8_t field_auto_scroll_speed_x(const GameState *g, unsigned layer) { IN_RANGE(g, 125, "field_auto_scroll_speed_x", "count", layer, 2u); return r8(g, 0x7F3417u + (uint32_t)layer * 0x02u); }
+void set_field_auto_scroll_speed_x(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 125, "set_field_auto_scroll_speed_x", "count", layer, 2u); w8(g, 0x7F3417u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_auto_scroll_speed_y(const GameState *g, unsigned layer) { IN_RANGE(g, 125, "field_auto_scroll_speed_y", "count", layer, 2u); return r8(g, 0x7F3418u + (uint32_t)layer * 0x02u); }
+void set_field_auto_scroll_speed_y(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 125, "set_field_auto_scroll_speed_y", "count", layer, 2u); w8(g, 0x7F3418u + (uint32_t)layer * 0x02u, v); }
+uint8_t field_auto_scroll_accumulator_x(const GameState *g, unsigned layer) { IN_RANGE(g, 126, "field_auto_scroll_accumulator_x", "count", layer, 2u); return r8(g, 0x7F341Du + (uint32_t)layer * 0x02u); }
+void set_field_auto_scroll_accumulator_x(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 126, "set_field_auto_scroll_accumulator_x", "count", layer, 2u); w8(g, 0x7F341Du + (uint32_t)layer * 0x02u, v); }
+uint8_t field_auto_scroll_accumulator_y(const GameState *g, unsigned layer) { IN_RANGE(g, 126, "field_auto_scroll_accumulator_y", "count", layer, 2u); return r8(g, 0x7F341Eu + (uint32_t)layer * 0x02u); }
+void set_field_auto_scroll_accumulator_y(GameState *g, unsigned layer, uint8_t v) { IN_RANGE(g, 126, "set_field_auto_scroll_accumulator_y", "count", layer, 2u); w8(g, 0x7F341Eu + (uint32_t)layer * 0x02u, v); }
 uint16_t field_bg1_scroll_position_h(const GameState *g) { return r16(g, 0x7F3467u); }
 void set_field_bg1_scroll_position_h(GameState *g, uint16_t v) { w16(g, 0x7F3467u, v); }
 uint16_t field_bg1_scroll_position_v(const GameState *g) { return r16(g, 0x7F3469u); }
 void set_field_bg1_scroll_position_v(GameState *g, uint16_t v) { w16(g, 0x7F3469u, v); }
-uint16_t field_auto_scroll_position_x(const GameState *g, unsigned layer) { return r16(g, 0x7F346Bu + (uint32_t)layer * 0x04u); }
-void set_field_auto_scroll_position_x(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7F346Bu + (uint32_t)layer * 0x04u, v); }
-uint16_t field_auto_scroll_position_y(const GameState *g, unsigned layer) { return r16(g, 0x7F346Du + (uint32_t)layer * 0x04u); }
-void set_field_auto_scroll_position_y(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7F346Du + (uint32_t)layer * 0x04u, v); }
-uint8_t field_sprite_frame_data_byte(const GameState *g, unsigned at) { return r8(g, 0x7F4800u + at); }
-void set_field_sprite_frame_data_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7F4800u + at, v); }
-uint16_t field_object_sprite_high_more(const GameState *g, unsigned slot) { return r16(g, 0x7F4B40u + (uint32_t)slot * 0x02u); }
-void set_field_object_sprite_high_more(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7F4B40u + (uint32_t)slot * 0x02u, v); }
-uint8_t field_sprite_records_byte(const GameState *g, unsigned at) { return r8(g, 0x7F4BC0u + at); }
-void set_field_sprite_records_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7F4BC0u + at, v); }
-uint16_t field_object_sprite_high(const GameState *g, unsigned slot) { return r16(g, 0x7F4F00u + (uint32_t)slot * 0x02u); }
-void set_field_object_sprite_high(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7F4F00u + (uint32_t)slot * 0x02u, v); }
-uint16_t field_object_sprite_high_last(const GameState *g, unsigned slot) { return r16(g, 0x7F4F80u + (uint32_t)slot * 0x02u); }
-void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7F4F80u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_auto_scroll_position_x(const GameState *g, unsigned layer) { IN_RANGE(g, 127, "field_auto_scroll_position_x", "count", layer, 2u); return r16(g, 0x7F346Bu + (uint32_t)layer * 0x04u); }
+void set_field_auto_scroll_position_x(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 127, "set_field_auto_scroll_position_x", "count", layer, 2u); w16(g, 0x7F346Bu + (uint32_t)layer * 0x04u, v); }
+uint16_t field_auto_scroll_position_y(const GameState *g, unsigned layer) { IN_RANGE(g, 127, "field_auto_scroll_position_y", "count", layer, 2u); return r16(g, 0x7F346Du + (uint32_t)layer * 0x04u); }
+void set_field_auto_scroll_position_y(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 127, "set_field_auto_scroll_position_y", "count", layer, 2u); w16(g, 0x7F346Du + (uint32_t)layer * 0x04u, v); }
+uint8_t field_sprite_frame_data_byte(const GameState *g, unsigned at) { IN_RANGE(g, 128, "field_sprite_frame_data_byte", "bytes", at, 832u); return r8(g, 0x7F4800u + at); }
+void set_field_sprite_frame_data_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 128, "set_field_sprite_frame_data_byte", "bytes", at, 832u); w8(g, 0x7F4800u + at, v); }
+uint16_t field_object_sprite_high_more(const GameState *g, unsigned slot) { IN_RANGE(g, 129, "field_object_sprite_high_more", "count", slot, 64u); return r16(g, 0x7F4B40u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_high_more(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 129, "set_field_object_sprite_high_more", "count", slot, 64u); w16(g, 0x7F4B40u + (uint32_t)slot * 0x02u, v); }
+uint8_t field_sprite_records_byte(const GameState *g, unsigned at) { IN_RANGE(g, 130, "field_sprite_records_byte", "bytes", at, 832u); return r8(g, 0x7F4BC0u + at); }
+void set_field_sprite_records_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 130, "set_field_sprite_records_byte", "bytes", at, 832u); w8(g, 0x7F4BC0u + at, v); }
+uint8_t field_sprite_records_byte_unchecked(const GameState *g, unsigned at) { return r8(g, 0x7F4BC0u + at); }
+void set_field_sprite_records_byte_unchecked(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7F4BC0u + at, v); }
+uint16_t field_object_sprite_high(const GameState *g, unsigned slot) { IN_RANGE(g, 131, "field_object_sprite_high", "count", slot, 64u); return r16(g, 0x7F4F00u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_high(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 131, "set_field_object_sprite_high", "count", slot, 64u); w16(g, 0x7F4F00u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_sprite_high_last(const GameState *g, unsigned slot) { IN_RANGE(g, 132, "field_object_sprite_high_last", "count", slot, 64u); return r16(g, 0x7F4F80u + (uint32_t)slot * 0x02u); }
+void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 132, "set_field_object_sprite_high_last", "count", slot, 64u); w16(g, 0x7F4F80u + (uint32_t)slot * 0x02u, v); }
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 
@@ -877,10 +1393,10 @@ uint16_t menu_number_size(const GameState *g) { return r16(g, 0x7E0092u); }
 void set_menu_number_size(GameState *g, uint16_t v) { w16(g, 0x7E0092u, v); }
 uint32_t menu_object_upload_buffer(const GameState *g) { return r24(g, 0x7E00E0u); }
 void set_menu_object_upload_buffer(GameState *g, uint32_t v) { w24(g, 0x7E00E0u, v); }
-uint16_t menu_map_column(const GameState *g, unsigned i) { return r16(g, 0x7E00E3u + (uint32_t)i * 0x02u); }
-void set_menu_map_column(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E00E3u + (uint32_t)i * 0x02u, v); }
-uint16_t menu_map_row(const GameState *g, unsigned i) { return r16(g, 0x7E00E7u + (uint32_t)i * 0x02u); }
-void set_menu_map_row(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E00E7u + (uint32_t)i * 0x02u, v); }
+uint16_t menu_map_column(const GameState *g, unsigned i) { IN_RANGE(g, 133, "menu_map_column", "count", i, 2u); return r16(g, 0x7E00E3u + (uint32_t)i * 0x02u); }
+void set_menu_map_column(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 133, "set_menu_map_column", "count", i, 2u); w16(g, 0x7E00E3u + (uint32_t)i * 0x02u, v); }
+uint16_t menu_map_row(const GameState *g, unsigned i) { IN_RANGE(g, 134, "menu_map_row", "count", i, 3u); return r16(g, 0x7E00E7u + (uint32_t)i * 0x02u); }
+void set_menu_map_row(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 134, "set_menu_map_row", "count", i, 3u); w16(g, 0x7E00E7u + (uint32_t)i * 0x02u, v); }
 uint8_t menu_load_request_entry(const GameState *g) { return r8(g, 0x7E020Cu); }
 void set_menu_load_request_entry(GameState *g, uint8_t v) { w8(g, 0x7E020Cu, v); }
 uint32_t menu_load_request_table(const GameState *g) { return r24(g, 0x7E020Du); }
@@ -913,8 +1429,8 @@ uint32_t menu_glyph_right_pixels(const GameState *g) { return r24(g, 0x7E0279u);
 void set_menu_glyph_right_pixels(GameState *g, uint32_t v) { w24(g, 0x7E0279u, v); }
 uint8_t menu_mode(const GameState *g) { return r8(g, 0x7E027Cu); }
 void set_menu_mode(GameState *g, uint8_t v) { w8(g, 0x7E027Cu, v); }
-uint16_t menu_epoch_position(const GameState *g, unsigned i) { return r16(g, 0x7E0290u + (uint32_t)i * 0x02u); }
-void set_menu_epoch_position(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0290u + (uint32_t)i * 0x02u, v); }
+uint16_t menu_epoch_position(const GameState *g, unsigned i) { IN_RANGE(g, 135, "menu_epoch_position", "count", i, 2u); return r16(g, 0x7E0290u + (uint32_t)i * 0x02u); }
+void set_menu_epoch_position(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 135, "set_menu_epoch_position", "count", i, 2u); w16(g, 0x7E0290u + (uint32_t)i * 0x02u, v); }
 uint8_t menu_objects_frozen(const GameState *g) { return r8(g, 0x7E0294u); }
 void set_menu_objects_frozen(GameState *g, uint8_t v) { w8(g, 0x7E0294u, v); }
 uint16_t menu_epoch_location(const GameState *g) { return r16(g, 0x7E029Fu); }
@@ -931,24 +1447,24 @@ uint8_t menu_entry_a(const GameState *g) { return r8(g, 0x7E0A00u); }
 void set_menu_entry_a(GameState *g, uint8_t v) { w8(g, 0x7E0A00u, v); }
 uint16_t menu_entry_x(const GameState *g) { return r16(g, 0x7E0A01u); }
 void set_menu_entry_x(GameState *g, uint16_t v) { w16(g, 0x7E0A01u, v); }
-uint16_t menu_vram_queue_vram(const GameState *g, unsigned i) { return r16(g, 0x7E0C00u + (uint32_t)i * 0x08u); }
-void set_menu_vram_queue_vram(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0C00u + (uint32_t)i * 0x08u, v); }
-uint16_t menu_vram_queue_source(const GameState *g, unsigned i) { return r16(g, 0x7E0C02u + (uint32_t)i * 0x08u); }
-void set_menu_vram_queue_source(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0C02u + (uint32_t)i * 0x08u, v); }
-uint8_t menu_vram_queue_bank(const GameState *g, unsigned i) { return r8(g, 0x7E0C04u + (uint32_t)i * 0x08u); }
-void set_menu_vram_queue_bank(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0C04u + (uint32_t)i * 0x08u, v); }
-uint16_t menu_vram_queue_size(const GameState *g, unsigned i) { return r16(g, 0x7E0C05u + (uint32_t)i * 0x08u); }
-void set_menu_vram_queue_size(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E0C05u + (uint32_t)i * 0x08u, v); }
-uint8_t menu_vram_queue_spare(const GameState *g, unsigned i) { return r8(g, 0x7E0C07u + (uint32_t)i * 0x08u); }
-void set_menu_vram_queue_spare(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0C07u + (uint32_t)i * 0x08u, v); }
+uint16_t menu_vram_queue_vram(const GameState *g, unsigned i) { IN_RANGE(g, 136, "menu_vram_queue_vram", "count", i, 32u); return r16(g, 0x7E0C00u + (uint32_t)i * 0x08u); }
+void set_menu_vram_queue_vram(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 136, "set_menu_vram_queue_vram", "count", i, 32u); w16(g, 0x7E0C00u + (uint32_t)i * 0x08u, v); }
+uint16_t menu_vram_queue_source(const GameState *g, unsigned i) { IN_RANGE(g, 136, "menu_vram_queue_source", "count", i, 32u); return r16(g, 0x7E0C02u + (uint32_t)i * 0x08u); }
+void set_menu_vram_queue_source(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 136, "set_menu_vram_queue_source", "count", i, 32u); w16(g, 0x7E0C02u + (uint32_t)i * 0x08u, v); }
+uint8_t menu_vram_queue_bank(const GameState *g, unsigned i) { IN_RANGE(g, 136, "menu_vram_queue_bank", "count", i, 32u); return r8(g, 0x7E0C04u + (uint32_t)i * 0x08u); }
+void set_menu_vram_queue_bank(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 136, "set_menu_vram_queue_bank", "count", i, 32u); w8(g, 0x7E0C04u + (uint32_t)i * 0x08u, v); }
+uint16_t menu_vram_queue_size(const GameState *g, unsigned i) { IN_RANGE(g, 136, "menu_vram_queue_size", "count", i, 32u); return r16(g, 0x7E0C05u + (uint32_t)i * 0x08u); }
+void set_menu_vram_queue_size(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 136, "set_menu_vram_queue_size", "count", i, 32u); w16(g, 0x7E0C05u + (uint32_t)i * 0x08u, v); }
+uint8_t menu_vram_queue_spare(const GameState *g, unsigned i) { IN_RANGE(g, 136, "menu_vram_queue_spare", "count", i, 32u); return r8(g, 0x7E0C07u + (uint32_t)i * 0x08u); }
+void set_menu_vram_queue_spare(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 136, "set_menu_vram_queue_spare", "count", i, 32u); w8(g, 0x7E0C07u + (uint32_t)i * 0x08u, v); }
 uint8_t menu_frame_counter(const GameState *g) { return r8(g, 0x7E0D00u); }
 void set_menu_frame_counter(GameState *g, uint8_t v) { w8(g, 0x7E0D00u, v); }
 uint8_t menu_vblank_done(const GameState *g) { return r8(g, 0x7E0D01u); }
 void set_menu_vblank_done(GameState *g, uint8_t v) { w8(g, 0x7E0D01u, v); }
-uint16_t menu_scroll_x(const GameState *g, unsigned layer) { return r16(g, 0x7E0D04u + (uint32_t)layer * 0x04u); }
-void set_menu_scroll_x(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E0D04u + (uint32_t)layer * 0x04u, v); }
-uint16_t menu_scroll_y(const GameState *g, unsigned layer) { return r16(g, 0x7E0D06u + (uint32_t)layer * 0x04u); }
-void set_menu_scroll_y(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E0D06u + (uint32_t)layer * 0x04u, v); }
+uint16_t menu_scroll_x(const GameState *g, unsigned layer) { IN_RANGE(g, 137, "menu_scroll_x", "count", layer, 3u); return r16(g, 0x7E0D04u + (uint32_t)layer * 0x04u); }
+void set_menu_scroll_x(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 137, "set_menu_scroll_x", "count", layer, 3u); w16(g, 0x7E0D04u + (uint32_t)layer * 0x04u, v); }
+uint16_t menu_scroll_y(const GameState *g, unsigned layer) { IN_RANGE(g, 137, "menu_scroll_y", "count", layer, 3u); return r16(g, 0x7E0D06u + (uint32_t)layer * 0x04u); }
+void set_menu_scroll_y(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 137, "set_menu_scroll_y", "count", layer, 3u); w16(g, 0x7E0D06u + (uint32_t)layer * 0x04u, v); }
 uint8_t menu_brightness(const GameState *g) { return r8(g, 0x7E0D10u); }
 void set_menu_brightness(GameState *g, uint8_t v) { w8(g, 0x7E0D10u, v); }
 uint8_t menu_vram_queue_bytes(const GameState *g) { return r8(g, 0x7E0D11u); }
@@ -961,8 +1477,8 @@ uint16_t menu_record_origin_x(const GameState *g) { return r16(g, 0x7E0D2Eu); }
 void set_menu_record_origin_x(GameState *g, uint16_t v) { w16(g, 0x7E0D2Eu, v); }
 uint8_t menu_record_origin_y(const GameState *g) { return r8(g, 0x7E0D30u); }
 void set_menu_record_origin_y(GameState *g, uint8_t v) { w8(g, 0x7E0D30u, v); }
-uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot) { return r8(g, 0x7E0D49u + (uint32_t)slot * 0x01u); }
-void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0D49u + (uint32_t)slot * 0x01u, v); }
+uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot) { IN_RANGE(g, 138, "menu_save_slot_in_use", "count", slot, 4u); return r8(g, 0x7E0D49u + (uint32_t)slot * 0x01u); }
+void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 138, "set_menu_save_slot_in_use", "count", slot, 4u); w8(g, 0x7E0D49u + (uint32_t)slot * 0x01u, v); }
 uint8_t menu_member_marked(const GameState *g) { return r8(g, 0x7E0D5Du); }
 void set_menu_member_marked(GameState *g, uint8_t v) { w8(g, 0x7E0D5Du, v); }
 uint8_t menu_wait_frames(const GameState *g) { return r8(g, 0x7E0D76u); }
@@ -975,12 +1491,12 @@ uint8_t menu_cursor_hidden(const GameState *g) { return r8(g, 0x7E0D9Bu); }
 void set_menu_cursor_hidden(GameState *g, uint8_t v) { w8(g, 0x7E0D9Bu, v); }
 uint16_t menu_load_destination(const GameState *g) { return r16(g, 0x7E0DC5u); }
 void set_menu_load_destination(GameState *g, uint16_t v) { w16(g, 0x7E0DC5u, v); }
-uint8_t menu_gate_screen_state(const GameState *g, unsigned i) { return r8(g, 0x7E0F10u + (uint32_t)i * 0x01u); }
-void set_menu_gate_screen_state(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0F10u + (uint32_t)i * 0x01u, v); }
+uint8_t menu_gate_screen_state(const GameState *g, unsigned i) { IN_RANGE(g, 139, "menu_gate_screen_state", "count", i, 13u); return r8(g, 0x7E0F10u + (uint32_t)i * 0x01u); }
+void set_menu_gate_screen_state(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 139, "set_menu_gate_screen_state", "count", i, 13u); w8(g, 0x7E0F10u + (uint32_t)i * 0x01u, v); }
 uint8_t menu_random_index(const GameState *g) { return r8(g, 0x7E1B30u); }
 void set_menu_random_index(GameState *g, uint8_t v) { w8(g, 0x7E1B30u, v); }
-uint16_t menu_member_scripts(const GameState *g, unsigned slot) { return r16(g, 0x7E1B3Bu + (uint32_t)slot * 0x02u); }
-void set_menu_member_scripts(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E1B3Bu + (uint32_t)slot * 0x02u, v); }
+uint16_t menu_member_scripts(const GameState *g, unsigned slot) { IN_RANGE(g, 140, "menu_member_scripts", "count", slot, 4u); return r16(g, 0x7E1B3Bu + (uint32_t)slot * 0x02u); }
+void set_menu_member_scripts(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 140, "set_menu_member_scripts", "count", slot, 4u); w16(g, 0x7E1B3Bu + (uint32_t)slot * 0x02u, v); }
 uint8_t menu_sprite_script_busy(const GameState *g) { return r8(g, 0x7E1B48u); }
 void set_menu_sprite_script_busy(GameState *g, uint8_t v) { w8(g, 0x7E1B48u, v); }
 uint8_t menu_story_progress(const GameState *g) { return r8(g, 0x7E1BA6u); }
@@ -991,20 +1507,20 @@ uint8_t menu_epoch_flags(const GameState *g) { return r8(g, 0x7E1BADu); }
 void set_menu_epoch_flags(GameState *g, uint8_t v) { w8(g, 0x7E1BADu, v); }
 uint8_t menu_time_period(const GameState *g) { return r8(g, 0x7E1BB7u); }
 void set_menu_time_period(GameState *g, uint8_t v) { w8(g, 0x7E1BB7u, v); }
-uint8_t menu_gate_corners(const GameState *g, unsigned corner) { return r8(g, 0x7E1BB8u + (uint32_t)corner * 0x01u); }
-void set_menu_gate_corners(GameState *g, unsigned corner, uint8_t v) { w8(g, 0x7E1BB8u + (uint32_t)corner * 0x01u, v); }
-uint16_t menu_gate_edge_active(const GameState *g, unsigned i) { return r16(g, 0x7E1BC4u + (uint32_t)i * 0x02u); }
-void set_menu_gate_edge_active(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1BC4u + (uint32_t)i * 0x02u, v); }
-uint16_t menu_gate_edge_step(const GameState *g, unsigned i) { return r16(g, 0x7E1BCAu + (uint32_t)i * 0x02u); }
-void set_menu_gate_edge_step(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1BCAu + (uint32_t)i * 0x02u, v); }
-uint16_t menu_gate_edge_top(const GameState *g, unsigned i) { return r16(g, 0x7E1BD0u + (uint32_t)i * 0x02u); }
-void set_menu_gate_edge_top(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1BD0u + (uint32_t)i * 0x02u, v); }
-uint16_t menu_gate_edge_bottom(const GameState *g, unsigned i) { return r16(g, 0x7E1BD6u + (uint32_t)i * 0x02u); }
-void set_menu_gate_edge_bottom(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1BD6u + (uint32_t)i * 0x02u, v); }
-uint16_t menu_gate_edge_x(const GameState *g, unsigned i) { return r16(g, 0x7E1BDCu + (uint32_t)i * 0x02u); }
-void set_menu_gate_edge_x(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1BDCu + (uint32_t)i * 0x02u, v); }
-uint16_t menu_gate_edge_lines(const GameState *g, unsigned i) { return r16(g, 0x7E1BE2u + (uint32_t)i * 0x02u); }
-void set_menu_gate_edge_lines(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1BE2u + (uint32_t)i * 0x02u, v); }
+uint8_t menu_gate_corners(const GameState *g, unsigned corner) { IN_RANGE(g, 141, "menu_gate_corners", "count", corner, 6u); return r8(g, 0x7E1BB8u + (uint32_t)corner * 0x01u); }
+void set_menu_gate_corners(GameState *g, unsigned corner, uint8_t v) { IN_RANGE(g, 141, "set_menu_gate_corners", "count", corner, 6u); w8(g, 0x7E1BB8u + (uint32_t)corner * 0x01u, v); }
+uint16_t menu_gate_edge_active(const GameState *g, unsigned i) { IN_RANGE(g, 142, "menu_gate_edge_active", "count", i, 3u); return r16(g, 0x7E1BC4u + (uint32_t)i * 0x02u); }
+void set_menu_gate_edge_active(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 142, "set_menu_gate_edge_active", "count", i, 3u); w16(g, 0x7E1BC4u + (uint32_t)i * 0x02u, v); }
+uint16_t menu_gate_edge_step(const GameState *g, unsigned i) { IN_RANGE(g, 143, "menu_gate_edge_step", "count", i, 3u); return r16(g, 0x7E1BCAu + (uint32_t)i * 0x02u); }
+void set_menu_gate_edge_step(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 143, "set_menu_gate_edge_step", "count", i, 3u); w16(g, 0x7E1BCAu + (uint32_t)i * 0x02u, v); }
+uint16_t menu_gate_edge_top(const GameState *g, unsigned i) { IN_RANGE(g, 144, "menu_gate_edge_top", "count", i, 3u); return r16(g, 0x7E1BD0u + (uint32_t)i * 0x02u); }
+void set_menu_gate_edge_top(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 144, "set_menu_gate_edge_top", "count", i, 3u); w16(g, 0x7E1BD0u + (uint32_t)i * 0x02u, v); }
+uint16_t menu_gate_edge_bottom(const GameState *g, unsigned i) { IN_RANGE(g, 145, "menu_gate_edge_bottom", "count", i, 3u); return r16(g, 0x7E1BD6u + (uint32_t)i * 0x02u); }
+void set_menu_gate_edge_bottom(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 145, "set_menu_gate_edge_bottom", "count", i, 3u); w16(g, 0x7E1BD6u + (uint32_t)i * 0x02u, v); }
+uint16_t menu_gate_edge_x(const GameState *g, unsigned i) { IN_RANGE(g, 146, "menu_gate_edge_x", "count", i, 3u); return r16(g, 0x7E1BDCu + (uint32_t)i * 0x02u); }
+void set_menu_gate_edge_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 146, "set_menu_gate_edge_x", "count", i, 3u); w16(g, 0x7E1BDCu + (uint32_t)i * 0x02u, v); }
+uint16_t menu_gate_edge_lines(const GameState *g, unsigned i) { IN_RANGE(g, 147, "menu_gate_edge_lines", "count", i, 3u); return r16(g, 0x7E1BE2u + (uint32_t)i * 0x02u); }
+void set_menu_gate_edge_lines(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 147, "set_menu_gate_edge_lines", "count", i, 3u); w16(g, 0x7E1BE2u + (uint32_t)i * 0x02u, v); }
 uint32_t menu_sound_request(const GameState *g) { return r32(g, 0x7E1BE8u); }
 void set_menu_sound_request(GameState *g, uint32_t v) { w32(g, 0x7E1BE8u, v); }
 uint8_t menu_sound_request_age(const GameState *g) { return r8(g, 0x7E1BEDu); }
@@ -1015,36 +1531,36 @@ uint16_t menu_pending_scroll_y(const GameState *g) { return r16(g, 0x7E1BF3u); }
 void set_menu_pending_scroll_y(GameState *g, uint16_t v) { w16(g, 0x7E1BF3u, v); }
 uint8_t menu_gate_flags(const GameState *g) { return r8(g, 0x7E1BF5u); }
 void set_menu_gate_flags(GameState *g, uint8_t v) { w8(g, 0x7E1BF5u, v); }
-uint8_t menu_save_slot_tilemap_byte(const GameState *g, unsigned at) { return r8(g, 0x7E3200u + at); }
-void set_menu_save_slot_tilemap_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E3200u + at, v); }
-uint8_t menu_era_label_tiles(const GameState *g, unsigned row, unsigned column) { return r8(g, 0x7E5248u + (uint32_t)row * 0x40u + column); }
-void set_menu_era_label_tiles(GameState *g, unsigned row, unsigned column, uint8_t v) { w8(g, 0x7E5248u + (uint32_t)row * 0x40u + column, v); }
-uint8_t menu_map_graphics(const GameState *g, unsigned i) { return r8(g, 0x7E8621u + (uint32_t)i * 0x01u); }
-void set_menu_map_graphics(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E8621u + (uint32_t)i * 0x01u, v); }
-uint16_t menu_object_hdma_pointers(const GameState *g, unsigned i) { return r16(g, 0x7E8A21u + (uint32_t)i * 0x02u); }
-void set_menu_object_hdma_pointers(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E8A21u + (uint32_t)i * 0x02u, v); }
-uint8_t menu_object_wave_table_lines(const GameState *g, unsigned line) { return r8(g, 0x7E8A35u + (uint32_t)line * 0x03u); }
-void set_menu_object_wave_table_lines(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7E8A35u + (uint32_t)line * 0x03u, v); }
-uint16_t menu_object_wave_table_data(const GameState *g, unsigned line) { return r16(g, 0x7E8A36u + (uint32_t)line * 0x03u); }
-void set_menu_object_wave_table_data(GameState *g, unsigned line, uint16_t v) { w16(g, 0x7E8A36u + (uint32_t)line * 0x03u, v); }
-uint8_t menu_gate_matrix_tables(const GameState *g, unsigned line) { return r8(g, 0x7E8A42u + (uint32_t)line * 0x01u); }
-void set_menu_gate_matrix_tables(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7E8A42u + (uint32_t)line * 0x01u, v); }
-uint16_t menu_object_wave_scroll(const GameState *g, unsigned i) { return r16(g, 0x7E8B56u + (uint32_t)i * 0x02u); }
-void set_menu_object_wave_scroll(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E8B56u + (uint32_t)i * 0x02u, v); }
-uint8_t menu_cursor_places_x(const GameState *g, unsigned i) { return r8(g, 0x7E9380u + (uint32_t)i * 0x06u); }
-void set_menu_cursor_places_x(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9380u + (uint32_t)i * 0x06u, v); }
-uint8_t menu_cursor_places_y(const GameState *g, unsigned i) { return r8(g, 0x7E9381u + (uint32_t)i * 0x06u); }
-void set_menu_cursor_places_y(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9381u + (uint32_t)i * 0x06u, v); }
-uint8_t menu_cursor_places_right(const GameState *g, unsigned i) { return r8(g, 0x7E9382u + (uint32_t)i * 0x06u); }
-void set_menu_cursor_places_right(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9382u + (uint32_t)i * 0x06u, v); }
-uint8_t menu_cursor_places_left(const GameState *g, unsigned i) { return r8(g, 0x7E9383u + (uint32_t)i * 0x06u); }
-void set_menu_cursor_places_left(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9383u + (uint32_t)i * 0x06u, v); }
-uint8_t menu_cursor_places_down(const GameState *g, unsigned i) { return r8(g, 0x7E9384u + (uint32_t)i * 0x06u); }
-void set_menu_cursor_places_down(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9384u + (uint32_t)i * 0x06u, v); }
-uint8_t menu_cursor_places_up(const GameState *g, unsigned i) { return r8(g, 0x7E9385u + (uint32_t)i * 0x06u); }
-void set_menu_cursor_places_up(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9385u + (uint32_t)i * 0x06u, v); }
-uint16_t menu_palette(const GameState *g, unsigned i) { return r16(g, 0x7E9480u + (uint32_t)i * 0x02u); }
-void set_menu_palette(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E9480u + (uint32_t)i * 0x02u, v); }
+uint8_t menu_save_slot_tilemap_byte(const GameState *g, unsigned at) { IN_RANGE(g, 148, "menu_save_slot_tilemap_byte", "bytes", at, 576u); return r8(g, 0x7E3200u + at); }
+void set_menu_save_slot_tilemap_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 148, "set_menu_save_slot_tilemap_byte", "bytes", at, 576u); w8(g, 0x7E3200u + at, v); }
+uint8_t menu_era_label_tiles(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 149, "menu_era_label_tiles", "rows", row, 2u); IN_RANGE(g, 149, "menu_era_label_tiles", "columns", column, 18u); return r8(g, 0x7E5248u + (uint32_t)row * 0x40u + column); }
+void set_menu_era_label_tiles(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 149, "set_menu_era_label_tiles", "rows", row, 2u); IN_RANGE(g, 149, "set_menu_era_label_tiles", "columns", column, 18u); w8(g, 0x7E5248u + (uint32_t)row * 0x40u + column, v); }
+uint8_t menu_map_graphics(const GameState *g, unsigned i) { IN_RANGE(g, 150, "menu_map_graphics", "count", i, 1024u); return r8(g, 0x7E8621u + (uint32_t)i * 0x01u); }
+void set_menu_map_graphics(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 150, "set_menu_map_graphics", "count", i, 1024u); w8(g, 0x7E8621u + (uint32_t)i * 0x01u, v); }
+uint16_t menu_object_hdma_pointers(const GameState *g, unsigned i) { IN_RANGE(g, 151, "menu_object_hdma_pointers", "count", i, 10u); return r16(g, 0x7E8A21u + (uint32_t)i * 0x02u); }
+void set_menu_object_hdma_pointers(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 151, "set_menu_object_hdma_pointers", "count", i, 10u); w16(g, 0x7E8A21u + (uint32_t)i * 0x02u, v); }
+uint8_t menu_object_wave_table_lines(const GameState *g, unsigned line) { IN_RANGE(g, 152, "menu_object_wave_table_lines", "count", line, 3u); return r8(g, 0x7E8A35u + (uint32_t)line * 0x03u); }
+void set_menu_object_wave_table_lines(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 152, "set_menu_object_wave_table_lines", "count", line, 3u); w8(g, 0x7E8A35u + (uint32_t)line * 0x03u, v); }
+uint16_t menu_object_wave_table_data(const GameState *g, unsigned line) { IN_RANGE(g, 152, "menu_object_wave_table_data", "count", line, 3u); return r16(g, 0x7E8A36u + (uint32_t)line * 0x03u); }
+void set_menu_object_wave_table_data(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 152, "set_menu_object_wave_table_data", "count", line, 3u); w16(g, 0x7E8A36u + (uint32_t)line * 0x03u, v); }
+uint8_t menu_gate_matrix_tables(const GameState *g, unsigned line) { IN_RANGE(g, 153, "menu_gate_matrix_tables", "count", line, 20u); return r8(g, 0x7E8A42u + (uint32_t)line * 0x01u); }
+void set_menu_gate_matrix_tables(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 153, "set_menu_gate_matrix_tables", "count", line, 20u); w8(g, 0x7E8A42u + (uint32_t)line * 0x01u, v); }
+uint16_t menu_object_wave_scroll(const GameState *g, unsigned i) { IN_RANGE(g, 154, "menu_object_wave_scroll", "count", i, 224u); return r16(g, 0x7E8B56u + (uint32_t)i * 0x02u); }
+void set_menu_object_wave_scroll(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 154, "set_menu_object_wave_scroll", "count", i, 224u); w16(g, 0x7E8B56u + (uint32_t)i * 0x02u, v); }
+uint8_t menu_cursor_places_x(const GameState *g, unsigned i) { IN_RANGE(g, 155, "menu_cursor_places_x", "count", i, 42u); return r8(g, 0x7E9380u + (uint32_t)i * 0x06u); }
+void set_menu_cursor_places_x(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 155, "set_menu_cursor_places_x", "count", i, 42u); w8(g, 0x7E9380u + (uint32_t)i * 0x06u, v); }
+uint8_t menu_cursor_places_y(const GameState *g, unsigned i) { IN_RANGE(g, 155, "menu_cursor_places_y", "count", i, 42u); return r8(g, 0x7E9381u + (uint32_t)i * 0x06u); }
+void set_menu_cursor_places_y(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 155, "set_menu_cursor_places_y", "count", i, 42u); w8(g, 0x7E9381u + (uint32_t)i * 0x06u, v); }
+uint8_t menu_cursor_places_right(const GameState *g, unsigned i) { IN_RANGE(g, 155, "menu_cursor_places_right", "count", i, 42u); return r8(g, 0x7E9382u + (uint32_t)i * 0x06u); }
+void set_menu_cursor_places_right(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 155, "set_menu_cursor_places_right", "count", i, 42u); w8(g, 0x7E9382u + (uint32_t)i * 0x06u, v); }
+uint8_t menu_cursor_places_left(const GameState *g, unsigned i) { IN_RANGE(g, 155, "menu_cursor_places_left", "count", i, 42u); return r8(g, 0x7E9383u + (uint32_t)i * 0x06u); }
+void set_menu_cursor_places_left(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 155, "set_menu_cursor_places_left", "count", i, 42u); w8(g, 0x7E9383u + (uint32_t)i * 0x06u, v); }
+uint8_t menu_cursor_places_down(const GameState *g, unsigned i) { IN_RANGE(g, 155, "menu_cursor_places_down", "count", i, 42u); return r8(g, 0x7E9384u + (uint32_t)i * 0x06u); }
+void set_menu_cursor_places_down(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 155, "set_menu_cursor_places_down", "count", i, 42u); w8(g, 0x7E9384u + (uint32_t)i * 0x06u, v); }
+uint8_t menu_cursor_places_up(const GameState *g, unsigned i) { IN_RANGE(g, 155, "menu_cursor_places_up", "count", i, 42u); return r8(g, 0x7E9385u + (uint32_t)i * 0x06u); }
+void set_menu_cursor_places_up(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 155, "set_menu_cursor_places_up", "count", i, 42u); w8(g, 0x7E9385u + (uint32_t)i * 0x06u, v); }
+uint16_t menu_palette(const GameState *g, unsigned i) { IN_RANGE(g, 156, "menu_palette", "count", i, 256u); return r16(g, 0x7E9480u + (uint32_t)i * 0x02u); }
+void set_menu_palette(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 156, "set_menu_palette", "count", i, 256u); w16(g, 0x7E9480u + (uint32_t)i * 0x02u, v); }
 uint32_t menu_window_shadows_window_masks(const GameState *g) { return r24(g, 0x7E9680u); }
 void set_menu_window_shadows_window_masks(GameState *g, uint32_t v) { w24(g, 0x7E9680u, v); }
 uint32_t menu_window_shadows_window_edges(const GameState *g) { return r32(g, 0x7E9683u); }
@@ -1071,32 +1587,32 @@ uint16_t menu_block_move_dest(const GameState *g) { return r16(g, 0x7E9696u); }
 void set_menu_block_move_dest(GameState *g, uint16_t v) { w16(g, 0x7E9696u, v); }
 uint16_t menu_block_move_size(const GameState *g) { return r16(g, 0x7E9698u); }
 void set_menu_block_move_size(GameState *g, uint16_t v) { w16(g, 0x7E9698u, v); }
-uint8_t menu_slot_row_table_lines(const GameState *g, unsigned i) { return r8(g, 0x7E969Au + (uint32_t)i * 0x03u); }
-void set_menu_slot_row_table_lines(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E969Au + (uint32_t)i * 0x03u, v); }
-uint16_t menu_slot_row_table_values(const GameState *g, unsigned i) { return r16(g, 0x7E969Bu + (uint32_t)i * 0x03u); }
-void set_menu_slot_row_table_values(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E969Bu + (uint32_t)i * 0x03u, v); }
+uint8_t menu_slot_row_table_lines(const GameState *g, unsigned i) { IN_RANGE(g, 157, "menu_slot_row_table_lines", "count", i, 5u); return r8(g, 0x7E969Au + (uint32_t)i * 0x03u); }
+void set_menu_slot_row_table_lines(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 157, "set_menu_slot_row_table_lines", "count", i, 5u); w8(g, 0x7E969Au + (uint32_t)i * 0x03u, v); }
+uint16_t menu_slot_row_table_values(const GameState *g, unsigned i) { IN_RANGE(g, 157, "menu_slot_row_table_values", "count", i, 5u); return r16(g, 0x7E969Bu + (uint32_t)i * 0x03u); }
+void set_menu_slot_row_table_values(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 157, "set_menu_slot_row_table_values", "count", i, 5u); w16(g, 0x7E969Bu + (uint32_t)i * 0x03u, v); }
 uint8_t menu_slot_row_table_end(const GameState *g) { return r8(g, 0x7E96A9u); }
 void set_menu_slot_row_table_end(GameState *g, uint8_t v) { w8(g, 0x7E96A9u, v); }
-uint8_t menu_slot_row_template_lines(const GameState *g, unsigned i) { return r8(g, 0x7E9710u + (uint32_t)i * 0x03u); }
-void set_menu_slot_row_template_lines(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9710u + (uint32_t)i * 0x03u, v); }
-uint16_t menu_slot_row_template_values(const GameState *g, unsigned i) { return r16(g, 0x7E9711u + (uint32_t)i * 0x03u); }
-void set_menu_slot_row_template_values(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E9711u + (uint32_t)i * 0x03u, v); }
+uint8_t menu_slot_row_template_lines(const GameState *g, unsigned i) { IN_RANGE(g, 158, "menu_slot_row_template_lines", "count", i, 5u); return r8(g, 0x7E9710u + (uint32_t)i * 0x03u); }
+void set_menu_slot_row_template_lines(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 158, "set_menu_slot_row_template_lines", "count", i, 5u); w8(g, 0x7E9710u + (uint32_t)i * 0x03u, v); }
+uint16_t menu_slot_row_template_values(const GameState *g, unsigned i) { IN_RANGE(g, 158, "menu_slot_row_template_values", "count", i, 5u); return r16(g, 0x7E9711u + (uint32_t)i * 0x03u); }
+void set_menu_slot_row_template_values(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 158, "set_menu_slot_row_template_values", "count", i, 5u); w16(g, 0x7E9711u + (uint32_t)i * 0x03u, v); }
 uint8_t menu_slot_row_template_end(const GameState *g) { return r8(g, 0x7E971Fu); }
 void set_menu_slot_row_template_end(GameState *g, uint8_t v) { w8(g, 0x7E971Fu, v); }
-uint8_t menu_slot_row_values_byte(const GameState *g, unsigned at) { return r8(g, 0x7E9720u + at); }
-void set_menu_slot_row_values_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E9720u + at, v); }
-uint8_t menu_save_summary_byte(const GameState *g, unsigned at) { return r8(g, 0x7E9890u + at); }
-void set_menu_save_summary_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E9890u + at, v); }
-uint8_t menu_status_record_head_byte(const GameState *g, unsigned at) { return r8(g, 0x7E9A90u + at); }
-void set_menu_status_record_head_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E9A90u + at, v); }
+uint8_t menu_slot_row_values_byte(const GameState *g, unsigned at) { IN_RANGE(g, 159, "menu_slot_row_values_byte", "bytes", at, 33u); return r8(g, 0x7E9720u + at); }
+void set_menu_slot_row_values_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 159, "set_menu_slot_row_values_byte", "bytes", at, 33u); w8(g, 0x7E9720u + at, v); }
+uint8_t menu_save_summary_byte(const GameState *g, unsigned at) { IN_RANGE(g, 160, "menu_save_summary_byte", "bytes", at, 64u); return r8(g, 0x7E9890u + at); }
+void set_menu_save_summary_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 160, "set_menu_save_summary_byte", "bytes", at, 64u); w8(g, 0x7E9890u + at, v); }
+uint8_t menu_status_record_head_byte(const GameState *g, unsigned at) { IN_RANGE(g, 161, "menu_status_record_head_byte", "bytes", at, 9u); return r8(g, 0x7E9A90u + at); }
+void set_menu_status_record_head_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 161, "set_menu_status_record_head_byte", "bytes", at, 9u); w8(g, 0x7E9A90u + at, v); }
 uint16_t menu_status_record_last(const GameState *g) { return r16(g, 0x7E9AA2u); }
 void set_menu_status_record_last(GameState *g, uint16_t v) { w16(g, 0x7E9AA2u, v); }
-uint8_t menu_status_record_tail_byte(const GameState *g, unsigned at) { return r8(g, 0x7E9AE0u + at); }
-void set_menu_status_record_tail_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E9AE0u + at, v); }
-uint16_t menu_math_ramp_colors(const GameState *g, unsigned i) { return r16(g, 0x7E9DE9u + (uint32_t)i * 0x02u); }
-void set_menu_math_ramp_colors(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E9DE9u + (uint32_t)i * 0x02u, v); }
-uint8_t menu_math_line_tables_byte(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7E9E19u + (uint32_t)i * 0x100u + at); }
-void set_menu_math_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7E9E19u + (uint32_t)i * 0x100u + at, v); }
+uint8_t menu_status_record_tail_byte(const GameState *g, unsigned at) { IN_RANGE(g, 162, "menu_status_record_tail_byte", "bytes", at, 6u); return r8(g, 0x7E9AE0u + at); }
+void set_menu_status_record_tail_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 162, "set_menu_status_record_tail_byte", "bytes", at, 6u); w8(g, 0x7E9AE0u + at, v); }
+uint16_t menu_math_ramp_colors(const GameState *g, unsigned i) { IN_RANGE(g, 163, "menu_math_ramp_colors", "count", i, 16u); return r16(g, 0x7E9DE9u + (uint32_t)i * 0x02u); }
+void set_menu_math_ramp_colors(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 163, "set_menu_math_ramp_colors", "count", i, 16u); w16(g, 0x7E9DE9u + (uint32_t)i * 0x02u, v); }
+uint8_t menu_math_line_tables_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 164, "menu_math_line_tables_byte", "count", i, 2u); IN_RANGE(g, 164, "menu_math_line_tables_byte", "bytes", at, 256u); return r8(g, 0x7E9E19u + (uint32_t)i * 0x100u + at); }
+void set_menu_math_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 164, "set_menu_math_line_tables_byte", "count", i, 2u); IN_RANGE(g, 164, "set_menu_math_line_tables_byte", "bytes", at, 256u); w8(g, 0x7E9E19u + (uint32_t)i * 0x100u + at, v); }
 uint16_t menu_math_ramp_step(const GameState *g) { return r16(g, 0x7EA019u); }
 void set_menu_math_ramp_step(GameState *g, uint16_t v) { w16(g, 0x7EA019u, v); }
 uint16_t menu_math_ramp_accumulator(const GameState *g) { return r16(g, 0x7EA01Bu); }
@@ -1105,69 +1621,69 @@ uint16_t menu_math_line_table_offset(const GameState *g) { return r16(g, 0x7EA01
 void set_menu_math_line_table_offset(GameState *g, uint16_t v) { w16(g, 0x7EA01Du, v); }
 uint16_t menu_gate_scroll_at(const GameState *g) { return r16(g, 0x7EA916u); }
 void set_menu_gate_scroll_at(GameState *g, uint16_t v) { w16(g, 0x7EA916u, v); }
-uint32_t menu_gate_scroll_table(const GameState *g, unsigned i) { return r24(g, 0x7EA918u + (uint32_t)i * 0x03u); }
-void set_menu_gate_scroll_table(GameState *g, unsigned i, uint32_t v) { w24(g, 0x7EA918u + (uint32_t)i * 0x03u, v); }
-uint16_t menu_gate_scroll(const GameState *g, unsigned line) { return r16(g, 0x7EA925u + (uint32_t)line * 0x02u); }
-void set_menu_gate_scroll(GameState *g, unsigned line, uint16_t v) { w16(g, 0x7EA925u + (uint32_t)line * 0x02u, v); }
-uint8_t menu_map_colours(const GameState *g, unsigned i) { return r8(g, 0x7EAB25u + (uint32_t)i * 0x01u); }
-void set_menu_map_colours(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAB25u + (uint32_t)i * 0x01u, v); }
-uint16_t menu_sprite_nodes_prev(const GameState *g, unsigned i) { return r16(g, 0x7EB000u + (uint32_t)i * 0x10u); }
-void set_menu_sprite_nodes_prev(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EB000u + (uint32_t)i * 0x10u, v); }
-uint16_t menu_sprite_nodes_next(const GameState *g, unsigned i) { return r16(g, 0x7EB002u + (uint32_t)i * 0x10u); }
-void set_menu_sprite_nodes_next(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EB002u + (uint32_t)i * 0x10u, v); }
-uint16_t menu_sprite_nodes_x(const GameState *g, unsigned i) { return r16(g, 0x7EB004u + (uint32_t)i * 0x10u); }
-void set_menu_sprite_nodes_x(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EB004u + (uint32_t)i * 0x10u, v); }
-uint16_t menu_sprite_nodes_y(const GameState *g, unsigned i) { return r16(g, 0x7EB006u + (uint32_t)i * 0x10u); }
-void set_menu_sprite_nodes_y(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EB006u + (uint32_t)i * 0x10u, v); }
-uint32_t menu_sprite_nodes_attributes(const GameState *g, unsigned i) { return r24(g, 0x7EB008u + (uint32_t)i * 0x10u); }
-void set_menu_sprite_nodes_attributes(GameState *g, unsigned i, uint32_t v) { w24(g, 0x7EB008u + (uint32_t)i * 0x10u, v); }
-uint32_t menu_sprite_nodes_group(const GameState *g, unsigned i) { return r24(g, 0x7EB00Bu + (uint32_t)i * 0x10u); }
-void set_menu_sprite_nodes_group(GameState *g, unsigned i, uint32_t v) { w24(g, 0x7EB00Bu + (uint32_t)i * 0x10u, v); }
-uint32_t menu_sprite_node_links(const GameState *g, unsigned i) { return r32(g, 0x7EB400u + (uint32_t)i * 0x04u); }
-void set_menu_sprite_node_links(GameState *g, unsigned i, uint32_t v) { w32(g, 0x7EB400u + (uint32_t)i * 0x04u, v); }
+uint32_t menu_gate_scroll_table(const GameState *g, unsigned i) { IN_RANGE(g, 165, "menu_gate_scroll_table", "count", i, 4u); return r24(g, 0x7EA918u + (uint32_t)i * 0x03u); }
+void set_menu_gate_scroll_table(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 165, "set_menu_gate_scroll_table", "count", i, 4u); w24(g, 0x7EA918u + (uint32_t)i * 0x03u, v); }
+uint16_t menu_gate_scroll(const GameState *g, unsigned line) { IN_RANGE(g, 166, "menu_gate_scroll", "count", line, 64u); return r16(g, 0x7EA925u + (uint32_t)line * 0x02u); }
+void set_menu_gate_scroll(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 166, "set_menu_gate_scroll", "count", line, 64u); w16(g, 0x7EA925u + (uint32_t)line * 0x02u, v); }
+uint8_t menu_map_colours(const GameState *g, unsigned i) { IN_RANGE(g, 167, "menu_map_colours", "count", i, 896u); return r8(g, 0x7EAB25u + (uint32_t)i * 0x01u); }
+void set_menu_map_colours(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 167, "set_menu_map_colours", "count", i, 896u); w8(g, 0x7EAB25u + (uint32_t)i * 0x01u, v); }
+uint16_t menu_sprite_nodes_prev(const GameState *g, unsigned i) { IN_RANGE(g, 168, "menu_sprite_nodes_prev", "count", i, 64u); return r16(g, 0x7EB000u + (uint32_t)i * 0x10u); }
+void set_menu_sprite_nodes_prev(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 168, "set_menu_sprite_nodes_prev", "count", i, 64u); w16(g, 0x7EB000u + (uint32_t)i * 0x10u, v); }
+uint16_t menu_sprite_nodes_next(const GameState *g, unsigned i) { IN_RANGE(g, 168, "menu_sprite_nodes_next", "count", i, 64u); return r16(g, 0x7EB002u + (uint32_t)i * 0x10u); }
+void set_menu_sprite_nodes_next(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 168, "set_menu_sprite_nodes_next", "count", i, 64u); w16(g, 0x7EB002u + (uint32_t)i * 0x10u, v); }
+uint16_t menu_sprite_nodes_x(const GameState *g, unsigned i) { IN_RANGE(g, 168, "menu_sprite_nodes_x", "count", i, 64u); return r16(g, 0x7EB004u + (uint32_t)i * 0x10u); }
+void set_menu_sprite_nodes_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 168, "set_menu_sprite_nodes_x", "count", i, 64u); w16(g, 0x7EB004u + (uint32_t)i * 0x10u, v); }
+uint16_t menu_sprite_nodes_y(const GameState *g, unsigned i) { IN_RANGE(g, 168, "menu_sprite_nodes_y", "count", i, 64u); return r16(g, 0x7EB006u + (uint32_t)i * 0x10u); }
+void set_menu_sprite_nodes_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 168, "set_menu_sprite_nodes_y", "count", i, 64u); w16(g, 0x7EB006u + (uint32_t)i * 0x10u, v); }
+uint32_t menu_sprite_nodes_attributes(const GameState *g, unsigned i) { IN_RANGE(g, 168, "menu_sprite_nodes_attributes", "count", i, 64u); return r24(g, 0x7EB008u + (uint32_t)i * 0x10u); }
+void set_menu_sprite_nodes_attributes(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 168, "set_menu_sprite_nodes_attributes", "count", i, 64u); w24(g, 0x7EB008u + (uint32_t)i * 0x10u, v); }
+uint32_t menu_sprite_nodes_group(const GameState *g, unsigned i) { IN_RANGE(g, 168, "menu_sprite_nodes_group", "count", i, 64u); return r24(g, 0x7EB00Bu + (uint32_t)i * 0x10u); }
+void set_menu_sprite_nodes_group(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 168, "set_menu_sprite_nodes_group", "count", i, 64u); w24(g, 0x7EB00Bu + (uint32_t)i * 0x10u, v); }
+uint32_t menu_sprite_node_links(const GameState *g, unsigned i) { IN_RANGE(g, 169, "menu_sprite_node_links", "count", i, 64u); return r32(g, 0x7EB400u + (uint32_t)i * 0x04u); }
+void set_menu_sprite_node_links(GameState *g, unsigned i, uint32_t v) { IN_RANGE(g, 169, "set_menu_sprite_node_links", "count", i, 64u); w32(g, 0x7EB400u + (uint32_t)i * 0x04u, v); }
 uint32_t menu_sprite_draw_list(const GameState *g) { return r32(g, 0x7EB500u); }
 void set_menu_sprite_draw_list(GameState *g, uint32_t v) { w32(g, 0x7EB500u, v); }
 uint32_t menu_sprite_free_list(const GameState *g) { return r32(g, 0x7EB504u); }
 void set_menu_sprite_free_list(GameState *g, uint32_t v) { w32(g, 0x7EB504u, v); }
-uint16_t menu_gate_palette_copy(const GameState *g, unsigned i) { return r16(g, 0x7EC000u + (uint32_t)i * 0x02u); }
-void set_menu_gate_palette_copy(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EC000u + (uint32_t)i * 0x02u, v); }
-uint8_t menu_map_name_table(const GameState *g, unsigned i) { return r8(g, 0x7EF000u + (uint32_t)i * 0x01u); }
-void set_menu_map_name_table(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EF000u + (uint32_t)i * 0x01u, v); }
-uint16_t menu_loaded_palette(const GameState *g, unsigned i) { return r16(g, 0x7F8C00u + (uint32_t)i * 0x02u); }
-void set_menu_loaded_palette(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7F8C00u + (uint32_t)i * 0x02u, v); }
-uint8_t menu_mode7_plane(const GameState *g, unsigned i) { return r8(g, 0x7F9000u + (uint32_t)i * 0x01u); }
-void set_menu_mode7_plane(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7F9000u + (uint32_t)i * 0x01u, v); }
-uint8_t menu_gate_tiles(const GameState *g, unsigned i) { return r8(g, 0x7F9800u + (uint32_t)i * 0x01u); }
-void set_menu_gate_tiles(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7F9800u + (uint32_t)i * 0x01u, v); }
-uint8_t menu_record_sprite_count(const GameState *g, unsigned record) { return r8(g, menu_record_page_base(record) + 0x02u); }
-void set_menu_record_sprite_count(GameState *g, unsigned record, uint8_t v) { w8(g, menu_record_page_base(record) + 0x02u, v); }
-uint8_t menu_record_y(const GameState *g, unsigned record) { return r8(g, menu_record_page_base(record) + 0x0Eu); }
-void set_menu_record_y(GameState *g, unsigned record, uint8_t v) { w8(g, menu_record_page_base(record) + 0x0Eu, v); }
-uint16_t menu_record_x(const GameState *g, unsigned record) { return r16(g, menu_record_page_base(record) + 0x0Fu); }
-void set_menu_record_x(GameState *g, unsigned record, uint16_t v) { w16(g, menu_record_page_base(record) + 0x0Fu, v); }
-uint16_t menu_record_tile(const GameState *g, unsigned record) { return r16(g, menu_record_page_base(record) + 0x19u); }
-void set_menu_record_tile(GameState *g, unsigned record, uint16_t v) { w16(g, menu_record_page_base(record) + 0x19u, v); }
-uint16_t menu_record_sprite_offsets(const GameState *g, unsigned record) { return r16(g, menu_record_page_base(record) + 0x22u); }
-void set_menu_record_sprite_offsets(GameState *g, unsigned record, uint16_t v) { w16(g, menu_record_page_base(record) + 0x22u, v); }
+uint16_t menu_gate_palette_copy(const GameState *g, unsigned i) { IN_RANGE(g, 170, "menu_gate_palette_copy", "count", i, 256u); return r16(g, 0x7EC000u + (uint32_t)i * 0x02u); }
+void set_menu_gate_palette_copy(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 170, "set_menu_gate_palette_copy", "count", i, 256u); w16(g, 0x7EC000u + (uint32_t)i * 0x02u, v); }
+uint8_t menu_map_name_table(const GameState *g, unsigned i) { IN_RANGE(g, 171, "menu_map_name_table", "count", i, 1024u); return r8(g, 0x7EF000u + (uint32_t)i * 0x01u); }
+void set_menu_map_name_table(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 171, "set_menu_map_name_table", "count", i, 1024u); w8(g, 0x7EF000u + (uint32_t)i * 0x01u, v); }
+uint16_t menu_loaded_palette(const GameState *g, unsigned i) { IN_RANGE(g, 172, "menu_loaded_palette", "count", i, 256u); return r16(g, 0x7F8C00u + (uint32_t)i * 0x02u); }
+void set_menu_loaded_palette(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 172, "set_menu_loaded_palette", "count", i, 256u); w16(g, 0x7F8C00u + (uint32_t)i * 0x02u, v); }
+uint8_t menu_mode7_plane(const GameState *g, unsigned i) { IN_RANGE(g, 173, "menu_mode7_plane", "count", i, 2048u); return r8(g, 0x7F9000u + (uint32_t)i * 0x01u); }
+void set_menu_mode7_plane(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 173, "set_menu_mode7_plane", "count", i, 2048u); w8(g, 0x7F9000u + (uint32_t)i * 0x01u, v); }
+uint8_t menu_gate_tiles(const GameState *g, unsigned i) { IN_RANGE(g, 174, "menu_gate_tiles", "count", i, 2048u); return r8(g, 0x7F9800u + (uint32_t)i * 0x01u); }
+void set_menu_gate_tiles(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 174, "set_menu_gate_tiles", "count", i, 2048u); w8(g, 0x7F9800u + (uint32_t)i * 0x01u, v); }
+uint8_t menu_record_sprite_count(const GameState *g, unsigned record) { IN_RANGE(g, 175, "menu_record_sprite_count", "instances", record, 8u); return r8(g, menu_record_page_base(record) + 0x02u); }
+void set_menu_record_sprite_count(GameState *g, unsigned record, uint8_t v) { IN_RANGE(g, 175, "set_menu_record_sprite_count", "instances", record, 8u); w8(g, menu_record_page_base(record) + 0x02u, v); }
+uint8_t menu_record_y(const GameState *g, unsigned record) { IN_RANGE(g, 176, "menu_record_y", "instances", record, 8u); return r8(g, menu_record_page_base(record) + 0x0Eu); }
+void set_menu_record_y(GameState *g, unsigned record, uint8_t v) { IN_RANGE(g, 176, "set_menu_record_y", "instances", record, 8u); w8(g, menu_record_page_base(record) + 0x0Eu, v); }
+uint16_t menu_record_x(const GameState *g, unsigned record) { IN_RANGE(g, 177, "menu_record_x", "instances", record, 8u); return r16(g, menu_record_page_base(record) + 0x0Fu); }
+void set_menu_record_x(GameState *g, unsigned record, uint16_t v) { IN_RANGE(g, 177, "set_menu_record_x", "instances", record, 8u); w16(g, menu_record_page_base(record) + 0x0Fu, v); }
+uint16_t menu_record_tile(const GameState *g, unsigned record) { IN_RANGE(g, 178, "menu_record_tile", "instances", record, 8u); return r16(g, menu_record_page_base(record) + 0x19u); }
+void set_menu_record_tile(GameState *g, unsigned record, uint16_t v) { IN_RANGE(g, 178, "set_menu_record_tile", "instances", record, 8u); w16(g, menu_record_page_base(record) + 0x19u, v); }
+uint16_t menu_record_sprite_offsets(const GameState *g, unsigned record) { IN_RANGE(g, 179, "menu_record_sprite_offsets", "instances", record, 8u); return r16(g, menu_record_page_base(record) + 0x22u); }
+void set_menu_record_sprite_offsets(GameState *g, unsigned record, uint16_t v) { IN_RANGE(g, 179, "set_menu_record_sprite_offsets", "instances", record, 8u); w16(g, menu_record_page_base(record) + 0x22u, v); }
 
 /* ---- menu_object --------------------------------------------------------------------------- */
 
-uint8_t menu_object_scratch(const GameState *g, unsigned i) { return r8(g, 0x7E0000u + (uint32_t)i * 0x01u); }
-void set_menu_object_scratch(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0000u + (uint32_t)i * 0x01u, v); }
+uint8_t menu_object_scratch(const GameState *g, unsigned i) { IN_RANGE(g, 180, "menu_object_scratch", "count", i, 28u); return r8(g, 0x7E0000u + (uint32_t)i * 0x01u); }
+void set_menu_object_scratch(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 180, "set_menu_object_scratch", "count", i, 28u); w8(g, 0x7E0000u + (uint32_t)i * 0x01u, v); }
 uint8_t menu_object_shadows_bg_mode(const GameState *g) { return r8(g, 0x7E001Eu); }
 void set_menu_object_shadows_bg_mode(GameState *g, uint8_t v) { w8(g, 0x7E001Eu, v); }
 uint8_t menu_object_shadows_mosaic(const GameState *g) { return r8(g, 0x7E001Fu); }
 void set_menu_object_shadows_mosaic(GameState *g, uint8_t v) { w8(g, 0x7E001Fu, v); }
-uint8_t menu_object_shadows_scroll_x_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0020u + at); }
-void set_menu_object_shadows_scroll_x_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0020u + at, v); }
-uint8_t menu_object_shadows_scroll_y_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0026u + at); }
-void set_menu_object_shadows_scroll_y_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0026u + at, v); }
-uint8_t menu_object_shadows_mode7_matrix_byte(const GameState *g, unsigned at) { return r8(g, 0x7E002Cu + at); }
-void set_menu_object_shadows_mode7_matrix_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E002Cu + at, v); }
+uint8_t menu_object_shadows_scroll_x_byte(const GameState *g, unsigned at) { IN_RANGE(g, 181, "menu_object_shadows_scroll_x_byte", "bytes", at, 6u); return r8(g, 0x7E0020u + at); }
+void set_menu_object_shadows_scroll_x_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 181, "set_menu_object_shadows_scroll_x_byte", "bytes", at, 6u); w8(g, 0x7E0020u + at, v); }
+uint8_t menu_object_shadows_scroll_y_byte(const GameState *g, unsigned at) { IN_RANGE(g, 181, "menu_object_shadows_scroll_y_byte", "bytes", at, 6u); return r8(g, 0x7E0026u + at); }
+void set_menu_object_shadows_scroll_y_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 181, "set_menu_object_shadows_scroll_y_byte", "bytes", at, 6u); w8(g, 0x7E0026u + at, v); }
+uint8_t menu_object_shadows_mode7_matrix_byte(const GameState *g, unsigned at) { IN_RANGE(g, 181, "menu_object_shadows_mode7_matrix_byte", "bytes", at, 8u); return r8(g, 0x7E002Cu + at); }
+void set_menu_object_shadows_mode7_matrix_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 181, "set_menu_object_shadows_mode7_matrix_byte", "bytes", at, 8u); w8(g, 0x7E002Cu + at, v); }
 uint32_t menu_object_shadows_mode7_center(const GameState *g) { return r32(g, 0x7E0034u); }
 void set_menu_object_shadows_mode7_center(GameState *g, uint32_t v) { w32(g, 0x7E0034u, v); }
-uint8_t menu_object_shadows_windows_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0038u + at); }
-void set_menu_object_shadows_windows_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0038u + at, v); }
+uint8_t menu_object_shadows_windows_byte(const GameState *g, unsigned at) { IN_RANGE(g, 181, "menu_object_shadows_windows_byte", "bytes", at, 9u); return r8(g, 0x7E0038u + at); }
+void set_menu_object_shadows_windows_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 181, "set_menu_object_shadows_windows_byte", "bytes", at, 9u); w8(g, 0x7E0038u + at, v); }
 uint8_t menu_object_shadows_main_screen(const GameState *g) { return r8(g, 0x7E0041u); }
 void set_menu_object_shadows_main_screen(GameState *g, uint8_t v) { w8(g, 0x7E0041u, v); }
 uint8_t menu_object_shadows_sub_screen(const GameState *g) { return r8(g, 0x7E0042u); }
@@ -1204,27 +1720,27 @@ uint16_t menu_object_vram_queue_size(const GameState *g) { return r16(g, 0x7E006
 void set_menu_object_vram_queue_size(GameState *g, uint16_t v) { w16(g, 0x7E0065u, v); }
 uint8_t menu_object_vram_queue_port(const GameState *g) { return r8(g, 0x7E0067u); }
 void set_menu_object_vram_queue_port(GameState *g, uint8_t v) { w8(g, 0x7E0067u, v); }
-uint8_t menu_object_palette_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0920u + at); }
-void set_menu_object_palette_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0920u + at, v); }
-uint16_t menu_object_slots_handler(const GameState *g, unsigned slot) { return r16(g, 0x7E0B30u + (uint32_t)slot * 0x40u); }
-void set_menu_object_slots_handler(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0B30u + (uint32_t)slot * 0x40u, v); }
-uint8_t menu_object_slots_step(const GameState *g, unsigned slot) { return r8(g, 0x7E0B32u + (uint32_t)slot * 0x40u); }
-void set_menu_object_slots_step(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0B32u + (uint32_t)slot * 0x40u, v); }
-uint16_t menu_object_slots_age(const GameState *g, unsigned slot) { return r16(g, 0x7E0B33u + (uint32_t)slot * 0x40u); }
-void set_menu_object_slots_age(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0B33u + (uint32_t)slot * 0x40u, v); }
-uint32_t menu_object_slots_script(const GameState *g, unsigned slot) { return r24(g, 0x7E0B37u + (uint32_t)slot * 0x40u); }
-void set_menu_object_slots_script(GameState *g, unsigned slot, uint32_t v) { w24(g, 0x7E0B37u + (uint32_t)slot * 0x40u, v); }
-uint32_t menu_object_slots_sprite_script(const GameState *g, unsigned slot) { return r24(g, 0x7E0B3Bu + (uint32_t)slot * 0x40u); }
-void set_menu_object_slots_sprite_script(GameState *g, unsigned slot, uint32_t v) { w24(g, 0x7E0B3Bu + (uint32_t)slot * 0x40u, v); }
-uint8_t menu_object_slots_script_wait(const GameState *g, unsigned slot) { return r8(g, 0x7E0B3Eu + (uint32_t)slot * 0x40u); }
-void set_menu_object_slots_script_wait(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0B3Eu + (uint32_t)slot * 0x40u, v); }
-uint16_t menu_object_slots_command_done(const GameState *g, unsigned slot) { return r16(g, 0x7E0B62u + (uint32_t)slot * 0x40u); }
-void set_menu_object_slots_command_done(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0B62u + (uint32_t)slot * 0x40u, v); }
+uint8_t menu_object_palette_byte(const GameState *g, unsigned at) { IN_RANGE(g, 182, "menu_object_palette_byte", "bytes", at, 512u); return r8(g, 0x7E0920u + at); }
+void set_menu_object_palette_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 182, "set_menu_object_palette_byte", "bytes", at, 512u); w8(g, 0x7E0920u + at, v); }
+uint16_t menu_object_slots_handler(const GameState *g, unsigned slot) { IN_RANGE(g, 183, "menu_object_slots_handler", "count", slot, 64u); return r16(g, 0x7E0B30u + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_handler(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 183, "set_menu_object_slots_handler", "count", slot, 64u); w16(g, 0x7E0B30u + (uint32_t)slot * 0x40u, v); }
+uint8_t menu_object_slots_step(const GameState *g, unsigned slot) { IN_RANGE(g, 183, "menu_object_slots_step", "count", slot, 64u); return r8(g, 0x7E0B32u + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_step(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 183, "set_menu_object_slots_step", "count", slot, 64u); w8(g, 0x7E0B32u + (uint32_t)slot * 0x40u, v); }
+uint16_t menu_object_slots_age(const GameState *g, unsigned slot) { IN_RANGE(g, 183, "menu_object_slots_age", "count", slot, 64u); return r16(g, 0x7E0B33u + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_age(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 183, "set_menu_object_slots_age", "count", slot, 64u); w16(g, 0x7E0B33u + (uint32_t)slot * 0x40u, v); }
+uint32_t menu_object_slots_script(const GameState *g, unsigned slot) { IN_RANGE(g, 183, "menu_object_slots_script", "count", slot, 64u); return r24(g, 0x7E0B37u + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_script(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 183, "set_menu_object_slots_script", "count", slot, 64u); w24(g, 0x7E0B37u + (uint32_t)slot * 0x40u, v); }
+uint32_t menu_object_slots_sprite_script(const GameState *g, unsigned slot) { IN_RANGE(g, 183, "menu_object_slots_sprite_script", "count", slot, 64u); return r24(g, 0x7E0B3Bu + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_sprite_script(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 183, "set_menu_object_slots_sprite_script", "count", slot, 64u); w24(g, 0x7E0B3Bu + (uint32_t)slot * 0x40u, v); }
+uint8_t menu_object_slots_script_wait(const GameState *g, unsigned slot) { IN_RANGE(g, 183, "menu_object_slots_script_wait", "count", slot, 64u); return r8(g, 0x7E0B3Eu + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_script_wait(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 183, "set_menu_object_slots_script_wait", "count", slot, 64u); w8(g, 0x7E0B3Eu + (uint32_t)slot * 0x40u, v); }
+uint16_t menu_object_slots_command_done(const GameState *g, unsigned slot) { IN_RANGE(g, 183, "menu_object_slots_command_done", "count", slot, 64u); return r16(g, 0x7E0B62u + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_command_done(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 183, "set_menu_object_slots_command_done", "count", slot, 64u); w16(g, 0x7E0B62u + (uint32_t)slot * 0x40u, v); }
 
 /* ---- battle -------------------------------------------------------------------------------- */
 
-uint8_t battle_low_scratch(const GameState *g, unsigned i) { return r8(g, 0x7E0000u + (uint32_t)i * 0x01u); }
-void set_battle_low_scratch(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0000u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_low_scratch(const GameState *g, unsigned i) { IN_RANGE(g, 184, "battle_low_scratch", "count", i, 32u); return r8(g, 0x7E0000u + (uint32_t)i * 0x01u); }
+void set_battle_low_scratch(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 184, "set_battle_low_scratch", "count", i, 32u); w8(g, 0x7E0000u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_party_defeated(const GameState *g) { return r8(g, 0x7E0024u); }
 void set_battle_party_defeated(GameState *g, uint8_t v) { w8(g, 0x7E0024u, v); }
 uint8_t battle_loop_count(const GameState *g) { return r8(g, 0x7E0027u); }
@@ -1233,12 +1749,12 @@ uint32_t battle_screen_script(const GameState *g) { return r24(g, 0x7E0040u); }
 void set_battle_screen_script(GameState *g, uint32_t v) { w24(g, 0x7E0040u, v); }
 uint16_t battle_screen_channel(const GameState *g) { return r16(g, 0x7E0043u); }
 void set_battle_screen_channel(GameState *g, uint16_t v) { w16(g, 0x7E0043u, v); }
-uint8_t battle_scratch(const GameState *g, unsigned i) { return r8(g, 0x7E0045u + (uint32_t)i * 0x01u); }
-void set_battle_scratch(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0045u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_multiplier_operands(const GameState *g, unsigned i) { return r8(g, 0x7E0077u + (uint32_t)i * 0x01u); }
-void set_battle_multiplier_operands(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0077u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_divider_operands(const GameState *g, unsigned i) { return r8(g, 0x7E0079u + (uint32_t)i * 0x01u); }
-void set_battle_divider_operands(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E0079u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_scratch(const GameState *g, unsigned i) { IN_RANGE(g, 185, "battle_scratch", "count", i, 23u); return r8(g, 0x7E0045u + (uint32_t)i * 0x01u); }
+void set_battle_scratch(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 185, "set_battle_scratch", "count", i, 23u); w8(g, 0x7E0045u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_multiplier_operands(const GameState *g, unsigned i) { IN_RANGE(g, 186, "battle_multiplier_operands", "count", i, 2u); return r8(g, 0x7E0077u + (uint32_t)i * 0x01u); }
+void set_battle_multiplier_operands(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 186, "set_battle_multiplier_operands", "count", i, 2u); w8(g, 0x7E0077u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_divider_operands(const GameState *g, unsigned i) { IN_RANGE(g, 187, "battle_divider_operands", "count", i, 3u); return r8(g, 0x7E0079u + (uint32_t)i * 0x01u); }
+void set_battle_divider_operands(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 187, "set_battle_divider_operands", "count", i, 3u); w8(g, 0x7E0079u + (uint32_t)i * 0x01u, v); }
 uint16_t battle_frame_count(const GameState *g) { return r16(g, 0x7E007Cu); }
 void set_battle_frame_count(GameState *g, uint16_t v) { w16(g, 0x7E007Cu, v); }
 uint8_t battle_mode(const GameState *g) { return r8(g, 0x7E007Eu); }
@@ -1253,8 +1769,8 @@ uint8_t battle_effect_sprite_attributes(const GameState *g) { return r8(g, 0x7E0
 void set_battle_effect_sprite_attributes(GameState *g, uint8_t v) { w8(g, 0x7E00A1u, v); }
 uint8_t battle_frame_phase(const GameState *g) { return r8(g, 0x7E00A4u); }
 void set_battle_frame_phase(GameState *g, uint8_t v) { w8(g, 0x7E00A4u, v); }
-uint8_t battle_effect_cells(const GameState *g, unsigned i) { return r8(g, 0x7E00C6u + (uint32_t)i * 0x01u); }
-void set_battle_effect_cells(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E00C6u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_effect_cells(const GameState *g, unsigned i) { IN_RANGE(g, 188, "battle_effect_cells", "count", i, 12u); return r8(g, 0x7E00C6u + (uint32_t)i * 0x01u); }
+void set_battle_effect_cells(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 188, "set_battle_effect_cells", "count", i, 12u); w8(g, 0x7E00C6u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_queued_uploads_on(const GameState *g) { return r8(g, 0x7E00E5u); }
 void set_battle_queued_uploads_on(GameState *g, uint8_t v) { w8(g, 0x7E00E5u, v); }
 uint32_t battle_script_pointer(const GameState *g) { return r24(g, 0x7E00E6u); }
@@ -1263,54 +1779,54 @@ uint8_t battle_alternate_frame(const GameState *g) { return r8(g, 0x7E00ECu); }
 void set_battle_alternate_frame(GameState *g, uint8_t v) { w8(g, 0x7E00ECu, v); }
 uint16_t battle_menu_buttons(const GameState *g) { return r16(g, 0x7E00EEu); }
 void set_battle_menu_buttons(GameState *g, uint16_t v) { w16(g, 0x7E00EEu, v); }
-uint8_t battle_window_line_deltas(const GameState *g, unsigned line) { return r8(g, 0x7E0A00u + (uint32_t)line * 0x01u); }
-void set_battle_window_line_deltas(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7E0A00u + (uint32_t)line * 0x01u, v); }
-uint8_t battle_object_size_bits(const GameState *g, unsigned slot) { return r8(g, 0x7E0B24u + (uint32_t)slot * 0x01u); }
-void set_battle_object_size_bits(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E0B24u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_window_frames_tilemap_tile(const GameState *g, unsigned column) { return r8(g, 0x7E0B40u + (uint32_t)column * 0x02u); }
-void set_battle_window_frames_tilemap_tile(GameState *g, unsigned column, uint8_t v) { w8(g, 0x7E0B40u + (uint32_t)column * 0x02u, v); }
-uint8_t battle_window_frames_tilemap_attributes(const GameState *g, unsigned column) { return r8(g, 0x7E0B41u + (uint32_t)column * 0x02u); }
-void set_battle_window_frames_tilemap_attributes(GameState *g, unsigned column, uint8_t v) { w8(g, 0x7E0B41u + (uint32_t)column * 0x02u, v); }
-uint8_t battle_window_tilemap_tile(const GameState *g, unsigned column) { return r8(g, 0x7E0CC0u + (uint32_t)column * 0x02u); }
-void set_battle_window_tilemap_tile(GameState *g, unsigned column, uint8_t v) { w8(g, 0x7E0CC0u + (uint32_t)column * 0x02u, v); }
-uint8_t battle_window_tilemap_attributes(const GameState *g, unsigned column) { return r8(g, 0x7E0CC1u + (uint32_t)column * 0x02u); }
-void set_battle_window_tilemap_attributes(GameState *g, unsigned column, uint8_t v) { w8(g, 0x7E0CC1u + (uint32_t)column * 0x02u, v); }
-uint8_t battle_object_sprite_entries_tile(const GameState *g, unsigned slot) { return r8(g, 0x7E11B2u + (uint32_t)slot * 0x04u); }
-void set_battle_object_sprite_entries_tile(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E11B2u + (uint32_t)slot * 0x04u, v); }
-uint8_t battle_object_sprite_entries_attributes(const GameState *g, unsigned slot) { return r8(g, 0x7E11B3u + (uint32_t)slot * 0x04u); }
-void set_battle_object_sprite_entries_attributes(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E11B3u + (uint32_t)slot * 0x04u, v); }
-uint8_t battle_tech_records_id(const GameState *g, unsigned i) { return r8(g, 0x7E1A80u + (uint32_t)i * 0x07u); }
-void set_battle_tech_records_id(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1A80u + (uint32_t)i * 0x07u, v); }
-uint8_t battle_tech_records_flags(const GameState *g, unsigned i) { return r8(g, 0x7E1A82u + (uint32_t)i * 0x07u); }
-void set_battle_tech_records_flags(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1A82u + (uint32_t)i * 0x07u, v); }
-uint8_t battle_tech_records_cost(const GameState *g, unsigned i) { return r8(g, 0x7E1A83u + (uint32_t)i * 0x07u); }
-void set_battle_tech_records_cost(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1A83u + (uint32_t)i * 0x07u, v); }
-uint8_t battle_tech_records_partners(const GameState *g, unsigned i) { return r8(g, 0x7E1A84u + (uint32_t)i * 0x07u); }
-void set_battle_tech_records_partners(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1A84u + (uint32_t)i * 0x07u, v); }
-uint16_t battle_tech_records_partner_costs(const GameState *g, unsigned i) { return r16(g, 0x7E1A85u + (uint32_t)i * 0x07u); }
-void set_battle_tech_records_partner_costs(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E1A85u + (uint32_t)i * 0x07u, v); }
-uint32_t battle_object_graphics(const GameState *g, unsigned slot) { return r24(g, 0x7E1C57u + (uint32_t)slot * 0x03u); }
-void set_battle_object_graphics(GameState *g, unsigned slot, uint32_t v) { w24(g, 0x7E1C57u + (uint32_t)slot * 0x03u, v); }
-uint32_t battle_object_tile_lists(const GameState *g, unsigned slot) { return r24(g, 0x7E1C78u + (uint32_t)slot * 0x03u); }
-void set_battle_object_tile_lists(GameState *g, unsigned slot, uint32_t v) { w24(g, 0x7E1C78u + (uint32_t)slot * 0x03u, v); }
-uint32_t battle_object_frame_lists(const GameState *g, unsigned slot) { return r24(g, 0x7E1C99u + (uint32_t)slot * 0x03u); }
-void set_battle_object_frame_lists(GameState *g, unsigned slot, uint32_t v) { w24(g, 0x7E1C99u + (uint32_t)slot * 0x03u, v); }
-uint32_t battle_object_delay_lists(const GameState *g, unsigned slot) { return r24(g, 0x7E1CBAu + (uint32_t)slot * 0x03u); }
-void set_battle_object_delay_lists(GameState *g, unsigned slot, uint32_t v) { w24(g, 0x7E1CBAu + (uint32_t)slot * 0x03u, v); }
-uint8_t battle_object_x(const GameState *g, unsigned i) { return r8(g, 0x7E1D00u + (uint32_t)i * 0x01u); }
-void set_battle_object_x(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1D00u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_object_y(const GameState *g, unsigned i) { return r8(g, 0x7E1D17u + (uint32_t)i * 0x01u); }
-void set_battle_object_y(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1D17u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_draw_scratch(const GameState *g, unsigned i) { return r8(g, 0x7E1D2Eu + (uint32_t)i * 0x01u); }
-void set_battle_draw_scratch(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1D2Eu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_object_extra_draw(const GameState *g, unsigned slot) { return r8(g, 0x7E1D45u + (uint32_t)slot * 0x01u); }
-void set_battle_object_extra_draw(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E1D45u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_part_count(const GameState *g, unsigned i) { return r8(g, 0x7E1D73u + (uint32_t)i * 0x01u); }
-void set_battle_object_part_count(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1D73u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_draw_list_depth(const GameState *g, unsigned i) { return r8(g, 0x7E1D8Au + (uint32_t)i * 0x01u); }
-void set_battle_draw_list_depth(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1D8Au + (uint32_t)i * 0x01u, v); }
-uint8_t battle_draw_list(const GameState *g, unsigned i) { return r8(g, 0x7E1DA1u + (uint32_t)i * 0x01u); }
-void set_battle_draw_list(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E1DA1u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_window_line_deltas(const GameState *g, unsigned line) { IN_RANGE(g, 189, "battle_window_line_deltas", "count", line, 128u); return r8(g, 0x7E0A00u + (uint32_t)line * 0x01u); }
+void set_battle_window_line_deltas(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 189, "set_battle_window_line_deltas", "count", line, 128u); w8(g, 0x7E0A00u + (uint32_t)line * 0x01u, v); }
+uint8_t battle_object_size_bits(const GameState *g, unsigned slot) { IN_RANGE(g, 190, "battle_object_size_bits", "count", slot, 11u); return r8(g, 0x7E0B24u + (uint32_t)slot * 0x01u); }
+void set_battle_object_size_bits(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 190, "set_battle_object_size_bits", "count", slot, 11u); w8(g, 0x7E0B24u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_window_frames_tilemap_tile(const GameState *g, unsigned column) { IN_RANGE(g, 191, "battle_window_frames_tilemap_tile", "count", column, 192u); return r8(g, 0x7E0B40u + (uint32_t)column * 0x02u); }
+void set_battle_window_frames_tilemap_tile(GameState *g, unsigned column, uint8_t v) { IN_RANGE(g, 191, "set_battle_window_frames_tilemap_tile", "count", column, 192u); w8(g, 0x7E0B40u + (uint32_t)column * 0x02u, v); }
+uint8_t battle_window_frames_tilemap_attributes(const GameState *g, unsigned column) { IN_RANGE(g, 191, "battle_window_frames_tilemap_attributes", "count", column, 192u); return r8(g, 0x7E0B41u + (uint32_t)column * 0x02u); }
+void set_battle_window_frames_tilemap_attributes(GameState *g, unsigned column, uint8_t v) { IN_RANGE(g, 191, "set_battle_window_frames_tilemap_attributes", "count", column, 192u); w8(g, 0x7E0B41u + (uint32_t)column * 0x02u, v); }
+uint8_t battle_window_tilemap_tile(const GameState *g, unsigned column) { IN_RANGE(g, 192, "battle_window_tilemap_tile", "count", column, 608u); return r8(g, 0x7E0CC0u + (uint32_t)column * 0x02u); }
+void set_battle_window_tilemap_tile(GameState *g, unsigned column, uint8_t v) { IN_RANGE(g, 192, "set_battle_window_tilemap_tile", "count", column, 608u); w8(g, 0x7E0CC0u + (uint32_t)column * 0x02u, v); }
+uint8_t battle_window_tilemap_attributes(const GameState *g, unsigned column) { IN_RANGE(g, 192, "battle_window_tilemap_attributes", "count", column, 608u); return r8(g, 0x7E0CC1u + (uint32_t)column * 0x02u); }
+void set_battle_window_tilemap_attributes(GameState *g, unsigned column, uint8_t v) { IN_RANGE(g, 192, "set_battle_window_tilemap_attributes", "count", column, 608u); w8(g, 0x7E0CC1u + (uint32_t)column * 0x02u, v); }
+uint8_t battle_object_sprite_entries_tile(const GameState *g, unsigned slot) { IN_RANGE(g, 193, "battle_object_sprite_entries_tile", "count", slot, 44u); return r8(g, 0x7E11B2u + (uint32_t)slot * 0x04u); }
+void set_battle_object_sprite_entries_tile(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 193, "set_battle_object_sprite_entries_tile", "count", slot, 44u); w8(g, 0x7E11B2u + (uint32_t)slot * 0x04u, v); }
+uint8_t battle_object_sprite_entries_attributes(const GameState *g, unsigned slot) { IN_RANGE(g, 193, "battle_object_sprite_entries_attributes", "count", slot, 44u); return r8(g, 0x7E11B3u + (uint32_t)slot * 0x04u); }
+void set_battle_object_sprite_entries_attributes(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 193, "set_battle_object_sprite_entries_attributes", "count", slot, 44u); w8(g, 0x7E11B3u + (uint32_t)slot * 0x04u, v); }
+uint8_t battle_tech_records_id(const GameState *g, unsigned i) { IN_RANGE(g, 194, "battle_tech_records_id", "count", i, 19u); return r8(g, 0x7E1A80u + (uint32_t)i * 0x07u); }
+void set_battle_tech_records_id(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 194, "set_battle_tech_records_id", "count", i, 19u); w8(g, 0x7E1A80u + (uint32_t)i * 0x07u, v); }
+uint8_t battle_tech_records_flags(const GameState *g, unsigned i) { IN_RANGE(g, 194, "battle_tech_records_flags", "count", i, 19u); return r8(g, 0x7E1A82u + (uint32_t)i * 0x07u); }
+void set_battle_tech_records_flags(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 194, "set_battle_tech_records_flags", "count", i, 19u); w8(g, 0x7E1A82u + (uint32_t)i * 0x07u, v); }
+uint8_t battle_tech_records_cost(const GameState *g, unsigned i) { IN_RANGE(g, 194, "battle_tech_records_cost", "count", i, 19u); return r8(g, 0x7E1A83u + (uint32_t)i * 0x07u); }
+void set_battle_tech_records_cost(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 194, "set_battle_tech_records_cost", "count", i, 19u); w8(g, 0x7E1A83u + (uint32_t)i * 0x07u, v); }
+uint8_t battle_tech_records_partners(const GameState *g, unsigned i) { IN_RANGE(g, 194, "battle_tech_records_partners", "count", i, 19u); return r8(g, 0x7E1A84u + (uint32_t)i * 0x07u); }
+void set_battle_tech_records_partners(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 194, "set_battle_tech_records_partners", "count", i, 19u); w8(g, 0x7E1A84u + (uint32_t)i * 0x07u, v); }
+uint16_t battle_tech_records_partner_costs(const GameState *g, unsigned i) { IN_RANGE(g, 194, "battle_tech_records_partner_costs", "count", i, 19u); return r16(g, 0x7E1A85u + (uint32_t)i * 0x07u); }
+void set_battle_tech_records_partner_costs(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 194, "set_battle_tech_records_partner_costs", "count", i, 19u); w16(g, 0x7E1A85u + (uint32_t)i * 0x07u, v); }
+uint32_t battle_object_graphics(const GameState *g, unsigned slot) { IN_RANGE(g, 195, "battle_object_graphics", "count", slot, 11u); return r24(g, 0x7E1C57u + (uint32_t)slot * 0x03u); }
+void set_battle_object_graphics(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 195, "set_battle_object_graphics", "count", slot, 11u); w24(g, 0x7E1C57u + (uint32_t)slot * 0x03u, v); }
+uint32_t battle_object_tile_lists(const GameState *g, unsigned slot) { IN_RANGE(g, 196, "battle_object_tile_lists", "count", slot, 11u); return r24(g, 0x7E1C78u + (uint32_t)slot * 0x03u); }
+void set_battle_object_tile_lists(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 196, "set_battle_object_tile_lists", "count", slot, 11u); w24(g, 0x7E1C78u + (uint32_t)slot * 0x03u, v); }
+uint32_t battle_object_frame_lists(const GameState *g, unsigned slot) { IN_RANGE(g, 197, "battle_object_frame_lists", "count", slot, 11u); return r24(g, 0x7E1C99u + (uint32_t)slot * 0x03u); }
+void set_battle_object_frame_lists(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 197, "set_battle_object_frame_lists", "count", slot, 11u); w24(g, 0x7E1C99u + (uint32_t)slot * 0x03u, v); }
+uint32_t battle_object_delay_lists(const GameState *g, unsigned slot) { IN_RANGE(g, 198, "battle_object_delay_lists", "count", slot, 11u); return r24(g, 0x7E1CBAu + (uint32_t)slot * 0x03u); }
+void set_battle_object_delay_lists(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 198, "set_battle_object_delay_lists", "count", slot, 11u); w24(g, 0x7E1CBAu + (uint32_t)slot * 0x03u, v); }
+uint8_t battle_object_x(const GameState *g, unsigned i) { IN_RANGE(g, 199, "battle_object_x", "count", i, 23u); return r8(g, 0x7E1D00u + (uint32_t)i * 0x01u); }
+void set_battle_object_x(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 199, "set_battle_object_x", "count", i, 23u); w8(g, 0x7E1D00u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_object_y(const GameState *g, unsigned i) { IN_RANGE(g, 200, "battle_object_y", "count", i, 23u); return r8(g, 0x7E1D17u + (uint32_t)i * 0x01u); }
+void set_battle_object_y(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 200, "set_battle_object_y", "count", i, 23u); w8(g, 0x7E1D17u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_draw_scratch(const GameState *g, unsigned i) { IN_RANGE(g, 201, "battle_draw_scratch", "count", i, 23u); return r8(g, 0x7E1D2Eu + (uint32_t)i * 0x01u); }
+void set_battle_draw_scratch(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 201, "set_battle_draw_scratch", "count", i, 23u); w8(g, 0x7E1D2Eu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_object_extra_draw(const GameState *g, unsigned slot) { IN_RANGE(g, 202, "battle_object_extra_draw", "count", slot, 11u); return r8(g, 0x7E1D45u + (uint32_t)slot * 0x01u); }
+void set_battle_object_extra_draw(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 202, "set_battle_object_extra_draw", "count", slot, 11u); w8(g, 0x7E1D45u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_part_count(const GameState *g, unsigned i) { IN_RANGE(g, 203, "battle_object_part_count", "count", i, 23u); return r8(g, 0x7E1D73u + (uint32_t)i * 0x01u); }
+void set_battle_object_part_count(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 203, "set_battle_object_part_count", "count", i, 23u); w8(g, 0x7E1D73u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_draw_list_depth(const GameState *g, unsigned i) { IN_RANGE(g, 204, "battle_draw_list_depth", "count", i, 23u); return r8(g, 0x7E1D8Au + (uint32_t)i * 0x01u); }
+void set_battle_draw_list_depth(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 204, "set_battle_draw_list_depth", "count", i, 23u); w8(g, 0x7E1D8Au + (uint32_t)i * 0x01u, v); }
+uint8_t battle_draw_list(const GameState *g, unsigned i) { IN_RANGE(g, 205, "battle_draw_list", "count", i, 23u); return r8(g, 0x7E1DA1u + (uint32_t)i * 0x01u); }
+void set_battle_draw_list(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 205, "set_battle_draw_list", "count", i, 23u); w8(g, 0x7E1DA1u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_draw_list_position(const GameState *g) { return r8(g, 0x7E1DC3u); }
 void set_battle_draw_list_position(GameState *g, uint8_t v) { w8(g, 0x7E1DC3u, v); }
 uint16_t battle_draw_object(const GameState *g) { return r16(g, 0x7E1DC5u); }
@@ -1325,228 +1841,228 @@ uint16_t battle_draw_tile_groups(const GameState *g) { return r16(g, 0x7E1DCDu);
 void set_battle_draw_tile_groups(GameState *g, uint16_t v) { w16(g, 0x7E1DCDu, v); }
 uint8_t battle_setup_flags(const GameState *g) { return r8(g, 0x7E2989u); }
 void set_battle_setup_flags(GameState *g, uint8_t v) { w8(g, 0x7E2989u, v); }
-uint8_t battle_party_placement_tile_x(const GameState *g, unsigned slot) { return r8(g, 0x7E29B0u + (uint32_t)slot * 0x05u); }
-void set_battle_party_placement_tile_x(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E29B0u + (uint32_t)slot * 0x05u, v); }
-uint8_t battle_party_placement_tile_y(const GameState *g, unsigned slot) { return r8(g, 0x7E29B1u + (uint32_t)slot * 0x05u); }
-void set_battle_party_placement_tile_y(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E29B1u + (uint32_t)slot * 0x05u, v); }
-uint8_t battle_party_placement_x_offset(const GameState *g, unsigned slot) { return r8(g, 0x7E29B2u + (uint32_t)slot * 0x05u); }
-void set_battle_party_placement_x_offset(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E29B2u + (uint32_t)slot * 0x05u, v); }
-uint8_t battle_party_placement_y_offset(const GameState *g, unsigned slot) { return r8(g, 0x7E29B3u + (uint32_t)slot * 0x05u); }
-void set_battle_party_placement_y_offset(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E29B3u + (uint32_t)slot * 0x05u, v); }
-uint8_t battle_enemy_placement_tile_x(const GameState *g, unsigned i) { return r8(g, 0x7E29BFu + (uint32_t)i * 0x0Cu); }
-void set_battle_enemy_placement_tile_x(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E29BFu + (uint32_t)i * 0x0Cu, v); }
-uint8_t battle_enemy_placement_tile_y(const GameState *g, unsigned i) { return r8(g, 0x7E29C0u + (uint32_t)i * 0x0Cu); }
-void set_battle_enemy_placement_tile_y(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E29C0u + (uint32_t)i * 0x0Cu, v); }
-uint8_t battle_enemy_placement_x_offset(const GameState *g, unsigned i) { return r8(g, 0x7E29C1u + (uint32_t)i * 0x0Cu); }
-void set_battle_enemy_placement_x_offset(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E29C1u + (uint32_t)i * 0x0Cu, v); }
-uint8_t battle_enemy_placement_y_offset(const GameState *g, unsigned i) { return r8(g, 0x7E29C2u + (uint32_t)i * 0x0Cu); }
-void set_battle_enemy_placement_y_offset(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E29C2u + (uint32_t)i * 0x0Cu, v); }
-uint16_t battle_enemy_placement_enemy(const GameState *g, unsigned i) { return r16(g, 0x7E29C4u + (uint32_t)i * 0x0Cu); }
-void set_battle_enemy_placement_enemy(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E29C4u + (uint32_t)i * 0x0Cu, v); }
-uint8_t battle_enemy_placement_kind(const GameState *g, unsigned i) { return r8(g, 0x7E29C6u + (uint32_t)i * 0x0Cu); }
-void set_battle_enemy_placement_kind(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E29C6u + (uint32_t)i * 0x0Cu, v); }
-uint8_t battle_enemy_placement_palette(const GameState *g, unsigned i) { return r8(g, 0x7E29C7u + (uint32_t)i * 0x0Cu); }
-void set_battle_enemy_placement_palette(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E29C7u + (uint32_t)i * 0x0Cu, v); }
+uint8_t battle_party_placement_tile_x(const GameState *g, unsigned slot) { IN_RANGE(g, 206, "battle_party_placement_tile_x", "count", slot, 3u); return r8(g, 0x7E29B0u + (uint32_t)slot * 0x05u); }
+void set_battle_party_placement_tile_x(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 206, "set_battle_party_placement_tile_x", "count", slot, 3u); w8(g, 0x7E29B0u + (uint32_t)slot * 0x05u, v); }
+uint8_t battle_party_placement_tile_y(const GameState *g, unsigned slot) { IN_RANGE(g, 206, "battle_party_placement_tile_y", "count", slot, 3u); return r8(g, 0x7E29B1u + (uint32_t)slot * 0x05u); }
+void set_battle_party_placement_tile_y(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 206, "set_battle_party_placement_tile_y", "count", slot, 3u); w8(g, 0x7E29B1u + (uint32_t)slot * 0x05u, v); }
+uint8_t battle_party_placement_x_offset(const GameState *g, unsigned slot) { IN_RANGE(g, 206, "battle_party_placement_x_offset", "count", slot, 3u); return r8(g, 0x7E29B2u + (uint32_t)slot * 0x05u); }
+void set_battle_party_placement_x_offset(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 206, "set_battle_party_placement_x_offset", "count", slot, 3u); w8(g, 0x7E29B2u + (uint32_t)slot * 0x05u, v); }
+uint8_t battle_party_placement_y_offset(const GameState *g, unsigned slot) { IN_RANGE(g, 206, "battle_party_placement_y_offset", "count", slot, 3u); return r8(g, 0x7E29B3u + (uint32_t)slot * 0x05u); }
+void set_battle_party_placement_y_offset(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 206, "set_battle_party_placement_y_offset", "count", slot, 3u); w8(g, 0x7E29B3u + (uint32_t)slot * 0x05u, v); }
+uint8_t battle_enemy_placement_tile_x(const GameState *g, unsigned i) { IN_RANGE(g, 207, "battle_enemy_placement_tile_x", "count", i, 8u); return r8(g, 0x7E29BFu + (uint32_t)i * 0x0Cu); }
+void set_battle_enemy_placement_tile_x(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 207, "set_battle_enemy_placement_tile_x", "count", i, 8u); w8(g, 0x7E29BFu + (uint32_t)i * 0x0Cu, v); }
+uint8_t battle_enemy_placement_tile_y(const GameState *g, unsigned i) { IN_RANGE(g, 207, "battle_enemy_placement_tile_y", "count", i, 8u); return r8(g, 0x7E29C0u + (uint32_t)i * 0x0Cu); }
+void set_battle_enemy_placement_tile_y(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 207, "set_battle_enemy_placement_tile_y", "count", i, 8u); w8(g, 0x7E29C0u + (uint32_t)i * 0x0Cu, v); }
+uint8_t battle_enemy_placement_x_offset(const GameState *g, unsigned i) { IN_RANGE(g, 207, "battle_enemy_placement_x_offset", "count", i, 8u); return r8(g, 0x7E29C1u + (uint32_t)i * 0x0Cu); }
+void set_battle_enemy_placement_x_offset(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 207, "set_battle_enemy_placement_x_offset", "count", i, 8u); w8(g, 0x7E29C1u + (uint32_t)i * 0x0Cu, v); }
+uint8_t battle_enemy_placement_y_offset(const GameState *g, unsigned i) { IN_RANGE(g, 207, "battle_enemy_placement_y_offset", "count", i, 8u); return r8(g, 0x7E29C2u + (uint32_t)i * 0x0Cu); }
+void set_battle_enemy_placement_y_offset(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 207, "set_battle_enemy_placement_y_offset", "count", i, 8u); w8(g, 0x7E29C2u + (uint32_t)i * 0x0Cu, v); }
+uint16_t battle_enemy_placement_enemy(const GameState *g, unsigned i) { IN_RANGE(g, 207, "battle_enemy_placement_enemy", "count", i, 8u); return r16(g, 0x7E29C4u + (uint32_t)i * 0x0Cu); }
+void set_battle_enemy_placement_enemy(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 207, "set_battle_enemy_placement_enemy", "count", i, 8u); w16(g, 0x7E29C4u + (uint32_t)i * 0x0Cu, v); }
+uint8_t battle_enemy_placement_kind(const GameState *g, unsigned i) { IN_RANGE(g, 207, "battle_enemy_placement_kind", "count", i, 8u); return r8(g, 0x7E29C6u + (uint32_t)i * 0x0Cu); }
+void set_battle_enemy_placement_kind(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 207, "set_battle_enemy_placement_kind", "count", i, 8u); w8(g, 0x7E29C6u + (uint32_t)i * 0x0Cu, v); }
+uint8_t battle_enemy_placement_palette(const GameState *g, unsigned i) { IN_RANGE(g, 207, "battle_enemy_placement_palette", "count", i, 8u); return r8(g, 0x7E29C7u + (uint32_t)i * 0x0Cu); }
+void set_battle_enemy_placement_palette(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 207, "set_battle_enemy_placement_palette", "count", i, 8u); w8(g, 0x7E29C7u + (uint32_t)i * 0x0Cu, v); }
 uint8_t battle_event_flags(const GameState *g) { return r8(g, 0x7E2A1Fu); }
 void set_battle_event_flags(GameState *g, uint8_t v) { w8(g, 0x7E2A1Fu, v); }
 uint8_t battle_background_flags(const GameState *g) { return r8(g, 0x7E2A21u); }
 void set_battle_background_flags(GameState *g, uint8_t v) { w8(g, 0x7E2A21u, v); }
-uint16_t battle_bg_scroll_x(const GameState *g, unsigned layer) { return r16(g, 0x7E2C70u + (uint32_t)layer * 0x04u); }
-void set_battle_bg_scroll_x(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E2C70u + (uint32_t)layer * 0x04u, v); }
-uint16_t battle_bg_scroll_y(const GameState *g, unsigned layer) { return r16(g, 0x7E2C72u + (uint32_t)layer * 0x04u); }
-void set_battle_bg_scroll_y(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7E2C72u + (uint32_t)layer * 0x04u, v); }
+uint16_t battle_bg_scroll_x(const GameState *g, unsigned layer) { IN_RANGE(g, 208, "battle_bg_scroll_x", "count", layer, 3u); return r16(g, 0x7E2C70u + (uint32_t)layer * 0x04u); }
+void set_battle_bg_scroll_x(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 208, "set_battle_bg_scroll_x", "count", layer, 3u); w16(g, 0x7E2C70u + (uint32_t)layer * 0x04u, v); }
+uint16_t battle_bg_scroll_y(const GameState *g, unsigned layer) { IN_RANGE(g, 208, "battle_bg_scroll_y", "count", layer, 3u); return r16(g, 0x7E2C72u + (uint32_t)layer * 0x04u); }
+void set_battle_bg_scroll_y(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 208, "set_battle_bg_scroll_y", "count", layer, 3u); w16(g, 0x7E2C72u + (uint32_t)layer * 0x04u, v); }
 uint8_t battle_remembered_item_top(const GameState *g) { return r8(g, 0x7E2C98u); }
 void set_battle_remembered_item_top(GameState *g, uint8_t v) { w8(g, 0x7E2C98u, v); }
 uint8_t battle_remembered_item_row(const GameState *g) { return r8(g, 0x7E2C99u); }
 void set_battle_remembered_item_row(GameState *g, uint8_t v) { w8(g, 0x7E2C99u, v); }
-uint8_t battle_decoded_tiles(const GameState *g, unsigned i) { return r8(g, 0x7E2D00u + (uint32_t)i * 0x01u); }
-void set_battle_decoded_tiles(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E2D00u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_effect_sprite_data(const GameState *g, unsigned i) { return r8(g, 0x7E4500u + (uint32_t)i * 0x01u); }
-void set_battle_effect_sprite_data(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E4500u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_decoded_tiles(const GameState *g, unsigned i) { IN_RANGE(g, 209, "battle_decoded_tiles", "count", i, 3072u); return r8(g, 0x7E2D00u + (uint32_t)i * 0x01u); }
+void set_battle_decoded_tiles(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 209, "set_battle_decoded_tiles", "count", i, 3072u); w8(g, 0x7E2D00u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_effect_sprite_data(const GameState *g, unsigned i) { IN_RANGE(g, 210, "battle_effect_sprite_data", "count", i, 2048u); return r8(g, 0x7E4500u + (uint32_t)i * 0x01u); }
+void set_battle_effect_sprite_data(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 210, "set_battle_effect_sprite_data", "count", i, 2048u); w8(g, 0x7E4500u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_screen_scripts_running(const GameState *g) { return r8(g, 0x7E5D9Bu); }
 void set_battle_screen_scripts_running(GameState *g, uint8_t v) { w8(g, 0x7E5D9Bu, v); }
-uint16_t battle_animation_positions(const GameState *g, unsigned slot) { return r16(g, 0x7E5DA0u + (uint32_t)slot * 0x02u); }
-void set_battle_animation_positions(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E5DA0u + (uint32_t)slot * 0x02u, v); }
-uint8_t battle_script_running(const GameState *g, unsigned channel) { return r8(g, 0x7E5DACu + (uint32_t)channel * 0x01u); }
-void set_battle_script_running(GameState *g, unsigned channel, uint8_t v) { w8(g, 0x7E5DACu + (uint32_t)channel * 0x01u, v); }
-uint32_t battle_script_pointers(const GameState *g, unsigned channel) { return r24(g, 0x7E5DBDu + (uint32_t)channel * 0x04u); }
-void set_battle_script_pointers(GameState *g, unsigned channel, uint32_t v) { w24(g, 0x7E5DBDu + (uint32_t)channel * 0x04u, v); }
-uint8_t battle_script_waits(const GameState *g, unsigned channel) { return r8(g, 0x7E5DFDu + (uint32_t)channel * 0x01u); }
-void set_battle_script_waits(GameState *g, unsigned channel, uint8_t v) { w8(g, 0x7E5DFDu + (uint32_t)channel * 0x01u, v); }
-uint8_t battle_stats_low_hp(const GameState *g, unsigned slot) { return r8(g, 0x7E5E2Fu + (uint32_t)slot * 0x80u); }
-void set_battle_stats_low_hp(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E5E2Fu + (uint32_t)slot * 0x80u, v); }
-uint16_t battle_stats_hp(const GameState *g, unsigned slot) { return r16(g, 0x7E5E30u + (uint32_t)slot * 0x80u); }
-void set_battle_stats_hp(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E5E30u + (uint32_t)slot * 0x80u, v); }
-uint16_t battle_stats_max_hp(const GameState *g, unsigned slot) { return r16(g, 0x7E5E32u + (uint32_t)slot * 0x80u); }
-void set_battle_stats_max_hp(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E5E32u + (uint32_t)slot * 0x80u, v); }
-uint16_t battle_stats_mp(const GameState *g, unsigned slot) { return r16(g, 0x7E5E34u + (uint32_t)slot * 0x80u); }
-void set_battle_stats_mp(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E5E34u + (uint32_t)slot * 0x80u, v); }
-uint16_t battle_stats_max_mp(const GameState *g, unsigned slot) { return r16(g, 0x7E5E36u + (uint32_t)slot * 0x80u); }
-void set_battle_stats_max_mp(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E5E36u + (uint32_t)slot * 0x80u, v); }
-uint8_t battle_stats_status_byte(const GameState *g, unsigned slot, unsigned at) { return r8(g, 0x7E5E4Au + (uint32_t)slot * 0x80u + at); }
-void set_battle_stats_status_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { w8(g, 0x7E5E4Au + (uint32_t)slot * 0x80u + at, v); }
-uint16_t battle_stats_status_extra(const GameState *g, unsigned slot) { return r16(g, 0x7E5E52u + (uint32_t)slot * 0x80u); }
-void set_battle_stats_status_extra(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E5E52u + (uint32_t)slot * 0x80u, v); }
-uint8_t battle_base_grid(const GameState *g, unsigned i) { return r8(g, 0x7E7BFDu + (uint32_t)i * 0x01u); }
-void set_battle_base_grid(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E7BFDu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_grid(const GameState *g, unsigned i) { return r8(g, 0x7E7CFDu + (uint32_t)i * 0x01u); }
-void set_battle_grid(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E7CFDu + (uint32_t)i * 0x01u, v); }
-uint16_t battle_load_tilemap(const GameState *g, unsigned i) { return r16(g, 0x7E7FFDu + (uint32_t)i * 0x02u); }
-void set_battle_load_tilemap(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E7FFDu + (uint32_t)i * 0x02u, v); }
-uint8_t battle_load_tilemap_2(const GameState *g, unsigned i) { return r8(g, 0x7E80FDu + (uint32_t)i * 0x01u); }
-void set_battle_load_tilemap_2(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E80FDu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_oam_high_bits(const GameState *g, unsigned i) { return r8(g, 0x7E8C2Du + (uint32_t)i * 0x01u); }
-void set_battle_oam_high_bits(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E8C2Du + (uint32_t)i * 0x01u, v); }
-uint8_t battle_oam_x_high_bits(const GameState *g, unsigned i) { return r8(g, 0x7E8E2Du + (uint32_t)i * 0x01u); }
-void set_battle_oam_x_high_bits(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E8E2Du + (uint32_t)i * 0x01u, v); }
-uint8_t battle_oam_high_offsets(const GameState *g, unsigned i) { return r8(g, 0x7E902Du + (uint32_t)i * 0x01u); }
-void set_battle_oam_high_offsets(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E902Du + (uint32_t)i * 0x01u, v); }
-uint8_t battle_number_sprites_x(const GameState *g, unsigned i) { return r8(g, 0x7E922Du + (uint32_t)i * 0x04u); }
-void set_battle_number_sprites_x(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E922Du + (uint32_t)i * 0x04u, v); }
-uint8_t battle_number_sprites_y(const GameState *g, unsigned i) { return r8(g, 0x7E922Eu + (uint32_t)i * 0x04u); }
-void set_battle_number_sprites_y(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E922Eu + (uint32_t)i * 0x04u, v); }
-uint8_t battle_number_sprites_tile(const GameState *g, unsigned i) { return r8(g, 0x7E922Fu + (uint32_t)i * 0x04u); }
-void set_battle_number_sprites_tile(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E922Fu + (uint32_t)i * 0x04u, v); }
-uint8_t battle_number_sprites_attributes(const GameState *g, unsigned i) { return r8(g, 0x7E9230u + (uint32_t)i * 0x04u); }
-void set_battle_number_sprites_attributes(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9230u + (uint32_t)i * 0x04u, v); }
-uint8_t battle_number_sprite_high(const GameState *g, unsigned i) { return r8(g, 0x7E92DDu + (uint32_t)i * 0x01u); }
-void set_battle_number_sprite_high(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E92DDu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_member_actions_partners(const GameState *g, unsigned slot) { return r8(g, 0x7E93F3u + (uint32_t)slot * 0x07u); }
-void set_battle_member_actions_partners(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E93F3u + (uint32_t)slot * 0x07u, v); }
-uint8_t battle_party_names_byte(const GameState *g, unsigned slot, unsigned at) { return r8(g, 0x7E9403u + (uint32_t)slot * 0x05u + at); }
-void set_battle_party_names_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { w8(g, 0x7E9403u + (uint32_t)slot * 0x05u + at, v); }
-uint8_t battle_party_name_tiles(const GameState *g, unsigned i) { return r8(g, 0x7E9412u + (uint32_t)i * 0x01u); }
-void set_battle_party_name_tiles(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9412u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_character_names_byte(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7E9430u + (uint32_t)i * 0x05u + at); }
-void set_battle_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7E9430u + (uint32_t)i * 0x05u + at, v); }
-uint8_t battle_character_name_tiles(const GameState *g, unsigned i) { return r8(g, 0x7E9453u + (uint32_t)i * 0x01u); }
-void set_battle_character_name_tiles(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9453u + (uint32_t)i * 0x01u, v); }
+uint16_t battle_animation_positions(const GameState *g, unsigned slot) { IN_RANGE(g, 211, "battle_animation_positions", "count", slot, 6u); return r16(g, 0x7E5DA0u + (uint32_t)slot * 0x02u); }
+void set_battle_animation_positions(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 211, "set_battle_animation_positions", "count", slot, 6u); w16(g, 0x7E5DA0u + (uint32_t)slot * 0x02u, v); }
+uint8_t battle_script_running(const GameState *g, unsigned channel) { IN_RANGE(g, 212, "battle_script_running", "count", channel, 16u); return r8(g, 0x7E5DACu + (uint32_t)channel * 0x01u); }
+void set_battle_script_running(GameState *g, unsigned channel, uint8_t v) { IN_RANGE(g, 212, "set_battle_script_running", "count", channel, 16u); w8(g, 0x7E5DACu + (uint32_t)channel * 0x01u, v); }
+uint32_t battle_script_pointers(const GameState *g, unsigned channel) { IN_RANGE(g, 213, "battle_script_pointers", "count", channel, 16u); return r24(g, 0x7E5DBDu + (uint32_t)channel * 0x04u); }
+void set_battle_script_pointers(GameState *g, unsigned channel, uint32_t v) { IN_RANGE(g, 213, "set_battle_script_pointers", "count", channel, 16u); w24(g, 0x7E5DBDu + (uint32_t)channel * 0x04u, v); }
+uint8_t battle_script_waits(const GameState *g, unsigned channel) { IN_RANGE(g, 214, "battle_script_waits", "count", channel, 16u); return r8(g, 0x7E5DFDu + (uint32_t)channel * 0x01u); }
+void set_battle_script_waits(GameState *g, unsigned channel, uint8_t v) { IN_RANGE(g, 214, "set_battle_script_waits", "count", channel, 16u); w8(g, 0x7E5DFDu + (uint32_t)channel * 0x01u, v); }
+uint8_t battle_stats_low_hp(const GameState *g, unsigned slot) { IN_RANGE(g, 215, "battle_stats_low_hp", "count", slot, 11u); return r8(g, 0x7E5E2Fu + (uint32_t)slot * 0x80u); }
+void set_battle_stats_low_hp(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 215, "set_battle_stats_low_hp", "count", slot, 11u); w8(g, 0x7E5E2Fu + (uint32_t)slot * 0x80u, v); }
+uint16_t battle_stats_hp(const GameState *g, unsigned slot) { IN_RANGE(g, 215, "battle_stats_hp", "count", slot, 11u); return r16(g, 0x7E5E30u + (uint32_t)slot * 0x80u); }
+void set_battle_stats_hp(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 215, "set_battle_stats_hp", "count", slot, 11u); w16(g, 0x7E5E30u + (uint32_t)slot * 0x80u, v); }
+uint16_t battle_stats_max_hp(const GameState *g, unsigned slot) { IN_RANGE(g, 215, "battle_stats_max_hp", "count", slot, 11u); return r16(g, 0x7E5E32u + (uint32_t)slot * 0x80u); }
+void set_battle_stats_max_hp(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 215, "set_battle_stats_max_hp", "count", slot, 11u); w16(g, 0x7E5E32u + (uint32_t)slot * 0x80u, v); }
+uint16_t battle_stats_mp(const GameState *g, unsigned slot) { IN_RANGE(g, 215, "battle_stats_mp", "count", slot, 11u); return r16(g, 0x7E5E34u + (uint32_t)slot * 0x80u); }
+void set_battle_stats_mp(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 215, "set_battle_stats_mp", "count", slot, 11u); w16(g, 0x7E5E34u + (uint32_t)slot * 0x80u, v); }
+uint16_t battle_stats_max_mp(const GameState *g, unsigned slot) { IN_RANGE(g, 215, "battle_stats_max_mp", "count", slot, 11u); return r16(g, 0x7E5E36u + (uint32_t)slot * 0x80u); }
+void set_battle_stats_max_mp(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 215, "set_battle_stats_max_mp", "count", slot, 11u); w16(g, 0x7E5E36u + (uint32_t)slot * 0x80u, v); }
+uint8_t battle_stats_status_byte(const GameState *g, unsigned slot, unsigned at) { IN_RANGE(g, 215, "battle_stats_status_byte", "count", slot, 11u); IN_RANGE(g, 215, "battle_stats_status_byte", "bytes", at, 5u); return r8(g, 0x7E5E4Au + (uint32_t)slot * 0x80u + at); }
+void set_battle_stats_status_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { IN_RANGE(g, 215, "set_battle_stats_status_byte", "count", slot, 11u); IN_RANGE(g, 215, "set_battle_stats_status_byte", "bytes", at, 5u); w8(g, 0x7E5E4Au + (uint32_t)slot * 0x80u + at, v); }
+uint16_t battle_stats_status_extra(const GameState *g, unsigned slot) { IN_RANGE(g, 215, "battle_stats_status_extra", "count", slot, 11u); return r16(g, 0x7E5E52u + (uint32_t)slot * 0x80u); }
+void set_battle_stats_status_extra(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 215, "set_battle_stats_status_extra", "count", slot, 11u); w16(g, 0x7E5E52u + (uint32_t)slot * 0x80u, v); }
+uint8_t battle_base_grid(const GameState *g, unsigned i) { IN_RANGE(g, 216, "battle_base_grid", "count", i, 256u); return r8(g, 0x7E7BFDu + (uint32_t)i * 0x01u); }
+void set_battle_base_grid(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 216, "set_battle_base_grid", "count", i, 256u); w8(g, 0x7E7BFDu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_grid(const GameState *g, unsigned i) { IN_RANGE(g, 217, "battle_grid", "count", i, 256u); return r8(g, 0x7E7CFDu + (uint32_t)i * 0x01u); }
+void set_battle_grid(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 217, "set_battle_grid", "count", i, 256u); w8(g, 0x7E7CFDu + (uint32_t)i * 0x01u, v); }
+uint16_t battle_load_tilemap(const GameState *g, unsigned i) { IN_RANGE(g, 218, "battle_load_tilemap", "count", i, 128u); return r16(g, 0x7E7FFDu + (uint32_t)i * 0x02u); }
+void set_battle_load_tilemap(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 218, "set_battle_load_tilemap", "count", i, 128u); w16(g, 0x7E7FFDu + (uint32_t)i * 0x02u, v); }
+uint8_t battle_load_tilemap_2(const GameState *g, unsigned i) { IN_RANGE(g, 219, "battle_load_tilemap_2", "count", i, 512u); return r8(g, 0x7E80FDu + (uint32_t)i * 0x01u); }
+void set_battle_load_tilemap_2(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 219, "set_battle_load_tilemap_2", "count", i, 512u); w8(g, 0x7E80FDu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_oam_high_bits(const GameState *g, unsigned i) { IN_RANGE(g, 220, "battle_oam_high_bits", "count", i, 512u); return r8(g, 0x7E8C2Du + (uint32_t)i * 0x01u); }
+void set_battle_oam_high_bits(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 220, "set_battle_oam_high_bits", "count", i, 512u); w8(g, 0x7E8C2Du + (uint32_t)i * 0x01u, v); }
+uint8_t battle_oam_x_high_bits(const GameState *g, unsigned i) { IN_RANGE(g, 221, "battle_oam_x_high_bits", "count", i, 512u); return r8(g, 0x7E8E2Du + (uint32_t)i * 0x01u); }
+void set_battle_oam_x_high_bits(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 221, "set_battle_oam_x_high_bits", "count", i, 512u); w8(g, 0x7E8E2Du + (uint32_t)i * 0x01u, v); }
+uint8_t battle_oam_high_offsets(const GameState *g, unsigned i) { IN_RANGE(g, 222, "battle_oam_high_offsets", "count", i, 512u); return r8(g, 0x7E902Du + (uint32_t)i * 0x01u); }
+void set_battle_oam_high_offsets(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 222, "set_battle_oam_high_offsets", "count", i, 512u); w8(g, 0x7E902Du + (uint32_t)i * 0x01u, v); }
+uint8_t battle_number_sprites_x(const GameState *g, unsigned i) { IN_RANGE(g, 223, "battle_number_sprites_x", "count", i, 44u); return r8(g, 0x7E922Du + (uint32_t)i * 0x04u); }
+void set_battle_number_sprites_x(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 223, "set_battle_number_sprites_x", "count", i, 44u); w8(g, 0x7E922Du + (uint32_t)i * 0x04u, v); }
+uint8_t battle_number_sprites_y(const GameState *g, unsigned i) { IN_RANGE(g, 223, "battle_number_sprites_y", "count", i, 44u); return r8(g, 0x7E922Eu + (uint32_t)i * 0x04u); }
+void set_battle_number_sprites_y(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 223, "set_battle_number_sprites_y", "count", i, 44u); w8(g, 0x7E922Eu + (uint32_t)i * 0x04u, v); }
+uint8_t battle_number_sprites_tile(const GameState *g, unsigned i) { IN_RANGE(g, 223, "battle_number_sprites_tile", "count", i, 44u); return r8(g, 0x7E922Fu + (uint32_t)i * 0x04u); }
+void set_battle_number_sprites_tile(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 223, "set_battle_number_sprites_tile", "count", i, 44u); w8(g, 0x7E922Fu + (uint32_t)i * 0x04u, v); }
+uint8_t battle_number_sprites_attributes(const GameState *g, unsigned i) { IN_RANGE(g, 223, "battle_number_sprites_attributes", "count", i, 44u); return r8(g, 0x7E9230u + (uint32_t)i * 0x04u); }
+void set_battle_number_sprites_attributes(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 223, "set_battle_number_sprites_attributes", "count", i, 44u); w8(g, 0x7E9230u + (uint32_t)i * 0x04u, v); }
+uint8_t battle_number_sprite_high(const GameState *g, unsigned i) { IN_RANGE(g, 224, "battle_number_sprite_high", "count", i, 11u); return r8(g, 0x7E92DDu + (uint32_t)i * 0x01u); }
+void set_battle_number_sprite_high(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 224, "set_battle_number_sprite_high", "count", i, 11u); w8(g, 0x7E92DDu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_member_actions_partners(const GameState *g, unsigned slot) { IN_RANGE(g, 225, "battle_member_actions_partners", "count", slot, 3u); return r8(g, 0x7E93F3u + (uint32_t)slot * 0x07u); }
+void set_battle_member_actions_partners(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 225, "set_battle_member_actions_partners", "count", slot, 3u); w8(g, 0x7E93F3u + (uint32_t)slot * 0x07u, v); }
+uint8_t battle_party_names_byte(const GameState *g, unsigned slot, unsigned at) { IN_RANGE(g, 226, "battle_party_names_byte", "count", slot, 3u); IN_RANGE(g, 226, "battle_party_names_byte", "bytes", at, 5u); return r8(g, 0x7E9403u + (uint32_t)slot * 0x05u + at); }
+void set_battle_party_names_byte(GameState *g, unsigned slot, unsigned at, uint8_t v) { IN_RANGE(g, 226, "set_battle_party_names_byte", "count", slot, 3u); IN_RANGE(g, 226, "set_battle_party_names_byte", "bytes", at, 5u); w8(g, 0x7E9403u + (uint32_t)slot * 0x05u + at, v); }
+uint8_t battle_party_name_tiles(const GameState *g, unsigned i) { IN_RANGE(g, 227, "battle_party_name_tiles", "count", i, 30u); return r8(g, 0x7E9412u + (uint32_t)i * 0x01u); }
+void set_battle_party_name_tiles(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 227, "set_battle_party_name_tiles", "count", i, 30u); w8(g, 0x7E9412u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_character_names_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 228, "battle_character_names_byte", "count", i, 7u); IN_RANGE(g, 228, "battle_character_names_byte", "bytes", at, 5u); return r8(g, 0x7E9430u + (uint32_t)i * 0x05u + at); }
+void set_battle_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 228, "set_battle_character_names_byte", "count", i, 7u); IN_RANGE(g, 228, "set_battle_character_names_byte", "bytes", at, 5u); w8(g, 0x7E9430u + (uint32_t)i * 0x05u + at, v); }
+uint8_t battle_character_name_tiles(const GameState *g, unsigned i) { IN_RANGE(g, 229, "battle_character_name_tiles", "count", i, 70u); return r8(g, 0x7E9453u + (uint32_t)i * 0x01u); }
+void set_battle_character_name_tiles(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 229, "set_battle_character_name_tiles", "count", i, 70u); w8(g, 0x7E9453u + (uint32_t)i * 0x01u, v); }
 uint16_t battle_number(const GameState *g) { return r16(g, 0x7E9499u); }
 void set_battle_number(GameState *g, uint16_t v) { w16(g, 0x7E9499u, v); }
-uint8_t battle_digits(const GameState *g, unsigned i) { return r8(g, 0x7E949Cu + (uint32_t)i * 0x01u); }
-void set_battle_digits(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E949Cu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_name_buffer(const GameState *g, unsigned i) { return r8(g, 0x7E94A0u + (uint32_t)i * 0x01u); }
-void set_battle_name_buffer(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E94A0u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_tech_list_ids(const GameState *g, unsigned i) { return r8(g, 0x7E94D0u + (uint32_t)i * 0x01u); }
-void set_battle_tech_list_ids(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E94D0u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_tech_list(const GameState *g, unsigned i) { return r8(g, 0x7E9551u + (uint32_t)i * 0x01u); }
-void set_battle_tech_list(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9551u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_digits(const GameState *g, unsigned i) { IN_RANGE(g, 230, "battle_digits", "count", i, 4u); return r8(g, 0x7E949Cu + (uint32_t)i * 0x01u); }
+void set_battle_digits(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 230, "set_battle_digits", "count", i, 4u); w8(g, 0x7E949Cu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_name_buffer(const GameState *g, unsigned i) { IN_RANGE(g, 231, "battle_name_buffer", "count", i, 32u); return r8(g, 0x7E94A0u + (uint32_t)i * 0x01u); }
+void set_battle_name_buffer(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 231, "set_battle_name_buffer", "count", i, 32u); w8(g, 0x7E94A0u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_tech_list_ids(const GameState *g, unsigned i) { IN_RANGE(g, 232, "battle_tech_list_ids", "count", i, 129u); return r8(g, 0x7E94D0u + (uint32_t)i * 0x01u); }
+void set_battle_tech_list_ids(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 232, "set_battle_tech_list_ids", "count", i, 129u); w8(g, 0x7E94D0u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_tech_list(const GameState *g, unsigned i) { IN_RANGE(g, 233, "battle_tech_list", "count", i, 129u); return r8(g, 0x7E9551u + (uint32_t)i * 0x01u); }
+void set_battle_tech_list(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 233, "set_battle_tech_list", "count", i, 129u); w8(g, 0x7E9551u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_menu_member(const GameState *g) { return r8(g, 0x7E95D5u); }
 void set_battle_menu_member(GameState *g, uint8_t v) { w8(g, 0x7E95D5u, v); }
 uint8_t battle_menu_page(const GameState *g) { return r8(g, 0x7E95DBu); }
 void set_battle_menu_page(GameState *g, uint8_t v) { w8(g, 0x7E95DBu, v); }
-uint8_t battle_command_cursor(const GameState *g, unsigned slot) { return r8(g, 0x7E95DCu + (uint32_t)slot * 0x01u); }
-void set_battle_command_cursor(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E95DCu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_tech_cursor(const GameState *g, unsigned slot) { return r8(g, 0x7E95DFu + (uint32_t)slot * 0x01u); }
-void set_battle_tech_cursor(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E95DFu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_command_cursor(const GameState *g, unsigned slot) { IN_RANGE(g, 234, "battle_command_cursor", "count", slot, 3u); return r8(g, 0x7E95DCu + (uint32_t)slot * 0x01u); }
+void set_battle_command_cursor(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 234, "set_battle_command_cursor", "count", slot, 3u); w8(g, 0x7E95DCu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_tech_cursor(const GameState *g, unsigned slot) { IN_RANGE(g, 235, "battle_tech_cursor", "count", slot, 3u); return r8(g, 0x7E95DFu + (uint32_t)slot * 0x01u); }
+void set_battle_tech_cursor(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 235, "set_battle_tech_cursor", "count", slot, 3u); w8(g, 0x7E95DFu + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_item_row(const GameState *g) { return r8(g, 0x7E95E5u); }
 void set_battle_item_row(GameState *g, uint8_t v) { w8(g, 0x7E95E5u, v); }
 uint8_t battle_item_top(const GameState *g) { return r8(g, 0x7E95E6u); }
 void set_battle_item_top(GameState *g, uint8_t v) { w8(g, 0x7E95E6u, v); }
-uint8_t battle_tech_scroll(const GameState *g, unsigned slot) { return r8(g, 0x7E95EBu + (uint32_t)slot * 0x01u); }
-void set_battle_tech_scroll(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E95EBu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_tech_scroll(const GameState *g, unsigned slot) { IN_RANGE(g, 236, "battle_tech_scroll", "count", slot, 3u); return r8(g, 0x7E95EBu + (uint32_t)slot * 0x01u); }
+void set_battle_tech_scroll(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 236, "set_battle_tech_scroll", "count", slot, 3u); w8(g, 0x7E95EBu + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_targeting(const GameState *g) { return r8(g, 0x7E9609u); }
 void set_battle_targeting(GameState *g, uint8_t v) { w8(g, 0x7E9609u, v); }
 uint8_t battle_target_cursor(const GameState *g) { return r8(g, 0x7E960Bu); }
 void set_battle_target_cursor(GameState *g, uint8_t v) { w8(g, 0x7E960Bu, v); }
-uint8_t battle_facing_stride_low(const GameState *g, unsigned slot) { return r8(g, 0x7E966Eu + (uint32_t)slot * 0x01u); }
-void set_battle_facing_stride_low(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E966Eu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_facing_stride_low(const GameState *g, unsigned slot) { IN_RANGE(g, 237, "battle_facing_stride_low", "count", slot, 11u); return r8(g, 0x7E966Eu + (uint32_t)slot * 0x01u); }
+void set_battle_facing_stride_low(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 237, "set_battle_facing_stride_low", "count", slot, 11u); w8(g, 0x7E966Eu + (uint32_t)slot * 0x01u, v); }
 uint16_t battle_graphics_object(const GameState *g) { return r16(g, 0x7E9679u); }
 void set_battle_graphics_object(GameState *g, uint16_t v) { w16(g, 0x7E9679u, v); }
 uint8_t battle_graphics_frame(const GameState *g) { return r8(g, 0x7E967Bu); }
 void set_battle_graphics_frame(GameState *g, uint8_t v) { w8(g, 0x7E967Bu, v); }
-uint8_t battle_object_kind(const GameState *g, unsigned slot) { return r8(g, 0x7E967Cu + (uint32_t)slot * 0x01u); }
-void set_battle_object_kind(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E967Cu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_party_frame_delay(const GameState *g, unsigned slot) { return r8(g, 0x7E9689u + (uint32_t)slot * 0x01u); }
-void set_battle_party_frame_delay(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9689u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_party_frame(const GameState *g, unsigned slot) { return r8(g, 0x7E968Cu + (uint32_t)slot * 0x01u); }
-void set_battle_party_frame(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E968Cu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_enemy_frame_delay(const GameState *g, unsigned i) { return r8(g, 0x7E9694u + (uint32_t)i * 0x01u); }
-void set_battle_enemy_frame_delay(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9694u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_enemy_frame(const GameState *g, unsigned i) { return r8(g, 0x7E969Cu + (uint32_t)i * 0x01u); }
-void set_battle_enemy_frame(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E969Cu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_object_facing(const GameState *g, unsigned slot) { return r8(g, 0x7E96DBu + (uint32_t)slot * 0x01u); }
-void set_battle_object_facing(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E96DBu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_facing_loaded(const GameState *g, unsigned slot) { return r8(g, 0x7E96E6u + (uint32_t)slot * 0x01u); }
-void set_battle_object_facing_loaded(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E96E6u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_kind(const GameState *g, unsigned slot) { IN_RANGE(g, 238, "battle_object_kind", "count", slot, 11u); return r8(g, 0x7E967Cu + (uint32_t)slot * 0x01u); }
+void set_battle_object_kind(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 238, "set_battle_object_kind", "count", slot, 11u); w8(g, 0x7E967Cu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_party_frame_delay(const GameState *g, unsigned slot) { IN_RANGE(g, 239, "battle_party_frame_delay", "count", slot, 3u); return r8(g, 0x7E9689u + (uint32_t)slot * 0x01u); }
+void set_battle_party_frame_delay(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 239, "set_battle_party_frame_delay", "count", slot, 3u); w8(g, 0x7E9689u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_party_frame(const GameState *g, unsigned slot) { IN_RANGE(g, 240, "battle_party_frame", "count", slot, 3u); return r8(g, 0x7E968Cu + (uint32_t)slot * 0x01u); }
+void set_battle_party_frame(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 240, "set_battle_party_frame", "count", slot, 3u); w8(g, 0x7E968Cu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_enemy_frame_delay(const GameState *g, unsigned i) { IN_RANGE(g, 241, "battle_enemy_frame_delay", "count", i, 8u); return r8(g, 0x7E9694u + (uint32_t)i * 0x01u); }
+void set_battle_enemy_frame_delay(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 241, "set_battle_enemy_frame_delay", "count", i, 8u); w8(g, 0x7E9694u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_enemy_frame(const GameState *g, unsigned i) { IN_RANGE(g, 242, "battle_enemy_frame", "count", i, 8u); return r8(g, 0x7E969Cu + (uint32_t)i * 0x01u); }
+void set_battle_enemy_frame(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 242, "set_battle_enemy_frame", "count", i, 8u); w8(g, 0x7E969Cu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_object_facing(const GameState *g, unsigned slot) { IN_RANGE(g, 243, "battle_object_facing", "count", slot, 11u); return r8(g, 0x7E96DBu + (uint32_t)slot * 0x01u); }
+void set_battle_object_facing(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 243, "set_battle_object_facing", "count", slot, 11u); w8(g, 0x7E96DBu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_facing_loaded(const GameState *g, unsigned slot) { IN_RANGE(g, 244, "battle_object_facing_loaded", "count", slot, 11u); return r8(g, 0x7E96E6u + (uint32_t)slot * 0x01u); }
+void set_battle_object_facing_loaded(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 244, "set_battle_object_facing_loaded", "count", slot, 11u); w8(g, 0x7E96E6u + (uint32_t)slot * 0x01u, v); }
 uint32_t battle_frames(const GameState *g) { return r32(g, 0x7E96F1u); }
 void set_battle_frames(GameState *g, uint32_t v) { w32(g, 0x7E96F1u, v); }
-uint8_t battle_slot_present(const GameState *g, unsigned slot) { return r8(g, 0x7E96F5u + (uint32_t)slot * 0x01u); }
-void set_battle_slot_present(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E96F5u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_enemy_flags(const GameState *g, unsigned i) { return r8(g, 0x7E9700u + (uint32_t)i * 0x01u); }
-void set_battle_enemy_flags(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9700u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_cursor_offset_x(const GameState *g, unsigned slot) { return r8(g, 0x7E9708u + (uint32_t)slot * 0x01u); }
-void set_battle_cursor_offset_x(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9708u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_cursor_offset_y(const GameState *g, unsigned slot) { return r8(g, 0x7E9713u + (uint32_t)slot * 0x01u); }
-void set_battle_cursor_offset_y(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9713u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_half_width(const GameState *g, unsigned slot) { return r8(g, 0x7E971Eu + (uint32_t)slot * 0x01u); }
-void set_battle_object_half_width(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E971Eu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_half_height(const GameState *g, unsigned slot) { return r8(g, 0x7E9729u + (uint32_t)slot * 0x01u); }
-void set_battle_object_half_height(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9729u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_orbit_radius(const GameState *g, unsigned i) { return r8(g, 0x7E9737u + (uint32_t)i * 0x01u); }
-void set_battle_orbit_radius(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9737u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_orbit_period(const GameState *g, unsigned i) { return r8(g, 0x7E9742u + (uint32_t)i * 0x01u); }
-void set_battle_orbit_period(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9742u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_enemy_animation_loaded(const GameState *g, unsigned i) { return r8(g, 0x7E974Au + (uint32_t)i * 0x01u); }
-void set_battle_enemy_animation_loaded(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E974Au + (uint32_t)i * 0x01u, v); }
-uint8_t battle_bounds_left(const GameState *g, unsigned slot) { return r8(g, 0x7E975Au + (uint32_t)slot * 0x01u); }
-void set_battle_bounds_left(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E975Au + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_bounds_top(const GameState *g, unsigned slot) { return r8(g, 0x7E9765u + (uint32_t)slot * 0x01u); }
-void set_battle_bounds_top(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9765u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_bounds_right(const GameState *g, unsigned slot) { return r8(g, 0x7E9770u + (uint32_t)slot * 0x01u); }
-void set_battle_bounds_right(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9770u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_bounds_bottom(const GameState *g, unsigned slot) { return r8(g, 0x7E977Bu + (uint32_t)slot * 0x01u); }
-void set_battle_bounds_bottom(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E977Bu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_orbit_angle(const GameState *g, unsigned i) { return r8(g, 0x7E9786u + (uint32_t)i * 0x01u); }
-void set_battle_orbit_angle(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9786u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_enemy_frame_delays(const GameState *g, unsigned i) { return r8(g, 0x7E9799u + (uint32_t)i * 0x01u); }
-void set_battle_enemy_frame_delays(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9799u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_enemy_frame_graphics(const GameState *g, unsigned i) { return r8(g, 0x7E97D9u + (uint32_t)i * 0x01u); }
-void set_battle_enemy_frame_graphics(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E97D9u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_orbit_countdown(const GameState *g, unsigned i) { return r8(g, 0x7E9819u + (uint32_t)i * 0x01u); }
-void set_battle_orbit_countdown(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9819u + (uint32_t)i * 0x01u, v); }
-uint16_t battle_enemy_numbers(const GameState *g, unsigned i) { return r16(g, 0x7E9853u + (uint32_t)i * 0x02u); }
-void set_battle_enemy_numbers(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E9853u + (uint32_t)i * 0x02u, v); }
-uint8_t battle_object_palette_initial(const GameState *g, unsigned slot) { return r8(g, 0x7E9888u + (uint32_t)slot * 0x01u); }
-void set_battle_object_palette_initial(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9888u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_enemy_effect_delay(const GameState *g, unsigned i) { return r8(g, 0x7E9897u + (uint32_t)i * 0x01u); }
-void set_battle_enemy_effect_delay(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9897u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_enemy_effect_period(const GameState *g, unsigned i) { return r8(g, 0x7E989Fu + (uint32_t)i * 0x01u); }
-void set_battle_enemy_effect_period(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E989Fu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_orbit_active(const GameState *g, unsigned i) { return r8(g, 0x7E98A7u + (uint32_t)i * 0x01u); }
-void set_battle_orbit_active(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E98A7u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_orbit_center_x(const GameState *g, unsigned i) { return r8(g, 0x7E98AFu + (uint32_t)i * 0x01u); }
-void set_battle_orbit_center_x(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E98AFu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_orbit_center_y(const GameState *g, unsigned i) { return r8(g, 0x7E98B7u + (uint32_t)i * 0x01u); }
-void set_battle_orbit_center_y(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E98B7u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_orbit_radius_step(const GameState *g, unsigned i) { return r8(g, 0x7E98C2u + (uint32_t)i * 0x01u); }
-void set_battle_orbit_radius_step(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E98C2u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_slot_present(const GameState *g, unsigned slot) { IN_RANGE(g, 245, "battle_slot_present", "count", slot, 11u); return r8(g, 0x7E96F5u + (uint32_t)slot * 0x01u); }
+void set_battle_slot_present(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 245, "set_battle_slot_present", "count", slot, 11u); w8(g, 0x7E96F5u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_enemy_flags(const GameState *g, unsigned i) { IN_RANGE(g, 246, "battle_enemy_flags", "count", i, 8u); return r8(g, 0x7E9700u + (uint32_t)i * 0x01u); }
+void set_battle_enemy_flags(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 246, "set_battle_enemy_flags", "count", i, 8u); w8(g, 0x7E9700u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_cursor_offset_x(const GameState *g, unsigned slot) { IN_RANGE(g, 247, "battle_cursor_offset_x", "count", slot, 11u); return r8(g, 0x7E9708u + (uint32_t)slot * 0x01u); }
+void set_battle_cursor_offset_x(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 247, "set_battle_cursor_offset_x", "count", slot, 11u); w8(g, 0x7E9708u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_cursor_offset_y(const GameState *g, unsigned slot) { IN_RANGE(g, 248, "battle_cursor_offset_y", "count", slot, 11u); return r8(g, 0x7E9713u + (uint32_t)slot * 0x01u); }
+void set_battle_cursor_offset_y(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 248, "set_battle_cursor_offset_y", "count", slot, 11u); w8(g, 0x7E9713u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_half_width(const GameState *g, unsigned slot) { IN_RANGE(g, 249, "battle_object_half_width", "count", slot, 11u); return r8(g, 0x7E971Eu + (uint32_t)slot * 0x01u); }
+void set_battle_object_half_width(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 249, "set_battle_object_half_width", "count", slot, 11u); w8(g, 0x7E971Eu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_half_height(const GameState *g, unsigned slot) { IN_RANGE(g, 250, "battle_object_half_height", "count", slot, 11u); return r8(g, 0x7E9729u + (uint32_t)slot * 0x01u); }
+void set_battle_object_half_height(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 250, "set_battle_object_half_height", "count", slot, 11u); w8(g, 0x7E9729u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_orbit_radius(const GameState *g, unsigned i) { IN_RANGE(g, 251, "battle_orbit_radius", "count", i, 8u); return r8(g, 0x7E9737u + (uint32_t)i * 0x01u); }
+void set_battle_orbit_radius(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 251, "set_battle_orbit_radius", "count", i, 8u); w8(g, 0x7E9737u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_orbit_period(const GameState *g, unsigned i) { IN_RANGE(g, 252, "battle_orbit_period", "count", i, 8u); return r8(g, 0x7E9742u + (uint32_t)i * 0x01u); }
+void set_battle_orbit_period(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 252, "set_battle_orbit_period", "count", i, 8u); w8(g, 0x7E9742u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_enemy_animation_loaded(const GameState *g, unsigned i) { IN_RANGE(g, 253, "battle_enemy_animation_loaded", "count", i, 8u); return r8(g, 0x7E974Au + (uint32_t)i * 0x01u); }
+void set_battle_enemy_animation_loaded(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 253, "set_battle_enemy_animation_loaded", "count", i, 8u); w8(g, 0x7E974Au + (uint32_t)i * 0x01u, v); }
+uint8_t battle_bounds_left(const GameState *g, unsigned slot) { IN_RANGE(g, 254, "battle_bounds_left", "count", slot, 11u); return r8(g, 0x7E975Au + (uint32_t)slot * 0x01u); }
+void set_battle_bounds_left(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 254, "set_battle_bounds_left", "count", slot, 11u); w8(g, 0x7E975Au + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_bounds_top(const GameState *g, unsigned slot) { IN_RANGE(g, 255, "battle_bounds_top", "count", slot, 11u); return r8(g, 0x7E9765u + (uint32_t)slot * 0x01u); }
+void set_battle_bounds_top(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 255, "set_battle_bounds_top", "count", slot, 11u); w8(g, 0x7E9765u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_bounds_right(const GameState *g, unsigned slot) { IN_RANGE(g, 256, "battle_bounds_right", "count", slot, 11u); return r8(g, 0x7E9770u + (uint32_t)slot * 0x01u); }
+void set_battle_bounds_right(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 256, "set_battle_bounds_right", "count", slot, 11u); w8(g, 0x7E9770u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_bounds_bottom(const GameState *g, unsigned slot) { IN_RANGE(g, 257, "battle_bounds_bottom", "count", slot, 11u); return r8(g, 0x7E977Bu + (uint32_t)slot * 0x01u); }
+void set_battle_bounds_bottom(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 257, "set_battle_bounds_bottom", "count", slot, 11u); w8(g, 0x7E977Bu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_orbit_angle(const GameState *g, unsigned i) { IN_RANGE(g, 258, "battle_orbit_angle", "count", i, 8u); return r8(g, 0x7E9786u + (uint32_t)i * 0x01u); }
+void set_battle_orbit_angle(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 258, "set_battle_orbit_angle", "count", i, 8u); w8(g, 0x7E9786u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_enemy_frame_delays(const GameState *g, unsigned i) { IN_RANGE(g, 259, "battle_enemy_frame_delays", "count", i, 64u); return r8(g, 0x7E9799u + (uint32_t)i * 0x01u); }
+void set_battle_enemy_frame_delays(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 259, "set_battle_enemy_frame_delays", "count", i, 64u); w8(g, 0x7E9799u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_enemy_frame_graphics(const GameState *g, unsigned i) { IN_RANGE(g, 260, "battle_enemy_frame_graphics", "count", i, 64u); return r8(g, 0x7E97D9u + (uint32_t)i * 0x01u); }
+void set_battle_enemy_frame_graphics(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 260, "set_battle_enemy_frame_graphics", "count", i, 64u); w8(g, 0x7E97D9u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_orbit_countdown(const GameState *g, unsigned i) { IN_RANGE(g, 261, "battle_orbit_countdown", "count", i, 8u); return r8(g, 0x7E9819u + (uint32_t)i * 0x01u); }
+void set_battle_orbit_countdown(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 261, "set_battle_orbit_countdown", "count", i, 8u); w8(g, 0x7E9819u + (uint32_t)i * 0x01u, v); }
+uint16_t battle_enemy_numbers(const GameState *g, unsigned i) { IN_RANGE(g, 262, "battle_enemy_numbers", "count", i, 8u); return r16(g, 0x7E9853u + (uint32_t)i * 0x02u); }
+void set_battle_enemy_numbers(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 262, "set_battle_enemy_numbers", "count", i, 8u); w16(g, 0x7E9853u + (uint32_t)i * 0x02u, v); }
+uint8_t battle_object_palette_initial(const GameState *g, unsigned slot) { IN_RANGE(g, 263, "battle_object_palette_initial", "count", slot, 11u); return r8(g, 0x7E9888u + (uint32_t)slot * 0x01u); }
+void set_battle_object_palette_initial(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 263, "set_battle_object_palette_initial", "count", slot, 11u); w8(g, 0x7E9888u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_enemy_effect_delay(const GameState *g, unsigned i) { IN_RANGE(g, 264, "battle_enemy_effect_delay", "count", i, 8u); return r8(g, 0x7E9897u + (uint32_t)i * 0x01u); }
+void set_battle_enemy_effect_delay(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 264, "set_battle_enemy_effect_delay", "count", i, 8u); w8(g, 0x7E9897u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_enemy_effect_period(const GameState *g, unsigned i) { IN_RANGE(g, 265, "battle_enemy_effect_period", "count", i, 8u); return r8(g, 0x7E989Fu + (uint32_t)i * 0x01u); }
+void set_battle_enemy_effect_period(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 265, "set_battle_enemy_effect_period", "count", i, 8u); w8(g, 0x7E989Fu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_orbit_active(const GameState *g, unsigned i) { IN_RANGE(g, 266, "battle_orbit_active", "count", i, 8u); return r8(g, 0x7E98A7u + (uint32_t)i * 0x01u); }
+void set_battle_orbit_active(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 266, "set_battle_orbit_active", "count", i, 8u); w8(g, 0x7E98A7u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_orbit_center_x(const GameState *g, unsigned i) { IN_RANGE(g, 267, "battle_orbit_center_x", "count", i, 8u); return r8(g, 0x7E98AFu + (uint32_t)i * 0x01u); }
+void set_battle_orbit_center_x(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 267, "set_battle_orbit_center_x", "count", i, 8u); w8(g, 0x7E98AFu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_orbit_center_y(const GameState *g, unsigned i) { IN_RANGE(g, 268, "battle_orbit_center_y", "count", i, 8u); return r8(g, 0x7E98B7u + (uint32_t)i * 0x01u); }
+void set_battle_orbit_center_y(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 268, "set_battle_orbit_center_y", "count", i, 8u); w8(g, 0x7E98B7u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_orbit_radius_step(const GameState *g, unsigned i) { IN_RANGE(g, 269, "battle_orbit_radius_step", "count", i, 8u); return r8(g, 0x7E98C2u + (uint32_t)i * 0x01u); }
+void set_battle_orbit_radius_step(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 269, "set_battle_orbit_radius_step", "count", i, 8u); w8(g, 0x7E98C2u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_graphics_load_step(const GameState *g) { return r8(g, 0x7E98CAu); }
 void set_battle_graphics_load_step(GameState *g, uint8_t v) { w8(g, 0x7E98CAu, v); }
-uint8_t battle_enemy_kind_counts(const GameState *g, unsigned i) { return r8(g, 0x7E98CCu + (uint32_t)i * 0x01u); }
-void set_battle_enemy_kind_counts(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E98CCu + (uint32_t)i * 0x01u, v); }
-uint16_t battle_enemy_kinds(const GameState *g, unsigned i) { return r16(g, 0x7E98FFu + (uint32_t)i * 0x02u); }
-void set_battle_enemy_kinds(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7E98FFu + (uint32_t)i * 0x02u, v); }
-uint8_t battle_object_frame_shown(const GameState *g, unsigned slot) { return r8(g, 0x7E9907u + (uint32_t)slot * 0x01u); }
-void set_battle_object_frame_shown(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9907u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_enemy_kind_counts(const GameState *g, unsigned i) { IN_RANGE(g, 270, "battle_enemy_kind_counts", "count", i, 3u); return r8(g, 0x7E98CCu + (uint32_t)i * 0x01u); }
+void set_battle_enemy_kind_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 270, "set_battle_enemy_kind_counts", "count", i, 3u); w8(g, 0x7E98CCu + (uint32_t)i * 0x01u, v); }
+uint16_t battle_enemy_kinds(const GameState *g, unsigned i) { IN_RANGE(g, 271, "battle_enemy_kinds", "count", i, 3u); return r16(g, 0x7E98FFu + (uint32_t)i * 0x02u); }
+void set_battle_enemy_kinds(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 271, "set_battle_enemy_kinds", "count", i, 3u); w16(g, 0x7E98FFu + (uint32_t)i * 0x02u, v); }
+uint8_t battle_object_frame_shown(const GameState *g, unsigned slot) { IN_RANGE(g, 272, "battle_object_frame_shown", "count", slot, 11u); return r8(g, 0x7E9907u + (uint32_t)slot * 0x01u); }
+void set_battle_object_frame_shown(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 272, "set_battle_object_frame_shown", "count", slot, 11u); w8(g, 0x7E9907u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_graphics_built(const GameState *g) { return r8(g, 0x7E9912u); }
 void set_battle_graphics_built(GameState *g, uint8_t v) { w8(g, 0x7E9912u, v); }
 uint8_t battle_item_cursor_shown(const GameState *g) { return r8(g, 0x7E991Fu); }
 void set_battle_item_cursor_shown(GameState *g, uint8_t v) { w8(g, 0x7E991Fu, v); }
 uint8_t battle_item_arrows_shown(const GameState *g) { return r8(g, 0x7E9920u); }
 void set_battle_item_arrows_shown(GameState *g, uint8_t v) { w8(g, 0x7E9920u, v); }
-uint8_t battle_anim_held(const GameState *g, unsigned slot) { return r8(g, 0x7E9922u + (uint32_t)slot * 0x01u); }
-void set_battle_anim_held(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9922u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_anim_order(const GameState *g, unsigned i) { return r8(g, 0x7E992Du + (uint32_t)i * 0x01u); }
-void set_battle_anim_order(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E992Du + (uint32_t)i * 0x01u, v); }
+uint8_t battle_anim_held(const GameState *g, unsigned slot) { IN_RANGE(g, 273, "battle_anim_held", "count", slot, 11u); return r8(g, 0x7E9922u + (uint32_t)slot * 0x01u); }
+void set_battle_anim_held(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 273, "set_battle_anim_held", "count", slot, 11u); w8(g, 0x7E9922u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_anim_order(const GameState *g, unsigned i) { IN_RANGE(g, 274, "battle_anim_order", "count", i, 3u); return r8(g, 0x7E992Du + (uint32_t)i * 0x01u); }
+void set_battle_anim_order(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 274, "set_battle_anim_order", "count", i, 3u); w8(g, 0x7E992Du + (uint32_t)i * 0x01u, v); }
 uint8_t battle_frame_tick(const GameState *g) { return r8(g, 0x7E9931u); }
 void set_battle_frame_tick(GameState *g, uint8_t v) { w8(g, 0x7E9931u, v); }
 uint8_t battle_frame_tick_4(const GameState *g) { return r8(g, 0x7E993Au); }
 void set_battle_frame_tick_4(GameState *g, uint8_t v) { w8(g, 0x7E993Au, v); }
-uint8_t battle_object_palette(const GameState *g, unsigned slot) { return r8(g, 0x7E993Cu + (uint32_t)slot * 0x01u); }
-void set_battle_object_palette(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E993Cu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_attribute_bits(const GameState *g, unsigned slot) { return r8(g, 0x7E99B5u + (uint32_t)slot * 0x01u); }
-void set_battle_object_attribute_bits(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E99B5u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_palette(const GameState *g, unsigned slot) { IN_RANGE(g, 275, "battle_object_palette", "count", slot, 11u); return r8(g, 0x7E993Cu + (uint32_t)slot * 0x01u); }
+void set_battle_object_palette(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 275, "set_battle_object_palette", "count", slot, 11u); w8(g, 0x7E993Cu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_attribute_bits(const GameState *g, unsigned slot) { IN_RANGE(g, 276, "battle_object_attribute_bits", "count", slot, 11u); return r8(g, 0x7E99B5u + (uint32_t)slot * 0x01u); }
+void set_battle_object_attribute_bits(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 276, "set_battle_object_attribute_bits", "count", slot, 11u); w8(g, 0x7E99B5u + (uint32_t)slot * 0x01u, v); }
 uint16_t battle_run_counter(const GameState *g) { return r16(g, 0x7E99CDu); }
 void set_battle_run_counter(GameState *g, uint16_t v) { w16(g, 0x7E99CDu, v); }
 uint16_t battle_lr_held(const GameState *g) { return r16(g, 0x7E99CFu); }
@@ -1555,32 +2071,32 @@ uint8_t battle_lr_state(const GameState *g) { return r8(g, 0x7E99D1u); }
 void set_battle_lr_state(GameState *g, uint8_t v) { w8(g, 0x7E99D1u, v); }
 uint8_t battle_background_cycle(const GameState *g) { return r8(g, 0x7E99D3u); }
 void set_battle_background_cycle(GameState *g, uint8_t v) { w8(g, 0x7E99D3u, v); }
-uint8_t battle_gauge_wait(const GameState *g, unsigned slot) { return r8(g, 0x7E99DDu + (uint32_t)slot * 0x01u); }
-void set_battle_gauge_wait(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E99DDu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_gauge_wait(const GameState *g, unsigned slot) { IN_RANGE(g, 277, "battle_gauge_wait", "count", slot, 3u); return r8(g, 0x7E99DDu + (uint32_t)slot * 0x01u); }
+void set_battle_gauge_wait(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 277, "set_battle_gauge_wait", "count", slot, 3u); w8(g, 0x7E99DDu + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_frames_upload_request(const GameState *g) { return r8(g, 0x7E99E2u); }
 void set_battle_frames_upload_request(GameState *g, uint8_t v) { w8(g, 0x7E99E2u, v); }
-uint8_t battle_menu_list_tiles(const GameState *g, unsigned i) { return r8(g, 0x7E99E3u + (uint32_t)i * 0x02u); }
-void set_battle_menu_list_tiles(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E99E3u + (uint32_t)i * 0x02u, v); }
-uint8_t battle_selected_tech(const GameState *g, unsigned i) { return r8(g, 0x7E9EE3u + (uint32_t)i * 0x01u); }
-void set_battle_selected_tech(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7E9EE3u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_pending_transfer(const GameState *g, unsigned channel) { return r8(g, 0x7E9EEAu + (uint32_t)channel * 0x06u); }
-void set_battle_pending_transfer(GameState *g, unsigned channel, uint8_t v) { w8(g, 0x7E9EEAu + (uint32_t)channel * 0x06u, v); }
+uint8_t battle_menu_list_tiles(const GameState *g, unsigned i) { IN_RANGE(g, 278, "battle_menu_list_tiles", "count", i, 640u); return r8(g, 0x7E99E3u + (uint32_t)i * 0x02u); }
+void set_battle_menu_list_tiles(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 278, "set_battle_menu_list_tiles", "count", i, 640u); w8(g, 0x7E99E3u + (uint32_t)i * 0x02u, v); }
+uint8_t battle_selected_tech(const GameState *g, unsigned i) { IN_RANGE(g, 279, "battle_selected_tech", "count", i, 7u); return r8(g, 0x7E9EE3u + (uint32_t)i * 0x01u); }
+void set_battle_selected_tech(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 279, "set_battle_selected_tech", "count", i, 7u); w8(g, 0x7E9EE3u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_pending_transfer(const GameState *g, unsigned channel) { IN_RANGE(g, 280, "battle_pending_transfer", "count", channel, 9u); return r8(g, 0x7E9EEAu + (uint32_t)channel * 0x06u); }
+void set_battle_pending_transfer(GameState *g, unsigned channel, uint8_t v) { IN_RANGE(g, 280, "set_battle_pending_transfer", "count", channel, 9u); w8(g, 0x7E9EEAu + (uint32_t)channel * 0x06u, v); }
 uint8_t battle_window_layout(const GameState *g) { return r8(g, 0x7E9F20u); }
 void set_battle_window_layout(GameState *g, uint8_t v) { w8(g, 0x7E9F20u, v); }
-uint8_t battle_gauge_wait_full(const GameState *g, unsigned slot) { return r8(g, 0x7E9F22u + (uint32_t)slot * 0x01u); }
-void set_battle_gauge_wait_full(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9F22u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_double_techs(const GameState *g, unsigned slot) { return r8(g, 0x7E9F25u + (uint32_t)slot * 0x01u); }
-void set_battle_double_techs(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9F25u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_triple_techs(const GameState *g, unsigned slot) { return r8(g, 0x7E9F28u + (uint32_t)slot * 0x01u); }
-void set_battle_triple_techs(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9F28u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_gauge_wait_full(const GameState *g, unsigned slot) { IN_RANGE(g, 281, "battle_gauge_wait_full", "count", slot, 3u); return r8(g, 0x7E9F22u + (uint32_t)slot * 0x01u); }
+void set_battle_gauge_wait_full(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 281, "set_battle_gauge_wait_full", "count", slot, 3u); w8(g, 0x7E9F22u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_double_techs(const GameState *g, unsigned slot) { IN_RANGE(g, 282, "battle_double_techs", "count", slot, 3u); return r8(g, 0x7E9F25u + (uint32_t)slot * 0x01u); }
+void set_battle_double_techs(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 282, "set_battle_double_techs", "count", slot, 3u); w8(g, 0x7E9F25u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_triple_techs(const GameState *g, unsigned slot) { IN_RANGE(g, 283, "battle_triple_techs", "count", slot, 3u); return r8(g, 0x7E9F28u + (uint32_t)slot * 0x01u); }
+void set_battle_triple_techs(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 283, "set_battle_triple_techs", "count", slot, 3u); w8(g, 0x7E9F28u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_cursor_priority(const GameState *g) { return r8(g, 0x7E9F46u); }
 void set_battle_cursor_priority(GameState *g, uint8_t v) { w8(g, 0x7E9F46u, v); }
-uint16_t battle_part_offsets_x(const GameState *g, unsigned slot) { return r16(g, 0x7E9F47u + (uint32_t)slot * 0x04u); }
-void set_battle_part_offsets_x(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E9F47u + (uint32_t)slot * 0x04u, v); }
-uint16_t battle_part_offsets_y(const GameState *g, unsigned slot) { return r16(g, 0x7E9F49u + (uint32_t)slot * 0x04u); }
-void set_battle_part_offsets_y(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E9F49u + (uint32_t)slot * 0x04u, v); }
-uint8_t battle_object_hidden(const GameState *g, unsigned slot) { return r8(g, 0x7E9FF7u + (uint32_t)slot * 0x01u); }
-void set_battle_object_hidden(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7E9FF7u + (uint32_t)slot * 0x01u, v); }
+uint16_t battle_part_offsets_x(const GameState *g, unsigned slot) { IN_RANGE(g, 284, "battle_part_offsets_x", "count", slot, 44u); return r16(g, 0x7E9F47u + (uint32_t)slot * 0x04u); }
+void set_battle_part_offsets_x(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 284, "set_battle_part_offsets_x", "count", slot, 44u); w16(g, 0x7E9F47u + (uint32_t)slot * 0x04u, v); }
+uint16_t battle_part_offsets_y(const GameState *g, unsigned slot) { IN_RANGE(g, 284, "battle_part_offsets_y", "count", slot, 44u); return r16(g, 0x7E9F49u + (uint32_t)slot * 0x04u); }
+void set_battle_part_offsets_y(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 284, "set_battle_part_offsets_y", "count", slot, 44u); w16(g, 0x7E9F49u + (uint32_t)slot * 0x04u, v); }
+uint8_t battle_object_hidden(const GameState *g, unsigned slot) { IN_RANGE(g, 285, "battle_object_hidden", "count", slot, 11u); return r8(g, 0x7E9FF7u + (uint32_t)slot * 0x01u); }
+void set_battle_object_hidden(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 285, "set_battle_object_hidden", "count", slot, 11u); w8(g, 0x7E9FF7u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_formation_leader(const GameState *g) { return r8(g, 0x7EA002u); }
 void set_battle_formation_leader(GameState *g, uint8_t v) { w8(g, 0x7EA002u, v); }
 uint8_t battle_script_offset(const GameState *g) { return r8(g, 0x7EA00Eu); }
@@ -1597,24 +2113,24 @@ uint8_t battle_sprites_frozen(const GameState *g) { return r8(g, 0x7EA028u); }
 void set_battle_sprites_frozen(GameState *g, uint8_t v) { w8(g, 0x7EA028u, v); }
 uint8_t battle_divider_busy(const GameState *g) { return r8(g, 0x7EA029u); }
 void set_battle_divider_busy(GameState *g, uint8_t v) { w8(g, 0x7EA029u, v); }
-uint8_t battle_tech_list_length(const GameState *g, unsigned slot) { return r8(g, 0x7EA02Au + (uint32_t)slot * 0x01u); }
-void set_battle_tech_list_length(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA02Au + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_bounds_x(const GameState *g, unsigned slot) { return r8(g, 0x7EA039u + (uint32_t)slot * 0x01u); }
-void set_battle_bounds_x(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA039u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_bounds_y(const GameState *g, unsigned slot) { return r8(g, 0x7EA050u + (uint32_t)slot * 0x01u); }
-void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA050u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_bitmap_counts(const GameState *g, unsigned i) { return r8(g, 0x7EA05Bu + (uint32_t)i * 0x01u); }
-void set_battle_bitmap_counts(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA05Bu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_tech_list_length(const GameState *g, unsigned slot) { IN_RANGE(g, 286, "battle_tech_list_length", "count", slot, 3u); return r8(g, 0x7EA02Au + (uint32_t)slot * 0x01u); }
+void set_battle_tech_list_length(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 286, "set_battle_tech_list_length", "count", slot, 3u); w8(g, 0x7EA02Au + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_bounds_x(const GameState *g, unsigned slot) { IN_RANGE(g, 287, "battle_bounds_x", "count", slot, 11u); return r8(g, 0x7EA039u + (uint32_t)slot * 0x01u); }
+void set_battle_bounds_x(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 287, "set_battle_bounds_x", "count", slot, 11u); w8(g, 0x7EA039u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_bounds_y(const GameState *g, unsigned slot) { IN_RANGE(g, 288, "battle_bounds_y", "count", slot, 11u); return r8(g, 0x7EA050u + (uint32_t)slot * 0x01u); }
+void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 288, "set_battle_bounds_y", "count", slot, 11u); w8(g, 0x7EA050u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_bitmap_counts(const GameState *g, unsigned i) { IN_RANGE(g, 289, "battle_bitmap_counts", "count", i, 4u); return r8(g, 0x7EA05Bu + (uint32_t)i * 0x01u); }
+void set_battle_bitmap_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 289, "set_battle_bitmap_counts", "count", i, 4u); w8(g, 0x7EA05Bu + (uint32_t)i * 0x01u, v); }
 uint8_t battle_background_cycle_on(const GameState *g) { return r8(g, 0x7EA08Bu); }
 void set_battle_background_cycle_on(GameState *g, uint8_t v) { w8(g, 0x7EA08Bu, v); }
 uint8_t battle_demo_exiting(const GameState *g) { return r8(g, 0x7EA097u); }
 void set_battle_demo_exiting(GameState *g, uint8_t v) { w8(g, 0x7EA097u, v); }
-uint8_t battle_member_disabled(const GameState *g, unsigned slot) { return r8(g, 0x7EA0D1u + (uint32_t)slot * 0x01u); }
-void set_battle_member_disabled(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA0D1u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_number_rise_alt(const GameState *g, unsigned slot) { return r8(g, 0x7EA0DCu + (uint32_t)slot * 0x01u); }
-void set_battle_number_rise_alt(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA0DCu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_number_rise(const GameState *g, unsigned slot) { return r8(g, 0x7EA0E7u + (uint32_t)slot * 0x01u); }
-void set_battle_number_rise(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA0E7u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_member_disabled(const GameState *g, unsigned slot) { IN_RANGE(g, 290, "battle_member_disabled", "count", slot, 3u); return r8(g, 0x7EA0D1u + (uint32_t)slot * 0x01u); }
+void set_battle_member_disabled(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 290, "set_battle_member_disabled", "count", slot, 3u); w8(g, 0x7EA0D1u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_number_rise_alt(const GameState *g, unsigned slot) { IN_RANGE(g, 291, "battle_number_rise_alt", "count", slot, 11u); return r8(g, 0x7EA0DCu + (uint32_t)slot * 0x01u); }
+void set_battle_number_rise_alt(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 291, "set_battle_number_rise_alt", "count", slot, 11u); w8(g, 0x7EA0DCu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_number_rise(const GameState *g, unsigned slot) { IN_RANGE(g, 292, "battle_number_rise", "count", slot, 11u); return r8(g, 0x7EA0E7u + (uint32_t)slot * 0x01u); }
+void set_battle_number_rise(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 292, "set_battle_number_rise", "count", slot, 11u); w8(g, 0x7EA0E7u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_orbits_held(const GameState *g) { return r8(g, 0x7EA0FDu); }
 void set_battle_orbits_held(GameState *g, uint8_t v) { w8(g, 0x7EA0FDu, v); }
 uint8_t battle_markers_held(const GameState *g) { return r8(g, 0x7EA0FEu); }
@@ -1623,8 +2139,8 @@ uint16_t battle_frog_slot(const GameState *g) { return r16(g, 0x7EA0FFu); }
 void set_battle_frog_slot(GameState *g, uint16_t v) { w16(g, 0x7EA0FFu, v); }
 uint8_t battle_sprite_palettes_flipped(const GameState *g) { return r8(g, 0x7EA101u); }
 void set_battle_sprite_palettes_flipped(GameState *g, uint8_t v) { w8(g, 0x7EA101u, v); }
-uint8_t battle_object_pose_shown(const GameState *g, unsigned slot) { return r8(g, 0x7EA103u + (uint32_t)slot * 0x01u); }
-void set_battle_object_pose_shown(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA103u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_pose_shown(const GameState *g, unsigned slot) { IN_RANGE(g, 293, "battle_object_pose_shown", "count", slot, 3u); return r8(g, 0x7EA103u + (uint32_t)slot * 0x01u); }
+void set_battle_object_pose_shown(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 293, "set_battle_object_pose_shown", "count", slot, 3u); w8(g, 0x7EA103u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_digit_highlight(const GameState *g) { return r8(g, 0x7EA10Fu); }
 void set_battle_digit_highlight(GameState *g, uint8_t v) { w8(g, 0x7EA10Fu, v); }
 uint8_t battle_blink(const GameState *g) { return r8(g, 0x7EA110u); }
@@ -1639,298 +2155,298 @@ uint8_t battle_magus_present(const GameState *g) { return r8(g, 0x7EA117u); }
 void set_battle_magus_present(GameState *g, uint8_t v) { w8(g, 0x7EA117u, v); }
 uint8_t battle_reupload_countdown(const GameState *g) { return r8(g, 0x7EA118u); }
 void set_battle_reupload_countdown(GameState *g, uint8_t v) { w8(g, 0x7EA118u, v); }
-uint8_t battle_animating(const GameState *g, unsigned slot) { return r8(g, 0x7EA124u + (uint32_t)slot * 0x01u); }
-void set_battle_animating(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA124u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_animation_delay(const GameState *g, unsigned slot) { return r8(g, 0x7EA12Fu + (uint32_t)slot * 0x01u); }
-void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA12Fu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_path_active(const GameState *g, unsigned slot) { return r8(g, 0x7EA15Bu + (uint32_t)slot * 0x01u); }
-void set_battle_path_active(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA15Bu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_trail_on(const GameState *g, unsigned slot) { return r8(g, 0x7EA192u + (uint32_t)slot * 0x01u); }
-void set_battle_trail_on(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA192u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_done(const GameState *g, unsigned slot) { return r8(g, 0x7EA19Du + (uint32_t)slot * 0x01u); }
-void set_battle_effect_done(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA19Du + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_slot_delay_active(const GameState *g, unsigned slot) { return r8(g, 0x7EA1A8u + (uint32_t)slot * 0x01u); }
-void set_battle_slot_delay_active(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA1A8u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_slot_delays(const GameState *g, unsigned slot) { return r8(g, 0x7EA1B0u + (uint32_t)slot * 0x01u); }
-void set_battle_slot_delays(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA1B0u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_shown(const GameState *g, unsigned i) { return r8(g, 0x7EA1D8u + (uint32_t)i * 0x01u); }
-void set_battle_effect_shown(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA1D8u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_anchor_done(const GameState *g, unsigned i) { return r8(g, 0x7EA1E0u + (uint32_t)i * 0x01u); }
-void set_battle_anchor_done(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA1E0u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_animating(const GameState *g, unsigned slot) { IN_RANGE(g, 294, "battle_animating", "count", slot, 11u); return r8(g, 0x7EA124u + (uint32_t)slot * 0x01u); }
+void set_battle_animating(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 294, "set_battle_animating", "count", slot, 11u); w8(g, 0x7EA124u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_animation_delay(const GameState *g, unsigned slot) { IN_RANGE(g, 295, "battle_animation_delay", "count", slot, 11u); return r8(g, 0x7EA12Fu + (uint32_t)slot * 0x01u); }
+void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 295, "set_battle_animation_delay", "count", slot, 11u); w8(g, 0x7EA12Fu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_path_active(const GameState *g, unsigned slot) { IN_RANGE(g, 296, "battle_path_active", "count", slot, 11u); return r8(g, 0x7EA15Bu + (uint32_t)slot * 0x01u); }
+void set_battle_path_active(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 296, "set_battle_path_active", "count", slot, 11u); w8(g, 0x7EA15Bu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_trail_on(const GameState *g, unsigned slot) { IN_RANGE(g, 297, "battle_trail_on", "count", slot, 11u); return r8(g, 0x7EA192u + (uint32_t)slot * 0x01u); }
+void set_battle_trail_on(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 297, "set_battle_trail_on", "count", slot, 11u); w8(g, 0x7EA192u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_done(const GameState *g, unsigned slot) { IN_RANGE(g, 298, "battle_effect_done", "count", slot, 11u); return r8(g, 0x7EA19Du + (uint32_t)slot * 0x01u); }
+void set_battle_effect_done(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 298, "set_battle_effect_done", "count", slot, 11u); w8(g, 0x7EA19Du + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_slot_delay_active(const GameState *g, unsigned slot) { IN_RANGE(g, 299, "battle_slot_delay_active", "count", slot, 8u); return r8(g, 0x7EA1A8u + (uint32_t)slot * 0x01u); }
+void set_battle_slot_delay_active(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 299, "set_battle_slot_delay_active", "count", slot, 8u); w8(g, 0x7EA1A8u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_slot_delays(const GameState *g, unsigned slot) { IN_RANGE(g, 300, "battle_slot_delays", "count", slot, 8u); return r8(g, 0x7EA1B0u + (uint32_t)slot * 0x01u); }
+void set_battle_slot_delays(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 300, "set_battle_slot_delays", "count", slot, 8u); w8(g, 0x7EA1B0u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_shown(const GameState *g, unsigned i) { IN_RANGE(g, 301, "battle_effect_shown", "count", i, 8u); return r8(g, 0x7EA1D8u + (uint32_t)i * 0x01u); }
+void set_battle_effect_shown(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 301, "set_battle_effect_shown", "count", i, 8u); w8(g, 0x7EA1D8u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_anchor_done(const GameState *g, unsigned i) { IN_RANGE(g, 302, "battle_anchor_done", "count", i, 8u); return r8(g, 0x7EA1E0u + (uint32_t)i * 0x01u); }
+void set_battle_anchor_done(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 302, "set_battle_anchor_done", "count", i, 8u); w8(g, 0x7EA1E0u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_animation_cursor(const GameState *g) { return r8(g, 0x7EA21Fu); }
 void set_battle_animation_cursor(GameState *g, uint8_t v) { w8(g, 0x7EA21Fu, v); }
-uint8_t battle_anchor_facing(const GameState *g, unsigned i) { return r8(g, 0x7EA230u + (uint32_t)i * 0x01u); }
-void set_battle_anchor_facing(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA230u + (uint32_t)i * 0x01u, v); }
-uint16_t battle_anchor_x(const GameState *g, unsigned i) { return r16(g, 0x7EA240u + (uint32_t)i * 0x02u); }
-void set_battle_anchor_x(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EA240u + (uint32_t)i * 0x02u, v); }
-uint16_t battle_anchor_y(const GameState *g, unsigned i) { return r16(g, 0x7EA250u + (uint32_t)i * 0x02u); }
-void set_battle_anchor_y(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EA250u + (uint32_t)i * 0x02u, v); }
-uint16_t battle_anchor_offset_x(const GameState *g, unsigned i) { return r16(g, 0x7EA260u + (uint32_t)i * 0x02u); }
-void set_battle_anchor_offset_x(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EA260u + (uint32_t)i * 0x02u, v); }
-uint16_t battle_anchor_offset_y(const GameState *g, unsigned i) { return r16(g, 0x7EA270u + (uint32_t)i * 0x02u); }
-void set_battle_anchor_offset_y(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EA270u + (uint32_t)i * 0x02u, v); }
-uint16_t battle_record_group_starts(const GameState *g, unsigned i) { return r16(g, 0x7EA280u + (uint32_t)i * 0x02u); }
-void set_battle_record_group_starts(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EA280u + (uint32_t)i * 0x02u, v); }
-uint8_t battle_record_group_counts(const GameState *g, unsigned i) { return r8(g, 0x7EA2A0u + (uint32_t)i * 0x01u); }
-void set_battle_record_group_counts(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA2A0u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_effect_sprite_set(const GameState *g, unsigned i) { return r8(g, 0x7EA2C0u + (uint32_t)i * 0x01u); }
-void set_battle_effect_sprite_set(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA2C0u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_facing_stride_high(const GameState *g, unsigned slot) { return r8(g, 0x7EA2C8u + (uint32_t)slot * 0x01u); }
-void set_battle_facing_stride_high(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA2C8u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_delay(const GameState *g, unsigned slot) { return r8(g, 0x7EA2EBu + (uint32_t)slot * 0x01u); }
-void set_battle_effect_delay(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA2EBu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_period(const GameState *g, unsigned slot) { return r8(g, 0x7EA2FEu + (uint32_t)slot * 0x01u); }
-void set_battle_effect_period(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA2FEu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_radius(const GameState *g, unsigned slot) { return r8(g, 0x7EA311u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_radius(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA311u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_steps(const GameState *g, unsigned slot) { return r8(g, 0x7EA324u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_steps(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA324u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_active(const GameState *g, unsigned slot) { return r8(g, 0x7EA337u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_active(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA337u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_angle(const GameState *g, unsigned slot) { return r8(g, 0x7EA34Au + (uint32_t)slot * 0x01u); }
-void set_battle_effect_angle(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA34Au + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_base_x(const GameState *g, unsigned slot) { return r8(g, 0x7EA35Du + (uint32_t)slot * 0x01u); }
-void set_battle_effect_base_x(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA35Du + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_base_y(const GameState *g, unsigned slot) { return r8(g, 0x7EA370u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_base_y(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA370u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_target_x(const GameState *g, unsigned slot) { return r8(g, 0x7EA383u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_target_x(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA383u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_target_y(const GameState *g, unsigned slot) { return r8(g, 0x7EA396u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_target_y(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA396u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_palette_anim_on(const GameState *g, unsigned i) { return r8(g, 0x7EA3B9u + (uint32_t)i * 0x01u); }
-void set_battle_palette_anim_on(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA3B9u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_palette_anim_frame(const GameState *g, unsigned i) { return r8(g, 0x7EA3BDu + (uint32_t)i * 0x01u); }
-void set_battle_palette_anim_frame(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA3BDu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_palette_anim_delay(const GameState *g, unsigned i) { return r8(g, 0x7EA3C1u + (uint32_t)i * 0x01u); }
-void set_battle_palette_anim_delay(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA3C1u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_palette_anim_period(const GameState *g, unsigned i) { return r8(g, 0x7EA3C5u + (uint32_t)i * 0x01u); }
-void set_battle_palette_anim_period(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA3C5u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_palette_anim_first(const GameState *g, unsigned i) { return r8(g, 0x7EA3C9u + (uint32_t)i * 0x01u); }
-void set_battle_palette_anim_first(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA3C9u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_palette_anim_last(const GameState *g, unsigned i) { return r8(g, 0x7EA3CDu + (uint32_t)i * 0x01u); }
-void set_battle_palette_anim_last(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA3CDu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_anchor_facing(const GameState *g, unsigned i) { IN_RANGE(g, 303, "battle_anchor_facing", "count", i, 8u); return r8(g, 0x7EA230u + (uint32_t)i * 0x01u); }
+void set_battle_anchor_facing(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 303, "set_battle_anchor_facing", "count", i, 8u); w8(g, 0x7EA230u + (uint32_t)i * 0x01u, v); }
+uint16_t battle_anchor_x(const GameState *g, unsigned i) { IN_RANGE(g, 304, "battle_anchor_x", "count", i, 8u); return r16(g, 0x7EA240u + (uint32_t)i * 0x02u); }
+void set_battle_anchor_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 304, "set_battle_anchor_x", "count", i, 8u); w16(g, 0x7EA240u + (uint32_t)i * 0x02u, v); }
+uint16_t battle_anchor_y(const GameState *g, unsigned i) { IN_RANGE(g, 305, "battle_anchor_y", "count", i, 8u); return r16(g, 0x7EA250u + (uint32_t)i * 0x02u); }
+void set_battle_anchor_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 305, "set_battle_anchor_y", "count", i, 8u); w16(g, 0x7EA250u + (uint32_t)i * 0x02u, v); }
+uint16_t battle_anchor_offset_x(const GameState *g, unsigned i) { IN_RANGE(g, 306, "battle_anchor_offset_x", "count", i, 8u); return r16(g, 0x7EA260u + (uint32_t)i * 0x02u); }
+void set_battle_anchor_offset_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 306, "set_battle_anchor_offset_x", "count", i, 8u); w16(g, 0x7EA260u + (uint32_t)i * 0x02u, v); }
+uint16_t battle_anchor_offset_y(const GameState *g, unsigned i) { IN_RANGE(g, 307, "battle_anchor_offset_y", "count", i, 8u); return r16(g, 0x7EA270u + (uint32_t)i * 0x02u); }
+void set_battle_anchor_offset_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 307, "set_battle_anchor_offset_y", "count", i, 8u); w16(g, 0x7EA270u + (uint32_t)i * 0x02u, v); }
+uint16_t battle_record_group_starts(const GameState *g, unsigned i) { IN_RANGE(g, 308, "battle_record_group_starts", "count", i, 16u); return r16(g, 0x7EA280u + (uint32_t)i * 0x02u); }
+void set_battle_record_group_starts(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 308, "set_battle_record_group_starts", "count", i, 16u); w16(g, 0x7EA280u + (uint32_t)i * 0x02u, v); }
+uint8_t battle_record_group_counts(const GameState *g, unsigned i) { IN_RANGE(g, 309, "battle_record_group_counts", "count", i, 16u); return r8(g, 0x7EA2A0u + (uint32_t)i * 0x01u); }
+void set_battle_record_group_counts(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 309, "set_battle_record_group_counts", "count", i, 16u); w8(g, 0x7EA2A0u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_effect_sprite_set(const GameState *g, unsigned i) { IN_RANGE(g, 310, "battle_effect_sprite_set", "count", i, 8u); return r8(g, 0x7EA2C0u + (uint32_t)i * 0x01u); }
+void set_battle_effect_sprite_set(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 310, "set_battle_effect_sprite_set", "count", i, 8u); w8(g, 0x7EA2C0u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_facing_stride_high(const GameState *g, unsigned slot) { IN_RANGE(g, 311, "battle_facing_stride_high", "count", slot, 11u); return r8(g, 0x7EA2C8u + (uint32_t)slot * 0x01u); }
+void set_battle_facing_stride_high(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 311, "set_battle_facing_stride_high", "count", slot, 11u); w8(g, 0x7EA2C8u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_delay(const GameState *g, unsigned slot) { IN_RANGE(g, 312, "battle_effect_delay", "count", slot, 19u); return r8(g, 0x7EA2EBu + (uint32_t)slot * 0x01u); }
+void set_battle_effect_delay(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 312, "set_battle_effect_delay", "count", slot, 19u); w8(g, 0x7EA2EBu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_period(const GameState *g, unsigned slot) { IN_RANGE(g, 313, "battle_effect_period", "count", slot, 19u); return r8(g, 0x7EA2FEu + (uint32_t)slot * 0x01u); }
+void set_battle_effect_period(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 313, "set_battle_effect_period", "count", slot, 19u); w8(g, 0x7EA2FEu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_radius(const GameState *g, unsigned slot) { IN_RANGE(g, 314, "battle_effect_radius", "count", slot, 19u); return r8(g, 0x7EA311u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_radius(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 314, "set_battle_effect_radius", "count", slot, 19u); w8(g, 0x7EA311u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_steps(const GameState *g, unsigned slot) { IN_RANGE(g, 315, "battle_effect_steps", "count", slot, 19u); return r8(g, 0x7EA324u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_steps(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 315, "set_battle_effect_steps", "count", slot, 19u); w8(g, 0x7EA324u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_active(const GameState *g, unsigned slot) { IN_RANGE(g, 316, "battle_effect_active", "count", slot, 19u); return r8(g, 0x7EA337u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_active(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 316, "set_battle_effect_active", "count", slot, 19u); w8(g, 0x7EA337u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_angle(const GameState *g, unsigned slot) { IN_RANGE(g, 317, "battle_effect_angle", "count", slot, 19u); return r8(g, 0x7EA34Au + (uint32_t)slot * 0x01u); }
+void set_battle_effect_angle(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 317, "set_battle_effect_angle", "count", slot, 19u); w8(g, 0x7EA34Au + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_base_x(const GameState *g, unsigned slot) { IN_RANGE(g, 318, "battle_effect_base_x", "count", slot, 19u); return r8(g, 0x7EA35Du + (uint32_t)slot * 0x01u); }
+void set_battle_effect_base_x(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 318, "set_battle_effect_base_x", "count", slot, 19u); w8(g, 0x7EA35Du + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_base_y(const GameState *g, unsigned slot) { IN_RANGE(g, 319, "battle_effect_base_y", "count", slot, 19u); return r8(g, 0x7EA370u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_base_y(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 319, "set_battle_effect_base_y", "count", slot, 19u); w8(g, 0x7EA370u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_target_x(const GameState *g, unsigned slot) { IN_RANGE(g, 320, "battle_effect_target_x", "count", slot, 19u); return r8(g, 0x7EA383u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_target_x(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 320, "set_battle_effect_target_x", "count", slot, 19u); w8(g, 0x7EA383u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_target_y(const GameState *g, unsigned slot) { IN_RANGE(g, 321, "battle_effect_target_y", "count", slot, 19u); return r8(g, 0x7EA396u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_target_y(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 321, "set_battle_effect_target_y", "count", slot, 19u); w8(g, 0x7EA396u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_palette_anim_on(const GameState *g, unsigned i) { IN_RANGE(g, 322, "battle_palette_anim_on", "count", i, 4u); return r8(g, 0x7EA3B9u + (uint32_t)i * 0x01u); }
+void set_battle_palette_anim_on(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 322, "set_battle_palette_anim_on", "count", i, 4u); w8(g, 0x7EA3B9u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_palette_anim_frame(const GameState *g, unsigned i) { IN_RANGE(g, 323, "battle_palette_anim_frame", "count", i, 4u); return r8(g, 0x7EA3BDu + (uint32_t)i * 0x01u); }
+void set_battle_palette_anim_frame(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 323, "set_battle_palette_anim_frame", "count", i, 4u); w8(g, 0x7EA3BDu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_palette_anim_delay(const GameState *g, unsigned i) { IN_RANGE(g, 324, "battle_palette_anim_delay", "count", i, 4u); return r8(g, 0x7EA3C1u + (uint32_t)i * 0x01u); }
+void set_battle_palette_anim_delay(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 324, "set_battle_palette_anim_delay", "count", i, 4u); w8(g, 0x7EA3C1u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_palette_anim_period(const GameState *g, unsigned i) { IN_RANGE(g, 325, "battle_palette_anim_period", "count", i, 4u); return r8(g, 0x7EA3C5u + (uint32_t)i * 0x01u); }
+void set_battle_palette_anim_period(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 325, "set_battle_palette_anim_period", "count", i, 4u); w8(g, 0x7EA3C5u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_palette_anim_first(const GameState *g, unsigned i) { IN_RANGE(g, 326, "battle_palette_anim_first", "count", i, 4u); return r8(g, 0x7EA3C9u + (uint32_t)i * 0x01u); }
+void set_battle_palette_anim_first(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 326, "set_battle_palette_anim_first", "count", i, 4u); w8(g, 0x7EA3C9u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_palette_anim_last(const GameState *g, unsigned i) { IN_RANGE(g, 327, "battle_palette_anim_last", "count", i, 4u); return r8(g, 0x7EA3CDu + (uint32_t)i * 0x01u); }
+void set_battle_palette_anim_last(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 327, "set_battle_palette_anim_last", "count", i, 4u); w8(g, 0x7EA3CDu + (uint32_t)i * 0x01u, v); }
 uint8_t battle_number_step(const GameState *g) { return r8(g, 0x7EA3D1u); }
 void set_battle_number_step(GameState *g, uint8_t v) { w8(g, 0x7EA3D1u, v); }
 uint8_t battle_numbers_row(const GameState *g) { return r8(g, 0x7EA3D2u); }
 void set_battle_numbers_row(GameState *g, uint8_t v) { w8(g, 0x7EA3D2u, v); }
-uint8_t battle_prepared_sprites_on(const GameState *g, unsigned slot) { return r8(g, 0x7EA3D4u + (uint32_t)slot * 0x01u); }
-void set_battle_prepared_sprites_on(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA3D4u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_effect_slots(const GameState *g, unsigned slot) { return r8(g, 0x7EA3DFu + (uint32_t)slot * 0x01u); }
-void set_battle_object_effect_slots(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA3DFu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_anchor_sources(const GameState *g, unsigned i) { return r8(g, 0x7EA437u + (uint32_t)i * 0x01u); }
-void set_battle_anchor_sources(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA437u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_prepared_sprites_on(const GameState *g, unsigned slot) { IN_RANGE(g, 328, "battle_prepared_sprites_on", "count", slot, 11u); return r8(g, 0x7EA3D4u + (uint32_t)slot * 0x01u); }
+void set_battle_prepared_sprites_on(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 328, "set_battle_prepared_sprites_on", "count", slot, 11u); w8(g, 0x7EA3D4u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_effect_slots(const GameState *g, unsigned slot) { IN_RANGE(g, 329, "battle_object_effect_slots", "count", slot, 88u); return r8(g, 0x7EA3DFu + (uint32_t)slot * 0x01u); }
+void set_battle_object_effect_slots(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 329, "set_battle_object_effect_slots", "count", slot, 88u); w8(g, 0x7EA3DFu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_anchor_sources(const GameState *g, unsigned i) { IN_RANGE(g, 330, "battle_anchor_sources", "count", i, 8u); return r8(g, 0x7EA437u + (uint32_t)i * 0x01u); }
+void set_battle_anchor_sources(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 330, "set_battle_anchor_sources", "count", i, 8u); w8(g, 0x7EA437u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_member_cells_redraw(const GameState *g) { return r8(g, 0x7EA43Fu); }
 void set_battle_member_cells_redraw(GameState *g, uint8_t v) { w8(g, 0x7EA43Fu, v); }
 uint8_t battle_pose_animation(const GameState *g) { return r8(g, 0x7EA440u); }
 void set_battle_pose_animation(GameState *g, uint8_t v) { w8(g, 0x7EA440u, v); }
-uint8_t battle_object_pose(const GameState *g, unsigned slot) { return r8(g, 0x7EA441u + (uint32_t)slot * 0x01u); }
-void set_battle_object_pose(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA441u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_pose_last(const GameState *g, unsigned slot) { return r8(g, 0x7EA44Cu + (uint32_t)slot * 0x01u); }
-void set_battle_object_pose_last(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA44Cu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_party_palette_cycle_on(const GameState *g, unsigned slot) { return r8(g, 0x7EA46Du + (uint32_t)slot * 0x01u); }
-void set_battle_party_palette_cycle_on(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA46Du + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_marker_on(const GameState *g, unsigned slot) { return r8(g, 0x7EA48Eu + (uint32_t)slot * 0x01u); }
-void set_battle_marker_on(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA48Eu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_party_palette_cycle(const GameState *g, unsigned slot) { return r8(g, 0x7EA499u + (uint32_t)slot * 0x01u); }
-void set_battle_party_palette_cycle(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA499u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_sprite_offset_x(const GameState *g, unsigned slot) { return r8(g, 0x7EA4A4u + (uint32_t)slot * 0x01u); }
-void set_battle_sprite_offset_x(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA4A4u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_sprite_offset_y(const GameState *g, unsigned slot) { return r8(g, 0x7EA4AFu + (uint32_t)slot * 0x01u); }
-void set_battle_sprite_offset_y(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA4AFu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_marker_countdown(const GameState *g, unsigned slot) { return r8(g, 0x7EA4BAu + (uint32_t)slot * 0x01u); }
-void set_battle_marker_countdown(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA4BAu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_marker_period(const GameState *g, unsigned slot) { return r8(g, 0x7EA4C5u + (uint32_t)slot * 0x01u); }
-void set_battle_marker_period(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA4C5u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_marker_kind(const GameState *g, unsigned slot) { return r8(g, 0x7EA4D0u + (uint32_t)slot * 0x01u); }
-void set_battle_marker_kind(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA4D0u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_marker_frame(const GameState *g, unsigned slot) { return r8(g, 0x7EA4DBu + (uint32_t)slot * 0x01u); }
-void set_battle_marker_frame(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA4DBu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_animation_position_modes(const GameState *g, unsigned slot) { return r8(g, 0x7EA4E8u + (uint32_t)slot * 0x01u); }
-void set_battle_animation_position_modes(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA4E8u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_pose(const GameState *g, unsigned slot) { IN_RANGE(g, 331, "battle_object_pose", "count", slot, 11u); return r8(g, 0x7EA441u + (uint32_t)slot * 0x01u); }
+void set_battle_object_pose(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 331, "set_battle_object_pose", "count", slot, 11u); w8(g, 0x7EA441u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_pose_last(const GameState *g, unsigned slot) { IN_RANGE(g, 332, "battle_object_pose_last", "count", slot, 11u); return r8(g, 0x7EA44Cu + (uint32_t)slot * 0x01u); }
+void set_battle_object_pose_last(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 332, "set_battle_object_pose_last", "count", slot, 11u); w8(g, 0x7EA44Cu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_party_palette_cycle_on(const GameState *g, unsigned slot) { IN_RANGE(g, 333, "battle_party_palette_cycle_on", "count", slot, 3u); return r8(g, 0x7EA46Du + (uint32_t)slot * 0x01u); }
+void set_battle_party_palette_cycle_on(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 333, "set_battle_party_palette_cycle_on", "count", slot, 3u); w8(g, 0x7EA46Du + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_marker_on(const GameState *g, unsigned slot) { IN_RANGE(g, 334, "battle_marker_on", "count", slot, 11u); return r8(g, 0x7EA48Eu + (uint32_t)slot * 0x01u); }
+void set_battle_marker_on(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 334, "set_battle_marker_on", "count", slot, 11u); w8(g, 0x7EA48Eu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_party_palette_cycle(const GameState *g, unsigned slot) { IN_RANGE(g, 335, "battle_party_palette_cycle", "count", slot, 3u); return r8(g, 0x7EA499u + (uint32_t)slot * 0x01u); }
+void set_battle_party_palette_cycle(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 335, "set_battle_party_palette_cycle", "count", slot, 3u); w8(g, 0x7EA499u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_sprite_offset_x(const GameState *g, unsigned slot) { IN_RANGE(g, 336, "battle_sprite_offset_x", "count", slot, 11u); return r8(g, 0x7EA4A4u + (uint32_t)slot * 0x01u); }
+void set_battle_sprite_offset_x(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 336, "set_battle_sprite_offset_x", "count", slot, 11u); w8(g, 0x7EA4A4u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_sprite_offset_y(const GameState *g, unsigned slot) { IN_RANGE(g, 337, "battle_sprite_offset_y", "count", slot, 11u); return r8(g, 0x7EA4AFu + (uint32_t)slot * 0x01u); }
+void set_battle_sprite_offset_y(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 337, "set_battle_sprite_offset_y", "count", slot, 11u); w8(g, 0x7EA4AFu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_marker_countdown(const GameState *g, unsigned slot) { IN_RANGE(g, 338, "battle_marker_countdown", "count", slot, 11u); return r8(g, 0x7EA4BAu + (uint32_t)slot * 0x01u); }
+void set_battle_marker_countdown(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 338, "set_battle_marker_countdown", "count", slot, 11u); w8(g, 0x7EA4BAu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_marker_period(const GameState *g, unsigned slot) { IN_RANGE(g, 339, "battle_marker_period", "count", slot, 11u); return r8(g, 0x7EA4C5u + (uint32_t)slot * 0x01u); }
+void set_battle_marker_period(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 339, "set_battle_marker_period", "count", slot, 11u); w8(g, 0x7EA4C5u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_marker_kind(const GameState *g, unsigned slot) { IN_RANGE(g, 340, "battle_marker_kind", "count", slot, 11u); return r8(g, 0x7EA4D0u + (uint32_t)slot * 0x01u); }
+void set_battle_marker_kind(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 340, "set_battle_marker_kind", "count", slot, 11u); w8(g, 0x7EA4D0u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_marker_frame(const GameState *g, unsigned slot) { IN_RANGE(g, 341, "battle_marker_frame", "count", slot, 11u); return r8(g, 0x7EA4DBu + (uint32_t)slot * 0x01u); }
+void set_battle_marker_frame(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 341, "set_battle_marker_frame", "count", slot, 11u); w8(g, 0x7EA4DBu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_animation_position_modes(const GameState *g, unsigned slot) { IN_RANGE(g, 342, "battle_animation_position_modes", "count", slot, 6u); return r8(g, 0x7EA4E8u + (uint32_t)slot * 0x01u); }
+void set_battle_animation_position_modes(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 342, "set_battle_animation_position_modes", "count", slot, 6u); w8(g, 0x7EA4E8u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_color_phase(const GameState *g) { return r8(g, 0x7EA4EFu); }
 void set_battle_color_phase(GameState *g, uint8_t v) { w8(g, 0x7EA4EFu, v); }
-uint8_t battle_path_steps(const GameState *g, unsigned slot) { return r8(g, 0x7EA500u + (uint32_t)slot * 0x01u); }
-void set_battle_path_steps(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA500u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_path(const GameState *g, unsigned slot) { return r8(g, 0x7EA517u + (uint32_t)slot * 0x01u); }
-void set_battle_path(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA517u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_angle_used(const GameState *g, unsigned slot) { return r8(g, 0x7EA5AAu + (uint32_t)slot * 0x01u); }
-void set_battle_effect_angle_used(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA5AAu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_extra_draw_on(const GameState *g, unsigned slot) { return r8(g, 0x7EA5CDu + (uint32_t)slot * 0x01u); }
-void set_battle_object_extra_draw_on(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA5CDu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_object_shadow(const GameState *g, unsigned slot) { return r8(g, 0x7EA5D8u + (uint32_t)slot * 0x01u); }
-void set_battle_object_shadow(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA5D8u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_path_steps(const GameState *g, unsigned slot) { IN_RANGE(g, 343, "battle_path_steps", "count", slot, 11u); return r8(g, 0x7EA500u + (uint32_t)slot * 0x01u); }
+void set_battle_path_steps(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 343, "set_battle_path_steps", "count", slot, 11u); w8(g, 0x7EA500u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_path(const GameState *g, unsigned slot) { IN_RANGE(g, 344, "battle_path", "count", slot, 11u); return r8(g, 0x7EA517u + (uint32_t)slot * 0x01u); }
+void set_battle_path(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 344, "set_battle_path", "count", slot, 11u); w8(g, 0x7EA517u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_angle_used(const GameState *g, unsigned slot) { IN_RANGE(g, 345, "battle_effect_angle_used", "count", slot, 19u); return r8(g, 0x7EA5AAu + (uint32_t)slot * 0x01u); }
+void set_battle_effect_angle_used(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 345, "set_battle_effect_angle_used", "count", slot, 19u); w8(g, 0x7EA5AAu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_extra_draw_on(const GameState *g, unsigned slot) { IN_RANGE(g, 346, "battle_object_extra_draw_on", "count", slot, 11u); return r8(g, 0x7EA5CDu + (uint32_t)slot * 0x01u); }
+void set_battle_object_extra_draw_on(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 346, "set_battle_object_extra_draw_on", "count", slot, 11u); w8(g, 0x7EA5CDu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_object_shadow(const GameState *g, unsigned slot) { IN_RANGE(g, 347, "battle_object_shadow", "count", slot, 11u); return r8(g, 0x7EA5D8u + (uint32_t)slot * 0x01u); }
+void set_battle_object_shadow(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 347, "set_battle_object_shadow", "count", slot, 11u); w8(g, 0x7EA5D8u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_sprite_attributes(const GameState *g) { return r8(g, 0x7EA5E3u); }
 void set_battle_sprite_attributes(GameState *g, uint8_t v) { w8(g, 0x7EA5E3u, v); }
-uint8_t battle_targets(const GameState *g, unsigned i) { return r8(g, 0x7EA62Du + (uint32_t)i * 0x01u); }
-void set_battle_targets(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EA62Du + (uint32_t)i * 0x01u, v); }
-uint8_t battle_effect_spiral_frames(const GameState *g, unsigned slot) { return r8(g, 0x7EA639u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_spiral_frames(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA639u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_targets(const GameState *g, unsigned i) { IN_RANGE(g, 348, "battle_targets", "count", i, 6u); return r8(g, 0x7EA62Du + (uint32_t)i * 0x01u); }
+void set_battle_targets(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 348, "set_battle_targets", "count", i, 6u); w8(g, 0x7EA62Du + (uint32_t)i * 0x01u, v); }
+uint8_t battle_effect_spiral_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 349, "battle_effect_spiral_frames", "count", slot, 19u); return r8(g, 0x7EA639u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_spiral_frames(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 349, "set_battle_effect_spiral_frames", "count", slot, 19u); w8(g, 0x7EA639u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_single_target(const GameState *g) { return r8(g, 0x7EA64Eu); }
 void set_battle_single_target(GameState *g, uint8_t v) { w8(g, 0x7EA64Eu, v); }
 uint16_t battle_bitmap_shape(const GameState *g) { return r16(g, 0x7EA650u); }
 void set_battle_bitmap_shape(GameState *g, uint16_t v) { w16(g, 0x7EA650u, v); }
 uint16_t battle_bitmap_stream(const GameState *g) { return r16(g, 0x7EA652u); }
 void set_battle_bitmap_stream(GameState *g, uint16_t v) { w16(g, 0x7EA652u, v); }
-uint16_t battle_upload_source(const GameState *g, unsigned slot) { return r16(g, 0x7EA654u + (uint32_t)slot * 0x02u); }
-void set_battle_upload_source(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA654u + (uint32_t)slot * 0x02u, v); }
-uint16_t battle_upload_vram_address(const GameState *g, unsigned slot) { return r16(g, 0x7EA680u + (uint32_t)slot * 0x02u); }
-void set_battle_upload_vram_address(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA680u + (uint32_t)slot * 0x02u, v); }
-uint16_t battle_upload_size(const GameState *g, unsigned slot) { return r16(g, 0x7EA6ACu + (uint32_t)slot * 0x02u); }
-void set_battle_upload_size(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA6ACu + (uint32_t)slot * 0x02u, v); }
-uint8_t battle_menu_slot_members(const GameState *g, unsigned slot) { return r8(g, 0x7EA6D9u + (uint32_t)slot * 0x01u); }
-void set_battle_menu_slot_members(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA6D9u + (uint32_t)slot * 0x01u, v); }
+uint16_t battle_upload_source(const GameState *g, unsigned slot) { IN_RANGE(g, 350, "battle_upload_source", "count", slot, 22u); return r16(g, 0x7EA654u + (uint32_t)slot * 0x02u); }
+void set_battle_upload_source(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 350, "set_battle_upload_source", "count", slot, 22u); w16(g, 0x7EA654u + (uint32_t)slot * 0x02u, v); }
+uint16_t battle_upload_vram_address(const GameState *g, unsigned slot) { IN_RANGE(g, 351, "battle_upload_vram_address", "count", slot, 22u); return r16(g, 0x7EA680u + (uint32_t)slot * 0x02u); }
+void set_battle_upload_vram_address(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 351, "set_battle_upload_vram_address", "count", slot, 22u); w16(g, 0x7EA680u + (uint32_t)slot * 0x02u, v); }
+uint16_t battle_upload_size(const GameState *g, unsigned slot) { IN_RANGE(g, 352, "battle_upload_size", "count", slot, 22u); return r16(g, 0x7EA6ACu + (uint32_t)slot * 0x02u); }
+void set_battle_upload_size(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 352, "set_battle_upload_size", "count", slot, 22u); w16(g, 0x7EA6ACu + (uint32_t)slot * 0x02u, v); }
+uint8_t battle_menu_slot_members(const GameState *g, unsigned slot) { IN_RANGE(g, 353, "battle_menu_slot_members", "count", slot, 3u); return r8(g, 0x7EA6D9u + (uint32_t)slot * 0x01u); }
+void set_battle_menu_slot_members(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 353, "set_battle_menu_slot_members", "count", slot, 3u); w8(g, 0x7EA6D9u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_menu_slot(const GameState *g) { return r8(g, 0x7EA6DDu); }
 void set_battle_menu_slot(GameState *g, uint8_t v) { w8(g, 0x7EA6DDu, v); }
 uint8_t battle_menu_slot_shown(const GameState *g) { return r8(g, 0x7EA6DFu); }
 void set_battle_menu_slot_shown(GameState *g, uint8_t v) { w8(g, 0x7EA6DFu, v); }
 uint8_t battle_status_member(const GameState *g) { return r8(g, 0x7EA6E0u); }
 void set_battle_status_member(GameState *g, uint8_t v) { w8(g, 0x7EA6E0u, v); }
-uint8_t battle_menu_tilemap_tile(const GameState *g, unsigned column) { return r8(g, 0x7EA6E1u + (uint32_t)column * 0x02u); }
-void set_battle_menu_tilemap_tile(GameState *g, unsigned column, uint8_t v) { w8(g, 0x7EA6E1u + (uint32_t)column * 0x02u, v); }
-uint8_t battle_menu_tilemap_attributes(const GameState *g, unsigned column) { return r8(g, 0x7EA6E2u + (uint32_t)column * 0x02u); }
-void set_battle_menu_tilemap_attributes(GameState *g, unsigned column, uint8_t v) { w8(g, 0x7EA6E2u + (uint32_t)column * 0x02u, v); }
+uint8_t battle_menu_tilemap_tile(const GameState *g, unsigned column) { IN_RANGE(g, 354, "battle_menu_tilemap_tile", "count", column, 192u); return r8(g, 0x7EA6E1u + (uint32_t)column * 0x02u); }
+void set_battle_menu_tilemap_tile(GameState *g, unsigned column, uint8_t v) { IN_RANGE(g, 354, "set_battle_menu_tilemap_tile", "count", column, 192u); w8(g, 0x7EA6E1u + (uint32_t)column * 0x02u, v); }
+uint8_t battle_menu_tilemap_attributes(const GameState *g, unsigned column) { IN_RANGE(g, 354, "battle_menu_tilemap_attributes", "count", column, 192u); return r8(g, 0x7EA6E2u + (uint32_t)column * 0x02u); }
+void set_battle_menu_tilemap_attributes(GameState *g, unsigned column, uint8_t v) { IN_RANGE(g, 354, "set_battle_menu_tilemap_attributes", "count", column, 192u); w8(g, 0x7EA6E2u + (uint32_t)column * 0x02u, v); }
 uint8_t battle_frames_reload_request(const GameState *g) { return r8(g, 0x7EA86Au); }
 void set_battle_frames_reload_request(GameState *g, uint8_t v) { w8(g, 0x7EA86Au, v); }
-uint8_t battle_effect_type(const GameState *g, unsigned slot) { return r8(g, 0x7EA86Du + (uint32_t)slot * 0x01u); }
-void set_battle_effect_type(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EA86Du + (uint32_t)slot * 0x01u, v); }
-uint16_t battle_effect_velocity_x(const GameState *g, unsigned slot) { return r16(g, 0x7EA888u + (uint32_t)slot * 0x02u); }
-void set_battle_effect_velocity_x(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA888u + (uint32_t)slot * 0x02u, v); }
-uint16_t battle_effect_velocity_y(const GameState *g, unsigned slot) { return r16(g, 0x7EA8AEu + (uint32_t)slot * 0x02u); }
-void set_battle_effect_velocity_y(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA8AEu + (uint32_t)slot * 0x02u, v); }
-uint16_t battle_effect_position_x(const GameState *g, unsigned slot) { return r16(g, 0x7EA8D4u + (uint32_t)slot * 0x02u); }
-void set_battle_effect_position_x(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA8D4u + (uint32_t)slot * 0x02u, v); }
-uint16_t battle_effect_position_y(const GameState *g, unsigned slot) { return r16(g, 0x7EA8FAu + (uint32_t)slot * 0x02u); }
-void set_battle_effect_position_y(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA8FAu + (uint32_t)slot * 0x02u, v); }
-uint32_t battle_effect_jump_speed(const GameState *g, unsigned slot) { return r32(g, 0x7EA920u + (uint32_t)slot * 0x04u); }
-void set_battle_effect_jump_speed(GameState *g, unsigned slot, uint32_t v) { w32(g, 0x7EA920u + (uint32_t)slot * 0x04u, v); }
-uint32_t battle_effect_jump_height(const GameState *g, unsigned slot) { return r32(g, 0x7EA96Cu + (uint32_t)slot * 0x04u); }
-void set_battle_effect_jump_height(GameState *g, unsigned slot, uint32_t v) { w32(g, 0x7EA96Cu + (uint32_t)slot * 0x04u, v); }
-uint16_t battle_effect_jump_gravity(const GameState *g, unsigned slot) { return r16(g, 0x7EA9B8u + (uint32_t)slot * 0x02u); }
-void set_battle_effect_jump_gravity(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA9B8u + (uint32_t)slot * 0x02u, v); }
-uint16_t battle_effect_jump_falling(const GameState *g, unsigned slot) { return r16(g, 0x7EA9DEu + (uint32_t)slot * 0x02u); }
-void set_battle_effect_jump_falling(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EA9DEu + (uint32_t)slot * 0x02u, v); }
-uint16_t battle_effect_jump_single(const GameState *g, unsigned slot) { return r16(g, 0x7EAA04u + (uint32_t)slot * 0x02u); }
-void set_battle_effect_jump_single(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EAA04u + (uint32_t)slot * 0x02u, v); }
-uint8_t battle_effect_jump_up(const GameState *g, unsigned slot) { return r8(g, 0x7EAA2Au + (uint32_t)slot * 0x01u); }
-void set_battle_effect_jump_up(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAA2Au + (uint32_t)slot * 0x01u, v); }
-uint16_t battle_effect_jump_bounce(const GameState *g, unsigned slot) { return r16(g, 0x7EAA3Du + (uint32_t)slot * 0x02u); }
-void set_battle_effect_jump_bounce(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EAA3Du + (uint32_t)slot * 0x02u, v); }
+uint8_t battle_effect_type(const GameState *g, unsigned slot) { IN_RANGE(g, 355, "battle_effect_type", "count", slot, 19u); return r8(g, 0x7EA86Du + (uint32_t)slot * 0x01u); }
+void set_battle_effect_type(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 355, "set_battle_effect_type", "count", slot, 19u); w8(g, 0x7EA86Du + (uint32_t)slot * 0x01u, v); }
+uint16_t battle_effect_velocity_x(const GameState *g, unsigned slot) { IN_RANGE(g, 356, "battle_effect_velocity_x", "count", slot, 19u); return r16(g, 0x7EA888u + (uint32_t)slot * 0x02u); }
+void set_battle_effect_velocity_x(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 356, "set_battle_effect_velocity_x", "count", slot, 19u); w16(g, 0x7EA888u + (uint32_t)slot * 0x02u, v); }
+uint16_t battle_effect_velocity_y(const GameState *g, unsigned slot) { IN_RANGE(g, 357, "battle_effect_velocity_y", "count", slot, 19u); return r16(g, 0x7EA8AEu + (uint32_t)slot * 0x02u); }
+void set_battle_effect_velocity_y(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 357, "set_battle_effect_velocity_y", "count", slot, 19u); w16(g, 0x7EA8AEu + (uint32_t)slot * 0x02u, v); }
+uint16_t battle_effect_position_x(const GameState *g, unsigned slot) { IN_RANGE(g, 358, "battle_effect_position_x", "count", slot, 19u); return r16(g, 0x7EA8D4u + (uint32_t)slot * 0x02u); }
+void set_battle_effect_position_x(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 358, "set_battle_effect_position_x", "count", slot, 19u); w16(g, 0x7EA8D4u + (uint32_t)slot * 0x02u, v); }
+uint16_t battle_effect_position_y(const GameState *g, unsigned slot) { IN_RANGE(g, 359, "battle_effect_position_y", "count", slot, 19u); return r16(g, 0x7EA8FAu + (uint32_t)slot * 0x02u); }
+void set_battle_effect_position_y(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 359, "set_battle_effect_position_y", "count", slot, 19u); w16(g, 0x7EA8FAu + (uint32_t)slot * 0x02u, v); }
+uint32_t battle_effect_jump_speed(const GameState *g, unsigned slot) { IN_RANGE(g, 360, "battle_effect_jump_speed", "count", slot, 19u); return r32(g, 0x7EA920u + (uint32_t)slot * 0x04u); }
+void set_battle_effect_jump_speed(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 360, "set_battle_effect_jump_speed", "count", slot, 19u); w32(g, 0x7EA920u + (uint32_t)slot * 0x04u, v); }
+uint32_t battle_effect_jump_height(const GameState *g, unsigned slot) { IN_RANGE(g, 361, "battle_effect_jump_height", "count", slot, 19u); return r32(g, 0x7EA96Cu + (uint32_t)slot * 0x04u); }
+void set_battle_effect_jump_height(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 361, "set_battle_effect_jump_height", "count", slot, 19u); w32(g, 0x7EA96Cu + (uint32_t)slot * 0x04u, v); }
+uint16_t battle_effect_jump_gravity(const GameState *g, unsigned slot) { IN_RANGE(g, 362, "battle_effect_jump_gravity", "count", slot, 19u); return r16(g, 0x7EA9B8u + (uint32_t)slot * 0x02u); }
+void set_battle_effect_jump_gravity(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 362, "set_battle_effect_jump_gravity", "count", slot, 19u); w16(g, 0x7EA9B8u + (uint32_t)slot * 0x02u, v); }
+uint16_t battle_effect_jump_falling(const GameState *g, unsigned slot) { IN_RANGE(g, 363, "battle_effect_jump_falling", "count", slot, 19u); return r16(g, 0x7EA9DEu + (uint32_t)slot * 0x02u); }
+void set_battle_effect_jump_falling(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 363, "set_battle_effect_jump_falling", "count", slot, 19u); w16(g, 0x7EA9DEu + (uint32_t)slot * 0x02u, v); }
+uint16_t battle_effect_jump_single(const GameState *g, unsigned slot) { IN_RANGE(g, 364, "battle_effect_jump_single", "count", slot, 19u); return r16(g, 0x7EAA04u + (uint32_t)slot * 0x02u); }
+void set_battle_effect_jump_single(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 364, "set_battle_effect_jump_single", "count", slot, 19u); w16(g, 0x7EAA04u + (uint32_t)slot * 0x02u, v); }
+uint8_t battle_effect_jump_up(const GameState *g, unsigned slot) { IN_RANGE(g, 365, "battle_effect_jump_up", "count", slot, 19u); return r8(g, 0x7EAA2Au + (uint32_t)slot * 0x01u); }
+void set_battle_effect_jump_up(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 365, "set_battle_effect_jump_up", "count", slot, 19u); w8(g, 0x7EAA2Au + (uint32_t)slot * 0x01u, v); }
+uint16_t battle_effect_jump_bounce(const GameState *g, unsigned slot) { IN_RANGE(g, 366, "battle_effect_jump_bounce", "count", slot, 19u); return r16(g, 0x7EAA3Du + (uint32_t)slot * 0x02u); }
+void set_battle_effect_jump_bounce(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 366, "set_battle_effect_jump_bounce", "count", slot, 19u); w16(g, 0x7EAA3Du + (uint32_t)slot * 0x02u, v); }
 uint8_t battle_formation(const GameState *g) { return r8(g, 0x7EAA63u); }
 void set_battle_formation(GameState *g, uint8_t v) { w8(g, 0x7EAA63u, v); }
-uint8_t battle_formation_offset_x(const GameState *g, unsigned i) { return r8(g, 0x7EAA64u + (uint32_t)i * 0x01u); }
-void set_battle_formation_offset_x(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAA64u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_formation_offset_y(const GameState *g, unsigned i) { return r8(g, 0x7EAA6Cu + (uint32_t)i * 0x01u); }
-void set_battle_formation_offset_y(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAA6Cu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_anchor_orbit_center_x(const GameState *g, unsigned i) { return r8(g, 0x7EAA7Fu + (uint32_t)i * 0x01u); }
-void set_battle_anchor_orbit_center_x(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAA7Fu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_anchor_orbit_center_y(const GameState *g, unsigned i) { return r8(g, 0x7EAA92u + (uint32_t)i * 0x01u); }
-void set_battle_anchor_orbit_center_y(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAA92u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_effect_orbit_angle(const GameState *g, unsigned slot) { return r8(g, 0x7EAA9Au + (uint32_t)slot * 0x01u); }
-void set_battle_effect_orbit_angle(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAA9Au + (uint32_t)slot * 0x01u, v); }
-uint16_t battle_effect_orbit_frames(const GameState *g, unsigned slot) { return r16(g, 0x7EAAADu + (uint32_t)slot * 0x02u); }
-void set_battle_effect_orbit_frames(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7EAAADu + (uint32_t)slot * 0x02u, v); }
-uint8_t battle_effect_orbit_step(const GameState *g, unsigned slot) { return r8(g, 0x7EAAD3u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_orbit_step(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAAD3u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_orbit_radius(const GameState *g, unsigned slot) { return r8(g, 0x7EAAE6u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_orbit_radius(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAAE6u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_home_stage(const GameState *g, unsigned slot) { return r8(g, 0x7EAB00u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_home_stage(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB00u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_flicker_frames(const GameState *g, unsigned slot) { return r8(g, 0x7EAB13u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_flicker_frames(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB13u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_flicker_radius(const GameState *g, unsigned slot) { return r8(g, 0x7EAB1Eu + (uint32_t)slot * 0x01u); }
-void set_battle_effect_flicker_radius(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB1Eu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_flicker_count(const GameState *g, unsigned slot) { return r8(g, 0x7EAB29u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_flicker_count(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB29u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_flicker_period(const GameState *g, unsigned slot) { return r8(g, 0x7EAB34u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_flicker_period(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB34u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_flicker_hidden(const GameState *g, unsigned slot) { return r8(g, 0x7EAB3Fu + (uint32_t)slot * 0x01u); }
-void set_battle_effect_flicker_hidden(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB3Fu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_formation_offset_x(const GameState *g, unsigned i) { IN_RANGE(g, 367, "battle_formation_offset_x", "count", i, 8u); return r8(g, 0x7EAA64u + (uint32_t)i * 0x01u); }
+void set_battle_formation_offset_x(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 367, "set_battle_formation_offset_x", "count", i, 8u); w8(g, 0x7EAA64u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_formation_offset_y(const GameState *g, unsigned i) { IN_RANGE(g, 368, "battle_formation_offset_y", "count", i, 8u); return r8(g, 0x7EAA6Cu + (uint32_t)i * 0x01u); }
+void set_battle_formation_offset_y(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 368, "set_battle_formation_offset_y", "count", i, 8u); w8(g, 0x7EAA6Cu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_anchor_orbit_center_x(const GameState *g, unsigned i) { IN_RANGE(g, 369, "battle_anchor_orbit_center_x", "count", i, 8u); return r8(g, 0x7EAA7Fu + (uint32_t)i * 0x01u); }
+void set_battle_anchor_orbit_center_x(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 369, "set_battle_anchor_orbit_center_x", "count", i, 8u); w8(g, 0x7EAA7Fu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_anchor_orbit_center_y(const GameState *g, unsigned i) { IN_RANGE(g, 370, "battle_anchor_orbit_center_y", "count", i, 8u); return r8(g, 0x7EAA92u + (uint32_t)i * 0x01u); }
+void set_battle_anchor_orbit_center_y(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 370, "set_battle_anchor_orbit_center_y", "count", i, 8u); w8(g, 0x7EAA92u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_effect_orbit_angle(const GameState *g, unsigned slot) { IN_RANGE(g, 371, "battle_effect_orbit_angle", "count", slot, 19u); return r8(g, 0x7EAA9Au + (uint32_t)slot * 0x01u); }
+void set_battle_effect_orbit_angle(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 371, "set_battle_effect_orbit_angle", "count", slot, 19u); w8(g, 0x7EAA9Au + (uint32_t)slot * 0x01u, v); }
+uint16_t battle_effect_orbit_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 372, "battle_effect_orbit_frames", "count", slot, 19u); return r16(g, 0x7EAAADu + (uint32_t)slot * 0x02u); }
+void set_battle_effect_orbit_frames(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 372, "set_battle_effect_orbit_frames", "count", slot, 19u); w16(g, 0x7EAAADu + (uint32_t)slot * 0x02u, v); }
+uint8_t battle_effect_orbit_step(const GameState *g, unsigned slot) { IN_RANGE(g, 373, "battle_effect_orbit_step", "count", slot, 19u); return r8(g, 0x7EAAD3u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_orbit_step(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 373, "set_battle_effect_orbit_step", "count", slot, 19u); w8(g, 0x7EAAD3u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_orbit_radius(const GameState *g, unsigned slot) { IN_RANGE(g, 374, "battle_effect_orbit_radius", "count", slot, 19u); return r8(g, 0x7EAAE6u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_orbit_radius(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 374, "set_battle_effect_orbit_radius", "count", slot, 19u); w8(g, 0x7EAAE6u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_home_stage(const GameState *g, unsigned slot) { IN_RANGE(g, 375, "battle_effect_home_stage", "count", slot, 19u); return r8(g, 0x7EAB00u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_home_stage(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 375, "set_battle_effect_home_stage", "count", slot, 19u); w8(g, 0x7EAB00u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_flicker_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 376, "battle_effect_flicker_frames", "count", slot, 11u); return r8(g, 0x7EAB13u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_flicker_frames(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 376, "set_battle_effect_flicker_frames", "count", slot, 11u); w8(g, 0x7EAB13u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_flicker_radius(const GameState *g, unsigned slot) { IN_RANGE(g, 377, "battle_effect_flicker_radius", "count", slot, 11u); return r8(g, 0x7EAB1Eu + (uint32_t)slot * 0x01u); }
+void set_battle_effect_flicker_radius(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 377, "set_battle_effect_flicker_radius", "count", slot, 11u); w8(g, 0x7EAB1Eu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_flicker_count(const GameState *g, unsigned slot) { IN_RANGE(g, 378, "battle_effect_flicker_count", "count", slot, 11u); return r8(g, 0x7EAB29u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_flicker_count(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 378, "set_battle_effect_flicker_count", "count", slot, 11u); w8(g, 0x7EAB29u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_flicker_period(const GameState *g, unsigned slot) { IN_RANGE(g, 379, "battle_effect_flicker_period", "count", slot, 11u); return r8(g, 0x7EAB34u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_flicker_period(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 379, "set_battle_effect_flicker_period", "count", slot, 11u); w8(g, 0x7EAB34u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_flicker_hidden(const GameState *g, unsigned slot) { IN_RANGE(g, 380, "battle_effect_flicker_hidden", "count", slot, 11u); return r8(g, 0x7EAB3Fu + (uint32_t)slot * 0x01u); }
+void set_battle_effect_flicker_hidden(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 380, "set_battle_effect_flicker_hidden", "count", slot, 11u); w8(g, 0x7EAB3Fu + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_color_rotation_count(const GameState *g) { return r8(g, 0x7EAB4Au); }
 void set_battle_color_rotation_count(GameState *g, uint8_t v) { w8(g, 0x7EAB4Au, v); }
 uint8_t battle_color_rotation_period(const GameState *g) { return r8(g, 0x7EAB4Bu); }
 void set_battle_color_rotation_period(GameState *g, uint8_t v) { w8(g, 0x7EAB4Bu, v); }
 uint8_t battle_color_rotation_on(const GameState *g) { return r8(g, 0x7EAB4Eu); }
 void set_battle_color_rotation_on(GameState *g, uint8_t v) { w8(g, 0x7EAB4Eu, v); }
-uint8_t battle_anchor_facing_record(const GameState *g, unsigned i) { return r8(g, 0x7EAB4Fu + (uint32_t)i * 0x01u); }
-void set_battle_anchor_facing_record(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAB4Fu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_effect_attribute_bits(const GameState *g, unsigned i) { return r8(g, 0x7EAB5Fu + (uint32_t)i * 0x01u); }
-void set_battle_effect_attribute_bits(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAB5Fu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_trail_period(const GameState *g, unsigned slot) { return r8(g, 0x7EAB67u + (uint32_t)slot * 0x01u); }
-void set_battle_trail_period(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB67u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_trail_countdown(const GameState *g, unsigned slot) { return r8(g, 0x7EAB72u + (uint32_t)slot * 0x01u); }
-void set_battle_trail_countdown(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB72u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_reload(const GameState *g, unsigned slot) { return r8(g, 0x7EAB7Du + (uint32_t)slot * 0x01u); }
-void set_battle_effect_reload(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB7Du + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_countdown(const GameState *g, unsigned slot) { return r8(g, 0x7EAB88u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_countdown(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAB88u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_trail_low_x_byte(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EAB93u + (uint32_t)i * 0x16u + at); }
-void set_battle_trail_low_x_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EAB93u + (uint32_t)i * 0x16u + at, v); }
-uint8_t battle_trail_low_y_byte(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EAB9Eu + (uint32_t)i * 0x16u + at); }
-void set_battle_trail_low_y_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EAB9Eu + (uint32_t)i * 0x16u + at, v); }
-uint8_t battle_effect_line_frames(const GameState *g, unsigned slot) { return r8(g, 0x7EABEBu + (uint32_t)slot * 0x01u); }
-void set_battle_effect_line_frames(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EABEBu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_jump_frames(const GameState *g, unsigned slot) { return r8(g, 0x7EABFEu + (uint32_t)slot * 0x01u); }
-void set_battle_effect_jump_frames(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EABFEu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_chase_angle(const GameState *g, unsigned slot) { return r8(g, 0x7EAC11u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_chase_angle(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAC11u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_chase_aligned(const GameState *g, unsigned slot) { return r8(g, 0x7EAC24u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_chase_aligned(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAC24u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_effect_chase_turn(const GameState *g, unsigned slot) { return r8(g, 0x7EAC37u + (uint32_t)slot * 0x01u); }
-void set_battle_effect_chase_turn(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAC37u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_chase_cells(const GameState *g, unsigned i) { return r8(g, 0x7EAC4Au + (uint32_t)i * 0x01u); }
-void set_battle_chase_cells(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAC4Au + (uint32_t)i * 0x01u, v); }
+uint8_t battle_anchor_facing_record(const GameState *g, unsigned i) { IN_RANGE(g, 381, "battle_anchor_facing_record", "count", i, 8u); return r8(g, 0x7EAB4Fu + (uint32_t)i * 0x01u); }
+void set_battle_anchor_facing_record(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 381, "set_battle_anchor_facing_record", "count", i, 8u); w8(g, 0x7EAB4Fu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_effect_attribute_bits(const GameState *g, unsigned i) { IN_RANGE(g, 382, "battle_effect_attribute_bits", "count", i, 8u); return r8(g, 0x7EAB5Fu + (uint32_t)i * 0x01u); }
+void set_battle_effect_attribute_bits(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 382, "set_battle_effect_attribute_bits", "count", i, 8u); w8(g, 0x7EAB5Fu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_trail_period(const GameState *g, unsigned slot) { IN_RANGE(g, 383, "battle_trail_period", "count", slot, 11u); return r8(g, 0x7EAB67u + (uint32_t)slot * 0x01u); }
+void set_battle_trail_period(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 383, "set_battle_trail_period", "count", slot, 11u); w8(g, 0x7EAB67u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_trail_countdown(const GameState *g, unsigned slot) { IN_RANGE(g, 384, "battle_trail_countdown", "count", slot, 11u); return r8(g, 0x7EAB72u + (uint32_t)slot * 0x01u); }
+void set_battle_trail_countdown(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 384, "set_battle_trail_countdown", "count", slot, 11u); w8(g, 0x7EAB72u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_reload(const GameState *g, unsigned slot) { IN_RANGE(g, 385, "battle_effect_reload", "count", slot, 11u); return r8(g, 0x7EAB7Du + (uint32_t)slot * 0x01u); }
+void set_battle_effect_reload(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 385, "set_battle_effect_reload", "count", slot, 11u); w8(g, 0x7EAB7Du + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_countdown(const GameState *g, unsigned slot) { IN_RANGE(g, 386, "battle_effect_countdown", "count", slot, 11u); return r8(g, 0x7EAB88u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_countdown(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 386, "set_battle_effect_countdown", "count", slot, 11u); w8(g, 0x7EAB88u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_trail_low_x_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 387, "battle_trail_low_x_byte", "count", i, 4u); IN_RANGE(g, 387, "battle_trail_low_x_byte", "bytes", at, 11u); return r8(g, 0x7EAB93u + (uint32_t)i * 0x16u + at); }
+void set_battle_trail_low_x_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 387, "set_battle_trail_low_x_byte", "count", i, 4u); IN_RANGE(g, 387, "set_battle_trail_low_x_byte", "bytes", at, 11u); w8(g, 0x7EAB93u + (uint32_t)i * 0x16u + at, v); }
+uint8_t battle_trail_low_y_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 387, "battle_trail_low_y_byte", "count", i, 4u); IN_RANGE(g, 387, "battle_trail_low_y_byte", "bytes", at, 11u); return r8(g, 0x7EAB9Eu + (uint32_t)i * 0x16u + at); }
+void set_battle_trail_low_y_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 387, "set_battle_trail_low_y_byte", "count", i, 4u); IN_RANGE(g, 387, "set_battle_trail_low_y_byte", "bytes", at, 11u); w8(g, 0x7EAB9Eu + (uint32_t)i * 0x16u + at, v); }
+uint8_t battle_effect_line_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 388, "battle_effect_line_frames", "count", slot, 19u); return r8(g, 0x7EABEBu + (uint32_t)slot * 0x01u); }
+void set_battle_effect_line_frames(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 388, "set_battle_effect_line_frames", "count", slot, 19u); w8(g, 0x7EABEBu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_jump_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 389, "battle_effect_jump_frames", "count", slot, 19u); return r8(g, 0x7EABFEu + (uint32_t)slot * 0x01u); }
+void set_battle_effect_jump_frames(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 389, "set_battle_effect_jump_frames", "count", slot, 19u); w8(g, 0x7EABFEu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_chase_angle(const GameState *g, unsigned slot) { IN_RANGE(g, 390, "battle_effect_chase_angle", "count", slot, 19u); return r8(g, 0x7EAC11u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_chase_angle(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 390, "set_battle_effect_chase_angle", "count", slot, 19u); w8(g, 0x7EAC11u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_chase_aligned(const GameState *g, unsigned slot) { IN_RANGE(g, 391, "battle_effect_chase_aligned", "count", slot, 19u); return r8(g, 0x7EAC24u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_chase_aligned(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 391, "set_battle_effect_chase_aligned", "count", slot, 19u); w8(g, 0x7EAC24u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_effect_chase_turn(const GameState *g, unsigned slot) { IN_RANGE(g, 392, "battle_effect_chase_turn", "count", slot, 19u); return r8(g, 0x7EAC37u + (uint32_t)slot * 0x01u); }
+void set_battle_effect_chase_turn(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 392, "set_battle_effect_chase_turn", "count", slot, 19u); w8(g, 0x7EAC37u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_chase_cells(const GameState *g, unsigned i) { IN_RANGE(g, 393, "battle_chase_cells", "count", i, 16u); return r8(g, 0x7EAC4Au + (uint32_t)i * 0x01u); }
+void set_battle_chase_cells(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 393, "set_battle_chase_cells", "count", i, 16u); w8(g, 0x7EAC4Au + (uint32_t)i * 0x01u, v); }
 uint8_t battle_numbers_rising(const GameState *g) { return r8(g, 0x7EAC5Au); }
 void set_battle_numbers_rising(GameState *g, uint8_t v) { w8(g, 0x7EAC5Au, v); }
-uint8_t battle_trail_high_x_byte(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EAC64u + (uint32_t)i * 0x16u + at); }
-void set_battle_trail_high_x_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EAC64u + (uint32_t)i * 0x16u + at, v); }
-uint8_t battle_trail_high_y_byte(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EAC6Fu + (uint32_t)i * 0x16u + at); }
-void set_battle_trail_high_y_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EAC6Fu + (uint32_t)i * 0x16u + at, v); }
-uint8_t battle_enemy_name_tiles(const GameState *g, unsigned i) { return r8(g, 0x7EACBCu + (uint32_t)i * 0x01u); }
-void set_battle_enemy_name_tiles(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EACBCu + (uint32_t)i * 0x01u, v); }
-uint16_t battle_number_records_value(const GameState *g, unsigned i) { return r16(g, 0x7EAD9Cu + (uint32_t)i * 0x04u); }
-void set_battle_number_records_value(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EAD9Cu + (uint32_t)i * 0x04u, v); }
-uint8_t battle_number_records_kind(const GameState *g, unsigned i) { return r8(g, 0x7EAD9Eu + (uint32_t)i * 0x04u); }
-void set_battle_number_records_kind(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAD9Eu + (uint32_t)i * 0x04u, v); }
-uint8_t battle_combatant_out(const GameState *g, unsigned slot) { return r8(g, 0x7EAEFFu + (uint32_t)slot * 0x01u); }
-void set_battle_combatant_out(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAEFFu + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_timer_counts(const GameState *g, unsigned slot) { return r8(g, 0x7EAF27u + (uint32_t)slot * 0x01u); }
-void set_battle_timer_counts(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAF27u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_timer_flags(const GameState *g, unsigned slot) { return r8(g, 0x7EAFB6u + (uint32_t)slot * 0x01u); }
-void set_battle_timer_flags(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EAFB6u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_timer_kind_cursors(const GameState *g, unsigned i) { return r8(g, 0x7EB179u + (uint32_t)i * 0x01u); }
-void set_battle_timer_kind_cursors(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EB179u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_trail_high_x_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 394, "battle_trail_high_x_byte", "count", i, 4u); IN_RANGE(g, 394, "battle_trail_high_x_byte", "bytes", at, 11u); return r8(g, 0x7EAC64u + (uint32_t)i * 0x16u + at); }
+void set_battle_trail_high_x_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 394, "set_battle_trail_high_x_byte", "count", i, 4u); IN_RANGE(g, 394, "set_battle_trail_high_x_byte", "bytes", at, 11u); w8(g, 0x7EAC64u + (uint32_t)i * 0x16u + at, v); }
+uint8_t battle_trail_high_y_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 394, "battle_trail_high_y_byte", "count", i, 4u); IN_RANGE(g, 394, "battle_trail_high_y_byte", "bytes", at, 11u); return r8(g, 0x7EAC6Fu + (uint32_t)i * 0x16u + at); }
+void set_battle_trail_high_y_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 394, "set_battle_trail_high_y_byte", "count", i, 4u); IN_RANGE(g, 394, "set_battle_trail_high_y_byte", "bytes", at, 11u); w8(g, 0x7EAC6Fu + (uint32_t)i * 0x16u + at, v); }
+uint8_t battle_enemy_name_tiles(const GameState *g, unsigned i) { IN_RANGE(g, 395, "battle_enemy_name_tiles", "count", i, 72u); return r8(g, 0x7EACBCu + (uint32_t)i * 0x01u); }
+void set_battle_enemy_name_tiles(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 395, "set_battle_enemy_name_tiles", "count", i, 72u); w8(g, 0x7EACBCu + (uint32_t)i * 0x01u, v); }
+uint16_t battle_number_records_value(const GameState *g, unsigned i) { IN_RANGE(g, 396, "battle_number_records_value", "count", i, 44u); return r16(g, 0x7EAD9Cu + (uint32_t)i * 0x04u); }
+void set_battle_number_records_value(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 396, "set_battle_number_records_value", "count", i, 44u); w16(g, 0x7EAD9Cu + (uint32_t)i * 0x04u, v); }
+uint8_t battle_number_records_kind(const GameState *g, unsigned i) { IN_RANGE(g, 396, "battle_number_records_kind", "count", i, 44u); return r8(g, 0x7EAD9Eu + (uint32_t)i * 0x04u); }
+void set_battle_number_records_kind(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 396, "set_battle_number_records_kind", "count", i, 44u); w8(g, 0x7EAD9Eu + (uint32_t)i * 0x04u, v); }
+uint8_t battle_combatant_out(const GameState *g, unsigned slot) { IN_RANGE(g, 397, "battle_combatant_out", "count", slot, 11u); return r8(g, 0x7EAEFFu + (uint32_t)slot * 0x01u); }
+void set_battle_combatant_out(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 397, "set_battle_combatant_out", "count", slot, 11u); w8(g, 0x7EAEFFu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_timer_counts(const GameState *g, unsigned slot) { IN_RANGE(g, 398, "battle_timer_counts", "count", slot, 143u); return r8(g, 0x7EAF27u + (uint32_t)slot * 0x01u); }
+void set_battle_timer_counts(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 398, "set_battle_timer_counts", "count", slot, 143u); w8(g, 0x7EAF27u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_timer_flags(const GameState *g, unsigned slot) { IN_RANGE(g, 399, "battle_timer_flags", "count", slot, 143u); return r8(g, 0x7EAFB6u + (uint32_t)slot * 0x01u); }
+void set_battle_timer_flags(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 399, "set_battle_timer_flags", "count", slot, 143u); w8(g, 0x7EAFB6u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_timer_kind_cursors(const GameState *g, unsigned i) { IN_RANGE(g, 400, "battle_timer_kind_cursors", "count", i, 13u); return r8(g, 0x7EB179u + (uint32_t)i * 0x01u); }
+void set_battle_timer_kind_cursors(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 400, "set_battle_timer_kind_cursors", "count", i, 13u); w8(g, 0x7EB179u + (uint32_t)i * 0x01u, v); }
 uint16_t battle_timer_kinds_due(const GameState *g) { return r16(g, 0x7EB186u); }
 void set_battle_timer_kinds_due(GameState *g, uint16_t v) { w16(g, 0x7EB186u, v); }
-uint8_t battle_combo_ready(const GameState *g, unsigned slot) { return r8(g, 0x7EB3E7u + (uint32_t)slot * 0x01u); }
-void set_battle_combo_ready(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7EB3E7u + (uint32_t)slot * 0x01u, v); }
-uint8_t battle_combo_pairs(const GameState *g, unsigned member) { return r8(g, 0x7EB3EBu + (uint32_t)member * 0x01u); }
-void set_battle_combo_pairs(GameState *g, unsigned member, uint8_t v) { w8(g, 0x7EB3EBu + (uint32_t)member * 0x01u, v); }
+uint8_t battle_combo_ready(const GameState *g, unsigned slot) { IN_RANGE(g, 401, "battle_combo_ready", "count", slot, 3u); return r8(g, 0x7EB3E7u + (uint32_t)slot * 0x01u); }
+void set_battle_combo_ready(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 401, "set_battle_combo_ready", "count", slot, 3u); w8(g, 0x7EB3E7u + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_combo_pairs(const GameState *g, unsigned member) { IN_RANGE(g, 402, "battle_combo_pairs", "count", member, 9u); return r8(g, 0x7EB3EBu + (uint32_t)member * 0x01u); }
+void set_battle_combo_pairs(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 402, "set_battle_combo_pairs", "count", member, 9u); w8(g, 0x7EB3EBu + (uint32_t)member * 0x01u, v); }
 uint8_t battle_brightness(const GameState *g) { return r8(g, 0x7EBB00u); }
 void set_battle_brightness(GameState *g, uint8_t v) { w8(g, 0x7EBB00u, v); }
-uint16_t battle_bg_offset(const GameState *g, unsigned i) { return r16(g, 0x7EBB01u + (uint32_t)i * 0x02u); }
-void set_battle_bg_offset(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EBB01u + (uint32_t)i * 0x02u, v); }
+uint16_t battle_bg_offset(const GameState *g, unsigned i) { IN_RANGE(g, 403, "battle_bg_offset", "count", i, 2u); return r16(g, 0x7EBB01u + (uint32_t)i * 0x02u); }
+void set_battle_bg_offset(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 403, "set_battle_bg_offset", "count", i, 2u); w16(g, 0x7EBB01u + (uint32_t)i * 0x02u, v); }
 uint8_t battle_leaving(const GameState *g) { return r8(g, 0x7EBB80u); }
 void set_battle_leaving(GameState *g, uint8_t v) { w8(g, 0x7EBB80u, v); }
-uint8_t battle_scroll_tables_byte(const GameState *g, unsigned layer, unsigned at) { return r8(g, 0x7EBC89u + (uint32_t)layer * 0x80u + at); }
-void set_battle_scroll_tables_byte(GameState *g, unsigned layer, unsigned at, uint8_t v) { w8(g, 0x7EBC89u + (uint32_t)layer * 0x80u + at, v); }
-uint16_t battle_split_line_values(const GameState *g, unsigned i) { return r16(g, 0x7EBE89u + (uint32_t)i * 0x02u); }
-void set_battle_split_line_values(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7EBE89u + (uint32_t)i * 0x02u, v); }
-uint8_t battle_fade_line_data(const GameState *g, unsigned i) { return r8(g, 0x7EC02Fu + (uint32_t)i * 0x01u); }
-void set_battle_fade_line_data(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EC02Fu + (uint32_t)i * 0x01u, v); }
-uint8_t battle_window_lines_w1_left(const GameState *g, unsigned line) { return r8(g, 0x7EC161u + (uint32_t)line * 0x04u); }
-void set_battle_window_lines_w1_left(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7EC161u + (uint32_t)line * 0x04u, v); }
-uint8_t battle_window_lines_w1_right(const GameState *g, unsigned line) { return r8(g, 0x7EC162u + (uint32_t)line * 0x04u); }
-void set_battle_window_lines_w1_right(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7EC162u + (uint32_t)line * 0x04u, v); }
-uint8_t battle_window_lines_w2_left(const GameState *g, unsigned line) { return r8(g, 0x7EC163u + (uint32_t)line * 0x04u); }
-void set_battle_window_lines_w2_left(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7EC163u + (uint32_t)line * 0x04u, v); }
-uint8_t battle_window_lines_w2_right(const GameState *g, unsigned line) { return r8(g, 0x7EC164u + (uint32_t)line * 0x04u); }
-void set_battle_window_lines_w2_right(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7EC164u + (uint32_t)line * 0x04u, v); }
-uint8_t battle_window_registers(const GameState *g, unsigned i) { return r8(g, 0x7EC861u + (uint32_t)i * 0x01u); }
-void set_battle_window_registers(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EC861u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_line_tables_byte(const GameState *g, unsigned line, unsigned at) { return r8(g, 0x7EC867u + (uint32_t)line * 0x2Du + at); }
-void set_battle_line_tables_byte(GameState *g, unsigned line, unsigned at, uint8_t v) { w8(g, 0x7EC867u + (uint32_t)line * 0x2Du + at, v); }
-uint8_t battle_window_line_tables_byte(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EC9A2u + (uint32_t)i * 0x2Du + at); }
-void set_battle_window_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EC9A2u + (uint32_t)i * 0x2Du + at, v); }
+uint8_t battle_scroll_tables_byte(const GameState *g, unsigned layer, unsigned at) { IN_RANGE(g, 404, "battle_scroll_tables_byte", "count", layer, 3u); IN_RANGE(g, 404, "battle_scroll_tables_byte", "bytes", at, 128u); return r8(g, 0x7EBC89u + (uint32_t)layer * 0x80u + at); }
+void set_battle_scroll_tables_byte(GameState *g, unsigned layer, unsigned at, uint8_t v) { IN_RANGE(g, 404, "set_battle_scroll_tables_byte", "count", layer, 3u); IN_RANGE(g, 404, "set_battle_scroll_tables_byte", "bytes", at, 128u); w8(g, 0x7EBC89u + (uint32_t)layer * 0x80u + at, v); }
+uint16_t battle_split_line_values(const GameState *g, unsigned i) { IN_RANGE(g, 405, "battle_split_line_values", "count", i, 8u); return r16(g, 0x7EBE89u + (uint32_t)i * 0x02u); }
+void set_battle_split_line_values(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 405, "set_battle_split_line_values", "count", i, 8u); w16(g, 0x7EBE89u + (uint32_t)i * 0x02u, v); }
+uint8_t battle_fade_line_data(const GameState *g, unsigned i) { IN_RANGE(g, 406, "battle_fade_line_data", "count", i, 288u); return r8(g, 0x7EC02Fu + (uint32_t)i * 0x01u); }
+void set_battle_fade_line_data(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 406, "set_battle_fade_line_data", "count", i, 288u); w8(g, 0x7EC02Fu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_window_lines_w1_left(const GameState *g, unsigned line) { IN_RANGE(g, 407, "battle_window_lines_w1_left", "count", line, 448u); return r8(g, 0x7EC161u + (uint32_t)line * 0x04u); }
+void set_battle_window_lines_w1_left(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 407, "set_battle_window_lines_w1_left", "count", line, 448u); w8(g, 0x7EC161u + (uint32_t)line * 0x04u, v); }
+uint8_t battle_window_lines_w1_right(const GameState *g, unsigned line) { IN_RANGE(g, 407, "battle_window_lines_w1_right", "count", line, 448u); return r8(g, 0x7EC162u + (uint32_t)line * 0x04u); }
+void set_battle_window_lines_w1_right(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 407, "set_battle_window_lines_w1_right", "count", line, 448u); w8(g, 0x7EC162u + (uint32_t)line * 0x04u, v); }
+uint8_t battle_window_lines_w2_left(const GameState *g, unsigned line) { IN_RANGE(g, 407, "battle_window_lines_w2_left", "count", line, 448u); return r8(g, 0x7EC163u + (uint32_t)line * 0x04u); }
+void set_battle_window_lines_w2_left(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 407, "set_battle_window_lines_w2_left", "count", line, 448u); w8(g, 0x7EC163u + (uint32_t)line * 0x04u, v); }
+uint8_t battle_window_lines_w2_right(const GameState *g, unsigned line) { IN_RANGE(g, 407, "battle_window_lines_w2_right", "count", line, 448u); return r8(g, 0x7EC164u + (uint32_t)line * 0x04u); }
+void set_battle_window_lines_w2_right(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 407, "set_battle_window_lines_w2_right", "count", line, 448u); w8(g, 0x7EC164u + (uint32_t)line * 0x04u, v); }
+uint8_t battle_window_registers(const GameState *g, unsigned i) { IN_RANGE(g, 408, "battle_window_registers", "count", i, 5u); return r8(g, 0x7EC861u + (uint32_t)i * 0x01u); }
+void set_battle_window_registers(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 408, "set_battle_window_registers", "count", i, 5u); w8(g, 0x7EC861u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_line_tables_byte(const GameState *g, unsigned line, unsigned at) { IN_RANGE(g, 409, "battle_line_tables_byte", "count", line, 7u); IN_RANGE(g, 409, "battle_line_tables_byte", "bytes", at, 45u); return r8(g, 0x7EC867u + (uint32_t)line * 0x2Du + at); }
+void set_battle_line_tables_byte(GameState *g, unsigned line, unsigned at, uint8_t v) { IN_RANGE(g, 409, "set_battle_line_tables_byte", "count", line, 7u); IN_RANGE(g, 409, "set_battle_line_tables_byte", "bytes", at, 45u); w8(g, 0x7EC867u + (uint32_t)line * 0x2Du + at, v); }
+uint8_t battle_window_line_tables_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 410, "battle_window_line_tables_byte", "count", i, 2u); IN_RANGE(g, 410, "battle_window_line_tables_byte", "bytes", at, 45u); return r8(g, 0x7EC9A2u + (uint32_t)i * 0x2Du + at); }
+void set_battle_window_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 410, "set_battle_window_line_tables_byte", "count", i, 2u); IN_RANGE(g, 410, "set_battle_window_line_tables_byte", "bytes", at, 45u); w8(g, 0x7EC9A2u + (uint32_t)i * 0x2Du + at, v); }
 uint8_t battle_block_upload_row(const GameState *g) { return r8(g, 0x7ECA16u); }
 void set_battle_block_upload_row(GameState *g, uint8_t v) { w8(g, 0x7ECA16u, v); }
 uint8_t battle_block_upload_request(const GameState *g) { return r8(g, 0x7ECA17u); }
@@ -1963,54 +2479,54 @@ uint16_t battle_vram_request_vram(const GameState *g) { return r16(g, 0x7ECA2Au)
 void set_battle_vram_request_vram(GameState *g, uint16_t v) { w16(g, 0x7ECA2Au, v); }
 uint16_t battle_vram_request_size(const GameState *g) { return r16(g, 0x7ECA2Cu); }
 void set_battle_vram_request_size(GameState *g, uint16_t v) { w16(g, 0x7ECA2Cu, v); }
-uint16_t battle_screen_motion_direction(const GameState *g, unsigned channel) { return r16(g, 0x7ECA52u + (uint32_t)channel * 0x10u); }
-void set_battle_screen_motion_direction(GameState *g, unsigned channel, uint16_t v) { w16(g, 0x7ECA52u + (uint32_t)channel * 0x10u, v); }
-uint16_t battle_screen_motion_base(const GameState *g, unsigned channel) { return r16(g, 0x7ECA54u + (uint32_t)channel * 0x10u); }
-void set_battle_screen_motion_base(GameState *g, unsigned channel, uint16_t v) { w16(g, 0x7ECA54u + (uint32_t)channel * 0x10u, v); }
-uint16_t battle_bg3_scroll(const GameState *g, unsigned i) { return r16(g, 0x7ECA5Au + (uint32_t)i * 0x02u); }
-void set_battle_bg3_scroll(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7ECA5Au + (uint32_t)i * 0x02u, v); }
-uint16_t battle_bg3_scroll_offset(const GameState *g, unsigned i) { return r16(g, 0x7ECA5Eu + (uint32_t)i * 0x02u); }
-void set_battle_bg3_scroll_offset(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7ECA5Eu + (uint32_t)i * 0x02u, v); }
-uint16_t battle_screen_swing_speed(const GameState *g, unsigned channel) { return r16(g, 0x7ECA7Au + (uint32_t)channel * 0x10u); }
-void set_battle_screen_swing_speed(GameState *g, unsigned channel, uint16_t v) { w16(g, 0x7ECA7Au + (uint32_t)channel * 0x10u, v); }
-uint16_t battle_screen_swing_step(const GameState *g, unsigned channel) { return r16(g, 0x7ECA7Cu + (uint32_t)channel * 0x10u); }
-void set_battle_screen_swing_step(GameState *g, unsigned channel, uint16_t v) { w16(g, 0x7ECA7Cu + (uint32_t)channel * 0x10u, v); }
-uint32_t battle_screen_swing_position(const GameState *g, unsigned channel) { return r32(g, 0x7ECA7Eu + (uint32_t)channel * 0x10u); }
-void set_battle_screen_swing_position(GameState *g, unsigned channel, uint32_t v) { w32(g, 0x7ECA7Eu + (uint32_t)channel * 0x10u, v); }
+uint16_t battle_screen_motion_direction(const GameState *g, unsigned channel) { IN_RANGE(g, 411, "battle_screen_motion_direction", "count", channel, 2u); return r16(g, 0x7ECA52u + (uint32_t)channel * 0x10u); }
+void set_battle_screen_motion_direction(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 411, "set_battle_screen_motion_direction", "count", channel, 2u); w16(g, 0x7ECA52u + (uint32_t)channel * 0x10u, v); }
+uint16_t battle_screen_motion_base(const GameState *g, unsigned channel) { IN_RANGE(g, 412, "battle_screen_motion_base", "count", channel, 2u); return r16(g, 0x7ECA54u + (uint32_t)channel * 0x10u); }
+void set_battle_screen_motion_base(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 412, "set_battle_screen_motion_base", "count", channel, 2u); w16(g, 0x7ECA54u + (uint32_t)channel * 0x10u, v); }
+uint16_t battle_bg3_scroll(const GameState *g, unsigned i) { IN_RANGE(g, 413, "battle_bg3_scroll", "count", i, 2u); return r16(g, 0x7ECA5Au + (uint32_t)i * 0x02u); }
+void set_battle_bg3_scroll(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 413, "set_battle_bg3_scroll", "count", i, 2u); w16(g, 0x7ECA5Au + (uint32_t)i * 0x02u, v); }
+uint16_t battle_bg3_scroll_offset(const GameState *g, unsigned i) { IN_RANGE(g, 414, "battle_bg3_scroll_offset", "count", i, 2u); return r16(g, 0x7ECA5Eu + (uint32_t)i * 0x02u); }
+void set_battle_bg3_scroll_offset(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 414, "set_battle_bg3_scroll_offset", "count", i, 2u); w16(g, 0x7ECA5Eu + (uint32_t)i * 0x02u, v); }
+uint16_t battle_screen_swing_speed(const GameState *g, unsigned channel) { IN_RANGE(g, 415, "battle_screen_swing_speed", "count", channel, 2u); return r16(g, 0x7ECA7Au + (uint32_t)channel * 0x10u); }
+void set_battle_screen_swing_speed(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 415, "set_battle_screen_swing_speed", "count", channel, 2u); w16(g, 0x7ECA7Au + (uint32_t)channel * 0x10u, v); }
+uint16_t battle_screen_swing_step(const GameState *g, unsigned channel) { IN_RANGE(g, 416, "battle_screen_swing_step", "count", channel, 2u); return r16(g, 0x7ECA7Cu + (uint32_t)channel * 0x10u); }
+void set_battle_screen_swing_step(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 416, "set_battle_screen_swing_step", "count", channel, 2u); w16(g, 0x7ECA7Cu + (uint32_t)channel * 0x10u, v); }
+uint32_t battle_screen_swing_position(const GameState *g, unsigned channel) { IN_RANGE(g, 417, "battle_screen_swing_position", "count", channel, 2u); return r32(g, 0x7ECA7Eu + (uint32_t)channel * 0x10u); }
+void set_battle_screen_swing_position(GameState *g, unsigned channel, uint32_t v) { IN_RANGE(g, 417, "set_battle_screen_swing_position", "count", channel, 2u); w32(g, 0x7ECA7Eu + (uint32_t)channel * 0x10u, v); }
 uint8_t battle_scroll_mode(const GameState *g) { return r8(g, 0x7ECA92u); }
 void set_battle_scroll_mode(GameState *g, uint8_t v) { w8(g, 0x7ECA92u, v); }
-uint8_t battle_saved_positions(const GameState *g, unsigned slot) { return r8(g, 0x7ECAEAu + (uint32_t)slot * 0x01u); }
-void set_battle_saved_positions(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7ECAEAu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_saved_positions(const GameState *g, unsigned slot) { IN_RANGE(g, 418, "battle_saved_positions", "count", slot, 12u); return r8(g, 0x7ECAEAu + (uint32_t)slot * 0x01u); }
+void set_battle_saved_positions(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 418, "set_battle_saved_positions", "count", slot, 12u); w8(g, 0x7ECAEAu + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_window_quad_index(const GameState *g) { return r8(g, 0x7ECC64u); }
 void set_battle_window_quad_index(GameState *g, uint8_t v) { w8(g, 0x7ECC64u, v); }
-uint8_t battle_saved_direct_page(const GameState *g, unsigned i) { return r8(g, 0x7ECC65u + (uint32_t)i * 0x01u); }
-void set_battle_saved_direct_page(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECC65u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_saved_direct_page(const GameState *g, unsigned i) { IN_RANGE(g, 419, "battle_saved_direct_page", "count", i, 43u); return r8(g, 0x7ECC65u + (uint32_t)i * 0x01u); }
+void set_battle_saved_direct_page(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 419, "set_battle_saved_direct_page", "count", i, 43u); w8(g, 0x7ECC65u + (uint32_t)i * 0x01u, v); }
 uint16_t battle_repeat_buttons(const GameState *g) { return r16(g, 0x7ECC97u); }
 void set_battle_repeat_buttons(GameState *g, uint16_t v) { w16(g, 0x7ECC97u, v); }
 uint16_t battle_repeat_delay(const GameState *g) { return r16(g, 0x7ECC9Bu); }
 void set_battle_repeat_delay(GameState *g, uint16_t v) { w16(g, 0x7ECC9Bu, v); }
-uint16_t battle_shake_offsets(const GameState *g, unsigned layer) { return r16(g, 0x7ECCA4u + (uint32_t)layer * 0x02u); }
-void set_battle_shake_offsets(GameState *g, unsigned layer, uint16_t v) { w16(g, 0x7ECCA4u + (uint32_t)layer * 0x02u, v); }
-uint8_t battle_shake_on(const GameState *g, unsigned i) { return r8(g, 0x7ECCB0u + (uint32_t)i * 0x08u); }
-void set_battle_shake_on(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCB0u + (uint32_t)i * 0x08u, v); }
-uint8_t battle_shake_magnitude(const GameState *g, unsigned i) { return r8(g, 0x7ECCB1u + (uint32_t)i * 0x08u); }
-void set_battle_shake_magnitude(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCB1u + (uint32_t)i * 0x08u, v); }
-uint8_t battle_shake_elapsed(const GameState *g, unsigned i) { return r8(g, 0x7ECCB2u + (uint32_t)i * 0x08u); }
-void set_battle_shake_elapsed(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCB2u + (uint32_t)i * 0x08u, v); }
-uint8_t battle_shake_period(const GameState *g, unsigned i) { return r8(g, 0x7ECCB3u + (uint32_t)i * 0x08u); }
-void set_battle_shake_period(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCB3u + (uint32_t)i * 0x08u, v); }
-uint8_t battle_shake_rate_elapsed(const GameState *g, unsigned i) { return r8(g, 0x7ECCB4u + (uint32_t)i * 0x08u); }
-void set_battle_shake_rate_elapsed(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCB4u + (uint32_t)i * 0x08u, v); }
-uint8_t battle_shake_rate(const GameState *g, unsigned i) { return r8(g, 0x7ECCB5u + (uint32_t)i * 0x08u); }
-void set_battle_shake_rate(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCB5u + (uint32_t)i * 0x08u, v); }
-uint8_t battle_shake_amplitude(const GameState *g, unsigned i) { return r8(g, 0x7ECCB6u + (uint32_t)i * 0x08u); }
-void set_battle_shake_amplitude(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCB6u + (uint32_t)i * 0x08u, v); }
-uint8_t battle_shake_target(const GameState *g, unsigned i) { return r8(g, 0x7ECCB7u + (uint32_t)i * 0x08u); }
-void set_battle_shake_target(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCB7u + (uint32_t)i * 0x08u, v); }
+uint16_t battle_shake_offsets(const GameState *g, unsigned layer) { IN_RANGE(g, 420, "battle_shake_offsets", "count", layer, 6u); return r16(g, 0x7ECCA4u + (uint32_t)layer * 0x02u); }
+void set_battle_shake_offsets(GameState *g, unsigned layer, uint16_t v) { IN_RANGE(g, 420, "set_battle_shake_offsets", "count", layer, 6u); w16(g, 0x7ECCA4u + (uint32_t)layer * 0x02u, v); }
+uint8_t battle_shake_on(const GameState *g, unsigned i) { IN_RANGE(g, 421, "battle_shake_on", "count", i, 2u); return r8(g, 0x7ECCB0u + (uint32_t)i * 0x08u); }
+void set_battle_shake_on(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 421, "set_battle_shake_on", "count", i, 2u); w8(g, 0x7ECCB0u + (uint32_t)i * 0x08u, v); }
+uint8_t battle_shake_magnitude(const GameState *g, unsigned i) { IN_RANGE(g, 421, "battle_shake_magnitude", "count", i, 2u); return r8(g, 0x7ECCB1u + (uint32_t)i * 0x08u); }
+void set_battle_shake_magnitude(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 421, "set_battle_shake_magnitude", "count", i, 2u); w8(g, 0x7ECCB1u + (uint32_t)i * 0x08u, v); }
+uint8_t battle_shake_elapsed(const GameState *g, unsigned i) { IN_RANGE(g, 421, "battle_shake_elapsed", "count", i, 2u); return r8(g, 0x7ECCB2u + (uint32_t)i * 0x08u); }
+void set_battle_shake_elapsed(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 421, "set_battle_shake_elapsed", "count", i, 2u); w8(g, 0x7ECCB2u + (uint32_t)i * 0x08u, v); }
+uint8_t battle_shake_period(const GameState *g, unsigned i) { IN_RANGE(g, 421, "battle_shake_period", "count", i, 2u); return r8(g, 0x7ECCB3u + (uint32_t)i * 0x08u); }
+void set_battle_shake_period(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 421, "set_battle_shake_period", "count", i, 2u); w8(g, 0x7ECCB3u + (uint32_t)i * 0x08u, v); }
+uint8_t battle_shake_rate_elapsed(const GameState *g, unsigned i) { IN_RANGE(g, 421, "battle_shake_rate_elapsed", "count", i, 2u); return r8(g, 0x7ECCB4u + (uint32_t)i * 0x08u); }
+void set_battle_shake_rate_elapsed(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 421, "set_battle_shake_rate_elapsed", "count", i, 2u); w8(g, 0x7ECCB4u + (uint32_t)i * 0x08u, v); }
+uint8_t battle_shake_rate(const GameState *g, unsigned i) { IN_RANGE(g, 421, "battle_shake_rate", "count", i, 2u); return r8(g, 0x7ECCB5u + (uint32_t)i * 0x08u); }
+void set_battle_shake_rate(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 421, "set_battle_shake_rate", "count", i, 2u); w8(g, 0x7ECCB5u + (uint32_t)i * 0x08u, v); }
+uint8_t battle_shake_amplitude(const GameState *g, unsigned i) { IN_RANGE(g, 421, "battle_shake_amplitude", "count", i, 2u); return r8(g, 0x7ECCB6u + (uint32_t)i * 0x08u); }
+void set_battle_shake_amplitude(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 421, "set_battle_shake_amplitude", "count", i, 2u); w8(g, 0x7ECCB6u + (uint32_t)i * 0x08u, v); }
+uint8_t battle_shake_target(const GameState *g, unsigned i) { IN_RANGE(g, 421, "battle_shake_target", "count", i, 2u); return r8(g, 0x7ECCB7u + (uint32_t)i * 0x08u); }
+void set_battle_shake_target(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 421, "set_battle_shake_target", "count", i, 2u); w8(g, 0x7ECCB7u + (uint32_t)i * 0x08u, v); }
 uint8_t battle_shake_layers(const GameState *g) { return r8(g, 0x7ECCC0u); }
 void set_battle_shake_layers(GameState *g, uint8_t v) { w8(g, 0x7ECCC0u, v); }
-uint8_t battle_palette_slot_presets(const GameState *g, unsigned i) { return r8(g, 0x7ECCC1u + (uint32_t)i * 0x01u); }
-void set_battle_palette_slot_presets(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECCC1u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_palette_slot_presets(const GameState *g, unsigned i) { IN_RANGE(g, 422, "battle_palette_slot_presets", "count", i, 36u); return r8(g, 0x7ECCC1u + (uint32_t)i * 0x01u); }
+void set_battle_palette_slot_presets(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 422, "set_battle_palette_slot_presets", "count", i, 36u); w8(g, 0x7ECCC1u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_palette_preset_request(const GameState *g) { return r8(g, 0x7ECCE5u); }
 void set_battle_palette_preset_request(GameState *g, uint8_t v) { w8(g, 0x7ECCE5u, v); }
 uint8_t battle_message_frames(const GameState *g) { return r8(g, 0x7ECCEBu); }
@@ -2023,8 +2539,8 @@ uint8_t battle_paused(const GameState *g) { return r8(g, 0x7ECD02u); }
 void set_battle_paused(GameState *g, uint8_t v) { w8(g, 0x7ECD02u, v); }
 uint8_t battle_pause_held(const GameState *g) { return r8(g, 0x7ECD03u); }
 void set_battle_pause_held(GameState *g, uint8_t v) { w8(g, 0x7ECD03u, v); }
-uint8_t battle_window_quads(const GameState *g, unsigned i) { return r8(g, 0x7ECD0Du + (uint32_t)i * 0x02u); }
-void set_battle_window_quads(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECD0Du + (uint32_t)i * 0x02u, v); }
+uint8_t battle_window_quads(const GameState *g, unsigned i) { IN_RANGE(g, 423, "battle_window_quads", "count", i, 8u); return r8(g, 0x7ECD0Du + (uint32_t)i * 0x02u); }
+void set_battle_window_quads(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 423, "set_battle_window_quads", "count", i, 8u); w8(g, 0x7ECD0Du + (uint32_t)i * 0x02u, v); }
 uint8_t battle_message_by_id(const GameState *g) { return r8(g, 0x7ECD1Du); }
 void set_battle_message_by_id(GameState *g, uint8_t v) { w8(g, 0x7ECD1Du, v); }
 uint8_t battle_block_uploaded_row(const GameState *g) { return r8(g, 0x7ECD1Fu); }
@@ -2033,14 +2549,14 @@ uint16_t battle_block_uploaded_source(const GameState *g) { return r16(g, 0x7ECD
 void set_battle_block_uploaded_source(GameState *g, uint16_t v) { w16(g, 0x7ECD20u, v); }
 uint8_t battle_setup_flags_copy(const GameState *g) { return r8(g, 0x7ECD27u); }
 void set_battle_setup_flags_copy(GameState *g, uint8_t v) { w8(g, 0x7ECD27u, v); }
-uint8_t battle_saved_palette_types(const GameState *g, unsigned slot) { return r8(g, 0x7ECD2Fu + (uint32_t)slot * 0x01u); }
-void set_battle_saved_palette_types(GameState *g, unsigned slot, uint8_t v) { w8(g, 0x7ECD2Fu + (uint32_t)slot * 0x01u, v); }
+uint8_t battle_saved_palette_types(const GameState *g, unsigned slot) { IN_RANGE(g, 424, "battle_saved_palette_types", "count", slot, 8u); return r8(g, 0x7ECD2Fu + (uint32_t)slot * 0x01u); }
+void set_battle_saved_palette_types(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 424, "set_battle_saved_palette_types", "count", slot, 8u); w8(g, 0x7ECD2Fu + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_column_band_half_height(const GameState *g) { return r8(g, 0x7ECD38u); }
 void set_battle_column_band_half_height(GameState *g, uint8_t v) { w8(g, 0x7ECD38u, v); }
 uint8_t battle_column_band_left(const GameState *g) { return r8(g, 0x7ECD39u); }
 void set_battle_column_band_left(GameState *g, uint8_t v) { w8(g, 0x7ECD39u, v); }
-uint8_t battle_window_steps(const GameState *g, unsigned i) { return r8(g, 0x7ECD3Au + (uint32_t)i * 0x01u); }
-void set_battle_window_steps(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7ECD3Au + (uint32_t)i * 0x01u, v); }
+uint8_t battle_window_steps(const GameState *g, unsigned i) { IN_RANGE(g, 425, "battle_window_steps", "count", i, 2u); return r8(g, 0x7ECD3Au + (uint32_t)i * 0x01u); }
+void set_battle_window_steps(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 425, "set_battle_window_steps", "count", i, 2u); w8(g, 0x7ECD3Au + (uint32_t)i * 0x01u, v); }
 uint16_t battle_effect_graphics_list(const GameState *g) { return r16(g, 0x7ECD3Du); }
 void set_battle_effect_graphics_list(GameState *g, uint16_t v) { w16(g, 0x7ECD3Du, v); }
 uint16_t battle_effect_graphics_vram(const GameState *g) { return r16(g, 0x7ECD3Fu); }
@@ -2055,8 +2571,8 @@ uint8_t battle_palette_rows_moved(const GameState *g) { return r8(g, 0x7ECDC8u);
 void set_battle_palette_rows_moved(GameState *g, uint8_t v) { w8(g, 0x7ECDC8u, v); }
 uint8_t battle_gradient_phase(const GameState *g) { return r8(g, 0x7ECDC9u); }
 void set_battle_gradient_phase(GameState *g, uint8_t v) { w8(g, 0x7ECDC9u, v); }
-uint16_t battle_gradient_colors(const GameState *g, unsigned i) { return r16(g, 0x7ECDCCu + (uint32_t)i * 0x02u); }
-void set_battle_gradient_colors(GameState *g, unsigned i, uint16_t v) { w16(g, 0x7ECDCCu + (uint32_t)i * 0x02u, v); }
+uint16_t battle_gradient_colors(const GameState *g, unsigned i) { IN_RANGE(g, 426, "battle_gradient_colors", "count", i, 28u); return r16(g, 0x7ECDCCu + (uint32_t)i * 0x02u); }
+void set_battle_gradient_colors(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 426, "set_battle_gradient_colors", "count", i, 28u); w16(g, 0x7ECDCCu + (uint32_t)i * 0x02u, v); }
 uint8_t battle_gradient_fading(const GameState *g) { return r8(g, 0x7ECE0Au); }
 void set_battle_gradient_fading(GameState *g, uint8_t v) { w8(g, 0x7ECE0Au, v); }
 uint8_t battle_gradient_level(const GameState *g) { return r8(g, 0x7ECE0Bu); }
@@ -2083,8 +2599,8 @@ uint8_t battle_frame_advance_count(const GameState *g) { return r8(g, 0x7ECE19u)
 void set_battle_frame_advance_count(GameState *g, uint8_t v) { w8(g, 0x7ECE19u, v); }
 uint8_t battle_palette_pause_request(const GameState *g) { return r8(g, 0x7ECFFFu); }
 void set_battle_palette_pause_request(GameState *g, uint8_t v) { w8(g, 0x7ECFFFu, v); }
-uint16_t battle_wave_edges(const GameState *g, unsigned line) { return r16(g, 0x7EE500u + (uint32_t)line * 0x08u); }
-void set_battle_wave_edges(GameState *g, unsigned line, uint16_t v) { w16(g, 0x7EE500u + (uint32_t)line * 0x08u, v); }
+uint16_t battle_wave_edges(const GameState *g, unsigned line) { IN_RANGE(g, 427, "battle_wave_edges", "count", line, 106u); return r16(g, 0x7EE500u + (uint32_t)line * 0x08u); }
+void set_battle_wave_edges(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 427, "set_battle_wave_edges", "count", line, 106u); w16(g, 0x7EE500u + (uint32_t)line * 0x08u, v); }
 uint8_t battle_result(const GameState *g) { return r8(g, 0x7F01ECu); }
 void set_battle_result(GameState *g, uint8_t v) { w8(g, 0x7F01ECu, v); }
 
@@ -2134,8 +2650,8 @@ uint16_t scene_scaler_output_end(const GameState *g) { return r16(g, 0x7E0037u);
 void set_scene_scaler_output_end(GameState *g, uint16_t v) { w16(g, 0x7E0037u, v); }
 uint16_t scene_race_tilemap_pending(const GameState *g) { return r16(g, 0x7E0039u); }
 void set_scene_race_tilemap_pending(GameState *g, uint16_t v) { w16(g, 0x7E0039u, v); }
-uint8_t scene_bitplane_scratch_byte(const GameState *g, unsigned at) { return r8(g, 0x7E003Bu + at); }
-void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E003Bu + at, v); }
+uint8_t scene_bitplane_scratch_byte(const GameState *g, unsigned at) { IN_RANGE(g, 428, "scene_bitplane_scratch_byte", "bytes", at, 9u); return r8(g, 0x7E003Bu + at); }
+void set_scene_bitplane_scratch_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 428, "set_scene_bitplane_scratch_byte", "bytes", at, 9u); w8(g, 0x7E003Bu + at, v); }
 uint16_t scene_bg3_scroll_x(const GameState *g) { return r16(g, 0x7E0044u); }
 void set_scene_bg3_scroll_x(GameState *g, uint16_t v) { w16(g, 0x7E0044u, v); }
 uint8_t scene_race_engine_pitch(const GameState *g) { return r8(g, 0x7E004Bu); }
@@ -2206,26 +2722,26 @@ uint8_t scene_irq_stub_jump(const GameState *g) { return r8(g, 0x7E0504u); }
 void set_scene_irq_stub_jump(GameState *g, uint8_t v) { w8(g, 0x7E0504u, v); }
 uint32_t scene_irq_stub_handler(const GameState *g) { return r24(g, 0x7E0505u); }
 void set_scene_irq_stub_handler(GameState *g, uint32_t v) { w24(g, 0x7E0505u, v); }
-uint8_t scene_sprite_table_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0700u + at); }
-void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0700u + at, v); }
-uint8_t scene_sprite_high_table_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0900u + at); }
-void set_scene_sprite_high_table_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0900u + at, v); }
-uint16_t scene_tasks(const GameState *g, unsigned slot) { return r16(g, 0x7E0920u + (uint32_t)slot * 0x02u); }
-void set_scene_tasks(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0920u + (uint32_t)slot * 0x02u, v); }
-uint16_t scene_early_tasks(const GameState *g, unsigned slot) { return r16(g, 0x7E0940u + (uint32_t)slot * 0x02u); }
-void set_scene_early_tasks(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0940u + (uint32_t)slot * 0x02u, v); }
-uint16_t scene_tasks_running(const GameState *g, unsigned slot) { return r16(g, 0x7E0950u + (uint32_t)slot * 0x02u); }
-void set_scene_tasks_running(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0950u + (uint32_t)slot * 0x02u, v); }
-uint8_t scene_channels_registers_byte(const GameState *g, unsigned channel, unsigned at) { return r8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at); }
-void set_scene_channels_registers_byte(GameState *g, unsigned channel, unsigned at, uint8_t v) { w8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at, v); }
-uint16_t scene_channels_script(const GameState *g, unsigned channel) { return r16(g, 0x7E0A20u + (uint32_t)channel * 0x100u); }
-void set_scene_channels_script(GameState *g, unsigned channel, uint16_t v) { w16(g, 0x7E0A20u + (uint32_t)channel * 0x100u, v); }
-uint8_t scene_channels_loop_counters_byte(const GameState *g, unsigned channel, unsigned at) { return r8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at); }
-void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsigned at, uint8_t v) { w8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at, v); }
-uint16_t scene_channels_return_address(const GameState *g, unsigned channel) { return r16(g, 0x7E0A30u + (uint32_t)channel * 0x100u); }
-void set_scene_channels_return_address(GameState *g, unsigned channel, uint16_t v) { w16(g, 0x7E0A30u + (uint32_t)channel * 0x100u, v); }
-uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at) { return r8(g, 0x7E0C00u + at); }
-void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E0C00u + at, v); }
+uint8_t scene_sprite_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 429, "scene_sprite_table_byte", "bytes", at, 512u); return r8(g, 0x7E0700u + at); }
+void set_scene_sprite_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 429, "set_scene_sprite_table_byte", "bytes", at, 512u); w8(g, 0x7E0700u + at, v); }
+uint8_t scene_sprite_high_table_byte(const GameState *g, unsigned at) { IN_RANGE(g, 430, "scene_sprite_high_table_byte", "bytes", at, 32u); return r8(g, 0x7E0900u + at); }
+void set_scene_sprite_high_table_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 430, "set_scene_sprite_high_table_byte", "bytes", at, 32u); w8(g, 0x7E0900u + at, v); }
+uint16_t scene_tasks(const GameState *g, unsigned slot) { IN_RANGE(g, 431, "scene_tasks", "count", slot, 16u); return r16(g, 0x7E0920u + (uint32_t)slot * 0x02u); }
+void set_scene_tasks(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 431, "set_scene_tasks", "count", slot, 16u); w16(g, 0x7E0920u + (uint32_t)slot * 0x02u, v); }
+uint16_t scene_early_tasks(const GameState *g, unsigned slot) { IN_RANGE(g, 432, "scene_early_tasks", "count", slot, 8u); return r16(g, 0x7E0940u + (uint32_t)slot * 0x02u); }
+void set_scene_early_tasks(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 432, "set_scene_early_tasks", "count", slot, 8u); w16(g, 0x7E0940u + (uint32_t)slot * 0x02u, v); }
+uint16_t scene_tasks_running(const GameState *g, unsigned slot) { IN_RANGE(g, 433, "scene_tasks_running", "count", slot, 16u); return r16(g, 0x7E0950u + (uint32_t)slot * 0x02u); }
+void set_scene_tasks_running(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 433, "set_scene_tasks_running", "count", slot, 16u); w16(g, 0x7E0950u + (uint32_t)slot * 0x02u, v); }
+uint8_t scene_channels_registers_byte(const GameState *g, unsigned channel, unsigned at) { IN_RANGE(g, 434, "scene_channels_registers_byte", "count", channel, 2u); IN_RANGE(g, 434, "scene_channels_registers_byte", "bytes", at, 32u); return r8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at); }
+void set_scene_channels_registers_byte(GameState *g, unsigned channel, unsigned at, uint8_t v) { IN_RANGE(g, 434, "set_scene_channels_registers_byte", "count", channel, 2u); IN_RANGE(g, 434, "set_scene_channels_registers_byte", "bytes", at, 32u); w8(g, 0x7E0A00u + (uint32_t)channel * 0x100u + at, v); }
+uint16_t scene_channels_script(const GameState *g, unsigned channel) { IN_RANGE(g, 434, "scene_channels_script", "count", channel, 2u); return r16(g, 0x7E0A20u + (uint32_t)channel * 0x100u); }
+void set_scene_channels_script(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 434, "set_scene_channels_script", "count", channel, 2u); w16(g, 0x7E0A20u + (uint32_t)channel * 0x100u, v); }
+uint8_t scene_channels_loop_counters_byte(const GameState *g, unsigned channel, unsigned at) { IN_RANGE(g, 434, "scene_channels_loop_counters_byte", "count", channel, 2u); IN_RANGE(g, 434, "scene_channels_loop_counters_byte", "bytes", at, 32u); return r8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at); }
+void set_scene_channels_loop_counters_byte(GameState *g, unsigned channel, unsigned at, uint8_t v) { IN_RANGE(g, 434, "set_scene_channels_loop_counters_byte", "count", channel, 2u); IN_RANGE(g, 434, "set_scene_channels_loop_counters_byte", "bytes", at, 32u); w8(g, 0x7E0A22u + (uint32_t)channel * 0x100u + at, v); }
+uint16_t scene_channels_return_address(const GameState *g, unsigned channel) { IN_RANGE(g, 434, "scene_channels_return_address", "count", channel, 2u); return r16(g, 0x7E0A30u + (uint32_t)channel * 0x100u); }
+void set_scene_channels_return_address(GameState *g, unsigned channel, uint16_t v) { IN_RANGE(g, 434, "set_scene_channels_return_address", "count", channel, 2u); w16(g, 0x7E0A30u + (uint32_t)channel * 0x100u, v); }
+uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at) { IN_RANGE(g, 435, "scene_tilemap_buffer_byte", "bytes", at, 2048u); return r8(g, 0x7E0C00u + at); }
+void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 435, "set_scene_tilemap_buffer_byte", "bytes", at, 2048u); w8(g, 0x7E0C00u + at, v); }
 uint16_t scene_race_center_x(const GameState *g) { return r16(g, 0x7E142Cu); }
 void set_scene_race_center_x(GameState *g, uint16_t v) { w16(g, 0x7E142Cu, v); }
 uint16_t scene_race_center_y(const GameState *g) { return r16(g, 0x7E142Eu); }
@@ -2236,55 +2752,55 @@ uint16_t scene_race_bg3_scroll_x(const GameState *g) { return r16(g, 0x7E1434u);
 void set_scene_race_bg3_scroll_x(GameState *g, uint16_t v) { w16(g, 0x7E1434u, v); }
 uint16_t scene_race_bg3_scroll_y(const GameState *g) { return r16(g, 0x7E1436u); }
 void set_scene_race_bg3_scroll_y(GameState *g, uint16_t v) { w16(g, 0x7E1436u, v); }
-uint8_t scene_palette_byte(const GameState *g, unsigned at) { return r8(g, 0x7E2200u + at); }
-void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7E2200u + at, v); }
-uint8_t scene_race_plane_column_byte(const GameState *g, unsigned at) { return r8(g, 0x7EC995u + at); }
-void set_scene_race_plane_column_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7EC995u + at, v); }
-uint8_t scene_race_road_strip_byte(const GameState *g, unsigned at) { return r8(g, 0x7EE100u + at); }
-void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7EE100u + at, v); }
-uint8_t scene_race_line_tables_byte(const GameState *g, unsigned at) { return r8(g, 0x7EF000u + at); }
-void set_scene_race_line_tables_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7EF000u + at, v); }
-uint8_t scene_race_scaler_output_byte(const GameState *g, unsigned at) { return r8(g, 0x7F0300u + at); }
-void set_scene_race_scaler_output_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7F0300u + at, v); }
-uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at) { return r8(g, 0x7F2200u + at); }
-void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v) { w8(g, 0x7F2200u + at, v); }
-uint16_t scene_call_first(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_first(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF0u, v); }
-uint16_t scene_call_second(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF2u); }
-void set_scene_call_second(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF2u, v); }
-uint32_t scene_call_dividend(const GameState *g, SceneProgramPage page) { return r32(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v) { w32(g, scene_program_page_base(page) + 0xF0u, v); }
-uint32_t scene_call_product(const GameState *g, SceneProgramPage page) { return r32(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v) { w32(g, scene_program_page_base(page) + 0xF4u, v); }
-uint32_t scene_call_divisor(const GameState *g, SceneProgramPage page) { return r32(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_divisor(GameState *g, SceneProgramPage page, uint32_t v) { w32(g, scene_program_page_base(page) + 0xF4u, v); }
-uint16_t scene_call_fraction(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_fraction(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF4u, v); }
-uint16_t scene_call_quotient_limit(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_quotient_limit(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF4u, v); }
-uint32_t scene_call_quotient(const GameState *g, SceneProgramPage page) { return r32(g, scene_program_page_base(page) + 0xF8u); }
-void set_scene_call_quotient(GameState *g, SceneProgramPage page, uint32_t v) { w32(g, scene_program_page_base(page) + 0xF8u, v); }
-uint8_t scene_call_after_the_product(const GameState *g, SceneProgramPage page) { return r8(g, scene_program_page_base(page) + 0xF8u); }
-void set_scene_call_after_the_product(GameState *g, SceneProgramPage page, uint8_t v) { w8(g, scene_program_page_base(page) + 0xF8u, v); }
-uint16_t scene_call_divisor_less_one(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF8u); }
-void set_scene_call_divisor_less_one(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF8u, v); }
-uint32_t scene_call_remainder(const GameState *g, SceneProgramPage page) { return r32(g, scene_program_page_base(page) + 0xFCu); }
-void set_scene_call_remainder(GameState *g, SceneProgramPage page, uint32_t v) { w32(g, scene_program_page_base(page) + 0xFCu, v); }
-uint8_t scene_call_transfer_control(const GameState *g, SceneProgramPage page) { return r8(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_transfer_control(GameState *g, SceneProgramPage page, uint8_t v) { w8(g, scene_program_page_base(page) + 0xF0u, v); }
-uint8_t scene_call_transfer_register(const GameState *g, SceneProgramPage page) { return r8(g, scene_program_page_base(page) + 0xF2u); }
-void set_scene_call_transfer_register(GameState *g, SceneProgramPage page, uint8_t v) { w8(g, scene_program_page_base(page) + 0xF2u, v); }
-uint16_t scene_call_matrix_table_offset(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_matrix_table_offset(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF0u, v); }
-uint16_t scene_call_matrix_row_step(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF2u); }
-void set_scene_call_matrix_row_step(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF2u, v); }
-uint16_t scene_call_matrix_pair_step(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF4u); }
-void set_scene_call_matrix_pair_step(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF4u, v); }
-uint16_t scene_call_matrix_column_step(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF6u); }
-void set_scene_call_matrix_column_step(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF6u, v); }
-uint16_t scene_call_matrix_source(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF8u); }
-void set_scene_call_matrix_source(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF8u, v); }
-uint16_t scene_call_matrix_destination(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xFAu); }
-void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xFAu, v); }
-uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page) { return r16(g, scene_program_page_base(page) + 0xF0u); }
-void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v) { w16(g, scene_program_page_base(page) + 0xF0u, v); }
+uint8_t scene_palette_byte(const GameState *g, unsigned at) { IN_RANGE(g, 436, "scene_palette_byte", "bytes", at, 512u); return r8(g, 0x7E2200u + at); }
+void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 436, "set_scene_palette_byte", "bytes", at, 512u); w8(g, 0x7E2200u + at, v); }
+uint8_t scene_race_plane_column_byte(const GameState *g, unsigned at) { IN_RANGE(g, 437, "scene_race_plane_column_byte", "bytes", at, 20u); return r8(g, 0x7EC995u + at); }
+void set_scene_race_plane_column_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 437, "set_scene_race_plane_column_byte", "bytes", at, 20u); w8(g, 0x7EC995u + at, v); }
+uint8_t scene_race_road_strip_byte(const GameState *g, unsigned at) { IN_RANGE(g, 438, "scene_race_road_strip_byte", "bytes", at, 64u); return r8(g, 0x7EE100u + at); }
+void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 438, "set_scene_race_road_strip_byte", "bytes", at, 64u); w8(g, 0x7EE100u + at, v); }
+uint8_t scene_race_line_tables_byte(const GameState *g, unsigned at) { IN_RANGE(g, 439, "scene_race_line_tables_byte", "bytes", at, 4096u); return r8(g, 0x7EF000u + at); }
+void set_scene_race_line_tables_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 439, "set_scene_race_line_tables_byte", "bytes", at, 4096u); w8(g, 0x7EF000u + at, v); }
+uint8_t scene_race_scaler_output_byte(const GameState *g, unsigned at) { IN_RANGE(g, 440, "scene_race_scaler_output_byte", "bytes", at, 1792u); return r8(g, 0x7F0300u + at); }
+void set_scene_race_scaler_output_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 440, "set_scene_race_scaler_output_byte", "bytes", at, 1792u); w8(g, 0x7F0300u + at, v); }
+uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at) { IN_RANGE(g, 441, "scene_race_plane_map_byte", "bytes", at, 8192u); return r8(g, 0x7F2200u + at); }
+void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 441, "set_scene_race_plane_map_byte", "bytes", at, 8192u); w8(g, 0x7F2200u + at, v); }
+uint16_t scene_call_first(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_first", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_first(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_first", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
+uint16_t scene_call_second(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_second", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }
+void set_scene_call_second(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_second", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF2u, v); }
+uint32_t scene_call_dividend(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_dividend", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 442, "set_scene_call_dividend", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF0u, v); }
+uint32_t scene_call_product(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_product", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 442, "set_scene_call_product", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF4u, v); }
+uint32_t scene_call_divisor(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_divisor", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_divisor(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 442, "set_scene_call_divisor", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF4u, v); }
+uint16_t scene_call_fraction(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_fraction", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_fraction(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_fraction", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
+uint16_t scene_call_quotient_limit(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_quotient_limit", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_quotient_limit(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_quotient_limit", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
+uint32_t scene_call_quotient(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_quotient", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF8u); }
+void set_scene_call_quotient(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 442, "set_scene_call_quotient", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF8u, v); }
+uint8_t scene_call_after_the_product(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_after_the_product", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF8u); }
+void set_scene_call_after_the_product(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 442, "set_scene_call_after_the_product", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF8u, v); }
+uint16_t scene_call_divisor_less_one(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_divisor_less_one", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF8u); }
+void set_scene_call_divisor_less_one(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_divisor_less_one", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF8u, v); }
+uint32_t scene_call_remainder(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_remainder", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xFCu); }
+void set_scene_call_remainder(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 442, "set_scene_call_remainder", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xFCu, v); }
+uint8_t scene_call_transfer_control(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_transfer_control", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_transfer_control(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 442, "set_scene_call_transfer_control", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF0u, v); }
+uint8_t scene_call_transfer_register(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_transfer_register", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF2u); }
+void set_scene_call_transfer_register(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 442, "set_scene_call_transfer_register", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF2u, v); }
+uint16_t scene_call_matrix_table_offset(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_matrix_table_offset", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_matrix_table_offset(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_matrix_table_offset", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
+uint16_t scene_call_matrix_row_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_matrix_row_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }
+void set_scene_call_matrix_row_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_matrix_row_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF2u, v); }
+uint16_t scene_call_matrix_pair_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_matrix_pair_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }
+void set_scene_call_matrix_pair_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_matrix_pair_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF4u, v); }
+uint16_t scene_call_matrix_column_step(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_matrix_column_step", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF6u); }
+void set_scene_call_matrix_column_step(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_matrix_column_step", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF6u, v); }
+uint16_t scene_call_matrix_source(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_matrix_source", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF8u); }
+void set_scene_call_matrix_source(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_matrix_source", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF8u, v); }
+uint16_t scene_call_matrix_destination(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_matrix_destination", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xFAu); }
+void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_matrix_destination", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFAu, v); }
+uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 442, "scene_call_script_scratch", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
+void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 442, "set_scene_call_script_scratch", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }

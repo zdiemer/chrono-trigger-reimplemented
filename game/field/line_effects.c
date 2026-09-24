@@ -585,6 +585,22 @@ static void leave_shading(GameState *g)
     original_cell8(g, 0xE1, FIXED_COLOR_ALL | SHADING_DEEPEST);
 }
 
+/* Table set 1's copy of the shading. The copy runs on past the shading's lines
+ * into the start of the copy itself, which lies right after them, so its lines
+ * past the shading's repeat its own first ones. */
+static void copy_dialog_shading(GameState *g)
+{
+    for (unsigned i = 0; i < SHADING_COPY_BYTES / 2; i++) {
+        uint16_t line;
+        if (i < FIELD_DIALOG_SHADING_COUNT) {
+            uint8_t layers = field_dialog_shading_layers(g, i);
+            line = (uint16_t)(field_dialog_shading_fixed_color(g, i) << 8 | layers);
+        } else
+            line = field_dialog_shading_copy(g, i - FIELD_DIALOG_SHADING_COUNT);
+        set_field_dialog_shading_copy(g, i, line);
+    }
+}
+
 static void fill_dialog_shading(GameState *g)
 {
     uint8_t line = 0;
@@ -594,10 +610,7 @@ static void fill_dialog_shading(GameState *g)
     for (uint8_t intensity = 1; intensity <= SHADING_DEEPEST; intensity++)
         shade(g, &line, SHADING_STEP, SHADING_SUBTRACT, intensity);
     ORIGINAL_EFFECT(leave_shading(g));
-    for (unsigned i = 0; i < SHADING_COPY_BYTES / 2; i++) {
-        uint8_t mode = field_dialog_shading_layers(g, i);
-        set_field_dialog_shading_copy(g, i, (uint16_t)(field_dialog_shading_fixed_color(g, i) << 8 | mode));
-    }
+    copy_dialog_shading(g);
 }
 
 /* The inside of the dialog window, which the field's setup fills once: BG1 and

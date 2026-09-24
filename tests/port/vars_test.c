@@ -7,7 +7,12 @@
  *   a menu record, the scene's own page or a sequence channel's, and nothing
  *   of the others;
  * - <page>_page_of turns each declared D into its instance, refuses every
- *   other D, and counts the refusals it made (runtime/port/vars_pages.h).
+ *   other D, and counts the refusals it made (runtime/port/vars_pages.h);
+ * - an accessor given an index past what the map declares -- an element, a
+ *   byte, a row or column, an instance -- still reaches the byte the address
+ *   arithmetic names, and is counted against its variable with the index,
+ *   the limit and which accessor it was (CT_ACCESSOR_CHECKS, which this test
+ *   is built with); an index in range is not.
  *
  * Exits non-zero on failure.
  *
@@ -107,6 +112,66 @@ static void check_scene_program(GameState *g)
           "a field overlapping another reads the same bytes");
 }
 
+static const VarsRangeFault *fault(const char *var)
+{
+    unsigned n;
+    const VarsRangeFault *r = vars_range_faults(&n);
+    for (unsigned i = 0; i < n; i++)
+        if (!strcmp(r[i].var, var))
+            return &r[i];
+    return NULL;
+}
+
+static bool hit(const VarsRangeHit *h, const char *accessor, const char *bound, unsigned index, unsigned limit)
+{
+    return !strcmp(h->accessor, accessor) && !strcmp(h->bound, bound) && h->index == index && h->limit == limit;
+}
+
+static void check_range(GameState *g)
+{
+    vars_range_reset();
+    set_input_mapped(g, 2, 0x0101);
+    (void)field_layer_maps(g, 2, 63, 63);
+    (void)scene_call_second(g, scene_program_channel(1));
+    unsigned n;
+    const VarsRangeFault *r = vars_range_faults(&n);
+    unsigned long total = 0;
+    for (unsigned i = 0; i < n; i++)
+        total += r[i].count;
+    CHECK(n > 0 && total == 0, "no index in range is counted");
+
+    /* An element past the count: the word after the array's, still written. */
+    set_input_mapped(g, 3, 0xCAFE);
+    CHECK(wram(0x7E00FC) == 0xFE && wram(0x7E00FD) == 0xCA, "input_mapped(3) still writes the word at $00FC");
+    CHECK(input_mapped(g, 3) == 0xCAFE, "and reads it back");
+    const VarsRangeFault *f = fault("input_mapped");
+    CHECK(f && f->count == 2 && f->kept == 2, "input_mapped is counted twice");
+    CHECK(f && hit(&f->first[0], "set_input_mapped", "count", 3, 3) && hit(&f->first[1], "input_mapped", "count", 3, 3),
+          "with the accessor, the index and the count");
+
+    /* A byte past a buffer, a row past a table, an instance past a page kind. */
+    (void)oam_high_table_byte(g, OAM_HIGH_TABLE_BYTES);
+    f = fault("oam_high_table");
+    CHECK(f && f->count == 1 && hit(&f->first[0], "oam_high_table_byte", "bytes", 32, 32), "a byte past the buffer");
+    (void)field_layer_maps(g, 0, FIELD_LAYER_MAPS_ROWS + 1, 0);
+    (void)field_layer_maps(g, 0, 0, FIELD_LAYER_MAPS_COLUMNS);
+    f = fault("field_layer_maps");
+    CHECK(f && f->count == 2 && hit(&f->first[0], "field_layer_maps", "rows", 65, 64)
+              && hit(&f->first[1], "field_layer_maps", "columns", 64, 64), "a row and a column past the table");
+    (void)scene_call_second(g, scene_program_channel(2));
+    f = fault("scene_call");
+    CHECK(f && f->count == 1 && hit(&f->first[0], "scene_call_second", "instances", 2, 2), "a channel past the two");
+
+    /* Only the first few are kept; every one is counted. */
+    for (unsigned k = 0; k < 10; k++)
+        (void)input_mapped(g, 4 + k);
+    f = fault("input_mapped");
+    CHECK(f && f->count == 12 && f->kept == VARS_RANGE_HITS_KEPT, "12 counted, %d kept", VARS_RANGE_HITS_KEPT);
+    vars_range_reset();
+    f = fault("input_mapped");
+    CHECK(f && f->count == 0 && f->kept == 0, "reset clears the counts");
+}
+
 int main(void)
 {
     static uint8_t rom[0x10000];
@@ -118,6 +183,7 @@ int main(void)
     check_input_cells(g);
     check_menu_records(g);
     check_scene_program(g);
+    check_range(g);
     if (failures) {
         printf("%d failure(s)\n", failures);
         return 1;

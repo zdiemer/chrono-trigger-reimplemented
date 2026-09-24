@@ -125,9 +125,11 @@ a process budget.
 
 Nothing lands without it, and it is the same gate for every phase:
 
-- every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines
-  and no `page refused` lines (a guard that turned away a call on a direct
-  page the map declares no instance for; DISASSEMBLY.md, "The accessors");
+- every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines,
+  no `page refused` lines (a guard that turned away a call on a direct
+  page the map declares no instance for) and no `accessor out of range`
+  lines (a port that reached past a variable the map declares, into
+  whatever follows it in work RAM; both in DISASSEMBLY.md, "The accessors");
 - `--native on --recomp only` traces identically to `--native off`;
 - every hand port's estimated time stays within the timing gate's limits over
   the shadow runs, or is on its exceptions list with a reason

@@ -22,6 +22,14 @@ static EventFlow record(GameState *g, StoryOffset story_at, uint16_t value, Widt
 }
 EVENT_OPERATION(record, story_at, value, width)
 
+/* The guard's part: what it writes is in the story memory (event/variables.h). */
+static bool records_in_the_story(const GameState *g, StoryOffset story_at, Width width)
+{
+    (void)g;
+    return story_holds(story_at, width);
+}
+EVENT_CHECK(records_in_the_story, story_at, width)
+
 /* What the original keeps of a flag: its mask (and the operand that names
  * it, by event/leaves.c's table). */
 static void keep_mask(GameState *g, uint8_t mask) { keep_byte(g, KEPT_FIRST, mask); }
@@ -47,9 +55,12 @@ EVENT_OPERATION(mark_story_flag, flag_bit, on_second_page, offset, raise)
 #define A_STORY_FLAG .flag_bit = OPERAND_BITS(1, 0, 0x0F), .on_second_page = OPERAND_BITS(1, 7, 0x01), .offset = OPERAND(2)
 
 EVENT_OPCODES(event_story_opcodes,
-    { 0x56, OPERATION(record), .story_at = OPERAND_WORD(2), .value = OPERAND(1), .width = BYTES, .length = 4 },
-    { 0x58, OPERATION(record), .story_at = OPERAND_WORD(2), .value = VARIABLE_WORD(1), .width = BYTES, .length = 4 },
-    { 0x59, OPERATION(record), .story_at = OPERAND_WORD(2), .value = VARIABLE_WORD(1), .width = WORDS, .length = 4 },
+    { 0x56, OPERATION(record), .story_at = OPERAND_WORD(2), .value = OPERAND(1), .width = BYTES, .length = 4,
+      CHECK(records_in_the_story) },
+    { 0x58, OPERATION(record), .story_at = OPERAND_WORD(2), .value = VARIABLE_WORD(1), .width = BYTES, .length = 4,
+      CHECK(records_in_the_story) },
+    { 0x59, OPERATION(record), .story_at = OPERAND_WORD(2), .value = VARIABLE_WORD(1), .width = WORDS, .length = 4,
+      CHECK(records_in_the_story) },
     { 0x5A, OPERATION(record), .story_at = CONSTANT(0), .value = OPERAND(1), .width = BYTES, .length = 2 },
     { 0x65, OPERATION(mark_story_flag), A_STORY_FLAG, .raise = CONSTANT(true), .length = 3 },
     { 0x66, OPERATION(mark_story_flag), A_STORY_FLAG, .raise = CONSTANT(false), .length = 3 });

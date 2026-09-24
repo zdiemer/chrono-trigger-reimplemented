@@ -1636,6 +1636,15 @@ void set_field_object_sprite_high_more(GameState *g, unsigned slot, uint16_t v);
 enum { FIELD_SPRITE_RECORDS_BYTES = 832 };
 uint8_t field_sprite_records_byte(const GameState *g, unsigned at);
 void set_field_sprite_records_byte(GameState *g, unsigned at, uint8_t v);
+/* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
+ * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
+ * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes, one at a
+ * time] Unchecked, for marked scaffolding only: the original places a fifth sprite's Y for an
+ * object above the screen, one record past the object's four, which for the last object's
+ * records is past the table (game/field/sprites.c, leave_stray_fifth_sprite_y; ct_dev's accessor
+ * checks found it over the movie library, at offsets 833 and 836) */
+uint8_t field_sprite_records_byte_unchecked(const GameState *g, unsigned at);
+void set_field_sprite_records_byte_unchecked(GameState *g, unsigned at, uint8_t v);
 
 enum { FIELD_OBJECT_SPRITE_HIGH_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) */
