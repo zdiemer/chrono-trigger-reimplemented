@@ -87,3 +87,12 @@ menu_map_scroll_y vblank-tail as for menu_map_scroll_x, with two records a strip
 # scalar can't fit. The vblank check finds none of its writes moved.
 event_run_init_scripts vblank-tail runs the map's openings at load, screen blanked, writing RAM; commands attributed to their handlers, the rest its own walk over the slots, which clears every object and runs only some; 3.54% of calls off by a line or more, at most 5640 clocks (4.1 lines)
 
+
+# Palette animation, rewritten in Phase 3a: each handler and each fade mode's
+# loop is attributed to its own routine and a loop's per-color work charged, so
+# drift is within the limit; what is left is the loop's own walk over which of
+# the twelve slots are due, and a lightening's scratch, which the port writes
+# once. Both write the working palette in RAM, which the next vblank uploads;
+# the vblank check finds none of their writes moved.
+palette_animate vblank-tail the frame's walk over the slots, its handlers attributed; 3.9% of vblank calls off by 1024 clocks or more, at most 2278 clocks, writing RAM the next vblank uploads
+palette_lighten_all vblank-tail its colors' channels scaled in C and its scratch and multiplier left once, the rest charged per color; 3.6% of its 275 vblank calls off by 1024 clocks or more, at most 1190 clocks, writing RAM the next vblank uploads

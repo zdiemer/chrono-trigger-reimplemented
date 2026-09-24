@@ -34,6 +34,11 @@ void charge_block_move(GameState *g, uint32_t bytes);
  * (runtime/port/native.h, native_time_as; for a port on the machine,
  * NATIVE_TIME_AS). `routine` is a tag, the handler's `// $BB:AAAA`, and the
  * statement runs either way. */
+/* Accesses left out of the estimate: scaffolding that writes once what the
+ * original writes over and over, whose time a charge already stands for. */
+uint32_t charge_uncounted_begin(GameState *g);
+void charge_uncounted_end(GameState *g, uint32_t mark);
+
 int charge_begin_as(GameState *g, uint32_t routine);
 void charge_end(GameState *g, int was);
 #define CHARGED_AS(g, routine, statement)                                              do {                                                                                 int charged_was_ = ORIGINAL_EFFECTS ? charge_begin_as((g), (routine)) : 0;         statement;                                                                       ORIGINAL_EFFECT(charge_end((g), charged_was_));                                } while (0)

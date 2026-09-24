@@ -6412,3 +6412,24 @@ subsystem = "core"
 state = "menus"
 args = ["--long", "--fill", "7E9690-7E9690=54-54", "--fill", "7E9693-7E9693=6B-6B", "--fill", "7E9691-7E9692=7E-7F", "--range", "A=0000-03FF"]
 why = "the stub in place (its guard), moving up to 1 KiB between the work RAM banks, as the menus and the save code do"
+
+[[routine]]
+name = "tile_animation_upload"
+subsystem = "core"
+state = "field"
+args = ["--long"]
+why = "any state: it sets its own pages; the guard refuses a slot whose tiles would be read from the top of the stack, where the original's saved registers are"
+
+[[routine]]
+name = "display_blank_and_stop_interrupts"
+subsystem = "core"
+state = "field"
+args = []
+why = "any state"
+
+[[routine]]
+name = "display_init_registers"
+subsystem = "core"
+state = "field"
+args = []
+why = "any state: the power-on block writes every register it sets and hands over to the boot"

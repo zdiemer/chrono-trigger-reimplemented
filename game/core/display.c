@@ -1,31 +1,31 @@
-/* Display and interrupt control shared by every game mode. */
+/* The screen and the interrupts, as every game mode stops them and as the
+ * console starts. */
 #include "core/display.h"
 
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
 
-/* $C0:0B4E
- * Blank the display and stop interrupts, DMA and HDMA: force blank on, NMI and
- * timer IRQs and auto-joypad off. Leaves the data bank at 0.
- * Entry: 8-bit A. Exit: A low byte 0, I set, N clear, Z set. */
-void display_blank_and_stop_interrupts(Snes *s)
+// $C0:0B4E
+/* Stop everything that shows or interrupts: the screen blank, the frame and
+ * line interrupts and the controller's automatic read off, and every transfer
+ * and per-line effect stopped. A mode does it before it changes what the
+ * screen shows. */
+static void blank_and_stop(Platform *pf)
 {
-    Platform *pf = m_platform(s);
-    m_set_flag(s, CPU_FLAG_I, true);
-
-    /* The data bank is set by pushing 0 and pulling it, which leaves the 0 in
-     * the byte just below the stack pointer. */
-    m_push8(s, 0x00);
-    s->cpu.db = m_pull8(s);
-
     vid_set_display(pf, PF_AT(0xC00B55), &(VidDisplay){ .blank = true });
     tm_enable_interrupts(pf, PF_AT(0xC00B5A), 0);
     vid_stop_uploads(pf, PF_AT(0xC00B5D));
     vid_enable_line_effects(pf, PF_AT(0xC00B60), 0);
+}
 
-    m_set_a8(s, 0x00);
-    m_set_nz8(s, 0x00);
+/* It masks the CPU's interrupts too and leaves the data bank 0; what it
+ * leaves in A and the flags nobody reads (the entry's set). */
+void display_blank_and_stop_interrupts(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_I, true);
+    s->cpu.db = 0x00;
+    blank_and_stop(m_platform(s));
     m_rts(s);
 }
 
@@ -57,13 +57,10 @@ static const VidScreen power_on_screen = {
     .vram_port = { .step = 1, .after_high = false },
 };
 
-/* The original leaves the direct page on the PPU registers and A with the $2100
- * it set it from and the last byte it wrote, 0, and hands over to the boot. */
+/* The port hands over to the boot where the original jumps to it; what it
+ * leaves in the registers the boot sets again. */
 void display_init_registers(Snes *s)
 {
     vid_apply_screen(m_platform(s), PF_AT(0xFDC036), &power_on_screen);
-    s->cpu.d = M_DP_PPU;
-    s->cpu.a = M_DP_PPU;
-    m_set_nz8(s, 0x00);
-    m_stop_at(s, 0xC0000E, 0);
+    m_stop_at(s, 0xC0000E, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D);
 }

@@ -483,12 +483,13 @@ static uint32_t fade_loop_routine(bool lighten, uint8_t mode)
     return (lighten ? LIGHTENING_LOOPS : DARKENING_LOOPS)[mode].routine;
 }
 
-/* The original spends a color's time on the multiplier, a channel's operand
- * and its product each, and on the scratch it leaves, which the port writes
- * once: charged, so that the estimate follows the count. */
+/* The original spends a color's time on its scratch -- each channel stored
+ * there and read back, and what it leaves of the color -- and on the
+ * multiplier, a channel's operand and its product, where the port writes the
+ * last of them once: charged, so that the estimate follows the count. */
 static void charge_fade(GameState *g, bool lighten, uint8_t mode, uint8_t count)
 {
-    enum { ACCESSES_PER_CHANNEL = 2, WORD_ACCESSES = 2, BYTE_ACCESSES = 1 };
+    enum { ACCESSES_PER_CHANNEL = 4, WORD_ACCESSES = 2, BYTE_ACCESSES = 1 };
     const FadeChannels *m = lighten ? &LIGHTENING[mode] : &DARKENING[mode];
     const FadeLoop *loop = lighten ? &LIGHTENING_LOOPS[mode] : &DARKENING_LOOPS[mode];
     uint32_t per_color = loop->scratch_byte ? BYTE_ACCESSES : WORD_ACCESSES;
@@ -507,6 +508,7 @@ static void leave_fade(GameState *g, bool lighten, uint8_t mode, uint8_t fractio
 {
     const FadeChannels *m = lighten ? &LIGHTENING[mode] : &DARKENING[mode];
     const FadeLoop *loop = lighten ? &LIGHTENING_LOOPS[mode] : &DARKENING_LOOPS[mode];
+    uint32_t uncounted = charge_uncounted_begin(g);   /* charge_fade stands for it */
     uint16_t color = faded(last_color, m, fraction, lighten);
     if (loop->scratch_byte == LOW_BYTE)
         leave_scratch_low_byte(g, SCRATCH_COLOR, (uint8_t)(color & loop->scratch_bits));
@@ -525,6 +527,7 @@ static void leave_fade(GameState *g, bool lighten, uint8_t mode, uint8_t fractio
         operand = lighten ? (uint8_t)(full - v) : v;
     }
     leave_multiplier(g, fraction, operand);
+    charge_uncounted_end(g, uncounted);
 }
 
 /* The loader points the work RAM port at the slots and its long pointer's
@@ -555,9 +558,7 @@ enum { ANIMATIONS_PAGE = 0x0500, SLOT_BYTES = 12, SLOTS_END = SLOTS * SLOT_BYTES
 static unsigned slot_in_y(const Snes *s) { return s->cpu.y / SLOT_BYTES; }
 static bool y_is_a_slot(const Snes *s) { return s->cpu.y < SLOTS_END && s->cpu.y % SLOT_BYTES == 0; }
 
-/* Where a handler leaves X: past the last color it changed, or for a rotation
- * where it ended, or for a frame past the frame in the ROM's frames. */
-static uint16_t run_end(const GameState *g, unsigned slot, AnimationType type)
+static uint16_t run_end_of(const GameState *g, unsigned slot, AnimationType type)
 {
     uint8_t first = first_color(g, slot), count = color_count(g, slot);
     if (type == ROTATE_UP)
@@ -565,6 +566,18 @@ static uint16_t run_end(const GameState *g, unsigned slot, AnimationType type)
     if (plays_frames(type))
         return (uint16_t)(frame_offset(g, slot, current_frame(g, slot, type)) + count * 2);
     return (uint16_t)((first + count) * 2);
+}
+
+/* Where a handler leaves X: past the last color it changed, or for a rotation
+ * where it ended, or for a frame past the frame in the ROM's frames. The reads
+ * that find it are the wrapper's, not the original's, so they take none of
+ * the entry's time. */
+static uint16_t run_end(const GameState *g, unsigned slot, AnimationType type)
+{
+    uint32_t uncounted = native_uncounted_begin(state_snes(g));
+    uint16_t x = run_end_of(g, slot, type);
+    native_uncounted_end(state_snes(g), uncounted);
+    return x;
 }
 
 /* Which slot palette_animate ran last, for the X it leaves. */
