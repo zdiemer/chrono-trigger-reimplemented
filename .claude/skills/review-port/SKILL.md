@@ -353,6 +353,39 @@ Each of these is a finding. Every example here comes from this repo.
 38. **Machine counting conventions as parameters.** A block move's "count
     minus one", or "A + 1 bytes", passed into logic as a parameter. Say how
     many bytes, or which range, in the game's terms.
+39. **A scaffolding global that doubles as a parameter.** A record the machine
+    wrapper sets and the logic reads (the command's offset out of
+    `event_leaves->at`), so the "portable" code only works under the wrapper.
+    Pass the value explicitly.
+40. **Game work inside an expression only scaffolding reads.** `bool animated =
+    style == WALKING && object_animate_movement(...)`, where the result goes only
+    into `ORIGINAL_EFFECT`: the walk starts as a side effect of scaffolding. Do
+    the work as a statement of its own.
+41. **Comments that contradict the code.** "A wandering townsperson" on a bridge
+    that only serves party members; "its copy" for a table that is the other
+    half of another; `NO_BATTLE_PLACE` and `BATTLE_PLACES_IT` for the same byte.
+    A wrong comment is worse than none.
+42. **Enum values used as indices into tables of ROM addresses**
+    (`sites[role.kind]`). Name the table's rows by role.
+43. **The same decision written several times in one file**, and scaffolding
+    helpers duplicated across files. This is item 18 for logic and for
+    scaffolding, not only for bit definitions.
+44. **Flag derivations exported from a logic file.** `field_step_start_overflow`
+    and the like, living in `motion.c` and re-running its internals so a
+    wrapper can rebuild a flag. Derivations belong beside the wrappers, so the
+    logic file holds only the game.
+45. **Locals and return values that exist only for scaffolding.** A return
+    value the game ignores, or locals that only shape a `leave_*` call. This is
+    item 26 in the return-value form.
+46. **One buffer read as two tables through an offset**, with no named view.
+    Name the view, or declare the second table in the map.
+47. **Service headers that invite a smell.** A header ports rely on whose
+    contract says to "stream bytes through" the port, or to program write
+    order. The review also checks the headers, not only the ports that follow
+    them.
+48. **Aliasing artifacts promoted into domain types.** An enum value that exists
+    because a stray write lands there (`OVERWRITTEN_BY_A_LINK`). Model it only
+    if the game can observe it, and say so where the type is defined.
 
 ## What is legitimately machine-shaped
 
