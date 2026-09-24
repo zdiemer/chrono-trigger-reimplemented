@@ -402,21 +402,17 @@ static void enter_as_the_dispatch_does(Snes *s, uint8_t opcode)
     m_set_flag(s, CPU_FLAG_Z, opcode == 0);
 }
 
-/* A command the port doesn't run: the original's handler, from the dispatch,
- * and what the original's interpreter does with what it hands back. */
-static ScriptFlow through_the_table(Snes *s, uint8_t opcode)
+/* A command the port doesn't run -- an opcode past the language, or one
+ * whose cells or tables aren't ones the game has -- goes back to the
+ * original's interpreter at the top of its loop, which reads it again: the
+ * script pointer is on it, and nothing else carries over. */
+enum { INTERPRETER_LOOP = 0xC20F73 };
+
+static ScriptFlow hand_to_the_original(Snes *s)
 {
-    m_jsr(s, DISPATCH_SITE, handler_of(s, opcode));
-    if (s->cpu.e || m_x8(s) || m_m8(s)) {
-        m_stop_at(s, DISPATCH_SITE + JSR_SIZE, 0);
-        return handed_back();
-    }
-    if (m_flag(s, CPU_FLAG_Z))
-        return m_flag(s, CPU_FLAG_C) ? end_object() : wait_a_frame();
-    vars_peek(true);
-    uint16_t pointer = (uint16_t)menu_object_script(state_of(s));
-    vars_peek(false);
-    return go_to((uint16_t)(pointer + s->cpu.a));
+    m_rep(s, CPU_FLAG_M);
+    m_stop_at_own(s, INTERPRETER_LOOP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    return handed_back();
 }
 
 /* The engine's runner: each command as C where the port has it, with the
@@ -439,9 +435,9 @@ static ScriptFlow run_on_the_machine(void *ctx, MenuObject self, uint32_t at)
         c = menu_script_decode(g, row, self, at, &m->services);
     bool ours = row && menu_script_runs_here(g, row, &c);
     vars_peek(false);
-    enter_as_the_dispatch_does(s, opcode);
     if (!ours)
-        return through_the_table(s, opcode);
+        return hand_to_the_original(s);
+    enter_as_the_dispatch_does(s, opcode);
     m_push16(s, (uint16_t)(DISPATCH_SITE + JSR_SIZE - 1));
     ScriptFlow f = perform(m, row, &c);
     if (f.kind != SCRIPT_HANDED_BACK)
@@ -453,12 +449,17 @@ static ScriptFlow run_on_the_machine(void *ctx, MenuObject self, uint32_t at)
 
 static bool on_the_mode_page(Snes *s) { return m_direct_page(s) == 0 && m_bank_reaches_low_ram(s) && !m_x8(s); }
 
+/* The game's scripts are in the ROM's banks, or built in work RAM. */
+static bool script_bank_holds_scripts(uint8_t bank) { return bank >= 0xC0 || bank == 0x7E || bank == 0x7F; }
+
 bool menu_object_script_runs(Snes *s)
 {
     if (!on_the_mode_page(s))
         return false;
     vars_peek(true);
-    bool ok = menu_object_address_names_one(menu_object_current(state_of(s)));
+    GameState *g = state_of(s);
+    bool ok = menu_object_address_names_one(menu_object_current(g))
+              && script_bank_holds_scripts((uint8_t)(menu_object_slots_script(g, menu_object_running(g)) >> 16));
     vars_peek(false);
     return ok;
 }
@@ -514,7 +515,8 @@ static bool command_accepts(Snes *s, uint8_t opcode)
         const ScriptOpcode *row = menu_script_opcode(opcode);
         uint32_t at = menu_object_script(g);
         ScriptCommand c = menu_script_decode(g, row, menu_object_running(g), at, NULL);
-        ok = menu_script_opcode(menu_script_byte(g, at)) == row && menu_script_runs_here(g, row, &c);
+        ok = script_bank_holds_scripts((uint8_t)(at >> 16)) && menu_script_opcode(menu_script_byte(g, at)) == row
+             && menu_script_runs_here(g, row, &c);
     }
     vars_peek(false);
     return ok;

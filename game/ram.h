@@ -2002,6 +2002,7 @@
 #define RAM_MENU_OBJECT_SLOTS_SCRIPT 0x7E0B37u /* Long pointer to the object's command script, advanced past each command $C2:0F63 runs */
 #define RAM_MENU_OBJECT_SLOTS_COMMAND_FRAMES 0x7E0B3Au /* How many frames a command that lasts a while has left: loaded from its operand the first frame, counted down after */
 #define RAM_MENU_OBJECT_SLOTS_SPRITE_SCRIPT 0x7E0B3Bu /* Long pointer to the object's sprite script, advanced past each command $C2:0E1D runs */
+#define RAM_MENU_OBJECT_SLOTS_SCRIPT_AT 0x7E0B37u /* Where in its bank the command script has got to */
 #define RAM_MENU_OBJECT_SLOTS_SPRITE_SCRIPT_AT 0x7E0B3Bu /* Where in its bank the sprite script has got to */
 #define RAM_MENU_OBJECT_SLOTS_SPRITE_FRAMES 0x7E0B3Eu /* How many frames the sprite script's command has left: loaded from its operand when zero, then counted down until it is zero again */
 #define RAM_MENU_OBJECT_SLOTS_LOOK 0x7E0B3Fu /* How the object's sprites are drawn: bit 0 in front of the others, bits 1-3 the palette, 4-5 the priority, 6 held on one frame (no countdown), 7 placed on the map (moving with its scroll) */

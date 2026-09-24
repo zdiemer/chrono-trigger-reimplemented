@@ -93,7 +93,14 @@ ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, Me
  * number doubled in a byte (menu/object_script.c): three of them. */
 enum { MARKED_TABLES = 3 };
 
-static bool names_low_ram(ScriptArg spec, ByteRef b) { return spec.kind != ARG_CELL || b.at < 0x2000; }
+/* A cell a command names is low RAM, and not one of the cells the
+ * interpreter keeps its own place in (the script pointer, the running
+ * object), which no script names. */
+static bool names_low_ram(ScriptArg spec, ByteRef b)
+{
+    enum { INTERPRETER_CELLS = 0x4E, INTERPRETER_CELLS_END = 0x5B };
+    return spec.kind != ARG_CELL || (b.at < 0x2000 && (b.at < INTERPRETER_CELLS || b.at >= INTERPRETER_CELLS_END));
+}
 
 /* The commands that queue an upload write their records at the queue's end,
  * which is on a record wherever the game queues. */
@@ -139,7 +146,7 @@ ScriptEnd menu_run_script(GameState *g, MenuObject self, const ScriptRunner *r, 
             return flow.kind == SCRIPT_END ? SCRIPT_DONE : SCRIPT_WAITING;
         }
         at = menu_script_follow(row, at, flow);
-        set_menu_object_slots_script(g, self, at);
+        set_menu_object_slots_script_at(g, self, (uint16_t)at);
         set_menu_object_slots_command_state(g, self, 0);
     }
 }

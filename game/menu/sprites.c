@@ -72,13 +72,38 @@ typedef uint16_t NodeLink;
 
 static unsigned node_of(NodeLink l) { return (unsigned)(l - FIRST_NODE) / NODE_BYTES; }
 
+/* Every link the list's code follows is a node or a head in the game, as the
+ * mode's start lays them out; the guards of the list's own entries see to it.
+ * A link that is neither -- which a list the game never makes could hold -- is
+ * reached as the original reaches every link, as a record at that address in
+ * bank $7E: its fields at the offsets a node has them. */
+static bool names_a_node(NodeLink l)
+{
+    return l >= FIRST_NODE && l < FIRST_NODE + NODES * NODE_BYTES && (l - FIRST_NODE) % NODE_BYTES == 0;
+}
+
+static bool is_link(NodeLink l) { return names_a_node(l) || l == DRAW_LIST || l == FREE_LIST; }
+
+enum { AT_PREV = 0, AT_NEXT = 2, AT_X = 4, AT_Y = 6, AT_LOOK = 8, AT_TILES = 9, AT_GROUP = 0x0B };
+
+static uint32_t stray(NodeLink l, unsigned at) { return 0x7E0000u + l + at; }
+static uint16_t stray_word(const GameState *g, NodeLink l, unsigned at)
+{
+    return (uint16_t)(wram_read8(g, stray(l, at)) | wram_read8(g, stray(l, at + 1)) << 8);
+}
+static void set_stray_word(GameState *g, NodeLink l, unsigned at, uint16_t v)
+{
+    wram_write8(g, stray(l, at), (uint8_t)v);
+    wram_write8(g, stray(l, at + 1), (uint8_t)(v >> 8));
+}
+
 static NodeLink next_of(const GameState *g, NodeLink l)
 {
     if (l == DRAW_LIST)
         return menu_sprite_draw_list_first(g);
     if (l == FREE_LIST)
         return menu_sprite_free_list_first(g);
-    return menu_sprite_nodes_next(g, node_of(l));
+    return names_a_node(l) ? menu_sprite_nodes_next(g, node_of(l)) : stray_word(g, l, AT_NEXT);
 }
 
 static NodeLink prev_of(const GameState *g, NodeLink l)
@@ -87,7 +112,7 @@ static NodeLink prev_of(const GameState *g, NodeLink l)
         return menu_sprite_draw_list_last(g);
     if (l == FREE_LIST)
         return menu_sprite_free_list_last(g);
-    return menu_sprite_nodes_prev(g, node_of(l));
+    return names_a_node(l) ? menu_sprite_nodes_prev(g, node_of(l)) : stray_word(g, l, AT_PREV);
 }
 
 static void set_next(GameState *g, NodeLink l, NodeLink to)
@@ -96,8 +121,10 @@ static void set_next(GameState *g, NodeLink l, NodeLink to)
         set_menu_sprite_draw_list_first(g, to);
     else if (l == FREE_LIST)
         set_menu_sprite_free_list_first(g, to);
-    else
+    else if (names_a_node(l))
         set_menu_sprite_nodes_next(g, node_of(l), to);
+    else
+        set_stray_word(g, l, AT_NEXT, to);
 }
 
 static void set_prev(GameState *g, NodeLink l, NodeLink to)
@@ -106,18 +133,51 @@ static void set_prev(GameState *g, NodeLink l, NodeLink to)
         set_menu_sprite_draw_list_last(g, to);
     else if (l == FREE_LIST)
         set_menu_sprite_free_list_last(g, to);
-    else
+    else if (names_a_node(l))
         set_menu_sprite_nodes_prev(g, node_of(l), to);
+    else
+        set_stray_word(g, l, AT_PREV, to);
 }
 
-/* Every link the list's code follows is a node or a head (the guards see to
- * it: the mode's start lays the links out that way). */
-static bool names_a_node(NodeLink l)
+/* A node's sprite group: where it is on the map, its look and first tile, and
+ * the group's address. */
+typedef struct {
+    uint16_t x, y;
+    uint8_t look;
+    uint16_t tiles;
+    uint32_t group;
+} NodeGroup;
+
+static NodeGroup group_of(const GameState *g, NodeLink l)
 {
-    return l >= FIRST_NODE && l < FIRST_NODE + NODES * NODE_BYTES && (l - FIRST_NODE) % NODE_BYTES == 0;
+    if (names_a_node(l)) {
+        unsigned n = node_of(l);
+        return (NodeGroup){ menu_sprite_nodes_x(g, n), menu_sprite_nodes_y(g, n), menu_sprite_nodes_look(g, n),
+                            menu_sprite_nodes_tiles(g, n), menu_sprite_nodes_group(g, n) };
+    }
+    return (NodeGroup){ stray_word(g, l, AT_X), stray_word(g, l, AT_Y), wram_read8(g, stray(l, AT_LOOK)),
+                        stray_word(g, l, AT_TILES),
+                        (uint32_t)wram_read8(g, stray(l, AT_GROUP + 2)) << 16 | stray_word(g, l, AT_GROUP) };
 }
 
-static bool is_link(NodeLink l) { return names_a_node(l) || l == DRAW_LIST || l == FREE_LIST; }
+static void set_group_of(GameState *g, NodeLink l, NodeGroup v)
+{
+    if (names_a_node(l)) {
+        unsigned n = node_of(l);
+        set_menu_sprite_nodes_x(g, n, v.x);
+        set_menu_sprite_nodes_y(g, n, v.y);
+        set_menu_sprite_nodes_group(g, n, v.group);
+        set_menu_sprite_nodes_tiles(g, n, v.tiles);
+        set_menu_sprite_nodes_look(g, n, v.look);
+        return;
+    }
+    set_stray_word(g, l, AT_X, v.x);
+    set_stray_word(g, l, AT_Y, v.y);
+    set_stray_word(g, l, AT_GROUP, (uint16_t)v.group);
+    wram_write8(g, stray(l, AT_GROUP + 2), (uint8_t)(v.group >> 16));
+    set_stray_word(g, l, AT_TILES, v.tiles);
+    wram_write8(g, stray(l, AT_LOOK), v.look);
+}
 
 // $C2:0C4D
 /* Empty the list for a new frame: every node back on the free list, in order,
@@ -148,7 +208,7 @@ static NodeLink place_in_the_list(const GameState *g, uint8_t look, uint16_t til
     if (look & IN_FRONT) {
         do
             at = next_of(g, at);
-        while (at != DRAW_LIST && (menu_sprite_nodes_look(g, node_of(at)) & IN_FRONT));
+        while (at != DRAW_LIST && (group_of(g, at).look & IN_FRONT));
         return at;
     }
     if (tiles & DRAWN_LAST)
@@ -157,9 +217,10 @@ static NodeLink place_in_the_list(const GameState *g, uint8_t look, uint16_t til
         at = next_of(g, at);
         if (at == DRAW_LIST)
             return at;
-        if (menu_sprite_nodes_look(g, node_of(at)) & IN_FRONT)
+        NodeGroup there = group_of(g, at);
+        if (there.look & IN_FRONT)
             continue;
-        if (y > menu_sprite_nodes_y(g, node_of(at)))
+        if (y > there.y)
             return at;
     }
 }
@@ -172,15 +233,12 @@ static void show_sprite_group(GameState *g, uint32_t group)
     NodeLink node = menu_sprite_free_list_first(g);
     set_next(g, prev_of(g, node), next_of(g, node));
     set_prev(g, next_of(g, node), prev_of(g, node));
-    unsigned n = node_of(node);
     MenuObject o = menu_object_running(g);
-    set_menu_sprite_nodes_x(g, n, menu_object_slots_x_pixel(g, o));
-    set_menu_sprite_nodes_y(g, n, menu_object_slots_y_pixel(g, o));
-    set_menu_sprite_nodes_group(g, n, group);
-    set_menu_sprite_nodes_tiles(g, n, menu_object_slots_tiles(g, o));
-    set_menu_sprite_nodes_look(g, n, menu_object_slots_look(g, o));
-    NodeLink before = place_in_the_list(g, menu_sprite_nodes_look(g, n), menu_sprite_nodes_tiles(g, n),
-                                        menu_sprite_nodes_y(g, n));
+    NodeGroup shown = { menu_object_slots_x_pixel(g, o), menu_object_slots_y_pixel(g, o), menu_object_slots_look(g, o),
+                        menu_object_slots_tiles(g, o), group };
+    set_group_of(g, node, shown);
+    shown = group_of(g, node);
+    NodeLink before = place_in_the_list(g, shown.look, shown.tiles, shown.y);
     NodeLink after = prev_of(g, before);
     set_next(g, node, next_of(g, after));
     set_next(g, after, node);
@@ -285,17 +343,17 @@ static void note_sprite(int16_t x, int16_t y, bool x_on_screen, bool shown)
 /* Draw one node's group into the sprite table. */
 static void draw_node(GameState *g, NodeLink node)
 {
-    unsigned n = node_of(node);
-    uint32_t group = menu_sprite_nodes_group(g, n);
+    NodeGroup drawn_group = group_of(g, node);
+    uint32_t group = drawn_group.group;
     GroupPlace p = { (uint8_t)(group >> 16), (uint16_t)group };
     uint16_t left = group_byte(g, p, 0);
-    uint16_t tiles = menu_sprite_nodes_tiles(g, n);
-    uint8_t look = menu_sprite_nodes_look(g, n);
+    uint16_t tiles = drawn_group.tiles;
+    uint8_t look = drawn_group.look;
     bool other_size = (tiles & OTHER_SIZE) != 0;
     uint16_t attributes = (uint16_t)((look & LOOK_PALETTE_AND_PRIORITY) << 8);
     uint16_t first_tile = tiles & TILE_AND_ATTRIBUTES;
-    int16_t x = (int16_t)menu_sprite_nodes_x(g, n);
-    int16_t y = (int16_t)menu_sprite_nodes_y(g, n);
+    int16_t x = (int16_t)drawn_group.x;
+    int16_t y = (int16_t)drawn_group.y;
     if (look & ON_THE_MAP) {
         x = on_screen((uint16_t)x, menu_object_shadows_bg2_scroll_x(g), MENU_MAP_WIDTH);
         y = on_screen((uint16_t)y, menu_object_shadows_bg2_scroll_y(g), MENU_MAP_HEIGHT);
@@ -462,7 +520,11 @@ typedef enum { SPRITES_GO_ON, SPRITES_STOPPED } SpriteEnd;
 
 // $C2:0E1D
 /* Run the running object's sprite script until it shows a group, waits or
- * stops, and keep where it got to for next frame. */
+ * stops, and keep where it got to for next frame. A command past the
+ * language's eight stops the script here; the original jumps through the
+ * words after its table, into code. The game's sprite scripts have none, and
+ * only fuzzing with a sprite script pointer anywhere reaches one (divergence
+ * accepted; docs/RECOMP.md, the menus' Phase 3a section). */
 static void run_sprite_script(GameState *g)
 {
     MenuObject o = menu_object_running(g);
@@ -479,7 +541,7 @@ static void run_sprite_script(GameState *g)
         case SPRITE_SHOW: step = show(g, o, p); break;
         case SPRITE_WAIT: step = wait(g, o, p); break;
         case SPRITE_UPLOAD: step = upload(g, p); break;
-        default: step = SPRITE_STAY; break;   /* SPRITE_STOP */
+        default: step = SPRITE_STAY; break;   /* SPRITE_STOP, and past it (below) */
         }
         if (step == SPRITE_STAY)
             break;

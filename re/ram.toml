@@ -5814,6 +5814,12 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   meaning = "Long pointer to the object's sprite script, advanced past each command $C2:0E1D runs"
 
   [[var.field]]
+  name = "script_at"
+  offset = 0x07
+  size = 2
+  meaning = "Where in its bank the command script has got to"
+
+  [[var.field]]
   name = "sprite_script_at"
   offset = 0x0B
   size = 2

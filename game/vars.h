@@ -2726,6 +2726,9 @@ void set_menu_object_slots_command_frames(GameState *g, unsigned slot, uint8_t v
 /* Long pointer to the object's sprite script, advanced past each command $C2:0E1D runs */
 uint32_t menu_object_slots_sprite_script(const GameState *g, unsigned slot);
 void set_menu_object_slots_sprite_script(GameState *g, unsigned slot, uint32_t v);
+/* Where in its bank the command script has got to */
+uint16_t menu_object_slots_script_at(const GameState *g, unsigned slot);
+void set_menu_object_slots_script_at(GameState *g, unsigned slot, uint16_t v);
 /* Where in its bank the sprite script has got to */
 uint16_t menu_object_slots_sprite_script_at(const GameState *g, unsigned slot);
 void set_menu_object_slots_sprite_script_at(GameState *g, unsigned slot, uint16_t v);
