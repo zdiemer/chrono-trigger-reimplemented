@@ -9057,7 +9057,7 @@ count = 0x17
 index = "byte"
 subsystem = "battle"
 meaning = "Direct-page scratch the battle's routines share ($45-$5B): counts, thresholds, operands and table offsets, each routine's own"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c"
 
 [[var]]
 name = "battle_background_flags"
@@ -9071,7 +9071,7 @@ name = "battle_screen_scripts_running"
 addr = "7E:5D9B"
 subsystem = "battle"
 meaning = "Set while the screen script channels run; cleared when both have ended. The HP gradient waits for it"
-source = "$CD:1609 ($CD:164D); game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "$CD:1609 ($CD:164D); game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_sprite_palettes_flipped"
@@ -9086,7 +9086,7 @@ addr = "7E:CD3D"
 size = 2
 subsystem = "battle"
 meaning = "Offset of the next block id in the effect's list of four ($D1:ECDB)"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3"
 
 [[var]]
 name = "battle_effect_graphics_vram"
@@ -9094,28 +9094,28 @@ addr = "7E:CD3F"
 size = 2
 subsystem = "battle"
 meaning = "VRAM word address the next effect graphics block goes to ($2000 on, $800 apart)"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3"
 
 [[var]]
 name = "battle_effect_graphics_block"
 addr = "7E:CD41"
 subsystem = "battle"
 meaning = "Which of the effect's four graphics blocks is being loaded"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3"
 
 [[var]]
 name = "battle_effect_graphics_id"
 addr = "7E:CD42"
 subsystem = "battle"
 meaning = "The effect whose graphics are being loaded"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3"
 
 [[var]]
 name = "battle_effect_graphics_loading"
 addr = "7E:CD43"
 subsystem = "battle"
 meaning = "Set while an effect's graphics load, which waits for frames; the frame wait tail doesn't start another meanwhile"
-source = "game/battle/screen_palette.c battle_load_effect_graphics $D1:ECF3; game/battle/frame.c battle_frame_wait_tail $CD:04AA"
+source = "game/battle/screen_graphics.c battle_load_effect_graphics $D1:ECF3; game/battle/frame.c battle_frame_wait_tail $CD:04AA"
 
 [[var]]
 name = "battle_palette_rows_moved"
@@ -9129,7 +9129,7 @@ name = "battle_gradient_phase"
 addr = "7E:CDC9"
 subsystem = "battle"
 meaning = "Rotation phase of the HP gradient's rows (13 down to 0 and around), which picks each row's rotation"
-source = "game/battle/screen_palette.c battle_find_gradient_phase $D1:EA01, battle_step_hp_gradient $D1:EA4B; game/battle/frame.c battle_step_cdc9 $CD:0ADE"
+source = "game/battle/screen_gradient.c battle_find_gradient_phase $D1:EA01, battle_step_hp_gradient $D1:EA4B; game/battle/frame.c battle_step_cdc9 $CD:0ADE"
 
 [[var]]
 name = "battle_gradient_colors"
@@ -9139,49 +9139,49 @@ count = 28
 index = "color (14, then the same 14 again)"
 subsystem = "battle"
 meaning = "The HP gradient's 14 colors as they fade, followed by a copy, so that 14 colors from any rotation run on without wrapping"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_fading"
 addr = "7E:CE0A"
 subsystem = "battle"
 meaning = "Nonzero while the HP gradient fades from one level's colors to the next's"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_level"
 addr = "7E:CE0B"
 subsystem = "battle"
 meaning = "HP level (1-8, eighths of the first enemy's maximum HP) the gradient fades toward"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_level_shown"
 addr = "7E:CE0C"
 subsystem = "battle"
 meaning = "HP level whose colors the gradient shows; it follows the level one step per fade"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_fade_frames"
 addr = "7E:CE0D"
 subsystem = "battle"
 meaning = "Frames left in the gradient's fade ($20 at the start)"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_level_override"
 addr = "7E:CE0E"
 subsystem = "battle"
 meaning = "With bit 7 set, the HP level the gradient takes (bits 0-6) instead of the enemy's, in one fade"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B"
 
 [[var]]
 name = "battle_gradient_reversed"
 addr = "7E:CE10"
 subsystem = "battle"
 meaning = "Nonzero to rotate the gradient's rows the other way"
-source = "game/battle/screen_palette.c battle_step_hp_gradient $D1:EA4B; $CD:2AA1 sets it, $CD:17FB clears it"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B; $CD:2AA1 sets it, $CD:17FB clears it"
 
 [[var]]
 name = "battle_window_lines"
@@ -9390,14 +9390,14 @@ count = 0x20
 index = "byte ($00-$1F)"
 subsystem = "battle"
 meaning = "Direct-page scratch the battle's routines share at $00-$1F: the multiply's operands and product ($00 by $02-$03 into $04-$06), and the window quadrilateral rasterizer's four edge slopes (8.8, words at $03-$09), a slope's end and start column and lines ($0B-$0D), the top line ($0F) and the corners sorted by line (X, Y at $12-$19)"
-source = "game/battle/screen_window.c battle_draw_window_quad $D1:F9AF, battle_quad_edge_slopes $D1:F91D; $D1:F9E7; game/battle/effect_paths.c $CF:F9FB"
+source = "game/battle/screen_beam.c battle_draw_window_quad $D1:F9AF, battle_quad_edge_slopes $D1:F91D (screen_beam.c); $D1:F9E7; game/battle/effect_paths.c $CF:F9FB"
 
 [[var]]
 name = "battle_window_quad_index"
 addr = "7E:CC64"
 subsystem = "battle"
 meaning = "Which window quadrilateral is being rasterized; its bit 0 picks the table half $CD:38B6 points the work RAM port at"
-source = "game/battle/screen_window.c battle_draw_window_quad $D1:F9AF; $CD:38B6"
+source = "game/battle/screen_beam.c battle_draw_window_quad $D1:F9AF; $CD:38B6"
 
 [[var]]
 name = "battle_split_line_values"

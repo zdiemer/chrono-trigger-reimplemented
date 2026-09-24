@@ -108,12 +108,17 @@ static inline uint8_t shake_layers_down(const GameState *g, unsigned choice) { r
 
 /* ---- Palette presets ---------------------------------------------------------------------- */
 
-/* A palette preset: a pair of palette animation slots' fields from the first
- * color on, eight bytes a slot, sixteen presets ($CE:F0E6). */
-enum { PRESET_SLOT_FIELDS = 8 };
-static inline uint8_t palette_preset_field(const GameState *g, unsigned preset, unsigned slot, unsigned field)
+/* A palette preset: a pair of fades, eight bytes a slot, sixteen presets
+ * ($CE:F0E6): the colors each changes and the levels it fades between (the
+ * slot's other fields the preset setup sets itself). */
+typedef struct {
+    uint8_t first_color, color_count, level, target;
+} PresetFade;
+
+static inline PresetFade palette_preset_fade(const GameState *g, uint8_t preset, unsigned slot)
 {
-    return rom_read8(g, 0xCEF0E6u + 16u * preset + PRESET_SLOT_FIELDS * slot + field);
+    uint32_t at = 0xCEF0E6u + 16u * preset + 8u * slot;
+    return (PresetFade){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 6), rom_read8(g, at + 7) };
 }
 
 /* The two slots' delay and period for each of eight paces ($CE:F126), and

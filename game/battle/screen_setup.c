@@ -14,7 +14,6 @@
 #include "battle/screen.h"
 
 #include "original_effects.h"
-#include "vars.h"
 
 /* A color-math value: the channels it applies to in the top three bits and the
  * intensity in the low five. The tables step the intensity in 1/256ths of a
@@ -23,7 +22,8 @@ enum { ALL_CHANNELS = 0xE0, INTENSITY_FRACTION_BITS = 8, INTENSITY_ONE = 1 << IN
 
 static uint8_t color_math_value(uint16_t intensity) { return (uint8_t)(ALL_CHANNELS | intensity >> INTENSITY_FRACTION_BITS); }
 
-/* The four tables in battle_fade_line_data, by where their first entry is. */
+/* The four tables in battle_fade_line_data, by the byte their first entry
+ * starts at. */
 typedef enum { FALL_BY_THIRDS = 0x01, RISE_BY_THIRDS = 0x61, FALL_BY_TWO_THIRDS = 0xC1, RISE_BY_TWO_THIRDS = 0xF1 } FadeTable;
 
 enum { ENTRY_BYTES = 4, ONE_LINE = 1, EVERY_LINE = 0x80, END_OF_TABLE = 0 };
@@ -51,7 +51,9 @@ static const FadePair pairs[] = {
     { FALL_BY_TWO_THIRDS, RISE_BY_TWO_THIRDS, 12, 2 * INTENSITY_ONE / 3 },
 };
 
-/* The rising tables' last entry ends them, holding every channel at nothing. */
+/* The rising tables' last entry ends them, holding every channel at nothing.
+ * The falling ones have no end of their own: each runs on into the rising
+ * table after it, which is how the line effect shows a fall and a rise. */
 static void end_rising_table(GameState *g, FadeTable table, unsigned entries)
 {
     set_entry(g, table, entries - 1, END_OF_TABLE, ALL_CHANNELS);
@@ -63,10 +65,8 @@ static void leave_intensities(GameState *g, const FadePair *p)
 {
     uint16_t fell = (uint16_t)(ALL_CHANNELS << 8 | (uint16_t)(FALL_FROM - (p->entries + 1) * p->step));
     uint16_t rose = (uint16_t)(ALL_CHANNELS << 8 | (uint16_t)((p->entries + 1) * p->step));
-    set_battle_scratch(g, 0x0E, (uint8_t)fell);
-    set_battle_scratch(g, 0x0F, (uint8_t)(fell >> 8));
-    set_battle_scratch(g, 0x10, (uint8_t)rose);
-    set_battle_scratch(g, 0x11, (uint8_t)(rose >> 8));
+    screen_leave_word(g, 0x53, fell);
+    screen_leave_word(g, 0x55, rose);
 }
 
 // $D1:F83D

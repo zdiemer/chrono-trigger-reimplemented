@@ -50,18 +50,42 @@ static inline void screen_command_took(GameState *g, int operands)
     set_battle_screen_script(g, (at & 0xFF0000u) | (uint16_t)(at + operands - 1));
 }
 
+/* ---- Palette rows and the sine --------------------------------------------------------------- */
+
+/* A palette row is 16 colors: rows 0-7 are the background's, 8-15 the
+ * sprites' palettes 0-7. */
+enum { SCREEN_ROW_COLORS = 16, SCREEN_SPRITE_ROWS = 8 };
+
+/* An amplitude times the sine of an angle, in whole units: the sine table's
+ * magnitudes are 1/256ths, and the second half of the turn is negative. The
+ * result is a byte, as the effects use it (a column or a line offset). */
+enum { SCREEN_HALF_TURN = 0x80, SCREEN_SINE_FRACTION_BITS = 8 };
+
+static inline uint8_t screen_scaled_sine(const GameState *g, uint8_t angle, uint8_t amplitude)
+{
+    uint8_t v = (uint8_t)(battle_sine_magnitude(g, angle) * amplitude >> SCREEN_SINE_FRACTION_BITS);
+    return (angle & SCREEN_HALF_TURN) ? (uint8_t)-v : v;
+}
+
 /* ---- The cells the original works in -------------------------------------------------------
  *
  * The effects' routines keep values in the battle page's scratch cells as they
  * work ($00-$1F and $45-$5B); a port keeps them in C and writes the final
  * values once, as scaffolding (ORIGINAL_EFFECT): nothing but the original's
  * next use of a cell, which writes it first, and shadow mode read them. `cell`
- * is the cell's offset on the page, as the original spells it. Where a cell is
- * a callee's input or a result a caller reads, it has a name in the map and
- * the code says so. */
+ * is the cell's offset on the page, as the original spells it. A few cells are
+ * also a calling convention -- a caller's settings, a callee's input, a
+ * result the original's code reads -- which only the entry wrappers and the
+ * bridges read or write, through screen_cell and screen_set_cell, each saying
+ * which. */
 enum { SCREEN_LOW_CELLS_END = 0x20, SCREEN_CELLS = 0x45 };
 
-static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v)
+static inline uint8_t screen_cell(const GameState *g, uint8_t cell)
+{
+    return cell < SCREEN_LOW_CELLS_END ? battle_low_scratch(g, cell) : battle_scratch(g, (unsigned)(cell - SCREEN_CELLS));
+}
+
+static inline void screen_set_cell(GameState *g, uint8_t cell, uint8_t v)
 {
     if (cell < SCREEN_LOW_CELLS_END)
         set_battle_low_scratch(g, cell, v);
@@ -69,10 +93,26 @@ static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v)
         set_battle_scratch(g, (unsigned)(cell - SCREEN_CELLS), v);
 }
 
-static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v)
+static inline uint16_t screen_cell_word(const GameState *g, uint8_t cell)
 {
-    screen_leave_cell(g, cell, (uint8_t)v);
-    screen_leave_cell(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
+    return (uint16_t)(screen_cell(g, cell) | screen_cell(g, (uint8_t)(cell + 1)) << 8);
+}
+
+static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
+{
+    screen_set_cell(g, cell, (uint8_t)v);
+    screen_set_cell(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
+}
+
+/* The scaffolding's writes, by the same cells. */
+static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
+static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }
+
+/* A command's body returns with A 0, as the original's last TDC leaves it. */
+static inline void screen_command_done(Snes *s)
+{
+    s->cpu.a = 0;
+    m_rtl(s);
 }
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */

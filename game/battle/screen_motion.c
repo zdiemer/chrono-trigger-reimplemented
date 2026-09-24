@@ -22,16 +22,20 @@ static ScreenChannel running_channel(const GameState *g) { return (ScreenChannel
 
 // $D1:F474
 /* A random byte, picked from the battle's table by a seed moved on by the
- * frame count. The original adds in the carry its caller's last addition
- * left, so a caller that just went past 255 picks one further on. */
-static uint8_t random_pick(const GameState *g, uint8_t seed, bool one_further)
+ * frame count. */
+static uint8_t random_pick(const GameState *g, uint8_t seed)
 {
-    return battle_random_table(g, (uint8_t)(seed + (uint8_t)battle_frame_count(g) + one_further));
+    return battle_random_table(g, (uint8_t)(seed + (uint8_t)battle_frame_count(g)));
 }
 
-/* The screen script's dispatch leaves the carry set (it shifts the opcode's
- * top bit out), so a command's first pick is one further on. */
-enum { DISPATCH_CARRY = true };
+/* The original's pick also adds in the carry its caller's last addition left:
+ * a pick right after an amount that went past 255 is taken one further on.
+ * The jitter's first pick comes right after the screen script's dispatch,
+ * whose shift of the opcode always leaves it. */
+static uint8_t random_pick_after_overflow(const GameState *g, uint8_t seed, bool overflowed)
+{
+    return random_pick(g, (uint8_t)(seed + overflowed));
+}
 
 /* What the jitter leaves in its cells: the two amounts and the spread. */
 static void leave_jitter(GameState *g, uint8_t across, uint8_t down, uint8_t spread)
@@ -47,8 +51,8 @@ static void leave_jitter(GameState *g, uint8_t across, uint8_t down, uint8_t spr
  * second pick follows from the first amount, so the two move together. */
 static void jitter_layer(GameState *g, ScreenChannel ch, uint8_t across, uint8_t down, uint8_t spread)
 {
-    uint16_t right = (uint16_t)((random_pick(g, spread, DISPATCH_CARRY) & spread) + across);
-    uint8_t lower = (uint8_t)((random_pick(g, (uint8_t)right, right > 0xFF) & spread) + down);
+    uint16_t right = (uint16_t)((random_pick_after_overflow(g, spread, true) & spread) + across);
+    uint8_t lower = (uint8_t)((random_pick_after_overflow(g, (uint8_t)right, right > 0xFF) & spread) + down);
     set_battle_screen_layer_x(g, ch, (uint16_t)-(uint8_t)right);
     set_battle_screen_layer_y(g, ch, (uint16_t)-lower);
     ORIGINAL_EFFECT(leave_jitter(g, (uint8_t)right, lower, spread));
@@ -180,23 +184,21 @@ static void request_preset_copy(GameState *g) { set_battle_palette_preset_reques
 /* Set up the palette preset's two fades and ask the frame work to start them. */
 static void set_palette_preset(GameState *g, const PalettePreset *p)
 {
-    enum { FIRST_COLOR, COLOR_COUNT, FADE_LEVEL = 6, FADE_TARGET };
     for (unsigned slot = 0; slot < PRESET_SLOTS; slot++) {
-        uint8_t level = palette_preset_field(g, p->preset, slot, FADE_LEVEL);
-        uint8_t target = palette_preset_field(g, p->preset, slot, FADE_TARGET);
+        PresetFade f = palette_preset_fade(g, p->preset, slot);
         if (p->halfway) {
-            level = halfway_level(level, p->to_black);
-            target = halfway_level(target, p->to_black);
+            f.level = halfway_level(f.level, p->to_black);
+            f.target = halfway_level(f.target, p->to_black);
         }
         set_battle_palette_slot_presets_kind(g, slot, p->to_black ? FADE_TO_BLACK : FADE_TO_WHITE);
-        set_battle_palette_slot_presets_first_color(g, slot, palette_preset_field(g, p->preset, slot, FIRST_COLOR));
-        set_battle_palette_slot_presets_color_count(g, slot, palette_preset_field(g, p->preset, slot, COLOR_COUNT));
+        set_battle_palette_slot_presets_first_color(g, slot, f.first_color);
+        set_battle_palette_slot_presets_color_count(g, slot, f.color_count);
         set_battle_palette_slot_presets_fade_mode(g, slot, p->channels);
         set_battle_palette_slot_presets_delay(g, slot, palette_preset_timing(g, p->pace, slot, false));
         set_battle_palette_slot_presets_period(g, slot, palette_preset_timing(g, p->pace, slot, true));
         set_battle_palette_slot_presets_step(g, slot, palette_preset_step(g, p->pace, slot));
-        set_battle_palette_slot_presets_fade_level(g, slot, p->to_black ? target : level);
-        set_battle_palette_slot_presets_fade_target(g, slot, p->to_black ? level : target);
+        set_battle_palette_slot_presets_fade_level(g, slot, p->to_black ? f.target : f.level);
+        set_battle_palette_slot_presets_fade_target(g, slot, p->to_black ? f.level : f.target);
     }
     request_preset_copy(g);
 }
@@ -254,12 +256,6 @@ static void start_shake_from(GameState *g, const uint8_t settings[SETTINGS_BYTES
     start_shake(g, axes);
 }
 
-static void stop_shake_from(GameState *g, const uint8_t settings[SETTINGS_BYTES])
-{
-    (void)settings;
-    stop_shake(g);
-}
-
 static void set_palette_preset_from(GameState *g, const uint8_t settings[SETTINGS_BYTES])
 {
     PalettePreset p = palette_preset_of(settings);
@@ -291,14 +287,14 @@ bool battle_screen_saves_positions(Snes *s)
     return battle_screen_page_a_clear(s) && a_slot;
 }
 
-/* The settings come in five of the page's cells, $53-$57, and the effect is
- * one of the six the original's table has. */
+/* The caller hands the settings in five of the page's cells, $53-$57, and the
+ * effect is one of the six the original's table has. */
 enum { SETTINGS_CELL = 0x53 };
 
 static void settings_in_cells(const GameState *g, uint8_t settings[SETTINGS_BYTES])
 {
     for (unsigned i = 0; i < SETTINGS_BYTES; i++)
-        settings[i] = battle_scratch(g, SETTINGS_CELL - SCREEN_CELLS + i);
+        settings[i] = screen_cell(g, (uint8_t)(SETTINGS_CELL + i));
 }
 
 bool battle_screen_effect_is_one(Snes *s)
@@ -313,59 +309,44 @@ bool battle_screen_effect_is_one(Snes *s)
 // $D1:F474
 void battle_screen_random_byte(Snes *s)
 {
-    m_set_a8(s, random_pick(state_of(s), (uint8_t)s->cpu.a, m_flag(s, CPU_FLAG_C)));
+    m_set_a8(s, random_pick_after_overflow(state_of(s), (uint8_t)s->cpu.a, m_flag(s, CPU_FLAG_C)));
     m_rts(s);
-}
-
-/* The commands' bodies return with A 0, as the original's last TDC leaves it. */
-static void command_done(Snes *s)
-{
-    s->cpu.a = 0;
-    m_rtl(s);
 }
 
 void battle_screen_jitter(Snes *s)
 {
     jitter_command(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_swing(Snes *s)
 {
     GameState *g = state_of(s);
     swing_layer(g, running_channel(g));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_save_positions(Snes *s)
 {
     GameState *g = state_of(s);
     save_animation_positions(g, screen_command_operand(g, 0));
-    command_done(s);
+    screen_command_done(s);
 }
 
-/* Each effect, and the routine whose work it is. */
-static const struct {
-    void (*apply)(GameState *g, const uint8_t settings[SETTINGS_BYTES]);
-    uint32_t routine;
-} effects[] = {
-    [PALETTE_PRESET] = { set_palette_preset_from, 0xD1F74D },
-    [START_SHAKE] = { start_shake_from, 0xD1F6B4 },
-    [STOP_SHAKE] = { stop_shake_from, 0xD1F692 },
-};
-
 // $D1:F67A
-/* Set a screen effect from the settings. The effects' own routines return
- * with A's high byte as it came, which the guard has 0. */
+/* Set a screen effect from the settings, each effect's work timed as its own
+ * routine's. */
 void battle_set_screen_effect(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t settings[SETTINGS_BYTES];
     settings_in_cells(g, settings);
-    ScreenEffectKind kind = effect_kinds[effect_choice(settings)];
-    NATIVE_TIME_AS(s, effects[kind].routine, effects[kind].apply(g, settings));
-    s->cpu.a = 0;
-    m_rtl(s);
+    switch (effect_kinds[effect_choice(settings)]) {
+    case PALETTE_PRESET: NATIVE_TIME_AS(s, 0xD1F74D, set_palette_preset_from(g, settings)); break;
+    case START_SHAKE: NATIVE_TIME_AS(s, 0xD1F6B4, start_shake_from(g, settings)); break;
+    case STOP_SHAKE: NATIVE_TIME_AS(s, 0xD1F692, stop_shake(g)); break;
+    }
+    screen_command_done(s);
 }
 
 void battle_stop_shake(Snes *s)

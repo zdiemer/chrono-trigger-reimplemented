@@ -101,19 +101,16 @@ static void edge_slopes(const Corner c[CORNERS], Slope slopes[EDGES])
 /* The beam's top, 32 columns wide, sways about column $C0 by up to 40 columns
  * (40 times the sine of the frame count); its foot is 32 wide about the
  * position. */
-enum { BEAM_WIDTH = 0x20, BEAM_TOP_LEFT = 0xB0, BEAM_SWAY = 0x28, HALF_TURN = 0x80, SINE_FRACTION_BITS = 8 };
+enum { BEAM_WIDTH = 0x20, BEAM_TOP_LEFT = 0xB0, BEAM_SWAY = 0x28 };
 
 // $D1:EBFF
 /* Screen command $F4: shape window quadrilateral `quad` as a beam from the top
  * of the screen down to the first animation position. */
 static void shape_beam(GameState *g, unsigned quad)
 {
-    uint8_t frame = (uint8_t)battle_frame_count(g), sine = battle_sine_magnitude(g, frame);
-    uint8_t sway = (uint8_t)(BEAM_SWAY * sine >> SINE_FRACTION_BITS);
-    if (frame & HALF_TURN)
-        sway = (uint8_t)-sway;
+    uint8_t frame = (uint8_t)battle_frame_count(g), sway = screen_scaled_sine(g, frame, BEAM_SWAY);
     ORIGINAL_EFFECT(hw_set_multiplicand(g, BEAM_SWAY));
-    ORIGINAL_EFFECT(hw_multiply_by(g, sine));
+    ORIGINAL_EFFECT(hw_multiply_by(g, battle_sine_magnitude(g, frame)));
     uint16_t at = battle_animation_positions(g, 0);
     uint8_t top_left = (uint8_t)(BEAM_TOP_LEFT + sway), foot_left = (uint8_t)((uint8_t)at - BEAM_WIDTH / 2);
     uint8_t foot = (uint8_t)(at >> 8);
@@ -224,55 +221,54 @@ void battle_quad_edge_slopes(Snes *s)
 }
 
 // $D1:F9AF
-/* Draw window quadrilateral X into the coming frame's window table: its
+/* Draw a window quadrilateral into the coming frame's window table: its
  * corners, sorted, to the rasterizer, which runs with the data bank on the
  * I/O registers (for the work RAM port), kept on the stack as the original
- * keeps it. */
-void battle_draw_window_quad(Snes *s)
+ * keeps it. False where the rasterizer didn't come back as the battle's code
+ * runs: the original then goes on from its return, and pulls the bank itself. */
+static bool rasterize_quad(Snes *s, unsigned quad)
 {
     GameState *g = state_of(s);
-    unsigned quad = s->cpu.x;
     Corner c[CORNERS];
     set_battle_window_quad_index(g, (uint8_t)quad);
     for (unsigned i = 0; i < CORNERS; i++)
         c[i] = quad_corner(g, quad, i);
     sort_corners_by_line(c);
     hand_corners(g, c);
-    uint8_t bank = s->cpu.db;
-    m_push8(s, bank);
+    m_push8(s, s->cpu.db);
     s->cpu.db = 0x00;
     s->cpu.a = 0;
     if (!battle_call(s, 0xD1F9E2, 0xD1F9E7, DC_X | DC_Y | DC_FLAGS | DC_AL))
-        return;
+        return false;
     s->cpu.db = m_pull8(s);
-    m_rtl(s);
+    return true;
 }
 
-/* The beam draws its quadrilateral with the routine above, called as the
- * original's JSL calls it (its return on the stack, where the rasterizer's
- * stack sits), and goes on where it returns. */
-enum { DRAW_QUAD_CALL = 0xD1EC5A, DRAW_QUAD = 0xD1F9AF };
-
-static bool draw_quad_as_called(Snes *s, unsigned quad)
+void battle_draw_window_quad(Snes *s)
 {
-    uint16_t sp = s->cpu.s;
-    m_push8(s, (uint8_t)(DRAW_QUAD_CALL >> 16));
-    m_push16(s, (uint16_t)(DRAW_QUAD_CALL + BATTLE_JSL_SIZE - 1));
-    s->cpu.pb = (uint8_t)(DRAW_QUAD >> 16);
-    s->cpu.pc = (uint16_t)DRAW_QUAD;
-    s->cpu.x = (uint16_t)quad;
-    NATIVE_TIME_AS(s, DRAW_QUAD, battle_draw_window_quad(s));
-    bool returned = s->cpu.s == sp && s->cpu.pb == (uint8_t)(DRAW_QUAD_CALL >> 16)
-                    && s->cpu.pc == (uint16_t)(DRAW_QUAD_CALL + BATTLE_JSL_SIZE);
-    return returned && battle_back(s, DRAW_QUAD_CALL + BATTLE_JSL_SIZE, BATTLE_PAGE, BATTLE_DATA_BANK);
+    if (rasterize_quad(s, s->cpu.x))
+        m_rtl(s);
 }
+
+/* The beam draws its quadrilateral with the same bridge, under the return
+ * the original's JSL to $D1:F9AF leaves on the stack: where the rasterizer
+ * stops, the original's code finds it there and returns to the beam's own
+ * return. */
+enum { DRAW_QUAD_RETURNS_TO = 0xD1EC5E };
 
 void battle_screen_draw_beam(Snes *s)
 {
     GameState *g = state_of(s);
     unsigned quad = screen_command_operand(g, 0);
     shape_beam(g, quad);
+    m_push8(s, (uint8_t)(DRAW_QUAD_RETURNS_TO >> 16));
+    m_push16(s, (uint16_t)(DRAW_QUAD_RETURNS_TO - 1));
+    bool drawn;
+    NATIVE_TIME_AS(s, 0xD1F9AF, drawn = rasterize_quad(s, quad));
+    if (!drawn)
+        return;
+    m_pull16(s);
+    m_pull8(s);
     /* A is as the rasterizer leaves it */
-    if (draw_quad_as_called(s, quad))
-        m_rtl(s);
+    m_rtl(s);
 }

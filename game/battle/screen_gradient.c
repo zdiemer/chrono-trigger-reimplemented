@@ -18,7 +18,7 @@
 
 /* ---- The gradient's colors ------------------------------------------------------------------ */
 
-enum { GRADIENT_COLORS = GRADIENT_SET_COLORS, GRADIENT_FIRST_COLOR = 5 * 16 + 1, ROW_COLORS = 16 };
+enum { GRADIENT_COLORS = GRADIENT_SET_COLORS, ROW_COLORS = SCREEN_ROW_COLORS, GRADIENT_FIRST_COLOR = 5 * ROW_COLORS + 1 };
 
 /* The fading colors, and after them the same again, so that 14 colors from
  * any point of the turn run on without wrapping. */
@@ -237,7 +237,7 @@ void battle_find_gradient_phase(Snes *s)
 void battle_gradient_row_rotation(Snes *s)
 {
     GameState *g = state_of(s);
-    m_set_a8(s, row_start(g, battle_scratch(g, 0x45 - SCREEN_CELLS)));
+    m_set_a8(s, row_start(g, screen_cell(g, 0x45)));
     m_rts(s);
 }
 

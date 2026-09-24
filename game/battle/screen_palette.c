@@ -16,7 +16,7 @@
 
 /* ---- The palette, as rows ------------------------------------------------------------------ */
 
-enum { ROW_COLORS = 16, SPRITE_ROWS = 8, WHITE = 0x7FFF, BLACK = 0 };
+enum { ROW_COLORS = SCREEN_ROW_COLORS, SPRITE_ROWS = SCREEN_SPRITE_ROWS, WHITE = 0x7FFF, BLACK = 0 };
 
 static unsigned row_color(unsigned row, unsigned color) { return row * ROW_COLORS + color; }
 
@@ -129,15 +129,16 @@ static void whiten_scene(GameState *g)
 /* Command $80, operation 28: turn sprite palettes 5-7 white. */
 static void whiten_high_sprite_palettes(GameState *g) { paint_rows(g, SPRITE_ROWS + 5, 3, WHITE); }
 
-/* The band of background rows the next two commands move, 2-4 and 5-7, and
- * the animation slots that run on them, 0-2 and 3-5. */
-enum { LOW_BAND = 2, HIGH_BAND = 5, BAND_ROWS = 3, LOW_BAND_SLOTS = 0, HIGH_BAND_SLOTS = 3 };
+/* The band of background rows the next two commands move: rows 2-4, moved up
+ * to rows 5-7 and back. Its animations run in slots 3-5 while it is in place
+ * and in slots 0-2 while it is moved up. */
+enum { LOW_BAND = 2, HIGH_BAND = 5, BAND_ROWS = 3, MOVED_UP_SLOTS = 0, IN_PLACE_SLOTS = 3 };
 
 // $D1:E91A
 /* Command $80, operation 24: move the band of background rows 2-4 up to rows
- * 5-7, leaving black behind, and its animations (slots 3-5) to slots 0-2, to
- * rotate there; slots 3-5 stop once the pause puts the kinds kept aside in
- * place. */
+ * 5-7, leaving black behind, and its animations with it, from slots 3-5 to
+ * slots 0-2, rotating there; slots 3-5 stop once the pause puts the kinds
+ * kept aside in place. */
 static void move_band_up(GameState *g)
 {
     for (unsigned c = 0; c < BAND_ROWS * ROW_COLORS; c++) {
@@ -145,10 +146,10 @@ static void move_band_up(GameState *g)
         set_color(g, row_color(LOW_BAND, c), BLACK);
     }
     for (unsigned n = 0; n < BAND_ROWS; n++) {
-        move_animation(g, HIGH_BAND_SLOTS + n, LOW_BAND_SLOTS + n, HIGH_BAND - LOW_BAND);
-        set_palette_animations_kind(g, LOW_BAND_SLOTS + n, ANIMATION_ROTATE_UP);
-        keep_kind(g, LOW_BAND_SLOTS + n, ANIMATION_ROTATE_UP);
-        keep_kind(g, HIGH_BAND_SLOTS + n, ANIMATION_NONE);
+        move_animation(g, IN_PLACE_SLOTS + n, MOVED_UP_SLOTS + n, HIGH_BAND - LOW_BAND);
+        set_palette_animations_kind(g, MOVED_UP_SLOTS + n, ANIMATION_ROTATE_UP);
+        keep_kind(g, MOVED_UP_SLOTS + n, ANIMATION_ROTATE_UP);
+        keep_kind(g, IN_PLACE_SLOTS + n, ANIMATION_NONE);
     }
     set_battle_palette_rows_moved(g, false);
     mark_paused(g);
@@ -156,8 +157,8 @@ static void move_band_up(GameState *g)
 
 // $D1:E984
 /* Command $80, operation 23, the way back: background rows 2-4 get the colors
- * they start the battle with, and slots 0-2's animations move back to slots
- * 3-5, rotating from their next frame. The frame work does less while the
+ * they start the battle with, and the band's animations move back from slots
+ * 0-2 to slots 3-5, rotating from their next frame. The frame work does less while the
  * band is back. */
 static void move_band_down(GameState *g)
 {
@@ -166,8 +167,8 @@ static void move_band_down(GameState *g)
     for (unsigned c = 0; c < BAND_ROWS * ROW_COLORS; c++)
         set_color(g, row_color(LOW_BAND, c), background_row_start_color(g, c));
     for (unsigned n = 0; n < BAND_ROWS; n++) {
-        unsigned slot = HIGH_BAND_SLOTS + n;
-        move_animation(g, LOW_BAND_SLOTS + n, slot, LOW_BAND - HIGH_BAND);
+        unsigned slot = IN_PLACE_SLOTS + n;
+        move_animation(g, MOVED_UP_SLOTS + n, slot, LOW_BAND - HIGH_BAND);
         set_palette_animations_delay(g, slot, 0);
         set_palette_animations_period(g, slot, 1);
         set_palette_animations_kind(g, slot, ANIMATION_ROTATE_UP);
@@ -217,41 +218,34 @@ static void pause_palette_animation(GameState *g)
 bool battle_screen_page(Snes *s) { return battle_on_page(s); }
 bool battle_screen_page_a_clear(Snes *s) { return battle_on_page_a_high_clear(s); }
 
-/* The commands return with A 0, as the original's last TDC leaves it. */
-static void command_done(Snes *s)
-{
-    s->cpu.a = 0;
-    m_rtl(s);
-}
-
 void battle_screen_swap_palette_rows(Snes *s)
 {
     swap_sprite_palettes(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_whiten_palette(Snes *s)
 {
     whiten_scene(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_whiten_high_rows(Snes *s)
 {
     whiten_high_sprite_palettes(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_move_rows_up(Snes *s)
 {
     move_band_up(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_move_rows_down(Snes *s)
 {
     move_band_down(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_save_palette_kinds(Snes *s)

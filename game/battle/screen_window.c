@@ -73,13 +73,29 @@ static bool odd_frame(const GameState *g) { return battle_frame_count(g) & 0x01;
 static TableLine coming_line(const GameState *g, unsigned line) { return (odd_frame(g) ? SCREEN_LINES : 0) + (int)line; }
 static TableLine shown_line(const GameState *g, unsigned line) { return (odd_frame(g) ? 0 : SCREEN_LINES) + (int)line; }
 
-/* Two step counts the effects keep between calls: the across one (the band's
- * half width, the waves' damping, the wipe's steps) and the down one (the
- * band's half height, the counted wave's calls). */
-typedef enum { STEPS_ACROSS, STEPS_DOWN } StepCount;
+/* Two counts the effects keep between calls, each the one effect's that
+ * runs at a time: the first is the band's half width, the waves' damping so
+ * far, or the wipe's calls; the second the band's half height or the counted
+ * wave's calls. The wipe counts its calls as a word over both. */
+enum { FIRST_COUNT, SECOND_COUNT };
 
-static uint8_t steps(const GameState *g, StepCount c) { return battle_window_steps(g, c); }
-static void set_steps(GameState *g, StepCount c, uint8_t v) { set_battle_window_steps(g, c, v); }
+static uint8_t band_half_width(const GameState *g) { return battle_window_steps(g, FIRST_COUNT); }
+static void set_band_half_width(GameState *g, uint8_t v) { set_battle_window_steps(g, FIRST_COUNT, v); }
+static uint8_t band_half_height(const GameState *g) { return battle_window_steps(g, SECOND_COUNT); }
+static void set_band_half_height(GameState *g, uint8_t v) { set_battle_window_steps(g, SECOND_COUNT, v); }
+static uint8_t wave_damping(const GameState *g) { return battle_window_steps(g, FIRST_COUNT); }
+static void set_wave_damping(GameState *g, uint8_t v) { set_battle_window_steps(g, FIRST_COUNT, v); }
+static uint8_t counted_wave_calls(const GameState *g) { return battle_window_steps(g, SECOND_COUNT); }
+static void set_counted_wave_calls(GameState *g, uint8_t v) { set_battle_window_steps(g, SECOND_COUNT, v); }
+static uint16_t wipe_calls(const GameState *g)
+{
+    return (uint16_t)(battle_window_steps(g, FIRST_COUNT) | battle_window_steps(g, SECOND_COUNT) << 8);
+}
+static void set_wipe_calls(GameState *g, uint16_t v)
+{
+    set_battle_window_steps(g, FIRST_COUNT, (uint8_t)v);
+    set_battle_window_steps(g, SECOND_COUNT, (uint8_t)(v >> 8));
+}
 
 /* ---- Bands ------------------------------------------------------------------------------------- */
 
@@ -105,11 +121,11 @@ static void leave_band(GameState *g, uint8_t low, uint8_t high)
  * height, up to 9, down to the battlefield's last line. */
 static void open_band_across(GameState *g)
 {
-    uint8_t center = position_across(g), half = steps(g, STEPS_ACROSS);
+    uint8_t center = position_across(g), half = band_half_width(g);
     uint8_t left = center >= half ? (uint8_t)(center - half) : 0;
     uint8_t right = center + half > 0xFF ? 0xFF : (uint8_t)(center + half);
     if (half < BAND_WIDEST)
-        set_steps(g, STEPS_ACROSS, (uint8_t)(half + 1));
+        set_band_half_width(g, (uint8_t)(half + 1));
     for (unsigned line = 0; line < BATTLEFIELD_LINES; line++)
         set_line_edges(g, coming_line(g, line), WINDOW_1, edges_between(left, right));
     ORIGINAL_EFFECT(leave_band(g, left, right));
@@ -117,11 +133,11 @@ static void open_band_across(GameState *g)
 
 static void open_band_down(GameState *g)
 {
-    uint8_t center = position_down(g), half = steps(g, STEPS_DOWN);
+    uint8_t center = position_down(g), half = band_half_height(g);
     uint8_t top = center >= half ? (uint8_t)(center - half) : 0;
     uint8_t bottom = center + half >= BATTLEFIELD_LINES ? BATTLEFIELD_LINES : (uint8_t)(center + half);
     if (half < BAND_TALLEST)
-        set_steps(g, STEPS_DOWN, (uint8_t)(half + 1));
+        set_band_half_height(g, (uint8_t)(half + 1));
     for (unsigned line = top; line < bottom; line++)
         set_line_edges(g, coming_line(g, line), WINDOW_2, EDGES_FULL);
     ORIGINAL_EFFECT(screen_leave_word(g, 0x45, (uint16_t)(bottom * LINE_BYTES)));
@@ -172,13 +188,11 @@ enum { WIPE_FROM = 0xC0 };
 
 static void wipe_diagonally(GameState *g)
 {
-    uint8_t lowest = (uint8_t)(WIPE_FROM - steps(g, STEPS_ACROSS));
+    uint16_t calls = wipe_calls(g);
+    uint8_t lowest = (uint8_t)(WIPE_FROM - calls);
     for (unsigned n = 0; n <= lowest; n++)
-        set_line_edges(g, (TableLine)lowest - 1 - (TableLine)n, WINDOW_2, (Edges)n);
-    uint16_t calls = (uint16_t)(steps(g, STEPS_ACROSS) | steps(g, STEPS_DOWN) << 8);
-    calls++;
-    set_steps(g, STEPS_ACROSS, (uint8_t)calls);
-    set_steps(g, STEPS_DOWN, (uint8_t)(calls >> 8));
+        set_line_edges(g, (TableLine)lowest - 1 - (TableLine)n, WINDOW_2, edges_between((uint8_t)n, 0));
+    set_wipe_calls(g, (uint16_t)(calls + 1));
 }
 
 /* ---- Waves -------------------------------------------------------------------------------------- */
@@ -188,7 +202,7 @@ static void wipe_diagonally(GameState *g)
  * edges, as one word, are its base moved by its amplitude times the sine of
  * its phase, and the phases step once a pair. As the edges move as a word,
  * the left edge waves and the right one moves only when the left wraps. */
-enum { WAVE_PAIRS = BATTLE_WAVE_EDGES_COUNT, HALF_TURN = 0x80, SINE_FRACTION_BITS = 8 };
+enum { WAVE_PAIRS = BATTLE_WAVE_EDGES_COUNT };
 
 typedef struct {
     uint8_t phase[2], amplitude[2];   /* by window */
@@ -197,14 +211,10 @@ typedef struct {
 } Waves;
 
 /* A wave's offset: its amplitude times the sine of the phase, in whole
- * columns, negative in the second half of the turn, and taken as a signed
- * byte. */
+ * columns, taken as a signed byte. */
 static int16_t wave_offset(const GameState *g, uint8_t phase, uint8_t amplitude)
 {
-    uint8_t columns = (uint8_t)(battle_sine_magnitude(g, phase) * amplitude >> SINE_FRACTION_BITS);
-    if (phase & HALF_TURN)
-        columns = (uint8_t)-columns;
-    return columns < 0x80 ? (int16_t)columns : (int16_t)(columns - 0x100);
+    return (int8_t)screen_scaled_sine(g, phase, amplitude);
 }
 
 static void set_pair_edges(GameState *g, unsigned pair, Window w, Edges e)
@@ -248,8 +258,8 @@ enum { WAVE_AMPLITUDE = 0x60 };
 
 static uint8_t damped_amplitude(GameState *g, uint8_t damping)
 {
-    uint8_t damped = (uint8_t)(steps(g, STEPS_ACROSS) + damping);
-    set_steps(g, STEPS_ACROSS, damped);
+    uint8_t damped = (uint8_t)(wave_damping(g) + damping);
+    set_wave_damping(g, damped);
     return (uint8_t)(WAVE_AMPLITUDE - damped);
 }
 
@@ -301,11 +311,11 @@ enum { COUNTED_WAVE_START = 0xA8 };
  * of the command's calls rather than the frames. */
 static void wave_counted(GameState *g, uint8_t damping)
 {
-    uint8_t calls = steps(g, STEPS_DOWN);
+    uint8_t calls = counted_wave_calls(g);
     Waves w = { 0 };
     w.phase[WINDOW_1] = (uint8_t)((uint8_t)(calls + COUNTED_WAVE_START) << 1);
     w.phase[WINDOW_2] = (uint8_t)(w.phase[WINDOW_1] << 1);
-    set_steps(g, STEPS_DOWN, (uint8_t)(calls + 1));
+    set_counted_wave_calls(g, (uint8_t)(calls + 1));
     wave_about_layer(g, damping, w);
 }
 
@@ -349,27 +359,34 @@ static void set_edge(GameState *g, TableLine line, Edge e, uint8_t v)
     }
 }
 
+/* One edge nudged. The original adds the amounts as one long chain, each
+ * addition carrying its overflow into the next, so an edge after one that
+ * went past 255 moves one column further: with a negative amount (a byte
+ * above $7F), nearly every edge but the first does. `spilled` is that
+ * overflow, from the edge before and for the edge after. */
+static uint8_t nudged(uint8_t at, uint8_t by, bool *spilled)
+{
+    unsigned moved = at + by + *spilled;
+    *spilled = moved > 0xFF;
+    return (uint8_t)moved;
+}
+
 // $D1:F108
 /* Screen command $80, operation 13: nudge the edges of the coming frame's
  * lines 48-175 by the per-line amounts in battle_window_line_deltas, the
- * same amount on the two runs of lines. The original adds them as one long
- * chain, each addition carrying its overflow into the next, so an edge after
- * one that went past 255 moves one further: with a negative amount (a byte
- * above $7F), nearly every edge but the first does. */
+ * same amount on the two runs of lines, window 1's by the first table and
+ * window 2's by the second. */
 static void nudge_edges(GameState *g)
 {
     uint8_t second_table = odd_frame(g) ? WINDOW_2_NUDGES_ODD : WINDOW_2_NUDGES_EVEN;
-    bool overflowed = false;
+    const unsigned runs[2] = { FIRST_NUDGED, SECOND_NUDGED };
+    bool spilled = false;
     for (unsigned n = 0; n < NUDGED_LINES; n++) {
         uint8_t by[2] = { battle_window_line_deltas(g, n), battle_window_line_deltas(g, second_table + n) };
-        const unsigned runs[2] = { FIRST_NUDGED, SECOND_NUDGED };
         for (unsigned r = 0; r < 2; r++) {
             TableLine line = coming_line(g, runs[r] + n);
-            for (Edge e = W1_LEFT; e < LINE_EDGES; e++) {
-                unsigned moved = edge(g, line, e) + by[e >= W2_LEFT] + overflowed;
-                overflowed = moved > 0xFF;
-                set_edge(g, line, e, (uint8_t)moved);
-            }
+            for (Edge e = W1_LEFT; e < LINE_EDGES; e++)
+                set_edge(g, line, e, nudged(edge(g, line, e), by[e >= W2_LEFT], &spilled));
         }
     }
 }
@@ -394,7 +411,9 @@ static void copy_window_1_inside_out(GameState *g)
 {
     for (unsigned line = 0; line < SCREEN_LINES; line++)
         set_line_edges(g, coming_line(g, line), WINDOW_2, inside_out(line_edges(g, shown_line(g, line), WINDOW_1)));
-    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, 28 * LINE_BYTES));
+    /* the original copies the lines in eight blocks of 28, and leaves the end
+     * of a block's in its cell */
+    ORIGINAL_EFFECT(screen_leave_word(g, 0x45, SCREEN_LINES / 8 * LINE_BYTES));
 }
 
 /* ---- Fills --------------------------------------------------------------------------------------- */
@@ -404,12 +423,11 @@ typedef enum { BOTH_EMPTY, WINDOW_1_EMPTY, WINDOW_2_EMPTY, WINDOW_1_FULL, FILLS 
 static const struct {
     Edges edges;
     bool window_1, window_2;
-    uint32_t routine;
 } fills[FILLS] = {
-    [BOTH_EMPTY] = { EDGES_EMPTY, true, true, 0xD1FCF4 },
-    [WINDOW_1_EMPTY] = { EDGES_EMPTY, true, false, 0xD1FC38 },
-    [WINDOW_2_EMPTY] = { EDGES_EMPTY, false, true, 0xD1FC96 },
-    [WINDOW_1_FULL] = { EDGES_FULL, true, false, 0xD1FBDA },
+    [BOTH_EMPTY] = { EDGES_EMPTY, true, true },
+    [WINDOW_1_EMPTY] = { EDGES_EMPTY, true, false },
+    [WINDOW_2_EMPTY] = { EDGES_EMPTY, false, true },
+    [WINDOW_1_FULL] = { EDGES_FULL, true, false },
 };
 
 // $D1:FCF4 $D1:FC38 $D1:FC96 $D1:FBDA
@@ -436,7 +454,7 @@ bool battle_screen_band_fits(Snes *s)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool fits = screen_command_operand(g, 0) == 0 || position_down(g) <= BATTLEFIELD_LINES + steps(g, STEPS_DOWN);
+    bool fits = screen_command_operand(g, 0) == 0 || position_down(g) <= BATTLEFIELD_LINES + band_half_height(g);
     vars_peek(false);
     return battle_screen_page_a_clear(s) && fits;
 }
@@ -469,45 +487,38 @@ bool battle_wave_pair_is_one(Snes *s)
     return battle_screen_page_a_clear(s) && s->cpu.y % PAIR_BYTES == 0 && s->cpu.y / PAIR_BYTES < WAVE_PAIRS;
 }
 
-/* The commands return with A 0, as the original's last TDC leaves it. */
-static void command_done(Snes *s)
-{
-    s->cpu.a = 0;
-    m_rtl(s);
-}
-
 void battle_screen_open_band(Snes *s)
 {
     GameState *g = state_of(s);
     open_band(g, screen_command_operand(g, 0) == 0);
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_wipe_from_left(Snes *s)
 {
     wipe_diagonally(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_wave_windows(Snes *s)
 {
     GameState *g = state_of(s);
     wave_about_edges(g, screen_command_operand(g, 0));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_wave_counted(Snes *s)
 {
     GameState *g = state_of(s);
     wave_counted(g, screen_command_operand(g, 0));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_wave_framed(Snes *s)
 {
     GameState *g = state_of(s);
     wave_with_frames(g, screen_command_operand(g, 0));
-    command_done(s);
+    screen_command_done(s);
 }
 
 /* $D1:EF63, $D1:F07E and $D1:F0E9, the waves' steps as the original calls
@@ -524,17 +535,15 @@ static int16_t offset_in_a(const Snes *s)
 
 static unsigned pair_in_y(const Snes *s) { return s->cpu.y / PAIR_BYTES; }
 
-static uint8_t cell(const GameState *g, uint8_t at) { return battle_scratch(g, (unsigned)(at - SCREEN_CELLS)); }
-static uint16_t cell_word(const GameState *g, uint8_t at) { return (uint16_t)(cell(g, at) | cell(g, (uint8_t)(at + 1)) << 8); }
 
 static void hand_on_to_window_2(Snes *s)
 {
     GameState *g = state_of(s);
-    uint8_t phase = cell(g, 0x45);
+    uint8_t phase = screen_cell(g, 0x45);
     hw_set_multiplicand(g, battle_sine_magnitude(g, phase));
-    hw_multiply_by(g, cell(g, 0x4D));
+    hw_multiply_by(g, screen_cell(g, 0x4D));
     s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, phase & HALF_TURN);
+    m_set_flag(s, CPU_FLAG_C, phase & SCREEN_HALF_TURN);
     m_rts(s);
 }
 
@@ -549,14 +558,14 @@ void battle_wave_w1_from_table(Snes *s)
 void battle_wave_w1(Snes *s)
 {
     GameState *g = state_of(s);
-    set_pair_edges(g, pair_in_y(s), WINDOW_1, waved(cell_word(g, 0x4F), offset_in_a(s)));
+    set_pair_edges(g, pair_in_y(s), WINDOW_1, waved(screen_cell_word(g, 0x4F), offset_in_a(s)));
     hand_on_to_window_2(s);
 }
 
 void battle_wave_w2(Snes *s)
 {
     GameState *g = state_of(s);
-    set_pair_edges(g, pair_in_y(s), WINDOW_2, waved(cell_word(g, 0x51), offset_in_a(s)));
+    set_pair_edges(g, pair_in_y(s), WINDOW_2, waved(screen_cell_word(g, 0x51), offset_in_a(s)));
     m_rts(s);
 }
 
@@ -574,27 +583,27 @@ void battle_screen_add_line_deltas(Snes *s)
 void battle_screen_copy_window1_to_window2(Snes *s)
 {
     copy_window_1_across(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_copy_window1_inverted(Snes *s)
 {
     copy_window_1_inside_out(state_of(s));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_move_column_band(Snes *s)
 {
     GameState *g = state_of(s);
     move_middle_band(g, screen_command_operand(g, 0));
-    command_done(s);
+    screen_command_done(s);
 }
 
 void battle_screen_draw_column_band(Snes *s)
 {
     GameState *g = state_of(s);
     draw_middle_band(g, screen_command_operand(g, 0));
-    command_done(s);
+    screen_command_done(s);
 }
 
 /* A fill returns with its edges in A, which its callers read the high byte
@@ -606,11 +615,16 @@ static void filled(Snes *s, Fill f)
 }
 
 // $D1:FBCE
-/* Screen command $88: fill the windows as the operand says (X, doubled). */
+/* Screen command $88: fill the windows as the operand says (X, doubled),
+ * each fill's work timed as its own routine's. */
 void battle_screen_fill_windows(Snes *s)
 {
-    Fill f = (Fill)(s->cpu.x / 2);
-    NATIVE_TIME_AS(s, fills[f].routine, filled(s, f));
+    switch ((Fill)(s->cpu.x / 2)) {
+    case BOTH_EMPTY: NATIVE_TIME_AS(s, 0xD1FCF4, filled(s, BOTH_EMPTY)); break;
+    case WINDOW_1_EMPTY: NATIVE_TIME_AS(s, 0xD1FC38, filled(s, WINDOW_1_EMPTY)); break;
+    case WINDOW_2_EMPTY: NATIVE_TIME_AS(s, 0xD1FC96, filled(s, WINDOW_2_EMPTY)); break;
+    default: NATIVE_TIME_AS(s, 0xD1FBDA, filled(s, WINDOW_1_FULL)); break;
+    }
     m_rtl(s);
 }
 
