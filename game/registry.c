@@ -4,7 +4,6 @@
 #include "battle/animation.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
-#include "battle/menu_window.h"
 #include "battle/main_loop.h"
 #include "battle/window.h"
 #include "battle/effects.h"
@@ -61,7 +60,7 @@
 const NativeEntry game_natives[] = {
     /* battle */
     { .addr = 0xC10299, .name = "battle_draw_window", .fn = battle_draw_window, NEEDS_M8_X16_BINARY,
-      .cost_milli = 5928, .dont_care = DC_N },
+      .guard = battle_window_ready, .cost_milli = 5928, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC12D9F, .name = "battle_step_combatant_animations", .fn = battle_step_combatant_animations,
       NEEDS_M8_X16_BINARY, .cost_milli = 3785, .dont_care = DC_N | DC_Z | DC_C },
     { .addr = 0xD1E77C, .name = "battle_nmi", .fn = battle_nmi, .cost_milli = 3060 },
@@ -329,7 +328,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCD0B51, .name = "battle_update_screen_shake", .fn = battle_update_screen_shake,
       NEEDS_M8_X16_BINARY, .cost_milli = 3397 },
     { .addr = 0xC106F0, .name = "battle_draw_gauge", .fn = battle_draw_gauge, NEEDS_M8_X16_BINARY,
-      .cost_milli = 3912, .dont_care = DC_N | DC_Z | DC_C },
+      .guard = battle_window_member_ready, .cost_milli = 3912,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC14212, .name = "battle_update_animation_positions", .fn = battle_update_animation_positions,
       NEEDS_M8_X16, .cost_milli = 3284, .dont_care = DC_N | DC_Z },
     { .addr = 0xCCF1E7, .name = "battle_step_object_palettes", .fn = battle_step_object_palettes,
@@ -434,7 +434,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC1C90B, .name = "battle_multiply_16x16", .fn = battle_multiply_16x16, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 2085, .dont_care = DC_X | DC_N | DC_V | DC_Z | DC_AL, .guard = battle_page },
     { .addr = 0xC1011F, .name = "battle_number_to_digits", .fn = battle_number_to_digits, NEEDS_M16_X16_BINARY,
-      .cost_milli = 3746 },
+      .guard = battle_on_page, .cost_milli = 3746, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xFDACEE, .name = "battle_clear_numbers", .fn = battle_clear_numbers, NEEDS_M8_X16, .cost_milli = 9838,
       .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_AL, .guard = battle_on_page },
     { .addr = 0xC13714, .name = "battle_step_slot_effects", .fn = battle_step_slot_effects, NEEDS_M8_X16, .cost_milli = 3394 },
@@ -443,10 +443,11 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC12F97, .name = "battle_select_status_pose", .fn = battle_select_status_pose, NEEDS_M8_X16_BINARY,
       .cost_milli = 6898, .dont_care = DC_N | DC_Z },
     { .addr = 0xC10174, .name = "battle_number_to_2_digits", .fn = battle_number_to_2_digits, NEEDS_M16_X16_BINARY,
-      .cost_milli = 3714, .dont_care = DC_N | DC_Z },
-    { .addr = 0xC1104E, .name = "battle_blank_leading_zeros", .fn = battle_blank_leading_zeros, NEEDS_M8, .cost_milli = 4778, .dont_care = DC_N | DC_Z },
+      .guard = battle_on_page, .cost_milli = 3714, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC1104E, .name = "battle_blank_leading_zeros", .fn = battle_blank_leading_zeros, NEEDS_M8,
+      .guard = battle_on_page, .cost_milli = 4778, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z },
     { .addr = 0xC105A7, .name = "battle_draw_party_status", .fn = battle_draw_party_status, NEEDS_M8_X16_BINARY,
-      .cost_milli = 3523, .dont_care = DC_N | DC_Z },
+      .guard = battle_window_ready_a_clear, .cost_milli = 3523, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC148EC, .name = "battle_index_record_groups", .fn = battle_index_record_groups, NEEDS_M8_X16,
       .cost_milli = 6593 },
     { .addr = 0xC14943, .name = "battle_build_bitmap_sprites", .fn = battle_build_bitmap_sprites, NEEDS_M8_X16,
@@ -462,7 +463,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCCF06B, .name = "battle_reset_object_state", .fn = battle_reset_object_state, NEEDS_M8_X16,
       .cost_milli = 7433 },
     { .addr = 0xC1B575, .name = "battle_update_combo_members", .fn = battle_update_combo_members, NEEDS_M8_X16,
-      .cost_milli = 7076 },
+      .guard = battle_on_page, .cost_milli = 7076, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC1B279, .name = "battle_update_combatant", .fn = battle_update_combatant, NEEDS_M8_X16,
       .cost_milli = 5352, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C, .guard = battle_on_page_combatant_xy },
     { .addr = 0xCEF066, .name = "battle_clear_oam_buffer", .fn = battle_clear_oam_buffer, NEEDS_M8,
@@ -473,11 +474,12 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC11C3A, .name = "battle_reset_0b40_table", .fn = battle_reset_0b40_table, NEEDS_M8_X16,
       .cost_milli = 7845, .dont_care = DC_N | DC_Z },
     { .addr = 0xC10C2D, .name = "battle_draw_menu_window", .fn = battle_draw_menu_window, NEEDS_M8_X16_BINARY,
-      .cost_milli = 5920, .dont_care = DC_N | DC_Z },
+      .guard = battle_menu_window_ready, .cost_milli = 5920, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC117DD, .name = "battle_place_menu_cursors", .fn = battle_place_menu_cursors, NEEDS_M8_X16_BINARY,
-      .cost_milli = 3835, .dont_care = DC_N | DC_Z },
+      .guard = battle_window_ready_a_clear, .cost_milli = 3835, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC15ADB, .name = "battle_script_build_number_sprites", .fn = battle_script_build_number_sprites,
-      NEEDS_M8_X16_BINARY, .cost_milli = 4557, .dont_care = DC_N | DC_Z },
+      NEEDS_M8_X16_BINARY, .guard = battle_on_page_a_high_clear, .cost_milli = 4557,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xFDACFD, .name = "battle_clear_damage", .fn = battle_clear_damage, NEEDS_M8_X16,
       .cost_milli = 9833, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_AL, .guard = battle_on_page },
     { .addr = 0xCFE83A, .name = "battle_draw_objects", .fn = battle_draw_objects, NEEDS_M8_X16_BINARY,

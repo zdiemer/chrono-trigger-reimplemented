@@ -1,251 +1,228 @@
-/* Battle: number sprites shown over the combatants.
+/* Battle: the numbers that rise over the combatants.
  *
- * Up to 44 sprite entries at $922D (x, y, tile, attributes; four per
- * combatant, 11 combatants), their visibility bits per combatant in $92DD,
- * built from each combatant's number in $AD9C (a 4-byte record per combatant
- * at $AD9C + $CC:F829 offset: value, then a kind at $AD9E). Presumably damage
- * and recovery numbers. */
-#include "battle/menu_window.h"
+ * When an attack or a tech lands, the animation script shows its numbers: the
+ * damage or the healing over each combatant it touched, or a miss. Each of the
+ * script's number commands shows a set of them (battle_number_records, one a
+ * combatant) in three steps, a frame or more each: the numbers' sprites are
+ * put away and their colors put back; then each combatant with a number gets
+ * up to four digit sprites (its own four), centered on where it stands, or on
+ * its cursor point, and the numbers start to rise (battle/object_motion.c
+ * moves them); and the command waits until they have risen before the script
+ * moves on. The digits are the number sprites' own tiles, their zeros in
+ * front left out; a miss is two tiles of its own. */
+#include "battle/window.h"
 
-#include "port/machine.h"
+#include "battle/bridge.h"
+#include "battle/entries.h"
+#include "battle/window_data.h"
+#include "original_effects.h"
+#include "vars.h"
 
-static uint8_t abs8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr)); }
-static void set_abs8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr), v); }
-static uint8_t absx8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.x); }
-static void set_absx8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.x, v); }
-static uint8_t absy8(Snes *s, uint16_t addr) { return m_read8(s, m_abs(s, addr) + s->cpu.y); }
-static void set_absy8(Snes *s, uint16_t addr, uint8_t v) { m_write8(s, m_abs(s, addr) + s->cpu.y, v); }
-static uint8_t dp8(Snes *s, uint8_t cell) { return m_read8(s, m_dp(s, cell)); }
-static void set_dp8(Snes *s, uint8_t cell, uint8_t v) { m_write8(s, m_dp(s, cell), v); }
-static uint16_t dp16(Snes *s, uint8_t cell) { return m_read16(s, m_dp(s, cell)); }
-static void set_dp16(Snes *s, uint8_t cell, uint16_t v) { m_write16(s, m_dp(s, cell), v); }
+/* ---- A combatant's number -------------------------------------------------------------- */
 
-static void adc_a(Snes *s, uint8_t v) { m_set_a8(s, m_adc8(s, (uint8_t)s->cpu.a, v)); }
+/* How a number shows (the record's kind): not at all, as a miss, and
+ * otherwise as digits: in the second palette for kinds 1 and 2, and rising
+ * the second way for 2 and 4 on. */
+enum { NO_NUMBER = 0, SECOND_PALETTE_FIRST = 1, SECOND_PALETTE_RISING = 2, PLAIN_NUMBER = 3, MISS = 5 };
+enum { NUMBER_ATTRIBUTES = 0x31, SECOND_PALETTE_ATTRIBUTES = 0x39 };
 
-static void inc_abs8(Snes *s, uint16_t addr)
+static bool in_second_palette(uint8_t kind) { return kind == SECOND_PALETTE_FIRST || kind == SECOND_PALETTE_RISING; }
+static bool rises_the_second_way(uint8_t kind) { return kind != SECOND_PALETTE_FIRST && kind != PLAIN_NUMBER; }
+
+/* A number's four digit tiles, the thousands first: the sprites' zero reads
+ * as a blank in front. A miss is two tiles after two blanks. */
+enum { DIGIT_SPRITES = 4, SPRITE_DIGIT_ZERO = 0x90, TILE_MISS = 0x9A };
+
+typedef struct {
+    uint8_t tile[DIGIT_SPRITES];
+} SpriteDigits;
+
+static SpriteDigits number_digits(const GameState *g, uint16_t n)
 {
-    uint8_t v = (uint8_t)(abs8(s, addr) + 1);
-    set_abs8(s, addr, v);
-    m_set_nz8(s, v);
+    return (SpriteDigits){ { battle_sprite_digit_tile(g, n / 1000), battle_sprite_digit_tile(g, n % 1000 / 100),
+                             battle_sprite_digit_tile(g, n % 100 / 10), battle_sprite_digit_tile(g, n % 10) } };
 }
 
-static void inc_dp8(Snes *s, uint8_t cell)
+static SpriteDigits miss_digits(void)
 {
-    uint8_t v = (uint8_t)(dp8(s, cell) + 1);
-    set_dp8(s, cell, v);
-    m_set_nz8(s, v);
+    return (SpriteDigits){ { SPRITE_DIGIT_ZERO, SPRITE_DIGIT_ZERO, TILE_MISS, TILE_MISS + 1 } };
 }
 
-static void inx4(Snes *s)
+/* How many of the first three digits are blanks in front; those aren't shown,
+ * and the rest are centered by how many there are. */
+static unsigned blanks_in_front(SpriteDigits d)
 {
-    for (int i = 0; i < 4; i++)
-        m_inx(s);
+    unsigned blanks = 0;
+    while (blanks < DIGIT_SPRITES - 1 && d.tile[blanks] == SPRITE_DIGIT_ZERO)
+        blanks++;
+    return blanks;
 }
 
-/* LDA digit : CMP #$90 -- true if the digit cell holds the blank tile. */
-static bool blank(Snes *s, uint16_t digit)
+/* The original turns the number into digits in the window's digit buffer
+ * ($CF:FDAD), leaving it holding the ones less ten, and writes a miss's
+ * tiles there with a blank before them too. */
+static void leave_number_digits(GameState *g, uint8_t kind, uint16_t n, SpriteDigits d)
 {
-    uint8_t v = m_lda8(s, abs8(s, digit));
-    m_cmp8(s, v, 0x90);
-    return v == 0x90;
+    if (kind == MISS)
+        set_battle_digits(g, 0, SPRITE_DIGIT_ZERO);
+    else
+        set_battle_number(g, (uint16_t)(n % 10 - 10));
+    for (unsigned place = 0; place < DIGIT_SPRITES; place++)
+        set_battle_digits(g, BATTLE_DIGIT_THOUSANDS + place, d.tile[place]);
 }
 
-/* One digit sprite at X: tile from `digit`, x = $94 + the digit's offset
- * (dp `offset`), y = $95, attributes $8C; clears its bits in $84. */
-static void put_digit(Snes *s, uint16_t digit, uint8_t offset, uint8_t mask)
+/* A combatant's four sprites, and the bits of each in its high table byte:
+ * all past the screen's edge until a digit shows. */
+enum { SPRITES_PAST_THE_EDGE = 0x55, SPRITE_BITS = 0x03 };
+
+typedef struct {
+    uint8_t x, y;
+} NumberPlace;
+
+/* The original's work cells: the record's place and the sprites' (bytes);
+ * the combatant's high bits; the attributes; the digits' offsets (after the
+ * count of blanks); a word it clears; where the number stands. */
+enum { RECORD_PLACE = 0x80, SPRITE_PLACE = 0x82, HIGH_BITS = 0x84, ATTRIBUTES = 0x8C, OFFSETS = 0x8E,
+       CLEARED = 0x92, PLACE = 0x94, RECORD_BYTES = 4, SPRITE_BYTES = 4 };
+
+static void leave_drawn_cells(GameState *g, unsigned blanks, uint8_t high_bits)
 {
-    set_absx8(s, 0x922F, m_lda8(s, abs8(s, digit)));
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_lda8(s, dp8(s, 0x94));
-    adc_a(s, dp8(s, offset));
-    set_absx8(s, 0x922D, (uint8_t)s->cpu.a);
-    set_absx8(s, 0x922E, m_lda8(s, dp8(s, 0x95)));
-    set_absx8(s, 0x9230, m_lda8(s, dp8(s, 0x8C)));
-    set_dp8(s, 0x84, m_lda8(s, (uint8_t)(m_lda8(s, dp8(s, 0x84)) & mask)));
+    battle_leave_work8(g, HIGH_BITS, high_bits);
+    for (unsigned place = 0; place < DIGIT_SPRITES; place++)
+        battle_leave_work8(g, (uint8_t)(OFFSETS + place), battle_digit_sprite_offset(g, blanks, place));
 }
 
-// $C1:75BB
-/* The shared end of the script opcode handlers: advance the script pointer
- * $E6-$E8 by A (8-bit A, with B from before) and return. */
-static void advance_script(Snes *s)
+static void leave_combatant_cells(GameState *g, NumberPlace at, uint8_t attributes)
 {
-    Cpu *c = &s->cpu;
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_C);
-    c->a = m_adc16(s, c->a, dp16(s, 0xE6));
-    set_dp16(s, 0xE6, c->a);
-    c->a = m_adc16(s, m_lda16(s, dp16(s, 0xE8)), 0x0000);
-    set_dp16(s, 0xE8, c->a);
-    m_tdc(s);
-    m_sep(s, CPU_FLAG_M);
-    m_rts(s);
+    battle_leave_work8(g, ATTRIBUTES, attributes);
+    battle_leave_work8(g, PLACE, at.x);
+    battle_leave_work8(g, (uint8_t)(PLACE + 1), at.y);
 }
 
-/* $C1:5B2D: build each combatant's number sprites. */
-static bool build_sprites(Snes *s)
+/* Show a combatant's number: the digits after the blanks in front, each
+ * where its offset puts it. */
+static void show_number(GameState *g, unsigned slot, NumberPlace at, SpriteDigits d, uint8_t attributes)
 {
-    Cpu *c = &s->cpu;
-    set_abs8(s, 0xA3D2, 0x00);
-    inc_abs8(s, 0xA3D1);
-    set_abs8(s, 0xA3D3, m_lda8(s, (uint8_t)(m_lda8(s, abs8(s, 0x9895)) & 0x07)));
-    m_tax(s);
-    m_lda8(s, m_read8(s, 0xCCF829 + c->x));
-    m_tax(s);
-    set_dp16(s, 0x80, c->x);
-    m_tdc(s);
-    m_set_index(s, &c->y, c->a);
-    set_dp16(s, 0x82, c->y);
-    set_dp16(s, 0x92, c->y);
-    do {
-        /* $C1:5B49: the combatant's position */
-        set_dp8(s, 0x8C, m_lda8(s, 0x31));
-        if (m_lda8(s, absy8(s, 0xA003)) == 0) {
-            set_dp8(s, 0x94, m_lda8(s, absy8(s, 0x1D0C)));
-            set_dp8(s, 0x95, m_lda8(s, absy8(s, 0x1D23)));
-        } else {
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_lda8(s, absy8(s, 0x1D0C));
-            adc_a(s, absy8(s, 0x9708));
-            set_dp8(s, 0x94, (uint8_t)c->a);
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_lda8(s, absy8(s, 0x1D23));
-            adc_a(s, absy8(s, 0x9713));
-            set_dp8(s, 0x95, (uint8_t)c->a);
-        }
-        m_ldx16(s, dp16(s, 0x80));
-        uint8_t kind = m_lda8(s, absx8(s, 0xAD9E));
-        if (kind == 0) {
-            /* $C1:5CBF */
-            m_set_flag(s, CPU_FLAG_C, false);
-            m_lda8(s, dp8(s, 0x82));
-            adc_a(s, 0x10);
-            set_dp8(s, 0x82, (uint8_t)c->a);
-        } else {
-            m_cmp8(s, kind, 0x05);
-            if (kind == 0x05) {
-                m_lda8(s, 0x90);
-                set_abs8(s, 0x949B, 0x90);
-                set_abs8(s, 0x949C, 0x90);
-                set_abs8(s, 0x949D, 0x90);
-                set_abs8(s, 0x949E, m_lda8(s, 0x9A));
-                set_abs8(s, 0x949F, m_lda8(s, 0x9B));
-                set_dp8(s, 0x8E, m_lda8(s, 0x02));
-            } else {
-                m_cmp8(s, kind, 0x03);
-                if (kind != 0x03) {
-                    m_cmp8(s, kind, 0x01);
-                    bool other = kind == 0x01;
-                    if (!other) {
-                        set_absy8(s, 0xA0DC, m_lda8(s, 0x01));
-                        uint8_t k = m_lda8(s, absx8(s, 0xAD9E));
-                        m_cmp8(s, k, 0x02);
-                        other = k == 0x02;
-                    }
-                    if (other)
-                        set_dp8(s, 0x8C, m_lda8(s, 0x39));
-                }
-                /* $C1:5BB1 */
-                m_rep(s, CPU_FLAG_M);
-                m_write16(s, m_abs(s, 0x9499), m_lda16(s, m_read16(s, m_abs(s, 0xAD9C) + c->x)));
-                m_jsl(s, 0xC15BB9, 0xCFFDAD);
-                if (c->e || (c->p & CPU_FLAG_X))
-                    return false;
-                m_sep(s, CPU_FLAG_M);
-                set_dp8(s, 0x8E, 0x00);
-                static const uint16_t leading[3] = { 0x949C, 0x949D, 0x949E };
-                for (int i = 0; i < 3; i++) {
-                    if (!blank(s, leading[i]))
-                        break;
-                    inc_dp8(s, 0x8E);
-                }
-            }
-
-            /* $C1:5BDC: digit offsets for the number of leading blanks */
-            m_lda8(s, dp8(s, 0x8E));
-            m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-            m_set_a8(s, m_asl8(s, (uint8_t)c->a));
-            m_tax(s);
-            for (uint16_t k = 0; k < 4; k++)
-                set_dp8(s, (uint8_t)(0x8E + k), m_lda8(s, m_read8(s, 0xCCF5C4 + k + c->x)));
-            set_dp8(s, 0x84, m_lda8(s, 0x55));
-            m_ldx16(s, dp16(s, 0x82));
-            if (!blank(s, 0x949C))
-                put_digit(s, 0x949C, 0x8E, 0xFC);
-            inx4(s);
-            if (!blank(s, 0x949D) || !blank(s, 0x949C))
-                put_digit(s, 0x949D, 0x8F, 0xF3);
-            inx4(s);
-            if (!blank(s, 0x949E) || !blank(s, 0x949D) || !blank(s, 0x949C))
-                put_digit(s, 0x949E, 0x90, 0xCF);
-            inx4(s);
-            put_digit(s, 0x949F, 0x91, 0x3F);
-            inx4(s);
-            set_dp16(s, 0x82, c->x);
-            set_absy8(s, 0x92DD, m_lda8(s, dp8(s, 0x84)));
-            set_absy8(s, 0xA3D4, m_lda8(s, 0x01));
-        }
-
-        /* $C1:5CC6 */
-        m_ldx16(s, dp16(s, 0x80));
-        inx4(s);
-        set_dp16(s, 0x80, c->x);
-        m_iny(s);
-        m_cmp16(s, c->y, 0x000B);
-    } while (c->y != 0x000B);
-    set_abs8(s, 0xAC5A, m_lda8(s, 0x01));
-    m_tdc(s);
-    return true;
+    unsigned blanks = blanks_in_front(d);
+    uint8_t high_bits = SPRITES_PAST_THE_EDGE;
+    for (unsigned place = blanks; place < DIGIT_SPRITES; place++) {
+        unsigned sprite = DIGIT_SPRITES * slot + place;
+        set_battle_number_sprites_tile(g, sprite, d.tile[place]);
+        set_battle_number_sprites_x(g, sprite, (uint8_t)(at.x + battle_digit_sprite_offset(g, blanks, place)));
+        set_battle_number_sprites_y(g, sprite, at.y);
+        set_battle_number_sprites_attributes(g, sprite, attributes);
+        high_bits &= (uint8_t)~(SPRITE_BITS << (2 * place));
+    }
+    set_battle_number_sprite_high(g, slot, high_bits);
+    set_battle_prepared_sprites_on(g, slot, 1);
+    ORIGINAL_EFFECT(leave_drawn_cells(g, blanks, high_bits));
 }
+
+static NumberPlace number_place(const GameState *g, unsigned slot)
+{
+    if (battle_number_at_cursor(g, slot))
+        return (NumberPlace){ combatant_cursor_x(g, slot), combatant_cursor_y(g, slot) };
+    return (NumberPlace){ combatant_x(g, slot), combatant_y(g, slot) };
+}
+
+// $C1:5B2D
+/* The set's numbers, over every combatant that has one; the numbers start to
+ * rise. The set is the command's (its low bits; the table of where each set
+ * starts has six). */
+static void show_numbers(GameState *g, unsigned set)
+{
+    set_battle_numbers_set(g, (uint8_t)set);
+    unsigned first = battle_number_set_start(g, set) / RECORD_BYTES;
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
+        NumberPlace at = number_place(g, slot);
+        uint8_t kind = battle_number_records_kind(g, first + slot);
+        uint8_t attributes = in_second_palette(kind) ? SECOND_PALETTE_ATTRIBUTES : NUMBER_ATTRIBUTES;
+        ORIGINAL_EFFECT(leave_combatant_cells(g, at, attributes));
+        if (kind == NO_NUMBER)
+            continue;
+        if (kind != MISS && rises_the_second_way(kind))
+            set_battle_number_rise_alt(g, slot, 1);
+        uint16_t n = battle_number_records_value(g, first + slot);
+        SpriteDigits d = kind == MISS ? miss_digits() : number_digits(g, n);
+        ORIGINAL_EFFECT(leave_number_digits(g, kind, n, d));
+        show_number(g, slot, at, d, attributes);
+    }
+    ORIGINAL_EFFECT(battle_leave_work16(g, RECORD_PLACE, (uint16_t)(RECORD_BYTES * (first + BATTLE_COMBATANTS))));
+    ORIGINAL_EFFECT(battle_leave_work16(g, SPRITE_PLACE, (uint16_t)(SPRITE_BYTES * DIGIT_SPRITES * BATTLE_COMBATANTS)));
+    ORIGINAL_EFFECT(battle_leave_work16(g, CLEARED, 0));
+    set_battle_numbers_row(g, 0);
+    set_battle_numbers_rising(g, 1);
+}
+
+/* ---- The number command ---------------------------------------------------------------- */
+
+/* Put the numbers away: every number sprite off the screen (all its bytes
+ * the off-screen value), their high bits clear, the object palette
+ * animations stopped, and the numbers' colors (the first four of sprite
+ * palettes 0 and 4) put back. */
+enum { NUMBER_SPRITES = DIGIT_SPRITES * BATTLE_COMBATANTS, NUMBER_SPRITE_OFF = 0xF0, PALETTE_ANIMATIONS = 4 };
+enum { NUMBER_COLORS = 4, FIRST_PALETTE_COLOR = 128, SECOND_PALETTE_COLOR = 192 };
+
+static void put_numbers_away(GameState *g)
+{
+    for (unsigned sprite = 0; sprite < NUMBER_SPRITES; sprite++) {
+        set_battle_number_sprites_x(g, sprite, NUMBER_SPRITE_OFF);
+        set_battle_number_sprites_y(g, sprite, NUMBER_SPRITE_OFF);
+        set_battle_number_sprites_tile(g, sprite, NUMBER_SPRITE_OFF);
+        set_battle_number_sprites_attributes(g, sprite, NUMBER_SPRITE_OFF);
+    }
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
+        set_battle_number_sprite_high(g, slot, 0);
+    for (unsigned i = 0; i < PALETTE_ANIMATIONS; i++)
+        set_battle_palette_anim_on(g, i, 0);
+    for (unsigned i = 0; i < NUMBER_COLORS; i++) {
+        set_palette_working(g, FIRST_PALETTE_COLOR + i, battle_number_colors(g, i));
+        set_palette_working(g, SECOND_PALETTE_COLOR + i, battle_number_colors(g, NUMBER_COLORS + i));
+    }
+}
+
+/* The command's steps; a step past the second waits for the numbers to rise. */
+enum { PUT_AWAY = 0, SHOW = 1, WAIT_FOR_RISE = 2 };
+enum { NUMBER_SETS_MASK = 0x07 };
 
 // $C1:5ADB
-/* Battle script opcodes $50-$55 (through the $C1:7A6B table), in three steps
- * counted by $A3D1: first hide all number sprites ($922D-$92DC = $F0), clear
- * $92DD-$92E7 and $A3B9-$A3BC, and copy $999F-$99A6 to $2300 and $99A7-$99AE
- * to $2380; then build them ($C1:5B2D; the number's digits come from
- * $CF:FDAD) and set $AC5A; then, once $AC5A is clear, reset $A3D1 and move
- * past the opcode. Continues into $C1:75BB with the length to skip. */
+/* A number command's step; true when the script moves on past it. */
+static bool run_number_command(GameState *g, uint8_t command)
+{
+    switch (battle_number_step(g)) {
+    case PUT_AWAY:
+        set_battle_number_step(g, SHOW);
+        put_numbers_away(g);
+        return false;
+    case SHOW:
+        set_battle_number_step(g, WAIT_FOR_RISE);
+        show_numbers(g, command & NUMBER_SETS_MASK);
+        return false;
+    default:
+        if (battle_numbers_rising(g))
+            return false;
+        set_battle_number_step(g, PUT_AWAY);
+        return true;
+    }
+}
+
+/* The script moves past a one-byte command. (The original adds to the
+ * pointer's bank in a word, which only a pointer at the end of the address
+ * space would carry into the byte after it.) */
+static void next_script_command(GameState *g)
+{
+    set_battle_script_pointer(g, (battle_script_pointer(g) + 1) & 0xFFFFFF);
+}
+
+/* ---- The entry ------------------------------------------------------------------------- */
+
+/* The script's commands $50-$55 (the command in battle_script_command). It
+ * ends, as the script commands do, with A clear. */
 void battle_script_build_number_sprites(Snes *s)
 {
-    Cpu *c = &s->cpu;
-    uint8_t step = m_lda8(s, abs8(s, 0xA3D1));
-    if (step == 0) {
-        inc_abs8(s, 0xA3D1);
-        m_ldx16(s, 0x00AF);
-        m_lda8(s, 0xF0);
-        do {
-            set_absx8(s, 0x922D, 0xF0);
-            m_ldx16(s, (uint16_t)(c->x - 1));
-        } while (!(c->x & 0x8000));
-        m_ldx16(s, 0x000A);
-        do {
-            set_absx8(s, 0x92DD, 0x00);
-            m_ldx16(s, (uint16_t)(c->x - 1));
-        } while (!(c->x & 0x8000));
-        for (uint16_t k = 0; k < 4; k++)
-            set_abs8(s, (uint16_t)(0xA3B9 + k), 0x00);
-        static const uint16_t copies[2][2] = { { 0x999F, 0x2300 }, { 0x99A7, 0x2380 } };
-        for (int i = 0; i < 2; i++) {
-            m_tdc(s);
-            m_set_index(s, &c->y, c->a);
-            do {
-                set_absy8(s, copies[i][1], m_lda8(s, absy8(s, copies[i][0])));
-                m_iny(s);
-                m_cmp16(s, c->y, 0x0008);
-            } while (c->y != 0x0008);
-        }
-        m_tdc(s);
-    } else {
-        step = m_lda8(s, abs8(s, 0xA3D1));
-        m_cmp8(s, step, 0x01);
-        if (step == 0x01) {
-            if (!build_sprites(s))
-                return;
-        } else if (m_lda8(s, abs8(s, 0xAC5A)) != 0) {
-            /* $C1:5CE0 */
-            m_tdc(s);
-        } else {
-            set_abs8(s, 0xA3D1, 0x00);
-            m_lda8(s, 0x01);
-        }
-    }
-    advance_script(s);
+    GameState *g = state_of(s);
+    if (run_number_command(g, battle_script_command(g)))
+        next_script_command(g);
+    s->cpu.a = 0;
+    m_rts(s);
 }
