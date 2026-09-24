@@ -938,15 +938,12 @@ void battle_update_combo_members(Snes *s)
     m_rts(s);
 }
 
-/* It leaves X past the table, A the direct page's high byte (a TDC) with the
- * last byte copied, and the carry of the loop's last compare. */
+/* It leaves A's high byte the direct page's (a TDC) and the carry of its
+ * loop's last compare, set. */
 void battle_reset_window_frames(Snes *s)
 {
-    GameState *g = state_of(s);
-    reset_frames(g);
-    unsigned last = BATTLE_WINDOW_FRAMES_TILEMAP_COUNT - 1;
-    s->cpu.x = 2 * BATTLE_WINDOW_FRAMES_TILEMAP_COUNT;
-    s->cpu.a = (uint16_t)((m_direct_page(s) & 0xFF00) | battle_window_frames_tilemap_attributes(g, last));
+    reset_frames(state_of(s));
+    s->cpu.a = m_direct_page(s) & 0xFF00;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);
 }

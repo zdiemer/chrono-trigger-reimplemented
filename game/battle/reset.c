@@ -130,12 +130,8 @@ static void reset_object_state(GameState *g)
     reset_palettes_and_numbers(g);
 }
 
-/* It leaves A the trails' fill and X run down past 0, as its last loop does. */
 void battle_reset_object_state(Snes *s)
 {
     reset_object_state(state_of(s));
-    m_set_a8(s, TRAIL_OFF_SCREEN);
-    s->cpu.x = 0xFFFF;
-    m_set_nz16(s, 0xFFFF);
     m_rtl(s);
 }
