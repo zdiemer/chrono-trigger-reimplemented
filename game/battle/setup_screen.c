@@ -61,11 +61,6 @@ static uint8_t cell_from_the_map(const GameState *g, unsigned cell)
                      | (battle_location_lower_attributes(g, cell) & MAP_BIT ? CELL_BLOCKED : 0));
 }
 
-static void leave_last_map_bit(GameState *g)
-{
-    setup_leave(g, 0x80, (uint8_t)((battle_location_lower_attributes(g, 0) & MAP_BIT) >> 1));
-}
-
 // $CC:E466
 void setup_base_grid(GameState *g)
 {
@@ -74,7 +69,6 @@ void setup_base_grid(GameState *g)
             unsigned cell = row * GRID_SIDE + column;
             set_battle_base_grid(g, cell, starting_cell(g, row, column) | cell_from_the_map(g, cell));
         }
-    ORIGINAL_EFFECT(leave_last_map_bit(g));
 }
 
 /* ---- The tilemaps --------------------------------------------------------------------------- */
@@ -197,8 +191,6 @@ enum { ALL_LARGE = 0xAA };
 // $CC:EDAA
 void setup_size_bits(GameState *g)
 {
-    uint8_t last_kind = 0;
-    bool any = false;
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
         if (!battle_slot_present(g, slot))
             continue;
@@ -207,28 +199,29 @@ void setup_size_bits(GameState *g)
         for (unsigned part = 0; part <= extra; part++)
             set_battle_object_size_bits(g, slot + part, ALL_LARGE);
         slot += extra;
-        last_kind = kind;
-        any = true;
     }
-    if (any)
-        ORIGINAL_EFFECT(setup_leave(g, 0x80, parts_left(last_kind)));
 }
 
 /* An enemy's sprites, and its extra parts', take its palette. The palettes of
  * the enemies' sprites follow the party's by 16 attribute steps. */
 enum { ENEMY_PALETTE_BASE = 0x20, ENEMY_ROW_ENTRY = SPRITE_ENTRIES_PER_OBJECT * BATTLE_FIRST_ENEMY };
 
-static void leave_last_enemy_row(GameState *g, uint8_t attributes, uint8_t kind)
+/* The original counts the last enemy's extra parts down in its working cells. */
+static void leave_last_enemy_row(GameState *g)
 {
-    setup_leave(g, 0x80, attributes);
-    setup_leave(g, 0x82, parts_left(kind));
+    int last = -1;
+    for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
+        if (battle_slot_present(g, BATTLE_FIRST_ENEMY + enemy)) {
+            last = (int)enemy;
+            enemy += setup_extra_parts(battle_object_kind(g, BATTLE_FIRST_ENEMY + enemy));
+        }
+    if (last >= 0)
+        setup_leave(g, 0x82, parts_left(battle_object_kind(g, BATTLE_FIRST_ENEMY + (unsigned)last)));
 }
 
 // $CC:EDE9
 void setup_enemy_sprite_attributes(GameState *g)
 {
-    uint8_t last_attributes = 0, last_kind = 0;
-    bool any = false;
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         unsigned slot = BATTLE_FIRST_ENEMY + enemy;
         if (!battle_slot_present(g, slot))
@@ -241,12 +234,8 @@ void setup_enemy_sprite_attributes(GameState *g)
                 set_battle_object_sprite_entries_attributes(g, ENEMY_ROW_ENTRY + row * SPRITE_ENTRIES_PER_OBJECT + sprite,
                                                             attributes);
         enemy += extra;
-        last_attributes = attributes;
-        last_kind = kind;
-        any = true;
     }
-    if (any)
-        ORIGINAL_EFFECT(leave_last_enemy_row(g, last_attributes, last_kind));
+    ORIGINAL_EFFECT(leave_last_enemy_row(g));
 }
 
 /* ---- Tiles, the cursors' sprites and colors ------------------------------------------------- */
@@ -265,7 +254,6 @@ void setup_tiles(GameState *g)
                                      i < TWO_PLANE_BYTES ? setup_two_plane_tiles(g, (uint16_t)(tile * TWO_PLANE_BYTES + i)) : 0);
     for (uint16_t i = 0; i < FOUR_PLANE_TILE_BYTES; i++)
         set_battle_decoded_tiles(g, TILES_AT + TWO_PLANE_TILES * FOUR_PLANE_BYTES + i, setup_four_plane_tiles(g, i));
-    ORIGINAL_EFFECT(setup_leave_word(g, 0x80, 0));
 }
 
 /* The first four sprites are the cursors': at the corner, small, with tile 0

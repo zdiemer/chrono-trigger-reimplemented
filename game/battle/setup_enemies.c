@@ -56,8 +56,6 @@ static void keep_start_positions(GameState *g)
         set_battle_start_positions_y_offset(g, slot, battle_enemy_placement_y_offset(g, enemy));
         set_battle_start_positions_frame(g, slot, battle_enemy_placement_frame(g, enemy));
     }
-    ORIGINAL_EFFECT(setup_leave(g, 0x80, BATTLE_ENEMIES));
-    ORIGINAL_EFFECT(setup_leave(g, 0x81, 5));
 }
 
 /* ---- One enemy ------------------------------------------------------------------------------ */
@@ -165,8 +163,6 @@ static void place_formation(GameState *g)
         set_battle_formation_offset_x(g, enemy, (uint8_t)(battle_object_x(g, object) - x));
         set_battle_formation_offset_y(g, enemy, (uint8_t)(battle_object_y(g, object) - y));
     }
-    ORIGINAL_EFFECT(setup_leave(g, 0x80, x));
-    ORIGINAL_EFFECT(setup_leave(g, 0x81, y));
 }
 
 /* The rules an enemy can bring: the party can't run away, another enemy's
@@ -176,12 +172,6 @@ static void place_formation(GameState *g)
  * in the byte after it. An enemy number is looked up whether or not its
  * enemy is in the fight. */
 enum { RULE_NO_ESCAPE = 3, RULE_MIRROR = 4, ESCAPE_BLOCKED = 0x01, RULE_END = 0x8000 };
-
-static void leave_rules(GameState *g, bool no_escape, uint8_t mirror)
-{
-    setup_leave_word(g, 0x80, no_escape);
-    setup_leave_word(g, 0x82, mirror);
-}
 
 // $CC:EC63
 static void take_rules(GameState *g)
@@ -206,7 +196,6 @@ static void take_rules(GameState *g)
     }
     set_battle_fight_flags(g, battle_fight_flags(g) | (no_escape ? ESCAPE_BLOCKED : 0));
     set_battle_effect_mirror_slot3(g, mirror);
-    ORIGINAL_EFFECT(leave_rules(g, no_escape, mirror));
 }
 
 /* The kinds of enemy in the fight, in the order they first appear, and how
@@ -275,11 +264,10 @@ bool setup_enemies_are_real(const GameState *g)
 }
 
 /* What the original leaves in its working cells from the last enemy it set
- * up: its number, its animation set and the lengths of its lists, and the
- * row of the effects' pace table its period picked. */
+ * up, of what the kinds' count after it doesn't write over: its number, its
+ * animation set and where its delay lists' next set starts. */
 static void leave_last_enemy(GameState *g)
 {
-    setup_leave_word(g, 0x80, BATTLE_ENEMIES);
     int last = BATTLE_ENEMIES;
     while (last-- > 0 && !record_has_enemy(g, record_of(g, (uint8_t)last)))
         ;
@@ -287,15 +275,7 @@ static void leave_last_enemy(GameState *g)
         return;
     uint16_t number = battle_enemy_numbers(g, (unsigned)last);
     uint8_t set = setup_enemy_header(g, number).animation_set;
-    uint16_t frames_next = setup_frame_lists(g, next_animation_at(set));
-    uint16_t delays = setup_delay_lists(g, animation_at(set)), delays_next = setup_delay_lists(g, next_animation_at(set));
-    setup_leave(g, 0x82, effects_pace_row(battle_orbit_period(g, (unsigned)last)));
-    setup_leave(g, 0x83, (uint8_t)((uint16_t)(number << 1) >> 8));
-    setup_leave_word(g, 0x84, (uint16_t)(battle_facing_stride_high(g, BATTLE_FIRST_ENEMY + (unsigned)last) << 8
-                                         | battle_facing_stride_low(g, BATTLE_FIRST_ENEMY + (unsigned)last)));
-    setup_leave_word(g, 0x86, (uint16_t)(delays_next - delays));
-    setup_leave_word(g, 0x88, frames_next);
-    setup_leave_word(g, 0x8A, delays_next);
+    setup_leave_word(g, 0x8A, setup_delay_lists(g, next_animation_at(set)));
     setup_leave_word(g, 0x8C, number);
     setup_leave_word(g, 0x8E, set);
 }

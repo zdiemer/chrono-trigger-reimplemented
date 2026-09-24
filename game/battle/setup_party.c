@@ -87,13 +87,6 @@ void setup_party_slots(GameState *g)
  * byte the battle carries for it picks: colors 13-15 of palettes 5-7. */
 enum { SET_COLORS = 3, SET_BYTES = 6, FIRST_MEMBER_COLOR = 221, PALETTE_SIZE = 16 };
 
-static void leave_colors_set(GameState *g)
-{
-    setup_leave_word(g, 0x80, 0);
-    setup_leave_word(g, 0x82, BATTLE_PARTY_SIZE * MEMBER_CARRIED_BYTES);
-    setup_leave_word(g, 0x84, BATTLE_PARTY_SIZE);
-}
-
 // $CC:E710
 void setup_party_colors(GameState *g)
 {
@@ -103,7 +96,6 @@ void setup_party_colors(GameState *g)
             set_palette_working(g, FIRST_MEMBER_COLOR + member * PALETTE_SIZE + color,
                                 setup_member_color(g, (uint16_t)(set * SET_BYTES + 2 * color)));
     }
-    ORIGINAL_EFFECT(leave_colors_set(g));
 }
 
 /* ---- Tech lists ----------------------------------------------------------------------------- */
@@ -179,8 +171,8 @@ static uint8_t list_length(const GameState *g, uint8_t member)
     return length;
 }
 
-/* The original keeps each member's list end, and the list's building, in its
- * working cells: among them how many double techs the last member listed. */
+/* The original keeps the last member's list end in its working cells, and
+ * how many double techs it listed. */
 static uint8_t doubles_listed(const GameState *g, uint8_t member)
 {
     uint8_t listed = 0;
@@ -189,15 +181,9 @@ static uint8_t doubles_listed(const GameState *g, uint8_t member)
     return listed;
 }
 
-static void leave_lists_built(GameState *g, const uint8_t ends[BATTLE_PARTY_SIZE], int last_triple)
+static void leave_lists_built(GameState *g, uint8_t last_end)
 {
-    setup_leave_word(g, 0x80, 0x00FF);
-    setup_leave(g, 0x82, last_triple >= 0 ? TRIPLE : 0);
-    setup_leave(g, 0x83, BATTLE_PARTY_SIZE);
-    setup_leave_word(g, 0x84, last_triple >= 0 ? setup_member_tech_records_at(g, (uint8_t)last_triple)
-                                               : ends[BATTLE_PARTY_SIZE - 1]);
-    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
-        setup_leave_word(g, (uint8_t)(0x86 + 2 * member), ends[member]);
+    setup_leave_word(g, 0x8A, last_end);
     setup_leave(g, 0x8C, doubles_listed(g, BATTLE_PARTY_SIZE - 1));
 }
 
@@ -205,7 +191,6 @@ static void leave_lists_built(GameState *g, const uint8_t ends[BATTLE_PARTY_SIZE
 void setup_tech_lists(GameState *g)
 {
     mark_combination_techs(g);
-    ORIGINAL_EFFECT(setup_leave_word(g, 0x80, setup_member_tech_records_at(g, 0)));
     uint8_t ends[BATTLE_PARTY_SIZE];
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         uint8_t place = list_techs(g, member, setup_member_tech_list_start(g, member), SINGLES, SINGLES_END);
@@ -215,15 +200,12 @@ void setup_tech_lists(GameState *g)
         uint8_t place = list_techs(g, member, ends[member], DOUBLES, DOUBLES_END);
         ends[member] = battle_triple_techs(g, member) ? add_marker(g, place, TRIPLES_MARKER) : place;
     }
-    int last_triple = -1;
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
-        if (battle_triple_techs(g, member)) {
+        if (battle_triple_techs(g, member))
             list_triple(g, member, ends[member]);
-            last_triple = member;
-        }
     for (uint8_t member = BATTLE_PARTY_SIZE; member-- > 0;)
         set_battle_tech_list_length(g, member, list_length(g, member));
-    ORIGINAL_EFFECT(leave_lists_built(g, ends, last_triple));
+    ORIGINAL_EFFECT(leave_lists_built(g, ends[BATTLE_PARTY_SIZE - 1]));
 }
 
 /* ---- Where the cursors were left ------------------------------------------------------------ */
@@ -281,7 +263,6 @@ void setup_remembered_cursors(GameState *g)
         set_battle_item_top(g, battle_remembered_item_top(g));
         set_battle_item_row(g, battle_remembered_item_row(g));
     }
-    ORIGINAL_EFFECT(setup_leave_word(g, 0x80, 0x00FF));
 }
 
 /* ---- The members on the battlefield --------------------------------------------------------- */
@@ -325,31 +306,19 @@ void setup_place_combatant(GameState *g, unsigned slot)
  * way to the next set's. */
 enum { POINTER_BYTES = 3, FACINGS = 4 };
 
-static void leave_member_graphics(GameState *g, uint16_t stride, uint16_t frames_next, uint16_t delays, uint16_t delays_next)
-{
-    setup_leave_word(g, 0x80, BATTLE_PARTY_SIZE);
-    setup_leave_word(g, 0x82, stride);
-    setup_leave_word(g, 0x84, (uint16_t)(delays_next - delays));
-    setup_leave_word(g, 0x86, frames_next);
-    setup_leave_word(g, 0x88, delays_next);
-}
-
-static void load_member_graphics(GameState *g, unsigned member, bool last)
+static void load_member_graphics(GameState *g, unsigned member)
 {
     uint8_t character = party_members(g, member);
     uint8_t set = (uint8_t)((uint8_t)(character << 1) + character);
     set_battle_object_graphics(g, member, setup_character_graphics(g, set));
     set_battle_object_tile_lists(g, member, setup_tile_lists(g, set));
     uint8_t animation = (uint8_t)(character << 1), next = (uint8_t)(((animation >> 1) + 1) << 1);
-    uint16_t frames = setup_frame_lists(g, animation), delays = setup_delay_lists(g, animation);
+    uint16_t frames = setup_frame_lists(g, animation);
     set_battle_object_frame_lists(g, member, (uint32_t)SETUP_ANIMATION_BANK << 16 | frames);
-    set_battle_object_delay_lists(g, member, (uint32_t)SETUP_ANIMATION_BANK << 16 | delays);
-    uint16_t frames_next = setup_frame_lists(g, next), delays_next = setup_delay_lists(g, next);
-    uint16_t stride = (uint16_t)(frames_next - frames) / FACINGS;
+    set_battle_object_delay_lists(g, member, (uint32_t)SETUP_ANIMATION_BANK << 16 | setup_delay_lists(g, animation));
+    uint16_t stride = (uint16_t)(setup_frame_lists(g, next) - frames) / FACINGS;
     set_battle_facing_stride_low(g, member, (uint8_t)stride);
     set_battle_facing_stride_high(g, member, (uint8_t)(stride >> 8));
-    if (last)
-        ORIGINAL_EFFECT(leave_member_graphics(g, stride, frames_next, delays, delays_next));
 }
 
 // $CC:E933
@@ -367,5 +336,5 @@ void setup_party_objects(GameState *g)
         set_battle_object_part_count(g, battle_object_of(member), MEMBER_SPRITES);
     }
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
-        load_member_graphics(g, member, member == BATTLE_PARTY_SIZE - 1);
+        load_member_graphics(g, member);
 }
