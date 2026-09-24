@@ -6380,7 +6380,7 @@ page = "battle"
 size = 2
 subsystem = "battle"
 meaning = "Battle frame counter, counted by the NMI handler unless paused; bit 0 picks the odd- and even-frame work"
-source = "game/battle/nmi.c battle_nmi $D1:E77C, battle_irq_after_hblank $D1:FEBF; game/battle/frame.c battle_setup_window_hdma $CD:0AEE"
+source = "game/battle/nmi.c battle_nmi $D1:E77C, battle_irq_after_hblank $D1:FEBF; game/battle/display.c battle_setup_window_hdma $CD:0AEE"
 
 [[var]]
 name = "battle_mode"
@@ -6412,7 +6412,7 @@ addr = "7E:00A0"
 page = "battle"
 subsystem = "battle"
 meaning = "Nonzero when the transfer described at $9EEA is to be made at the next vblank; cleared once it is"
-source = "game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_frame_phase"
@@ -6420,7 +6420,7 @@ addr = "7E:00A4"
 page = "battle"
 subsystem = "battle"
 meaning = "Cycles 0-3: which of the four queued VRAM uploads runs this frame, and whose animations step (0 the party, 1-3 an enemy group)"
-source = "game/battle/frame.c battle_upload_vram $CF:E300; game/battle/animation.c battle_step_combatant_animations $C1:2D9F"
+source = "game/battle/uploads.c battle_upload_vram $CF:E300; game/battle/animation.c battle_step_combatant_animations $C1:2D9F"
 
 [[var]]
 name = "battle_current_stat_block"
@@ -6437,7 +6437,7 @@ addr = "7E:00E5"
 page = "battle"
 subsystem = "battle"
 meaning = "Nonzero while the four rotating queued VRAM uploads run (and $A013 is clear)"
-source = "game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_script_pointer"
@@ -6453,8 +6453,8 @@ name = "battle_alternate_frame"
 addr = "7E:00EC"
 page = "battle"
 subsystem = "battle"
-meaning = "Copy of the alternating-frame flag $CA21 (0 or 1)"
-source = "game/battle/frame.c battle_frame_work $CD:088D (toggle_ca21)"
+meaning = "The window arrangement the battle wants (0 or 1): battle_alternate_request follows it on even frames, and the player's button flips both"
+source = "game/battle/frame.c flip_the_arrangement in battle_frame_work $CD:088D"
 
 [[var]]
 name = "battle_menu_buttons"
@@ -6573,7 +6573,7 @@ stride = 2
 index = "row * 32 + column (6 rows)"
 subsystem = "battle"
 meaning = "Second window tilemap, the party members' window frames; reset from $D1:5800 and uploaded to VRAM $7A00 when $99E2 is set"
-source = "game/battle/window.c header and copy_window_frame $C1:0929; game/battle/menu_window.c battle_reset_window_frames $C1:1C3A; game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/window.c header and copy_window_frame $C1:0929; game/battle/menu_window.c battle_reset_window_frames $C1:1C3A; game/battle/uploads.c battle_upload_vram $CF:E300"
   [[var.field]]
   name = "tile"
   offset = 0
@@ -6788,7 +6788,7 @@ stride = 4
 index = "layer (BG1-BG3)"
 subsystem = "battle"
 meaning = "The three background layers' base scroll positions"
-source = "game/battle/display.c battle_update_scroll_tables $CD:06C4 and battle_nmi_alternate $D1:F4C0"
+source = "game/battle/scroll.c battle_update_scroll_tables $CD:06C4; game/battle/display.c battle_nmi_alternate $D1:F4C0"
   [[var.field]]
   name = "x"
   offset = 0
@@ -8238,7 +8238,7 @@ addr = "7E:9679"
 size = 2
 subsystem = "battle"
 meaning = "Battle slot whose sprite graphics are built next (and uploaded when $A012 is 1)"
-source = "game/battle/sprites.c battle_build_object_graphics $C1:1C55; game/battle/frame.c battle_upload_vram $CF:E300; game/battle/animation.c"
+source = "game/battle/sprites.c battle_build_object_graphics $C1:1C55; game/battle/uploads.c battle_upload_vram $CF:E300; game/battle/animation.c"
 
 [[var]]
 name = "battle_graphics_frame"
@@ -8531,7 +8531,7 @@ source = "game/battle/draw_objects.c draw_shadow $CF:EA8A, draw_marker; game/bat
 name = "battle_cursor_priority"
 addr = "7E:9F46"
 subsystem = "battle"
-meaning = "Priority bits of the four cursor sprites and the shadows; bit 3 picks the animated color at $233C or $23BC"
+meaning = "The sprite palette bits (attribute bits 1-3) of the four cursor sprites and the shadows; the cursors' palette, 1 or 5 (bit 3), is the one whose entry 14 cycles through the animated color"
 source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/draw_objects.c draw_shadow $CF:EA8A"
 
 [[var]]
@@ -8753,7 +8753,7 @@ count = 22
 index = "upload * 11 + battle slot"
 subsystem = "battle"
 meaning = "Source address (bank $7E) of each object's two graphics uploads"
-source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_upload_vram_address"
@@ -8763,7 +8763,7 @@ count = 22
 index = "upload * 11 + battle slot"
 subsystem = "battle"
 meaning = "VRAM word address of each object's two graphics uploads"
-source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_upload_size"
@@ -8773,21 +8773,21 @@ count = 22
 index = "upload * 11 + battle slot"
 subsystem = "battle"
 meaning = "Size in bytes of each object's two graphics uploads"
-source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/setup.c set_upload_descriptors in battle_setup_graphics $CC:ED87; game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_graphics_upload_request"
 addr = "7E:A012"
 subsystem = "battle"
 meaning = "1: upload battle_graphics_object's graphics at the next vblank; 2: the frame after (counted down each frame update)"
-source = "game/battle/frame.c battle_upload_vram $CF:E300, battle_frame_update $CF:E58A"
+source = "game/battle/uploads.c battle_upload_vram $CF:E300, battle_frame_update $CF:E58A"
 
 [[var]]
 name = "battle_reupload_countdown"
 addr = "7E:A118"
 subsystem = "battle"
 meaning = "Frames until queued upload slot 0 is made again (0: none)"
-source = "game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_pending_transfer"
@@ -8797,14 +8797,14 @@ stride = 6
 index = "channel value (mode, destination, source low, high, bank, size low, high, VRAM low, high)"
 subsystem = "battle"
 meaning = "The transfer battle_upload_vram makes when $A0 is set, one value in every sixth byte"
-source = "game/battle/frame.c battle_upload_vram $CF:E300"
+source = "game/battle/uploads.c battle_upload_vram $CF:E300"
 
 [[var]]
 name = "battle_frames_upload_request"
 addr = "7E:99E2"
 subsystem = "battle"
 meaning = "Set to upload the window frames tilemap ($0B40) at the next vblank"
-source = "game/battle/frame.c battle_upload_vram $CF:E300; game/battle/menu_window.c"
+source = "game/battle/uploads.c battle_upload_vram $CF:E300; game/battle/menu_window.c"
 
 [[var]]
 name = "battle_frames_reload_request"
@@ -9627,8 +9627,8 @@ size = 2
 count = 2
 index = "axis (X, Y)"
 subsystem = "battle"
-meaning = "Extra offset added to BG1's and BG2's scroll"
-source = "game/battle/display.c scroll_bg12 in battle_update_scroll_tables $CD:06C4"
+meaning = "Extra offset added to BG1's scroll, across and down"
+source = "game/battle/scroll.c offset_scroll in battle_update_scroll_tables $CD:06C4"
 
 [[var]]
 name = "battle_scroll_tables"
@@ -9638,7 +9638,7 @@ stride = 4
 index = "layer (BG1-BG3) * 32 + entry"
 subsystem = "battle"
 meaning = "The layers' per-line scroll tables, 32 entries a layer, refilled each frame with the layer's scroll"
-source = "game/battle/display.c battle_update_scroll_tables $CD:06C4 ($CD:0706)"
+source = "game/battle/scroll.c battle_update_scroll_tables $CD:06C4 ($CD:0706)"
   [[var.field]]
   name = "x"
   offset = 0
@@ -9670,7 +9670,7 @@ size = 0x2D
 index = "frame parity (even, odd)"
 subsystem = "battle"
 meaning = "The window's indirect per-line tables, one used on even frames and one on odd"
-source = "game/battle/frame.c battle_setup_window_hdma $CD:0AEE"
+source = "game/battle/display.c battle_setup_window_hdma $CD:0AEE"
 
 [[var]]
 name = "battle_window_registers"
@@ -9720,7 +9720,7 @@ source = "game/battle/nmi.c battle_nmi $D1:E77C; game/battle/wait.c battle_wait_
 name = "battle_alternate_request"
 addr = "7E:CA21"
 subsystem = "battle"
-meaning = "Alternating-frame flag (0 or 1); the IRQ applies it when it changes"
+meaning = "Which of the window's two arrangements of the per-line effects the line handler applies (0 or 1, with battle_alternate_base, through $CE:EE6E), when it changes; the frame work has it follow battle_alternate_frame on even frames, and the player's button flip it"
 source = "game/battle/frame.c battle_frame_work $CD:088D; game/battle/nmi.c battle_apply_alternate_frame $D1:FE4C"
 
 [[var]]
@@ -9779,7 +9779,7 @@ count = 1
 stride = 8
 subsystem = "battle"
 meaning = "A VRAM transfer queued for the next frame"
-source = "game/battle/frame.c battle_flush_vram_transfer $CD:3EB4"
+source = "game/battle/uploads.c battle_flush_vram_transfer $CD:3EB4"
   [[var.field]]
   name = "pending"
   offset = 0
@@ -9808,15 +9808,15 @@ source = "game/battle/frame.c battle_flush_vram_transfer $CD:3EB4"
 name = "battle_block_upload_row"
 addr = "7E:CA16"
 subsystem = "battle"
-meaning = "VRAM block (through $CD:05FF) a requested 16-row block upload goes to"
-source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+meaning = "Which of the four VRAM places (through $CD:05FF) a requested block of sixteen tiles goes to"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
 [[var]]
 name = "battle_block_upload_request"
 addr = "7E:CA17"
 subsystem = "battle"
-meaning = "Set to upload a block of sixteen 32-byte rows from $7E:$CA18"
-source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+meaning = "Set to send a block of sixteen 32-byte tiles from battle_block_upload_source at the next frame"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
 [[var]]
 name = "battle_block_upload_source"
@@ -9824,7 +9824,7 @@ addr = "7E:CA18"
 size = 2
 subsystem = "battle"
 meaning = "Source address in $7E of the requested block upload"
-source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
 [[var]]
 name = "battle_tile_row_palettes"
@@ -9840,8 +9840,8 @@ source = "game/battle/tiles.c battle_decode_tile_row $CD:1368"
 name = "battle_block_uploaded_row"
 addr = "7E:CD1F"
 subsystem = "battle"
-meaning = "VRAM block of the last block upload (repeating the same block and source is skipped)"
-source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+meaning = "The last block of tiles sent, as its offset into the table of their places (twice its number): the same block from the same source isn't sent again"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
 [[var]]
 name = "battle_block_uploaded_source"
@@ -9849,7 +9849,7 @@ addr = "7E:CD20"
 size = 2
 subsystem = "battle"
 meaning = "Source of the last block upload"
-source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
 [[var]]
 name = "battle_block_uploads_made"
@@ -9863,14 +9863,14 @@ name = "battle_vram_alternate"
 addr = "7E:CE14"
 subsystem = "battle"
 meaning = "Counted each frame; bit 0 picks VRAM $5800 or $5980 for the alternating clear or copy"
-source = "game/battle/frame.c battle_upload_alternating_vram $CD:0607"
+source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
 [[var]]
 name = "battle_scroll_mode"
 addr = "7E:CA92"
 subsystem = "battle"
 meaning = "Which scroll table routine runs each frame (through $CD:06BC)"
-source = "game/battle/frame.c battle_update_scroll_dispatch $CD:06B4"
+source = "game/battle/scroll.c battle_update_scroll_dispatch $CD:06B4"
 
 [[var]]
 name = "battle_shake_offsets"
@@ -9880,7 +9880,7 @@ count = 6
 index = "layer * 2 + axis (BG1-BG3, X then Y)"
 subsystem = "battle"
 meaning = "Offsets added to the three layers' scroll: the screen shake, on the layers battle_shake_layers selects"
-source = "game/battle/frame.c battle_update_screen_shake $CD:0B51; game/battle/display.c battle_update_scroll_tables $CD:06C4"
+source = "game/battle/scroll.c battle_update_screen_shake $CD:0B51; game/battle/scroll.c battle_update_scroll_tables $CD:06C4"
 
 [[var]]
 name = "battle_shake"
@@ -9890,7 +9890,7 @@ stride = 8
 index = "axis (horizontal, vertical)"
 subsystem = "battle"
 meaning = "The screen shake, per axis"
-source = "game/battle/frame.c shake_axis in battle_update_screen_shake $CD:0B51"
+source = "game/battle/scroll.c shake_axis in battle_update_screen_shake $CD:0B51"
   [[var.field]]
   name = "on"
   offset = 0
@@ -9929,7 +9929,7 @@ name = "battle_shake_layers"
 addr = "7E:CCC0"
 subsystem = "battle"
 meaning = "Which layer offsets the shake applies to (bits 7-2: BG1 X, BG1 Y, BG2 X, BG2 Y, BG3 X, BG3 Y)"
-source = "game/battle/frame.c battle_update_screen_shake $CD:0B51"
+source = "game/battle/scroll.c battle_update_screen_shake $CD:0B51"
 
 [[var]]
 name = "battle_palette_slot_presets"
@@ -9939,7 +9939,7 @@ stride = 0x0C
 index = "preset slot (two for animation slots 8-9, then one for slot 10)"
 subsystem = "battle"
 meaning = "Palette animation slots copied over slots 8-9 or slot 10 on request, laid out as those slots are (palette_animations)"
-source = "game/battle/frame.c battle_update_screen_shake $CD:0B51; game/battle/screen_motion.c battle_set_palette_preset $D1:F74D"
+source = "game/battle/scroll.c battle_update_screen_shake $CD:0B51; game/battle/screen_motion.c battle_set_palette_preset $D1:F74D"
   [[var.field]]
   name = "kind"
   offset = 0
@@ -9987,7 +9987,7 @@ name = "battle_palette_preset_request"
 addr = "7E:CCE5"
 subsystem = "battle"
 meaning = "Requests a preset palette slot copy: bit 7 slot 10, bit 0 slots 8-9; each bit cleared once copied"
-source = "game/battle/frame.c battle_update_screen_shake $CD:0B51"
+source = "game/battle/scroll.c battle_update_screen_shake $CD:0B51"
 
 [[var]]
 name = "battle_vram_copy_mode"
@@ -10227,7 +10227,7 @@ name = "battle_gradient_phase"
 addr = "7E:CDC9"
 subsystem = "battle"
 meaning = "Rotation phase of the HP gradient's rows (13 down to 0 and around), which picks each row's rotation"
-source = "game/battle/screen_gradient.c battle_find_gradient_phase $D1:EA01, battle_step_hp_gradient $D1:EA4B; game/battle/frame.c battle_step_cdc9 $CD:0ADE"
+source = "game/battle/screen_gradient.c battle_find_gradient_phase $D1:EA01, battle_step_hp_gradient $D1:EA4B; game/battle/frame.c battle_step_gradient_phase $CD:0ADE"
 
 [[var]]
 name = "battle_gradient_frame_mask"
@@ -10296,7 +10296,7 @@ stride = 4
 index = "buffer * 224 + line (the frame work writes buffer 1 on odd frames, 0 on even ones)"
 subsystem = "battle"
 meaning = "The two windows' edges per line, in two buffers the window line effect alternates between (through the indirect tables at $C9A2 and $C9CF); four more lines' entries at $C151 come before the first"
-source = "game/battle/screen_window.c header; game/battle/frame.c battle_setup_window_hdma $CD:0AEE"
+source = "game/battle/screen_window.c header; game/battle/display.c battle_setup_window_hdma $CD:0AEE"
   [[var.field]]
   name = "w1_left"
   offset = 0
@@ -10404,7 +10404,7 @@ stride = 0x10
 index = "screen script channel"
 subsystem = "battle"
 meaning = "The layer a screen script channel moves, as its commands jitter and swing it; channel 0's position and offset are BG3's moving scroll, used instead of its base scroll in the moving mode"
-source = "game/battle/screen_motion.c battle_screen_jitter $D1:F47C, battle_screen_swing $D1:F559; game/battle/display.c battle_update_scroll_tables_bg3_moving $CD:076C"
+source = "game/battle/screen_motion.c battle_screen_jitter $D1:F47C, battle_screen_swing $D1:F559; game/battle/scroll.c battle_update_scroll_tables_bg3_moving $CD:076C"
   [[var.field]]
   name = "swing_rising"
   offset = 0

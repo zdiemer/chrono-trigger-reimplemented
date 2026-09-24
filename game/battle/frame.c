@@ -78,14 +78,18 @@ static void set_the_windows(GameState *g, Platform *pf)
 }
 
 /* The lines below the window's split take the battle's fixed color, the sixth
- * of the split's values; and the window's top border starts where its next
- * line does. */
+ * of the split's values. */
 enum { FIXED_COLOR_VALUE = 5 };
 
-static void set_the_split(GameState *g)
+static void color_below_the_split(GameState *g)
 {
     uint16_t value = battle_split_line_values(g, FIXED_COLOR_VALUE);
     set_battle_split_line_values(g, FIXED_COLOR_VALUE, (uint16_t)((value & 0xFF00) | battle_fixed_color(g)));
+}
+
+/* The window's top border starts with the edges of its next line. */
+static void square_the_window_top(GameState *g)
+{
     set_battle_window_top_lines_w1(g, 0, battle_window_top_lines_w1(g, 1));
     set_battle_window_top_lines_w2(g, 0, battle_window_top_lines_w2(g, 1));
 }
@@ -479,7 +483,7 @@ static void send_the_frame(Snes *s)
         return;
     }
     if (battle_window_slide(g) == SLIDE_STILL)
-        NATIVE_TIME_AS(s, 0xCD0607, battle_send_block_and_alternate_tiles(g, pf));
+        NATIVE_TIME_AS(s, 0xCD0607, battle_send_block_and_message_tiles(g, pf));
     NATIVE_TIME_AS(s, 0xCD3EB4, battle_send_queued_transfer(g, pf));
     if (!battle_paused(g))
         NATIVE_TIME_AS(s, 0xCFE300, battle_send_vblank_uploads(g, pf));
@@ -497,10 +501,37 @@ static bool shake_the_screen(Snes *s)
     return true;
 }
 
+/* The sprites are hidden before the objects draw, unless a script keeps them
+ * or they are frozen; the original's clearing leaves A the page (0). */
+static void hide_the_sprites(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (battle_keep_sprites(g) || battle_sprites_frozen(g))
+        return;
+    NATIVE_TIME_AS(s, 0xCEF066, battle_hide_sprites(g));
+    s->cpu.a = BATTLE_PAGE;
+}
+
+/* The frame update, through the original's vector at $C1:000C. It runs here
+ * with A's high byte 0, as every call the game makes has it; any other is the
+ * original's. */
+static bool update_the_battlefield(Snes *s)
+{
+    if (s->cpu.a & 0xFF00)
+        return battle_call_long(s, 0xCD0997, 0xC1000C, DC_X | DC_Y | DC_FLAGS | DC_AL);
+    return battle_run_long(s, 0xCD0997, 0xCFE58A, battle_frame_update);
+}
+
+/* Palette animation: the animated slots kept off the background cycle's
+ * colors, paused with the battle, and run. */
+static bool animate_the_palettes(Snes *s)
+{
+    return battle_call(s, 0xCD09B8, 0xCD0B1E, READS_NOTHING) && battle_call_long(s, 0xCD09BB, 0xD1F426, READS_NOTHING)
+           && battle_call_long(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING);
+}
+
 // $CD:088D
-/* The frame work runs with the data bank $7E, on the battle's page. The
- * frame update needs A's high byte 0, which the original leaves it on every
- * path the game takes; any other call is the original's. */
+/* The frame work runs with the data bank $7E, on the battle's page. */
 static bool work_the_frame(Snes *s)
 {
     GameState *g = state_of(s);
@@ -508,7 +539,8 @@ static bool work_the_frame(Snes *s)
     s->cpu.db = BATTLE_DATA_BANK;
     send_the_frame(s);
     set_the_windows(g, pf);
-    set_the_split(g);
+    color_below_the_split(g);
+    square_the_window_top(g);
     NATIVE_TIME_AS(s, 0xCD0AEE, battle_show_window_table(g, pf));
     if (!battle_run(s, 0xCD08F5, 0xCD05B2, battle_step_window_slide)
         || !battle_run(s, 0xCD08F8, 0xCD05B2, battle_step_window_slide))
@@ -527,17 +559,11 @@ static bool work_the_frame(Snes *s)
         choose_the_arrangement(g);
     if (!run_the_gradient(s))
         return false;
-    if (!battle_keep_sprites(g) && !battle_sprites_frozen(g)) {
-        NATIVE_TIME_AS(s, 0xCEF066, battle_hide_sprites(g));
-        s->cpu.a = 0;
-    }
-    bool updated = (s->cpu.a & 0xFF00) == 0 ? battle_run_long(s, 0xCD0997, 0xCFE58A, battle_frame_update)
-                                            : battle_call_long(s, 0xCD0997, 0xC1000C, DC_X | DC_Y | DC_FLAGS | DC_AL);
-    if (!updated || !wait_for_the_line(s) || !battle_call(s, 0xCD09AF, 0xCD1609, READS_NOTHING))
+    hide_the_sprites(s);
+    if (!update_the_battlefield(s) || !wait_for_the_line(s) || !battle_call(s, 0xCD09AF, 0xCD1609, READS_NOTHING))
         return false;
     set_battle_sprites_frozen(g, battle_sprites_frozen_setting(g));
-    if (!battle_call(s, 0xCD09B8, 0xCD0B1E, READS_NOTHING) || !battle_call_long(s, 0xCD09BB, 0xD1F426, READS_NOTHING)
-        || !battle_call_long(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING))
+    if (!animate_the_palettes(s))
         return false;
     NATIVE_TIME_AS(s, 0xCD0ADE, battle_turn_the_gradient(g));
     return read_the_buttons(s, 0xCD09C6, 0xCD09CA);
@@ -678,12 +704,12 @@ static bool frame_work_state_ok(Snes *s)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = battle_vblank_uploads_in_range(g) && battle_block_apart(g, s->cpu.s) && rotation_in_range(g);
+    bool ok = battle_vblank_uploads_in_range(g) && battle_transfers_apart(g, s->cpu.s) && rotation_in_range(g);
     vars_peek(false);
     return ok;
 }
 
-bool battle_frame_work_ready(Snes *s) { return battle_page(s) && frame_work_state_ok(s); }
+bool battle_frame_work_ready(Snes *s) { return battle_page(s) && (s->cpu.a & 0xFF00) == 0 && frame_work_state_ok(s); }
 
 bool battle_frame_update_ready(Snes *s)
 {

@@ -3194,7 +3194,8 @@ void set_battle_queued_uploads_on(GameState *g, uint8_t v);
 uint32_t battle_script_pointer(const GameState *g);
 void set_battle_script_pointer(GameState *g, uint32_t v);
 
-/* Copy of the alternating-frame flag $CA21 (0 or 1) */
+/* The window arrangement the battle wants (0 or 1): battle_alternate_request follows it on even
+ * frames, and the player's button flips both */
 uint8_t battle_alternate_frame(const GameState *g);
 void set_battle_alternate_frame(GameState *g, uint8_t v);
 
@@ -4205,8 +4206,8 @@ void set_battle_enemy_hp_visible(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_enemy_hp_seen(const GameState *g);
 void set_battle_enemy_hp_seen(GameState *g, uint8_t v);
 
-/* Priority bits of the four cursor sprites and the shadows; bit 3 picks the animated color at
- * $233C or $23BC */
+/* The sprite palette bits (attribute bits 1-3) of the four cursor sprites and the shadows; the
+ * cursors' palette, 1 or 5 (bit 3), is the one whose entry 14 cycles through the animated color */
 uint8_t battle_cursor_priority(const GameState *g);
 void set_battle_cursor_priority(GameState *g, uint8_t v);
 
@@ -5594,11 +5595,11 @@ enum { BATTLE_WINDOW_LINE_TABLES_BYTES = 45 };
 uint8_t battle_window_line_tables_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_window_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 
-/* VRAM block (through $CD:05FF) a requested 16-row block upload goes to */
+/* Which of the four VRAM places (through $CD:05FF) a requested block of sixteen tiles goes to */
 uint8_t battle_block_upload_row(const GameState *g);
 void set_battle_block_upload_row(GameState *g, uint8_t v);
 
-/* Set to upload a block of sixteen 32-byte rows from $7E:$CA18 */
+/* Set to send a block of sixteen 32-byte tiles from battle_block_upload_source at the next frame */
 uint8_t battle_block_upload_request(const GameState *g);
 void set_battle_block_upload_request(GameState *g, uint8_t v);
 
@@ -5624,7 +5625,9 @@ void set_battle_window_slide_frames(GameState *g, uint8_t v);
 uint8_t battle_nmi_pending(const GameState *g);
 void set_battle_nmi_pending(GameState *g, uint8_t v);
 
-/* Alternating-frame flag (0 or 1); the IRQ applies it when it changes */
+/* Which of the window's two arrangements of the per-line effects the line handler applies (0 or
+ * 1, with battle_alternate_base, through $CE:EE6E), when it changes; the frame work has it
+ * follow battle_alternate_frame on even frames, and the player's button flip it */
 uint8_t battle_alternate_request(const GameState *g);
 void set_battle_alternate_request(GameState *g, uint8_t v);
 
@@ -5857,7 +5860,8 @@ void set_battle_window_quads(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_message_by_id(const GameState *g);
 void set_battle_message_by_id(GameState *g, uint8_t v);
 
-/* VRAM block of the last block upload (repeating the same block and source is skipped) */
+/* The last block of tiles sent, as its offset into the table of their places (twice its number):
+ * the same block from the same source isn't sent again */
 uint8_t battle_block_uploaded_row(const GameState *g);
 void set_battle_block_uploaded_row(GameState *g, uint8_t v);
 

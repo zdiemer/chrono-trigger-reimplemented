@@ -113,6 +113,9 @@ typedef struct {
     uint32_t site;
 } VramLoad;
 
+/* Of the second tilemap setup built, 64 bytes go up from its 192nd. */
+enum { SECOND_TILEMAP_SENT_FROM = 192 };
+
 static const VramLoad step_1[] = {
     { BATTLE_MESSAGE_LAYER_TILES, 0x1000, 0x5800, steps_load_channel, 0xCCE00C },
     { BATTLE_WINDOW_TILE_BLOCK_2, 0x0040, 0x0060, steps_load_same_channel, 0xCCE047 },
@@ -123,7 +126,7 @@ static const VramLoad step_2[] = {
     { BATTLE_WINDOW_TILE_BLOCK_3, 0x0040, 0x0160, steps_load_same_channel, 0xCCE0EB },
     { BATTLE_WINDOW_TILE_BLOCK_3, 0x0040, 0x0120, steps_load_same_channel, 0xCCE11B },
     { RAM_BATTLE_LOAD_TILEMAP, 0x01C0, 0x7B00, steps_load_same_channel, 0xCCE14B },
-    { RAM_BATTLE_LOAD_TILEMAP_2 + 192, 0x0040, 0x7800, steps_load_same_channel, 0xCCE17A },
+    { RAM_BATTLE_LOAD_TILEMAP_2 + SECOND_TILEMAP_SENT_FROM, 0x0040, 0x7800, steps_load_same_channel, 0xCCE17A },
     { BATTLE_WINDOW_TILE_BLOCK_4, 0x0040, 0x0000, steps_load_channel, 0xCCE22E },
     { BATTLE_WINDOW_TILE_BLOCK_5, 0x0040, 0x0100, steps_load_same_bank, 0xCCE267 },
 };

@@ -2244,7 +2244,8 @@
 /* Long pointer to the running animation script channel's next opcode [3 bytes] */
 #define RAM_BATTLE_SCRIPT_POINTER 0x7E00E6u
 #define RAM_BATTLE_SCRIPT_POINTER_DP 0xE6u   /* page battle */
-/* Copy of the alternating-frame flag $CA21 (0 or 1) */
+/* The window arrangement the battle wants (0 or 1): battle_alternate_request follows it on even
+ * frames, and the player's button flips both */
 #define RAM_BATTLE_ALTERNATE_FRAME 0x7E00ECu
 #define RAM_BATTLE_ALTERNATE_FRAME_DP 0xECu  /* page battle */
 /* Buttons pressed or auto-repeated since the menu last took them: $CC97 is ORed in each frame,
@@ -2971,8 +2972,8 @@
  * byte $57 at setup); the single target cursor then shows it for enemies battle_enemy_hp_visible
  * allows */
 #define RAM_BATTLE_ENEMY_HP_SEEN 0x7E9F34u
-/* Priority bits of the four cursor sprites and the shadows; bit 3 picks the animated color at
- * $233C or $23BC */
+/* The sprite palette bits (attribute bits 1-3) of the four cursor sprites and the shadows; the
+ * cursors' palette, 1 or 5 (bit 3), is the one whose entry 14 cycles through the animated color */
 #define RAM_BATTLE_CURSOR_PRIORITY 0x7E9F46u
 /* The current frame's sprite part offsets from the object's position (sign-extended) [44 x $4
  * bytes, by battle slot * 4 + part] */
@@ -4017,9 +4018,9 @@
 #define RAM_BATTLE_WINDOW_LINE_TABLES 0x7EC9A2u
 #define RAM_BATTLE_WINDOW_LINE_TABLES_COUNT 2u
 #define RAM_BATTLE_WINDOW_LINE_TABLES_STRIDE 0x2Du
-/* VRAM block (through $CD:05FF) a requested 16-row block upload goes to */
+/* Which of the four VRAM places (through $CD:05FF) a requested block of sixteen tiles goes to */
 #define RAM_BATTLE_BLOCK_UPLOAD_ROW 0x7ECA16u
-/* Set to upload a block of sixteen 32-byte rows from $7E:$CA18 */
+/* Set to send a block of sixteen 32-byte tiles from battle_block_upload_source at the next frame */
 #define RAM_BATTLE_BLOCK_UPLOAD_REQUEST 0x7ECA17u
 /* Source address in $7E of the requested block upload [2 bytes] */
 #define RAM_BATTLE_BLOCK_UPLOAD_SOURCE 0x7ECA18u
@@ -4033,7 +4034,9 @@
 /* Cleared by the NMI handler at the end of each frame, which releases the battle's
  * wait-for-frame loops */
 #define RAM_BATTLE_NMI_PENDING 0x7ECA20u
-/* Alternating-frame flag (0 or 1); the IRQ applies it when it changes */
+/* Which of the window's two arrangements of the per-line effects the line handler applies (0 or
+ * 1, with battle_alternate_base, through $CE:EE6E), when it changes; the frame work has it
+ * follow battle_alternate_frame on even frames, and the player's button flip it */
 #define RAM_BATTLE_ALTERNATE_REQUEST 0x7ECA21u
 /* The value of battle_alternate_request the IRQ last applied */
 #define RAM_BATTLE_ALTERNATE_LATCHED 0x7ECA22u
@@ -4174,7 +4177,8 @@
 /* Set while a battle message opened by id ($CD:0295) is up; the other message calls return while
  * it is */
 #define RAM_BATTLE_MESSAGE_BY_ID 0x7ECD1Du
-/* VRAM block of the last block upload (repeating the same block and source is skipped) */
+/* The last block of tiles sent, as its offset into the table of their places (twice its number):
+ * the same block from the same source isn't sent again */
 #define RAM_BATTLE_BLOCK_UPLOADED_ROW 0x7ECD1Fu
 /* Source of the last block upload [2 bytes] */
 #define RAM_BATTLE_BLOCK_UPLOADED_SOURCE 0x7ECD20u

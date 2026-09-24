@@ -6,7 +6,7 @@
  * What goes in them depends on the battle's scroll mode:
  *
  *   - steady: each layer at its base position, plus the screen shake's offset,
- *     and BG1 and BG2 plus the battle's extra offset for them;
+ *     and BG1 plus the battle's extra offset for it;
  *   - BG3 moving: the same, but BG3 where screen script channel 0 has moved it
  *     (battle/screen_motion.c) instead of at its base position;
  *   - and two modes the Lavos fights use, which add a per-line offset from a
@@ -53,7 +53,7 @@ static LayerScroll steady_scroll(const GameState *g, unsigned layer)
                           (uint16_t)(battle_bg_scroll_y(g, layer) + shake_offset(g, layer, DOWN)) };
 }
 
-/* BG1 and BG2 carry the battle's extra offset too. */
+/* BG1 carries the battle's extra offset too. */
 static LayerScroll offset_scroll(const GameState *g, unsigned layer)
 {
     LayerScroll s = steady_scroll(g, layer);
@@ -103,7 +103,7 @@ void battle_scroll_layers(GameState *g, BattleScrollMode mode)
 {
     const LayerScroll s[SCROLLED_LAYERS] = {
         offset_scroll(g, BG1),
-        offset_scroll(g, BG2),
+        steady_scroll(g, BG2),
         mode == BATTLE_SCROLL_BG3_MOVING ? moved_bg3_scroll(g) : steady_scroll(g, BG3),
     };
     for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++)
@@ -242,19 +242,16 @@ static void start_requested_presets(GameState *g)
 }
 
 // $CD:0B51
-BattleShake battle_shake_screen(GameState *g)
+void battle_shake_screen(GameState *g)
 {
-    BattleShake shake = { shake_axis(g, ACROSS), shake_axis(g, DOWN) };
-    ORIGINAL_EFFECT(leave_shake(g, shake.across, shake.down));
+    const uint8_t offset[2] = { shake_axis(g, ACROSS), shake_axis(g, DOWN) };
+    ORIGINAL_EFFECT(leave_shake(g, offset[ACROSS], offset[DOWN]));
     uint8_t layers = battle_shake_layers(g);
-    for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++) {
-        if (shakes(layers, layer, ACROSS))
-            set_battle_shake_offsets(g, layer * 2 + ACROSS, shake.across);
-        if (shakes(layers, layer, DOWN))
-            set_battle_shake_offsets(g, layer * 2 + DOWN, shake.down);
-    }
+    for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++)
+        for (unsigned axis = ACROSS; axis <= DOWN; axis++)
+            if (shakes(layers, layer, axis))
+                set_battle_shake_offsets(g, layer * 2 + axis, offset[axis]);
     start_requested_presets(g);
-    return shake;
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
@@ -264,14 +261,11 @@ BattleShake battle_shake_screen(GameState *g)
  * offsets still the original's. */
 static const uint32_t scroll_routines[BATTLE_SCROLL_MODES] = { 0xCD06C4, 0xCD076C, 0xCD07E2, 0xCD07B9 };
 
-/* The fills finish as the original's do: A the page (0), 8-bit, and 16-bit
- * index registers with X past the table's last block. */
-enum { FILL_LEAVES_X = 0x0080 };
-
+/* The fills finish as the original's do: A's high byte the page's (0), which
+ * their callers read, and 8-bit A with 16-bit index registers. */
 static void finish_fill(Snes *s)
 {
     s->cpu.a = BATTLE_PAGE;
-    s->cpu.x = FILL_LEAVES_X;
     m_sep(s, CPU_FLAG_M);
     m_rep(s, CPU_FLAG_X);
     m_rts(s);
@@ -333,14 +327,8 @@ bool battle_scroll_mode_is_one(Snes *s)
     return battle_on_page_a_high_clear(s) && one;
 }
 
-/* The shake leaves its offsets as the original's registers had them, with A
- * the palette preset request as it is now. */
 void battle_update_screen_shake(Snes *s)
 {
-    GameState *g = state_of(s);
-    BattleShake shake = battle_shake_screen(g);
-    s->cpu.y = shake.across;
-    s->cpu.x = shake.down;
-    m_set_a8(s, battle_palette_preset_request(g));
+    battle_shake_screen(state_of(s));
     m_rts(s);
 }

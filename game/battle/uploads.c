@@ -169,14 +169,14 @@ static void send_requested_block(GameState *g, Platform *pf)
     if (!battle_block_upload_request(g))
         return;
     set_battle_block_upload_request(g, 0);
-    uint8_t block = block_offset(battle_block_upload_row(g));
+    uint8_t offset = block_offset(battle_block_upload_row(g));
     set_battle_block_upload_row(g, 0);
     uint16_t source = battle_block_upload_source(g);
-    if (block == battle_block_uploaded_row(g) && source == battle_block_uploaded_source(g))
+    if (offset == battle_block_uploaded_row(g) && source == battle_block_uploaded_source(g))
         return;
-    set_battle_block_uploaded_row(g, block);
+    set_battle_block_uploaded_row(g, offset);
     set_battle_block_uploaded_source(g, source);
-    send_block(pf, (uint32_t)BLOCK_BANK << 16 | source, battle_block_vram(g, block));
+    send_block(pf, (uint32_t)BLOCK_BANK << 16 | source, battle_block_vram(g, offset));
     ORIGINAL_EFFECT(leave_tiles_counted(g));
     set_battle_block_uploads_made(g, (uint8_t)(battle_block_uploads_made(g) + 1));
 }
@@ -184,7 +184,7 @@ static void send_requested_block(GameState *g, Platform *pf)
 /* While a battle message shows, its tiles go to VRAM a half a frame, the first
  * half on odd frames; otherwise the same VRAM is cleared, a half a frame. */
 enum { MESSAGE_SHOWING = 0x10, MESSAGE_HALF_BYTES = 0x200 };
-static const uint16_t message_half_vram[2] = { 0x5980, 0x5800 };   /* by the frame's parity */
+static const uint16_t message_half_vram[2] = { 0x5980, 0x5800 };   /* even frames, odd ones */
 
 static void send_message_tiles(GameState *g, Platform *pf)
 {
@@ -200,7 +200,7 @@ static void send_message_tiles(GameState *g, Platform *pf)
 }
 
 // $CD:0607
-void battle_send_block_and_alternate_tiles(GameState *g, Platform *pf)
+void battle_send_block_and_message_tiles(GameState *g, Platform *pf)
 {
     send_requested_block(g, pf);
     ORIGINAL_EFFECT(leave_size(g, MESSAGE_HALF_BYTES));
@@ -281,7 +281,7 @@ static void send_window_frames(GameState *g, Platform *pf)
 
 /* One of the four queued uploads: its first transfer, and its second where
  * that has a size (an empty one only has its source set). */
-static void send_queued_upload(Platform *pf, const GameState *g, uint8_t slot, uint32_t first_site,
+static void send_queued_upload(const GameState *g, Platform *pf, uint8_t slot, uint32_t first_site,
                                uint32_t second_site)
 {
     BattleQueuedTransfer first = battle_queued_transfer(g, slot, 0), second = battle_queued_transfer(g, slot, 1);
@@ -298,7 +298,7 @@ static void send_next_queued_upload(GameState *g, Platform *pf)
     if (battle_effects_running(g) || !battle_queued_uploads_on(g))
         return;
     uint8_t slot = battle_frame_phase(g);
-    send_queued_upload(pf, g, slot, 0xCFE40A, 0xCFE449);
+    send_queued_upload(g, pf, slot, 0xCFE40A, 0xCFE449);
     slot++;
     set_battle_frame_phase(g, slot == BATTLE_QUEUED_SLOTS ? 0 : slot);
 }
@@ -332,7 +332,7 @@ static void count_down_to_reupload(GameState *g, Platform *pf)
         return;
     set_battle_reupload_countdown(g, --left);
     if (left == 0)
-        send_queued_upload(pf, g, 0, 0xCFE51C, 0xCFE55B);
+        send_queued_upload(g, pf, 0, 0xCFE51C, 0xCFE55B);
 }
 
 // $CF:E300
@@ -355,33 +355,47 @@ bool battle_vblank_uploads_in_range(const GameState *g)
            || (uint8_t)battle_graphics_object(g) < BATTLE_COMBATANTS;
 }
 
-/* A block of tiles is sent from memory apart from the scratch cells and the
- * stack the upload runs on, as the game's blocks always are: the original
- * counts in a cell and keeps the data bank on the stack while the tiles go,
- * which a block over them would send instead. The banks that reach the first
- * 8 KiB of work RAM are $7E and the low halves of $00-$3F and $80-$BF. */
-enum { COUNT_CELLS = 0x0045, COUNT_CELLS_END = 0x0049, STACK_REACH = 0x20 };
+/* What the game sends comes from memory apart from the scratch cells and the
+ * top of the stack the transfers run on: the original counts a block's tiles
+ * in a cell and keeps the data bank on the stack while a transfer goes, which
+ * a transfer over them would send instead. The banks that reach the first
+ * 8 KiB of work RAM are $7E and the low halves of $00-$3F and $80-$BF; a
+ * transfer runs round its bank. */
+enum { COUNT_CELLS = 0x0045, COUNT_CELLS_END = 0x0049, STACK_REACH = 0x20, LOW_RAM_END = 0x2000 };
 
-static bool reaches_low_ram(uint8_t bank, uint16_t at)
+static bool sends_cell(uint8_t bank, uint16_t source, uint32_t bytes, uint16_t cell)
 {
-    return bank == 0x7E || ((bank & 0x7F) < 0x40 && at < 0x2000);
+    bool reaches = bank == 0x7E || ((bank & 0x7F) < 0x40 && cell < LOW_RAM_END);
+    return reaches && (uint16_t)(cell - source) < bytes;
 }
 
-static bool block_apart(uint8_t bank, uint16_t source, uint16_t stack)
+static bool transfer_apart(uint8_t bank, uint16_t source, uint32_t bytes, uint16_t stack)
 {
-    for (uint16_t i = 0; i < BLOCK_BYTES; i++) {
-        uint16_t at = (uint16_t)(source + i);
-        if (!reaches_low_ram(bank, at))
-            continue;
-        if ((at >= COUNT_CELLS && at < COUNT_CELLS_END) || (uint16_t)(stack - at) < STACK_REACH)
+    for (uint16_t cell = COUNT_CELLS; cell < COUNT_CELLS_END; cell++)
+        if (sends_cell(bank, source, bytes, cell))
             return false;
-    }
+    for (uint16_t below = 0; below < STACK_REACH; below++)
+        if (sends_cell(bank, source, bytes, (uint16_t)(stack - below)))
+            return false;
     return true;
 }
 
-bool battle_block_apart(const GameState *g, uint16_t stack)
+static bool queued_transfer_apart(const GameState *g, uint16_t stack)
 {
-    return !battle_block_upload_request(g) || block_apart(BLOCK_BANK, battle_block_upload_source(g), stack);
+    return !battle_vram_request_pending(g)
+           || transfer_apart(battle_vram_request_bank(g), battle_vram_request_source(g),
+                             transfer_bytes(battle_vram_request_size(g)), stack);
+}
+
+static bool block_apart(const GameState *g, uint16_t stack)
+{
+    return !battle_block_upload_request(g)
+           || transfer_apart(BLOCK_BANK, battle_block_upload_source(g), BLOCK_BYTES, stack);
+}
+
+bool battle_transfers_apart(const GameState *g, uint16_t stack)
+{
+    return queued_transfer_apart(g, stack) && block_apart(g, stack);
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
@@ -419,7 +433,7 @@ void battle_upload_alternating_vram(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t blocks_before = battle_block_uploads_made(g);
-    battle_send_block_and_alternate_tiles(g, m_platform(s));
+    battle_send_block_and_message_tiles(g, m_platform(s));
     if (battle_vram_copy_mode(g) == MESSAGE_SHOWING)
         s->cpu.y = message_half_vram[battle_vram_alternate(g) & 1];
     else if (battle_block_uploads_made(g) != blocks_before)
@@ -485,12 +499,34 @@ static bool peek_uploads_in_range(Snes *s)
 
 bool battle_vblank_uploads_ready(Snes *s) { return battle_on_page(s) && peek_uploads_in_range(s); }
 
+/* The block's place is looked up with A's high byte along, 0 as the frame
+ * work calls it. */
 bool battle_block_upload_ready(Snes *s)
 {
     vars_peek(true);
-    bool apart = battle_block_apart(state_of(s), s->cpu.s);
+    bool apart = block_apart(state_of(s), s->cpu.s);
+    vars_peek(false);
+    return battle_on_page_a_high_clear(s) && apart;
+}
+
+bool battle_queued_transfer_ready(Snes *s)
+{
+    vars_peek(true);
+    bool apart = queued_transfer_apart(state_of(s), s->cpu.s);
     vars_peek(false);
     return battle_on_page(s) && apart;
 }
 
-bool battle_tile_rows_ready(Snes *s) { return battle_page(s) && block_apart((uint8_t)s->cpu.a, s->cpu.x, s->cpu.s); }
+bool battle_vram_transfer_ready(Snes *s)
+{
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint16_t bytes = (uint16_t)(battle_scratch(g, 0) | battle_scratch(g, 1) << 8);
+    vars_peek(false);
+    return battle_page(s) && transfer_apart((uint8_t)s->cpu.a, s->cpu.x, transfer_bytes(bytes), s->cpu.s);
+}
+
+bool battle_tile_rows_ready(Snes *s)
+{
+    return battle_page(s) && transfer_apart((uint8_t)s->cpu.a, s->cpu.x, BLOCK_BYTES, s->cpu.s);
+}

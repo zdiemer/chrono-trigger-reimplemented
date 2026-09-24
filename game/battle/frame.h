@@ -52,10 +52,7 @@ bool battle_scroll_the_layers(Snes *s);
 
 /* This frame's screen shake, across and down, put on the layers it moves;
  * and the palette presets a screen effect asked for, started. */
-typedef struct {
-    uint8_t across, down;
-} BattleShake;
-BattleShake battle_shake_screen(GameState *g);
+void battle_shake_screen(GameState *g);
 
 /* ---- uploads.c ----------------------------------------------------------------------------- */
 
@@ -65,7 +62,7 @@ void battle_send_palette(Platform *pf);
 void battle_send_queued_transfer(GameState *g, Platform *pf);
 /* A block of tiles a routine asked for, and half of a battle message's tiles
  * (or of the VRAM they go to, cleared). */
-void battle_send_block_and_alternate_tiles(GameState *g, Platform *pf);
+void battle_send_block_and_message_tiles(GameState *g, Platform *pf);
 /* The rest of the vblank's uploads, from the frame work in the fight: the
  * sprites, the palette, the window's rows and frames, and the objects'
  * graphics. */
@@ -73,9 +70,9 @@ void battle_send_vblank_uploads(GameState *g, Platform *pf);
 /* What those uploads read is inside the tables they read (the guards'
  * part: the graphics object is a combatant's). */
 bool battle_vblank_uploads_in_range(const GameState *g);
-/* And a block of tiles isn't sent from over the scratch cells or the stack the
- * upload uses. */
-bool battle_block_apart(const GameState *g, uint16_t stack);
+/* And a queued transfer or a block of tiles isn't sent from over the scratch
+ * cells or the stack the transfers use. */
+bool battle_transfers_apart(const GameState *g, uint16_t stack);
 
 /* ---- display.c ----------------------------------------------------------------------------- */
 
@@ -101,6 +98,8 @@ bool battle_frame_update_ready(Snes *s);
 bool battle_scroll_mode_is_one(Snes *s);
 bool battle_vblank_uploads_ready(Snes *s);
 bool battle_block_upload_ready(Snes *s);
+bool battle_queued_transfer_ready(Snes *s);
+bool battle_vram_transfer_ready(Snes *s);
 bool battle_tile_rows_ready(Snes *s);
 
 #endif
