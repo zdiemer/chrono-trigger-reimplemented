@@ -4,6 +4,7 @@
 #define CT_PLATFORM_SNES_VIDEO_H
 
 #include "platform/snes/backend.h"
+#include "platform/snes/encodings.h"
 #include "platform/video.h"
 
 enum {
@@ -316,17 +317,6 @@ PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const Vi
     pf_snes_end();
 }
 
-PF_API void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table,
-                               const uint8_t *snes_steps)
-{
-    pf_snes_begin("vid_set_line_table", o);
-    PfSnesChannel c = { .channel = slot, .source = table };
-    pf_snes_program(pf_snes(pf), &c, snes_steps);
-    if (vid_observer)
-        vid_obs_line_table(vid_observer, slot, table);
-    pf_snes_end();
-}
-
 PF_API void vid_begin_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port, PfData source,
                                    const VidSnesXfer *x)
 {
@@ -461,7 +451,8 @@ static inline bool pf_snes_has_step(const uint8_t *steps, uint8_t step)
     return false;
 }
 
-PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x)
+static inline void pf_snes_escape(Platform *pf, PfOrigin o, const char *name, const VidSnesTransfer *t,
+                                  const VidSnesXfer *x)
 {
     Snes *s = pf_snes(pf);
     VidSnesTransfer resolved = *t;
@@ -481,7 +472,7 @@ PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t
         if (!pf_snes_has_step(x->steps, VID_STEP_SOURCE_BANK))
             resolved.source = (resolved.source & 0x00FFFF) | (uint32_t)reg[4] << 16;
     }
-    pf_snes_begin("vid_snes_transfer", o);
+    pf_snes_begin(name, o);
     /* Resolved and unresolved agree wherever `steps` writes the register, and
      * where it doesn't the value is never used. */
     PfSnesChannel c = { .channel = x->channel, .control = x->control, .dest = resolved.dest,
@@ -496,6 +487,159 @@ PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t
         vid_obs_snes_transfer(vid_observer, &resolved, control);
     }
     pf_snes_end();
+}
+
+PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x)
+{
+    pf_snes_escape(pf, o, "vid_snes_transfer", t, x);
+}
+
+/* ---- The calls that take no write order: the site's, from encodings.c ---------- */
+
+/* The site's channel program, with the port the call names: a site whose
+ * steps set the VRAM port is one where the original's upload sets it, which
+ * the call has to say, and one whose steps don't must not ask for it. */
+static inline VidSnesXfer pf_snes_site_xfer(const PfSnesEncoding *e, uint8_t control, const VidVramPort *port,
+                                            const char *call)
+{
+    if ((port != NULL) != pf_snes_has_step(e->steps, VID_STEP_VRAM_PORT))
+        pf_snes_encoding_mismatch(e->site, call);
+    return (VidSnesXfer){ e->channel, control, e->steps, port };
+}
+
+static inline void pf_snes_send(Platform *pf, PfOrigin o, const char *name, uint8_t dest, uint8_t target_reg,
+                                uint16_t target, PfData src, uint32_t len, const VidVramPort *port,
+                                bool mode_from_data, uint8_t mode)
+{
+    const PfSnesEncoding *e = pf_snes_encoding(o.site, name);
+    VidSnesXfer x = pf_snes_site_xfer(e, mode_from_data ? mode : e->control, port, name);
+    pf_snes_upload(pf, o, name, dest, target_reg, target, src, len, &x);
+}
+
+PF_API void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port)
+{
+    Snes *s = pf_snes(pf);
+    const PfSnesEncoding *e = pf_snes_encoding_find(o.site);
+    pf_snes_begin("vid_start_vram_uploads", o);
+    if (port)
+        pf_snes_put(s, PF_SNES_VMAIN, pf_snes_vram_port_byte(port));
+    if (e) {
+        PfSnesChannel c = { .channel = e->channel, .control = e->control, .dest = 0x18, .source = e->source };
+        pf_snes_program(s, &c, e->steps);
+    }
+    if (vid_observer && port)
+        vid_obs_vram_port(vid_observer, port);
+    pf_snes_end();
+}
+
+PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
+                          const VidVramPort *port)
+{
+    pf_snes_send(pf, o, "vid_send_vram", 0x18, 0x16, vram_addr, src, len, port, false, 0);
+    if (vid_observer)
+        vid_obs_upload_vram(vid_observer, vram_addr, src, len, false, port);
+}
+
+PF_API void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
+                                  const VidVramPort *port, uint8_t snes_mode)
+{
+    pf_snes_send(pf, o, "vid_send_vram_in_mode", 0x18, 0x16, vram_addr, src, len, port, true, snes_mode);
+    if (vid_observer)
+        vid_obs_upload_vram(vid_observer, vram_addr, src, len, false, port);
+}
+
+PF_API void vid_send_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
+                               VidVramHalf half, const VidVramPort *port)
+{
+    pf_snes_send(pf, o, "vid_send_vram_half", half == VID_VRAM_HIGH_BYTES ? 0x19 : 0x18, 0x16, vram_addr, src,
+                 len, port, false, 0);
+    if (vid_observer)
+        vid_obs_upload_vram_half(vid_observer, vram_addr, src, len, half, port);
+}
+
+PF_API void vid_send_vram_fill(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len,
+                               const VidVramPort *port)
+{
+    pf_snes_send(pf, o, "vid_send_vram_fill", 0x18, 0x16, vram_addr, value, len, port, false, 0);
+    if (vid_observer)
+        vid_obs_upload_vram(vid_observer, vram_addr, value, len, true, port);
+}
+
+PF_API void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count)
+{
+    pf_snes_send(pf, o, "vid_send_palette", 0x22, 0x21, first, src, 2u * count, NULL, false, 0);
+    if (vid_observer)
+        vid_obs_upload_palette(vid_observer, first, src, count);
+}
+
+PF_API void vid_send_oam(Platform *pf, PfOrigin o, PfData oam)
+{
+    pf_snes_send(pf, o, "vid_send_oam", 0x04, 0x02, 0, oam, 0x220, NULL, false, 0);
+    if (vid_observer)
+        vid_obs_upload_oam(vid_observer, oam);
+}
+
+PF_API void vid_set_line_slot(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e)
+{
+    vid_set_line_effect(pf, o, slot, e, pf_snes_encoding(o.site, "vid_set_line_slot")->steps);
+}
+
+PF_API void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table)
+{
+    const uint8_t *steps = pf_snes_encoding(o.site, "vid_set_line_table")->steps;
+    pf_snes_begin("vid_set_line_table", o);
+    PfSnesChannel c = { .channel = slot, .source = table };
+    pf_snes_program(pf_snes(pf), &c, steps);
+    if (vid_observer)
+        vid_obs_line_table(vid_observer, slot, table);
+    pf_snes_end();
+}
+
+PF_API void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
+{
+    const PfSnesEncoding *e = pf_snes_encoding(o.site, "vid_snes_copy");
+    VidSnesXfer x = pf_snes_site_xfer(e, t->mode_from_data ? t->mode : e->control, t->port, "vid_snes_copy");
+    pf_snes_escape(pf, o, "vid_snes_copy", t, &x);
+}
+
+PF_API void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *sc)
+{
+    for (const PfScreenStep *st = pf_snes_screen_steps(o.site); st->part != PF_SCREEN_END; st++) {
+        PfOrigin at = PF_AT(st->site);
+        switch (st->part) {
+        case PF_SCREEN_DISPLAY:
+            if (!sc->display)
+                pf_snes_encoding_mismatch(o.site, "vid_apply_screen");
+            vid_set_display(pf, at, sc->display);
+            break;
+        case PF_SCREEN_SPRITES: vid_set_obj_config(pf, at, &sc->sprites); break;
+        case PF_SCREEN_OAM_ADDRESS: vid_set_oam_address(pf, at, 0x0000, false); break;
+        case PF_SCREEN_MODE: vid_set_mode(pf, at, &sc->mode); break;
+        case PF_SCREEN_MOSAIC: vid_set_mosaic(pf, at, sc->mosaic_layers, sc->mosaic_size); break;
+        case PF_SCREEN_BG_MAP: vid_set_bg_map(pf, at, (VidLayer)st->arg, &sc->bg[st->arg]); break;
+        case PF_SCREEN_BG_CHARS:
+            vid_set_bg_chars(pf, at, (VidLayer)st->arg, sc->bg[st->arg].char_base, sc->bg[st->arg + 1].char_base);
+            break;
+        case PF_SCREEN_SCROLL:
+            vid_set_scroll(pf, at, (VidLayer)st->arg, sc->bg[st->arg].hofs, sc->bg[st->arg].vofs,
+                           VID_SCROLL_H | VID_SCROLL_V);
+            break;
+        case PF_SCREEN_VRAM_PORT: vid_start_vram_uploads(pf, at, &sc->vram_port); break;
+        case PF_SCREEN_VRAM_ADDRESS: vid_set_vram_address(pf, at, 0x0000); break;
+        case PF_SCREEN_MODE7: vid_set_mode7(pf, at, &sc->mode7, st->arg); break;
+        case PF_SCREEN_PALETTE_ADDRESS: vid_set_palette_address(pf, at, 0x00); break;
+        case PF_SCREEN_WINDOWS: vid_set_windows(pf, at, &sc->windows, st->arg); break;
+        case PF_SCREEN_SCREENS: vid_set_screens(pf, at, sc->main_layers, sc->sub_layers, st->arg); break;
+        case PF_SCREEN_COLOR_MATH: vid_set_color_math(pf, at, &sc->math, st->arg); break;
+        case PF_SCREEN_FIXED_COLOR: {
+            /* the channels a write sets share one intensity: the first's */
+            uint8_t shift = (st->arg & VID_RED) ? 0 : (st->arg & VID_GREEN) ? 5 : 10;
+            vid_set_fixed_color(pf, at, (uint8_t)st->arg, (uint8_t)(sc->fixed_color >> shift & 0x1F));
+            break;
+        }
+        case PF_SCREEN_VIDEO_CONFIG: vid_set_video_config(pf, at, &sc->config); break;
+        }
+    }
 }
 
 #endif

@@ -334,7 +334,11 @@ static void meter_or_reload(SoundDriver *d, const CommandRow *row, SoundCommand 
     if (c.p1 == METER) {
         d->meter = c.p2 != 0;
     } else if (c.p1 == RELOAD) {
-        au_mixer(d->voices, (AuMixer){ .reset = true, .muted = true, .echo_writes_off = true });
+        /* everything off for the reload: the output, the echo's writes, and
+         * the noise's clock back to 0 */
+        au_output_stopped(d->voices, true);
+        au_echo_writes(d->voices, false);
+        au_noise_clock(d->voices, 0);
         d->stopped = true;
     }
 }

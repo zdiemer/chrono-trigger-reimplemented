@@ -80,11 +80,6 @@ rest waits, is [PLAN.md](PLAN.md).
     object mode's module (`menu/object.h`) is what its object handlers should
     be rewritten onto;
   - what the qualitative review rated "mostly", to finish:
-    - `menu/display.c`: about a dozen comments quote the original's register
-      writes; and its two screen setups decode register bytes where named
-      `Vid*` values would say what the screen is (partly a platform gap: there
-      is no `VidBg` from a tilemap's address and size, and no screen-mask
-      helper);
     - `menu/script_bridge.h`: entry names that disagree with their operations
       (`reset_state` for `forget_everything`, `sound_18`/`sound_19`, and
       others), and the bridge switching on opcode literals (`0x3B`/`0x3C`/
@@ -171,16 +166,13 @@ rest waits, is [PLAN.md](PLAN.md).
     table in a header;
   - the staging buffers the field's transfers read are addresses in bank
     `$7E` (`display.c`'s edge runs, the VRAM queue), which a transfer service
-    that takes a named buffer would replace (the video service item under
-    "Platform");
+    that takes a named buffer would replace (PfData's host pointer, which the
+    SNES backend doesn't take yet);
   - computing through the work RAM port and raw addresses: `layers.c` reads
     the map data as a stream through the port, `sprites.c` its records by
     address, `graphics.c` its buffer, `display.c` its staging buffers. Each
     needs the data's entries in the RAM map first (a stream's layout is the
     map data's format, MATCHING.md), which is its own pass;
-  - the platform's parts of the field: the write-order arrays, the DMA
-    values, the `0x34` window setting and the line effects' values as types
-    rather than table words, which wait on the video service ("Platform");
   - a screen or camera module: the screen's tile and fine position is worked
     out in three of the field's files (`scroll.c`, `object_view.c`,
     `line_effects.c`), and event's "well on screen" is a fourth reader; one
@@ -287,14 +279,6 @@ rest waits, is [PLAN.md](PLAN.md).
   run alone or four at a time, the builds alternating, shows 1% or less
   (RECOMP.md, "The accessor bounds checks"). Find what differs in the suite's
   runs before reading the gap as the checks' cost.
-- **Field's review deferred three platform gaps**: there is no sprite-list
-  video service, so the 9-bit X, the `$E0` hide line and the screen-half
-  wrapping sit in `game/field/sprites.c`, against the widescreen rule; the
-  upload and line-effect services still take a per-call array of the original's
-  write order; and `vid_set_line_effect` takes raw register bytes (the color
-  math and window encodings in `line_effects.c`). These join the video service
-  item under "Platform".
-
 ## Recompiler
 
 - **Stops and entries don't get the strict solve yet.** The don't-care check
@@ -454,16 +438,33 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Platform
 
-- **Ports feed the video service literal register bytes**, a pattern scene's
-  first review found (`vid_mode_decode(0x07)`, `vid_set_screens(pf, at, 0x13,
-  0x04, ...)`): the decoders exist for bytes the game computes at run time.
-  Scene now writes the structs' fields and named constants; the other
-  subsystems' setup code wants the same reading. What the service still lacks:
-  a call that sets a whole screen at once (`vid_apply_screen`, for scene's
-  `init_video` and its kind), and uploads (`vid_upload_oam`,
-  `vid_upload_palette`, `vid_upload_vram`) that don't take a per-call array of
-  the original's write order, which `game/` should never have to spell out,
-  nor the DMA channel and transfer modes `scene/scene.h` names.
+- **The ports still on the older video forms** (PLATFORM.md, "The services'
+  gaps the reviews found, closed"). The battle and three of the menus' files
+  still hand the SNES backend their write order (`VID_STEP_*` in a
+  `VidSnesXfer`) at the call. Moving a call to `vid_send_*`,
+  `vid_set_line_slot` or `vid_snes_copy` means adding its site's sequence to
+  `runtime/platform/snes/encodings.c` and, once a file has none left,
+  deleting it from the lint's `WRITE_ORDER`. When none is left, the older
+  forms (`vid_upload_*`, `vid_fill_vram`, `vid_begin_vram_uploads`,
+  `vid_set_line_effect`, `vid_snes_transfer`) and `VidSnesXfer` leave the
+  service. What is left, for the battle rewrite and the menus' next pass:
+  - `battle/display.c`: the palette (`$CD:09CE`), the seven per-line slots
+    (`$CD:09F1`), and the graphics load's and the tile rows' uploads
+    (`$CC:E000`, `$D1:E8D9`);
+  - `battle/frame.c`: the vblank's uploads at `$CF:E300` (the queued pair, the
+    sprite table, the escape at `$CF:E33B`, the window frames' tilemap, the
+    palette and the upload list), the flushed transfer (`$CD:3E95`), the
+    sliding window's fill (`$CD:066F`) and the window slot (`$CD:0AF0`);
+  - `battle/nmi.c`: `vid_begin_vram_uploads` at `$D1:E7D7`, which programs no
+    channel and becomes `vid_start_vram_uploads` as it is;
+  - `menu/epoch.c`: the Epoch's screens' and the gate's line slots
+    (`vid_set_line_effect`) and their Mode 7 transfers (`vid_upload_vram`,
+    `vid_upload_vram_half`);
+  - `menu/map.c`: the two strip uploads (`$C2:0AF6`, `$C2:0B22`);
+    `menu/line_effects.c`: the irises' slot.
+  The field's own screen setup (`$FD:C0D7`) sets part of a screen, which
+  `VidScreen` doesn't express; it is a run of setters with values, which is
+  enough until a partial screen is wanted elsewhere.
 
 - **P3's leftover is not a leftover**: the renderer is fed by decoding PPU
   register writes, so the register file is still in the shipping path. Feeding
@@ -561,13 +562,6 @@ rest waits, is [PLAN.md](PLAN.md).
       taps (`SOUND_ECHO_TAPS`); `update_voices` and its loading-tick copy
       duplicate each other; `stop_music` followed by restoring the song ids it
       cleared (the music fade's end).
-  - **`au_mixer` and `au_echo_writes` overlap** (`platform/audio.h`, "The
-    voices"). Both set the echo-write switch, so the C driver's every-tick
-    `au_mixer` call (to set the noise clock) also turns echo writes on and
-    `muted`/`reset` off without saying so; it matches the original, which
-    writes FLG whole from its shadow, but the interface hides it. Give the noise
-    clock a call of its own, or document that `au_mixer` sets all four
-    switches.
   - **Controllers.** `in_host_set` is already the one host entry point per
     frame, so this is an SDL GameController call into it plus bindings (see
     Player and tooling).
@@ -1029,9 +1023,7 @@ waits on M5 rather than on a backend.
     `fraction_along`.
   - `race_matrix.c`'s generator keeps running accumulators where each row's
     offset could be computed from its index.
-  - The bank `$FE` resources (above) and `init_video`'s `map_sites` and
-    computed `PF_AT` (Platform, `vid_apply_screen`), and the transfers'
-    `steps[]` (the same item), wait for the platform.
+  - The bank `$FE` resources (above) wait for the platform.
   - The title's logo sweep and ripple (above) wait for their Phase 3 ports.
   - `game/attract/` is the same scene program (its main loop and idle waits)
     and belongs in `game/scene/`; the two headers point at each other until

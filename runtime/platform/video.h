@@ -20,6 +20,19 @@ typedef enum { VID_BG1, VID_BG2, VID_BG3, VID_BG4, VID_OBJ, VID_BACK } VidLayer;
 #define VID_LAYER_BIT(layer) (1u << (layer))
 enum { VID_LAYERS = 6 };
 
+/* Sets of layers, as the screens, the window masks and color math take them:
+ * VID_BG1_BIT | VID_OBJ_BIT is BG1 and the sprites. VID_BACK_BIT is the
+ * backdrop, which only color math names. */
+enum {
+    VID_BG1_BIT = 1 << VID_BG1,
+    VID_BG2_BIT = 1 << VID_BG2,
+    VID_BG3_BIT = 1 << VID_BG3,
+    VID_BG4_BIT = 1 << VID_BG4,
+    VID_OBJ_BIT = 1 << VID_OBJ,
+    VID_BACK_BIT = 1 << VID_BACK,
+    VID_ALL_LAYERS = VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT | VID_OBJ_BIT,
+};
+
 /* Master brightness and forced blank. */
 typedef struct {
     uint8_t brightness;   /* 0-15 */
@@ -141,6 +154,11 @@ typedef struct {
     bool large_tiles;      /* 16x16 tiles */
 } VidBg;
 
+/* A layer's tilemap in a VidBg's initializer: at `map_base` (a VRAM word
+ * address), `tiles_wide` by `tiles_high` (32 or 64 each), as in
+ * `{ VID_TILEMAP(0x6000, 64, 32), .char_base = 0x2000 }`. */
+#define VID_TILEMAP(map_base_, tiles_wide, tiles_high) .map_base = (map_base_), .map_w = (tiles_wide), .map_h = (tiles_high)
+
 /* Which of a layer's scroll values a vid_set_scroll call sets. */
 enum { VID_SCROLL_H = 1 << 0, VID_SCROLL_V = 1 << 1 };
 
@@ -176,6 +194,58 @@ typedef struct {
     bool hflip, vflip, large;
 } VidSprite;
 
+/* ---- The sprite table, as the game builds it in its own memory ----------------
+ *
+ * The game keeps its sprites in the SNES's form, which vid_upload_oam sends: 128
+ * entries of four bytes (X's low byte, Y, tile, attributes), then two bits a
+ * sprite (X's ninth bit, and large) four sprites a byte. Positions are signed
+ * screen coordinates until they are written, and these alone turn them into
+ * the table's form and back, so the ninth bit, the 8-bit Y and the line that
+ * hides a sprite stay out of the game's code. */
+enum {
+    VID_OAM_ENTRY_BYTES = 4,
+    VID_OAM_ENTRY_Y = 1,            /* where an entry's Y is */
+    VID_OAM_SPRITES_A_HIGH_BYTE = 4,
+    VID_OAM_HIGH_BITS = 2,          /* a sprite's bits in its high byte */
+    VID_OAM_HIDDEN_Y = 0xE0,        /* the line an entry is put on to show nowhere */
+};
+
+/* X as the table's entry holds it, and the sprite's two high bits. */
+static inline uint8_t vid_oam_x_low(int16_t x) { return (uint8_t)x; }
+static inline uint8_t vid_oam_high_bits(int16_t x, bool large)
+{
+    return (uint8_t)(((uint16_t)x >> 8 & 0x01) | (large ? 0x02 : 0));
+}
+/* ... and back: the X an entry's low byte and its high bits say (-256 to 255). */
+static inline int16_t vid_oam_x(uint8_t low, uint8_t high_bits)
+{
+    return (int16_t)((high_bits & 0x01) ? low - 0x100 : low);
+}
+static inline bool vid_oam_large(uint8_t high_bits) { return (high_bits & 0x02) != 0; }
+
+/* The table's Y for a sprite `offset` lines on from a point at screen line
+ * `anchor` (a signed coordinate; the offset is added as a byte, as the game
+ * keeps it). The table's Y is a byte, so the sum comes round past 255 for a
+ * sprite near the picture's top, and what it means depends on where the point
+ * is: a point above the picture shows only the sprites that came round onto
+ * the lines just above line 0 (the table's $E0 and past, whose lower parts
+ * show at the top); a point in the picture's lower half hides those, which
+ * would otherwise show at its top; and a point in its upper half hides the
+ * sprites past its middle that didn't reach the hide line. Hidden sprites are
+ * put on VID_OAM_HIDDEN_Y. */
+static inline uint8_t vid_oam_y(int16_t anchor, uint8_t offset)
+{
+    enum { LOWER_HALF = 0x80 };
+    uint16_t sum = (uint16_t)(offset + (uint8_t)anchor);
+    uint8_t y = (uint8_t)sum;
+    bool came_round = sum > 0xFF;
+    if (anchor < 0)
+        return came_round && y >= VID_OAM_HIDDEN_Y ? y : VID_OAM_HIDDEN_Y;
+    if (anchor & LOWER_HALF)
+        return came_round && y >= VID_OAM_HIDDEN_Y ? VID_OAM_HIDDEN_Y : y;
+    return y >= LOWER_HALF && y < VID_OAM_HIDDEN_Y ? VID_OAM_HIDDEN_Y : y;
+}
+
 typedef struct {
     uint8_t size_select;    /* which pair of sprite sizes (0-7) */
     uint16_t base;          /* VRAM word address of sprite tile 0 */
@@ -198,6 +268,9 @@ typedef struct {
     bool snes_step_alt;     /* the second SNES encoding of 128, which behaves the same */
     uint8_t snes_extra;     /* bits 4-6 of the SNES byte, which the hardware ignores */
 } VidVramPort;
+
+/* The half of each VRAM word an upload of one byte a word writes. */
+typedef enum { VID_VRAM_LOW_BYTES, VID_VRAM_HIGH_BYTES } VidVramHalf;
 
 /* The setting every upload in ported code uses: a word at a time, stepping
  * after the high byte. */
@@ -244,6 +317,35 @@ static inline VidVramPort vid_vram_port_decode(uint8_t v)
     static const uint8_t steps[4] = { 1, 32, 128, 128 };
     return (VidVramPort){ .step = steps[v & 3], .remap = (uint8_t)((v >> 2) & 3), .after_high = (v & 0x80) != 0,
                           .snes_step_alt = (v & 3) == 3, .snes_extra = (uint8_t)(v & 0x70) };
+}
+
+/* A whole screen, as a mode sets it up when it starts (vid_apply_screen): the
+ * display, the sprites' sizes and tiles, the BG mode and mosaic, each layer's
+ * tilemap, tiles and scroll, the Mode 7 plane, the windows, which layers are on
+ * the main and sub screens, color math and its fixed color, and the video
+ * settings, with every VRAM write stepping as `vram_port` says. Setting a
+ * screen up also puts the VRAM, OAM and palette cursors back at their starts. */
+typedef struct {
+    const VidDisplay *display;      /* NULL: the display stays as it is */
+    VidObjConfig sprites;
+    VidMode mode;
+    uint8_t mosaic_layers;          /* VID_LAYER_BIT set of BG1-BG4 */
+    uint8_t mosaic_size;            /* 1-16 */
+    VidBg bg[4];
+    VidMode7 mode7;
+    VidWindows windows;
+    uint8_t main_layers, sub_layers;
+    VidColorMath math;
+    uint16_t fixed_color;           /* BGR555 */
+    VidVideoConfig config;
+    VidVramPort vram_port;
+} VidScreen;
+
+/* The fixed color as a BGR555 value: `intensity` (0-31) in each of `channels`. */
+static inline uint16_t vid_fixed_color(uint8_t channels, uint8_t intensity)
+{
+    uint16_t i = intensity & 0x1F;
+    return (uint16_t)(((channels & 1) ? i : 0) | ((channels & 2) ? i << 5 : 0) | ((channels & 4) ? i << 10 : 0));
 }
 
 /* Everything a renderer needs for one line. */
@@ -326,6 +428,24 @@ typedef enum {
     VID_LINE_TARGETS,
 } VidLineTarget;
 
+/* The values a line effect's table holds, in the form its target reads them
+ * (the same as the setters' SNES bytes): games that build tables at run time
+ * write them through these, so a value says what it sets. */
+static inline uint8_t vid_line_bg_map(const VidBg *b)                  /* VID_LINE_BG_MAPS, a layer's */
+{
+    return (uint8_t)((b->map_base >> 8 & 0xFC) | (b->map_w == 64 ? 1 : 0) | (b->map_h == 64 ? 2 : 0));
+}
+static inline uint8_t vid_line_math_layers(const VidColorMath *m)      /* VID_LINE_MATH_LAYERS */
+{
+    return (uint8_t)((m->subtract ? 0x80 : 0) | (m->half ? 0x40 : 0) | (m->layers & 0x3F));
+}
+static inline uint8_t vid_line_fixed_color(uint8_t channels, uint8_t intensity)   /* VID_LINE_FIXED_COLOR */
+{
+    return (uint8_t)((channels & 7) << 5 | (intensity & 0x1F));
+}
+/* A window's edges, left in the low byte (VID_LINE_WINDOW1, VID_LINE_WINDOW2). */
+static inline uint16_t vid_line_window_edges(uint8_t left, uint8_t right) { return (uint16_t)(right << 8 | left); }
+
 typedef struct {
     VidLineTarget target;
     PfData table;
@@ -377,8 +497,12 @@ static inline bool vid_line_effect_decode(uint8_t control, uint8_t dest, VidLine
 /* How the SNES backend programs a DMA or HDMA channel: the register writes in
  * the original's order, as a list of steps ending in VID_STEP_END. The original
  * code orders them differently at almost every site, and shadow validation
- * compares what an interrupted sequence leaves behind, so the order is part of
- * each call site. Other backends ignore it. */
+ * compares what they leave behind (an empty upload stops at its size), so the
+ * order belongs to each call site. The calls below that take no steps (the
+ * vid_send_* uploads, vid_set_line_slot, vid_snes_copy) look the site's up in
+ * the SNES backend (platform/snes/encodings.c); the forms that take them are
+ * kept for the ports not moved yet (docs/TODO.md, Platform). Other backends
+ * ignore both. */
 enum {
     VID_STEP_END = 0,
     VID_STEP_CONTROL,        /* $43x0: transfer mode and flags (VidSnesXfer.control) */
@@ -438,15 +562,52 @@ PF_API void vid_set_color_math(Platform *pf, PfOrigin o, const VidColorMath *m, 
  * `intensity` (0-31); the other channels keep their value. */
 PF_API void vid_set_fixed_color(Platform *pf, PfOrigin o, uint8_t channels, uint8_t intensity);
 
-PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e,
-                                const uint8_t *snes_steps);
+/* What a per-line effect slot (0-7) drives, and from which table. */
+PF_API void vid_set_line_slot(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e);
 /* A slot's table moves inside the bank it was programmed with, its target and
  * mode unchanged: the menus swap between two tables by frame parity, and
  * rebuild one in place. */
-PF_API void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table,
-                               const uint8_t *snes_steps);
+PF_API void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table);
+/* The older form of vid_set_line_slot, with the SNES write order at the call. */
+PF_API void vid_set_line_effect(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e,
+                                const uint8_t *snes_steps);
 /* Slots whose line effects run from the next frame on (bit per slot). */
 PF_API void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots);
+
+/* ---- Uploads ---------------------------------------------------------------------
+ *
+ * Each says what moves where. The SNES backend makes the transfer the original
+ * made at the call's site, which it looks up there. */
+
+/* Upload work begins: VRAM writes step the address as `port` says from here on
+ * (NULL: as they did). Where the original programmed its channel ahead of the
+ * uploads that follow, the SNES backend does that here too. */
+PF_API void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port);
+/* Copy `len` bytes (1-65536) from `src` into VRAM at word address `vram_addr`.
+ * `port`: how the writes step the address, where the upload sets it itself
+ * (NULL: as vid_start_vram_uploads left it). A `len` of 0 uploads nothing. */
+PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
+                          const VidVramPort *port);
+/* The same where the game's data holds the transfer's mode in the SNES's form
+ * (a screen transition's, field_transfer). */
+PF_API void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
+                                  const VidVramPort *port, uint8_t snes_mode);
+/* One byte of each VRAM word (vid_upload_vram_half). */
+PF_API void vid_send_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
+                               VidVramHalf half, const VidVramPort *port);
+/* `len` bytes of VRAM filled with the byte at `value`. */
+PF_API void vid_send_vram_fill(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len,
+                               const VidVramPort *port);
+/* `count` BGR555 colors from `src` into CGRAM from entry `first`. */
+PF_API void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count);
+/* The sprite table (VID_OAM_*: 128 entries and the high bits), as the game built it. */
+PF_API void vid_send_oam(Platform *pf, PfOrigin o, PfData oam);
+
+/* A whole screen set up at once (VidScreen). The SNES backend writes the
+ * registers in the order the original's routine at the site did. */
+PF_API void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *screen);
+
+/* ---- The older upload forms, with the SNES write order at the call ------------ */
 
 /* Vblank upload work begins: VRAM writes step the address as `port` says from
  * here on. The SNES backend sets the VRAM port and, with `x`, programs the
@@ -468,7 +629,6 @@ PF_API void vid_upload_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData
  * other, which is how Mode 7 is loaded: its tile numbers lie in the low bytes
  * and its pixels in the high ones, so the Epoch's screens build each half on
  * its own. The port's step then advances the address once per byte. */
-typedef enum { VID_VRAM_LOW_BYTES, VID_VRAM_HIGH_BYTES } VidVramHalf;
 PF_API void vid_upload_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                                  VidVramHalf half, const VidSnesXfer *x);
 /* Fill `len` bytes of VRAM with the byte at `value` (the SNES backend: a
@@ -506,7 +666,15 @@ typedef struct {
      * -- control, destination or source -- and hands the observer the transfer
      * that will actually run. */
     bool continue_channel;
+    /* Where game data holds the channel's mode (the scene loaders' transfer),
+     * that mode; otherwise the SNES backend takes the site's. */
+    bool mode_from_data;
+    uint8_t mode;
+    const VidVramPort *port;   /* how VRAM steps, where the transfer sets it (vid_snes_copy) */
 } VidSnesTransfer;
+/* The escape, with the channel programmed as the original did at the site. */
+PF_API void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t);
+/* The older form, with the channel and its write order at the call. */
 PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x);
 
 /* The registers the game's transfers through the escape name, by the low byte
