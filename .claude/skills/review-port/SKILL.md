@@ -571,6 +571,26 @@ Each of these is a finding. Every example here comes from this repo.
     rotations, `FADE_TO_WHITE` standing for every fade) reads as if it cared
     which member. Give the coarser case its own type.
 
+61. **A call-out that is really a port.** Check every call-out's target
+    against `game/registry.c`: a list headed "the original's routines" can
+    quietly include the subsystem's own ports, called through the machine
+    where C would do.
+62. **Register setup the call's own declaration marks dead.** A carry set
+    before a call whose don't-care set includes `DC_C`.
+63. **An increment where the value is a bool or a state.** `x + 1` written to
+    a cell the guards keep at 0 is `true`, or a named step.
+64. **Data accessors that take byte offsets.** `setup_rule(at)`,
+    `layout * 14`: item 3 moved into the asset seam, where it looks
+    legitimate. Accessors take the index and return a record.
+65. **One resource's layout written in several files.** A VRAM, CGRAM or
+    buffer place as a literal in two files (item 18 is bits, 43 decisions).
+66. **Porting status in the game's vocabulary.** "Which are still the
+    original's" in a type's meaning, or an API like `..._filled_here()`:
+    what is ported belongs to the guards and entries, not to the logic.
+67. **A leaves file not used everywhere.** Where a subsystem derives
+    registers from state in one place, a register derived inline in a bridge
+    elsewhere is a finding.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"

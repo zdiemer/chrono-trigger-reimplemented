@@ -129,7 +129,51 @@ rest waits, is [PLAN.md](PLAN.md).
     or the stack (`$C1:1C55`).
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
-    written twice, in `numbers.c` and `scripts.c`.
+    written twice, in `numbers.c` and `scripts.c`;
+  - what battle's review rated "mostly" (no file rated translation):
+    - the loop calls its own subsystem's ports through ROM addresses and
+      `battle_call` (`$C1:B093`, `$C1:B0B6`, the damage and number clears,
+      `battle_give_turn`), under a list headed "the original's routines";
+      call them as C (or `battle_run` for the machine-shaped ones), and drop
+      the carry set before a call whose set declares `DC_C`;
+    - `react()` walks the enemy scripts through memory cells
+      (`script_place`, `block_start`, ...), pushes a local on the machine
+      stack and names an outcome "2": a cursor in locals and named outcomes;
+    - scratch writes outside `ORIGINAL_EFFECT` (`battle_low_scratch`
+      `$14/$15`), and cells used for a second meaning
+      (`battle_effect_sprite_attributes` as the step's member): declare them;
+    - one fact defined several times: the demo flag, `PARTY_OFF_GRID`,
+      "out of the fight", the first combatant object, the graphics kinds
+      (`kind != 3` in `sprites.c` against `kind < 3` in `animation.c`, which
+      disagree on kind 4), two `battle_sine_magnitude`s over different
+      tables, one ROM table under two names twice, the battle's VRAM places
+      as literals in `display.c` and `uploads.c`, `TrailPoint` declared two
+      ways, `SPRITE_BYTES`/`NUMBER_DIGITS`/`enemy_slot` copies;
+    - entry and map names that disagree with the operations
+      (`battle_step_orbits`/`step_drifts`, `battle_screen_wipe_from_left`/
+      `wipe_diagonally`, the mover tables as `battle_effect_*`, and others);
+      the timers named by number (`BATTLE_TIMER_STATUS_1..11`);
+    - the cursor bridges in `menu_window.c` keep the target's side in a
+      variable named `carry` and their call-out-free logic in the `Snes *`
+      body: derive the carry in `window_leaves.c`; the tech rules and the
+      combination's calling off belong in a rules module, not the window;
+    - ROM and record accessors that take byte offsets the callers compute
+      (`setup_data.h`, `battle_sprite_layout`, `battle_palette_frame`, the
+      effect sprite record by `from + 2`), and inline ROM reads in
+      `main_loop.c` and `scripts.c`: index-taking accessors returning records;
+    - `x + 1` written to cells that mean a bool or a load step;
+    - `NATIVE_TIME_AS` takes a `Snes *`, so the draw pass, `step_movers` and
+      `step_enemy_group` take one only to name their parts' time: a charge
+      hook reachable from `GameState` (a runtime change);
+    - map fixes: the word cells of which one byte means something
+      (`battle_repeat_delay`, `battle_window_layout`, `battle_frog_slot`,
+      `battle_graphics_object`, `battle_bitmap_set`, `battle_magus_slot`,
+      ...), `battle_target_display`'s fields, and the stale `source` lines
+      naming functions that no longer exist (`battle_run_queued_scripts`
+      and about fifty others);
+    - `nmi.c` is named for the interrupt, and the battle's two vblank
+      handlers sit in `nmi.c` and `display.c` without pointing at each other;
+      `frame.h` describes `BattleScrollMode` by what is still the original's.
 
 - **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
   machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
