@@ -49,19 +49,18 @@ enum {
 void battle_clear_candidates(GameState *g);
 
 /* $C1:AC14, less its reading of the script: pick the candidates by a
- * selector for the enemy whose script is running (battle_enemy_turn), and
- * keep them as the action's targets. The first is kept apart too
- * (battle_first_candidate). A selector past the 57 (none in the scripts)
- * picks nobody. */
-void battle_select_candidates(GameState *g, Selector selector);
+ * selector for `enemy`, whose script is running, and keep them as the
+ * action's targets. The first is kept apart too (battle_first_candidate). A
+ * selector past the 57 (none in the scripts) picks nobody. */
+void battle_select_candidates(GameState *g, uint8_t enemy, Selector selector);
 
 /* $C1:AC2C: the same by a selector the caller gives, the candidates already
  * cleared. */
-void battle_select_candidates_kept(GameState *g, Selector selector);
+void battle_select_candidates_kept(GameState *g, uint8_t enemy, Selector selector);
 
 /* The candidates alone ($C1:B8BB's table), for a selector below
  * SELECTORS. */
-void battle_pick_candidates(GameState *g, Selector selector);
+void battle_pick_candidates(GameState *g, uint8_t enemy, Selector selector);
 
 /* Take the first candidate by the enemies' order drawn at the start
  * (battle_enemy_order), compared, as the original does, with the candidates
@@ -82,11 +81,5 @@ uint8_t battle_candidates_held(const GameState *g);
 
 /* The candidates are counted as the battle counts them (the guards'). */
 bool battle_candidates_counted(const GameState *g);
-
-/* The carry the original's marking of the first target ($C1:AD09) and of the
- * others ($C1:AD35) leaves, from the candidates and the carry it found: the
- * original's callees after it read it (battle/enemy_turn.c). */
-bool battle_first_mark_carry(const GameState *g, bool carry);
-bool battle_other_marks_carry(const GameState *g, bool carry);
 
 #endif

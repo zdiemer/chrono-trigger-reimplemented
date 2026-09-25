@@ -1,8 +1,8 @@
 /* Battle: whom the enemies' scripts aim at (battle/targets.h).
  *
  * The selectors are a C table, a row each: how the row picks, and what with.
- * They pick for the enemy whose script is running (battle_enemy_turn) and
- * write the candidates with their count; the choosing among them that
+ * They pick for the enemy whose script is running (its battle slot, `self`,
+ * leaves it out or picks it) and write the candidates with their count; the choosing among them that
  * follows is at the end. */
 #include "battle/targets.h"
 
@@ -57,26 +57,24 @@ void battle_clear_candidates(GameState *g)
 
 /* ---- What the selectors leave in their cells ---------------------------------------------- */
 
-/* The direct-page cells the selectors work in (battle_low_scratch). */
+/* The direct-page cells the selectors work in (battle_low_scratch). They keep
+ * a word at $0A too -- the enemy's own battle slot, or the stat block's byte a
+ * selection by status looks at -- whose high byte is kept (battle.h). */
 enum {
     LEFT_HP = 0x02,          /* the lowest or highest HP a selector found, a word ($02) */
-    LEFT_STAT = 0x0A,        /* the stat block's byte a selection by status looks at, a word ($0A) */
     LEFT_BLOCK = 0x0C,       /* the stat block's place's low byte, and its high byte cleared ($0C) */
     LEFT_PLACE = 0x0E,       /* where a selector's loop over the combatants is, a word ($0E) */
-    LEFT_SELF = 0x0A,        /* the enemy's own battle slot, a word ($0A) */
 };
 
-static void leave_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
-static void leave_word(GameState *g, unsigned at, uint16_t v)
+/* Where a selector's loop over the combatants ended, a word: its low byte
+ * is what an enemy tech's hits can be noted as (battle.h), so it is kept. */
+static void keep_loop_end(GameState *g, uint16_t v)
 {
-    set_battle_low_scratch(g, at, (uint8_t)v);
-    set_battle_low_scratch(g, at + 1, (uint8_t)(v >> 8));
+    battle_keep_tech_hits_left(g, (uint8_t)v);
+    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_PLACE + 1, (uint8_t)(v >> 8)));
 }
 
 /* ---- Whom a selector can pick -------------------------------------------------------------- */
-
-static uint8_t acting_enemy(const GameState *g) { return battle_enemy_turn(g); }
-static uint8_t own_slot(const GameState *g) { return (uint8_t)(BATTLE_FIRST_ENEMY + acting_enemy(g)); }
 
 /* The party members in the fight, and then (for everyone) the enemies. */
 static void pick_fighting(GameState *g, uint8_t first, uint8_t end, uint8_t left_out)
@@ -123,11 +121,11 @@ static void pick_random_member(GameState *g)
 }
 
 /* The one a search finds, as the action's one target too. */
-static void pick_found(GameState *g, SearchKind kind, bool must_be_fighting)
+static void pick_found(GameState *g, uint8_t self, SearchKind kind, bool must_be_fighting)
 {
     set_count(g, 0);
     SearchAnswer a;
-    TIMED_AS(g, 0xC12986, a = battle_search(g, kind, own_slot(g), battle_search_other(g), battle_search_third(g)));
+    TIMED_AS(g, 0xC12986, a = battle_search(g, kind, self, battle_search_other(g), battle_search_third(g)));
     if (a.found & 0x80)
         return;
     if (must_be_fighting && (combatant_fighting_as(g, a.found) & 0x80))
@@ -138,11 +136,11 @@ static void pick_found(GameState *g, SearchKind kind, bool must_be_fighting)
 
 /* The nearest or farthest other enemy: none where the search finds the enemy
  * itself (it finds the last it had where it finds nobody). */
-static void pick_found_enemy(GameState *g, SearchKind kind)
+static void pick_found_enemy(GameState *g, uint8_t self, SearchKind kind)
 {
     SearchAnswer a;
-    TIMED_AS(g, 0xC12986, a = battle_search(g, kind, own_slot(g), battle_search_other(g), battle_search_third(g)));
-    if (a.found == own_slot(g)) {
+    TIMED_AS(g, 0xC12986, a = battle_search(g, kind, self, battle_search_other(g), battle_search_third(g)));
+    if (a.found == self) {
         set_candidate(g, 0, NO_CANDIDATE);
         set_count(g, 0);
     } else {
@@ -166,7 +164,7 @@ static void pick_member_by_hp(GameState *g, bool most)
         }
     }
     only_candidate(g, picked);
-    ORIGINAL_EFFECT(leave_word(g, LEFT_HP, (uint8_t)best));
+    ORIGINAL_EFFECT(battle_leave_word(g, LEFT_HP, (uint8_t)best));
 }
 
 /* The enemy in the fight with the least HP (above none), the enemy itself
@@ -183,14 +181,12 @@ static void pick_weakest_enemy(GameState *g, uint8_t left_out)
         }
     }
     set_count(g, 1);
-    ORIGINAL_EFFECT(leave_word(g, LEFT_HP, (uint8_t)least));
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_PLACE, BATTLE_COMBATANTS));
+    ORIGINAL_EFFECT(battle_leave_word(g, LEFT_HP, (uint8_t)least));
+    battle_keep_tech_hits_left(g, BATTLE_COMBATANTS);
 }
 
 /* One of the enemies waiting in reserve, at random. The candidates are the
  * enemies' numbers here (battle slot less 3), as the original puts them. */
-enum { ENEMY_IN_RESERVE = 0x80 };
-
 static void narrow_at_random(GameState *g, uint8_t count, bool fill_the_rest)
 {
     uint8_t drawn = battle_random(g, 0, count);
@@ -216,11 +212,11 @@ static void pick_reserve_enemy(GameState *g)
 
 /* Another enemy in the fight, at random. The original means to clear the
  * candidates after the one drawn and clears only the next. */
-static void pick_other_enemy_at_random(GameState *g)
+static void pick_other_enemy_at_random(GameState *g, uint8_t self)
 {
     set_count(g, 0);
-    pick_fighting(g, BATTLE_FIRST_ENEMY, BATTLE_COMBATANTS, own_slot(g));
-    ORIGINAL_EFFECT(leave_word(g, LEFT_SELF, own_slot(g)));
+    pick_fighting(g, BATTLE_FIRST_ENEMY, BATTLE_COMBATANTS, self);
+    battle_keep_word_at_0a(g, self);
     uint8_t count = battle_candidate_count(g);
     if (count >= 2)
         narrow_at_random(g, count, false);
@@ -231,8 +227,7 @@ static void pick_other_enemy_at_random(GameState *g)
 /* A combatant a selection by status picks: in the fight, not knocked out,
  * with one of the bits it looks for in a byte of its stat block. A combatant
  * with the aim-drawing or aim-turning status is marked so. */
-enum { STATUS_DRAWS_AIM = 0x10, STATUS_TURNS_AIM = 0x20, CONDITION_KNOCKED_OUT = 0x80, STATUS_BYTE = 0x20 };
-enum { STAT_CONDITION = 0x1D };
+enum { STATUS_DRAWS_AIM = 0x10, STATUS_TURNS_AIM = 0x20, STATUS_BYTE = STAT_STATUS_3 };
 
 typedef struct {
     uint8_t stat;   /* the byte of the stat block */
@@ -244,7 +239,7 @@ static void consider(GameState *g, uint8_t slot, StatusTest test)
     ORIGINAL_EFFECT(set_battle_candidate_considered(g, slot));
     if (!combatant_in_fight(g, slot))
         return;
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_BLOCK, (uint8_t)battle_stat_block_place(g, slot)));
+    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_BLOCK, (uint8_t)battle_stat_block_place(g, slot)));
     if (!(battle_stats_block_byte(g, slot, test.stat) & test.bits))
         return;
     if (battle_stats_block_byte(g, slot, STAT_CONDITION) & CONDITION_KNOCKED_OUT)
@@ -262,12 +257,12 @@ static void consider(GameState *g, uint8_t slot, StatusTest test)
     }
 }
 
-/* What considering a combatant leaves. */
+/* What considering a combatant leaves besides the stat block's byte it looks
+ * at (a word at $0A, kept: battle.h): the bits, and its block's place's
+ * high byte cleared. */
 static void leave_considering(GameState *g, StatusTest test)
 {
-    leave_byte(g, LEFT_STAT, test.stat);
-    leave_byte(g, LEFT_STAT + 1, 0);
-    leave_byte(g, LEFT_BLOCK + 1, 0);
+    battle_leave_byte(g, LEFT_BLOCK + 1, 0);
     set_battle_candidate_statuses(g, test.bits);
 }
 
@@ -276,28 +271,29 @@ static void start_status_pick(GameState *g, StatusTest test)
     set_count(g, 0);
     set_battle_candidates_turning(g, 0);
     set_battle_candidates_drawing(g, 0);
+    battle_keep_word_at_0a(g, test.stat);
     ORIGINAL_EFFECT(leave_considering(g, test));
 }
 
-static void narrow_by_aim(GameState *g);
+static void narrow_by_aim(GameState *g, uint8_t self);
 
-static void pick_members_with(GameState *g, StatusTest test)
+static void pick_members_with(GameState *g, uint8_t self, StatusTest test)
 {
     start_status_pick(g, test);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         consider(g, member, test);
-    narrow_by_aim(g);
+    narrow_by_aim(g, self);
 }
 
-static void pick_enemies_with(GameState *g, StatusTest test, bool with_itself)
+static void pick_enemies_with(GameState *g, uint8_t self, StatusTest test, bool with_itself)
 {
     start_status_pick(g, test);
     for (uint8_t slot = BATTLE_FIRST_ENEMY; slot < BATTLE_COMBATANTS; slot++)
         if (with_itself || slot != battle_actor(g))
             consider(g, slot, test);
     ORIGINAL_EFFECT(set_battle_candidate_considered(g, BATTLE_COMBATANTS));
-    ORIGINAL_EFFECT(leave_word(g, LEFT_PLACE, (uint16_t)(2 * BATTLE_COMBATANTS)));
-    narrow_by_aim(g);
+    keep_loop_end(g, (uint16_t)(2 * BATTLE_COMBATANTS));
+    narrow_by_aim(g, self);
 }
 
 /* $C1:A8C5: the enemies with a status in their stat block's third status
@@ -319,7 +315,7 @@ static uint8_t consider_stray(GameState *g, uint8_t slot, uint16_t place, Status
     uint8_t fighting = combatant_fighting_as(g, slot);
     if (fighting == COMBATANT_NONE)
         return fighting;
-    ORIGINAL_EFFECT(leave_byte(g, LEFT_BLOCK, (uint8_t)battle_stat_block_place_stray(g, place)));
+    ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_BLOCK, (uint8_t)battle_stat_block_place_stray(g, place)));
     uint8_t byte = stray_status_byte(g, place, test.stat);
     if (!(byte & test.bits))
         return byte;
@@ -340,7 +336,7 @@ static uint8_t consider_stray(GameState *g, uint8_t slot, uint16_t place, Status
     return battle_candidates(g, at);
 }
 
-static void pick_enemies_with_stray(GameState *g, StatusTest test)
+static void pick_enemies_with_stray(GameState *g, uint8_t self, StatusTest test)
 {
     start_status_pick(g, test);
     uint16_t place = 2 * BATTLE_FIRST_ENEMY, kept = place;
@@ -350,8 +346,8 @@ static void pick_enemies_with_stray(GameState *g, StatusTest test)
         kept = leftover;
     }
     ORIGINAL_EFFECT(set_battle_candidate_considered(g, BATTLE_COMBATANTS));
-    ORIGINAL_EFFECT(leave_word(g, LEFT_PLACE, kept));
-    narrow_by_aim(g);
+    keep_loop_end(g, kept);
+    narrow_by_aim(g, self);
 }
 
 /* ---- Choosing among them by the aim --------------------------------------------------------- */
@@ -366,7 +362,7 @@ static void pick_enemies_with_stray(GameState *g, StatusTest test)
  * Where some draw the aim and the first candidate found doesn't, the original
  * never leaves its loop and the game hangs; the port takes that candidate (an
  * accepted divergence: docs/TODO.md). */
-static void narrow_by_aim(GameState *g)
+static void narrow_by_aim(GameState *g, uint8_t self)
 {
     uint8_t count = battle_candidate_count(g);
     if (count == 0)
@@ -380,7 +376,7 @@ static void narrow_by_aim(GameState *g)
                 continue;
             set_candidate(g, 0, battle_candidates(g, c));
             if (battle_candidates_turning(g) && (battle_candidates(g, 0) & CANDIDATE_TURNS_AIM)) {
-                TIMED_AS(g, 0xC1A4E0, pick_found(g, SEARCH_FARTHEST_MEMBER, false));
+                TIMED_AS(g, 0xC1A4E0, pick_found(g, self, SEARCH_FARTHEST_MEMBER, false));
                 return;
             }
             break;
@@ -423,9 +419,8 @@ typedef struct {
     uint8_t slot;     /* PICK_SLOT */
 } SelectorRow;
 
-/* The stat block's bytes the selections by status look at: the condition,
- * the four status bytes, and two more. */
-enum { STAT_STATUS_1 = 0x1E, STAT_STATUS_2 = 0x1F, STAT_STATUS_3 = 0x20, STAT_STATUS_4 = 0x21, STAT_FLAGS = 0x19, STAT_OTHER = 0x01 };
+/* The selections by status look at the condition, the four status bytes, and
+ * two more of the stat block (StatOffset). */
 enum { ANY_BIT = 0xFF };
 
 #define WITH(p, s, b) { p, { s, b }, 0 }
@@ -483,12 +478,12 @@ static const SelectorRow selectors[SELECTORS] = {
  * test keeps in its cell, which the others leave. */
 static bool clears_candidate_place(Selector selector) { return selector >= 0x09 && selector <= 0x0D; }
 
-void battle_pick_candidates(GameState *g, Selector selector)
+void battle_pick_candidates(GameState *g, uint8_t enemy, Selector selector)
 {
     if (selector >= SELECTORS)
         return;
     const SelectorRow *row = &selectors[selector];
-    uint8_t self = own_slot(g);
+    uint8_t self = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
     if (clears_candidate_place(selector))
         ORIGINAL_EFFECT(set_battle_candidate_place(g, 0));
     switch (row->pick) {
@@ -501,53 +496,53 @@ void battle_pick_candidates(GameState *g, Selector selector)
     case PICK_ITSELF: only_candidate(g, self); break;
     case PICK_LAST_TO_ACT_ON_IT: only_candidate(g, last_to_act_on(g, self)); break;
     case PICK_RANDOM_MEMBER: pick_random_member(g); break;
-    case PICK_NEAREST_MEMBER: pick_found(g, SEARCH_NEAREST_MEMBER, true); break;
-    case PICK_FARTHEST_MEMBER: pick_found(g, SEARCH_FARTHEST_MEMBER, false); break;
+    case PICK_NEAREST_MEMBER: pick_found(g, self, SEARCH_NEAREST_MEMBER, true); break;
+    case PICK_FARTHEST_MEMBER: pick_found(g, self, SEARCH_FARTHEST_MEMBER, false); break;
     case PICK_WEAKEST_MEMBER: pick_member_by_hp(g, false); break;
     case PICK_STRONGEST_MEMBER: pick_member_by_hp(g, true); break;
-    case PICK_MEMBERS_WITH: pick_members_with(g, row->test); break;
+    case PICK_MEMBERS_WITH: pick_members_with(g, self, row->test); break;
     case PICK_OTHER_ENEMIES:
         set_count(g, 0);
         pick_fighting(g, BATTLE_FIRST_ENEMY, BATTLE_COMBATANTS, self);
-        ORIGINAL_EFFECT(leave_word(g, LEFT_SELF, self));
+        battle_keep_word_at_0a(g, self);
         break;
     case PICK_ENEMIES:
         set_count(g, 0);
         pick_fighting(g, BATTLE_FIRST_ENEMY, BATTLE_COMBATANTS, NO_CANDIDATE);
         break;
-    case PICK_NEAREST_OTHER_ENEMY: pick_found_enemy(g, SEARCH_NEAREST_OTHER_ENEMY); break;
-    case PICK_FARTHEST_ENEMY: pick_found_enemy(g, SEARCH_FARTHEST_ENEMY); break;
+    case PICK_NEAREST_OTHER_ENEMY: pick_found_enemy(g, self, SEARCH_NEAREST_OTHER_ENEMY); break;
+    case PICK_FARTHEST_ENEMY: pick_found_enemy(g, self, SEARCH_FARTHEST_ENEMY); break;
     case PICK_WEAKEST_ENEMY: pick_weakest_enemy(g, NO_CANDIDATE); break;
     case PICK_WEAKEST_OTHER_ENEMY: pick_weakest_enemy(g, battle_actor(g)); break;
-    case PICK_ENEMIES_WITH: pick_enemies_with(g, row->test, true); break;
-    case PICK_OTHER_ENEMIES_WITH: pick_enemies_with(g, row->test, false); break;
-    case PICK_ENEMIES_WITH_STRAY: pick_enemies_with_stray(g, row->test); break;
+    case PICK_ENEMIES_WITH: pick_enemies_with(g, self, row->test, true); break;
+    case PICK_OTHER_ENEMIES_WITH: pick_enemies_with(g, self, row->test, false); break;
+    case PICK_ENEMIES_WITH_STRAY: pick_enemies_with_stray(g, self, row->test); break;
     case PICK_SLOT: only_candidate(g, row->slot); break;
     case PICK_RESERVE_ENEMY: pick_reserve_enemy(g); break;
-    case PICK_OTHER_ENEMY_AT_RANDOM: pick_other_enemy_at_random(g); break;
+    case PICK_OTHER_ENEMY_AT_RANDOM: pick_other_enemy_at_random(g, self); break;
     }
 }
 
 static void keep_first(GameState *g) { set_battle_first_candidate(g, battle_candidates(g, 0)); }
 
 // $C1:AC2C
-void battle_select_candidates_kept(GameState *g, Selector selector)
+void battle_select_candidates_kept(GameState *g, uint8_t enemy, Selector selector)
 {
-    TIMED_AS(g, selector_routine(g, selector), battle_pick_candidates(g, selector));
+    TIMED_AS(g, selector_routine(g, selector), battle_pick_candidates(g, enemy, selector));
     for (unsigned place = 0; place < BATTLE_CANDIDATES_COUNT; place++)
         set_battle_action_targets(g, place, battle_candidates(g, place));
     keep_first(g);
 }
 
 // $C1:AC14
-void battle_select_candidates(GameState *g, Selector selector)
+void battle_select_candidates(GameState *g, uint8_t enemy, Selector selector)
 {
     battle_clear_candidates(g);
     if (selector & SELECT_CONDITION_TARGET) {
         set_candidate(g, 0, battle_condition_target(g));
         keep_first(g);
     } else {
-        battle_select_candidates_kept(g, selector);
+        battle_select_candidates_kept(g, enemy, selector);
     }
 }
 
@@ -606,7 +601,7 @@ void battle_mark_first_target(GameState *g)
     if (battle_candidate_count(g) == 0 || first == NO_CANDIDATE)
         return;
     set_battle_action_target_bits(g, slot_bit(first));
-    ORIGINAL_EFFECT(leave_word(g, 0x00, 0));
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x00, 0));
 }
 
 // $C1:AD35
@@ -621,16 +616,18 @@ void battle_mark_other_targets(GameState *g)
         bits |= slot_bit(battle_candidates(g, place));
     set_battle_action_other_targets(g, bits);
     if (count >= 2)
-        ORIGINAL_EFFECT(leave_word(g, 0x00, 0));
-    ORIGINAL_EFFECT(leave_byte(g, 0x02, 0));
+        ORIGINAL_EFFECT(battle_leave_word(g, 0x00, 0));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, 0));
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
-/* Each selector's routine picks for the enemy the battle is working on. */
+/* Each selector's routine picks for the enemy the battle is working on
+ * (battle_enemy_turn). */
 static void selector_entry(Snes *s, Selector selector)
 {
-    battle_pick_candidates(state_of(s), selector);
+    GameState *g = state_of(s);
+    battle_pick_candidates(g, battle_enemy_turn(g), selector);
     m_rts(s);
 }
 
@@ -639,7 +636,7 @@ static void selector_entry(Snes *s, Selector selector)
 void battle_select_party(Snes *s)
 {
     GameState *g = state_of(s);
-    battle_pick_candidates(g, SELECT_PARTY);
+    battle_pick_candidates(g, battle_enemy_turn(g), SELECT_PARTY);
     s->cpu.x = battle_candidate_count(g);
     m_rts(s);
 }
@@ -717,7 +714,7 @@ void battle_select_from_script(Snes *s)
     GameState *g = state_of(s);
     ScriptPlace at = (ScriptPlace)(battle_script_place(g) + 1);
     set_battle_script_place(g, at);
-    battle_select_candidates(g, enemy_script_byte(g, at));
+    battle_select_candidates(g, battle_enemy_turn(g), enemy_script_byte(g, at));
     leave_selected(s);
 }
 
@@ -727,7 +724,8 @@ uint8_t battle_selector_in_a(const Snes *s) { return (uint8_t)(s->cpu.a & 0x7F);
 
 void battle_select_by(Snes *s)
 {
-    battle_select_candidates_kept(state_of(s), battle_selector_in_a(s));
+    GameState *g = state_of(s);
+    battle_select_candidates_kept(g, battle_enemy_turn(g), battle_selector_in_a(s));
     leave_selected(s);
 }
 

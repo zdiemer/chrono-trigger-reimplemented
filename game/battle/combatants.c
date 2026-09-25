@@ -105,9 +105,6 @@ void set_combatant_stat_byte_by_place(GameState *g, uint8_t slot, uint16_t offse
         wram_write8(g, stray_place(g, slot, offset, false), v);
 }
 
-/* The condition byte's knocked-out bit. */
-enum { CONDITION_KNOCKED_OUT = 0x80 };
-
 bool combatant_knocked_out(const GameState *g, unsigned slot)
 {
     return (battle_stats_condition(g, slot) & CONDITION_KNOCKED_OUT) != 0;
@@ -234,9 +231,6 @@ void combatant_follow_statuses(GameState *g, unsigned slot)
 
 /* ---- The update each turn ----------------------------------------------------------------- */
 
-/* An enemy waiting off the battlefield to be brought in (battle_enemy_standing). */
-enum { ENEMY_IN_RESERVE = 0x80 };
-
 static bool enemy_in_reserve(const GameState *g, unsigned slot)
 {
     return !battle_slot_is_party(slot) && (battle_enemy_standing(g, slot - BATTLE_FIRST_ENEMY) & ENEMY_IN_RESERVE);
@@ -346,8 +340,6 @@ static bool target_in_fight(const GameState *g, uint8_t target)
 
 /* An enemy out of the fight whose target is out too forgets what its script
  * chose: no condition held, and its script chooses again when it is back. */
-enum { NO_CONDITION = 0xFF };
-
 static void drop_script_if_gone(GameState *g, unsigned slot)
 {
     if (battle_slot_is_party(slot) || combatant_in_fight(g, slot))

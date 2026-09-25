@@ -579,7 +579,7 @@ static bool enemy_can_act(GameState *g, unsigned enemy)
     if (!from_animation && !battle_enemy_acts_anyway(g, enemy))
         return false;
     set_battle_enemy_acts_anyway(g, enemy, false);
-    return battle_enemy_script_outcome(g, enemy) == 0;
+    return battle_enemy_script_outcome(g, enemy) == OUTCOME_HELD;
 }
 
 /* The turn wait an enemy that acted starts again from. */
@@ -805,16 +805,19 @@ enum { COMES_BACK_TO_REACT = 0x20 };
 /* The statuses that keep an enemy from reacting. */
 enum { STATUSES_THAT_STOP_REACTIONS = 0x8F };
 
-/* The enemy's turn for its reaction, run as the loop's JSR calls it, with the
- * enemy it is (battle_enemy_acting) pushed under the call and taken back
- * after it, as the original keeps it; then every combatant's update. */
+/* The enemy's turn for its reaction, run as the loop's JSR calls it; the
+ * enemy it is (battle_enemy_acting) is the one acting again after it. The
+ * original keeps it on the stack under the call, which is the frame the
+ * turn's calls are made over. Then every combatant's update. */
 static bool carry_out_reaction(Snes *s)
 {
     GameState *g = state_of(s);
-    m_push8(s, battle_enemy_acting(g));
+    uint8_t reacting = battle_enemy_acting(g);
+    m_push8(s, reacting);
     if (!battle_run(s, 0xC18780, ENEMY_TURN, battle_enemy_takes_turn))
         return false;
-    set_battle_enemy_acting(g, m_pull8(s));
+    m_pull8(s);
+    set_battle_enemy_acting(g, reacting);
     return update_combatants(s, 0xC18787);
 }
 
@@ -829,44 +832,50 @@ static bool react(Snes *s, unsigned entry, uint8_t target)
     GameState *g = state_of(s);
     uint8_t enemy = (uint8_t)(target - BATTLE_FIRST_ENEMY);
     bool gone = !combatant_in_fight(g, target);
-    set_battle_enemy_turn(g, enemy);
     set_battle_enemy_acting(g, enemy);
     uint8_t id = gone ? battle_combatant_id(g, target) : battle_combatant_fighting(g, target);
-    TIMED_AS(g, 0xC1B488, enemy_script_find_reactions(g, id));
-    ScriptPlace block = battle_script_place(g);
-    set_battle_script_actions_place(g, block);
-    set_battle_block_start(g, block);
+    ScriptChoosing c = enemy_choosing(g, enemy);
+    TIMED_AS(g, 0xC1B488, c.place = enemy_reactions_start(g, enemy, id));
+    c.block_start = c.actions_from = c.place;
     if (gone) {
-        if (enemy_script_byte(g, block) != COMES_BACK_TO_REACT)
+        if (enemy_script_byte(g, c.block_start) != COMES_BACK_TO_REACT) {
+            enemy_leave_choosing(g, &c);
             return true;
+        }
         set_battle_combatant_fighting(g, target, battle_combatant_id(g, target));
     }
     set_battle_animation_kept(g, battle_enemy_animation(g, enemy));
-    if (battle_stats_status(g, target) & STATUSES_THAT_STOP_REACTIONS)
+    if (battle_stats_status(g, target) & STATUSES_THAT_STOP_REACTIONS) {
+        enemy_leave_choosing(g, &c);
         return true;
+    }
     for (;;) {
-        set_battle_condition_pair(g, 0);
-        set_battle_script_outcome(g, OUTCOME_HELD);
+        c.outcome = OUTCOME_HELD;
         set_battle_foe_kept(g, battle_foes(g, enemy));
         set_battle_foes(g, enemy, battle_last_actor(g));
         set_battle_reaction_place_kept(g, battle_enemy_next_action(g, entry));
-        enemy_test_block(g, battle_block_start(g));
-        if (battle_script_outcome(g) == OUTCOME_HELD) {
+        enemy_test_block(g, &c);
+        if (c.outcome == OUTCOME_HELD) {
             set_battle_foes(g, enemy, battle_last_actor(g));
+            /* the turn is a machine entry still: it takes the reaction's
+             * actions from the cells, and its outcome and how far it read the
+             * script come back through them (docs/TODO.md) */
+            enemy_hand_back_choosing(g, &c);
             if (!carry_out_reaction(s))
                 return false;
+            c = enemy_choosing_in_cells(g);
             set_battle_enemy_next_action(g, entry, battle_reaction_place_kept(g));
-            uint8_t outcome = battle_script_outcome(g);
-            set_battle_enemy_script_outcome(g, entry, outcome);
-            if (outcome == OUTCOME_NOBODY_TO_ACT_ON)
+            set_battle_enemy_script_outcome(g, entry, c.outcome);
+            if (c.outcome == OUTCOME_NOBODY_TO_ACT_ON)
                 set_battle_enemy_action_chosen(g, entry, false);
         }
-        if (battle_script_outcome(g) == OUTCOME_HELD || !enemy_script_next_block(g))
+        if (c.outcome == OUTCOME_HELD || !enemy_script_next_block(g, &c))
             break;
-        set_battle_block_start(g, battle_script_place(g));
+        c.block_start = c.place;
         set_battle_enemy_script_block(g, entry, (uint8_t)(battle_enemy_script_block(g, entry) + 1));
         set_battle_foes(g, enemy, battle_foe_kept(g));
     }
+    enemy_leave_choosing(g, &c);
     set_battle_enemy_animation(g, battle_enemy_acting(g), battle_animation_kept(g));
     return true;
 }
@@ -898,10 +907,13 @@ static bool actor_silenced(const GameState *g, uint8_t actor)
 static bool enemies_react(Snes *s)
 {
     GameState *g = state_of(s);
-    set_battle_enemy_turn(g, 0);
+    /* the original starts them with the choosing's cells at no enemy, no
+     * pair and nothing failed */
+    ScriptChoosing none_yet = enemy_choosing(g, 0);
+    none_yet.pair = PAIR_NONE;
+    none_yet.outcome = OUTCOME_HELD;
+    enemy_leave_choosing(g, &none_yet);
     set_battle_reaction_entry(g, 0);
-    set_battle_condition_pair(g, 0);
-    set_battle_script_outcome(g, OUTCOME_HELD);
     for (unsigned entry = 0; entry < BATTLE_ENEMIES; entry++) {
         set_battle_reaction_entry(g, (uint8_t)entry);
         if (entry > 0)

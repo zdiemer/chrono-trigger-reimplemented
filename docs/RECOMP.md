@@ -6019,10 +6019,18 @@ which the tool credits to them (its docstring says which way it is wrong).
 **The engine is C on the game's state.** `battle/enemy_scripts.c` is the
 choosing: every enemy that has nothing chosen looks through its script's
 turn section, block by block, until a block's conditions hold; the reactions
-look through the reaction section the same way for the actor. The conditions
-(`enemy_conditions.c`) and the actions' choosing (`enemy_actions.c`) are C
-tables, a row a command, which the dispatch reads and times as the original's
-routine for it (the row's `routine`); the selectors (`targets.c`) a table of
+look through the reaction section the same way for the actor. A choosing's
+state is a `ScriptChoosing` its starter makes and passes down -- the enemy,
+the pair of conditions, the outcome, how far the script has been read, the
+block and its actions -- and the original's cells for it are written once,
+as scaffolding, where it ends. The conditions (`enemy_conditions.c`) and the
+actions' choosing (`enemy_actions.c`) are C tables, a row a command: its
+operands' layout, which decodes them into the test's named parameters, how
+far the original reads the script for it, and the original's routine it is
+timed as, a literal. A condition returns how it came out (a
+`ConditionResult`: fails, holds, holds with nothing chosen, chooses and
+fails, and whether it took a target) and the block's testing acts on it; a
+choice returns how far it read and what it does to the block. The selectors (`targets.c`) a table of
 what each picks; the search (`positions.c`) a function of the question and the
 three combatants, with the grid, the boxes and the direction as operations of
 their own. None of it takes a `Snes *`: the entries' wrappers put the answers
@@ -6052,9 +6060,33 @@ it would take up from the place: a condition entry at the selector it names
 and the actions after it (past the first end marker after each byte the
 condition can leave the place on), an action entry at its selectors, a draw
 among four at the four, the choosing at the actions it keeps, the enemy's turn
-at the action it carries out. An entry knows itself by the machine's PC,
-which is where it starts. None refuses a call of the library's (over the 26 movies every entry's calls
+at the action it carries out. Each entry's guard is made with it by the same
+macro and knows its command as a constant, and the layouts it checks are the
+tables' rows. None refuses a call of the library's (over the 26 movies every entry's calls
 match, none refused and none mismatching).
+
+**The review's rework.** The first review rated the three script files a
+translation: the engine kept its working state in the original's cells (the
+script's place written and read back, the outcome counted in a cell, the
+enemy at work a cell used as the loop's variable), read operands by position
+with the layout derived again in the guards, called the next step from inside
+the handlers, and knew its entries by the machine's PC. They were rewritten as
+above. Three cells the ports wrote only as scaffolding turned out to be read
+back as game input, and are now kept plainly by every port that writes them:
+the long arithmetic's leftover high word `$2E` (the random draw divides with
+it: `battle_long_high_word`), the high byte `$0B` of the stat offset the
+stat test reads (whatever the last word kept at `$0A` left), and `$0E`,
+which an enemy tech's hits are noted as where its targeting doesn't set it
+(the tech's number, or where a further target's selection loop ended). The
+native-shape build had read them stale. `tools/fuzz_compare.py` against the
+reviewed ports (135 routines, 5,000 states each, seed 1): 133 the same, and
+two differ where the walk's stray box read lands on the choosing's cells,
+which the rework writes when a choosing ends (writing them before each
+condition, as a check, brings both to 0; an accepted divergence, docs/TODO.md).
+The rework moves where the time of the conditions, the choices and the
+turns' parts falls, so the battle's rows the library measures were
+calibrated again (44 of them, only battle's taken); the library is clean
+under shadow mode and the gate passes.
 
 **What shadow mode and fuzzing found**, all reproduced rather than tidied:
 

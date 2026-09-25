@@ -9,16 +9,15 @@
  * is there, how many enemies are left, how long the battle has gone on, what
  * last hit the enemy, a chance.
  *
- * A condition that holds has its block's actions chosen at once
- * (enemy_condition_held); one that doesn't leaves the block failed
- * (battle_script_outcome). A few keep the original's odd outcomes: some hold
- * without choosing anything, and some choose and then fail.
+ * Each condition says how it came out (ConditionResult); the block's testing
+ * (battle/enemy_scripts.c) acts on that. A few keep the original's odd
+ * outcomes: some hold without choosing anything, and some choose and then
+ * fail.
  *
- * The conditions are a C table by kind, a row each: the test, and for the
- * tests of where the combatants stand, which search they ask. Each reads its
- * operands at the condition's place, and moves the place the script is read
- * at (battle_script_place) as the original does, which is where the block's
- * actions are looked for from. */
+ * The conditions are a C table by kind, a row each: the test, the layout of
+ * its operands, which the table decodes into the test's parameters, and how
+ * far the original reads the script for it (the choosing looks for the
+ * block's actions from there). */
 #include "battle/enemy_scripts.h"
 
 #include "battle/battle.h"
@@ -35,38 +34,32 @@
 
 /* ---- What they share ------------------------------------------------------------------------ */
 
-/* An operand of the condition at `at`, the first after its kind. */
-static uint8_t operand(const GameState *g, ScriptPlace at, unsigned n) { return enemy_script_byte(g, (ScriptPlace)(at + n)); }
+static ConditionResult fails(void) { return (ConditionResult){ .verdict = CONDITION_FAILS }; }
+static ConditionResult holds(void) { return (ConditionResult){ .verdict = CONDITION_HOLDS }; }
+static ConditionResult holds_if(bool held) { return held ? holds() : fails(); }
+static ConditionResult holds_unchosen(void) { return (ConditionResult){ .verdict = CONDITION_HOLDS_UNCHOSEN }; }
 
-static void fails(GameState *g) { set_battle_script_outcome(g, OUTCOME_FAILED); }
+/* Nobody picked: the condition fails, having read no further than its
+ * selector. */
+static ConditionResult nobody_picked(void) { return (ConditionResult){ .verdict = CONDITION_FAILS, .stopped_at_selector = true }; }
 
-static void holds_if(GameState *g, bool held)
+/* It holds for the target it took, if it could take one; a block no longer
+ * held comes out `otherwise`. */
+static ConditionResult for_target(bool taken, ConditionVerdict otherwise)
 {
-    if (held)
-        enemy_condition_held(g);
-    else
-        fails(g);
+    return (ConditionResult){
+        .verdict = CONDITION_HOLDS, .takes_target = true, .target_taken = taken, .pairs = true, .otherwise = otherwise,
+    };
 }
 
-/* Choose, and yet fail: two conditions choose the block's actions and still
- * leave the block failed. */
-static void chooses_and_fails(GameState *g)
-{
-    enemy_condition_held(g);
-    fails(g);
-}
+static uint8_t self(const ScriptChoosing *c) { return (uint8_t)(BATTLE_FIRST_ENEMY + c->enemy); }
 
-/* Pick the candidates by the selector in the condition's first operand. The
- * script is read at the selector from then on. */
-static uint8_t select_by(GameState *g, ScriptPlace at)
+/* Pick the candidates by the selector: how many there are. */
+static uint8_t select_by(GameState *g, const ScriptChoosing *c, Selector who)
 {
-    read_script_at(g, (ScriptPlace)(at + 1));
-    TIMED_AS(g, 0xC1AC14, battle_select_candidates(g, operand(g, at, 1)));
+    TIMED_AS(g, 0xC1AC14, battle_select_candidates(g, c->enemy, who));
     return battle_candidates_held(g);
 }
-
-static uint8_t enemy(const GameState *g) { return enemy_at_work(g); }
-static uint8_t self(const GameState *g) { return enemy_at_work_slot(g); }
 
 static Candidate candidate(const GameState *g, unsigned place) { return battle_candidate(g, place); }
 
@@ -75,82 +68,43 @@ static void mark(GameState *g, unsigned place)
     set_battle_candidates(g, place, battle_candidates(g, place) | CANDIDATE_MARKED);
 }
 
-/* The pair's bookkeeping, once a condition has taken its target: the first
- * of two keeps the target for the second, and the second closes the pair
- * ($C1:AEFD). */
-enum { PAIR_FIRST = 0x01, PAIR_FIRST_HELD = 0x80 };
-
-static void note_pair(GameState *g)
-{
-    uint8_t pair = battle_condition_pair(g);
-    if (pair & PAIR_FIRST) {
-        set_battle_condition_target(g, battle_candidates(g, 0) & CANDIDATE_SLOT);
-        set_battle_condition_pair(g, PAIR_FIRST_HELD);
-    } else if (pair & PAIR_FIRST_HELD) {
-        set_battle_condition_pair(g, 0);
-    }
-}
-
 /* The marked candidates, `marked` of them, are the only ones, and one of them
- * is taken as the target; the block's actions are chosen if the block still
- * holds (a first condition that failed leaves the second nothing to choose).
- * False where it doesn't. */
+ * is taken as the target: false where there is none to take. */
 static bool take_marked(GameState *g, uint8_t marked)
 {
     set_battle_candidate_count(g, marked);
-    if (!battle_take_marked_candidate(g))
-        enemy_block_fails(g);
-    if (battle_script_outcome(g) != OUTCOME_HELD)
-        return false;
-    note_pair(g);
-    enemy_condition_held(g);
-    return true;
-}
-
-/* Most conditions leave a block they can't take a target for failed once,
- * however it stood. */
-static void take_marked_or_fail(GameState *g, uint8_t marked)
-{
-    if (!take_marked(g, marked))
-        fails(g);
-}
-
-/* The direct-page cells the conditions work in (battle_low_scratch). */
-static void leave_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
-static void leave_word(GameState *g, unsigned at, uint16_t v)
-{
-    set_battle_low_scratch(g, at, (uint8_t)v);
-    set_battle_low_scratch(g, at + 1, (uint8_t)(v >> 8));
+    return battle_take_marked_candidate(g);
 }
 
 /* ---- About the candidates -------------------------------------------------------------------- */
 
-/* A stat block's bytes the conditions read. */
-enum { STAT_HP = 0x03, STAT_MAX_HP = 0x05, STAT_CONDITION = 0x1D, STOPPED_HIGH_BIT = 0x8000 };
+/* The condition byte's top bit, as the high byte of a word read at it, is
+ * stopped. */
+enum { STOPPED_HIGH_BIT = 0x8000 };
 
 // $C1:8EAB
 /* Those picked at half their HP or less (and not stopped), one of them the
  * target. With nobody picked the condition holds without choosing. */
-static void at_half_hp(GameState *g, ScriptPlace at)
+static ConditionResult at_half_hp(GameState *g, const ScriptChoosing *c, Selector who)
 {
-    uint8_t count = select_by(g, at);
+    uint8_t count = select_by(g, c, who);
     if (count == 0)
-        return;
+        return holds_unchosen();
     uint8_t marked = 0;
     for (uint8_t place = 0; place < count; place++) {
         uint8_t slot = candidate(g, place);
         if (combatant_stat_word_by_place(g, slot, STAT_CONDITION) & STOPPED_HIGH_BIT)
             continue;
         uint16_t hp = combatant_stat_word_by_place(g, slot, STAT_HP);
-        ORIGINAL_EFFECT(leave_word(g, 0x08, hp));
+        ORIGINAL_EFFECT(battle_leave_word(g, 0x08, hp));
         if (combatant_stat_word_by_place(g, slot, STAT_MAX_HP) / 2 >= hp) {
             mark(g, place);
             marked++;
         }
     }
-    ORIGINAL_EFFECT(leave_word(g, 0x0A, marked));
+    battle_keep_word_at_0a(g, marked);
     ORIGINAL_EFFECT(set_battle_candidate_place(g, count));
-    take_marked(g, marked);
+    return for_target(take_marked(g, marked), CONDITION_HOLDS_UNCHOSEN);
 }
 
 // $C1:8F11
@@ -159,11 +113,10 @@ static void at_half_hp(GameState *g, ScriptPlace at)
  * byte), one of them the target. */
 enum { SIDE_PARTY = 0 };
 
-static void with_status(GameState *g, ScriptPlace at)
+static ConditionResult with_status(GameState *g, const ScriptChoosing *c, uint8_t side, uint8_t offset, uint8_t bits)
 {
-    uint8_t side = operand(g, at, 1), offset = operand(g, at, 2), bits = operand(g, at, 3);
     battle_clear_candidates(g);
-    TIMED_AS(g, 0xC1AC2C, battle_select_candidates_kept(g, side == SIDE_PARTY ? SELECT_PARTY : SELECT_ENEMIES));
+    TIMED_AS(g, 0xC1AC2C, battle_select_candidates_kept(g, c->enemy, side == SIDE_PARTY ? SELECT_PARTY : SELECT_ENEMIES));
     uint8_t count = battle_candidates_held(g), marked = 0, place = 0;
     do {
         if ((combatant_stat_byte(g, candidate(g, place), (uint16_t)(STAT_CONDITION + offset)) & bits) == bits) {
@@ -171,77 +124,60 @@ static void with_status(GameState *g, ScriptPlace at)
             mark(g, place);
         }
     } while (++place < count);
-    ORIGINAL_EFFECT(leave_word(g, 0x00, offset));
-    ORIGINAL_EFFECT(leave_byte(g, 0x02, bits));
-    ORIGINAL_EFFECT(leave_word(g, 0x04, place));
-    ORIGINAL_EFFECT(leave_word(g, 0x06, marked));
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, side));
-    if (marked == 0)
-        fails(g);
-    else
-        take_marked_or_fail(g, marked);
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x00, offset));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, bits));
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x04, place));
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x06, marked));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, side));
+    return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
 // $C1:8F87
 /* Those picked that are the enemy the condition names, one of them the
  * target. */
-static void is_enemy(GameState *g, ScriptPlace at)
+static ConditionResult is_enemy(GameState *g, const ScriptChoosing *c, Selector who, uint8_t id)
 {
-    uint8_t count = select_by(g, at);
-    if (count == 0) {
-        fails(g);
-        return;
-    }
-    read_script_at(g, (ScriptPlace)(at + 2));
-    uint8_t id = operand(g, at, 2), marked = 0;
+    uint8_t count = select_by(g, c, who);
+    if (count == 0)
+        return nobody_picked();
+    uint8_t marked = 0;
     for (uint8_t place = 0; place < count; place++)
         if (combatant_fighting_as(g, candidate(g, place)) == id) {
             marked++;
             mark(g, place);
         }
-    ORIGINAL_EFFECT(leave_word(g, 0x06, marked));
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, id));
-    if (marked == 0)
-        fails(g);
-    else
-        take_marked_or_fail(g, marked);
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x06, marked));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, id));
+    return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
 // $C1:90BE
-/* Those picked with HP at most a number, one of them the target. */
-static void at_most_hp(GameState *g, ScriptPlace at)
+/* Those picked with HP at most a number, one of them the target. The
+ * original keeps the number in the cells at $08, where a candidate that is
+ * none reads its HP (through the table of the stat blocks' places), so that
+ * is kept plainly. */
+static ConditionResult at_most_hp(GameState *g, const ScriptChoosing *c, Selector who, uint16_t most)
 {
-    uint8_t count = select_by(g, at);
-    if (count == 0) {
-        fails(g);
-        return;
-    }
-    read_script_at(g, (ScriptPlace)(at + 2));
-    uint16_t most = (uint16_t)(operand(g, at, 2) | operand(g, at, 3) << 8);
-    /* the original keeps the number where a candidate that is none can read
-     * it back as its HP */
-    ORIGINAL_EFFECT(leave_word(g, 0x08, most));
+    uint8_t count = select_by(g, c, who);
+    if (count == 0)
+        return nobody_picked();
+    battle_leave_word(g, 0x08, most);
     uint8_t marked = 0;
     for (uint8_t place = 0; place < count; place++)
         if (combatant_stat_word_by_wide_place(g, candidate(g, place), STAT_HP) <= most) {
             mark(g, place);
             marked++;
         }
-    ORIGINAL_EFFECT(leave_word(g, 0x08, (uint8_t)most));
-    ORIGINAL_EFFECT(leave_word(g, 0x0A, count));
-    ORIGINAL_EFFECT(leave_word(g, 0x0C, marked));
-    if (marked == 0)
-        fails(g);
-    else
-        take_marked_or_fail(g, marked);
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x08, (uint8_t)most));
+    battle_keep_word_at_0a(g, count);
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, marked));
+    return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
 
 // $C1:9130, $C1:91F9, $C1:95FA
 /* Whether any of those picked has a byte of its stat block at least, at most,
  * or equal to a number; if one has, one of all those picked is taken as the
- * target, none marked (so with more than one, none is: the original's). The
- * last reads the byte at the offset with whatever the cell after its offset
- * holds as the offset's high byte, as the original's pointer does. */
+ * target, none marked (so with more than one, none is: the original's). */
 typedef enum { AT_LEAST, AT_MOST } StatTest;
 
 static bool passes(StatTest test, uint8_t stat, uint8_t value)
@@ -249,116 +185,102 @@ static bool passes(StatTest test, uint8_t stat, uint8_t value)
     return test == AT_LEAST ? stat >= value : stat <= value;
 }
 
-static void any_stat(GameState *g, uint8_t count, uint16_t offset, uint8_t value, StatTest test)
+static ConditionResult any_stat(GameState *g, uint8_t count, uint16_t offset, uint8_t value, StatTest test)
 {
     uint8_t place = 0;
     bool found = false;
     do {
         found = passes(test, combatant_stat_byte_by_wide_place(g, candidate(g, place), offset), value);
     } while (!found && ++place < count);
-    ORIGINAL_EFFECT(leave_word(g, 0x0E, place));
-    if (found)
-        take_marked_or_fail(g, count);
-    else
-        fails(g);
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, place));
+    return found ? for_target(take_marked(g, count), CONDITION_FAILS) : fails();
 }
 
-static void stat_compared(GameState *g, ScriptPlace at, StatTest test)
+static ConditionResult stat_compared(GameState *g, const ScriptChoosing *c, Selector who, uint8_t offset, uint8_t value,
+                                     StatTest test)
 {
     if (test == AT_MOST)
-        ORIGINAL_EFFECT(leave_word(g, 0x0A, 0));
-    uint8_t count = select_by(g, at);
-    if (count == 0) {
-        fails(g);
-        return;
-    }
-    read_script_at(g, (ScriptPlace)(at + 3));
-    uint8_t offset = operand(g, at, 2), value = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_word(g, 0x0A, offset));
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, value));
-    any_stat(g, count, offset, value, test);
+        battle_keep_word_at_0a(g, 0);
+    uint8_t count = select_by(g, c, who);
+    if (count == 0)
+        return nobody_picked();
+    battle_keep_word_at_0a(g, offset);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, value));
+    return any_stat(g, count, offset, value, test);
 }
 
-static void stat_at_least(GameState *g, ScriptPlace at) { stat_compared(g, at, AT_LEAST); }
-static void stat_at_most(GameState *g, ScriptPlace at) { stat_compared(g, at, AT_MOST); }
+static ConditionResult stat_at_least(GameState *g, const ScriptChoosing *c, Selector who, uint8_t offset, uint8_t value)
+{
+    return stat_compared(g, c, who, offset, value, AT_LEAST);
+}
+
+static ConditionResult stat_at_most(GameState *g, const ScriptChoosing *c, Selector who, uint8_t offset, uint8_t value)
+{
+    return stat_compared(g, c, who, offset, value, AT_MOST);
+}
 
 /* The test of a stat's value goes on from the first candidate to the one at
  * twice its slot in the list, and so on: the original keeps the doubled slot
  * it indexes the places with for the list as well. It counts in a cell its
- * stat's pointer can reach (with the offset's high byte whatever the cell
- * after it holds), so the count is kept there as it goes. */
-static void stat_equal(GameState *g, uint8_t count, uint16_t offset, uint8_t value)
+ * stat's pointer can reach, so the count is kept there as it goes. */
+static ConditionResult stat_equal(GameState *g, uint8_t count, uint16_t offset, uint8_t value)
 {
     uint8_t place = 0;
     uint16_t at = 0;
     bool found;
-    ORIGINAL_EFFECT(leave_word(g, 0x0E, 0));
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, 0));
     for (;;) {
         Candidate slot = candidate(g, at);
         found = combatant_stat_byte_by_wide_place(g, slot, offset) == value;
         if (found || ++place >= count)
             break;
-        ORIGINAL_EFFECT(leave_byte(g, 0x0E, place));
+        ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, place));
         at = (uint16_t)(slot * 2);
     }
-    ORIGINAL_EFFECT(leave_word(g, 0x0E, place));
-    if (found)
-        take_marked_or_fail(g, count);
-    else
-        fails(g);
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, place));
+    return found ? for_target(take_marked(g, count), CONDITION_FAILS) : fails();
 }
 
-static void stat_is(GameState *g, ScriptPlace at)
+/* The stat is named by its offset's low byte; its high byte is whatever the
+ * last word kept at $0A left (battle.h), as the original's pointer reads it. */
+static ConditionResult stat_is(GameState *g, const ScriptChoosing *c, uint8_t value, Selector who, uint8_t offset_low)
 {
-    read_script_at(g, (ScriptPlace)(at + 1));
-    uint8_t value = operand(g, at, 1);
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, value));
-    uint8_t count = select_by(g, (ScriptPlace)(at + 1));
-    if (count == 0) {
-        fails(g);
-        return;
-    }
-    uint8_t offset_low = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_byte(g, 0x0A, offset_low));
-    uint16_t offset = (uint16_t)(offset_low | battle_low_scratch(g, 0x0B) << 8);
-    stat_equal(g, count, offset, value);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, value));
+    uint8_t count = select_by(g, c, who);
+    if (count == 0)
+        return fails();
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, offset_low));
+    uint16_t offset = (uint16_t)(offset_low | battle_stat_offset_high(g) << 8);
+    return stat_equal(g, count, offset, value);
 }
 
 // $C1:918E
 /* Whether the one picked has any of the bits the condition gives of a byte
  * of its stat block. With several picked, the first by the enemies' drawn
  * order is the one. */
-static void stat_bits(GameState *g, ScriptPlace at)
+static ConditionResult stat_bits(GameState *g, const ScriptChoosing *c, Selector who, uint8_t offset, uint8_t bits)
 {
-    uint8_t count = select_by(g, at);
-    if (count == 0 || (count != 1 && !battle_take_first_by_enemy_order(g))) {
-        fails(g);
-        return;
-    }
-    read_script_at(g, (ScriptPlace)(at + 2));
-    uint8_t offset = operand(g, at, 2);
+    uint8_t count = select_by(g, c, who);
+    if (count == 0 || (count != 1 && !battle_take_first_by_enemy_order(g)))
+        return nobody_picked();
     uint8_t stat = combatant_stat_byte_by_wide_place(g, candidate(g, 0), offset);
-    ORIGINAL_EFFECT(leave_word(g, 0x0A, offset));
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, stat));
-    read_script_at(g, (ScriptPlace)(at + 3));
-    holds_if(g, (operand(g, at, 3) & stat) != 0);
+    battle_keep_word_at_0a(g, offset);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, stat));
+    return holds_if((bits & stat) != 0);
 }
 
 // $C1:96D4
 /* Whether the one picked is a party member of the fight (compared, as the
  * original does, with the party members' ids): the condition chooses where
  * it matches as the operands say, and fails whatever. */
-static void is_party_member(GameState *g, ScriptPlace at)
+static ConditionResult is_party_member(GameState *g, const ScriptChoosing *c, Selector who, uint8_t whatever_state,
+                                       uint8_t not_member)
 {
-    uint8_t count = select_by(g, at);
-    if (count == 0) {
-        fails(g);
-        return;
-    }
-    read_script_at(g, (ScriptPlace)(at + 2));
-    uint8_t whatever_state = operand(g, at, 2), not_member = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, whatever_state));
-    ORIGINAL_EFFECT(leave_byte(g, 0x0A, not_member));
+    uint8_t count = select_by(g, c, who);
+    if (count == 0)
+        return nobody_picked();
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, whatever_state));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, not_member));
     uint8_t member = 0;
     while (member < BATTLE_PARTY_SIZE && candidate(g, 0) != battle_combatant_id(g, member))
         member++;
@@ -367,139 +289,142 @@ static void is_party_member(GameState *g, ScriptPlace at)
         choose = not_member != 0;
     else
         choose = not_member != 1 && (whatever_state == 1 || combatant_in_fight(g, member));
-    if (choose)
-        enemy_condition_held(g);
-    fails(g);
+    return (ConditionResult){ .verdict = choose ? CONDITION_CHOOSES_BUT_FAILS : CONDITION_FAILS };
 }
 
 // $C1:9728
 /* Whether the enemy three slots after the one picked is out of the fight, or
  * in it: the original reads the fighting ids from the enemies' start with the
  * candidate's battle slot. */
-static void three_on_out(GameState *g, ScriptPlace at)
+static ConditionResult three_on_out(GameState *g, const ScriptChoosing *c, Selector who, uint8_t out_wanted)
 {
-    select_by(g, at);
-    read_script_at(g, (ScriptPlace)(at + 3));
-    uint8_t out_wanted = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_byte(g, 0x0A, out_wanted));
+    select_by(g, c, who);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, out_wanted));
     bool out = combatant_fighting_as(g, (unsigned)candidate(g, 0) + BATTLE_FIRST_ENEMY) == COMBATANT_NONE;
-    holds_if(g, out ? out_wanted != 0 : out_wanted == 0);
+    return holds_if(out ? out_wanted != 0 : out_wanted == 0);
 }
 
 // $C1:97D5
 /* Whether the one picked has a turn wait under a number, or not. */
-static void turn_wait(GameState *g, ScriptPlace at)
+static ConditionResult turn_wait(GameState *g, const ScriptChoosing *c, Selector who, uint8_t limit, uint8_t at_least)
 {
-    select_by(g, at);
-    uint8_t limit = operand(g, at, 2), at_least = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, limit));
+    select_by(g, c, who);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, limit));
     uint8_t wait = combatant_turn_wait(g, candidate(g, 0));
-    holds_if(g, at_least == 0 ? wait < limit : wait >= limit);
-    ORIGINAL_EFFECT(leave_byte(g, 0x09, 0));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x09, 0));
+    return holds_if(at_least == 0 ? wait < limit : wait >= limit);
 }
 
 /* ---- Where they stand --------------------------------------------------------------------- */
 
-static SearchAnswer search(GameState *g, SearchKind kind, uint8_t other, uint8_t third)
+static SearchAnswer search(GameState *g, const ScriptChoosing *c, SearchKind kind, uint8_t other, uint8_t third)
 {
     SearchAnswer a;
-    TIMED_AS(g, 0xC12986, a = battle_search(g, kind, self(g), other, third));
+    TIMED_AS(g, 0xC12986, a = battle_search(g, kind, self(c), other, third));
     return a;
 }
 
-/* The answer the condition's second operand asks for: that the search's test
- * held, or with it set, that it didn't. */
-static bool as_asked(GameState *g, ScriptPlace at, bool held) { return operand(g, at, 2) != 0 ? !held : held; }
+/* The answer asked for: that the search's test held, or `negated`, that it
+ * didn't. */
+static bool as_asked(uint8_t negated, bool held) { return negated != 0 ? !held : held; }
 
 // $C1:925D, $C1:9765
 /* Whether the first one picked is within the enemy's reach, or its wider
  * reach (or, as asked, not); where it holds it is the only candidate. */
-static void reach(GameState *g, ScriptPlace at, SearchKind kind)
+static ConditionResult reach(GameState *g, const ScriptChoosing *c, Selector who, uint8_t negated, SearchKind kind)
 {
-    uint8_t count = select_by(g, at);
-    if (count == 0) {
-        fails(g);
-        return;
-    }
-    SearchAnswer a = search(g, kind, candidate(g, 0), battle_search_third(g));
-    if (!as_asked(g, at, a.held)) {
-        fails(g);
-        return;
-    }
+    uint8_t count = select_by(g, c, who);
+    if (count == 0)
+        return fails();
+    SearchAnswer a = search(g, c, kind, candidate(g, 0), battle_search_third(g));
+    if (!as_asked(negated, a.held))
+        return fails();
     set_battle_candidate_count(g, 1);
-    enemy_condition_held(g);
+    return holds();
+}
+
+static ConditionResult within_reach(GameState *g, const ScriptChoosing *c, Selector who, uint8_t negated)
+{
+    return reach(g, c, who, negated, SEARCH_WITHIN_REACH);
+}
+
+static ConditionResult within_wide_reach(GameState *g, const ScriptChoosing *c, Selector who, uint8_t negated)
+{
+    return reach(g, c, who, negated, SEARCH_WITHIN_WIDE_REACH);
 }
 
 // $C1:92A3, $C1:9314
 /* Those picked, the enemy left out, that stand level with it, or below it or
- * to its right as the condition's third operand says: one of them is taken.
- * Whether the block's actions are chosen then goes by the last one's
- * answer, as the second operand asks; otherwise, and with nobody picked, it
- * holds without choosing. */
-static void each_stands(GameState *g, ScriptPlace at, SearchKind kind)
+ * to its right as the condition's third operand says: one of them is taken
+ * (not the pair's). Whether the block's actions are chosen then goes by the
+ * last one's answer, as asked; otherwise, and with nobody picked, it holds
+ * without choosing. */
+static ConditionResult each_stands(GameState *g, const ScriptChoosing *c, Selector who, uint8_t negated, SearchKind kind)
 {
-    uint8_t count = select_by(g, at);
+    uint8_t count = select_by(g, c, who);
     if (count == 0)
-        return;
+        return holds_unchosen();
     set_battle_target_search(g, kind);
-    set_battle_target_searcher(g, self(g));
+    set_battle_target_searcher(g, self(c));
     uint8_t marked = 0, place = 0;
     bool held = battle_search_failed(g) == 0;
     do {
         uint8_t other = candidate(g, place);
-        if (other == self(g))
+        if (other == self(c))
             continue;
-        held = search(g, kind, other, battle_search_third(g)).held;
+        held = search(g, c, kind, other, battle_search_third(g)).held;
         if (held) {
             mark(g, place);
             marked++;
         }
     } while (++place < count);
-    ORIGINAL_EFFECT(leave_word(g, 0x0A, place));
-    ORIGINAL_EFFECT(leave_word(g, 0x0C, marked));
-    ORIGINAL_EFFECT(leave_word(g, 0x0E, self(g)));
-    set_battle_candidate_count(g, marked);
-    if (!battle_take_marked_candidate(g))
-        enemy_block_fails(g);
-    if (battle_script_outcome(g) == OUTCOME_HELD && as_asked(g, at, held))
-        enemy_condition_held(g);
+    battle_keep_word_at_0a(g, place);
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, marked));
+    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, self(c)));
+    ConditionResult r = for_target(take_marked(g, marked), CONDITION_HOLDS_UNCHOSEN);
+    r.pairs = false;
+    r.verdict = as_asked(negated, held) ? CONDITION_HOLDS : CONDITION_HOLDS_UNCHOSEN;
+    return r;
 }
 
-static void level_with(GameState *g, ScriptPlace at) { each_stands(g, at, SEARCH_LEVEL); }
+static ConditionResult level_with(GameState *g, const ScriptChoosing *c, Selector who, uint8_t negated)
+{
+    return each_stands(g, c, who, negated, SEARCH_LEVEL);
+}
 
+/* The side is a search counted from the first of the two, in a byte. */
 enum { FIRST_SIDE_SEARCH = SEARCH_OTHER_BELOW };
 
-static void stands_beside(GameState *g, ScriptPlace at)
+static SearchKind side_search(uint8_t side) { return (SearchKind)(uint8_t)(side + FIRST_SIDE_SEARCH); }
+
+static ConditionResult stands_beside(GameState *g, const ScriptChoosing *c, Selector who, uint8_t negated, uint8_t side)
 {
-    each_stands(g, at, (SearchKind)(uint8_t)(operand(g, at, 3) + FIRST_SIDE_SEARCH));
+    return each_stands(g, c, who, negated, side_search(side));
 }
 
 // $C1:938D
-/* Whether the enemy could walk to the first one picked (or, as asked, not). */
+/* Whether the enemy could walk to the first one picked (or, as asked, not),
+ * keeping clear of the others as the third operand says. */
 enum { KEEP_CLEAR = 0x01 };
 
-static void could_walk_to(GameState *g, ScriptPlace at)
+static ConditionResult could_walk_to(GameState *g, const ScriptChoosing *c, Selector who, uint8_t negated, uint8_t clearance)
 {
-    uint8_t count = select_by(g, at);
-    if (count == 0) {
-        fails(g);
-        return;
-    }
-    uint8_t clear = (uint8_t)(operand(g, at, 3) << 2 | KEEP_CLEAR);
-    ORIGINAL_EFFECT(leave_byte(g, 0x0E, KEEP_CLEAR));
-    SearchAnswer a = search(g, SEARCH_WALK, candidate(g, 0), clear);
-    holds_if(g, as_asked(g, at, a.held));
+    uint8_t count = select_by(g, c, who);
+    if (count == 0)
+        return fails();
+    uint8_t clear = (uint8_t)(clearance << 2 | KEEP_CLEAR);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, KEEP_CLEAR));
+    return holds_if(as_asked(negated, search(g, c, SEARCH_WALK, candidate(g, 0), clear).held));
 }
 
 // $C1:93E6
 /* Whether the enemy stands in the battlefield's lower or upper half, or at
  * its right or left edge, as the operands say. */
-static void stands_in(GameState *g, ScriptPlace at)
+static ConditionResult stands_in(GameState *g, const ScriptChoosing *c, uint8_t upper_or_right, uint8_t edge)
 {
-    bool edge = operand(g, at, 3) != 0, second = operand(g, at, 2) != 0;
-    SearchKind kind = edge ? (second ? SEARCH_AT_RIGHT_EDGE : SEARCH_AT_LEFT_EDGE)
-                           : (second ? SEARCH_IN_UPPER_HALF : SEARCH_IN_LOWER_HALF);
-    holds_if(g, search(g, kind, battle_search_other(g), battle_search_third(g)).held);
+    SearchKind kind = edge ? (upper_or_right ? SEARCH_AT_RIGHT_EDGE : SEARCH_AT_LEFT_EDGE)
+                           : (upper_or_right ? SEARCH_IN_UPPER_HALF : SEARCH_IN_LOWER_HALF);
+    return holds_if(search(g, c, kind, battle_search_other(g), battle_search_third(g)).held);
 }
 
 /* ---- About the battle ------------------------------------------------------------------------ */
@@ -508,81 +433,78 @@ static void stands_in(GameState *g, ScriptPlace at)
 /* Whether an enemy of the kind the condition names is in the fight (or, as
  * asked, not). The original looks until the enemies' count, from the first,
  * at least once. */
-static void enemy_present(GameState *g, ScriptPlace at)
+static ConditionResult enemy_present(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t absent)
 {
-    read_script_at(g, (ScriptPlace)(at + 2));
-    uint8_t id = operand(g, at, 2), absent = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, id));
-    ORIGINAL_EFFECT(leave_byte(g, 0x0A, absent));
+    (void)c;
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, id));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, absent));
     bool present = false;
     uint8_t enemy = 0;
     do
         present = combatant_fighting_as(g, (unsigned)BATTLE_FIRST_ENEMY + enemy) == id;
     while (!present && ++enemy != battle_enemy_count(g));
-    holds_if(g, present ? absent == 0 : absent != 0);
+    return holds_if(present ? absent == 0 : absent != 0);
 }
 
 // $C1:9656
 /* Whether an enemy of another kind than the condition names is in the fight:
  * the first one found (where asked, not the enemy itself) decides by the
- * condition's third operand; with none, it holds unless asked about the
- * others. */
-static void other_kind_present(GameState *g, ScriptPlace at)
+ * third operand; with none, it holds unless asked about the others. */
+static ConditionResult other_kind_present(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t not_itself,
+                                          uint8_t holds_then)
 {
-    read_script_at(g, (ScriptPlace)(at + 1));
-    uint8_t id = operand(g, at, 1), not_itself = operand(g, at, 2), holds_then = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, id));
-    ORIGINAL_EFFECT(leave_byte(g, 0x0A, not_itself));
-    ORIGINAL_EFFECT(leave_byte(g, 0x0C, holds_then));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, id));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, not_itself));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0C, holds_then));
     uint8_t enemy = 0;
     do {
         uint8_t fighting = combatant_fighting_as(g, (uint8_t)(BATTLE_FIRST_ENEMY + enemy));
         if (fighting == COMBATANT_NONE || fighting == id)
             continue;
-        if (not_itself != 0 && enemy == enemy_at_work(g))
+        if (not_itself != 0 && enemy == c->enemy)
             continue;
-        holds_if(g, holds_then != 0);
-        return;
+        return holds_if(holds_then != 0);
     } while (++enemy != battle_enemy_count(g));
-    holds_if(g, not_itself == 0);
+    return holds_if(not_itself == 0);
 }
 
 // $C1:9013
 /* Whether at most so many enemies are in the fight (not counting those whose
  * standing is anything but plain). */
-static void enemies_at_most(GameState *g, ScriptPlace at)
+static ConditionResult enemies_at_most(GameState *g, const ScriptChoosing *c, uint8_t most)
 {
-    uint8_t most = operand(g, at, 1), counted = 0;
+    (void)c;
+    uint8_t counted = 0;
     for (uint8_t enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
         if (combatant_in_fight(g, (uint8_t)(BATTLE_FIRST_ENEMY + enemy)) && battle_enemy_standing(g, enemy) == 0)
             counted++;
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, most));
-    ORIGINAL_EFFECT(leave_word(g, 0x0A, counted));
-    holds_if(g, most >= counted);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, most));
+    battle_keep_word_at_0a(g, counted);
+    return holds_if(most >= counted);
 }
 
 // $C1:96A5
 /* Whether at most so many party members are in the fight. */
-static void members_at_most(GameState *g, ScriptPlace at)
+static ConditionResult members_at_most(GameState *g, const ScriptChoosing *c, uint8_t most)
 {
-    read_script_at(g, (ScriptPlace)(at + 1));
-    uint8_t limit = (uint8_t)(operand(g, at, 1) + 1), fighting = 0;
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, limit));
+    (void)c;
+    uint8_t limit = (uint8_t)(most + 1), fighting = 0;
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, limit));
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (combatant_in_fight(g, member))
             fighting++;
-    holds_if(g, fighting < limit);
+    return holds_if(fighting < limit);
 }
 
 // $C1:9045
 /* Whether the battle has gone on at least so many frames. */
-static void frames_at_least(GameState *g, ScriptPlace at)
+static ConditionResult frames_at_least(GameState *g, const ScriptChoosing *c, uint32_t least)
 {
-    uint32_t least = (uint32_t)(operand(g, at, 1) | operand(g, at, 2) << 8 | (uint32_t)operand(g, at, 3) << 16);
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, operand(g, at, 1)));
-    ORIGINAL_EFFECT(leave_byte(g, 0x09, operand(g, at, 2)));
-    ORIGINAL_EFFECT(leave_byte(g, 0x0A, operand(g, at, 3)));
-    holds_if(g, (battle_frames(g) & 0xFFFFFF) >= least);
+    (void)c;
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, (uint8_t)least));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x09, (uint8_t)(least >> 8)));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, (uint8_t)(least >> 16)));
+    return holds_if((battle_frames(g) & 0xFFFFFF) >= least);
 }
 
 // $C1:9082
@@ -590,50 +512,47 @@ static void frames_at_least(GameState *g, ScriptPlace at)
  * number, or at least it. */
 enum { COUNT_AT_MOST = 1 };
 
-static void count_compared(GameState *g, ScriptPlace at)
+static ConditionResult count_compared(GameState *g, const ScriptChoosing *c, uint8_t number, uint8_t how)
 {
-    uint8_t number = operand(g, at, 1), how = operand(g, at, 2), count = battle_enemy_script_counter(g, enemy(g));
-    ORIGINAL_EFFECT(leave_byte(g, 0x08, number));
-    ORIGINAL_EFFECT(leave_byte(g, 0x0A, how));
-    holds_if(g, how == COUNT_AT_MOST ? count <= number : count >= number);
+    uint8_t count = battle_enemy_script_counter(g, c->enemy);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, number));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, how));
+    return holds_if(how == COUNT_AT_MOST ? count <= number : count >= number);
 }
 
 // $C1:95DA
 /* A chance, in percent. */
 enum { PERCENT = 100 };
 
-static void chance(GameState *g, ScriptPlace at)
+static ConditionResult chance(GameState *g, const ScriptChoosing *c, uint8_t percent)
 {
-    uint8_t percent = operand(g, at, 1);
-    ORIGINAL_EFFECT(leave_byte(g, 0x00, percent));
-    holds_if(g, battle_random(g, 0, PERCENT) < percent);
+    (void)c;
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, percent));
+    return holds_if(battle_random(g, 0, PERCENT) < percent);
 }
 
 // $C1:97AB, $C1:97C0
 /* Whether the enemy was beaten by the action, and whether its standing is
  * anything but plain. */
-static void was_beaten(GameState *g, ScriptPlace at)
+static ConditionResult was_beaten(GameState *g, const ScriptChoosing *c) { return holds_if(battle_enemy_beaten(g, c->enemy) != 0); }
+static ConditionResult stands_apart(GameState *g, const ScriptChoosing *c)
 {
-    (void)at;
-    holds_if(g, battle_enemy_beaten(g, enemy(g)) != 0);
+    return holds_if(battle_enemy_standing(g, c->enemy) != 0);
 }
 
-static void stands_apart(GameState *g, ScriptPlace at)
+// $C1:8EA7, $C1:975C
+static ConditionResult always(GameState *g, const ScriptChoosing *c)
 {
-    (void)at;
-    holds_if(g, battle_enemy_standing(g, enemy(g)) != 0);
+    (void)g;
+    (void)c;
+    return holds();
 }
 
-static void always(GameState *g, ScriptPlace at)
+static ConditionResult chooses_but_fails(GameState *g, const ScriptChoosing *c)
 {
-    (void)at;
-    enemy_condition_held(g);
-}
-
-static void chooses_but_fails(GameState *g, ScriptPlace at)
-{
-    (void)at;
-    chooses_and_fails(g);
+    (void)g;
+    (void)c;
+    return (ConditionResult){ .verdict = CONDITION_CHOOSES_BUT_FAILS };
 }
 
 /* ---- What last acted on it ------------------------------------------------------------------ */
@@ -644,59 +563,58 @@ static void chooses_but_fails(GameState *g, ScriptPlace at)
  * attack or tech; in its third its elements. */
 enum { BY_ATTACK = 0x40, BY_TECH = 0x50, HOW_ACTED = 0xF0, ACTED_BIT_4 = 0x10, ACTOR = 0x0F };
 
-static uint8_t record_byte(const GameState *g, unsigned n) { return (uint8_t)(battle_chosen_actions(g, self(g)) >> (8 * n)); }
-
-/* The attack or tech the first operand names, as the record says it; false
- * for anything else. */
-static bool how_named(uint8_t operand_1, uint8_t *how)
+static uint8_t record_byte(const GameState *g, const ScriptChoosing *c, unsigned n)
 {
-    if (operand_1 > 1)
-        return false;
-    *how = operand_1 == 0 ? BY_ATTACK : BY_TECH;
-    return true;
+    return (uint8_t)(battle_chosen_actions(g, self(c)) >> (8 * n));
+}
+
+/* An attack (0) or a tech (1), as the record says it; anything else is
+ * neither. */
+enum { NAMES_NEITHER = 0 };
+
+static uint8_t how_named(uint8_t attack_or_tech)
+{
+    return attack_or_tech > 1 ? NAMES_NEITHER : attack_or_tech == 0 ? BY_ATTACK : BY_TECH;
 }
 
 // $C1:942A
 /* Whether an attack (or a tech) last acted on it, or not. */
-static void acted_on_by(GameState *g, ScriptPlace at)
+static ConditionResult acted_on_by(GameState *g, const ScriptChoosing *c, uint8_t attack_or_tech, uint8_t negated)
 {
-    uint8_t negated = operand(g, at, 3), how;
-    ORIGINAL_EFFECT(leave_byte(g, 0x02, negated));
-    if (!how_named(operand(g, at, 1), &how)) {
-        fails(g);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_byte(g, 0x00, how));
-    bool was = (record_byte(g, 0) & HOW_ACTED) == how;
-    holds_if(g, negated == 0 ? was : !was);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, negated));
+    uint8_t how = how_named(attack_or_tech);
+    if (how == NAMES_NEITHER)
+        return fails();
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, how));
+    bool was = (record_byte(g, c, 0) & HOW_ACTED) == how;
+    return holds_if(negated == 0 ? was : !was);
 }
 
 // $C1:9474
 /* Whether that attack or tech last acted on it (or, asked, neither the kind
  * nor the number did). */
-static void acted_on_by_this(GameState *g, ScriptPlace at)
+static ConditionResult acted_on_by_this(GameState *g, const ScriptChoosing *c, uint8_t attack_or_tech, uint8_t number,
+                                        uint8_t negated)
 {
-    uint8_t number = operand(g, at, 2), negated = operand(g, at, 3), how;
-    ORIGINAL_EFFECT(leave_byte(g, 0x04, negated));
-    ORIGINAL_EFFECT(leave_byte(g, 0x02, number));
-    if (!how_named(operand(g, at, 1), &how)) {
-        fails(g);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_byte(g, 0x00, how));
-    bool kind = (record_byte(g, 0) & HOW_ACTED) == how, same = record_byte(g, 1) == number;
-    holds_if(g, negated == 0 ? kind && same : !kind && !same);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x04, negated));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, number));
+    uint8_t how = how_named(attack_or_tech);
+    if (how == NAMES_NEITHER)
+        return fails();
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, how));
+    bool kind = (record_byte(g, c, 0) & HOW_ACTED) == how, same = record_byte(g, c, 1) == number;
+    return holds_if(negated == 0 ? kind && same : !kind && !same);
 }
 
 // $C1:94D2
 /* Whether the record's bit 4 is as the condition says, or not. */
-static void acted_bit(GameState *g, ScriptPlace at)
+static ConditionResult acted_bit(GameState *g, const ScriptChoosing *c, uint8_t bit, uint8_t negated)
 {
-    uint8_t negated = operand(g, at, 3), wanted = (uint8_t)((operand(g, at, 1) & 1) << 4);
-    ORIGINAL_EFFECT(leave_byte(g, 0x02, negated));
-    ORIGINAL_EFFECT(leave_byte(g, 0x00, wanted));
-    bool same = (record_byte(g, 0) & ACTED_BIT_4) == wanted;
-    holds_if(g, negated == 0 ? same : !same);
+    uint8_t wanted = (uint8_t)((bit & 1) << 4);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, negated));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, wanted));
+    bool same = (record_byte(g, c, 0) & ACTED_BIT_4) == wanted;
+    return holds_if(negated == 0 ? same : !same);
 }
 
 // $C1:9514
@@ -704,162 +622,261 @@ static void acted_bit(GameState *g, ScriptPlace at)
  * party member the condition names. Its other forms keep the original's
  * slips: asked "not", it looks at the first party member whoever acted; and
  * asked about the whole party it fails, or asked "not" holds, whatever. */
-static void acted_on_by_member(GameState *g, ScriptPlace at)
+static ConditionResult acted_on_by_member(GameState *g, const ScriptChoosing *c, uint8_t id, uint8_t whole_party,
+                                          uint8_t negated)
 {
-    uint8_t id = operand(g, at, 1), whole_party = operand(g, at, 2), negated = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_byte(g, 0x04, negated));
-    ORIGINAL_EFFECT(leave_byte(g, 0x02, whole_party));
-    ORIGINAL_EFFECT(leave_byte(g, 0x00, id));
-    uint8_t record = record_byte(g, 0);
-    if (record & ACTED_BIT_4) {
-        fails(g);
-        return;
-    }
-    if (whole_party != 0) {
-        holds_if(g, negated != 0);
-        return;
-    }
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x04, negated));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, whole_party));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x00, id));
+    uint8_t record = record_byte(g, c, 0);
+    if (record & ACTED_BIT_4)
+        return fails();
+    if (whole_party != 0)
+        return holds_if(negated != 0);
     if (negated == 0)
-        holds_if(g, combatant_id(g, record & ACTOR) == id);
-    else
-        holds_if(g, battle_combatant_id(g, 0) != id);
+        return holds_if(combatant_id(g, record & ACTOR) == id);
+    return holds_if(battle_combatant_id(g, 0) != id);
 }
 
 // $C1:959A
 /* Whether what last acted on it had all the elements the condition names,
  * or not. */
-static void acted_with_elements(GameState *g, ScriptPlace at)
+static ConditionResult acted_with_elements(GameState *g, const ScriptChoosing *c, uint8_t elements, uint8_t negated)
 {
-    uint8_t elements = operand(g, at, 1), negated = operand(g, at, 3);
-    ORIGINAL_EFFECT(leave_byte(g, 0x04, negated));
-    ORIGINAL_EFFECT(leave_byte(g, 0x02, elements));
-    bool all = (record_byte(g, 2) & elements) == elements;
-    holds_if(g, negated == 0 ? all : !all);
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x04, negated));
+    ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, elements));
+    bool all = (record_byte(g, c, 2) & elements) == elements;
+    return holds_if(negated == 0 ? all : !all);
 }
 
 /* ---- The table ------------------------------------------------------------------------------- */
 
-typedef void (*ConditionTest)(GameState *g, ScriptPlace at);
+/* How a condition's three operands are laid out: which is its selector, and
+ * which it reads as numbers (two bytes low first are a word, three a count
+ * of frames). */
+typedef enum {
+    NO_OPERANDS,
+    PICKED,              /* a selector */
+    PICKED_AND_SECOND,   /* a selector, and a number in the second operand */
+    PICKED_AND_THIRD,    /* a selector, and a number in the third */
+    PICKED_AND_TWO,      /* a selector, and two numbers */
+    PICKED_AND_WORD,     /* a selector, and a word */
+    VALUE_PICKED_OFFSET, /* a number, a selector, and a stat's offset */
+    FIRST,               /* a number in the first operand */
+    FIRST_TWO,           /* numbers in the first and second */
+    LAST_TWO,            /* numbers in the second and third */
+    FIRST_AND_LAST,      /* numbers in the first and third */
+    THREE,               /* three numbers */
+    FRAMES,              /* a count of frames */
+} OperandLayout;
+
+typedef const ScriptChoosing Choosing;
+typedef ConditionResult (*TestOf)(GameState *, Choosing *);
+typedef ConditionResult (*TestOfPicked)(GameState *, Choosing *, Selector);
+typedef ConditionResult (*TestOfPickedAnd)(GameState *, Choosing *, Selector, uint8_t);
+typedef ConditionResult (*TestOfPickedAndTwo)(GameState *, Choosing *, Selector, uint8_t, uint8_t);
+typedef ConditionResult (*TestOfPickedAndWord)(GameState *, Choosing *, Selector, uint16_t);
+typedef ConditionResult (*TestOfValuePicked)(GameState *, Choosing *, uint8_t, Selector, uint8_t);
+typedef ConditionResult (*TestOfNumber)(GameState *, Choosing *, uint8_t);
+typedef ConditionResult (*TestOfTwo)(GameState *, Choosing *, uint8_t, uint8_t);
+typedef ConditionResult (*TestOfThree)(GameState *, Choosing *, uint8_t, uint8_t, uint8_t);
+typedef ConditionResult (*TestOfFrames)(GameState *, Choosing *, uint32_t);
 
 typedef struct {
-    ConditionTest test;
-    SearchKind search;  /* reach */
-    uint16_t routine;   /* the original's, in bank C1: its time is the condition's */
+    OperandLayout layout;
+    union {
+        TestOf none;
+        TestOfPicked picked;
+        TestOfPickedAnd picked_and;
+        TestOfPickedAndTwo picked_and_two;
+        TestOfPickedAndWord picked_and_word;
+        TestOfValuePicked value_picked;
+        TestOfNumber number;
+        TestOfTwo two;
+        TestOfThree three;
+        TestOfFrames frames;
+    } test;
+    /* How far the original reads the script for it, the operand whose place
+     * it leaves (0 for the kind's own): past where a nobody-picked stops. */
+    uint8_t reads_to;
+    /* Its third operand names a side, a search past the searches (the
+     * guards'). */
+    bool names_side;
+    uint32_t timed_as; /* the original's routine, whose time it is */
 } ConditionRow;
 
-static void within_reach(GameState *g, ScriptPlace at, SearchKind kind) { reach(g, at, kind); }
-
-#define TEST(f, routine) { f, SEARCH_KINDS, routine }
-#define REACH(k, routine) { NULL, k, routine }
+#define ROW(layout_, field, f, reads, routine) { layout_, { .field = f }, reads, false, routine }
 
 // $C1:B80D
 static const ConditionRow conditions[CONDITION_KINDS] = {
-    TEST(always, 0x8EA7),                    /* $00 */
-    TEST(at_half_hp, 0x8EAB),                /* $01 */
-    TEST(with_status, 0x8F11),               /* $02 */
-    TEST(is_enemy, 0x8F87),                  /* $03 */
-    TEST(enemy_present, 0x8FDA),             /* $04 */
-    TEST(enemies_at_most, 0x9013),           /* $05 */
-    TEST(frames_at_least, 0x9045),           /* $06 */
-    TEST(count_compared, 0x9082),            /* $07 */
-    TEST(at_most_hp, 0x90BE),                /* $08 */
-    TEST(stat_at_least, 0x9130),             /* $09 */
-    TEST(stat_bits, 0x918E),                 /* $0A */
-    TEST(stat_at_most, 0x91F9),              /* $0B */
-    REACH(SEARCH_WITHIN_REACH, 0x925D),      /* $0C */
-    TEST(level_with, 0x92A3),                /* $0D */
-    TEST(stands_beside, 0x9314),             /* $0E */
-    TEST(could_walk_to, 0x938D),             /* $0F */
-    TEST(stands_in, 0x93E6),                 /* $10 */
-    TEST(acted_on_by, 0x942A),               /* $11 */
-    TEST(acted_on_by_this, 0x9474),          /* $12 */
-    TEST(acted_bit, 0x94D2),                 /* $13 */
-    TEST(acted_on_by_member, 0x9514),        /* $14 */
-    TEST(acted_with_elements, 0x959A),       /* $15 */
-    TEST(always, 0x8EA7),                    /* $16 */
-    TEST(chance, 0x95DA),                    /* $17 */
-    TEST(stat_is, 0x95FA),                   /* $18 */
-    TEST(always, 0x8EA7),                    /* $19 */
-    TEST(other_kind_present, 0x9656),        /* $1A */
-    TEST(members_at_most, 0x96A5),           /* $1B */
-    TEST(is_party_member, 0x96D4),           /* $1C */
-    TEST(three_on_out, 0x9728),              /* $1D */
-    TEST(chooses_but_fails, 0x975C),         /* $1E */
-    REACH(SEARCH_WITHIN_WIDE_REACH, 0x9765), /* $1F */
-    TEST(was_beaten, 0x97AB),                /* $20 */
-    TEST(stands_apart, 0x97C0),              /* $21 */
-    TEST(turn_wait, 0x97D5),                 /* $22 */
-    TEST(stat_is, 0x95FA), TEST(stat_is, 0x95FA), TEST(stat_is, 0x95FA), /* $23-$25 */
-    TEST(stat_is, 0x95FA), TEST(stat_is, 0x95FA), TEST(stat_is, 0x95FA), /* $26-$28 */
+    ROW(NO_OPERANDS, none, always, 0, 0xC18EA7),                            /* $00 */
+    ROW(PICKED, picked, at_half_hp, 1, 0xC18EAB),                           /* $01 */
+    ROW(THREE, three, with_status, 0, 0xC18F11),                            /* $02 */
+    ROW(PICKED_AND_SECOND, picked_and, is_enemy, 2, 0xC18F87),              /* $03 */
+    ROW(LAST_TWO, two, enemy_present, 2, 0xC18FDA),                         /* $04 */
+    ROW(FIRST, number, enemies_at_most, 0, 0xC19013),                       /* $05 */
+    ROW(FRAMES, frames, frames_at_least, 0, 0xC19045),                      /* $06 */
+    ROW(FIRST_TWO, two, count_compared, 0, 0xC19082),                       /* $07 */
+    ROW(PICKED_AND_WORD, picked_and_word, at_most_hp, 2, 0xC190BE),         /* $08 */
+    ROW(PICKED_AND_TWO, picked_and_two, stat_at_least, 3, 0xC19130),        /* $09 */
+    ROW(PICKED_AND_TWO, picked_and_two, stat_bits, 3, 0xC1918E),            /* $0A */
+    ROW(PICKED_AND_TWO, picked_and_two, stat_at_most, 3, 0xC191F9),         /* $0B */
+    ROW(PICKED_AND_SECOND, picked_and, within_reach, 1, 0xC1925D),          /* $0C */
+    ROW(PICKED_AND_SECOND, picked_and, level_with, 1, 0xC192A3),            /* $0D */
+    { PICKED_AND_TWO, { .picked_and_two = stands_beside }, 1, true, 0xC19314 }, /* $0E */
+    ROW(PICKED_AND_TWO, picked_and_two, could_walk_to, 1, 0xC1938D),        /* $0F */
+    ROW(LAST_TWO, two, stands_in, 0, 0xC193E6),                             /* $10 */
+    ROW(FIRST_AND_LAST, two, acted_on_by, 0, 0xC1942A),                     /* $11 */
+    ROW(THREE, three, acted_on_by_this, 0, 0xC19474),                       /* $12 */
+    ROW(FIRST_AND_LAST, two, acted_bit, 0, 0xC194D2),                       /* $13 */
+    ROW(THREE, three, acted_on_by_member, 0, 0xC19514),                     /* $14 */
+    ROW(FIRST_AND_LAST, two, acted_with_elements, 0, 0xC1959A),             /* $15 */
+    ROW(NO_OPERANDS, none, always, 0, 0xC18EA7),                            /* $16 */
+    ROW(FIRST, number, chance, 0, 0xC195DA),                                /* $17 */
+    ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $18 */
+    ROW(NO_OPERANDS, none, always, 0, 0xC18EA7),                            /* $19 */
+    ROW(THREE, three, other_kind_present, 1, 0xC19656),                     /* $1A */
+    ROW(FIRST, number, members_at_most, 1, 0xC196A5),                       /* $1B */
+    ROW(PICKED_AND_TWO, picked_and_two, is_party_member, 2, 0xC196D4),      /* $1C */
+    ROW(PICKED_AND_THIRD, picked_and, three_on_out, 3, 0xC19728),           /* $1D */
+    ROW(NO_OPERANDS, none, chooses_but_fails, 0, 0xC1975C),                 /* $1E */
+    ROW(PICKED_AND_SECOND, picked_and, within_wide_reach, 1, 0xC19765),     /* $1F */
+    ROW(NO_OPERANDS, none, was_beaten, 0, 0xC197AB),                        /* $20 */
+    ROW(NO_OPERANDS, none, stands_apart, 0, 0xC197C0),                      /* $21 */
+    ROW(PICKED_AND_TWO, picked_and_two, turn_wait, 1, 0xC197D5),            /* $22 */
+    ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $23 */
+    ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $24 */
+    ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $25 */
+    ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $26 */
+    ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $27 */
+    ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $28 */
 };
 
-uint16_t enemy_condition_routine(uint8_t kind) { return kind < CONDITION_KINDS ? conditions[kind].routine : 0; }
+/* The operand that names the selector in a layout (0 for none). */
+static unsigned selector_operand(OperandLayout layout)
+{
+    switch (layout) {
+    case PICKED:
+    case PICKED_AND_SECOND:
+    case PICKED_AND_THIRD:
+    case PICKED_AND_TWO:
+    case PICKED_AND_WORD: return 1;
+    case VALUE_PICKED_OFFSET: return 2;
+    default: return 0;
+    }
+}
 
-void enemy_test_condition(GameState *g, uint8_t kind)
+/* Decode the condition's operands as its row lays them out, and test it. */
+static ConditionResult run_condition(GameState *g, const ScriptChoosing *c, const ConditionRow *row, ScriptPlace at)
+{
+    uint8_t first = enemy_script_byte(g, (ScriptPlace)(at + 1)), second = enemy_script_byte(g, (ScriptPlace)(at + 2)),
+            third = enemy_script_byte(g, (ScriptPlace)(at + 3));
+    switch (row->layout) {
+    case NO_OPERANDS: return row->test.none(g, c);
+    case PICKED: return row->test.picked(g, c, first);
+    case PICKED_AND_SECOND: return row->test.picked_and(g, c, first, second);
+    case PICKED_AND_THIRD: return row->test.picked_and(g, c, first, third);
+    case PICKED_AND_TWO: return row->test.picked_and_two(g, c, first, second, third);
+    case PICKED_AND_WORD: return row->test.picked_and_word(g, c, first, (uint16_t)(second | third << 8));
+    case VALUE_PICKED_OFFSET: return row->test.value_picked(g, c, first, second, third);
+    case FIRST: return row->test.number(g, c, first);
+    case FIRST_TWO: return row->test.two(g, c, first, second);
+    case LAST_TWO: return row->test.two(g, c, second, third);
+    case FIRST_AND_LAST: return row->test.two(g, c, first, third);
+    case THREE: return row->test.three(g, c, first, second, third);
+    case FRAMES: return row->test.frames(g, c, (uint32_t)(first | second << 8 | (uint32_t)third << 16));
+    }
+    return holds_unchosen();
+}
+
+/* The condition at `at` as its routine carries it out, the script read on as
+ * far as it reads. A kind past the table (none in the scripts) does
+ * nothing. */
+static ConditionResult carry_out(GameState *g, ScriptChoosing *c, uint8_t kind, ScriptPlace at, bool timed)
 {
     if (kind >= CONDITION_KINDS)
-        return;
+        return holds_unchosen();
     const ConditionRow *row = &conditions[kind];
-    ScriptPlace at = battle_script_place(g);
-    if (row->test)
-        TIMED_AS(g, 0xC10000u | row->routine, row->test(g, at));
+    ConditionResult r;
+    if (timed)
+        TIMED_AS(g, row->timed_as, r = run_condition(g, c, row, at));
     else
-        TIMED_AS(g, 0xC10000u | row->routine, within_reach(g, at, row->search));
+        r = run_condition(g, c, row, at);
+    c->place = (ScriptPlace)(at + (r.stopped_at_selector ? selector_operand(row->layout) : row->reads_to));
+    return r;
+}
+
+ConditionResult enemy_test_condition(GameState *g, ScriptChoosing *c, uint8_t kind, ScriptPlace at)
+{
+    return carry_out(g, c, kind, at, true);
+}
+
+bool enemy_condition_in_tables(const GameState *g, uint8_t kind, ScriptPlace at)
+{
+    if (kind >= CONDITION_KINDS)
+        return false;
+    const ConditionRow *row = &conditions[kind];
+    if (row->names_side && side_search(enemy_script_byte(g, (ScriptPlace)(at + 3))) >= SEARCH_KINDS)
+        return false;
+    unsigned operand = selector_operand(row->layout);
+    if (operand == 0)
+        return true;
+    Selector selector = enemy_script_byte(g, (ScriptPlace)(at + operand));
+    return selector < SELECTORS || (selector & SELECT_CONDITION_TARGET);
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
-/* Each condition's routine is called with the script read at the condition,
- * and hands A back clear, which the original's callers index with. */
-static void condition_entry(Snes *s, ConditionTest test)
+/* Each condition's routine is called with the script read at the condition
+ * and the choosing in its cells, and acts on how it came out itself (the
+ * block's testing, battle/enemy_scripts.c); it hands A back clear, which the
+ * original's callers index with. */
+static void condition_entry(Snes *s, uint8_t kind)
 {
     GameState *g = state_of(s);
-    test(g, battle_script_place(g));
+    ScriptChoosing c = enemy_choosing_in_cells(g);
+    ConditionResult r = carry_out(g, &c, kind, c.place, false);
+    enemy_act_on_condition(g, &c, r);
+    enemy_hand_back_choosing(g, &c);
     s->cpu.a = 0;
     m_rts(s);
 }
 
-static void reach_entry(Snes *s, SearchKind kind)
-{
-    GameState *g = state_of(s);
-    reach(g, battle_script_place(g), kind);
-    s->cpu.a = 0;
-    m_rts(s);
-}
+/* An entry and its guard, which knows the condition it carries out. */
+#define CONDITION_ENTRY(name, kind) \
+    void name(Snes *s) { condition_entry(s, kind); } \
+    bool name##_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_CONDITION, kind); }
 
-#define CONDITION_ENTRY(name, test) \
-    void name(Snes *s) { condition_entry(s, test); }
-CONDITION_ENTRY(battle_condition_always, always)
-CONDITION_ENTRY(battle_condition_at_half_hp, at_half_hp)
-CONDITION_ENTRY(battle_condition_with_status, with_status)
-CONDITION_ENTRY(battle_condition_is_enemy, is_enemy)
-CONDITION_ENTRY(battle_condition_enemy_present, enemy_present)
-CONDITION_ENTRY(battle_condition_enemies_at_most, enemies_at_most)
-CONDITION_ENTRY(battle_condition_frames_at_least, frames_at_least)
-CONDITION_ENTRY(battle_condition_count_compared, count_compared)
-CONDITION_ENTRY(battle_condition_at_most_hp, at_most_hp)
-CONDITION_ENTRY(battle_condition_stat_at_least, stat_at_least)
-CONDITION_ENTRY(battle_condition_stat_bits, stat_bits)
-CONDITION_ENTRY(battle_condition_stat_at_most, stat_at_most)
-CONDITION_ENTRY(battle_condition_level_with, level_with)
-CONDITION_ENTRY(battle_condition_stands_beside, stands_beside)
-CONDITION_ENTRY(battle_condition_could_walk_to, could_walk_to)
-CONDITION_ENTRY(battle_condition_stands_in, stands_in)
-CONDITION_ENTRY(battle_condition_acted_on_by, acted_on_by)
-CONDITION_ENTRY(battle_condition_acted_on_by_this, acted_on_by_this)
-CONDITION_ENTRY(battle_condition_acted_bit, acted_bit)
-CONDITION_ENTRY(battle_condition_acted_on_by_member, acted_on_by_member)
-CONDITION_ENTRY(battle_condition_acted_with_elements, acted_with_elements)
-CONDITION_ENTRY(battle_condition_chance, chance)
-CONDITION_ENTRY(battle_condition_stat_is, stat_is)
-CONDITION_ENTRY(battle_condition_other_kind_present, other_kind_present)
-CONDITION_ENTRY(battle_condition_members_at_most, members_at_most)
-CONDITION_ENTRY(battle_condition_is_party_member, is_party_member)
-CONDITION_ENTRY(battle_condition_three_on_out, three_on_out)
-CONDITION_ENTRY(battle_condition_chooses_but_fails, chooses_but_fails)
-CONDITION_ENTRY(battle_condition_was_beaten, was_beaten)
-CONDITION_ENTRY(battle_condition_stands_apart, stands_apart)
-CONDITION_ENTRY(battle_condition_turn_wait, turn_wait)
-
-void battle_condition_within_reach(Snes *s) { reach_entry(s, SEARCH_WITHIN_REACH); }
-void battle_condition_within_wide_reach(Snes *s) { reach_entry(s, SEARCH_WITHIN_WIDE_REACH); }
+CONDITION_ENTRY(battle_condition_always, 0x00)
+CONDITION_ENTRY(battle_condition_at_half_hp, 0x01)
+CONDITION_ENTRY(battle_condition_with_status, 0x02)
+CONDITION_ENTRY(battle_condition_is_enemy, 0x03)
+CONDITION_ENTRY(battle_condition_enemy_present, 0x04)
+CONDITION_ENTRY(battle_condition_enemies_at_most, 0x05)
+CONDITION_ENTRY(battle_condition_frames_at_least, 0x06)
+CONDITION_ENTRY(battle_condition_count_compared, 0x07)
+CONDITION_ENTRY(battle_condition_at_most_hp, 0x08)
+CONDITION_ENTRY(battle_condition_stat_at_least, 0x09)
+CONDITION_ENTRY(battle_condition_stat_bits, 0x0A)
+CONDITION_ENTRY(battle_condition_stat_at_most, 0x0B)
+CONDITION_ENTRY(battle_condition_within_reach, 0x0C)
+CONDITION_ENTRY(battle_condition_level_with, 0x0D)
+CONDITION_ENTRY(battle_condition_stands_beside, 0x0E)
+CONDITION_ENTRY(battle_condition_could_walk_to, 0x0F)
+CONDITION_ENTRY(battle_condition_stands_in, 0x10)
+CONDITION_ENTRY(battle_condition_acted_on_by, 0x11)
+CONDITION_ENTRY(battle_condition_acted_on_by_this, 0x12)
+CONDITION_ENTRY(battle_condition_acted_bit, 0x13)
+CONDITION_ENTRY(battle_condition_acted_on_by_member, 0x14)
+CONDITION_ENTRY(battle_condition_acted_with_elements, 0x15)
+CONDITION_ENTRY(battle_condition_chance, 0x17)
+CONDITION_ENTRY(battle_condition_stat_is, 0x18)
+CONDITION_ENTRY(battle_condition_other_kind_present, 0x1A)
+CONDITION_ENTRY(battle_condition_members_at_most, 0x1B)
+CONDITION_ENTRY(battle_condition_is_party_member, 0x1C)
+CONDITION_ENTRY(battle_condition_three_on_out, 0x1D)
+CONDITION_ENTRY(battle_condition_chooses_but_fails, 0x1E)
+CONDITION_ENTRY(battle_condition_within_wide_reach, 0x1F)
+CONDITION_ENTRY(battle_condition_was_beaten, 0x20)
+CONDITION_ENTRY(battle_condition_stands_apart, 0x21)
+CONDITION_ENTRY(battle_condition_turn_wait, 0x22)

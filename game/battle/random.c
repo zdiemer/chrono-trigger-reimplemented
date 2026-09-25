@@ -29,12 +29,13 @@ static void step_position(GameState *g, Position p)
 enum { NO_DRAW = 0xFF, WHOLE_TABLE = 0xFF };
 
 /* The table's number over the range's width, as the original divides it: a
- * long division whose dividend's high word is whatever the last long division
- * or product left in its cell. The original never clears it, so it moves the
- * number that comes up; a table number of 0 gives 0 whatever it is. */
+ * long division whose dividend's high word is the long arithmetic's leftover
+ * (battle_long_high_word): whatever the last long division or product left.
+ * The original never clears it, so it moves the number that comes up; a table
+ * number of 0 gives 0 whatever it is. */
 static uint8_t over_range(GameState *g, uint8_t number, uint8_t width)
 {
-    uint32_t dividend = (uint32_t)battle_long_high_word_left(g) << 16 | number;
+    uint32_t dividend = (uint32_t)battle_long_high_word(g) << 16 | number;
     return (uint8_t)battle_divide_long(g, dividend, width).remainder;
 }
 

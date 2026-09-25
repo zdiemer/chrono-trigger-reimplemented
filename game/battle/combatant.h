@@ -40,6 +40,33 @@ enum {
     STATUS_STOP = 0x80,
 };
 
+/* The bytes of a combatant's stat block the battle's code reads by their
+ * offsets, as the enemies' scripts name a stat. */
+typedef enum {
+    STAT_OTHER = 0x01,
+    STAT_HP = 0x03,              /* a word */
+    STAT_MAX_HP = 0x05,          /* a word */
+    STAT_FLAGS = 0x19,
+    STAT_ATTACK_DETAIL = 0x1B,   /* an enemy's attack's detail */
+    STAT_CONDITION = 0x1D,       /* knocked out, and the enemy's flag */
+    STAT_STATUS_1 = 0x1E,
+    STAT_STATUS_2 = 0x1F,
+    STAT_STATUS_3 = 0x20,
+    STAT_STATUS_4 = 0x21,
+    STAT_STATUS_IGNORED = 0x23,  /* the first status byte's bits it shrugs off */
+    STAT_KEPT_STATUS_4 = 0x26,   /* the fourth status byte's bits it keeps whatever happens */
+} StatOffset;
+
+/* The condition byte's bit for knocked out. */
+enum { CONDITION_KNOCKED_OUT = 0x80 };
+
+/* An enemy waiting in reserve to come in (battle_enemy_standing). */
+enum { ENEMY_IN_RESERVE = 0x80 };
+
+/* An enemy's last condition held (battle_enemy_last_condition) where none
+ * is. */
+enum { NO_CONDITION = 0xFF };
+
 /* The id battle_combatant_fighting holds for a combatant out of the fight,
  * and battle_combatant_id for a slot nobody fills. */
 enum { COMBATANT_NONE = 0xFF };

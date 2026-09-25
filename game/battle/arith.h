@@ -47,8 +47,9 @@ BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t 
  * them with the caller's carry clear. */
 uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b);
 
-/* The high word of the dividend the last long division was handed, or of the
- * last word-by-word product: what is in its cell now. */
-uint16_t battle_long_high_word_left(const GameState *g);
+/* The long arithmetic's leftover high word: the last word-by-word product's
+ * high word, or what the last long division left of its dividend's. Game
+ * state: the random draw divides with it (battle/random.c). */
+uint16_t battle_long_high_word(const GameState *g);
 
 #endif

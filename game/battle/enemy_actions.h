@@ -23,7 +23,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battle/enemy_scripts.h"
 #include "battle/rules_data.h"
+#include "battle/targets.h"
 #include "state.h"
 
 /* The actions, by byte. */
@@ -58,6 +60,10 @@ typedef enum { FOLLOW_WITH_EFFECT = 0, FOLLOW_WITH_SHOWING = 1, FOLLOW_WITH_NOTH
  * battle_action_pose_kind ($C1:ACCE). */
 void enemy_note_pose_kind(GameState *g);
 
+/* $C1:9B48: choose again, as the action at `at` says (no script has it): the
+ * choosing goes through the enemy's actions that many times and once more. */
+void enemy_choose_again(GameState *g, ScriptChoosing *c, ScriptPlace at);
+
 /* ---- Carrying out: the parts between the original's calls ---------------------------------- */
 
 /* $C1:ACF2: the action record the effect code reads: the actor, the action
@@ -72,24 +78,45 @@ void enemy_note_actor_bits(GameState *g, uint8_t enemy);
 void enemy_attack_begins(GameState *g, ScriptPlace at);
 void enemy_attack_ends(GameState *g);
 
-/* A tech: its number, and its first target the enemy's foe; the second and
- * third by the selectors at `at` + 3 and + 4, where given (true where either
- * is). Then, once its
- * targeting ($C1:C1DD) has run, whether it could be used: false where it
- * couldn't (the block's outcome is then nobody to act on). */
-bool enemy_tech_begins(GameState *g, ScriptPlace at, bool none_checked);
+/* A tech as an action names it: its number, the selectors of its second and
+ * third targets (none where 0), and the message it shows. */
+typedef struct {
+    uint8_t number;
+    Selector further[2];
+    uint8_t message;
+} EnemyTech;
+EnemyTech enemy_tech_at(const GameState *g, ScriptPlace at);
+
+/* A tech, for `enemy` whose script chose it: its number, and its first target
+ * the enemy's foe; the second and third by their selectors, where named. Then,
+ * once its targeting ($C1:C1DD) has run, whether it could be used: false
+ * where it couldn't (the block's outcome is then nobody to act on). */
+void enemy_tech_begins(GameState *g, uint8_t enemy, ScriptPlace at, bool none_checked);
 bool enemy_tech_aimed(GameState *g);
 void enemy_tech_ends(GameState *g);
 
-/* The stat changes, the counter and flags, the bringing back: the actions
- * with no call of the original's but their message's. */
-void enemy_carry_out(GameState *g, EnemyAction action, ScriptPlace at);
+/* A stat change: the stat's offset in the stat block and the value it is
+ * set to, or where added, the amount (bit 7 set takes it away, and the stat
+ * stays within a byte). The stats-then-tech actions make five, from the
+ * fifth operand on, after keeping their message. */
+typedef struct {
+    uint8_t offset, value;
+} StatChange;
+enum { STAT_CHANGES_BEFORE_TECH = 5 };
+StatChange enemy_stat_change_before_tech(const GameState *g, ScriptPlace at, unsigned n);
+void enemy_keep_message_before_tech(GameState *g, ScriptPlace at);
+void enemy_change_own_stat(GameState *g, StatChange change, bool adding);
 
-/* $C1:9B8D: change into the enemy waiting in reserve the action names; false
- * where there is none. Its coming in is the original's code where the action
- * asks for it (`brought_in`). */
-bool enemy_change_into(GameState *g, ScriptPlace at, bool *brought_in);
-void enemy_change_takes_hp(GameState *g);
+/* The stat changes, the counter and flags, the turn waits, leaving and dying:
+ * the actions with no call of the original's but their message's, which it
+ * returns (0 for none). */
+uint8_t enemy_carry_out(GameState *g, uint8_t enemy, EnemyAction action, ScriptPlace at);
+
+/* $C1:9B8D: change into the enemy waiting in reserve the action names. It
+ * takes the actor's HP, or where the action says so, it is brought in by the
+ * original's code. */
+typedef enum { NONE_TO_CHANGE_INTO, CHANGED, CHANGED_TO_BRING_IN } ChangeInto;
+ChangeInto enemy_change_into(GameState *g, ScriptPlace at);
 void enemy_change_ends(GameState *g);
 
 /* $C1:9E78: the enemies that were beaten come back, each brought in by the
@@ -100,16 +127,7 @@ void enemy_bring_back(GameState *g, uint8_t enemy, uint8_t count);
 void enemy_brought_back(GameState *g, uint8_t enemy, ScriptPlace at);
 void enemy_bring_back_ends(GameState *g, ScriptPlace at, uint8_t count);
 
-/* $C1:9B48: choose again, as the action says (no script has it). */
-void enemy_choose_again(GameState *g, ScriptPlace at);
-
 /* $C1:A396: what the calling in gives the original's code that does it. */
 void enemy_call_in_starts(GameState *g, ScriptPlace at);
-
-/* The stat changes a set-stats-then-tech action makes first; true where the
- * last of an adding one carried past a byte or took away no more than there
- * was (the carry its change leaves, which the original's targeting after it
- * reads where the tech names no further target). */
-bool enemy_set_stats_before_tech(GameState *g, ScriptPlace at, bool adding);
 
 #endif
