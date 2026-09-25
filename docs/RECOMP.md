@@ -6111,9 +6111,10 @@ two frames later. Its drawing takes the original more than a frame, with the
 menus' vblank handler taken inside it; as one port, the time is owed at its
 return and the handler taken there, twice, and with the time charged cheaply
 (an experiment, not a fix) the screen appears. The route passes with the two
-entries left to the original. Why taking the handler at the port's return
-twice goes wrong is not worked out (TODO.md); the code is out of the tree
-until it is, since nothing else calls it.
+entries left to the original. Why it went wrong was the runtime's: the
+debt was paid inside the menus' vblank handler, which moves the stack, and
+the next vblank nested in it (fixed; "The tooling pass after Phase 3's first
+chunks", below). The port is out of the tree until it comes back (TODO.md).
 
 **Timing.** Every entry is calibrated from the library but the ones only
 `menu_open` runs, whose error its own rate takes up (TODO.md), and a window list charges each command at its handler's

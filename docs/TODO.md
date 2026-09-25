@@ -484,28 +484,26 @@ rest waits, is [PLAN.md](PLAN.md).
     check `$FF:F9C4`, the load `$FF:FAED`), and the new game's state
     (`$C2:956E`);
   - the load screen's opening (`$C2:E613` and its drawing `$C2:E7C3`) is the
-    original's: ported, it matched where shadow mode compared it but broke the
-    `beyond_time` route in the shipping mode (RECOMP.md, "Phase 3, menus", "A
-    port that spans frames"). The drawing takes more than a frame and the
-    menus' vblank handler runs inside it; with the port's time owed at its
-    return, the handler is taken there twice and the game ends in a `BRK`.
-    Reproduce with the Final Battle save (`oracle/saves/technoplaza/ct-state15.srm`),
-    Start at frame 1620 and `--native on`: the screen is black at frame 1899.
-    Either the runtime's debt handling has a case the menus' handler meets
-    (its stack switch to `$1DFD`, its lag flag `$0D01`), or the port needs to
-    stop where the original's frame would. Worked out, the port can come
-    back;
+    original's: its port broke the `beyond_time` route in the shipping mode,
+    which was the runtime's (a debt paid inside a vblank handler that moved
+    the stack; RECOMP.md, "The tooling pass after Phase 3's first chunks").
+    The port can come back as it was, `$C2:E613` stopping with `m_stop_at` at
+    the task yield `$C2:83B2` it jumps to; then the `beyond_time` route in the
+    shipping mode, fuzzing both entries (every library call is interrupted),
+    and calibration, maybe with a timing exception;
   - `menu_erase_slot` (`$C2:E8B7`) is checked by neither: no movie erases a
     slot, and `ct_fuzz` can't run past its wait for the next frame
-    (`$C2:821E`, a task switch), so every fuzzed state is skipped. A movie that
-    erases a slot on the load screen would check it, and `menu_answer_erase`'s
-    "no" with it;
+    (`$C2:821E`, a task switch). `ct_fuzz --stop-at-call C2821E` compares it up
+    to that call, which is most of it; a movie that erases a slot on the load
+    screen would check the rest, and `menu_answer_erase`'s "no" with it;
   - the label entries (`$C2:D156`, `$D19F`, `$D266`, `$D28D`, `$D296`,
-    `$D2C4`) only run inside `menu_open`'s comparison, so shadow mode compares
-    them there and the timing gate can't calibrate them alone: what their
-    estimates miss is in `menu_open`'s own rate (28004, against about 5000 for
-    the menus' other bridges); `$C2:D306` (a label moved two pixels right) is
-    inline in `$C2:D2C4` and no entry;
+    `$D2C4`) only run inside `menu_open`'s stretch, so shadow mode compares
+    them up to their first point and sets them aside there (`abandoned`); the
+    timing of that part calibrates them, what they do after it is in
+    `menu_open`'s own rate (28004, against about 5000 for the menus' other
+    bridges; RECOMP.md, "The tooling pass after Phase 3's first chunks");
+    `$C2:D306` (a label moved two pixels right) is inline in `$C2:D2C4` and no
+    entry;
   - a window list's strings that include work RAM (a name, a number) draw
     through the text port's accepted divergences when fuzzing fills that RAM
     at random (7 of 2,000 fuzzed `menu_window_draw_string` states, 2 and 1 of
