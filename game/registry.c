@@ -27,18 +27,23 @@
 #include "field/line_effects.h"
 #include "field/object_update.h"
 #include "field/sprites.h"
+#include "menu/bridge.h"
+#include "menu/cursor.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
 #include "menu/map.h"
 #include "menu/line_effects.h"
+#include "menu/load_screen.h"
 #include "menu/object_commands.h"
 #include "menu/script_bridge.h"
 #include "menu/menu.h"
 #include "scene/scene.h"
 #include "menu/objects.h"
+#include "menu/opening.h"
 #include "menu/save_screen.h"
 #include "menu/sound.h"
 #include "menu/text.h"
+#include "menu/windows.h"
 #include "menu/top_layer.h"
 #include "menu/vram.h"
 
@@ -1169,8 +1174,59 @@ const NativeEntry game_natives[] = {
       .guard = menu_memory_stretch_misses_the_stack },
     { .addr = 0xC29542, .name = "menu_copy_to_memory", .fn = menu_copy_to_memory, .cost_milli = 6098,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB, .guard = menu_memory_stretch_misses_the_stack },
+    /* the window command lists (game/menu/windows.c) */
+    { .addr = 0xC2ED31, .name = "menu_run_window_list", .fn = menu_run_window_list, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 4705, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_list_is_drawable },
+    { .addr = 0xC2ED77, .name = "menu_window_fill", .fn = menu_window_fill, NEEDS_M8_X16_BINARY, .cost_milli = 5616,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB, .guard = menu_window_fill_accepts },
+    { .addr = 0xC2EF05, .name = "menu_window_copy_area", .fn = menu_window_copy_area, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 3455, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_copy_area_accepts },
+    { .addr = 0xC2EDAA, .name = "menu_window_draw", .fn = menu_window_draw, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 11524,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB, .guard = menu_window_draw_accepts },
+    { .addr = 0xC2EF48, .name = "menu_window_draw_string", .fn = menu_window_draw_string, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 2403, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_window_draw_string_accepts },
+    { .addr = 0xC2F332, .name = "menu_window_set_origin", .fn = menu_window_set_origin, NEEDS_M8_X16_BINARY,
+      .cost_milli = 300, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_window_set_origin_accepts },
+    { .addr = 0xC2F364, .name = "menu_window_copy_bytes", .fn = menu_window_copy_bytes, NEEDS_M8_X16_BINARY,
+      .cost_milli = 1821, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_window_copy_bytes_accepts },
     { .addr = 0xC2F337, .name = "menu_window_set_line_effect", .fn = menu_window_set_line_effect,
-      NEEDS_M8_X16, .cost_milli = 5640, .guard = menu_window_line_effect_is_known, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB },
+      NEEDS_M8_X16_BINARY, .cost_milli = 1516, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_window_set_line_effect_accepts },
+    { .addr = 0xC2F378, .name = "menu_window_swap_areas", .fn = menu_window_swap_areas, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 5423, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_swap_areas_accepts },
+    { .addr = 0xC2EDB0, .name = "menu_window_draw_frame_only", .fn = menu_window_draw_frame_only,
+      .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 5897, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_draw_frame_only_accepts },
+    { .addr = 0xC2EDB6, .name = "menu_window_fill_inside_only", .fn = menu_window_fill_inside_only,
+      .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 12907, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_window_fill_inside_only_accepts },
+    { .addr = 0xC2EDF6, .name = "menu_window_frame", .fn = menu_window_frame, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 5812, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_frame_is_drawable },
+    { .addr = 0xC2EE7F, .name = "menu_window_inside", .fn = menu_window_inside, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 12907, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_inside_is_drawable },
+    { .addr = 0xC2ED08, .name = "menu_window_colours", .fn = menu_window_colours, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 4036, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_colours_are_loadable },
+    { .addr = 0xC2ECDB, .name = "menu_window_in_design", .fn = menu_window_in_design, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 8431, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_in_design_is_drawable },
+    { .addr = 0xC2FB97, .name = "menu_lay_out_label_strip", .fn = menu_lay_out_label_strip, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 5843, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_strip_is_placeable },
+    { .addr = 0xC2FBB4, .name = "menu_lay_out_graphic_strip", .fn = menu_lay_out_graphic_strip,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 5979,
+      .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_strip_is_placeable },
+    { .addr = 0xC2F28D, .name = "menu_draw_time", .fn = menu_draw_time, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 13752, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_time_is_drawable },
     { .addr = 0xFFFC04, .name = "menu_window_build_line_table", .fn = menu_window_build_line_table,
       .cost_milli = 10088, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_window_line_table_is_buildable },
     /* menu VRAM upload queue, sprites and the save file screen */
@@ -1179,8 +1235,34 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2838E, .name = "menu_queue_built_vram_upload", .fn = menu_queue_built_vram_upload,
       .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 4440, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_built_upload_is_apart },
+    /* the menus' cursor, their sprites each frame and their sounds (game/menu/cursor.c) */
     { .addr = 0xC2E92D, .name = "menu_reset_sprites", .fn = menu_reset_sprites, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 5767, .dont_care = DC_A, .guard = menu_sprites_are_resettable },
+      .p_value = 0, .cost_milli = 5783, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_cursor_is_placeable },
+    { .addr = 0xC2984A, .name = "menu_clear_sprite_table", .fn = menu_clear_sprite_table, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 5770, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_on_page_work_ram },
+    { .addr = 0xC2E923, .name = "menu_clear_sprites_for_cursor", .fn = menu_clear_sprites_for_cursor,
+      .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 5812,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_cursor_is_placeable },
+    { .addr = 0xC2E984, .name = "menu_read_cursor_input", .fn = menu_read_cursor_input, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 7110, .dont_care = DC_N | DC_V | DC_Z, .guard = menu_cursor_is_movable },
+    { .addr = 0xC2EB03, .name = "menu_send_sound", .fn = menu_send_sound, .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = CPU_FLAG_M | CPU_FLAG_X, .cost_milli = 2910, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_sounds_on_page },
+    { .addr = 0xC2EAF9, .name = "menu_send_sound_on_other_voices", .fn = menu_send_sound_on_other_voices,
+      .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M | CPU_FLAG_X, .cost_milli = 3038,
+      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_sounds_on_page },
+    { .addr = 0xC2EAC2, .name = "menu_play_cursor_sound", .fn = menu_play_cursor_sound, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 2996, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = menu_sounds_on_page },
+    { .addr = 0xC2EACC, .name = "menu_play_refusal_sound", .fn = menu_play_refusal_sound, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 2996, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_sounds_on_page },
+    { .addr = 0xC2EABA, .name = "menu_play_sound", .fn = menu_play_sound, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 2889, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_sounds_on_page },
+    { .addr = 0xC2EAD6, .name = "menu_play_queued_sound", .fn = menu_play_queued_sound, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 2996, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D,
+      .guard = menu_sounds_on_page },
     { .addr = 0xC2CFFB, .name = "menu_load_slot_rows_effect", .fn = menu_load_slot_rows_effect,
       .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 3386,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_slot_rows_effect_is_loadable },
@@ -1188,11 +1270,54 @@ const NativeEntry game_natives[] = {
       .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3742,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_portrait_is_drawable },
     { .addr = 0xC2D36C, .name = "menu_draw_save_slot", .fn = menu_draw_save_slot, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 3105, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z,
+      .p_value = 0, .cost_milli = 3882, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z,
       .guard = menu_save_slot_is_drawable },
     { .addr = 0xC2E743, .name = "menu_show_save_slot", .fn = menu_show_save_slot, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 5919, .dont_care = DC_N | DC_Z | DC_C | DC_AL,
+      .p_value = 0, .cost_milli = 5813, .dont_care = DC_N | DC_Z | DC_C | DC_AL,
       .guard = menu_save_slots_are_showable },
+    /* opening the menus (game/menu/opening.c) */
+    { .addr = 0xC28096, .name = "menu_open", .fn = menu_open, NEEDS_M8_X16_BINARY, .cost_milli = 6475,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_opening_runs },
+    { .addr = 0xC2816A, .name = "menu_list_party", .fn = menu_list_party_entry, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 9387, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_on_page_work_ram },
+    { .addr = 0xC292F4, .name = "menu_unpack_settings", .fn = menu_unpack_settings_entry, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 10766, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_on_page_work_ram },
+    /* the save slots read as the menus open (game/menu/save_screen.c) */
+    { .addr = 0xC2D156, .name = "menu_read_save_slots", .fn = menu_read_save_slots, .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 3477, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_save_slots_are_readable },
+    { .addr = 0xC2D19F, .name = "menu_read_slot_summary", .fn = menu_read_slot_summary, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 4421, .dont_care = DC_A, .guard = menu_slot_summary_is_readable },
+    { .addr = 0xC2D266, .name = "menu_read_design_and_chapter", .fn = menu_read_design_and_chapter,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 5604,
+      .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C, .guard = menu_slot_summary_is_readable },
+    { .addr = 0xC2D296, .name = "menu_draw_chapter_label", .fn = menu_draw_chapter_label, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 360, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_slot_labels_are_drawable },
+    { .addr = 0xC2D28D, .name = "menu_draw_empty_label", .fn = menu_draw_empty_label, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 360, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_slot_labels_are_drawable },
+    { .addr = 0xC2D2C4, .name = "menu_draw_slot_name", .fn = menu_draw_slot_name, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 4000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_slot_labels_are_drawable },
+    /* the load screen: its steps, its drawing and a slot's erasing (game/menu/load_screen.c) */
+    { .addr = 0xC2E61B, .name = "menu_choose_on_load_screen", .fn = menu_choose_on_load_screen, NEEDS_M8_X16_BINARY,
+      .cost_milli = 2258, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_load_screen_runs },
+    { .addr = 0xC2E6AE, .name = "menu_choose_game_to_carry_on_from", .fn = menu_choose_game_to_carry_on_from,
+      NEEDS_M8_X16_BINARY, .cost_milli = 4338, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB,
+      .guard = menu_load_screen_runs },
+    { .addr = 0xC2E705, .name = "menu_answer_erase", .fn = menu_answer_erase, NEEDS_M8_X16_BINARY, .cost_milli = 4338,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB, .guard = menu_erase_is_answerable },
+    { .addr = 0xC2E841, .name = "menu_ask_which_to_carry_on_from", .fn = menu_ask_which_to_carry_on_from,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB, .guard = menu_on_page_work_ram },
+    { .addr = 0xC2E8B7, .name = "menu_erase_slot", .fn = menu_erase_slot, .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 5000, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_slot_window_is_drawable },
+    { .addr = 0xC2D32C, .name = "menu_draw_slot_window", .fn = menu_draw_slot_window, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 21451, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_slot_window_is_drawable },
     /* menu object scripts: starting an object, and the command handlers at $C2:0F91's
      * table (game/menu/object_script.c, tools/disasm/objscript.py) */
     { .addr = 0xC2048A, .name = "menu_object_spawn", .fn = menu_object_spawn,

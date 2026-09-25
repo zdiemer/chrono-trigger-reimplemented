@@ -10,7 +10,7 @@
 #include "port/native.h"
 #include "snes/system.h"
 
-#define FUZZ_MAX_AREAS 16
+#define FUZZ_MAX_AREAS 32
 
 /* A range of work RAM the fuzzer sets: from the base state (keep) or random
  * bytes from lo to hi (fill). Absolute, lo_addr-hi_addr as 24-bit bus

@@ -399,6 +399,29 @@ class Analysis(unittest.TestCase):
         self.assertTrue(lv.ret_live[0xC08060] & A)
         self.assertNotIn(0xC08060, lv.all_live_returns)
 
+    def test_liveness_across_a_task_switch(self):
+        from tools.disasm.liveness import A, C, FLAGS, X, Y, Liveness
+        # C0:8000  LDX #$01 ; JSR $8010 ; LDA $30 ; RTS: after the switch the caller reads D
+        #          alone, and X only once it is back (the switch keeps it)
+        # C0:8010  PHX ; PHP ; LDA $40 ; TCS ; PLP ; PLX ; RTS (a task switch: S from memory)
+        code = {0xC08000: bytes.fromhex("A201 201080 A530 60".replace(" ", "")),
+                0xC08010: bytes.fromhex("DA 08 A540 1B 28 FA 60".replace(" ", ""))}
+        lv = Liveness(self.run_an(code, 0xC08000))
+        lv.solve()
+        self.assertEqual(lv.func_live_in[0xC08010] & (X | FLAGS), X | FLAGS, "the pushes read what they save")
+        h = Hints()
+        h.keeps[0xC08010] = (("X", "Y", "P", "D"), ("A",))
+        lv = Liveness(self.run_an(code, 0xC08000, hints=h))
+        lv.solve()
+        self.assertEqual(lv.callee_reads(0xC08010) & (A | X | Y | FLAGS), A, "it reads only what it names")
+        # the caller's X is dead across it: nothing reads it after the switch comes back
+        self.assertFalse(lv.live_at(0xC08002) & X)
+        # C0:8000  JSR $8010 ; BCC +0 ; RTS: a flag read after it is live before it
+        code[0xC08000] = bytes.fromhex("201080 9000 60".replace(" ", ""))
+        lv = Liveness(self.run_an(code, 0xC08000, hints=h))
+        lv.solve()
+        self.assertTrue(lv.live_at(0xC08000) & C)
+
     def test_liveness_through_a_table_filled_at_run_time(self):
         from tools.disasm.hints import TableHint
         from tools.disasm.liveness import A, Liveness

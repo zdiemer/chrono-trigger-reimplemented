@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 124 files, 117 of
-29,062 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 129 files, 117 of
+30,902 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -463,10 +463,15 @@ routines that live in `$FD:A8A5`-`$B7EB` but are called from `$C1`.
 
 `$C2`'s first three chunks are in (RECOMP.md, "Phase 3, wave 2"): the Epoch's
 two Mode 7 screens, which were also P2's last leftover; the object scripts'
-whole instruction set; and the map those scripts scroll and redraw. What is
-left of the bank is the menus proper -- `python3 tools/burndown.py --uncovered
-C2` puts the largest runs at `$C2:9C31` (1685 bytes), `$C2:B520` (1530),
-`$C2:42F8` (1441) and `$C2:27DE` (1385). `$C2:27DE` is the run to take with
+whole instruction set; and the map those scripts scroll and redraw. The menus
+proper have started (RECOMP.md, "Phase 3, menus"): the load screen, the window
+command language every screen is drawn with, the cursor and the sounds, and
+the menus' opening up to its graphics. Next is the rest of the opening (the
+graphics at `$C2:968D`, the sprites, the items) and the text engine
+(`$C2:57DF`-`$C2:6263` with the loader `$C2:F90C`), which the labels and every
+screen's strings call. `python3 tools/burndown.py --uncovered C2` puts the
+largest runs left at `$C2:9C31` (1685 bytes), `$C2:B520` (1530), `$C2:42F8`
+(1441) and `$C2:2826` (1313). `$C2:27DE` is the run to take with
 `menu/display.c`'s loader half rather than on its own, and only once the
 streams it decompresses are typed: it is the object mode's screen setup, about
 fifteen routines that each load one stream named by a byte of the scene record

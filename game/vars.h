@@ -164,6 +164,16 @@ void set_play_time_overflowed(GameState *g, uint8_t v);
 uint8_t play_time_stopped(const GameState *g);
 void set_play_time_stopped(GameState *g, uint8_t v);
 
+/* The save slot the game goes on in: the one the player chose to load, or the first empty one a
+ * new game will be saved to */
+uint8_t save_slot_chosen(const GameState *g);
+void set_save_slot_chosen(GameState *g, uint8_t v);
+
+/* The second controller's buttons as the console last read them, in the controller's own order,
+ * which the load screen looks at for its hidden erase (Select and Start held) */
+uint16_t second_controller(const GameState *g);
+void set_second_controller(GameState *g, uint16_t v);
+
 /* JML the NMI vector jumps through; each mode installs its handler here */
 uint32_t nmi_vector(const GameState *g);
 void set_nmi_vector(GameState *g, uint32_t v);
@@ -434,6 +444,11 @@ enum { PARTY_MEMBERS_COUNT = 3 };   /* by party slot */
 uint8_t party_members(const GameState *g, unsigned slot);
 void set_party_members(GameState *g, unsigned slot, uint8_t v);
 
+enum { PARTY_WAITING_COUNT = 6 };   /* by waiting place */
+/* The party's members who aren't active, as character ids, $80 for an empty place */
+uint8_t party_waiting(const GameState *g, unsigned i);
+void set_party_waiting(GameState *g, unsigned i, uint8_t v);
+
 enum { GAME_SETTINGS_COUNT = 3 };   /* by byte */
 /* The player's settings as the settings menu leaves them ($C2:92F4 reads them into its own
  * cells). What the battle reads: the first byte's bit 7 shows a tech's or item's description as
@@ -449,6 +464,16 @@ enum { BUTTON_ASSIGNMENTS_COUNT = 8 };   /* by assignment: which of the game's b
  * of the remapped buttons */
 uint8_t button_assignments(const GameState *g, unsigned i);
 void set_button_assignments(GameState *g, unsigned i, uint8_t v);
+
+/* How many times the game on the cartridge has been finished, as a new game starts with it (the
+ * cartridge's count at $30:7FE1) */
+uint8_t times_finished(const GameState *g);
+void set_times_finished(GameState *g, uint8_t v);
+
+/* The menus' frame count when they left for the game, which the battle takes its random numbers'
+ * start from */
+uint8_t frames_at_leaving(const GameState *g);
+void set_frames_at_leaving(GameState *g, uint8_t v);
 
 /* The song the last play-song event command started */
 uint8_t current_song(const GameState *g);
@@ -1743,6 +1768,39 @@ void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint16_t v);
  * byte; the portrait clears the high byte) */
 uint16_t menu_scratch_save_member(const GameState *g);
 void set_menu_scratch_save_member(GameState *g, uint16_t v);
+/* The window command lists: the window style's number times four, halfway to its tiles' first */
+uint8_t menu_scratch_window_style_fourfold(const GameState *g);
+void set_menu_scratch_window_style_fourfold(GameState *g, uint8_t v);
+/* The cursor's buttons: the bit of menu_cursor_buttons the next assignment it looks at sets,
+ * which its loop leaves past the last */
+uint8_t menu_scratch_cursor_button_bit(const GameState *g);
+void set_menu_scratch_cursor_button_bit(GameState *g, uint8_t v);
+/* The load screen's erase: the slot's number times $100, its row's place in the empty labels'
+ * graphic */
+uint16_t menu_scratch_erased_slot_rows(const GameState *g);
+void set_menu_scratch_erased_slot_rows(GameState *g, uint16_t v);
+/* The save code's check of a slot ($FF:F9C4): 0 for a slot that holds a game, $8080 for one
+ * without the save's mark, $4040 for one whose sum is wrong */
+uint16_t menu_scratch_slot_check(const GameState *g);
+void set_menu_scratch_slot_check(GameState *g, uint16_t v);
+/* A slot's name label: how many moves right are left to make ($C2:D2C4); zero once it sits in
+ * its place */
+uint8_t menu_scratch_label_moves(const GameState *g);
+void set_menu_scratch_label_moves(GameState *g, uint8_t v);
+/* The window command lists: the columns a swapped rectangle's row had left, 0 once it is done */
+uint16_t menu_scratch_window_columns_left(const GameState *g);
+void set_menu_scratch_window_columns_left(GameState *g, uint16_t v);
+/* The window command lists: how far a frame's right side is from its left, in bytes */
+uint16_t menu_scratch_window_right_side(const GameState *g);
+void set_menu_scratch_window_right_side(GameState *g, uint16_t v);
+/* The window command lists: the tilemap word a frame's next part starts from, or the inside's
+ * first */
+uint16_t menu_scratch_window_tile(const GameState *g);
+void set_menu_scratch_window_tile(GameState *g, uint16_t v);
+/* The window command lists: which row of a window inside's four-row pattern comes next, times
+ * four */
+uint16_t menu_scratch_window_pattern_row(const GameState *g);
+void set_menu_scratch_window_pattern_row(GameState *g, uint16_t v);
 /* The load screen: where the record of the member it is drawing is, in the save summary */
 uint16_t menu_scratch_save_member_record(const GameState *g);
 void set_menu_scratch_save_member_record(GameState *g, uint16_t v);
@@ -1764,6 +1822,11 @@ void set_menu_scratch_record_x(GameState *g, uint16_t v);
 uint16_t menu_scratch_record_tile(const GameState *g);
 void set_menu_scratch_record_tile(GameState *g, uint16_t v);
 
+/* The time played a save slot's header shows, as the numbers it draws: the hours (99 at most),
+ * then the minutes */
+uint16_t menu_time_played_shown(const GameState *g);
+void set_menu_time_played_shown(GameState *g, uint16_t v);
+
 /* Which of the save summary's three member rows the load screen is drawing (the portrait's
  * palette is 4 on from it) */
 uint16_t menu_save_member_row(const GameState *g);
@@ -1773,14 +1836,28 @@ void set_menu_save_member_row(GameState *g, uint16_t v);
 uint8_t menu_save_era_width(const GameState *g);
 void set_menu_save_era_width(GameState *g, uint8_t v);
 
+/* A word the menus set to 0 as they open and read wherever they want a zero: an index's first
+ * value, a table's start (the number drawer's powers of two), a value ORed in */
+uint16_t menu_zero(const GameState *g);
+void set_menu_zero(GameState *g, uint16_t v);
+
 /* The current menu's cursor position: the cursor sprite is placed from the table at $7E:9380 at
  * 6 bytes per position; on the load screen, the selected save slot */
 uint8_t menu_cursor_index(const GameState *g);
 void set_menu_cursor_index(GameState *g, uint8_t v);
 
+/* The cursor position the cursor last moved away from */
+uint8_t menu_cursor_left_from(const GameState *g);
+void set_menu_cursor_left_from(GameState *g, uint8_t v);
+
 /* Nonzero flips the cursor sprite horizontally */
 uint8_t menu_cursor_flip(const GameState *g);
 void set_menu_cursor_flip(GameState *g, uint8_t v);
+
+/* The first row a scrolling list of the menus shows (the item and tech lists, $C2:EA81); cleared
+ * as the menus open */
+uint8_t menu_list_top(const GameState *g);
+void set_menu_list_top(GameState *g, uint8_t v);
 
 /* The cursor sprite's tile and attributes */
 uint16_t menu_cursor_sprite(const GameState *g);
@@ -1792,13 +1869,11 @@ void set_menu_cursor_sprite(GameState *g, uint16_t v);
 uint8_t menu_cursor_moves(const GameState *g);
 void set_menu_cursor_moves(GameState *g, uint8_t v);
 
-/* The DMA channel base address window command 12 programs a per-line effect slot on */
-uint16_t menu_window_effect_channel(const GameState *g);
-void set_menu_window_effect_channel(GameState *g, uint16_t v);
-
-/* Window command 12's per-line transfer mode (the destination register follows it) */
-uint8_t menu_window_effect_mode(const GameState *g);
-void set_menu_window_effect_mode(GameState *g, uint8_t v);
+enum { MENU_WINDOW_OPERANDS_COUNT = 6 };   /* by the operand's byte */
+/* The operands of the window command being run, copied out of its list; the last command's stay
+ * behind (a shorter command leaves the longer one's last bytes after its own) */
+uint8_t menu_window_operands(const GameState *g, unsigned i);
+void set_menu_window_operands(GameState *g, unsigned i, uint8_t v);
 
 /* The place in a tilemap buffer in bank $7E the menus draw relative to: the text's move code
  * puts the pen at an offset from it, and the save screen draws a member's summary and portrait
@@ -1806,14 +1881,64 @@ void set_menu_window_effect_mode(GameState *g, uint8_t v);
 uint16_t menu_draw_origin(const GameState *g);
 void set_menu_draw_origin(GameState *g, uint16_t v);
 
-/* Where the line of text being drawn starts in bank $7E: a new line goes back there a row or two
- * down, and the move code puts it anywhere */
-uint16_t menu_text_line_start(const GameState *g);
-void set_menu_text_line_start(GameState *g, uint16_t v);
+/* Where in bank $7E the last window command's window, string or rectangle starts: its place from
+ * the drawing origin, two bytes a tile and $40 a row; a command that walks rows down leaves it
+ * past the last it read */
+uint16_t menu_window_place(const GameState *g);
+void set_menu_window_place(GameState *g, uint16_t v);
+
+/* Where the line being drawn starts in bank $7E: a line of text, which a new line goes back to a
+ * row or two down and the move code puts anywhere; or the tilemap row a window command is
+ * drawing, which it leaves past the last */
+uint16_t menu_line_start(const GameState *g);
+void set_menu_line_start(GameState *g, uint16_t v);
+
+/* Which of the menus' screens runs, by the dispatch at $C2:826F: 0 the main menu, 14 the load
+ * screen, and the rest between them */
+uint8_t menu_screen(const GameState *g);
+void set_menu_screen(GameState *g, uint8_t v);
+
+/* Which step of its screen the menus' main task runs this frame; each screen's steps are its
+ * handlers, in the table the screen's number picks */
+uint8_t menu_screen_step(const GameState *g);
+void set_menu_screen_step(GameState *g, uint8_t v);
+
+/* The task the scheduler is running, its record's offset from the first ($B0) */
+uint8_t menu_current_task(const GameState *g);
+void set_menu_current_task(GameState *g, uint8_t v);
+
+/* What the menus' caller entered them with in X, which the screen they open on takes as its
+ * argument (a shop's number, a party member) */
+uint16_t menu_screen_argument(const GameState *g);
+void set_menu_screen_argument(GameState *g, uint16_t v);
+
+/* How many of the party's members are active (in its first three places), as the menus count
+ * them opening */
+uint8_t menu_active_members(const GameState *g);
+void set_menu_active_members(GameState *g, uint8_t v);
+
+/* How many members the party has, active and waiting, as the menus count them opening */
+uint8_t menu_member_count(const GameState *g);
+void set_menu_member_count(GameState *g, uint8_t v);
 
 /* The save slot whose summary the load screen is showing */
 uint8_t menu_save_slot_shown(const GameState *g);
 void set_menu_save_slot_shown(GameState *g, uint8_t v);
+
+/* The byte after the save slot shown, which the slots' reading clears with it and then reads
+ * with it, the slot a word wide */
+uint8_t menu_after_slot_shown(const GameState *g);
+void set_menu_after_slot_shown(GameState *g, uint8_t v);
+
+/* Where the save slot the save code last checked ($FF:F9C4) keeps its game, as the bus addresses
+ * save memory ($6000 on): what the slots' summaries are read from */
+uint16_t menu_slot_game_at(const GameState *g);
+void set_menu_slot_game_at(GameState *g, uint16_t v);
+
+/* The tile a window command last filled a stretch of tilemap with; the fill's attribute goes to
+ * the text's (menu_text_attribute, the byte after), which the strings drawn after it take */
+uint8_t menu_fill_tile(const GameState *g);
+void set_menu_fill_tile(GameState *g, uint8_t v);
 
 /* The attribute byte written with every text and digit tile */
 uint8_t menu_text_attribute(const GameState *g);
@@ -1822,6 +1947,11 @@ void set_menu_text_attribute(GameState *g, uint8_t v);
 /* The save slot after the one shown (wrapping 0-3), whose row the row table marks */
 uint8_t menu_save_slot_next(const GameState *g);
 void set_menu_save_slot_next(GameState *g, uint8_t v);
+
+/* Where the cursor was when this frame's input was read: the menus play the cursor's sound where
+ * it has moved since */
+uint8_t menu_cursor_frame_start(const GameState *g);
+void set_menu_cursor_frame_start(GameState *g, uint8_t v);
 
 /* How many more tiles the string being drawn may write */
 uint8_t menu_text_tile_limit(const GameState *g);
@@ -1839,6 +1969,14 @@ void set_menu_text_work_number(GameState *g, uint32_t v);
 /* The last control code's handler, which its dispatch jumps through; nothing else reads it */
 uint16_t menu_text_work_code_handler(const GameState *g);
 void set_menu_text_work_code_handler(GameState *g, uint16_t v);
+/* The window command lists' drawing: how many columns wide (or bytes, less one, of a row it
+ * copies) what it draws is, as the last command left it */
+uint16_t menu_text_work_window_columns(const GameState *g);
+void set_menu_text_work_window_columns(GameState *g, uint16_t v);
+/* The window command lists' drawing: the rows it has left to draw or copy, which the last
+ * command leaves at 0 or at a frame's inside rows */
+uint16_t menu_text_work_window_rows(const GameState *g);
+void set_menu_text_work_window_rows(GameState *g, uint16_t v);
 
 /* How many digits of the number to write (also the byte being converted while converting) */
 uint8_t menu_number_digits(const GameState *g);
@@ -1857,17 +1995,22 @@ void set_menu_number_dest(GameState *g, uint16_t v);
 uint16_t menu_number_size(const GameState *g);
 void set_menu_number_size(GameState *g, uint16_t v);
 
-enum { MENU_MAP_COLUMN_COUNT = 2 };   /* by plane */
-/* Which background tile column of the map each plane has at its left edge (0-191), set from the
- * party's tile at $0102 ($C2:2720). A third plane's word would be menu_map_row's first, and its
- * tile groups would be the first plane's map, so only two planes can be scrolled */
-uint16_t menu_map_column(const GameState *g, unsigned i);
-void set_menu_map_column(GameState *g, unsigned i, uint16_t v);
-
-enum { MENU_MAP_ROW_COUNT = 3 };   /* by plane */
-/* And which tile row it has at its top edge (0-127) */
-uint16_t menu_map_row(const GameState *g, unsigned i);
-void set_menu_map_row(GameState *g, unsigned i, uint16_t v);
+enum { MENU_TASKS_COUNT = 8 };   /* by task, 8 bytes a task ($B0 + 8 * the task) */
+/* 0 no task; 1 to start at `start`; 2 waiting `countdown` frames, to go on from `stack` */
+uint8_t menu_tasks_state(const GameState *g, unsigned i);
+void set_menu_tasks_state(GameState *g, unsigned i, uint8_t v);
+/* The frames the task still waits */
+uint8_t menu_tasks_countdown(const GameState *g, unsigned i);
+void set_menu_tasks_countdown(GameState *g, unsigned i, uint8_t v);
+/* Where a task to start begins, in bank C2 */
+uint16_t menu_tasks_start(const GameState *g, unsigned i);
+void set_menu_tasks_start(GameState *g, unsigned i, uint16_t v);
+/* The task's stack pointer while it waits */
+uint16_t menu_tasks_stack(const GameState *g, unsigned i);
+void set_menu_tasks_stack(GameState *g, unsigned i, uint16_t v);
+/* The screen step (menu_screen_step) the task waits in, put back when it goes on */
+uint8_t menu_tasks_step(const GameState *g, unsigned i);
+void set_menu_tasks_step(GameState *g, unsigned i, uint8_t v);
 
 /* Where the wave on the layer over a map screen's map is in its sine, which moves on 4 steps a
  * frame. The handler means its object's own phase (+$22) but reaches it through an index its
@@ -2041,6 +2184,24 @@ void set_menu_line_effects(GameState *g, uint8_t v);
 uint8_t menu_palette_changed(const GameState *g);
 void set_menu_palette_changed(GameState *g, uint8_t v);
 
+/* The screen step the cursor last read the buttons in: a step's first frame reads none */
+uint8_t menu_cursor_step_seen(const GameState *g);
+void set_menu_cursor_step_seen(GameState *g, uint8_t v);
+
+/* The buttons read this frame as the menus take them: bit 7 choose and bit 6 go back (the
+ * player's first two assignments), bits 1 and 0 the seventh and eighth, repeating; none on a
+ * step's first frame */
+uint8_t menu_cursor_buttons(const GameState *g);
+void set_menu_cursor_buttons(GameState *g, uint8_t v);
+
+/* The way the cursor was pushed this frame: 0 right, 1 left, 2 down, 3 up, $80 none */
+uint8_t menu_cursor_direction(const GameState *g);
+void set_menu_cursor_direction(GameState *g, uint8_t v);
+
+/* Nonzero keeps the cursor where it is against the next push; the push clears it */
+uint8_t menu_cursor_held(const GameState *g);
+void set_menu_cursor_held(GameState *g, uint8_t v);
+
 /* Added to each $1800 record's X position when its sprites are drawn */
 uint16_t menu_record_origin_x(const GameState *g);
 void set_menu_record_origin_x(GameState *g, uint16_t v);
@@ -2049,8 +2210,16 @@ void set_menu_record_origin_x(GameState *g, uint16_t v);
 uint8_t menu_record_origin_y(const GameState *g);
 void set_menu_record_origin_y(GameState *g, uint8_t v);
 
+/* The tilemap word of the window style being drawn's first tile: its number, where the style's
+ * twenty tiles start, and its attribute (palette and priority), which every tile of the window
+ * takes */
+uint16_t menu_window_style(const GameState *g);
+void set_menu_window_style(GameState *g, uint16_t v);
+
 enum { MENU_SAVE_SLOT_IN_USE_COUNT = 4 };   /* by save slot */
-/* Nonzero for the save slots that hold a game; the load screen skips the others */
+/* Nonzero for the save slots that hold a game, and for the fourth row while it can be chosen
+ * (the menus set it to $FF as they open; it is 0 while the load screen asks which game a New
+ * Game+ continues from); the load screen's cursor skips the others */
 uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot);
 void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v);
 
@@ -2060,7 +2229,19 @@ void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v);
 uint8_t menu_member_marked(const GameState *g);
 void set_menu_member_marked(GameState *g, uint8_t v);
 
-/* A frame countdown the vblank handler decrements until it reaches zero */
+enum { MENU_MEMBERS_COUNT = 9 };   /* by member, as the menus list them */
+/* The party's characters as the menus list them: the active members, then the waiting ones, $FF
+ * past the last */
+uint8_t menu_members(const GameState *g, unsigned member);
+void set_menu_members(GameState *g, unsigned member, uint8_t v);
+
+enum { MENU_MEMBER_PLACES_COUNT = 9 };   /* by member, as the menus list them */
+/* Each listed member's place in the party: 0-2 active, 3-8 waiting */
+uint8_t menu_member_places(const GameState *g, unsigned member);
+void set_menu_member_places(GameState *g, unsigned member, uint8_t v);
+
+/* A frame countdown the vblank handler decrements until it reaches zero: the menus' sounds wait
+ * on it, three frames after one plays */
 uint8_t menu_wait_frames(const GameState *g);
 void set_menu_wait_frames(GameState *g, uint8_t v);
 
@@ -2069,19 +2250,99 @@ void set_menu_wait_frames(GameState *g, uint8_t v);
 uint8_t menu_save_slot_era(const GameState *g);
 void set_menu_save_slot_era(GameState *g, uint8_t v);
 
+enum { MENU_SAVE_SLOT_DESIGN_COUNT = 3 };   /* by save slot */
+/* The window design each save slot's game was saved with, which the load screen draws the slot's
+ * row in */
+uint8_t menu_save_slot_design(const GameState *g, unsigned slot);
+void set_menu_save_slot_design(GameState *g, unsigned slot, uint8_t v);
+
+/* Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but
+ * the setup's clearing */
+uint8_t menu_cursor_always_back(const GameState *g);
+void set_menu_cursor_always_back(GameState *g, uint8_t v);
+
 /* Nonzero while the load screen uses the slot header's place for something else ($C2:E841 loads
  * another graphic there and sets it, $C2:E6FC clears it): a slot is then drawn without its
  * header and era label */
 uint16_t menu_save_header_taken(const GameState *g);
 void set_menu_save_header_taken(GameState *g, uint16_t v);
 
+/* The settings screen's cells, one a setting, which the menus unpack from the player's settings
+ * as they open: stereo or mono (the first byte's bit 3) */
+uint8_t menu_setting_sound_output(const GameState *g);
+void set_menu_setting_sound_output(GameState *g, uint8_t v);
+
+/* Nonzero where the player's own button assignments are in use rather than the default (the
+ * first byte's bit 4) */
+uint8_t menu_setting_own_buttons(const GameState *g);
+void set_menu_setting_own_buttons(GameState *g, uint8_t v);
+
+/* Nonzero where the menus keep their cursors' places from one opening to the next (the first
+ * byte's bit 5) */
+uint8_t menu_setting_keep_menu_cursors(const GameState *g);
+void set_menu_setting_keep_menu_cursors(GameState *g, uint8_t v);
+
+/* Nonzero for the battle's active time (the first byte's bit 6) */
+uint8_t menu_setting_active_time(const GameState *g);
+void set_menu_setting_active_time(GameState *g, uint8_t v);
+
+/* The battle gauge's layout (the third byte's low two bits) */
+uint8_t menu_setting_battle_gauge(const GameState *g);
+void set_menu_setting_battle_gauge(GameState *g, uint8_t v);
+
+/* The battle's speed (the first byte's low three bits) */
+uint8_t menu_setting_battle_speed(const GameState *g);
+void set_menu_setting_battle_speed(GameState *g, uint8_t v);
+
+/* Which of the eight window designs the player chose in the settings, which windows are drawn in
+ * unless their list names a style */
+uint8_t menu_window_design(const GameState *g);
+void set_menu_window_design(GameState *g, uint8_t v);
+
+/* Nonzero where the battle keeps each member's command cursor (the second byte's bit 6) */
+uint8_t menu_setting_keep_battle_command(const GameState *g);
+void set_menu_setting_keep_battle_command(GameState *g, uint8_t v);
+
+/* Nonzero where the battle keeps each member's tech and item cursors (the second byte's bit 7) */
+uint8_t menu_setting_keep_battle_lists(const GameState *g);
+void set_menu_setting_keep_battle_lists(GameState *g, uint8_t v);
+
+/* Nonzero where the battle shows a tech's or item's description as the cursor meets it (the
+ * first byte's bit 7) */
+uint8_t menu_setting_descriptions(const GameState *g);
+void set_menu_setting_descriptions(GameState *g, uint8_t v);
+
+/* How fast the dialog's messages go (the second byte's bits 3-5) */
+uint8_t menu_setting_message_speed(const GameState *g);
+void set_menu_setting_message_speed(GameState *g, uint8_t v);
+
+/* The byte after the unpacked settings, which their clearing clears with them; nothing in bank
+ * C2 reads it */
+uint8_t menu_setting_spare(const GameState *g);
+void set_menu_setting_spare(GameState *g, uint8_t v);
+
 /* Nonzero skips placing the cursor sprite for one frame; the per-frame sprite reset clears it */
 uint8_t menu_cursor_hidden(const GameState *g);
 void set_menu_cursor_hidden(GameState *g, uint8_t v);
 
+/* Sounds a screen has asked for and not yet played: bit 1 the menus' sound 6, bit 0 their sound
+ * 7, played by $C2:EAD6 the first first */
+uint8_t menu_queued_sounds(const GameState *g);
+void set_menu_queued_sounds(GameState *g, uint8_t v);
+
 /* Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it loads */
 uint16_t menu_load_destination(const GameState *g);
 void set_menu_load_destination(GameState *g, uint16_t v);
+
+/* The tilemap word the menus lay a graphic they drew out from: its first tile and attribute (the
+ * load screen's slot labels, the text loader's graphics) */
+uint16_t menu_graphic_first_tile(const GameState *g);
+void set_menu_graphic_first_tile(GameState *g, uint16_t v);
+
+/* The cursor position a screen keeps to come back to: the load screen's slot while it asks
+ * whether to erase it */
+uint8_t menu_kept_cursor(const GameState *g);
+void set_menu_kept_cursor(GameState *g, uint8_t v);
 
 enum { MENU_GATE_SCREEN_STATE_COUNT = 14 };   /* by byte; the first two are cleared and the rest come from $FF:D57A */
 /* The End of Time gate screen's state, set up when the screen starts */
@@ -2210,6 +2471,12 @@ enum { MENU_ERA_LABEL_TILES_ROWS = 2, MENU_ERA_LABEL_TILES_COLUMNS = 18 };
 uint8_t menu_era_label_tiles(const GameState *g, unsigned row, unsigned column);
 void set_menu_era_label_tiles(GameState *g, unsigned row, unsigned column, uint8_t v);
 
+enum { MENU_CARRY_ON_QUESTION_COUNT = 256 };   /* by byte */
+/* The load screen's slot header rows in BG3's tilemap buffer, where the question of which game a
+ * New Game+ carries on from is laid out over the header, and cleared when the player goes back */
+uint8_t menu_carry_on_question(const GameState *g, unsigned i);
+void set_menu_carry_on_question(GameState *g, unsigned i, uint8_t v);
+
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes, one at a
  * time] */
@@ -2252,18 +2519,18 @@ void set_menu_cursor_places_x(GameState *g, unsigned i, uint8_t v);
 /* The cursor's Y */
 uint8_t menu_cursor_places_y(const GameState *g, unsigned i);
 void set_menu_cursor_places_y(GameState *g, unsigned i, uint8_t v);
-/* The position right of this one ($80 set: none, leave the menu that way) */
-uint8_t menu_cursor_places_right(const GameState *g, unsigned i);
-void set_menu_cursor_places_right(GameState *g, unsigned i, uint8_t v);
-/* The position left of it */
-uint8_t menu_cursor_places_left(const GameState *g, unsigned i);
-void set_menu_cursor_places_left(GameState *g, unsigned i, uint8_t v);
+/* The position above this one ($80 set: the push leaves the menu's positions that way) */
+uint8_t menu_cursor_places_up(const GameState *g, unsigned i);
+void set_menu_cursor_places_up(GameState *g, unsigned i, uint8_t v);
 /* The position below it */
 uint8_t menu_cursor_places_down(const GameState *g, unsigned i);
 void set_menu_cursor_places_down(GameState *g, unsigned i, uint8_t v);
-/* The position above it */
-uint8_t menu_cursor_places_up(const GameState *g, unsigned i);
-void set_menu_cursor_places_up(GameState *g, unsigned i, uint8_t v);
+/* The position left of it */
+uint8_t menu_cursor_places_left(const GameState *g, unsigned i);
+void set_menu_cursor_places_left(GameState *g, unsigned i, uint8_t v);
+/* The position right of it */
+uint8_t menu_cursor_places_right(const GameState *g, unsigned i);
+void set_menu_cursor_places_right(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_PALETTE_COUNT = 256 };   /* by color */
 /* The menus' working palette, sent to CGRAM when $0D15 says it changed (party portraits' colors
@@ -2373,6 +2640,12 @@ void set_menu_status_record_last(GameState *g, uint16_t v);
 enum { MENU_STATUS_RECORD_TAIL_BYTES = 6 };
 uint8_t menu_status_record_tail_byte(const GameState *g, unsigned at);
 void set_menu_status_record_tail_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_BLANK_STRING_COUNT = 32 };   /* by tile */
+/* Thirty-two blank tiles, which the menus draw as a string (as many as the drawer is told) where
+ * a list has nothing to name */
+uint8_t menu_blank_string(const GameState *g, unsigned i);
+void set_menu_blank_string(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_MATH_RECORDS_COUNT = 40 };   /* by record; a line count with bit 7 set ends the list */
 /* 0 for a single entry; nonzero for a ramp; bit 7 ends the list */
@@ -2908,6 +3181,18 @@ void set_menu_object_vram_queue_port_unchecked(GameState *g, unsigned i, uint8_t
  * Put back to $7E:F000 once each frame's queue is out */
 uint32_t menu_object_upload_buffer(const GameState *g);
 void set_menu_object_upload_buffer(GameState *g, uint32_t v);
+
+enum { MENU_MAP_COLUMN_COUNT = 2 };   /* by plane */
+/* Which background tile column of the map each plane has at its left edge (0-191), set from the
+ * party's tile at $0102 ($C2:2720). A third plane's word would be menu_map_row's first, and its
+ * tile groups would be the first plane's map, so only two planes can be scrolled */
+uint16_t menu_map_column(const GameState *g, unsigned i);
+void set_menu_map_column(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_MAP_ROW_COUNT = 3 };   /* by plane */
+/* And which tile row it has at its top edge (0-127) */
+uint16_t menu_map_row(const GameState *g, unsigned i);
+void set_menu_map_row(GameState *g, unsigned i, uint16_t v);
 
 /* The sprite object mode's CGRAM image: the vblank handler sends all 512 bytes to colour 0 when
  * the mode asks for it, and screens patch rows into it (the map view's sixteen map colours land

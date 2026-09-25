@@ -5999,6 +5999,117 @@ elsewhere. The bot now backs out of a list it didn't ask for
 routines the battle still calls out to, the meanings not worked out, the
 quirks reproduced on purpose, and the accepted divergences.
 
+### Phase 3, menus: the load screen, the window language and the opening
+
+The first chunk of Phase 3's bank `$C2` wave: the screen every game starts
+from, and what it is built with. `python3 tools/burndown.py` for `$C2`: 17.2
+KiB ported and 71% left with 173 entries before, 19.8 KiB and 67% left with
+216 entries before the opening's two came out (TODO.md); about 2.2 KiB of new code in 41 entries, and about 0.7 KiB of
+earlier ports (the save screen's slot, `menu_window_set_line_effect`, the
+sprite reset) rewritten onto what the chunk built. All of it to the bar:
+`game/menu/` scores 0.03 operations a line with 35% of its functions on the
+machine, and none of the new files is on the baseline.
+
+**The files, by the game.**
+
+- `windows.c`: the window command language every menu screen is drawn with
+  (the interpreter `$C2:ED31`, its eleven commands and their handlers). The
+  commands are one C table (`LANGUAGE`) that decodes operands into places,
+  sizes, styles and strings, and names the handler whose time each command's
+  work is charged at; a window style is the tile its twenty tiles start at,
+  in the player's design or the one a list names. The frame, the inside's
+  four-by-four pattern, the colours of a design and the label strips are
+  functions the load screen and the save screen call directly.
+- `cursor.c`: the cursor's reading of the pad (`$C2:E984`: a push moves it to
+  the place's neighbour in that direction, the buttons it reports), the
+  sprite table's reset under it, and the menus' sounds (`$C2:EABA`-`$EB03`,
+  through the audio service with the original's three-frame wait left to the
+  driver's call).
+- `load_screen.c`: screen 14's steps after its opening (choosing, which game a
+  New Game+ carries on from, and the erase question) and a slot's row in the
+  design its game was saved with. The opening step itself is still the
+  original's (below).
+- `save_screen.c` gained the slots' reading as the menus open (`$C2:D156`):
+  the save code's check of each slot, the summary read from the cartridge
+  through the save service, the chapter's and the slot's name labels; and
+  `saves.h` is the cartridge's record of the three games (the slot saved
+  last, times finished, whether the game has been finished, each slot's mark),
+  which also retires `menu_saves_finished_game`'s read of save RAM through the
+  ROM accessor.
+- `opening.c`: what the menus do each time they open (`$C2:8096`): take the
+  interrupts, quiet the sound effects, blank the screen, read the slots, list
+  the party, unpack the settings. Its graphics, sprites and items are still
+  call-outs (TODO.md).
+- `bridge.c`: the menus' one way to call the original's code
+  (`menu_call`, `menu_call_long`, and `menu_call_returning` for a callee
+  that comes back with widths of its own), `menu_run` for a sibling port run as
+  the original's `JSR` reaches it, and the frame of a routine a bridge stands
+  in for. Unlike the battle's and the field's, the menus' routines change
+  widths from routine to routine and save their caller's with `PHP`, so a
+  call's check is the widths, the page and the data bank it was made with.
+
+**A liveness hint for the task switch.** The menus' tasks yield with
+`JSR $C2:821E` and wait with `JSR $C2:822B`, which save the caller's
+registers on the task's own stack and return on another task's; the pairing
+of pushes can't follow it, so every register was live after every call to
+them and no mode handler could declare anything dead. `re/hints.toml` now has
+`[[keeps]]` (DISASSEMBLY.md): a call that comes back with the listed
+registers as its caller had them, reading only `reads`. Liveness takes the
+call as that summary (`tools/disasm/liveness.py`, `_kept_summary`), and
+`tests/test_disasm.py` checks it on a task switch built in the test. The
+don't-care check still finds nothing across the library.
+
+**Found by shadow mode.** The cursor's reading leaves its loop's bit in the
+menus' first cell; a label strip steps its tile after setting bit 4, not
+before; the list handlers that run with any accumulator width (`$C2:F378` is
+reached with a 16-bit one from `$C2:C773`); `$C2:968D` comes back with an
+8-bit accumulator; the slots' reading leaves the slot count at 3 and the time
+played's cell holds the game's start as the bus addresses it. A guard that
+read save RAM through the service cost the machine 8 clocks and moved the
+generated code's timing: guards peek (`snes_bus_peek`).
+
+**Found by fuzzing** (tools/fuzz_routines.toml; PORTING.md has the counts):
+the settings' clearing clears a byte past the last setting; the slots' count
+starts from the menus' zero word, and the gold a summary hides is written
+from it; the summary reads the checked slot's game from the cell the save
+code leaves (`menu_slot_game_at`), not from the slot's number, and steps
+through the party a byte at a time within its page; the time played's digits
+past 9 carry through the original's multiplication by ten; a window list's
+string reads the number conversion's zero word, so the save screen's guard
+now asks for it too; the header's "taken" count is a byte; loading a design's
+colours counts a palette change a word wide, so the drawing's guards leave
+room in the count; and several entries were refused widths the game never
+calls them with (the index registers 16-bit), where the original loops. The
+save screen's rewrite against its predecessor (`tools/fuzz_compare.py`): 0
+mismatched of 2,000 both before and after, once the summaries' names are
+letters, as the game's name entry makes them; with control codes in the
+names, the strings drew through the text port's accepted divergences (TODO.md).
+
+**A port that spans frames.** The load screen's opening (`$C2:E613`, which
+draws the whole screen through `$C2:E7C3`) was ported and matched wherever
+shadow mode could compare it, but every call of it in the library is
+interrupted, and in the shipping mode it broke the `beyond_time` route: loading
+the Final Battle save, the screen never appeared and the game ran into a `BRK`
+two frames later. Its drawing takes the original more than a frame, with the
+menus' vblank handler taken inside it; as one port, the time is owed at its
+return and the handler taken there, twice, and with the time charged cheaply
+(an experiment, not a fix) the screen appears. The route passes with the two
+entries left to the original. Why taking the handler at the port's return
+twice goes wrong is not worked out (TODO.md); the code is out of the tree
+until it is, since nothing else calls it.
+
+**Timing.** Every entry is calibrated from the library but the ones only
+`menu_open` runs, and a window list charges each command at its handler's
+rate (the handlers are in the `LANGUAGE` table: the first cut took their
+addresses from the ROM's table without their bank, so their time went to no
+hand port). The inside's pattern is drawn a row and repeated with block moves
+as the original does, which is where its time goes. Three entries are
+exceptions (`tools/timing_exceptions.txt`): the list interpreter and the
+string command carry the text engine's spread in vblank, which the text port
+already has. In the shipping mode the menus' vblank work lands on line 41-44
+once in each of four save movies (two picture lines on one frame;
+`tools/vblank_check_exceptions.txt`).
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,
