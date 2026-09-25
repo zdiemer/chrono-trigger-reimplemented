@@ -4574,11 +4574,63 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", 
 why = "the player walking the leader into the map and the objects: control, no choices, no recentring, the collisions on, and every object on the map's middle tiles"
 
 [[routine]]
+name = "field_walk_the_leader"
+variant = "past-the-tables"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=40-7F", "--fill", "7E1D1E-7E1D1F=3F-3F", "--fill", "7E011F-7E0120=01-01", "--fill", "7E0162-7E0162=00-00", "--fill", "7E0138-7E0138=00-00", "--fill", "7E1800-7E197F=08-37"]
+why = "a map object count of 64-127, whose doubled byte starts the search for objects in the way past the tables (what_the_original_meets_past_the_tables): the leader walking, the objects' positions and velocities (what the slots past the tables read as positions) on the map's middle tiles"
+
+[[routine]]
 name = "field_recentre_the_screen"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0138-7E0138=00-03"]
 why = "the field's page and data bank; the leader an object (the guard's, field/walk.c); the recentring's states and one past them"
+
+[[routine]]
+name = "field_stream_the_layers"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E1D1E-7E1D1F=00-3F", "--fill", "7E1D20-7E1D23=00-3F"]
+why = "the layers' page and a data bank reaching the I/O registers; each layer's map index mask within the 64 by 64 tables: the guard's (field/streaming.c)"
+
+[[routine]]
+name = "field_stream_the_layers"
+variant = "moving"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E1D1E-7E1D1F=3F-3F", "--fill", "7E1D20-7E1D23=3F-3F", "--fill", "7E1D41-7E1D4C=00-12", "--fill", "7E1D93-7E1D98=00-0F"]
+why = "every layer moving up to 18 pixels each way, from any place in its tile, so every side's rows and columns are due"
+
+[[routine]]
+name = "field_stream_the_layers"
+variant = "half-pace"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E1D1E-7E1D1F=3F-3F", "--fill", "7E1D20-7E1D23=3F-3F", "--fill", "7E0BC9-7E0BC9=80-FF", "--fill", "7E1D41-7E1D4C=00-12", "--fill", "7E1D93-7E1D98=00-1F", "--fill", "7E1D35-7E1D35=00-07"]
+why = "BG2 at half the pace with its own edges and a place in its 32 pixels, and the layers drawn whole or not"
+
+[[routine]]
+name = "field_draw_bg1_at_the_load"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E1D1E-7E1D1F=00-3F", "--fill", "7E1D20-7E1D23=00-3F"]
+why = "the layers' page; the masks within the tables (the guard's)"
+
+[[routine]]
+name = "field_draw_bg2_at_the_load"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E1D1E-7E1D1F=00-3F", "--fill", "7E1D20-7E1D23=00-3F", "--fill", "7E1D35-7E1D35=00-07", "--fill", "7E0BC9-7E0BC9=00-FF", "--fill", "7E0BCF-7E0BCF=10-20", "--fill", "7E0BD1-7E0BD1=10-20"]
+why = "drawn whole or not, at half the pace or not, the map 16 or more tiles wide and high"
+
+[[routine]]
+name = "field_draw_bg3_at_the_load"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E1D1E-7E1D1F=00-3F", "--fill", "7E1D20-7E1D23=00-3F", "--fill", "7E1D35-7E1D35=00-07", "--fill", "7E0BD3-7E0BD3=10-20", "--fill", "7E0BD5-7E0BD5=10-20"]
+why = "drawn whole or not, the map 16 or more tiles wide and high"
 
 [[routine]]
 name = "event_party_back_together"

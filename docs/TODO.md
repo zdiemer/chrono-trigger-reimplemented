@@ -704,11 +704,11 @@ below. `python3 tools/timing_census.py` re-runs the census.
     can wipe it whole.
 - **What the leader's walk left** (RECOMP.md, "Phase 3, field and events:
   the leader's walk and the confirm button"):
-  - the walk and the screen's recentring still call the layers' scroll
-    (`$C0:91AC`, a port) and the screen's edges (`$C0:93E1`, the original's)
-    as call-outs on the layers' page; the edges stream the map's rows and
-    columns in through the WRAM port (`$C0:8243`-`$C0:8444`, the builders at
-    `$C0:7199`), the next chunk (PLAN.md);
+  - the walk and the screen's recentring call the layers' scroll
+    (`$C0:91AC`) and the streaming (`$C0:93E1`) as call-outs on the layers'
+    page, though both are ports now: a C call timed as each would drop the
+    machine from the walk's entry, once their own rows can be calibrated
+    without their own calls (they have no other callers);
   - a chest's gift goes to the party through the battle bank's inventory
     service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out: the
     party's inventory as a module is the menus' or the battle's to write, and
@@ -728,13 +728,32 @@ below. `python3 tools/timing_census.py` re-runs the census.
     (`KEEPS_FIELD_SONG`);
   - `field_message_mark` (`$02A1`) is cleared by the chests' message and the
     battle's (`$CD:0264`), and nothing read so far reads it;
-  - the walk's guard leaves to the original a frame where the map's object
-    count, doubled in a byte, starts the search past the tables (112 and 123
-    at `$7F:2000`, for a frame or two in six movies: 20 of 194,763 calls),
-    where the original reads the bytes after them; and a frame with nobody
-    leading and a step asked for, where it indexes the tables with the empty
-    place's marker (`$80`). A native build has no bytes past the tables to
-    read: what `$7F:2000` holds on those frames is still to be read.
+  - the walk's guard still leaves to the original a map object count of 0
+    or 128, which would start its search on object 0 and go round the slots
+    past the tables, and a frame with nobody leading and a step asked for,
+    where it indexes the tables with the empty place's marker (`$80`); the
+    library makes neither. The counts of 64-127 it makes on a frame or two in
+    six movies (112 and 123 at `$7F:2000`) are ports with scaffolding
+    (RECOMP.md, "Phase 3, field and events: the map scrolling in"): what
+    `$7F:2000` holds on those frames, and whether the confirm button's and
+    the moves' searches meet it too (their guards still require a count
+    under 64), is still to be read.
+- **What the map scrolling in left** (RECOMP.md, "Phase 3, field and events:
+  the map scrolling in"):
+  - the rows BG1's and BG2's builders end with the second half of the map
+    tile past the last, where the first would continue the line; it lies
+    past the screen's right edge, and a native tile map that draws the view
+    rather than the original's 64 columns (widescreen) would show it: build
+    the first half there once the gate no longer compares the staging;
+  - the staging buffers are the original's, sent by the deferred uploads a
+    run at a time: a native renderer could take the rows and columns as
+    tile map writes directly;
+  - the map's whole-screen drawing leaves the edge runs' wrap cell 0, the
+    count its loop ran down (`field_layer_edge_wrap`'s low byte), which the
+    edges then read: a third use of that cell, with the climb's note;
+  - the blank that clears the staging at `$C0:75A0` (a block move from
+    `$D2:0000`) and the map's other loaders around the drawing (`$C0:7199`,
+    1104 bytes left in the run) are the original's.
 - **Bridges called from the engine are compared at the engine's boundary.**
   The engine calls a bridge directly, so shadow mode sees its call-outs as
   the engine's and abandons the bridge's own comparison ("started inside the

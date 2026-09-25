@@ -1105,6 +1105,11 @@ enum { FIELD_OBJECT_SCREEN_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 uint16_t field_object_screen_y(const GameState *g, unsigned slot);
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v);
 
+/* Bit 7: BG2 scrolls a pixel for every two its moves ask for, and keeps screen edges of its own
+ * (field_bg2_screen_left...); from the map's flags ($C0:A3A4) */
+uint8_t field_bg2_half_scroll(const GameState *g);
+void set_field_bg2_half_scroll(GameState *g, uint8_t v);
+
 /* Bit 0: the map has a third layer tile map */
 uint8_t field_map_flags(const GameState *g);
 void set_field_map_flags(GameState *g, uint8_t v);
@@ -1466,6 +1471,23 @@ void set_field_screen_top(GameState *g, uint8_t v);
 uint8_t field_screen_bottom(const GameState *g);
 void set_field_screen_bottom(GameState *g, uint8_t v);
 
+/* BG2's own left edge in 8-pixel tiles, where it scrolls at half the pace
+ * (field_bg2_half_scroll); the right, top and bottom follow */
+uint8_t field_bg2_screen_left(const GameState *g);
+void set_field_bg2_screen_left(GameState *g, uint8_t v);
+
+/* BG2's own right edge in 8-pixel tiles, where it scrolls at half the pace */
+uint8_t field_bg2_screen_right(const GameState *g);
+void set_field_bg2_screen_right(GameState *g, uint8_t v);
+
+/* BG2's own top edge in 8-pixel tiles, where it scrolls at half the pace */
+uint8_t field_bg2_screen_top(const GameState *g);
+void set_field_bg2_screen_top(GameState *g, uint8_t v);
+
+/* BG2's own bottom edge in 8-pixel tiles, where it scrolls at half the pace */
+uint8_t field_bg2_screen_bottom(const GameState *g);
+void set_field_bg2_screen_bottom(GameState *g, uint8_t v);
+
 /* The first column */
 uint8_t field_map_edges_left(const GameState *g);
 void set_field_map_edges_left(GameState *g, uint8_t v);
@@ -1482,6 +1504,12 @@ void set_field_map_edges_bottom(GameState *g, uint8_t v);
 /* Mask applied to a tile index (row << 8 | column) before the map attribute tables are read */
 uint16_t field_map_index_mask(const GameState *g);
 void set_field_map_index_mask(GameState *g, uint16_t v);
+
+enum { FIELD_LAYER_INDEX_MASKS_COUNT = 2 };   /* by layer less 1 (BG2, BG3) */
+/* BG2's and BG3's masks for a tile index (row << 8 | column), as field_map_index_mask is BG1's:
+ * where a layer's map repeats */
+uint16_t field_layer_index_masks(const GameState *g, unsigned layer);
+void set_field_layer_index_masks(GameState *g, unsigned layer, uint16_t v);
 
 enum { FIELD_LAYER_EXTRA_SPEED_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Horizontal */
@@ -1528,6 +1556,11 @@ void set_field_leader_movement_y(GameState *g, uint8_t v);
  * floor, which pulls the party along ($C0:9D6A) */
 uint8_t field_leader_ground(const GameState *g);
 void set_field_leader_ground(GameState *g, uint8_t v);
+
+/* Bit 1: BG2, bit 2: BG3 is drawn whole, its 64 by 32 tile map at the map's load, and nothing
+ * streams into it as it scrolls */
+uint8_t field_layer_drawn_whole(const GameState *g);
+void set_field_layer_drawn_whole(GameState *g, uint8_t v);
 
 /* Bit 1: BG2, bit 2: BG3 stays where it is while the screen scrolls (its accumulators leave out
  * the screen's steps and offsets) */
@@ -1595,6 +1628,12 @@ void set_field_walk_ahead_x(GameState *g, uint16_t v);
 /* Down, a tile ahead */
 uint16_t field_walk_ahead_y(const GameState *g);
 void set_field_walk_ahead_y(GameState *g, uint16_t v);
+
+enum { FIELD_LAYER_EDGES_CROSSED_COUNT = 4 };   /* by side: the row below the view, the row above it, the column right of it, the column left of it */
+/* The screen's edges each layer crossed this frame, a bit per layer (bits 0-2), whose row or
+ * column of the map is built into the layer's staging buffer; cleared at the frame's start */
+uint8_t field_layer_edges_crossed(const GameState *g, unsigned row);
+void set_field_layer_edges_crossed(GameState *g, unsigned row, uint8_t v);
 
 enum { FIELD_LAYER_UPLOAD_FLAGS_COUNT = 4 };   /* by upload group (tiles, tiles alt, columns, columns alt) */
 /* Deferred tile map uploads for the field NMI: bits 0-2 one per layer, cleared after they run */
@@ -1739,9 +1778,32 @@ enum { FIELD_TILE_WALKABLE_ROWS = 64, FIELD_TILE_WALKABLE_COLUMNS = 64 };
 uint8_t field_tile_walkable(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_walkable(GameState *g, unsigned row, unsigned column, uint8_t v);
 
+enum { FIELD_TILE_LOOKS_COUNT = 512 };   /* by look: a layer's map tile, with the tile set half the tile's properties give BG1 and BG2 (bit 8) */
+/* BG1's and BG2's map tiles as 8-pixel tile map entries: a 16-pixel tile's four (top left, top
+ * right, bottom left, bottom right, a word each), decompressed from the map's tile set
+ * ($C0:09DD) over the map's data once that is unpacked [8 bytes, one at a time] */
+enum { FIELD_TILE_LOOKS_BYTES = 8 };
+uint8_t field_tile_looks_byte(const GameState *g, unsigned layer, unsigned at);
+void set_field_tile_looks_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 uint8_t field_map_data(const GameState *g);
 void set_field_map_data(GameState *g, uint8_t v);
+
+enum { FIELD_BG3_TILE_LOOKS_COUNT = 256 };   /* by look: BG3's map tile */
+/* BG3's map tiles as 8-pixel tile map entries, four each as field_tile_looks [8 bytes, one at a
+ * time] */
+enum { FIELD_BG3_TILE_LOOKS_BYTES = 8 };
+uint8_t field_bg3_tile_looks_byte(const GameState *g, unsigned i, unsigned at);
+void set_field_bg3_tile_looks_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+enum { FIELD_LAYER_STAGING_COUNT = 3 };   /* by layer (BG1-BG3) */
+/* Each layer's tile map entries staged for VRAM: the row the screen scrolls onto from byte 0,
+ * the column from byte $80 (the deferred edge uploads send them, field/display.c); at a map's
+ * load, the whole screen's rows [2048 bytes, one at a time] */
+enum { FIELD_LAYER_STAGING_BYTES = 2048 };
+uint8_t field_layer_staging_byte(const GameState *g, unsigned layer, unsigned at);
+void set_field_layer_staging_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
 
 /* Bit 0 swaps which of the two per-line window tables window 2 reads in each set of the line
  * effects' tables; the scripts set it as the high byte of their variable $A8 (event_variables),

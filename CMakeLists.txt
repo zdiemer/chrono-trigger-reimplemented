@@ -115,6 +115,7 @@ add_library(ct_game STATIC
   game/field/object_update.c
   game/field/object_view.c
   game/field/party_trail.c
+  game/field/streaming.c
   game/field/window_corners.c
   game/field/scroll.c
   game/field/tile_copy.c

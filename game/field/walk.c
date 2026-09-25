@@ -353,11 +353,13 @@ static void what_the_original_meets_past_the_tables(const GameState *g, FieldObj
 {
     for (FieldObject slot = start; slot >= FIELD_OBJECTS; slot--) {
         uint8_t offset = field_object_offset(slot);
+        if (object_view_past_the_tables(g, slot) == OUT_OF_VIEW)
+            continue;
         ObjectPastTheTables past = object_past_the_tables(g, slot);
-        if (!past.looked_at || past.disabled || in_the_party(g, offset))
+        if (past.disabled || in_the_party(g, offset))
             continue;
         if (stands_close(g, offset, past.at, p)) {
-            *m = (Met){ true, offset, past.solid };
+            *m = (Met){ true, offset, object_solid_past_the_tables(g, slot) };
             return;
         }
     }

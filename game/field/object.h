@@ -555,12 +555,13 @@ void party_place_left_empty(GameState *g, unsigned place);
  * nobody there, and a native build reads nothing. */
 typedef struct {
     bool disabled;
-    bool looked_at;   /* its in-view byte isn't the out-of-view one */
-    bool solid;
     FieldPosition at;
 } ObjectPastTheTables;
 ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot);
+/* And what the walk's search reads besides: whether the slot's in-view byte
+ * isn't the out-of-view one, and whether it reads as solid. */
 ObjectView object_view_past_the_tables(const GameState *g, FieldObject slot);
+bool object_solid_past_the_tables(const GameState *g, FieldObject slot);
 
 /* The object a dialog's window is placed by, which is waiting on it. */
 void dialog_set_speaker(GameState *g, FieldObject speaker);

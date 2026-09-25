@@ -861,6 +861,9 @@
 #define RAM_FIELD_OBJECT_SCREEN_Y 0x7E0A80u
 #define RAM_FIELD_OBJECT_SCREEN_Y_COUNT 64u
 #define RAM_FIELD_OBJECT_SCREEN_Y_STRIDE 0x02u
+/* Bit 7: BG2 scrolls a pixel for every two its moves ask for, and keeps screen edges of its own
+ * (field_bg2_screen_left...); from the map's flags ($C0:A3A4) */
+#define RAM_FIELD_BG2_HALF_SCROLL 0x7E0BC9u
 /* Bit 0: the map has a third layer tile map */
 #define RAM_FIELD_MAP_FLAGS 0x7E0BCAu
 /* Sizes of a map's layer tile maps as unpacked [3 x $4 bytes, by layer (BG1-BG3)] */
@@ -1116,6 +1119,19 @@
 /* The screen's bottom edge in 8-pixel tiles */
 #define RAM_FIELD_SCREEN_BOTTOM 0x7E1D10u
 #define RAM_FIELD_SCREEN_BOTTOM_DP 0x10u     /* page field_layers */
+/* BG2's own left edge in 8-pixel tiles, where it scrolls at half the pace
+ * (field_bg2_half_scroll); the right, top and bottom follow */
+#define RAM_FIELD_BG2_SCREEN_LEFT 0x7E1D12u
+#define RAM_FIELD_BG2_SCREEN_LEFT_DP 0x12u   /* page field_layers */
+/* BG2's own right edge in 8-pixel tiles, where it scrolls at half the pace */
+#define RAM_FIELD_BG2_SCREEN_RIGHT 0x7E1D14u
+#define RAM_FIELD_BG2_SCREEN_RIGHT_DP 0x14u  /* page field_layers */
+/* BG2's own top edge in 8-pixel tiles, where it scrolls at half the pace */
+#define RAM_FIELD_BG2_SCREEN_TOP 0x7E1D16u
+#define RAM_FIELD_BG2_SCREEN_TOP_DP 0x16u    /* page field_layers */
+/* BG2's own bottom edge in 8-pixel tiles, where it scrolls at half the pace */
+#define RAM_FIELD_BG2_SCREEN_BOTTOM 0x7E1D18u
+#define RAM_FIELD_BG2_SCREEN_BOTTOM_DP 0x18u /* page field_layers */
 /* The map's edges in 16-pixel tiles, which the screen doesn't scroll past and the leader doesn't
  * walk past [4 bytes] */
 #define RAM_FIELD_MAP_EDGES 0x7E1D1Au
@@ -1128,6 +1144,12 @@
  * bytes] */
 #define RAM_FIELD_MAP_INDEX_MASK 0x7E1D1Eu
 #define RAM_FIELD_MAP_INDEX_MASK_DP 0x1Eu    /* page field_layers */
+/* BG2's and BG3's masks for a tile index (row << 8 | column), as field_map_index_mask is BG1's:
+ * where a layer's map repeats [2 x $2 bytes, by layer less 1 (BG2, BG3)] */
+#define RAM_FIELD_LAYER_INDEX_MASKS 0x7E1D20u
+#define RAM_FIELD_LAYER_INDEX_MASKS_COUNT 2u
+#define RAM_FIELD_LAYER_INDEX_MASKS_STRIDE 0x02u
+#define RAM_FIELD_LAYER_INDEX_MASKS_DP 0x20u /* page field_layers */
 /* Extra scroll speed per layer, 4.4 fixed point, set by event $E6 and cleared when
  * field_layer_extra_speed_time runs out [3 x $2 bytes, by layer (BG1-BG3)] */
 #define RAM_FIELD_LAYER_EXTRA_SPEED 0x7E1D24u
@@ -1171,6 +1193,10 @@
  * floor, which pulls the party along ($C0:9D6A) */
 #define RAM_FIELD_LEADER_GROUND 0x7E1D34u
 #define RAM_FIELD_LEADER_GROUND_DP 0x34u     /* page field_layers */
+/* Bit 1: BG2, bit 2: BG3 is drawn whole, its 64 by 32 tile map at the map's load, and nothing
+ * streams into it as it scrolls */
+#define RAM_FIELD_LAYER_DRAWN_WHOLE 0x7E1D35u
+#define RAM_FIELD_LAYER_DRAWN_WHOLE_DP 0x35u /* page field_layers */
 /* Bit 1: BG2, bit 2: BG3 stays where it is while the screen scrolls (its accumulators leave out
  * the screen's steps and offsets) */
 #define RAM_FIELD_LAYER_STILL 0x7E1D36u
@@ -1226,6 +1252,14 @@
 #define RAM_FIELD_WALK_AHEAD_DP 0x70u        /* page field_layers */
 #define RAM_FIELD_WALK_AHEAD_X 0x7E1D70u     /* Across */
 #define RAM_FIELD_WALK_AHEAD_Y 0x7E1D72u     /* Down, a tile ahead */
+/* The screen's edges each layer crossed this frame, a bit per layer (bits 0-2), whose row or
+ * column of the map is built into the layer's staging buffer; cleared at the frame's start [4 x
+ * $1 bytes, by side: the row below the view, the row above it, the column right of it, the
+ * column left of it] */
+#define RAM_FIELD_LAYER_EDGES_CROSSED 0x7E1D74u
+#define RAM_FIELD_LAYER_EDGES_CROSSED_COUNT 4u
+#define RAM_FIELD_LAYER_EDGES_CROSSED_STRIDE 0x01u
+#define RAM_FIELD_LAYER_EDGES_CROSSED_DP 0x74u /* page field_layers */
 /* Deferred tile map uploads for the field NMI: bits 0-2 one per layer, cleared after they run [4
  * x $1 bytes, by upload group (tiles, tiles alt, columns, columns alt)] */
 #define RAM_FIELD_LAYER_UPLOAD_FLAGS 0x7E1D78u
@@ -1339,8 +1373,26 @@
 #define RAM_FIELD_TILE_WALKABLE 0x7E70C0u
 #define RAM_FIELD_TILE_WALKABLE_ROWS 64u
 #define RAM_FIELD_TILE_WALKABLE_ROW_STRIDE 0x100u
+/* BG1's and BG2's map tiles as 8-pixel tile map entries: a 16-pixel tile's four (top left, top
+ * right, bottom left, bottom right, a word each), decompressed from the map's tile set
+ * ($C0:09DD) over the map's data once that is unpacked [512 x $8 bytes, by look: a layer's map
+ * tile, with the tile set half the tile's properties give BG1 and BG2 (bit 8)] */
+#define RAM_FIELD_TILE_LOOKS 0x7EB000u
+#define RAM_FIELD_TILE_LOOKS_COUNT 512u
+#define RAM_FIELD_TILE_LOOKS_STRIDE 0x08u
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 #define RAM_FIELD_MAP_DATA 0x7EB506u
+/* BG3's map tiles as 8-pixel tile map entries, four each as field_tile_looks [256 x $8 bytes, by
+ * look: BG3's map tile] */
+#define RAM_FIELD_BG3_TILE_LOOKS 0x7EC000u
+#define RAM_FIELD_BG3_TILE_LOOKS_COUNT 256u
+#define RAM_FIELD_BG3_TILE_LOOKS_STRIDE 0x08u
+/* Each layer's tile map entries staged for VRAM: the row the screen scrolls onto from byte 0,
+ * the column from byte $80 (the deferred edge uploads send them, field/display.c); at a map's
+ * load, the whole screen's rows [3 x $800 bytes, by layer (BG1-BG3)] */
+#define RAM_FIELD_LAYER_STAGING 0x7EC800u
+#define RAM_FIELD_LAYER_STAGING_COUNT 3u
+#define RAM_FIELD_LAYER_STAGING_STRIDE 0x800u
 /* Bit 0 swaps which of the two per-line window tables window 2 reads in each set of the line
  * effects' tables; the scripts set it as the high byte of their variable $A8 (event_variables),
  * through which the original reads it */

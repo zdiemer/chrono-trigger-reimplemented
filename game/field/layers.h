@@ -47,7 +47,8 @@ static inline MapPlace map_place_at(uint16_t index) { return (MapPlace){ (uint8_
 /* What the map says of a tile: a byte of properties, and two of attributes.
  *
  * The properties' top six bits are the tile's shape, how it is parted between
- * the map's two levels (TileShape, below).
+ * the map's two levels (TileShape, below); bits 0 and 1 which half of the
+ * map's tile looks BG1's and BG2's tile takes (field/streaming.c).
  *
  * The upper attributes: bit 6 raises the upper half of an object standing
  * there in front of the map; bit 4 is a step event, set off by the leader
@@ -65,6 +66,7 @@ typedef struct {
 } TileAttributes;
 enum { TILE_RAISES_SPRITES = 0x40, TILE_BLOCKED = 0x80 };
 enum { TILE_SHAPE_SHIFT = 2 };
+enum { BG1_TILE_SET_HALF = 0x01, BG2_TILE_SET_HALF = 0x02 };
 
 /* A tile's shape: all the lower part, all the upper, one of the 22 slopes
  * (field/field_data.h, FieldSlope: a line across the tile, one side of it
@@ -119,6 +121,12 @@ bool map_tile_copy_fits(uint16_t from, uint16_t to, uint16_t destination);
  * leaves them, or as it found them where it copied nothing. */
 uint16_t field_tile_copy_y(const GameState *g, uint16_t before);
 bool field_tile_copy_overflow(const GameState *g, bool before);
+
+/* Every frame: each layer's edge runs around its place in its tile map
+ * ($C0:7F9A); and the overflow of the runs' last sum, which the original
+ * leaves its callers. */
+void field_find_layer_edges(GameState *g);
+bool field_layer_edges_overflow(const GameState *g);
 
 /* field/tile_copy.c */
 void field_copy_tiles(Snes *s);

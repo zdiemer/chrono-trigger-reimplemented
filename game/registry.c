@@ -29,6 +29,7 @@
 #include "field/line_effects.h"
 #include "field/object_update.h"
 #include "field/party.h"
+#include "field/streaming.h"
 #include "field/walk.h"
 #include "field/sprites.h"
 #include "menu/display.h"
@@ -1039,6 +1040,14 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC091AC, .name = "field_update_layer_scroll", .fn = field_update_layer_scroll,
       .p_mask = CPU_FLAG_M | CPU_FLAG_D, .p_value = CPU_FLAG_M, .cost_milli = 4240,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_layers_page_low_bank },
+    { .addr = 0xC093E1, .name = "field_stream_the_layers", .fn = field_stream_the_layers, NEEDS_M8_X16_BINARY,
+      .cost_milli = 8308, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_streaming_can_run },
+    { .addr = 0xC075E9, .name = "field_draw_bg1_at_the_load", .fn = field_draw_bg1_at_the_load, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3204, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_streaming_can_run },
+    { .addr = 0xC078EC, .name = "field_draw_bg2_at_the_load", .fn = field_draw_bg2_at_the_load, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3265, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_bg2_drawing_can_run },
+    { .addr = 0xC07CB5, .name = "field_draw_bg3_at_the_load", .fn = field_draw_bg3_at_the_load, NEEDS_M8_X16_BINARY,
+      .cost_milli = 2976, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_streaming_can_run },
     { .addr = 0xC0AF4E, .name = "field_copy_tiles", .fn = field_copy_tiles, NEEDS_M8_X16_BINARY, .cost_milli = 6129,
       .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_tile_copy_fits },
     { .addr = 0xC0A521, .name = "field_unpack_tile_maps", .fn = field_unpack_tile_maps, NEEDS_M8_X16,

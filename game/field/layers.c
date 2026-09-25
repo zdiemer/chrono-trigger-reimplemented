@@ -170,7 +170,7 @@ static void leave_for_original(GameState *g, uint16_t right_column_at, uint16_t 
 /* Every frame: each layer's edge runs around its position (the tile at the
  * screen's top left), which the uploads send when the layer has moved onto
  * them. */
-static void compute_layer_edges(GameState *g)
+void field_find_layer_edges(GameState *g)
 {
     LayerEdges e;
     uint16_t right = 0, above = 0;
@@ -518,15 +518,19 @@ bool field_unpack_stays_clear(Snes *s)
 
 /* The overflow of BG3's right column's address, the last sum, is the one
  * thing its callers read; and it leaves A 8-bit, whatever it came with. */
-void field_compute_layer_edges(Snes *s)
+bool field_layer_edges_overflow(const GameState *g)
 {
-    GameState *g = state_of(s);
-    compute_layer_edges(g);
     uint16_t base = field_layer_map_base(g, FIELD_BG3);
     uint16_t sum = (uint16_t)(field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN) |
                               field_layer_edge_vram_byte(g, FIELD_BG3, 2 * EDGE_RIGHT_COLUMN + 1) << 8);
-    uint16_t index = (uint16_t)(sum - base);
-    m_set_flag(s, CPU_FLAG_V, field_add_overflows16(index, base));
+    return field_add_overflows16((uint16_t)(sum - base), base);
+}
+
+void field_compute_layer_edges(Snes *s)
+{
+    GameState *g = state_of(s);
+    field_find_layer_edges(g);
+    m_set_flag(s, CPU_FLAG_V, field_layer_edges_overflow(g));
     m_set_flag(s, CPU_FLAG_M, true);
     m_rts(s);
 }

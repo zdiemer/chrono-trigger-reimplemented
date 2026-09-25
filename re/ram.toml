@@ -28,7 +28,7 @@
 #       (docs/DISASSEMBLY.md, "The accessors").
 #
 #   [[var]]    name, addr | dp, [size], [count, stride, index], [rows, row_stride],
-#              [page], [unchecked], subsystem, meaning, source, [[var.field]]
+#              [page], [unchecked], [reuses], subsystem, meaning, source, [[var.field]]
 #       A variable. addr is "7E:AAAA" or "7F:AAAA" (low RAM $0000-$1FFF is
 #       $7E:0000-$1FFF, which banks $00-$3F mirror). size is the element's width
 #       in bytes (default 1); an array has count elements `stride` bytes apart
@@ -42,7 +42,10 @@
 #       `unchecked` says why marked scaffolding reaches past the variable on
 #       purpose (a `leave_stray_*` write the gate needs); it generates a second
 #       pair of accessors, `<name>_unchecked`, without the bounds check the
-#       others make (docs/DISASSEMBLY.md, "The accessors").
+#       others make (docs/DISASSEMBLY.md, "The accessors"). `reuses` names a
+#       variable of the same subsystem whose bytes this one takes over at
+#       another time (the map's data, decompressed where the tiles' looks go
+#       once it is unpacked), which the overlap check otherwise refuses.
 #
 #   [[var.field]]  name, offset, [size], meaning
 #       A record: the element is `stride` bytes and the fields are at these
@@ -2634,6 +2637,38 @@ meaning = "Where the game's chests start in bank $F5, and this location's, four 
 source = "game/event/chests.c open_the_chest $C0:1E0C"
 
 [[var]]
+name = "field_bg2_screen_left"
+addr = "7E:1D12"
+page = "field_layers"
+subsystem = "field"
+meaning = "BG2's own left edge in 8-pixel tiles, where it scrolls at half the pace (field_bg2_half_scroll); the right, top and bottom follow"
+source = "game/field/streaming.c, layer_moves_a_pixel ($C0:95E3-$C0:96B6)"
+
+[[var]]
+name = "field_bg2_screen_right"
+addr = "7E:1D14"
+page = "field_layers"
+subsystem = "field"
+meaning = "BG2's own right edge in 8-pixel tiles, where it scrolls at half the pace"
+source = "game/field/streaming.c, layer_moves_a_pixel ($C0:95E3-$C0:96B6)"
+
+[[var]]
+name = "field_bg2_screen_top"
+addr = "7E:1D16"
+page = "field_layers"
+subsystem = "field"
+meaning = "BG2's own top edge in 8-pixel tiles, where it scrolls at half the pace"
+source = "game/field/streaming.c, layer_moves_a_pixel ($C0:95E3-$C0:96B6)"
+
+[[var]]
+name = "field_bg2_screen_bottom"
+addr = "7E:1D18"
+page = "field_layers"
+subsystem = "field"
+meaning = "BG2's own bottom edge in 8-pixel tiles, where it scrolls at half the pace"
+source = "game/field/streaming.c, layer_moves_a_pixel ($C0:95E3-$C0:96B6)"
+
+[[var]]
 name = "field_map_edges"
 addr = "7E:1D1A"
 page = "field_layers"
@@ -2674,6 +2709,18 @@ meaning = "Across"
 name = "y"
 offset = 1
 meaning = "Down"
+
+[[var]]
+name = "field_layer_index_masks"
+addr = "7E:1D20"
+page = "field_layers"
+size = 2
+count = 2
+stride = 2
+index = "layer less 1 (BG2, BG3)"
+subsystem = "field"
+meaning = "BG2's and BG3's masks for a tile index (row << 8 | column), as field_map_index_mask is BG1's: where a layer's map repeats"
+source = "game/field/streaming.c, build_line ($C0:79CF, $C0:7BA9, $C0:7D66, $C0:7E60)"
 
 [[var]]
 name = "field_screen_scroll_step"
@@ -2735,6 +2782,14 @@ index = "layer (BG1-BG3)"
 subsystem = "field"
 meaning = "And down"
 source = "game/field/walk.c follow_with_the_screen $C0:99DE, recentre_the_screen $C0:885A; $C0:93E1"
+
+[[var]]
+name = "field_layer_drawn_whole"
+addr = "7E:1D35"
+page = "field_layers"
+subsystem = "field"
+meaning = "Bit 1: BG2, bit 2: BG3 is drawn whole, its 64 by 32 tile map at the map's load, and nothing streams into it as it scrolls"
+source = "game/field/streaming.c, layer_moves_a_pixel ($C0:950F-$C0:95E2, $C0:96B7-$C0:979A); $C0:0AB4, $C0:3E84"
 
 [[var]]
 name = "field_layer_still"
@@ -2852,6 +2907,16 @@ size = 16
 subsystem = "field"
 meaning = "The edge helpers' cells ($62-$6F): the column and row they were given and the counts they return (field/scratch.h: kept for the original's code and shadow mode)"
 source = "game/field/layers.c, field_compute_layer_edges $C0:7F9A"
+
+[[var]]
+name = "field_layer_edges_crossed"
+addr = "7E:1D74"
+page = "field_layers"
+count = 4
+index = "side: the row below the view, the row above it, the column right of it, the column left of it"
+subsystem = "field"
+meaning = "The screen's edges each layer crossed this frame, a bit per layer (bits 0-2), whose row or column of the map is built into the layer's staging buffer; cleared at the frame's start"
+source = "game/field/streaming.c, stream_the_layers $C0:93E1"
 
 [[var]]
 name = "field_layer_upload_flags"
@@ -12375,3 +12440,42 @@ size = 0x95
 subsystem = "menu"
 meaning = "The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value, then sixteen groups of three lines from the table at $FF:FC57, and an end"
 source = "game/menu/display.c, menu_window_build_line_table $FF:FC04"
+
+[[var]]
+name = "field_bg2_half_scroll"
+addr = "7E:0BC9"
+subsystem = "field"
+meaning = "Bit 7: BG2 scrolls a pixel for every two its moves ask for, and keeps screen edges of its own (field_bg2_screen_left...); from the map's flags ($C0:A3A4)"
+source = "game/field/streaming.c, layer_moves_a_pixel $C0:93F5"
+
+[[var]]
+name = "field_tile_looks"
+addr = "7E:B000"
+size = 8
+count = 0x200
+index = "look: a layer's map tile, with the tile set half the tile's properties give BG1 and BG2 (bit 8)"
+subsystem = "field"
+meaning = "BG1's and BG2's map tiles as 8-pixel tile map entries: a 16-pixel tile's four (top left, top right, bottom left, bottom right, a word each), decompressed from the map's tile set ($C0:09DD) over the map's data once that is unpacked"
+reuses = "field_map_data"
+source = "game/field/streaming.c, look_entry ($C0:7612, $C0:77E4, $C0:79CF, $C0:7BA9)"
+
+[[var]]
+name = "field_bg3_tile_looks"
+addr = "7E:C000"
+size = 8
+count = 0x100
+index = "look: BG3's map tile"
+subsystem = "field"
+meaning = "BG3's map tiles as 8-pixel tile map entries, four each as field_tile_looks"
+source = "game/field/streaming.c, look_entry ($C0:7D66, $C0:7E60)"
+
+[[var]]
+name = "field_layer_staging"
+addr = "7E:C800"
+size = 0x800
+count = 3
+stride = 0x800
+index = "layer (BG1-BG3)"
+subsystem = "field"
+meaning = "Each layer's tile map entries staged for VRAM: the row the screen scrolls onto from byte 0, the column from byte $80 (the deferred edge uploads send them, field/display.c); at a map's load, the whole screen's rows"
+source = "game/field/streaming.c, build_line ($C0:7612-$C0:7F57)"

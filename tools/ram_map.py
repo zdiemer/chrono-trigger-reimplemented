@@ -320,7 +320,7 @@ class Var:
     """A variable, an array of them, or an array of records."""
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
-            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked"}
+            "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -410,6 +410,13 @@ class Var:
                 if self.addr >> 16 != 0x7E or not 0 <= self.dp <= 0xFF:
                     raise MapError("%s: %s is not in page %r (D = $%04X)"
                                    % (where, fmt_addr(self.addr), self.page.name, self.page.d))
+
+        # A variable whose bytes its own subsystem uses for something else at
+        # another time (a map's data decompressed where its tiles' looks go
+        # after): it names the other, and says so in its meaning.
+        self.reuses = raw.get("reuses")
+        if self.reuses is not None and not (isinstance(self.reuses, str) and self.reuses.strip()):
+            raise MapError("%s: reuses names a variable" % where)
 
         # A variable some marked scaffolding reaches out of range on purpose
         # (a `leave_stray_*` write the gate needs): it gets a second, unchecked
@@ -537,7 +544,7 @@ class RamMap:
             for b_base, b in placed[i + 1:]:
                 if b_base >= a_end:
                     break
-                if a.subsystem != b.subsystem or a is b:
+                if a.subsystem != b.subsystem or a is b or b.name == a.reuses or a.name == b.reuses:
                     continue
                 if any(claims(a, x, b) and claims(b, x, a)
                        for x in range(b_base, min(a_end, b_base + b.span()))):

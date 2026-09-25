@@ -343,7 +343,7 @@ docstring says which way it is wrong). **67% of the code is still generated.**
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 11.2K | 1.1K | 83% | 42 |
-| field engine, events (`$C0`) | 59.4K | 25.9K | 5.0K | 56% | 262 |
+| field engine, events (`$C0`) | 59.4K | 30.0K | 8.6K | 49% | 266 |
 | menus, text (`$C2`) | 59.3K | 15.0K | 2.6K | 75% | 173 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 2.7K | 0.5K | 83% | 27 |
@@ -492,18 +492,16 @@ the party's gathering after a battle (`$C0:034B`); and the confirm button
 (`$C0:1AAC`): the search for the object before the leader, the talk, and the
 chests.
 
-The next chunk is the other half of the camera: **the screen's edges and the
-map streaming in**. The walk and the recentring still call the screen's edges
-(`$C0:93E1`, 1346 bytes unported) after the layers' scroll: it counts each
-layer's position in tiles as the screen moves and, where a layer crosses a
-tile, has a row or a column of its tile map built into the upload buffers
-through the WRAM port (`$C0:8243`-`$C0:8444`), by the builders the map's load
-uses too (the run `$C0:7199`, 3585 bytes: `$C0:7612`, `$C0:77E4`, `$C0:79CF`,
-`$C0:7BA9`, `$C0:7D66`), then works out the edges (`$C0:7F9A`, a port). The
-builders read the map's tiles, the tile set halves the tile copy knows, and
-the layers' page; they want the WRAM port as a platform service rather than
-its register, and the tile map's row and column as the map's concepts. That
-is about 5.5 KiB of one concept, and it closes the walk's last call-out.
+The third chunk (RECOMP.md, "Phase 3, field and events: the map scrolling
+in") took the other half of the camera: each layer's move a pixel at a time
+and the rows and columns of the map that come into view as it scrolls
+(`$C0:93E1` and the builders it calls, `$C0:8243`-`$C0:8444`), the layers
+drawn at a map's load (`$C0:75E9`, `$C0:78EC`, `$C0:7CB5`), and the 20 walk
+calls the guard refused (a map object count of 64-127). `$C0` now stands at
+30.0 KiB ported, 49% left. The wave stops here for the tooling pass; what
+`python3 tools/burndown.py --uncovered C0` lists next is the frame builder
+(`$C0:CBDC`, 6488 bytes), the field's main loop and map loading
+(`$C0:0B86`, 3878) and the sprite layouts (`$C0:BA65`, 3285).
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

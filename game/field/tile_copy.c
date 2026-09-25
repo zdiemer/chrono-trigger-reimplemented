@@ -24,7 +24,6 @@
 
 /* The properties' bits that say which half of its tile set a layer's tile
  * comes from. */
-enum { BG1_TILE_SET_HALF = 0x01, BG2_TILE_SET_HALF = 0x02 };
 
 static uint8_t table_byte(const GameState *g, MapTable table, MapPlace p)
 {

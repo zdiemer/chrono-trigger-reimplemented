@@ -70,9 +70,12 @@ ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot)
         (uint16_t)(field_object_x_tile_unchecked(g, slot) << 8 | field_object_x_fine_unchecked(g, slot)),
         (uint16_t)(field_object_y_tile_unchecked(g, slot) << 8 | field_object_y_fine_unchecked(g, slot)),
     };
-    return (ObjectPastTheTables){ (field_object_role_unchecked(g, slot) & ROLE_DISABLED_BIT) != 0,
-                                  object_view_past_the_tables(g, slot) != OUT_OF_VIEW,
-                                  (field_object_solid_unchecked(g, slot) & SOLID) != 0, at };
+    return (ObjectPastTheTables){ (field_object_role_unchecked(g, slot) & ROLE_DISABLED_BIT) != 0, at };
+}
+
+bool object_solid_past_the_tables(const GameState *g, FieldObject slot)
+{
+    return (field_object_solid_unchecked(g, slot) & SOLID) != 0;
 }
 
 /* An unreachable object's mark is kept as the top bit of its move length
