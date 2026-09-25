@@ -42,14 +42,14 @@ typedef struct {
 } Offsets;
 
 /* The offsets as the generator leaves them in the scene's cells, the
- * destination's page moved on past the last; nothing reads them again. */
+ * destination's page moved on past the last; nothing reads them again but the
+ * column step (below). */
 static void leave_offsets(GameState *g, const Offsets *o, uint16_t destination)
 {
     SceneProgramPage scene = scene_program_own();
     set_scene_call_matrix_table_offset(g, scene, o->table);
     set_scene_call_matrix_row_step(g, scene, o->row);
     set_scene_call_matrix_pair_step(g, scene, o->pair);
-    set_scene_call_matrix_column_step(g, scene, o->column);
     set_scene_call_matrix_destination(g, scene, destination);
 }
 
@@ -93,6 +93,10 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
 
     SceneProgramPage scene = scene_program_own();
     set_scene_call_matrix_source(g, scene, source);
+    /* The column step's cell is also the third byte of the product cell, which
+     * the program's next signed multiply adds into its product
+     * (scene/math.c): the step as the loop leaves it is game state. */
+    set_scene_call_matrix_column_step(g, scene, o.column);
     ORIGINAL_EFFECT(leave_offsets(g, &o, (uint16_t)((destination & 0x00FF) | page << 8)));
 }
 

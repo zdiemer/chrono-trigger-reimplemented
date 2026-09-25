@@ -202,7 +202,12 @@ void native_set_page_report(NativeRuntime *rt, bool on);
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);
 
-/* Per-routine results, and details of the first mismatches, to out. */
+/* How many mismatches native_report describes, and apart from them how many
+ * notes (abandoned comparisons, timing): 16 each unless set, at most 256. */
+void native_set_details(NativeRuntime *rt, int limit);
+
+/* Per-routine results, and details of the first mismatches, then of the
+ * first notes, to out. */
 void native_report(const NativeRuntime *rt, FILE *out);
 
 /* The comparison shadow mode uses: true, with the first difference described
@@ -395,5 +400,11 @@ extern void (*native_call_timeout_hook)(void);
  * (its timeout hook) calls native_call_poison_reset before the next. */
 extern bool (*native_call_poison)(uint32_t site, uint32_t target, uint64_t *bits);
 void native_call_poison_reset(void);
+
+/* Synchronous call-outs, for ct_fuzz --stop-at-call: called with the machine
+ * at the callee's entry (the return address pushed); a tool that wants the
+ * comparison to end there (a call that yields to another task, which never
+ * returns on this stack) takes it and doesn't come back. NULL by default. */
+extern void (*native_call_stop)(uint32_t site, uint32_t target, uint16_t dont_care);
 
 #endif

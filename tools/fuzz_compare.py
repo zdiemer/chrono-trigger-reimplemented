@@ -16,7 +16,11 @@ side by side, and exits non-zero when any routine's mismatch count differs.
 
 `--before` is a `ct_fuzz` built from the tree before the rewrite (a scratch build
 of `main`, outside the repo); `--after` is this tree's. Both must register the
-routine under the same name.
+routine under the same name. An entry the `--before` binary doesn't have (a
+routine ported for the first time) has nothing to compare against: it is run
+on `--after` alone and reported as `new`, with its own counts, which doesn't
+change the verdict. Leaving out `--before` runs every routine that way, which
+is how a chunk of new ports is fuzzed through the same constraints file.
 
 The routines and their constraints are in tools/fuzz_routines.toml, next to
 this file, so each subsystem adds its entries once and every later rewrite of
@@ -116,12 +120,16 @@ def make_state(ct_dev, rom, states_dir, name, spec):
 
 
 def fuzz(binary, rom, state, routine, seed, iterations):
+    if binary is None:
+        return {"missing": "no --before"}
     entry = routine["at"].replace(":", "") if "at" in routine else routine["name"]
     cmd = [str(binary), "--rom", str(rom), "--load-state", str(state), "--routine", entry,
            "--seed", str(seed), "--iterations", str(iterations), "--details", "0"]
     cmd += [str(a) for a in routine.get("args", [])]
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     m = RESULT.search(p.stdout)
+    if not m and re.search(r"^no routine ", p.stderr, re.M):
+        return {"missing": "not in this build"}
     if not m:
         return {"error": (p.stdout.strip().splitlines() or ["exit %d" % p.returncode])[-1]}
     out = {k: (v if k == "name" else int(v)) for k, v in m.groupdict().items()}
@@ -130,7 +138,13 @@ def fuzz(binary, rom, state, routine, seed, iterations):
 
 
 def verdict(before, after):
-    if "error" in before or "error" in after:
+    if "error" in after:
+        return "ERROR"
+    if "missing" in after:
+        return "ERROR"
+    if "missing" in before:
+        return "new"
+    if "error" in before:
         return "ERROR"
     if before["mismatched"] != after["mismatched"]:
         return "DIFFER"
@@ -140,6 +154,8 @@ def verdict(before, after):
 
 
 def cell(res):
+    if "missing" in res:
+        return res["missing"]
     if "error" in res:
         return "error: " + res["error"]
     return "%d/%d mismatched (%d skipped, %d guard)" % (res["mismatched"], res["matched"] + res["mismatched"],
@@ -148,7 +164,7 @@ def cell(res):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--before", required=True, help="ct_fuzz built from the tree before the rewrite")
+    ap.add_argument("--before", help="ct_fuzz built from the tree before the rewrite (left out: --after alone)")
     ap.add_argument("--after", required=True, help="ct_fuzz built from this tree")
     ap.add_argument("--ct-dev", help="ct_dev, to make base states that don't exist yet")
     ap.add_argument("--rom", default=str(ROOT / "roms" / "ct-usa.sfc"))
@@ -188,18 +204,19 @@ def main(argv=None):
             n = r.get("iterations", 20000)
             if args.iterations:
                 n = min(n, args.iterations)
-            b = pool.submit(fuzz, args.before, args.rom, paths[r["state"]], r, args.seed, n)
+            b = pool.submit(fuzz, args.before or None, args.rom, paths[r["state"]], r, args.seed, n)
             a = pool.submit(fuzz, args.after, args.rom, paths[r["state"]], r, args.seed, n)
             jobs.append((r, n, b, a))
         rows = [(r, n, b.result(), a.result()) for r, n, b, a in jobs]
 
-    bad = 0
+    bad = new = 0
     if args.markdown:
         print("| Routine | States | Before | After | |")
         print("|---|--:|---|---|---|")
     for r, n, before, after in rows:
         v = verdict(before, after)
         bad += v in ("DIFFER", "ERROR")
+        new += v == "new"
         if args.markdown:
             print("| `%s` | %d | %s | %s | %s |" % (label(r), n, cell(before), cell(after), v))
         else:
@@ -210,8 +227,8 @@ def main(argv=None):
         for r, lines in strays:
             for line in lines:
                 print("  %-50s %s" % (label(r), line))
-    print("fuzz_compare: %d routine%s, %d differ%s (seed %d)"
-          % (len(rows), "" if len(rows) == 1 else "s", bad, "" if bad == 1 else "", args.seed))
+    print("fuzz_compare: %d routine%s, %d differ%s, %d new (seed %d)"
+          % (len(rows), "" if len(rows) == 1 else "s", bad, "" if bad == 1 else "", new, args.seed))
     return 1 if bad else 0
 
 

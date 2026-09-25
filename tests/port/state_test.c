@@ -235,7 +235,8 @@ static bool host_byte(size_t offset)
     } host[] = {
 #define HOST(member) { offsetof(Snes, member), sizeof(((Snes *)0)->member) }
         HOST(cpu.bus), HOST(cpu.on_insn), HOST(cpu.on_insn_ctx),
-        HOST(bus.rom), HOST(bus.rom_size), HOST(bus.io), HOST(bus.wram_written), HOST(bus.on_access),
+        HOST(bus.rom), HOST(bus.rom_size), HOST(bus.io), HOST(bus.wram_written), HOST(bus.wram_scaffold), HOST(bus.scaffolding),
+        HOST(bus.on_access),
         HOST(apu.spc.bus), HOST(apu.on_insn), HOST(apu.on_insn_ctx), HOST(apu.on_dsp_write), HOST(apu.host), HOST(apu.host_ctx),
         HOST(on_line), HOST(on_line_ctx), HOST(on_frame_top), HOST(on_frame_top_ctx),
         HOST(intercept), HOST(intercept_ctx), HOST(interpreter), HOST(native_only),

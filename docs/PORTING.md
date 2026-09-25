@@ -97,7 +97,9 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   charged afterwards, one scanline at a time, so frame boundaries and line
   events still happen. An interrupt that comes due meanwhile is taken at the
   instruction boundary where the port stopped, and the rest of the time is paid
-  when the handler returns there (RECOMP.md, "The timing gate"). Each call's
+  when the handler returns there, wherever the handler moves the stack in the
+  meantime (RECOMP.md, "The timing gate", and "The tooling pass after Phase
+  3's first chunks"; a port that spans frames, below). Each call's
   cost is the time of its DMA transfers, as it is, plus the rest of its own
   bus-access clocks times the routine's `cost_milli`/1000 (or, for the clocks
   it attributes to another routine it runs inline, that routine's; Writing a
@@ -192,10 +194,11 @@ be inlined or none, or a call the port makes would be paired with the
 original's call for another object. The field rewrite learned this from
 105,923 mismatched draws (RECOMP.md, "Phase 3a: the field subsystem off the
 machine"); `every_draw_is_own` and `field_view_changes` exist for it. Two
-practical notes from the same work: the mismatch report stops at 16 details
-per entry, so a count is the thing to watch; and timing calibration rewrites
-every measured row, so a rewrite puts back the rows of subsystems it didn't
-touch.
+practical notes from the same work: the report describes 16 mismatches and,
+apart from them, 16 notes (abandoned comparisons, timing), mismatches first
+(`ct_dev --shadow-details N` for more), so a count is still the thing to
+watch; and timing calibration rewrites every measured row, so a rewrite puts
+back the rows of subsystems it didn't touch.
 
 **The bridges' vocabulary** is `game/field/bridge.h`'s, for the field's
 bridges and the event commands': `bridge_call(s, site, routine, dont_care,
@@ -603,6 +606,43 @@ set_variable_byte(g, v, value);
 - **Counted.** `tools/portstyle.py` reports each subsystem's and file's
   `ORIGINAL_EFFECT` uses, and the identifiers named after an address, beside
   its other two numbers.
+- **Checked never read back.** `tools/effects_check.py` finds, in the source,
+  every read by the logic of bytes some port writes only as scaffolding
+  (inside `ORIGINAL_EFFECT`, `#if ORIGINAL_EFFECTS` code, or a helper they
+  call), and `ct_dev --native on --scaffold-reads` catches the same in a
+  running game, in order: a port reading a byte whose latest write was
+  scaffolding, which the native build would read stale. The gate runs both,
+  the second over the vblank check's shipping-mode runs, as a ratchet on
+  `tools/effects_baseline.txt`. A new finding is answered before it merges:
+  the write is the game's, so make it plain; or the read takes a value
+  something else sets (the original's caller, before every call), and its
+  line goes in the baseline with the reason after a `#`. `python3
+  tools/effects_check.py --new` lists what the baseline doesn't have
+  (RECOMP.md, "The tooling pass after Phase 3's first chunks").
+
+## A port that spans frames
+
+A routine whose original takes longer than a frame (the load screen's drawing,
+`$C2:E7C3`, about 1.2 frames) is ported like any other. In the shipping mode
+its work is done at once and its time owed at the boundary where it stopped;
+the interrupts that fall due while the time is paid are taken there, each
+handler seeing the finished work (a timing difference, as with any port), and
+the debt waits for a handler wherever it moves the stack (RECOMP.md, "The
+tooling pass after Phase 3's first chunks"). What such a port must still do
+is stop where the original yields: a task switch or a wait for the next frame
+partway through is a stop (`m_stop_at` at the yield's address) or a call-out,
+never something run through. Shadow mode compares none of its calls when every
+one is interrupted, so fuzz it. To see what the shipping mode does with a
+routine as one port before writing it, run the original that way:
+
+```sh
+build/main/ct_dev --rom roms/ct-usa.sfc --movie <movie> --frames N --native on --as-port C2E7C3 --shot-every 100 --shot-dir <dir>
+```
+
+`--as-port BBAAAA[,...]` (`dev/as_port.h`) runs the routine all at once with
+time stopped and interrupts held, and owes its bus and internal clocks after
+it, as a port would with a `cost_milli` of 1000. It gives up on a routine that
+yields (2 million instructions without a return).
 
 ## Fuzzing
 
@@ -634,7 +674,10 @@ It runs both builds on every routine with the same state, seed and
 constraints, at most `-j` processes at a time, prints each routine's two counts
 (and the states each skipped, the guard's among them, since a guard the
 rewrite added turns states away rather than mismatching), and exits non-zero
-when any mismatch count differs. The routines and their constraints are in
+when any mismatch count differs. An entry the `--before` binary doesn't have
+is run on `--after` alone and reported `new` with its own counts, which don't
+change the verdict; without `--before`, every routine is run that way, which
+is how a chunk of new ports goes through the constraints file. The routines and their constraints are in
 `tools/fuzz_routines.toml`: one entry per registered routine, with its
 `ct_fuzz` options and the reason for each, and the base states named by movie
 and frame, which it makes with `--ct-dev` the first time and keeps in
@@ -693,7 +736,10 @@ natively is still compared at the default. The outcomes the report counts:
   fewer accesses than the original, so it would have finished;
 - the port ran past its budget and the original runs long too: skipped;
 - a call-out ran past the budget: skipped (random RAM sends callees into
-  endless loops);
+  endless loops). A call-out that never returns on its stack by design, a
+  menu task's yield (`$C2:821E`), would skip every state: `--stop-at-call
+  BBAAAA` ends each state's comparison at the port's call-out to that routine,
+  comparing the machines at the callee's entry with the call's don't-care set;
 - the port returned and the original didn't within its budget: skipped (and
   reported as "original never reached" when the port stopped somewhere other
   than the return).
@@ -706,6 +752,20 @@ bus holds the last byte on the data bus. The interpreter's instruction fetches
 set it and native code doesn't, so those reads differ in ways real game data
 never exercises. `--range` limits a register (script offsets, for example), and
 `--keep` leaves a WRAM range as it is in the base state. `--fill BBAAAA-BBAAAA=lo-hi` gives a WRAM range random bytes within limits, for example a pointer's bank byte in script operands.
+
+An area need not be every byte of its range, nor a fill a range of bytes:
+
+- `AREA:STEP` takes the elements that start every STEP bytes from the area's
+  first, for one field of each record in a table (`7E1100-7E11FF:10=00-07`);
+- `=V,V,...` picks each element from the values listed, as wide as the widest
+  written (two hex digits a byte, four a word, low byte first), so a script's
+  place or a record's offset is one of the real ones
+  (`[7E006D]+2,2=0010,0200,0350`);
+- `=@BBAAAA` copies the bytes at BBAAAA, as the state has them once every
+  other area is applied (ties go last), for two cells the game keeps equal
+  (`7E0042-7E0042=@7E0040`).
+
+A command takes up to 32 areas.
 
 Both also take an area at a pointer the state holds, for the fields of an
 object slot or a record wherever the random state puts it:

@@ -644,6 +644,10 @@ offset = 0x4
 size = 4
 meaning = "The multiplies' 32-bit product"
 [[var.field]]
+name = "product_third_byte"
+offset = 0x6
+meaning = "The product's third byte as the last routine to use the cells left it, which the signed multiply adds into its product"
+[[var.field]]
 name = "divisor"
 offset = 0x4
 size = 4

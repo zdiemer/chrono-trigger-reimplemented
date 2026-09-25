@@ -11,7 +11,8 @@
  *   compared, not skipped, at the default budget;
  * - a fill at a pointer the state holds ([cell]+offset,count) lands where the
  *   pointer points, after the pointer itself is filled;
- * - a call-out that halts the CPU is stopped too;
+ * - a call-out that halts the CPU is stopped too, and one named to end the
+ *   comparison (a yield) is compared at the callee's entry;
  * - a port that stops at a loop's head after some passes is compared at the
  *   original's pass where the machines are the same, and one the same at no
  *   pass is a mismatch;
@@ -19,6 +20,9 @@
  *   dead mismatches once the register is scrambled, though the port passes
  *   the original's value; one whose callee only writes a declared register, or
  *   leaves it alone, still matches (what it left alone is the caller's again);
+ * - a fill every few bytes (a stride), a fill from a set of values (bytes and
+ *   words) and a tie (a cell filled with another's bytes) make the states a
+ *   port assuming them needs, and leave the bytes between the stride's alone;
  * - areas parse, and malformed ones don't.
  *
  * Exits non-zero on failure.
@@ -49,7 +53,7 @@ static int failures;
 
 static const struct {
     uint16_t at;
-    uint8_t code[24];
+    uint8_t code[40];
     uint8_t len;
 } originals[] = {
     /* $C0:8000: copy $10 to $20 */
@@ -71,6 +75,14 @@ static const struct {
      * a callee that reads A, writes X without reading it and leaves Y alone */
     { 0x8700, { 0x20, 0x00, 0x88, 0x60 }, 4 },
     { 0x8800, { 0x8D, 0x70, 0x00, 0xA2, 0x01, 0x00, 0x60 }, 7 },
+    /* $C0:8900: copy $44 to $52, $46 to $53, $48 to $54 and $49 to $55 (long
+     * addressing, 8-bit A) */
+    { 0x8900, { 0xAF, 0x44, 0x00, 0x7E, 0x8F, 0x52, 0x00, 0x7E, 0xAF, 0x46, 0x00, 0x7E, 0x8F, 0x53, 0x00, 0x7E,
+                0xAF, 0x48, 0x00, 0x7E, 0x8F, 0x54, 0x00, 0x7E, 0xAF, 0x49, 0x00, 0x7E, 0x8F, 0x55, 0x00, 0x7E,
+                0x60 }, 33 },
+    /* $C0:8A00: LDA $40 : CMP $42 : BNE + : STA $50 : + RTS -- copies $40 to $50
+     * only where $42 is the same */
+    { 0x8A00, { 0xAF, 0x40, 0x00, 0x7E, 0xCF, 0x42, 0x00, 0x7E, 0xD0, 0x04, 0x8F, 0x50, 0x00, 0x7E, 0x60 }, 15 },
 };
 
 /* ---- the ports ------------------------------------------------------------------------- */
@@ -165,6 +177,32 @@ static void calls_declaring_a(Snes *s)
     m_rts(s);
 }
 
+/* $C0:8900, right only where $44 and $46 are each $12 or $34 and the word at
+ * $48 is $1234 or $5678 (it writes the one it guesses, not what is there). */
+static uint8_t guess8(uint8_t v) { return v == 0x12 ? 0x12 : 0x34; }
+
+static void assumes_sets(Snes *s)
+{
+    m_write8(s, 0x7E0052, guess8(m_read8(s, 0x7E0044)));
+    m_write8(s, 0x7E0053, guess8(m_read8(s, 0x7E0046)));
+    uint16_t w = m_read16(s, 0x7E0048) == 0x1234 ? 0x1234 : 0x5678;
+    m_write16(s, 0x7E0054, w);
+    m_lda8(s, (uint8_t)(w >> 8));
+    m_rts(s);
+}
+
+/* $C0:8A00, right only where $42 is $40: it copies without comparing. */
+static void assumes_tied(Snes *s)
+{
+    uint8_t v = m_read8(s, 0x7E0040);
+    m_lda8(s, v);
+    m_write8(s, 0x7E0050, v);
+    m_set_flag(s, CPU_FLAG_Z, true);
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_set_flag(s, CPU_FLAG_N, false);
+    m_rts(s);
+}
+
 #define M8_X16 .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M
 
 static const NativeEntry entries[] = {
@@ -179,6 +217,8 @@ static const NativeEntry entries[] = {
     { .addr = 0xC08100, .name = "countdown_wrong", .fn = countdown_wrong, M8_X16, .dont_care = DC_A },
     { .addr = 0xC08700, .name = "calls_declaring_x_y", .fn = calls_declaring_x_y, M8_X16 },
     { .addr = 0xC08700, .name = "calls_declaring_a", .fn = calls_declaring_a, M8_X16 },
+    { .addr = 0xC08900, .name = "assumes_sets", .fn = assumes_sets, M8_X16 },
+    { .addr = 0xC08A00, .name = "assumes_tied", .fn = assumes_tied, M8_X16 },
 };
 
 static uint8_t rom[ROM_SIZE];
@@ -256,6 +296,14 @@ int main(void)
     r = run(6, &o, log, sizeof log);
     CHECK(r.callout == 20 && r.mismatched == 0, "calls_halting: call-outs past the budget %lu, mismatched %lu",
           r.callout, r.mismatched);
+    /* ...unless the comparison ends at that call (a task's yield never comes
+     * back on its stack either): compared there, at the callee's entry. */
+    o.stop_calls[o.nstop_calls++] = 0xC08600;
+    r = run(6, &o, log, sizeof log);
+    CHECK(r.matched == 20 && r.at_call == 20 && r.callout == 0,
+          "calls_halting stopped at the call: matched %lu at the call %lu, call-outs past the budget %lu",
+          r.matched, r.at_call, r.callout);
+    o.nstop_calls = 0;
 
     /* The original loops through bank $7F four times, 1.05 million
      * instructions, what the port does in 524288 accesses: compared, at the
@@ -307,6 +355,31 @@ int main(void)
     r = run(10, &o, log, sizeof log);
     CHECK(r.mismatched > 90, "calls_declaring_a scrambled at its site: mismatched %lu", r.mismatched);
 
+    /* Fills that aren't a run of random bytes: every second byte from a set,
+     * a word from a set, and a tie. */
+    o = options(200);
+    r = run(11, &o, log, sizeof log);
+    CHECK(r.mismatched > 190, "assumes_sets without the fills: mismatched %lu", r.mismatched);
+    CHECK(fuzz_parse_area("7E0044-7E0047:2=12,34", false, &o.areas[o.nareas++]), "parse a strided set");
+    CHECK(fuzz_parse_area("7E0048-7E0049=1234,5678", false, &o.areas[o.nareas++]), "parse a set of words");
+    r = run(11, &o, log, sizeof log);
+    CHECK(r.matched == 200, "assumes_sets with the fills: matched %lu mismatched %lu", r.matched, r.mismatched);
+    o = options(200);
+    CHECK(fuzz_parse_area("7E0045-7E0045=77-77", false, &o.areas[o.nareas++]), "parse a constant");
+    CHECK(fuzz_parse_area("7E0044-7E0047:2=12,34", false, &o.areas[o.nareas++]), "parse a strided set");
+    CHECK(fuzz_parse_area("7E0048-7E0049=1234,5678", false, &o.areas[o.nareas++]), "parse a set of words");
+    o.details = 0;
+    r = run(11, &o, log, sizeof log);
+    CHECK(r.matched == 200, "the stride leaves $45 as the fill before it set it: matched %lu", r.matched);
+    o = options(200);
+    r = run(12, &o, log, sizeof log);
+    CHECK(r.mismatched > 190, "assumes_tied without the tie: mismatched %lu", r.mismatched);
+    CHECK(fuzz_parse_area("7E0042-7E0042=@7E0040", false, &o.areas[o.nareas++]), "parse a tie");
+    CHECK(fuzz_parse_area("7E0040-7E0040=00-FF", false, &o.areas[o.nareas++]), "parse the tied cell's fill");
+    r = run(12, &o, log, sizeof log);
+    CHECK(r.matched == 200, "assumes_tied with the tie, filled after it: matched %lu mismatched %lu", r.matched,
+          r.mismatched);
+
     /* Areas. */
     FuzzArea a;
     CHECK(fuzz_parse_area("7F:[7E006D]-8,10=00-0F", false, &a) && a.base == FUZZ_AT_CELL && a.pointer == 0x7E006D &&
@@ -321,6 +394,15 @@ int main(void)
     CHECK(!fuzz_parse_area("[7E006D]+20,4", false, &a), "a fill needs its values");
     CHECK(!fuzz_parse_area("7E0100-7E01FF=00-100", false, &a), "values are bytes");
     CHECK(!fuzz_parse_area("[7E006D+20,4", true, &a), "a bracket closes");
+    CHECK(fuzz_parse_area("[7E006D]+2,40:8=0010,0200", false, &a) && a.step == 8 && a.width == 2 &&
+              a.nvalues == 2 && a.values[1] == 0x0200 && a.count == 0x40,
+          "a set of words every 8 bytes at a pointer");
+    CHECK(fuzz_parse_area("7E0100-7E01FF:10", true, &a) && a.keep && a.step == 0x10, "a strided keep");
+    CHECK(fuzz_parse_area("7E0100-7E0100=05", false, &a) && a.nvalues == 1 && a.width == 1, "a constant");
+    CHECK(fuzz_parse_area("7E0100-7E0101=@7F2000", false, &a) && a.copy && a.copy_from == 0x7F2000, "a tie");
+    CHECK(!fuzz_parse_area("7E0100-7E01FF:0=00-FF", false, &a), "a stride isn't 0");
+    CHECK(!fuzz_parse_area("7E0100-7E01FF=05,", false, &a), "a set's values are written out");
+    CHECK(!fuzz_parse_area("7E0100-7E01FF=@", false, &a), "a tie names its address");
 
     if (failures)
         printf("%d failure(s)\n", failures);

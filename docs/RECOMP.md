@@ -6111,9 +6111,10 @@ two frames later. Its drawing takes the original more than a frame, with the
 menus' vblank handler taken inside it; as one port, the time is owed at its
 return and the handler taken there, twice, and with the time charged cheaply
 (an experiment, not a fix) the screen appears. The route passes with the two
-entries left to the original. Why taking the handler at the port's return
-twice goes wrong is not worked out (TODO.md); the code is out of the tree
-until it is, since nothing else calls it.
+entries left to the original. Why it went wrong was the runtime's: the
+debt was paid inside the menus' vblank handler, which moves the stack, and
+the next vblank nested in it (fixed; "The tooling pass after Phase 3's first
+chunks", below). The port is out of the tree until it comes back (TODO.md).
 
 **Timing.** Every entry is calibrated from the library but the ones only
 `menu_open` runs, whose error its own rate takes up (TODO.md), and a window list charges each command at its handler's
@@ -6680,6 +6681,176 @@ timed as their own routine: calibrated, 0.16% of its calls are off by 1024
 clocks or more, the worst by 1,714. The drawings charge their entries the
 same way, so a whole layer's drawing and a screen's scale alike. All four
 rows are calibrated, and none is an exception.
+
+### The tooling pass after Phase 3's first chunks
+
+The first chunk of each of the three big banks (battle's `$C1`, field and
+events' `$C0`, the menus' `$C2`) found gaps that made every chunk slower or let
+a bug past the gate. This pass closed the ones that were tools.
+
+**The native shape, checked.** Two of the three chunks wrote a value the game
+reads only inside `ORIGINAL_EFFECT`: the battle's random draws divided by the
+long arithmetic's leftover high word, and the menus drew a window's inside to
+the size the frame's routine left, both written only as scaffolding. The
+native-shape build compiles that out and was never run, and shadow mode runs
+the default build, so nothing saw either. Two checks look now, one in the
+source and one in a running game, and the gate runs both as a ratchet
+(`tools/effects_check.py`, `tools/effects_baseline.txt`):
+
+- *In the source.* For every write of a work RAM cell made inside an
+  `ORIGINAL_EFFECT`, or in `#if ORIGINAL_EFFECTS` code, or in a function
+  called from either (the `leave_*` and `original_cell*` helpers, to any
+  depth), the check finds the reads of the same bytes by code outside all of
+  that, in any function the game reaches (a registry entry, a table's row, a
+  callback, and what they call). A cell is bytes, not a name: constants are
+  followed through the helpers' parameters, enum constants and `#define`s, so
+  `set_work_byte(g, LEFT_TURNED, 0)` is `battle_work`'s element 0 and a read
+  of element 1 isn't reported; a helper's branches are all taken and an
+  element past the variable's end drops out, which is what keeps
+  `original_cell8`'s two accessors apart; a read and a write of different
+  variables meet only where their bytes overlap within one subsystem (or the
+  families sharing a page), since work RAM is reused between modes. Reads
+  while a guard peeks (`vars_peek`) and in registry guards are the runtime's
+  question, not the logic's, and don't count. It is textual (it borrows
+  `tools/dontcare_check.py`'s reader of C) and takes two seconds.
+- *In a run.* `ct_dev --native on --scaffold-reads` marks every work RAM byte
+  with whether its latest write was made inside an `ORIGINAL_EFFECT`
+  (`SnesBus.wram_scaffold`; the macro now counts its depth,
+  `original_effect_depth`), and the accessors' reads report a marked byte a
+  port reads outside one, by port (`runtime/port/scaffold_reads.h`). A write
+  the original's code makes clears the mark. That is the question with its
+  order: the native build, at that read, would have found what was there
+  before the scaffolding's write. The vblank check's shipping-mode runs take
+  the flag (they are the library in `--native on` already), so the gate gets
+  it for nothing, and `effects_check.py --runs` reads their logs. The one gap
+  is `event/leaves.c`, whose runner is `#if ORIGINAL_EFFECTS` code around the
+  operation rather than an `ORIGINAL_EFFECT`: the source check sees it, the
+  run doesn't mark it. The other way to run the native shape, a
+  `-DCT_ORIGINAL_EFFECTS=OFF` `ct_dev` compared with the default build at the
+  level of game outcomes, would find less for more: the shipping mode's timing
+  already drifts from the reference, so outcomes part for reasons that have
+  nothing to do with scaffolding, and a difference names no port. A mark names
+  the reading port, the byte and the port whose scaffolding wrote it.
+
+**Which cells count.** The source check reports a read whether or not some
+port also writes the cell plainly, and says which (`[plain]` or `[only]`):
+the check has no order, and the battle's case was exactly a cell other ports
+wrote plainly, read after the one routine that kept it only as scaffolding. A
+rule of "flag only cells nothing writes plainly" would have missed it. Nor can
+it see the original's still-generated code, which sets most of the operand
+cells the entry wrappers read (`[wrapper]` marks a read in a function that
+takes the machine: usually the calling convention, sometimes a real input).
+So the source check is broad, 131 findings on main before this pass, and the run check is the
+precise one: over the library it found 15 port-and-variable pairs, each a read
+the native build would get wrong or would have to show it doesn't. One was the
+scene's and is fixed: the race's matrix generator left its column step in the
+scene's cells only as scaffolding, and the column step's cell is the product's
+third byte, which the next signed multiply adds into its product (once in the
+jet bike race's 21,120 signed multiplies); the step is written plainly now,
+and the multiply reads that byte through a field of its own
+(`scene_call.product_third_byte`) rather than the whole product. Three are the
+scene circle's, answered below; the rest are battle's, the field's and
+events', and the menus' (docs/TODO.md, by subsystem).
+
+Both are ratchets: `--check` fails on a finding not in the baseline, which
+holds main's findings, the source findings of the conversion branch still in
+flight (so its merge doesn't break on what it already had) and the library's
+run findings. A source finding's line names the read's file and function,
+what it reads (with the element, where the source names one) and the variable
+written as scaffolding, and says `only` where no port writes the cell plainly,
+so a plain write turned into scaffolding is a new line rather than the old
+one. That is what makes the ratchet hold the battle's first chunk as it was
+before its fixes: with the leftover high word, the stat offset's high byte
+and the tech's hits kept only as scaffolding again (a scratch copy of main
+with the three writes put back inside `ORIGINAL_EFFECT`), the check reports
+the reads of the high word (`battle_wide_math[6]` and `[7]`, in `wide_word`,
+which the random draw calls) and of the tech's hits (`battle_low_scratch[14]`)
+as new; the stat offset's high byte (`[11]`) is a finding on main already,
+another routine writing that byte as scaffolding too, and is in the baseline.
+Its first cut missed the high word, which the arithmetic writes through a
+setter it passes to a helper as a function pointer, now followed. The re-review's later cases (stats read through
+the stat blocks' table wherever it points, which can be the direct page's
+working cells) are aliasing through a computed address, which the source can't
+see and the library's runs don't reach: a build of main with that fix taken
+out finds no new run finding. A new finding is answered
+before it merges, by making the write plain (it is the game's) or by showing
+where the value the read takes comes from and adding its line with the reason
+after a `#`. A line nothing produces any more is reported, not failed, since
+the baseline carries the branches' lines until they merge; `--prune` drops
+them. The scene's fifteen source findings left are answered in the baseline:
+the scene program's operand cells (`scene_call`, one record whose fields are
+each call's operands and results, so one call's leftovers sit where the next
+reads its operands, which the program sets before each call; no run finds
+one), and the circle's center and radius, whose reads take the low byte the
+callers write, which the scaffolding writes back unchanged while it clears the
+high byte (the runs do see those: the circle's jump draws it again without its
+callers writing it). The core's one is the block-move stub's own port, which
+reads what its caller wrote into the stub. 130 source findings were left on
+main then; with the battle's and the menus' first chunks merged, 252 (counted
+by element, as the baseline now keys them), and the
+battle's chunk added eight run findings of its own (docs/TODO.md).
+
+**A port that spans frames.** The menus' chunk ported the load screen's
+opening (`$C2:E613`, which draws the screen through `$C2:E7C3`), which matched
+where shadow mode could compare it (every call interrupted) but broke the
+`beyond_time` route in the shipping mode: black screen, then a `BRK`. To
+reproduce it without the lost port, `ct_dev --as-port BBAAAA` runs a routine
+of the original as one hand port would run in the shipping mode: all at once,
+the CPU stepped with time stopped and interrupts held, and its bus and
+internal clocks owed afterwards at a `cost_milli` of 1000 (`dev/as_port.h`).
+The drawing owes about 1.2 frames. The first vblank's NMI was taken at the
+port's boundary, correctly; but the menus' handler (`$C2:840E`) moves the
+stack up to its own at `$1DFD`, and `pay_debt` took a machine above the
+boundary's S for one that had left the boundary, so it paid the remaining
+436,911 clocks inside the handler, before its vblank work and with interrupts
+held. The next NMI was then taken inside the first handler, whose stack switch
+overwrote the S the outer one had saved, and the outer handler returned
+through garbage. A debt now remembers that a handler was taken at its
+boundary and waits for it wherever the stack goes, for up to a frame, after
+which it is paid where the machine is (a handler that never comes back, such
+as a task switch); coming back to the boundary clears it. So ports need no
+rule for spanning frames. The same path had been delaying the menus' vblank
+work on main by up to 11 lines, 12 times in `menus-field-menu`.
+`tests/port/debt_test.c` covers a handler on its own stack, one on the
+interrupted stack and one that never returns (with the fix taken out it finds
+nine nested handlers and the main loop starved). The load screen's port can
+come back unchanged; `$C2:E613` ends in the task yield (`JMP $83B2`), where it
+stops with `m_stop_at`.
+
+**Fuzzing.** `tools/fuzz_compare.py` runs an entry the `--before` binary
+doesn't have on `--after` alone and reports it `new` with its own counts
+(before, every new entry was a "before error"), and without `--before` runs
+every routine that way, which is how a chunk's new ports go through the same
+constraints file. `ct_fuzz`'s areas take a stride (`AREA:STEP`, a field of
+each record in a table), a set of values to pick each element from
+(`=V,V,...`, as wide as the widest written, so a script place or a record
+offset is a real one) and a tie (`=@BBAAAA`, another cell's bytes, applied
+after every other area), and it takes 32 areas (as the menus' branch had it).
+A port that waits for the next frame through a menu task's yield (`$C2:821E`)
+had every state skipped, the yield never coming back on the stack it was
+called on; `--stop-at-call BBAAAA` ends each state's comparison at the port's
+call-out to that routine instead, comparing the machines at the callee's entry
+with the call's don't-care set (`menu_erase_slot` is the case). Running on
+past the yield is still out of reach: that is the other task's frame, and the
+fuzzer runs one stack.
+
+**Shadow mode's report.** Mismatches are described apart from notes
+(abandoned comparisons, timing), each up to its own limit, and mismatches
+first, so a run of `abandoned` lines can't push the mismatch the gate fails on
+out of the report; `ct_dev --shadow-details N` raises the limit (16, at most
+256), and a line says how many more there were. An entry that runs only
+inside another port's stretch (the menus' labels in `menu_open`) is compared
+on its own where the original enters it, up to its first point: if that point
+is the enclosing routine's too, it is compared there and goes on; otherwise it
+is set aside at the enclosing routine's point, counted `abandoned`. What it
+did to then is timed, so its `cost_milli` is calibrated from those stretches
+(`menu_read_save_slots` has its stretches in `menus-field-menu`); what it
+isn't is compared past that point, which would need shadow mode to follow two
+comparisons waiting on different points of the original at once, the enclosing
+one resumed by its callee's return while the nested one waits for a later
+instruction: a checker over every active comparison rather than the innermost.
+The enclosing comparison covers the stretch, and the shipping mode never calls
+the nested entry there, so that is left (docs/TODO.md).
 
 ## Risks
 

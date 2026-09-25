@@ -2075,7 +2075,7 @@ const NativeEntry game_natives[] = {
       .cost_milli = 1750, .dont_care = DC_A | DC_X | DC_N | DC_Z,
       .guard = scene_on_scene_page },
     { .addr = 0xC3094C, .name = "scene_multiply_signed", .fn = scene_multiply_signed,
-      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 4216, .dont_care = DC_A | DC_N | DC_V | DC_Z,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 4882, .dont_care = DC_A | DC_N | DC_V | DC_Z,
       .guard = scene_on_program_page_io_bank },
     { .addr = 0xC308B3, .name = "scene_nmi", .fn = scene_nmi, .cost_milli = 2517 },
     { .addr = 0xC308C9, .name = "scene_nmi_while_working", .fn = scene_nmi_while_working, .cost_milli = 2579 },

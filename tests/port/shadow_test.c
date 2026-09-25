@@ -12,7 +12,8 @@
  * - DC_AL leaves out A's low byte alone, at a return and at a call-out, and a
  *   routine that relies on a low byte it declared dead at a call-out is caught;
  * - a stop declared with m_stop_at_own is compared without the entry's set,
- *   where m_stop_at adds it.
+ *   where m_stop_at adds it;
+ * - the report describes mismatches before notes (abandoned comparisons).
  *
  * Each case registers a few routines, runs the program for a few frames in
  * SHADOW mode and reads its counters (native_stats_named) and the mismatches
@@ -298,6 +299,13 @@ int main(void)
     expect("loop_third", true);
     RUN(true, false, 2, ENTRY(0x008100, loop_wrong));
     expect("loop_wrong", false);
+
+    /* the report describes mismatches before notes (an abandoned comparison),
+     * whichever came first, so notes can't crowd out what the gate fails on */
+    RUN(true, false, 2, ENTRY(0x008200, path_whole), ENTRY(0x008202, path_middle), ENTRY(0x008100, loop_wrong));
+    expect("loop_wrong", false);
+    CHECK(!strncmp(details, "mismatch ", 9) && strstr(details, "\nabandoned ") != NULL,
+          "mismatches first, then the notes:\n%s", details);
     CHECK(strstr(details, "later passes, then the original left"), "%s", details);
 
     /* a call-out from a loop's head, after two passes inlined */

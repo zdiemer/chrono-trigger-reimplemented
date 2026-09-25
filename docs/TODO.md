@@ -183,6 +183,13 @@ rest waits, is [PLAN.md](PLAN.md).
       effect sprite record by `from + 2`), and inline ROM reads in
       `main_loop.c` and `scripts.c`: index-taking accessors returning records;
     - `x + 1` written to cells that mean a bool or a load step;
+    - `battle_run` (`battle/bridge.c`) calls a sibling port's function
+      directly, skipping its entry's precondition and guard, so a state the
+      sibling's guard would hand to the original runs the port anyway: with
+      PC set to the routine and the return address pushed, ask
+      `native_hand_entry(s)` (which checks both) and run its function only
+      when it is that sibling's entry, and otherwise make the call-out
+      (`battle_call`) so the original runs;
     - `NATIVE_TIME_AS` takes a `Snes *`, so the draw pass, `step_movers` and
       `step_enemy_group` take one only to name their parts' time: a charge
       hook reachable from `GameState` (a runtime change);
@@ -415,24 +422,70 @@ rest waits, is [PLAN.md](PLAN.md).
   by the strict solve, so nothing rests on it, but a constraint that keeps the
   lists' entries inside the program's tasks would fuzz what the tasks do with
   the registers the port passes.
-- **What Phase 3's first `$C0` chunk found the tools lacking**:
-  `fuzz_compare.py` reports "before error" for every new entry (the old
-  binary has nothing at its address), so it wants an after-only mode;
-  `ct_fuzz --fill` takes contiguous ranges only, so a routine reading
-  alternating meaningful and random bytes needs a fill per byte; the event
-  engine takes a second table row for an opcode silently, the last one
-  winning, where it could warn; and proving V dead at the command level
+- **What Phase 3's first `$C0` chunk found the tools lacking**, still open:
+  the event engine takes a second table row for an opcode silently, the last
+  one winning, where it could warn; and proving V dead at the command level
   (following the field loop's `JML`s) would remove most of the Y/V
   derivations the state routines' ports carry.
-- **Nothing checks that the native shape behaves like the original.** The
-  native-shape build (`ct_game_native_shape`, `CT_WITHOUT_ORIGINAL_EFFECTS`)
-  is compiled, never run, so a value the game reads that a port writes only
-  inside `ORIGINAL_EFFECT` changes play there and no gate sees it (battle's
-  first conversion chunk: the random draws read the long arithmetic's
-  leftover high word, written only as scaffolding). A static check that no
-  cell an `ORIGINAL_EFFECT` writes is read by a port outside one, or a movie
-  run of a native-shape `ct_dev` compared at the level of game outcomes,
-  would catch it.
+- **Reads of scaffolding the effects check holds in its baseline**
+  (`tools/effects_baseline.txt`; RECOMP.md, "The tooling pass after Phase 3's
+  first chunks"). Each is a value the native build reads stale unless shown
+  otherwise; answering one deletes its line. What the library's shipping-mode
+  runs catch (`ct_dev --native on --scaffold-reads`), by subsystem:
+  - battle: the long arithmetic's cells are read as game state after only
+    scaffolding wrote them, the case the first chunk's `battle_long_high_word`
+    answered for one cell: `battle_divide` reads `battle_wide_math`
+    (`$2A`-`$2F`) its own or `battle_multiply_16x16`'s scaffolding left (the
+    original's callers divide what the last multiply or divide left there),
+    `battle_multiply_16x16` reads `$2B` so, and the random draws
+    (`battle_draw_random`, `battle_draw_random_other`) read `$2C`-`$2D` that
+    `battle_multiply_16x16`'s scaffolding left; the reach tests
+    (`battle_touching`, `battle_within_long_reach`, `_near_reach`,
+    `_search_reach`) read `battle_product` (`$AF`-`$B0`) their own scaffolding
+    wrote; `battle_direction_between` reads `battle_direction_cells`
+    (`$D5`-`$D6`) likewise (twice, `endings-bucket-lavos`);
+    `battle_enemy_find_reactions` reads `battle_enemy_turn` (`$B252`) after
+    `battle_dispatch_expired_timers`' scaffolding; and
+    `battle_set_screen_effect` reads `battle_scratch` `$55`-`$57`, last
+    written by `battle_build_fade_tables`' and `battle_decode_tile_row`'s
+    scaffolding;
+  - field and event: `field_current_object`'s high byte (`$016E`), which only
+    scaffolding clears (`event/engine.c`'s `leave_current_as_a_word`,
+    `field/sprites.c`'s `leave_current_object_as_byte`), is read as part of the
+    word by `object_current_is_one` and `object_make_current`, in
+    `event_run_init_scripts`, `event_run_object_script`, `field_update_objects`
+    and `field_build_sprite_table`: in the native build it is whatever last
+    wrote the word;
+  - menus: `menu_scratch` (`$0001`), read by `menu_draw_member_portrait`
+    where its own scaffolding wrote it last; `menu_object_wave_hdma` reads
+    `menu_wave_phase` (`$01E2`) once after `event_run_object_script`'s
+    scaffolding wrote that byte (`menus-end-of-time`), which may be a field
+    cell over the same byte rather than the menus' own.
+  The source check's findings on main are broader (battle 101, field 29,
+  event 3, menu 103, scene 15, core 1, by element, after the battle's and the
+  menus' first chunks; `python3 tools/effects_check.py`): most
+  are the entry wrappers reading the operands the original's callers hand
+  them, which a line with that reason answers, but the `[only]` ones in logic
+  (`python3 tools/effects_check.py | grep only`) are where to look first.
+- **The run check doesn't mark event's parallel table.** `event/leaves.c`'s
+  runner is `#if ORIGINAL_EFFECTS` code around the operation, not an
+  `ORIGINAL_EFFECT`, so `--scaffold-reads` counts its writes as the logic's;
+  the source check sees them. Evaluating the runner's before and after parts
+  inside an `ORIGINAL_EFFECT` (or bumping `original_effect_depth` around
+  them) would let the runs see them too.
+- **A debt waits a frame at most for a handler taken at its boundary**
+  (`runtime/port/native.c`, `DEBT_HANDLER_CLOCKS`): a handler that moves the
+  stack and doesn't come back within a frame, but does later, gets the rest of
+  the port's time paid inside it again. None does in the library; a debt that
+  followed the handler's own return (its RTI to the boundary's PC) rather than
+  a time bound would be exact.
+- **Nested comparisons end at the enclosing routine's point.** An entry the
+  original reaches inside another port's stretch (the menus' labels inside
+  `menu_open`) is compared up to its first point, and set aside (`abandoned`)
+  when the enclosing routine's point comes first. Following both past it
+  needs shadow mode to check every active comparison at each step rather than
+  the innermost: the enclosing one resumed by its callee's return while the
+  nested one waits for a later instruction.
 - **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
   comparison runs without `--poison-dc`, so a declaration the rewrite widened
   shows only if the port also stopped passing the original's value. Passing the
@@ -495,28 +548,26 @@ rest waits, is [PLAN.md](PLAN.md).
     check `$FF:F9C4`, the load `$FF:FAED`), and the new game's state
     (`$C2:956E`);
   - the load screen's opening (`$C2:E613` and its drawing `$C2:E7C3`) is the
-    original's: ported, it matched where shadow mode compared it but broke the
-    `beyond_time` route in the shipping mode (RECOMP.md, "Phase 3, menus", "A
-    port that spans frames"). The drawing takes more than a frame and the
-    menus' vblank handler runs inside it; with the port's time owed at its
-    return, the handler is taken there twice and the game ends in a `BRK`.
-    Reproduce with the Final Battle save (`oracle/saves/technoplaza/ct-state15.srm`),
-    Start at frame 1620 and `--native on`: the screen is black at frame 1899.
-    Either the runtime's debt handling has a case the menus' handler meets
-    (its stack switch to `$1DFD`, its lag flag `$0D01`), or the port needs to
-    stop where the original's frame would. Worked out, the port can come
-    back;
+    original's: its port broke the `beyond_time` route in the shipping mode,
+    which was the runtime's (a debt paid inside a vblank handler that moved
+    the stack; RECOMP.md, "The tooling pass after Phase 3's first chunks").
+    The port can come back as it was, `$C2:E613` stopping with `m_stop_at` at
+    the task yield `$C2:83B2` it jumps to; then the `beyond_time` route in the
+    shipping mode, fuzzing both entries (every library call is interrupted),
+    and calibration, maybe with a timing exception;
   - `menu_erase_slot` (`$C2:E8B7`) is checked by neither: no movie erases a
     slot, and `ct_fuzz` can't run past its wait for the next frame
-    (`$C2:821E`, a task switch), so every fuzzed state is skipped. A movie that
-    erases a slot on the load screen would check it, and `menu_answer_erase`'s
-    "no" with it;
+    (`$C2:821E`, a task switch). `ct_fuzz --stop-at-call C2821E` compares it up
+    to that call, which is most of it; a movie that erases a slot on the load
+    screen would check the rest, and `menu_answer_erase`'s "no" with it;
   - the label entries (`$C2:D156`, `$D19F`, `$D266`, `$D28D`, `$D296`,
-    `$D2C4`) only run inside `menu_open`'s comparison, so shadow mode compares
-    them there and the timing gate can't calibrate them alone: what their
-    estimates miss is in `menu_open`'s own rate (28004, against about 5000 for
-    the menus' other bridges); `$C2:D306` (a label moved two pixels right) is
-    inline in `$C2:D2C4` and no entry;
+    `$D2C4`) only run inside `menu_open`'s stretch, so shadow mode compares
+    them up to their first point and sets them aside there (`abandoned`); the
+    timing of that part calibrates them, what they do after it is in
+    `menu_open`'s own rate (28004, against about 5000 for the menus' other
+    bridges; RECOMP.md, "The tooling pass after Phase 3's first chunks");
+    `$C2:D306` (a label moved two pixels right) is inline in `$C2:D2C4` and no
+    entry;
   - a window list's strings that include work RAM (a name, a number) draw
     through the text port's accepted divergences when fuzzing fills that RAM
     at random (7 of 2,000 fuzzed `menu_window_draw_string` states, 2 and 1 of

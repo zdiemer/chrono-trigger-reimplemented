@@ -13,6 +13,7 @@
 
 #include "port/machine.h"
 #include "port/native.h"
+#include "port/scaffold_reads.h"
 #include "port/vars_pages.h"
 #include "port/vars_ram.h"
 #include "wram.h"
@@ -25,26 +26,39 @@ bool vars_peeking(void) { return peeking; }
 /* A value of the width the map gives, low byte first, as the 65816 stores it. */
 static uint8_t r8(const GameState *g, uint32_t a)
 {
-    return peeking ? snes_bus_peek(&state_snes(g)->bus, a & 0xFFFFFF) : m_read8(state_snes(g), a);
+    if (peeking)
+        return snes_bus_peek(&state_snes(g)->bus, a & 0xFFFFFF);
+    uint8_t v = m_read8(state_snes(g), a);
+    scaffold_note_read(state_snes(g), a);   /* ct_dev --scaffold-reads */
+    return v;
 }
 
 static uint16_t r16(const GameState *g, uint32_t a) { return (uint16_t)(r8(g, a) | r8(g, a + 1) << 8); }
 static uint32_t r24(const GameState *g, uint32_t a) { return (uint32_t)r16(g, a) | (uint32_t)r8(g, a + 2) << 16; }
 static uint32_t r32(const GameState *g, uint32_t a) { return (uint32_t)r16(g, a) | (uint32_t)r16(g, a + 2) << 16; }
 
-static void w8(GameState *g, uint32_t a, uint8_t v) { m_write8(state_snes(g), a, v); }
-static void w16(GameState *g, uint32_t a, uint16_t v) { m_write16(state_snes(g), a, v); }
+static void w8(GameState *g, uint32_t a, uint8_t v)
+{
+    m_write8(state_snes(g), a, v);
+    scaffold_note_write(state_snes(g), a);   /* ct_dev --scaffold-reads */
+}
+
+static void w16(GameState *g, uint32_t a, uint16_t v)
+{
+    w8(g, a, (uint8_t)v);
+    w8(g, a + 1, (uint8_t)(v >> 8));
+}
 
 static void w24(GameState *g, uint32_t a, uint32_t v)
 {
-    m_write16(state_snes(g), a, (uint16_t)v);
-    m_write8(state_snes(g), a + 2, (uint8_t)(v >> 16));
+    w16(g, a, (uint16_t)v);
+    w8(g, a + 2, (uint8_t)(v >> 16));
 }
 
 static void w32(GameState *g, uint32_t a, uint32_t v)
 {
-    m_write16(state_snes(g), a, (uint16_t)v);
-    m_write16(state_snes(g), a + 2, (uint16_t)(v >> 16));
+    w16(g, a, (uint16_t)v);
+    w16(g, a + 2, (uint16_t)(v >> 16));
 }
 
 /* The escape in game/wram.h: work RAM the game locates at run time, which the
@@ -4053,6 +4067,8 @@ uint32_t scene_call_dividend(const GameState *g, SceneProgramPage page) { IN_RAN
 void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 561, "set_scene_call_dividend", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF0u, v); }
 uint32_t scene_call_product(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 561, "scene_call_product", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF4u); }
 void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 561, "set_scene_call_product", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF4u, v); }
+uint8_t scene_call_product_third_byte(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 561, "scene_call_product_third_byte", "instances", page.index, scene_program_page_count(page)); return r8(g, scene_program_page_base(page) + 0xF6u); }
+void set_scene_call_product_third_byte(GameState *g, SceneProgramPage page, uint8_t v) { IN_RANGE(g, 561, "set_scene_call_product_third_byte", "instances", page.index, scene_program_page_count(page)); w8(g, scene_program_page_base(page) + 0xF6u, v); }
 uint32_t scene_call_divisor(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 561, "scene_call_divisor", "instances", page.index, scene_program_page_count(page)); return r32(g, scene_program_page_base(page) + 0xF4u); }
 void set_scene_call_divisor(GameState *g, SceneProgramPage page, uint32_t v) { IN_RANGE(g, 561, "set_scene_call_divisor", "instances", page.index, scene_program_page_count(page)); w32(g, scene_program_page_base(page) + 0xF4u, v); }
 uint16_t scene_call_fraction(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 561, "scene_call_fraction", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF4u); }

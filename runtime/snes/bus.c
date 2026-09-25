@@ -174,6 +174,8 @@ static void write_io(SnesBus *bus, uint16_t a, uint8_t v)
             bus->wram_page_epoch[(size_t)(b - bus->wram) >> SNES_TRACK_PAGE_BITS] = bus->write_epoch;
             if (bus->wram_written)
                 bus->wram_written[b - bus->wram] = 1;
+            if (bus->wram_scaffold)
+                bus->wram_scaffold[b - bus->wram] = *bus->scaffolding != 0;
             bus->wram_port_addr = (bus->wram_port_addr + 1) & 0xFFFFFF;
         } else {
             unsigned shift = 8 * (unsigned)(a - 0x2181);
@@ -332,6 +334,8 @@ void snes_bus_write(void *ctx, uint32_t addr, uint8_t value)
         bus->wram_page_epoch[i >> SNES_TRACK_PAGE_BITS] = bus->write_epoch;
         if (bus->wram_written)
             bus->wram_written[i] = 1;
+        if (bus->wram_scaffold)
+            bus->wram_scaffold[i] = *bus->scaffolding != 0;
         break;
     case REGION_SRAM: bus->sram[i] = value; break;
     case REGION_IO: write_io(bus, (uint16_t)i, value); break;

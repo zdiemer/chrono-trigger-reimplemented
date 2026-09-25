@@ -33,7 +33,12 @@
 #define ORIGINAL_EFFECT(...) ((void)sizeof((__VA_ARGS__), 0))
 #else
 #define ORIGINAL_EFFECTS 1
-#define ORIGINAL_EFFECT(...) ((void)(__VA_ARGS__))
+/* The count lets the runtime tell scaffolding's writes from the logic's
+ * (ct_dev --scaffold-reads, runtime/port/scaffold_reads.h): a byte whose latest
+ * write was made in here and that the logic then reads is one the native build
+ * would read stale. tools/effects_check.py asks the same of the source. */
+extern int original_effect_depth;
+#define ORIGINAL_EFFECT(...) ((void)(original_effect_depth++, (__VA_ARGS__), original_effect_depth--))
 #endif
 
 #endif

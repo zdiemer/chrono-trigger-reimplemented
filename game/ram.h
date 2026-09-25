@@ -5312,6 +5312,7 @@
 #define RAM_SCENE_CALL_SECOND_DP 0xF2u       /* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor */
 #define RAM_SCENE_CALL_DIVIDEND_DP 0xF0u     /* The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and zeros below */
 #define RAM_SCENE_CALL_PRODUCT_DP 0xF4u      /* The multiplies' 32-bit product */
+#define RAM_SCENE_CALL_PRODUCT_THIRD_BYTE_DP 0xF6u /* The product's third byte as the last routine to use the cells left it, which the signed multiply adds into its product */
 #define RAM_SCENE_CALL_DIVISOR_DP 0xF4u      /* The 32-bit divide's divisor */
 #define RAM_SCENE_CALL_FRACTION_DP 0xF4u     /* The 8.8 divide's quotient: an 8.8 fixed-point number */
 #define RAM_SCENE_CALL_QUOTIENT_LIMIT_DP 0xF4u /* The quotient the divisor search stops below (read on the scene's own page) */
