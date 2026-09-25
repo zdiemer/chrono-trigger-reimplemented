@@ -235,8 +235,12 @@ variables (`field_object_role` and `field_object_character`, a byte apart).
 
 Work RAM is reused from one game mode to the next, so two entries may cover the
 same bytes when their subsystems differ (the battle's `$7E:2000` is not the
-field's); within a subsystem the map rejects an overlap. State every mode
-shares -- the party, inventory, story flags -- is `core`.
+field's); within a subsystem the map rejects an overlap, unless one entry
+names the other with `reuses`: the same subsystem's bytes put to another use
+at another time (the field decompresses a map's data where the map's tile
+looks go once the data is unpacked, `field_tile_looks` over
+`field_map_data`). State every mode shares -- the party, inventory, story
+flags -- is `core`.
 
 One directory holds two such modes, so it has two tags. Bank `$C2` is the menus
 proper and the sprite-object mode started at `$C2:0000`, and they reuse the same

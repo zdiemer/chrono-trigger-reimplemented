@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 141 files, 117 of
-36,386 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 142 files, 117 of
+36,814 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -180,7 +180,7 @@ round the call-outs to the original's code:
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
 | menu | 0 | 18 | 0 | 6,486 | 0.04 | 34% |
 | event | 0 | 21 | 0 | 3,273 | 0.01 | 12% |
-| field | 0 | 21 | 0 | 5,487 | 0.01 | 22% |
+| field | 0 | 22 | 0 | 5,915 | 0.01 | 22% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |
@@ -338,7 +338,7 @@ toward the entry wrappers alone.
 Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **55% of the code is still generated.**
+docstring says which way it is wrong). **53% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|

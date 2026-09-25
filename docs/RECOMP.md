@@ -6571,6 +6571,116 @@ party's start now runs as C in its call), `event_touch_contact` 4,250 to
 3,351 (the review's changes to the touch moved its accesses) and
 `event_cmd_walk_with_the_party` 4,641 to 4,634.
 
+### Phase 3, field and events: the map scrolling in
+
+The third chunk of bank `$C0`, the other half of the camera: what the
+layers' tile maps hold as the screen moves over a map larger than itself.
+`python3 tools/burndown.py` for `$C0`: 25.9 KiB ported, 5.0 inlined, 56% left
+and 262 entries before; 30.0 KiB, 8.6 inlined, 49% and 266 after -- 4.1 KiB.
+With it, the walk's 20 refused calls.
+
+**The map's looks** (`field/streaming.c`). A map tile is 16 pixels and a
+layer's tile map entries 8, so each layer's tile of the map has a look: the
+four entries of its quarters (`field_tile_looks`, BG1's and BG2's, 512 of
+them, the map's tile set decompressed over the map's data once that is
+unpacked; `field_bg3_tile_looks`, BG3's 256). BG1 and BG2 take theirs from
+one half of the looks or the other as the tile's properties say (bits 0 and
+1, which the tile copy already knew as the tile set halves). A line of
+entries along a row or down a column is built from the map tiles it crosses,
+within each layer's mask of where its map repeats (`field_map_index_mask`,
+`field_layer_index_masks`), into the layer's staging buffer
+(`field_layer_staging`), which the vblank's deferred uploads send
+(`field/display.c`). The six builders (`$C0:7612`-`$C0:7F57`: each layer's
+rows and columns) are one function. Where a line starts on an odd 8-pixel
+tile they differ: BG1's and BG2's rows count its first half as one of the
+line's tiles and end with a half of the tile after the last -- its second
+half, where the first would continue the line, which lies past the screen's
+right edge (TODO.md); BG3's rows and every column add the half on top.
+
+**The layers' moves** (`$C0:93E1`, every frame after the layers' scroll).
+Each layer takes its move a pixel at a time, right, left, up and down: its
+scroll moves, and its place in its 16-pixel tile; each time it crosses an
+8-pixel tile the screen's edges in 8-pixel tiles move with it and the row or
+column it crossed onto is due (`field_layer_edges_crossed`, a bit per layer a
+side). BG2 may go at half the pace (`field_bg2_half_scroll`, from the map's
+flags): it counts a place in 32 pixels, scrolls every other one, and keeps
+edges of its own (`field_bg2_screen_left`...). A layer drawn whole at the
+map's load (`field_layer_drawn_whole`) has nothing due, and BG3's waves move
+their phase with it down the screen. Then each side's due lines are built
+(the row above the view first, then below, left and right), each layer's
+place in its tile map moves on, the uploads are asked for, and the edge runs
+are worked out (`$C0:7F9A`, timed as itself). The original writes the lines
+a byte at a time through the work RAM port; the port writes the staging
+through its accessors and leaves the port's cursor where the original's is
+(`cpu_io.h`: the port is memory access, which docs/PLATFORM.md keeps out of
+the platform services, so nothing was added there). A move is taken in
+locals and stored once, and a map tile's look worked out once for its two
+entries.
+
+**The layers at a map's load** (`$C0:75E9`, `$C0:78EC`, `$C0:7CB5`): BG1 is
+drawn as the screen stands, 32 rows of 16 map tiles into the staging from the
+first buffer's start; BG2 and BG3 whole where they are drawn whole (the map's
+first 16 by 16 tiles, then the tile map's other half: the next 16 columns of
+a wider map, the next 16 rows of a taller one, which makes the tile map two
+screens tall, or the same tiles again), and BG2 at half the pace from its
+own edges. The loop the screen's drawing runs down keeps its count in the cell
+the edge runs read as their wrap (`field_layer_edge_wrap`), and leaves it 0,
+which the edges then read: a real write, not scaffolding.
+
+**The walk's refused calls.** The original doubles the map's object count
+into a byte to start the walk's search for objects in the way, so a count
+of 64 to 127 starts it on the slots past the tables, where it reads the next
+tables' bytes as a slot's: whether it is in view, disabled or solid, and
+where it stands (the objects' vertical positions as its horizontal one, their
+velocities as its vertical one). In the game's terms there is nothing there,
+and the search looks at the map's objects from the last slot down; the
+original's reads are one marked piece of scaffolding
+(`what_the_original_meets_past_the_tables`, `field/walk.c`, through the
+tables' unchecked accessors), which sets the outcome where one of those slots
+reads as close. The library makes such a count on a frame or two in six
+movies (112 and 123 at `$7F:2000`): 20 calls, all compared and matching now,
+and on none of them does the walk look for objects at all -- a debug build
+that reported every search past the tables, run over the nine movies with
+such counts, reported none -- because the leader isn't stepping into
+anything then, so the game can't observe the reads there. Where it could -- a step that met such a slot -- the original would
+stop there, and the leader would be up against nothing (the slot's byte has
+a link to none's top bit) and stopped where it reads as solid.
+
+**What the map gained.** The looks, the staging, BG2's own edges, the other
+layers' index masks, the half-pace and drawn-whole flags, the edges crossed;
+`in_view` and `solid` got unchecked accessors for the walk's scaffolding. The
+map's data (`field_map_data`) and the looks share their bytes at different
+times, which the map's overlap check refused: `re/ram.toml` gained a `reuses`
+key for a variable that takes over another's bytes (`tools/ram_map.py`).
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call of the
+new entries matches: `field_stream_the_layers` 194,853 calls (1 interrupted),
+the drawings 308, 296 and 106 (49, 37 and 7 interrupted: a whole screen's
+drawing runs over a frame's NMI, the paths fuzzing covers); `field_walk_the_leader` 194,763 calls, all compared and matching,
+none refused. Fuzzing (seed 1, `tools/fuzz_routines.toml`) found the
+drawings' loops: the screen's rows counted from a top edge near 255 wrapped
+(615 of 5,000 mismatched before counting the rows rather than comparing
+them), and BG2's rows at half the pace between edges the other way round,
+or to a bottom of 255, run past the staging and the bank (the original's for
+ever), which its guard leaves to the original. Then, 20,000 states each:
+the streaming 0 of 20,000 (and 0 of 20,000 with every layer moving up to 18
+pixels each way, and with BG2 at half the pace and the layers drawn whole or
+not), the drawings 0 of 20,000, 0 of 16,596 and 0 of 20,000; the walk with a
+count of 64-127 0 of 10,159 (its predecessor's guard compared 1). Against
+the predecessors every field and event entry keeps its mismatches (none).
+
+**The timing gate.** The streaming's time is a steady part and a
+part the lines and the moves set, which the port's reads and writes don't
+follow: charged at one rate, frames that built rows were over by up to
+50,000 clocks and frames with moves drifted with their pixels. The lines'
+and the moves' own accesses are left out of the estimate
+(`charge_uncounted_begin`) and each entry (rows more than columns) and each
+pixel is charged at the streaming's own rate instead, and the edge runs are
+timed as their own routine: calibrated, 0.16% of its calls are off by 1024
+clocks or more, the worst by 1,714. The drawings charge their entries the
+same way, so a whole layer's drawing and a screen's scale alike. All four
+rows are calibrated, and none is an exception.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

@@ -368,22 +368,24 @@ static void leave_port_after(GameState *g, Staging s)
     hw_port_seek(g, (uint16_t)(STAGING + s.at), WORK_RAM_LOWER_BANK);
 }
 
-/* The time a line takes: the original works each entry out and writes it a
- * byte at a time through the port, at a cost a line's length sets, where the
- * port's accessor reads and writes cost otherwise; so the line's own
- * accesses are left out of the estimate and each entry is charged at the
- * streaming's own rate instead (charge.h), and likewise the drawings'. */
-enum { STREAMING = 0xC093E1, ACCESSES_16_ROW_ENTRIES = 74, ACCESSES_16_COLUMN_ENTRIES = 69, ACCESSES_FOUR_PIXELS = 13 };
+/* The streaming's time: a steady part, and a part the lines' lengths and the
+ * moves' pixels set, which the port's own reads and writes don't follow (it
+ * keeps a move in locals, and works a map tile's look out once for its two
+ * entries). So the lines' and the moves' own accesses are left out of the
+ * estimate, and each entry (a row's costs the original more than a
+ * column's) and each pixel is charged at the streaming's own rate instead
+ * (charge.h); the edge runs are timed as their own routine. The drawings at
+ * a map's load charge their entries the same way. */
+enum { STREAMING = 0xC093E1, ACCESSES_16_ROW_ENTRIES = 65, ACCESSES_16_COLUMN_ENTRIES = 60, ACCESSES_FOUR_PIXELS = 11 };
 
-static void build_line_charged(GameState *g, unsigned layer, Line line, Staging *out, uint32_t routine,
-                               uint32_t accesses_16_entries)
+static void build_line_charged(GameState *g, unsigned layer, Line line, Staging *out, uint32_t accesses_16_entries)
 {
     uint32_t mark = 0;
     uint16_t start = out->at;
     ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
     build_line(g, layer, line, out);
     ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
-    ORIGINAL_EFFECT(charge_as(g, routine, (uint32_t)(out->at - start) / ENTRY_BYTES * accesses_16_entries / 16));
+    ORIGINAL_EFFECT(charge_as(g, STREAMING, (uint32_t)(out->at - start) / ENTRY_BYTES * accesses_16_entries / 16));
     (void)mark;
     (void)start;
 }
@@ -392,8 +394,7 @@ static void bring_in(GameState *g, unsigned layer, Side side)
 {
     Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), side);
     Staging out = { (uint16_t)(layer * STAGING_BYTES + (line.way == ALONG_A_ROW ? STAGED_ROW : STAGED_COLUMN)) };
-    build_line_charged(g, layer, line, &out, STREAMING,
-                       line.way == ALONG_A_ROW ? ACCESSES_16_ROW_ENTRIES : ACCESSES_16_COLUMN_ENTRIES);
+    build_line_charged(g, layer, line, &out, line.way == ALONG_A_ROW ? ACCESSES_16_ROW_ENTRIES : ACCESSES_16_COLUMN_ENTRIES);
     ORIGINAL_EFFECT(leave_port_after(g, out));
     move_place_in_tile_map(g, layer, side);
     set_field_layer_upload_flags(g, side, (uint8_t)(field_layer_upload_flags(g, side) | 1u << layer));
