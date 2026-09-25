@@ -6640,10 +6640,29 @@ jet bike race's 21,120 signed multiplies); the step is written plainly now,
 and the multiply reads that byte through a field of its own
 (`scene_call.product_third_byte`) rather than the whole product. Three are the
 scene circle's, answered below; the rest are battle's, the field's and
-events', and the menus' (docs/TODO.md, by subsystem). Both are ratchets: `--check` fails on a finding
-not in the baseline, which holds main's findings, the source findings of the
-three conversion branches as they stood (so their merges don't break on what
-they already had) and the library's run findings. A new finding is answered
+events', and the menus' (docs/TODO.md, by subsystem).
+
+Both are ratchets: `--check` fails on a finding not in the baseline, which
+holds main's findings, the source findings of the conversion branch still in
+flight (so its merge doesn't break on what it already had) and the library's
+run findings. A source finding's line names the read's file and function,
+what it reads (with the element, where the source names one) and the variable
+written as scaffolding, and says `only` where no port writes the cell plainly,
+so a plain write turned into scaffolding is a new line rather than the old
+one. That is what makes the ratchet hold the battle's first chunk as it was
+before its fixes: with the leftover high word, the stat offset's high byte
+and the tech's hits kept only as scaffolding again (a scratch copy of main
+with the three writes put back inside `ORIGINAL_EFFECT`), the check reports
+the reads of the high word (`battle_wide_math[6]` and `[7]`, in `wide_word`,
+which the random draw calls) and of the tech's hits (`battle_low_scratch[14]`)
+as new; the stat offset's high byte (`[11]`) is a finding on main already,
+another routine writing that byte as scaffolding too, and is in the baseline.
+Its first cut missed the high word, which the arithmetic writes through a
+setter it passes to a helper as a function pointer, now followed. The re-review's later cases (stats read through
+the stat blocks' table wherever it points, which can be the direct page's
+working cells) are aliasing through a computed address, which the source can't
+see and the library's runs don't reach: a build of main with that fix taken
+out finds no new run finding. A new finding is answered
 before it merges, by making the write plain (it is the game's) or by showing
 where the value the read takes comes from and adding its line with the reason
 after a `#`. A line nothing produces any more is reported, not failed, since
@@ -6656,8 +6675,10 @@ one), and the circle's center and radius, whose reads take the low byte the
 callers write, which the scaffolding writes back unchanged while it clears the
 high byte (the runs do see those: the circle's jump draws it again without its
 callers writing it). The core's one is the block-move stub's own port, which
-reads what its caller wrote into the stub. 130 source findings are left on
-main.
+reads what its caller wrote into the stub. 130 source findings were left on
+main then; with the battle's and the menus' first chunks merged, 252 (counted
+by element, as the baseline now keys them), and the
+battle's chunk added eight run findings of its own (docs/TODO.md).
 
 **A port that spans frames.** The menus' chunk ported the load screen's
 opening (`$C2:E613`, which draws the screen through `$C2:E7C3`), which matched

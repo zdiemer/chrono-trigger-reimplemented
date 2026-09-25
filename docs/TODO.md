@@ -432,14 +432,23 @@ rest waits, is [PLAN.md](PLAN.md).
   first chunks"). Each is a value the native build reads stale unless shown
   otherwise; answering one deletes its line. What the library's shipping-mode
   runs catch (`ct_dev --native on --scaffold-reads`), by subsystem:
-  - battle: `battle_divide` reads `battle_wide_math` (`$2A`-`$2F`) where its
-    own scaffolding, or `battle_multiply_16x16`'s, wrote last: the original's
-    callers divide what the last multiply or divide left there, so those
-    results are game state (the battle branch's `battle_long_high_word` is the
-    same finding, answered); `battle_multiply_16x16` reads `$2B` its own
-    scaffolding left; `battle_set_screen_effect` reads `battle_scratch`
-    `$55`-`$57`, last written by `battle_build_fade_tables`' and
-    `battle_decode_tile_row`'s scaffolding;
+  - battle: the long arithmetic's cells are read as game state after only
+    scaffolding wrote them, the case the first chunk's `battle_long_high_word`
+    answered for one cell: `battle_divide` reads `battle_wide_math`
+    (`$2A`-`$2F`) its own or `battle_multiply_16x16`'s scaffolding left (the
+    original's callers divide what the last multiply or divide left there),
+    `battle_multiply_16x16` reads `$2B` so, and the random draws
+    (`battle_draw_random`, `battle_draw_random_other`) read `$2C`-`$2D` that
+    `battle_multiply_16x16`'s scaffolding left; the reach tests
+    (`battle_touching`, `battle_within_long_reach`, `_near_reach`,
+    `_search_reach`) read `battle_product` (`$AF`-`$B0`) their own scaffolding
+    wrote; `battle_direction_between` reads `battle_direction_cells`
+    (`$D5`-`$D6`) likewise (twice, `endings-bucket-lavos`);
+    `battle_enemy_find_reactions` reads `battle_enemy_turn` (`$B252`) after
+    `battle_dispatch_expired_timers`' scaffolding; and
+    `battle_set_screen_effect` reads `battle_scratch` `$55`-`$57`, last
+    written by `battle_build_fade_tables`' and `battle_decode_tile_row`'s
+    scaffolding;
   - field and event: `field_current_object`'s high byte (`$016E`), which only
     scaffolding clears (`event/engine.c`'s `leave_current_as_a_word`,
     `field/sprites.c`'s `leave_current_object_as_byte`), is read as part of the
@@ -447,14 +456,14 @@ rest waits, is [PLAN.md](PLAN.md).
     `event_run_init_scripts`, `event_run_object_script`, `field_update_objects`
     and `field_build_sprite_table`: in the native build it is whatever last
     wrote the word;
-  - menus: `menu_scratch` (`$0000`-`$0001`), read by `menu_show_save_slot`,
-    `menu_draw_save_slot` and `menu_draw_member_portrait` where their own
-    scaffolding wrote it last; `menu_object_wave_hdma` reads
+  - menus: `menu_scratch` (`$0001`), read by `menu_draw_member_portrait`
+    where its own scaffolding wrote it last; `menu_object_wave_hdma` reads
     `menu_wave_phase` (`$01E2`) once after `event_run_object_script`'s
     scaffolding wrote that byte (`menus-end-of-time`), which may be a field
     cell over the same byte rather than the menus' own.
-  The source check's findings on main are broader (battle 33, field 29,
-  event 3, menu 49, scene 16, core 1; `python3 tools/effects_check.py`): most
+  The source check's findings on main are broader (battle 101, field 29,
+  event 3, menu 103, scene 15, core 1, by element, after the battle's and the
+  menus' first chunks; `python3 tools/effects_check.py`): most
   are the entry wrappers reading the operands the original's callers hand
   them, which a line with that reason answers, but the `[only]` ones in logic
   (`python3 tools/effects_check.py | grep only`) are where to look first.

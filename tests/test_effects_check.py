@@ -57,12 +57,17 @@ FILES = {
 
         static void leave_high(GameState *g, uint16_t high) { set_battle_high_word(g, high); }
         static void set_work_byte(GameState *g, unsigned cell, uint8_t v) { set_battle_work(g, cell, v); }
+        static void leave_by(GameState *g, void (*set)(GameState *, unsigned, uint8_t), unsigned at, uint8_t v)
+        {
+            set(g, at, v);
+        }
 
         uint16_t battle_long_multiply(GameState *g, uint16_t a, uint16_t b)
         {
             uint32_t p = (uint32_t)a * b;
             ORIGINAL_EFFECT(leave_high(g, (uint16_t)(p >> 16)));
             ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 0));
+            ORIGINAL_EFFECT(leave_by(g, set_battle_work, 3, 0));
             return (uint16_t)p;
         }
         """,
@@ -74,6 +79,7 @@ FILES = {
 
         uint8_t battle_other_cell(GameState *g) { return battle_work(g, LEFT_OTHER_CELL); }
         uint8_t battle_any_cell(GameState *g, unsigned i) { return battle_work(g, i); }
+        uint8_t battle_third_cell(GameState *g) { return battle_work(g, 3); }
 
         static bool looks_right(Snes *s)
         {
@@ -130,7 +136,7 @@ class TestTree(unittest.TestCase):
 
     def test_a_leftover_read_as_game_input(self):
         """battle's case: the draw reads the high word the multiply keeps only as scaffolding."""
-        self.assertIn("game/battle/random.c battle_draw battle_high_word battle_high_word", self.keys)
+        self.assertIn("game/battle/random.c battle_draw battle_high_word battle_high_word only", self.keys)
         f = next(f for f in self.findings if f.read.func[1] == "battle_draw")
         self.assertEqual(f.writers, [("game/battle/arith.c", 4)])
         self.assertEqual(f.plain, [])
@@ -138,12 +144,16 @@ class TestTree(unittest.TestCase):
 
     def test_a_block_under_if_original_effects(self):
         """menus' case: the inside drawn to the size only the frame's scaffolding wrote."""
-        self.assertIn("game/menu/window.c menu_draw_window menu_window_inside menu_window_inside", self.keys)
+        self.assertIn("game/menu/window.c menu_draw_window menu_window_inside menu_window_inside only", self.keys)
 
     def test_constants_follow_helpers_into_elements(self):
         """set_work_byte(g, LEFT_TURNED, 0) is element 0: element 1 isn't reported, any element is."""
-        self.assertNotIn("game/battle/random.c battle_other_cell battle_work battle_work", self.keys)
-        self.assertIn("game/battle/random.c battle_any_cell battle_work battle_work", self.keys)
+        self.assertFalse(any(k.startswith("game/battle/random.c battle_other_cell ") for k in self.keys))
+        self.assertIn("game/battle/random.c battle_any_cell battle_work battle_work only", self.keys)
+
+    def test_a_setter_passed_to_a_helper(self):
+        """leave_by(g, set_battle_work, 3, 0) writes element 3 through its parameter."""
+        self.assertIn("game/battle/random.c battle_third_cell battle_work[3] battle_work only", self.keys)
 
     def test_peeks_and_guards_are_not_the_logic(self):
         funcs = {f.read.func[1] for f in self.findings}
@@ -154,7 +164,18 @@ class TestTree(unittest.TestCase):
         self.assertFalse(any(f.read.func[1] == "field_walk" for f in self.findings))
 
     def test_nothing_else(self):
-        self.assertEqual(len(self.findings), 3, "\n".join(f.describe() for f in self.findings))
+        self.assertEqual(len(self.findings), 4, "\n".join(f.describe() for f in self.findings))
+
+    def test_a_cell_losing_its_plain_writer_is_a_new_finding(self):
+        """The key says `only` where no port writes the cell plainly: a plain write
+        turned into scaffolding is a new line, not the old one."""
+        f = next(f for f in self.findings if f.read.func[1] == "battle_draw")
+        was = f.plain
+        f.plain = [("game/battle/arith.c", 1)]
+        try:
+            self.assertEqual(f.key(), "game/battle/random.c battle_draw battle_high_word battle_high_word")
+        finally:
+            f.plain = was
 
     def test_ratchet(self):
         out = open(pathlib.Path(self.tmp.name) / "out.txt", "w", encoding="utf-8")

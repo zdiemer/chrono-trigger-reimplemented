@@ -22,7 +22,9 @@ do, and this tool reads both.
   game/vars.h (`set_<name>`), or `wram_write*`/`m_write*` at an address the
   source spells as a constant -- made inside an `ORIGINAL_EFFECT` or an
   `#if ORIGINAL_EFFECTS` block, or in a function called from one (to any
-  depth: `leave_*` and `original_cell*` helpers are followed);
+  depth: `leave_*` and `original_cell*` helpers are followed, and a setter
+  passed to a helper as a function pointer, `leave_word(g, set_x, at, v)`, is
+  followed to where the helper calls it);
 - a *read* is a getter (`<name>(g, ...)`) or `wram_read*`/`m_read*` outside all
   of that, in any function the game reaches: a registry entry, a table's row,
   a callback, and what they call. Reads while a guard peeks (between
@@ -60,9 +62,11 @@ shipping-mode runs take the flag, so the suite passes their logs. A finding is
 a port and the variable the byte belongs to.
 
 **The ratchet.** `--check` fails on a finding of either kind not in
-tools/effects_baseline.txt: `FILE FUNCTION ACCESSOR VARIABLE` for the source
-(no line numbers, so an edit elsewhere doesn't move it), `run PORT VARIABLE`
-for a run, then an optional `# reason`. The baseline holds main's findings,
+tools/effects_baseline.txt: `FILE FUNCTION ACCESSOR[ELEMENT] VARIABLE [only]`
+for the source (no line numbers, so an edit elsewhere doesn't move it; the
+element where the source names it; `only` where no port writes the cell
+plainly, so a plain write turned into scaffolding is a new line), `run PORT
+VARIABLE` for a run, then an optional `# reason`. The baseline holds main's findings,
 the source findings of the branches in flight when the check came in, and the
 library's run findings. A new one is answered before it merges: the write is
 the game's, so make it plain; or the read takes a value something else sets
@@ -490,6 +494,62 @@ class Analysis:
                     if hit:
                         self.called.add((hit[0].rel, name))
 
+    def _fn_arg(self, unit: Unit, text: str, params):
+        """What an argument names, when it is a function: an accessor or a game
+        function by name, `@param:p` for the caller's own parameter p (passed
+        on), else None."""
+        text = text.strip()
+        if not re.fullmatch(r"[A-Za-z_]\w*", text):
+            return None
+        if text in params:
+            return "@param:" + text
+        if self.acc.lookup(text) is not None or text in RAW or self.tree.resolve(unit, text) is not None:
+            return text
+        return None
+
+    def _call(self, unit: Unit, name, norm, fns, scaffold, site, key, peek=False):
+        """The effects of calling `name` with these arguments (normalized in the
+        caller's terms, and what each names when it is a function)."""
+        hit = self.acc.lookup(name)
+        if hit is not None:
+            a, write = hit
+            if not write and peek:
+                return
+            layout = Accessors.layout(a, write)
+            rest = norm[1:]
+            args = tuple((role, rest[i] if i < len(rest) else UNKNOWN)
+                         for i, role in enumerate(layout) if role not in ("v", "page"))
+            yield Effect("w" if write else "r", a.name, args, scaffold, site, key)
+            return
+        if name in RAW:
+            kind, width = RAW[name]
+            yield Effect(kind, "@raw%d" % width, (("addr", norm[1] if len(norm) > 1 else UNKNOWN),),
+                         scaffold, site, key)
+            return
+        if name.startswith("@param:"):
+            # a call through the caller's own parameter: resolved where it is bound
+            yield Effect("x", name[len("@param:"):], tuple(zip(fns, norm)), scaffold, site, key)
+            return
+        target = self.tree.resolve(unit, name)
+        if target is None:
+            return
+        cu, cf = target
+        binding, bound_fns = {}, {}
+        for i, p in enumerate(cf.params):
+            binding[p] = norm[i] if i < len(norm) else UNKNOWN
+            bound_fns[p] = fns[i] if i < len(fns) else None
+        for ce in self.summary(cu, cf):
+            if ce.kind != "x":
+                nargs = tuple((role, substitute(x, binding)) for role, x in ce.args)
+                yield Effect(ce.kind, ce.target, nargs, ce.scaffold or scaffold, ce.site, ce.func)
+                continue
+            fn = bound_fns.get(ce.target)
+            if fn is None:
+                continue
+            snorm = [substitute(x, binding) for _, x in ce.args]
+            sfns = [bound_fns.get(f[len("@param:"):]) if f and f.startswith("@param:") else f for f, _ in ce.args]
+            yield from self._call(unit, fn, snorm, sfns, ce.scaffold or scaffold, ce.site, ce.func)
+
     def summary(self, unit: Unit, f) -> list:
         key = (unit.rel, f.name)
         if key in self.summaries:
@@ -502,34 +562,10 @@ class Analysis:
         for name, args, at in self._calls(unit, f):
             scaffold = unit.in_scaffolding(at)
             site = (unit.rel, unit.line(at))
-            hit = self.acc.lookup(name)
-            if hit is not None:
-                a, write = hit
-                if not write and unit.in_peek(at):
-                    continue
-                layout = Accessors.layout(a, write)
-                rest = args[1:]
-                norm = tuple((role, self.norm.normalize(unit, rest[i], params) if i < len(rest) else UNKNOWN)
-                             for i, role in enumerate(layout) if role not in ("v", "page"))
-                e = Effect("w" if write else "r", a.name, norm, scaffold, site, key)
-                effects.setdefault(e.key(), e)
-                continue
-            if name in RAW:
-                kind, width = RAW[name]
-                addr = self.norm.normalize(unit, args[1], params) if len(args) > 1 else UNKNOWN
-                e = Effect(kind, "@raw%d" % width, (("addr", addr),), scaffold, site, key)
-                effects.setdefault(e.key(), e)
-                continue
-            target = self.tree.resolve(unit, name)
-            if target is None:
-                continue
-            cu, cf = target
-            binding = {}
-            for i, p in enumerate(cf.params):
-                binding[p] = self.norm.normalize(unit, args[i], params) if i < len(args) else UNKNOWN
-            for ce in self.summary(cu, cf):
-                nargs = tuple((role, substitute(x, binding)) for role, x in ce.args)
-                e = Effect(ce.kind, ce.target, nargs, ce.scaffold or scaffold, ce.site, ce.func)
+            norm = [self.norm.normalize(unit, a, params) for a in args]
+            fns = [self._fn_arg(unit, a, params) for a in args]
+            callee = "@param:" + name if name in params else name
+            for e in self._call(unit, callee, norm, fns, scaffold, site, key, unit.in_peek(at)):
                 effects.setdefault(e.key(), e)
         self.busy.discard(key)
         out = list(effects.values())
@@ -552,6 +588,8 @@ class Analysis:
         out = []
         for u, f in self.roots():
             for e in self.summary(u, f):
+                if e.kind == "x":
+                    continue    # a call through a parameter nothing bound
                 args = tuple((role, evaluate(x)) for role, x in e.args)
                 k = (e.kind, e.target, args, e.scaffold, e.site)
                 if k in seen:
@@ -578,8 +616,10 @@ class Finding:
         self.wrapper = wrapper      # the read is in a function that takes the machine
 
     def key(self):
-        read = self.read_name[:-len("_unchecked")] if self.read_name.endswith("_unchecked") else self.read_name
-        return "%s %s %s %s" % (self.read.site[0], self.read.func[1], read, self.var_name)
+        read = self.read_name.replace("_unchecked", "")
+        # a cell no port writes plainly any more is a new finding, not the old one
+        return "%s %s %s %s%s" % (self.read.site[0], self.read.func[1], read, self.var_name,
+                                  "" if self.plain else " only")
 
     def subsystem(self):
         return subsystem_of(self.read.site[0])
@@ -629,10 +669,10 @@ def analyse(root: pathlib.Path = ROOT, game: pathlib.Path | None = None, map_pat
             for x in b:
                 (writes_s if e.scaffold else writes_p)[x].append((e.site, var, sub))
         elif not e.scaffold:
-            reads.append((e, b, var, sub))
+            reads.append((e, dict(args), b, var, sub))
 
     by_key = {}
-    for e, b, var, sub in reads:
+    for e, args, b, var, sub in reads:
         hits = collections.defaultdict(set)
         plain = set()
         for x in b:
@@ -644,6 +684,8 @@ def analyse(root: pathlib.Path = ROOT, game: pathlib.Path | None = None, map_pat
                     plain.add(site)
         for wvar, sites in hits.items():
             name = e.target if not e.target.startswith("@raw") else "$%06X" % min(b)
+            if args.get("index") is not None:
+                name += "[%d]" % args["index"]   # the element, where the source says which
             f = Finding(e, name, wvar, sorted(sites), sorted(plain), e.func in an.wrappers)
             old = by_key.get(f.key())
             if old is None or f.read.site < old.read.site:
