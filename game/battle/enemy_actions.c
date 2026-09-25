@@ -56,7 +56,7 @@ static void note_party_hit(GameState *g, uint8_t first)
 static uint8_t pose_kind(uint8_t pose) { return pose == 1 || pose == 2 ? 0x04 : pose == 3 || pose == 4 ? 0x0D : pose; }
 
 // $C1:ACCE
-void enemy_note_pose_kind(GameState *g) { ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, pose_kind(battle_action_pose(g)))); }
+void enemy_note_pose_kind(GameState *g) { battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, pose_kind(battle_action_pose(g))); }
 
 static void keep_pose_kind(GameState *g)
 {
@@ -311,7 +311,7 @@ void enemy_attack_begins(GameState *g, ScriptPlace at)
     only_target(g, target);
     note_party_hit(g, target);
     battle_mark_first_target(g);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, number));
+    battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, number);
     set_battle_action_number(g, number);
     if (number == ATTACK_WITH_OWN_DETAIL)
         set_battle_action_detail(g, combatant_stat_byte(g, (uint8_t)(BATTLE_FIRST_ENEMY + acting(g)), STAT_ATTACK_DETAIL));
@@ -427,7 +427,7 @@ static uint8_t own_stat(const GameState *g, uint8_t offset) { return combatant_s
 
 void enemy_change_own_stat(GameState *g, StatChange change, bool adding)
 {
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, change.offset));
+    battle_keep_word(g, BATTLE_TECH_HITS_LEFT, change.offset);
     if (adding)
         ORIGINAL_EFFECT(battle_leave_byte(g, 0x10, change.value & (uint8_t)~TAKE_AWAY));
     set_own_stat(g, change.offset, adding ? changed_by(own_stat(g, change.offset), change.value) : change.value);
@@ -474,7 +474,7 @@ static uint8_t change_four_stats(GameState *g, ScriptPlace at, bool adding)
 static uint8_t set_stat(GameState *g, uint8_t offset, uint8_t value, uint8_t or_in, uint8_t message)
 {
     set_battle_action_message(g, message);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, offset));
+    battle_keep_word(g, BATTLE_TECH_HITS_LEFT, offset);
     ORIGINAL_EFFECT(battle_leave_word(g, 0x10, value));
     ORIGINAL_EFFECT(battle_leave_word(g, 0x12, or_in));
     set_own_stat(g, offset, or_in ? (uint8_t)(own_stat(g, offset) | value) : value);
@@ -485,7 +485,7 @@ static uint8_t set_stat(GameState *g, uint8_t offset, uint8_t value, uint8_t or_
 static uint8_t add_to_stat(GameState *g, uint8_t offset, uint8_t amount, uint8_t message)
 {
     set_battle_action_message(g, message);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, offset));
+    battle_keep_word(g, BATTLE_TECH_HITS_LEFT, offset);
     ORIGINAL_EFFECT(battle_leave_word(g, 0x10, (amount & TAKE_AWAY) ? amount & (uint8_t)~TAKE_AWAY : amount));
     uint8_t slot = actor(g);
     set_combatant_stat_byte(g, slot, offset, changed_by_signed(combatant_stat_byte(g, slot, offset), amount));
@@ -546,7 +546,7 @@ enum {
 static void flags(GameState *g, uint8_t which)
 {
     uint8_t enemy = acting(g);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, which));
+    battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, which);
     uint8_t condition = combatant_stat_byte(g, enemy, STAT_CONDITION);
     if (which & FLAG_NOTHING)
         return;
@@ -570,7 +570,7 @@ static void flags(GameState *g, uint8_t which)
 static void add_to_turn_wait(GameState *g, uint8_t enemy, Selector who, uint8_t amount)
 {
     select_by(g, enemy, who);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, amount));
+    battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, amount);
     ORIGINAL_EFFECT(set_battle_wide_math(g, 4, amount & (uint8_t)~TAKE_AWAY));
     ORIGINAL_EFFECT(set_battle_wide_math(g, 5, 0));
     uint8_t slot = battle_candidates(g, 0), wait = combatant_turn_wait(g, slot);
@@ -636,7 +636,7 @@ ChangeInto enemy_change_into(GameState *g, ScriptPlace at)
     uint8_t slot = BATTLE_FIRST_ENEMY;
     for (; slot < BATTLE_COMBATANTS; slot++) {
         if (battle_combatant_id(g, slot) == id && battle_combatant_fighting(g, slot) != id)
-            ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, slot));
+            battle_keep_word(g, BATTLE_TECH_HITS_LEFT, slot);
         if (may_change_into(g, slot, id))
             break;
     }
@@ -653,7 +653,7 @@ ChangeInto enemy_change_into(GameState *g, ScriptPlace at)
     uint8_t me = actor(g);
     set_battle_combatant_fighting(g, me, COMBATANT_NONE);
     uint8_t mine = battle_places(g, me);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, battle_places(g, slot)));
+    battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, battle_places(g, slot));
     set_battle_places(g, me, battle_places(g, slot));
     set_battle_places(g, slot, mine);
     set_battle_enemy_standing(g, me - BATTLE_FIRST_ENEMY, battle_enemy_standing(g, me - BATTLE_FIRST_ENEMY) | ENEMY_IN_RESERVE);
@@ -689,7 +689,7 @@ uint8_t enemy_next_to_bring_back(const GameState *g, uint8_t enemy)
 void enemy_bring_back_starts(GameState *g, ScriptPlace at)
 {
     set_battle_action_message(g, byte_at(g, at, 3));
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, byte_at(g, at, 1)));
+    battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, byte_at(g, at, 1));
     ORIGINAL_EFFECT(battle_leave_word(g, 0x12, byte_at(g, at, 2)));
     battle_clear_candidates(g);
 }
@@ -743,7 +743,7 @@ enum { CALL_IN_MESSAGE = 11 };
 
 void enemy_call_in_starts(GameState *g, ScriptPlace at)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, byte_at(g, at, 1)));
+    battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, byte_at(g, at, 1));
     ORIGINAL_EFFECT(battle_leave_word(g, 0x12, byte_at(g, at, 2)));
     set_battle_action_message(g, byte_at(g, at, CALL_IN_MESSAGE));
     battle_clear_candidates(g);

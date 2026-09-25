@@ -38,8 +38,8 @@ ScriptChoosing enemy_choosing_in_cells(const GameState *g)
     return (ScriptChoosing){
         .enemy = battle_enemy_turn(g),
         .condition = battle_condition_kind(g),
-        .pair = battle_condition_pair(g),
-        .outcome = battle_script_outcome(g),
+        .pair = (ConditionPair)battle_condition_pair(g),
+        .outcome = (ScriptOutcome)battle_script_outcome(g),
         .place = battle_script_place(g),
         .block_start = battle_block_start(g),
         .actions_from = battle_script_actions_place(g),
@@ -105,9 +105,8 @@ static ScriptPlace action_to_choose(GameState *g, uint8_t enemy, ScriptPlace fir
         return first;
     if (battle_enemy_script_block(g, enemy) != battle_enemy_actions_block(g, enemy))
         return start_block_actions(g, enemy, first);
-    if (enemy_script_byte(g, first) == ACTION_ONE_OF_FOUR)
-        set_battle_enemy_next_action(g, enemy, first);
-    ScriptPlace at = take_next_action(g, enemy, battle_enemy_next_action(g, enemy));
+    ScriptPlace next = enemy_script_byte(g, first) == ACTION_ONE_OF_FOUR ? first : battle_enemy_next_action(g, enemy);
+    ScriptPlace at = take_next_action(g, enemy, next);
     if (is_end_of_actions(g, at))
         at = start_block_actions(g, enemy, first);
     return at;
@@ -174,7 +173,7 @@ void enemy_act_on_condition(GameState *g, ScriptChoosing *c, ConditionResult r)
     ConditionVerdict verdict = r.verdict;
     if (r.takes_target) {
         if (!r.target_taken)
-            c->outcome++;
+            c->outcome = (ScriptOutcome)(uint8_t)(c->outcome + 1); /* counted in a byte */
         if (c->outcome != OUTCOME_HELD)
             verdict = r.otherwise;
         else if (r.pairs)
@@ -285,7 +284,7 @@ static void choose_by_script(GameState *g, ScriptChoosing *c, uint8_t id)
 {
     uint8_t enemy = c->enemy;
     c->block_start = c->place = enemy_script_start(g, id);
-    battle_keep_word_at_0a(g, 0);
+    battle_keep_stat_offset_word(g, 0);
     for (;;) {
         c->outcome = OUTCOME_HELD;
         if (has_two_conditions(g, c->block_start))

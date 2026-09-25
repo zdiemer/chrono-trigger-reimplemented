@@ -216,7 +216,7 @@ static void pick_other_enemy_at_random(GameState *g, uint8_t self)
 {
     set_count(g, 0);
     pick_fighting(g, BATTLE_FIRST_ENEMY, BATTLE_COMBATANTS, self);
-    battle_keep_word_at_0a(g, self);
+    battle_keep_stat_offset_word(g, self);
     uint8_t count = battle_candidate_count(g);
     if (count >= 2)
         narrow_at_random(g, count, false);
@@ -271,7 +271,7 @@ static void start_status_pick(GameState *g, StatusTest test)
     set_count(g, 0);
     set_battle_candidates_turning(g, 0);
     set_battle_candidates_drawing(g, 0);
-    battle_keep_word_at_0a(g, test.stat);
+    battle_keep_stat_offset_word(g, test.stat);
     ORIGINAL_EFFECT(leave_considering(g, test));
 }
 
@@ -504,7 +504,7 @@ void battle_pick_candidates(GameState *g, uint8_t enemy, Selector selector)
     case PICK_OTHER_ENEMIES:
         set_count(g, 0);
         pick_fighting(g, BATTLE_FIRST_ENEMY, BATTLE_COMBATANTS, self);
-        battle_keep_word_at_0a(g, self);
+        battle_keep_stat_offset_word(g, self);
         break;
     case PICK_ENEMIES:
         set_count(g, 0);

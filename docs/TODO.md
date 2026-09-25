@@ -218,6 +218,14 @@ rest waits, is [PLAN.md](PLAN.md).
       `_by_wide_place` stat accessors, which name the original's indexing
       rather than what is read; and the meanings of the action record's
       bit 4 (`ACTED_BIT_4`) and the flags action's second do-nothing bit;
+      from its re-review: the carrying-out side (`enemy_actions.c`'s turn
+      parts) still decodes operands by position, where the choosing's rows
+      decode them by layout; the flags action's bits are a `uint8_t` tested
+      in turn, not a decoded choice; the pose kinds ($04, $0D) are unnamed;
+      and the cells a candidate past the combatants can be read from are kept
+      plainly only where the conditions write them ($08, $0A-$0B, $0E:
+      battle.h), not the selectors' other scaffolding ($02, $0C-$0D), which
+      such a read could reach as well;
     - `nmi.c` is named for the interrupt, and the battle's two vblank
       handlers sit in `nmi.c` and `display.c` without pointing at each other;
       `frame.h` describes `BattleScrollMode` by what is still the original's.

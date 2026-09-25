@@ -72,8 +72,8 @@ typedef enum { PAIR_NONE = 0x00, PAIR_FIRST = 0x01, PAIR_FIRST_HELD = 0x80 } Con
 typedef struct {
     uint8_t enemy;            /* the enemy choosing (BATTLE_ENEMIES once all have) */
     uint8_t condition;        /* the kind of the condition being tested */
-    uint8_t pair;             /* ConditionPair */
-    uint8_t outcome;          /* ScriptOutcome, as the block's testing stands */
+    ConditionPair pair;
+    ScriptOutcome outcome;    /* as the block's testing stands */
     ScriptPlace place;        /* how far the script has been read (below) */
     ScriptPlace block_start;  /* the block being tested */
     ScriptPlace actions_from; /* the actions being chosen from */

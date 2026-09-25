@@ -78,10 +78,6 @@ static bool take_marked(GameState *g, uint8_t marked)
 
 /* ---- About the candidates -------------------------------------------------------------------- */
 
-/* The condition byte's top bit, as the high byte of a word read at it, is
- * stopped. */
-enum { STOPPED_HIGH_BIT = 0x8000 };
-
 // $C1:8EAB
 /* Those picked at half their HP or less (and not stopped), one of them the
  * target. With nobody picked the condition holds without choosing. */
@@ -93,16 +89,16 @@ static ConditionResult at_half_hp(GameState *g, const ScriptChoosing *c, Selecto
     uint8_t marked = 0;
     for (uint8_t place = 0; place < count; place++) {
         uint8_t slot = candidate(g, place);
-        if (combatant_stat_word_by_place(g, slot, STAT_CONDITION) & STOPPED_HIGH_BIT)
+        if (combatant_stat_byte_by_place(g, slot, STAT_STATUS_1) & STATUS_STOP)
             continue;
         uint16_t hp = combatant_stat_word_by_place(g, slot, STAT_HP);
-        ORIGINAL_EFFECT(battle_leave_word(g, 0x08, hp));
+        battle_keep_word(g, BATTLE_NUMBER_TESTED, hp);
         if (combatant_stat_word_by_place(g, slot, STAT_MAX_HP) / 2 >= hp) {
             mark(g, place);
             marked++;
         }
     }
-    battle_keep_word_at_0a(g, marked);
+    battle_keep_stat_offset_word(g, marked);
     ORIGINAL_EFFECT(set_battle_candidate_place(g, count));
     return for_target(take_marked(g, marked), CONDITION_HOLDS_UNCHOSEN);
 }
@@ -152,24 +148,22 @@ static ConditionResult is_enemy(GameState *g, const ScriptChoosing *c, Selector 
 }
 
 // $C1:90BE
-/* Those picked with HP at most a number, one of them the target. The
- * original keeps the number in the cells at $08, where a candidate that is
- * none reads its HP (through the table of the stat blocks' places), so that
- * is kept plainly. */
+/* Those picked with HP at most a number, one of them the target. The number
+ * is kept where a candidate past the combatants can read it (battle.h). */
 static ConditionResult at_most_hp(GameState *g, const ScriptChoosing *c, Selector who, uint16_t most)
 {
     uint8_t count = select_by(g, c, who);
     if (count == 0)
         return nobody_picked();
-    battle_leave_word(g, 0x08, most);
+    battle_keep_word(g, BATTLE_NUMBER_TESTED, most);
     uint8_t marked = 0;
     for (uint8_t place = 0; place < count; place++)
         if (combatant_stat_word_by_wide_place(g, candidate(g, place), STAT_HP) <= most) {
             mark(g, place);
             marked++;
         }
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x08, (uint8_t)most));
-    battle_keep_word_at_0a(g, count);
+    battle_keep_word(g, BATTLE_NUMBER_TESTED, (uint8_t)most);
+    battle_keep_stat_offset_word(g, count);
     ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, marked));
     return marked == 0 ? fails() : for_target(take_marked(g, marked), CONDITION_FAILS);
 }
@@ -192,7 +186,7 @@ static ConditionResult any_stat(GameState *g, uint8_t count, uint16_t offset, ui
     do {
         found = passes(test, combatant_stat_byte_by_wide_place(g, candidate(g, place), offset), value);
     } while (!found && ++place < count);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, place));
+    battle_keep_word(g, BATTLE_TECH_HITS_LEFT, place);
     return found ? for_target(take_marked(g, count), CONDITION_FAILS) : fails();
 }
 
@@ -200,12 +194,12 @@ static ConditionResult stat_compared(GameState *g, const ScriptChoosing *c, Sele
                                      StatTest test)
 {
     if (test == AT_MOST)
-        battle_keep_word_at_0a(g, 0);
+        battle_keep_stat_offset_word(g, 0);
     uint8_t count = select_by(g, c, who);
     if (count == 0)
         return nobody_picked();
-    battle_keep_word_at_0a(g, offset);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, value));
+    battle_keep_stat_offset_word(g, offset);
+    battle_keep_byte(g, BATTLE_NUMBER_TESTED, value);
     return any_stat(g, count, offset, value, test);
 }
 
@@ -221,23 +215,25 @@ static ConditionResult stat_at_most(GameState *g, const ScriptChoosing *c, Selec
 
 /* The test of a stat's value goes on from the first candidate to the one at
  * twice its slot in the list, and so on: the original keeps the doubled slot
- * it indexes the places with for the list as well. It counts in a cell its
- * stat's pointer can reach, so the count is kept there as it goes. */
+ * it indexes the places with for the list as well, so the walk reaches past
+ * the candidates to slots past the combatants. It counts in $0E, which such
+ * a slot's stat can be read from (battle.h), so the count is kept there as it
+ * goes. */
 static ConditionResult stat_equal(GameState *g, uint8_t count, uint16_t offset, uint8_t value)
 {
     uint8_t place = 0;
     uint16_t at = 0;
     bool found;
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, 0));
+    battle_keep_word(g, BATTLE_TECH_HITS_LEFT, 0);
     for (;;) {
         Candidate slot = candidate(g, at);
         found = combatant_stat_byte_by_wide_place(g, slot, offset) == value;
         if (found || ++place >= count)
             break;
-        ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, place));
+        battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, place);
         at = (uint16_t)(slot * 2);
     }
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, place));
+    battle_keep_word(g, BATTLE_TECH_HITS_LEFT, place);
     return found ? for_target(take_marked(g, count), CONDITION_FAILS) : fails();
 }
 
@@ -245,11 +241,11 @@ static ConditionResult stat_equal(GameState *g, uint8_t count, uint16_t offset, 
  * last word kept at $0A left (battle.h), as the original's pointer reads it. */
 static ConditionResult stat_is(GameState *g, const ScriptChoosing *c, uint8_t value, Selector who, uint8_t offset_low)
 {
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, value));
+    battle_keep_byte(g, BATTLE_NUMBER_TESTED, value);
     uint8_t count = select_by(g, c, who);
     if (count == 0)
         return fails();
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0A, offset_low));
+    battle_keep_byte(g, BATTLE_STAT_OFFSET_LOW, offset_low);
     uint16_t offset = (uint16_t)(offset_low | battle_stat_offset_high(g) << 8);
     return stat_equal(g, count, offset, value);
 }
@@ -264,7 +260,7 @@ static ConditionResult stat_bits(GameState *g, const ScriptChoosing *c, Selector
     if (count == 0 || (count != 1 && !battle_take_first_by_enemy_order(g)))
         return nobody_picked();
     uint8_t stat = combatant_stat_byte_by_wide_place(g, candidate(g, 0), offset);
-    battle_keep_word_at_0a(g, offset);
+    battle_keep_stat_offset_word(g, offset);
     ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, stat));
     return holds_if((bits & stat) != 0);
 }
@@ -378,9 +374,9 @@ static ConditionResult each_stands(GameState *g, const ScriptChoosing *c, Select
             marked++;
         }
     } while (++place < count);
-    battle_keep_word_at_0a(g, place);
+    battle_keep_stat_offset_word(g, place);
     ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, marked));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x0E, self(c)));
+    battle_keep_word(g, BATTLE_TECH_HITS_LEFT, self(c));
     ConditionResult r = for_target(take_marked(g, marked), CONDITION_HOLDS_UNCHOSEN);
     r.pairs = false;
     r.verdict = as_asked(negated, held) ? CONDITION_HOLDS : CONDITION_HOLDS_UNCHOSEN;
@@ -413,7 +409,7 @@ static ConditionResult could_walk_to(GameState *g, const ScriptChoosing *c, Sele
     if (count == 0)
         return fails();
     uint8_t clear = (uint8_t)(clearance << 2 | KEEP_CLEAR);
-    ORIGINAL_EFFECT(battle_leave_byte(g, 0x0E, KEEP_CLEAR));
+    battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, KEEP_CLEAR);
     return holds_if(as_asked(negated, search(g, c, SEARCH_WALK, candidate(g, 0), clear).held));
 }
 
@@ -479,7 +475,7 @@ static ConditionResult enemies_at_most(GameState *g, const ScriptChoosing *c, ui
         if (combatant_in_fight(g, (uint8_t)(BATTLE_FIRST_ENEMY + enemy)) && battle_enemy_standing(g, enemy) == 0)
             counted++;
     ORIGINAL_EFFECT(battle_leave_byte(g, 0x08, most));
-    battle_keep_word_at_0a(g, counted);
+    battle_keep_stat_offset_word(g, counted);
     return holds_if(most >= counted);
 }
 

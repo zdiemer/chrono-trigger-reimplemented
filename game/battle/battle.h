@@ -71,23 +71,36 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
     set_battle_low_scratch(g, at + 1, (uint8_t)(v >> 8));
 }
 
-/* Two of them carry a value on to a later reader that takes it as game input,
- * so every port that writes them keeps them plainly:
+/* Some of them carry a value on to a later reader that takes it as game
+ * input, so the enemies' scripts, their turns and the selectors keep what
+ * they write there plainly (battle_keep_*):
  *
  *   - $0B is the high byte of the stat offset the scripts' stat test reads
  *     (battle/enemy_conditions.c): whatever the last word the choosing or a
- *     selector kept at $0A left there;
+ *     selector kept at $0A-$0B left there;
  *   - $0E is what an enemy tech's hits are noted as (battle/enemy_actions.c)
- *     where the tech's targeting ($C1:C1DD, the original's) doesn't set it:
- *     the tech's number, or where a further target's selection ran over the
- *     combatants, where its loop ended. */
-enum { BATTLE_WORD_AT_0A = 0x0A, BATTLE_STAT_OFFSET_HIGH = 0x0B, BATTLE_TECH_HITS_LEFT = 0x0E };
+ *     where the tech's targeting ($C1:C1DD, the original's) doesn't set it,
+ *     which is whatever was last left there: the tech's number, the end of a
+ *     further target's selection, or before the tech anything an action or a
+ *     condition kept there;
+ *   - $08 (a number a condition tests), $0A and $0E are read as stats: a
+ *     candidate past the combatants (the stat test's doubled walk goes past
+ *     the list, a candidate that is none) is read wherever the table of the
+ *     stat blocks' places points, which can be these cells, so the
+ *     conditions that read candidates' stats keep what they write there
+ *     before and while they read. */
+enum {
+    BATTLE_NUMBER_TESTED = 0x08,
+    BATTLE_STAT_OFFSET_LOW = 0x0A,
+    BATTLE_STAT_OFFSET_HIGH = 0x0B,
+    BATTLE_TECH_HITS_LEFT = 0x0E,
+};
 
-static inline void battle_keep_word_at_0a(GameState *g, uint16_t v)
-{
-    ORIGINAL_EFFECT(battle_leave_byte(g, BATTLE_WORD_AT_0A, (uint8_t)v));
-    set_battle_low_scratch(g, BATTLE_STAT_OFFSET_HIGH, (uint8_t)(v >> 8));
-}
+static inline void battle_keep_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
+static inline void battle_keep_word(GameState *g, unsigned at, uint16_t v) { battle_leave_word(g, at, v); }
+
+/* A word kept at $0A-$0B, whose high byte is the stat offset's. */
+static inline void battle_keep_stat_offset_word(GameState *g, uint16_t v) { battle_keep_word(g, BATTLE_STAT_OFFSET_LOW, v); }
 static inline uint8_t battle_stat_offset_high(const GameState *g) { return battle_low_scratch(g, BATTLE_STAT_OFFSET_HIGH); }
 
 static inline void battle_keep_tech_hits_left(GameState *g, uint8_t v) { set_battle_low_scratch(g, BATTLE_TECH_HITS_LEFT, v); }

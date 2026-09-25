@@ -6077,8 +6077,13 @@ the long arithmetic's leftover high word `$2E` (the random draw divides with
 it: `battle_long_high_word`), the high byte `$0B` of the stat offset the
 stat test reads (whatever the last word kept at `$0A` left), and `$0E`,
 which an enemy tech's hits are noted as where its targeting doesn't set it
-(the tech's number, or where a further target's selection loop ended). The
-native-shape build had read them stale. `tools/fuzz_compare.py` against the
+(the tech's number, or whatever an action, a condition or a selection last
+left there; every write of it in the scripts and turns is kept). The
+native-shape build had read them stale. The re-review added the cells a
+candidate past the combatants reads its stats from, wherever the table of
+the stat blocks' places points: the conditions that read candidates' stats
+keep what they write at `$08`, `$0A` and `$0E` too (the stat test's count
+among them), since its doubled walk goes past the list. `tools/fuzz_compare.py` against the
 reviewed ports (135 routines, 5,000 states each, seed 1): 133 the same, and
 two differ where the walk's stray box read lands on the choosing's cells,
 which the rework writes when a choosing ends (writing them before each

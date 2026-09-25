@@ -56,8 +56,9 @@ typedef enum { FOLLOW_WITH_EFFECT = 0, FOLLOW_WITH_SHOWING = 1, FOLLOW_WITH_NOTH
 
 /* ---- Choosing (battle/enemy_actions.c) ------------------------------------------------------ */
 
-/* The pose an action is announced with sets the low bits of
- * battle_action_pose_kind ($C1:ACCE). */
+/* $C1:ACCE: the kind of the pose an action is announced with, as the effect
+ * code sorts it, left in $0E (battle.h). The draw among four and choosing
+ * again also keep it in battle_action_pose_kind's low bits. */
 void enemy_note_pose_kind(GameState *g);
 
 /* $C1:9B48: choose again, as the action at `at` says (no script has it): the
