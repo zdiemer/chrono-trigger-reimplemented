@@ -591,6 +591,17 @@ Each of these is a finding. Every example here comes from this repo.
     registers from state in one place, a register derived inline in a bridge
     elsewhere is a finding.
 
+68. **A value of one enum used as another's.** `ObjectKind place =
+    object_role(g, self).kind` passed as a party place, working only because
+    `ROLE_PARTY_1 == 1`. One concept, one type, and a conversion that says so.
+69. **Scaffolding written through an accessor named for something else.**
+    Marked, but the name still lies about what the cell holds then
+    (`set_field_own_tile_x` receiving a table address). Name the cell's
+    second use in the map, or use the scaffolding's own writer.
+70. **Script data patched by offset.** A command overwriting another script's
+    operands (`PUSH_SCRIPT + PUSH_TILE + 1`) is item 3 aimed at code: one
+    named operation per patch, beside where the script is defined.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"
