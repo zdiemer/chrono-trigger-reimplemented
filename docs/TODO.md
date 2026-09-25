@@ -544,6 +544,15 @@ rest waits, is [PLAN.md](PLAN.md).
   - the typesetter's `$12` followed by 2-7, which jumps into code in the
     original, sets nothing in the port: no string has it (6 of 20,000 fuzzed
     states read random ROM as text and reach it);
+  - the typesetter's reading functions return an `Ending` whose only use is
+    the X and Y the entries leave (the port-routine skill's "third trap"):
+    liveness has them read after `$C2:F90C` because the save screen's slot
+    rows (`$C2:D19F`, `$C2:D296`) return into the menus' task yield
+    (`$C2:CF5B` jumps to `$C2:821E`), which keeps X and Y for the next
+    handler the menus' thread dispatches (`$C2:828E`), and two of those,
+    `$C2:C7E0` and `$C2:E236`, read Y. The state can't say it instead (a
+    pause code leaves the stop as the budget does); porting the handlers, or
+    showing no path from the slot rows reaches them, drops it;
   - the save code's list of what the party carries (`$FF:F813`) and each
     member's figures (`$C2:99B2`, with `$C2:8816` and `$C2:9137`), which the
     items' tables call, are the original's;
