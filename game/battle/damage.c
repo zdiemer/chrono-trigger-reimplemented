@@ -11,7 +11,7 @@
 #include "vars.h"
 
 // $FD:ACFD
-static void clear_damage(GameState *g)
+void battle_clear_damage_table(GameState *g)
 {
     for (unsigned hit = 0; hit < BATTLE_DAMAGE_COUNT; hit++) {
         set_battle_damage_amount(g, hit, 0);
@@ -21,7 +21,7 @@ static void clear_damage(GameState *g)
 }
 
 // $FD:ACEE
-static void clear_numbers(GameState *g)
+void battle_clear_numbers_shown(GameState *g)
 {
     set_battle_effect_tally(g, 0);
     for (unsigned record = 0; record < BATTLE_NUMBER_RECORDS_COUNT; record++) {
@@ -35,7 +35,7 @@ static void clear_numbers(GameState *g)
  * their callers read. */
 void battle_clear_damage(Snes *s)
 {
-    clear_damage(state_of(s));
+    battle_clear_damage_table(state_of(s));
     s->cpu.a = 0;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rtl(s);
@@ -43,7 +43,7 @@ void battle_clear_damage(Snes *s)
 
 void battle_clear_numbers(Snes *s)
 {
-    clear_numbers(state_of(s));
+    battle_clear_numbers_shown(state_of(s));
     s->cpu.a = 0;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rtl(s);

@@ -5999,6 +5999,132 @@ elsewhere. The bot now backs out of a list it didn't ask for
 routines the battle still calls out to, the meanings not worked out, the
 quirks reproduced on purpose, and the accepted divergences.
 
+### Phase 3, wave 2: the enemies' minds (`$C1`)
+
+The first chunk of bank `$C1`: how the enemies choose what they do and carry
+it out. Their scripts' interpreter -- the choosing `$C1:8C09`/`$C1:AFD2`, the
+reactions `$C1:B488`, the 41 conditions, the 23 actions' choosing and turns,
+the 57 selectors and the target lists (`$C1:8C09`-`$C1:B092`, `$C1:B488`,
+`$C1:B4AA`) -- the target search and the battlefield's layout questions
+(`$C1:28B0`-`$C1:2D80`), the direction between two points `$C1:0222` and
+the scaled sine `$C1:01F9`, the random numbers `$C1:AF22`/`$C1:AF79`, a
+combatant's knock-out in the turn's update (`$C1:B279`, but for a member that
+comes back once), and the beaten enemies' finish `$C1:AC5E`. About 11 KiB of
+65816. `python3 tools/burndown.py` for `$C1`: the battle
+subsystem from 84% left (10.6 KiB ported, 0.5 KiB inlined, 42 entries) to
+52% (31.1 KiB, 10.9 KiB, 202 entries). That is more than the chunk: the loop's
+entries now reach, without a call-out, the code they run as C and as siblings,
+which the tool credits to them (its docstring says which way it is wrong).
+
+**The engine is C on the game's state.** `battle/enemy_scripts.c` is the
+choosing: every enemy that has nothing chosen looks through its script's
+turn section, block by block, until a block's conditions hold; the reactions
+look through the reaction section the same way for the actor. The conditions
+(`enemy_conditions.c`) and the actions' choosing (`enemy_actions.c`) are C
+tables, a row a command, which the dispatch reads and times as the original's
+routine for it (the row's `routine`); the selectors (`targets.c`) a table of
+what each picks; the search (`positions.c`) a function of the question and the
+three combatants, with the grid, the boxes and the direction as operations of
+their own. None of it takes a `Snes *`: the entries' wrappers put the answers
+where the original's callers look for them, and the machine side is the
+enemy's turn (`enemy_turn.c`), which calls the original's code for what is
+still generated -- the effect's working out, the attacks' and techs' setting
+up and targeting, an enemy's coming in, the message, the showing -- and runs
+its siblings (`battle_run`) where the original makes a JSR: the action's turn
+from its C table, the showing.
+
+**The main loop calls its own subsystem's ports as C.** The choosing at the
+battle's start and after every action, the timers' order drawn at random, the
+damage table's and the numbers' clears, the combatants' low HP and statuses,
+the reactions' conditions: C where they were call-outs through ROM addresses.
+The enemy's turn, the update of every combatant, the combination check, the
+turn itself and the beaten enemies' finish are siblings the loop runs as its
+JSRs would. The turn is the port's where its guard holds and the original's
+where the turn's place names no combatant (`battle_take_turn`, from the loop
+and from the timers' dispatch), since running a sibling skips the entry's
+guard.
+
+**The guards follow what the entry takes up.** A script holds only the
+commands the tables have, but a place the game never leaves (a fuzzed one)
+can land on bytes that aren't commands, which the original dispatches past its
+tables into the next table or into code. So each entry's guard looks at what
+it would take up from the place: a condition entry at the selector it names
+and the actions after it (past the first end marker after each byte the
+condition can leave the place on), an action entry at its selectors, a draw
+among four at the four, the choosing at the actions it keeps, the enemy's turn
+at the action it carries out. An entry knows itself by the machine's PC,
+which is where it starts. None refuses a call of the library's (over the 26 movies every entry's calls
+match, none refused and none mismatching).
+
+**What shadow mode and fuzzing found**, all reproduced rather than tidied:
+
+- The target search's finds store the slot found as a word, so the byte after
+  it is cleared (`battle_target_found_high`).
+- The side tests (below, to the right, level, the halves and edges) count
+  their failure cell down from what the search left in it, rather than set
+  it.
+- The stat blocks are reached two ways, and the table of their places is
+  indexed with the slot doubled in a byte by most routines and in a word by
+  the stat tests (`$C1:9130`, `$C1:918E`, `$C1:91F9`, `$C1:95FA`) and the HP
+  test `$C1:90BE`; an index past the combatants reads wherever the table's
+  word points, into the next bank where it carries.
+- The test of a stat's value (`$C1:95FA`) goes on from a candidate to the one
+  at twice its slot in the list: it keeps the doubled slot in X for the list
+  as well.
+- A condition that finds nobody holds without choosing for the side tests,
+  fails for others; the side tests set the search's question and searcher
+  whether or not a search runs; the side test's search is the third operand
+  plus six, in a byte.
+- An enemy present in the fight is looked for until the enemies' count, from
+  the first, by a 16-bit index: with no enemies it reads on for 256.
+- The selector in A (`$C1:AC2C`) is doubled in a byte, so its top bit is
+  lost.
+- A party member picked at random has the party updated again for each
+  draw; the draw among four drops its own return and goes on with the
+  choosing's loop at `$C1:8C90`, leaving the script's place on a byte it
+  stepped over until the loop puts it back.
+- The carry the attacks', techs' and their targeting's setting up read is the
+  one the original's code before them leaves: the attack's number compared
+  with 1, the marking of the targets from a first target compared with 3, a
+  stat change's.
+- The turn wait taken away to exactly 0 stays 0; to below it, 1.
+- A member that comes back once is the original's from its test of the
+  revival byte, with A's high byte and the carry clear.
+
+**Fuzzing.** Every new entry, seed 1, on the `gato-battle` state with the
+constraints in `tools/fuzz_routines.toml` (161 routines,
+none mismatching: the selectors, the search and the reach tests 20,000
+states each (18,700-20,000 compared, a member that would come back turned
+away; the selector in A 8,836, where its guard takes the table's), the
+conditions 20,000 each (12,900-15,700 compared, the rest turned away as above:
+bytes that aren't commands), the actions' choosing and the choosing's entries
+16,900-19,900 (all of them for the choosing of every enemy, 5,000), the
+actions' turns 20,000 each (8,300-18,700 compared, a message or a tech's
+setting up running past the call-out budget), the enemy's turn, the tech's
+turn and body and the showing 5,000 each (3,400-4,250 compared), and the
+beaten enemies' finish 5,000 without an enemy beaten and 5,000 in a demo
+battle, where the battle's step that waits for frames is skipped). The ports rewritten
+around it compare with `main`'s with `tools/fuzz_compare.py`: 47 routines,
+none differing.
+
+**Timing.** The battle's 89 rows the library measures were calibrated from
+the shadow runs (`tools/timing_gate.py --calibrate`), only battle's taken: the
+new entries from a default of 3,000, `battle_main_loop_body` from 7,292 to
+33,695 (the choosing and the timers' orders drawn run in its time now),
+`battle_update_all_combatants` from 11,157 to 17,210 (the knock-out in C).
+Every entry is within the limits, with no exception added; the entries the
+library doesn't reach keep 3,000. Running the turn inside its caller's stretch
+costs shadow mode some comparisons: `battle_give_turn` is compared within the
+timers' dispatch and the loop's pass rather than on its own (4,613 of 4,626
+calls), and those two are interrupted more often (3,620 of 27,532 passes and
+5,704 of 17,952 dispatches against `main`'s 299 and 3,383); fuzzing covers
+them, as the predecessor's counts do
+
+**What is left** of the enemies is in TODO.md, "What battle's rewrite left":
+the call-outs from an enemy's turn, the timers' kinds' handlers, and the
+quirks and the one accepted divergence (narrowing the candidates by the aim,
+which the original never leaves where every candidate is marked).
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

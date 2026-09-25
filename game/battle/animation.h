@@ -23,6 +23,16 @@
 enum { BATTLE_COMBATANT_FIRST_OBJECT = 12 };
 static inline unsigned battle_combatant_object(unsigned slot) { return BATTLE_COMBATANT_FIRST_OBJECT + slot; }
 
+/* ---- Screen bounds (battle/objects.c) ----------------------------------------------------- */
+
+/* Work out a combatant's box on the screen around the position its bounds
+ * were last given (battle_bounds_x, battle_bounds_y). */
+void battle_update_bounds(GameState *g, unsigned slot);
+
+/* The carry the box's working out leaves the original's callers: its last
+ * sum's. */
+bool battle_bounds_carry(const GameState *g, unsigned slot);
+
 /* ---- Poses (battle/animation.c) --------------------------------------------------------- */
 
 /* The animations the pose code names: a party member's stance in its field

@@ -3161,6 +3161,10 @@ void set_battle_turn_slot(GameState *g, uint16_t v);
 uint8_t battle_party_defeated(const GameState *g);
 void set_battle_party_defeated(GameState *g, uint8_t v);
 
+/* The lowest number the battle's last random draw was asked for, left in its cell */
+uint8_t battle_random_lowest(const GameState *g);
+void set_battle_random_lowest(GameState *g, uint8_t v);
+
 /* Where the next random number is taken from the battle's table of them ($FD:BA61); each draw
  * steps it on */
 uint8_t battle_random_position(const GameState *g);
@@ -3285,11 +3289,11 @@ enum { BATTLE_EFFECT_CELLS_COUNT = 12 };   /* by byte */
 uint8_t battle_effect_cells(const GameState *g, unsigned i);
 void set_battle_effect_cells(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_DIRECTION_POINTS_COUNT = 4 };   /* by byte */
-/* The two points $C1:0222 finds the direction between: from X and Y ($D3, $D4) to X and Y ($D5,
- * $D6) */
-uint8_t battle_direction_points(const GameState *g, unsigned i);
-void set_battle_direction_points(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_DIRECTION_CELLS_COUNT = 17 };   /* by byte: the two points, from X and Y ($D3, $D4) to X and Y ($D5, $D6); their differences and signs ($D7-$DA); the angle ($DB); the sizes of the differences, words ($DC the horizontal an eighth, $DE, $E0); the arctangent table's place, a word ($E2) */
+/* What $C1:0222 finds the direction between two points in: the points it is given, and the cells
+ * it works in */
+uint8_t battle_direction_cells(const GameState *g, unsigned i);
+void set_battle_direction_cells(GameState *g, unsigned i, uint8_t v);
 
 /* Set to $40 as the battle is set up; what reads it isn't known yet */
 uint8_t battle_start_mark(const GameState *g);
@@ -3690,13 +3694,19 @@ enum { BATTLE_ENEMY_ANIMATION_COUNT = 8 };   /* by enemy (battle slot - 3) */
 uint8_t battle_enemy_animation(const GameState *g, unsigned i);
 void set_battle_enemy_animation(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_ENEMY_LINK_COUNT = 8 };   /* by enemy (battle slot - 3) */
-/* The battle slot of the combatant the enemy goes with (another part of it): an enemy out of the
- * fight with its link out too has its turn's script dropped */
-uint8_t battle_enemy_link(const GameState *g, unsigned i);
-void set_battle_enemy_link(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_TARGET_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* The battle slot of the combatant the enemy's chosen action is aimed at, which its attack takes
+ * for its target and its animation's effect follows: an enemy out of the fight whose target is
+ * out too forgets what it chose */
+uint8_t battle_enemy_target(const GameState *g, unsigned i);
+void set_battle_enemy_target(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_STATS_COUNT = 11 };   /* by battle slot (0-2 the party, 3-10 enemies) */
+/* The whole block a byte at a time, by its offset: how an enemy's script names a stat to test or
+ * change [128 bytes, one at a time] */
+enum { BATTLE_STATS_BLOCK_BYTES = 128 };
+uint8_t battle_stats_block_byte(const GameState *g, unsigned slot, unsigned at);
+void set_battle_stats_block_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
 /* Bit 0 set while HP is at most an eighth of max HP */
 uint8_t battle_stats_low_hp(const GameState *g, unsigned slot);
 void set_battle_stats_low_hp(GameState *g, unsigned slot, uint8_t v);
@@ -3731,6 +3741,20 @@ void set_battle_stats_status_kept(GameState *g, unsigned slot, uint16_t v);
  * (battle_enemy_hp_seen) */
 uint8_t battle_stats_worn_item(const GameState *g, unsigned slot);
 void set_battle_stats_worn_item(GameState *g, unsigned slot, uint8_t v);
+/* Bit 7 set while the combatant comes back once when it is knocked out, which uses it up ($5E4F
+ * for slot 0; $C1:B30F) */
+uint8_t battle_stats_revival(const GameState *g, unsigned slot);
+void set_battle_stats_revival(GameState *g, unsigned slot, uint8_t v);
+/* Statuses of the first status byte the combatant shrugs off: an enemy with confusion's bit here
+ * isn't made to attack anyone by it ($5E50 for slot 0; $C1:B4AA) */
+uint8_t battle_stats_status_ignored(const GameState *g, unsigned slot);
+void set_battle_stats_status_ignored(GameState *g, unsigned slot, uint8_t v);
+/* The whole block a byte at a time, by its offset: how an enemy's script names a stat to test or
+ * change [128 bytes, one at a time] Unchecked, for marked scaffolding only: the turn's end reads
+ * the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
+uint8_t battle_stats_block_byte_unchecked(const GameState *g, unsigned slot, unsigned at);
+void set_battle_stats_block_byte_unchecked(GameState *g, unsigned slot, unsigned at, uint8_t v);
 /* Bit 0 set while HP is at most an eighth of max HP Unchecked, for marked scaffolding only: the
  * turn's end reads the status of the combatant that acted, whatever the actor's cell holds
  * (game/battle/main_loop.c, $C1:8667) */
@@ -3781,6 +3805,18 @@ void set_battle_stats_status_kept_unchecked(GameState *g, unsigned slot, uint16_
  * $C1:8667) */
 uint8_t battle_stats_worn_item_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_worn_item_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* Bit 7 set while the combatant comes back once when it is knocked out, which uses it up ($5E4F
+ * for slot 0; $C1:B30F) Unchecked, for marked scaffolding only: the turn's end reads the status
+ * of the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c,
+ * $C1:8667) */
+uint8_t battle_stats_revival_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_revival_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* Statuses of the first status byte the combatant shrugs off: an enemy with confusion's bit here
+ * isn't made to attack anyone by it ($5E50 for slot 0; $C1:B4AA) Unchecked, for marked
+ * scaffolding only: the turn's end reads the status of the combatant that acted, whatever the
+ * actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+uint8_t battle_stats_status_ignored_unchecked(const GameState *g, unsigned slot);
+void set_battle_stats_status_ignored_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_BASE_GRID_COUNT = 256 };   /* by cell (Y tile * 16 + X tile) */
 /* The battlefield grid as built at setup, from ROM rows and the $2A23/$2B23 cell bits */
@@ -3845,6 +3881,10 @@ enum { BATTLE_MEMBER_ACTIONS_COUNT = 3 };   /* by party slot */
  * action chosen */
 uint8_t battle_member_actions_state(const GameState *g, unsigned slot);
 void set_battle_member_actions_state(GameState *g, unsigned slot, uint8_t v);
+/* Bits of the member's choosing; a member knocked out drops bit 4 ($C1:B2F3), whose meaning
+ * isn't worked out */
+uint8_t battle_member_actions_choice_flags(const GameState *g, unsigned slot);
+void set_battle_member_actions_choice_flags(GameState *g, unsigned slot, uint8_t v);
 /* Combination tech pairing: a partner's party slot in each nibble ($F: none) */
 uint8_t battle_member_actions_partners(const GameState *g, unsigned slot);
 void set_battle_member_actions_partners(GameState *g, unsigned slot, uint8_t v);
@@ -4090,10 +4130,12 @@ enum { BATTLE_OBJECT_HALF_HEIGHT_COUNT = 11 };   /* by battle slot */
 uint8_t battle_object_half_height(const GameState *g, unsigned slot);
 void set_battle_object_half_height(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_ORBIT_RADIUS_COUNT = 8 };   /* by enemy */
-/* Orbit radius (the orbit ends when it reaches 8) */
-uint8_t battle_orbit_radius(const GameState *g, unsigned i);
-void set_battle_orbit_radius(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ORBIT_RADIUS_COUNT = 11 };   /* by battle slot */
+/* The radius of an enemy's drift about its orbit's center (the drift ends when it reaches 8); a
+ * combatant's trial walk toward a target (the target search's walk) reaches this much farther
+ * each step */
+uint8_t battle_orbit_radius(const GameState *g, unsigned slot);
+void set_battle_orbit_radius(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_EFFECT_PERIOD_START_COUNT = 3 };   /* by party slot */
 /* The effect period (battle_effect_period) a party member's effects start from when an action
@@ -4113,10 +4155,10 @@ enum { BATTLE_ENEMY_ANIMATION_LOADED_COUNT = 8 };   /* by enemy */
 uint8_t battle_enemy_animation_loaded(const GameState *g, unsigned i);
 void set_battle_enemy_animation_loaded(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_ENEMY_LINK_SEEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
-/* The enemy's link (battle_enemy_link) as its animation effect last saw it */
-uint8_t battle_enemy_link_seen(const GameState *g, unsigned i);
-void set_battle_enemy_link_seen(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_TARGET_SEEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* The enemy's target (battle_enemy_target) as its animation's effect last saw it */
+uint8_t battle_enemy_target_seen(const GameState *g, unsigned i);
+void set_battle_enemy_target_seen(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_BOUNDS_LEFT_COUNT = 11 };   /* by battle slot */
 /* Object's left screen bound (clamped to 0) */
@@ -4187,9 +4229,32 @@ void set_battle_target_search(GameState *g, uint8_t v);
 uint8_t battle_target_searcher(const GameState *g);
 void set_battle_target_searcher(GameState *g, uint8_t v);
 
+/* The combatant the target search ($C1:2986) measures the searcher against, and as it looks for
+ * the nearest or farthest, the one it is looking at */
+uint8_t battle_search_other(const GameState *g);
+void set_battle_search_other(GameState *g, uint8_t v);
+
+/* A third combatant some of the target search's kinds measure against, or with the walk toward a
+ * target, whether the searcher may not pass through the others */
+uint8_t battle_search_third(const GameState *g);
+void set_battle_search_third(GameState *g, uint8_t v);
+
+/* What the target search's test came to: 0 it held, $FF it didn't */
+uint8_t battle_search_failed(const GameState *g);
+void set_battle_search_failed(GameState *g, uint8_t v);
+
 /* The combatant $C1:2986's search found (battle slot) */
 uint8_t battle_target_found(const GameState *g);
 void set_battle_target_found(GameState *g, uint8_t v);
+
+/* The byte after battle_target_found, which the nearest and farthest finds clear as they store
+ * the slot as a word; nothing reads it */
+uint8_t battle_target_found_high(const GameState *g);
+void set_battle_target_found_high(GameState *g, uint8_t v);
+
+/* Set to let a walk through the battlefield's grid pass cells marked with bit 7 */
+uint8_t battle_search_through_marked(const GameState *g);
+void set_battle_search_through_marked(GameState *g, uint8_t v);
 
 /* Counted up by a script command ($C1:4D00) for the battle's code waiting on the scripts
  * ($C1:40CE) */
@@ -4211,6 +4276,10 @@ enum { BATTLE_OBJECT_PALETTE_INITIAL_COUNT = 11 };   /* by battle slot */
  * $11B0 take theirs from it */
 uint8_t battle_object_palette_initial(const GameState *g, unsigned slot);
 void set_battle_object_palette_initial(GameState *g, unsigned slot, uint8_t v);
+
+/* The square of the distance within which the target search's nearness test holds */
+uint16_t battle_search_range(const GameState *g);
+void set_battle_search_range(GameState *g, uint16_t v);
 
 /* The command the running animation script channel is at, which its handler reads (the number
  * commands pick their table by its low bits) */
@@ -4564,11 +4633,23 @@ enum { BATTLE_BOUNDS_X_COUNT = 11 };   /* by battle slot */
 /* Object's X position the bounds were computed from */
 uint8_t battle_bounds_x(const GameState *g, unsigned slot);
 void set_battle_bounds_x(GameState *g, unsigned slot, uint8_t v);
+/* Object's X position the bounds were computed from Unchecked, for marked scaffolding only: the
+ * enemies' conditions search from whichever combatant their candidates list, $FF (none) among
+ * them, which reads and writes the box place past the table as the original's indexed stores do
+ * (game/battle/positions.c; fuzzing only, no movie) */
+uint8_t battle_bounds_x_unchecked(const GameState *g, unsigned slot);
+void set_battle_bounds_x_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_BOUNDS_Y_COUNT = 11 };   /* by battle slot */
 /* Object's Y position the bounds were computed from */
 uint8_t battle_bounds_y(const GameState *g, unsigned slot);
 void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v);
+/* Object's Y position the bounds were computed from Unchecked, for marked scaffolding only: the
+ * enemies' conditions search from whichever combatant their candidates list, $FF (none) among
+ * them, which reads and writes the box place past the table as the original's indexed stores do
+ * (game/battle/positions.c; fuzzing only, no movie) */
+uint8_t battle_bounds_y_unchecked(const GameState *g, unsigned slot);
+void set_battle_bounds_y_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_BITMAP_COUNTS_COUNT = 48 };   /* by effect sprite set */
 /* Number of sprites built into each effect sprite set (battle_effect_sprite_data) from a bitmap
@@ -5482,6 +5563,10 @@ enum { BATTLE_ENEMY_NAME_TILES_COUNT = 72 };   /* by enemy kind * 24 + byte (two
 uint8_t battle_enemy_name_tiles(const GameState *g, unsigned i);
 void set_battle_enemy_name_tiles(GameState *g, unsigned i, uint8_t v);
 
+/* How many targets battle_action_targets holds */
+uint8_t battle_action_target_count(const GameState *g);
+void set_battle_action_target_count(GameState *g, uint8_t v);
+
 enum { BATTLE_ACTION_TARGETS_COUNT = 11 };   /* by place */
 /* The action's targets ($FF past them) */
 uint8_t battle_action_targets(const GameState *g, unsigned i);
@@ -5504,9 +5589,25 @@ void set_battle_number_records_kind(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_number_records_last_byte(const GameState *g, unsigned slot);
 void set_battle_number_records_last_byte(GameState *g, unsigned slot, uint8_t v);
 
+enum { BATTLE_HIT_COUNTS_COUNT = 2 };   /* by byte */
+/* Two bytes the effect's working out starts at 0 before an enemy's action */
+uint8_t battle_hit_counts(const GameState *g, unsigned i);
+void set_battle_hit_counts(GameState *g, unsigned i, uint8_t v);
+
+/* Bit 3 set when the enemies an action hits don't react to it; cleared as an enemy's action on
+ * an enemy ends */
+uint8_t battle_action_quiet(const GameState *g);
+void set_battle_action_quiet(GameState *g, uint8_t v);
+
 /* The party member the loop's per-member checks are at (3 once they are done) */
 uint8_t battle_member_updating(const GameState *g);
 void set_battle_member_updating(GameState *g, uint8_t v);
+
+enum { BATTLE_PLACES_COUNT = 11 };   /* by battle slot */
+/* The place each combatant stands in its side's formation; an enemy brought in takes over the
+ * place of the one it replaces */
+uint8_t battle_places(const GameState *g, unsigned slot);
+void set_battle_places(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_STATUS_SCRIPT_SEEN_COUNT = 11 };   /* by battle slot */
 /* The combatant's status bit that restarts its script ($04 of the second status byte) as last
@@ -5514,10 +5615,50 @@ enum { BATTLE_STATUS_SCRIPT_SEEN_COUNT = 11 };   /* by battle slot */
 uint8_t battle_status_script_seen(const GameState *g, unsigned slot);
 void set_battle_status_script_seen(GameState *g, unsigned slot, uint8_t v);
 
+enum { BATTLE_ENEMY_BEATEN_COUNTED_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* Set once an enemy's being beaten has been seen to, so that it isn't beaten again; cleared as
+ * an enemy is brought in */
+uint8_t battle_enemy_beaten_counted(const GameState *g, unsigned i);
+void set_battle_enemy_beaten_counted(GameState *g, unsigned i, uint8_t v);
+
+/* The first byte of the action record the effect code carries out: 0 for an enemy's action */
+uint8_t battle_action_source(const GameState *g);
+void set_battle_action_source(GameState *g, uint8_t v);
+
+/* The battle slot of the combatant whose action the effect code carries out */
+uint8_t battle_action_actor(const GameState *g);
+void set_battle_action_actor(GameState *g, uint8_t v);
+
+/* What kind of action the effect code carries out (battle_action_kind as it was started) */
+uint8_t battle_action_type(const GameState *g);
+void set_battle_action_type(GameState *g, uint8_t v);
+
+/* The attack's, the tech's or the effect's number the effect code carries out */
+uint8_t battle_action_what(const GameState *g);
+void set_battle_action_what(GameState *g, uint8_t v);
+
+/* A byte of the action record an enemy's action starts at 0 */
+uint8_t battle_action_extra(const GameState *g);
+void set_battle_action_extra(GameState *g, uint8_t v);
+
+/* The action's first target, a bit (bit 15 battle slot 0, down) */
+uint16_t battle_action_target_bits(const GameState *g);
+void set_battle_action_target_bits(GameState *g, uint16_t v);
+
+enum { BATTLE_ACTION_FURTHER_TARGETS_COUNT = 2 };   /* by second or third */
+/* A tech's second and third targets, battle slots ($FF none) */
+uint8_t battle_action_further_targets(const GameState *g, unsigned i);
+void set_battle_action_further_targets(GameState *g, unsigned i, uint8_t v);
+
 /* The battle slots the action targets after its first, a bit each (bit 15 slot 0 down); script
  * channel 4 animates them while there are any */
 uint16_t battle_action_other_targets(const GameState *g);
 void set_battle_action_other_targets(GameState *g, uint16_t v);
+
+/* Flags of the action the effect code carries out, cleared as an enemy's turn starts; bit 7 a
+ * critical hit */
+uint8_t battle_action_flags(const GameState *g);
+void set_battle_action_flags(GameState *g, uint8_t v);
 
 /* Set when an enemy was beaten by the action */
 uint8_t battle_enemy_beaten_any(const GameState *g);
@@ -5548,6 +5689,57 @@ void set_battle_timer_order_length(GameState *g, uint8_t v);
 uint8_t battle_enemy_acting(const GameState *g);
 void set_battle_enemy_acting(GameState *g, uint8_t v);
 
+/* The place in battle_candidates a condition's test is at, left in its cell */
+uint16_t battle_candidate_place(const GameState *g);
+void set_battle_candidate_place(GameState *g, uint16_t v);
+
+/* How many combatants battle_candidates holds */
+uint8_t battle_candidate_count(const GameState *g);
+void set_battle_candidate_count(GameState *g, uint8_t v);
+
+enum { BATTLE_CANDIDATES_COUNT = 11 };   /* by place */
+/* The combatants an action is being aimed among (battle slots in the low four bits, $FF past
+ * them): what a selector of an enemy's script picked, then the one chosen first, or the action's
+ * targets; bit 7 marks those a condition picked out, or that draw the enemies' aim, bit 6 those
+ * that turn it */
+uint8_t battle_candidates(const GameState *g, unsigned i);
+void set_battle_candidates(GameState *g, unsigned i, uint8_t v);
+/* The combatants an action is being aimed among (battle slots in the low four bits, $FF past
+ * them): what a selector of an enemy's script picked, then the one chosen first, or the action's
+ * targets; bit 7 marks those a condition picked out, or that draw the enemies' aim, bit 6 those
+ * that turn it Unchecked, for marked scaffolding only: the test of a stat's value ($C1:95FA)
+ * looks at its second candidate on at twice the first's slot, and so on, past the list
+ * (game/battle/enemy_conditions.c stat_is) */
+uint8_t battle_candidates_unchecked(const GameState *g, unsigned i);
+void set_battle_candidates_unchecked(GameState *g, unsigned i, uint8_t v);
+
+/* The combatant the first of a block's two conditions settled on, which a selector with bit 7
+ * set names for the second */
+uint8_t battle_condition_target(const GameState *g);
+void set_battle_condition_target(GameState *g, uint8_t v);
+
+/* What an enemy's action is: its byte in the script as the action is chosen and started; then
+ * what the turn's code carries out (2 a tech, 5 an enemy brought in, 7 an enemy leaving) */
+uint8_t battle_action_kind(const GameState *g);
+void set_battle_action_kind(GameState *g, uint8_t v);
+
+/* The attack's or the tech's number in an enemy's action */
+uint8_t battle_action_number(const GameState *g);
+void set_battle_action_number(GameState *g, uint8_t v);
+
+/* The pose an enemy announces its chosen action with */
+uint8_t battle_action_pose(const GameState *g);
+void set_battle_action_pose(GameState *g, uint8_t v);
+
+/* Low four bits from the pose an enemy's action is announced with: 4 for poses 1 and 2, $D for 3
+ * and 4, 0 for the rest ($C1:ACCE); the high four bits are kept */
+uint8_t battle_action_pose_kind(const GameState *g);
+void set_battle_action_pose_kind(GameState *g, uint8_t v);
+
+/* 4 as an enemy's attack starts ($C1:ACB0) */
+uint8_t battle_attack_hits(const GameState *g);
+void set_battle_attack_hits(GameState *g, uint8_t v);
+
 enum { BATTLE_COMBATANT_FIGHTING_COUNT = 11 };   /* by battle slot */
 /* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
  * three party slots out is a defeat */
@@ -5566,6 +5758,13 @@ enum { BATTLE_COMBATANT_ID_COUNT = 11 };   /* by battle slot */
  * revived */
 uint8_t battle_combatant_id(const GameState *g, unsigned slot);
 void set_battle_combatant_id(GameState *g, unsigned slot, uint8_t v);
+/* What the combatant is, as its scripts are found by it ($C1:B488); $FF for a slot nobody fills.
+ * It stays while the combatant is out, and comes back into battle_combatant_fighting when it is
+ * revived Unchecked, for marked scaffolding only: an enemy's script's condition names whoever
+ * last acted on the enemy by the low four bits of its action record, up to 15
+ * (game/battle/enemy_conditions.c, $C1:9514) */
+uint8_t battle_combatant_id_unchecked(const GameState *g, unsigned slot);
+void set_battle_combatant_id_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_ENEMY_STANDING_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* How the enemy stands in the battle: bit 7 while it waits off the battlefield to be brought in
@@ -5573,12 +5772,31 @@ enum { BATTLE_ENEMY_STANDING_COUNT = 8 };   /* by enemy (battle slot - 3) */
 uint8_t battle_enemy_standing(const GameState *g, unsigned i);
 void set_battle_enemy_standing(GameState *g, unsigned i, uint8_t v);
 
+/* The combatant a selection by status is looking at, left in its cell */
+uint8_t battle_candidate_considered(const GameState *g);
+void set_battle_candidate_considered(GameState *g, uint8_t v);
+
+/* The bits of a stat block byte a selection by status looks for, left in its cell */
+uint8_t battle_candidate_statuses(const GameState *g);
+void set_battle_candidate_statuses(GameState *g, uint8_t v);
+
+/* How many of the combatants a selection by status picked turn the enemies' aim (bit 6 in
+ * battle_candidates) */
+uint8_t battle_candidates_turning(const GameState *g);
+void set_battle_candidates_turning(GameState *g, uint8_t v);
+
+/* How many of the combatants a selection by status picked draw the enemies' aim (bit 7 in
+ * battle_candidates) */
+uint8_t battle_candidates_drawing(const GameState *g);
+void set_battle_candidates_drawing(GameState *g, uint8_t v);
+
 /* Set by a party member's turn when a status of its picks its action for it */
 uint8_t battle_member_acts_for_itself(const GameState *g);
 void set_battle_member_acts_for_itself(GameState *g, uint8_t v);
 
-/* What testing a block of an enemy's script came to: 0 its conditions held and the enemy acts;
- * otherwise the script goes on (2: on to the next block at once) */
+/* What testing a block of an enemy's script came to: 0 its conditions held and its actions are
+ * chosen; 1 they didn't, and the script goes on to its next block; 2 they held but there is
+ * nothing the actions can be done to, and it goes on from past them */
 uint8_t battle_script_outcome(const GameState *g);
 void set_battle_script_outcome(GameState *g, uint8_t v);
 
@@ -5612,6 +5830,12 @@ enum { BATTLE_TURN_WAIT_COUNT = 11 };   /* by battle slot */
 /* The combatant's turn wait: what its turn timer starts from again after it acts */
 uint8_t battle_turn_wait(const GameState *g, unsigned slot);
 void set_battle_turn_wait(GameState *g, unsigned slot, uint8_t v);
+/* The combatant's turn wait: what its turn timer starts from again after it acts Unchecked, for
+ * marked scaffolding only: an enemy's script asks for the turn wait of a candidate that names no
+ * combatant (none), which reads on into the table after (game/battle/enemy_conditions.c,
+ * $C1:97D5) */
+uint8_t battle_turn_wait_unchecked(const GameState *g, unsigned slot);
+void set_battle_turn_wait_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_TIMER_ORDER_COUNT = 11 };   /* by place in the order */
 /* The order the combatants' run-out timers are looked for in: battle slots drawn at random at
@@ -5651,6 +5875,25 @@ void set_battle_member_ready(GameState *g, unsigned member, uint8_t v);
 uint8_t battle_actor(const GameState *g);
 void set_battle_actor(GameState *g, uint8_t v);
 
+/* A detail of the action carried out: an enemy's tech's number, or for its attack 0 or its stat
+ * block's byte $1B */
+uint8_t battle_action_detail(const GameState *g);
+void set_battle_action_detail(GameState *g, uint8_t v);
+
+/* The acting enemy's battle slot ORed into the low bits, with bit 7 for an attack and bit 6 for
+ * a tech ($C1:AC89) */
+uint8_t battle_action_actor_bits(const GameState *g);
+void set_battle_action_actor_bits(GameState *g, uint8_t v);
+
+/* 0 for an enemy's attack; for its tech, what the tech's targeting ($C1:C1DD) left in the direct
+ * page's $0E ($C1:AC89) */
+uint8_t battle_action_tech_hits(const GameState *g);
+void set_battle_action_tech_hits(GameState *g, uint8_t v);
+
+/* A byte an enemy's attack or tech starts at 0 ($C1:AC89) */
+uint8_t battle_action_step(const GameState *g);
+void set_battle_action_step(GameState *g, uint8_t v);
+
 enum { BATTLE_CHOSEN_ACTIONS_COUNT = 11 };   /* by battle slot */
 /* Each combatant's chosen action (four bytes), forgotten once it is carried out */
 uint32_t battle_chosen_actions(const GameState *g, unsigned slot);
@@ -5666,9 +5909,11 @@ enum { BATTLE_CHARACTER_SLOT_COUNT = 7 };   /* by character */
 uint8_t battle_character_slot(const GameState *g, unsigned i);
 void set_battle_character_slot(GameState *g, unsigned i, uint8_t v);
 
-/* Set when the block being tested has a second condition */
-uint8_t battle_second_condition(const GameState *g);
-void set_battle_second_condition(GameState *g, uint8_t v);
+/* How far a block's two conditions have got: 1 while the first is tested, $80 once it held (on
+ * the target battle_condition_target keeps) and the second is tested, 0 for a block of one
+ * condition, or once both held */
+uint8_t battle_condition_pair(const GameState *g);
+void set_battle_condition_pair(GameState *g, uint8_t v);
 
 /* Where the block of the enemy's script being tested starts */
 uint16_t battle_block_start(const GameState *g);
@@ -5678,13 +5923,23 @@ void set_battle_block_start(GameState *g, uint16_t v);
 uint16_t battle_script_place(const GameState *g);
 void set_battle_script_place(GameState *g, uint16_t v);
 
-enum { BATTLE_REACTION_PLACES_COUNT = 8 };   /* by place among the targets */
-/* A place in the script kept for each reaction, by the reaction's place among the action's
- * targets */
-uint16_t battle_reaction_places(const GameState *g, unsigned i);
-void set_battle_reaction_places(GameState *g, unsigned i, uint16_t v);
+enum { BATTLE_ENEMY_NEXT_ACTION_COUNT = 8 };   /* by enemy (battle slot - 3); the reactions index it by the reaction's place among the action's targets */
+/* Where in its script the enemy is in its chosen block's actions: the one its next turn carries
+ * out, which each turn steps past */
+uint16_t battle_enemy_next_action(const GameState *g, unsigned i);
+void set_battle_enemy_next_action(GameState *g, unsigned i, uint16_t v);
 
-/* The kind of the condition being tested (its handler's number) */
+enum { BATTLE_ENEMY_BLOCK_ACTIONS_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* Where in its script the action the enemy's script chose for its next turn is: the turn carries
+ * out the action at battle_enemy_next_action only while the two agree */
+uint16_t battle_enemy_block_actions(const GameState *g, unsigned i);
+void set_battle_enemy_block_actions(GameState *g, unsigned i, uint16_t v);
+
+/* Bit 1 set while an enemy's attack is carried out; its techs clear it */
+uint8_t battle_action_state(const GameState *g);
+void set_battle_action_state(GameState *g, uint8_t v);
+
+/* The kind of the condition being tested (its number in the scripts) */
 uint8_t battle_condition_kind(const GameState *g);
 void set_battle_condition_kind(GameState *g, uint8_t v);
 
@@ -5699,31 +5954,34 @@ enum { BATTLE_ENEMY_LAST_CONDITION_COUNT = 8 };   /* by enemy (battle slot - 3) 
 uint8_t battle_enemy_last_condition(const GameState *g, unsigned i);
 void set_battle_enemy_last_condition(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_ENEMY_TURN_HELD_COUNT = 8 };   /* by enemy (battle slot - 3), or the reaction's place */
-/* Nonzero to hold the enemy's turn; a reaction leaves its outcome here, by the reaction's place
- * among the action's targets */
-uint8_t battle_enemy_turn_held(const GameState *g, unsigned i);
-void set_battle_enemy_turn_held(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_SCRIPT_OUTCOME_COUNT = 8 };   /* by enemy (battle slot - 3), or the reaction's place */
+/* What the enemy's script came to when it last chose what the enemy does
+ * (battle_script_outcome): only an enemy whose script chose an action (0) takes its turn; a
+ * reaction leaves its outcome here, by the reaction's place among the action's targets */
+uint8_t battle_enemy_script_outcome(const GameState *g, unsigned i);
+void set_battle_enemy_script_outcome(GameState *g, unsigned i, uint8_t v);
 
 /* The enemy (battle slot - 3) whose script the turn code is working on */
 uint8_t battle_enemy_turn(const GameState *g);
 void set_battle_enemy_turn(GameState *g, uint8_t v);
 
-enum { BATTLE_ENEMY_SCRIPT_BLOCKS_COUNT = 8 };   /* by enemy (battle slot - 3) */
-/* How many blocks of its script the enemy's turn has moved past this turn; a block's conditions
- * are tested again only when this and battle_enemy_script_block_seen differ */
-uint8_t battle_enemy_script_blocks(const GameState *g, unsigned i);
-void set_battle_enemy_script_blocks(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_SCRIPT_BLOCK_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* The block of its script the enemy's script is testing, counted from 0 (0 again once it has
+ * chosen) */
+uint8_t battle_enemy_script_block(const GameState *g, unsigned i);
+void set_battle_enemy_script_block(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_ENEMY_SCRIPT_BLOCK_SEEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
-/* battle_enemy_script_blocks as the enemy's turn last started from it; $FF makes the next turn
- * start the script over */
-uint8_t battle_enemy_script_block_seen(const GameState *g, unsigned i);
-void set_battle_enemy_script_block_seen(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_ACTIONS_BLOCK_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* The block whose actions the enemy is going through (battle_enemy_script_blocks as it chose
+ * it): choosing the same block again goes on with its next action; $FF chooses afresh */
+uint8_t battle_enemy_actions_block(const GameState *g, unsigned i);
+void set_battle_enemy_actions_block(GameState *g, unsigned i, uint8_t v);
 
-/* Where the enemy's reactions start in its script */
-uint16_t battle_script_restart_place(const GameState *g);
-void set_battle_script_restart_place(GameState *g, uint16_t v);
+/* Where in its script the actions of the block an enemy's script chose start (and, as its
+ * reactions are looked at, where they start); an enemy's turn keeps the place of the action it
+ * carried out here */
+uint16_t battle_script_actions_place(const GameState *g);
+void set_battle_script_actions_place(GameState *g, uint16_t v);
 
 /* The gold the battle gives */
 uint16_t battle_gold_won(const GameState *g);
@@ -5734,17 +5992,22 @@ enum { BATTLE_ITEMS_WON_COUNT = 6 };   /* by item */
 uint8_t battle_items_won(const GameState *g, unsigned i);
 void set_battle_items_won(GameState *g, unsigned i, uint8_t v);
 
+/* The first combatant a selector of an enemy's script picked, kept for the tech's targeting
+ * ($C1:C1DD) */
+uint8_t battle_first_candidate(const GameState *g);
+void set_battle_first_candidate(GameState *g, uint8_t v);
+
 /* What the rewards were: bit 6 the gold and experience given, bit 5 an item given, bit 7 a
  * message ($FD:AD17) */
 uint8_t battle_reward_flags(const GameState *g);
 void set_battle_reward_flags(GameState *g, uint8_t v);
 
-enum { BATTLE_ENEMY_SCRIPT_STARTED_COUNT = 8 };   /* by enemy (battle slot - 3) */
-/* Set once the enemy's script has been found and started ($C1:8C09 starts the script of a
- * present enemy with it clear); cleared when the enemy and its link are out, or its script says
- * so */
-uint8_t battle_enemy_script_started(const GameState *g, unsigned i);
-void set_battle_enemy_script_started(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_ACTION_CHOSEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* Set once the enemy's script has chosen what the enemy does on its next turn; cleared by the
+ * turn, when the enemy and its link are out, or where the script could find no one to act on
+ * ($C1:8C09 has the script of a present enemy with it clear choose again) */
+uint8_t battle_enemy_action_chosen(const GameState *g, unsigned i);
+void set_battle_enemy_action_chosen(GameState *g, unsigned i, uint8_t v);
 
 /* Set when the action's first target is an enemy: the enemies it hit react */
 uint8_t battle_action_hit_enemy(const GameState *g);
@@ -5763,6 +6026,11 @@ void set_battle_combatant_updating(GameState *g, uint8_t v);
 uint8_t battle_animation_kept(const GameState *g);
 void set_battle_animation_kept(GameState *g, uint8_t v);
 
+enum { BATTLE_ACTION_FURTHER_IDS_COUNT = 2 };   /* by second or third */
+/* What a tech's second and third targets are (battle_combatant_fighting of each) */
+uint8_t battle_action_further_ids(const GameState *g, unsigned i);
+void set_battle_action_further_ids(GameState *g, unsigned i, uint8_t v);
+
 /* The place among the action's targets the reactions are at */
 uint8_t battle_reaction_entry(const GameState *g);
 void set_battle_reaction_entry(GameState *g, uint8_t v);
@@ -5772,10 +6040,20 @@ enum { BATTLE_PARTY_MAX_HP_KEPT_COUNT = 3 };   /* by party member */
 uint16_t battle_party_max_hp_kept(const GameState *g, unsigned member);
 void set_battle_party_max_hp_kept(GameState *g, unsigned member, uint16_t v);
 
+/* The limit the battle's last random draw was asked for, left in its cell */
+uint8_t battle_random_limit(const GameState *g);
+void set_battle_random_limit(GameState *g, uint8_t v);
+
 /* The demo battle bit of battle_setup_flags, set apart while the battle is set up and put back
  * after */
 uint8_t battle_demo_kept(const GameState *g);
 void set_battle_demo_kept(GameState *g, uint8_t v);
+
+enum { BATTLE_ENEMY_SCRIPT_COUNTER_COUNT = 8 };   /* by enemy (battle slot - 3) */
+/* A count each enemy's script keeps for itself: an action counts it up or starts it over, and a
+ * condition compares it */
+uint8_t battle_enemy_script_counter(const GameState *g, unsigned i);
+void set_battle_enemy_script_counter(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_DAMAGE_COUNT = 33 };   /* by hit (0-2) * 11 + battle slot */
 /* The HP it takes (subtracted from the combatant's HP at $C1:EC7F) */
@@ -5798,6 +6076,11 @@ void set_battle_reaction_targets(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_last_actor(const GameState *g);
 void set_battle_last_actor(GameState *g, uint8_t v);
 
+/* What an enemy's turn does after its action: 0 works the action out on its first target and
+ * shows it, 1 only shows it, 2 nothing more */
+uint8_t battle_action_follow_up(const GameState *g);
+void set_battle_action_follow_up(GameState *g, uint8_t v);
+
 /* Set when the action's first target is a party member: the party may counter ($FD:AC6E) */
 uint8_t battle_action_hit_party(const GameState *g);
 void set_battle_action_hit_party(GameState *g, uint8_t v);
@@ -5814,13 +6097,24 @@ void set_battle_timer_tick_slot(GameState *g, uint16_t v);
 uint16_t battle_timer_tick_timer(const GameState *g);
 void set_battle_timer_tick_timer(GameState *g, uint16_t v);
 
+/* The message an enemy's action shows as it ends, 0 none */
+uint8_t battle_action_message(const GameState *g);
+void set_battle_action_message(GameState *g, uint8_t v);
+
+/* The byte after battle_action_message, which the actions that set stats clear as they keep the
+ * message as a word */
+uint8_t battle_action_message_high(const GameState *g);
+void set_battle_action_message_high(GameState *g, uint8_t v);
+
 /* A reaction's kept place, while its conditions are tested */
 uint16_t battle_reaction_place_kept(const GameState *g);
 void set_battle_reaction_place_kept(GameState *g, uint16_t v);
 
-/* battle_random_position as the battle started */
-uint8_t battle_random_at_start(const GameState *g);
-void set_battle_random_at_start(GameState *g, uint8_t v);
+/* A second position in the battle's table of random numbers, which the critical hits' rolls take
+ * from: it starts each battle where battle_random_position does, and each of those draws steps
+ * it on */
+uint8_t battle_random_other_position(const GameState *g);
+void set_battle_random_other_position(GameState *g, uint8_t v);
 
 enum { BATTLE_COMBO_CALLED_OFF_COUNT = 3 };   /* by party slot */
 /* Set when the member's combination tech is called off: it, or a member it chose as a partner or

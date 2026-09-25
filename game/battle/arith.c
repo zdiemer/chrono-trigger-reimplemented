@@ -106,6 +106,23 @@ static void set_wide_word(GameState *g, unsigned at, uint16_t v) { leave_word(g,
 /* A word times a word, a 32-bit product. */
 static uint32_t multiply_words(uint16_t a, uint16_t b) { return (uint32_t)a * b; }
 
+/* It shifts its second number out bit by bit, and the carry the caller had in
+ * as its first bit, which is all of it that is left. */
+static void leave_word_product(GameState *g, uint16_t a, uint32_t product, bool carry_in)
+{
+    set_wide_word(g, FIRST, a);
+    set_wide_word(g, SECOND, carry_in);
+    set_wide_word(g, RESULT_LOW, (uint16_t)product);
+    set_wide_word(g, RESULT_HIGH, (uint16_t)(product >> 16));
+}
+
+uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b)
+{
+    uint32_t product = multiply_words(a, b);
+    ORIGINAL_EFFECT(leave_word_product(g, a, product, false));
+    return product;
+}
+
 // $C1:C92A
 /* A long divided by a word, a 32-bit quotient and the remainder. Nothing is
  * divided when the dividend's low word is 0, whatever its high word, nor by
@@ -115,12 +132,38 @@ typedef struct {
     uint16_t remainder;
 } WideQuotient;
 
+/* The division shifts the quotient in behind the dividend: its bits past the
+ * dividend's low word are what it leaves in the first number's cell. */
+enum { QUOTIENT_BITS_LEFT_BEHIND = 17 };
+
 static WideQuotient divide_long(uint32_t dividend, uint16_t divisor)
 {
     if ((uint16_t)dividend == 0 || divisor == 0)
         return (WideQuotient){ 0, 0 };
     return (WideQuotient){ dividend / divisor, (uint16_t)(dividend % divisor) };
 }
+
+/* What $C1:C92A leaves in its cells, besides the quotient: the numbers as it
+ * was handed them and the remainder, and where it divided, the dividend
+ * shifted out through the first number's cell with the quotient's top bits
+ * behind it, and the caller's carry at the top of the high word's. */
+static void leave_long_division(GameState *g, uint32_t dividend, uint16_t divisor, WideQuotient q, bool carry_in)
+{
+    set_wide_word(g, SECOND, divisor);
+    set_wide_word(g, WIDE_REMAINDER, q.remainder);
+    bool divided = (uint16_t)dividend != 0 && divisor != 0;
+    set_wide_word(g, FIRST, divided ? (uint16_t)(q.quotient >> QUOTIENT_BITS_LEFT_BEHIND) : (uint16_t)dividend);
+    set_wide_word(g, RESULT_HIGH, divided ? (carry_in ? 0x8000 : 0) : (uint16_t)(dividend >> 16));
+}
+
+BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t divisor)
+{
+    WideQuotient q = divide_long(dividend, divisor);
+    ORIGINAL_EFFECT(leave_long_division(g, dividend, divisor, q, false));
+    return (BattleLongQuotient){ q.quotient, q.remainder };
+}
+
+uint16_t battle_long_high_word_left(const GameState *g) { return wide_word(g, RESULT_HIGH); }
 
 /* ---- The entries ------------------------------------------------------------------------ */
 
@@ -146,16 +189,14 @@ void battle_multiply_8x16(Snes *s)
     m_rts(s);
 }
 
-/* It shifts its second number out bit by bit, and the carry the caller had in
- * as its first bit, which is all of it that is left. */
 void battle_multiply_16x16(Snes *s)
 {
     GameState *g = state_of(s);
-    bool carry_in = m_flag(s, CPU_FLAG_C);
-    uint32_t product = multiply_words(wide_word(g, FIRST), wide_word(g, SECOND));
+    uint16_t a = wide_word(g, FIRST);
+    uint32_t product = multiply_words(a, wide_word(g, SECOND));
     set_wide_word(g, RESULT_LOW, (uint16_t)product);
     set_wide_word(g, RESULT_HIGH, (uint16_t)(product >> 16));
-    ORIGINAL_EFFECT(set_wide_word(g, SECOND, carry_in));
+    ORIGINAL_EFFECT(leave_word_product(g, a, product, m_flag(s, CPU_FLAG_C)));
     s->cpu.a = BATTLE_PAGE;
     m_set_flag(s, CPU_FLAG_C, false);
     m_sep(s, CPU_FLAG_M);
@@ -165,20 +206,15 @@ void battle_multiply_16x16(Snes *s)
 /* It shifts the dividend out through its cells, the quotient's top fifteen
  * bits coming in behind it (the next one is lost) and the caller's carry in at
  * the top; its flags come back as they were. */
-enum { QUOTIENT_BITS_LEFT_BEHIND = 17 };
 void battle_divide(Snes *s)
 {
     GameState *g = state_of(s);
-    uint16_t low = wide_word(g, FIRST);
-    uint32_t dividend = (uint32_t)wide_word(g, RESULT_HIGH) << 16 | low;
+    uint32_t dividend = (uint32_t)wide_word(g, RESULT_HIGH) << 16 | wide_word(g, FIRST);
     uint16_t divisor = wide_word(g, SECOND);
     WideQuotient q = divide_long(dividend, divisor);
     set_wide_word(g, RESULT_LOW, (uint16_t)q.quotient);
     set_wide_word(g, WIDE_REMAINDER, q.remainder);
-    if (low != 0 && divisor != 0) {
-        ORIGINAL_EFFECT(set_wide_word(g, FIRST, (uint16_t)(q.quotient >> QUOTIENT_BITS_LEFT_BEHIND)));
-        ORIGINAL_EFFECT(set_wide_word(g, RESULT_HIGH, m_flag(s, CPU_FLAG_C) ? 0x8000 : 0));
-    }
+    ORIGINAL_EFFECT(leave_long_division(g, dividend, divisor, q, m_flag(s, CPU_FLAG_C)));
     s->cpu.a = BATTLE_PAGE;
     m_rts(s);
 }
