@@ -640,6 +640,15 @@ Each of these is a finding. Every example here comes from this repo.
     `menu_run`'s header says pure-C siblings are called as C; a caller runs
     one through an emulated `JSR`. Item 41 aimed at a bridge's contract.
 
+81. **A guard replaced by scaffolding that reaches game state.** Where a port
+    stops refusing rare real inputs and reproduces the original's quirk only
+    under `ORIGINAL_EFFECT` (reads past a table), the two builds may diverge
+    on game-visible state. That is allowed only as the absent party member
+    and the walk's search past the tables do it: the logic stays typed in the
+    game's terms, the quirk's effect is applied by one marked line (never a
+    local the logic branches on), the library is shown not to reach a
+    visible difference, and the divergence is listed in docs/TODO.md.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"
