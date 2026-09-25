@@ -47,6 +47,56 @@ static inline uint16_t menu_text_column_offset_16_colour(const GameState *g, uns
  * entry, and the table runs on into what follows it). */
 static inline uint8_t menu_glyph_width(const GameState *g, uint8_t index) { return rom_read8(g, 0xC260E6u + index); }
 
+/* ---- What the typesetter inserts ----------------------------------------------------------- */
+
+/* A number's decimal digits are the glyphs from $D4 on. */
+enum { MENU_FIRST_DIGIT_GLYPH = 0xD4 };
+
+/* The glyph a hex digit is set with ($C2:5D03, a word each: 0-9, then A-F). */
+static inline uint16_t menu_hex_digit_glyph(const GameState *g, uint8_t digit)
+{
+    return rom_read16(g, 0xC25D03u + 2u * (digit & 0x0Fu));
+}
+
+/* The dictionary: the commonest pieces of the script's English, each its
+ * count of glyphs and the glyphs ($DE:FA00, a word each, in bank $DE). */
+static inline uint32_t menu_dictionary_word(const GameState *g, uint16_t entry)
+{
+    return 0xDE0000u | rom_read16(g, 0xDEFA00u + 2u * entry);
+}
+
+/* The characters' names are in work RAM, six bytes each from $7E:2C23, Crono's
+ * first and the Epoch's eighth; the text finds a character's through the
+ * table at $C2:5FD8 (a word each, seven long: an index past it reads on into
+ * what follows). */
+enum { MENU_NAMES_BANK = 0x7E0000u, MENU_FIRST_NAME = 0x2C23, MENU_NAME_BYTES = 6 };
+static inline uint16_t menu_character_name_place(const GameState *g, unsigned index)
+{
+    return rom_read16(g, 0xC25FD8u + 2u * index);
+}
+
+/* The names of the items ($CC:0B5E), the techs ($CC:15C4) and the enemies
+ * ($CC:6500), eleven bytes each; an item's and a tech's start with an icon. */
+enum { MENU_NAME_TABLE_BYTES = 11 };
+static inline uint32_t menu_item_name(const GameState *g, uint8_t item)
+{
+    (void)g;
+    return 0xCC0000u | (uint16_t)(0x0B5E + item * MENU_NAME_TABLE_BYTES);
+}
+static inline uint32_t menu_tech_name(const GameState *g, uint8_t tech)
+{
+    (void)g;
+    return 0xCC0000u | (uint16_t)(0x15C4 + tech * MENU_NAME_TABLE_BYTES);
+}
+static inline uint32_t menu_enemy_name(const GameState *g, uint8_t enemy)
+{
+    (void)g;
+    return 0xCC0000u | (uint16_t)(0x6500 + enemy * MENU_NAME_TABLE_BYTES);
+}
+
+/* Marle's real name, five glyphs ($C2:6146). */
+enum { MENU_MARLE_REAL_NAME = 0xC26146 };
+
 /* ---- Text --------------------------------------------------------------------------------- */
 
 /* The menus' strings, and the numbers they show, wherever the caller's

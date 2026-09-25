@@ -11,8 +11,8 @@
  * each run by a handler or a command script (map.c, objects.c,
  * object_script.c, object_commands.c, top_layer.c, wave.c, epoch.c).
  * Each mode's main loop waits for its vblank handler (frame.c). The music the
- * menus switch to is sound.c, and the dialog's proportional font, drawn a
- * glyph at a time, glyphs.c. What they read from the ROM is menu_data.h. */
+ * menus switch to is sound.c, and the dialog's proportional font, set a
+ * glyph at a time, typeset.c and glyphs.c. What they read from the ROM is menu_data.h. */
 #ifndef CT_GAME_MENU_H
 #define CT_GAME_MENU_H
 
@@ -24,10 +24,6 @@ void menu_wait_ready_loop(Snes *s);
 bool menu_frame_wait_on_page(Snes *s);
 bool menu_ready_wait_reaches_low_ram(Snes *s);
 
-/* menu/glyphs.c */
-void menu_draw_glyph_line(Snes *s);
-void menu_draw_glyph(Snes *s);
-bool menu_glyph_is_drawable(Snes *s);
-bool menu_glyph_line_is_drawable(Snes *s);
+#include "menu/glyphs.h"
 
 #endif

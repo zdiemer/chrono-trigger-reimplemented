@@ -317,10 +317,11 @@ static void build_map_view(GameState *g, Platform *pf)
 enum { EARLY_SET = 0x6F, SET_OF_A_LATER_STORY = 0x6C, SET_OF_THE_EPOCH_WINGS = 0x6B };
 enum { STORY_OF_THE_LATER_SET = 0x36, EPOCH_WINGS_FLAG = 0x01 };
 
-/* Ask the menus' graphics loader for the view's graphics: this map's set
- * from the table of sets at $C6:F400, the loader's second way of reading,
+/* The view's markers are glyphs of the proportional font: this map's string
+ * of the table at $C6:F400, set by the typesetter (typeset.c), its twelve
+ * glyphs in one call, in sixteen-colour tiles laid out a tile further left,
  * into its buffer at $7E:8621. */
-enum { MAP_VIEW_SETS = 0xC6F400, LOADER_KIND = 0x02, MAP_VIEW_GRAPHICS_BYTES = 0x0C };
+enum { MAP_VIEW_SETS = 0xC6F400, SIXTEEN_COLOURS_A_TILE_LEFT = 0x02, MAP_VIEW_GLYPHS = 0x0C };
 
 static void request_map_view_graphics(GameState *g)
 {
@@ -330,7 +331,7 @@ static void request_map_view_graphics(GameState *g)
         set = EARLY_SET;
     set_menu_text_string(g, set);
     set_menu_text_strings(g, MAP_VIEW_SETS);
-    set_menu_text_layout(g, LOADER_KIND);
+    set_menu_text_layout(g, SIXTEEN_COLOURS_A_TILE_LEFT);
     set_menu_text_tiles(g, RAM_MENU_MAP_GRAPHICS);
 }
 
@@ -1369,15 +1370,15 @@ enum {
  * shadow mode compares and the timing gate measures on their own. */
 
 // $C2:6965
-/* Load the view's marker graphics with the menus' loader, and send them to
- * VRAM $6200. */
+/* Set the view's marker glyphs (the typesetter's start and a call), and send
+ * them to VRAM $6200. */
 static void load_map_view_graphics(Snes *s)
 {
     GameState *g = state_of(s);
     m_jsr_dc(s, 0xC26965, 0xC25798, READS_NOTHING | DC_DB);   /* clear the loader's buffer */
     request_map_view_graphics(g);
-    m_jsl_dc(s, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);   /* the loader */
-    set_menu_text_budget(g, MAP_VIEW_GRAPHICS_BYTES);
+    m_jsl_dc(s, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);
+    set_menu_text_budget(g, MAP_VIEW_GLYPHS);
     m_jsl_dc(s, 0xC269C4, 0xC25823, READS_NOTHING | DC_D);
     vid_send_vram(m_platform(s), PF_AT(0xC269C8), 0x6200, PF_GAME(RAM_MENU_MAP_GRAPHICS), 0x0400, &after_high);
 }

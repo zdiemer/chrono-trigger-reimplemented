@@ -142,6 +142,7 @@ add_library(ct_game STATIC
   game/menu/sound.c
   game/menu/sprites.c
   game/menu/text.c
+  game/menu/typeset.c
   game/menu/top_layer.c
   game/menu/vram.c
   game/menu/wave.c

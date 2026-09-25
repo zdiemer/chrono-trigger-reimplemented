@@ -48,6 +48,7 @@
 #include "menu/save_screen.h"
 #include "menu/sound.h"
 #include "menu/text.h"
+#include "menu/typeset.h"
 #include "menu/windows.h"
 #include "menu/top_layer.h"
 #include "menu/vram.h"
@@ -1388,9 +1389,21 @@ const NativeEntry game_natives[] = {
 
     /* menu */
     { .addr = 0xC25E89, .name = "menu_draw_glyph_line", .fn = menu_draw_glyph_line, NEEDS_M8_X16,
-      .guard = menu_glyph_line_is_drawable, .cost_milli = 3605, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
+      .guard = menu_glyph_line_is_drawable, .cost_milli = 3477, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
+    /* the typesetter (game/menu/typeset.c) and the menus' labels */
+    { .addr = 0xC257DF, .name = "menu_text_start", .fn = menu_text_start_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 4215, .dont_care = DC_N | DC_Z,
+      .guard = menu_text_is_startable },
+    { .addr = 0xC25823, .name = "menu_text_go_on", .fn = menu_text_go_on_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 8362, .dont_care = DC_AL | DC_N | DC_Z | DC_C,
+      .guard = menu_text_can_go_on },
+    { .addr = 0xC2F90C, .name = "menu_set_label", .fn = menu_set_label_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 72576, .dont_care = DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_label_is_settable },
+    { .addr = 0xC25F07, .name = "menu_draw_glyph_16_colour", .fn = menu_draw_glyph_16_colour, NEEDS_M8_X16_BINARY,
+      .guard = menu_glyph_16_colour_is_drawable, .cost_milli = 13586, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC25E36, .name = "menu_draw_glyph", .fn = menu_draw_glyph, NEEDS_M8_X16_BINARY,
-      .guard = menu_glyph_is_drawable, .cost_milli = 13642, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
+      .guard = menu_glyph_is_drawable, .cost_milli = 13580, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC20348, .name = "menu_wait_for_frame_loop", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
       .guard = menu_frame_wait_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C },
     { .addr = 0xC281CA, .name = "menu_wait_ready_loop", .fn = menu_wait_ready_loop, NEEDS_M8, .idle = true,

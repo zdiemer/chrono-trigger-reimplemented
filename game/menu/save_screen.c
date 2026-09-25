@@ -8,8 +8,8 @@
  * -- how many times the game was saved, where the party is, its gold, the
  * time played, how many times the game had been finished -- and a label for
  * the chapter of the story it was saved in; one that doesn't gets the empty
- * slot's label. Every slot gets its name label. The labels are drawn with the
- * dialog's font by the menus' text loader ($C2:F90C, still the original's).
+ * slot's label. Every slot gets its name label. The labels are set in the
+ * dialog's font by the typesetter (typeset.c's menu_set_label, $C2:F90C).
  *
  * On the load screen the cursor skips the slots that hold no game, and shows
  * the summary of the one it is on: its header (the time played and the rest,
@@ -28,6 +28,7 @@
 #include "menu/menu_data.h"
 #include "menu/saves.h"
 #include "menu/text.h"
+#include "menu/typeset.h"
 #include "menu/windows.h"
 #include "menu/vram.h"
 #include "original_effects.h"
@@ -213,15 +214,9 @@ static void finish_header(GameState *g)
     queue_upload(g, MENU_UPLOAD_ERA_LABEL);
 }
 
-/* The bridge below runs on the menus' page with the data bank on work RAM's
- * ($7E), which the summary's copy leaves it on, and calls the menus' text
- * loader (still the original's) with the widths the original has there. The
- * original saves P when it starts, and its code after a call the port can't
- * go on from pulls it at its end, so the bridge saves it the same way: where
- * the loader comes back as the port doesn't expect, the port stops at the
- * call's return and the original goes on with its own frame. */
-enum { LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D };   /* $C2:F90C */
-
+/* The header runs on the menus' page with the data bank on work RAM's ($7E),
+ * which the summary's copy leaves it on, and sets the era's label with the
+ * widths the original has there. */
 // $C2:D36C, from $C2:D39E
 /* The slot's header: its window with the time played, and the era label,
  * loaded when it isn't the one already there, drawn and queued. */
@@ -233,8 +228,7 @@ static bool draw_header(Snes *s)
     if (era != menu_save_slot_era(g)) {
         request_era_label(g, era);
         menu_set_widths(s, true, false);
-        if (!menu_call(s, 0xC2D3DF, 0xC2F90C, LOADER_IGNORES))
-            return false;
+        TIMED_AS(g, 0xC2F90C, menu_set_label(g, menu_load_destination(g)));
         set_menu_save_era_width(g, menu_text_reading_pen(g));
     }
     finish_header(g);
@@ -553,8 +547,8 @@ static void leave_summary_read(GameState *g, Platform *pf)
 
 /* ---- The labels --------------------------------------------------------------------------------- */
 
-/* The labels are drawn with the dialog's font by the menus' text loader
- * ($C2:F90C, the original's) from a table of strings: the slots' names
+/* The labels are set in the dialog's font by the typesetter's label setting
+ * (menu_set_label, $C2:F90C) from a table of strings: the slots' names
  * ($FF:D3FE, the first slot's $0E) into the graphic at $7E:6E10, $20 bytes a
  * slot, and the chapters' (the empty slot's the one after the last chapter,
  * $FF:D03E) into $7E:7000, $200 bytes a slot. */
@@ -606,11 +600,12 @@ enum { DESIGN_BITS = 0x07 };
 /* ---- The labels and summaries on the machine --------------------------------------------------- */
 
 /* Each of these runs as the original's JSR reaches it, saving P as it starts:
- * the text loader's call from the deepest of them is compared with every
+ * the label setting's call from the deepest of them is compared with every
  * frame on the stack under it, so each leaves the flags the original's code
- * has before its call to the next, and runs it as the JSR does. The text
- * loader runs with a 16-bit accumulator and index registers; what it doesn't
- * read (tools/dontcare_check.py checks it): */
+ * has before its call to the next, and runs it as the JSR does. The chapter
+ * label calls it through the machine, since what it leaves in X and Y is read
+ * after; the slot's name as C. It runs with a 16-bit accumulator and index
+ * registers; what it doesn't read (tools/dontcare_check.py checks it): */
 enum { TEXT_LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D };
 
 // $C2:D296
@@ -652,8 +647,7 @@ void menu_draw_slot_name(Snes *s)
     ORIGINAL_EFFECT(hw_set_multiplicand(g, slot));
     ORIGINAL_EFFECT((void)hw_multiply_by(g, SLOT_NAME_BYTES));
     menu_set_widths(s, false, false);
-    if (!menu_call(s, 0xC2D2F0, 0xC2F90C, TEXT_LOADER_IGNORES))
-        return;
+    TIMED_AS(g, 0xC2F90C, menu_set_label(g, at));
     /* a shift of 0 is taken as 256 moves */
     uint8_t moves = menu_slot_name_shift(g, slot);
     do

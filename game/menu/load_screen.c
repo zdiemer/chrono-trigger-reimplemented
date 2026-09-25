@@ -32,6 +32,7 @@
 #include "menu/save_screen.h"
 #include "menu/saves.h"
 #include "menu/vram.h"
+#include "menu/typeset.h"
 #include "menu/windows.h"
 #include "original_effects.h"
 #include "platform/audio.h"
@@ -561,9 +562,8 @@ void menu_answer_erase(Snes *s)
     m_rts(s);
 }
 
-/* The question's label: the text loader ($C2:F90C, the original's) draws it
- * into the header's graphic from the JSR at $C2:E85F, with 8-bit A. */
-enum { LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D };
+/* The question's label is set by the typesetter (menu_set_label) into the
+ * header's graphic, with 8-bit A. */
 
 // $C2:E841
 void menu_ask_which_to_carry_on_from(Snes *s)
@@ -572,8 +572,7 @@ void menu_ask_which_to_carry_on_from(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, true, false);
     ask_which_to_carry_on_from(g);
-    if (!menu_call(s, 0xC2E85F, 0xC2F90C, LOADER_IGNORES))
-        return;
+    TIMED_AS(g, 0xC2F90C, menu_set_label(g, QUESTION_LABEL_AT));
     show_question_label(g);
     menu_restore_p(s);
     m_rts(s);

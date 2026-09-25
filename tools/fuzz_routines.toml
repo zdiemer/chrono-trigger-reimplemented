@@ -4707,6 +4707,42 @@ iterations = 2000
 why = "the text engine's page ($0200) and the font tables' bank; the pen's offset in its tile (0-7), a column the line's table has, the glyph's pixels in the font's bank ($FF) and bound for the text's tiles in bank $7E, and a byte of the glyph's 24, as the text engine hands them over (the guards, game/menu/glyphs.c)"
 
 [[routine]]
+name = "menu_draw_glyph_16_colour"
+at = "C2:5F07"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0200", "--db", "C2", "--fill", "7E026A-7E026A=00-07", "--fill", "7E026E-7E026E=00-1E", "--fill", "7E026F-7E026F=00-00", "--fill", "7E0274-7E0274=20-6F", "--fill", "7E0275-7E0275=7E-7E", "--fill", "7E0278-7E0278=FF-FF", "--fill", "7E027B-7E027B=FF-FF"]
+iterations = 2000
+why = "the text page and the font tables' bank; the pen's offset in its tile (0-7), a column the line's table has, the glyph's pixels in the font's bank ($FF) and bound for sixteen-colour tiles in bank $7E, as the setter hands them over (the guards, game/menu/glyphs.c)"
+
+[[routine]]
+name = "menu_text_start"
+at = "C2:57DF"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E020F-7E020F=C0-FF"]
+iterations = 2000
+why = "any string of a table in the ROM (bank $C0 up), any layout: the start reads the string's first byte's place and sets the reading up"
+
+[[routine]]
+name = "menu_text_go_on"
+at = "C2:5823"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0210-7E0210=00-FF", "--fill", "7E0211-7E0211=20-8F", "--fill", "7E0212-7E0212=7E-7E", "--fill", "7E0213-7E0213=01-20", "--fill", "7E0215-7E0215=00-20", "--fill", "7E0230-7E0230=00-03", "--fill", "7E0233-7E0233=C0-FF", "--fill", "7E0239-7E0239=C0-FF", "--fill", "7E023D-7E023D=00-00", "--fill", "7E023E-7E023E=02-02", "--fill", "7E023F-7E023F=00-00"]
+iterations = 2000
+why = "the setting part way: at any of the stops a call leaves (0-$20) and reading from any of the four sources, the string and the insert anywhere in the ROM (so random bytes are read as text: codes, words, names and numbers all come up), the arguments on the text page as the start leaves them, a budget of 1-32 glyphs, the tiles above low RAM in bank $7E; the hex setting random"
+
+[[routine]]
+name = "menu_set_label"
+at = "C2:F90C"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E020C-7E020C=00-1A", "--fill", "7E020D-7E020D=3E-3E", "--fill", "7E020E-7E020E=D0-D0", "--fill", "7E020F-7E020F=FF-FF", "--fill", "7E0DC5-7E0DC5=00-FF", "--fill", "7E0DC6-7E0DC6=20-8F"]
+iterations = 2000
+why = "a label of the menus' chapter table ($FF:D03E, as the load screen's labels are), one of its 27, set at a place above low RAM in bank $7E"
+
+[[routine]]
 name = "menu_draw_glyph"
 at = "C2:5E36"
 subsystem = "menu"
