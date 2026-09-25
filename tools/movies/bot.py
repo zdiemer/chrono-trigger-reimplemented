@@ -122,7 +122,9 @@ class Bot:
         for _ in range(4):
             if self.state.member != member or (self.state.page == 0 and self.state.targeting == 0):
                 return
-            self.press("B", None, 10)
+            # released between presses: B held across them is one press
+            self.press("B", lambda s: s.member != member or (s.page == 0 and s.targeting == 0), 10)
+            self.step(2)
 
     # ---- actions -------------------------------------------------------------------------
 

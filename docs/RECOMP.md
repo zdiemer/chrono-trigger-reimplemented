@@ -6389,6 +6389,12 @@ slots.
 `menu_set_label` carry the glyph drawer's spread (the pen's offset decides
 its shifts), and are timing exceptions like `menu_draw_text`. The graphics and
 the items run once as the menus open, with the screen blanked.
+The new timing moved the `bucket_lavos` route's Lavos Core fight onto a
+frame where the route's bot, backing out of a tech list it had opened
+before the list took input, held B across its four presses, which the game
+reads as one: the list stayed open and the bot, waiting for the command
+menu, waited for good. `tools/movies/bot.py` now releases B between presses,
+and the three long routes pass in the shipping mode.
 
 ### Phase 3, field and events: the party on the map
 
