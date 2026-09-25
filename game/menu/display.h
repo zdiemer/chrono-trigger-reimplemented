@@ -29,9 +29,7 @@ void menu_init_video_memory(Snes *s);
 void menu_fill_memory(Snes *s);
 void menu_copy_to_memory(Snes *s);
 
-/* Window commands */
-void menu_window_set_line_effect(Snes *s);
-bool menu_window_line_effect_is_known(Snes *s);
+/* The window line table */
 void menu_window_build_line_table(Snes *s);
 
 /* Guards */

@@ -69,6 +69,8 @@ ALL = (1 << 10) - 1
 NAMES = [("A", A), ("AH", AH), ("X", X), ("Y", Y), ("N", N), ("V", V), ("Z", Z), ("C", C), ("DB", DB), ("D", D)]
 FLAGS = N | V | Z | C
 AW = A | AH       # the whole accumulator
+# Register names a `keeps` hint uses: P is the four flags the analysis tracks.
+KEEP_BITS = {"A": A, "AH": AH, "X": X, "Y": Y, "P": FLAGS, "DB": DB, "D": D}
 
 # Whether a PHP's byte could be followed to the PLPs that restore it, and why not.
 PAIRED = "paired"
@@ -641,11 +643,16 @@ class Liveness:
         for key in self.an.contexts:
             entries[key[0]].append(key)
         reach = {entry: 0 for entry in entries}
+        # a routine a `keeps` hint describes pulls only its own return address
+        # off its caller's stack: the stacks it switches to aren't the caller's
+        kept = set(self.an.hints.keeps)
+        for entry in kept:
+            reach[entry] = 2
         changed = True
         while changed:
             changed = False
             for entry, keys in entries.items():
-                if reach[entry] == UNBOUNDED:
+                if reach[entry] == UNBOUNDED or entry in kept:
                     continue
                 r = max(self._context_reach(key, reach) for key in keys)
                 if r > MAX_REACH:
@@ -955,9 +962,32 @@ class Liveness:
         return self.func_live_in[target]
 
     def _summary(self, target: int) -> int:
+        kept = self._kept_summary(target)
+        if kept is not None:
+            return kept
         if not self._entries_at(target):
             return ALL
         return self.summary.get(target, 0)
+
+    def _kept_summary(self, target: int) -> int | None:
+        """The summary a `keeps` hint gives a routine, or None: it returns to
+        its caller with the registers it keeps as the caller had them (each
+        live before the call where it is live after), and reads only what it
+        names. A task switch is the case: it saves the task's registers on the
+        task's own stack, runs the other tasks and takes them back off, which
+        the pairing of pushes can't follow across the stacks it switches."""
+        hint = self.an.hints.keeps.get(target)
+        if hint is None:
+            return None
+        kept, read = hint
+        value = 0
+        for name in read:
+            value |= KEEP_BITS[name]
+        for name in kept:
+            for b in range(SEG):
+                if KEEP_BITS[name] >> b & 1:
+                    value |= (1 << b) << (SEG * (b + 1))
+        return value
 
     def _call(self, targets, after: int, key=None, pc: int | None = None, size: int | None = None) -> int:
         """The value before a call to any of targets, given the value after

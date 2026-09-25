@@ -12,6 +12,13 @@
 #   [noreturn]       addrs = [...]                  calls that never come back
 #   [[noreturn]]     addr                           the same, one per entry
 #   [[inline_args]]  addr, size                     bytes after JSR/JSL to skip
+#   [[keeps]]        addr, regs = [...], [reads],   a call that returns with these
+#                    resume                         registers (A AH X Y P DB D) as the
+#                                                   caller had them, reading only `reads`:
+#                                                   a task switch the stack pairing
+#                                                   can't follow; `resume` is where the
+#                                                   caller's turn comes back (checked by
+#                                                   tools/disasm/keeps.py)
 #   [[indirect]]     at, targets = [...]            JMP (abs) / JML [abs] targets, or the
 #                                                   targets of a JSR/JSL whose operand
 #                                                   code writes at run time
@@ -301,6 +308,30 @@ bound = "constant"
 follow = false
 targets = ["C2:826F", "C2:E91B", "C2:83BD", "C2:89F2", "C2:8A45", "C2:8AB2", "C2:8AF5", "C2:8BB8",
            "C2:9016", "C2:CBBF", "C2:CECE", "C2:F657", "C2:F9B2", "C2:FA06", "C2:FA9F"]
+
+# The menus' tasks give up the rest of their frame with JSR $821E, and wait
+# A frames with JSR $822B: each pushes X, Y, P and D on the task's own stack,
+# keeps S in the task's record and runs the other tasks; when the task's turn
+# comes round again, $C2:8206 takes S back, then D, P, Y and X, and returns to
+# the call (A comes back as the scheduler leaves it). DB is neither saved nor
+# set on the way to the next task unless every task has had its turn ($C2:81C1
+# sets it): the next task runs with the yielding task's DB, so it is read.
+# $822B reads A (the frames), with an XBA the check takes as reading both
+# bytes. The pushes and pulls are on stacks the pairing can't follow (TCS at
+# C2:81FA and C2:8208), so without these a task's every register and flag was
+# live across every yield, and after every menu screen's handler, which
+# returns into a yield at C2:826C.
+[[keeps]]
+addr = "C2:821E"
+regs = ["X", "Y", "P", "D"]
+reads = ["DB"]
+resume = "C2:8206"
+
+[[keeps]]
+addr = "C2:822B"
+regs = ["X", "Y", "P", "D"]
+reads = ["A", "AH", "DB"]
+resume = "C2:8206"
 
 [[entry]]
 addr = "C2:826F"

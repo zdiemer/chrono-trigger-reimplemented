@@ -1,0 +1,96 @@
+/* Where the menus proper meet the original's registers: the call the entry
+ * wrappers and the bridges around call-outs make to the original's code, the
+ * run of a sibling entry as the original's JSR reaches it, and the frame of
+ * the original's routines a bridge stands in for. This, the entry wrappers at
+ * the end of each file and the bridges they name, is the machine-aware code
+ * of the menus proper; a build without the original's engine replaces it.
+ *
+ * The menus proper run on their page (D = $0000) with the data bank on work
+ * RAM ($7E), reaching the tilemaps and tables above $2000 through it; unlike
+ * the battle's and the field's code they change the accumulator's and the
+ * index registers' widths from routine to routine, each saving its caller's
+ * as it starts and putting them back as it ends. So a callee must hand back
+ * the widths, the page and the data bank it was called with for a bridge to go
+ * on after it. */
+#ifndef CT_GAME_MENU_BRIDGE_H
+#define CT_GAME_MENU_BRIDGE_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "port/machine.h"
+#include "port/vars_ram.h"
+#include "state.h"
+#include "vars.h"
+
+enum { MENU_PAGE = 0x0000, MENU_DATA_BANK = 0x7E };
+
+/* A call's return is the instruction after it. */
+enum { MENU_JSR_SIZE = 3, MENU_JSL_SIZE = 4 };
+
+/* ---- Calling the original's code ------------------------------------------------------ */
+
+/* Call the original's routine from the JSR (JSL) at `site`, declaring what it
+ * doesn't read of the registers (checked by tools/dontcare_check.py, which
+ * knows these two as it knows m_jsr_dc). True if the callee came back with
+ * the widths, page and data bank it was called with; otherwise the port stops
+ * at the call's return, and the original carries on from the callee's
+ * machine. */
+bool menu_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
+bool menu_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
+
+/* The same for a routine that comes back with widths of its own. */
+bool menu_call_returning(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8, bool x8);
+
+/* The machine a bridge expects back after a call made some other way (a
+ * service's call-out, a sibling run as its JSR reaches it), noted before it. */
+typedef struct {
+    bool a8, x8;
+    uint16_t page;
+    uint8_t bank;
+} MenuMachine;
+
+MenuMachine menu_machine_now(const Snes *s);
+
+/* The same test as menu_call's, after such a call returning to `returns_to`,
+ * and the same stop. */
+bool menu_back(Snes *s, uint32_t returns_to, MenuMachine m);
+
+/* Run a sibling port's registered entry as the original's JSR at `site` calls
+ * `routine`: the return address pushed as the call pushes it, so that the
+ * entry's own call-outs meet the original's where it makes them, and its time
+ * counted as the routine's own. True if it came back to the call's return with
+ * the machine it was called with; otherwise it stopped where the original
+ * carries on, or the port stops at the return. For a machine-shaped sibling:
+ * one whose work is C on the game's state is called as C. */
+bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+
+/* ---- The frame of the routines a bridge stands in for ------------------------------- */
+
+/* Set the accumulator's and the index registers' widths as the original's
+ * code has them at a call (index registers made 8-bit lose their high
+ * bytes). */
+void menu_set_widths(Snes *s, bool a8, bool x8);
+
+/* The P a routine saves as it starts, and puts back as it ends, which puts
+ * its caller's widths back. */
+void menu_save_p(Snes *s);
+void menu_restore_p(Snes *s);
+
+/* The flags the original's code leaves, where they are saved on the stack
+ * under a call-out (a routine's P, pushed as it starts) and compared there:
+ * those of a comparison of `a` with `b`, of a test of `v`'s bits against the
+ * accumulator's `a` (N and V from `v`), and of a load of `v`. The carry and the
+ * overflow are left alone where the operation doesn't set them. Scaffolding
+ * (ORIGINAL_EFFECT). */
+void menu_leave_compare(Snes *s, uint8_t a, uint8_t b);
+void menu_leave_bit_test(Snes *s, uint8_t a, uint8_t v);
+void menu_leave_load(Snes *s, uint8_t v);
+
+/* ---- The guards (registry .guard) ------------------------------------------------------ */
+
+/* On the menus' page; and with the data bank on work RAM's as well. */
+bool menu_on_page(Snes *s);
+bool menu_on_page_work_ram(Snes *s);
+
+#endif

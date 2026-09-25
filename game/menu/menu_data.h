@@ -62,6 +62,34 @@ static inline uint16_t menu_text_code_handler(const GameState *g, uint8_t code)
     return rom_read16(g, 0xC2EFD4u + 2u * code);
 }
 
+/* ---- The windows --------------------------------------------------------------------------- */
+
+/* The window command lists, and the runs of tilemap bytes their commands
+ * copy, in bank $FF (menu/windows.c). `at` is the offset in the bank. */
+static inline uint8_t menu_window_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFF0000u | at); }
+
+/* The strings a window command names by number: where each starts in bank
+ * $FF ($FF:C457, a word each). */
+static inline uint16_t menu_window_string(const GameState *g, uint16_t number)
+{
+    return rom_read16(g, (0xFFC457u + (uint16_t)(2u * number)) & 0xFFFFFFu);
+}
+
+/* A window's inside is a pattern of four rows of four tiles ($C2:EEF5), each
+ * the tile of the style that many past its first. */
+static inline uint8_t menu_window_inside_tile(const GameState *g, unsigned row, unsigned column)
+{
+    return rom_read8(g, 0xC2EEF5u + 4u * row + column);
+}
+
+/* The eight window designs' colours ($FF:B210): eight colours a design, the
+ * upper half of the palette row a window is drawn in. */
+enum { MENU_WINDOW_DESIGN_COLOURS = 8 };
+static inline uint16_t menu_window_design_colour(const GameState *g, uint8_t design, unsigned i)
+{
+    return rom_read16(g, 0xFFB210u + 16u * design + 2u * i);
+}
+
 /* ---- The load screen ---------------------------------------------------------------------- */
 
 /* The values the load screen's per-line effect gives its slot rows ($C2:D044,
@@ -81,6 +109,15 @@ static inline uint16_t menu_portrait_colour(const GameState *g, uint8_t characte
     return rom_read16(g, 0xFF0000u | (uint16_t)(0xCC84u + character * 32u + 2u * i));
 }
 
+/* The chapters of the story a slot's label names, by where the story had got
+ * to ($FF:D024, 26 of them, each the first value of the story's progress in
+ * that chapter). */
+enum { MENU_CHAPTERS = 26 };
+static inline uint8_t menu_chapter_start(const GameState *g, uint8_t chapter) { return rom_read8(g, 0xFFD024u + chapter); }
+
+/* How far right each slot's name label is moved ($C2:D329): pairs of pixels. */
+static inline uint8_t menu_slot_name_shift(const GameState *g, uint8_t slot) { return rom_read8(g, 0xC2D329u + slot); }
+
 /* The era each location is in ($FF:D296): a nibble a location, the even
  * location's in the low half of its byte. */
 static inline uint8_t menu_era_of_location(const GameState *g, uint16_t location)
@@ -93,10 +130,6 @@ static inline uint8_t menu_era_of_location(const GameState *g, uint16_t location
 /* The table of the era labels' graphics ($FF:D396), which the menus' loader
  * takes an era's from. */
 enum { MENU_ERA_LABELS = 0xFFD396 };
-
-/* The cartridge's save RAM: set once a game has been finished ($30:7FE2),
- * which gives the load screen its fourth row. */
-static inline bool menu_saves_finished_game(const GameState *g) { return rom_read8(g, 0x307FE2u) != 0; }
 
 /* ---- Uploads ------------------------------------------------------------------------------ */
 
