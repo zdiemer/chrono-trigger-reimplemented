@@ -51,12 +51,18 @@ static void leave_window(GameState *g, ViewWindow w)
  * can overwrite it (object.h). */
 enum { IN_VIEW_BIT = 0x80, IN_VIEW_BYTE = 0x80, OUT_OF_VIEW_BYTE = 0x00 };
 
-ObjectView object_view(const GameState *g, FieldObject obj)
+static ObjectView view_of(uint8_t stored)
 {
-    uint8_t stored = field_object_in_view(g, obj);
     if (stored & IN_VIEW_BIT)
         return IN_VIEW;
     return stored == OUT_OF_VIEW_BYTE ? OUT_OF_VIEW : OVERWRITTEN_BY_A_LINK;
+}
+
+ObjectView object_view(const GameState *g, FieldObject obj) { return view_of(field_object_in_view(g, obj)); }
+
+ObjectView object_view_past_the_tables(const GameState *g, FieldObject slot)
+{
+    return view_of(field_object_in_view_unchecked(g, slot));
 }
 
 void object_set_in_view(GameState *g, FieldObject obj, bool in_view)

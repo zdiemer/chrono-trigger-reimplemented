@@ -540,20 +540,27 @@ void party_place_left_empty(GameState *g, unsigned place);
 
 /* ---- Past the tables (field/object.c): the original's effects only ----------------------- *
  *
- * The original takes a link to none as an object where a script names an
- * empty party place (event/party.c), and reads the object its byte names: for
- * the game's marker, $80, the slot one past the tables, whose role and
- * position are the next tables' first bytes -- object 0's script position's
- * low byte (the top bit of which reads as disabled), its vertical position
- * (read as the slot's horizontal one) and its horizontal velocity (as the
- * vertical). Marked scaffolding (original_effects.h) reads them here, through
- * the tables' unchecked accessors, so that the gate sees what the original
- * does; the game has nobody there, and a native build reads nothing. */
+ * The original reads slots past the object tables in two cases. It takes a
+ * link to none as an object where a script names an empty party place
+ * (event/party.c), and reads the object its byte names: for the game's
+ * marker, $80, the slot one past the tables, whose role and position are the
+ * next tables' first bytes -- object 0's script position's low byte (the top
+ * bit of which reads as disabled), its vertical position (read as the slot's
+ * horizontal one) and its horizontal velocity (as the vertical). And the
+ * leader's walk looks for objects in its way from the slot past the map's
+ * object count, which it doubles into a byte, so a count of 64 to 127 starts
+ * it on the slots past the tables (field/walk.c). Marked scaffolding
+ * (original_effects.h) reads them here, through the tables' unchecked
+ * accessors, so that the gate sees what the original does; the game has
+ * nobody there, and a native build reads nothing. */
 typedef struct {
     bool disabled;
+    bool looked_at;   /* its in-view byte isn't the out-of-view one */
+    bool solid;
     FieldPosition at;
 } ObjectPastTheTables;
 ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot);
+ObjectView object_view_past_the_tables(const GameState *g, FieldObject slot);
 
 /* The object a dialog's window is placed by, which is waiting on it. */
 void dialog_set_speaker(GameState *g, FieldObject speaker);

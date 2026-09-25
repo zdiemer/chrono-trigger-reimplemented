@@ -1179,6 +1179,13 @@ enum { FIELD_OBJECT_IN_VIEW_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* $80 while the object is inside the window around the screen (active), 0 outside */
 uint8_t field_object_in_view(const GameState *g, unsigned slot);
 void set_field_object_in_view(GameState *g, unsigned slot, uint8_t v);
+/* $80 while the object is inside the window around the screen (active), 0 outside Unchecked, for
+ * marked scaffolding only: a map's object count of 64-127, which the original doubles into a
+ * byte and so starts the leader's walk's search for objects in the way past the tables
+ * (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie
+ * library) */
+uint8_t field_object_in_view_unchecked(const GameState *g, unsigned slot);
+void set_field_object_in_view_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_BATTLE_INFO_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* A byte per object the field hands the battle with the party's and enemies' placement ($C0:0453
@@ -1220,7 +1227,10 @@ void set_field_object_role(GameState *g, unsigned slot, uint8_t v);
  * marked scaffolding only: an empty party place's marker (a byte with the top bit set, $80 as
  * the game makes it) is taken as an object by the moves toward a member, following one and
  * noting one's tile, which read the slot it names past the tables (game/event/party.c,
- * see_what_the_original_finds; 52,898 real calls over the movie library) */
+ * see_what_the_original_finds; 52,898 real calls over the movie library); and a map's object
+ * count of 64-127, which the original doubles into a byte and so starts the leader's walk's
+ * search for objects in the way past the tables (game/field/walk.c,
+ * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
 uint8_t field_object_role_unchecked(const GameState *g, unsigned slot);
 void set_field_object_role_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1305,13 +1315,19 @@ void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v);
  * party place's marker (a byte with the top bit set, $80 as the game makes it) is taken as an
  * object by the moves toward a member, following one and noting one's tile, which read the slot
  * it names past the tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls
- * over the movie library) */
+ * over the movie library); and a map's object count of 64-127, which the original doubles into a
+ * byte and so starts the leader's walk's search for objects in the way past the tables
+ * (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie
+ * library) */
 uint8_t field_object_x_fine_unchecked(const GameState *g, unsigned slot);
 void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Tile X Unchecked, for marked scaffolding only: an empty party place's marker (a byte with the
  * top bit set, $80 as the game makes it) is taken as an object by the moves toward a member,
  * following one and noting one's tile, which read the slot it names past the tables
- * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library) */
+ * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library);
+ * and a map's object count of 64-127, which the original doubles into a byte and so starts the
+ * leader's walk's search for objects in the way past the tables (game/field/walk.c,
+ * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
 uint8_t field_object_x_tile_unchecked(const GameState *g, unsigned slot);
 void set_field_object_x_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1326,13 +1342,18 @@ void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v);
  * (a byte with the top bit set, $80 as the game makes it) is taken as an object by the moves
  * toward a member, following one and noting one's tile, which read the slot it names past the
  * tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie
- * library) */
+ * library); and a map's object count of 64-127, which the original doubles into a byte and so
+ * starts the leader's walk's search for objects in the way past the tables (game/field/walk.c,
+ * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
 uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot);
 void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Tile Y Unchecked, for marked scaffolding only: an empty party place's marker (a byte with the
  * top bit set, $80 as the game makes it) is taken as an object by the moves toward a member,
  * following one and noting one's tile, which read the slot it names past the tables
- * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library) */
+ * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library);
+ * and a map's object count of 64-127, which the original doubles into a byte and so starts the
+ * leader's walk's search for objects in the way past the tables (game/field/walk.c,
+ * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
 uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot);
 void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1376,6 +1397,12 @@ enum { FIELD_OBJECT_SOLID_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Bit 0: the object blocks other objects' moves */
 uint8_t field_object_solid(const GameState *g, unsigned slot);
 void set_field_object_solid(GameState *g, unsigned slot, uint8_t v);
+/* Bit 0: the object blocks other objects' moves Unchecked, for marked scaffolding only: a map's
+ * object count of 64-127, which the original doubles into a byte and so starts the leader's
+ * walk's search for objects in the way past the tables (game/field/walk.c,
+ * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
+uint8_t field_object_solid_unchecked(const GameState *g, unsigned slot);
+void set_field_object_solid_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_ACCELERATING_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Nonzero: the object moves with 16-bit velocities, its Y velocity accelerating each step */

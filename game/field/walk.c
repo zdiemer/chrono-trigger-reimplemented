@@ -295,11 +295,13 @@ static bool is_open(Way way) { return way == WAY_OPEN; }
 
 /* ---- Other objects in the way -------------------------------------------------------------- */
 
-/* Whether an object is one of the party's, by its place. */
-static bool in_the_party(const GameState *g, FieldObject obj)
+/* Whether a slot is one of the party's places, by the byte the party keeps
+ * for it (an empty place's marker is a byte too, which a slot past the
+ * tables can match). */
+static bool in_the_party(const GameState *g, uint8_t offset)
 {
     for (PartyPlace place = PARTY_LEADER; place < PARTY_PLACES; place++)
-        if (field_same_link(party_member_link(g, place), field_link_to(obj)))
+        if (field_link_byte(party_member_link(g, place)) == offset)
             return true;
     return false;
 }
@@ -311,16 +313,54 @@ enum { REACH = 0xE0 };
 static uint16_t magnitude(uint16_t d) { return (d & 0x8000) ? (uint16_t)-d : d; }
 
 // $C0:9965
-/* Whether the object stands close to the point. The original measures a
- * sixteenth short across, and down a sixteenth short too unless the object's
- * slot is past the second member's (its slots' comparisons' borrow). */
-static bool stands_close(const GameState *g, FieldObject obj, MapPoint p)
+/* Whether something at `at` stands close to the point. The original
+ * measures a sixteenth short across, and down a sixteenth short too unless
+ * the slot is past the second member's (its slots' comparisons' borrow). */
+static bool stands_close(const GameState *g, uint8_t offset, FieldPosition at, MapPoint p)
 {
-    FieldPosition at = object_position(g, obj);
     uint8_t second = field_link_byte(party_member_link(g, PARTY_SECOND_MEMBER));
-    uint16_t short_down = field_object_offset(obj) > second ? 0 : 1;
+    uint16_t short_down = offset > second ? 0 : 1;
     uint16_t down = (uint16_t)(at.y - p.y - short_down), across = (uint16_t)(at.x - p.x - 1);
     return magnitude(down) < REACH && magnitude(across) < REACH;
+}
+
+/* What the search met: nothing, or the slot, and whether it stops the
+ * leader. */
+typedef struct {
+    bool met;
+    uint8_t offset;
+    bool solid;
+} Met;
+
+/* For shadow mode: what the original meets past the object tables. A map's
+ * object count of 64 to 127 (the original's search starts from it doubled
+ * in a byte) starts the search on the slots past the tables, where the
+ * original reads the next tables' bytes as a slot's (field/object.h,
+ * object_past_the_tables): whether it is in view from the bytes after the
+ * in-view flags, whether it is disabled from the bytes after the roles, and
+ * where it stands from the objects' vertical positions (read as its
+ * horizontal one) and velocities (as its vertical one). Where one of those
+ * reads as in view, enabled, no party place's and close, the original stops
+ * there: the leader is up against no object (the slot's byte has the top bit
+ * of a link to none), and stopped if the byte after the solidity flags says
+ * solid.
+ *
+ * Whether the game sees it: over the movie library the count is 112 or 123
+ * for a frame or two in six movies (20 calls), while a map changes, and no
+ * slot past the tables reads as close on any of them, so the leader walks as
+ * it would have. A native build looks at the map's objects alone. */
+static void what_the_original_meets_past_the_tables(const GameState *g, FieldObject start, MapPoint p, Met *m)
+{
+    for (FieldObject slot = start; slot >= FIELD_OBJECTS; slot--) {
+        uint8_t offset = field_object_offset(slot);
+        ObjectPastTheTables past = object_past_the_tables(g, slot);
+        if (!past.looked_at || past.disabled || in_the_party(g, offset))
+            continue;
+        if (stands_close(g, offset, past.at, p)) {
+            *m = (Met){ true, offset, past.solid };
+            return;
+        }
+    }
 }
 
 // $C0:9923
@@ -328,23 +368,26 @@ static bool stands_close(const GameState *g, FieldObject obj, MapPoint p)
  * of the map's down, that is in view, not disabled and not one of the party,
  * and stands close. The leader is up against it; it stops the leader if it
  * is solid. The original looks from one slot past the map's objects, and
- * never at slot 0. */
+ * never at slot 0; from past the tables, for a count past them, where it
+ * reads what isn't an object (above). */
 static bool object_stands_in_the_way(GameState *g, MapPoint p)
 {
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_X, p.x));
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_Y, p.y));
-    FieldObject met = 0;
-    bool found = false;
-    for (FieldObject obj = object_search_start(g); obj >= 1 && !found; obj--) {
-        if (object_view(g, obj) == OUT_OF_VIEW || object_disabled(g, obj) || in_the_party(g, obj))
+    FieldObject start = object_search_start(g);
+    Met m = { false, 0, false };
+    if (start >= FIELD_OBJECTS)
+        ORIGINAL_EFFECT(what_the_original_meets_past_the_tables(g, start, p, &m));
+    FieldObject first = start < FIELD_OBJECTS ? start : FIELD_OBJECTS - 1;
+    for (FieldObject obj = first; obj >= 1 && !m.met; obj--) {
+        uint8_t offset = field_object_offset(obj);
+        if (object_view(g, obj) == OUT_OF_VIEW || object_disabled(g, obj) || in_the_party(g, offset))
             continue;
-        if (stands_close(g, obj, p)) {
-            met = obj;
-            found = true;
-        }
+        if (stands_close(g, offset, object_position(g, obj), p))
+            m = (Met){ true, offset, object_solid(g, obj) };
     }
-    set_leader_contact(g, found ? field_link_to(met) : field_no_link());
-    return found && object_solid(g, met);
+    set_leader_contact(g, m.met ? field_link_stored(m.offset) : field_no_link());
+    return m.met && m.solid;
 }
 
 /* ---- The leader's box ------------------------------------------------------------------------ */
@@ -1016,8 +1059,9 @@ void field_recentre_the_screen(Snes *s)
 
 /* The guards. The walk reads the ROM's tables and the requests through the
  * data bank, on the field's page; the leader is an object the tables hold,
- * as the game keeps its place (a word whose high byte is 0); the object
- * slots it looks at are inside the tables; the map's tables are indexed
+ * as the game keeps its place (a word whose high byte is 0); the search for
+ * objects starts somewhere (a count of 0, or 128, would start it on object
+ * 0, which no map has); the map's tables are indexed
  * within their 64 by 64; and the leader stands clear of the 16-bit range's
  * end, where the original's sums carry into the step. */
 enum { WITHIN_THE_MAPS = 0x3F3F, CLEAR_OF_THE_END = 0xFF00 };
@@ -1033,7 +1077,7 @@ static bool walk_fits(const GameState *g)
         return first.x == 0 && first.y == 0;
     }
     FieldPosition at = object_position(g, field_linked_object(leader));
-    return object_search_fits(g) && (field_map_index_mask(g) & ~WITHIN_THE_MAPS) == 0 &&
+    return object_search_start(g) != 0 && (field_map_index_mask(g) & ~WITHIN_THE_MAPS) == 0 &&
            at.x < CLEAR_OF_THE_END && at.y < CLEAR_OF_THE_END;
 }
 
